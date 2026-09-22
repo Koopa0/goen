@@ -385,7 +385,11 @@ func goenAppHasTablePriv(t *testing.T, table, priv string) bool {
 // requires an ownership decision for newly discovered cleanup overlaps.
 func TestEveryDefinerWrittenTableIsRevoked(t *testing.T) {
 	tables := definerWrittenTables(t)
-	insertTables := definerTargetTables(t, `INSERT\s+INTO\s+([a-z_][a-z0-9_]*)`)
+	byVerb := map[string][]string{
+		"INSERT": definerTargetTables(t, `INSERT\s+INTO\s+(?:ONLY\s+)?([a-z_][a-z0-9_]*)`),
+		"UPDATE": definerTargetTables(t, `UPDATE\s+(?:ONLY\s+)?([a-z_][a-z0-9_]*)`),
+		"DELETE": definerTargetTables(t, `DELETE\s+FROM\s+(?:ONLY\s+)?([a-z_][a-z0-9_]*)`),
+	}
 	if len(tables) < 8 {
 		t.Fatalf("only %d definer-written tables found; the catalog query is not "+
 			"finding them and this test would pass on nothing", len(tables))
@@ -400,7 +404,10 @@ func TestEveryDefinerWrittenTableIsRevoked(t *testing.T) {
 				// Inserting ledger functions have an exclusive-door contract.
 				// A cleanup-only definer does not establish that same contract;
 				// its overlap needs a decision before treating callers as forbidden.
-				if !slices.Contains(insertTables, table) {
+				if !slices.Contains(byVerb["INSERT"], table) {
+					if !slices.Contains(byVerb[priv], table) {
+						continue
+					}
 					t.Errorf("unclassified definer/direct-write overlap: %s holds %s on %s; identify its caller and decide exclusive ownership or shared cleanup", role, priv, table)
 					continue
 				}
