@@ -445,8 +445,11 @@ type OutboxMessage struct {
 	Priority    int16
 	AvailableAt time.Time
 	DeliveredAt pgtype.Timestamptz
+	DroppedAt   pgtype.Timestamptz
+	BlockedAt   pgtype.Timestamptz
 	Attempts    int32
 	LastError   pgtype.Text
+	CreatedAt   time.Time
 }
 
 type PasswordResetToken struct {

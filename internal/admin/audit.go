@@ -87,6 +87,8 @@ const (
 	actionGrantStaff               Action = "staff.grant"
 	actionRevokeStaff              Action = "staff.revoke"
 	actionRemoveStaffFactor        Action = "staff.factor.remove"
+	actionDropOutbox               Action = "outbox.drop"
+	actionReplayOutbox             Action = "outbox.replay"
 )
 
 // ErrNoActor is a back-office write that reached the store without a signed-in

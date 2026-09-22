@@ -3811,8 +3811,15 @@ CREATE TABLE outbox_messages (
     priority     smallint NOT NULL DEFAULT 0,
     available_at timestamptz NOT NULL DEFAULT now(),
     delivered_at timestamptz,
+    -- Operator drop: terminal without delivery. delivered_at means the handler
+    -- actually succeeded; dropped_at means staff cleared an undeliverable row.
+    dropped_at   timestamptz,
+    -- Automatic retry has stopped: poison redaction or attempts exhausted.
+    -- Replay clears blocked_at; attempts are not reset.
+    blocked_at   timestamptz,
     attempts     integer NOT NULL DEFAULT 0,
     last_error   text,
+    created_at   timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT outbox_messages_topic_present CHECK (topic ~ '[^[:space:]]'),
     CONSTRAINT outbox_messages_attempts_non_negative CHECK (attempts >= 0),
     CONSTRAINT outbox_messages_priority_non_negative CHECK (priority >= 0)
@@ -3823,13 +3830,17 @@ CREATE UNIQUE INDEX outbox_messages_dedupe_key ON outbox_messages (topic, dedupe
 -- finds the next urgent message with an index scan.
 CREATE INDEX outbox_messages_pending_idx
     ON outbox_messages (priority, available_at)
-    WHERE delivered_at IS NULL;
+    WHERE delivered_at IS NULL AND dropped_at IS NULL AND blocked_at IS NULL;
 
 -- The retention sweep's range; without it the daily delete is a sequential scan
 -- over every message goen has ever sent.
 CREATE INDEX outbox_messages_delivered_at_idx
     ON outbox_messages (delivered_at)
     WHERE delivered_at IS NOT NULL;
+
+CREATE INDEX outbox_messages_stuck_sweep_idx
+    ON outbox_messages (created_at)
+    WHERE delivered_at IS NULL;
 
 CREATE TABLE audit_events (
     id                uuid PRIMARY KEY DEFAULT uuidv7(),

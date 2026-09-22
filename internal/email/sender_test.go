@@ -11,6 +11,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/koopa0/goen/internal/outbox"
 )
 
 // TestTheEnvelopeSenderIsABareAddress asserts on envelopeFrom, because the only
@@ -466,5 +468,39 @@ func TestTheLogSenderNeverWritesTheBody(t *testing.T) {
 					"indistinguishable from a full one:\n%s", line)
 			}
 		})
+	}
+}
+
+// TestInvalidRecipientIsNonRetryableAndOmitsAddress guards that an invalid recipient
+// fails permanently without putting the recipient's address into last_error.
+func TestInvalidRecipientIsNonRetryableAndOmitsAddress(t *testing.T) {
+	t.Parallel()
+
+	s := SMTPSender{Addr: "127.0.0.1:25", From: "shop@goen.example"}
+	const badAddress = "customer@invalid..com"
+	err := s.Send(t.Context(), &Message{To: badAddress, Subject: "test", Body: "body"})
+	if err == nil {
+		t.Fatal("Send accepted an invalid recipient address")
+	}
+	if !outbox.IsNonRetryable(err) {
+		t.Errorf("error %v is not non-retryable; unsendable recipient would retry forever", err)
+	}
+	if strings.Contains(err.Error(), badAddress) {
+		t.Errorf("error %q contains recipient address; last_error must not retain customer address", err)
+	}
+}
+
+// TestInvalidEnvelopeFromIsRetryable guards that a deployment From misconfiguration
+// remains retryable so a valid queued payload survives until configuration is fixed.
+func TestInvalidEnvelopeFromIsRetryable(t *testing.T) {
+	t.Parallel()
+
+	s := SMTPSender{Addr: "127.0.0.1:25", From: "not an address"}
+	err := s.Send(t.Context(), &Message{To: "customer@example.com", Subject: "test", Body: "body"})
+	if err == nil {
+		t.Fatal("Send accepted an invalid From address")
+	}
+	if outbox.IsNonRetryable(err) {
+		t.Errorf("error %v is non-retryable; configuration failures must stay recoverable", err)
 	}
 }

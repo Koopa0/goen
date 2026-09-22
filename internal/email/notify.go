@@ -9,6 +9,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
+	"github.com/koopa0/goen/internal/outbox"
 )
 
 // Notifier turns outbox messages into mail.
@@ -86,9 +87,7 @@ type OrderPlaced struct {
 // SendOrderPlaced sends the confirmation.
 func (n Notifier) SendOrderPlaced(ctx context.Context, p *OrderPlaced) error {
 	if !Valid(p.Email) {
-		// Still an error though no retry can fix it: the outbox reschedules and
-		// Stuck() shows it to a human.
-		return fmt.Errorf("order %s has no usable email address", p.OrderNumber)
+		return outbox.NonRetryable(fmt.Errorf("order %s has no usable email address", p.OrderNumber))
 	}
 
 	ctx = n.locale(ctx, p.Locale)
@@ -130,7 +129,7 @@ type PasswordReset struct {
 // SendPasswordReset mails somebody a link back into their account.
 func (n Notifier) SendPasswordReset(ctx context.Context, p *PasswordReset) error {
 	if !Valid(p.Email) {
-		return errors.New("a password reset has no usable email address")
+		return outbox.NonRetryable(errors.New("a password reset has no usable email address"))
 	}
 
 	ctx = n.locale(ctx, p.Locale)

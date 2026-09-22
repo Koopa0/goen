@@ -507,6 +507,8 @@ var adminNotices = map[string]i18n.Key{
 	"allowfailed":    i18n.KeyAdminNoticeAllowFailed,
 	"reconciled":     i18n.KeyAdminNoticeReconciled,
 	"invoicequeued":  i18n.KeyAdminNoticeInvoiceQueued,
+	"outboxdropped":  i18n.KeyAdminNoticeOutboxDropped,
+	"outboxreplayed": i18n.KeyAdminNoticeOutboxReplayed,
 	"saved":          i18n.KeyAdminNoticeSaved,
 	"sent":           i18n.KeyAdminNoticeSent,
 	"already":        i18n.KeyAdminNoticeAlready,
@@ -1316,13 +1318,21 @@ func (h *Handler) ReconcilePayment(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
-	invoiceQueued, err := h.applyHealthReconciliation(
+	invoiceQueued, outboxAction, err := h.applyHealthReconciliation(
 		r.Context(), healthReconcileSubmissionOf(r),
 	)
 	switch {
 	case err == nil:
 		if invoiceQueued {
 			http.Redirect(w, r, "/admin/health?invoicequeued=1", http.StatusSeeOther)
+			return
+		}
+		switch outboxAction {
+		case "drop":
+			http.Redirect(w, r, "/admin/health?outboxdropped=1", http.StatusSeeOther)
+			return
+		case "replay":
+			http.Redirect(w, r, "/admin/health?outboxreplayed=1", http.StatusSeeOther)
 			return
 		}
 		http.Redirect(w, r, "/admin/health?reconciled=1", http.StatusSeeOther)
@@ -1340,24 +1350,32 @@ type healthReconcileSubmission struct {
 	eventID              string
 	providerRef          string
 	invoiceOperation     string
+	outboxMessageID      string
+	outboxAction         string
 	eventResolutionOK    bool
 	completeResolution   completePaymentResolution
 	completeResolutionOK bool
 	invoiceResolutionOK  bool
+	outboxActionOK       bool
 }
 
 func healthReconcileSubmissionOf(r *http.Request) healthReconcileSubmission {
 	completeResolution, completeResolutionOK := parseCompletePaymentResolution(
 		r.PostFormValue("resolution"),
 	)
+	outboxAction := strings.TrimSpace(r.PostFormValue("outbox_action"))
+	outboxActionOK := outboxAction == "drop" || outboxAction == "replay"
 	return healthReconcileSubmission{
 		eventID:              strings.TrimSpace(r.PostFormValue("event")),
 		providerRef:          strings.TrimSpace(r.PostFormValue("payment")),
 		invoiceOperation:     strings.TrimSpace(r.PostFormValue("invoice_operation")),
+		outboxMessageID:      strings.TrimSpace(r.PostFormValue("outbox_message")),
+		outboxAction:         outboxAction,
 		eventResolutionOK:    paymentEventSafeReleaseSubmitted(r.PostFormValue("event_resolution")),
 		completeResolution:   completeResolution,
 		completeResolutionOK: completeResolutionOK,
 		invoiceResolutionOK:  r.PostFormValue("invoice_resolution") == "confirmed_absent",
+		outboxActionOK:       outboxActionOK,
 	}
 }
 
@@ -1365,6 +1383,7 @@ func (f healthReconcileSubmission) subject() string {
 	subject := ""
 	for name, value := range map[string]string{
 		"event": f.eventID, "payment": f.providerRef, "invoice": f.invoiceOperation,
+		"outbox": f.outboxMessageID,
 	} {
 		if value == "" {
 			continue
@@ -1378,13 +1397,31 @@ func (f healthReconcileSubmission) subject() string {
 }
 
 func (f healthReconcileSubmission) resolutionMatches(subject string) bool {
+	count := 0
+	if f.eventResolutionOK {
+		count++
+	}
+	if f.completeResolutionOK {
+		count++
+	}
+	if f.invoiceResolutionOK {
+		count++
+	}
+	if f.outboxActionOK {
+		count++
+	}
+	if count != 1 {
+		return false
+	}
 	switch subject {
 	case "event":
-		return f.eventResolutionOK && !f.completeResolutionOK && !f.invoiceResolutionOK
+		return f.eventResolutionOK
 	case "payment":
-		return f.completeResolutionOK && !f.eventResolutionOK && !f.invoiceResolutionOK
+		return f.completeResolutionOK
 	case "invoice":
-		return f.invoiceResolutionOK && !f.eventResolutionOK && !f.completeResolutionOK
+		return f.invoiceResolutionOK
+	case "outbox":
+		return f.outboxActionOK
 	default:
 		return false
 	}
@@ -1392,25 +1429,38 @@ func (f healthReconcileSubmission) resolutionMatches(subject string) bool {
 
 func (h *Handler) applyHealthReconciliation(
 	ctx context.Context, form healthReconcileSubmission,
-) (invoiceQueued bool, err error) {
+) (invoiceQueued bool, outboxAction string, err error) {
 	subject := form.subject()
 	if !form.resolutionMatches(subject) {
-		return false, ErrInvalid
+		return false, "", ErrInvalid
 	}
 	switch subject {
 	case "event":
-		return false,
+		return false, "",
 			h.store.ReleasePaymentEventAfterRefundOrAccounting(ctx, form.eventID)
 	case "payment":
-		return false,
+		return false, "",
 			h.store.reconcileCompletePayment(ctx, form.providerRef, form.completeResolution)
 	case "invoice":
 		operationID, err := uuid.Parse(form.invoiceOperation)
 		if err != nil {
-			return true, ErrInvalid
+			return true, "", ErrInvalid
 		}
-		return true,
+		return true, "",
 			h.store.AuthorizeInvoiceAllowanceResend(ctx, operationID)
+	case "outbox":
+		messageID, err := uuid.Parse(form.outboxMessageID)
+		if err != nil {
+			return false, "", ErrInvalid
+		}
+		switch form.outboxAction {
+		case "drop":
+			return false, "drop", h.store.DropOutboxMessage(ctx, messageID)
+		case "replay":
+			return false, "replay", h.store.ReplayOutboxMessage(ctx, messageID)
+		default:
+			return false, "", ErrInvalid
+		}
 	default:
 		panic("admin: validated unknown health reconciliation subject")
 	}

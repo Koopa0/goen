@@ -11,7 +11,10 @@ import (
 
 // WorkerHealthView is what the background workers have and have not done.
 type WorkerHealthView struct {
+	// OutboxPending includes live scheduled, backed-off and leased messages.
 	OutboxPending int64
+	// OutboxReady counts only messages ClaimOutbox can select now.
+	OutboxReady int64
 	// OutboxOldest is how long the most overdue message has been due, not old.
 	OutboxOldest        time.Duration
 	OutboxStuck         int64
@@ -47,7 +50,7 @@ type WorkerHealthView struct {
 // OutboxHealthy reports whether messages are moving; the signal is age.
 func (v *WorkerHealthView) OutboxHealthy() bool {
 	return v.OutboxStuck == 0 &&
-		(v.OutboxPending == 0 || v.OutboxOldest < v.OutboxStaleAfter)
+		(v.OutboxReady == 0 || v.OutboxOldest < v.OutboxStaleAfter)
 }
 
 // SweeperHealthy reports whether abandoned holds are being released.
@@ -95,15 +98,14 @@ func (v *WorkerHealthView) OutboxText(ctx context.Context) string {
 		return fmt.Sprintf(i18n.T(ctx, i18n.KeyHealthOutboxStuck), v.OutboxStuck)
 	case v.OutboxPending == 0:
 		return i18n.T(ctx, i18n.KeyHealthOutboxClear)
+	case v.OutboxReady == 0:
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyHealthOutboxNotYetDue), v.OutboxPending)
 	case v.OutboxOldest >= v.OutboxStaleAfter:
 		return fmt.Sprintf(i18n.T(ctx, i18n.KeyHealthOutboxOverdue),
-			v.OutboxPending, humanDuration(ctx, v.OutboxOldest))
+			v.OutboxReady, humanDuration(ctx, v.OutboxOldest))
 	default:
-		if v.OutboxOldest == 0 {
-			return fmt.Sprintf(i18n.T(ctx, i18n.KeyHealthOutboxNotYetDue), v.OutboxPending)
-		}
 		return fmt.Sprintf(i18n.T(ctx, i18n.KeyHealthOutboxWaiting),
-			v.OutboxPending, humanDuration(ctx, v.OutboxOldest))
+			v.OutboxReady, humanDuration(ctx, v.OutboxOldest))
 	}
 }
 
@@ -172,13 +174,15 @@ func (p UnreconciledCompletePayment) Reason(ctx context.Context) string {
 	return i18n.T(ctx, i18n.KeyAdminHPCompleteOutcomeUnknown)
 }
 
-// StuckMessage is one delivery that has exhausted its attempts.
+// StuckMessage is one delivery that automatic retry has stopped for.
 type StuckMessage struct {
-	Topic     string
-	Key       string
-	Attempts  int32
-	LastError string
-	Since     string
+	ID          string
+	Topic       string
+	Key         string
+	Attempts    int32
+	LastError   string
+	Since       string
+	Recoverable bool
 }
 
 // AttemptsText is how many times it has been tried.

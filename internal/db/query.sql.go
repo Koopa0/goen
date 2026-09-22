@@ -2411,6 +2411,25 @@ func (q *Queries) BestSellersSince(ctx context.Context, arg BestSellersSincePara
 	return items, nil
 }
 
+const blockOutbox = `-- name: BlockOutbox :exec
+UPDATE outbox_messages
+SET blocked_at = now(),
+    available_at = now(),
+    last_error = $2::text
+WHERE id = $1
+`
+
+type BlockOutboxParams struct {
+	ID        uuid.UUID
+	LastError string
+}
+
+// Stop automatic retries for a repairable failure that exhausted its budget.
+func (q *Queries) BlockOutbox(ctx context.Context, arg BlockOutboxParams) error {
+	_, err := q.db.Exec(ctx, blockOutbox, arg.ID, arg.LastError)
+	return err
+}
+
 const boughtTogether = `-- name: BoughtTogether :many
 SELECT
     p.slug,
@@ -3393,10 +3412,14 @@ func (q *Queries) ClaimInvoiceVoid(ctx context.Context, arg ClaimInvoiceVoidPara
 const claimOutbox = `-- name: ClaimOutbox :many
 WITH due AS (
     SELECT id FROM outbox_messages
-    WHERE delivered_at IS NULL AND available_at <= now()
+    WHERE delivered_at IS NULL
+      AND dropped_at IS NULL
+      AND blocked_at IS NULL
+      AND available_at <= now()
+      AND created_at > now() - $2::interval
     -- Priority first, then age: a receipt must not wait for a newsletter.
     ORDER BY priority, available_at
-    LIMIT $2::integer
+    LIMIT $3::integer
     FOR UPDATE SKIP LOCKED
 )
 UPDATE outbox_messages m
@@ -3409,6 +3432,7 @@ RETURNING m.id, m.topic, m.payload, m.attempts
 
 type ClaimOutboxParams struct {
 	Lease     pgtype.Interval
+	Retain    pgtype.Interval
 	BatchSize int32
 }
 
@@ -3424,7 +3448,7 @@ type ClaimOutboxRow struct {
 // available_at forward is what makes the claim exclusive.
 // attempts rises on the CLAIM, or it counts nothing about failures.
 func (q *Queries) ClaimOutbox(ctx context.Context, arg ClaimOutboxParams) ([]ClaimOutboxRow, error) {
-	rows, err := q.db.Query(ctx, claimOutbox, arg.Lease, arg.BatchSize)
+	rows, err := q.db.Query(ctx, claimOutbox, arg.Lease, arg.Retain, arg.BatchSize)
 	if err != nil {
 		return nil, err
 	}
@@ -5334,6 +5358,35 @@ func (q *Queries) DetachProductImage(ctx context.Context, arg DetachProductImage
 	return result.RowsAffected(), nil
 }
 
+const dropStuckOutboxMessage = `-- name: DropStuckOutboxMessage :one
+UPDATE outbox_messages
+SET dropped_at = now(),
+    payload = '{}'::jsonb,
+    available_at = now(),
+    last_error = coalesce(last_error, '') || ' [dropped by operator]'
+WHERE id = $1::uuid
+  AND delivered_at IS NULL
+  AND dropped_at IS NULL
+  AND blocked_at IS NOT NULL
+  AND available_at <= now()
+RETURNING id, topic, dedupe_key
+`
+
+type DropStuckOutboxMessageRow struct {
+	ID        uuid.UUID
+	Topic     string
+	DedupeKey string
+}
+
+// Drops a blocked outbox message: terminal without delivery, payload cleared.
+// Returns the affected row's topic and dedupe_key so the audit event can snapshot them.
+func (q *Queries) DropStuckOutboxMessage(ctx context.Context, id uuid.UUID) (DropStuckOutboxMessageRow, error) {
+	row := q.db.QueryRow(ctx, dropStuckOutboxMessage, id)
+	var i DropStuckOutboxMessageRow
+	err := row.Scan(&i.ID, &i.Topic, &i.DedupeKey)
+	return i, err
+}
+
 const eligibilityFacts = `-- name: EligibilityFacts :many
 SELECT assessment_id, order_id, return_request_id, order_line_id,
        unused, packaging_complete, accessories_complete,
@@ -5521,6 +5574,30 @@ SELECT erase_user($1)
 func (q *Queries) EraseUser(ctx context.Context, pUserID uuid.UUID) error {
 	_, err := q.db.Exec(ctx, eraseUser, pUserID)
 	return err
+}
+
+const expireOutboxPayloads = `-- name: ExpireOutboxPayloads :execrows
+UPDATE outbox_messages
+SET payload = '{}'::jsonb,
+    blocked_at = coalesce(blocked_at, now()),
+    available_at = now(),
+    last_error = CASE
+        WHEN blocked_at IS NULL THEN coalesce(last_error, '') || ' [payload expired]'
+        ELSE last_error
+    END
+WHERE delivered_at IS NULL
+  AND dropped_at IS NULL
+  AND payload <> '{}'::jsonb
+  AND created_at <= now() - $1::interval
+`
+
+// Redact undelivered payloads past Retain from creation time. Never marks sent.
+func (q *Queries) ExpireOutboxPayloads(ctx context.Context, retain pgtype.Interval) (int64, error) {
+	result, err := q.db.Exec(ctx, expireOutboxPayloads, retain)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const expiredReservations = `-- name: ExpiredReservations :many
@@ -8026,6 +8103,29 @@ func (q *Queries) OrderTracking(ctx context.Context, orderID uuid.UUID) ([]Order
 	return items, nil
 }
 
+const outboxDeliveryWindow = `-- name: OutboxDeliveryWindow :one
+SELECT date_part('epoch', created_at + $1::interval - clock_timestamp())::float8 AS seconds_remaining
+FROM outbox_messages
+WHERE id = $2::uuid
+  AND delivered_at IS NULL
+  AND dropped_at IS NULL
+  AND blocked_at IS NULL
+`
+
+type OutboxDeliveryWindowParams struct {
+	Retain pgtype.Interval
+	ID     uuid.UUID
+}
+
+// A serial batch can cross the payload deadline after the claim. Use the
+// database clock again before giving a handler its remaining send budget.
+func (q *Queries) OutboxDeliveryWindow(ctx context.Context, arg OutboxDeliveryWindowParams) (float64, error) {
+	row := q.db.QueryRow(ctx, outboxDeliveryWindow, arg.Retain, arg.ID)
+	var seconds_remaining float64
+	err := row.Scan(&seconds_remaining)
+	return seconds_remaining, err
+}
+
 const passwordResetToken = `-- name: PasswordResetToken :one
 SELECT user_id FROM password_reset_tokens
 WHERE token_hash = $1 AND used_at IS NULL AND expires_at > now()
@@ -8233,6 +8333,30 @@ func (q *Queries) PointsHistory(ctx context.Context, arg PointsHistoryParams) ([
 		return nil, err
 	}
 	return items, nil
+}
+
+const poisonOutbox = `-- name: PoisonOutbox :exec
+UPDATE outbox_messages
+SET attempts = greatest(attempts, $2::integer),
+    blocked_at = now(),
+    available_at = now(),
+    payload = '{}'::jsonb,
+    last_error = $3::text
+WHERE id = $1
+`
+
+type PoisonOutboxParams struct {
+	ID          uuid.UUID
+	MaxAttempts int32
+	LastError   string
+}
+
+// Poison a message-local failure: stop automatic retries, purge payload to eliminate
+// secret retention, and record the fatal error. blocked_at is the terminal marker;
+// delivered_at stays NULL so /admin/health lists it for operator action.
+func (q *Queries) PoisonOutbox(ctx context.Context, arg PoisonOutboxParams) error {
+	_, err := q.db.Exec(ctx, poisonOutbox, arg.ID, arg.MaxAttempts, arg.LastError)
+	return err
 }
 
 const postStoreCredit = `-- name: PostStoreCredit :one
@@ -10005,6 +10129,41 @@ func (q *Queries) ReorderLines(ctx context.Context, orderNumber string) ([]Reord
 		return nil, err
 	}
 	return items, nil
+}
+
+const replayStuckOutboxMessage = `-- name: ReplayStuckOutboxMessage :one
+UPDATE outbox_messages
+SET blocked_at = NULL,
+    available_at = now(),
+    last_error = NULL
+WHERE id = $1::uuid
+  AND delivered_at IS NULL
+  AND dropped_at IS NULL
+  AND blocked_at IS NOT NULL
+  AND payload <> '{}'::jsonb
+  AND created_at > now() - $2::interval
+  AND available_at <= now()
+RETURNING id, topic, dedupe_key
+`
+
+type ReplayStuckOutboxMessageParams struct {
+	ID     uuid.UUID
+	Retain pgtype.Interval
+}
+
+type ReplayStuckOutboxMessageRow struct {
+	ID        uuid.UUID
+	Topic     string
+	DedupeKey string
+}
+
+// Replays a blocked outbox message with a recoverable payload: clears blocked_at,
+// makes it due now, and leaves attempts unchanged so retention is not extended.
+func (q *Queries) ReplayStuckOutboxMessage(ctx context.Context, arg ReplayStuckOutboxMessageParams) (ReplayStuckOutboxMessageRow, error) {
+	row := q.db.QueryRow(ctx, replayStuckOutboxMessage, arg.ID, arg.Retain)
+	var i ReplayStuckOutboxMessageRow
+	err := row.Scan(&i.ID, &i.Topic, &i.DedupeKey)
+	return i, err
 }
 
 const requestEmailVerification = `-- name: RequestEmailVerification :exec
@@ -12279,16 +12438,21 @@ func (q *Queries) StrandedInvoiceClaims(ctx context.Context) ([]StrandedInvoiceC
 }
 
 const stuckOutbox = `-- name: StuckOutbox :many
-SELECT id, topic, dedupe_key, attempts, coalesce(last_error, '') AS last_error, available_at
+SELECT id, topic, dedupe_key, attempts, coalesce(last_error, '') AS last_error,
+       blocked_at AS available_at,
+       (payload <> '{}'::jsonb
+        AND created_at > now() - $2::interval) AS recoverable
 FROM outbox_messages
-WHERE delivered_at IS NULL AND attempts >= $2::integer
-ORDER BY attempts DESC, available_at
+WHERE delivered_at IS NULL
+  AND dropped_at IS NULL
+  AND blocked_at IS NOT NULL
+ORDER BY blocked_at DESC
 LIMIT $1
 `
 
 type StuckOutboxParams struct {
-	Limit       int32
-	MinAttempts int32
+	Limit  int32
+	Retain pgtype.Interval
 }
 
 type StuckOutboxRow struct {
@@ -12297,12 +12461,13 @@ type StuckOutboxRow struct {
 	DedupeKey   string
 	Attempts    int32
 	LastError   string
-	AvailableAt time.Time
+	AvailableAt pgtype.Timestamptz
+	Recoverable pgtype.Bool
 }
 
-// Messages that have failed too many times, for a human to look at.
+// Messages blocked for operator action: poison redaction or exhausted attempts.
 func (q *Queries) StuckOutbox(ctx context.Context, arg StuckOutboxParams) ([]StuckOutboxRow, error) {
-	rows, err := q.db.Query(ctx, stuckOutbox, arg.Limit, arg.MinAttempts)
+	rows, err := q.db.Query(ctx, stuckOutbox, arg.Limit, arg.Retain)
 	if err != nil {
 		return nil, err
 	}
@@ -12317,6 +12482,7 @@ func (q *Queries) StuckOutbox(ctx context.Context, arg StuckOutboxParams) ([]Stu
 			&i.Attempts,
 			&i.LastError,
 			&i.AvailableAt,
+			&i.Recoverable,
 		); err != nil {
 			return nil, err
 		}
@@ -12330,13 +12496,13 @@ func (q *Queries) StuckOutbox(ctx context.Context, arg StuckOutboxParams) ([]Stu
 
 const sweepDeliveredMessages = `-- name: SweepDeliveredMessages :execrows
 DELETE FROM outbox_messages
-WHERE delivered_at IS NOT NULL
-  AND delivered_at < now() - $1::interval
+WHERE (delivered_at IS NOT NULL AND delivered_at < now() - $1::interval)
+   OR (delivered_at IS NULL
+       AND created_at < now() - $1::interval * 2)
 `
 
-// DELIVERED only, and keyed on delivered_at: a message that exhausted its
-// attempts is kept so /admin/health lists it, and available_at moves forward on
-// every claim, so keying on that would delete unsent mail.
+// DELIVERED messages past retain, plus undelivered terminal rows past twice retain
+// from created_at (payload lifetime plus metadata retention).
 func (q *Queries) SweepDeliveredMessages(ctx context.Context, retain pgtype.Interval) (int64, error) {
 	result, err := q.db.Exec(ctx, sweepDeliveredMessages, retain)
 	if err != nil {
@@ -13287,13 +13453,22 @@ func (q *Queries) WishlistItems(ctx context.Context, arg WishlistItemsParams) ([
 }
 
 const workerHealth = `-- name: WorkerHealth :one
+WITH pending_outbox AS (
+    SELECT available_at FROM outbox_messages
+    WHERE delivered_at IS NULL
+      AND dropped_at IS NULL
+      AND blocked_at IS NULL
+      AND created_at > now() - $1::interval
+), ready_outbox AS (
+    SELECT available_at FROM pending_outbox WHERE available_at <= now()
+)
 SELECT
+    (SELECT count(*) FROM pending_outbox)::bigint AS outbox_pending,
+    (SELECT count(*) FROM ready_outbox)::bigint AS outbox_ready,
+    (SELECT coalesce(extract(epoch FROM now() - min(available_at)), 0)
+     FROM ready_outbox)::bigint AS outbox_oldest_seconds,
     (SELECT count(*) FROM outbox_messages
-     WHERE delivered_at IS NULL)::bigint AS outbox_pending,
-    (SELECT greatest(coalesce(extract(epoch FROM now() - min(available_at)), 0), 0)
-     FROM outbox_messages WHERE delivered_at IS NULL)::bigint AS outbox_oldest_seconds,
-    (SELECT count(*) FROM outbox_messages
-     WHERE delivered_at IS NULL AND attempts >= $1::integer)::bigint AS outbox_stuck,
+     WHERE delivered_at IS NULL AND dropped_at IS NULL AND blocked_at IS NOT NULL)::bigint AS outbox_stuck,
     -- The sweeper's own predicate, not merely expired: release_reservation
     -- refuses a committed or fully-funded order's hold, so counting every
     -- expired row reports stock the sweeper is designed never to release, on a
@@ -13350,6 +13525,7 @@ SELECT
 
 type WorkerHealthRow struct {
 	OutboxPending        int64
+	OutboxReady          int64
 	OutboxOldestSeconds  int64
 	OutboxStuck          int64
 	ExpiredHolds         int64
@@ -13364,11 +13540,12 @@ type WorkerHealthRow struct {
 // the claim lease and the backoff push it forward. copurchase_ever_built is
 // separate from the age because max() over an empty table is NULL, which sqlc
 // infers as non-nullable and pgx then refuses to scan: a fresh deployment only.
-func (q *Queries) WorkerHealth(ctx context.Context, maxAttempts int32) (WorkerHealthRow, error) {
-	row := q.db.QueryRow(ctx, workerHealth, maxAttempts)
+func (q *Queries) WorkerHealth(ctx context.Context, outboxRetain pgtype.Interval) (WorkerHealthRow, error) {
+	row := q.db.QueryRow(ctx, workerHealth, outboxRetain)
 	var i WorkerHealthRow
 	err := row.Scan(
 		&i.OutboxPending,
+		&i.OutboxReady,
 		&i.OutboxOldestSeconds,
 		&i.OutboxStuck,
 		&i.ExpiredHolds,

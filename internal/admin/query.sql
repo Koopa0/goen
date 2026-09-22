@@ -1102,13 +1102,22 @@ WHERE id = @question_id AND hidden_at IS NULL;
 -- separate from the age because max() over an empty table is NULL, which sqlc
 -- infers as non-nullable and pgx then refuses to scan: a fresh deployment only.
 -- name: WorkerHealth :one
+WITH pending_outbox AS (
+    SELECT available_at FROM outbox_messages
+    WHERE delivered_at IS NULL
+      AND dropped_at IS NULL
+      AND blocked_at IS NULL
+      AND created_at > now() - @outbox_retain::interval
+), ready_outbox AS (
+    SELECT available_at FROM pending_outbox WHERE available_at <= now()
+)
 SELECT
+    (SELECT count(*) FROM pending_outbox)::bigint AS outbox_pending,
+    (SELECT count(*) FROM ready_outbox)::bigint AS outbox_ready,
+    (SELECT coalesce(extract(epoch FROM now() - min(available_at)), 0)
+     FROM ready_outbox)::bigint AS outbox_oldest_seconds,
     (SELECT count(*) FROM outbox_messages
-     WHERE delivered_at IS NULL)::bigint AS outbox_pending,
-    (SELECT greatest(coalesce(extract(epoch FROM now() - min(available_at)), 0), 0)
-     FROM outbox_messages WHERE delivered_at IS NULL)::bigint AS outbox_oldest_seconds,
-    (SELECT count(*) FROM outbox_messages
-     WHERE delivered_at IS NULL AND attempts >= @max_attempts::integer)::bigint AS outbox_stuck,
+     WHERE delivered_at IS NULL AND dropped_at IS NULL AND blocked_at IS NOT NULL)::bigint AS outbox_stuck,
     -- The sweeper's own predicate, not merely expired: release_reservation
     -- refuses a committed or fully-funded order's hold, so counting every
     -- expired row reports stock the sweeper is designed never to release, on a
@@ -1783,3 +1792,34 @@ JOIN orders o ON o.id = p.order_id;
 -- Checkout generation; paid attribution has a separate capture path.
 -- name: ReleaseCompletePayment :one
 SELECT release_complete_payment(@provider_ref::text);
+
+-- Drops a blocked outbox message: terminal without delivery, payload cleared.
+-- Returns the affected row's topic and dedupe_key so the audit event can snapshot them.
+-- name: DropStuckOutboxMessage :one
+UPDATE outbox_messages
+SET dropped_at = now(),
+    payload = '{}'::jsonb,
+    available_at = now(),
+    last_error = coalesce(last_error, '') || ' [dropped by operator]'
+WHERE id = @id::uuid
+  AND delivered_at IS NULL
+  AND dropped_at IS NULL
+  AND blocked_at IS NOT NULL
+  AND available_at <= now()
+RETURNING id, topic, dedupe_key;
+
+-- Replays a blocked outbox message with a recoverable payload: clears blocked_at,
+-- makes it due now, and leaves attempts unchanged so retention is not extended.
+-- name: ReplayStuckOutboxMessage :one
+UPDATE outbox_messages
+SET blocked_at = NULL,
+    available_at = now(),
+    last_error = NULL
+WHERE id = @id::uuid
+  AND delivered_at IS NULL
+  AND dropped_at IS NULL
+  AND blocked_at IS NOT NULL
+  AND payload <> '{}'::jsonb
+  AND created_at > now() - @retain::interval
+  AND available_at <= now()
+RETURNING id, topic, dedupe_key;

@@ -93,6 +93,8 @@ var actionLabels = map[string]i18n.Key{
 	"staff.grant":                         i18n.KeyAuditStaffGrant,
 	"staff.revoke":                        i18n.KeyAuditStaffRevoke,
 	"staff.factor.remove":                 i18n.KeyAuditStaffFactorRemove,
+	"outbox.drop":                         i18n.KeyAuditOutboxDrop,
+	"outbox.replay":                       i18n.KeyAuditOutboxReplay,
 }
 
 // ActorText is who did it, or a stand-in for an account that is gone.

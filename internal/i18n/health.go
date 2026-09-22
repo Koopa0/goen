@@ -198,8 +198,8 @@ var (
 	})
 
 	KeyHealthOutboxStuck = key("health.outbox.stuck", Message{
-		ZhHant: "%d 封重試次數用盡 —— 不會自己好",
-		En:     "%d have exhausted their retries — these will not recover on their own",
+		ZhHant: "%d 封訊息待人工處理",
+		En:     "%d messages need operator attention",
 	})
 
 	KeyHealthOutboxClear = key("health.outbox.clear", Message{ZhHant: "沒有待送的訊息", En: "Nothing waiting to send"})
@@ -296,5 +296,30 @@ var (
 	KeyAdminNoticeInvoiceQueued = key("admin.notice.invoicequeued", Message{
 		ZhHant: "已留下操作人與請求紀錄，並只授權一次折讓重送。",
 		En:     "The actor and request were recorded, and exactly one Allowance resend was authorized.",
+	})
+
+	KeyAdminNoticeOutboxDropped = key("admin.notice.outboxdropped", Message{
+		ZhHant: "已捨棄卡住的通知信件並清除機密資料。",
+		En:     "Dropped stuck notification email and cleared sensitive payload.",
+	})
+
+	KeyAdminNoticeOutboxReplayed = key("admin.notice.outboxreplayed", Message{
+		ZhHant: "已重新排程通知信件立即重送。",
+		En:     "Replayed notification email for immediate delivery.",
+	})
+
+	KeyAdminHPColAction = key("admin.hp.col.action", Message{
+		ZhHant: "操作",
+		En:     "Action",
+	})
+
+	KeyAdminHPDropOutbox = key("admin.hp.outbox.drop", Message{
+		ZhHant: "捨棄",
+		En:     "Drop",
+	})
+
+	KeyAdminHPReplayOutbox = key("admin.hp.outbox.replay", Message{
+		ZhHant: "重試",
+		En:     "Replay",
 	})
 )

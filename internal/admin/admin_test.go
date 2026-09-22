@@ -63,6 +63,7 @@ func TestWorkerAgeSecondsSaturateInsteadOfWrappingHealthy(t *testing.T) {
 	}
 	view := pages.WorkerHealthView{
 		OutboxPending:        1,
+		OutboxReady:          1,
 		OutboxOldest:         got,
 		OutboxStaleAfter:     OutboxStaleAfter,
 		CopurchaseEverBuilt:  true,
