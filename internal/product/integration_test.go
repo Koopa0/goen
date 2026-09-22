@@ -1430,7 +1430,7 @@ func TestAStaffAnswerStaysStaffWhenTheAuthorChangesRole(t *testing.T) {
 
 	// The customer answers first, or insertion order matches the intended
 	// order by accident.
-	if err := s.Answer(ctx, qID, customer, "我實測過可以。"); err != nil {
+	if err := insertHistoricalCustomerAnswer(ctx, qID, customer, "我實測過可以。"); err != nil {
 		t.Fatalf("customer answer: %v", err)
 	}
 	staffCtx := account.WithUser(ctx, account.User{ID: staff, Role: "admin"})
@@ -1464,7 +1464,7 @@ func TestAStaffAnswerStaysStaffWhenTheAuthorChangesRole(t *testing.T) {
 	}
 }
 
-func TestAStorefrontReplyIsNeverBadgedAsTheShop(t *testing.T) {
+func TestHistoricalCustomerReplyKeepsCustomerAttribution(t *testing.T) {
 	ctx := t.Context()
 	s := product.NewStore(pool)
 	slug := anyActiveProduct(t)
@@ -1474,19 +1474,27 @@ func TestAStorefrontReplyIsNeverBadgedAsTheShop(t *testing.T) {
 		t.Fatalf("ask: %v", err)
 	}
 	qID := latestQuestion(t)
-	if err := s.Answer(ctx, qID, customer, "我自己實測是可以的。"); err != nil {
+	if err := insertHistoricalCustomerAnswer(ctx, qID, customer, "我自己實測是可以的。"); err != nil {
 		t.Fatalf("answer: %v", err)
 	}
 
-	var isStaff bool
-	if err := pool.QueryRow(ctx, `
-		SELECT is_staff FROM product_answers
-		WHERE question_id = $1 ORDER BY created_at DESC, id DESC LIMIT 1`,
-		uuid.MustParse(qID)).Scan(&isStaff); err != nil {
-		t.Fatalf("read back: %v", err)
+	view, err := s.Load(ctx, slug, product.Selection{})
+	if err != nil {
+		t.Fatal(err)
 	}
-	if isStaff {
-		t.Error("a storefront reply was stored as the shop's own answer")
+	found := false
+	for _, q := range view.Questions {
+		for _, answer := range q.Answers {
+			if answer.Body == "我自己實測是可以的。" {
+				found = true
+				if answer.IsStaff {
+					t.Error("historical customer reply gained a staff badge")
+				}
+			}
+		}
+	}
+	if !found {
+		t.Fatal("historical customer reply disappeared")
 	}
 }
 
@@ -1500,7 +1508,7 @@ func TestAHiddenQuestionDisappearsWithItsAnswers(t *testing.T) {
 		t.Fatalf("ask: %v", err)
 	}
 	qID := latestQuestion(t)
-	if err := s.Answer(ctx, qID, customer, "會一起消失的回答"); err != nil {
+	if err := insertHistoricalCustomerAnswer(ctx, qID, customer, "會一起消失的回答"); err != nil {
 		t.Fatalf("answer: %v", err)
 	}
 
@@ -1533,7 +1541,10 @@ func TestAHiddenQuestionDisappearsWithItsAnswers(t *testing.T) {
 		}
 	}
 
-	if err := s.Answer(ctx, qID, customer, "太遲了"); err == nil {
+	staff := newShopAuthor(t)
+	staffCtx := account.WithUser(ctx, account.User{ID: staff, Role: "admin"})
+	back := admin.NewStore(pool, admin.NewRefunder(""), nil, nil)
+	if err := back.AnswerQuestion(staffCtx, qID, staff, "太遲了"); err == nil {
 		t.Error("a hidden question accepted a new answer")
 	}
 }
@@ -1659,7 +1670,7 @@ func TestASingleHiddenAnswerGoesWithoutTakingTheQuestion(t *testing.T) {
 	}
 	qID := latestQuestion(t)
 	for _, body := range []string{"留下來的回答", "會被隱藏的回答"} {
-		if err := s.Answer(ctx, qID, customer, body); err != nil {
+		if err := insertHistoricalCustomerAnswer(ctx, qID, customer, body); err != nil {
 			t.Fatalf("answer %q: %v", body, err)
 		}
 	}
@@ -1931,4 +1942,10 @@ func TestLoadIgnoresThePagesOwnParameters(t *testing.T) {
 			t.Errorf("%v changed the price from %d to %d", sel, clean.PriceCents, got.PriceCents)
 		}
 	}
+}
+
+// Historical answers remain readable even without a customer reply endpoint.
+func insertHistoricalCustomerAnswer(ctx context.Context, questionID, userID, body string) error {
+	_, err := pool.Exec(ctx, `INSERT INTO product_answers (question_id,user_id,body,is_staff) VALUES ($1,$2,$3,false)`, uuid.MustParse(questionID), uuid.MustParse(userID), body)
+	return err
 }
