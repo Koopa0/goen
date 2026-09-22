@@ -803,7 +803,7 @@ templ Order(p layouts.Page, v *OrderView) {
 						@components.ButtonLink(components.ButtonProps{Variant: components.VariantOutline}, templ.SafeURL(v.PaymentRefreshURL)) {
 							{ i18n.T(ctx, i18n.KeyOrderCheckPayment) }
 						}
-						@components.ButtonLink(components.ButtonProps{Variant: components.VariantGhost}, templ.SafeURL("/orders/" + v.Number)) {
+						@components.ButtonLink(components.ButtonProps{Variant: components.VariantGhost}, templ.SafeURL("/orders/"+v.Number)) {
 							{ i18n.T(ctx, i18n.KeyOrderStopChecking) }
 						}
 					</div>
