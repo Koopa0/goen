@@ -179,10 +179,7 @@ func (g *Gateway) currentRefundStatus(ctx context.Context, r ProviderRefund) (Pr
 	if err := ctx.Err(); err != nil {
 		return ProviderRefund{}, err
 	}
-	if current == nil || current.ID != r.ProviderRef || current.PaymentIntent == nil ||
-		current.PaymentIntent.ID != r.PaymentIntentRef || current.Amount != r.AmountCents ||
-		!strings.EqualFold(string(current.Currency), r.Currency) ||
-		(r.ChargeRef != "" && (current.Charge == nil || current.Charge.ID != r.ChargeRef)) {
+	if !currentRefundMatches(current, r) {
 		return ProviderRefund{}, errRefundConflict
 	}
 	status, ok := refundStatus(current.Status)
@@ -192,4 +189,13 @@ func (g *Gateway) currentRefundStatus(ctx context.Context, r ProviderRefund) (Pr
 	r.Status = status
 	r.FailureReason = string(current.FailureReason)
 	return r, nil
+}
+
+func currentRefundMatches(current *stripe.Refund, r ProviderRefund) bool {
+	if current == nil || current.PaymentIntent == nil {
+		return false
+	}
+	return current.ID == r.ProviderRef && current.PaymentIntent.ID == r.PaymentIntentRef &&
+		current.Amount == r.AmountCents && strings.EqualFold(string(current.Currency), r.Currency) &&
+		(r.ChargeRef == "" || (current.Charge != nil && current.Charge.ID == r.ChargeRef))
 }

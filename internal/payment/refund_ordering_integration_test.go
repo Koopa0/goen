@@ -67,6 +67,7 @@ func refundOrderingIntent(t *testing.T) string {
 func refundObservation(refund, intent, status string, created int64, charge bool) map[string]any {
 	ev := refundWebhookEvent("evt_ordering_"+uuid.NewString(), refund, intent, 10000, status, "")
 	ev["created"] = created
+	ev["data"].(map[string]any)["object"].(map[string]any)["charge"] = "ch_ordering"
 	if charge {
 		obj := ev["data"].(map[string]any)["object"]
 		ev["type"] = "charge.refunded"
@@ -174,7 +175,7 @@ func refundLookupGateway(t *testing.T, handler http.Handler) *payment.Gateway {
 }
 
 func TestRefundSameSecondLookup(t *testing.T) {
-	for _, mode := range []string{"failed", "succeeded", "unavailable", "wrong_id", "wrong_intent", "wrong_amount", "wrong_currency", "timeout"} {
+	for _, mode := range []string{"failed", "succeeded", "unavailable", "wrong_id", "wrong_intent", "wrong_amount", "wrong_currency", "wrong_charge", "malformed", "timeout"} {
 		t.Run(mode, func(t *testing.T) {
 			intent, refund := refundOrderingIntent(t), "re_conflict_"+uuid.NewString()
 			var calls atomic.Int32
@@ -191,7 +192,7 @@ func TestRefundSameSecondLookup(t *testing.T) {
 					http.Error(w, "unavailable", http.StatusServiceUnavailable)
 					return
 				}
-				obj := map[string]any{"id": refund, "object": "refund", "payment_intent": intent, "amount": 10000, "currency": "twd", "status": "failed", "failure_reason": "lost_or_stolen_card"}
+				obj := map[string]any{"id": refund, "object": "refund", "payment_intent": intent, "charge": "ch_ordering", "amount": 10000, "currency": "twd", "status": "failed", "failure_reason": "lost_or_stolen_card"}
 				switch mode {
 				case "succeeded":
 					obj["status"] = "succeeded"
@@ -203,6 +204,10 @@ func TestRefundSameSecondLookup(t *testing.T) {
 					obj["amount"] = 9999
 				case "wrong_currency":
 					obj["currency"] = "usd"
+				case "wrong_charge":
+					obj["charge"] = "ch_other"
+				case "malformed":
+					obj["status"] = "unknown"
 				}
 				w.Header().Set("Content-Type", "application/json")
 				if err := json.NewEncoder(w).Encode(obj); err != nil {
@@ -278,7 +283,7 @@ func TestRefundLookupCannotApplyAfterAnotherWorker(t *testing.T) {
 			status = "failed"
 		}
 		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(map[string]any{"id": refund, "payment_intent": intent, "amount": 10000, "currency": "twd", "status": status}); err != nil {
+		if err := json.NewEncoder(w).Encode(map[string]any{"id": refund, "payment_intent": intent, "charge": "ch_ordering", "amount": 10000, "currency": "twd", "status": status}); err != nil {
 			t.Error(err)
 		}
 	}))
@@ -286,7 +291,7 @@ func TestRefundLookupCannotApplyAfterAnotherWorker(t *testing.T) {
 	first := refundHandler(t, refundRoleStore(t, barrier, "refund-first"), g)
 	name := "refund-second-" + uuid.NewString()
 	second := refundHandler(t, refundRoleStore(t, nil, name), g)
-	r1, r2 := signedRefundRequest(t, refundObservation(refund, intent, "succeeded", 100, false)), signedRefundRequest(t, refundObservation(refund, intent, "failed", 100, false))
+	r1, r2 := signedRefundRequest(t, refundObservation(refund, intent, "succeeded", 100, true)), signedRefundRequest(t, refundObservation(refund, intent, "failed", 100, false))
 	done1, done2 := make(chan int, 1), make(chan int, 1)
 	go func() { done1 <- refundResponse(first, r1) }()
 	select {
@@ -386,7 +391,7 @@ func TestRefundBackfillKeepsUnresolvedCorrectionRetryable(t *testing.T) {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(map[string]any{"id": refund, "payment_intent": intent, "amount": 10000, "currency": "twd", "status": "failed"}); err != nil {
+		if err := json.NewEncoder(w).Encode(map[string]any{"id": refund, "payment_intent": intent, "charge": "ch_ordering", "amount": 10000, "currency": "twd", "status": "failed"}); err != nil {
 			t.Error(err)
 		}
 	}))

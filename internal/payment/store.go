@@ -370,23 +370,9 @@ func (w *webhookTx) ReconcileRefund(ctx context.Context, eventID string, r Provi
 	if err := w.q.LockPaymentProviderRef(ctx, r.ProviderRef); err != nil {
 		return fmt.Errorf("lock refund for reconciliation: %w", err)
 	}
-	existing, err := w.q.RefundFactForReconciliation(ctx, r.ProviderRef)
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return fmt.Errorf("read refund for reconciliation: %w", err)
-	}
-	if err == nil && existing.ProviderUpdatedAt.Valid &&
-		existing.ProviderUpdatedAt.Int64 == r.ProviderUpdatedAt && existing.Status != string(r.Status) {
-		if existing.PaymentIntentRef != r.PaymentIntentRef || existing.AmountCents != r.AmountCents ||
-			!strings.EqualFold(existing.Currency, r.Currency) ||
-			(existing.ChargeRef.Valid && existing.ChargeRef.String != r.ChargeRef) ||
-			w.refundLookups >= maxRefundLookups {
-			return errRefundConflict
-		}
-		w.refundLookups++
-		r, err = gateway.currentRefundStatus(ctx, r)
-		if err != nil {
-			return err
-		}
+	r, err := w.resolveRefundConflict(ctx, r, gateway)
+	if err != nil {
+		return err
 	}
 
 	_, err = w.q.ReconcileStripeRefundWebhook(ctx, db.ReconcileStripeRefundWebhookParams{
@@ -405,6 +391,30 @@ func (w *webhookTx) ReconcileRefund(ctx context.Context, eventID string, r Provi
 		return fmt.Errorf("reconcile refund %s from event %s: %w", r.ProviderRef, eventID, err)
 	}
 	return nil
+}
+
+func (w *webhookTx) resolveRefundConflict(ctx context.Context, r ProviderRefund, gateway *Gateway) (ProviderRefund, error) {
+	existing, err := w.q.RefundFactForReconciliation(ctx, r.ProviderRef)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return r, nil
+	}
+	if err != nil {
+		return ProviderRefund{}, fmt.Errorf("read refund for reconciliation: %w", err)
+	}
+	if !existing.ProviderUpdatedAt.Valid || existing.ProviderUpdatedAt.Int64 != r.ProviderUpdatedAt || existing.Status == string(r.Status) {
+		return r, nil
+	}
+	if !refundFactMatches(existing, r) || w.refundLookups >= maxRefundLookups {
+		return ProviderRefund{}, errRefundConflict
+	}
+	w.refundLookups++
+	return gateway.currentRefundStatus(ctx, r)
+}
+
+func refundFactMatches(existing db.RefundFactForReconciliationRow, r ProviderRefund) bool {
+	return existing.PaymentIntentRef == r.PaymentIntentRef && existing.AmountCents == r.AmountCents &&
+		strings.EqualFold(existing.Currency, r.Currency) &&
+		(!existing.ChargeRef.Valid || existing.ChargeRef.String == r.ChargeRef)
 }
 
 // MarkRefundWebhookReconciled records that a charge-level signal was seen.
