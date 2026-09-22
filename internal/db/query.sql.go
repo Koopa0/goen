@@ -898,6 +898,7 @@ SELECT
     coalesce(pd.pickup_store_name, '') AS pickup_store_name,
     coalesce(ip.invoice_type, '') AS invoice_type,
     coalesce(ip.carrier_code, '') AS invoice_carrier,
+ coalesce(ip.donation_code, '') AS invoice_donation_code,
     coalesce(ip.tax_id, '') AS invoice_tax_id,
     order_is_committed(o.id) AS committed,
     order_amount_owed(o.id) AS owed_cents
@@ -908,33 +909,34 @@ WHERE o.order_number = $1
 `
 
 type AdminOrderByNumberRow struct {
-	ID                 uuid.UUID
-	OrderNumber        string
-	FulfillmentStatus  string
-	PlacedAt           time.Time
-	ShippingCents      int64
-	DiscountCents      int64
-	TaxCents           int64
-	ShippingMethodName string
-	DiscountReason     string
-	CustomerNote       pgtype.Text
-	StaffNote          pgtype.Text
-	SubtotalCents      int64
-	Email              string
-	RecipientName      string
-	Phone              string
-	PostalCode         string
-	City               string
-	District           string
-	Street             string
-	PickupBrand        string
-	PickupStoreCode    string
-	PickupStoreName    string
-	InvoiceType        string
-	InvoiceCarrier     string
-	InvoiceTaxID       string
-	Committed          bool
-	OwedCents          int64
+	ID                  uuid.UUID
+	OrderNumber         string
+	FulfillmentStatus   string
+	PlacedAt            time.Time
+	ShippingCents       int64
+	DiscountCents       int64
+	TaxCents            int64
+	ShippingMethodName  string
+	DiscountReason      string
+	CustomerNote        pgtype.Text
+	StaffNote           pgtype.Text
+	SubtotalCents       int64
+	Email               string
+	RecipientName       string
+	Phone               string
+	PostalCode          string
+	City                string
+	District            string
+	Street              string
+	PickupBrand         string
+	PickupStoreCode     string
+	PickupStoreName     string
+	InvoiceType         string
+	InvoiceCarrier      string
+	InvoiceDonationCode string
+	InvoiceTaxID        string
+	Committed           bool
+	OwedCents           int64
 }
 
 // discount_reason is JOINED and not snapshotted: coupons.code is never updated
@@ -967,6 +969,7 @@ func (q *Queries) AdminOrderByNumber(ctx context.Context, orderNumber string) (A
 		&i.PickupStoreName,
 		&i.InvoiceType,
 		&i.InvoiceCarrier,
+		&i.InvoiceDonationCode,
 		&i.InvoiceTaxID,
 		&i.Committed,
 		&i.OwedCents,
@@ -4184,16 +4187,17 @@ func (q *Queries) CreateHeroSlide(ctx context.Context, arg CreateHeroSlideParams
 
 const createInvoicePreference = `-- name: CreateInvoicePreference :exec
 INSERT INTO invoice_preferences
-    (order_id, invoice_type, carrier_code, tax_id, customer_name, customer_email)
+    (order_id, invoice_type, carrier_code, donation_code, tax_id, customer_name, customer_email)
 VALUES
-    ($1, $2::text, nullif($3::text, ''),
-     nullif($4::text, ''), $5::text, $6::text)
+    ($1, $2::text, nullif($3::text, ''), nullif($4::text, ''),
+     nullif($5::text, ''), $6::text, $7::text)
 `
 
 type CreateInvoicePreferenceParams struct {
 	OrderID       uuid.UUID
 	InvoiceType   string
 	CarrierCode   string
+	DonationCode  string
 	TaxID         string
 	CustomerName  string
 	CustomerEmail string
@@ -4204,6 +4208,7 @@ func (q *Queries) CreateInvoicePreference(ctx context.Context, arg CreateInvoice
 		arg.OrderID,
 		arg.InvoiceType,
 		arg.CarrierCode,
+		arg.DonationCode,
 		arg.TaxID,
 		arg.CustomerName,
 		arg.CustomerEmail,

@@ -614,13 +614,14 @@ func (h *Handler) checkoutSubmission(
 	}
 
 	inv := Invoice{
-		Type:        invoicepkg.Preference(r.PostFormValue("invoice_type")),
-		Carrier:     r.PostFormValue("invoice_carrier"),
-		CompanyName: r.PostFormValue("invoice_company_name"),
-		TaxID:       r.PostFormValue("invoice_tax_id"),
+		Type:         invoicepkg.Preference(r.PostFormValue("invoice_type")),
+		Carrier:      r.PostFormValue("invoice_carrier"),
+		DonationCode: r.PostFormValue("invoice_donation_code"),
+		CompanyName:  r.PostFormValue("invoice_company_name"),
+		TaxID:        r.PostFormValue("invoice_tax_id"),
 	}
 	view.Invoice = pages.CheckoutInvoice{
-		Type: inv.Type, Carrier: inv.Carrier,
+		Type: inv.Type, Carrier: inv.Carrier, DonationCode: inv.DonationCode,
 		CompanyName: inv.CompanyName, TaxID: inv.TaxID,
 	}
 

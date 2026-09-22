@@ -71,6 +71,7 @@ SELECT
     coalesce(pd.pickup_store_name, '') AS pickup_store_name,
     coalesce(ip.invoice_type, '') AS invoice_type,
     coalesce(ip.carrier_code, '') AS invoice_carrier,
+ coalesce(ip.donation_code, '') AS invoice_donation_code,
     coalesce(ip.tax_id, '') AS invoice_tax_id,
     order_is_committed(o.id) AS committed,
     order_amount_owed(o.id) AS owed_cents

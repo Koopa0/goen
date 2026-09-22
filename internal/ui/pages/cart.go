@@ -576,10 +576,11 @@ func (s OrderShipment) Delivered() bool { return s.DeliveredAt != "" }
 
 // CheckoutInvoice carries the invoice choice back into a refused form.
 type CheckoutInvoice struct {
-	Type        invoice.Preference
-	Carrier     string
-	CompanyName string
-	TaxID       string
+	Type         invoice.Preference
+	Carrier      string
+	DonationCode string
+	CompanyName  string
+	TaxID        string
 }
 
 // Is reports whether this is the chosen type.
@@ -702,3 +703,30 @@ func (v *CheckoutView) HasCoupon() bool {
 
 // CouponDiscount is what it takes off, as a negative figure.
 func (v *CheckoutView) CouponDiscount() string { return "-" + twd(v.CouponDiscountCents) }
+
+// NeedsDonationCode keeps donation details off carrier invoices.
+func (i CheckoutInvoice) NeedsDonationCode() bool { return i.Chosen() == invoice.PreferenceDonate }
+
+// CarrierLabel distinguishes the two incompatible barcode formats.
+func (i CheckoutInvoice) CarrierLabel(ctx context.Context) string {
+	if i.Chosen() == invoice.PreferenceCitizen {
+		return i18n.T(ctx, i18n.KeyInvoiceCitizen)
+	}
+	return i18n.T(ctx, i18n.KeyFieldCarrier)
+}
+
+// CarrierLimit admits the complete barcode for the chosen carrier.
+func (i CheckoutInvoice) CarrierLimit() string {
+	if i.Chosen() == invoice.PreferenceCitizen {
+		return "16"
+	}
+	return "8"
+}
+
+// CarrierExample shows the selected provider format without filling a value.
+func (i CheckoutInvoice) CarrierExample() string {
+	if i.Chosen() == invoice.PreferenceCitizen {
+		return "AB12345678901234"
+	}
+	return "/ABC+123"
+}

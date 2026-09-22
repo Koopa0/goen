@@ -549,6 +549,21 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 		accept:     `INSERT INTO invoice_preferences (order_id, invoice_type, carrier_code, customer_name, customer_email) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'mobile_carrier', '/ABC+123', '測試', 'test@example.com');`,
 	},
 	{
+		constraint: "invoice_preferences_citizen_carrier_shape",
+		reject:     `INSERT INTO invoice_preferences (order_id, invoice_type, carrier_code, customer_name, customer_email) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'citizen_carrier', 'AB1234567890123', 'Buyer', 'test@example.com');`,
+		accept:     `INSERT INTO invoice_preferences (order_id, invoice_type, carrier_code, customer_name, customer_email) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'citizen_carrier', 'AB12345678901234', 'Buyer', 'test@example.com');`,
+	},
+	{
+		constraint: "invoice_preferences_donation_code_shape",
+		reject:     `INSERT INTO invoice_preferences (order_id, invoice_type, donation_code, customer_name, customer_email) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'donation', NULL, 'Buyer', 'test@example.com');`,
+		accept:     `INSERT INTO invoice_preferences (order_id, invoice_type, donation_code, customer_name, customer_email) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'donation', '00123', 'Buyer', 'test@example.com');`,
+	},
+	{
+		constraint: "invoice_preferences_donation_code_valid",
+		reject:     `INSERT INTO invoice_preferences (order_id, invoice_type, donation_code, customer_name, customer_email) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'donation', '12A', 'Buyer', 'test@example.com');`,
+		accept:     `INSERT INTO invoice_preferences (order_id, invoice_type, donation_code, customer_name, customer_email) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'donation', '00123', 'Buyer', 'test@example.com');`,
+	},
+	{
 		constraint: "invoice_preferences_type_known",
 		reject:     `INSERT INTO invoice_preferences (order_id, invoice_type, carrier_code, tax_id, customer_name, customer_email) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'paper', NULL, NULL, '測試', 'test@example.com');`,
 		accept:     `INSERT INTO invoice_preferences (order_id, invoice_type, carrier_code, tax_id, customer_name, customer_email) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'member_carrier', NULL, NULL, '測試', 'test@example.com');`,
