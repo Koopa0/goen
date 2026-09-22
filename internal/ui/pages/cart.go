@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/a-h/templ"
+
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/pickup"
@@ -171,6 +173,71 @@ type CheckoutView struct {
 	// The cart package creates it; the page only carries it back unchanged.
 	QuoteID        string
 	IdempotencyKey string
+	// Map is the carrier's hosted store picker, or the zero value where no
+	// carrier is configured and the form asks for a chain alone.
+	Map CheckoutMapForm
+	// PickupNonce is the browser-bound secret that decides whether the store
+	// above was honoured. It travels to the carrier in ExtraData and back in
+	// the URL, and it is checked against a cookie this browser alone holds.
+	PickupNonce string
+	// PickupStoreAddr is DISPLAY ONLY. It is read from the URL for the summary
+	// the shopper reads before paying, is never a hidden field, is never
+	// posted, and is never stored: the schema keeps a code and a name.
+	PickupStoreAddr string
+	// PickupRefused says a store arrived that this browser cannot vouch for.
+	// The page says so and echoes none of what arrived.
+	PickupRefused bool
+}
+
+// mapFormID names the sibling form the pickup section's button submits. It is
+// a constant because the button and the form must agree: a typo on either side
+// leaves a control that submits the checkout form to goen instead.
+const mapFormID = "pickup-map-form"
+
+// checkoutStoreButtonAttrs is what the store button carries: the sibling form
+// it submits, and the refusal state of the store itself. The button is the
+// control a store refusal belongs to, because a store is chosen through the
+// picker this opens rather than typed into a field.
+func checkoutStoreButtonAttrs(invalid string, refused bool) templ.Attributes {
+	attrs := templ.Attributes{"form": mapFormID, "aria-invalid": invalid}
+	if refused {
+		attrs["aria-describedby"] = "pickup_store-error"
+	}
+	return attrs
+}
+
+// CheckoutMapForm is the carrier's hosted store picker, as the one sibling form
+// that posts to it. Every field here is a parameter ECPay's map documents; the
+// struct exists so the template cannot invent an eighth one carrying something
+// the shopper typed.
+type CheckoutMapForm struct {
+	Action          string
+	MerchantID      string
+	MerchantTradeNo string
+	LogisticsType   string
+	// LogisticsSubType is the chain, in the spelling the merchant's own
+	// contract uses. B2C and C2C spell the same chain differently.
+	LogisticsSubType string
+	IsCollection     string
+	ServerReplyURL   string
+	ExtraData        string
+	// Device is sent only to a phone, and only 7-ELEVEN reads it.
+	Device string
+}
+
+// Offered reports whether there is a picker to send the shopper to.
+func (f CheckoutMapForm) Offered() bool { return f.Action != "" }
+
+// OffersTheStoreMap reports whether this render shows the picker's button.
+func (v *CheckoutView) OffersTheStoreMap() bool {
+	return v.ToPickupPoint() && v.Map.Offered()
+}
+
+// HasPickupStore reports whether a store has been chosen and honoured. Both
+// halves, because order_private_data refuses a row carrying one without the
+// other.
+func (v *CheckoutView) HasPickupStore() bool {
+	return v.Address.PickupStoreCode != "" && v.Address.PickupStoreName != ""
 }
 
 // checkoutFieldHint tells a browser what one helper-rendered checkout control
@@ -194,14 +261,29 @@ var checkoutFieldHints = map[string]checkoutFieldHint{
 	"postal_code": {Autocomplete: "postal-code", InputMode: "numeric"},
 	"city":        {Autocomplete: "address-level1"},
 	"district":    {Autocomplete: "address-level2"},
-	// A convenience-store code is not an address. It may begin with a letter,
-	// so a numeric keyboard would make valid stores unreachable.
-	"pickup_store_code": {
-		Autocomplete: "off", AutoCapitalize: "characters", SpellCheck: "false",
-	},
 }
 
 func checkoutHintsFor(name string) checkoutFieldHint { return checkoutFieldHints[name] }
+
+// checkoutChoiceSwap is what turns a chooser into the choice itself where
+// scripting is on: changing it sends exactly what its 更新 button sends —
+// everything typed into the form, plus the name of the chooser — and puts the
+// re-rendered form back in place. The request is the same POST, so the write
+// face is unchanged and the button below remains the path with scripting off.
+//
+// show:none keeps the swap where the customer is looking: they pressed a radio
+// half way down the form to reveal a field beside it.
+func checkoutChoiceSwap(which string) templ.Attributes {
+	return templ.Attributes{
+		"hx-include": "#checkout-form",
+		"hx-post":    "/checkout",
+		"hx-select":  "#checkout-region",
+		"hx-swap":    "outerHTML show:none",
+		"hx-target":  "#checkout-region",
+		"hx-trigger": "change",
+		"hx-vals":    `{"update":"` + which + `"}`,
+	}
+}
 
 // InvoiceChoice is one option in the invoice-type radio group.
 type InvoiceChoice struct {
@@ -235,9 +317,19 @@ type PickupBrandChoice struct {
 	Label string
 }
 
-// PickupBrandChoices is what any form collecting a pickup store offers.
+// PickupBrandChoices is every chain the shop can accept, which is what the back
+// office offers: an order already placed at one of them has to stay correctable.
 func PickupBrandChoices() []PickupBrandChoice {
-	brands := pickup.Offered()
+	return choicesFor(pickup.Offered())
+}
+
+// CheckoutPickupBrandChoices is the part of that set a shopper may choose today:
+// the two chains whose own store picker the shop will integrate first.
+func CheckoutPickupBrandChoices() []PickupBrandChoice {
+	return choicesFor([]pickup.Brand{pickup.SevenEleven, pickup.FamilyMart})
+}
+
+func choicesFor(brands []pickup.Brand) []PickupBrandChoice {
 	out := make([]PickupBrandChoice, 0, len(brands))
 	for _, b := range brands {
 		out = append(out, PickupBrandChoice{Value: b, Label: pickupBrandLabel(b)})
@@ -276,13 +368,21 @@ type Delivery struct {
 }
 
 // IsPickup reports whether this order is collected from a convenience store.
-func (d Delivery) IsPickup() bool { return d.PickupStoreCode != "" }
+// The chain is the destination: the store behind it is filled in by the
+// carrier's picker, and is absent on an order placed before one exists.
+func (d Delivery) IsPickup() bool { return d.PickupBrand != "" }
 
 // Line is the destination as one line a person can read.
 func (d Delivery) Line() string {
 	if d.IsPickup() {
-		return pickupBrandLabel(d.PickupBrand) + " " + d.PickupStoreName +
-			"(" + d.PickupStoreCode + ")"
+		line := pickupBrandLabel(d.PickupBrand)
+		if d.PickupStoreName != "" {
+			line += " " + d.PickupStoreName
+		}
+		if d.PickupStoreCode != "" {
+			line += "(" + d.PickupStoreCode + ")"
+		}
+		return line
 	}
 	return strings.TrimSpace(d.PostalCode + " " + d.City + d.District + d.Street)
 }

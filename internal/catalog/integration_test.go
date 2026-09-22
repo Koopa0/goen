@@ -861,6 +861,18 @@ func TestSearchFindsAProductByItsEnglishName(t *testing.T) {
 	}
 }
 
+// Specifications are searched in both languages, and a token present only in
+// product_specs matches the product.
+func TestSearchFindsAProductByItsSpecification(t *testing.T) {
+	code, body := get(t, "/search?q=5000mAh")
+	if code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", code)
+	}
+	if !strings.Contains(body, "Pixelight 9 Pro 5G") {
+		t.Errorf("searching spec value %q did not find %q", "5000mAh", "Pixelight 9 Pro 5G")
+	}
+}
+
 // A product is on /deals when ANY active variant carries a discount, while a
 // tile is priced on the cheapest BUYABLE variant — a different variant whenever
 // the discounted one is dearer or sold out. Every product in the seed satisfies

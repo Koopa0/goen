@@ -89,7 +89,8 @@ ORDER BY pv.position, pv.id;
 SELECT o.name AS option_name,
        localized_name(o.name, o.name_en, @locale::text) AS option_label,
        v.value,
-       localized_name(v.value, v.value_en, @locale::text) AS value_label
+       localized_name(v.value, v.value_en, @locale::text) AS value_label,
+       coalesce(v.swatch_hex, '') AS swatch_hex
 FROM product_options o
 JOIN product_option_values v ON v.option_id = o.id
 WHERE o.product_id = $1

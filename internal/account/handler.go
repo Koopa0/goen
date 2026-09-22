@@ -166,8 +166,12 @@ func (h *Handler) SignIn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !h.startSession(w, r, u) {
+	started, adoptFailed := h.startSession(w, r, u)
+	if !started {
 		return
+	}
+	if adoptFailed {
+		next = cartRecoveryLanding(next)
 	}
 	http.Redirect(w, r, next, http.StatusSeeOther) //nolint:gosec // G710: bounded by web.SitePathOr
 }
@@ -234,8 +238,12 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 		h.log.WarnContext(r.Context(), "request verification at registration", "error", err)
 	}
 
-	if !h.startSession(w, r, u) {
+	started, adoptFailed := h.startSession(w, r, u)
+	if !started {
 		return
+	}
+	if adoptFailed {
+		next = cartRecoveryLanding(next)
 	}
 	http.Redirect(w, r, next, http.StatusSeeOther) //nolint:gosec // G710: bounded by web.SitePathOr
 }
@@ -304,6 +312,45 @@ func accountNotice(r *http.Request) string {
 	return ""
 }
 
+// CartRecoveryPage serves GET /account/cart-recovery.
+func (h *Handler) CartRecoveryPage(w http.ResponseWriter, r *http.Request) {
+	if _, ok := FromContext(r.Context()); !ok {
+		http.Redirect(w, r, "/signin", http.StatusSeeOther)
+		return
+	}
+	next := web.SitePathOr(r.URL.Query().Get("next"), "/account")
+	web.Render(w, r, h.log, http.StatusOK, pages.CartRecovery(
+		pages.CartRecoveryMeta(r.Context()), pages.CartRecoveryView{
+			Next:   next,
+			Notice: i18n.T(r.Context(), i18n.KeyCartMergeFailed),
+			Retry:  i18n.T(r.Context(), i18n.KeyCartMergeRetry),
+		}))
+}
+
+// RetryCartAdoption serves POST /account/cart/retry.
+func (h *Handler) RetryCartAdoption(w http.ResponseWriter, r *http.Request) {
+	u, ok := FromContext(r.Context())
+	if !ok {
+		http.Redirect(w, r, "/signin", http.StatusSeeOther)
+		return
+	}
+	if err := web.ParseForm(w, r); err != nil {
+		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
+		return
+	}
+	next := web.SitePathOr(r.PostFormValue("next"), "/account")
+	if h.carts != nil {
+		if cartID, ok := h.carts.CartIDForRequest(r.Context(), r); ok {
+			if err := h.store.AdoptCart(r.Context(), u.ID, cartID); err != nil {
+				h.log.ErrorContext(r.Context(), "retry adopt cart", "error", err, "user_id", u.ID)
+				http.Redirect(w, r, cartRecoveryLanding(next), http.StatusSeeOther)
+				return
+			}
+		}
+	}
+	http.Redirect(w, r, next, http.StatusSeeOther) //nolint:gosec // G710: bounded by web.SitePathOr
+}
+
 // OrderPage redirects GET /account/orders/{number} to the canonical order page.
 func (h *Handler) OrderPage(w http.ResponseWriter, r *http.Request) {
 	if _, ok := FromContext(r.Context()); !ok {
@@ -338,12 +385,12 @@ func (h *Handler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/account?saved=1", http.StatusSeeOther)
 }
 
-func (h *Handler) startSession(w http.ResponseWriter, r *http.Request, u User) bool {
+func (h *Handler) startSession(w http.ResponseWriter, r *http.Request, u User) (started, adoptFailed bool) {
 	token, err := h.store.StartSession(r.Context(), u.ID, r.UserAgent(), clientIP(r))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "start session", "error", err)
 		h.serverError(w, r)
-		return false
+		return false, false
 	}
 	SetSessionCookie(w, token, h.secure)
 
@@ -351,11 +398,12 @@ func (h *Handler) startSession(w http.ResponseWriter, r *http.Request, u User) b
 	if h.carts != nil {
 		if cartID, ok := h.carts.CartIDForRequest(r.Context(), r); ok {
 			if err := h.store.AdoptCart(r.Context(), u.ID, cartID); err != nil {
+				adoptFailed = true
 				h.log.ErrorContext(r.Context(), "adopt cart", "error", err, "user_id", u.ID)
 			}
 		}
 	}
-	return true
+	return true, adoptFailed
 }
 
 func clientIP(r *http.Request) string {
@@ -376,6 +424,15 @@ func urlQueryEscape(s string) string {
 		}
 	}
 	return string(b)
+}
+
+func cartRecoveryLanding(continuation string) string {
+	next := web.SitePathOr(continuation, "/account")
+	u := &url.URL{Path: "/account/cart-recovery"}
+	q := u.Query()
+	q.Set("next", next)
+	u.RawQuery = q.Encode()
+	return u.String()
 }
 
 func (h *Handler) serverError(w http.ResponseWriter, r *http.Request) {
@@ -757,10 +814,15 @@ func (h *Handler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !h.startSession(w, r, u) {
+	started, adoptFailed := h.startSession(w, r, u)
+	if !started {
 		return
 	}
-	http.Redirect(w, r, state.Next, http.StatusSeeOther)
+	next := state.Next
+	if adoptFailed {
+		next = cartRecoveryLanding(next)
+	}
+	http.Redirect(w, r, next, http.StatusSeeOther)
 }
 
 // UnlinkGoogle serves POST /account/google/unlink.

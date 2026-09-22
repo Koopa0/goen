@@ -146,7 +146,7 @@ func (s *Store) buildVariantView(
 			labels[o.OptionName] = o.OptionLabel
 		}
 		groups[o.OptionName] = append(groups[o.OptionName],
-			OptionChoice{Value: o.Value, Label: o.ValueLabel})
+			OptionChoice{Value: o.Value, Label: o.ValueLabel, SwatchHex: o.SwatchHex})
 	}
 
 	sel = sel.OnlyOptionsOf(variants)
@@ -190,6 +190,7 @@ func (s *Store) buildVariantView(
 				Selected:  v.Selected,
 				Available: v.Available,
 				Href:      v.Href,
+				SwatchHex: v.SwatchHex,
 			})
 		}
 		view.Options = append(view.Options, po)

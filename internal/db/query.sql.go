@@ -79,9 +79,6 @@ type AddCampaignProductParams struct {
 	Product  string
 }
 
-// ONE statement: sale_campaign_needs_discount refuses a product with nothing
-// marked down and takes a lock on it first, so a check here would be a check a
-// concurrent price change invalidates.
 func (q *Queries) AddCampaignProduct(ctx context.Context, arg AddCampaignProductParams) (int64, error) {
 	result, err := q.db.Exec(ctx, addCampaignProduct, arg.Campaign, arg.Product)
 	if err != nil {
@@ -160,21 +157,23 @@ func (q *Queries) AddProductOption(ctx context.Context, arg AddProductOptionPara
 }
 
 const addProductOptionValue = `-- name: AddProductOptionValue :one
-INSERT INTO product_option_values (product_id, option_id, value, value_en, position)
+INSERT INTO product_option_values (product_id, option_id, value, value_en, swatch_hex, position)
 SELECT o.product_id, o.id, $1::text, nullif($2::text, ''),
+       nullif($3::text, ''),
        coalesce((SELECT max(v.position) FROM product_option_values v
                  WHERE v.option_id = o.id), 0) + 1
 FROM product_options o
 JOIN products p ON p.id = o.product_id
-WHERE p.slug = $3::text AND o.id = $4
+WHERE p.slug = $4::text AND o.id = $5
 RETURNING id
 `
 
 type AddProductOptionValueParams struct {
-	Value    string
-	ValueEn  string
-	Slug     string
-	OptionID uuid.UUID
+	Value     string
+	ValueEn   string
+	SwatchHex string
+	Slug      string
+	OptionID  uuid.UUID
 }
 
 // product_id comes from the OPTION and not from the caller, so a value cannot be
@@ -184,6 +183,7 @@ func (q *Queries) AddProductOptionValue(ctx context.Context, arg AddProductOptio
 	row := q.db.QueryRow(ctx, addProductOptionValue,
 		arg.Value,
 		arg.ValueEn,
+		arg.SwatchHex,
 		arg.Slug,
 		arg.OptionID,
 	)
@@ -1182,7 +1182,12 @@ SELECT o.id, o.name, coalesce(o.name_en, '') AS name_en, o.position,
            (SELECT array_agg(coalesce(v.value_en, '') ORDER BY v.position, v.id)
             FROM product_option_values v WHERE v.option_id = o.id),
            ARRAY[]::text[]
-       )::text[] AS value_labels
+       )::text[] AS value_labels,
+       coalesce(
+           (SELECT array_agg(coalesce(v.swatch_hex, '') ORDER BY v.position, v.id)
+            FROM product_option_values v WHERE v.option_id = o.id),
+           ARRAY[]::text[]
+       )::text[] AS swatch_hexes
 FROM product_options o
 JOIN products p ON p.id = o.product_id
 WHERE p.slug = $1
@@ -1197,6 +1202,7 @@ type AdminProductOptionsRow struct {
 	ValueIds    []string
 	Values      []string
 	ValueLabels []string
+	SwatchHexes []string
 }
 
 func (q *Queries) AdminProductOptions(ctx context.Context, slug string) ([]AdminProductOptionsRow, error) {
@@ -1216,6 +1222,7 @@ func (q *Queries) AdminProductOptions(ctx context.Context, slug string) ([]Admin
 			&i.ValueIds,
 			&i.Values,
 			&i.ValueLabels,
+			&i.SwatchHexes,
 		); err != nil {
 			return nil, err
 		}
@@ -4102,8 +4109,6 @@ type CreateFAQEntryParams struct {
 	AnswerEn   string
 }
 
-// The position is computed WITHIN the category, because faq_entries_position_key
-// is unique on (category, position).
 func (q *Queries) CreateFAQEntry(ctx context.Context, arg CreateFAQEntryParams) error {
 	_, err := q.db.Exec(ctx, createFAQEntry,
 		arg.Category,
@@ -4792,8 +4797,10 @@ SELECT coalesce(localized_name(h.eyebrow, h.eyebrow_en, $1::text), '')::text
        h.secondary_cta_href, h.image_key,
        coalesce(localized_name(h.image_alt, h.image_alt_en, $1::text), '')::text
            AS image_alt,
-       -- Width comes from media_objects: one row of bytes, one row of dimensions.
-       coalesce(m.width, 0)::integer AS image_width
+       -- Dimensions come from media_objects: one row of bytes, one row of size.
+       -- Both, because a width without a height reserves no space in the layout.
+       coalesce(m.width, 0)::integer AS image_width,
+       coalesce(m.height, 0)::integer AS image_height
 FROM hero_slides h
 LEFT JOIN media_objects m ON m.digest = h.image_key
 WHERE h.is_active
@@ -4814,6 +4821,7 @@ type CurrentHeroSlideRow struct {
 	ImageKey          pgtype.Text
 	ImageAlt          string
 	ImageWidth        int32
+	ImageHeight       int32
 }
 
 // One slide, not a carousel: `position` is how an editor queues the next one.
@@ -4835,6 +4843,7 @@ func (q *Queries) CurrentHeroSlide(ctx context.Context, locale string) (CurrentH
 		&i.ImageKey,
 		&i.ImageAlt,
 		&i.ImageWidth,
+		&i.ImageHeight,
 	)
 	return i, err
 }
@@ -6495,6 +6504,21 @@ func (q *Queries) LockAvailableCredit(ctx context.Context, userID uuid.UUID) (in
 	return column_1, err
 }
 
+const lockCampaignAppendPosition = `-- name: LockCampaignAppendPosition :exec
+SELECT pg_advisory_xact_lock(hashtextextended(
+    'append:campaign:' || c.id::text, 628471039582915603::bigint))
+FROM sale_campaigns c
+WHERE c.slug = $1::text
+`
+
+// ONE statement: sale_campaign_needs_discount refuses a product with nothing
+// marked down and takes a lock on it first, so a check here would be a check a
+// concurrent price change invalidates.
+func (q *Queries) LockCampaignAppendPosition(ctx context.Context, campaign string) error {
+	_, err := q.db.Exec(ctx, lockCampaignAppendPosition, campaign)
+	return err
+}
+
 const lockCartCatalogue = `-- name: LockCartCatalogue :exec
 SELECT lock_cart_catalogue($1::uuid)
 `
@@ -6558,6 +6582,18 @@ func (q *Queries) LockCouponForCheckout(ctx context.Context, code string) error 
 	return err
 }
 
+const lockFAQAppendPosition = `-- name: LockFAQAppendPosition :exec
+SELECT pg_advisory_xact_lock(hashtextextended(
+    'append:faq:' || $1::text, 628471039582915603::bigint))
+`
+
+// The position is computed WITHIN the category, because faq_entries_position_key
+// is unique on (category, position).
+func (q *Queries) LockFAQAppendPosition(ctx context.Context, category string) error {
+	_, err := q.db.Exec(ctx, lockFAQAppendPosition, category)
+	return err
+}
+
 const lockGoogleSubject = `-- name: LockGoogleSubject :exec
 SELECT pg_advisory_xact_lock(hashtextextended('google:' || $1::text, 0))
 `
@@ -6566,6 +6602,16 @@ SELECT pg_advisory_xact_lock(hashtextextended('google:' || $1::text, 0))
 // Workspace address can be reassigned to somebody else.
 func (q *Queries) LockGoogleSubject(ctx context.Context, subject string) error {
 	_, err := q.db.Exec(ctx, lockGoogleSubject, subject)
+	return err
+}
+
+const lockHeroAppendPosition = `-- name: LockHeroAppendPosition :exec
+SELECT pg_advisory_xact_lock(hashtextextended(
+    'append:hero_slides', 628471039582915603::bigint))
+`
+
+func (q *Queries) LockHeroAppendPosition(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, lockHeroAppendPosition)
 	return err
 }
 
@@ -8346,7 +8392,8 @@ const productOptions = `-- name: ProductOptions :many
 SELECT o.name AS option_name,
        localized_name(o.name, o.name_en, $2::text) AS option_label,
        v.value,
-       localized_name(v.value, v.value_en, $2::text) AS value_label
+       localized_name(v.value, v.value_en, $2::text) AS value_label,
+       coalesce(v.swatch_hex, '') AS swatch_hex
 FROM product_options o
 JOIN product_option_values v ON v.option_id = o.id
 WHERE o.product_id = $1
@@ -8368,6 +8415,7 @@ type ProductOptionsRow struct {
 	OptionLabel string
 	Value       string
 	ValueLabel  string
+	SwatchHex   string
 }
 
 // option_name and value are identity, what the URL selects on; the _label columns
@@ -8386,6 +8434,7 @@ func (q *Queries) ProductOptions(ctx context.Context, arg ProductOptionsParams) 
 			&i.OptionLabel,
 			&i.Value,
 			&i.ValueLabel,
+			&i.SwatchHex,
 		); err != nil {
 			return nil, err
 		}
@@ -11013,7 +11062,15 @@ WHERE p.status = 'active'
        OR coalesce(p.name_en, '') ILIKE $2::text
        OR coalesce(p.summary, '') ILIKE $2::text
        OR coalesce(p.summary_en, '') ILIKE $2::text
-       OR b.name ILIKE $2::text)
+       OR b.name ILIKE $2::text
+       OR EXISTS (
+           SELECT 1 FROM product_specs ps
+           WHERE ps.product_id = p.id
+             AND (ps.label ILIKE $2::text
+                  OR coalesce(ps.label_en, '') ILIKE $2::text
+                  OR ps.value ILIKE $2::text
+                  OR coalesce(ps.value_en, '') ILIKE $2::text)
+       ))
 ORDER BY
     -- A name match outranks a summary or brand match. Either name counts.
     (p.name ILIKE $2::text OR coalesce(p.name_en, '') ILIKE $2::text) DESC,
@@ -11096,7 +11153,15 @@ WHERE p.status = 'active'
        OR coalesce(p.name_en, '') ILIKE $1::text
        OR coalesce(p.summary, '') ILIKE $1::text
        OR coalesce(p.summary_en, '') ILIKE $1::text
-       OR b.name ILIKE $1::text)
+       OR b.name ILIKE $1::text
+       OR EXISTS (
+           SELECT 1 FROM product_specs ps
+           WHERE ps.product_id = p.id
+             AND (ps.label ILIKE $1::text
+                  OR coalesce(ps.label_en, '') ILIKE $1::text
+                  OR ps.value ILIKE $1::text
+                  OR coalesce(ps.value_en, '') ILIKE $1::text)
+       ))
 `
 
 // The same predicate as SearchProducts, and it has to stay the same.

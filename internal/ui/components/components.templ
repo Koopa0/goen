@@ -1,0 +1,123 @@
+package components
+
+// Button is a control that does something on this page or submits a form. Type
+// is explicit at every call: a button inside a form submits unless told not to,
+// and a control that only reveals or clears must say so.
+templ Button(p ButtonProps, buttonType string) {
+	<button class={ p.class() } type={ buttonType } { p.Attrs... }>
+		{ children... }
+	</button>
+}
+
+// ButtonLink is a link that carries a button's weight. It stays an anchor:
+// choosing a variant is navigation, and navigation has to work with scripting
+// off and with the middle mouse button.
+templ ButtonLink(p ButtonProps, href templ.SafeURL) {
+	<a class={ p.class() } href={ href } { p.Attrs... }>
+		{ children... }
+	</a>
+}
+
+// Badge is a short state a visitor reads beside the thing it describes.
+templ Badge(p BadgeProps) {
+	<span class={ p.class() }>
+		{ children... }
+	</span>
+}
+
+// Card is a bordered panel. The heading level belongs to the page, so a card
+// takes one as a child rather than deciding it here.
+templ Card(p CardProps) {
+	<div class={ p.class() } { p.Attrs... }>
+		{ children... }
+	</div>
+}
+
+// Notice is one sentence about what just happened, announced to a screen reader
+// as it is reached or, for a refusal, as soon as it renders.
+templ Notice(p NoticeProps) {
+	if p.ID != "" {
+		<p class={ p.class() } id={ p.ID } role={ p.Tone.role() }>
+			{ children... }
+		</p>
+	} else {
+		<p class={ p.class() } role={ p.Tone.role() }>
+			{ children... }
+		</p>
+	}
+}
+
+// Label names a field. The for attribute is required rather than optional: a
+// label that names nothing is the failure this component exists to prevent.
+templ Label(p LabelProps) {
+	<label class={ p.class() } for={ p.For }>
+		{ children... }
+	</label>
+}
+
+// Input is a single-line field. aria-invalid and aria-describedby are set
+// together so a refused field always announces its reason.
+templ Input(p FieldProps) {
+	<input
+		class={ p.class() }
+		id={ p.ID }
+		name={ p.Name }
+		type={ p.inputType() }
+		value={ p.Value }
+		if p.Invalid {
+			aria-invalid="true"
+			if p.Describes != "" {
+				aria-describedby={ p.Describes }
+			}
+		}
+		{ p.Attrs... }
+	/>
+}
+
+// Textarea is the same field over several lines. Its value is a child because
+// the element carries its content between its tags.
+templ Textarea(p FieldProps) {
+	<textarea
+		class={ p.areaClass() }
+		id={ p.ID }
+		name={ p.Name }
+		if p.Invalid {
+			aria-invalid="true"
+			if p.Describes != "" {
+				aria-describedby={ p.Describes }
+			}
+		}
+		{ p.Attrs... }
+	>
+		{ children... }
+	</textarea>
+}
+
+// Crumb is one step on the trail. An empty Href marks the page itself, which is
+// rendered as text with aria-current rather than as a link to where you are.
+type Crumb struct {
+	Label string
+	Href  string
+}
+
+// Breadcrumb renders the trail. The label is the page's, because the sentence
+// "you are here" belongs to internal/i18n and not to this file.
+//
+// The class is the design system's spelling and not a goen- one. A test locates
+// the product page's trail by it (internal/product/integration_test.go:233), and
+// a selector a test reads keeps its spelling while its declarations change —
+// which is what app.css does with it. Renaming it would be an oracle change.
+templ Breadcrumb(p BreadcrumbProps) {
+	<nav class="ui-crumbs" aria-label={ p.Label }>
+		for i, c := range p.Crumbs {
+			if i > 0 {
+				<span class="ui-crumbs__sep" aria-hidden="true">/</span>
+			}
+			if c.Href == "" {
+				<span class="ui-crumbs__current" aria-current="page">{ c.Label }</span>
+			} else {
+				<a class="ui-crumbs__link" href={ templ.SafeURL(c.Href) }>{ c.Label }</a>
+			}
+		}
+	</nav>
+}

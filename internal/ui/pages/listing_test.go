@@ -11,7 +11,7 @@ import (
 )
 
 // TestThePageMarksTheCategoryYouAreIn holds layouts.Page.Nav, which drives the
-// header's is-active class and aria-current="page". It is set where the page's
+// header's aria-current="page". It is set where the page's
 // chrome is BUILT, not by each handler: a field every caller must remember to
 // fill is a field that goes unfilled.
 func TestThePageMarksTheCategoryYouAreIn(t *testing.T) {
