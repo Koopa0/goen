@@ -12,6 +12,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
+
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/loyalty"
@@ -97,35 +99,42 @@ func TestPointsPaginationKeepsWholeSpendsAndOlderClawbacksReachable(t *testing.T
 			if v.Balance != 5120 {
 				t.Fatalf("balance=%d, want full-ledger 5120", v.Balance)
 			}
-			next, err := url.Parse(v.HistoryNext)
-			if err != nil {
-				t.Fatal(err)
-			}
-			before, err := s.History(ctx, userID, next.Query().Get("after"))
-			if err != nil {
-				t.Fatal(err)
-			}
-			if _, err := pool.Exec(ctx, `INSERT INTO loyalty_entries (account_id,kind,points,reason,idempotency_key,expires_on) VALUES ($1,'award',1000,'newer','new:' || ($1::uuid)::text,shop_today()+365)`, accountID); err != nil {
-				t.Fatal(err)
-			}
-			after, err := s.History(ctx, userID, next.Query().Get("after"))
-			if err != nil {
-				t.Fatal(err)
-			}
-			if fmt.Sprint(before.Entries) != fmt.Sprint(after.Entries) {
-				t.Fatal("new entry displaced the next ledger page")
-			}
-			theirs, err := s.History(ctx, otherID, next.Query().Get("after"))
-			if err != nil {
-				t.Fatal(err)
-			}
-			if len(theirs.Entries) != 0 {
-				t.Fatal("cursor exposed another account's points")
-			}
+			assertHistoryCursorSurvivesInsertion(t, s, userID, otherID, accountID, v.HistoryNext)
 		}
 		target = v.HistoryNext
 	}
 	if len(seen) != 104 || target != "" || !clawbackSeen || !seen["spend:-30"] {
 		t.Fatalf("incomplete grouped ledger: %d groups, next=%q, clawback=%t", len(seen), target, clawbackSeen)
+	}
+}
+
+func assertHistoryCursorSurvivesInsertion(t *testing.T, s *loyalty.Store, userID, otherID string, accountID uuid.UUID, target string) {
+	t.Helper()
+	ctx := t.Context()
+
+	next, err := url.Parse(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, err := s.History(ctx, userID, next.Query().Get("after"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO loyalty_entries (account_id,kind,points,reason,idempotency_key,expires_on) VALUES ($1,'award',1000,'newer','new:' || ($1::uuid)::text,shop_today()+365)`, accountID); err != nil {
+		t.Fatal(err)
+	}
+	after, err := s.History(ctx, userID, next.Query().Get("after"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fmt.Sprint(before.Entries) != fmt.Sprint(after.Entries) {
+		t.Fatal("new entry displaced the next ledger page")
+	}
+	theirs, err := s.History(ctx, otherID, next.Query().Get("after"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(theirs.Entries) != 0 {
+		t.Fatal("cursor exposed another account's points")
 	}
 }
