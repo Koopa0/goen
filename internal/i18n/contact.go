@@ -9,8 +9,8 @@ var (
 	})
 
 	KeyContactHours = key("contact.hours", Message{
-		ZhHant: "客服時間 週一至週五 09:00–18:00 · 平均 10 分鐘回覆。訂單問題請附上訂單編號。",
-		En: "Monday to Friday, 09:00–18:00 · usually answered within 10 minutes. " +
+		ZhHant: "客服時間 週一至週五 09:00–18:00。訂單問題請附上訂單編號。",
+		En: "Monday to Friday, 09:00–18:00. " +
 			"For anything about an order, include the order number.",
 	})
 
@@ -28,8 +28,8 @@ var (
 	KeyContactSent = key("contact.sent", Message{ZhHant: "訊息已送出", En: "Message sent"})
 
 	KeyContactSentBody = key("contact.sent.body", Message{
-		ZhHant: "我們會在一個工作天內回覆到你留的信箱。訂單相關問題會優先處理。",
-		En: "We will reply to the address you gave within one working day. Anything about " +
+		ZhHant: "我們會回覆到你留的信箱。訂單相關問題會優先處理。",
+		En: "We will reply to the address you gave. Anything about " +
 			"an order goes first.",
 	})
 
