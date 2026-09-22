@@ -36,7 +36,7 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/signin?next=/account/points", http.StatusSeeOther)
 		return
 	}
-	view, err := h.store.History(r.Context(), u.ID)
+	view, err := h.store.History(r.Context(), u.ID, r.URL.Query().Get("after"))
 	if err != nil && !errors.Is(err, ErrNoAccount) {
 		h.log.ErrorContext(r.Context(), "read points", "error", err)
 		h.serverError(w, r)

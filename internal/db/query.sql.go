@@ -8164,6 +8164,7 @@ func (q *Queries) PointsExpiringSoon(ctx context.Context, arg PointsExpiringSoon
 const pointsHistory = `-- name: PointsHistory :many
 WITH grouped AS (
     SELECT
+        min(e.id::text)::uuid AS group_id,
         CASE WHEN e.kind = 'spend'
              THEN split_part(e.idempotency_key, '#', 1)
              ELSE e.idempotency_key
@@ -8177,24 +8178,29 @@ WITH grouped AS (
         max(e.created_at)::timestamptz AS created_at
     FROM loyalty_entries e
     JOIN store_credit_accounts a ON a.id = e.account_id
-    WHERE a.user_id = $2
+    WHERE a.user_id = $5
     GROUP BY entry_key, e.kind, e.reason, e.order_id
 )
-SELECT g.points, g.kind, g.reason, g.requested_points, g.expires_on, g.created_at,
+SELECT g.group_id, g.points, g.kind, g.reason, g.requested_points, g.expires_on, g.created_at,
        coalesce(o.order_number, '') AS order_number,
        (g.kind = 'award' AND g.expires_on < shop_today()) AS expired
 FROM grouped g
 LEFT JOIN orders o ON o.id = g.order_id
-ORDER BY g.created_at DESC
-LIMIT $1
+WHERE NOT $1::boolean OR (g.created_at, g.group_id) < ($2::timestamptz, $3::uuid)
+ORDER BY g.created_at DESC, g.group_id DESC
+LIMIT $4::integer
 `
 
 type PointsHistoryParams struct {
-	Limit  int32
-	UserID uuid.NullUUID
+	HasCursor bool
+	AfterAt   time.Time
+	AfterID   uuid.UUID
+	RowLimit  int32
+	UserID    uuid.NullUUID
 }
 
 type PointsHistoryRow struct {
+	GroupID         uuid.UUID
 	Points          int64
 	Kind            string
 	Reason          string
@@ -8207,7 +8213,13 @@ type PointsHistoryRow struct {
 
 // The ledger a customer sees, expired awards included and marked.
 func (q *Queries) PointsHistory(ctx context.Context, arg PointsHistoryParams) ([]PointsHistoryRow, error) {
-	rows, err := q.db.Query(ctx, pointsHistory, arg.Limit, arg.UserID)
+	rows, err := q.db.Query(ctx, pointsHistory,
+		arg.HasCursor,
+		arg.AfterAt,
+		arg.AfterID,
+		arg.RowLimit,
+		arg.UserID,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -8216,6 +8228,7 @@ func (q *Queries) PointsHistory(ctx context.Context, arg PointsHistoryParams) ([
 	for rows.Next() {
 		var i PointsHistoryRow
 		if err := rows.Scan(
+			&i.GroupID,
 			&i.Points,
 			&i.Kind,
 			&i.Reason,

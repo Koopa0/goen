@@ -92,9 +92,11 @@ func (e PointsEntry) Detail(ctx context.Context) string {
 
 // PointsView is the customer's points page.
 type PointsView struct {
-	Balance     int64
-	Redeemable  int64
-	CreditCents int64
+	HistoryFirst string
+	HistoryNext  string
+	Balance      int64
+	Redeemable   int64
+	CreditCents  int64
 
 	ExpiringPoints int64
 	ExpiringOn     string
