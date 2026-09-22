@@ -538,7 +538,7 @@ func newKey() string {
 
 func (h *Handler) serverError(w http.ResponseWriter, r *http.Request) {
 	web.Render(w, r, h.log, http.StatusInternalServerError, pages.Notice(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminErrorTitle)}, "",
+		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminErrorTitle)}, "500",
 		i18n.T(r.Context(), i18n.KeyAdminErrorTitle),
 		i18n.T(r.Context(), i18n.KeyAdminErrorBody)))
 }
