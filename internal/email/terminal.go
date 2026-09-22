@@ -2,6 +2,7 @@ package email
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
@@ -16,7 +17,7 @@ type TerminalRecipient struct {
 // SendOrderTerminal reports an order fact without promising a refund or a new delivery.
 func (n Notifier) SendOrderTerminal(ctx context.Context, kind ordernotice.Kind, to TerminalRecipient) error {
 	if !Valid(to.Address) {
-		return fmt.Errorf("terminal order notice has no usable recipient")
+		return errors.New("terminal order notice has no usable recipient")
 	}
 	ctx = n.locale(ctx, to.Locale)
 	subject, body := i18n.KeyMailOrderArrivedSubject, i18n.KeyMailOrderDeliveredBody
