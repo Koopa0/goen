@@ -264,7 +264,7 @@ func (h *Handler) Overview(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/signin", http.StatusSeeOther)
 		return
 	}
-	view, err := h.store.Overview(r.Context(), u)
+	view, err := h.store.Overview(r.Context(), u, r.URL.Query().Get("after"))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read account", "error", err)
 		h.serverError(w, r)

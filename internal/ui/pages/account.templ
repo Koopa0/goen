@@ -331,11 +331,27 @@ templ Account(p layouts.Page, v *AccountView) {
 									}
 								</tbody>
 							</table>
+						} else if v.OrdersFirst != "" {
+							<p class="goen-account__empty">{ i18n.T(ctx, i18n.KeyAccountOrdersPageEmpty) }</p>
 						} else {
 							<p class="goen-account__empty">
 								{ i18n.T(ctx, i18n.KeyNoOrdersYet) }
 								<a href="/">{ i18n.T(ctx, i18n.KeyNoOrdersLink) }</a>
 							</p>
+						}
+						if v.OrdersFirst != "" || v.OrdersNext != "" {
+							<nav class="goen-pager" aria-label={ i18n.T(ctx, i18n.KeyPagination) }>
+								if v.OrdersFirst != "" {
+									@components.ButtonLink(components.ButtonProps{Variant: components.VariantOutline}, templ.URL(v.OrdersFirst)) {
+										{ i18n.T(ctx, i18n.KeyAccountOrdersFirst) }
+									}
+								}
+								if v.OrdersNext != "" {
+									@components.ButtonLink(components.ButtonProps{Variant: components.VariantOutline, Attrs: templ.Attributes{"rel": "next"}}, templ.URL(v.OrdersNext)) {
+										{ i18n.T(ctx, i18n.KeyNextPage) }
+									}
+								}
+							</nav>
 						}
 					</section>
 					<section class="goen-card goen-account__section" aria-labelledby="profile-heading">
