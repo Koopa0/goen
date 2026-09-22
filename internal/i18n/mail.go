@@ -116,8 +116,8 @@ var (
 		En:     "You are subscribed to the goen newsletter",
 	})
 	KeyMailNewsWelcomeBody = key("mail.news.welcome.body", Message{
-		ZhHant: "訂閱完成。\n\n每月一封。\n\n任何時候想退訂,用這個連結:\n%s\n\n這個連結不會過期,請留著這封信。每一封電子報的頁尾也都會附上。",
-		En: "You are subscribed.\n\nOne letter a month.\n\nTo leave at any time, use this " +
+		ZhHant: "訂閱完成。\n\n不定期寄送。\n\n任何時候想退訂,用這個連結:\n%s\n\n這個連結不會過期,請留著這封信。每一封電子報的頁尾也都會附上。",
+		En: "You are subscribed.\n\nWe send occasionally.\n\nTo leave at any time, use this " +
 			"link:\n%s\n\nIt does not expire, so keep this message. Every newsletter " +
 			"carries it at the foot as well.",
 	})
