@@ -795,7 +795,20 @@ templ Order(p layouts.Page, v *OrderView) {
 					{ i18n.T(ctx, i18n.KeyOrderCancelled) }
 				}
 			}
-			if v.AwaitingPayment() {
+			if v.PaymentRefreshURL != "" {
+				<div class="goen-notice goen-notice--accent" id="order-payment-processing" role="status">
+					<h2 class="goen-order__subhead">{ i18n.T(ctx, i18n.KeyPayProcessingTitle) }</h2>
+					<p>{ i18n.T(ctx, i18n.KeyOrderPaymentChecking) }</p>
+					<div>
+						@components.ButtonLink(components.ButtonProps{Variant: components.VariantOutline}, templ.SafeURL(v.PaymentRefreshURL)) {
+							{ i18n.T(ctx, i18n.KeyOrderCheckPayment) }
+						}
+						@components.ButtonLink(components.ButtonProps{Variant: components.VariantGhost}, templ.SafeURL("/orders/"+v.Number)) {
+							{ i18n.T(ctx, i18n.KeyOrderStopChecking) }
+						}
+					</div>
+				</div>
+			} else if v.AwaitingPayment() {
 				@components.Notice(components.NoticeProps{
 					Tone: components.ToneAccent,
 					ID:   "order-unpaid",
@@ -922,7 +935,7 @@ templ Order(p layouts.Page, v *OrderView) {
 							}
 							<span class="goen-order__meta">{ i18n.T(ctx, i18n.KeyOrderReorderNote) }</span>
 						</form>
-						if v.CanCancel() {
+						if v.CanCancel() && v.PaymentRefreshURL == "" {
 							<form class="goen-order__cancel" method="post" action={ templ.SafeURL("/orders/" + v.Number + "/cancel") }>
 								@components.Button(components.ButtonProps{Variant: components.VariantGhost}, "submit") {
 									{ i18n.T(ctx, i18n.KeyOrderCancel) }

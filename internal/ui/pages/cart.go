@@ -625,6 +625,8 @@ type OrderView struct {
 	// ShowWarrantyLink is set when a signed-in account owns the order. Guest-token
 	// viewers can read the page but must not see account-only registration.
 	ShowWarrantyLink bool
+	// PaymentRefreshURL is a bounded presentation hint, never evidence of payment.
+	PaymentRefreshURL string
 }
 
 // CanCancel reports whether the customer may still call this order off.

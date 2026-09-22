@@ -61,6 +61,10 @@ var (
 		En:     "Your payment is being processed. The order will update automatically once confirmed.",
 	})
 
+	KeyOrderPaymentChecking = key("order.payment.checking", Message{ZhHant: "我們正在確認付款結果。此頁每 5 秒更新,最多 3 次;更新結束後會顯示最新訂單狀態。", En: "We are checking the payment result. This page refreshes every 5 seconds, up to 3 times, then shows the latest order state."})
+	KeyOrderCheckPayment    = key("order.payment.check", Message{ZhHant: "立即更新", En: "Check now"})
+	KeyOrderStopChecking    = key("order.payment.stop", Message{ZhHant: "停止自動更新", En: "Stop automatic updates"})
+
 	KeyPayViewOrder = key("pay.vieworder", Message{ZhHant: "查看訂單", En: "View order"})
 
 	KeyPayMeta = key("pay.meta", Message{ZhHant: "付款 %s", En: "Pay for %s"})
