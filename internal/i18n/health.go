@@ -198,8 +198,8 @@ var (
 	})
 
 	KeyHealthOutboxStuck = key("health.outbox.stuck", Message{
-		ZhHant: "%d 封重試次數用盡 —— 不會自己好",
-		En:     "%d have exhausted their retries — these will not recover on their own",
+		ZhHant: "%d 封訊息待人工處理",
+		En:     "%d messages need operator attention",
 	})
 
 	KeyHealthOutboxClear = key("health.outbox.clear", Message{ZhHant: "沒有待送的訊息", En: "Nothing waiting to send"})

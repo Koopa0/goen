@@ -1102,11 +1102,20 @@ WHERE id = @question_id AND hidden_at IS NULL;
 -- separate from the age because max() over an empty table is NULL, which sqlc
 -- infers as non-nullable and pgx then refuses to scan: a fresh deployment only.
 -- name: WorkerHealth :one
+WITH pending_outbox AS (
+    SELECT available_at FROM outbox_messages
+    WHERE delivered_at IS NULL
+      AND dropped_at IS NULL
+      AND blocked_at IS NULL
+      AND created_at > now() - @outbox_retain::interval
+), ready_outbox AS (
+    SELECT available_at FROM pending_outbox WHERE available_at <= now()
+)
 SELECT
-    (SELECT count(*) FROM outbox_messages
-     WHERE delivered_at IS NULL)::bigint AS outbox_pending,
-    (SELECT greatest(coalesce(extract(epoch FROM now() - min(available_at)), 0), 0)
-     FROM outbox_messages WHERE delivered_at IS NULL)::bigint AS outbox_oldest_seconds,
+    (SELECT count(*) FROM pending_outbox)::bigint AS outbox_pending,
+    (SELECT count(*) FROM ready_outbox)::bigint AS outbox_ready,
+    (SELECT coalesce(extract(epoch FROM now() - min(available_at)), 0)
+     FROM ready_outbox)::bigint AS outbox_oldest_seconds,
     (SELECT count(*) FROM outbox_messages
      WHERE delivered_at IS NULL AND dropped_at IS NULL AND blocked_at IS NOT NULL)::bigint AS outbox_stuck,
     -- The sweeper's own predicate, not merely expired: release_reservation

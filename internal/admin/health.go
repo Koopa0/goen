@@ -20,7 +20,7 @@ import (
 
 // Each threshold is a MULTIPLE of its worker's interval, so a healthy gap cannot alarm.
 const (
-	// OutboxStaleAfter is how old the oldest undelivered message may be.
+	// OutboxStaleAfter is how long the oldest claimable message may be overdue.
 	OutboxStaleAfter = 10 * time.Minute
 	// MaxExpiredHolds is a COUNT, not a duration.
 	MaxExpiredHolds = 50
@@ -33,12 +33,13 @@ const (
 
 // WorkerHealth reads what the background workers have and have not done.
 func (s *Store) WorkerHealth(ctx context.Context, messages *outbox.Store) (pages.WorkerHealthView, error) {
-	row, err := s.q.WorkerHealth(ctx)
+	row, err := s.q.WorkerHealth(ctx, pgtype.Interval{Microseconds: outbox.Retain.Microseconds(), Valid: true})
 	if err != nil {
 		return pages.WorkerHealthView{}, fmt.Errorf("read worker health: %w", err)
 	}
 	view := pages.WorkerHealthView{
 		OutboxPending:        row.OutboxPending,
+		OutboxReady:          row.OutboxReady,
 		OutboxOldest:         durationFromSeconds(row.OutboxOldestSeconds),
 		OutboxStuck:          row.OutboxStuck,
 		ExpiredHolds:         row.ExpiredHolds,
