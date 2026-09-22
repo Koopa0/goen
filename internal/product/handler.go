@@ -76,7 +76,7 @@ func (h *Handler) Detail(w http.ResponseWriter, r *http.Request) {
 	meta := pages.ProductMeta(&view)
 	meta.StructuredData = pages.JSONLDSet(
 		pages.ProductJSONLD(&view, h.baseURL),
-		pages.BreadcrumbJSONLD(view.Crumbs, view.Name, h.baseURL),
+		pages.BreadcrumbJSONLD(view.CategoryTrail(), view.Name, h.baseURL),
 	)
 	web.Render(w, r, h.log, http.StatusOK, pages.Product(meta, &view))
 }
