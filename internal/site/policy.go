@@ -69,7 +69,7 @@ func (h *Handler) Policy(w http.ResponseWriter, r *http.Request) {
 // serverError renders the 500 page.
 func (h *Handler) serverError(w http.ResponseWriter, r *http.Request) {
 	web.Render(w, r, h.log, http.StatusInternalServerError, pages.Notice(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyTryAgainTitle)}, "",
+		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyTryAgainTitle)}, "500",
 		i18n.T(r.Context(), i18n.KeyTryAgainTitle),
 		i18n.T(r.Context(), i18n.KeyLoggedTryAgain)))
 }
