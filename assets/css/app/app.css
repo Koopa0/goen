@@ -7204,3 +7204,14 @@ h4,
     animation: none;
   }
 }
+
+/* Tailwind Plus alert-with-link: keep the continuation below the message on
+   narrow screens and beside it when both fit. */
+.goen-cart__adjustment-content { flex: 1; min-width: 0; }
+.goen-cart__adjustment-message { margin: 0; }
+.goen-cart__adjustment-action { margin: 0.75rem 0 0; }
+.goen-cart__adjustment-action a { font-weight: var(--fw-semibold); white-space: nowrap; }
+@media (min-width: 48rem) {
+  .goen-cart__adjustment-content { display: flex; justify-content: space-between; gap: 1.5rem; }
+  .goen-cart__adjustment-action { margin: 0; }
+}

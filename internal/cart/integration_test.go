@@ -123,15 +123,21 @@ func variantOf(t *testing.T, slug string, sellable bool) uuid.UUID {
 
 func newCart(t *testing.T, s *cart.Store) uuid.UUID {
 	t.Helper()
+	id, _ := newCartSession(t, s)
+	return id
+}
+
+func newCartSession(t *testing.T, s *cart.Store) (id uuid.UUID, token string) {
+	t.Helper()
 	tok, err := cart.NewToken()
 	if err != nil {
 		t.Fatalf("token: %v", err)
 	}
-	id, err := s.Create(t.Context(), tok, uuid.NullUUID{})
+	id, err = s.Create(t.Context(), tok, uuid.NullUUID{})
 	if err != nil {
 		t.Fatalf("create cart: %v", err)
 	}
-	return id
+	return id, tok
 }
 
 // checkoutQuote builds the quote a direct Store test would have rendered. HTTP
@@ -523,8 +529,7 @@ func TestAChangedCreditBalanceReRendersCheckoutWithTheFreshFigure(t *testing.T) 
 		req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/checkout",
 			strings.NewReader(form.Encode()))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		//nolint:gosec // G124: the browser's own cart cookie, read by this handler
-		req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token})
+		req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token}) //nolint:gosec // G124: dev cart cookie under test
 		return req.WithContext(account.WithUser(req.Context(), account.User{
 			ID: userID.String(), Email: "credit-race@example.com", Role: "customer",
 		}))
@@ -924,8 +929,8 @@ func TestAddClampsToWhatCanBeSupplied(t *testing.T) {
 
 	// 3 can be sold: 5 on hand less the floor of 2.
 	id := newCart(t, s)
-	if err := s.Add(ctx, id, vid, 10); err != nil {
-		t.Fatalf("add: %v", err)
+	if err := s.Add(ctx, id, vid, 10); !errors.Is(err, cart.ErrQuantityAdjusted) {
+		t.Fatalf("add over stock returned %v, want ErrQuantityAdjusted", err)
 	}
 
 	var stored int32
@@ -936,6 +941,190 @@ func TestAddClampsToWhatCanBeSupplied(t *testing.T) {
 	}
 	if stored != 3 {
 		t.Errorf("asked for 10 of a variant with 3 sellable, cart holds %d; want 3", stored)
+	}
+
+	// Repeat add also clamps to what can be supplied without exceeding stock.
+	if err := s.Add(ctx, id, vid, 2); !errors.Is(err, cart.ErrQuantityAdjusted) {
+		t.Fatalf("repeat add over stock returned %v, want ErrQuantityAdjusted", err)
+	}
+	if err := pool.QueryRow(ctx,
+		`SELECT quantity FROM cart_items WHERE cart_id = $1 AND variant_id = $2`,
+		id, vid).Scan(&stored); err != nil {
+		t.Fatalf("read repeat add line: %v", err)
+	}
+	if stored != 3 {
+		t.Errorf("repeat add on variant with 3 sellable resulted in %d; want 3", stored)
+	}
+}
+
+func TestSetQuantityClampsToWhatCanBeSupplied(t *testing.T) {
+	ctx := t.Context()
+	s := cart.NewStore(pool)
+
+	vid := freshVariant(t, "stockfix-setqty")
+	var wasStock, wasSafety int32
+	if err := pool.QueryRow(ctx,
+		`SELECT stock_quantity, safety_stock FROM product_variants WHERE id = $1`,
+		vid).Scan(&wasStock, &wasSafety); err != nil {
+		t.Fatalf("read stock: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(context.Background(), //nolint:usetesting // t.Context is already cancelled in Cleanup
+			`UPDATE product_variants SET stock_quantity = $2, safety_stock = $3 WHERE id = $1`,
+			vid, wasStock, wasSafety)
+	})
+	if _, err := pool.Exec(ctx,
+		`UPDATE product_variants SET stock_quantity = 5, safety_stock = 2 WHERE id = $1`,
+		vid); err != nil {
+		t.Fatalf("fixture: %v", err)
+	}
+
+	// 3 can be sold: 5 on hand less safety stock of 2.
+	id := newCart(t, s)
+	if err := s.Add(ctx, id, vid, 1); err != nil {
+		t.Fatalf("add: %v", err)
+	}
+
+	// Set quantity above sellable clamps to 3.
+	if err := s.SetQuantity(ctx, id, vid, 10); !errors.Is(err, cart.ErrQuantityAdjusted) {
+		t.Fatalf("set quantity over stock returned %v, want ErrQuantityAdjusted", err)
+	}
+
+	var stored int32
+	if err := pool.QueryRow(ctx,
+		`SELECT quantity FROM cart_items WHERE cart_id = $1 AND variant_id = $2`,
+		id, vid).Scan(&stored); err != nil {
+		t.Fatalf("read line: %v", err)
+	}
+	if stored != 3 {
+		t.Errorf("set quantity to 10 on variant with 3 sellable, cart holds %d; want 3", stored)
+	}
+
+	// The clamped cart can checkout without ErrUnavailable dead-end.
+	var shipID uuid.UUID
+	if err := pool.QueryRow(ctx,
+		`SELECT id FROM shipping_method_versions ORDER BY effective_at LIMIT 1`).Scan(&shipID); err != nil {
+		t.Fatalf("shipping: %v", err)
+	}
+	addr := &cart.Address{
+		Email: "setqty-checkout@example.com", Name: "李大華", Phone: "0987654321",
+		PostalCode: "220", City: "新北市", District: "板橋區", Street: "文化路一段 1 號",
+	}
+	if _, err := placeOrder(t, s, ctx, id, uuid.NullUUID{}, shipID, addr, "", "setqty-checkout-1"); err != nil {
+		t.Fatalf("checkout after set quantity clamp returned error: %v", err)
+	}
+}
+
+func TestUpdateItemUnavailableDoesNot500(t *testing.T) {
+	ctx := t.Context()
+	s := cart.NewStore(pool)
+	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, testLimiter(), nil, nil)
+
+	vid := freshVariant(t, "stockfix-unavail")
+	var wasStock, wasSafety int32
+	if err := pool.QueryRow(ctx,
+		`SELECT stock_quantity, safety_stock FROM product_variants WHERE id = $1`,
+		vid).Scan(&wasStock, &wasSafety); err != nil {
+		t.Fatalf("read stock: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(context.Background(), //nolint:usetesting // t.Context is already cancelled in Cleanup
+			`UPDATE product_variants SET stock_quantity = $2, safety_stock = $3, is_active = true WHERE id = $1`,
+			vid, wasStock, wasSafety)
+	})
+	if _, err := pool.Exec(ctx,
+		`UPDATE product_variants SET stock_quantity = 0, safety_stock = 0 WHERE id = $1`,
+		vid); err != nil {
+		t.Fatalf("fixture: %v", err)
+	}
+
+	id, token := newCartSession(t, s)
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO cart_items (cart_id, variant_id, quantity) VALUES ($1, $2, 1)`,
+		id, vid); err != nil {
+		t.Fatalf("seed line: %v", err)
+	}
+
+	form := url.Values{"variant": {vid.String()}, "quantity": {"2"}}
+	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/cart/items/update",
+		strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token}) //nolint:gosec // G124: dev cart cookie under test
+	rec := httptest.NewRecorder()
+	h.UpdateItem(rec, req)
+
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("update unavailable status = %d, want 303; body=%s", rec.Code, rec.Body.String())
+	}
+	loc := rec.Header().Get("Location")
+	if loc != "/cart?qty=unavailable" {
+		t.Fatalf("update unavailable redirect = %q, want /cart?qty=unavailable", loc)
+	}
+
+	follow := httptest.NewRequestWithContext(ctx, http.MethodGet, loc, http.NoBody)
+	follow.AddCookie(&http.Cookie{Name: "goen_cart", Value: token}) //nolint:gosec // G124: dev cart cookie under test
+	page := httptest.NewRecorder()
+	h.Page(page, follow)
+	if page.Code != http.StatusOK {
+		t.Fatalf("cart page status = %d, want 200", page.Code)
+	}
+	want := i18n.T(ctx, i18n.KeyAddRefused)
+	if !strings.Contains(page.Body.String(), want) {
+		t.Fatalf("cart page does not show %q after unavailable update", want)
+	}
+}
+
+func TestUpdateItemAdjustedShowsNotice(t *testing.T) {
+	ctx := t.Context()
+	s := cart.NewStore(pool)
+	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, testLimiter(), nil, nil)
+
+	vid := freshVariant(t, "stockfix-update-notice")
+	var wasStock, wasSafety int32
+	if err := pool.QueryRow(ctx,
+		`SELECT stock_quantity, safety_stock FROM product_variants WHERE id = $1`,
+		vid).Scan(&wasStock, &wasSafety); err != nil {
+		t.Fatalf("read stock: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(context.Background(), //nolint:usetesting // t.Context is already cancelled in Cleanup
+			`UPDATE product_variants SET stock_quantity = $2, safety_stock = $3 WHERE id = $1`,
+			vid, wasStock, wasSafety)
+	})
+	if _, err := pool.Exec(ctx,
+		`UPDATE product_variants SET stock_quantity = 5, safety_stock = 2 WHERE id = $1`,
+		vid); err != nil {
+		t.Fatalf("fixture: %v", err)
+	}
+
+	id, token := newCartSession(t, s)
+	if err := s.Add(ctx, id, vid, 1); err != nil {
+		t.Fatalf("add: %v", err)
+	}
+
+	form := url.Values{"variant": {vid.String()}, "quantity": {"10"}}
+	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/cart/items/update",
+		strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token}) //nolint:gosec // G124: dev cart cookie under test
+	rec := httptest.NewRecorder()
+	h.UpdateItem(rec, req)
+
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("update adjusted status = %d, want 303", rec.Code)
+	}
+	loc := rec.Header().Get("Location")
+	if loc != "/cart?qty=adjusted" {
+		t.Fatalf("update adjusted redirect = %q, want /cart?qty=adjusted", loc)
+	}
+
+	follow := httptest.NewRequestWithContext(ctx, http.MethodGet, loc, http.NoBody)
+	follow.AddCookie(&http.Cookie{Name: "goen_cart", Value: token}) //nolint:gosec // G124: dev cart cookie under test
+	page := httptest.NewRecorder()
+	h.Page(page, follow)
+	want := i18n.T(ctx, i18n.KeyCartQuantityAdjusted)
+	if !strings.Contains(page.Body.String(), want) {
+		t.Fatalf("cart page does not show adjustment notice %q", want)
 	}
 }
 
@@ -1466,8 +1655,7 @@ func TestCheckoutHTTPReplayFindsTheSameOrderAfterTheCartIsEmpty(t *testing.T) {
 			ctx, http.MethodPost, "/checkout", strings.NewReader(form.Encode()),
 		)
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		//nolint:gosec // G124: the browser's own cart cookie
-		req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token})
+		req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token}) //nolint:gosec // G124: dev cart cookie under test
 		return req
 	}
 	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{
@@ -5432,8 +5620,7 @@ func TestCouponMinimumIsRecheckedWhenCheckoutIsPlaced(t *testing.T) {
 	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/checkout",
 		strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	//nolint:gosec // G124: the browser's own cart cookie, read back by this handler
-	req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token})
+	req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token}) //nolint:gosec // G124: dev cart cookie under test
 
 	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
 
@@ -5579,8 +5766,7 @@ func TestASpentCouponComesBackAsAFieldErrorNotA500(t *testing.T) {
 	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/checkout",
 		strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	//nolint:gosec // G124: the browser's own cart cookie, read back by this handler
-	req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token})
+	req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token}) //nolint:gosec // G124: dev cart cookie under test
 
 	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
 
@@ -5642,8 +5828,7 @@ func TestPressingUpdateChangesTheChoiceAndPlacesNothing(t *testing.T) {
 	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/checkout",
 		strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	//nolint:gosec // G124: the browser's own cart cookie, read back by this handler
-	req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token})
+	req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token}) //nolint:gosec // G124: dev cart cookie under test
 
 	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
 
@@ -5747,8 +5932,7 @@ func TestPickingASavedAddressFillsTheForm(t *testing.T) {
 	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/checkout",
 		strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	//nolint:gosec // G124: the browser's own cart cookie, read back by this handler
-	req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token})
+	req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token}) //nolint:gosec // G124: dev cart cookie under test
 	req = req.WithContext(account.WithUser(ctx, account.User{ID: userID.String(), Role: "customer"}))
 
 	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
@@ -5831,8 +6015,7 @@ func TestChangingAnotherChoiceKeepsATypedAddress(t *testing.T) {
 	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/checkout",
 		strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	//nolint:gosec // G124: the browser's own cart cookie, read back by this handler
-	req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token})
+	req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token}) //nolint:gosec // G124: dev cart cookie under test
 	req = req.WithContext(account.WithUser(ctx, account.User{ID: userID.String(), Role: "customer"}))
 
 	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)

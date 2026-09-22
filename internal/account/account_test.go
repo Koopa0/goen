@@ -675,3 +675,24 @@ func TestAccountOrderPageRedirectsToCanonical(t *testing.T) {
 		t.Errorf("OrderPage redirects to %q, want /orders/GO-260101-000012", got)
 	}
 }
+
+func TestAdjustedCartLandingKeepsContinuation(t *testing.T) {
+	for _, tt := range []struct{ target, want string }{
+		{"/cart#items", "/cart?qty=adjusted#items"},
+		{"/cart?source=signin#items", "/cart?qty=adjusted&source=signin#items"},
+		{"/checkout?source=signin#address", "/cart?next=%2Fcheckout%3Fsource%3Dsignin%23address&qty=adjusted"},
+		{"//evil.example", "/cart?next=%2Faccount&qty=adjusted"},
+	} {
+		if got := cartAdoptionLanding(tt.target, cartAdoptionAdjusted); got != tt.want {
+			t.Errorf("adjusted %q = %q, want %q", tt.target, got, tt.want)
+		}
+	}
+	for _, target := range []string{"/cart#items", "/checkout?from=signin#address"} {
+		if got := cartAdoptionLanding(target, cartAdoptionUnchanged); got != target {
+			t.Errorf("unchanged destination = %q, want %q", got, target)
+		}
+		if got := cartAdoptionLanding(target, cartAdoptionFailed); got != cartRecoveryLanding(target) {
+			t.Errorf("failed adoption lost recovery: %s", got)
+		}
+	}
+}
