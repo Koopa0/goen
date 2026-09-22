@@ -39,7 +39,9 @@ type Handler struct {
 	sessions SessionCloser
 	// storeMap is the carrier's hosted store picker. Nil or disabled on a
 	// deployment with no carrier, where the checkout asks for a chain alone.
-	storeMap *Map
+	storeMap     *Map
+	carriers     CarrierChecker
+	carrierLimit *ratelimit.Limiter
 }
 
 // SessionCloser closes a checkout the customer may still have open at the
@@ -48,18 +50,33 @@ type SessionCloser interface {
 	ExpireSession(ctx context.Context, sessionID string) error
 }
 
+// CarrierChecker is the read-only subset of the invoice gateway checkout needs.
+type CarrierChecker interface {
+	CheckBarcode(context.Context, string) (invoicepkg.CarrierStatus, error)
+}
+
 // NewHandler returns a Handler writing through store. A nil sessions means no
 // provider is configured, so no session was ever opened to close; a nil or
 // disabled storeMap means no carrier picker, and the checkout asks for a chain
-// exactly as it did before one existed.
+// exactly as it did before one existed. An omitted carrier checker keeps local
+// shape validation on deployments without an invoice gateway.
 func NewHandler(store *Store, log *slog.Logger, secure bool, findLimit *ratelimit.Limiter,
-	sessions SessionCloser, storeMap *Map,
+	sessions SessionCloser, storeMap *Map, carriers ...CarrierChecker,
 ) *Handler {
 	if store == nil || log == nil || findLimit == nil {
 		panic("cart: NewHandler requires a store, a logger and a lookup limiter")
 	}
+	if len(carriers) > 1 {
+		panic("cart: NewHandler accepts one carrier checker")
+	}
+	var checker CarrierChecker
+	if len(carriers) == 1 {
+		checker = carriers[0]
+	}
 	return &Handler{
-		store: store, log: log, secure: secure, findLimit: findLimit,
+		carriers:     checker,
+		carrierLimit: ratelimit.New(ratelimit.Config{Every: 10 * time.Second, Burst: 3, TTL: time.Hour, MaxKeys: 65_536}),
+		store:        store, log: log, secure: secure, findLimit: findLimit,
 		sessions: sessions, storeMap: storeMap,
 	}
 }
@@ -503,6 +520,10 @@ func (h *Handler) PlaceOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !h.checkMobileCarrier(w, r, cartID, submission) {
+		return
+	}
+
 	number, err := h.store.placeOrder(
 		r.Context(), cartID, owner, submission.shippingID, &submission.address,
 		&submission.invoice, submission.view.CouponCode,
@@ -618,6 +639,9 @@ func (h *Handler) checkoutSubmission(
 		Carrier:     r.PostFormValue("invoice_carrier"),
 		CompanyName: r.PostFormValue("invoice_company_name"),
 		TaxID:       r.PostFormValue("invoice_tax_id"),
+	}
+	if r.PostFormValue("update") == "invoice_member" {
+		inv.Type = invoicepkg.PreferenceMember
 	}
 	view.Invoice = pages.CheckoutInvoice{
 		Type: inv.Type, Carrier: inv.Carrier,
