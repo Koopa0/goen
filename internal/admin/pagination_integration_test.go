@@ -128,7 +128,7 @@ func TestEveryAdminQueueReachesBeyondItsFirstPage(t *testing.T) {
 			v, e := s.Movements(ctx, "PAGING-1", after)
 			r := result{bound: v.ListBound}
 			for _, x := range v.Rows {
-				r.keys = append(r.keys, strconv.Itoa(x.Running))
+				r.keys = append(r.keys, strconv.Itoa(int(x.Running)))
 			}
 			return r, e
 		}},
