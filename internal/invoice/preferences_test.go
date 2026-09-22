@@ -31,8 +31,8 @@ func TestNewInvoicePreferencesReachTheProviderUnchanged(t *testing.T) {
 					return
 				}
 				var env envelope
-				if err := json.Unmarshal(raw, &env); err != nil {
-					t.Errorf("envelope: %v", err)
+				if envelopeErr := json.Unmarshal(raw, &env); envelopeErr != nil {
+					t.Errorf("envelope: %v", envelopeErr)
 					return
 				}
 				plain, err := g.open(env.Data)
@@ -40,8 +40,8 @@ func TestNewInvoicePreferencesReachTheProviderUnchanged(t *testing.T) {
 					t.Errorf("open request: %v", err)
 					return
 				}
-				if err := json.Unmarshal(plain, &seen); err != nil {
-					t.Errorf("payload: %v", err)
+				if payloadErr := json.Unmarshal(plain, &seen); payloadErr != nil {
+					t.Errorf("payload: %v", payloadErr)
 					return
 				}
 				reply(t, w, result{RtnCode: 1, InvoiceNo: "AB12345678", InvoiceDate: "2026-08-07 10:30:00", RandomNumber: "1234"})

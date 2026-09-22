@@ -187,5 +187,5 @@ func ValidCitizenCarrier(s string) bool { return citizenCarrierPattern.MatchStri
 // ValidDonationCode preserves leading zeroes in a three-to-seven-digit code.
 func ValidDonationCode(s string) bool { return donationCodePattern.MatchString(s) }
 
-var citizenCarrierPattern = regexp.MustCompile(`^[A-Z]{2}[0-9]{14}$`)
-var donationCodePattern = regexp.MustCompile(`^[0-9]{3,7}$`)
+var citizenCarrierPattern = regexp.MustCompile(`^[A-Z]{2}\d{14}$`)
+var donationCodePattern = regexp.MustCompile(`^\d{3,7}$`)

@@ -16,7 +16,7 @@ func TestNewInvoicePreferencesSurviveCanonicalSnapshotAndIssue(t *testing.T) {
 			ctx := t.Context()
 			var seen issueRequest
 			var providerMu sync.Mutex
-			invoiceNumber := []string{"PC12345678", "PD12345678"}[at]
+			invoiceNumber := []string{"IC69000001", "ID69000001"}[at]
 			number := orderToInvoiceFor(t, 10000, 0, 0, preference, "Buyer", "")
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				providerMu.Lock()

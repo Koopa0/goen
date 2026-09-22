@@ -142,6 +142,10 @@ func (r IssueRequest) validate() error {
 		return fmt.Errorf("%w: a carrier invoice needs a bare valid email address of at most 80 bytes",
 			ErrRejected)
 	}
+	return r.validatePreference()
+}
+
+func (r IssueRequest) validatePreference() error {
 	if !r.Preference.Known() {
 		return fmt.Errorf("%w: %q is not an invoice type this shop offers",
 			ErrRejected, r.Preference)
