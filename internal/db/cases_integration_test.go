@@ -762,14 +762,40 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 		accept:     `DELETE FROM order_private_data WHERE order_id = '6666aaaa-6666-4666-8666-666666666666'; INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street, pickup_brand, pickup_store_code, pickup_store_name) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'test@example.com', '測試', '0912000000', '110', '台北市', '信義區', '松高路 100 號', NULL, NULL, NULL);`,
 	},
 	{
+		// A store with no chain, on a row whose destination is the address beside
+		// it, so order_private_data_one_destination is satisfied and this rule is
+		// the only one left. The chain alone is legal — it is what checkout
+		// writes — so the reject cannot be a missing store.
 		constraint: "order_private_data_pickup_complete",
-		reject:     `DELETE FROM order_private_data WHERE order_id = '6666aaaa-6666-4666-8666-666666666666'; INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street, pickup_brand, pickup_store_code, pickup_store_name) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'test@example.com', '測試', '0912000000', '110', '台北市', '信義區', '松高路 100 號', 'seven_eleven', NULL, '信義門市');`,
+		reject:     `DELETE FROM order_private_data WHERE order_id = '6666aaaa-6666-4666-8666-666666666666'; INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street, pickup_brand, pickup_store_code, pickup_store_name) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'test@example.com', '測試', '0912000000', '110', '台北市', '信義區', '松高路 100 號', NULL, '123456', '信義門市');`,
+		accept:     `DELETE FROM order_private_data WHERE order_id = '6666aaaa-6666-4666-8666-666666666666'; INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street, pickup_brand, pickup_store_code, pickup_store_name) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'test@example.com', '測試', '0912000000', '110', '台北市', '信義區', '松高路 100 號', NULL, NULL, NULL);`,
+	},
+	{
+		// The chain with a store code and no store name: the picker wrote one
+		// column and not the other. The accept is the chain alone, which is
+		// what checkout writes before any picker runs.
+		constraint: "order_private_data_pickup_complete",
+		reject:     `DELETE FROM order_private_data WHERE order_id = '6666aaaa-6666-4666-8666-666666666666'; INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street, pickup_brand, pickup_store_code, pickup_store_name) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'test@example.com', '測試', '0912000000', NULL, NULL, NULL, NULL, 'seven_eleven', '123456', NULL);`,
+		accept:     `DELETE FROM order_private_data WHERE order_id = '6666aaaa-6666-4666-8666-666666666666'; INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street, pickup_brand, pickup_store_code, pickup_store_name) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'test@example.com', '測試', '0912000000', NULL, NULL, NULL, NULL, 'seven_eleven', NULL, NULL);`,
+	},
+	{
+		// The reverse half: a store name with no code. The accept is the full
+		// picker-written triple, the other legal neighbour.
+		constraint: "order_private_data_pickup_complete",
+		reject:     `DELETE FROM order_private_data WHERE order_id = '6666aaaa-6666-4666-8666-666666666666'; INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street, pickup_brand, pickup_store_code, pickup_store_name) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'test@example.com', '測試', '0912000000', NULL, NULL, NULL, NULL, 'seven_eleven', NULL, '信義門市');`,
 		accept:     `DELETE FROM order_private_data WHERE order_id = '6666aaaa-6666-4666-8666-666666666666'; INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street, pickup_brand, pickup_store_code, pickup_store_name) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'test@example.com', '測試', '0912000000', NULL, NULL, NULL, NULL, 'seven_eleven', '123456', '信義門市');`,
 	},
 	{
 		constraint: "order_private_data_one_destination",
 		reject:     `DELETE FROM order_private_data WHERE order_id = '6666aaaa-6666-4666-8666-666666666666'; INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street, pickup_brand, pickup_store_code, pickup_store_name) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'test@example.com', '測試', '0912000000', '110', '台北市', '信義區', '松高路 100 號', 'seven_eleven', '123456', '信義門市');`,
 		accept:     `DELETE FROM order_private_data WHERE order_id = '6666aaaa-6666-4666-8666-666666666666'; INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street, pickup_brand, pickup_store_code, pickup_store_name) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'test@example.com', '測試', '0912000000', NULL, NULL, NULL, NULL, 'seven_eleven', '123456', '信義門市');`,
+	},
+	{
+		// The other way to fail "exactly one": neither a HOME address nor a
+		// chain. The accept is the address-only neighbour already proven above.
+		constraint: "order_private_data_one_destination",
+		reject:     `DELETE FROM order_private_data WHERE order_id = '6666aaaa-6666-4666-8666-666666666666'; INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street, pickup_brand, pickup_store_code, pickup_store_name) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'test@example.com', '測試', '0912000000', NULL, NULL, NULL, NULL, NULL, NULL, NULL);`,
+		accept:     `DELETE FROM order_private_data WHERE order_id = '6666aaaa-6666-4666-8666-666666666666'; INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street, pickup_brand, pickup_store_code, pickup_store_name) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'test@example.com', '測試', '0912000000', '110', '台北市', '信義區', '松高路 100 號', NULL, NULL, NULL);`,
 	},
 	{
 		constraint: "order_private_data_pickup_brand_known",
@@ -1064,6 +1090,14 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 		constraint: "product_option_values_value_en_present",
 		reject:     `INSERT INTO product_option_values (id, product_id, option_id, value, value_en) VALUES ('11110006-0000-4000-8000-000000000092', '33333333-3333-4333-8333-333333333333', 'aaaa0001-0000-4000-8000-000000000000', '測試值', E'\t');`,
 		accept:     `INSERT INTO product_option_values (id, product_id, option_id, value, value_en) VALUES ('11110006-0000-4000-8000-000000000092', '33333333-3333-4333-8333-333333333333', 'aaaa0001-0000-4000-8000-000000000000', '測試值', 'Test value');`,
+	},
+	{
+		// Upper case is the rejection worth watching: '#FFFFFF' and '#ffffff' are
+		// one colour under two spellings, and a column that accepts both is a
+		// column the shop can sort two ways.
+		constraint: "product_option_values_swatch_hex_shape",
+		reject:     `INSERT INTO product_option_values (id, product_id, option_id, value, swatch_hex) VALUES ('11110007-0000-4000-8000-000000000093', '33333333-3333-4333-8333-333333333333', 'aaaa0001-0000-4000-8000-000000000000', '測試色', '#FFFFFF');`,
+		accept:     `INSERT INTO product_option_values (id, product_id, option_id, value, swatch_hex) VALUES ('11110007-0000-4000-8000-000000000093', '33333333-3333-4333-8333-333333333333', 'aaaa0001-0000-4000-8000-000000000000', '測試色', '#ffffff');`,
 	},
 	{
 		constraint: "product_option_values_value_present",

@@ -7395,6 +7395,100 @@ func TestTheShopCanGiveAProductAVariantPicker(t *testing.T) {
 	}
 }
 
+// A colour is a shape, not a word, and the shop finds that out at the field
+// rather than from a refused write. The column's CHECK is the last word; this
+// is the first one, and the two have to agree or the page 500s on a typo.
+func TestAMistypedColourComesBackBesideTheField(t *testing.T) {
+	ctx, _ := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	h := adminHandlerOver(pool, s)
+	slug := draftProduct(t, ctx, s)
+
+	if errs, err := s.AddOption(ctx, slug, admin.OptionDraft{
+		Name: "顏色", NameEn: "Colour",
+	}); err != nil || len(errs) > 0 {
+		t.Fatalf("AddOption: %v %v", err, errs)
+	}
+	view, err := s.Product(ctx, slug)
+	if err != nil {
+		t.Fatalf("Product: %v", err)
+	}
+	optionID := view.Options[0].ID
+
+	refused := []struct {
+		name string
+		raw  string
+	}{
+		{name: "no hash", raw: "1c1c1e"},
+		{name: "three digits", raw: "#abc"},
+		{name: "not hexadecimal", raw: "#1c1c1g"},
+		{name: "a colour name", raw: "black"},
+		{name: "too long", raw: "#1c1c1e0"},
+	}
+	for _, tt := range refused {
+		t.Run(tt.name, func(t *testing.T) {
+			res := postOptionValueForm(t, h, ctx, slug, url.Values{
+				"option":     {optionID},
+				"value":      {"色碼測試 " + uuid.NewString()[:8]},
+				"value_en":   {""},
+				"swatch_hex": {tt.raw},
+			})
+			if res.Code != http.StatusUnprocessableEntity {
+				t.Fatalf("AddOptionValue(swatch_hex=%q) status = %d, want 422", tt.raw, res.Code)
+			}
+			body := res.Body.String()
+			input := inputElementByID(t, body, "optval-swatch")
+			if got := inputAttribute(t, input, "aria-invalid"); got != "true" {
+				t.Errorf("colour field aria-invalid = %q, want true", got)
+			}
+			if got := inputAttribute(t, input, "aria-describedby"); got != "optval-swatch-error" {
+				t.Errorf("colour field aria-describedby = %q, want the error's id", got)
+			}
+			if !regexp.MustCompile(`<p[^>]*id="optval-swatch-error"[^>]*>[^<]+</p>`).MatchString(body) {
+				t.Error("the refusal names no reason beside the colour field")
+			}
+			if strings.Contains(inputElementByID(t, body, "optval-value"), `aria-invalid`) {
+				t.Error("a bad colour marked the value field invalid too")
+			}
+		})
+	}
+
+	// The spelling is not the shape. A shop that types the other case is
+	// storing the same colour, so this one is accepted and lower-cased.
+	value := "曜石黑 " + uuid.NewString()[:8]
+	res := postOptionValueForm(t, h, ctx, slug, url.Values{
+		"option":     {optionID},
+		"value":      {value},
+		"value_en":   {""},
+		"swatch_hex": {"#1C1C1E"},
+	})
+	if res.Code != http.StatusSeeOther {
+		t.Fatalf("AddOptionValue(swatch_hex=%q) status = %d, want 303", "#1C1C1E", res.Code)
+	}
+	var stored string
+	if err := pool.QueryRow(ctx,
+		`SELECT swatch_hex FROM product_option_values WHERE option_id = $1::uuid AND value = $2`,
+		optionID, value).Scan(&stored); err != nil {
+		t.Fatalf("read the stored colour: %v", err)
+	}
+	if stored != "#1c1c1e" {
+		t.Errorf("stored colour = %q, want the lower-cased spelling", stored)
+	}
+}
+
+func postOptionValueForm(
+	t *testing.T, h *admin.Handler, ctx context.Context, slug string, form url.Values,
+) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequestWithContext(ctx, http.MethodPost,
+		"/admin/products/"+slug+"/options/values", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.SetPathValue("slug", slug)
+	res := httptest.NewRecorder()
+	h.AddOptionValue(res, req)
+	return res
+}
+
 func TestAVariantCannotBorrowAnotherProductsOptionValue(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
@@ -11329,5 +11423,83 @@ func TestAStrandedInvoiceClaimIsOnTheHealthPage(t *testing.T) {
 		auditRequest != "req-"+actor.String()[:8] {
 		t.Fatalf("authorization/audit = %d/%d actor %s request %q",
 			authorizations, audits, auditActor, auditRequest)
+	}
+}
+
+// TestABoundedListSaysSoAtTheBoundary is the integration half of the change
+// #400's sibling made: every back-office list reads a page and shows it, and
+// until now no page said so.
+//
+// The boundary is the only place this can be wrong, so that is what is tested:
+// exactly a page says nothing, and one row past a page says something. The
+// contact inbox is the fixture because a message needs no product, no order and
+// no customer — every other capped list would need a catalogue built first to
+// prove a property that has nothing to do with catalogues.
+func TestABoundedListSaysSoAtTheBoundary(t *testing.T) {
+	ctx, _ := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+
+	// The marker goes in the address, not the subject: contact_messages.subject
+	// is a closed set the schema enforces, so a made-up one is refused.
+	marker := "bound-" + uuid.NewString()[:8] + "@goen.invalid"
+	defer func() {
+		if _, err := pool.Exec(context.WithoutCancel(ctx),
+			`DELETE FROM contact_messages WHERE email = $1`, marker); err != nil {
+			t.Errorf("clean up the bounded-list fixture: %v", err)
+		}
+	}()
+
+	// Anything already in the inbox counts towards the page, so the fixture
+	// fills whatever is left rather than assuming it starts empty.
+	var existing int
+	if err := pool.QueryRow(ctx, `SELECT count(*)::int FROM contact_messages`).Scan(&existing); err != nil {
+		t.Fatalf("count the inbox: %v", err)
+	}
+	if existing > admin.PageSize {
+		t.Skipf("the inbox already holds %d messages, more than a page; "+
+			"this test needs to own the boundary", existing)
+	}
+
+	write := func(n int) {
+		t.Helper()
+		for i := range n {
+			if _, err := pool.Exec(ctx, `
+				INSERT INTO contact_messages (name, email, subject, message)
+				VALUES ($1, $2, '商品諮詢', $3)`,
+				"版面測試", marker,
+				fmt.Sprintf("訊息內容 %03d", i)); err != nil {
+				t.Fatalf("write fixture message %d: %v", i, err)
+			}
+		}
+	}
+
+	write(admin.PageSize - existing)
+	full, err := s.Messages(ctx)
+	if err != nil {
+		t.Fatalf("read the inbox at exactly a page: %v", err)
+	}
+	if len(full.Rows) != admin.PageSize {
+		t.Fatalf("a full page holds %d rows, want %d", len(full.Rows), admin.PageSize)
+	}
+	if full.More {
+		t.Error("a list holding exactly a page says there is more; the sentence " +
+			"would appear on an inbox nobody has anything left to read in")
+	}
+
+	write(1)
+	over, err := s.Messages(ctx)
+	if err != nil {
+		t.Fatalf("read the inbox one past a page: %v", err)
+	}
+	if len(over.Rows) != admin.PageSize {
+		t.Errorf("one row past a page renders %d rows, want %d — the extra row is "+
+			"there to be counted, not shown", len(over.Rows), admin.PageSize)
+	}
+	if !over.More {
+		t.Error("a list with more than a page says nothing; a staff member cannot " +
+			"tell fifty messages from fifty of nine hundred")
+	}
+	if over.Limit != admin.PageSize {
+		t.Errorf("the sentence would name %d rather than %d", over.Limit, admin.PageSize)
 	}
 }

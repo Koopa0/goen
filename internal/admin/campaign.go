@@ -47,11 +47,12 @@ func (f *CampaignForm) Validate(ctx context.Context) map[string]string {
 
 // Campaigns reads the promotions for the back office.
 func (s *Store) Campaigns(ctx context.Context) (pages.AdminCampaignsView, error) {
-	rows, err := s.q.AdminCampaigns(ctx, PageSize)
+	rows, err := s.q.AdminCampaigns(ctx, PageLimit)
 	if err != nil {
 		return pages.AdminCampaignsView{}, fmt.Errorf("read campaigns: %w", err)
 	}
-	view := pages.AdminCampaignsView{}
+	rows, more := pageOf(rows, PageSize)
+	view := pages.AdminCampaignsView{ListBound: pages.Bound(more, PageSize)}
 	for i := range rows {
 		c := &rows[i]
 		view.Rows = append(view.Rows, pages.AdminCampaign{

@@ -7,6 +7,7 @@ internal/catalog/queryplan.largeBudgets # reason: integration-tagged large-scale
 internal/catalog/queryplan.SeedFile # reason: integration-tagged fixture path lookup for catalogue query plans (#335)
 internal/catalog/queryplan.ProductCount # reason: integration-tagged fixture size oracle for catalogue query plans (#335)
 internal/catalog/queryplan.RunAll # reason: integration-tagged EXPLAIN harness exercised by make catalogue-query-plans (#335)
+internal/catalog/queryplan.checkResults # reason: integration-tagged per-sample budget verdicts retained with query-plan evidence (#335)
 internal/catalog/queryplan.MeasureAll # reason: integration-tagged measurement collector for catalogue query plans (#335)
 internal/catalog/queryplan.measureQuery # reason: integration-tagged single-route measurement for catalogue query plans (#335)
 internal/catalog/queryplan.prepareCatalogue # reason: integration-tagged ANALYZE step before catalogue plan capture (#335)

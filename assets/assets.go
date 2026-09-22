@@ -20,7 +20,7 @@ import (
 	"strings"
 )
 
-//go:embed all:brand all:css all:js all:media
+//go:embed all:brand all:css all:fonts all:js all:media all:speculation
 var files embed.FS
 
 // Prefix is the URL path the asset handler is mounted on.
@@ -28,10 +28,22 @@ const Prefix = "/static/"
 
 // Asset names referenced by templates. Keep in sync with [required].
 const (
-	DesignSystemCSS  = "css/ds/styles.css"
-	AccentsCSS       = "css/ds/themes/accents.css"
-	CommerceCSS      = "css/ds/packs/commerce.css"
-	AppCSS           = "css/app/app.css"
+	// BaseCSS carries the tokens, the element defaults and the shared
+	// primitives, and is linked before AppCSS: a value set in both is
+	// settled by source order.
+	BaseCSS  = "css/app/base.css"
+	AppCSS   = "css/app/app.css"
+	FontsCSS = "css/app/fonts.css"
+	// InterLatinWOFF2 is the one face worth a preload: every page paints Latin
+	// before it paints anything else, and the browser cannot discover a font
+	// until it has parsed the stylesheet that names it.
+	InterLatinWOFF2 = "fonts/inter/latin.woff2"
+	// SpeculationRules is the document the Speculation-Rules header names. It
+	// is an asset rather than an inline <script type="speculationrules">
+	// because the policy admits no inline script, and it is one document for
+	// every page because the rules are about where a link goes, not about
+	// which page the visitor is on.
+	SpeculationRules = "speculation/rules.json"
 	HTMXJS           = "js/vendor/htmx.min.js"
 	AppJS            = "js/goen.js"
 	MarkSVG          = "brand/goen-mark.svg"
@@ -42,10 +54,11 @@ const (
 const productMediaPrefix = "media/products/"
 
 var required = []string{
-	DesignSystemCSS,
-	AccentsCSS,
-	CommerceCSS,
+	BaseCSS,
 	AppCSS,
+	FontsCSS,
+	InterLatinWOFF2,
+	SpeculationRules,
 	HTMXJS,
 	AppJS,
 	MarkSVG,
@@ -214,32 +227,48 @@ func Handler(log *slog.Logger) http.Handler {
 		} else {
 			w.Header().Set("Cache-Control", "no-cache")
 		}
-		body, hasGzip := catalogue.gzipped[name]
+		gzipped, hasGzip := catalogue.gzipped[name]
 		if hasGzip {
 			w.Header().Add("Vary", "Accept-Encoding")
 		}
 		if hasGzip && acceptsGzip(r) {
-			etag := `"` + digest + `-gz"`
-			w.Header().Set("ETag", etag)
-			w.Header().Set("Content-Type", contentType(name))
 			w.Header().Set("Content-Encoding", "gzip")
-			if ifNoneMatch(r, etag) {
-				w.WriteHeader(http.StatusNotModified)
-				return
-			}
-			w.Header().Set("Content-Length", strconv.Itoa(len(body)))
-			if r.Method == http.MethodHead {
-				w.WriteHeader(http.StatusOK)
-				return
-			}
-			if _, err := w.Write(body); err != nil {
-				log.WarnContext(r.Context(), "assets: write gzip body", "name", name, "error", err)
-			}
+			writeBody(w, r, log, name, `"`+digest+`-gz"`, gzipped)
 			return
 		}
 		w.Header().Set("ETag", `"`+digest+`"`)
+		// Set here rather than left to the file server, which would sniff the
+		// extension and answer application/json. A browser refuses a
+		// speculation rules document that does not arrive as
+		// application/speculationrules+json, and that check is what stops any
+		// JSON a site happens to serve from becoming rules. ServeContent keeps
+		// a Content-Type that is already set.
+		w.Header().Set("Content-Type", contentType(name))
 		fileServer.ServeHTTP(w, r)
 	}))
+}
+
+// writeBody answers with bytes this package is holding rather than with a file,
+// which is the case for a precompressed representation. It owns the conditional
+// request and the HEAD, so those two answers cannot drift apart between the
+// callers.
+func writeBody(
+	w http.ResponseWriter, r *http.Request, log *slog.Logger, name, etag string, body []byte,
+) {
+	w.Header().Set("ETag", etag)
+	w.Header().Set("Content-Type", contentType(name))
+	if ifNoneMatch(r, etag) {
+		w.WriteHeader(http.StatusNotModified)
+		return
+	}
+	w.Header().Set("Content-Length", strconv.Itoa(len(body)))
+	if r.Method == http.MethodHead {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	if _, err := w.Write(body); err != nil {
+		log.WarnContext(r.Context(), "assets: write body", "name", name, "error", err)
+	}
 }
 
 func ifNoneMatch(r *http.Request, etag string) bool {

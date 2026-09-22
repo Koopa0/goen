@@ -9,6 +9,14 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
+// htmxConfig configures htmx from the document, because a policy that allows no
+// inline script leaves nowhere else to set it. transitions asks the browser to
+// cross-fade a swapped region; the stylesheet gives that its duration and
+// silences it under reduced motion. includeIndicatorCSS is off because htmx
+// would otherwise adopt a stylesheet of its own, and every rule this site has
+// belongs in the sheet the policy already allows.
+const htmxConfig = `{"transitions":true,"includeIndicatorCSS":false}`
+
 // Page is the chrome-level view model every goen page supplies.
 type Page struct {
 	Title          string
@@ -102,13 +110,6 @@ func (p Page) current(item NavItem) bool {
 func (p Page) ariaCurrent(item NavItem) string {
 	if p.current(item) {
 		return "page"
-	}
-	return "false"
-}
-
-func boolAttr(v bool) string {
-	if v {
-		return "true"
 	}
 	return "false"
 }

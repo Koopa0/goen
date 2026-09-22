@@ -5,33 +5,13 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-// Base is goen's document shell.
+// Base is the storefront's document shell.
 templ Base(p Page) {
 	<!DOCTYPE html>
 	<html lang={ i18n.FromContext(ctx).Tag() } class="theme-blue">
-		<head>
-			<meta charset="utf-8"/>
-			<meta name="viewport" content="width=device-width, initial-scale=1"/>
-			<title>{ p.title(ctx) }</title>
-			if p.Description != "" {
-				<meta name="description" content={ p.Description }/>
-			}
-			if p.StructuredData != "" {
-				@structuredData(p.StructuredData)
-			}
-			<link rel="icon" type="image/svg+xml" href={ templ.URL(assets.URL(assets.MarkSVG)) }/>
-			<link rel="preconnect" href="https://fonts.googleapis.com"/>
-			<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-			<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&amp;display=swap"/>
-			<link rel="stylesheet" href={ templ.URL(assets.URL(assets.DesignSystemCSS)) }/>
-			<link rel="stylesheet" href={ templ.URL(assets.URL(assets.AccentsCSS)) }/>
-			<link rel="stylesheet" href={ templ.URL(assets.URL(assets.CommerceCSS)) }/>
-			<link rel="stylesheet" href={ templ.URL(assets.URL(assets.AppCSS)) }/>
-			<script src={ templ.URL(assets.URL(assets.HTMXJS)) } defer></script>
-			<script src={ templ.URL(assets.URL(assets.AppJS)) } defer></script>
-		</head>
+		@documentHead(p)
 		<body class="goen-shell">
-			<a class="goen-skip ui-sm" href="#main">{ i18n.T(ctx, i18n.KeySkipToContent) }</a>
+			<a class="goen-skip" href="#main">{ i18n.T(ctx, i18n.KeySkipToContent) }</a>
 			@promoBanner()
 			@Header(p)
 			<main id="main">
@@ -40,6 +20,44 @@ templ Base(p Page) {
 			@Footer()
 		</body>
 	</html>
+}
+
+// documentHead is the head both shells send. It is one templ and not two
+// because every entry in it — the fonts, the stylesheets, htmx and its
+// configuration — is a fact about the document rather than about the storefront,
+// and a second copy is a second copy to keep current.
+//
+// base.css is linked before app.css because that order is the cascade: a value
+// set in both is settled by source order, and app.css is what wins.
+templ documentHead(p Page) {
+	<head>
+		<meta charset="utf-8"/>
+		<meta name="viewport" content="width=device-width, initial-scale=1"/>
+		<meta name="htmx-config" content={ htmxConfig }/>
+		<title>{ p.title(ctx) }</title>
+		if p.Description != "" {
+			<meta name="description" content={ p.Description }/>
+		}
+		if p.StructuredData != "" {
+			@structuredData(p.StructuredData)
+		}
+		<link rel="icon" type="image/svg+xml" href={ templ.URL(assets.URL(assets.MarkSVG)) }/>
+		// goen's own faces, from goen's own origin. There is no preconnect
+		// because there is no second origin to connect to: the stylesheet and
+		// every file it names arrive on the connection that fetched the page.
+		//
+		// The Latin face is preloaded because every page paints Latin before it
+		// paints anything else, and a browser cannot discover a font until it has
+		// parsed the sheet that names it. The Han subsets are not preloaded:
+		// which of the 105 a page needs depends on the characters on it, and a
+		// preloaded guess costs a file the page may never paint.
+		<link rel="preload" href={ templ.URL(assets.URL(assets.InterLatinWOFF2)) } as="font" type="font/woff2" crossorigin/>
+		<link rel="stylesheet" href={ templ.URL(assets.URL(assets.FontsCSS)) }/>
+		<link rel="stylesheet" href={ templ.URL(assets.URL(assets.BaseCSS)) }/>
+		<link rel="stylesheet" href={ templ.URL(assets.URL(assets.AppCSS)) }/>
+		<script src={ templ.URL(assets.URL(assets.HTMXJS)) } defer></script>
+		<script src={ templ.URL(assets.URL(assets.AppJS)) } defer></script>
+	</head>
 }
 
 // Inside templ.Raw because templ treats a <script> body as literal text.
