@@ -1499,7 +1499,7 @@ func (h *Handler) CorrectDelivery(w http.ResponseWriter, r *http.Request) {
 		if change.DeltaCents > 0 {
 			delta = "+" + delta
 		}
-		h.rejectDelivery(w, r, submitted, fmt.Sprintf(i18n.T(r.Context(), i18n.KeyDeliverySurchargeErrord), money.TWDExact(change.ShippingCents), delta))
+		h.rejectDelivery(w, r, submitted, fmt.Sprintf(i18n.T(r.Context(), i18n.KeyDeliverySurchargeChanged), money.TWDExact(change.ShippingCents), delta))
 		return
 	}
 	if errors.Is(err, ErrDeliveryZoneUnavailable) {
