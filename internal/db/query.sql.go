@@ -6626,6 +6626,18 @@ func (q *Queries) LockPaymentProviderRef(ctx context.Context, providerRef string
 	return err
 }
 
+const lockProductCatalogue = `-- name: LockProductCatalogue :one
+SELECT id FROM products WHERE slug = $1 FOR NO KEY UPDATE
+`
+
+// Lock before reading options so a concurrently added axis participates in validation.
+func (q *Queries) LockProductCatalogue(ctx context.Context, slug string) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, lockProductCatalogue, slug)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
 const lockReturnOrder = `-- name: LockReturnOrder :one
 SELECT o.id
 FROM orders o JOIN return_requests r ON r.order_id = o.id

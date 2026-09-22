@@ -97,3 +97,8 @@ var (
 
 	KeyAdminProdValueAdd = key("admin.prod.valueadd", Message{ZhHant: "新增值", En: "Add value"})
 )
+
+var KeyFormOptionBeforeVariants = key("form.option.before_variants", Message{
+	ZhHant: "此商品已有 SKU，無法新增規格軸。請先在新商品設定完整規格，再建立 SKU；既有商品與 SKU 不會變更。",
+	En:     "This product already has SKUs, so another option axis cannot be added. Define all options on a new product before creating its SKUs; existing products and SKUs stay unchanged.",
+})
