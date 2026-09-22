@@ -82,6 +82,7 @@ func queryWriteVerbs(t *testing.T) map[string]map[string]map[string]bool {
 
 var insertVerb = regexp.MustCompile(
 	`(?is)\bINSERT\s+INTO\s+(?:ONLY\s+)?([a-z_][a-z0-9_]*)`)
+var upsertVerb = regexp.MustCompile(`(?is)\bON\s+CONFLICT\b.*?\bDO\s+UPDATE\b`)
 var updateVerb = regexp.MustCompile(
 	`(?is)\bUPDATE\s+(?:ONLY\s+)?([a-z_][a-z0-9_]*)(?:\s+[a-z_][a-z0-9_]*)?\s+SET\b`)
 var deleteVerb = regexp.MustCompile(
@@ -99,8 +100,21 @@ func writeVerbTargets(src string) map[string]map[string]bool {
 		}
 		out[table][verb] = true
 	}
-	for _, m := range insertVerb.FindAllStringSubmatch(clean, -1) {
-		note(m[1], "INSERT")
+	inserts := insertVerb.FindAllStringSubmatchIndex(clean, -1)
+	for i, match := range inserts {
+		table := clean[match[2]:match[3]]
+		note(table, "INSERT")
+		end := len(clean)
+		if i+1 < len(inserts) {
+			end = inserts[i+1][0]
+		}
+		statement := clean[match[1]:end]
+		if stop := strings.IndexByte(statement, ';'); stop >= 0 {
+			statement = statement[:stop]
+		}
+		if upsertVerb.MatchString(statement) {
+			note(table, "UPDATE")
+		}
 	}
 	for _, m := range updateVerb.FindAllStringSubmatch(clean, -1) {
 		note(m[1], "UPDATE")
@@ -111,14 +125,14 @@ func writeVerbTargets(src string) map[string]map[string]bool {
 	return out
 }
 
-// TestNoRoleHoldsAWriteItsQueriesNeverMake holds a role to writing only tables its own queries
-// write. Which role performs a write is the pool a store is constructed on, which lives in Go.
+// TestNoRoleHoldsAWriteItsQueriesNeverMake checks each held verb against the
+// production calls on that role, so an INSERT cannot justify UPDATE or DELETE.
 func TestNoRoleHoldsAWriteItsQueriesNeverMake(t *testing.T) {
 	ctx := t.Context()
 
 	for _, role := range []string{"store", "admin", "reporting", "maintenance"} {
 		t.Run(role, func(t *testing.T) {
-			allowed := writableTables(t, role)
+			allowed := writableVerbs(t, role)
 
 			rows, err := pool.Query(ctx, `
 				SELECT c.relname, p.priv
@@ -147,23 +161,16 @@ func TestNoRoleHoldsAWriteItsQueriesNeverMake(t *testing.T) {
 			}
 
 			for _, table := range sortedKeys(held) {
-				if allowed[table] {
-					continue
+				for _, verb := range held[table] {
+					if allowed[table][verb] {
+						continue
+					}
+					if why, ok := writeExemptions[role+"."+table]; ok && verb == "INSERT" {
+						t.Logf("%s may INSERT %s: %s", role, table, why)
+						continue
+					}
+					t.Errorf("%s holds %s on %s, and no production query it runs uses that verb", role, verb, table)
 				}
-				if why, ok := writeExemptions[role+"."+table]; ok {
-					t.Logf("%s may write %s: %s", role, table, why)
-					continue
-				}
-				t.Errorf("%s holds %s on %s, and no query it runs writes that table.\n"+
-					"  A privilege with no caller is capability waiting for a bug to find "+
-					"it — `store` reaching users.role and staff_totp_credentials was how a "+
-					"storefront request became an admin, and `admin` reaching "+
-					"users.password_hash and sessions was silent impersonation with no "+
-					"audit row.\n"+
-					"  Either a query should write it — in which case the pool map below "+
-					"is wrong — or the grant should be revoked. If it must be held "+
-					"unused, name it in writeExemptions with the reason.",
-					role, strings.Join(held[table], "/"), table)
 			}
 		})
 	}
@@ -380,34 +387,6 @@ func queryWrites(t *testing.T) map[string]map[string]bool {
 // methodCall matches a call to a db.Queries method on any receiver.
 var methodCall = regexp.MustCompile(`\.([A-Z]\w*)\(`)
 
-// packageWrites is every table a feature package writes. Test files are excluded: counting one
-// would let a fixture justify a production privilege.
-func packageWrites(t *testing.T, pkg string, byQuery map[string]map[string]bool) map[string]bool {
-	t.Helper()
-	dir := filepath.Join("..", "..", "internal", pkg)
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		t.Fatalf("read internal/%s: %v", pkg, err)
-	}
-	out := map[string]bool{}
-	for _, e := range entries {
-		name := e.Name()
-		if e.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
-			continue
-		}
-		src, readErr := os.ReadFile(filepath.Join(dir, name)) //nolint:gosec // G304: a path built from this repository's own tree
-		if readErr != nil {
-			t.Fatalf("read %s: %v", name, readErr)
-		}
-		for _, m := range methodCall.FindAllStringSubmatch(string(src), -1) {
-			for table := range byQuery[m[1]] {
-				out[table] = true
-			}
-		}
-	}
-	return out
-}
-
 // writeTarget matches the table an INSERT, UPDATE or DELETE names.
 var writeTarget = regexp.MustCompile(
 	`(?is)\b(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM)\s+(?:ONLY\s+)?([a-z_][a-z0-9_]*)`)
@@ -505,33 +484,6 @@ var backOfficePackages = []string{
 // maintenancePackages run on the pool that does SET ROLE maintenance, which holds no table write.
 var maintenancePackages = []string{"recommend"}
 
-func writableTables(t *testing.T, role string) map[string]bool {
-	t.Helper()
-	var pkgs []string
-	switch role {
-	case "store":
-		pkgs = storefrontPackages
-	case "admin":
-		pkgs = backOfficePackages
-	case "maintenance":
-		pkgs = maintenancePackages
-	case "reporting":
-		// A dashboard reads: the empty set is the expectation, not an oversight.
-		pkgs = nil
-	default:
-		panic("db: unknown role in the pool map: " + role)
-	}
-
-	byQuery := queryWrites(t)
-	out := map[string]bool{}
-	for _, pkg := range pkgs {
-		for table := range packageWrites(t, pkg, byQuery) {
-			out[table] = true
-		}
-	}
-	return out
-}
-
 // TestThePoolMapIsComplete refuses a feature package on no pool map, which opts it out entirely.
 func TestThePoolMapIsComplete(t *testing.T) {
 	named := map[string]bool{}
@@ -601,4 +553,20 @@ func sortedKeys(m map[string][]string) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+func TestWriteVerbTargetsDistinguishUpserts(t *testing.T) {
+	for _, tc := range []struct {
+		sql    string
+		update bool
+	}{
+		{"INSERT INTO products (id) VALUES (1) ON CONFLICT (id) DO UPDATE SET id = 1", true},
+		{"INSERT INTO products (id) VALUES (1) ON CONFLICT (id) DO NOTHING", false},
+		{"INSERT INTO products (id) VALUES (1); INSERT INTO coupons (id) VALUES (1) ON CONFLICT (id) DO UPDATE SET id = 1", false},
+	} {
+		verbs := writeVerbTargets(tc.sql)["products"]
+		if !verbs["INSERT"] || verbs["UPDATE"] != tc.update || verbs["DELETE"] {
+			t.Errorf("%s: got verbs %v", tc.sql, verbs)
+		}
+	}
 }
