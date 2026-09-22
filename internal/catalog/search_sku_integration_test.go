@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+
 	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
