@@ -24,6 +24,7 @@ type Gateway struct {
 	client        *stripe.Client
 	webhookSecret string
 	baseURL       string
+	sandbox       bool
 }
 
 const maxStripeIDCharacters = 255
@@ -71,11 +72,15 @@ func NewGateway(apiKey, webhookSecret, baseURL string) (*Gateway, error) {
 		client:        stripe.NewClient(apiKey),
 		webhookSecret: webhookSecret,
 		baseURL:       origin,
+		sandbox:       strings.HasPrefix(apiKey, "sk_test_") || strings.HasPrefix(apiKey, "rk_test_") || strings.HasPrefix(apiKey, "rkcs_test_"),
 	}, nil
 }
 
 // Enabled reports whether goen can actually take money.
 func (g *Gateway) Enabled() bool { return g.client != nil }
+
+// Sandbox reports whether the configured key is explicitly a Stripe test key.
+func (g *Gateway) Sandbox() bool { return g.Enabled() && g.sandbox }
 
 // lineItem is one row on Stripe's page.
 func lineItem(name string, unitCents, quantity int64) *stripe.CheckoutSessionCreateLineItemParams {
