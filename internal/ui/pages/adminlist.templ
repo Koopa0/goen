@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
 )
 
 // listBound keeps navigation usable through ordinary links, including an empty
@@ -16,10 +17,14 @@ templ listBound(b ListBound, order ListOrder, searchable bool) {
 		if b.First != "" || b.Next != "" {
 			<nav class="goen-pager" aria-label={ i18n.T(ctx, i18n.KeyPagination) }>
 				if b.First != "" {
-					<a class="goen-btn goen-btn--outline" href={ templ.URL(b.First) }>{ i18n.T(ctx, i18n.KeyAdminFirstPage) }</a>
+					@components.ButtonLink(components.ButtonProps{Variant: components.VariantOutline}, templ.URL(b.First)) {
+						{ i18n.T(ctx, i18n.KeyAdminFirstPage) }
+					}
 				}
 				if b.Next != "" {
-					<a class="goen-btn goen-btn--outline" href={ templ.URL(b.Next) } rel="next">{ i18n.T(ctx, i18n.KeyNextPage) }</a>
+					@components.ButtonLink(components.ButtonProps{Variant: components.VariantOutline, Attrs: templ.Attributes{"rel": "next"}}, templ.URL(b.Next)) {
+						{ i18n.T(ctx, i18n.KeyNextPage) }
+					}
 				}
 			</nav>
 		}
