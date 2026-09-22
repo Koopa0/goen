@@ -448,8 +448,8 @@ func TestRetiringAPurchasedVariantDoesNotEraseVerifiedPurchase(t *testing.T) {
 	if queryErr := tx.QueryRow(ctx, `
 		INSERT INTO order_lines
 			(order_id, variant_id, sku, product_name, unit_price_cents, quantity)
-		VALUES ($1, $2, 'RETIRED-BOUGHT', '規格退役測試商品', 100000, 1)
-		RETURNING id`, orderID, boughtVariant).Scan(&lineID); queryErr != nil {
+		SELECT $1, pv.id, pv.sku, p.name, 100000, 1 FROM product_variants pv JOIN products p ON p.id = pv.product_id WHERE pv.id = $2
+		RETURNING order_lines.id`, orderID, boughtVariant).Scan(&lineID); queryErr != nil {
 		t.Fatalf("create line: %v", queryErr)
 	}
 	if _, savepointErr := tx.Exec(ctx, `SAVEPOINT mismatched_order_line_product`); savepointErr != nil {
@@ -1386,7 +1386,7 @@ func writeOrder(t *testing.T, v1, v2 uuid.UUID) uuid.UUID {
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO order_lines (order_id, variant_id, sku, product_name,
 			                         unit_price_cents, quantity, position)
-			VALUES ($1, $2, 'REC-SKU-'||$3::integer::text, '推薦測試商品', 100000, 1, $3::integer)`,
+			SELECT $1, pv.id, pv.sku, p.name, 100000, 1, $3::integer FROM product_variants pv JOIN products p ON p.id = pv.product_id WHERE pv.id = $2`,
 			orderID, variantID, pos); err != nil {
 			t.Fatalf("create line: %v", err)
 		}

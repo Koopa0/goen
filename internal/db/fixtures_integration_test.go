@@ -105,8 +105,8 @@ INSERT INTO order_lines (id, order_id, variant_id, sku, product_name, variant_la
     -- unshipped. Deliberately cheap — every capture must equal the order total exactly
     -- (payments_capture_matches_order), which refunds_within_capture's cases are calibrated to.
     ('66660003-0000-4000-8000-000000000000', '66666666-6666-4666-8666-666666666666',
-     '44444444-4444-4444-8444-444444444444', 'PXL-9P-256-BK',
-     '保護貼', '9H 鋼化', 1000, 2, 1);
+     '44444444-4444-4444-8444-444444444444', 'PXL-9P-256-BL',
+     'Pixelight 9 Pro 5G', '星霧藍 256GB', 1000, 2, 1);
 
 INSERT INTO order_private_data (order_id, email, recipient_name, phone,
                                 postal_code, city, district, street) VALUES

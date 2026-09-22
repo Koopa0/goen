@@ -577,7 +577,7 @@ func pendingOrderHoldingStock(t *testing.T) (number string, orderID, variantID u
 	}
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO order_lines (order_id, variant_id, sku, product_name, unit_price_cents, quantity)
-		VALUES ($1, $2, 'SHIP-TEST', '測試商品', 100000, 1)`, orderID, variantID); err != nil {
+		SELECT $1, pv.id, pv.sku, p.name, 100000, 1 FROM product_variants pv JOIN products p ON p.id = pv.product_id WHERE pv.id = $2`, orderID, variantID); err != nil {
 		t.Fatalf("create line: %v", err)
 	}
 	if _, err := tx.Exec(ctx, `
@@ -3765,7 +3765,7 @@ func TestBestSellerHistorySurvivesRetirementOfAPurchasedVariant(t *testing.T) {
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO order_lines
 			(order_id, variant_id, sku, product_name, unit_price_cents, quantity)
-		VALUES ($1, $2, 'REPORT-BOUGHT', '退役規格報表商品', 1, 999)`,
+		SELECT $1, pv.id, pv.sku, p.name, 1, 999 FROM product_variants pv JOIN products p ON p.id = pv.product_id WHERE pv.id = $2`,
 		orderID, purchasedVariant); err != nil {
 		t.Fatalf("create line: %v", err)
 	}
@@ -3812,7 +3812,7 @@ func TestBestSellerHistorySurvivesRetirementOfAPurchasedVariant(t *testing.T) {
 	var retainedVariant, retainedProduct uuid.UUID
 	if err := pool.QueryRow(ctx, `
 		SELECT variant_id, product_id FROM order_lines
-		WHERE order_id=$1 AND sku='REPORT-BOUGHT'`, orderID).
+		WHERE order_id=$1`, orderID).
 		Scan(&retainedVariant, &retainedProduct); err != nil {
 		t.Fatalf("read durable purchased identity: %v", err)
 	}
@@ -4625,7 +4625,7 @@ func placeHeldOrder(t *testing.T, vid uuid.UUID) string {
 	}
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO order_lines (order_id, variant_id, sku, product_name, unit_price_cents, quantity)
-		VALUES ($1, $2, 'ADMIN-HELD', '測試商品', 500000, 1)`, orderID, vid); err != nil {
+		SELECT $1, pv.id, pv.sku, p.name, 500000, 1 FROM product_variants pv JOIN products p ON p.id = pv.product_id WHERE pv.id = $2`, orderID, vid); err != nil {
 		t.Fatalf("create line: %v", err)
 	}
 	if _, err := tx.Exec(ctx, `
@@ -4867,7 +4867,7 @@ func shippableOrder(t *testing.T, locale string) string {
 	}
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO order_lines (order_id, variant_id, sku, product_name, unit_price_cents, quantity)
-		VALUES ($1, $2, 'SHIP-SKU', '測試商品', 100000, 1)`, orderID, variantID); err != nil {
+		SELECT $1, pv.id, pv.sku, p.name, 100000, 1 FROM product_variants pv JOIN products p ON p.id = pv.product_id WHERE pv.id = $2`, orderID, variantID); err != nil {
 		t.Fatalf("create line: %v", err)
 	}
 	if _, err := tx.Exec(ctx,
@@ -10559,8 +10559,8 @@ func registeredWarranty(t *testing.T, serial string) (registered, orderNumber st
 			order_id, product_id, variant_id, sku, product_name,
 			warranty_note, warranty_months, unit_price_cents, quantity
 		)
-		VALUES ($1, $2, $3, 'WR-SKU', '保固測試商品',
-		        nullif($4, ''), $5, 100000, 1) RETURNING id`,
+		SELECT $1, $2, pv.id, pv.sku, p.name, nullif($4, ''), $5, 100000, 1
+		FROM product_variants pv JOIN products p ON p.id = pv.product_id WHERE pv.id = $3 RETURNING order_lines.id`,
 		orderID, productID, variantID, warrantyNote, warrantyMonths).Scan(&lineID); err != nil {
 		t.Fatalf("create line: %v", err)
 	}

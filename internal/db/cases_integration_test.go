@@ -725,7 +725,7 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 		reject: `INSERT INTO order_lines (id, order_id, variant_id, sku, product_name, unit_price_cents, quantity, position)
 		         VALUES ('11110001-0000-4000-8000-000000000006', '6666aaaa-6666-4666-8666-666666666666', '44440000-0000-4000-8000-000000000000', 'UNKNOWN-VARIANT', '不存在規格', 1, 1, 5);`,
 		accept: `INSERT INTO order_lines (id, order_id, variant_id, sku, product_name, unit_price_cents, quantity, position)
-		         VALUES ('11110001-0000-4000-8000-000000000006', '6666aaaa-6666-4666-8666-666666666666', '44444444-4444-4444-8444-444444444444', 'PXL-TEST-BL', 'Pixelight 9 Pro 5G', 3690000, 1, 5);`,
+		         VALUES ('11110001-0000-4000-8000-000000000006', '6666aaaa-6666-4666-8666-666666666666', '44444444-4444-4444-8444-444444444444', 'PXL-9P-256-BL', 'Pixelight 9 Pro 5G', 3690000, 1, 5);`,
 	},
 	{
 		constraint: "order_lines_sku_present",
