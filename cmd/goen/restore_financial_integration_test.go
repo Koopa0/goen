@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	stripe "github.com/stripe/stripe-go/v86"
 	"golang.org/x/net/html"
@@ -381,7 +382,7 @@ func assertRestoreRefund(t *testing.T, pool *pgxpool.Pool, id, actor uuid.UUID, 
 func assertRestorePayment(t *testing.T, pool *pgxpool.Pool, ref string, actor uuid.UUID, wantStatus string, amount int64, events, audits int) {
 	t.Helper()
 	var status string
-	var captured int64
+	var captured pgtype.Int8
 	var gotEvents, gotAudits int
 	queryErr := pool.QueryRow(t.Context(), `SELECT p.status, p.captured_amount_cents,
 		(SELECT count(*) FROM order_events e WHERE e.order_id = p.order_id AND e.kind = 'paid'),
@@ -390,7 +391,8 @@ func assertRestorePayment(t *testing.T, pool *pgxpool.Pool, ref string, actor uu
 	if queryErr != nil {
 		t.Fatal(queryErr)
 	}
-	if status != wantStatus || captured != amount || gotEvents != events || gotAudits != audits {
-		t.Fatalf("payment %s state=%s captured=%d events=%d audits=%d; want %s/%d/%d/%d", ref, status, captured, gotEvents, gotAudits, wantStatus, amount, events, audits)
+	wantCaptured := pgtype.Int8{Int64: amount, Valid: wantStatus == "succeeded"}
+	if status != wantStatus || captured != wantCaptured || gotEvents != events || gotAudits != audits {
+		t.Fatalf("payment %s state=%s captured=%+v events=%d audits=%d; want %s/%+v/%d/%d", ref, status, captured, gotEvents, gotAudits, wantStatus, wantCaptured, events, audits)
 	}
 }
