@@ -1,0 +1,36 @@
+package pages
+
+import (
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/layouts"
+)
+
+templ ConfirmReturn(p layouts.Page, v AdminReturnConfirmation) {
+	@layouts.Admin(p, "returns") {
+		<div class="ui-page-head"><h1 class="ui-page-head__title">{ v.Title(ctx) }</h1></div>
+		@components.Card(components.CardProps{Class: "goen-admin__op"}) {
+			<dl class="ui-dl">
+				<div class="ui-dl__row"><dt class="ui-dl__term">{ i18n.T(ctx,i18n.KeyAdminRetConfirmOrder) }</dt><dd class="ui-dl__desc">{ v.OrderNumber }</dd></div>
+				<div class="ui-dl__row"><dt class="ui-dl__term">{ i18n.T(ctx,i18n.KeyAdminRetConfirmReason) }</dt><dd class="ui-dl__desc">{ v.Reason }</dd></div>
+				<div class="ui-dl__row"><dt class="ui-dl__term">{ i18n.T(ctx,i18n.KeyAdminRetConfirmAmount) }</dt><dd class="ui-dl__desc">{ v.Amount() }</dd></div>
+			</dl>
+			<form method="post" action={ templ.SafeURL(v.Action()) } class="goen-admin__form">
+				<input type="hidden" name="decision" value={ v.Decision }/>
+				<input type="hidden" name="assessment_version" value={ v.AssessmentVersion }/>
+				<div class="ui-field">
+					<label class="ui-label" for="return-resolution">{ i18n.T(ctx,i18n.KeyAdminRetResolution) }</label>
+					<input class="ui-input" id="return-resolution" name="resolution" maxlength="300" autocomplete="off" value={ v.Resolution } required?={ v.Required }/>
+				</div>
+				<div class="goen-admin__decidebtns">
+					@components.Button(components.ButtonProps{Variant: components.VariantPrimary, Attrs: templ.Attributes{"name": "confirm", "value": v.Decision}}, "submit") {
+						{ v.Title(ctx) }
+					}
+					@components.ButtonLink(components.ButtonProps{Variant: components.VariantOutline}, "/admin/returns") {
+						{ i18n.T(ctx,i18n.KeyAdminRetConfirmBack) }
+					}
+				</div>
+			</form>
+		}
+	}
+}

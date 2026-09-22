@@ -950,6 +950,9 @@ func (s *Store) closeReturn(
 	resolution string,
 	assessmentVersion int32,
 ) error {
+	if kind == returns.DecisionReject && strings.TrimSpace(resolution) == "" {
+		return formRefuse("resolution", returns.RefuseRejectionReason)
+	}
 	if err := requireExceptionReason(kind, resolution); err != nil {
 		return err
 	}
