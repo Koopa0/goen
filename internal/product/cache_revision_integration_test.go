@@ -52,7 +52,7 @@ func newCacheProduct(t *testing.T) cacheProductFixture {
 	ctx := t.Context()
 	slug := "cache-race-" + uuid.NewString()
 	var id, category, variant uuid.UUID
-	if err := pool.QueryRow(ctx, `INSERT INTO categories(slug,name,name_en) VALUES($1,'Category before','Category before EN') RETURNING id`, slug).Scan(&category); err != nil {
+	if err := pool.QueryRow(ctx, `INSERT INTO categories(slug,name,name_en,position) SELECT $1,'Category before','Category before EN',COALESCE(MAX(position),-1)+1 FROM categories WHERE parent_id IS NULL RETURNING id`, slug).Scan(&category); err != nil {
 		t.Fatal(err)
 	}
 	if err := pool.QueryRow(ctx, `INSERT INTO products(slug,name,name_en,brand_id,category_id) SELECT $1,'Before','Before EN',id,$2 FROM brands ORDER BY id LIMIT 1 RETURNING id`, slug, category).Scan(&id); err != nil {

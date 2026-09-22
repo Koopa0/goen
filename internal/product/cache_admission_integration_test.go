@@ -75,7 +75,7 @@ func TestCacheBoundsLocalWaitersAndReleasesCancelledFollowers(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("owner never entered fill")
 	}
-	forbidden := func(context.Context) (product.Presentation, error) {
+	forbidden := func(context.Context) (product.Presentation, error) { //nolint:unparam // The production fill callback requires both results; this sentinel must always fail if invoked.
 		t.Error("follower performed a second fill")
 		return product.Presentation{}, errors.New("unexpected fill")
 	}

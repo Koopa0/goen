@@ -34,3 +34,6 @@ stripe-*.txt
 # Product photography. The images the site serves live in PostgreSQL.
 /goen-product-images/
 goen-product-images.zip
+
+# CI measurements from real cache crash/eviction acceptance.
+/internal/product/artifacts/

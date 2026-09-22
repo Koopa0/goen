@@ -5,6 +5,7 @@ package product_test
 import (
 	"context"
 	"errors"
+	"net"
 	"sync"
 	"testing"
 	"time"
@@ -16,7 +17,7 @@ import (
 )
 
 func TestCacheFailureFallsBackWithBoundedAdmission(t *testing.T) {
-	container, err := valkeycontainer.Run(t.Context(), "valkey/valkey:8.0-alpine", testcontainers.WithCmdArgs("--maxmemory", "64mb", "--maxmemory-policy", "allkeys-lru", "--save", ""))
+	container, err := valkeycontainer.Run(t.Context(), "valkey/valkey:8.0-alpine", testcontainers.WithCmdArgs("--maxmemory", "64mb", "--maxmemory-policy", "allkeys-lru", "--save", ""), fixedValkeyPort(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,5 +106,27 @@ func TestCacheFailureFallsBackWithBoundedAdmission(t *testing.T) {
 			t.Fatalf("same client did not recover cache hits: before=%+v after=%+v error=%v", before, stats, loadErr)
 		}
 		time.Sleep(20 * time.Millisecond)
+	}
+}
+
+// Docker can allocate a different ephemeral host port after stop/start. Bind a
+// selected port explicitly so recovery exercises the original client endpoint.
+func fixedValkeyPort(t *testing.T) testcontainers.CustomizeRequestOption {
+	t.Helper()
+	var config net.ListenConfig
+	listener, err := config.Listen(t.Context(), "tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, port, err := net.SplitHostPort(listener.Addr().String())
+	if closeErr := listener.Close(); closeErr != nil {
+		t.Fatal(closeErr)
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	return func(request *testcontainers.GenericContainerRequest) error {
+		request.ExposedPorts = []string{"127.0.0.1:" + port + ":6379/tcp"}
+		return nil
 	}
 }
