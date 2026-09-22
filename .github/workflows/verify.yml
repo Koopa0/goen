@@ -122,6 +122,7 @@ jobs:
           make db-up
           export GOEN_DATABASE_URL='postgres://goen:goen@127.0.0.1:5433/goen?sslmode=disable'
           make migrate-up
+          scripts/dev-schema-database-test.sh
           migrate=$(awk -F':= *' '$1 ~ /^MIGRATE_VERSION/ { print $2; exit }' Makefile)
           go run -tags=postgres "github.com/golang-migrate/migrate/v4/cmd/migrate@$migrate" \
             -path migrations -database "$GOEN_DATABASE_URL" down -all

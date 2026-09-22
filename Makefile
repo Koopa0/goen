@@ -627,8 +627,9 @@ migrate-up:
 	scripts/dev-schema.sh apply $(MIGRATE) -path migrations -database "$$GOEN_DATABASE_URL" up
 
 dev-schema-check:
-	bash -n scripts/dev-schema.sh scripts/dev-schema-test.sh
+	bash -n scripts/dev-schema.sh scripts/dev-schema-test.sh scripts/dev-schema-mutation-test.sh scripts/dev-schema-database-test.sh
 	scripts/dev-schema-test.sh
+	scripts/dev-schema-mutation-test.sh
 
 db-check:
 	scripts/dev-schema.sh check
