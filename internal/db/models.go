@@ -473,6 +473,51 @@ type Payment struct {
 	UpdatedAt           time.Time
 }
 
+type PaymentDispute struct {
+	ID             uuid.UUID
+	PaymentID      uuid.NullUUID
+	Provider       string
+	ProviderRef    string
+	ChargeRef      string
+	AmountCents    int64
+	Currency       string
+	Status         string
+	Reason         pgtype.Text
+	EvidenceDueAt  pgtype.Timestamptz
+	ReviewedBy     uuid.NullUUID
+	Disposition    pgtype.Text
+	ReviewedAt     pgtype.Timestamptz
+	ProviderSeenAt time.Time
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+}
+
+type PaymentDisputeEvent struct {
+	Provider        string
+	ProviderEventID string
+	DisputeID       uuid.UUID
+	ProviderStatus  string
+	ObservedAt      time.Time
+	RecordedAt      time.Time
+}
+
+type PaymentDisputeMovement struct {
+	ID          uuid.UUID
+	DisputeID   uuid.UUID
+	Kind        string
+	AmountCents int64
+	ProviderRef string
+	RecordedAt  time.Time
+}
+
+type PaymentProviderLink struct {
+	PaymentID   uuid.UUID
+	Provider    string
+	LinkKind    string
+	ProviderRef string
+	CreatedAt   time.Time
+}
+
 type PaymentWebhookEvent struct {
 	Provider    string
 	EventID     string

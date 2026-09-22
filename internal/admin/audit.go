@@ -33,6 +33,7 @@ const (
 	actionAllowInvoice             Action = "invoice.allowance"
 	actionAuthorizeAllowanceResend Action = "invoice.allowance_resend_authorized"
 	actionReconcilePayment         Action = "payment.reconciled"
+	actionReviewDispute            Action = "payment.dispute_reviewed"
 	actionGrantCredit              Action = "credit.grant"
 	actionAdjustStock              Action = "stock.adjust"
 	actionReceiveStock             Action = "stock.receive"

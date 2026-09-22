@@ -1,0 +1,78 @@
+package pages
+
+import (
+	"fmt"
+
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/layouts"
+)
+
+// AdminDisputes renders the payment dispute queue.
+templ AdminDisputes(p layouts.Page, v AdminDisputesView) {
+	@layouts.Admin(p, "disputes") {
+		<div class="ui-page-head">
+			<div>
+				<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyAdminEyebrow) }</p>
+				<h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyAdminPageDisputes) }</h1>
+				<p class="ui-page-head__sub">{ i18n.T(ctx, i18n.KeyAdminDisLead) }</p>
+			</div>
+		</div>
+		if v.Notice != "" {
+			<p class="ui-alert ui-alert--info" role="status">{ v.Notice }</p>
+		}
+		if v.Empty() {
+			<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminDisEmpty) }</p>
+		} else {
+			<ul class="goen-admin__disputes" role="list">
+				for _, d := range v.Rows {
+					<li class="goen-admin__dispute">
+						<div class="goen-admin__disputeinfo">
+							<p class="goen-admin__disputeorder">{ d.OrderLabel(ctx) }</p>
+							<span class="ui-cart-line__meta">{ d.StatusText(ctx) } · { d.CreatedAt }</span>
+							<span class="ui-cart-line__meta">
+								{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminDisAmount), d.Amount()) }
+							</span>
+							if d.PaymentRef != "" {
+								<span class="ui-cart-line__meta">{ d.PaymentRef }</span>
+							}
+							if d.Reason != "" {
+								<span class="ui-cart-line__meta">{ d.Reason }</span>
+							}
+							<span class="ui-cart-line__meta">{ d.DeadlineText(ctx) }</span>
+							if d.Overdue {
+								<strong class="ui-cart-line__meta">{ i18n.T(ctx, i18n.KeyAdminDisOverdue) }</strong>
+							}
+							if d.Reviewed {
+								<span class="ui-cart-line__meta">
+									{ dispositionLabel(ctx, d.Disposition) } · { d.ReviewedAt }
+								</span>
+							}
+						</div>
+						<div class="goen-admin__disputeactions">
+							<p>
+								<a class="ui-btn ui-btn--secondary" href={ templ.SafeURL(d.StripeURL()) } target="_blank" rel="noopener">
+									{ i18n.T(ctx, i18n.KeyAdminDisStripe) }
+								</a>
+							</p>
+							if !d.Reviewed {
+								<form class="goen-admin__decide" method="post" action={ templ.SafeURL(d.ReviewAction()) }>
+									<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminDisReviewHint) }</p>
+									<label class="ui-field">
+										<span class="ui-field__label">{ i18n.T(ctx, i18n.KeyAdminDisDisposition) }</span>
+										<select class="ui-select" name="disposition" required>
+											<option value="monitoring">{ i18n.T(ctx, i18n.KeyAdminDisDispositionMonitoring) }</option>
+											<option value="challenging">{ i18n.T(ctx, i18n.KeyAdminDisDispositionChallenging) }</option>
+											<option value="accepted">{ i18n.T(ctx, i18n.KeyAdminDisDispositionAccepted) }</option>
+											<option value="closed">{ i18n.T(ctx, i18n.KeyAdminDisDispositionClosed) }</option>
+										</select>
+									</label>
+									<button class="ui-btn ui-btn--primary" type="submit">{ i18n.T(ctx, i18n.KeyAdminDisReviewButton) }</button>
+								</form>
+							}
+						</div>
+					</li>
+				}
+			</ul>
+		}
+	}
+}

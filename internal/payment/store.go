@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -393,6 +394,9 @@ func (w *webhookTx) Capture(ctx context.Context, c Capture) (orderNumber string,
 	if err := w.postCapture(ctx, c); err != nil {
 		return capturePostingError(row.OrderNumber, c.SessionID, err)
 	}
+	if err := w.recordProviderLinks(ctx, c.SessionID, c.PaymentIntentID, c.ChargeID); err != nil {
+		return row.OrderNumber, err
+	}
 	if err := CompleteFunding(ctx, w.q, row.ID, row.OrderNumber, c); err != nil {
 		return "", err
 	}
@@ -472,6 +476,77 @@ var durableCaptureRefusals = [...]string{
 // as handled.
 func isDurableCaptureRefusal(constraint string) bool {
 	return slices.Contains(durableCaptureRefusals[:], constraint)
+}
+
+func (w *webhookTx) recordProviderLinks(
+	ctx context.Context, sessionID, paymentIntentID, chargeID string,
+) error {
+	paymentID, err := w.q.PaymentIDByCaptureRef(ctx, sessionID)
+	if err != nil {
+		return fmt.Errorf("read payment for session %s: %w", sessionID, err)
+	}
+	if paymentIntentID != "" {
+		if err := w.q.RecordPaymentProviderLink(ctx, db.RecordPaymentProviderLinkParams{
+			PaymentID: paymentID, LinkKind: "payment_intent", ProviderRef: paymentIntentID,
+		}); err != nil {
+			return fmt.Errorf("record payment_intent link for session %s: %w", sessionID, err)
+		}
+	}
+	if chargeID != "" {
+		if err := w.q.RecordPaymentProviderLink(ctx, db.RecordPaymentProviderLinkParams{
+			PaymentID: paymentID, LinkKind: "charge", ProviderRef: chargeID,
+		}); err != nil {
+			return fmt.Errorf("record charge link for session %s: %w", sessionID, err)
+		}
+	}
+	return nil
+}
+
+// ApplyDispute reconciles one verified dispute webhook. attributed reports whether
+// the dispute is linked to a local payment; false leaves a durable alarm.
+func (w *webhookTx) ApplyDispute(ctx context.Context, d Dispute, eventID string) (bool, error) {
+	if d.ID != w.objectRef {
+		return false, fmt.Errorf("webhook object %q cannot apply dispute %q", w.objectRef, d.ID)
+	}
+	var reason pgtype.Text
+	if d.Reason != "" {
+		reason = pgtype.Text{String: d.Reason, Valid: true}
+	}
+	var evidenceDue pgtype.Timestamptz
+	if d.EvidenceDue != nil {
+		evidenceDue = pgtype.Timestamptz{Time: *d.EvidenceDue, Valid: true}
+	}
+	disputeID, err := w.q.ApplyPaymentDispute(ctx, db.ApplyPaymentDisputeParams{
+		ProviderRef:      d.ID,
+		ChargeRef:        d.ChargeID,
+		PaymentIntentRef: d.PaymentIntentID,
+		AmountCents:      d.Amount,
+		Currency:         strings.ToUpper(d.Currency),
+		Status:           d.Status,
+		Reason:           reason,
+		EvidenceDueAt:    evidenceDue,
+		ProviderSeenAt:   d.SeenAt,
+		ProviderEventID:  eventID,
+	})
+	if err != nil {
+		return false, fmt.Errorf("apply dispute %s: %w", d.ID, err)
+	}
+	for i := range d.Movements {
+		m := &d.Movements[i]
+		if moveErr := w.q.RecordDisputeMovement(ctx, db.RecordDisputeMovementParams{
+			DisputeID:   disputeID,
+			Kind:        m.Kind,
+			AmountCents: m.Amount,
+			ProviderRef: m.ProviderID,
+		}); moveErr != nil {
+			return false, fmt.Errorf("record dispute movement for %s: %w", d.ID, moveErr)
+		}
+	}
+	attributed, err := w.q.DisputeHasPayment(ctx, disputeID)
+	if err != nil {
+		return false, fmt.Errorf("read dispute attribution for %s: %w", d.ID, err)
+	}
+	return attributed, nil
 }
 
 // CancelSession marks this webhook object's abandoned checkout cancelled. The

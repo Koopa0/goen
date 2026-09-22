@@ -27,6 +27,7 @@ type webhookUnreconciledCause string
 const (
 	webhookUnreadableEvent       webhookUnreconciledCause = "unreadable_event"
 	webhookUnattributedCapture   webhookUnreconciledCause = "unattributed_capture"
+	webhookUnattributedDispute   webhookUnreconciledCause = "unattributed_dispute"
 	webhookCancelledOrderCapture webhookUnreconciledCause = "cancelled_order_capture"
 	webhookRefusedCapture        webhookUnreconciledCause = "refused_capture"
 	webhookUnsettledSession      webhookUnreconciledCause = "unsettled_session"
@@ -39,6 +40,7 @@ func webhookUnreconciled(cause webhookUnreconciledCause, detail string) string {
 type webhookOutcome struct {
 	event               *stripe.Event
 	capture             Capture
+	dispute             Dispute
 	readState           webhookReadState
 	abandonedSession    string
 	unsettledSession    string
@@ -46,8 +48,10 @@ type webhookOutcome struct {
 	isAbandoned         bool
 	isCapture           bool
 	isUnsettled         bool
+	isDispute           bool
 	cancelledOrder      bool
 	unattributedCapture bool
+	unattributedDispute bool
 	refusedCapture      bool
 }
 
@@ -412,11 +416,12 @@ func (h *Handler) Webhook(w http.ResponseWriter, r *http.Request) {
 	capture, isCapture := CaptureFrom(&ev)
 	abandonedSession, isAbandoned := AbandonedSessionFrom(&ev)
 	unsettledSession, isUnsettled := UnsettledSessionFrom(&ev)
+	dispute, isDispute := DisputeFrom(&ev)
 	outcome := &webhookOutcome{
-		event: &ev, capture: capture,
-		readState:        classifyWebhook(&ev, isCapture || isAbandoned || isUnsettled),
+		event: &ev, capture: capture, dispute: dispute,
+		readState:        classifyWebhook(&ev, isCapture || isAbandoned || isUnsettled || isDispute),
 		abandonedSession: abandonedSession, unsettledSession: unsettledSession,
-		isAbandoned: isAbandoned, isCapture: isCapture, isUnsettled: isUnsettled,
+		isAbandoned: isAbandoned, isCapture: isCapture, isUnsettled: isUnsettled, isDispute: isDispute,
 	}
 
 	claimed, err := h.store.processWebhook(r.Context(), &webhookEvent{
@@ -436,7 +441,7 @@ func (h *Handler) Webhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.logWebhookOutcome(r.Context(), *outcome)
+	h.logWebhookOutcome(r.Context(), outcome)
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -503,11 +508,25 @@ func (o *webhookOutcome) apply() func(context.Context, *webhookTx) error {
 			o.number = n
 			return captureErr
 		}
+	case o.isDispute:
+		return func(ctx context.Context, tx *webhookTx) error {
+			attributed, err := tx.ApplyDispute(ctx, o.dispute, o.event.ID)
+			if err != nil {
+				return err
+			}
+			if !attributed {
+				o.unattributedDispute = true
+				return tx.Unreconciled(ctx, webhookUnreconciled(
+					webhookUnattributedDispute,
+					"a dispute has no verified payment to attribute it to"))
+			}
+			return nil
+		}
 	}
 	return nil
 }
 
-func (h *Handler) logWebhookOutcome(ctx context.Context, outcome webhookOutcome) {
+func (h *Handler) logWebhookOutcome(ctx context.Context, outcome *webhookOutcome) {
 	ev := outcome.event
 	switch {
 	case outcome.isAbandoned:
@@ -534,6 +553,14 @@ func (h *Handler) logWebhookOutcome(ctx context.Context, outcome webhookOutcome)
 		h.log.ErrorContext(ctx,
 			"a delayed payment method completed a checkout — goen's stock hold cannot outlive it",
 			"event", ev.ID, "session", outcome.unsettledSession)
+	case outcome.unattributedDispute:
+		h.log.ErrorContext(ctx,
+			"a card dispute has no payment row to attribute it to — find it at Stripe",
+			"event", ev.ID, "dispute", outcome.dispute.ID, "charge", outcome.dispute.ChargeID)
+	case outcome.isDispute:
+		h.log.InfoContext(ctx, "payment dispute recorded",
+			"event", ev.ID, "dispute", outcome.dispute.ID, "status", outcome.dispute.Status,
+			"amount_cents", outcome.dispute.Amount)
 	case outcome.readState == webhookReadUnreadable:
 		h.log.ErrorContext(ctx,
 			"a stripe event goen acts on could not be read — check the endpoint's API version",

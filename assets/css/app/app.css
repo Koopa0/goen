@@ -6172,6 +6172,49 @@ h4,
   color: var(--fg);
 }
 
+/* Tailwind Plus application-ui/lists/stacked-lists/narrow-with-actions:
+   divided rows keep facts beside the existing provider and review actions. */
+.goen-admin__disputes {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.goen-admin__dispute {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding-block: 20px;
+}
+
+.goen-admin__dispute + .goen-admin__dispute {
+  border-block-start: 1px solid var(--border);
+}
+
+.goen-admin__disputeinfo {
+  flex: 1 1 16rem;
+  overflow-wrap: anywhere;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.goen-admin__disputeorder {
+  margin: 0;
+  font-size: var(--fs-14);
+  font-weight: var(--fw-semibold);
+  color: var(--fg);
+}
+
+.goen-admin__disputeactions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .goen-admin__decide {
   display: flex;
   flex-direction: column;

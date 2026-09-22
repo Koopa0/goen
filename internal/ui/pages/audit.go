@@ -77,6 +77,7 @@ var actionLabels = map[string]i18n.Key{
 	"return.complete":                     i18n.KeyAuditReturnComplete,
 	"order.delivery":                      i18n.KeyAuditOrderDelivery,
 	"payment.reconciled":                  i18n.KeyAuditPaymentReconciled,
+	"payment.dispute_reviewed":            i18n.KeyAuditPaymentDisputeReviewed,
 	"invoice.issue":                       i18n.KeyAuditInvoiceIssue,
 	"invoice.void":                        i18n.KeyAuditInvoiceVoid,
 	"invoice.allowance":                   i18n.KeyAuditInvoiceAllowance,
