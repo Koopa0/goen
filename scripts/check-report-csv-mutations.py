@@ -81,7 +81,7 @@ def main():
                     raise SystemExit("production mutation did not reach the source")
                 record(f"production mutant {label}: {before} => {after}")
                 if path == template:
-                    if run("generate mutated template", ["go", "tool", "templ", "generate", "-f", str(template)]).returncode:
+                    if run("generate mutated template", ["go", "tool", "templ", "generate", "-path", "internal/ui"]).returncode:
                         raise SystemExit("template generation failed; not a watched red")
                     matches = [line for line in generated.read_text().splitlines() if after in line]
                     if not matches:
