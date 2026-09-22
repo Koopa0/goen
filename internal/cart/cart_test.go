@@ -547,7 +547,7 @@ func TestCheckoutShowsOneMessagePerField(t *testing.T) {
 		"shipping": i18n.T(ctx, i18n.KeyChooseShipping),
 	}
 
-	got := checkoutErrors(ctx, addr, errors.New("no shipping method chosen"), &Invoice{})
+	got := checkoutErrors(ctx, addr, errors.New("no shipping method chosen"), &Invoice{}, false)
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("checkoutErrors (-want +got):\n%s", diff)
 	}
@@ -659,6 +659,7 @@ func TestValidateAsksForTheDestinationTheMethodNeeds(t *testing.T) {
 	pickupAddress := func(a *Address) {
 		a.PickupBrand, a.PickupStoreCode, a.PickupStoreName = "seven_eleven", "123456", "信義門市"
 	}
+	chainOnly := func(a *Address) { a.PickupBrand = "seven_eleven" }
 
 	cases := []struct {
 		name  string
@@ -683,10 +684,15 @@ func TestValidateAsksForTheDestinationTheMethodNeeds(t *testing.T) {
 			wants: []string{"postal_code", "city", "district", "street"},
 		},
 		{
+			name: "a pickup order carrying the chain alone",
+			to:   ToPickupPoint,
+			fill: []func(*Address){contact, chainOnly},
+		},
+		{
 			name:  "a pickup order carrying only an address",
 			to:    ToPickupPoint,
 			fill:  []func(*Address){contact, address},
-			wants: []string{"pickup_brand", "pickup_store_code", "pickup_store_name"},
+			wants: []string{"pickup_brand"},
 		},
 		{
 			name:  "a method whose destination is unknown here",
@@ -735,12 +741,22 @@ func TestAPickupStoreCodeIsWhateverTheChainNumbersItsStores(t *testing.T) {
 		{name: "萊爾富 高縣後庄店 typed in lower case", brand: "hi_life", code: "s884"},
 
 		{name: "a 店名 typed into the code field", brand: "seven_eleven", code: "信義門市", refuse: true},
-		{name: "no code at all", brand: "seven_eleven", code: "", refuse: true},
+		// The chain is the whole choice a shopper makes; a code arrives from the
+		// back office, or from the carrier's picker when that is integrated.
+		{name: "no code at all", brand: "seven_eleven", code: ""},
 		{name: "longer than a 門市代碼", brand: "seven_eleven", code: "11008011008", refuse: true},
 	}
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
+			// A name pairs with the code under test, except for "no code at
+			// all": with no code, a name would itself be the half-written
+			// pickup point order_private_data_pickup_complete refuses, which
+			// is a different case entirely from what a code's own shape locks.
+			storeName := "門市"
+			if c.code == "" {
+				storeName = ""
+			}
 			a := &Address{
 				To:              ToPickupPoint,
 				Email:           "who@example.com",
@@ -748,7 +764,7 @@ func TestAPickupStoreCodeIsWhateverTheChainNumbersItsStores(t *testing.T) {
 				Phone:           "0912345678",
 				PickupBrand:     c.brand,
 				PickupStoreCode: c.code,
-				PickupStoreName: "門市",
+				PickupStoreName: storeName,
 			}
 			a.Trim()
 
@@ -762,6 +778,50 @@ func TestAPickupStoreCodeIsWhateverTheChainNumbersItsStores(t *testing.T) {
 			}
 			if diff := cmp.Diff(want, got, cmpopts.EquateEmpty()); diff != "" {
 				t.Errorf("Validate() rejected fields for code %q (-want +got):\n%s", c.code, diff)
+			}
+		})
+	}
+}
+
+// TestPickupStoreCodeAndNameArePairedOrNeither locks the tightened shape of
+// order_private_data_pickup_complete at the form: once the picker writes one
+// of the store code or store name, checkout must refuse a submission that
+// does not also carry the other, rather than let the database be the first
+// thing to say so.
+func TestPickupStoreCodeAndNameArePairedOrNeither(t *testing.T) {
+	t.Parallel()
+
+	base := Address{
+		To: ToPickupPoint, Email: "who@example.com", Name: "王小明", Phone: "0912345678",
+		PickupBrand: "seven_eleven",
+	}
+
+	for _, tt := range []struct {
+		name  string
+		code  string
+		store string
+		field string // empty means the submission is accepted
+	}{
+		{name: "chain alone, neither written yet", code: "", store: ""},
+		{name: "code and name both written", code: "123456", store: "信義門市"},
+		{name: "a code with no name", code: "123456", store: "", field: "pickup_store_name"},
+		{name: "a name with no code", code: "", store: "信義門市", field: "pickup_store_code"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			a := base
+			a.PickupStoreCode, a.PickupStoreName = tt.code, tt.store
+
+			errs := a.Validate()
+			if tt.field == "" {
+				if len(errs) != 0 {
+					t.Fatalf("a legal pickup point was rejected: %+v", errs)
+				}
+				return
+			}
+			if len(errs) != 1 || errs[0].Field != tt.field {
+				t.Fatalf("Validate() = %+v, want exactly one error on %q", errs, tt.field)
 			}
 		})
 	}

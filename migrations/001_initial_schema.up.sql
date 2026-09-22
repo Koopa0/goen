@@ -309,10 +309,23 @@ CREATE TABLE product_option_values (
     -- A label, exactly like product_options.name_en: `value` is what the URL
     -- selects on and what variant matching compares.
     value_en   text,
+    -- The colour this value shows as, for the swatch on a product page. NULL
+    -- wherever the value is not a colour: every capacity, and a finish such as
+    -- 透明 or 霧透 that a flat fill would misrepresent as a shade of grey. The
+    -- page falls back to the value's own name, which is what it showed before
+    -- this column existed.
+    --
+    -- Lower-case six-digit hex, because a swatch is compared and sorted by the
+    -- shop as text and '#FFFFFF' and '#ffffff' are one colour under two
+    -- spellings. The CHECK admits one of them; the admin lower-cases before the
+    -- CHECK sees it, so typing the other is not an error.
+    swatch_hex text,
     position   integer NOT NULL DEFAULT 0,
     CONSTRAINT product_option_values_value_present CHECK (value ~ '[^[:space:]]'),
     CONSTRAINT product_option_values_value_en_present
         CHECK (value_en IS NULL OR value_en ~ '[^[:space:]]'),
+    CONSTRAINT product_option_values_swatch_hex_shape
+        CHECK (swatch_hex IS NULL OR swatch_hex ~ '^#[0-9a-f]{6}$'),
     CONSTRAINT product_option_values_option_fk
         FOREIGN KEY (product_id, option_id) REFERENCES product_options (product_id, id)
         ON DELETE CASCADE
@@ -1922,7 +1935,9 @@ CREATE TABLE order_private_data (
     street         text,
     -- The pickup store a parcel is collected from. Three columns because they
     -- answer different questions: which carrier's manifest the parcel joins,
-    -- which store, and what a human reads on the label.
+    -- which store, and what a human reads on the label. Only the first is
+    -- asked for at checkout; the carrier's own picker fills the other two, and
+    -- until it is integrated they stay empty.
     pickup_brand      text,
     pickup_store_code text,
     pickup_store_name text,
@@ -1941,23 +1956,29 @@ CREATE TABLE order_private_data (
             AND pickup_brand IS NULL AND pickup_store_code IS NULL
             AND pickup_store_name IS NULL)
     ),
-    -- A live row carries EXACTLY ONE destination. Written as two all-or-nothing
-    -- groups and an XOR rather than "street IS NOT NULL OR pickup_store_code IS
-    -- NOT NULL", which a row carrying a city and no street would satisfy.
+    -- A live row carries EXACTLY ONE destination. The address half is written
+    -- as an all-or-nothing group and an XOR rather than "street IS NOT NULL OR
+    -- pickup_brand IS NOT NULL", which a row carrying a city and no street
+    -- would satisfy. The pickup half is the chain alone: it names the counter
+    -- the parcel is sent to, and a store behind it is an addition.
     CONSTRAINT order_private_data_one_destination CHECK (
         erased_at IS NOT NULL
         OR (
             (postal_code IS NOT NULL AND city IS NOT NULL
                 AND district IS NOT NULL AND street IS NOT NULL)
-            <> (pickup_brand IS NOT NULL AND pickup_store_code IS NOT NULL
-                AND pickup_store_name IS NOT NULL)
+            <> (pickup_brand IS NOT NULL)
         )
     ),
     CONSTRAINT order_private_data_address_complete CHECK (
         num_nonnulls(postal_code, city, district, street) IN (0, 4)
     ),
+    -- A store with no chain is not a destination: nothing says whose manifest
+    -- the parcel joins. The chain alone is allowed, and is what checkout
+    -- writes; once the picker starts filling in the store, though, a code
+    -- with no name or a name with no code is a half-written pickup point.
     CONSTRAINT order_private_data_pickup_complete CHECK (
-        num_nonnulls(pickup_brand, pickup_store_code, pickup_store_name) IN (0, 3)
+        (pickup_brand IS NOT NULL OR num_nonnulls(pickup_store_code, pickup_store_name) = 0)
+        AND (pickup_store_code IS NULL) = (pickup_store_name IS NULL)
     ),
     -- Nullable because erased and pickup rows intentionally carry no HOME
     -- destination. Whenever a value is present, however, it follows exactly
@@ -3363,7 +3384,9 @@ BEGIN
 
     -- A LIVE, filled-in row: order_private_data_all_or_erased permits an
     -- all-NULL erased shape, and a live row could carry blanks. The DESTINATION
-    -- is an either/or — asking for a street made every pickup order unpayable.
+    -- is an either/or — asking for a street made every pickup order unpayable,
+    -- and asking for a store number would do the same to one whose chain is all
+    -- that has been chosen.
     IF lines = 0
        OR NOT EXISTS (
            SELECT 1 FROM order_private_data
@@ -3372,8 +3395,7 @@ BEGIN
              AND phone ~ '[^[:space:]]'
              AND ((postal_code ~ '[^[:space:]]' AND city ~ '[^[:space:]]'
                    AND district ~ '[^[:space:]]' AND street ~ '[^[:space:]]')
-                  OR (pickup_brand ~ '[^[:space:]]' AND pickup_store_code ~ '[^[:space:]]'
-                      AND pickup_store_name ~ '[^[:space:]]')))
+                  OR pickup_brand ~ '[^[:space:]]'))
        OR subtotal - o.discount_cents + o.shipping_cents + o.tax_cents < 0 THEN
         RAISE EXCEPTION 'order % is not complete enough to be paid', o.order_number
             USING ERRCODE = 'check_violation', CONSTRAINT = 'payments_require_complete_order';
@@ -4292,6 +4314,12 @@ CREATE TABLE sale_campaign_products (
 );
 
 CREATE INDEX sale_campaign_products_product_id_idx ON sale_campaign_products (product_id);
+
+-- AddCampaignProduct assigns position as max(position) + 1 per campaign. Without
+-- a unique index two concurrent features both succeed at the same position and
+-- ORDER BY position, p.id hides the tie.
+CREATE UNIQUE INDEX sale_campaign_products_position_key
+    ON sale_campaign_products (campaign_id, position);
 
 -- A featured product that shows no saving is a promise the page cannot keep.
 CREATE FUNCTION sale_campaign_products_guard() RETURNS trigger

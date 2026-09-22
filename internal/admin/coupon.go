@@ -120,11 +120,12 @@ func (f *CouponForm) validateKind(ctx context.Context, errs map[string]string) {
 
 // Coupons reads the promotions for the back office.
 func (s *Store) Coupons(ctx context.Context) (pages.AdminCouponsView, error) {
-	rows, err := s.q.AdminCoupons(ctx, PageSize)
+	rows, err := s.q.AdminCoupons(ctx, PageLimit)
 	if err != nil {
 		return pages.AdminCouponsView{}, fmt.Errorf("read coupons: %w", err)
 	}
-	view := pages.AdminCouponsView{}
+	rows, more := pageOf(rows, PageSize)
+	view := pages.AdminCouponsView{ListBound: pages.Bound(more, PageSize)}
 	for i := range rows {
 		r := &rows[i]
 		view.Rows = append(view.Rows, pages.AdminCoupon{

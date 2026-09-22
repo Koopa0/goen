@@ -53,9 +53,7 @@ func TestRequiredAssetsAreVersioned(t *testing.T) {
 	t.Parallel()
 
 	names := []string{
-		assets.DesignSystemCSS,
-		assets.AccentsCSS,
-		assets.CommerceCSS,
+		assets.BaseCSS,
 		assets.AppCSS,
 		assets.HTMXJS,
 		assets.AppJS,
@@ -182,9 +180,12 @@ func TestAWriteFailureUsesTheConfiguredRequestLogger(t *testing.T) {
 	if logHandler.contextValue != "asset-request" {
 		t.Errorf("write warning context marker = %q, want %q", logHandler.contextValue, "asset-request")
 	}
-	if logHandler.record.Message != "assets: write gzip body" {
+	// One message for both representations this package writes from memory:
+	// the gzip one and a stylesheet whose remote @import was removed. Which it
+	// was is in the record's name field, not in the sentence.
+	if logHandler.record.Message != "assets: write body" {
 		t.Errorf("write warning message = %q, want %q",
-			logHandler.record.Message, "assets: write gzip body")
+			logHandler.record.Message, "assets: write body")
 	}
 }
 
@@ -215,7 +216,7 @@ func TestAnAssetIsServedPrecompressed(t *testing.T) {
 func TestASmallTextAssetHasOnlyItsIdentityRepresentation(t *testing.T) {
 	t.Parallel()
 
-	res := requestAsset(t, assets.DesignSystemCSS, "gzip", "")
+	res := requestAsset(t, assets.MarkSVG, "gzip", "")
 	if got := res.Header().Get("Content-Encoding"); got != "" {
 		t.Errorf("Content-Encoding = %q, want identity below the precompression threshold", got)
 	}
@@ -407,6 +408,35 @@ func TestHandlerRefusesLongCacheWithoutMatchingVersion(t *testing.T) {
 				t.Errorf("Cache-Control = %q; want %q", got, "no-cache")
 			}
 		})
+	}
+}
+
+// TestTheStyleSheetCarriesThePageTransition proves the rules that turn a
+// navigation into a cross-fade reach the browser. They are the whole of #369 —
+// CSS and nothing else — so without this assertion the at-rule could be dropped
+// and every other test here would stay green while every page went back to a
+// hard cut.
+func TestTheStyleSheetCarriesThePageTransition(t *testing.T) {
+	t.Parallel()
+
+	res := requestAsset(t, assets.AppCSS, "", "")
+	if res.Code != http.StatusOK {
+		t.Fatalf("GET %s = %d, want %d", assets.AppCSS, res.Code, http.StatusOK)
+	}
+
+	sheet := res.Body.String()
+	// The opt-in, then each name that keeps a shared region from repainting
+	// between the two documents.
+	for _, rule := range []string{
+		"@view-transition {\n  navigation: auto;\n}",
+		"view-transition-name: header;",
+		"view-transition-name: footer;",
+		"view-transition-name: gallery;",
+		"view-transition-name: buybox;",
+	} {
+		if !strings.Contains(sheet, rule) {
+			t.Errorf("served %s does not contain %q", assets.AppCSS, rule)
+		}
 	}
 }
 

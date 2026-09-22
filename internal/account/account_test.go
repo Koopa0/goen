@@ -584,6 +584,26 @@ func TestAccountNoticeExplainsWhyAnOpenReturnBlocksErasure(t *testing.T) {
 	}
 }
 
+func TestCartRecoveryLandingPreservesContinuation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"/account", "/account/cart-recovery?next=%2Faccount"},
+		{"/cart", "/account/cart-recovery?next=%2Fcart"},
+		{"/checkout?ship=express", "/account/cart-recovery?next=%2Fcheckout%3Fship%3Dexpress"},
+		{"/products/demo#specs", "/account/cart-recovery?next=%2Fproducts%2Fdemo%23specs"},
+		{"//evil.example", "/account/cart-recovery?next=%2Faccount"},
+	}
+	for _, tt := range tests {
+		if got := cartRecoveryLanding(tt.input); got != tt.want {
+			t.Errorf("cartRecoveryLanding(%q) = %q, want %q", tt.input, got, tt.want)
+		}
+	}
+}
+
 // TestAGuestSavingIsSentBackToTheProduct holds where a refused save lands: the
 // form's validated same-site return path, never a fixed /account/wishlist.
 func TestAGuestSavingIsSentBackToTheProduct(t *testing.T) {

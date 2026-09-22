@@ -90,6 +90,20 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	attempt, err := h.store.PaymentAttempt(r.Context(), number, o.TotalCents)
+	if err != nil {
+		h.log.ErrorContext(r.Context(), "read payment attempt", "order", number, "error", err)
+		h.serverError(w, r)
+		return
+	}
+	if attempt.NeedsReconciliation {
+		h.notice(w, r, http.StatusOK,
+			i18n.T(r.Context(), i18n.KeyPayProcessingTitle),
+			i18n.T(r.Context(), i18n.KeyPayProcessingTitle),
+			i18n.T(r.Context(), i18n.KeyPayProcessingBody))
+		return
+	}
+
 	view := pages.PayView{
 		Number:     o.Number,
 		TotalCents: o.TotalCents,
@@ -332,6 +346,12 @@ func (h *Handler) resume(
 		}
 		h.log.InfoContext(r.Context(), "the checkout session completed at Stripe; waiting for its webhook",
 			"order", o.Number, "session", sessionID)
+		//nolint:gosec // G710: o.Number came back from the database and not from
+		// the request, so it provably matches orders_number_format and cannot
+		// steer the redirect anywhere. The taint analyser cannot see that it
+		// crossed a query on the way in.
+		http.Redirect(w, r, "/orders/"+o.Number+"/pay", http.StatusSeeOther)
+		return
 	default:
 		h.log.ErrorContext(r.Context(), "Stripe returned an unknown checkout session state",
 			"order", o.Number, "session", sessionID, "status", status)

@@ -1,0 +1,71 @@
+{
+  "prerender": [
+    {
+      "eagerness": "moderate",
+      "where": {
+        "and": [
+          {
+            "or": [
+              {
+                "href_matches": "/p/*"
+              },
+              {
+                "href_matches": "/c/*"
+              }
+            ]
+          },
+          {
+            "not": {
+              "href_matches": "/checkout*"
+            }
+          },
+          {
+            "not": {
+              "href_matches": "/orders/*"
+            }
+          },
+          {
+            "not": {
+              "href_matches": "/account*"
+            }
+          },
+          {
+            "not": {
+              "href_matches": "/admin*"
+            }
+          },
+          {
+            "not": {
+              "href_matches": "/signin*"
+            }
+          },
+          {
+            "not": {
+              "href_matches": "/register*"
+            }
+          },
+          {
+            "not": {
+              "href_matches": "/*?*order=*"
+            }
+          },
+          {
+            "not": {
+              "href_matches": "/*?*email=*"
+            }
+          },
+          {
+            "not": {
+              "href_matches": "/*?*token=*"
+            }
+          },
+          {
+            "not": {
+              "selector_matches": "[rel~=nofollow]"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

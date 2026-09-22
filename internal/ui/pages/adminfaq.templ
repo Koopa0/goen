@@ -4,150 +4,249 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/icons"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
 // AdminFAQ renders the FAQ management page.
+//
+// Two cards down the column rather than a form beside a list. The editor has
+// six fields and the entries it writes have four apiece, and a 320px side
+// column made both of them narrower than the sentences they hold — this is the
+// screen the shop's own answers are written on, and a textarea you cannot read
+// a paragraph in is how a wrong answer stays up.
+//
+// The shop's words are the shop's: nothing here rewrites an entry, and the
+// English column stays optional with the badge that says which entries have not
+// been translated yet.
+//
+// The list keeps the class the layout gate finds the page by
+// (scripts/check-layout.mjs:279-280) — the gate markers this page on the LIST
+// rather than the chrome, so that a run which rendered only the form cannot
+// report the page as covered.
 templ AdminFAQ(p layouts.Page, v *AdminFAQView) {
-	@layouts.Base(p) {
-		<div class="goen-admin">
-			@adminNav("faq")
-			<div class="ui-page-head">
-				<div>
-					<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyAdminEyebrow) }</p>
-					<h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyAdminPageFAQ) }</h1>
-					<p class="ui-page-head__sub">
-						{ i18n.T(ctx, i18n.KeyAdminFaqpLead) }
-					</p>
-				</div>
-			</div>
-			if v.HasNotice() {
-				<p class="ui-alert" role="status">{ v.Notice }</p>
-			}
-			if v.Untranslated() > 0 {
-				<p class="ui-alert ui-alert--warn" role="status">
-					{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminFaqpNoEnglish), untranslatedText(v)) }
+	@layouts.Admin(p, "faq") {
+		<div class="ui-page-head">
+			<div>
+				<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyAdminEyebrow) }</p>
+				<h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyAdminPageFAQ) }</h1>
+				<p class="ui-page-head__sub">
+					{ i18n.T(ctx, i18n.KeyAdminFaqpLead) }
 				</p>
-			}
-			<div class="goen-admin__split">
-				<form class="goen-admin__form" method="post" action="/admin/faq">
-					<h2 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminFaqpAdd) }</h2>
-					<div class="ui-field">
-						<label class="ui-label" for="faq-category">{ i18n.T(ctx, i18n.KeyAdminColCategory) }</label>
-						<input
-							class="ui-input"
-							id="faq-category"
-							name="category"
-							required
-							maxlength="40"
-							value={ v.Draft.Category }
-							placeholder={ i18n.T(ctx, i18n.KeyAdminFaqpCategoryPlaceholder) }
-							if v.HasErr("category") {
-								aria-invalid="true"
-								aria-describedby="faq-category-error"
-							}
-						/>
-						if v.HasErr("category") {
-							<p class="ui-error-text" id="faq-category-error">{ v.Err("category") }</p>
-						}
-						<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminFaqpCategoryHint) }</p>
-					</div>
-					<div class="ui-field">
-						<label class="ui-label" for="faq-question">{ i18n.T(ctx, i18n.KeyAdminFaqpQuestion) }</label>
-						<input
-							class="ui-input"
-							id="faq-question"
-							name="question"
-							required
-							maxlength="200"
-							value={ v.Draft.Question }
-							if v.HasErr("question") {
-								aria-invalid="true"
-								aria-describedby="faq-question-error"
-							}
-						/>
-						if v.HasErr("question") {
-							<p class="ui-error-text" id="faq-question-error">{ v.Err("question") }</p>
-						}
-					</div>
-					<div class="ui-field">
-						<label class="ui-label" for="faq-answer">{ i18n.T(ctx, i18n.KeyAdminFaqpAnswer) }</label>
-						<textarea
-							class="ui-input goen-admin__textarea"
-							id="faq-answer"
-							name="answer"
-							rows="5"
-							maxlength="2000"
-							required
-							if v.HasErr("answer") {
-								aria-invalid="true"
-								aria-describedby="faq-answer-error"
-							}
-						>{ v.Draft.Answer }</textarea>
-						if v.HasErr("answer") {
-							<p class="ui-error-text" id="faq-answer-error">{ v.Err("answer") }</p>
-						}
-					</div>
-					<div class="ui-field">
-						<label class="ui-label" for="faq-category-en">{ i18n.T(ctx, i18n.KeyAdminFaqpCategoryEn) }</label>
-						<input class="ui-input" id="faq-category-en" name="category_en" maxlength="40" value={ v.Draft.CategoryEn } placeholder="Orders"/>
-					</div>
-					<div class="ui-field">
-						<label class="ui-label" for="faq-question-en">{ i18n.T(ctx, i18n.KeyAdminFaqpQuestionEn) }</label>
-						<input class="ui-input" id="faq-question-en" name="question_en" maxlength="200" value={ v.Draft.QuestionEn }/>
-					</div>
-					<div class="ui-field">
-						<label class="ui-label" for="faq-answer-en">{ i18n.T(ctx, i18n.KeyAdminFaqpAnswerEn) }</label>
-						<textarea class="ui-input goen-admin__textarea" id="faq-answer-en" name="answer_en" rows="5" maxlength="2000">{ v.Draft.AnswerEn }</textarea>
-						<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminFaqpEnHint) }</p>
-					</div>
-					<button class="ui-btn ui-btn--primary" type="submit">{ i18n.T(ctx, i18n.KeyAdminAddButton) }</button>
-				</form>
-				<aside class="goen-admin__side">
-					<h2 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminFaqpCurrent) }</h2>
-					if v.Empty() {
-						<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminFaqpEmpty) }</p>
-					} else {
-						<ul class="goen-admin__coupons" role="list">
-							for _, e := range v.Rows {
-								<li class="goen-admin__coupon">
-									<div class="goen-admin__couponhead">
-										<span class="goen-admin__sku">{ e.Category }</span>
-										if !e.Translated() {
-											<span class="ui-badge ui-badge--warn">{ i18n.T(ctx, i18n.KeyAdminUntranslated) }</span>
-										}
-									</div>
-									<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/faq/" + e.ID) }>
-										<div class="ui-field">
-											<label class="goen-sr-only" for={ "q-" + e.ID }>{ i18n.T(ctx, i18n.KeyAdminFaqpQuestion) }</label>
-											<input class="ui-input" id={ "q-" + e.ID } name="question" value={ e.Question } required maxlength="200"/>
-										</div>
-										<div class="ui-field">
-											<label class="goen-sr-only" for={ "a-" + e.ID }>{ i18n.T(ctx, i18n.KeyAdminFaqpAnswer) }</label>
-											<textarea class="ui-input goen-admin__textarea" id={ "a-" + e.ID } name="answer" rows="3" maxlength="2000" required>{ e.Answer }</textarea>
-										</div>
-										<div class="ui-field">
-											<label class="goen-sr-only" for={ "qe-" + e.ID }>{ i18n.T(ctx, i18n.KeyAdminFaqpQuestionEn) }</label>
-											<input class="ui-input" id={ "qe-" + e.ID } name="question_en" value={ e.QuestionEn } maxlength="200" placeholder="English question"/>
-										</div>
-										<div class="ui-field">
-											<label class="goen-sr-only" for={ "ae-" + e.ID }>{ i18n.T(ctx, i18n.KeyAdminFaqpAnswerEn) }</label>
-											<textarea class="ui-input goen-admin__textarea" id={ "ae-" + e.ID } name="answer_en" rows="3" maxlength="2000" placeholder="English answer">{ e.AnswerEn }</textarea>
-										</div>
-										<input type="hidden" name="category" value={ e.Category }/>
-										<input type="hidden" name="category_en" value={ e.CategoryEn }/>
-										<div class="goen-admin__decidebtns">
-											<button class="ui-btn ui-btn--secondary" type="submit" name="action" value="save">{ i18n.T(ctx, i18n.KeyAdminFaqpSave) }</button>
-											<button class="ui-btn ui-btn--ghost" type="submit" name="action" value="delete">{ i18n.T(ctx, i18n.KeyAdminDelete) }</button>
-										</div>
-									</form>
-									<span class="ui-cart-line__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminFaqpUpdated), e.UpdatedAt) }</span>
-								</li>
-							}
-						</ul>
-					}
-				</aside>
 			</div>
 		</div>
+		if v.HasNotice() {
+			@components.Notice(components.NoticeProps{Tone: components.ToneAccent}) {
+				{ v.Notice }
+			}
+		}
+		if v.Untranslated() > 0 {
+			@components.Notice(components.NoticeProps{Tone: components.ToneWarn}) {
+				{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminFaqpNoEnglish), untranslatedText(v)) }
+			}
+		}
+		@components.Card(components.CardProps{Class: "goen-admin__add"}) {
+			<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminFaqpAdd) }</h2>
+			<form class="goen-admin__form" method="post" action="/admin/faq">
+				<div class="goen-admin__field">
+					@components.Label(components.LabelProps{For: "faq-category"}) {
+						{ i18n.T(ctx, i18n.KeyAdminColCategory) }
+					}
+					@components.Input(components.FieldProps{
+						ID:        "faq-category",
+						Name:      "category",
+						Value:     v.Draft.Category,
+						Invalid:   v.HasErr("category"),
+						Describes: "faq-category-error",
+						Attrs: templ.Attributes{
+							"maxlength":   "40",
+							"placeholder": i18n.T(ctx, i18n.KeyAdminFaqpCategoryPlaceholder),
+							"required":    true,
+						},
+					})
+					if v.HasErr("category") {
+						<p class="ui-error-text" id="faq-category-error" role="alert">{ v.Err("category") }</p>
+					}
+					<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminFaqpCategoryHint) }</p>
+				</div>
+				<div class="goen-admin__field">
+					@components.Label(components.LabelProps{For: "faq-question"}) {
+						{ i18n.T(ctx, i18n.KeyAdminFaqpQuestion) }
+					}
+					@components.Input(components.FieldProps{
+						ID:        "faq-question",
+						Name:      "question",
+						Value:     v.Draft.Question,
+						Invalid:   v.HasErr("question"),
+						Describes: "faq-question-error",
+						Attrs: templ.Attributes{
+							"maxlength": "200",
+							"required":  true,
+						},
+					})
+					if v.HasErr("question") {
+						<p class="ui-error-text" id="faq-question-error" role="alert">{ v.Err("question") }</p>
+					}
+				</div>
+				<div class="goen-admin__field">
+					@components.Label(components.LabelProps{For: "faq-answer"}) {
+						{ i18n.T(ctx, i18n.KeyAdminFaqpAnswer) }
+					}
+					@components.Textarea(components.FieldProps{
+						ID:        "faq-answer",
+						Name:      "answer",
+						Invalid:   v.HasErr("answer"),
+						Describes: "faq-answer-error",
+						Attrs: templ.Attributes{
+							"maxlength": "2000",
+							"required":  true,
+							"rows":      "5",
+						},
+					}) {
+						{ v.Draft.Answer }
+					}
+					if v.HasErr("answer") {
+						<p class="ui-error-text" id="faq-answer-error" role="alert">{ v.Err("answer") }</p>
+					}
+				</div>
+				<div class="goen-admin__fields">
+					<div class="goen-admin__field">
+						@components.Label(components.LabelProps{For: "faq-category-en"}) {
+							{ i18n.T(ctx, i18n.KeyAdminFaqpCategoryEn) }
+						}
+						@components.Input(components.FieldProps{
+							ID:    "faq-category-en",
+							Name:  "category_en",
+							Value: v.Draft.CategoryEn,
+							Attrs: templ.Attributes{"maxlength": "40", "placeholder": "Orders"},
+						})
+					</div>
+					<div class="goen-admin__field">
+						@components.Label(components.LabelProps{For: "faq-question-en"}) {
+							{ i18n.T(ctx, i18n.KeyAdminFaqpQuestionEn) }
+						}
+						@components.Input(components.FieldProps{
+							ID:    "faq-question-en",
+							Name:  "question_en",
+							Value: v.Draft.QuestionEn,
+							Attrs: templ.Attributes{"maxlength": "200"},
+						})
+					</div>
+				</div>
+				<div class="goen-admin__field">
+					@components.Label(components.LabelProps{For: "faq-answer-en"}) {
+						{ i18n.T(ctx, i18n.KeyAdminFaqpAnswerEn) }
+					}
+					@components.Textarea(components.FieldProps{
+						ID:    "faq-answer-en",
+						Name:  "answer_en",
+						Attrs: templ.Attributes{"maxlength": "2000", "rows": "5"},
+					}) {
+						{ v.Draft.AnswerEn }
+					}
+					<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminFaqpEnHint) }</p>
+				</div>
+				@components.Button(components.ButtonProps{
+					Variant: components.VariantPrimary,
+					Class:   "goen-admin__submit",
+				}, "submit") {
+					{ i18n.T(ctx, i18n.KeyAdminAddButton) }
+				}
+			</form>
+		}
+		@components.Card(components.CardProps{Class: "goen-admin__add"}) {
+			<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminFaqpCurrent) }</h2>
+			if v.Empty() {
+				<div class="goen-admin__empty">
+					<span class="goen-modqueue__emptyicon">
+						@icons.Chat()
+					</span>
+					<p class="goen-admin__emptytitle">{ i18n.T(ctx, i18n.KeyAdminFaqpEmpty) }</p>
+				</div>
+			} else {
+				<ul class="goen-admin__coupons" role="list">
+					for _, e := range v.Rows {
+						<li class="goen-modqueue__item">
+							<div class="goen-modqueue__head">
+								<p class="goen-modqueue__title">{ e.Category }</p>
+								if !e.Translated() {
+									@components.Badge(components.BadgeProps{Tone: components.ToneWarn}) {
+										{ i18n.T(ctx, i18n.KeyAdminUntranslated) }
+									}
+								}
+								<span class="goen-admin__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminFaqpUpdated), e.UpdatedAt) }</span>
+							</div>
+							<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/faq/" + e.ID) }>
+								<div class="goen-admin__field">
+									@components.Label(components.LabelProps{For: "q-" + e.ID, Class: "goen-sr-only"}) {
+										{ i18n.T(ctx, i18n.KeyAdminFaqpQuestion) }
+									}
+									@components.Input(components.FieldProps{
+										ID:    "q-" + e.ID,
+										Name:  "question",
+										Value: e.Question,
+										Attrs: templ.Attributes{"maxlength": "200", "required": true},
+									})
+								</div>
+								<div class="goen-admin__field">
+									@components.Label(components.LabelProps{For: "a-" + e.ID, Class: "goen-sr-only"}) {
+										{ i18n.T(ctx, i18n.KeyAdminFaqpAnswer) }
+									}
+									@components.Textarea(components.FieldProps{
+										ID:    "a-" + e.ID,
+										Name:  "answer",
+										Attrs: templ.Attributes{"maxlength": "2000", "required": true, "rows": "3"},
+									}) {
+										{ e.Answer }
+									}
+								</div>
+								<div class="goen-admin__field">
+									@components.Label(components.LabelProps{For: "qe-" + e.ID, Class: "goen-sr-only"}) {
+										{ i18n.T(ctx, i18n.KeyAdminFaqpQuestionEn) }
+									}
+									@components.Input(components.FieldProps{
+										ID:    "qe-" + e.ID,
+										Name:  "question_en",
+										Value: e.QuestionEn,
+										Attrs: templ.Attributes{"maxlength": "200", "placeholder": "English question"},
+									})
+								</div>
+								<div class="goen-admin__field">
+									@components.Label(components.LabelProps{For: "ae-" + e.ID, Class: "goen-sr-only"}) {
+										{ i18n.T(ctx, i18n.KeyAdminFaqpAnswerEn) }
+									}
+									@components.Textarea(components.FieldProps{
+										ID:    "ae-" + e.ID,
+										Name:  "answer_en",
+										Attrs: templ.Attributes{"maxlength": "2000", "placeholder": "English answer", "rows": "3"},
+									}) {
+										{ e.AnswerEn }
+									}
+								</div>
+								<input type="hidden" name="category" value={ e.Category }/>
+								<input type="hidden" name="category_en" value={ e.CategoryEn }/>
+								<div class="goen-modqueue__actions">
+									@components.Button(components.ButtonProps{
+										Variant: components.VariantOutline,
+										Size:    components.SizeSmall,
+										Attrs:   templ.Attributes{"name": "action", "value": "save"},
+									}, "submit") {
+										{ i18n.T(ctx, i18n.KeyAdminFaqpSave) }
+									}
+									@components.Button(components.ButtonProps{
+										Variant: components.VariantGhost,
+										Size:    components.SizeSmall,
+										Attrs:   templ.Attributes{"name": "action", "value": "delete"},
+									}, "submit") {
+										{ i18n.T(ctx, i18n.KeyAdminDelete) }
+									}
+								</div>
+							</form>
+						</li>
+					}
+				</ul>
+			}
+		}
 	}
 }

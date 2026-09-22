@@ -87,6 +87,212 @@ func TestEveryCheckoutChoiceSurvivesChangingAnother(t *testing.T) {
 	}
 }
 
+// TestChangingACheckoutChoiceAppliesIt holds the scripting-on half of the
+// chooser: changing a radio sends exactly what the 更新 button beside it sends —
+// everything typed, plus the name of the chooser — and the answer replaces the
+// form where it stands. Without it the dot moves and the fields that choice
+// decides are not asked for until a button the page never mentioned is pressed.
+func TestChangingACheckoutChoiceAppliesIt(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+
+	view := CheckoutView{
+		Cart:           CartView{Lines: []CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
+		Shipping:       []ShippingChoice{{VersionID: "ship-1", Code: "home", Name: "宅配到府"}},
+		Chosen:         "ship-1",
+		SavedAddresses: []SavedAddress{{ID: "addr-1", Label: "家"}},
+		InvoiceChoices: []InvoiceChoice{{Value: "mobile_carrier", Label: "手機條碼載具"}},
+	}
+	html := renderToString(t, Checkout(CheckoutMeta(ctx), &view))
+
+	if !strings.Contains(html, `id="checkout-form"`) {
+		t.Fatal("the checkout form has no id, so a swap has nothing to select or to replace")
+	}
+	for _, which := range []string{"shipping", "address", "invoice"} {
+		group := tagCarrying(t, html, `hx-vals="{&#34;update&#34;:&#34;`+which+`&#34;}"`)
+		for _, want := range []string{
+			`hx-post="/checkout"`,
+			`hx-trigger="change"`,
+			`hx-include="#checkout-form"`,
+			`hx-target="#checkout-region"`,
+			`hx-select="#checkout-region"`,
+			"show:none",
+		} {
+			if !strings.Contains(group, want) {
+				t.Errorf("the %s chooser does not carry %s:\n%s", which, want, group)
+			}
+		}
+		// The same request the button makes, or the two ways of applying one
+		// choice have drifted apart and only one of them is tested.
+		if !strings.Contains(html, `name="update" value="`+which+`"`) {
+			t.Errorf("a chooser sends update=%s, which no button sends", which)
+		}
+	}
+	// A swap restores the focus to the element whose id it finds again, so each
+	// radio carries one.
+	for _, want := range []string{
+		`id="shipping-ship-1"`,
+		`id="address-addr-1"`,
+		`id="invoice_type-mobile_carrier"`,
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("no radio carries %s, so the swap answers with the focus lost", want)
+		}
+	}
+}
+
+// TestTheApplyButtonAimsAtTheSectionItChanged holds the scripting-off half. The
+// answer is the whole form again, and a form that opens at its top has taken the
+// customer away from the control they just pressed.
+func TestTheApplyButtonAimsAtTheSectionItChanged(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+
+	view := CheckoutView{
+		Cart:           CartView{Lines: []CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
+		Shipping:       []ShippingChoice{{VersionID: "ship-1", Code: "home", Name: "宅配到府"}},
+		Chosen:         "ship-1",
+		SavedAddresses: []SavedAddress{{ID: "addr-1", Label: "家"}},
+		InvoiceChoices: []InvoiceChoice{{Value: "mobile_carrier", Label: "手機條碼載具"}},
+	}
+	html := renderToString(t, Checkout(CheckoutMeta(ctx), &view))
+
+	for _, which := range []string{"shipping", "address", "invoice"} {
+		if !strings.Contains(html, `formaction="/checkout#`+which+`"`) {
+			t.Errorf("the %s 更新 button does not name its own section, so its answer "+
+				"opens at the top of the form", which)
+		}
+		// The fragment names a section that exists; #376 is what a fragment
+		// aimed at nothing costs.
+		if !strings.Contains(html, `id="`+which+`"`) {
+			t.Errorf("no section carries id=%q for the fragment to land on", which)
+		}
+	}
+}
+
+// TestThePickupFormAsksForTheChainAndNothingElse holds what 超商取貨 asks for:
+// the chain, as radio cards. Nobody types a store number — shoppers pick a store
+// from the carrier's map — and until that map is integrated the field could only
+// produce refusals.
+func TestThePickupFormAsksForTheChainAndNothingElse(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+
+	view := CheckoutView{
+		Cart:         CartView{Lines: []CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
+		Shipping:     []ShippingChoice{{VersionID: "ship-1", Code: "pickup", Name: "超商取貨"}},
+		Chosen:       "ship-1",
+		Destination:  "pickup_point",
+		PickupBrands: CheckoutPickupBrandChoices(),
+	}
+	html := renderToString(t, Checkout(CheckoutMeta(ctx), &view))
+
+	for _, want := range []string{
+		`type="radio" name="pickup_brand" value="seven_eleven"`,
+		`type="radio" name="pickup_brand" value="family_mart"`,
+		"7-ELEVEN",
+		"全家",
+		// The selected look is the checked radio's, on the same card the
+		// shipping and invoice choosers use.
+		`<label class="goen-checkout__ship">`,
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("the pickup form does not offer the chain as a radio card: %s", want)
+		}
+	}
+	for _, gone := range []string{`name="pickup_store_code"`, `name="pickup_store_name"`, "<select"} {
+		if strings.Contains(html, gone) {
+			t.Errorf("the pickup form still asks for %s", gone)
+		}
+	}
+}
+
+// TestCheckoutOffersTheChainsTheShopShipsTo holds the two sets apart: a shopper
+// chooses between the chains whose store picker the shop will integrate, and the
+// back office keeps every chain, because an order already placed at one of the
+// others still has to be correctable.
+func TestCheckoutOffersTheChainsTheShopShipsTo(t *testing.T) {
+	t.Parallel()
+
+	want := []PickupBrandChoice{
+		{Value: pickup.SevenEleven, Label: "7-ELEVEN"},
+		{Value: pickup.FamilyMart, Label: "全家 FamilyMart"},
+	}
+	got := CheckoutPickupBrandChoices()
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("CheckoutPickupBrandChoices() mismatch (-want +got):\n%s", diff)
+	}
+	for _, choice := range got {
+		if !choice.Value.Known() {
+			t.Errorf("checkout offers %q, which validation rejects", choice.Value)
+		}
+	}
+	if len(PickupBrandChoices()) != len(pickup.Offered()) {
+		t.Error("the back office no longer offers every chain the shop can accept")
+	}
+}
+
+// TestAPickupOrderIsNamedByItsChain holds what the confirmation and the back
+// office show while no store picker exists: the chain is the destination, and a
+// store appears only when one is known.
+func TestAPickupOrderIsNamedByItsChain(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name   string
+		d      Delivery
+		pickup bool
+		want   string
+	}{
+		{
+			name: "the chain alone", pickup: true,
+			d:    Delivery{PickupBrand: pickup.SevenEleven},
+			want: "7-ELEVEN",
+		},
+		{
+			name: "a chain whose store is known", pickup: true,
+			d: Delivery{
+				PickupBrand: pickup.FamilyMart, PickupStoreCode: "012345",
+				PickupStoreName: "台北車站門市",
+			},
+			want: "全家 FamilyMart 台北車站門市(012345)",
+		},
+		{
+			name: "an address",
+			d: Delivery{
+				PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
+			},
+			want: "110 台北市信義區松高路 1 號",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := tt.d.IsPickup(); got != tt.pickup {
+				t.Errorf("IsPickup() = %v, want %v", got, tt.pickup)
+			}
+			if got := tt.d.Line(); got != tt.want {
+				t.Errorf("Line() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+// tagCarrying is the opening tag of the element that carries needle.
+func tagCarrying(t *testing.T, html, needle string) string {
+	t.Helper()
+
+	at := strings.Index(html, needle)
+	if at < 0 {
+		t.Fatalf("the rendered checkout carries no %s", needle)
+	}
+	start := strings.LastIndex(html[:at], "<")
+	end := strings.Index(html[at:], ">")
+	if start < 0 || end < 0 {
+		t.Fatalf("%s is not inside a tag", needle)
+	}
+	return html[start : at+end+1]
+}
+
 // TestTheAddressBookIsOnlyOfferedForAnAddress holds that a saved street address
 // is not offered for a convenience-store pickup, whose form has no such fields.
 func TestTheAddressBookIsOnlyOfferedForAnAddress(t *testing.T) {
@@ -724,6 +930,97 @@ func TestEnterInTheCheckoutPlacesTheOrder(t *testing.T) {
 	if !strings.Contains(lead, `tabindex="-1"`) || !strings.Contains(lead, `aria-hidden="true"`) {
 		t.Error("the leading submit is reachable by keyboard or announced, so it is a " +
 			"duplicate control rather than a default")
+	}
+}
+
+// TestTheChosenOptionIsMarkedOnTheRadioAlone holds the single source for "this
+// is the one chosen". The page used to say it twice — a class the server
+// rendered onto the label, and a :has(input:checked) rule following the live
+// control — and the two disagree the moment a shopper presses one, which is
+// #378's first symptom. The checked attribute is what a browser, a screen
+// reader and the stylesheet all read, so it is the one that stays.
+func TestTheChosenOptionIsMarkedOnTheRadioAlone(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+
+	view := CheckoutView{
+		Cart: CartView{Lines: []CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
+		Shipping: []ShippingChoice{
+			{VersionID: "ship-1", Code: "home", Name: "宅配到府"},
+			{VersionID: "ship-2", Code: "store_pickup", Name: "超商取貨"},
+		},
+		Chosen:         "ship-2",
+		Invoice:        CheckoutInvoice{Type: "mobile_carrier"},
+		InvoiceChoices: []InvoiceChoice{{Value: "member_carrier", Label: "會員載具"}, {Value: "mobile_carrier", Label: "手機條碼載具"}},
+	}
+	html := renderToString(t, Checkout(CheckoutMeta(ctx), &view))
+
+	for _, want := range []string{`value="ship-2" checked`, `value="mobile_carrier" checked`} {
+		if !strings.Contains(html, want) {
+			t.Errorf("the chosen option does not carry %s — nothing in the document "+
+				"says which one it is, so the card cannot show it and a screen "+
+				"reader cannot announce it", want)
+		}
+	}
+	for _, unwanted := range []string{`value="ship-1" checked`, `value="member_carrier" checked`} {
+		if strings.Contains(html, unwanted) {
+			t.Errorf("an option nobody picked renders %s", unwanted)
+		}
+	}
+
+	// And no second marker beside it. A class the server paints onto the chosen
+	// label is a fact stored twice.
+	if strings.Contains(html, "--on") {
+		t.Error("the chooser still renders a server-side selected class beside the " +
+			"checked radio; two sources for one fact disagree after a press")
+	}
+}
+
+// TestACouponCanBeAppliedWithoutPlacingTheOrder holds the control that makes a
+// discount code checkable. The field on its own left the shopper one button —
+// the one that buys — so the only way to learn whether a code worked was to
+// place the order and read the total afterwards.
+//
+// It is an `update` submit like the three chooser buttons, because it wants the
+// same thing: re-render this form with one more decision applied. formnovalidate
+// travels with it for the same reason they carry it — the customer is mid-form
+// and the fields below are still empty.
+func TestACouponCanBeAppliedWithoutPlacingTheOrder(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+
+	view := CheckoutView{
+		Cart:     CartView{Lines: []CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
+		Shipping: []ShippingChoice{{VersionID: "s1", Code: "home", Name: "宅配到府"}},
+		Chosen:   "s1",
+	}
+	html := renderToString(t, Checkout(CheckoutMeta(ctx), &view))
+
+	_, form, ok := strings.Cut(html, `action="/checkout"`)
+	if !ok {
+		t.Fatal("the checkout rendered no form")
+	}
+	form, _, _ = strings.Cut(form, "</form>")
+
+	_, coupon, ok := strings.Cut(form, `id="coupon"`)
+	if !ok {
+		t.Fatal("the checkout rendered no coupon field")
+	}
+	button, _, ok := strings.Cut(coupon, "</button>")
+	if !ok {
+		t.Fatal("no control follows the coupon field, so a code can only be tried by buying")
+	}
+	for _, want := range []string{`name="update"`, `value="coupon"`, "formnovalidate"} {
+		if !strings.Contains(button, want) {
+			t.Errorf("the control beside the coupon field is missing %s:\n%s", want, button)
+		}
+	}
+
+	// And it must not become the form's default: Enter in any field still
+	// places the order, which TestEnterInTheCheckoutPlacesTheOrder locks from
+	// the other side.
+	if strings.Index(form, `value="coupon"`) < strings.Index(form, i18n.T(ctx, i18n.KeyPlaceOrder)) {
+		t.Error("the coupon button comes before the order button, so Enter applies a code instead of buying")
 	}
 }
 

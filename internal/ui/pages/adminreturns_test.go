@@ -329,3 +329,28 @@ func TestAnApprovedReturnWithMoneyOutstandingOffersToSendItAgain(t *testing.T) {
 		}
 	})
 }
+
+// TestEachReturnDecisionPostsItsOwnAnswer locks what the three buttons submit.
+// They are one form with one field, and the answer is carried by the button
+// pressed, so a re-skin that drops a name or a value would send every decision
+// as the same one.
+func TestEachReturnDecisionPostsItsOwnAnswer(t *testing.T) {
+	t.Parallel()
+	html := renderToString(t, AdminReturns(layouts.Page{Title: "退貨"}, AdminReturnsView{
+		Rows: []AdminReturn{{
+			ID: "open-row", OrderNumber: "GO-OPEN", Status: "requested",
+			StatusText: "待處理", Window: "goodwill", Reason: "不合用",
+		}},
+	}))
+
+	for _, want := range []string{
+		`name="decision" value="approved"`,
+		`name="decision" value="exception"`,
+		`name="decision" value="rejected"`,
+		`name="assessment_version"`,
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("the decision form no longer carries %s", want)
+		}
+	}
+}

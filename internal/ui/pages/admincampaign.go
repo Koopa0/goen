@@ -68,6 +68,8 @@ type AdminCampaignProduct struct {
 
 // AdminCampaignsView is the promotions page.
 type AdminCampaignsView struct {
+	ListBound
+
 	Rows   []AdminCampaign
 	Notice string
 	Errors map[string]string

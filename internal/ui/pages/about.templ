@@ -2,10 +2,10 @@ package pages
 
 import (
 	"context"
-	"github.com/koopa0/goen/internal/ui/icons"
-	"github.com/koopa0/goen/internal/ui/layouts"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/icons"
+	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
 // AboutMeta is the chrome view model for the about page.
@@ -21,30 +21,29 @@ templ About(p layouts.Page) {
 	@layouts.Base(p) {
 		<article class="about">
 			@icons.Mark("about__mark")
-			<h1 class="h1 about__title">{ i18n.T(ctx, i18n.KeyTagline) }</h1>
-			<p class="body about__lede">
+			<h1 class="about__title">{ i18n.T(ctx, i18n.KeyTagline) }</h1>
+			<p class="about__lede">
 				{ i18n.T(ctx, i18n.KeyAboutName) }
 			</p>
-			<p class="body about__lede">
+			<p class="about__lede">
 				{ i18n.T(ctx, i18n.KeyAboutSelection) }
 			</p>
-			<hr class="ui-separator"/>
 			<div class="about__values">
-				<section class="about__value">
-					<h2 class="h4">{ i18n.T(ctx, i18n.KeyAboutSpecs) }</h2>
-					<p class="caption">{ i18n.T(ctx, i18n.KeyAboutSpecsBody) }</p>
+				<section class="goen-card about__value">
+					<h2 class="about__valuetitle">{ i18n.T(ctx, i18n.KeyAboutSpecs) }</h2>
+					<p class="about__valuebody">{ i18n.T(ctx, i18n.KeyAboutSpecsBody) }</p>
 				</section>
-				<section class="about__value">
-					<h2 class="h4">{ i18n.T(ctx, i18n.KeyAboutWarranty) }</h2>
-					<p class="caption">{ i18n.T(ctx, i18n.KeyAboutWarrantyBody) }</p>
+				<section class="goen-card about__value">
+					<h2 class="about__valuetitle">{ i18n.T(ctx, i18n.KeyAboutWarranty) }</h2>
+					<p class="about__valuebody">{ i18n.T(ctx, i18n.KeyAboutWarrantyBody) }</p>
 				</section>
-				<section class="about__value">
-					<h2 class="h4">{ i18n.T(ctx, i18n.KeyAboutCurated) }</h2>
-					<p class="caption">{ i18n.T(ctx, i18n.KeyAboutCuratedBody) }</p>
+				<section class="goen-card about__value">
+					<h2 class="about__valuetitle">{ i18n.T(ctx, i18n.KeyAboutCurated) }</h2>
+					<p class="about__valuebody">{ i18n.T(ctx, i18n.KeyAboutCuratedBody) }</p>
 				</section>
 			</div>
-			<hr class="ui-separator"/>
-			<p class="caption about__legal">
+			<hr class="goen-separator"/>
+			<p class="about__legal">
 				// i18n-exempt: a company registration line: the legal name and a Taiwanese tax number.
 				goen Co., Ltd. · 統編 90123456
 				<br/>

@@ -87,6 +87,17 @@ func (s *Store) Dashboard(ctx context.Context) (pages.AdminDashboardView, error)
 		OpenMessages:   sum.OpenMessages,
 	}
 
+	// No status: the newest orders whatever state they are in. The tiles above
+	// the queue already count each state, and a queue filtered to one of them
+	// hides the order somebody is standing at the counter asking about.
+	recent, err := s.q.AdminOrders(ctx, db.AdminOrdersParams{RowLimit: DashboardRows})
+	if err != nil {
+		return pages.AdminDashboardView{}, fmt.Errorf("read recent orders: %w", err)
+	}
+	for i := range recent {
+		view.Recent = append(view.Recent, orderRow(ctx, &recent[i]))
+	}
+
 	low, err := s.q.AdminVariants(ctx, db.AdminVariantsParams{LowOnly: true, RowLimit: 10})
 	if err != nil {
 		return pages.AdminDashboardView{}, fmt.Errorf("read low stock: %w", err)
@@ -95,6 +106,26 @@ func (s *Store) Dashboard(ctx context.Context) (pages.AdminDashboardView, error)
 		view.Low = append(view.Low, variantRow(&low[i]))
 	}
 	return view, nil
+}
+
+// DashboardRows is how much of the order queue the landing page shows. It is a
+// glance and not the queue itself: the heading beside it links to all of them.
+const DashboardRows = 8
+
+// orderRow is one order as both the queue and the landing page render it. The
+// total is assembled here rather than in the query because the storefront's
+// own order view computes it the same way from the same four columns.
+func orderRow(ctx context.Context, o *db.AdminOrdersRow) pages.AdminOrderRow {
+	fulfillment := pages.FulfillmentStatus(o.FulfillmentStatus)
+	return pages.AdminOrderRow{
+		Number:     o.OrderNumber,
+		Status:     fulfillment,
+		StatusText: FundedStatusLabel(ctx, fulfillment, o.Committed, o.OwedCents),
+		PlacedAt:   shoptime.Minute(o.PlacedAt),
+		Recipient:  o.Recipient,
+		TotalCents: o.SubtotalCents - o.DiscountCents + o.ShippingCents + o.TaxCents,
+		Committed:  o.Committed,
+	}
 }
 
 // Orders reads the order queue.
@@ -108,7 +139,7 @@ func (s *Store) Orders(ctx context.Context, status pages.FulfillmentStatus, term
 		// order, not that order if it is in the tab they had open.
 		var found []db.AdminSearchOrdersRow
 		if found, err = s.q.AdminSearchOrders(ctx, db.AdminSearchOrdersParams{
-			Term: term, RowLimit: PageSize,
+			Term: term, RowLimit: PageLimit,
 		}); err == nil {
 			rows = make([]db.AdminOrdersRow, 0, len(found))
 			for i := range found {
@@ -123,7 +154,7 @@ func (s *Store) Orders(ctx context.Context, status pages.FulfillmentStatus, term
 			}
 		}
 	} else {
-		rows, err = s.q.AdminOrders(ctx, db.AdminOrdersParams{Status: string(status), RowLimit: PageSize})
+		rows, err = s.q.AdminOrders(ctx, db.AdminOrdersParams{Status: string(status), RowLimit: PageLimit})
 	}
 	if err != nil {
 		return pages.AdminOrdersView{}, fmt.Errorf("read orders: %w", err)
@@ -133,7 +164,15 @@ func (s *Store) Orders(ctx context.Context, status pages.FulfillmentStatus, term
 		return pages.AdminOrdersView{}, fmt.Errorf("read order counts: %w", err)
 	}
 
-	view := pages.AdminOrdersView{Status: status, Term: term, Searched: searched}
+	// Both branches asked for one row more than the page shows, so the drop is
+	// here rather than in each of them. The tab counts above come from
+	// AdminOrderCounts and not from len(rows), so the extra row was never in
+	// them to begin with.
+	rows, more := pageOf(rows, PageSize)
+	view := pages.AdminOrdersView{
+		ListBound: pages.Bound(more, PageSize),
+		Status:    status, Term: term, Searched: searched,
+	}
 	countsByStatus := make(map[pages.FulfillmentStatus]int64, len(counts))
 	var total int64
 	for _, c := range counts {
@@ -151,17 +190,7 @@ func (s *Store) Orders(ctx context.Context, status pages.FulfillmentStatus, term
 		})
 	}
 	for i := range rows {
-		o := &rows[i]
-		fulfillment := pages.FulfillmentStatus(o.FulfillmentStatus)
-		view.Orders = append(view.Orders, pages.AdminOrderRow{
-			Number:     o.OrderNumber,
-			Status:     fulfillment,
-			StatusText: FundedStatusLabel(ctx, fulfillment, o.Committed, o.OwedCents),
-			PlacedAt:   shoptime.Minute(o.PlacedAt),
-			Recipient:  o.Recipient,
-			TotalCents: o.SubtotalCents - o.DiscountCents + o.ShippingCents + o.TaxCents,
-			Committed:  o.Committed,
-		})
+		view.Orders = append(view.Orders, orderRow(ctx, &rows[i]))
 	}
 	return view, nil
 }
@@ -206,7 +235,7 @@ func (s *Store) Order(ctx context.Context, number string) (pages.AdminOrderView,
 		// whether to offer the form.
 		Correctable: fulfillment != pages.FulfillmentShipped &&
 			fulfillment != pages.FulfillmentDelivered && fulfillment != pages.FulfillmentCompleted,
-		PickupDestination: o.PickupStoreCode != "",
+		PickupDestination: o.PickupBrand != "",
 		PickupBrands:      pages.PickupBrandChoices(),
 		CustomerNote:      o.CustomerNote.String,
 		StaffNote:         o.StaffNote.String,
@@ -687,11 +716,12 @@ func (s *Store) SetStaffNote(ctx context.Context, number, note string) error {
 
 // Variants reads the stock list.
 func (s *Store) Variants(ctx context.Context, lowOnly bool) (pages.AdminVariantsView, error) {
-	rows, err := s.q.AdminVariants(ctx, db.AdminVariantsParams{LowOnly: lowOnly, RowLimit: PageSize})
+	rows, err := s.q.AdminVariants(ctx, db.AdminVariantsParams{LowOnly: lowOnly, RowLimit: PageLimit})
 	if err != nil {
 		return pages.AdminVariantsView{}, fmt.Errorf("read variants: %w", err)
 	}
-	view := pages.AdminVariantsView{LowOnly: lowOnly}
+	rows, more := pageOf(rows, PageSize)
+	view := pages.AdminVariantsView{ListBound: pages.Bound(more, PageSize), LowOnly: lowOnly}
 	for i := range rows {
 		view.Variants = append(view.Variants, variantRow(&rows[i]))
 	}
@@ -900,11 +930,12 @@ func (s *Store) GrantCredit(ctx context.Context, email string, amountCents int64
 
 // Credit reads the recent ledger for the back office.
 func (s *Store) Credit(ctx context.Context) (pages.AdminCreditView, error) {
-	rows, err := s.q.RecentCredit(ctx, PageSize)
+	rows, err := s.q.RecentCredit(ctx, PageLimit)
 	if err != nil {
 		return pages.AdminCreditView{}, fmt.Errorf("read credit ledger: %w", err)
 	}
-	view := pages.AdminCreditView{}
+	rows, more := pageOf(rows, PageSize)
+	view := pages.AdminCreditView{ListBound: pages.Bound(more, PageSize)}
 	for i := range rows {
 		r := &rows[i]
 		view.Rows = append(view.Rows, pages.AdminCreditEntry{
@@ -940,14 +971,17 @@ func (s *Store) Movements(ctx context.Context, sku string) (pages.AdminMovements
 		return pages.AdminMovementsView{}, fmt.Errorf("read variant %s: %w", sku, err)
 	}
 	rows, err := s.q.VariantMovements(ctx, db.VariantMovementsParams{
-		SKU: sku, RowLimit: MovementPageSize,
+		SKU: sku, RowLimit: MovementPageSize + 1,
 	})
 	if err != nil {
 		return pages.AdminMovementsView{}, fmt.Errorf("read movements of %s: %w", sku, err)
 	}
 
+	// This list has its own size, so it names its own rather than PageSize.
+	rows, more := pageOf(rows, MovementPageSize)
 	view := pages.AdminMovementsView{
-		SKU: v.SKU, ProductName: v.ProductName, Slug: v.Slug,
+		ListBound: pages.Bound(more, MovementPageSize),
+		SKU:       v.SKU, ProductName: v.ProductName, Slug: v.Slug,
 		Stock: v.StockQuantity, Safety: v.SafetyStock,
 		Rows: make([]pages.AdminMovement, 0, len(rows)),
 	}

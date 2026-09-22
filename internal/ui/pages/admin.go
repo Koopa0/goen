@@ -3,7 +3,6 @@ package pages
 import (
 	"context"
 	"fmt"
-	"slices"
 	"strconv"
 
 	"github.com/koopa0/goen/internal/i18n"
@@ -11,21 +10,6 @@ import (
 	"github.com/koopa0/goen/internal/pickup"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
-
-// adminNavHolds reports whether the page being rendered is one of the screens
-// named, which is how the group holding it arrives OPEN. The SERVER decides it,
-// so the correct group is disclosed in the first byte rather than after a
-// script runs — and with scripting off the nav is still a working disclosure,
-// because <details> is the platform's own.
-//
-// The names are written at the group's <details> and the links they name are
-// the next lines of the same file, so the two cannot be read apart;
-// [TestEveryAdminNavGroupOpensOnItsOwnScreens] holds them equal, because a link
-// added to a group whose list forgot it is a screen whose group never opens for
-// it — visible to nobody but the staff member who lands there.
-func adminNavHolds(current string, screens ...string) bool {
-	return slices.Contains(screens, current)
-}
 
 // AdminVariant is one row of the stock list.
 type AdminVariant struct {
@@ -88,12 +72,18 @@ type AdminStatusTab struct {
 func (t AdminStatusTab) CountText() string { return strconv.FormatInt(t.Count, 10) }
 
 // AdminDashboardView is the back office landing page.
+//
+// Recent is the queue the page is read for: the newest orders, whatever state
+// they are in. Filtering it to one state would answer a question the tiles
+// above it already answer, and hide the order somebody walked over to ask
+// about.
 type AdminDashboardView struct {
 	PendingOrders  int64
 	PickingOrders  int64
 	LowStock       int64
 	ActiveProducts int64
 	OpenMessages   int64
+	Recent         []AdminOrderRow
 	Low            []AdminVariant
 }
 
@@ -121,6 +111,8 @@ func (v AdminDashboardView) HasLow() bool { return len(v.Low) > 0 }
 
 // AdminOrdersView is the order queue.
 type AdminOrdersView struct {
+	ListBound
+
 	Term     string
 	Searched bool
 	Status   FulfillmentStatus
@@ -457,6 +449,8 @@ func (v *AdminOrderView) HasCustomerNote() bool { return v.CustomerNote != "" }
 
 // AdminVariantsView is the stock list.
 type AdminVariantsView struct {
+	ListBound
+
 	Variants []AdminVariant
 	LowOnly  bool
 	Notice   string
@@ -556,6 +550,8 @@ func (m AdminMovement) ReasonText(ctx context.Context) string {
 
 // AdminMovementsView is one variant's stock ledger.
 type AdminMovementsView struct {
+	ListBound
+
 	SKU         string
 	ProductName string
 	Slug        string

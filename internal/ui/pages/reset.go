@@ -25,14 +25,6 @@ func (v ResetView) Usable() bool { return !v.Expired && v.Token != "" }
 // HasError reports whether the password was refused.
 func (v ResetView) HasError() bool { return v.Error != "" }
 
-// Invalid is the aria-invalid value for the password field.
-func (v ResetView) Invalid() string {
-	if v.HasError() {
-		return "true"
-	}
-	return "false"
-}
-
 // Refusal is why the form is not being offered.
 func (v ResetView) Refusal(ctx context.Context) string {
 	if v.Expired {

@@ -78,7 +78,7 @@ func (s *Store) Load(ctx context.Context, slug string, sel Selection) (pages.Pro
 			labels[o.OptionName] = o.OptionLabel
 		}
 		groups[o.OptionName] = append(groups[o.OptionName],
-			OptionChoice{Value: o.Value, Label: o.ValueLabel})
+			OptionChoice{Value: o.Value, Label: o.ValueLabel, SwatchHex: o.SwatchHex})
 	}
 
 	// A query key is a variant option only if some variant actually carries it.
@@ -127,6 +127,7 @@ func (s *Store) Load(ctx context.Context, slug string, sel Selection) (pages.Pro
 				Selected:  v.Selected,
 				Available: v.Available,
 				Href:      v.Href,
+				SwatchHex: v.SwatchHex,
 			})
 		}
 		view.Options = append(view.Options, po)

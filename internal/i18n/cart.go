@@ -31,6 +31,18 @@ var (
 
 	KeyQuantity = key("cart.qty", Message{ZhHant: "數量", En: "Quantity"})
 
+	// PROPOSED WORDING, awaiting the shop's own: these name the two buttons
+	// beside the quantity field for a screen reader, which sees no glyph.
+	KeyQuantityDecrease = key("cart.qty.decrease", Message{
+		ZhHant: "減少數量",
+		En:     "Decrease quantity",
+	})
+
+	KeyQuantityIncrease = key("cart.qty.increase", Message{
+		ZhHant: "增加數量",
+		En:     "Increase quantity",
+	})
+
 	KeyUpdate = key("cart.update", Message{ZhHant: "更新", En: "Update"})
 
 	KeyRemove = key("cart.remove", Message{ZhHant: "移除", En: "Remove"})
