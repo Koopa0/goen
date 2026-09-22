@@ -2043,30 +2043,6 @@ func (q *Queries) AlarmInvoiceOperation(ctx context.Context, arg AlarmInvoiceOpe
 	return alarmed, err
 }
 
-const answerQuestionAsCustomer = `-- name: AnswerQuestionAsCustomer :execrows
-INSERT INTO product_answers (question_id, user_id, body)
-SELECT q.id, $1, $2::text
-FROM product_questions q
-WHERE q.id = $3 AND q.hidden_at IS NULL
-`
-
-type AnswerQuestionAsCustomerParams struct {
-	UserID     uuid.NullUUID
-	Body       string
-	QuestionID uuid.UUID
-}
-
-// Omit is_staff so the database default is the storefront authority. The
-// customer role is not granted that column, so a caller cannot turn this into
-// an official shop answer by supplying another parameter.
-func (q *Queries) AnswerQuestionAsCustomer(ctx context.Context, arg AnswerQuestionAsCustomerParams) (int64, error) {
-	result, err := q.db.Exec(ctx, answerQuestionAsCustomer, arg.UserID, arg.Body, arg.QuestionID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
 const answerQuestionAsStaff = `-- name: AnswerQuestionAsStaff :execrows
 INSERT INTO product_answers (question_id, user_id, body, is_staff)
 SELECT q.id, $1, $2::text, true
