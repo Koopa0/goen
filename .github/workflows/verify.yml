@@ -223,3 +223,45 @@ jobs:
 
       - name: govulncheck
         run: make vuln
+
+  load-replay:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          check-latest: false
+      - name: Install load evidence clients
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client jq
+      - name: Fresh two-instance replay positive control
+        env:
+          LOAD_RUN_ID: ci-replay-${{ github.run_id }}-${{ github.run_attempt }}
+          LOAD_K6_VUS_MAX: '4'
+        run: |
+          make load-up
+          bash load/scripts/run-profile.sh stock-contention
+      - name: Fresh fixture with replay removed must fail
+        run: |
+          bash load/scripts/stop-instances.sh
+          make load-up
+          bash load/scripts/check-replay-control.sh
+      - name: Preserve load evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: load-replay-${{ github.sha }}
+          path: |
+            load/evidence/**/*.json
+            load/evidence/**/*.jsonl
+            load/evidence/**/*.txt
+            load/evidence/**/*.log
+            load/.run/*.log
+          include-hidden-files: true
+          if-no-files-found: warn
+      - name: Remove isolated topology
+        if: always()
+        run: make load-down
