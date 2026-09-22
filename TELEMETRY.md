@@ -68,6 +68,8 @@ Compare the `postgres.product.read`, `product.images`, `product.specs`, `product
 
 `goen.outbox.pending` > 0 with `goen.outbox.oldest_seconds` above ten minutes and `/admin/health` outbox row red — same semantics as the staff dashboard, not a separate definition.
 
+Check `goen.outbox.collector.up` before interpreting queue values. It is 1 only after a successful, fresh health read. Before the first read, after an error or timeout, or after the last observation becomes stale, it is 0 and queue gauges are absent rather than falsely reporting an empty queue. Reads start immediately, repeat every 15 seconds, and have a five-second budget. Polling and metric callbacks stop with the application context.
+
 ## Staff diagnostics
 
 When `GOEN_OTEL_DIAGNOSTICS=1`, signed-in staff can reach Go profiles at `/admin/diagnostics/debug/pprof/`. These routes are not on the storefront mux.

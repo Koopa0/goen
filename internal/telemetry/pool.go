@@ -116,8 +116,5 @@ func initAllInstruments(m metric.Meter) error {
 	if err := initHTTPInstruments(m); err != nil {
 		return err
 	}
-	if err := initOutboxInstruments(m); err != nil {
-		return err
-	}
 	return initCacheInstruments(m)
 }
