@@ -46,6 +46,10 @@ const BulkPriority = 100
 // PollInterval is how often the worker looks for due messages.
 const PollInterval = 5 * time.Second
 
+// EligibilityBudget includes the database check before sending and any expiry
+// redaction it requires. This work consumes the same claim as the handler.
+const EligibilityBudget = 5 * time.Second
+
 // HandlerBudget is the longest one message's handler may take. It mirrors
 // email.SendTimeout rather than importing it.
 const HandlerBudget = 30 * time.Second
@@ -62,9 +66,8 @@ const SettleBudget = 5 * time.Second
 const LeaseMargin = time.Minute
 
 // BatchSize bounds one pass, and it is DERIVED rather than chosen. A claim is
-// delivered serially, so BatchSize × (HandlerBudget + SettleBudget) plus
-// LeaseMargin must fit inside Lease, which is fixed by recovery time. At 30s,
-// 5s, 1m and 5m that is the largest batch that fits.
+// delivered serially, so BatchSize × (EligibilityBudget + HandlerBudget + SettleBudget) plus
+// LeaseMargin must fit inside Lease, which is fixed by recovery time.
 // [TestTheLeaseCoversTheWholeBatch] is the arithmetic, and it exists because
 // each term has an owner elsewhere: HandlerBudget mirrors the mail sender's
 // timeout and SettleBudget answers the pool's.
@@ -183,7 +186,10 @@ func (s *Store) Drain(ctx context.Context) (delivered, failed int, err error) {
 	if _, err = s.q.ExpireOutboxPayloads(ctx, retentionInterval()); err != nil {
 		return 0, 0, fmt.Errorf("expire outbox before claim: %w", err)
 	}
-	rows, err := s.q.ClaimOutbox(ctx, db.ClaimOutboxParams{
+	// Start the local deadline before claiming so query latency cannot extend it.
+	claim, cancelClaim := context.WithTimeout(ctx, Lease-LeaseMargin)
+	defer cancelClaim()
+	rows, err := s.q.ClaimOutbox(claim, db.ClaimOutboxParams{
 		BatchSize: BatchSize,
 		Lease:     pgtype.Interval{Microseconds: Lease.Microseconds(), Valid: true},
 		Retain:    retentionInterval(),
@@ -194,10 +200,10 @@ func (s *Store) Drain(ctx context.Context) (delivered, failed int, err error) {
 
 	for i := range rows {
 		m := &rows[i]
-		if ctx.Err() != nil {
-			return delivered, failed, ctx.Err()
+		if claim.Err() != nil {
+			return delivered, failed, claim.Err()
 		}
-		if s.deliver(ctx, m) {
+		if s.deliver(claim, m) {
 			delivered++
 		} else {
 			failed++
@@ -207,19 +213,25 @@ func (s *Store) Drain(ctx context.Context) (delivered, failed int, err error) {
 }
 
 func (s *Store) deliver(ctx context.Context, m *db.ClaimOutboxRow) bool {
+	eligibility, cancelEligibility := context.WithTimeout(ctx, EligibilityBudget)
+	defer cancelEligibility()
 	started := time.Now()
-	seconds, err := s.q.OutboxDeliveryWindow(ctx, db.OutboxDeliveryWindowParams{
+	seconds, err := s.q.OutboxDeliveryWindow(eligibility, db.OutboxDeliveryWindowParams{
 		ID: m.ID, Retain: retentionInterval(),
 	})
 	if err != nil {
 		s.log.ErrorContext(ctx, "outbox delivery eligibility", "message", m.ID, "error", err)
 		return false
 	}
+	// A delayed successful result is no authority to send after its deadline.
+	if eligibility.Err() != nil {
+		return false
+	}
 	// Subtract the whole query round trip so transport latency cannot extend
 	// the database's remaining lifetime or depend on synchronized wall clocks.
 	remaining := time.Duration(seconds*float64(time.Second)) - time.Since(started)
 	if remaining <= 0 {
-		if _, expireErr := s.q.ExpireOutboxPayloads(ctx, retentionInterval()); expireErr != nil {
+		if _, expireErr := s.q.ExpireOutboxPayloads(eligibility, retentionInterval()); expireErr != nil {
 			s.log.ErrorContext(ctx, "expire outbox before delivery", "message", m.ID, "error", expireErr)
 		}
 		return false
@@ -265,6 +277,9 @@ func retentionInterval() pgtype.Interval {
 func runHandler(ctx context.Context, h Handler, payload []byte) error {
 	ctx, cancel := context.WithTimeout(ctx, HandlerBudget)
 	defer cancel()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	return h(ctx, payload)
 }
 

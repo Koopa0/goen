@@ -13,11 +13,11 @@ import (
 func TestTheLeaseCoversTheWholeBatch(t *testing.T) {
 	t.Parallel()
 
-	// Each message costs its handler AND the write that records the outcome.
+	// Each message costs eligibility, its handler and the outcome write.
 	// Counting only the handler leaves the settle write on whatever the pool's
 	// statement_timeout happens to be, which is set for a storefront request by
 	// a different file for a different reason.
-	perMessage := outbox.HandlerBudget + outbox.SettleBudget
+	perMessage := outbox.EligibilityBudget + outbox.HandlerBudget + outbox.SettleBudget
 	work := time.Duration(outbox.BatchSize) * perMessage
 	if work+outbox.LeaseMargin > outbox.Lease {
 		t.Errorf("a full batch can take %v (%d × %v) and the lease is %v with %v "+
