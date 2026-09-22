@@ -67,15 +67,24 @@ templ AdminCredit(p layouts.Page, v AdminCreditView) {
 					<input type="hidden" name="operation_id" value={ v.OperationID }/>
 					<div class="ui-field">
 						<label class="ui-label" for="credit-email">{ i18n.T(ctx, i18n.KeyAdminCreditEmail) }</label>
-						<input class="ui-input" id="credit-email" name="email" type="email" required autocomplete="off" aria-invalid={ v.EmailInvalid } value={ v.Email }/>
+						<input class="ui-input" id="credit-email" name="email" type="email" required autocomplete="off" aria-invalid={ v.EmailInvalid } aria-describedby="credit-email-error" value={ v.Email }/>
+						if v.EmailInvalid {
+							<p class="ui-error-text" id="credit-email-error">{ i18n.T(ctx, i18n.KeyAdminCreditUnknown) }</p>
+						}
 					</div>
 					<div class="ui-field">
 						<label class="ui-label" for="credit-amount">{ i18n.T(ctx, i18n.KeyAdminCreditAmount) }</label>
-						<input class="ui-input" id="credit-amount" name="amount" type="number" min="1" max="100000" step="1" required inputmode="numeric" aria-invalid={ v.AmountInvalid } value={ v.Amount }/>
+						<input class="ui-input" id="credit-amount" name="amount" type="number" min="1" max="100000" step="1" required inputmode="numeric" aria-invalid={ v.AmountInvalid } aria-describedby="credit-amount-error" value={ v.Amount }/>
+						if v.AmountInvalid {
+							<p class="ui-error-text" id="credit-amount-error">{ i18n.T(ctx, i18n.KeyAdminCreditAmountError) }</p>
+						}
 					</div>
 					<div class="ui-field">
 						<label class="ui-label" for="credit-reason">{ i18n.T(ctx, i18n.KeyAdminCreditReason) }</label>
-						<input class="ui-input" id="credit-reason" name="reason" required maxlength="200" autocomplete="off" aria-invalid={ v.ReasonInvalid } value={ v.Reason }/>
+						<input class="ui-input" id="credit-reason" name="reason" required maxlength="200" autocomplete="off" aria-invalid={ v.ReasonInvalid } aria-describedby="credit-reason-error" value={ v.Reason }/>
+						if v.ReasonInvalid {
+							<p class="ui-error-text" id="credit-reason-error">{ i18n.T(ctx, i18n.KeyAdminCreditReasonError) }</p>
+						}
 					</div>
 					@components.Button(components.ButtonProps{Variant: components.VariantPrimary}, "submit") {
 						{ i18n.T(ctx, i18n.KeyAdminCreditReview) }

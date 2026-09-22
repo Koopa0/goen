@@ -20,10 +20,6 @@ func TestEveryViewModelFieldIsAssigned(t *testing.T) {
 	t.Parallel()
 
 	allowed := map[string]string{
-		"AdminCreditView.Email":  "REPORTED: GrantCredit redirects instead of re-rendering, so a refused form comes back blank",
-		"AdminCreditView.Reason": "REPORTED: GrantCredit redirects instead of re-rendering, so a refused form comes back blank",
-		"AdminCreditView.Amount": "REPORTED: GrantCredit redirects instead of re-rendering, so a refused form comes back blank",
-
 		"AdminCampaignView.Title":   "REPORTED: neither assigned nor rendered; the edit page heads itself with the slug",
 		"AdminCampaignView.EndsAt":  "REPORTED: neither assigned nor rendered; the edit page never states the window",
 		"AdminCampaignView.Running": "REPORTED: neither assigned nor rendered; the edit page never says whether it is live",

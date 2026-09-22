@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/admin"
+	"github.com/koopa0/goen/internal/i18n"
 )
 
 func TestCreditGrantRequiresRecipientReviewBeforePosting(t *testing.T) {
@@ -115,5 +116,21 @@ func TestCreditConfirmationDoesNotFollowAReassignedEmail(t *testing.T) {
 	w = post()
 	if w.Code != http.StatusUnprocessableEntity || !strings.Contains(w.Body.String(), `aria-invalid="true"`) || !strings.Contains(w.Body.String(), "Keep recipient") {
 		t.Fatalf("unknown recipient must preserve refused form: %d %s", w.Code, w.Body.String())
+	}
+	for _, want := range []string{`aria-describedby="credit-email-error"`, `id="credit-email-error"`, i18n.T(ctx, i18n.KeyAdminCreditUnknown)} {
+		if !strings.Contains(w.Body.String(), want) {
+			t.Fatalf("unknown recipient error missing %q", want)
+		}
+	}
+	form.Set("amount", "0")
+	form.Set("reason", "")
+	w = post()
+	if w.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("invalid grant fields = %d", w.Code)
+	}
+	for _, want := range []string{`aria-describedby="credit-amount-error"`, `id="credit-amount-error"`, i18n.T(ctx, i18n.KeyAdminCreditAmountError), `aria-describedby="credit-reason-error"`, `id="credit-reason-error"`, i18n.T(ctx, i18n.KeyAdminCreditReasonError)} {
+		if !strings.Contains(w.Body.String(), want) {
+			t.Fatalf("refused credit field missing %q", want)
+		}
 	}
 }

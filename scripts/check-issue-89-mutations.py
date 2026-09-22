@@ -24,7 +24,17 @@ CASES = [{'name': 'confirmation',
   'package': './internal/admin',
   'integration': True,
   'generated': 'internal/ui/pages/admincredit_templ.go',
-  'probe': 'unidentified'}]
+  'probe': 'unidentified'},
+ {'name': 'field-error-link',
+  'path': 'internal/ui/pages/admincredit.templ',
+  'before': 'aria-describedby="credit-email-error"',
+  'after': 'data-detached-error="credit-email-error"',
+  'test': 'TestEveryRefusedFieldNamesItsError',
+  'marker': 'admincredit.templ marks 3 fields invalid and attaches 2 messages',
+  'package': './internal/ui/pages',
+  'integration': False,
+  'generated': 'internal/ui/pages/admincredit_templ.go',
+  'probe': 'data-detached-error'}]
 
 # Baselines and reds must identify actual running tests; build errors and skipped
 # names cannot establish that a production defect reached its assertion.
