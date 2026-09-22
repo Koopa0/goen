@@ -17,6 +17,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	stripe "github.com/stripe/stripe-go/v86"
+	"golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/admin"
@@ -115,7 +116,7 @@ func restoreFinancialRouter(t *testing.T, databaseURL string) http.Handler {
 		Refunder: admin.NewRefunder("sk_test_restore_local_only"), BaseURL: "http://127.0.0.1"}, slog.New(slog.DiscardHandler))
 }
 
-func restoreOperator(t *testing.T, pool *pgxpool.Pool) (uuid.UUID, string) {
+func restoreOperator(t *testing.T, pool *pgxpool.Pool) (actorID uuid.UUID, sessionToken string) {
 	t.Helper()
 	id := uuid.New()
 	if _, insertErr := pool.Exec(t.Context(), `INSERT INTO users (id, email, role) VALUES ($1, $2, 'admin')`, id, id.String()+"@restore.invalid"); insertErr != nil {
@@ -145,7 +146,47 @@ func restoreOperatorPost(t *testing.T, handler http.Handler, token, path, reques
 	}
 }
 
-func restoreFinancialOrder(t *testing.T, pool *pgxpool.Pool, number, providerRef string, captured bool) (uuid.UUID, uuid.UUID) {
+// The recovery action must come from the restored operator queue: a first
+// exception decision and an approved payout retry are different form verbs.
+func restoreRetryForm(t *testing.T, body, action string) url.Values {
+	t.Helper()
+	document, err := html.Parse(strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	values := url.Values{}
+	matches := 0
+	attribute := func(node *html.Node, key string) string {
+		for _, attr := range node.Attr {
+			if attr.Key == key {
+				return attr.Val
+			}
+		}
+		return ""
+	}
+	var walk func(*html.Node, bool)
+	walk = func(node *html.Node, selected bool) {
+		if node.Type == html.ElementNode && node.Data == "form" {
+			selected = attribute(node, "action") == action && attribute(node, "method") == "post"
+			if selected {
+				matches++
+			}
+		}
+		if selected && node.Type == html.ElementNode && node.Data == "input" && attribute(node, "type") == "hidden" {
+			values.Add(attribute(node, "name"), attribute(node, "value"))
+		}
+		for child := node.FirstChild; child != nil; child = child.NextSibling {
+			walk(child, selected)
+		}
+	}
+	walk(document, false)
+	if matches != 1 || values.Get("decision") != "approved" {
+		t.Fatalf("restored payout retry form: matches=%d values=%v, want one approved retry", matches, values)
+	}
+	return values
+}
+
+func restoreFinancialOrder(t *testing.T, pool *pgxpool.Pool, number, providerRef string, captured bool) (orderID, lineID uuid.UUID) {
 	t.Helper()
 	ctx := t.Context()
 	tx, err := pool.Begin(ctx)
@@ -153,7 +194,6 @@ func restoreFinancialOrder(t *testing.T, pool *pgxpool.Pool, number, providerRef
 		t.Fatal(err)
 	}
 	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
-	var orderID, lineID uuid.UUID
 	if queryErr := tx.QueryRow(ctx, `INSERT INTO orders (order_number, shipping_version_id, shipping_method_code, shipping_method_name)
 		SELECT $1, v.id, sm.code, v.name FROM shipping_method_versions v JOIN shipping_methods sm ON sm.id = v.method_id
 		ORDER BY v.effective_at LIMIT 1 RETURNING id`, number).Scan(&orderID); queryErr != nil {
@@ -252,6 +292,7 @@ func TestRestoredFinancialHandlersResumeWithoutDuplicateMoney(t *testing.T) {
 		t.Fatalf("restored financial snapshot differs: %v", err)
 	}
 	handler := restoreFinancialRouter(t, copyURL)
+	var retryForm url.Values
 	for _, path := range []string{"/admin/returns", "/admin/health"} {
 		req := httptest.NewRequestWithContext(ctx, http.MethodGet, path, http.NoBody)
 		req.AddCookie(&http.Cookie{Name: "goen_session", Value: token, Secure: true, HttpOnly: true, SameSite: http.SameSiteLaxMode})
@@ -259,6 +300,9 @@ func TestRestoredFinancialHandlersResumeWithoutDuplicateMoney(t *testing.T) {
 		handler.ServeHTTP(res, req)
 		if res.Code != http.StatusOK {
 			t.Fatalf("restored financial queue %s: status=%d", path, res.Code)
+		}
+		if path == "/admin/returns" {
+			retryForm = restoreRetryForm(t, res.Body.String(), "/admin/returns/"+returnID.String()+"/decide")
 		}
 		needles := []string{returnID.String()}
 		if path == "/admin/health" {
@@ -271,11 +315,15 @@ func TestRestoredFinancialHandlersResumeWithoutDuplicateMoney(t *testing.T) {
 		}
 	}
 	assertRestoreRefund(t, copyPool, returnID, actor, "pending", key, 0, 1)
-	restoreOperatorPost(t, handler, token, path, "restore-copy-refund", form, "/admin/returns?ok=1")
+	restoreOperatorPost(t, handler, token, path, "restore-copy-refund", retryForm, "/admin/returns?ok=1")
 	assertRestoreRefund(t, copyPool, returnID, actor, "succeeded", key, 1, 2)
 	calls, _, _ := provider.snapshot()
-	restoreOperatorPost(t, handler, token, path, "restore-copy-replay", form, "/admin/returns?ok=1")
+	history := restoreFinancialHistory(t, copyPool)
+	restoreOperatorPost(t, handler, token, path, "restore-copy-replay", retryForm, "/admin/returns?refused=1")
 	assertRestoreRefund(t, copyPool, returnID, actor, "succeeded", key, 1, 2)
+	if after := restoreFinancialHistory(t, copyPool); after != history {
+		t.Fatalf("completed refund replay changed audit or credit history: before=%s after=%s", history, after)
+	}
 	if after, operations, afterKey := provider.snapshot(); after != calls || operations != 1 || afterKey != key {
 		t.Fatalf("completed refund repeated provider work: calls=%d/%d creates=%d key=%q/%q", calls, after, operations, key, afterKey)
 	}
@@ -297,6 +345,18 @@ func TestRestoredFinancialHandlersResumeWithoutDuplicateMoney(t *testing.T) {
 		assertRestorePayment(t, source, ref, actor, "requires_reconciliation", 0, 0, 0)
 	}
 	assertRestoreRefund(t, source, returnID, actor, "pending", key, 0, 1)
+}
+
+func restoreFinancialHistory(t *testing.T, pool *pgxpool.Pool) string {
+	t.Helper()
+	var history string
+	if err := pool.QueryRow(t.Context(), `SELECT jsonb_build_object(
+  'audit', (SELECT coalesce(jsonb_agg(a ORDER BY a.id), '[]'::jsonb) FROM audit_events a),
+  'credit', (SELECT coalesce(jsonb_agg(c ORDER BY c.id), '[]'::jsonb) FROM store_credit_entries c)
+ )::text`).Scan(&history); err != nil {
+		t.Fatal(err)
+	}
+	return history
 }
 
 func assertRestoreRefund(t *testing.T, pool *pgxpool.Pool, id, actor uuid.UUID, wantStatus, wantKey string, events, attempts int) {
