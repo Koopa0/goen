@@ -49,13 +49,13 @@ func (t QueryTracer) TraceQueryEnd(ctx context.Context, _ *pgx.Conn, data pgx.Tr
 		return
 	}
 	outcome := "success"
-	var pgerr *pgconn.PgError
+	pgerr, isPGError := errors.AsType[*pgconn.PgError](data.Err)
 	switch {
 	case errors.Is(ctx.Err(), context.DeadlineExceeded), errors.Is(data.Err, context.DeadlineExceeded):
 		outcome = "timeout"
 	case errors.Is(ctx.Err(), context.Canceled), errors.Is(data.Err, context.Canceled):
 		outcome = "cancelled"
-	case errors.As(data.Err, &pgerr) && pgerr.Code == "57014":
+	case isPGError && pgerr.Code == "57014":
 		outcome = "timeout"
 	case data.Err != nil:
 		outcome = "error"
