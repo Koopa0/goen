@@ -5,13 +5,12 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
-	"regexp"
-	"slices"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/koopa0/goen/internal/account"
+	"github.com/koopa0/goen/internal/comparison"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -72,7 +71,14 @@ func (h *Handler) Detail(w http.ResponseWriter, r *http.Request) {
 	view.NotifyOutcome = r.URL.Query().Get("notify")
 	view.AskOutcome = r.URL.Query().Get("ask")
 	view.AddedOutcome = r.URL.Query().Get("added")
-	view.Comparing = boundedSlugs(r.URL.Query()["p"])
+	view.Comparing = comparison.Read(r)
+	view.CompareSnapshot = r.URL.Query().Has("p")
+	if view.CompareSnapshot {
+		view.Comparing = boundedSlugs(r.URL.Query()["p"])
+	}
+	view.CompareReturn = r.URL.RequestURI()
+	view.CompareNotice = pages.ComparisonNotice(r.Context(), r.URL.Query().Get("compare"))
+	w.Header().Set("Cache-Control", "private, no-store")
 	meta := pages.ProductMeta(&view)
 	meta.StructuredData = pages.JSONLDSet(
 		pages.ProductJSONLD(&view, h.baseURL),
@@ -264,18 +270,6 @@ func (h *Handler) rejectAsk(w http.ResponseWriter, r *http.Request, slug, body s
 }
 
 func boundedSlugs(raw []string) []string {
-	const maxCompare = 4
-	out := make([]string, 0, maxCompare)
-	for _, s := range raw {
-		if !slugFormat.MatchString(s) || slices.Contains(out, s) {
-			continue
-		}
-		out = append(out, s)
-		if len(out) == maxCompare {
-			break
-		}
-	}
-	return out
+	selected, _ := comparison.Normalize(raw)
+	return selected
 }
-
-var slugFormat = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)

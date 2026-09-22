@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/koopa0/goen/internal/comparison"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -164,19 +165,22 @@ type ProductView struct {
 	Sellable     bool
 	Available    int32
 
-	Rating        float64
-	RatingCount   int64
-	RatingBars    []RatingBar
-	Reviews       []ProductReview
-	SignedIn      bool
-	CanReview     bool
-	WouldVerify   bool
-	ReviewErrors  map[string]string
-	ReviewDraft   ReviewDraft
-	NotifyOutcome string
-	Comparing     []string
-	Questions     []Question
-	AskOutcome    string
+	Rating          float64
+	RatingCount     int64
+	RatingBars      []RatingBar
+	Reviews         []ProductReview
+	SignedIn        bool
+	CanReview       bool
+	WouldVerify     bool
+	ReviewErrors    map[string]string
+	ReviewDraft     ReviewDraft
+	NotifyOutcome   string
+	Comparing       []string
+	CompareSnapshot bool
+	CompareReturn   string
+	CompareNotice   string
+	Questions       []Question
+	AskOutcome      string
 	// AskDraft is a refused question, replayed into the textarea so a 422
 	// does not empty what the customer already typed.
 	AskDraft string
@@ -397,24 +401,12 @@ func (v *ProductView) AskSignInHref() string {
 	return "/signin?next=/p/" + v.Slug + "%23questions"
 }
 
-// CompareHref adds this product to a comparison, carrying whatever was already there.
+// CompareHref opens the personal selection or the explicit shared snapshot.
 func (v *ProductView) CompareHref() string {
-	var b strings.Builder
-	b.WriteString("/compare")
-	sep := "?"
-	for _, slug := range v.Comparing {
-		if slug == v.Slug {
-			continue
-		}
-		b.WriteString(sep)
-		b.WriteString("p=")
-		b.WriteString(slug)
-		sep = "&"
+	if v.CompareSnapshot {
+		return comparison.Href(v.Comparing)
 	}
-	b.WriteString(sep)
-	b.WriteString("p=")
-	b.WriteString(v.Slug)
-	return b.String()
+	return "/compare"
 }
 
 // AlreadyComparing reports whether this product is already in the set.
@@ -423,7 +415,7 @@ func (v *ProductView) AlreadyComparing() bool {
 }
 
 // ComparingFull reports whether the set has no room left.
-func (v *ProductView) ComparingFull() bool { return len(v.Comparing) >= 4 }
+func (v *ProductView) ComparingFull() bool { return len(v.Comparing) >= comparison.Max }
 
 // FreeDelivery is the threshold the guarantee strip states, or "" for none.
 func (v *ProductView) FreeDelivery() string { return FreeDeliveryText(v.FreeDeliveryCents) }

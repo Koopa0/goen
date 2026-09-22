@@ -272,16 +272,28 @@ templ productBuy(v *ProductView) {
 		if v.SoldOut() {
 			@productNotifyForm(v)
 		}
+		if v.CompareNotice != "" {
+			<p class="goen-pdp__hint" role="status">{ v.CompareNotice }</p>
+		}
 		if !v.AlreadyComparing() && !v.ComparingFull() {
-			@components.ButtonLink(components.ButtonProps{
-				Variant: components.VariantSecondary, Block: true, Class: "goen-pdp__compare",
-			}, templ.SafeURL(v.CompareHref())) {
-				{ i18n.T(ctx, i18n.KeyAddToCompare) }
+			<form method="post" action="/compare/add">
+				<input type="hidden" name="slug" value={ v.Slug }/>
+				<input type="hidden" name="next" value={ v.CompareReturn }/>
+				if v.CompareSnapshot {
+					<input type="hidden" name="snapshot" value="1"/>
+					for _, slug := range v.Comparing {
+						<input type="hidden" name="p" value={ slug }/>
+					}
+				}
+				@components.Button(components.ButtonProps{Variant: components.VariantSecondary, Block: true, Class: "goen-pdp__compare"}, "submit") {
+					{ i18n.T(ctx, i18n.KeyAddToCompare) }
+				}
+			</form>
+		} else {
+			if v.ComparingFull() && !v.AlreadyComparing() {
+				<p class="goen-pdp__hint">{ i18n.T(ctx, i18n.KeyCompareFull) }</p>
 			}
-		} else if v.AlreadyComparing() {
-			@components.ButtonLink(components.ButtonProps{
-				Variant: components.VariantSecondary, Block: true, Class: "goen-pdp__compare",
-			}, templ.SafeURL(v.CompareHref())) {
+			@components.ButtonLink(components.ButtonProps{Variant: components.VariantSecondary, Block: true, Class: "goen-pdp__compare"}, templ.SafeURL(v.CompareHref())) {
 				{ i18n.T(ctx, i18n.KeyViewCompare) }
 			}
 		}

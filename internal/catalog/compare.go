@@ -3,9 +3,9 @@ package catalog
 import (
 	"context"
 	"fmt"
-	"slices"
 
 	"github.com/koopa0/goen/assets"
+	"github.com/koopa0/goen/internal/comparison"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -13,8 +13,8 @@ import (
 
 // MinCompare and MaxCompare bound how many products a comparison holds.
 const (
-	MinCompare = 2
-	MaxCompare = 4
+	MinCompare = comparison.Min
+	MaxCompare = comparison.Max
 )
 
 // Compare reads the products a URL named and the specs that tell them apart. A
@@ -81,15 +81,6 @@ func (s *Store) Compare(ctx context.Context, slugs []string) (pages.CompareView,
 }
 
 func normaliseSlugs(raw []string) []string {
-	out := make([]string, 0, MaxCompare)
-	for _, s := range raw {
-		if s == "" || slices.Contains(out, s) {
-			continue
-		}
-		out = append(out, s)
-		if len(out) == MaxCompare {
-			break
-		}
-	}
-	return out
+	slugs, _ := comparison.Normalize(raw)
+	return slugs
 }

@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"strconv"
 
+	"github.com/koopa0/goen/internal/comparison"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -15,16 +16,21 @@ import (
 
 // Handler serves the category listing and search pages.
 type Handler struct {
-	store *Store
-	log   *slog.Logger
+	store            *Store
+	log              *slog.Logger
+	secureComparison bool
 }
 
 // NewHandler returns a Handler reading through store.
-func NewHandler(store *Store, log *slog.Logger) *Handler {
+func NewHandler(store *Store, log *slog.Logger, secureCookies ...bool) *Handler {
 	if store == nil || log == nil {
 		panic("catalog: NewHandler requires a store and a logger")
 	}
-	return &Handler{store: store, log: log}
+	secure := true
+	if len(secureCookies) > 0 {
+		secure = secureCookies[0]
+	}
+	return &Handler{store: store, log: log, secureComparison: secure}
 }
 
 // Listing serves GET /c/{slug}.
@@ -185,13 +191,33 @@ func (h *Handler) Campaign(w http.ResponseWriter, r *http.Request) {
 		pages.CampaignMeta(r.Context(), view.Title), view))
 }
 
-// Compare serves GET /compare. The set lives in the URL and nowhere else.
+// Compare serves a personal selection or an explicit URL snapshot without mutating either.
 func (h *Handler) Compare(w http.ResponseWriter, r *http.Request) {
-	view, err := h.store.Compare(r.Context(), r.URL.Query()["p"])
+	w.Header().Set("Cache-Control", "private, no-store")
+	raw, snapshot := r.URL.Query()["p"]
+	if !snapshot {
+		raw = comparison.Read(r)
+	}
+	_, overflow := comparison.Normalize(raw)
+	view, err := h.store.Compare(r.Context(), raw)
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read comparison", "error", err)
 		h.serverError(w, r)
 		return
+	}
+	view.Snapshot = snapshot
+	view.Notice = pages.ComparisonNotice(r.Context(), r.URL.Query().Get("compare"))
+	if overflow {
+		view.Notice = i18n.T(r.Context(), i18n.KeyCompareOverflow)
+	}
+	view.Query = trimForDisplay(r.URL.Query().Get("q"))
+	if pattern := SearchPattern(view.Query); pattern != "" {
+		found, searchErr := h.store.Search(r.Context(), pattern, 1)
+		if searchErr != nil {
+			h.serverError(w, r)
+			return
+		}
+		view.Candidates = found.Products
 	}
 	web.Render(w, r, h.log, http.StatusOK, pages.Compare(
 		layouts.Page{
