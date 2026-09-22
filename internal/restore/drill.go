@@ -38,13 +38,24 @@ SELECT c.relname||' '||(xpath('/row/c/text()', query_to_xml(
 // the same cluster, and returns the snapshot artifacts collected before the
 // transaction commits.
 func DumpCopy(ctx context.Context, sourceURL, copyName string) (copyURL string, artifacts SnapshotArtifacts, cleanup func(), err error) {
+	config, err := pgx.ParseConfig(sourceURL)
+	if err != nil {
+		return "", SnapshotArtifacts{}, nil, err
+	}
+	if copyName == "" || len(copyName) > 63 || copyName == config.Database {
+		return "", SnapshotArtifacts{}, nil, errors.New("restore destination must be a distinct database name of at most 63 bytes")
+	}
 	work, err := os.MkdirTemp("", "goen-restore-drill-")
 	if err != nil {
 		return "", SnapshotArtifacts{}, nil, err
 	}
+	created := false
 	cleanup = func() {
-		if dropErr := dropDatabase(context.WithoutCancel(ctx), sourceURL, copyName); dropErr != nil {
-			return
+		// A name collision is a refusal, not ownership of the existing database.
+		if created {
+			if dropErr := dropDatabase(context.WithoutCancel(ctx), sourceURL, copyName); dropErr == nil {
+				created = false
+			}
 		}
 		if rmErr := os.RemoveAll(work); rmErr != nil {
 			return
@@ -67,6 +78,7 @@ func DumpCopy(ctx context.Context, sourceURL, copyName string) (copyURL string, 
 		cleanup()
 		return "", SnapshotArtifacts{}, nil, createErr
 	}
+	created = true
 
 	if restoreErr := runPostgresClient(ctx, work, "pg_restore",
 		"-d", copyURL, "--no-owner", "--exit-on-error", "goen.dump"); restoreErr != nil {

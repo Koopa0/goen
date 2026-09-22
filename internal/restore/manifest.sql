@@ -1,6 +1,19 @@
 -- Business manifest for restore drills. Aggregates commerce state without
 -- customer secrets: no emails, names, addresses, tokens or session material.
 SELECT line FROM (
+    -- Key every stock balance and its supporting holds and movements so
+    -- corruption on different variants cannot cancel out in a global total.
+    SELECT 'inventory' || chr(9) || id::text || chr(9) || stock_quantity::text || chr(9) || safety_stock::text AS line
+      FROM product_variants
+    UNION ALL
+    SELECT 'variant_reservation' || chr(9) || variant_id::text || chr(9) || state || chr(9) || count(*)::text || chr(9) || sum(quantity)::text
+      FROM inventory_reservations
+     GROUP BY variant_id, state
+    UNION ALL
+    SELECT 'variant_movement' || chr(9) || variant_id::text || chr(9) || reason || chr(9) || count(*)::text || chr(9) || sum(delta)::text
+      FROM inventory_movements
+     GROUP BY variant_id, reason
+    UNION ALL
     SELECT 'reservation' || chr(9) || state || chr(9) || count(*)::text || chr(9) || coalesce(sum(quantity), 0)::text AS line
       FROM inventory_reservations
      GROUP BY state
