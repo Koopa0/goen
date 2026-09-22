@@ -82,6 +82,7 @@ type CartView struct {
 	ReorderAdded   int
 	ReorderSkipped int
 	Notice         string
+	ContinueURL    string
 }
 
 // HasNotice reports whether to show the notice banner.

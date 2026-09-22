@@ -394,12 +394,20 @@ func (h *Handler) startSession(w http.ResponseWriter, r *http.Request, u User) (
 }
 
 func (h *Handler) adoptRequestCart(r *http.Request, userID string) cartAdoption {
-	if h.carts == nil { return cartAdoptionUnchanged }
+	if h.carts == nil {
+		return cartAdoptionUnchanged
+	}
 	cartID, ok := h.carts.CartIDForRequest(r.Context(), r)
-	if !ok { return cartAdoptionUnchanged }
+	if !ok {
+		return cartAdoptionUnchanged
+	}
 	err := h.store.AdoptCart(r.Context(), userID, cartID)
-	if err == nil { return cartAdoptionUnchanged }
-	if errors.Is(err, ErrQuantityAdjusted) { return cartAdoptionAdjusted }
+	if err == nil {
+		return cartAdoptionUnchanged
+	}
+	if errors.Is(err, ErrQuantityAdjusted) {
+		return cartAdoptionAdjusted
+	}
 	h.log.ErrorContext(r.Context(), "adopt cart", "error", err, "user_id", userID)
 	return cartAdoptionFailed
 }
@@ -416,8 +424,20 @@ func cartAdoptionLanding(next string, outcome cartAdoption) string {
 }
 
 func appendCartAdjustNotice(target string) string {
-	if strings.Contains(target, "?") { return target + "&cart=adjusted" }
-	return target + "?cart=adjusted"
+	next := web.SitePathOr(target, "/account")
+	u, err := url.Parse(next)
+	if err != nil {
+		u = &url.URL{Path: "/account"}
+		next = "/account"
+	}
+	// Show the changed quantities before continuing to a page without a cart notice.
+	if u.Path != "/cart" {
+		u = &url.URL{Path: "/cart", RawQuery: url.Values{"next": {next}}.Encode()}
+	}
+	q := u.Query()
+	q.Set("qty", "adjusted")
+	u.RawQuery = q.Encode()
+	return u.String()
 }
 
 func clientIP(r *http.Request) string {

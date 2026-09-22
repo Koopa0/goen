@@ -929,17 +929,8 @@ func TestFailedCartAdoptionOnSignInShowsNoticeAndPreservesBothCarts(t *testing.T
 	u := register(t, accounts, "adopt-fail-"+uuid.NewString()+"@example.com")
 	uid := uuid.MustParse(u.ID)
 
-	var accountVariant, guestVariant uuid.UUID
-	if err := pool.QueryRow(ctx,
-		`SELECT id FROM product_variants WHERE is_active ORDER BY position LIMIT 1`).
-		Scan(&accountVariant); err != nil {
-		t.Fatalf("account variant: %v", err)
-	}
-	if err := pool.QueryRow(ctx,
-		`SELECT id FROM product_variants WHERE is_active AND id <> $1 ORDER BY position LIMIT 1`,
-		accountVariant).Scan(&guestVariant); err != nil {
-		t.Fatalf("guest variant: %v", err)
-	}
+	accountVariant := sellableVariant(t, ctx)
+	guestVariant := anotherSellableVariant(t, ctx, accountVariant)
 
 	var accountCart uuid.UUID
 	if err := pool.QueryRow(ctx,

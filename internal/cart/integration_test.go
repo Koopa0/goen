@@ -1018,7 +1018,7 @@ func TestSetQuantityClampsToWhatCanBeSupplied(t *testing.T) {
 func TestUpdateItemUnavailableDoesNot500(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
-	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, testLimiter(), nil)
+	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, testLimiter(), nil, nil)
 
 	vid := freshVariant(t, "stockfix-unavail")
 	var wasStock, wasSafety int32
@@ -1077,7 +1077,7 @@ func TestUpdateItemUnavailableDoesNot500(t *testing.T) {
 func TestUpdateItemAdjustedShowsNotice(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
-	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, testLimiter(), nil)
+	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, testLimiter(), nil, nil)
 
 	vid := freshVariant(t, "stockfix-update-notice")
 	var wasStock, wasSafety int32

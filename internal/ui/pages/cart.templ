@@ -20,7 +20,12 @@ templ Cart(p layouts.Page, v CartView) {
 				}
 			</div>
 			if v.HasNotice() {
-				<p class="ui-alert ui-alert--info" role="status">{ v.Notice }</p>
+				@components.Notice(components.NoticeProps{Tone: components.ToneAccent, ID: "cart-adjustment"}) {
+					{ v.Notice }
+					if v.ContinueURL != "" {
+						<a href={ templ.URL(v.ContinueURL) }>{ i18n.T(ctx, i18n.KeyCartAdjustmentContinue) }</a>
+					}
+				}
 			}
 			if v.FromReorder() {
 				@components.Notice(components.NoticeProps{Tone: components.ToneAccent}) {

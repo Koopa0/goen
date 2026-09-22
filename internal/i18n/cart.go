@@ -25,6 +25,8 @@ var (
 		En:     "Some items are short of stock. Adjust the quantities before checking out.",
 	})
 
+	KeyCartAdjustmentContinue = key("cart.adjustment.continue", Message{ZhHant: "繼續前往原頁面", En: "Continue to your destination"})
+
 	KeyCartQuantityAdjusted = key("cart.qty.adjusted", Message{
 		ZhHant: "部分商品數量已依庫存調整。",
 		En:     "Some item quantities were reduced to match available stock.",

@@ -93,7 +93,7 @@ func (h *Handler) closeSessions(ctx context.Context, number string, sessions []s
 func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 	cartID, ok := h.existingCart(r)
 	if !ok {
-		view := pages.CartView{Notice: cartPageNotice(r)}
+		view := pages.CartView{Notice: cartPageNotice(r), ContinueURL: cartContinuation(r)}
 		web.Render(w, r, h.log, http.StatusOK, pages.Cart(pages.CartMeta(r.Context()), view))
 		return
 	}
@@ -103,11 +103,19 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 		h.serverError(w, r)
 		return
 	}
+	view.ContinueURL = cartContinuation(r)
 	view.ReorderAdded, view.ReorderSkipped = reorderOutcome(r)
 	if notice := cartPageNotice(r); notice != "" {
 		view.Notice = notice
 	}
 	web.Render(w, r, h.log, http.StatusOK, pages.Cart(pages.CartMeta(r.Context()), view))
+}
+
+func cartContinuation(r *http.Request) string {
+	if r.URL.Query().Get("qty") != "adjusted" {
+		return ""
+	}
+	return web.SitePathOr(r.URL.Query().Get("next"), "")
 }
 
 func cartPageNotice(r *http.Request) string {
