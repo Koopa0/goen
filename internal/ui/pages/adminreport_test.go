@@ -50,6 +50,7 @@ func TestBestSellerGrossCannotBeMistakenForOrderRevenue(t *testing.T) {
 		{i18n.En, "Product gross NT$1,000", "2 units sold", "before order discounts or refunds and excluding shipping and order tax"},
 	} {
 		t.Run(string(tt.locale), func(t *testing.T) {
+			t.Parallel()
 			var b bytes.Buffer
 			view := AdminReportView{Placed: 1, Orders: 1, Committed: 1, RevenueCents: 90000, Sellers: []AdminSeller{{Name: "Discounted item", Slug: "discounted", Units: 2, RevenueCents: 100000}}}
 			if err := AdminReport(layouts.Page{Title: "Reports"}, &view).Render(i18n.WithLocale(t.Context(), tt.locale), &b); err != nil {
