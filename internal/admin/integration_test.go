@@ -3977,8 +3977,9 @@ func TestTheQueuePutsWhatTheShopOwesFirst(t *testing.T) {
 		t.Fatalf("answer: %v", err)
 	}
 	middling := ask(t, ps, slug, asker, "中間的,只有顧客回", -2)
-	if err := ps.Answer(ctx, middling, asker, "我覺得可以"); err != nil {
-		t.Fatalf("customer answer: %v", err)
+	// Historical customer answers do not settle the shop's unanswered queue.
+	if _, err := pool.Exec(ctx, `INSERT INTO product_answers (question_id, user_id, body, is_staff) VALUES ($1, $2, $3, false)`, uuid.MustParse(middling), uuid.MustParse(asker), "我覺得可以"); err != nil {
+		t.Fatalf("historical customer answer: %v", err)
 	}
 	newest := ask(t, ps, slug, asker, "最新的,沒人回", -1)
 
