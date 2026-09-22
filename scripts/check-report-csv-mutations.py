@@ -1,8 +1,24 @@
 """Record production CSV and rendered-link mutations in disposable CI."""
 
+import json
 import os
+import signal
 from pathlib import Path
 import subprocess
+
+
+def observed(result, test, action, reason=None):
+    events = []
+    for line in result.stdout.splitlines():
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(event, dict) and event.get("Test") == test:
+            events.append(event)
+    actions = {event.get("Action") for event in events}
+    output = "".join(event.get("Output", "") for event in events)
+    return {"run", action}.issubset(actions) and (reason is None or reason in output)
 
 
 def main():
@@ -12,9 +28,14 @@ def main():
     template = Path("internal/ui/pages/adminreport.templ")
     generated = Path("internal/ui/pages/adminreport_templ.go")
     originals = {p: p.read_text() for p in (csv_source, template, generated)}
-    unit = ["go", "test", "./internal/admin", "-count=1", "-v", "-run", "^TestBestSellerCSV"]
-    view = ["go", "test", "./internal/ui/pages", "-count=1", "-v", "-run", "^TestReportExportKeepsWindowAndExplainsGrossAmount$"]
-    integration = ["go", "test", "-tags=integration", "./internal/admin", "-count=1", "-v", "-run", "^TestReportCSVMatchesTheSelectedQueryWindow$"]
+    unit = ["go", "test", "./internal/admin", "-count=1", "-json", "-timeout=5m", "-run", "^TestBestSellerCSV"]
+    view = ["go", "test", "./internal/ui/pages", "-count=1", "-json", "-timeout=5m", "-run", "^TestReportExportKeepsWindowAndExplainsGrossAmount$"]
+    integration = ["go", "test", "-tags=integration", "./internal/admin", "-count=1", "-json", "-timeout=5m", "-run", "^TestReportCSVMatchesTheSelectedQueryWindow$"]
+    checks = [
+        (unit, ["TestBestSellerCSVPreservesTextAndMoney", "TestBestSellerCSVEmptyWindowKeepsColumns"]),
+        (view, ["TestReportExportKeepsWindowAndExplainsGrossAmount"]),
+        (integration, ["TestReportCSVMatchesTheSelectedQueryWindow"]),
+    ]
     with Path("report-csv-mutations.log").open("w") as log:
         def record(value):
             print(value, flush=True)
@@ -32,8 +53,9 @@ def main():
 
         record("checkout=" + subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip())
         record("pr_head=" + os.environ.get("PR_HEAD_SHA", "unknown"))
-        for command in (unit, view, integration):
-            if run("baseline", command).returncode:
+        for command, names in checks:
+            baseline = run("baseline", command)
+            if baseline.returncode != 0 or not all(observed(baseline, name, "pass") for name in names):
                 raise SystemExit("baseline must pass before mutation")
 
         cases = [
@@ -43,6 +65,11 @@ def main():
             ("cache privacy", csv_source, 'Set("Cache-Control", "no-store")', 'Set("Cache-Control", "public")', integration, "TestReportCSVMatchesTheSelectedQueryWindow", "CSV response"),
             ("export link", template, "templ.SafeURL(v.ExportHref())", 'templ.SafeURL("/admin/reports")', view, "TestReportExportKeepsWindowAndExplainsGrossAmount", "empty report lost selected-window export"),
         ]
+        def interrupted(signum, _frame):
+            raise SystemExit(128 + signum)
+
+        signal.signal(signal.SIGTERM, interrupted)
+        signal.signal(signal.SIGINT, interrupted)
         try:
             for label, path, before, after, command, test, reason in cases:
                 original = originals[path]
@@ -61,13 +88,14 @@ def main():
                         raise SystemExit("mutation did not reach generated production code")
                     record("generated production match:\n" + "\n".join(matches))
                 result = run(label, command)
-                if result.returncode == 0 or f"--- FAIL: {test}" not in result.stdout or reason not in result.stdout:
+                if result.returncode != 1 or not observed(result, test, "fail", reason):
                     raise SystemExit(f"missing expected runtime red: {label}")
                 restore()
         finally:
             restore()
-        for command in (unit, view, integration):
-            if run("restored", command).returncode:
+        for command, names in checks:
+            restored = run("restored", command)
+            if restored.returncode != 0 or not all(observed(restored, name, "pass") for name in names):
                 raise SystemExit("restored production source must pass")
         record("all CSV mutations reached production and failed the specified test")
 
