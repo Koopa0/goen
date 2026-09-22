@@ -108,6 +108,28 @@ templ AdminCampaigns(p layouts.Page, v AdminCampaignsView) {
 						<p class="ui-error-text" id="k-title-error">{ v.Err("title") }</p>
 					}
 				</div>
+				<div class="goen-admin__field">
+					@components.Label(components.LabelProps{For: "k-title-en"}) {
+						{ i18n.T(ctx, i18n.KeyAdminCampaignTitleEn) }
+					}
+					<p class="goen-admin__hint" id="k-title-en-hint">{ i18n.T(ctx, i18n.KeyAdminCampaignTitleEnHint) }</p>
+					<input
+						class="goen-input"
+						id="k-title-en"
+						name="title_en"
+						maxlength="60"
+						value={ v.Draft.TitleEn }
+						if v.HasErr("title_en") {
+							aria-invalid="true"
+							aria-describedby="k-title-en-hint k-title-en-error"
+						} else {
+							aria-describedby="k-title-en-hint"
+						}
+					/>
+					if v.HasErr("title_en") {
+						<p class="ui-error-text" id="k-title-en-error">{ v.Err("title_en") }</p>
+					}
+				</div>
 				<div class="goen-admin__fields">
 					<div class="goen-admin__field">
 						@components.Label(components.LabelProps{For: "k-slug"}) {

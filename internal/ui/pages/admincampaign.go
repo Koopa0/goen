@@ -78,9 +78,10 @@ type AdminCampaignsView struct {
 
 // AdminCampaignDraft carries a refused form's values back.
 type AdminCampaignDraft struct {
-	Slug  string
-	Title string
-	Days  string
+	Slug    string
+	Title   string
+	TitleEn string
+	Days    string
 }
 
 // Empty reports whether nothing has been created.
