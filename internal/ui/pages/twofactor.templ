@@ -47,6 +47,9 @@ templ TwoFactor(p layouts.Page, v TwoFactorView) {
 						{ i18n.T(ctx, i18n.KeyTwoFAEnrolBody) }
 						<strong>{ i18n.T(ctx, i18n.KeyTwoFAEnrolOnce) }</strong>
 					</p>
+					if v.QRCode != "" {
+						<img class="goen-twofa__qr" src={ templ.SafeURL(v.QRCode) } alt={ i18n.T(ctx, i18n.KeyTwoFAQRCode) } width="256" height="256"/>
+					}
 					<p class="goen-twofa__secret">
 						for _, group := range v.SecretGroups() {
 							<code>{ group }</code>

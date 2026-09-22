@@ -1,10 +1,13 @@
 package twofactor
 
 import (
+	"encoding/base64"
 	"errors"
 	"log/slog"
 	"net/http"
 	"time"
+
+	"rsc.io/qr"
 
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/i18n"
@@ -166,10 +169,17 @@ func (h *Handler) Enrol(w http.ResponseWriter, r *http.Request) {
 	}
 	// Rendered rather than redirected to: a redirect would have to carry the
 	// secret in a URL, into the browser history and every access log.
+	code, err := qr.Encode(uri, qr.M)
+	if err != nil {
+		h.log.ErrorContext(r.Context(), "encode enrolment QR", "error", err)
+		h.fault(w, r)
+		return
+	}
 	web.Render(w, r, h.log, http.StatusOK, pages.TwoFactor(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageTwoFactor)}, pages.TwoFactorView{
 			Enabled: true, Enrolling: true,
 			Secret: EncodeSecret(secret), URI: uri,
+			QRCode: "data:image/png;base64," + base64.StdEncoding.EncodeToString(code.PNG()),
 		}))
 }
 
