@@ -4508,7 +4508,13 @@ BEGIN
     ON CONFLICT (lower(email)) DO UPDATE
     SET role = EXCLUDED.role,
         full_name = coalesce(nullif(EXCLUDED.full_name, ''), users.full_name)
+    WHERE users.role = 'customer'
     RETURNING id INTO promoted_id;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'account is already on the staff roster'
+            USING ERRCODE = '23514', CONSTRAINT = 'users_staff_already_exists';
+    END IF;
 
     credential_cleared := secure_promoted_account(promoted_id);
     RETURN credential_cleared;
