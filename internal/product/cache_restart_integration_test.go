@@ -6,10 +6,13 @@ import (
 	"context"
 	"errors"
 	"net"
+	"net/netip"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/moby/moby/api/types/container"
+	"github.com/moby/moby/api/types/network"
 	"github.com/testcontainers/testcontainers-go"
 	valkeycontainer "github.com/testcontainers/testcontainers-go/modules/valkey"
 
@@ -125,8 +128,7 @@ func fixedValkeyPort(t *testing.T) testcontainers.CustomizeRequestOption {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return func(request *testcontainers.GenericContainerRequest) error {
-		request.ExposedPorts = []string{"127.0.0.1:" + port + ":6379/tcp"}
-		return nil
-	}
+	return testcontainers.WithHostConfigModifier(func(config *container.HostConfig) {
+		config.PortBindings = network.PortMap{network.MustParsePort("6379/tcp"): {{HostIP: netip.MustParseAddr("127.0.0.1"), HostPort: port}}}
+	})
 }

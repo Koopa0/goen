@@ -332,6 +332,10 @@ func (c *PresentationCache) fill(
 		}
 	}
 
+	if err := cacheWorkError(ctx); err != nil {
+		c.releaseLease(ctx, lease, token)
+		return Presentation{}, err
+	}
 	pres, fillErr := fill(ctx)
 	if fillErr != nil {
 		c.releaseLease(ctx, lease, token)
@@ -429,7 +433,7 @@ func (c *PresentationCache) releaseLease(ctx context.Context, lease, token strin
 }
 
 func (c *PresentationCache) fallback(ctx context.Context, fill func(context.Context) (Presentation, error)) (Presentation, error) {
-	if err := ctx.Err(); err != nil {
+	if err := cacheWorkError(ctx); err != nil {
 		return Presentation{}, err
 	}
 	if !c.tryFallback() {
@@ -443,7 +447,22 @@ func (c *PresentationCache) fallback(ctx context.Context, fill func(context.Cont
 			return Presentation{}, pauseErr
 		}
 	}
+	if err := cacheWorkError(ctx); err != nil {
+		return Presentation{}, err
+	}
 	return fill(ctx)
+}
+
+// A socket deadline can fire before the context timer publishes Err. Check the
+// absolute work deadline before admitting database work after a cache timeout.
+func cacheWorkError(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if deadline, ok := ctx.Deadline(); ok && !time.Now().Before(deadline) {
+		return context.DeadlineExceeded
+	}
+	return nil
 }
 
 func (c *PresentationCache) tryFallback() bool {

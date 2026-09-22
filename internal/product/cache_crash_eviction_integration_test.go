@@ -40,7 +40,7 @@ func TestCacheFillOwnerProcess(t *testing.T) {
 	cache := openCacheOnAddr(t, os.Getenv("GOEN_CACHE_OWNER_VALKEY"), product.DefaultCacheConfig())
 	defer cache.Close()
 	product.SetIntegrationFillPause(func(ctx context.Context) error {
-		if err := os.WriteFile(os.Getenv("GOEN_CACHE_OWNER_READY"), []byte("lease acquired"), 0600); err != nil {
+		if err := os.WriteFile("ready", []byte("lease acquired"), 0600); err != nil {
 			return err
 		}
 		<-ctx.Done()
@@ -48,7 +48,7 @@ func TestCacheFillOwnerProcess(t *testing.T) {
 	})
 	defer product.SetIntegrationFillPause(nil)
 	server := cacheHTTPServer(t, childPool, cache)
-	if err := os.WriteFile(os.Getenv("GOEN_CACHE_OWNER_URL"), []byte(server.URL), 0600); err != nil {
+	if err := os.WriteFile("url", []byte(server.URL), 0600); err != nil {
 		t.Fatal(err)
 	}
 	select {
@@ -145,7 +145,7 @@ func waitOwnerFile(t *testing.T, path string) string {
 	return ""
 }
 
-func startFillOwner(t *testing.T, addr string) (*exec.Cmd, string, string) {
+func startFillOwner(t *testing.T, addr string) (command *exec.Cmd, url, ready string) {
 	t.Helper()
 	executable, err := os.Executable()
 	if err != nil {
@@ -159,7 +159,9 @@ func startFillOwner(t *testing.T, addr string) (*exec.Cmd, string, string) {
 	}
 	t.Cleanup(func() { _ = log.Close() })
 	cmd := exec.CommandContext(t.Context(), executable, "-test.run=^TestCacheFillOwnerProcess$", "-test.timeout=45s") //nolint:gosec // G204: executes only this test binary with fixed test selection
-	cmd.Env = append(os.Environ(), "GOEN_CACHE_OWNER_HELPER=1", "GOEN_CACHE_OWNER_DATABASE="+pool.Config().ConnString(), "GOEN_CACHE_OWNER_VALKEY="+addr, "GOEN_CACHE_OWNER_URL="+urlFile, "GOEN_CACHE_OWNER_READY="+readyFile)
+	cmd.Env = append(os.Environ(), "GOEN_CACHE_OWNER_HELPER=1", "GOEN_CACHE_OWNER_DATABASE="+pool.Config().ConnString(), "GOEN_CACHE_OWNER_VALKEY="+addr)
+	// Fixed IPC names stay inside the private directory chosen by the parent.
+	cmd.Dir = dir
 	cmd.Stdout, cmd.Stderr = log, log
 	if err := cmd.Start(); err != nil {
 		t.Fatal(err)
@@ -394,12 +396,21 @@ func cacheRecoveryArtifact(t *testing.T, scenario string) map[string]any {
 			t.Errorf("encode cache recovery evidence: %v", err)
 			return
 		}
-		dir := filepath.Join("artifacts", sha)
-		if err := os.MkdirAll(dir, 0750); err != nil {
+		if err := os.MkdirAll("artifacts", 0750); err != nil {
 			t.Errorf("create cache recovery artifact directory: %v", err)
 			return
 		}
-		if err := os.WriteFile(filepath.Join(dir, scenario+".json"), encoded, 0600); err != nil {
+		root, err := os.OpenRoot("artifacts")
+		if err != nil {
+			t.Errorf("open cache recovery artifact root: %v", err)
+			return
+		}
+		defer root.Close()
+		if err := root.MkdirAll(sha, 0750); err != nil {
+			t.Errorf("create tested-SHA evidence directory: %v", err)
+			return
+		}
+		if err := root.WriteFile(filepath.Join(sha, scenario+".json"), encoded, 0600); err != nil {
 			t.Errorf("write cache recovery evidence: %v", err)
 		}
 	})

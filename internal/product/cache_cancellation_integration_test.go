@@ -19,13 +19,20 @@ func TestSlowValkeyRespectsCallerCancellationAndRecovers(t *testing.T) {
 	addr := dbtest.Valkey(t)
 	cache := openCacheOnAddr(t, addr, product.DefaultCacheConfig())
 	defer cache.Close()
-	control, err := valkey.NewClient(valkey.ClientOption{InitAddress: []string{addr}, DisableCache: true, ForceSingleClient: true})
+	control, err := valkey.NewClient(valkey.ClientOption{InitAddress: []string{addr}, DisableCache: true, ForceSingleClient: true, DisableRetry: true})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer control.Close()
 	if pauseErr := control.Do(t.Context(), control.B().ClientPause().Timeout(1000).All().Build()).Error(); pauseErr != nil {
 		t.Fatal(pauseErr)
+	}
+	// Verify the fault is still active before testing the production client.
+	probeCtx, stopProbe := context.WithTimeout(t.Context(), 40*time.Millisecond)
+	probeErr := control.Do(probeCtx, control.B().Ping().Build()).Error()
+	stopProbe()
+	if !errors.Is(probeErr, context.DeadlineExceeded) {
+		t.Fatalf("CLIENT PAUSE did not block probe: %v", probeErr)
 	}
 	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Millisecond)
 	defer cancel()
