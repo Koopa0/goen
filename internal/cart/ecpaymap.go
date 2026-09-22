@@ -275,21 +275,30 @@ func writePickupCookie(w http.ResponseWriter, s pickupState, secure bool) {
 }
 
 func readPickupCookie(r *http.Request, secure bool) (pickupState, bool) {
-	c, err := r.Cookie(pickupCookieName(secure))
-	if err != nil || c.Value == "" {
-		return pickupState{}, false
+	// POST state belongs to the submitted form, never to an unrelated query.
+	nonce := r.URL.Query().Get("pickup_n")
+	if r.Method == http.MethodPost {
+		nonce = r.PostFormValue("pickup_n")
 	}
-	raw, err := base64.RawURLEncoding.DecodeString(c.Value)
-	if err != nil {
-		return pickupState{}, false
+	for _, c := range r.CookiesNamed(pickupCookieName(secure)) {
+		raw, err := base64.RawURLEncoding.DecodeString(c.Value)
+		if err != nil {
+			continue
+		}
+		parts := strings.SplitN(string(raw), "|", 4)
+		if len(parts) != 4 || !validNonce(parts[0]) {
+			continue
+		}
+		// Browsers can send same-name cookies from different paths. Keep the
+		// matching state through the callback, re-render and placement alike.
+		if nonce != "" && subtle.ConstantTimeCompare([]byte(nonce), []byte(parts[0])) != 1 {
+			continue
+		}
+		return pickupState{
+			Nonce: parts[0], Ship: parts[1], Invoice: parts[2], Address: parts[3],
+		}, true
 	}
-	parts := strings.SplitN(string(raw), "|", 4)
-	if len(parts) != 4 || !validNonce(parts[0]) {
-		return pickupState{}, false
-	}
-	return pickupState{
-		Nonce: parts[0], Ship: parts[1], Invoice: parts[2], Address: parts[3],
-	}, true
+	return pickupState{}, false
 }
 
 // clearPickupCookie removes it. A nonce left behind after an order is placed

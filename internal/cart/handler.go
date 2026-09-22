@@ -309,6 +309,7 @@ func (h *Handler) applyReturnedStore(r *http.Request, view *pages.CheckoutView) 
 	}
 	state, known := readPickupCookie(r, h.secure)
 	if !honourPickupStore(posted, state, known) {
+		h.logPickupRefusal(r, posted, known)
 		view.PickupRefused = true
 		return http.StatusUnprocessableEntity
 	}
@@ -382,7 +383,21 @@ func (h *Handler) dropUnvouchedStore(r *http.Request, addr *Address) bool {
 	}
 	addr.PickupStoreCode, addr.PickupStoreName = "", ""
 	// A chain change is the shopper's own doing and is not a refusal to report.
+	if sameChain {
+		h.logPickupRefusal(r, posted, known)
+	}
 	return sameChain
+}
+
+func (h *Handler) logPickupRefusal(r *http.Request, posted PostedStore, matched bool) {
+	// The nonce authorizes a selection; diagnostics must not disclose it or
+	// the customer's destination to anyone who can read application logs.
+	h.log.WarnContext(r.Context(), "pickup store refused",
+		"method", r.Method,
+		"pickup_cookie_count", len(r.CookiesNamed(pickupCookieName(h.secure))),
+		"nonce_valid", validNonce(posted.Nonce),
+		"nonce_matched", matched && validNonce(posted.Nonce),
+		"brand_offered", offeredAtCheckout(posted.Brand))
 }
 
 // renderCheckout answers with the checkout form. Every render refreshes the

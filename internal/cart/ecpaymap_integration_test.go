@@ -230,7 +230,7 @@ func TestAStoreChosenOnTheMapSurvivesTheRoundTripAndReachesTheOrder(t *testing.T
 // and returns the order number it was redirected to.
 func placeThisCheckout(
 	t *testing.T, h *cart.Handler, token string, pickupCookie *http.Cookie,
-	page string, shipping uuid.UUID, label string,
+	page string, shipping uuid.UUID, label string, extraCookies ...*http.Cookie,
 ) string {
 	t.Helper()
 	quote, ok := hiddenInputValue(page, "checkout_quote")
@@ -258,6 +258,9 @@ func placeThisCheckout(
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	//nolint:gosec // G124: the browser's own cart cookie
 	req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token})
+	for _, cookie := range extraCookies {
+		req.AddCookie(cookie)
+	}
 	if pickupCookie != nil {
 		req.AddCookie(pickupCookie)
 	}
@@ -470,5 +473,33 @@ func TestChangingTheChainDropsTheOtherChainsStore(t *testing.T) {
 	}
 	if !strings.Contains(res.Body.String(), `value="FAMI"`) {
 		t.Error("the map form was not rebuilt for the chain the shopper just chose")
+	}
+}
+
+func TestDuplicatePickupCookiesKeepTheReturnedStoreThroughPlacement(t *testing.T) {
+	s := cart.NewStore(pool)
+	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, testLimiter(), nil, configuredMap(t))
+	token, shipping := aPickupCart(t, s, "map-duplicate-cookie")
+	_, stale, _ := openPickupCheckout(t, h, token, shipping)
+	page, matching, status := openPickupCheckout(t, h, token, shipping)
+	if status != http.StatusOK || stale == nil || matching == nil {
+		t.Fatal("could not prepare independent pickup selections")
+	}
+	nonce, _ := hiddenInputValue(page, "ExtraData")
+	target, _, _ := theMapAnswers(t, h, nonce, "131386", "南港園區", "台北市南港區三重路19-2號")
+	page, status = openTheCheckout(t, h, token, target[len("/checkout"):], stale, matching)
+	if status != http.StatusOK {
+		t.Fatalf("duplicate-cookie return = %d, want 200", status)
+	}
+	if got, _ := hiddenInputValue(page, "pickup_n"); got != nonce {
+		t.Fatalf("rendered placement nonce = %q, want returned nonce %q", got, nonce)
+	}
+	if !strings.Contains(page, `name="invoice_type" value="mobile_carrier" checked`) {
+		t.Fatal("matching cookie did not restore the invoice choice")
+	}
+	number := placeThisCheckout(t, h, token, matching, page, shipping, "map-duplicate-cookie", stale)
+	_, brand, code, name := destinationOf(t, number)
+	if brand != "seven_eleven" || code != "131386" || name != "南港園區" {
+		t.Fatalf("placed destination = %q/%q/%q", brand, code, name)
 	}
 }
