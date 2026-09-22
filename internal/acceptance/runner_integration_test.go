@@ -3,8 +3,9 @@
 package acceptance_test
 
 import (
-	"github.com/koopa0/goen/internal/acceptance"
 	"testing"
+
+	"github.com/koopa0/goen/internal/acceptance"
 )
 
 func TestRunnerExecutesC06CheckoutReplayAssertion(t *testing.T) {
