@@ -254,7 +254,7 @@ templ productBuy(v *ProductView) {
 			@components.Notice(components.NoticeProps{Tone: components.ToneWarn, Class: "goen-pdp__note"}) {
 				{ i18n.T(ctx, i18n.KeyVariantNotFound) }
 			}
-		} else if v.AllSoldOut() {
+		} else if v.AllSoldOut() && len(v.Options) > 0 {
 			@components.Notice(components.NoticeProps{Tone: components.ToneWarn, Class: "goen-pdp__note"}) {
 				{ i18n.T(ctx, i18n.KeyAllSoldOutHint) }
 			}
