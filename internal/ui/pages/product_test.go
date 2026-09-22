@@ -34,8 +34,8 @@ func TestSoldOutGuidanceMatchesAvailableOptionPickers(t *testing.T) {
 				if err := Product(ProductMeta(&view), &view).Render(ctx, &body); err != nil {
 					t.Fatal(err)
 				}
-				html := body.String()
-				if got := strings.Contains(html, i18n.T(ctx, i18n.KeyAllSoldOutHint)); got != withOptions {
+				markup := body.String()
+				if got := strings.Contains(markup, i18n.T(ctx, i18n.KeyAllSoldOutHint)); got != withOptions {
 					t.Errorf("variant-selection hint visible = %t, want %t", got, withOptions)
 				}
 				for _, want := range []string{
@@ -44,7 +44,7 @@ func TestSoldOutGuidanceMatchesAvailableOptionPickers(t *testing.T) {
 					`name="variant" value="only-variant"`,
 					i18n.T(ctx, i18n.KeyRestockSubmit),
 				} {
-					if !strings.Contains(html, want) {
+					if !strings.Contains(markup, want) {
 						t.Errorf("sold-out page is missing %q", want)
 					}
 				}
@@ -64,23 +64,23 @@ func TestWishlistUsesSignInNavigationUntilAuthenticated(t *testing.T) {
 				if err := Product(ProductMeta(&view), &view).Render(ctx, &body); err != nil {
 					t.Fatal(err)
 				}
-				html := body.String()
-				if strings.Contains(html, `action="/account/wishlist"`) != signedIn {
+				markup := body.String()
+				if strings.Contains(markup, `action="/account/wishlist"`) != signedIn {
 					t.Fatalf("signedIn=%t: wishlist mutation form availability disagrees with authentication", signedIn)
 				}
 				if !signedIn {
-					if wishlistSignInDestination(t, html, i18n.T(ctx, i18n.KeyWishlistSignIn)) != "/signin?next=/p/sample-product" {
+					if wishlistSignInDestination(t, markup, i18n.T(ctx, i18n.KeyWishlistSignIn)) != "/signin?next=/p/sample-product" {
 						t.Fatal("guest wishlist lacks explicit sign-in link returning to the product")
 					}
-					if strings.Contains(html, `aria-label="`+i18n.T(ctx, i18n.KeyWishlistAdd)+`"`) || strings.Contains(html, `aria-label="`+i18n.T(ctx, i18n.KeyWishlistRemove)+`"`) {
+					if strings.Contains(markup, `aria-label="`+i18n.T(ctx, i18n.KeyWishlistAdd)+`"`) || strings.Contains(markup, `aria-label="`+i18n.T(ctx, i18n.KeyWishlistRemove)+`"`) {
 						t.Fatal("guest wishlist still promises a save/remove action")
 					}
 					continue
 				}
-				if !strings.Contains(html, `name="slug" value="sample-product"`) || !strings.Contains(html, `aria-pressed="`+view.SavedText()+`"`) {
+				if !strings.Contains(markup, `name="slug" value="sample-product"`) || !strings.Contains(markup, `aria-pressed="`+view.SavedText()+`"`) {
 					t.Fatal("authenticated wishlist lost its product or saved state")
 				}
-				if strings.Contains(html, `name="action" value="remove"`) != saved {
+				if strings.Contains(markup, `name="action" value="remove"`) != saved {
 					t.Fatal("saved wishlist does not offer removal")
 				}
 			}
