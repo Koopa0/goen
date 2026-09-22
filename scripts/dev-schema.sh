@@ -20,14 +20,30 @@ refuse() {
     exit 1
 }
 
+check_applied_state() {
+    local exists applied
+    exists=$(query -c "SELECT to_regclass('public.schema_migrations') IS NOT NULL")
+    [[ "$exists" == t ]] || refuse
+    applied=$(query -c "SELECT version::text || ':' || dirty::text FROM public.schema_migrations")
+    [[ "$applied" == "$expected_version:false" ]] || refuse
+}
+
 check() {
     local exists stored
+    check_applied_state
     exists=$(query -c "SELECT to_regclass('goen_dev.schema_fingerprint') IS NOT NULL")
     [[ "$exists" == t ]] || refuse
     stored=$(query -c 'SELECT digest FROM goen_dev.schema_fingerprint WHERE singleton')
     [[ "$stored" == "$digest" ]] || refuse
 }
 
+expected_version=0
+for migration in migrations/*.up.sql; do
+    version=${migration##*/}
+    version=${version%%[_.]*}
+    version=$((10#$version))
+    (( version <= expected_version )) || expected_version=$version
+done
 digest=$(fingerprint)
 case "${1:-}" in
     check)
@@ -42,6 +58,7 @@ case "${1:-}" in
             [[ "$applied" == 0 ]] || check
         fi
         "$@"
+        check_applied_state
         [[ "$(fingerprint)" == "$digest" ]] || { echo 'migration files changed during application; fingerprint not recorded' >&2; exit 1; }
         query -v digest="$digest" <<'SQL'
 CREATE SCHEMA IF NOT EXISTS goen_dev;

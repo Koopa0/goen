@@ -27,6 +27,7 @@ case "$sql" in
     *"to_regclass('goen_dev.schema_fingerprint')"*) [[ ! -f "$SCHEMA_TEST_STATE/digest" ]] && echo f || echo t ;;
     *"to_regclass('public.schema_migrations')"*) [[ ! -f "$SCHEMA_TEST_STATE/applied" ]] && echo f || echo t ;;
     'SELECT count(*) FROM public.schema_migrations') echo 1 ;;
+    "SELECT version::text || ':' || dirty::text FROM public.schema_migrations") cat "$SCHEMA_TEST_STATE/applied" ;;
     'SELECT digest FROM goen_dev.schema_fingerprint WHERE singleton') cat "$SCHEMA_TEST_STATE/digest" ;;
     *) echo "unexpected SQL: $sql" >&2; exit 2 ;;
 esac
@@ -36,7 +37,7 @@ cat > "$tmp/bin/migrate-fixture" <<'MIGRATE'
 set -euo pipefail
 touch "$SCHEMA_TEST_STATE/invoked"
 [[ ! -e "$SCHEMA_TEST_STATE/fail" ]]
-touch "$SCHEMA_TEST_STATE/applied"
+printf '1:false\n' > "$SCHEMA_TEST_STATE/applied"
 MIGRATE
 chmod +x "$tmp/bin/psql" "$tmp/bin/migrate-fixture"
 check="$tmp/scripts/dev-schema.sh"
@@ -58,6 +59,14 @@ rm "$SCHEMA_TEST_STATE/invoked"
 "$check" apply migrate-fixture
 [[ -f "$SCHEMA_TEST_STATE/invoked" ]]
 rm "$SCHEMA_TEST_STATE/invoked"
+for applied in '' '1:true' '2:false'; do
+    printf '%s\n' "$applied" > "$SCHEMA_TEST_STATE/applied"
+    reject "$check" check
+done
+printf '1:true\n' > "$SCHEMA_TEST_STATE/applied"
+reject "$check" apply migrate-fixture
+[[ ! -e "$SCHEMA_TEST_STATE/invoked" ]]
+printf '1:false\n' > "$SCHEMA_TEST_STATE/applied"
 printf '\nALTER TABLE example ADD COLUMN label text;\n' >> "$tmp/migrations/001.up.sql"
 reject "$check" check
 reject "$check" apply migrate-fixture
