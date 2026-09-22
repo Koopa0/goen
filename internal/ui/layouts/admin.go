@@ -29,6 +29,6 @@ func WithAdmin(ctx context.Context, admin bool) context.Context {
 }
 
 func isAdmin(ctx context.Context) bool {
-	admin, _ := ctx.Value(adminKey{}).(bool)
-	return admin
+	admin, ok := ctx.Value(adminKey{}).(bool)
+	return ok && admin
 }

@@ -17,6 +17,7 @@ func TestStaffNavigationOnlyOmitsTheAdminOnlyDestination(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		t.Run(locale.Tag(), func(t *testing.T) {
+			t.Parallel()
 			h := &Handler{log: slog.New(slog.DiscardHandler)}
 			links := map[string][]string{}
 			for _, role := range []string{"staff", "admin"} {
