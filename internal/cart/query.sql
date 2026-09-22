@@ -396,9 +396,9 @@ SELECT spend_store_credit(@order_id, @amount_cents::bigint);
 
 -- name: CreateInvoicePreference :exec
 INSERT INTO invoice_preferences
-    (order_id, invoice_type, carrier_code, tax_id, customer_name, customer_email)
+    (order_id, invoice_type, carrier_code, donation_code, tax_id, customer_name, customer_email)
 VALUES
-    (@order_id, @invoice_type::text, nullif(@carrier_code::text, ''),
+    (@order_id, @invoice_type::text, nullif(@carrier_code::text, ''), nullif(@donation_code::text, ''),
      nullif(@tax_id::text, ''), @customer_name::text, @customer_email::text);
 
 -- The window is decided HERE against the DATABASE's clock: starts_at defaults to

@@ -449,15 +449,15 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 								if v.Invoice.NeedsCarrier() {
 									<div class="goen-field">
 										@components.Label(components.LabelProps{For: "invoice_carrier"}) {
-											{ i18n.T(ctx, i18n.KeyFieldCarrier) }
+											{ v.Invoice.CarrierLabel(ctx) }
 										}
 										<input
 											class="goen-input"
 											id="invoice_carrier"
 											name="invoice_carrier"
-											maxlength="8"
+											maxlength={ v.Invoice.CarrierLimit() }
 											autocomplete="off"
-											placeholder="/ABC+123"
+											placeholder={ v.Invoice.CarrierExample() }
 											value={ v.Invoice.Carrier }
 											aria-invalid={ v.Invalid("invoice_carrier") }
 											if v.HasErr("invoice_carrier") {
@@ -466,6 +466,33 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 										/>
 										if v.HasErr("invoice_carrier") {
 											<p class="ui-error-text" id="invoice_carrier-error">{ v.Err("invoice_carrier") }</p>
+										}
+									</div>
+								}
+								if v.Invoice.NeedsDonationCode() {
+									<div class="goen-field">
+										@components.Label(components.LabelProps{For: "invoice_donation_code"}) {
+											{ i18n.T(ctx, i18n.KeyFieldDonationCode) }
+										}
+										<input
+											class="goen-input"
+											id="invoice_donation_code"
+											name="invoice_donation_code"
+											type="text"
+											inputmode="numeric"
+											maxlength="7"
+											autocomplete="off"
+											value={ v.Invoice.DonationCode }
+											aria-invalid={ v.Invalid("invoice_donation_code") }
+											if v.HasErr("invoice_donation_code") {
+												aria-describedby="invoice_donation_code-help invoice_donation_code-error"
+											} else {
+												aria-describedby="invoice_donation_code-help"
+											}
+										/>
+										<p class="goen-checkout__hint" id="invoice_donation_code-help">{ i18n.T(ctx, i18n.KeyDonationCodeHelp) }</p>
+										if v.HasErr("invoice_donation_code") {
+											<p class="ui-error-text" id="invoice_donation_code-error">{ v.Err("invoice_donation_code") }</p>
 										}
 									</div>
 								}

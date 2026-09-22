@@ -154,28 +154,29 @@ func (o AdminOrderRow) RecipientText(ctx context.Context) string {
 
 // AdminOrderView is one order in the back office.
 type AdminOrderView struct {
-	Number           string
-	Status           FulfillmentStatus
-	StatusText       string
-	PlacedAt         string
-	ShippingName     string
-	Lines            []OrderLine
-	SubtotalCents    int64
-	ShippingCents    int64
-	DiscountCents    int64
-	DiscountReason   string
-	TaxCents         int64
-	Email            string
-	Recipient        string
-	Phone            string
-	Address          string
-	CustomerNote     string
-	StaffNote        string
-	InvoiceType      invoice.Preference
-	InvoiceCarrier   string
-	InvoiceTaxID     string
-	InvoiceDocuments []AdminInvoiceDocument
-	InvoicingEnabled bool
+	Number              string
+	Status              FulfillmentStatus
+	StatusText          string
+	PlacedAt            string
+	ShippingName        string
+	Lines               []OrderLine
+	SubtotalCents       int64
+	ShippingCents       int64
+	DiscountCents       int64
+	DiscountReason      string
+	TaxCents            int64
+	Email               string
+	Recipient           string
+	Phone               string
+	Address             string
+	CustomerNote        string
+	StaffNote           string
+	InvoiceType         invoice.Preference
+	InvoiceCarrier      string
+	InvoiceDonationCode string
+	InvoiceTaxID        string
+	InvoiceDocuments    []AdminInvoiceDocument
+	InvoicingEnabled    bool
 	// RefundedCents is what has actually gone back, and what a 折讓 relieves.
 	RefundedCents int64
 	// AllowanceOperationID identifies one rendered allowance form across HTTP
@@ -319,6 +320,10 @@ func (v *AdminOrderView) InvoiceText(ctx context.Context) string {
 		return i18n.T(ctx, i18n.KeyAdminCarrierMember)
 	case invoice.PreferenceMobile:
 		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminCarrierMobile), v.InvoiceCarrier)
+	case invoice.PreferenceCitizen:
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminCarrierCitizen), v.InvoiceCarrier)
+	case invoice.PreferenceDonate:
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminInvoiceDonate), v.InvoiceDonationCode)
 	case invoice.PreferenceCompany:
 		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminCarrierTaxID), v.InvoiceTaxID)
 	default:

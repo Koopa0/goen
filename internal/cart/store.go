@@ -738,6 +738,7 @@ func writeInvoicePreference(
 		OrderID:       orderID,
 		InvoiceType:   string(inv.Type),
 		CarrierCode:   inv.Carrier,
+		DonationCode:  inv.DonationCode,
 		TaxID:         inv.TaxID,
 		CustomerName:  buyerName,
 		CustomerEmail: addr.Email,

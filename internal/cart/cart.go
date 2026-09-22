@@ -809,8 +809,9 @@ type Invoice struct {
 	// Type is the stable wire preference matching
 	// invoice_preferences_type_known.
 	Type invoicepkg.Preference
-	// Carrier is the mobile-barcode invoice carrier, for mobile_carrier only.
-	Carrier string
+	// Carrier retains the barcode for the selected mobile or citizen carrier.
+	Carrier      string
+	DonationCode string
 	// CompanyName is the registered buyer name corresponding to TaxID. It is
 	// deliberately separate from the delivery recipient.
 	CompanyName string
@@ -822,6 +823,7 @@ type Invoice struct {
 func (i *Invoice) Validate() []account.FieldError {
 	i.Type = invoicepkg.Preference(strings.TrimSpace(string(i.Type)))
 	i.Carrier = strings.ToUpper(strings.TrimSpace(i.Carrier))
+	i.DonationCode = strings.TrimSpace(i.DonationCode)
 	i.CompanyName = strings.TrimSpace(i.CompanyName)
 	i.TaxID = strings.TrimSpace(i.TaxID)
 
@@ -833,6 +835,9 @@ func (i *Invoice) Validate() []account.FieldError {
 	}
 
 	var errs []account.FieldError
+	if i.Type != invoicepkg.PreferenceDonate {
+		i.DonationCode = ""
+	}
 	switch i.Type {
 	case invoicepkg.PreferenceMobile:
 		if !invoicepkg.ValidMobileCarrier(i.Carrier) {
@@ -842,6 +847,16 @@ func (i *Invoice) Validate() []account.FieldError {
 			})
 		}
 		i.CompanyName, i.TaxID = "", ""
+	case invoicepkg.PreferenceCitizen:
+		if !invoicepkg.ValidCitizenCarrier(i.Carrier) {
+			errs = append(errs, account.FieldError{Field: "invoice_carrier", MessageKey: i18n.KeyCitizenCarrierMalformed})
+		}
+		i.CompanyName, i.TaxID = "", ""
+	case invoicepkg.PreferenceDonate:
+		if !invoicepkg.ValidDonationCode(i.DonationCode) {
+			errs = append(errs, account.FieldError{Field: "invoice_donation_code", MessageKey: i18n.KeyDonationCodeMalformed})
+		}
+		i.Carrier, i.CompanyName, i.TaxID = "", "", ""
 	case invoicepkg.PreferenceCompany:
 		if !invoicepkg.ValidBuyerName(i.CompanyName) {
 			errs = append(errs, account.FieldError{
@@ -869,6 +884,10 @@ func invoiceTypeLabelKey(t invoicepkg.Preference) i18n.Key {
 		return i18n.KeyInvoiceMember
 	case invoicepkg.PreferenceMobile:
 		return i18n.KeyInvoiceMobile
+	case invoicepkg.PreferenceCitizen:
+		return i18n.KeyInvoiceCitizen
+	case invoicepkg.PreferenceDonate:
+		return i18n.KeyInvoiceDonate
 	case invoicepkg.PreferenceCompany:
 		return i18n.KeyInvoiceCompany
 	default:

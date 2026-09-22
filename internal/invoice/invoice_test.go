@@ -411,6 +411,8 @@ func TestEveryOfferedPreferenceCanBecomeAValidIssueRequest(t *testing.T) {
 		PreferenceMember,
 		PreferenceMobile,
 		PreferenceCompany,
+		PreferenceCitizen,
+		PreferenceDonate,
 	}
 	got := OfferedPreferences()
 	if !slices.Equal(got, want) {
@@ -447,6 +449,12 @@ func TestEveryOfferedPreferenceCanBecomeAValidIssueRequest(t *testing.T) {
 			}
 			if preference.NeedsCarrier() {
 				req.CarrierCode = "/AB12345"
+			}
+			if preference == PreferenceCitizen {
+				req.CarrierCode = "AB12345678901234"
+			}
+			if preference == PreferenceDonate {
+				req.DonationCode = "00123"
 			}
 			if preference.NeedsTaxID() {
 				req.TaxID = "04595252"

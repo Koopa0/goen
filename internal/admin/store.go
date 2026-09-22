@@ -235,14 +235,15 @@ func (s *Store) Order(ctx context.Context, number string) (pages.AdminOrderView,
 		// whether to offer the form.
 		Correctable: fulfillment != pages.FulfillmentShipped &&
 			fulfillment != pages.FulfillmentDelivered && fulfillment != pages.FulfillmentCompleted,
-		PickupDestination: o.PickupBrand != "",
-		PickupBrands:      pages.PickupBrandChoices(),
-		CustomerNote:      o.CustomerNote.String,
-		StaffNote:         o.StaffNote.String,
-		InvoiceType:       invoice.Preference(o.InvoiceType),
-		InvoiceCarrier:    o.InvoiceCarrier,
-		InvoiceTaxID:      o.InvoiceTaxID,
-		Committed:         o.Committed,
+		PickupDestination:   o.PickupBrand != "",
+		PickupBrands:        pages.PickupBrandChoices(),
+		CustomerNote:        o.CustomerNote.String,
+		StaffNote:           o.StaffNote.String,
+		InvoiceType:         invoice.Preference(o.InvoiceType),
+		InvoiceCarrier:      o.InvoiceCarrier,
+		InvoiceDonationCode: o.InvoiceDonationCode,
+		InvoiceTaxID:        o.InvoiceTaxID,
+		Committed:           o.Committed,
 	}
 
 	if shipErr := s.fillShippable(ctx, &view, o.ID, fulfillment); shipErr != nil {
