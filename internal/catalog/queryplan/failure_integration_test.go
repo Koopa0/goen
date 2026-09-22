@@ -46,7 +46,7 @@ func TestRunAllRetainsFailedSamplesAndArtifacts(t *testing.T) {
 			t.Error(err)
 		}
 	})
-	payload, readErr := os.ReadFile(path)
+	payload, readErr := os.ReadFile(path) //nolint:gosec // G304: the harness returns this owned fixture artifact path.
 	if readErr != nil {
 		t.Fatal(readErr)
 	}

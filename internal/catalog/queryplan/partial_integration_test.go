@@ -27,8 +27,8 @@ func TestMeasureQueryRetainsSamplesBeforeSQLError(t *testing.T) {
 		SQL:   `SELECT 1 / (CASE WHEN nextval('queryplan_sample_count') < 3 THEN 1 ELSE 0 END)`,
 	}
 	results, measureErr := measureQuery(ctx, pool, ScaleSmall, query, true, "partial")
-	var pgErr *pgconn.PgError
-	if !errors.As(measureErr, &pgErr) || pgErr.Code != "22012" {
+	pgErr, ok := errors.AsType[*pgconn.PgError](measureErr)
+	if !ok || pgErr.Code != "22012" {
 		t.Fatalf("expected the SQL failure: %v", measureErr)
 	}
 	if len(results) != 1 || results[0].WarmSample != 1 || len(results[0].PlanJSON) == 0 {
