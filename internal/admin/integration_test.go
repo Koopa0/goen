@@ -3526,16 +3526,6 @@ func anyProductSlug(t *testing.T) string {
 	return slug
 }
 
-func staffEmail(t *testing.T, id uuid.UUID) string {
-	t.Helper()
-	var email string
-	if err := pool.QueryRow(t.Context(),
-		`SELECT email FROM users WHERE id = $1`, id).Scan(&email); err != nil {
-		t.Fatalf("read staff email: %v", err)
-	}
-	return email
-}
-
 // asAdmin runs one statement with the back office's own database role: the suite
 // otherwise connects as the owner, who is subject to no REVOKE at all.
 func asAdmin(ctx context.Context, t *testing.T, stmt string) error {
