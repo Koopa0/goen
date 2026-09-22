@@ -1,6 +1,7 @@
 package site
 
 import (
+	"html"
 	"strings"
 	"testing"
 
@@ -8,6 +9,31 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
+
+func TestPrivacyDisclosuresRenderOnce(t *testing.T) {
+	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+		t.Run(string(locale), func(t *testing.T) {
+			doc := policies["privacy"].For(locale)
+			var out strings.Builder
+			if err := pages.Policy(layouts.Page{}, doc).Render(i18n.WithLocale(t.Context(), locale), &out); err != nil {
+				t.Fatal(err)
+			}
+			body := out.String()
+			seen := make(map[string]bool)
+			for _, section := range doc.Sections {
+				for _, paragraph := range section.Body {
+					if seen[paragraph] {
+						continue
+					}
+					seen[paragraph] = true
+					if count := strings.Count(body, "<p>"+html.EscapeString(paragraph)+"</p>"); count != 1 {
+						t.Errorf("privacy disclosure %q rendered %d times, want 1", paragraph, count)
+					}
+				}
+			}
+		})
+	}
+}
 
 func TestPrivacyDisclosesCollectedAndRetainedData(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
