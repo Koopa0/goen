@@ -51,19 +51,18 @@ func TestOptionAxesMustPrecedeVariants(t *testing.T) {
 		t.Fatalf("inactive SKU did not freeze axes: %v %v", err, errs)
 	}
 	var axes, variants int
-	if err := pool.QueryRow(ctx, `SELECT (SELECT count(*) FROM product_options WHERE product_id = p.id), (SELECT count(*) FROM product_variants WHERE product_id = p.id) FROM products p WHERE slug = $1`, slug).Scan(&axes, &variants); err != nil {
-		t.Fatal(err)
+	if queryErr := pool.QueryRow(ctx, `SELECT (SELECT count(*) FROM product_options WHERE product_id = p.id), (SELECT count(*) FROM product_variants WHERE product_id = p.id) FROM products p WHERE slug = $1`, slug).Scan(&axes, &variants); queryErr != nil {
+		t.Fatal(queryErr)
 	}
 	if axes != 0 || variants != 1 {
 		t.Fatalf("refusal changed catalogue: axes=%d variants=%d", axes, variants)
 	}
 	empty := draftProduct(t, ctx, s)
-	if errs, err := s.AddOption(ctx, empty, admin.OptionDraft{Name: "Size"}); err != nil || len(errs) != 0 {
-		t.Fatalf("axis before SKU refused: %v %v", err, errs)
+	if optionErrors, addErr := s.AddOption(ctx, empty, admin.OptionDraft{Name: "Size"}); addErr != nil || len(optionErrors) != 0 {
+		t.Fatalf("axis before SKU refused: %v %v", addErr, optionErrors)
 	}
 	_, err = pool.Exec(ctx, `UPDATE product_options SET product_id = (SELECT id FROM products WHERE slug = $1) WHERE product_id = (SELECT id FROM products WHERE slug = $2)`, slug, empty)
-	var pgErr *pgconn.PgError
-	if !errors.As(err, &pgErr) || pgErr.ConstraintName != "product_options_before_variants" {
+	if pgErr, ok := errors.AsType[*pgconn.PgError](err); !ok || pgErr.ConstraintName != "product_options_before_variants" {
 		t.Fatalf("reparent bypassed axis guard: %v", err)
 	}
 }
@@ -85,12 +84,12 @@ func TestOptionAxisAndVariantCreationSerialize(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer func() { _ = first.Rollback(context.WithoutCancel(ctx)) }()
-			if _, err := first.Exec(ctx, `SET LOCAL ROLE admin`); err != nil {
-				t.Fatal(err)
+			if _, roleErr := first.Exec(ctx, `SET LOCAL ROLE admin`); roleErr != nil {
+				t.Fatal(roleErr)
 			}
 			var pid int32
-			if err := first.QueryRow(ctx, `SELECT pg_backend_pid()`).Scan(&pid); err != nil {
-				t.Fatal(err)
+			if queryErr := first.QueryRow(ctx, `SELECT pg_backend_pid()`).Scan(&pid); queryErr != nil {
+				t.Fatal(queryErr)
 			}
 			if variantFirst {
 				_, err = first.Exec(ctx, `INSERT INTO product_variants (product_id, sku, price_cents) SELECT id, $2, 10000 FROM products WHERE slug = $1`, slug, "RACE-"+strings.ToUpper(uuid.NewString()[:8]))
