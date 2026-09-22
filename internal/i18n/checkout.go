@@ -100,8 +100,8 @@ var (
 	KeyFieldTaxID = key("field.invoice.taxid", Message{ZhHant: "統一編號", En: "Company tax ID"})
 
 	KeyInvoiceMember = key("invoice.member", Message{
-		ZhHant: "會員載具(存入會員帳號)",
-		En:     "Member carrier (held in your goen account)",
+		ZhHant: "綠界電子發票載具(依結帳 Email 留存與通知)",
+		En:     "ECPay e-invoice carrier (stored and notified using your checkout email)",
 	})
 
 	KeyInvoiceMobile = key("invoice.mobile", Message{
