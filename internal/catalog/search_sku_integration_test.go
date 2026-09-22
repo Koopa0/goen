@@ -44,9 +44,31 @@ func TestSearchSKUsRankAndPaginateWithoutDuplicateProducts(t *testing.T) {
 		if _, err := tx.Exec(ctx, `INSERT INTO product_variants (product_id, sku, price_cents, position) VALUES ($1, $2, 10000, 0), ($1, $3, 20000, 1)`, id, sku, sku+"-OTHER"); err != nil {
 			t.Fatal(err)
 		}
+		switch i {
+		case 0:
+			if _, err := tx.Exec(ctx, `UPDATE product_variants SET is_active = false WHERE product_id = $1 AND sku = $2`, id, sku); err != nil {
+				t.Fatal(err)
+			}
+		case len(slugs) - 1:
+			if _, err := tx.Exec(ctx, `INSERT INTO product_variants (product_id, sku, price_cents, position) VALUES ($1, $2, 10000, 2)`, id, "CURRENT-"+strings.ToUpper(uuid.NewString())); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := tx.Exec(ctx, `UPDATE product_variants SET is_active = false WHERE product_id = $1 AND position < 2`, id); err != nil {
+				t.Fatal(err)
+			}
+		}
 		if _, err := tx.Exec(ctx, `UPDATE products SET status = 'active' WHERE id = $1`, id); err != nil {
 			t.Fatal(err)
 		}
+	}
+	privateSlug := "sku-private-" + uuid.NewString()
+	var privateID uuid.UUID
+	if err := tx.QueryRow(ctx, `INSERT INTO products (brand_id, category_id, slug, name, status)
+ SELECT brand_id, category_id, $1, 'Private receipt fixture', 'draft' FROM products LIMIT 1 RETURNING id`, privateSlug).Scan(&privateID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tx.Exec(ctx, `INSERT INTO product_variants (product_id, sku, price_cents) VALUES ($1, $2, 10000)`, privateID, token+"-PRIVATE"); err != nil {
+		t.Fatal(err)
 	}
 	store := catalog.NewStore(tx)
 	first, err := store.Search(ctx, catalog.SearchPattern(token), 1)
@@ -72,6 +94,9 @@ func TestSearchSKUsRankAndPaginateWithoutDuplicateProducts(t *testing.T) {
 	seen := map[string]bool{}
 	for _, page := range [][]string{skuResultSlugs(first.Products), skuResultSlugs(second.Products)} {
 		for _, slug := range page {
+			if slug == privateSlug {
+				t.Fatal("SKU search exposed a non-public product")
+			}
 			if seen[slug] {
 				t.Errorf("product %s is duplicated across SKU results", slug)
 			}

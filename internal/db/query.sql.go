@@ -11046,7 +11046,7 @@ WHERE p.status = 'active'
        OR b.name ILIKE $2::text
        OR EXISTS (
            SELECT 1 FROM product_variants sku_match
-           WHERE sku_match.product_id = p.id AND sku_match.is_active
+           WHERE sku_match.product_id = p.id
              AND sku_match.sku ILIKE $2::text
        )
        OR EXISTS (
@@ -11061,13 +11061,13 @@ ORDER BY
     -- A complete receipt code leads; a partial code follows a product name.
     EXISTS (
         SELECT 1 FROM product_variants exact_sku
-        WHERE exact_sku.product_id = p.id AND exact_sku.is_active
+        WHERE exact_sku.product_id = p.id
           AND exact_sku.sku ILIKE $3::text
     ) DESC,
     (p.name ILIKE $2::text OR coalesce(p.name_en, '') ILIKE $2::text) DESC,
     EXISTS (
         SELECT 1 FROM product_variants partial_sku
-        WHERE partial_sku.product_id = p.id AND partial_sku.is_active
+        WHERE partial_sku.product_id = p.id
           AND partial_sku.sku ILIKE $2::text
     ) DESC,
     p.published_at DESC, p.id DESC
@@ -11154,7 +11154,7 @@ WHERE p.status = 'active'
        OR b.name ILIKE $1::text
        OR EXISTS (
            SELECT 1 FROM product_variants sku_match
-           WHERE sku_match.product_id = p.id AND sku_match.is_active
+           WHERE sku_match.product_id = p.id
              AND sku_match.sku ILIKE $1::text
        )
        OR EXISTS (
