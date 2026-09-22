@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -20,12 +21,17 @@ type Result struct {
 	Command    string
 	Duration   time.Duration
 	Output     string
+	Stderr     string
+	StartedAt  time.Time
+	FinishedAt time.Time
+	Artifact   string
 	Err        error
 }
 
 // RunOptions controls suite execution.
 type RunOptions struct {
 	Root              string
+	EvidenceDir       string
 	ReadyOnly         bool
 	WithBrowser       bool
 	ScenarioID        string
@@ -45,9 +51,23 @@ func RunManifest(ctx context.Context, manifest Manifest, opts RunOptions) ([]Res
 	if err != nil {
 		return nil, err
 	}
+	evidence, err := newEvidenceStore(ctx, root, opts.EvidenceDir)
+	if err != nil {
+		return nil, err
+	}
 	var results []Result
 	for i := range scenarios {
-		results = append(results, runScenario(ctx, root, &scenarios[i], opts)...)
+		scenarioResults := runScenario(ctx, root, &scenarios[i], opts)
+		for j := range scenarioResults {
+			result := &scenarioResults[j]
+			if writeErr := evidence.write(result); writeErr != nil {
+				return append(results, scenarioResults...), writeErr
+			}
+		}
+		results = append(results, scenarioResults...)
+	}
+	if len(results) == 0 {
+		return nil, errors.New("no required assertions were selected for execution")
 	}
 	return results, nil
 }
@@ -76,38 +96,56 @@ func runScenario(ctx context.Context, root string, scenario *Scenario, opts RunO
 		return nil
 	}
 	var results []Result
-	ready := scenario.ReadyAssertions()
-	for i := range ready {
-		results = append(results, runGoTest(ctx, root, scenario.ID, ready[i]))
+	for _, assertion := range scenario.Assertions {
+		results = append(results, runAssertion(ctx, root, scenario.ID, assertion, opts))
 	}
-	if opts.WithBrowser {
-		browser := scenario.BrowserAssertions()
-		for i := range browser {
-			results = append(results, runBrowser(ctx, root, scenario.ID, browser[i]))
-		}
+	if len(results) == 0 {
+		results = append(results, blockedResult(scenario.ID, Assertion{}, "scenario has no executable required assertions"))
 	}
 	return append(results, blockedExtensionResults(scenario)...)
 }
 
+func runAssertion(ctx context.Context, root, scenarioID string, assertion Assertion, opts RunOptions) Result {
+	if assertion.Status == StatusBlocked || assertion.Kind == AssertionGate {
+		return blockedResult(scenarioID, assertion, "required assertion is blocked: "+assertion.Evidence)
+	}
+	switch assertion.Kind {
+	case AssertionGoTest:
+		return runGoTest(ctx, root, scenarioID, assertion)
+	case AssertionBrowser:
+		if !opts.WithBrowser {
+			return blockedResult(scenarioID, assertion, "required browser evidence was not requested; use --with-browser")
+		}
+		return runBrowser(ctx, root, scenarioID, assertion)
+	default:
+		return blockedResult(scenarioID, assertion, "required assertion has no executable runner")
+	}
+}
+
+func blockedResult(scenarioID string, assertion Assertion, reason string) Result {
+	now := time.Now().UTC()
+	return Result{ScenarioID: scenarioID, Assertion: assertion, Status: StatusBlocked,
+		StartedAt: now, FinishedAt: now, Err: errors.New(reason)}
+}
+
 func blockedScenarioResults(scenario *Scenario) []Result {
-	results := make([]Result, 0, 1+len(scenario.Extensions))
-	results = append(results, Result{
-		ScenarioID: scenario.ID,
-		Status:     StatusBlocked,
-		Err:        fmt.Errorf("scenario blocked by issues %v", scenario.BlockedBy),
-	})
+	var results []Result
+	for _, assertion := range scenario.Assertions {
+		results = append(results, blockedResult(scenario.ID, assertion,
+			fmt.Sprintf("scenario blocked by issues %v", scenario.BlockedBy)))
+	}
+	if len(results) == 0 {
+		results = append(results, blockedResult(scenario.ID, Assertion{}, "blocked scenario has no required assertions"))
+	}
 	return append(results, blockedExtensionResults(scenario)...)
 }
 
 func blockedExtensionResults(scenario *Scenario) []Result {
 	results := make([]Result, 0, len(scenario.Extensions))
-	for i := range scenario.Extensions {
-		extension := &scenario.Extensions[i]
-		results = append(results, Result{
-			ScenarioID: scenario.ID,
-			Status:     StatusBlocked,
-			Err:        fmt.Errorf("extension blocked: %s (#%v)", extension.Title, extension.Issues),
-		})
+	for _, extension := range scenario.Extensions {
+		assertion := Assertion{Kind: AssertionGate, Evidence: extension.Evidence, Status: StatusBlocked}
+		results = append(results, blockedResult(scenario.ID, assertion,
+			fmt.Sprintf("extension blocked: %s (#%v)", extension.Title, extension.Issues)))
 	}
 	return results
 }
@@ -124,8 +162,8 @@ func runGoTest(ctx context.Context, root, scenarioID string, assertion Assertion
 	start := time.Now()
 	args := make([]string, 0, 6+len(assertion.BuildTags))
 	args = append(args, "test")
-	for _, tag := range assertion.BuildTags {
-		args = append(args, "-tags="+tag)
+	if len(assertion.BuildTags) > 0 {
+		args = append(args, "-tags="+strings.Join(assertion.BuildTags, ","))
 	}
 	args = append(args,
 		"-count=1",
@@ -136,9 +174,9 @@ func runGoTest(ctx context.Context, root, scenarioID string, assertion Assertion
 	)
 	cmd := exec.CommandContext(ctx, "go", args...) //nolint:gosec // Arguments are manifest-owned package paths and test names.
 	cmd.Dir = root
-	var output bytes.Buffer
+	var output, stderr bytes.Buffer
 	cmd.Stdout = &output
-	cmd.Stderr = &output
+	cmd.Stderr = &stderr
 	err := cmd.Run()
 	outputText := output.String()
 	if evidenceErr := verifyRequiredGoTest(outputText, assertion.Run); evidenceErr != nil {
@@ -153,6 +191,9 @@ func runGoTest(ctx context.Context, root, scenarioID string, assertion Assertion
 		Command:    "go " + strings.Join(args, " "),
 		Duration:   time.Since(start),
 		Output:     outputText,
+		Stderr:     stderr.String(),
+		StartedAt:  start.UTC(),
+		FinishedAt: time.Now().UTC(),
 		Err:        err,
 	}
 }
@@ -234,28 +275,27 @@ func runBrowser(ctx context.Context, root, scenarioID string, assertion Assertio
 		"CHROME="+chrome,
 		"GOEN_URL="+url,
 	)
-	var output bytes.Buffer
+	var output, stderr bytes.Buffer
 	cmd.Stdout = &output
-	cmd.Stderr = &output
+	cmd.Stderr = &stderr
 	err := cmd.Run()
-	status := StatusReady
-	if err != nil {
-		status = StatusBlocked
-	}
 	return Result{
 		ScenarioID: scenarioID,
 		Assertion:  assertion,
-		Status:     status,
+		Status:     StatusReady,
 		Command:    "make check-layout",
 		Duration:   time.Since(start),
 		Output:     output.String(),
+		Stderr:     stderr.String(),
+		StartedAt:  start.UTC(),
+		FinishedAt: time.Now().UTC(),
 		Err:        err,
 	}
 }
 
 // ExitCode maps results to a process exit status.
-func ExitCode(results []Result, allMode bool) int {
-	if allMode && len(results) == 0 {
+func ExitCode(results []Result, _ bool) int {
+	if len(results) == 0 {
 		return 1
 	}
 	for i := range results {
@@ -263,7 +303,7 @@ func ExitCode(results []Result, allMode bool) int {
 		if result.Err != nil {
 			return 1
 		}
-		if allMode && result.Status == StatusBlocked {
+		if result.Status == StatusBlocked {
 			return 1
 		}
 	}
@@ -275,13 +315,7 @@ func FormatResults(results []Result) string {
 	var b strings.Builder
 	for i := range results {
 		result := &results[i]
-		state := "PASS"
-		switch {
-		case result.Status == StatusBlocked:
-			state = "BLOCKED"
-		case result.Err != nil:
-			state = "FAIL"
-		}
+		state := resultOutcome(result)
 		fmt.Fprintf(&b, "%s %s", result.ScenarioID, state)
 		if result.Assertion.Run != "" {
 			fmt.Fprintf(&b, " %s/%s", result.Assertion.Package, result.Assertion.Run)
@@ -290,6 +324,9 @@ func FormatResults(results []Result) string {
 		}
 		if result.Duration > 0 {
 			fmt.Fprintf(&b, " (%s)", result.Duration.Round(time.Millisecond))
+		}
+		if result.Artifact != "" {
+			fmt.Fprintf(&b, " evidence=%s", result.Artifact)
 		}
 		b.WriteByte('\n')
 		if result.Err != nil {

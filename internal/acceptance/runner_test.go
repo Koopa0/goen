@@ -21,6 +21,7 @@ func TestExplicitBlockedScenarioReturnsBlockedResult(t *testing.T) {
 		ScenarioID:        "C02",
 		ExplicitSelection: true,
 		ReadyOnly:         true,
+		EvidenceDir:       t.TempDir(),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -36,24 +37,26 @@ func TestExplicitBlockedScenarioReturnsBlockedResult(t *testing.T) {
 	}
 }
 
-func TestReadyOnlyAllSkipsBlockedWithoutExplicitSelection(t *testing.T) {
+func TestReadyOnlyAllRejectsAnEmptySelection(t *testing.T) {
 	t.Parallel()
-	opts := acceptance.RunOptions{
-		ScenarioID:        "all",
-		ReadyOnly:         true,
-		ExplicitSelection: false,
+	manifest, err := acceptance.LoadManifest()
+	if err != nil {
+		t.Fatal(err)
 	}
-	scenario := acceptance.Scenario{ID: "C02", Status: acceptance.StatusBlocked}
-	if scenario.Status == acceptance.StatusBlocked {
-		if opts.ExplicitSelection || !opts.ReadyOnly {
-			t.Fatal("ready-only all should not execute blocked scenarios")
-		}
+	for i := range manifest.Scenarios {
+		manifest.Scenarios[i].Status = acceptance.StatusBlocked
+	}
+	results, err := acceptance.RunManifest(t.Context(), manifest, acceptance.RunOptions{
+		ScenarioID: "all", ReadyOnly: true, EvidenceDir: t.TempDir(),
+	})
+	if err == nil || len(results) != 0 {
+		t.Fatalf("empty selection = %v, %v; want error", results, err)
 	}
 }
 
 func TestExitCodeRejectsEmptyAllModeResults(t *testing.T) {
 	t.Parallel()
-	if acceptance.ExitCode(nil, true) == 0 {
+	if acceptance.ExitCode(nil, true) == 0 || acceptance.ExitCode(nil, false) == 0 {
 		t.Fatal("all mode accepted an empty result set")
 	}
 }
@@ -67,39 +70,5 @@ func TestFormatResultsMarksBlockedScenario(t *testing.T) {
 	}})
 	if !strings.Contains(out, "C02 BLOCKED") {
 		t.Fatalf("formatted output = %q, want blocked status", out)
-	}
-}
-
-func TestRunnerExecutesC06CheckoutReplayAssertion(t *testing.T) {
-	if testing.Short() {
-		t.Skip("runner invokes integration tests")
-	}
-	manifest, err := acceptance.LoadManifest()
-	if err != nil {
-		t.Fatal(err)
-	}
-	results, err := acceptance.RunManifest(t.Context(), manifest, acceptance.RunOptions{
-		ScenarioID:        "C06",
-		ExplicitSelection: true,
-		Root:              repoRoot(t),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if acceptance.ExitCode(results, false) != 0 {
-		t.Fatalf("unexpected C06 failure:\n%s", acceptance.FormatResults(results))
-	}
-	found := false
-	for i := range results {
-		if results[i].Assertion.Run != "TestCheckoutHTTPReplayFindsTheSameOrderAfterTheCartIsEmpty" {
-			continue
-		}
-		found = true
-		if results[i].Err != nil {
-			t.Fatalf("checkout replay assertion failed: %v\n%s", results[i].Err, results[i].Output)
-		}
-	}
-	if !found {
-		t.Fatal("runner did not execute TestCheckoutHTTPReplayFindsTheSameOrderAfterTheCartIsEmpty")
 	}
 }

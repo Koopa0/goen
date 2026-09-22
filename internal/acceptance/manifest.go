@@ -198,44 +198,6 @@ func (m Manifest) ByID(id string) (Scenario, error) {
 	return Scenario{}, fmt.Errorf("scenario %s is not in the manifest", id)
 }
 
-// ReadyAssertions returns executable go_test hooks for a scenario.
-func (s *Scenario) ReadyAssertions() []Assertion {
-	var ready []Assertion
-	for i := range s.Assertions {
-		assertion := &s.Assertions[i]
-		if assertion.Kind != AssertionGoTest {
-			continue
-		}
-		status := assertion.Status
-		if status == "" {
-			status = StatusReady
-		}
-		if status == StatusReady && s.Status == StatusReady {
-			ready = append(ready, *assertion)
-		}
-	}
-	return ready
-}
-
-// BrowserAssertions returns browser evidence hooks for a scenario.
-func (s *Scenario) BrowserAssertions() []Assertion {
-	var browser []Assertion
-	for i := range s.Assertions {
-		assertion := &s.Assertions[i]
-		if assertion.Kind != AssertionBrowser {
-			continue
-		}
-		status := assertion.Status
-		if status == "" {
-			status = StatusReady
-		}
-		if status == StatusReady && s.Status == StatusReady {
-			browser = append(browser, *assertion)
-		}
-	}
-	return browser
-}
-
 // SummaryLine formats one scenario for listing.
 func (s *Scenario) SummaryLine() string {
 	blocked := ""

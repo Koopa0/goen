@@ -44,7 +44,7 @@ Usage:
 Flags for run:
   --ready-only     run only scenarios marked ready (default for single scenario)
   --all            include blocked scenarios and extensions; nonzero when any blocked/failed
-  --with-browser   also require browser evidence via make check-layout
+  --with-browser   execute required browser surface checks via make check-layout
 
 Makefile shortcut:
   make commerce-acceptance
@@ -116,7 +116,7 @@ func parseRunArgs(args []string) (acceptance.RunOptions, bool, error) {
 	fs.SetOutput(io.Discard)
 	readyOnly := fs.Bool("ready-only", false, "run only ready scenarios")
 	allMode := fs.Bool("all", false, "treat blocked scenarios and extensions as failures")
-	withBrowser := fs.Bool("with-browser", false, "also run browser evidence via make check-layout")
+	withBrowser := fs.Bool("with-browser", false, "execute required browser surface checks via make check-layout")
 	flags, targets := splitRunArgs(args)
 	if len(targets) > 1 {
 		return acceptance.RunOptions{}, false, fmt.Errorf("run accepts one scenario, got %q", targets)
@@ -154,11 +154,11 @@ func runCommand(args []string) int {
 	}
 	start := time.Now()
 	results, err := acceptance.RunManifest(context.Background(), manifest, opts)
+	fmt.Print(acceptance.FormatResults(results))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "run: %v\n", err)
 		return 1
 	}
-	fmt.Print(acceptance.FormatResults(results))
 	fmt.Printf("elapsed %s\n", time.Since(start).Round(time.Millisecond))
 	return acceptance.ExitCode(results, allMode || opts.ScenarioID == "all")
 }
