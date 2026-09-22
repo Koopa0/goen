@@ -31,7 +31,7 @@ func runMakeRestore(t *testing.T, copyName, addr string) ([]byte, error) {
 			"-v \"$GOEN_RESTORE_TEST_TMP:$GOEN_RESTORE_TEST_TMP\" " +
 			"-v \"$GOEN_RESTORE_TEST_ROOT:$GOEN_RESTORE_TEST_ROOT:ro\" " +
 			"-w \"$GOEN_RESTORE_TEST_ROOT\" " + dbtest.Image + " " + client + " \"$@\"\n"
-		if writeErr := os.WriteFile(filepath.Join(work, client), []byte(script), 0o700); writeErr != nil {
+		if writeErr := os.WriteFile(filepath.Join(work, client), []byte(script), 0o700); writeErr != nil { //nolint:gosec // G306: the owned temporary PostgreSQL client wrapper must be executable.
 			t.Fatal(writeErr)
 		}
 	}
@@ -77,7 +77,8 @@ func TestMakeRestoreRejectsSourceDestination(t *testing.T) {
 }
 
 func TestMakeRestoreRunsOwnedSourceDrill(t *testing.T) {
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	var listenerConfig net.ListenConfig
+	listener, err := listenerConfig.Listen(t.Context(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/cart"
@@ -122,18 +123,39 @@ func TestRestoredCopyApplicationServesAuthorizedViews(t *testing.T) {
 			t.Run(path+"/"+viewer.name, func(t *testing.T) {
 				req := httptest.NewRequestWithContext(ctx, http.MethodGet, path, http.NoBody)
 				if viewer.token != "" {
-					req.AddCookie(&http.Cookie{Name: "goen_session", Value: viewer.token})
+					req.AddCookie(&http.Cookie{Name: "goen_session", Value: viewer.token, Secure: true, HttpOnly: true, SameSite: http.SameSiteLaxMode})
 				}
 				res := httptest.NewRecorder()
 				handler.ServeHTTP(res, req)
 				if res.Code != viewer.status {
 					t.Fatalf("restored %s view status = %d, want %d", viewer.name, res.Code, viewer.status)
 				}
-				containsOrder := strings.Contains(res.Body.String(), "GO-260914-000001")
+				containsOrder := strings.Contains(restoredMainText(t, res.Body.String()), "GO-260914-000001")
 				if containsOrder != (viewer.status == http.StatusOK) {
 					t.Fatalf("restored order disclosure = %t for %s", containsOrder, viewer.name)
 				}
 			})
 		}
 	}
+}
+
+func restoredMainText(t *testing.T, body string) string {
+	t.Helper()
+	document, err := html.Parse(strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var text strings.Builder
+	var walk func(*html.Node, bool)
+	walk = func(node *html.Node, inMain bool) {
+		inMain = inMain || node.Type == html.ElementNode && node.Data == "main"
+		if inMain && node.Type == html.TextNode {
+			text.WriteString(node.Data)
+		}
+		for child := node.FirstChild; child != nil; child = child.NextSibling {
+			walk(child, inMain)
+		}
+	}
+	walk(document, false)
+	return text.String()
 }
