@@ -27,7 +27,7 @@ func TestStaffInvitationCommitsWithANewGrantWithoutRecipientPII(t *testing.T) {
 	}
 	var payload []byte
 	if err := pool.QueryRow(t.Context(), `SELECT payload FROM outbox_messages WHERE topic=$1 AND dedupe_key=$2`, outbox.TopicStaffInvitation, "staff-invite:"+id.String()).Scan(&payload); err != nil {
-		t.Fatal(err)
+		t.Fatalf("successful staff grant queued no invitation: %v", err)
 	}
 	var fields map[string]string
 	if err := json.Unmarshal(payload, &fields); err != nil {
