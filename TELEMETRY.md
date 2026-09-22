@@ -5,8 +5,9 @@ OpenTelemetry in goen is opt in. Checkout and other request paths keep working w
 ## Enable locally
 
 ```sh
-# Terminal 1 — an OTLP/HTTP collector such as the OpenTelemetry Collector contrib image
-docker run --rm -p 4318:4318 otel/opentelemetry-collector-contrib:latest
+# Terminal 1 — the supplied, opt-in receiver and trace view
+docker compose -f docker-compose.telemetry.yml up -d
+docker compose -f docker-compose.telemetry.yml logs -f collector
 
 # Terminal 2 — goen
 export GOEN_OTEL_ENABLED=1
@@ -14,6 +15,14 @@ export GOEN_OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318
 export GOEN_OTEL_DIAGNOSTICS=1   # staff-only pprof under /admin/diagnostics/
 make run
 ```
+
+The collector is pinned to 0.161.0, reads `deploy/telemetry/collector.yaml`, and publishes only loopback ports. It uses at most two CPUs and 128 MiB, limits batches and memory, and rotates local logs. The default database compose command does not start it.
+
+Open `http://127.0.0.1:8889/metrics` for current metric values, or read them with `curl -fsS http://127.0.0.1:8889/metrics`. The Prometheus view escapes dots in names to underscores; filter for `goen_http_server`, `goen_db_pool`, `goen_db_query` or `goen_provider`. Trace details appear in the collector logs: match a request log's `trace_id` to its trace ID, then compare the HTTP and SQL/provider span durations. There is no hosted account or persistent dashboard to provision.
+
+Stop only this opt-in receiver with `docker compose -f docker-compose.telemetry.yml down`. CI validates the supplied configuration and sends an OTLP trace and metric through it, requiring both to reach their local views. That receiver check verifies transport/configuration; the application integration cases separately verify production instrumentation.
+
+The configuration follows the upstream [collector pipeline documentation](https://opentelemetry.io/docs/collector/configuration/), [Prometheus exporter](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/v0.161.0/exporter/prometheusexporter) and [debug trace exporter](https://github.com/open-telemetry/opentelemetry-collector/tree/v0.161.0/exporter/debugexporter).
 
 Optional tuning:
 
