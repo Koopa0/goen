@@ -80,28 +80,28 @@ func (s *Store) AddVariant(ctx context.Context, slug string, f *VariantForm) (ma
 	if errs := f.Validate(ctx); len(errs) > 0 {
 		return errs, nil
 	}
-	chosen, errs, err := s.chosenOptionValues(ctx, slug, f.OptionValues)
-	if err != nil {
-		return nil, err
-	}
-	if len(errs) > 0 {
-		return errs, nil
-	}
 
-	if err := s.insertVariant(ctx, slug, f, chosen); err != nil {
+	if err := s.insertVariant(ctx, slug, f); err != nil {
 		return variantWriteError(ctx, slug, err)
 	}
 	return nil, nil
 }
 
 func (s *Store) insertVariant(
-	ctx context.Context, slug string, f *VariantForm, chosen []uuid.UUID,
+	ctx context.Context, slug string, f *VariantForm,
 ) error {
 	return s.audited(ctx, Event{
 		Action: actionCreateVariant, Table: "product_variants", ID: uuid.NullUUID{},
 		Before: nil, After: map[string]any{"product": slug, "sku": f.SKU, "price_cents": f.PriceCents},
 	},
 		func(ctx context.Context, q *db.Queries) error {
+			if _, err := q.LockProductCatalogue(ctx, slug); err != nil {
+				return err
+			}
+			chosen, err := chosenOptionValues(ctx, q, slug, f.OptionValues)
+			if err != nil {
+				return err
+			}
 			if createErr := q.CreateVariant(ctx, db.CreateVariantParams{
 				Slug: slug, SKU: f.SKU,
 				PriceCents: f.PriceCents, CompareAtPriceCents: f.CompareCents,
@@ -127,7 +127,12 @@ func (s *Store) insertVariant(
 		})
 }
 
+var errVariantNeedsEveryOption = errors.New("variant requires every option")
+
 func variantWriteError(ctx context.Context, slug string, err error) (map[string]string, error) {
+	if errors.Is(err, errVariantNeedsEveryOption) {
+		return map[string]string{"options": i18n.T(ctx, i18n.KeyFormVariantNeedsEveryOption)}, nil
+	}
 	if hasConstraint(err, "product_variants_sku_key") {
 		return map[string]string{"sku": i18n.T(ctx, i18n.KeyFormSKUTaken)}, nil
 	}
@@ -155,12 +160,12 @@ func variantWriteError(ctx context.Context, slug string, err error) (map[string]
 	return nil, fmt.Errorf("add variant to product %s: %w", slug, err)
 }
 
-func (s *Store) chosenOptionValues(ctx context.Context, slug string, raw []string) (
-	chosen []uuid.UUID, fieldErrs map[string]string, err error,
+func chosenOptionValues(ctx context.Context, q *db.Queries, slug string, raw []string) (
+	chosen []uuid.UUID, err error,
 ) {
-	options, err := s.q.ProductOptionCount(ctx, slug)
+	options, err := q.ProductOptionCount(ctx, slug)
 	if err != nil {
-		return nil, nil, fmt.Errorf("count options for product %s: %w", slug, err)
+		return nil, fmt.Errorf("count options for product %s: %w", slug, err)
 	}
 	chosen = make([]uuid.UUID, 0, len(raw))
 	for _, value := range raw {
@@ -169,14 +174,12 @@ func (s *Store) chosenOptionValues(ctx context.Context, slug string, raw []strin
 		}
 		id, parseErr := uuid.Parse(value)
 		if parseErr != nil {
-			return nil, map[string]string{"options": i18n.T(ctx, i18n.KeyFormOptionsInvalid)}, nil
+			return nil, ErrNotFound
 		}
 		chosen = append(chosen, id)
 	}
 	if int64(len(chosen)) != options {
-		return nil, map[string]string{
-			"options": i18n.T(ctx, i18n.KeyFormVariantNeedsEveryOption),
-		}, nil
+		return nil, errVariantNeedsEveryOption
 	}
-	return chosen, nil, nil
+	return chosen, nil
 }

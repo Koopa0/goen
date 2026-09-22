@@ -1557,6 +1557,10 @@ JOIN products p ON p.id = o.product_id
 WHERE p.slug = @slug::text AND o.id = @option_id
 RETURNING id;
 
+-- Lock before reading options so a concurrently added axis participates in validation.
+-- name: LockProductCatalogue :one
+SELECT id FROM products WHERE slug = $1 FOR NO KEY UPDATE;
+
 -- name: ProductOptionCount :one
 SELECT count(*)::bigint FROM product_options o
 JOIN products p ON p.id = o.product_id
