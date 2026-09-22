@@ -22,7 +22,8 @@ func enqueueStaffInvitation(ctx context.Context, q *db.Queries, userID uuid.UUID
 	if err != nil {
 		return fmt.Errorf("encode staff invitation: %w", err)
 	}
-	if err := q.EnqueueMessage(ctx, db.EnqueueMessageParams{Topic: outbox.TopicStaffInvitation, DedupeKey: "staff-invite:" + userID.String(), Payload: payload}); err != nil {
+	// A retained delivery belongs to one grant; a later re-grant needs its own notice.
+	if err := q.EnqueueMessage(ctx, db.EnqueueMessageParams{Topic: outbox.TopicStaffInvitation, DedupeKey: "staff-invite:" + uuid.NewString(), Payload: payload}); err != nil {
 		return fmt.Errorf("enqueue staff invitation: %w", err)
 	}
 	return nil

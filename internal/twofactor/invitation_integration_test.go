@@ -26,7 +26,7 @@ func TestStaffInvitationCommitsWithANewGrantWithoutRecipientPII(t *testing.T) {
 		t.Fatal(err)
 	}
 	var payload []byte
-	if err := pool.QueryRow(t.Context(), `SELECT payload FROM outbox_messages WHERE topic=$1 AND dedupe_key=$2`, outbox.TopicStaffInvitation, "staff-invite:"+id.String()).Scan(&payload); err != nil {
+	if err := pool.QueryRow(t.Context(), `SELECT payload FROM outbox_messages WHERE topic=$1 AND payload->>'user_id'=$2`, outbox.TopicStaffInvitation, id.String()).Scan(&payload); err != nil {
 		t.Fatalf("successful staff grant queued no invitation: %v", err)
 	}
 	var fields map[string]string
@@ -40,7 +40,7 @@ func TestStaffInvitationCommitsWithANewGrantWithoutRecipientPII(t *testing.T) {
 		t.Fatalf("duplicate add=%v", err)
 	}
 	var count int
-	if err := pool.QueryRow(t.Context(), `SELECT count(*) FROM outbox_messages WHERE topic=$1 AND dedupe_key=$2`, outbox.TopicStaffInvitation, "staff-invite:"+id.String()).Scan(&count); err != nil {
+	if err := pool.QueryRow(t.Context(), `SELECT count(*) FROM outbox_messages WHERE topic=$1 AND payload->>'user_id'=$2`, outbox.TopicStaffInvitation, id.String()).Scan(&count); err != nil {
 		t.Fatal(err)
 	}
 	if count != 1 {

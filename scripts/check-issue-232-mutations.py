@@ -16,7 +16,15 @@ CASES = [{'name': 'enqueue',
   'package': './internal/twofactor',
   'integration': True,
   'generated': 'internal/db/query.sql.go',
-  'probe': 'FROM users WHERE id = $1;'}]
+  'probe': 'FROM users WHERE id = $1;'},
+ {'name': 'regrant-invitation',
+  'path': 'internal/twofactor/invitation.go',
+  'before': 'DedupeKey: "staff-invite:" + uuid.NewString()',
+  'after': 'DedupeKey: "staff-invite:" + userID.String()',
+  'test': 'TestStaffInvitationRegrantSurvivesRetainedDelivery',
+  'marker': 're-grant queued 1 invitations, want 2',
+  'package': './cmd/goen',
+  'integration': True}]
 
 # Baselines and reds must identify actual running tests; build errors and skipped
 # names cannot establish that a production defect reached its assertion.
