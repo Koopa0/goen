@@ -157,6 +157,8 @@ func packagesOn(role string) []string {
 		return backOfficePackages
 	case "maintenance":
 		return maintenancePackages
+	case "reporting":
+		return nil
 	default:
 		panic("db: unknown role in the pool map: " + role)
 	}
