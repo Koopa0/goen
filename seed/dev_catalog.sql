@@ -630,7 +630,7 @@ COMMIT;
 
 INSERT INTO faq_entries (category, question, answer, position) VALUES
     ('訂購與付款', '可以用哪些方式付款?',
-     '目前接受信用卡付款,由 Stripe 處理,goen 不會接觸到您的卡片資料。付款頁面在 Stripe 網域上,完成後會自動回到訂單頁。', 10),
+     '信用卡由 Stripe 處理,goen 不會接觸到您的卡片資料。登入後可在結帳時選擇使用帳號內可用的商店額度,剩餘金額再以信用卡付款。折扣碼是價格折抵,不是付款方式;可先輸入有效折扣碼,再確認應付金額。', 10),
     ('訂購與付款', '下單之後商品會保留嗎?',
      '會。送出訂單的同時系統就會保留庫存 60 分鐘,讓您完成付款。超過時間未付款,商品會回到架上供其他人購買,訂單仍然保留,可以重新付款(若庫存還在)。', 20),
     ('訂購與付款', '訂單送出後可以改嗎?',
@@ -693,7 +693,7 @@ FROM (VALUES
     ('可以開公司統編嗎?', 'Invoices', 'Can you invoice a company tax ID?',
      'Yes. Choose "company tax ID" at checkout and enter the eight digits.'),
     ('可以用哪些方式付款?', 'Ordering and payment', 'How can I pay?',
-     'Credit card, handled by Stripe. goen never sees your card details: the payment page is on Stripe''s own domain and you return to your order afterwards.'),
+     'Credit cards are handled by Stripe; goen never sees your card details. When signed in, you can choose to apply your available store credit at checkout and pay any remaining amount by card. A discount code reduces the price; it is not a payment method. Apply a valid code before checking the amount due.'),
     ('下單之後商品會保留嗎?', 'Ordering and payment', 'Is the stock held after I order?',
      'Yes. Placing the order holds the stock for 60 minutes so you can pay. After that the item goes back on the shelf for other people, but your order stays and you can pay again if it is still available.'),
     ('訂單送出後可以改嗎?', 'Ordering and payment', 'Can I change an order after placing it?',

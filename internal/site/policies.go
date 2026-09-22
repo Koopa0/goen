@@ -123,8 +123,8 @@ var policies = map[string]pages.PolicyDoc{
 		SummaryEn: "What we accept, and what happens to your card details.",
 		Sections: []pages.PolicySection{
 			{
-				Heading:   "付款方式",
-				HeadingEn: "How you can pay",
+				Heading:   "信用卡",
+				HeadingEn: "Credit cards",
 				Body: []string{
 					"目前接受信用卡付款,由 Stripe 處理。付款頁面在 Stripe 的網域上,goen 的伺服器不會接觸、也不會儲存您的卡片資料。",
 					"我們只會保留卡別與末四碼,用於在訂單頁辨識是哪一張卡付的款。",
@@ -133,6 +133,18 @@ var policies = map[string]pages.PolicyDoc{
 					"Cards, handled by Stripe. The payment form is on Stripe's own domain — goen's servers never see your card details and never store them.",
 					"We keep the card brand and the last four digits, so your order page can tell you which card paid.",
 				},
+			},
+			{
+				Heading:   "商店額度",
+				HeadingEn: "Store credit",
+				Body:      []string{"登入後,若帳號有可用的商店額度,可在結帳時選擇使用。額度用於支付訂單,不足的金額再以信用卡付款。"},
+				BodyEn:    []string{"When signed in with an available store-credit balance, you can choose to use it at checkout. Store credit pays toward the order; any remaining amount is paid by card."},
+			},
+			{
+				Heading:   "折扣碼",
+				HeadingEn: "Discount codes",
+				Body:      []string{"折扣碼是價格折抵,不是付款方式。在結帳頁輸入有效的折扣碼,確認折抵後的金額,再選擇是否使用商店額度並支付剩餘款項。"},
+				BodyEn:    []string{"A discount code reduces the price; it is not a payment method. Enter a valid code at checkout, check the discounted total, then choose whether to apply store credit and pay any remaining amount."},
 			},
 			{
 				Heading:   "什麼時候扣款",

@@ -34,7 +34,7 @@ endif
 .PHONY: build run test test-race test-integration production-build-check integration-build-check \
         image image-push lint fmt fmt-check vet deadcode gen templ-check vuln \
         sqlc sqlc-check squawk db-up db-down migrate-up migrate-down db-seed \
-        db-repair-invoice-faq db-repair-refund-faq \
+        db-repair-invoice-faq db-repair-refund-faq db-repair-payment-faq \
         cursor-scripts-check workflow-check verify verify-all check-layout db-reset clean
 
 build: gen
@@ -652,6 +652,11 @@ db-repair-invoice-faq:
 db-repair-refund-faq:
 	@test -n "$${GOEN_DATABASE_URL:-}" || { echo 'GOEN_DATABASE_URL is required' >&2; exit 2; }
 	psql "$$GOEN_DATABASE_URL" -v ON_ERROR_STOP=1 -f seed/repair_refund_faq.sql
+
+# Update only the known card-only payment FAQ on a kept database.
+db-repair-payment-faq:
+	@test -n "$${GOEN_DATABASE_URL:-}" || { echo 'GOEN_DATABASE_URL is required' >&2; exit 2; }
+	psql "$$GOEN_DATABASE_URL" -v ON_ERROR_STOP=1 -f seed/repair_payment_faq.sql
 
 # Rebuild the development database from scratch.
 #
