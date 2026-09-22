@@ -43,7 +43,7 @@ templ AdminCustomers(p layouts.Page, v AdminCustomersView) {
 				{ i18n.T(ctx, i18n.KeyAdminCustSearchShort) }
 			}
 		}
-		if v.Searching() && v.Empty() {
+		if v.Searching() && v.Empty() && !v.Paged {
 			<div class="goen-admin__empty">
 				<p class="goen-admin__emptytitle">
 					{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminCustNoneFound), v.Term) }
@@ -81,9 +81,9 @@ templ AdminCustomers(p layouts.Page, v AdminCustomersView) {
 						}
 					</tbody>
 				</table>
-				@listBound(v.ListBound, ByRecency, true)
 			</div>
 		}
+		@listBound(v.ListBound, ByRecency, true)
 	}
 }
 

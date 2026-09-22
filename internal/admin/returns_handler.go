@@ -18,7 +18,7 @@ import (
 
 // Returns serves GET /admin/returns.
 func (h *Handler) Returns(w http.ResponseWriter, r *http.Request) {
-	queue, err := h.store.Returns(r.Context())
+	queue, err := h.store.Returns(r.Context(), r.URL.Query().Get("after"))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read return queue", "error", err)
 		h.serverError(w, r)
@@ -163,7 +163,7 @@ func (h *Handler) renderReturnRefusal(w http.ResponseWriter, r *http.Request, er
 	if !ok {
 		return false
 	}
-	queue, readErr := h.store.Returns(r.Context())
+	queue, readErr := h.store.Returns(r.Context(), r.URL.Query().Get("after"))
 	if readErr != nil {
 		h.log.ErrorContext(r.Context(), "read return queue after refusal", "error", readErr)
 		h.serverError(w, r)

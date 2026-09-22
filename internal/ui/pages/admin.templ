@@ -205,11 +205,11 @@ templ AdminOrders(p layouts.Page, v AdminOrdersView) {
 				</a>
 			}
 		</div>
-		if v.Empty() {
+		if v.Empty() && !v.Paged {
 			<div class="goen-admin__empty">
 				<p class="goen-admin__emptytitle">{ v.EmptyText(ctx) }</p>
 			</div>
-		} else {
+		} else if !v.Empty() {
 			<div class="goen-admin__tablewrap">
 				<table class="ui-table goen-admin__table">
 					<thead>
@@ -246,9 +246,9 @@ templ AdminOrders(p layouts.Page, v AdminOrdersView) {
 						}
 					</tbody>
 				</table>
-				@listBound(v.ListBound, ByRecency, true)
 			</div>
 		}
+		@listBound(v.ListBound, ByRecency, true)
 	}
 }
 
@@ -658,20 +658,16 @@ templ AdminVariants(p layouts.Page, v AdminVariantsView) {
 			<a class={ "ui-filter", templ.KV("is-active", !v.LowOnly) } href="/admin/stock">{ i18n.T(ctx, i18n.KeyAdminTabAll) }</a>
 			<a class={ "ui-filter", templ.KV("is-active", v.LowOnly) } href="/admin/stock?low=1">{ i18n.T(ctx, i18n.KeyAdminQueueLowOnly) }</a>
 		</div>
-		if v.Empty() {
+		if v.Empty() && !v.Paged {
 			<div class="ui-empty">
 				<p class="ui-empty__title">{ i18n.T(ctx, i18n.KeyAdminQueueNoVariants) }</p>
 			</div>
-		} else {
+		} else if !v.Empty() {
 			<div class="goen-admin__tablewrap">
 				@adminVariantTable(v.Variants)
 			</div>
-			// Ordered by how short of stock each line is, then by name — not by
-			// time — so this one says "the first", not "the most recent". And
-			// no second sentence: the All / low-only pair above is a toggle,
-			// not a way to reach the fifty-first row of either.
-			@listBound(v.ListBound, ByOwnOrder, false)
 		}
+		@listBound(v.ListBound, ByOwnOrder, false)
 	}
 }
 

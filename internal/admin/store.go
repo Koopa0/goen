@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"strings"
 	"unicode/utf8"
 
@@ -129,8 +130,10 @@ func orderRow(ctx context.Context, o *db.AdminOrdersRow) pages.AdminOrderRow {
 }
 
 // Orders reads the order queue.
-func (s *Store) Orders(ctx context.Context, status pages.FulfillmentStatus, term string) (pages.AdminOrdersView, error) {
+func (s *Store) Orders(ctx context.Context, status pages.FulfillmentStatus, term string, after ...string) (pages.AdminOrdersView, error) {
 	term = strings.TrimSpace(term)
+	scope := pageURL("/admin/orders", "q", term, "status", string(status))
+	cursor := readPageCursor(scope, after)
 	searched := utf8.RuneCountInString(term) >= MinSearchRunes
 	var rows []db.AdminOrdersRow
 	var err error
@@ -138,14 +141,14 @@ func (s *Store) Orders(ctx context.Context, status pages.FulfillmentStatus, term
 		// A search ignores the status filter: somebody on the phone wants that
 		// order, not that order if it is in the tab they had open.
 		var found []db.AdminSearchOrdersRow
-		if found, err = s.q.AdminSearchOrders(ctx, db.AdminSearchOrdersParams{
+		if found, err = s.q.AdminSearchOrders(ctx, db.AdminSearchOrdersParams{HasCursor: cursor.Valid, AfterAt: cursor.At, AfterID: cursor.ID,
 			Term: term, RowLimit: PageLimit,
 		}); err == nil {
 			rows = make([]db.AdminOrdersRow, 0, len(found))
 			for i := range found {
 				f := &found[i]
 				rows = append(rows, db.AdminOrdersRow{
-					ID: f.ID, OrderNumber: f.OrderNumber,
+					PageCursor: f.PageCursor, ID: f.ID, OrderNumber: f.OrderNumber,
 					FulfillmentStatus: f.FulfillmentStatus, PlacedAt: f.PlacedAt,
 					ShippingCents: f.ShippingCents, DiscountCents: f.DiscountCents,
 					TaxCents: f.TaxCents, Recipient: f.Recipient,
@@ -154,7 +157,7 @@ func (s *Store) Orders(ctx context.Context, status pages.FulfillmentStatus, term
 			}
 		}
 	} else {
-		rows, err = s.q.AdminOrders(ctx, db.AdminOrdersParams{Status: string(status), RowLimit: PageLimit})
+		rows, err = s.q.AdminOrders(ctx, db.AdminOrdersParams{HasCursor: cursor.Valid, AfterAt: cursor.At, AfterID: cursor.ID, Status: string(status), RowLimit: PageLimit})
 	}
 	if err != nil {
 		return pages.AdminOrdersView{}, fmt.Errorf("read orders: %w", err)
@@ -169,8 +172,13 @@ func (s *Store) Orders(ctx context.Context, status pages.FulfillmentStatus, term
 	// AdminOrderCounts and not from len(rows), so the extra row was never in
 	// them to begin with.
 	rows, more := pageOf(rows, PageSize)
+	last := ""
+	if len(rows) > 0 {
+		last = rows[len(rows)-1].PageCursor
+	}
+	bound := cursor.bound(scope, more, PageSize, last)
 	view := pages.AdminOrdersView{
-		ListBound: pages.Bound(more, PageSize),
+		ListBound: bound,
 		Status:    status, Term: term, Searched: searched,
 	}
 	countsByStatus := make(map[pages.FulfillmentStatus]int64, len(counts))
@@ -685,13 +693,23 @@ func (s *Store) SetStaffNote(ctx context.Context, number, note string) error {
 }
 
 // Variants reads the stock list.
-func (s *Store) Variants(ctx context.Context, lowOnly bool) (pages.AdminVariantsView, error) {
-	rows, err := s.q.AdminVariants(ctx, db.AdminVariantsParams{LowOnly: lowOnly, RowLimit: PageLimit})
+func (s *Store) Variants(ctx context.Context, lowOnly bool, after ...string) (pages.AdminVariantsView, error) {
+	scope := "/admin/stock"
+	if lowOnly {
+		scope += "?low=1"
+	}
+	cursor := readPageCursor(scope, after)
+	rows, err := s.q.AdminVariants(ctx, db.AdminVariantsParams{HasCursor: cursor.Valid, AfterNumber: cursor.Number, AfterName: cursor.Name, AfterPosition: cursor.Position, AfterID: cursor.ID, LowOnly: lowOnly, RowLimit: PageLimit})
 	if err != nil {
 		return pages.AdminVariantsView{}, fmt.Errorf("read variants: %w", err)
 	}
 	rows, more := pageOf(rows, PageSize)
-	view := pages.AdminVariantsView{ListBound: pages.Bound(more, PageSize), LowOnly: lowOnly}
+	last := ""
+	if len(rows) > 0 {
+		last = rows[len(rows)-1].PageCursor
+	}
+	bound := cursor.bound(scope, more, PageSize, last)
+	view := pages.AdminVariantsView{ListBound: bound, LowOnly: lowOnly}
 	for i := range rows {
 		view.Variants = append(view.Variants, variantRow(&rows[i]))
 	}
@@ -899,13 +917,20 @@ func (s *Store) GrantCredit(ctx context.Context, email string, amountCents int64
 }
 
 // Credit reads the recent ledger for the back office.
-func (s *Store) Credit(ctx context.Context) (pages.AdminCreditView, error) {
-	rows, err := s.q.RecentCredit(ctx, PageLimit)
+func (s *Store) Credit(ctx context.Context, after ...string) (pages.AdminCreditView, error) {
+	scope := "/admin/credit"
+	cursor := readPageCursor(scope, after)
+	rows, err := s.q.RecentCredit(ctx, db.RecentCreditParams{HasCursor: cursor.Valid, AfterAt: cursor.At, AfterID: cursor.ID, RowLimit: PageLimit})
 	if err != nil {
 		return pages.AdminCreditView{}, fmt.Errorf("read credit ledger: %w", err)
 	}
 	rows, more := pageOf(rows, PageSize)
-	view := pages.AdminCreditView{ListBound: pages.Bound(more, PageSize)}
+	last := ""
+	if len(rows) > 0 {
+		last = rows[len(rows)-1].PageCursor
+	}
+	bound := cursor.bound(scope, more, PageSize, last)
+	view := pages.AdminCreditView{ListBound: bound}
 	for i := range rows {
 		r := &rows[i]
 		view.Rows = append(view.Rows, pages.AdminCreditEntry{
@@ -932,7 +957,9 @@ const MovementPageSize = 50
 
 // Movements reads one variant's stock ledger: which sale, which return, which
 // hand adjustment, and by whom.
-func (s *Store) Movements(ctx context.Context, sku string) (pages.AdminMovementsView, error) {
+func (s *Store) Movements(ctx context.Context, sku string, after ...string) (pages.AdminMovementsView, error) {
+	scope := "/admin/stock/" + url.PathEscape(sku)
+	cursor := readPageCursor(scope, after)
 	v, err := s.q.AdminVariantBySKU(ctx, sku)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -940,7 +967,7 @@ func (s *Store) Movements(ctx context.Context, sku string) (pages.AdminMovements
 		}
 		return pages.AdminMovementsView{}, fmt.Errorf("read variant %s: %w", sku, err)
 	}
-	rows, err := s.q.VariantMovements(ctx, db.VariantMovementsParams{
+	rows, err := s.q.VariantMovements(ctx, db.VariantMovementsParams{HasCursor: cursor.Valid, AfterID: cursor.ID,
 		SKU: sku, RowLimit: MovementPageSize + 1,
 	})
 	if err != nil {
@@ -949,8 +976,13 @@ func (s *Store) Movements(ctx context.Context, sku string) (pages.AdminMovements
 
 	// This list has its own size, so it names its own rather than PageSize.
 	rows, more := pageOf(rows, MovementPageSize)
+	last := ""
+	if len(rows) > 0 {
+		last = rows[len(rows)-1].PageCursor
+	}
+	bound := cursor.bound(scope, more, MovementPageSize, last)
 	view := pages.AdminMovementsView{
-		ListBound: pages.Bound(more, MovementPageSize),
+		ListBound: bound,
 		SKU:       v.SKU, ProductName: v.ProductName, Slug: v.Slug,
 		Stock: v.StockQuantity, Safety: v.SafetyStock,
 		Rows: make([]pages.AdminMovement, 0, len(rows)),

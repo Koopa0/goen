@@ -76,8 +76,10 @@ type returnPayoutIssue struct {
 }
 
 // Returns reads the back-office queue.
-func (s *Store) Returns(ctx context.Context) (ReturnQueue, error) {
-	rows, err := s.q.ReturnQueue(ctx, PageLimit)
+func (s *Store) Returns(ctx context.Context, after ...string) (ReturnQueue, error) {
+	scope := "/admin/returns"
+	cursor := readPageCursor(scope, after)
+	rows, err := s.q.ReturnQueue(ctx, db.ReturnQueueParams{HasCursor: cursor.Valid, AfterRank: cursor.Rank, AfterPriority: cursor.Priority, AfterAt: cursor.At, AfterID: cursor.ID, RowLimit: PageLimit})
 	if err != nil {
 		return ReturnQueue{}, fmt.Errorf("read return queue: %w", err)
 	}
@@ -85,6 +87,11 @@ func (s *Store) Returns(ctx context.Context) (ReturnQueue, error) {
 	// counted, and reading its lines and payout facts would be work done for a
 	// return nobody is shown.
 	rows, more := pageOf(rows, PageSize)
+	last := ""
+	if len(rows) > 0 {
+		last = rows[len(rows)-1].PageCursor
+	}
+	bound := cursor.bound(scope, more, PageSize, last)
 	ids := make([]uuid.UUID, 0, len(rows))
 	for i := range rows {
 		ids = append(ids, rows[i].ID)
@@ -134,7 +141,7 @@ func (s *Store) Returns(ctx context.Context) (ReturnQueue, error) {
 	}
 	// Set here rather than in the builder, which is given rows and knows
 	// nothing about the read that produced them.
-	view.Bound = pages.Bound(more, PageSize)
+	view.Bound = bound
 	return view, nil
 }
 

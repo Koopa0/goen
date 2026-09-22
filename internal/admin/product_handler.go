@@ -15,7 +15,7 @@ import (
 
 // Products serves GET /admin/products.
 func (h *Handler) Products(w http.ResponseWriter, r *http.Request) {
-	view, err := h.store.Products(r.Context())
+	view, err := h.store.Products(r.Context(), r.URL.Query().Get("after"))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read products", "error", err)
 		h.serverError(w, r)

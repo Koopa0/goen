@@ -36,14 +36,14 @@ templ AdminReviews(p layouts.Page, v AdminReviewsView) {
 				{ v.Notice }
 			}
 		}
-		if v.Empty() {
+		if v.Empty() && !v.Paged {
 			<div class="goen-admin__empty">
 				<span class="goen-modqueue__emptyicon">
 					@icons.Star()
 				</span>
 				<p class="goen-admin__emptytitle">{ i18n.T(ctx, i18n.KeyAdminReviewsEmpty) }</p>
 			</div>
-		} else {
+		} else if !v.Empty() {
 			<ul class="goen-modqueue" role="list">
 				for _, r := range v.Rows {
 					<li class="goen-modqueue__item goen-modqueue__item--split">
@@ -85,7 +85,7 @@ templ AdminReviews(p layouts.Page, v AdminReviewsView) {
 					</li>
 				}
 			</ul>
-			@listBound(v.ListBound, ByRecency, false)
 		}
+		@listBound(v.ListBound, ByRecency, false)
 	}
 }

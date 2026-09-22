@@ -42,14 +42,14 @@ templ AdminMessages(p layouts.Page, v AdminMessagesView) {
 				{ v.Notice }
 			}
 		}
-		if v.Empty() {
+		if v.Empty() && !v.Paged {
 			<div class="goen-admin__empty">
 				<span class="goen-modqueue__emptyicon">
 					@icons.Mail()
 				</span>
 				<p class="goen-admin__emptytitle">{ i18n.T(ctx, i18n.KeyAdminMessagesEmpty) }</p>
 			</div>
-		} else {
+		} else if !v.Empty() {
 			<ul class="goen-admin__returns" role="list">
 				for _, m := range v.Rows {
 					<li class="goen-modqueue__item goen-modqueue__item--split">
@@ -96,7 +96,7 @@ templ AdminMessages(p layouts.Page, v AdminMessagesView) {
 			</ul>
 			// Oldest unhandled first, which is what an inbox is for — so this
 			// list shows the FIRST fifty, not the latest, and says so.
-			@listBound(v.ListBound, ByOwnOrder, false)
 		}
+		@listBound(v.ListBound, ByOwnOrder, false)
 	}
 }

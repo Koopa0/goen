@@ -33,11 +33,11 @@ templ AdminMovements(p layouts.Page, v *AdminMovementsView) {
 			}
 		}
 		@adminReceiveForm(v)
-		if v.Empty() {
+		if v.Empty() && !v.Paged {
 			<div class="goen-admin__empty">
 				<p class="goen-admin__emptytitle">{ i18n.T(ctx, i18n.KeyAdminLedgerEmpty) }</p>
 			</div>
-		} else {
+		} else if !v.Empty() {
 			<div class="goen-admin__tablewrap">
 				<table class="ui-table goen-admin__table">
 					<thead>
@@ -69,12 +69,12 @@ templ AdminMovements(p layouts.Page, v *AdminMovementsView) {
 						}
 					</tbody>
 				</table>
-				@listBound(v.ListBound, ByRecency, false)
 			</div>
 			<p class="goen-admin__hint">
 				{ i18n.T(ctx, i18n.KeyAdminLedgerFoot) }
 			</p>
 		}
+		@listBound(v.ListBound, ByRecency, false)
 	}
 }
 

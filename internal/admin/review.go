@@ -12,14 +12,21 @@ import (
 )
 
 // Reviews reads the moderation queue, hidden ones included.
-func (s *Store) Reviews(ctx context.Context) (pages.AdminReviewsView, error) {
-	rows, err := s.q.AdminReviews(ctx, PageLimit)
+func (s *Store) Reviews(ctx context.Context, after ...string) (pages.AdminReviewsView, error) {
+	scope := "/admin/reviews"
+	cursor := readPageCursor(scope, after)
+	rows, err := s.q.AdminReviews(ctx, db.AdminReviewsParams{HasCursor: cursor.Valid, AfterAt: cursor.At, AfterID: cursor.ID, RowLimit: PageLimit})
 	if err != nil {
 		return pages.AdminReviewsView{}, fmt.Errorf("read reviews: %w", err)
 	}
 	rows, more := pageOf(rows, PageSize)
+	last := ""
+	if len(rows) > 0 {
+		last = rows[len(rows)-1].PageCursor
+	}
+	bound := cursor.bound(scope, more, PageSize, last)
 	view := pages.AdminReviewsView{
-		ListBound: pages.Bound(more, PageSize),
+		ListBound: bound,
 		Rows:      make([]pages.AdminReview, 0, len(rows)),
 	}
 	for i := range rows {

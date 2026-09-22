@@ -16,22 +16,29 @@ import (
 )
 
 // Customers searches for a customer by the start of their address or their name.
-func (s *Store) Customers(ctx context.Context, term string) (pages.AdminCustomersView, error) {
+func (s *Store) Customers(ctx context.Context, term string, after ...string) (pages.AdminCustomersView, error) {
 	term = strings.TrimSpace(term)
+	scope := pageURL("/admin/customers", "q", term)
+	cursor := readPageCursor(scope, after)
 	view := pages.AdminCustomersView{Term: term}
 	if utf8.RuneCountInString(term) < MinSearchRunes {
 		return view, nil
 	}
 	view.Searched = true
 
-	rows, err := s.q.AdminSearchCustomers(ctx, db.AdminSearchCustomersParams{
+	rows, err := s.q.AdminSearchCustomers(ctx, db.AdminSearchCustomersParams{HasCursor: cursor.Valid, AfterAt: cursor.At, AfterID: cursor.ID,
 		Term: term, RowLimit: PageLimit,
 	})
 	if err != nil {
 		return pages.AdminCustomersView{}, fmt.Errorf("search customers: %w", err)
 	}
 	rows, more := pageOf(rows, PageSize)
-	view.ListBound = pages.Bound(more, PageSize)
+	last := ""
+	if len(rows) > 0 {
+		last = rows[len(rows)-1].PageCursor
+	}
+	bound := cursor.bound(scope, more, PageSize, last)
+	view.ListBound = bound
 	for i := range rows {
 		r := &rows[i]
 		view.Rows = append(view.Rows, pages.AdminCustomerRow{

@@ -49,11 +49,11 @@ templ AdminCredit(p layouts.Page, v AdminCreditView) {
 			</form>
 		}
 		<h2 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminCreditRecent) }</h2>
-		if v.Empty() {
+		if v.Empty() && !v.Paged {
 			<div class="goen-admin__empty">
 				<p class="goen-admin__emptytitle">{ i18n.T(ctx, i18n.KeyAdminCreditEmpty) }</p>
 			</div>
-		} else {
+		} else if !v.Empty() {
 			<ul class="goen-admin__ledger" role="list">
 				for _, e := range v.Rows {
 					<li class="goen-admin__entry">
@@ -64,7 +64,7 @@ templ AdminCredit(p layouts.Page, v AdminCreditView) {
 					</li>
 				}
 			</ul>
-			@listBound(v.ListBound, ByRecency, false)
 		}
+		@listBound(v.ListBound, ByRecency, false)
 	}
 }

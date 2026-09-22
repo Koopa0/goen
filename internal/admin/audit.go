@@ -190,8 +190,10 @@ func encodeState(v any) ([]byte, error) {
 }
 
 // Audit reads the trail.
-func (s *Store) Audit(ctx context.Context) (pages.AuditView, error) {
-	rows, err := s.q.AuditEvents(ctx, MaxAuditRows+1)
+func (s *Store) Audit(ctx context.Context, after ...string) (pages.AuditView, error) {
+	scope := "/admin/audit"
+	cursor := readPageCursor(scope, after)
+	rows, err := s.q.AuditEvents(ctx, db.AuditEventsParams{HasCursor: cursor.Valid, AfterAt: cursor.At, AfterID: cursor.ID, RowLimit: MaxAuditRows + 1})
 	if err != nil {
 		return pages.AuditView{}, fmt.Errorf("read audit events: %w", err)
 	}
@@ -199,7 +201,12 @@ func (s *Store) Audit(ctx context.Context) (pages.AuditView, error) {
 	// most: a page that shows 200 of fifty thousand without saying so is a
 	// record somebody may take for the whole record.
 	rows, more := pageOf(rows, MaxAuditRows)
-	view := pages.AuditView{ListBound: pages.Bound(more, MaxAuditRows)}
+	last := ""
+	if len(rows) > 0 {
+		last = rows[len(rows)-1].PageCursor
+	}
+	bound := cursor.bound(scope, more, MaxAuditRows, last)
+	view := pages.AuditView{ListBound: bound}
 	for i := range rows {
 		e := &rows[i]
 		view.Rows = append(view.Rows, pages.AuditEntry{

@@ -29,11 +29,11 @@ templ AdminCampaigns(p layouts.Page, v AdminCampaignsView) {
 				{ v.Notice }
 			}
 		}
-		if v.Empty() {
+		if v.Empty() && !v.Paged {
 			<div class="goen-admin__empty">
 				<p class="goen-admin__emptytitle">{ i18n.T(ctx, i18n.KeyAdminCampEmpty) }</p>
 			</div>
-		} else {
+		} else if !v.Empty() {
 			<div class="goen-admin__tablewrap">
 				<table class="ui-table goen-admin__table">
 					<thead>
@@ -81,7 +81,6 @@ templ AdminCampaigns(p layouts.Page, v AdminCampaignsView) {
 						}
 					</tbody>
 				</table>
-				@listBound(v.ListBound, ByOwnOrder, false)
 			</div>
 		}
 		@components.Card(components.CardProps{Class: "goen-admin__section"}) {
@@ -163,6 +162,7 @@ templ AdminCampaigns(p layouts.Page, v AdminCampaignsView) {
 				}
 			</form>
 		}
+		@listBound(v.ListBound, ByOwnOrder, false)
 	}
 }
 

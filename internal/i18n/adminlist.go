@@ -29,3 +29,8 @@ var (
 		En:     "Use the search above to narrow it.",
 	})
 )
+
+var (
+	KeyAdminFirstPage = key("admin.list.first", Message{ZhHant: "回到第一頁", En: "First page"})
+	KeyAdminPageEmpty = key("admin.list.page_empty", Message{ZhHant: "這一頁沒有資料。", En: "There are no entries on this page."})
+)

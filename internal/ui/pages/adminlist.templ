@@ -6,18 +6,24 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-// listBound is the sentence a bounded list says beneath itself.
-//
-// A plain paragraph and not the Notice component: Notice carries role=status or
-// role=alert, and this is neither the result of anything the reader did nor an
-// error. Announcing it on every page load would be noise a screen-reader user
-// has to listen past to reach the table it is describing.
-//
-// searchable is passed rather than carried in the view because the page that
-// renders this is the page that either has a search or does not, and the two
-// statements belong in the same file where they cannot drift apart.
+// listBound keeps navigation usable through ordinary links, including an empty
+// later page whose boundary row no longer exists.
 templ listBound(b ListBound, order ListOrder, searchable bool) {
-	if b.More {
+	if b.Paged {
+		if b.Empty {
+			<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminPageEmpty) }</p>
+		}
+		if b.First != "" || b.Next != "" {
+			<nav class="goen-pager" aria-label={ i18n.T(ctx, i18n.KeyPagination) }>
+				if b.First != "" {
+					<a class="goen-btn goen-btn--outline" href={ templ.URL(b.First) }>{ i18n.T(ctx, i18n.KeyAdminFirstPage) }</a>
+				}
+				if b.Next != "" {
+					<a class="goen-btn goen-btn--outline" href={ templ.URL(b.Next) } rel="next">{ i18n.T(ctx, i18n.KeyNextPage) }</a>
+				}
+			</nav>
+		}
+	} else if b.More {
 		<p class="goen-admin__hint goen-admin__bound">
 			if order == ByRecency {
 				{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminListCappedRecent), b.Limit) }
