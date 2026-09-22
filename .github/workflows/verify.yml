@@ -114,6 +114,17 @@ jobs:
       - name: Schema conformance
         run: make test-integration
 
+      - name: Prove invoice cancellation guards observe mutations
+        run: python3 scripts/prove-invoice-cancellation.py
+
+      - name: Keep invoice cancellation mutation evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: invoice-cancellation-proof
+          path: invoice-cancellation-proof/
+          if-no-files-found: warn
+
       # A down migration that does not undo the up migration is only ever
       # discovered when someone needs it.
       - name: Migration round trip
