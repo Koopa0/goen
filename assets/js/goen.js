@@ -85,6 +85,57 @@
     document.querySelectorAll("[data-stepper]").forEach(atBounds);
   }
 
+  // Request state is presentation only. Submitter names and values remain in
+  // the payload; native disabled controls would remove them before submission.
+  function requestFeedback() {
+    const pending = new Map();
+    const restoreAttribute = (element, name, value) => {
+      if (value === null) element.removeAttribute(name);
+      else element.setAttribute(name, value);
+    };
+    const begin = (form) => {
+      const buttons = [...form.querySelectorAll('button[type="submit"], input[type="submit"]')]
+        .map((button) => [button, button.getAttribute("aria-disabled")]);
+      pending.set(form, { busy: form.getAttribute("aria-busy"), buttons });
+      form.setAttribute("aria-busy", "true");
+      form.setAttribute("data-request-pending", "");
+      for (const [button] of buttons) button.setAttribute("aria-disabled", "true");
+    };
+    const finish = (form) => {
+      const state = pending.get(form);
+      if (!state) return;
+      restoreAttribute(form, "aria-busy", state.busy);
+      form.removeAttribute("data-request-pending");
+      for (const [button, disabled] of state.buttons) restoreAttribute(button, "aria-disabled", disabled);
+      pending.delete(form);
+    };
+    document.addEventListener("submit", (event) => {
+      if (event.defaultPrevented || !(event.target instanceof HTMLFormElement)) return;
+      if (pending.has(event.target)) event.preventDefault();
+      else begin(event.target);
+    });
+    document.addEventListener("htmx:before:request", (event) => {
+      const ctx = event.detail?.ctx;
+      const form = ctx?.request?.form;
+      if (!(form instanceof HTMLFormElement)) return;
+      if (pending.has(form)) { event.preventDefault(); return; }
+      begin(form);
+      const source = ctx.sourceElement;
+      const completed = (done) => {
+        if (done.detail?.ctx !== ctx) return;
+        finish(form);
+        source.removeEventListener("htmx:finally:request", completed);
+      };
+      // The source can be detached by an outerHTML swap before finally fires.
+      source.addEventListener("htmx:finally:request", completed);
+    });
+    document.addEventListener("reset", (event) => finish(event.target));
+    window.addEventListener("pageshow", () => {
+      for (const form of pending.keys()) finish(form);
+    });
+  }
+
+  requestFeedback();
   headerMenu();
   stepper();
 })();

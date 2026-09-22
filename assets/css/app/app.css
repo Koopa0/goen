@@ -3822,31 +3822,6 @@ h4,
   text-underline-offset: 4px;
 }
 
-/* A notice arrives after a write, so it arrives after the page: it fades in and
-   settles rather than appearing where the eye was not looking. The global
-   reduced-motion override at the top of this sheet flattens the duration, which
-   leaves the notice visible and takes the movement away. */
-@keyframes goen-notice-in {
-  from {
-    opacity: 0;
-    transform: translate(0, -4px);
-  }
-
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-.goen-cart .goen-notice,
-.goen-checkout .goen-notice,
-.goen-order .goen-notice,
-.goen-pay .goen-notice,
-.goen-returns .goen-notice,
-.goen-findorder .goen-notice {
-  animation: goen-notice-in var(--dur-slow) var(--ease-standard);
-}
-
 @media (min-width: 768px) {
   .goen-cart,
   .goen-checkout,
@@ -7202,5 +7177,57 @@ h4,
   ::view-transition-old(*),
   ::view-transition-new(*) {
     animation: none;
+  }
+}
+
+/* Request feedback shares the buttons' existing disabled treatment without
+   removing a named submitter from the form payload. */
+form[data-request-pending],
+form[data-request-pending] button,
+form[data-request-pending] input[type="submit"] {
+  cursor: progress;
+}
+
+form[data-request-pending] [aria-disabled="true"] {
+  opacity: 0.5;
+}
+
+.goen-btn:active:not(:disabled):not([aria-disabled="true"]) {
+  opacity: 0.85;
+}
+
+/* These are entry fades, never timers that dismiss unread feedback. Removal
+   during a request uses the same view transition as its surrounding region. */
+.goen-notice {
+  transition: opacity var(--dur-base) var(--ease-standard);
+}
+
+@starting-style {
+  .goen-notice { opacity: 0; }
+}
+
+@supports selector(details::details-content) {
+  .goen-header__menu::details-content {
+    opacity: 0;
+    transition: opacity var(--dur-base) var(--ease-standard), content-visibility var(--dur-base);
+    transition-behavior: allow-discrete;
+  }
+
+  .goen-header__menu[open]::details-content { opacity: 1; }
+
+  @starting-style {
+    .goen-header__menu[open]::details-content { opacity: 0; }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .goen-notice,
+  .goen-header__menu::details-content {
+    transition: none;
+  }
+
+  @starting-style {
+    .goen-notice,
+    .goen-header__menu[open]::details-content { opacity: 1; }
   }
 }
