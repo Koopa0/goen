@@ -38,3 +38,26 @@ func TWD(cents int64) string {
 	}
 	return b.String()
 }
+
+// TWDExact retains cents when a decision depends on an exact
+// difference. Whole-dollar amounts keep the shop's existing TWD presentation.
+func TWDExact(cents int64) string {
+	rendered := TWD(cents)
+	fraction := cents % 100
+	if fraction == 0 {
+		return rendered
+	}
+	if fraction < 0 {
+		fraction = -fraction
+	}
+	// TWD truncates to dollars before choosing a sign, so a sub-dollar debit
+	// needs its sign restored. Only the bounded remainder is ever negated.
+	if cents < 0 && cents > -100 {
+		rendered = "-" + rendered
+	}
+	digits := strconv.FormatInt(fraction, 10)
+	if fraction < 10 {
+		digits = "0" + digits
+	}
+	return rendered + "." + digits
+}

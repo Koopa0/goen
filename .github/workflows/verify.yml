@@ -127,6 +127,17 @@ jobs:
             -path migrations -database "$GOEN_DATABASE_URL" down -all
           make migrate-up
 
+      - name: Prove delivery surcharge refusal and current quote
+        run: python3 scripts/prove-delivery-surcharges.py
+
+      - name: Upload delivery surcharge proof
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: delivery-surcharge-proof
+          path: delivery-surcharge-proof/
+          if-no-files-found: warn
+
   # The browser gate. Separate again, and for the third distinct reason: it needs
   # a database, a running server AND a Chrome, so a failure here reads as "a page
   # broke" rather than as a slow lint run or a schema change.
