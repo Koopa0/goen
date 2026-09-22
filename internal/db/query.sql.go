@@ -3416,9 +3416,10 @@ WITH due AS (
       AND dropped_at IS NULL
       AND blocked_at IS NULL
       AND available_at <= now()
+      AND created_at > now() - $2::interval
     -- Priority first, then age: a receipt must not wait for a newsletter.
     ORDER BY priority, available_at
-    LIMIT $2::integer
+    LIMIT $3::integer
     FOR UPDATE SKIP LOCKED
 )
 UPDATE outbox_messages m
@@ -3431,6 +3432,7 @@ RETURNING m.id, m.topic, m.payload, m.attempts
 
 type ClaimOutboxParams struct {
 	Lease     pgtype.Interval
+	Retain    pgtype.Interval
 	BatchSize int32
 }
 
@@ -3446,7 +3448,7 @@ type ClaimOutboxRow struct {
 // available_at forward is what makes the claim exclusive.
 // attempts rises on the CLAIM, or it counts nothing about failures.
 func (q *Queries) ClaimOutbox(ctx context.Context, arg ClaimOutboxParams) ([]ClaimOutboxRow, error) {
-	rows, err := q.db.Query(ctx, claimOutbox, arg.Lease, arg.BatchSize)
+	rows, err := q.db.Query(ctx, claimOutbox, arg.Lease, arg.Retain, arg.BatchSize)
 	if err != nil {
 		return nil, err
 	}
@@ -5586,7 +5588,7 @@ SET payload = '{}'::jsonb,
 WHERE delivered_at IS NULL
   AND dropped_at IS NULL
   AND payload <> '{}'::jsonb
-  AND created_at < now() - $1::interval
+  AND created_at <= now() - $1::interval
 `
 
 // Redact undelivered payloads past Retain from creation time. Never marks sent.
@@ -8099,6 +8101,29 @@ func (q *Queries) OrderTracking(ctx context.Context, orderID uuid.UUID) ([]Order
 		return nil, err
 	}
 	return items, nil
+}
+
+const outboxDeliveryWindow = `-- name: OutboxDeliveryWindow :one
+SELECT date_part('epoch', created_at + $1::interval - clock_timestamp())::float8 AS seconds_remaining
+FROM outbox_messages
+WHERE id = $2::uuid
+  AND delivered_at IS NULL
+  AND dropped_at IS NULL
+  AND blocked_at IS NULL
+`
+
+type OutboxDeliveryWindowParams struct {
+	Retain pgtype.Interval
+	ID     uuid.UUID
+}
+
+// A serial batch can cross the payload deadline after the claim. Use the
+// database clock again before giving a handler its remaining send budget.
+func (q *Queries) OutboxDeliveryWindow(ctx context.Context, arg OutboxDeliveryWindowParams) (float64, error) {
+	row := q.db.QueryRow(ctx, outboxDeliveryWindow, arg.Retain, arg.ID)
+	var seconds_remaining float64
+	err := row.Scan(&seconds_remaining)
+	return seconds_remaining, err
 }
 
 const passwordResetToken = `-- name: PasswordResetToken :one

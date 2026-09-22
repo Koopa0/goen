@@ -8,6 +8,7 @@ WITH due AS (
       AND dropped_at IS NULL
       AND blocked_at IS NULL
       AND available_at <= now()
+      AND created_at > now() - @retain::interval
     -- Priority first, then age: a receipt must not wait for a newsletter.
     ORDER BY priority, available_at
     LIMIT @batch_size::integer
@@ -20,6 +21,16 @@ SET attempts = m.attempts + 1,
 FROM due
 WHERE m.id = due.id
 RETURNING m.id, m.topic, m.payload, m.attempts;
+
+-- A serial batch can cross the payload deadline after the claim. Use the
+-- database clock again before giving a handler its remaining send budget.
+-- name: OutboxDeliveryWindow :one
+SELECT date_part('epoch', created_at + sqlc.arg(retain)::interval - clock_timestamp())::float8 AS seconds_remaining
+FROM outbox_messages
+WHERE id = @id::uuid
+  AND delivered_at IS NULL
+  AND dropped_at IS NULL
+  AND blocked_at IS NULL;
 
 -- name: MarkOutboxDelivered :exec
 UPDATE outbox_messages SET delivered_at = now(), last_error = NULL WHERE id = $1;
@@ -76,7 +87,7 @@ SET payload = '{}'::jsonb,
 WHERE delivered_at IS NULL
   AND dropped_at IS NULL
   AND payload <> '{}'::jsonb
-  AND created_at < now() - sqlc.arg(retain)::interval;
+  AND created_at <= now() - sqlc.arg(retain)::interval;
 
 -- DELIVERED messages past retain, plus undelivered terminal rows past twice retain
 -- from created_at (payload lifetime plus metadata retention).
