@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import signal
 import subprocess
 import time
 import uuid
@@ -96,6 +97,11 @@ def main():
               "pr_head": os.environ.get("PR_HEAD_SHA", ""), "image": image,
               "migration_sha256": digest(migration), "script_sha256": digest(source),
               "service_state": "systemctl stub only; no live service or deployment attestation"}
+    def interrupted(signum, _frame):
+        raise SystemExit(128 + signum)
+
+    signal.signal(signal.SIGTERM, interrupted)
+    signal.signal(signal.SIGINT, interrupted)
     try:
         docker("run", "--detach", "--name", CONTAINER, "--network", "none",
                "-e", "POSTGRES_HOST_AUTH_METHOD=trust", image)

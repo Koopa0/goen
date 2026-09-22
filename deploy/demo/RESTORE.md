@@ -29,9 +29,10 @@ session identity and the custom-format snapshot's table of contents. Restore
 runs in a single transaction. On success it starts the service; on restore
 failure it reports that the service remains stopped and requires operator
 recovery. A successful restore followed by a failed start is a distinct error.
-The failure policy is proposed, not an operator-approved availability promise.
+Failing closed is the template's recovery default; a successful fixture drill
+does not establish the live host's availability or recovery state.
 
-Before enabling the timer, the operator must approve that failure policy, verify
+Before enabling the timer, the operator must verify
 the actual service/environment files and snapshot provenance, run an owned
 PostgreSQL restore drill with the intended identity, and inject a failed restore.
 Record the exact source revision, image/schema/snapshot digest, effective session
