@@ -635,6 +635,28 @@ templ AdminOrder(p layouts.Page, v *AdminOrderView) {
 						}
 					}
 				}
+				if len(v.ProviderRefunds) > 0 || v.ExternalRefundCents > 0 || v.UnresolvedRefundCents > 0 {
+					@components.Card(components.CardProps{Class: "goen-admin__op", Attrs: templ.Attributes{"aria-labelledby": "provider-refunds-heading"}}) {
+						<h2 id="provider-refunds-heading" class="goen-admin__optitle">{ i18n.T(ctx, i18n.KeyAdminOrderProviderRefundsHeading) }</h2>
+						if v.ExternalRefundCents > 0 {
+							<p class="goen-admin__hint">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminOrderProviderRefundsExternal), twd(v.ExternalRefundCents)) }</p>
+						}
+						if v.UnresolvedRefundCents > 0 {
+							<p class="goen-admin__hint">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminOrderProviderRefundsUnresolved), twd(v.UnresolvedRefundCents)) }</p>
+						}
+						<ul class="goen-admin__timeline" role="list">
+							for _, r := range v.ProviderRefunds {
+								<li class="goen-admin__event">
+									<span class="goen-admin__meta">{ r.ProviderRef } · { r.Amount() } · { r.Status }</span>
+									if r.NeedsReview {
+										<strong>{ i18n.T(ctx, i18n.KeyAdminOrderProviderRefundReview) }</strong>
+									}
+									<span class="goen-admin__meta">{ r.CreatedAt }</span>
+								</li>
+							}
+						</ul>
+					}
+				}
 			</aside>
 		</div>
 	}

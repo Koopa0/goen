@@ -36,6 +36,9 @@ type WorkerHealthView struct {
 	Notice          string
 	OpenRefundCount int64
 	OpenRefunds     []OpenRefund
+	// ProviderRefundReviewCount is external or contradictory provider facts.
+	ProviderRefundReviewCount    int64
+	ProviderRefundsNeedingReview []ProviderRefundReview
 
 	OutboxStaleAfter     time.Duration
 	MaxExpiredHolds      int64
@@ -74,7 +77,9 @@ func (v *WorkerHealthView) HousekeepingText(ctx context.Context) string {
 }
 
 // RefundsHealthy reports whether every refund goen opened has landed.
-func (v *WorkerHealthView) RefundsHealthy() bool { return v.OpenRefundCount == 0 }
+func (v *WorkerHealthView) RefundsHealthy() bool {
+	return v.OpenRefundCount == 0 && v.ProviderRefundReviewCount == 0
+}
 
 // PaymentsReconciled reports whether every accepted event was acted on. Any at
 // all is unhealthy: each one is money at the provider against goods the shop has
@@ -117,8 +122,16 @@ func (v *WorkerHealthView) SweeperText(ctx context.Context) string {
 
 // RefundsText is the refund ledger's state.
 func (v *WorkerHealthView) RefundsText(ctx context.Context) string {
-	if v.OpenRefundCount == 0 {
+	if v.OpenRefundCount == 0 && v.ProviderRefundReviewCount == 0 {
 		return i18n.T(ctx, i18n.KeyHealthRefundsClear)
+	}
+	if v.OpenRefundCount > 0 && v.ProviderRefundReviewCount > 0 {
+		return fmt.Sprintf("%s · %s",
+			fmt.Sprintf(i18n.T(ctx, i18n.KeyHealthRefundsStuck), v.OpenRefundCount),
+			fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminHPProviderRefundsStuck), v.ProviderRefundReviewCount))
+	}
+	if v.ProviderRefundReviewCount > 0 {
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminHPProviderRefundsStuck), v.ProviderRefundReviewCount)
 	}
 	return fmt.Sprintf(i18n.T(ctx, i18n.KeyHealthRefundsStuck), v.OpenRefundCount)
 }
@@ -191,6 +204,19 @@ func (m StuckMessage) Reason(ctx context.Context) string {
 	}
 	return m.LastError
 }
+
+// ProviderRefundReview is one provider refund fact needing allocation review.
+type ProviderRefundReview struct {
+	OrderNumber string
+	ProviderRef string
+	AmountCents int64
+	Status      string
+	Allocation  string
+	Since       string
+}
+
+// Amount is what moved at the provider.
+func (r ProviderRefundReview) Amount() string { return twd(r.AmountCents) }
 
 // OpenRefund is one refund that has not landed.
 type OpenRefund struct {

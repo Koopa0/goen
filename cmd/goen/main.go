@@ -404,7 +404,7 @@ func run() error {
 	var background sync.WaitGroup
 	startWorkers(ctx, workerDeps{
 		pool: pool, admin: adminPool, maintenance: maintenancePool,
-		log: log, notifier: notifier, invoices: invoices, run: background.Go,
+		log: log, notifier: notifier, invoices: invoices, payments: gateway, run: background.Go,
 	})
 	defer background.Wait()
 
@@ -606,6 +606,7 @@ type workerDeps struct {
 	log         *slog.Logger
 	notifier    email.Notifier
 	invoices    *invoice.Gateway
+	payments    *payment.Gateway
 	run         func(func())
 }
 
@@ -637,6 +638,8 @@ func startWorkers(ctx context.Context, d workerDeps) {
 	if d.invoices != nil && d.invoices.Enabled() {
 		d.run(func() { invoice.NewStore(d.admin, d.invoices).ReconcileForever(ctx, d.log) })
 	}
+
+	d.run(func() { payment.NewStore(d.pool).SweepIgnoredRefundWebhooksForever(ctx, d.log, d.payments) })
 
 	d.run(func() { recommend.NewStore(d.maintenance, d.log).RefreshForever(ctx) })
 }

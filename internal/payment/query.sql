@@ -165,5 +165,42 @@ FROM orders o
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
 WHERE o.id = $1;
 
+-- name: RecordPaymentIntentLink :exec
+SELECT record_payment_intent_link(@session_ref::text, @payment_intent_ref::text);
+
+-- name: ReconcileStripeRefundWebhook :one
+SELECT reconcile_stripe_refund_webhook(
+    @event_id::text,
+    @provider_ref::text,
+    @payment_intent_ref::text,
+    @charge_ref::text,
+    @amount_cents::bigint,
+    @currency::text,
+    @status::text,
+    @request_key::text,
+    @failure_reason::text,
+    @provider_updated_at::bigint
+);
+
+-- name: MarkRefundWebhookReconciled :one
+SELECT mark_refund_webhook_reconciled($1::text);
+
+-- name: IgnoredRefundWebhookEvents :many
+SELECT event_id, type, payload
+FROM payment_webhook_events
+WHERE provider = 'stripe'
+  AND processed_at IS NOT NULL
+  AND refund_reconciled_at IS NULL
+  AND type IN ('refund.created', 'refund.updated', 'refund.failed', 'charge.refunded')
+ORDER BY received_at
+LIMIT $1;
+
+
+-- name: RefundFactForReconciliation :one
+SELECT provider_ref, payment_intent_ref, charge_ref, amount_cents, currency,
+       status, provider_updated_at
+FROM stripe_refund_facts
+WHERE provider_ref = $1;
+
 -- EnqueueMessage is defined in internal/cart/query.sql; sqlc builds one db
 -- package for the module.

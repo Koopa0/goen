@@ -473,6 +473,13 @@ type Payment struct {
 	UpdatedAt           time.Time
 }
 
+type PaymentIntentLink struct {
+	PaymentIntentRef string
+	PaymentID        uuid.UUID
+	SessionRef       string
+	CreatedAt        time.Time
+}
+
 type PaymentWebhookEvent struct {
 	Provider    string
 	EventID     string
@@ -482,8 +489,9 @@ type PaymentWebhookEvent struct {
 	ReceivedAt  time.Time
 	ProcessedAt pgtype.Timestamptz
 	// Set when an event was accepted but its effect could not be applied, and a person must act.
-	Unreconciled pgtype.Text
-	ReconciledAt pgtype.Timestamptz
+	Unreconciled       pgtype.Text
+	ReconciledAt       pgtype.Timestamptz
+	RefundReconciledAt pgtype.Timestamptz
 }
 
 type Product struct {
@@ -802,6 +810,26 @@ type StoreCreditEntry struct {
 	ReversesID     uuid.NullUUID
 	ActorUserID    uuid.NullUUID
 	CreatedAt      time.Time
+}
+
+type StripeRefundFact struct {
+	ProviderRef       string
+	PaymentID         uuid.NullUUID
+	OrderID           uuid.NullUUID
+	PaymentIntentRef  string
+	ChargeRef         pgtype.Text
+	AmountCents       int64
+	Currency          string
+	Status            string
+	GoenRequestKey    pgtype.Text
+	LocalRefundID     uuid.NullUUID
+	Allocation        string
+	NeedsReview       bool
+	FailureReason     pgtype.Text
+	ProviderUpdatedAt pgtype.Int8
+	LastEventID       string
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
 }
 
 type User struct {

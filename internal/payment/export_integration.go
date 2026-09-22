@@ -2,7 +2,10 @@
 
 package payment
 
-import "context"
+import (
+	"context"
+	"net/http"
+)
 
 // WebhookEvent exposes a verified provider event only to integration fixtures.
 type WebhookEvent = webhookEvent
@@ -19,4 +22,10 @@ func (s *Store) ProcessWebhook(
 	apply func(context.Context, *WebhookTx) error,
 ) (bool, error) {
 	return s.processWebhook(ctx, ev, apply)
+}
+
+// SetRefundTransport redirects the production refund client's HTTP boundary for
+// integration fixtures, retaining its timeout and zero-retry SDK configuration.
+func SetRefundTransport(g *Gateway, transport http.RoundTripper) {
+	g.refundHTTP.Transport = transport
 }

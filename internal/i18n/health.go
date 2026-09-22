@@ -97,6 +97,42 @@ var (
 		En:     "Refunds that have not gone through",
 	})
 
+	KeyAdminHPProviderRefundsHeading = key("admin.hp.providerrefunds.heading", Message{
+		ZhHant: "金流端退款待對帳",
+		En:     "Provider refunds needing review",
+	})
+
+	KeyAdminHPProviderRefundsNote = key("admin.hp.providerrefunds.note", Message{
+		ZhHant: "Dashboard 或金流端建立的退款,以及與本地紀錄不一致的更正,會列在這裡直到有人完成分攤。",
+		En: "Dashboard or provider-side refunds, and corrections that disagree with settled local rows, " +
+			"stay here until someone finishes allocation.",
+	})
+
+	KeyAdminHPProviderRefundsStuck = key("admin.hp.providerrefunds.stuck", Message{
+		ZhHant: "%d 筆金流端退款待對帳",
+		En:     "%d provider refunds need review",
+	})
+
+	KeyAdminOrderProviderRefundsHeading = key("admin.order.providerrefunds.heading", Message{
+		ZhHant: "金流端退款紀錄",
+		En:     "Provider refund facts",
+	})
+
+	KeyAdminOrderProviderRefundsExternal = key("admin.order.providerrefunds.external", Message{
+		ZhHant: "外部已退 %s",
+		En:     "%s refunded externally",
+	})
+
+	KeyAdminOrderProviderRefundsUnresolved = key("admin.order.providerrefunds.unresolved", Message{
+		ZhHant: "待對帳 %s",
+		En:     "%s awaiting allocation review",
+	})
+
+	KeyAdminOrderProviderRefundReview = key("admin.order.providerrefunds.review", Message{
+		ZhHant: "需對帳",
+		En:     "Needs review",
+	})
+
 	KeyAdminHPColProviderRef = key("admin.hp.col.providerref", Message{
 		ZhHant: "金流端編號",
 		En:     "Provider reference",

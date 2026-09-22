@@ -5967,6 +5967,43 @@ func (q *Queries) IdentitiesForUser(ctx context.Context, userID uuid.UUID) ([]Id
 	return items, nil
 }
 
+const ignoredRefundWebhookEvents = `-- name: IgnoredRefundWebhookEvents :many
+SELECT event_id, type, payload
+FROM payment_webhook_events
+WHERE provider = 'stripe'
+  AND processed_at IS NOT NULL
+  AND refund_reconciled_at IS NULL
+  AND type IN ('refund.created', 'refund.updated', 'refund.failed', 'charge.refunded')
+ORDER BY received_at
+LIMIT $1
+`
+
+type IgnoredRefundWebhookEventsRow struct {
+	EventID string
+	Type    string
+	Payload []byte
+}
+
+func (q *Queries) IgnoredRefundWebhookEvents(ctx context.Context, limit int32) ([]IgnoredRefundWebhookEventsRow, error) {
+	rows, err := q.db.Query(ctx, ignoredRefundWebhookEvents, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []IgnoredRefundWebhookEventsRow{}
+	for rows.Next() {
+		var i IgnoredRefundWebhookEventsRow
+		if err := rows.Scan(&i.EventID, &i.Type, &i.Payload); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertEligibilityAssessment = `-- name: InsertEligibilityAssessment :one
 INSERT INTO return_eligibility_assessments (
     order_id, return_request_id, version, assessed_by, basis
@@ -6950,6 +6987,17 @@ UPDATE outbox_messages SET delivered_at = now(), last_error = NULL WHERE id = $1
 func (q *Queries) MarkOutboxDelivered(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.Exec(ctx, markOutboxDelivered, id)
 	return err
+}
+
+const markRefundWebhookReconciled = `-- name: MarkRefundWebhookReconciled :one
+SELECT mark_refund_webhook_reconciled($1::text)
+`
+
+func (q *Queries) MarkRefundWebhookReconciled(ctx context.Context, dollar_1 string) (bool, error) {
+	row := q.db.QueryRow(ctx, markRefundWebhookReconciled, dollar_1)
+	var mark_refund_webhook_reconciled bool
+	err := row.Scan(&mark_refund_webhook_reconciled)
+	return mark_refund_webhook_reconciled, err
 }
 
 const markSessionVerified = `-- name: MarkSessionVerified :exec
@@ -8708,6 +8756,111 @@ func (q *Queries) PromoteHeroSlide(ctx context.Context, id uuid.UUID) (int64, er
 	return result.RowsAffected(), nil
 }
 
+const providerRefundFactsForOrder = `-- name: ProviderRefundFactsForOrder :many
+SELECT srf.provider_ref, srf.amount_cents, srf.status, srf.allocation,
+       srf.needs_review, srf.created_at
+FROM stripe_refund_facts srf
+WHERE srf.order_id = (
+    SELECT id FROM orders WHERE order_number = $1::text
+)
+ORDER BY srf.created_at, srf.provider_ref
+`
+
+type ProviderRefundFactsForOrderRow struct {
+	ProviderRef string
+	AmountCents int64
+	Status      string
+	Allocation  string
+	NeedsReview bool
+	CreatedAt   time.Time
+}
+
+// Provider refund facts attributed to one order, including external Dashboard
+// refunds and rows that still need allocation review.
+func (q *Queries) ProviderRefundFactsForOrder(ctx context.Context, orderNumber string) ([]ProviderRefundFactsForOrderRow, error) {
+	rows, err := q.db.Query(ctx, providerRefundFactsForOrder, orderNumber)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ProviderRefundFactsForOrderRow{}
+	for rows.Next() {
+		var i ProviderRefundFactsForOrderRow
+		if err := rows.Scan(
+			&i.ProviderRef,
+			&i.AmountCents,
+			&i.Status,
+			&i.Allocation,
+			&i.NeedsReview,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const providerRefundReviewCount = `-- name: ProviderRefundReviewCount :one
+SELECT count(*)::bigint FROM stripe_refund_facts WHERE needs_review
+`
+
+func (q *Queries) ProviderRefundReviewCount(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, providerRefundReviewCount)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const providerRefundsNeedingReview = `-- name: ProviderRefundsNeedingReview :many
+SELECT srf.provider_ref, srf.amount_cents, srf.status, srf.allocation,
+       coalesce(o.order_number, '')::text AS order_number, srf.created_at
+FROM stripe_refund_facts srf
+LEFT JOIN orders o ON o.id = srf.order_id
+WHERE srf.needs_review
+ORDER BY srf.created_at
+LIMIT $1
+`
+
+type ProviderRefundsNeedingReviewRow struct {
+	ProviderRef string
+	AmountCents int64
+	Status      string
+	Allocation  string
+	OrderNumber string
+	CreatedAt   time.Time
+}
+
+func (q *Queries) ProviderRefundsNeedingReview(ctx context.Context, limit int32) ([]ProviderRefundsNeedingReviewRow, error) {
+	rows, err := q.db.Query(ctx, providerRefundsNeedingReview, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ProviderRefundsNeedingReviewRow{}
+	for rows.Next() {
+		var i ProviderRefundsNeedingReviewRow
+		if err := rows.Scan(
+			&i.ProviderRef,
+			&i.AmountCents,
+			&i.Status,
+			&i.Allocation,
+			&i.OrderNumber,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const publishShippingVersion = `-- name: PublishShippingVersion :one
 INSERT INTO shipping_method_versions (method_id, name, carrier, name_en, carrier_en,
                                       fee_cents, free_over_cents)
@@ -8940,6 +9093,52 @@ func (q *Queries) ReconcileInvalidInvoiceAllowance(ctx context.Context, arg Reco
 	return refrozen_amount_cents, err
 }
 
+const reconcileStripeRefundWebhook = `-- name: ReconcileStripeRefundWebhook :one
+SELECT reconcile_stripe_refund_webhook(
+    $1::text,
+    $2::text,
+    $3::text,
+    $4::text,
+    $5::bigint,
+    $6::text,
+    $7::text,
+    $8::text,
+    $9::text,
+    $10::bigint
+)
+`
+
+type ReconcileStripeRefundWebhookParams struct {
+	EventID           string
+	ProviderRef       string
+	PaymentIntentRef  string
+	ChargeRef         string
+	AmountCents       int64
+	Currency          string
+	Status            string
+	RequestKey        string
+	FailureReason     string
+	ProviderUpdatedAt int64
+}
+
+func (q *Queries) ReconcileStripeRefundWebhook(ctx context.Context, arg ReconcileStripeRefundWebhookParams) (bool, error) {
+	row := q.db.QueryRow(ctx, reconcileStripeRefundWebhook,
+		arg.EventID,
+		arg.ProviderRef,
+		arg.PaymentIntentRef,
+		arg.ChargeRef,
+		arg.AmountCents,
+		arg.Currency,
+		arg.Status,
+		arg.RequestKey,
+		arg.FailureReason,
+		arg.ProviderUpdatedAt,
+	)
+	var reconcile_stripe_refund_webhook bool
+	err := row.Scan(&reconcile_stripe_refund_webhook)
+	return reconcile_stripe_refund_webhook, err
+}
+
 const recordAuditEvent = `-- name: RecordAuditEvent :one
 SELECT record_audit_event($1, $2::text, $3::text,
                           $4::uuid,
@@ -9158,6 +9357,20 @@ type RecordPaidEventParams struct {
 
 func (q *Queries) RecordPaidEvent(ctx context.Context, arg RecordPaidEventParams) error {
 	_, err := q.db.Exec(ctx, recordPaidEvent, arg.OrderID, arg.Note)
+	return err
+}
+
+const recordPaymentIntentLink = `-- name: RecordPaymentIntentLink :exec
+SELECT record_payment_intent_link($1::text, $2::text)
+`
+
+type RecordPaymentIntentLinkParams struct {
+	SessionRef       string
+	PaymentIntentRef string
+}
+
+func (q *Queries) RecordPaymentIntentLink(ctx context.Context, arg RecordPaymentIntentLinkParams) error {
+	_, err := q.db.Exec(ctx, recordPaymentIntentLink, arg.SessionRef, arg.PaymentIntentRef)
 	return err
 }
 
@@ -9501,6 +9714,38 @@ func (q *Queries) RefundExecution(ctx context.Context, refundID uuid.UUID) (Refu
 		&i.PaymentProviderRef,
 		&i.AmountCents,
 		&i.Status,
+	)
+	return i, err
+}
+
+const refundFactForReconciliation = `-- name: RefundFactForReconciliation :one
+SELECT provider_ref, payment_intent_ref, charge_ref, amount_cents, currency,
+       status, provider_updated_at
+FROM stripe_refund_facts
+WHERE provider_ref = $1
+`
+
+type RefundFactForReconciliationRow struct {
+	ProviderRef       string
+	PaymentIntentRef  string
+	ChargeRef         pgtype.Text
+	AmountCents       int64
+	Currency          string
+	Status            string
+	ProviderUpdatedAt pgtype.Int8
+}
+
+func (q *Queries) RefundFactForReconciliation(ctx context.Context, providerRef string) (RefundFactForReconciliationRow, error) {
+	row := q.db.QueryRow(ctx, refundFactForReconciliation, providerRef)
+	var i RefundFactForReconciliationRow
+	err := row.Scan(
+		&i.ProviderRef,
+		&i.PaymentIntentRef,
+		&i.ChargeRef,
+		&i.AmountCents,
+		&i.Currency,
+		&i.Status,
+		&i.ProviderUpdatedAt,
 	)
 	return i, err
 }

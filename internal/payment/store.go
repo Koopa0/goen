@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -13,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
+	stripe "github.com/stripe/stripe-go/v86"
 
 	"github.com/koopa0/goen/internal/db"
 )
@@ -28,10 +30,11 @@ type Store struct {
 // Its queries and every savepoint are bound to the same transaction. It is valid
 // only during the processWebhook callback and must not be retained.
 type webhookTx struct {
-	q         *db.Queries
-	tx        pgx.Tx
-	eventID   string
-	objectRef string
+	q             *db.Queries
+	tx            pgx.Tx
+	eventID       string
+	objectRef     string
+	refundLookups int
 }
 
 // NewStore returns a Store over pool.
@@ -341,6 +344,137 @@ func (w *webhookTx) postCapture(ctx context.Context, c Capture) error {
 	}
 	if err := sp.Commit(ctx); err != nil {
 		return fmt.Errorf("release the capture savepoint: %w", err)
+	}
+	return nil
+}
+
+// RecordPaymentIntentLink persists the PaymentIntent observed on a capture.
+func (w *webhookTx) RecordPaymentIntentLink(
+	ctx context.Context, sessionRef, paymentIntentRef string,
+) error {
+	if sessionRef == "" || paymentIntentRef == "" {
+		return nil
+	}
+	if err := w.q.RecordPaymentIntentLink(ctx, db.RecordPaymentIntentLinkParams{
+		SessionRef: sessionRef, PaymentIntentRef: paymentIntentRef,
+	}); err != nil {
+		return fmt.Errorf("record payment intent link for session %s: %w", sessionRef, err)
+	}
+	return nil
+}
+
+// ReconcileRefund applies one verified provider refund object.
+func (w *webhookTx) ReconcileRefund(ctx context.Context, eventID string, r ProviderRefund, gateway *Gateway) error {
+	// The same lock guards SQL reconciliation, so a lookup cannot be applied
+	// after another worker has replaced the fact it was resolving.
+	if err := w.q.LockPaymentProviderRef(ctx, r.ProviderRef); err != nil {
+		return fmt.Errorf("lock refund for reconciliation: %w", err)
+	}
+	r, err := w.resolveRefundConflict(ctx, r, gateway)
+	if err != nil {
+		return err
+	}
+
+	_, err = w.q.ReconcileStripeRefundWebhook(ctx, db.ReconcileStripeRefundWebhookParams{
+		EventID:           eventID,
+		ProviderRef:       r.ProviderRef,
+		PaymentIntentRef:  r.PaymentIntentRef,
+		ChargeRef:         r.ChargeRef,
+		AmountCents:       r.AmountCents,
+		Currency:          r.Currency,
+		Status:            string(r.Status),
+		RequestKey:        r.RequestKey,
+		FailureReason:     r.FailureReason,
+		ProviderUpdatedAt: r.ProviderUpdatedAt,
+	})
+	if err != nil {
+		return fmt.Errorf("reconcile refund %s from event %s: %w", r.ProviderRef, eventID, err)
+	}
+	return nil
+}
+
+func (w *webhookTx) resolveRefundConflict(ctx context.Context, r ProviderRefund, gateway *Gateway) (ProviderRefund, error) {
+	existing, err := w.q.RefundFactForReconciliation(ctx, r.ProviderRef)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return r, nil
+	}
+	if err != nil {
+		return ProviderRefund{}, fmt.Errorf("read refund for reconciliation: %w", err)
+	}
+	if !existing.ProviderUpdatedAt.Valid || existing.ProviderUpdatedAt.Int64 != r.ProviderUpdatedAt || existing.Status == string(r.Status) {
+		return r, nil
+	}
+	if !refundFactMatches(existing, r) || w.refundLookups >= maxRefundLookups {
+		return ProviderRefund{}, errRefundConflict
+	}
+	w.refundLookups++
+	return gateway.currentRefundStatus(ctx, r)
+}
+
+func refundFactMatches(existing db.RefundFactForReconciliationRow, r ProviderRefund) bool {
+	return existing.PaymentIntentRef == r.PaymentIntentRef && existing.AmountCents == r.AmountCents &&
+		strings.EqualFold(existing.Currency, r.Currency) &&
+		(!existing.ChargeRef.Valid || existing.ChargeRef.String == r.ChargeRef)
+}
+
+// MarkRefundWebhookReconciled records that a charge-level signal was seen.
+func (w *webhookTx) MarkRefundWebhookReconciled(ctx context.Context, eventID string) error {
+	if _, err := w.q.MarkRefundWebhookReconciled(ctx, eventID); err != nil {
+		return fmt.Errorf("mark refund webhook %s reconciled: %w", eventID, err)
+	}
+	return nil
+}
+
+// BackfillIgnoredRefundWebhooks replays stored refund events that were only
+// recorded before this binary knew how to reconcile them. It does not re-claim
+// the webhook row or repeat capture effects.
+func (s *Store) BackfillIgnoredRefundWebhooks(ctx context.Context, limit int32, gateway *Gateway) (int, error) {
+	rows, err := s.q.IgnoredRefundWebhookEvents(ctx, limit)
+	if err != nil {
+		return 0, fmt.Errorf("list ignored refund webhooks: %w", err)
+	}
+	applied := 0
+	for i := range rows {
+		row := &rows[i]
+		if err := s.backfillOneRefundWebhook(ctx, row, gateway); err != nil {
+			return applied, err
+		}
+		applied++
+	}
+	return applied, nil
+}
+
+func (s *Store) backfillOneRefundWebhook(ctx context.Context, row *db.IgnoredRefundWebhookEventsRow, gateway *Gateway) error {
+	ctx, cancel := context.WithTimeout(ctx, RefundReconcileBudget)
+	defer cancel()
+	var ev stripe.Event
+	if err := json.Unmarshal(row.Payload, &ev); err != nil {
+		return nil
+	}
+	ev.Type = stripe.EventType(row.Type)
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin refund backfill: %w", err)
+	}
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
+	webhook := &webhookTx{q: s.q.WithTx(tx), tx: tx, eventID: row.EventID}
+	var reconcileErr error
+	if refund, ok := RefundFrom(&ev); ok {
+		reconcileErr = webhook.ReconcileRefund(ctx, row.EventID, refund, gateway)
+	} else if refunds, ok := RefundsFromCharge(&ev); ok && len(refunds) > 0 {
+		for j := range refunds {
+			if reconcileErr = webhook.ReconcileRefund(ctx, row.EventID, refunds[j], gateway); reconcileErr != nil {
+				break
+			}
+		}
+	} else {
+		reconcileErr = webhook.MarkRefundWebhookReconciled(ctx, row.EventID)
+	}
+	if reconcileErr != nil {
+		return reconcileErr
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit refund backfill: %w", err)
 	}
 	return nil
 }

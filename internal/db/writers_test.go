@@ -119,6 +119,8 @@ func TestEveryTableIsRead(t *testing.T) {
 			"thing that may touch it — a per-day counter under a row lock",
 		"loyalty_redemption_operations": "private idempotency state read and locked " +
 			"inside redeem_loyalty_points; the application query invokes that one door",
+		"payment_intent_links": "read inside reconcile_stripe_refund_webhook when " +
+			"attributing a provider refund to the captured payment",
 		"stock_notifications": "ClaimRestockNotices reads each claimed row through " +
 			"UPDATE ... RETURNING; this guard recognizes FROM/JOIN reads, not a writer's RETURNING set",
 	}

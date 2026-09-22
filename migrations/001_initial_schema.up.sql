@@ -3792,6 +3792,307 @@ CREATE INDEX payment_webhook_events_unprocessed_idx
     WHERE processed_at IS NULL;
 CREATE INDEX payment_webhook_events_object_idx ON payment_webhook_events (object_ref);
 
+-- When a refund webhook is acted on, distinct from processed_at on events that
+-- were only recorded before this binary knew how to reconcile them.
+ALTER TABLE payment_webhook_events
+    ADD COLUMN refund_reconciled_at timestamptz;
+
+CREATE INDEX payment_webhook_events_refund_backfill_idx
+    ON payment_webhook_events (received_at)
+    WHERE refund_reconciled_at IS NULL
+      AND processed_at IS NOT NULL
+      AND type IN ('refund.created', 'refund.updated', 'refund.failed',
+                   'charge.refunded');
+
+-- Maps a Stripe PaymentIntent to the local payment row opened for its Checkout
+-- Session. Populated at capture from the webhook payload; refund events carry
+-- payment_intent, not session id.
+CREATE TABLE payment_intent_links (
+    payment_intent_ref text PRIMARY KEY,
+    payment_id         uuid NOT NULL REFERENCES payments (id) ON DELETE RESTRICT,
+    session_ref        text NOT NULL,
+    created_at         timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT payment_intent_links_ref_valid CHECK (
+        char_length(payment_intent_ref) BETWEEN 1 AND 255
+        AND payment_intent_ref !~ '[[:space:][:cntrl:]]'
+    ),
+    CONSTRAINT payment_intent_links_session_valid CHECK (
+        char_length(session_ref) BETWEEN 1 AND 255
+        AND session_ref !~ '[[:space:][:cntrl:]]'
+    )
+);
+
+CREATE INDEX payment_intent_links_payment_id_idx ON payment_intent_links (payment_id);
+
+-- Provider refund objects observed through webhooks, distinct from return-linked
+-- refund rows. External Dashboard refunds and late corrections land here even
+-- when no local return allocation exists yet.
+CREATE TABLE stripe_refund_facts (
+    provider_ref         text PRIMARY KEY,
+    payment_id           uuid REFERENCES payments (id) ON DELETE RESTRICT,
+    order_id             uuid REFERENCES orders (id) ON DELETE RESTRICT,
+    payment_intent_ref   text NOT NULL,
+    charge_ref           text,
+    amount_cents         bigint NOT NULL,
+    currency             text NOT NULL DEFAULT 'TWD',
+    status               text NOT NULL,
+    goen_request_key     text,
+    local_refund_id      uuid REFERENCES refunds (id) ON DELETE RESTRICT,
+    allocation           text NOT NULL,
+    needs_review         boolean NOT NULL DEFAULT false,
+    failure_reason       text,
+    provider_updated_at  bigint,
+    last_event_id        text NOT NULL,
+    created_at           timestamptz NOT NULL DEFAULT now(),
+    updated_at           timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT stripe_refund_facts_ref_valid CHECK (
+        char_length(provider_ref) BETWEEN 1 AND 255
+        AND provider_ref !~ '[[:space:][:cntrl:]]'
+    ),
+    CONSTRAINT stripe_refund_facts_intent_valid CHECK (
+        char_length(payment_intent_ref) BETWEEN 1 AND 255
+        AND payment_intent_ref !~ '[[:space:][:cntrl:]]'
+    ),
+    CONSTRAINT stripe_refund_facts_charge_valid CHECK (
+        charge_ref IS NULL OR (
+            char_length(charge_ref) BETWEEN 1 AND 255
+            AND charge_ref !~ '[[:space:][:cntrl:]]'
+        )
+    ),
+    CONSTRAINT stripe_refund_facts_status_known CHECK (
+        status IN ('pending', 'requires_action', 'succeeded', 'failed', 'cancelled')
+    ),
+    CONSTRAINT stripe_refund_facts_allocation_known CHECK (
+        allocation IN ('linked', 'external', 'unattributed', 'review_required')
+    ),
+    CONSTRAINT stripe_refund_facts_amount_positive CHECK (amount_cents > 0),
+    CONSTRAINT stripe_refund_facts_amount_in_range CHECK (amount_cents <= 10000000000),
+    CONSTRAINT stripe_refund_facts_currency_is_twd CHECK (currency = 'TWD'),
+    CONSTRAINT stripe_refund_facts_event_valid CHECK (
+        char_length(last_event_id) BETWEEN 1 AND 255
+        AND last_event_id !~ '[[:space:][:cntrl:]]'
+    )
+);
+
+CREATE INDEX stripe_refund_facts_order_id_idx ON stripe_refund_facts (order_id);
+CREATE INDEX stripe_refund_facts_payment_id_idx ON stripe_refund_facts (payment_id);
+CREATE INDEX stripe_refund_facts_local_refund_id_idx ON stripe_refund_facts (local_refund_id);
+CREATE INDEX stripe_refund_facts_review_idx
+    ON stripe_refund_facts (updated_at)
+    WHERE needs_review;
+
+CREATE TRIGGER stripe_refund_facts_set_updated_at
+    BEFORE UPDATE ON stripe_refund_facts
+    FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+-- Record the PaymentIntent observed on a captured Checkout Session.
+CREATE FUNCTION record_payment_intent_link(
+    p_session_ref text,
+    p_payment_intent_ref text
+) RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE
+    v_payment_id uuid;
+BEGIN
+    IF p_session_ref IS NULL OR p_payment_intent_ref IS NULL THEN
+        RETURN;
+    END IF;
+    SELECT id INTO v_payment_id
+    FROM payments
+    WHERE provider = 'stripe' AND provider_ref = p_session_ref;
+    IF NOT FOUND THEN
+        RETURN;
+    END IF;
+    INSERT INTO payment_intent_links (payment_intent_ref, payment_id, session_ref)
+    VALUES (p_payment_intent_ref, v_payment_id, p_session_ref)
+    ON CONFLICT (payment_intent_ref) DO NOTHING;
+END;
+$$;
+
+-- Apply a verified refund webhook. Returns true when durable facts changed.
+CREATE FUNCTION reconcile_stripe_refund_webhook(
+    p_event_id text,
+    p_provider_ref text,
+    p_payment_intent_ref text,
+    p_charge_ref text,
+    p_amount_cents bigint,
+    p_currency text,
+    p_status text,
+    p_request_key text,
+    p_failure_reason text,
+    p_provider_updated_at bigint
+) RETURNS boolean
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE
+    v_existing stripe_refund_facts%ROWTYPE;
+    v_payment_id uuid;
+    v_order_id uuid;
+    v_local_refund refunds%ROWTYPE;
+    v_local_refund_id uuid;
+    v_allocation text;
+    v_needs_review boolean := false;
+    v_apply_local boolean := false;
+    v_changed boolean := false;
+BEGIN
+    v_local_refund_id := NULL;
+    IF p_provider_ref IS NULL OR p_amount_cents IS NULL OR p_amount_cents <= 0 THEN
+        RAISE EXCEPTION 'refund webhook needs a provider object and positive amount'
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'stripe_refund_facts_shape';
+    END IF;
+    IF p_status NOT IN ('pending', 'requires_action', 'succeeded', 'failed', 'cancelled') THEN
+        RAISE EXCEPTION 'unknown refund provider status %', p_status
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'stripe_refund_facts_status_known';
+    END IF;
+    IF p_payment_intent_ref IS NULL THEN
+        RAISE EXCEPTION 'refund webhook needs a payment intent reference'
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'stripe_refund_facts_intent_valid';
+    END IF;
+
+    PERFORM lock_payment_provider_ref('stripe', p_provider_ref);
+
+    SELECT * INTO v_existing
+    FROM stripe_refund_facts
+    WHERE provider_ref = p_provider_ref
+    FOR UPDATE;
+
+    IF FOUND THEN
+        -- Event creation, not refund creation, orders distinct snapshots.
+        IF v_existing.provider_updated_at IS NOT NULL
+           AND p_provider_updated_at IS NOT NULL
+           AND p_provider_updated_at < v_existing.provider_updated_at THEN
+            UPDATE payment_webhook_events
+            SET refund_reconciled_at = now()
+            WHERE provider = 'stripe' AND event_id = p_event_id
+              AND refund_reconciled_at IS NULL;
+            RETURN false;
+        END IF;
+        IF v_existing.status IN ('succeeded', 'failed', 'cancelled')
+           AND v_existing.status = p_status
+           AND v_existing.amount_cents = p_amount_cents THEN
+            -- An unchanged newer observation still supersedes intervening events.
+            UPDATE stripe_refund_facts
+            SET provider_updated_at = greatest(provider_updated_at, p_provider_updated_at),
+                last_event_id = p_event_id
+            WHERE provider_ref = p_provider_ref;
+            UPDATE payment_webhook_events
+            SET refund_reconciled_at = now()
+            WHERE provider = 'stripe' AND event_id = p_event_id
+              AND refund_reconciled_at IS NULL;
+            RETURN false;
+        END IF;
+        IF v_existing.status IN ('succeeded', 'failed', 'cancelled')
+           AND v_existing.status IS DISTINCT FROM p_status THEN
+            v_needs_review := true;
+        END IF;
+    END IF;
+
+    SELECT pil.payment_id, p.order_id
+    INTO v_payment_id, v_order_id
+    FROM payment_intent_links pil
+    JOIN payments p ON p.id = pil.payment_id
+    WHERE pil.payment_intent_ref = p_payment_intent_ref;
+
+    IF p_request_key IS NOT NULL AND p_request_key <> '' THEN
+        SELECT rf.* INTO v_local_refund
+        FROM refunds rf
+        WHERE rf.request_key = p_request_key
+        FOR UPDATE;
+        IF FOUND THEN
+            v_local_refund_id := v_local_refund.id;
+            v_payment_id := v_local_refund.payment_id;
+            SELECT order_id INTO v_order_id FROM payments WHERE id = v_payment_id;
+            v_allocation := 'linked';
+            IF v_local_refund.status IN ('succeeded', 'failed', 'cancelled') THEN
+                IF v_local_refund.status IS DISTINCT FROM p_status THEN
+                    v_needs_review := true;
+                    v_apply_local := false;
+                END IF;
+            ELSE
+                v_apply_local := true;
+            END IF;
+        END IF;
+    END IF;
+
+    IF v_allocation IS NULL THEN
+        IF v_payment_id IS NOT NULL THEN
+            v_allocation := 'external';
+        ELSE
+            v_allocation := 'unattributed';
+            v_needs_review := true;
+        END IF;
+    END IF;
+
+    IF v_apply_local AND v_local_refund.id IS NOT NULL THEN
+        PERFORM 1 FROM payments WHERE id = v_local_refund.payment_id FOR UPDATE;
+        IF v_local_refund.provider_ref IS NULL
+           OR (v_local_refund.provider_ref = p_provider_ref
+               AND v_local_refund.status NOT IN ('succeeded', 'failed', 'cancelled')) THEN
+            UPDATE refunds
+            SET status = p_status,
+                provider_ref = coalesce(provider_ref, p_provider_ref),
+                succeeded_at = CASE WHEN p_status = 'succeeded' THEN now()
+                                    ELSE succeeded_at END,
+                failed_at = CASE WHEN p_status = 'failed' THEN now()
+                                 ELSE failed_at END
+            WHERE id = v_local_refund.id;
+            v_changed := true;
+        END IF;
+    END IF;
+
+    INSERT INTO stripe_refund_facts (
+        provider_ref, payment_id, order_id, payment_intent_ref, charge_ref,
+        amount_cents, currency, status, goen_request_key, local_refund_id,
+        allocation, needs_review, failure_reason, provider_updated_at, last_event_id
+    ) VALUES (
+        p_provider_ref, v_payment_id, v_order_id, p_payment_intent_ref,
+        nullif(p_charge_ref, ''),
+        p_amount_cents, coalesce(upper(p_currency), 'TWD'), p_status,
+        nullif(p_request_key, ''), v_local_refund_id, v_allocation, v_needs_review,
+        nullif(p_failure_reason, ''), p_provider_updated_at, p_event_id
+    )
+    ON CONFLICT (provider_ref) DO UPDATE SET
+        payment_id = coalesce(EXCLUDED.payment_id, stripe_refund_facts.payment_id),
+        order_id = coalesce(EXCLUDED.order_id, stripe_refund_facts.order_id),
+        payment_intent_ref = EXCLUDED.payment_intent_ref,
+        charge_ref = coalesce(EXCLUDED.charge_ref, stripe_refund_facts.charge_ref),
+        amount_cents = EXCLUDED.amount_cents,
+        currency = EXCLUDED.currency,
+        status = EXCLUDED.status,
+        goen_request_key = coalesce(EXCLUDED.goen_request_key, stripe_refund_facts.goen_request_key),
+        local_refund_id = coalesce(EXCLUDED.local_refund_id, stripe_refund_facts.local_refund_id),
+        allocation = EXCLUDED.allocation,
+        needs_review = stripe_refund_facts.needs_review OR EXCLUDED.needs_review,
+        failure_reason = coalesce(EXCLUDED.failure_reason, stripe_refund_facts.failure_reason),
+        provider_updated_at = coalesce(EXCLUDED.provider_updated_at,
+                                       stripe_refund_facts.provider_updated_at),
+        last_event_id = EXCLUDED.last_event_id,
+        updated_at = now();
+
+    v_changed := true;
+
+    UPDATE payment_webhook_events
+    SET refund_reconciled_at = now()
+    WHERE provider = 'stripe' AND event_id = p_event_id
+      AND refund_reconciled_at IS NULL;
+
+    RETURN v_changed;
+END;
+$$;
+
+CREATE FUNCTION mark_refund_webhook_reconciled(p_event_id text) RETURNS boolean
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+BEGIN
+    UPDATE payment_webhook_events
+    SET refund_reconciled_at = now()
+    WHERE provider = 'stripe' AND event_id = p_event_id
+      AND refund_reconciled_at IS NULL;
+    RETURN FOUND;
+END;
+$$;
+
 -- ============================================================================
 -- Outbox
 --
@@ -4573,7 +4874,8 @@ REVOKE INSERT, UPDATE, DELETE ON
     FROM store;
 REVOKE ALL ON invoice_operations FROM store;
 REVOKE INSERT, UPDATE, DELETE ON product_variants FROM store;
-REVOKE INSERT, UPDATE, DELETE ON payments, refunds FROM store;
+REVOKE INSERT, UPDATE, DELETE ON payments, refunds,
+    payment_intent_links, stripe_refund_facts FROM store;
 REVOKE INSERT, UPDATE, DELETE ON order_number_counters FROM store;
 REVOKE UPDATE, DELETE, TRUNCATE ON invoice_document_lines FROM store;
 -- UPDATE would repoint a whole balance at another user. DELETE is deleting a
@@ -4965,7 +5267,8 @@ REVOKE INSERT, UPDATE, DELETE ON
     inventory_movements, inventory_reservations, audit_events, store_credit_entries
     FROM admin;
 REVOKE INSERT, UPDATE, DELETE ON invoice_operations FROM admin;
-REVOKE INSERT, UPDATE, DELETE ON payments, refunds FROM admin;
+REVOKE INSERT, UPDATE, DELETE ON payments, refunds,
+    payment_intent_links, stripe_refund_facts FROM admin;
 REVOKE INSERT, UPDATE, DELETE ON order_number_counters FROM admin;
 REVOKE UPDATE, DELETE, TRUNCATE ON invoice_document_lines FROM admin;
 REVOKE UPDATE, DELETE ON store_credit_accounts FROM admin;
@@ -6934,6 +7237,11 @@ GRANT EXECUTE ON FUNCTION record_expired_payment(uuid, text, bigint) TO store;
 GRANT EXECUTE ON FUNCTION record_complete_payment(uuid, text, bigint) TO store;
 GRANT EXECUTE ON FUNCTION cancel_payment(text) TO store;
 GRANT EXECUTE ON FUNCTION mark_payment_event_unreconciled(text, text) TO store;
+GRANT EXECUTE ON FUNCTION record_payment_intent_link(text, text) TO store;
+GRANT EXECUTE ON FUNCTION reconcile_stripe_refund_webhook(
+    text, text, text, text, bigint, text, text, text, text, bigint
+) TO store;
+GRANT EXECUTE ON FUNCTION mark_refund_webhook_reconciled(text) TO store;
 GRANT EXECUTE ON FUNCTION lock_payment_provider_ref(text, text) TO store;
 GRANT EXECUTE ON FUNCTION lock_cart_catalogue(uuid) TO store;
 GRANT EXECUTE ON FUNCTION lock_user_for_cart_adoption(uuid) TO store;

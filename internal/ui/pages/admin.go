@@ -178,6 +178,12 @@ type AdminOrderView struct {
 	InvoicingEnabled bool
 	// RefundedCents is what has actually gone back, and what a 折讓 relieves.
 	RefundedCents int64
+	// ProviderRefunds are Stripe-side refund facts attributed to this order.
+	ProviderRefunds []AdminProviderRefundFact
+	// ExternalRefundCents is provider money back without a linked return payout.
+	ExternalRefundCents int64
+	// UnresolvedRefundCents is attributed provider money still needing allocation.
+	UnresolvedRefundCents int64
 	// AllowanceOperationID identifies one rendered allowance form across HTTP
 	// retries without collapsing a later, legitimate equal partial allowance.
 	AllowanceOperationID string
@@ -209,6 +215,19 @@ type AdminDelivery struct {
 	PickupStoreCode string
 	PickupStoreName string
 }
+
+// AdminProviderRefundFact is one Stripe refund fact on an order page.
+type AdminProviderRefundFact struct {
+	ProviderRef string
+	AmountCents int64
+	Status      string
+	Allocation  string
+	NeedsReview bool
+	CreatedAt   string
+}
+
+// Amount formats the provider refund.
+func (f AdminProviderRefundFact) Amount() string { return twd(f.AmountCents) }
 
 // AdminOrderEvent is one step in an order's history, as the shop sees it.
 type AdminOrderEvent struct {

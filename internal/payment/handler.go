@@ -37,8 +37,11 @@ func webhookUnreconciled(cause webhookUnreconciledCause, detail string) string {
 }
 
 type webhookOutcome struct {
+	gateway             *Gateway
 	event               *stripe.Event
 	capture             Capture
+	refund              ProviderRefund
+	chargeRefunds       []ProviderRefund
 	readState           webhookReadState
 	abandonedSession    string
 	unsettledSession    string
@@ -46,6 +49,8 @@ type webhookOutcome struct {
 	isAbandoned         bool
 	isCapture           bool
 	isUnsettled         bool
+	isRefund            bool
+	isChargeRefunded    bool
 	cancelledOrder      bool
 	unattributedCapture bool
 	refusedCapture      bool
@@ -412,14 +417,24 @@ func (h *Handler) Webhook(w http.ResponseWriter, r *http.Request) {
 	capture, isCapture := CaptureFrom(&ev)
 	abandonedSession, isAbandoned := AbandonedSessionFrom(&ev)
 	unsettledSession, isUnsettled := UnsettledSessionFrom(&ev)
+	refund, isRefund := RefundFrom(&ev)
+	chargeRefunds, isChargeRefunded := RefundsFromCharge(&ev)
+	understood := isCapture || isAbandoned || isUnsettled || isRefund || isChargeRefunded
 	outcome := &webhookOutcome{
-		event: &ev, capture: capture,
-		readState:        classifyWebhook(&ev, isCapture || isAbandoned || isUnsettled),
+		gateway: h.gateway, event: &ev, capture: capture, refund: refund, chargeRefunds: chargeRefunds,
+		readState:        classifyWebhook(&ev, understood),
 		abandonedSession: abandonedSession, unsettledSession: unsettledSession,
 		isAbandoned: isAbandoned, isCapture: isCapture, isUnsettled: isUnsettled,
+		isRefund: isRefund, isChargeRefunded: isChargeRefunded,
 	}
 
-	claimed, err := h.store.processWebhook(r.Context(), &webhookEvent{
+	ctx := r.Context()
+	if isRefund || isChargeRefunded {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, RefundReconcileBudget)
+		defer cancel()
+	}
+	claimed, err := h.store.processWebhook(ctx, &webhookEvent{
 		ID: ev.ID, Type: string(ev.Type), ObjectRef: ObjectRef(&ev), Payload: body,
 	}, outcome.apply())
 	switch {
@@ -436,7 +451,7 @@ func (h *Handler) Webhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.logWebhookOutcome(r.Context(), *outcome)
+	h.logWebhookOutcome(r.Context(), outcome)
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -466,48 +481,67 @@ func (o *webhookOutcome) apply() func(context.Context, *webhookTx) error {
 				"a delayed payment method completed a checkout — goen's stock hold cannot outlive it"))
 		}
 	case o.isCapture:
+		return o.captureEffect()
+	case o.isRefund:
 		return func(ctx context.Context, tx *webhookTx) error {
-			n, captureErr := tx.Capture(ctx, o.capture)
-			if errors.Is(captureErr, ErrOrderCancelled) {
-				// Swallowed inside the transaction: returning would roll the
-				// claim back and lose the only record that money arrived. The
-				// event is marked UNRECONCILED in that same transaction — the
-				// money is at Stripe, the goods are back on the shelf, and
-				// somebody has to refund it by hand.
-				o.cancelledOrder = true
-				o.number = n
-				return tx.Unreconciled(ctx, webhookUnreconciled(
-					webhookCancelledOrderCapture,
-					"money arrived for an order that was already cancelled"))
-			}
-			if errors.Is(captureErr, ErrNotFound) {
-				// CaptureFrom already established that this is a paid, positive
-				// Checkout Session. There is no order to guess: keep the 200 so the
-				// same unresolvable bytes are not retried, and leave the session id
-				// in object_ref for the person who must find the money at Stripe.
-				o.unattributedCapture = true
-				return tx.Unreconciled(ctx, webhookUnreconciled(
-					webhookUnattributedCapture,
-					"a paid Checkout Session has no payment row to attribute it to"))
-			}
-			if errors.Is(captureErr, errCaptureRefused) {
-				// Stripe has already reported this session paid. A stable amount,
-				// state, or schema invariant rejected it locally; retries carry the
-				// same facts and cannot heal it. Preserve the reason in the event
-				// transaction so admin health has something durable to act on.
-				o.refusedCapture = true
-				o.number = n
-				return tx.Unreconciled(ctx, webhookUnreconciled(
-					webhookRefusedCapture, captureErr.Error()))
-			}
-			o.number = n
-			return captureErr
+			return tx.ReconcileRefund(ctx, o.event.ID, o.refund, o.gateway)
 		}
+	case o.isChargeRefunded:
+		return o.chargeRefundEffect()
 	}
 	return nil
 }
 
-func (h *Handler) logWebhookOutcome(ctx context.Context, outcome webhookOutcome) {
+func (o *webhookOutcome) captureEffect() func(context.Context, *webhookTx) error {
+	return func(ctx context.Context, tx *webhookTx) error {
+		n, captureErr := tx.Capture(ctx, o.capture)
+		if errors.Is(captureErr, ErrOrderCancelled) {
+			o.cancelledOrder = true
+			o.number = n
+			return tx.Unreconciled(ctx, webhookUnreconciled(
+				webhookCancelledOrderCapture,
+				"money arrived for an order that was already cancelled"))
+		}
+		if errors.Is(captureErr, ErrNotFound) {
+			o.unattributedCapture = true
+			return tx.Unreconciled(ctx, webhookUnreconciled(
+				webhookUnattributedCapture,
+				"a paid Checkout Session has no payment row to attribute it to"))
+		}
+		if errors.Is(captureErr, errCaptureRefused) {
+			o.refusedCapture = true
+			o.number = n
+			return tx.Unreconciled(ctx, webhookUnreconciled(
+				webhookRefusedCapture, captureErr.Error()))
+		}
+		if captureErr != nil {
+			return captureErr
+		}
+		o.number = n
+		if intentRef, ok := PaymentIntentFromCapture(o.event); ok {
+			if linkErr := tx.RecordPaymentIntentLink(ctx, o.capture.SessionID, intentRef); linkErr != nil {
+				return linkErr
+			}
+		}
+		return nil
+	}
+}
+
+func (o *webhookOutcome) chargeRefundEffect() func(context.Context, *webhookTx) error {
+	return func(ctx context.Context, tx *webhookTx) error {
+		for i := range o.chargeRefunds {
+			if err := tx.ReconcileRefund(ctx, o.event.ID, o.chargeRefunds[i], o.gateway); err != nil {
+				return err
+			}
+		}
+		if len(o.chargeRefunds) == 0 {
+			return tx.MarkRefundWebhookReconciled(ctx, o.event.ID)
+		}
+		return nil
+	}
+}
+
+func (h *Handler) logWebhookOutcome(ctx context.Context, outcome *webhookOutcome) {
 	ev := outcome.event
 	switch {
 	case outcome.isAbandoned:
@@ -529,6 +563,13 @@ func (h *Handler) logWebhookOutcome(ctx context.Context, outcome webhookOutcome)
 	case outcome.isCapture:
 		h.log.InfoContext(ctx, "payment captured",
 			"order", outcome.number, "event", ev.ID, "amount_cents", outcome.capture.AmountRecv)
+	case outcome.isRefund:
+		h.log.InfoContext(ctx, "provider refund reconciled",
+			"event", ev.ID, "refund", outcome.refund.ProviderRef,
+			"amount_cents", outcome.refund.AmountCents, "status", outcome.refund.Status)
+	case outcome.isChargeRefunded:
+		h.log.InfoContext(ctx, "charge refund signal reconciled",
+			"event", ev.ID, "refunds", len(outcome.chargeRefunds))
 	case outcome.isUnsettled:
 		// ERROR because the session pins card: this is a configuration change.
 		h.log.ErrorContext(ctx,

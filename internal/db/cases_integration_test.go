@@ -1359,6 +1359,61 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 		accept:     `INSERT INTO refunds (id, payment_id, request_key, provider_ref, status, amount_cents, succeeded_at) VALUES ('11110003-0000-4000-8000-00000000000c','77770001-0000-4000-8000-000000000000','rk-acc-sht','re_sht_accept','succeeded',100000,now());`,
 	},
 	{
+		constraint: "payment_intent_links_ref_valid",
+		reject:     `INSERT INTO payment_intent_links (payment_intent_ref, payment_id, session_ref) VALUES (repeat('p', 256), '77770001-0000-4000-8000-000000000000', 'cs_valid');`,
+		accept:     `INSERT INTO payment_intent_links (payment_intent_ref, payment_id, session_ref) VALUES ('pi_links_acc', '77770001-0000-4000-8000-000000000000', 'cs_valid');`,
+	},
+	{
+		constraint: "payment_intent_links_session_valid",
+		reject:     `INSERT INTO payment_intent_links (payment_intent_ref, payment_id, session_ref) VALUES ('pi_links_sess_rej', '77770001-0000-4000-8000-000000000000', repeat('s', 256));`,
+		accept:     `INSERT INTO payment_intent_links (payment_intent_ref, payment_id, session_ref) VALUES ('pi_links_sess_acc', '77770001-0000-4000-8000-000000000000', 'cs_valid2');`,
+	},
+	{
+		constraint: "stripe_refund_facts_ref_valid",
+		reject:     `INSERT INTO stripe_refund_facts (provider_ref, payment_intent_ref, amount_cents, status, allocation, last_event_id) VALUES (repeat('r', 256), 'pi_facts', 100, 'pending', 'external', 'evt_facts');`,
+		accept:     `INSERT INTO stripe_refund_facts (provider_ref, payment_intent_ref, amount_cents, status, allocation, last_event_id) VALUES ('re_facts_acc', 'pi_facts', 100, 'pending', 'external', 'evt_facts');`,
+	},
+	{
+		constraint: "stripe_refund_facts_intent_valid",
+		reject:     `INSERT INTO stripe_refund_facts (provider_ref, payment_intent_ref, amount_cents, status, allocation, last_event_id) VALUES ('re_facts_int_rej', repeat('p', 256), 100, 'pending', 'external', 'evt_facts');`,
+		accept:     `INSERT INTO stripe_refund_facts (provider_ref, payment_intent_ref, amount_cents, status, allocation, last_event_id) VALUES ('re_facts_int_acc', 'pi_facts2', 100, 'pending', 'external', 'evt_facts2');`,
+	},
+	{
+		constraint: "stripe_refund_facts_charge_valid",
+		reject:     `INSERT INTO stripe_refund_facts (provider_ref, payment_intent_ref, charge_ref, amount_cents, status, allocation, last_event_id) VALUES ('re_facts_ch_rej', 'pi_facts3', repeat('c', 256), 100, 'pending', 'external', 'evt_facts3');`,
+		accept:     `INSERT INTO stripe_refund_facts (provider_ref, payment_intent_ref, charge_ref, amount_cents, status, allocation, last_event_id) VALUES ('re_facts_ch_acc', 'pi_facts3', 'ch_valid', 100, 'pending', 'external', 'evt_facts3');`,
+	},
+	{
+		constraint: "stripe_refund_facts_status_known",
+		reject:     `INSERT INTO stripe_refund_facts (provider_ref, payment_intent_ref, amount_cents, status, allocation, last_event_id) VALUES ('re_facts_st_rej', 'pi_facts4', 100, 'processing', 'external', 'evt_facts4');`,
+		accept:     `INSERT INTO stripe_refund_facts (provider_ref, payment_intent_ref, amount_cents, status, allocation, last_event_id) VALUES ('re_facts_st_acc', 'pi_facts4', 100, 'pending', 'external', 'evt_facts4');`,
+	},
+	{
+		constraint: "stripe_refund_facts_allocation_known",
+		reject:     `INSERT INTO stripe_refund_facts (provider_ref, payment_intent_ref, amount_cents, status, allocation, last_event_id) VALUES ('re_facts_al_rej', 'pi_facts5', 100, 'pending', 'invented', 'evt_facts5');`,
+		accept:     `INSERT INTO stripe_refund_facts (provider_ref, payment_intent_ref, amount_cents, status, allocation, last_event_id) VALUES ('re_facts_al_acc', 'pi_facts5', 100, 'pending', 'external', 'evt_facts5');`,
+	},
+	{
+		constraint: "stripe_refund_facts_amount_positive",
+		reject:     `INSERT INTO stripe_refund_facts (provider_ref, payment_intent_ref, amount_cents, status, allocation, last_event_id) VALUES ('re_facts_am_rej', 'pi_facts6', 0, 'pending', 'external', 'evt_facts6');`,
+		accept:     `INSERT INTO stripe_refund_facts (provider_ref, payment_intent_ref, amount_cents, status, allocation, last_event_id) VALUES ('re_facts_am_acc', 'pi_facts6', 1, 'pending', 'external', 'evt_facts6');`,
+	},
+	{
+		constraint: "stripe_refund_facts_amount_in_range",
+		reject:     `INSERT INTO stripe_refund_facts (provider_ref, payment_intent_ref, amount_cents, status, allocation, last_event_id) VALUES ('re_facts_rng_rej', 'pi_facts7', 10000000001, 'pending', 'external', 'evt_facts7');`,
+		accept:     `INSERT INTO stripe_refund_facts (provider_ref, payment_intent_ref, amount_cents, status, allocation, last_event_id) VALUES ('re_facts_rng_acc', 'pi_facts7', 10000000000, 'pending', 'external', 'evt_facts7');`,
+	},
+	{
+		constraint: "stripe_refund_facts_currency_is_twd",
+		reject:     `INSERT INTO stripe_refund_facts (provider_ref, payment_intent_ref, amount_cents, currency, status, allocation, last_event_id) VALUES ('re_facts_cur_rej', 'pi_facts8', 100, 'USD', 'pending', 'external', 'evt_facts8');`,
+		accept:     `INSERT INTO stripe_refund_facts (provider_ref, payment_intent_ref, amount_cents, currency, status, allocation, last_event_id) VALUES ('re_facts_cur_acc', 'pi_facts8', 100, 'TWD', 'pending', 'external', 'evt_facts8');`,
+	},
+	{
+		constraint: "stripe_refund_facts_event_valid",
+		reject:     `INSERT INTO stripe_refund_facts (provider_ref, payment_intent_ref, amount_cents, status, allocation, last_event_id) VALUES ('re_facts_ev_rej', 'pi_facts9', 100, 'pending', 'external', repeat('e', 256));`,
+		accept:     `INSERT INTO stripe_refund_facts (provider_ref, payment_intent_ref, amount_cents, status, allocation, last_event_id) VALUES ('re_facts_ev_acc', 'pi_facts9', 100, 'pending', 'external', 'evt_facts9');`,
+	},
+	{
 		constraint: "return_request_lines_quantity_positive",
 		reject:     `INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity) VALUES ('66666666-6666-4666-8666-666666666666', '88880001-0000-4000-8000-000000000000', '66660003-0000-4000-8000-000000000000', 0);`,
 		accept:     `INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity) VALUES ('66666666-6666-4666-8666-666666666666', '88880001-0000-4000-8000-000000000000', '66660003-0000-4000-8000-000000000000', 1);`,
