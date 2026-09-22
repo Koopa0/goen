@@ -50,3 +50,38 @@ func TestSoldOutGuidanceMatchesAvailableOptionPickers(t *testing.T) {
 		}
 	}
 }
+
+func TestWishlistUsesSignInNavigationUntilAuthenticated(t *testing.T) {
+	t.Parallel()
+	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+		for _, signedIn := range []bool{false, true} {
+			for _, saved := range []bool{false, true} {
+				ctx := i18n.WithLocale(t.Context(), locale)
+				view := ProductView{Slug: "sample-product", Name: "Sample", VariantID: "sample-variant", SelectionOK: true, Exact: true, Available: 5, Sellable: true, SignedIn: signedIn, Saved: saved}
+				var body strings.Builder
+				if err := Product(ProductMeta(&view), &view).Render(ctx, &body); err != nil {
+					t.Fatal(err)
+				}
+				html := body.String()
+				if strings.Contains(html, `action="/account/wishlist"`) != signedIn {
+					t.Fatalf("signedIn=%t: wishlist mutation form availability disagrees with authentication", signedIn)
+				}
+				if !signedIn {
+					if !strings.Contains(html, `href="/signin?next=/p/sample-product"`) || !strings.Contains(html, i18n.T(ctx, i18n.KeyWishlistSignIn)) {
+						t.Fatal("guest wishlist lacks explicit sign-in link returning to the product")
+					}
+					if strings.Contains(html, `aria-label="`+i18n.T(ctx, i18n.KeyWishlistAdd)+`"`) || strings.Contains(html, `aria-label="`+i18n.T(ctx, i18n.KeyWishlistRemove)+`"`) {
+						t.Fatal("guest wishlist still promises a save/remove action")
+					}
+				} else {
+					if !strings.Contains(html, `name="slug" value="sample-product"`) || !strings.Contains(html, `aria-pressed="`+view.SavedText()+`"`) {
+						t.Fatal("authenticated wishlist lost its product or saved state")
+					}
+					if strings.Contains(html, `name="action" value="remove"`) != saved {
+						t.Fatal("saved wishlist does not offer removal")
+					}
+				}
+			}
+		}
+	}
+}

@@ -1,6 +1,8 @@
 package i18n
 
 var (
+	KeyWishlistSignIn = key("wishlist.signin", Message{ZhHant: "登入後收藏", En: "Sign in to save"})
+
 	KeyWishlistTitle = key("account.wishlist", Message{ZhHant: "願望清單", En: "Wishlist"})
 
 	KeyWishlistHint = key("account.wishlist.hint", Message{
