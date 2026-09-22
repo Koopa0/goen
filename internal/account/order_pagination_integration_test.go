@@ -62,7 +62,7 @@ func TestAccountOrdersReachEveryOlderOrderWithoutJavaScript(t *testing.T) {
 			seen[o.Number] = true
 		}
 		w := httptest.NewRecorder()
-		h.Overview(w, httptest.NewRequestWithContext(ctx, http.MethodGet, target, nil))
+		h.Overview(w, httptest.NewRequestWithContext(ctx, http.MethodGet, u.RequestURI(), nil))
 		if w.Code != http.StatusOK {
 			t.Fatalf("GET page %d: %d", page, w.Code)
 		}
