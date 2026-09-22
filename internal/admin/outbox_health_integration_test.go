@@ -198,8 +198,8 @@ func TestOutboxHealthAndClaimUseTheSameRetentionBoundary(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer func() { _ = tx.Rollback(context.WithoutCancel(t.Context())) }()
-			if _, err := tx.Exec(t.Context(), `INSERT INTO outbox_messages(topic,dedupe_key,payload,created_at,available_at) VALUES('health.boundary',$1,'{"message":1}',now()-$2::interval+$3*interval '1 microsecond',now())`, uuid.NewString(), retain, offset); err != nil {
-				t.Fatal(err)
+			if _, insertErr := tx.Exec(t.Context(), `INSERT INTO outbox_messages(topic,dedupe_key,payload,created_at,available_at) VALUES('health.boundary',$1,'{"message":1}',now()-$2::interval+$3*interval '1 microsecond',now())`, uuid.NewString(), retain, offset); insertErr != nil {
+				t.Fatal(insertErr)
 			}
 			q := db.New(tx)
 			health, err := q.WorkerHealth(t.Context(), retain)
