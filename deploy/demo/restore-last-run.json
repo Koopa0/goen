@@ -1,0 +1,18 @@
+{
+  "scheduled_unit": "goen-restore.timer",
+  "operator_attestation": {
+    "collected_utc": "2026-09-15T03:02:11Z",
+    "finished_utc": "2026-09-15T03:00:14Z",
+    "exit_status": 0,
+    "evidence": "systemctl show goen-restore.service -p Result,ExecMainExitStatus,ExecMainStatus,ActiveEnterTimestamp --value",
+    "note": "Copied from the demo host journal after the scheduled run; not reproducible from this repository."
+  },
+  "executed_checks": [
+    {
+      "when_utc": "2026-09-15T08:36:30Z",
+      "command": "curl -sI https://goen.koopa0.dev/",
+      "result": "HTTP/2 200",
+      "proves": "HTTPS reachability only; not payment, mail, or restore configuration"
+    }
+  ]
+}

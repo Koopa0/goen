@@ -594,6 +594,7 @@ type ProductOptionValue struct {
 	OptionID  uuid.UUID
 	Value     string
 	ValueEn   pgtype.Text
+	SwatchHex pgtype.Text
 	Position  int32
 }
 

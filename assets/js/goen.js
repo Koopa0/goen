@@ -37,5 +37,54 @@
     });
   }
 
+  /*
+   * The quantity stepper. The field is a native number input that works on its
+   * own; these two buttons are the enhancement, and the stylesheet keeps them
+   * out of sight until it is told scripting is on.
+   *
+   * Delegated from the document rather than bound on load, so a buy box that
+   * arrives in a later swap needs no second initialisation.
+   */
+  function stepper() {
+    const bound = (field, by) => {
+      const min = Number(field.min || 0);
+      const max = field.max === "" ? Infinity : Number(field.max);
+      return Math.min(max, Math.max(min, Number(field.value || min) + by));
+    };
+
+    const atBounds = (box) => {
+      const field = box.querySelector("input");
+      if (!field) return;
+      const value = Number(field.value || 0);
+      box.querySelectorAll("[data-stepper-step]").forEach((step) => {
+        const next = value + Number(step.dataset.stepperStep);
+        step.disabled = field.disabled ||
+          next < Number(field.min || 0) ||
+          (field.max !== "" && next > Number(field.max));
+      });
+    };
+
+    document.addEventListener("click", (event) => {
+      if (!(event.target instanceof Element)) return;
+      const step = event.target.closest("[data-stepper-step]");
+      if (!step) return;
+      const box = step.closest("[data-stepper]");
+      const field = box?.querySelector("input");
+      if (!field) return;
+      field.value = String(bound(field, Number(step.dataset.stepperStep)));
+      field.dispatchEvent(new Event("change", { bubbles: true }));
+      atBounds(box);
+    });
+
+    document.addEventListener("input", (event) => {
+      if (!(event.target instanceof Element)) return;
+      const box = event.target.closest("[data-stepper]");
+      if (box) atBounds(box);
+    });
+
+    document.querySelectorAll("[data-stepper]").forEach(atBounds);
+  }
+
   headerMenu();
+  stepper();
 })();

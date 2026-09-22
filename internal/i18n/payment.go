@@ -51,6 +51,16 @@ var (
 		En:     "We have logged the problem. Please try again shortly.",
 	})
 
+	KeyPayProcessingTitle = key("pay.processing.title", Message{
+		ZhHant: "付款處理中",
+		En:     "Payment processing",
+	})
+
+	KeyPayProcessingBody = key("pay.processing.body", Message{
+		ZhHant: "我們正在確認您的付款結果，請稍候。若已扣款完成，訂單將會自動更新。",
+		En:     "Your payment is being processed. The order will update automatically once confirmed.",
+	})
+
 	KeyPayViewOrder = key("pay.vieworder", Message{ZhHant: "查看訂單", En: "View order"})
 
 	KeyPayMeta = key("pay.meta", Message{ZhHant: "付款 %s", En: "Pay for %s"})

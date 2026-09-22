@@ -182,7 +182,15 @@ WHERE p.status = 'active'
        OR coalesce(p.name_en, '') ILIKE @pattern::text
        OR coalesce(p.summary, '') ILIKE @pattern::text
        OR coalesce(p.summary_en, '') ILIKE @pattern::text
-       OR b.name ILIKE @pattern::text)
+       OR b.name ILIKE @pattern::text
+       OR EXISTS (
+           SELECT 1 FROM product_specs ps
+           WHERE ps.product_id = p.id
+             AND (ps.label ILIKE @pattern::text
+                  OR coalesce(ps.label_en, '') ILIKE @pattern::text
+                  OR ps.value ILIKE @pattern::text
+                  OR coalesce(ps.value_en, '') ILIKE @pattern::text)
+       ))
 ORDER BY
     -- A name match outranks a summary or brand match. Either name counts.
     (p.name ILIKE @pattern::text OR coalesce(p.name_en, '') ILIKE @pattern::text) DESC,
@@ -199,7 +207,15 @@ WHERE p.status = 'active'
        OR coalesce(p.name_en, '') ILIKE @pattern::text
        OR coalesce(p.summary, '') ILIKE @pattern::text
        OR coalesce(p.summary_en, '') ILIKE @pattern::text
-       OR b.name ILIKE @pattern::text);
+       OR b.name ILIKE @pattern::text
+       OR EXISTS (
+           SELECT 1 FROM product_specs ps
+           WHERE ps.product_id = p.id
+             AND (ps.label ILIKE @pattern::text
+                  OR coalesce(ps.label_en, '') ILIKE @pattern::text
+                  OR ps.value ILIKE @pattern::text
+                  OR coalesce(ps.value_en, '') ILIKE @pattern::text)
+       ));
 
 -- "On sale" is a variant fact, and a product qualifies when any active variant
 -- carries one.

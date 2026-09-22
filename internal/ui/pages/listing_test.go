@@ -11,7 +11,7 @@ import (
 )
 
 // TestThePageMarksTheCategoryYouAreIn holds layouts.Page.Nav, which drives the
-// header's is-active class and aria-current="page". It is set where the page's
+// header's aria-current="page". It is set where the page's
 // chrome is BUILT, not by each handler: a field every caller must remember to
 // fill is a field that goes unfilled.
 func TestThePageMarksTheCategoryYouAreIn(t *testing.T) {
@@ -61,6 +61,70 @@ func TestThePageMarksTheCategoryYouAreIn(t *testing.T) {
 	// slug precisely so an unrelated page never highlights a category.
 	if got := (ProductMeta(&ProductView{Name: "x", Brand: "y"})).Nav; got != "" {
 		t.Errorf("a product with no category marks %q", got)
+	}
+}
+
+// TestMobileFiltersStayCollapsedWithoutScript holds the category disclosure: a
+// phone visitor must see products before the full filter form, and the shell is
+// a native <details> so it works when the enhancement file is deleted.
+func TestMobileFiltersStayCollapsedWithoutScript(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	view := ListingView{
+		Slug: "audio", Name: "耳機與音響",
+		Products: []ProductTile{{Slug: "nimbus-buds-pro", Name: "Nimbus Buds Pro", PriceCents: 399000}},
+		Brands:   []FacetOption{{Value: "nimbus", Label: "Nimbus", Count: 1}},
+	}
+	html := renderToString(t, Listing(ListingMeta(ctx, view), view))
+
+	if !strings.Contains(html, `<div class="goen-listing__filters">`) {
+		t.Error("the filter rail is not grouped into one layout column")
+	}
+	if !strings.Contains(html, `<details class="goen-filters__shell">`) {
+		t.Error("the listing carries no mobile filter disclosure")
+	}
+	if !strings.Contains(html, `class="goen-filters__shell-summary"`) {
+		t.Error("the disclosure has no labelled summary control")
+	}
+	if strings.Contains(html, `<details class="goen-filters__shell" open`) {
+		t.Error("the filter shell is open by default")
+	}
+	if !strings.Contains(html, `action="/c/audio#listing-results"`) {
+		t.Error("the filter form does not land on the results region")
+	}
+}
+
+// TestFilteredListingFocusesResults holds where a filter submission should
+// leave keyboard focus: on the results region, not back at the page top.
+func TestFilteredListingFocusesResults(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	view := ListingView{
+		Slug: "audio", Name: "耳機與音響", Filtered: true, InStockOnly: true,
+		Products: []ProductTile{{Slug: "nimbus-buds-pro", Name: "Nimbus Buds Pro", PriceCents: 399000}},
+	}
+	html := renderToString(t, Listing(ListingMeta(ctx, view), view))
+
+	if !strings.Contains(html, `id="listing-results"`) {
+		t.Error("the results region has no fragment target")
+	}
+	if !strings.Contains(html, `id="listing-results" tabindex="-1" autofocus`) {
+		t.Error("a filtered listing does not autofocus the results region")
+	}
+	if !strings.Contains(html, `class="goen-filters__applied"`) {
+		t.Error("a filtered listing shows no applied-filter summary")
+	}
+	idxFilters := strings.Index(html, `class="goen-listing__filters"`)
+	idxResults := strings.Index(html, `id="listing-results"`)
+	if idxFilters < 0 || idxResults < 0 ||
+		!strings.Contains(html[idxFilters:idxResults], `class="goen-filters__applied"`) {
+		t.Error("applied-filter summary is not grouped in the filter column")
+	}
+	if !strings.Contains(html, i18n.T(ctx, i18n.KeyFacetInStock)) {
+		t.Error("the applied summary does not name the active stock filter")
+	}
+	if !strings.Contains(html, i18n.T(ctx, i18n.KeyClearFilters)) {
+		t.Error("the applied summary offers no reset")
 	}
 }
 

@@ -33,7 +33,7 @@ func (p CompareProduct) Price() string { return twd(p.PriceCents) }
 // Stock is availability in a word.
 func (p CompareProduct) Stock(ctx context.Context) string {
 	if p.InStock {
-		return i18n.T(ctx, i18n.KeyCompareInStock)
+		return i18n.T(ctx, i18n.KeyInStock)
 	}
 	return i18n.T(ctx, i18n.KeySoldOut)
 }

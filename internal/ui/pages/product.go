@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
@@ -44,6 +45,8 @@ type ProductOptionValue struct {
 	Selected  bool
 	Available bool
 	Href      string
+	// SwatchHex is the colour to draw, empty where the value is not a colour.
+	SwatchHex string
 }
 
 // ProductOption is one picker.
@@ -51,6 +54,34 @@ type ProductOption struct {
 	Name   string
 	Label  string
 	Values []ProductOptionValue
+}
+
+// HasSwatches reports whether this option draws its values as colours.
+//
+// All or nothing, per option: one row of choices should look like one row, and
+// a colour beside a word reads as two kinds of thing. A shop that has given
+// half its colours a value gets words until it has given the rest.
+func (o ProductOption) HasSwatches() bool {
+	if len(o.Values) == 0 {
+		return false
+	}
+	for _, v := range o.Values {
+		if v.SwatchHex == "" {
+			return false
+		}
+	}
+	return true
+}
+
+// SelectedLabel is the name of the value chosen on this axis, empty when none
+// is. A swatch shows a colour and no words, so the name has to be somewhere.
+func (o ProductOption) SelectedLabel() string {
+	for _, v := range o.Values {
+		if v.Selected {
+			return v.Label
+		}
+	}
+	return ""
 }
 
 // RatingBar is one row of the rating histogram.
@@ -66,8 +97,14 @@ func (b RatingBar) StarsText() string { return strconv.Itoa(b.Stars) }
 // CountText is how many reviews gave this many stars.
 func (b RatingBar) CountText() string { return strconv.FormatInt(b.Count, 10) }
 
-// PercentStyle is the inline width for the bar's fill.
-func (b RatingBar) PercentStyle() string { return "width:" + strconv.Itoa(b.Percent) + "%" }
+// WidthClass is the bar's width, as a class app.css carries. It cannot be an
+// inline style: goen's Content-Security-Policy has no 'unsafe-inline' under
+// style-src, so a refused width draws no bar at all. The ladder steps by ten,
+// which is finer than five buckets can distinguish, and the nearest step is
+// taken rather than the one below so the error is never one-sided.
+func (b RatingBar) WidthClass() string {
+	return "goen-pdp__barfill--" + strconv.Itoa((b.Percent+5)/10*10)
+}
 
 // ProductReview is one published review.
 type ProductReview struct {
@@ -151,6 +188,43 @@ type ProductView struct {
 	Related []ProductTile
 }
 
+// Stars is the average rounded to whole stars, as punctuation. A screen reader
+// is given RatingLabel instead, which says the number.
+func (v *ProductView) Stars() string { return starsOf(int(v.Rating + 0.5)) }
+
+// WishlistLabel names the wishlist control, which carries a glyph and no text.
+func (v *ProductView) WishlistLabel(ctx context.Context) string {
+	if v.Saved {
+		return i18n.T(ctx, i18n.KeyWishlistRemove)
+	}
+	return i18n.T(ctx, i18n.KeyWishlistAdd)
+}
+
+// SavedText is the aria-pressed state of the wishlist control.
+func (v *ProductView) SavedText() string {
+	if v.Saved {
+		return "true"
+	}
+	return "false"
+}
+
+// CategoryTrail includes the direct category as well as its ancestors, so the
+// visible breadcrumb and structured data describe the same catalogue path.
+func (v *ProductView) CategoryTrail() []Crumb {
+	return append(slices.Clone(v.Crumbs), Crumb{Slug: v.CategorySlug, Name: v.CategoryName})
+}
+
+// Trail is the breadcrumb, from the shop's front page down to this product.
+// The last step carries no link: a link to where you already are is a step a
+// keyboard has to pass through for nothing.
+func (v *ProductView) Trail(ctx context.Context) []components.Crumb {
+	trail := []components.Crumb{{Label: i18n.T(ctx, i18n.KeyHome), Href: "/"}}
+	for _, c := range v.CategoryTrail() {
+		trail = append(trail, components.Crumb{Label: c.Name, Href: "/c/" + c.Slug})
+	}
+	return append(trail, components.Crumb{Label: v.Name})
+}
+
 // ProductMeta is the chrome view model for a product page.
 func ProductMeta(v *ProductView) layouts.Page {
 	desc := v.Summary
@@ -196,6 +270,14 @@ func (v *ProductView) OnSale() bool { return v.Sellable && v.CompareCents > v.Pr
 
 // CanBuy reports whether the page can offer an add-to-cart button.
 func (v *ProductView) CanBuy() bool { return v.SelectionOK && v.Exact && v.Sellable }
+
+// InStock reports whether the chosen variant is buyable and not running out.
+// It is the state the other three badges do not cover, and it is only ever
+// shown once a variant is settled: on the bare product URL there is no one
+// variant whose stock it could describe.
+func (v *ProductView) InStock() bool {
+	return v.CanBuy() && !v.LowStock() && !v.SoldOut() && !v.AllSoldOut()
+}
 
 // NeedsChoice reports whether the visitor still has an option to pick.
 func (v *ProductView) NeedsChoice() bool { return v.SelectionOK && !v.Exact }

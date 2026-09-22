@@ -192,11 +192,15 @@ func encodeState(v any) ([]byte, error) {
 
 // Audit reads the trail.
 func (s *Store) Audit(ctx context.Context) (pages.AuditView, error) {
-	rows, err := s.q.AuditEvents(ctx, MaxAuditRows)
+	rows, err := s.q.AuditEvents(ctx, MaxAuditRows+1)
 	if err != nil {
 		return pages.AuditView{}, fmt.Errorf("read audit events: %w", err)
 	}
-	view := pages.AuditView{}
+	// The trail has its own size, and this is the list where silence costs
+	// most: a page that shows 200 of fifty thousand without saying so is a
+	// record somebody may take for the whole record.
+	rows, more := pageOf(rows, MaxAuditRows)
+	view := pages.AuditView{ListBound: pages.Bound(more, MaxAuditRows)}
 	for i := range rows {
 		e := &rows[i]
 		view.Rows = append(view.Rows, pages.AuditEntry{
