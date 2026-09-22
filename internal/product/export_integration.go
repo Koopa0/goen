@@ -12,7 +12,8 @@ func (s *Store) Answer(ctx context.Context, questionID, userID, body string) err
 
 // CacheStats is a point-in-time presentation-cache counter set.
 type CacheStats struct {
-	Hits, Misses, Errors, Fills, Coalesced, Fallbacks uint64
+	Hits, Misses, Errors, Fills, Coalesced, Fallbacks, Rejected uint64
+	Waiters, Filling, Loads                                     int
 }
 
 // SetIntegrationFillPause blocks the fill owner until fn returns. Only for tests.
@@ -25,7 +26,10 @@ func CacheStatsOf(c *PresentationCache) CacheStats {
 	if c == nil || c.metrics == nil {
 		return CacheStats{}
 	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	return CacheStats{
+		Rejected: c.metrics.Rejected.Load(), Waiters: c.waiters, Filling: len(c.calls), Loads: len(c.loads),
 		Hits:      c.metrics.Hits.Load(),
 		Misses:    c.metrics.Misses.Load(),
 		Errors:    c.metrics.Errors.Load(),

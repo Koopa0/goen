@@ -28,6 +28,7 @@ func Valkey(t *testing.T) string {
 // StartValkey brings up Valkey and returns a host:port address and teardown.
 func StartValkey(ctx context.Context) (addr string, stop func(), err error) {
 	container, err := valkey.Run(ctx, "valkey/valkey:8.0-alpine",
+		testcontainers.WithCmdArgs("--maxmemory", "64mb", "--maxmemory-policy", "allkeys-lru"),
 		testcontainers.WithWaitStrategy(
 			wait.ForLog("Ready to accept connections").
 				WithStartupTimeout(60*time.Second),

@@ -41,7 +41,14 @@ func NewStoreWithCache(dbtx db.DBTX, cache *PresentationCache) *Store {
 
 // Load reads everything the detail page renders, resolving sel to a variant.
 func (s *Store) Load(ctx context.Context, slug string, sel Selection) (pages.ProductView, error) {
+	if len(slug) > 120 || !slugFormat.MatchString(slug) {
+		return pages.ProductView{}, ErrNotFound
+	}
 	if s.cache != nil && s.cache.Enabled() {
+		if !s.cache.admit(s.cache.loads) {
+			return pages.ProductView{}, ErrOverloaded
+		}
+		defer func() { <-s.cache.loads }()
 		return s.loadWithCache(ctx, slug, sel)
 	}
 	return s.loadFromDatabase(ctx, slug, sel)
@@ -67,7 +74,24 @@ func (s *Store) loadFromDatabase(ctx context.Context, slug string, sel Selection
 	return view, nil
 }
 
+// A revision is monotonic and changes with every presentation dependency.
+// Rechecking after assembly rejects any mixture spanning a committed edit.
+var errPresentationChanged = errors.New("product: presentation revision changed during fill")
+
 func (s *Store) loadWithCache(ctx context.Context, slug string, sel Selection) (pages.ProductView, error) {
+	for range 3 {
+		view, err := s.loadCacheRevision(ctx, slug, sel)
+		if !errors.Is(err, errPresentationChanged) {
+			return view, err
+		}
+		if ctx.Err() != nil {
+			return pages.ProductView{}, ctx.Err()
+		}
+	}
+	return pages.ProductView{}, ErrOverloaded
+}
+
+func (s *Store) loadCacheRevision(ctx context.Context, slug string, sel Selection) (pages.ProductView, error) {
 	gate, err := s.q.ProductPresentationGate(ctx, slug)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -78,9 +102,26 @@ func (s *Store) loadWithCache(ctx context.Context, slug string, sel Selection) (
 	locale := string(i18n.FromContext(ctx))
 	pres, err := s.cache.Get(ctx, gate.ID, gate.PresentationRevision, locale,
 		func(fillCtx context.Context) (Presentation, error) {
-			return s.loadPresentationPayload(fillCtx, slug)
+			payload, loadErr := s.loadPresentationPayload(fillCtx, slug)
+			if loadErr != nil {
+				return Presentation{}, loadErr
+			}
+			after, gateErr := s.q.ProductPresentationGate(fillCtx, slug)
+			if errors.Is(gateErr, pgx.ErrNoRows) {
+				return Presentation{}, ErrNotFound
+			}
+			if gateErr != nil {
+				return Presentation{}, fmt.Errorf("validate presentation revision: %w", gateErr)
+			}
+			if after.ID != gate.ID || after.PresentationRevision != gate.PresentationRevision || payload.ProductID != gate.ID {
+				return Presentation{}, errPresentationChanged
+			}
+			return payload, nil
 		})
 	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return pages.ProductView{}, fmt.Errorf("%w: %w", ErrOverloaded, err)
+		}
 		return pages.ProductView{}, err
 	}
 	row := productBySlugRowFrom(&pres)

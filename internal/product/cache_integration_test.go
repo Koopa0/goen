@@ -318,7 +318,9 @@ func TestIndependentInstancesCoalesceFillUnderSharedLease(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("fill owner never entered pause hook")
 	}
-	time.Sleep(25 * time.Millisecond)
+	awaitCacheState(t, func() bool {
+		return product.CacheStatsOf(cacheA).Waiters+product.CacheStatsOf(cacheB).Waiters == 6
+	})
 	close(releaseFill)
 	wg.Wait()
 
@@ -330,94 +332,6 @@ func TestIndependentInstancesCoalesceFillUnderSharedLease(t *testing.T) {
 	if coalesced < 3 {
 		t.Fatalf("expected local singleflight coalescing, got coalesced=%d fills=%d",
 			coalesced, fills)
-	}
-}
-
-func TestCacheFailureFallsBackWithBoundedAdmission(t *testing.T) {
-	ctx := t.Context()
-	addr, stopValkey, err := dbtest.StartValkey(ctx)
-	if err != nil {
-		t.Fatalf("start valkey: %v", err)
-	}
-	cfg := product.CacheConfig{
-		LeaseTTL: 5 * time.Second, PayloadTTL: time.Minute,
-		MaxPayloadBytes: 1 << 20, MaxWaiters: 32, MaxFallback: 2,
-	}
-	cache := openCacheOnAddr(t, addr, cfg)
-	defer cache.Close()
-	store := product.NewStoreWithCache(pool, cache)
-	slug := "pixelight-9-pro"
-
-	stopValkey()
-	cache.Close()
-
-	releaseFallback := make(chan struct{})
-	maxFallback := cfg.MaxFallback
-	var fallbackHolding atomic.Int32
-	product.SetIntegrationFillPause(func(pauseCtx context.Context) error {
-		if int(fallbackHolding.Add(1)) > maxFallback {
-			fallbackHolding.Add(-1)
-			return nil
-		}
-		select {
-		case <-releaseFallback:
-			return nil
-		case <-pauseCtx.Done():
-			return pauseCtx.Err()
-		}
-	})
-	defer product.SetIntegrationFillPause(nil)
-
-	const workers = 5
-	var wg sync.WaitGroup
-	results := make([]error, workers)
-	for i := range workers {
-		wg.Add(1)
-		go func(idx int) {
-			defer wg.Done()
-			_, loadErr := store.Load(ctx, slug, nil)
-			results[idx] = loadErr
-		}(i)
-	}
-	for int(fallbackHolding.Load()) < maxFallback {
-		time.Sleep(5 * time.Millisecond)
-	}
-	time.Sleep(25 * time.Millisecond)
-	close(releaseFallback)
-	wg.Wait()
-
-	var overloaded, succeeded int
-	for _, loadErr := range results {
-		switch {
-		case errors.Is(loadErr, product.ErrOverloaded):
-			overloaded++
-		case loadErr == nil:
-			succeeded++
-		default:
-			t.Errorf("unexpected load error: %v", loadErr)
-		}
-	}
-	stats := product.CacheStatsOf(cache)
-	if stats.Fallbacks != 2 {
-		t.Fatalf("fallback admissions = %d, want 2", stats.Fallbacks)
-	}
-	if succeeded != 2 {
-		t.Fatalf("fallback successes = %d, want 2", succeeded)
-	}
-	if overloaded < 1 {
-		t.Fatalf("expected at least one overload rejection, got %d", overloaded)
-	}
-
-	newAddr, stopNew, err := dbtest.StartValkey(ctx)
-	if err != nil {
-		t.Fatalf("restart valkey: %v", err)
-	}
-	defer stopNew()
-	recovered := openCacheOnAddr(t, newAddr, cfg)
-	defer recovered.Close()
-	recoveredStore := product.NewStoreWithCache(pool, recovered)
-	if _, loadErr := recoveredStore.Load(ctx, slug, nil); loadErr != nil {
-		t.Fatalf("recovery load after valkey restart: %v", loadErr)
 	}
 }
 

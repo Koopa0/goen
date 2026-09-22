@@ -511,6 +511,7 @@ CREATE FUNCTION products_bump_presentation_revision() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
     IF TG_OP = 'UPDATE' AND (
+        NEW.slug IS DISTINCT FROM OLD.slug OR
         NEW.name IS DISTINCT FROM OLD.name OR
         NEW.name_en IS DISTINCT FROM OLD.name_en OR
         NEW.summary IS DISTINCT FROM OLD.summary OR
@@ -542,6 +543,10 @@ BEGIN
     UPDATE products
     SET presentation_revision = presentation_revision + 1
     WHERE id = pid;
+    IF TG_OP = 'UPDATE' AND OLD.product_id IS DISTINCT FROM NEW.product_id THEN
+        UPDATE products SET presentation_revision = presentation_revision + 1
+        WHERE id = OLD.product_id;
+    END IF;
     RETURN COALESCE(NEW, OLD);
 END;
 $$;
@@ -557,7 +562,7 @@ CREATE TRIGGER product_specs_bump_presentation_revision
 CREATE FUNCTION brands_bump_product_presentation_revision() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
-    IF NEW.name IS DISTINCT FROM OLD.name THEN
+    IF NEW.name IS DISTINCT FROM OLD.name OR NEW.slug IS DISTINCT FROM OLD.slug THEN
         UPDATE products
         SET presentation_revision = presentation_revision + 1
         WHERE brand_id = NEW.id;
@@ -567,13 +572,14 @@ END;
 $$;
 
 CREATE TRIGGER brands_bump_product_presentation_revision
-    AFTER UPDATE OF name ON brands
+    AFTER UPDATE OF name, slug ON brands
     FOR EACH ROW EXECUTE FUNCTION brands_bump_product_presentation_revision();
 
 CREATE FUNCTION categories_bump_product_presentation_revision() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
-    IF NEW.name IS DISTINCT FROM OLD.name OR
+    IF NEW.slug IS DISTINCT FROM OLD.slug OR
+       NEW.name IS DISTINCT FROM OLD.name OR
        NEW.name_en IS DISTINCT FROM OLD.name_en OR
        NEW.parent_id IS DISTINCT FROM OLD.parent_id THEN
         UPDATE products
@@ -592,7 +598,7 @@ END;
 $$;
 
 CREATE TRIGGER categories_bump_product_presentation_revision
-    AFTER UPDATE OF name, name_en, parent_id ON categories
+    AFTER UPDATE OF slug, name, name_en, parent_id ON categories
     FOR EACH ROW EXECUTE FUNCTION categories_bump_product_presentation_revision();
 
 CREATE TABLE users (

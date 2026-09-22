@@ -7,7 +7,7 @@ import (
 )
 
 // presentationSchemaVersion is the payload format written under a cache key.
-const presentationSchemaVersion = 1
+const presentationSchemaVersion = 2
 
 // Presentation is the public product copy and display data Valkey may hold.
 // Price, stock, reviews and recommendations stay outside this payload.
