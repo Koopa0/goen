@@ -120,8 +120,8 @@ func assertHistoryCursorSurvivesInsertion(t *testing.T, s *loyalty.Store, userID
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `INSERT INTO loyalty_entries (account_id,kind,points,reason,idempotency_key,expires_on) VALUES ($1,'award',1000,'newer','new:' || ($1::uuid)::text,shop_today()+365)`, accountID); err != nil {
-		t.Fatal(err)
+	if _, insertErr := pool.Exec(ctx, `INSERT INTO loyalty_entries (account_id,kind,points,reason,idempotency_key,expires_on) VALUES ($1,'award',1000,'newer','new:' || ($1::uuid)::text,shop_today()+365)`, accountID); insertErr != nil {
+		t.Fatal(insertErr)
 	}
 	after, err := s.History(ctx, userID, next.Query().Get("after"))
 	if err != nil {
