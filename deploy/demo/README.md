@@ -27,6 +27,10 @@ sink and supplies ECPay staging configuration.
 catalogue as `make db-seed`. These files describe the setup; they do not establish
 that a timer is installed or that today's restore succeeded.
 
+The restore credential and restart fixes are tracked separately in
+[issue #374](https://github.com/Koopa0/goen/issues/374). That implementation work
+does not establish that a revised service is installed or a live restore passed.
+
 ## Observed deployment evidence
 
 | When (UTC) | Observation | What it establishes |
