@@ -2520,6 +2520,7 @@ func TestTerminalRefundHTTPUsesThePayoutRecoveryNotice(t *testing.T) {
 		admin.NewStore(pool, fakeRefunder{state: admin.RefundCancelled}, nil, nil))
 	form := url.Values{
 		"decision":   {"approved"},
+		"confirm":    {"approved"},
 		"resolution": {"provider cancelled"},
 	}
 	req := httptest.NewRequestWithContext(ctx, http.MethodPost,
@@ -2545,7 +2546,7 @@ func TestReturnResolutionOverTheDurableBoundIsRefusedBeforeDecision(t *testing.T
 		t.Fatalf("overlong Store resolution = %v, want ErrInvalid", err)
 	}
 
-	form := url.Values{"decision": {"approved"}, "resolution": {tooLong}}
+	form := url.Values{"decision": {"approved"}, "confirm": {"approved"}, "resolution": {tooLong}}
 	req := httptest.NewRequestWithContext(ctx, http.MethodPost,
 		"/admin/returns/"+requestID.String()+"/decide", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
