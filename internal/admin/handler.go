@@ -177,7 +177,7 @@ func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
 // Orders serves GET /admin/orders.
 func (h *Handler) Orders(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Orders(r.Context(),
-		ParseStatus(r.URL.Query().Get("status")), r.URL.Query().Get("q"))
+		ParseStatus(r.URL.Query().Get("status")), r.URL.Query().Get("q"), r.URL.Query().Get("after"))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read orders", "error", err)
 		h.serverError(w, r)
@@ -348,7 +348,7 @@ func (h *Handler) StaffNote(w http.ResponseWriter, r *http.Request) {
 
 // Variants serves GET /admin/stock.
 func (h *Handler) Variants(w http.ResponseWriter, r *http.Request) {
-	view, err := h.store.Variants(r.Context(), r.URL.Query().Get("low") == "1")
+	view, err := h.store.Variants(r.Context(), r.URL.Query().Get("low") == "1", r.URL.Query().Get("after"))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read variants", "error", err)
 		h.serverError(w, r)
@@ -545,7 +545,7 @@ func (h *Handler) serverError(w http.ResponseWriter, r *http.Request) {
 
 // Credit serves GET /admin/credit.
 func (h *Handler) Credit(w http.ResponseWriter, r *http.Request) {
-	view, err := h.store.Credit(r.Context())
+	view, err := h.store.Credit(r.Context(), r.URL.Query().Get("after"))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read credit ledger", "error", err)
 		h.serverError(w, r)
@@ -617,7 +617,7 @@ func (h *Handler) notFound(w http.ResponseWriter, r *http.Request) {
 
 // Coupons serves GET /admin/coupons.
 func (h *Handler) Coupons(w http.ResponseWriter, r *http.Request) {
-	view, err := h.store.Coupons(r.Context())
+	view, err := h.store.Coupons(r.Context(), r.URL.Query().Get("after"))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read coupons", "error", err)
 		h.serverError(w, r)
@@ -642,7 +642,7 @@ func (h *Handler) CreateCoupon(w http.ResponseWriter, r *http.Request) {
 		h.log.ErrorContext(r.Context(), "create coupon", "error", err)
 		h.serverError(w, r)
 	case len(errs) > 0:
-		view, readErr := h.store.Coupons(r.Context())
+		view, readErr := h.store.Coupons(r.Context(), r.URL.Query().Get("after"))
 		if readErr != nil {
 			h.serverError(w, r)
 			return
@@ -749,7 +749,7 @@ func small(s string) int32 {
 
 // Campaigns serves GET /admin/campaigns.
 func (h *Handler) Campaigns(w http.ResponseWriter, r *http.Request) {
-	view, err := h.store.Campaigns(r.Context())
+	view, err := h.store.Campaigns(r.Context(), r.URL.Query().Get("after"))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read campaigns", "error", err)
 		h.serverError(w, r)
@@ -777,7 +777,7 @@ func (h *Handler) CreateCampaign(w http.ResponseWriter, r *http.Request) {
 		h.log.ErrorContext(r.Context(), "create campaign", "error", err)
 		h.serverError(w, r)
 	case len(errs) > 0:
-		view, readErr := h.store.Campaigns(r.Context())
+		view, readErr := h.store.Campaigns(r.Context(), r.URL.Query().Get("after"))
 		if readErr != nil {
 			h.serverError(w, r)
 			return
@@ -856,7 +856,7 @@ func (h *Handler) SetCampaignActive(w http.ResponseWriter, r *http.Request) {
 
 // Audit serves GET /admin/audit.
 func (h *Handler) Audit(w http.ResponseWriter, r *http.Request) {
-	view, err := h.store.Audit(r.Context())
+	view, err := h.store.Audit(r.Context(), r.URL.Query().Get("after"))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read audit", "error", err)
 		h.serverError(w, r)
@@ -868,7 +868,7 @@ func (h *Handler) Audit(w http.ResponseWriter, r *http.Request) {
 
 // Movements serves GET /admin/stock/{sku}.
 func (h *Handler) Movements(w http.ResponseWriter, r *http.Request) {
-	view, err := h.store.Movements(r.Context(), r.PathValue("sku"))
+	view, err := h.store.Movements(r.Context(), r.PathValue("sku"), r.URL.Query().Get("after"))
 	switch {
 	case err == nil:
 		view.Notice = noticeFor(r)
@@ -1516,7 +1516,7 @@ func (h *Handler) CorrectDelivery(w http.ResponseWriter, r *http.Request) {
 
 // Reviews serves GET /admin/reviews.
 func (h *Handler) Reviews(w http.ResponseWriter, r *http.Request) {
-	view, err := h.store.Reviews(r.Context())
+	view, err := h.store.Reviews(r.Context(), r.URL.Query().Get("after"))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read reviews", "error", err)
 		h.serverError(w, r)
@@ -1555,7 +1555,7 @@ func (h *Handler) setReviewHidden(w http.ResponseWriter, r *http.Request, hidden
 
 // Messages serves GET /admin/messages.
 func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
-	view, err := h.store.Messages(r.Context())
+	view, err := h.store.Messages(r.Context(), r.URL.Query().Get("after"))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read contact messages", "error", err)
 		h.serverError(w, r)
@@ -1685,7 +1685,7 @@ func (h *Handler) newsletterView(r *http.Request) (pages.AdminNewsletterView, er
 
 // Customers serves GET /admin/customers.
 func (h *Handler) Customers(w http.ResponseWriter, r *http.Request) {
-	view, err := h.store.Customers(r.Context(), r.URL.Query().Get("q"))
+	view, err := h.store.Customers(r.Context(), r.URL.Query().Get("q"), r.URL.Query().Get("after"))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "search customers", "error", err)
 		h.serverError(w, r)
@@ -1697,7 +1697,7 @@ func (h *Handler) Customers(w http.ResponseWriter, r *http.Request) {
 
 // Warranties serves GET /admin/warranty, the shop's half of registration.
 func (h *Handler) Warranties(w http.ResponseWriter, r *http.Request) {
-	view, err := h.store.Warranties(r.Context(), r.URL.Query().Get("q"))
+	view, err := h.store.Warranties(r.Context(), r.URL.Query().Get("q"), r.URL.Query().Get("after"))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "search warranties", "error", err)
 		h.serverError(w, r)

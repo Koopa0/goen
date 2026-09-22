@@ -40,7 +40,7 @@ templ AdminWarranties(p layouts.Page, v AdminWarrantiesView) {
 				{ i18n.T(ctx, i18n.KeyAdminSearchShort) }
 			}
 		}
-		if v.Searching() && v.Empty() {
+		if v.Searching() && v.Empty() && !v.Paged {
 			<div class="goen-admin__empty">
 				<p class="goen-admin__emptytitle">
 					{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminWarrantyNoneFound), v.Term) }
@@ -91,11 +91,11 @@ templ AdminWarranties(p layouts.Page, v AdminWarrantiesView) {
 						}
 					</tbody>
 				</table>
-				@listBound(v.ListBound, ByOwnOrder, true)
 			</div>
 			<p class="goen-admin__hint">
 				{ i18n.T(ctx, i18n.KeyAdminWarrantyClock) }
 			</p>
 		}
+		@listBound(v.ListBound, ByOwnOrder, true)
 	}
 }

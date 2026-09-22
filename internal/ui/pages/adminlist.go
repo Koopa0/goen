@@ -1,17 +1,11 @@
 package pages
 
-// ListBound is what a bounded back-office list tells its page about its own
-// edge.
-//
-// Every admin list reads a page of rows and shows them, and until now no page
-// said so: a staff member could not tell fifty messages from fifty of nine
-// hundred. The store reads one row more than it shows, drops it, and sets
-// More — so the page can say what it is not showing without ever counting the
-// extra row into anything.
-//
-// Limit travels with it because the sentence names the number, and the number
-// is a constant in internal/admin that the view layer must not import.
+// ListBound carries navigation beside a bounded back-office list.
 type ListBound struct {
+	Paged bool
+	Empty bool
+	First string
+	Next  string
 	More  bool
 	Limit int
 }

@@ -22,11 +22,11 @@ templ AdminAudit(p layouts.Page, v AuditView) {
 				</p>
 			</div>
 		</div>
-		if v.Empty() {
+		if v.Empty() && !v.Paged {
 			<div class="goen-admin__empty">
 				<p class="goen-admin__emptytitle">{ i18n.T(ctx, i18n.KeyAdminAuditEmpty) }</p>
 			</div>
-		} else {
+		} else if !v.Empty() {
 			<ul class="goen-admin__audit" role="list">
 				for _, e := range v.Rows {
 					<li class={ "goen-admin__auditrow", templ.KV("is-money", e.Money()) }>
@@ -44,7 +44,7 @@ templ AdminAudit(p layouts.Page, v AuditView) {
 					</li>
 				}
 			</ul>
-			@listBound(v.ListBound, ByRecency, false)
 		}
+		@listBound(v.ListBound, ByRecency, false)
 	}
 }

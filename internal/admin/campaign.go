@@ -46,13 +46,20 @@ func (f *CampaignForm) Validate(ctx context.Context) map[string]string {
 }
 
 // Campaigns reads the promotions for the back office.
-func (s *Store) Campaigns(ctx context.Context) (pages.AdminCampaignsView, error) {
-	rows, err := s.q.AdminCampaigns(ctx, PageLimit)
+func (s *Store) Campaigns(ctx context.Context, after ...string) (pages.AdminCampaignsView, error) {
+	scope := "/admin/campaigns"
+	cursor := readPageCursor(scope, after)
+	rows, err := s.q.AdminCampaigns(ctx, db.AdminCampaignsParams{HasCursor: cursor.Valid, AfterRank: cursor.Rank, AfterAt: cursor.At, AfterID: cursor.ID, RowLimit: PageLimit})
 	if err != nil {
 		return pages.AdminCampaignsView{}, fmt.Errorf("read campaigns: %w", err)
 	}
 	rows, more := pageOf(rows, PageSize)
-	view := pages.AdminCampaignsView{ListBound: pages.Bound(more, PageSize)}
+	last := ""
+	if len(rows) > 0 {
+		last = rows[len(rows)-1].PageCursor
+	}
+	bound := cursor.bound(scope, more, PageSize, last)
+	view := pages.AdminCampaignsView{ListBound: bound}
 	for i := range rows {
 		c := &rows[i]
 		view.Rows = append(view.Rows, pages.AdminCampaign{

@@ -119,13 +119,20 @@ func (f *CouponForm) validateKind(ctx context.Context, errs map[string]string) {
 }
 
 // Coupons reads the promotions for the back office.
-func (s *Store) Coupons(ctx context.Context) (pages.AdminCouponsView, error) {
-	rows, err := s.q.AdminCoupons(ctx, PageLimit)
+func (s *Store) Coupons(ctx context.Context, after ...string) (pages.AdminCouponsView, error) {
+	scope := "/admin/coupons"
+	cursor := readPageCursor(scope, after)
+	rows, err := s.q.AdminCoupons(ctx, db.AdminCouponsParams{HasCursor: cursor.Valid, AfterRank: cursor.Rank, AfterAt: cursor.At, AfterID: cursor.ID, RowLimit: PageLimit})
 	if err != nil {
 		return pages.AdminCouponsView{}, fmt.Errorf("read coupons: %w", err)
 	}
 	rows, more := pageOf(rows, PageSize)
-	view := pages.AdminCouponsView{ListBound: pages.Bound(more, PageSize)}
+	last := ""
+	if len(rows) > 0 {
+		last = rows[len(rows)-1].PageCursor
+	}
+	bound := cursor.bound(scope, more, PageSize, last)
+	view := pages.AdminCouponsView{ListBound: bound}
 	for i := range rows {
 		r := &rows[i]
 		view.Rows = append(view.Rows, pages.AdminCoupon{

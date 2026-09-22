@@ -95,13 +95,20 @@ func (f *ProductForm) Validate(ctx context.Context) map[string]string {
 }
 
 // Products reads the catalogue for the back office.
-func (s *Store) Products(ctx context.Context) (pages.AdminProductsView, error) {
-	rows, err := s.q.AdminProducts(ctx, PageLimit)
+func (s *Store) Products(ctx context.Context, after ...string) (pages.AdminProductsView, error) {
+	scope := "/admin/products"
+	cursor := readPageCursor(scope, after)
+	rows, err := s.q.AdminProducts(ctx, db.AdminProductsParams{HasCursor: cursor.Valid, AfterAt: cursor.At, AfterID: cursor.ID, RowLimit: PageLimit})
 	if err != nil {
 		return pages.AdminProductsView{}, fmt.Errorf("read products: %w", err)
 	}
 	rows, more := pageOf(rows, PageSize)
-	view := pages.AdminProductsView{ListBound: pages.Bound(more, PageSize)}
+	last := ""
+	if len(rows) > 0 {
+		last = rows[len(rows)-1].PageCursor
+	}
+	bound := cursor.bound(scope, more, PageSize, last)
+	view := pages.AdminProductsView{ListBound: bound}
 	for i := range rows {
 		r := &rows[i]
 		view.Rows = append(view.Rows, pages.AdminProduct{
