@@ -306,8 +306,8 @@ func TestInvoiceSettlementLocksOrderBeforeOperation(t *testing.T) {
 	}
 	done := make(chan error, 1)
 	go func() {
-		_, err := second.Exec(ctx, `SELECT settle_invoice_issue($1,$2,'JC00000104','1234',now(),$3,$4,$5,$6)`, operation, owner, descriptions, quantities, prices, amounts)
-		done <- err
+		_, settleErr := second.Exec(ctx, `SELECT settle_invoice_issue($1,$2,'JC00000104','1234',now(),$3,$4,$5,$6)`, operation, owner, descriptions, quantities, prices, amounts)
+		done <- settleErr
 	}()
 	finished := false
 	defer func() {
@@ -325,11 +325,11 @@ func TestInvoiceSettlementLocksOrderBeforeOperation(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = probe.Rollback(context.WithoutCancel(ctx)) }()
-	if _, err := probe.Exec(ctx, `SELECT id FROM invoice_operations WHERE id = $1 FOR UPDATE NOWAIT`, operation); err != nil {
-		t.Fatalf("settlement took operation before order: %v", err)
+	if _, probeErr := probe.Exec(ctx, `SELECT id FROM invoice_operations WHERE id = $1 FOR UPDATE NOWAIT`, operation); probeErr != nil {
+		t.Fatalf("settlement took operation before order: %v", probeErr)
 	}
-	if err := probe.Rollback(ctx); err != nil {
-		t.Fatal(err)
+	if rollbackErr := probe.Rollback(ctx); rollbackErr != nil {
+		t.Fatal(rollbackErr)
 	}
 	if _, err := first.Exec(ctx, `SAVEPOINT cancellation`); err != nil {
 		t.Fatal(err)
