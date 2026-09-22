@@ -608,8 +608,8 @@ func (h *Handler) SaveWishlist(w http.ResponseWriter, r *http.Request) {
 
 	u, ok := FromContext(r.Context())
 	if !ok {
-		// Back to the product, not to an empty wishlist. The form is read BEFORE
-		// this check so a guest keeps both the item and the page they were on.
+		// Authentication does not replay writes; this redirect only preserves
+		// the page for callers outside the authenticated route wrapper.
 		http.Redirect(w, r, "/signin?next="+urlQueryEscape(back), http.StatusSeeOther)
 		return
 	}
