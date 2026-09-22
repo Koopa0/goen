@@ -252,6 +252,24 @@ func TestRestoredFinancialHandlersResumeWithoutDuplicateMoney(t *testing.T) {
 		t.Fatalf("restored financial snapshot differs: %v", err)
 	}
 	handler := restoreFinancialRouter(t, copyURL)
+	for _, path := range []string{"/admin/returns", "/admin/health"} {
+		req := httptest.NewRequestWithContext(ctx, http.MethodGet, path, http.NoBody)
+		req.AddCookie(&http.Cookie{Name: "goen_session", Value: token, Secure: true, HttpOnly: true, SameSite: http.SameSiteLaxMode})
+		res := httptest.NewRecorder()
+		handler.ServeHTTP(res, req)
+		if res.Code != http.StatusOK {
+			t.Fatalf("restored financial queue %s: status=%d", path, res.Code)
+		}
+		needles := []string{returnID.String()}
+		if path == "/admin/health" {
+			needles = []string{"cs_restore_paid", "cs_restore_unpaid"}
+		}
+		for _, needle := range needles {
+			if !strings.Contains(res.Body.String(), needle) {
+				t.Fatalf("restored financial queue %s lost pending work %q", path, needle)
+			}
+		}
+	}
 	assertRestoreRefund(t, copyPool, returnID, actor, "pending", key, 0, 1)
 	restoreOperatorPost(t, handler, token, path, "restore-copy-refund", form, "/admin/returns?ok=1")
 	assertRestoreRefund(t, copyPool, returnID, actor, "succeeded", key, 1, 2)
