@@ -36,8 +36,8 @@ func TestCarrierCheckRequiresAnExistenceVerdict(t *testing.T) {
 					return
 				}
 				var env envelope
-				if err := json.NewDecoder(r.Body).Decode(&env); err != nil {
-					t.Error(err)
+				if decodeErr := json.NewDecoder(r.Body).Decode(&env); decodeErr != nil {
+					t.Error(decodeErr)
 					return
 				}
 				plain, err := g.open(env.Data)
@@ -46,8 +46,8 @@ func TestCarrierCheckRequiresAnExistenceVerdict(t *testing.T) {
 					return
 				}
 				var request map[string]string
-				if err := json.Unmarshal(plain, &request); err != nil {
-					t.Error(err)
+				if decodeErr := json.Unmarshal(plain, &request); decodeErr != nil {
+					t.Error(decodeErr)
 					return
 				}
 				if len(request) != 2 || request["MerchantID"] != testMerchantID || request["BarCode"] != "/ABC+123" {
