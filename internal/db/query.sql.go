@@ -10995,31 +10995,37 @@ func (q *Queries) SavedAddresses(ctx context.Context, userID uuid.UUID) ([]Saved
 }
 
 const searchProducts = `-- name: SearchProducts :many
-WITH page AS MATERIALIZED (
-    SELECT p.id, p.published_at,
-           -- Either name outranks a summary, brand or specification match.
-           (p.name ILIKE $2::text OR coalesce(p.name_en, '') ILIKE $2::text) AS name_match
+WITH matching_products AS MATERIALIZED (
+    SELECT p.id
     FROM products p
-    JOIN brands b ON b.id = p.brand_id
     WHERE p.status = 'active'
-      -- Both names: matching only the localized column would make the catalogue
-      -- searchable in one language at a time.
       AND (p.name ILIKE $2::text
            OR coalesce(p.name_en, '') ILIKE $2::text
            OR coalesce(p.summary, '') ILIKE $2::text
-           OR coalesce(p.summary_en, '') ILIKE $2::text
-           OR b.name ILIKE $2::text
-           OR EXISTS (
-               SELECT 1 FROM product_specs ps
-               WHERE ps.product_id = p.id
-                 AND (ps.label ILIKE $2::text
-                      OR coalesce(ps.label_en, '') ILIKE $2::text
-                      OR ps.value ILIKE $2::text
-                      OR coalesce(ps.value_en, '') ILIKE $2::text)
-           ))
-      -- Preserve the eligibility of the display variant's inner join before
-      -- LIMIT, including transactions that have not checked deferred constraints.
-      AND EXISTS (
+           OR coalesce(p.summary_en, '') ILIKE $2::text)
+    UNION
+    SELECT p.id
+    FROM brands b
+    JOIN products p ON p.brand_id = b.id
+    WHERE p.status = 'active' AND b.name ILIKE $2::text
+    UNION
+    SELECT p.id
+    FROM product_specs ps
+    JOIN products p ON p.id = ps.product_id
+    WHERE p.status = 'active'
+      AND (ps.label ILIKE $2::text
+           OR coalesce(ps.label_en, '') ILIKE $2::text
+           OR ps.value ILIKE $2::text
+           OR coalesce(ps.value_en, '') ILIKE $2::text)
+), page AS MATERIALIZED (
+    SELECT p.id, p.published_at,
+           -- Either name outranks a summary, brand or specification match.
+           (p.name ILIKE $2::text OR coalesce(p.name_en, '') ILIKE $2::text) AS name_match
+    FROM matching_products matched
+    JOIN products p ON p.id = matched.id
+    -- Preserve the eligibility of the display variant's inner join before
+    -- LIMIT, including transactions that have not checked deferred constraints.
+    WHERE EXISTS (
           SELECT 1 FROM product_variants eligible
           WHERE eligible.product_id = p.id AND eligible.is_active
       )
@@ -11097,6 +11103,9 @@ type SearchProductsRow struct {
 
 // The trigram GIN index serves Latin queries; short Chinese ones fall back to a
 // sequential scan. The caller escapes %, _ and \ before binding.
+// Evaluate brand and specification matches as sets, not once per candidate.
+// UNION keeps products matching several fields on one tile. Both languages
+// remain searchable independently of the display locale.
 // Select the page before tile enrichment, so off-page products do not read
 // their images, reviews or live display prices. Materialization keeps that
 // boundary while every read still shares this statement's snapshot.
@@ -11141,23 +11150,30 @@ func (q *Queries) SearchProducts(ctx context.Context, arg SearchProductsParams) 
 }
 
 const searchProductsCount = `-- name: SearchProductsCount :one
-SELECT count(*)::bigint
-FROM products p
-JOIN brands b ON b.id = p.brand_id
-WHERE p.status = 'active'
-  AND (p.name ILIKE $1::text
-       OR coalesce(p.name_en, '') ILIKE $1::text
-       OR coalesce(p.summary, '') ILIKE $1::text
-       OR coalesce(p.summary_en, '') ILIKE $1::text
-       OR b.name ILIKE $1::text
-       OR EXISTS (
-           SELECT 1 FROM product_specs ps
-           WHERE ps.product_id = p.id
-             AND (ps.label ILIKE $1::text
-                  OR coalesce(ps.label_en, '') ILIKE $1::text
-                  OR ps.value ILIKE $1::text
-                  OR coalesce(ps.value_en, '') ILIKE $1::text)
-       ))
+WITH matching_products AS MATERIALIZED (
+    SELECT p.id
+    FROM products p
+    WHERE p.status = 'active'
+      AND (p.name ILIKE $1::text
+           OR coalesce(p.name_en, '') ILIKE $1::text
+           OR coalesce(p.summary, '') ILIKE $1::text
+           OR coalesce(p.summary_en, '') ILIKE $1::text)
+    UNION
+    SELECT p.id
+    FROM brands b
+    JOIN products p ON p.brand_id = b.id
+    WHERE p.status = 'active' AND b.name ILIKE $1::text
+    UNION
+    SELECT p.id
+    FROM product_specs ps
+    JOIN products p ON p.id = ps.product_id
+    WHERE p.status = 'active'
+      AND (ps.label ILIKE $1::text
+           OR coalesce(ps.label_en, '') ILIKE $1::text
+           OR ps.value ILIKE $1::text
+           OR coalesce(ps.value_en, '') ILIKE $1::text)
+)
+SELECT count(*)::bigint FROM matching_products
 `
 
 // The same predicate as SearchProducts, and it has to stay the same.

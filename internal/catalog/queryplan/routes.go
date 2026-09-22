@@ -24,8 +24,10 @@ func Queries(scale Scale, categoryIDs []uuid.UUID, phonesCategory uuid.UUID) []Q
 		deepOffset = 0
 	}
 	searchLatin := "%Pixelight%"
+	searchChinese := "%\u8033%"
 	if scale == ScaleLarge {
 		searchLatin = "%Scale%"
+		searchChinese = "%\u91cf\u6e2c%"
 	}
 	locale := string(i18n.Default)
 	emptyBrands := []uuid.UUID{}
@@ -71,7 +73,7 @@ func Queries(scale Scale, categoryIDs []uuid.UUID, phonesCategory uuid.UUID) []Q
 	out = append(out, listing(RouteCategoryDeepPage, false, false, 0, 0, "", deepOffset)...)
 	out = append(out, search(RouteSearchNameLatin, searchLatin)...)
 	out = append(out, search(RouteSearchBrand, "%Meridian%")...)
-	out = append(out, search(RouteSearchChinese, "%\u91cf\u6e2b%")...)
+	out = append(out, search(RouteSearchChinese, searchChinese)...)
 	out = append(out, search(RouteSearchNoMatch, "%zzznomatchzz%")...)
 	return out
 }

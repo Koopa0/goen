@@ -65,7 +65,7 @@ func smallBudgets() []Budget {
 		{Route: RouteCategoryDeepPage, WarmMaxMS: warm, ColdMaxMS: warm * ColdMultiplier, MinRows: 0, MaxRows: 24},
 		{Route: RouteSearchNameLatin, WarmMaxMS: warm, ColdMaxMS: warm * ColdMultiplier, MinRows: 1, MaxRows: 24},
 		{Route: RouteSearchBrand, WarmMaxMS: warm, ColdMaxMS: warm * ColdMultiplier, MinRows: 1, MaxRows: 24},
-		{Route: RouteSearchChinese, WarmMaxMS: warm, ColdMaxMS: warm * ColdMultiplier, MinRows: 0, MaxRows: 24},
+		{Route: RouteSearchChinese, WarmMaxMS: warm, ColdMaxMS: warm * ColdMultiplier, MinRows: 1, MaxRows: 24},
 		{Route: RouteSearchNoMatch, WarmMaxMS: warm, ColdMaxMS: warm * ColdMultiplier, MinRows: 0, MaxRows: 0},
 	}
 }
@@ -90,7 +90,7 @@ func largeBudgets() []Budget {
 		{Route: RouteCategoryDeepPage, WarmMaxMS: 250, ColdMaxMS: 255, MinRows: 0, MaxRows: 24},
 		{Route: RouteSearchNameLatin, WarmMaxMS: 340, ColdMaxMS: 330, MinRows: 1, MaxRows: 24},
 		{Route: RouteSearchBrand, WarmMaxMS: 150, ColdMaxMS: 220, MinRows: 1, MaxRows: 24},
-		{Route: RouteSearchChinese, WarmMaxMS: 75, ColdMaxMS: 115, MinRows: 0, MaxRows: 24},
+		{Route: RouteSearchChinese, WarmMaxMS: 75, ColdMaxMS: 115, MinRows: 24, MaxRows: 24},
 		{Route: RouteSearchNoMatch, WarmMaxMS: 65, ColdMaxMS: 75, MinRows: 0, MaxRows: 0},
 	}
 }

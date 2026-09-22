@@ -20,6 +20,9 @@ import (
 //go:embed testdata/search_before_pagination.sql
 var searchBeforePagination string
 
+//go:embed testdata/search_count_before_candidates.sql
+var searchCountBeforeCandidates string
+
 type searchPlanNode struct {
 	Relation string           `json:"Relation Name"`
 	Loops    int              `json:"Actual Loops"`
@@ -76,6 +79,8 @@ INSERT INTO product_variants (product_id, sku, price_cents, is_active)
 SELECT id, 'PAGE-INACTIVE', 100, false FROM inactive;
 INSERT INTO product_specs (product_id, label, value_en, value)
 SELECT id, 'page boundary', 'needle-spec', 'fixture' FROM products WHERE slug = 'scale-00001';
+INSERT INTO product_specs (product_id, label, value_en, value)
+SELECT id, 'second boundary', 'needle-spec', 'fixture' FROM products WHERE slug = 'scale-00001';
 UPDATE products SET name = 'needle-order', name_en = 'localized needle-order',
     summary = 'first fixture', summary_en = NULL, published_at = now() - interval '1 day'
 WHERE slug = 'scale-00001';
@@ -128,6 +133,14 @@ func assertSameSearchPage(t *testing.T, tx pgx.Tx, queries *db.Queries, params d
 	got, readErr := queries.SearchProducts(t.Context(), params)
 	if readErr != nil {
 		t.Fatal(readErr)
+	}
+	var wantCount int64
+	if err := tx.QueryRow(t.Context(), searchCountBeforeCandidates, params.Pattern).Scan(&wantCount); err != nil {
+		t.Fatal(err)
+	}
+	gotCount, err := queries.SearchProductsCount(t.Context(), params.Pattern)
+	if err != nil || gotCount != wantCount {
+		t.Fatalf("search count=%d err=%v, want original count %d", gotCount, err, wantCount)
 	}
 	if !slices.Equal(got, want) {
 		t.Fatalf("search page changed identity/order/presentation:\ngot  %+v\nwant %+v", got, want)
