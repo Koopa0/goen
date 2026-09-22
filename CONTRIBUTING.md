@@ -84,6 +84,15 @@ already records that route and rule, and the run prints the exact replacement fo
 that file whenever the set moves. The local recipe above is unchanged: `make run`
 in one shell, `make check-layout` in another.
 
+The CI layout server enables TOTP. Its disposable fixture seeds only test staff
+credentials, obtains step-up through the real verification POST, and measures
+challenge/enrolment at 375px and 1440px before the full admin sweep. A local
+TOTP-enabled run requires `GOEN_LAYOUT_DISPOSABLE=1`, loopback database/server
+URLs and the same `GOEN_TOTP_KEY` as the server. Use only an owned disposable
+database: the fixture replaces credentials for `layout-*@goen.invalid` users.
+The public campaign row requires an active discounted seed product. These are
+automated browser checks, not human authenticator usability acceptance.
+
 Run the gate unpiped and report its exit status. A pipe reports the status of
 its last command, which has read a red gate as green here before.
 

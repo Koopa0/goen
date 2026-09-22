@@ -153,6 +153,7 @@ check-layout:
 		|| { echo 'the staff session fixture wrote no row — layout-check@goen.invalid does not exist, so every admin row below would fail as though the cookie were rejected' >&2; exit 2; }
 	@test "$$(psql "$$GOEN_DATABASE_URL" -qtAc "INSERT INTO sessions (token_hash, user_id, expires_at) SELECT sha256('$$(cat .layout-chrome/cust-token)'::bytea), id, now() + interval '1 hour' FROM users WHERE email = 'layout-cust@goen.invalid' RETURNING 1")" = "1" \
 		|| { echo 'the customer session fixture wrote no row — the question and return fixtures below cannot run' >&2; exit 2; }
+	@node scripts/layout-twofactor.mjs
 	@# An order to measure the payment page against. Placed through the site's
 	@# own checkout for the same reason the cart is: if placing an order is
 	@# broken, this check should fail too.
@@ -446,6 +447,8 @@ check-layout:
 			--data-urlencode "slug=$$PRODUCT_SLUG" $$U/account/wishlist; \
 		test "$$(psql "$$GOEN_DATABASE_URL" -tAc "SELECT count(*) FROM wishlist_items w JOIN users u ON u.id = w.user_id JOIN products p ON p.id = w.product_id WHERE u.email = 'layout-cust@goen.invalid' AND p.slug = '$$PRODUCT_SLUG'")" -ge 1 \
 			|| { echo 'wishlist fixture wrote no row for layout-cust@goen.invalid' >&2; exit 2; }
+	@psql "$$GOEN_DATABASE_URL" -v ON_ERROR_STOP=1 -qtAc "INSERT INTO sale_campaigns (slug, title, title_en, starts_at, ends_at) VALUES ('layout-campaign', 'Layout campaign', 'Layout campaign', now() - interval '1 day', now() + interval '1 day') ON CONFLICT (slug) DO UPDATE SET starts_at = EXCLUDED.starts_at, ends_at = EXCLUDED.ends_at, is_active = true" >/dev/null
+	@psql "$$GOEN_DATABASE_URL" -v ON_ERROR_STOP=1 -qtAc "INSERT INTO sale_campaign_products (campaign_id, product_id, position) SELECT c.id, p.id, 0 FROM sale_campaigns c CROSS JOIN LATERAL (SELECT p.id FROM products p WHERE p.status = 'active' AND EXISTS (SELECT 1 FROM product_variants v WHERE v.product_id = p.id AND v.is_active AND v.compare_at_price_cents IS NOT NULL) ORDER BY p.slug LIMIT 1) p WHERE c.slug = 'layout-campaign' ON CONFLICT (campaign_id, product_id) DO NOTHING" >/dev/null
 	@PLACED_TOKEN=$$(awk '/goen_placed/ {print $$7}' .layout-chrome/cookies); \
 		INVOICE_ORDER=$$(psql "$$GOEN_DATABASE_URL" -tAc "SELECT o.order_number FROM orders o JOIN return_requests r ON r.order_id = o.id JOIN invoice_documents d ON d.order_id = o.id AND d.number = 'GD-LAYOUT1' WHERE r.status IN ('approved', 'completed') ORDER BY o.placed_at DESC LIMIT 1"); \
 		test -n "$$INVOICE_ORDER" || { echo 'invoice fixture wrote no refunded order — /admin/orders/ would measure the list and call the 折讓 form covered' >&2; exit 2; }; \
