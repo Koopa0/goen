@@ -20,6 +20,26 @@ env:
   GOTOOLCHAIN: local
 
 jobs:
+  telemetry-receiver:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Validate and start the opt-in receiver
+        run: |
+          docker compose -f docker-compose.telemetry.yml run --rm collector validate --config=/etc/otelcol-contrib/config.yaml
+          docker compose -f docker-compose.telemetry.yml up -d
+      - name: Exercise OTLP receipt and both local views
+        run: python3 scripts/check-telemetry-receiver.py
+      - name: Receiver logs
+        if: always()
+        run: docker compose -f docker-compose.telemetry.yml logs --no-color
+      - name: Stop the receiver
+        if: always()
+        run: docker compose -f docker-compose.telemetry.yml down
+
   ci-policy:
     runs-on: ubuntu-24.04
     timeout-minutes: 10

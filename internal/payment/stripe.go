@@ -16,6 +16,7 @@ import (
 	"github.com/stripe/stripe-go/v86/webhook"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/telemetry"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -96,7 +97,9 @@ func lineItem(name string, unitCents, quantity int64) *stripe.CheckoutSessionCre
 // then [Gateway.ResumeSession] retrieves and validates a fresh URL. This also
 // means an unusable URL in Create's response cannot orphan an already-created
 // payable Session before its id is recorded.
-func (g *Gateway) StartSession(ctx context.Context, o *Order, attempt int32) (string, error) {
+func (g *Gateway) StartSession(ctx context.Context, o *Order, attempt int32) (sessionID string, err error) {
+	ctx, call := telemetry.BeginProvider(ctx, telemetry.ProviderStripe, "checkout.create")
+	defer func() { call.End(ctx, err) }()
 	if !g.Enabled() {
 		return "", ErrDisabled
 	}
@@ -179,6 +182,8 @@ func (g *Gateway) StartSession(ctx context.Context, o *Order, attempt int32) (st
 func (g *Gateway) ResumeSession(
 	ctx context.Context, sessionID string,
 ) (redirectURL string, status stripe.CheckoutSessionStatus, err error) {
+	ctx, call := telemetry.BeginProvider(ctx, telemetry.ProviderStripe, "checkout.retrieve")
+	defer func() { call.End(ctx, err) }()
 	if !g.Enabled() {
 		return "", "", ErrDisabled
 	}
@@ -206,7 +211,9 @@ func (g *Gateway) ResumeSession(
 // ExpireSession closes a Checkout Session so nobody can pay a cancelled order on
 // a tab they still have open. Stripe refuses anything but an open session, and
 // that refusal is returned rather than swallowed.
-func (g *Gateway) ExpireSession(ctx context.Context, sessionID string) error {
+func (g *Gateway) ExpireSession(ctx context.Context, sessionID string) (err error) {
+	ctx, call := telemetry.BeginProvider(ctx, telemetry.ProviderStripe, "checkout.expire")
+	defer func() { call.End(ctx, err) }()
 	if !g.Enabled() {
 		return ErrDisabled
 	}

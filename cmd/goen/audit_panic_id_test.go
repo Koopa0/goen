@@ -38,10 +38,6 @@ func TestAuditPanicRequestID(t *testing.T) {
 				t.Fatalf("status = %d, want %d", response.Code, http.StatusInternalServerError)
 			}
 
-			var event map[string]any
-			if err := json.Unmarshal(bytes.TrimSpace(logs.Bytes()), &event); err != nil {
-				t.Fatal(err)
-			}
 			id := response.Header().Get("X-Request-Id")
 			t.Logf("response request ID=%s; panic log=%s", id, logs.String())
 			if id == "" {
@@ -50,8 +46,22 @@ func TestAuditPanicRequestID(t *testing.T) {
 			if tt.supplied != "" && id != tt.supplied {
 				t.Fatalf("X-Request-Id = %q, want honoured %q", id, tt.supplied)
 			}
-			if event["request_id"] != id {
-				t.Errorf("panic log request_id=%q, want response X-Request-Id=%q", event["request_id"], id)
+			seen := map[string]int{}
+			for _, line := range bytes.Split(bytes.TrimSpace(logs.Bytes()), []byte("\n")) {
+				var event struct {
+					Message   string `json:"msg"`
+					RequestID string `json:"request_id"`
+				}
+				if err := json.Unmarshal(line, &event); err != nil {
+					t.Fatal(err)
+				}
+				seen[event.Message]++
+				if event.RequestID != id {
+					t.Errorf("%s log request_id=%q, want response X-Request-Id=%q", event.Message, event.RequestID, id)
+				}
+			}
+			if seen["panic serving request"] != 1 || seen["request"] != 1 {
+				t.Errorf("log counts = %v, want one panic and one completion", seen)
 			}
 		})
 	}

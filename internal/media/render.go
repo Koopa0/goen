@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"golang.org/x/sync/singleflight"
+
+	"github.com/koopa0/goen/internal/telemetry"
 )
 
 // RenditionCacheBytes is how much memory rendered images may occupy.
@@ -68,8 +70,10 @@ func newRenderer(read source, slots, limit int) *renderer {
 func (r *renderer) rendition(ctx context.Context, digest string, width int) (contentType string, data []byte, err error) {
 	key := digest + "/" + strconv.Itoa(width)
 	if hitType, hitData, ok := r.cached(key); ok {
+		telemetry.RecordCacheEvent(ctx, telemetry.CacheDomainMedia, telemetry.CacheHit)
 		return hitType, hitData, nil
 	}
+	telemetry.RecordCacheEvent(ctx, telemetry.CacheDomainMedia, telemetry.CacheMiss)
 
 	// DoChan and not Do, so the caller can leave while the render finishes.
 	result := r.flight.DoChan(key, func() (any, error) {
@@ -116,7 +120,7 @@ func (r *renderer) render(ctx context.Context, key, digest string, width int) (*
 	if err != nil {
 		return nil, err
 	}
-	r.put(key, contentType, rendered)
+	r.put(ctx, key, contentType, rendered)
 	return &rendition{key: key, contentType: contentType, data: rendered}, nil
 }
 
@@ -139,7 +143,7 @@ func (r *renderer) cached(key string) (contentType string, data []byte, ok bool)
 
 // put stores an entry, evicting the least recently used until the total fits.
 // Stored slices are handed out by reference and never written to again.
-func (r *renderer) put(key, contentType string, data []byte) {
+func (r *renderer) put(ctx context.Context, key, contentType string, data []byte) {
 	if len(data) > r.limit {
 		// It would evict everything else and then be evicted itself.
 		return
@@ -152,6 +156,7 @@ func (r *renderer) put(key, contentType string, data []byte) {
 		r.order.MoveToFront(el)
 		return
 	}
+	telemetry.RecordCacheEvent(ctx, telemetry.CacheDomainMedia, telemetry.CacheFill)
 	r.index[key] = r.order.PushFront(&rendition{key: key, contentType: contentType, data: data})
 	r.held += len(data)
 

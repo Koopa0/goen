@@ -1,0 +1,19 @@
+services:
+  collector:
+    image: otel/opentelemetry-collector-contrib:0.161.0
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    environment:
+      GOMAXPROCS: "2"
+      GOMEMLIMIT: 96MiB
+    cpus: 2
+    mem_limit: 128m
+    ports:
+      - "127.0.0.1:4318:4318"
+      - "127.0.0.1:8889:8889"
+    volumes:
+      - ./deploy/telemetry/collector.yaml:/etc/otelcol-contrib/config.yaml:ro
+    logging:
+      driver: json-file
+      options:
+        max-size: 5m
+        max-file: "2"

@@ -23,6 +23,7 @@ import (
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/cart"
+	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/media"
@@ -31,6 +32,7 @@ import (
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/recommend"
+	"github.com/koopa0/goen/internal/telemetry"
 	"github.com/koopa0/goen/internal/twofactor"
 	"github.com/koopa0/goen/internal/web"
 )
@@ -346,7 +348,16 @@ func run() error {
 		return configErr
 	}
 
-	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: cfg.LogLevel}))
+	telCfg := telemetry.LoadConfig()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	shutdownTelemetry, telErr := telemetry.Setup(ctx, telCfg)
+	if telErr != nil {
+		return fmt.Errorf("telemetry: %w", telErr)
+	}
+
+	log := slog.New(telemetry.CorrelatedHandler(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: cfg.LogLevel})))
 	if postureErr := cfg.prepareRuntimePosture(log); postureErr != nil {
 		return postureErr
 	}
@@ -364,39 +375,22 @@ func run() error {
 	}
 	refunder := admin.NewRefunder(cfg.StripeAPIKey)
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-
-	pool, poolErr := openPool(ctx, cfg.DatabaseURL)
-	if poolErr != nil {
-		return fmt.Errorf("open database pool: %w", redactURL(poolErr, cfg.DatabaseURL))
+	pool, adminPool, maintenancePool, poolsErr := openServicePools(ctx, &cfg, log)
+	if poolsErr != nil {
+		return poolsErr
 	}
 	defer pool.Close()
-
-	if reachErr := reachDatabase(ctx, pool, cfg.DatabaseURL, log); reachErr != nil {
-		return reachErr
-	}
-
-	adminPool, adminErr := reachableAdminPool(ctx, cfg.AdminDatabaseURL)
-	if adminErr != nil {
-		return adminErr
-	}
 	defer adminPool.Close()
+	defer maintenancePool.Close()
+
+	registerCommerceTelemetry(ctx, pool, adminPool)
+	telemetry.RegisterPool(telemetry.PoolMaintenance, maintenancePool)
 
 	srv := newServer(&cfg, &RouterConfig{
 		Pool: pool, AdminPool: adminPool, Payments: gateway, Refunder: refunder,
 		BaseURL: cfg.BaseURL, SecureCookies: cfg.SecureCookies, TOTPKey: cfg.totpKey,
 		Invoices: invoices, Google: googleSignIn, StoreMap: storeMap,
 	}, proxies, log)
-
-	// Opened here and not inside startWorkers: a pool closed by that function's
-	// own defer would be closed before the worker it belongs to has done
-	// anything.
-	maintenancePool, maintenanceErr := openMaintenancePool(ctx, cfg.MaintenanceDatabaseURL)
-	if maintenanceErr != nil {
-		return fmt.Errorf("open maintenance pool: %w", maintenanceErr)
-	}
-	defer maintenancePool.Close()
 
 	// Nothing above starts a goroutine: a return between a worker and the Wait
 	// that owns it would leave it running on a pool that is closing. Registered
@@ -410,6 +404,9 @@ func run() error {
 
 	serveErr := make(chan error, 1)
 	go func() {
+		if telemetry.Runtime() {
+			log.Info("telemetry export enabled", "endpoint", telCfg.Endpoint)
+		}
 		log.Info("goen serving", "addr", cfg.Addr)
 		if listenErr := srv.ListenAndServe(); listenErr != nil && !errors.Is(listenErr, http.ErrServerClosed) {
 			serveErr <- listenErr
@@ -426,13 +423,71 @@ func run() error {
 	case <-ctx.Done():
 	}
 
+	return shutdownServer(telCfg, shutdownTelemetry, srv, log)
+}
+
+func shutdownServer(
+	telCfg telemetry.Config,
+	shutdownTelemetry func(context.Context) error,
+	srv *http.Server,
+	log *slog.Logger,
+) error {
 	log.Info("goen shutting down")
-	shutdownCtx, cancelShutdown := context.WithTimeout(context.Background(), 15*time.Second)
+	shutdownCtx, cancelShutdown := context.WithTimeout(context.Background(), telCfg.ShutdownTimeout+10*time.Second)
 	defer cancelShutdown()
 	if shutdownErr := srv.Shutdown(shutdownCtx); shutdownErr != nil {
 		return fmt.Errorf("shut down server: %w", shutdownErr)
 	}
+	if shutdownTelemetry != nil {
+		telShutdownCtx, cancelTel := context.WithTimeout(context.Background(), telCfg.ShutdownTimeout)
+		defer cancelTel()
+		if telErr := shutdownTelemetry(telShutdownCtx); telErr != nil {
+			return fmt.Errorf("shut down telemetry: %w", telErr)
+		}
+	}
 	return nil
+}
+
+func openServicePools(
+	ctx context.Context, cfg *config, log *slog.Logger,
+) (store, adminPool, maintenance *pgxpool.Pool, err error) {
+	store, err = openPool(ctx, cfg.DatabaseURL)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("open database pool: %w", redactURL(err, cfg.DatabaseURL))
+	}
+	if reachErr := reachDatabase(ctx, store, cfg.DatabaseURL, log); reachErr != nil {
+		store.Close()
+		return nil, nil, nil, reachErr
+	}
+	adminPool, err = reachableAdminPool(ctx, cfg.AdminDatabaseURL)
+	if err != nil {
+		store.Close()
+		return nil, nil, nil, err
+	}
+	maintenance, err = openMaintenancePool(ctx, cfg.MaintenanceDatabaseURL)
+	if err != nil {
+		store.Close()
+		adminPool.Close()
+		return nil, nil, nil, fmt.Errorf("open maintenance pool: %w", err)
+	}
+	return store, adminPool, maintenance, nil
+}
+
+func registerCommerceTelemetry(ctx context.Context, store, adminPool *pgxpool.Pool) {
+	telemetry.RegisterPool(telemetry.PoolStore, store)
+	telemetry.RegisterPool(telemetry.PoolAdmin, adminPool)
+	adminQueries := db.New(adminPool)
+	telemetry.RegisterOutboxCollector(ctx, 15*time.Second, func(readCtx context.Context) (telemetry.OutboxStats, error) {
+		row, err := adminQueries.WorkerHealth(readCtx, outbox.MaxAttempts)
+		if err != nil {
+			return telemetry.OutboxStats{}, err
+		}
+		return telemetry.OutboxStats{
+			Pending:       row.OutboxPending,
+			OldestSeconds: row.OutboxOldestSeconds,
+			Stuck:         row.OutboxStuck,
+		}, nil
+	})
 }
 
 // Pool size, request budget and statement bound per role. statement_timeout
@@ -510,6 +565,7 @@ func openPoolAs(
 		return nil, fmt.Errorf("parse database url: %w", redactURL(err, url))
 	}
 	cfg.MaxConns = maxConns
+	cfg.ConnConfig.Tracer = telemetry.QueryTracer{Role: telemetry.PoolRole(role)}
 	// A bare number is milliseconds to PostgreSQL, and the startup packet is
 	// what makes it a property of the connection rather than of a caller.
 	cfg.ConnConfig.RuntimeParams["statement_timeout"] =
