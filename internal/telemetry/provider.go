@@ -116,7 +116,7 @@ func classifyProviderOutcome(ctx context.Context, err error) ProviderOutcome {
 	if err == nil {
 		return OutcomeSuccess
 	}
-	if errors.Is(err, context.DeadlineExceeded) {
+	if errors.Is(ctx.Err(), context.DeadlineExceeded) || errors.Is(err, context.DeadlineExceeded) {
 		return OutcomeTimeout
 	}
 	if errors.Is(ctx.Err(), context.Canceled) || errors.Is(err, context.Canceled) {
