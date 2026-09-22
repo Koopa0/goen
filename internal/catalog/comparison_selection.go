@@ -1,6 +1,7 @@
 package catalog
 
 import (
+	"context"
 	"net/http"
 	"net/url"
 	"slices"
@@ -42,37 +43,10 @@ func (h *Handler) changeComparison(w http.ResponseWriter, r *http.Request, actio
 	if r.PostFormValue("snapshot") == "1" {
 		selected, _ = comparison.Normalize(r.PostForm["p"])
 	}
-	outcome := string(action)
-	if action == compareClear {
-		selected = nil
-	} else {
-		loaded, err := h.store.Compare(r.Context(), selected)
-		if err != nil {
-			h.serverError(w, r)
-			return
-		}
-		selected = loaded.Slugs()
-		slug := r.PostFormValue("slug")
-		switch action {
-		case compareAdd:
-			candidate, err := h.store.Compare(r.Context(), []string{slug})
-			if err != nil {
-				h.serverError(w, r)
-				return
-			}
-			switch {
-			case candidate.Empty():
-				outcome = "unavailable"
-			case slices.Contains(selected, slug):
-			case len(selected) == comparison.Max:
-				outcome = "full"
-			default:
-				selected = append(selected, slug)
-			}
-		case compareRemove:
-			selected = slices.DeleteFunc(selected, func(s string) bool { return s == slug })
-		case compareSave, compareClear:
-		}
+	selected, outcome, err := h.updatedComparison(r.Context(), selected, r.PostFormValue("slug"), action)
+	if err != nil {
+		h.serverError(w, r)
+		return
 	}
 	if outcome != "unavailable" && outcome != "full" {
 		comparison.Write(w, selected, h.secureComparison)
@@ -80,6 +54,37 @@ func (h *Handler) changeComparison(w http.ResponseWriter, r *http.Request, actio
 	next := comparisonReturn(r.PostFormValue("next"), outcome)
 	//nolint:gosec // G710: comparisonReturn accepts only local product or comparison paths.
 	http.Redirect(w, r, next, http.StatusSeeOther)
+}
+
+func (h *Handler) updatedComparison(ctx context.Context, selected []string, slug string, action comparisonAction) ([]string, string, error) {
+	if action == compareClear {
+		return nil, string(action), nil
+	}
+	loaded, err := h.store.Compare(ctx, selected)
+	if err != nil {
+		return nil, "", err
+	}
+	selected = loaded.Slugs()
+	switch action {
+	case compareAdd:
+		candidate, err := h.store.Compare(ctx, []string{slug})
+		if err != nil {
+			return nil, "", err
+		}
+		switch {
+		case candidate.Empty():
+			return selected, "unavailable", nil
+		case slices.Contains(selected, slug):
+		case len(selected) == comparison.Max:
+			return selected, "full", nil
+		default:
+			selected = append(selected, slug)
+		}
+	case compareRemove:
+		selected = slices.DeleteFunc(selected, func(s string) bool { return s == slug })
+	case compareSave, compareClear:
+	}
+	return selected, string(action), nil
 }
 
 func comparisonReturn(raw, outcome string) string {
