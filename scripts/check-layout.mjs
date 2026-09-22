@@ -1520,6 +1520,7 @@ async function checkoutConstraintFeedback(label) {
     const message = document.getElementById('postal_code-error');
     if (!field || !message) return { ok: false };
     field.focus();
+    field.select();
     return { ok: true, hidden: getComputedStyle(message).display === 'none' };
   })()`);
   if (!initial.ok || !initial.hidden) {
