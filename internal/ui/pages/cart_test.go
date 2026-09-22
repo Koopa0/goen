@@ -735,6 +735,7 @@ func TestTheInvoiceFormAsksForOneThing(t *testing.T) {
 	tests := []struct {
 		name            string
 		kind            invoice.Preference
+		delivery        invoice.CompanyDelivery
 		wantCarrier     bool
 		wantCompanyName bool
 		wantTaxID       bool
@@ -742,6 +743,7 @@ func TestTheInvoiceFormAsksForOneThing(t *testing.T) {
 		{name: "the default keeps neither", kind: "", wantCarrier: false, wantTaxID: false},
 		{name: "a mobile barcode needs the carrier", kind: "mobile_carrier", wantCarrier: true},
 		{name: "a company invoice needs its registered buyer", kind: "company", wantCompanyName: true, wantTaxID: true},
+		{name: "company mobile retains both identity and carrier", kind: "company", delivery: invoice.CompanyDeliveryMobile, wantCompanyName: true, wantTaxID: true, wantCarrier: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -749,7 +751,7 @@ func TestTheInvoiceFormAsksForOneThing(t *testing.T) {
 			view := CheckoutView{
 				Cart:           CartView{Lines: []CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
 				Shipping:       []ShippingChoice{{Code: "home", Name: "宅配到府"}},
-				Invoice:        CheckoutInvoice{Type: tt.kind},
+				Invoice:        CheckoutInvoice{Type: tt.kind, CompanyDelivery: tt.delivery},
 				InvoiceChoices: []InvoiceChoice{{Value: "member_carrier", Label: "會員載具"}},
 			}
 			html := renderToString(t, Checkout(CheckoutMeta(ctx), &view))
@@ -1055,5 +1057,22 @@ func TestAFullyFundedOrderIsNotAskedToPay(t *testing.T) {
 	}
 	if !owing.AwaitingPayment() {
 		t.Error("an order that still owes money is not offered a way to pay it")
+	}
+}
+
+func TestCompanyCarrierErrorRetainsIdentityAndDelivery(t *testing.T) {
+	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+		ctx := i18n.WithLocale(t.Context(), locale)
+		view := CheckoutView{
+			Cart:    CartView{Lines: []CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
+			Invoice: CheckoutInvoice{Type: invoice.PreferenceCompany, CompanyDelivery: invoice.CompanyDeliveryMobile, Carrier: "/ABC_123", CompanyName: "Buyer Company", TaxID: "04595252"},
+			Errors:  map[string]string{"invoice_carrier": "invalid fixture"},
+		}
+		body := renderToString(t, Checkout(CheckoutMeta(ctx), &view))
+		for _, want := range []string{`value="Buyer Company"`, `value="04595252"`, `value="/ABC_123"`, `name="invoice_company_delivery" value="mobile" checked`, `aria-describedby="invoice_carrier-error"`, `name="update" value="invoice"`} {
+			if !strings.Contains(body, want) {
+				t.Errorf("company refusal missing %q", want)
+			}
+		}
 	}
 }

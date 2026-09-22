@@ -100,14 +100,20 @@ var (
 	KeyFieldTaxID = key("field.invoice.taxid", Message{ZhHant: "統一編號", En: "Company tax ID"})
 
 	KeyInvoiceMember = key("invoice.member", Message{
-		ZhHant: "會員載具(存入會員帳號)",
-		En:     "Member carrier (held in your goen account)",
+		ZhHant: "綠界平台載具（依結帳 Email 留存）",
+		En:     "ECPay carrier (held against your checkout email)",
 	})
 
 	KeyInvoiceMobile = key("invoice.mobile", Message{
 		ZhHant: "手機條碼載具",
 		En:     "Mobile barcode carrier",
 	})
+
+	KeyCompanyDelivery           = key("invoice.company.delivery", Message{ZhHant: "公司發票接收方式", En: "Company invoice delivery"})
+	KeyCompanyDeliveryEmail      = key("invoice.company.delivery.email", Message{ZhHant: "綠界平台載具", En: "ECPay carrier"})
+	KeyCompanyDeliveryEmailHint  = key("invoice.company.delivery.email.hint", Message{ZhHant: "綠界使用本次結帳 Email 對應的載具留存發票。", En: "ECPay holds the invoice on a carrier associated with this checkout email."})
+	KeyCompanyDeliveryMobileHint = key("invoice.company.delivery.mobile.hint", Message{ZhHant: "保留公司名稱與統編，發票存入下方手機條碼；不提供紙本寄送。", En: "Keep the company name and tax ID and store the invoice on the barcode below. Paper delivery is not offered."})
+	KeyCompanyDeliveryRequired   = key("valid.invoice.company.delivery", Message{ZhHant: "請選擇綠界平台載具或手機條碼。", En: "Choose the ECPay carrier or a mobile barcode."})
 
 	KeyInvoiceCompany = key("invoice.company", Message{
 		ZhHant: "公司統編",

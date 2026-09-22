@@ -7848,6 +7848,11 @@ SELECT o.id, o.order_number, o.fulfillment_status,
                   WHERE ol.order_id = o.id), 0)
         - o.discount_cents + o.shipping_cents + o.tax_cents
         - order_amount_owed(o.id))::bigint AS credit_cents,
+       coalesce(ip.invoice_type, '') AS invoice_type,
+       coalesce(ip.carrier_code, '') AS invoice_carrier,
+       coalesce(ip.tax_id, '') AS invoice_tax_id,
+       coalesce(ip.customer_name, '') AS invoice_customer_name,
+       coalesce(ip.customer_email, '') AS invoice_customer_email,
        coalesce(pd.email, '') AS email,
        coalesce(pd.postal_code, '') AS postal_code,
        coalesce(pd.city, '') AS city,
@@ -7864,31 +7869,37 @@ SELECT o.id, o.order_number, o.fulfillment_status,
        order_amount_owed(o.id)::bigint AS owed_cents
 FROM orders o
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
+LEFT JOIN invoice_preferences ip ON ip.order_id = o.id
 WHERE o.order_number = $1
 `
 
 type OrderSummaryByNumberRow struct {
-	ID                 uuid.UUID
-	OrderNumber        string
-	FulfillmentStatus  string
-	ShippingCents      int64
-	DiscountCents      int64
-	TaxCents           int64
-	DiscountReason     string
-	ShippingMethodName string
-	PlacedAt           time.Time
-	SubtotalCents      int64
-	CreditCents        int64
-	Email              string
-	PostalCode         string
-	City               string
-	District           string
-	Street             string
-	PickupBrand        string
-	PickupStoreCode    string
-	PickupStoreName    string
-	Committed          bool
-	OwedCents          int64
+	ID                   uuid.UUID
+	OrderNumber          string
+	FulfillmentStatus    string
+	ShippingCents        int64
+	DiscountCents        int64
+	TaxCents             int64
+	DiscountReason       string
+	ShippingMethodName   string
+	PlacedAt             time.Time
+	SubtotalCents        int64
+	CreditCents          int64
+	InvoiceType          string
+	InvoiceCarrier       string
+	InvoiceTaxID         string
+	InvoiceCustomerName  string
+	InvoiceCustomerEmail string
+	Email                string
+	PostalCode           string
+	City                 string
+	District             string
+	Street               string
+	PickupBrand          string
+	PickupStoreCode      string
+	PickupStoreName      string
+	Committed            bool
+	OwedCents            int64
 }
 
 func (q *Queries) OrderSummaryByNumber(ctx context.Context, orderNumber string) (OrderSummaryByNumberRow, error) {
@@ -7906,6 +7917,11 @@ func (q *Queries) OrderSummaryByNumber(ctx context.Context, orderNumber string) 
 		&i.PlacedAt,
 		&i.SubtotalCents,
 		&i.CreditCents,
+		&i.InvoiceType,
+		&i.InvoiceCarrier,
+		&i.InvoiceTaxID,
+		&i.InvoiceCustomerName,
+		&i.InvoiceCustomerEmail,
 		&i.Email,
 		&i.PostalCode,
 		&i.City,

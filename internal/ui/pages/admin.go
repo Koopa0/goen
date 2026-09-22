@@ -320,7 +320,11 @@ func (v *AdminOrderView) InvoiceText(ctx context.Context) string {
 	case invoice.PreferenceMobile:
 		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminCarrierMobile), v.InvoiceCarrier)
 	case invoice.PreferenceCompany:
-		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminCarrierTaxID), v.InvoiceTaxID)
+		identity := fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminCarrierTaxID), v.InvoiceTaxID)
+		if v.InvoiceCarrier != "" {
+			return identity + " · " + fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminCarrierMobile), v.InvoiceCarrier)
+		}
+		return identity + " · " + i18n.T(ctx, i18n.KeyCompanyDeliveryEmail)
 	default:
 		panic("pages: no label for invoice type " + string(v.InvoiceType))
 	}

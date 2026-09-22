@@ -60,6 +60,10 @@ func (g *Gateway) Issue(ctx context.Context, in IssueRequest) (Document, error) 
 		// says where it is held.
 		req.CustomerIdentifier = in.TaxID
 		req.CarrierT = CarrierMember
+		if in.CarrierCode != "" {
+			req.CarrierT = CarrierMobile
+			req.CarrierNum = in.CarrierCode
+		}
 	case PreferenceMobile:
 		req.CarrierT = CarrierMobile
 		req.CarrierNum = in.CarrierCode
@@ -147,6 +151,9 @@ func (r IssueRequest) validate() error {
 			// rule already names.
 			return fmt.Errorf("%w: a 公司戶 invoice needs a valid eight-digit 統編, got %q",
 				ErrRejected, r.TaxID)
+		}
+		if r.CarrierCode != "" && !ValidMobileCarrier(r.CarrierCode) {
+			return fmt.Errorf("%w: a company mobile carrier must have a valid barcode shape", ErrRejected)
 		}
 	case PreferenceMobile:
 		if !ValidMobileCarrier(r.CarrierCode) {

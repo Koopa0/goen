@@ -2961,7 +2961,8 @@ CREATE TABLE invoice_preferences (
     CONSTRAINT invoice_preferences_company_has_tax_id
         CHECK (tax_id IS NULL OR valid_business_tax_id(tax_id)),
     CONSTRAINT invoice_preferences_mobile_carrier_shape
-        CHECK ((invoice_type = 'mobile_carrier') = (carrier_code IS NOT NULL)),
+        CHECK ((invoice_type <> 'mobile_carrier' OR carrier_code IS NOT NULL)
+            AND (invoice_type <> 'member_carrier' OR carrier_code IS NULL)),
     CONSTRAINT invoice_preferences_mobile_has_carrier
         CHECK (carrier_code IS NULL OR carrier_code ~ '^/[0-9A-Z+\-.]{7}$'),
     CONSTRAINT invoice_preferences_customer_name_present

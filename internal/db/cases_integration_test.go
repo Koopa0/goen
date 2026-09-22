@@ -540,8 +540,18 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 	},
 	{
 		constraint: "invoice_preferences_mobile_carrier_shape",
-		reject:     `INSERT INTO invoice_preferences (order_id, invoice_type, carrier_code, tax_id, customer_name, customer_email) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'company', '/ABC+123', '04595252', '測試', 'test@example.com');`,
+		reject:     `INSERT INTO invoice_preferences (order_id, invoice_type, carrier_code, customer_name, customer_email) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'member_carrier', '/ABC+123', '測試', 'test@example.com');`,
+		accept:     `INSERT INTO invoice_preferences (order_id, invoice_type, carrier_code, tax_id, customer_name, customer_email) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'company', '/ABC+123', '04595252', '測試', 'test@example.com');`,
+	},
+	{
+		constraint: "invoice_preferences_mobile_carrier_shape",
+		reject:     `INSERT INTO invoice_preferences (order_id, invoice_type, customer_name, customer_email) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'mobile_carrier', '測試', 'test@example.com');`,
 		accept:     `INSERT INTO invoice_preferences (order_id, invoice_type, tax_id, customer_name, customer_email) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'company', '04595252', '測試', 'test@example.com');`,
+	},
+	{
+		constraint: "invoice_preferences_mobile_has_carrier",
+		reject:     `INSERT INTO invoice_preferences (order_id, invoice_type, carrier_code, tax_id, customer_name, customer_email) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'company', '/ABC_123', '04595252', '測試', 'test@example.com');`,
+		accept:     `INSERT INTO invoice_preferences (order_id, invoice_type, carrier_code, tax_id, customer_name, customer_email) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'company', '/ABC+123', '04595252', '測試', 'test@example.com');`,
 	},
 	{
 		constraint: "invoice_preferences_mobile_has_carrier",
