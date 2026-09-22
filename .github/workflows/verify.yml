@@ -114,6 +114,19 @@ jobs:
       - name: Schema conformance
         run: make test-integration
 
+      - name: Prove carrier verification mutations
+        env:
+          GOEN_PROOF_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: bash scripts/check-carrier-mutations.sh
+
+      - name: Keep carrier mutation evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: carrier-mutations
+          path: ${{ runner.temp }}/goen-carrier-mutations
+          if-no-files-found: warn
+
       # A down migration that does not undo the up migration is only ever
       # discovered when someone needs it.
       - name: Migration round trip
