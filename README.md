@@ -10,8 +10,10 @@ goen is an e-commerce project for shoppers and shop operators. Browse and compar
 products, place an order, manage purchases, and handle fulfillment from the back office.
 It is a demonstration and reference project, not a shop you can buy from:
 [goen.koopa0.dev](https://goen.koopa0.dev) runs the fifteen-product sample
-catalogue with payments switched off, no mail leaving the host, and the database
-restored every night. How those limits are configured is recorded in
+catalogue with Stripe sandbox payments. Use test card **4242 4242 4242 4242**,
+any future expiry date and any three-digit CVC; do not enter a real card. No real
+money is charged. The intended demo setup keeps mail on the host and restores
+the database nightly. Configuration and the limits of deployment evidence are recorded in
 [deploy/demo/README.md](deploy/demo/README.md).
 
 ![English storefront with product categories and recommended products](assets/readme/storefront.en.png)
