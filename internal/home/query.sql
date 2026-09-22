@@ -4,8 +4,25 @@
 -- not outrank a well-reviewed 4.6. status = 'active' is a literal, not a
 -- parameter, so the partial index stays usable.
 -- name: HomeRecommendedTiles :many
+-- Rating totals determine rank; image and display-price reads only belong to
+-- the selected cards. Keep the page boundary within the same snapshot.
 WITH global AS (
     SELECT coalesce(avg(rating), 0)::float8 AS m FROM visible_reviews
+), review_totals AS MATERIALIZED (
+    SELECT product_id, avg(rating)::float8 AS rating, count(*) AS n, sum(rating) AS s
+    FROM visible_reviews
+    GROUP BY product_id
+), page AS MATERIALIZED (
+    SELECT p.id, p.published_at, coalesce(rv.rating, 0)::float8 AS rating,
+           coalesce(rv.n, 0)::bigint AS rating_count,
+           (5 * global.m + coalesce(rv.s, 0)) / (5 + coalesce(rv.n, 0)) AS score
+    FROM products p
+    LEFT JOIN review_totals rv ON rv.product_id = p.id
+    CROSS JOIN global
+    WHERE p.status = 'active'
+      AND EXISTS (SELECT 1 FROM product_variants v WHERE v.product_id = p.id AND v.is_active)
+    ORDER BY score DESC, p.published_at DESC
+    LIMIT $1
 )
 SELECT
     p.slug,
@@ -20,8 +37,8 @@ SELECT
         WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
     ) AS price_varies,
     mv.compare_at_price_cents,
-    coalesce(rv.rating, 0)::float8 AS rating,
-    coalesce(rv.n, 0)::bigint AS rating_count,
+    coalesce(page.rating, 0)::float8 AS rating,
+    coalesce(page.rating_count, 0)::bigint AS rating_count,
     -- A product with no image yields NULL, which sqlc types as a non-null string
     -- and pgx cannot scan.
     coalesce(img.storage_key, '') AS image_key,
@@ -35,7 +52,8 @@ SELECT
         WHERE product_id = p.id AND is_active
           AND stock_quantity > safety_stock
     ) AS in_stock
-FROM products p
+FROM page
+JOIN products p ON p.id = page.id
 JOIN brands b ON b.id = p.brand_id
 JOIN LATERAL (
     SELECT price_cents, compare_at_price_cents
@@ -47,22 +65,13 @@ JOIN LATERAL (
     LIMIT 1
 ) mv ON true
 LEFT JOIN LATERAL (
-    SELECT avg(rating)::float8 AS rating, count(*) AS n, sum(rating) AS s
-    FROM visible_reviews
-    WHERE product_id = p.id
-) rv ON true
-LEFT JOIN LATERAL (
     SELECT storage_key, alt_text, alt_text_en, width, height
     FROM product_images
     WHERE product_id = p.id
     ORDER BY position
     LIMIT 1
 ) img ON true
-CROSS JOIN global
-WHERE p.status = 'active'
-ORDER BY (5 * global.m + coalesce(rv.s, 0)) / (5 + coalesce(rv.n, 0)) DESC,
-         p.published_at DESC
-LIMIT $1;
+ORDER BY page.score DESC, page.published_at DESC;
 
 -- One slide, not a carousel: `position` is how an editor queues the next one.
 -- The window is judged against the database's clock, which wrote the timestamps.

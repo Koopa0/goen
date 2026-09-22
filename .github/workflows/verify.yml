@@ -111,8 +111,30 @@ jobs:
 
       # The suite derives what it must cover from the system catalog, so this
       # job also fails when a constraint is added without a case for it.
+      - name: Record query-plan environment
+        run: |
+          {
+            git rev-parse HEAD
+            uname -a
+            lscpu
+            go version
+            docker info --format 'Docker {{.ServerVersion}}: {{.NCPU}} CPUs, {{.MemTotal}} bytes memory'
+          } > query-plan-environment.txt
+
       - name: Schema conformance
+        env:
+          GOEN_WRITE_QUERY_PLAN_ARTIFACTS: '1'
         run: make test-integration
+
+      - name: Retain query-plan evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: catalogue-query-plans
+          path: |
+            query-plan-environment.txt
+            internal/catalog/queryplan/artifacts/
+          if-no-files-found: warn
 
       # A down migration that does not undo the up migration is only ever
       # discovered when someone needs it.

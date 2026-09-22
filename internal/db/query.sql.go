@@ -3091,6 +3091,46 @@ func (q *Queries) CategoryDescendants(ctx context.Context, id uuid.UUID) ([]uuid
 }
 
 const categoryListing = `-- name: CategoryListing :many
+WITH ranked AS NOT MATERIALIZED (
+    SELECT p.id, p.published_at,
+           CASE WHEN $2::text IN ('price_asc', 'price_desc') THEN (
+               SELECT price_cents FROM product_variants
+               WHERE product_id = p.id AND is_active
+               ORDER BY (stock_quantity > safety_stock) DESC, price_cents
+               LIMIT 1
+           ) END AS sort_price,
+           CASE WHEN $2::text = 'rating' THEN coalesce((
+               SELECT avg(rating)::float8 FROM visible_reviews WHERE product_id = p.id
+           ), 0) END AS sort_rating
+    FROM products p
+    WHERE p.status = 'active'
+      AND p.category_id = ANY($3::uuid[])
+      AND ($4::uuid[] = ARRAY[]::uuid[] OR p.brand_id = ANY($4::uuid[]))
+      -- One variant satisfies every variant-level filter at once.
+      AND (
+          NOT $5::boolean
+          OR EXISTS (
+              SELECT 1 FROM product_variants v
+              WHERE v.product_id = p.id AND v.is_active
+                AND (NOT $6::boolean OR v.stock_quantity > v.safety_stock)
+                AND ($7::bigint = 0 OR v.price_cents >= $7::bigint)
+                AND ($8::bigint = 0 OR v.price_cents <= $8::bigint)
+          )
+      )
+      -- Preserve the display-variant inner join's eligibility before pagination.
+      AND EXISTS (
+          SELECT 1 FROM product_variants eligible
+          WHERE eligible.product_id = p.id AND eligible.is_active
+      )
+), page AS MATERIALIZED (
+    SELECT id, published_at, sort_price, sort_rating FROM ranked
+    ORDER BY
+        CASE WHEN $2::text = 'price_asc' THEN sort_price END ASC,
+        CASE WHEN $2::text = 'price_desc' THEN sort_price END DESC,
+        sort_rating DESC,
+        published_at DESC, id DESC
+    LIMIT $10::integer OFFSET $9::integer
+)
 SELECT
     p.slug,
     localized_name(p.name, p.name_en, $1::text) AS name,
@@ -3115,7 +3155,8 @@ SELECT
     coalesce(localized_name(img.alt_text, img.alt_text_en, $1::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height
-FROM products p
+FROM page
+JOIN products p ON p.id = page.id
 JOIN brands b ON b.id = p.brand_id
 JOIN LATERAL (
     SELECT price_cents, compare_at_price_cents
@@ -3133,37 +3174,22 @@ LEFT JOIN LATERAL (
     SELECT storage_key, alt_text, alt_text_en, width, height
     FROM product_images WHERE product_id = p.id ORDER BY position LIMIT 1
 ) img ON true
-WHERE p.status = 'active'
-  AND p.category_id = ANY($2::uuid[])
-  AND ($3::uuid[] = ARRAY[]::uuid[] OR p.brand_id = ANY($3::uuid[]))
-  -- One variant satisfies every variant-level filter at once.
-  AND (
-      NOT $4::boolean
-      OR EXISTS (
-          SELECT 1 FROM product_variants v
-          WHERE v.product_id = p.id AND v.is_active
-            AND (NOT $5::boolean OR v.stock_quantity > v.safety_stock)
-            AND ($6::bigint = 0 OR v.price_cents >= $6::bigint)
-            AND ($7::bigint = 0 OR v.price_cents <= $7::bigint)
-      )
-  )
 ORDER BY
-    CASE WHEN $8::text = 'price_asc'  THEN mv.price_cents END ASC,
-    CASE WHEN $8::text = 'price_desc' THEN mv.price_cents END DESC,
-    CASE WHEN $8::text = 'rating'     THEN coalesce(rv.rating, 0) END DESC,
-    p.published_at DESC, p.id DESC
-LIMIT $10::integer OFFSET $9::integer
+    CASE WHEN $2::text = 'price_asc' THEN page.sort_price END ASC,
+    CASE WHEN $2::text = 'price_desc' THEN page.sort_price END DESC,
+    page.sort_rating DESC,
+    page.published_at DESC, page.id DESC
 `
 
 type CategoryListingParams struct {
 	Locale         string
+	Sort           string
 	CategoryIds    []uuid.UUID
 	BrandIds       []uuid.UUID
 	FilterVariants bool
 	InStockOnly    bool
 	MinPrice       int64
 	MaxPrice       int64
-	Sort           string
 	PageOffset     int32
 	PageSize       int32
 }
@@ -3188,16 +3214,19 @@ type CategoryListingRow struct {
 // status = 'active' is a literal, or the planner cannot use
 // products_category_published_idx. Every variant condition sits in ONE EXISTS, or
 // each finds a different variant. Sellable is stock_quantity > safety_stock.
+// Ranking reads only the facts needed by the selected sort. Materializing the
+// page keeps image/review/card assembly off products skipped by LIMIT/OFFSET,
+// while selection and live display prices share one statement snapshot.
 func (q *Queries) CategoryListing(ctx context.Context, arg CategoryListingParams) ([]CategoryListingRow, error) {
 	rows, err := q.db.Query(ctx, categoryListing,
 		arg.Locale,
+		arg.Sort,
 		arg.CategoryIds,
 		arg.BrandIds,
 		arg.FilterVariants,
 		arg.InStockOnly,
 		arg.MinPrice,
 		arg.MaxPrice,
-		arg.Sort,
 		arg.PageOffset,
 		arg.PageSize,
 	)
@@ -5817,6 +5846,21 @@ const homeRecommendedTiles = `-- name: HomeRecommendedTiles :many
 
 WITH global AS (
     SELECT coalesce(avg(rating), 0)::float8 AS m FROM visible_reviews
+), review_totals AS MATERIALIZED (
+    SELECT product_id, avg(rating)::float8 AS rating, count(*) AS n, sum(rating) AS s
+    FROM visible_reviews
+    GROUP BY product_id
+), page AS MATERIALIZED (
+    SELECT p.id, p.published_at, coalesce(rv.rating, 0)::float8 AS rating,
+           coalesce(rv.n, 0)::bigint AS rating_count,
+           (5 * global.m + coalesce(rv.s, 0)) / (5 + coalesce(rv.n, 0)) AS score
+    FROM products p
+    LEFT JOIN review_totals rv ON rv.product_id = p.id
+    CROSS JOIN global
+    WHERE p.status = 'active'
+      AND EXISTS (SELECT 1 FROM product_variants v WHERE v.product_id = p.id AND v.is_active)
+    ORDER BY score DESC, p.published_at DESC
+    LIMIT $1
 )
 SELECT
     p.slug,
@@ -5831,8 +5875,8 @@ SELECT
         WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
     ) AS price_varies,
     mv.compare_at_price_cents,
-    coalesce(rv.rating, 0)::float8 AS rating,
-    coalesce(rv.n, 0)::bigint AS rating_count,
+    coalesce(page.rating, 0)::float8 AS rating,
+    coalesce(page.rating_count, 0)::bigint AS rating_count,
     -- A product with no image yields NULL, which sqlc types as a non-null string
     -- and pgx cannot scan.
     coalesce(img.storage_key, '') AS image_key,
@@ -5846,7 +5890,8 @@ SELECT
         WHERE product_id = p.id AND is_active
           AND stock_quantity > safety_stock
     ) AS in_stock
-FROM products p
+FROM page
+JOIN products p ON p.id = page.id
 JOIN brands b ON b.id = p.brand_id
 JOIN LATERAL (
     SELECT price_cents, compare_at_price_cents
@@ -5858,22 +5903,13 @@ JOIN LATERAL (
     LIMIT 1
 ) mv ON true
 LEFT JOIN LATERAL (
-    SELECT avg(rating)::float8 AS rating, count(*) AS n, sum(rating) AS s
-    FROM visible_reviews
-    WHERE product_id = p.id
-) rv ON true
-LEFT JOIN LATERAL (
     SELECT storage_key, alt_text, alt_text_en, width, height
     FROM product_images
     WHERE product_id = p.id
     ORDER BY position
     LIMIT 1
 ) img ON true
-CROSS JOIN global
-WHERE p.status = 'active'
-ORDER BY (5 * global.m + coalesce(rv.s, 0)) / (5 + coalesce(rv.n, 0)) DESC,
-         p.published_at DESC
-LIMIT $1
+ORDER BY page.score DESC, page.published_at DESC
 `
 
 type HomeRecommendedTilesParams struct {
@@ -5902,6 +5938,8 @@ type HomeRecommendedTilesRow struct {
 // Bayesian-averaged rating (prior weight 5, global mean), so a lone 5-star does
 // not outrank a well-reviewed 4.6. status = 'active' is a literal, not a
 // parameter, so the partial index stays usable.
+// Rating totals determine rank; image and display-price reads only belong to
+// the selected cards. Keep the page boundary within the same snapshot.
 func (q *Queries) HomeRecommendedTiles(ctx context.Context, arg HomeRecommendedTilesParams) ([]HomeRecommendedTilesRow, error) {
 	rows, err := q.db.Query(ctx, homeRecommendedTiles, arg.Limit, arg.Locale)
 	if err != nil {
@@ -10995,6 +11033,43 @@ func (q *Queries) SavedAddresses(ctx context.Context, userID uuid.UUID) ([]Saved
 }
 
 const searchProducts = `-- name: SearchProducts :many
+WITH matching_products AS MATERIALIZED (
+    SELECT p.id
+    FROM products p
+    WHERE p.status = 'active'
+      AND (p.name ILIKE $2::text
+           OR coalesce(p.name_en, '') ILIKE $2::text
+           OR coalesce(p.summary, '') ILIKE $2::text
+           OR coalesce(p.summary_en, '') ILIKE $2::text)
+    UNION
+    SELECT p.id
+    FROM brands b
+    JOIN products p ON p.brand_id = b.id
+    WHERE p.status = 'active' AND b.name ILIKE $2::text
+    UNION
+    SELECT p.id
+    FROM product_specs ps
+    JOIN products p ON p.id = ps.product_id
+    WHERE p.status = 'active'
+      AND (ps.label ILIKE $2::text
+           OR coalesce(ps.label_en, '') ILIKE $2::text
+           OR ps.value ILIKE $2::text
+           OR coalesce(ps.value_en, '') ILIKE $2::text)
+), page AS MATERIALIZED (
+    SELECT p.id, p.published_at,
+           -- Either name outranks a summary, brand or specification match.
+           (p.name ILIKE $2::text OR coalesce(p.name_en, '') ILIKE $2::text) AS name_match
+    FROM matching_products matched
+    JOIN products p ON p.id = matched.id
+    -- Preserve the eligibility of the display variant's inner join before
+    -- LIMIT, including transactions that have not checked deferred constraints.
+    WHERE EXISTS (
+          SELECT 1 FROM product_variants eligible
+          WHERE eligible.product_id = p.id AND eligible.is_active
+      )
+    ORDER BY name_match DESC, p.published_at DESC, p.id DESC
+    LIMIT $4::integer OFFSET $3::integer
+)
 SELECT
     p.slug,
     localized_name(p.name, p.name_en, $1::text) AS name,
@@ -11019,7 +11094,8 @@ SELECT
     coalesce(localized_name(img.alt_text, img.alt_text_en, $1::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height
-FROM products p
+FROM page
+JOIN products p ON p.id = page.id
 JOIN brands b ON b.id = p.brand_id
 JOIN LATERAL (
     SELECT price_cents, compare_at_price_cents
@@ -11036,27 +11112,7 @@ LEFT JOIN LATERAL (
     SELECT storage_key, alt_text, alt_text_en, width, height
     FROM product_images WHERE product_id = p.id ORDER BY position LIMIT 1
 ) img ON true
-WHERE p.status = 'active'
-  -- Both names: matching only the localized column would make the catalogue
-  -- searchable in one language at a time.
-  AND (p.name ILIKE $2::text
-       OR coalesce(p.name_en, '') ILIKE $2::text
-       OR coalesce(p.summary, '') ILIKE $2::text
-       OR coalesce(p.summary_en, '') ILIKE $2::text
-       OR b.name ILIKE $2::text
-       OR EXISTS (
-           SELECT 1 FROM product_specs ps
-           WHERE ps.product_id = p.id
-             AND (ps.label ILIKE $2::text
-                  OR coalesce(ps.label_en, '') ILIKE $2::text
-                  OR ps.value ILIKE $2::text
-                  OR coalesce(ps.value_en, '') ILIKE $2::text)
-       ))
-ORDER BY
-    -- A name match outranks a summary or brand match. Either name counts.
-    (p.name ILIKE $2::text OR coalesce(p.name_en, '') ILIKE $2::text) DESC,
-    p.published_at DESC, p.id DESC
-LIMIT $4::integer OFFSET $3::integer
+ORDER BY page.name_match DESC, page.published_at DESC, page.id DESC
 `
 
 type SearchProductsParams struct {
@@ -11085,6 +11141,12 @@ type SearchProductsRow struct {
 
 // The trigram GIN index serves Latin queries; short Chinese ones fall back to a
 // sequential scan. The caller escapes %, _ and \ before binding.
+// Evaluate brand and specification matches as sets, not once per candidate.
+// UNION keeps products matching several fields on one tile. Both languages
+// remain searchable independently of the display locale.
+// Select the page before tile enrichment, so off-page products do not read
+// their images, reviews or live display prices. Materialization keeps that
+// boundary while every read still shares this statement's snapshot.
 func (q *Queries) SearchProducts(ctx context.Context, arg SearchProductsParams) ([]SearchProductsRow, error) {
 	rows, err := q.db.Query(ctx, searchProducts,
 		arg.Locale,
@@ -11126,23 +11188,30 @@ func (q *Queries) SearchProducts(ctx context.Context, arg SearchProductsParams) 
 }
 
 const searchProductsCount = `-- name: SearchProductsCount :one
-SELECT count(*)::bigint
-FROM products p
-JOIN brands b ON b.id = p.brand_id
-WHERE p.status = 'active'
-  AND (p.name ILIKE $1::text
-       OR coalesce(p.name_en, '') ILIKE $1::text
-       OR coalesce(p.summary, '') ILIKE $1::text
-       OR coalesce(p.summary_en, '') ILIKE $1::text
-       OR b.name ILIKE $1::text
-       OR EXISTS (
-           SELECT 1 FROM product_specs ps
-           WHERE ps.product_id = p.id
-             AND (ps.label ILIKE $1::text
-                  OR coalesce(ps.label_en, '') ILIKE $1::text
-                  OR ps.value ILIKE $1::text
-                  OR coalesce(ps.value_en, '') ILIKE $1::text)
-       ))
+WITH matching_products AS MATERIALIZED (
+    SELECT p.id
+    FROM products p
+    WHERE p.status = 'active'
+      AND (p.name ILIKE $1::text
+           OR coalesce(p.name_en, '') ILIKE $1::text
+           OR coalesce(p.summary, '') ILIKE $1::text
+           OR coalesce(p.summary_en, '') ILIKE $1::text)
+    UNION
+    SELECT p.id
+    FROM brands b
+    JOIN products p ON p.brand_id = b.id
+    WHERE p.status = 'active' AND b.name ILIKE $1::text
+    UNION
+    SELECT p.id
+    FROM product_specs ps
+    JOIN products p ON p.id = ps.product_id
+    WHERE p.status = 'active'
+      AND (ps.label ILIKE $1::text
+           OR coalesce(ps.label_en, '') ILIKE $1::text
+           OR ps.value ILIKE $1::text
+           OR coalesce(ps.value_en, '') ILIKE $1::text)
+)
+SELECT count(*)::bigint FROM matching_products
 `
 
 // The same predicate as SearchProducts, and it has to stay the same.

@@ -50,6 +50,49 @@ ORDER BY b.name;
 -- products_category_published_idx. Every variant condition sits in ONE EXISTS, or
 -- each finds a different variant. Sellable is stock_quantity > safety_stock.
 -- name: CategoryListing :many
+-- Ranking reads only the facts needed by the selected sort. Materializing the
+-- page keeps image/review/card assembly off products skipped by LIMIT/OFFSET,
+-- while selection and live display prices share one statement snapshot.
+WITH ranked AS NOT MATERIALIZED (
+    SELECT p.id, p.published_at,
+           CASE WHEN @sort::text IN ('price_asc', 'price_desc') THEN (
+               SELECT price_cents FROM product_variants
+               WHERE product_id = p.id AND is_active
+               ORDER BY (stock_quantity > safety_stock) DESC, price_cents
+               LIMIT 1
+           ) END AS sort_price,
+           CASE WHEN @sort::text = 'rating' THEN coalesce((
+               SELECT avg(rating)::float8 FROM visible_reviews WHERE product_id = p.id
+           ), 0) END AS sort_rating
+    FROM products p
+    WHERE p.status = 'active'
+      AND p.category_id = ANY(@category_ids::uuid[])
+      AND (@brand_ids::uuid[] = ARRAY[]::uuid[] OR p.brand_id = ANY(@brand_ids::uuid[]))
+      -- One variant satisfies every variant-level filter at once.
+      AND (
+          NOT @filter_variants::boolean
+          OR EXISTS (
+              SELECT 1 FROM product_variants v
+              WHERE v.product_id = p.id AND v.is_active
+                AND (NOT @in_stock_only::boolean OR v.stock_quantity > v.safety_stock)
+                AND (@min_price::bigint = 0 OR v.price_cents >= @min_price::bigint)
+                AND (@max_price::bigint = 0 OR v.price_cents <= @max_price::bigint)
+          )
+      )
+      -- Preserve the display-variant inner join's eligibility before pagination.
+      AND EXISTS (
+          SELECT 1 FROM product_variants eligible
+          WHERE eligible.product_id = p.id AND eligible.is_active
+      )
+), page AS MATERIALIZED (
+    SELECT id, published_at, sort_price, sort_rating FROM ranked
+    ORDER BY
+        CASE WHEN @sort::text = 'price_asc' THEN sort_price END ASC,
+        CASE WHEN @sort::text = 'price_desc' THEN sort_price END DESC,
+        sort_rating DESC,
+        published_at DESC, id DESC
+    LIMIT @page_size::integer OFFSET @page_offset::integer
+)
 SELECT
     p.slug,
     localized_name(p.name, p.name_en, @locale::text) AS name,
@@ -74,7 +117,8 @@ SELECT
     coalesce(localized_name(img.alt_text, img.alt_text_en, @locale::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height
-FROM products p
+FROM page
+JOIN products p ON p.id = page.id
 JOIN brands b ON b.id = p.brand_id
 JOIN LATERAL (
     SELECT price_cents, compare_at_price_cents
@@ -92,26 +136,11 @@ LEFT JOIN LATERAL (
     SELECT storage_key, alt_text, alt_text_en, width, height
     FROM product_images WHERE product_id = p.id ORDER BY position LIMIT 1
 ) img ON true
-WHERE p.status = 'active'
-  AND p.category_id = ANY(@category_ids::uuid[])
-  AND (@brand_ids::uuid[] = ARRAY[]::uuid[] OR p.brand_id = ANY(@brand_ids::uuid[]))
-  -- One variant satisfies every variant-level filter at once.
-  AND (
-      NOT @filter_variants::boolean
-      OR EXISTS (
-          SELECT 1 FROM product_variants v
-          WHERE v.product_id = p.id AND v.is_active
-            AND (NOT @in_stock_only::boolean OR v.stock_quantity > v.safety_stock)
-            AND (@min_price::bigint = 0 OR v.price_cents >= @min_price::bigint)
-            AND (@max_price::bigint = 0 OR v.price_cents <= @max_price::bigint)
-      )
-  )
 ORDER BY
-    CASE WHEN @sort::text = 'price_asc'  THEN mv.price_cents END ASC,
-    CASE WHEN @sort::text = 'price_desc' THEN mv.price_cents END DESC,
-    CASE WHEN @sort::text = 'rating'     THEN coalesce(rv.rating, 0) END DESC,
-    p.published_at DESC, p.id DESC
-LIMIT @page_size::integer OFFSET @page_offset::integer;
+    CASE WHEN @sort::text = 'price_asc' THEN page.sort_price END ASC,
+    CASE WHEN @sort::text = 'price_desc' THEN page.sort_price END DESC,
+    page.sort_rating DESC,
+    page.published_at DESC, page.id DESC;
 
 -- The same predicate as CategoryListing, and nothing else: this is only a number.
 -- name: CategoryListingCount :one
@@ -134,6 +163,49 @@ WHERE p.status = 'active'
 -- The trigram GIN index serves Latin queries; short Chinese ones fall back to a
 -- sequential scan. The caller escapes %, _ and \ before binding.
 -- name: SearchProducts :many
+-- Evaluate brand and specification matches as sets, not once per candidate.
+-- UNION keeps products matching several fields on one tile. Both languages
+-- remain searchable independently of the display locale.
+-- Select the page before tile enrichment, so off-page products do not read
+-- their images, reviews or live display prices. Materialization keeps that
+-- boundary while every read still shares this statement's snapshot.
+WITH matching_products AS MATERIALIZED (
+    SELECT p.id
+    FROM products p
+    WHERE p.status = 'active'
+      AND (p.name ILIKE @pattern::text
+           OR coalesce(p.name_en, '') ILIKE @pattern::text
+           OR coalesce(p.summary, '') ILIKE @pattern::text
+           OR coalesce(p.summary_en, '') ILIKE @pattern::text)
+    UNION
+    SELECT p.id
+    FROM brands b
+    JOIN products p ON p.brand_id = b.id
+    WHERE p.status = 'active' AND b.name ILIKE @pattern::text
+    UNION
+    SELECT p.id
+    FROM product_specs ps
+    JOIN products p ON p.id = ps.product_id
+    WHERE p.status = 'active'
+      AND (ps.label ILIKE @pattern::text
+           OR coalesce(ps.label_en, '') ILIKE @pattern::text
+           OR ps.value ILIKE @pattern::text
+           OR coalesce(ps.value_en, '') ILIKE @pattern::text)
+), page AS MATERIALIZED (
+    SELECT p.id, p.published_at,
+           -- Either name outranks a summary, brand or specification match.
+           (p.name ILIKE @pattern::text OR coalesce(p.name_en, '') ILIKE @pattern::text) AS name_match
+    FROM matching_products matched
+    JOIN products p ON p.id = matched.id
+    -- Preserve the eligibility of the display variant's inner join before
+    -- LIMIT, including transactions that have not checked deferred constraints.
+    WHERE EXISTS (
+          SELECT 1 FROM product_variants eligible
+          WHERE eligible.product_id = p.id AND eligible.is_active
+      )
+    ORDER BY name_match DESC, p.published_at DESC, p.id DESC
+    LIMIT @page_size::integer OFFSET @page_offset::integer
+)
 SELECT
     p.slug,
     localized_name(p.name, p.name_en, @locale::text) AS name,
@@ -158,7 +230,8 @@ SELECT
     coalesce(localized_name(img.alt_text, img.alt_text_en, @locale::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height
-FROM products p
+FROM page
+JOIN products p ON p.id = page.id
 JOIN brands b ON b.id = p.brand_id
 JOIN LATERAL (
     SELECT price_cents, compare_at_price_cents
@@ -175,47 +248,34 @@ LEFT JOIN LATERAL (
     SELECT storage_key, alt_text, alt_text_en, width, height
     FROM product_images WHERE product_id = p.id ORDER BY position LIMIT 1
 ) img ON true
-WHERE p.status = 'active'
-  -- Both names: matching only the localized column would make the catalogue
-  -- searchable in one language at a time.
-  AND (p.name ILIKE @pattern::text
-       OR coalesce(p.name_en, '') ILIKE @pattern::text
-       OR coalesce(p.summary, '') ILIKE @pattern::text
-       OR coalesce(p.summary_en, '') ILIKE @pattern::text
-       OR b.name ILIKE @pattern::text
-       OR EXISTS (
-           SELECT 1 FROM product_specs ps
-           WHERE ps.product_id = p.id
-             AND (ps.label ILIKE @pattern::text
-                  OR coalesce(ps.label_en, '') ILIKE @pattern::text
-                  OR ps.value ILIKE @pattern::text
-                  OR coalesce(ps.value_en, '') ILIKE @pattern::text)
-       ))
-ORDER BY
-    -- A name match outranks a summary or brand match. Either name counts.
-    (p.name ILIKE @pattern::text OR coalesce(p.name_en, '') ILIKE @pattern::text) DESC,
-    p.published_at DESC, p.id DESC
-LIMIT @page_size::integer OFFSET @page_offset::integer;
+ORDER BY page.name_match DESC, page.published_at DESC, page.id DESC;
 
 -- The same predicate as SearchProducts, and it has to stay the same.
 -- name: SearchProductsCount :one
-SELECT count(*)::bigint
-FROM products p
-JOIN brands b ON b.id = p.brand_id
-WHERE p.status = 'active'
-  AND (p.name ILIKE @pattern::text
-       OR coalesce(p.name_en, '') ILIKE @pattern::text
-       OR coalesce(p.summary, '') ILIKE @pattern::text
-       OR coalesce(p.summary_en, '') ILIKE @pattern::text
-       OR b.name ILIKE @pattern::text
-       OR EXISTS (
-           SELECT 1 FROM product_specs ps
-           WHERE ps.product_id = p.id
-             AND (ps.label ILIKE @pattern::text
-                  OR coalesce(ps.label_en, '') ILIKE @pattern::text
-                  OR ps.value ILIKE @pattern::text
-                  OR coalesce(ps.value_en, '') ILIKE @pattern::text)
-       ));
+WITH matching_products AS MATERIALIZED (
+    SELECT p.id
+    FROM products p
+    WHERE p.status = 'active'
+      AND (p.name ILIKE @pattern::text
+           OR coalesce(p.name_en, '') ILIKE @pattern::text
+           OR coalesce(p.summary, '') ILIKE @pattern::text
+           OR coalesce(p.summary_en, '') ILIKE @pattern::text)
+    UNION
+    SELECT p.id
+    FROM brands b
+    JOIN products p ON p.brand_id = b.id
+    WHERE p.status = 'active' AND b.name ILIKE @pattern::text
+    UNION
+    SELECT p.id
+    FROM product_specs ps
+    JOIN products p ON p.id = ps.product_id
+    WHERE p.status = 'active'
+      AND (ps.label ILIKE @pattern::text
+           OR coalesce(ps.label_en, '') ILIKE @pattern::text
+           OR ps.value ILIKE @pattern::text
+           OR coalesce(ps.value_en, '') ILIKE @pattern::text)
+)
+SELECT count(*)::bigint FROM matching_products;
 
 -- "On sale" is a variant fact, and a product qualifies when any active variant
 -- carries one.
