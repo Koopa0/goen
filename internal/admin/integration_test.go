@@ -4822,7 +4822,7 @@ func emptyTheShelf(t *testing.T, vid uuid.UUID, key string) {
 	}
 	if stock > 0 {
 		if _, err := pool.Exec(t.Context(),
-			`SELECT record_inventory_movement($1, $2, 'adjustment', $3, NULL, NULL, NULL)`,
+			`SELECT record_inventory_movement($1, $2, 'adjustment', $3, 'admin', NULL, NULL)`,
 			vid, -stock, key); err != nil {
 			t.Fatalf("empty the shelf: %v", err)
 		}
@@ -9809,7 +9809,7 @@ func returnedOrderWithStock(t *testing.T, name string, qty int32) (requestID, va
 		t.Fatalf("create variant: %v", err)
 	}
 	if _, err := tx.Exec(ctx,
-		`SELECT record_inventory_movement($1, 5, 'receipt', $2, NULL, NULL, NULL)`,
+		`SELECT record_inventory_movement($1, 5, 'receipt', $2, 'admin', NULL, NULL)`,
 		variantID, "seed:"+slug); err != nil {
 		t.Fatalf("stock the variant: %v", err)
 	}
@@ -10114,7 +10114,7 @@ func twoLineOrderWithStock(t *testing.T, name string) (
 			t.Fatalf("create variant: %v", err)
 		}
 		if _, err := tx.Exec(ctx,
-			`SELECT record_inventory_movement($1, 10, 'receipt', $2, NULL, NULL, NULL)`,
+			`SELECT record_inventory_movement($1, 10, 'receipt', $2, 'admin', NULL, NULL)`,
 			variantID, "seed:"+slug); err != nil {
 			t.Fatalf("stock the variant: %v", err)
 		}

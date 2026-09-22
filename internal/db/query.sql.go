@@ -13061,7 +13061,7 @@ func (q *Queries) VariantForCart(ctx context.Context, id uuid.UUID) (VariantForC
 
 const variantMovements = `-- name: VariantMovements :many
 SELECT m.created_at, m.delta, m.reason, m.source_type,
-       coalesce(o.order_number, ro.order_number, '') AS order_number,
+       coalesce(o.order_number, ro.order_number, rro.order_number, '') AS order_number,
        coalesce(u.full_name, u.email, '') AS actor,
        (SELECT sum(e.delta) FROM inventory_movements e
         WHERE e.variant_id = m.variant_id AND e.id <= m.id)::integer AS running_total
@@ -13072,6 +13072,9 @@ LEFT JOIN orders o ON m.source_type = 'order' AND o.id = m.source_id
 LEFT JOIN inventory_reservations r
        ON m.source_type = 'reservation' AND r.id = m.source_id
 LEFT JOIN orders ro ON ro.id = r.order_id
+LEFT JOIN return_requests rr
+       ON m.source_type = 'return_request' AND rr.id = m.source_id
+LEFT JOIN orders rro ON rro.id = rr.order_id
 WHERE pv.sku = $1::text
 ORDER BY m.id DESC
 LIMIT $2::integer
@@ -13092,9 +13095,8 @@ type VariantMovementsRow struct {
 	RunningTotal int32
 }
 
-// source_id is a bare uuid with no foreign key — it points at whichever table
-// source_type names — so each join is guarded by that discriminator. A HOLD
-// points at the reservation, because it is taken before the order exists.
+// Each source discriminator selects its validated parent. A hold names its
+// order; a release names the reservation and a restock names the return.
 func (q *Queries) VariantMovements(ctx context.Context, arg VariantMovementsParams) ([]VariantMovementsRow, error) {
 	rows, err := q.db.Query(ctx, variantMovements, arg.SKU, arg.RowLimit)
 	if err != nil {

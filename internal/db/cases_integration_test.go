@@ -400,6 +400,16 @@ var checkCases = []checkCase{
 		accept:     `INSERT INTO hero_slides (headline, primary_cta_label, primary_cta_href, position, starts_at, ends_at) VALUES ('夏季新機', '立即選購', '/c/phones', 5, '2026-08-01T00:00:00Z', '2026-08-02T00:00:00Z');`,
 	},
 	{
+		constraint: "inventory_movements_source_known",
+		reject:     `SELECT record_inventory_movement('44444444-4444-4444-8444-444444444444', 1, 'receipt', 'source-known', 'unknown');`,
+		accept:     `SELECT record_inventory_movement('44444444-4444-4444-8444-444444444444', 1, 'receipt', 'source-known', 'admin');`,
+	},
+	{
+		constraint: "inventory_movements_source_paired",
+		reject:     `SELECT record_inventory_movement('44444444-4444-4444-8444-444444444444', 1, 'receipt', 'source-paired', 'order', NULL);`,
+		accept:     `SELECT record_inventory_movement('44444444-4444-4444-8444-444444444444', 1, 'receipt', 'source-paired', 'order', '66666666-6666-4666-8666-666666666666');`,
+	},
+	{
 		constraint: "inventory_movements_delta_non_zero",
 		reject: `INSERT INTO inventory_movements (variant_id, delta, reason, idempotency_key)
 VALUES ('44444444-4444-4444-8444-444444444444', 0, 'adjustment', 'im-delta-1');`,
