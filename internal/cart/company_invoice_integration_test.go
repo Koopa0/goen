@@ -117,6 +117,21 @@ func TestCompanyDeliverySurvivesCheckoutSnapshotAndProviderWire(t *testing.T) {
 			if calls != 1 {
 				t.Errorf("retry filed %d invoices", calls)
 			}
+			if _, err := pool.Exec(ctx, `UPDATE order_private_data pd SET email=NULL,recipient_name=NULL,phone=NULL,postal_code=NULL,city=NULL,district=NULL,street=NULL,erased_at=now() FROM orders o WHERE pd.order_id=o.id AND o.order_number=$1`, number); err != nil {
+				t.Fatal(err)
+			}
+			erased, err := s.Order(ctx, number)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if erased.Invoice.Type != "" || erased.Invoice.CompanyName != "" || erased.InvoiceEmail != "" || erased.Invoice.Carrier != "" {
+				t.Fatal("customer view exposed the retained financial identity after erasure")
+			}
+			var retained string
+			if err := pool.QueryRow(ctx, `SELECT customer_name FROM invoice_preferences ip JOIN orders o ON o.id=ip.order_id WHERE o.order_number=$1`, number).Scan(&retained); err != nil || retained != "Buyer Company" {
+				t.Fatal("erasure projection changed the original invoice snapshot")
+			}
+
 		})
 	}
 }

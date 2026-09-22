@@ -7869,7 +7869,7 @@ SELECT o.id, o.order_number, o.fulfillment_status,
        order_amount_owed(o.id)::bigint AS owed_cents
 FROM orders o
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
-LEFT JOIN invoice_preferences ip ON ip.order_id = o.id
+LEFT JOIN invoice_preferences ip ON ip.order_id = o.id AND pd.erased_at IS NULL
 WHERE o.order_number = $1
 `
 
