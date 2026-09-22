@@ -4,13 +4,13 @@ import "github.com/koopa0/goen/internal/i18n"
 
 // Packing keeps navigation, session forms and unrelated customer data off paper.
 templ Packing(p Page) {
- <!DOCTYPE html>
- <html lang={ i18n.FromContext(ctx).Tag() } class="theme-blue">
-  @documentHead(p)
-  <body class="goen-packing-shell">
-   <main id="main" class="goen-packing">
-    { children... }
-   </main>
-  </body>
- </html>
+	<!DOCTYPE html>
+	<html lang={ i18n.FromContext(ctx).Tag() } class="theme-blue">
+		@documentHead(p)
+		<body class="goen-packing-shell">
+			<main id="main" class="goen-packing">
+				{ children... }
+			</main>
+		</body>
+	</html>
 }
