@@ -177,3 +177,9 @@ var (
 
 	KeyAuditStaffFactorRemove = key("audit.staff.factor.remove", Message{ZhHant: "移除第二因素", En: "Remove second factor"})
 )
+
+var (
+	KeyAuditOrderNoteCreate  = key("audit.order.note.create", Message{ZhHant: "新增訂單內部備註", En: "Add internal order note"})
+	KeyAuditOrderNoteReplace = key("audit.order.note.replace", Message{ZhHant: "替換訂單內部備註", En: "Replace internal order note"})
+	KeyAuditOrderNoteClear   = key("audit.order.note.clear", Message{ZhHant: "清除訂單內部備註", En: "Clear internal order note"})
+)
