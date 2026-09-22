@@ -3,8 +3,10 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"time"
@@ -92,26 +94,58 @@ func listCommand(args []string) int {
 	return 0
 }
 
-func runCommand(args []string) int {
+func splitRunArgs(args []string) ([]string, []string) {
+	var flags, targets []string
+	literal := false
+	for _, arg := range args {
+		if arg == "--" && !literal {
+			literal = true
+			continue
+		}
+		if !literal && strings.HasPrefix(arg, "-") && arg != "-" {
+			flags = append(flags, arg)
+		} else {
+			targets = append(targets, arg)
+		}
+	}
+	return flags, targets
+}
+
+func parseRunArgs(args []string) (acceptance.RunOptions, bool, error) {
 	fs := flag.NewFlagSet("run", flag.ContinueOnError)
-	fs.SetOutput(os.Stderr)
+	fs.SetOutput(io.Discard)
 	readyOnly := fs.Bool("ready-only", false, "run only ready scenarios")
 	allMode := fs.Bool("all", false, "treat blocked scenarios and extensions as failures")
 	withBrowser := fs.Bool("with-browser", false, "also run browser evidence via make check-layout")
-	if err := fs.Parse(args); err != nil {
-		return 2
+	flags, targets := splitRunArgs(args)
+	if len(targets) > 1 {
+		return acceptance.RunOptions{}, false, fmt.Errorf("run accepts one scenario, got %q", targets)
+	}
+	if err := fs.Parse(flags); err != nil {
+		return acceptance.RunOptions{}, false, err
 	}
 	if *allMode && *readyOnly {
-		fmt.Fprintln(os.Stderr, "run: --all and --ready-only contradict each other")
-		return 2
+		return acceptance.RunOptions{}, false, errors.New("--all and --ready-only contradict each other")
 	}
 	target := "all"
-	if fs.NArg() > 0 {
-		target = strings.ToUpper(fs.Arg(0))
+	if len(targets) == 1 && !strings.EqualFold(targets[0], "all") {
+		target = strings.ToUpper(targets[0])
 	}
-	explicitSelection := target != "all"
-	if explicitSelection && !*allMode {
+	explicit := target != "all"
+	if explicit && !*allMode {
 		*readyOnly = true
+	}
+	return acceptance.RunOptions{
+		ReadyOnly: *readyOnly, WithBrowser: *withBrowser,
+		ScenarioID: target, ExplicitSelection: explicit,
+	}, *allMode, nil
+}
+
+func runCommand(args []string) int {
+	opts, allMode, err := parseRunArgs(args)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "run: %v\n", err)
+		return 2
 	}
 	manifest, err := acceptance.LoadManifest()
 	if err != nil {
@@ -119,17 +153,12 @@ func runCommand(args []string) int {
 		return 1
 	}
 	start := time.Now()
-	results, err := acceptance.RunManifest(context.Background(), manifest, acceptance.RunOptions{
-		ReadyOnly:         *readyOnly,
-		WithBrowser:       *withBrowser,
-		ScenarioID:        target,
-		ExplicitSelection: explicitSelection,
-	})
+	results, err := acceptance.RunManifest(context.Background(), manifest, opts)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "run: %v\n", err)
 		return 1
 	}
 	fmt.Print(acceptance.FormatResults(results))
 	fmt.Printf("elapsed %s\n", time.Since(start).Round(time.Millisecond))
-	return acceptance.ExitCode(results, *allMode || target == "all")
+	return acceptance.ExitCode(results, allMode || opts.ScenarioID == "all")
 }

@@ -92,3 +92,53 @@ func TestRunBlockedScenarioDoesNotReportSuccessWithoutResults(t *testing.T) {
 		t.Fatalf("run C02 printed only elapsed time: %q", out)
 	}
 }
+
+func TestRunFlagsFollowTheSelectedScenario(t *testing.T) {
+	for _, args := range [][]string{
+		{"run", "C02", "--all", "--ready-only"},
+		{"run", "--all", "C02", "--ready-only"},
+	} {
+		code, _, stderr := captureRun(t, args)
+		if code != 2 || !strings.Contains(stderr, "contradict") {
+			t.Fatalf("%v = %d, %q; want usage error for contradictory flags", args, code, stderr)
+		}
+	}
+}
+
+func TestRunRejectsIgnoredTrailingArguments(t *testing.T) {
+	for _, args := range [][]string{
+		{"run", "C02", "C03"},
+		{"run", "C02", "--unknown"},
+		{"run", "C02", "--", "--with-browser"},
+	} {
+		code, _, stderr := captureRun(t, args)
+		if code != 2 {
+			t.Fatalf("%v = %d, %q; want usage error", args, code, stderr)
+		}
+	}
+}
+
+func TestRunSelectionPreservesBrowserFlagsAndCanonicalAll(t *testing.T) {
+	for _, test := range []struct {
+		args                          []string
+		target                        string
+		browser, explicit, ready, all bool
+	}{
+		{args: []string{"C01", "--with-browser"}, target: "C01", browser: true, explicit: true, ready: true},
+		{args: []string{"--with-browser", "c01"}, target: "C01", browser: true, explicit: true, ready: true},
+		{args: []string{"C01", "--with-browser=false"}, target: "C01", explicit: true, ready: true},
+		{args: []string{"--ready-only", "all"}, target: "all", ready: true},
+		{args: []string{"ALL", "--ready-only"}, target: "all", ready: true},
+		{args: []string{"All", "--all"}, target: "all", all: true},
+		{args: []string{"--all"}, target: "all", all: true},
+		{args: []string{"--", "C02"}, target: "C02", explicit: true, ready: true},
+	} {
+		opts, all, err := parseRunArgs(test.args)
+		if err != nil {
+			t.Fatalf("%v: %v", test.args, err)
+		}
+		if opts.ScenarioID != test.target || opts.WithBrowser != test.browser || opts.ExplicitSelection != test.explicit || opts.ReadyOnly != test.ready || all != test.all {
+			t.Errorf("%v = %+v all=%t; want target=%s browser=%t explicit=%t ready=%t all=%t", test.args, opts, all, test.target, test.browser, test.explicit, test.ready, test.all)
+		}
+	}
+}
