@@ -11053,17 +11053,24 @@ WHERE p.status = 'active'
                   OR coalesce(ps.value_en, '') ILIKE $2::text)
        ))
 ORDER BY
-    -- A name match outranks a summary or brand match. Either name counts.
-    (p.name ILIKE $2::text OR coalesce(p.name_en, '') ILIKE $2::text) DESC,
+    -- Field relevance is explicit; repeated words, sales and ratings do not change it.
+    CASE
+        WHEN p.name ILIKE $3::text OR coalesce(p.name_en, '') ILIKE $3::text THEN 4
+        WHEN p.name ILIKE $2::text OR coalesce(p.name_en, '') ILIKE $2::text THEN 3
+        WHEN b.name ILIKE $2::text THEN 2
+        WHEN coalesce(p.summary, '') ILIKE $2::text OR coalesce(p.summary_en, '') ILIKE $2::text THEN 1
+        ELSE 0
+    END DESC,
     p.published_at DESC, p.id DESC
-LIMIT $4::integer OFFSET $3::integer
+LIMIT $5::integer OFFSET $4::integer
 `
 
 type SearchProductsParams struct {
-	Locale     string
-	Pattern    string
-	PageOffset int32
-	PageSize   int32
+	Locale       string
+	Pattern      string
+	ExactPattern string
+	PageOffset   int32
+	PageSize     int32
 }
 
 type SearchProductsRow struct {
@@ -11089,6 +11096,7 @@ func (q *Queries) SearchProducts(ctx context.Context, arg SearchProductsParams) 
 	rows, err := q.db.Query(ctx, searchProducts,
 		arg.Locale,
 		arg.Pattern,
+		arg.ExactPattern,
 		arg.PageOffset,
 		arg.PageSize,
 	)
