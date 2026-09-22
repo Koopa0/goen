@@ -44,7 +44,10 @@ var (
 		En:     "Nothing was dispatched in this period.",
 	})
 
-	KeyAdminRepUnits = key("admin.rep.units", Message{ZhHant: "%s 件", En: "%s units"})
+	KeyAdminRepUnits = key("admin.rep.units", Message{ZhHant: "售出 %s 件", En: "%s units sold"})
+
+	KeyAdminRepGross     = key("admin.rep.gross", Message{ZhHant: "商品毛額 %s", En: "Product gross %s"})
+	KeyAdminRepGrossNote = key("admin.rep.gross.note", Message{ZhHant: "商品毛額按成交單價乘售出數量計算，未扣訂單折扣或退款，不含運費與訂單稅額；不等於上方營收。", En: "Product gross is the sale unit price multiplied by units sold, before order discounts or refunds and excluding shipping and order tax. It does not equal the revenue above."})
 
 	KeyAdminRepStock = key("admin.rep.stock", Message{ZhHant: "庫存快用完", En: "Stock about to run out"})
 
