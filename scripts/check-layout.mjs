@@ -15,6 +15,7 @@
 // Usage: make check-layout   (needs Chrome and a server on GOEN_URL)
 
 import { readFileSync } from 'node:fs';
+import { measureAdminRows } from './admin-layout-rows.mjs';
 
 const CDP_PORT = Number(process.env.CDP_PORT || 9222);
 const ORIGIN = (process.env.GOEN_URL || 'http://127.0.0.1:9700/').replace(/\/$/, '');
@@ -2069,7 +2070,7 @@ if (process.env.ADMIN_TOKEN) {
     throw new Error('CI layout gate requires its disposable TOTP key');
   }
 
-  for (const want of ADMIN) {
+  await measureAdminRows(ADMIN, async (want) => {
     await send(ws, 'Emulation.setDeviceMetricsOverride', {
       width: want.width, height: want.height, deviceScaleFactor: 1, mobile: want.width < 768,
     });
@@ -2091,11 +2092,11 @@ if (process.env.ADMIN_TOKEN) {
 
     if (got.missing) {
       fail(at, 'the back office did not render — the staff session is not being accepted');
-      continue;
+      return;
     }
     if (got.noMarker) {
       fail(at, `the page rendered without ${want.marker} — its fixture did not run, so this check proved nothing`);
-      continue;
+      return;
     }
     // AFTER the two guards above, deliberately: a 404 body has headings and controls
     // of its own, so measuring it would report the wrong page's problems as this
@@ -2112,7 +2113,7 @@ if (process.env.ADMIN_TOKEN) {
     }
     console.log(`${at.padEnd(16)} scrollW=${got.scrollWidth}/${got.viewportWidth} ` +
       `controls=${got.controls} tap=${got.minTap}`);
-  }
+  });
 } else {
   console.log('admin           skipped (no ADMIN_TOKEN)');
 }
