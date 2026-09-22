@@ -64,13 +64,19 @@ type config struct {
 	ECPayHashKey           string
 	ECPayHashIV            string
 	ECPayBaseURL           string
-	GoogleClientID         string
-	GoogleClientSecret     string
-	SMTPAddr               string
-	SMTPFrom               string
-	SMTPUser               string
-	SMTPPassword           string
-	BaseURL                string
+	// ECPayLogistics is the 物流 contract this merchant holds, c2c or b2c, and
+	// unset is the whole feature off: the checkout then asks for a chain and no
+	// store, exactly as it did before the map existed.
+	ECPayLogistics string
+	// ECPayLogisticsBaseURL defaults to the staging map.
+	ECPayLogisticsBaseURL string
+	GoogleClientID        string
+	GoogleClientSecret    string
+	SMTPAddr              string
+	SMTPFrom              string
+	SMTPUser              string
+	SMTPPassword          string
+	BaseURL               string
 	// Seller and SellerContact are Consumer Protection Act §18 I item 1, carried
 	// into the order confirmation because §18 II wants a form the consumer can
 	// store. Blank omits the disclosure rather than naming nobody.
@@ -106,14 +112,17 @@ func loadConfig() (config, error) {
 
 		MaintenanceDatabaseURL: envOr("GOEN_MAINTENANCE_DATABASE_URL", url),
 
-		StripeAPIKey:        envOr("GOEN_STRIPE_API_KEY", os.Getenv("GOEN_STRIPE_SECRET_KEY")),
-		ECPayMerchantID:     os.Getenv("GOEN_ECPAY_MERCHANT_ID"),
-		ECPayHashKey:        os.Getenv("GOEN_ECPAY_HASH_KEY"),
-		ECPayHashIV:         os.Getenv("GOEN_ECPAY_HASH_IV"),
-		ECPayBaseURL:        os.Getenv("GOEN_ECPAY_BASE_URL"),
-		GoogleClientID:      os.Getenv("GOEN_GOOGLE_CLIENT_ID"),
-		GoogleClientSecret:  os.Getenv("GOEN_GOOGLE_CLIENT_SECRET"),
-		StripeWebhookSecret: os.Getenv("GOEN_STRIPE_WEBHOOK_SECRET"),
+		StripeAPIKey:    envOr("GOEN_STRIPE_API_KEY", os.Getenv("GOEN_STRIPE_SECRET_KEY")),
+		ECPayMerchantID: os.Getenv("GOEN_ECPAY_MERCHANT_ID"),
+		ECPayHashKey:    os.Getenv("GOEN_ECPAY_HASH_KEY"),
+		ECPayHashIV:     os.Getenv("GOEN_ECPAY_HASH_IV"),
+		ECPayBaseURL:    os.Getenv("GOEN_ECPAY_BASE_URL"),
+		ECPayLogistics:  os.Getenv("GOEN_ECPAY_LOGISTICS"),
+
+		ECPayLogisticsBaseURL: os.Getenv("GOEN_ECPAY_LOGISTICS_BASE_URL"),
+		GoogleClientID:        os.Getenv("GOEN_GOOGLE_CLIENT_ID"),
+		GoogleClientSecret:    os.Getenv("GOEN_GOOGLE_CLIENT_SECRET"),
+		StripeWebhookSecret:   os.Getenv("GOEN_STRIPE_WEBHOOK_SECRET"),
 		// The guess is a development convenience; prepareRuntimePosture refuses
 		// it wherever cookies are Secure.
 		BaseURL: envOr("GOEN_BASE_URL", "http://"+envOr("GOEN_ADDR", "127.0.0.1:9700")),
@@ -280,26 +289,44 @@ func openInvoicing(cfg *config, log *slog.Logger) (*invoice.Gateway, error) {
 	return g, nil
 }
 
+// openStoreMap builds the convenience-store map and says when there is none.
+func openStoreMap(cfg *config, log *slog.Logger) (*cart.Map, error) {
+	m, err := cart.NewMap(cfg.ECPayMerchantID, cfg.ECPayLogistics,
+		cfg.ECPayLogisticsBaseURL, cfg.BaseURL)
+	if err != nil {
+		return nil, err
+	}
+	if !m.Enabled() {
+		// i18n-exempt: a startup log line, read by an operator rather than a visitor.
+		log.Info("no 超商 store map configured; a pickup order names a chain and no store",
+			"set", "GOEN_ECPAY_LOGISTICS")
+	}
+	return m, nil
+}
+
 // openProviders builds the outside services goen talks to and says when any is
 // absent. Each refuses to start on HALF a configuration.
 func openProviders(cfg *config, log *slog.Logger) (
 	payments *payment.Gateway, invoices *invoice.Gateway,
-	googleSignIn *account.Google, err error,
+	googleSignIn *account.Google, storeMap *cart.Map, err error,
 ) {
 	if payments, err = payment.NewGateway(cfg.StripeAPIKey, cfg.StripeWebhookSecret, cfg.BaseURL); err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 	if invoices, err = openInvoicing(cfg, log); err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 	if googleSignIn, err = openGoogleSignIn(cfg, log); err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
+	}
+	if storeMap, err = openStoreMap(cfg, log); err != nil {
+		return nil, nil, nil, nil, err
 	}
 	if !payments.Enabled() {
 		log.Warn("stripe is not configured; the payment page will say so",
 			"set", "GOEN_STRIPE_API_KEY and GOEN_STRIPE_WEBHOOK_SECRET")
 	}
-	return payments, invoices, googleSignIn, nil
+	return payments, invoices, googleSignIn, storeMap, nil
 }
 
 // openGoogleSignIn builds the OAuth client and says when there is none.
@@ -342,7 +369,7 @@ func run() error {
 	if proxyErr != nil {
 		return proxyErr
 	}
-	gateway, invoices, googleSignIn, providerErr := openProviders(&cfg, log)
+	gateway, invoices, googleSignIn, storeMap, providerErr := openProviders(&cfg, log)
 	if providerErr != nil {
 		return providerErr
 	}
@@ -362,7 +389,7 @@ func run() error {
 	srv := newServer(&cfg, &RouterConfig{
 		Pool: pool, AdminPool: adminPool, Payments: gateway, Refunder: refunder,
 		BaseURL: cfg.BaseURL, SecureCookies: cfg.SecureCookies, TOTPKey: cfg.totpKey,
-		Invoices: invoices, Google: googleSignIn,
+		Invoices: invoices, Google: googleSignIn, StoreMap: storeMap,
 	}, proxies, log)
 
 	// Nothing above starts a goroutine: a return between a worker and the Wait

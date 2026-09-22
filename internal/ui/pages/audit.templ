@@ -6,40 +6,45 @@ import (
 )
 
 // AdminAudit renders the back office's own history.
+//
+// A feed rather than a table: the detail line is a recorded payload of no fixed
+// width, and a column that has to hold one turns every other row into empty
+// space. What a table would give — one fact per column — the head line gives
+// instead, with the action first because that is what a reader is scanning for.
 templ AdminAudit(p layouts.Page, v AuditView) {
-	@layouts.Base(p) {
-		<div class="goen-admin">
-			@adminNav("audit")
-			<div class="ui-page-head">
-				<div>
-					<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyAdminEyebrow) }</p>
-					<h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyAdminPageAudit) }</h1>
-					<p class="ui-page-head__sub">
-						{ i18n.T(ctx, i18n.KeyAdminAuditLead) }
-					</p>
-				</div>
+	@layouts.Admin(p, "audit") {
+		<div class="ui-page-head">
+			<div>
+				<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyAdminEyebrow) }</p>
+				<h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyAdminPageAudit) }</h1>
+				<p class="ui-page-head__sub">
+					{ i18n.T(ctx, i18n.KeyAdminAuditLead) }
+				</p>
 			</div>
-			if v.Empty() {
-				<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminAuditEmpty) }</p>
-			} else {
-				<ul class="goen-admin__audit" role="list">
-					for _, e := range v.Rows {
-						<li class={ "goen-admin__auditrow", templ.KV("is-money", e.Money()) }>
-							<div class="goen-admin__audithead">
-								<span class="goen-admin__auditaction">{ e.Label(ctx) }</span>
-								<span class="ui-cart-line__meta">{ e.At }</span>
-							</div>
-							<span class="ui-cart-line__meta">{ e.ActorText(ctx) } · { e.Entity }</span>
-							if e.Detail != "" {
-								<code class="goen-admin__auditdetail">{ e.Detail }</code>
-							}
-							if e.RequestID != "" {
-								<span class="ui-cart-line__meta">req { e.ShortRequestID() }</span>
-							}
-						</li>
-					}
-				</ul>
-			}
 		</div>
+		if v.Empty() {
+			<div class="goen-admin__empty">
+				<p class="goen-admin__emptytitle">{ i18n.T(ctx, i18n.KeyAdminAuditEmpty) }</p>
+			</div>
+		} else {
+			<ul class="goen-admin__audit" role="list">
+				for _, e := range v.Rows {
+					<li class={ "goen-admin__auditrow", templ.KV("is-money", e.Money()) }>
+						<div class="goen-admin__audithead">
+							<span class="goen-admin__auditaction">{ e.Label(ctx) }</span>
+							<span class="goen-admin__meta">{ e.At }</span>
+						</div>
+						<span class="goen-admin__meta">{ e.ActorText(ctx) } · { e.Entity }</span>
+						if e.Detail != "" {
+							<code class="goen-admin__auditdetail">{ e.Detail }</code>
+						}
+						if e.RequestID != "" {
+							<span class="goen-admin__meta">req { e.ShortRequestID() }</span>
+						}
+					</li>
+				}
+			</ul>
+			@listBound(v.ListBound, ByRecency, false)
+		}
 	}
 }

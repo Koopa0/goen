@@ -103,6 +103,8 @@ func (c AdminCoupon) ToggleLabel(ctx context.Context) string {
 
 // AdminCouponsView is the promotions page.
 type AdminCouponsView struct {
+	ListBound
+
 	Rows   []AdminCoupon
 	Notice string
 	Errors map[string]string

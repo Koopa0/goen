@@ -137,4 +137,26 @@ var (
 		En: "No order matches those details. Check that the number and the address are " +
 			"both exactly as they appear in your confirmation email.",
 	})
+
+	KeyPlacementGrantFailedTitle = key("order.placement.grantfailed.title", Message{
+		ZhHant: "訂單已成立,但尚未完成存取",
+		En:     "Your order was received, but access could not be set up",
+	})
+
+	KeyPlacementGrantFailedBody = key("order.placement.grantfailed.body", Message{
+		ZhHant: "我們已收到這筆訂單,但無法在這個瀏覽器上完成存取。請勿再次下單。用確認信裡的訂單編號與 Email 到「查詢訂單」完成存取。",
+		En: "We received your order, but could not set up access in this browser. Do not place " +
+			"another order. Use the order number and email from your confirmation to find it.",
+	})
+
+	KeyFindOrderGrantFailedTitle = key("order.find.grantfailed.title", Message{
+		ZhHant: "無法完成查詢",
+		En:     "Lookup could not be completed",
+	})
+
+	KeyFindOrderGrantFailedBody = key("order.find.grantfailed.body", Message{
+		ZhHant: "訂單資料相符,但無法在這個瀏覽器上完成存取。請稍後再試一次查詢。",
+		En: "Those details matched an order, but access could not be set up in this browser. " +
+			"Try finding your order again.",
+	})
 )
