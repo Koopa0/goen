@@ -104,8 +104,8 @@ func (c *ProviderCall) End(ctx context.Context, err error) {
 	}
 	if c.span != nil {
 		if err != nil {
-			c.span.RecordError(err)
-			c.span.SetStatus(codes.Error, SanitizeValue(err.Error()))
+			// Provider errors can include request bodies, addresses and credentials.
+			c.span.SetStatus(codes.Error, string(outcome))
 		}
 		c.span.SetAttributes(attribute.String("provider.outcome", string(outcome)))
 		c.span.End()

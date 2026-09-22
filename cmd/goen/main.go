@@ -565,6 +565,7 @@ func openPoolAs(
 		return nil, fmt.Errorf("parse database url: %w", redactURL(err, url))
 	}
 	cfg.MaxConns = maxConns
+	cfg.ConnConfig.Tracer = telemetry.QueryTracer{Role: telemetry.PoolRole(role)}
 	// A bare number is milliseconds to PostgreSQL, and the startup packet is
 	// what makes it a property of the connection rather than of a caller.
 	cfg.ConnConfig.RuntimeParams["statement_timeout"] =

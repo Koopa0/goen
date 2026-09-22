@@ -29,12 +29,13 @@ Optional tuning:
 | Signal | Name / span | Labels |
 |--------|-------------|--------|
 | HTTP | route-template spans + `goen.http.server.*` | Route template (`GET /p/{slug}`), status class |
+| SQL execution | `postgres.product.*` spans + `goen.db.query.duration` | Fixed product operation, pool role and result; other SQL shares `other` |
 | DB pool | `goen.db.pool.*` | Role: `store`, `admin`, `maintenance` |
 | Providers | `stripe.*`, `ecpay.*`, `smtp.send` spans + `goen.provider.*` | Bounded operation and outcome only |
 | Outbox | `goen.outbox.*` | Same predicates as `/admin/health` (`WorkerHealth`) |
 | Cache (#330) | `goen.cache.events` | Domain + outcome (`hit`, `miss`, `fill`, `fallback`) |
 
-Raw slugs, search terms, order numbers, emails and tokens never appear as metric dimensions. Request logs add `trace_id` and `span_id` beside the existing `request_id`.
+Raw slugs, search terms, order numbers, emails and tokens never appear as metric dimensions. Request logs add `trace_id` and `span_id` beside the existing `request_id`. Provider span errors contain only their bounded outcome; raw provider error messages are not recorded as exception events or status descriptions.
 
 ## Diagnose common symptoms
 
@@ -48,7 +49,7 @@ After #330 lands its adapter, `goen.cache.events{outcome=miss}` rising while pro
 
 ### Slow SQL
 
-Pool acquired but HTTP span long: check PostgreSQL `statement_timeout` (15s store, 30s admin). Provider spans stay short.
+Compare the `postgres.product.read`, `product.images`, `product.specs`, `product.variants`, `product.options` and `product.breadcrumb` child spans with the parent HTTP span. `goen.db.query.duration` measures execution and result consumption after pool admission; pool wait remains in the pool metrics. Other SQL uses the fixed `other` operation. SQL text, parameters, database error text and connection strings are never exported. Check PostgreSQL `statement_timeout` (15s store, 30s admin) when query outcome is `timeout`.
 
 ### Stalled provider
 

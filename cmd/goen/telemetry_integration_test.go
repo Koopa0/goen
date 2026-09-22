@@ -72,6 +72,7 @@ func TestHeldPoolExportsSaturationMetrics(t *testing.T) {
 	if stat.AcquiredConns() != p.Config().MaxConns {
 		t.Fatalf("acquired = %d, want saturated pool %d", stat.AcquiredConns(), p.Config().MaxConns)
 	}
+	exporter.Reset()
 
 	gateway, err := payment.NewGateway("", "", "http://127.0.0.1")
 	if err != nil {

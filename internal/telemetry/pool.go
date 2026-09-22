@@ -104,6 +104,9 @@ func initPoolInstruments(m metric.Meter) error {
 
 // noopMeterProvider installs instruments without exporting when telemetry is off.
 func initAllInstruments(m metric.Meter) error {
+	if err := initQueryInstruments(m); err != nil {
+		return err
+	}
 	if err := initPoolInstruments(m); err != nil {
 		return err
 	}
