@@ -21,9 +21,15 @@ CASES = [{'name': 'audit',
   'before': 'if err := auditIn(ctx, q, Event{Action: action, Table: "orders", ID: nullableID(prior.ID)}); err != nil '
             '{\n'
             '\t\treturn err\n'
+            '\t}\n'
+            '\tif err := tx.Commit(ctx); err != nil {\n'
+            '\t\treturn fmt.Errorf("commit order note: %w", err)\n'
             '\t}',
-  'after': 'if err := auditIn(ctx, q, Event{Action: action, Table: "orders", ID: nullableID(prior.ID)}); err != nil {\n'
-           '\t\t_ = tx.Commit(ctx)\n'
+  'after': 'if err := tx.Commit(ctx); err != nil {\n'
+           '\t\treturn fmt.Errorf("commit order note: %w", err)\n'
+           '\t}\n'
+           '\tif err := auditIn(ctx, s.q, Event{Action: action, Table: "orders", ID: nullableID(prior.ID)}); err != '
+           'nil {\n'
            '\t\treturn err\n'
            '\t}',
   'test': 'TestStaffNoteAuditFailureRollsBackTheNote',
