@@ -50,8 +50,8 @@ func TestEveryAdminQueueReachesBeyondItsFirstPage(t *testing.T) {
  INSERT INTO order_shipment_lines (order_id, shipment_id, order_line_id, quantity)
  SELECT o.id, s.id, l.id, l.quantity FROM orders o JOIN order_shipments s ON s.order_id=o.id JOIN order_lines l ON l.order_id=o.id;
  INSERT INTO return_requests (order_id, reason) SELECT id, order_number FROM orders;
- INSERT INTO return_request_lines (return_request_id, order_line_id, quantity)
- SELECT r.id, l.id, 1 FROM return_requests r JOIN order_lines l ON l.order_id = r.order_id;
+ INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity)
+ SELECT r.order_id, r.id, l.id, 1 FROM return_requests r JOIN order_lines l ON l.order_id = r.order_id;
  INSERT INTO warranty_registrations (order_line_id, unit_no, serial_number, expires_on)
  SELECT (SELECT id FROM order_lines LIMIT 1), n, 'PAGING-' || n, current_date + 365 FROM generate_series(1,51) n;
  INSERT INTO coupons (code, description, kind, is_active)
