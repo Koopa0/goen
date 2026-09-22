@@ -173,7 +173,7 @@ func (h *Handler) Unsubscribe(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			h.linkFailed(w, r, i18n.T(ctx, i18n.KeyNewsletterLinkDead),
-				i18n.T(ctx, i18n.KeyNewsletterLeaveDead))
+				fmt.Sprintf(i18n.T(ctx, i18n.KeyNewsletterLeaveDead), layouts.ContactEmail))
 			return
 		}
 		h.log.ErrorContext(ctx, "unsubscribe newsletter", "error", err)

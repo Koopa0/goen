@@ -21,9 +21,7 @@ templ Footer() {
 				<p class="goen-footer__contact">
 					{ i18n.T(ctx, i18n.KeySupportHours) }
 					<br/>
-					<a class="goen-footer__link" href="mailto:support@goen.tw">support@goen.tw</a>
-					·
-					<a class="goen-footer__link" href="tel:+886227001234">02-2700-1234</a>
+					<a class="goen-footer__link" href={ templ.URL("mailto:" + ContactEmail) }>{ ContactEmail }</a>
 				</p>
 				<div class="goen-footer__social">
 					<a class="goen-btn goen-btn--ghost goen-btn--icon" href="https://www.instagram.com/" aria-label="Instagram" rel="noreferrer">

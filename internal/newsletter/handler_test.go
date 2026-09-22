@@ -156,3 +156,21 @@ func assertRetryAfter(t *testing.T, res *httptest.ResponseRecorder) {
 		t.Errorf("Retry-After = %q, want a positive second count", res.Header().Get("Retry-After"))
 	}
 }
+
+func TestInvalidUnsubscribeOffersTheOwnedMailbox(t *testing.T) {
+	h := &Handler{store: &Store{}, log: slog.New(slog.DiscardHandler)}
+	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+		t.Run(string(locale), func(t *testing.T) {
+			req := httptest.NewRequestWithContext(i18n.WithLocale(t.Context(), locale), http.MethodPost, "/newsletter/unsubscribe", http.NoBody)
+			res := httptest.NewRecorder()
+			h.Unsubscribe(res, req)
+			body := res.Body.String()
+			if strings.Count(body, "contact@koopa0.dev") != 3 {
+				t.Error("invalid unsubscribe must name the owned mailbox in its recovery message and footer")
+			}
+			if strings.Contains(body, "support@goen.tw") || strings.Contains(body, "%s") {
+				t.Error("invalid unsubscribe exposes an unowned or unformatted contact")
+			}
+		})
+	}
+}

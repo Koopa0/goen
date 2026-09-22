@@ -78,9 +78,9 @@ var (
 	})
 
 	KeyNewsletterLeaveDead = key("news.leave.dead", Message{
-		ZhHant: "連結可能不完整。如果還在收到電子報,寫信到 support@goen.tw,我們幫你處理。",
+		ZhHant: "連結可能不完整。如果還在收到電子報,寫信到 %s,我們幫你處理。",
 		En: "The link may be incomplete. If the newsletter keeps arriving, write to " +
-			"support@goen.tw and we will take care of it.",
+			"%s and we will take care of it.",
 	})
 
 	KeyNewsletterFailed = key("news.failed", Message{ZhHant: "訂閱未完成", En: "Not subscribed"})
