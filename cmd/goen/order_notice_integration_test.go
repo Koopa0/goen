@@ -3,6 +3,7 @@
 package main
 
 import (
+	"context"
 	"testing"
 
 	"github.com/google/uuid"
@@ -21,14 +22,30 @@ func TestTerminalWorkerSkipsAnAddressErasedBeforeDelivery(t *testing.T) {
 	if err := pool.QueryRow(ctx, `INSERT INTO shipping_method_versions(method_id,name,fee_cents) VALUES($1,'Delivery',0) RETURNING id`, method).Scan(&version); err != nil {
 		t.Fatal(err)
 	}
-	if err := pool.QueryRow(ctx, `INSERT INTO orders(order_number,shipping_version_id,shipping_method_code,shipping_method_name) SELECT next_order_number(),$1,code,'Delivery' FROM shipping_methods WHERE id=$2 RETURNING id`, version, method).Scan(&id); err != nil {
+	tx, err := pool.Begin(ctx)
+	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `INSERT INTO order_private_data(order_id,email,recipient_name,phone,postal_code,city,district,street) VALUES($1,'reader@example.com','Reader','0912345678','110','City','District','Street')`, id); err != nil {
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
+	if err := tx.QueryRow(ctx, `INSERT INTO orders(order_number,shipping_version_id,shipping_method_code,shipping_method_name) SELECT next_order_number(),$1,code,'Delivery' FROM shipping_methods WHERE id=$2 RETURNING id`, version, method).Scan(&id); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := tx.Exec(ctx, `INSERT INTO order_private_data(order_id,email,recipient_name,phone,postal_code,city,district,street) VALUES($1,'reader@example.com','Reader','0912345678','110','City','District','Street')`, id); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tx.Exec(ctx, `INSERT INTO order_lines(order_id,sku,product_name,unit_price_cents,quantity) VALUES($1,'NOTICE-TEST','Notice product',50000,1)`, id); err != nil {
+		t.Fatal(err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	storePool, err := openPool(ctx, pool.Config().ConnString())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer storePool.Close()
 	sender := &countingSender{}
-	deliver := terminalOrderHandler(db.New(pool), email.New(sender, "https://goen.test", "", ""))
+	deliver := terminalOrderHandler(db.New(storePool), email.New(sender, "https://goen.test", "", ""))
 	msg := &ordernotice.Message{OrderID: id, Kind: ordernotice.CancelledByCustomer}
 	if err := deliver(ctx, msg); err != nil {
 		t.Fatal(err)
