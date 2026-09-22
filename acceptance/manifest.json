@@ -60,12 +60,20 @@
       "status": "ready",
       "issues": [116, 117, 60, 320, 337],
       "entry_points": [
+        "cmd/goen/server.go",
         "internal/account/handler.go",
         "internal/cart/store.go"
       ],
       "fixture": "seed/dev_catalog.sql",
       "fault": "concurrent adoption must merge carts without silent loss",
       "assertions": [
+        {
+          "kind": "go_test",
+          "package": "./cmd/goen",
+          "run": "TestGuestCartSignInHTTPJourney",
+          "build_tags": ["integration"],
+          "evidence": "real_router_cookie_journey_wrong_password_merge_and_stale_guest_isolation"
+        },
         {
           "kind": "go_test",
           "package": "./internal/account",
