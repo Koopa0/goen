@@ -25,7 +25,7 @@ func TestCreditGrantRequiresRecipientReviewBeforePosting(t *testing.T) {
 	form := url.Values{"email": {email}, "amount": {"125"}, "reason": {"Courtesy credit"}, "operation_id": {uuid.NewString()}}
 	post := func() *httptest.ResponseRecorder {
 		t.Helper()
-		req := httptest.NewRequest(http.MethodPost, "/admin/credit", strings.NewReader(form.Encode())).WithContext(ctx)
+		req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/credit", strings.NewReader(form.Encode()))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		w := httptest.NewRecorder()
 		h.RequireStaff(h.GrantCredit)(w, req)
@@ -82,7 +82,7 @@ func TestCreditConfirmationDoesNotFollowAReassignedEmail(t *testing.T) {
 	form := url.Values{"email": {email}, "amount": {"25"}, "reason": {"Keep recipient"}, "operation_id": {uuid.NewString()}}
 	post := func() *httptest.ResponseRecorder {
 		t.Helper()
-		req := httptest.NewRequest(http.MethodPost, "/admin/credit", strings.NewReader(form.Encode())).WithContext(ctx)
+		req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/credit", strings.NewReader(form.Encode()))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		w := httptest.NewRecorder()
 		h.RequireStaff(h.GrantCredit)(w, req)
