@@ -3,6 +3,7 @@
 package cart_test
 
 import (
+	"html"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -13,6 +14,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/cart"
+	"github.com/koopa0/goen/internal/i18n"
 )
 
 // mapMerchantID stands for whatever id the environment names; goen only ever
@@ -312,6 +314,13 @@ func TestAForgedStorePostedFromAnotherSiteEndsWithNoStore(t *testing.T) {
 	}
 	if strings.Contains(page, `name="pickup_store_code"`) {
 		t.Error("the forged store is carried in a hidden field, so the next submit places it")
+	}
+	if !strings.Contains(page, html.EscapeString(i18n.T(t.Context(), i18n.KeyPickupStoreUnconfirmed))) {
+		t.Error("the refusal does not say the store could not be confirmed")
+	}
+	if !strings.Contains(page, `name="invoice_type" value="mobile_carrier" checked`) &&
+		!strings.Contains(page, `value="mobile_carrier" checked`) {
+		t.Error("the refusal lost the invoice choice the shopper had made")
 	}
 }
 

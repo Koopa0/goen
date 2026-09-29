@@ -704,3 +704,24 @@ func TestMissingPickupNonceIsNotLoggedAsAMatch(t *testing.T) {
 		t.Errorf("missing nonce reported as a match: %s", logs.String())
 	}
 }
+
+func TestASingleCookieSurvivesAMismatchedNonce(t *testing.T) {
+	t.Parallel()
+	const other = "fedcba98765432100000"
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/checkout?pickup_n="+other, http.NoBody)
+	//nolint:gosec // G124: the browser's own pickup cookie
+	req.AddCookie(&http.Cookie{Name: "goen_pickup", Value: encodeState(aNonce + "|ship-1|mobile_carrier|addr-1")})
+	h := &Handler{storeMap: testMap(t, ModeB2C), log: slog.New(slog.DiscardHandler)}
+
+	got := h.checkoutChoices(req)
+	if got.Ship != "ship-1" || got.Invoice != "mobile_carrier" || got.Address != "addr-1" {
+		t.Errorf("a mismatched nonce hid the saved choices: %+v", got)
+	}
+	state, ok := readPickupCookie(req, false)
+	if !ok || state.Nonce != aNonce {
+		t.Errorf("the shopper's own nonce was replaced: %+v/%v", state, ok)
+	}
+	if honourPickupStore(PostedStore{Brand: "seven_eleven", Code: "131386", Nonce: other}, state, ok) {
+		t.Error("a mismatched nonce was honoured")
+	}
+}
