@@ -580,13 +580,13 @@ func (h *Handler) GrantCredit(w http.ResponseWriter, r *http.Request) {
 	view := pages.AdminCreditView{Email: r.PostFormValue("email"), Amount: r.PostFormValue("amount"), Reason: r.PostFormValue("reason"), OperationID: r.PostFormValue("operation_id")}
 	operationID, valid := validateCreditGrant(&view)
 	if !valid {
-		h.renderCreditForm(w, r, view, http.StatusUnprocessableEntity, i18n.KeyAdminNoticeNeeds)
+		h.renderCreditForm(w, r, &view, http.StatusUnprocessableEntity, i18n.KeyAdminNoticeNeeds)
 		return
 	}
 	if err := h.store.creditRecipient(r.Context(), &view); err != nil {
 		if errors.Is(err, ErrNotFound) {
 			view.EmailInvalid = true
-			h.renderCreditForm(w, r, view, http.StatusUnprocessableEntity, i18n.KeyAdminCreditUnknown)
+			h.renderCreditForm(w, r, &view, http.StatusUnprocessableEntity, i18n.KeyAdminCreditUnknown)
 		} else {
 			h.log.ErrorContext(r.Context(), "read credit recipient", "error", err)
 			h.serverError(w, r)
@@ -594,12 +594,12 @@ func (h *Handler) GrantCredit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.PostFormValue("edit") == "1" {
-		h.renderCreditForm(w, r, view, http.StatusOK, "")
+		h.renderCreditForm(w, r, &view, http.StatusOK, "")
 		return
 	}
 	if r.PostFormValue("confirm") != "grant" || r.PostFormValue("customer_id") != view.CustomerID {
 		view.Confirm = true
-		h.renderCreditForm(w, r, view, http.StatusOK, "")
+		h.renderCreditForm(w, r, &view, http.StatusOK, "")
 		return
 	}
 	customerID, parseErr := uuid.Parse(view.CustomerID)
@@ -1876,7 +1876,7 @@ func positiveDollarsToCents(raw string, maxCents int64) (int64, bool) {
 	return dollars * 100, true
 }
 
-func (h *Handler) renderCreditForm(w http.ResponseWriter, r *http.Request, view pages.AdminCreditView, status int, notice i18n.Key) {
+func (h *Handler) renderCreditForm(w http.ResponseWriter, r *http.Request, view *pages.AdminCreditView, status int, notice i18n.Key) {
 	ledger, err := h.store.Credit(r.Context())
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read credit ledger", "error", err)
@@ -1887,5 +1887,5 @@ func (h *Handler) renderCreditForm(w http.ResponseWriter, r *http.Request, view 
 	if notice != "" {
 		view.Notice = i18n.T(r.Context(), notice)
 	}
-	web.Render(w, r, h.log, status, pages.AdminCredit(layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageCredit)}, view))
+	web.Render(w, r, h.log, status, pages.AdminCredit(layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageCredit)}, *view))
 }
