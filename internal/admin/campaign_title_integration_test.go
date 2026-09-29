@@ -60,7 +60,7 @@ func TestCampaignEnglishTitleRefusalPreservesDraft(t *testing.T) {
 	if response.Code != http.StatusUnprocessableEntity {
 		t.Fatalf("status = %d, want 422", response.Code)
 	}
-	for _, want := range []string{`name="title_en"`, `value="` + title + `"`, `id="k-title-en-error"`, `aria-describedby="k-title-en-hint k-title-en-error"`} {
+	for _, want := range []string{`name="title_en"`, `value="` + title + `"`, `id="k-title-en-error"`, `aria-describedby="k-title-en-hint k-title-en-error"`, `aria-invalid="true"`} {
 		if !strings.Contains(response.Body.String(), want) {
 			t.Errorf("refused form omits %s", want)
 		}
