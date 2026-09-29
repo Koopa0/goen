@@ -11521,6 +11521,26 @@ func (q *Queries) SearchProductsCount(ctx context.Context, pattern string) (int6
 	return column_1, err
 }
 
+const sessionCreatedSince = `-- name: SessionCreatedSince :one
+SELECT s.created_at > now() - $1::interval AS recent
+FROM sessions s
+WHERE s.token_hash = $2 AND s.expires_at > now()
+`
+
+type SessionCreatedSinceParams struct {
+	MaxAge    pgtype.Interval
+	TokenHash []byte
+}
+
+// Recency is measured on the database's clock, the one that stamped created_at
+// and that the expiry check above reads. A missing or expired session is not recent.
+func (q *Queries) SessionCreatedSince(ctx context.Context, arg SessionCreatedSinceParams) (bool, error) {
+	row := q.db.QueryRow(ctx, sessionCreatedSince, arg.MaxAge, arg.TokenHash)
+	var recent bool
+	err := row.Scan(&recent)
+	return recent, err
+}
+
 const sessionTOTPVerified = `-- name: SessionTOTPVerified :one
 SELECT (s.totp_verified_at IS NOT NULL
         AND s.totp_verified_at > now() - $2::interval)::boolean AS verified
