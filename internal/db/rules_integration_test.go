@@ -28,6 +28,8 @@ import (
 // the test that does cover them. A trigger named in neither place still fails.
 var coveredByNamedTest = map[string]string{
 	"inventory_movements_source_parent":      "TestInventoryMovementSourceParents",
+	"product_options_before_variants":        "TestOptionAxesMustPrecedeVariants (internal/admin)",
+	"product_variants_lock_catalogue":        "TestOptionAxisAndVariantCreationSerialize (internal/admin)",
 	"loyalty_lot_guard":                      "the loyalty_entries_lot_* rule cases below exercise each branch by its own constraint name",
 	"order_lines_bind_product":               "TestRetiringAPurchasedVariantDoesNotEraseVerifiedPurchase (internal/product)",
 	"product_variants_keep_product_sellable": "TestDeactivatingTheLastVariantIsRefused, TestDeletingTheLastVariantIsRefused",
