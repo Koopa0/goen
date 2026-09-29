@@ -293,7 +293,8 @@ func (h *Handler) UploadImage(w http.ResponseWriter, r *http.Request) {
 
 	alt := r.PostFormValue("alt")
 	if err := h.store.AttachImage(r.Context(), slug, obj.Digest, alt,
-		r.PostFormValue("alt_en"), obj.Width, obj.Height); err != nil {
+		r.PostFormValue("alt_en"), r.PostFormValue("option_value"),
+		obj.Width, obj.Height); err != nil {
 		h.log.WarnContext(r.Context(), "attach image", "error", err, "slug", slug)
 		//nolint:gosec // G710: slug is the route's own path value
 		http.Redirect(w, r, "/admin/products/"+slug+"?"+attachReason(err), http.StatusSeeOther)
@@ -322,11 +323,34 @@ func (h *Handler) ReuseImage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.store.AttachImage(r.Context(), slug, obj.Digest,
-		r.PostFormValue("alt"), r.PostFormValue("alt_en"),
+		r.PostFormValue("alt"), r.PostFormValue("alt_en"), "",
 		obj.Width, obj.Height); err != nil {
 		h.log.WarnContext(r.Context(), "attach reused image", "error", err, "slug", slug)
 		//nolint:gosec // G710: slug is the route's own path value
 		http.Redirect(w, r, "/admin/products/"+slug+"?"+attachReason(err), http.StatusSeeOther)
+		return
+	}
+	//nolint:gosec // G710: slug is the route's own path value
+	http.Redirect(w, r, "/admin/products/"+slug+"?ok=1", http.StatusSeeOther)
+}
+
+// SetImageOption serves POST /admin/products/{slug}/images/option, saying which
+// option value an attached image shows, or that it shows none.
+func (h *Handler) SetImageOption(w http.ResponseWriter, r *http.Request) {
+	if err := web.ParseForm(w, r); err != nil {
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
+		return
+	}
+	slug := r.PathValue("slug")
+	if err := h.store.SetImageOption(r.Context(), slug,
+		r.PostFormValue("digest"), r.PostFormValue("option_value")); err != nil {
+		h.log.WarnContext(r.Context(), "set image option", "error", err, "slug", slug)
+		reason := "refused=1"
+		if errors.Is(err, ErrNotThisProductsOption) {
+			reason = "badoption=1"
+		}
+		//nolint:gosec // G710: slug is the route's own path value
+		http.Redirect(w, r, "/admin/products/"+slug+"?"+reason, http.StatusSeeOther)
 		return
 	}
 	//nolint:gosec // G710: slug is the route's own path value
@@ -487,6 +511,8 @@ func attachReason(err error) string {
 	switch {
 	case errors.Is(err, ErrInvalid):
 		return "noalt=1"
+	case errors.Is(err, ErrNotThisProductsOption):
+		return "badoption=1"
 	case errors.Is(err, ErrRefused):
 		return "attachrefused=1"
 	default:

@@ -490,6 +490,7 @@ var adminNotices = map[string]i18n.Key{
 	"inuse":          i18n.KeyAdminNoticeInUse,
 	"attachrefused":  i18n.KeyAdminNoticeAttachRefused,
 	"noalt":          i18n.KeyAdminNoticeNoAlt,
+	"badoption":      i18n.KeyAdminNoticeBadOption,
 	"nodiscount":     i18n.KeyAdminNoticeNoDiscount,
 	"refundfailed":   i18n.KeyAdminNoticeRefundFailed,
 	"paidcancel":     i18n.KeyAdminNoticePaidCancel,

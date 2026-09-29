@@ -252,6 +252,11 @@ func (v *AdminProductView) ImageRemoveAction() string {
 	return "/admin/products/" + v.Slug + "/images/remove"
 }
 
+// ImageOptionAction is where an attached image's option form posts.
+func (v *AdminProductView) ImageOptionAction() string {
+	return "/admin/products/" + v.Slug + "/images/option"
+}
+
 // ReuseAction is where the picker posts.
 func (v *AdminProductView) ReuseAction() string {
 	return "/admin/products/" + v.Slug + "/images/reuse"

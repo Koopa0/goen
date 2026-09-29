@@ -526,15 +526,16 @@ type ProductCopurchase struct {
 }
 
 type ProductImage struct {
-	ID         uuid.UUID
-	ProductID  uuid.UUID
-	StorageKey string
-	AltText    string
-	AltTextEn  pgtype.Text
-	Width      pgtype.Int4
-	Height     pgtype.Int4
-	Position   int32
-	CreatedAt  time.Time
+	ID            uuid.UUID
+	ProductID     uuid.UUID
+	StorageKey    string
+	AltText       string
+	AltTextEn     pgtype.Text
+	Width         pgtype.Int4
+	Height        pgtype.Int4
+	Position      int32
+	OptionValueID uuid.NullUUID
+	CreatedAt     time.Time
 }
 
 type ProductOption struct {

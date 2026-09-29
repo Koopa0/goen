@@ -2630,6 +2630,151 @@ await provePdpAdd('pdp add 375 off', true);
 await provePdpAdd('pdp add 375 on', false);
 await send(ws, 'Emulation.setScriptExecutionDisabled', { value: false });
 
+// Choosing a colour whose photograph is tagged puts that photograph first. With
+// script the gallery rides the buy column's swap; with none the navigation
+// renders it. Both start from the page's default state and press the swatch
+// through the input pipeline, so a swatch something else covers fails here.
+// The scripted pass then presses the other colour from the column the swap
+// brought in, because a control a swap delivers has to work as well as the one
+// the page loaded with.
+const COLOUR_SLUG = process.env.COLOUR_SLUG || '';
+const COLOUR_VALUE = process.env.COLOUR_VALUE || '';
+const COLOUR_KEY = process.env.COLOUR_KEY || '';
+
+// A press while a swap's cross-fade runs lands on the view transition's overlay
+// and not on the page, so with script the previous transition finishes first.
+// Without script nothing swaps, and nothing here may wait on a page callback.
+const pressMarked = async (afterTransition) => {
+  if (afterTransition) {
+    const idle = await evalPage(`(async () => {
+      const fading = () => document.getAnimations().filter((a) =>
+        String((a.effect && a.effect.pseudoElement) || '').startsWith('::view-transition'));
+      if (document.activeViewTransition) await document.activeViewTransition.finished.catch(() => {});
+      await Promise.all(fading().map((a) => a.finished.catch(() => {})));
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      return true;
+    })()`);
+    if (idle !== true) return false;
+  }
+  const at = await evalPage(`(() => {
+    const el = document.querySelector('[data-layout-press]');
+    if (!el) return { ok: false };
+    el.scrollIntoView({ block: 'center', behavior: 'instant' });
+    const r = el.getBoundingClientRect();
+    return { ok: true, x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  })()`);
+  if (at.threw || !at.ok) return false;
+  for (const type of ['mousePressed', 'mouseReleased']) {
+    await send(ws, 'Input.dispatchMouseEvent', { type, x: at.x, y: at.y, button: 'left', clickCount: 1 });
+  }
+  return true;
+};
+
+const galleryState = `(() => {
+  const galleries = document.querySelectorAll('#gallery');
+  const main = document.querySelector('#gallery img');
+  return {
+    galleries: galleries.length,
+    src: main ? main.getAttribute('src') : '',
+    values: [...new URL(location.href).searchParams.values()],
+    documentStarted: performance.timeOrigin,
+  };
+})()`;
+
+const waitForGallery = async (want) => {
+  for (let i = 0; i < 50; i++) {
+    const got = await evalPage(galleryState);
+    if (!got.threw && want(got)) return got;
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  return evalPage(galleryState);
+};
+
+const provePdpColourPhoto = async (label, scriptingOff) => {
+  if (!COLOUR_SLUG || !COLOUR_VALUE || !COLOUR_KEY) {
+    fail(label, 'COLOUR_SLUG, COLOUR_VALUE and COLOUR_KEY are unset — run it through make check-layout, whose fixture tags the photograph');
+    return;
+  }
+  await send(ws, 'Emulation.setScriptExecutionDisabled', { value: scriptingOff });
+  await send(ws, 'Emulation.setDeviceMetricsOverride', {
+    width: 375, height: 812, deviceScaleFactor: 1, mobile: true,
+  });
+  const start = `${ORIGIN}/p/${COLOUR_SLUG}`;
+  await send(ws, 'Page.navigate', { url: start });
+  await settled(ws, `${label} open`, start);
+
+  const before = await evalPage(galleryState);
+  if (before.threw) {
+    fail(label, `gallery probe did not run — ${before.why}`);
+    return;
+  }
+  if (!before.src || before.src.includes(`/${COLOUR_KEY}`)) {
+    fail(label, `the default page opens on ${before.src || 'no photograph'}, so choosing ${COLOUR_VALUE} can show no change`);
+    return;
+  }
+
+  const marked = await evalPage(`(() => {
+    const want = ${JSON.stringify(COLOUR_VALUE)};
+    const swatch = [...document.querySelectorAll('#buybox a.goen-swatch')]
+      .find((a) => [...new URL(a.href).searchParams.values()].includes(want));
+    if (!swatch) return false;
+    swatch.setAttribute('data-layout-press', '');
+    return true;
+  })()`);
+  if (marked !== true || !(await pressMarked(!scriptingOff))) {
+    fail(label, `no swatch on the default page chooses ${COLOUR_VALUE}`);
+    return;
+  }
+  const chosen = await waitForGallery((g) => g.values.includes(COLOUR_VALUE) && g.src.includes(`/${COLOUR_KEY}`));
+  if (chosen.threw || !chosen.src.includes(`/${COLOUR_KEY}`)) {
+    fail(label, `choosing ${COLOUR_VALUE} left the gallery opening on ${chosen.src || 'nothing'}, want ${COLOUR_KEY}`);
+    return;
+  }
+  if (!chosen.values.includes(COLOUR_VALUE)) {
+    fail(label, `the address does not carry ${COLOUR_VALUE} after choosing it`);
+  }
+  if (chosen.galleries !== 1) {
+    fail(label, `the page holds ${chosen.galleries} #gallery elements after choosing, want 1`);
+  }
+  // In place with script, a new document without: the two paths are what make
+  // the swatch work either way, and each must be the one that ran.
+  if ((chosen.documentStarted !== before.documentStarted) !== scriptingOff) {
+    fail(label, scriptingOff
+      ? 'choosing a colour with scripting off did not load a new page'
+      : 'choosing a colour with script loaded a new page instead of swapping in place');
+  }
+
+  if (!scriptingOff) {
+    const other = await evalPage(`(() => {
+      const on = document.querySelector('#buybox a.goen-swatch--on');
+      const box = on && on.closest('fieldset');
+      const next = box && box.querySelector('a.goen-swatch:not(.goen-swatch--on)');
+      if (!next) return false;
+      next.setAttribute('data-layout-press', '');
+      return true;
+    })()`);
+    if (other !== true || !(await pressMarked(true))) {
+      fail(label, 'the swapped buy column offers no other colour to choose');
+      return;
+    }
+    const back = await waitForGallery((g) => !g.values.includes(COLOUR_VALUE) && g.src === before.src);
+    if (!back.threw && back.documentStarted !== before.documentStarted) {
+      fail(label, 'the swatch the swap delivered loaded a new page instead of swapping in place');
+    }
+    if (back.threw || back.src !== before.src) {
+      fail(label, `choosing the other colour from the swapped column opens on ${back.src || 'nothing'}, ` +
+        `want ${before.src} (address carries ${JSON.stringify(back.values || [])})`);
+    } else if (back.galleries !== 1) {
+      fail(label, `the page holds ${back.galleries} #gallery elements after choosing back, want 1`);
+    }
+  }
+  console.log(`${label.padEnd(24)} scripting=${scriptingOff ? 'off' : 'on'} opens=${before.src} chosen=${chosen.src}`);
+};
+
+await provePdpColourPhoto('pdp colour photo 375 off', true);
+await provePdpColourPhoto('pdp colour photo 375 on', false);
+await send(ws, 'Emulation.setScriptExecutionDisabled', { value: false });
+
 // axe-core, once per route.
 //
 // A separate pass rather than a call inside settled(), and that is deliberate:

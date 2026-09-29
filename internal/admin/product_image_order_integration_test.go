@@ -72,7 +72,8 @@ func imageOrder(t *testing.T, slug string) []string {
 	return out
 }
 
-// The first image is the cover on the product page and on every card.
+// With no photograph tagged, the first image is the cover on the product page and
+// on every card.
 func TestSettingTheCoverAndReorderingChangesTheFirstImageEverywhere(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
@@ -214,7 +215,7 @@ func TestConcurrentAttachAndReorderNeverCollideOnPosition(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			digest := fmt.Sprintf("%064x", 0xd1500+i)
-			if err := s.AttachImage(ctx, slug, digest, "新圖", "", 800, 800); err != nil {
+			if err := s.AttachImage(ctx, slug, digest, "新圖", "", "", 800, 800); err != nil {
 				errs <- fmt.Errorf("attach: %w", err)
 			}
 		}()

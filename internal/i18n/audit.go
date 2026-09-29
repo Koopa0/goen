@@ -59,6 +59,8 @@ var (
 	KeyAuditImageMove   = key("audit.image.move", Message{ZhHant: "調整商品圖片順序", En: "Reorder product images"})
 	KeyAuditImageDetach = key("audit.image.detach", Message{ZhHant: "移除商品圖片", En: "Detach product image"})
 
+	KeyAuditImageOption = key("audit.image.option", Message{ZhHant: "設定商品圖片的選項", En: "Set product image option"})
+
 	KeyAuditShippingMethodCreate = key("audit.shipping.method.create", Message{
 		ZhHant: "新增配送方式",
 		En:     "Add delivery method",

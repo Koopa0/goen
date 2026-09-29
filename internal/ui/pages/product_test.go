@@ -107,3 +107,72 @@ func wishlistSignInDestination(t *testing.T, raw, label string) string {
 	}
 	return attrValue(link, "href")
 }
+
+// TestTheGalleryRidesTheSwapOnlyWhenAPhotographShowsAValue holds both halves of
+// the swatch's swap. A product whose photographs show it whichever value is
+// chosen keeps its gallery out of the swap; one with a photograph of a single
+// value brings the gallery along, or choosing that value leaves the old picture
+// on screen until a reload.
+func TestTheGalleryRidesTheSwapOnlyWhenAPhotographShowsAValue(t *testing.T) {
+	t.Parallel()
+	for _, tagged := range []bool{false, true} {
+		name := "untagged"
+		want := ""
+		if tagged {
+			name, want = "tagged", "#gallery"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			view := ProductView{
+				Slug: "two-colours", Name: "Two colours", VariantID: "v1", SelectionOK: true,
+				Images: []ProductImage{
+					{URL: "/static/a.webp", Alt: "a"},
+					{URL: "/static/b.webp", Alt: "b", ShowsOption: tagged},
+				},
+				Options: []ProductOption{{Name: "colour", Label: "Colour", Values: []ProductOptionValue{
+					{Value: "blue", Label: "Blue", Href: "/p/two-colours?colour=blue", Available: true},
+					{Value: "black", Label: "Black", Href: "/p/two-colours?colour=black", Available: true},
+				}}},
+			}
+			var body strings.Builder
+			if err := Product(ProductMeta(&view), &view).Render(t.Context(), &body); err != nil {
+				t.Fatal(err)
+			}
+			doc, err := html.Parse(strings.NewReader(body.String()))
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			var swatches []*html.Node
+			galleries := 0
+			var walk func(*html.Node)
+			walk = func(n *html.Node) {
+				if n.Type == html.ElementNode && n.Data == "a" && hasClass(n, "goen-swatch") {
+					swatches = append(swatches, n)
+				}
+				if n.Type == html.ElementNode && attrValue(n, "id") == "gallery" {
+					galleries++
+				}
+				for c := n.FirstChild; c != nil; c = c.NextSibling {
+					walk(c)
+				}
+			}
+			walk(doc)
+
+			if galleries != 1 {
+				t.Fatalf("the page has %d #gallery elements, want exactly 1 for the swap to select", galleries)
+			}
+			if len(swatches) != 2 {
+				t.Fatalf("found %d swatches, want 2", len(swatches))
+			}
+			for _, a := range swatches {
+				if got := attrValue(a, "hx-select"); got != "#buybox" {
+					t.Errorf("swatch %s selects %q, want #buybox", attrValue(a, "href"), got)
+				}
+				if got := attrValue(a, "hx-select-oob"); got != want {
+					t.Errorf("swatch %s carries hx-select-oob=%q, want %q", attrValue(a, "href"), got, want)
+				}
+			}
+		})
+	}
+}

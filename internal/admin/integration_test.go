@@ -5517,10 +5517,10 @@ func TestOneUploadCanBeAttachedToTwoProducts(t *testing.T) {
 	}
 
 	first, second := twoProducts(t)
-	if err := s.AttachImage(ctx, first, digest, "第一個商品", "First product", 800, 600); err != nil {
+	if err := s.AttachImage(ctx, first, digest, "第一個商品", "First product", "", 800, 600); err != nil {
 		t.Fatalf("attach to the first: %v", err)
 	}
-	if err := s.AttachImage(ctx, second, digest, "第二個商品", "", 800, 600); err != nil {
+	if err := s.AttachImage(ctx, second, digest, "第二個商品", "", "", 800, 600); err != nil {
 		t.Fatalf("attach the SAME image to the second: %v", err)
 	}
 
@@ -5532,7 +5532,7 @@ func TestOneUploadCanBeAttachedToTwoProducts(t *testing.T) {
 	if n != 2 {
 		t.Errorf("the image is attached to %d products, want 2", n)
 	}
-	if err := s.AttachImage(ctx, first, digest, "再一次", "", 800, 600); err == nil {
+	if err := s.AttachImage(ctx, first, digest, "再一次", "", "", 800, 600); err == nil {
 		t.Error("the same image was attached to one product twice")
 	}
 }
@@ -7681,7 +7681,7 @@ func TestAltTextFollowsThePagesLanguage(t *testing.T) {
 	digest := storeMedia(t)
 
 	if err := s.AttachImage(ctx, slug, digest, "銀色筆電,螢幕開啟",
-		"Silver laptop, screen open", 800, 600); err != nil {
+		"Silver laptop, screen open", "", 800, 600); err != nil {
 		t.Fatalf("AttachImage: %v", err)
 	}
 
@@ -7708,7 +7708,7 @@ func TestAltTextFollowsThePagesLanguage(t *testing.T) {
 	}
 
 	second := draftProduct(t, ctx, s)
-	if err := s.AttachImage(ctx, second, digest, "沒有英文說明", "", 800, 600); err != nil {
+	if err := s.AttachImage(ctx, second, digest, "沒有英文說明", "", "", 800, 600); err != nil {
 		t.Fatalf("AttachImage without English: %v", err)
 	}
 	var fallback string

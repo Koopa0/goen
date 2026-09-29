@@ -93,8 +93,16 @@ JOIN product_variants pv ON pv.id = ci.variant_id
 JOIN products p ON p.id = pv.product_id
 JOIN brands b ON b.id = p.brand_id
 LEFT JOIN LATERAL (
-    SELECT storage_key, alt_text FROM product_images
-    WHERE product_id = p.id ORDER BY position LIMIT 1
+    -- The line's own photograph when one shows its option value, else the
+    -- product's first.
+    SELECT i.storage_key, i.alt_text FROM product_images i
+    WHERE i.product_id = p.id
+    ORDER BY EXISTS (
+                 SELECT 1 FROM variant_option_values vov
+                 WHERE vov.variant_id = pv.id AND vov.option_value_id = i.option_value_id
+             ) DESC,
+             i.position
+    LIMIT 1
 ) img ON true
 WHERE ci.cart_id = $1
 ORDER BY ci.added_at, pv.id;
