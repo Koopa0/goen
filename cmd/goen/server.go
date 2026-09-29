@@ -145,9 +145,13 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	findLimit := ratelimit.New(ratelimit.Config{
 		Every: 6 * time.Minute, Burst: 10, TTL: time.Hour, MaxKeys: 65_536,
 	})
+	var carrierChecker cart.CarrierChecker
+	if cfg.Invoices.Enabled() {
+		carrierChecker = cfg.Invoices
+	}
 	basketStore := cart.NewStore(pool)
 	basket := cart.NewHandler(basketStore, log, secureCookies, findLimit,
-		sessionCloser(gateway), cfg.StoreMap)
+		sessionCloser(gateway), cfg.StoreMap, carrierChecker)
 	customers := account.NewHandler(account.NewStore(pool), basket, log, secureCookies, cfg.Google)
 	// The second factor runs on the ADMIN pool. On the storefront pool `store`
 	// would need write on staff_totp_credentials and users.role, so any slip
