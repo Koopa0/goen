@@ -8451,10 +8451,7 @@ GRANT INSERT (id, product_id, user_id, body, created_at),
       UPDATE (id, product_id, user_id, body, created_at)
     ON product_questions TO store;
 
-REVOKE INSERT, UPDATE ON product_answers FROM store;
-GRANT INSERT (id, question_id, user_id, body, created_at),
-      UPDATE (id, question_id, user_id, body, created_at)
-    ON product_answers TO store;
+REVOKE INSERT, UPDATE, DELETE ON product_answers FROM store;
 
 REVOKE INSERT, UPDATE ON return_requests FROM store;
 GRANT INSERT (id, order_id, requested_by_user_id, reason, created_at),
