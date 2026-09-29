@@ -12720,11 +12720,26 @@ WHERE delivered_at IS NOT NULL
   AND delivered_at < now() - $1::interval
 `
 
-// DELIVERED only, and keyed on delivered_at: a message that exhausted its
-// attempts is kept so /admin/health lists it, and available_at moves forward on
-// every claim, so keying on that would delete unsent mail.
+// Keyed on delivered_at, not available_at, which moves forward on every claim.
 func (q *Queries) SweepDeliveredMessages(ctx context.Context, retain pgtype.Interval) (int64, error) {
 	result, err := q.db.Exec(ctx, sweepDeliveredMessages, retain)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const sweepUndeliveredMessages = `-- name: SweepUndeliveredMessages :execrows
+DELETE FROM outbox_messages
+WHERE delivered_at IS NULL
+  AND created_at < now() - $1::interval
+`
+
+// An undelivered message past the same window goes too: its payload can carry a
+// token that nothing will ever mail, and it may not outlive that token. Keyed on
+// created_at because available_at moves on every claim.
+func (q *Queries) SweepUndeliveredMessages(ctx context.Context, retain pgtype.Interval) (int64, error) {
+	result, err := q.db.Exec(ctx, sweepUndeliveredMessages, retain)
 	if err != nil {
 		return 0, err
 	}

@@ -75,16 +75,18 @@ const BatchSize = 6
 // as a RECOVERY time — how long a message waits when the worker holding it dies.
 const Lease = 5 * time.Minute
 
-// Retain is how long a DELIVERED message is kept. Mailed tokens travel in the
-// payload, so the row must not outlive its own secret; the cost is that
-// re-enqueueing one (topic, dedupe_key) after this window would send twice.
+// Retain is how long a message is kept: after delivery for a delivered one, and
+// after creation for one that never was. Mailed tokens travel in the payload, so
+// the row must not outlive its own secret; the cost is that re-enqueueing one
+// (topic, dedupe_key) after this window would send twice.
 const Retain = 30 * 24 * time.Hour
 
 // SweepInterval is how often that happens.
 const SweepInterval = 24 * time.Hour
 
-// MaxAttempts is when a message stops being retried automatically. It stays
-// pending rather than being deleted, so [Store.Stuck] can show it to a human.
+// MaxAttempts is when a message stops being retried quickly and is retried
+// daily instead, so mail queued during a long provider outage still goes out.
+// It stays until [Retain] so [Store.Stuck] can show it to a human.
 const MaxAttempts = 8
 
 // Handler does whatever a topic means. Returning an error reschedules the
@@ -224,8 +226,8 @@ func runHandler(ctx context.Context, h Handler, payload []byte) error {
 func (s *Store) reschedule(ctx context.Context, m *db.ClaimOutboxRow, cause error) {
 	delay := backoff(m.Attempts)
 	if m.Attempts >= MaxAttempts {
-		// Far enough out that the automatic retry effectively stops, without
-		// inventing a "failed" state the schema does not have.
+		// A slow retry rather than none: valid mail queued during a long provider
+		// outage must still go out. [Retain] bounds how long it can keep trying.
 		delay = 24 * time.Hour
 		s.log.ErrorContext(ctx, "outbox message is stuck",
 			"message", m.ID, "topic", m.Topic, "attempts", m.Attempts, "error", cause)
@@ -321,15 +323,19 @@ func truncate(s string, n int) string {
 	return s[:n]
 }
 
-// Sweep deletes delivered messages past [Retain], once.
+// Sweep deletes messages past [Retain], once: delivered ones by delivery time
+// and undelivered ones by creation time.
 func (s *Store) Sweep(ctx context.Context) (int64, error) {
-	n, err := s.q.SweepDeliveredMessages(ctx, pgtype.Interval{
-		Microseconds: int64(Retain / time.Microsecond), Valid: true,
-	})
+	retain := pgtype.Interval{Microseconds: int64(Retain / time.Microsecond), Valid: true}
+	delivered, err := s.q.SweepDeliveredMessages(ctx, retain)
 	if err != nil {
 		return 0, fmt.Errorf("sweep delivered messages: %w", err)
 	}
-	return n, nil
+	undelivered, err := s.q.SweepUndeliveredMessages(ctx, retain)
+	if err != nil {
+		return delivered, fmt.Errorf("sweep undelivered messages: %w", err)
+	}
+	return delivered + undelivered, nil
 }
 
 // SweepForever runs Sweep on a ticker until ctx is cancelled. A sweep that errors

@@ -3910,6 +3910,9 @@ CREATE TABLE outbox_messages (
     -- receipt and password reset written after it.
     priority     smallint NOT NULL DEFAULT 0,
     available_at timestamptz NOT NULL DEFAULT now(),
+    -- available_at moves on every claim, so it cannot say how old a message is;
+    -- the retention sweep needs that for one that was never delivered.
+    created_at   timestamptz NOT NULL DEFAULT now(),
     delivered_at timestamptz,
     attempts     integer NOT NULL DEFAULT 0,
     last_error   text,
