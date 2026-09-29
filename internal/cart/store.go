@@ -87,9 +87,22 @@ func (s *Store) ownedCartIfTaken(ctx context.Context, userID uuid.NullUUID, err 
 // Add puts a variant in a cart, checked before the write so an inactive one is a
 // message rather than a foreign-key error.
 func (s *Store) Add(ctx context.Context, cartID, variantID uuid.UUID, quantity int32) error {
-	return s.mutateCart(ctx, cartID, func(q *db.Queries) error {
-		return addCartItem(ctx, q, cartID, variantID, quantity)
+	adjusted := false
+	err := s.mutateCart(ctx, cartID, func(q *db.Queries) error {
+		lineAdjusted, addErr := addCartItem(ctx, q, cartID, variantID, quantity)
+		if addErr != nil {
+			return addErr
+		}
+		adjusted = lineAdjusted
+		return nil
 	})
+	if err != nil {
+		return err
+	}
+	if adjusted {
+		return ErrQuantityAdjusted
+	}
+	return nil
 }
 
 // addCartItem applies the cart's availability and quantity rules through the
@@ -99,53 +112,88 @@ func addCartItem(
 	q *db.Queries,
 	cartID, variantID uuid.UUID,
 	quantity int32,
-) error {
+) (adjusted bool, err error) {
+	requested := quantity
 	v, err := q.VariantForCart(ctx, variantID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return ErrNotFound
+			return false, ErrNotFound
 		}
-		return fmt.Errorf("read variant: %w", err)
+		return false, fmt.Errorf("read variant: %w", err)
 	}
 	if !v.IsActive || v.Status != "active" || v.SellableQuantity <= 0 {
-		return ErrUnavailable
-	}
-	if quantity > v.SellableQuantity {
-		quantity = v.SellableQuantity
+		return false, ErrUnavailable
 	}
 	capacity, err := q.CartLineCapacity(ctx, db.CartLineCapacityParams{
 		CartID: cartID, VariantID: variantID,
 	})
 	if err != nil {
-		return fmt.Errorf("count cart lines: %w", err)
+		return false, fmt.Errorf("count cart lines: %w", err)
 	}
 	if !capacity.AlreadyPresent && capacity.LineCount >= invoicepkg.MaxIssueProductLines {
-		return ErrTooManyItems
+		return false, ErrTooManyItems
 	}
-	if err := q.AddCartItem(ctx, db.AddCartItemParams{
-		CartID: cartID, VariantID: variantID, Quantity: quantity,
-	}); err != nil {
-		return fmt.Errorf("add cart item: %w", err)
+	wanted := capacity.ExistingQuantity + requested
+	// wanted was read under the cart row lock mutateCart holds; AddCartItem
+	// overwrites, so a caller without that lock would lose a concurrent add.
+	target := min(wanted, v.SellableQuantity, MaxLineQuantity)
+	if addErr := q.AddCartItem(ctx, db.AddCartItemParams{
+		CartID: cartID, VariantID: variantID, Quantity: target,
+	}); addErr != nil {
+		return false, fmt.Errorf("add cart item: %w", addErr)
 	}
-	return nil
+	return target < wanted, nil
 }
 
 // SetQuantity changes a line, removing it at zero.
 func (s *Store) SetQuantity(ctx context.Context, cartID, variantID uuid.UUID, quantity int32) error {
-	return s.mutateCart(ctx, cartID, func(q *db.Queries) error {
-		if quantity <= 0 {
-			if err := q.RemoveCartItem(ctx, db.RemoveCartItemParams{CartID: cartID, VariantID: variantID}); err != nil {
-				return fmt.Errorf("remove cart item: %w", err)
-			}
-			return nil
+	adjusted := false
+	err := s.mutateCart(ctx, cartID, func(q *db.Queries) error {
+		lineAdjusted, setErr := setCartLineQuantity(ctx, q, cartID, variantID, quantity)
+		if setErr != nil {
+			return setErr
 		}
-		if err := q.SetCartItemQuantity(ctx, db.SetCartItemQuantityParams{
-			CartID: cartID, VariantID: variantID, Quantity: quantity,
-		}); err != nil {
-			return fmt.Errorf("set cart quantity: %w", err)
-		}
+		adjusted = lineAdjusted
 		return nil
 	})
+	if err != nil {
+		return err
+	}
+	if adjusted {
+		return ErrQuantityAdjusted
+	}
+	return nil
+}
+
+func setCartLineQuantity(
+	ctx context.Context, q *db.Queries, cartID, variantID uuid.UUID, quantity int32,
+) (adjusted bool, err error) {
+	if quantity <= 0 {
+		if remErr := q.RemoveCartItem(ctx, db.RemoveCartItemParams{CartID: cartID, VariantID: variantID}); remErr != nil {
+			return false, fmt.Errorf("remove cart item: %w", remErr)
+		}
+		return false, nil
+	}
+	v, err := q.VariantForCart(ctx, variantID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, ErrNotFound
+		}
+		return false, fmt.Errorf("read variant: %w", err)
+	}
+	if !v.IsActive || v.Status != "active" || v.SellableQuantity <= 0 {
+		return false, ErrUnavailable
+	}
+	requested := quantity
+	if quantity > v.SellableQuantity {
+		quantity = v.SellableQuantity
+	}
+	if err := q.SetCartItemQuantity(ctx, db.SetCartItemQuantityParams{
+		CartID: cartID, VariantID: variantID, Quantity: quantity,
+	}); err != nil {
+		return false, fmt.Errorf("set cart quantity: %w", err)
+	}
+	return requested > quantity, nil
 }
 
 // Remove drops a line.
