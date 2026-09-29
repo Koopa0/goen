@@ -32,9 +32,10 @@ var (
 	KeySectionTrust = key("home.trust", Message{ZhHant: "購物保障", En: "Shopping with goen"})
 
 	KeyTrustWarrantyBody = key("home.trust.warranty", Message{
-		ZhHant: "全機種原廠保固,維修免費到府收送,保固可以線上登錄查詢。",
-		En: "Every model carries its manufacturer's warranty. We collect repairs from your " +
-			"door for free, and you can register and check your cover online.",
+		ZhHant: "全機種原廠保固,維修免費收送(宅配訂單到府收件,超商取貨的訂單由超商寄回),保固可以線上登錄查詢。",
+		En: "Every model carries its manufacturer's warranty. Repairs are carried " +
+			"both ways for free: collected from your door for a home-delivery order, sent back from a " +
+			"convenience store for a pickup order. You can register and check your cover online.",
 	})
 
 	// %s is the lowest fee, interpolated from shipping_method_versions: a literal

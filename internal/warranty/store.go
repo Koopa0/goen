@@ -53,7 +53,8 @@ func (s *Store) Registrable(ctx context.Context, orderNumber, userID string) (pa
 			Label: r.VariantLabel.String, Slug: r.ProductSlug.String,
 			Note: r.WarrantyNote, Months: int(r.WarrantyMonths.Int32),
 			HasTerm:   r.WarrantyMonths.Valid,
-			Delivered: int(r.DeliveredUnits), Registered: int(r.RegisteredUnits),
+			Delivered: int(r.DeliveredUnits), Returned: int(r.ReturnedUnits),
+			Registered: int(r.RegisteredUnits),
 		})
 	}
 	return view, nil

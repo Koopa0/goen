@@ -141,8 +141,8 @@ func loadConfig() (config, error) {
 // prepareRuntimePosture refuses a configuration that would serve the site with
 // a security feature silently off, or a subsystem that reports success without
 // doing its work, and prepares the parsed TOTP key and canonical origin.
-// SecureCookies is the production signal: it is false only under the
-// development opt-out GOEN_INSECURE_COOKIES.
+// SecureCookies selects secure transport and account requirements. The provider
+// environment follows the Stripe key, not the cookies; see prepareProviderPosture.
 func (cfg *config) prepareRuntimePosture(log *slog.Logger) error {
 	// Key shape is a fact, not a production-only preference: accepting a weak
 	// passphrase in development would create credentials production cannot
@@ -197,7 +197,7 @@ func (cfg *config) prepareRuntimePosture(log *slog.Logger) error {
 			"GOEN_INSECURE_COOKIES=1 for local development", cfg.BaseURL)
 	}
 	cfg.BaseURL = origin
-	return nil
+	return cfg.prepareProviderPosture()
 }
 
 // trustedProxies is the CIDR set whose X-Forwarded-For goen will believe. A
