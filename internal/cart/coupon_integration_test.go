@@ -64,8 +64,11 @@ func TestCouponPricing(t *testing.T) {
 		// The discount may never exceed the subtotal, or the total goes negative
 		// and orders_total_non_negative refuses the checkout.
 		{"coupon larger than the order", "BIG", 100000, 100000, false},
-		// 20% of 1001 cents truncates to 200, not 200.2. Integer throughout.
-		{"fractional discount truncates", "PCT20", 1001, 200, false},
+		// 20% of 1001 cents is 200.2 cents; integer division gives 200, already
+		// a whole NT$.
+		{"sub-cent remainder truncates", "PCT20", 1001, 200, false},
+		// 20% of 5005 cents is 1001, which rounds up to the next whole NT$.
+		{"discount rounds up to a whole NT$", "PCT20", 5005, 1100, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -84,6 +87,43 @@ func TestCouponPricing(t *testing.T) {
 				t.Errorf("free shipping is %v, want %v", freeShipping, tt.wantFreeShipping)
 			}
 		})
+	}
+}
+
+// TestAPercentCouponOrderIsWholeYuanAndItsInvoiceEqualsTheCharge places an
+// order on a price where 15% leaves cents, and holds the order total, its
+// discount and the amount the invoice is issued for to the same whole NT$.
+func TestAPercentCouponOrderIsWholeYuanAndItsInvoiceEqualsTheCharge(t *testing.T) {
+	ctx := t.Context()
+	s := cart.NewStore(pool)
+	code := coupon(t, "PCT15", "percent", 0, 1500, 0, 0, 0)
+
+	number, err := placeWithCoupon(t, s, code, 0)
+	if err != nil {
+		t.Fatalf("place: %v", err)
+	}
+
+	var discount, total, invoiced int64
+	if err := pool.QueryRow(ctx, `
+		WITH t AS (
+		    SELECT o.discount_cents,
+		           (SELECT sum(ol.unit_price_cents::numeric * ol.quantity)
+		            FROM order_lines ol WHERE ol.order_id = o.id)
+		           - o.discount_cents + o.shipping_cents + o.tax_cents AS total
+		    FROM orders o WHERE o.order_number = $1)
+		-- The invoice amount is claim_invoice_issue's floor, restated from its body.
+		SELECT discount_cents, total::bigint, (floor(total / 100) * 100)::bigint FROM t`, number).Scan(&discount, &total, &invoiced); err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	// 15% of NT$1,999 is NT$299.85; the fixture price is 199900 cents.
+	if discount != 30000 {
+		t.Errorf("discount = %d, want 30000", discount)
+	}
+	if total%100 != 0 {
+		t.Errorf("order total %d is not a whole NT$", total)
+	}
+	if invoiced != total {
+		t.Errorf("the invoice is issued for %d but %d was charged", invoiced, total)
 	}
 }
 

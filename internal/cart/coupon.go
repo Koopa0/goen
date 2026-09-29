@@ -43,6 +43,9 @@ type Coupon struct {
 	minimumCents int64
 }
 
+// centsPerYuan is the size of one NT$ in the cents every amount is stored in.
+const centsPerYuan = 100
+
 // NormaliseCode upper-cases and trims a typed code, leaving hyphens alone.
 func NormaliseCode(s string) string { return strings.ToUpper(strings.TrimSpace(s)) }
 
@@ -58,17 +61,30 @@ func (c Coupon) Apply(subtotalCents int64) (discountCents int64, freeShipping bo
 	case "amount":
 		return min(c.amountCents, subtotalCents), false, nil
 	case "percent":
-		// Integer basis points throughout; division rounds the discount down by
-		// less than one cent. Split quotient and remainder before multiplying:
-		// subtotalCents itself may legitimately fit in int64 while
+		// Integer basis points throughout. Split quotient and remainder before
+		// multiplying: subtotalCents itself may legitimately fit in int64 while
 		// subtotalCents*percentBP does not.
 		basisPoints := int64(c.percentBP)
 		discountCents = subtotalCents/10000*basisPoints +
 			subtotalCents%10000*basisPoints/10000
+		// The discount is a whole NT$, so the order, payment, invoice and refunds
+		// all carry whole-yuan amounts. It rounds UP, in the customer's favour: a
+		// shopper never pays more than the advertised percentage allows. The cap
+		// and the subtotal bind after rounding, each floored to a whole NT$ so the
+		// rounding cannot carry the discount past either of them. Checking the
+		// limit first also keeps the round-up from overflowing near int64's end.
+		limit := subtotalCents
 		if c.capCents > 0 {
-			discountCents = min(discountCents, c.capCents)
+			limit = min(limit, c.capCents)
 		}
-		return min(discountCents, subtotalCents), false, nil
+		limit -= limit % centsPerYuan
+		if discountCents >= limit {
+			return limit, false, nil
+		}
+		if remainder := discountCents % centsPerYuan; remainder != 0 {
+			discountCents += centsPerYuan - remainder
+		}
+		return discountCents, false, nil
 	case "free_shipping":
 		return 0, true, nil
 	default:
