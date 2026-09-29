@@ -275,8 +275,8 @@ INSERT INTO product_variants (id, product_id, sku, price_cents, compare_at_price
 -- Only the ones that HAVE stock. A variant seeded at zero is deliberately sold out —
 -- the restock notice needs one — and a movement of zero is refused by
 -- inventory_movements_delta_non_zero, correctly: nothing happened.
-INSERT INTO inventory_movements (variant_id, delta, reason, idempotency_key)
-SELECT v.id, m.qty, 'receipt', 'seed:' || v.sku
+INSERT INTO inventory_movements (variant_id, delta, reason, source_type, idempotency_key)
+SELECT v.id, m.qty, 'receipt', 'admin', 'seed:' || v.sku
 FROM (VALUES
     ('00000015-0000-4000-8000-000000000015', 12),
     ('00000016-0000-4000-8000-000000000016', 11),

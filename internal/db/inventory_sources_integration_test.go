@@ -28,26 +28,37 @@ func TestInventoryMovementSourceParents(t *testing.T) {
 	const returned = "88880001-0000-4000-8000-000000000000"
 	quoted := func(value string) string { return "'" + value + "'" }
 	cases := []struct {
-		name, variant, source, id, rule string
+		name, variant, reason string
+		delta                 int
+		source, id, rule      string
 	}{
-		{"manual receipt", variant, "'admin'", "NULL", ""},
-		{"order", variant, "'order'", quoted(order), ""},
-		{"reservation", variant, "'reservation'", quoted(reservation), ""},
-		{"return", variant, "'return_request'", quoted(returned), ""},
-		{"null source", variant, "NULL", "NULL", "inventory_movements_source_known"},
-		{"unknown source", variant, "'purchase'", "NULL", "inventory_movements_source_known"},
-		{"manual with id", variant, "'admin'", quoted(order), "inventory_movements_source_paired"},
-		{"order without id", variant, "'order'", "NULL", "inventory_movements_source_paired"},
-		{"reservation without id", variant, "'reservation'", "NULL", "inventory_movements_source_paired"},
-		{"return without id", variant, "'return_request'", "NULL", "inventory_movements_source_paired"},
-		{"missing order", variant, "'order'", quoted(missing), "inventory_movements_source_parent"},
-		{"missing reservation", variant, "'reservation'", quoted(missing), "inventory_movements_source_parent"},
-		{"missing return", variant, "'return_request'", quoted(missing), "inventory_movements_source_parent"},
-		{"order id is reservation", variant, "'order'", quoted(reservation), "inventory_movements_source_parent"},
-		{"reservation id is order", variant, "'reservation'", quoted(order), "inventory_movements_source_parent"},
-		{"return id is order", variant, "'return_request'", quoted(order), "inventory_movements_source_parent"},
-		{"reservation wrong variant", otherVariant, "'reservation'", quoted(reservation), "inventory_movements_source_parent"},
-		{"return wrong variant", otherVariant, "'return_request'", quoted(returned), "inventory_movements_source_parent"},
+		{"manual receipt", variant, "receipt", 1, "'admin'", "NULL", ""},
+		{"manual adjustment", variant, "adjustment", -1, "'admin'", "NULL", ""},
+		{"hold names its order", variant, "hold", -1, "'order'", quoted(order), ""},
+		{"sale names its order", variant, "sale", -1, "'order'", quoted(order), ""},
+		{"release names its reservation", variant, "release", 1, "'reservation'", quoted(reservation), ""},
+		{"return names its request", variant, "return", 1, "'return_request'", quoted(returned), ""},
+		{"null source", variant, "receipt", 1, "NULL", "NULL", "inventory_movements_source_known"},
+		{"unknown source", variant, "receipt", 1, "'purchase'", "NULL", "inventory_movements_source_known"},
+		{"manual with id", variant, "receipt", 1, "'admin'", quoted(order), "inventory_movements_source_paired"},
+		{"order without id", variant, "hold", -1, "'order'", "NULL", "inventory_movements_source_paired"},
+		{"reservation without id", variant, "release", 1, "'reservation'", "NULL", "inventory_movements_source_paired"},
+		{"return without id", variant, "return", 1, "'return_request'", "NULL", "inventory_movements_source_paired"},
+		{"missing order", variant, "hold", -1, "'order'", quoted(missing), "inventory_movements_source_parent"},
+		{"missing reservation", variant, "release", 1, "'reservation'", quoted(missing), "inventory_movements_source_parent"},
+		{"missing return", variant, "return", 1, "'return_request'", quoted(missing), "inventory_movements_source_parent"},
+		{"order id is reservation", variant, "hold", -1, "'order'", quoted(reservation), "inventory_movements_source_parent"},
+		{"reservation id is order", variant, "release", 1, "'reservation'", quoted(order), "inventory_movements_source_parent"},
+		{"return id is order", variant, "return", 1, "'return_request'", quoted(order), "inventory_movements_source_parent"},
+		{"reservation wrong variant", otherVariant, "release", 1, "'reservation'", quoted(reservation), "inventory_movements_source_parent"},
+		{"return wrong variant", otherVariant, "return", 1, "'return_request'", quoted(returned), "inventory_movements_source_parent"},
+		// Each reason has one legitimate source; the neighbours are the wrong ones.
+		{"receipt from an order", variant, "receipt", 1, "'order'", quoted(order), "inventory_movements_source_reason"},
+		{"adjustment from a return", variant, "adjustment", 1, "'return_request'", quoted(returned), "inventory_movements_source_reason"},
+		{"hold from a person", variant, "hold", -1, "'admin'", "NULL", "inventory_movements_source_reason"},
+		{"sale from a reservation", variant, "sale", -1, "'reservation'", quoted(reservation), "inventory_movements_source_reason"},
+		{"release from an order", variant, "release", 1, "'order'", quoted(order), "inventory_movements_source_reason"},
+		{"return from a reservation", variant, "return", 1, "'reservation'", quoted(reservation), "inventory_movements_source_reason"},
 	}
 	for _, role := range []string{"admin", "schema"} {
 		for _, c := range cases {
@@ -55,9 +66,9 @@ func TestInventoryMovementSourceParents(t *testing.T) {
 				stmt := inventorySourceFixtures
 				if role == "admin" {
 					stmt += "SET LOCAL ROLE admin;"
-					stmt += fmt.Sprintf(`SELECT record_inventory_movement('%s', 1, 'receipt', 'source-test', %s, %s);`, c.variant, c.source, c.id)
+					stmt += fmt.Sprintf(`SELECT record_inventory_movement('%s', %d, '%s', 'source-test', %s, %s);`, c.variant, c.delta, c.reason, c.source, c.id)
 				} else {
-					stmt += fmt.Sprintf(`INSERT INTO inventory_movements (variant_id, delta, reason, idempotency_key, source_type, source_id) VALUES ('%s', 1, 'receipt', 'source-test', %s, %s);`, c.variant, c.source, c.id)
+					stmt += fmt.Sprintf(`INSERT INTO inventory_movements (variant_id, delta, reason, idempotency_key, source_type, source_id) VALUES ('%s', %d, '%s', 'source-test', %s, %s);`, c.variant, c.delta, c.reason, c.source, c.id)
 				}
 				err := run(t, stmt)
 				if c.rule == "" {
@@ -85,7 +96,7 @@ func TestInventorySourceRefusalRollsBackStock(t *testing.T) {
 	if _, err = tx.Exec(ctx, fixtures+`SET LOCAL ROLE admin; SAVEPOINT invalid_source;`); err != nil {
 		t.Fatal(err)
 	}
-	_, err = tx.Exec(ctx, `SELECT record_inventory_movement('44444444-4444-4444-8444-444444444444', 3, 'receipt', 'bad-parent', 'order', '00000000-0000-4000-8000-000000000000')`)
+	_, err = tx.Exec(ctx, `SELECT record_inventory_movement('44444444-4444-4444-8444-444444444444', -3, 'hold', 'bad-parent', 'order', '00000000-0000-4000-8000-000000000000')`)
 	code, name := constraintViolation(err)
 	if code != "23514" || name != "inventory_movements_source_parent" {
 		t.Fatalf("error = %v", err)
@@ -100,16 +111,10 @@ func TestInventorySourceRefusalRollsBackStock(t *testing.T) {
 	if stock != 14 || movements != 0 {
 		t.Fatalf("stock=%d movements=%d; want 14, 0", stock, movements)
 	}
-	// Omitting an optional parent is the existing manual-stock API; explicit NULL is refused separately.
-	if _, err = tx.Exec(ctx, `SELECT record_inventory_movement('44444444-4444-4444-8444-444444444444', 1, 'receipt', 'manual-default')`); err != nil {
-		t.Fatal(err)
-	}
-	var source string
-	if err = tx.QueryRow(ctx, `SELECT source_type FROM inventory_movements WHERE idempotency_key = 'manual-default'`).Scan(&source); err != nil {
-		t.Fatal(err)
-	}
-	if source != "admin" {
-		t.Fatalf("source = %q; want admin", source)
+	// Omitting the source is refused: there is no silent default to "admin".
+	_, err = tx.Exec(ctx, `SELECT record_inventory_movement('44444444-4444-4444-8444-444444444444', 1, 'receipt', 'no-source')`)
+	if code, name := constraintViolation(err); code != "23514" || name != "inventory_movements_source_known" {
+		t.Fatalf("omitted source error = %v; want 23514/inventory_movements_source_known", err)
 	}
 }
 

@@ -405,38 +405,43 @@ var checkCases = []checkCase{
 		accept:     `SELECT record_inventory_movement('44444444-4444-4444-8444-444444444444', 1, 'receipt', 'source-known', 'admin');`,
 	},
 	{
+		constraint: "inventory_movements_source_reason",
+		reject:     `SELECT record_inventory_movement('44444444-4444-4444-8444-444444444444', 1, 'receipt', 'reason-source', 'order', '66666666-6666-4666-8666-666666666666');`,
+		accept:     `SELECT record_inventory_movement('44444444-4444-4444-8444-444444444444', 1, 'receipt', 'reason-source', 'admin');`,
+	},
+	{
 		constraint: "inventory_movements_source_paired",
-		reject:     `SELECT record_inventory_movement('44444444-4444-4444-8444-444444444444', 1, 'receipt', 'source-paired', 'order', NULL);`,
-		accept:     `SELECT record_inventory_movement('44444444-4444-4444-8444-444444444444', 1, 'receipt', 'source-paired', 'order', '66666666-6666-4666-8666-666666666666');`,
+		reject:     `SELECT record_inventory_movement('44444444-4444-4444-8444-444444444444', -1, 'hold', 'source-paired', 'order', NULL);`,
+		accept:     `SELECT record_inventory_movement('44444444-4444-4444-8444-444444444444', -1, 'hold', 'source-paired', 'order', '66666666-6666-4666-8666-666666666666');`,
 	},
 	{
 		constraint: "inventory_movements_delta_non_zero",
-		reject: `INSERT INTO inventory_movements (variant_id, delta, reason, idempotency_key)
-VALUES ('44444444-4444-4444-8444-444444444444', 0, 'adjustment', 'im-delta-1');`,
-		accept: `INSERT INTO inventory_movements (variant_id, delta, reason, idempotency_key)
-VALUES ('44444444-4444-4444-8444-444444444444', 1, 'adjustment', 'im-delta-1');`,
+		reject: `INSERT INTO inventory_movements (variant_id, delta, reason, source_type, idempotency_key)
+VALUES ('44444444-4444-4444-8444-444444444444', 0, 'adjustment', 'admin', 'im-delta-1');`,
+		accept: `INSERT INTO inventory_movements (variant_id, delta, reason, source_type, idempotency_key)
+VALUES ('44444444-4444-4444-8444-444444444444', 1, 'adjustment', 'admin', 'im-delta-1');`,
 	},
 	{
 		constraint: "inventory_movements_delta_direction",
 		// A sale takes stock out, so its delta must be negative; the neighbour is the correct sign.
-		reject: `INSERT INTO inventory_movements (variant_id, delta, reason, idempotency_key)
-VALUES ('44444444-4444-4444-8444-444444444444', 5, 'sale', 'im-dir-1');`,
-		accept: `INSERT INTO inventory_movements (variant_id, delta, reason, idempotency_key)
-VALUES ('44444444-4444-4444-8444-444444444444', -5, 'sale', 'im-dir-1');`,
+		reject: `INSERT INTO inventory_movements (variant_id, delta, reason, source_type, source_id, idempotency_key)
+VALUES ('44444444-4444-4444-8444-444444444444', 5, 'sale', 'order', '66666666-6666-4666-8666-666666666666', 'im-dir-1');`,
+		accept: `INSERT INTO inventory_movements (variant_id, delta, reason, source_type, source_id, idempotency_key)
+VALUES ('44444444-4444-4444-8444-444444444444', -5, 'sale', 'order', '66666666-6666-4666-8666-666666666666', 'im-dir-1');`,
 	},
 	{
 		constraint: "inventory_movements_key_present",
-		reject: `INSERT INTO inventory_movements (variant_id, delta, reason, idempotency_key)
-VALUES ('44444444-4444-4444-8444-444444444444', 1, 'adjustment', E'\t');`,
-		accept: `INSERT INTO inventory_movements (variant_id, delta, reason, idempotency_key)
-VALUES ('44444444-4444-4444-8444-444444444444', 1, 'adjustment', E'\tim-key');`,
+		reject: `INSERT INTO inventory_movements (variant_id, delta, reason, source_type, idempotency_key)
+VALUES ('44444444-4444-4444-8444-444444444444', 1, 'adjustment', 'admin', E'\t');`,
+		accept: `INSERT INTO inventory_movements (variant_id, delta, reason, source_type, idempotency_key)
+VALUES ('44444444-4444-4444-8444-444444444444', 1, 'adjustment', 'admin', E'\tim-key');`,
 	},
 	{
 		constraint: "inventory_movements_reason_known",
-		reject: `INSERT INTO inventory_movements (variant_id, delta, reason, idempotency_key)
-VALUES ('44444444-4444-4444-8444-444444444444', 1, 'purchase', 'im-reason-1');`,
-		accept: `INSERT INTO inventory_movements (variant_id, delta, reason, idempotency_key)
-VALUES ('44444444-4444-4444-8444-444444444444', 1, 'receipt', 'im-reason-1');`,
+		reject: `INSERT INTO inventory_movements (variant_id, delta, reason, source_type, idempotency_key)
+VALUES ('44444444-4444-4444-8444-444444444444', 1, 'purchase', 'admin', 'im-reason-1');`,
+		accept: `INSERT INTO inventory_movements (variant_id, delta, reason, source_type, idempotency_key)
+VALUES ('44444444-4444-4444-8444-444444444444', 1, 'receipt', 'admin', 'im-reason-1');`,
 	},
 	{
 		constraint: "inventory_reservations_expiry_after_creation",
@@ -2197,14 +2202,14 @@ var uniqueCases = []uniqueCase{
 	},
 	{
 		index: "inventory_movements_idempotency_key",
-		reject: `INSERT INTO inventory_movements (variant_id, delta, reason, idempotency_key)
-VALUES ('44444444-4444-4444-8444-444444444444', 1, 'receipt', 'im-dup');
-INSERT INTO inventory_movements (variant_id, delta, reason, idempotency_key)
-VALUES ('44444444-4444-4444-8444-444444444444', 1, 'receipt', 'im-dup');`,
-		accept: `INSERT INTO inventory_movements (variant_id, delta, reason, idempotency_key)
-VALUES ('44444444-4444-4444-8444-444444444444', 1, 'receipt', 'im-dup');
-INSERT INTO inventory_movements (variant_id, delta, reason, idempotency_key)
-VALUES ('44444444-4444-4444-8444-444444444444', 1, 'receipt', 'im-dup-2');`,
+		reject: `INSERT INTO inventory_movements (variant_id, delta, reason, source_type, idempotency_key)
+VALUES ('44444444-4444-4444-8444-444444444444', 1, 'receipt', 'admin', 'im-dup');
+INSERT INTO inventory_movements (variant_id, delta, reason, source_type, idempotency_key)
+VALUES ('44444444-4444-4444-8444-444444444444', 1, 'receipt', 'admin', 'im-dup');`,
+		accept: `INSERT INTO inventory_movements (variant_id, delta, reason, source_type, idempotency_key)
+VALUES ('44444444-4444-4444-8444-444444444444', 1, 'receipt', 'admin', 'im-dup');
+INSERT INTO inventory_movements (variant_id, delta, reason, source_type, idempotency_key)
+VALUES ('44444444-4444-4444-8444-444444444444', 1, 'receipt', 'admin', 'im-dup-2');`,
 	},
 	{
 		index: "inventory_reservations_order_variant_key",

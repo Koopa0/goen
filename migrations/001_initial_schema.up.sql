@@ -855,11 +855,12 @@ CREATE TABLE inventory_movements (
     variant_id      uuid NOT NULL REFERENCES product_variants (id) ON DELETE RESTRICT,
     delta           integer NOT NULL,
     reason          text NOT NULL,
-    source_type     text DEFAULT 'admin',
+    source_type     text,
     source_id       uuid,
     idempotency_key text NOT NULL,
     actor_user_id   uuid REFERENCES users (id) ON DELETE SET NULL,
     created_at      timestamptz NOT NULL DEFAULT now(),
+    -- No default: a movement that names no source is refused, not filed as manual.
     -- Manual stock has no purchasing parent; every other source names one.
     CONSTRAINT inventory_movements_source_known CHECK (
         source_type IS NOT NULL AND source_type IN ('admin', 'order', 'reservation', 'return_request')
@@ -867,6 +868,16 @@ CREATE TABLE inventory_movements (
     CONSTRAINT inventory_movements_source_paired CHECK (
         (source_type = 'admin' AND source_id IS NULL)
         OR (source_type IN ('order', 'reservation', 'return_request') AND source_id IS NOT NULL)
+    ),
+    -- Every row is attributable, and the reason says which source can have
+    -- produced it: a receipt cannot come from an order, a hold cannot come from
+    -- a person at a keyboard. NULL is refused by source_known, since a
+    -- CHECK passes on NULL.
+    CONSTRAINT inventory_movements_source_reason CHECK (
+        (reason IN ('receipt', 'adjustment') AND source_type = 'admin')
+        OR (reason IN ('hold', 'sale') AND source_type = 'order')
+        OR (reason = 'release' AND source_type = 'reservation')
+        OR (reason = 'return' AND source_type = 'return_request')
     ),
     CONSTRAINT inventory_movements_delta_non_zero CHECK (delta <> 0),
     CONSTRAINT inventory_movements_reason_known CHECK (reason IN (
@@ -910,7 +921,7 @@ CREATE FUNCTION record_inventory_movement(
     p_delta integer,
     p_reason text,
     p_idempotency_key text,
-    p_source_type text DEFAULT 'admin',
+    p_source_type text DEFAULT NULL,
     p_source_id uuid DEFAULT NULL,
     p_actor uuid DEFAULT NULL
 ) RETURNS integer
