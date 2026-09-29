@@ -636,8 +636,8 @@ func TestInvoiceDoorRuleBranchesFailByTheirExactNames(t *testing.T) {
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO order_lines
 			    (order_id, variant_id, sku, product_name, unit_price_cents, quantity, position)
-			SELECT $1,pv.id,'RULE-SKU','Rule item',100000,1,0
-			FROM product_variants pv LIMIT 1`, orderID); err != nil {
+			SELECT $1, pv.id, pv.sku, p.name, 100000, 1, 0
+			FROM product_variants pv JOIN products p ON p.id = pv.product_id LIMIT 1`, orderID); err != nil {
 			t.Fatalf("add bare order line %s: %v", number, err)
 		}
 		if _, err := tx.Exec(ctx, `
@@ -1342,9 +1342,8 @@ func TestOfferedPreferencesMatchTheDatabaseClosedSet(t *testing.T) {
 			INSERT INTO order_lines
 			    (order_id, variant_id, sku, product_name,
 			     unit_price_cents, quantity, position)
-			SELECT $1, pv.id, 'PREFERENCE-SKU', 'Preference test item',
-			       10000, 1, 0
-			FROM product_variants pv LIMIT 1`, orderID); err != nil {
+			SELECT $1, pv.id, pv.sku, p.name, 10000, 1, 0
+			FROM product_variants pv JOIN products p ON p.id = pv.product_id LIMIT 1`, orderID); err != nil {
 			t.Fatalf("add preference order line: %v", err)
 		}
 		if _, err := tx.Exec(ctx, `
@@ -2922,7 +2921,7 @@ func invoicedOrderWithRefund(t *testing.T, refundCents int64) string {
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO order_lines (order_id, variant_id, sku, product_name,
 		                         unit_price_cents, quantity, position)
-		SELECT $1, pv.id, 'ALLOW-SKU-1', '折讓測試商品', 100000, 1, 0
+		SELECT $1, pv.id, pv.sku, p.name, 100000, 1, 0
 		FROM product_variants pv JOIN products p ON p.id = pv.product_id
 		WHERE p.status = 'active' LIMIT 1`, orderID); err != nil {
 		t.Fatalf("add a line: %v", err)
@@ -3769,7 +3768,7 @@ func orderToInvoiceFor(
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO order_lines (order_id, variant_id, sku, product_name,
 		                         unit_price_cents, quantity, position)
-		SELECT $1, pv.id, 'ISSUE-SKU-1', '開立測試商品', $2, 1, 0
+		SELECT $1, pv.id, pv.sku, p.name, $2, 1, 0
 		FROM product_variants pv JOIN products p ON p.id = pv.product_id
 		WHERE p.status = 'active' LIMIT 1`, orderID, itemCents); err != nil {
 		t.Fatalf("add a line: %v", err)

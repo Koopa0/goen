@@ -541,7 +541,7 @@ func placeOrderFor(t *testing.T, userID string) string {
 	}
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO order_lines (order_id, variant_id, sku, product_name, unit_price_cents, quantity)
-		VALUES ($1, $2, 'TEST-SKU', '測試商品', 100000, 1)`, orderID, variantID); err != nil {
+		SELECT $1, pv.id, pv.sku, p.name, 100000, 1 FROM product_variants pv JOIN products p ON p.id = pv.product_id WHERE pv.id = $2`, orderID, variantID); err != nil {
 		t.Fatalf("create line: %v", err)
 	}
 	if _, err := tx.Exec(ctx, `

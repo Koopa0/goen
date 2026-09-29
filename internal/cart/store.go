@@ -1053,6 +1053,14 @@ func writeOrderLines(ctx context.Context, q *db.Queries, orderID uuid.UUID, line
 			Quantity:       l.Quantity,
 			Position:       int32(i),
 		}); err != nil {
+			// The cart read this line's name and SKU earlier in the transaction; an
+			// admin rename committing in between makes the snapshot stale, and the
+			// refreshed quote is what the shopper needs to see.
+			if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok &&
+				(pgErr.ConstraintName == "order_lines_name_matches_product" ||
+					pgErr.ConstraintName == "order_lines_sku_matches_variant") {
+				return errCheckoutChanged
+			}
 			return fmt.Errorf("create order line: %w", err)
 		}
 	}
