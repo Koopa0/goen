@@ -6,7 +6,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/koopa0/goen/internal/comparison"
 	"github.com/koopa0/goen/internal/i18n"
 )
 
@@ -80,19 +79,15 @@ func (r CompareRow) Comparable(products int) bool { return r.SharedBy >= product
 
 // CompareView is the comparison table.
 type CompareView struct {
-	Products   []CompareProduct
-	Rows       []CompareRow
-	Snapshot   bool
-	Query      string
-	Candidates []ProductTile
-	Notice     string
+	Products []CompareProduct
+	Rows     []CompareRow
 }
 
 // Empty reports whether there is nothing to compare.
 func (v CompareView) Empty() bool { return len(v.Products) == 0 }
 
 // Enough reports whether there are at least two columns.
-func (v CompareView) Enough() bool { return len(v.Products) >= comparison.Min }
+func (v CompareView) Enough() bool { return len(v.Products) >= 2 }
 
 // Count is how many products are being compared.
 func (v CompareView) Count() int { return len(v.Products) }
@@ -114,49 +109,17 @@ func (v CompareView) ProductHref(slug string) string {
 
 // RemoveHref is the comparison without one product.
 func (v CompareView) RemoveHref(slug string) string {
-	var remaining []string
-	for i := range v.Products {
-		if v.Products[i].Slug != slug {
-			remaining = append(remaining, v.Products[i].Slug)
-		}
-	}
-	return comparison.Href(remaining)
-}
-
-func (v CompareView) Slugs() []string {
-	slugs := make([]string, 0, len(v.Products))
-	for i := range v.Products {
-		slugs = append(slugs, v.Products[i].Slug)
-	}
-	return slugs
-}
-
-func (v CompareView) ShareHref() string { return comparison.Href(v.Slugs()) }
-func (v CompareView) Full() bool        { return len(v.Products) >= comparison.Max }
-func (v CompareView) Contains(slug string) bool {
+	var b strings.Builder
+	b.WriteString("/compare")
+	sep := "?"
 	for i := range v.Products {
 		if v.Products[i].Slug == slug {
-			return true
+			continue
 		}
+		b.WriteString(sep)
+		b.WriteString("p=")
+		b.WriteString(v.Products[i].Slug)
+		sep = "&"
 	}
-	return false
-}
-
-func ComparisonNotice(ctx context.Context, outcome string) string {
-	switch outcome {
-	case "added":
-		return i18n.T(ctx, i18n.KeyCompareAdded)
-	case "removed":
-		return i18n.T(ctx, i18n.KeyCompareRemoved)
-	case "cleared":
-		return i18n.T(ctx, i18n.KeyCompareCleared)
-	case "saved":
-		return i18n.T(ctx, i18n.KeyCompareSaved)
-	case "full":
-		return i18n.T(ctx, i18n.KeyCompareFull)
-	case "unavailable":
-		return i18n.T(ctx, i18n.KeyCompareUnavailable)
-	default:
-		return ""
-	}
+	return b.String()
 }
