@@ -50,6 +50,8 @@ type OrderShipped struct {
 	Name        string `json:"name"`
 	Carrier     string `json:"carrier"`
 	Tracking    string `json:"tracking"`
+	// Pickup is a convenience-store order, whose parcel goes to a store.
+	Pickup bool `json:"pickup"`
 }
 
 // SendOrderShipped tells somebody their parcel is on its way.
@@ -59,10 +61,14 @@ func (n Notifier) SendOrderShipped(ctx context.Context, p *OrderShipped) error {
 	}
 
 	ctx = n.locale(ctx, p.Locale)
+	body := i18n.KeyMailShippedBody
+	if p.Pickup {
+		body = i18n.KeyMailShippedPickupBody
+	}
 	return n.sender.Send(ctx, &Message{
 		To:      p.Email,
 		Subject: fmt.Sprintf(i18n.T(ctx, i18n.KeyMailShippedSubject), p.OrderNumber),
-		Body: n.letter(ctx, p.Name, fmt.Sprintf(i18n.T(ctx, i18n.KeyMailShippedBody),
+		Body: n.letter(ctx, p.Name, fmt.Sprintf(i18n.T(ctx, body),
 			p.OrderNumber, p.Carrier, p.Tracking, n.orderURL(p.OrderNumber))),
 	})
 }
