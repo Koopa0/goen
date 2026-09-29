@@ -767,9 +767,10 @@ func (h *Handler) CreateCampaign(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	f := &CampaignForm{
-		Slug:  r.PostFormValue("slug"),
-		Title: r.PostFormValue("title"),
-		Days:  small(r.PostFormValue("days")),
+		Slug:    r.PostFormValue("slug"),
+		Title:   r.PostFormValue("title"),
+		TitleEn: r.PostFormValue("title_en"),
+		Days:    small(r.PostFormValue("days")),
 	}
 	errs, err := h.store.CreateCampaign(r.Context(), f)
 	switch {
@@ -784,7 +785,7 @@ func (h *Handler) CreateCampaign(w http.ResponseWriter, r *http.Request) {
 		}
 		view.Errors = errs
 		view.Draft = pages.AdminCampaignDraft{
-			Slug: f.Slug, Title: f.Title, Days: r.PostFormValue("days"),
+			Slug: f.Slug, Title: f.Title, TitleEn: f.TitleEn, Days: r.PostFormValue("days"),
 		}
 		web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.AdminCampaigns(
 			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageCampaigns)}, view))
