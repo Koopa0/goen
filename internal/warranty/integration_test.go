@@ -521,3 +521,98 @@ func TestMineShowsOnlyThisCustomersCover(t *testing.T) {
 		t.Error("cover registered today reads as expired")
 	}
 }
+
+// TestEachUnitsCoverStartsWhenItsOwnParcelArrived: with the line split across
+// two parcels, unit 2 is in the second box and must not take the first box's
+// earlier date.
+func TestEachUnitsCoverStartsWhenItsOwnParcelArrived(t *testing.T) {
+	ctx := t.Context()
+	s := warranty.NewStore(pool)
+	first, err := time.Parse(time.RFC3339, "2026-08-10T12:00:00+08:00")
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	second := first.Add(9 * 24 * time.Hour)
+	f := newFixture(t, 2, 12, parcel{units: 1, arrived: true, deliveredAt: first})
+
+	var orderID uuid.UUID
+	if err := pool.QueryRow(ctx, `SELECT order_id FROM order_lines WHERE id = $1`, f.lineID).Scan(&orderID); err != nil {
+		t.Fatalf("read order: %v", err)
+	}
+	var shipmentID uuid.UUID
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO order_shipments (order_id, carrier, tracking_number, shipped_at, delivered_at)
+		VALUES ($1, '黑貓', 'TW2-'||$2, $3, $4) RETURNING id`,
+		orderID, f.number, second.Add(-48*time.Hour), second).Scan(&shipmentID); err != nil {
+		t.Fatalf("second shipment: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO order_shipment_lines (order_id, shipment_id, order_line_id, quantity)
+		VALUES ($1, $2, $3, 1)`, orderID, shipmentID, f.lineID); err != nil {
+		t.Fatalf("second shipment line: %v", err)
+	}
+
+	for unit := 1; unit <= 2; unit++ {
+		if err := s.Register(ctx, f.lineID.String(), f.userID, "", unit); err != nil {
+			t.Fatalf("register unit %d: %v", unit, err)
+		}
+	}
+	for unit, arrived := range map[int]time.Time{1: first, 2: second} {
+		var ok bool
+		if err := pool.QueryRow(ctx, `
+			SELECT expires_on = (shop_day($3::timestamptz) + interval '12 months')::date
+			FROM warranty_registrations WHERE order_line_id = $1 AND unit_no = $2`,
+			f.lineID, unit, arrived).Scan(&ok); err != nil {
+			t.Fatalf("read unit %d: %v", unit, err)
+		}
+		if !ok {
+			t.Errorf("unit %d's cover does not run from the day its own parcel arrived (%s)",
+				unit, arrived.Format(time.DateOnly))
+		}
+	}
+}
+
+// TestAnApprovedReturnTakesUnitsOffWhatCanBeRegistered: a returned unit can no
+// longer start cover, and a registration already made is left alone.
+func TestAnApprovedReturnTakesUnitsOffWhatCanBeRegistered(t *testing.T) {
+	ctx := t.Context()
+	s := warranty.NewStore(pool)
+	f := newFixture(t, 2, 12, parcel{units: 2, arrived: true})
+
+	var orderID uuid.UUID
+	if err := pool.QueryRow(ctx, `SELECT order_id FROM order_lines WHERE id = $1`, f.lineID).Scan(&orderID); err != nil {
+		t.Fatalf("read order: %v", err)
+	}
+	var returnID uuid.UUID
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO return_requests (order_id, reason) VALUES ($1, '') RETURNING id`,
+		orderID).Scan(&returnID); err != nil {
+		t.Fatalf("return request: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity)
+		VALUES ($1, $2, $3, 1)`, orderID, returnID, f.lineID); err != nil {
+		t.Fatalf("return line: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		UPDATE return_requests
+		SET status = 'approved', decided_at = now(), goods_refund_cents = 100000,
+		    card_refund_cents = 100000, credit_refund_cents = 0
+		WHERE id = $1`, returnID); err != nil {
+		t.Fatalf("approve return: %v", err)
+	}
+
+	view, err := s.Registrable(ctx, f.number, f.userID)
+	if err != nil {
+		t.Fatalf("registrable: %v", err)
+	}
+	if got := view.Lines[0].Delivered; got != 1 {
+		t.Errorf("2 delivered less 1 in an approved return counts %d registrable units, want 1", got)
+	}
+	if err := s.Register(ctx, f.lineID.String(), f.userID, "", 2); !errors.Is(err, warranty.ErrNotRegistrable) {
+		t.Errorf("unit 2 of a line with one unit returned gave %v, want ErrNotRegistrable", err)
+	}
+	if err := s.Register(ctx, f.lineID.String(), f.userID, "", 1); err != nil {
+		t.Errorf("the one unit not returned was refused: %v", err)
+	}
+}

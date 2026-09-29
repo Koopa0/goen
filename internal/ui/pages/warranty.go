@@ -19,7 +19,8 @@ type WarrantyLine struct {
 	// Months is the term; HasTerm is separate because a missing term is NULL.
 	Months  int
 	HasTerm bool
-	// Delivered is how many units arrived, never how many were dispatched.
+	// Delivered is how many units can still start cover: those that arrived, never
+	// those only dispatched, less those in an approved return.
 	Delivered  int
 	Registered int
 }
