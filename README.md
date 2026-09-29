@@ -41,8 +41,7 @@ and refunds, warranty requests, invoices, and customer inquiries.
 Payments, electronic invoices, and email delivery have not yet been verified
 with their service providers ([#40](https://github.com/Koopa0/goen/issues/40)). The return review
 process does not yet enforce the advertised eligibility windows
-([#50](https://github.com/Koopa0/goen/issues/50)). Warranty collection is incomplete
-for convenience-store pickup orders ([#225](https://github.com/Koopa0/goen/issues/225)).
+([#50](https://github.com/Koopa0/goen/issues/50)).
 
 The interface is available in English and Traditional Chinese. Product content
 uses the translations supplied by the shop.

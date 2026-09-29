@@ -406,38 +406,113 @@ func TestPlacingAnOrderWithAnUnvouchedStoreDropsIt(t *testing.T) {
 	}
 }
 
-// TestAnUnconfiguredCheckoutIsExactlyWhatItWas is the last line of the design:
-// with no carrier, the checkout asks for a chain, issues no cookie, and places
-// the order it always placed.
-func TestAnUnconfiguredCheckoutIsExactlyWhatItWas(t *testing.T) {
-	s := cart.NewStore(pool)
-	off, err := cart.NewMap("", "", "", "https://goen.test")
+// postPickupCheckout submits a pickup checkout with exactly the fields given,
+// which is what a forged POST is: the form's own quote and attempt identity and
+// nothing the map vouched for.
+func postPickupCheckout(
+	t *testing.T, h *cart.Handler, token, page string, shipping uuid.UUID, label string, fields url.Values,
+) (status int, body string) {
+	t.Helper()
+	quote, ok := hiddenInputValue(page, "checkout_quote")
+	if !ok {
+		t.Fatal("the rendered checkout carries no quote")
+	}
+	idempotency, ok := hiddenInputValue(page, "idempotency")
+	if !ok {
+		t.Fatal("the rendered checkout carries no attempt identity")
+	}
+	form := url.Values{
+		"email": {label + "@example.com"}, "name": {"王小明"}, "phone": {"0912345678"},
+		"shipping": {shipping.String()}, "invoice_type": {"mobile_carrier"},
+		"invoice_carrier": {"/ABC+123"}, "checkout_quote": {quote}, "idempotency": {idempotency},
+	}
+	for k, v := range fields {
+		form[k] = v
+	}
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/checkout", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	//nolint:gosec // G124: the browser's own cart cookie
+	req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token})
+	res := httptest.NewRecorder()
+	h.PlaceOrder(res, req)
+	return res.Code, res.Body.String()
+}
+
+// TestPickupIsOfferedOnlyWhereTheStoreMapIsConfigured holds that checkout does
+// not offer a method that can only be refused.
+func TestPickupIsOfferedOnlyWhereTheStoreMapIsConfigured(t *testing.T) {
+	disabled, err := cart.NewMap("", "", "", "https://goen.test")
 	if err != nil {
 		t.Fatalf("build a disabled map: %v", err)
 	}
-	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, testLimiter(), nil, off)
-	token, shipping := aPickupCart(t, s, "map-unconfigured")
+	for name, tt := range map[string]struct {
+		storeMap *cart.Map
+		offered  bool
+	}{"map enabled": {configuredMap(t), true}, "map disabled": {disabled, false}} {
+		t.Run(name, func(t *testing.T) {
+			s := cart.NewStore(pool)
+			h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, testLimiter(), nil, tt.storeMap)
+			token, shipping := aPickupCart(t, s, "pickup-offer")
+			page, _, status := openPickupCheckout(t, h, token, shipping)
+			if status != http.StatusOK {
+				t.Fatalf("checkout = %d, want 200", status)
+			}
+			if got := strings.Contains(page, `value="`+shipping.String()+`"`); got != tt.offered {
+				t.Errorf("pickup radio present = %v, want %v", got, tt.offered)
+			}
+			if !strings.Contains(page, `name="shipping"`) {
+				t.Error("no delivery choice is offered at all")
+			}
+		})
+	}
+}
 
-	page, cookie, status := openPickupCheckout(t, h, token, shipping)
-	if status != http.StatusOK {
-		t.Fatalf("checkout = %d, want 200", status)
+// TestAForgedPickupPostIsRefusedWithOrWithoutTheMap holds that a checkout takes
+// only 7-ELEVEN and 全家, and only with a store chosen on the carrier's map: a
+// hand-written POST naming another chain, or any chain and no store, is a 422
+// whether or not this deployment can open the map.
+func TestAForgedPickupPostIsRefusedWithOrWithoutTheMap(t *testing.T) {
+	disabled, err := cart.NewMap("", "", "", "https://goen.test")
+	if err != nil {
+		t.Fatalf("build a disabled map: %v", err)
 	}
-	if cookie != nil {
-		t.Error("an unconfigured goen issued a pickup cookie")
-	}
-	for _, gone := range []string{"pickup-map-form", "ecpay.com.tw"} {
-		if strings.Contains(page, gone) {
-			t.Errorf("an unconfigured checkout renders %q", gone)
+	for name, storeMap := range map[string]*cart.Map{"map enabled": configuredMap(t), "map disabled": disabled} {
+		for _, forged := range []struct {
+			name   string
+			fields url.Values
+			field  string
+		}{
+			{"hi_life", url.Values{"pickup_brand": {"hi_life"}, "pickup_store_code": {"999999"}, "pickup_store_name": {"攻擊者的門市"}}, "pickup_brand"},
+			{"ok_mart", url.Values{"pickup_brand": {"ok_mart"}}, "pickup_brand"},
+			{"no store", url.Values{"pickup_brand": {"seven_eleven"}}, "pickup_store"},
+			{"typed store", url.Values{"pickup_brand": {"family_mart"}, "pickup_store_code": {"999999"}, "pickup_store_name": {"攻擊者的門市"}}, "pickup_store"},
+		} {
+			t.Run(name+"/"+forged.name, func(t *testing.T) {
+				s := cart.NewStore(pool)
+				h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, testLimiter(), nil, storeMap)
+				token, shipping := aPickupCart(t, s, "forged-pickup")
+				page, _, status := openPickupCheckout(t, h, token, shipping)
+				if status != http.StatusOK {
+					t.Fatalf("checkout = %d, want 200", status)
+				}
+				code, body := postPickupCheckout(t, h, token, page, shipping, "forged-pickup", forged.fields)
+				if code != http.StatusUnprocessableEntity {
+					t.Fatalf("forged pickup POST = %d, want 422", code)
+				}
+				if strings.Contains(body, "攻擊者的門市") {
+					t.Error("the refusal echoes the forged store")
+				}
+				// Without a map the method is not offered, so the refusal is of
+				// the method itself; with one, of the chain or the store.
+				want := forged.field
+				if !storeMap.Enabled() {
+					want = "shipping"
+				}
+				if !strings.Contains(body, `id="`+want+`-error"`) {
+					t.Errorf("the refusal must show the %s error", want)
+				}
+			})
 		}
-	}
-
-	number := placeThisCheckout(t, h, token, nil, page, shipping, "map-unconfigured")
-	_, brand, code, name := destinationOf(t, number)
-	if brand != "seven_eleven" {
-		t.Errorf("chain = %q, want seven_eleven", brand)
-	}
-	if code != "" || name != "" {
-		t.Errorf("an unconfigured checkout stored a store (%q/%q); nobody can choose one", code, name)
 	}
 }
 

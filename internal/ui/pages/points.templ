@@ -24,6 +24,7 @@ templ Points(p layouts.Page, v PointsView) {
 				<p class="goen-pagehead__sub">
 					{ fmt.Sprintf(i18n.T(ctx, i18n.KeyPointsSub), v.RateText(ctx)) }
 				</p>
+				<p class="goen-pagehead__sub">{ i18n.T(ctx, i18n.KeyPointsExpiryTerms) }</p>
 			</div>
 			if v.Notice != "" {
 				@components.Notice(components.NoticeProps{Tone: components.ToneAccent, ID: "points-notice", Class: "ui-alert--info"}) {

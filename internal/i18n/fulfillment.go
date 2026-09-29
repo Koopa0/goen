@@ -167,6 +167,14 @@ var (
 		En:     "Update the status",
 	})
 
+	// Completing is what stamps delivered_at, which starts the seven-day period
+	// /admin/returns counts from; for a store pickup nobody else witnesses the handover.
+	KeyAdminQueuePickupCompleteHint = key("admin.queue.pickup.complete.hint", Message{
+		ZhHant: "超商取貨的訂單:顧客到門市實際取貨後,才按「已完成」。這個時間點起算七天鑑賞期。",
+		En: "Store-pickup order: mark it Completed only after the customer has collected it at " +
+			"the store. That moment starts the seven-day period.",
+	})
+
 	KeyAdminQueueNextHint = key("admin.queue.next.hint", Message{
 		ZhHant: "只列出資料庫允許的下一步。未付款的訂單無法進入備貨。",
 		En: "Only the next steps the database will accept are listed. An unpaid order cannot " +

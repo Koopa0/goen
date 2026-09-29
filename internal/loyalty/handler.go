@@ -80,6 +80,8 @@ func (h *Handler) Redeem(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/account/points?small=1", http.StatusSeeOther)
 	case errors.Is(err, ErrInvalidOperation):
 		http.Redirect(w, r, "/account/points?badform=1", http.StatusSeeOther)
+	case errors.Is(err, ErrReturnUnsettled):
+		h.renderRefusal(w, r, u.ID, i18n.KeyPointsReturnUnsettled)
 	case errors.Is(err, ErrNotEnough), errors.Is(err, ErrNoAccount):
 		http.Redirect(w, r, "/account/points?short=1", http.StatusSeeOther)
 	default:
@@ -93,6 +95,23 @@ func (h *Handler) serverError(w http.ResponseWriter, r *http.Request) {
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyTryAgainTitle)}, "",
 		i18n.T(r.Context(), i18n.KeyTryAgainTitle),
 		i18n.T(r.Context(), i18n.KeyTryAgainBody)))
+}
+
+// renderRefusal answers 422 with the points page and the reason, so the refusal
+// is read where the form is instead of after a redirect.
+func (h *Handler) renderRefusal(w http.ResponseWriter, r *http.Request, userID string, reason i18n.Key) {
+	view, err := h.store.History(r.Context(), userID)
+	if err != nil && !errors.Is(err, ErrNoAccount) {
+		h.log.ErrorContext(r.Context(), "read points after refusal", "error", err)
+		h.serverError(w, r)
+		return
+	}
+	view.Notice = i18n.T(r.Context(), reason)
+	if view.CanRedeem() {
+		view.OperationID = uuid.NewString()
+	}
+	web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.Points(
+		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyPointsTitle)}, view))
 }
 
 func noticeFor(r *http.Request) string {

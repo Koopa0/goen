@@ -77,9 +77,13 @@ func (s *Store) Redeem(
 		OperationID: operationID,
 	})
 	if err != nil {
-		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok &&
-			pgErr.ConstraintName == "loyalty_entries_within_balance" {
-			return 0, ErrNotEnough
+		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok {
+			switch pgErr.ConstraintName {
+			case "loyalty_entries_within_balance":
+				return 0, ErrNotEnough
+			case "loyalty_redemption_return_unsettled":
+				return 0, ErrReturnUnsettled
+			}
 		}
 		return 0, fmt.Errorf("redeem %d points: %w", points, err)
 	}
