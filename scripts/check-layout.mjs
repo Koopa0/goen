@@ -159,9 +159,11 @@ const CART = [
   // choose rather than a street address — so a layout row for the default
   // method measures only half the page. PICKUP_SHIP is the version id the
   // Makefile reads from the database, and the marker insists the chain
-  // chooser is there.
-  { label: 'pickup 375', width: 375, height: 812, path: '/checkout?ship=PICKUP_SHIP', marker: 'input[name=pickup_brand]' },
-  { label: 'pickup 1440', width: 1440, height: 900, path: '/checkout?ship=PICKUP_SHIP', marker: 'input[name=pickup_brand]' },
+  // chooser is there. Checkout offers 超商取貨 only where the store map is
+  // configured, so a server without it has no such radio and these rows are
+  // skipped rather than failed.
+  { label: 'pickup 375', width: 375, height: 812, path: '/checkout?ship=PICKUP_SHIP', marker: 'input[name=pickup_brand]', needsStoreMap: true },
+  { label: 'pickup 1440', width: 1440, height: 900, path: '/checkout?ship=PICKUP_SHIP', marker: 'input[name=pickup_brand]', needsStoreMap: true },
   // The payment page. PLACED_ORDER is the NUMBER of the order the Makefile just
   // placed; PLACED_TOKEN, set as a cookie above, is the browser's proof that it
   // placed it. Two facts, two variables — without either the page is the 404 a
@@ -1523,6 +1525,14 @@ for (const want of [...CART, ...PAGES]) {
     .replace('CUSTOMER_ID', process.env.CUSTOMER_ID || '');
   await send(ws, 'Page.navigate', { url: target });
   await settled(ws, want.label, target);
+
+  if (want.needsStoreMap) {
+    const offered = await evalPage(`!!document.querySelector('input[name=shipping][value="${process.env.PICKUP_SHIP || ''}"]')`);
+    if (!offered) {
+      console.log(`${want.label.padEnd(16)} skipped: this server has no store map, so checkout does not offer pickup`);
+      continue;
+    }
+  }
 
   const { result } = await send(ws, 'Runtime.evaluate', {
     expression: CART_PROBE.replaceAll('__MARKER__', JSON.stringify(want.marker || null)),

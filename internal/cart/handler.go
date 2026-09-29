@@ -867,7 +867,7 @@ func (h *Handler) refreshCheckoutState(
 	if err != nil {
 		return fmt.Errorf("read current cart: %w", err)
 	}
-	choices, err := h.store.ShippingChoices(ctx, cartID, cartView.SubtotalCents)
+	choices, err := h.offeredShipping(ctx, cartID, cartView.SubtotalCents)
 	if err != nil {
 		return err
 	}
@@ -994,6 +994,22 @@ func (h *Handler) quoteCheckoutShipping(
 	view.SurchargeCents = quote.Surcharge
 	view.ZoneName = quote.ZoneName
 	return nil
+}
+
+// offeredShipping is the store's choices for this cart, less pickup where the
+// store map is not configured: a pickup order needs a store chosen on the map,
+// so offering the method there would offer only a refusal.
+func (h *Handler) offeredShipping(
+	ctx context.Context, cartID uuid.UUID, subtotalCents int64,
+) ([]pages.ShippingChoice, error) {
+	choices, err := h.store.ShippingChoices(ctx, cartID, subtotalCents)
+	if err != nil || h.storeMap.Enabled() {
+		return choices, err
+	}
+	return slices.DeleteFunc(choices, func(c pages.ShippingChoice) bool {
+		to, ok := DestinationFor(c.DestinationKind)
+		return ok && to == ToPickupPoint
+	}), nil
 }
 
 // ownerOf is the signed-in customer, or a null id for a guest.
@@ -1187,7 +1203,7 @@ func (h *Handler) checkoutView(ctx context.Context, cartID uuid.UUID, owner uuid
 	if err != nil {
 		return pages.CheckoutView{}, err
 	}
-	choices, err := h.store.ShippingChoices(ctx, cartID, cartView.SubtotalCents)
+	choices, err := h.offeredShipping(ctx, cartID, cartView.SubtotalCents)
 	if err != nil {
 		return pages.CheckoutView{}, err
 	}

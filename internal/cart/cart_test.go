@@ -980,3 +980,17 @@ func TestTheCheckoutRefusesWhatTheSenderWillRefuse(t *testing.T) {
 		t.Errorf("an ordinary address was refused: %v", got)
 	}
 }
+
+func TestCheckoutRefusesPickupThatSkippedTheMapWhateverTheDeployment(t *testing.T) {
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	for name, addr := range map[string]*Address{
+		"hi_life":  {To: ToPickupPoint, PickupBrand: "hi_life", PickupStoreCode: "012345", PickupStoreName: "門市"},
+		"ok_mart":  {To: ToPickupPoint, PickupBrand: "ok_mart"},
+		"no store": {To: ToPickupPoint, PickupBrand: "seven_eleven"},
+	} {
+		got := checkoutErrors(ctx, addr, nil, &Invoice{})
+		if got["pickup_brand"] == "" && got["pickup_store"] == "" {
+			t.Errorf("%s: a pickup order that skipped the map was not refused: %v", name, got)
+		}
+	}
+}

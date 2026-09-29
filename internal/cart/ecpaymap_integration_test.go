@@ -426,6 +426,35 @@ func postPickupCheckout(
 	return res.Code, res.Body.String()
 }
 
+// TestPickupIsOfferedOnlyWhereTheStoreMapIsConfigured holds that checkout does
+// not offer a method that can only be refused.
+func TestPickupIsOfferedOnlyWhereTheStoreMapIsConfigured(t *testing.T) {
+	disabled, err := cart.NewMap("", "", "", "https://goen.test")
+	if err != nil {
+		t.Fatalf("build a disabled map: %v", err)
+	}
+	for name, tt := range map[string]struct {
+		storeMap *cart.Map
+		offered  bool
+	}{"map enabled": {configuredMap(t), true}, "map disabled": {disabled, false}} {
+		t.Run(name, func(t *testing.T) {
+			s := cart.NewStore(pool)
+			h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, testLimiter(), nil, tt.storeMap)
+			token, shipping := aPickupCart(t, s, "pickup-offer")
+			page, _, status := openPickupCheckout(t, h, token, shipping)
+			if status != http.StatusOK {
+				t.Fatalf("checkout = %d, want 200", status)
+			}
+			if got := strings.Contains(page, `value="`+shipping.String()+`"`); got != tt.offered {
+				t.Errorf("pickup radio present = %v, want %v", got, tt.offered)
+			}
+			if !strings.Contains(page, `name="shipping"`) {
+				t.Error("no delivery choice is offered at all")
+			}
+		})
+	}
+}
+
 // TestAForgedPickupPostIsRefusedWithOrWithoutTheMap holds that a checkout takes
 // only 7-ELEVEN and 全家, and only with a store chosen on the carrier's map: a
 // hand-written POST naming another chain, or any chain and no store, is a 422
@@ -458,8 +487,17 @@ func TestAForgedPickupPostIsRefusedWithOrWithoutTheMap(t *testing.T) {
 				if code != http.StatusUnprocessableEntity {
 					t.Fatalf("forged pickup POST = %d, want 422", code)
 				}
-				if !strings.Contains(body, `id="`+forged.field+`-error"`) || strings.Contains(body, "攻擊者的門市") {
-					t.Errorf("the refusal must show the %s error and not echo the forged store", forged.field)
+				if strings.Contains(body, "攻擊者的門市") {
+					t.Error("the refusal echoes the forged store")
+				}
+				// Without a map the method is not offered, so the refusal is of
+				// the method itself; with one, of the chain or the store.
+				want := forged.field
+				if !storeMap.Enabled() {
+					want = "shipping"
+				}
+				if !strings.Contains(body, `id="`+want+`-error"`) {
+					t.Errorf("the refusal must show the %s error", want)
 				}
 			})
 		}
