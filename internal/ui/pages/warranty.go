@@ -21,7 +21,10 @@ type WarrantyLine struct {
 	HasTerm bool
 	// Delivered is how many units can still start cover: those that arrived, never
 	// those only dispatched, less those in an approved return.
-	Delivered  int
+	Delivered int
+	// Returned is how many units are in an approved return: they arrived, so a
+	// line with none left is not "waiting on delivery".
+	Returned   int
 	Registered int
 }
 
@@ -58,6 +61,8 @@ func (l WarrantyLine) Why(ctx context.Context) string {
 		return ""
 	case !l.HasTerm:
 		return i18n.T(ctx, i18n.KeyWarrantyNoTerm)
+	case l.Delivered == 0 && l.Returned > 0:
+		return i18n.T(ctx, i18n.KeyWarrantyReturned)
 	case l.Delivered == 0:
 		return i18n.T(ctx, i18n.KeyWarrantyNotDelivered)
 	default:
@@ -106,7 +111,7 @@ func (v WarrantyOrderView) waitingOnDelivery() bool {
 		return false
 	}
 	for _, l := range v.Lines {
-		if !l.HasTerm || l.Delivered != 0 {
+		if !l.HasTerm || l.Delivered != 0 || l.Returned != 0 {
 			return false
 		}
 	}

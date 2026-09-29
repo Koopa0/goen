@@ -15,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/db/dbtest"
+	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/warranty"
 )
 
@@ -572,20 +573,92 @@ func TestEachUnitsCoverStartsWhenItsOwnParcelArrived(t *testing.T) {
 	}
 }
 
-// TestAnApprovedReturnTakesUnitsOffWhatCanBeRegistered: a returned unit can no
-// longer start cover, and a registration already made is left alone.
-func TestAnApprovedReturnTakesUnitsOffWhatCanBeRegistered(t *testing.T) {
+// TestOnlyDecidedReturnsTakeUnitsOffWhatCanBeRegistered: a returned unit can no
+// longer start cover once its return is approved or completed. An open or
+// rejected return takes nothing, and a registration already made is left alone.
+func TestOnlyDecidedReturnsTakeUnitsOffWhatCanBeRegistered(t *testing.T) {
 	ctx := t.Context()
 	s := warranty.NewStore(pool)
-	f := newFixture(t, 2, 12, parcel{units: 2, arrived: true})
 
-	var orderID uuid.UUID
+	for _, tc := range []struct {
+		status    string
+		decide    []string
+		wantUnits int
+	}{
+		{"requested", nil, 2},
+		{"rejected", []string{`UPDATE return_requests SET status = 'rejected', decided_at = now() WHERE id = $1`}, 2},
+		{"approved", []string{approveReturnSQL}, 1},
+		{"completed", []string{
+			approveReturnSQL,
+			`INSERT INTO refunds (payment_id, return_request_id, request_key, provider_ref, status,
+			                     amount_cents, succeeded_at)
+			 SELECT p.id, rr.id, 'warranty-refund-' || rr.id, 're_' || replace(rr.id::text, '-', ''),
+			        'succeeded', 100000, now()
+			 FROM return_requests rr JOIN payments p ON p.order_id = rr.order_id
+			 WHERE rr.id = $1`,
+			`INSERT INTO order_events (order_id, kind, return_request_id)
+			 SELECT order_id, 'refunded', id FROM return_requests WHERE id = $1`,
+			`UPDATE return_request_lines SET received_quantity = 1, restocked_quantity = 1 WHERE return_request_id = $1`,
+			`UPDATE return_requests SET status = 'completed' WHERE id = $1`,
+		}, 1},
+	} {
+		t.Run(tc.status, func(t *testing.T) {
+			f := newFixture(t, 2, 12, parcel{units: 2, arrived: true})
+			var orderID, returnID uuid.UUID
+			if err := pool.QueryRow(ctx, `SELECT order_id FROM order_lines WHERE id = $1`, f.lineID).Scan(&orderID); err != nil {
+				t.Fatalf("read order: %v", err)
+			}
+			if err := pool.QueryRow(ctx, `
+				INSERT INTO return_requests (order_id, reason) VALUES ($1, '') RETURNING id`,
+				orderID).Scan(&returnID); err != nil {
+				t.Fatalf("return request: %v", err)
+			}
+			if _, err := pool.Exec(ctx, `
+				INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity)
+				VALUES ($1, $2, $3, 1)`, orderID, returnID, f.lineID); err != nil {
+				t.Fatalf("return line: %v", err)
+			}
+			for _, stmt := range tc.decide {
+				if _, err := pool.Exec(ctx, stmt, returnID); err != nil {
+					t.Fatalf("move return to %s: %v", tc.status, err)
+				}
+			}
+
+			view, err := s.Registrable(ctx, f.number, f.userID)
+			if err != nil {
+				t.Fatalf("registrable: %v", err)
+			}
+			if got := view.Lines[0].Delivered; got != tc.wantUnits {
+				t.Errorf("a %s return leaves %d registrable units of 2, want %d", tc.status, got, tc.wantUnits)
+			}
+			second := s.Register(ctx, f.lineID.String(), f.userID, "", 2)
+			if (second == nil) != (tc.wantUnits == 2) {
+				t.Errorf("registering unit 2 under a %s return gave %v, want ok=%v", tc.status, second, tc.wantUnits == 2)
+			}
+			if err := s.Register(ctx, f.lineID.String(), f.userID, "", 1); err != nil {
+				t.Errorf("the one unit not returned was refused: %v", err)
+			}
+		})
+	}
+}
+
+const approveReturnSQL = `
+	UPDATE return_requests
+	SET status = 'approved', decided_at = now(), goods_refund_cents = 100000,
+	    card_refund_cents = 100000, credit_refund_cents = 0
+	WHERE id = $1`
+
+// TestAFullyReturnedLineIsNotWaitingOnDelivery: the goods arrived and came
+// back, so the page must say so rather than promise registration on delivery.
+func TestAFullyReturnedLineIsNotWaitingOnDelivery(t *testing.T) {
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	s := warranty.NewStore(pool)
+	f := newFixture(t, 1, 12, parcel{units: 1, arrived: true})
+	var orderID, returnID uuid.UUID
 	if err := pool.QueryRow(ctx, `SELECT order_id FROM order_lines WHERE id = $1`, f.lineID).Scan(&orderID); err != nil {
 		t.Fatalf("read order: %v", err)
 	}
-	var returnID uuid.UUID
-	if err := pool.QueryRow(ctx, `
-		INSERT INTO return_requests (order_id, reason) VALUES ($1, '') RETURNING id`,
+	if err := pool.QueryRow(ctx, `INSERT INTO return_requests (order_id, reason) VALUES ($1, '') RETURNING id`,
 		orderID).Scan(&returnID); err != nil {
 		t.Fatalf("return request: %v", err)
 	}
@@ -594,11 +667,9 @@ func TestAnApprovedReturnTakesUnitsOffWhatCanBeRegistered(t *testing.T) {
 		VALUES ($1, $2, $3, 1)`, orderID, returnID, f.lineID); err != nil {
 		t.Fatalf("return line: %v", err)
 	}
-	if _, err := pool.Exec(ctx, `
-		UPDATE return_requests
-		SET status = 'approved', decided_at = now(), goods_refund_cents = 100000,
-		    card_refund_cents = 100000, credit_refund_cents = 0
-		WHERE id = $1`, returnID); err != nil {
+	if _, err := pool.Exec(ctx, // A zero-amount refund needs no provider payment to settle.
+		`UPDATE return_requests SET status = 'approved', decided_at = now(), goods_refund_cents = 0,
+			 card_refund_cents = 0, credit_refund_cents = 0 WHERE id = $1`, returnID); err != nil {
 		t.Fatalf("approve return: %v", err)
 	}
 
@@ -606,13 +677,10 @@ func TestAnApprovedReturnTakesUnitsOffWhatCanBeRegistered(t *testing.T) {
 	if err != nil {
 		t.Fatalf("registrable: %v", err)
 	}
-	if got := view.Lines[0].Delivered; got != 1 {
-		t.Errorf("2 delivered less 1 in an approved return counts %d registrable units, want 1", got)
+	if got := view.Lines[0].Why(ctx); got != i18n.T(ctx, i18n.KeyWarrantyReturned) {
+		t.Errorf("a fully returned line says %q, want the returned sentence", got)
 	}
-	if err := s.Register(ctx, f.lineID.String(), f.userID, "", 2); !errors.Is(err, warranty.ErrNotRegistrable) {
-		t.Errorf("unit 2 of a line with one unit returned gave %v, want ErrNotRegistrable", err)
-	}
-	if err := s.Register(ctx, f.lineID.String(), f.userID, "", 1); err != nil {
-		t.Errorf("the one unit not returned was refused: %v", err)
+	if got := view.EmptyHint(ctx); got == i18n.T(ctx, i18n.KeyWarrantyAfterShipping) {
+		t.Errorf("the page promises registration on delivery for goods already returned: %q", got)
 	}
 }

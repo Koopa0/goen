@@ -9880,6 +9880,7 @@ SELECT
     ol.warranty_months,
     coalesce(ol.warranty_note, '') AS warranty_note,
     greatest(coalesce(delivered.units, 0) - coalesce(returned.units, 0), 0)::integer AS delivered_units,
+    coalesce(returned.units, 0)::integer AS returned_units,
     coalesce(registered.units, 0)::integer AS registered_units
 FROM order_lines ol
 JOIN orders o ON o.id = ol.order_id
@@ -9920,6 +9921,7 @@ type RegistrableLinesRow struct {
 	WarrantyMonths  pgtype.Int4
 	WarrantyNote    string
 	DeliveredUnits  int32
+	ReturnedUnits   int32
 	RegisteredUnits int32
 }
 
@@ -9945,6 +9947,7 @@ func (q *Queries) RegistrableLines(ctx context.Context, arg RegistrableLinesPara
 			&i.WarrantyMonths,
 			&i.WarrantyNote,
 			&i.DeliveredUnits,
+			&i.ReturnedUnits,
 			&i.RegisteredUnits,
 		); err != nil {
 			return nil, err

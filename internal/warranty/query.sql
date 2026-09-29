@@ -12,6 +12,7 @@ SELECT
     ol.warranty_months,
     coalesce(ol.warranty_note, '') AS warranty_note,
     greatest(coalesce(delivered.units, 0) - coalesce(returned.units, 0), 0)::integer AS delivered_units,
+    coalesce(returned.units, 0)::integer AS returned_units,
     coalesce(registered.units, 0)::integer AS registered_units
 FROM order_lines ol
 JOIN orders o ON o.id = ol.order_id
