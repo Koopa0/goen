@@ -646,7 +646,7 @@ migrate-down:
 # Load the development catalogue: brands, categories, ~15 products with variants,
 # images, specs and reviews. Runs as the owner (psql, not the app's store
 # role), so it may write the tables store is barred from. Development only.
-# Edit seed/gen_seed.py and re-run it to regenerate seed/dev_catalog.sql.
+# seed/dev_catalog.sql is edited by hand.
 db-seed:
 	@test -n "$${GOEN_DATABASE_URL:-}" || { echo 'GOEN_DATABASE_URL is required' >&2; exit 2; }
 	psql "$$GOEN_DATABASE_URL" -v ON_ERROR_STOP=1 -f seed/dev_catalog.sql
