@@ -33,6 +33,7 @@ type PayView struct {
 	Email      string
 	Lines      []PayLine
 	Enabled    bool
+	Sandbox    bool
 	Cancelled  bool
 }
 
