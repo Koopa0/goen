@@ -1,47 +1,66 @@
 package account
 
 import (
-	"encoding/base64"
-	"strings"
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/web"
 )
 
-const orderPageSize = 20
+const (
+	orderPageSize = 20
+	ordersScope   = "/account"
+	ordersAnchor  = "#orders-heading"
+)
 
-// orderCursor stores the immutable sort values rather than an offset, so new
-// orders do not displace older orders between requests.
-type orderCursor struct {
+// orderPosition is the last order a reader saw. Owner binds it to one account,
+// so a token minted for another customer's list is refused here as well as by
+// the query's user_id predicate.
+type orderPosition struct {
 	ID    uuid.UUID
 	At    time.Time
+	Owner string
+}
+
+type orderCursor struct {
+	orderPosition
+
 	Valid bool
 }
 
 func readOrderCursor(owner string, after []string) orderCursor {
-	if len(after) == 0 || len(after[0]) > 256 {
+	if len(after) == 0 {
 		return orderCursor{}
 	}
-	raw, err := base64.RawURLEncoding.DecodeString(after[0])
-	if err != nil {
+	pos, ok := web.ReadKeyset[orderPosition](ordersScope, after[0])
+	if !ok || pos.ID == uuid.Nil || pos.Owner != owner {
 		return orderCursor{}
 	}
-	parts := strings.Split(string(raw), "|")
-	if len(parts) != 3 || parts[0] != owner {
-		return orderCursor{}
-	}
-	at, err := time.Parse(time.RFC3339Nano, parts[1])
-	if err != nil {
-		return orderCursor{}
-	}
-	id, err := uuid.Parse(parts[2])
-	if err != nil || id == uuid.Nil {
-		return orderCursor{}
-	}
-	return orderCursor{ID: id, At: at, Valid: true}
+	return orderCursor{orderPosition: pos, Valid: true}
 }
 
-func nextOrdersURL(owner string, at time.Time, id uuid.UUID) string {
-	token := base64.RawURLEncoding.EncodeToString([]byte(owner + "|" + at.Format(time.RFC3339Nano) + "|" + id.String()))
-	return "/account?after=" + token + "#orders-heading"
+// orderBound trims a read made with orderPageSize+1 rows to its page and
+// builds the shared pager beside it.
+func orderBound[T any](c orderCursor, owner string, rows []T, key func(*T) (uuid.UUID, time.Time)) ([]T, pages.ListBound) {
+	rows, more := web.PageOf(rows, orderPageSize)
+	var b pages.ListBound
+	if c.Valid {
+		b.First = ordersScope + ordersAnchor
+	}
+	if len(rows) == 0 {
+		b.PastEnd = c.Valid
+		return rows, b
+	}
+	if more {
+		id, at := key(&rows[len(rows)-1])
+		if body, err := json.Marshal(orderPosition{ID: id, At: at, Owner: owner}); err == nil {
+			if next, ok := web.NextKeysetURL(ordersScope, string(body)); ok {
+				b.Next = next + ordersAnchor
+			}
+		}
+	}
+	return rows, b
 }

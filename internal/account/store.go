@@ -433,14 +433,8 @@ func (s *Store) Overview(ctx context.Context, u User, after ...string) (pages.Ac
 	if err != nil {
 		return pages.AccountView{}, fmt.Errorf("read orders: %w", err)
 	}
-	if cursor.Valid {
-		view.OrdersFirst = "/account#orders-heading"
-	}
-	if len(orders) > orderPageSize {
-		orders = orders[:orderPageSize]
-		last := orders[len(orders)-1]
-		view.OrdersNext = nextOrdersURL(u.ID, last.PlacedAt, last.ID)
-	}
+	orders, view.OrdersBound = orderBound(cursor, u.ID, orders,
+		func(o *db.UserOrdersRow) (uuid.UUID, time.Time) { return o.ID, o.PlacedAt })
 
 	for i := range orders {
 		o := &orders[i]

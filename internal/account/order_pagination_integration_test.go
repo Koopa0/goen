@@ -66,16 +66,16 @@ func TestAccountOrdersReachEveryOlderOrderWithoutJavaScript(t *testing.T) {
 		if w.Code != http.StatusOK {
 			t.Fatalf("GET page %d: %d", page, w.Code)
 		}
-		if page > 0 && !strings.Contains(w.Body.String(), "Latest orders") {
+		if page > 0 && !strings.Contains(w.Body.String(), "First page") {
 			t.Fatal("later page lost its restart link")
 		}
-		if v.OrdersNext != "" && !strings.Contains(w.Body.String(), `href="`+html.EscapeString(v.OrdersNext)+`"`) {
+		if v.OrdersBound.Next != "" && !strings.Contains(w.Body.String(), `href="`+html.EscapeString(v.OrdersBound.Next)+`"`) {
 			t.Fatal("next page is not a plain link")
 		}
 		if page == 0 {
-			assertOrderCursorSurvivesInsertion(t, s, owner, other, v.OrdersNext)
+			assertOrderCursorSurvivesInsertion(t, s, owner, other, v.OrdersBound.Next)
 		}
-		target = v.OrdersNext
+		target = v.OrdersBound.Next
 	}
 	if len(seen) != 41 || target != "" {
 		t.Fatalf("reached %d original orders; final next=%q", len(seen), target)
@@ -102,11 +102,23 @@ func assertOrderCursorSurvivesInsertion(t *testing.T, s *account.Store, owner, o
 	if before.Orders[0].Number != after.Orders[0].Number {
 		t.Fatal("new order displaced the next page")
 	}
+	// The other customer has an order of their own, so a token that leaked the
+	// owner's position would show owner orders here instead of an empty list.
+	placeOrderFor(t, other.ID)
 	theirs, err := s.Overview(ctx, other, next.Query().Get("after"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(theirs.Orders) != 0 {
-		t.Fatal("another account's cursor exposed orders")
+	if len(theirs.Orders) != 1 || theirs.OrdersBound.First != "" {
+		t.Fatalf("a foreign token did not fall back to the reader's own first page: %d orders, first=%q",
+			len(theirs.Orders), theirs.OrdersBound.First)
+	}
+	var owned bool
+	if err := pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM orders WHERE order_number = $1 AND user_id = $2)`,
+		theirs.Orders[0].Number, other.ID).Scan(&owned); err != nil {
+		t.Fatal(err)
+	}
+	if !owned {
+		t.Fatal("another account's cursor exposed a different customer's order")
 	}
 }
