@@ -114,7 +114,7 @@ var (
 
 	KeyNewsletterNote = key("site.newsletter.note", Message{
 		ZhHant: "不定期寄送,每封都可退訂。訂閱前會先寄確認信。",
-		En:     "We send occasionally, with an unsubscribe link in every letter. We send a confirmation link first.",
+		En:     "Sent occasionally, with an unsubscribe link in every letter. A confirmation link comes first.",
 	})
 
 	KeyNewsletterSubmit = key("site.newsletter.submit", Message{ZhHant: "訂閱", En: "Subscribe"})
