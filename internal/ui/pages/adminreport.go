@@ -98,10 +98,9 @@ func (v AdminReportView) PlacedText() string { return strconv.FormatInt(v.Placed
 // CommittedText is how many were paid for.
 func (v AdminReportView) CommittedText() string { return strconv.FormatInt(v.Committed, 10) }
 
-// Empty reports whether the sales window has no placed orders. Stock-at-risk
-// is queried independently of the order aggregates and is rendered even when
-// this is true; folding it into Empty would hide shrinking SKUs on a quiet week.
-func (v AdminReportView) Empty() bool { return v.Placed == 0 }
+// Empty keeps refunds for older orders visible in a window with no new orders.
+// Stock-at-risk is queried independently and remains visible in an empty window.
+func (v AdminReportView) Empty() bool { return v.Placed == 0 && v.RefundedCents == 0 }
 
 // WindowHref is the link to another window.
 func (v AdminReportView) WindowHref(days int32) string {
