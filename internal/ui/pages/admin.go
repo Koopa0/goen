@@ -194,6 +194,11 @@ type AdminOrderView struct {
 	Correctable          bool
 	PickupDestination    bool
 	PickupBrands         []PickupBrandChoice
+
+	// RefundOffered is a paid order nothing has shipped from and no return
+	// exists for; RefundOpen is one whose refund before shipment Resume finishes.
+	RefundOffered bool
+	RefundOpen    bool
 }
 
 // AdminDelivery is the editable delivery detail of one order.
@@ -218,6 +223,8 @@ type AdminOrderEvent struct {
 	Note  string
 	At    string
 	Actor string
+	// System is an event no person made, such as the payment-deadline cancel.
+	System bool
 }
 
 // LabelKey names the step's message.
@@ -228,6 +235,8 @@ func (e AdminOrderEvent) By(ctx context.Context) string {
 	switch {
 	case e.Actor != "":
 		return e.Actor
+	case e.System:
+		return i18n.T(ctx, i18n.KeyAdminActorSystem)
 	case e.Kind == "cancelled":
 		return i18n.T(ctx, i18n.KeyAdminActorCustomer)
 	default:
@@ -299,6 +308,12 @@ func (v *AdminOrderView) Discount() string {
 
 // CanAdvance reports whether this order has any legal move left.
 func (v *AdminOrderView) CanAdvance() bool { return len(v.Next) > 0 }
+
+// Final reports whether the order has ended. A paid order in picking has no
+// status move left either, and is not final: it ships or is refunded.
+func (v *AdminOrderView) Final() bool {
+	return v.Status == FulfillmentCompleted || v.Status == FulfillmentCancelled
+}
 
 // HasNotice reports whether to show the banner.
 func (v *AdminOrderView) HasNotice() bool { return v.Notice != "" }

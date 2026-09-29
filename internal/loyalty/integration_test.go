@@ -408,7 +408,7 @@ func TestASpentAwardLeavesTheBalanceWithIt(t *testing.T) {
 		t.Errorf("tomorrow's balance = %d, want 50", tomorrow)
 	}
 
-	history, err := loyalty.NewStore(pool).History(ctx, userID)
+	history, err := loyalty.NewStore(pool).History(ctx, userID, "")
 	if err != nil {
 		t.Fatalf("history: %v", err)
 	}
@@ -517,7 +517,7 @@ func TestAZeroClawbackSurvivesHistoryToRenderedHTML(t *testing.T) {
 		t.Fatalf("wholly consumed lot reversed %d, want zero", reversed)
 	}
 
-	view, err := loyalty.NewStore(pool).History(ctx, userID)
+	view, err := loyalty.NewStore(pool).History(ctx, userID, "")
 	if err != nil {
 		t.Fatalf("read points history: %v", err)
 	}
@@ -1453,4 +1453,70 @@ func constraintOf(err error) string {
 		return pgErr.ConstraintName
 	}
 	return pgErr.Code
+}
+
+// Points an approved return will claw back stay put until that return pays out:
+// spent into store credit first, the clawback finds nothing and the shop eats it.
+func TestPointsAreHeldWhileAnApprovedReturnIsUnpaid(t *testing.T) {
+	ctx := t.Context()
+	// Points the customer keeps, so a redemption after the clawback can succeed.
+	userID, accountID := customer(t, 200)
+	orderID := orderFor(t, userID, 2000000)
+	if err := pool.QueryRow(ctx, `SELECT award_loyalty_points($1)`, orderID).Scan(new(int64)); err != nil {
+		t.Fatalf("award: %v", err)
+	}
+	returnID, paymentID := approvedReturnFor(t, orderID, userID)
+	before := balance(t, accountID)
+
+	_, err := loyalty.NewStore(pool).Redeem(ctx, userID, 200, redemptionOperation(t, userID))
+	if !errors.Is(err, loyalty.ErrReturnUnsettled) {
+		t.Fatalf("redeem during an unpaid return = %v, want ErrReturnUnsettled", err)
+	}
+	_, rawErr := pool.Exec(ctx, `SELECT redeem_loyalty_points($1, 200, $2)`,
+		uuid.MustParse(userID), redemptionOperation(t, userID))
+	if why := constraintOf(rawErr); why != "loyalty_redemption_return_unsettled" {
+		t.Fatalf("refused by %q, want loyalty_redemption_return_unsettled", why)
+	}
+	if got := balance(t, accountID); got != before {
+		t.Fatalf("a refused redemption moved the balance %d -> %d", before, got)
+	}
+
+	form := url.Values{"points": {"200"}, "operation_id": {redemptionOperation(t, userID).String()}}
+	req := httptest.NewRequestWithContext(
+		i18n.WithLocale(account.WithUser(ctx, account.User{ID: userID, Role: "customer"}), i18n.En),
+		http.MethodPost, "/account/points", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	res := httptest.NewRecorder()
+	loyalty.NewHandler(loyalty.NewStore(pool), slog.New(slog.DiscardHandler)).Redeem(res, req)
+	if res.Code != http.StatusUnprocessableEntity ||
+		!strings.Contains(res.Body.String(), "not fully settled") {
+		t.Fatalf("redeem POST = %d, want 422 explaining the wait: %s", res.Code, res.Body.String())
+	}
+
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO refunds
+		    (payment_id, return_request_id, request_key, amount_cents, reason,
+		     provider_ref, status, succeeded_at)
+		VALUES ($1,$2,$3,2000000,'points return',$4,'succeeded',now())`,
+		paymentID, returnID, "points-return:"+returnID.String(), "rf_"+returnID.String()); err != nil {
+		t.Fatalf("pay the return: %v", err)
+	}
+	// Paid, but the clawback is a later transaction: the points are still owed.
+	if _, err := loyalty.NewStore(pool).Redeem(ctx, userID, 200, redemptionOperation(t, userID)); !errors.Is(err, loyalty.ErrReturnUnsettled) {
+		t.Fatalf("redeem after the payout, before the clawback = %v, want ErrReturnUnsettled", err)
+	}
+	var requested int64
+	if err := pool.QueryRow(ctx, `SELECT reverse_return_points($1)`, returnID).Scan(&requested); err != nil {
+		t.Fatalf("clawback: %v", err)
+	}
+	var recorded, asked int64
+	if err := pool.QueryRow(ctx, `SELECT points, requested_points FROM loyalty_entries WHERE return_request_id=$1 AND kind='clawback'`, returnID).Scan(&recorded, &asked); err != nil {
+		t.Fatalf("read the clawback: %v", err)
+	}
+	if recorded != -asked {
+		t.Fatalf("clawback reversed %d of %d requested", -recorded, asked)
+	}
+	if _, err := loyalty.NewStore(pool).Redeem(ctx, userID, 200, redemptionOperation(t, userID)); err != nil {
+		t.Fatalf("redeem after the clawback = %v, want allowed", err)
+	}
 }

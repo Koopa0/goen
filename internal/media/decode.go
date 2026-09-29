@@ -15,6 +15,7 @@ import (
 	// as JPEG or PNG.
 	_ "image/gif"
 
+	"golang.org/x/image/draw"
 	_ "golang.org/x/image/webp"
 )
 
@@ -64,6 +65,9 @@ func normaliseDecoded(
 		return Object{}, nil, boundsErr
 	}
 
+	img = fitLongestSide(img, MaxStoredSide)
+	b = img.Bounds()
+
 	encoded, contentType, err := encoder(img, format)
 	if err != nil {
 		return Object{}, nil, err
@@ -80,6 +84,22 @@ func normaliseDecoded(
 		Height:      int32(b.Dy()),       //nolint:gosec // G115: bounded by boundsOK above
 		ByteSize:    int32(len(encoded)), //nolint:gosec // G115: bounded by MaxStoredBytes
 	}, encoded, nil
+}
+
+// fitLongestSide scales img down, keeping its aspect ratio, so that neither side
+// exceeds limit. An image already within it is returned as is: goen never
+// upscales.
+func fitLongestSide(img image.Image, limit int) image.Image {
+	b := img.Bounds()
+	long := max(b.Dx(), b.Dy())
+	if long <= limit {
+		return img
+	}
+	w := max(b.Dx()*limit/long, 1)
+	h := max(b.Dy()*limit/long, 1)
+	dst := image.NewRGBA(image.Rect(0, 0, w, h))
+	draw.CatmullRom.Scale(dst, dst.Bounds(), img, b, draw.Over, nil)
+	return dst
 }
 
 func storedSizeOK(n int) error {

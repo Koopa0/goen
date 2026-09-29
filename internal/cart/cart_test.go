@@ -547,7 +547,7 @@ func TestCheckoutShowsOneMessagePerField(t *testing.T) {
 		"shipping": i18n.T(ctx, i18n.KeyChooseShipping),
 	}
 
-	got := checkoutErrors(ctx, addr, errors.New("no shipping method chosen"), &Invoice{}, false)
+	got := checkoutErrors(ctx, addr, errors.New("no shipping method chosen"), &Invoice{})
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("checkoutErrors (-want +got):\n%s", diff)
 	}
@@ -992,5 +992,19 @@ func TestInvoicePreferenceNormalizesOnlyItsOwnFields(t *testing.T) {
 	bad := Invoice{Type: invoice.PreferenceDonate, DonationCode: "12A"}
 	if errs := bad.Validate(); len(errs) != 1 || errs[0].Field != "invoice_donation_code" {
 		t.Fatalf("invalid donation code errors=%+v", errs)
+	}
+}
+
+func TestCheckoutRefusesPickupThatSkippedTheMapWhateverTheDeployment(t *testing.T) {
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	for name, addr := range map[string]*Address{
+		"hi_life":  {To: ToPickupPoint, PickupBrand: "hi_life", PickupStoreCode: "012345", PickupStoreName: "門市"},
+		"ok_mart":  {To: ToPickupPoint, PickupBrand: "ok_mart"},
+		"no store": {To: ToPickupPoint, PickupBrand: "seven_eleven"},
+	} {
+		got := checkoutErrors(ctx, addr, nil, &Invoice{})
+		if got["pickup_brand"] == "" && got["pickup_store"] == "" {
+			t.Errorf("%s: a pickup order that skipped the map was not refused: %v", name, got)
+		}
 	}
 }

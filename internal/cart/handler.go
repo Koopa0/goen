@@ -726,7 +726,6 @@ func (h *Handler) validateCheckoutSubmission(
 ) (checkoutQuoteID, bool) {
 	errs := checkoutErrors(
 		r.Context(), &submission.address, submission.shippingErr, &submission.invoice,
-		h.storeMap.Enabled(),
 	)
 	if submission.couponErr != "" {
 		if errs == nil {
@@ -935,7 +934,7 @@ func (h *Handler) refreshCheckoutState(
 	if err != nil {
 		return fmt.Errorf("read current cart: %w", err)
 	}
-	choices, err := h.store.ShippingChoices(ctx, cartID, cartView.SubtotalCents)
+	choices, err := h.offeredShipping(ctx, cartID, cartView.SubtotalCents)
 	if err != nil {
 		return err
 	}
@@ -1017,19 +1016,19 @@ func (h *Handler) resolveCoupon(r *http.Request, view *pages.CheckoutView) strin
 	}
 }
 
-// checkoutErrors collects everything wrong with a submission. storeRequired is
-// the carrier's own rule rather than the schema's: where a store picker is
-// configured, a pickup order names a store, and it names one of the two chains
-// whose picker this deployment can open.
+// checkoutErrors collects everything wrong with a submission. A pickup order
+// names one of the two chains whose official map the shop offers and a store
+// chosen on it; the schema only bounds the values, so a submission that skipped
+// the map is refused here, whether or not this deployment can open the map.
 func checkoutErrors(
-	ctx context.Context, addr *Address, shipErr error, inv *Invoice, storeRequired bool,
+	ctx context.Context, addr *Address, shipErr error, inv *Invoice,
 ) map[string]string {
 	fieldErrs := addr.Validate()
 	if shipErr != nil {
 		fieldErrs = append(fieldErrs,
 			account.FieldError{Field: "shipping", MessageKey: i18n.KeyChooseShipping})
 	}
-	if storeRequired && addr.To == ToPickupPoint {
+	if addr.To == ToPickupPoint {
 		if !offeredAtCheckout(addr.PickupBrand) {
 			fieldErrs = append(fieldErrs,
 				account.FieldError{Field: "pickup_brand", MessageKey: i18n.KeyPickupBrandRequired})
@@ -1062,6 +1061,22 @@ func (h *Handler) quoteCheckoutShipping(
 	view.SurchargeCents = quote.Surcharge
 	view.ZoneName = quote.ZoneName
 	return nil
+}
+
+// offeredShipping is the store's choices for this cart, less pickup where the
+// store map is not configured: a pickup order needs a store chosen on the map,
+// so offering the method there would offer only a refusal.
+func (h *Handler) offeredShipping(
+	ctx context.Context, cartID uuid.UUID, subtotalCents int64,
+) ([]pages.ShippingChoice, error) {
+	choices, err := h.store.ShippingChoices(ctx, cartID, subtotalCents)
+	if err != nil || h.storeMap.Enabled() {
+		return choices, err
+	}
+	return slices.DeleteFunc(choices, func(c pages.ShippingChoice) bool {
+		to, ok := DestinationFor(c.DestinationKind)
+		return ok && to == ToPickupPoint
+	}), nil
 }
 
 // ownerOf is the signed-in customer, or a null id for a guest.
@@ -1259,7 +1274,7 @@ func (h *Handler) checkoutView(ctx context.Context, cartID uuid.UUID, owner uuid
 	if err != nil {
 		return pages.CheckoutView{}, err
 	}
-	choices, err := h.store.ShippingChoices(ctx, cartID, cartView.SubtotalCents)
+	choices, err := h.offeredShipping(ctx, cartID, cartView.SubtotalCents)
 	if err != nil {
 		return pages.CheckoutView{}, err
 	}

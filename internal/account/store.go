@@ -140,6 +140,25 @@ func (s *Store) SessionUser(ctx context.Context, token string) (User, error) {
 	return User{ID: row.ID.String(), Email: row.Email, Name: row.FullName.String, Role: row.Role}, nil
 }
 
+// SignedInRecently reports whether this session was created within window. A
+// session that is gone or expired is not recent.
+func (s *Store) SignedInRecently(ctx context.Context, token string, window time.Duration) (bool, error) {
+	if token == "" {
+		return false, nil
+	}
+	recent, err := s.q.SessionCreatedSince(ctx, db.SessionCreatedSinceParams{
+		TokenHash: HashToken(token),
+		MaxAge:    pgtype.Interval{Microseconds: int64(window / time.Microsecond), Valid: true},
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("read session age: %w", err)
+	}
+	return recent, nil
+}
+
 // EndSession signs one browser out.
 func (s *Store) EndSession(ctx context.Context, token string) error {
 	if token == "" {
@@ -404,7 +423,7 @@ func (s *Store) ChangePassword(ctx context.Context, userID, password string) err
 }
 
 // Overview reads the account landing page.
-func (s *Store) Overview(ctx context.Context, u User) (pages.AccountView, error) {
+func (s *Store) Overview(ctx context.Context, u User, after ...string) (pages.AccountView, error) {
 	id, err := uuid.Parse(u.ID)
 	if err != nil {
 		return pages.AccountView{}, fmt.Errorf("parse user id: %w", err)
@@ -425,10 +444,17 @@ func (s *Store) Overview(ctx context.Context, u User) (pages.AccountView, error)
 	view.GoogleLinked = len(identities) > 0
 	view.CanUnlinkGoogle = view.GoogleLinked && profile.HasPassword
 
-	orders, err := s.q.UserOrders(ctx, db.UserOrdersParams{UserID: uuid.NullUUID{UUID: id, Valid: true}, Limit: 20})
+	cursor := readOrderCursor(u.ID, after)
+	orders, err := s.q.UserOrders(ctx, db.UserOrdersParams{
+		UserID: uuid.NullUUID{UUID: id, Valid: true}, RowLimit: orderPageSize + 1,
+		HasCursor: cursor.Valid, AfterAt: cursor.At, AfterID: cursor.ID,
+	})
 	if err != nil {
 		return pages.AccountView{}, fmt.Errorf("read orders: %w", err)
 	}
+	orders, view.OrdersBound = orderBound(cursor, u.ID, orders,
+		func(o *db.UserOrdersRow) (uuid.UUID, time.Time) { return o.ID, o.PlacedAt })
+
 	for i := range orders {
 		o := &orders[i]
 		view.Orders = append(view.Orders, pages.AccountOrder{

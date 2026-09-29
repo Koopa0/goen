@@ -6,8 +6,10 @@ var (
 	KeyAdminProdUpload = key("admin.prod.upload", Message{ZhHant: "上傳圖片", En: "Upload an image"})
 
 	KeyAdminProdUploadHint = key("admin.prod.uploadhint", Message{
-		ZhHant: "JPEG、PNG、GIF 或 WebP,8 MB 以內。上傳後會由伺服器重新編碼。",
-		En:     "JPEG, PNG, GIF or WebP, 8 MB at most. The server re-encodes whatever it accepts.",
+		ZhHant: "JPEG、PNG、GIF 或 WebP,8 MB 以內。頁面會從中央裁成正方形顯示,主體請放在中間;長邊超過 2400 像素會被縮小。上傳後會由伺服器重新編碼。",
+		En: "JPEG, PNG, GIF or WebP, 8 MB at most. Pages show it cropped to a square from the centre, " +
+			"so keep the subject in the middle; a long side beyond 2400 pixels is scaled down. " +
+			"The server re-encodes whatever it accepts.",
 	})
 
 	KeyAdminProdAltHint = key("admin.prod.althint", Message{
@@ -33,7 +35,28 @@ var (
 		En:     "Or pick one already uploaded",
 	})
 
+	KeyAdminImageCover = key("admin.prod.imagecover", Message{ZhHant: "設為封面", En: "Set as cover"})
+	KeyAdminImageUp    = key("admin.prod.imageup", Message{ZhHant: "往前移", En: "Move earlier"})
+	KeyAdminImageDown  = key("admin.prod.imagedown", Message{ZhHant: "往後移", En: "Move later"})
+
+	KeyAdminNoticeImageStale = key("admin.notice.imagestale", Message{
+		ZhHant: "圖片順序已經有變動,這個動作沒有執行。請看一下目前的順序再試一次。",
+		En:     "The image order changed, so that move was not made. Check the current order and try again.",
+	})
+
 	KeyAdminProdReuse = key("admin.prod.reuse", Message{ZhHant: "使用", En: "Use"})
+
+	KeyAdminProdImageOption = key("admin.prod.imageoption", Message{
+		ZhHant: "這張照片是哪個選項",
+		En:     "Which option this photo shows",
+	})
+
+	KeyAdminProdImageAnyOption = key("admin.prod.imageanyoption", Message{ZhHant: "不限選項", En: "Any option"})
+
+	KeyAdminProdImageOptionHint = key("admin.prod.imageoptionhint", Message{
+		ZhHant: "顧客選了這個選項時,這張照片排在最前面。",
+		En:     "When a customer chooses this option, this photo comes first.",
+	})
 )
 
 var (
@@ -55,6 +78,11 @@ var (
 	KeyAdminNoticeAttachRefused = key("admin.notice.attachrefused", Message{
 		ZhHant: "這張圖片已經在這個商品上了。",
 		En:     "That image is already on this product.",
+	})
+
+	KeyAdminNoticeBadOption = key("admin.notice.badoption", Message{
+		ZhHant: "那個選項不是這個商品的。",
+		En:     "That option is not one of this product's.",
 	})
 
 	KeyAdminNoticeNoAlt = key("admin.notice.noalt", Message{

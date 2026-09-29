@@ -9,6 +9,8 @@ import (
 
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
+
+	"github.com/koopa0/goen/internal/ordernotice"
 )
 
 // SweepInterval is how often abandoned holds are returned to the shelf.
@@ -18,8 +20,9 @@ const SweepInterval = time.Minute
 // row that live checkouts need.
 const SweepBatch = 200
 
-// Sweep returns expired holds to the shelf, once. Each release is its own
-// statement, so one that cannot be released does not take the batch with it.
+// Sweep returns expired holds to the shelf, then cancels the unpaid orders left
+// with no live hold, once. Each release and each cancellation is its own
+// transaction, so one that fails does not take the batch with it.
 func (s *Store) Sweep(ctx context.Context, log *slog.Logger) (released, skipped int, err error) {
 	ids, err := s.q.ExpiredReservations(ctx, SweepBatch)
 	if err != nil {
@@ -39,7 +42,63 @@ func (s *Store) Sweep(ctx context.Context, log *slog.Logger) (released, skipped 
 		}
 		released++
 	}
-	return released, skipped, nil
+	return released, skipped, s.cancelLapsed(ctx, log)
+}
+
+// cancelLapsed cancels each unpaid order that no live hold can pay for any more,
+// so its coupon slot and the store credit spent on it come back.
+func (s *Store) cancelLapsed(ctx context.Context, log *slog.Logger) error {
+	numbers, err := s.q.LapsedUnpaidOrders(ctx, SweepBatch)
+	if err != nil {
+		return fmt.Errorf("read lapsed unpaid orders: %w", err)
+	}
+	for _, number := range numbers {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		cancelled, cancelErr := s.cancelLapsedOrder(ctx, number)
+		if cancelErr != nil {
+			log.ErrorContext(ctx, "cancel an order whose payment window closed",
+				"order", number, "error", cancelErr)
+			continue
+		}
+		if cancelled {
+			log.InfoContext(ctx, "cancelled an order whose payment window closed", "order", number)
+		}
+	}
+	return nil
+}
+
+// cancelLapsedOrder reports false when the order stopped qualifying between the
+// candidate read and its lock: it was paid, cancelled, or a payment opened.
+func (s *Store) cancelLapsedOrder(ctx context.Context, number string) (bool, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return false, fmt.Errorf("begin cancel of %s: %w", number, err)
+	}
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
+	q := s.q.WithTx(tx)
+
+	orderID, err := q.LockOrderForExpiry(ctx, number)
+	if err != nil {
+		return false, fmt.Errorf("lock order %s: %w", number, err)
+	}
+	cancelled, err := q.CancelLapsedOrder(ctx, orderID)
+	if err != nil {
+		return false, fmt.Errorf("cancel %s: %w", number, err)
+	}
+	if cancelled == 0 {
+		return false, nil
+	}
+	// No Checkout Session is left to close at Stripe: the predicate refused any
+	// order with a payment that could still take money.
+	if err := settleCancellation(ctx, q, number, ordernotice.CancelledByPaymentDeadline); err != nil {
+		return false, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return false, fmt.Errorf("commit cancel of %s: %w", number, err)
+	}
+	return true, nil
 }
 
 func benignSweepFailure(err error) bool {

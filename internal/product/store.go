@@ -167,8 +167,14 @@ func (s *Store) loadPresentation(ctx context.Context, p *db.ProductBySlugRow, vi
 		}
 	}
 
+	// The variant the page shows, chosen or defaulted, decides whose photographs
+	// lead; with none resolved, the photographs that show no value lead.
+	var shown uuid.NullUUID
+	if id, parseErr := uuid.Parse(view.VariantID); parseErr == nil {
+		shown = uuid.NullUUID{UUID: id, Valid: true}
+	}
 	images, err := s.q.ProductImages(ctx, db.ProductImagesParams{
-		ProductID: p.ID, Locale: string(i18n.FromContext(ctx)),
+		ProductID: p.ID, Locale: string(i18n.FromContext(ctx)), VariantID: shown,
 	})
 	if err != nil {
 		return fmt.Errorf("read images of %q: %w", p.Slug, err)
@@ -179,11 +185,12 @@ func (s *Store) loadPresentation(ctx context.Context, p *db.ProductBySlugRow, vi
 			continue
 		}
 		view.Images = append(view.Images, pages.ProductImage{
-			URL:    u,
-			Srcset: assets.ProductImageSrcsetAt(img.StorageKey, int(img.Width)),
-			Alt:    img.AltText,
-			Width:  img.Width,
-			Height: img.Height,
+			URL:         u,
+			Srcset:      assets.ProductImageSrcsetAt(img.StorageKey, int(img.Width)),
+			Alt:         img.AltText,
+			Width:       img.Width,
+			Height:      img.Height,
+			ShowsOption: img.ShowsOption,
 		})
 	}
 

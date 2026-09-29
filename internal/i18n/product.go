@@ -72,8 +72,8 @@ var (
 	KeyWishlistAdd = key("pdp.wishlist.add", Message{ZhHant: "加入願望清單", En: "Save for later"})
 
 	KeyGuaranteeWarranty = key("pdp.guarantee.warranty", Message{
-		ZhHant: "原廠保固 · 到府收送",
-		En:     "Manufacturer's warranty · collected from your door",
+		ZhHant: "原廠保固 · 送修收件依配送方式",
+		En:     "Manufacturer's warranty · collection depends on how it was delivered",
 	})
 
 	// %s is the threshold, interpolated from shipping_method_versions: a literal

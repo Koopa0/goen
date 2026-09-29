@@ -25,6 +25,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/db"
@@ -1284,6 +1285,59 @@ func TestCartShowsCurrentPriceAndAvailability(t *testing.T) {
 	want := view.Lines[0].UnitCents * 2
 	if view.SubtotalCents != want {
 		t.Errorf("subtotal = %d, want %d", view.SubtotalCents, want)
+	}
+}
+
+// TestACartLineShowsItsOwnColoursPhotograph holds the cart thumbnail to the
+// line's variant: its value's photograph when the shop tagged one, else the
+// product's first, which is the only picture an untagged product has.
+func TestACartLineShowsItsOwnColoursPhotograph(t *testing.T) {
+	ctx := t.Context()
+	var tagged uuid.UUID
+	// Another product's embedded file, because a key naming no embedded file has
+	// no URL to compare.
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO product_images (product_id, storage_key, alt_text, position, option_value_id)
+		SELECT p.id, 'pixelight-9-01.webp', '曜石黑', 1, v.id
+		FROM products p JOIN product_option_values v ON v.product_id = p.id
+		WHERE p.slug = 'pixelight-9-pro' AND v.value = '曜石黑'
+		RETURNING id`).Scan(&tagged); err != nil {
+		t.Fatalf("tag a photograph: %v", err)
+	}
+	t.Cleanup(func() {
+		if _, err := pool.Exec(context.WithoutCancel(ctx),
+			`DELETE FROM product_images WHERE id = $1`, tagged); err != nil {
+			t.Errorf("remove the tagged photograph: %v", err)
+		}
+	})
+
+	s := cart.NewStore(pool)
+	id := newCart(t, s)
+	for _, sku := range []string{"PXL-9P-2-1", "PXL-9P-1-1"} {
+		var variant uuid.UUID
+		if err := pool.QueryRow(ctx,
+			`SELECT id FROM product_variants WHERE sku = $1`, sku).Scan(&variant); err != nil {
+			t.Fatalf("read %s: %v", sku, err)
+		}
+		if err := s.Add(ctx, id, variant, 1); err != nil {
+			t.Fatalf("add %s: %v", sku, err)
+		}
+	}
+	view, err := s.View(ctx, id)
+	if err != nil {
+		t.Fatalf("view: %v", err)
+	}
+	if len(view.Lines) != 2 {
+		t.Fatalf("cart holds %d lines, want 2", len(view.Lines))
+	}
+	want := map[string]string{
+		"PXL-9P-2-1": assets.ProductImageURL("pixelight-9-01.webp"),     // 曜石黑, tagged
+		"PXL-9P-1-1": assets.ProductImageURL("pixelight-9-pro-01.webp"), // 星霧藍, the product's first
+	}
+	for _, line := range view.Lines {
+		if line.ImageURL != want[line.SKU] {
+			t.Errorf("line %s shows %q, want %q", line.SKU, line.ImageURL, want[line.SKU])
+		}
 	}
 }
 
@@ -3883,11 +3937,7 @@ func TestACancelledOrdersStockComesBackByEveryDoor(t *testing.T) {
 	vid := freshVariant(t, "stockfix-14")
 
 	orderID := heldOrder(t, vid, time.Hour, true) // expired hold, paid
-	if _, err := pool.Exec(ctx,
-		`UPDATE orders SET fulfillment_status = 'cancelled', cancelled_at = now()
-		 WHERE id = $1`, orderID); err != nil {
-		t.Fatalf("cancel: %v", err)
-	}
+	refundAndCancel(t, orderID)
 
 	var before int32
 	if err := pool.QueryRow(ctx,
@@ -3916,6 +3966,40 @@ func TestACancelledOrdersStockComesBackByEveryDoor(t *testing.T) {
 	}
 	if state != "released" {
 		t.Errorf("the hold is %s, want released", state)
+	}
+}
+
+// refundAndCancel cancels a paid order the one way the schema admits: a full
+// refund before shipment whose card refund has settled.
+func refundAndCancel(t *testing.T, orderID uuid.UUID) {
+	t.Helper()
+	ctx := t.Context()
+	var staff, returnID uuid.UUID
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO users (email, role)
+		VALUES ('refund-' || gen_random_uuid() || '@goen.invalid', 'staff') RETURNING id`).Scan(&staff); err != nil {
+		t.Fatalf("create staff: %v", err)
+	}
+	if err := pool.QueryRow(ctx, `
+		SELECT open_refund_before_shipment(order_number, 'test', $2, 'test')
+		FROM orders WHERE id = $1`, orderID, staff).Scan(&returnID); err != nil {
+		t.Fatalf("refund before shipment: %v", err)
+	}
+	for _, stmt := range []string{
+		`INSERT INTO refunds (payment_id, return_request_id, request_key, status, amount_cents,
+		                      reason, provider_ref, succeeded_at)
+		 SELECT p.id, r.id, 'return:' || r.id, 'succeeded', r.card_refund_cents,
+		        r.resolution, 're_' || r.id, now()
+		 FROM return_requests r JOIN payments p ON p.order_id = r.order_id AND p.status = 'succeeded'
+		 WHERE r.id = $1`,
+		`INSERT INTO order_events (order_id, kind, return_request_id)
+		 SELECT order_id, 'refunded', id FROM return_requests WHERE id = $1`,
+		`UPDATE orders SET fulfillment_status = 'cancelled', cancelled_at = now()
+		 WHERE id = (SELECT order_id FROM return_requests WHERE id = $1)`,
+	} {
+		if _, err := pool.Exec(ctx, stmt, returnID); err != nil {
+			t.Fatalf("settle the refund and cancel: %v", err)
+		}
 	}
 }
 
@@ -3957,11 +4041,7 @@ func TestACancelledOrderIsNotAVerifiedPurchase(t *testing.T) {
 		t.Fatalf("clear review: %v", err)
 	}
 
-	if _, err := pool.Exec(ctx,
-		`UPDATE orders SET fulfillment_status = 'cancelled', cancelled_at = now()
-		 WHERE id = $1`, orderID); err != nil {
-		t.Fatalf("cancel: %v", err)
-	}
+	refundAndCancel(t, orderID)
 	err := review()
 	pgErr, ok := errors.AsType[*pgconn.PgError](err)
 	if !ok || pgErr.ConstraintName != "product_reviews_verified_is_real" {

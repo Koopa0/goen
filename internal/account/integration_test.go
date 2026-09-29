@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"html"
 	"io"
 	"log/slog"
 	"net/http"
@@ -389,7 +390,7 @@ func TestExpiredSessionIsNobody(t *testing.T) {
 	}
 	// Both timestamps move: sessions_expiry_after_creation refuses a row whose
 	// window closed before it opened.
-	if _, err := pool.Exec(ctx, `
+	if _, err = pool.Exec(ctx, `
 		UPDATE sessions
 		SET created_at = now() - interval '2 hours',
 		    expires_at = now() - interval '1 hour'
@@ -1988,9 +1989,14 @@ func TestErasureWaitsForAStoreCreditFundedReturn(t *testing.T) {
 	// an ordinary server error would hide the action the customer must wait for.
 	h := account.NewHandler(s, nil, slog.New(slog.DiscardHandler), false, nil)
 	form := url.Values{"confirm": {u.Email}}
+	token, err := s.StartSession(ctx, u.ID, "test", "192.0.2.1")
+	if err != nil {
+		t.Fatalf("start session: %v", err)
+	}
 	req := httptest.NewRequestWithContext(account.WithUser(ctx, u), http.MethodPost,
 		"/account/erase", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.AddCookie(&http.Cookie{Name: "goen_session", Value: token}) //nolint:gosec // G124: a request cookie, not a response
 	out := httptest.NewRecorder()
 	h.Erase(out, req)
 	if out.Code != http.StatusSeeOther || out.Header().Get("Location") != "/account?erase=return" {
@@ -3117,11 +3123,7 @@ func TestATierIsDerivedFromSpendAndNotStored(t *testing.T) {
 		t.Errorf("the tier earns %d bp, want more than the base rate", after.Standing.MultiplierBP)
 	}
 
-	if _, cancelErr := pool.Exec(ctx,
-		`UPDATE orders SET fulfillment_status = 'cancelled', cancelled_at = now()
-		 WHERE id = $1`, orderID); cancelErr != nil {
-		t.Fatalf("cancel: %v", cancelErr)
-	}
+	refundAndCancel(t, orderID)
 	gone, err := s.Overview(ctx, u)
 	if err != nil {
 		t.Fatalf("read the account after cancelling: %v", err)
@@ -3129,6 +3131,40 @@ func TestATierIsDerivedFromSpendAndNotStored(t *testing.T) {
 	if gone.Standing.HasTier() || gone.Standing.SpendCents != 0 {
 		t.Errorf("a cancelled order still counts: tier %q, spend %d",
 			gone.Standing.TierName, gone.Standing.SpendCents)
+	}
+}
+
+// refundAndCancel cancels a paid order the one way the schema admits: a full
+// refund before shipment whose card refund has settled.
+func refundAndCancel(t *testing.T, orderID uuid.UUID) {
+	t.Helper()
+	ctx := t.Context()
+	var staff, returnID uuid.UUID
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO users (email, role)
+		VALUES ('refund-' || gen_random_uuid() || '@goen.invalid', 'staff') RETURNING id`).Scan(&staff); err != nil {
+		t.Fatalf("create staff: %v", err)
+	}
+	if err := pool.QueryRow(ctx, `
+		SELECT open_refund_before_shipment(order_number, 'test', $2, 'test')
+		FROM orders WHERE id = $1`, orderID, staff).Scan(&returnID); err != nil {
+		t.Fatalf("refund before shipment: %v", err)
+	}
+	for _, stmt := range []string{
+		`INSERT INTO refunds (payment_id, return_request_id, request_key, status, amount_cents,
+		                      reason, provider_ref, succeeded_at)
+		 SELECT p.id, r.id, 'return:' || r.id, 'succeeded', r.card_refund_cents,
+		        r.resolution, 're_' || r.id, now()
+		 FROM return_requests r JOIN payments p ON p.order_id = r.order_id AND p.status = 'succeeded'
+		 WHERE r.id = $1`,
+		`INSERT INTO order_events (order_id, kind, return_request_id)
+		 SELECT order_id, 'refunded', id FROM return_requests WHERE id = $1`,
+		`UPDATE orders SET fulfillment_status = 'cancelled', cancelled_at = now()
+		 WHERE id = (SELECT order_id FROM return_requests WHERE id = $1)`,
+	} {
+		if _, err := pool.Exec(ctx, stmt, returnID); err != nil {
+			t.Fatalf("settle the refund and cancel: %v", err)
+		}
 	}
 }
 
@@ -4044,5 +4080,77 @@ func TestErasingAnAccountTakesItsIdentities(t *testing.T) {
 	if identities != 0 {
 		t.Errorf("%d identities survived erasure — the same Google account could "+
 			"sign back into an account that no longer exists", identities)
+	}
+}
+
+// TestErasureNeedsARecentSignIn keeps a stolen or unattended session from
+// erasing the account: only a session created within EraseSignInWindow may.
+func TestErasureNeedsARecentSignIn(t *testing.T) {
+	ctx := t.Context()
+	s := account.NewStore(pool)
+	h := account.NewHandler(s, nil, slog.New(slog.DiscardHandler), false, nil)
+	erase := func(u account.User, token string) *httptest.ResponseRecorder {
+		req := httptest.NewRequestWithContext(account.WithUser(ctx, u), http.MethodPost,
+			"/account/erase", strings.NewReader(url.Values{"confirm": {u.Email}}.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.AddCookie(&http.Cookie{Name: "goen_session", Value: token}) //nolint:gosec // G124: a request cookie, not a response
+		out := httptest.NewRecorder()
+		h.Erase(out, req)
+		return out
+	}
+	exists := func(u account.User) bool {
+		var n int
+		if err := pool.QueryRow(ctx, `SELECT count(*) FROM users WHERE id = $1`, u.ID).Scan(&n); err != nil {
+			t.Fatalf("count user: %v", err)
+		}
+		return n == 1
+	}
+
+	stale := register(t, s, "erase-stale-"+uuid.NewString()+"@example.com")
+	staleToken, err := s.StartSession(ctx, stale.ID, "test", "192.0.2.1")
+	if err != nil {
+		t.Fatalf("start session: %v", err)
+	}
+	if _, err = pool.Exec(ctx, `
+		UPDATE sessions
+		SET created_at = now() - $2::interval - interval '1 minute',
+		    expires_at = now() + interval '1 day'
+		WHERE token_hash = $1`, account.HashToken(staleToken),
+		account.EraseSignInWindow.String()); err != nil {
+		t.Fatalf("age session: %v", err)
+	}
+	out := erase(stale, staleToken)
+	if out.Code != http.StatusSeeOther || out.Header().Get("Location") != "/signin?next=%2Faccount&reauth=erase" {
+		t.Fatalf("stale-session erase = %d Location %q, want 303 /signin?next=%%2Faccount&reauth=erase",
+			out.Code, out.Header().Get("Location"))
+	}
+	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+		lctx := i18n.WithLocale(ctx, locale)
+		page := httptest.NewRecorder()
+		h.SignInPage(page, httptest.NewRequestWithContext(lctx, http.MethodGet,
+			out.Header().Get("Location"), http.NoBody))
+		if want := html.EscapeString(i18n.T(lctx, i18n.KeyEraseNeedsRecentSignIn)); !strings.Contains(page.Body.String(), want) {
+			t.Errorf("%s sign-in page after the redirect lacks %q", locale, want)
+		}
+	}
+	if !exists(stale) {
+		t.Fatal("a session older than the window erased the account")
+	}
+	if _, err = s.SessionUser(ctx, staleToken); !errors.Is(err, account.ErrNotFound) {
+		t.Errorf("stale session after refusal = %v, want ErrNotFound so /signin does not bounce back", err)
+	}
+
+	fresh := register(t, s, "erase-fresh-"+uuid.NewString()+"@example.com")
+	freshToken, err := s.StartSession(ctx, fresh.ID, "test", "192.0.2.1")
+	if err != nil {
+		t.Fatalf("start session: %v", err)
+	}
+	out = erase(fresh, freshToken)
+	if out.Code != http.StatusSeeOther || out.Header().Get("Location") != "/?erased=1" {
+		t.Fatalf("fresh-session erase = %d Location %q, want 303 /?erased=1",
+			out.Code, out.Header().Get("Location"))
+	}
+	if exists(fresh) {
+		t.Error("a fresh session did not erase the account")
 	}
 }

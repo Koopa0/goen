@@ -124,6 +124,8 @@ func (h *Handler) SignInPage(w http.ResponseWriter, r *http.Request) {
 		view.Notice = i18n.T(r.Context(), i18n.KeyAccountCreated)
 	case r.URL.Query().Get("reset") == "1":
 		view.Notice = i18n.T(r.Context(), i18n.KeyPasswordReset)
+	case r.URL.Query().Get("reauth") == "erase":
+		view.Notice = i18n.T(r.Context(), i18n.KeyEraseNeedsRecentSignIn)
 	default:
 		view.Errors = oauthOutcome(r.Context(), r.URL.Query().Get("oauth"))
 	}
@@ -260,7 +262,7 @@ func (h *Handler) Overview(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/signin", http.StatusSeeOther)
 		return
 	}
-	view, err := h.store.Overview(r.Context(), u)
+	view, err := h.store.Overview(r.Context(), u, r.URL.Query().Get("after"))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read account", "error", err)
 		h.serverError(w, r)
@@ -595,6 +597,23 @@ func (h *Handler) Erase(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
+		return
+	}
+	token := ReadSessionCookie(r, h.secure)
+	recent, err := h.store.SignedInRecently(r.Context(), token, EraseSignInWindow)
+	if err != nil {
+		h.log.ErrorContext(r.Context(), "read session age", "error", err)
+		h.serverError(w, r)
+		return
+	}
+	if !recent {
+		// The session ends first: /signin sends a signed-in visitor straight back
+		// to /account, so keeping it would loop instead of asking for a sign-in.
+		if err := h.store.EndSession(r.Context(), token); err != nil {
+			h.log.ErrorContext(r.Context(), "end stale session", "error", err)
+		}
+		ClearSessionCookie(w, h.secure)
+		http.Redirect(w, r, "/signin?next=%2Faccount&reauth=erase", http.StatusSeeOther)
 		return
 	}
 	if r.PostFormValue("confirm") != u.Email {

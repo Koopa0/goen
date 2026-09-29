@@ -1203,7 +1203,7 @@ func (q *Queries) AdminProduct(ctx context.Context, slug string) (AdminProductRo
 }
 
 const adminProductImages = `-- name: AdminProductImages :many
-SELECT pi.storage_key, pi.alt_text, pi.width, pi.height
+SELECT pi.storage_key, pi.alt_text, pi.width, pi.height, pi.option_value_id
 FROM product_images pi
 JOIN products p ON p.id = pi.product_id
 WHERE p.slug = $1::text
@@ -1211,10 +1211,11 @@ ORDER BY pi.position, pi.id
 `
 
 type AdminProductImagesRow struct {
-	StorageKey string
-	AltText    string
-	Width      pgtype.Int4
-	Height     pgtype.Int4
+	StorageKey    string
+	AltText       string
+	Width         pgtype.Int4
+	Height        pgtype.Int4
+	OptionValueID uuid.NullUUID
 }
 
 func (q *Queries) AdminProductImages(ctx context.Context, slug string) ([]AdminProductImagesRow, error) {
@@ -1231,6 +1232,7 @@ func (q *Queries) AdminProductImages(ctx context.Context, slug string) ([]AdminP
 			&i.AltText,
 			&i.Width,
 			&i.Height,
+			&i.OptionValueID,
 		); err != nil {
 			return nil, err
 		}
@@ -2313,21 +2315,23 @@ func (q *Queries) AssignZonePrefix(ctx context.Context, arg AssignZonePrefixPara
 
 const attachProductImage = `-- name: AttachProductImage :exec
 INSERT INTO product_images (product_id, storage_key, alt_text, alt_text_en,
-                            width, height, position)
+                            width, height, position, option_value_id)
 SELECT p.id, $1::text, $2::text, nullif($3::text, ''),
        $4::integer, $5::integer,
-       coalesce((SELECT max(position) + 1 FROM product_images x WHERE x.product_id = p.id), 0)
+       coalesce((SELECT max(position) + 1 FROM product_images x WHERE x.product_id = p.id), 0),
+       $6::uuid
 FROM products p
-WHERE p.slug = $6::text
+WHERE p.slug = $7::text
 `
 
 type AttachProductImageParams struct {
-	StorageKey string
-	AltText    string
-	AltTextEn  string
-	Width      int32
-	Height     int32
-	Slug       string
+	StorageKey    string
+	AltText       string
+	AltTextEn     string
+	Width         int32
+	Height        int32
+	OptionValueID uuid.NullUUID
+	Slug          string
 }
 
 // No foreign key on storage_key: product_images predates media_objects and still
@@ -2340,6 +2344,7 @@ func (q *Queries) AttachProductImage(ctx context.Context, arg AttachProductImage
 		arg.AltTextEn,
 		arg.Width,
 		arg.Height,
+		arg.OptionValueID,
 		arg.Slug,
 	)
 	return err
@@ -2483,6 +2488,66 @@ func (q *Queries) AwardOrderPoints(ctx context.Context, orderID uuid.UUID) (int6
 	var award_loyalty_points int64
 	err := row.Scan(&award_loyalty_points)
 	return award_loyalty_points, err
+}
+
+const beforeShipmentRefund = `-- name: BeforeShipmentRefund :one
+WITH target AS (
+    SELECT o.id, o.fulfillment_status,
+           order_is_committed(o.id) AS committed,
+           (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
+                      WHERE ol.order_id = o.id), 0)
+            - o.discount_cents + o.shipping_cents + o.tax_cents)::bigint AS total_cents,
+           coalesce((SELECT sum(p.captured_amount_cents) FROM payments p
+                     WHERE p.order_id = o.id AND p.status = 'succeeded'), 0)::bigint
+               AS card_capacity_cents
+    FROM orders o WHERE o.order_number = $1::text
+)
+SELECT t.id AS order_id, t.fulfillment_status, t.committed, t.total_cents,
+       EXISTS (SELECT 1 FROM order_shipments s WHERE s.order_id = t.id)::boolean AS shipped,
+       EXISTS (SELECT 1 FROM return_requests r WHERE r.order_id = t.id)::boolean AS has_return,
+       b.id AS return_request_id,
+       coalesce(b.status, '')::text AS return_status,
+       coalesce(b.card_refund_cents,
+                least(t.total_cents, t.card_capacity_cents))::bigint AS card_cents,
+       coalesce(b.credit_refund_cents,
+                t.total_cents - least(t.total_cents, t.card_capacity_cents))::bigint AS credit_cents
+FROM target t
+LEFT JOIN return_requests b ON b.order_id = t.id AND b.before_shipment
+`
+
+type BeforeShipmentRefundRow struct {
+	OrderID           uuid.UUID
+	FulfillmentStatus string
+	Committed         bool
+	TotalCents        int64
+	Shipped           bool
+	HasReturn         bool
+	ReturnRequestID   uuid.NullUUID
+	ReturnStatus      string
+	CardCents         int64
+	CreditCents       int64
+}
+
+// What the order page and the refund confirmation show. Once the door has run
+// the split is the frozen one; before, card_cents is what
+// return_requests_recount freezes for a full return of an order nothing else
+// has refunded: the capture first, credit for the rest.
+func (q *Queries) BeforeShipmentRefund(ctx context.Context, orderNumber string) (BeforeShipmentRefundRow, error) {
+	row := q.db.QueryRow(ctx, beforeShipmentRefund, orderNumber)
+	var i BeforeShipmentRefundRow
+	err := row.Scan(
+		&i.OrderID,
+		&i.FulfillmentStatus,
+		&i.Committed,
+		&i.TotalCents,
+		&i.Shipped,
+		&i.HasReturn,
+		&i.ReturnRequestID,
+		&i.ReturnStatus,
+		&i.CardCents,
+		&i.CreditCents,
+	)
+	return i, err
 }
 
 const beginTOTPEnrolment = `-- name: BeginTOTPEnrolment :execrows
@@ -2801,6 +2866,44 @@ func (q *Queries) CampaignProducts(ctx context.Context, arg CampaignProductsPara
 	return items, nil
 }
 
+const cancelLapsedOrder = `-- name: CancelLapsedOrder :execrows
+UPDATE orders o SET fulfillment_status = 'cancelled', cancelled_at = now()
+WHERE o.id = $1
+  AND o.fulfillment_status = 'pending'
+  AND NOT order_is_committed(o.id)
+  AND order_amount_owed(o.id) <> 0
+  AND EXISTS (SELECT 1 FROM inventory_reservations ir WHERE ir.order_id = o.id)
+  AND NOT EXISTS (
+      SELECT 1 FROM inventory_reservations ir
+      WHERE ir.order_id = o.id AND ir.state = 'held' AND ir.expires_at >= now()
+  )
+  AND NOT EXISTS (
+      SELECT 1 FROM payments p
+      WHERE p.order_id = o.id
+        AND p.status IN ('requires_payment', 'requires_action', 'processing',
+                         'requires_reconciliation')
+  )
+  AND NOT EXISTS (
+      SELECT 1
+      FROM payment_webhook_events e
+      JOIN payments p
+        ON p.provider = e.provider AND p.provider_ref = e.object_ref
+      WHERE p.order_id = o.id
+        AND e.unreconciled IS NOT NULL AND e.reconciled_at IS NULL
+  )
+`
+
+// LapsedUnpaidOrders' predicate, read again after LockOrderForExpiry: `pending`
+// refuses a second cancellation, and the payment clauses now see every payment
+// committed before the lock was granted.
+func (q *Queries) CancelLapsedOrder(ctx context.Context, id uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, cancelLapsedOrder, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const cancelOrderByCustomer = `-- name: CancelOrderByCustomer :execrows
 UPDATE orders SET fulfillment_status = 'cancelled', cancelled_at = now()
 WHERE order_number = $1
@@ -3038,8 +3141,16 @@ JOIN product_variants pv ON pv.id = ci.variant_id
 JOIN products p ON p.id = pv.product_id
 JOIN brands b ON b.id = p.brand_id
 LEFT JOIN LATERAL (
-    SELECT storage_key, alt_text FROM product_images
-    WHERE product_id = p.id ORDER BY position LIMIT 1
+    -- The line's own photograph when one shows its option value, else the
+    -- product's first.
+    SELECT i.storage_key, i.alt_text FROM product_images i
+    WHERE i.product_id = p.id
+    ORDER BY EXISTS (
+                 SELECT 1 FROM variant_option_values vov
+                 WHERE vov.variant_id = pv.id AND vov.option_value_id = i.option_value_id
+             ) DESC,
+             i.position
+    LIMIT 1
 ) img ON true
 WHERE ci.cart_id = $1
 ORDER BY ci.added_at, pv.id
@@ -3749,6 +3860,23 @@ type ClearZoneSurchargeParams struct {
 // row to zero, so clearing is a DELETE and never a stored zero.
 func (q *Queries) ClearZoneSurcharge(ctx context.Context, arg ClearZoneSurchargeParams) (int64, error) {
 	result, err := q.db.Exec(ctx, clearZoneSurcharge, arg.VersionID, arg.ZoneID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const closeUnshippedReturnLines = `-- name: CloseUnshippedReturnLines :execrows
+UPDATE return_request_lines
+SET received_quantity = 0, restocked_quantity = 0
+WHERE return_request_id = $1 AND received_quantity IS NULL
+`
+
+// Nothing of a refund before shipment went out, so every line is closed as
+// received and restocked nothing; return_requests_completed_is_inspected then
+// admits the completion.
+func (q *Queries) CloseUnshippedReturnLines(ctx context.Context, returnRequestID uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, closeUnshippedReturnLines, returnRequestID)
 	if err != nil {
 		return 0, err
 	}
@@ -6598,6 +6726,61 @@ func (q *Queries) KnownAllowances(ctx context.Context, originalID uuid.UUID) ([]
 	return items, nil
 }
 
+const lapsedUnpaidOrders = `-- name: LapsedUnpaidOrders :many
+SELECT o.order_number
+FROM orders o
+WHERE o.fulfillment_status = 'pending'
+  AND NOT order_is_committed(o.id)
+  AND order_amount_owed(o.id) <> 0
+  AND EXISTS (SELECT 1 FROM inventory_reservations ir WHERE ir.order_id = o.id)
+  AND NOT EXISTS (
+      SELECT 1 FROM inventory_reservations ir
+      WHERE ir.order_id = o.id AND ir.state = 'held' AND ir.expires_at >= now()
+  )
+  AND NOT EXISTS (
+      SELECT 1 FROM payments p
+      WHERE p.order_id = o.id
+        AND p.status IN ('requires_payment', 'requires_action', 'processing',
+                         'requires_reconciliation')
+  )
+  AND NOT EXISTS (
+      SELECT 1
+      FROM payment_webhook_events e
+      JOIN payments p
+        ON p.provider = e.provider AND p.provider_ref = e.object_ref
+      WHERE p.order_id = o.id
+        AND e.unreconciled IS NOT NULL AND e.reconciled_at IS NULL
+  )
+ORDER BY o.placed_at
+LIMIT $1
+`
+
+// Unpaid orders none of whose holds is live any more. A Checkout Session must
+// end before the order's hold, so such an order can never be paid. The rest of
+// the predicate keeps any order that has money or may still take some: zero-owed
+// is paid in full while pending, and a live session, a provider-complete session
+// awaiting its webhook, or an unresolved provider event may already hold money.
+// CancelLapsedOrder repeats this predicate under the order lock.
+func (q *Queries) LapsedUnpaidOrders(ctx context.Context, limit int32) ([]string, error) {
+	rows, err := q.db.Query(ctx, lapsedUnpaidOrders, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var order_number string
+		if err := rows.Scan(&order_number); err != nil {
+			return nil, err
+		}
+		items = append(items, order_number)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const latestEligibilityAssessment = `-- name: LatestEligibilityAssessment :one
 SELECT id, order_id, return_request_id, version, assessed_by, assessed_at, basis
 FROM return_eligibility_assessments
@@ -6883,20 +7066,36 @@ func (q *Queries) LockOrderDelivery(ctx context.Context, orderNumber string) (Lo
 }
 
 const lockOrderForAdvance = `-- name: LockOrderForAdvance :one
-SELECT id, fulfillment_status FROM orders WHERE order_number = $1 FOR UPDATE
+SELECT id, fulfillment_status, order_is_committed(id) AS committed
+FROM orders WHERE order_number = $1 FOR UPDATE
 `
 
 type LockOrderForAdvanceRow struct {
 	ID                uuid.UUID
 	FulfillmentStatus string
+	Committed         bool
 }
 
 // Lock before reading the prior state so concurrent completion cannot duplicate arrival mail.
 func (q *Queries) LockOrderForAdvance(ctx context.Context, orderNumber string) (LockOrderForAdvanceRow, error) {
 	row := q.db.QueryRow(ctx, lockOrderForAdvance, orderNumber)
 	var i LockOrderForAdvanceRow
-	err := row.Scan(&i.ID, &i.FulfillmentStatus)
+	err := row.Scan(&i.ID, &i.FulfillmentStatus, &i.Committed)
 	return i, err
+}
+
+const lockOrderForExpiry = `-- name: LockOrderForExpiry :one
+SELECT id FROM orders WHERE order_number = $1 FOR UPDATE
+`
+
+// Its own statement, before CancelLapsedOrder: open_payment and capture_payment
+// lock this row without updating it, so an UPDATE that waited for them would
+// still judge their payments by the snapshot it took before waiting.
+func (q *Queries) LockOrderForExpiry(ctx context.Context, orderNumber string) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, lockOrderForExpiry, orderNumber)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
 }
 
 const lockOrderForStaffNote = `-- name: LockOrderForStaffNote :one
@@ -7590,6 +7789,33 @@ func (q *Queries) OpenPayment(ctx context.Context, arg OpenPaymentParams) (uuid.
 	return open_payment, err
 }
 
+const openRefundBeforeShipment = `-- name: OpenRefundBeforeShipment :one
+SELECT open_refund_before_shipment(
+    $1::text, $2::text, $3::uuid, $4::text
+)::uuid AS return_request_id
+`
+
+type OpenRefundBeforeShipmentParams struct {
+	OrderNumber string
+	Reason      string
+	ActorUserID uuid.UUID
+	RequestID   string
+}
+
+// One auto-committed statement: the door opens and approves the full return,
+// or returns the one it opened before.
+func (q *Queries) OpenRefundBeforeShipment(ctx context.Context, arg OpenRefundBeforeShipmentParams) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, openRefundBeforeShipment,
+		arg.OrderNumber,
+		arg.Reason,
+		arg.ActorUserID,
+		arg.RequestID,
+	)
+	var return_request_id uuid.UUID
+	err := row.Scan(&return_request_id)
+	return return_request_id, err
+}
+
 const openRefundCount = `-- name: OpenRefundCount :one
 SELECT count(*)::bigint
 FROM refunds r
@@ -7820,7 +8046,7 @@ func (q *Queries) OrderDestinationKind(ctx context.Context, orderNumber string) 
 }
 
 const orderEvents = `-- name: OrderEvents :many
-SELECT e.kind, e.note, e.occurred_at, coalesce(u.full_name, '') AS actor_name
+SELECT e.kind, e.note, e.occurred_at, coalesce(u.full_name, '') AS actor_name, e.by_system
 FROM order_events e
 LEFT JOIN users u ON u.id = e.actor_user_id
 WHERE e.order_id = $1
@@ -7832,6 +8058,7 @@ type OrderEventsRow struct {
 	Note       pgtype.Text
 	OccurredAt time.Time
 	ActorName  string
+	BySystem   bool
 }
 
 // Oldest first: occurred_at then id, because two events recorded in the same
@@ -7850,6 +8077,7 @@ func (q *Queries) OrderEvents(ctx context.Context, orderID uuid.UUID) ([]OrderEv
 			&i.Note,
 			&i.OccurredAt,
 			&i.ActorName,
+			&i.BySystem,
 		); err != nil {
 			return nil, err
 		}
@@ -8028,6 +8256,29 @@ func (q *Queries) OrderLinesForPayment(ctx context.Context, orderID uuid.UUID) (
 		return nil, err
 	}
 	return items, nil
+}
+
+const orderMayHaveTakenMoney = `-- name: OrderMayHaveTakenMoney :one
+SELECT EXISTS (
+    SELECT 1 FROM payments p
+    WHERE p.order_id = $1
+      AND (p.status IN ('requires_reconciliation', 'reconciled')
+           OR EXISTS (
+               SELECT 1 FROM payment_webhook_events e
+               WHERE e.provider = p.provider AND e.object_ref = p.provider_ref
+                 AND e.unreconciled IS NOT NULL
+           ))
+)::boolean AS may_have_taken_money
+`
+
+// Money may have reached Stripe for this unpaid order: a provider-complete
+// session, its resolution, or a provider event that needed a person. Staff
+// refund such money, so a cancellation notice must not say nothing was charged.
+func (q *Queries) OrderMayHaveTakenMoney(ctx context.Context, orderID uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, orderMayHaveTakenMoney, orderID)
+	var may_have_taken_money bool
+	err := row.Scan(&may_have_taken_money)
+	return may_have_taken_money, err
 }
 
 const orderNumberByID = `-- name: OrderNumberByID :one
@@ -8321,6 +8572,19 @@ func (q *Queries) OrderTracking(ctx context.Context, orderID uuid.UUID) ([]Order
 	return items, nil
 }
 
+const parkProductImages = `-- name: ParkProductImages :exec
+UPDATE product_images pi SET position = pi.position + 1000000
+FROM products p
+WHERE pi.product_id = p.id AND p.slug = $1::text
+`
+
+// (product_id, position) is a unique index checked row by row, so a reorder
+// first moves every image clear of the range it is about to fill.
+func (q *Queries) ParkProductImages(ctx context.Context, slug string) error {
+	_, err := q.db.Exec(ctx, parkProductImages, slug)
+	return err
+}
+
 const passwordResetToken = `-- name: PasswordResetToken :one
 SELECT user_id FROM password_reset_tokens
 WHERE token_hash = $1 AND used_at IS NULL AND expires_at > now()
@@ -8459,6 +8723,7 @@ func (q *Queries) PointsExpiringSoon(ctx context.Context, arg PointsExpiringSoon
 const pointsHistory = `-- name: PointsHistory :many
 WITH grouped AS (
     SELECT
+        min(e.id::text)::uuid AS group_id,
         CASE WHEN e.kind = 'spend'
              THEN split_part(e.idempotency_key, '#', 1)
              ELSE e.idempotency_key
@@ -8472,24 +8737,29 @@ WITH grouped AS (
         max(e.created_at)::timestamptz AS created_at
     FROM loyalty_entries e
     JOIN store_credit_accounts a ON a.id = e.account_id
-    WHERE a.user_id = $2
+    WHERE a.user_id = $5
     GROUP BY entry_key, e.kind, e.reason, e.order_id
 )
-SELECT g.points, g.kind, g.reason, g.requested_points, g.expires_on, g.created_at,
+SELECT g.group_id, g.points, g.kind, g.reason, g.requested_points, g.expires_on, g.created_at,
        coalesce(o.order_number, '') AS order_number,
        (g.kind = 'award' AND g.expires_on < shop_today()) AS expired
 FROM grouped g
 LEFT JOIN orders o ON o.id = g.order_id
-ORDER BY g.created_at DESC
-LIMIT $1
+WHERE NOT $1::boolean OR (g.created_at, g.group_id) < ($2::timestamptz, $3::uuid)
+ORDER BY g.created_at DESC, g.group_id DESC
+LIMIT $4::integer
 `
 
 type PointsHistoryParams struct {
-	Limit  int32
-	UserID uuid.NullUUID
+	HasCursor bool
+	AfterAt   time.Time
+	AfterID   uuid.UUID
+	RowLimit  int32
+	UserID    uuid.NullUUID
 }
 
 type PointsHistoryRow struct {
+	GroupID         uuid.UUID
 	Points          int64
 	Kind            string
 	Reason          string
@@ -8502,7 +8772,13 @@ type PointsHistoryRow struct {
 
 // The ledger a customer sees, expired awards included and marked.
 func (q *Queries) PointsHistory(ctx context.Context, arg PointsHistoryParams) ([]PointsHistoryRow, error) {
-	rows, err := q.db.Query(ctx, pointsHistory, arg.Limit, arg.UserID)
+	rows, err := q.db.Query(ctx, pointsHistory,
+		arg.HasCursor,
+		arg.AfterAt,
+		arg.AfterID,
+		arg.RowLimit,
+		arg.UserID,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -8511,6 +8787,7 @@ func (q *Queries) PointsHistory(ctx context.Context, arg PointsHistoryParams) ([
 	for rows.Next() {
 		var i PointsHistoryRow
 		if err := rows.Scan(
+			&i.GroupID,
 			&i.Points,
 			&i.Kind,
 			&i.Reason,
@@ -8623,30 +8900,78 @@ func (q *Queries) ProductBySlug(ctx context.Context, arg ProductBySlugParams) (P
 	return i, err
 }
 
+const productImageOrder = `-- name: ProductImageOrder :many
+SELECT pi.id, pi.storage_key
+FROM product_images pi
+JOIN products p ON p.id = pi.product_id
+WHERE p.slug = $1::text
+ORDER BY pi.position, pi.id
+`
+
+type ProductImageOrderRow struct {
+	ID         uuid.UUID
+	StorageKey string
+}
+
+// One product's images in display order. Read after LockProductCatalogue, as its
+// own statement: in the same statement the read would use a snapshot taken
+// before that lock was won.
+func (q *Queries) ProductImageOrder(ctx context.Context, slug string) ([]ProductImageOrderRow, error) {
+	rows, err := q.db.Query(ctx, productImageOrder, slug)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ProductImageOrderRow{}
+	for rows.Next() {
+		var i ProductImageOrderRow
+		if err := rows.Scan(&i.ID, &i.StorageKey); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const productImages = `-- name: ProductImages :many
-SELECT storage_key,
-       localized_name(alt_text, alt_text_en, $1::text) AS alt_text,
-       coalesce(width, 0)::integer AS width,
-       coalesce(height, 0)::integer AS height
-FROM product_images
-WHERE product_id = $2
-ORDER BY position, id
+SELECT pi.storage_key,
+       localized_name(pi.alt_text, pi.alt_text_en, $1::text) AS alt_text,
+       coalesce(pi.width, 0)::integer AS width,
+       coalesce(pi.height, 0)::integer AS height,
+       (pi.option_value_id IS NOT NULL)::boolean AS shows_option
+FROM product_images pi
+WHERE pi.product_id = $2
+ORDER BY EXISTS (
+             SELECT 1 FROM variant_option_values vov
+             WHERE vov.variant_id = $3::uuid
+               AND vov.option_value_id = pi.option_value_id
+         ) DESC,
+         (pi.option_value_id IS NULL) DESC,
+         pi.position, pi.id
 `
 
 type ProductImagesParams struct {
 	Locale    string
 	ProductID uuid.UUID
+	VariantID uuid.NullUUID
 }
 
 type ProductImagesRow struct {
-	StorageKey string
-	AltText    string
-	Width      int32
-	Height     int32
+	StorageKey  string
+	AltText     string
+	Width       int32
+	Height      int32
+	ShowsOption bool
 }
 
+// The photographs of the variant on show lead, then those showing the product
+// whichever value is chosen, then the other values'. Ordered and never filtered,
+// so a value nobody photographed still opens on a picture.
 func (q *Queries) ProductImages(ctx context.Context, arg ProductImagesParams) ([]ProductImagesRow, error) {
-	rows, err := q.db.Query(ctx, productImages, arg.Locale, arg.ProductID)
+	rows, err := q.db.Query(ctx, productImages, arg.Locale, arg.ProductID, arg.VariantID)
 	if err != nil {
 		return nil, err
 	}
@@ -8659,6 +8984,7 @@ func (q *Queries) ProductImages(ctx context.Context, arg ProductImagesParams) ([
 			&i.AltText,
 			&i.Width,
 			&i.Height,
+			&i.ShowsOption,
 		); err != nil {
 			return nil, err
 		}
@@ -9283,15 +9609,22 @@ func (q *Queries) RecordAuditEvent(ctx context.Context, arg RecordAuditEventPara
 }
 
 const recordCancellation = `-- name: RecordCancellation :exec
-INSERT INTO order_events (order_id, kind)
-SELECT id, 'cancelled' FROM orders WHERE order_number = $1
+INSERT INTO order_events (order_id, kind, by_system)
+SELECT id, 'cancelled', $1::boolean FROM orders WHERE order_number = $2::text
 `
 
-// The customer's own cancellation. The ABSENCE of an actor is what distinguishes
-// it from a back-office cancel, and it is carried structurally because the
-// customer's own order page renders any note in whatever language it was written.
-func (q *Queries) RecordCancellation(ctx context.Context, orderNumber string) error {
-	_, err := q.db.Exec(ctx, recordCancellation, orderNumber)
+type RecordCancellationParams struct {
+	BySystem    bool
+	OrderNumber string
+}
+
+// A cancellation no staff member made: the customer's own, or, with by_system,
+// the sweeper's at the payment deadline. The ABSENCE of an actor is what
+// distinguishes it from a back-office cancel, and both are carried structurally
+// because the customer's own order page renders any note in whatever language
+// it was written.
+func (q *Queries) RecordCancellation(ctx context.Context, arg RecordCancellationParams) error {
+	_, err := q.db.Exec(ctx, recordCancellation, arg.BySystem, arg.OrderNumber)
 	return err
 }
 
@@ -9819,19 +10152,36 @@ func (q *Queries) RefundExecution(ctx context.Context, refundID uuid.UUID) (Refu
 const registerWarranty = `-- name: RegisterWarranty :execrows
 INSERT INTO warranty_registrations (order_line_id, unit_no, user_id, serial_number, expires_on)
 SELECT ol.id, $1::smallint, $2, nullif($3::text, ''),
-       (shop_day(delivered.at) + make_interval(months => ol.warranty_months))::date
+       (shop_day(parcel.delivered_at) + make_interval(months => ol.warranty_months))::date
 FROM order_lines ol
 JOIN orders o ON o.id = ol.order_id
 JOIN LATERAL (
-    SELECT min(s.delivered_at) AS at, sum(sl.quantity) AS units
-    FROM order_shipment_lines sl
-    JOIN order_shipments s ON s.id = sl.shipment_id
-    WHERE sl.order_line_id = ol.id AND s.delivered_at IS NOT NULL
-) delivered ON delivered.at IS NOT NULL
+    SELECT p.delivered_at
+    FROM (
+        SELECT s.delivered_at, sl.quantity,
+               sum(sl.quantity) OVER (ORDER BY s.shipped_at, s.id) - sl.quantity AS units_before
+        FROM order_shipment_lines sl
+        JOIN order_shipments s ON s.id = sl.shipment_id
+        WHERE sl.order_line_id = ol.id
+    ) p
+    WHERE $1::smallint > p.units_before
+      AND $1::smallint <= p.units_before + p.quantity
+      AND p.delivered_at IS NOT NULL
+) parcel ON true
 WHERE ol.id = $4
   AND o.user_id = $2
   AND ol.warranty_months IS NOT NULL
-  AND $1::smallint <= delivered.units
+  AND $1::smallint <= (
+      SELECT coalesce(sum(sl.quantity), 0)
+      FROM order_shipment_lines sl
+      JOIN order_shipments s ON s.id = sl.shipment_id
+      WHERE sl.order_line_id = ol.id AND s.delivered_at IS NOT NULL
+  ) - (
+      SELECT coalesce(sum(rl.quantity), 0)
+      FROM return_request_lines rl
+      JOIN return_requests rr ON rr.id = rl.return_request_id
+      WHERE rl.order_line_id = ol.id AND rr.status IN ('approved', 'completed')
+  )
 `
 
 type RegisterWarrantyParams struct {
@@ -9842,9 +10192,10 @@ type RegisterWarrantyParams struct {
 }
 
 // Register one unit. expires_on is computed here from the delivery date and the
-// promise copied onto the order, never from today's mutable catalogue. min()
-// across the parcels runs a split line from the shop's calendar day on which
-// the first box arrived.
+// promise copied onto the order, never from today's mutable catalogue. Unit n
+// is the n-th unit of the line counted across its parcels in shipment order, and
+// its cover starts on the day THAT parcel arrived: a later box does not inherit
+// the first box's earlier date. An approved return takes units off the count.
 func (q *Queries) RegisterWarranty(ctx context.Context, arg RegisterWarrantyParams) (int64, error) {
 	result, err := q.db.Exec(ctx, registerWarranty,
 		arg.UnitNo,
@@ -9866,7 +10217,8 @@ SELECT
     p.slug AS product_slug,
     ol.warranty_months,
     coalesce(ol.warranty_note, '') AS warranty_note,
-    coalesce(delivered.units, 0)::integer AS delivered_units,
+    greatest(coalesce(delivered.units, 0) - coalesce(returned.units, 0), 0)::integer AS delivered_units,
+    coalesce(returned.units, 0)::integer AS returned_units,
     coalesce(registered.units, 0)::integer AS registered_units
 FROM order_lines ol
 JOIN orders o ON o.id = ol.order_id
@@ -9879,6 +10231,12 @@ LEFT JOIN LATERAL (
     JOIN order_shipments s ON s.id = sl.shipment_id
     WHERE sl.order_line_id = ol.id AND s.delivered_at IS NOT NULL
 ) delivered ON true
+LEFT JOIN LATERAL (
+    SELECT sum(rl.quantity) AS units
+    FROM return_request_lines rl
+    JOIN return_requests rr ON rr.id = rl.return_request_id
+    WHERE rl.order_line_id = ol.id AND rr.status IN ('approved', 'completed')
+) returned ON true
 LEFT JOIN LATERAL (
     SELECT count(*) AS units
     FROM warranty_registrations w WHERE w.order_line_id = ol.id
@@ -9901,12 +10259,15 @@ type RegistrableLinesRow struct {
 	WarrantyMonths  pgtype.Int4
 	WarrantyNote    string
 	DeliveredUnits  int32
+	ReturnedUnits   int32
 	RegisteredUnits int32
 }
 
 // What a customer may still register, bounded by delivered_at and never by
 // shipped_at: cover counted from dispatch is one to three days short, all of
-// them off the customer. Ownership is in the query, so it cannot be skipped.
+// them off the customer. A unit in an approved return can no longer start cover,
+// so registrable units are the delivered ones less the returned ones. Ownership
+// is in the query, so it cannot be skipped.
 func (q *Queries) RegistrableLines(ctx context.Context, arg RegistrableLinesParams) ([]RegistrableLinesRow, error) {
 	rows, err := q.db.Query(ctx, registrableLines, arg.OrderNumber, arg.UserID)
 	if err != nil {
@@ -9924,6 +10285,7 @@ func (q *Queries) RegistrableLines(ctx context.Context, arg RegistrableLinesPara
 			&i.WarrantyMonths,
 			&i.WarrantyNote,
 			&i.DeliveredUnits,
+			&i.ReturnedUnits,
 			&i.RegisteredUnits,
 		); err != nil {
 			return nil, err
@@ -10779,7 +11141,7 @@ func (q *Queries) ReturnPayoutFacts(ctx context.Context, requestIds []uuid.UUID)
 }
 
 const returnQueue = `-- name: ReturnQueue :many
-SELECT json_build_object('Rank', return_payout_outstanding(r.id), 'Priority', (r.status = 'requested'), 'At', r.created_at, 'ID', r.id)::text AS page_cursor, r.id, r.status, r.reason, r.created_at, r.decided_at,
+SELECT json_build_object('Rank', return_payout_outstanding(r.id), 'Priority', (r.status = 'requested'), 'At', r.created_at, 'ID', r.id)::text AS page_cursor, r.id, r.status, r.reason, r.created_at, r.decided_at, r.before_shipment,
        o.order_number,
        (SELECT coalesce(sum(rl.quantity), 0) FROM return_request_lines rl
         WHERE rl.return_request_id = r.id)::integer AS units,
@@ -10834,6 +11196,7 @@ type ReturnQueueRow struct {
 	Reason           string
 	CreatedAt        time.Time
 	DecidedAt        pgtype.Timestamptz
+	BeforeShipment   bool
 	OrderNumber      string
 	Units            int32
 	RefundableCents  int64
@@ -10870,6 +11233,7 @@ func (q *Queries) ReturnQueue(ctx context.Context, arg ReturnQueueParams) ([]Ret
 			&i.Reason,
 			&i.CreatedAt,
 			&i.DecidedAt,
+			&i.BeforeShipment,
 			&i.OrderNumber,
 			&i.Units,
 			&i.RefundableCents,
@@ -10984,7 +11348,7 @@ func (q *Queries) ReturnableLines(ctx context.Context, orderID uuid.UUID) ([]Ret
 
 const returnsForOrder = `-- name: ReturnsForOrder :many
 SELECT r.id, r.status, r.reason, r.resolution, r.created_at, r.decided_at
-FROM return_requests r WHERE r.order_id = $1
+FROM return_requests r WHERE r.order_id = $1 AND NOT r.before_shipment
 ORDER BY r.created_at DESC, r.id
 `
 
@@ -10998,7 +11362,9 @@ type ReturnsForOrderRow struct {
 }
 
 // An order's return requests, for the customer's own page. No actor: the page is
-// reachable by anyone holding the number, so it must not name staff.
+// reachable by anyone holding the number, so it must not name staff. A refund
+// before shipment is not a request the customer made; the order page's
+// refunded entry already tells them the money is back.
 func (q *Queries) ReturnsForOrder(ctx context.Context, orderID uuid.UUID) ([]ReturnsForOrderRow, error) {
 	rows, err := q.db.Query(ctx, returnsForOrder, orderID)
 	if err != nil {
@@ -11039,19 +11405,26 @@ SELECT
     -- while Stripe still says pending), and created_at for the synchronous
     -- credit post.
     --
-    -- The positive-credit predicate deliberately matches order_refunds. That
-    -- includes reverse_order_credit on a CANCELLED order whose revenue was never
-    -- counted here; excluding cancellations in this caller would create another
-    -- definition. If the report should exclude them, change order_refunds so the
-    -- 折讓 form and invoice bound make the same decision. Neither time column has
-    -- an index yet; these are small ledgers, so a speculative index is not
-    -- warranted.
+    -- The positive-credit predicate deliberately matches order_refunds: an entry
+    -- counts only with an order_id and a positive amount, so a reversed checkout
+    -- spend, which carries none, is in neither figure. A change of that
+    -- definition belongs in order_refunds, so the 折讓 form and the invoice bound
+    -- move with it. An order refunded before shipment is left out of both
+    -- figures: its refund cancels it out of the committed revenue, and counting
+    -- the same money as refunded too would take it off the net twice. Neither
+    -- time column has an index yet; these are small ledgers, so a speculative
+    -- index is not warranted.
     (coalesce((SELECT sum(r.amount_cents) FROM refunds r
+               JOIN payments p ON p.id = r.payment_id
                WHERE r.status = 'succeeded'
-                 AND r.succeeded_at >= now() - make_interval(days => $1::integer)), 0)::bigint
+                 AND r.succeeded_at >= now() - make_interval(days => $1::integer)
+                 AND NOT EXISTS (SELECT 1 FROM return_requests b
+                                 WHERE b.order_id = p.order_id AND b.before_shipment)), 0)::bigint
      + coalesce((SELECT sum(e.amount_cents) FROM store_credit_entries e
                  WHERE e.order_id IS NOT NULL AND e.amount_cents > 0
-                   AND e.created_at >= now() - make_interval(days => $1::integer)), 0)::bigint
+                   AND e.created_at >= now() - make_interval(days => $1::integer)
+                   AND NOT EXISTS (SELECT 1 FROM return_requests b
+                                   WHERE b.order_id = e.order_id AND b.before_shipment)), 0)::bigint
     )::bigint AS refunded_cents
 FROM (
     SELECT (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity)
@@ -11060,6 +11433,8 @@ FROM (
     FROM orders o
     JOIN committed_orders c ON c.id = o.id
     WHERE o.placed_at >= now() - make_interval(days => $1::integer)
+      AND NOT EXISTS (SELECT 1 FROM return_requests b
+                      WHERE b.order_id = o.id AND b.before_shipment)
 ) t
 `
 
@@ -11526,6 +11901,26 @@ func (q *Queries) SearchProductsCount(ctx context.Context, pattern string) (int6
 	return column_1, err
 }
 
+const sessionCreatedSince = `-- name: SessionCreatedSince :one
+SELECT s.created_at > now() - $1::interval AS recent
+FROM sessions s
+WHERE s.token_hash = $2 AND s.expires_at > now()
+`
+
+type SessionCreatedSinceParams struct {
+	MaxAge    pgtype.Interval
+	TokenHash []byte
+}
+
+// Recency is measured on the database's clock, the one that stamped created_at
+// and that the expiry check above reads. A missing or expired session is not recent.
+func (q *Queries) SessionCreatedSince(ctx context.Context, arg SessionCreatedSinceParams) (bool, error) {
+	row := q.db.QueryRow(ctx, sessionCreatedSince, arg.MaxAge, arg.TokenHash)
+	var recent bool
+	err := row.Scan(&recent)
+	return recent, err
+}
+
 const sessionTOTPVerified = `-- name: SessionTOTPVerified :one
 SELECT (s.totp_verified_at IS NOT NULL
         AND s.totp_verified_at > now() - $2::interval)::boolean AS verified
@@ -11688,6 +12083,39 @@ type SetPasswordHashParams struct {
 
 func (q *Queries) SetPasswordHash(ctx context.Context, arg SetPasswordHashParams) error {
 	_, err := q.db.Exec(ctx, setPasswordHash, arg.ID, arg.PasswordHash)
+	return err
+}
+
+const setProductImageOptionValue = `-- name: SetProductImageOptionValue :execrows
+UPDATE product_images
+SET option_value_id = $1::uuid
+FROM products p
+WHERE product_images.product_id = p.id AND p.slug = $2::text
+  AND product_images.storage_key = $3::text
+`
+
+type SetProductImageOptionValueParams struct {
+	OptionValueID uuid.NullUUID
+	Slug          string
+	StorageKey    string
+}
+
+func (q *Queries) SetProductImageOptionValue(ctx context.Context, arg SetProductImageOptionValueParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setProductImageOptionValue, arg.OptionValueID, arg.Slug, arg.StorageKey)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const setProductImageOrder = `-- name: SetProductImageOrder :exec
+UPDATE product_images pi SET position = o.n::integer - 1
+FROM unnest($1::uuid[]) WITH ORDINALITY AS o(id, n)
+WHERE pi.id = o.id
+`
+
+func (q *Queries) SetProductImageOrder(ctx context.Context, ids []uuid.UUID) error {
+	_, err := q.db.Exec(ctx, setProductImageOrder, ids)
 	return err
 }
 
@@ -11965,16 +12393,21 @@ func (q *Queries) SettledRefundsForOrder(ctx context.Context, orderNumber string
 const shipmentRecipient = `-- name: ShipmentRecipient :one
 SELECT coalesce(pd.email, '') AS email,
        coalesce(pd.recipient_name, '') AS recipient_name,
-       o.locale
+       o.locale,
+       coalesce((SELECT sm.destination_kind
+                 FROM shipping_method_versions v
+                 JOIN shipping_methods sm ON sm.id = v.method_id
+                 WHERE v.id = o.shipping_version_id), '')::text AS destination_kind
 FROM orders o
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
 WHERE o.id = $1
 `
 
 type ShipmentRecipientRow struct {
-	Email         string
-	RecipientName string
-	Locale        string
+	Email           string
+	RecipientName   string
+	Locale          string
+	DestinationKind string
 }
 
 // The locale comes off the ORDER and never off the staff member who pressed
@@ -11983,7 +12416,12 @@ type ShipmentRecipientRow struct {
 func (q *Queries) ShipmentRecipient(ctx context.Context, id uuid.UUID) (ShipmentRecipientRow, error) {
 	row := q.db.QueryRow(ctx, shipmentRecipient, id)
 	var i ShipmentRecipientRow
-	err := row.Scan(&i.Email, &i.RecipientName, &i.Locale)
+	err := row.Scan(
+		&i.Email,
+		&i.RecipientName,
+		&i.Locale,
+		&i.DestinationKind,
+	)
 	return i, err
 }
 
@@ -12725,11 +13163,26 @@ WHERE delivered_at IS NOT NULL
   AND delivered_at < now() - $1::interval
 `
 
-// DELIVERED only, and keyed on delivered_at: a message that exhausted its
-// attempts is kept so /admin/health lists it, and available_at moves forward on
-// every claim, so keying on that would delete unsent mail.
+// Keyed on delivered_at, not available_at, which moves forward on every claim.
 func (q *Queries) SweepDeliveredMessages(ctx context.Context, retain pgtype.Interval) (int64, error) {
 	result, err := q.db.Exec(ctx, sweepDeliveredMessages, retain)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const sweepUndeliveredMessages = `-- name: SweepUndeliveredMessages :execrows
+DELETE FROM outbox_messages
+WHERE delivered_at IS NULL
+  AND created_at < now() - $1::interval
+`
+
+// An undelivered message past the same window goes too: its payload can carry a
+// token that nothing will ever mail, and it may not outlive that token. Keyed on
+// created_at because available_at moves on every claim.
+func (q *Queries) SweepUndeliveredMessages(ctx context.Context, retain pgtype.Interval) (int64, error) {
+	result, err := q.db.Exec(ctx, sweepUndeliveredMessages, retain)
 	if err != nil {
 		return 0, err
 	}
@@ -13378,6 +13831,7 @@ func (q *Queries) UserHasEmail(ctx context.Context, arg UserHasEmailParams) (boo
 
 const userOrders = `-- name: UserOrders :many
 SELECT
+    o.id,
     o.order_number,
     o.fulfillment_status,
     o.placed_at,
@@ -13394,16 +13848,21 @@ SELECT
     order_amount_owed(o.id)::bigint AS owed_cents
 FROM orders o
 WHERE o.user_id = $1
+  AND (NOT $2::boolean OR (o.placed_at, o.id) < ($3::timestamptz, $4::uuid))
 ORDER BY o.placed_at DESC, o.id DESC
-LIMIT $2
+LIMIT $5::integer
 `
 
 type UserOrdersParams struct {
-	UserID uuid.NullUUID
-	Limit  int32
+	UserID    uuid.NullUUID
+	HasCursor bool
+	AfterAt   time.Time
+	AfterID   uuid.UUID
+	RowLimit  int32
 }
 
 type UserOrdersRow struct {
+	ID                uuid.UUID
 	OrderNumber       string
 	FulfillmentStatus string
 	PlacedAt          time.Time
@@ -13417,7 +13876,13 @@ type UserOrdersRow struct {
 }
 
 func (q *Queries) UserOrders(ctx context.Context, arg UserOrdersParams) ([]UserOrdersRow, error) {
-	rows, err := q.db.Query(ctx, userOrders, arg.UserID, arg.Limit)
+	rows, err := q.db.Query(ctx, userOrders,
+		arg.UserID,
+		arg.HasCursor,
+		arg.AfterAt,
+		arg.AfterID,
+		arg.RowLimit,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -13426,6 +13891,7 @@ func (q *Queries) UserOrders(ctx context.Context, arg UserOrdersParams) ([]UserO
 	for rows.Next() {
 		var i UserOrdersRow
 		if err := rows.Scan(
+			&i.ID,
 			&i.OrderNumber,
 			&i.FulfillmentStatus,
 			&i.PlacedAt,

@@ -84,6 +84,11 @@ var (
 		En:     "This has not arrived yet. Registration opens on delivery, which is when the cover starts.",
 	})
 
+	KeyWarrantyReturned = key("warranty.returned", Message{
+		ZhHant: "這項商品已辦理退貨,沒有可登錄的保固。",
+		En:     "This was returned, so there is no cover to register.",
+	})
+
 	KeyWarrantyAllDone = key("warranty.alldone", Message{
 		ZhHant: "這項商品已經全部登錄了。",
 		En:     "Every unit of this is already registered.",

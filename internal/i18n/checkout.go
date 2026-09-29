@@ -122,6 +122,13 @@ var (
 		En:     "Company tax ID",
 	})
 
+	// Issue sends the company invoice with the member carrier (issue.go), which
+	// ECPay holds against the checkout email.
+	KeyInvoiceCompanyStored = key("invoice.company.stored", Message{
+		ZhHant: "公司統編發票會存入" + memberCarrierZhHant + ",依結帳 Email 留存與通知,可在綠界的載具中查詢。",
+		En:     "A company tax ID invoice is stored in the " + memberCarrierEn + ", tied to your checkout email, and can be retrieved there.",
+	})
+
 	KeyDeliveryToAddress = key("checkout.dest.address", Message{ZhHant: "收件地址", En: "Delivery address"})
 
 	KeyCouponExpired = key("coupon.expired", Message{

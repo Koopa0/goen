@@ -26,6 +26,19 @@ func (l PayLine) LineTotal() string { return twd(l.UnitCents * int64(l.Quantity)
 // QuantityText is how many were ordered.
 func (l PayLine) QuantityText() string { return strconv.FormatInt(int64(l.Quantity), 10) }
 
+// PayClosure says why the payment page offers no way to pay.
+type PayClosure int
+
+const (
+	// PayOpen can start or resume a payment.
+	PayOpen PayClosure = iota
+	// PayWindowClosed is still pending, but no live hold is long enough for a
+	// Checkout Session; the hold sweeper cancels it once the hold lapses.
+	PayWindowClosed
+	// PayOrderCancelled has been called off.
+	PayOrderCancelled
+)
+
 // PayView is the page that hands a customer over to the card form.
 type PayView struct {
 	Number     string
@@ -35,6 +48,29 @@ type PayView struct {
 	Enabled    bool
 	Sandbox    bool
 	Cancelled  bool
+	Closure    PayClosure
+	// StartBy is the last minute a new Checkout Session can start, empty when
+	// the page resumes one already open.
+	StartBy string
+}
+
+// Closed reports whether no payment can start or resume here.
+func (v PayView) Closed() bool { return v.Closure != PayOpen }
+
+// ClosedTitle says that the order cannot be paid.
+func (v PayView) ClosedTitle() i18n.Key {
+	if v.Closure == PayOrderCancelled {
+		return i18n.KeyPayRefusedTitle
+	}
+	return i18n.KeyPayWindowClosedTitle
+}
+
+// ClosedBody says what became, or will become, of the order.
+func (v PayView) ClosedBody() i18n.Key {
+	if v.Closure == PayOrderCancelled {
+		return i18n.KeyOrderCancelled
+	}
+	return i18n.KeyPayWindowClosedBody
 }
 
 // LineTotalCents is the goods as recorded. TotalCents is still what is owed.

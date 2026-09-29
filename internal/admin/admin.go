@@ -36,6 +36,12 @@ var (
 	// the order's stock was already returned to sale. The reconciliation alarm
 	// stays open until staff refund at Stripe and choose the safe-release outcome.
 	ErrPaymentRequiresRefund = errors.New("admin: payment must be refunded before reconciliation")
+	// ErrPaidCancel is the status form asked to cancel a paid order. A paid
+	// order is cancelled only by refunding it before shipment.
+	ErrPaidCancel = errors.New("admin: a paid order is cancelled by refunding it before shipment")
+	// ErrRefundUnsettled is a refund before shipment whose card refund Stripe
+	// accepted and has not settled; the order stays open until a resume sees it land.
+	ErrRefundUnsettled = errors.New("admin: the refund is recorded and has not settled")
 )
 
 // completePaymentResolution is the operator's explicit conclusion after a
