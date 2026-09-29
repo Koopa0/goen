@@ -373,6 +373,7 @@ type OrderEvent struct {
 	Kind            string
 	Note            pgtype.Text
 	ActorUserID     uuid.NullUUID
+	BySystem        bool
 	OccurredAt      time.Time
 	ReturnRequestID uuid.NullUUID
 }

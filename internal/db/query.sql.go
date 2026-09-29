@@ -2798,6 +2798,44 @@ func (q *Queries) CampaignProducts(ctx context.Context, arg CampaignProductsPara
 	return items, nil
 }
 
+const cancelLapsedOrder = `-- name: CancelLapsedOrder :execrows
+UPDATE orders o SET fulfillment_status = 'cancelled', cancelled_at = now()
+WHERE o.id = $1
+  AND o.fulfillment_status = 'pending'
+  AND NOT order_is_committed(o.id)
+  AND order_amount_owed(o.id) <> 0
+  AND EXISTS (SELECT 1 FROM inventory_reservations ir WHERE ir.order_id = o.id)
+  AND NOT EXISTS (
+      SELECT 1 FROM inventory_reservations ir
+      WHERE ir.order_id = o.id AND ir.state = 'held' AND ir.expires_at >= now()
+  )
+  AND NOT EXISTS (
+      SELECT 1 FROM payments p
+      WHERE p.order_id = o.id
+        AND p.status IN ('requires_payment', 'requires_action', 'processing',
+                         'requires_reconciliation')
+  )
+  AND NOT EXISTS (
+      SELECT 1
+      FROM payment_webhook_events e
+      JOIN payments p
+        ON p.provider = e.provider AND p.provider_ref = e.object_ref
+      WHERE p.order_id = o.id
+        AND e.unreconciled IS NOT NULL AND e.reconciled_at IS NULL
+  )
+`
+
+// LapsedUnpaidOrders' predicate, read again after LockOrderForExpiry: `pending`
+// refuses a second cancellation, and the payment clauses now see every payment
+// committed before the lock was granted.
+func (q *Queries) CancelLapsedOrder(ctx context.Context, id uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, cancelLapsedOrder, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const cancelOrderByCustomer = `-- name: CancelOrderByCustomer :execrows
 UPDATE orders SET fulfillment_status = 'cancelled', cancelled_at = now()
 WHERE order_number = $1
@@ -6593,6 +6631,61 @@ func (q *Queries) KnownAllowances(ctx context.Context, originalID uuid.UUID) ([]
 	return items, nil
 }
 
+const lapsedUnpaidOrders = `-- name: LapsedUnpaidOrders :many
+SELECT o.order_number
+FROM orders o
+WHERE o.fulfillment_status = 'pending'
+  AND NOT order_is_committed(o.id)
+  AND order_amount_owed(o.id) <> 0
+  AND EXISTS (SELECT 1 FROM inventory_reservations ir WHERE ir.order_id = o.id)
+  AND NOT EXISTS (
+      SELECT 1 FROM inventory_reservations ir
+      WHERE ir.order_id = o.id AND ir.state = 'held' AND ir.expires_at >= now()
+  )
+  AND NOT EXISTS (
+      SELECT 1 FROM payments p
+      WHERE p.order_id = o.id
+        AND p.status IN ('requires_payment', 'requires_action', 'processing',
+                         'requires_reconciliation')
+  )
+  AND NOT EXISTS (
+      SELECT 1
+      FROM payment_webhook_events e
+      JOIN payments p
+        ON p.provider = e.provider AND p.provider_ref = e.object_ref
+      WHERE p.order_id = o.id
+        AND e.unreconciled IS NOT NULL AND e.reconciled_at IS NULL
+  )
+ORDER BY o.placed_at
+LIMIT $1
+`
+
+// Unpaid orders none of whose holds is live any more. A Checkout Session must
+// end before the order's hold, so such an order can never be paid. The rest of
+// the predicate keeps any order that has money or may still take some: zero-owed
+// is paid in full while pending, and a live session, a provider-complete session
+// awaiting its webhook, or an unresolved provider event may already hold money.
+// CancelLapsedOrder repeats this predicate under the order lock.
+func (q *Queries) LapsedUnpaidOrders(ctx context.Context, limit int32) ([]string, error) {
+	rows, err := q.db.Query(ctx, lapsedUnpaidOrders, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var order_number string
+		if err := rows.Scan(&order_number); err != nil {
+			return nil, err
+		}
+		items = append(items, order_number)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const latestEligibilityAssessment = `-- name: LatestEligibilityAssessment :one
 SELECT id, order_id, return_request_id, version, assessed_by, assessed_at, basis
 FROM return_eligibility_assessments
@@ -6892,6 +6985,20 @@ func (q *Queries) LockOrderForAdvance(ctx context.Context, orderNumber string) (
 	var i LockOrderForAdvanceRow
 	err := row.Scan(&i.ID, &i.FulfillmentStatus)
 	return i, err
+}
+
+const lockOrderForExpiry = `-- name: LockOrderForExpiry :one
+SELECT id FROM orders WHERE order_number = $1 FOR UPDATE
+`
+
+// Its own statement, before CancelLapsedOrder: open_payment and capture_payment
+// lock this row without updating it, so an UPDATE that waited for them would
+// still judge their payments by the snapshot it took before waiting.
+func (q *Queries) LockOrderForExpiry(ctx context.Context, orderNumber string) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, lockOrderForExpiry, orderNumber)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
 }
 
 const lockOrderForStaffNote = `-- name: LockOrderForStaffNote :one
@@ -7815,7 +7922,7 @@ func (q *Queries) OrderDestinationKind(ctx context.Context, orderNumber string) 
 }
 
 const orderEvents = `-- name: OrderEvents :many
-SELECT e.kind, e.note, e.occurred_at, coalesce(u.full_name, '') AS actor_name
+SELECT e.kind, e.note, e.occurred_at, coalesce(u.full_name, '') AS actor_name, e.by_system
 FROM order_events e
 LEFT JOIN users u ON u.id = e.actor_user_id
 WHERE e.order_id = $1
@@ -7827,6 +7934,7 @@ type OrderEventsRow struct {
 	Note       pgtype.Text
 	OccurredAt time.Time
 	ActorName  string
+	BySystem   bool
 }
 
 // Oldest first: occurred_at then id, because two events recorded in the same
@@ -7845,6 +7953,7 @@ func (q *Queries) OrderEvents(ctx context.Context, orderID uuid.UUID) ([]OrderEv
 			&i.Note,
 			&i.OccurredAt,
 			&i.ActorName,
+			&i.BySystem,
 		); err != nil {
 			return nil, err
 		}
@@ -8023,6 +8132,29 @@ func (q *Queries) OrderLinesForPayment(ctx context.Context, orderID uuid.UUID) (
 		return nil, err
 	}
 	return items, nil
+}
+
+const orderMayHaveTakenMoney = `-- name: OrderMayHaveTakenMoney :one
+SELECT EXISTS (
+    SELECT 1 FROM payments p
+    WHERE p.order_id = $1
+      AND (p.status IN ('requires_reconciliation', 'reconciled')
+           OR EXISTS (
+               SELECT 1 FROM payment_webhook_events e
+               WHERE e.provider = p.provider AND e.object_ref = p.provider_ref
+                 AND e.unreconciled IS NOT NULL
+           ))
+)::boolean AS may_have_taken_money
+`
+
+// Money may have reached Stripe for this unpaid order: a provider-complete
+// session, its resolution, or a provider event that needed a person. Staff
+// refund such money, so a cancellation notice must not say nothing was charged.
+func (q *Queries) OrderMayHaveTakenMoney(ctx context.Context, orderID uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, orderMayHaveTakenMoney, orderID)
+	var may_have_taken_money bool
+	err := row.Scan(&may_have_taken_money)
+	return may_have_taken_money, err
 }
 
 const orderNumberByID = `-- name: OrderNumberByID :one
@@ -9340,15 +9472,22 @@ func (q *Queries) RecordAuditEvent(ctx context.Context, arg RecordAuditEventPara
 }
 
 const recordCancellation = `-- name: RecordCancellation :exec
-INSERT INTO order_events (order_id, kind)
-SELECT id, 'cancelled' FROM orders WHERE order_number = $1
+INSERT INTO order_events (order_id, kind, by_system)
+SELECT id, 'cancelled', $1::boolean FROM orders WHERE order_number = $2::text
 `
 
-// The customer's own cancellation. The ABSENCE of an actor is what distinguishes
-// it from a back-office cancel, and it is carried structurally because the
-// customer's own order page renders any note in whatever language it was written.
-func (q *Queries) RecordCancellation(ctx context.Context, orderNumber string) error {
-	_, err := q.db.Exec(ctx, recordCancellation, orderNumber)
+type RecordCancellationParams struct {
+	BySystem    bool
+	OrderNumber string
+}
+
+// A cancellation no staff member made: the customer's own, or, with by_system,
+// the sweeper's at the payment deadline. The ABSENCE of an actor is what
+// distinguishes it from a back-office cancel, and both are carried structurally
+// because the customer's own order page renders any note in whatever language
+// it was written.
+func (q *Queries) RecordCancellation(ctx context.Context, arg RecordCancellationParams) error {
+	_, err := q.db.Exec(ctx, recordCancellation, arg.BySystem, arg.OrderNumber)
 	return err
 }
 

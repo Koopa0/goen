@@ -2209,6 +2209,9 @@ CREATE TABLE order_events (
     kind          text NOT NULL,
     note          text,
     actor_user_id uuid REFERENCES users (id) ON DELETE SET NULL,
+    -- No person acted: the hold sweeper cancelled an order whose payment window
+    -- closed. Without it an actor-less cancellation reads as the customer's own.
+    by_system     boolean NOT NULL DEFAULT false,
     occurred_at   timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT order_events_kind_known CHECK (kind IN (
         'placed', 'paid', 'picking', 'shipped', 'in_transit',

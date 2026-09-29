@@ -44,11 +44,7 @@ var (
 
 	KeyShippingHold = key("shipping.hold", Message{ZhHant: "庫存保留", En: "Stock reservation"})
 
-	KeyShippingHoldBody = key("shipping.hold.body", Message{
-		ZhHant: "送出訂單時系統會保留庫存 %s 分鐘,讓您完成付款。超過時間未付款,商品會回到架上供其他人購買。",
-		En: "Placing an order holds the stock for %s minutes while you pay. If the payment " +
-			"does not arrive, the goods go back on the shelf for somebody else.",
-	})
+	KeyShippingHoldBody = key("shipping.hold.body", Message{ZhHant: "送出訂單時系統會保留庫存 %s 分鐘,請在下單後 %s 分鐘內開始付款。保留時間結束仍未付款的訂單會自動取消,商品回到架上供其他人購買。", En: "Placing an order holds the stock for %s minutes; start the payment within %s minutes of ordering. An order still unpaid when the hold ends is cancelled automatically, and the goods go back on the shelf for somebody else."})
 
 	KeyShippingTrackingBody = key("shipping.tracking.body", Message{
 		ZhHant: "付款完成後我們會開始備貨。出貨時會記錄物流商與查詢編號,您可以在訂單頁看到,系統也會寄信通知。",
