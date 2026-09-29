@@ -853,13 +853,9 @@ func (s *Store) GrantCredit(ctx context.Context, customerID uuid.UUID, amountCen
 	if !ok {
 		return 0, ErrNoActor
 	}
-	user, err := s.q.CreditCustomerByID(ctx, customerID)
-	if err != nil {
-		return 0, fmt.Errorf("%w: no customer for %s", ErrRefused, customerID)
-	}
 
 	event := Event{
-		Action: actionGrantCredit, Table: "store_credit_entries", ID: nullableID(user.ID),
+		Action: actionGrantCredit, Table: "store_credit_entries", ID: nullableID(customerID),
 		// The customer is named by ID and never by address: audit_events is
 		// append-only and erase_user does not reach it, so an email written here
 		// would outlive the erasure meant to remove it.
@@ -873,7 +869,7 @@ func (s *Store) GrantCredit(ctx context.Context, customerID uuid.UUID, amountCen
 	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
 	q := s.q.WithTx(tx)
 	entryID, err := q.PostStoreCredit(ctx, db.PostStoreCreditParams{
-		UserID: user.ID, AmountCents: amountCents, Reason: reason,
+		UserID: customerID, AmountCents: amountCents, Reason: reason,
 		ActorUserID: actorID, OperationID: operationID,
 	})
 	if err != nil {
@@ -888,7 +884,7 @@ func (s *Store) GrantCredit(ctx context.Context, customerID uuid.UUID, amountCen
 	}
 	// Read INSIDE the same transaction, so the number shown is the one this grant
 	// produced and not one a concurrent spend moved.
-	balanceCents, err = q.CreditBalance(ctx, uuid.NullUUID{UUID: user.ID, Valid: true})
+	balanceCents, err = q.CreditBalance(ctx, uuid.NullUUID{UUID: customerID, Valid: true})
 	if err != nil {
 		return 0, fmt.Errorf("read credit balance: %w", err)
 	}
