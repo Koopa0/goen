@@ -11068,6 +11068,11 @@ WHERE p.status = 'active'
        OR coalesce(p.summary_en, '') ILIKE $2::text
        OR b.name ILIKE $2::text
        OR EXISTS (
+           SELECT 1 FROM product_variants sku_match
+           WHERE sku_match.product_id = p.id AND sku_match.is_active
+             AND sku_match.sku ILIKE $2::text
+       )
+       OR EXISTS (
            SELECT 1 FROM product_specs ps
            WHERE ps.product_id = p.id
              AND (ps.label ILIKE $2::text
@@ -11077,9 +11082,20 @@ WHERE p.status = 'active'
        ))
 ORDER BY
     -- Field relevance is explicit; repeated words, sales and ratings do not change it.
+    -- A complete variant SKU leads; a partial SKU follows a partial name match.
     CASE
-        WHEN p.name ILIKE $3::text OR coalesce(p.name_en, '') ILIKE $3::text THEN 4
-        WHEN p.name ILIKE $2::text OR coalesce(p.name_en, '') ILIKE $2::text THEN 3
+        WHEN EXISTS (
+            SELECT 1 FROM product_variants exact_sku
+            WHERE exact_sku.product_id = p.id AND exact_sku.is_active
+              AND exact_sku.sku ILIKE $3::text
+        ) THEN 6
+        WHEN p.name ILIKE $3::text OR coalesce(p.name_en, '') ILIKE $3::text THEN 5
+        WHEN p.name ILIKE $2::text OR coalesce(p.name_en, '') ILIKE $2::text THEN 4
+        WHEN EXISTS (
+            SELECT 1 FROM product_variants partial_sku
+            WHERE partial_sku.product_id = p.id AND partial_sku.is_active
+              AND partial_sku.sku ILIKE $2::text
+        ) THEN 3
         WHEN b.name ILIKE $2::text THEN 2
         WHEN coalesce(p.summary, '') ILIKE $2::text OR coalesce(p.summary_en, '') ILIKE $2::text THEN 1
         ELSE 0
@@ -11166,6 +11182,11 @@ WHERE p.status = 'active'
        OR coalesce(p.summary, '') ILIKE $1::text
        OR coalesce(p.summary_en, '') ILIKE $1::text
        OR b.name ILIKE $1::text
+       OR EXISTS (
+           SELECT 1 FROM product_variants sku_match
+           WHERE sku_match.product_id = p.id AND sku_match.is_active
+             AND sku_match.sku ILIKE $1::text
+       )
        OR EXISTS (
            SELECT 1 FROM product_specs ps
            WHERE ps.product_id = p.id
