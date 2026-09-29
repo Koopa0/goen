@@ -27,6 +27,26 @@ sink and supplies ECPay staging configuration. Going to production means switchi
 catalogue as `make db-seed`. These files describe the setup; they do not establish
 that a timer is installed or that today's restore succeeded.
 
+The restore reads `/etc/goen/restore.env` (start from
+[restore.env.example](restore.env.example)), not the storefront's `demo.env`. Its
+login must be `goen`, the schema owner, or a LOGIN role that is a member of `goen`;
+the script restores with `pg_restore --role=goen`, so every table and `SECURITY
+DEFINER` function keeps the owner it has after `make migrate-up`. It never passes
+`--no-owner`, and no application role (`store_svc`, `admin_svc`, `maintenance_svc`)
+is accepted. The unit fails to start if `restore.env` is missing.
+
+The script checks the connection and the snapshot's table of contents, stops
+`goen.service`, and restores in one transaction. If the restore fails, nothing was
+changed: the script restarts `goen.service` on the previous data, writes the reason
+to the journal and exits non-zero, so the unit is left in the `failed` state. There
+is no `OnFailure=` hook or other alert in this repository; the failed unit and the
+journal are the report. If the restore succeeds but the start fails, or the restart
+after a failed restore also fails, the service stays down and needs an operator.
+`scripts/demo-restore-test.sh` (part of `make verify`) locks this against a
+throwaway PostgreSQL: owners of all tables and `SECURITY DEFINER` functions are
+unchanged after a restore, and a corrupt snapshot leaves the old data and restarts
+the service.
+
 ## Observed deployment evidence
 
 | When (UTC) | Observation | What it establishes |
