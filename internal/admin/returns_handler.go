@@ -44,6 +44,9 @@ func (h *Handler) Decide(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
+	if h.confirmReturnDecision(w, r) {
+		return
+	}
 	err := h.store.Decide(r.Context(), r.PathValue("id"),
 		r.PostFormValue("decision"), r.PostFormValue("resolution"),
 		r.PostFormValue("assessment_version"), staffID(r))
@@ -232,6 +235,7 @@ var refusalKeys = map[returns.RefusalKind]i18n.Key{
 	returns.RefuseStale:           i18n.KeyAdminRetErrStale,
 	returns.RefuseEmpty:           i18n.KeyAdminRetErrIncomplete,
 	returns.RefuseExceptionReason: i18n.KeyAdminRetErrExceptionReason,
+	returns.RefuseRejectionReason: i18n.KeyAdminRetErrRejectionReason,
 }
 
 // Inspect serves POST /admin/returns/{id}/inspect, one form per parcel.
@@ -324,4 +328,31 @@ func (h *Handler) Complete(w http.ResponseWriter, r *http.Request) {
 			"return", r.PathValue("id"), "error", err)
 		h.serverError(w, r)
 	}
+}
+
+// confirmReturnDecision renders the selected operation before Decide can move
+// money. The final POST still revalidates current eligibility and assessment.
+func (h *Handler) confirmReturnDecision(w http.ResponseWriter, r *http.Request) bool {
+	kind, ok := returns.ParseDecisionKind(r.PostFormValue("decision"))
+	if !ok {
+		return false
+	}
+	resolution := r.PostFormValue("resolution")
+	required := kind == returns.DecisionReject || kind == returns.DecisionException
+	confirmed := r.PostFormValue("confirm") == string(kind)
+	if confirmed {
+		return false
+	}
+	row, retry, err := h.store.returnUnderDecision(r.Context(), r.PathValue("id"), kind)
+	if err != nil {
+		if errors.Is(err, ErrRefused) {
+			http.Redirect(w, r, "/admin/returns?refused=1", http.StatusSeeOther)
+		} else {
+			h.serverError(w, r)
+		}
+		return true
+	}
+	view := pages.AdminReturnConfirmation{ID: row.ID.String(), OrderNumber: row.OrderNumber, Decision: string(kind), Reason: row.Reason, AmountCents: row.RefundableCents, Resolution: resolution, AssessmentVersion: r.PostFormValue("assessment_version"), Required: required, Retry: retry}
+	web.Render(w, r, h.log, http.StatusOK, pages.ConfirmReturn(layouts.Page{Title: view.Title(r.Context())}, view))
+	return true
 }

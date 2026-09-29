@@ -12,6 +12,7 @@ sql:
       - "internal/payment/query.sql"
       - "internal/returns/query.sql"
       - "internal/outbox/query.sql"
+      - "internal/ordernotice/query.sql"
       - "internal/loyalty/query.sql"
       - "internal/media/query.sql"
       - "internal/site/query.sql"

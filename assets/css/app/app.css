@@ -1182,12 +1182,6 @@ h4,
   margin: 0;
 }
 
-.goen-footer__social {
-  display: flex;
-  gap: 8px;
-  margin-top: 24px;
-}
-
 .goen-footer__bottom {
   border-top: 1px solid var(--border);
 }
@@ -3296,6 +3290,12 @@ h4,
   font-size: var(--fs-16);
   font-weight: var(--fw-semibold);
   margin: 0;
+}
+
+.goen-order__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
 }
 
 .goen-summary,
