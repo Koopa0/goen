@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -118,10 +119,11 @@ func (s *Store) Listing(ctx context.Context, slug string, f Filters) (pages.List
 // Search reads one page of search results.
 func (s *Store) Search(ctx context.Context, pattern string, page int) (pages.SearchView, error) {
 	rows, err := s.q.SearchProducts(ctx, db.SearchProductsParams{
-		Locale:     string(i18n.FromContext(ctx)),
-		Pattern:    pattern,
-		PageSize:   PageSize,
-		PageOffset: offsetFor(page),
+		Locale:       string(i18n.FromContext(ctx)),
+		Pattern:      pattern,
+		ExactPattern: strings.TrimSuffix(strings.TrimPrefix(pattern, "%"), "%"),
+		PageSize:     PageSize,
+		PageOffset:   offsetFor(page),
 	})
 	if err != nil {
 		return pages.SearchView{}, fmt.Errorf("search: %w", err)

@@ -36,6 +36,13 @@ func (h *Handler) Sitemap(w http.ResponseWriter, r *http.Request) {
 		{"/deals", "daily", "0.8"},
 		{"/about", "monthly", "0.3"},
 		{"/contact", "monthly", "0.3"},
+		{"/faq", "monthly", "0.3"},
+		{"/shipping", "monthly", "0.3"},
+		{"/returns", "monthly", "0.3"},
+		{"/payment", "monthly", "0.3"},
+		{"/warranty", "monthly", "0.3"},
+		{"/privacy", "monthly", "0.3"},
+		{"/terms", "monthly", "0.3"},
 	} {
 		set.URLs = append(set.URLs, urlEntry{
 			Loc: base + p.path, ChangeFreq: p.freq, Priority: p.priority,

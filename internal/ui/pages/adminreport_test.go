@@ -38,3 +38,44 @@ func TestAnEmptySalesWindowStillListsStockAtRisk(t *testing.T) {
 		t.Error("a zero-order window still paints the revenue strip")
 	}
 }
+
+// A window is empty only when it has neither new orders nor refunds: a refund
+// for an older order is the owner's return figure and must not be hidden.
+func TestAReportWindowIsEmptyOnlyWithoutOrdersAndRefunds(t *testing.T) {
+	t.Parallel()
+
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	empty := i18n.T(ctx, i18n.KeyAdminRepEmpty)
+	windows := []int32{7, 30, 90}
+
+	for _, tc := range []struct {
+		name      string
+		view      AdminReportView
+		wantEmpty bool
+	}{
+		{"orders and revenue without refunds", AdminReportView{
+			Days: 7, Windows: windows, Placed: 1, Committed: 1, Orders: 1, RevenueCents: 1000,
+		}, false},
+		{"refunds without orders", AdminReportView{
+			Days: 7, Windows: windows, RefundedCents: 12500,
+		}, false},
+		{"neither orders nor refunds", AdminReportView{
+			Days: 7, Windows: windows,
+		}, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := tc.view.Empty(); got != tc.wantEmpty {
+				t.Errorf("Empty() = %v, want %v", got, tc.wantEmpty)
+			}
+			html := renderToString(t, AdminReport(layouts.Page{Title: "報表"}, &tc.view))
+			if got := strings.Contains(html, empty); got != tc.wantEmpty {
+				t.Errorf("no-orders state rendered = %v, want %v", got, tc.wantEmpty)
+			}
+			if got := strings.Contains(html, `class="goen-report__figures"`); got == tc.wantEmpty {
+				t.Errorf("revenue strip rendered = %v, want %v", got, !tc.wantEmpty)
+			}
+		})
+	}
+}
