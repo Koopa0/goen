@@ -99,6 +99,10 @@ SET fulfillment_status = @status::text,
     completed_at = CASE WHEN @status::text = 'completed' THEN now() ELSE completed_at END
 WHERE order_number = @order_number::text;
 
+-- Serialize changes so the audit operation describes the note actually replaced.
+-- name: LockOrderForStaffNote :one
+SELECT id, staff_note FROM orders WHERE order_number = $1 FOR UPDATE;
+
 -- name: SetStaffNote :exec
 UPDATE orders SET staff_note = $2 WHERE order_number = $1;
 
@@ -1561,6 +1565,10 @@ JOIN products p ON p.id = o.product_id
 WHERE p.slug = @slug::text AND o.id = @option_id
 RETURNING id;
 
+-- Lock before reading options so a concurrently added axis participates in validation.
+-- name: LockProductCatalogue :one
+SELECT id FROM products WHERE slug = $1 FOR NO KEY UPDATE;
+
 -- name: ProductOptionCount :one
 SELECT count(*)::bigint FROM product_options o
 JOIN products p ON p.id = o.product_id
@@ -1704,12 +1712,11 @@ WHERE z.id = @zone_id
   AND NOT EXISTS (SELECT 1 FROM shipping_zone_prefixes p WHERE p.zone_id = z.id)
   AND NOT EXISTS (SELECT 1 FROM shipping_version_zones v WHERE v.zone_id = z.id);
 
--- source_id is a bare uuid with no foreign key — it points at whichever table
--- source_type names — so each join is guarded by that discriminator. A HOLD
--- points at the reservation, because it is taken before the order exists.
+-- Each source discriminator selects its validated parent. A hold names its
+-- order; a release names the reservation and a restock names the return.
 -- name: VariantMovements :many
 SELECT m.created_at, m.delta, m.reason, m.source_type,
-       coalesce(o.order_number, ro.order_number, '') AS order_number,
+       coalesce(o.order_number, ro.order_number, rro.order_number, '') AS order_number,
        coalesce(u.full_name, u.email, '') AS actor,
        (SELECT sum(e.delta) FROM inventory_movements e
         WHERE e.variant_id = m.variant_id AND e.id <= m.id)::integer AS running_total
@@ -1720,6 +1727,9 @@ LEFT JOIN orders o ON m.source_type = 'order' AND o.id = m.source_id
 LEFT JOIN inventory_reservations r
        ON m.source_type = 'reservation' AND r.id = m.source_id
 LEFT JOIN orders ro ON ro.id = r.order_id
+LEFT JOIN return_requests rr
+       ON m.source_type = 'return_request' AND rr.id = m.source_id
+LEFT JOIN orders rro ON rro.id = rr.order_id
 WHERE pv.sku = @sku::text
 ORDER BY m.id DESC
 LIMIT @row_limit::integer;
@@ -1787,3 +1797,28 @@ JOIN orders o ON o.id = p.order_id;
 -- Checkout generation; paid attribution has a separate capture path.
 -- name: ReleaseCompletePayment :one
 SELECT release_complete_payment(@provider_ref::text);
+
+-- The order lock also belongs to shipment, cancellation and erasure. Read the
+-- destination after acquiring it so a correction cannot outlive that decision.
+-- name: LockOrderDelivery :one
+SELECT o.id, o.fulfillment_status, sm.destination_kind
+FROM orders o
+JOIN shipping_method_versions v ON v.id = o.shipping_version_id
+JOIN shipping_methods sm ON sm.id = v.method_id
+WHERE o.order_number = @order_number
+FOR UPDATE OF o;
+
+-- Whether the saved postcode and the proposed one sit in the same surcharge
+-- zone. Identity of the zone, not today's amount: a surcharge edited or removed
+-- after checkout must not open a cross-zone correction. The order records the
+-- postcode it was priced for, so that is the side compared. Two postcodes in no
+-- zone are both the mainland; a malformed one resolves to neither.
+-- name: DeliveryZoneComparison :one
+SELECT (pd.erased_at IS NOT NULL)::boolean AS erased,
+       coalesce(pd.postal_code ~ '^[0-9]{3,6}$', false)::boolean AS old_resolved,
+       coalesce(pd.postal_code ~ '^[0-9]{3,6}$'
+                AND old_zone.zone_id IS NOT DISTINCT FROM new_zone.zone_id, false)::boolean AS same_zone
+FROM order_private_data pd
+LEFT JOIN shipping_zone_prefixes old_zone ON old_zone.prefix = left(pd.postal_code, 3)
+LEFT JOIN shipping_zone_prefixes new_zone ON new_zone.prefix = left(@new_postal_code::text, 3)
+WHERE pd.order_id = @order_id;

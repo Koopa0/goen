@@ -27,6 +27,9 @@ import (
 // coveredByNamedTest is the triggers whose cases do not fit the rule table's shape, mapped to
 // the test that does cover them. A trigger named in neither place still fails.
 var coveredByNamedTest = map[string]string{
+	"inventory_movements_source_parent":      "TestInventoryMovementSourceParents",
+	"product_options_before_variants":        "TestOptionAxesMustPrecedeVariants (internal/admin)",
+	"product_variants_lock_catalogue":        "TestOptionAxisAndVariantCreationSerialize (internal/admin)",
 	"loyalty_lot_guard":                      "the loyalty_entries_lot_* rule cases below exercise each branch by its own constraint name",
 	"order_lines_bind_product":               "TestRetiringAPurchasedVariantDoesNotEraseVerifiedPurchase (internal/product)",
 	"product_variants_keep_product_sellable": "TestDeactivatingTheLastVariantIsRefused, TestDeletingTheLastVariantIsRefused",
@@ -120,6 +123,20 @@ type ruleCase struct {
 // ruleCases pairs each rule trigger with a violation and a legal neighbour.
 var ruleCases = []ruleCase{
 	{
+		rule: "order_lines_sku_matches_variant",
+		reject: `SET LOCAL ROLE store; INSERT INTO order_lines (order_id, variant_id, sku, product_name, unit_price_cents, quantity, position)
+		         VALUES ('6666aaaa-6666-4666-8666-666666666666', '44444444-4444-4444-8444-444444444444', 'WRONG-SKU', 'Pixelight 9 Pro 5G', 100, 1, 5);`,
+		accept: `INSERT INTO order_lines (order_id, variant_id, sku, product_name, unit_price_cents, quantity, position)
+		         VALUES ('6666aaaa-6666-4666-8666-666666666666', '44444444-4444-4444-8444-444444444444', 'PXL-9P-256-BL', 'Pixelight 9 Pro 5G', 100, 1, 5);`,
+	},
+	{
+		rule: "order_lines_name_matches_product",
+		reject: `SET LOCAL ROLE store; INSERT INTO order_lines (order_id, variant_id, sku, product_name, unit_price_cents, quantity, position)
+		         VALUES ('6666aaaa-6666-4666-8666-666666666666', '44444444-4444-4444-8444-444444444444', 'PXL-9P-256-BL', 'Wrong product', 100, 1, 5);`,
+		accept: `INSERT INTO order_lines (order_id, variant_id, sku, product_name, unit_price_cents, quantity, position)
+		         VALUES ('6666aaaa-6666-4666-8666-666666666666', '44444444-4444-4444-8444-444444444444', 'PXL-9P-256-BL', 'Pixelight 9 Pro 5G', 100, 1, 5);`,
+	},
+	{
 		rule: "loyalty_entries_lot_is_an_award",
 		reject: `INSERT INTO loyalty_entries (id, account_id, kind, points, reason, idempotency_key, expires_on)
 		         VALUES ('a1000001-0000-4000-8000-000000000001', 'a0000001-0000-4000-8000-000000000000', 'award', 100, 'seed', 'rule-seed', current_date + 365);
@@ -208,8 +225,8 @@ var ruleCases = []ruleCase{
 	},
 	{
 		rule: "inventory_movements_append_only",
-		reject: `INSERT INTO inventory_movements (variant_id, delta, reason, idempotency_key)
-		         VALUES ('44444444-4444-4444-8444-444444444444', 5, 'receipt', 'k1');
+		reject: `INSERT INTO inventory_movements (variant_id, delta, reason, source_type, idempotency_key)
+		         VALUES ('44444444-4444-4444-8444-444444444444', 5, 'receipt', 'admin', 'k1');
 		         DELETE FROM inventory_movements WHERE idempotency_key = 'k1';`,
 		acceptNote: "inserting is the only permitted operation and is exercised throughout",
 	},
@@ -401,8 +418,8 @@ var ruleCases = []ruleCase{
 	{
 		rule: "inventory_never_negative",
 		// Fixture stock is 14, safety_stock 2: -12 lands exactly on the floor, -13 breaks it.
-		reject: `SELECT record_inventory_movement('44444444-4444-4444-8444-444444444444', -13, 'sale', 'k-over');`,
-		accept: `SELECT record_inventory_movement('44444444-4444-4444-8444-444444444444', -12, 'sale', 'k-floor');`,
+		reject: `SELECT record_inventory_movement('44444444-4444-4444-8444-444444444444', -13, 'sale', 'k-over', 'order', '66666666-6666-4666-8666-666666666666');`,
+		accept: `SELECT record_inventory_movement('44444444-4444-4444-8444-444444444444', -12, 'sale', 'k-floor', 'order', '66666666-6666-4666-8666-666666666666');`,
 	},
 	{
 		rule: "payments_settled_is_history",
@@ -1432,8 +1449,8 @@ func TestStockCannotOversell(t *testing.T) {
 	t.Cleanup(func() { cleanupOversell(t, variant) })
 
 	err1, err2 := raceOutcome(t,
-		`SELECT record_inventory_movement('`+variant+`', -1, 'sale', 'race-1')`,
-		`SELECT record_inventory_movement('`+variant+`', -1, 'sale', 'race-2')`)
+		`SELECT record_inventory_movement('`+variant+`', -1, 'adjustment', 'race-1', 'admin')`,
+		`SELECT record_inventory_movement('`+variant+`', -1, 'adjustment', 'race-2', 'admin')`)
 	requireExactlyOne(t, "the last unit of stock", err1, err2)
 
 	var stock int
@@ -2406,8 +2423,8 @@ func TestClaimInvoiceIssueRejectsUnsafeRelateNumber(t *testing.T) {
 	if _, lineErr := tx.Exec(ctx, `
 		INSERT INTO order_lines
 		    (order_id, variant_id, sku, product_name, unit_price_cents, quantity, position)
-		SELECT $1, pv.id, 'RELATE-DRIFT', 'Relate drift item', 100000, 1, 0
-		FROM product_variants pv ORDER BY pv.id LIMIT 1`, orderID); lineErr != nil {
+		SELECT $1, pv.id, pv.sku, p.name, 100000, 1, 0
+		FROM product_variants pv JOIN products p ON p.id = pv.product_id ORDER BY pv.id LIMIT 1`, orderID); lineErr != nil {
 		t.Fatalf("add drifted order line: %v", lineErr)
 	}
 	if _, privateDataErr := tx.Exec(ctx, `

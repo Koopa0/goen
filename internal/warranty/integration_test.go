@@ -124,7 +124,7 @@ func newFixture(t *testing.T, ordered, months int, p parcel) fixture {
 		INSERT INTO order_lines (order_id, variant_id, sku, product_name,
 		                         warranty_note, warranty_months,
 		                         unit_price_cents, quantity)
-		SELECT $1, pv.id, 'W-SKU', '保固測試商品',
+		SELECT $1, pv.id, pv.sku, pr.name,
 		       pr.warranty_note, pr.warranty_months, 100000, $3
 		FROM product_variants pv
 		JOIN products pr ON pr.id = pv.product_id
