@@ -36,6 +36,7 @@ func methodFormActions(t *testing.T) map[string][]string {
 		"pages/product.templ:templ.SafeURL(v.AskAction())":              {pdp.AskAction()},
 		"pages/product.templ:templ.SafeURL(v.ReviewAction())":           {pdp.ReviewAction()},
 		"pages/adminreturns.templ:templ.SafeURL(r.Action())":            {ret.Action()},
+		"pages/adminreturnconfirm.templ:templ.SafeURL(v.Action())":      {(pages.AdminReturnConfirmation{ID: "return"}).Action()},
 		"pages/adminreturns.templ:templ.SafeURL(r.AssessAction())":      {ret.AssessAction()},
 		"pages/adminreturns.templ:templ.SafeURL(r.InspectAction())":     {ret.InspectAction()},
 		"pages/adminreturns.templ:templ.SafeURL(r.CompleteAction())":    {ret.CompleteAction()},

@@ -29,6 +29,7 @@ const (
 	TopicPasswordReset     = "account.password_reset"
 	TopicOrderPaid         = "order.paid"
 	TopicOrderShipped      = "order.shipped"
+	TopicOrderTerminal     = "order.terminal"
 	TopicRestocked         = "catalogue.restocked"
 	TopicNewsletterConfirm = "newsletter.confirm"
 	TopicNewsletterWelcome = "newsletter.welcome"

@@ -20,6 +20,14 @@ func TestStaffInvitationPointsToMailboxProofWithoutACapability(t *testing.T) {
 				t.Fatalf("the reset link is labelled as two-factor setup: %q", line)
 			}
 		}
+		for _, banned := range []string{"already have a password", "已有密碼", "walk you through", "引導你完成兩階段"} {
+			if strings.Contains(sink.msg.Body, banned) {
+				t.Fatalf("invitation makes a claim that is false for some invitees: %q", banned)
+			}
+		}
+		if !strings.Contains(sink.msg.Body, "Forgot password") && !strings.Contains(sink.msg.Body, "忘記密碼") {
+			t.Fatal("invitation does not point at the forgot-password flow")
+		}
 		if hasHan(sink.msg.Body) != (locale == "zh-TW") {
 			t.Fatalf("invitation ignored locale %q", locale)
 		}

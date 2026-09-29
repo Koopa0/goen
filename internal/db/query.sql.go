@@ -2043,30 +2043,6 @@ func (q *Queries) AlarmInvoiceOperation(ctx context.Context, arg AlarmInvoiceOpe
 	return alarmed, err
 }
 
-const answerQuestionAsCustomer = `-- name: AnswerQuestionAsCustomer :execrows
-INSERT INTO product_answers (question_id, user_id, body)
-SELECT q.id, $1, $2::text
-FROM product_questions q
-WHERE q.id = $3 AND q.hidden_at IS NULL
-`
-
-type AnswerQuestionAsCustomerParams struct {
-	UserID     uuid.NullUUID
-	Body       string
-	QuestionID uuid.UUID
-}
-
-// Omit is_staff so the database default is the storefront authority. The
-// customer role is not granted that column, so a caller cannot turn this into
-// an official shop answer by supplying another parameter.
-func (q *Queries) AnswerQuestionAsCustomer(ctx context.Context, arg AnswerQuestionAsCustomerParams) (int64, error) {
-	result, err := q.db.Exec(ctx, answerQuestionAsCustomer, arg.UserID, arg.Body, arg.QuestionID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
 const answerQuestionAsStaff = `-- name: AnswerQuestionAsStaff :execrows
 INSERT INTO product_answers (question_id, user_id, body, is_staff)
 SELECT q.id, $1, $2::text, true
@@ -6615,6 +6591,23 @@ func (q *Queries) LockHeroAppendPosition(ctx context.Context) error {
 	return err
 }
 
+const lockOrderForAdvance = `-- name: LockOrderForAdvance :one
+SELECT id, fulfillment_status FROM orders WHERE order_number = $1 FOR UPDATE
+`
+
+type LockOrderForAdvanceRow struct {
+	ID                uuid.UUID
+	FulfillmentStatus string
+}
+
+// Lock before reading the prior state so concurrent completion cannot duplicate arrival mail.
+func (q *Queries) LockOrderForAdvance(ctx context.Context, orderNumber string) (LockOrderForAdvanceRow, error) {
+	row := q.db.QueryRow(ctx, lockOrderForAdvance, orderNumber)
+	var i LockOrderForAdvanceRow
+	err := row.Scan(&i.ID, &i.FulfillmentStatus)
+	return i, err
+}
+
 const lockPaymentProviderRef = `-- name: LockPaymentProviderRef :exec
 SELECT lock_payment_provider_ref('stripe', $1::text)
 `
@@ -11053,17 +11046,24 @@ WHERE p.status = 'active'
                   OR coalesce(ps.value_en, '') ILIKE $2::text)
        ))
 ORDER BY
-    -- A name match outranks a summary or brand match. Either name counts.
-    (p.name ILIKE $2::text OR coalesce(p.name_en, '') ILIKE $2::text) DESC,
+    -- Field relevance is explicit; repeated words, sales and ratings do not change it.
+    CASE
+        WHEN p.name ILIKE $3::text OR coalesce(p.name_en, '') ILIKE $3::text THEN 4
+        WHEN p.name ILIKE $2::text OR coalesce(p.name_en, '') ILIKE $2::text THEN 3
+        WHEN b.name ILIKE $2::text THEN 2
+        WHEN coalesce(p.summary, '') ILIKE $2::text OR coalesce(p.summary_en, '') ILIKE $2::text THEN 1
+        ELSE 0
+    END DESC,
     p.published_at DESC, p.id DESC
-LIMIT $4::integer OFFSET $3::integer
+LIMIT $5::integer OFFSET $4::integer
 `
 
 type SearchProductsParams struct {
-	Locale     string
-	Pattern    string
-	PageOffset int32
-	PageSize   int32
+	Locale       string
+	Pattern      string
+	ExactPattern string
+	PageOffset   int32
+	PageSize     int32
 }
 
 type SearchProductsRow struct {
@@ -11089,6 +11089,7 @@ func (q *Queries) SearchProducts(ctx context.Context, arg SearchProductsParams) 
 	rows, err := q.db.Query(ctx, searchProducts,
 		arg.Locale,
 		arg.Pattern,
+		arg.ExactPattern,
 		arg.PageOffset,
 		arg.PageSize,
 	)
@@ -12378,6 +12379,33 @@ func (q *Queries) TOTPCredential(ctx context.Context, userID uuid.UUID) (TOTPCre
 	row := q.db.QueryRow(ctx, tOTPCredential, userID)
 	var i TOTPCredentialRow
 	err := row.Scan(&i.SecretEncrypted, &i.ConfirmedAt, &i.LastStep)
+	return i, err
+}
+
+const terminalOrderRecipient = `-- name: TerminalOrderRecipient :one
+SELECT o.order_number, o.locale, pd.email, pd.recipient_name
+FROM orders o
+JOIN order_private_data pd ON pd.order_id = o.id
+WHERE o.id = $1 AND pd.erased_at IS NULL
+`
+
+type TerminalOrderRecipientRow struct {
+	OrderNumber   string
+	Locale        string
+	Email         pgtype.Text
+	RecipientName pgtype.Text
+}
+
+// Delivery reads current private data so an erasure cannot be undone by a queued address.
+func (q *Queries) TerminalOrderRecipient(ctx context.Context, id uuid.UUID) (TerminalOrderRecipientRow, error) {
+	row := q.db.QueryRow(ctx, terminalOrderRecipient, id)
+	var i TerminalOrderRecipientRow
+	err := row.Scan(
+		&i.OrderNumber,
+		&i.Locale,
+		&i.Email,
+		&i.RecipientName,
+	)
 	return i, err
 }
 
