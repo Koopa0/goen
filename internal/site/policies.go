@@ -123,8 +123,8 @@ var policies = map[string]pages.PolicyDoc{
 		SummaryEn: "What we accept, and what happens to your card details.",
 		Sections: []pages.PolicySection{
 			{
-				Heading:   "付款方式",
-				HeadingEn: "How you can pay",
+				Heading:   "信用卡",
+				HeadingEn: "Credit cards",
 				Body: []string{
 					"目前接受信用卡付款,由 Stripe 處理。付款頁面在 Stripe 的網域上,goen 的伺服器不會接觸、也不會儲存您的卡片資料。",
 					"我們只會保留卡別與末四碼,用於在訂單頁辨識是哪一張卡付的款。",
@@ -133,6 +133,18 @@ var policies = map[string]pages.PolicyDoc{
 					"Cards, handled by Stripe. The payment form is on Stripe's own domain — goen's servers never see your card details and never store them.",
 					"We keep the card brand and the last four digits, so your order page can tell you which card paid.",
 				},
+			},
+			{
+				Heading:   "購物金",
+				HeadingEn: "Store credit",
+				Body:      []string{"登入後,帳號內可用的購物金會在結帳時自動折抵,不足的金額再以信用卡付款。"},
+				BodyEn:    []string{"When you are signed in, your available store credit comes off the order automatically at checkout; any remaining amount is paid by card."},
+			},
+			{
+				Heading:   "折扣碼",
+				HeadingEn: "Discount codes",
+				Body:      []string{"折扣碼是價格折抵,不是付款方式。在結帳頁輸入有效的折扣碼,購物金會從折抵後的金額再扣除,剩餘款項以信用卡付款。"},
+				BodyEn:    []string{"A discount code reduces the price; it is not a payment method. Enter a valid code at checkout; store credit then comes off the discounted total, and any remaining amount is paid by card."},
 			},
 			{
 				Heading:   "什麼時候扣款",
@@ -218,11 +230,31 @@ var policies = map[string]pages.PolicyDoc{
 					"下單時:收件人姓名、電話、地址與 Email,用於出貨與聯絡。",
 					"註冊時:Email 與密碼。密碼以 argon2id 雜湊儲存,任何人都無法從資料庫還原它,包含我們。",
 					"付款時:卡片資料由 Stripe 處理,不經過 goen。我們只收到卡別與末四碼。",
+					"訂閱電子報時:保存您的 Email、語言、確認與退訂狀態,用於寄送及停止電子報。",
+					"登入時:工作階段保存 IP 位址及 User-Agent 瀏覽器資訊,登入狀態結束或帳號刪除後一併移除。",
+					"開立發票時:保存顧客姓名、Email,以及您選擇提供的公司統一編號或手機條碼,用於開立發票與後續折讓。",
+					"登錄保固時:保存商品序號與保固登錄資料,用於識別送修商品及保固期限。",
 				},
 				BodyEn: []string{
 					"When you order: the recipient's name, phone, address and email — to ship to you and to reach you.",
 					"When you register: your email and a password. The password is stored as an argon2id hash, which nobody can reverse out of the database, us included.",
 					"When you pay: your card details go to Stripe and never through goen. We receive the card brand and the last four digits.",
+					"When you subscribe to the newsletter: we keep your email, language, confirmation and unsubscribe status to send or stop the newsletter.",
+					"When you sign in: the session stores your IP address and User-Agent browser information, and is removed when the session expires or the account is deleted.",
+					"When we issue an invoice: we keep your customer name and email, and the company tax ID or mobile barcode you choose to provide, for invoicing and subsequent allowances.",
+					"When you register a warranty: we keep the product serial number and warranty registration to identify the unit and its coverage period.",
+				},
+			},
+			{
+				Heading:   "第三方處理",
+				HeadingEn: "Third-party processing",
+				Body: []string{
+					"付款由 Stripe 處理;開立發票與折讓所需的資料會提供給綠界電子發票平台。",
+					"網站字型由 goen 本站提供,載入字型不會向 fonts.googleapis.com 或 fonts.gstatic.com 發出請求。",
+				},
+				BodyEn: []string{
+					"Stripe processes payments; information needed for invoices and allowances is sent to ECPay's e-invoice platform.",
+					"goen serves the website fonts itself. Loading fonts does not send requests to fonts.googleapis.com or fonts.gstatic.com.",
 				},
 			},
 			{
@@ -242,12 +274,16 @@ var policies = map[string]pages.PolicyDoc{
 				Heading:   "刪除您的資料",
 				HeadingEn: "Deleting your data",
 				Body: []string{
-					"在會員中心可以要求刪除帳號。系統會清除您的姓名、Email、電話、地址與訂單上的收件資訊。",
-					"訂單本身的財務紀錄會保留,不含個人識別資訊 —— 這是會計與稅務要求,不是我們的選擇。已公開的商品評價也會保留,但不再與您的帳號關聯。",
+					"在會員中心可以要求刪除帳號。系統會清除帳號中的姓名、Email、電話、地址與訂單上的收件資訊;下列保留資料不在清除範圍內。",
+					"訂單財務紀錄及不可變更的發票快照會保留,包括顧客姓名、Email、公司統一編號與手機條碼。尚待處理或確認結果的發票作業也會保留所需資料,直到完成確認。",
+					"保固登錄與商品序號會保留,但不再連結到已刪除的帳號。已公開的商品評價也會保留,但不再與您的帳號關聯。",
+					"只有已驗證帳號目前 Email 的所有權,刪帳才會移除同信箱的電子報訂閱。未驗證信箱的訂閱不會隨刪帳移除;請使用電子報中的退訂連結停止寄送。",
 				},
 				BodyEn: []string{
-					"You can ask for your account to be deleted from your account pages. That erases your name, email, phone, address and the delivery details on your orders.",
-					"The orders' financial records stay, stripped of anything identifying you — that is an accounting and tax requirement, not our choice. Reviews you published stay too, no longer linked to your account.",
+					"You can ask for your account to be deleted from your account pages. That erases the name, email, phone and address in your account and the delivery details on your orders, except for the retained data described below.",
+					"Order financial records and immutable invoice snapshots remain, including the customer name, email, company tax ID and mobile barcode. Invoice operations awaiting processing or reconciliation also keep the data they need until their outcome is settled.",
+					"Warranty registrations and product serial numbers remain, no longer linked to the deleted account. Published reviews also remain without their account link.",
+					"Deleting an account removes newsletter subscriptions for its current email only if ownership of that email has been verified. Subscriptions for an unverified email are not removed by account deletion; use the unsubscribe link in a newsletter to stop delivery.",
 				},
 			},
 		},

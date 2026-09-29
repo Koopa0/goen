@@ -12,14 +12,16 @@ import (
 )
 
 // Messages reads the customer-service inbox, handled ones included.
-func (s *Store) Messages(ctx context.Context) (pages.AdminMessagesView, error) {
-	rows, err := s.q.AdminMessages(ctx, PageLimit)
+func (s *Store) Messages(ctx context.Context, after ...string) (pages.AdminMessagesView, error) {
+	scope := "/admin/messages"
+	cursor := readPageCursor(scope, after)
+	rows, err := s.q.AdminMessages(ctx, db.AdminMessagesParams{HasCursor: cursor.Valid, AfterRank: cursor.Rank, AfterAt: cursor.At, AfterID: cursor.ID, RowLimit: PageLimit})
 	if err != nil {
 		return pages.AdminMessagesView{}, fmt.Errorf("read contact messages: %w", err)
 	}
-	rows, more := pageOf(rows, PageSize)
+	rows, bound := pageBound(cursor, scope, rows, PageSize, func(r *db.AdminMessagesRow) string { return r.PageCursor })
 	view := pages.AdminMessagesView{
-		ListBound: pages.Bound(more, PageSize),
+		ListBound: bound,
 		Rows:      make([]pages.AdminMessage, 0, len(rows)),
 	}
 	for i := range rows {

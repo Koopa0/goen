@@ -577,7 +577,7 @@ func pendingOrderHoldingStock(t *testing.T) (number string, orderID, variantID u
 	}
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO order_lines (order_id, variant_id, sku, product_name, unit_price_cents, quantity)
-		VALUES ($1, $2, 'SHIP-TEST', '測試商品', 100000, 1)`, orderID, variantID); err != nil {
+		SELECT $1, pv.id, pv.sku, p.name, 100000, 1 FROM product_variants pv JOIN products p ON p.id = pv.product_id WHERE pv.id = $2`, orderID, variantID); err != nil {
 		t.Fatalf("create line: %v", err)
 	}
 	if _, err := tx.Exec(ctx, `
@@ -2520,6 +2520,7 @@ func TestTerminalRefundHTTPUsesThePayoutRecoveryNotice(t *testing.T) {
 		admin.NewStore(pool, fakeRefunder{state: admin.RefundCancelled}, nil, nil))
 	form := url.Values{
 		"decision":   {"approved"},
+		"confirm":    {"approved"},
 		"resolution": {"provider cancelled"},
 	}
 	req := httptest.NewRequestWithContext(ctx, http.MethodPost,
@@ -2545,7 +2546,7 @@ func TestReturnResolutionOverTheDurableBoundIsRefusedBeforeDecision(t *testing.T
 		t.Fatalf("overlong Store resolution = %v, want ErrInvalid", err)
 	}
 
-	form := url.Values{"decision": {"approved"}, "resolution": {tooLong}}
+	form := url.Values{"decision": {"approved"}, "confirm": {"approved"}, "resolution": {tooLong}}
 	req := httptest.NewRequestWithContext(ctx, http.MethodPost,
 		"/admin/returns/"+requestID.String()+"/decide", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -3017,7 +3018,7 @@ func TestGrantIsBoundedAndPositive(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := s.GrantCredit(ctx, tt.email, tt.cents, tt.reason, uuid.New())
+			_, err := s.GrantCredit(ctx, creditCustomerID(t, tt.email), tt.cents, tt.reason, uuid.New())
 			if tt.wantErr == nil {
 				if err != nil {
 					t.Fatalf("a legal grant was refused: %v", err)
@@ -3057,7 +3058,7 @@ func TestGrantOperationIsIdempotentAndIdenticalOperationsRemainDistinct(t *testi
 	auditsBefore := auditRows(t, admin.ActionGrantCredit)
 	firstOperation := uuid.New()
 	for range 3 {
-		if _, err := s.GrantCredit(ctx, email, 50000, "退貨補償", firstOperation); err != nil {
+		if _, err := s.GrantCredit(ctx, creditCustomerID(t, email), 50000, "退貨補償", firstOperation); err != nil {
 			t.Fatalf("retry one grant operation: %v", err)
 		}
 	}
@@ -3085,10 +3086,10 @@ func TestGrantOperationIsIdempotentAndIdenticalOperationsRemainDistinct(t *testi
 	// Same customer, amount and reason can be a second legitimate compensation.
 	// Its durable request identity, not its business values, distinguishes it.
 	secondOperation := uuid.New()
-	if _, err := s.GrantCredit(ctx, email, 50000, "退貨補償", secondOperation); err != nil {
+	if _, err := s.GrantCredit(ctx, creditCustomerID(t, email), 50000, "退貨補償", secondOperation); err != nil {
 		t.Fatalf("second identical grant operation: %v", err)
 	}
-	if _, err := s.GrantCredit(ctx, email, 50000, "退貨補償", secondOperation); err != nil {
+	if _, err := s.GrantCredit(ctx, creditCustomerID(t, email), 50000, "退貨補償", secondOperation); err != nil {
 		t.Fatalf("retry second operation: %v", err)
 	}
 	read()
@@ -3290,7 +3291,7 @@ func TestEveryBackOfficeWriteLeavesATrail(t *testing.T) {
 			return s.SetProductStatus(ctx, slug, "draft")
 		}},
 		{"grant credit", admin.ActionGrantCredit, func() error {
-			_, grantErr := s.GrantCredit(ctx, staffEmail(t, actor), 500,
+			_, grantErr := s.GrantCredit(ctx, actor, 500,
 				"測試", uuid.New())
 			return grantErr
 		}},
@@ -3526,16 +3527,6 @@ func anyProductSlug(t *testing.T) string {
 	return slug
 }
 
-func staffEmail(t *testing.T, id uuid.UUID) string {
-	t.Helper()
-	var email string
-	if err := pool.QueryRow(t.Context(),
-		`SELECT email FROM users WHERE id = $1`, id).Scan(&email); err != nil {
-		t.Fatalf("read staff email: %v", err)
-	}
-	return email
-}
-
 // asAdmin runs one statement with the back office's own database role: the suite
 // otherwise connects as the owner, who is subject to no REVOKE at all.
 func asAdmin(ctx context.Context, t *testing.T, stmt string) error {
@@ -3765,7 +3756,7 @@ func TestBestSellerHistorySurvivesRetirementOfAPurchasedVariant(t *testing.T) {
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO order_lines
 			(order_id, variant_id, sku, product_name, unit_price_cents, quantity)
-		VALUES ($1, $2, 'REPORT-BOUGHT', '退役規格報表商品', 1, 999)`,
+		SELECT $1, pv.id, pv.sku, p.name, 1, 999 FROM product_variants pv JOIN products p ON p.id = pv.product_id WHERE pv.id = $2`,
 		orderID, purchasedVariant); err != nil {
 		t.Fatalf("create line: %v", err)
 	}
@@ -3812,7 +3803,7 @@ func TestBestSellerHistorySurvivesRetirementOfAPurchasedVariant(t *testing.T) {
 	var retainedVariant, retainedProduct uuid.UUID
 	if err := pool.QueryRow(ctx, `
 		SELECT variant_id, product_id FROM order_lines
-		WHERE order_id=$1 AND sku='REPORT-BOUGHT'`, orderID).
+		WHERE order_id=$1`, orderID).
 		Scan(&retainedVariant, &retainedProduct); err != nil {
 		t.Fatalf("read durable purchased identity: %v", err)
 	}
@@ -3977,8 +3968,9 @@ func TestTheQueuePutsWhatTheShopOwesFirst(t *testing.T) {
 		t.Fatalf("answer: %v", err)
 	}
 	middling := ask(t, ps, slug, asker, "中間的,只有顧客回", -2)
-	if err := ps.Answer(ctx, middling, asker, "我覺得可以"); err != nil {
-		t.Fatalf("customer answer: %v", err)
+	// Historical customer answers do not settle the shop's unanswered queue.
+	if _, err := pool.Exec(ctx, `INSERT INTO product_answers (question_id, user_id, body, is_staff) VALUES ($1, $2, $3, false)`, uuid.MustParse(middling), uuid.MustParse(asker), "我覺得可以"); err != nil {
+		t.Fatalf("historical customer answer: %v", err)
 	}
 	newest := ask(t, ps, slug, asker, "最新的,沒人回", -1)
 
@@ -4625,7 +4617,7 @@ func placeHeldOrder(t *testing.T, vid uuid.UUID) string {
 	}
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO order_lines (order_id, variant_id, sku, product_name, unit_price_cents, quantity)
-		VALUES ($1, $2, 'ADMIN-HELD', '測試商品', 500000, 1)`, orderID, vid); err != nil {
+		SELECT $1, pv.id, pv.sku, p.name, 500000, 1 FROM product_variants pv JOIN products p ON p.id = pv.product_id WHERE pv.id = $2`, orderID, vid); err != nil {
 		t.Fatalf("create line: %v", err)
 	}
 	if _, err := tx.Exec(ctx, `
@@ -4822,7 +4814,7 @@ func emptyTheShelf(t *testing.T, vid uuid.UUID, key string) {
 	}
 	if stock > 0 {
 		if _, err := pool.Exec(t.Context(),
-			`SELECT record_inventory_movement($1, $2, 'adjustment', $3, NULL, NULL, NULL)`,
+			`SELECT record_inventory_movement($1, $2, 'adjustment', $3, 'admin', NULL, NULL)`,
 			vid, -stock, key); err != nil {
 			t.Fatalf("empty the shelf: %v", err)
 		}
@@ -4867,7 +4859,7 @@ func shippableOrder(t *testing.T, locale string) string {
 	}
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO order_lines (order_id, variant_id, sku, product_name, unit_price_cents, quantity)
-		VALUES ($1, $2, 'SHIP-SKU', '測試商品', 100000, 1)`, orderID, variantID); err != nil {
+		SELECT $1, pv.id, pv.sku, p.name, 100000, 1 FROM product_variants pv JOIN products p ON p.id = pv.product_id WHERE pv.id = $2`, orderID, variantID); err != nil {
 		t.Fatalf("create line: %v", err)
 	}
 	if _, err := tx.Exec(ctx,
@@ -9809,7 +9801,7 @@ func returnedOrderWithStock(t *testing.T, name string, qty int32) (requestID, va
 		t.Fatalf("create variant: %v", err)
 	}
 	if _, err := tx.Exec(ctx,
-		`SELECT record_inventory_movement($1, 5, 'receipt', $2, NULL, NULL, NULL)`,
+		`SELECT record_inventory_movement($1, 5, 'receipt', $2, 'admin', NULL, NULL)`,
 		variantID, "seed:"+slug); err != nil {
 		t.Fatalf("stock the variant: %v", err)
 	}
@@ -10114,7 +10106,7 @@ func twoLineOrderWithStock(t *testing.T, name string) (
 			t.Fatalf("create variant: %v", err)
 		}
 		if _, err := tx.Exec(ctx,
-			`SELECT record_inventory_movement($1, 10, 'receipt', $2, NULL, NULL, NULL)`,
+			`SELECT record_inventory_movement($1, 10, 'receipt', $2, 'admin', NULL, NULL)`,
 			variantID, "seed:"+slug); err != nil {
 			t.Fatalf("stock the variant: %v", err)
 		}
@@ -10559,8 +10551,8 @@ func registeredWarranty(t *testing.T, serial string) (registered, orderNumber st
 			order_id, product_id, variant_id, sku, product_name,
 			warranty_note, warranty_months, unit_price_cents, quantity
 		)
-		VALUES ($1, $2, $3, 'WR-SKU', '保固測試商品',
-		        nullif($4, ''), $5, 100000, 1) RETURNING id`,
+		SELECT $1, $2, pv.id, pv.sku, p.name, nullif($4, ''), $5, 100000, 1
+		FROM product_variants pv JOIN products p ON p.id = pv.product_id WHERE pv.id = $3 RETURNING order_lines.id`,
 		orderID, productID, variantID, warrantyNote, warrantyMonths).Scan(&lineID); err != nil {
 		t.Fatalf("create line: %v", err)
 	}
@@ -11481,8 +11473,8 @@ func TestABoundedListSaysSoAtTheBoundary(t *testing.T) {
 	if len(full.Rows) != admin.PageSize {
 		t.Fatalf("a full page holds %d rows, want %d", len(full.Rows), admin.PageSize)
 	}
-	if full.More {
-		t.Error("a list holding exactly a page says there is more; the sentence " +
+	if full.Next != "" {
+		t.Error("a list holding exactly a page offers a next page; the link " +
 			"would appear on an inbox nobody has anything left to read in")
 	}
 
@@ -11495,11 +11487,24 @@ func TestABoundedListSaysSoAtTheBoundary(t *testing.T) {
 		t.Errorf("one row past a page renders %d rows, want %d — the extra row is "+
 			"there to be counted, not shown", len(over.Rows), admin.PageSize)
 	}
-	if !over.More {
-		t.Error("a list with more than a page says nothing; a staff member cannot " +
-			"tell fifty messages from fifty of nine hundred")
+	if over.Next == "" {
+		t.Error("a list with more than a page offers no next page; a staff member " +
+			"cannot tell fifty messages from fifty of nine hundred")
 	}
-	if over.Limit != admin.PageSize {
-		t.Errorf("the sentence would name %d rather than %d", over.Limit, admin.PageSize)
+}
+
+func creditCustomerID(t *testing.T, email string) uuid.UUID {
+	t.Helper()
+	if email == "" {
+		return uuid.Nil
 	}
+	var id uuid.UUID
+	err := pool.QueryRow(t.Context(), "SELECT id FROM users WHERE email=$1", email).Scan(&id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return uuid.New()
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	return id
 }

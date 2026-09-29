@@ -22,15 +22,17 @@ const MaxCampaignTitleRunes = 60
 
 // CampaignForm is what the back office submits.
 type CampaignForm struct {
-	Slug  string
-	Title string
-	Days  int32
+	Slug    string
+	Title   string
+	TitleEn string
+	Days    int32
 }
 
 // Validate refuses what the schema would, and the window the shop should refuse.
 func (f *CampaignForm) Validate(ctx context.Context) map[string]string {
 	f.Slug = strings.ToLower(strings.TrimSpace(f.Slug))
 	f.Title = strings.TrimSpace(f.Title)
+	f.TitleEn = strings.TrimSpace(f.TitleEn)
 
 	errs := map[string]string{}
 	if !slugFormat.MatchString(f.Slug) {
@@ -39,6 +41,9 @@ func (f *CampaignForm) Validate(ctx context.Context) map[string]string {
 	if f.Title == "" || utf8.RuneCountInString(f.Title) > MaxCampaignTitleRunes {
 		errs["title"] = i18n.T(ctx, i18n.KeyFormCampaignTitle)
 	}
+	if utf8.RuneCountInString(f.TitleEn) > MaxCampaignTitleRunes {
+		errs["title_en"] = i18n.T(ctx, i18n.KeyAdminCampaignTitleEnLength)
+	}
 	if f.Days < 1 || f.Days > MaxCampaignDays {
 		errs["days"] = i18n.T(ctx, i18n.KeyFormCampaignDays)
 	}
@@ -46,13 +51,15 @@ func (f *CampaignForm) Validate(ctx context.Context) map[string]string {
 }
 
 // Campaigns reads the promotions for the back office.
-func (s *Store) Campaigns(ctx context.Context) (pages.AdminCampaignsView, error) {
-	rows, err := s.q.AdminCampaigns(ctx, PageLimit)
+func (s *Store) Campaigns(ctx context.Context, after ...string) (pages.AdminCampaignsView, error) {
+	scope := "/admin/campaigns"
+	cursor := readPageCursor(scope, after)
+	rows, err := s.q.AdminCampaigns(ctx, db.AdminCampaignsParams{HasCursor: cursor.Valid, AfterRank: cursor.Rank, AfterAt: cursor.At, AfterID: cursor.ID, RowLimit: PageLimit})
 	if err != nil {
 		return pages.AdminCampaignsView{}, fmt.Errorf("read campaigns: %w", err)
 	}
-	rows, more := pageOf(rows, PageSize)
-	view := pages.AdminCampaignsView{ListBound: pages.Bound(more, PageSize)}
+	rows, bound := pageBound(cursor, scope, rows, PageSize, func(r *db.AdminCampaignsRow) string { return r.PageCursor })
+	view := pages.AdminCampaignsView{ListBound: bound}
 	for i := range rows {
 		c := &rows[i]
 		view.Rows = append(view.Rows, pages.AdminCampaign{
@@ -72,11 +79,11 @@ func (s *Store) CreateCampaign(ctx context.Context, f *CampaignForm) (map[string
 	}
 	err := s.audited(ctx, Event{
 		Action: actionCreateCampaign, Table: "sale_campaigns", ID: uuid.NullUUID{},
-		Before: nil, After: map[string]any{"slug": f.Slug, "title": f.Title, "days": f.Days},
+		Before: nil, After: map[string]any{"slug": f.Slug, "title": f.Title, "title_en": f.TitleEn, "days": f.Days},
 	},
 		func(ctx context.Context, q *db.Queries) error {
 			return q.CreateCampaign(ctx, db.CreateCampaignParams{
-				Slug: f.Slug, Title: f.Title, Days: f.Days,
+				Slug: f.Slug, Title: f.Title, TitleEn: f.TitleEn, Days: f.Days,
 			})
 		})
 	if err != nil {

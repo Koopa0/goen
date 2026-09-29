@@ -3,6 +3,7 @@ package pages
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
@@ -26,7 +27,10 @@ templ Deals(p layouts.Page, v SearchView) {
 				}
 			</div>
 			if v.HasCampaigns() {
-				@campaignStrip(v.Campaigns)
+				<section id="campaigns">
+					@campaignStrip(v.Campaigns.Rows)
+					@pager(i18n.T(ctx, i18n.KeyCampaignPagination), v.Campaigns.Page > 1, v.Campaigns.Page < v.Campaigns.Pages(), v.CampaignPageHref(v.Campaigns.Page-1), v.CampaignPageHref(v.Campaigns.Page+1), strconv.Itoa(v.Campaigns.Page), strconv.Itoa(v.Campaigns.Pages()))
+				</section>
 			}
 			if v.Total == 0 {
 				@components.Notice(components.NoticeProps{}) {
@@ -39,7 +43,7 @@ templ Deals(p layouts.Page, v SearchView) {
 						@Tile(t)
 					}
 				</ul>
-				@pager(v.HasPrev(), v.HasNext(), v.PrevHref(), v.NextHref(), v.PageText(), v.PagesText())
+				@pager(i18n.T(ctx, i18n.KeyPagination), v.HasPrev(), v.HasNext(), v.PrevHref(), v.NextHref(), v.PageText(), v.PagesText())
 			}
 		</div>
 	}

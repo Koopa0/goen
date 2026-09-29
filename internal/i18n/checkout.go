@@ -1,7 +1,8 @@
 package i18n
 
 var (
-	KeyCheckoutTitle = key("checkout.title", Message{ZhHant: "結帳", En: "Checkout"})
+	KeyCheckoutRegionLength = key("checkout.region.length", Message{ZhHant: "請填寫 1 至 20 字的縣市或鄉鎮市區。", En: "Enter a city or district of 1 to 20 characters."})
+	KeyCheckoutTitle        = key("checkout.title", Message{ZhHant: "結帳", En: "Checkout"})
 
 	KeyCheckoutSub = key("checkout.sub", Message{
 		ZhHant: "填寫收件資訊,確認後送出訂單。",
@@ -100,8 +101,8 @@ var (
 	KeyFieldTaxID = key("field.invoice.taxid", Message{ZhHant: "統一編號", En: "Company tax ID"})
 
 	KeyInvoiceMember = key("invoice.member", Message{
-		ZhHant: "會員載具(存入會員帳號)",
-		En:     "Member carrier (held in your goen account)",
+		ZhHant: memberCarrierZhHant + "(依結帳 Email 留存與通知)",
+		En:     memberCarrierEn + " (stored and notified using your checkout email)",
 	})
 
 	KeyInvoiceMobile = key("invoice.mobile", Message{
@@ -271,3 +272,12 @@ var (
 		En:     "Enter a valid eight-digit company tax ID.",
 	})
 )
+
+// The member-carrier option's name, shared so a refusal that points shoppers at
+// it cannot drift from the label they see on the form.
+const (
+	memberCarrierZhHant = "綠界電子發票載具"
+	memberCarrierEn     = "ECPay e-invoice carrier"
+)
+
+var KeyCarrierMissing = key("checkout.carrier.missing", Message{ZhHant: "查無此手機條碼，請確認載具號碼，或改選「" + memberCarrierZhHant + "」。", En: "This mobile barcode does not exist. Check it, or choose \"" + memberCarrierEn + "\"."})

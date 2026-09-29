@@ -2,6 +2,7 @@ package site
 
 import (
 	"context"
+	"encoding/xml"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -64,7 +65,7 @@ func TestSitemapBudgetBoundsTheWholeDocument(t *testing.T) {
 			catalogue: &boundedSitemapCatalogue{
 				categories: MaxSitemapURLs + 100, products: 100, ignoreLimit: true,
 			},
-			wantCategoryLimit: MaxSitemapURLs - 4,
+			wantCategoryLimit: MaxSitemapURLs - 11,
 			wantProductCalls:  0,
 		},
 		{
@@ -72,8 +73,8 @@ func TestSitemapBudgetBoundsTheWholeDocument(t *testing.T) {
 			catalogue: &boundedSitemapCatalogue{
 				categories: 100, products: MaxSitemapURLs,
 			},
-			wantCategoryLimit: MaxSitemapURLs - 4,
-			wantProductLimit:  MaxSitemapURLs - 4 - 100,
+			wantCategoryLimit: MaxSitemapURLs - 11,
+			wantProductLimit:  MaxSitemapURLs - 11 - 100,
 			wantProductCalls:  1,
 		},
 	} {
@@ -105,5 +106,36 @@ func TestSitemapBudgetBoundsTheWholeDocument(t *testing.T) {
 					tt.catalogue.productLimits[0], tt.wantProductLimit)
 			}
 		})
+	}
+}
+
+func TestSitemapIncludesDurablePublicContent(t *testing.T) {
+	h := &Handler{catalogue: &boundedSitemapCatalogue{}, baseURL: "https://shop.example/", log: slog.New(slog.DiscardHandler)}
+	out := httptest.NewRecorder()
+	h.Sitemap(out, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/sitemap.xml", http.NoBody))
+	if out.Code != http.StatusOK {
+		t.Fatalf("status = %d", out.Code)
+	}
+	var got urlSet
+	if err := xml.Unmarshal(out.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"/", "/deals", "/about", "/contact", "/faq", "/shipping", "/returns", "/payment", "/warranty", "/privacy", "/terms"}
+	if len(got.URLs) != len(want) {
+		t.Errorf("static URLs = %d, want %d", len(got.URLs), len(want))
+	}
+	for _, path := range want {
+		count := 0
+		for _, entry := range got.URLs {
+			if entry.Loc == "https://shop.example"+path {
+				count++
+				if path != "/" && path != "/deals" && (entry.ChangeFreq != "monthly" || entry.Priority != "0.3") {
+					t.Errorf("%s has unexpected hints: %+v", path, entry)
+				}
+			}
+		}
+		if count != 1 {
+			t.Errorf("%s occurs %d times, want once", path, count)
+		}
 	}
 }

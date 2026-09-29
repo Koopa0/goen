@@ -76,15 +76,17 @@ type returnPayoutIssue struct {
 }
 
 // Returns reads the back-office queue.
-func (s *Store) Returns(ctx context.Context) (ReturnQueue, error) {
-	rows, err := s.q.ReturnQueue(ctx, PageLimit)
+func (s *Store) Returns(ctx context.Context, after ...string) (ReturnQueue, error) {
+	scope := "/admin/returns"
+	cursor := readPageCursor(scope, after)
+	rows, err := s.q.ReturnQueue(ctx, db.ReturnQueueParams{HasCursor: cursor.Valid, AfterRank: cursor.Rank, AfterPriority: cursor.Priority, AfterAt: cursor.At, AfterID: cursor.ID, RowLimit: PageLimit})
 	if err != nil {
 		return ReturnQueue{}, fmt.Errorf("read return queue: %w", err)
 	}
 	// Dropped before ids is built, not after: the extra row exists to be
 	// counted, and reading its lines and payout facts would be work done for a
 	// return nobody is shown.
-	rows, more := pageOf(rows, PageSize)
+	rows, bound := pageBound(cursor, scope, rows, PageSize, func(r *db.ReturnQueueRow) string { return r.PageCursor })
 	ids := make([]uuid.UUID, 0, len(rows))
 	for i := range rows {
 		ids = append(ids, rows[i].ID)
@@ -134,7 +136,7 @@ func (s *Store) Returns(ctx context.Context) (ReturnQueue, error) {
 	}
 	// Set here rather than in the builder, which is given rows and knows
 	// nothing about the read that produced them.
-	view.Bound = pages.Bound(more, PageSize)
+	view.Bound = bound
 	return view, nil
 }
 
@@ -950,6 +952,9 @@ func (s *Store) closeReturn(
 	resolution string,
 	assessmentVersion int32,
 ) error {
+	if kind == returns.DecisionReject && strings.TrimSpace(resolution) == "" {
+		return formRefuse("resolution", returns.RefuseRejectionReason)
+	}
 	if err := requireExceptionReason(kind, resolution); err != nil {
 		return err
 	}

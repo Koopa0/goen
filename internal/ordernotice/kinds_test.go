@@ -1,0 +1,24 @@
+package ordernotice_test
+
+import (
+	"testing"
+
+	"github.com/koopa0/goen/internal/email"
+	"github.com/koopa0/goen/internal/ordernotice"
+)
+
+// The producer and the mail worker each keep their own copy of the kinds, so
+// the strings on the wire are the only thing joining them.
+func TestProducerAndConsumerAgreeOnTheKindsOnTheWire(t *testing.T) {
+	t.Parallel()
+	for producer, consumer := range map[ordernotice.Kind]email.TerminalKind{
+		ordernotice.CancelledByCustomer: email.TerminalCancelledByCustomer,
+		ordernotice.CancelledByStaff:    email.TerminalCancelledByStaff,
+		ordernotice.Delivered:           email.TerminalDelivered,
+		ordernotice.Collected:           email.TerminalCollected,
+	} {
+		if string(producer) != string(consumer) {
+			t.Errorf("producer kind %q is %q to the consumer", producer, consumer)
+		}
+	}
+}

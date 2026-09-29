@@ -27,6 +27,7 @@ import (
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/media"
 	"github.com/koopa0/goen/internal/newsletter"
+	"github.com/koopa0/goen/internal/ordernotice"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/ratelimit"
@@ -616,9 +617,11 @@ func startWorkers(ctx context.Context, d workerDeps) {
 	messages.HandleJSON[email.PasswordReset](outbox.TopicPasswordReset, d.notifier.SendPasswordReset)
 	messages.HandleJSON[email.OrderPaid](outbox.TopicOrderPaid, d.notifier.SendOrderPaid)
 	messages.HandleJSON[email.OrderShipped](outbox.TopicOrderShipped, d.notifier.SendOrderShipped)
+	messages.HandleJSON[email.OrderTerminal](outbox.TopicOrderTerminal, terminalOrderHandler(ordernotice.NewRecipients(d.pool), d.notifier))
 	messages.HandleJSON[email.NewsletterConfirm](outbox.TopicNewsletterConfirm, d.notifier.SendNewsletterConfirm)
 	messages.HandleJSON[email.NewsletterWelcome](outbox.TopicNewsletterWelcome, d.notifier.SendNewsletterWelcome)
 	messages.HandleJSON[email.AddressVerify](outbox.TopicEmailVerify, d.notifier.SendAddressVerify)
+	messages.HandleJSON[email.StaffInvitation](outbox.TopicStaffInvitation, staffInvitationHandler(twofactor.NewStore(d.pool, nil), d.notifier))
 	messages.HandleJSON[email.NewsletterIssue](outbox.TopicNewsletterIssue,
 		newsletterIssueHandler(newsletter.NewStore(d.pool), d.notifier))
 	messages.HandleJSON[email.RestockNotice](outbox.TopicRestocked, d.notifier.SendRestockNotice)
@@ -661,5 +664,33 @@ func newsletterIssueHandler(
 			return nil
 		}
 		return notifier.SendNewsletterIssue(ctx, p)
+	}
+}
+
+// staffInvitationHandler reads the recipient on the store pool: `store` already
+// holds SELECT on users, and delivery writes nothing.
+func staffInvitationHandler(staff *twofactor.Store, notifier email.Notifier) func(context.Context, *email.StaffInvitation) error {
+	return func(ctx context.Context, p *email.StaffInvitation) error {
+		address, name, err := staff.InvitationRecipient(ctx, p.UserID)
+		if err != nil {
+			return err
+		}
+		if address == "" {
+			return nil
+		}
+		return notifier.SendStaffInvitation(ctx, p, address, name)
+	}
+}
+
+func terminalOrderHandler(recipients ordernotice.Recipients, notifier email.Notifier) func(context.Context, *email.OrderTerminal) error {
+	return func(ctx context.Context, p *email.OrderTerminal) error {
+		to, ok, err := recipients.Of(ctx, p.OrderID)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return nil
+		}
+		return notifier.SendOrderTerminal(ctx, p.Kind, email.TerminalRecipient(to))
 	}
 }
