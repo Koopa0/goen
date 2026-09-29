@@ -924,8 +924,6 @@ cursor-scripts-check:
 	@bash .cursor/lib/stripe-config-key.test.sh
 	@bash .cursor/lib/stripe-sandbox-key.test.sh
 
-# The single gate. Stop at the first failure — a passing later stage must never
-# be able to bury an earlier red one.
 demo-restore-check:
 	bash -n deploy/demo/restore-demo-db.sh scripts/demo-restore-test.sh
 	scripts/demo-restore-test.sh
@@ -935,6 +933,8 @@ workflow-check:
 	go test ./internal/db -run '^TestCI' -count=1
 	go test ./internal/db -run '^TestCommitAttribution' -count=1
 
+# The single gate. Stop at the first failure — a passing later stage must never
+# be able to bury an earlier red one.
 verify: demo-restore-check workflow-check cursor-scripts-check fmt-check templ-check squawk sqlc-check vet deadcode lint production-build-check integration-build-check test-race
 	@echo 'verify: PASS (unit tests only — make verify-all adds the database suite)'
 

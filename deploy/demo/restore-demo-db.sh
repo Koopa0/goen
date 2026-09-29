@@ -14,7 +14,12 @@ finish() {
         if [[ "$restored" == true ]]; then
             echo 'restore completed but service start failed; operator recovery required' >&2
         else
-            echo 'restore failed; goen.service remains stopped pending operator recovery' >&2
+            # A failed single-transaction restore changed nothing, so the
+            # previous data is intact and the storefront goes back up on it.
+            echo "restore failed and rolled back; restarting $SERVICE on the previous data" >&2
+            if ! systemctl start "$SERVICE"; then
+                echo 'restore failed and the restart also failed; operator recovery required' >&2
+            fi
         fi
     fi
     exit "$status"
@@ -35,9 +40,11 @@ pg_restore --list "$SNAPSHOT" >/dev/null
 
 systemctl stop "$SERVICE"
 stopped=true
-# A failed statement must not leave a half-restored destination. A failed or
-# ambiguous restore still needs an operator to decide whether resuming is safe.
-pg_restore --single-transaction --clean --if-exists --no-owner --exit-on-error \
+# One transaction: a failed statement rolls everything back, which is what makes
+# restarting on the old data safe. --role makes the owner (goen) the creator and
+# dropper of every object, so no object changes owner; never add --no-owner,
+# which would hand every SECURITY DEFINER function to the login.
+pg_restore --single-transaction --clean --if-exists --role=goen --exit-on-error \
     -d "$GOEN_RESTORE_DATABASE_URL" "$SNAPSHOT"
 restored=true
 systemctl start "$SERVICE"
