@@ -34,6 +34,7 @@ import (
 	"github.com/koopa0/goen/internal/site"
 	"github.com/koopa0/goen/internal/twofactor"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/warranty"
 	"github.com/koopa0/goen/internal/web"
 )
@@ -112,7 +113,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	})
 	catalogue := catalog.NewStore(pool)
 	browse := catalog.NewHandler(catalogue, log)
-	pages := site.NewHandler(log, baseURL, catalogue, site.NewStore(pool), secureCookies)
+	sitePages := site.NewHandler(log, baseURL, catalogue, site.NewStore(pool), secureCookies)
 	storefront := home.NewHandler(home.NewStore(pool), log, secureCookies)
 	probes := health.NewHandler(log,
 		health.Dependency{Name: "storefront", DB: pool},
@@ -193,18 +194,18 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	// unguessable by construction.
 	mux.HandleFunc("GET /media/{digest}", images.Serve)
 	mux.HandleFunc("GET /media/{digest}/{width}", images.Serve)
-	mux.HandleFunc("GET /sitemap.xml", pages.Sitemap)
-	mux.HandleFunc("GET /robots.txt", pages.Robots)
+	mux.HandleFunc("GET /sitemap.xml", sitePages.Sitemap)
+	mux.HandleFunc("GET /robots.txt", sitePages.Robots)
 	mux.HandleFunc("POST /promo/dismiss", storefront.Dismiss)
-	mux.HandleFunc("POST /locale", pages.SetLocale)
-	mux.HandleFunc("GET /faq", pages.FAQ)
-	mux.HandleFunc("GET /shipping", pages.Shipping)
-	mux.HandleFunc("GET /returns", pages.Policy)
-	mux.HandleFunc("GET /payment", pages.Policy)
-	mux.HandleFunc("GET /warranty", pages.Policy)
-	mux.HandleFunc("GET /privacy", pages.Policy)
-	mux.HandleFunc("GET /terms", pages.Policy)
-	mux.HandleFunc("GET /about", pages.About)
+	mux.HandleFunc("POST /locale", sitePages.SetLocale)
+	mux.HandleFunc("GET /faq", sitePages.FAQ)
+	mux.HandleFunc("GET /shipping", sitePages.Shipping)
+	mux.HandleFunc("GET /returns", sitePages.Policy)
+	mux.HandleFunc("GET /payment", sitePages.Policy)
+	mux.HandleFunc("GET /warranty", sitePages.Policy)
+	mux.HandleFunc("GET /privacy", sitePages.Policy)
+	mux.HandleFunc("GET /terms", sitePages.Policy)
+	mux.HandleFunc("GET /about", sitePages.About)
 	mux.HandleFunc("GET /contact", messages.Page)
 	mux.HandleFunc("POST /contact", messages.Submit)
 	// Submit applies the per-IP bound itself: Guard would answer plain text and
@@ -404,7 +405,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	mux.HandleFunc("GET /admin/credit", back.RequireStaff(back.Credit))
 	mux.HandleFunc("POST /admin/credit", back.RequireStaff(back.GrantCredit))
 
-	mux.HandleFunc("GET /", pages.NotFound)
+	mux.HandleFunc("GET /", sitePages.NotFound)
 
 	// Applied inner to outer, so a request passes through them in the reverse of
 	// this order. The chrome middleware fills what every page shows, and the
@@ -683,13 +684,13 @@ func localeReturnPath(r *http.Request) string {
 	if len(raw) == 0 {
 		return "/compare"
 	}
-	out := make([]string, 0, catalog.MaxCompare)
+	out := make([]string, 0, pages.MaxCompare)
 	for _, s := range raw {
 		if !slugFormat.MatchString(s) || slices.Contains(out, s) {
 			continue
 		}
 		out = append(out, s)
-		if len(out) == catalog.MaxCompare {
+		if len(out) == pages.MaxCompare {
 			break
 		}
 	}

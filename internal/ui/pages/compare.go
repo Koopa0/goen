@@ -9,6 +9,20 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
+// MinCompare and MaxCompare bound how many products a comparison holds. The
+// comparison is the URL, so these are the only place either number is written.
+const (
+	MinCompare = 2
+	MaxCompare = 4
+)
+
+// CompareCandidate is a search result that can be added to the comparison.
+type CompareCandidate struct {
+	Slug  string
+	Name  string
+	Brand string
+}
+
 // CompareProduct is one column of a comparison.
 type CompareProduct struct {
 	Slug           string
@@ -81,13 +95,40 @@ func (r CompareRow) Comparable(products int) bool { return r.SharedBy >= product
 type CompareView struct {
 	Products []CompareProduct
 	Rows     []CompareRow
+	// Dropped is set when the link named more products than a comparison holds.
+	Dropped bool
+	// Query is the picker's search; Candidates are its results, without the
+	// products already in the comparison.
+	Query      string
+	Candidates []CompareCandidate
 }
 
 // Empty reports whether there is nothing to compare.
 func (v CompareView) Empty() bool { return len(v.Products) == 0 }
 
-// Enough reports whether there are at least two columns.
-func (v CompareView) Enough() bool { return len(v.Products) >= 2 }
+// Enough reports whether there are enough columns to compare.
+func (v CompareView) Enough() bool { return len(v.Products) >= MinCompare }
+
+// Full reports whether the comparison has no room left.
+func (v CompareView) Full() bool { return len(v.Products) >= MaxCompare }
+
+// AddHref is the comparison with one more product. The set is the address, so
+// adding is a link and writes nothing.
+func (v CompareView) AddHref(slug string) string {
+	var b strings.Builder
+	b.WriteString("/compare")
+	sep := "?"
+	for i := range v.Products {
+		b.WriteString(sep)
+		b.WriteString("p=")
+		b.WriteString(v.Products[i].Slug)
+		sep = "&"
+	}
+	b.WriteString(sep)
+	b.WriteString("p=")
+	b.WriteString(slug)
+	return b.String()
+}
 
 // Count is how many products are being compared.
 func (v CompareView) Count() int { return len(v.Products) }

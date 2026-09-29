@@ -59,6 +59,31 @@ var (
 		En:     "Up to four at a time",
 	})
 
+	KeyCompareFull = key("compare.full", Message{
+		ZhHant: "比較已滿 %d 個,請先移除一個再加入。",
+		En:     "The comparison holds %d products. Remove one to add another.",
+	})
+
+	KeyCompareOverflow = key("compare.overflow", Message{
+		ZhHant: "連結列出的商品超過 %d 個,只顯示前 %d 個。",
+		En:     "The link names more than %d products; only the first %d are shown.",
+	})
+
+	KeyCompareSearchLabel = key("compare.search.label", Message{
+		ZhHant: "搜尋要加入比較的商品",
+		En:     "Search for a product to add",
+	})
+
+	KeyCompareNoMatch = key("compare.search.none", Message{
+		ZhHant: "沒有可加入的相符商品。",
+		En:     "No matching product to add.",
+	})
+
+	KeyCompareOneChosen = key("compare.one", Message{
+		ZhHant: "%s 已在比較中,再加入至少一個商品就能並排比較。",
+		En:     "%s is in the comparison. Add at least one more product to compare side by side.",
+	})
+
 	KeyCompareSelected = key("compare.selected", Message{
 		ZhHant: "比較所選商品",
 		En:     "Compare selected",
