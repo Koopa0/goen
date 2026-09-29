@@ -286,6 +286,8 @@ templ productBuy(v *ProductView) {
 			}, templ.SafeURL(v.CompareHref())) {
 				{ i18n.T(ctx, i18n.KeyViewCompare) }
 			}
+		} else {
+			<p class="goen-pdp__hint">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCompareFull), MaxCompare) }</p>
 		}
 		<ul class="goen-pdp__assurances" role="list">
 			<li class="goen-pdp__assurance">

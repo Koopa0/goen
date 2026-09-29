@@ -11,16 +11,10 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
-// MinCompare and MaxCompare bound how many products a comparison holds.
-const (
-	MinCompare = 2
-	MaxCompare = 4
-)
-
 // Compare reads the products a URL named and the specs that tell them apart. A
 // slug naming no active product is dropped rather than refused.
 func (s *Store) Compare(ctx context.Context, slugs []string) (pages.CompareView, error) {
-	slugs = normaliseSlugs(slugs)
+	slugs, dropped := normaliseSlugs(slugs)
 	if len(slugs) == 0 {
 		return pages.CompareView{}, nil
 	}
@@ -31,7 +25,7 @@ func (s *Store) Compare(ctx context.Context, slugs []string) (pages.CompareView,
 	if err != nil {
 		return pages.CompareView{}, fmt.Errorf("read comparison: %w", err)
 	}
-	view := pages.CompareView{}
+	view := pages.CompareView{Dropped: dropped}
 	at := make(map[string]int, len(rows))
 	for i := range rows {
 		r := &rows[i]
@@ -80,16 +74,18 @@ func (s *Store) Compare(ctx context.Context, slugs []string) (pages.CompareView,
 	return view, nil
 }
 
-func normaliseSlugs(raw []string) []string {
-	out := make([]string, 0, MaxCompare)
+// normaliseSlugs keeps the first pages.MaxCompare distinct slugs and reports
+// whether the link named more than that.
+func normaliseSlugs(raw []string) (out []string, dropped bool) {
+	out = make([]string, 0, pages.MaxCompare)
 	for _, s := range raw {
 		if s == "" || slices.Contains(out, s) {
 			continue
 		}
-		out = append(out, s)
-		if len(out) == MaxCompare {
-			break
+		if len(out) == pages.MaxCompare {
+			return out, true
 		}
+		out = append(out, s)
 	}
-	return out
+	return out, false
 }

@@ -264,14 +264,13 @@ func (h *Handler) rejectAsk(w http.ResponseWriter, r *http.Request, slug, body s
 }
 
 func boundedSlugs(raw []string) []string {
-	const maxCompare = 4
-	out := make([]string, 0, maxCompare)
+	out := make([]string, 0, pages.MaxCompare)
 	for _, s := range raw {
 		if !slugFormat.MatchString(s) || slices.Contains(out, s) {
 			continue
 		}
 		out = append(out, s)
-		if len(out) == maxCompare {
+		if len(out) == pages.MaxCompare {
 			break
 		}
 	}

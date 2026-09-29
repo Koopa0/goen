@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 
 	"github.com/koopa0/goen/internal/i18n"
@@ -193,9 +194,33 @@ func (h *Handler) Compare(w http.ResponseWriter, r *http.Request) {
 		h.serverError(w, r)
 		return
 	}
+	if q := r.URL.Query().Get("q"); !view.Full() {
+		view.Query = trimForDisplay(q)
+		if pattern := SearchPattern(q); pattern != "" {
+			found, searchErr := h.store.Search(r.Context(), pattern, 1)
+			if searchErr != nil {
+				h.log.ErrorContext(r.Context(), "compare search", "error", searchErr)
+				h.serverError(w, r)
+				return
+			}
+			view.Candidates = compareCandidates(found.Products, view)
+		}
+	}
 	web.Render(w, r, h.log, http.StatusOK, pages.Compare(
 		layouts.Page{
 			Title:       i18n.T(r.Context(), i18n.KeyCompareTitle),
 			Description: i18n.T(r.Context(), i18n.KeyCompareDescription),
 		}, view))
+}
+
+// compareCandidates keeps the search results that are not already compared.
+func compareCandidates(found []pages.ProductTile, view pages.CompareView) []pages.CompareCandidate {
+	out := make([]pages.CompareCandidate, 0, len(found))
+	for i := range found {
+		if slices.ContainsFunc(view.Products, func(p pages.CompareProduct) bool { return p.Slug == found[i].Slug }) {
+			continue
+		}
+		out = append(out, pages.CompareCandidate{Slug: found[i].Slug, Name: found[i].Name, Brand: found[i].Brand})
+	}
+	return out
 }

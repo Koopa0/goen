@@ -8,6 +8,7 @@ import (
 	"github.com/a-h/templ"
 	"github.com/google/go-cmp/cmp"
 
+	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/pickup"
@@ -1060,5 +1061,24 @@ func TestAFullyFundedOrderIsNotAskedToPay(t *testing.T) {
 	}
 	if !owing.AwaitingPayment() {
 		t.Error("an order that still owes money is not offered a way to pay it")
+	}
+}
+
+// TestCartLineLoadsTheSmallPhoto holds that a 96px thumbnail offers the -400
+// derivative through the same srcset the product cards use, and is told its
+// slot is 96px wide so the browser does not fall back to the 1600px source.
+func TestCartLineLoadsTheSmallPhoto(t *testing.T) {
+	t.Parallel()
+	const key = "nimbus-buds-pro-01.webp"
+	line := CartLine{
+		Slug: "buds", Name: "Buds", Quantity: 1, UnitCents: 100,
+		ImageURL: assets.ProductImageURL(key), ImageSrcset: assets.ProductImageSrcsetAt(key, 1600), ImageAlt: "Buds",
+	}
+	html := renderToString(t, cartLine(line))
+	small := assets.URL("media/products/nimbus-buds-pro-01-400.webp")
+	for _, want := range []string{`srcset="` + small + ` 400w`, `sizes="96px"`, `width="96"`, `height="96"`} {
+		if !strings.Contains(html, want) {
+			t.Errorf("cart line image omits %s:\n%s", want, html)
+		}
 	}
 }
