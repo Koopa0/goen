@@ -47,7 +47,9 @@ templ Compare(p layouts.Page, v CompareView) {
 						for _, item := range v.Products {
 							<li>
 								<a href={ templ.SafeURL(v.ProductHref(item.Slug)) }>{ item.Name }</a>
-								<a class="goen-compare__remove" href={ templ.SafeURL(v.RemoveHref(item.Slug)) }>{ i18n.T(ctx, i18n.KeyRemove) }</a>
+								@components.ButtonLink(components.ButtonProps{Variant: components.VariantOutline}, templ.SafeURL(v.RemoveHref(item.Slug))) {
+									{ i18n.T(ctx, i18n.KeyRemove) }
+								}
 							</li>
 						}
 					</ul>
@@ -159,7 +161,9 @@ templ comparePicker(v CompareView) {
 				for _, c := range v.Candidates {
 					<li>
 						{ c.Name } · { c.Brand }
-						<a href={ templ.SafeURL(v.AddHref(c.Slug)) }>{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCompareAddNamed), c.Name) }</a>
+						@components.ButtonLink(components.ButtonProps{Variant: components.VariantOutline}, templ.SafeURL(v.AddHref(c.Slug))) {
+							{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCompareAddNamed), c.Name) }
+						}
 					</li>
 				}
 			</ul>
