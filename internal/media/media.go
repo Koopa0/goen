@@ -22,6 +22,11 @@ const MaxPixels = 40_000_000
 // MaxDimension bounds either side, matching media_objects_dimensions_sane.
 const MaxDimension = 8000
 
+// MaxStoredSide is the longest side goen keeps. Larger uploads are scaled down
+// before encoding: no page shows more than this, and the original would only
+// cost database space and memory to decode again for every rendition.
+const MaxStoredSide = 2400
+
 // JPEGQuality is what goen re-encodes photographs at.
 const JPEGQuality = 82
 

@@ -289,7 +289,7 @@ func ifNoneMatch(r *http.Request, etag string) bool {
 // An allowlist, not a range, and that is the security property: rendering costs
 // CPU proportional to the output, so an open width parameter is a denial of
 // service that costs the attacker one request.
-var mediaWidths = [...]int{400, 800}
+var mediaWidths = [...]int{400, 800, 1600}
 
 // KnownWidth reports whether w is a rendition goen will produce.
 func KnownWidth(w int) bool { return slices.Contains(mediaWidths[:], w) }

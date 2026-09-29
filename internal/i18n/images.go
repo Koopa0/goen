@@ -6,8 +6,9 @@ var (
 	KeyAdminProdUpload = key("admin.prod.upload", Message{ZhHant: "上傳圖片", En: "Upload an image"})
 
 	KeyAdminProdUploadHint = key("admin.prod.uploadhint", Message{
-		ZhHant: "JPEG、PNG、GIF 或 WebP,8 MB 以內。上傳後會由伺服器重新編碼。",
-		En:     "JPEG, PNG, GIF or WebP, 8 MB at most. The server re-encodes whatever it accepts.",
+		ZhHant: "JPEG、PNG、GIF 或 WebP,8 MB 以內。請裁成 1:1,主體放在中央安全區,尺寸 1600×1200 以上(超過 2400 像素的一邊會被縮小)。上傳後會由伺服器重新編碼。",
+		En: "JPEG, PNG, GIF or WebP, 8 MB at most. Crop to 1:1 with the subject in the centre safe area, " +
+			"at 1600×1200 or larger (a side beyond 2400 pixels is scaled down). The server re-encodes whatever it accepts.",
 	})
 
 	KeyAdminProdAltHint = key("admin.prod.althint", Message{
