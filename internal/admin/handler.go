@@ -1513,7 +1513,12 @@ func (h *Handler) CorrectDelivery(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	number := r.PathValue("number")
-	err := h.store.CorrectDelivery(r.Context(), number, deliveryFormOf(r.PostFormValue))
+	submitted := deliveryFormOf(r.PostFormValue)
+	err := h.store.CorrectDelivery(r.Context(), number, submitted)
+	if refused, ok := errors.AsType[*DeliveryPostalError](err); ok {
+		h.rejectDelivery(w, r, submitted, i18n.T(r.Context(), refused.Key))
+		return
+	}
 
 	target := "/admin/orders/" + number
 	switch {
@@ -1534,6 +1539,22 @@ func (h *Handler) CorrectDelivery(w http.ResponseWriter, r *http.Request) {
 		h.log.ErrorContext(r.Context(), "correct delivery", "error", err)
 		h.serverError(w, r)
 	}
+}
+
+// rejectDelivery keeps proposed data in the form while the summary continues
+// to show the saved destination, so a refusal cannot look like a completed edit.
+func (h *Handler) rejectDelivery(w http.ResponseWriter, r *http.Request, d *Delivery, message string) {
+	view, err := h.store.Order(r.Context(), r.PathValue("number"))
+	if err != nil {
+		h.log.ErrorContext(r.Context(), "read refused delivery correction", "error", err)
+		h.serverError(w, r)
+		return
+	}
+	view.Delivery = pages.AdminDelivery(*d)
+	view.DeliveryError = message
+	view.AllowanceOperationID = uuid.NewString()
+	web.Render(w, r, h.log, http.StatusUnprocessableEntity,
+		pages.AdminOrder(layouts.Page{Title: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyAdminPageOrder), view.Number)}, &view))
 }
 
 // Reviews serves GET /admin/reviews.

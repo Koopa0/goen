@@ -1825,3 +1825,28 @@ JOIN orders o ON o.id = p.order_id;
 -- Checkout generation; paid attribution has a separate capture path.
 -- name: ReleaseCompletePayment :one
 SELECT release_complete_payment(@provider_ref::text);
+
+-- The order lock also belongs to shipment, cancellation and erasure. Read the
+-- destination after acquiring it so a correction cannot outlive that decision.
+-- name: LockOrderDelivery :one
+SELECT o.id, o.fulfillment_status, sm.destination_kind
+FROM orders o
+JOIN shipping_method_versions v ON v.id = o.shipping_version_id
+JOIN shipping_methods sm ON sm.id = v.method_id
+WHERE o.order_number = @order_number
+FOR UPDATE OF o;
+
+-- Whether the saved postcode and the proposed one sit in the same surcharge
+-- zone. Identity of the zone, not today's amount: a surcharge edited or removed
+-- after checkout must not open a cross-zone correction. The order records the
+-- postcode it was priced for, so that is the side compared. Two postcodes in no
+-- zone are both the mainland; a malformed one resolves to neither.
+-- name: DeliveryZoneComparison :one
+SELECT (pd.erased_at IS NOT NULL)::boolean AS erased,
+       coalesce(pd.postal_code ~ '^[0-9]{3,6}$', false)::boolean AS old_resolved,
+       coalesce(pd.postal_code ~ '^[0-9]{3,6}$'
+                AND old_zone.zone_id IS NOT DISTINCT FROM new_zone.zone_id, false)::boolean AS same_zone
+FROM order_private_data pd
+LEFT JOIN shipping_zone_prefixes old_zone ON old_zone.prefix = left(pd.postal_code, 3)
+LEFT JOIN shipping_zone_prefixes new_zone ON new_zone.prefix = left(@new_postal_code::text, 3)
+WHERE pd.order_id = @order_id;
