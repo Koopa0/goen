@@ -16,10 +16,11 @@ type TerminalKind string
 
 // The terminal facts a message may carry.
 const (
-	TerminalCancelledByCustomer TerminalKind = "cancelled_by_customer"
-	TerminalCancelledByStaff    TerminalKind = "cancelled_by_staff"
-	TerminalDelivered           TerminalKind = "delivered"
-	TerminalCollected           TerminalKind = "collected"
+	TerminalCancelledByCustomer        TerminalKind = "cancelled_by_customer"
+	TerminalCancelledByStaff           TerminalKind = "cancelled_by_staff"
+	TerminalCancelledByPaymentDeadline TerminalKind = "cancelled_by_payment_deadline"
+	TerminalDelivered                  TerminalKind = "delivered"
+	TerminalCollected                  TerminalKind = "collected"
 )
 
 // OrderTerminal is what an order.terminal message carries: the order and the
@@ -46,6 +47,8 @@ func (n Notifier) SendOrderTerminal(ctx context.Context, kind TerminalKind, to T
 		subject, body = i18n.KeyMailOrderCancelledSubject, i18n.KeyMailOrderCustomerCancelledBody
 	case TerminalCancelledByStaff:
 		subject, body = i18n.KeyMailOrderCancelledSubject, i18n.KeyMailOrderStaffCancelledBody
+	case TerminalCancelledByPaymentDeadline:
+		subject, body = i18n.KeyMailOrderCancelledSubject, i18n.KeyMailOrderDeadlineCancelledBody
 	case TerminalCollected:
 		body = i18n.KeyMailOrderCollectedBody
 	case TerminalDelivered:

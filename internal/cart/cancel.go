@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/ordernotice"
 )
 
@@ -33,32 +34,7 @@ func (s *Store) Cancel(ctx context.Context, number string) ([]string, error) {
 	if cancelled == 0 {
 		return nil, ErrNotCancellable
 	}
-	held, err := q.HeldReservationsForOrder(ctx, number)
-	if err != nil {
-		return nil, fmt.Errorf("read holds of %s: %w", number, err)
-	}
-
-	// Stock and credit come back AFTER the status change: release_reservation and
-	// store_credit_guard both refuse while the order is still a live checkout.
-	for _, id := range held {
-		if relErr := q.ReleaseReservation(ctx, id); relErr != nil {
-			return nil, fmt.Errorf("release hold %s of %s: %w", id, number, relErr)
-		}
-	}
-
-	order, err := q.OrderIDByNumber(ctx, number)
-	if err != nil {
-		return nil, fmt.Errorf("read order %s: %w", number, err)
-	}
-	if _, err := q.ReverseOrderCredit(ctx, order.ID); err != nil {
-		return nil, fmt.Errorf("return store credit spent on %s: %w", number, err)
-	}
-
-	if err := q.RecordCancellation(ctx, number); err != nil {
-		return nil, fmt.Errorf("record cancellation of %s: %w", number, err)
-	}
-
-	if err := ordernotice.Enqueue(ctx, q, order.ID, ordernotice.CancelledByCustomer); err != nil {
+	if err := settleCancellation(ctx, q, number, ordernotice.CancelledByCustomer); err != nil {
 		return nil, err
 	}
 
@@ -71,4 +47,35 @@ func (s *Store) Cancel(ctx context.Context, number string) ([]string, error) {
 		return nil, fmt.Errorf("commit cancel: %w", err)
 	}
 	return sessions, nil
+}
+
+// settleCancellation does what an unpaid order's cancellation means, in the
+// transaction whose status UPDATE already holds the order lock.
+func settleCancellation(ctx context.Context, q *db.Queries, number string, kind ordernotice.Kind) error {
+	held, err := q.HeldReservationsForOrder(ctx, number)
+	if err != nil {
+		return fmt.Errorf("read holds of %s: %w", number, err)
+	}
+
+	// Stock and credit come back AFTER the status change: release_reservation and
+	// store_credit_guard both refuse while the order is still a live checkout.
+	for _, id := range held {
+		if relErr := q.ReleaseReservation(ctx, id); relErr != nil {
+			return fmt.Errorf("release hold %s of %s: %w", id, number, relErr)
+		}
+	}
+
+	order, err := q.OrderIDByNumber(ctx, number)
+	if err != nil {
+		return fmt.Errorf("read order %s: %w", number, err)
+	}
+	if _, err := q.ReverseOrderCredit(ctx, order.ID); err != nil {
+		return fmt.Errorf("return store credit spent on %s: %w", number, err)
+	}
+
+	if err := q.RecordCancellation(ctx, number); err != nil {
+		return fmt.Errorf("record cancellation of %s: %w", number, err)
+	}
+
+	return ordernotice.Enqueue(ctx, q, order.ID, kind)
 }

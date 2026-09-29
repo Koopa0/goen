@@ -18,10 +18,11 @@ import (
 type Kind string
 
 const (
-	CancelledByCustomer Kind = "cancelled_by_customer"
-	CancelledByStaff    Kind = "cancelled_by_staff"
-	Delivered           Kind = "delivered"
-	Collected           Kind = "collected"
+	CancelledByCustomer        Kind = "cancelled_by_customer"
+	CancelledByStaff           Kind = "cancelled_by_staff"
+	CancelledByPaymentDeadline Kind = "cancelled_by_payment_deadline"
+	Delivered                  Kind = "delivered"
+	Collected                  Kind = "collected"
 )
 
 // Message contains only the order identity and its committed event.

@@ -164,14 +164,16 @@ var policies = map[string]pages.PolicyDoc{
 				HeadingEn: "We hold the stock while you pay",
 				Body: []string{
 					// Interpolated, never typed: a literal here is a second copy
-					// of the cart's private holdTTL that no test binds.
-					fmt.Sprintf("送出訂單時系統會保留庫存 %s 分鐘。超過時間未完成付款,商品會回到架上,"+
-						"但訂單仍然存在,可以重新付款(若庫存還在)。", pages.HoldMinutesText()),
+					// of an enforced duration that no test binds.
+					fmt.Sprintf("送出訂單時系統會保留庫存 %s 分鐘,請在下單後 %s 分鐘內開始付款。"+
+						"保留時間結束仍未付款的訂單會自動取消:商品回到架上,不會收取任何款項,使用的購物金也會退回。",
+						pages.HoldMinutesText(), pages.PayStartMinutesText()),
 				},
 				BodyEn: []string{
-					fmt.Sprintf("Placing an order reserves the stock for %s minutes. If the payment does not "+
-						"arrive in that time the goods go back on the shelf, but the order itself stays — you "+
-						"can pay again if it is still in stock.", pages.HoldMinutesText()),
+					fmt.Sprintf("Placing an order holds the stock for %s minutes; start the payment within %s "+
+						"minutes of ordering. An order still unpaid when the hold ends is cancelled automatically: "+
+						"the goods go back on the shelf, nothing is charged, and any store credit you applied is "+
+						"returned.", pages.HoldMinutesText(), pages.PayStartMinutesText()),
 				},
 			},
 		},

@@ -12,10 +12,11 @@ import (
 func TestProducerAndConsumerAgreeOnTheKindsOnTheWire(t *testing.T) {
 	t.Parallel()
 	for producer, consumer := range map[ordernotice.Kind]email.TerminalKind{
-		ordernotice.CancelledByCustomer: email.TerminalCancelledByCustomer,
-		ordernotice.CancelledByStaff:    email.TerminalCancelledByStaff,
-		ordernotice.Delivered:           email.TerminalDelivered,
-		ordernotice.Collected:           email.TerminalCollected,
+		ordernotice.CancelledByCustomer:        email.TerminalCancelledByCustomer,
+		ordernotice.CancelledByStaff:           email.TerminalCancelledByStaff,
+		ordernotice.CancelledByPaymentDeadline: email.TerminalCancelledByPaymentDeadline,
+		ordernotice.Delivered:                  email.TerminalDelivered,
+		ordernotice.Collected:                  email.TerminalCollected,
 	} {
 		if string(producer) != string(consumer) {
 			t.Errorf("producer kind %q is %q to the consumer", producer, consumer)
