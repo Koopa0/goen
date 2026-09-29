@@ -8529,6 +8529,8 @@ REVOKE UPDATE ON
     variant_option_values, membership_tiers, sale_campaign_products,
     order_shipment_lines
     FROM admin;
+-- The back office orders a product's images and nothing else about them.
+GRANT UPDATE (position) ON product_images TO admin;
 REVOKE UPDATE, DELETE ON outbox_messages FROM admin;
 
 -- user_identities is the STOREFRONT's. INSERT and DELETE only: linking and

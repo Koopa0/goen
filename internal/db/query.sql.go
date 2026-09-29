@@ -8316,6 +8316,19 @@ func (q *Queries) OrderTracking(ctx context.Context, orderID uuid.UUID) ([]Order
 	return items, nil
 }
 
+const parkProductImages = `-- name: ParkProductImages :exec
+UPDATE product_images pi SET position = pi.position + 1000000
+FROM products p
+WHERE pi.product_id = p.id AND p.slug = $1::text
+`
+
+// (product_id, position) is a unique index checked row by row, so a reorder
+// first moves every image clear of the range it is about to fill.
+func (q *Queries) ParkProductImages(ctx context.Context, slug string) error {
+	_, err := q.db.Exec(ctx, parkProductImages, slug)
+	return err
+}
+
 const passwordResetToken = `-- name: PasswordResetToken :one
 SELECT user_id FROM password_reset_tokens
 WHERE token_hash = $1 AND used_at IS NULL AND expires_at > now()
@@ -8629,6 +8642,42 @@ func (q *Queries) ProductBySlug(ctx context.Context, arg ProductBySlugParams) (P
 		&i.CategoryParentID,
 	)
 	return i, err
+}
+
+const productImageOrder = `-- name: ProductImageOrder :many
+SELECT pi.id, pi.storage_key
+FROM product_images pi
+JOIN products p ON p.id = pi.product_id
+WHERE p.slug = $1::text
+ORDER BY pi.position, pi.id
+`
+
+type ProductImageOrderRow struct {
+	ID         uuid.UUID
+	StorageKey string
+}
+
+// One product's images in display order. Read after LockProductCatalogue, as its
+// own statement: in the same statement the read would use a snapshot taken
+// before that lock was won.
+func (q *Queries) ProductImageOrder(ctx context.Context, slug string) ([]ProductImageOrderRow, error) {
+	rows, err := q.db.Query(ctx, productImageOrder, slug)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ProductImageOrderRow{}
+	for rows.Next() {
+		var i ProductImageOrderRow
+		if err := rows.Scan(&i.ID, &i.StorageKey); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const productImages = `-- name: ProductImages :many
@@ -11745,6 +11794,17 @@ type SetPasswordHashParams struct {
 
 func (q *Queries) SetPasswordHash(ctx context.Context, arg SetPasswordHashParams) error {
 	_, err := q.db.Exec(ctx, setPasswordHash, arg.ID, arg.PasswordHash)
+	return err
+}
+
+const setProductImageOrder = `-- name: SetProductImageOrder :exec
+UPDATE product_images pi SET position = o.n::integer - 1
+FROM unnest($1::uuid[]) WITH ORDINALITY AS o(id, n)
+WHERE pi.id = o.id
+`
+
+func (q *Queries) SetProductImageOrder(ctx context.Context, ids []uuid.UUID) error {
+	_, err := q.db.Exec(ctx, setProductImageOrder, ids)
 	return err
 }
 
