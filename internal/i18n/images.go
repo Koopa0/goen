@@ -33,6 +33,15 @@ var (
 		En:     "Or pick one already uploaded",
 	})
 
+	KeyAdminImageCover = key("admin.prod.imagecover", Message{ZhHant: "設為封面", En: "Set as cover"})
+	KeyAdminImageUp    = key("admin.prod.imageup", Message{ZhHant: "往前移", En: "Move up"})
+	KeyAdminImageDown  = key("admin.prod.imagedown", Message{ZhHant: "往後移", En: "Move down"})
+
+	KeyAdminNoticeImageStale = key("admin.notice.imagestale", Message{
+		ZhHant: "圖片順序已經有變動,這個動作沒有執行。請看一下目前的順序再試一次。",
+		En:     "The image order changed, so that move was not made. Check the current order and try again.",
+	})
+
 	KeyAdminProdReuse = key("admin.prod.reuse", Message{ZhHant: "使用", En: "Use"})
 )
 

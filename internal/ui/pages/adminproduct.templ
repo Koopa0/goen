@@ -338,6 +338,21 @@ templ adminProductDetails(v AdminProductView) {
 	}
 }
 
+// imageMoveForm is one plain POST: with scripting off it is a form, and a stale
+// page answers 422 with the current order.
+templ imageMoveForm(v AdminProductView, digest, move string, label i18n.Key) {
+	<form method="post" action={ templ.SafeURL(v.ImageMoveAction()) }>
+		<input type="hidden" name="digest" value={ digest }/>
+		<input type="hidden" name="move" value={ move }/>
+		@components.Button(components.ButtonProps{
+			Variant: components.VariantOutline,
+			Size:    components.SizeSmall,
+		}, "submit") {
+			{ i18n.T(ctx, label) }
+		}
+	</form>
+}
+
 // adminProductImages is what the product looks like: what is attached, the
 // upload, and the pictures already in the library that can be attached again.
 templ adminProductImages(v AdminProductView) {
@@ -345,10 +360,17 @@ templ adminProductImages(v AdminProductView) {
 		<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminProdImages) }</h2>
 		if v.HasImages() {
 			<ul class="goen-admin__images" role="list">
-				for _, img := range v.Images {
+				for i, img := range v.Images {
 					<li class="goen-admin__image">
 						<img src={ img.URL() } alt={ img.Alt } loading="lazy" width="120" height="120"/>
 						<span class="goen-admin__meta">{ img.Alt }</span>
+						if i > 0 {
+							@imageMoveForm(v, img.Key, "cover", i18n.KeyAdminImageCover)
+							@imageMoveForm(v, img.Key, "up", i18n.KeyAdminImageUp)
+						}
+						if i < len(v.Images)-1 {
+							@imageMoveForm(v, img.Key, "down", i18n.KeyAdminImageDown)
+						}
 						<form method="post" action={ templ.SafeURL(v.ImageRemoveAction()) }>
 							<input type="hidden" name="digest" value={ img.Key }/>
 							@components.Button(components.ButtonProps{
