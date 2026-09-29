@@ -763,9 +763,6 @@ templ field(name, label, kind, value string, v *CheckoutView) {
 					data-checkout-constraint
 				}
 			}
-			if hints.MaxLength != "" {
-				maxlength={ hints.MaxLength }
-			}
 			if v.HasErr(name) {
 				aria-invalid="true"
 			}

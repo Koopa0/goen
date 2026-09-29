@@ -1537,20 +1537,24 @@ async function checkoutConstraintFeedback(label) {
     field.value = '001';
     field.dispatchEvent(new Event('input', { bubbles: true }));
     const recovered = field.validity.valid && field.getAttribute('aria-invalid') !== 'true' && getComputedStyle(message).display === 'none';
+    field.value = '110 ';
+    const trailingSpace = field.validity.valid;
     const lengths = ['city', 'district'].every(id => {
       const input = document.getElementById(id);
       if (!input) return false;
       const saved = input.value;
       input.value = String.fromCodePoint(0x20000).repeat(20);
       const twenty = input.validity.valid;
-      input.value += String.fromCodePoint(0x20000);
+      input.value += ' ';
+      const padded = input.validity.valid;
+      input.value = String.fromCodePoint(0x20000).repeat(21);
       const twentyOne = input.validity.valid;
       input.value = saved;
-      return twenty && !twentyOne;
+      return twenty && padded && !twentyOne;
     });
-    return { ok: true, refused, recovered, lengths };
+    return { ok: true, refused, recovered, trailingSpace, lengths };
   })()`);
-  if (!checked.ok || !checked.refused || !checked.recovered || !checked.lengths) {
+  if (!checked.ok || !checked.refused || !checked.recovered || !checked.trailingSpace || !checked.lengths) {
     fail(label, 'checkout constraints failed: ' + JSON.stringify(checked));
   }
 }
