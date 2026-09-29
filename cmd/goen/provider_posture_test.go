@@ -35,7 +35,7 @@ func prepare(t *testing.T, change func(*config)) (config, error) {
 
 // The provider posture follows the Stripe key, never the cookie setting.
 func TestProviderPostureFollowsTheStripeKeyNotSecureCookies(t *testing.T) {
-	// Each setting a live key refuses; a test, unknown or absent key accepts it.
+	// Each setting a live key refuses; a test key or no key accepts it.
 	for _, tc := range []struct {
 		name   string
 		change func(*config)
@@ -52,16 +52,19 @@ func TestProviderPostureFollowsTheStripeKeyNotSecureCookies(t *testing.T) {
 		{"unparsable sender", func(c *config) { c.SMTPFrom = "broken<>" }, "GOEN_SMTP_FROM"},
 		{"empty sender", func(c *config) { c.SMTPFrom = "" }, "GOEN_SMTP_FROM"},
 	} {
-		t.Run("live key refuses "+tc.name, func(t *testing.T) {
-			_, err := prepare(t, func(c *config) { liveReady(c); tc.change(c) })
-			if err == nil || !strings.Contains(err.Error(), tc.want) {
-				t.Fatalf("error=%v, want %q", err, tc.want)
-			}
-			if strings.Contains(err.Error(), liveKey) {
-				t.Fatal("configuration error leaked the configured key")
-			}
-		})
-		for _, key := range []string{testKey, "rkcs_test_fixture", "whatever_fixture", ""} {
+		// An unrecognised or whitespace-padded key is judged like a live one.
+		for _, key := range []string{liveKey, "sk_org_fixture", "  " + liveKey + "\n", "not-a-stripe-key"} {
+			t.Run("key "+strings.TrimSpace(key)+" refuses "+tc.name, func(t *testing.T) {
+				_, err := prepare(t, func(c *config) { liveReady(c); tc.change(c); c.StripeAPIKey = key })
+				if err == nil || !strings.Contains(err.Error(), tc.want) {
+					t.Fatalf("error=%v, want %q", err, tc.want)
+				}
+				if strings.Contains(err.Error(), strings.TrimSpace(key)) {
+					t.Fatal("configuration error leaked the configured key")
+				}
+			})
+		}
+		for _, key := range []string{testKey, "rkcs_test_fixture", " " + testKey + " ", ""} {
 			t.Run("key "+key+" accepts "+tc.name, func(t *testing.T) {
 				_, err := prepare(t, func(c *config) {
 					liveReady(c)
@@ -94,14 +97,16 @@ func TestProviderPostureFollowsTheStripeKeyNotSecureCookies(t *testing.T) {
 }
 
 func TestStoreMapDefaultFollowsTheStripeKey(t *testing.T) {
-	live, err := prepare(t, liveReady)
-	if err != nil {
-		t.Fatal(err)
+	for _, key := range []string{liveKey, "sk_org_fixture", " " + liveKey + " "} {
+		live, err := prepare(t, func(c *config) { liveReady(c); c.StripeAPIKey = key })
+		if err != nil {
+			t.Fatal(err)
+		}
+		if live.ECPayLogisticsBaseURL != cart.MapProductionBaseURL {
+			t.Errorf("key %q: map URL = %q, want %q", key, live.ECPayLogisticsBaseURL, cart.MapProductionBaseURL)
+		}
 	}
-	if live.ECPayLogisticsBaseURL != cart.MapProductionBaseURL {
-		t.Errorf("live map URL = %q, want %q", live.ECPayLogisticsBaseURL, cart.MapProductionBaseURL)
-	}
-	for _, key := range []string{testKey, "whatever_fixture", ""} {
+	for _, key := range []string{testKey, " " + testKey, ""} {
 		cfg, err := prepare(t, func(c *config) { c.StripeAPIKey = key })
 		if err != nil {
 			t.Fatal(err)

@@ -15,15 +15,18 @@ import (
 // prepareProviderPosture refuses a configuration that holds a live Stripe key
 // beside a staging or placeholder setting, which would take real orders through
 // a test provider. The posture follows the key alone, read by
-// [payment.ClassifyKey]: a test, unknown or absent key is sandbox, and sandbox
-// is as permissive as it was before this check existed. Secure cookies say
-// nothing about it: an HTTPS demonstration can run on test keys.
+// [payment.ClassifyKey]. Only a test key or no key is sandbox, and sandbox is
+// as permissive as it was before this check existed. Any other key, including
+// one whose prefix is not recognised, gets the live checks: failing closed
+// costs an operator one startup error, failing open costs a real order on a
+// test provider. Secure cookies say nothing about it: an HTTPS demonstration
+// can run on test keys.
 func (cfg *config) prepareProviderPosture() error {
-	if payment.ClassifyKey(cfg.StripeAPIKey) != payment.KeyLive {
+	if payment.ClassifyKey(cfg.StripeAPIKey) == payment.KeyTest || strings.TrimSpace(cfg.StripeAPIKey) == "" {
 		return nil
 	}
 	if !cfg.SecureCookies {
-		return errors.New("GOEN_STRIPE_API_KEY is a live key, which requires secure cookies; remove GOEN_INSECURE_COOKIES")
+		return errors.New("GOEN_STRIPE_API_KEY is not a test key, so it is treated as live, which requires secure cookies; remove GOEN_INSECURE_COOKIES")
 	}
 	if err := cfg.validateLiveInvoicing(); err != nil {
 		return err
@@ -33,7 +36,7 @@ func (cfg *config) prepareProviderPosture() error {
 	if cfg.ECPayLogisticsBaseURL == "" {
 		cfg.ECPayLogisticsBaseURL = cart.MapProductionBaseURL
 	} else if namesHost(cfg.ECPayLogisticsBaseURL, cart.MapStagingBaseURL) {
-		return errors.New("GOEN_ECPAY_LOGISTICS_BASE_URL names the 綠界 staging store map beside a live GOEN_STRIPE_API_KEY")
+		return errors.New("GOEN_ECPAY_LOGISTICS_BASE_URL names the ECPay staging store map beside a live GOEN_STRIPE_API_KEY")
 	}
 	return cfg.validateLiveSender()
 }
@@ -41,7 +44,7 @@ func (cfg *config) prepareProviderPosture() error {
 func (cfg *config) validateLiveInvoicing() error {
 	if cfg.ECPayMerchantID == "" || cfg.ECPayHashKey == "" || cfg.ECPayHashIV == "" {
 		return errors.New("GOEN_ECPAY_MERCHANT_ID, GOEN_ECPAY_HASH_KEY and GOEN_ECPAY_HASH_IV " +
-			"are required beside a live GOEN_STRIPE_API_KEY: without them no 統一發票 is issued")
+			"are required beside a live GOEN_STRIPE_API_KEY: without them no e-invoice is issued")
 	}
 	// An empty URL is the staging endpoint by default.
 	if cfg.ECPayBaseURL == "" || namesHost(cfg.ECPayBaseURL, invoice.StagingBaseURL) {

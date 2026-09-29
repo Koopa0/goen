@@ -66,8 +66,10 @@ const (
 )
 
 // ClassifyKey is the one place goen reads a Stripe key's environment: the
-// sandbox notice and the startup posture check must agree on it.
+// sandbox notice and the startup posture check must agree on it. Surrounding
+// whitespace is not part of the key: a padded live key is still live.
 func ClassifyKey(apiKey string) KeyMode {
+	apiKey = strings.TrimSpace(apiKey)
 	for _, prefix := range []string{"sk_test_", "rk_test_", "rkcs_test_"} {
 		if strings.HasPrefix(apiKey, prefix) {
 			return KeyTest

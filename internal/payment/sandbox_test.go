@@ -33,6 +33,7 @@ func TestClassifyKey(t *testing.T) {
 	}{
 		{"sk_test_x", payment.KeyTest}, {"rk_test_x", payment.KeyTest}, {"rkcs_test_x", payment.KeyTest},
 		{"sk_live_x", payment.KeyLive}, {"rk_live_x", payment.KeyLive},
+		{"  sk_live_x\n", payment.KeyLive}, {"\tsk_test_x ", payment.KeyTest},
 		{"whatever", payment.KeyUnknown}, {"", payment.KeyUnknown},
 	} {
 		if got := payment.ClassifyKey(tc.key); got != tc.want {
