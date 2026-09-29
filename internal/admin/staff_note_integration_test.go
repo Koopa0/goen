@@ -3,6 +3,7 @@
 package admin_test
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -55,7 +56,8 @@ func TestStaffNoteHTTPRecordsOperationsWithoutContent(t *testing.T) {
 		}
 		var gotActor uuid.UUID
 		var at time.Time
-		var payloadEmpty bool
+		var noPrior bool
+		var after []byte
 		var count int
 		if err := pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE entity_id=$1 AND action=$2`, orderID, step.action).Scan(&count); err != nil {
 			t.Fatal(err)
@@ -63,11 +65,18 @@ func TestStaffNoteHTTPRecordsOperationsWithoutContent(t *testing.T) {
 		if count != 1 {
 			t.Fatalf("%s audit count = %d, want 1", step.action, count)
 		}
-		if err := pool.QueryRow(ctx, `SELECT actor_user_id, occurred_at, before IS NULL AND after IS NULL FROM audit_events WHERE entity_id=$1 AND action=$2`, orderID, step.action).Scan(&gotActor, &at, &payloadEmpty); err != nil {
+		if err := pool.QueryRow(ctx, `SELECT actor_user_id, occurred_at, before IS NULL, after FROM audit_events WHERE entity_id=$1 AND action=$2`, orderID, step.action).Scan(&gotActor, &at, &noPrior, &after); err != nil {
 			t.Fatal(err)
 		}
-		if gotActor != actor || at.Before(started) || !payloadEmpty {
-			t.Fatalf("note audit actor=%s time=%v content-free=%v", gotActor, at, payloadEmpty)
+		if gotActor != actor || at.Before(started) || !noPrior {
+			t.Fatalf("note audit actor=%s time=%v before-empty=%v", gotActor, at, noPrior)
+		}
+		var payload map[string]any
+		if err := json.Unmarshal(after, &payload); err != nil {
+			t.Fatal(err)
+		}
+		if len(payload) != 1 || payload["number"] != number {
+			t.Fatalf("note audit payload = %s, want only the order number %s", after, number)
 		}
 		var note string
 		if err := pool.QueryRow(ctx, `SELECT coalesce(staff_note,'') FROM orders WHERE id=$1`, orderID).Scan(&note); err != nil {
@@ -84,14 +93,35 @@ func TestStaffNoteHTTPRecordsOperationsWithoutContent(t *testing.T) {
 		for _, e := range view.Rows {
 			if e.Action == step.action && e.Actor != "" && e.At != "" {
 				found = true
-				if e.Detail != "" || e.Label(ctx) == step.action {
-					t.Errorf("audit presentation lacks translated content-free operation: %+v", e)
+				if !strings.Contains(e.Detail, number) || strings.Contains(e.Detail, step.note) && step.note != "" || e.Label(ctx) == step.action {
+					t.Errorf("audit presentation must name the order, hold no note text and be translated: %+v", e)
 				}
 			}
 		}
 		if !found {
 			t.Fatalf("audit page omitted %s", step.action)
 		}
+	}
+}
+
+func TestStaffNoteForUnknownOrderIs404WithoutAudit(t *testing.T) {
+	ctx, _ := staffContext(t)
+	h := adminHandlerOver(pool, staffNoteStore(t))
+	number := "GO-999999-999999"
+	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/orders/"+number+"/note", strings.NewReader(url.Values{"note": {"orphan"}}.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.SetPathValue("number", number)
+	w := httptest.NewRecorder()
+	h.RequireStaff(h.StaffNote)(w, req)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("note on unknown order = %d, want 404", w.Code)
+	}
+	var count int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE action LIKE 'order.note.%' AND after->>'number'=$1`, number).Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 0 {
+		t.Fatalf("unknown order left %d note audit rows", count)
 	}
 }
 

@@ -339,6 +339,10 @@ func (h *Handler) StaffNote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.store.SetStaffNote(r.Context(), number, r.PostFormValue("note")); err != nil {
+		if errors.Is(err, ErrNotFound) {
+			http.NotFound(w, r)
+			return
+		}
 		h.log.ErrorContext(r.Context(), "set staff note", "error", err)
 		h.serverError(w, r)
 		return
