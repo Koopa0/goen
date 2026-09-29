@@ -371,6 +371,25 @@ var appWritableThroughDefiner = map[string]string{
 	"store_credit_accounts": "created on first use; UPDATE is what is revoked",
 }
 
+// sharedCleanup is a verb a cleanup-only SECURITY DEFINER function performs that
+// the role's own production queries perform too, keyed role.table.VERB, with the
+// caller. The definer is not the only door here: revoking the verb would break
+// the caller, and an entry the scan never reaches fails as stale.
+var sharedCleanup = map[string]string{
+	"store.sessions.DELETE": "sign-out, a password change or reset, and the expiry sweep end sessions directly (DeleteSession, " +
+		"DeleteUserSessions, DeleteExpiredSessions); revoke_staff and secure_promoted_account end them too",
+	"admin.sessions.DELETE": "removing a staff member's TOTP ends their sessions (RemoveTOTPAndSessions); " +
+		"revoke_staff and secure_promoted_account end them too",
+	"store.outbox_messages.DELETE": "the relay sweeps delivered rows (SweepDeliveredMessages) and account " +
+		"flows drop superseded letters; erase_user drops a customer's messages",
+	"admin.outbox_messages.DELETE": "internal/outbox is on the back-office pool map and its Sweep deletes " +
+		"delivered rows; erase_user drops a customer's messages",
+	"store.order_access_grants.DELETE": "the retention sweep deletes grants nobody can present " +
+		"(DeleteOldOrderAccessGrants); erase_user deletes a customer's",
+	"store.newsletter_confirmations.DELETE": "confirming spends the token (SpendNewsletterConfirmation); " +
+		"erase_user deletes a customer's",
+}
+
 func goenAppHasTablePriv(t *testing.T, table, priv string) bool {
 	t.Helper()
 	var ok bool
@@ -395,6 +414,7 @@ func TestEveryDefinerWrittenTableIsRevoked(t *testing.T) {
 			"finding them and this test would pass on nothing", len(tables))
 	}
 
+	consulted := map[string]bool{}
 	for _, table := range tables {
 		for _, role := range []string{"store", "admin"} {
 			for _, priv := range []string{"INSERT", "UPDATE", "DELETE"} {
@@ -408,7 +428,16 @@ func TestEveryDefinerWrittenTableIsRevoked(t *testing.T) {
 					if !slices.Contains(byVerb[priv], table) {
 						continue
 					}
-					t.Errorf("unclassified definer/direct-write overlap: %s holds %s on %s; identify its caller and decide exclusive ownership or shared cleanup", role, priv, table)
+					key := role + "." + table + "." + priv
+					if why, shared := sharedCleanup[key]; shared {
+						consulted[key] = true
+						t.Logf("%s may %s %s: %s", role, priv, table, why)
+						continue
+					}
+					t.Errorf("unclassified definer/direct-write overlap: %s holds %s on %s.\n"+
+						"  Find the production caller. If the role needs the verb, name it in "+
+						"sharedCleanup with that caller; if not, revoke it and let the "+
+						"definer be the only door.", role, priv, table)
 					continue
 				}
 				// Scoped to INSERT: the exception is "created on first use", not "unguarded".
@@ -421,6 +450,12 @@ func TestEveryDefinerWrittenTableIsRevoked(t *testing.T) {
 					"makes it a convention rather than a control",
 					role, priv, table)
 			}
+		}
+	}
+	for key, why := range sharedCleanup {
+		if !consulted[key] {
+			t.Errorf("sharedCleanup has %q (%s), but no cleanup-only definer and that "+
+				"role share the verb any more. Remove the entry.", key, why)
 		}
 	}
 }
