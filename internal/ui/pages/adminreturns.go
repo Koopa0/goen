@@ -279,3 +279,37 @@ func (l AdminReturnLine) Line() string {
 
 // UnitPrice is what one of them cost.
 func (l AdminReturnLine) UnitPrice() string { return twd(l.UnitCents) }
+
+// AdminReturnConfirmation is one selected decision, before it has side effects.
+type AdminReturnConfirmation struct {
+	ID                string
+	OrderNumber       string
+	Decision          string
+	Reason            string
+	AmountCents       int64
+	Resolution        string
+	AssessmentVersion string
+	Required          bool
+	Retry             bool
+}
+
+// Title names the single operation the operator is confirming.
+func (v AdminReturnConfirmation) Title(ctx context.Context) string {
+	switch v.Decision {
+	case "rejected":
+		return i18n.T(ctx, i18n.KeyAdminRetConfirmReject)
+	case "exception":
+		return i18n.T(ctx, i18n.KeyAdminRetConfirmException)
+	default:
+		if v.Retry {
+			return i18n.T(ctx, i18n.KeyAdminRetConfirmRetry)
+		}
+		return i18n.T(ctx, i18n.KeyAdminRetConfirmApprove)
+	}
+}
+
+// Amount formats the amount currently eligible for this return.
+func (v AdminReturnConfirmation) Amount() string { return twd(v.AmountCents) }
+
+// Action returns to the same decision handler for final validation.
+func (v AdminReturnConfirmation) Action() string { return "/admin/returns/" + v.ID + "/decide" }
