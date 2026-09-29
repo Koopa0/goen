@@ -398,6 +398,30 @@ CREATE TRIGGER product_variants_set_updated_at
     BEFORE UPDATE ON product_variants
     FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
+-- Option axes and variant creation share the product lock. Otherwise an axis
+-- can pass its empty-catalogue check while another transaction adds a SKU.
+CREATE FUNCTION product_catalogue_lock() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+    PERFORM 1 FROM products WHERE id = NEW.product_id FOR NO KEY UPDATE;
+    IF TG_TABLE_NAME = 'product_options' AND EXISTS (
+        SELECT 1 FROM product_variants WHERE product_id = NEW.product_id
+    ) THEN
+        RAISE EXCEPTION 'define option axes before creating variants'
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'product_options_before_variants';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER product_options_before_variants
+    AFTER INSERT OR UPDATE OF product_id ON product_options
+    FOR EACH ROW EXECUTE FUNCTION product_catalogue_lock();
+
+CREATE TRIGGER product_variants_lock_catalogue
+    BEFORE INSERT OR UPDATE OF product_id ON product_variants
+    FOR EACH ROW EXECUTE FUNCTION product_catalogue_lock();
+
 -- An active product must have something to sell: published with no variant, its
 -- page has no price and every listing drops it. DEFERRED, because the variants
 -- are inserted after the product row they reference.
@@ -860,6 +884,25 @@ CREATE TABLE inventory_movements (
     idempotency_key text NOT NULL,
     actor_user_id   uuid REFERENCES users (id) ON DELETE SET NULL,
     created_at      timestamptz NOT NULL DEFAULT now(),
+    -- No default: a movement that names no source is refused, not filed as manual.
+    -- Manual stock has no purchasing parent; every other source names one.
+    CONSTRAINT inventory_movements_source_known CHECK (
+        source_type IS NOT NULL AND source_type IN ('admin', 'order', 'reservation', 'return_request')
+    ),
+    CONSTRAINT inventory_movements_source_paired CHECK (
+        (source_type = 'admin' AND source_id IS NULL)
+        OR (source_type IN ('order', 'reservation', 'return_request') AND source_id IS NOT NULL)
+    ),
+    -- Every row is attributable, and the reason says which source can have
+    -- produced it: a receipt cannot come from an order, a hold cannot come from
+    -- a person at a keyboard. NULL is refused by source_known, since a
+    -- CHECK passes on NULL.
+    CONSTRAINT inventory_movements_source_reason CHECK (
+        (reason IN ('receipt', 'adjustment') AND source_type = 'admin')
+        OR (reason IN ('hold', 'sale') AND source_type = 'order')
+        OR (reason = 'release' AND source_type = 'reservation')
+        OR (reason = 'return' AND source_type = 'return_request')
+    ),
     CONSTRAINT inventory_movements_delta_non_zero CHECK (delta <> 0),
     CONSTRAINT inventory_movements_reason_known CHECK (reason IN (
         'receipt',
@@ -1878,16 +1921,37 @@ CREATE TABLE order_lines (
         ON DELETE RESTRICT
 );
 
--- Legacy/admin import callers historically supplied only variant_id. Bind its
--- durable product identity before the CHECK/FK run; an explicitly supplied,
--- mismatched pair is left untouched and refused by the composite FK.
+-- A variant fixes the identity at purchase time. Either catalogue language is
+-- a valid display snapshot; later catalogue edits must not rewrite the order.
+-- Explicitly mismatched product/variant pairs remain the composite FK's rule.
 CREATE FUNCTION order_lines_bind_product() RETURNS trigger
 LANGUAGE plpgsql AS $$
+DECLARE
+    v_product_id uuid;
+    v_sku text;
+    v_name text;
+    v_name_en text;
 BEGIN
-    IF NEW.variant_id IS NOT NULL AND NEW.product_id IS NULL THEN
-        SELECT pv.product_id INTO NEW.product_id
+    IF NEW.variant_id IS NOT NULL THEN
+        SELECT pv.product_id, pv.sku, p.name, p.name_en
+        INTO v_product_id, v_sku, v_name, v_name_en
         FROM product_variants pv
+        JOIN products p ON p.id = pv.product_id
         WHERE pv.id = NEW.variant_id;
+        IF NEW.product_id IS NULL THEN
+            NEW.product_id := v_product_id;
+        END IF;
+        IF FOUND AND NEW.product_id = v_product_id THEN
+            IF NEW.sku IS DISTINCT FROM v_sku THEN
+                RAISE EXCEPTION 'order line SKU must identify its variant'
+                    USING ERRCODE = '23514', CONSTRAINT = 'order_lines_sku_matches_variant';
+            END IF;
+            IF NEW.product_name IS DISTINCT FROM v_name
+               AND NEW.product_name IS DISTINCT FROM v_name_en THEN
+                RAISE EXCEPTION 'order line name must identify its product'
+                    USING ERRCODE = '23514', CONSTRAINT = 'order_lines_name_matches_product';
+            END IF;
+        END IF;
     END IF;
     RETURN NEW;
 END;
@@ -2510,6 +2574,42 @@ CREATE TABLE return_request_lines (
 
 CREATE INDEX return_request_lines_order_line_idx ON return_request_lines (order_id, order_line_id);
 CREATE INDEX return_request_lines_order_request_idx ON return_request_lines (order_id, return_request_id);
+
+-- Polymorphic source IDs must resolve before they become append-only audit
+-- data. Reservation and return sources also identify the SKU being moved;
+-- an order source identifies the order root, independently of its line writes.
+CREATE FUNCTION inventory_movement_source_guard() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+    IF NEW.source_type = 'order' AND NEW.source_id IS NOT NULL THEN
+        PERFORM 1 FROM orders WHERE id = NEW.source_id;
+        IF NOT FOUND THEN
+            RAISE EXCEPTION 'inventory movement order source does not exist'
+                USING ERRCODE = 'check_violation', CONSTRAINT = 'inventory_movements_source_parent';
+        END IF;
+    ELSIF NEW.source_type = 'reservation' AND NEW.source_id IS NOT NULL THEN
+        PERFORM 1 FROM inventory_reservations
+        WHERE id = NEW.source_id AND variant_id = NEW.variant_id;
+        IF NOT FOUND THEN
+            RAISE EXCEPTION 'inventory movement reservation source does not match variant'
+                USING ERRCODE = 'check_violation', CONSTRAINT = 'inventory_movements_source_parent';
+        END IF;
+    ELSIF NEW.source_type = 'return_request' AND NEW.source_id IS NOT NULL THEN
+        PERFORM 1 FROM return_request_lines rl
+        JOIN order_lines ol ON ol.id = rl.order_line_id AND ol.order_id = rl.order_id
+        WHERE rl.return_request_id = NEW.source_id AND ol.variant_id = NEW.variant_id;
+        IF NOT FOUND THEN
+            RAISE EXCEPTION 'inventory movement return source does not contain variant'
+                USING ERRCODE = 'check_violation', CONSTRAINT = 'inventory_movements_source_parent';
+        END IF;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER inventory_movements_source_parent
+    BEFORE INSERT ON inventory_movements
+    FOR EACH ROW EXECUTE FUNCTION inventory_movement_source_guard();
 
 -- You cannot return what was never sent. The ceiling is the SHIPPED quantity:
 -- bounded by what was ORDERED, a customer could open a return — and, since

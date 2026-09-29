@@ -17,7 +17,7 @@ type AdminSeller struct {
 	RevenueCents int64
 }
 
-// Revenue is what it brought in.
+// Revenue formats product gross before order-level adjustments; the list labels this separately from total revenue.
 func (s AdminSeller) Revenue() string { return twd(s.RevenueCents) }
 
 // UnitsText is how many went out.

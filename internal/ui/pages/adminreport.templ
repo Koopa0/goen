@@ -75,6 +75,7 @@ templ AdminReport(p layouts.Page, v *AdminReportView) {
 				{ i18n.T(ctx, i18n.KeyAdminRepNote) }
 			</p>
 			<h2 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminRepSellers) }</h2>
+			<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminRepGrossNote) }</p>
 			if len(v.Sellers) == 0 {
 				<div class="goen-admin__empty">
 					<p class="goen-admin__emptytitle">{ i18n.T(ctx, i18n.KeyAdminRepSellersEmpty) }</p>
@@ -86,7 +87,7 @@ templ AdminReport(p layouts.Page, v *AdminReportView) {
 							<a class="goen-report__name" href={ templ.SafeURL(item.Href()) }>{ item.Name }</a>
 							<span class="goen-admin__meta">{ item.Brand }</span>
 							<span class="goen-report__num">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepUnits), item.UnitsText()) }</span>
-							<span class="goen-report__num">{ item.Revenue() }</span>
+							<span class="goen-report__num">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepGross), item.Revenue()) }</span>
 						</li>
 					}
 				</ul>
