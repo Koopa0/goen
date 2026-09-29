@@ -1529,21 +1529,26 @@ async function proveCheckoutRequestFeedback(label) {
     const done = new Promise(resolve => { finish = resolve; });
     const source = choice.closest('[hx-post]');
     if (!source) { window.fetch = originalFetch; return { ok: false, why: 'choice has no request source' }; }
+    let watched;
     const watchRequest = (event) => {
       const ctx = event.detail?.ctx;
       if (ctx?.request?.form !== form || (ctx.sourceElement !== source && !source.contains(ctx.sourceElement))) return;
-      ctx.sourceElement.addEventListener('htmx:finally:request', () => finish(), { once: true });
+      watched = ctx;
     };
+    // On document: the source is detached by the swap before it could hear this.
+    const watchFinish = (event) => { if (watched && event.detail?.ctx === watched) finish(); };
     document.addEventListener('htmx:before:request', watchRequest);
+    document.addEventListener('htmx:finally:request', watchFinish);
     try {
       choice.click();
       await Promise.race([issued, new Promise((_, reject) => setTimeout(() => reject(new Error('checkout request did not start')), 5000))]);
       const busy = form.getAttribute('aria-busy') === 'true' && !!form.querySelector('[aria-disabled="true"]');
       release();
       await Promise.race([done, new Promise((_, reject) => setTimeout(() => reject(new Error('checkout request did not finish')), 15000))]);
-      const cleared = !document.querySelector('form[data-request-pending]');
+      // The original form: the swap replaces it, and the copy in the page is not the one that was held.
+      const cleared = !form.hasAttribute('data-request-pending') && form.getAttribute('aria-busy') !== 'true' && !form.querySelector('[aria-disabled="true"]');
       return { ok: busy && cleared, busy, cleared };
-    } finally { release(); document.removeEventListener('htmx:before:request', watchRequest); window.fetch = originalFetch; }
+    } finally { release(); document.removeEventListener('htmx:before:request', watchRequest); document.removeEventListener('htmx:finally:request', watchFinish); window.fetch = originalFetch; }
   })()`);
   if (!result.ok) fail(label, 'request feedback: ' + JSON.stringify(result));
 }
