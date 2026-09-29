@@ -18,7 +18,8 @@ func (h *Handler) checkMobileCarrier(w http.ResponseWriter, r *http.Request, car
 	if !submission.invoice.Type.NeedsCarrier() || h.carriers == nil {
 		return true
 	}
-	var view *pages.CheckoutView = &submission.view
+	var view *pages.CheckoutView
+	view = &submission.view
 	for _, key := range []string{"cart:" + cartID.String(), "ip:" + ratelimit.ClientIP(r)} {
 		if _, ok := h.carrierLimit.Allow(key); !ok {
 			view.CarrierCheckNotice = i18n.T(r.Context(), i18n.KeyCarrierCheckLimited)
