@@ -36,11 +36,19 @@ type AdminCreditView struct {
 	Amount string
 	// OperationID identifies one rendered grant form across HTTP retries. It is
 	// deliberately separate from the per-request log correlation id.
-	OperationID string
+	OperationID   string
+	Confirm       bool
+	EmailInvalid  bool
+	AmountInvalid bool
+	ReasonInvalid bool
+	GrantCents    int64
+	CustomerID    string
+	CustomerName  string
+	BalanceCents  int64
 }
 
 // Empty reports whether the ledger has nothing in it yet.
-func (v AdminCreditView) Empty() bool { return len(v.Rows) == 0 }
+func (v *AdminCreditView) Empty() bool { return len(v.Rows) == 0 }
 
 // Who is the account the posting went to, or a note that it has been erased.
 func (e AdminCreditEntry) Who(ctx context.Context) string {
@@ -49,3 +57,9 @@ func (e AdminCreditEntry) Who(ctx context.Context) string {
 	}
 	return e.Email
 }
+
+// Balance is the balance read for the confirmation page.
+func (v *AdminCreditView) Balance() string { return twd(v.BalanceCents) }
+
+// GrantAmount formats the reviewed amount in the shop currency.
+func (v *AdminCreditView) GrantAmount() string { return twd(v.GrantCents) }

@@ -184,6 +184,11 @@ WHERE p.status = 'active'
        OR coalesce(p.summary_en, '') ILIKE @pattern::text
        OR b.name ILIKE @pattern::text
        OR EXISTS (
+           SELECT 1 FROM product_variants sku_match
+           WHERE sku_match.product_id = p.id AND sku_match.is_active
+             AND sku_match.sku ILIKE @pattern::text
+       )
+       OR EXISTS (
            SELECT 1 FROM product_specs ps
            WHERE ps.product_id = p.id
              AND (ps.label ILIKE @pattern::text
@@ -192,8 +197,25 @@ WHERE p.status = 'active'
                   OR coalesce(ps.value_en, '') ILIKE @pattern::text)
        ))
 ORDER BY
-    -- A name match outranks a summary or brand match. Either name counts.
-    (p.name ILIKE @pattern::text OR coalesce(p.name_en, '') ILIKE @pattern::text) DESC,
+    -- Field relevance is explicit; repeated words, sales and ratings do not change it.
+    -- A complete variant SKU leads; a partial SKU follows a partial name match.
+    CASE
+        WHEN EXISTS (
+            SELECT 1 FROM product_variants exact_sku
+            WHERE exact_sku.product_id = p.id AND exact_sku.is_active
+              AND exact_sku.sku ILIKE @exact_pattern::text
+        ) THEN 6
+        WHEN p.name ILIKE @exact_pattern::text OR coalesce(p.name_en, '') ILIKE @exact_pattern::text THEN 5
+        WHEN p.name ILIKE @pattern::text OR coalesce(p.name_en, '') ILIKE @pattern::text THEN 4
+        WHEN EXISTS (
+            SELECT 1 FROM product_variants partial_sku
+            WHERE partial_sku.product_id = p.id AND partial_sku.is_active
+              AND partial_sku.sku ILIKE @pattern::text
+        ) THEN 3
+        WHEN b.name ILIKE @pattern::text THEN 2
+        WHEN coalesce(p.summary, '') ILIKE @pattern::text OR coalesce(p.summary_en, '') ILIKE @pattern::text THEN 1
+        ELSE 0
+    END DESC,
     p.published_at DESC, p.id DESC
 LIMIT @page_size::integer OFFSET @page_offset::integer;
 
@@ -208,6 +230,11 @@ WHERE p.status = 'active'
        OR coalesce(p.summary, '') ILIKE @pattern::text
        OR coalesce(p.summary_en, '') ILIKE @pattern::text
        OR b.name ILIKE @pattern::text
+       OR EXISTS (
+           SELECT 1 FROM product_variants sku_match
+           WHERE sku_match.product_id = p.id AND sku_match.is_active
+             AND sku_match.sku ILIKE @pattern::text
+       )
        OR EXISTS (
            SELECT 1 FROM product_specs ps
            WHERE ps.product_id = p.id
@@ -338,8 +365,12 @@ SELECT c.id, c.slug, localized_name(c.title, c.title_en, @locale::text) AS title
        (SELECT count(*) FROM sale_campaign_products p WHERE p.campaign_id = c.id)::bigint AS products
 FROM sale_campaigns c
 WHERE c.is_active AND c.starts_at <= now() AND c.ends_at > now()
-ORDER BY c.ends_at
-LIMIT $1;
+ORDER BY c.ends_at, c.id
+LIMIT @page_size::integer OFFSET @page_offset::integer;
+
+-- name: RunningCampaignsCount :one
+SELECT count(*)::bigint FROM sale_campaigns
+WHERE is_active AND starts_at <= now() AND ends_at > now();
 
 -- Ordered by the position the back office set: a campaign is merchandising.
 -- name: CampaignProducts :many

@@ -1,6 +1,8 @@
 package i18n
 
 var (
+	KeyStaffAlreadyExists = key("staff.alreadyexists", Message{ZhHant: "這個信箱已經是員工或管理員，未新增人員。原有姓名、角色與登入狀態均未變更。", En: "This email already belongs to a staff member or administrator. Nobody was added; their name, role and sign-ins are unchanged."})
+
 	KeyAdminColPerson = key("admin.col.person", Message{ZhHant: "人員", En: "Person"})
 
 	KeyAdminColRole = key("admin.col.role", Message{ZhHant: "角色", En: "Role"})
@@ -76,4 +78,13 @@ var (
 	KeyAdminStaffName = key("admin.staff.name", Message{ZhHant: "姓名(選填)", En: "Name (optional)"})
 
 	KeyAdminAddButton = key("admin.add.button", Message{ZhHant: "新增", En: "Add"})
+)
+
+var (
+	KeyMailStaffInvitationSubject = key("mail.staff.invitation.subject", Message{ZhHant: "你已獲邀使用 goen 後台", En: "You have been invited to the goen back office"})
+	KeyMailStaffInvitationBody    = key("mail.staff.invitation.body", Message{
+		ZhHant: "管理員已為你開通 goen 後台權限。\n\n請用下面的連結,以這個信箱透過「忘記密碼」設定或重設密碼:\n%s\n\n登入後台時,系統會請你輸入兩階段驗證碼;如果你還沒有設定,畫面會引導你完成。",
+		En: "An administrator has granted you back-office access.\n\nUse this link to set or reset your password with Forgot password, using this email address:\n%s\n\n" +
+			"When you sign in to the back office you will be asked for your two-factor code, or shown how to set one up if you do not have one yet.",
+	})
 )

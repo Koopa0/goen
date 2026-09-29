@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"strings"
 	"unicode/utf8"
 
@@ -12,9 +13,11 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
+	"github.com/koopa0/goen/internal/ordernotice"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/pickup"
 	"github.com/koopa0/goen/internal/shoptime"
@@ -129,8 +132,10 @@ func orderRow(ctx context.Context, o *db.AdminOrdersRow) pages.AdminOrderRow {
 }
 
 // Orders reads the order queue.
-func (s *Store) Orders(ctx context.Context, status pages.FulfillmentStatus, term string) (pages.AdminOrdersView, error) {
+func (s *Store) Orders(ctx context.Context, status pages.FulfillmentStatus, term string, after ...string) (pages.AdminOrdersView, error) {
 	term = strings.TrimSpace(term)
+	scope := web.ScopeURL("/admin/orders", "q", term, "status", string(status))
+	cursor := readPageCursor(scope, after)
 	searched := utf8.RuneCountInString(term) >= MinSearchRunes
 	var rows []db.AdminOrdersRow
 	var err error
@@ -138,14 +143,14 @@ func (s *Store) Orders(ctx context.Context, status pages.FulfillmentStatus, term
 		// A search ignores the status filter: somebody on the phone wants that
 		// order, not that order if it is in the tab they had open.
 		var found []db.AdminSearchOrdersRow
-		if found, err = s.q.AdminSearchOrders(ctx, db.AdminSearchOrdersParams{
+		if found, err = s.q.AdminSearchOrders(ctx, db.AdminSearchOrdersParams{HasCursor: cursor.Valid, AfterAt: cursor.At, AfterID: cursor.ID,
 			Term: term, RowLimit: PageLimit,
 		}); err == nil {
 			rows = make([]db.AdminOrdersRow, 0, len(found))
 			for i := range found {
 				f := &found[i]
 				rows = append(rows, db.AdminOrdersRow{
-					ID: f.ID, OrderNumber: f.OrderNumber,
+					PageCursor: f.PageCursor, ID: f.ID, OrderNumber: f.OrderNumber,
 					FulfillmentStatus: f.FulfillmentStatus, PlacedAt: f.PlacedAt,
 					ShippingCents: f.ShippingCents, DiscountCents: f.DiscountCents,
 					TaxCents: f.TaxCents, Recipient: f.Recipient,
@@ -154,7 +159,7 @@ func (s *Store) Orders(ctx context.Context, status pages.FulfillmentStatus, term
 			}
 		}
 	} else {
-		rows, err = s.q.AdminOrders(ctx, db.AdminOrdersParams{Status: string(status), RowLimit: PageLimit})
+		rows, err = s.q.AdminOrders(ctx, db.AdminOrdersParams{HasCursor: cursor.Valid, AfterAt: cursor.At, AfterID: cursor.ID, Status: string(status), RowLimit: PageLimit})
 	}
 	if err != nil {
 		return pages.AdminOrdersView{}, fmt.Errorf("read orders: %w", err)
@@ -168,9 +173,9 @@ func (s *Store) Orders(ctx context.Context, status pages.FulfillmentStatus, term
 	// here rather than in each of them. The tab counts above come from
 	// AdminOrderCounts and not from len(rows), so the extra row was never in
 	// them to begin with.
-	rows, more := pageOf(rows, PageSize)
+	rows, bound := pageBound(cursor, scope, rows, PageSize, func(r *db.AdminOrdersRow) string { return r.PageCursor })
 	view := pages.AdminOrdersView{
-		ListBound: pages.Bound(more, PageSize),
+		ListBound: bound,
 		Status:    status, Term: term, Searched: searched,
 	}
 	countsByStatus := make(map[pages.FulfillmentStatus]int64, len(counts))
@@ -311,7 +316,7 @@ func (s *Store) Advance(ctx context.Context, number string, status pages.Fulfill
 	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
 	q := s.q.WithTx(tx)
 
-	row, err := q.OrderIDByNumber(ctx, number)
+	row, err := q.LockOrderForAdvance(ctx, number)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrRefused, err)
 	}
@@ -320,7 +325,7 @@ func (s *Store) Advance(ctx context.Context, number string, status pages.Fulfill
 	}); advanceErr != nil {
 		return nil, fmt.Errorf("%w: %w", ErrRefused, advanceErr)
 	}
-	// AdvanceOrder's UPDATE owns the aggregate row before this snapshot. If an
+	// LockOrderForAdvance owns the aggregate row before this snapshot. If an
 	// expiry release won the order lock first, we now see no held row; if this
 	// transition won, that release waits behind us. A pre-lock snapshot can go
 	// stale and make an otherwise valid cancellation roll back.
@@ -331,7 +336,7 @@ func (s *Store) Advance(ctx context.Context, number string, status pages.Fulfill
 		}
 	}
 	if err := applyStatusEffects(ctx, q, statusEffect{
-		status: status, number: number, orderID: row.ID, held: held,
+		status: status, previous: pages.FulfillmentStatus(row.FulfillmentStatus), number: number, orderID: row.ID, held: held,
 	}); err != nil {
 		return nil, err
 	}
@@ -364,9 +369,10 @@ func (s *Store) Advance(ctx context.Context, number string, status pages.Fulfill
 
 // statusEffect is one status move and what it has to reach.
 type statusEffect struct {
-	status  pages.FulfillmentStatus
-	number  string
-	orderID uuid.UUID
+	status   pages.FulfillmentStatus
+	previous pages.FulfillmentStatus
+	number   string
+	orderID  uuid.UUID
 	// held is the order's live reservations, read after the status UPDATE took
 	// the aggregate lock.
 	held []uuid.UUID
@@ -407,7 +413,37 @@ func applyStatusEffects(ctx context.Context, q *db.Queries, e statusEffect) erro
 			return fmt.Errorf("mark parcels of %s delivered: %w", e.number, err)
 		}
 	}
-	return nil
+	return enqueueStatusNotice(ctx, q, e)
+}
+
+func enqueueStatusNotice(ctx context.Context, q *db.Queries, e statusEffect) error {
+	switch e.status {
+	case pages.FulfillmentCancelled:
+		return ordernotice.Enqueue(ctx, q, e.orderID, ordernotice.CancelledByStaff)
+	case pages.FulfillmentDelivered, pages.FulfillmentCompleted:
+		row, err := q.OrderDestinationKind(ctx, e.number)
+		if err != nil {
+			return fmt.Errorf("read terminal order destination: %w", err)
+		}
+		to, ok := cart.DestinationFor(row.DestinationKind)
+		if !ok {
+			return fmt.Errorf("order %s ships by a method with an unknown destination %q",
+				e.number, row.DestinationKind)
+		}
+		kind := ordernotice.Delivered
+		if to == cart.ToPickupPoint {
+			if e.status != pages.FulfillmentCompleted {
+				return nil
+			}
+			kind = ordernotice.Collected
+		} else if e.previous == pages.FulfillmentDelivered {
+			// Completion adds no new arrival, even after outbox retention.
+			return nil
+		}
+		return ordernotice.Enqueue(ctx, q, e.orderID, kind)
+	default:
+		return nil
+	}
 }
 
 // eventKindFor maps a fulfilment status to its order_events kind. The two
@@ -676,22 +712,57 @@ func packParcel(
 // SetStaffNote records an internal note. erase_user clears customer_note and
 // leaves this, so it must never hold anything the customer wrote.
 func (s *Store) SetStaffNote(ctx context.Context, number, note string) error {
-	if err := s.q.SetStaffNote(ctx, db.SetStaffNoteParams{
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin order note: %w", err)
+	}
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
+	q := s.q.WithTx(tx)
+	prior, err := q.LockOrderForStaffNote(ctx, number)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("lock order note: %w", err)
+	}
+	if prior.StaffNote.String == note {
+		return nil
+	}
+	action := actionReplaceOrderNote
+	if note == "" {
+		action = actionClearOrderNote
+	} else if prior.StaffNote.String == "" {
+		action = actionCreateOrderNote
+	}
+	if err := q.SetStaffNote(ctx, db.SetStaffNoteParams{
 		OrderNumber: number, StaffNote: text(note),
 	}); err != nil {
 		return fmt.Errorf("set staff note: %w", err)
+	}
+	// The append-only trail outlives erasure, so it records the operation and
+	// order number without retaining another copy of the note.
+	if err := auditIn(ctx, q, Event{Action: action, Table: "orders", ID: nullableID(prior.ID), After: map[string]any{"number": number}}); err != nil {
+		return err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit order note: %w", err)
 	}
 	return nil
 }
 
 // Variants reads the stock list.
-func (s *Store) Variants(ctx context.Context, lowOnly bool) (pages.AdminVariantsView, error) {
-	rows, err := s.q.AdminVariants(ctx, db.AdminVariantsParams{LowOnly: lowOnly, RowLimit: PageLimit})
+func (s *Store) Variants(ctx context.Context, lowOnly bool, after ...string) (pages.AdminVariantsView, error) {
+	scope := "/admin/stock"
+	if lowOnly {
+		scope = web.ScopeURL(scope, "low", "1")
+	}
+	cursor := readPageCursor(scope, after)
+	rows, err := s.q.AdminVariants(ctx, db.AdminVariantsParams{HasCursor: cursor.Valid, AfterNumber: cursor.Number, AfterName: cursor.Name, AfterPosition: cursor.Position, AfterID: cursor.ID, LowOnly: lowOnly, RowLimit: PageLimit})
 	if err != nil {
 		return pages.AdminVariantsView{}, fmt.Errorf("read variants: %w", err)
 	}
-	rows, more := pageOf(rows, PageSize)
-	view := pages.AdminVariantsView{ListBound: pages.Bound(more, PageSize), LowOnly: lowOnly}
+	rows, bound := pageBound(cursor, scope, rows, PageSize, func(r *db.AdminVariantsRow) string { return r.PageCursor })
+	view := pages.AdminVariantsView{ListBound: bound, LowOnly: lowOnly}
 	for i := range rows {
 		view.Variants = append(view.Variants, variantRow(&rows[i]))
 	}
@@ -837,9 +908,9 @@ func text(s string) pgtype.Text {
 // GrantCredit puts store credit on a customer's account. The amount is in cents
 // and must be positive: a correction is its own posting with its own reason, so
 // the ledger reads as a history rather than a figure somebody edited.
-func (s *Store) GrantCredit(ctx context.Context, email string, amountCents int64, reason string, operationID uuid.UUID) (balanceCents int64, err error) {
-	email, reason = strings.TrimSpace(email), strings.TrimSpace(reason)
-	if email == "" || reason == "" || utf8.RuneCountInString(reason) > MaxCreditReasonRunes || amountCents <= 0 || operationID == uuid.Nil {
+func (s *Store) GrantCredit(ctx context.Context, customerID uuid.UUID, amountCents int64, reason string, operationID uuid.UUID) (balanceCents int64, err error) {
+	reason = strings.TrimSpace(reason)
+	if customerID == uuid.Nil || reason == "" || utf8.RuneCountInString(reason) > MaxCreditReasonRunes || amountCents <= 0 || operationID == uuid.Nil {
 		return 0, ErrInvalid
 	}
 	if amountCents > MaxCreditGrant {
@@ -853,13 +924,9 @@ func (s *Store) GrantCredit(ctx context.Context, email string, amountCents int64
 	if !ok {
 		return 0, ErrNoActor
 	}
-	user, err := s.q.CustomerByEmail(ctx, email)
-	if err != nil {
-		return 0, fmt.Errorf("%w: no customer for %s", ErrRefused, email)
-	}
 
 	event := Event{
-		Action: actionGrantCredit, Table: "store_credit_entries", ID: nullableID(user.ID),
+		Action: actionGrantCredit, Table: "store_credit_entries", ID: nullableID(customerID),
 		// The customer is named by ID and never by address: audit_events is
 		// append-only and erase_user does not reach it, so an email written here
 		// would outlive the erasure meant to remove it.
@@ -873,7 +940,7 @@ func (s *Store) GrantCredit(ctx context.Context, email string, amountCents int64
 	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
 	q := s.q.WithTx(tx)
 	entryID, err := q.PostStoreCredit(ctx, db.PostStoreCreditParams{
-		UserID: user.ID, AmountCents: amountCents, Reason: reason,
+		UserID: customerID, AmountCents: amountCents, Reason: reason,
 		ActorUserID: actorID, OperationID: operationID,
 	})
 	if err != nil {
@@ -888,7 +955,7 @@ func (s *Store) GrantCredit(ctx context.Context, email string, amountCents int64
 	}
 	// Read INSIDE the same transaction, so the number shown is the one this grant
 	// produced and not one a concurrent spend moved.
-	balanceCents, err = q.CreditBalance(ctx, uuid.NullUUID{UUID: user.ID, Valid: true})
+	balanceCents, err = q.CreditBalance(ctx, uuid.NullUUID{UUID: customerID, Valid: true})
 	if err != nil {
 		return 0, fmt.Errorf("read credit balance: %w", err)
 	}
@@ -899,13 +966,15 @@ func (s *Store) GrantCredit(ctx context.Context, email string, amountCents int64
 }
 
 // Credit reads the recent ledger for the back office.
-func (s *Store) Credit(ctx context.Context) (pages.AdminCreditView, error) {
-	rows, err := s.q.RecentCredit(ctx, PageLimit)
+func (s *Store) Credit(ctx context.Context, after ...string) (pages.AdminCreditView, error) {
+	scope := "/admin/credit"
+	cursor := readPageCursor(scope, after)
+	rows, err := s.q.RecentCredit(ctx, db.RecentCreditParams{HasCursor: cursor.Valid, AfterAt: cursor.At, AfterID: cursor.ID, RowLimit: PageLimit})
 	if err != nil {
 		return pages.AdminCreditView{}, fmt.Errorf("read credit ledger: %w", err)
 	}
-	rows, more := pageOf(rows, PageSize)
-	view := pages.AdminCreditView{ListBound: pages.Bound(more, PageSize)}
+	rows, bound := pageBound(cursor, scope, rows, PageSize, func(r *db.RecentCreditRow) string { return r.PageCursor })
+	view := pages.AdminCreditView{ListBound: bound}
 	for i := range rows {
 		r := &rows[i]
 		view.Rows = append(view.Rows, pages.AdminCreditEntry{
@@ -932,7 +1001,9 @@ const MovementPageSize = 50
 
 // Movements reads one variant's stock ledger: which sale, which return, which
 // hand adjustment, and by whom.
-func (s *Store) Movements(ctx context.Context, sku string) (pages.AdminMovementsView, error) {
+func (s *Store) Movements(ctx context.Context, sku string, after ...string) (pages.AdminMovementsView, error) {
+	scope := "/admin/stock/" + url.PathEscape(sku)
+	cursor := readPageCursor(scope, after)
 	v, err := s.q.AdminVariantBySKU(ctx, sku)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -940,7 +1011,7 @@ func (s *Store) Movements(ctx context.Context, sku string) (pages.AdminMovements
 		}
 		return pages.AdminMovementsView{}, fmt.Errorf("read variant %s: %w", sku, err)
 	}
-	rows, err := s.q.VariantMovements(ctx, db.VariantMovementsParams{
+	rows, err := s.q.VariantMovements(ctx, db.VariantMovementsParams{HasCursor: cursor.Valid, AfterID: cursor.ID,
 		SKU: sku, RowLimit: MovementPageSize + 1,
 	})
 	if err != nil {
@@ -948,9 +1019,9 @@ func (s *Store) Movements(ctx context.Context, sku string) (pages.AdminMovements
 	}
 
 	// This list has its own size, so it names its own rather than PageSize.
-	rows, more := pageOf(rows, MovementPageSize)
+	rows, bound := pageBound(cursor, scope, rows, MovementPageSize, func(r *db.VariantMovementsRow) string { return r.PageCursor })
 	view := pages.AdminMovementsView{
-		ListBound: pages.Bound(more, MovementPageSize),
+		ListBound: bound,
 		SKU:       v.SKU, ProductName: v.ProductName, Slug: v.Slug,
 		Stock: v.StockQuantity, Safety: v.SafetyStock,
 		Rows: make([]pages.AdminMovement, 0, len(rows)),

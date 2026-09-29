@@ -1512,6 +1512,94 @@ const CART_PROBE = `(() => {
   };
 })()`;
 
+// Hold one real checkout update at the fetch boundary, inspect its pending
+// state, then release it and require the same request to settle successfully.
+async function proveCheckoutRequestFeedback(label) {
+  const result = await evalPage(`(async () => {
+    const choice = document.querySelector('input[name="shipping"]:not(:checked)');
+    const form = choice?.form;
+    if (!choice || !form) return { ok: false, why: 'no alternate shipping choice' };
+    const originalFetch = window.fetch;
+    let release;
+    const held = new Promise(resolve => { release = resolve; });
+    let started;
+    const issued = new Promise(resolve => { started = resolve; });
+    window.fetch = async (...args) => { started(); await held; return originalFetch(...args); };
+    let finish;
+    const done = new Promise(resolve => { finish = resolve; });
+    const source = choice.closest('[hx-post]');
+    if (!source) { window.fetch = originalFetch; return { ok: false, why: 'choice has no request source' }; }
+    let watched;
+    const watchRequest = (event) => {
+      const ctx = event.detail?.ctx;
+      if (ctx?.request?.form !== form || (ctx.sourceElement !== source && !source.contains(ctx.sourceElement))) return;
+      watched = ctx;
+    };
+    // On document: the source is detached by the swap before it could hear this.
+    const watchFinish = (event) => { if (watched && event.detail?.ctx === watched) finish(); };
+    document.addEventListener('htmx:before:request', watchRequest);
+    document.addEventListener('htmx:finally:request', watchFinish);
+    try {
+      choice.click();
+      await Promise.race([issued, new Promise((_, reject) => setTimeout(() => reject(new Error('checkout request did not start')), 5000))]);
+      const busy = form.getAttribute('aria-busy') === 'true' && !!form.querySelector('[aria-disabled="true"]');
+      release();
+      await Promise.race([done, new Promise((_, reject) => setTimeout(() => reject(new Error('checkout request did not finish')), 15000))]);
+      // The original form: the swap replaces it, and the copy in the page is not the one that was held.
+      const cleared = !form.hasAttribute('data-request-pending') && form.getAttribute('aria-busy') !== 'true' && !form.querySelector('[aria-disabled="true"]');
+      return { ok: busy && cleared, busy, cleared };
+    } finally { release(); document.removeEventListener('htmx:before:request', watchRequest); document.removeEventListener('htmx:finally:request', watchFinish); window.fetch = originalFetch; }
+  })()`);
+  if (!result.ok) fail(label, 'request feedback: ' + JSON.stringify(result));
+}
+
+// Exercise the checkout's actual inputs: native validity and the blur feedback
+// must agree before an order can leave this form.
+async function checkoutConstraintFeedback(label) {
+  const initial = await evalPage(`(() => {
+    const field = document.getElementById('postal_code');
+    const message = document.getElementById('postal_code-error');
+    if (!field || !message) return { ok: false };
+    field.focus();
+    field.select();
+    return { ok: true, hidden: getComputedStyle(message).display === 'none' };
+  })()`);
+  if (!initial.ok || !initial.hidden) {
+    fail(label, 'checkout postal constraint feedback is missing or starts visible');
+    return;
+  }
+  await send(ws, 'Input.insertText', { text: 'abc' });
+  await send(ws, 'Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
+  await send(ws, 'Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
+  const checked = await evalPage(`(() => {
+    const field = document.getElementById('postal_code');
+    const message = document.getElementById('postal_code-error');
+    const refused = !field.validity.valid && field.getAttribute('aria-invalid') === 'true' && getComputedStyle(message).display !== 'none';
+    field.value = '001';
+    field.dispatchEvent(new Event('input', { bubbles: true }));
+    const recovered = field.validity.valid && field.getAttribute('aria-invalid') !== 'true' && getComputedStyle(message).display === 'none';
+    field.value = '110 ';
+    const trailingSpace = field.validity.valid;
+    const lengths = ['city', 'district'].every(id => {
+      const input = document.getElementById(id);
+      if (!input) return false;
+      const saved = input.value;
+      input.value = String.fromCodePoint(0x20000).repeat(20);
+      const twenty = input.validity.valid;
+      input.value += ' ';
+      const padded = input.validity.valid;
+      input.value = String.fromCodePoint(0x20000).repeat(21);
+      const twentyOne = input.validity.valid;
+      input.value = saved;
+      return twenty && padded && !twentyOne;
+    });
+    return { ok: true, refused, recovered, trailingSpace, lengths };
+  })()`);
+  if (!checked.ok || !checked.refused || !checked.recovered || !checked.trailingSpace || !checked.lengths) {
+    fail(label, 'checkout constraints failed: ' + JSON.stringify(checked));
+  }
+}
+
 for (const want of [...CART, ...PAGES]) {
   await send(ws, 'Emulation.setDeviceMetricsOverride', {
     width: want.width, height: want.height, deviceScaleFactor: 1, mobile: want.width < 768,
@@ -1547,7 +1635,39 @@ for (const want of [...CART, ...PAGES]) {
   }
   console.log(`${at.padEnd(16)} scrollW=${got.scrollWidth}/${got.viewportWidth} ` +
     `controls=${got.controls} tap=${got.minTap}`);
+  if (want.path === '/checkout') await checkoutConstraintFeedback(at);
+  if (want.path === '/checkout') await proveCheckoutRequestFeedback(at);
 }
+
+// The served transition rules must honor reduced motion, including pseudo-
+// elements and native details content that the global element override misses.
+for (const motion of ['no-preference', 'reduce']) {
+  await send(ws, 'Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: motion }] });
+  await send(ws, 'Emulation.setDeviceMetricsOverride', { width: 375, height: 812, deviceScaleFactor: 1, mobile: true });
+  await send(ws, 'Page.navigate', { url: ORIGIN + '/' });
+  await settled(ws, 'motion ' + motion, ORIGIN + '/');
+  const checked = await evalPage(`(async () => {
+    const menu = document.querySelector('[data-menu]');
+    if (!menu) return { ok: false, why: 'missing native menu' };
+    menu.querySelector('summary').click();
+    const duration = getComputedStyle(menu, '::details-content').transitionDuration;
+    if (!document.startViewTransition) return { ok: true, supported: false, duration };
+    const transition = document.startViewTransition(() => { document.body.dataset.motionProbe = 'changed'; });
+    await transition.ready;
+    const animation = getComputedStyle(document.documentElement, '::view-transition-new(root)').animationName;
+    transition.skipTransition();
+    await transition.finished;
+    return { ok: true, supported: true, animation, duration };
+  })()`);
+  if (!checked.ok) fail('motion ' + motion, JSON.stringify(checked));
+  if (checked.supported && (motion === 'reduce' ? checked.animation !== 'none' : checked.animation === 'none')) fail('motion ' + motion, 'transition animation = ' + checked.animation);
+  if (motion === 'reduce' && checked.duration !== '0s') fail('motion reduce', 'menu still transitions: ' + checked.duration);
+  await send(ws, 'Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+  await send(ws, 'Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+  const closed = await evalPage(`(() => { const menu = document.querySelector('[data-menu]'); return !menu.open && document.activeElement === menu.querySelector('summary'); })()`);
+  if (closed !== true) fail('motion ' + motion, 'Escape did not close the menu and return focus');
+}
+await send(ws, 'Emulation.setEmulatedMedia', { features: [] });
 
 // The comparison table. CART_PROBE's marker-only check is not enough: the
 // wrapper is present on the empty state, and the table's job is to scroll
@@ -2323,7 +2443,22 @@ const provePdpAdd = async (label, scriptingOff) => {
       return { ok: false, why: 'add-to-cart is not ready before submit' };
     }
     add.scrollIntoView({ block: 'center', behavior: 'instant' });
-    form.requestSubmit();
+    // With script, press twice in the same tick: the second request queues
+    // behind the first, and the first response swaps this form out of the page.
+    // Exactly one POST may leave, or a double press adds the product twice.
+    window.__pdpAddPosts = 0;
+    if (!${scriptingOff}) {
+      const originalFetch = window.fetch;
+      window.fetch = (input, init) => {
+        const method = String((init && init.method) || (input && input.method) || 'GET').toUpperCase();
+        if (method === 'POST') window.__pdpAddPosts += 1;
+        return originalFetch.call(window, input, init);
+      };
+      form.requestSubmit();
+      form.requestSubmit();
+    } else {
+      form.requestSubmit();
+    }
     return { ok: true };
   })()`);
   if (submit.threw || !submit.ok) {
@@ -2363,6 +2498,14 @@ const provePdpAdd = async (label, scriptingOff) => {
   if (got.threw) {
     fail(label, `post-add probe did not run — ${got.why}`);
     return;
+  }
+  if (!scriptingOff) {
+    // Let a wrongly issued second request reach the wrapper before counting.
+    await new Promise((r) => setTimeout(r, 500));
+    const posts = await evalPage('window.__pdpAddPosts');
+    if (posts.threw || posts !== 1) {
+      fail(label, `two quick add-to-cart presses sent ${posts.threw ? posts.why : posts} POSTs, want exactly 1`);
+    }
   }
   if (got.addDisabled) {
     fail(label, 'add-to-cart is disabled after a successful add');
