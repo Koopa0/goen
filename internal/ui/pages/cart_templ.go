@@ -2793,7 +2793,7 @@ func pickupStore(v *CheckoutView) templ.Component {
 			templ_7745c5c3_Var149 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		if v.OffersTheStoreMap() || v.HasPickupStore() || v.PickupRefused {
+		if v.OffersTheStoreMap() || v.HasPickupStore() || v.PickupRefused || v.HasErr("pickup_store") {
 			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 221, "<div class=\"goen-pickup\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
