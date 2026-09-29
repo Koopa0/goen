@@ -7219,3 +7219,47 @@ h4,
 [data-checkout-constraint]:user-invalid {
   border-color: var(--error);
 }
+
+/* A staff member prints the order page as the packing slip: recipient, where it
+   goes, and what is in the box. The page's own figures stay as they are; only
+   the back office around them and the controls that change the order go. A card
+   that holds a form is an action, not part of the slip, so it goes whole. */
+@page {
+  margin: 12mm;
+  size: A4;
+}
+
+@media print {
+  .goen-skip,
+  .goen-adminbar,
+  .goen-admin__nav,
+  .goen-adminfoot,
+  .ui-crumbs,
+  .ui-alert,
+  .goen-admin__op:has(form),
+  .goen-admin__op form,
+  .goen-admin__op .ui-btn {
+    display: none;
+  }
+
+  .goen-shell {
+    min-height: 0;
+  }
+
+  .goen-admin,
+  .goen-admin__layout {
+    display: block;
+    padding: 0;
+  }
+
+  .goen-admin__op,
+  .goen-admin__ordersummary {
+    break-inside: avoid;
+    margin-bottom: 12px;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--fg);
+  }
+}
