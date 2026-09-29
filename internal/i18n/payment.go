@@ -1,6 +1,11 @@
 package i18n
 
 var (
+	KeyPaySandbox = key("pay.sandbox", Message{
+		ZhHant: "這是 Stripe 測試付款,不會收取真實款項。請勿輸入真實卡號;請使用測試卡 4242 4242 4242 4242、任意未來到期日與任意 3 位數安全碼。",
+		En:     "This is a Stripe test payment; no real money is charged. Do not enter a real card. Use test card 4242 4242 4242 4242, any future expiry date and any three-digit CVC.",
+	})
+
 	KeyPayEyebrow = key("pay.eyebrow", Message{ZhHant: "完成付款", En: "Complete payment"})
 
 	KeyPayBody = key("pay.body", Message{
