@@ -396,7 +396,7 @@ func cacheRecoveryArtifact(t *testing.T, scenario string) map[string]any {
 			t.Errorf("encode cache recovery evidence: %v", err)
 			return
 		}
-		if err := os.MkdirAll("artifacts", 0o750); err != nil {
+		if err = os.MkdirAll("artifacts", 0o750); err != nil {
 			t.Errorf("create cache recovery artifact directory: %v", err)
 			return
 		}
