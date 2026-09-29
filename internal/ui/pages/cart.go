@@ -79,9 +79,15 @@ type CartView struct {
 	SubtotalCents int64
 	ItemCount     int64
 
-	ReorderAdded   int
-	ReorderSkipped int
+	ReorderAdded    int
+	ReorderSkipped  int
+	ReorderAdjusted bool
+	Notice          string
+	ContinueURL     string
 }
+
+// HasNotice reports whether to show the notice banner.
+func (v CartView) HasNotice() bool { return v.Notice != "" }
 
 // FromReorder reports whether this page is showing the result of a reorder.
 func (v CartView) FromReorder() bool { return v.ReorderAdded > 0 || v.ReorderSkipped > 0 }
@@ -89,6 +95,10 @@ func (v CartView) FromReorder() bool { return v.ReorderAdded > 0 || v.ReorderSki
 // ReorderText is what the reorder came to, in a sentence.
 func (v CartView) ReorderText(ctx context.Context) string {
 	switch {
+	case v.ReorderAdjusted && v.ReorderSkipped > 0:
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyReorderAdjustedPartial), v.ReorderSkipped)
+	case v.ReorderAdjusted:
+		return i18n.T(ctx, i18n.KeyReorderAdjusted)
 	case v.ReorderSkipped == 0:
 		return fmt.Sprintf(i18n.T(ctx, i18n.KeyReorderAll), v.ReorderAdded)
 	case v.ReorderAdded == 0:
@@ -243,10 +253,12 @@ func (v *CheckoutView) HasPickupStore() bool {
 // checkoutFieldHint tells a browser what one helper-rendered checkout control
 // contains and, where its type is not enough, which keyboard to open.
 type checkoutFieldHint struct {
-	Autocomplete   string
-	InputMode      string
-	AutoCapitalize string
-	SpellCheck     string
+	Autocomplete      string
+	InputMode         string
+	AutoCapitalize    string
+	SpellCheck        string
+	Pattern           string
+	ConstraintMessage i18n.Key
 }
 
 // checkoutFieldHints is keyed by the field's own form name. Every
@@ -254,13 +266,16 @@ type checkoutFieldHint struct {
 //
 // Do not add enterkeyhint here: Enter in any checkout field places the order,
 // so a "next" hint would label a key that charges the customer.
+// The patterns accept what cart.Trim() accepts: the server trims first, so a
+// surrounding space is not an error, and its bounds (maxPostalCodeRunes,
+// maxCityRunes) are the ones repeated here.
 var checkoutFieldHints = map[string]checkoutFieldHint{
 	"email":       {Autocomplete: "email"},
 	"name":        {Autocomplete: "name"},
 	"phone":       {Autocomplete: "tel"},
-	"postal_code": {Autocomplete: "postal-code", InputMode: "numeric"},
-	"city":        {Autocomplete: "address-level1"},
-	"district":    {Autocomplete: "address-level2"},
+	"postal_code": {Autocomplete: "postal-code", InputMode: "numeric", Pattern: `\s*[0-9]{3,6}\s*`, ConstraintMessage: i18n.KeyPostalCodeMalformed},
+	"city":        {Autocomplete: "address-level1", Pattern: `\s*\S(?:.{0,18}\S)?\s*`, ConstraintMessage: i18n.KeyCheckoutRegionLength},
+	"district":    {Autocomplete: "address-level2", Pattern: `\s*\S(?:.{0,18}\S)?\s*`, ConstraintMessage: i18n.KeyCheckoutRegionLength},
 }
 
 func checkoutHintsFor(name string) checkoutFieldHint { return checkoutFieldHints[name] }
@@ -625,6 +640,11 @@ type OrderView struct {
 	// ShowWarrantyLink is set when a signed-in account owns the order. Guest-token
 	// viewers can read the page but must not see account-only registration.
 	ShowWarrantyLink bool
+	// PaymentRefreshURL is a bounded presentation hint, never evidence of payment.
+	PaymentRefreshURL string
+	// PaymentRefreshSeconds and PaymentRefreshChecks are the bounds behind that
+	// URL, quoted in the notice so the copy cannot drift from the handler.
+	PaymentRefreshSeconds, PaymentRefreshChecks int
 }
 
 // CanCancel reports whether the customer may still call this order off.

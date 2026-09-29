@@ -1,6 +1,11 @@
 package i18n
 
 var (
+	KeyPaySandbox = key("pay.sandbox", Message{
+		ZhHant: "這是 Stripe 測試付款,不會收取真實款項。請勿輸入真實卡號;請使用測試卡 4242 4242 4242 4242、任意未來到期日與任意 3 位數安全碼。",
+		En:     "This is a Stripe test payment; no real money is charged. Do not enter a real card. Use test card 4242 4242 4242 4242, any future expiry date and any three-digit CVC.",
+	})
+
 	KeyPayEyebrow = key("pay.eyebrow", Message{ZhHant: "完成付款", En: "Complete payment"})
 
 	KeyPayBody = key("pay.body", Message{
@@ -60,6 +65,10 @@ var (
 		ZhHant: "我們正在確認您的付款結果，請稍候。若已扣款完成，訂單將會自動更新。",
 		En:     "Your payment is being processed. The order will update automatically once confirmed.",
 	})
+
+	KeyOrderPaymentChecking = key("order.payment.checking", Message{ZhHant: "我們正在確認付款結果。此頁每 %d 秒更新,最多 %d 次;更新結束後會顯示最新訂單狀態。", En: "We are checking the payment result. This page refreshes every %d seconds, up to %d times, then shows the latest order state."})
+	KeyOrderCheckPayment    = key("order.payment.check", Message{ZhHant: "立即更新", En: "Check now"})
+	KeyOrderStopChecking    = key("order.payment.stop", Message{ZhHant: "停止自動更新", En: "Stop automatic updates"})
 
 	KeyPayViewOrder = key("pay.vieworder", Message{ZhHant: "查看訂單", En: "View order"})
 

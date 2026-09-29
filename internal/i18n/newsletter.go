@@ -23,8 +23,8 @@ var (
 	})
 
 	KeyNewsletterConfirmBody = key("news.confirm.body", Message{
-		ZhHant: "按下按鈕就完成訂閱。每月一封,任何時候都可以退訂。",
-		En:     "One button and you are subscribed. One letter a month, and you can leave any time.",
+		ZhHant: "按下按鈕就完成訂閱。不定期寄送,任何時候都可以退訂。",
+		En:     "One button and you are subscribed. We send occasionally, and you can leave any time.",
 	})
 
 	KeyNewsletterConfirmSubmit = key("news.confirm.submit", Message{
@@ -38,8 +38,8 @@ var (
 	})
 
 	KeyNewsletterDoneBody = key("news.done.body", Message{
-		ZhHant: "%s 已經在名單上。每月一封;退訂連結在剛剛寄出的那封信裡。",
-		En: "%s is on the list. One letter a month. The unsubscribe link is in the email " +
+		ZhHant: "%s 已經在名單上。不定期寄送;退訂連結在剛剛寄出的那封信裡。",
+		En: "%s is on the list. We send occasionally. The unsubscribe link is in the email " +
 			"we just sent.",
 	})
 
@@ -78,9 +78,9 @@ var (
 	})
 
 	KeyNewsletterLeaveDead = key("news.leave.dead", Message{
-		ZhHant: "連結可能不完整。如果還在收到電子報,寫信到 support@goen.tw,我們幫你處理。",
+		ZhHant: "連結可能不完整。如果還在收到電子報,寫信到 %s,我們幫你處理。",
 		En: "The link may be incomplete. If the newsletter keeps arriving, write to " +
-			"support@goen.tw and we will take care of it.",
+			"%s and we will take care of it.",
 	})
 
 	KeyNewsletterFailed = key("news.failed", Message{ZhHant: "訂閱未完成", En: "Not subscribed"})
@@ -113,8 +113,8 @@ var (
 	KeyNewsletter = key("site.newsletter", Message{ZhHant: "電子報", En: "Newsletter"})
 
 	KeyNewsletterNote = key("site.newsletter.note", Message{
-		ZhHant: "每月一封。訂閱前會先寄確認信。",
-		En:     "One letter a month. We send a confirmation link first.",
+		ZhHant: "不定期寄送,每封都可退訂。訂閱前會先寄確認信。",
+		En:     "Sent occasionally, with an unsubscribe link in every letter. A confirmation link comes first.",
 	})
 
 	KeyNewsletterSubmit = key("site.newsletter.submit", Message{ZhHant: "訂閱", En: "Subscribe"})

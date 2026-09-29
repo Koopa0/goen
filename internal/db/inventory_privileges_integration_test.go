@@ -27,7 +27,7 @@ var unusedFunctionDoors = []struct {
 }{
 	{"store", recordInventoryMovementSig,
 		`SELECT record_inventory_movement(
-			'44444444-4444-4444-8444-444444444444', 999, 'receipt', 'k-store-receipt', NULL, NULL, NULL)`},
+			'44444444-4444-4444-8444-444444444444', 999, 'receipt', 'k-store-receipt', 'admin', NULL, NULL)`},
 	{"store", consumeReservationSig,
 		`SELECT consume_reservation('00000000-0000-4000-8000-000000000001')`},
 	{"admin", consumeReservationSig,
@@ -362,7 +362,7 @@ func TestStoreCannotCallRecordInventoryMovementDirectly(t *testing.T) {
 	}
 	_, execErr := tx.Exec(ctx, `
 		SELECT record_inventory_movement(
-			'44444444-4444-4444-8444-444444444444', 999, 'receipt', 'k-store-receipt', NULL, NULL, NULL)`)
+			'44444444-4444-4444-8444-444444444444', 999, 'receipt', 'k-store-receipt', 'admin', NULL, NULL)`)
 	pgErr, ok := errors.AsType[*pgconn.PgError](execErr)
 	if !ok || pgErr.Code != "42501" {
 		t.Fatalf("store direct record_inventory_movement failed with %v, want PgError 42501", execErr)

@@ -1182,12 +1182,6 @@ h4,
   margin: 0;
 }
 
-.goen-footer__social {
-  display: flex;
-  gap: 8px;
-  margin-top: 24px;
-}
-
 .goen-footer__bottom {
   border-top: 1px solid var(--border);
 }
@@ -3289,6 +3283,12 @@ h4,
   font-size: var(--fs-16);
   font-weight: var(--fw-semibold);
   margin: 0;
+}
+
+.goen-order__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
 }
 
 .goen-summary,
@@ -7203,4 +7203,30 @@ h4,
   ::view-transition-new(*) {
     animation: none;
   }
+}
+
+/* Tailwind Plus alert-with-link: keep the continuation below the message on
+   narrow screens and beside it when both fit. */
+.goen-cart__adjustment-content { flex: 1; min-width: 0; }
+.goen-cart__adjustment-message { margin: 0; }
+.goen-cart__adjustment-action { margin: 0.75rem 0 0; }
+.goen-cart__adjustment-action a { font-weight: var(--fw-semibold); white-space: nowrap; }
+@media (min-width: 48rem) {
+  .goen-cart__adjustment-content { display: flex; justify-content: space-between; gap: 1.5rem; }
+  .goen-cart__adjustment-action { margin: 0; }
+}
+
+/* Native constraints wait for a completed interaction, so an untouched checkout
+   does not start by telling the shopper every field is wrong. */
+.goen-field__constraint {
+  display: none;
+}
+
+[data-checkout-constraint]:user-invalid ~ .goen-field__constraint,
+[data-checkout-constraint][aria-invalid="true"] ~ .goen-field__constraint {
+  display: block;
+}
+
+[data-checkout-constraint]:user-invalid {
+  border-color: var(--error);
 }

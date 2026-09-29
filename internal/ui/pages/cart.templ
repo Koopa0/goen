@@ -19,6 +19,28 @@ templ Cart(p layouts.Page, v CartView) {
 					<p class="goen-pagehead__sub">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCartItemCount), v.ItemCountText()) }</p>
 				}
 			</div>
+			if v.HasNotice() {
+				if v.ContinueURL != "" {
+					<div class="ui-alert ui-alert--info" id="cart-adjustment" role="status">
+						<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+							<path d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Zm-7-4a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM9 9a.75.75 0 0 0 0 1.5h.253a.25.25 0 0 1 .244.304l-.459 2.066A1.75 1.75 0 0 0 10.747 15H11a.75.75 0 0 0 0-1.5h-.253a.25.25 0 0 1-.244-.304l.459-2.066A1.75 1.75 0 0 0 9.253 9H9Z" clip-rule="evenodd" fill-rule="evenodd"></path>
+						</svg>
+						<div class="goen-cart__adjustment-content">
+							<p class="goen-cart__adjustment-message">{ v.Notice }</p>
+							<p class="goen-cart__adjustment-action">
+								<a href={ templ.URL(v.ContinueURL) }>
+									{ i18n.T(ctx, i18n.KeyCartAdjustmentContinue) }
+									<span aria-hidden="true">→</span>
+								</a>
+							</p>
+						</div>
+					</div>
+				} else {
+					@components.Notice(components.NoticeProps{Tone: components.ToneAccent, ID: "cart-adjustment"}) {
+						{ v.Notice }
+					}
+				}
+			}
 			if v.FromReorder() {
 				@components.Notice(components.NoticeProps{Tone: components.ToneAccent}) {
 					{ v.ReorderText(ctx) }
@@ -757,13 +779,23 @@ templ field(name, label, kind, value string, v *CheckoutView) {
 			if hints.SpellCheck != "" {
 				spellcheck={ hints.SpellCheck }
 			}
-			aria-invalid={ v.Invalid(name) }
+			if hints.Pattern != "" {
+				pattern={ hints.Pattern }
+				if !v.HasErr(name) {
+					data-checkout-constraint
+				}
+			}
 			if v.HasErr(name) {
+				aria-invalid="true"
+			}
+			if v.HasErr(name) || hints.Pattern != "" {
 				aria-describedby={ name + "-error" }
 			}
 		/>
 		if v.HasErr(name) {
 			<p class="ui-error-text" id={ name + "-error" }>{ v.Err(name) }</p>
+		} else if hints.Pattern != "" {
+			<p class="ui-error-text goen-field__constraint" id={ name + "-error" }>{ i18n.T(ctx, hints.ConstraintMessage) }</p>
 		}
 	</div>
 }
@@ -795,7 +827,20 @@ templ Order(p layouts.Page, v *OrderView) {
 					{ i18n.T(ctx, i18n.KeyOrderCancelled) }
 				}
 			}
-			if v.AwaitingPayment() {
+			if v.PaymentRefreshURL != "" {
+				<div class="goen-notice goen-notice--accent" id="order-payment-processing" role="status">
+					<h2 class="goen-order__subhead">{ i18n.T(ctx, i18n.KeyPayProcessingTitle) }</h2>
+					<p>{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOrderPaymentChecking), v.PaymentRefreshSeconds, v.PaymentRefreshChecks) }</p>
+					<div class="goen-order__actions">
+						@components.ButtonLink(components.ButtonProps{Variant: components.VariantOutline}, templ.SafeURL(v.PaymentRefreshURL)) {
+							{ i18n.T(ctx, i18n.KeyOrderCheckPayment) }
+						}
+						@components.ButtonLink(components.ButtonProps{Variant: components.VariantGhost}, templ.SafeURL("/orders/"+v.Number)) {
+							{ i18n.T(ctx, i18n.KeyOrderStopChecking) }
+						}
+					</div>
+				</div>
+			} else if v.AwaitingPayment() {
 				@components.Notice(components.NoticeProps{
 					Tone: components.ToneAccent,
 					ID:   "order-unpaid",
@@ -922,7 +967,7 @@ templ Order(p layouts.Page, v *OrderView) {
 							}
 							<span class="goen-order__meta">{ i18n.T(ctx, i18n.KeyOrderReorderNote) }</span>
 						</form>
-						if v.CanCancel() {
+						if v.CanCancel() && v.PaymentRefreshURL == "" {
 							<form class="goen-order__cancel" method="post" action={ templ.SafeURL("/orders/" + v.Number + "/cancel") }>
 								@components.Button(components.ButtonProps{Variant: components.VariantGhost}, "submit") {
 									{ i18n.T(ctx, i18n.KeyOrderCancel) }

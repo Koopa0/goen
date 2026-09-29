@@ -448,8 +448,8 @@ func TestRetiringAPurchasedVariantDoesNotEraseVerifiedPurchase(t *testing.T) {
 	if queryErr := tx.QueryRow(ctx, `
 		INSERT INTO order_lines
 			(order_id, variant_id, sku, product_name, unit_price_cents, quantity)
-		VALUES ($1, $2, 'RETIRED-BOUGHT', '規格退役測試商品', 100000, 1)
-		RETURNING id`, orderID, boughtVariant).Scan(&lineID); queryErr != nil {
+		SELECT $1, pv.id, pv.sku, p.name, 100000, 1 FROM product_variants pv JOIN products p ON p.id = pv.product_id WHERE pv.id = $2
+		RETURNING order_lines.id`, orderID, boughtVariant).Scan(&lineID); queryErr != nil {
 		t.Fatalf("create line: %v", queryErr)
 	}
 	if _, savepointErr := tx.Exec(ctx, `SAVEPOINT mismatched_order_line_product`); savepointErr != nil {
@@ -1386,7 +1386,7 @@ func writeOrder(t *testing.T, v1, v2 uuid.UUID) uuid.UUID {
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO order_lines (order_id, variant_id, sku, product_name,
 			                         unit_price_cents, quantity, position)
-			VALUES ($1, $2, 'REC-SKU-'||$3::integer::text, '推薦測試商品', 100000, 1, $3::integer)`,
+			SELECT $1, pv.id, pv.sku, p.name, 100000, 1, $3::integer FROM product_variants pv JOIN products p ON p.id = pv.product_id WHERE pv.id = $2`,
 			orderID, variantID, pos); err != nil {
 			t.Fatalf("create line: %v", err)
 		}
@@ -1430,7 +1430,7 @@ func TestAStaffAnswerStaysStaffWhenTheAuthorChangesRole(t *testing.T) {
 
 	// The customer answers first, or insertion order matches the intended
 	// order by accident.
-	if err := s.Answer(ctx, qID, customer, "我實測過可以。"); err != nil {
+	if err := insertHistoricalCustomerAnswer(ctx, qID, customer, "我實測過可以。"); err != nil {
 		t.Fatalf("customer answer: %v", err)
 	}
 	staffCtx := account.WithUser(ctx, account.User{ID: staff, Role: "admin"})
@@ -1464,32 +1464,6 @@ func TestAStaffAnswerStaysStaffWhenTheAuthorChangesRole(t *testing.T) {
 	}
 }
 
-func TestAStorefrontReplyIsNeverBadgedAsTheShop(t *testing.T) {
-	ctx := t.Context()
-	s := product.NewStore(pool)
-	slug := anyActiveProduct(t)
-	customer := newCustomer(t)
-
-	if err := s.Ask(ctx, slug, customer, "這台有支援 PD 嗎?"); err != nil {
-		t.Fatalf("ask: %v", err)
-	}
-	qID := latestQuestion(t)
-	if err := s.Answer(ctx, qID, customer, "我自己實測是可以的。"); err != nil {
-		t.Fatalf("answer: %v", err)
-	}
-
-	var isStaff bool
-	if err := pool.QueryRow(ctx, `
-		SELECT is_staff FROM product_answers
-		WHERE question_id = $1 ORDER BY created_at DESC, id DESC LIMIT 1`,
-		uuid.MustParse(qID)).Scan(&isStaff); err != nil {
-		t.Fatalf("read back: %v", err)
-	}
-	if isStaff {
-		t.Error("a storefront reply was stored as the shop's own answer")
-	}
-}
-
 func TestAHiddenQuestionDisappearsWithItsAnswers(t *testing.T) {
 	ctx := t.Context()
 	s := product.NewStore(pool)
@@ -1500,7 +1474,7 @@ func TestAHiddenQuestionDisappearsWithItsAnswers(t *testing.T) {
 		t.Fatalf("ask: %v", err)
 	}
 	qID := latestQuestion(t)
-	if err := s.Answer(ctx, qID, customer, "會一起消失的回答"); err != nil {
+	if err := insertHistoricalCustomerAnswer(ctx, qID, customer, "會一起消失的回答"); err != nil {
 		t.Fatalf("answer: %v", err)
 	}
 
@@ -1533,8 +1507,11 @@ func TestAHiddenQuestionDisappearsWithItsAnswers(t *testing.T) {
 		}
 	}
 
-	if err := s.Answer(ctx, qID, customer, "太遲了"); err == nil {
-		t.Error("a hidden question accepted a new answer")
+	staff := newShopAuthor(t)
+	staffCtx := account.WithUser(ctx, account.User{ID: staff, Role: "admin"})
+	back := admin.NewStore(pool, admin.NewRefunder(""), nil, nil)
+	if err := back.AnswerQuestion(staffCtx, qID, staff, "太遲了"); !errors.Is(err, admin.ErrNotFound) {
+		t.Errorf("a hidden question's new answer = %v, want admin.ErrNotFound", err)
 	}
 }
 
@@ -1659,7 +1636,7 @@ func TestASingleHiddenAnswerGoesWithoutTakingTheQuestion(t *testing.T) {
 	}
 	qID := latestQuestion(t)
 	for _, body := range []string{"留下來的回答", "會被隱藏的回答"} {
-		if err := s.Answer(ctx, qID, customer, body); err != nil {
+		if err := insertHistoricalCustomerAnswer(ctx, qID, customer, body); err != nil {
 			t.Fatalf("answer %q: %v", body, err)
 		}
 	}
@@ -1931,4 +1908,10 @@ func TestLoadIgnoresThePagesOwnParameters(t *testing.T) {
 			t.Errorf("%v changed the price from %d to %d", sel, clean.PriceCents, got.PriceCents)
 		}
 	}
+}
+
+// Historical answers remain readable even without a customer reply endpoint.
+func insertHistoricalCustomerAnswer(ctx context.Context, questionID, userID, body string) error {
+	_, err := pool.Exec(ctx, `INSERT INTO product_answers (question_id,user_id,body,is_staff) VALUES ($1,$2,$3,false)`, uuid.MustParse(questionID), uuid.MustParse(userID), body)
+	return err
 }

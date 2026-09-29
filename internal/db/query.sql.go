@@ -91,7 +91,7 @@ const addCartItem = `-- name: AddCartItem :exec
 INSERT INTO cart_items (cart_id, variant_id, quantity)
 VALUES ($1, $2, $3)
 ON CONFLICT (cart_id, variant_id) DO UPDATE
-SET quantity = least(cart_items.quantity + EXCLUDED.quantity, 999)
+SET quantity = EXCLUDED.quantity
 `
 
 type AddCartItemParams struct {
@@ -100,8 +100,11 @@ type AddCartItemParams struct {
 	Quantity  int32
 }
 
-// least() caps a repeat add at the CHECK's own ceiling rather than raising a
-// constraint violation the visitor did nothing to deserve.
+// The caller has already clamped the line's total against sellable stock and
+// the line ceiling, so a conflict stores the total it was handed. It overwrites
+// rather than adds: two unlocked callers would each write a total computed from
+// the same stale read, so every caller must hold the cart row lock that
+// lockCart takes in mutateCart.
 func (q *Queries) AddCartItem(ctx context.Context, arg AddCartItemParams) error {
 	_, err := q.db.Exec(ctx, addCartItem, arg.CartID, arg.VariantID, arg.Quantity)
 	return err
@@ -2043,30 +2046,6 @@ func (q *Queries) AlarmInvoiceOperation(ctx context.Context, arg AlarmInvoiceOpe
 	return alarmed, err
 }
 
-const answerQuestionAsCustomer = `-- name: AnswerQuestionAsCustomer :execrows
-INSERT INTO product_answers (question_id, user_id, body)
-SELECT q.id, $1, $2::text
-FROM product_questions q
-WHERE q.id = $3 AND q.hidden_at IS NULL
-`
-
-type AnswerQuestionAsCustomerParams struct {
-	UserID     uuid.NullUUID
-	Body       string
-	QuestionID uuid.UUID
-}
-
-// Omit is_staff so the database default is the storefront authority. The
-// customer role is not granted that column, so a caller cannot turn this into
-// an official shop answer by supplying another parameter.
-func (q *Queries) AnswerQuestionAsCustomer(ctx context.Context, arg AnswerQuestionAsCustomerParams) (int64, error) {
-	result, err := q.db.Exec(ctx, answerQuestionAsCustomer, arg.UserID, arg.Body, arg.QuestionID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
 const answerQuestionAsStaff = `-- name: AnswerQuestionAsStaff :execrows
 INSERT INTO product_answers (question_id, user_id, body, is_staff)
 SELECT q.id, $1, $2::text, true
@@ -2762,10 +2741,42 @@ func (q *Queries) CartItemCount(ctx context.Context, cartID uuid.UUID) (int64, e
 	return column_1, err
 }
 
+const cartItemRows = `-- name: CartItemRows :many
+SELECT variant_id, quantity FROM cart_items WHERE cart_id = $1::uuid ORDER BY variant_id
+`
+
+type CartItemRowsRow struct {
+	VariantID uuid.UUID
+	Quantity  int32
+}
+
+// Guest lines for adoption and merge, read after the cart lock is held.
+func (q *Queries) CartItemRows(ctx context.Context, cartID uuid.UUID) ([]CartItemRowsRow, error) {
+	rows, err := q.db.Query(ctx, cartItemRows, cartID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CartItemRowsRow{}
+	for rows.Next() {
+		var i CartItemRowsRow
+		if err := rows.Scan(&i.VariantID, &i.Quantity); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const cartLineCapacity = `-- name: CartLineCapacity :one
 SELECT count(*)::integer AS line_count,
        (count(*) FILTER (WHERE variant_id = $1::uuid) > 0)::boolean
-           AS already_present
+           AS already_present,
+       coalesce(sum(quantity) FILTER (WHERE variant_id = $1::uuid), 0)::integer
+           AS existing_quantity
 FROM cart_items
 WHERE cart_id = $2::uuid
 `
@@ -2776,8 +2787,9 @@ type CartLineCapacityParams struct {
 }
 
 type CartLineCapacityRow struct {
-	LineCount      int32
-	AlreadyPresent bool
+	LineCount        int32
+	AlreadyPresent   bool
+	ExistingQuantity int32
 }
 
 // The cart row is already locked by every caller. Updating an existing variant
@@ -2785,8 +2797,24 @@ type CartLineCapacityRow struct {
 func (q *Queries) CartLineCapacity(ctx context.Context, arg CartLineCapacityParams) (CartLineCapacityRow, error) {
 	row := q.db.QueryRow(ctx, cartLineCapacity, arg.VariantID, arg.CartID)
 	var i CartLineCapacityRow
-	err := row.Scan(&i.LineCount, &i.AlreadyPresent)
+	err := row.Scan(&i.LineCount, &i.AlreadyPresent, &i.ExistingQuantity)
 	return i, err
+}
+
+const cartLineQuantity = `-- name: CartLineQuantity :one
+SELECT quantity FROM cart_items WHERE cart_id = $1 AND variant_id = $2
+`
+
+type CartLineQuantityParams struct {
+	CartID    uuid.UUID
+	VariantID uuid.UUID
+}
+
+func (q *Queries) CartLineQuantity(ctx context.Context, arg CartLineQuantityParams) (int32, error) {
+	row := q.db.QueryRow(ctx, cartLineQuantity, arg.CartID, arg.VariantID)
+	var quantity int32
+	err := row.Scan(&quantity)
+	return quantity, err
 }
 
 const cartLines = `-- name: CartLines :many
@@ -5315,6 +5343,40 @@ func (q *Queries) DeleteUserSessions(ctx context.Context, userID uuid.UUID) erro
 	return err
 }
 
+const deliveryZoneComparison = `-- name: DeliveryZoneComparison :one
+SELECT (pd.erased_at IS NOT NULL)::boolean AS erased,
+       coalesce(pd.postal_code ~ '^[0-9]{3,6}$', false)::boolean AS old_resolved,
+       coalesce(pd.postal_code ~ '^[0-9]{3,6}$'
+                AND old_zone.zone_id IS NOT DISTINCT FROM new_zone.zone_id, false)::boolean AS same_zone
+FROM order_private_data pd
+LEFT JOIN shipping_zone_prefixes old_zone ON old_zone.prefix = left(pd.postal_code, 3)
+LEFT JOIN shipping_zone_prefixes new_zone ON new_zone.prefix = left($1::text, 3)
+WHERE pd.order_id = $2
+`
+
+type DeliveryZoneComparisonParams struct {
+	NewPostalCode string
+	OrderID       uuid.UUID
+}
+
+type DeliveryZoneComparisonRow struct {
+	Erased      bool
+	OldResolved bool
+	SameZone    bool
+}
+
+// Whether the saved postcode and the proposed one sit in the same surcharge
+// zone. Identity of the zone, not today's amount: a surcharge edited or removed
+// after checkout must not open a cross-zone correction. The order records the
+// postcode it was priced for, so that is the side compared. Two postcodes in no
+// zone are both the mainland; a malformed one resolves to neither.
+func (q *Queries) DeliveryZoneComparison(ctx context.Context, arg DeliveryZoneComparisonParams) (DeliveryZoneComparisonRow, error) {
+	row := q.db.QueryRow(ctx, deliveryZoneComparison, arg.NewPostalCode, arg.OrderID)
+	var i DeliveryZoneComparisonRow
+	err := row.Scan(&i.Erased, &i.OldResolved, &i.SameZone)
+	return i, err
+}
+
 const detachProductImage = `-- name: DetachProductImage :execrows
 DELETE FROM product_images pi
 USING products p
@@ -6615,6 +6677,64 @@ func (q *Queries) LockHeroAppendPosition(ctx context.Context) error {
 	return err
 }
 
+const lockOrderDelivery = `-- name: LockOrderDelivery :one
+SELECT o.id, o.fulfillment_status, sm.destination_kind
+FROM orders o
+JOIN shipping_method_versions v ON v.id = o.shipping_version_id
+JOIN shipping_methods sm ON sm.id = v.method_id
+WHERE o.order_number = $1
+FOR UPDATE OF o
+`
+
+type LockOrderDeliveryRow struct {
+	ID                uuid.UUID
+	FulfillmentStatus string
+	DestinationKind   string
+}
+
+// The order lock also belongs to shipment, cancellation and erasure. Read the
+// destination after acquiring it so a correction cannot outlive that decision.
+func (q *Queries) LockOrderDelivery(ctx context.Context, orderNumber string) (LockOrderDeliveryRow, error) {
+	row := q.db.QueryRow(ctx, lockOrderDelivery, orderNumber)
+	var i LockOrderDeliveryRow
+	err := row.Scan(&i.ID, &i.FulfillmentStatus, &i.DestinationKind)
+	return i, err
+}
+
+const lockOrderForAdvance = `-- name: LockOrderForAdvance :one
+SELECT id, fulfillment_status FROM orders WHERE order_number = $1 FOR UPDATE
+`
+
+type LockOrderForAdvanceRow struct {
+	ID                uuid.UUID
+	FulfillmentStatus string
+}
+
+// Lock before reading the prior state so concurrent completion cannot duplicate arrival mail.
+func (q *Queries) LockOrderForAdvance(ctx context.Context, orderNumber string) (LockOrderForAdvanceRow, error) {
+	row := q.db.QueryRow(ctx, lockOrderForAdvance, orderNumber)
+	var i LockOrderForAdvanceRow
+	err := row.Scan(&i.ID, &i.FulfillmentStatus)
+	return i, err
+}
+
+const lockOrderForStaffNote = `-- name: LockOrderForStaffNote :one
+SELECT id, staff_note FROM orders WHERE order_number = $1 FOR UPDATE
+`
+
+type LockOrderForStaffNoteRow struct {
+	ID        uuid.UUID
+	StaffNote pgtype.Text
+}
+
+// Serialize changes so the audit operation describes the note actually replaced.
+func (q *Queries) LockOrderForStaffNote(ctx context.Context, orderNumber string) (LockOrderForStaffNoteRow, error) {
+	row := q.db.QueryRow(ctx, lockOrderForStaffNote, orderNumber)
+	var i LockOrderForStaffNoteRow
+	err := row.Scan(&i.ID, &i.StaffNote)
+	return i, err
+}
+
 const lockPaymentProviderRef = `-- name: LockPaymentProviderRef :exec
 SELECT lock_payment_provider_ref('stripe', $1::text)
 `
@@ -7096,24 +7216,6 @@ func (q *Queries) MemberStanding(ctx context.Context, arg MemberStandingParams) 
 		&i.NextNeedsCents,
 	)
 	return i, err
-}
-
-const mergeCartItems = `-- name: MergeCartItems :exec
-INSERT INTO cart_items (cart_id, variant_id, quantity)
-SELECT $2, src.variant_id, src.quantity FROM cart_items src WHERE src.cart_id = $1
-ON CONFLICT (cart_id, variant_id) DO UPDATE
-SET quantity = least(cart_items.quantity + EXCLUDED.quantity, 999)
-`
-
-type MergeCartItemsParams struct {
-	CartID   uuid.UUID
-	CartID_2 uuid.UUID
-}
-
-// Quantities add rather than replace, capped at the line ceiling.
-func (q *Queries) MergeCartItems(ctx context.Context, arg MergeCartItemsParams) error {
-	_, err := q.db.Exec(ctx, mergeCartItems, arg.CartID, arg.CartID_2)
-	return err
 }
 
 const myWarranties = `-- name: MyWarranties :many
@@ -10893,19 +10995,20 @@ func (q *Queries) RunningCampaign(ctx context.Context, arg RunningCampaignParams
 }
 
 const runningCampaigns = `-- name: RunningCampaigns :many
-SELECT c.id, c.slug, localized_name(c.title, c.title_en, $2::text) AS title,
+SELECT c.id, c.slug, localized_name(c.title, c.title_en, $1::text) AS title,
        c.ends_at,
        extract(epoch FROM (c.ends_at - now()))::bigint AS remaining_seconds,
        (SELECT count(*) FROM sale_campaign_products p WHERE p.campaign_id = c.id)::bigint AS products
 FROM sale_campaigns c
 WHERE c.is_active AND c.starts_at <= now() AND c.ends_at > now()
-ORDER BY c.ends_at
-LIMIT $1
+ORDER BY c.ends_at, c.id
+LIMIT $3::integer OFFSET $2::integer
 `
 
 type RunningCampaignsParams struct {
-	Limit  int32
-	Locale string
+	Locale     string
+	PageOffset int32
+	PageSize   int32
 }
 
 type RunningCampaignsRow struct {
@@ -10918,7 +11021,7 @@ type RunningCampaignsRow struct {
 }
 
 func (q *Queries) RunningCampaigns(ctx context.Context, arg RunningCampaignsParams) ([]RunningCampaignsRow, error) {
-	rows, err := q.db.Query(ctx, runningCampaigns, arg.Limit, arg.Locale)
+	rows, err := q.db.Query(ctx, runningCampaigns, arg.Locale, arg.PageOffset, arg.PageSize)
 	if err != nil {
 		return nil, err
 	}
@@ -10942,6 +11045,18 @@ func (q *Queries) RunningCampaigns(ctx context.Context, arg RunningCampaignsPara
 		return nil, err
 	}
 	return items, nil
+}
+
+const runningCampaignsCount = `-- name: RunningCampaignsCount :one
+SELECT count(*)::bigint FROM sale_campaigns
+WHERE is_active AND starts_at <= now() AND ends_at > now()
+`
+
+func (q *Queries) RunningCampaignsCount(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, runningCampaignsCount)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const savedAddresses = `-- name: SavedAddresses :many
@@ -11045,6 +11160,11 @@ WHERE p.status = 'active'
        OR coalesce(p.summary_en, '') ILIKE $2::text
        OR b.name ILIKE $2::text
        OR EXISTS (
+           SELECT 1 FROM product_variants sku_match
+           WHERE sku_match.product_id = p.id AND sku_match.is_active
+             AND sku_match.sku ILIKE $2::text
+       )
+       OR EXISTS (
            SELECT 1 FROM product_specs ps
            WHERE ps.product_id = p.id
              AND (ps.label ILIKE $2::text
@@ -11053,17 +11173,35 @@ WHERE p.status = 'active'
                   OR coalesce(ps.value_en, '') ILIKE $2::text)
        ))
 ORDER BY
-    -- A name match outranks a summary or brand match. Either name counts.
-    (p.name ILIKE $2::text OR coalesce(p.name_en, '') ILIKE $2::text) DESC,
+    -- Field relevance is explicit; repeated words, sales and ratings do not change it.
+    -- A complete variant SKU leads; a partial SKU follows a partial name match.
+    CASE
+        WHEN EXISTS (
+            SELECT 1 FROM product_variants exact_sku
+            WHERE exact_sku.product_id = p.id AND exact_sku.is_active
+              AND exact_sku.sku ILIKE $3::text
+        ) THEN 6
+        WHEN p.name ILIKE $3::text OR coalesce(p.name_en, '') ILIKE $3::text THEN 5
+        WHEN p.name ILIKE $2::text OR coalesce(p.name_en, '') ILIKE $2::text THEN 4
+        WHEN EXISTS (
+            SELECT 1 FROM product_variants partial_sku
+            WHERE partial_sku.product_id = p.id AND partial_sku.is_active
+              AND partial_sku.sku ILIKE $2::text
+        ) THEN 3
+        WHEN b.name ILIKE $2::text THEN 2
+        WHEN coalesce(p.summary, '') ILIKE $2::text OR coalesce(p.summary_en, '') ILIKE $2::text THEN 1
+        ELSE 0
+    END DESC,
     p.published_at DESC, p.id DESC
-LIMIT $4::integer OFFSET $3::integer
+LIMIT $5::integer OFFSET $4::integer
 `
 
 type SearchProductsParams struct {
-	Locale     string
-	Pattern    string
-	PageOffset int32
-	PageSize   int32
+	Locale       string
+	Pattern      string
+	ExactPattern string
+	PageOffset   int32
+	PageSize     int32
 }
 
 type SearchProductsRow struct {
@@ -11089,6 +11227,7 @@ func (q *Queries) SearchProducts(ctx context.Context, arg SearchProductsParams) 
 	rows, err := q.db.Query(ctx, searchProducts,
 		arg.Locale,
 		arg.Pattern,
+		arg.ExactPattern,
 		arg.PageOffset,
 		arg.PageSize,
 	)
@@ -11135,6 +11274,11 @@ WHERE p.status = 'active'
        OR coalesce(p.summary, '') ILIKE $1::text
        OR coalesce(p.summary_en, '') ILIKE $1::text
        OR b.name ILIKE $1::text
+       OR EXISTS (
+           SELECT 1 FROM product_variants sku_match
+           WHERE sku_match.product_id = p.id AND sku_match.is_active
+             AND sku_match.sku ILIKE $1::text
+       )
        OR EXISTS (
            SELECT 1 FROM product_specs ps
            WHERE ps.product_id = p.id
@@ -12063,6 +12207,24 @@ func (q *Queries) SpendPasswordResetToken(ctx context.Context, tokenHash []byte)
 	return user_id, err
 }
 
+const staffInvitationRecipient = `-- name: StaffInvitationRecipient :one
+SELECT email, coalesce(full_name, '') AS full_name
+FROM users WHERE id = $1 AND role IN ('staff', 'admin')
+`
+
+type StaffInvitationRecipientRow struct {
+	Email    string
+	FullName string
+}
+
+// A queued invitation is no longer wanted after revocation or erasure.
+func (q *Queries) StaffInvitationRecipient(ctx context.Context, id uuid.UUID) (StaffInvitationRecipientRow, error) {
+	row := q.db.QueryRow(ctx, staffInvitationRecipient, id)
+	var i StaffInvitationRecipientRow
+	err := row.Scan(&i.Email, &i.FullName)
+	return i, err
+}
+
 const staffTOTPStatus = `-- name: StaffTOTPStatus :many
 SELECT u.id, u.email, coalesce(u.full_name, '') AS full_name, u.role,
        (c.confirmed_at IS NOT NULL)::boolean AS enrolled
@@ -12360,6 +12522,33 @@ func (q *Queries) TOTPCredential(ctx context.Context, userID uuid.UUID) (TOTPCre
 	row := q.db.QueryRow(ctx, tOTPCredential, userID)
 	var i TOTPCredentialRow
 	err := row.Scan(&i.SecretEncrypted, &i.ConfirmedAt, &i.LastStep)
+	return i, err
+}
+
+const terminalOrderRecipient = `-- name: TerminalOrderRecipient :one
+SELECT o.order_number, o.locale, pd.email, pd.recipient_name
+FROM orders o
+JOIN order_private_data pd ON pd.order_id = o.id
+WHERE o.id = $1 AND pd.erased_at IS NULL
+`
+
+type TerminalOrderRecipientRow struct {
+	OrderNumber   string
+	Locale        string
+	Email         pgtype.Text
+	RecipientName pgtype.Text
+}
+
+// Delivery reads current private data so an erasure cannot be undone by a queued address.
+func (q *Queries) TerminalOrderRecipient(ctx context.Context, id uuid.UUID) (TerminalOrderRecipientRow, error) {
+	row := q.db.QueryRow(ctx, terminalOrderRecipient, id)
+	var i TerminalOrderRecipientRow
+	err := row.Scan(
+		&i.OrderNumber,
+		&i.Locale,
+		&i.Email,
+		&i.RecipientName,
+	)
 	return i, err
 }
 
@@ -13061,7 +13250,7 @@ func (q *Queries) VariantForCart(ctx context.Context, id uuid.UUID) (VariantForC
 
 const variantMovements = `-- name: VariantMovements :many
 SELECT m.created_at, m.delta, m.reason, m.source_type,
-       coalesce(o.order_number, ro.order_number, '') AS order_number,
+       coalesce(o.order_number, ro.order_number, rro.order_number, '') AS order_number,
        coalesce(u.full_name, u.email, '') AS actor,
        (SELECT sum(e.delta) FROM inventory_movements e
         WHERE e.variant_id = m.variant_id AND e.id <= m.id)::integer AS running_total
@@ -13072,6 +13261,9 @@ LEFT JOIN orders o ON m.source_type = 'order' AND o.id = m.source_id
 LEFT JOIN inventory_reservations r
        ON m.source_type = 'reservation' AND r.id = m.source_id
 LEFT JOIN orders ro ON ro.id = r.order_id
+LEFT JOIN return_requests rr
+       ON m.source_type = 'return_request' AND rr.id = m.source_id
+LEFT JOIN orders rro ON rro.id = rr.order_id
 WHERE pv.sku = $1::text
 ORDER BY m.id DESC
 LIMIT $2::integer
@@ -13092,9 +13284,8 @@ type VariantMovementsRow struct {
 	RunningTotal int32
 }
 
-// source_id is a bare uuid with no foreign key — it points at whichever table
-// source_type names — so each join is guarded by that discriminator. A HOLD
-// points at the reservation, because it is taken before the order exists.
+// Each source discriminator selects its validated parent. A hold names its
+// order; a release names the reservation and a restock names the return.
 func (q *Queries) VariantMovements(ctx context.Context, arg VariantMovementsParams) ([]VariantMovementsRow, error) {
 	rows, err := q.db.Query(ctx, variantMovements, arg.SKU, arg.RowLimit)
 	if err != nil {
