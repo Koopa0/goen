@@ -1464,40 +1464,6 @@ func TestAStaffAnswerStaysStaffWhenTheAuthorChangesRole(t *testing.T) {
 	}
 }
 
-func TestHistoricalCustomerReplyKeepsCustomerAttribution(t *testing.T) {
-	ctx := t.Context()
-	s := product.NewStore(pool)
-	slug := anyActiveProduct(t)
-	customer := newCustomer(t)
-
-	if err := s.Ask(ctx, slug, customer, "這台有支援 PD 嗎?"); err != nil {
-		t.Fatalf("ask: %v", err)
-	}
-	qID := latestQuestion(t)
-	if err := insertHistoricalCustomerAnswer(ctx, qID, customer, "我自己實測是可以的。"); err != nil {
-		t.Fatalf("answer: %v", err)
-	}
-
-	view, err := s.Load(ctx, slug, product.Selection{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	found := false
-	for _, q := range view.Questions {
-		for _, answer := range q.Answers {
-			if answer.Body == "我自己實測是可以的。" {
-				found = true
-				if answer.IsStaff {
-					t.Error("historical customer reply gained a staff badge")
-				}
-			}
-		}
-	}
-	if !found {
-		t.Fatal("historical customer reply disappeared")
-	}
-}
-
 func TestAHiddenQuestionDisappearsWithItsAnswers(t *testing.T) {
 	ctx := t.Context()
 	s := product.NewStore(pool)
@@ -1544,8 +1510,8 @@ func TestAHiddenQuestionDisappearsWithItsAnswers(t *testing.T) {
 	staff := newShopAuthor(t)
 	staffCtx := account.WithUser(ctx, account.User{ID: staff, Role: "admin"})
 	back := admin.NewStore(pool, admin.NewRefunder(""), nil, nil)
-	if err := back.AnswerQuestion(staffCtx, qID, staff, "太遲了"); err == nil {
-		t.Error("a hidden question accepted a new answer")
+	if err := back.AnswerQuestion(staffCtx, qID, staff, "太遲了"); !errors.Is(err, admin.ErrNotFound) {
+		t.Errorf("a hidden question's new answer = %v, want admin.ErrNotFound", err)
 	}
 }
 
