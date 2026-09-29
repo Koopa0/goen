@@ -178,7 +178,13 @@ func (s *Store) AdoptCart(ctx context.Context, userID string, guestCartID uuid.U
 	}
 
 	if err := adoptGuestCart(ctx, q, id, guestCartID); err != nil {
-		return err
+		if !errors.Is(err, ErrQuantityAdjusted) {
+			return err
+		}
+		if commitErr := tx.Commit(ctx); commitErr != nil {
+			return fmt.Errorf("commit adopt: %w", commitErr)
+		}
+		return ErrQuantityAdjusted
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("commit adopt: %w", err)
@@ -198,6 +204,10 @@ func adoptGuestCart(ctx context.Context, q *db.Queries, userID, guestCartID uuid
 		if ownerErr := requireUnownedCart(ctx, q, guestCartID); ownerErr != nil {
 			return ownerErr
 		}
+		adjusted, prepErr := clampGuestCartLines(ctx, q, guestCartID)
+		if prepErr != nil {
+			return prepErr
+		}
 		n, adoptErr := q.AdoptCart(ctx, db.AdoptCartParams{
 			CartID: guestCartID, UserID: userID,
 		})
@@ -206,6 +216,9 @@ func adoptGuestCart(ctx context.Context, q *db.Queries, userID, guestCartID uuid
 		}
 		if n == 0 {
 			return ErrNotFound
+		}
+		if adjusted {
+			return ErrQuantityAdjusted
 		}
 	case err != nil:
 		return fmt.Errorf("read account cart: %w", err)
@@ -218,16 +231,113 @@ func adoptGuestCart(ctx context.Context, q *db.Queries, userID, guestCartID uuid
 		if ownerErr := requireUnownedCart(ctx, q, guestCartID); ownerErr != nil {
 			return ownerErr
 		}
-		if mergeErr := q.MergeCartItems(ctx, db.MergeCartItemsParams{
-			CartID: guestCartID, CartID_2: existing,
-		}); mergeErr != nil {
-			return fmt.Errorf("merge cart: %w", mergeErr)
-		}
-		if delErr := q.DeleteCart(ctx, guestCartID); delErr != nil {
-			return fmt.Errorf("delete guest cart: %w", delErr)
+		if mergeErr := mergeGuestIntoAccount(ctx, q, guestCartID, existing); mergeErr != nil {
+			return mergeErr
 		}
 	}
 	return nil
+}
+
+const maxCartLineQuantity int32 = 999
+
+func mergeGuestIntoAccount(
+	ctx context.Context, q *db.Queries, guestID, accountID uuid.UUID,
+) error {
+	guestLines, err := q.CartItemRows(ctx, guestID)
+	if err != nil {
+		return fmt.Errorf("read guest cart lines: %w", err)
+	}
+	var adjusted bool
+	for i := range guestLines {
+		line := &guestLines[i]
+		sellable, err := sellableForMerge(ctx, q, line.VariantID)
+		if err != nil {
+			return err
+		}
+		existing := int32(0)
+		if qty, readErr := q.CartLineQuantity(ctx, db.CartLineQuantityParams{
+			CartID: accountID, VariantID: line.VariantID,
+		}); readErr == nil {
+			existing = qty
+		} else if !errors.Is(readErr, pgx.ErrNoRows) {
+			return fmt.Errorf("read account cart line: %w", readErr)
+		}
+		wanted := existing + line.Quantity
+		merged := clampCartQuantity(wanted, sellable)
+		if merged < wanted {
+			adjusted = true
+		}
+		if existing > 0 {
+			if err := q.SetCartItemQuantity(ctx, db.SetCartItemQuantityParams{
+				CartID: accountID, VariantID: line.VariantID, Quantity: merged,
+			}); err != nil {
+				return fmt.Errorf("merge cart line: %w", err)
+			}
+			continue
+		}
+		if err := q.AddCartItem(ctx, db.AddCartItemParams{
+			CartID: accountID, VariantID: line.VariantID, Quantity: merged,
+		}); err != nil {
+			return fmt.Errorf("merge guest-only line: %w", err)
+		}
+	}
+	if err := q.DeleteCart(ctx, guestID); err != nil {
+		return fmt.Errorf("delete guest cart: %w", err)
+	}
+	if adjusted {
+		return ErrQuantityAdjusted
+	}
+	return nil
+}
+
+func clampGuestCartLines(ctx context.Context, q *db.Queries, cartID uuid.UUID) (bool, error) {
+	lines, err := q.CartItemRows(ctx, cartID)
+	if err != nil {
+		return false, fmt.Errorf("read guest cart lines: %w", err)
+	}
+	var adjusted bool
+	for i := range lines {
+		line := &lines[i]
+		sellable, err := sellableForMerge(ctx, q, line.VariantID)
+		if err != nil {
+			return false, err
+		}
+		clamped := clampCartQuantity(line.Quantity, sellable)
+		if clamped == line.Quantity {
+			continue
+		}
+		adjusted = true
+		if err := q.SetCartItemQuantity(ctx, db.SetCartItemQuantityParams{
+			CartID: cartID, VariantID: line.VariantID, Quantity: clamped,
+		}); err != nil {
+			return false, fmt.Errorf("clamp guest cart line: %w", err)
+		}
+	}
+	return adjusted, nil
+}
+
+func sellableForMerge(ctx context.Context, q *db.Queries, variantID uuid.UUID) (int32, error) {
+	v, err := q.VariantForCart(ctx, variantID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return 0, ErrCartMergeRefused
+		}
+		return 0, fmt.Errorf("read variant for merge: %w", err)
+	}
+	if !v.IsActive || v.Status != "active" || v.SellableQuantity <= 0 {
+		return 0, ErrCartMergeRefused
+	}
+	return v.SellableQuantity, nil
+}
+
+func clampCartQuantity(wanted, sellable int32) int32 {
+	if wanted > sellable {
+		wanted = sellable
+	}
+	if wanted > maxCartLineQuantity {
+		wanted = maxCartLineQuantity
+	}
+	return wanted
 }
 
 // requireUnownedCart revalidates the guest identity after its cart-row lock is

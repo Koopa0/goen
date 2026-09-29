@@ -699,7 +699,7 @@ FROM (VALUES
     ('訂單送出後可以改嗎?', 'Ordering and payment', 'Can I change an order after placing it?',
      'Once an order exists, its items and amounts cannot be edited — that is what keeps every payment matched to a line. Contact us to cancel and order again.'),
     ('折扣碼要怎麼使用?', 'Ordering and payment', 'How do I use a discount code?',
-     'Type it into the discount field at checkout; case does not matter. One code per order, and the discount never exceeds the item subtotal. A percentage code is worked out on the cart subtotal at the items current prices, so items already on sale are discounted too: a sale and a code stack.'),
+     'Type it into the discount field at checkout; case does not matter. One code per order, and the discount never exceeds the item subtotal. A percentage code is worked out on the cart subtotal at the items'' current prices, so items already on sale are discounted too: a sale and a code stack.'),
     ('哪些商品可以退貨?', 'Returns', 'What can I return?',
      'Only items that have SHIPPED, and only up to the quantity actually shipped. For an order that has not shipped, contact us to cancel instead — there is no need for a return.'),
     ('退款什麼時候會收到?', 'Returns', 'When will I get my refund?',

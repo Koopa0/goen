@@ -25,13 +25,16 @@ SELECT lock_user_for_checkout(@user_id::uuid);
 -- name: LockCartCatalogue :exec
 SELECT lock_cart_catalogue(@cart_id::uuid);
 
--- least() caps a repeat add at the CHECK's own ceiling rather than raising a
--- constraint violation the visitor did nothing to deserve.
+-- The caller has already clamped the line's total against sellable stock and
+-- the line ceiling, so a conflict stores the total it was handed. It overwrites
+-- rather than adds: two unlocked callers would each write a total computed from
+-- the same stale read, so every caller must hold the cart row lock that
+-- lockCart takes in mutateCart.
 -- name: AddCartItem :exec
 INSERT INTO cart_items (cart_id, variant_id, quantity)
 VALUES ($1, $2, $3)
 ON CONFLICT (cart_id, variant_id) DO UPDATE
-SET quantity = least(cart_items.quantity + EXCLUDED.quantity, 999);
+SET quantity = EXCLUDED.quantity;
 
 -- name: SetCartItemQuantity :exec
 UPDATE cart_items SET quantity = $3
@@ -39,6 +42,9 @@ WHERE cart_id = $1 AND variant_id = $2;
 
 -- name: RemoveCartItem :exec
 DELETE FROM cart_items WHERE cart_id = $1 AND variant_id = $2;
+
+-- name: CartLineQuantity :one
+SELECT quantity FROM cart_items WHERE cart_id = $1 AND variant_id = $2;
 
 -- name: ClearCart :exec
 DELETE FROM cart_items WHERE cart_id = $1;
@@ -102,7 +108,9 @@ SELECT coalesce(sum(quantity), 0)::bigint FROM cart_items WHERE cart_id = $1;
 -- name: CartLineCapacity :one
 SELECT count(*)::integer AS line_count,
        (count(*) FILTER (WHERE variant_id = @variant_id::uuid) > 0)::boolean
-           AS already_present
+           AS already_present,
+       coalesce(sum(quantity) FILTER (WHERE variant_id = @variant_id::uuid), 0)::integer
+           AS existing_quantity
 FROM cart_items
 WHERE cart_id = @cart_id::uuid;
 

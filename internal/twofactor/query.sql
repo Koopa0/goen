@@ -94,3 +94,8 @@ SELECT revoke_staff($1)::boolean;
 SELECT EXISTS (
     SELECT 1 FROM users WHERE id = @id AND lower(email) = lower(@email::text)
 );
+
+-- A queued invitation is no longer wanted after revocation or erasure.
+-- name: StaffInvitationRecipient :one
+SELECT email, coalesce(full_name, '') AS full_name
+FROM users WHERE id = $1 AND role IN ('staff', 'admin');

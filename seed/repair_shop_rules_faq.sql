@@ -5,7 +5,7 @@ WHERE question = '折扣碼要怎麼使用?'
   AND answer = '在結帳頁的「折扣碼」欄位輸入即可,大小寫不拘。每筆訂單限用一組折扣碼,折抵金額不會超過商品小計。';
 
 UPDATE faq_entries
-SET answer_en = 'Type it into the discount field at checkout; case does not matter. One code per order, and the discount never exceeds the item subtotal. A percentage code is worked out on the cart subtotal at the items current prices, so items already on sale are discounted too: a sale and a code stack.'
+SET answer_en = 'Type it into the discount field at checkout; case does not matter. One code per order, and the discount never exceeds the item subtotal. A percentage code is worked out on the cart subtotal at the items'' current prices, so items already on sale are discounted too: a sale and a code stack.'
 WHERE question = '折扣碼要怎麼使用?'
   AND answer_en = 'Type it into the discount field at checkout; case does not matter. One code per order, and the discount never exceeds the item subtotal.';
 
