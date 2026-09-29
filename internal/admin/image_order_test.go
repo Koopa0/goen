@@ -33,3 +33,14 @@ func TestPlaceImageMovesOneAndRefusesNoOps(t *testing.T) {
 		t.Fatal("the input order was modified")
 	}
 }
+
+// The image list posts these words from its template, in another package; the
+// spelling is the contract between them.
+func TestImageMoveWordsMatchTheImageListForms(t *testing.T) {
+	t.Parallel()
+	for move, want := range map[ImageMove]string{MoveToCover: "cover", MoveUp: "up", MoveDown: "down"} {
+		if string(move) != want {
+			t.Errorf("move %q is spelled %q, but the image list posts %q", move, string(move), want)
+		}
+	}
+}

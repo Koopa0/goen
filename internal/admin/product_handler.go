@@ -360,6 +360,8 @@ func (h *Handler) MoveImage(w http.ResponseWriter, r *http.Request) {
 	case err == nil:
 		//nolint:gosec // G710: slug is the route's own path value
 		http.Redirect(w, r, "/admin/products/"+slug+"?ok=1", http.StatusSeeOther)
+	case errors.Is(err, ErrNotFound):
+		h.notFound(w, r)
 	case errors.Is(err, ErrInvalid):
 		h.log.WarnContext(r.Context(), "move image refused", "error", err, "slug", slug)
 		h.renderProduct(w, r, http.StatusUnprocessableEntity, i18n.T(r.Context(), i18n.KeyAdminNoticeImageStale))

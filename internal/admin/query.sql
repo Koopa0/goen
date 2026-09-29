@@ -904,13 +904,9 @@ JOIN products p ON p.id = pi.product_id
 WHERE p.slug = @slug::text
 ORDER BY pi.position, pi.id;
 
--- The product's row is what serialises everything that writes its image
--- positions. It is its own statement: read under READ COMMITTED, an image read
--- in the same statement would use a snapshot taken before the lock was won.
--- name: LockProductForImages :one
-SELECT p.id FROM products p WHERE p.slug = @slug::text FOR UPDATE;
-
--- One product's images in display order.
+-- One product's images in display order. Read after LockProductCatalogue, as its
+-- own statement: in the same statement the read would use a snapshot taken
+-- before that lock was won.
 -- name: ProductImageOrder :many
 SELECT pi.id, pi.storage_key
 FROM product_images pi

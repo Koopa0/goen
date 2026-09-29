@@ -238,3 +238,29 @@ func TestConcurrentAttachAndReorderNeverCollideOnPosition(t *testing.T) {
 		t.Fatalf("positions distinct=%d of %d images, want 11 of 11", distinct, total)
 	}
 }
+
+// Three moves up of the last of four images, fired together: serialised they end
+// with it at the cover; without the product lock they read the same starting
+// order and the moves overwrite each other.
+func TestConcurrentMovesUpLoseNoUpdate(t *testing.T) {
+	ctx, _ := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	slug, _, keys := imageOrderProduct(t, 4)
+	var wg sync.WaitGroup
+	errs := make(chan error, 3)
+	for range 3 {
+		wg.Go(func() {
+			if err := s.MoveImage(ctx, slug, keys[3], admin.MoveUp); err != nil {
+				errs <- err
+			}
+		})
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		t.Errorf("a queued move failed: %v", err)
+	}
+	if got := imageOrder(t, slug); got[0] != keys[3] || strings.Join(got[1:], ",") != strings.Join(keys[:3], ",") {
+		t.Fatalf("three serialised moves up left the order %v, want %s first then %v", got, keys[3], keys[:3])
+	}
+}

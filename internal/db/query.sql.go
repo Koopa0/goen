@@ -6934,20 +6934,6 @@ func (q *Queries) LockProductCatalogue(ctx context.Context, slug string) (uuid.U
 	return id, err
 }
 
-const lockProductForImages = `-- name: LockProductForImages :one
-SELECT p.id FROM products p WHERE p.slug = $1::text FOR UPDATE
-`
-
-// The product's row is what serialises everything that writes its image
-// positions. It is its own statement: read under READ COMMITTED, an image read
-// in the same statement would use a snapshot taken before the lock was won.
-func (q *Queries) LockProductForImages(ctx context.Context, slug string) (uuid.UUID, error) {
-	row := q.db.QueryRow(ctx, lockProductForImages, slug)
-	var id uuid.UUID
-	err := row.Scan(&id)
-	return id, err
-}
-
 const lockReturnOrder = `-- name: LockReturnOrder :one
 SELECT o.id
 FROM orders o JOIN return_requests r ON r.order_id = o.id
@@ -8658,7 +8644,9 @@ type ProductImageOrderRow struct {
 	StorageKey string
 }
 
-// One product's images in display order.
+// One product's images in display order. Read after LockProductCatalogue, as its
+// own statement: in the same statement the read would use a snapshot taken
+// before that lock was won.
 func (q *Queries) ProductImageOrder(ctx context.Context, slug string) ([]ProductImageOrderRow, error) {
 	rows, err := q.db.Query(ctx, productImageOrder, slug)
 	if err != nil {

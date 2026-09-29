@@ -39,7 +39,7 @@ func (s *Store) AttachImage(
 			// renumbers under it, and an attach that read positions mid-reorder
 			// would collide on the unique index. A missing product falls through
 			// to an insert that matches nothing.
-			if _, err := q.LockProductForImages(ctx, slug); err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			if _, err := q.LockProductCatalogue(ctx, slug); err != nil && !errors.Is(err, pgx.ErrNoRows) {
 				return fmt.Errorf("%w: %w", ErrRefused, err)
 			}
 			if err := q.AttachProductImage(ctx, db.AttachProductImageParams{
@@ -93,7 +93,12 @@ func (s *Store) MoveImage(ctx context.Context, slug, digest string, move ImageMo
 		After: map[string]any{"product": slug, "digest": digest, "move": string(move), "order": &order},
 	},
 		func(ctx context.Context, q *db.Queries) error {
-			if _, err := q.LockProductForImages(ctx, slug); err != nil {
+			// The product's catalogue lock, the one variant creation takes: it
+			// serialises every writer of this product's image positions.
+			if _, err := q.LockProductCatalogue(ctx, slug); err != nil {
+				if errors.Is(err, pgx.ErrNoRows) {
+					return ErrNotFound
+				}
 				return fmt.Errorf("%w: %w", ErrRefused, err)
 			}
 			rows, err := q.ProductImageOrder(ctx, slug)
