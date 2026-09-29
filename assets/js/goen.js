@@ -85,6 +85,66 @@
     document.querySelectorAll("[data-stepper]").forEach(atBounds);
   }
 
+  // Request state is presentation only. Submitter names and values remain in
+  // the payload; native disabled controls would remove them before submission.
+  function requestFeedback() {
+    const pending = new Map();
+    const requests = new WeakMap();
+    const restoreAttribute = (element, name, value) => {
+      if (value === null) element.removeAttribute(name);
+      else element.setAttribute(name, value);
+    };
+    const begin = (form) => {
+      const buttons = [...form.querySelectorAll('button[type="submit"], input[type="submit"]')]
+        .map((button) => [button, button.getAttribute("aria-disabled")]);
+      pending.set(form, { busy: form.getAttribute("aria-busy"), buttons });
+      form.setAttribute("aria-busy", "true");
+      form.setAttribute("data-request-pending", "");
+      for (const [button] of buttons) button.setAttribute("aria-disabled", "true");
+    };
+    const finish = (form) => {
+      const state = pending.get(form);
+      if (!state) return;
+      restoreAttribute(form, "aria-busy", state.busy);
+      form.removeAttribute("data-request-pending");
+      for (const [button, disabled] of state.buttons) restoreAttribute(button, "aria-disabled", disabled);
+      pending.delete(form);
+    };
+    document.addEventListener("submit", (event) => {
+      if (event.defaultPrevented || !(event.target instanceof HTMLFormElement)) return;
+      if (pending.has(event.target)) event.preventDefault();
+      else begin(event.target);
+    });
+    document.addEventListener("htmx:before:request", (event) => {
+      const ctx = event.detail?.ctx;
+      const form = ctx?.request?.form;
+      if (!(form instanceof HTMLFormElement)) return;
+      // Do not delete the isConnected clause: a second press queues behind the
+      // first, whose response swaps the form out of the page, and htmx then
+      // issues the queued request from that detached form, where nothing is
+      // pending any more. Without the clause it posts a second time and the
+      // product is added twice.
+      if (pending.has(form) || !ctx.sourceElement.isConnected) { event.preventDefault(); return; }
+      begin(form);
+      requests.set(ctx, form);
+    });
+    // On document, because the source element may be detached by the swap
+    // before this fires and an event on a detached node never reaches us.
+    document.addEventListener("htmx:finally:request", (event) => {
+      const ctx = event.detail?.ctx;
+      const form = requests.get(ctx);
+      if (!form) return;
+      requests.delete(ctx);
+      finish(form);
+    });
+    document.addEventListener("reset", (event) => finish(event.target));
+    window.addEventListener("pageshow", () => {
+      for (const form of pending.keys()) finish(form);
+    });
+  }
+
+  requestFeedback();
+
   // Delegation includes fields replaced by a checkout choice. Native browser
   // constraints also work without this accessibility-state enhancement.
   function checkoutConstraints() {
