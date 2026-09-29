@@ -57,9 +57,12 @@ templ Pay(p layouts.Page, v PayView) {
 				</div>
 				if v.Enabled {
 					if v.Sandbox {
-						<p class="goen-pay__assurance" id="pay-sandbox">
+						@components.Notice(components.NoticeProps{
+							Tone: components.ToneAccent,
+							ID:   "pay-sandbox",
+						}) {
 							{ i18n.T(ctx, i18n.KeyPaySandbox) }
-						</p>
+						}
 					}
 					<form method="post" action={ templ.SafeURL(v.Action()) }>
 						@components.Button(components.ButtonProps{
