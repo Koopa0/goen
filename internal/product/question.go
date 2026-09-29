@@ -14,11 +14,10 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
-// MaxQuestionRunes, MaxAnswerRunes and MaxQuestions bound what can be written
+// MaxQuestionRunes and MaxQuestions bound what can be written
 // and shown, counted in runes.
 const (
 	MaxQuestionRunes = 300
-	MaxAnswerRunes   = 600
 	MaxQuestions     = 10
 )
 
@@ -40,35 +39,6 @@ func (s *Store) Ask(ctx context.Context, slug, userID, body string) error {
 	})
 	if err != nil {
 		return fmt.Errorf("ask question: %w", err)
-	}
-	if n == 0 {
-		return ErrNotFound
-	}
-	return nil
-}
-
-// Answer records a CUSTOMER's reply. is_staff is false because of the PACKAGE,
-// never of who is signed in: the shop answers through admin.Store.AnswerQuestion,
-// which is the only endpoint behind RequireStaff.
-func (s *Store) answer(ctx context.Context, questionID, userID, body string) error {
-	body = strings.TrimSpace(body)
-	if body == "" || utf8.RuneCountInString(body) > MaxAnswerRunes {
-		return ErrQuestionInvalid
-	}
-	qID, err := uuid.Parse(questionID)
-	if err != nil {
-		return ErrQuestionInvalid
-	}
-	author, err := uuid.Parse(userID)
-	if err != nil {
-		return ErrQuestionInvalid
-	}
-	n, err := s.q.AnswerQuestionAsCustomer(ctx, db.AnswerQuestionAsCustomerParams{
-		QuestionID: qID, UserID: uuid.NullUUID{UUID: author, Valid: true},
-		Body: body,
-	})
-	if err != nil {
-		return fmt.Errorf("answer question: %w", err)
 	}
 	if n == 0 {
 		return ErrNotFound
