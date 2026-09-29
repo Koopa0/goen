@@ -276,11 +276,18 @@ check-layout:
 		CREDIT_PAGE=$$(curl -fsS -b "goen_session=$$AT" $$U/admin/credit); \
 		OP=$$(printf '%s' "$$CREDIT_PAGE" | grep -o 'name="operation_id" value="[^"]*"' | head -1 | cut -d'"' -f4); \
 		test -n "$$OP" || { echo 'credit grant form did not render an operation_id' >&2; exit 2; }; \
+		CREDIT_REVIEW=$$(curl -fsS -b "goen_session=$$AT" -H 'Sec-Fetch-Site: same-origin' \
+			--data-urlencode 'email=layout-cust@goen.invalid' --data-urlencode 'amount=99999' \
+			--data-urlencode "reason=版面檢查用的退貨樣本 $$$$" \
+			--data-urlencode "operation_id=$$OP" $$U/admin/credit); \
+		CUSTOMER_ID=$$(printf '%s' "$$CREDIT_REVIEW" | grep -o 'name="customer_id" value="[^"]*"' | head -1 | cut -d'"' -f4); \
+		test -n "$$CUSTOMER_ID" || { echo 'credit grant review did not render a customer_id' >&2; exit 2; }; \
 		GRANT=$$(curl -sS -o /dev/null -w '%{http_code} %{redirect_url}' -b "goen_session=$$AT" \
 			-H 'Sec-Fetch-Site: same-origin' \
 			--data-urlencode 'email=layout-cust@goen.invalid' --data-urlencode 'amount=99999' \
 			--data-urlencode "reason=版面檢查用的退貨樣本 $$$$" \
-			--data-urlencode "operation_id=$$OP" $$U/admin/credit); \
+			--data-urlencode "operation_id=$$OP" --data-urlencode "customer_id=$$CUSTOMER_ID" \
+			-d 'confirm=grant' $$U/admin/credit); \
 		test "$${GRANT%% *}" = 303 || { echo "credit grant answered $${GRANT%% *}, want 303" >&2; exit 2; }; \
 		printf '%s' "$${GRANT#* }" | grep -q 'ok=1' \
 			|| { echo "credit grant redirected to $${GRANT#* }, want ok=1" >&2; exit 2; }; \
@@ -323,7 +330,7 @@ check-layout:
 		RID=$$(psql "$$GOEN_DATABASE_URL" -tAc "SELECT r.id FROM return_requests r JOIN orders o ON o.id = r.order_id WHERE o.order_number = '$$RN' AND r.status = 'requested' ORDER BY r.created_at DESC LIMIT 1"); \
 		test -n "$$RID" || { echo 'return fixture created no return request' >&2; exit 2; }; \
 		STATUS=$$(curl -sS -o /dev/null -w '%{http_code}' -b "goen_session=$$AT" -H 'Sec-Fetch-Site: same-origin' \
-			-d 'decision=approved' --data-urlencode 'resolution=版面檢查同意退貨' \
+			-d 'decision=approved' -d 'confirm=approved' --data-urlencode 'resolution=版面檢查同意退貨' \
 			$$U/admin/returns/$$RID/decide); \
 		test "$$STATUS" = 303 || { echo "return fixture decide answered $$STATUS, want 303" >&2; exit 2; }; \
 		REFUNDED=$$(psql "$$GOEN_DATABASE_URL" -tAc "SELECT (rf.card_cents + rf.credit_cents)::text FROM order_refunds rf JOIN orders o ON o.id = rf.order_id WHERE o.order_number = '$$RN'"); \

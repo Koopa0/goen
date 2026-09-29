@@ -1,6 +1,8 @@
 package i18n
 
 var (
+	KeyStaffAlreadyExists = key("staff.alreadyexists", Message{ZhHant: "這個信箱已經是員工或管理員，未新增人員。原有姓名、角色與登入狀態均未變更。", En: "This email already belongs to a staff member or administrator. Nobody was added; their name, role and sign-ins are unchanged."})
+
 	KeyAdminColPerson = key("admin.col.person", Message{ZhHant: "人員", En: "Person"})
 
 	KeyAdminColRole = key("admin.col.role", Message{ZhHant: "角色", En: "Role"})
