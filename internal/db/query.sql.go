@@ -13454,11 +13454,11 @@ func (q *Queries) WishlistItems(ctx context.Context, arg WishlistItemsParams) ([
 
 const workerHealth = `-- name: WorkerHealth :one
 WITH pending_outbox AS (
-    SELECT available_at FROM outbox_messages
-    WHERE delivered_at IS NULL
-      AND dropped_at IS NULL
-      AND blocked_at IS NULL
-      AND created_at > now() - $1::interval
+    SELECT o.available_at FROM outbox_messages o
+    WHERE o.delivered_at IS NULL
+      AND o.dropped_at IS NULL
+      AND o.blocked_at IS NULL
+      AND o.created_at > now() - $1::interval
 ), ready_outbox AS (
     SELECT available_at FROM pending_outbox WHERE available_at <= now()
 )

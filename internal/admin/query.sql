@@ -1103,11 +1103,11 @@ WHERE id = @question_id AND hidden_at IS NULL;
 -- infers as non-nullable and pgx then refuses to scan: a fresh deployment only.
 -- name: WorkerHealth :one
 WITH pending_outbox AS (
-    SELECT available_at FROM outbox_messages
-    WHERE delivered_at IS NULL
-      AND dropped_at IS NULL
-      AND blocked_at IS NULL
-      AND created_at > now() - @outbox_retain::interval
+    SELECT o.available_at FROM outbox_messages o
+    WHERE o.delivered_at IS NULL
+      AND o.dropped_at IS NULL
+      AND o.blocked_at IS NULL
+      AND o.created_at > now() - @outbox_retain::interval
 ), ready_outbox AS (
     SELECT available_at FROM pending_outbox WHERE available_at <= now()
 )
