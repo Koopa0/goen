@@ -815,6 +815,125 @@ func TestAdoptUnavailableGuestLinePreservesBothCarts(t *testing.T) {
 	}
 }
 
+// TestAdoptRefusesInactiveLinesWithoutTouchingEitherCart holds the rejection
+// for a line that can no longer be sold at all: the guest's cart, and the
+// account's when it has one, keep every line at its original quantity.
+func TestAdoptRefusesInactiveLinesWithoutTouchingEitherCart(t *testing.T) {
+	ctx := t.Context()
+	s := account.NewStore(pool)
+
+	breakers := []struct {
+		name string
+		// break makes the variant unsellable; restore is run from Cleanup.
+		breakIt, restore string
+	}{
+		{
+			"inactive variant",
+			`UPDATE product_variants SET is_active = false WHERE id = $1`,
+			`UPDATE product_variants SET is_active = true WHERE id = $1`,
+		},
+		{
+			"inactive product",
+			`UPDATE products SET status = 'archived'
+			 WHERE id = (SELECT product_id FROM product_variants WHERE id = $1)`,
+			`UPDATE products SET status = 'active'
+			 WHERE id = (SELECT product_id FROM product_variants WHERE id = $1)`,
+		},
+	}
+	for _, b := range breakers {
+		for _, hasAccountCart := range []bool{false, true} {
+			name := b.name + "/guest-only adoption"
+			if hasAccountCart {
+				name = b.name + "/account and guest merge"
+			}
+			t.Run(name, func(t *testing.T) {
+				u := register(t, s, "adopt-inactive-"+uuid.NewString()+"@example.com")
+				uid := uuid.MustParse(u.ID)
+
+				good := sellableVariant(t, ctx)
+				bad := anotherSellableVariant(t, ctx, good)
+				if _, err := pool.Exec(ctx, b.breakIt, bad); err != nil {
+					t.Fatalf("make the variant unsellable: %v", err)
+				}
+				t.Cleanup(func() {
+					_, _ = pool.Exec(context.Background(), b.restore, bad) //nolint:usetesting // t.Context is already cancelled in Cleanup
+				})
+
+				var accountCart uuid.UUID
+				if hasAccountCart {
+					if err := pool.QueryRow(ctx,
+						`INSERT INTO carts (token_hash, user_id) VALUES ($1, $2) RETURNING id`,
+						account.HashToken("account-cart-"+u.ID), uid).Scan(&accountCart); err != nil {
+						t.Fatalf("account cart: %v", err)
+					}
+					if _, err := pool.Exec(ctx,
+						`INSERT INTO cart_items (cart_id, variant_id, quantity) VALUES ($1, $2, 1)`,
+						accountCart, good); err != nil {
+						t.Fatalf("account line: %v", err)
+					}
+				}
+				var guestCart uuid.UUID
+				if err := pool.QueryRow(ctx,
+					`INSERT INTO carts (token_hash) VALUES ($1) RETURNING id`,
+					account.HashToken("guest-cart-"+u.ID)).Scan(&guestCart); err != nil {
+					t.Fatalf("guest cart: %v", err)
+				}
+				for _, line := range []struct {
+					variant uuid.UUID
+					qty     int32
+				}{{good, 2}, {bad, 3}} {
+					if _, err := pool.Exec(ctx,
+						`INSERT INTO cart_items (cart_id, variant_id, quantity) VALUES ($1, $2, $3)`,
+						guestCart, line.variant, line.qty); err != nil {
+						t.Fatalf("guest line: %v", err)
+					}
+				}
+
+				if err := s.AdoptCart(ctx, u.ID, guestCart); !errors.Is(err, account.ErrCartMergeRefused) {
+					t.Fatalf("adopt returned %v, want ErrCartMergeRefused", err)
+				}
+
+				quantities := func(cartID uuid.UUID) map[uuid.UUID]int32 {
+					rows, err := pool.Query(ctx,
+						`SELECT variant_id, quantity FROM cart_items WHERE cart_id = $1`, cartID)
+					if err != nil {
+						t.Fatalf("read lines: %v", err)
+					}
+					defer rows.Close()
+					got := map[uuid.UUID]int32{}
+					for rows.Next() {
+						var v uuid.UUID
+						var q int32
+						if err := rows.Scan(&v, &q); err != nil {
+							t.Fatalf("scan line: %v", err)
+						}
+						got[v] = q
+					}
+					if err := rows.Err(); err != nil {
+						t.Fatalf("read lines: %v", err)
+					}
+					return got
+				}
+				if got := quantities(guestCart); len(got) != 2 || got[good] != 2 || got[bad] != 3 {
+					t.Errorf("guest lines after refusal = %v, want both at their original quantities", got)
+				}
+				var carts int
+				if err := pool.QueryRow(ctx,
+					`SELECT count(*) FROM carts WHERE user_id = $1`, uid).Scan(&carts); err != nil {
+					t.Fatalf("count account carts: %v", err)
+				}
+				if hasAccountCart {
+					if got := quantities(accountCart); len(got) != 1 || got[good] != 1 {
+						t.Errorf("account lines after refusal = %v, want the one original line", got)
+					}
+				} else if carts != 0 {
+					t.Errorf("a refused adoption left %d account carts, want none", carts)
+				}
+			})
+		}
+	}
+}
+
 // TestAMergedCartIsVisibleAfterSignInWithTheDeletedGuestCookie holds the
 // storefront path: sign-in adopt deletes the guest row, the browser cookie
 // still names it, and GET /cart must show the surviving account cart.

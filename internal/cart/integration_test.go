@@ -957,6 +957,100 @@ func TestAddClampsToWhatCanBeSupplied(t *testing.T) {
 	}
 }
 
+func TestAddAdjustedShowsNoticeOnTheProductPage(t *testing.T) {
+	ctx := t.Context()
+	s := cart.NewStore(pool)
+	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, testLimiter(), nil, nil)
+
+	vid := freshVariant(t, "stockfix-add-notice")
+	var slug string
+	var wasStock, wasSafety int32
+	if err := pool.QueryRow(ctx, `
+		SELECT p.slug, pv.stock_quantity, pv.safety_stock
+		FROM product_variants pv JOIN products p ON p.id = pv.product_id
+		WHERE pv.id = $1`, vid).Scan(&slug, &wasStock, &wasSafety); err != nil {
+		t.Fatalf("read variant: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(context.Background(), //nolint:usetesting // t.Context is already cancelled in Cleanup
+			`UPDATE product_variants SET stock_quantity = $2, safety_stock = $3 WHERE id = $1`,
+			vid, wasStock, wasSafety)
+	})
+	// 3 can be sold: 5 on hand less the floor of 2.
+	if _, err := pool.Exec(ctx,
+		`UPDATE product_variants SET stock_quantity = 5, safety_stock = 2 WHERE id = $1`,
+		vid); err != nil {
+		t.Fatalf("fixture: %v", err)
+	}
+
+	// Two adds: the first asks for more than can be sold, the second repeats an
+	// add onto a line that already holds 2.
+	for _, tc := range []struct {
+		name     string
+		seed     int32
+		quantity string
+	}{
+		{"first add over stock", 0, "10"},
+		{"repeat add over stock", 2, "2"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			id, token := newCartSession(t, s)
+			if tc.seed > 0 {
+				if _, err := pool.Exec(ctx,
+					`INSERT INTO cart_items (cart_id, variant_id, quantity) VALUES ($1, $2, $3)`,
+					id, vid, tc.seed); err != nil {
+					t.Fatalf("seed line: %v", err)
+				}
+			}
+			form := url.Values{
+				"variant": {vid.String()}, "quantity": {tc.quantity}, "back": {slug},
+			}
+			req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/cart/items",
+				strings.NewReader(form.Encode()))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token}) //nolint:gosec // G124: the browser's own cart cookie, read back by this handler
+			res := httptest.NewRecorder()
+			h.AddItem(res, req)
+			if res.Code != http.StatusSeeOther {
+				t.Fatalf("status = %d, want 303 (an adjusted add is not a server error); body=%s",
+					res.Code, res.Body.String())
+			}
+			loc, err := url.Parse(res.Header().Get("Location"))
+			if err != nil {
+				t.Fatalf("parse redirect: %v", err)
+			}
+			if got := loc.Query().Get("added"); got != "adjusted" {
+				t.Errorf("redirect is %q, want added=adjusted", loc)
+			}
+
+			var stored int32
+			if err := pool.QueryRow(ctx,
+				`SELECT quantity FROM cart_items WHERE cart_id = $1 AND variant_id = $2`,
+				id, vid).Scan(&stored); err != nil {
+				t.Fatalf("read line: %v", err)
+			}
+			if stored != 3 {
+				t.Errorf("cart holds %d, want 3 (what can be sold)", stored)
+			}
+
+			for _, locale := range []i18n.Locale{i18n.En, i18n.ZhHant} {
+				lctx := i18n.WithLocale(ctx, locale)
+				follow := httptest.NewRequestWithContext(lctx, http.MethodGet, loc.RequestURI(), http.NoBody)
+				follow.SetPathValue("slug", slug)
+				pres := httptest.NewRecorder()
+				product.NewHandler(product.NewStore(pool), slog.New(slog.DiscardHandler), "https://goen.example").
+					Detail(pres, follow)
+				if pres.Code != http.StatusOK {
+					t.Fatalf("%v: product page answered %d", locale, pres.Code)
+				}
+				if want := i18n.T(lctx, i18n.KeyAddAdjusted); !strings.Contains(pres.Body.String(), want) {
+					t.Errorf("%v: product page does not show %q", locale, want)
+				}
+			}
+		})
+	}
+}
+
 func TestSetQuantityClampsToWhatCanBeSupplied(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
@@ -1020,57 +1114,94 @@ func TestUpdateItemUnavailableDoesNot500(t *testing.T) {
 	s := cart.NewStore(pool)
 	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, testLimiter(), nil, nil)
 
-	vid := freshVariant(t, "stockfix-unavail")
-	var wasStock, wasSafety int32
-	if err := pool.QueryRow(ctx,
-		`SELECT stock_quantity, safety_stock FROM product_variants WHERE id = $1`,
-		vid).Scan(&wasStock, &wasSafety); err != nil {
-		t.Fatalf("read stock: %v", err)
-	}
-	t.Cleanup(func() {
-		_, _ = pool.Exec(context.Background(), //nolint:usetesting // t.Context is already cancelled in Cleanup
-			`UPDATE product_variants SET stock_quantity = $2, safety_stock = $3, is_active = true WHERE id = $1`,
-			vid, wasStock, wasSafety)
-	})
-	if _, err := pool.Exec(ctx,
-		`UPDATE product_variants SET stock_quantity = 0, safety_stock = 0 WHERE id = $1`,
-		vid); err != nil {
-		t.Fatalf("fixture: %v", err)
-	}
+	// Each case makes the variant impossible to sell a different way; the line
+	// keeps its quantity and the visitor is told, not sent to a 500.
+	for _, tc := range []struct{ name, breakIt, restore string }{
+		{
+			"no sellable stock",
+			`UPDATE product_variants SET stock_quantity = 0, safety_stock = 0 WHERE id = $1`,
+			"",
+		},
+		{
+			"inactive variant",
+			`UPDATE product_variants SET is_active = false WHERE id = $1`,
+			`UPDATE product_variants SET is_active = true WHERE id = $1`,
+		},
+		{
+			"inactive product",
+			`UPDATE products SET status = 'archived'
+			 WHERE id = (SELECT product_id FROM product_variants WHERE id = $1)`,
+			`UPDATE products SET status = 'active'
+			 WHERE id = (SELECT product_id FROM product_variants WHERE id = $1)`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// A sibling stays sellable: a product with nothing left to sell
+			// cannot stay active, and this test is about the variant.
+			vid, _, _ := threeVariants(t, "stockfix-unavail")
+			var wasStock, wasSafety int32
+			if err := pool.QueryRow(ctx,
+				`SELECT stock_quantity, safety_stock FROM product_variants WHERE id = $1`,
+				vid).Scan(&wasStock, &wasSafety); err != nil {
+				t.Fatalf("read stock: %v", err)
+			}
+			t.Cleanup(func() {
+				_, _ = pool.Exec(context.Background(), //nolint:usetesting // t.Context is already cancelled in Cleanup
+					`UPDATE product_variants SET stock_quantity = $2, safety_stock = $3, is_active = true WHERE id = $1`,
+					vid, wasStock, wasSafety)
+				if tc.restore != "" {
+					_, _ = pool.Exec(context.Background(), tc.restore, vid) //nolint:usetesting // t.Context is already cancelled in Cleanup
+				}
+			})
 
-	id, token := newCartSession(t, s)
-	if _, err := pool.Exec(ctx,
-		`INSERT INTO cart_items (cart_id, variant_id, quantity) VALUES ($1, $2, 1)`,
-		id, vid); err != nil {
-		t.Fatalf("seed line: %v", err)
-	}
+			id, token := newCartSession(t, s)
+			if _, err := pool.Exec(ctx,
+				`INSERT INTO cart_items (cart_id, variant_id, quantity) VALUES ($1, $2, 1)`,
+				id, vid); err != nil {
+				t.Fatalf("seed line: %v", err)
+			}
+			if _, err := pool.Exec(ctx, tc.breakIt, vid); err != nil {
+				t.Fatalf("fixture: %v", err)
+			}
 
-	form := url.Values{"variant": {vid.String()}, "quantity": {"2"}}
-	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/cart/items/update",
-		strings.NewReader(form.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token}) //nolint:gosec // G124: dev cart cookie under test
-	rec := httptest.NewRecorder()
-	h.UpdateItem(rec, req)
+			form := url.Values{"variant": {vid.String()}, "quantity": {"2"}}
+			req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/cart/items/update",
+				strings.NewReader(form.Encode()))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token}) //nolint:gosec // G124: dev cart cookie under test
+			rec := httptest.NewRecorder()
+			h.UpdateItem(rec, req)
 
-	if rec.Code != http.StatusSeeOther {
-		t.Fatalf("update unavailable status = %d, want 303; body=%s", rec.Code, rec.Body.String())
-	}
-	loc := rec.Header().Get("Location")
-	if loc != "/cart?qty=unavailable" {
-		t.Fatalf("update unavailable redirect = %q, want /cart?qty=unavailable", loc)
-	}
+			if rec.Code != http.StatusSeeOther {
+				t.Fatalf("update unavailable status = %d, want 303; body=%s", rec.Code, rec.Body.String())
+			}
+			loc := rec.Header().Get("Location")
+			if loc != "/cart?qty=unavailable" {
+				t.Fatalf("update unavailable redirect = %q, want /cart?qty=unavailable", loc)
+			}
 
-	follow := httptest.NewRequestWithContext(ctx, http.MethodGet, loc, http.NoBody)
-	follow.AddCookie(&http.Cookie{Name: "goen_cart", Value: token}) //nolint:gosec // G124: dev cart cookie under test
-	page := httptest.NewRecorder()
-	h.Page(page, follow)
-	if page.Code != http.StatusOK {
-		t.Fatalf("cart page status = %d, want 200", page.Code)
-	}
-	want := i18n.T(ctx, i18n.KeyAddRefused)
-	if !strings.Contains(page.Body.String(), want) {
-		t.Fatalf("cart page does not show %q after unavailable update", want)
+			var stored int32
+			if err := pool.QueryRow(ctx,
+				`SELECT quantity FROM cart_items WHERE cart_id = $1 AND variant_id = $2`,
+				id, vid).Scan(&stored); err != nil {
+				t.Fatalf("the refused update deleted the customer's line: %v", err)
+			}
+			if stored != 1 {
+				t.Errorf("refused update left quantity %d, want the original 1", stored)
+			}
+
+			follow := httptest.NewRequestWithContext(ctx, http.MethodGet, loc, http.NoBody)
+			follow.AddCookie(&http.Cookie{Name: "goen_cart", Value: token}) //nolint:gosec // G124: dev cart cookie under test
+			page := httptest.NewRecorder()
+			h.Page(page, follow)
+			if page.Code != http.StatusOK {
+				t.Fatalf("cart page status = %d, want 200", page.Code)
+			}
+			want := i18n.T(ctx, i18n.KeyAddRefused)
+			if !strings.Contains(page.Body.String(), want) {
+				t.Fatalf("cart page does not show %q after unavailable update", want)
+			}
+		})
 	}
 }
 
