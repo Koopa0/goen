@@ -46,8 +46,8 @@ func TestBestSellerGrossCannotBeMistakenForOrderRevenue(t *testing.T) {
 		locale              i18n.Locale
 		gross, units, scope string
 	}{
-		{i18n.ZhHant, "商品毛額 NT$1,000", "售出 2 件", "未扣訂單折扣或退款，不含運費與訂單稅額"},
-		{i18n.En, "Product gross NT$1,000", "2 units sold", "before order discounts or refunds and excluding shipping and order tax"},
+		{i18n.ZhHant, "商品毛額 NT$1,000", "售出 2 件", "含稅成交單價乘售出數量計算，未扣訂單折扣或退款，不含運費"},
+		{i18n.En, "Product gross NT$1,000", "2 units sold", "tax-inclusive sale unit price multiplied by units sold, before order discounts or refunds and excluding shipping"},
 	} {
 		t.Run(string(tt.locale), func(t *testing.T) {
 			t.Parallel()
