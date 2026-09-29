@@ -10701,7 +10701,9 @@ SELECT
     -- while Stripe still says pending), and created_at for the synchronous
     -- credit post.
     --
-    -- The positive-credit predicate deliberately matches order_refunds. That
+    -- The positive-credit predicate deliberately matches order_refunds: an entry
+    -- counts only with an order_id and a positive amount, so a credit reversal
+    -- posted without an order_id is never counted as a refund, here or there. That
     -- includes reverse_order_credit on a CANCELLED order whose revenue was never
     -- counted here; excluding cancellations in this caller would create another
     -- definition. If the report should exclude them, change order_refunds so the
@@ -11593,16 +11595,21 @@ func (q *Queries) SettledRefundsForOrder(ctx context.Context, orderNumber string
 const shipmentRecipient = `-- name: ShipmentRecipient :one
 SELECT coalesce(pd.email, '') AS email,
        coalesce(pd.recipient_name, '') AS recipient_name,
-       o.locale
+       o.locale,
+       coalesce((SELECT sm.destination_kind
+                 FROM shipping_method_versions v
+                 JOIN shipping_methods sm ON sm.id = v.method_id
+                 WHERE v.id = o.shipping_version_id), '')::text AS destination_kind
 FROM orders o
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
 WHERE o.id = $1
 `
 
 type ShipmentRecipientRow struct {
-	Email         string
-	RecipientName string
-	Locale        string
+	Email           string
+	RecipientName   string
+	Locale          string
+	DestinationKind string
 }
 
 // The locale comes off the ORDER and never off the staff member who pressed
@@ -11611,7 +11618,12 @@ type ShipmentRecipientRow struct {
 func (q *Queries) ShipmentRecipient(ctx context.Context, id uuid.UUID) (ShipmentRecipientRow, error) {
 	row := q.db.QueryRow(ctx, shipmentRecipient, id)
 	var i ShipmentRecipientRow
-	err := row.Scan(&i.Email, &i.RecipientName, &i.Locale)
+	err := row.Scan(
+		&i.Email,
+		&i.RecipientName,
+		&i.Locale,
+		&i.DestinationKind,
+	)
 	return i, err
 }
 

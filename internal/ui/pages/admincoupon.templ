@@ -245,6 +245,7 @@ templ AdminCoupons(p layouts.Page, v AdminCouponsView) {
 						if v.HasErr("percustomer") {
 							<p class="ui-error-text" id="c-percustomer-error">{ v.Err("percustomer") }</p>
 						}
+						<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminCoupPerCustomerHint) }</p>
 					</div>
 				</div>
 				@components.Button(components.ButtonProps{

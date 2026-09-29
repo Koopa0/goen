@@ -73,6 +73,13 @@ var (
 		En:     "Your order %s is on its way.\n\nCarrier: %s\nTracking number: %s\n\nView the order:\n%s",
 	})
 
+	// KeyMailShippedPickupBody is the dispatch notice for a convenience-store
+	// pickup order, which has no address to be "on its way" to.
+	KeyMailShippedPickupBody = key("mail.shipped.pickup.body", Message{
+		ZhHant: "您的訂單 %s 已經出貨,將送到您選擇的超商門市取貨。\n\n物流:%s\n查詢編號:%s\n\n查看訂單:\n%s",
+		En:     "Your order %s has shipped to the convenience store you chose, where you collect it.\n\nCarrier: %s\nTracking number: %s\n\nView the order:\n%s",
+	})
+
 	// KeyMailRestockSubject heads the restock notice; goen reserves no stock for one.
 	KeyMailRestockSubject = key("mail.restock.subject", Message{
 		ZhHant: "「%s」補貨通知",

@@ -551,6 +551,9 @@ templ AdminOrder(p layouts.Page, v *AdminOrderView) {
 							<p class="goen-admin__hint">
 								{ i18n.T(ctx, i18n.KeyAdminQueueNextHint) }
 							</p>
+							if v.PickupDestination {
+								<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminQueuePickupCompleteHint) }</p>
+							}
 						</form>
 					}
 				} else {
@@ -628,6 +631,7 @@ templ AdminOrder(p layouts.Page, v *AdminOrderView) {
 								<p class="goen-admin__hint">
 									{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQueueAllowanceHint), v.AllowanceAmount()) }
 								</p>
+								<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminQueueAllowancePaper) }</p>
 							</form>
 						}
 						if !v.CanIssueInvoice() && !v.CanVoidInvoice() && len(v.InvoiceDocuments) == 0 {
