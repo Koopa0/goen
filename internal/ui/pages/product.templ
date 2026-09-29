@@ -376,6 +376,12 @@ templ productAddForm(v *ProductView) {
 					<a class="goen-pdp__addedlink" href="/cart">{ i18n.T(ctx, i18n.KeyViewCart) }</a>
 				}
 			}
+			if v.AddAdjusted() {
+				@components.Notice(components.NoticeProps{Tone: components.ToneAccent, ID: "added", Class: "goen-pdp__added"}) {
+					{ i18n.T(ctx, i18n.KeyAddAdjusted) }
+					<a class="goen-pdp__addedlink" href="/cart">{ i18n.T(ctx, i18n.KeyViewCart) }</a>
+				}
+			}
 			if v.AddRefused() {
 				@components.Notice(components.NoticeProps{
 					Tone: components.ToneDanger, ID: "added", Class: "goen-pdp__added",

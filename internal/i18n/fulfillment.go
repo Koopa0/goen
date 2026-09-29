@@ -213,6 +213,18 @@ var (
 			"The parcel is already on its way; editing the record would only make it disagree with where it went.",
 	})
 
+	KeyDeliveryZoneChanged = key("admin.delivery.zone_changed", Message{
+		ZhHant: "新郵遞區號屬於不同的配送區域,運費加價可能不同。地址尚未儲存,也尚未加收或退款。",
+		En: "That postcode is in a different delivery zone, so the surcharge may differ. " +
+			"The address was not saved and nothing was charged or refunded.",
+	})
+
+	KeyDeliveryZoneUnknown = key("admin.delivery.zone_unknown", Message{
+		ZhHant: "無法確認這筆訂單原郵遞區號的配送區域,因此不能更正地址。地址尚未儲存。",
+		En: "The zone of this order's saved postcode cannot be determined, so the address cannot be corrected. " +
+			"The address was not saved.",
+	})
+
 	KeyAdminNoticeNeeds = key("admin.notice.needs", Message{
 		ZhHant: "請填寫物流商與查詢編號。",
 		En:     "A carrier and a tracking number are both needed.",

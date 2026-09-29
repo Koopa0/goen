@@ -1,6 +1,7 @@
 package pages
 
 import (
+	"bytes"
 	"strings"
 	"testing"
 
@@ -75,6 +76,31 @@ func TestAReportWindowIsEmptyOnlyWithoutOrdersAndRefunds(t *testing.T) {
 			}
 			if got := strings.Contains(html, `class="goen-report__figures"`); got == tc.wantEmpty {
 				t.Errorf("revenue strip rendered = %v, want %v", got, !tc.wantEmpty)
+			}
+		})
+	}
+}
+
+func TestBestSellerGrossCannotBeMistakenForOrderRevenue(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		locale              i18n.Locale
+		gross, units, scope string
+	}{
+		{i18n.ZhHant, "商品毛額 NT$1,000", "售出 2 件", "含稅成交單價乘售出數量計算，未扣訂單折扣或退款，不含運費"},
+		{i18n.En, "Product gross NT$1,000", "2 units sold", "tax-inclusive sale unit price multiplied by units sold, before order discounts or refunds and excluding shipping"},
+	} {
+		t.Run(string(tt.locale), func(t *testing.T) {
+			t.Parallel()
+			var b bytes.Buffer
+			view := AdminReportView{Placed: 1, Orders: 1, Committed: 1, RevenueCents: 90000, Sellers: []AdminSeller{{Name: "Discounted item", Slug: "discounted", Units: 2, RevenueCents: 100000}}}
+			if err := AdminReport(layouts.Page{Title: "Reports"}, &view).Render(i18n.WithLocale(t.Context(), tt.locale), &b); err != nil {
+				t.Fatal(err)
+			}
+			for _, want := range []string{tt.gross, tt.units, tt.scope, view.Revenue()} {
+				if !strings.Contains(b.String(), want) {
+					t.Errorf("report lacks %q", want)
+				}
 			}
 		})
 	}
