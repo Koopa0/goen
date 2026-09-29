@@ -214,7 +214,7 @@ func recordStaffCancellation(
 	}); err != nil {
 		return err
 	}
-	return ordernotice.Enqueue(ctx, q, orderID, ordernotice.CancelledByStaff)
+	return ordernotice.Enqueue(ctx, q, ordernotice.Message{OrderID: orderID, Kind: ordernotice.CancelledByStaff})
 }
 
 // RefundBeforeShipment serves POST /admin/orders/{number}/refund. The first
