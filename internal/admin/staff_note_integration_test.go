@@ -89,17 +89,20 @@ func TestStaffNoteHTTPRecordsOperationsWithoutContent(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		found := false
+		// The audit page lists every order's notes; this order's row is the one
+		// whose detail carries its number.
+		shown := 0
 		for _, e := range view.Rows {
-			if e.Action == step.action && e.Actor != "" && e.At != "" {
-				found = true
-				if !strings.Contains(e.Detail, number) || strings.Contains(e.Detail, step.note) && step.note != "" || e.Label(ctx) == step.action {
-					t.Errorf("audit presentation must name the order, hold no note text and be translated: %+v", e)
-				}
+			if e.Action != step.action || !strings.Contains(e.Detail, number) {
+				continue
+			}
+			shown++
+			if e.Actor == "" || e.At == "" || e.Label(ctx) == step.action || (step.note != "" && strings.Contains(e.Detail, step.note)) {
+				t.Errorf("audit row must be attributed, translated and hold no note text: %+v", e)
 			}
 		}
-		if !found {
-			t.Fatalf("audit page omitted %s", step.action)
+		if shown != 1 {
+			t.Fatalf("audit page shows %d %s rows naming %s, want 1", shown, step.action, number)
 		}
 	}
 }
