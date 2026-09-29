@@ -51,12 +51,12 @@ func TestWarrantyCollectionDependsOnHowTheOrderWasDelivered(t *testing.T) {
 	t.Parallel()
 	zh := policyBody(t, "warranty", i18n.ZhHant, "怎麼送修")
 	en := policyBody(t, "warranty", i18n.En, "Sending something in")
-	for _, w := range []string{"宅配訂單", "到府收件", "超商取貨", "由超商寄回"} {
+	for _, w := range []string{"宅配訂單", "到府收件", "超商取貨", "由超商寄回", "兩種訂單的收送費用都由 goen 負擔"} {
 		if !strings.Contains(zh, w) {
 			t.Errorf("warranty policy (zh) omits %q", w)
 		}
 	}
-	for _, w := range []string{"home-delivery", "from your door", "convenience-store pickup", "sent back from a convenience store"} {
+	for _, w := range []string{"home-delivery", "from your door", "convenience-store pickup", "sent back from a convenience store", "we pay the carriage both ways in either case"} {
 		if !strings.Contains(en, w) {
 			t.Errorf("warranty policy (en) omits %q", w)
 		}

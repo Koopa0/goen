@@ -32,10 +32,10 @@ var (
 	KeyAboutWarranty = key("about.warranty", Message{ZhHant: "原廠保固", En: "Manufacturer warranty"})
 
 	KeyAboutWarrantyBody = key("about.warranty.body", Message{
-		ZhHant: "原廠保固可在訂單頁登錄。送修時,宅配訂單由 goen 安排到府收件並負擔收送費用;超商取貨的訂單請由超商寄回。",
+		ZhHant: "原廠保固可在訂單頁登錄。送修時,宅配訂單由 goen 安排到府收件,超商取貨的訂單請由超商寄回;兩種訂單的收送費用都由店家負擔。",
 		En: "Register the manufacturer's warranty from the order page. For a home-delivery order " +
-			"goen arranges collection from your door and pays carriage both ways; a convenience-store " +
-			"pickup order is sent back from a convenience store.",
+			"goen arranges collection from your door, and a convenience-store pickup order is sent back " +
+			"from a convenience store; goen pays carriage both ways in either case.",
 	})
 
 	KeyAboutCurated = key("about.curated", Message{ZhHant: "商品分類", En: "Categories"})

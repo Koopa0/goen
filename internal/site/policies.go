@@ -209,12 +209,12 @@ var policies = map[string]pages.PolicyDoc{
 				HeadingEn: "Sending something in",
 				Body: []string{
 					"先在會員中心登錄該商品,登錄後送修時不需要再找收據。登錄的入口在訂單頁。",
-					"需要送修時請聯絡客服。宅配訂單由我們安排到府收件,收送費用由 goen 負擔;超商取貨的訂單不到府收件,請由超商寄回。",
+					"需要送修時請聯絡客服。宅配訂單由我們安排到府收件,超商取貨的訂單請由超商寄回;兩種訂單的收送費用都由 goen 負擔。",
 					"維修期間不提供替代機。",
 				},
 				BodyEn: []string{
 					"Register the unit in your account first — once it is registered you will not need the receipt to claim. The link is on the order it came from.",
-					"When you need a repair, contact us. For a home-delivery order we arrange collection from your door and pay the carriage both ways; a convenience-store pickup order is not collected from your door, and is sent back from a convenience store.",
+					"When you need a repair, contact us. For a home-delivery order we arrange collection from your door, and a convenience-store pickup order is sent back from a convenience store; we pay the carriage both ways in either case.",
 					"We do not lend a replacement while yours is away.",
 				},
 			},

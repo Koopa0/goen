@@ -79,7 +79,7 @@ var (
 	KeyStatusRefunded = key("order.status.refunded", Message{ZhHant: "已退款", En: "Refunded"})
 
 	KeyOrderCreditApplied = key("order.credit", Message{
-		ZhHant: "商店額度折抵",
+		ZhHant: "購物金折抵",
 		En:     "Paid with store credit",
 	})
 
