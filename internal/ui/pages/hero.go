@@ -2,9 +2,9 @@ package pages
 
 import (
 	"context"
-	"github.com/koopa0/goen/assets"
 	"strconv"
 
+	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
 )
 
