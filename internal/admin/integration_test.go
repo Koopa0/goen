@@ -2520,6 +2520,7 @@ func TestTerminalRefundHTTPUsesThePayoutRecoveryNotice(t *testing.T) {
 		admin.NewStore(pool, fakeRefunder{state: admin.RefundCancelled}, nil, nil))
 	form := url.Values{
 		"decision":   {"approved"},
+		"confirm":    {"approved"},
 		"resolution": {"provider cancelled"},
 	}
 	req := httptest.NewRequestWithContext(ctx, http.MethodPost,
@@ -2545,7 +2546,7 @@ func TestReturnResolutionOverTheDurableBoundIsRefusedBeforeDecision(t *testing.T
 		t.Fatalf("overlong Store resolution = %v, want ErrInvalid", err)
 	}
 
-	form := url.Values{"decision": {"approved"}, "resolution": {tooLong}}
+	form := url.Values{"decision": {"approved"}, "confirm": {"approved"}, "resolution": {tooLong}}
 	req := httptest.NewRequestWithContext(ctx, http.MethodPost,
 		"/admin/returns/"+requestID.String()+"/decide", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -3017,7 +3018,7 @@ func TestGrantIsBoundedAndPositive(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := s.GrantCredit(ctx, tt.email, tt.cents, tt.reason, uuid.New())
+			_, err := s.GrantCredit(ctx, creditCustomerID(t, tt.email), tt.cents, tt.reason, uuid.New())
 			if tt.wantErr == nil {
 				if err != nil {
 					t.Fatalf("a legal grant was refused: %v", err)
@@ -3057,7 +3058,7 @@ func TestGrantOperationIsIdempotentAndIdenticalOperationsRemainDistinct(t *testi
 	auditsBefore := auditRows(t, admin.ActionGrantCredit)
 	firstOperation := uuid.New()
 	for range 3 {
-		if _, err := s.GrantCredit(ctx, email, 50000, "退貨補償", firstOperation); err != nil {
+		if _, err := s.GrantCredit(ctx, creditCustomerID(t, email), 50000, "退貨補償", firstOperation); err != nil {
 			t.Fatalf("retry one grant operation: %v", err)
 		}
 	}
@@ -3085,10 +3086,10 @@ func TestGrantOperationIsIdempotentAndIdenticalOperationsRemainDistinct(t *testi
 	// Same customer, amount and reason can be a second legitimate compensation.
 	// Its durable request identity, not its business values, distinguishes it.
 	secondOperation := uuid.New()
-	if _, err := s.GrantCredit(ctx, email, 50000, "退貨補償", secondOperation); err != nil {
+	if _, err := s.GrantCredit(ctx, creditCustomerID(t, email), 50000, "退貨補償", secondOperation); err != nil {
 		t.Fatalf("second identical grant operation: %v", err)
 	}
-	if _, err := s.GrantCredit(ctx, email, 50000, "退貨補償", secondOperation); err != nil {
+	if _, err := s.GrantCredit(ctx, creditCustomerID(t, email), 50000, "退貨補償", secondOperation); err != nil {
 		t.Fatalf("retry second operation: %v", err)
 	}
 	read()
@@ -3290,7 +3291,7 @@ func TestEveryBackOfficeWriteLeavesATrail(t *testing.T) {
 			return s.SetProductStatus(ctx, slug, "draft")
 		}},
 		{"grant credit", admin.ActionGrantCredit, func() error {
-			_, grantErr := s.GrantCredit(ctx, staffEmail(t, actor), 500,
+			_, grantErr := s.GrantCredit(ctx, actor, 500,
 				"測試", uuid.New())
 			return grantErr
 		}},
@@ -3524,16 +3525,6 @@ func anyProductSlug(t *testing.T) string {
 		t.Fatalf("find product: %v", err)
 	}
 	return slug
-}
-
-func staffEmail(t *testing.T, id uuid.UUID) string {
-	t.Helper()
-	var email string
-	if err := pool.QueryRow(t.Context(),
-		`SELECT email FROM users WHERE id = $1`, id).Scan(&email); err != nil {
-		t.Fatalf("read staff email: %v", err)
-	}
-	return email
 }
 
 // asAdmin runs one statement with the back office's own database role: the suite
@@ -3977,8 +3968,9 @@ func TestTheQueuePutsWhatTheShopOwesFirst(t *testing.T) {
 		t.Fatalf("answer: %v", err)
 	}
 	middling := ask(t, ps, slug, asker, "中間的,只有顧客回", -2)
-	if err := ps.Answer(ctx, middling, asker, "我覺得可以"); err != nil {
-		t.Fatalf("customer answer: %v", err)
+	// Historical customer answers do not settle the shop's unanswered queue.
+	if _, err := pool.Exec(ctx, `INSERT INTO product_answers (question_id, user_id, body, is_staff) VALUES ($1, $2, $3, false)`, uuid.MustParse(middling), uuid.MustParse(asker), "我覺得可以"); err != nil {
+		t.Fatalf("historical customer answer: %v", err)
 	}
 	newest := ask(t, ps, slug, asker, "最新的,沒人回", -1)
 
@@ -11502,4 +11494,20 @@ func TestABoundedListSaysSoAtTheBoundary(t *testing.T) {
 	if over.Limit != admin.PageSize {
 		t.Errorf("the sentence would name %d rather than %d", over.Limit, admin.PageSize)
 	}
+}
+
+func creditCustomerID(t *testing.T, email string) uuid.UUID {
+	t.Helper()
+	if email == "" {
+		return uuid.Nil
+	}
+	var id uuid.UUID
+	err := pool.QueryRow(t.Context(), "SELECT id FROM users WHERE email=$1", email).Scan(&id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return uuid.New()
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	return id
 }
