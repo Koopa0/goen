@@ -23,7 +23,6 @@ import (
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/cart"
-	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/media"
@@ -618,7 +617,7 @@ func startWorkers(ctx context.Context, d workerDeps) {
 	messages.HandleJSON[email.PasswordReset](outbox.TopicPasswordReset, d.notifier.SendPasswordReset)
 	messages.HandleJSON[email.OrderPaid](outbox.TopicOrderPaid, d.notifier.SendOrderPaid)
 	messages.HandleJSON[email.OrderShipped](outbox.TopicOrderShipped, d.notifier.SendOrderShipped)
-	messages.HandleJSON[ordernotice.Message](outbox.TopicOrderTerminal, terminalOrderHandler(db.New(d.pool), d.notifier))
+	messages.HandleJSON[email.OrderTerminal](outbox.TopicOrderTerminal, terminalOrderHandler(ordernotice.NewRecipients(d.pool), d.notifier))
 	messages.HandleJSON[email.NewsletterConfirm](outbox.TopicNewsletterConfirm, d.notifier.SendNewsletterConfirm)
 	messages.HandleJSON[email.NewsletterWelcome](outbox.TopicNewsletterWelcome, d.notifier.SendNewsletterWelcome)
 	messages.HandleJSON[email.AddressVerify](outbox.TopicEmailVerify, d.notifier.SendAddressVerify)
@@ -667,15 +666,15 @@ func newsletterIssueHandler(
 	}
 }
 
-func terminalOrderHandler(q *db.Queries, notifier email.Notifier) func(context.Context, *ordernotice.Message) error {
-	return func(ctx context.Context, p *ordernotice.Message) error {
-		to, err := q.TerminalOrderRecipient(ctx, p.OrderID)
-		if errors.Is(err, pgx.ErrNoRows) {
+func terminalOrderHandler(recipients ordernotice.Recipients, notifier email.Notifier) func(context.Context, *email.OrderTerminal) error {
+	return func(ctx context.Context, p *email.OrderTerminal) error {
+		to, ok, err := recipients.Of(ctx, p.OrderID)
+		if err != nil {
+			return err
+		}
+		if !ok {
 			return nil
 		}
-		if err != nil {
-			return fmt.Errorf("read terminal order recipient: %w", err)
-		}
-		return notifier.SendOrderTerminal(ctx, p.Kind, email.TerminalRecipient{Address: to.Email.String, Name: to.RecipientName.String, Locale: to.Locale, OrderNumber: to.OrderNumber})
+		return notifier.SendOrderTerminal(ctx, p.Kind, email.TerminalRecipient(to))
 	}
 }

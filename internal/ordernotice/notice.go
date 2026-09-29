@@ -4,9 +4,11 @@ package ordernotice
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/outbox"
@@ -38,4 +40,28 @@ func Enqueue(ctx context.Context, q *db.Queries, orderID uuid.UUID, kind Kind) e
 		return fmt.Errorf("enqueue terminal order notice: %w", err)
 	}
 	return nil
+}
+
+// Recipient is who a notice goes to, as the order holds it at delivery time.
+type Recipient struct {
+	Address, Name, Locale, OrderNumber string
+}
+
+// Recipients reads them.
+type Recipients struct{ q *db.Queries }
+
+// NewRecipients reads through the given connection.
+func NewRecipients(conn db.DBTX) Recipients { return Recipients{q: db.New(conn)} }
+
+// Of returns the order's current recipient, and false when there is none: the
+// row is erased or gone, and sending is what must not happen.
+func (r Recipients) Of(ctx context.Context, orderID uuid.UUID) (Recipient, bool, error) {
+	to, err := r.q.TerminalOrderRecipient(ctx, orderID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Recipient{}, false, nil
+	}
+	if err != nil {
+		return Recipient{}, false, fmt.Errorf("read terminal order recipient: %w", err)
+	}
+	return Recipient{Address: to.Email.String, Name: to.RecipientName.String, Locale: to.Locale, OrderNumber: to.OrderNumber}, true, nil
 }

@@ -8,7 +8,6 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/ordernotice"
 )
@@ -45,8 +44,8 @@ func TestTerminalWorkerSkipsAnAddressErasedBeforeDelivery(t *testing.T) {
 	}
 	defer storePool.Close()
 	sender := &countingSender{}
-	deliver := terminalOrderHandler(db.New(storePool), email.New(sender, "https://goen.test", "", ""))
-	msg := &ordernotice.Message{OrderID: id, Kind: ordernotice.CancelledByCustomer}
+	deliver := terminalOrderHandler(ordernotice.NewRecipients(storePool), email.New(sender, "https://goen.test", "", ""))
+	msg := &email.OrderTerminal{OrderID: id, Kind: email.TerminalCancelledByCustomer}
 	if err := deliver(ctx, msg); err != nil {
 		t.Fatal(err)
 	}
@@ -59,7 +58,7 @@ func TestTerminalWorkerSkipsAnAddressErasedBeforeDelivery(t *testing.T) {
 	if err := deliver(ctx, msg); err != nil {
 		t.Fatal(err)
 	}
-	if err := deliver(ctx, &ordernotice.Message{OrderID: uuid.New(), Kind: ordernotice.Delivered}); err != nil {
+	if err := deliver(ctx, &email.OrderTerminal{OrderID: uuid.New(), Kind: email.TerminalDelivered}); err != nil {
 		t.Fatal(err)
 	}
 	if sender.sent != 1 {

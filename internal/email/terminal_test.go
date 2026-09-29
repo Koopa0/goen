@@ -3,20 +3,18 @@ package email
 import (
 	"strings"
 	"testing"
-
-	"github.com/koopa0/goen/internal/ordernotice"
 )
 
 func TestTerminalNoticesDistinguishActorAndReceiptInBothLanguages(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
-		kind   ordernotice.Kind
+		kind   TerminalKind
 		en, zh string
 	}{
-		{ordernotice.CancelledByCustomer, "You cancelled", "你已取消"},
-		{ordernotice.CancelledByStaff, "The shop cancelled", "商店已取消"},
-		{ordernotice.Delivered, "marked as delivered", "已標記為送達"},
-		{ordernotice.Collected, "marked as collected", "已標記為取貨完成"},
+		{TerminalCancelledByCustomer, "You cancelled", "你已取消"},
+		{TerminalCancelledByStaff, "The shop cancelled", "商店已取消"},
+		{TerminalDelivered, "marked as delivered", "已標記為送達"},
+		{TerminalCollected, "marked as collected", "已標記為取貨完成"},
 	}
 	for _, tc := range cases {
 		for _, locale := range []string{"en", "zh-Hant"} {

@@ -5,9 +5,29 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/google/uuid"
+
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ordernotice"
 )
+
+// TerminalKind is the order fact an order.terminal message reports. It is a
+// separate copy of the producer's kinds, so a consumer may lag a version.
+type TerminalKind string
+
+// The terminal facts a message may carry.
+const (
+	TerminalCancelledByCustomer TerminalKind = "cancelled_by_customer"
+	TerminalCancelledByStaff    TerminalKind = "cancelled_by_staff"
+	TerminalDelivered           TerminalKind = "delivered"
+	TerminalCollected           TerminalKind = "collected"
+)
+
+// OrderTerminal is what an order.terminal message carries: the order and the
+// fact, never an address.
+type OrderTerminal struct {
+	OrderID uuid.UUID    `json:"order_id"`
+	Kind    TerminalKind `json:"kind"`
+}
 
 // TerminalRecipient is resolved at delivery, never retained in the outbox.
 type TerminalRecipient struct {
@@ -15,20 +35,20 @@ type TerminalRecipient struct {
 }
 
 // SendOrderTerminal reports an order fact without promising a refund or a new delivery.
-func (n Notifier) SendOrderTerminal(ctx context.Context, kind ordernotice.Kind, to TerminalRecipient) error {
+func (n Notifier) SendOrderTerminal(ctx context.Context, kind TerminalKind, to TerminalRecipient) error {
 	if !Valid(to.Address) {
 		return errors.New("terminal order notice has no usable recipient")
 	}
 	ctx = n.locale(ctx, to.Locale)
 	subject, body := i18n.KeyMailOrderArrivedSubject, i18n.KeyMailOrderDeliveredBody
 	switch kind {
-	case ordernotice.CancelledByCustomer:
+	case TerminalCancelledByCustomer:
 		subject, body = i18n.KeyMailOrderCancelledSubject, i18n.KeyMailOrderCustomerCancelledBody
-	case ordernotice.CancelledByStaff:
+	case TerminalCancelledByStaff:
 		subject, body = i18n.KeyMailOrderCancelledSubject, i18n.KeyMailOrderStaffCancelledBody
-	case ordernotice.Collected:
+	case TerminalCollected:
 		body = i18n.KeyMailOrderCollectedBody
-	case ordernotice.Delivered:
+	case TerminalDelivered:
 	default:
 		return fmt.Errorf("unknown terminal order notice %q", kind)
 	}
