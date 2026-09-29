@@ -48,7 +48,7 @@ type AdminCreditView struct {
 }
 
 // Empty reports whether the ledger has nothing in it yet.
-func (v AdminCreditView) Empty() bool { return len(v.Rows) == 0 }
+func (v *AdminCreditView) Empty() bool { return len(v.Rows) == 0 }
 
 // Who is the account the posting went to, or a note that it has been erased.
 func (e AdminCreditEntry) Who(ctx context.Context) string {
@@ -59,7 +59,7 @@ func (e AdminCreditEntry) Who(ctx context.Context) string {
 }
 
 // Balance is the balance read for the confirmation page.
-func (v AdminCreditView) Balance() string { return twd(v.BalanceCents) }
+func (v *AdminCreditView) Balance() string { return twd(v.BalanceCents) }
 
 // GrantAmount formats the reviewed amount in the shop currency.
-func (v AdminCreditView) GrantAmount() string { return twd(v.GrantCents) }
+func (v *AdminCreditView) GrantAmount() string { return twd(v.GrantCents) }
