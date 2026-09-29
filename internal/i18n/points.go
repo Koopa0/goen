@@ -90,9 +90,9 @@ var (
 	})
 
 	KeyPointsReturnUnsettled = key("points.notice.returnunsettled", Message{
-		ZhHant: "您有一筆已核准的退貨還在退款中,退款完成後才能兌換點數,因為該筆退貨會扣回對應的點數。",
-		En: "A return you were approved for is still being refunded. You can redeem points once " +
-			"the refund is paid, because that return takes back the points it earned.",
+		ZhHant: "您有一筆已核准的退貨還沒完全處理完成,完成後才能兌換點數,因為該筆退貨會扣回對應的點數。",
+		En: "A return you were approved for is not fully settled yet. You can redeem points once " +
+			"it is, because that return takes back the points it earned.",
 	})
 
 	KeyPointsShort = key("points.notice.short", Message{

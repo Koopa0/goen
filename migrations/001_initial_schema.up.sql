@@ -8373,10 +8373,10 @@ BEGIN
             USING ERRCODE = 'check_violation', CONSTRAINT = 'loyalty_redemption_owner';
     END IF;
 
-    -- Points a return will claw back must stay in the account until that return
-    -- has paid out: spent into store credit first, the clawback finds nothing
-    -- to reverse and the shop absorbs it. "Unsettled" is exactly when
-    -- reverse_return_points would still refuse with loyalty_return_paid.
+    -- Points a return will claw back must stay in the account until the clawback
+    -- is recorded: spent into store credit first, it finds nothing to reverse
+    -- and the shop absorbs it. The clawback is a later transaction than the
+    -- payout, so a paid return still owes it while its allocation is positive.
     IF EXISTS (
         SELECT 1
         FROM return_requests r
@@ -8389,14 +8389,15 @@ BEGIN
               SELECT 1 FROM loyalty_entries c
               WHERE c.return_request_id = r.id AND c.kind = 'clawback'
           )
-          AND return_refundable_amount(r.id) > (
-              coalesce((SELECT sum(rf.amount_cents) FROM refunds rf
-                        WHERE rf.return_request_id = r.id
-                          AND rf.status = 'succeeded'), 0)
-              + coalesce((SELECT sum(e.amount_cents) FROM store_credit_entries e
-                          WHERE e.idempotency_key = 'return-credit:' || r.id::text), 0))
+          AND (return_loyalty_points_allocation(r.id) > 0
+               OR return_refundable_amount(r.id) > (
+                   coalesce((SELECT sum(rf.amount_cents) FROM refunds rf
+                             WHERE rf.return_request_id = r.id
+                               AND rf.status = 'succeeded'), 0)
+                   + coalesce((SELECT sum(e.amount_cents) FROM store_credit_entries e
+                               WHERE e.idempotency_key = 'return-credit:' || r.id::text), 0)))
     ) THEN
-        RAISE EXCEPTION 'account % has an approved return whose refund is not paid out',
+        RAISE EXCEPTION 'account % has an approved return that is not fully settled',
             v_account_id
             USING ERRCODE = 'check_violation',
                   CONSTRAINT = 'loyalty_redemption_return_unsettled';
