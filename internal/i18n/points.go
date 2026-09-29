@@ -11,8 +11,15 @@ var (
 	KeyPointsTitle = key("points.title", Message{ZhHant: "會員點數", En: "Points"})
 
 	KeyPointsSub = key("points.sub", Message{
-		ZhHant: "每消費 NT$100 得 1 點,%s,可以兌換成商店額度在結帳時折抵。",
+		ZhHant: "每消費 NT$100 得 1 點,%s,可以兌換成購物金在結帳時折抵。",
 		En:     "One point per NT$100 spent. %s, redeemable as store credit at checkout.",
+	})
+
+	// The lot's expires_on is award date + 365, and the redemption's credit entry
+	// carries no expiry, so only the points lapse.
+	KeyPointsExpiryTerms = key("points.expiry.terms", Message{
+		ZhHant: "點數自取得起一年到期;用點數兌換成的購物金不會到期。",
+		En:     "Points expire one year after you earn them; store credit you redeem from points does not expire.",
 	})
 
 	KeyPointsBalance = key("points.balance", Message{ZhHant: "目前點數", En: "Balance"})
@@ -33,7 +40,7 @@ var (
 	})
 
 	KeyPointsRedeem = key("points.redeem", Message{
-		ZhHant: "兌換成商店額度",
+		ZhHant: "兌換成購物金",
 		En:     "Redeem for store credit",
 	})
 
@@ -60,7 +67,7 @@ var (
 	KeyPointsEarned = key("points.reason.earned", Message{ZhHant: "購物回饋", En: "Earned on a purchase"})
 
 	KeyPointsSpent = key("points.reason.redeem", Message{
-		ZhHant: "兌換商店額度",
+		ZhHant: "兌換購物金",
 		En:     "Redeemed for store credit",
 	})
 
@@ -75,7 +82,7 @@ var (
 	})
 
 	KeyPointsRedeemed = key("points.notice.done", Message{
-		ZhHant: "已經兌換成商店額度,結帳時會自動折抵。",
+		ZhHant: "已經兌換成購物金,結帳時會自動折抵。",
 		En:     "Redeemed. The credit comes off your next order automatically.",
 	})
 
@@ -87,6 +94,12 @@ var (
 	KeyPointsBadForm = key("points.notice.badform", Message{
 		ZhHant: "這份兌換表單已過期,請重新送出。",
 		En:     "That redemption form expired. Submit it again.",
+	})
+
+	KeyPointsReturnUnsettled = key("points.notice.returnunsettled", Message{
+		ZhHant: "您有一筆已核准的退貨還沒完全處理完成,完成後才能兌換點數,因為該筆退貨會扣回對應的點數。",
+		En: "A return you were approved for is not fully settled yet. You can redeem points once " +
+			"it is, because that return takes back the points it earned.",
 	})
 
 	KeyPointsShort = key("points.notice.short", Message{
