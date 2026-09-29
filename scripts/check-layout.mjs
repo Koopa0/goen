@@ -88,6 +88,8 @@ const EXPECTED = [
 // deliberately wider than a phone and scroll inside their own box, and nothing
 // but this says whether the PAGE stayed put.
 const PAGES = [
+  { label: 'campaign 375', width: 375, height: 812, path: '/s/layout-campaign', marker: '.goen-tiles__grid .goen-tile' },
+  { label: 'campaign 1440', width: 1440, height: 900, path: '/s/layout-campaign', marker: '.goen-tiles__grid .goen-tile' },
   { label: 'about 375', width: 375, height: 812, path: '/about', marker: '.about' },
   { label: 'about 1440', width: 1440, height: 900, path: '/about', marker: '.about' },
   { label: 'contact 375', width: 375, height: 812, path: '/contact', marker: 'form' },
@@ -2152,6 +2154,9 @@ if (process.env.ADMIN_TOKEN) {
             'causes this check knows about — worth reading before trusting the rest.';
       fail('admin session', `${why}\n    Not running the ${ADMIN.length} back-office rows: ` +
         'each would have reported this one cause as a failure of its own page.');
+      // Each row is a failure of its own, so a surface that was not measured
+      // is listed by name and never leaves the run smaller and green.
+      for (const row of ADMIN) fail(row.label, 'not measured: the admin session was unusable (see "admin session" above)');
       ADMIN.length = 0;
     }
   }
