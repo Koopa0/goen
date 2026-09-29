@@ -398,6 +398,30 @@ CREATE TRIGGER product_variants_set_updated_at
     BEFORE UPDATE ON product_variants
     FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
+-- Option axes and variant creation share the product lock. Otherwise an axis
+-- can pass its empty-catalogue check while another transaction adds a SKU.
+CREATE FUNCTION product_catalogue_lock() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+    PERFORM 1 FROM products WHERE id = NEW.product_id FOR NO KEY UPDATE;
+    IF TG_TABLE_NAME = 'product_options' AND EXISTS (
+        SELECT 1 FROM product_variants WHERE product_id = NEW.product_id
+    ) THEN
+        RAISE EXCEPTION 'define option axes before creating variants'
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'product_options_before_variants';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER product_options_before_variants
+    AFTER INSERT OR UPDATE OF product_id ON product_options
+    FOR EACH ROW EXECUTE FUNCTION product_catalogue_lock();
+
+CREATE TRIGGER product_variants_lock_catalogue
+    BEFORE INSERT OR UPDATE OF product_id ON product_variants
+    FOR EACH ROW EXECUTE FUNCTION product_catalogue_lock();
+
 -- An active product must have something to sell: published with no variant, its
 -- page has no price and every listing drops it. DEFERRED, because the variants
 -- are inserted after the product row they reference.
@@ -1897,16 +1921,37 @@ CREATE TABLE order_lines (
         ON DELETE RESTRICT
 );
 
--- Legacy/admin import callers historically supplied only variant_id. Bind its
--- durable product identity before the CHECK/FK run; an explicitly supplied,
--- mismatched pair is left untouched and refused by the composite FK.
+-- A variant fixes the identity at purchase time. Either catalogue language is
+-- a valid display snapshot; later catalogue edits must not rewrite the order.
+-- Explicitly mismatched product/variant pairs remain the composite FK's rule.
 CREATE FUNCTION order_lines_bind_product() RETURNS trigger
 LANGUAGE plpgsql AS $$
+DECLARE
+    v_product_id uuid;
+    v_sku text;
+    v_name text;
+    v_name_en text;
 BEGIN
-    IF NEW.variant_id IS NOT NULL AND NEW.product_id IS NULL THEN
-        SELECT pv.product_id INTO NEW.product_id
+    IF NEW.variant_id IS NOT NULL THEN
+        SELECT pv.product_id, pv.sku, p.name, p.name_en
+        INTO v_product_id, v_sku, v_name, v_name_en
         FROM product_variants pv
+        JOIN products p ON p.id = pv.product_id
         WHERE pv.id = NEW.variant_id;
+        IF NEW.product_id IS NULL THEN
+            NEW.product_id := v_product_id;
+        END IF;
+        IF FOUND AND NEW.product_id = v_product_id THEN
+            IF NEW.sku IS DISTINCT FROM v_sku THEN
+                RAISE EXCEPTION 'order line SKU must identify its variant'
+                    USING ERRCODE = '23514', CONSTRAINT = 'order_lines_sku_matches_variant';
+            END IF;
+            IF NEW.product_name IS DISTINCT FROM v_name
+               AND NEW.product_name IS DISTINCT FROM v_name_en THEN
+                RAISE EXCEPTION 'order line name must identify its product'
+                    USING ERRCODE = '23514', CONSTRAINT = 'order_lines_name_matches_product';
+            END IF;
+        END IF;
     END IF;
     RETURN NEW;
 END;
@@ -3865,6 +3910,9 @@ CREATE TABLE outbox_messages (
     -- receipt and password reset written after it.
     priority     smallint NOT NULL DEFAULT 0,
     available_at timestamptz NOT NULL DEFAULT now(),
+    -- available_at moves on every claim, so it cannot say how old a message is;
+    -- the retention sweep needs that for one that was never delivered.
+    created_at   timestamptz NOT NULL DEFAULT now(),
     delivered_at timestamptz,
     attempts     integer NOT NULL DEFAULT 0,
     last_error   text,
@@ -8328,6 +8376,36 @@ BEGIN
             USING ERRCODE = 'check_violation', CONSTRAINT = 'loyalty_redemption_owner';
     END IF;
 
+    -- Points a return will claw back must stay in the account until the clawback
+    -- is recorded: spent into store credit first, it finds nothing to reverse
+    -- and the shop absorbs it. The clawback is a later transaction than the
+    -- payout, so a paid return still owes it while its allocation is positive.
+    IF EXISTS (
+        SELECT 1
+        FROM return_requests r
+        JOIN orders o ON o.id = r.order_id
+        JOIN loyalty_entries award ON award.order_id = o.id AND award.kind = 'award'
+        WHERE award.account_id = v_account_id
+          AND r.status = 'approved'
+          AND award.points > 0
+          AND NOT EXISTS (
+              SELECT 1 FROM loyalty_entries c
+              WHERE c.return_request_id = r.id AND c.kind = 'clawback'
+          )
+          AND (return_loyalty_points_allocation(r.id) > 0
+               OR return_refundable_amount(r.id) > (
+                   coalesce((SELECT sum(rf.amount_cents) FROM refunds rf
+                             WHERE rf.return_request_id = r.id
+                               AND rf.status = 'succeeded'), 0)
+                   + coalesce((SELECT sum(e.amount_cents) FROM store_credit_entries e
+                               WHERE e.idempotency_key = 'return-credit:' || r.id::text), 0)))
+    ) THEN
+        RAISE EXCEPTION 'account % has an approved return that is not fully settled',
+            v_account_id
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'loyalty_redemption_return_unsettled';
+    END IF;
+
     -- FIFO by soonest expiry costs the customer least. Two awards can expire on
     -- the same day, so created_at then id are the deterministic tie-break. One
     -- redemption spanning lots is one INSERT per settled fact; no award row is
@@ -8439,6 +8517,19 @@ REVOKE INSERT, UPDATE, DELETE ON
     order_shipments, order_shipment_lines, invoice_documents, invoice_operations,
     invoice_document_lines
     FROM store;
+REVOKE DELETE ON product_questions, product_reviews FROM store;
+REVOKE UPDATE ON wishlist_items FROM store;
+REVOKE DELETE ON
+    products, product_variants, product_options, product_option_values,
+    variant_option_values, product_reviews, product_questions, product_answers,
+    coupons, hero_slides, promo_banners, sale_campaigns, shipping_methods
+    FROM admin;
+REVOKE UPDATE ON
+    product_images, product_specs, product_options, product_option_values,
+    variant_option_values, membership_tiers, sale_campaign_products,
+    order_shipment_lines
+    FROM admin;
+REVOKE UPDATE, DELETE ON outbox_messages FROM admin;
 
 -- user_identities is the STOREFRONT's. INSERT and DELETE only: linking and
 -- unlinking are the two things that happen to a link, and an UPDATE would repoint
