@@ -19,6 +19,9 @@ type ProductImage struct {
 	Alt    string
 	Width  int32
 	Height int32
+	// ShowsOption is whether this photograph shows one option value rather than
+	// the product whichever value is chosen.
+	ShowsOption bool
 }
 
 // WidthText is the intrinsic width as an attribute value.
@@ -302,6 +305,12 @@ func (v *ProductView) MaxQuantity() string {
 
 // HasImages reports whether the gallery has anything to show.
 func (v *ProductView) HasImages() bool { return len(v.Images) > 0 }
+
+// GalleryFollowsChoice reports whether choosing another option value can
+// reorder the gallery, which it can only when a photograph shows one value.
+func (v *ProductView) GalleryFollowsChoice() bool {
+	return slices.ContainsFunc(v.Images, func(i ProductImage) bool { return i.ShowsOption })
+}
 
 // HasSpecs reports whether the spec table has rows.
 func (v *ProductView) HasSpecs() bool { return len(v.Specs) > 0 }

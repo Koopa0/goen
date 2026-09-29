@@ -37,6 +37,11 @@ var (
 	// cannot be refused, so the return rate is a figure in its own right.
 	KeyAdminRepRefunded = key("admin.rep.refunded", Message{ZhHant: "退款金額", En: "Refunded"})
 
+	KeyAdminRepBeforeShipment = key("admin.rep.beforeshipment", Message{
+		ZhHant: "出貨前全額退款的訂單不計入營收，也不計入退款金額。",
+		En:     "Orders refunded before shipment are excluded from both revenue and refunded.",
+	})
+
 	KeyAdminRepSellers = key("admin.rep.sellers", Message{ZhHant: "熱賣商品", En: "Best sellers"})
 
 	KeyAdminRepSellersEmpty = key("admin.rep.sellers.empty", Message{

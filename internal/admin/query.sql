@@ -91,7 +91,8 @@ WHERE order_id = $1 AND delivered_at IS NULL;
 
 -- Lock before reading the prior state so concurrent completion cannot duplicate arrival mail.
 -- name: LockOrderForAdvance :one
-SELECT id, fulfillment_status FROM orders WHERE order_number = $1 FOR UPDATE;
+SELECT id, fulfillment_status, order_is_committed(id) AS committed
+FROM orders WHERE order_number = $1 FOR UPDATE;
 
 -- orders_check_transition validates the move, so this does not re-derive it.
 -- cancelled_at and completed_at are set here because the schema requires them
@@ -257,7 +258,7 @@ SELECT id, fulfillment_status FROM orders WHERE order_number = $1;
 -- Oldest first: occurred_at then id, because two events recorded in the same
 -- statement share a timestamp and the uuidv7 key is the tie-break.
 -- name: OrderEvents :many
-SELECT e.kind, e.note, e.occurred_at, coalesce(u.full_name, '') AS actor_name
+SELECT e.kind, e.note, e.occurred_at, coalesce(u.full_name, '') AS actor_name, e.by_system
 FROM order_events e
 LEFT JOIN users u ON u.id = e.actor_user_id
 WHERE e.order_id = $1
@@ -278,7 +279,7 @@ VALUES (@order_id, @shipment_id, @order_line_id, @quantity::integer);
 -- reopen a window that line already closed. now() would move a filed request
 -- into a later window the day the staff member opens it.
 -- name: ReturnQueue :many
-SELECT json_build_object('Rank', return_payout_outstanding(r.id), 'Priority', (r.status = 'requested'), 'At', r.created_at, 'ID', r.id)::text AS page_cursor, r.id, r.status, r.reason, r.created_at, r.decided_at,
+SELECT json_build_object('Rank', return_payout_outstanding(r.id), 'Priority', (r.status = 'requested'), 'At', r.created_at, 'ID', r.id)::text AS page_cursor, r.id, r.status, r.reason, r.created_at, r.decided_at, r.before_shipment,
        o.order_number,
        (SELECT coalesce(sum(rl.quantity), 0) FROM return_request_lines rl
         WHERE rl.return_request_id = r.id)::integer AS units,
@@ -543,6 +544,49 @@ FOR UPDATE OF o;
 UPDATE return_requests
 SET status = 'completed', resolution = coalesce(nullif(@resolution::text, ''), resolution)
 WHERE id = @id AND status = 'approved';
+
+-- One auto-committed statement: the door opens and approves the full return,
+-- or returns the one it opened before.
+-- name: OpenRefundBeforeShipment :one
+SELECT open_refund_before_shipment(
+    @order_number::text, @reason::text, @actor_user_id::uuid, @request_id::text
+)::uuid AS return_request_id;
+
+-- What the order page and the refund confirmation show. Once the door has run
+-- the split is the frozen one; before, card_cents is what
+-- return_requests_recount freezes for a full return of an order nothing else
+-- has refunded: the capture first, credit for the rest.
+-- name: BeforeShipmentRefund :one
+WITH target AS (
+    SELECT o.id, o.fulfillment_status,
+           order_is_committed(o.id) AS committed,
+           (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
+                      WHERE ol.order_id = o.id), 0)
+            - o.discount_cents + o.shipping_cents + o.tax_cents)::bigint AS total_cents,
+           coalesce((SELECT sum(p.captured_amount_cents) FROM payments p
+                     WHERE p.order_id = o.id AND p.status = 'succeeded'), 0)::bigint
+               AS card_capacity_cents
+    FROM orders o WHERE o.order_number = @order_number::text
+)
+SELECT t.id AS order_id, t.fulfillment_status, t.committed, t.total_cents,
+       EXISTS (SELECT 1 FROM order_shipments s WHERE s.order_id = t.id)::boolean AS shipped,
+       EXISTS (SELECT 1 FROM return_requests r WHERE r.order_id = t.id)::boolean AS has_return,
+       b.id AS return_request_id,
+       coalesce(b.status, '')::text AS return_status,
+       coalesce(b.card_refund_cents,
+                least(t.total_cents, t.card_capacity_cents))::bigint AS card_cents,
+       coalesce(b.credit_refund_cents,
+                t.total_cents - least(t.total_cents, t.card_capacity_cents))::bigint AS credit_cents
+FROM target t
+LEFT JOIN return_requests b ON b.order_id = t.id AND b.before_shipment;
+
+-- Nothing of a refund before shipment went out, so every line is closed as
+-- received and restocked nothing; return_requests_completed_is_inspected then
+-- admits the completion.
+-- name: CloseUnshippedReturnLines :execrows
+UPDATE return_request_lines
+SET received_quantity = 0, restocked_quantity = 0
+WHERE return_request_id = @return_request_id AND received_quantity IS NULL;
 
 -- :execrows, because `status = 'requested'` here is the ONLY place the question
 -- is asked under a lock: as :exec, the loser of two simultaneous decisions
@@ -885,12 +929,20 @@ LIMIT @row_limit::integer;
 -- key.
 -- name: AttachProductImage :exec
 INSERT INTO product_images (product_id, storage_key, alt_text, alt_text_en,
-                            width, height, position)
+                            width, height, position, option_value_id)
 SELECT p.id, @storage_key::text, @alt_text::text, nullif(@alt_text_en::text, ''),
        @width::integer, @height::integer,
-       coalesce((SELECT max(position) + 1 FROM product_images x WHERE x.product_id = p.id), 0)
+       coalesce((SELECT max(position) + 1 FROM product_images x WHERE x.product_id = p.id), 0),
+       sqlc.narg('option_value_id')::uuid
 FROM products p
 WHERE p.slug = @slug::text;
+
+-- name: SetProductImageOptionValue :execrows
+UPDATE product_images
+SET option_value_id = sqlc.narg('option_value_id')::uuid
+FROM products p
+WHERE product_images.product_id = p.id AND p.slug = @slug::text
+  AND product_images.storage_key = @storage_key::text;
 
 -- name: DetachProductImage :execrows
 DELETE FROM product_images pi
@@ -898,11 +950,33 @@ USING products p
 WHERE pi.product_id = p.id AND p.slug = @slug::text AND pi.storage_key = @storage_key::text;
 
 -- name: AdminProductImages :many
-SELECT pi.storage_key, pi.alt_text, pi.width, pi.height
+SELECT pi.storage_key, pi.alt_text, pi.width, pi.height, pi.option_value_id
 FROM product_images pi
 JOIN products p ON p.id = pi.product_id
 WHERE p.slug = @slug::text
 ORDER BY pi.position, pi.id;
+
+-- One product's images in display order. Read after LockProductCatalogue, as its
+-- own statement: in the same statement the read would use a snapshot taken
+-- before that lock was won.
+-- name: ProductImageOrder :many
+SELECT pi.id, pi.storage_key
+FROM product_images pi
+JOIN products p ON p.id = pi.product_id
+WHERE p.slug = @slug::text
+ORDER BY pi.position, pi.id;
+
+-- (product_id, position) is a unique index checked row by row, so a reorder
+-- first moves every image clear of the range it is about to fill.
+-- name: ParkProductImages :exec
+UPDATE product_images pi SET position = pi.position + 1000000
+FROM products p
+WHERE pi.product_id = p.id AND p.slug = @slug::text;
+
+-- name: SetProductImageOrder :exec
+UPDATE product_images pi SET position = o.n::integer - 1
+FROM unnest(@ids::uuid[]) WITH ORDINALITY AS o(id, n)
+WHERE pi.id = o.id;
 
 -- name: AdminHeroSlides :many
 SELECT h.id, h.eyebrow, h.headline, h.primary_cta_label, h.primary_cta_href,
@@ -1032,18 +1106,25 @@ SELECT
     -- credit post.
     --
     -- The positive-credit predicate deliberately matches order_refunds: an entry
-    -- counts only with an order_id and a positive amount. reverse_order_credit
-    -- posts no order_id, so a cancelled order's returned credit is in neither
-    -- figure. A change of that definition belongs in order_refunds, so the 折讓
-    -- form and the invoice bound move with it. Neither time column has
-    -- an index yet; these are small ledgers, so a speculative index is not
-    -- warranted.
+    -- counts only with an order_id and a positive amount, so a reversed checkout
+    -- spend, which carries none, is in neither figure. A change of that
+    -- definition belongs in order_refunds, so the 折讓 form and the invoice bound
+    -- move with it. An order refunded before shipment is left out of both
+    -- figures: its refund cancels it out of the committed revenue, and counting
+    -- the same money as refunded too would take it off the net twice. Neither
+    -- time column has an index yet; these are small ledgers, so a speculative
+    -- index is not warranted.
     (coalesce((SELECT sum(r.amount_cents) FROM refunds r
+               JOIN payments p ON p.id = r.payment_id
                WHERE r.status = 'succeeded'
-                 AND r.succeeded_at >= now() - make_interval(days => @window_days::integer)), 0)::bigint
+                 AND r.succeeded_at >= now() - make_interval(days => @window_days::integer)
+                 AND NOT EXISTS (SELECT 1 FROM return_requests b
+                                 WHERE b.order_id = p.order_id AND b.before_shipment)), 0)::bigint
      + coalesce((SELECT sum(e.amount_cents) FROM store_credit_entries e
                  WHERE e.order_id IS NOT NULL AND e.amount_cents > 0
-                   AND e.created_at >= now() - make_interval(days => @window_days::integer)), 0)::bigint
+                   AND e.created_at >= now() - make_interval(days => @window_days::integer)
+                   AND NOT EXISTS (SELECT 1 FROM return_requests b
+                                   WHERE b.order_id = e.order_id AND b.before_shipment)), 0)::bigint
     )::bigint AS refunded_cents
 FROM (
     SELECT (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity)
@@ -1052,6 +1133,8 @@ FROM (
     FROM orders o
     JOIN committed_orders c ON c.id = o.id
     WHERE o.placed_at >= now() - make_interval(days => @window_days::integer)
+      AND NOT EXISTS (SELECT 1 FROM return_requests b
+                      WHERE b.order_id = o.id AND b.before_shipment)
 ) t;
 
 -- name: BestSellersSince :many

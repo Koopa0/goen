@@ -35,6 +35,7 @@ endif
         image image-push lint fmt fmt-check vet deadcode gen templ-check vuln \
         sqlc sqlc-check squawk db-up db-down migrate-up migrate-down db-seed \
         db-repair-invoice-faq db-repair-refund-faq db-repair-payment-faq db-repair-shop-rules-faq \
+        db-repair-hold-faq \
         demo-restore-check cursor-scripts-check workflow-check verify verify-all check-layout db-reset clean
 
 build: gen
@@ -96,6 +97,10 @@ test-integration: gen
 # LAYOUT_CHROME is a target variable so the resolved path survives GNU make's
 # one-shell-per-recipe-line default. Quoted for the macOS app bundle path.
 check-layout: LAYOUT_CHROME := $(if $(CHROME),$(CHROME),$(shell scripts/resolve-chrome.sh 2>/dev/null))
+# The colour-photo fixture and the probe that reads it name the same three things.
+check-layout: COLOUR_SLUG := pixelight-9-pro
+check-layout: COLOUR_VALUE := 曜石黑
+check-layout: COLOUR_KEY := pixelight-9-pro-01-800.webp
 check-layout:
 	@test -n "$(LAYOUT_CHROME)" && test -x "$(LAYOUT_CHROME)" || { echo 'Chrome not found; set CHROME=/path/to/chrome' >&2; exit 2; }
 	@curl -sf -o /dev/null $${GOEN_URL:-http://127.0.0.1:9700/} \
@@ -184,6 +189,12 @@ check-layout:
 	@VARIANT=$$(psql "$$GOEN_DATABASE_URL" -tAc "SELECT pv.id FROM product_variants pv JOIN products p ON p.id = pv.product_id WHERE p.status = 'active' AND pv.is_active AND pv.stock_quantity > pv.safety_stock LIMIT 1"); \
 		curl -s -o /dev/null -b .layout-chrome/cookies -c .layout-chrome/cookies \
 			-d "variant=$$VARIANT&quantity=1" $${GOEN_URL:-http://127.0.0.1:9700}/cart/items
+	@# One photograph tagged with a colour, because the seed tags none and a probe
+	@# over an untagged gallery measures nothing. The product's own picture under
+	@# its 800px rendition's name: an <img> the probe can tell apart that is still
+	@# a picture of this product. Upserted, so a rerun re-tags rather than fails.
+	@test "$$(psql "$$GOEN_DATABASE_URL" -qtAc "INSERT INTO product_images (product_id, storage_key, alt_text, alt_text_en, width, height, position, option_value_id) SELECT p.id, '$(COLOUR_KEY)', p.name, p.name_en, 800, 600, (SELECT max(x.position) + 1 FROM product_images x WHERE x.product_id = p.id), v.id FROM products p JOIN product_option_values v ON v.product_id = p.id WHERE p.slug = '$(COLOUR_SLUG)' AND v.value = '$(COLOUR_VALUE)' ON CONFLICT (product_id, storage_key) DO UPDATE SET option_value_id = EXCLUDED.option_value_id RETURNING 1")" = "1" \
+		|| { echo 'the colour-photo fixture tagged no photograph — $(COLOUR_SLUG) or its $(COLOUR_VALUE) value is not in GOEN_DATABASE_URL' >&2; exit 2; }
 	@# The promotional strip is DATA — an empty promo_banners is a working site
 	@# and a correct blank page, so its layout rows measured nothing at all
 	@# until this fixture existed. The check's own marker guard is what said so.
@@ -480,6 +491,7 @@ check-layout:
 		CUSTOMER_ID=$$(psql "$$GOEN_DATABASE_URL" -tAc "SELECT id FROM users WHERE email = 'layout-cust@goen.invalid'") \
 		LAYOUT_SERIAL=$$(psql "$$GOEN_DATABASE_URL" -tAc "SELECT w.serial_number FROM warranty_registrations w JOIN users u ON u.id = w.user_id WHERE u.email = 'layout-cust@goen.invalid' ORDER BY w.registered_at DESC LIMIT 1") \
 		ADMIN_TOKEN=$$(cat .layout-chrome/admin-token) \
+		COLOUR_SLUG='$(COLOUR_SLUG)' COLOUR_VALUE='$(COLOUR_VALUE)' COLOUR_KEY='$(COLOUR_KEY)' \
 		CUST_TOKEN=$$(cat .layout-chrome/cust-token) node scripts/check-layout.mjs; status=$$?; \
 		kill $$(cat .layout-chrome/pid) 2>/dev/null; sleep 1; rm -rf .layout-chrome 2>/dev/null; \
 		exit $$status
@@ -648,7 +660,7 @@ migrate-down:
 # Load the development catalogue: brands, categories, ~15 products with variants,
 # images, specs and reviews. Runs as the owner (psql, not the app's store
 # role), so it may write the tables store is barred from. Development only.
-# Edit seed/gen_seed.py and re-run it to regenerate seed/dev_catalog.sql.
+# seed/dev_catalog.sql is edited by hand.
 db-seed:
 	@test -n "$${GOEN_DATABASE_URL:-}" || { echo 'GOEN_DATABASE_URL is required' >&2; exit 2; }
 	psql "$$GOEN_DATABASE_URL" -v ON_ERROR_STOP=1 -f seed/dev_catalog.sql
@@ -679,6 +691,12 @@ db-repair-payment-faq:
 db-repair-shop-rules-faq:
 	@test -n "$${GOEN_DATABASE_URL:-}" || { echo 'GOEN_DATABASE_URL is required' >&2; exit 2; }
 	psql "$$GOEN_DATABASE_URL" -v ON_ERROR_STOP=1 -f seed/repair_shop_rules_faq.sql
+
+# Update only the known stock-hold FAQ, which promised a lapsed order could be
+# paid again, on a kept database.
+db-repair-hold-faq:
+	@test -n "$${GOEN_DATABASE_URL:-}" || { echo 'GOEN_DATABASE_URL is required' >&2; exit 2; }
+	psql "$$GOEN_DATABASE_URL" -v ON_ERROR_STOP=1 -f seed/repair_hold_faq.sql
 
 # Rebuild the development database from scratch.
 #

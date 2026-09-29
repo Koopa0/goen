@@ -1,5 +1,5 @@
 {
-  "_comment": "Import artifact for active main ruleset 22740037. This file does not enforce GitHub settings. Read the rulesets API to verify live enforcement; apply reviewed changes with gh api -X PUT repos/Koopa0/goen/rulesets/22740037 --input .github/branch-protection.json only after successful new-check runs and merged-main CodeQL results exist. The owner role still has an always bypass; its restriction/removal and exact-head human acceptance are tracked in #40.",
+  "_comment": "Import artifact for active main ruleset 22740037. This file does not enforce GitHub settings. Read the rulesets API to verify live enforcement; apply reviewed changes with gh api -X PUT repos/Koopa0/goen/rulesets/22740037 --input .github/branch-protection.json only after successful new-check runs and merged-main CodeQL results exist. The single maintainer merges with the owner role's always bypass after these checks pass, so the one-approval rule is bypassed, not met.",
   "name": "main",
   "target": "branch",
   "enforcement": "active",

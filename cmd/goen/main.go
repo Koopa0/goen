@@ -691,6 +691,6 @@ func terminalOrderHandler(recipients ordernotice.Recipients, notifier email.Noti
 		if !ok {
 			return nil
 		}
-		return notifier.SendOrderTerminal(ctx, p.Kind, email.TerminalRecipient(to))
+		return notifier.SendOrderTerminal(ctx, p, email.TerminalRecipient(to))
 	}
 }

@@ -95,7 +95,11 @@ templ AdminReturns(p layouts.Page, v AdminReturnsView) {
 								</ul>
 							}
 						</div>
-						if !r.Decided {
+						if r.BeforeShipment {
+							// Its payout, cancellation and invoice correction resume
+							// together on the order page, never one at a time here.
+							<p class="goen-admin__hint"><a href={ templ.SafeURL(r.OrderAction()) }>{ i18n.T(ctx, i18n.KeyAdminRefundTitle) }</a></p>
+						} else if !r.Decided {
 							if r.Goodwill() || r.Mixed() {
 								<form class="goen-admin__decide" method="post" action={ templ.SafeURL(r.AssessAction()) }>
 									<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminRetAssessHint) }</p>

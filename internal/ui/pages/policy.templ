@@ -136,7 +136,7 @@ templ Shipping(p layouts.Page, v ShippingView) {
 					<section class="goen-doc__section" id="shipping-hold">
 						<h2>{ i18n.T(ctx, i18n.KeyShippingHold) }</h2>
 						<p>
-							{ fmt.Sprintf(i18n.T(ctx, i18n.KeyShippingHoldBody), HoldMinutesText()) }
+							{ fmt.Sprintf(i18n.T(ctx, i18n.KeyShippingHoldBody), HoldMinutesText(), PayStartMinutesText()) }
 						</p>
 					</section>
 					<p class="goen-doc__contact">

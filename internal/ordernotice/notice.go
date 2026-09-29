@@ -18,25 +18,30 @@ import (
 type Kind string
 
 const (
-	CancelledByCustomer Kind = "cancelled_by_customer"
-	CancelledByStaff    Kind = "cancelled_by_staff"
-	Delivered           Kind = "delivered"
-	Collected           Kind = "collected"
+	CancelledByCustomer        Kind = "cancelled_by_customer"
+	CancelledByStaff           Kind = "cancelled_by_staff"
+	CancelledByPaymentDeadline Kind = "cancelled_by_payment_deadline"
+	Delivered                  Kind = "delivered"
+	Collected                  Kind = "collected"
 )
 
 // Message contains only the order identity and its committed event.
 type Message struct {
 	OrderID uuid.UUID `json:"order_id"`
 	Kind    Kind      `json:"kind"`
+	// Refunded says money may have reached the provider for this unpaid order
+	// and has been or will be returned, so the mail must not say nothing was
+	// charged. Read in the transaction that cancels the order.
+	Refunded bool `json:"refunded"`
 }
 
 // Enqueue must use the caller's order transaction so failed transitions send nothing.
-func Enqueue(ctx context.Context, q *db.Queries, orderID uuid.UUID, kind Kind) error {
-	payload, err := json.Marshal(Message{OrderID: orderID, Kind: kind})
+func Enqueue(ctx context.Context, q *db.Queries, m Message) error {
+	payload, err := json.Marshal(m)
 	if err != nil {
 		return fmt.Errorf("encode terminal order notice: %w", err)
 	}
-	if err := q.EnqueueMessage(ctx, db.EnqueueMessageParams{Topic: outbox.TopicOrderTerminal, DedupeKey: orderID.String() + ":" + string(kind), Payload: payload}); err != nil {
+	if err := q.EnqueueMessage(ctx, db.EnqueueMessageParams{Topic: outbox.TopicOrderTerminal, DedupeKey: m.OrderID.String() + ":" + string(m.Kind), Payload: payload}); err != nil {
 		return fmt.Errorf("enqueue terminal order notice: %w", err)
 	}
 	return nil

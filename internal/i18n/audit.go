@@ -56,7 +56,10 @@ var (
 
 	KeyAuditImageAttach = key("audit.image.attach", Message{ZhHant: "新增商品圖片", En: "Attach product image"})
 
+	KeyAuditImageMove   = key("audit.image.move", Message{ZhHant: "調整商品圖片順序", En: "Reorder product images"})
 	KeyAuditImageDetach = key("audit.image.detach", Message{ZhHant: "移除商品圖片", En: "Detach product image"})
+
+	KeyAuditImageOption = key("audit.image.option", Message{ZhHant: "設定商品圖片的選項", En: "Set product image option"})
 
 	KeyAuditShippingMethodCreate = key("audit.shipping.method.create", Message{
 		ZhHant: "新增配送方式",
@@ -134,6 +137,8 @@ var (
 	KeyAuditReturnInspect = key("audit.return.inspect", Message{ZhHant: "退貨驗收", En: "Inspect return"})
 
 	KeyAuditReturnComplete = key("audit.return.complete", Message{ZhHant: "退貨結案", En: "Close return"})
+
+	KeyAuditReturnRefundBeforeShipment = key("audit.return.refund_before_shipment", Message{ZhHant: "出貨前退款", En: "Refund before shipment"})
 
 	KeyAuditOrderDelivery = key("audit.order.delivery", Message{ZhHant: "更正配送資料", En: "Correct delivery details"})
 

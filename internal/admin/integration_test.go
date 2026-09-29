@@ -820,9 +820,9 @@ func TestAdvanceCannotShip(t *testing.T) {
 	}
 }
 
-// TestAdminCancelClawsBackLoyaltyPoints holds that a paid order cancelled in the
-// back office claws back its award lot, including when the lot was partly or
-// wholly spent before cancellation.
+// TestAdminCancelClawsBackLoyaltyPoints holds that a paid order the back office
+// cancels — by refunding it before shipment — claws back its award lot,
+// including when the lot was partly or wholly spent before cancellation.
 func TestAdminCancelClawsBackLoyaltyPoints(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
@@ -883,7 +883,7 @@ func cancelPointsCustomer(t *testing.T) uuid.UUID {
 
 func cancelPaidOrder(t *testing.T, s *admin.Store, ctx context.Context, number string) {
 	t.Helper()
-	if _, err := s.Advance(ctx, number, "cancelled", uuid.NullUUID{}); err != nil {
+	if _, err := s.RefundBeforeShipment(ctx, number, "顧客取消"); err != nil {
 		t.Fatalf("cancel: %v", err)
 	}
 }
@@ -893,17 +893,19 @@ func assertCancelClawback(t *testing.T, orderID uuid.UUID, wantPoints, wantReque
 	ctx := t.Context()
 	var points, requested int64
 	var key string
+	var returnID uuid.UUID
 	if err := pool.QueryRow(ctx, `
-		SELECT points, requested_points, idempotency_key
-		FROM loyalty_entries
-		WHERE order_id = $1 AND kind = 'clawback'`, orderID).Scan(&points, &requested, &key); err != nil {
+		SELECT e.points, e.requested_points, e.idempotency_key, r.id
+		FROM loyalty_entries e
+		JOIN return_requests r ON r.order_id = e.order_id AND r.before_shipment
+		WHERE e.order_id = $1 AND e.kind = 'clawback'`, orderID).Scan(&points, &requested, &key, &returnID); err != nil {
 		t.Fatalf("read clawback: %v", err)
 	}
 	if points != wantPoints || requested != wantRequested {
 		t.Errorf("clawback points/requested = %d/%d, want %d/%d",
 			points, requested, wantPoints, wantRequested)
 	}
-	if want := "cancel:" + orderID.String(); key != want {
+	if want := "return:" + returnID.String(); key != want {
 		t.Errorf("clawback key = %q, want %q", key, want)
 	}
 	var rows int
@@ -917,7 +919,7 @@ func assertCancelClawback(t *testing.T, orderID uuid.UUID, wantPoints, wantReque
 	}
 	var replay int64
 	if err := pool.QueryRow(ctx,
-		`SELECT reverse_order_points($1)`, orderID).Scan(&replay); err != nil || replay != 0 {
+		`SELECT reverse_return_points($1)`, returnID).Scan(&replay); err != nil || replay != 0 {
 		t.Fatalf("cancel clawback replay = %d, %v; want 0, nil", replay, err)
 	}
 }
@@ -981,7 +983,7 @@ func paidPickingOrderForUser(t *testing.T, userID uuid.UUID, cents int64) (numbe
 func TestAdvanceRecordsWhoAndWhen(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
-	number, orderID := pickingOrderHoldingStock(t)
+	number, orderID, _ := pendingOrderHoldingStock(t)
 
 	var staff uuid.UUID
 	if err := pool.QueryRow(ctx, `
@@ -5515,10 +5517,10 @@ func TestOneUploadCanBeAttachedToTwoProducts(t *testing.T) {
 	}
 
 	first, second := twoProducts(t)
-	if err := s.AttachImage(ctx, first, digest, "第一個商品", "First product", 800, 600); err != nil {
+	if err := s.AttachImage(ctx, first, digest, "第一個商品", "First product", "", 800, 600); err != nil {
 		t.Fatalf("attach to the first: %v", err)
 	}
-	if err := s.AttachImage(ctx, second, digest, "第二個商品", "", 800, 600); err != nil {
+	if err := s.AttachImage(ctx, second, digest, "第二個商品", "", "", 800, 600); err != nil {
 		t.Fatalf("attach the SAME image to the second: %v", err)
 	}
 
@@ -5530,7 +5532,7 @@ func TestOneUploadCanBeAttachedToTwoProducts(t *testing.T) {
 	if n != 2 {
 		t.Errorf("the image is attached to %d products, want 2", n)
 	}
-	if err := s.AttachImage(ctx, first, digest, "再一次", "", 800, 600); err == nil {
+	if err := s.AttachImage(ctx, first, digest, "再一次", "", "", 800, 600); err == nil {
 		t.Error("the same image was attached to one product twice")
 	}
 }
@@ -6927,6 +6929,50 @@ func orderForCustomer(t *testing.T, userID uuid.UUID, cents int64, paid bool) uu
 	return orderID
 }
 
+// TestTheBackOfficeSeesTheSystemCancelAtThePaymentDeadline: the sweeper's
+// cancellation is the system's, in both languages, and never the customer's.
+func TestTheBackOfficeSeesTheSystemCancelAtThePaymentDeadline(t *testing.T) {
+	ctx, _ := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	number := placeUnpaidOrder(t)
+	if _, err := pool.Exec(ctx, `
+		SELECT hold_inventory(o.id,
+			(SELECT id FROM product_variants ORDER BY stock_quantity DESC, id LIMIT 1),
+			1, interval '30 minutes', 'deadline-actor:' || o.order_number)
+		FROM orders o WHERE o.order_number = $1`, number); err != nil {
+		t.Fatalf("hold stock: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		UPDATE inventory_reservations
+		SET created_at = now() - interval '2 hours', expires_at = now() - interval '1 minute'
+		WHERE order_id = (SELECT id FROM orders WHERE order_number = $1)`, number); err != nil {
+		t.Fatalf("expire the hold: %v", err)
+	}
+	if _, _, err := cart.NewStore(pool).Sweep(ctx, slog.New(slog.DiscardHandler)); err != nil {
+		t.Fatalf("sweep: %v", err)
+	}
+
+	view, err := s.Order(ctx, number)
+	if err != nil {
+		t.Fatalf("Order: %v", err)
+	}
+	var found bool
+	for _, e := range view.Timeline {
+		if e.Kind != "cancelled" {
+			continue
+		}
+		found = true
+		for locale, want := range map[i18n.Locale]string{i18n.ZhHant: "系統", i18n.En: "System"} {
+			if got := e.By(i18n.WithLocale(ctx, locale)); got != want {
+				t.Errorf("%s: the back office says %q cancelled it, want %q", locale, got, want)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("the sweep left no cancellation in the order's history")
+	}
+}
+
 func TestTheBackOfficeSeesWhoCancelled(t *testing.T) {
 	ctx, _ := staffContext(t)
 	basket := cart.NewStore(pool)
@@ -7635,7 +7681,7 @@ func TestAltTextFollowsThePagesLanguage(t *testing.T) {
 	digest := storeMedia(t)
 
 	if err := s.AttachImage(ctx, slug, digest, "銀色筆電,螢幕開啟",
-		"Silver laptop, screen open", 800, 600); err != nil {
+		"Silver laptop, screen open", "", 800, 600); err != nil {
 		t.Fatalf("AttachImage: %v", err)
 	}
 
@@ -7662,7 +7708,7 @@ func TestAltTextFollowsThePagesLanguage(t *testing.T) {
 	}
 
 	second := draftProduct(t, ctx, s)
-	if err := s.AttachImage(ctx, second, digest, "沒有英文說明", "", 800, 600); err != nil {
+	if err := s.AttachImage(ctx, second, digest, "沒有英文說明", "", "", 800, 600); err != nil {
 		t.Fatalf("AttachImage without English: %v", err)
 	}
 	var fallback string

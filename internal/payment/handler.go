@@ -13,6 +13,7 @@ import (
 
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/web"
@@ -99,6 +100,12 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.renderPay(w, r, o, attempt.SessionID != "", http.StatusOK)
+}
+
+// renderPay offers a payment only where Start could open or resume one. The
+// deadline is Start's own admission rule read backwards from the hold.
+func (h *Handler) renderPay(w http.ResponseWriter, r *http.Request, o *Order, hasSession bool, status int) {
 	view := pages.PayView{
 		Number:     o.Number,
 		TotalCents: o.TotalCents,
@@ -107,13 +114,21 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 		Sandbox:    h.gateway.Sandbox(),
 		Cancelled:  r.URL.Query().Get("cancelled") == "1",
 	}
+	switch {
+	case pages.FulfillmentStatus(o.Fulfillment) == pages.FulfillmentCancelled:
+		view.Closure = pages.PayOrderCancelled
+	case !hasSession && !o.holdCoversSession:
+		view.Closure = pages.PayWindowClosed
+	case !hasSession:
+		view.StartBy = shoptime.Minute(o.HoldExpiresAt.Add(-minSessionLifetime - sessionStartMargin))
+	}
 	for i := range o.Lines {
 		l := &o.Lines[i]
 		view.Lines = append(view.Lines, pages.PayLine{
 			Name: l.Name, Label: l.Label, UnitCents: l.UnitCents, Quantity: l.Quantity,
 		})
 	}
-	web.Render(w, r, h.log, http.StatusOK, pages.Pay(pages.PayMeta(r.Context(), o.Number), view))
+	web.Render(w, r, h.log, status, pages.Pay(pages.PayMeta(r.Context(), o.Number), view))
 }
 
 // Start creates the Stripe Checkout Session and sends the customer to it with a
@@ -149,7 +164,7 @@ func (h *Handler) Start(w http.ResponseWriter, r *http.Request) {
 	if !o.holdCoversSession {
 		h.log.InfoContext(r.Context(), "refusing to open a checkout on a lapsed stock hold",
 			"order", number, "hold_expires_at", o.HoldExpiresAt)
-		h.paymentConflict(w, r)
+		h.renderPay(w, r, o, false, http.StatusConflict)
 		return
 	}
 
@@ -565,10 +580,11 @@ func (h *Handler) payableOrder(w http.ResponseWriter, r *http.Request, number st
 	}
 	// An open payment page on a cancelled order takes money for no goods.
 	if o.Fulfillment != "pending" && !o.Paid && !o.FullyFunded() {
-		h.notice(w, r, http.StatusConflict,
-			i18n.T(r.Context(), i18n.KeyPayRefusedTitle),
-			i18n.T(r.Context(), i18n.KeyPayRefusedTitle),
-			i18n.T(r.Context(), i18n.KeyPayRefusedBody))
+		if pages.FulfillmentStatus(o.Fulfillment) == pages.FulfillmentCancelled {
+			h.renderPay(w, r, o, false, http.StatusConflict)
+		} else {
+			h.paymentConflict(w, r)
+		}
 		return nil, false
 	}
 	return o, true

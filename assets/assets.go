@@ -289,7 +289,7 @@ func ifNoneMatch(r *http.Request, etag string) bool {
 // An allowlist, not a range, and that is the security property: rendering costs
 // CPU proportional to the output, so an open width parameter is a denial of
 // service that costs the attacker one request.
-var mediaWidths = [...]int{400, 800}
+var mediaWidths = [...]int{400, 800, 1600}
 
 // KnownWidth reports whether w is a rendition goen will produce.
 func KnownWidth(w int) bool { return slices.Contains(mediaWidths[:], w) }
@@ -300,6 +300,16 @@ func MediaURL(digest string) string { return "/media/" + digest }
 // MediaRenditionURL is where it is served at one of the allowed media widths.
 func MediaRenditionURL(digest string, width int) string {
 	return "/media/" + digest + "/" + strconv.Itoa(width)
+}
+
+// UploadedRenditionSrcset is the single candidate for a small tile whose source
+// width is not stored: the given width's rendition of an uploaded image, and ""
+// for a key that is not an uploaded digest.
+func UploadedRenditionSrcset(storageKey string, width int) string {
+	if !uploadedDigest.MatchString(storageKey) {
+		return ""
+	}
+	return MediaRenditionURL(storageKey, width) + " " + strconv.Itoa(width) + "w"
 }
 
 // mediaSrcset is the candidate set for an uploaded image, derived from the
