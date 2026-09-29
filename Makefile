@@ -385,6 +385,9 @@ check-layout:
 	@# A pending invoice_documents row is no longer a tax document. The stranded
 	@# claim — a 折讓 the provider never answered, aged past the window that
 	@# tells a stuck one from a call in flight — lives on invoice_operations.
+	@# available_at is a day ahead so the invoice worker, which the gate's ECPay
+	@# staging values enable, never leases this row: leasing calls the provider and
+	@# rewrites last_error, which removes the resend form this page is measured with.
 	@# The issued invoice and a partial issued allowance (always short of the
 	@# refunded whole-dollar room) are what put the 折讓 form on
 	@# /admin/orders/{number}: the form offers the remainder, and writing the
@@ -420,7 +423,7 @@ check-layout:
 		INSERT INTO invoice_operations \
 		    (order_id, kind, target_document_id, provider_key, amount_cents, \
 		     request_payload, actor_user_id, actor_id_snapshot, request_id, \
-		     send_attempts, last_send_at, last_error, created_at, updated_at) \
+		     send_attempts, last_send_at, last_error, available_at, created_at, updated_at) \
 		SELECT inv.order_id, 'allowance', inv.id, 'GD-LAYOUT1', \
 		       least(50000, (src.refunded / 100) * 100), \
 		       jsonb_build_object( \
@@ -434,7 +437,7 @@ check-layout:
 		               'amount_cents', least(50000, (src.refunded / 100) * 100)))), \
 		       src.actor_id, src.actor_id, 'invoice-layout-check', \
 		       1, now() - interval '1 hour', 'allowance_not_yet_visible', \
-		       now() - interval '1 hour', now() - interval '1 hour' \
+		       now() + interval '1 day', now() - interval '1 hour', now() - interval '1 hour' \
 		FROM inv JOIN src ON src.order_id = inv.order_id \
 		WHERE NOT EXISTS ( \
 		  SELECT 1 FROM invoice_operations WHERE request_id = 'invoice-layout-check')" >/dev/null
