@@ -112,3 +112,61 @@ func TestSearchRelevanceTiesUsePublicationThenIdentity(t *testing.T) {
 		}
 	}
 }
+
+// The Chinese name column and the English summary column each carry a ranking
+// arm of their own. Every product here leaves the other language empty, so
+// only the arm under test can place it, and each one is older than the
+// products below it: recency alone would order them the other way round.
+func TestSearchRanksTheChineseNameAndEnglishSummaryArms(t *testing.T) {
+	ctx := t.Context()
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = tx.Rollback(context.WithoutCancel(ctx)) })
+	token := "zhrank" + uuid.NewString()[:8]
+	fixtures := []struct {
+		name, summaryEN string
+		spec            bool
+	}{
+		{name: token},                        // exact name, in the name column only
+		{name: token + "版"},                  // name substring, in the name column only
+		{name: "原型", summaryEN: token},       // summary, in summary_en only
+		{name: "原型", summaryEN: "unrelated"}, // spec only
+	}
+	slugs := make([]string, len(fixtures))
+	for i, f := range fixtures {
+		slugs[i] = "relevance-zh-" + uuid.NewString()
+		var brandID, productID uuid.UUID
+		if fixtureErr := tx.QueryRow(ctx, `INSERT INTO brands (slug, name) VALUES ($1, 'Fixture brand') RETURNING id`, "brand-"+uuid.NewString()).Scan(&brandID); fixtureErr != nil {
+			t.Fatal(fixtureErr)
+		}
+		if fixtureErr := tx.QueryRow(ctx, `INSERT INTO products (brand_id, category_id, slug, name, summary, summary_en, status, published_at)
+   SELECT $1, category_id, $2, $3, 'Fixture summary', $4, 'draft', now() + ($5 * interval '1 second') FROM products LIMIT 1 RETURNING id`, brandID, slugs[i], f.name, f.summaryEN, i).Scan(&productID); fixtureErr != nil {
+			t.Fatal(fixtureErr)
+		}
+		if _, fixtureErr := tx.Exec(ctx, `INSERT INTO product_variants (product_id, sku, price_cents) VALUES ($1, $2, 10000)`, productID, "RANKZH-"+strings.ToUpper(uuid.NewString())); fixtureErr != nil {
+			t.Fatal(fixtureErr)
+		}
+		if i == len(fixtures)-1 {
+			if _, fixtureErr := tx.Exec(ctx, `INSERT INTO product_specs (product_id, label, value, position) VALUES ($1, 'Lookup', $2, 0)`, productID, token); fixtureErr != nil {
+				t.Fatal(fixtureErr)
+			}
+		}
+		if _, fixtureErr := tx.Exec(ctx, `UPDATE products SET status = 'active' WHERE id = $1`, productID); fixtureErr != nil {
+			t.Fatal(fixtureErr)
+		}
+	}
+	view, err := catalog.NewStore(tx).Search(ctx, catalog.SearchPattern(strings.ToUpper(token)), 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if view.Total != int64(len(slugs)) || len(view.Products) != len(slugs) {
+		t.Fatalf("ranked matches total=%d rows=%d", view.Total, len(view.Products))
+	}
+	for i, slug := range slugs {
+		if view.Products[i].Slug != slug {
+			t.Errorf("rank %d = %s, want %s", i, view.Products[i].Slug, slug)
+		}
+	}
+}
