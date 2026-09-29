@@ -25,19 +25,13 @@ SELECT lock_user_for_checkout(@user_id::uuid);
 -- name: LockCartCatalogue :exec
 SELECT lock_cart_catalogue(@cart_id::uuid);
 
--- least() caps a repeat add at available stock and the line ceiling rather than
--- raising a constraint violation the visitor did nothing to deserve.
+-- The caller has already clamped the line's total against sellable stock and
+-- the line ceiling, so a conflict stores the total it was handed.
 -- name: AddCartItem :exec
 INSERT INTO cart_items (cart_id, variant_id, quantity)
 VALUES ($1, $2, $3)
 ON CONFLICT (cart_id, variant_id) DO UPDATE
-SET quantity = least(
-    cart_items.quantity + EXCLUDED.quantity,
-    999,
-    greatest((SELECT (pv.stock_quantity - pv.safety_stock)::integer
-              FROM product_variants pv
-              WHERE pv.id = cart_items.variant_id), 1)
-);
+SET quantity = EXCLUDED.quantity;
 
 -- name: SetCartItemQuantity :exec
 UPDATE cart_items SET quantity = $3
@@ -111,7 +105,9 @@ SELECT coalesce(sum(quantity), 0)::bigint FROM cart_items WHERE cart_id = $1;
 -- name: CartLineCapacity :one
 SELECT count(*)::integer AS line_count,
        (count(*) FILTER (WHERE variant_id = @variant_id::uuid) > 0)::boolean
-           AS already_present
+           AS already_present,
+       coalesce(sum(quantity) FILTER (WHERE variant_id = @variant_id::uuid), 0)::integer
+           AS existing_quantity
 FROM cart_items
 WHERE cart_id = @cart_id::uuid;
 

@@ -91,13 +91,7 @@ const addCartItem = `-- name: AddCartItem :exec
 INSERT INTO cart_items (cart_id, variant_id, quantity)
 VALUES ($1, $2, $3)
 ON CONFLICT (cart_id, variant_id) DO UPDATE
-SET quantity = least(
-    cart_items.quantity + EXCLUDED.quantity,
-    999,
-    greatest((SELECT (pv.stock_quantity - pv.safety_stock)::integer
-              FROM product_variants pv
-              WHERE pv.id = cart_items.variant_id), 1)
-)
+SET quantity = EXCLUDED.quantity
 `
 
 type AddCartItemParams struct {
@@ -106,8 +100,8 @@ type AddCartItemParams struct {
 	Quantity  int32
 }
 
-// least() caps a repeat add at available stock and the line ceiling rather than
-// raising a constraint violation the visitor did nothing to deserve.
+// The caller has already clamped the line's total against sellable stock and
+// the line ceiling, so a conflict stores the total it was handed.
 func (q *Queries) AddCartItem(ctx context.Context, arg AddCartItemParams) error {
 	_, err := q.db.Exec(ctx, addCartItem, arg.CartID, arg.VariantID, arg.Quantity)
 	return err
@@ -2801,7 +2795,9 @@ func (q *Queries) CartItemRows(ctx context.Context, cartID uuid.UUID) ([]CartIte
 const cartLineCapacity = `-- name: CartLineCapacity :one
 SELECT count(*)::integer AS line_count,
        (count(*) FILTER (WHERE variant_id = $1::uuid) > 0)::boolean
-           AS already_present
+           AS already_present,
+       coalesce(sum(quantity) FILTER (WHERE variant_id = $1::uuid), 0)::integer
+           AS existing_quantity
 FROM cart_items
 WHERE cart_id = $2::uuid
 `
@@ -2812,8 +2808,9 @@ type CartLineCapacityParams struct {
 }
 
 type CartLineCapacityRow struct {
-	LineCount      int32
-	AlreadyPresent bool
+	LineCount        int32
+	AlreadyPresent   bool
+	ExistingQuantity int32
 }
 
 // The cart row is already locked by every caller. Updating an existing variant
@@ -2821,7 +2818,7 @@ type CartLineCapacityRow struct {
 func (q *Queries) CartLineCapacity(ctx context.Context, arg CartLineCapacityParams) (CartLineCapacityRow, error) {
 	row := q.db.QueryRow(ctx, cartLineCapacity, arg.VariantID, arg.CartID)
 	var i CartLineCapacityRow
-	err := row.Scan(&i.LineCount, &i.AlreadyPresent)
+	err := row.Scan(&i.LineCount, &i.AlreadyPresent, &i.ExistingQuantity)
 	return i, err
 }
 

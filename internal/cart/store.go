@@ -124,19 +124,6 @@ func addCartItem(
 	if !v.IsActive || v.Status != "active" || v.SellableQuantity <= 0 {
 		return false, ErrUnavailable
 	}
-	existing, err := q.CartLineQuantity(ctx, db.CartLineQuantityParams{
-		CartID: cartID, VariantID: variantID,
-	})
-	switch {
-	case errors.Is(err, pgx.ErrNoRows):
-		existing = 0
-	case err != nil:
-		return false, fmt.Errorf("read cart line: %w", err)
-	}
-	wanted := existing + requested
-	if quantity > v.SellableQuantity {
-		quantity = v.SellableQuantity
-	}
 	capacity, err := q.CartLineCapacity(ctx, db.CartLineCapacityParams{
 		CartID: cartID, VariantID: variantID,
 	})
@@ -146,21 +133,14 @@ func addCartItem(
 	if !capacity.AlreadyPresent && capacity.LineCount >= invoicepkg.MaxIssueProductLines {
 		return false, ErrTooManyItems
 	}
+	wanted := capacity.ExistingQuantity + requested
+	target := min(wanted, v.SellableQuantity, MaxLineQuantity)
 	if addErr := q.AddCartItem(ctx, db.AddCartItemParams{
-		CartID: cartID, VariantID: variantID, Quantity: quantity,
+		CartID: cartID, VariantID: variantID, Quantity: target,
 	}); addErr != nil {
 		return false, fmt.Errorf("add cart item: %w", addErr)
 	}
-	stored, err := q.CartLineQuantity(ctx, db.CartLineQuantityParams{
-		CartID: cartID, VariantID: variantID,
-	})
-	if err != nil {
-		return false, fmt.Errorf("read cart line after add: %w", err)
-	}
-	if stored < wanted {
-		return true, nil
-	}
-	return false, nil
+	return target < wanted, nil
 }
 
 // SetQuantity changes a line, removing it at zero.
