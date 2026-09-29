@@ -213,7 +213,7 @@ func TestConcurrentAttachAndReorderNeverCollideOnPosition(t *testing.T) {
 		wg.Add(2)
 		go func() {
 			defer wg.Done()
-			digest := strings.Repeat(fmt.Sprintf("%x", i+10), 64)[:64]
+			digest := fmt.Sprintf("%064x", 0xd1500+i)
 			if err := s.AttachImage(ctx, slug, digest, "新圖", "", 800, 800); err != nil {
 				errs <- fmt.Errorf("attach: %w", err)
 			}
