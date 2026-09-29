@@ -124,6 +124,8 @@ func (h *Handler) SignInPage(w http.ResponseWriter, r *http.Request) {
 		view.Notice = i18n.T(r.Context(), i18n.KeyAccountCreated)
 	case r.URL.Query().Get("reset") == "1":
 		view.Notice = i18n.T(r.Context(), i18n.KeyPasswordReset)
+	case r.URL.Query().Get("reauth") == "erase":
+		view.Notice = i18n.T(r.Context(), i18n.KeyEraseNeedsRecentSignIn)
 	default:
 		view.Errors = oauthOutcome(r.Context(), r.URL.Query().Get("oauth"))
 	}
@@ -577,7 +579,7 @@ func (h *Handler) Erase(w http.ResponseWriter, r *http.Request) {
 			h.log.ErrorContext(r.Context(), "end stale session", "error", err)
 		}
 		ClearSessionCookie(w, h.secure)
-		http.Redirect(w, r, "/signin?next=%2Faccount", http.StatusSeeOther)
+		http.Redirect(w, r, "/signin?next=%2Faccount&reauth=erase", http.StatusSeeOther)
 		return
 	}
 	if r.PostFormValue("confirm") != u.Email {

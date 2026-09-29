@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"html"
 	"io"
 	"log/slog"
 	"net/http"
@@ -3809,9 +3810,18 @@ func TestErasureNeedsARecentSignIn(t *testing.T) {
 		t.Fatalf("age session: %v", err)
 	}
 	out := erase(stale, staleToken)
-	if out.Code != http.StatusSeeOther || out.Header().Get("Location") != "/signin?next=%2Faccount" {
-		t.Fatalf("stale-session erase = %d Location %q, want 303 /signin?next=%%2Faccount",
+	if out.Code != http.StatusSeeOther || out.Header().Get("Location") != "/signin?next=%2Faccount&reauth=erase" {
+		t.Fatalf("stale-session erase = %d Location %q, want 303 /signin?next=%%2Faccount&reauth=erase",
 			out.Code, out.Header().Get("Location"))
+	}
+	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+		lctx := i18n.WithLocale(ctx, locale)
+		page := httptest.NewRecorder()
+		h.SignInPage(page, httptest.NewRequestWithContext(lctx, http.MethodGet,
+			out.Header().Get("Location"), http.NoBody))
+		if want := html.EscapeString(i18n.T(lctx, i18n.KeyEraseNeedsRecentSignIn)); !strings.Contains(page.Body.String(), want) {
+			t.Errorf("%s sign-in page after the redirect lacks %q", locale, want)
+		}
 	}
 	if !exists(stale) {
 		t.Fatal("a session older than the window erased the account")
