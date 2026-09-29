@@ -26,7 +26,10 @@ SELECT lock_user_for_checkout(@user_id::uuid);
 SELECT lock_cart_catalogue(@cart_id::uuid);
 
 -- The caller has already clamped the line's total against sellable stock and
--- the line ceiling, so a conflict stores the total it was handed.
+-- the line ceiling, so a conflict stores the total it was handed. It overwrites
+-- rather than adds: two unlocked callers would each write a total computed from
+-- the same stale read, so every caller must hold the cart row lock that
+-- lockCart takes in mutateCart.
 -- name: AddCartItem :exec
 INSERT INTO cart_items (cart_id, variant_id, quantity)
 VALUES ($1, $2, $3)

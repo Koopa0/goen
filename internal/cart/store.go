@@ -134,6 +134,8 @@ func addCartItem(
 		return false, ErrTooManyItems
 	}
 	wanted := capacity.ExistingQuantity + requested
+	// wanted was read under the cart row lock mutateCart holds; AddCartItem
+	// overwrites, so a caller without that lock would lose a concurrent add.
 	target := min(wanted, v.SellableQuantity, MaxLineQuantity)
 	if addErr := q.AddCartItem(ctx, db.AddCartItemParams{
 		CartID: cartID, VariantID: variantID, Quantity: target,
