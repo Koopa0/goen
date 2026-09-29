@@ -7230,3 +7230,36 @@ h4,
 [data-checkout-constraint]:user-invalid {
   border-color: var(--error);
 }
+
+.goen-compare__picker {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.goen-compare__picker .ui-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.goen-compare__chosen {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+}
+
+.goen-compare__chosen li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.goen-compare__note {
+  color: var(--fg-muted);
+  font-size: var(--fs-14);
+  margin: 0 0 16px;
+}

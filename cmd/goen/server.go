@@ -34,6 +34,7 @@ import (
 	"github.com/koopa0/goen/internal/site"
 	"github.com/koopa0/goen/internal/twofactor"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/warranty"
 	"github.com/koopa0/goen/internal/web"
 )
@@ -680,13 +681,13 @@ func localeReturnPath(r *http.Request) string {
 	if len(raw) == 0 {
 		return "/compare"
 	}
-	out := make([]string, 0, catalog.MaxCompare)
+	out := make([]string, 0, pages.MaxCompare)
 	for _, s := range raw {
 		if !slugFormat.MatchString(s) || slices.Contains(out, s) {
 			continue
 		}
 		out = append(out, s)
-		if len(out) == catalog.MaxCompare {
+		if len(out) == pages.MaxCompare {
 			break
 		}
 	}

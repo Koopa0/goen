@@ -426,7 +426,7 @@ func (v *ProductView) AlreadyComparing() bool {
 }
 
 // ComparingFull reports whether the set has no room left.
-func (v *ProductView) ComparingFull() bool { return len(v.Comparing) >= 4 }
+func (v *ProductView) ComparingFull() bool { return len(v.Comparing) >= MaxCompare }
 
 // FreeDelivery is the threshold the guarantee strip states, or "" for none.
 func (v *ProductView) FreeDelivery() string { return FreeDeliveryText(v.FreeDeliveryCents) }
