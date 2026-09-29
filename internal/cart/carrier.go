@@ -8,6 +8,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/ratelimit"
+	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 // Local fields and the current commercial quote have already passed. A prior
@@ -17,10 +18,11 @@ func (h *Handler) checkMobileCarrier(w http.ResponseWriter, r *http.Request, car
 	if !submission.invoice.Type.NeedsCarrier() || h.carriers == nil {
 		return true
 	}
+	var view *pages.CheckoutView = &submission.view
 	for _, key := range []string{"cart:" + cartID.String(), "ip:" + ratelimit.ClientIP(r)} {
 		if _, ok := h.carrierLimit.Allow(key); !ok {
-			submission.view.CarrierCheckNotice = i18n.T(r.Context(), i18n.KeyCarrierCheckLimited)
-			h.renderCheckout(w, r, http.StatusUnprocessableEntity, &submission.view)
+			view.CarrierCheckNotice = i18n.T(r.Context(), i18n.KeyCarrierCheckLimited)
+			h.renderCheckout(w, r, http.StatusUnprocessableEntity, view)
 			return false
 		}
 	}
@@ -30,8 +32,8 @@ func (h *Handler) checkMobileCarrier(w http.ResponseWriter, r *http.Request, car
 		case invoice.CarrierExists:
 			return true
 		case invoice.CarrierMissing:
-			submission.view.Errors = map[string]string{"invoice_carrier": i18n.T(r.Context(), i18n.KeyCarrierMissing)}
-			h.renderCheckout(w, r, http.StatusUnprocessableEntity, &submission.view)
+			view.Errors = map[string]string{"invoice_carrier": i18n.T(r.Context(), i18n.KeyCarrierMissing)}
+			h.renderCheckout(w, r, http.StatusUnprocessableEntity, view)
 			return false
 		case invoice.CarrierUnknown:
 		}
@@ -41,8 +43,8 @@ func (h *Handler) checkMobileCarrier(w http.ResponseWriter, r *http.Request, car
 	if r.Context().Err() == nil && r.PostFormValue("invoice_carrier_continue") == "1" {
 		return true
 	}
-	submission.view.CarrierCheckNotice = i18n.T(r.Context(), i18n.KeyCarrierCheckUnavailable)
-	submission.view.CarrierCheckUnavailable = true
-	h.renderCheckout(w, r, http.StatusUnprocessableEntity, &submission.view)
+	view.CarrierCheckNotice = i18n.T(r.Context(), i18n.KeyCarrierCheckUnavailable)
+	view.CarrierCheckUnavailable = true
+	h.renderCheckout(w, r, http.StatusUnprocessableEntity, view)
 	return false
 }
