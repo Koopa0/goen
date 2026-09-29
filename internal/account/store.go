@@ -423,7 +423,7 @@ func (s *Store) ChangePassword(ctx context.Context, userID, password string) err
 }
 
 // Overview reads the account landing page.
-func (s *Store) Overview(ctx context.Context, u User) (pages.AccountView, error) {
+func (s *Store) Overview(ctx context.Context, u User, after ...string) (pages.AccountView, error) {
 	id, err := uuid.Parse(u.ID)
 	if err != nil {
 		return pages.AccountView{}, fmt.Errorf("parse user id: %w", err)
@@ -444,10 +444,17 @@ func (s *Store) Overview(ctx context.Context, u User) (pages.AccountView, error)
 	view.GoogleLinked = len(identities) > 0
 	view.CanUnlinkGoogle = view.GoogleLinked && profile.HasPassword
 
-	orders, err := s.q.UserOrders(ctx, db.UserOrdersParams{UserID: uuid.NullUUID{UUID: id, Valid: true}, Limit: 20})
+	cursor := readOrderCursor(u.ID, after)
+	orders, err := s.q.UserOrders(ctx, db.UserOrdersParams{
+		UserID: uuid.NullUUID{UUID: id, Valid: true}, RowLimit: orderPageSize + 1,
+		HasCursor: cursor.Valid, AfterAt: cursor.At, AfterID: cursor.ID,
+	})
 	if err != nil {
 		return pages.AccountView{}, fmt.Errorf("read orders: %w", err)
 	}
+	orders, view.OrdersBound = orderBound(cursor, u.ID, orders,
+		func(o *db.UserOrdersRow) (uuid.UUID, time.Time) { return o.ID, o.PlacedAt })
+
 	for i := range orders {
 		o := &orders[i]
 		view.Orders = append(view.Orders, pages.AccountOrder{
