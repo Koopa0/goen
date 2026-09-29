@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 	"unicode"
 	"unicode/utf8"
 
@@ -37,6 +38,11 @@ var (
 
 // SessionCookieName is the session cookie; __Host- refuses a subdomain's forgery.
 const SessionCookieName = "__Host-goen_session"
+
+// EraseSignInWindow is how recently the customer must have signed in to erase
+// the account. Retyping the address shows intent, not identity, so a stolen or
+// unattended session must not be able to do something irreversible.
+const EraseSignInWindow = 15 * time.Minute
 
 // SessionTTL is how long a session lives.
 const SessionTTL = 14 * 24 * 60 * 60

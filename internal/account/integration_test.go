@@ -389,7 +389,7 @@ func TestExpiredSessionIsNobody(t *testing.T) {
 	}
 	// Both timestamps move: sessions_expiry_after_creation refuses a row whose
 	// window closed before it opened.
-	if _, err := pool.Exec(ctx, `
+	if _, err = pool.Exec(ctx, `
 		UPDATE sessions
 		SET created_at = now() - interval '2 hours',
 		    expires_at = now() - interval '1 hour'
@@ -1708,9 +1708,14 @@ func TestErasureWaitsForAStoreCreditFundedReturn(t *testing.T) {
 	// an ordinary server error would hide the action the customer must wait for.
 	h := account.NewHandler(s, nil, slog.New(slog.DiscardHandler), false, nil)
 	form := url.Values{"confirm": {u.Email}}
+	token, err := s.StartSession(ctx, u.ID, "test", "192.0.2.1")
+	if err != nil {
+		t.Fatalf("start session: %v", err)
+	}
 	req := httptest.NewRequestWithContext(account.WithUser(ctx, u), http.MethodPost,
 		"/account/erase", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.AddCookie(&http.Cookie{Name: "goen_session", Value: token}) //nolint:gosec // G124: a request cookie, not a response
 	out := httptest.NewRecorder()
 	h.Erase(out, req)
 	if out.Code != http.StatusSeeOther || out.Header().Get("Location") != "/account?erase=return" {
@@ -3764,5 +3769,68 @@ func TestErasingAnAccountTakesItsIdentities(t *testing.T) {
 	if identities != 0 {
 		t.Errorf("%d identities survived erasure — the same Google account could "+
 			"sign back into an account that no longer exists", identities)
+	}
+}
+
+// TestErasureNeedsARecentSignIn keeps a stolen or unattended session from
+// erasing the account: only a session created within EraseSignInWindow may.
+func TestErasureNeedsARecentSignIn(t *testing.T) {
+	ctx := t.Context()
+	s := account.NewStore(pool)
+	h := account.NewHandler(s, nil, slog.New(slog.DiscardHandler), false, nil)
+	erase := func(u account.User, token string) *httptest.ResponseRecorder {
+		req := httptest.NewRequestWithContext(account.WithUser(ctx, u), http.MethodPost,
+			"/account/erase", strings.NewReader(url.Values{"confirm": {u.Email}}.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.AddCookie(&http.Cookie{Name: "goen_session", Value: token}) //nolint:gosec // G124: a request cookie, not a response
+		out := httptest.NewRecorder()
+		h.Erase(out, req)
+		return out
+	}
+	exists := func(u account.User) bool {
+		var n int
+		if err := pool.QueryRow(ctx, `SELECT count(*) FROM users WHERE id = $1`, u.ID).Scan(&n); err != nil {
+			t.Fatalf("count user: %v", err)
+		}
+		return n == 1
+	}
+
+	stale := register(t, s, "erase-stale-"+uuid.NewString()+"@example.com")
+	staleToken, err := s.StartSession(ctx, stale.ID, "test", "192.0.2.1")
+	if err != nil {
+		t.Fatalf("start session: %v", err)
+	}
+	if _, err = pool.Exec(ctx, `
+		UPDATE sessions
+		SET created_at = now() - $2::interval - interval '1 minute',
+		    expires_at = now() + interval '1 day'
+		WHERE token_hash = $1`, account.HashToken(staleToken),
+		account.EraseSignInWindow.String()); err != nil {
+		t.Fatalf("age session: %v", err)
+	}
+	out := erase(stale, staleToken)
+	if out.Code != http.StatusSeeOther || out.Header().Get("Location") != "/signin?next=%2Faccount" {
+		t.Fatalf("stale-session erase = %d Location %q, want 303 /signin?next=%%2Faccount",
+			out.Code, out.Header().Get("Location"))
+	}
+	if !exists(stale) {
+		t.Fatal("a session older than the window erased the account")
+	}
+	if _, err = s.SessionUser(ctx, staleToken); !errors.Is(err, account.ErrNotFound) {
+		t.Errorf("stale session after refusal = %v, want ErrNotFound so /signin does not bounce back", err)
+	}
+
+	fresh := register(t, s, "erase-fresh-"+uuid.NewString()+"@example.com")
+	freshToken, err := s.StartSession(ctx, fresh.ID, "test", "192.0.2.1")
+	if err != nil {
+		t.Fatalf("start session: %v", err)
+	}
+	out = erase(fresh, freshToken)
+	if out.Code != http.StatusSeeOther || out.Header().Get("Location") != "/?erased=1" {
+		t.Fatalf("fresh-session erase = %d Location %q, want 303 /?erased=1",
+			out.Code, out.Header().Get("Location"))
+	}
+	if exists(fresh) {
+		t.Error("a fresh session did not erase the account")
 	}
 }
