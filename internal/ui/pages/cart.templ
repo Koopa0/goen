@@ -798,7 +798,7 @@ templ Order(p layouts.Page, v *OrderView) {
 			if v.PaymentRefreshURL != "" {
 				<div class="goen-notice goen-notice--accent" id="order-payment-processing" role="status">
 					<h2 class="goen-order__subhead">{ i18n.T(ctx, i18n.KeyPayProcessingTitle) }</h2>
-					<p>{ i18n.T(ctx, i18n.KeyOrderPaymentChecking) }</p>
+					<p>{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOrderPaymentChecking), v.PaymentRefreshSeconds, v.PaymentRefreshChecks) }</p>
 					<div class="goen-returns__actions">
 						@components.ButtonLink(components.ButtonProps{Variant: components.VariantOutline}, templ.SafeURL(v.PaymentRefreshURL)) {
 							{ i18n.T(ctx, i18n.KeyOrderCheckPayment) }

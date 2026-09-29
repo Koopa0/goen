@@ -627,6 +627,9 @@ type OrderView struct {
 	ShowWarrantyLink bool
 	// PaymentRefreshURL is a bounded presentation hint, never evidence of payment.
 	PaymentRefreshURL string
+	// PaymentRefreshSeconds and PaymentRefreshChecks are the bounds behind that
+	// URL, quoted in the notice so the copy cannot drift from the handler.
+	PaymentRefreshSeconds, PaymentRefreshChecks int
 }
 
 // CanCancel reports whether the customer may still call this order off.
