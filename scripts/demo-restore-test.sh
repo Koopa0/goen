@@ -101,10 +101,23 @@ tables=$(grep -c '^rel|' "$tmp/owners.before") definers=$(grep -c '^fn-definer|'
 (( tables > 60 && definers > 10 )) || { echo "owner listing too small: $tables tables, $definers definers" >&2; exit 1; }
 [[ -z $(grep -v '|goen$' "$tmp/owners.before") ]] || { echo 'migration objects not all owned by goen' >&2; exit 1; }
 docker exec "$c" pg_dump -U goen -d goen --format=custom --file=/tmp/good.dump
-# Zeroed bytes past the table of contents: the archive lists fine, so the preflight
-# passes and the service stops, then a data block fails to decompress.
+# pg_dump's custom format puts the table of contents first and the data blocks
+# after it, so the END of the file is always data. Zeroing there leaves the
+# archive listing fine (the preflight passes and the service stops) and makes a
+# data block fail at restore time. The middle of the file is not safe: it moves
+# with the schema and lands in the table of contents as tables are added.
 docker exec "$c" sh -c 'cp /tmp/good.dump /tmp/corrupt.dump
-    dd if=/dev/zero of=/tmp/corrupt.dump bs=1 count=512 seek=$(( $(wc -c < /tmp/good.dump) / 2 )) conv=notrunc 2>/dev/null'
+    dd if=/dev/zero of=/tmp/corrupt.dump bs=1 count=64 seek=$(( $(wc -c < /tmp/good.dump) - 64 )) conv=notrunc 2>/dev/null'
+# The drill proves nothing unless the corruption sits past the table of contents
+# and inside data; check both, so it goes red when it stops exercising that path.
+docker exec "$c" pg_restore --list /tmp/corrupt.dump >/dev/null \
+    || { echo 'corrupt snapshot no longer lists: the corruption reached the table of contents, so the preflight would refuse it before the service stops' >&2; exit 1; }
+! docker exec "$c" cmp -s /tmp/good.dump /tmp/corrupt.dump \
+    || { echo 'corrupt snapshot is identical to the good one' >&2; exit 1; }
+if docker exec "$c" sh -c 'pg_restore -f /dev/null /tmp/corrupt.dump' >/dev/null 2>&1; then
+    echo 'corrupt snapshot reads back cleanly: the corruption is not in a data block, so a restore would not fail' >&2
+    exit 1
+fi
 docker cp "$script" "$c:/tmp/restore-demo-db.sh"
 docker exec -i "$c" sh -c 'mkdir -p /tmp/bin; cat > /tmp/bin/systemctl; chmod +x /tmp/bin/systemctl' <<'STUB'
 #!/bin/sh
