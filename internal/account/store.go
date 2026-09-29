@@ -140,6 +140,25 @@ func (s *Store) SessionUser(ctx context.Context, token string) (User, error) {
 	return User{ID: row.ID.String(), Email: row.Email, Name: row.FullName.String, Role: row.Role}, nil
 }
 
+// SignedInRecently reports whether this session was created within window. A
+// session that is gone or expired is not recent.
+func (s *Store) SignedInRecently(ctx context.Context, token string, window time.Duration) (bool, error) {
+	if token == "" {
+		return false, nil
+	}
+	recent, err := s.q.SessionCreatedSince(ctx, db.SessionCreatedSinceParams{
+		TokenHash: HashToken(token),
+		MaxAge:    pgtype.Interval{Microseconds: int64(window / time.Microsecond), Valid: true},
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("read session age: %w", err)
+	}
+	return recent, nil
+}
+
 // EndSession signs one browser out.
 func (s *Store) EndSession(ctx context.Context, token string) error {
 	if token == "" {

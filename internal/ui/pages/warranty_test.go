@@ -207,3 +207,25 @@ func renderWarrantyInLocale(t *testing.T, ctx context.Context, c templ.Component
 	}
 	return b.String()
 }
+
+// TestAFullyReturnedLineDoesNotPromiseRegistrationOnDelivery: the units arrived
+// and were returned, so neither the line nor the empty banner may say the goods
+// have not arrived.
+func TestAFullyReturnedLineDoesNotPromiseRegistrationOnDelivery(t *testing.T) {
+	t.Parallel()
+	for _, locale := range []i18n.Locale{i18n.En, i18n.ZhHant} {
+		ctx := i18n.WithLocale(t.Context(), locale)
+		returned := WarrantyLine{ID: "line-1", Name: "Item", Months: 12, HasTerm: true, Returned: 1}
+		if got := returned.Why(ctx); got != i18n.T(ctx, i18n.KeyWarrantyReturned) {
+			t.Errorf("%s: fully returned line says %q, want the returned sentence", locale, got)
+		}
+		view := WarrantyOrderView{Number: "GOEN-TEST", Lines: []WarrantyLine{returned}}
+		if got := view.EmptyHint(ctx); got != i18n.T(ctx, i18n.KeyWarrantyReturned) {
+			t.Errorf("%s: empty hint = %q, want the returned sentence", locale, got)
+		}
+		partly := WarrantyLine{ID: "line-2", Name: "Item", Months: 12, HasTerm: true, Delivered: 1, Returned: 1, Registered: 1}
+		if got := partly.Why(ctx); got != i18n.T(ctx, i18n.KeyWarrantyAllDone) {
+			t.Errorf("%s: partly returned, fully registered line says %q, want all done", locale, got)
+		}
+	}
+}
