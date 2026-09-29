@@ -124,6 +124,8 @@ func (h *Handler) SignInPage(w http.ResponseWriter, r *http.Request) {
 		view.Notice = i18n.T(r.Context(), i18n.KeyAccountCreated)
 	case r.URL.Query().Get("reset") == "1":
 		view.Notice = i18n.T(r.Context(), i18n.KeyPasswordReset)
+	case r.URL.Query().Get("reauth") == "erase":
+		view.Notice = i18n.T(r.Context(), i18n.KeyEraseNeedsRecentSignIn)
 	default:
 		view.Errors = oauthOutcome(r.Context(), r.URL.Query().Get("oauth"))
 	}
@@ -166,13 +168,11 @@ func (h *Handler) SignIn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	started, adoptFailed := h.startSession(w, r, u)
+	started, adoption := h.startSession(w, r, u)
 	if !started {
 		return
 	}
-	if adoptFailed {
-		next = cartRecoveryLanding(next)
-	}
+	next = cartAdoptionLanding(next, adoption)
 	http.Redirect(w, r, next, http.StatusSeeOther) //nolint:gosec // G710: bounded by web.SitePathOr
 }
 
@@ -238,13 +238,11 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 		h.log.WarnContext(r.Context(), "request verification at registration", "error", err)
 	}
 
-	started, adoptFailed := h.startSession(w, r, u)
+	started, adoption := h.startSession(w, r, u)
 	if !started {
 		return
 	}
-	if adoptFailed {
-		next = cartRecoveryLanding(next)
-	}
+	next = cartAdoptionLanding(next, adoption)
 	http.Redirect(w, r, next, http.StatusSeeOther) //nolint:gosec // G710: bounded by web.SitePathOr
 }
 
@@ -339,15 +337,7 @@ func (h *Handler) RetryCartAdoption(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	next := web.SitePathOr(r.PostFormValue("next"), "/account")
-	if h.carts != nil {
-		if cartID, ok := h.carts.CartIDForRequest(r.Context(), r); ok {
-			if err := h.store.AdoptCart(r.Context(), u.ID, cartID); err != nil {
-				h.log.ErrorContext(r.Context(), "retry adopt cart", "error", err, "user_id", u.ID)
-				http.Redirect(w, r, cartRecoveryLanding(next), http.StatusSeeOther)
-				return
-			}
-		}
-	}
+	next = cartAdoptionLanding(next, h.adoptRequestCart(r, u.ID))
 	http.Redirect(w, r, next, http.StatusSeeOther) //nolint:gosec // G710: bounded by web.SitePathOr
 }
 
@@ -385,25 +375,71 @@ func (h *Handler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/account?saved=1", http.StatusSeeOther)
 }
 
-func (h *Handler) startSession(w http.ResponseWriter, r *http.Request, u User) (started, adoptFailed bool) {
+type cartAdoption uint8
+
+const (
+	cartAdoptionUnchanged cartAdoption = iota
+	cartAdoptionAdjusted
+	cartAdoptionFailed
+)
+
+func (h *Handler) startSession(w http.ResponseWriter, r *http.Request, u User) (started bool, adoption cartAdoption) {
 	token, err := h.store.StartSession(r.Context(), u.ID, r.UserAgent(), clientIP(r))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "start session", "error", err)
 		h.serverError(w, r)
-		return false, false
+		return false, cartAdoptionUnchanged
 	}
 	SetSessionCookie(w, token, h.secure)
+	// Authentication succeeds even when the preserved guest cart needs recovery.
+	return true, h.adoptRequestCart(r, u.ID)
+}
 
-	// A failed cart merge must not take the sign-in down with it.
-	if h.carts != nil {
-		if cartID, ok := h.carts.CartIDForRequest(r.Context(), r); ok {
-			if err := h.store.AdoptCart(r.Context(), u.ID, cartID); err != nil {
-				adoptFailed = true
-				h.log.ErrorContext(r.Context(), "adopt cart", "error", err, "user_id", u.ID)
-			}
-		}
+func (h *Handler) adoptRequestCart(r *http.Request, userID string) cartAdoption {
+	if h.carts == nil {
+		return cartAdoptionUnchanged
 	}
-	return true, adoptFailed
+	cartID, ok := h.carts.CartIDForRequest(r.Context(), r)
+	if !ok {
+		return cartAdoptionUnchanged
+	}
+	err := h.store.AdoptCart(r.Context(), userID, cartID)
+	if err == nil {
+		return cartAdoptionUnchanged
+	}
+	if errors.Is(err, ErrQuantityAdjusted) {
+		return cartAdoptionAdjusted
+	}
+	h.log.ErrorContext(r.Context(), "adopt cart", "error", err, "user_id", userID)
+	return cartAdoptionFailed
+}
+
+func cartAdoptionLanding(next string, outcome cartAdoption) string {
+	switch outcome {
+	case cartAdoptionAdjusted:
+		return appendCartAdjustNotice(next)
+	case cartAdoptionFailed:
+		return cartRecoveryLanding(next)
+	default:
+		return next
+	}
+}
+
+func appendCartAdjustNotice(target string) string {
+	next := web.SitePathOr(target, "/account")
+	u, err := url.Parse(next)
+	if err != nil {
+		u = &url.URL{Path: "/account"}
+		next = "/account"
+	}
+	// Show the changed quantities before continuing to a page without a cart notice.
+	if u.Path != "/cart" {
+		u = &url.URL{Path: "/cart", RawQuery: url.Values{"next": {next}}.Encode()}
+	}
+	q := u.Query()
+	q.Set("qty", "adjusted")
+	u.RawQuery = q.Encode()
+	return u.String()
 }
 
 func clientIP(r *http.Request) string {
@@ -561,6 +597,23 @@ func (h *Handler) Erase(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
+		return
+	}
+	token := ReadSessionCookie(r, h.secure)
+	recent, err := h.store.SignedInRecently(r.Context(), token, EraseSignInWindow)
+	if err != nil {
+		h.log.ErrorContext(r.Context(), "read session age", "error", err)
+		h.serverError(w, r)
+		return
+	}
+	if !recent {
+		// The session ends first: /signin sends a signed-in visitor straight back
+		// to /account, so keeping it would loop instead of asking for a sign-in.
+		if err := h.store.EndSession(r.Context(), token); err != nil {
+			h.log.ErrorContext(r.Context(), "end stale session", "error", err)
+		}
+		ClearSessionCookie(w, h.secure)
+		http.Redirect(w, r, "/signin?next=%2Faccount&reauth=erase", http.StatusSeeOther)
 		return
 	}
 	if r.PostFormValue("confirm") != u.Email {
@@ -814,14 +867,12 @@ func (h *Handler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	started, adoptFailed := h.startSession(w, r, u)
+	started, adoption := h.startSession(w, r, u)
 	if !started {
 		return
 	}
 	next := state.Next
-	if adoptFailed {
-		next = cartRecoveryLanding(next)
-	}
+	next = cartAdoptionLanding(next, adoption)
 	http.Redirect(w, r, next, http.StatusSeeOther)
 }
 

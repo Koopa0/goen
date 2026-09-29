@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 	"unicode"
 	"unicode/utf8"
 
@@ -33,10 +34,22 @@ var (
 	ErrInvalidInput = errors.New("account: invalid input")
 	// ErrOpenReturn means erasure would orphan an unresolved store-credit payout.
 	ErrOpenReturn = errors.New("account: finish the open return before erasure")
+	// ErrQuantityAdjusted means adoption or merge succeeded but at least one line
+	// was capped to what the shelf can supply.
+	ErrQuantityAdjusted = errors.New("account: quantity adjusted to available stock")
+	// ErrCartMergeRefused means a guest line cannot be adopted or merged because
+	// the catalogue no longer honours it. The transaction rolls back with both
+	// carts unchanged.
+	ErrCartMergeRefused = errors.New("account: guest cart contains unavailable merchandise")
 )
 
 // SessionCookieName is the session cookie; __Host- refuses a subdomain's forgery.
 const SessionCookieName = "__Host-goen_session"
+
+// EraseSignInWindow is how recently the customer must have signed in to erase
+// the account. Retyping the address shows intent, not identity, so a stolen or
+// unattended session must not be able to do something irreversible.
+const EraseSignInWindow = 15 * time.Minute
 
 // SessionTTL is how long a session lives.
 const SessionTTL = 14 * 24 * 60 * 60
