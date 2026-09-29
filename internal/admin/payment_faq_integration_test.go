@@ -31,7 +31,7 @@ func TestPaymentFAQRepairPreservesShopEditedLocales(t *testing.T) {
 	if err := isolated.QueryRow(ctx, "SELECT answer, answer_en FROM faq_entries WHERE question=$1", question).Scan(&freshZh, &freshEn); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(freshZh, "商店額度") || !strings.Contains(freshEn, "not a payment method") {
+	if !strings.Contains(freshZh, "購物金") || !strings.Contains(freshEn, "not a payment method") {
 		t.Fatal("fresh FAQ does not explain the payment choices")
 	}
 	for _, tc := range []struct{ name, zh, en, wantZh, wantEn string }{

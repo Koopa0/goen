@@ -1,6 +1,6 @@
 -- Match each locale independently so shop-authored answers are preserved.
 UPDATE faq_entries
-SET answer = '目前接受信用卡付款,由 Stripe 處理,goen 不會接觸到您的卡片資料。付款頁面在 Stripe 網域上,完成後會自動回到訂單頁。登入後,帳號內可用的商店額度會在結帳時自動折抵,剩餘金額再以信用卡付款。折扣碼是價格折抵,不是付款方式。'
+SET answer = '目前接受信用卡付款,由 Stripe 處理,goen 不會接觸到您的卡片資料。付款頁面在 Stripe 網域上,完成後會自動回到訂單頁。登入後,帳號內可用的購物金會在結帳時自動折抵,剩餘金額再以信用卡付款。折扣碼是價格折抵,不是付款方式。'
 WHERE question = '可以用哪些方式付款?'
   AND answer = '目前接受信用卡付款,由 Stripe 處理,goen 不會接觸到您的卡片資料。付款頁面在 Stripe 網域上,完成後會自動回到訂單頁。';
 

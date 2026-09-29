@@ -14,7 +14,7 @@ var creditChoicePhrases = []string{"選擇使用", "選擇是否使用", "choose
 func TestPaymentExplainsCreditAndDiscountsSeparately(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		doc := policies["payment"].For(locale)
-		want := map[string][]string{"信用卡": {"Stripe", "不會儲存"}, "商店額度": {"登入", "可用", "自動", "不足", "信用卡"}, "折扣碼": {"價格折抵", "不是付款方式"}}
+		want := map[string][]string{"信用卡": {"Stripe", "不會儲存"}, "購物金": {"登入", "可用", "自動", "不足", "信用卡"}, "折扣碼": {"價格折抵", "不是付款方式"}}
 		if locale == i18n.En {
 			want = map[string][]string{"Credit cards": {"Stripe", "never store"}, "Store credit": {"signed in", "available", "automatically", "remaining", "card"}, "Discount codes": {"reduces the price", "not a payment method"}}
 		}
@@ -30,7 +30,7 @@ func TestPaymentExplainsCreditAndDiscountsSeparately(t *testing.T) {
 					t.Errorf("%s section %q omits %q", locale, heading, word)
 				}
 			}
-			if heading == "商店額度" || heading == "Store credit" || heading == "折扣碼" || heading == "Discount codes" {
+			if heading == "購物金" || heading == "Store credit" || heading == "折扣碼" || heading == "Discount codes" {
 				for _, phrase := range creditChoicePhrases {
 					if strings.Contains(body, phrase) {
 						t.Errorf("%s section %q promises a choice with %q", locale, heading, phrase)
@@ -55,7 +55,7 @@ func TestPaymentFAQSeedAndRepairExplainTheSameChoices(t *testing.T) {
 	if zh != sqlStringAfter(t, string(repair), "SET answer =") || en != sqlStringAfter(t, string(repair), "SET answer_en =") {
 		t.Error("payment FAQ repair differs from fresh seed")
 	}
-	for _, word := range []string{"Stripe", "付款頁面在 Stripe 網域上", "商店額度", "自動折抵", "折扣碼", "不是付款方式"} {
+	for _, word := range []string{"Stripe", "付款頁面在 Stripe 網域上", "購物金", "自動折抵", "折扣碼", "不是付款方式"} {
 		if !strings.Contains(zh, word) {
 			t.Errorf("payment FAQ omits %q", word)
 		}

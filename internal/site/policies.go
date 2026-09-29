@@ -135,15 +135,15 @@ var policies = map[string]pages.PolicyDoc{
 				},
 			},
 			{
-				Heading:   "商店額度",
+				Heading:   "購物金",
 				HeadingEn: "Store credit",
-				Body:      []string{"登入後,帳號內可用的商店額度會在結帳時自動折抵,不足的金額再以信用卡付款。"},
+				Body:      []string{"登入後,帳號內可用的購物金會在結帳時自動折抵,不足的金額再以信用卡付款。"},
 				BodyEn:    []string{"When you are signed in, your available store credit comes off the order automatically at checkout; any remaining amount is paid by card."},
 			},
 			{
 				Heading:   "折扣碼",
 				HeadingEn: "Discount codes",
-				Body:      []string{"折扣碼是價格折抵,不是付款方式。在結帳頁輸入有效的折扣碼,商店額度會從折抵後的金額再扣除,剩餘款項以信用卡付款。"},
+				Body:      []string{"折扣碼是價格折抵,不是付款方式。在結帳頁輸入有效的折扣碼,購物金會從折抵後的金額再扣除,剩餘款項以信用卡付款。"},
 				BodyEn:    []string{"A discount code reduces the price; it is not a payment method. Enter a valid code at checkout; store credit then comes off the discounted total, and any remaining amount is paid by card."},
 			},
 			{
