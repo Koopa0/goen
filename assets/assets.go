@@ -302,6 +302,16 @@ func MediaRenditionURL(digest string, width int) string {
 	return "/media/" + digest + "/" + strconv.Itoa(width)
 }
 
+// UploadedRenditionSrcset is the single candidate for a small tile whose source
+// width is not stored: the given width's rendition of an uploaded image, and ""
+// for a key that is not an uploaded digest.
+func UploadedRenditionSrcset(storageKey string, width int) string {
+	if !uploadedDigest.MatchString(storageKey) {
+		return ""
+	}
+	return MediaRenditionURL(storageKey, width) + " " + strconv.Itoa(width) + "w"
+}
+
 // mediaSrcset is the candidate set for an uploaded image, derived from the
 // digest and the original's width alone.
 //

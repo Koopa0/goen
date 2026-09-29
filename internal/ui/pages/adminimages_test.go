@@ -6,6 +6,7 @@ import (
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
 // A seeded image's key is a file name, not a digest, so /media/<key> is a 404:
@@ -46,6 +47,22 @@ func TestAdminProductImagesResolveSeedAndUploadedThumbnails(t *testing.T) {
 	} {
 		if !strings.Contains(page, want) {
 			t.Errorf("the uploaded image in the library lacks %q", want)
+		}
+	}
+}
+
+// The hero list's 160px tiles get the 400px rendition, not the original upload.
+func TestAdminHeroTilesOfferTheSmallRendition(t *testing.T) {
+	t.Parallel()
+	digest := strings.Repeat("cd", 32)
+	v := &AdminHeroView{Rows: []AdminHeroSlide{{ID: "s", Headline: "h", ImageKey: digest, Active: true}}}
+	var b strings.Builder
+	if err := AdminHome(layouts.Page{Title: "Home"}, v).Render(i18n.WithLocale(t.Context(), i18n.En), &b); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{`src="/media/` + digest + `"`, `/media/` + digest + `/400 400w`, `sizes="160px"`} {
+		if !strings.Contains(b.String(), want) {
+			t.Errorf("the hero tile lacks %q", want)
 		}
 	}
 }

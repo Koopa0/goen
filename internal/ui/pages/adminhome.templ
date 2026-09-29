@@ -213,7 +213,7 @@ templ AdminHome(p layouts.Page, v *AdminHeroView) {
 									}
 								</div>
 								if slide.ImageURL() != "" {
-									<img class="goen-admin__heroshot" src={ slide.ImageURL() } alt="" loading="lazy" width="160" height="90"/>
+									<img class="goen-admin__heroshot" src={ slide.ImageURL() } srcset={ slide.Srcset() } sizes="160px" alt="" loading="lazy" width="160" height="90"/>
 								}
 								<span class="ui-cart-line__meta">{ slide.CTALabel } → { slide.CTAHref }</span>
 								if slide.EndsAt != "" {
