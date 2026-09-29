@@ -336,7 +336,7 @@ func TestRestoredFinancialHandlersResumeWithoutDuplicateMoney(t *testing.T) {
 		assertRestorePayment(t, copyPool, ref, actor, "requires_reconciliation", 0, 0, 0)
 		paymentForm := url.Values{"payment": {ref}, "resolution": {resolution}}
 		restoreOperatorPost(t, handler, token, "/admin/health/reconcile", "restore-"+strings.ReplaceAll(resolution, "_", "-"), paymentForm, "/admin/health?reconciled=1")
-		status, amount, events := "cancelled", int64(0), 0
+		status, amount, events := "reconciled", int64(0), 0
 		if resolution == "paid" {
 			status, amount, events = "succeeded", 200000, 1
 		}
