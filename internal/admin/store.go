@@ -704,8 +704,8 @@ func (s *Store) SetStaffNote(ctx context.Context, number, note string) error {
 		return fmt.Errorf("set staff note: %w", err)
 	}
 	// The append-only trail outlives erasure, so it records the operation and
-	// order identity without retaining another copy of the note.
-	if err := auditIn(ctx, q, Event{Action: action, Table: "orders", ID: nullableID(prior.ID)}); err != nil {
+	// order number without retaining another copy of the note.
+	if err := auditIn(ctx, q, Event{Action: action, Table: "orders", ID: nullableID(prior.ID), After: map[string]any{"number": number}}); err != nil {
 		return err
 	}
 	if err := tx.Commit(ctx); err != nil {
