@@ -67,12 +67,15 @@ func (c Coupon) Apply(subtotalCents int64) (discountCents int64, freeShipping bo
 		basisPoints := int64(c.percentBP)
 		discountCents = subtotalCents/10000*basisPoints +
 			subtotalCents%10000*basisPoints/10000
-		// The discount is a whole NT$, so the order, payment, invoice and refunds
-		// all carry whole-yuan amounts. It rounds UP, in the customer's favour: a
-		// shopper never pays more than the advertised percentage allows. The cap
-		// and the subtotal bind after rounding, each floored to a whole NT$ so the
-		// rounding cannot carry the discount past either of them. Checking the
-		// limit first also keeps the round-up from overflowing near int64's end.
+		// The discount is a whole NT$, so the quoted total, the amount charged
+		// to the card when no store credit funds part of the order, and the
+		// invoice filed for it are the same whole-NT$ figure. Refunds of a
+		// partial return and store-credit splits still carry cents. It rounds
+		// UP, in the customer's favour: a shopper never pays more than the
+		// advertised percentage allows. The cap and the subtotal bind after
+		// rounding, each floored to a whole NT$ so the rounding cannot carry
+		// the discount past either of them. Checking the limit first also keeps
+		// the round-up from overflowing near int64's end.
 		limit := subtotalCents
 		if c.capCents > 0 {
 			limit = min(limit, c.capCents)

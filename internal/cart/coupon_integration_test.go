@@ -3,6 +3,7 @@
 package cart_test
 
 import (
+	"context"
 	"errors"
 	"strconv"
 	"testing"
@@ -90,10 +91,11 @@ func TestCouponPricing(t *testing.T) {
 	}
 }
 
-// TestAPercentCouponOrderIsWholeYuanAndItsInvoiceEqualsTheCharge places an
-// order on a price where 15% leaves cents, and holds the order total, its
-// discount and the amount the invoice is issued for to the same whole NT$.
-func TestAPercentCouponOrderIsWholeYuanAndItsInvoiceEqualsTheCharge(t *testing.T) {
+// TestAPercentCouponOrderIsWholeYuanAndItsInvoiceEqualsTheCapture places an
+// order on a price where 15% leaves cents, captures its amount owed, and files
+// the invoice through the real claim: the order total, the capture and the
+// invoice amount are one whole NT$ figure.
+func TestAPercentCouponOrderIsWholeYuanAndItsInvoiceEqualsTheCapture(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
 	code := coupon(t, "PCT15", "percent", 0, 1500, 0, 0, 0)
@@ -102,28 +104,57 @@ func TestAPercentCouponOrderIsWholeYuanAndItsInvoiceEqualsTheCharge(t *testing.T
 	if err != nil {
 		t.Fatalf("place: %v", err)
 	}
-
-	var discount, total, invoiced int64
+	var orderID uuid.UUID
+	var discount, owed int64
 	if err := pool.QueryRow(ctx, `
-		WITH t AS (
-		    SELECT o.discount_cents,
-		           (SELECT sum(ol.unit_price_cents::numeric * ol.quantity)
-		            FROM order_lines ol WHERE ol.order_id = o.id)
-		           - o.discount_cents + o.shipping_cents + o.tax_cents AS total
-		    FROM orders o WHERE o.order_number = $1)
-		-- The invoice amount is claim_invoice_issue's floor, restated from its body.
-		SELECT discount_cents, total::bigint, (floor(total / 100) * 100)::bigint FROM t`, number).Scan(&discount, &total, &invoiced); err != nil {
+		SELECT id, discount_cents, order_amount_owed(id) FROM orders WHERE order_number = $1`,
+		number).Scan(&orderID, &discount, &owed); err != nil {
 		t.Fatalf("read: %v", err)
 	}
 	// 15% of NT$1,999 is NT$299.85; the fixture price is 199900 cents.
 	if discount != 30000 {
 		t.Errorf("discount = %d, want 30000", discount)
 	}
-	if total%100 != 0 {
-		t.Errorf("order total %d is not a whole NT$", total)
+	if owed%100 != 0 {
+		t.Errorf("the amount owed, %d, is not a whole NT$", owed)
 	}
-	if invoiced != total {
-		t.Errorf("the invoice is issued for %d but %d was charged", invoiced, total)
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO payments (order_id, provider, provider_ref, intended_amount_cents,
+		                      captured_amount_cents, status, paid_at)
+		VALUES ($1, 'stripe', 'cs_round_' || $2, $3, $3, 'succeeded', now())`,
+		orderID, uuid.NewString()[:8], owed); err != nil {
+		t.Fatalf("capture: %v", err)
+	}
+
+	var actorID uuid.UUID
+	if err := pool.QueryRow(ctx, `INSERT INTO users (email, role) VALUES ($1, 'staff') RETURNING id`,
+		"round-"+uuid.NewString()+"@goen.invalid").Scan(&actorID); err != nil {
+		t.Fatalf("staff actor: %v", err)
+	}
+	conn, err := pool.Acquire(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Release()
+	if _, err := conn.Exec(ctx, `SET ROLE admin`); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _, _ = conn.Exec(context.WithoutCancel(ctx), `RESET ROLE`) }()
+	var opID uuid.UUID
+	if err := conn.QueryRow(ctx, `SELECT claim_invoice_issue($1, $2, $3)`,
+		number, actorID, "round:"+uuid.NewString()).Scan(&opID); err != nil {
+		t.Fatalf("claim the invoice: %v", err)
+	}
+	var invoiced, captured int64
+	if err := pool.QueryRow(ctx, `
+		SELECT io.amount_cents,
+		       (SELECT sum(captured_amount_cents) FROM payments
+		        WHERE order_id = io.order_id AND status = 'succeeded')
+		FROM invoice_operations io WHERE io.id = $1`, opID).Scan(&invoiced, &captured); err != nil {
+		t.Fatalf("read the invoice operation: %v", err)
+	}
+	if invoiced != captured {
+		t.Errorf("the invoice is filed for %d but %d was captured", invoiced, captured)
 	}
 }
 
