@@ -62,6 +62,8 @@ func (s *Store) CorrectDelivery(ctx context.Context, number string, d *Delivery)
 		switch pages.FulfillmentStatus(row.FulfillmentStatus) {
 		case pages.FulfillmentShipped, pages.FulfillmentDelivered, pages.FulfillmentCompleted:
 			return ErrTooLateToCorrect
+		case pages.FulfillmentPending, pages.FulfillmentPicking, pages.FulfillmentCancelled:
+			// Still correctable; UpdateOrderDelivery's WHERE clause is the authority.
 		}
 		to, ok := cart.DestinationFor(row.DestinationKind)
 		if !ok {
@@ -98,7 +100,7 @@ func validatedDelivery(d *Delivery, to cart.Destination) (*cart.Address, error) 
 	addr := &cart.Address{
 		To: to, Email: d.Email, Name: d.Recipient, Phone: d.Phone,
 		PostalCode: d.PostalCode, City: d.City, District: d.District, Street: d.Street,
-		PickupBrand: pickup.Brand(d.PickupBrand), PickupStoreCode: d.PickupStoreCode,
+		PickupBrand: d.PickupBrand, PickupStoreCode: d.PickupStoreCode,
 		PickupStoreName: d.PickupStoreName,
 	}
 	addr.Trim()
