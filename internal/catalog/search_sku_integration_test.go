@@ -38,12 +38,13 @@ func TestSearchSKUsRankAndPaginateWithoutDuplicateProducts(t *testing.T) {
 
 	// Oldest first: publication order is the reverse of the ranking that is
 	// locked, so only the ranking arms can put a product where it belongs.
-	fixtures := []skuFixture{
-		{name: generic, skus: []string{token}},              // exact SKU
-		{name: token, skus: []string{other()}},              // exact name
-		{name: token + " edition", skus: []string{other()}}, // partial name
-	}
 	partialOnly := catalog.PageSize + 1 - 6
+	fixtures := make([]skuFixture, 0, catalog.PageSize+1)
+	fixtures = append(fixtures,
+		skuFixture{name: generic, skus: []string{token}},              // exact SKU
+		skuFixture{name: token, skus: []string{other()}},              // exact name
+		skuFixture{name: token + " edition", skus: []string{other()}}, // partial name
+	)
 	for i := range partialOnly {
 		fixtures = append(fixtures, skuFixture{name: generic, skus: []string{fmt.Sprintf("%s-%02d", token, i)}}) // partial SKU only
 	}
