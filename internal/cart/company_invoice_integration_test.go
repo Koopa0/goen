@@ -49,8 +49,8 @@ func TestCompanyDeliverySurvivesCheckoutSnapshotAndProviderWire(t *testing.T) {
 				wantCarrier, wantType = "/ABC+123", invoice.CarrierMobile
 			}
 			inv.Carrier, inv.CompanyName, addr.Email = "/ZZZ+999", "Changed Company", "changed@example.invalid"
-			if retry, err := s.PlaceOrder(ctx, id, uuid.NullUUID{}, shippingID, addr, inv, "", shown, key); err != nil || retry != number {
-				t.Fatalf("placement retry changed identity: %v", err)
+			if retry, retryErr := s.PlaceOrder(ctx, id, uuid.NullUUID{}, shippingID, addr, inv, "", shown, key); retryErr != nil || retry != number {
+				t.Fatalf("placement retry changed identity: %v", retryErr)
 			}
 			view, err := s.Order(ctx, number)
 			if err != nil {
@@ -59,12 +59,12 @@ func TestCompanyDeliverySurvivesCheckoutSnapshotAndProviderWire(t *testing.T) {
 			if view.Invoice.Carrier != wantCarrier || view.Invoice.CompanyName != "Buyer Company" || view.Invoice.TaxID != "04595252" || view.InvoiceEmail != "company@example.invalid" {
 				t.Fatal("order display lost the frozen invoice preference")
 			}
-			if _, err := pool.Exec(ctx, `INSERT INTO payments (order_id,provider,provider_ref,intended_amount_cents,captured_amount_cents,status,paid_at) SELECT id,'stripe','cs_company_'||id,order_amount_owed(id),order_amount_owed(id),'succeeded',now() FROM orders WHERE order_number=$1`, number); err != nil {
-				t.Fatal(err)
+			if _, paymentErr := pool.Exec(ctx, `INSERT INTO payments (order_id,provider,provider_ref,intended_amount_cents,captured_amount_cents,status,paid_at) SELECT id,'stripe','cs_company_'||id,order_amount_owed(id),order_amount_owed(id),'succeeded',now() FROM orders WHERE order_number=$1`, number); paymentErr != nil {
+				t.Fatal(paymentErr)
 			}
 			var actor uuid.UUID
-			if err := pool.QueryRow(ctx, `INSERT INTO users(email,role) VALUES ('company-invoice-'||gen_random_uuid()||'@goen.invalid','admin') RETURNING id`).Scan(&actor); err != nil {
-				t.Fatal(err)
+			if actorErr := pool.QueryRow(ctx, `INSERT INTO users(email,role) VALUES ('company-invoice-'||gen_random_uuid()||'@goen.invalid','admin') RETURNING id`).Scan(&actor); actorErr != nil {
+				t.Fatal(actorErr)
 			}
 			var filed map[string]any
 			calls := 0
@@ -131,7 +131,6 @@ func TestCompanyDeliverySurvivesCheckoutSnapshotAndProviderWire(t *testing.T) {
 			if err := pool.QueryRow(ctx, `SELECT customer_name FROM invoice_preferences ip JOIN orders o ON o.id=ip.order_id WHERE o.order_number=$1`, number).Scan(&retained); err != nil || retained != "Buyer Company" {
 				t.Fatal("erasure projection changed the original invoice snapshot")
 			}
-
 		})
 	}
 }
@@ -182,7 +181,8 @@ func companyInvoiceReply(t *testing.T, w http.ResponseWriter, body map[string]an
 		t.Fatal(err)
 	}
 	padding := block.BlockSize() - len(encoded)%block.BlockSize()
-	encoded = append(encoded, bytes.Repeat([]byte{byte(padding)}, padding)...)
+	paddingBytes := [...]byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
+	encoded = append(encoded, bytes.Repeat(paddingBytes[padding:padding+1], padding)...)
 	ciphertext := make([]byte, len(encoded))
 	cipher.NewCBCEncrypter(block, []byte("q9jcZX8Ib9LM8wYk")).CryptBlocks(ciphertext, encoded)
 	if err := json.NewEncoder(w).Encode(map[string]any{"TransCode": 1, "Data": base64.StdEncoding.EncodeToString(ciphertext)}); err != nil {

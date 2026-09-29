@@ -859,13 +859,14 @@ func (i *Invoice) Validate() []account.FieldError {
 		if i.CompanyDelivery == "" {
 			i.CompanyDelivery = invoicepkg.CompanyDeliveryEmail
 		}
-		if !i.CompanyDelivery.Known() {
+		switch {
+		case !i.CompanyDelivery.Known():
 			errs = append(errs, account.FieldError{Field: "invoice_company_delivery", MessageKey: i18n.KeyCompanyDeliveryRequired})
-		} else if i.CompanyDelivery == invoicepkg.CompanyDeliveryMobile {
+		case i.CompanyDelivery == invoicepkg.CompanyDeliveryMobile:
 			if !invoicepkg.ValidMobileCarrier(i.Carrier) {
 				errs = append(errs, account.FieldError{Field: "invoice_carrier", MessageKey: i18n.KeyCarrierMalformed})
 			}
-		} else {
+		default:
 			i.Carrier = ""
 		}
 	case invoicepkg.PreferenceMember:
@@ -878,7 +879,7 @@ func (i *Invoice) Validate() []account.FieldError {
 }
 
 // UsesMobileCarrier includes the carrier chosen independently of a company buyer.
-func (i Invoice) UsesMobileCarrier() bool {
+func (i *Invoice) UsesMobileCarrier() bool {
 	return i.Type == invoicepkg.PreferenceMobile ||
 		(i.Type == invoicepkg.PreferenceCompany && i.CompanyDelivery == invoicepkg.CompanyDeliveryMobile)
 }

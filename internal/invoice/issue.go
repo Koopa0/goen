@@ -131,13 +131,8 @@ func (r IssueRequest) validate() error {
 		return fmt.Errorf("%w: an invoice has %d items; ECPay accepts at most %d",
 			ErrRejected, len(r.Lines), MaxIssueItems)
 	}
-	if !ValidBuyerName(r.CustomerName) {
-		return fmt.Errorf("%w: an invoice needs a buyer name of at most 60 characters",
-			ErrRejected)
-	}
-	if len(r.Email) > 80 || !email.Valid(r.Email) {
-		return fmt.Errorf("%w: a carrier invoice needs a bare valid email address of at most 80 bytes",
-			ErrRejected)
+	if err := r.validateBuyer(); err != nil {
+		return err
 	}
 	if !r.Preference.Known() {
 		return fmt.Errorf("%w: %q is not an invoice type this shop offers",
@@ -162,6 +157,18 @@ func (r IssueRequest) validate() error {
 				ErrRejected, r.CarrierCode)
 		}
 	case PreferenceMember:
+	}
+	return nil
+}
+
+func (r IssueRequest) validateBuyer() error {
+	if !ValidBuyerName(r.CustomerName) {
+		return fmt.Errorf("%w: an invoice needs a buyer name of at most 60 characters",
+			ErrRejected)
+	}
+	if len(r.Email) > 80 || !email.Valid(r.Email) {
+		return fmt.Errorf("%w: a carrier invoice needs a bare valid email address of at most 80 bytes",
+			ErrRejected)
 	}
 	return nil
 }
