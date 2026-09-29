@@ -165,8 +165,9 @@ func (s *Store) DrainAll(ctx context.Context) (delivered, failed int, err error)
 // its own, so a handler that fails does not roll back the deliveries beside it.
 func (s *Store) Drain(ctx context.Context) (delivered, failed int, err error) {
 	rows, err := s.q.ClaimOutbox(ctx, db.ClaimOutboxParams{
-		BatchSize: BatchSize, MaxAttempts: MaxAttempts,
-		Lease:     pgtype.Interval{Microseconds: Lease.Microseconds(), Valid: true},
+		BatchSize:   BatchSize,
+		MaxAttempts: MaxAttempts,
+		Lease:       pgtype.Interval{Microseconds: Lease.Microseconds(), Valid: true},
 	})
 	if err != nil {
 		return 0, 0, fmt.Errorf("claim outbox: %w", err)
