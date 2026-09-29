@@ -15,6 +15,11 @@ func TestStaffInvitationPointsToMailboxProofWithoutACapability(t *testing.T) {
 		if sink.msg == nil || sink.msg.To != "colleague@example.com" || !strings.Contains(sink.msg.Body, "https://goen.test/forgot") || strings.Contains(sink.msg.Body, "token=") {
 			t.Fatalf("invalid onboarding notice: %+v", sink.msg)
 		}
+		for _, line := range strings.Split(sink.msg.Body, "\n") {
+			if strings.Contains(line, "/forgot") && (strings.Contains(line, "two-factor") || strings.Contains(line, "兩階段")) {
+				t.Fatalf("the reset link is labelled as two-factor setup: %q", line)
+			}
+		}
 		if hasHan(sink.msg.Body) != (locale == "zh-TW") {
 			t.Fatalf("invitation ignored locale %q", locale)
 		}

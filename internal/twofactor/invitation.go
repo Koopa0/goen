@@ -10,15 +10,16 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/outbox"
 )
 
 func enqueueStaffInvitation(ctx context.Context, q *db.Queries, userID uuid.UUID) error {
-	payload, err := json.Marshal(struct {
-		UserID string `json:"user_id"`
-		Locale string `json:"locale"`
-	}{userID.String(), i18n.FromContext(ctx).Tag()})
+	payload, err := json.Marshal(email.StaffInvitation{
+		// The admin's locale, because users stores none for the invitee.
+		UserID: userID.String(), Locale: i18n.FromContext(ctx).Tag(),
+	})
 	if err != nil {
 		return fmt.Errorf("encode staff invitation: %w", err)
 	}

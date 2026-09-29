@@ -619,7 +619,7 @@ func startWorkers(ctx context.Context, d workerDeps) {
 	messages.HandleJSON[email.NewsletterConfirm](outbox.TopicNewsletterConfirm, d.notifier.SendNewsletterConfirm)
 	messages.HandleJSON[email.NewsletterWelcome](outbox.TopicNewsletterWelcome, d.notifier.SendNewsletterWelcome)
 	messages.HandleJSON[email.AddressVerify](outbox.TopicEmailVerify, d.notifier.SendAddressVerify)
-	messages.HandleJSON[email.StaffInvitation](outbox.TopicStaffInvitation, staffInvitationHandler(twofactor.NewStore(d.admin, nil), d.notifier))
+	messages.HandleJSON[email.StaffInvitation](outbox.TopicStaffInvitation, staffInvitationHandler(twofactor.NewStore(d.pool, nil), d.notifier))
 	messages.HandleJSON[email.NewsletterIssue](outbox.TopicNewsletterIssue,
 		newsletterIssueHandler(newsletter.NewStore(d.pool), d.notifier))
 	messages.HandleJSON[email.RestockNotice](outbox.TopicRestocked, d.notifier.SendRestockNotice)
@@ -665,6 +665,8 @@ func newsletterIssueHandler(
 	}
 }
 
+// staffInvitationHandler reads the recipient on the store pool: `store` already
+// holds SELECT on users, and delivery writes nothing.
 func staffInvitationHandler(staff *twofactor.Store, notifier email.Notifier) func(context.Context, *email.StaffInvitation) error {
 	return func(ctx context.Context, p *email.StaffInvitation) error {
 		address, name, err := staff.InvitationRecipient(ctx, p.UserID)
