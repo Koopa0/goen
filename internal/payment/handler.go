@@ -104,6 +104,7 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 		TotalCents: o.TotalCents,
 		Email:      o.Email,
 		Enabled:    h.gateway.Enabled(),
+		Sandbox:    h.gateway.Sandbox(),
 		Cancelled:  r.URL.Query().Get("cancelled") == "1",
 	}
 	for i := range o.Lines {
