@@ -7922,7 +7922,7 @@ func (q *Queries) OrderDestinationKind(ctx context.Context, orderNumber string) 
 }
 
 const orderEvents = `-- name: OrderEvents :many
-SELECT e.kind, e.note, e.occurred_at, coalesce(u.full_name, '') AS actor_name
+SELECT e.kind, e.note, e.occurred_at, coalesce(u.full_name, '') AS actor_name, e.by_system
 FROM order_events e
 LEFT JOIN users u ON u.id = e.actor_user_id
 WHERE e.order_id = $1
@@ -7934,6 +7934,7 @@ type OrderEventsRow struct {
 	Note       pgtype.Text
 	OccurredAt time.Time
 	ActorName  string
+	BySystem   bool
 }
 
 // Oldest first: occurred_at then id, because two events recorded in the same
@@ -7952,6 +7953,7 @@ func (q *Queries) OrderEvents(ctx context.Context, orderID uuid.UUID) ([]OrderEv
 			&i.Note,
 			&i.OccurredAt,
 			&i.ActorName,
+			&i.BySystem,
 		); err != nil {
 			return nil, err
 		}
@@ -9385,16 +9387,22 @@ func (q *Queries) RecordAuditEvent(ctx context.Context, arg RecordAuditEventPara
 }
 
 const recordCancellation = `-- name: RecordCancellation :exec
-INSERT INTO order_events (order_id, kind)
-SELECT id, 'cancelled' FROM orders WHERE order_number = $1
+INSERT INTO order_events (order_id, kind, by_system)
+SELECT id, 'cancelled', $1::boolean FROM orders WHERE order_number = $2::text
 `
 
-// A cancellation no staff member made: the customer's own, or the sweeper's at
-// the payment deadline. The ABSENCE of an actor is what distinguishes it from a
-// back-office cancel, and it is carried structurally because the customer's own
-// order page renders any note in whatever language it was written.
-func (q *Queries) RecordCancellation(ctx context.Context, orderNumber string) error {
-	_, err := q.db.Exec(ctx, recordCancellation, orderNumber)
+type RecordCancellationParams struct {
+	BySystem    bool
+	OrderNumber string
+}
+
+// A cancellation no staff member made: the customer's own, or, with by_system,
+// the sweeper's at the payment deadline. The ABSENCE of an actor is what
+// distinguishes it from a back-office cancel, and both are carried structurally
+// because the customer's own order page renders any note in whatever language
+// it was written.
+func (q *Queries) RecordCancellation(ctx context.Context, arg RecordCancellationParams) error {
+	_, err := q.db.Exec(ctx, recordCancellation, arg.BySystem, arg.OrderNumber)
 	return err
 }
 

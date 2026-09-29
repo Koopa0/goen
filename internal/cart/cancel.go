@@ -73,7 +73,10 @@ func settleCancellation(ctx context.Context, q *db.Queries, number string, kind 
 		return fmt.Errorf("return store credit spent on %s: %w", number, err)
 	}
 
-	if err := q.RecordCancellation(ctx, number); err != nil {
+	// The notice kind names who initiated it; the timeline records the same.
+	if err := q.RecordCancellation(ctx, db.RecordCancellationParams{
+		OrderNumber: number, BySystem: kind == ordernotice.CancelledByPaymentDeadline,
+	}); err != nil {
 		return fmt.Errorf("record cancellation of %s: %w", number, err)
 	}
 

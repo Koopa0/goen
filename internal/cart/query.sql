@@ -363,13 +363,14 @@ LIMIT $1;
 -- name: ReleaseReservation :exec
 SELECT release_reservation($1);
 
--- A cancellation no staff member made: the customer's own, or the sweeper's at
--- the payment deadline. The ABSENCE of an actor is what distinguishes it from a
--- back-office cancel, and it is carried structurally because the customer's own
--- order page renders any note in whatever language it was written.
+-- A cancellation no staff member made: the customer's own, or, with by_system,
+-- the sweeper's at the payment deadline. The ABSENCE of an actor is what
+-- distinguishes it from a back-office cancel, and both are carried structurally
+-- because the customer's own order page renders any note in whatever language
+-- it was written.
 -- name: RecordCancellation :exec
-INSERT INTO order_events (order_id, kind)
-SELECT id, 'cancelled' FROM orders WHERE order_number = $1;
+INSERT INTO order_events (order_id, kind, by_system)
+SELECT id, 'cancelled', @by_system::boolean FROM orders WHERE order_number = @order_number::text;
 
 -- Ordered by variant first so cancellation shares the global stock-root lock
 -- order with checkout and returns; id is the stable tie-breaker.

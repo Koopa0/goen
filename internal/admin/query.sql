@@ -257,7 +257,7 @@ SELECT id, fulfillment_status FROM orders WHERE order_number = $1;
 -- Oldest first: occurred_at then id, because two events recorded in the same
 -- statement share a timestamp and the uuidv7 key is the tie-break.
 -- name: OrderEvents :many
-SELECT e.kind, e.note, e.occurred_at, coalesce(u.full_name, '') AS actor_name
+SELECT e.kind, e.note, e.occurred_at, coalesce(u.full_name, '') AS actor_name, e.by_system
 FROM order_events e
 LEFT JOIN users u ON u.id = e.actor_user_id
 WHERE e.order_id = $1
