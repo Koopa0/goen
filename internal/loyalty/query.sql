@@ -18,6 +18,7 @@ WHERE a.user_id = @user_id;
 -- name: PointsHistory :many
 WITH grouped AS (
     SELECT
+        min(e.id::text)::uuid AS group_id,
         CASE WHEN e.kind = 'spend'
              THEN split_part(e.idempotency_key, '#', 1)
              ELSE e.idempotency_key
@@ -34,13 +35,14 @@ WITH grouped AS (
     WHERE a.user_id = @user_id
     GROUP BY entry_key, e.kind, e.reason, e.order_id
 )
-SELECT g.points, g.kind, g.reason, g.requested_points, g.expires_on, g.created_at,
+SELECT g.group_id, g.points, g.kind, g.reason, g.requested_points, g.expires_on, g.created_at,
        coalesce(o.order_number, '') AS order_number,
        (g.kind = 'award' AND g.expires_on < shop_today()) AS expired
 FROM grouped g
 LEFT JOIN orders o ON o.id = g.order_id
-ORDER BY g.created_at DESC
-LIMIT $1;
+WHERE NOT @has_cursor::boolean OR (g.created_at, g.group_id) < (@after_at::timestamptz, @after_id::uuid)
+ORDER BY g.created_at DESC, g.group_id DESC
+LIMIT @row_limit::integer;
 
 -- What is about to expire, so the page can say so before it happens.
 -- name: PointsExpiringSoon :one

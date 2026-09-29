@@ -92,6 +92,9 @@ func (e PointsEntry) Detail(ctx context.Context) string {
 
 // PointsView is the customer's points page.
 type PointsView struct {
+	// ListBound pages the ledger; the balance below always covers all of it.
+	ListBound
+
 	Balance     int64
 	Redeemable  int64
 	CreditCents int64

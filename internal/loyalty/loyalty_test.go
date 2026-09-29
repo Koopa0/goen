@@ -1,6 +1,7 @@
 package loyalty
 
 import (
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/web"
 )
 
 func TestARedemptionNeverKeepsTheRemainder(t *testing.T) {
@@ -138,6 +140,39 @@ func TestAnExpiredRedemptionFormNoticeSpeaksBothLocales(t *testing.T) {
 		}
 		if got := noticeFor(short); strings.Contains(got, tt.want) {
 			t.Errorf("short notice in %s reused the expired-form sentence", tt.locale)
+		}
+	}
+}
+
+func TestHistoryTokenRefusesAnotherAccountsPosition(t *testing.T) {
+	t.Parallel()
+	mint := func(c historyCursor) string {
+		body, err := json.Marshal(c)
+		if err != nil {
+			t.Fatal(err)
+		}
+		next, ok := web.NextKeysetURL(historyScope, string(body))
+		if !ok {
+			t.Fatal("scope refused")
+		}
+		u, err := url.Parse(next)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return u.Query().Get(web.KeysetParam)
+	}
+	id := uuid.New()
+	if c := readHistoryCursor("owner", mint(historyCursor{ID: id, Owner: "owner"})); !c.Valid || c.ID != id {
+		t.Fatal("the owner's own token was refused")
+	}
+	for name, token := range map[string]string{
+		"another account": mint(historyCursor{ID: id, Owner: "another"}),
+		"no owner at all": mint(historyCursor{ID: id}),
+		"nil id":          mint(historyCursor{Owner: "owner"}),
+		"malformed":       "malformed",
+	} {
+		if readHistoryCursor("owner", token).Valid {
+			t.Errorf("%s: a token that is not the reader's was accepted", name)
 		}
 	}
 }

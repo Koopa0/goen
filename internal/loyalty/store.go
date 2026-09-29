@@ -2,8 +2,10 @@ package loyalty
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -13,6 +15,7 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/web"
 )
 
 // ExpiryWarningDays is how far ahead the page warns.
@@ -87,8 +90,32 @@ func (s *Store) Redeem(
 	return cents, nil
 }
 
+// historyScope is what a position token is bound to: the ledger has no filters.
+const historyScope = "/account/points"
+
+// historyCursor is one ledger group's ordering values. The group is the unit,
+// so a spend across several award lots cannot be split between pages. Owner
+// binds the token to one account: a token minted for another account is
+// refused here as well as by the query's user_id predicate, which decides
+// whose ledger is read.
+type historyCursor struct {
+	At    time.Time
+	ID    uuid.UUID
+	Owner string
+	Valid bool `json:"-"`
+}
+
+func readHistoryCursor(owner, token string) historyCursor {
+	c, ok := web.ReadKeyset[historyCursor](historyScope, token)
+	if !ok || c.ID == uuid.Nil || c.Owner != owner {
+		return historyCursor{}
+	}
+	c.Valid = true
+	return c
+}
+
 // History is the ledger a customer sees, and what is about to expire.
-func (s *Store) History(ctx context.Context, userID string) (pages.PointsView, error) {
+func (s *Store) History(ctx context.Context, userID, after string) (pages.PointsView, error) {
 	owner, err := uuid.Parse(userID)
 	if err != nil {
 		return pages.PointsView{}, ErrNoAccount
@@ -100,8 +127,10 @@ func (s *Store) History(ctx context.Context, userID string) (pages.PointsView, e
 		return pages.PointsView{}, err
 	}
 
+	cursor := readHistoryCursor(userID, after)
 	rows, err := s.q.PointsHistory(ctx, db.PointsHistoryParams{
-		UserID: id, Limit: MaxHistoryRows,
+		UserID: id, RowLimit: MaxHistoryRows + 1,
+		HasCursor: cursor.Valid, AfterAt: cursor.At, AfterID: cursor.ID,
 	})
 	if err != nil {
 		return pages.PointsView{}, fmt.Errorf("read points history: %w", err)
@@ -122,6 +151,22 @@ func (s *Store) History(ctx context.Context, userID string) (pages.PointsView, e
 		PerCredit:      PointsPerCredit,
 		Minimum:        MinRedemption,
 	}
+	rows, more := web.PageOf(rows, MaxHistoryRows)
+	if cursor.Valid {
+		view.First = historyScope + "#ledger-heading"
+		view.PastEnd = len(rows) == 0
+	}
+	if more {
+		last := rows[len(rows)-1]
+		position, marshalErr := json.Marshal(historyCursor{At: last.CreatedAt, ID: last.GroupID, Owner: userID})
+		if marshalErr != nil {
+			return pages.PointsView{}, fmt.Errorf("encode points position: %w", marshalErr)
+		}
+		if next, ok := web.NextKeysetURL(historyScope, string(position)); ok {
+			view.Next = next + "#ledger-heading"
+		}
+	}
+
 	if soon.AnyExpiring {
 		view.ExpiringOn = shoptime.Day(soon.Soonest)
 	}
