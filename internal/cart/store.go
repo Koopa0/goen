@@ -228,6 +228,7 @@ func (s *Store) View(ctx context.Context, cartID uuid.UUID) (pages.CartView, err
 			Quantity:     r.Quantity,
 			Available:    r.SellableQuantity,
 			ImageURL:     assets.ProductImageURL(r.ImageKey),
+			ImageSrcset:  assets.ProductImageSrcsetAt(r.ImageKey, int(r.ImageWidth)),
 			ImageAlt:     r.ImageAlt,
 			CompareCents: r.CompareAtPriceCents.Int64,
 			Unavailable:  r.ProductStatus != "active" || !r.IsActive || r.SellableQuantity <= 0,

@@ -32,8 +32,9 @@ type CartLine struct {
 	Unavailable bool
 	Short       bool
 
-	ImageURL string
-	ImageAlt string
+	ImageURL    string
+	ImageSrcset string
+	ImageAlt    string
 }
 
 // UnitPrice is what one of this line costs.

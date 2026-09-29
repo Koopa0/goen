@@ -2801,13 +2801,14 @@ SELECT
         ARRAY[]::text[]
     )::text[] AS option_values,
     coalesce(img.storage_key, '') AS image_key,
-    coalesce(img.alt_text, '') AS image_alt
+    coalesce(img.alt_text, '') AS image_alt,
+    coalesce(img.width, 0)::integer AS image_width
 FROM cart_items ci
 JOIN product_variants pv ON pv.id = ci.variant_id
 JOIN products p ON p.id = pv.product_id
 JOIN brands b ON b.id = p.brand_id
 LEFT JOIN LATERAL (
-    SELECT storage_key, alt_text FROM product_images
+    SELECT storage_key, alt_text, width FROM product_images
     WHERE product_id = p.id ORDER BY position LIMIT 1
 ) img ON true
 WHERE ci.cart_id = $1
@@ -2838,6 +2839,7 @@ type CartLinesRow struct {
 	OptionValues        []string
 	ImageKey            string
 	ImageAlt            string
+	ImageWidth          int32
 }
 
 // Everything in a cart, at CURRENT prices and availability. sellable_quantity is
@@ -2870,6 +2872,7 @@ func (q *Queries) CartLines(ctx context.Context, arg CartLinesParams) ([]CartLin
 			&i.OptionValues,
 			&i.ImageKey,
 			&i.ImageAlt,
+			&i.ImageWidth,
 		); err != nil {
 			return nil, err
 		}
