@@ -578,9 +578,9 @@ func TestStoreCannotDisableTriggers(t *testing.T) {
 	}
 }
 
-// TestStoreCannotBadgeAProductAnswerAsTheShop binds the column grant itself.
-// The storefront query omits is_staff, but a future raw writer must not be able
-// to turn a customer's words into an official answer by naming the column.
+// TestStoreCannotBadgeAProductAnswerAsTheShop binds the grant itself: no
+// storefront code writes an answer, so a raw writer must not be able to turn a
+// customer's words into an official answer by naming is_staff.
 func TestStoreCannotBadgeAProductAnswerAsTheShop(t *testing.T) {
 	ctx := t.Context()
 	tx, beginErr := schemaPool(t).Begin(ctx)
@@ -608,6 +608,50 @@ func TestStoreCannotBadgeAProductAnswerAsTheShop(t *testing.T) {
 	pgErr, ok := errors.AsType[*pgconn.PgError](insertErr)
 	if !ok || pgErr.Code != "42501" {
 		t.Fatalf("store explicit is_staff INSERT failed with %v, want PgError 42501", insertErr)
+	}
+}
+
+// TestStoreCannotWriteOrDeleteProductAnswers holds the revoke itself. Column
+// grants are invisible to the table-level guard, so a leftover INSERT (question_id,
+// user_id, body) would keep a customer write path alive with no query behind it.
+func TestStoreCannotWriteOrDeleteProductAnswers(t *testing.T) {
+	const questionID = "ab000002-0000-4000-8000-000000000001"
+	for name, statement := range map[string]string{
+		"insert": `INSERT INTO product_answers (question_id, user_id, body)
+			VALUES ('` + questionID + `', '55555555-5555-4555-8555-555555555555', '顧客的回覆')`,
+		"delete": `DELETE FROM product_answers WHERE question_id = '` + questionID + `'`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			ctx := t.Context()
+			tx, beginErr := schemaPool(t).Begin(ctx)
+			if beginErr != nil {
+				t.Fatalf("begin: %v", beginErr)
+			}
+			defer func() { _ = tx.Rollback(ctx) }()
+
+			if _, fixtureErr := tx.Exec(ctx, fixtures); fixtureErr != nil {
+				t.Fatalf("load fixtures: %v", fixtureErr)
+			}
+			if _, seedErr := tx.Exec(ctx, `
+				INSERT INTO product_questions (id, product_id, user_id, body)
+				VALUES ($1, '33333333-3333-4333-8333-333333333333',
+				        '55555555-5555-4555-8555-555555555555', '這是顧客的問題')`, questionID); seedErr != nil {
+				t.Fatalf("seed question: %v", seedErr)
+			}
+			if _, seedErr := tx.Exec(ctx, `
+				INSERT INTO product_answers (question_id, user_id, body)
+				VALUES ($1, '55555555-5555-4555-8555-555555555555', '既有的回答')`, questionID); seedErr != nil {
+				t.Fatalf("seed answer: %v", seedErr)
+			}
+			if _, roleErr := tx.Exec(ctx, "SET LOCAL ROLE store"); roleErr != nil {
+				t.Fatalf("set role: %v", roleErr)
+			}
+			_, writeErr := tx.Exec(ctx, statement)
+			pgErr, ok := errors.AsType[*pgconn.PgError](writeErr)
+			if !ok || pgErr.Code != "42501" {
+				t.Fatalf("store %s on product_answers failed with %v, want PgError 42501", name, writeErr)
+			}
+		})
 	}
 }
 

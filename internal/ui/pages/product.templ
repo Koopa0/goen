@@ -391,23 +391,30 @@ templ productAddForm(v *ProductView) {
 				}
 			}
 		</form>
-		<form method="post" action="/account/wishlist" class="goen-pdp__wish">
-			<input type="hidden" name="slug" value={ v.Slug }/>
-			<input type="hidden" name="return" value={ "/p/" + v.Slug }/>
-			if v.Saved {
-				<input type="hidden" name="action" value="remove"/>
-			}
-			@components.Button(components.ButtonProps{
-				Variant: components.VariantOutline, Icon: true,
-				Attrs: templ.Attributes{
-					"aria-label":   v.WishlistLabel(ctx),
-					"aria-pressed": v.SavedText(),
-				},
-			}, "submit") {
-				@icons.Heart()
-			}
-		</form>
+		if v.SignedIn {
+			<form method="post" action="/account/wishlist" class="goen-pdp__wish">
+				<input type="hidden" name="slug" value={ v.Slug }/>
+				<input type="hidden" name="return" value={ "/p/" + v.Slug }/>
+				if v.Saved {
+					<input type="hidden" name="action" value="remove"/>
+				}
+				@components.Button(components.ButtonProps{
+					Variant: components.VariantOutline, Icon: true,
+					Attrs: templ.Attributes{
+						"aria-label":   v.WishlistLabel(ctx),
+						"aria-pressed": v.SavedText(),
+					},
+				}, "submit") {
+					@icons.Heart()
+				}
+			</form>
+		}
 	</div>
+	if !v.SignedIn {
+		<p class="goen-pdp__reviewnote">
+			<a href={ templ.SafeURL("/signin?next=/p/" + v.Slug) }>{ i18n.T(ctx, i18n.KeyWishlistSignIn) }</a>
+		</p>
+	}
 }
 
 templ productNotifyForm(v *ProductView) {

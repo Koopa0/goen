@@ -36,10 +36,14 @@ func (r StaffRole) Label(ctx context.Context) string {
 
 // AdminStaffView is who can reach the back office, and who has a second factor.
 type AdminStaffView struct {
-	Rows   []AdminStaffRow
-	Roles  []StaffRole
-	Notice string
-	Actor  string
+	Rows     []AdminStaffRow
+	Roles    []StaffRole
+	Notice   string
+	Actor    string
+	AddEmail string
+	AddName  string
+	AddRole  StaffRole
+	AddError string
 }
 
 // AdminStaffRow is one staff account.
