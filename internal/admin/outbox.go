@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/outbox"
 )
@@ -20,6 +21,7 @@ type OrderShipped struct {
 	Name        string `json:"name"`
 	Carrier     string `json:"carrier"`
 	Tracking    string `json:"tracking"`
+	Pickup      bool   `json:"pickup"`
 }
 
 // RestockNotice is what a catalogue.restocked message carries.
@@ -41,6 +43,8 @@ func enqueueOrderShipped(ctx context.Context, q *db.Queries, orderID uuid.UUID, 
 	}
 	// The CUSTOMER's language, off the order, never the staff member's.
 	m.Email, m.Name, m.Locale = to.Email, to.RecipientName, to.Locale
+	dest, _ := cart.DestinationFor(to.DestinationKind)
+	m.Pickup = dest == cart.ToPickupPoint
 
 	payload, err := json.Marshal(m)
 	if err != nil {
