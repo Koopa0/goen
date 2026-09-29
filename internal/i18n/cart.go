@@ -25,6 +25,13 @@ var (
 		En:     "Some items are short of stock. Adjust the quantities before checking out.",
 	})
 
+	KeyCartAdjustmentContinue = key("cart.adjustment.continue", Message{ZhHant: "繼續前往原頁面", En: "Continue to your destination"})
+
+	KeyCartQuantityAdjusted = key("cart.qty.adjusted", Message{
+		ZhHant: "部分商品數量已依庫存調整。",
+		En:     "Some item quantities were reduced to match available stock.",
+	})
+
 	KeyNoStock = key("cart.nostock", Message{ZhHant: "已無庫存", En: "None left"})
 
 	KeyOnlyLeft = key("cart.onlyleft", Message{ZhHant: "僅剩 %s 件", En: "Only %s left"})
@@ -50,6 +57,16 @@ var (
 	KeyUnitPrice = key("cart.unitprice", Message{
 		ZhHant: "單價 %s",
 		En:     "%s each",
+	})
+
+	KeyReorderAdjusted = key("cart.reorder.adjusted", Message{
+		ZhHant: "再次購買的部分數量已依目前庫存調整，請確認購物車。",
+		En:     "Some quantities from that order were adjusted to available stock. Please review your cart.",
+	})
+
+	KeyReorderAdjustedPartial = key("cart.reorder.adjusted_partial", Message{
+		ZhHant: "再次購買的部分數量已依目前庫存調整，另有 %d 項已下架或缺貨，請確認購物車。",
+		En:     "Some quantities from that order were adjusted to available stock; %d items are discontinued or out of stock. Please review your cart.",
 	})
 
 	KeyReorderAll = key("cart.reorder.all", Message{

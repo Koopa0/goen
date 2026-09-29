@@ -208,6 +208,10 @@ func (v *AdminProductView) CanPublish() bool {
 // NeedsVariant reports whether it cannot be published because it has nothing to sell.
 func (v *AdminProductView) NeedsVariant() bool { return !v.IsNew && len(v.Variants) == 0 }
 
+// OptionsFrozen reports whether a new option can no longer be added: any SKU,
+// active or not, is referenced by order history, so the options are settled.
+func (v *AdminProductView) OptionsFrozen() bool { return !v.IsNew && len(v.Variants) > 0 }
+
 // HasOptions reports whether this product has variant axes at all.
 func (v *AdminProductView) HasOptions() bool { return len(v.Options) > 0 }
 

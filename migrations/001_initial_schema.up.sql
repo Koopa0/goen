@@ -398,6 +398,30 @@ CREATE TRIGGER product_variants_set_updated_at
     BEFORE UPDATE ON product_variants
     FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
+-- Option axes and variant creation share the product lock. Otherwise an axis
+-- can pass its empty-catalogue check while another transaction adds a SKU.
+CREATE FUNCTION product_catalogue_lock() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+    PERFORM 1 FROM products WHERE id = NEW.product_id FOR NO KEY UPDATE;
+    IF TG_TABLE_NAME = 'product_options' AND EXISTS (
+        SELECT 1 FROM product_variants WHERE product_id = NEW.product_id
+    ) THEN
+        RAISE EXCEPTION 'define option axes before creating variants'
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'product_options_before_variants';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER product_options_before_variants
+    AFTER INSERT OR UPDATE OF product_id ON product_options
+    FOR EACH ROW EXECUTE FUNCTION product_catalogue_lock();
+
+CREATE TRIGGER product_variants_lock_catalogue
+    BEFORE INSERT OR UPDATE OF product_id ON product_variants
+    FOR EACH ROW EXECUTE FUNCTION product_catalogue_lock();
+
 -- An active product must have something to sell: published with no variant, its
 -- page has no price and every listing drops it. DEFERRED, because the variants
 -- are inserted after the product row they reference.
@@ -1897,16 +1921,37 @@ CREATE TABLE order_lines (
         ON DELETE RESTRICT
 );
 
--- Legacy/admin import callers historically supplied only variant_id. Bind its
--- durable product identity before the CHECK/FK run; an explicitly supplied,
--- mismatched pair is left untouched and refused by the composite FK.
+-- A variant fixes the identity at purchase time. Either catalogue language is
+-- a valid display snapshot; later catalogue edits must not rewrite the order.
+-- Explicitly mismatched product/variant pairs remain the composite FK's rule.
 CREATE FUNCTION order_lines_bind_product() RETURNS trigger
 LANGUAGE plpgsql AS $$
+DECLARE
+    v_product_id uuid;
+    v_sku text;
+    v_name text;
+    v_name_en text;
 BEGIN
-    IF NEW.variant_id IS NOT NULL AND NEW.product_id IS NULL THEN
-        SELECT pv.product_id INTO NEW.product_id
+    IF NEW.variant_id IS NOT NULL THEN
+        SELECT pv.product_id, pv.sku, p.name, p.name_en
+        INTO v_product_id, v_sku, v_name, v_name_en
         FROM product_variants pv
+        JOIN products p ON p.id = pv.product_id
         WHERE pv.id = NEW.variant_id;
+        IF NEW.product_id IS NULL THEN
+            NEW.product_id := v_product_id;
+        END IF;
+        IF FOUND AND NEW.product_id = v_product_id THEN
+            IF NEW.sku IS DISTINCT FROM v_sku THEN
+                RAISE EXCEPTION 'order line SKU must identify its variant'
+                    USING ERRCODE = '23514', CONSTRAINT = 'order_lines_sku_matches_variant';
+            END IF;
+            IF NEW.product_name IS DISTINCT FROM v_name
+               AND NEW.product_name IS DISTINCT FROM v_name_en THEN
+                RAISE EXCEPTION 'order line name must identify its product'
+                    USING ERRCODE = '23514', CONSTRAINT = 'order_lines_name_matches_product';
+            END IF;
+        END IF;
     END IF;
     RETURN NEW;
 END;
