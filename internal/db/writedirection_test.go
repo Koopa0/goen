@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -88,6 +89,14 @@ var updateVerb = regexp.MustCompile(
 var deleteVerb = regexp.MustCompile(
 	`(?is)\bDELETE\s+FROM\s+(?:ONLY\s+)?([a-z_][a-z0-9_]*)`)
 
+// rowLock matches a locking clause and its optional OF list. PostgreSQL checks
+// UPDATE on every table each of the four locks, so a lock is an UPDATE use.
+var rowLock = regexp.MustCompile(
+	`(?is)\bFOR\s+(?:NO\s+KEY\s+UPDATE|UPDATE|KEY\s+SHARE|SHARE)\b` +
+		`(?:\s+OF\s+([a-z_][a-z0-9_]*(?:\s*,\s*[a-z_][a-z0-9_]*)*))?`)
+var fromTable = regexp.MustCompile(
+	`(?is)\b(?:FROM|JOIN)\s+(?:ONLY\s+)?([a-z_][a-z0-9_]*)`)
+
 func writeVerbTargets(src string) map[string]map[string]bool {
 	clean := stripSQLComments(src)
 	out := map[string]map[string]bool{}
@@ -121,6 +130,44 @@ func writeVerbTargets(src string) map[string]map[string]bool {
 	}
 	for _, m := range deleteVerb.FindAllStringSubmatch(clean, -1) {
 		note(m[1], "DELETE")
+	}
+	for statement := range strings.SplitSeq(clean, ";") {
+		for _, table := range lockedTables(statement) {
+			note(table, "UPDATE")
+		}
+	}
+	return out
+}
+
+// lockedTables is the tables one statement's locking clauses cover: those an OF
+// list names, by table or by alias, and without OF every table after FROM or JOIN.
+func lockedTables(statement string) []string {
+	locks := rowLock.FindAllStringSubmatch(statement, -1)
+	if len(locks) == 0 {
+		return nil
+	}
+	var named []string
+	for _, m := range fromTable.FindAllStringSubmatch(statement, -1) {
+		named = append(named, m[1])
+	}
+	var out []string
+	for _, lock := range locks {
+		if lock[1] == "" {
+			out = append(out, named...)
+			continue
+		}
+		for ref := range strings.SplitSeq(lock[1], ",") {
+			ref = strings.TrimSpace(ref)
+			if slices.Contains(named, ref) {
+				out = append(out, ref)
+				continue
+			}
+			aliased := regexp.MustCompile(`(?is)\b(?:FROM|JOIN)\s+(?:ONLY\s+)?([a-z_][a-z0-9_]*)\s+(?:AS\s+)?` +
+				regexp.QuoteMeta(ref) + `\b`)
+			if m := aliased.FindStringSubmatch(statement); m != nil {
+				out = append(out, m[1])
+			}
+		}
 	}
 	return out
 }
@@ -567,6 +614,35 @@ func TestWriteVerbTargetsDistinguishUpserts(t *testing.T) {
 		verbs := writeVerbTargets(tc.sql)["products"]
 		if !verbs["INSERT"] || verbs["UPDATE"] != tc.update || verbs["DELETE"] {
 			t.Errorf("%s: got verbs %v", tc.sql, verbs)
+		}
+	}
+}
+
+func TestWriteVerbTargetsCountRowLocks(t *testing.T) {
+	for _, tc := range []struct {
+		sql      string
+		locked   []string
+		unlocked []string
+	}{
+		{"SELECT id FROM shipping_zones WHERE id = $1 FOR UPDATE", []string{"shipping_zones"}, nil},
+		{"SELECT 1 FROM orders o JOIN order_lines l ON l.order_id = o.id FOR UPDATE OF o",
+			[]string{"orders"}, []string{"order_lines"}},
+		{"SELECT 1 FROM orders AS o JOIN order_lines l ON l.order_id = o.id FOR SHARE OF l NOWAIT",
+			[]string{"order_lines"}, []string{"orders"}},
+		{"SELECT id FROM t FOR KEY SHARE", []string{"t"}, nil},
+		{"SELECT id FROM t FOR NO KEY UPDATE SKIP LOCKED", []string{"t"}, nil},
+		{"SELECT id FROM carts FOR UPDATE; SELECT id FROM coupons", []string{"carts"}, []string{"coupons"}},
+	} {
+		got := writeVerbTargets(tc.sql)
+		for _, table := range tc.locked {
+			if !got[table]["UPDATE"] {
+				t.Errorf("%s: %s not counted as UPDATE, got %v", tc.sql, table, got)
+			}
+		}
+		for _, table := range tc.unlocked {
+			if got[table]["UPDATE"] {
+				t.Errorf("%s: %s counted as UPDATE, got %v", tc.sql, table, got)
+			}
 		}
 	}
 }
