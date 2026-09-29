@@ -10,7 +10,7 @@ import (
 // boundary row no longer exists.
 templ listBound(b ListBound) {
 	if b.PastEnd {
-		<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyPageEmpty) }</p>
+		<p class="goen-pager__note">{ i18n.T(ctx, i18n.KeyPageEmpty) }</p>
 	}
 	if b.First != "" || b.Next != "" {
 		<nav class="goen-pager" aria-label={ i18n.T(ctx, i18n.KeyPagination) }>

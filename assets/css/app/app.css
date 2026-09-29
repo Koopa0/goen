@@ -1925,6 +1925,13 @@ h4,
   gap: 16px;
 }
 
+.goen-pager__note {
+  color: var(--fg-muted);
+  font-size: var(--fs-13);
+  line-height: var(--lh-normal);
+  margin: 0;
+}
+
 .goen-pager__at {
   color: var(--fg-muted);
   font-size: var(--fs-14);
