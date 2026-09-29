@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -26,4 +27,17 @@ func (s *Store) creditRecipient(ctx context.Context, view *pages.AdminCreditView
 	}
 	view.CustomerID, view.CustomerName, view.Email, view.BalanceCents = user.ID.String(), user.FullName, user.Email, balance
 	return nil
+}
+
+func validateCreditGrant(view *pages.AdminCreditView) (uuid.UUID, bool) {
+	cents, amountOK := positiveDollarsToCents(view.Amount, MaxCreditGrant)
+	view.GrantCents = cents
+	view.AmountInvalid = !amountOK
+	view.ReasonInvalid = strings.TrimSpace(view.Reason) == "" || utf8.RuneCountInString(view.Reason) > MaxCreditReasonRunes
+	operationID, err := uuid.Parse(view.OperationID)
+	if err != nil || operationID == uuid.Nil {
+		view.OperationID = uuid.NewString()
+		return uuid.Nil, false
+	}
+	return operationID, !view.AmountInvalid && !view.ReasonInvalid
 }

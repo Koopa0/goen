@@ -12,7 +12,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/google/uuid"
 
@@ -579,14 +578,8 @@ func (h *Handler) GrantCredit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	view := pages.AdminCreditView{Email: r.PostFormValue("email"), Amount: r.PostFormValue("amount"), Reason: r.PostFormValue("reason"), OperationID: r.PostFormValue("operation_id")}
-	cents, ok := positiveDollarsToCents(view.Amount, MaxCreditGrant)
-	operationID, operationErr := uuid.Parse(view.OperationID)
-	view.AmountInvalid = !ok
-	view.ReasonInvalid = strings.TrimSpace(view.Reason) == "" || utf8.RuneCountInString(view.Reason) > MaxCreditReasonRunes
-	if operationErr != nil || operationID == uuid.Nil {
-		view.OperationID = uuid.NewString()
-	}
-	if view.AmountInvalid || view.ReasonInvalid || operationErr != nil || operationID == uuid.Nil {
+	operationID, valid := validateCreditGrant(&view)
+	if !valid {
 		h.renderCreditForm(w, r, view, http.StatusUnprocessableEntity, i18n.KeyAdminNoticeNeeds)
 		return
 	}
@@ -600,7 +593,6 @@ func (h *Handler) GrantCredit(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	view.GrantCents = cents
 	if r.PostFormValue("edit") == "1" {
 		h.renderCreditForm(w, r, view, http.StatusOK, "")
 		return
@@ -615,7 +607,7 @@ func (h *Handler) GrantCredit(w http.ResponseWriter, r *http.Request) {
 		h.serverError(w, r)
 		return
 	}
-	balance, err := h.store.GrantCredit(r.Context(), customerID, cents, view.Reason, operationID)
+	balance, err := h.store.GrantCredit(r.Context(), customerID, view.GrantCents, view.Reason, operationID)
 	switch {
 	case err == nil:
 		// The balance travels as a number and never the address it belongs to,
