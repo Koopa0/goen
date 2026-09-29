@@ -240,10 +240,12 @@ CREATE INDEX products_category_brand_published_idx
     ON products (category_id, brand_id, published_at DESC, id DESC)
     WHERE status = 'active';
 
--- Measured at 10,000 products: a Latin query is a bitmap index scan at 1.5 ms,
--- while a two-character Chinese query is far too unselective for the planner and
--- scans at 8.8 ms.
+-- Each searchable product field needs an index: one unindexed OR arm forces a
+-- full product scan for selective brand and name queries.
 CREATE INDEX products_name_trgm_idx ON products USING gin (name gin_trgm_ops);
+CREATE INDEX products_name_en_trgm_idx ON products USING gin (name_en gin_trgm_ops);
+CREATE INDEX products_summary_trgm_idx ON products USING gin (summary gin_trgm_ops);
+CREATE INDEX products_summary_en_trgm_idx ON products USING gin (summary_en gin_trgm_ops);
 
 CREATE TRIGGER products_set_updated_at
     BEFORE UPDATE ON products
@@ -387,6 +389,11 @@ CREATE UNIQUE INDEX product_variants_product_key ON product_variants (product_id
 CREATE INDEX product_variants_sellable_price_idx
     ON product_variants (product_id, price_cents, id)
     WHERE is_active AND stock_quantity > safety_stock;
+
+-- The card's chosen variant and the price sort use buyability before price.
+CREATE INDEX product_variants_display_order_idx
+    ON product_variants (product_id, (stock_quantity > safety_stock) DESC, price_cents)
+    WHERE is_active;
 
 -- The admin's low-stock queue: an index on
 -- stock_quantity alone cannot answer "below its own safety level".

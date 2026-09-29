@@ -11038,9 +11038,9 @@ WITH matching_products AS MATERIALIZED (
     FROM products p
     WHERE p.status = 'active'
       AND (p.name ILIKE $2::text
-           OR coalesce(p.name_en, '') ILIKE $2::text
-           OR coalesce(p.summary, '') ILIKE $2::text
-           OR coalesce(p.summary_en, '') ILIKE $2::text)
+           OR p.name_en ILIKE $2::text
+           OR p.summary ILIKE $2::text
+           OR p.summary_en ILIKE $2::text)
     UNION
     SELECT p.id
     FROM brands b
@@ -11193,9 +11193,9 @@ WITH matching_products AS MATERIALIZED (
     FROM products p
     WHERE p.status = 'active'
       AND (p.name ILIKE $1::text
-           OR coalesce(p.name_en, '') ILIKE $1::text
-           OR coalesce(p.summary, '') ILIKE $1::text
-           OR coalesce(p.summary_en, '') ILIKE $1::text)
+           OR p.name_en ILIKE $1::text
+           OR p.summary ILIKE $1::text
+           OR p.summary_en ILIKE $1::text)
     UNION
     SELECT p.id
     FROM brands b

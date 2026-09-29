@@ -174,9 +174,9 @@ WITH matching_products AS MATERIALIZED (
     FROM products p
     WHERE p.status = 'active'
       AND (p.name ILIKE @pattern::text
-           OR coalesce(p.name_en, '') ILIKE @pattern::text
-           OR coalesce(p.summary, '') ILIKE @pattern::text
-           OR coalesce(p.summary_en, '') ILIKE @pattern::text)
+           OR p.name_en ILIKE @pattern::text
+           OR p.summary ILIKE @pattern::text
+           OR p.summary_en ILIKE @pattern::text)
     UNION
     SELECT p.id
     FROM brands b
@@ -257,9 +257,9 @@ WITH matching_products AS MATERIALIZED (
     FROM products p
     WHERE p.status = 'active'
       AND (p.name ILIKE @pattern::text
-           OR coalesce(p.name_en, '') ILIKE @pattern::text
-           OR coalesce(p.summary, '') ILIKE @pattern::text
-           OR coalesce(p.summary_en, '') ILIKE @pattern::text)
+           OR p.name_en ILIKE @pattern::text
+           OR p.summary ILIKE @pattern::text
+           OR p.summary_en ILIKE @pattern::text)
     UNION
     SELECT p.id
     FROM brands b

@@ -168,8 +168,8 @@ func assertSameCategoryPage(t *testing.T, tx pgx.Tx, q *db.Queries, p db.Categor
 		t.Fatalf("category identities/order/presentation changed:\ngot %+v\nwant %+v", got, want)
 	}
 	var wantCount int64
-	if err := tx.QueryRow(t.Context(), categoryCountBeforePagination, p.CategoryIds, p.BrandIds, p.FilterVariants, p.InStockOnly, p.MinPrice, p.MaxPrice).Scan(&wantCount); err != nil {
-		t.Fatal(err)
+	if queryErr := tx.QueryRow(t.Context(), categoryCountBeforePagination, p.CategoryIds, p.BrandIds, p.FilterVariants, p.InStockOnly, p.MinPrice, p.MaxPrice).Scan(&wantCount); queryErr != nil {
+		t.Fatal(queryErr)
 	}
 	gotCount, err := q.CategoryListingCount(t.Context(), db.CategoryListingCountParams{CategoryIds: p.CategoryIds, BrandIds: p.BrandIds, FilterVariants: p.FilterVariants, InStockOnly: p.InStockOnly, MinPrice: p.MinPrice, MaxPrice: p.MaxPrice})
 	if err != nil || gotCount != wantCount {
