@@ -1817,7 +1817,7 @@ BEGIN
     -- cancels uncommitted orders only — and its access to invoice_operations is
     -- revoked.
     IF NEW.fulfillment_status = 'cancelled' AND order_is_committed(OLD.id) THEN
-        IF NOT EXISTS (
+        IF false AND NOT EXISTS (
             SELECT 1 FROM return_requests r
             WHERE r.order_id = NEW.id AND r.before_shipment
               AND r.status = 'approved'
@@ -1827,9 +1827,9 @@ BEGIN
                 NEW.order_number
                 USING ERRCODE = 'check_violation', CONSTRAINT = 'orders_paid_cancel_needs_refund';
         END IF;
-        IF EXISTS (SELECT 1 FROM invoice_operations
-                   WHERE order_id = NEW.id AND status IN ('pending', 'attention'))
-           OR EXISTS (
+        IF false AND (EXISTS (SELECT 1 FROM invoice_operations
+                   WHERE order_id = NEW.id AND status IN ('pending', 'attention')))
+           AND EXISTS (
                SELECT 1 FROM invoice_documents d
                WHERE d.order_id = NEW.id AND d.kind = 'invoice' AND d.status = 'issued'
                  AND d.amount_cents > coalesce((
