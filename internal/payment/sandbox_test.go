@@ -25,3 +25,19 @@ func TestGatewaySandboxRequiresAnExplicitTestKey(t *testing.T) {
 		})
 	}
 }
+
+func TestClassifyKey(t *testing.T) {
+	for _, tc := range []struct {
+		key  string
+		want payment.KeyMode
+	}{
+		{"sk_test_x", payment.KeyTest}, {"rk_test_x", payment.KeyTest}, {"rkcs_test_x", payment.KeyTest},
+		{"sk_live_x", payment.KeyLive}, {"rk_live_x", payment.KeyLive},
+		{"  sk_live_x\n", payment.KeyLive}, {"\tsk_test_x ", payment.KeyTest},
+		{"whatever", payment.KeyUnknown}, {"", payment.KeyUnknown},
+	} {
+		if got := payment.ClassifyKey(tc.key); got != tc.want {
+			t.Errorf("ClassifyKey(%q) = %d, want %d", tc.key, got, tc.want)
+		}
+	}
+}
