@@ -2482,6 +2482,66 @@ func (q *Queries) AwardOrderPoints(ctx context.Context, orderID uuid.UUID) (int6
 	return award_loyalty_points, err
 }
 
+const beforeShipmentRefund = `-- name: BeforeShipmentRefund :one
+WITH target AS (
+    SELECT o.id, o.fulfillment_status,
+           order_is_committed(o.id) AS committed,
+           (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
+                      WHERE ol.order_id = o.id), 0)
+            - o.discount_cents + o.shipping_cents + o.tax_cents)::bigint AS total_cents,
+           coalesce((SELECT sum(p.captured_amount_cents) FROM payments p
+                     WHERE p.order_id = o.id AND p.status = 'succeeded'), 0)::bigint
+               AS card_capacity_cents
+    FROM orders o WHERE o.order_number = $1::text
+)
+SELECT t.id AS order_id, t.fulfillment_status, t.committed, t.total_cents,
+       EXISTS (SELECT 1 FROM order_shipments s WHERE s.order_id = t.id)::boolean AS shipped,
+       EXISTS (SELECT 1 FROM return_requests r WHERE r.order_id = t.id)::boolean AS has_return,
+       b.id AS return_request_id,
+       coalesce(b.status, '')::text AS return_status,
+       coalesce(b.card_refund_cents,
+                least(t.total_cents, t.card_capacity_cents))::bigint AS card_cents,
+       coalesce(b.credit_refund_cents,
+                t.total_cents - least(t.total_cents, t.card_capacity_cents))::bigint AS credit_cents
+FROM target t
+LEFT JOIN return_requests b ON b.order_id = t.id AND b.before_shipment
+`
+
+type BeforeShipmentRefundRow struct {
+	OrderID           uuid.UUID
+	FulfillmentStatus string
+	Committed         bool
+	TotalCents        int64
+	Shipped           bool
+	HasReturn         bool
+	ReturnRequestID   uuid.NullUUID
+	ReturnStatus      string
+	CardCents         int64
+	CreditCents       int64
+}
+
+// What the order page and the refund confirmation show. Once the door has run
+// the split is the frozen one; before, card_cents is what
+// return_requests_recount freezes for a full return of an order nothing else
+// has refunded: the capture first, credit for the rest.
+func (q *Queries) BeforeShipmentRefund(ctx context.Context, orderNumber string) (BeforeShipmentRefundRow, error) {
+	row := q.db.QueryRow(ctx, beforeShipmentRefund, orderNumber)
+	var i BeforeShipmentRefundRow
+	err := row.Scan(
+		&i.OrderID,
+		&i.FulfillmentStatus,
+		&i.Committed,
+		&i.TotalCents,
+		&i.Shipped,
+		&i.HasReturn,
+		&i.ReturnRequestID,
+		&i.ReturnStatus,
+		&i.CardCents,
+		&i.CreditCents,
+	)
+	return i, err
+}
+
 const beginTOTPEnrolment = `-- name: BeginTOTPEnrolment :execrows
 INSERT INTO staff_totp_credentials (user_id, secret_encrypted)
 VALUES ($1, $2)
@@ -3784,6 +3844,23 @@ type ClearZoneSurchargeParams struct {
 // row to zero, so clearing is a DELETE and never a stored zero.
 func (q *Queries) ClearZoneSurcharge(ctx context.Context, arg ClearZoneSurchargeParams) (int64, error) {
 	result, err := q.db.Exec(ctx, clearZoneSurcharge, arg.VersionID, arg.ZoneID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const closeUnshippedReturnLines = `-- name: CloseUnshippedReturnLines :execrows
+UPDATE return_request_lines
+SET received_quantity = 0, restocked_quantity = 0
+WHERE return_request_id = $1 AND received_quantity IS NULL
+`
+
+// Nothing of a refund before shipment went out, so every line is closed as
+// received and restocked nothing; return_requests_completed_is_inspected then
+// admits the completion.
+func (q *Queries) CloseUnshippedReturnLines(ctx context.Context, returnRequestID uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, closeUnshippedReturnLines, returnRequestID)
 	if err != nil {
 		return 0, err
 	}
@@ -6971,19 +7048,21 @@ func (q *Queries) LockOrderDelivery(ctx context.Context, orderNumber string) (Lo
 }
 
 const lockOrderForAdvance = `-- name: LockOrderForAdvance :one
-SELECT id, fulfillment_status FROM orders WHERE order_number = $1 FOR UPDATE
+SELECT id, fulfillment_status, order_is_committed(id) AS committed
+FROM orders WHERE order_number = $1 FOR UPDATE
 `
 
 type LockOrderForAdvanceRow struct {
 	ID                uuid.UUID
 	FulfillmentStatus string
+	Committed         bool
 }
 
 // Lock before reading the prior state so concurrent completion cannot duplicate arrival mail.
 func (q *Queries) LockOrderForAdvance(ctx context.Context, orderNumber string) (LockOrderForAdvanceRow, error) {
 	row := q.db.QueryRow(ctx, lockOrderForAdvance, orderNumber)
 	var i LockOrderForAdvanceRow
-	err := row.Scan(&i.ID, &i.FulfillmentStatus)
+	err := row.Scan(&i.ID, &i.FulfillmentStatus, &i.Committed)
 	return i, err
 }
 
@@ -7690,6 +7769,33 @@ func (q *Queries) OpenPayment(ctx context.Context, arg OpenPaymentParams) (uuid.
 	var open_payment uuid.UUID
 	err := row.Scan(&open_payment)
 	return open_payment, err
+}
+
+const openRefundBeforeShipment = `-- name: OpenRefundBeforeShipment :one
+SELECT open_refund_before_shipment(
+    $1::text, $2::text, $3::uuid, $4::text
+)::uuid AS return_request_id
+`
+
+type OpenRefundBeforeShipmentParams struct {
+	OrderNumber string
+	Reason      string
+	ActorUserID uuid.UUID
+	RequestID   string
+}
+
+// One auto-committed statement: the door opens and approves the full return,
+// or returns the one it opened before.
+func (q *Queries) OpenRefundBeforeShipment(ctx context.Context, arg OpenRefundBeforeShipmentParams) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, openRefundBeforeShipment,
+		arg.OrderNumber,
+		arg.Reason,
+		arg.ActorUserID,
+		arg.RequestID,
+	)
+	var return_request_id uuid.UUID
+	err := row.Scan(&return_request_id)
+	return return_request_id, err
 }
 
 const openRefundCount = `-- name: OpenRefundCount :one
@@ -11004,7 +11110,7 @@ func (q *Queries) ReturnPayoutFacts(ctx context.Context, requestIds []uuid.UUID)
 }
 
 const returnQueue = `-- name: ReturnQueue :many
-SELECT json_build_object('Rank', return_payout_outstanding(r.id), 'Priority', (r.status = 'requested'), 'At', r.created_at, 'ID', r.id)::text AS page_cursor, r.id, r.status, r.reason, r.created_at, r.decided_at,
+SELECT json_build_object('Rank', return_payout_outstanding(r.id), 'Priority', (r.status = 'requested'), 'At', r.created_at, 'ID', r.id)::text AS page_cursor, r.id, r.status, r.reason, r.created_at, r.decided_at, r.before_shipment,
        o.order_number,
        (SELECT coalesce(sum(rl.quantity), 0) FROM return_request_lines rl
         WHERE rl.return_request_id = r.id)::integer AS units,
@@ -11059,6 +11165,7 @@ type ReturnQueueRow struct {
 	Reason           string
 	CreatedAt        time.Time
 	DecidedAt        pgtype.Timestamptz
+	BeforeShipment   bool
 	OrderNumber      string
 	Units            int32
 	RefundableCents  int64
@@ -11095,6 +11202,7 @@ func (q *Queries) ReturnQueue(ctx context.Context, arg ReturnQueueParams) ([]Ret
 			&i.Reason,
 			&i.CreatedAt,
 			&i.DecidedAt,
+			&i.BeforeShipment,
 			&i.OrderNumber,
 			&i.Units,
 			&i.RefundableCents,
@@ -11209,7 +11317,7 @@ func (q *Queries) ReturnableLines(ctx context.Context, orderID uuid.UUID) ([]Ret
 
 const returnsForOrder = `-- name: ReturnsForOrder :many
 SELECT r.id, r.status, r.reason, r.resolution, r.created_at, r.decided_at
-FROM return_requests r WHERE r.order_id = $1
+FROM return_requests r WHERE r.order_id = $1 AND NOT r.before_shipment
 ORDER BY r.created_at DESC, r.id
 `
 
@@ -11223,7 +11331,9 @@ type ReturnsForOrderRow struct {
 }
 
 // An order's return requests, for the customer's own page. No actor: the page is
-// reachable by anyone holding the number, so it must not name staff.
+// reachable by anyone holding the number, so it must not name staff. A refund
+// before shipment is not a request the customer made; the order page's
+// refunded entry already tells them the money is back.
 func (q *Queries) ReturnsForOrder(ctx context.Context, orderID uuid.UUID) ([]ReturnsForOrderRow, error) {
 	rows, err := q.db.Query(ctx, returnsForOrder, orderID)
 	if err != nil {
@@ -11265,18 +11375,25 @@ SELECT
     -- credit post.
     --
     -- The positive-credit predicate deliberately matches order_refunds: an entry
-    -- counts only with an order_id and a positive amount. reverse_order_credit
-    -- posts no order_id, so a cancelled order's returned credit is in neither
-    -- figure. A change of that definition belongs in order_refunds, so the 折讓
-    -- form and the invoice bound move with it. Neither time column has
-    -- an index yet; these are small ledgers, so a speculative index is not
-    -- warranted.
+    -- counts only with an order_id and a positive amount, so a reversed checkout
+    -- spend, which carries none, is in neither figure. A change of that
+    -- definition belongs in order_refunds, so the 折讓 form and the invoice bound
+    -- move with it. An order refunded before shipment is left out of both
+    -- figures: its refund cancels it out of the committed revenue, and counting
+    -- the same money as refunded too would take it off the net twice. Neither
+    -- time column has an index yet; these are small ledgers, so a speculative
+    -- index is not warranted.
     (coalesce((SELECT sum(r.amount_cents) FROM refunds r
+               JOIN payments p ON p.id = r.payment_id
                WHERE r.status = 'succeeded'
-                 AND r.succeeded_at >= now() - make_interval(days => $1::integer)), 0)::bigint
+                 AND r.succeeded_at >= now() - make_interval(days => $1::integer)
+                 AND NOT EXISTS (SELECT 1 FROM return_requests b
+                                 WHERE b.order_id = p.order_id AND b.before_shipment)), 0)::bigint
      + coalesce((SELECT sum(e.amount_cents) FROM store_credit_entries e
                  WHERE e.order_id IS NOT NULL AND e.amount_cents > 0
-                   AND e.created_at >= now() - make_interval(days => $1::integer)), 0)::bigint
+                   AND e.created_at >= now() - make_interval(days => $1::integer)
+                   AND NOT EXISTS (SELECT 1 FROM return_requests b
+                                   WHERE b.order_id = e.order_id AND b.before_shipment)), 0)::bigint
     )::bigint AS refunded_cents
 FROM (
     SELECT (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity)
@@ -11285,6 +11402,8 @@ FROM (
     FROM orders o
     JOIN committed_orders c ON c.id = o.id
     WHERE o.placed_at >= now() - make_interval(days => $1::integer)
+      AND NOT EXISTS (SELECT 1 FROM return_requests b
+                      WHERE b.order_id = o.id AND b.before_shipment)
 ) t
 `
 

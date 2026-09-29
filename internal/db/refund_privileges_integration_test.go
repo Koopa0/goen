@@ -39,3 +39,27 @@ func assertFunctionPrivilege(t *testing.T, role, signature string, want bool) {
 		t.Errorf("%s execute on %s = %v, want %v", role, signature, got, want)
 	}
 }
+
+// TestOnlyTheDoorOpensARefundBeforeShipment holds the one grant the refund
+// before shipment added: admin executes the door, and no role can mark a
+// return as one by writing the column itself.
+func TestOnlyTheDoorOpensARefundBeforeShipment(t *testing.T) {
+	const door = "open_refund_before_shipment(text,text,uuid,text)"
+	assertFunctionPrivilege(t, "admin", door, true)
+	for _, role := range []string{"store", "reporting", "maintenance"} {
+		assertFunctionPrivilege(t, role, door, false)
+	}
+	for _, role := range []string{"store", "admin", "reporting", "maintenance"} {
+		for _, privilege := range []string{"INSERT", "UPDATE"} {
+			var got bool
+			if err := schemaPool(t).QueryRow(t.Context(),
+				`SELECT has_column_privilege($1, 'return_requests', 'before_shipment', $2)`,
+				role, privilege).Scan(&got); err != nil {
+				t.Fatalf("read %s %s on before_shipment: %v", role, privilege, err)
+			}
+			if got {
+				t.Errorf("%s can %s return_requests.before_shipment", role, privilege)
+			}
+		}
+	}
+}

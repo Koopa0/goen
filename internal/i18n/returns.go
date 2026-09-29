@@ -337,6 +337,29 @@ var (
 			"neither needs nor allows redoing.",
 	})
 
+	// The order page's own sentence for a refund before shipment: Resume on
+	// that page is the retry, and the returns queue only links back to it.
+	KeyAdminNoticeRefundRetry = key("admin.notice.refundretry", Message{
+		ZhHant: "退款沒有完成，詳細原因在伺服器紀錄裡。請確認 Stripe 後台，再按「繼續退款」。",
+		En: "The refund did not complete; the reason is in the server log. Check the Stripe " +
+			"dashboard, then press Resume the refund.",
+	})
+
+	KeyAdminNoticeRefundPending = key("admin.notice.refundpending", Message{
+		ZhHant: "退款已記錄，但 Stripe 尚未完成。請確認 Stripe 後台，再按「繼續退款」。",
+		En:     "The refund is recorded but Stripe has not settled it. Check the Stripe dashboard, then press Resume the refund.",
+	})
+
+	KeyAdminNoticeRefunded = key("admin.notice.refunded", Message{
+		ZhHant: "已全額退款，訂單已取消，保留的庫存已釋出。",
+		En:     "Refunded in full. The order is cancelled and the stock it held is released.",
+	})
+
+	KeyAdminNoticePaidCancel = key("admin.notice.paidcancel", Message{
+		ZhHant: "這筆訂單已付款，不能直接取消。請使用「出貨前退款並取消」。",
+		En:     "This order is paid and cannot be cancelled directly. Use Refund and cancel before shipment.",
+	})
+
 	KeyAdminNoticeInspected = key("admin.notice.inspected", Message{
 		ZhHant: "驗貨已記錄,可再販售的數量已經入庫。",
 		En:     "Inspection recorded. Whatever is sellable again is back on the shelf.",
@@ -366,4 +389,23 @@ var (
 	KeyAdminRetConfirmAmount      = key("admin.ret.confirm.amount", Message{ZhHant: "本次退貨金額", En: "Return amount"})
 	KeyAdminRetConfirmBack        = key("admin.ret.confirm.back", Message{ZhHant: "返回退貨清單", En: "Back to returns"})
 	KeyAdminRetErrRejectionReason = key("admin.ret.err.rejectionreason", Message{ZhHant: "請填寫拒絕退貨的原因。", En: "Enter a reason for rejecting this return."})
+)
+
+var (
+	KeyAdminRefundTitle     = key("admin.refund.title", Message{ZhHant: "出貨前退款並取消", En: "Refund and cancel before shipment"})
+	KeyAdminRefundResume    = key("admin.refund.resume", Message{ZhHant: "繼續退款", En: "Resume the refund"})
+	KeyAdminRefundErrReason = key("admin.refund.err.reason", Message{ZhHant: "請填寫退款原因，最多 300 字。", En: "Enter a reason for the refund, 300 characters at most."})
+
+	KeyAdminRefundHint = key("admin.refund.hint", Message{
+		ZhHant: "已付款的訂單不能直接取消。這會全額退回信用卡與購物金並收回點數；退款入帳、發票作廢或折讓後，訂單才會取消並釋出庫存。",
+		En: "A paid order is not cancelled directly. This refunds the card and store credit in full and " +
+			"takes back the points; the order is cancelled and its stock released once the refund has " +
+			"landed and the invoice is voided or credited.",
+	})
+
+	KeyAdminRefundOpen = key("admin.refund.open", Message{
+		ZhHant: "這筆訂單正在出貨前退款，已不能出貨。退款入帳、發票作廢或折讓後，按「繼續退款」取消訂單。",
+		En: "This order is being refunded before shipment and can no longer ship. Once the refund has " +
+			"landed and the invoice is voided or credited, press Resume the refund to cancel it.",
+	})
 )

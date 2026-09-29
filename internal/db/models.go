@@ -673,6 +673,7 @@ type ReturnRequest struct {
 	CreditRefundCents   pgtype.Int8
 	CreatedAt           time.Time
 	DecidedAt           pgtype.Timestamptz
+	BeforeShipment      bool
 }
 
 type ReturnRequestLine struct {

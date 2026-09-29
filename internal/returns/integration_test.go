@@ -1073,3 +1073,35 @@ func TestReasonIsBoundedInRunesNotBytes(t *testing.T) {
 		t.Errorf("a %d-rune reason was accepted, want ErrInvalid", returns.MaxReasonRunes+1)
 	}
 }
+
+// TestARefundBeforeShipmentIsNotListedAsTheCustomersReturn: the shop refunded
+// an order nothing had shipped from; the customer's page says refunded on the
+// order and lists only the requests they made.
+func TestARefundBeforeShipmentIsNotListedAsTheCustomersReturn(t *testing.T) {
+	ctx := t.Context()
+	number, _ := shippedOrder(t, 1, 0)
+	var staff uuid.UUID
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO users (email, role) VALUES ('before-shipment-' || gen_random_uuid() || '@goen.invalid', 'staff')
+		RETURNING id`).Scan(&staff); err != nil {
+		t.Fatalf("create staff: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO payments (order_id, provider_ref, status, intended_amount_cents,
+		                      captured_amount_cents, paid_at)
+		SELECT id, 'pi_before_shipment_' || order_number, 'succeeded', 100000, 100000, now()
+		FROM orders WHERE order_number = $1`, number); err != nil {
+		t.Fatalf("capture: %v", err)
+	}
+	if _, err := pool.Exec(ctx,
+		`SELECT open_refund_before_shipment($1, '顧客取消', $2, 'before-shipment')`, number, staff); err != nil {
+		t.Fatalf("refund before shipment: %v", err)
+	}
+	o, err := returns.NewStore(pool).Order(ctx, number)
+	if err != nil {
+		t.Fatalf("read order: %v", err)
+	}
+	if len(o.Existing) != 0 {
+		t.Errorf("the customer's returns list shows %d requests they never made", len(o.Existing))
+	}
+}

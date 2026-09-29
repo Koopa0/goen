@@ -31,10 +31,12 @@ INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, qu
 VALUES (@order_id, @return_request_id, @order_line_id, @quantity::integer);
 
 -- An order's return requests, for the customer's own page. No actor: the page is
--- reachable by anyone holding the number, so it must not name staff.
+-- reachable by anyone holding the number, so it must not name staff. A refund
+-- before shipment is not a request the customer made; the order page's
+-- refunded entry already tells them the money is back.
 -- name: ReturnsForOrder :many
 SELECT r.id, r.status, r.reason, r.resolution, r.created_at, r.decided_at
-FROM return_requests r WHERE r.order_id = $1
+FROM return_requests r WHERE r.order_id = $1 AND NOT r.before_shipment
 ORDER BY r.created_at DESC, r.id;
 
 -- Whether this order already has a request nobody has decided yet.

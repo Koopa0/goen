@@ -44,6 +44,9 @@ type AdminReturn struct {
 	// allocation. Known terminal provider attempts are not blocked: retry appends
 	// a new generation with a fresh idempotency key.
 	PayoutBlocked bool
+	// BeforeShipment is a paid order refunded before anything shipped: nothing
+	// comes back to inspect, and its order page finishes it.
+	BeforeShipment bool
 }
 
 // CanRetryPayout reports whether the approved decision has money left behind a
@@ -60,7 +63,7 @@ func (r *AdminReturn) PayoutStranded() bool {
 
 // AwaitingGoods reports whether an approved parcel is still unaccounted for.
 func (r *AdminReturn) AwaitingGoods() bool {
-	if r.Status != "approved" {
+	if r.Status != "approved" || r.BeforeShipment {
 		return false
 	}
 	for i := range r.Lines {
@@ -73,7 +76,7 @@ func (r *AdminReturn) AwaitingGoods() bool {
 
 // CanComplete reports whether every line has been inspected.
 func (r *AdminReturn) CanComplete() bool {
-	if r.Status != "approved" || len(r.Lines) == 0 {
+	if r.Status != "approved" || len(r.Lines) == 0 || r.BeforeShipment {
 		return false
 	}
 	for i := range r.Lines {
@@ -168,6 +171,9 @@ func (r *AdminReturn) UnitsText() string { return strconv.FormatInt(int64(r.Unit
 
 // Action is where a decision on this return posts.
 func (r *AdminReturn) Action() string { return "/admin/returns/" + r.ID + "/decide" }
+
+// OrderAction is the order page, where a refund before shipment resumes.
+func (r *AdminReturn) OrderAction() string { return "/admin/orders/" + r.OrderNumber }
 
 // AssessAction is where a pre-decision eligibility assessment posts.
 func (r *AdminReturn) AssessAction() string { return "/admin/returns/" + r.ID + "/assess" }
@@ -313,3 +319,34 @@ func (v AdminReturnConfirmation) Amount() string { return twd(v.AmountCents) }
 
 // Action returns to the same decision handler for final validation.
 func (v AdminReturnConfirmation) Action() string { return "/admin/returns/" + v.ID + "/decide" }
+
+// AdminRefundConfirmation is a refund before shipment, before it moves money.
+// Resume means the refund is already open, its split frozen and its reason
+// recorded.
+type AdminRefundConfirmation struct {
+	OrderNumber   string
+	TotalCents    int64
+	CardCents     int64
+	CreditCents   int64
+	Resume        bool
+	Reason        string
+	ReasonInvalid bool
+}
+
+// Amount is what the refund pays back in all.
+func (v AdminRefundConfirmation) Amount() string { return twd(v.TotalCents) }
+
+// Total is the amount the confirming POST repeats; a different figure is a
+// refund the staff member was not shown.
+func (v AdminRefundConfirmation) Total() string { return strconv.FormatInt(v.TotalCents, 10) }
+
+// Channel names the card and store-credit halves.
+func (v AdminRefundConfirmation) Channel(ctx context.Context) string {
+	return (&AdminReturn{CardRefundCents: v.CardCents, CreditRefundCents: v.CreditCents}).PayoutChannel(ctx)
+}
+
+// Action is the refund handler, which confirms before it pays.
+func (v AdminRefundConfirmation) Action() string { return "/admin/orders/" + v.OrderNumber + "/refund" }
+
+// Back is the order the refund belongs to.
+func (v AdminRefundConfirmation) Back() string { return "/admin/orders/" + v.OrderNumber }

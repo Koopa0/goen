@@ -3123,11 +3123,7 @@ func TestATierIsDerivedFromSpendAndNotStored(t *testing.T) {
 		t.Errorf("the tier earns %d bp, want more than the base rate", after.Standing.MultiplierBP)
 	}
 
-	if _, cancelErr := pool.Exec(ctx,
-		`UPDATE orders SET fulfillment_status = 'cancelled', cancelled_at = now()
-		 WHERE id = $1`, orderID); cancelErr != nil {
-		t.Fatalf("cancel: %v", cancelErr)
-	}
+	refundAndCancel(t, orderID)
 	gone, err := s.Overview(ctx, u)
 	if err != nil {
 		t.Fatalf("read the account after cancelling: %v", err)
@@ -3135,6 +3131,40 @@ func TestATierIsDerivedFromSpendAndNotStored(t *testing.T) {
 	if gone.Standing.HasTier() || gone.Standing.SpendCents != 0 {
 		t.Errorf("a cancelled order still counts: tier %q, spend %d",
 			gone.Standing.TierName, gone.Standing.SpendCents)
+	}
+}
+
+// refundAndCancel cancels a paid order the one way the schema admits: a full
+// refund before shipment whose card refund has settled.
+func refundAndCancel(t *testing.T, orderID uuid.UUID) {
+	t.Helper()
+	ctx := t.Context()
+	var staff, returnID uuid.UUID
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO users (email, role)
+		VALUES ('refund-' || gen_random_uuid() || '@goen.invalid', 'staff') RETURNING id`).Scan(&staff); err != nil {
+		t.Fatalf("create staff: %v", err)
+	}
+	if err := pool.QueryRow(ctx, `
+		SELECT open_refund_before_shipment(order_number, 'test', $2, 'test')
+		FROM orders WHERE id = $1`, orderID, staff).Scan(&returnID); err != nil {
+		t.Fatalf("refund before shipment: %v", err)
+	}
+	for _, stmt := range []string{
+		`INSERT INTO refunds (payment_id, return_request_id, request_key, status, amount_cents,
+		                      reason, provider_ref, succeeded_at)
+		 SELECT p.id, r.id, 'return:' || r.id, 'succeeded', r.card_refund_cents,
+		        r.resolution, 're_' || r.id, now()
+		 FROM return_requests r JOIN payments p ON p.order_id = r.order_id AND p.status = 'succeeded'
+		 WHERE r.id = $1`,
+		`INSERT INTO order_events (order_id, kind, return_request_id)
+		 SELECT order_id, 'refunded', id FROM return_requests WHERE id = $1`,
+		`UPDATE orders SET fulfillment_status = 'cancelled', cancelled_at = now()
+		 WHERE id = (SELECT order_id FROM return_requests WHERE id = $1)`,
+	} {
+		if _, err := pool.Exec(ctx, stmt, returnID); err != nil {
+			t.Fatalf("settle the refund and cancel: %v", err)
+		}
 	}
 }
 
