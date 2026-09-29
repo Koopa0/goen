@@ -533,6 +533,7 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 											<p class="ui-error-text" id="invoice_tax_id-error">{ v.Err("invoice_tax_id") }</p>
 										}
 									</div>
+									<p class="goen-checkout__note">{ i18n.T(ctx, i18n.KeyInvoiceCompanyStored) }</p>
 								}
 							</div>
 							if v.HasErr("invoice_type") {

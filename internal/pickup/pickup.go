@@ -26,7 +26,8 @@ var offered = [...]Brand{
 	OKMart,
 }
 
-// Offered returns the brands checkout supports, in display order. The result
+// Offered returns every brand an order can carry, in display order: the back
+// office renders and corrects orders placed at chains checkout no longer takes. The result
 // owns its storage, so a caller cannot mutate the canonical closed set.
 func Offered() []Brand { return slices.Clone(offered[:]) }
 

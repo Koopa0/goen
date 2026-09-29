@@ -159,7 +159,8 @@ const CART = [
   // choose rather than a street address — so a layout row for the default
   // method measures only half the page. PICKUP_SHIP is the version id the
   // Makefile reads from the database, and the marker insists the chain
-  // chooser is there.
+  // chooser is there. Checkout offers 超商取貨 only where the store map is
+  // configured, so the server under test must have GOEN_ECPAY_LOGISTICS set.
   { label: 'pickup 375', width: 375, height: 812, path: '/checkout?ship=PICKUP_SHIP', marker: 'input[name=pickup_brand]' },
   { label: 'pickup 1440', width: 1440, height: 900, path: '/checkout?ship=PICKUP_SHIP', marker: 'input[name=pickup_brand]' },
   // The payment page. PLACED_ORDER is the NUMBER of the order the Makefile just

@@ -9814,19 +9814,36 @@ func (q *Queries) RefundExecution(ctx context.Context, refundID uuid.UUID) (Refu
 const registerWarranty = `-- name: RegisterWarranty :execrows
 INSERT INTO warranty_registrations (order_line_id, unit_no, user_id, serial_number, expires_on)
 SELECT ol.id, $1::smallint, $2, nullif($3::text, ''),
-       (shop_day(delivered.at) + make_interval(months => ol.warranty_months))::date
+       (shop_day(parcel.delivered_at) + make_interval(months => ol.warranty_months))::date
 FROM order_lines ol
 JOIN orders o ON o.id = ol.order_id
 JOIN LATERAL (
-    SELECT min(s.delivered_at) AS at, sum(sl.quantity) AS units
-    FROM order_shipment_lines sl
-    JOIN order_shipments s ON s.id = sl.shipment_id
-    WHERE sl.order_line_id = ol.id AND s.delivered_at IS NOT NULL
-) delivered ON delivered.at IS NOT NULL
+    SELECT p.delivered_at
+    FROM (
+        SELECT s.delivered_at, sl.quantity,
+               sum(sl.quantity) OVER (ORDER BY s.shipped_at, s.id) - sl.quantity AS units_before
+        FROM order_shipment_lines sl
+        JOIN order_shipments s ON s.id = sl.shipment_id
+        WHERE sl.order_line_id = ol.id
+    ) p
+    WHERE $1::smallint > p.units_before
+      AND $1::smallint <= p.units_before + p.quantity
+      AND p.delivered_at IS NOT NULL
+) parcel ON true
 WHERE ol.id = $4
   AND o.user_id = $2
   AND ol.warranty_months IS NOT NULL
-  AND $1::smallint <= delivered.units
+  AND $1::smallint <= (
+      SELECT coalesce(sum(sl.quantity), 0)
+      FROM order_shipment_lines sl
+      JOIN order_shipments s ON s.id = sl.shipment_id
+      WHERE sl.order_line_id = ol.id AND s.delivered_at IS NOT NULL
+  ) - (
+      SELECT coalesce(sum(rl.quantity), 0)
+      FROM return_request_lines rl
+      JOIN return_requests rr ON rr.id = rl.return_request_id
+      WHERE rl.order_line_id = ol.id AND rr.status IN ('approved', 'completed')
+  )
 `
 
 type RegisterWarrantyParams struct {
@@ -9837,9 +9854,10 @@ type RegisterWarrantyParams struct {
 }
 
 // Register one unit. expires_on is computed here from the delivery date and the
-// promise copied onto the order, never from today's mutable catalogue. min()
-// across the parcels runs a split line from the shop's calendar day on which
-// the first box arrived.
+// promise copied onto the order, never from today's mutable catalogue. Unit n
+// is the n-th unit of the line counted across its parcels in shipment order, and
+// its cover starts on the day THAT parcel arrived: a later box does not inherit
+// the first box's earlier date. An approved return takes units off the count.
 func (q *Queries) RegisterWarranty(ctx context.Context, arg RegisterWarrantyParams) (int64, error) {
 	result, err := q.db.Exec(ctx, registerWarranty,
 		arg.UnitNo,
@@ -9861,7 +9879,8 @@ SELECT
     p.slug AS product_slug,
     ol.warranty_months,
     coalesce(ol.warranty_note, '') AS warranty_note,
-    coalesce(delivered.units, 0)::integer AS delivered_units,
+    greatest(coalesce(delivered.units, 0) - coalesce(returned.units, 0), 0)::integer AS delivered_units,
+    coalesce(returned.units, 0)::integer AS returned_units,
     coalesce(registered.units, 0)::integer AS registered_units
 FROM order_lines ol
 JOIN orders o ON o.id = ol.order_id
@@ -9874,6 +9893,12 @@ LEFT JOIN LATERAL (
     JOIN order_shipments s ON s.id = sl.shipment_id
     WHERE sl.order_line_id = ol.id AND s.delivered_at IS NOT NULL
 ) delivered ON true
+LEFT JOIN LATERAL (
+    SELECT sum(rl.quantity) AS units
+    FROM return_request_lines rl
+    JOIN return_requests rr ON rr.id = rl.return_request_id
+    WHERE rl.order_line_id = ol.id AND rr.status IN ('approved', 'completed')
+) returned ON true
 LEFT JOIN LATERAL (
     SELECT count(*) AS units
     FROM warranty_registrations w WHERE w.order_line_id = ol.id
@@ -9896,12 +9921,15 @@ type RegistrableLinesRow struct {
 	WarrantyMonths  pgtype.Int4
 	WarrantyNote    string
 	DeliveredUnits  int32
+	ReturnedUnits   int32
 	RegisteredUnits int32
 }
 
 // What a customer may still register, bounded by delivered_at and never by
 // shipped_at: cover counted from dispatch is one to three days short, all of
-// them off the customer. Ownership is in the query, so it cannot be skipped.
+// them off the customer. A unit in an approved return can no longer start cover,
+// so registrable units are the delivered ones less the returned ones. Ownership
+// is in the query, so it cannot be skipped.
 func (q *Queries) RegistrableLines(ctx context.Context, arg RegistrableLinesParams) ([]RegistrableLinesRow, error) {
 	rows, err := q.db.Query(ctx, registrableLines, arg.OrderNumber, arg.UserID)
 	if err != nil {
@@ -9919,6 +9947,7 @@ func (q *Queries) RegistrableLines(ctx context.Context, arg RegistrableLinesPara
 			&i.WarrantyMonths,
 			&i.WarrantyNote,
 			&i.DeliveredUnits,
+			&i.ReturnedUnits,
 			&i.RegisteredUnits,
 		); err != nil {
 			return nil, err
@@ -11521,6 +11550,26 @@ func (q *Queries) SearchProductsCount(ctx context.Context, pattern string) (int6
 	return column_1, err
 }
 
+const sessionCreatedSince = `-- name: SessionCreatedSince :one
+SELECT s.created_at > now() - $1::interval AS recent
+FROM sessions s
+WHERE s.token_hash = $2 AND s.expires_at > now()
+`
+
+type SessionCreatedSinceParams struct {
+	MaxAge    pgtype.Interval
+	TokenHash []byte
+}
+
+// Recency is measured on the database's clock, the one that stamped created_at
+// and that the expiry check above reads. A missing or expired session is not recent.
+func (q *Queries) SessionCreatedSince(ctx context.Context, arg SessionCreatedSinceParams) (bool, error) {
+	row := q.db.QueryRow(ctx, sessionCreatedSince, arg.MaxAge, arg.TokenHash)
+	var recent bool
+	err := row.Scan(&recent)
+	return recent, err
+}
+
 const sessionTOTPVerified = `-- name: SessionTOTPVerified :one
 SELECT (s.totp_verified_at IS NOT NULL
         AND s.totp_verified_at > now() - $2::interval)::boolean AS verified
@@ -12720,11 +12769,26 @@ WHERE delivered_at IS NOT NULL
   AND delivered_at < now() - $1::interval
 `
 
-// DELIVERED only, and keyed on delivered_at: a message that exhausted its
-// attempts is kept so /admin/health lists it, and available_at moves forward on
-// every claim, so keying on that would delete unsent mail.
+// Keyed on delivered_at, not available_at, which moves forward on every claim.
 func (q *Queries) SweepDeliveredMessages(ctx context.Context, retain pgtype.Interval) (int64, error) {
 	result, err := q.db.Exec(ctx, sweepDeliveredMessages, retain)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const sweepUndeliveredMessages = `-- name: SweepUndeliveredMessages :execrows
+DELETE FROM outbox_messages
+WHERE delivered_at IS NULL
+  AND created_at < now() - $1::interval
+`
+
+// An undelivered message past the same window goes too: its payload can carry a
+// token that nothing will ever mail, and it may not outlive that token. Keyed on
+// created_at because available_at moves on every claim.
+func (q *Queries) SweepUndeliveredMessages(ctx context.Context, retain pgtype.Interval) (int64, error) {
+	result, err := q.db.Exec(ctx, sweepUndeliveredMessages, retain)
 	if err != nil {
 		return 0, err
 	}
