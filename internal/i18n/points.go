@@ -89,6 +89,12 @@ var (
 		En:     "That redemption form expired. Submit it again.",
 	})
 
+	KeyPointsReturnUnsettled = key("points.notice.returnunsettled", Message{
+		ZhHant: "您有一筆已核准的退貨還在退款中,退款完成後才能兌換點數,因為該筆退貨會扣回對應的點數。",
+		En: "A return you were approved for is still being refunded. You can redeem points once " +
+			"the refund is paid, because that return takes back the points it earned.",
+	})
+
 	KeyPointsShort = key("points.notice.short", Message{
 		ZhHant: "點數不夠 —— 可能剛剛有一筆到期了。",
 		En:     "Not enough points — some may have just expired.",
