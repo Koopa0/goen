@@ -11508,3 +11508,25 @@ func creditCustomerID(t *testing.T, email string) uuid.UUID {
 	}
 	return id
 }
+
+func TestAPickupOrderDispatchNoticeIsMarkedAsPickup(t *testing.T) {
+	ctx := t.Context()
+	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	number := pickupOrderForCorrection(t)
+	var orderID uuid.UUID
+	if err := pool.QueryRow(ctx, `SELECT id FROM orders WHERE order_number = $1`, number).Scan(&orderID); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.EnqueueShippedNotice(ctx, orderID, "綠界", "PICKUP-"+number); err != nil {
+		t.Fatalf("enqueue: %v", err)
+	}
+	var pickup bool
+	if err := pool.QueryRow(ctx, `
+		SELECT (payload->>'pickup')::boolean FROM outbox_messages
+		WHERE topic = 'order.shipped' AND payload->>'tracking' = $1`, "PICKUP-"+number).Scan(&pickup); err != nil {
+		t.Fatalf("read notice: %v", err)
+	}
+	if !pickup {
+		t.Error("a convenience-store order's dispatch notice is not marked as pickup, so it reads as a home delivery")
+	}
+}
