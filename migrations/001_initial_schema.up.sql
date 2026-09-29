@@ -3910,6 +3910,9 @@ CREATE TABLE outbox_messages (
     -- receipt and password reset written after it.
     priority     smallint NOT NULL DEFAULT 0,
     available_at timestamptz NOT NULL DEFAULT now(),
+    -- available_at moves on every claim, so it cannot say how old a message is;
+    -- the retention sweep needs that for one that was never delivered.
+    created_at   timestamptz NOT NULL DEFAULT now(),
     delivered_at timestamptz,
     attempts     integer NOT NULL DEFAULT 0,
     last_error   text,
@@ -8484,6 +8487,19 @@ REVOKE INSERT, UPDATE, DELETE ON
     order_shipments, order_shipment_lines, invoice_documents, invoice_operations,
     invoice_document_lines
     FROM store;
+REVOKE DELETE ON product_questions, product_reviews FROM store;
+REVOKE UPDATE ON wishlist_items FROM store;
+REVOKE DELETE ON
+    products, product_variants, product_options, product_option_values,
+    variant_option_values, product_reviews, product_questions, product_answers,
+    coupons, hero_slides, promo_banners, sale_campaigns, shipping_methods
+    FROM admin;
+REVOKE UPDATE ON
+    product_images, product_specs, product_options, product_option_values,
+    variant_option_values, membership_tiers, sale_campaign_products,
+    order_shipment_lines
+    FROM admin;
+REVOKE UPDATE, DELETE ON outbox_messages FROM admin;
 
 -- user_identities is the STOREFRONT's. INSERT and DELETE only: linking and
 -- unlinking are the two things that happen to a link, and an UPDATE would repoint

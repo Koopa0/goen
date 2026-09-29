@@ -40,6 +40,13 @@ FROM sessions s
 JOIN users u ON u.id = s.user_id
 WHERE s.token_hash = $1 AND s.expires_at > now();
 
+-- Recency is measured on the database's clock, the one that stamped created_at
+-- and that the expiry check above reads. A missing or expired session is not recent.
+-- name: SessionCreatedSince :one
+SELECT s.created_at > now() - @max_age::interval AS recent
+FROM sessions s
+WHERE s.token_hash = @token_hash AND s.expires_at > now();
+
 -- The expiry is computed from the DATABASE's clock, which is what every read
 -- and retention sweep compares it with.
 -- name: CreateSession :exec

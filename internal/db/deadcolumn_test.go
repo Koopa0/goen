@@ -30,7 +30,6 @@ func TestEveryColumnIsReadOrWritten(t *testing.T) {
 		"product_variants.created_at":    "a row-birth timestamp its own DEFAULT writes; no query shows it",
 		"products.created_at":            "a row-birth timestamp its own DEFAULT writes; no query shows it",
 		"sale_campaigns.created_at":      "a row-birth timestamp its own DEFAULT writes; no query shows it",
-		"sessions.created_at":            "a row-birth timestamp its own DEFAULT writes; no query shows it",
 		"shipping_methods.created_at":    "a row-birth timestamp its own DEFAULT writes; no query shows it",
 		"stock_notifications.created_at": "a row-birth timestamp its own DEFAULT writes; no query shows it",
 	}
