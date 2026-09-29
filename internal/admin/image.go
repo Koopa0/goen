@@ -130,8 +130,8 @@ func (s *Store) DetachImage(ctx context.Context, slug, digest string) error {
 }
 
 // ImageMove is where an image goes in a product's order. The first image is the
-// cover: every card and /compare show it, and the product page and the cart do
-// unless a photograph of the chosen option value comes first.
+// cover: every card and /compare show it. The product page leads with the chosen
+// option value's photographs and then untagged ones, and the cart with the line's.
 type ImageMove string
 
 // The moves the image list offers.
@@ -152,7 +152,7 @@ func (s *Store) MoveImage(ctx context.Context, slug, digest string, move ImageMo
 	},
 		func(ctx context.Context, q *db.Queries) error {
 			// The product's catalogue lock, the one variant creation takes: it
-			// serialises every writer of this product's image positions.
+			// serialises the writers that assign positions, attach and move.
 			if _, err := q.LockProductCatalogue(ctx, slug); err != nil {
 				if errors.Is(err, pgx.ErrNoRows) {
 					return ErrNotFound

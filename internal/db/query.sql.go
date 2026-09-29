@@ -8261,29 +8261,6 @@ func (q *Queries) OrderLinesForPayment(ctx context.Context, orderID uuid.UUID) (
 	return items, nil
 }
 
-const orderMayHaveTakenMoney = `-- name: OrderMayHaveTakenMoney :one
-SELECT EXISTS (
-    SELECT 1 FROM payments p
-    WHERE p.order_id = $1
-      AND (p.status IN ('requires_reconciliation', 'reconciled')
-           OR EXISTS (
-               SELECT 1 FROM payment_webhook_events e
-               WHERE e.provider = p.provider AND e.object_ref = p.provider_ref
-                 AND e.unreconciled IS NOT NULL
-           ))
-)::boolean AS may_have_taken_money
-`
-
-// Money may have reached Stripe for this unpaid order: a provider-complete
-// session, its resolution, or a provider event that needed a person. Staff
-// refund such money, so a cancellation notice must not say nothing was charged.
-func (q *Queries) OrderMayHaveTakenMoney(ctx context.Context, orderID uuid.UUID) (bool, error) {
-	row := q.db.QueryRow(ctx, orderMayHaveTakenMoney, orderID)
-	var may_have_taken_money bool
-	err := row.Scan(&may_have_taken_money)
-	return may_have_taken_money, err
-}
-
 const orderNumberByID = `-- name: OrderNumberByID :one
 SELECT order_number FROM orders WHERE id = $1
 `
@@ -8294,6 +8271,34 @@ func (q *Queries) OrderNumberByID(ctx context.Context, id uuid.UUID) (string, er
 	var order_number string
 	err := row.Scan(&order_number)
 	return order_number, err
+}
+
+const orderPaymentFacts = `-- name: OrderPaymentFacts :one
+SELECT ARRAY(
+           SELECT DISTINCT p.status FROM payments p WHERE p.order_id = $1 ORDER BY p.status
+       )::text[] AS statuses,
+       EXISTS (
+           SELECT 1
+           FROM payments p
+           JOIN payment_webhook_events e
+             ON e.provider = p.provider AND e.object_ref = p.provider_ref
+           WHERE p.order_id = $1 AND e.unreconciled IS NOT NULL
+       )::boolean AS provider_flagged
+`
+
+type OrderPaymentFactsRow struct {
+	Statuses        []string
+	ProviderFlagged bool
+}
+
+// What a cancellation notice needs to decide whether money may have reached
+// Stripe for this unpaid order: the status of every payment it has had, and
+// whether any of their provider events ever needed a person.
+func (q *Queries) OrderPaymentFacts(ctx context.Context, orderID uuid.UUID) (OrderPaymentFactsRow, error) {
+	row := q.db.QueryRow(ctx, orderPaymentFacts, orderID)
+	var i OrderPaymentFactsRow
+	err := row.Scan(&i.Statuses, &i.ProviderFlagged)
+	return i, err
 }
 
 const orderReceiptAmount = `-- name: OrderReceiptAmount :one
