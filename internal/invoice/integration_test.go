@@ -1368,10 +1368,6 @@ func TestOfferedPreferencesMatchTheDatabaseClosedSet(t *testing.T) {
 				value := "/AB12345"
 				carrierCode = &value
 			}
-			if preference == PreferenceCitizen {
-				value := "AB12345678901234"
-				carrierCode = &value
-			}
 			if preference == PreferenceDonate {
 				value := "00123"
 				donationCode = &value
@@ -3791,9 +3787,8 @@ func orderToInvoiceFor(
 	}
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO invoice_preferences
-		    (order_id, invoice_type, tax_id, customer_name, customer_email, carrier_code, donation_code)
+		    (order_id, invoice_type, tax_id, customer_name, customer_email, donation_code)
 		VALUES ($1, $2, nullif($3, ''), $4, 'issue@goen.invalid',
-		        CASE WHEN $2='citizen_carrier' THEN 'AB12345678901234' END,
 		        CASE WHEN $2='donation' THEN '00123' END)`,
 		orderID, string(preference), taxID, buyerName); err != nil {
 		t.Fatalf("record the 發票 preference: %v", err)

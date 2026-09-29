@@ -714,29 +714,5 @@ func (v *CheckoutView) HasCoupon() bool {
 // CouponDiscount is what it takes off, as a negative figure.
 func (v *CheckoutView) CouponDiscount() string { return "-" + twd(v.CouponDiscountCents) }
 
-// NeedsDonationCode keeps donation details off carrier invoices.
+// NeedsDonationCode reports whether the donation code field belongs on the form.
 func (i CheckoutInvoice) NeedsDonationCode() bool { return i.Chosen() == invoice.PreferenceDonate }
-
-// CarrierLabel distinguishes the two incompatible barcode formats.
-func (i CheckoutInvoice) CarrierLabel(ctx context.Context) string {
-	if i.Chosen() == invoice.PreferenceCitizen {
-		return i18n.T(ctx, i18n.KeyInvoiceCitizen)
-	}
-	return i18n.T(ctx, i18n.KeyFieldCarrier)
-}
-
-// CarrierLimit admits the complete barcode for the chosen carrier.
-func (i CheckoutInvoice) CarrierLimit() string {
-	if i.Chosen() == invoice.PreferenceCitizen {
-		return "16"
-	}
-	return "8"
-}
-
-// CarrierExample shows the selected provider format without filling a value.
-func (i CheckoutInvoice) CarrierExample() string {
-	if i.Chosen() == invoice.PreferenceCitizen {
-		return "AB12345678901234"
-	}
-	return "/ABC+123"
-}

@@ -320,8 +320,6 @@ func (v *AdminOrderView) InvoiceText(ctx context.Context) string {
 		return i18n.T(ctx, i18n.KeyAdminCarrierMember)
 	case invoice.PreferenceMobile:
 		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminCarrierMobile), v.InvoiceCarrier)
-	case invoice.PreferenceCitizen:
-		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminCarrierCitizen), v.InvoiceCarrier)
 	case invoice.PreferenceDonate:
 		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminInvoiceDonate), v.InvoiceDonationCode)
 	case invoice.PreferenceCompany:

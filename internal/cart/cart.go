@@ -809,8 +809,9 @@ type Invoice struct {
 	// Type is the stable wire preference matching
 	// invoice_preferences_type_known.
 	Type invoicepkg.Preference
-	// Carrier retains the barcode for the selected mobile or citizen carrier.
-	Carrier      string
+	// Carrier is the mobile-barcode invoice carrier, for mobile_carrier only.
+	Carrier string
+	// DonationCode is the recipient's 愛心碼, for donation only.
 	DonationCode string
 	// CompanyName is the registered buyer name corresponding to TaxID. It is
 	// deliberately separate from the delivery recipient.
@@ -847,11 +848,6 @@ func (i *Invoice) Validate() []account.FieldError {
 			})
 		}
 		i.CompanyName, i.TaxID = "", ""
-	case invoicepkg.PreferenceCitizen:
-		if !invoicepkg.ValidCitizenCarrier(i.Carrier) {
-			errs = append(errs, account.FieldError{Field: "invoice_carrier", MessageKey: i18n.KeyCitizenCarrierMalformed})
-		}
-		i.CompanyName, i.TaxID = "", ""
 	case invoicepkg.PreferenceDonate:
 		if !invoicepkg.ValidDonationCode(i.DonationCode) {
 			errs = append(errs, account.FieldError{Field: "invoice_donation_code", MessageKey: i18n.KeyDonationCodeMalformed})
@@ -884,8 +880,6 @@ func invoiceTypeLabelKey(t invoicepkg.Preference) i18n.Key {
 		return i18n.KeyInvoiceMember
 	case invoicepkg.PreferenceMobile:
 		return i18n.KeyInvoiceMobile
-	case invoicepkg.PreferenceCitizen:
-		return i18n.KeyInvoiceCitizen
 	case invoicepkg.PreferenceDonate:
 		return i18n.KeyInvoiceDonate
 	case invoicepkg.PreferenceCompany:

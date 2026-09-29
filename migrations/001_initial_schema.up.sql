@@ -3011,17 +3011,15 @@ CREATE TABLE invoice_preferences (
     customer_name  text NOT NULL,
     customer_email text NOT NULL,
     CONSTRAINT invoice_preferences_type_known
-        CHECK (invoice_type IN ('mobile_carrier', 'member_carrier', 'company', 'citizen_carrier', 'donation')),
+        CHECK (invoice_type IN ('mobile_carrier', 'member_carrier', 'company', 'donation')),
     CONSTRAINT invoice_preferences_company_tax_id_shape
         CHECK ((invoice_type = 'company') = (tax_id IS NOT NULL)),
     CONSTRAINT invoice_preferences_company_has_tax_id
         CHECK (tax_id IS NULL OR valid_business_tax_id(tax_id)),
     CONSTRAINT invoice_preferences_mobile_carrier_shape
-        CHECK ((invoice_type IN ('mobile_carrier', 'citizen_carrier')) = (carrier_code IS NOT NULL)),
+        CHECK ((invoice_type = 'mobile_carrier') = (carrier_code IS NOT NULL)),
     CONSTRAINT invoice_preferences_mobile_has_carrier
-        CHECK (invoice_type <> 'mobile_carrier' OR carrier_code ~ '^/[0-9A-Z+\-.]{7}$'),
-    CONSTRAINT invoice_preferences_citizen_carrier_shape
-        CHECK (invoice_type <> 'citizen_carrier' OR carrier_code ~ '^[A-Z]{2}[0-9]{14}$'),
+        CHECK (carrier_code IS NULL OR carrier_code ~ '^/[0-9A-Z+\-.]{7}$'),
     CONSTRAINT invoice_preferences_donation_code_shape
         CHECK ((invoice_type = 'donation') = (donation_code IS NOT NULL)),
     CONSTRAINT invoice_preferences_donation_code_valid

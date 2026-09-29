@@ -449,15 +449,15 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 								if v.Invoice.NeedsCarrier() {
 									<div class="goen-field">
 										@components.Label(components.LabelProps{For: "invoice_carrier"}) {
-											{ v.Invoice.CarrierLabel(ctx) }
+											{ i18n.T(ctx, i18n.KeyFieldCarrier) }
 										}
 										<input
 											class="goen-input"
 											id="invoice_carrier"
 											name="invoice_carrier"
-											maxlength={ v.Invoice.CarrierLimit() }
+											maxlength="8"
 											autocomplete="off"
-											placeholder={ v.Invoice.CarrierExample() }
+											placeholder="/ABC+123"
 											value={ v.Invoice.Carrier }
 											aria-invalid={ v.Invalid("invoice_carrier") }
 											if v.HasErr("invoice_carrier") {

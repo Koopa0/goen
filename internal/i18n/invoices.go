@@ -148,6 +148,11 @@ var (
 		En:     "Mobile barcode carrier %s",
 	})
 
+	KeyAdminInvoiceDonate = key("admin.invoice.donate", Message{
+		ZhHant: "捐贈發票,愛心碼 %s",
+		En:     "Donated invoice, donation code %s",
+	})
+
 	KeyAdminCarrierTaxID = key("admin.carrier.taxid", Message{
 		ZhHant: "公司統編 %s",
 		En:     "Company tax number %s",

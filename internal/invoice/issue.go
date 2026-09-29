@@ -63,9 +63,6 @@ func (g *Gateway) Issue(ctx context.Context, in IssueRequest) (Document, error) 
 	case PreferenceDonate:
 		req.Donation = "1"
 		req.LoveCode = in.DonationCode
-	case PreferenceCitizen:
-		req.CarrierT = CarrierCitizen
-		req.CarrierNum = in.CarrierCode
 	case PreferenceMobile:
 		req.CarrierT = CarrierMobile
 		req.CarrierNum = in.CarrierCode
@@ -165,13 +162,14 @@ func (r IssueRequest) validatePreference() error {
 			return fmt.Errorf("%w: a 手機條碼載具 is a slash and seven characters, got %q",
 				ErrRejected, r.CarrierCode)
 		}
-	case PreferenceCitizen:
-		if !ValidCitizenCarrier(r.CarrierCode) {
-			return fmt.Errorf("%w: invalid citizen certificate carrier", ErrRejected)
-		}
 	case PreferenceDonate:
-		if !ValidDonationCode(r.DonationCode) || r.TaxID != "" || r.CarrierCode != "" {
-			return fmt.Errorf("%w: invalid donation invoice preference", ErrRejected)
+		if !ValidDonationCode(r.DonationCode) {
+			return fmt.Errorf("%w: a donation code is three to seven digits, got %q",
+				ErrRejected, r.DonationCode)
+		}
+		if r.TaxID != "" || r.CarrierCode != "" {
+			return fmt.Errorf("%w: a donation invoice takes neither a tax ID nor a carrier",
+				ErrRejected)
 		}
 	case PreferenceMember:
 	}

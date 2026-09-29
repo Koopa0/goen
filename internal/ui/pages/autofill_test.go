@@ -39,11 +39,12 @@ func TestEveryCheckoutFieldTellsTheBrowserWhatItIs(t *testing.T) {
 		"addr-street":          "street-address",
 	}
 	offBecause := map[string]string{
-		"coupon":          "a promotion code is not the customer's own data; a browser offering the last one is offering somebody else's",
-		"invoice_carrier": "a mobile carrier barcode is not an autofill category",
-		"invoice_tax_id":  "no WHATWG token names a Taiwan tax ID",
-		"note":            "a free-text delivery note; filling a stored address here would be wrong",
-		"addr-label":      "the customer's own nickname for the row",
+		"coupon":                "a promotion code is not the customer's own data; a browser offering the last one is offering somebody else's",
+		"invoice_carrier":       "a mobile carrier barcode is not an autofill category",
+		"invoice_tax_id":        "no WHATWG token names a Taiwan tax ID",
+		"invoice_donation_code": "a recipient's donation code is not an autofill category",
+		"note":                  "a free-text delivery note; filling a stored address here would be wrong",
+		"addr-label":            "the customer's own nickname for the row",
 	}
 
 	controls := renderedAutofillControls(t)
@@ -88,6 +89,7 @@ func renderedAutofillControls(t *testing.T) map[string]map[string]string {
 		{name: "address", component: Checkout(CheckoutMeta(ctx), &CheckoutView{}), action: "/checkout", checkout: true},
 		{name: "pickup", component: Checkout(CheckoutMeta(ctx), &CheckoutView{Destination: "pickup_point"}), action: "/checkout", checkout: true},
 		{name: "mobile carrier", component: Checkout(CheckoutMeta(ctx), &CheckoutView{Invoice: CheckoutInvoice{Type: "mobile_carrier"}}), action: "/checkout", checkout: true},
+		{name: "donation invoice", component: Checkout(CheckoutMeta(ctx), &CheckoutView{Invoice: CheckoutInvoice{Type: "donation"}}), action: "/checkout", checkout: true},
 		{name: "company invoice", component: Checkout(CheckoutMeta(ctx), &CheckoutView{Invoice: CheckoutInvoice{Type: "company"}}), action: "/checkout", checkout: true},
 		{name: "address book", component: Account(AccountMeta(ctx), &AccountView{}), action: "/account/addresses"},
 	}

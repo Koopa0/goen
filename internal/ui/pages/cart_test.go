@@ -725,7 +725,7 @@ func TestTheCheckoutSummaryNamesTheVariant(t *testing.T) {
 }
 
 // TestTheInvoiceFormAsksForOneThing holds which half of the form exists.
-// 會員載具, 手機條碼載具 and 公司統編 need different information, and Validate()
+// 會員載具, 手機條碼載具, 捐贈 and 公司統編 need different information, and Validate()
 // blanks the field that does not apply, so rendering both would leave the form
 // promising something the server will not demand.
 func TestTheInvoiceFormAsksForOneThing(t *testing.T) {
@@ -736,11 +736,13 @@ func TestTheInvoiceFormAsksForOneThing(t *testing.T) {
 		name            string
 		kind            invoice.Preference
 		wantCarrier     bool
+		wantDonation    bool
 		wantCompanyName bool
 		wantTaxID       bool
 	}{
 		{name: "the default keeps neither", kind: "", wantCarrier: false, wantTaxID: false},
 		{name: "a mobile barcode needs the carrier", kind: "mobile_carrier", wantCarrier: true},
+		{name: "a donation needs the donation code and nothing else", kind: "donation", wantDonation: true},
 		{name: "a company invoice needs its registered buyer", kind: "company", wantCompanyName: true, wantTaxID: true},
 	}
 	for _, tt := range tests {
@@ -755,6 +757,9 @@ func TestTheInvoiceFormAsksForOneThing(t *testing.T) {
 			html := renderToString(t, Checkout(CheckoutMeta(ctx), &view))
 			if got := strings.Contains(html, `id="invoice_carrier"`); got != tt.wantCarrier {
 				t.Errorf("invoice=%q renders the carrier field = %v, want %v", tt.kind, got, tt.wantCarrier)
+			}
+			if got := strings.Contains(html, `id="invoice_donation_code"`); got != tt.wantDonation {
+				t.Errorf("invoice=%q renders the donation code field = %v, want %v", tt.kind, got, tt.wantDonation)
 			}
 			if got := strings.Contains(html, `id="invoice_tax_id"`); got != tt.wantTaxID {
 				t.Errorf("invoice=%q renders the 統編 field = %v, want %v", tt.kind, got, tt.wantTaxID)

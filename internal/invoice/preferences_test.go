@@ -9,13 +9,12 @@ import (
 	"testing"
 )
 
-func TestNewInvoicePreferencesReachTheProviderUnchanged(t *testing.T) {
+func TestDonationPreferenceReachesTheProviderAsALoveCode(t *testing.T) {
 	for _, tt := range []struct {
 		name                                         string
 		preference                                   Preference
 		carrier, donation, wireCarrier, wireDonation string
 	}{
-		{"citizen", PreferenceCitizen, "AB12345678901234", "", "2", "0"},
 		{"donation", PreferenceDonate, "", "00123", "", "1"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -62,16 +61,12 @@ func TestNewInvoicePreferencesReachTheProviderUnchanged(t *testing.T) {
 	}
 }
 
-func TestNewInvoicePreferencesRefuseMalformedProviderRequests(t *testing.T) {
+func TestDonationPreferenceRefusesMalformedProviderRequests(t *testing.T) {
 	for _, tt := range []struct {
 		name                     string
 		preference               Preference
 		carrier, donation, taxID string
 	}{
-		{"short citizen", PreferenceCitizen, "AB1234567890123", "", ""},
-		{"lowercase citizen", PreferenceCitizen, "ab12345678901234", "", ""},
-		{"long citizen", PreferenceCitizen, "AB123456789012345", "", ""},
-		{"mobile is not citizen", PreferenceCitizen, "/ABC+123", "", ""},
 		{"missing donation", PreferenceDonate, "", "", ""},
 		{"short donation", PreferenceDonate, "", "12", ""},
 		{"long donation", PreferenceDonate, "", "12345678", ""},

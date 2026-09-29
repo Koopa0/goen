@@ -232,7 +232,7 @@ var policies = map[string]pages.PolicyDoc{
 					"付款時:卡片資料由 Stripe 處理,不經過 goen。我們只收到卡別與末四碼。",
 					"訂閱電子報時:保存您的 Email、語言、確認與退訂狀態,用於寄送及停止電子報。",
 					"登入時:工作階段保存 IP 位址及 User-Agent 瀏覽器資訊,登入狀態結束或帳號刪除後一併移除。",
-					"開立發票時:保存顧客姓名、Email,以及您選擇提供的公司統一編號或手機條碼,用於開立發票與後續折讓。",
+					"開立發票時:保存顧客姓名、Email,以及您選擇提供的公司統一編號、手機條碼或捐贈碼(愛心碼),用於開立發票與後續折讓。",
 					"登錄保固時:保存商品序號與保固登錄資料,用於識別送修商品及保固期限。",
 				},
 				BodyEn: []string{
@@ -241,7 +241,7 @@ var policies = map[string]pages.PolicyDoc{
 					"When you pay: your card details go to Stripe and never through goen. We receive the card brand and the last four digits.",
 					"When you subscribe to the newsletter: we keep your email, language, confirmation and unsubscribe status to send or stop the newsletter.",
 					"When you sign in: the session stores your IP address and User-Agent browser information, and is removed when the session expires or the account is deleted.",
-					"When we issue an invoice: we keep your customer name and email, and the company tax ID or mobile barcode you choose to provide, for invoicing and subsequent allowances.",
+					"When we issue an invoice: we keep your customer name and email, and the company tax ID, mobile barcode or donation code you choose to provide, for invoicing and subsequent allowances.",
 					"When you register a warranty: we keep the product serial number and warranty registration to identify the unit and its coverage period.",
 				},
 			},
@@ -275,13 +275,13 @@ var policies = map[string]pages.PolicyDoc{
 				HeadingEn: "Deleting your data",
 				Body: []string{
 					"在會員中心可以要求刪除帳號。系統會清除帳號中的姓名、Email、電話、地址與訂單上的收件資訊;下列保留資料不在清除範圍內。",
-					"訂單財務紀錄及不可變更的發票快照會保留,包括顧客姓名、Email、公司統一編號與手機條碼。尚待處理或確認結果的發票作業也會保留所需資料,直到完成確認。",
+					"訂單財務紀錄及不可變更的發票快照會保留,包括顧客姓名、Email、公司統一編號、手機條碼與捐贈碼。尚待處理或確認結果的發票作業也會保留所需資料,直到完成確認。",
 					"保固登錄與商品序號會保留,但不再連結到已刪除的帳號。已公開的商品評價也會保留,但不再與您的帳號關聯。",
 					"只有已驗證帳號目前 Email 的所有權,刪帳才會移除同信箱的電子報訂閱。未驗證信箱的訂閱不會隨刪帳移除;請使用電子報中的退訂連結停止寄送。",
 				},
 				BodyEn: []string{
 					"You can ask for your account to be deleted from your account pages. That erases the name, email, phone and address in your account and the delivery details on your orders, except for the retained data described below.",
-					"Order financial records and immutable invoice snapshots remain, including the customer name, email, company tax ID and mobile barcode. Invoice operations awaiting processing or reconciliation also keep the data they need until their outcome is settled.",
+					"Order financial records and immutable invoice snapshots remain, including the customer name, email, company tax ID, mobile barcode and donation code. Invoice operations awaiting processing or reconciliation also keep the data they need until their outcome is settled.",
 					"Warranty registrations and product serial numbers remain, no longer linked to the deleted account. Published reviews also remain without their account link.",
 					"Deleting an account removes newsletter subscriptions for its current email only if ownership of that email has been verified. Subscriptions for an unverified email are not removed by account deletion; use the unsubscribe link in a newsletter to stop delivery.",
 				},

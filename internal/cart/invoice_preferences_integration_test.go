@@ -14,12 +14,12 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/cart"
+	invoicepkg "github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/ratelimit"
 )
 
-func TestCheckoutPersistsDonationAndCitizenPreferences(t *testing.T) {
+func TestCheckoutPersistsTheDonationPreference(t *testing.T) {
 	for _, tt := range []struct{ name, kind, carrier, donation string }{
-		{"citizen", "citizen_carrier", "AB12345678901234", ""},
 		{"donation", "donation", "", "00123"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -31,13 +31,8 @@ func TestCheckoutPersistsDonationAndCitizenPreferences(t *testing.T) {
 			}
 			shippingID := shipVersionFor(t, "home_delivery")
 			addr := &cart.Address{Email: "buyer@example.com", Name: "Buyer", Phone: "0912345678", PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號"}
-			inv := &cart.Invoice{Carrier: tt.carrier, DonationCode: tt.donation}
-			// These are the actual values submitted by the checkout radio group.
-			if tt.kind == "donation" {
-				inv.Type = "donation"
-			} else {
-				inv.Type = "citizen_carrier"
-			}
+			// The type is the value the checkout radio group submits.
+			inv := &cart.Invoice{Type: invoicepkg.Preference(tt.kind), Carrier: tt.carrier, DonationCode: tt.donation}
 			shown := checkoutQuote(t, s, cartID, uuid.NullUUID{}, shippingID, addr, "")
 			number, err := s.PlaceOrder(ctx, cartID, uuid.NullUUID{}, shippingID, addr, inv, "", shown, checkoutAttemptKey("invoice-"+uuid.NewString()))
 			if err != nil {
@@ -54,10 +49,9 @@ func TestCheckoutPersistsDonationAndCitizenPreferences(t *testing.T) {
 	}
 }
 
-func TestCheckoutDonationAndCitizenChoiceRoundTripWithoutScript(t *testing.T) {
+func TestCheckoutDonationChoiceRoundTripWithoutScript(t *testing.T) {
 	for _, tt := range []struct{ kind, field, value string }{
 		{"donation", "invoice_donation_code", "00123"},
-		{"citizen_carrier", "invoice_carrier", "AB12345678901234"},
 	} {
 		t.Run(tt.kind, func(t *testing.T) {
 			ctx := t.Context()
@@ -90,7 +84,8 @@ func TestCheckoutDonationAndCitizenChoiceRoundTripWithoutScript(t *testing.T) {
 				if !strings.Contains(body, `name="invoice_type" value="`+tt.kind+`" checked`) || !strings.Contains(body, `name="`+tt.field+`"`) || !strings.Contains(body, `value="`+form.Get(tt.field)+`"`) {
 					t.Fatalf("preference did not survive rendering: status %d", res.Code)
 				}
-				if refused && (res.Code != http.StatusUnprocessableEntity || !strings.Contains(body, `id="`+tt.field+`-error"`)) {
+				if refused && (res.Code != http.StatusUnprocessableEntity || !strings.Contains(body, `id="`+tt.field+`-error"`) ||
+					!strings.Contains(body, `aria-invalid="true"`)) {
 					t.Fatalf("refused invoice field lacks 422/error: status %d", res.Code)
 				}
 			}

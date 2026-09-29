@@ -10,13 +10,13 @@ import (
 	"testing"
 )
 
-func TestNewInvoicePreferencesSurviveCanonicalSnapshotAndIssue(t *testing.T) {
-	for at, preference := range []Preference{PreferenceCitizen, PreferenceDonate} {
+func TestDonationPreferenceSurvivesCanonicalSnapshotAndIssue(t *testing.T) {
+	for _, preference := range []Preference{PreferenceDonate} {
 		t.Run(string(preference), func(t *testing.T) {
 			ctx := t.Context()
 			var seen issueRequest
 			var providerMu sync.Mutex
-			invoiceNumber := []string{"IC69000001", "ID69000001"}[at]
+			invoiceNumber := "ID69000001"
 			number := orderToInvoiceFor(t, 10000, 0, 0, preference, "Buyer", "")
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				providerMu.Lock()
@@ -58,12 +58,8 @@ func TestNewInvoicePreferencesSurviveCanonicalSnapshotAndIssue(t *testing.T) {
 			providerMu.Lock()
 			captured := seen
 			providerMu.Unlock()
-			if preference == PreferenceDonate {
-				if frozen.DonationCode != "00123" || captured.Donation != "1" || captured.LoveCode != "00123" || captured.CarrierT != "" {
-					t.Fatalf("donation snapshot/wire = %+v / %+v", frozen, captured)
-				}
-			} else if frozen.CarrierCode != "AB12345678901234" || captured.CarrierT != "2" || captured.CarrierNum != frozen.CarrierCode {
-				t.Fatalf("citizen snapshot/wire = %+v / %+v", frozen, captured)
+			if frozen.DonationCode != "00123" || captured.Donation != "1" || captured.LoveCode != "00123" || captured.CarrierT != "" {
+				t.Fatalf("donation snapshot/wire = %+v / %+v", frozen, captured)
 			}
 		})
 	}

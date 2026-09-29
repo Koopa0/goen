@@ -601,9 +601,6 @@ func TestInvoiceChoicesMatchCheckoutValidation(t *testing.T) {
 		if preference.NeedsCarrier() {
 			candidate.Carrier = "/AB12345"
 		}
-		if preference == invoice.PreferenceCitizen {
-			candidate.Carrier = "AB12345678901234"
-		}
 		if preference == invoice.PreferenceDonate {
 			candidate.DonationCode = "00123"
 		}
@@ -988,23 +985,12 @@ func TestTheCheckoutRefusesWhatTheSenderWillRefuse(t *testing.T) {
 }
 
 func TestInvoicePreferenceNormalizesOnlyItsOwnFields(t *testing.T) {
-	citizen := Invoice{Type: invoice.PreferenceCitizen, Carrier: " ab12345678901234 ", DonationCode: "00123", TaxID: "04595252", CompanyName: "Company"}
-	if errs := citizen.Validate(); len(errs) != 0 || citizen.Carrier != "AB12345678901234" || citizen.DonationCode != "" || citizen.TaxID != "" || citizen.CompanyName != "" {
-		t.Fatalf("citizen normalization: %+v / %+v", citizen, errs)
-	}
 	donation := Invoice{Type: invoice.PreferenceDonate, DonationCode: " 00123 ", Carrier: "/ABC+123", TaxID: "04595252", CompanyName: "Company"}
 	if errs := donation.Validate(); len(errs) != 0 || donation.DonationCode != "00123" || donation.Carrier != "" || donation.TaxID != "" || donation.CompanyName != "" {
 		t.Fatalf("donation normalization: %+v / %+v", donation, errs)
 	}
-	for _, tt := range []struct {
-		inv   Invoice
-		field string
-	}{
-		{Invoice{Type: invoice.PreferenceCitizen, Carrier: "AB123"}, "invoice_carrier"},
-		{Invoice{Type: invoice.PreferenceDonate, DonationCode: "12A"}, "invoice_donation_code"},
-	} {
-		if errs := tt.inv.Validate(); len(errs) != 1 || errs[0].Field != tt.field {
-			t.Fatalf("invalid preference errors=%+v, want %s", errs, tt.field)
-		}
+	bad := Invoice{Type: invoice.PreferenceDonate, DonationCode: "12A"}
+	if errs := bad.Validate(); len(errs) != 1 || errs[0].Field != "invoice_donation_code" {
+		t.Fatalf("invalid donation code errors=%+v", errs)
 	}
 }

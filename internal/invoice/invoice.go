@@ -91,6 +91,12 @@ var mobileCarrierPattern = regexp.MustCompile(`^/[0-9A-Z+\-.]{7}$`)
 // accepts: a slash and seven upper-case letters, digits, +, - or dot.
 func ValidMobileCarrier(value string) bool { return mobileCarrierPattern.MatchString(value) }
 
+var donationCodePattern = regexp.MustCompile(`^\d{3,7}$`)
+
+// ValidDonationCode is ECPay's LoveCode: three to seven digits, a leading zero
+// allowed, so it is always handled as a string.
+func ValidDonationCode(value string) bool { return donationCodePattern.MatchString(value) }
+
 // ValidBuyerName applies the immutable filing/provider boundary shared by
 // checkout and direct gateway callers. Control characters are never meaningful
 // in an invoice buyer name and can change the shape of downstream records.
@@ -109,7 +115,6 @@ const (
 	PreferenceMember  Preference = "member_carrier"
 	PreferenceMobile  Preference = "mobile_carrier"
 	PreferenceCompany Preference = "company"
-	PreferenceCitizen Preference = "citizen_carrier"
 	PreferenceDonate  Preference = "donation"
 )
 
@@ -117,7 +122,6 @@ var offeredPreferences = [...]Preference{
 	PreferenceMember,
 	PreferenceMobile,
 	PreferenceCompany,
-	PreferenceCitizen,
 	PreferenceDonate,
 }
 
@@ -135,8 +139,8 @@ func (p Preference) Known() bool {
 	return false
 }
 
-// NeedsCarrier reports whether checkout must collect a customer barcode.
-func (p Preference) NeedsCarrier() bool { return p == PreferenceMobile || p == PreferenceCitizen }
+// NeedsCarrier reports whether checkout must collect a mobile barcode.
+func (p Preference) NeedsCarrier() bool { return p == PreferenceMobile }
 
 // NeedsTaxID reports whether checkout must collect a business tax number.
 func (p Preference) NeedsTaxID() bool { return p == PreferenceCompany }
@@ -149,8 +153,6 @@ const (
 	CarrierMember = "1"
 	// CarrierMobile is the mobile barcode carrier a customer carries.
 	CarrierMobile = "3"
-	// CarrierCitizen is the citizen certificate carrier.
-	CarrierCitizen = "2"
 )
 
 // Document is an issued uniform invoice or credit note, as goen records it.
@@ -180,12 +182,3 @@ type Line struct {
 	UnitPriceCents int64 `json:"unit_price_cents"`
 	AmountCents    int64 `json:"amount_cents"`
 }
-
-// ValidCitizenCarrier follows ECPay's two uppercase letters and fourteen digits.
-func ValidCitizenCarrier(s string) bool { return citizenCarrierPattern.MatchString(s) }
-
-// ValidDonationCode preserves leading zeroes in a three-to-seven-digit code.
-func ValidDonationCode(s string) bool { return donationCodePattern.MatchString(s) }
-
-var citizenCarrierPattern = regexp.MustCompile(`^[A-Z]{2}\d{14}$`)
-var donationCodePattern = regexp.MustCompile(`^\d{3,7}$`)
