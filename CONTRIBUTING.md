@@ -1,6 +1,6 @@
 # Contributing to goen
 
-goen has one maintainer, who reviews every submission before it lands.
+goen has one maintainer, who reviews every submission and merges it once CI is green.
 
 ## What goen is
 
@@ -103,13 +103,14 @@ findings; apply it only after successful PR and merged-main analyses exist.
 the committed gate contract. Commit messages are checked separately over the
 actual PR or main-push range. Secret scanning and push protection are enabled.
 
-The owner role still has an `always` bypass in GitHub. This can bypass required
-checks and reviews; it is not evidence of acceptance. Restrict its use to an
-explicitly recorded break-glass decision. An owner-authored PR cannot satisfy
-its own native approval: the exact-head human acceptance policy and removing
-that bypass remain part of [#40](https://github.com/Koopa0/goen/issues/40).
-Browser-gate promotion, provider acceptance and release provenance also remain
-there; green presubmit jobs do not establish those product-level guarantees.
+The one maintainer is also the repository owner, and merges with the owner
+role's `always` bypass in GitHub after the required checks pass. The ruleset's
+one-approval requirement is therefore bypassed, not met: a maintainer-authored
+PR cannot satisfy its own native approval, and no second reviewer exists. Green
+presubmit jobs establish the gate's guarantees only; browser-gate promotion and
+provider acceptance are not established by them.
+
+goen publishes no releases, so it produces no SBOM or build provenance.
 
 ## Change it
 

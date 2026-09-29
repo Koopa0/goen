@@ -27,6 +27,10 @@ sink and supplies ECPay staging configuration.
 catalogue as `make db-seed`. These files describe the setup; they do not establish
 that a timer is installed or that today's restore succeeded.
 
+## Edge settings
+
+The Cloudflare zone's Web Analytics auto-injection and JavaScript detections must be off: goen's CSP is `script-src 'self'`, so it refuses both injected scripts. The owner sets this in Cloudflare; nothing in the repository can.
+
 ## Observed deployment evidence
 
 | When (UTC) | Observation | What it establishes |
