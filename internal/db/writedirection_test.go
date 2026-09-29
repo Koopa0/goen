@@ -179,7 +179,11 @@ func TestNoRoleHoldsAWriteItsQueriesNeverMake(t *testing.T) {
 						t.Logf("%s may INSERT %s: %s", role, table, why)
 						continue
 					}
-					t.Errorf("%s holds %s on %s, and no production query it runs uses that verb", role, verb, table)
+					t.Errorf("%s holds %s on %s, and no production query it runs uses that verb.\n"+
+						"  Either a query should use it — in which case the pool map below is "+
+						"wrong — or the verb should be revoked. If an INSERT must be held "+
+						"unused, name it in writeExemptions with the reason.",
+						role, verb, table)
 				}
 			}
 		})
