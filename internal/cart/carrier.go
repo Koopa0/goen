@@ -3,49 +3,32 @@ package cart
 import (
 	"net/http"
 
-	"github.com/google/uuid"
-
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
-	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
-// Local fields and the current commercial quote have already passed. A prior
-// successful attempt is answered before this point, so provider downtime cannot
-// turn an idempotent retry into a new order or a refusal of an existing order.
-func (h *Handler) checkMobileCarrier(w http.ResponseWriter, r *http.Request, cartID uuid.UUID, submission *checkoutSubmission) bool {
-	if !submission.invoice.Type.NeedsCarrier() || h.carriers == nil {
+// checkMobileCarrier refuses a barcode the provider says does not exist, and
+// nothing else. The check is auxiliary: a provider outage, a refusal to answer
+// or a timeout places the order on shape validation alone, as before the check
+// existed, so an external failure never costs a shopper their checkout. Only a
+// definite "does not exist" is a reason to stop.
+//
+// Local fields and the quote have already passed, and a prior successful
+// attempt is answered before this point, so an idempotent retry never asks.
+func (h *Handler) checkMobileCarrier(w http.ResponseWriter, r *http.Request, inv *Invoice, view *pages.CheckoutView) bool {
+	if !inv.Type.NeedsCarrier() || h.carriers == nil {
 		return true
 	}
-	var view *pages.CheckoutView
-	view = &submission.view
-	for _, key := range []string{"cart:" + cartID.String(), "ip:" + ratelimit.ClientIP(r)} {
-		if _, ok := h.carrierLimit.Allow(key); !ok {
-			view.CarrierCheckNotice = i18n.T(r.Context(), i18n.KeyCarrierCheckLimited)
-			h.renderCheckout(w, r, http.StatusUnprocessableEntity, view)
-			return false
-		}
-	}
-	status, err := h.carriers.CheckBarcode(r.Context(), submission.invoice.Carrier)
-	if err == nil {
-		switch status {
-		case invoice.CarrierExists:
-			return true
-		case invoice.CarrierMissing:
-			view.Errors = map[string]string{"invoice_carrier": i18n.T(r.Context(), i18n.KeyCarrierMissing)}
-			h.renderCheckout(w, r, http.StatusUnprocessableEntity, view)
-			return false
-		case invoice.CarrierUnknown:
-		}
-	}
-	// The posted choice never bypasses a known N or the rate limiter. It is
-	// accepted only after this attempt actually asked and got no verdict.
-	if r.Context().Err() == nil && r.PostFormValue("invoice_carrier_continue") == "1" {
+	status, err := h.carriers.CheckBarcode(r.Context(), inv.Carrier)
+	if err != nil {
+		h.log.WarnContext(r.Context(), "check mobile carrier", "error", err)
 		return true
 	}
-	view.CarrierCheckNotice = i18n.T(r.Context(), i18n.KeyCarrierCheckUnavailable)
-	view.CarrierCheckUnavailable = true
+	if status != invoice.CarrierMissing {
+		return true
+	}
+	view.Errors = map[string]string{"invoice_carrier": i18n.T(r.Context(), i18n.KeyCarrierMissing)}
 	h.renderCheckout(w, r, http.StatusUnprocessableEntity, view)
 	return false
 }

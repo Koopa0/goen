@@ -3,6 +3,7 @@
 package cart_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"log/slog"
@@ -33,6 +34,7 @@ func (c *checkoutCarrier) CheckBarcode(_ context.Context, barcode string) (invoi
 }
 
 type carrierCheckout struct {
+	logs    *bytes.Buffer
 	handler *cart.Handler
 	form    url.Values
 	token   string
@@ -64,8 +66,10 @@ func carrierCheckoutFor(t *testing.T, checker *checkoutCarrier) carrierCheckout 
 		"invoice_type": {string(invoice.PreferenceMobile)}, "invoice_carrier": {" /abc+123 "},
 		"checkout_quote": {checkoutQuote(t, s, id, uuid.NullUUID{}, shipID, &cart.Address{PostalCode: "110"}, "").String()},
 	}
+	logs := &bytes.Buffer{}
 	return carrierCheckout{
-		handler: cart.NewHandler(s, slog.New(slog.DiscardHandler), false, testLimiter(), nil, nil, checker),
+		logs:    logs,
+		handler: cart.NewHandler(s, slog.New(slog.NewTextHandler(logs, nil)), false, testLimiter(), nil, nil, checker),
 		form:    form, token: token, variant: variant, stock: stockOf(t, variant), id: id,
 	}
 }
@@ -98,7 +102,6 @@ func (c carrierCheckout) assertUnplaced(t *testing.T) {
 func TestKnownMissingCarrierCannotBeOverridden(t *testing.T) {
 	checker := &checkoutCarrier{status: invoice.CarrierMissing}
 	checkout := carrierCheckoutFor(t, checker)
-	checkout.form.Set("invoice_carrier_continue", "1")
 	w := checkout.post(t)
 	if w.Code != http.StatusUnprocessableEntity || checker.calls != 1 || checker.barcode != "/ABC+123" {
 		t.Fatalf("missing carrier: status=%d calls=%d barcode=%q", w.Code, checker.calls, checker.barcode)
@@ -111,93 +114,51 @@ func TestKnownMissingCarrierCannotBeOverridden(t *testing.T) {
 	checkout.assertUnplaced(t)
 }
 
-func TestUnknownCarrierRequiresAFreshChoiceAndCheck(t *testing.T) {
-	checker := &checkoutCarrier{status: invoice.CarrierUnknown, err: errors.New("provider unavailable")}
-	checkout := carrierCheckoutFor(t, checker)
-	w := checkout.post(t)
-	if w.Code != http.StatusUnprocessableEntity || !strings.Contains(w.Body.String(), i18n.T(t.Context(), i18n.KeyCarrierCheckUnavailable)) {
-		t.Fatalf("unknown response = %d", w.Code)
+func TestProviderFailureDoesNotStopThePlacement(t *testing.T) {
+	for name, checker := range map[string]*checkoutCarrier{
+		"provider error": {status: invoice.CarrierUnknown, err: errors.New("provider unavailable")},
+		"no verdict":     {status: invoice.CarrierUnknown},
+	} {
+		t.Run(name, func(t *testing.T) {
+			checkout := carrierCheckoutFor(t, checker)
+			w := checkout.post(t)
+			if w.Code != http.StatusSeeOther || checker.calls != 1 {
+				t.Fatalf("unavailable provider: status=%d calls=%d", w.Code, checker.calls)
+			}
+			if checker.err != nil {
+				if got := strings.Count(checkout.logs.String(), "check mobile carrier"); got != 1 || !strings.Contains(checkout.logs.String(), "level=WARN") || strings.Contains(checkout.logs.String(), "ABC+123") {
+					t.Fatalf("provider failure logged wrongly (%d entries): %s", got, checkout.logs.String())
+				}
+			}
+			location := w.Header().Get("Location")
+			w = checkout.post(t)
+			if w.Code != http.StatusSeeOther || w.Header().Get("Location") != location || checker.calls != 1 {
+				t.Fatal("idempotent retry rechecked or changed the placed order")
+			}
+		})
 	}
-	for _, want := range []string{`name="invoice_carrier_continue"`, `value="invoice_member"`, "carrier@example.com", "please ring", " /abc+123 "} {
-		if !strings.Contains(w.Body.String(), want) {
-			t.Errorf("unknown state lost %q", want)
-		}
-	}
-	checkout.assertUnplaced(t)
-	checkout.form.Set("invoice_carrier_continue", "1")
-	w = checkout.post(t)
-	if w.Code != http.StatusSeeOther || checker.calls != 2 {
-		t.Fatalf("explicit continue = %d after %d checks", w.Code, checker.calls)
-	}
-	location := w.Header().Get("Location")
-	w = checkout.post(t)
-	if w.Code != http.StatusSeeOther || w.Header().Get("Location") != location || checker.calls != 2 {
-		t.Fatal("idempotent retry rechecked or changed the placed order")
-	}
-}
-
-func TestUnknownCarrierChoiceCannotBypassANewMissingVerdict(t *testing.T) {
-	checker := &checkoutCarrier{status: invoice.CarrierUnknown}
-	checkout := carrierCheckoutFor(t, checker)
-	if w := checkout.post(t); w.Code != http.StatusUnprocessableEntity {
-		t.Fatalf("first check = %d", w.Code)
-	}
-	checker.status = invoice.CarrierMissing
-	checkout.form.Set("invoice_carrier_continue", "1")
-	if w := checkout.post(t); w.Code != http.StatusUnprocessableEntity {
-		t.Fatalf("known N after unknown = %d", w.Code)
-	}
-	if checker.calls != 2 {
-		t.Fatalf("provider called %d times, want 2", checker.calls)
-	}
-	checkout.assertUnplaced(t)
 }
 
 func TestCarrierCheckRunsOnlyAfterLocalPlacementValidation(t *testing.T) {
-	for _, mode := range []string{"malformed", "other field", "chooser", "member"} {
+	for _, mode := range []string{"malformed", "other field", "chooser"} {
 		t.Run(mode, func(t *testing.T) {
 			checker := &checkoutCarrier{status: invoice.CarrierExists}
 			checkout := carrierCheckoutFor(t, checker)
 			switch mode {
 			case "malformed":
 				checkout.form.Set("invoice_carrier", "bad")
-				checkout.form.Set("invoice_carrier_continue", "1")
 			case "other field":
 				checkout.form.Set("email", "bad")
 			case "chooser":
 				checkout.form.Set("update", "invoice")
-			case "member":
-				checkout.form.Set("update", "invoice_member")
 			}
 			w := checkout.post(t)
 			if checker.calls != 0 || (w.Code != http.StatusOK && w.Code != http.StatusUnprocessableEntity) {
 				t.Fatalf("%s called provider %d times: status %d", mode, checker.calls, w.Code)
 			}
 			checkout.assertUnplaced(t)
-			if mode == "member" {
-				checkout.form.Del("update")
-				checkout.form.Set("invoice_type", string(invoice.PreferenceMember))
-				if w := checkout.post(t); w.Code != http.StatusSeeOther || checker.calls != 0 {
-					t.Fatalf("member placement = %d, calls=%d", w.Code, checker.calls)
-				}
-			}
 		})
 	}
-}
-
-func TestCarrierCheckRateLimitDoesNotCountAsProviderUnavailability(t *testing.T) {
-	checker := &checkoutCarrier{status: invoice.CarrierMissing}
-	checkout := carrierCheckoutFor(t, checker)
-	for range 3 {
-		checkout.post(t)
-	}
-	checker.status = invoice.CarrierUnknown
-	checkout.form.Set("invoice_carrier_continue", "1")
-	w := checkout.post(t)
-	if w.Code != http.StatusUnprocessableEntity || checker.calls != 3 || !strings.Contains(w.Body.String(), i18n.T(t.Context(), i18n.KeyCarrierCheckLimited)) {
-		t.Fatalf("rate limit = %d, provider calls=%d", w.Code, checker.calls)
-	}
-	checkout.assertUnplaced(t)
 }
 
 func TestAnExistingCarrierIsFrozenAfterTheCheck(t *testing.T) {

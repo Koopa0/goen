@@ -39,9 +39,8 @@ type Handler struct {
 	sessions SessionCloser
 	// storeMap is the carrier's hosted store picker. Nil or disabled on a
 	// deployment with no carrier, where the checkout asks for a chain alone.
-	storeMap     *Map
-	carriers     CarrierChecker
-	carrierLimit *ratelimit.Limiter
+	storeMap *Map
+	carriers CarrierChecker
 }
 
 // SessionCloser closes a checkout the customer may still have open at the
@@ -74,9 +73,8 @@ func NewHandler(store *Store, log *slog.Logger, secure bool, findLimit *ratelimi
 		checker = carriers[0]
 	}
 	return &Handler{
-		carriers:     checker,
-		carrierLimit: ratelimit.New(ratelimit.Config{Every: 10 * time.Second, Burst: 3, TTL: time.Hour, MaxKeys: 65_536}),
-		store:        store, log: log, secure: secure, findLimit: findLimit,
+		carriers: checker,
+		store:    store, log: log, secure: secure, findLimit: findLimit,
 		sessions: sessions, storeMap: storeMap,
 	}
 }
@@ -520,7 +518,7 @@ func (h *Handler) PlaceOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !h.checkMobileCarrier(w, r, cartID, submission) {
+	if !h.checkMobileCarrier(w, r, &submission.invoice, &submission.view) {
 		return
 	}
 
@@ -639,9 +637,6 @@ func (h *Handler) checkoutSubmission(
 		Carrier:     r.PostFormValue("invoice_carrier"),
 		CompanyName: r.PostFormValue("invoice_company_name"),
 		TaxID:       r.PostFormValue("invoice_tax_id"),
-	}
-	if r.PostFormValue("update") == "invoice_member" {
-		inv.Type = invoicepkg.PreferenceMember
 	}
 	view.Invoice = pages.CheckoutInvoice{
 		Type: inv.Type, Carrier: inv.Carrier,
