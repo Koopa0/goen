@@ -8496,6 +8496,7 @@ REVOKE UPDATE ON
     variant_option_values, membership_tiers, sale_campaign_products,
     order_shipment_lines
     FROM admin;
+REVOKE UPDATE, DELETE ON outbox_messages FROM admin;
 
 -- user_identities is the STOREFRONT's. INSERT and DELETE only: linking and
 -- unlinking are the two things that happen to a link, and an UPDATE would repoint

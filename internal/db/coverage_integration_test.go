@@ -382,8 +382,6 @@ var sharedCleanup = map[string]string{
 		"revoke_staff and secure_promoted_account end them too",
 	"store.outbox_messages.DELETE": "the relay sweeps delivered rows (SweepDeliveredMessages) and account " +
 		"flows drop superseded letters; erase_user drops a customer's messages",
-	"admin.outbox_messages.DELETE": "internal/outbox is on the back-office pool map and its Sweep deletes " +
-		"delivered rows; erase_user drops a customer's messages",
 	"store.order_access_grants.DELETE": "the retention sweep deletes grants nobody can present " +
 		"(DeleteOldOrderAccessGrants); erase_user deletes a customer's",
 	"store.newsletter_confirmations.DELETE": "confirming spends the token (SpendNewsletterConfirmation); " +
