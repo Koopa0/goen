@@ -111,8 +111,8 @@ func TestSearchSKUsRankAndPaginateWithoutDuplicateProducts(t *testing.T) {
 
 func skuResultSlugs(products []pages.ProductTile) []string {
 	out := make([]string, 0, len(products))
-	for _, product := range products {
-		out = append(out, product.Slug)
+	for i := range products {
+		out = append(out, products[i].Slug)
 	}
 	return out
 }
