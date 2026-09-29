@@ -33,8 +33,8 @@ func TestGuestCartSignInHTTPJourney(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := database.Exec(t.Context(), string(seed)); err != nil {
-		t.Fatal(err)
+	if _, seedErr := database.Exec(t.Context(), string(seed)); seedErr != nil {
+		t.Fatal(seedErr)
 	}
 	rows, err := database.Query(t.Context(), `SELECT id::text FROM product_variants WHERE is_active ORDER BY id LIMIT 3`)
 	if err != nil {
@@ -106,7 +106,7 @@ func TestGuestCartSignInHTTPJourney(t *testing.T) {
 			cartJourneyPage(t, member, server.URL, locale, merged)
 			cartJourneyDatabase(t, database, user.ID, guestToken, merged)
 			anonymous := cartJourneyClient(t)
-			anonymous.Jar.SetCookies(origin, []*http.Cookie{{Name: "goen_cart", Value: guestToken, Path: "/"}})
+			anonymous.Jar.SetCookies(origin, []*http.Cookie{{Name: "goen_cart", Value: guestToken, Path: "/"}}) //nolint:gosec // G124: this HTTP-only fixture replays a previously issued anonymous cookie.
 			cartJourneyPage(t, anonymous, server.URL, locale, map[string]int{})
 			t.Logf("C03 locale=%s wrong-password=422 sign-in=303 member-and-guest-lines=3,2,3 stale-guest-lines=0 database=one-owned-cart", locale)
 		})

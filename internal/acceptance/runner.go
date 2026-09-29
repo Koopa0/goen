@@ -58,13 +58,13 @@ func RunManifest(ctx context.Context, manifest Manifest, opts RunOptions) ([]Res
 	var results []Result
 	for i := range scenarios {
 		scenarioResults := runScenario(ctx, root, &scenarios[i], opts)
+		results = append(results, scenarioResults...)
 		for j := range scenarioResults {
 			result := &scenarioResults[j]
 			if writeErr := evidence.write(result); writeErr != nil {
-				return append(results, scenarioResults...), writeErr
+				return results, writeErr
 			}
 		}
-		results = append(results, scenarioResults...)
 	}
 	if len(results) == 0 {
 		return nil, errors.New("no required assertions were selected for execution")
@@ -96,8 +96,8 @@ func runScenario(ctx context.Context, root string, scenario *Scenario, opts RunO
 		return nil
 	}
 	var results []Result
-	for _, assertion := range scenario.Assertions {
-		results = append(results, runAssertion(ctx, root, scenario.ID, assertion, opts))
+	for i := range scenario.Assertions {
+		results = append(results, runAssertion(ctx, root, scenario.ID, scenario.Assertions[i], opts))
 	}
 	if len(results) == 0 {
 		results = append(results, blockedResult(scenario.ID, Assertion{}, "scenario has no executable required assertions"))
@@ -130,8 +130,8 @@ func blockedResult(scenarioID string, assertion Assertion, reason string) Result
 
 func blockedScenarioResults(scenario *Scenario) []Result {
 	var results []Result
-	for _, assertion := range scenario.Assertions {
-		results = append(results, blockedResult(scenario.ID, assertion,
+	for i := range scenario.Assertions {
+		results = append(results, blockedResult(scenario.ID, scenario.Assertions[i],
 			fmt.Sprintf("scenario blocked by issues %v", scenario.BlockedBy)))
 	}
 	if len(results) == 0 {

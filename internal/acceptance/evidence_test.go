@@ -70,8 +70,8 @@ func TestRunGoTestSeparatesStreamsAndPersistsEvidence(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := store.write(&result); err != nil {
-				t.Fatal(err)
+			if writeErr := store.write(&result); writeErr != nil {
+				t.Fatal(writeErr)
 			}
 			record := readEvidence(t, result.Artifact)
 			if record.Outcome != tc.outcome || record.Command != result.Command || !record.Executed {
@@ -93,7 +93,7 @@ func TestRunGoTestSeparatesStreamsAndPersistsEvidence(t *testing.T) {
 				if filepath.IsAbs(name) || filepath.Clean(name) != filepath.Base(name) {
 					t.Fatalf("non-local stream path %q", name)
 				}
-				body, err := os.ReadFile(filepath.Join(filepath.Dir(result.Artifact), name))
+				body, err := os.ReadFile(filepath.Join(filepath.Dir(result.Artifact), name)) //nolint:gosec // G304: both paths come from the test-owned evidence directory.
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -115,8 +115,8 @@ func TestEvidenceDestinationFailureRejectsRun(t *testing.T) {
 		t.Fatal(err)
 	}
 	path := filepath.Join(t.TempDir(), "file")
-	if err := os.WriteFile(path, nil, 0o600); err != nil {
-		t.Fatal(err)
+	if writeErr := os.WriteFile(path, nil, 0o600); writeErr != nil {
+		t.Fatal(writeErr)
 	}
 	results, err := RunManifest(t.Context(), manifest, RunOptions{ScenarioID: "C02", EvidenceDir: path})
 	if err == nil || len(results) != 0 {
@@ -126,7 +126,7 @@ func TestEvidenceDestinationFailureRejectsRun(t *testing.T) {
 
 func readEvidence(t *testing.T, path string) Evidence {
 	t.Helper()
-	body, err := os.ReadFile(path)
+	body, err := os.ReadFile(path) //nolint:gosec // G304: callers pass paths from the test-owned evidence directory.
 	if err != nil {
 		t.Fatal(err)
 	}

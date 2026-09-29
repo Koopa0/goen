@@ -94,8 +94,7 @@ func listCommand(args []string) int {
 	return 0
 }
 
-func splitRunArgs(args []string) ([]string, []string) {
-	var flags, targets []string
+func splitRunArgs(args []string) (flags, targets []string) {
 	literal := false
 	for _, arg := range args {
 		if arg == "--" && !literal {
