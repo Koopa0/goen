@@ -93,11 +93,12 @@ func HTTP(next http.Handler) http.Handler {
 			return
 		}
 		ctx, _ := newRouteCaptureContext(r.Context())
+		method := methodLabel(r.Method)
 		route := RouteLabel(r.Method, httpRoutePattern(r))
 		ctx, span := Tracer().Start(ctx, route,
 			trace.WithAttributes(
 				attribute.String("http.route", route),
-				attribute.String("http.method", r.Method),
+				attribute.String("http.method", method),
 			),
 		)
 		r = r.WithContext(ctx)
