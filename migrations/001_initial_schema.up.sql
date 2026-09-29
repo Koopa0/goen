@@ -398,6 +398,30 @@ CREATE TRIGGER product_variants_set_updated_at
     BEFORE UPDATE ON product_variants
     FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
+-- Option axes and variant creation share the product lock. Otherwise an axis
+-- can pass its empty-catalogue check while another transaction adds a SKU.
+CREATE FUNCTION product_catalogue_lock() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+    PERFORM 1 FROM products WHERE id = NEW.product_id FOR NO KEY UPDATE;
+    IF TG_TABLE_NAME = 'product_options' AND EXISTS (
+        SELECT 1 FROM product_variants WHERE product_id = NEW.product_id
+    ) THEN
+        RAISE EXCEPTION 'define option axes before creating variants'
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'product_options_before_variants';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER product_options_before_variants
+    AFTER INSERT OR UPDATE OF product_id ON product_options
+    FOR EACH ROW EXECUTE FUNCTION product_catalogue_lock();
+
+CREATE TRIGGER product_variants_lock_catalogue
+    BEFORE INSERT OR UPDATE OF product_id ON product_variants
+    FOR EACH ROW EXECUTE FUNCTION product_catalogue_lock();
+
 -- An active product must have something to sell: published with no variant, its
 -- page has no price and every listing drops it. DEFERRED, because the variants
 -- are inserted after the product row they reference.

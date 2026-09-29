@@ -487,6 +487,9 @@ func (s *Store) AddOption(ctx context.Context, slug string, d OptionDraft) (map[
 		}
 		return nil
 	}); err != nil {
+		if hasConstraint(err, "product_options_before_variants") {
+			return map[string]string{"option": i18n.T(ctx, i18n.KeyFormOptionBeforeVariants)}, nil
+		}
 		if hasConstraint(err, "product_options_name_key") {
 			return map[string]string{"option": i18n.T(ctx, i18n.KeyFormOptionNameTaken)}, nil
 		}
