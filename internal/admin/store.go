@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
@@ -321,7 +322,7 @@ func (s *Store) Advance(ctx context.Context, number string, status pages.Fulfill
 	}); advanceErr != nil {
 		return nil, fmt.Errorf("%w: %w", ErrRefused, advanceErr)
 	}
-	// AdvanceOrder's UPDATE owns the aggregate row before this snapshot. If an
+	// LockOrderForAdvance owns the aggregate row before this snapshot. If an
 	// expiry release won the order lock first, we now see no held row; if this
 	// transition won, that release waits behind us. A pre-lock snapshot can go
 	// stale and make an otherwise valid cancellation roll back.
@@ -413,19 +414,21 @@ func applyStatusEffects(ctx context.Context, q *db.Queries, e statusEffect) erro
 }
 
 func enqueueStatusNotice(ctx context.Context, q *db.Queries, e statusEffect) error {
-	if e.previous == e.status {
-		return nil
-	}
 	switch e.status {
 	case pages.FulfillmentCancelled:
 		return ordernotice.Enqueue(ctx, q, e.orderID, ordernotice.CancelledByStaff)
 	case pages.FulfillmentDelivered, pages.FulfillmentCompleted:
-		destination, err := q.OrderDestinationKind(ctx, e.number)
+		row, err := q.OrderDestinationKind(ctx, e.number)
 		if err != nil {
 			return fmt.Errorf("read terminal order destination: %w", err)
 		}
+		to, ok := cart.DestinationFor(row.DestinationKind)
+		if !ok {
+			return fmt.Errorf("order %s ships by a method with an unknown destination %q",
+				e.number, row.DestinationKind)
+		}
 		kind := ordernotice.Delivered
-		if destination.DestinationKind == "pickup_point" {
+		if to == cart.ToPickupPoint {
 			if e.status != pages.FulfillmentCompleted {
 				return nil
 			}

@@ -141,6 +141,16 @@ func TestPickupCompletionQueuesCollectionWithoutADeliveryNotice(t *testing.T) {
 	if err := s.Ship(ctx, number, admin.Dispatch{Carrier: "pickup", Tracking: uuid.NewString()}, uuid.NullUUID{}); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := s.Advance(ctx, number, "delivered", uuid.NullUUID{}); err != nil {
+		t.Fatal(err)
+	}
+	var early int
+	if err := pool.QueryRow(t.Context(), `SELECT count(*) FROM outbox_messages WHERE topic=$1 AND payload->>'order_id'=$2`, outbox.TopicOrderTerminal, id.String()).Scan(&early); err != nil {
+		t.Fatal(err)
+	}
+	if early != 0 {
+		t.Fatalf("a pickup order marked delivered queued %d notices before it was collected", early)
+	}
 	if _, err := s.Advance(ctx, number, "completed", uuid.NullUUID{}); err != nil {
 		t.Fatal(err)
 	}
