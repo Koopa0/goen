@@ -142,7 +142,7 @@ func TestSearchRanksTheChineseNameAndEnglishSummaryArms(t *testing.T) {
 			t.Fatal(fixtureErr)
 		}
 		if fixtureErr := tx.QueryRow(ctx, `INSERT INTO products (brand_id, category_id, slug, name, summary, summary_en, status, published_at)
-   SELECT $1, category_id, $2, $3, 'Fixture summary', $4, 'draft', now() + ($5 * interval '1 second') FROM products LIMIT 1 RETURNING id`, brandID, slugs[i], f.name, f.summaryEN, i).Scan(&productID); fixtureErr != nil {
+   SELECT $1, category_id, $2, $3, 'Fixture summary', NULLIF($4, ''), 'draft', now() + ($5 * interval '1 second') FROM products LIMIT 1 RETURNING id`, brandID, slugs[i], f.name, f.summaryEN, i).Scan(&productID); fixtureErr != nil {
 			t.Fatal(fixtureErr)
 		}
 		if _, fixtureErr := tx.Exec(ctx, `INSERT INTO product_variants (product_id, sku, price_cents) VALUES ($1, $2, 10000)`, productID, "RANKZH-"+strings.ToUpper(uuid.NewString())); fixtureErr != nil {
