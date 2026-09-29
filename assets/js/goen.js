@@ -89,6 +89,7 @@
   // the payload; native disabled controls would remove them before submission.
   function requestFeedback() {
     const pending = new Map();
+    const requests = new WeakMap();
     const restoreAttribute = (element, name, value) => {
       if (value === null) element.removeAttribute(name);
       else element.setAttribute(name, value);
@@ -118,16 +119,20 @@
       const ctx = event.detail?.ctx;
       const form = ctx?.request?.form;
       if (!(form instanceof HTMLFormElement)) return;
-      if (pending.has(form)) { event.preventDefault(); return; }
+      // A source swapped out of the page can no longer receive its own finally
+      // event, so a request from one would leave the form pending for good.
+      if (pending.has(form) || !ctx.sourceElement.isConnected) { event.preventDefault(); return; }
       begin(form);
-      const source = ctx.sourceElement;
-      const completed = (done) => {
-        if (done.detail?.ctx !== ctx) return;
-        finish(form);
-        source.removeEventListener("htmx:finally:request", completed);
-      };
-      // The source can be detached by an outerHTML swap before finally fires.
-      source.addEventListener("htmx:finally:request", completed);
+      requests.set(ctx, form);
+    });
+    // On document, because the source element may be detached by the swap
+    // before this fires and an event on a detached node never reaches us.
+    document.addEventListener("htmx:finally:request", (event) => {
+      const ctx = event.detail?.ctx;
+      const form = requests.get(ctx);
+      if (!form) return;
+      requests.delete(ctx);
+      finish(form);
     });
     document.addEventListener("reset", (event) => finish(event.target));
     window.addEventListener("pageshow", () => {
