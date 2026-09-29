@@ -34,8 +34,8 @@ endif
 .PHONY: build run test test-race test-integration production-build-check integration-build-check \
         image image-push lint fmt fmt-check vet deadcode gen templ-check vuln \
         sqlc sqlc-check squawk db-up db-down migrate-up migrate-down db-seed \
-        db-repair-invoice-faq db-repair-refund-faq \
-        cursor-scripts-check workflow-check verify verify-all check-layout db-reset clean
+        db-repair-invoice-faq db-repair-refund-faq db-repair-payment-faq \
+        demo-restore-check cursor-scripts-check workflow-check verify verify-all check-layout db-reset clean
 
 build: gen
 	go build -o bin/goen ./cmd/goen
@@ -45,7 +45,10 @@ build: gen
 # over the plain http:// this serves on — the cart would appear to lose itself
 # on every request. The default is secure, so forgetting this in a deployment
 # fails safe.
+# schema-drift is the existing catalogue comparison against migrations/; a dev
+# database built before an amended 001 fails here instead of as a 500 later.
 run: gen
+	@$(MAKE) --no-print-directory schema-drift || { echo 'run: the development database does not match migrations/; back up anything you need, then run make db-reset' >&2; exit 1; }
 	GOEN_INSECURE_COOKIES=1 go run ./cmd/goen
 
 test: gen
@@ -277,11 +280,18 @@ check-layout:
 		CREDIT_PAGE=$$(curl -fsS -b "goen_session=$$AT" $$U/admin/credit); \
 		OP=$$(printf '%s' "$$CREDIT_PAGE" | grep -o 'name="operation_id" value="[^"]*"' | head -1 | cut -d'"' -f4); \
 		test -n "$$OP" || { echo 'credit grant form did not render an operation_id' >&2; exit 2; }; \
+		CREDIT_REVIEW=$$(curl -fsS -b "goen_session=$$AT" -H 'Sec-Fetch-Site: same-origin' \
+			--data-urlencode 'email=layout-cust@goen.invalid' --data-urlencode 'amount=99999' \
+			--data-urlencode "reason=版面檢查用的退貨樣本 $$$$" \
+			--data-urlencode "operation_id=$$OP" $$U/admin/credit); \
+		CUSTOMER_ID=$$(printf '%s' "$$CREDIT_REVIEW" | grep -o 'name="customer_id" value="[^"]*"' | head -1 | cut -d'"' -f4); \
+		test -n "$$CUSTOMER_ID" || { echo 'credit grant review did not render a customer_id' >&2; exit 2; }; \
 		GRANT=$$(curl -sS -o /dev/null -w '%{http_code} %{redirect_url}' -b "goen_session=$$AT" \
 			-H 'Sec-Fetch-Site: same-origin' \
 			--data-urlencode 'email=layout-cust@goen.invalid' --data-urlencode 'amount=99999' \
 			--data-urlencode "reason=版面檢查用的退貨樣本 $$$$" \
-			--data-urlencode "operation_id=$$OP" $$U/admin/credit); \
+			--data-urlencode "operation_id=$$OP" --data-urlencode "customer_id=$$CUSTOMER_ID" \
+			-d 'confirm=grant' $$U/admin/credit); \
 		test "$${GRANT%% *}" = 303 || { echo "credit grant answered $${GRANT%% *}, want 303" >&2; exit 2; }; \
 		printf '%s' "$${GRANT#* }" | grep -q 'ok=1' \
 			|| { echo "credit grant redirected to $${GRANT#* }, want ok=1" >&2; exit 2; }; \
@@ -324,7 +334,7 @@ check-layout:
 		RID=$$(psql "$$GOEN_DATABASE_URL" -tAc "SELECT r.id FROM return_requests r JOIN orders o ON o.id = r.order_id WHERE o.order_number = '$$RN' AND r.status = 'requested' ORDER BY r.created_at DESC LIMIT 1"); \
 		test -n "$$RID" || { echo 'return fixture created no return request' >&2; exit 2; }; \
 		STATUS=$$(curl -sS -o /dev/null -w '%{http_code}' -b "goen_session=$$AT" -H 'Sec-Fetch-Site: same-origin' \
-			-d 'decision=approved' --data-urlencode 'resolution=版面檢查同意退貨' \
+			-d 'decision=approved' -d 'confirm=approved' --data-urlencode 'resolution=版面檢查同意退貨' \
 			$$U/admin/returns/$$RID/decide); \
 		test "$$STATUS" = 303 || { echo "return fixture decide answered $$STATUS, want 303" >&2; exit 2; }; \
 		REFUNDED=$$(psql "$$GOEN_DATABASE_URL" -tAc "SELECT (rf.card_cents + rf.credit_cents)::text FROM order_refunds rf JOIN orders o ON o.id = rf.order_id WHERE o.order_number = '$$RN'"); \
@@ -656,6 +666,11 @@ db-repair-refund-faq:
 	@test -n "$${GOEN_DATABASE_URL:-}" || { echo 'GOEN_DATABASE_URL is required' >&2; exit 2; }
 	psql "$$GOEN_DATABASE_URL" -v ON_ERROR_STOP=1 -f seed/repair_refund_faq.sql
 
+# Update only the known card-only payment FAQ on a kept database.
+db-repair-payment-faq:
+	@test -n "$${GOEN_DATABASE_URL:-}" || { echo 'GOEN_DATABASE_URL is required' >&2; exit 2; }
+	psql "$$GOEN_DATABASE_URL" -v ON_ERROR_STOP=1 -f seed/repair_payment_faq.sql
+
 # Rebuild the development database from scratch.
 #
 # 001 is still amended in place rather than superseded (see CLAUDE.md), so an
@@ -920,14 +935,18 @@ cursor-scripts-check:
 	@bash .cursor/lib/stripe-config-key.test.sh
 	@bash .cursor/lib/stripe-sandbox-key.test.sh
 
-# The single gate. Stop at the first failure — a passing later stage must never
-# be able to bury an earlier red one.
+demo-restore-check:
+	bash -n deploy/demo/restore-demo-db.sh scripts/demo-restore-test.sh
+	scripts/demo-restore-test.sh
+
 workflow-check:
 	$(ACTIONLINT) -shellcheck=
 	go test ./internal/db -run '^TestCI' -count=1
 	go test ./internal/db -run '^TestCommitAttribution' -count=1
 
-verify: workflow-check cursor-scripts-check fmt-check templ-check squawk sqlc-check vet deadcode lint production-build-check integration-build-check test-race
+# The single gate. Stop at the first failure — a passing later stage must never
+# be able to bury an earlier red one.
+verify: demo-restore-check workflow-check cursor-scripts-check fmt-check templ-check squawk sqlc-check vet deadcode lint production-build-check integration-build-check test-race
 	@echo 'verify: PASS (unit tests only — make verify-all adds the database suite)'
 
 # Everything verify runs plus the parts that need Docker and the network.

@@ -85,6 +85,10 @@ WHERE o.order_number = $1;
 UPDATE order_shipments SET delivered_at = greatest(now(), shipped_at)
 WHERE order_id = $1 AND delivered_at IS NULL;
 
+-- Lock before reading the prior state so concurrent completion cannot duplicate arrival mail.
+-- name: LockOrderForAdvance :one
+SELECT id, fulfillment_status FROM orders WHERE order_number = $1 FOR UPDATE;
+
 -- orders_check_transition validates the move, so this does not re-derive it.
 -- cancelled_at and completed_at are set here because the schema requires them
 -- for those two states and orders_history_frozen refuses a later change.
@@ -94,6 +98,10 @@ SET fulfillment_status = @status::text,
     cancelled_at = CASE WHEN @status::text = 'cancelled' THEN now() ELSE cancelled_at END,
     completed_at = CASE WHEN @status::text = 'completed' THEN now() ELSE completed_at END
 WHERE order_number = @order_number::text;
+
+-- Serialize changes so the audit operation describes the note actually replaced.
+-- name: LockOrderForStaffNote :one
+SELECT id, staff_note FROM orders WHERE order_number = $1 FOR UPDATE;
 
 -- name: SetStaffNote :exec
 UPDATE orders SET staff_note = $2 WHERE order_number = $1;
@@ -1700,12 +1708,11 @@ WHERE z.id = @zone_id
   AND NOT EXISTS (SELECT 1 FROM shipping_zone_prefixes p WHERE p.zone_id = z.id)
   AND NOT EXISTS (SELECT 1 FROM shipping_version_zones v WHERE v.zone_id = z.id);
 
--- source_id is a bare uuid with no foreign key — it points at whichever table
--- source_type names — so each join is guarded by that discriminator. A HOLD
--- points at the reservation, because it is taken before the order exists.
+-- Each source discriminator selects its validated parent. A hold names its
+-- order; a release names the reservation and a restock names the return.
 -- name: VariantMovements :many
 SELECT m.created_at, m.delta, m.reason, m.source_type,
-       coalesce(o.order_number, ro.order_number, '') AS order_number,
+       coalesce(o.order_number, ro.order_number, rro.order_number, '') AS order_number,
        coalesce(u.full_name, u.email, '') AS actor,
        (SELECT sum(e.delta) FROM inventory_movements e
         WHERE e.variant_id = m.variant_id AND e.id <= m.id)::integer AS running_total
@@ -1716,6 +1723,9 @@ LEFT JOIN orders o ON m.source_type = 'order' AND o.id = m.source_id
 LEFT JOIN inventory_reservations r
        ON m.source_type = 'reservation' AND r.id = m.source_id
 LEFT JOIN orders ro ON ro.id = r.order_id
+LEFT JOIN return_requests rr
+       ON m.source_type = 'return_request' AND rr.id = m.source_id
+LEFT JOIN orders rro ON rro.id = rr.order_id
 WHERE pv.sku = @sku::text
 ORDER BY m.id DESC
 LIMIT @row_limit::integer;

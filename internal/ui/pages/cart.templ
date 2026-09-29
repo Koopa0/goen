@@ -757,13 +757,23 @@ templ field(name, label, kind, value string, v *CheckoutView) {
 			if hints.SpellCheck != "" {
 				spellcheck={ hints.SpellCheck }
 			}
-			aria-invalid={ v.Invalid(name) }
+			if hints.Pattern != "" {
+				pattern={ hints.Pattern }
+				if !v.HasErr(name) {
+					data-checkout-constraint
+				}
+			}
 			if v.HasErr(name) {
+				aria-invalid="true"
+			}
+			if v.HasErr(name) || hints.Pattern != "" {
 				aria-describedby={ name + "-error" }
 			}
 		/>
 		if v.HasErr(name) {
 			<p class="ui-error-text" id={ name + "-error" }>{ v.Err(name) }</p>
+		} else if hints.Pattern != "" {
+			<p class="ui-error-text goen-field__constraint" id={ name + "-error" }>{ i18n.T(ctx, hints.ConstraintMessage) }</p>
 		}
 	</div>
 }
@@ -795,7 +805,20 @@ templ Order(p layouts.Page, v *OrderView) {
 					{ i18n.T(ctx, i18n.KeyOrderCancelled) }
 				}
 			}
-			if v.AwaitingPayment() {
+			if v.PaymentRefreshURL != "" {
+				<div class="goen-notice goen-notice--accent" id="order-payment-processing" role="status">
+					<h2 class="goen-order__subhead">{ i18n.T(ctx, i18n.KeyPayProcessingTitle) }</h2>
+					<p>{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOrderPaymentChecking), v.PaymentRefreshSeconds, v.PaymentRefreshChecks) }</p>
+					<div class="goen-order__actions">
+						@components.ButtonLink(components.ButtonProps{Variant: components.VariantOutline}, templ.SafeURL(v.PaymentRefreshURL)) {
+							{ i18n.T(ctx, i18n.KeyOrderCheckPayment) }
+						}
+						@components.ButtonLink(components.ButtonProps{Variant: components.VariantGhost}, templ.SafeURL("/orders/"+v.Number)) {
+							{ i18n.T(ctx, i18n.KeyOrderStopChecking) }
+						}
+					</div>
+				</div>
+			} else if v.AwaitingPayment() {
 				@components.Notice(components.NoticeProps{
 					Tone: components.ToneAccent,
 					ID:   "order-unpaid",
@@ -922,7 +945,7 @@ templ Order(p layouts.Page, v *OrderView) {
 							}
 							<span class="goen-order__meta">{ i18n.T(ctx, i18n.KeyOrderReorderNote) }</span>
 						</form>
-						if v.CanCancel() {
+						if v.CanCancel() && v.PaymentRefreshURL == "" {
 							<form class="goen-order__cancel" method="post" action={ templ.SafeURL("/orders/" + v.Number + "/cancel") }>
 								@components.Button(components.ButtonProps{Variant: components.VariantGhost}, "submit") {
 									{ i18n.T(ctx, i18n.KeyOrderCancel) }
