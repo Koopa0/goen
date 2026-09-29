@@ -70,47 +70,51 @@ func TestEveryFormActionResolvesToAPostRoute(t *testing.T) {
 		t.Fatalf("only %d POST routes found; the parser is not reading server.go", len(posts))
 	}
 
-	checked, unresolvable := 0, 0
+	checked := 0
+	methods := methodFormActions(t)
+	seen := map[string]bool{}
 	for path, src := range templateSources(t) {
 		for _, m := range formOpen.FindAllStringSubmatch(src, -1) {
 			attrs := m[1]
 			action := attrValue(attrs, "action")
 			if action == "{expr}" {
-				// Most of the back office builds its action from literals around
-				// one value — templ.SafeURL("/admin/orders/" + v.Number + "/ship")
-				// — so skipping every expression would leave most POST routes
-				// uncovered.
-				action = pathFromExpr(attrExpr(attrs, "action"))
+				expr := strings.TrimSpace(attrExpr(attrs, "action"))
+				key := path + ":" + expr
+				if actions, ok := methods[key]; ok {
+					seen[key] = true
+					for _, candidate := range actions {
+						checkFormRoute(t, path, attrs, candidate, posts, gets)
+						checked++
+					}
+					continue
+				}
+				// The pickup map posts to the carrier, whose URL is supplied by
+				// the gateway; it must not be compared with this server's mux.
+				if key == "pages/cart.templ:templ.URL(v.Map.Action)" {
+					continue
+				}
+				action = pathFromExpr(expr)
 				if action == "" {
-					unresolvable++
+					t.Errorf("%s: unresolved form action %s; add production action fixtures", path, expr)
 					continue
 				}
 			}
 			if action == "" || !strings.HasPrefix(action, "/") {
 				continue
 			}
-			// A query string is the chooser's, not the route's.
-			if i := strings.IndexByte(action, '?'); i >= 0 {
-				action = action[:i]
-			}
 			checked++
-			want := posts
-			if strings.ToLower(attrValue(attrs, "method")) == "get" {
-				want = gets
-			}
-			if !resolves(action, want) {
-				t.Errorf("%s: %s\n  posts to a path the server registers no handler for",
-					path, firstLine(m[0]))
-			}
+			checkFormRoute(t, path, attrs, action, posts, gets)
 		}
 	}
 	if checked < 30 {
 		t.Fatalf("only %d form actions resolved; the parser stopped matching", checked)
 	}
-	// Named rather than silent: an action built entirely from a method call
-	// carries no literal to resolve, and a check that quietly drops those reads
-	// as "everything is covered" when it is not.
-	t.Logf("%d actions resolved; %d built from a call with no literal path", checked, unresolvable)
+	for key := range methods {
+		if !seen[key] {
+			t.Errorf("action fixture %s no longer matches a form", key)
+		}
+	}
+	t.Logf("%d local actions resolved", checked)
 }
 
 // attrExpr is the raw templ expression of attr={ ... }, or "" when it is a
@@ -212,4 +216,19 @@ func templateSources(t *testing.T) map[string]string {
 		t.Fatalf("walk internal/ui: %v", err)
 	}
 	return out
+}
+
+func checkFormRoute(t *testing.T, path, attrs, action string, posts, gets []*regexp.Regexp) {
+	t.Helper()
+	// Fragments and chooser queries never reach ServeMux.
+	if i := strings.IndexAny(action, "?#"); i >= 0 {
+		action = action[:i]
+	}
+	want := posts
+	if strings.EqualFold(attrValue(attrs, "method"), "get") {
+		want = gets
+	}
+	if !resolves(action, want) {
+		t.Errorf("%s: form action %q has no %s route", path, action, attrValue(attrs, "method"))
+	}
 }
