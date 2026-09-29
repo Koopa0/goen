@@ -16,11 +16,8 @@ templ Contact(p layouts.Page, f ContactForm) {
 				<p class="goen-pagehead__sub">{ i18n.T(ctx, i18n.KeyContactHours) }</p>
 			</div>
 			<div class="contact__methods">
-				@contactMethod("mailto:support@goen.tw", i18n.T(ctx, i18n.KeyFieldEmail), "support@goen.tw") {
+				@contactMethod("mailto:"+layouts.ContactEmail, i18n.T(ctx, i18n.KeyFieldEmail), layouts.ContactEmail) {
 					@icons.Mail()
-				}
-				@contactMethod("tel:+886227001234", i18n.T(ctx, i18n.KeyContactPhone), "02-2700-1234") {
-					@icons.Phone()
 				}
 				@contactMethod("https://line.me/R/ti/p/@goen", i18n.T(ctx, i18n.KeyContactLine), "@goen") {
 					@icons.Chat()
