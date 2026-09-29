@@ -2395,7 +2395,22 @@ const provePdpAdd = async (label, scriptingOff) => {
       return { ok: false, why: 'add-to-cart is not ready before submit' };
     }
     add.scrollIntoView({ block: 'center', behavior: 'instant' });
-    form.requestSubmit();
+    // With script, press twice in the same tick: the second request queues
+    // behind the first, and the first response swaps this form out of the page.
+    // Exactly one POST may leave, or a double press adds the product twice.
+    window.__pdpAddPosts = 0;
+    if (!${scriptingOff}) {
+      const originalFetch = window.fetch;
+      window.fetch = (input, init) => {
+        const method = String((init && init.method) || (input && input.method) || 'GET').toUpperCase();
+        if (method === 'POST') window.__pdpAddPosts += 1;
+        return originalFetch.call(window, input, init);
+      };
+      form.requestSubmit();
+      form.requestSubmit();
+    } else {
+      form.requestSubmit();
+    }
     return { ok: true };
   })()`);
   if (submit.threw || !submit.ok) {
@@ -2435,6 +2450,14 @@ const provePdpAdd = async (label, scriptingOff) => {
   if (got.threw) {
     fail(label, `post-add probe did not run — ${got.why}`);
     return;
+  }
+  if (!scriptingOff) {
+    // Let a wrongly issued second request reach the wrapper before counting.
+    await new Promise((r) => setTimeout(r, 500));
+    const posts = await evalPage('window.__pdpAddPosts');
+    if (posts.threw || posts !== 1) {
+      fail(label, `two quick add-to-cart presses sent ${posts.threw ? posts.why : posts} POSTs, want exactly 1`);
+    }
   }
   if (got.addDisabled) {
     fail(label, 'add-to-cart is disabled after a successful add');

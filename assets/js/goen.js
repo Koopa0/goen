@@ -119,8 +119,11 @@
       const ctx = event.detail?.ctx;
       const form = ctx?.request?.form;
       if (!(form instanceof HTMLFormElement)) return;
-      // A source swapped out of the page can no longer receive its own finally
-      // event, so a request from one would leave the form pending for good.
+      // Do not delete the isConnected clause: a second press queues behind the
+      // first, whose response swaps the form out of the page, and htmx then
+      // issues the queued request from that detached form, where nothing is
+      // pending any more. Without the clause it posts a second time and the
+      // product is added twice.
       if (pending.has(form) || !ctx.sourceElement.isConnected) { event.preventDefault(); return; }
       begin(form);
       requests.set(ctx, form);
