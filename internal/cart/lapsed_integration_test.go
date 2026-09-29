@@ -182,6 +182,67 @@ func TestTheSweepCancelsAnUnpaidOrderWhoseHoldsLapsed(t *testing.T) {
 		if got := creditBalance(t, accountID); got != 30000 {
 			t.Errorf("balance after the sweep = %d, want the 30000 spent on the order back", got)
 		}
+		if noticeRefunded(t, number) {
+			t.Error("an order no money reached is noticed as refunded")
+		}
+	}
+}
+
+// noticeRefunded is what the order's terminal notice tells the mail worker.
+func noticeRefunded(t *testing.T, number string) bool {
+	t.Helper()
+	var refunded bool
+	if err := pool.QueryRow(t.Context(), `
+		SELECT (m.payload->>'refunded')::boolean
+		FROM outbox_messages m JOIN orders o ON m.payload->>'order_id' = o.id::text
+		WHERE m.topic = $1 AND o.order_number = $2`,
+		outbox.TopicOrderTerminal, number).Scan(&refunded); err != nil {
+		t.Fatalf("read the terminal notice of %s: %v", number, err)
+	}
+	return refunded
+}
+
+// TestALateRefundedPaymentIsNotCalledNothingCharged: money reached Stripe after
+// the hold lapsed, was refused, and staff refunded it and released the alarm.
+// Whoever cancels the order afterwards, its notice says the money comes back.
+func TestALateRefundedPaymentIsNotCalledNothingCharged(t *testing.T) {
+	for _, bySweep := range []bool{true, false} {
+		name := "customer cancel"
+		if bySweep {
+			name = "sweep"
+		}
+		t.Run(name, func(t *testing.T) {
+			ctx := t.Context()
+			orderID := heldOrder(t, freshVariant(t, "lapse-refunded"), time.Hour, false)
+			number := numberOf(t, orderID)
+			ref := "cs_lapse_refund_" + strings.ReplaceAll(uuid.NewString(), "-", "")[:12]
+			if _, err := pool.Exec(ctx, `SELECT open_payment($1, $2, 100000)`, orderID, ref); err != nil {
+				t.Fatalf("open payment: %v", err)
+			}
+			eventID := "evt_lapse_refund_" + uuid.NewString()[:12]
+			if _, err := pool.Exec(ctx, `
+				INSERT INTO payment_webhook_events (provider, event_id, type, object_ref, payload, processed_at, unreconciled)
+				VALUES ('stripe', $1, 'checkout.session.completed', $2, '{}', now(),
+				        'refused_capture: payments_capture_refuses_released_stock')`, eventID, ref); err != nil {
+				t.Fatalf("record the refused capture: %v", err)
+			}
+			var released bool
+			if err := pool.QueryRow(ctx, `SELECT release_payment_event($1)`, eventID).Scan(&released); err != nil || !released {
+				t.Fatalf("staff release after refund = %t, %v", released, err)
+			}
+
+			if bySweep {
+				sweepAs(t, storeRolePool(t))
+			} else if _, err := cart.NewStore(storeRolePool(t)).Cancel(ctx, number); err != nil {
+				t.Fatalf("customer cancel: %v", err)
+			}
+			if f := factsOf(t, number, uuid.Nil); f.status != "cancelled" || f.notices != 1 {
+				t.Fatalf("order is %s with %d notices, want cancelled with 1", f.status, f.notices)
+			}
+			if !noticeRefunded(t, number) {
+				t.Error("the notice of an order whose late payment was refunded says nothing was charged")
+			}
+		})
 	}
 }
 

@@ -8134,6 +8134,29 @@ func (q *Queries) OrderLinesForPayment(ctx context.Context, orderID uuid.UUID) (
 	return items, nil
 }
 
+const orderMayHaveTakenMoney = `-- name: OrderMayHaveTakenMoney :one
+SELECT EXISTS (
+    SELECT 1 FROM payments p
+    WHERE p.order_id = $1
+      AND (p.status IN ('requires_reconciliation', 'reconciled')
+           OR EXISTS (
+               SELECT 1 FROM payment_webhook_events e
+               WHERE e.provider = p.provider AND e.object_ref = p.provider_ref
+                 AND e.unreconciled IS NOT NULL
+           ))
+)::boolean AS may_have_taken_money
+`
+
+// Money may have reached Stripe for this unpaid order: a provider-complete
+// session, its resolution, or a provider event that needed a person. Staff
+// refund such money, so a cancellation notice must not say nothing was charged.
+func (q *Queries) OrderMayHaveTakenMoney(ctx context.Context, orderID uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, orderMayHaveTakenMoney, orderID)
+	var may_have_taken_money bool
+	err := row.Scan(&may_have_taken_money)
+	return may_have_taken_money, err
+}
+
 const orderNumberByID = `-- name: OrderNumberByID :one
 SELECT order_number FROM orders WHERE id = $1
 `

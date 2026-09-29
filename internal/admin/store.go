@@ -419,7 +419,7 @@ func applyStatusEffects(ctx context.Context, q *db.Queries, e statusEffect) erro
 func enqueueStatusNotice(ctx context.Context, q *db.Queries, e statusEffect) error {
 	switch e.status {
 	case pages.FulfillmentCancelled:
-		return ordernotice.Enqueue(ctx, q, e.orderID, ordernotice.CancelledByStaff)
+		return ordernotice.Enqueue(ctx, q, ordernotice.Message{OrderID: e.orderID, Kind: ordernotice.CancelledByStaff})
 	case pages.FulfillmentDelivered, pages.FulfillmentCompleted:
 		row, err := q.OrderDestinationKind(ctx, e.number)
 		if err != nil {
@@ -440,7 +440,7 @@ func enqueueStatusNotice(ctx context.Context, q *db.Queries, e statusEffect) err
 			// Completion adds no new arrival, even after outbox retention.
 			return nil
 		}
-		return ordernotice.Enqueue(ctx, q, e.orderID, kind)
+		return ordernotice.Enqueue(ctx, q, ordernotice.Message{OrderID: e.orderID, Kind: kind})
 	default:
 		return nil
 	}

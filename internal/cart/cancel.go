@@ -80,5 +80,9 @@ func settleCancellation(ctx context.Context, q *db.Queries, number string, kind 
 		return fmt.Errorf("record cancellation of %s: %w", number, err)
 	}
 
-	return ordernotice.Enqueue(ctx, q, order.ID, kind)
+	refunded, moneyErr := q.OrderMayHaveTakenMoney(ctx, order.ID)
+	if moneyErr != nil {
+		return fmt.Errorf("read provider money on %s: %w", number, moneyErr)
+	}
+	return ordernotice.Enqueue(ctx, q, ordernotice.Message{OrderID: order.ID, Kind: kind, Refunded: refunded})
 }
