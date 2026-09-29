@@ -91,6 +91,9 @@ func (s *Store) AddStaff(ctx context.Context, address, name, role, actorID strin
 		if lookupErr != nil {
 			return uuid.UUID{}, nil, fmt.Errorf("read promoted staff %s: %w", address, lookupErr)
 		}
+		if enqueueErr := enqueueStaffInvitation(ctx, q, target.ID); enqueueErr != nil {
+			return uuid.UUID{}, nil, enqueueErr
+		}
 		return target.ID, map[string]string{"email": target.Email, "role": target.Role}, nil
 	})
 	if err != nil {
