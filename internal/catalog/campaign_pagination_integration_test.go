@@ -23,14 +23,14 @@ func TestRunningCampaignsExposeTheSeventhCampaign(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = tx.Rollback(context.WithoutCancel(ctx)) })
-	if _, err := tx.Exec(ctx, "UPDATE sale_campaigns SET is_active = false"); err != nil {
-		t.Fatal(err)
+	if _, execErr := tx.Exec(ctx, "UPDATE sale_campaigns SET is_active = false"); execErr != nil {
+		t.Fatal(execErr)
 	}
 	slugs := make([]string, 7)
 	for i := range slugs {
 		slugs[i] = "campaign-page-" + uuid.NewString()
-		if _, err := tx.Exec(ctx, `INSERT INTO sale_campaigns (slug, title, starts_at, ends_at, is_active) VALUES ($1, $2, now() - interval '1 day', now() + ($3 * interval '1 day'), true)`, slugs[i], fmt.Sprintf("Campaign %d", i), i+1); err != nil {
-			t.Fatal(err)
+		if _, execErr := tx.Exec(ctx, `INSERT INTO sale_campaigns (slug, title, starts_at, ends_at, is_active) VALUES ($1, $2, now() - interval '1 day', now() + ($3 * interval '1 day'), true)`, slugs[i], fmt.Sprintf("Campaign %d", i), i+1); execErr != nil {
+			t.Fatal(execErr)
 		}
 	}
 	store := catalog.NewStore(tx)

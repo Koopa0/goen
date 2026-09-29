@@ -53,7 +53,6 @@ func (s *Store) RunningCampaigns(ctx context.Context, page int) (pages.CampaignP
 	}
 	page = max(1, min(page, maxPage, max(1, int((total+CampaignPageSize-1)/CampaignPageSize))))
 	view := pages.CampaignPage{Page: page, Total: total, PageSize: CampaignPageSize}
-	//nolint:gosec // G115: page is bounded to maxPage above.
 	rows, err := s.q.RunningCampaigns(ctx, db.RunningCampaignsParams{
 		PageSize: CampaignPageSize, PageOffset: int32((page - 1) * CampaignPageSize), Locale: string(i18n.FromContext(ctx)),
 	})
