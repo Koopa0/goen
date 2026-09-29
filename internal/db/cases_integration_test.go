@@ -400,33 +400,48 @@ var checkCases = []checkCase{
 		accept:     `INSERT INTO hero_slides (headline, primary_cta_label, primary_cta_href, position, starts_at, ends_at) VALUES ('夏季新機', '立即選購', '/c/phones', 5, '2026-08-01T00:00:00Z', '2026-08-02T00:00:00Z');`,
 	},
 	{
+		constraint: "inventory_movements_source_known",
+		reject:     `SELECT record_inventory_movement('44444444-4444-4444-8444-444444444444', 1, 'receipt', 'source-known', 'unknown');`,
+		accept:     `SELECT record_inventory_movement('44444444-4444-4444-8444-444444444444', 1, 'receipt', 'source-known', 'admin');`,
+	},
+	{
+		constraint: "inventory_movements_source_reason",
+		reject:     `SELECT record_inventory_movement('44444444-4444-4444-8444-444444444444', 1, 'receipt', 'reason-source', 'order', '66666666-6666-4666-8666-666666666666');`,
+		accept:     `SELECT record_inventory_movement('44444444-4444-4444-8444-444444444444', 1, 'receipt', 'reason-source', 'admin');`,
+	},
+	{
+		constraint: "inventory_movements_source_paired",
+		reject:     `SELECT record_inventory_movement('44444444-4444-4444-8444-444444444444', -1, 'hold', 'source-paired', 'order', NULL);`,
+		accept:     `SELECT record_inventory_movement('44444444-4444-4444-8444-444444444444', -1, 'hold', 'source-paired', 'order', '66666666-6666-4666-8666-666666666666');`,
+	},
+	{
 		constraint: "inventory_movements_delta_non_zero",
-		reject: `INSERT INTO inventory_movements (variant_id, delta, reason, idempotency_key)
-VALUES ('44444444-4444-4444-8444-444444444444', 0, 'adjustment', 'im-delta-1');`,
-		accept: `INSERT INTO inventory_movements (variant_id, delta, reason, idempotency_key)
-VALUES ('44444444-4444-4444-8444-444444444444', 1, 'adjustment', 'im-delta-1');`,
+		reject: `INSERT INTO inventory_movements (variant_id, delta, reason, source_type, idempotency_key)
+VALUES ('44444444-4444-4444-8444-444444444444', 0, 'adjustment', 'admin', 'im-delta-1');`,
+		accept: `INSERT INTO inventory_movements (variant_id, delta, reason, source_type, idempotency_key)
+VALUES ('44444444-4444-4444-8444-444444444444', 1, 'adjustment', 'admin', 'im-delta-1');`,
 	},
 	{
 		constraint: "inventory_movements_delta_direction",
 		// A sale takes stock out, so its delta must be negative; the neighbour is the correct sign.
-		reject: `INSERT INTO inventory_movements (variant_id, delta, reason, idempotency_key)
-VALUES ('44444444-4444-4444-8444-444444444444', 5, 'sale', 'im-dir-1');`,
-		accept: `INSERT INTO inventory_movements (variant_id, delta, reason, idempotency_key)
-VALUES ('44444444-4444-4444-8444-444444444444', -5, 'sale', 'im-dir-1');`,
+		reject: `INSERT INTO inventory_movements (variant_id, delta, reason, source_type, source_id, idempotency_key)
+VALUES ('44444444-4444-4444-8444-444444444444', 5, 'sale', 'order', '66666666-6666-4666-8666-666666666666', 'im-dir-1');`,
+		accept: `INSERT INTO inventory_movements (variant_id, delta, reason, source_type, source_id, idempotency_key)
+VALUES ('44444444-4444-4444-8444-444444444444', -5, 'sale', 'order', '66666666-6666-4666-8666-666666666666', 'im-dir-1');`,
 	},
 	{
 		constraint: "inventory_movements_key_present",
-		reject: `INSERT INTO inventory_movements (variant_id, delta, reason, idempotency_key)
-VALUES ('44444444-4444-4444-8444-444444444444', 1, 'adjustment', E'\t');`,
-		accept: `INSERT INTO inventory_movements (variant_id, delta, reason, idempotency_key)
-VALUES ('44444444-4444-4444-8444-444444444444', 1, 'adjustment', E'\tim-key');`,
+		reject: `INSERT INTO inventory_movements (variant_id, delta, reason, source_type, idempotency_key)
+VALUES ('44444444-4444-4444-8444-444444444444', 1, 'adjustment', 'admin', E'\t');`,
+		accept: `INSERT INTO inventory_movements (variant_id, delta, reason, source_type, idempotency_key)
+VALUES ('44444444-4444-4444-8444-444444444444', 1, 'adjustment', 'admin', E'\tim-key');`,
 	},
 	{
 		constraint: "inventory_movements_reason_known",
-		reject: `INSERT INTO inventory_movements (variant_id, delta, reason, idempotency_key)
-VALUES ('44444444-4444-4444-8444-444444444444', 1, 'purchase', 'im-reason-1');`,
-		accept: `INSERT INTO inventory_movements (variant_id, delta, reason, idempotency_key)
-VALUES ('44444444-4444-4444-8444-444444444444', 1, 'receipt', 'im-reason-1');`,
+		reject: `INSERT INTO inventory_movements (variant_id, delta, reason, source_type, idempotency_key)
+VALUES ('44444444-4444-4444-8444-444444444444', 1, 'purchase', 'admin', 'im-reason-1');`,
+		accept: `INSERT INTO inventory_movements (variant_id, delta, reason, source_type, idempotency_key)
+VALUES ('44444444-4444-4444-8444-444444444444', 1, 'receipt', 'admin', 'im-reason-1');`,
 	},
 	{
 		constraint: "inventory_reservations_expiry_after_creation",
@@ -725,7 +740,7 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 		reject: `INSERT INTO order_lines (id, order_id, variant_id, sku, product_name, unit_price_cents, quantity, position)
 		         VALUES ('11110001-0000-4000-8000-000000000006', '6666aaaa-6666-4666-8666-666666666666', '44440000-0000-4000-8000-000000000000', 'UNKNOWN-VARIANT', '不存在規格', 1, 1, 5);`,
 		accept: `INSERT INTO order_lines (id, order_id, variant_id, sku, product_name, unit_price_cents, quantity, position)
-		         VALUES ('11110001-0000-4000-8000-000000000006', '6666aaaa-6666-4666-8666-666666666666', '44444444-4444-4444-8444-444444444444', 'PXL-TEST-BL', 'Pixelight 9 Pro 5G', 3690000, 1, 5);`,
+		         VALUES ('11110001-0000-4000-8000-000000000006', '6666aaaa-6666-4666-8666-666666666666', '44444444-4444-4444-8444-444444444444', 'PXL-9P-256-BL', 'Pixelight 9 Pro 5G', 3690000, 1, 5);`,
 	},
 	{
 		constraint: "order_lines_sku_present",
@@ -1106,13 +1121,13 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 	},
 	{
 		constraint: "product_options_name_en_present",
-		reject:     `INSERT INTO product_options (id, product_id, name, name_en, position) VALUES ('11110005-0000-4000-8000-000000000091', '33333333-3333-4333-8333-333333333333', '測試軸', E'\t', 91);`,
-		accept:     `INSERT INTO product_options (id, product_id, name, name_en, position) VALUES ('11110005-0000-4000-8000-000000000091', '33333333-3333-4333-8333-333333333333', '測試軸', 'Test axis', 91);`,
+		reject:     `INSERT INTO product_options (id, product_id, name, name_en, position) VALUES ('11110005-0000-4000-8000-000000000091', '3333aaaa-3333-4333-8333-333333333333', '測試軸', E'\t', 91);`,
+		accept:     `INSERT INTO product_options (id, product_id, name, name_en, position) VALUES ('11110005-0000-4000-8000-000000000091', '3333aaaa-3333-4333-8333-333333333333', '測試軸', 'Test axis', 91);`,
 	},
 	{
 		constraint: "product_options_name_present",
-		reject:     `INSERT INTO product_options (id, product_id, name) VALUES ('11110001-0000-4000-8000-000000000001', '33333333-3333-4333-8333-333333333333', E'\t');`,
-		accept:     `INSERT INTO product_options (id, product_id, name) VALUES ('11110001-0000-4000-8000-000000000001', '33333333-3333-4333-8333-333333333333', '尺寸');`,
+		reject:     `INSERT INTO product_options (id, product_id, name) VALUES ('11110001-0000-4000-8000-000000000001', '3333aaaa-3333-4333-8333-333333333333', E'\t');`,
+		accept:     `INSERT INTO product_options (id, product_id, name) VALUES ('11110001-0000-4000-8000-000000000001', '3333aaaa-3333-4333-8333-333333333333', '尺寸');`,
 	},
 	{
 		constraint: "product_reviews_body_present",
@@ -2187,14 +2202,14 @@ var uniqueCases = []uniqueCase{
 	},
 	{
 		index: "inventory_movements_idempotency_key",
-		reject: `INSERT INTO inventory_movements (variant_id, delta, reason, idempotency_key)
-VALUES ('44444444-4444-4444-8444-444444444444', 1, 'receipt', 'im-dup');
-INSERT INTO inventory_movements (variant_id, delta, reason, idempotency_key)
-VALUES ('44444444-4444-4444-8444-444444444444', 1, 'receipt', 'im-dup');`,
-		accept: `INSERT INTO inventory_movements (variant_id, delta, reason, idempotency_key)
-VALUES ('44444444-4444-4444-8444-444444444444', 1, 'receipt', 'im-dup');
-INSERT INTO inventory_movements (variant_id, delta, reason, idempotency_key)
-VALUES ('44444444-4444-4444-8444-444444444444', 1, 'receipt', 'im-dup-2');`,
+		reject: `INSERT INTO inventory_movements (variant_id, delta, reason, source_type, idempotency_key)
+VALUES ('44444444-4444-4444-8444-444444444444', 1, 'receipt', 'admin', 'im-dup');
+INSERT INTO inventory_movements (variant_id, delta, reason, source_type, idempotency_key)
+VALUES ('44444444-4444-4444-8444-444444444444', 1, 'receipt', 'admin', 'im-dup');`,
+		accept: `INSERT INTO inventory_movements (variant_id, delta, reason, source_type, idempotency_key)
+VALUES ('44444444-4444-4444-8444-444444444444', 1, 'receipt', 'admin', 'im-dup');
+INSERT INTO inventory_movements (variant_id, delta, reason, source_type, idempotency_key)
+VALUES ('44444444-4444-4444-8444-444444444444', 1, 'receipt', 'admin', 'im-dup-2');`,
 	},
 	{
 		index: "inventory_reservations_order_variant_key",
@@ -2352,8 +2367,8 @@ VALUES ('66666666-6666-4666-8666-666666666666', '4444aaaa-4444-4444-8444-4444444
 	},
 	{
 		index:  "product_options_name_key",
-		reject: `INSERT INTO product_options (id, product_id, name) VALUES ('11110013-0000-4000-8000-000000000001', '33333333-3333-4333-8333-333333333333', '顏色');`,
-		accept: `INSERT INTO product_options (id, product_id, name) VALUES ('11110013-0000-4000-8000-000000000001', '33333333-3333-4333-8333-333333333333', '尺寸');`,
+		reject: `INSERT INTO product_options (product_id, name) VALUES ('3333aaaa-3333-4333-8333-333333333333', '顏色'); INSERT INTO product_options (id, product_id, name) VALUES ('11110013-0000-4000-8000-000000000001', '3333aaaa-3333-4333-8333-333333333333', '顏色');`,
+		accept: `INSERT INTO product_options (id, product_id, name) VALUES ('11110013-0000-4000-8000-000000000001', '3333aaaa-3333-4333-8333-333333333333', '尺寸');`,
 	},
 	{
 		index:  "product_reviews_author_key",

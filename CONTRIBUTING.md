@@ -51,6 +51,9 @@ a change to it run `make db-reset`, which rebuilds and re-seeds. The symptom of
 not doing so is a back-office page answering 500 for a column that exists in
 the file and not in your database.
 
+`make run` checks this for you: it runs `make schema-drift` first and refuses to
+start against a database that no longer matches `migrations/`.
+
 ## Run the tests
 
 ```sh
@@ -110,7 +113,8 @@ PR cannot satisfy its own native approval, and no second reviewer exists. Green
 presubmit jobs establish the gate's guarantees only; browser-gate promotion and
 provider acceptance are not established by them.
 
-goen publishes no releases, so it produces no SBOM or build provenance.
+goen publishes no releases, so there is no release provenance. The container image
+that `make image-push` builds carries an SPDX SBOM (`ko build --sbom=spdx`).
 
 ## Change it
 

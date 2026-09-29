@@ -39,7 +39,7 @@ and refunds, warranty requests, invoices, and customer inquiries.
 ## Current limits
 
 Payments, electronic invoices, and email delivery have not yet been verified
-with their service providers ([#40](https://github.com/Koopa0/goen/issues/40)). The return review
+with their service providers. The return review
 process does not yet enforce the advertised eligibility windows
 ([#50](https://github.com/Koopa0/goen/issues/50)). Warranty collection is incomplete
 for convenience-store pickup orders ([#225](https://github.com/Koopa0/goen/issues/225)).
