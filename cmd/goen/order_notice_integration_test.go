@@ -22,9 +22,9 @@ func TestTerminalWorkerSkipsAnAddressErasedBeforeDelivery(t *testing.T) {
 	if err := pool.QueryRow(ctx, `INSERT INTO shipping_method_versions(method_id,name,fee_cents) VALUES($1,'Delivery',0) RETURNING id`, method).Scan(&version); err != nil {
 		t.Fatal(err)
 	}
-	tx, err := pool.Begin(ctx)
-	if err != nil {
-		t.Fatal(err)
+	tx, beginErr := pool.Begin(ctx)
+	if beginErr != nil {
+		t.Fatal(beginErr)
 	}
 	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
 	if err := tx.QueryRow(ctx, `INSERT INTO orders(order_number,shipping_version_id,shipping_method_code,shipping_method_name) SELECT next_order_number(),$1,code,'Delivery' FROM shipping_methods WHERE id=$2 RETURNING id`, version, method).Scan(&id); err != nil {
@@ -39,9 +39,9 @@ func TestTerminalWorkerSkipsAnAddressErasedBeforeDelivery(t *testing.T) {
 	if err := tx.Commit(ctx); err != nil {
 		t.Fatal(err)
 	}
-	storePool, err := openPool(ctx, pool.Config().ConnString())
-	if err != nil {
-		t.Fatal(err)
+	storePool, poolErr := openPool(ctx, pool.Config().ConnString())
+	if poolErr != nil {
+		t.Fatal(poolErr)
 	}
 	defer storePool.Close()
 	sender := &countingSender{}
