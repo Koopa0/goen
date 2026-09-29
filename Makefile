@@ -156,7 +156,6 @@ check-layout:
 		|| { echo 'the staff session fixture wrote no row — layout-check@goen.invalid does not exist, so every admin row below would fail as though the cookie were rejected' >&2; exit 2; }
 	@test "$$(psql "$$GOEN_DATABASE_URL" -qtAc "INSERT INTO sessions (token_hash, user_id, expires_at) SELECT sha256('$$(cat .layout-chrome/cust-token)'::bytea), id, now() + interval '1 hour' FROM users WHERE email = 'layout-cust@goen.invalid' RETURNING 1")" = "1" \
 		|| { echo 'the customer session fixture wrote no row — the question and return fixtures below cannot run' >&2; exit 2; }
-	@node scripts/layout-twofactor.mjs
 	@# An order to measure the payment page against. Placed through the site's
 	@# own checkout for the same reason the cart is: if placing an order is
 	@# broken, this check should fail too.

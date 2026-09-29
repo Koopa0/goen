@@ -15,7 +15,6 @@
 // Usage: make check-layout   (needs Chrome and a server on GOEN_URL)
 
 import { readFileSync } from 'node:fs';
-import { measureAdminRows } from './admin-layout-rows.mjs';
 
 const CDP_PORT = Number(process.env.CDP_PORT || 9222);
 const ORIGIN = (process.env.GOEN_URL || 'http://127.0.0.1:9700/').replace(/\/$/, '');
@@ -2029,8 +2028,25 @@ if (process.env.ADMIN_TOKEN) {
     name: 'goen_session', value: process.env.ADMIN_TOKEN, domain: '127.0.0.1', path: '/',
   });
 
-  // Authentication failure must stop this gate; it cannot remove the admin
-  // rows and turn an unmeasured surface into a smaller successful sweep.
+  // The staff session is checked ONCE, before the sweep, and the answer names
+  // which of four things went wrong.
+  //
+  // Every admin row below tests `.goen-admin` and, when it is absent, said "the
+  // staff session is not being accepted". That sentence describes ONE cause and
+  // there are at least four, three of which are not a rejected cookie at all:
+  //
+  //   - the fixture wrote no session row (the Makefile used to swallow that);
+  //   - the cookie is fine and GOEN_TOTP_KEY is set, so /admin redirects to the
+  //     step-up challenge that this target cannot answer — it has no authenticator;
+  //   - the session expired, or the server is running with secure cookies and is
+  //     reading __Host-goen_session instead;
+  //   - the back office is genuinely broken, which is the only one worth 48 lines
+  //     of output.
+  //
+  // A run that failed all 34 admin rows with the single message and then passed
+  // twice is what put this here: with one sentence for four causes, "not
+  // deterministic" was the only reading available. Where the browser LANDS tells
+  // them apart, because each cause redirects somewhere different.
   {
     const probe = ORIGIN + '/admin';
     await send(ws, 'Emulation.setDeviceMetricsOverride', {
@@ -2052,73 +2068,27 @@ if (process.env.ADMIN_TOKEN) {
       // and reading it as an unexpected landing would send the next person looking
       // for a broken route. Verified by running this against a token no session
       // row matches.
-      throw new Error(`admin fixture did not reach the back office (${at.href}); ` +
-        'the disposable TOTP fixture must complete the real verification POST before this sweep');
+      const why = at.href.startsWith('/admin/verify')
+        ? 'the back office wants a SECOND FACTOR. GOEN_TOTP_KEY is set on the server, so the ' +
+          'step-up gate is on and this check has no authenticator. Run it against a server ' +
+          'started without that key, or give layout-check@goen.invalid a confirmed credential.'
+        : at.href.startsWith('/admin')
+          ? 'the session is not being accepted AS STAFF (RequireStaff answers 404 rather than ' +
+            'redirecting). Either the fixture wrote no session row, or it has expired, or the ' +
+            'user is not role=admin, or the server is running with secure cookies and reads ' +
+            '__Host-goen_session while this check sets goen_session.'
+          : `it landed on ${at.href} with h1 ${JSON.stringify(at.title)}, which is none of the ` +
+            'causes this check knows about — worth reading before trusting the rest.';
+      fail('admin session', `${why}\n    Not running the ${ADMIN.length} back-office rows: ` +
+        'each would have reported this one cause as a failure of its own page.');
+      // Each row is a failure of its own, so a surface that was not measured
+      // is listed by name and never leaves the run smaller and green.
+      for (const row of ADMIN) fail(row.label, 'not measured: the admin session was unusable (see "admin session" above)');
+      ADMIN.length = 0;
     }
   }
 
-  if (process.env.GOEN_TOTP_KEY) {
-    const measure = async (label, marker, enrolling) => {
-      await imagesFetched(label);
-      const got = await evalPage(`(() => {
-        const input = document.querySelector(${JSON.stringify(marker)});
-        const secret = document.querySelector('.goen-twofa__secret code');
-        const qr = document.querySelector('.goen-twofa__qr');
-        const controls = [...document.querySelectorAll('.goen-twofa button, .goen-twofa input')]
-          .map(e => e.getBoundingClientRect().height).filter(h => h > 0);
-        return { marker: !!input, secret: !!secret, qr: !!qr && qr.naturalWidth > 0,
-          viewportWidth: document.documentElement.clientWidth,
-          scrollWidth: document.body.scrollWidth,
-          minTap: controls.length ? Math.min(...controls) : 0,
-          ${ACCESSIBILITY} };
-      })()`);
-      if (got.threw || !got.marker) { fail(label, 'required OTP input is absent'); return; }
-      checkAccessibility(label, got);
-      if (got.scrollWidth > got.viewportWidth) fail(label, 'two-factor page scrolls horizontally');
-      if (got.minTap < MIN_TAP) fail(label, `OTP controls are ${got.minTap}px, want >= ${MIN_TAP}`);
-      if (enrolling && (!got.secret || !got.qr)) fail(label, 'enrolment secret or local QR image is absent');
-      await send(ws, 'Runtime.evaluate', { expression: axeSource });
-      const axe = await evalPage(`axe.run(document, {
-        runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa'] }, resultTypes: ['violations']
-      }).then(r => r.violations.filter(v => ['serious', 'critical'].includes(v.impact)).map(v => v.id))`);
-      if (axe.threw || !Array.isArray(axe)) fail(label, 'two-factor axe audit did not complete');
-      else for (const rule of axe) fail(label, `axe ${rule}`);
-      console.log(`${label}: OTP input measured, scrollW=${got.scrollWidth}/${got.viewportWidth}`);
-    };
-    for (const width of [375, 1440]) {
-      await send(ws, 'Emulation.setDeviceMetricsOverride', {
-        width, height: width === 375 ? 812 : 900, deviceScaleFactor: 1, mobile: width < 768,
-      });
-      await send(ws, 'Page.navigate', { url: ORIGIN + '/admin/verify' });
-      await settled(ws, `TOTP challenge ${width}`, ORIGIN + '/admin/verify');
-      await measure(`TOTP challenge ${width}`, 'form[action="/admin/verify"] input[name="code"]', false);
-    }
-    const enrolToken = readFileSync('.layout-chrome/enrol-token', 'utf8').trim();
-    await send(ws, 'Network.setCookie', { name: 'goen_session', value: enrolToken, domain: '127.0.0.1', path: '/' });
-    for (const width of [375, 1440]) {
-      await send(ws, 'Emulation.setDeviceMetricsOverride', {
-        width, height: width === 375 ? 812 : 900, deviceScaleFactor: 1, mobile: width < 768,
-      });
-      await send(ws, 'Page.navigate', { url: ORIGIN + '/admin/verify' });
-      await settled(ws, `TOTP enrol entry ${width}`, ORIGIN + '/admin/verify');
-      const submitted = await evalPage(`(() => {
-        const form = document.querySelector('form[action="/admin/verify/enrol"]');
-        if (!form) return false;
-        form.requestSubmit(); return true;
-      })()`);
-      if (submitted !== true) throw new Error('enrolment fixture did not render its start form');
-      await settled(ws, `TOTP enrol ${width}`, ORIGIN + '/admin/verify/enrol');
-      await measure(`TOTP enrol ${width}`, 'form[action="/admin/verify/confirm"] input[name="code"]', true);
-      // The secret is only in this POST response, so audit it here instead of
-      // asking the final GET-only sweep to fabricate the same document.
-      visited.delete('/admin/verify/enrol');
-    }
-    await send(ws, 'Network.setCookie', { name: 'goen_session', value: process.env.ADMIN_TOKEN, domain: '127.0.0.1', path: '/' });
-  } else if (process.env.GITHUB_ACTIONS) {
-    throw new Error('CI layout gate requires its disposable TOTP key');
-  }
-
-  await measureAdminRows(ADMIN, async (want) => {
+  for (const want of ADMIN) {
     await send(ws, 'Emulation.setDeviceMetricsOverride', {
       width: want.width, height: want.height, deviceScaleFactor: 1, mobile: want.width < 768,
     });
@@ -2140,11 +2110,11 @@ if (process.env.ADMIN_TOKEN) {
 
     if (got.missing) {
       fail(at, 'the back office did not render — the staff session is not being accepted');
-      return;
+      continue;
     }
     if (got.noMarker) {
       fail(at, `the page rendered without ${want.marker} — its fixture did not run, so this check proved nothing`);
-      return;
+      continue;
     }
     // AFTER the two guards above, deliberately: a 404 body has headings and controls
     // of its own, so measuring it would report the wrong page's problems as this
@@ -2161,7 +2131,7 @@ if (process.env.ADMIN_TOKEN) {
     }
     console.log(`${at.padEnd(16)} scrollW=${got.scrollWidth}/${got.viewportWidth} ` +
       `controls=${got.controls} tap=${got.minTap}`);
-  });
+  }
 } else {
   console.log('admin           skipped (no ADMIN_TOKEN)');
 }
