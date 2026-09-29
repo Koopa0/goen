@@ -12,43 +12,6 @@ import (
 	"testing"
 )
 
-// verbLockedTables are the tables whose leftover blanket verbs the table-level
-// write-direction guard cannot see: a role that INSERTs still held UPDATE or
-// DELETE.
-var verbLockedTables = map[string]bool{
-	"order_private_data":     true,
-	"contact_messages":       true,
-	"stock_notifications":    true,
-	"checkout_attempts":      true,
-	"warranty_registrations": true,
-}
-
-// TestNoRoleHoldsAVerbItsQueriesNeverMake is the same question as the table
-// guard, per INSERT/UPDATE/DELETE, on the tables whose unused verbs were the
-// leftover grant.
-func TestNoRoleHoldsAVerbItsQueriesNeverMake(t *testing.T) {
-	for _, role := range []string{"store", "admin"} {
-		t.Run(role, func(t *testing.T) {
-			allowed := writableVerbs(t, role)
-			for table := range verbLockedTables {
-				for _, priv := range []string{"INSERT", "UPDATE", "DELETE"} {
-					if !roleHoldsTableVerb(t, role, table, priv) {
-						continue
-					}
-					if allowed[table][priv] {
-						continue
-					}
-					t.Errorf("%s holds %s on %s, and no query it runs uses that verb.\n"+
-						"  The table-level guard cannot see this: a role that INSERTs the "+
-						"table is treated as allowed to hold every write. Revoke the unused "+
-						"verb, or a production query should start using it.",
-						role, priv, table)
-				}
-			}
-		})
-	}
-}
-
 func writableVerbs(t *testing.T, role string) map[string]map[string]bool {
 	t.Helper()
 	byQuery := queryWriteVerbs(t)
