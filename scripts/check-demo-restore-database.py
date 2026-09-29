@@ -39,15 +39,21 @@ def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def state():
+def state(database="restore_target", user="restore_owner"):
     # The brand row proves data replacement in the real application schema;
     # the fixture row and constraint distinguish rollback from a partial restore.
     return sql("""
 SELECT 'brand|' || name FROM public.brands WHERE slug = 'restore-fixture';
 SELECT 'probe|' || value FROM restore_probe.z_failure ORDER BY value;
-SELECT 'check|' || conname FROM pg_constraint
+SELECT 'constraint|' || conname || '|' || contype || '|' || pg_get_constraintdef(oid) FROM pg_constraint
  WHERE conrelid = 'restore_probe.z_failure'::regclass ORDER BY conname;
-""")
+""", database, user)
+
+
+def require_snapshot(label, expected):
+    actual = state()
+    (OUT / f"{label}.after.txt").write_text(actual + "\n")
+    assert actual == expected, f"restored data/constraints differ from snapshot: {actual!r} != {expected!r}"
 
 
 def require_rollback(before, after):
@@ -123,6 +129,11 @@ CREATE SCHEMA restore_probe;
 CREATE TABLE restore_probe.z_failure (value text NOT NULL);
 INSERT INTO restore_probe.z_failure VALUES ('snapshot-probe');
 """, "restore_source", "postgres")
+        snapshot_state = state("restore_source", "postgres")
+        assert snapshot_state.splitlines()[:2] == ["brand|snapshot-brand", "probe|snapshot-probe"]
+        # PostgreSQL also catalogs NOT NULL constraints. Compare the snapshot's
+        # full definitions instead of assuming the fixture has no constraints.
+        (OUT / "snapshot-state.txt").write_text(snapshot_state + "\n")
         docker("exec", CONTAINER, "pg_dump", "-U", "postgres", "-d", "restore_source",
                "--format=custom", "--file=/tmp/success.dump")
         # A valid source constraint becomes false only at the destination. This
@@ -151,7 +162,7 @@ ALTER TABLE restore_probe.z_failure ADD CONSTRAINT restore_destination_rejected
         result, events = restore("success", "success.dump")
         assert result.returncode == 0, result.stderr
         assert events == "stop goen.service\nstart goen.service\n"
-        assert state() == "brand|snapshot-brand\nprobe|snapshot-probe"
+        require_snapshot("success", snapshot_state)
         ownership = sql("SELECT datname, pg_get_userbyid(datdba) FROM pg_database WHERE datname = current_database(); SELECT count(*), count(*) FILTER (WHERE pg_get_userbyid(relowner) != session_user) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname IN ('public', 'restore_probe') AND c.relkind IN ('r','p','S','v');")
         (OUT / "ownership.txt").write_text(ownership + "\n")
         assert ownership.splitlines()[0] == "restore_target|restore_owner"
@@ -174,7 +185,7 @@ ALTER TABLE restore_probe.z_failure ADD CONSTRAINT restore_destination_rejected
             raise AssertionError("removing production transaction flag did not break rollback assertion")
         result, events = restore("restored-success", "success.dump")
         assert result.returncode == 0 and events == "stop goen.service\nstart goen.service\n"
-        assert state() == "brand|snapshot-brand\nprobe|snapshot-probe"
+        require_snapshot("restored-success", snapshot_state)
         failed_restore("restored-transactional-failure")
         record["result"] = "PASS: success, SQL-error rollback, transaction mutation red, restored pass"
         print(record["result"], flush=True)
