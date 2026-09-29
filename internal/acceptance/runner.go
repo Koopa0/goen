@@ -58,12 +58,16 @@ func RunManifest(ctx context.Context, manifest Manifest, opts RunOptions) ([]Res
 	var results []Result
 	for i := range scenarios {
 		scenarioResults := runScenario(ctx, root, &scenarios[i], opts)
-		results = append(results, scenarioResults...)
+		var writeErr error
 		for j := range scenarioResults {
 			result := &scenarioResults[j]
-			if writeErr := evidence.write(result); writeErr != nil {
-				return results, writeErr
+			if writeErr = evidence.write(result); writeErr != nil {
+				break
 			}
+		}
+		results = append(results, scenarioResults...)
+		if writeErr != nil {
+			return results, writeErr
 		}
 	}
 	if len(results) == 0 {
