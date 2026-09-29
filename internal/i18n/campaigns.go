@@ -141,6 +141,8 @@ var (
 	})
 )
 
+var KeyCampaignPagination = key("campaign.pagination", Message{ZhHant: "活動分頁", En: "Campaign pages"})
+
 var (
 	KeyAdminCampaignTitleEnLength = key("admin.campaign.title_en_length", Message{ZhHant: "英文活動標題不得超過 60 字。", En: "Use at most 60 characters for the English campaign title."})
 	KeyAdminCampaignTitleEn       = key("admin.campaign.title_en", Message{ZhHant: "英文活動標題 (選填)", En: "English campaign title (optional)"})

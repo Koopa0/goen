@@ -28,6 +28,8 @@ import (
 // the test that does cover them. A trigger named in neither place still fails.
 var coveredByNamedTest = map[string]string{
 	"inventory_movements_source_parent":      "TestInventoryMovementSourceParents",
+	"product_options_before_variants":        "TestOptionAxesMustPrecedeVariants (internal/admin)",
+	"product_variants_lock_catalogue":        "TestOptionAxisAndVariantCreationSerialize (internal/admin)",
 	"loyalty_lot_guard":                      "the loyalty_entries_lot_* rule cases below exercise each branch by its own constraint name",
 	"order_lines_bind_product":               "TestRetiringAPurchasedVariantDoesNotEraseVerifiedPurchase (internal/product)",
 	"product_variants_keep_product_sellable": "TestDeactivatingTheLastVariantIsRefused, TestDeletingTheLastVariantIsRefused",
@@ -120,6 +122,20 @@ type ruleCase struct {
 
 // ruleCases pairs each rule trigger with a violation and a legal neighbour.
 var ruleCases = []ruleCase{
+	{
+		rule: "order_lines_sku_matches_variant",
+		reject: `SET LOCAL ROLE store; INSERT INTO order_lines (order_id, variant_id, sku, product_name, unit_price_cents, quantity, position)
+		         VALUES ('6666aaaa-6666-4666-8666-666666666666', '44444444-4444-4444-8444-444444444444', 'WRONG-SKU', 'Pixelight 9 Pro 5G', 100, 1, 5);`,
+		accept: `INSERT INTO order_lines (order_id, variant_id, sku, product_name, unit_price_cents, quantity, position)
+		         VALUES ('6666aaaa-6666-4666-8666-666666666666', '44444444-4444-4444-8444-444444444444', 'PXL-9P-256-BL', 'Pixelight 9 Pro 5G', 100, 1, 5);`,
+	},
+	{
+		rule: "order_lines_name_matches_product",
+		reject: `SET LOCAL ROLE store; INSERT INTO order_lines (order_id, variant_id, sku, product_name, unit_price_cents, quantity, position)
+		         VALUES ('6666aaaa-6666-4666-8666-666666666666', '44444444-4444-4444-8444-444444444444', 'PXL-9P-256-BL', 'Wrong product', 100, 1, 5);`,
+		accept: `INSERT INTO order_lines (order_id, variant_id, sku, product_name, unit_price_cents, quantity, position)
+		         VALUES ('6666aaaa-6666-4666-8666-666666666666', '44444444-4444-4444-8444-444444444444', 'PXL-9P-256-BL', 'Pixelight 9 Pro 5G', 100, 1, 5);`,
+	},
 	{
 		rule: "loyalty_entries_lot_is_an_award",
 		reject: `INSERT INTO loyalty_entries (id, account_id, kind, points, reason, idempotency_key, expires_on)
@@ -2407,8 +2423,8 @@ func TestClaimInvoiceIssueRejectsUnsafeRelateNumber(t *testing.T) {
 	if _, lineErr := tx.Exec(ctx, `
 		INSERT INTO order_lines
 		    (order_id, variant_id, sku, product_name, unit_price_cents, quantity, position)
-		SELECT $1, pv.id, 'RELATE-DRIFT', 'Relate drift item', 100000, 1, 0
-		FROM product_variants pv ORDER BY pv.id LIMIT 1`, orderID); lineErr != nil {
+		SELECT $1, pv.id, pv.sku, p.name, 100000, 1, 0
+		FROM product_variants pv JOIN products p ON p.id = pv.product_id ORDER BY pv.id LIMIT 1`, orderID); lineErr != nil {
 		t.Fatalf("add drifted order line: %v", lineErr)
 	}
 	if _, privateDataErr := tx.Exec(ctx, `
