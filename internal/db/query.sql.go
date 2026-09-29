@@ -8316,6 +8316,19 @@ func (q *Queries) OrderTracking(ctx context.Context, orderID uuid.UUID) ([]Order
 	return items, nil
 }
 
+const parkProductImages = `-- name: ParkProductImages :exec
+UPDATE product_images pi SET position = pi.position + 1000000
+FROM products p
+WHERE pi.product_id = p.id AND p.slug = $1::text
+`
+
+// (product_id, position) is a unique index checked row by row, so a reorder
+// first moves every image clear of the range it is about to fill.
+func (q *Queries) ParkProductImages(ctx context.Context, slug string) error {
+	_, err := q.db.Exec(ctx, parkProductImages, slug)
+	return err
+}
+
 const passwordResetToken = `-- name: PasswordResetToken :one
 SELECT user_id FROM password_reset_tokens
 WHERE token_hash = $1 AND used_at IS NULL AND expires_at > now()
@@ -8454,6 +8467,7 @@ func (q *Queries) PointsExpiringSoon(ctx context.Context, arg PointsExpiringSoon
 const pointsHistory = `-- name: PointsHistory :many
 WITH grouped AS (
     SELECT
+        min(e.id::text)::uuid AS group_id,
         CASE WHEN e.kind = 'spend'
              THEN split_part(e.idempotency_key, '#', 1)
              ELSE e.idempotency_key
@@ -8467,24 +8481,29 @@ WITH grouped AS (
         max(e.created_at)::timestamptz AS created_at
     FROM loyalty_entries e
     JOIN store_credit_accounts a ON a.id = e.account_id
-    WHERE a.user_id = $2
+    WHERE a.user_id = $5
     GROUP BY entry_key, e.kind, e.reason, e.order_id
 )
-SELECT g.points, g.kind, g.reason, g.requested_points, g.expires_on, g.created_at,
+SELECT g.group_id, g.points, g.kind, g.reason, g.requested_points, g.expires_on, g.created_at,
        coalesce(o.order_number, '') AS order_number,
        (g.kind = 'award' AND g.expires_on < shop_today()) AS expired
 FROM grouped g
 LEFT JOIN orders o ON o.id = g.order_id
-ORDER BY g.created_at DESC
-LIMIT $1
+WHERE NOT $1::boolean OR (g.created_at, g.group_id) < ($2::timestamptz, $3::uuid)
+ORDER BY g.created_at DESC, g.group_id DESC
+LIMIT $4::integer
 `
 
 type PointsHistoryParams struct {
-	Limit  int32
-	UserID uuid.NullUUID
+	HasCursor bool
+	AfterAt   time.Time
+	AfterID   uuid.UUID
+	RowLimit  int32
+	UserID    uuid.NullUUID
 }
 
 type PointsHistoryRow struct {
+	GroupID         uuid.UUID
 	Points          int64
 	Kind            string
 	Reason          string
@@ -8497,7 +8516,13 @@ type PointsHistoryRow struct {
 
 // The ledger a customer sees, expired awards included and marked.
 func (q *Queries) PointsHistory(ctx context.Context, arg PointsHistoryParams) ([]PointsHistoryRow, error) {
-	rows, err := q.db.Query(ctx, pointsHistory, arg.Limit, arg.UserID)
+	rows, err := q.db.Query(ctx, pointsHistory,
+		arg.HasCursor,
+		arg.AfterAt,
+		arg.AfterID,
+		arg.RowLimit,
+		arg.UserID,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -8506,6 +8531,7 @@ func (q *Queries) PointsHistory(ctx context.Context, arg PointsHistoryParams) ([
 	for rows.Next() {
 		var i PointsHistoryRow
 		if err := rows.Scan(
+			&i.GroupID,
 			&i.Points,
 			&i.Kind,
 			&i.Reason,
@@ -8616,6 +8642,42 @@ func (q *Queries) ProductBySlug(ctx context.Context, arg ProductBySlugParams) (P
 		&i.CategoryParentID,
 	)
 	return i, err
+}
+
+const productImageOrder = `-- name: ProductImageOrder :many
+SELECT pi.id, pi.storage_key
+FROM product_images pi
+JOIN products p ON p.id = pi.product_id
+WHERE p.slug = $1::text
+ORDER BY pi.position, pi.id
+`
+
+type ProductImageOrderRow struct {
+	ID         uuid.UUID
+	StorageKey string
+}
+
+// One product's images in display order. Read after LockProductCatalogue, as its
+// own statement: in the same statement the read would use a snapshot taken
+// before that lock was won.
+func (q *Queries) ProductImageOrder(ctx context.Context, slug string) ([]ProductImageOrderRow, error) {
+	rows, err := q.db.Query(ctx, productImageOrder, slug)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ProductImageOrderRow{}
+	for rows.Next() {
+		var i ProductImageOrderRow
+		if err := rows.Scan(&i.ID, &i.StorageKey); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const productImages = `-- name: ProductImages :many
@@ -11735,6 +11797,17 @@ func (q *Queries) SetPasswordHash(ctx context.Context, arg SetPasswordHashParams
 	return err
 }
 
+const setProductImageOrder = `-- name: SetProductImageOrder :exec
+UPDATE product_images pi SET position = o.n::integer - 1
+FROM unnest($1::uuid[]) WITH ORDINALITY AS o(id, n)
+WHERE pi.id = o.id
+`
+
+func (q *Queries) SetProductImageOrder(ctx context.Context, ids []uuid.UUID) error {
+	_, err := q.db.Exec(ctx, setProductImageOrder, ids)
+	return err
+}
+
 const setProductStatus = `-- name: SetProductStatus :execrows
 UPDATE products
 SET status = $1::text,
@@ -13447,6 +13520,7 @@ func (q *Queries) UserHasEmail(ctx context.Context, arg UserHasEmailParams) (boo
 
 const userOrders = `-- name: UserOrders :many
 SELECT
+    o.id,
     o.order_number,
     o.fulfillment_status,
     o.placed_at,
@@ -13463,16 +13537,21 @@ SELECT
     order_amount_owed(o.id)::bigint AS owed_cents
 FROM orders o
 WHERE o.user_id = $1
+  AND (NOT $2::boolean OR (o.placed_at, o.id) < ($3::timestamptz, $4::uuid))
 ORDER BY o.placed_at DESC, o.id DESC
-LIMIT $2
+LIMIT $5::integer
 `
 
 type UserOrdersParams struct {
-	UserID uuid.NullUUID
-	Limit  int32
+	UserID    uuid.NullUUID
+	HasCursor bool
+	AfterAt   time.Time
+	AfterID   uuid.UUID
+	RowLimit  int32
 }
 
 type UserOrdersRow struct {
+	ID                uuid.UUID
 	OrderNumber       string
 	FulfillmentStatus string
 	PlacedAt          time.Time
@@ -13486,7 +13565,13 @@ type UserOrdersRow struct {
 }
 
 func (q *Queries) UserOrders(ctx context.Context, arg UserOrdersParams) ([]UserOrdersRow, error) {
-	rows, err := q.db.Query(ctx, userOrders, arg.UserID, arg.Limit)
+	rows, err := q.db.Query(ctx, userOrders,
+		arg.UserID,
+		arg.HasCursor,
+		arg.AfterAt,
+		arg.AfterID,
+		arg.RowLimit,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -13495,6 +13580,7 @@ func (q *Queries) UserOrders(ctx context.Context, arg UserOrdersParams) ([]UserO
 	for rows.Next() {
 		var i UserOrdersRow
 		if err := rows.Scan(
+			&i.ID,
 			&i.OrderNumber,
 			&i.FulfillmentStatus,
 			&i.PlacedAt,

@@ -408,7 +408,7 @@ func TestASpentAwardLeavesTheBalanceWithIt(t *testing.T) {
 		t.Errorf("tomorrow's balance = %d, want 50", tomorrow)
 	}
 
-	history, err := loyalty.NewStore(pool).History(ctx, userID)
+	history, err := loyalty.NewStore(pool).History(ctx, userID, "")
 	if err != nil {
 		t.Fatalf("history: %v", err)
 	}
@@ -517,7 +517,7 @@ func TestAZeroClawbackSurvivesHistoryToRenderedHTML(t *testing.T) {
 		t.Fatalf("wholly consumed lot reversed %d, want zero", reversed)
 	}
 
-	view, err := loyalty.NewStore(pool).History(ctx, userID)
+	view, err := loyalty.NewStore(pool).History(ctx, userID, "")
 	if err != nil {
 		t.Fatalf("read points history: %v", err)
 	}

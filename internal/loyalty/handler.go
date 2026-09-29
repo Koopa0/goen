@@ -36,7 +36,7 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/signin?next=/account/points", http.StatusSeeOther)
 		return
 	}
-	view, err := h.store.History(r.Context(), u.ID)
+	view, err := h.store.History(r.Context(), u.ID, r.URL.Query().Get(web.KeysetParam))
 	if err != nil && !errors.Is(err, ErrNoAccount) {
 		h.log.ErrorContext(r.Context(), "read points", "error", err)
 		h.serverError(w, r)
@@ -100,7 +100,7 @@ func (h *Handler) serverError(w http.ResponseWriter, r *http.Request) {
 // renderRefusal answers 422 with the points page and the reason, so the refusal
 // is read where the form is instead of after a redirect.
 func (h *Handler) renderRefusal(w http.ResponseWriter, r *http.Request, userID string, reason i18n.Key) {
-	view, err := h.store.History(r.Context(), userID)
+	view, err := h.store.History(r.Context(), userID, "")
 	if err != nil && !errors.Is(err, ErrNoAccount) {
 		h.log.ErrorContext(r.Context(), "read points after refusal", "error", err)
 		h.serverError(w, r)
