@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 // The checkout applies available credit on its own; no copy may promise a choice.
@@ -68,6 +69,37 @@ func TestPaymentFAQSeedAndRepairExplainTheSameChoices(t *testing.T) {
 	for _, phrase := range creditChoicePhrases {
 		if strings.Contains(zh, phrase) || strings.Contains(en, phrase) {
 			t.Errorf("payment FAQ promises a choice with %q", phrase)
+		}
+	}
+}
+
+func TestHoldFAQSeedAndRepairStateTheSameDeadline(t *testing.T) {
+	seed, err := os.ReadFile("../../seed/dev_catalog.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	repair, err := os.ReadFile("../../seed/repair_hold_faq.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	zh := sqlStringAfter(t, string(seed), "('訂購與付款', '下單之後商品會保留嗎?',")
+	en := sqlStringAfter(t, string(seed), "'Is the stock held after I order?',")
+	if zh != sqlStringAfter(t, string(repair), "SET answer =") || en != sqlStringAfter(t, string(repair), "SET answer_en =") {
+		t.Error("hold FAQ repair differs from fresh seed")
+	}
+	for answer, words := range map[string][]string{
+		zh: {"保留庫存 " + pages.HoldMinutesText() + " 分鐘", pages.PayStartMinutesText() + " 分鐘內開始付款", "自動取消", "購物金"},
+		en: {"holds the stock for " + pages.HoldMinutesText() + " minutes", "within " + pages.PayStartMinutesText() + " minutes", "cancelled automatically", "store credit"},
+	} {
+		for _, word := range words {
+			if !strings.Contains(answer, word) {
+				t.Errorf("hold FAQ %q omits %q", answer, word)
+			}
+		}
+		for _, promise := range []string{"重新付款", "pay again"} {
+			if strings.Contains(answer, promise) {
+				t.Errorf("hold FAQ still promises %q after the hold lapses", promise)
+			}
 		}
 	}
 }

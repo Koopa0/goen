@@ -3,6 +3,7 @@ package pages
 import (
 	"context"
 
+	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
 )
 
@@ -77,6 +78,7 @@ var actionLabels = map[string]i18n.Key{
 	"question.hide":                       i18n.KeyAuditQuestionHide,
 	"return.inspect":                      i18n.KeyAuditReturnInspect,
 	"return.complete":                     i18n.KeyAuditReturnComplete,
+	"return.refund_before_shipment":       i18n.KeyAuditReturnRefundBeforeShipment,
 	"order.delivery":                      i18n.KeyAuditOrderDelivery,
 	"order.note.create":                   i18n.KeyAuditOrderNoteCreate,
 	"order.note.replace":                  i18n.KeyAuditOrderNoteReplace,
@@ -147,5 +149,10 @@ type AdminImage struct {
 	OptionValueID string
 }
 
-// URL is where it is served.
-func (i AdminImage) URL() string { return "/media/" + i.Key }
+// URL is where it is served: an uploaded image by digest under /media, a seeded
+// one from the embedded assets, and "" for a key that names neither.
+func (i AdminImage) URL() string { return assets.ProductImageURL(i.Key) }
+
+// Srcset offers the 400px rendition, which is what the back office's 80 and 120
+// pixel tiles need; the original is a multi-megabyte download for either.
+func (i AdminImage) Srcset() string { return assets.ProductImageSrcsetAt(i.Key, int(i.Width)) }

@@ -362,7 +362,7 @@ templ adminProductImages(v AdminProductView) {
 			<ul class="goen-admin__images" role="list">
 				for i, img := range v.Images {
 					<li class="goen-admin__image">
-						<img src={ img.URL() } alt={ img.Alt } loading="lazy" width="120" height="120"/>
+						<img src={ img.URL() } srcset={ img.Srcset() } sizes="120px" alt={ img.Alt } loading="lazy" width="120" height="120"/>
 						<span class="goen-admin__meta">{ img.Alt }</span>
 						if i > 0 {
 							@imageMoveForm(v, img.Key, "cover", i18n.KeyAdminImageCover)
@@ -459,7 +459,7 @@ templ adminProductImages(v AdminProductView) {
 				for _, img := range v.Library {
 					<form class="goen-admin__libraryitem" method="post" action={ templ.SafeURL(v.ReuseAction()) }>
 						<input type="hidden" name="digest" value={ img.Key }/>
-						<img src={ img.URL() } alt="" width="80" height="80" loading="lazy" decoding="async"/>
+						<img src={ img.URL() } srcset={ img.Srcset() } sizes="80px" alt="" width="80" height="80" loading="lazy" decoding="async"/>
 						<label class="goen-sr-only" for={ "reuse-alt-" + img.Key }>{ i18n.T(ctx, i18n.KeyAdminAltText) }</label>
 						<input
 							class="goen-input"

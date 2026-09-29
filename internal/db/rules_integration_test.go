@@ -1167,7 +1167,172 @@ var ruleCases = []ruleCase{
 		         SET CONSTRAINTS orders_have_lines IMMEDIATE;`,
 		acceptNote: "the fixture's orders all total above zero and every other case commits over them",
 	},
+	{
+		rule:   "orders_refunded_before_shipment",
+		reject: beforeShipmentRefund + `UPDATE orders SET fulfillment_status = 'shipped' WHERE id = '6666bbbb-6666-4666-8666-666666666666';`,
+		accept: `UPDATE orders SET fulfillment_status = 'shipped' WHERE id = '6666bbbb-6666-4666-8666-666666666666';`,
+	},
+	{
+		rule:   "orders_paid_cancel_needs_refund",
+		reject: cancelFreeOrder,
+		accept: beforeShipmentRefund + cancelFreeOrder,
+	},
+	{
+		rule: "orders_cancel_invoice_resolved",
+		reject: beforeShipmentRefund + `
+		         INSERT INTO invoice_documents (order_id, kind, number, amount_cents)
+		         VALUES ('6666bbbb-6666-4666-8666-666666666666', 'invoice', 'GD-00000389', 100);` + cancelFreeOrder,
+		accept: beforeShipmentRefund + `
+		         INSERT INTO invoice_documents (order_id, kind, number, amount_cents)
+		         VALUES ('6666bbbb-6666-4666-8666-666666666666', 'invoice', 'GD-00000389', 100);
+		         UPDATE invoice_documents SET status = 'voided', voided_at = now() WHERE number = 'GD-00000389';` + cancelFreeOrder,
+	},
+	{
+		rule: "return_before_shipment_nothing_received",
+		reject: beforeShipmentRefund + `UPDATE return_request_lines SET received_quantity = 1, restocked_quantity = 0
+		         WHERE order_id = '6666bbbb-6666-4666-8666-666666666666';`,
+		accept: beforeShipmentRefund + closeBeforeShipmentLines,
+	},
+	{
+		rule: "return_before_shipment_completes_cancelled",
+		reject: beforeShipmentRefund + closeBeforeShipmentLines + `
+		         UPDATE return_requests SET status = 'completed' WHERE order_id = '6666bbbb-6666-4666-8666-666666666666';`,
+		accept: beforeShipmentRefund + closeBeforeShipmentLines + cancelFreeOrder + `
+		         UPDATE return_requests SET status = 'completed' WHERE order_id = '6666bbbb-6666-4666-8666-666666666666';`,
+	},
+	{
+		rule: "store_credit_reversal_after_return_credit",
+		// The credit half went back through the return; reversing the spend on the
+		// order that refund then cancelled pays it a second time.
+		reject: creditRefundedBeforeShipment + `
+		         INSERT INTO store_credit_entries (account_id, amount_cents, reason, idempotency_key, reverses_id)
+		         VALUES ('a0000001-0000-4000-8000-000000000000', 50000, 'order cancelled', 'rule-bs-reverse',
+		                 '6666e002-0000-4000-8000-000000000000');`,
+		// An unpaid checkout cancelled with no return reverses its spend as before.
+		accept: creditedOrder("11110060-0000-4000-8000-000000000001", "11110061-0000-4000-8000-000000000001",
+			"11110062-0000-4000-8000-000000000001", 50000) + `
+		         UPDATE orders SET fulfillment_status = 'cancelled', cancelled_at = now()
+		         WHERE id = '11110060-0000-4000-8000-000000000001';
+		         INSERT INTO store_credit_entries (account_id, amount_cents, reason, idempotency_key, reverses_id)
+		         VALUES ('11110061-0000-4000-8000-000000000001', 50000, 'order cancelled', 'rule-bs-reverse',
+		                 '11110062-0000-4000-8000-000000000001');`,
+	},
+	{
+		rule: "return_before_shipment_full_total",
+		// Delivery and goods go back; tax_cents is not part of any return, so a
+		// taxed order cannot be refunded in full through one.
+		reject: paidPendingOrder(5000) + refundRuleStaff + `
+		         SELECT open_refund_before_shipment('GO-260721-000388', 'rule',
+		                '55550001-0000-4000-8000-000000000001', 'rule-req');`,
+		accept: paidPendingOrder(0) + refundRuleStaff + `
+		         SELECT open_refund_before_shipment('GO-260721-000388', 'rule',
+		                '55550001-0000-4000-8000-000000000001', 'rule-req');`,
+	},
+	{
+		rule: "return_before_shipment_actor",
+		reject: `SELECT open_refund_before_shipment('GO-260721-000389', 'rule',
+		                '55555555-5555-4555-8555-555555555555', 'rule-req');`,
+		accept: beforeShipmentRefund,
+	},
+	{
+		rule: "return_before_shipment_request",
+		reject: refundRuleStaff + `SELECT open_refund_before_shipment('GO-260721-000389', 'rule',
+		                '55550001-0000-4000-8000-000000000001', ' ');`,
+		accept: beforeShipmentRefund,
+	},
+	{
+		rule: "return_before_shipment_eligible",
+		// Shipped, and already carrying a customer's return.
+		reject: refundRuleStaff + `SELECT open_refund_before_shipment('GO-260721-000387', 'rule',
+		                '55550001-0000-4000-8000-000000000001', 'rule-req');`,
+		accept: beforeShipmentRefund,
+	},
+	{
+		rule: "return_before_shipment_eligible",
+		// Still picking, but a parcel exists.
+		reject: `INSERT INTO order_shipments (order_id, carrier, tracking_number)
+		         VALUES ('6666bbbb-6666-4666-8666-666666666666', '黑貓宅急便', 'TRK-BEFORE-DOOR');` +
+			beforeShipmentRefund,
+		accept: beforeShipmentRefund,
+	},
+	{
+		rule: "return_before_shipment_eligible",
+		// Nothing shipped, but a return request exists.
+		reject: `INSERT INTO return_requests (order_id, reason)
+		         VALUES ('6666bbbb-6666-4666-8666-666666666666', '');` + beforeShipmentRefund,
+		accept: beforeShipmentRefund,
+	},
+	{
+		rule: "return_within_shipment",
+		// A refund before shipment is bounded by what was ordered, and only while no
+		// parcel exists: the order-line ceiling alone would admit this.
+		reject: `INSERT INTO order_shipments (order_id, carrier, tracking_number)
+		         VALUES ('6666bbbb-6666-4666-8666-666666666666', '黑貓宅急便', 'TRK-BEFORE-SHIPMENT');` +
+			beforeShipmentLine,
+		accept: beforeShipmentLine,
+	},
 }
+
+// beforeShipmentRefund opens the door on the fixture's free order: committed and
+// picking, nothing shipped, no return, and a zero total, so the refund owes no
+// money and only the rule under test decides.
+const beforeShipmentRefund = refundRuleStaff + `
+	SELECT open_refund_before_shipment('GO-260721-000389', 'rule',
+	       '55550001-0000-4000-8000-000000000001', 'rule-req');`
+
+const cancelFreeOrder = `
+	UPDATE orders SET fulfillment_status = 'cancelled', cancelled_at = now()
+	WHERE id = '6666bbbb-6666-4666-8666-666666666666';`
+
+const closeBeforeShipmentLines = `
+	UPDATE return_request_lines SET received_quantity = 0, restocked_quantity = 0
+	WHERE order_id = '6666bbbb-6666-4666-8666-666666666666';`
+
+const beforeShipmentLine = `
+	INSERT INTO return_requests (id, order_id, reason, before_shipment)
+	VALUES ('6666b003-0000-4000-8000-000000000000', '6666bbbb-6666-4666-8666-666666666666', '', true);
+	INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity)
+	VALUES ('6666bbbb-6666-4666-8666-666666666666', '6666b003-0000-4000-8000-000000000000',
+	        '6666b001-0000-4000-8000-000000000000', 1);`
+
+// paidPendingOrder captures the fixture's unpaid order, taxed or not: paid and
+// still pending, it is committed and nothing has shipped.
+func paidPendingOrder(taxCents int) string {
+	return fmt.Sprintf(`
+		UPDATE orders SET tax_cents = %[1]d WHERE id = '6666aaaa-6666-4666-8666-666666666666';
+		INSERT INTO payments (order_id, provider_ref, status, intended_amount_cents,
+		                      captured_amount_cents, paid_at)
+		VALUES ('6666aaaa-6666-4666-8666-666666666666', 'pi_rule_before_shipment', 'succeeded',
+		        %[2]d, %[2]d, now());`, taxCents, 3690000+taxCents)
+}
+
+// creditRefundedBeforeShipment is a store-credit-funded order refunded before
+// shipment and then cancelled: the return posted the credit back.
+const creditRefundedBeforeShipment = refundRuleStaff + `
+	INSERT INTO orders (id, order_number, user_id, shipping_version_id, shipping_method_code,
+	                    shipping_method_name)
+	VALUES ('6666eeee-6666-4666-8666-666666666666', 'GO-260721-000392',
+	        '55555555-5555-4555-8555-555555555555', 'ffff0002-0000-4000-8000-000000000000',
+	        'home_delivery', '宅配到府');
+	INSERT INTO order_lines (order_id, sku, product_name, unit_price_cents, quantity, position)
+	VALUES ('6666eeee-6666-4666-8666-666666666666', 'PXL-9P-512-BL', 'Pixelight 9 Pro 5G', 50000, 1, 0);
+	INSERT INTO order_private_data (order_id, email, recipient_name, phone,
+	                                postal_code, city, district, street)
+	VALUES ('6666eeee-6666-4666-8666-666666666666', 'ming@example.com', '王小明', '0912345678',
+	        '110', '台北市', '信義區', '松高路 68 號');
+	INSERT INTO store_credit_entries (id, account_id, amount_cents, reason, idempotency_key, order_id)
+	VALUES ('6666e002-0000-4000-8000-000000000000', 'a0000001-0000-4000-8000-000000000000',
+	        -50000, 'spent at checkout', 'rule-bs-spend', '6666eeee-6666-4666-8666-666666666666');
+	UPDATE orders SET fulfillment_status = 'picking' WHERE id = '6666eeee-6666-4666-8666-666666666666';
+	SELECT open_refund_before_shipment('GO-260721-000392', 'rule',
+	       '55550001-0000-4000-8000-000000000001', 'rule-req');
+	SELECT compensate_return_with_credit(r.id, 50000, '55550001-0000-4000-8000-000000000001')
+	FROM return_requests r WHERE r.order_id = '6666eeee-6666-4666-8666-666666666666';
+	INSERT INTO order_events (order_id, kind, return_request_id)
+	SELECT r.order_id, 'refunded', r.id
+	FROM return_requests r WHERE r.order_id = '6666eeee-6666-4666-8666-666666666666';
+	UPDATE orders SET fulfillment_status = 'cancelled', cancelled_at = now()
+	WHERE id = '6666eeee-6666-4666-8666-666666666666';`
 
 const refundRuleStaff = `
 	INSERT INTO users (id, email, role)

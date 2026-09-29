@@ -135,6 +135,14 @@ const holdMinutes = 60
 // HoldMinutesText is that number, for the template.
 func HoldMinutesText() string { return strconv.Itoa(holdMinutes) }
 
+// payStartMinutes is how long after an order is placed a payment can still
+// start: a Checkout Session must fit inside the hold. A payment-package test
+// binds it to the hold less the session lifetime the payment page enforces.
+const payStartMinutes = 29
+
+// PayStartMinutesText is that number, for the template.
+func PayStartMinutesText() string { return strconv.Itoa(payStartMinutes) }
+
 // AdminFAQEntry is one FAQ row as the back office lists it.
 type AdminFAQEntry struct {
 	ID         string

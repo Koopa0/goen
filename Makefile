@@ -35,6 +35,7 @@ endif
         image image-push lint fmt fmt-check vet deadcode gen templ-check vuln \
         sqlc sqlc-check squawk db-up db-down migrate-up migrate-down db-seed \
         db-repair-invoice-faq db-repair-refund-faq db-repair-payment-faq db-repair-shop-rules-faq \
+        db-repair-hold-faq \
         demo-restore-check cursor-scripts-check workflow-check verify verify-all check-layout db-reset clean
 
 build: gen
@@ -659,7 +660,7 @@ migrate-down:
 # Load the development catalogue: brands, categories, ~15 products with variants,
 # images, specs and reviews. Runs as the owner (psql, not the app's store
 # role), so it may write the tables store is barred from. Development only.
-# Edit seed/gen_seed.py and re-run it to regenerate seed/dev_catalog.sql.
+# seed/dev_catalog.sql is edited by hand.
 db-seed:
 	@test -n "$${GOEN_DATABASE_URL:-}" || { echo 'GOEN_DATABASE_URL is required' >&2; exit 2; }
 	psql "$$GOEN_DATABASE_URL" -v ON_ERROR_STOP=1 -f seed/dev_catalog.sql
@@ -690,6 +691,12 @@ db-repair-payment-faq:
 db-repair-shop-rules-faq:
 	@test -n "$${GOEN_DATABASE_URL:-}" || { echo 'GOEN_DATABASE_URL is required' >&2; exit 2; }
 	psql "$$GOEN_DATABASE_URL" -v ON_ERROR_STOP=1 -f seed/repair_shop_rules_faq.sql
+
+# Update only the known stock-hold FAQ, which promised a lapsed order could be
+# paid again, on a kept database.
+db-repair-hold-faq:
+	@test -n "$${GOEN_DATABASE_URL:-}" || { echo 'GOEN_DATABASE_URL is required' >&2; exit 2; }
+	psql "$$GOEN_DATABASE_URL" -v ON_ERROR_STOP=1 -f seed/repair_hold_faq.sql
 
 # Rebuild the development database from scratch.
 #

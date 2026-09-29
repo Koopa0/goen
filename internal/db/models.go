@@ -373,6 +373,7 @@ type OrderEvent struct {
 	Kind            string
 	Note            pgtype.Text
 	ActorUserID     uuid.NullUUID
+	BySystem        bool
 	OccurredAt      time.Time
 	ReturnRequestID uuid.NullUUID
 }
@@ -673,6 +674,7 @@ type ReturnRequest struct {
 	CreditRefundCents   pgtype.Int8
 	CreatedAt           time.Time
 	DecidedAt           pgtype.Timestamptz
+	BeforeShipment      bool
 }
 
 type ReturnRequestLine struct {
