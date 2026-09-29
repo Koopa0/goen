@@ -91,21 +91,23 @@ func (s *Store) Redeem(
 }
 
 // historyScope is what a position token is bound to: the ledger has no filters.
-// Whose ledger a position is read against comes from the query's user, never from
-// the token, so a foreign token can only move the reader within their own entries.
 const historyScope = "/account/points"
 
 // historyCursor is one ledger group's ordering values. The group is the unit,
-// so a spend across several award lots cannot be split between pages.
+// so a spend across several award lots cannot be split between pages. Owner
+// binds the token to one account: a token minted for another account is
+// refused here as well as by the query's user_id predicate, which decides
+// whose ledger is read.
 type historyCursor struct {
 	At    time.Time
 	ID    uuid.UUID
+	Owner string
 	Valid bool `json:"-"`
 }
 
-func readHistoryCursor(token string) historyCursor {
+func readHistoryCursor(owner, token string) historyCursor {
 	c, ok := web.ReadKeyset[historyCursor](historyScope, token)
-	if !ok || c.ID == uuid.Nil {
+	if !ok || c.ID == uuid.Nil || c.Owner != owner {
 		return historyCursor{}
 	}
 	c.Valid = true
@@ -125,7 +127,7 @@ func (s *Store) History(ctx context.Context, userID, after string) (pages.Points
 		return pages.PointsView{}, err
 	}
 
-	cursor := readHistoryCursor(after)
+	cursor := readHistoryCursor(userID, after)
 	rows, err := s.q.PointsHistory(ctx, db.PointsHistoryParams{
 		UserID: id, RowLimit: MaxHistoryRows + 1,
 		HasCursor: cursor.Valid, AfterAt: cursor.At, AfterID: cursor.ID,
@@ -156,7 +158,7 @@ func (s *Store) History(ctx context.Context, userID, after string) (pages.Points
 	}
 	if more {
 		last := rows[len(rows)-1]
-		position, marshalErr := json.Marshal(historyCursor{At: last.CreatedAt, ID: last.GroupID})
+		position, marshalErr := json.Marshal(historyCursor{At: last.CreatedAt, ID: last.GroupID, Owner: userID})
 		if marshalErr != nil {
 			return pages.PointsView{}, fmt.Errorf("encode points position: %w", marshalErr)
 		}
