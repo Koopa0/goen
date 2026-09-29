@@ -1076,18 +1076,25 @@ SELECT
     -- credit post.
     --
     -- The positive-credit predicate deliberately matches order_refunds: an entry
-    -- counts only with an order_id and a positive amount. reverse_order_credit
-    -- posts no order_id, so a cancelled order's returned credit is in neither
-    -- figure. A change of that definition belongs in order_refunds, so the 折讓
-    -- form and the invoice bound move with it. Neither time column has
-    -- an index yet; these are small ledgers, so a speculative index is not
-    -- warranted.
+    -- counts only with an order_id and a positive amount, so a reversed checkout
+    -- spend, which carries none, is in neither figure. A change of that
+    -- definition belongs in order_refunds, so the 折讓 form and the invoice bound
+    -- move with it. An order refunded before shipment is left out of both
+    -- figures: its refund cancels it out of the committed revenue, and counting
+    -- the same money as refunded too would take it off the net twice. Neither
+    -- time column has an index yet; these are small ledgers, so a speculative
+    -- index is not warranted.
     (coalesce((SELECT sum(r.amount_cents) FROM refunds r
+               JOIN payments p ON p.id = r.payment_id
                WHERE r.status = 'succeeded'
-                 AND r.succeeded_at >= now() - make_interval(days => @window_days::integer)), 0)::bigint
+                 AND r.succeeded_at >= now() - make_interval(days => @window_days::integer)
+                 AND NOT EXISTS (SELECT 1 FROM return_requests b
+                                 WHERE b.order_id = p.order_id AND b.before_shipment)), 0)::bigint
      + coalesce((SELECT sum(e.amount_cents) FROM store_credit_entries e
                  WHERE e.order_id IS NOT NULL AND e.amount_cents > 0
-                   AND e.created_at >= now() - make_interval(days => @window_days::integer)), 0)::bigint
+                   AND e.created_at >= now() - make_interval(days => @window_days::integer)
+                   AND NOT EXISTS (SELECT 1 FROM return_requests b
+                                   WHERE b.order_id = e.order_id AND b.before_shipment)), 0)::bigint
     )::bigint AS refunded_cents
 FROM (
     SELECT (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity)
@@ -1096,6 +1103,8 @@ FROM (
     FROM orders o
     JOIN committed_orders c ON c.id = o.id
     WHERE o.placed_at >= now() - make_interval(days => @window_days::integer)
+      AND NOT EXISTS (SELECT 1 FROM return_requests b
+                      WHERE b.order_id = o.id AND b.before_shipment)
 ) t;
 
 -- name: BestSellersSince :many

@@ -340,9 +340,9 @@ var (
 	// The order page's own sentence for a refund before shipment: Resume on
 	// that page is the retry, and the returns queue only links back to it.
 	KeyAdminNoticeRefundRetry = key("admin.notice.refundretry", Message{
-		ZhHant: "Stripe 沒有完成這筆退款，詳細原因在伺服器紀錄裡。請確認 Stripe 後台，再按「繼續退款」重試。",
-		En: "Stripe did not complete the refund; the reason is in the server log. Check the Stripe " +
-			"dashboard, then press Resume the refund to try again.",
+		ZhHant: "退款沒有完成，詳細原因在伺服器紀錄裡。請確認 Stripe 後台，再按「繼續退款」。",
+		En: "The refund did not complete; the reason is in the server log. Check the Stripe " +
+			"dashboard, then press Resume the refund.",
 	})
 
 	KeyAdminNoticeRefundPending = key("admin.notice.refundpending", Message{
