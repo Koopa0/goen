@@ -18,8 +18,7 @@ sandbox assurance.
 what currently runs on the host. The operator must configure both a sandbox API
 key and the matching webhook endpoint signing secret in `/etc/goen/demo.env`.
 Never commit their values. The template also directs mail to an on-host Mailpit
-sink and supplies ECPay staging configuration. It sets `GOEN_PROVIDER_MODE=sandbox`
-explicitly; `live` refuses to start on any of those test settings.
+sink and supplies ECPay staging configuration. Going to production means switching the environment variables to production values; a live Stripe key with any staging or placeholder setting refuses to start.
 
 [goen-restore.timer](goen-restore.timer) and
 [goen-restore.service](goen-restore.service) describe the nightly invocation of

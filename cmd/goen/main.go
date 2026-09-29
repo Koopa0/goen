@@ -57,7 +57,6 @@ type config struct {
 	// DatabaseURL does SET ROLE maintenance as store_svc, which is not a member
 	// of that role.
 	MaintenanceDatabaseURL string
-	ProviderMode           providerMode
 	StripeAPIKey           string
 	StripeWebhookSecret    string
 	ECPayMerchantID        string
@@ -112,7 +111,6 @@ func loadConfig() (config, error) {
 
 		MaintenanceDatabaseURL: envOr("GOEN_MAINTENANCE_DATABASE_URL", url),
 
-		ProviderMode:    providerMode(envOr("GOEN_PROVIDER_MODE", string(providerSandbox))),
 		StripeAPIKey:    envOr("GOEN_STRIPE_API_KEY", os.Getenv("GOEN_STRIPE_SECRET_KEY")),
 		ECPayMerchantID: os.Getenv("GOEN_ECPAY_MERCHANT_ID"),
 		ECPayHashKey:    os.Getenv("GOEN_ECPAY_HASH_KEY"),
@@ -143,8 +141,8 @@ func loadConfig() (config, error) {
 // prepareRuntimePosture refuses a configuration that would serve the site with
 // a security feature silently off, or a subsystem that reports success without
 // doing its work, and prepares the parsed TOTP key and canonical origin.
-// SecureCookies selects secure transport and account requirements. Provider
-// environment is selected separately by GOEN_PROVIDER_MODE.
+// SecureCookies selects secure transport and account requirements. The provider
+// environment follows the Stripe key, not the cookies; see prepareProviderPosture.
 func (cfg *config) prepareRuntimePosture(log *slog.Logger) error {
 	// Key shape is a fact, not a production-only preference: accepting a weak
 	// passphrase in development would create credentials production cannot

@@ -12,44 +12,28 @@ import (
 	"github.com/koopa0/goen/internal/payment"
 )
 
-// providerMode is the deployment's financial environment. It is a setting of
-// its own: HTTPS says nothing about whether the Stripe key or the 綠界
-// endpoints are real.
-type providerMode string
-
-const (
-	providerSandbox providerMode = "sandbox"
-	providerLive    providerMode = "live"
-)
-
-// prepareProviderPosture refuses a live deployment that would take real orders
-// through a test or placeholder provider. Sandbox is as permissive as it was
-// before the mode existed.
+// prepareProviderPosture refuses a configuration that holds a live Stripe key
+// beside a staging or placeholder setting, which would take real orders through
+// a test provider. The posture follows the key alone, read by
+// [payment.ClassifyKey]: a test, unknown or absent key is sandbox, and sandbox
+// is as permissive as it was before this check existed. Secure cookies say
+// nothing about it: an HTTPS demonstration can run on test keys.
 func (cfg *config) prepareProviderPosture() error {
-	switch cfg.ProviderMode {
-	case providerSandbox, "": // loadConfig defaults the setting to sandbox
+	if payment.ClassifyKey(cfg.StripeAPIKey) != payment.KeyLive {
 		return nil
-	case providerLive:
-	default:
-		return errors.New("GOEN_PROVIDER_MODE must be sandbox or live")
 	}
 	if !cfg.SecureCookies {
-		return errors.New("GOEN_PROVIDER_MODE=live requires secure cookies; remove GOEN_INSECURE_COOKIES")
-	}
-	// Live fails closed: Stripe live keys always start sk_live_ or rk_live_, so
-	// a test key, an unrecognised one or none at all is a configuration error.
-	if payment.ClassifyKey(cfg.StripeAPIKey) != payment.KeyLive {
-		return errors.New("GOEN_STRIPE_API_KEY must be a Stripe live key (sk_live_ or rk_live_) while GOEN_PROVIDER_MODE is live")
+		return errors.New("GOEN_STRIPE_API_KEY is a live key, which requires secure cookies; remove GOEN_INSECURE_COOKIES")
 	}
 	if err := cfg.validateLiveInvoicing(); err != nil {
 		return err
 	}
-	// Live reads the production store map unless told otherwise; the map has no
-	// other setting that says which environment it is.
+	// A live key reads the production store map unless told otherwise; the map
+	// has no other setting that says which environment it is.
 	if cfg.ECPayLogisticsBaseURL == "" {
 		cfg.ECPayLogisticsBaseURL = cart.MapProductionBaseURL
 	} else if namesHost(cfg.ECPayLogisticsBaseURL, cart.MapStagingBaseURL) {
-		return errors.New("GOEN_ECPAY_LOGISTICS_BASE_URL names the 綠界 staging store map while GOEN_PROVIDER_MODE is live")
+		return errors.New("GOEN_ECPAY_LOGISTICS_BASE_URL names the 綠界 staging store map beside a live GOEN_STRIPE_API_KEY")
 	}
 	return cfg.validateLiveSender()
 }
@@ -57,12 +41,12 @@ func (cfg *config) prepareProviderPosture() error {
 func (cfg *config) validateLiveInvoicing() error {
 	if cfg.ECPayMerchantID == "" || cfg.ECPayHashKey == "" || cfg.ECPayHashIV == "" {
 		return errors.New("GOEN_ECPAY_MERCHANT_ID, GOEN_ECPAY_HASH_KEY and GOEN_ECPAY_HASH_IV " +
-			"are required while GOEN_PROVIDER_MODE is live: without them no 統一發票 is issued")
+			"are required beside a live GOEN_STRIPE_API_KEY: without them no 統一發票 is issued")
 	}
 	// An empty URL is the staging endpoint by default.
 	if cfg.ECPayBaseURL == "" || namesHost(cfg.ECPayBaseURL, invoice.StagingBaseURL) {
 		return errors.New("GOEN_ECPAY_BASE_URL must name the production invoice endpoint " +
-			"while GOEN_PROVIDER_MODE is live; empty and the staging endpoint are refused")
+			"beside a live GOEN_STRIPE_API_KEY; empty and the staging endpoint are refused")
 	}
 	return nil
 }
@@ -70,10 +54,10 @@ func (cfg *config) validateLiveInvoicing() error {
 func (cfg *config) validateLiveSender() error {
 	from, err := mail.ParseAddress(strings.TrimSpace(cfg.SMTPFrom))
 	if err != nil || !email.Valid(from.Address) {
-		return errors.New("GOEN_SMTP_FROM must be a valid sender address while GOEN_PROVIDER_MODE is live")
+		return errors.New("GOEN_SMTP_FROM must be a valid sender address beside a live GOEN_STRIPE_API_KEY")
 	}
 	if strings.HasSuffix(strings.ToLower(from.Address), "@goen.example") {
-		return errors.New("GOEN_SMTP_FROM is the goen.example placeholder while GOEN_PROVIDER_MODE is live")
+		return errors.New("GOEN_SMTP_FROM is the goen.example placeholder beside a live GOEN_STRIPE_API_KEY")
 	}
 	return nil
 }
