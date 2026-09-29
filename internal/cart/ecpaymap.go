@@ -275,21 +275,55 @@ func writePickupCookie(w http.ResponseWriter, s pickupState, secure bool) {
 }
 
 func readPickupCookie(r *http.Request, secure bool) (pickupState, bool) {
-	c, err := r.Cookie(pickupCookieName(secure))
-	if err != nil || c.Value == "" {
-		return pickupState{}, false
+	// POST state belongs to the submitted form, never to an unrelated query.
+	nonce := r.URL.Query().Get("pickup_n")
+	if r.Method == http.MethodPost {
+		nonce = r.PostFormValue("pickup_n")
 	}
-	raw, err := base64.RawURLEncoding.DecodeString(c.Value)
-	if err != nil {
-		return pickupState{}, false
+	var first pickupState
+	var found bool
+	for _, c := range r.CookiesNamed(pickupCookieName(secure)) {
+		raw, err := base64.RawURLEncoding.DecodeString(c.Value)
+		if err != nil {
+			continue
+		}
+		parts := strings.SplitN(string(raw), "|", 4)
+		if len(parts) != 4 || !validNonce(parts[0]) {
+			continue
+		}
+		state := pickupState{Nonce: parts[0], Ship: parts[1], Invoice: parts[2], Address: parts[3]}
+		// Browsers can send same-name cookies from different paths. The one that
+		// carries the returned nonce wins; with none, the first valid cookie is
+		// still this browser's state, so its saved choices survive a mismatch,
+		// and honourPickupStore alone decides whether the store is believed.
+		if nonce != "" && subtle.ConstantTimeCompare([]byte(nonce), []byte(parts[0])) == 1 {
+			return state, true
+		}
+		if !found {
+			first, found = state, true
+		}
 	}
-	parts := strings.SplitN(string(raw), "|", 4)
-	if len(parts) != 4 || !validNonce(parts[0]) {
-		return pickupState{}, false
+	return first, found
+}
+
+// pickupNonceMatched reports whether any same-name cookie carries the posted
+// nonce, for diagnostics only.
+func pickupNonceMatched(r *http.Request, secure bool, posted string) bool {
+	if !validNonce(posted) {
+		return false
 	}
-	return pickupState{
-		Nonce: parts[0], Ship: parts[1], Invoice: parts[2], Address: parts[3],
-	}, true
+	matched := false
+	for _, c := range r.CookiesNamed(pickupCookieName(secure)) {
+		raw, err := base64.RawURLEncoding.DecodeString(c.Value)
+		if err != nil {
+			continue
+		}
+		nonce, _, _ := strings.Cut(string(raw), "|")
+		if subtle.ConstantTimeCompare([]byte(posted), []byte(nonce)) == 1 {
+			matched = true
+		}
+	}
+	return matched
 }
 
 // clearPickupCookie removes it. A nonce left behind after an order is placed

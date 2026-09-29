@@ -7215,3 +7215,18 @@ h4,
   .goen-cart__adjustment-content { display: flex; justify-content: space-between; gap: 1.5rem; }
   .goen-cart__adjustment-action { margin: 0; }
 }
+
+/* Native constraints wait for a completed interaction, so an untouched checkout
+   does not start by telling the shopper every field is wrong. */
+.goen-field__constraint {
+  display: none;
+}
+
+[data-checkout-constraint]:user-invalid ~ .goen-field__constraint,
+[data-checkout-constraint][aria-invalid="true"] ~ .goen-field__constraint {
+  display: block;
+}
+
+[data-checkout-constraint]:user-invalid {
+  border-color: var(--error);
+}

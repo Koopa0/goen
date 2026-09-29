@@ -434,7 +434,7 @@ func TestInventoryConstraintIsReportedAsSoldOut(t *testing.T) {
 	s := cart.NewStore(appPool)
 	vid := freshVariant(t, "named-inventory-refusal")
 	if _, err := pool.Exec(ctx, `
-		SELECT record_inventory_movement($1, -9, 'adjustment', $2, NULL, NULL, NULL)`,
+		SELECT record_inventory_movement($1, -9, 'adjustment', $2, 'admin', NULL, NULL)`,
 		vid, "leave-one:"+vid.String()); err != nil {
 		t.Fatalf("leave one unit: %v", err)
 	}
@@ -4549,7 +4549,7 @@ func emptyTheShelfFor(t *testing.T, vid uuid.UUID) {
 	}
 	if stock > 0 {
 		if _, err := pool.Exec(t.Context(),
-			`SELECT record_inventory_movement($1, $2, 'adjustment', $3, NULL, NULL, NULL)`,
+			`SELECT record_inventory_movement($1, $2, 'adjustment', $3, 'admin', NULL, NULL)`,
 			vid, -stock, "reorder-empty:"+vid.String()); err != nil {
 			t.Fatalf("empty the shelf: %v", err)
 		}
@@ -4735,7 +4735,7 @@ func variantsOf(t *testing.T, name string, n int) (a, b, c uuid.UUID) {
 			t.Fatalf("create variant: %v", err)
 		}
 		if _, err := pool.Exec(ctx,
-			`SELECT record_inventory_movement($1, 10, 'adjustment', $2, NULL, NULL, NULL)`,
+			`SELECT record_inventory_movement($1, 10, 'adjustment', $2, 'admin', NULL, NULL)`,
 			vid, "fixture:"+vid.String()); err != nil {
 			t.Fatalf("stock the variant: %v", err)
 		}
@@ -5248,7 +5248,7 @@ func translatedVariant(t *testing.T) (variantID uuid.UUID, zhName, enName string
 	}
 	// Stock arrives through the ledger, the only door that writes stock_quantity.
 	if _, err := pool.Exec(ctx,
-		`SELECT record_inventory_movement($1, 5, 'receipt', $2, NULL, NULL)`,
+		`SELECT record_inventory_movement($1, 5, 'receipt', $2, 'admin', NULL)`,
 		variantID, "snapshot-stock-"+suffix); err != nil {
 		t.Fatalf("stock the variant: %v", err)
 	}

@@ -40,6 +40,7 @@ type Handler struct {
 	// storeMap is the carrier's hosted store picker. Nil or disabled on a
 	// deployment with no carrier, where the checkout asks for a chain alone.
 	storeMap *Map
+	carriers CarrierChecker
 }
 
 // SessionCloser closes a checkout the customer may still have open at the
@@ -48,18 +49,32 @@ type SessionCloser interface {
 	ExpireSession(ctx context.Context, sessionID string) error
 }
 
+// CarrierChecker is the read-only subset of the invoice gateway checkout needs.
+type CarrierChecker interface {
+	CheckBarcode(context.Context, string) (invoicepkg.CarrierStatus, error)
+}
+
 // NewHandler returns a Handler writing through store. A nil sessions means no
 // provider is configured, so no session was ever opened to close; a nil or
 // disabled storeMap means no carrier picker, and the checkout asks for a chain
-// exactly as it did before one existed.
+// exactly as it did before one existed. An omitted carrier checker keeps local
+// shape validation on deployments without an invoice gateway.
 func NewHandler(store *Store, log *slog.Logger, secure bool, findLimit *ratelimit.Limiter,
-	sessions SessionCloser, storeMap *Map,
+	sessions SessionCloser, storeMap *Map, carriers ...CarrierChecker,
 ) *Handler {
 	if store == nil || log == nil || findLimit == nil {
 		panic("cart: NewHandler requires a store, a logger and a lookup limiter")
 	}
+	if len(carriers) > 1 {
+		panic("cart: NewHandler accepts one carrier checker")
+	}
+	var checker CarrierChecker
+	if len(carriers) == 1 {
+		checker = carriers[0]
+	}
 	return &Handler{
-		store: store, log: log, secure: secure, findLimit: findLimit,
+		carriers: checker,
+		store:    store, log: log, secure: secure, findLimit: findLimit,
 		sessions: sessions, storeMap: storeMap,
 	}
 }
@@ -342,6 +357,7 @@ func (h *Handler) applyReturnedStore(r *http.Request, view *pages.CheckoutView) 
 	}
 	state, known := readPickupCookie(r, h.secure)
 	if !honourPickupStore(posted, state, known) {
+		h.logPickupRefusal(r, posted)
 		view.PickupRefused = true
 		return http.StatusUnprocessableEntity
 	}
@@ -415,7 +431,21 @@ func (h *Handler) dropUnvouchedStore(r *http.Request, addr *Address) bool {
 	}
 	addr.PickupStoreCode, addr.PickupStoreName = "", ""
 	// A chain change is the shopper's own doing and is not a refusal to report.
+	if sameChain {
+		h.logPickupRefusal(r, posted)
+	}
 	return sameChain
+}
+
+func (h *Handler) logPickupRefusal(r *http.Request, posted PostedStore) {
+	// The nonce authorizes a selection; diagnostics must not disclose it or
+	// the customer's destination to anyone who can read application logs.
+	h.log.WarnContext(r.Context(), "pickup store refused",
+		"method", r.Method,
+		"pickup_cookie_count", len(r.CookiesNamed(pickupCookieName(h.secure))),
+		"nonce_valid", validNonce(posted.Nonce),
+		"nonce_matched", pickupNonceMatched(r, h.secure, posted.Nonce),
+		"brand_offered", offeredAtCheckout(posted.Brand))
 }
 
 // renderCheckout answers with the checkout form. Every render refreshes the
@@ -533,6 +563,10 @@ func (h *Handler) PlaceOrder(w http.ResponseWriter, r *http.Request) {
 		// text; require confirmation before that new identity can write anything.
 		submission.view.Repriced = i18n.T(r.Context(), i18n.KeyCheckoutChanged)
 		h.renderCheckout(w, r, http.StatusUnprocessableEntity, &submission.view)
+		return
+	}
+
+	if !h.checkMobileCarrier(w, r, &submission.invoice, &submission.view) {
 		return
 	}
 
