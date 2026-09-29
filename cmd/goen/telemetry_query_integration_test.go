@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"go.opentelemetry.io/otel"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
@@ -66,8 +67,17 @@ func TestProductQueryWaitSharesHTTPTraceAndBoundedMetrics(t *testing.T) {
 		completed <- struct{}{}
 	}))
 	defer server.Close()
-	var slug string
-	if err = pool.QueryRow(t.Context(), `SELECT slug FROM products WHERE status='active' ORDER BY slug LIMIT 1`).Scan(&slug); err != nil {
+	slug := "telemetry-query-" + uuid.NewString()
+	_, err = pool.Exec(t.Context(), `
+WITH fixture_brand AS (
+    INSERT INTO brands (slug, name) VALUES ($1, 'Telemetry fixture') RETURNING id
+), fixture_category AS (
+    INSERT INTO categories (slug, name) VALUES ($1, 'Telemetry fixture') RETURNING id
+)
+INSERT INTO products (brand_id, category_id, slug, name, status, published_at)
+SELECT fixture_brand.id, fixture_category.id, $1, 'Telemetry fixture', 'active', now()
+FROM fixture_brand CROSS JOIN fixture_category`, slug)
+	if err != nil {
 		t.Fatal(err)
 	}
 	lock, err := pool.Begin(t.Context())

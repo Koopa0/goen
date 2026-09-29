@@ -94,7 +94,11 @@ func RegisterOutboxCollector(ctx context.Context, interval time.Duration, reader
 	}
 
 	go func() {
-		defer func() { _ = registration.Unregister() }()
+		defer func() {
+			if unregisterErr := registration.Unregister(); unregisterErr != nil {
+				otel.Handle(fmt.Errorf("unregister outbox metrics callback: %w", unregisterErr))
+			}
+		}()
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
 		for ctx.Err() == nil {
@@ -117,5 +121,6 @@ func RegisterOutboxCollector(ctx context.Context, interval time.Duration, reader
 
 type outboxSnapshot struct {
 	OutboxStats
+
 	observedAt time.Time
 }
