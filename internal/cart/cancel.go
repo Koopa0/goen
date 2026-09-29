@@ -80,9 +80,31 @@ func settleCancellation(ctx context.Context, q *db.Queries, number string, kind 
 		return fmt.Errorf("record cancellation of %s: %w", number, err)
 	}
 
-	refunded, moneyErr := q.OrderMayHaveTakenMoney(ctx, order.ID)
-	if moneyErr != nil {
-		return fmt.Errorf("read provider money on %s: %w", number, moneyErr)
+	facts, factsErr := q.OrderPaymentFacts(ctx, order.ID)
+	if factsErr != nil {
+		return fmt.Errorf("read payments of %s: %w", number, factsErr)
 	}
-	return ordernotice.Enqueue(ctx, q, ordernotice.Message{OrderID: order.ID, Kind: kind, Refunded: refunded})
+	return ordernotice.Enqueue(ctx, q, ordernotice.Message{
+		OrderID: order.ID, Kind: kind, Refunded: mayHaveTakenMoney(facts.Statuses, facts.ProviderFlagged),
+	})
+}
+
+// paymentExpired is the one payments.status that proves a session took nothing:
+// Stripe confirmed it expired, or it ended with no money.
+const paymentExpired = "cancelled"
+
+// mayHaveTakenMoney reports whether a cancellation notice must allow for money
+// having reached Stripe, and so must not say nothing was charged. Any status but
+// an expired one may: a session still open when its order is cancelled can be
+// completed in another tab before the cancellation closes it.
+func mayHaveTakenMoney(statuses []string, providerFlagged bool) bool {
+	if providerFlagged {
+		return true
+	}
+	for _, s := range statuses {
+		if s != paymentExpired {
+			return true
+		}
+	}
+	return false
 }

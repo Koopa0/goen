@@ -381,20 +381,20 @@ SELECT release_reservation($1);
 INSERT INTO order_events (order_id, kind, by_system)
 SELECT id, 'cancelled', @by_system::boolean FROM orders WHERE order_number = @order_number::text;
 
--- Money may have reached Stripe for this unpaid order: a provider-complete
--- session, its resolution, or a provider event that needed a person. Staff
--- refund such money, so a cancellation notice must not say nothing was charged.
--- name: OrderMayHaveTakenMoney :one
-SELECT EXISTS (
-    SELECT 1 FROM payments p
-    WHERE p.order_id = $1
-      AND (p.status IN ('requires_reconciliation', 'reconciled')
-           OR EXISTS (
-               SELECT 1 FROM payment_webhook_events e
-               WHERE e.provider = p.provider AND e.object_ref = p.provider_ref
-                 AND e.unreconciled IS NOT NULL
-           ))
-)::boolean AS may_have_taken_money;
+-- What a cancellation notice needs to decide whether money may have reached
+-- Stripe for this unpaid order: the status of every payment it has had, and
+-- whether any of their provider events ever needed a person.
+-- name: OrderPaymentFacts :one
+SELECT ARRAY(
+           SELECT DISTINCT p.status FROM payments p WHERE p.order_id = $1 ORDER BY p.status
+       )::text[] AS statuses,
+       EXISTS (
+           SELECT 1
+           FROM payments p
+           JOIN payment_webhook_events e
+             ON e.provider = p.provider AND e.object_ref = p.provider_ref
+           WHERE p.order_id = $1 AND e.unreconciled IS NOT NULL
+       )::boolean AS provider_flagged;
 
 -- Ordered by variant first so cancellation shares the global stock-root lock
 -- order with checkout and returns; id is the stable tie-breaker.
