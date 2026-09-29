@@ -1182,12 +1182,6 @@ h4,
   margin: 0;
 }
 
-.goen-footer__social {
-  display: flex;
-  gap: 8px;
-  margin-top: 24px;
-}
-
 .goen-footer__bottom {
   border-top: 1px solid var(--border);
 }
