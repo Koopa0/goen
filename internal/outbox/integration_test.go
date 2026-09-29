@@ -525,3 +525,92 @@ func TestTheSweepLeavesAPendingMessageAlone(t *testing.T) {
 		t.Errorf("Sweep deleted %d undelivered rows, want 0", n)
 	}
 }
+
+// TestAMessageIsNotClaimedPastMaxAttempts: a message that keeps failing is tried
+// MaxAttempts times and then left alone, so a poison payload is not handed to the
+// handler again every day for the life of the database.
+func TestAMessageIsNotClaimedPastMaxAttempts(t *testing.T) {
+	emptyOutbox(t)
+	ctx := t.Context()
+	s := outbox.NewStore(pool, quiet())
+	key := uuid.NewString()
+	enqueue(t, "test.poison", key, `{}`)
+
+	runs := 0
+	s.Handle("test.poison", func(context.Context, []byte) error {
+		runs++
+		return errors.New("never sendable")
+	})
+
+	for range outbox.MaxAttempts + 2 {
+		if _, err := pool.Exec(ctx,
+			`UPDATE outbox_messages SET available_at = now() WHERE dedupe_key = $1`, key); err != nil {
+			t.Fatalf("make it due: %v", err)
+		}
+		if _, _, err := s.Drain(ctx); err != nil {
+			t.Fatalf("drain: %v", err)
+		}
+	}
+	if runs != outbox.MaxAttempts {
+		t.Errorf("the handler ran %d times, want %d", runs, outbox.MaxAttempts)
+	}
+	stuck, err := s.Stuck(ctx, 10)
+	if err != nil {
+		t.Fatalf("Stuck: %v", err)
+	}
+	if len(stuck) != 1 || stuck[0].Attempts != outbox.MaxAttempts {
+		t.Errorf("stuck = %+v, want the one message at %d attempts", stuck, outbox.MaxAttempts)
+	}
+}
+
+// TestTheSweepDropsAnUndeliveredMessagePastRetain: the payload of a message that
+// never went out can carry a token, so it is bounded by its age like a delivered
+// one; a young undelivered message and a delivered one keep their own rules.
+func TestTheSweepDropsAnUndeliveredMessagePastRetain(t *testing.T) {
+	emptyOutbox(t)
+	ctx := t.Context()
+	s := outbox.NewStore(pool, quiet())
+
+	for _, k := range []string{"stale", "young", "delivered-old", "delivered-fresh"} {
+		enqueue(t, "sweep.undelivered", k, `{"token":"secret"}`)
+	}
+	if _, err := pool.Exec(ctx, `
+		UPDATE outbox_messages SET created_at = now() - interval '31 days',
+		       attempts = $1, available_at = now() + interval '1 day'
+		WHERE dedupe_key = 'stale'`, outbox.MaxAttempts); err != nil {
+		t.Fatalf("age the stale message: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		UPDATE outbox_messages SET created_at = now() - interval '60 days',
+		       delivered_at = now() - interval '31 days'
+		WHERE dedupe_key = 'delivered-old'`); err != nil {
+		t.Fatalf("age the delivered message: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		UPDATE outbox_messages SET created_at = now() - interval '60 days',
+		       delivered_at = now() - interval '1 day'
+		WHERE dedupe_key = 'delivered-fresh'`); err != nil {
+		t.Fatalf("stamp the fresh delivered message: %v", err)
+	}
+
+	n, err := s.Sweep(ctx)
+	if err != nil {
+		t.Fatalf("Sweep: %v", err)
+	}
+	if n != 2 {
+		t.Errorf("Sweep deleted %d rows, want 2 (stale undelivered, old delivered)", n)
+	}
+	for key, want := range map[string]bool{
+		"stale": false, "young": true, "delivered-old": false, "delivered-fresh": true,
+	} {
+		var exists bool
+		if err := pool.QueryRow(ctx,
+			`SELECT EXISTS (SELECT 1 FROM outbox_messages WHERE dedupe_key = $1)`,
+			key).Scan(&exists); err != nil {
+			t.Fatalf("read %s: %v", key, err)
+		}
+		if exists != want {
+			t.Errorf("%s: exists = %v, want %v", key, exists, want)
+		}
+	}
+}

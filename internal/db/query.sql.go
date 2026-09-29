@@ -3370,9 +3370,12 @@ const claimOutbox = `-- name: ClaimOutbox :many
 WITH due AS (
     SELECT id FROM outbox_messages
     WHERE delivered_at IS NULL AND available_at <= now()
+      -- A message that has used its attempts is undeliverable: it stays for
+      -- /admin/health and the sweep, and no worker takes it again.
+      AND attempts < $2::integer
     -- Priority first, then age: a receipt must not wait for a newsletter.
     ORDER BY priority, available_at
-    LIMIT $2::integer
+    LIMIT $3::integer
     FOR UPDATE SKIP LOCKED
 )
 UPDATE outbox_messages m
@@ -3384,8 +3387,9 @@ RETURNING m.id, m.topic, m.payload, m.attempts
 `
 
 type ClaimOutboxParams struct {
-	Lease     pgtype.Interval
-	BatchSize int32
+	Lease       pgtype.Interval
+	MaxAttempts int32
+	BatchSize   int32
 }
 
 type ClaimOutboxRow struct {
@@ -3400,7 +3404,7 @@ type ClaimOutboxRow struct {
 // available_at forward is what makes the claim exclusive.
 // attempts rises on the CLAIM, or it counts nothing about failures.
 func (q *Queries) ClaimOutbox(ctx context.Context, arg ClaimOutboxParams) ([]ClaimOutboxRow, error) {
-	rows, err := q.db.Query(ctx, claimOutbox, arg.Lease, arg.BatchSize)
+	rows, err := q.db.Query(ctx, claimOutbox, arg.Lease, arg.MaxAttempts, arg.BatchSize)
 	if err != nil {
 		return nil, err
 	}
@@ -12335,11 +12339,26 @@ WHERE delivered_at IS NOT NULL
   AND delivered_at < now() - $1::interval
 `
 
-// DELIVERED only, and keyed on delivered_at: a message that exhausted its
-// attempts is kept so /admin/health lists it, and available_at moves forward on
-// every claim, so keying on that would delete unsent mail.
+// Keyed on delivered_at, not available_at, which moves forward on every claim.
 func (q *Queries) SweepDeliveredMessages(ctx context.Context, retain pgtype.Interval) (int64, error) {
 	result, err := q.db.Exec(ctx, sweepDeliveredMessages, retain)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const sweepUndeliveredMessages = `-- name: SweepUndeliveredMessages :execrows
+DELETE FROM outbox_messages
+WHERE delivered_at IS NULL
+  AND created_at < now() - $1::interval
+`
+
+// An undelivered message past the same window goes too: its payload can carry a
+// token that nothing will ever mail, and it may not outlive that token. Keyed on
+// created_at because available_at moves on every claim.
+func (q *Queries) SweepUndeliveredMessages(ctx context.Context, retain pgtype.Interval) (int64, error) {
+	result, err := q.db.Exec(ctx, sweepUndeliveredMessages, retain)
 	if err != nil {
 		return 0, err
 	}
