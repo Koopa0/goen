@@ -19,7 +19,8 @@ func TestReportCSVMatchesTheSelectedQueryWindow(t *testing.T) {
 	for _, age := range []int{0, 10} {
 		id := reportOrder(t, 100, false)
 		_, err := pool.Exec(ctx, `
-            UPDATE order_lines SET variant_id = (SELECT id FROM product_variants ORDER BY id LIMIT 1),
+            UPDATE order_lines SET (product_id, variant_id) =
+                (SELECT product_id, id FROM product_variants ORDER BY id LIMIT 1),
                 quantity = 999 WHERE order_id = $1;
         `, id)
 		if err != nil {

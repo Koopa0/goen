@@ -35,7 +35,7 @@ func TestAnEmptySalesWindowStillListsStockAtRisk(t *testing.T) {
 	t.Parallel()
 
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	html := renderToString(t, AdminReport(layouts.Page{Title: "報表"}, &AdminReportView{
+	markup := renderToString(t, AdminReport(layouts.Page{Title: "報表"}, &AdminReportView{
 		Days:    30,
 		Windows: []int32{7, 30, 90},
 		AtRisk: []AdminStockRisk{{
@@ -45,19 +45,19 @@ func TestAnEmptySalesWindowStillListsStockAtRisk(t *testing.T) {
 	}))
 
 	empty := i18n.T(ctx, i18n.KeyAdminRepEmpty)
-	if !strings.Contains(html, empty) {
+	if !strings.Contains(markup, empty) {
 		t.Errorf("a zero-order window does not keep the no-orders sales state %q", empty)
 	}
-	if !strings.Contains(html, "RISK-SKU-1") {
+	if !strings.Contains(markup, "RISK-SKU-1") {
 		t.Error("a zero-order window hides an at-risk SKU that was already queried")
 	}
-	if !strings.Contains(html, "Shrinking SKU") {
+	if !strings.Contains(markup, "Shrinking SKU") {
 		t.Error("a zero-order window hides the at-risk product name")
 	}
-	if !strings.Contains(html, i18n.T(ctx, i18n.KeyAdminRepStock)) {
+	if !strings.Contains(markup, i18n.T(ctx, i18n.KeyAdminRepStock)) {
 		t.Error("a zero-order window drops the stock-at-risk heading")
 	}
-	if strings.Contains(html, `class="goen-report__figures"`) {
+	if strings.Contains(markup, `class="goen-report__figures"`) {
 		t.Error("a zero-order window still paints the revenue strip")
 	}
 }
