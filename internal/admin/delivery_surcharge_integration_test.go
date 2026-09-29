@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"html"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -20,9 +21,10 @@ import (
 )
 
 type deliveryPriceOrder struct {
-	number               string
-	id, version, method  uuid.UUID
-	oldPostal, newPostal string
+	number                         string
+	id, version, method            uuid.UUID
+	oldZone, newZone               uuid.UUID
+	oldPostal, newPostal, siblingP string
 }
 
 func pricedDeliveryOrder(t *testing.T, oldRate, newRate, chargedShipping int64) deliveryPriceOrder {
@@ -42,13 +44,13 @@ func pricedDeliveryOrder(t *testing.T, oldRate, newRate, chargedShipping int64) 
 		t.Fatal(err)
 	}
 	var prefixes []string
-	if err = tx.QueryRow(ctx, `SELECT array_agg(prefix) FROM (SELECT n::text AS prefix FROM generate_series(100,999) n WHERE NOT EXISTS (SELECT 1 FROM shipping_zone_prefixes z WHERE z.prefix=n::text) ORDER BY n DESC LIMIT 2) p`).Scan(&prefixes); err != nil {
+	if err = tx.QueryRow(ctx, `SELECT array_agg(prefix) FROM (SELECT n::text AS prefix FROM generate_series(100,999) n WHERE NOT EXISTS (SELECT 1 FROM shipping_zone_prefixes z WHERE z.prefix=n::text) ORDER BY n DESC LIMIT 3) p`).Scan(&prefixes); err != nil {
 		t.Fatal(err)
 	}
-	if len(prefixes) != 2 {
-		t.Fatal("need two unused postcode prefixes")
+	if len(prefixes) != 3 {
+		t.Fatal("need three unused postcode prefixes")
 	}
-	f.oldPostal, f.newPostal = prefixes[0], prefixes[1]
+	f.oldPostal, f.newPostal, f.siblingP = prefixes[0], prefixes[1], prefixes[2]
 	for i, rate := range []int64{oldRate, newRate} {
 		var zone uuid.UUID
 		if err = tx.QueryRow(ctx, `INSERT INTO shipping_zones(code,name) VALUES($1,'Correction zone') RETURNING id`, fmt.Sprintf("%s_%d", code, i)).Scan(&zone); err != nil {
@@ -56,6 +58,15 @@ func pricedDeliveryOrder(t *testing.T, oldRate, newRate, chargedShipping int64) 
 		}
 		if _, err = tx.Exec(ctx, `INSERT INTO shipping_zone_prefixes(prefix,zone_id) VALUES($1,$2)`, prefixes[i], zone); err != nil {
 			t.Fatal(err)
+		}
+		if i == 0 {
+			f.oldZone = zone
+			// A second prefix of the same zone: the correction that must stay legal.
+			if _, err = tx.Exec(ctx, `INSERT INTO shipping_zone_prefixes(prefix,zone_id) VALUES($1,$2)`, f.siblingP, zone); err != nil {
+				t.Fatal(err)
+			}
+		} else {
+			f.newZone = zone
 		}
 		if rate > 0 {
 			if _, err = tx.Exec(ctx, `INSERT INTO shipping_version_zones(version_id,zone_id,surcharge_cents) VALUES($1,$2,$3)`, f.version, zone, rate); err != nil {
@@ -113,12 +124,21 @@ func deliveryMoneySnapshot(t *testing.T, id uuid.UUID) string {
 	return snapshot
 }
 
-func TestDeliveryCorrectionRefusesBothSurchargeDirections(t *testing.T) {
+func zoneRefusal(t *testing.T, err error, want i18n.Key) {
+	t.Helper()
+	refused, ok := errors.AsType[*admin.DeliveryPostalError](err)
+	if !ok || refused.Key != want {
+		t.Fatalf("correction error=%v, want a postcode refusal %q", err, want)
+	}
+}
+
+func TestDeliveryCorrectionRefusesEveryCrossZoneMove(t *testing.T) {
+	// Equal surcharges are still different zones: the rule is zone identity.
 	for _, tc := range []struct {
 		name             string
 		oldRate, newRate int64
 	}{
-		{"increase", 0, 10000}, {"decrease", 10000, 0},
+		{"increase", 0, 10000}, {"decrease", 10000, 0}, {"equal surcharges", 10000, 10000}, {"neither surcharged", 0, 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			f := pricedDeliveryOrder(t, tc.oldRate, tc.newRate, tc.oldRate)
@@ -128,10 +148,7 @@ func TestDeliveryCorrectionRefusesBothSurchargeDirections(t *testing.T) {
 			}
 			before := deliveryMoneySnapshot(t, f.id)
 			err := admin.NewStore(pool, fakeRefunder{}, nil, nil).CorrectDelivery(ctx, f.number, proposedDelivery(f.newPostal))
-			change, ok := errors.AsType[*admin.DeliverySurchargeError](err)
-			if !ok || change.DeltaCents != tc.newRate-tc.oldRate || change.ShippingCents != tc.oldRate {
-				t.Fatalf("correction error=%v change=%+v", err, change)
-			}
+			zoneRefusal(t, err, i18n.KeyDeliveryZoneChanged)
 			if got := streetOf(t, f.number); got != "Saved street" {
 				t.Fatalf("refusal saved %q", got)
 			}
@@ -142,9 +159,39 @@ func TestDeliveryCorrectionRefusesBothSurchargeDirections(t *testing.T) {
 	}
 }
 
-func TestSameSurchargeCorrectionRetainsFrozenPriceAfterMethodRetires(t *testing.T) {
-	// The current tariff is not the historic fee: contact/cross-prefix edits with
-	// equal current surcharges must preserve a waived or older captured charge.
+// The zone is what the order was priced in; the amount on its row is editable
+// afterwards, and zero deletes the row. Neither may move the boundary.
+func TestEditingASurchargeAfterTheOrderNeverOpensACrossZoneCorrection(t *testing.T) {
+	t.Run("island surcharge set to 0 after the order", func(t *testing.T) {
+		f := pricedDeliveryOrder(t, 10000, 0, 10000)
+		ctx, _ := staffContext(t)
+		// The destination is the mainland: a postcode in no zone at all.
+		if _, err := pool.Exec(ctx, `DELETE FROM shipping_zone_prefixes WHERE prefix=$1`, f.newPostal); err != nil {
+			t.Fatal(err)
+		}
+		// Setting a surcharge to 0 deletes its row, as the shipping page does.
+		if _, err := pool.Exec(ctx, `DELETE FROM shipping_version_zones WHERE version_id=$1`, f.version); err != nil {
+			t.Fatal(err)
+		}
+		err := admin.NewStore(pool, fakeRefunder{}, nil, nil).CorrectDelivery(ctx, f.number, proposedDelivery(f.newPostal))
+		zoneRefusal(t, err, i18n.KeyDeliveryZoneChanged)
+		if got := streetOf(t, f.number); got != "Saved street" {
+			t.Fatalf("refusal saved %q", got)
+		}
+	})
+	t.Run("surcharge raised after the order", func(t *testing.T) {
+		f := pricedDeliveryOrder(t, 0, 0, 0)
+		ctx, _ := staffContext(t)
+		if _, err := pool.Exec(ctx, `INSERT INTO shipping_version_zones(version_id,zone_id,surcharge_cents) VALUES($1,$2,15000)`, f.version, f.oldZone); err != nil {
+			t.Fatal(err)
+		}
+		if err := admin.NewStore(pool, fakeRefunder{}, nil, nil).CorrectDelivery(ctx, f.number, proposedDelivery(f.siblingP)); err != nil {
+			t.Fatalf("same-zone correction refused after a rate edit: %v", err)
+		}
+	})
+}
+
+func TestSameZoneCorrectionRetainsFrozenPriceAfterMethodRetires(t *testing.T) {
 	f := pricedDeliveryOrder(t, 10000, 10000, 0)
 	ctx, _ := staffContext(t)
 	if _, err := pool.Exec(ctx, `UPDATE shipping_methods SET is_active=false WHERE id=$1`, f.method); err != nil {
@@ -152,7 +199,7 @@ func TestSameSurchargeCorrectionRetainsFrozenPriceAfterMethodRetires(t *testing.
 	}
 	before := deliveryMoneySnapshot(t, f.id)
 	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
-	for _, postal := range []string{f.oldPostal, f.newPostal, f.newPostal + "123"} {
+	for _, postal := range []string{f.oldPostal, f.siblingP, f.siblingP + "123"} {
 		if err := s.CorrectDelivery(ctx, f.number, proposedDelivery(postal)); err != nil {
 			t.Fatal(err)
 		}
@@ -161,71 +208,53 @@ func TestSameSurchargeCorrectionRetainsFrozenPriceAfterMethodRetires(t *testing.
 		t.Fatal(got)
 	}
 	if got := deliveryMoneySnapshot(t, f.id); got != before {
-		t.Fatal("same-price correction changed frozen money")
+		t.Fatal("same-zone correction changed frozen money")
 	}
 }
 
-func TestDeliveryCorrectionCannotPriceAnAbsentOriginalPostcode(t *testing.T) {
+func TestDeliveryCorrectionCannotPlaceAnAbsentOriginalPostcode(t *testing.T) {
 	f := pricedDeliveryOrder(t, 0, 10000, 0)
 	ctx, _ := staffContext(t)
 	// Both destination groups are individually legal in storage. The method is
-	// still address delivery, so a missing original postcode is not a zero fee.
+	// still address delivery, so a missing original postcode is not the mainland.
 	if _, err := pool.Exec(ctx, `UPDATE order_private_data SET postal_code=NULL,city=NULL,district=NULL,street=NULL,pickup_brand='family_mart' WHERE order_id=$1`, f.id); err != nil {
 		t.Fatal(err)
 	}
 	err := admin.NewStore(pool, fakeRefunder{}, nil, nil).CorrectDelivery(ctx, f.number, proposedDelivery(f.newPostal))
-	if !errors.Is(err, admin.ErrDeliveryZoneUnavailable) {
-		t.Fatalf("error=%v", err)
-	}
+	zoneRefusal(t, err, i18n.KeyDeliveryZoneUnknown)
 }
 
-func TestDeliverySurchargeRefusalPreservesFormInBothLanguages(t *testing.T) {
+func postDeliveryCorrection(ctx context.Context, t *testing.T, number, postal string) *httptest.ResponseRecorder {
+	t.Helper()
+	values := url.Values{"email": {"proposed@example.com"}, "recipient": {"Proposed recipient"}, "phone": {"0922333444"}, "postal_code": {postal}, "city": {"New city"}, "district": {"New district"}, "street": {"Proposed street"}}
+	r := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/orders/"+number+"/delivery", strings.NewReader(values.Encode()))
+	r.SetPathValue("number", number)
+	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+	adminHandlerOver(pool, admin.NewStore(pool, fakeRefunder{}, nil, nil)).CorrectDelivery(w, r)
+	return w
+}
+
+func TestDeliveryZoneRefusalPreservesFormInBothLanguages(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.En, i18n.ZhHant} {
-		for _, delta := range []int64{10000, -10000, 50, -50} {
-			t.Run(fmt.Sprintf("%s/%d", locale, delta), func(t *testing.T) {
-				oldRate, newRate := int64(0), delta
-				if delta < 0 {
-					oldRate, newRate = -delta, 0
+		t.Run(string(locale), func(t *testing.T) {
+			f := pricedDeliveryOrder(t, 10000, 10000, 10000)
+			ctx, _ := staffContext(t)
+			ctx = i18n.WithLocale(ctx, locale)
+			w := postDeliveryCorrection(ctx, t, f.number, f.newPostal)
+			if w.Code != http.StatusUnprocessableEntity {
+				t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
+			}
+			body := w.Body.String()
+			for _, want := range []string{`value="` + f.newPostal + `"`, `value="Proposed street"`, `value="proposed@example.com"`, `aria-invalid="true"`, `aria-describedby="d-postal-error"`, `id="d-postal-error"`, html.EscapeString(i18n.T(ctx, i18n.KeyDeliveryZoneChanged))} {
+				if !strings.Contains(body, want) {
+					t.Errorf("missing %q", want)
 				}
-				f := pricedDeliveryOrder(t, oldRate, newRate, oldRate)
-				ctx, _ := staffContext(t)
-				ctx = i18n.WithLocale(ctx, locale)
-				values := url.Values{"email": {"proposed@example.com"}, "recipient": {"Proposed recipient"}, "phone": {"0922333444"}, "postal_code": {f.newPostal}, "city": {"New city"}, "district": {"New district"}, "street": {"Proposed street"}}
-				r := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/orders/"+f.number+"/delivery", strings.NewReader(values.Encode()))
-				r.SetPathValue("number", f.number)
-				r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-				w := httptest.NewRecorder()
-				adminHandlerOver(pool, admin.NewStore(pool, fakeRefunder{}, nil, nil)).CorrectDelivery(w, r)
-				if w.Code != http.StatusUnprocessableEntity {
-					t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
-				}
-				body := w.Body.String()
-				for _, want := range []string{`value="` + f.newPostal + `"`, `value="Proposed street"`, `value="proposed@example.com"`, `aria-invalid="true"`, `aria-describedby="d-postal-error"`, `id="d-postal-error"`} {
-					if !strings.Contains(body, want) {
-						t.Errorf("missing %q", want)
-					}
-				}
-				sign := "+NT$100"
-				if delta < 0 {
-					sign = "-NT$100"
-				}
-				if delta == 50 {
-					sign = "+NT$0.50"
-				}
-				if delta == -50 {
-					sign = "-NT$0.50"
-				}
-				if !strings.Contains(body, sign) {
-					t.Errorf("missing signed difference %q", sign)
-				}
-				if locale == i18n.En && (!strings.Contains(body, "Current destination surcharge difference") || !strings.Contains(body, "The address was not saved and no additional charge or refund was made.")) {
-					t.Error("missing refusal explanation")
-				}
-				if got := streetOf(t, f.number); got != "Saved street" {
-					t.Fatal("refused form saved address")
-				}
-			})
-		}
+			}
+			if got := streetOf(t, f.number); got != "Saved street" {
+				t.Fatal("refused form saved address")
+			}
+		})
 	}
 }
 
@@ -246,7 +275,7 @@ func waitForDeliveryLock(t *testing.T, blockerPID uint32) {
 }
 
 func TestDeliveryCorrectionRechecksTerminalStateAfterLock(t *testing.T) {
-	for _, state := range []string{"cancelled", "shipped"} {
+	for _, state := range []string{"shipped"} {
 		t.Run(state, func(t *testing.T) {
 			f := pricedDeliveryOrder(t, 0, 0, 0)
 			ctx, _ := staffContext(t)
@@ -266,7 +295,7 @@ func TestDeliveryCorrectionRechecksTerminalStateAfterLock(t *testing.T) {
 				done <- admin.NewStore(pool, fakeRefunder{}, nil, nil).CorrectDelivery(workerCtx, f.number, proposedDelivery(f.newPostal))
 			}()
 			waitForDeliveryLock(t, blocker.Conn().PgConn().PID())
-			if _, err = blocker.Exec(ctx, `UPDATE orders SET fulfillment_status=$2,cancelled_at=CASE WHEN $2='cancelled' THEN now() ELSE NULL END WHERE id=$1`, f.id, state); err != nil {
+			if _, err = blocker.Exec(ctx, `UPDATE orders SET fulfillment_status=$2 WHERE id=$1`, f.id, state); err != nil {
 				t.Fatal(err)
 			}
 			if err = blocker.Commit(ctx); err != nil {
@@ -312,24 +341,24 @@ func TestDeliveryCorrectionReadsPostalAfterWaitingForPriorCorrection(t *testing.
 	}
 }
 
-func TestUnresolvedDeliveryPostcodeReturnsPreservedForm(t *testing.T) {
+func TestMalformedDeliveryPostcodeIsAPostcodeError(t *testing.T) {
 	f := pricedDeliveryOrder(t, 0, 10000, 0)
 	ctx, _ := staffContext(t)
-	values := url.Values{"email": {"proposed@example.com"}, "recipient": {"Proposed recipient"}, "phone": {"0922333444"}, "postal_code": {"unread"}, "city": {"New city"}, "district": {"New district"}, "street": {"Proposed street"}}
-	r := httptest.NewRequestWithContext(i18n.WithLocale(ctx, i18n.En), http.MethodPost, "/admin/orders/"+f.number+"/delivery", strings.NewReader(values.Encode()))
-	r.SetPathValue("number", f.number)
-	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	w := httptest.NewRecorder()
-	adminHandlerOver(pool, admin.NewStore(pool, fakeRefunder{}, nil, nil)).CorrectDelivery(w, r)
+	ctx = i18n.WithLocale(ctx, i18n.En)
+	w := postDeliveryCorrection(ctx, t, f.number, "12a")
 	if w.Code != http.StatusUnprocessableEntity {
 		t.Fatalf("status=%d", w.Code)
 	}
-	for _, want := range []string{`value="unread"`, `value="Proposed street"`, `aria-describedby="d-postal-error"`, "could not be determined", "The address was not saved"} {
-		if !strings.Contains(w.Body.String(), want) {
+	body := w.Body.String()
+	for _, want := range []string{`value="12a"`, `value="Proposed street"`, `aria-invalid="true"`, `aria-describedby="d-postal-error"`, html.EscapeString(i18n.T(ctx, i18n.KeyPostalCodeMalformed))} {
+		if !strings.Contains(body, want) {
 			t.Errorf("missing %q", want)
 		}
 	}
+	if strings.Contains(body, html.EscapeString(i18n.T(ctx, i18n.KeyDeliveryZoneChanged))) || strings.Contains(body, html.EscapeString(i18n.T(ctx, i18n.KeyDeliveryZoneUnknown))) {
+		t.Error("a malformed postcode was reported as a zone problem")
+	}
 	if got := streetOf(t, f.number); got != "Saved street" {
-		t.Fatal("unresolved postcode changed saved address")
+		t.Fatal("malformed postcode changed saved address")
 	}
 }

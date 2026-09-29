@@ -85,6 +85,10 @@ WHERE o.order_number = $1;
 UPDATE order_shipments SET delivered_at = greatest(now(), shipped_at)
 WHERE order_id = $1 AND delivered_at IS NULL;
 
+-- Lock before reading the prior state so concurrent completion cannot duplicate arrival mail.
+-- name: LockOrderForAdvance :one
+SELECT id, fulfillment_status FROM orders WHERE order_number = $1 FOR UPDATE;
+
 -- orders_check_transition validates the move, so this does not re-derive it.
 -- cancelled_at and completed_at are set here because the schema requires them
 -- for those two states and orders_history_frozen refuses a later change.
@@ -1368,7 +1372,14 @@ FROM orders o
 WHERE pd.order_id = o.id
   AND o.order_number = @order_number
   AND pd.erased_at IS NULL
-  AND o.fulfillment_status IN ('pending', 'picking');
+  AND o.fulfillment_status NOT IN ('shipped', 'delivered', 'completed');
+
+-- name: OrderDestinationKind :one
+SELECT sm.destination_kind, o.fulfillment_status
+FROM orders o
+JOIN shipping_method_versions v ON v.id = o.shipping_version_id
+JOIN shipping_methods sm ON sm.id = v.method_id
+WHERE o.order_number = $1;
 
 -- The BASE table, so hidden reviews are listed too: un-hiding one is not
 -- possible from a list that cannot show it.
@@ -1780,27 +1791,24 @@ SELECT release_complete_payment(@provider_ref::text);
 -- The order lock also belongs to shipment, cancellation and erasure. Read the
 -- destination after acquiring it so a correction cannot outlive that decision.
 -- name: LockOrderDelivery :one
-SELECT o.id, o.shipping_version_id, o.shipping_cents, o.fulfillment_status,
-       sm.destination_kind
+SELECT o.id, o.fulfillment_status, sm.destination_kind
 FROM orders o
 JOIN shipping_method_versions v ON v.id = o.shipping_version_id
 JOIN shipping_methods sm ON sm.id = v.method_id
 WHERE o.order_number = @order_number
 FOR UPDATE OF o;
 
--- One snapshot compares both destinations; the saved version remains usable
--- after its method is retired. A missing zone uses checkout's mainland zero.
--- These are current surcharges, not a reconstructed historical shipping quote.
--- name: DeliverySurchargeComparison :one
-SELECT coalesce(old_rate.surcharge_cents, 0)::bigint AS old_surcharge,
-       coalesce(new_rate.surcharge_cents, 0)::bigint AS new_surcharge,
+-- Whether the saved postcode and the proposed one sit in the same surcharge
+-- zone. Identity of the zone, not today's amount: a surcharge edited or removed
+-- after checkout must not open a cross-zone correction. The order records the
+-- postcode it was priced for, so that is the side compared. Two postcodes in no
+-- zone are both the mainland; a malformed one resolves to neither.
+-- name: DeliveryZoneComparison :one
+SELECT (pd.erased_at IS NOT NULL)::boolean AS erased,
+       coalesce(pd.postal_code ~ '^[0-9]{3,6}$', false)::boolean AS old_resolved,
        coalesce(pd.postal_code ~ '^[0-9]{3,6}$'
-        AND @new_postal_code::text ~ '^[0-9]{3,6}$', false)::boolean AS resolved,
-       (pd.erased_at IS NOT NULL)::boolean AS erased
+                AND old_zone.zone_id IS NOT DISTINCT FROM new_zone.zone_id, false)::boolean AS same_zone
 FROM order_private_data pd
-JOIN shipping_method_versions v ON v.id = @version_id
 LEFT JOIN shipping_zone_prefixes old_zone ON old_zone.prefix = left(pd.postal_code, 3)
 LEFT JOIN shipping_zone_prefixes new_zone ON new_zone.prefix = left(@new_postal_code::text, 3)
-LEFT JOIN shipping_version_zones old_rate ON old_rate.version_id = v.id AND old_rate.zone_id = old_zone.zone_id
-LEFT JOIN shipping_version_zones new_rate ON new_rate.version_id = v.id AND new_rate.zone_id = new_zone.zone_id
 WHERE pd.order_id = @order_id;

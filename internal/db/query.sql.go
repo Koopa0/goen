@@ -2043,30 +2043,6 @@ func (q *Queries) AlarmInvoiceOperation(ctx context.Context, arg AlarmInvoiceOpe
 	return alarmed, err
 }
 
-const answerQuestionAsCustomer = `-- name: AnswerQuestionAsCustomer :execrows
-INSERT INTO product_answers (question_id, user_id, body)
-SELECT q.id, $1, $2::text
-FROM product_questions q
-WHERE q.id = $3 AND q.hidden_at IS NULL
-`
-
-type AnswerQuestionAsCustomerParams struct {
-	UserID     uuid.NullUUID
-	Body       string
-	QuestionID uuid.UUID
-}
-
-// Omit is_staff so the database default is the storefront authority. The
-// customer role is not granted that column, so a caller cannot turn this into
-// an official shop answer by supplying another parameter.
-func (q *Queries) AnswerQuestionAsCustomer(ctx context.Context, arg AnswerQuestionAsCustomerParams) (int64, error) {
-	result, err := q.db.Exec(ctx, answerQuestionAsCustomer, arg.UserID, arg.Body, arg.QuestionID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
 const answerQuestionAsStaff = `-- name: AnswerQuestionAsStaff :execrows
 INSERT INTO product_answers (question_id, user_id, body, is_staff)
 SELECT q.id, $1, $2::text, true
@@ -5315,46 +5291,37 @@ func (q *Queries) DeleteUserSessions(ctx context.Context, userID uuid.UUID) erro
 	return err
 }
 
-const deliverySurchargeComparison = `-- name: DeliverySurchargeComparison :one
-SELECT coalesce(old_rate.surcharge_cents, 0)::bigint AS old_surcharge,
-       coalesce(new_rate.surcharge_cents, 0)::bigint AS new_surcharge,
+const deliveryZoneComparison = `-- name: DeliveryZoneComparison :one
+SELECT (pd.erased_at IS NOT NULL)::boolean AS erased,
+       coalesce(pd.postal_code ~ '^[0-9]{3,6}$', false)::boolean AS old_resolved,
        coalesce(pd.postal_code ~ '^[0-9]{3,6}$'
-        AND $1::text ~ '^[0-9]{3,6}$', false)::boolean AS resolved,
-       (pd.erased_at IS NOT NULL)::boolean AS erased
+                AND old_zone.zone_id IS NOT DISTINCT FROM new_zone.zone_id, false)::boolean AS same_zone
 FROM order_private_data pd
-JOIN shipping_method_versions v ON v.id = $2
 LEFT JOIN shipping_zone_prefixes old_zone ON old_zone.prefix = left(pd.postal_code, 3)
 LEFT JOIN shipping_zone_prefixes new_zone ON new_zone.prefix = left($1::text, 3)
-LEFT JOIN shipping_version_zones old_rate ON old_rate.version_id = v.id AND old_rate.zone_id = old_zone.zone_id
-LEFT JOIN shipping_version_zones new_rate ON new_rate.version_id = v.id AND new_rate.zone_id = new_zone.zone_id
-WHERE pd.order_id = $3
+WHERE pd.order_id = $2
 `
 
-type DeliverySurchargeComparisonParams struct {
+type DeliveryZoneComparisonParams struct {
 	NewPostalCode string
-	VersionID     uuid.UUID
 	OrderID       uuid.UUID
 }
 
-type DeliverySurchargeComparisonRow struct {
-	OldSurcharge int64
-	NewSurcharge int64
-	Resolved     bool
-	Erased       bool
+type DeliveryZoneComparisonRow struct {
+	Erased      bool
+	OldResolved bool
+	SameZone    bool
 }
 
-// One snapshot compares both destinations; the saved version remains usable
-// after its method is retired. A missing zone uses checkout's mainland zero.
-// These are current surcharges, not a reconstructed historical shipping quote.
-func (q *Queries) DeliverySurchargeComparison(ctx context.Context, arg DeliverySurchargeComparisonParams) (DeliverySurchargeComparisonRow, error) {
-	row := q.db.QueryRow(ctx, deliverySurchargeComparison, arg.NewPostalCode, arg.VersionID, arg.OrderID)
-	var i DeliverySurchargeComparisonRow
-	err := row.Scan(
-		&i.OldSurcharge,
-		&i.NewSurcharge,
-		&i.Resolved,
-		&i.Erased,
-	)
+// Whether the saved postcode and the proposed one sit in the same surcharge
+// zone. Identity of the zone, not today's amount: a surcharge edited or removed
+// after checkout must not open a cross-zone correction. The order records the
+// postcode it was priced for, so that is the side compared. Two postcodes in no
+// zone are both the mainland; a malformed one resolves to neither.
+func (q *Queries) DeliveryZoneComparison(ctx context.Context, arg DeliveryZoneComparisonParams) (DeliveryZoneComparisonRow, error) {
+	row := q.db.QueryRow(ctx, deliveryZoneComparison, arg.NewPostalCode, arg.OrderID)
+	var i DeliveryZoneComparisonRow
+	err := row.Scan(&i.Erased, &i.OldResolved, &i.SameZone)
 	return i, err
 }
 
@@ -6659,8 +6626,7 @@ func (q *Queries) LockHeroAppendPosition(ctx context.Context) error {
 }
 
 const lockOrderDelivery = `-- name: LockOrderDelivery :one
-SELECT o.id, o.shipping_version_id, o.shipping_cents, o.fulfillment_status,
-       sm.destination_kind
+SELECT o.id, o.fulfillment_status, sm.destination_kind
 FROM orders o
 JOIN shipping_method_versions v ON v.id = o.shipping_version_id
 JOIN shipping_methods sm ON sm.id = v.method_id
@@ -6670,8 +6636,6 @@ FOR UPDATE OF o
 
 type LockOrderDeliveryRow struct {
 	ID                uuid.UUID
-	ShippingVersionID uuid.UUID
-	ShippingCents     int64
 	FulfillmentStatus string
 	DestinationKind   string
 }
@@ -6681,13 +6645,24 @@ type LockOrderDeliveryRow struct {
 func (q *Queries) LockOrderDelivery(ctx context.Context, orderNumber string) (LockOrderDeliveryRow, error) {
 	row := q.db.QueryRow(ctx, lockOrderDelivery, orderNumber)
 	var i LockOrderDeliveryRow
-	err := row.Scan(
-		&i.ID,
-		&i.ShippingVersionID,
-		&i.ShippingCents,
-		&i.FulfillmentStatus,
-		&i.DestinationKind,
-	)
+	err := row.Scan(&i.ID, &i.FulfillmentStatus, &i.DestinationKind)
+	return i, err
+}
+
+const lockOrderForAdvance = `-- name: LockOrderForAdvance :one
+SELECT id, fulfillment_status FROM orders WHERE order_number = $1 FOR UPDATE
+`
+
+type LockOrderForAdvanceRow struct {
+	ID                uuid.UUID
+	FulfillmentStatus string
+}
+
+// Lock before reading the prior state so concurrent completion cannot duplicate arrival mail.
+func (q *Queries) LockOrderForAdvance(ctx context.Context, orderNumber string) (LockOrderForAdvanceRow, error) {
+	row := q.db.QueryRow(ctx, lockOrderForAdvance, orderNumber)
+	var i LockOrderForAdvanceRow
+	err := row.Scan(&i.ID, &i.FulfillmentStatus)
 	return i, err
 }
 
@@ -7577,6 +7552,26 @@ func (q *Queries) OrderByPaymentRef(ctx context.Context, providerRef string) (Or
 		&i.IntendedAmountCents,
 		&i.Status,
 	)
+	return i, err
+}
+
+const orderDestinationKind = `-- name: OrderDestinationKind :one
+SELECT sm.destination_kind, o.fulfillment_status
+FROM orders o
+JOIN shipping_method_versions v ON v.id = o.shipping_version_id
+JOIN shipping_methods sm ON sm.id = v.method_id
+WHERE o.order_number = $1
+`
+
+type OrderDestinationKindRow struct {
+	DestinationKind   string
+	FulfillmentStatus string
+}
+
+func (q *Queries) OrderDestinationKind(ctx context.Context, orderNumber string) (OrderDestinationKindRow, error) {
+	row := q.db.QueryRow(ctx, orderDestinationKind, orderNumber)
+	var i OrderDestinationKindRow
+	err := row.Scan(&i.DestinationKind, &i.FulfillmentStatus)
 	return i, err
 }
 
@@ -12419,6 +12414,33 @@ func (q *Queries) TOTPCredential(ctx context.Context, userID uuid.UUID) (TOTPCre
 	return i, err
 }
 
+const terminalOrderRecipient = `-- name: TerminalOrderRecipient :one
+SELECT o.order_number, o.locale, pd.email, pd.recipient_name
+FROM orders o
+JOIN order_private_data pd ON pd.order_id = o.id
+WHERE o.id = $1 AND pd.erased_at IS NULL
+`
+
+type TerminalOrderRecipientRow struct {
+	OrderNumber   string
+	Locale        string
+	Email         pgtype.Text
+	RecipientName pgtype.Text
+}
+
+// Delivery reads current private data so an erasure cannot be undone by a queued address.
+func (q *Queries) TerminalOrderRecipient(ctx context.Context, id uuid.UUID) (TerminalOrderRecipientRow, error) {
+	row := q.db.QueryRow(ctx, terminalOrderRecipient, id)
+	var i TerminalOrderRecipientRow
+	err := row.Scan(
+		&i.OrderNumber,
+		&i.Locale,
+		&i.Email,
+		&i.RecipientName,
+	)
+	return i, err
+}
+
 const touchLastLogin = `-- name: TouchLastLogin :exec
 UPDATE users SET last_login_at = now() WHERE id = $1
 `
@@ -12725,7 +12747,7 @@ FROM orders o
 WHERE pd.order_id = o.id
   AND o.order_number = $11
   AND pd.erased_at IS NULL
-  AND o.fulfillment_status IN ('pending', 'picking')
+  AND o.fulfillment_status NOT IN ('shipped', 'delivered', 'completed')
 `
 
 type UpdateOrderDeliveryParams struct {

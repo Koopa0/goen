@@ -199,7 +199,23 @@ var (
 		En:     "Dispatched. The delivery details and the stock movement are both recorded.",
 	})
 
-	KeyAdminNoticeTooLate = key("admin.notice.toolate", Message{ZhHant: "此訂單已不能更正收件資訊；原收件資料未變更。", En: "This order no longer accepts delivery corrections. Its delivery details were not changed."})
+	KeyAdminNoticeTooLate = key("admin.notice.toolate", Message{
+		ZhHant: "這筆訂單已經出貨,收件資訊改不了了。包裹已經寄出,改紀錄只會讓紀錄和事實對不上。",
+		En: "This order has shipped, so the delivery details can no longer be changed. " +
+			"The parcel is already on its way; editing the record would only make it disagree with where it went.",
+	})
+
+	KeyDeliveryZoneChanged = key("admin.delivery.zone_changed", Message{
+		ZhHant: "新郵遞區號屬於不同的配送區域,運費加價可能不同。地址尚未儲存,也尚未加收或退款。",
+		En: "That postcode is in a different delivery zone, so the surcharge may differ. " +
+			"The address was not saved and nothing was charged or refunded.",
+	})
+
+	KeyDeliveryZoneUnknown = key("admin.delivery.zone_unknown", Message{
+		ZhHant: "無法確認這筆訂單原郵遞區號的配送區域,因此不能更正地址。地址尚未儲存。",
+		En: "The zone of this order's saved postcode cannot be determined, so the address cannot be corrected. " +
+			"The address was not saved.",
+	})
 
 	KeyAdminNoticeNeeds = key("admin.notice.needs", Message{
 		ZhHant: "請填寫物流商與查詢編號。",

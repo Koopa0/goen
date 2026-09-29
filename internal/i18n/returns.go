@@ -355,3 +355,15 @@ var (
 		En:     "Eligibility assessment recorded. Approving or declining will freeze this version.",
 	})
 )
+
+var (
+	KeyAdminRetConfirmApprove     = key("admin.ret.confirm.approve", Message{ZhHant: "確認同意並退款", En: "Confirm approval and refund"})
+	KeyAdminRetConfirmReject      = key("admin.ret.confirm.reject", Message{ZhHant: "確認拒絕退貨", En: "Confirm rejection"})
+	KeyAdminRetConfirmException   = key("admin.ret.confirm.exception", Message{ZhHant: "確認例外同意並退款", En: "Confirm exception and refund"})
+	KeyAdminRetConfirmRetry       = key("admin.ret.confirm.retry", Message{ZhHant: "確認重試退款", En: "Confirm refund retry"})
+	KeyAdminRetConfirmOrder       = key("admin.ret.confirm.order", Message{ZhHant: "訂單", En: "Order"})
+	KeyAdminRetConfirmReason      = key("admin.ret.confirm.reason", Message{ZhHant: "顧客退貨原因", En: "Customer return reason"})
+	KeyAdminRetConfirmAmount      = key("admin.ret.confirm.amount", Message{ZhHant: "本次退貨金額", En: "Return amount"})
+	KeyAdminRetConfirmBack        = key("admin.ret.confirm.back", Message{ZhHant: "返回退貨清單", En: "Back to returns"})
+	KeyAdminRetErrRejectionReason = key("admin.ret.err.rejectionreason", Message{ZhHant: "請填寫拒絕退貨的原因。", En: "Enter a reason for rejecting this return."})
+)
