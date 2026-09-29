@@ -3291,6 +3291,12 @@ h4,
   margin: 0;
 }
 
+.goen-order__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
 .goen-summary,
 .goen-summary__actions,
 .goen-checkout__choices {
