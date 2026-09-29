@@ -144,6 +144,23 @@
   }
 
   requestFeedback();
+
+  // Delegation includes fields replaced by a checkout choice. Native browser
+  // constraints also work without this accessibility-state enhancement.
+  function checkoutConstraints() {
+    const constrained = (target) => target instanceof HTMLInputElement &&
+      target.hasAttribute("data-checkout-constraint");
+    document.addEventListener("focusout", (event) => {
+      if (!constrained(event.target)) return;
+      event.target.setAttribute("aria-invalid", String(!event.target.validity.valid));
+    });
+    document.addEventListener("input", (event) => {
+      if (!constrained(event.target) || !event.target.validity.valid) return;
+      event.target.removeAttribute("aria-invalid");
+    });
+  }
+
+  checkoutConstraints();
   headerMenu();
   stepper();
 })();

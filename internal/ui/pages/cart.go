@@ -243,10 +243,12 @@ func (v *CheckoutView) HasPickupStore() bool {
 // checkoutFieldHint tells a browser what one helper-rendered checkout control
 // contains and, where its type is not enough, which keyboard to open.
 type checkoutFieldHint struct {
-	Autocomplete   string
-	InputMode      string
-	AutoCapitalize string
-	SpellCheck     string
+	Autocomplete      string
+	InputMode         string
+	AutoCapitalize    string
+	SpellCheck        string
+	Pattern           string
+	ConstraintMessage i18n.Key
 }
 
 // checkoutFieldHints is keyed by the field's own form name. Every
@@ -254,13 +256,16 @@ type checkoutFieldHint struct {
 //
 // Do not add enterkeyhint here: Enter in any checkout field places the order,
 // so a "next" hint would label a key that charges the customer.
+// The patterns accept what cart.Trim() accepts: the server trims first, so a
+// surrounding space is not an error, and its bounds (maxPostalCodeRunes,
+// maxCityRunes) are the ones repeated here.
 var checkoutFieldHints = map[string]checkoutFieldHint{
 	"email":       {Autocomplete: "email"},
 	"name":        {Autocomplete: "name"},
 	"phone":       {Autocomplete: "tel"},
-	"postal_code": {Autocomplete: "postal-code", InputMode: "numeric"},
-	"city":        {Autocomplete: "address-level1"},
-	"district":    {Autocomplete: "address-level2"},
+	"postal_code": {Autocomplete: "postal-code", InputMode: "numeric", Pattern: `\s*[0-9]{3,6}\s*`, ConstraintMessage: i18n.KeyPostalCodeMalformed},
+	"city":        {Autocomplete: "address-level1", Pattern: `\s*\S(?:.{0,18}\S)?\s*`, ConstraintMessage: i18n.KeyCheckoutRegionLength},
+	"district":    {Autocomplete: "address-level2", Pattern: `\s*\S(?:.{0,18}\S)?\s*`, ConstraintMessage: i18n.KeyCheckoutRegionLength},
 }
 
 func checkoutHintsFor(name string) checkoutFieldHint { return checkoutFieldHints[name] }
