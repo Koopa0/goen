@@ -1529,7 +1529,12 @@ async function proveCheckoutRequestFeedback(label) {
     const done = new Promise(resolve => { finish = resolve; });
     const source = choice.closest('[hx-post]');
     if (!source) { window.fetch = originalFetch; return { ok: false, why: 'choice has no request source' }; }
-    source.addEventListener('htmx:finally:request', () => finish(), { once: true });
+    const watchRequest = (event) => {
+      const ctx = event.detail?.ctx;
+      if (ctx?.request?.form !== form || (ctx.sourceElement !== source && !source.contains(ctx.sourceElement))) return;
+      ctx.sourceElement.addEventListener('htmx:finally:request', () => finish(), { once: true });
+    };
+    document.addEventListener('htmx:before:request', watchRequest);
     try {
       choice.click();
       await Promise.race([issued, new Promise((_, reject) => setTimeout(() => reject(new Error('checkout request did not start')), 5000))]);
@@ -1538,7 +1543,7 @@ async function proveCheckoutRequestFeedback(label) {
       await Promise.race([done, new Promise((_, reject) => setTimeout(() => reject(new Error('checkout request did not finish')), 15000))]);
       const cleared = !document.querySelector('form[data-request-pending]');
       return { ok: busy && cleared, busy, cleared };
-    } finally { release(); window.fetch = originalFetch; }
+    } finally { release(); document.removeEventListener('htmx:before:request', watchRequest); window.fetch = originalFetch; }
   })()`);
   if (!result.ok) fail(label, 'request feedback: ' + JSON.stringify(result));
 }

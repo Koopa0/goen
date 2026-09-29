@@ -90,7 +90,12 @@ try {
       const issued = new Promise(resolve => { started = resolve; });
       const done = new Promise(resolve => { finish = resolve; });
       window.fetch = async (...args) => { started(); await held; return originalFetch(...args); };
-      source.addEventListener('htmx:finally:request', () => finish(), { once: true });
+      const watchRequest = (event) => {
+        const ctx = event.detail?.ctx;
+        if (ctx?.request?.form !== form || (ctx.sourceElement !== source && !source.contains(ctx.sourceElement))) return;
+        ctx.sourceElement.addEventListener('htmx:finally:request', () => finish(), { once: true });
+      };
+      document.addEventListener('htmx:before:request', watchRequest);
       try {
         choice.click();
         await Promise.race([issued, new Promise((_, reject) => setTimeout(() => reject(new Error('shipping request never started')), 5000))]);
@@ -101,7 +106,7 @@ try {
         await Promise.race([done, new Promise((_, reject) => setTimeout(() => reject(new Error('shipping request never finished')), 15000))]);
         const restored = !form.hasAttribute('data-request-pending') && form.getAttribute('aria-busy') === busyBefore && buttons.every((button, i) => button.getAttribute('aria-disabled') === disabledBefore[i]);
         return { busy, guarded, usable, restored, currentForm: !!document.getElementById('checkout-form'), overflow: document.body.scrollWidth > innerWidth };
-      } finally { release(); window.fetch = originalFetch; }
+      } finally { release(); document.removeEventListener('htmx:before:request', watchRequest); window.fetch = originalFetch; }
     })()`);
     check(`pending_${width}`, pending.busy && pending.guarded && pending.usable, pending);
     check(`cleanup_${width}`, pending.restored && pending.currentForm && !pending.overflow, pending);
