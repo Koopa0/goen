@@ -11,7 +11,7 @@ func TestTerminalNoticesDistinguishActorAndReceiptInBothLanguages(t *testing.T) 
 		kind   TerminalKind
 		en, zh string
 	}{
-		{TerminalCancelledByCustomer, "You cancelled", "你已取消"},
+		{TerminalCancelledByCustomer, "You cancelled", "您已取消"},
 		{TerminalCancelledByStaff, "The shop cancelled", "商店已取消"},
 		{TerminalDelivered, "marked as delivered", "已標記為送達"},
 		{TerminalCollected, "marked as collected", "已標記為取貨完成"},
@@ -28,6 +28,9 @@ func TestTerminalNoticesDistinguishActorAndReceiptInBothLanguages(t *testing.T) 
 			}
 			if sink.msg == nil || !strings.Contains(sink.msg.Body, want) || !strings.Contains(sink.msg.Body, "GO-260101-000001") {
 				t.Fatalf("%s/%s notice=%+v", tc.kind, locale, sink.msg)
+			}
+			if tc.kind == TerminalCancelledByCustomer && (strings.Contains(sink.msg.Body, "refund") || strings.Contains(sink.msg.Body, "退款")) {
+				t.Fatalf("an unpaid order's cancellation points at a refund: %s", sink.msg.Body)
 			}
 			if strings.Contains(sink.msg.Body, "has been refunded") || strings.Contains(sink.msg.Body, "已退款") {
 				t.Fatal("cancellation promised a refund")
