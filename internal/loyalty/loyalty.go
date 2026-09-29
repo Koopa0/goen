@@ -24,6 +24,9 @@ const MaxRedemptionPoints int64 = 1_000_000_000
 var (
 	// ErrNotEnough is a redemption larger than the balance.
 	ErrNotEnough = errors.New("loyalty: not enough points")
+	// ErrReturnUnsettled is a redemption while an approved return has yet to pay
+	// out, and so has yet to claw back its points.
+	ErrReturnUnsettled = errors.New("loyalty: an approved return is not paid out yet")
 	// ErrTooSmall is a redemption under MinRedemption.
 	ErrTooSmall = errors.New("loyalty: that is below the minimum redemption")
 	// ErrNoAccount is a customer who has never held points or credit.
