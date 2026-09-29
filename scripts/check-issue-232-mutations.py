@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 CASES = [{'name': 'enqueue',
   'path': 'internal/twofactor/staff.go',
-  'before': 'if err := enqueueStaffInvitation(ctx, q, target.ID); err != nil {',
-  'after': 'if err := func() error { return nil }(); err != nil {',
+  'before': 'if enqueueErr := enqueueStaffInvitation(ctx, q, target.ID); enqueueErr != nil {',
+  'after': 'if enqueueErr := func() error { return nil }(); enqueueErr != nil {',
   'test': 'TestStaffInvitationCommitsWithANewGrantWithoutRecipientPII',
   'marker': 'successful staff grant queued no invitation: no rows in result set',
   'package': './internal/twofactor',
@@ -16,7 +16,7 @@ CASES = [{'name': 'enqueue',
   'package': './internal/twofactor',
   'integration': True,
   'generated': 'internal/db/query.sql.go',
-  'probe': 'FROM users WHERE id = $1;'},
+  'probe': "const staffInvitationRecipient = `-- name: StaffInvitationRecipient :one\nSELECT email, coalesce(full_name, '') AS full_name\nFROM users WHERE id = $1\n`"},
  {'name': 'regrant-invitation',
   'path': 'internal/twofactor/invitation.go',
   'before': 'DedupeKey: "staff-invite:" + uuid.NewString()',
@@ -112,7 +112,7 @@ try:
             command = ["make", "sqlc"] if path.suffix == ".sql" else ["go", "tool", "templ", "generate", "-path", "internal/ui"]
             if run(command, case["name"] + "-generation.log") != 0:
                 raise RuntimeError("mutation generation failed: " + case["name"])
-            if run(["grep", "-F", case["probe"], case["generated"]], case["name"] + "-generated-target.txt") != 0:
+            if case["probe"] not in Path(case["generated"]).read_text() or run(["grep", "-F", case["probe"], case["generated"]], case["name"] + "-generated-target.txt") != 0:
                 raise RuntimeError("mutation absent from generated production code")
         run(["git", "diff", "--"] + paths, case["name"] + ".patch")
         log = case["name"] + ".jsonl"

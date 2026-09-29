@@ -46,31 +46,31 @@ func TestStaffInvitationCommitsWithANewGrantWithoutRecipientPII(t *testing.T) {
 	if count != 1 {
 		t.Fatalf("duplicate grant queued %d invitations", count)
 	}
-	got, _, err := s.InvitationRecipient(t.Context(), id.String())
-	if err != nil || got != address {
-		t.Fatalf("active invite recipient=%q %v", got, err)
+	got, _, recipientErr := s.InvitationRecipient(t.Context(), id.String())
+	if recipientErr != nil || got != address {
+		t.Fatalf("active invite recipient=%q %v", got, recipientErr)
 	}
 	next := "changed-" + address
 	if _, err := pool.Exec(t.Context(), `UPDATE users SET email=$2 WHERE id=$1`, id, next); err != nil {
 		t.Fatal(err)
 	}
-	got, _, err = s.InvitationRecipient(t.Context(), id.String())
-	if err != nil || got != next {
-		t.Fatalf("invite did not follow current account address: %q %v", got, err)
+	got, _, recipientErr = s.InvitationRecipient(t.Context(), id.String())
+	if recipientErr != nil || got != next {
+		t.Fatalf("invite did not follow current account address: %q %v", got, recipientErr)
 	}
 	if err := s.RevokeStaff(t.Context(), id.String(), actor); err != nil {
 		t.Fatal(err)
 	}
-	got, _, err = s.InvitationRecipient(t.Context(), id.String())
-	if err != nil || got != "" {
-		t.Fatalf("revoked invite still has recipient=%q %v", got, err)
+	got, _, recipientErr = s.InvitationRecipient(t.Context(), id.String())
+	if recipientErr != nil || got != "" {
+		t.Fatalf("revoked invite still has recipient=%q %v", got, recipientErr)
 	}
 	if _, err := pool.Exec(t.Context(), `DELETE FROM users WHERE id=$1`, id); err != nil {
 		t.Fatal(err)
 	}
-	got, _, err = s.InvitationRecipient(t.Context(), id.String())
-	if err != nil || got != "" {
-		t.Fatalf("erased invite still has recipient=%q %v", got, err)
+	got, _, recipientErr = s.InvitationRecipient(t.Context(), id.String())
+	if recipientErr != nil || got != "" {
+		t.Fatalf("erased invite still has recipient=%q %v", got, recipientErr)
 	}
 }
 
