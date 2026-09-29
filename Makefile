@@ -323,7 +323,7 @@ check-layout:
 		RID=$$(psql "$$GOEN_DATABASE_URL" -tAc "SELECT r.id FROM return_requests r JOIN orders o ON o.id = r.order_id WHERE o.order_number = '$$RN' AND r.status = 'requested' ORDER BY r.created_at DESC LIMIT 1"); \
 		test -n "$$RID" || { echo 'return fixture created no return request' >&2; exit 2; }; \
 		STATUS=$$(curl -sS -o /dev/null -w '%{http_code}' -b "goen_session=$$AT" -H 'Sec-Fetch-Site: same-origin' \
-			-d 'decision=approved' --data-urlencode 'resolution=版面檢查同意退貨' \
+			-d 'decision=approved' -d 'confirm=approved' --data-urlencode 'resolution=版面檢查同意退貨' \
 			$$U/admin/returns/$$RID/decide); \
 		test "$$STATUS" = 303 || { echo "return fixture decide answered $$STATUS, want 303" >&2; exit 2; }; \
 		REFUNDED=$$(psql "$$GOEN_DATABASE_URL" -tAc "SELECT (rf.card_cents + rf.credit_cents)::text FROM order_refunds rf JOIN orders o ON o.id = rf.order_id WHERE o.order_number = '$$RN'"); \
