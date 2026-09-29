@@ -47,10 +47,6 @@ throwaway PostgreSQL: owners of all tables and `SECURITY DEFINER` functions are
 unchanged after a restore, and a corrupt snapshot leaves the old data and restarts
 the service.
 
-## Edge settings
-
-The Cloudflare zone's Web Analytics auto-injection and JavaScript detections must be off: goen's CSP is `script-src 'self'`, so it refuses both injected scripts. The owner sets this in Cloudflare; nothing in the repository can.
-
 ## Observed deployment evidence
 
 | When (UTC) | Observation | What it establishes |
