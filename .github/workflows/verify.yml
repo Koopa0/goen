@@ -179,7 +179,9 @@ jobs:
       # The ECPay values are the published staging test credentials from .env.example,
       # public by design. The store map is on so the layout gate measures the pickup
       # chooser; the map needs the merchant id, and the invoice gateway shares
-      # it and refuses an id without its key and IV.
+      # it and refuses an id without its key and IV. That enables the invoice
+      # worker too, which stays idle: the Makefile fixture's one invoice operation
+      # is scheduled a day ahead, so no call reaches ECPay.
       - name: Start the storefront
         env:
           GOEN_ECPAY_MERCHANT_ID: "2000132"

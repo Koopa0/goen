@@ -633,7 +633,7 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 // by any means goen has. The shopper reading the name AND the address before
 // paying is the only check there is. Do not reduce it to the name.
 templ pickupStore(v *CheckoutView) {
-	if v.OffersTheStoreMap() || v.HasPickupStore() || v.PickupRefused || v.HasErr("pickup_store") {
+	if v.OffersTheStoreMap() || v.HasPickupStore() || v.PickupRefused {
 		<div class="goen-pickup">
 			if v.PickupRefused {
 				// The message says a store could not be confirmed and repeats

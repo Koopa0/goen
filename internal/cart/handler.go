@@ -378,9 +378,8 @@ func (h *Handler) PickupReturn(w http.ResponseWriter, r *http.Request) {
 // the nonce rather than inside it.
 func (h *Handler) dropUnvouchedStore(r *http.Request, addr *Address) bool {
 	if !h.storeMap.Enabled() {
-		// With no map nothing can vouch for a store, so a posted one was not
-		// chosen on it. Checkout refuses the order for lacking one.
-		addr.PickupStoreCode, addr.PickupStoreName = "", ""
+		// As above: with no picker there is nothing to vouch for, and the only
+		// writer of these fields is the back office through its own form.
 		return false
 	}
 	if addr.PickupStoreCode == "" && addr.PickupStoreName == "" {
