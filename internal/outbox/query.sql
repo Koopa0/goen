@@ -5,9 +5,6 @@
 WITH due AS (
     SELECT id FROM outbox_messages
     WHERE delivered_at IS NULL AND available_at <= now()
-      -- A message that has used its attempts is undeliverable: it stays for
-      -- /admin/health and the sweep, and no worker takes it again.
-      AND attempts < @max_attempts::integer
     -- Priority first, then age: a receipt must not wait for a newsletter.
     ORDER BY priority, available_at
     LIMIT @batch_size::integer

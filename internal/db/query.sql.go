@@ -3598,12 +3598,9 @@ const claimOutbox = `-- name: ClaimOutbox :many
 WITH due AS (
     SELECT id FROM outbox_messages
     WHERE delivered_at IS NULL AND available_at <= now()
-      -- A message that has used its attempts is undeliverable: it stays for
-      -- /admin/health and the sweep, and no worker takes it again.
-      AND attempts < $2::integer
     -- Priority first, then age: a receipt must not wait for a newsletter.
     ORDER BY priority, available_at
-    LIMIT $3::integer
+    LIMIT $2::integer
     FOR UPDATE SKIP LOCKED
 )
 UPDATE outbox_messages m
@@ -3615,9 +3612,8 @@ RETURNING m.id, m.topic, m.payload, m.attempts
 `
 
 type ClaimOutboxParams struct {
-	Lease       pgtype.Interval
-	MaxAttempts int32
-	BatchSize   int32
+	Lease     pgtype.Interval
+	BatchSize int32
 }
 
 type ClaimOutboxRow struct {
@@ -3632,7 +3628,7 @@ type ClaimOutboxRow struct {
 // available_at forward is what makes the claim exclusive.
 // attempts rises on the CLAIM, or it counts nothing about failures.
 func (q *Queries) ClaimOutbox(ctx context.Context, arg ClaimOutboxParams) ([]ClaimOutboxRow, error) {
-	rows, err := q.db.Query(ctx, claimOutbox, arg.Lease, arg.MaxAttempts, arg.BatchSize)
+	rows, err := q.db.Query(ctx, claimOutbox, arg.Lease, arg.BatchSize)
 	if err != nil {
 		return nil, err
 	}

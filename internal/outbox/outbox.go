@@ -84,8 +84,9 @@ const Retain = 30 * 24 * time.Hour
 // SweepInterval is how often that happens.
 const SweepInterval = 24 * time.Hour
 
-// MaxAttempts is how many times a message is claimed. After that it is not
-// claimed again; it stays until [Retain] so [Store.Stuck] can show it to a human.
+// MaxAttempts is when a message stops being retried quickly and is retried
+// daily instead, so mail queued during a long provider outage still goes out.
+// It stays until [Retain] so [Store.Stuck] can show it to a human.
 const MaxAttempts = 8
 
 // Handler does whatever a topic means. Returning an error reschedules the
@@ -166,9 +167,8 @@ func (s *Store) DrainAll(ctx context.Context) (delivered, failed int, err error)
 // its own, so a handler that fails does not roll back the deliveries beside it.
 func (s *Store) Drain(ctx context.Context) (delivered, failed int, err error) {
 	rows, err := s.q.ClaimOutbox(ctx, db.ClaimOutboxParams{
-		BatchSize:   BatchSize,
-		MaxAttempts: MaxAttempts,
-		Lease:       pgtype.Interval{Microseconds: Lease.Microseconds(), Valid: true},
+		BatchSize: BatchSize,
+		Lease:     pgtype.Interval{Microseconds: Lease.Microseconds(), Valid: true},
 	})
 	if err != nil {
 		return 0, 0, fmt.Errorf("claim outbox: %w", err)
@@ -226,6 +226,9 @@ func runHandler(ctx context.Context, h Handler, payload []byte) error {
 func (s *Store) reschedule(ctx context.Context, m *db.ClaimOutboxRow, cause error) {
 	delay := backoff(m.Attempts)
 	if m.Attempts >= MaxAttempts {
+		// A slow retry rather than none: valid mail queued during a long provider
+		// outage must still go out. [Retain] bounds how long it can keep trying.
+		delay = 24 * time.Hour
 		s.log.ErrorContext(ctx, "outbox message is stuck",
 			"message", m.ID, "topic", m.Topic, "attempts", m.Attempts, "error", cause)
 	}

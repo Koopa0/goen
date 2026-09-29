@@ -526,23 +526,25 @@ func TestTheSweepLeavesAPendingMessageAlone(t *testing.T) {
 	}
 }
 
-// TestAMessageIsNotClaimedPastMaxAttempts: a message that keeps failing is tried
-// MaxAttempts times and then left alone, so a poison payload is not handed to the
-// handler again every day for the life of the database.
-func TestAMessageIsNotClaimedPastMaxAttempts(t *testing.T) {
+// TestAMessageThatExhaustedItsAttemptsIsRetriedDaily: mail queued during a long
+// provider outage must still go out once the provider is back, so running out of
+// quick retries slows a message down and does not end it.
+func TestAMessageThatExhaustedItsAttemptsIsRetriedDaily(t *testing.T) {
 	emptyOutbox(t)
 	ctx := t.Context()
 	s := outbox.NewStore(pool, quiet())
 	key := uuid.NewString()
-	enqueue(t, "test.poison", key, `{}`)
+	enqueue(t, "test.outage", key, `{}`)
 
-	runs := 0
-	s.Handle("test.poison", func(context.Context, []byte) error {
-		runs++
-		return errors.New("never sendable")
+	up := false
+	s.Handle("test.outage", func(context.Context, []byte) error {
+		if !up {
+			return errors.New("provider down")
+		}
+		return nil
 	})
 
-	for range outbox.MaxAttempts + 2 {
+	for range outbox.MaxAttempts {
 		if _, err := pool.Exec(ctx,
 			`UPDATE outbox_messages SET available_at = now() WHERE dedupe_key = $1`, key); err != nil {
 			t.Fatalf("make it due: %v", err)
@@ -551,15 +553,26 @@ func TestAMessageIsNotClaimedPastMaxAttempts(t *testing.T) {
 			t.Fatalf("drain: %v", err)
 		}
 	}
-	if runs != outbox.MaxAttempts {
-		t.Errorf("the handler ran %d times, want %d", runs, outbox.MaxAttempts)
+	var wait time.Duration
+	if err := pool.QueryRow(ctx, `
+		SELECT available_at - now() FROM outbox_messages WHERE dedupe_key = $1`, key).Scan(&wait); err != nil {
+		t.Fatalf("read the next slot: %v", err)
 	}
-	stuck, err := s.Stuck(ctx, 10)
+	if wait < 23*time.Hour || wait > 25*time.Hour {
+		t.Errorf("the next retry is %v away, want about a day", wait)
+	}
+
+	up = true
+	if _, err := pool.Exec(ctx,
+		`UPDATE outbox_messages SET available_at = now() WHERE dedupe_key = $1`, key); err != nil {
+		t.Fatalf("reach the daily slot: %v", err)
+	}
+	delivered, _, err := s.Drain(ctx)
 	if err != nil {
-		t.Fatalf("Stuck: %v", err)
+		t.Fatalf("drain: %v", err)
 	}
-	if len(stuck) != 1 || stuck[0].Attempts != outbox.MaxAttempts {
-		t.Errorf("stuck = %+v, want the one message at %d attempts", stuck, outbox.MaxAttempts)
+	if delivered != 1 {
+		t.Errorf("delivered %d on the daily slot, want 1: an exhausted message was abandoned", delivered)
 	}
 }
 
