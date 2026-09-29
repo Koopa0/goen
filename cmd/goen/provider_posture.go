@@ -36,8 +36,10 @@ func (cfg *config) prepareProviderPosture() error {
 	if !cfg.SecureCookies {
 		return errors.New("GOEN_PROVIDER_MODE=live requires secure cookies; remove GOEN_INSECURE_COOKIES")
 	}
-	if payment.ClassifyKey(cfg.StripeAPIKey) == payment.KeyTest {
-		return errors.New("GOEN_STRIPE_API_KEY is a Stripe test key while GOEN_PROVIDER_MODE is live")
+	// Live fails closed: Stripe live keys always start sk_live_ or rk_live_, so
+	// a test key, an unrecognised one or none at all is a configuration error.
+	if payment.ClassifyKey(cfg.StripeAPIKey) != payment.KeyLive {
+		return errors.New("GOEN_STRIPE_API_KEY must be a Stripe live key (sk_live_ or rk_live_) while GOEN_PROVIDER_MODE is live")
 	}
 	if err := cfg.validateLiveInvoicing(); err != nil {
 		return err

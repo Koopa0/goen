@@ -46,6 +46,8 @@ func TestProviderModeIsIndependentOfSecureCookies(t *testing.T) {
 		{"live sk test key", func(c *config) { liveReady(c); c.StripeAPIKey = "sk_test_fixture" }, "GOEN_STRIPE_API_KEY"},
 		{"live rk test key", func(c *config) { liveReady(c); c.StripeAPIKey = "rk_test_fixture" }, "GOEN_STRIPE_API_KEY"},
 		{"live rkcs test key", func(c *config) { liveReady(c); c.StripeAPIKey = "rkcs_test_fixture" }, "GOEN_STRIPE_API_KEY"},
+		{"live unknown key", func(c *config) { liveReady(c); c.StripeAPIKey = "whatever_fixture" }, "GOEN_STRIPE_API_KEY"},
+		{"live no key", func(c *config) { liveReady(c); c.StripeAPIKey = "" }, "GOEN_STRIPE_API_KEY"},
 		{"live no credentials", func(c *config) {
 			liveReady(c)
 			c.ECPayMerchantID, c.ECPayHashKey, c.ECPayHashIV = "", "", ""
