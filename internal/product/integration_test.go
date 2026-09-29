@@ -162,10 +162,10 @@ func TestAnUntaggedGalleryIsTheSameForEveryChoice(t *testing.T) {
 
 // TestTheChosenValuesPhotographsLeadTheGallery holds the order the product page
 // puts photographs in: those showing the variant on show, then those showing the
-// product whichever value is chosen, then the rest. The variant on show is the
-// chosen one, or the default when nothing is chosen, so the landing page opens
-// on the default variant's colour and not on whichever photograph was uploaded
-// first.
+// product whichever value is chosen, then the other values', each group by
+// position. The variant on show is the chosen one, or the default when nothing is
+// chosen, so the landing page opens on the default variant's colour and not on
+// whichever photograph was uploaded first.
 func TestTheChosenValuesPhotographsLeadTheGallery(t *testing.T) {
 	ctx := t.Context()
 	tx, err := pool.Begin(ctx)
@@ -187,8 +187,17 @@ func TestTheChosenValuesPhotographsLeadTheGallery(t *testing.T) {
 		WHERE p.slug = 'pixelight-9-pro'`); err != nil {
 		t.Fatalf("tag two photographs: %v", err)
 	}
+	// An untagged photograph placed AFTER both colours', so position alone would
+	// put the other colour's photograph ahead of it.
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO product_images (product_id, storage_key, alt_text, position)
+		SELECT id, 'nimbus-buds-pro-01.webp', '不分顏色', 3 FROM products
+		WHERE slug = 'pixelight-9-pro'`); err != nil {
+		t.Fatalf("add a late untagged photograph: %v", err)
+	}
 
-	untagged := assets.ProductImageURL("pixelight-9-pro-01.webp")
+	first := assets.ProductImageURL("pixelight-9-pro-01.webp")
+	late := assets.ProductImageURL("nimbus-buds-pro-01.webp")
 	black := assets.ProductImageURL("pixelight-9-01.webp")
 	blue := assets.ProductImageURL("aurora-edge-7-01.webp")
 	for _, tc := range []struct {
@@ -196,13 +205,13 @@ func TestTheChosenValuesPhotographsLeadTheGallery(t *testing.T) {
 		sel  product.Selection
 		want []string
 	}{
-		{"choosing black", product.Selection{"顏色": "曜石黑"}, []string{black, untagged, blue}},
+		{"choosing black", product.Selection{"顏色": "曜石黑"}, []string{black, first, late, blue}},
 		{"choosing blue and a capacity", product.Selection{"顏色": "星霧藍", "容量": "512GB"},
-			[]string{blue, untagged, black}},
+			[]string{blue, first, late, black}},
 		// The default variant is the cheapest buyable one, which is blue.
-		{"choosing nothing", nil, []string{blue, untagged, black}},
+		{"choosing nothing", nil, []string{blue, first, late, black}},
 		{"choosing only a capacity", product.Selection{"容量": "512GB"},
-			[]string{blue, untagged, black}},
+			[]string{blue, first, late, black}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			view, err := product.NewStore(tx).Load(ctx, "pixelight-9-pro", tc.sel)

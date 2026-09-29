@@ -168,7 +168,7 @@ func (s *Store) loadPresentation(ctx context.Context, p *db.ProductBySlugRow, vi
 	}
 
 	// The variant the page shows, chosen or defaulted, decides whose photographs
-	// lead; none resolved leaves the product's own order.
+	// lead; with none resolved, the photographs that show no value lead.
 	var shown uuid.NullUUID
 	if id, parseErr := uuid.Parse(view.VariantID); parseErr == nil {
 		shown = uuid.NullUUID{UUID: id, Valid: true}

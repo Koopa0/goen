@@ -2716,6 +2716,9 @@ const provePdpColourPhoto = async (label, scriptingOff) => {
       return;
     }
     const back = await waitForGallery((g) => !g.values.includes(COLOUR_VALUE) && g.src === before.src);
+    if (!back.threw && back.documentStarted !== before.documentStarted) {
+      fail(label, 'the swatch the swap delivered loaded a new page instead of swapping in place');
+    }
     if (back.threw || back.src !== before.src) {
       fail(label, `choosing the other colour from the swapped column opens on ${back.src || 'nothing'}, ` +
         `want ${before.src} (address carries ${JSON.stringify(back.values || [])})`);
