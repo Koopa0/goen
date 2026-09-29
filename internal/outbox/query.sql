@@ -35,10 +35,16 @@ WHERE delivered_at IS NULL AND attempts >= @min_attempts::integer
 ORDER BY attempts DESC, available_at
 LIMIT $1;
 
--- DELIVERED only, and keyed on delivered_at: a message that exhausted its
--- attempts is kept so /admin/health lists it, and available_at moves forward on
--- every claim, so keying on that would delete unsent mail.
+-- Keyed on delivered_at, not available_at, which moves forward on every claim.
 -- name: SweepDeliveredMessages :execrows
 DELETE FROM outbox_messages
 WHERE delivered_at IS NOT NULL
   AND delivered_at < now() - sqlc.arg(retain)::interval;
+
+-- An undelivered message past the same window goes too: its payload can carry a
+-- token that nothing will ever mail, and it may not outlive that token. Keyed on
+-- created_at because available_at moves on every claim.
+-- name: SweepUndeliveredMessages :execrows
+DELETE FROM outbox_messages
+WHERE delivered_at IS NULL
+  AND created_at < now() - sqlc.arg(retain)::interval;
