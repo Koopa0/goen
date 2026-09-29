@@ -338,6 +338,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	mux.HandleFunc("POST /admin/products/{slug}/images", back.RequireStaff(back.UploadImage))
 	mux.HandleFunc("POST /admin/products/{slug}/images/reuse", back.RequireStaff(back.ReuseImage))
 	mux.HandleFunc("POST /admin/products/{slug}/images/remove", back.RequireStaff(back.RemoveImage))
+	mux.HandleFunc("POST /admin/products/{slug}/images/option", back.RequireStaff(back.SetImageOption))
 	mux.HandleFunc("GET /admin/tiers", back.RequireStaff(back.Tiers))
 	mux.HandleFunc("POST /admin/tiers", back.RequireStaff(back.CreateTier))
 	mux.HandleFunc("POST /admin/tiers/delete", back.RequireStaff(back.DeleteTier))

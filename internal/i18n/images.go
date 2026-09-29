@@ -34,6 +34,18 @@ var (
 	})
 
 	KeyAdminProdReuse = key("admin.prod.reuse", Message{ZhHant: "使用", En: "Use"})
+
+	KeyAdminProdImageOption = key("admin.prod.imageoption", Message{
+		ZhHant: "這張照片是哪個選項",
+		En:     "Which option this photo shows",
+	})
+
+	KeyAdminProdImageAnyOption = key("admin.prod.imageanyoption", Message{ZhHant: "不限選項", En: "Any option"})
+
+	KeyAdminProdImageOptionHint = key("admin.prod.imageoptionhint", Message{
+		ZhHant: "顧客選了這個選項時,這張照片排在最前面。",
+		En:     "When a customer chooses this option, this photo comes first.",
+	})
 )
 
 var (
@@ -55,6 +67,11 @@ var (
 	KeyAdminNoticeAttachRefused = key("admin.notice.attachrefused", Message{
 		ZhHant: "這張圖片已經在這個商品上了。",
 		En:     "That image is already on this product.",
+	})
+
+	KeyAdminNoticeBadOption = key("admin.notice.badoption", Message{
+		ZhHant: "那個選項不是這個商品的。",
+		En:     "That option is not one of this product's.",
 	})
 
 	KeyAdminNoticeNoAlt = key("admin.notice.noalt", Message{

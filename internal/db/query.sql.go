@@ -1200,7 +1200,7 @@ func (q *Queries) AdminProduct(ctx context.Context, slug string) (AdminProductRo
 }
 
 const adminProductImages = `-- name: AdminProductImages :many
-SELECT pi.storage_key, pi.alt_text, pi.width, pi.height
+SELECT pi.storage_key, pi.alt_text, pi.width, pi.height, pi.option_value_id
 FROM product_images pi
 JOIN products p ON p.id = pi.product_id
 WHERE p.slug = $1::text
@@ -1208,10 +1208,11 @@ ORDER BY pi.position, pi.id
 `
 
 type AdminProductImagesRow struct {
-	StorageKey string
-	AltText    string
-	Width      pgtype.Int4
-	Height     pgtype.Int4
+	StorageKey    string
+	AltText       string
+	Width         pgtype.Int4
+	Height        pgtype.Int4
+	OptionValueID uuid.NullUUID
 }
 
 func (q *Queries) AdminProductImages(ctx context.Context, slug string) ([]AdminProductImagesRow, error) {
@@ -1228,6 +1229,7 @@ func (q *Queries) AdminProductImages(ctx context.Context, slug string) ([]AdminP
 			&i.AltText,
 			&i.Width,
 			&i.Height,
+			&i.OptionValueID,
 		); err != nil {
 			return nil, err
 		}
@@ -2310,21 +2312,23 @@ func (q *Queries) AssignZonePrefix(ctx context.Context, arg AssignZonePrefixPara
 
 const attachProductImage = `-- name: AttachProductImage :exec
 INSERT INTO product_images (product_id, storage_key, alt_text, alt_text_en,
-                            width, height, position)
+                            width, height, position, option_value_id)
 SELECT p.id, $1::text, $2::text, nullif($3::text, ''),
        $4::integer, $5::integer,
-       coalesce((SELECT max(position) + 1 FROM product_images x WHERE x.product_id = p.id), 0)
+       coalesce((SELECT max(position) + 1 FROM product_images x WHERE x.product_id = p.id), 0),
+       $6::uuid
 FROM products p
-WHERE p.slug = $6::text
+WHERE p.slug = $7::text
 `
 
 type AttachProductImageParams struct {
-	StorageKey string
-	AltText    string
-	AltTextEn  string
-	Width      int32
-	Height     int32
-	Slug       string
+	StorageKey    string
+	AltText       string
+	AltTextEn     string
+	Width         int32
+	Height        int32
+	OptionValueID uuid.NullUUID
+	Slug          string
 }
 
 // No foreign key on storage_key: product_images predates media_objects and still
@@ -2337,6 +2341,7 @@ func (q *Queries) AttachProductImage(ctx context.Context, arg AttachProductImage
 		arg.AltTextEn,
 		arg.Width,
 		arg.Height,
+		arg.OptionValueID,
 		arg.Slug,
 	)
 	return err
@@ -3035,8 +3040,16 @@ JOIN product_variants pv ON pv.id = ci.variant_id
 JOIN products p ON p.id = pv.product_id
 JOIN brands b ON b.id = p.brand_id
 LEFT JOIN LATERAL (
-    SELECT storage_key, alt_text FROM product_images
-    WHERE product_id = p.id ORDER BY position LIMIT 1
+    -- The line's own photograph when one shows its option value, else the
+    -- product's first.
+    SELECT i.storage_key, i.alt_text FROM product_images i
+    WHERE i.product_id = p.id
+    ORDER BY EXISTS (
+                 SELECT 1 FROM variant_option_values vov
+                 WHERE vov.variant_id = pv.id AND vov.option_value_id = i.option_value_id
+             ) DESC,
+             i.position
+    LIMIT 1
 ) img ON true
 WHERE ci.cart_id = $1
 ORDER BY ci.added_at, pv.id
@@ -8619,29 +8632,41 @@ func (q *Queries) ProductBySlug(ctx context.Context, arg ProductBySlugParams) (P
 }
 
 const productImages = `-- name: ProductImages :many
-SELECT storage_key,
-       localized_name(alt_text, alt_text_en, $1::text) AS alt_text,
-       coalesce(width, 0)::integer AS width,
-       coalesce(height, 0)::integer AS height
-FROM product_images
-WHERE product_id = $2
-ORDER BY position, id
+SELECT pi.storage_key,
+       localized_name(pi.alt_text, pi.alt_text_en, $1::text) AS alt_text,
+       coalesce(pi.width, 0)::integer AS width,
+       coalesce(pi.height, 0)::integer AS height,
+       (pi.option_value_id IS NOT NULL)::boolean AS shows_option
+FROM product_images pi
+WHERE pi.product_id = $2
+ORDER BY EXISTS (
+             SELECT 1 FROM variant_option_values vov
+             WHERE vov.variant_id = $3::uuid
+               AND vov.option_value_id = pi.option_value_id
+         ) DESC,
+         (pi.option_value_id IS NULL) DESC,
+         pi.position, pi.id
 `
 
 type ProductImagesParams struct {
 	Locale    string
 	ProductID uuid.UUID
+	VariantID uuid.NullUUID
 }
 
 type ProductImagesRow struct {
-	StorageKey string
-	AltText    string
-	Width      int32
-	Height     int32
+	StorageKey  string
+	AltText     string
+	Width       int32
+	Height      int32
+	ShowsOption bool
 }
 
+// The photographs of the variant on show lead, then those showing the product
+// whichever value is chosen, then the other values'. Ordered and never filtered,
+// so a value nobody photographed still opens on a picture.
 func (q *Queries) ProductImages(ctx context.Context, arg ProductImagesParams) ([]ProductImagesRow, error) {
-	rows, err := q.db.Query(ctx, productImages, arg.Locale, arg.ProductID)
+	rows, err := q.db.Query(ctx, productImages, arg.Locale, arg.ProductID, arg.VariantID)
 	if err != nil {
 		return nil, err
 	}
@@ -8654,6 +8679,7 @@ func (q *Queries) ProductImages(ctx context.Context, arg ProductImagesParams) ([
 			&i.AltText,
 			&i.Width,
 			&i.Height,
+			&i.ShowsOption,
 		); err != nil {
 			return nil, err
 		}
@@ -11733,6 +11759,28 @@ type SetPasswordHashParams struct {
 func (q *Queries) SetPasswordHash(ctx context.Context, arg SetPasswordHashParams) error {
 	_, err := q.db.Exec(ctx, setPasswordHash, arg.ID, arg.PasswordHash)
 	return err
+}
+
+const setProductImageOptionValue = `-- name: SetProductImageOptionValue :execrows
+UPDATE product_images
+SET option_value_id = $1::uuid
+FROM products p
+WHERE product_images.product_id = p.id AND p.slug = $2::text
+  AND product_images.storage_key = $3::text
+`
+
+type SetProductImageOptionValueParams struct {
+	OptionValueID uuid.NullUUID
+	Slug          string
+	StorageKey    string
+}
+
+func (q *Queries) SetProductImageOptionValue(ctx context.Context, arg SetProductImageOptionValueParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setProductImageOptionValue, arg.OptionValueID, arg.Slug, arg.StorageKey)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const setProductStatus = `-- name: SetProductStatus :execrows

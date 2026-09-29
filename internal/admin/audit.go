@@ -66,6 +66,7 @@ const (
 	actionRemoveSpec               Action = "spec.remove"
 	actionAttachImage              Action = "image.attach"
 	actionDetachImage              Action = "image.detach"
+	actionSetImageOption           Action = "image.option"
 	actionCreateShippingMethod     Action = "shipping.method.create"
 	actionToggleShippingMethod     Action = "shipping.method.toggle"
 	actionCreateShippingZone       Action = "shipping.zone.create"

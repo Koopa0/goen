@@ -25,6 +25,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/db"
@@ -1284,6 +1285,59 @@ func TestCartShowsCurrentPriceAndAvailability(t *testing.T) {
 	want := view.Lines[0].UnitCents * 2
 	if view.SubtotalCents != want {
 		t.Errorf("subtotal = %d, want %d", view.SubtotalCents, want)
+	}
+}
+
+// TestACartLineShowsItsOwnColoursPhotograph holds the cart thumbnail to the
+// line's variant: its value's photograph when the shop tagged one, else the
+// product's first, which is the only picture an untagged product has.
+func TestACartLineShowsItsOwnColoursPhotograph(t *testing.T) {
+	ctx := t.Context()
+	var tagged uuid.UUID
+	// Another product's embedded file, because a key naming no embedded file has
+	// no URL to compare.
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO product_images (product_id, storage_key, alt_text, position, option_value_id)
+		SELECT p.id, 'pixelight-9-01.webp', '曜石黑', 1, v.id
+		FROM products p JOIN product_option_values v ON v.product_id = p.id
+		WHERE p.slug = 'pixelight-9-pro' AND v.value = '曜石黑'
+		RETURNING id`).Scan(&tagged); err != nil {
+		t.Fatalf("tag a photograph: %v", err)
+	}
+	t.Cleanup(func() {
+		if _, err := pool.Exec(context.WithoutCancel(ctx),
+			`DELETE FROM product_images WHERE id = $1`, tagged); err != nil {
+			t.Errorf("remove the tagged photograph: %v", err)
+		}
+	})
+
+	s := cart.NewStore(pool)
+	id := newCart(t, s)
+	for _, sku := range []string{"PXL-9P-2-1", "PXL-9P-1-1"} {
+		var variant uuid.UUID
+		if err := pool.QueryRow(ctx,
+			`SELECT id FROM product_variants WHERE sku = $1`, sku).Scan(&variant); err != nil {
+			t.Fatalf("read %s: %v", sku, err)
+		}
+		if err := s.Add(ctx, id, variant, 1); err != nil {
+			t.Fatalf("add %s: %v", sku, err)
+		}
+	}
+	view, err := s.View(ctx, id)
+	if err != nil {
+		t.Fatalf("view: %v", err)
+	}
+	if len(view.Lines) != 2 {
+		t.Fatalf("cart holds %d lines, want 2", len(view.Lines))
+	}
+	want := map[string]string{
+		"PXL-9P-2-1": assets.ProductImageURL("pixelight-9-01.webp"),     // 曜石黑, tagged
+		"PXL-9P-1-1": assets.ProductImageURL("pixelight-9-pro-01.webp"), // 星霧藍, the product's first
+	}
+	for _, line := range view.Lines {
+		if line.ImageURL != want[line.SKU] {
+			t.Errorf("line %s shows %q, want %q", line.SKU, line.ImageURL, want[line.SKU])
+		}
 	}
 }
 

@@ -22,6 +22,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/db/dbtest"
@@ -134,19 +135,14 @@ func render(t *testing.T, slug, query string, headers map[string]string) *httpte
 	return res
 }
 
-// TestTheGalleryDoesNotDependOnTheChosenVariant is why the swap is allowed to
-// be as narrow as it is.
+// TestAnUntaggedGalleryIsTheSameForEveryChoice is why a product whose
+// photographs show no option value keeps its gallery out of the swatch's swap.
 //
-// The photography is per PRODUCT: product_images has no variant or option
-// column, so every combination of a product's options is served the same
-// gallery. Selecting it into the swap would tear down an <img> and build an
-// identical one — a cache read, a decode, and an empty frame in between for a
-// picture nobody changed, which is the flash this page was reported for.
-//
-// If a shop ever gets per-variant photography, this test goes red before anyone
-// notices the gallery has stopped following the choice, and the answer then is
-// to widen hx-select and hx-target to a region containing both.
-func TestTheGalleryDoesNotDependOnTheChosenVariant(t *testing.T) {
+// None of the seed's photographs is tagged, so every combination of a product's
+// options is served the same gallery. Selecting it into the swap would tear down
+// an <img> and build an identical one: a cache read, a decode, and an empty
+// frame in between for a picture nobody changed.
+func TestAnUntaggedGalleryIsTheSameForEveryChoice(t *testing.T) {
 	for _, slug := range []string{"pixelight-9-pro", "nimbus-buds-pro", "meridian-watch-s3"} {
 		t.Run(slug, func(t *testing.T) {
 			_, first := get(t, slug, "")
@@ -163,6 +159,85 @@ func TestTheGalleryDoesNotDependOnTheChosenVariant(t *testing.T) {
 		})
 	}
 }
+
+// TestTheChosenValuesPhotographsLeadTheGallery holds the order the product page
+// puts photographs in: those showing the variant on show, then those showing the
+// product whichever value is chosen, then the rest. The variant on show is the
+// chosen one, or the default when nothing is chosen, so the landing page opens
+// on the default variant's colour and not on whichever photograph was uploaded
+// first.
+func TestTheChosenValuesPhotographsLeadTheGallery(t *testing.T) {
+	ctx := t.Context()
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	// Other products' embedded files, because a key naming no embedded file is
+	// dropped from the gallery before it is rendered.
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO product_images (product_id, storage_key, alt_text, position, option_value_id)
+		SELECT p.id, m.key, m.value, m.position, v.id
+		FROM products p
+		JOIN product_option_values v ON v.product_id = p.id
+		JOIN (VALUES ('曜石黑', 'pixelight-9-01.webp', 1),
+		             ('星霧藍', 'aurora-edge-7-01.webp', 2)) AS m(value, key, position)
+		  ON m.value = v.value
+		WHERE p.slug = 'pixelight-9-pro'`); err != nil {
+		t.Fatalf("tag two photographs: %v", err)
+	}
+
+	untagged := assets.ProductImageURL("pixelight-9-pro-01.webp")
+	black := assets.ProductImageURL("pixelight-9-01.webp")
+	blue := assets.ProductImageURL("aurora-edge-7-01.webp")
+	for _, tc := range []struct {
+		name string
+		sel  product.Selection
+		want []string
+	}{
+		{"choosing black", product.Selection{"顏色": "曜石黑"}, []string{black, untagged, blue}},
+		{"choosing blue and a capacity", product.Selection{"顏色": "星霧藍", "容量": "512GB"},
+			[]string{blue, untagged, black}},
+		// The default variant is the cheapest buyable one, which is blue.
+		{"choosing nothing", nil, []string{blue, untagged, black}},
+		{"choosing only a capacity", product.Selection{"容量": "512GB"},
+			[]string{blue, untagged, black}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			view, err := product.NewStore(tx).Load(ctx, "pixelight-9-pro", tc.sel)
+			if err != nil {
+				t.Fatalf("load: %v", err)
+			}
+			got := make([]string, 0, len(view.Images))
+			for _, img := range view.Images {
+				got = append(got, img.URL)
+			}
+			if strings.Join(got, " ") != strings.Join(tc.want, " ") {
+				t.Errorf("the gallery is\n  %v\nwant\n  %v", got, tc.want)
+			}
+			if !view.GalleryFollowsChoice() {
+				t.Error("a gallery with tagged photographs does not follow the choice")
+			}
+
+			// And the page renders that order, with the gallery in the swap.
+			var body strings.Builder
+			if err := pages.Product(pages.ProductMeta(&view), &view).Render(ctx, &body); err != nil {
+				t.Fatalf("render: %v", err)
+			}
+			markup := body.String()
+			first := firstShot.FindStringSubmatch(markup)
+			if len(first) < 2 || html.UnescapeString(first[1]) != tc.want[0] {
+				t.Errorf("the page opens on %v, want %s", first, tc.want[0])
+			}
+			if !strings.Contains(markup, `hx-select-oob="#gallery"`) {
+				t.Error("the swatches leave the gallery out of the swap")
+			}
+		})
+	}
+}
+
+var firstShot = regexp.MustCompile(`class="goen-pdp__shotimg" src="([^"]+)"`)
 
 // gallery is the markup from #gallery up to #buybox, which is the whole of it.
 func gallery(t *testing.T, body string) string {

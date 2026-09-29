@@ -52,6 +52,7 @@ var actionLabels = map[string]i18n.Key{
 	"spec.remove":                         i18n.KeyAuditSpecRemove,
 	"image.attach":                        i18n.KeyAuditImageAttach,
 	"image.detach":                        i18n.KeyAuditImageDetach,
+	"image.option":                        i18n.KeyAuditImageOption,
 	"shipping.method.create":              i18n.KeyAuditShippingMethodCreate,
 	"shipping.method.toggle":              i18n.KeyAuditShippingMethodToggle,
 	"shipping.zone.create":                i18n.KeyAuditShippingZoneCreate,
@@ -140,6 +141,9 @@ type AdminImage struct {
 	Alt    string
 	Width  int32
 	Height int32
+	// OptionValueID is the option value this photograph shows, empty when it
+	// shows the product whichever value is chosen.
+	OptionValueID string
 }
 
 // URL is where it is served.

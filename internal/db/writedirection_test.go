@@ -258,6 +258,7 @@ var columnNarrowed = map[string]bool{
 	"users":                  true,
 	"sessions":               true,
 	"product_variants":       true,
+	"product_images":         true,
 	"payment_webhook_events": true,
 	"product_reviews":        true,
 	"product_questions":      true,

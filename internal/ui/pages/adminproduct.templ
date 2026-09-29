@@ -349,6 +349,21 @@ templ adminProductImages(v AdminProductView) {
 					<li class="goen-admin__image">
 						<img src={ img.URL() } alt={ img.Alt } loading="lazy" width="120" height="120"/>
 						<span class="goen-admin__meta">{ img.Alt }</span>
+						if v.HasOptions() {
+							<form method="post" action={ templ.SafeURL(v.ImageOptionAction()) }>
+								<input type="hidden" name="digest" value={ img.Key }/>
+								<label class="goen-sr-only" for={ "image-option-" + img.Key }>{ i18n.T(ctx, i18n.KeyAdminProdImageOption) }</label>
+								<select class="goen-input" id={ "image-option-" + img.Key } name="option_value">
+									@adminImageOptionChoices(v, img.OptionValueID)
+								</select>
+								@components.Button(components.ButtonProps{
+									Variant: components.VariantOutline,
+									Size:    components.SizeSmall,
+								}, "submit") {
+									{ i18n.T(ctx, i18n.KeyAdminProdSave) }
+								}
+							</form>
+						}
 						<form method="post" action={ templ.SafeURL(v.ImageRemoveAction()) }>
 							<input type="hidden" name="digest" value={ img.Key }/>
 							@components.Button(components.ButtonProps{
@@ -397,6 +412,17 @@ templ adminProductImages(v AdminProductView) {
 						{ i18n.T(ctx, i18n.KeyAdminProdAltEnHint) }
 					</p>
 				</div>
+				if v.HasOptions() {
+					<div class="goen-admin__field">
+						@components.Label(components.LabelProps{For: "p-image-option"}) {
+							{ i18n.T(ctx, i18n.KeyAdminProdImageOption) }
+						}
+						<select class="goen-input" id="p-image-option" name="option_value" aria-describedby="p-image-option-hint">
+							@adminImageOptionChoices(v, "")
+						</select>
+						<p class="goen-admin__hint" id="p-image-option-hint">{ i18n.T(ctx, i18n.KeyAdminProdImageOptionHint) }</p>
+					</div>
+				}
 			</div>
 			@components.Button(components.ButtonProps{
 				Variant: components.VariantOutline,
@@ -432,6 +458,22 @@ templ adminProductImages(v AdminProductView) {
 					</form>
 				}
 			</div>
+		}
+	}
+}
+
+// adminImageOptionChoices is every option value of the product, grouped by
+// axis, after the choice that ties the image to none of them. Every axis and not
+// only a colour: the schema has no colour axis, only the shop's own names.
+templ adminImageOptionChoices(v AdminProductView, chosen string) {
+	<option value="" selected?={ chosen == "" }>{ i18n.T(ctx, i18n.KeyAdminProdImageAnyOption) }</option>
+	for _, o := range v.Options {
+		if o.HasValues() {
+			<optgroup label={ o.Name }>
+				for _, val := range o.Values {
+					<option value={ val.ID } selected?={ val.ID == chosen }>{ val.Value }</option>
+				}
+			</optgroup>
 		}
 	}
 }

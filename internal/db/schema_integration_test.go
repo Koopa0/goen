@@ -109,6 +109,7 @@ var expectedForeignKeys = map[string]bool{
 	"orders_user_id_fkey":                         true,
 	"password_reset_tokens_user_id_fkey":          true,
 	"payments_order_id_fkey":                      true,
+	"product_images_option_value_fk":              true,
 	"product_images_product_id_fkey":              true,
 	"product_option_values_option_fk":             true,
 	"product_options_product_id_fkey":             true,

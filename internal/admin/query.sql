@@ -885,12 +885,20 @@ LIMIT @row_limit::integer;
 -- key.
 -- name: AttachProductImage :exec
 INSERT INTO product_images (product_id, storage_key, alt_text, alt_text_en,
-                            width, height, position)
+                            width, height, position, option_value_id)
 SELECT p.id, @storage_key::text, @alt_text::text, nullif(@alt_text_en::text, ''),
        @width::integer, @height::integer,
-       coalesce((SELECT max(position) + 1 FROM product_images x WHERE x.product_id = p.id), 0)
+       coalesce((SELECT max(position) + 1 FROM product_images x WHERE x.product_id = p.id), 0),
+       sqlc.narg('option_value_id')::uuid
 FROM products p
 WHERE p.slug = @slug::text;
+
+-- name: SetProductImageOptionValue :execrows
+UPDATE product_images
+SET option_value_id = sqlc.narg('option_value_id')::uuid
+FROM products p
+WHERE product_images.product_id = p.id AND p.slug = @slug::text
+  AND product_images.storage_key = @storage_key::text;
 
 -- name: DetachProductImage :execrows
 DELETE FROM product_images pi
@@ -898,7 +906,7 @@ USING products p
 WHERE pi.product_id = p.id AND p.slug = @slug::text AND pi.storage_key = @storage_key::text;
 
 -- name: AdminProductImages :many
-SELECT pi.storage_key, pi.alt_text, pi.width, pi.height
+SELECT pi.storage_key, pi.alt_text, pi.width, pi.height, pi.option_value_id
 FROM product_images pi
 JOIN products p ON p.id = pi.product_id
 WHERE p.slug = @slug::text

@@ -261,6 +261,10 @@ CREATE TABLE product_images (
     width       integer,
     height      integer,
     position    integer NOT NULL DEFAULT 0,
+    -- The option value this photograph shows, or NULL for one that shows the
+    -- product whichever value is chosen. Bound to a value of the SAME product by
+    -- product_images_option_value_fk, declared below product_option_values.
+    option_value_id uuid,
     created_at  timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT product_images_storage_key_present CHECK (storage_key ~ '[^[:space:]]'),
     CONSTRAINT product_images_alt_present CHECK (alt_text ~ '[^[:space:]]'),
@@ -334,6 +338,19 @@ CREATE TABLE product_option_values (
 CREATE UNIQUE INDEX product_option_values_value_key ON product_option_values (option_id, value);
 CREATE UNIQUE INDEX product_option_values_option_key
     ON product_option_values (product_id, option_id, id);
+-- Referenced by product_images, so a photograph can only show a value of its own
+-- product.
+CREATE UNIQUE INDEX product_option_values_product_key ON product_option_values (product_id, id);
+
+-- SET NULL on the value column alone: a bare SET NULL would null product_id too.
+-- A photograph whose value is gone still shows the product.
+ALTER TABLE product_images
+    ADD CONSTRAINT product_images_option_value_fk
+    FOREIGN KEY (product_id, option_value_id)
+    REFERENCES product_option_values (product_id, id)
+    ON DELETE SET NULL (option_value_id);
+
+CREATE INDEX product_images_option_value_idx ON product_images (product_id, option_value_id);
 
 -- The sellable unit: price and stock live here, never on the product.
 CREATE TABLE product_variants (
@@ -8529,6 +8546,9 @@ REVOKE UPDATE ON
     variant_option_values, membership_tiers, sale_campaign_products,
     order_shipment_lines
     FROM admin;
+-- After the revoke, which takes column grants with it. Which option value a
+-- photograph shows is the one thing about it the back office changes in place.
+GRANT UPDATE (option_value_id) ON product_images TO admin;
 REVOKE UPDATE, DELETE ON outbox_messages FROM admin;
 
 -- user_identities is the STOREFRONT's. INSERT and DELETE only: linking and
