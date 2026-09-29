@@ -1100,8 +1100,42 @@ func (h *Handler) OrderPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	view.Cancelled = r.URL.Query().Get("cancelled") == "1"
+	view.PaymentRefreshURL = paymentReturnRefresh(r, &view)
+	if view.PaymentRefreshURL != "" {
+		w.Header().Set("Refresh", strconv.Itoa(paymentReturnRefreshSeconds)+"; url="+view.PaymentRefreshURL)
+		view.PaymentRefreshSeconds = paymentReturnRefreshSeconds
+		view.PaymentRefreshChecks = paymentReturnRefreshChecks
+	}
 	view.ShowWarrantyLink = h.ownedBySignedInUser(r, number)
 	web.Render(w, r, h.log, http.StatusOK, pages.Order(pages.OrderMeta(r.Context(), view.Number), &view))
+}
+
+// The return page refreshes every paymentReturnRefreshSeconds seconds, at most
+// paymentReturnRefreshChecks times; the notice quotes both.
+const (
+	paymentReturnRefreshSeconds = 5
+	paymentReturnRefreshChecks  = 3
+)
+
+// paymentReturnRefresh bounds the untrusted return hint so an unpaid customer
+// regains the payment and cancellation controls even when no webhook arrives.
+func paymentReturnRefresh(r *http.Request, view *pages.OrderView) string {
+	if !view.AwaitingPayment() || r.URL.Query().Get("paid") != "1" {
+		return ""
+	}
+	attempt := 0
+	if raw := r.URL.Query().Get("confirmation"); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil || parsed < 0 || parsed >= paymentReturnRefreshChecks {
+			return ""
+		}
+		attempt = parsed
+	}
+	next := "/orders/" + url.PathEscape(view.Number)
+	if attempt < paymentReturnRefreshChecks-1 {
+		next += "?paid=1&confirmation=" + strconv.Itoa(attempt+1)
+	}
+	return next
 }
 
 // ReorderItems serves POST /orders/{number}/reorder, under the same access rule
