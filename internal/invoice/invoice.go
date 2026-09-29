@@ -91,6 +91,12 @@ var mobileCarrierPattern = regexp.MustCompile(`^/[0-9A-Z+\-.]{7}$`)
 // accepts: a slash and seven upper-case letters, digits, +, - or dot.
 func ValidMobileCarrier(value string) bool { return mobileCarrierPattern.MatchString(value) }
 
+var donationCodePattern = regexp.MustCompile(`^\d{3,7}$`)
+
+// ValidDonationCode is ECPay's LoveCode: three to seven digits, a leading zero
+// allowed, so it is always handled as a string.
+func ValidDonationCode(value string) bool { return donationCodePattern.MatchString(value) }
+
 // ValidBuyerName applies the immutable filing/provider boundary shared by
 // checkout and direct gateway callers. Control characters are never meaningful
 // in an invoice buyer name and can change the shape of downstream records.
@@ -109,12 +115,14 @@ const (
 	PreferenceMember  Preference = "member_carrier"
 	PreferenceMobile  Preference = "mobile_carrier"
 	PreferenceCompany Preference = "company"
+	PreferenceDonate  Preference = "donation"
 )
 
 var offeredPreferences = [...]Preference{
 	PreferenceMember,
 	PreferenceMobile,
 	PreferenceCompany,
+	PreferenceDonate,
 }
 
 // OfferedPreferences returns the checkout choices in display order. The result

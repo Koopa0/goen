@@ -93,6 +93,13 @@ var (
 
 	KeyFieldCarrier = key("field.invoice.carrier", Message{ZhHant: "手機條碼載具", En: "Mobile barcode carrier"})
 
+	KeyFieldDonationCode = key("field.invoice.donation", Message{ZhHant: "愛心碼", En: "Donation code"})
+
+	KeyDonationCodeHelp = key("invoice.donation.help", Message{
+		ZhHant: "請向受贈單位確認愛心碼(3 至 7 碼數字)。本店的捐贈發票不能同時使用載具或統一編號。",
+		En:     "Confirm the code (3 to 7 digits) with the recipient organisation. This shop cannot combine a donated invoice with a carrier or a company tax ID.",
+	})
+
 	KeyFieldCompanyName = key("field.invoice.company_name", Message{
 		ZhHant: "公司名稱",
 		En:     "Registered company name",
@@ -259,6 +266,11 @@ var (
 		En:     "That does not look like an email address",
 	})
 
+	KeyInvoiceDonate = key("invoice.donate", Message{
+		ZhHant: "捐贈發票(愛心碼)",
+		En:     "Donate the invoice (donation code)",
+	})
+
 	KeyInvoiceTypeRequired = key("valid.invoice.type", Message{
 		ZhHant: "請選擇發票類型。",
 		En:     "Choose an invoice type.",
@@ -267,6 +279,11 @@ var (
 	KeyCarrierMalformed = key("valid.invoice.carrier", Message{
 		ZhHant: "手機條碼格式不正確,應為斜線加上七碼(例如 /ABC+123)。",
 		En:     "A mobile barcode is a slash and seven characters, such as /ABC+123.",
+	})
+
+	KeyDonationCodeMalformed = key("valid.invoice.donation", Message{
+		ZhHant: "請輸入 3 至 7 碼數字的愛心碼。",
+		En:     "Enter a donation code of 3 to 7 digits.",
 	})
 
 	KeyCompanyNameMalformed = key("valid.invoice.company_name", Message{

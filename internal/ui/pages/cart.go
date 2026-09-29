@@ -592,10 +592,11 @@ func (s OrderShipment) Delivered() bool { return s.DeliveredAt != "" }
 
 // CheckoutInvoice carries the invoice choice back into a refused form.
 type CheckoutInvoice struct {
-	Type        invoice.Preference
-	Carrier     string
-	CompanyName string
-	TaxID       string
+	Type         invoice.Preference
+	Carrier      string
+	DonationCode string
+	CompanyName  string
+	TaxID        string
 }
 
 // Is reports whether this is the chosen type.
@@ -723,3 +724,6 @@ func (v *CheckoutView) HasCoupon() bool {
 
 // CouponDiscount is what it takes off, as a negative figure.
 func (v *CheckoutView) CouponDiscount() string { return "-" + twd(v.CouponDiscountCents) }
+
+// NeedsDonationCode reports whether the donation code field belongs on the form.
+func (i CheckoutInvoice) NeedsDonationCode() bool { return i.Chosen() == invoice.PreferenceDonate }

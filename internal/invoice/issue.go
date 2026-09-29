@@ -60,6 +60,9 @@ func (g *Gateway) Issue(ctx context.Context, in IssueRequest) (Document, error) 
 		// says where it is held.
 		req.CustomerIdentifier = in.TaxID
 		req.CarrierT = CarrierMember
+	case PreferenceDonate:
+		req.Donation = "1"
+		req.LoveCode = in.DonationCode
 	case PreferenceMobile:
 		req.CarrierT = CarrierMobile
 		req.CarrierNum = in.CarrierCode
@@ -102,9 +105,10 @@ type IssueRequest struct {
 	CustomerName string
 	Email        string
 	// Preference is invoice_preferences.invoice_type.
-	Preference  Preference
-	CarrierCode string
-	TaxID       string
+	Preference   Preference
+	CarrierCode  string
+	DonationCode string
+	TaxID        string
 	// AmountCents is the order's total, tax included: what the customer was
 	// charged, which is what the invoice records.
 	AmountCents int64
@@ -135,6 +139,10 @@ func (r IssueRequest) validate() error {
 		return fmt.Errorf("%w: a carrier invoice needs a bare valid email address of at most 80 bytes",
 			ErrRejected)
 	}
+	return r.validatePreference()
+}
+
+func (r IssueRequest) validatePreference() error {
 	if !r.Preference.Known() {
 		return fmt.Errorf("%w: %q is not an invoice type this shop offers",
 			ErrRejected, r.Preference)
@@ -153,6 +161,15 @@ func (r IssueRequest) validate() error {
 			// i18n-exempt: back office only, as above.
 			return fmt.Errorf("%w: a 手機條碼載具 is a slash and seven characters, got %q",
 				ErrRejected, r.CarrierCode)
+		}
+	case PreferenceDonate:
+		if !ValidDonationCode(r.DonationCode) {
+			return fmt.Errorf("%w: a donation code is three to seven digits, got %q",
+				ErrRejected, r.DonationCode)
+		}
+		if r.TaxID != "" || r.CarrierCode != "" {
+			return fmt.Errorf("%w: a donation invoice takes neither a tax ID nor a carrier",
+				ErrRejected)
 		}
 	case PreferenceMember:
 	}
@@ -266,6 +283,7 @@ type issueRequest struct {
 	CustomerEmail      string `json:"CustomerEmail"`
 	Print              string `json:"Print"`
 	Donation           string `json:"Donation"`
+	LoveCode           string `json:"LoveCode,omitempty"`
 	CarrierT           string `json:"CarrierType"`
 	CarrierNum         string `json:"CarrierNum,omitempty"`
 	TaxType            string `json:"TaxType"`

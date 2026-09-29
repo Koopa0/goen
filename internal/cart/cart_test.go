@@ -601,6 +601,9 @@ func TestInvoiceChoicesMatchCheckoutValidation(t *testing.T) {
 		if preference.NeedsCarrier() {
 			candidate.Carrier = "/AB12345"
 		}
+		if preference == invoice.PreferenceDonate {
+			candidate.DonationCode = "00123"
+		}
 		if preference.NeedsTaxID() {
 			candidate.CompanyName = "測試股份有限公司"
 			candidate.TaxID = "04595252"
@@ -978,6 +981,17 @@ func TestTheCheckoutRefusesWhatTheSenderWillRefuse(t *testing.T) {
 	}
 	if got := emailError("shopper@example.com"); got != "" {
 		t.Errorf("an ordinary address was refused: %v", got)
+	}
+}
+
+func TestInvoicePreferenceNormalizesOnlyItsOwnFields(t *testing.T) {
+	donation := Invoice{Type: invoice.PreferenceDonate, DonationCode: " 00123 ", Carrier: "/ABC+123", TaxID: "04595252", CompanyName: "Company"}
+	if errs := donation.Validate(); len(errs) != 0 || donation.DonationCode != "00123" || donation.Carrier != "" || donation.TaxID != "" || donation.CompanyName != "" {
+		t.Fatalf("donation normalization: %+v / %+v", donation, errs)
+	}
+	bad := Invoice{Type: invoice.PreferenceDonate, DonationCode: "12A"}
+	if errs := bad.Validate(); len(errs) != 1 || errs[0].Field != "invoice_donation_code" {
+		t.Fatalf("invalid donation code errors=%+v", errs)
 	}
 }
 

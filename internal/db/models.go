@@ -252,6 +252,7 @@ type InvoicePreference struct {
 	OrderID       uuid.UUID
 	InvoiceType   string
 	CarrierCode   pgtype.Text
+	DonationCode  pgtype.Text
 	TaxID         pgtype.Text
 	CustomerName  string
 	CustomerEmail string

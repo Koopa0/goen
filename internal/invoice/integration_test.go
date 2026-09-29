@@ -1362,10 +1362,14 @@ func TestOfferedPreferencesMatchTheDatabaseClosedSet(t *testing.T) {
 
 	for _, preference := range OfferedPreferences() {
 		t.Run(string(preference), func(t *testing.T) {
-			var carrierCode, taxID *string
+			var carrierCode, taxID, donationCode *string
 			if preference.NeedsCarrier() {
 				value := "/AB12345"
 				carrierCode = &value
+			}
+			if preference == PreferenceDonate {
+				value := "00123"
+				donationCode = &value
 			}
 			if preference.NeedsTaxID() {
 				value := "04595252"
@@ -1374,10 +1378,10 @@ func TestOfferedPreferencesMatchTheDatabaseClosedSet(t *testing.T) {
 
 			result, err := pool.Exec(ctx, `
 				INSERT INTO invoice_preferences
-				    (order_id, invoice_type, carrier_code, tax_id,
+				    (order_id, invoice_type, carrier_code, tax_id, donation_code,
 				     customer_name, customer_email)
-				VALUES ($1, $2, $3, $4, '王小明', 'closed-set@goen.invalid')`,
-				newOrder(t), string(preference), carrierCode, taxID)
+				VALUES ($1, $2, $3, $4, $5, '王小明', 'closed-set@goen.invalid')`,
+				newOrder(t), string(preference), carrierCode, taxID, donationCode)
 			if err != nil {
 				t.Fatalf("database refused offered preference %q: %v", preference, err)
 			}
@@ -3782,8 +3786,9 @@ func orderToInvoiceFor(
 	}
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO invoice_preferences
-		    (order_id, invoice_type, tax_id, customer_name, customer_email)
-		VALUES ($1, $2, nullif($3, ''), $4, 'issue@goen.invalid')`,
+		    (order_id, invoice_type, tax_id, customer_name, customer_email, donation_code)
+		VALUES ($1, $2, nullif($3, ''), $4, 'issue@goen.invalid',
+		        CASE WHEN $2='donation' THEN '00123' END)`,
 		orderID, string(preference), taxID, buyerName); err != nil {
 		t.Fatalf("record the 發票 preference: %v", err)
 	}

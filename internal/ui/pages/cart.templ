@@ -493,6 +493,33 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 										}
 									</div>
 								}
+								if v.Invoice.NeedsDonationCode() {
+									<div class="goen-field">
+										@components.Label(components.LabelProps{For: "invoice_donation_code"}) {
+											{ i18n.T(ctx, i18n.KeyFieldDonationCode) }
+										}
+										<input
+											class="goen-input"
+											id="invoice_donation_code"
+											name="invoice_donation_code"
+											type="text"
+											inputmode="numeric"
+											maxlength="7"
+											autocomplete="off"
+											value={ v.Invoice.DonationCode }
+											aria-invalid={ v.Invalid("invoice_donation_code") }
+											if v.HasErr("invoice_donation_code") {
+												aria-describedby="invoice_donation_code-help invoice_donation_code-error"
+											} else {
+												aria-describedby="invoice_donation_code-help"
+											}
+										/>
+										<p class="goen-checkout__hint" id="invoice_donation_code-help">{ i18n.T(ctx, i18n.KeyDonationCodeHelp) }</p>
+										if v.HasErr("invoice_donation_code") {
+											<p class="ui-error-text" id="invoice_donation_code-error">{ v.Err("invoice_donation_code") }</p>
+										}
+									</div>
+								}
 								if v.Invoice.NeedsTaxID() {
 									<div class="goen-field">
 										@components.Label(components.LabelProps{For: "invoice_company_name"}) {
