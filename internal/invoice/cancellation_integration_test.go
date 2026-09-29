@@ -85,7 +85,9 @@ func TestUnresolvedInvoiceOperationsBlockCancellationEvenAfterFullAllowance(t *t
 				if err != nil {
 					t.Fatal(err)
 				}
-				_, err = pool.Exec(t.Context(), `INSERT INTO invoice_operations (order_id, kind, target_document_id, provider_key, amount_cents, request_payload, actor_user_id, actor_id_snapshot, request_id, status) SELECT d.order_id, $2, CASE WHEN $2 = 'issue' THEN NULL ELSE d.id END, replace(o.order_number, '-', ''), d.amount_cents, '{}', $3, $3, $4, $5 FROM invoice_documents d JOIN orders o ON o.id = d.order_id WHERE o.order_number = $1 AND d.kind = 'invoice'`, number, kind, filingActor, uuid.NewString(), status)
+				// Invalid frozen requests lock the cancellation guard, but must not
+				// enter the package-wide reconciler used by other tests.
+				_, err = pool.Exec(t.Context(), `INSERT INTO invoice_operations (order_id, kind, target_document_id, provider_key, amount_cents, request_payload, actor_user_id, actor_id_snapshot, request_id, status, available_at) SELECT d.order_id, $2, CASE WHEN $2 = 'issue' THEN NULL ELSE d.id END, replace(o.order_number, '-', ''), d.amount_cents, '{}', $3, $3, $4, $5, now() + interval '1 day' FROM invoice_documents d JOIN orders o ON o.id = d.order_id WHERE o.order_number = $1 AND d.kind = 'invoice'`, number, kind, filingActor, uuid.NewString(), status)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -136,6 +138,12 @@ func TestInvoiceClaimAndCancellationSerialize(t *testing.T) {
 			ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 			defer cancel()
 			number := orderToInvoice(t, 100000, 0, 0)
+			defer func() {
+				_, cleanupErr := pool.Exec(t.Context(), `UPDATE invoice_operations SET available_at = now() + interval '1 day' WHERE order_id = (SELECT id FROM orders WHERE order_number = $1) AND kind = 'issue' AND status = 'pending'`, number)
+				if cleanupErr != nil {
+					t.Errorf("isolate pending invoice fixture: %v", cleanupErr)
+				}
+			}()
 			first, err := pool.Begin(ctx)
 			if err != nil {
 				t.Fatal(err)
@@ -331,8 +339,8 @@ func TestInvoiceSettlementLocksOrderBeforeOperation(t *testing.T) {
 	if rollbackErr := probe.Rollback(ctx); rollbackErr != nil {
 		t.Fatal(rollbackErr)
 	}
-	if _, err := first.Exec(ctx, `SAVEPOINT cancellation`); err != nil {
-		t.Fatal(err)
+	if _, savepointErr := first.Exec(ctx, `SAVEPOINT cancellation`); savepointErr != nil {
+		t.Fatal(savepointErr)
 	}
 	_, err = first.Exec(ctx, `UPDATE orders SET fulfillment_status = 'cancelled', cancelled_at = now() WHERE order_number = $1`, number)
 	if constraintOf(err) != "orders_cancel_invoice_resolved" {
