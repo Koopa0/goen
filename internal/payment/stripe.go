@@ -80,7 +80,7 @@ func NewGateway(apiKey, webhookSecret, baseURL string) (*Gateway, error) {
 func (g *Gateway) Enabled() bool { return g.client != nil }
 
 // Sandbox reports whether the configured key is explicitly a Stripe test key.
-func (g *Gateway) Sandbox() bool { return g.Enabled() && g.sandbox }
+func (g *Gateway) Sandbox() bool { return g.sandbox }
 
 // lineItem is one row on Stripe's page.
 func lineItem(name string, unitCents, quantity int64) *stripe.CheckoutSessionCreateLineItemParams {
