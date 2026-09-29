@@ -65,6 +65,12 @@ func (h *Handler) CreateProduct(w http.ResponseWriter, r *http.Request) {
 
 // EditProduct serves GET /admin/products/{slug}.
 func (h *Handler) EditProduct(w http.ResponseWriter, r *http.Request) {
+	h.renderProduct(w, r, http.StatusOK, noticeFor(r))
+}
+
+// renderProduct draws the product's edit page. A refused form re-draws it with
+// the refusal and a 422, so the staff member sees the current state.
+func (h *Handler) renderProduct(w http.ResponseWriter, r *http.Request, status int, notice string) {
 	view, err := h.store.Product(r.Context(), r.PathValue("slug"))
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
@@ -75,7 +81,7 @@ func (h *Handler) EditProduct(w http.ResponseWriter, r *http.Request) {
 		h.serverError(w, r)
 		return
 	}
-	view.Notice = noticeFor(r)
+	view.Notice = notice
 	if images, imgErr := h.store.ProductImages(r.Context(), r.PathValue("slug")); imgErr != nil {
 		// Not fatal: losing the image strip is smaller than losing the page.
 		h.log.ErrorContext(r.Context(), "read product images", "error", imgErr)
@@ -91,7 +97,7 @@ func (h *Handler) EditProduct(w http.ResponseWriter, r *http.Request) {
 			})
 		}
 	}
-	web.Render(w, r, h.log, http.StatusOK, pages.AdminProductForm(
+	web.Render(w, r, h.log, status, pages.AdminProductForm(
 		layouts.Page{Title: view.Name}, view))
 }
 
@@ -363,6 +369,30 @@ func (h *Handler) RemoveImage(w http.ResponseWriter, r *http.Request) {
 	}
 	//nolint:gosec // G710: slug is the route's own path value
 	http.Redirect(w, r, "/admin/products/"+slug+"?ok=1", http.StatusSeeOther)
+}
+
+// MoveImage serves POST /admin/products/{slug}/images/move: set the cover, or
+// move one image a place.
+func (h *Handler) MoveImage(w http.ResponseWriter, r *http.Request) {
+	if err := web.ParseForm(w, r); err != nil {
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
+		return
+	}
+	slug := r.PathValue("slug")
+	err := h.store.MoveImage(r.Context(), slug, r.PostFormValue("digest"), ImageMove(r.PostFormValue("move")))
+	switch {
+	case err == nil:
+		//nolint:gosec // G710: slug is the route's own path value
+		http.Redirect(w, r, "/admin/products/"+slug+"?ok=1", http.StatusSeeOther)
+	case errors.Is(err, ErrNotFound):
+		h.notFound(w, r)
+	case errors.Is(err, ErrInvalid):
+		h.log.WarnContext(r.Context(), "move image refused", "error", err, "slug", slug)
+		h.renderProduct(w, r, http.StatusUnprocessableEntity, i18n.T(r.Context(), i18n.KeyAdminNoticeImageStale))
+	default:
+		h.log.ErrorContext(r.Context(), "move image", "error", err, "slug", slug)
+		h.serverError(w, r)
+	}
 }
 
 // AddOption serves POST /admin/products/{slug}/options.

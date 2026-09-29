@@ -88,6 +88,8 @@ const EXPECTED = [
 // deliberately wider than a phone and scroll inside their own box, and nothing
 // but this says whether the PAGE stayed put.
 const PAGES = [
+  { label: 'campaign 375', width: 375, height: 812, path: '/s/layout-campaign', marker: '.goen-tiles__grid .goen-tile' },
+  { label: 'campaign 1440', width: 1440, height: 900, path: '/s/layout-campaign', marker: '.goen-tiles__grid .goen-tile' },
   { label: 'about 375', width: 375, height: 812, path: '/about', marker: '.about' },
   { label: 'about 1440', width: 1440, height: 900, path: '/about', marker: '.about' },
   { label: 'contact 375', width: 375, height: 812, path: '/contact', marker: 'form' },
@@ -2152,6 +2154,9 @@ if (process.env.ADMIN_TOKEN) {
             'causes this check knows about — worth reading before trusting the rest.';
       fail('admin session', `${why}\n    Not running the ${ADMIN.length} back-office rows: ` +
         'each would have reported this one cause as a failure of its own page.');
+      // Each row is a failure of its own, so a surface that was not measured
+      // is listed by name and never leaves the run smaller and green.
+      for (const row of ADMIN) fail(row.label, 'not measured: the admin session was unusable (see "admin session" above)');
       ADMIN.length = 0;
     }
   }
@@ -2199,6 +2204,43 @@ if (process.env.ADMIN_TOKEN) {
     }
     console.log(`${at.padEnd(16)} scrollW=${got.scrollWidth}/${got.viewportWidth} ` +
       `controls=${got.controls} tap=${got.minTap}`);
+  }
+
+  // The order page is the packing slip: printed, the back office around it is
+  // gone and the delivery block and the lines are what is left.
+  if (ADMIN.length && process.env.INVOICE_ORDER) {
+    const label = 'admin order print';
+    const target = `${ORIGIN}/admin/orders/${process.env.INVOICE_ORDER}`;
+    await send(ws, 'Emulation.setDeviceMetricsOverride', {
+      width: 794, height: 1123, deviceScaleFactor: 1, mobile: false,
+    });
+    await send(ws, 'Emulation.setEmulatedMedia', { media: 'print' });
+    try {
+      await send(ws, 'Page.navigate', { url: target });
+      await settled(ws, label, target);
+      const printed = await evalPage(`(() => {
+        const shown = (selector) => [...document.querySelectorAll(selector)]
+          .filter((el) => getComputedStyle(el).display !== 'none' && el.getClientRects().length > 0).length;
+        return {
+          lines: shown('.goen-order__line'),
+          delivery: shown('.ui-dl__row'),
+          nav: shown('.goen-admin__nav'),
+          bar: shown('.goen-adminbar'),
+          forms: shown('.goen-admin__orderpanel form, .goen-admin__orderside form'),
+        };
+      })()`);
+      if (printed.threw) {
+        fail(label, `print probe did not run — ${printed.why}`);
+      } else {
+        if (printed.lines === 0) fail(label, 'no order lines are shown when printed');
+        if (printed.delivery === 0) fail(label, 'the recipient and destination are not shown when printed');
+        if (printed.nav || printed.bar) fail(label, 'the back-office bar or rail is still shown when printed');
+        if (printed.forms) fail(label, `${printed.forms} action forms are still shown when printed`);
+        console.log(`${label.padEnd(16)} lines=${printed.lines} delivery=${printed.delivery} nav=${printed.nav} forms=${printed.forms}`);
+      }
+    } finally {
+      await send(ws, 'Emulation.setEmulatedMedia', { media: '' });
+    }
   }
 } else {
   console.log('admin           skipped (no ADMIN_TOKEN)');

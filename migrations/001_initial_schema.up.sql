@@ -8546,9 +8546,9 @@ REVOKE UPDATE ON
     variant_option_values, membership_tiers, sale_campaign_products,
     order_shipment_lines
     FROM admin;
--- After the revoke, which takes column grants with it. Which option value a
--- photograph shows is the one thing about it the back office changes in place.
-GRANT UPDATE (option_value_id) ON product_images TO admin;
+-- After the revoke, which takes column grants with it. In place, the back office
+-- only orders a product's images and says which option value each one shows.
+GRANT UPDATE (position, option_value_id) ON product_images TO admin;
 REVOKE UPDATE, DELETE ON outbox_messages FROM admin;
 
 -- user_identities is the STOREFRONT's. INSERT and DELETE only: linking and

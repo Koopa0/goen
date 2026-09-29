@@ -912,6 +912,28 @@ JOIN products p ON p.id = pi.product_id
 WHERE p.slug = @slug::text
 ORDER BY pi.position, pi.id;
 
+-- One product's images in display order. Read after LockProductCatalogue, as its
+-- own statement: in the same statement the read would use a snapshot taken
+-- before that lock was won.
+-- name: ProductImageOrder :many
+SELECT pi.id, pi.storage_key
+FROM product_images pi
+JOIN products p ON p.id = pi.product_id
+WHERE p.slug = @slug::text
+ORDER BY pi.position, pi.id;
+
+-- (product_id, position) is a unique index checked row by row, so a reorder
+-- first moves every image clear of the range it is about to fill.
+-- name: ParkProductImages :exec
+UPDATE product_images pi SET position = pi.position + 1000000
+FROM products p
+WHERE pi.product_id = p.id AND p.slug = @slug::text;
+
+-- name: SetProductImageOrder :exec
+UPDATE product_images pi SET position = o.n::integer - 1
+FROM unnest(@ids::uuid[]) WITH ORDINALITY AS o(id, n)
+WHERE pi.id = o.id;
+
 -- name: AdminHeroSlides :many
 SELECT h.id, h.eyebrow, h.headline, h.primary_cta_label, h.primary_cta_href,
        h.image_key, h.position, h.is_active, h.starts_at, h.ends_at,

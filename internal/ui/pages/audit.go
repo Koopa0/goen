@@ -53,6 +53,7 @@ var actionLabels = map[string]i18n.Key{
 	"image.attach":                        i18n.KeyAuditImageAttach,
 	"image.detach":                        i18n.KeyAuditImageDetach,
 	"image.option":                        i18n.KeyAuditImageOption,
+	"image.move":                          i18n.KeyAuditImageMove,
 	"shipping.method.create":              i18n.KeyAuditShippingMethodCreate,
 	"shipping.method.toggle":              i18n.KeyAuditShippingMethodToggle,
 	"shipping.zone.create":                i18n.KeyAuditShippingZoneCreate,

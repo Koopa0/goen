@@ -28,6 +28,7 @@ func methodFormActions(t *testing.T) map[string][]string {
 		"pages/adminproduct.templ:templ.SafeURL(v.ImageAction())":       {product.ImageAction()},
 		"pages/adminproduct.templ:templ.SafeURL(v.ImageRemoveAction())": {product.ImageRemoveAction()},
 		"pages/adminproduct.templ:templ.SafeURL(v.ImageOptionAction())": {product.ImageOptionAction()},
+		"pages/adminproduct.templ:templ.SafeURL(v.ImageMoveAction())":   {product.ImageMoveAction()},
 		"pages/adminproduct.templ:templ.SafeURL(v.ReuseAction())":       {product.ReuseAction()},
 		"pages/adminproduct.templ:templ.SafeURL(v.OptionAction())":      {product.OptionAction()},
 		"pages/adminproduct.templ:templ.SafeURL(v.OptionValueAction())": {product.OptionValueAction()},
