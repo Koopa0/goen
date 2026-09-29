@@ -123,7 +123,7 @@ func (h *Handler) RequireStaff(next http.HandlerFunc) http.HandlerFunc {
 				return
 			}
 		}
-		next(w, r)
+		next(w, r.WithContext(layouts.WithAdmin(r.Context(), u.IsAdmin())))
 	}
 }
 
