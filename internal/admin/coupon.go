@@ -126,12 +126,7 @@ func (s *Store) Coupons(ctx context.Context, after ...string) (pages.AdminCoupon
 	if err != nil {
 		return pages.AdminCouponsView{}, fmt.Errorf("read coupons: %w", err)
 	}
-	rows, more := pageOf(rows, PageSize)
-	last := ""
-	if len(rows) > 0 {
-		last = rows[len(rows)-1].PageCursor
-	}
-	bound := cursor.bound(scope, more, PageSize, last)
+	rows, bound := pageBound(cursor, scope, rows, PageSize, func(r *db.AdminCouponsRow) string { return r.PageCursor })
 	view := pages.AdminCouponsView{ListBound: bound}
 	for i := range rows {
 		r := &rows[i]

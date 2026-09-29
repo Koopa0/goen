@@ -29,7 +29,7 @@ templ AdminCampaigns(p layouts.Page, v AdminCampaignsView) {
 				{ v.Notice }
 			}
 		}
-		if v.Empty() && !v.Paged {
+		if v.Empty() && !v.PastEnd {
 			<div class="goen-admin__empty">
 				<p class="goen-admin__emptytitle">{ i18n.T(ctx, i18n.KeyAdminCampEmpty) }</p>
 			</div>
@@ -162,7 +162,7 @@ templ AdminCampaigns(p layouts.Page, v AdminCampaignsView) {
 				}
 			</form>
 		}
-		@listBound(v.ListBound, ByOwnOrder, false)
+		@listBound(v.ListBound)
 	}
 }
 

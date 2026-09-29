@@ -22,7 +22,7 @@ templ AdminAudit(p layouts.Page, v AuditView) {
 				</p>
 			</div>
 		</div>
-		if v.Empty() && !v.Paged {
+		if v.Empty() && !v.PastEnd {
 			<div class="goen-admin__empty">
 				<p class="goen-admin__emptytitle">{ i18n.T(ctx, i18n.KeyAdminAuditEmpty) }</p>
 			</div>
@@ -45,6 +45,6 @@ templ AdminAudit(p layouts.Page, v AuditView) {
 				}
 			</ul>
 		}
-		@listBound(v.ListBound, ByRecency, false)
+		@listBound(v.ListBound)
 	}
 }

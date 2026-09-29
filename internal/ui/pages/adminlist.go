@@ -1,28 +1,13 @@
 package pages
 
-// ListBound carries navigation beside a bounded back-office list.
+// ListBound is the navigation beside a keyset-paged list. Nothing in it names
+// a page or a feature, so any list that pages by position can carry it.
 type ListBound struct {
-	Paged bool
-	Empty bool
+	// PastEnd marks a later page that came back empty because the rows it
+	// pointed past are gone; the list's own empty state would be a lie there.
+	PastEnd bool
+	// First restarts the list under the same filters; empty on the first page.
 	First string
-	Next  string
-	More  bool
-	Limit int
+	// Next continues it; empty when nothing follows.
+	Next string
 }
-
-// Bound builds the value a store returns beside its rows.
-func Bound(more bool, limit int) ListBound { return ListBound{More: more, Limit: limit} }
-
-// ListOrder is how a bounded list is sorted, which decides what its sentence
-// may claim. Most admin lists are newest-first; the inbox is oldest-unhandled
-// first, and coupons, campaigns, stock and warranty are ordered by something
-// that is not time.
-type ListOrder int
-
-const (
-	// ByRecency is newest first, so the page may say it shows the most recent.
-	ByRecency ListOrder = iota
-	// ByOwnOrder is anything else, where all the page may honestly say is that
-	// it shows the first so many in whatever order the list is in.
-	ByOwnOrder
-)

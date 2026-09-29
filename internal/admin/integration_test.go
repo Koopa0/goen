@@ -11481,8 +11481,8 @@ func TestABoundedListSaysSoAtTheBoundary(t *testing.T) {
 	if len(full.Rows) != admin.PageSize {
 		t.Fatalf("a full page holds %d rows, want %d", len(full.Rows), admin.PageSize)
 	}
-	if full.More {
-		t.Error("a list holding exactly a page says there is more; the sentence " +
+	if full.Next != "" {
+		t.Error("a list holding exactly a page offers a next page; the link " +
 			"would appear on an inbox nobody has anything left to read in")
 	}
 
@@ -11495,11 +11495,8 @@ func TestABoundedListSaysSoAtTheBoundary(t *testing.T) {
 		t.Errorf("one row past a page renders %d rows, want %d — the extra row is "+
 			"there to be counted, not shown", len(over.Rows), admin.PageSize)
 	}
-	if !over.More {
-		t.Error("a list with more than a page says nothing; a staff member cannot " +
-			"tell fifty messages from fifty of nine hundred")
-	}
-	if over.Limit != admin.PageSize {
-		t.Errorf("the sentence would name %d rather than %d", over.Limit, admin.PageSize)
+	if over.Next == "" {
+		t.Error("a list with more than a page offers no next page; a staff member " +
+			"cannot tell fifty messages from fifty of nine hundred")
 	}
 }

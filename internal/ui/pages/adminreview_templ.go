@@ -137,7 +137,7 @@ func AdminReviews(p layouts.Page, v AdminReviewsView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			if v.Empty() && !v.Paged {
+			if v.Empty() && !v.PastEnd {
 				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<div class=\"goen-admin__empty\"><span class=\"goen-modqueue__emptyicon\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
@@ -413,7 +413,7 @@ func AdminReviews(p layouts.Page, v AdminReviewsView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = listBound(v.ListBound, ByRecency, false).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = listBound(v.ListBound).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

@@ -29,7 +29,7 @@ templ AdminCoupons(p layouts.Page, v AdminCouponsView) {
 				{ v.Notice }
 			}
 		}
-		if v.Empty() && !v.Paged {
+		if v.Empty() && !v.PastEnd {
 			<div class="goen-admin__empty">
 				<p class="goen-admin__emptytitle">{ i18n.T(ctx, i18n.KeyAdminCoupEmpty) }</p>
 			</div>
@@ -254,6 +254,6 @@ templ AdminCoupons(p layouts.Page, v AdminCouponsView) {
 				}
 			</form>
 		}
-		@listBound(v.ListBound, ByOwnOrder, false)
+		@listBound(v.ListBound)
 	}
 }

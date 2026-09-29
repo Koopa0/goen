@@ -1,15 +1,13 @@
 package admin
 
 import (
-	"encoding/base64"
-	"encoding/json"
-	"net/url"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/web"
 )
 
 // pageCursor holds the ordering values, so deleting the boundary row does not
@@ -26,52 +24,34 @@ type pageCursor struct {
 }
 
 func readPageCursor(scope string, after []string) pageCursor {
-	var c pageCursor
-	if len(after) == 0 || len(after[0]) > 4096 {
-		return c
+	if len(after) == 0 {
+		return pageCursor{}
 	}
-	raw, err := base64.RawURLEncoding.DecodeString(after[0])
-	if err != nil {
-		return c
-	}
-	saved, body, ok := strings.Cut(string(raw), "\n")
-	if !ok || saved != scope || json.Unmarshal([]byte(body), &c) != nil || c.ID == uuid.Nil {
+	c, ok := web.ReadKeyset[pageCursor](scope, after[0])
+	// Postgres refuses a NUL in text, so a crafted name would turn a bad link
+	// into a 500 instead of the first page.
+	if !ok || c.ID == uuid.Nil || strings.ContainsRune(c.Name, 0) {
 		return pageCursor{}
 	}
 	c.Valid = true
 	return c
 }
 
-func (c pageCursor) bound(scope string, more bool, limit int, last string) pages.ListBound {
-	b := pages.Bound(more, limit)
-	b.Paged = true
-	b.Empty = last == ""
+// pageBound trims a read made with PageLimit to its page and builds the
+// navigation beside it. key names the last row's position, which each query
+// builds in SQL as PageCursor.
+func pageBound[T any](c pageCursor, scope string, rows []T, size int, key func(*T) string) ([]T, pages.ListBound) {
+	rows, more := web.PageOf(rows, size)
+	var b pages.ListBound
 	if c.Valid {
 		b.First = scope
 	}
-	if more && last != "" {
-		token := base64.RawURLEncoding.EncodeToString([]byte(scope + "\n" + last))
-		u, err := url.Parse(scope)
-		if err != nil {
-			return b
-		}
-		q := u.Query()
-		q.Set("after", token)
-		u.RawQuery = q.Encode()
-		b.Next = u.String()
+	if len(rows) == 0 {
+		b.PastEnd = c.Valid
+		return rows, b
 	}
-	return b
-}
-
-func pageURL(path string, pairs ...string) string {
-	q := url.Values{}
-	for i := 0; i+1 < len(pairs); i += 2 {
-		if pairs[i+1] != "" {
-			q.Set(pairs[i], pairs[i+1])
-		}
+	if more {
+		b.Next, _ = web.NextKeysetURL(scope, key(&rows[len(rows)-1]))
 	}
-	if len(q) == 0 {
-		return path
-	}
-	return path + "?" + q.Encode()
+	return rows, b
 }

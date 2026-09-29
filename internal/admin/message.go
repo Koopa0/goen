@@ -19,12 +19,7 @@ func (s *Store) Messages(ctx context.Context, after ...string) (pages.AdminMessa
 	if err != nil {
 		return pages.AdminMessagesView{}, fmt.Errorf("read contact messages: %w", err)
 	}
-	rows, more := pageOf(rows, PageSize)
-	last := ""
-	if len(rows) > 0 {
-		last = rows[len(rows)-1].PageCursor
-	}
-	bound := cursor.bound(scope, more, PageSize, last)
+	rows, bound := pageBound(cursor, scope, rows, PageSize, func(r *db.AdminMessagesRow) string { return r.PageCursor })
 	view := pages.AdminMessagesView{
 		ListBound: bound,
 		Rows:      make([]pages.AdminMessage, 0, len(rows)),

@@ -36,7 +36,7 @@ templ AdminReviews(p layouts.Page, v AdminReviewsView) {
 				{ v.Notice }
 			}
 		}
-		if v.Empty() && !v.Paged {
+		if v.Empty() && !v.PastEnd {
 			<div class="goen-admin__empty">
 				<span class="goen-modqueue__emptyicon">
 					@icons.Star()
@@ -86,6 +86,6 @@ templ AdminReviews(p layouts.Page, v AdminReviewsView) {
 				}
 			</ul>
 		}
-		@listBound(v.ListBound, ByRecency, false)
+		@listBound(v.ListBound)
 	}
 }

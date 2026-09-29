@@ -205,7 +205,7 @@ templ AdminOrders(p layouts.Page, v AdminOrdersView) {
 				</a>
 			}
 		</div>
-		if v.Empty() && !v.Paged {
+		if v.Empty() && !v.PastEnd {
 			<div class="goen-admin__empty">
 				<p class="goen-admin__emptytitle">{ v.EmptyText(ctx) }</p>
 			</div>
@@ -248,7 +248,7 @@ templ AdminOrders(p layouts.Page, v AdminOrdersView) {
 				</table>
 			</div>
 		}
-		@listBound(v.ListBound, ByRecency, true)
+		@listBound(v.ListBound)
 	}
 }
 
@@ -658,7 +658,7 @@ templ AdminVariants(p layouts.Page, v AdminVariantsView) {
 			<a class={ "ui-filter", templ.KV("is-active", !v.LowOnly) } href="/admin/stock">{ i18n.T(ctx, i18n.KeyAdminTabAll) }</a>
 			<a class={ "ui-filter", templ.KV("is-active", v.LowOnly) } href="/admin/stock?low=1">{ i18n.T(ctx, i18n.KeyAdminQueueLowOnly) }</a>
 		</div>
-		if v.Empty() && !v.Paged {
+		if v.Empty() && !v.PastEnd {
 			<div class="ui-empty">
 				<p class="ui-empty__title">{ i18n.T(ctx, i18n.KeyAdminQueueNoVariants) }</p>
 			</div>
@@ -667,7 +667,7 @@ templ AdminVariants(p layouts.Page, v AdminVariantsView) {
 				@adminVariantTable(v.Variants)
 			</div>
 		}
-		@listBound(v.ListBound, ByOwnOrder, false)
+		@listBound(v.ListBound)
 	}
 }
 

@@ -86,12 +86,7 @@ func (s *Store) Returns(ctx context.Context, after ...string) (ReturnQueue, erro
 	// Dropped before ids is built, not after: the extra row exists to be
 	// counted, and reading its lines and payout facts would be work done for a
 	// return nobody is shown.
-	rows, more := pageOf(rows, PageSize)
-	last := ""
-	if len(rows) > 0 {
-		last = rows[len(rows)-1].PageCursor
-	}
-	bound := cursor.bound(scope, more, PageSize, last)
+	rows, bound := pageBound(cursor, scope, rows, PageSize, func(r *db.ReturnQueueRow) string { return r.PageCursor })
 	ids := make([]uuid.UUID, 0, len(rows))
 	for i := range rows {
 		ids = append(ids, rows[i].ID)

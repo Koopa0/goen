@@ -53,12 +53,7 @@ func (s *Store) Campaigns(ctx context.Context, after ...string) (pages.AdminCamp
 	if err != nil {
 		return pages.AdminCampaignsView{}, fmt.Errorf("read campaigns: %w", err)
 	}
-	rows, more := pageOf(rows, PageSize)
-	last := ""
-	if len(rows) > 0 {
-		last = rows[len(rows)-1].PageCursor
-	}
-	bound := cursor.bound(scope, more, PageSize, last)
+	rows, bound := pageBound(cursor, scope, rows, PageSize, func(r *db.AdminCampaignsRow) string { return r.PageCursor })
 	view := pages.AdminCampaignsView{ListBound: bound}
 	for i := range rows {
 		c := &rows[i]

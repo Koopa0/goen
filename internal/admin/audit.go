@@ -200,12 +200,7 @@ func (s *Store) Audit(ctx context.Context, after ...string) (pages.AuditView, er
 	// The trail has its own size, and this is the list where silence costs
 	// most: a page that shows 200 of fifty thousand without saying so is a
 	// record somebody may take for the whole record.
-	rows, more := pageOf(rows, MaxAuditRows)
-	last := ""
-	if len(rows) > 0 {
-		last = rows[len(rows)-1].PageCursor
-	}
-	bound := cursor.bound(scope, more, MaxAuditRows, last)
+	rows, bound := pageBound(cursor, scope, rows, MaxAuditRows, func(r *db.AuditEventsRow) string { return r.PageCursor })
 	view := pages.AuditView{ListBound: bound}
 	for i := range rows {
 		e := &rows[i]

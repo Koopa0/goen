@@ -25,7 +25,7 @@ templ AdminReturns(p layouts.Page, v AdminReturnsView) {
 				{ v.Notice }
 			}
 		}
-		if v.Empty() && !v.Paged {
+		if v.Empty() && !v.PastEnd {
 			<div class="goen-admin__empty">
 				<p class="goen-admin__emptytitle">{ i18n.T(ctx, i18n.KeyAdminRetEmpty) }</p>
 			</div>
@@ -267,7 +267,7 @@ templ AdminReturns(p layouts.Page, v AdminReturnsView) {
 				}
 			</ul>
 		}
-		@listBound(v.ListBound, ByRecency, false)
+		@listBound(v.ListBound)
 	}
 }
 

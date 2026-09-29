@@ -13,7 +13,7 @@ import (
 
 func TestEveryAdminEmptyPageKeepsItsRestartLink(t *testing.T) {
 	t.Parallel()
-	b := ListBound{Paged: true, Empty: true, First: "/admin/products?q=test"}
+	b := ListBound{PastEnd: true, First: "/admin/products?q=test"}
 	p := layouts.Page{Title: "Pagination"}
 	cases := map[string]templ.Component{
 		"orders":    AdminOrders(p, AdminOrdersView{ListBound: b}),

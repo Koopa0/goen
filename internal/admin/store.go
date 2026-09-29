@@ -132,7 +132,7 @@ func orderRow(ctx context.Context, o *db.AdminOrdersRow) pages.AdminOrderRow {
 // Orders reads the order queue.
 func (s *Store) Orders(ctx context.Context, status pages.FulfillmentStatus, term string, after ...string) (pages.AdminOrdersView, error) {
 	term = strings.TrimSpace(term)
-	scope := pageURL("/admin/orders", "q", term, "status", string(status))
+	scope := web.ScopeURL("/admin/orders", "q", term, "status", string(status))
 	cursor := readPageCursor(scope, after)
 	searched := utf8.RuneCountInString(term) >= MinSearchRunes
 	var rows []db.AdminOrdersRow
@@ -171,12 +171,7 @@ func (s *Store) Orders(ctx context.Context, status pages.FulfillmentStatus, term
 	// here rather than in each of them. The tab counts above come from
 	// AdminOrderCounts and not from len(rows), so the extra row was never in
 	// them to begin with.
-	rows, more := pageOf(rows, PageSize)
-	last := ""
-	if len(rows) > 0 {
-		last = rows[len(rows)-1].PageCursor
-	}
-	bound := cursor.bound(scope, more, PageSize, last)
+	rows, bound := pageBound(cursor, scope, rows, PageSize, func(r *db.AdminOrdersRow) string { return r.PageCursor })
 	view := pages.AdminOrdersView{
 		ListBound: bound,
 		Status:    status, Term: term, Searched: searched,
@@ -696,19 +691,14 @@ func (s *Store) SetStaffNote(ctx context.Context, number, note string) error {
 func (s *Store) Variants(ctx context.Context, lowOnly bool, after ...string) (pages.AdminVariantsView, error) {
 	scope := "/admin/stock"
 	if lowOnly {
-		scope = pageURL(scope, "low", "1")
+		scope = web.ScopeURL(scope, "low", "1")
 	}
 	cursor := readPageCursor(scope, after)
 	rows, err := s.q.AdminVariants(ctx, db.AdminVariantsParams{HasCursor: cursor.Valid, AfterNumber: cursor.Number, AfterName: cursor.Name, AfterPosition: cursor.Position, AfterID: cursor.ID, LowOnly: lowOnly, RowLimit: PageLimit})
 	if err != nil {
 		return pages.AdminVariantsView{}, fmt.Errorf("read variants: %w", err)
 	}
-	rows, more := pageOf(rows, PageSize)
-	last := ""
-	if len(rows) > 0 {
-		last = rows[len(rows)-1].PageCursor
-	}
-	bound := cursor.bound(scope, more, PageSize, last)
+	rows, bound := pageBound(cursor, scope, rows, PageSize, func(r *db.AdminVariantsRow) string { return r.PageCursor })
 	view := pages.AdminVariantsView{ListBound: bound, LowOnly: lowOnly}
 	for i := range rows {
 		view.Variants = append(view.Variants, variantRow(&rows[i]))
@@ -924,12 +914,7 @@ func (s *Store) Credit(ctx context.Context, after ...string) (pages.AdminCreditV
 	if err != nil {
 		return pages.AdminCreditView{}, fmt.Errorf("read credit ledger: %w", err)
 	}
-	rows, more := pageOf(rows, PageSize)
-	last := ""
-	if len(rows) > 0 {
-		last = rows[len(rows)-1].PageCursor
-	}
-	bound := cursor.bound(scope, more, PageSize, last)
+	rows, bound := pageBound(cursor, scope, rows, PageSize, func(r *db.RecentCreditRow) string { return r.PageCursor })
 	view := pages.AdminCreditView{ListBound: bound}
 	for i := range rows {
 		r := &rows[i]
@@ -975,12 +960,7 @@ func (s *Store) Movements(ctx context.Context, sku string, after ...string) (pag
 	}
 
 	// This list has its own size, so it names its own rather than PageSize.
-	rows, more := pageOf(rows, MovementPageSize)
-	last := ""
-	if len(rows) > 0 {
-		last = rows[len(rows)-1].PageCursor
-	}
-	bound := cursor.bound(scope, more, MovementPageSize, last)
+	rows, bound := pageBound(cursor, scope, rows, MovementPageSize, func(r *db.VariantMovementsRow) string { return r.PageCursor })
 	view := pages.AdminMovementsView{
 		ListBound: bound,
 		SKU:       v.SKU, ProductName: v.ProductName, Slug: v.Slug,

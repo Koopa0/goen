@@ -19,12 +19,7 @@ func (s *Store) Reviews(ctx context.Context, after ...string) (pages.AdminReview
 	if err != nil {
 		return pages.AdminReviewsView{}, fmt.Errorf("read reviews: %w", err)
 	}
-	rows, more := pageOf(rows, PageSize)
-	last := ""
-	if len(rows) > 0 {
-		last = rows[len(rows)-1].PageCursor
-	}
-	bound := cursor.bound(scope, more, PageSize, last)
+	rows, bound := pageBound(cursor, scope, rows, PageSize, func(r *db.AdminReviewsRow) string { return r.PageCursor })
 	view := pages.AdminReviewsView{
 		ListBound: bound,
 		Rows:      make([]pages.AdminReview, 0, len(rows)),

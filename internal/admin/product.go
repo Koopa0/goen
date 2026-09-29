@@ -102,12 +102,7 @@ func (s *Store) Products(ctx context.Context, after ...string) (pages.AdminProdu
 	if err != nil {
 		return pages.AdminProductsView{}, fmt.Errorf("read products: %w", err)
 	}
-	rows, more := pageOf(rows, PageSize)
-	last := ""
-	if len(rows) > 0 {
-		last = rows[len(rows)-1].PageCursor
-	}
-	bound := cursor.bound(scope, more, PageSize, last)
+	rows, bound := pageBound(cursor, scope, rows, PageSize, func(r *db.AdminProductsRow) string { return r.PageCursor })
 	view := pages.AdminProductsView{ListBound: bound}
 	for i := range rows {
 		r := &rows[i]
