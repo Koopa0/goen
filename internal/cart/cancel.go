@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
+	"github.com/koopa0/goen/internal/ordernotice"
 )
 
 // ErrNotCancellable is an order the customer may no longer call off. One error
@@ -54,6 +56,10 @@ func (s *Store) Cancel(ctx context.Context, number string) ([]string, error) {
 
 	if err := q.RecordCancellation(ctx, number); err != nil {
 		return nil, fmt.Errorf("record cancellation of %s: %w", number, err)
+	}
+
+	if err := ordernotice.Enqueue(ctx, q, order.ID, ordernotice.CancelledByCustomer); err != nil {
+		return nil, err
 	}
 
 	sessions, sessErr := q.OpenSessionsForOrder(ctx, number)
