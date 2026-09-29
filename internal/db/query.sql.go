@@ -6608,6 +6608,23 @@ func (q *Queries) LockOrderForAdvance(ctx context.Context, orderNumber string) (
 	return i, err
 }
 
+const lockOrderForStaffNote = `-- name: LockOrderForStaffNote :one
+SELECT id, staff_note FROM orders WHERE order_number = $1 FOR UPDATE
+`
+
+type LockOrderForStaffNoteRow struct {
+	ID        uuid.UUID
+	StaffNote pgtype.Text
+}
+
+// Serialize changes so the audit operation describes the note actually replaced.
+func (q *Queries) LockOrderForStaffNote(ctx context.Context, orderNumber string) (LockOrderForStaffNoteRow, error) {
+	row := q.db.QueryRow(ctx, lockOrderForStaffNote, orderNumber)
+	var i LockOrderForStaffNoteRow
+	err := row.Scan(&i.ID, &i.StaffNote)
+	return i, err
+}
+
 const lockPaymentProviderRef = `-- name: LockPaymentProviderRef :exec
 SELECT lock_payment_provider_ref('stripe', $1::text)
 `

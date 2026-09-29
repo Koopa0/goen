@@ -45,7 +45,10 @@ build: gen
 # over the plain http:// this serves on — the cart would appear to lose itself
 # on every request. The default is secure, so forgetting this in a deployment
 # fails safe.
+# schema-drift is the existing catalogue comparison against migrations/; a dev
+# database built before an amended 001 fails here instead of as a 500 later.
 run: gen
+	@$(MAKE) --no-print-directory schema-drift || { echo 'run: the development database does not match migrations/; back up anything you need, then run make db-reset' >&2; exit 1; }
 	GOEN_INSECURE_COOKIES=1 go run ./cmd/goen
 
 test: gen

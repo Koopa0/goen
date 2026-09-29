@@ -1,7 +1,8 @@
 package i18n
 
 var (
-	KeyCheckoutTitle = key("checkout.title", Message{ZhHant: "結帳", En: "Checkout"})
+	KeyCheckoutRegionLength = key("checkout.region.length", Message{ZhHant: "請填寫 1 至 20 字的縣市或鄉鎮市區。", En: "Enter a city or district of 1 to 20 characters."})
+	KeyCheckoutTitle        = key("checkout.title", Message{ZhHant: "結帳", En: "Checkout"})
 
 	KeyCheckoutSub = key("checkout.sub", Message{
 		ZhHant: "填寫收件資訊,確認後送出訂單。",
