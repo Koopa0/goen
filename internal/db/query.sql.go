@@ -91,7 +91,7 @@ const addCartItem = `-- name: AddCartItem :exec
 INSERT INTO cart_items (cart_id, variant_id, quantity)
 VALUES ($1, $2, $3)
 ON CONFLICT (cart_id, variant_id) DO UPDATE
-SET quantity = least(cart_items.quantity + EXCLUDED.quantity, 999)
+SET quantity = EXCLUDED.quantity
 `
 
 type AddCartItemParams struct {
@@ -100,8 +100,11 @@ type AddCartItemParams struct {
 	Quantity  int32
 }
 
-// least() caps a repeat add at the CHECK's own ceiling rather than raising a
-// constraint violation the visitor did nothing to deserve.
+// The caller has already clamped the line's total against sellable stock and
+// the line ceiling, so a conflict stores the total it was handed. It overwrites
+// rather than adds: two unlocked callers would each write a total computed from
+// the same stale read, so every caller must hold the cart row lock that
+// lockCart takes in mutateCart.
 func (q *Queries) AddCartItem(ctx context.Context, arg AddCartItemParams) error {
 	_, err := q.db.Exec(ctx, addCartItem, arg.CartID, arg.VariantID, arg.Quantity)
 	return err
@@ -382,27 +385,45 @@ func (q *Queries) AdminCampaignProducts(ctx context.Context, campaign string) ([
 }
 
 const adminCampaigns = `-- name: AdminCampaigns :many
-SELECT c.id, c.slug, c.title, c.starts_at, c.ends_at, c.is_active,
+SELECT json_build_object('Rank', c.is_active, 'At', c.ends_at, 'ID', c.id)::text AS page_cursor, c.id, c.slug, c.title, c.starts_at, c.ends_at, c.is_active,
        (SELECT count(*) FROM sale_campaign_products p WHERE p.campaign_id = c.id)::bigint AS products,
        (c.is_active AND c.starts_at <= now() AND c.ends_at > now())::boolean AS is_running
 FROM sale_campaigns c
-ORDER BY c.is_active DESC, c.ends_at DESC
-LIMIT $1
+WHERE (NOT $1::boolean OR (c.is_active < $2::boolean)
+       OR (c.is_active = $2::boolean AND c.ends_at < $3::timestamptz)
+       OR (c.is_active = $2::boolean AND c.ends_at = $3::timestamptz AND c.id < $4::uuid))
+ORDER BY c.is_active DESC, c.ends_at DESC, c.id DESC
+LIMIT $5::integer
 `
 
-type AdminCampaignsRow struct {
-	ID        uuid.UUID
-	Slug      string
-	Title     string
-	StartsAt  time.Time
-	EndsAt    time.Time
-	IsActive  bool
-	Products  int64
-	IsRunning bool
+type AdminCampaignsParams struct {
+	HasCursor bool
+	AfterRank bool
+	AfterAt   time.Time
+	AfterID   uuid.UUID
+	RowLimit  int32
 }
 
-func (q *Queries) AdminCampaigns(ctx context.Context, limit int32) ([]AdminCampaignsRow, error) {
-	rows, err := q.db.Query(ctx, adminCampaigns, limit)
+type AdminCampaignsRow struct {
+	PageCursor string
+	ID         uuid.UUID
+	Slug       string
+	Title      string
+	StartsAt   time.Time
+	EndsAt     time.Time
+	IsActive   bool
+	Products   int64
+	IsRunning  bool
+}
+
+func (q *Queries) AdminCampaigns(ctx context.Context, arg AdminCampaignsParams) ([]AdminCampaignsRow, error) {
+	rows, err := q.db.Query(ctx, adminCampaigns,
+		arg.HasCursor,
+		arg.AfterRank,
+		arg.AfterAt,
+		arg.AfterID,
+		arg.RowLimit,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -411,6 +432,7 @@ func (q *Queries) AdminCampaigns(ctx context.Context, limit int32) ([]AdminCampa
 	for rows.Next() {
 		var i AdminCampaignsRow
 		if err := rows.Scan(
+			&i.PageCursor,
 			&i.ID,
 			&i.Slug,
 			&i.Title,
@@ -476,7 +498,7 @@ func (q *Queries) AdminCategories(ctx context.Context) ([]AdminCategoriesRow, er
 }
 
 const adminCoupons = `-- name: AdminCoupons :many
-SELECT c.id, c.code, c.description, c.kind, c.amount_cents, c.percent_bp,
+SELECT json_build_object('Rank', c.is_active, 'At', c.created_at, 'ID', c.id)::text AS page_cursor, c.id, c.code, c.description, c.kind, c.amount_cents, c.percent_bp,
        c.min_subtotal_cents, c.max_discount_cents, c.max_redemptions,
        c.per_customer_limit, c.is_active, c.starts_at, c.ends_at,
        (SELECT count(*) FROM coupon_redemptions r WHERE r.coupon_id = c.id)::bigint AS redeemed,
@@ -484,11 +506,23 @@ SELECT c.id, c.code, c.description, c.kind, c.amount_cents, c.percent_bp,
         WHERE r.coupon_id = c.id)::bigint AS given_cents,
        (c.starts_at <= now() AND (c.ends_at IS NULL OR c.ends_at > now()))::boolean AS is_current
 FROM coupons c
-ORDER BY c.is_active DESC, c.created_at DESC
-LIMIT $1
+WHERE (NOT $1::boolean OR (c.is_active < $2::boolean)
+       OR (c.is_active = $2::boolean AND c.created_at < $3::timestamptz)
+       OR (c.is_active = $2::boolean AND c.created_at = $3::timestamptz AND c.id < $4::uuid))
+ORDER BY c.is_active DESC, c.created_at DESC, c.id DESC
+LIMIT $5::integer
 `
 
+type AdminCouponsParams struct {
+	HasCursor bool
+	AfterRank bool
+	AfterAt   time.Time
+	AfterID   uuid.UUID
+	RowLimit  int32
+}
+
 type AdminCouponsRow struct {
+	PageCursor       string
 	ID               uuid.UUID
 	Code             string
 	Description      string
@@ -509,8 +543,14 @@ type AdminCouponsRow struct {
 
 // The redemption count comes from the ledger and never from a column: the ledger
 // is what the limit is counted from at checkout.
-func (q *Queries) AdminCoupons(ctx context.Context, limit int32) ([]AdminCouponsRow, error) {
-	rows, err := q.db.Query(ctx, adminCoupons, limit)
+func (q *Queries) AdminCoupons(ctx context.Context, arg AdminCouponsParams) ([]AdminCouponsRow, error) {
+	rows, err := q.db.Query(ctx, adminCoupons,
+		arg.HasCursor,
+		arg.AfterRank,
+		arg.AfterAt,
+		arg.AfterID,
+		arg.RowLimit,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -519,6 +559,7 @@ func (q *Queries) AdminCoupons(ctx context.Context, limit int32) ([]AdminCoupons
 	for rows.Next() {
 		var i AdminCouponsRow
 		if err := rows.Scan(
+			&i.PageCursor,
 			&i.ID,
 			&i.Code,
 			&i.Description,
@@ -823,15 +864,27 @@ func (q *Queries) AdminMembershipTiers(ctx context.Context, windowDays int32) ([
 }
 
 const adminMessages = `-- name: AdminMessages :many
-SELECT id, name, email, subject, coalesce(order_ref, '') AS order_ref,
+SELECT json_build_object('Rank', (handled_at IS NOT NULL), 'At', created_at, 'ID', id)::text AS page_cursor, id, name, email, subject, coalesce(order_ref, '') AS order_ref,
        message, handled_at, created_at,
        floor(extract(epoch FROM now() - created_at) / 86400)::integer AS waiting_days
 FROM contact_messages
-ORDER BY (handled_at IS NOT NULL), created_at
-LIMIT $1
+WHERE (NOT $1::boolean OR ((handled_at IS NOT NULL) > $2::boolean)
+       OR ((handled_at IS NOT NULL) = $2::boolean AND created_at > $3::timestamptz)
+       OR ((handled_at IS NOT NULL) = $2::boolean AND created_at = $3::timestamptz AND id > $4::uuid))
+ORDER BY (handled_at IS NOT NULL) ASC, created_at ASC, id ASC
+LIMIT $5::integer
 `
 
+type AdminMessagesParams struct {
+	HasCursor bool
+	AfterRank bool
+	AfterAt   time.Time
+	AfterID   uuid.UUID
+	RowLimit  int32
+}
+
 type AdminMessagesRow struct {
+	PageCursor  string
 	ID          uuid.UUID
 	Name        string
 	Email       string
@@ -846,8 +899,14 @@ type AdminMessagesRow struct {
 // waiting_days is computed HERE because created_at is written by the database's
 // clock: taking the difference in Go subtracts two clocks, and a container
 // milliseconds ahead of its host reports a four-day-old message as three.
-func (q *Queries) AdminMessages(ctx context.Context, limit int32) ([]AdminMessagesRow, error) {
-	rows, err := q.db.Query(ctx, adminMessages, limit)
+func (q *Queries) AdminMessages(ctx context.Context, arg AdminMessagesParams) ([]AdminMessagesRow, error) {
+	rows, err := q.db.Query(ctx, adminMessages,
+		arg.HasCursor,
+		arg.AfterRank,
+		arg.AfterAt,
+		arg.AfterID,
+		arg.RowLimit,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -856,6 +915,7 @@ func (q *Queries) AdminMessages(ctx context.Context, limit int32) ([]AdminMessag
 	for rows.Next() {
 		var i AdminMessagesRow
 		if err := rows.Scan(
+			&i.PageCursor,
 			&i.ID,
 			&i.Name,
 			&i.Email,
@@ -1005,7 +1065,7 @@ func (q *Queries) AdminOrderCounts(ctx context.Context) ([]AdminOrderCountsRow, 
 }
 
 const adminOrders = `-- name: AdminOrders :many
-SELECT
+SELECT json_build_object('At', o.placed_at, 'ID', o.id)::text AS page_cursor,
     o.id,
     o.order_number,
     o.fulfillment_status,
@@ -1021,16 +1081,22 @@ SELECT
 FROM orders o
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
 WHERE ($1::text = '' OR o.fulfillment_status = $1::text)
+AND (NOT $2::boolean OR (o.placed_at < $3::timestamptz)
+       OR (o.placed_at = $3::timestamptz AND o.id < $4::uuid))
 ORDER BY o.placed_at DESC, o.id DESC
-LIMIT $2::integer
+LIMIT $5::integer
 `
 
 type AdminOrdersParams struct {
-	Status   string
-	RowLimit int32
+	Status    string
+	HasCursor bool
+	AfterAt   time.Time
+	AfterID   uuid.UUID
+	RowLimit  int32
 }
 
 type AdminOrdersRow struct {
+	PageCursor        string
 	ID                uuid.UUID
 	OrderNumber       string
 	FulfillmentStatus string
@@ -1045,7 +1111,13 @@ type AdminOrdersRow struct {
 }
 
 func (q *Queries) AdminOrders(ctx context.Context, arg AdminOrdersParams) ([]AdminOrdersRow, error) {
-	rows, err := q.db.Query(ctx, adminOrders, arg.Status, arg.RowLimit)
+	rows, err := q.db.Query(ctx, adminOrders,
+		arg.Status,
+		arg.HasCursor,
+		arg.AfterAt,
+		arg.AfterID,
+		arg.RowLimit,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -1054,6 +1126,7 @@ func (q *Queries) AdminOrders(ctx context.Context, arg AdminOrdersParams) ([]Adm
 	for rows.Next() {
 		var i AdminOrdersRow
 		if err := rows.Scan(
+			&i.PageCursor,
 			&i.ID,
 			&i.OrderNumber,
 			&i.FulfillmentStatus,
@@ -1327,7 +1400,7 @@ func (q *Queries) AdminProductVariants(ctx context.Context, productID uuid.UUID)
 }
 
 const adminProducts = `-- name: AdminProducts :many
-SELECT p.id, p.slug, p.name, p.status, p.published_at,
+SELECT json_build_object('At', p.updated_at, 'ID', p.id)::text AS page_cursor, p.id, p.slug, p.name, p.status, p.published_at,
        (p.name_en IS NOT NULL)::boolean AS translated,
        b.name AS brand, c.name AS category,
        (SELECT count(*) FROM product_variants pv WHERE pv.product_id = p.id)::integer AS variants,
@@ -1336,11 +1409,21 @@ SELECT p.id, p.slug, p.name, p.status, p.published_at,
 FROM products p
 JOIN brands b ON b.id = p.brand_id
 JOIN categories c ON c.id = p.category_id
+WHERE (NOT $1::boolean OR (p.updated_at < $2::timestamptz)
+       OR (p.updated_at = $2::timestamptz AND p.id < $3::uuid))
 ORDER BY p.updated_at DESC, p.id DESC
-LIMIT $1
+LIMIT $4::integer
 `
 
+type AdminProductsParams struct {
+	HasCursor bool
+	AfterAt   time.Time
+	AfterID   uuid.UUID
+	RowLimit  int32
+}
+
 type AdminProductsRow struct {
+	PageCursor  string
 	ID          uuid.UUID
 	Slug        string
 	Name        string
@@ -1353,8 +1436,13 @@ type AdminProductsRow struct {
 	FromCents   int64
 }
 
-func (q *Queries) AdminProducts(ctx context.Context, limit int32) ([]AdminProductsRow, error) {
-	rows, err := q.db.Query(ctx, adminProducts, limit)
+func (q *Queries) AdminProducts(ctx context.Context, arg AdminProductsParams) ([]AdminProductsRow, error) {
+	rows, err := q.db.Query(ctx, adminProducts,
+		arg.HasCursor,
+		arg.AfterAt,
+		arg.AfterID,
+		arg.RowLimit,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -1363,6 +1451,7 @@ func (q *Queries) AdminProducts(ctx context.Context, limit int32) ([]AdminProduc
 	for rows.Next() {
 		var i AdminProductsRow
 		if err := rows.Scan(
+			&i.PageCursor,
 			&i.ID,
 			&i.Slug,
 			&i.Name,
@@ -1385,18 +1474,28 @@ func (q *Queries) AdminProducts(ctx context.Context, limit int32) ([]AdminProduc
 }
 
 const adminReviews = `-- name: AdminReviews :many
-SELECT r.id, r.rating, coalesce(r.title, '') AS title, r.body,
+SELECT json_build_object('At', r.created_at, 'ID', r.id)::text AS page_cursor, r.id, r.rating, coalesce(r.title, '') AS title, r.body,
        r.is_verified_purchase, r.hidden_at, r.created_at,
        p.slug, p.name AS product_name,
        coalesce(u.full_name, '') AS author
 FROM product_reviews r
 JOIN products p ON p.id = r.product_id
 LEFT JOIN users u ON u.id = r.user_id
+WHERE (NOT $1::boolean OR (r.created_at < $2::timestamptz)
+       OR (r.created_at = $2::timestamptz AND r.id < $3::uuid))
 ORDER BY r.created_at DESC, r.id DESC
-LIMIT $1
+LIMIT $4::integer
 `
 
+type AdminReviewsParams struct {
+	HasCursor bool
+	AfterAt   time.Time
+	AfterID   uuid.UUID
+	RowLimit  int32
+}
+
 type AdminReviewsRow struct {
+	PageCursor         string
 	ID                 uuid.UUID
 	Rating             int16
 	Title              string
@@ -1411,8 +1510,13 @@ type AdminReviewsRow struct {
 
 // The BASE table, so hidden reviews are listed too: un-hiding one is not
 // possible from a list that cannot show it.
-func (q *Queries) AdminReviews(ctx context.Context, limit int32) ([]AdminReviewsRow, error) {
-	rows, err := q.db.Query(ctx, adminReviews, limit)
+func (q *Queries) AdminReviews(ctx context.Context, arg AdminReviewsParams) ([]AdminReviewsRow, error) {
+	rows, err := q.db.Query(ctx, adminReviews,
+		arg.HasCursor,
+		arg.AfterAt,
+		arg.AfterID,
+		arg.RowLimit,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -1421,6 +1525,7 @@ func (q *Queries) AdminReviews(ctx context.Context, limit int32) ([]AdminReviews
 	for rows.Next() {
 		var i AdminReviewsRow
 		if err := rows.Scan(
+			&i.PageCursor,
 			&i.ID,
 			&i.Rating,
 			&i.Title,
@@ -1443,35 +1548,47 @@ func (q *Queries) AdminReviews(ctx context.Context, limit int32) ([]AdminReviews
 }
 
 const adminSearchCustomers = `-- name: AdminSearchCustomers :many
-SELECT u.id, u.email, coalesce(u.full_name, '') AS full_name, u.created_at,
+SELECT json_build_object('At', u.created_at, 'ID', u.id)::text AS page_cursor, u.id, u.email, coalesce(u.full_name, '') AS full_name, u.created_at,
        (u.email_verified_at IS NOT NULL)::boolean AS verified,
        (SELECT count(*) FROM orders o WHERE o.user_id = u.id)::bigint AS orders
 FROM users u
 WHERE (lower(u.email) LIKE lower($1::text) || '%'
        OR u.full_name LIKE $1::text || '%')
-ORDER BY u.created_at DESC
-LIMIT $2::integer
+AND (NOT $2::boolean OR (u.created_at < $3::timestamptz)
+       OR (u.created_at = $3::timestamptz AND u.id < $4::uuid))
+ORDER BY u.created_at DESC, u.id DESC
+LIMIT $5::integer
 `
 
 type AdminSearchCustomersParams struct {
-	Term     string
-	RowLimit int32
+	Term      string
+	HasCursor bool
+	AfterAt   time.Time
+	AfterID   uuid.UUID
+	RowLimit  int32
 }
 
 type AdminSearchCustomersRow struct {
-	ID        uuid.UUID
-	Email     string
-	FullName  string
-	CreatedAt time.Time
-	Verified  bool
-	Orders    int64
+	PageCursor string
+	ID         uuid.UUID
+	Email      string
+	FullName   string
+	CreatedAt  time.Time
+	Verified   bool
+	Orders     int64
 }
 
 // Prefix on both, each index-backed, with a floor on the term enforced by the
 // caller. Every role is searched, for AdminCustomer's reason. An erased
 // customer's row is gone, so nothing extra is needed to exclude one.
 func (q *Queries) AdminSearchCustomers(ctx context.Context, arg AdminSearchCustomersParams) ([]AdminSearchCustomersRow, error) {
-	rows, err := q.db.Query(ctx, adminSearchCustomers, arg.Term, arg.RowLimit)
+	rows, err := q.db.Query(ctx, adminSearchCustomers,
+		arg.Term,
+		arg.HasCursor,
+		arg.AfterAt,
+		arg.AfterID,
+		arg.RowLimit,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -1480,6 +1597,7 @@ func (q *Queries) AdminSearchCustomers(ctx context.Context, arg AdminSearchCusto
 	for rows.Next() {
 		var i AdminSearchCustomersRow
 		if err := rows.Scan(
+			&i.PageCursor,
 			&i.ID,
 			&i.Email,
 			&i.FullName,
@@ -1498,7 +1616,7 @@ func (q *Queries) AdminSearchCustomers(ctx context.Context, arg AdminSearchCusto
 }
 
 const adminSearchOrders = `-- name: AdminSearchOrders :many
-SELECT
+SELECT json_build_object('At', o.placed_at, 'ID', o.id)::text AS page_cursor,
     o.id,
     o.order_number,
     o.fulfillment_status,
@@ -1513,19 +1631,25 @@ SELECT
     order_amount_owed(o.id) AS owed_cents
 FROM orders o
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
-WHERE o.order_number = upper($1::text)
+WHERE (o.order_number = upper($1::text)
    OR lower(pd.email) LIKE lower($1::text) || '%'
-   OR pd.recipient_name LIKE $1::text || '%'
+   OR pd.recipient_name LIKE $1::text || '%')
+AND (NOT $2::boolean OR (o.placed_at < $3::timestamptz)
+       OR (o.placed_at = $3::timestamptz AND o.id < $4::uuid))
 ORDER BY o.placed_at DESC, o.id DESC
-LIMIT $2::integer
+LIMIT $5::integer
 `
 
 type AdminSearchOrdersParams struct {
-	Term     string
-	RowLimit int32
+	Term      string
+	HasCursor bool
+	AfterAt   time.Time
+	AfterID   uuid.UUID
+	RowLimit  int32
 }
 
 type AdminSearchOrdersRow struct {
+	PageCursor        string
 	ID                uuid.UUID
 	OrderNumber       string
 	FulfillmentStatus string
@@ -1543,7 +1667,13 @@ type AdminSearchOrdersRow struct {
 // told apart rather than OR-ed with wildcards so each path stays index-backed.
 // An erased order matches nothing: erase_user NULLs the name and the address.
 func (q *Queries) AdminSearchOrders(ctx context.Context, arg AdminSearchOrdersParams) ([]AdminSearchOrdersRow, error) {
-	rows, err := q.db.Query(ctx, adminSearchOrders, arg.Term, arg.RowLimit)
+	rows, err := q.db.Query(ctx, adminSearchOrders,
+		arg.Term,
+		arg.HasCursor,
+		arg.AfterAt,
+		arg.AfterID,
+		arg.RowLimit,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -1552,6 +1682,7 @@ func (q *Queries) AdminSearchOrders(ctx context.Context, arg AdminSearchOrdersPa
 	for rows.Next() {
 		var i AdminSearchOrdersRow
 		if err := rows.Scan(
+			&i.PageCursor,
 			&i.ID,
 			&i.OrderNumber,
 			&i.FulfillmentStatus,
@@ -1575,7 +1706,7 @@ func (q *Queries) AdminSearchOrders(ctx context.Context, arg AdminSearchOrdersPa
 }
 
 const adminSearchWarranties = `-- name: AdminSearchWarranties :many
-SELECT w.id, w.unit_no, coalesce(w.serial_number, '') AS serial_number,
+SELECT json_build_object('At', w.expires_on::timestamptz, 'ID', w.id)::text AS page_cursor, w.id, w.unit_no, coalesce(w.serial_number, '') AS serial_number,
        w.registered_at, w.expires_on,
        (w.expires_on >= shop_today())::boolean AS in_force,
        ol.product_name, coalesce(ol.variant_label, '') AS variant_label,
@@ -1586,17 +1717,23 @@ FROM warranty_registrations w
 JOIN order_lines ol ON ol.id = w.order_line_id
 JOIN orders o ON o.id = ol.order_id
 LEFT JOIN users u ON u.id = w.user_id
-WHERE w.serial_number = $1::text OR o.order_number = $1::text
-ORDER BY w.expires_on DESC, w.id
-LIMIT $2::integer
+WHERE (w.serial_number = $1::text OR o.order_number = $1::text)
+AND (NOT $2::boolean OR (w.expires_on::timestamptz < $3::timestamptz)
+       OR (w.expires_on::timestamptz = $3::timestamptz AND w.id > $4::uuid))
+ORDER BY w.expires_on::timestamptz DESC, w.id ASC
+LIMIT $5::integer
 `
 
 type AdminSearchWarrantiesParams struct {
-	Term     string
-	RowLimit int32
+	Term      string
+	HasCursor bool
+	AfterAt   time.Time
+	AfterID   uuid.UUID
+	RowLimit  int32
 }
 
 type AdminSearchWarrantiesRow struct {
+	PageCursor        string
 	ID                uuid.UUID
 	UnitNo            int16
 	SerialNumber      string
@@ -1615,7 +1752,13 @@ type AdminSearchWarrantiesRow struct {
 // without widening what the person on the phone can tell you. LEFT JOIN on the
 // user, because user_id is ON DELETE SET NULL and erase_user leaves the row.
 func (q *Queries) AdminSearchWarranties(ctx context.Context, arg AdminSearchWarrantiesParams) ([]AdminSearchWarrantiesRow, error) {
-	rows, err := q.db.Query(ctx, adminSearchWarranties, arg.Term, arg.RowLimit)
+	rows, err := q.db.Query(ctx, adminSearchWarranties,
+		arg.Term,
+		arg.HasCursor,
+		arg.AfterAt,
+		arg.AfterID,
+		arg.RowLimit,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -1624,6 +1767,7 @@ func (q *Queries) AdminSearchWarranties(ctx context.Context, arg AdminSearchWarr
 	for rows.Next() {
 		var i AdminSearchWarrantiesRow
 		if err := rows.Scan(
+			&i.PageCursor,
 			&i.ID,
 			&i.UnitNo,
 			&i.SerialNumber,
@@ -1872,7 +2016,7 @@ func (q *Queries) AdminVariantOptionValues(ctx context.Context, slug string) ([]
 }
 
 const adminVariants = `-- name: AdminVariants :many
-SELECT
+SELECT json_build_object('Number', (pv.stock_quantity - pv.safety_stock), 'Name', p.name, 'Position', pv.position, 'ID', pv.id)::text AS page_cursor,
     pv.id,
     pv.sku,
     pv.price_cents,
@@ -1888,16 +2032,26 @@ FROM product_variants pv
 JOIN products p ON p.id = pv.product_id
 JOIN brands b ON b.id = p.brand_id
 WHERE ($1::boolean = false OR pv.stock_quantity <= pv.safety_stock)
-ORDER BY (pv.stock_quantity - pv.safety_stock), p.name, pv.position
-LIMIT $2::integer
+AND (NOT $2::boolean OR ((pv.stock_quantity - pv.safety_stock) > $3::integer)
+       OR ((pv.stock_quantity - pv.safety_stock) = $3::integer AND p.name > $4::text)
+       OR ((pv.stock_quantity - pv.safety_stock) = $3::integer AND p.name = $4::text AND pv.position > $5::integer)
+       OR ((pv.stock_quantity - pv.safety_stock) = $3::integer AND p.name = $4::text AND pv.position = $5::integer AND pv.id > $6::uuid))
+ORDER BY (pv.stock_quantity - pv.safety_stock) ASC, p.name ASC, pv.position ASC, pv.id ASC
+LIMIT $7::integer
 `
 
 type AdminVariantsParams struct {
-	LowOnly  bool
-	RowLimit int32
+	LowOnly       bool
+	HasCursor     bool
+	AfterNumber   int32
+	AfterName     string
+	AfterPosition int32
+	AfterID       uuid.UUID
+	RowLimit      int32
 }
 
 type AdminVariantsRow struct {
+	PageCursor          string
 	ID                  uuid.UUID
 	SKU                 string
 	PriceCents          int64
@@ -1912,7 +2066,15 @@ type AdminVariantsRow struct {
 }
 
 func (q *Queries) AdminVariants(ctx context.Context, arg AdminVariantsParams) ([]AdminVariantsRow, error) {
-	rows, err := q.db.Query(ctx, adminVariants, arg.LowOnly, arg.RowLimit)
+	rows, err := q.db.Query(ctx, adminVariants,
+		arg.LowOnly,
+		arg.HasCursor,
+		arg.AfterNumber,
+		arg.AfterName,
+		arg.AfterPosition,
+		arg.AfterID,
+		arg.RowLimit,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -1921,6 +2083,7 @@ func (q *Queries) AdminVariants(ctx context.Context, arg AdminVariantsParams) ([
 	for rows.Next() {
 		var i AdminVariantsRow
 		if err := rows.Scan(
+			&i.PageCursor,
 			&i.ID,
 			&i.SKU,
 			&i.PriceCents,
@@ -2207,16 +2370,26 @@ func (q *Queries) AttributeCompletePaymentPaid(ctx context.Context, providerRef 
 }
 
 const auditEvents = `-- name: AuditEvents :many
-SELECT a.action, a.entity_table, a.entity_id, a.before, a.after,
+SELECT json_build_object('At', a.occurred_at, 'ID', a.id)::text AS page_cursor, a.action, a.entity_table, a.entity_id, a.before, a.after,
        a.request_id, a.occurred_at,
        coalesce(u.full_name, u.email, a.actor_id_snapshot::text) AS actor
 FROM audit_events a
 LEFT JOIN users u ON u.id = a.actor_user_id
+WHERE (NOT $1::boolean OR (a.occurred_at < $2::timestamptz)
+       OR (a.occurred_at = $2::timestamptz AND a.id < $3::uuid))
 ORDER BY a.occurred_at DESC, a.id DESC
-LIMIT $1
+LIMIT $4::integer
 `
 
+type AuditEventsParams struct {
+	HasCursor bool
+	AfterAt   time.Time
+	AfterID   uuid.UUID
+	RowLimit  int32
+}
+
 type AuditEventsRow struct {
+	PageCursor  string
 	Action      string
 	EntityTable string
 	EntityID    uuid.NullUUID
@@ -2227,8 +2400,13 @@ type AuditEventsRow struct {
 	Actor       string
 }
 
-func (q *Queries) AuditEvents(ctx context.Context, limit int32) ([]AuditEventsRow, error) {
-	rows, err := q.db.Query(ctx, auditEvents, limit)
+func (q *Queries) AuditEvents(ctx context.Context, arg AuditEventsParams) ([]AuditEventsRow, error) {
+	rows, err := q.db.Query(ctx, auditEvents,
+		arg.HasCursor,
+		arg.AfterAt,
+		arg.AfterID,
+		arg.RowLimit,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -2237,6 +2415,7 @@ func (q *Queries) AuditEvents(ctx context.Context, limit int32) ([]AuditEventsRo
 	for rows.Next() {
 		var i AuditEventsRow
 		if err := rows.Scan(
+			&i.PageCursor,
 			&i.Action,
 			&i.EntityTable,
 			&i.EntityID,
@@ -2738,10 +2917,42 @@ func (q *Queries) CartItemCount(ctx context.Context, cartID uuid.UUID) (int64, e
 	return column_1, err
 }
 
+const cartItemRows = `-- name: CartItemRows :many
+SELECT variant_id, quantity FROM cart_items WHERE cart_id = $1::uuid ORDER BY variant_id
+`
+
+type CartItemRowsRow struct {
+	VariantID uuid.UUID
+	Quantity  int32
+}
+
+// Guest lines for adoption and merge, read after the cart lock is held.
+func (q *Queries) CartItemRows(ctx context.Context, cartID uuid.UUID) ([]CartItemRowsRow, error) {
+	rows, err := q.db.Query(ctx, cartItemRows, cartID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CartItemRowsRow{}
+	for rows.Next() {
+		var i CartItemRowsRow
+		if err := rows.Scan(&i.VariantID, &i.Quantity); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const cartLineCapacity = `-- name: CartLineCapacity :one
 SELECT count(*)::integer AS line_count,
        (count(*) FILTER (WHERE variant_id = $1::uuid) > 0)::boolean
-           AS already_present
+           AS already_present,
+       coalesce(sum(quantity) FILTER (WHERE variant_id = $1::uuid), 0)::integer
+           AS existing_quantity
 FROM cart_items
 WHERE cart_id = $2::uuid
 `
@@ -2752,8 +2963,9 @@ type CartLineCapacityParams struct {
 }
 
 type CartLineCapacityRow struct {
-	LineCount      int32
-	AlreadyPresent bool
+	LineCount        int32
+	AlreadyPresent   bool
+	ExistingQuantity int32
 }
 
 // The cart row is already locked by every caller. Updating an existing variant
@@ -2761,8 +2973,24 @@ type CartLineCapacityRow struct {
 func (q *Queries) CartLineCapacity(ctx context.Context, arg CartLineCapacityParams) (CartLineCapacityRow, error) {
 	row := q.db.QueryRow(ctx, cartLineCapacity, arg.VariantID, arg.CartID)
 	var i CartLineCapacityRow
-	err := row.Scan(&i.LineCount, &i.AlreadyPresent)
+	err := row.Scan(&i.LineCount, &i.AlreadyPresent, &i.ExistingQuantity)
 	return i, err
+}
+
+const cartLineQuantity = `-- name: CartLineQuantity :one
+SELECT quantity FROM cart_items WHERE cart_id = $1 AND variant_id = $2
+`
+
+type CartLineQuantityParams struct {
+	CartID    uuid.UUID
+	VariantID uuid.UUID
+}
+
+func (q *Queries) CartLineQuantity(ctx context.Context, arg CartLineQuantityParams) (int32, error) {
+	row := q.db.QueryRow(ctx, cartLineQuantity, arg.CartID, arg.VariantID)
+	var quantity int32
+	err := row.Scan(&quantity)
+	return quantity, err
 }
 
 const cartLines = `-- name: CartLines :many
@@ -5291,6 +5519,40 @@ func (q *Queries) DeleteUserSessions(ctx context.Context, userID uuid.UUID) erro
 	return err
 }
 
+const deliveryZoneComparison = `-- name: DeliveryZoneComparison :one
+SELECT (pd.erased_at IS NOT NULL)::boolean AS erased,
+       coalesce(pd.postal_code ~ '^[0-9]{3,6}$', false)::boolean AS old_resolved,
+       coalesce(pd.postal_code ~ '^[0-9]{3,6}$'
+                AND old_zone.zone_id IS NOT DISTINCT FROM new_zone.zone_id, false)::boolean AS same_zone
+FROM order_private_data pd
+LEFT JOIN shipping_zone_prefixes old_zone ON old_zone.prefix = left(pd.postal_code, 3)
+LEFT JOIN shipping_zone_prefixes new_zone ON new_zone.prefix = left($1::text, 3)
+WHERE pd.order_id = $2
+`
+
+type DeliveryZoneComparisonParams struct {
+	NewPostalCode string
+	OrderID       uuid.UUID
+}
+
+type DeliveryZoneComparisonRow struct {
+	Erased      bool
+	OldResolved bool
+	SameZone    bool
+}
+
+// Whether the saved postcode and the proposed one sit in the same surcharge
+// zone. Identity of the zone, not today's amount: a surcharge edited or removed
+// after checkout must not open a cross-zone correction. The order records the
+// postcode it was priced for, so that is the side compared. Two postcodes in no
+// zone are both the mainland; a malformed one resolves to neither.
+func (q *Queries) DeliveryZoneComparison(ctx context.Context, arg DeliveryZoneComparisonParams) (DeliveryZoneComparisonRow, error) {
+	row := q.db.QueryRow(ctx, deliveryZoneComparison, arg.NewPostalCode, arg.OrderID)
+	var i DeliveryZoneComparisonRow
+	err := row.Scan(&i.Erased, &i.OldResolved, &i.SameZone)
+	return i, err
+}
+
 const detachProductImage = `-- name: DetachProductImage :execrows
 DELETE FROM product_images pi
 USING products p
@@ -6591,6 +6853,30 @@ func (q *Queries) LockHeroAppendPosition(ctx context.Context) error {
 	return err
 }
 
+const lockOrderDelivery = `-- name: LockOrderDelivery :one
+SELECT o.id, o.fulfillment_status, sm.destination_kind
+FROM orders o
+JOIN shipping_method_versions v ON v.id = o.shipping_version_id
+JOIN shipping_methods sm ON sm.id = v.method_id
+WHERE o.order_number = $1
+FOR UPDATE OF o
+`
+
+type LockOrderDeliveryRow struct {
+	ID                uuid.UUID
+	FulfillmentStatus string
+	DestinationKind   string
+}
+
+// The order lock also belongs to shipment, cancellation and erasure. Read the
+// destination after acquiring it so a correction cannot outlive that decision.
+func (q *Queries) LockOrderDelivery(ctx context.Context, orderNumber string) (LockOrderDeliveryRow, error) {
+	row := q.db.QueryRow(ctx, lockOrderDelivery, orderNumber)
+	var i LockOrderDeliveryRow
+	err := row.Scan(&i.ID, &i.FulfillmentStatus, &i.DestinationKind)
+	return i, err
+}
+
 const lockOrderForAdvance = `-- name: LockOrderForAdvance :one
 SELECT id, fulfillment_status FROM orders WHERE order_number = $1 FOR UPDATE
 `
@@ -6608,6 +6894,23 @@ func (q *Queries) LockOrderForAdvance(ctx context.Context, orderNumber string) (
 	return i, err
 }
 
+const lockOrderForStaffNote = `-- name: LockOrderForStaffNote :one
+SELECT id, staff_note FROM orders WHERE order_number = $1 FOR UPDATE
+`
+
+type LockOrderForStaffNoteRow struct {
+	ID        uuid.UUID
+	StaffNote pgtype.Text
+}
+
+// Serialize changes so the audit operation describes the note actually replaced.
+func (q *Queries) LockOrderForStaffNote(ctx context.Context, orderNumber string) (LockOrderForStaffNoteRow, error) {
+	row := q.db.QueryRow(ctx, lockOrderForStaffNote, orderNumber)
+	var i LockOrderForStaffNoteRow
+	err := row.Scan(&i.ID, &i.StaffNote)
+	return i, err
+}
+
 const lockPaymentProviderRef = `-- name: LockPaymentProviderRef :exec
 SELECT lock_payment_provider_ref('stripe', $1::text)
 `
@@ -6617,6 +6920,18 @@ SELECT lock_payment_provider_ref('stripe', $1::text)
 func (q *Queries) LockPaymentProviderRef(ctx context.Context, providerRef string) error {
 	_, err := q.db.Exec(ctx, lockPaymentProviderRef, providerRef)
 	return err
+}
+
+const lockProductCatalogue = `-- name: LockProductCatalogue :one
+SELECT id FROM products WHERE slug = $1 FOR NO KEY UPDATE
+`
+
+// Lock before reading options so a concurrently added axis participates in validation.
+func (q *Queries) LockProductCatalogue(ctx context.Context, slug string) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, lockProductCatalogue, slug)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
 }
 
 const lockReturnOrder = `-- name: LockReturnOrder :one
@@ -7089,24 +7404,6 @@ func (q *Queries) MemberStanding(ctx context.Context, arg MemberStandingParams) 
 		&i.NextNeedsCents,
 	)
 	return i, err
-}
-
-const mergeCartItems = `-- name: MergeCartItems :exec
-INSERT INTO cart_items (cart_id, variant_id, quantity)
-SELECT $2, src.variant_id, src.quantity FROM cart_items src WHERE src.cart_id = $1
-ON CONFLICT (cart_id, variant_id) DO UPDATE
-SET quantity = least(cart_items.quantity + EXCLUDED.quantity, 999)
-`
-
-type MergeCartItemsParams struct {
-	CartID   uuid.UUID
-	CartID_2 uuid.UUID
-}
-
-// Quantities add rather than replace, capped at the line ceiling.
-func (q *Queries) MergeCartItems(ctx context.Context, arg MergeCartItemsParams) error {
-	_, err := q.db.Exec(ctx, mergeCartItems, arg.CartID, arg.CartID_2)
-	return err
 }
 
 const myWarranties = `-- name: MyWarranties :many
@@ -8796,24 +9093,39 @@ func (q *Queries) ReceiveStock(ctx context.Context, arg ReceiveStockParams) erro
 }
 
 const recentCredit = `-- name: RecentCredit :many
-SELECT e.amount_cents, e.reason, e.created_at,
+SELECT json_build_object('At', e.created_at, 'ID', e.id)::text AS page_cursor, e.amount_cents, e.reason, e.created_at,
        coalesce(u.email, '') AS email
 FROM store_credit_entries e
 JOIN store_credit_accounts a ON a.id = e.account_id
 LEFT JOIN users u ON u.id = a.user_id
+WHERE (NOT $1::boolean OR (e.created_at < $2::timestamptz)
+       OR (e.created_at = $2::timestamptz AND e.id < $3::uuid))
 ORDER BY e.created_at DESC, e.id DESC
-LIMIT $1
+LIMIT $4::integer
 `
 
+type RecentCreditParams struct {
+	HasCursor bool
+	AfterAt   time.Time
+	AfterID   uuid.UUID
+	RowLimit  int32
+}
+
 type RecentCreditRow struct {
+	PageCursor  string
 	AmountCents int64
 	Reason      string
 	CreatedAt   time.Time
 	Email       string
 }
 
-func (q *Queries) RecentCredit(ctx context.Context, limit int32) ([]RecentCreditRow, error) {
-	rows, err := q.db.Query(ctx, recentCredit, limit)
+func (q *Queries) RecentCredit(ctx context.Context, arg RecentCreditParams) ([]RecentCreditRow, error) {
+	rows, err := q.db.Query(ctx, recentCredit,
+		arg.HasCursor,
+		arg.AfterAt,
+		arg.AfterID,
+		arg.RowLimit,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -8822,6 +9134,7 @@ func (q *Queries) RecentCredit(ctx context.Context, limit int32) ([]RecentCredit
 	for rows.Next() {
 		var i RecentCreditRow
 		if err := rows.Scan(
+			&i.PageCursor,
 			&i.AmountCents,
 			&i.Reason,
 			&i.CreatedAt,
@@ -10487,7 +10800,7 @@ func (q *Queries) ReturnPayoutFacts(ctx context.Context, requestIds []uuid.UUID)
 }
 
 const returnQueue = `-- name: ReturnQueue :many
-SELECT r.id, r.status, r.reason, r.created_at, r.decided_at,
+SELECT json_build_object('Rank', return_payout_outstanding(r.id), 'Priority', (r.status = 'requested'), 'At', r.created_at, 'ID', r.id)::text AS page_cursor, r.id, r.status, r.reason, r.created_at, r.decided_at,
        o.order_number,
        (SELECT coalesce(sum(rl.quantity), 0) FROM return_request_lines rl
         WHERE rl.return_request_id = r.id)::integer AS units,
@@ -10518,13 +10831,25 @@ SELECT r.id, r.status, r.reason, r.created_at, r.decided_at,
        ), 'undelivered')::text AS rescission_window
 FROM return_requests r
 JOIN orders o ON o.id = r.order_id
-ORDER BY return_payout_outstanding(r.id) DESC,
-         (r.status = 'requested') DESC,
-         r.created_at DESC
-LIMIT $1
+WHERE (NOT $1::boolean OR (return_payout_outstanding(r.id) < $2::boolean)
+       OR (return_payout_outstanding(r.id) = $2::boolean AND (r.status = 'requested') < $3::boolean)
+       OR (return_payout_outstanding(r.id) = $2::boolean AND (r.status = 'requested') = $3::boolean AND r.created_at < $4::timestamptz)
+       OR (return_payout_outstanding(r.id) = $2::boolean AND (r.status = 'requested') = $3::boolean AND r.created_at = $4::timestamptz AND r.id < $5::uuid))
+ORDER BY return_payout_outstanding(r.id) DESC, (r.status = 'requested') DESC, r.created_at DESC, r.id DESC
+LIMIT $6::integer
 `
 
+type ReturnQueueParams struct {
+	HasCursor     bool
+	AfterRank     bool
+	AfterPriority bool
+	AfterAt       time.Time
+	AfterID       uuid.UUID
+	RowLimit      int32
+}
+
 type ReturnQueueRow struct {
+	PageCursor       string
 	ID               uuid.UUID
 	Status           string
 	Reason           string
@@ -10543,8 +10868,15 @@ type ReturnQueueRow struct {
 // Recovery is the only retry door. Rank it before the intake queue and before
 // LIMIT, or fifty newer requests can make an older approved-but-unpaid customer
 // disappear from every actionable screen.
-func (q *Queries) ReturnQueue(ctx context.Context, limit int32) ([]ReturnQueueRow, error) {
-	rows, err := q.db.Query(ctx, returnQueue, limit)
+func (q *Queries) ReturnQueue(ctx context.Context, arg ReturnQueueParams) ([]ReturnQueueRow, error) {
+	rows, err := q.db.Query(ctx, returnQueue,
+		arg.HasCursor,
+		arg.AfterRank,
+		arg.AfterPriority,
+		arg.AfterAt,
+		arg.AfterID,
+		arg.RowLimit,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -10553,6 +10885,7 @@ func (q *Queries) ReturnQueue(ctx context.Context, limit int32) ([]ReturnQueueRo
 	for rows.Next() {
 		var i ReturnQueueRow
 		if err := rows.Scan(
+			&i.PageCursor,
 			&i.ID,
 			&i.Status,
 			&i.Reason,
@@ -10912,19 +11245,20 @@ func (q *Queries) RunningCampaign(ctx context.Context, arg RunningCampaignParams
 }
 
 const runningCampaigns = `-- name: RunningCampaigns :many
-SELECT c.id, c.slug, localized_name(c.title, c.title_en, $2::text) AS title,
+SELECT c.id, c.slug, localized_name(c.title, c.title_en, $1::text) AS title,
        c.ends_at,
        extract(epoch FROM (c.ends_at - now()))::bigint AS remaining_seconds,
        (SELECT count(*) FROM sale_campaign_products p WHERE p.campaign_id = c.id)::bigint AS products
 FROM sale_campaigns c
 WHERE c.is_active AND c.starts_at <= now() AND c.ends_at > now()
-ORDER BY c.ends_at
-LIMIT $1
+ORDER BY c.ends_at, c.id
+LIMIT $3::integer OFFSET $2::integer
 `
 
 type RunningCampaignsParams struct {
-	Limit  int32
-	Locale string
+	Locale     string
+	PageOffset int32
+	PageSize   int32
 }
 
 type RunningCampaignsRow struct {
@@ -10937,7 +11271,7 @@ type RunningCampaignsRow struct {
 }
 
 func (q *Queries) RunningCampaigns(ctx context.Context, arg RunningCampaignsParams) ([]RunningCampaignsRow, error) {
-	rows, err := q.db.Query(ctx, runningCampaigns, arg.Limit, arg.Locale)
+	rows, err := q.db.Query(ctx, runningCampaigns, arg.Locale, arg.PageOffset, arg.PageSize)
 	if err != nil {
 		return nil, err
 	}
@@ -10961,6 +11295,18 @@ func (q *Queries) RunningCampaigns(ctx context.Context, arg RunningCampaignsPara
 		return nil, err
 	}
 	return items, nil
+}
+
+const runningCampaignsCount = `-- name: RunningCampaignsCount :one
+SELECT count(*)::bigint FROM sale_campaigns
+WHERE is_active AND starts_at <= now() AND ends_at > now()
+`
+
+func (q *Queries) RunningCampaignsCount(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, runningCampaignsCount)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const savedAddresses = `-- name: SavedAddresses :many
@@ -11064,6 +11410,11 @@ WHERE p.status = 'active'
        OR coalesce(p.summary_en, '') ILIKE $2::text
        OR b.name ILIKE $2::text
        OR EXISTS (
+           SELECT 1 FROM product_variants sku_match
+           WHERE sku_match.product_id = p.id AND sku_match.is_active
+             AND sku_match.sku ILIKE $2::text
+       )
+       OR EXISTS (
            SELECT 1 FROM product_specs ps
            WHERE ps.product_id = p.id
              AND (ps.label ILIKE $2::text
@@ -11073,9 +11424,20 @@ WHERE p.status = 'active'
        ))
 ORDER BY
     -- Field relevance is explicit; repeated words, sales and ratings do not change it.
+    -- A complete variant SKU leads; a partial SKU follows a partial name match.
     CASE
-        WHEN p.name ILIKE $3::text OR coalesce(p.name_en, '') ILIKE $3::text THEN 4
-        WHEN p.name ILIKE $2::text OR coalesce(p.name_en, '') ILIKE $2::text THEN 3
+        WHEN EXISTS (
+            SELECT 1 FROM product_variants exact_sku
+            WHERE exact_sku.product_id = p.id AND exact_sku.is_active
+              AND exact_sku.sku ILIKE $3::text
+        ) THEN 6
+        WHEN p.name ILIKE $3::text OR coalesce(p.name_en, '') ILIKE $3::text THEN 5
+        WHEN p.name ILIKE $2::text OR coalesce(p.name_en, '') ILIKE $2::text THEN 4
+        WHEN EXISTS (
+            SELECT 1 FROM product_variants partial_sku
+            WHERE partial_sku.product_id = p.id AND partial_sku.is_active
+              AND partial_sku.sku ILIKE $2::text
+        ) THEN 3
         WHEN b.name ILIKE $2::text THEN 2
         WHEN coalesce(p.summary, '') ILIKE $2::text OR coalesce(p.summary_en, '') ILIKE $2::text THEN 1
         ELSE 0
@@ -11162,6 +11524,11 @@ WHERE p.status = 'active'
        OR coalesce(p.summary, '') ILIKE $1::text
        OR coalesce(p.summary_en, '') ILIKE $1::text
        OR b.name ILIKE $1::text
+       OR EXISTS (
+           SELECT 1 FROM product_variants sku_match
+           WHERE sku_match.product_id = p.id AND sku_match.is_active
+             AND sku_match.sku ILIKE $1::text
+       )
        OR EXISTS (
            SELECT 1 FROM product_specs ps
            WHERE ps.product_id = p.id
@@ -12088,6 +12455,24 @@ func (q *Queries) SpendPasswordResetToken(ctx context.Context, tokenHash []byte)
 	var user_id uuid.UUID
 	err := row.Scan(&user_id)
 	return user_id, err
+}
+
+const staffInvitationRecipient = `-- name: StaffInvitationRecipient :one
+SELECT email, coalesce(full_name, '') AS full_name
+FROM users WHERE id = $1 AND role IN ('staff', 'admin')
+`
+
+type StaffInvitationRecipientRow struct {
+	Email    string
+	FullName string
+}
+
+// A queued invitation is no longer wanted after revocation or erasure.
+func (q *Queries) StaffInvitationRecipient(ctx context.Context, id uuid.UUID) (StaffInvitationRecipientRow, error) {
+	row := q.db.QueryRow(ctx, staffInvitationRecipient, id)
+	var i StaffInvitationRecipientRow
+	err := row.Scan(&i.Email, &i.FullName)
+	return i, err
 }
 
 const staffTOTPStatus = `-- name: StaffTOTPStatus :many
@@ -13114,8 +13499,8 @@ func (q *Queries) VariantForCart(ctx context.Context, id uuid.UUID) (VariantForC
 }
 
 const variantMovements = `-- name: VariantMovements :many
-SELECT m.created_at, m.delta, m.reason, m.source_type,
-       coalesce(o.order_number, ro.order_number, '') AS order_number,
+SELECT json_build_object('ID', m.id)::text AS page_cursor, m.created_at, m.delta, m.reason, m.source_type,
+       coalesce(o.order_number, ro.order_number, rro.order_number, '') AS order_number,
        coalesce(u.full_name, u.email, '') AS actor,
        (SELECT sum(e.delta) FROM inventory_movements e
         WHERE e.variant_id = m.variant_id AND e.id <= m.id)::integer AS running_total
@@ -13126,17 +13511,24 @@ LEFT JOIN orders o ON m.source_type = 'order' AND o.id = m.source_id
 LEFT JOIN inventory_reservations r
        ON m.source_type = 'reservation' AND r.id = m.source_id
 LEFT JOIN orders ro ON ro.id = r.order_id
+LEFT JOIN return_requests rr
+       ON m.source_type = 'return_request' AND rr.id = m.source_id
+LEFT JOIN orders rro ON rro.id = rr.order_id
 WHERE pv.sku = $1::text
+AND (NOT $2::boolean OR (m.id < $3::uuid))
 ORDER BY m.id DESC
-LIMIT $2::integer
+LIMIT $4::integer
 `
 
 type VariantMovementsParams struct {
-	SKU      string
-	RowLimit int32
+	SKU       string
+	HasCursor bool
+	AfterID   uuid.UUID
+	RowLimit  int32
 }
 
 type VariantMovementsRow struct {
+	PageCursor   string
 	CreatedAt    time.Time
 	Delta        int32
 	Reason       string
@@ -13146,11 +13538,15 @@ type VariantMovementsRow struct {
 	RunningTotal int32
 }
 
-// source_id is a bare uuid with no foreign key — it points at whichever table
-// source_type names — so each join is guarded by that discriminator. A HOLD
-// points at the reservation, because it is taken before the order exists.
+// Each source discriminator selects its validated parent. A hold names its
+// order; a release names the reservation and a restock names the return.
 func (q *Queries) VariantMovements(ctx context.Context, arg VariantMovementsParams) ([]VariantMovementsRow, error) {
-	rows, err := q.db.Query(ctx, variantMovements, arg.SKU, arg.RowLimit)
+	rows, err := q.db.Query(ctx, variantMovements,
+		arg.SKU,
+		arg.HasCursor,
+		arg.AfterID,
+		arg.RowLimit,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -13159,6 +13555,7 @@ func (q *Queries) VariantMovements(ctx context.Context, arg VariantMovementsPara
 	for rows.Next() {
 		var i VariantMovementsRow
 		if err := rows.Scan(
+			&i.PageCursor,
 			&i.CreatedAt,
 			&i.Delta,
 			&i.Reason,
