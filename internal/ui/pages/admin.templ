@@ -541,6 +541,24 @@ templ AdminOrder(p layouts.Page, v *AdminOrderView) {
 						</form>
 					}
 				}
+				if v.RefundOpen || v.RefundOffered {
+					@components.Card(components.CardProps{Class: "goen-admin__op"}) {
+						<h2 class="goen-admin__optitle">{ i18n.T(ctx, i18n.KeyAdminRefundTitle) }</h2>
+						<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/orders/" + v.Number + "/refund") }>
+							if v.RefundOpen {
+								<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminRefundOpen) }</p>
+								@components.Button(components.ButtonProps{Variant: components.VariantPrimary, Block: true}, "submit") {
+									{ i18n.T(ctx, i18n.KeyAdminRefundResume) }
+								}
+							} else {
+								@components.Button(components.ButtonProps{Variant: components.VariantOutline, Block: true}, "submit") {
+									{ i18n.T(ctx, i18n.KeyAdminRefundTitle) }
+								}
+								<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminRefundHint) }</p>
+							}
+						</form>
+					}
+				}
 				if v.CanAdvance() {
 					@components.Card(components.CardProps{Class: "goen-admin__op"}) {
 						<h2 class="goen-admin__optitle">{ i18n.T(ctx, i18n.KeyAdminQueueNextStatus) }</h2>
@@ -570,7 +588,7 @@ templ AdminOrder(p layouts.Page, v *AdminOrderView) {
 							}
 						</form>
 					}
-				} else {
+				} else if v.Final() {
 					<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminQueueFinal) }</p>
 				}
 				@components.Card(components.CardProps{Class: "goen-admin__op", Attrs: templ.Attributes{"aria-labelledby": "invoice-heading"}}) {

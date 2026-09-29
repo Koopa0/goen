@@ -257,8 +257,8 @@ func (s *Store) Order(ctx context.Context, number string) (pages.AdminOrderView,
 	if invErr := s.fillInvoices(ctx, &view, number); invErr != nil {
 		return pages.AdminOrderView{}, invErr
 	}
-	for _, n := range NextStatuses(fulfillment) {
-		view.Next = append(view.Next, pages.AdminTransition{Value: n, Label: StatusLabel(ctx, n)})
+	if refundErr := s.fillRefundBeforeShipment(ctx, &view, number); refundErr != nil {
+		return pages.AdminOrderView{}, refundErr
 	}
 	for _, l := range lines {
 		view.Lines = append(view.Lines, pages.OrderLine{
@@ -331,6 +331,13 @@ func (s *Store) Advance(ctx context.Context, number string, status pages.Fulfill
 	// stale and make an otherwise valid cancellation roll back.
 	var held []uuid.UUID
 	if status == pages.FulfillmentCancelled {
+		// The database admits cancelling a paid order once its refund before
+		// shipment has settled, but only RefundBeforeShipment closes that
+		// return; the effects below would reverse the refunded credit and
+		// points again.
+		if row.Committed {
+			return nil, ErrPaidCancel
+		}
 		if held, err = q.HeldReservationsForOrder(ctx, number); err != nil {
 			return nil, fmt.Errorf("read holds of %s: %w", number, err)
 		}

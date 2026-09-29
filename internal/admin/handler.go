@@ -224,6 +224,8 @@ func (h *Handler) AdvanceOrder(w http.ResponseWriter, r *http.Request) {
 	case err == nil:
 		h.closeSessions(r.Context(), number, sessions)
 		http.Redirect(w, r, "/admin/orders/"+number+"?ok=1", http.StatusSeeOther) //nolint:gosec // G710: validated by IsOrderNumber
+	case errors.Is(err, ErrPaidCancel), hasConstraint(err, "orders_paid_cancel_needs_refund"):
+		http.Redirect(w, r, "/admin/orders/"+number+"?paidcancel=1", http.StatusSeeOther) //nolint:gosec // G710: validated by IsOrderNumber
 	case errors.Is(err, ErrRefused):
 		// Logged in full; the page only says the move was refused, because a
 		// constraint name is not something a shop assistant can act on.
@@ -490,6 +492,11 @@ var adminNotices = map[string]i18n.Key{
 	"noalt":          i18n.KeyAdminNoticeNoAlt,
 	"nodiscount":     i18n.KeyAdminNoticeNoDiscount,
 	"refundfailed":   i18n.KeyAdminNoticeRefundFailed,
+	"paidcancel":     i18n.KeyAdminNoticePaidCancel,
+	"refunded":       i18n.KeyAdminNoticeRefunded,
+	"refundpending":  i18n.KeyAdminNoticeRefundPending,
+	"cancelinvoice":  i18n.KeyAdminNoticeCancelInvoice,
+	"refundretry":    i18n.KeyAdminNoticeRefundRetry,
 	"received":       i18n.KeyAdminNoticeReceived,
 	"badqty":         i18n.KeyAdminNoticeBadQty,
 	"inspected":      i18n.KeyAdminNoticeInspected,

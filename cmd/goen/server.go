@@ -307,6 +307,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	mux.HandleFunc("GET /admin/orders", back.RequireStaff(back.Orders))
 	mux.HandleFunc("GET /admin/orders/{number}", back.RequireStaff(back.Order))
 	mux.HandleFunc("POST /admin/orders/{number}/status", back.RequireStaff(back.AdvanceOrder))
+	mux.HandleFunc("POST /admin/orders/{number}/refund", back.RequireStaff(back.RefundBeforeShipment))
 	mux.HandleFunc("POST /admin/orders/{number}/ship", back.RequireStaff(back.Ship))
 	mux.HandleFunc("POST /admin/orders/{number}/note", back.RequireStaff(back.StaffNote))
 	mux.HandleFunc("POST /admin/orders/{number}/delivery", back.RequireStaff(back.CorrectDelivery))

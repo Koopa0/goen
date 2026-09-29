@@ -75,6 +75,7 @@ var actionLabels = map[string]i18n.Key{
 	"question.hide":                       i18n.KeyAuditQuestionHide,
 	"return.inspect":                      i18n.KeyAuditReturnInspect,
 	"return.complete":                     i18n.KeyAuditReturnComplete,
+	"return.refund_before_shipment":       i18n.KeyAuditReturnRefundBeforeShipment,
 	"order.delivery":                      i18n.KeyAuditOrderDelivery,
 	"order.note.create":                   i18n.KeyAuditOrderNoteCreate,
 	"order.note.replace":                  i18n.KeyAuditOrderNoteReplace,

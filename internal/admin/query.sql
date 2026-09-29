@@ -91,7 +91,8 @@ WHERE order_id = $1 AND delivered_at IS NULL;
 
 -- Lock before reading the prior state so concurrent completion cannot duplicate arrival mail.
 -- name: LockOrderForAdvance :one
-SELECT id, fulfillment_status FROM orders WHERE order_number = $1 FOR UPDATE;
+SELECT id, fulfillment_status, order_is_committed(id) AS committed
+FROM orders WHERE order_number = $1 FOR UPDATE;
 
 -- orders_check_transition validates the move, so this does not re-derive it.
 -- cancelled_at and completed_at are set here because the schema requires them
@@ -278,7 +279,7 @@ VALUES (@order_id, @shipment_id, @order_line_id, @quantity::integer);
 -- reopen a window that line already closed. now() would move a filed request
 -- into a later window the day the staff member opens it.
 -- name: ReturnQueue :many
-SELECT json_build_object('Rank', return_payout_outstanding(r.id), 'Priority', (r.status = 'requested'), 'At', r.created_at, 'ID', r.id)::text AS page_cursor, r.id, r.status, r.reason, r.created_at, r.decided_at,
+SELECT json_build_object('Rank', return_payout_outstanding(r.id), 'Priority', (r.status = 'requested'), 'At', r.created_at, 'ID', r.id)::text AS page_cursor, r.id, r.status, r.reason, r.created_at, r.decided_at, r.before_shipment,
        o.order_number,
        (SELECT coalesce(sum(rl.quantity), 0) FROM return_request_lines rl
         WHERE rl.return_request_id = r.id)::integer AS units,
@@ -543,6 +544,49 @@ FOR UPDATE OF o;
 UPDATE return_requests
 SET status = 'completed', resolution = coalesce(nullif(@resolution::text, ''), resolution)
 WHERE id = @id AND status = 'approved';
+
+-- One auto-committed statement: the door opens and approves the full return,
+-- or returns the one it opened before.
+-- name: OpenRefundBeforeShipment :one
+SELECT open_refund_before_shipment(
+    @order_number::text, @reason::text, @actor_user_id::uuid, @request_id::text
+)::uuid AS return_request_id;
+
+-- What the order page and the refund confirmation show. Once the door has run
+-- the split is the frozen one; before, card_cents is what
+-- return_requests_recount freezes for a full return of an order nothing else
+-- has refunded: the capture first, credit for the rest.
+-- name: BeforeShipmentRefund :one
+WITH target AS (
+    SELECT o.id, o.fulfillment_status,
+           order_is_committed(o.id) AS committed,
+           (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
+                      WHERE ol.order_id = o.id), 0)
+            - o.discount_cents + o.shipping_cents + o.tax_cents)::bigint AS total_cents,
+           coalesce((SELECT sum(p.captured_amount_cents) FROM payments p
+                     WHERE p.order_id = o.id AND p.status = 'succeeded'), 0)::bigint
+               AS card_capacity_cents
+    FROM orders o WHERE o.order_number = @order_number::text
+)
+SELECT t.id AS order_id, t.fulfillment_status, t.committed, t.total_cents,
+       EXISTS (SELECT 1 FROM order_shipments s WHERE s.order_id = t.id)::boolean AS shipped,
+       EXISTS (SELECT 1 FROM return_requests r WHERE r.order_id = t.id)::boolean AS has_return,
+       b.id AS return_request_id,
+       coalesce(b.status, '')::text AS return_status,
+       coalesce(b.card_refund_cents,
+                least(t.total_cents, t.card_capacity_cents))::bigint AS card_cents,
+       coalesce(b.credit_refund_cents,
+                t.total_cents - least(t.total_cents, t.card_capacity_cents))::bigint AS credit_cents
+FROM target t
+LEFT JOIN return_requests b ON b.order_id = t.id AND b.before_shipment;
+
+-- Nothing of a refund before shipment went out, so every line is closed as
+-- received and restocked nothing; return_requests_completed_is_inspected then
+-- admits the completion.
+-- name: CloseUnshippedReturnLines :execrows
+UPDATE return_request_lines
+SET received_quantity = 0, restocked_quantity = 0
+WHERE return_request_id = @return_request_id AND received_quantity IS NULL;
 
 -- :execrows, because `status = 'requested'` here is the ONLY place the question
 -- is asked under a lock: as :exec, the loser of two simultaneous decisions

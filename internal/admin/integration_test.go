@@ -820,9 +820,9 @@ func TestAdvanceCannotShip(t *testing.T) {
 	}
 }
 
-// TestAdminCancelClawsBackLoyaltyPoints holds that a paid order cancelled in the
-// back office claws back its award lot, including when the lot was partly or
-// wholly spent before cancellation.
+// TestAdminCancelClawsBackLoyaltyPoints holds that a paid order the back office
+// cancels — by refunding it before shipment — claws back its award lot,
+// including when the lot was partly or wholly spent before cancellation.
 func TestAdminCancelClawsBackLoyaltyPoints(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
@@ -883,7 +883,7 @@ func cancelPointsCustomer(t *testing.T) uuid.UUID {
 
 func cancelPaidOrder(t *testing.T, s *admin.Store, ctx context.Context, number string) {
 	t.Helper()
-	if _, err := s.Advance(ctx, number, "cancelled", uuid.NullUUID{}); err != nil {
+	if _, err := s.RefundBeforeShipment(ctx, number, "顧客取消"); err != nil {
 		t.Fatalf("cancel: %v", err)
 	}
 }
@@ -893,17 +893,19 @@ func assertCancelClawback(t *testing.T, orderID uuid.UUID, wantPoints, wantReque
 	ctx := t.Context()
 	var points, requested int64
 	var key string
+	var returnID uuid.UUID
 	if err := pool.QueryRow(ctx, `
-		SELECT points, requested_points, idempotency_key
-		FROM loyalty_entries
-		WHERE order_id = $1 AND kind = 'clawback'`, orderID).Scan(&points, &requested, &key); err != nil {
+		SELECT e.points, e.requested_points, e.idempotency_key, r.id
+		FROM loyalty_entries e
+		JOIN return_requests r ON r.order_id = e.order_id AND r.before_shipment
+		WHERE e.order_id = $1 AND e.kind = 'clawback'`, orderID).Scan(&points, &requested, &key, &returnID); err != nil {
 		t.Fatalf("read clawback: %v", err)
 	}
 	if points != wantPoints || requested != wantRequested {
 		t.Errorf("clawback points/requested = %d/%d, want %d/%d",
 			points, requested, wantPoints, wantRequested)
 	}
-	if want := "cancel:" + orderID.String(); key != want {
+	if want := "return:" + returnID.String(); key != want {
 		t.Errorf("clawback key = %q, want %q", key, want)
 	}
 	var rows int
@@ -917,7 +919,7 @@ func assertCancelClawback(t *testing.T, orderID uuid.UUID, wantPoints, wantReque
 	}
 	var replay int64
 	if err := pool.QueryRow(ctx,
-		`SELECT reverse_order_points($1)`, orderID).Scan(&replay); err != nil || replay != 0 {
+		`SELECT reverse_return_points($1)`, returnID).Scan(&replay); err != nil || replay != 0 {
 		t.Fatalf("cancel clawback replay = %d, %v; want 0, nil", replay, err)
 	}
 }
@@ -981,7 +983,7 @@ func paidPickingOrderForUser(t *testing.T, userID uuid.UUID, cents int64) (numbe
 func TestAdvanceRecordsWhoAndWhen(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
-	number, orderID := pickingOrderHoldingStock(t)
+	number, orderID, _ := pendingOrderHoldingStock(t)
 
 	var staff uuid.UUID
 	if err := pool.QueryRow(ctx, `
