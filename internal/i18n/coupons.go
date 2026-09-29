@@ -55,8 +55,13 @@ var (
 	KeyAdminCoupMaxHint = key("admin.coup.max.hint", Message{ZhHant: "0 表示不限量。", En: "0 means no limit."})
 
 	KeyAdminCoupPerCustomer = key("admin.coup.percustomer", Message{
-		ZhHant: "每人可用次數",
-		En:     "Uses per customer",
+		ZhHant: "每位會員可用次數",
+		En:     "Uses per member account",
+	})
+
+	KeyAdminCoupPerCustomerHint = key("admin.coup.percustomer.hint", Message{
+		ZhHant: "只計算會員帳號;訪客結帳不受此限制,只受總使用次數限制。",
+		En:     "Counted per member account. Guest checkouts are not limited by it, only by the total redemptions.",
 	})
 
 	KeyAdminCoupCreate = key("admin.coup.create", Message{ZhHant: "建立折扣碼", En: "Create the coupon"})
@@ -90,8 +95,8 @@ var (
 	})
 
 	KeyFormCouponPerCustomer = key("form.coupon.percustomer", Message{
-		ZhHant: "每人至少可以用一次。",
-		En:     "Each customer gets at least one use.",
+		ZhHant: "每位會員至少可以用一次。",
+		En:     "Each member account gets at least one use.",
 	})
 
 	KeyFormCouponDays = key("form.coupon.days", Message{
@@ -148,7 +153,7 @@ var (
 
 	KeyAdminCouponTotalLimit = key("admin.coupon.totallimit", Message{ZhHant: "限量 %d", En: "%d in total"})
 
-	KeyAdminCouponPerPerson = key("admin.coupon.perperson", Message{ZhHant: "每人 %d 次", En: "%d per customer"})
+	KeyAdminCouponPerPerson = key("admin.coupon.perperson", Message{ZhHant: "每位會員 %d 次", En: "%d per member"})
 
 	KeyAdminCouponUsed = key("admin.coupon.used", Message{ZhHant: "%d 次", En: "%d used"})
 

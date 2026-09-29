@@ -1031,11 +1031,11 @@ SELECT
     -- while Stripe still says pending), and created_at for the synchronous
     -- credit post.
     --
-    -- The positive-credit predicate deliberately matches order_refunds. That
-    -- includes reverse_order_credit on a CANCELLED order whose revenue was never
-    -- counted here; excluding cancellations in this caller would create another
-    -- definition. If the report should exclude them, change order_refunds so the
-    -- 折讓 form and invoice bound make the same decision. Neither time column has
+    -- The positive-credit predicate deliberately matches order_refunds: an entry
+    -- counts only with an order_id and a positive amount. reverse_order_credit
+    -- posts no order_id, so a cancelled order's returned credit is in neither
+    -- figure. A change of that definition belongs in order_refunds, so the 折讓
+    -- form and the invoice bound move with it. Neither time column has
     -- an index yet; these are small ledgers, so a speculative index is not
     -- warranted.
     (coalesce((SELECT sum(r.amount_cents) FROM refunds r
@@ -1260,7 +1260,11 @@ SELECT authorize_invoice_allowance_resend(
 -- name: ShipmentRecipient :one
 SELECT coalesce(pd.email, '') AS email,
        coalesce(pd.recipient_name, '') AS recipient_name,
-       o.locale
+       o.locale,
+       coalesce((SELECT sm.destination_kind
+                 FROM shipping_method_versions v
+                 JOIN shipping_methods sm ON sm.id = v.method_id
+                 WHERE v.id = o.shipping_version_id), '')::text AS destination_kind
 FROM orders o
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
 WHERE o.id = $1;
