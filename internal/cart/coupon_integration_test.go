@@ -106,7 +106,7 @@ func TestAPercentCouponOrderIsWholeYuanAndItsInvoiceEqualsTheCapture(t *testing.
 	}
 	var orderID uuid.UUID
 	var discount, owed int64
-	if err := pool.QueryRow(ctx, `
+	if err = pool.QueryRow(ctx, `
 		SELECT id, discount_cents, order_amount_owed(id) FROM orders WHERE order_number = $1`,
 		number).Scan(&orderID, &discount, &owed); err != nil {
 		t.Fatalf("read: %v", err)
@@ -118,7 +118,7 @@ func TestAPercentCouponOrderIsWholeYuanAndItsInvoiceEqualsTheCapture(t *testing.
 	if owed%100 != 0 {
 		t.Errorf("the amount owed, %d, is not a whole NT$", owed)
 	}
-	if _, err := pool.Exec(ctx, `
+	if _, err = pool.Exec(ctx, `
 		INSERT INTO payments (order_id, provider, provider_ref, intended_amount_cents,
 		                      captured_amount_cents, status, paid_at)
 		VALUES ($1, 'stripe', 'cs_round_' || $2, $3, $3, 'succeeded', now())`,
@@ -127,7 +127,7 @@ func TestAPercentCouponOrderIsWholeYuanAndItsInvoiceEqualsTheCapture(t *testing.
 	}
 
 	var actorID uuid.UUID
-	if err := pool.QueryRow(ctx, `INSERT INTO users (email, role) VALUES ($1, 'staff') RETURNING id`,
+	if err = pool.QueryRow(ctx, `INSERT INTO users (email, role) VALUES ($1, 'staff') RETURNING id`,
 		"round-"+uuid.NewString()+"@goen.invalid").Scan(&actorID); err != nil {
 		t.Fatalf("staff actor: %v", err)
 	}
@@ -136,17 +136,17 @@ func TestAPercentCouponOrderIsWholeYuanAndItsInvoiceEqualsTheCapture(t *testing.
 		t.Fatal(err)
 	}
 	defer conn.Release()
-	if _, err := conn.Exec(ctx, `SET ROLE admin`); err != nil {
+	if _, err = conn.Exec(ctx, `SET ROLE admin`); err != nil {
 		t.Fatal(err)
 	}
 	defer func() { _, _ = conn.Exec(context.WithoutCancel(ctx), `RESET ROLE`) }()
 	var opID uuid.UUID
-	if err := conn.QueryRow(ctx, `SELECT claim_invoice_issue($1, $2, $3)`,
+	if err = conn.QueryRow(ctx, `SELECT claim_invoice_issue($1, $2, $3)`,
 		number, actorID, "round:"+uuid.NewString()).Scan(&opID); err != nil {
 		t.Fatalf("claim the invoice: %v", err)
 	}
 	var invoiced, captured int64
-	if err := pool.QueryRow(ctx, `
+	if err = pool.QueryRow(ctx, `
 		SELECT io.amount_cents,
 		       (SELECT sum(captured_amount_cents) FROM payments
 		        WHERE order_id = io.order_id AND status = 'succeeded')
