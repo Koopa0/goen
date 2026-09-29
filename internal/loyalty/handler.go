@@ -100,7 +100,7 @@ func (h *Handler) serverError(w http.ResponseWriter, r *http.Request) {
 // renderRefusal answers 422 with the points page and the reason, so the refusal
 // is read where the form is instead of after a redirect.
 func (h *Handler) renderRefusal(w http.ResponseWriter, r *http.Request, userID string, reason i18n.Key) {
-	view, err := h.store.History(r.Context(), userID)
+	view, err := h.store.History(r.Context(), userID, "")
 	if err != nil && !errors.Is(err, ErrNoAccount) {
 		h.log.ErrorContext(r.Context(), "read points after refusal", "error", err)
 		h.serverError(w, r)
