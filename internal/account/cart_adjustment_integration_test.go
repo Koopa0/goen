@@ -42,7 +42,7 @@ func TestCartAdjustmentSurvivesAuthenticationAndCheckout(t *testing.T) {
 					if err := pool.QueryRow(ctx, `INSERT INTO product_variants(product_id,sku,price_cents,safety_stock) VALUES($1,$2,100000,0) RETURNING id`, productID, "ADJ-"+strings.ToUpper(suffix)).Scan(&variantID); err != nil {
 						t.Fatal(err)
 					}
-					if _, err := pool.Exec(ctx, `SELECT record_inventory_movement($1,3,'receipt',$2,NULL,NULL)`, variantID, "adjust-"+suffix); err != nil {
+					if _, err := pool.Exec(ctx, `SELECT record_inventory_movement($1,3,'receipt',$2,'admin',NULL)`, variantID, "adjust-"+suffix); err != nil {
 						t.Fatal(err)
 					}
 					if _, err := pool.Exec(ctx, `UPDATE products SET status='active', published_at=now() WHERE id=$1`, productID); err != nil {
