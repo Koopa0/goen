@@ -145,9 +145,13 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	findLimit := ratelimit.New(ratelimit.Config{
 		Every: 6 * time.Minute, Burst: 10, TTL: time.Hour, MaxKeys: 65_536,
 	})
+	var carrierChecker cart.CarrierChecker
+	if cfg.Invoices.Enabled() {
+		carrierChecker = cfg.Invoices
+	}
 	basketStore := cart.NewStore(pool)
 	basket := cart.NewHandler(basketStore, log, secureCookies, findLimit,
-		sessionCloser(gateway), cfg.StoreMap)
+		sessionCloser(gateway), cfg.StoreMap, carrierChecker)
 	customers := account.NewHandler(account.NewStore(pool), basket, log, secureCookies, cfg.Google)
 	// The second factor runs on the ADMIN pool. On the storefront pool `store`
 	// would need write on staff_totp_credentials and users.role, so any slip
@@ -303,6 +307,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	mux.HandleFunc("GET /admin/orders", back.RequireStaff(back.Orders))
 	mux.HandleFunc("GET /admin/orders/{number}", back.RequireStaff(back.Order))
 	mux.HandleFunc("POST /admin/orders/{number}/status", back.RequireStaff(back.AdvanceOrder))
+	mux.HandleFunc("POST /admin/orders/{number}/refund", back.RequireStaff(back.RefundBeforeShipment))
 	mux.HandleFunc("POST /admin/orders/{number}/ship", back.RequireStaff(back.Ship))
 	mux.HandleFunc("POST /admin/orders/{number}/note", back.RequireStaff(back.StaffNote))
 	mux.HandleFunc("POST /admin/orders/{number}/delivery", back.RequireStaff(back.CorrectDelivery))
@@ -334,6 +339,8 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	mux.HandleFunc("POST /admin/products/{slug}/images", back.RequireStaff(back.UploadImage))
 	mux.HandleFunc("POST /admin/products/{slug}/images/reuse", back.RequireStaff(back.ReuseImage))
 	mux.HandleFunc("POST /admin/products/{slug}/images/remove", back.RequireStaff(back.RemoveImage))
+	mux.HandleFunc("POST /admin/products/{slug}/images/option", back.RequireStaff(back.SetImageOption))
+	mux.HandleFunc("POST /admin/products/{slug}/images/move", back.RequireStaff(back.MoveImage))
 	mux.HandleFunc("GET /admin/tiers", back.RequireStaff(back.Tiers))
 	mux.HandleFunc("POST /admin/tiers", back.RequireStaff(back.CreateTier))
 	mux.HandleFunc("POST /admin/tiers/delete", back.RequireStaff(back.DeleteTier))

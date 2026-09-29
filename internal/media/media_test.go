@@ -286,6 +286,11 @@ func TestSrcsetNeverMisleadsTheBrowser(t *testing.T) {
 			"/media/" + d + "/400 400w, /media/" + d + "/800 800w, /media/" + d + " 1600w",
 		},
 		{
+			"a 2400px original also offers 1600",
+			2400,
+			"/media/" + d + "/400 400w, /media/" + d + "/800 800w, /media/" + d + "/1600 1600w, /media/" + d + " 2400w",
+		},
+		{
 			// 800 is not offered: it equals the original, so the rendition
 			// would be the original bytes under a second URL.
 			"an 800px original offers only 400",
@@ -354,9 +359,63 @@ func TestResizeNeverUpscalesAndOnlyServesKnownWidths(t *testing.T) {
 		t.Error("a 200px image asked for at 800 was enlarged rather than returned as-is")
 	}
 
-	for _, w := range []int{0, -1, 1, 399, 401, 1600, 100000} {
+	for _, w := range []int{0, -1, 1, 399, 401, 1599, 1601, 100000} {
 		if _, err := Resize(stored, "image/png", w); err == nil {
-			t.Errorf("width %d was rendered; want only the fixed 400px and 800px renditions", w)
+			t.Errorf("width %d was rendered; want only the fixed 400px, 800px and 1600px renditions", w)
 		}
+	}
+}
+
+// Nothing is displayed wider than 2400px, so a larger upload is stored at 2400
+// on its longest side, aspect ratio kept.
+func TestALargeUploadIsStoredAtDisplaySize(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		name         string
+		w, h         int
+		wantW, wantH int
+	}{
+		{"landscape 4000x3000", 4000, 3000, 2400, 1800},
+		{"portrait 3000x4000", 3000, 4000, 1800, 2400},
+		{"a 1200px image is not upscaled", 1200, 900, 1200, 900},
+		{"exactly 2400 is untouched", 2400, 1600, 2400, 1600},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			obj, data, err := Normalise(bytes.NewReader(jpegBytes(t, tt.w, tt.h)))
+			if err != nil {
+				t.Fatalf("normalise: %v", err)
+			}
+			cfg, _, err := image.DecodeConfig(bytes.NewReader(data))
+			if err != nil {
+				t.Fatalf("decode stored bytes: %v", err)
+			}
+			if cfg.Width != tt.wantW || cfg.Height != tt.wantH {
+				t.Errorf("stored bytes are %dx%d, want %dx%d", cfg.Width, cfg.Height, tt.wantW, tt.wantH)
+			}
+			if int(obj.Width) != tt.wantW || int(obj.Height) != tt.wantH {
+				t.Errorf("recorded size is %dx%d, want %dx%d", obj.Width, obj.Height, tt.wantW, tt.wantH)
+			}
+		})
+	}
+}
+
+// A 2400px upload is wide enough that its 1600 rendition is a real reduction.
+func TestA1600RenditionIsRendered(t *testing.T) {
+	t.Parallel()
+	_, stored, err := Normalise(bytes.NewReader(jpegBytes(t, 2400, 1600)))
+	if err != nil {
+		t.Fatalf("normalise: %v", err)
+	}
+	out, err := Resize(stored, "image/jpeg", 1600)
+	if err != nil {
+		t.Fatalf("resize: %v", err)
+	}
+	cfg, _, err := image.DecodeConfig(bytes.NewReader(out))
+	if err != nil {
+		t.Fatalf("decode rendition: %v", err)
+	}
+	if cfg.Width != 1600 || cfg.Height != 1066 {
+		t.Errorf("the 1600 rendition is %dx%d, want 1600x1066", cfg.Width, cfg.Height)
 	}
 }

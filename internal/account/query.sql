@@ -40,6 +40,13 @@ FROM sessions s
 JOIN users u ON u.id = s.user_id
 WHERE s.token_hash = $1 AND s.expires_at > now();
 
+-- Recency is measured on the database's clock, the one that stamped created_at
+-- and that the expiry check above reads. A missing or expired session is not recent.
+-- name: SessionCreatedSince :one
+SELECT s.created_at > now() - @max_age::interval AS recent
+FROM sessions s
+WHERE s.token_hash = @token_hash AND s.expires_at > now();
+
 -- The expiry is computed from the DATABASE's clock, which is what every read
 -- and retention sweep compares it with.
 -- name: CreateSession :exec
@@ -101,12 +108,9 @@ WHERE topic = 'account.password_reset'
   AND lower(coalesce(payload ->> 'email', payload ->> 'Email', '')) =
       lower(@email::text);
 
--- Quantities add rather than replace, capped at the line ceiling.
--- name: MergeCartItems :exec
-INSERT INTO cart_items (cart_id, variant_id, quantity)
-SELECT $2, src.variant_id, src.quantity FROM cart_items src WHERE src.cart_id = $1
-ON CONFLICT (cart_id, variant_id) DO UPDATE
-SET quantity = least(cart_items.quantity + EXCLUDED.quantity, 999);
+-- Guest lines for adoption and merge, read after the cart lock is held.
+-- name: CartItemRows :many
+SELECT variant_id, quantity FROM cart_items WHERE cart_id = @cart_id::uuid ORDER BY variant_id;
 
 -- The account row is the stable lock for deciding which of two guest carts is
 -- the first one this user adopts. A SECURITY DEFINER function is required
@@ -135,6 +139,7 @@ DELETE FROM carts WHERE id = $1;
 
 -- name: UserOrders :many
 SELECT
+    o.id,
     o.order_number,
     o.fulfillment_status,
     o.placed_at,
@@ -150,9 +155,10 @@ SELECT
     (o.id IN (SELECT id FROM committed_orders))::boolean AS committed,
     order_amount_owed(o.id)::bigint AS owed_cents
 FROM orders o
-WHERE o.user_id = $1
+WHERE o.user_id = @user_id
+  AND (NOT @has_cursor::boolean OR (o.placed_at, o.id) < (@after_at::timestamptz, @after_id::uuid))
 ORDER BY o.placed_at DESC, o.id DESC
-LIMIT $2;
+LIMIT @row_limit::integer;
 
 -- A scalar subquery, so an account that has never held credit gets 0 and not no row.
 -- name: StoreCreditBalance :one

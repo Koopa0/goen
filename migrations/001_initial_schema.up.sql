@@ -261,6 +261,10 @@ CREATE TABLE product_images (
     width       integer,
     height      integer,
     position    integer NOT NULL DEFAULT 0,
+    -- The option value this photograph shows, or NULL for one that shows the
+    -- product whichever value is chosen. Bound to a value of the SAME product by
+    -- product_images_option_value_fk, declared below product_option_values.
+    option_value_id uuid,
     created_at  timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT product_images_storage_key_present CHECK (storage_key ~ '[^[:space:]]'),
     CONSTRAINT product_images_alt_present CHECK (alt_text ~ '[^[:space:]]'),
@@ -334,6 +338,19 @@ CREATE TABLE product_option_values (
 CREATE UNIQUE INDEX product_option_values_value_key ON product_option_values (option_id, value);
 CREATE UNIQUE INDEX product_option_values_option_key
     ON product_option_values (product_id, option_id, id);
+-- Referenced by product_images, so a photograph can only show a value of its own
+-- product.
+CREATE UNIQUE INDEX product_option_values_product_key ON product_option_values (product_id, id);
+
+-- SET NULL on the value column alone: a bare SET NULL would null product_id too.
+-- A photograph whose value is gone still shows the product.
+ALTER TABLE product_images
+    ADD CONSTRAINT product_images_option_value_fk
+    FOREIGN KEY (product_id, option_value_id)
+    REFERENCES product_option_values (product_id, id)
+    ON DELETE SET NULL (option_value_id);
+
+CREATE INDEX product_images_option_value_idx ON product_images (product_id, option_value_id);
 
 -- The sellable unit: price and stock live here, never on the product.
 CREATE TABLE product_variants (
@@ -397,6 +414,30 @@ CREATE INDEX product_variants_low_stock_idx
 CREATE TRIGGER product_variants_set_updated_at
     BEFORE UPDATE ON product_variants
     FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+-- Option axes and variant creation share the product lock. Otherwise an axis
+-- can pass its empty-catalogue check while another transaction adds a SKU.
+CREATE FUNCTION product_catalogue_lock() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+    PERFORM 1 FROM products WHERE id = NEW.product_id FOR NO KEY UPDATE;
+    IF TG_TABLE_NAME = 'product_options' AND EXISTS (
+        SELECT 1 FROM product_variants WHERE product_id = NEW.product_id
+    ) THEN
+        RAISE EXCEPTION 'define option axes before creating variants'
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'product_options_before_variants';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER product_options_before_variants
+    AFTER INSERT OR UPDATE OF product_id ON product_options
+    FOR EACH ROW EXECUTE FUNCTION product_catalogue_lock();
+
+CREATE TRIGGER product_variants_lock_catalogue
+    BEFORE INSERT OR UPDATE OF product_id ON product_variants
+    FOR EACH ROW EXECUTE FUNCTION product_catalogue_lock();
 
 -- An active product must have something to sell: published with no variant, its
 -- page has no price and every listing drops it. DEFERRED, because the variants
@@ -818,6 +859,15 @@ BEGIN
                 RAISE EXCEPTION 'store credit spend on order % cannot be reversed (status %, paid %)',
                     o_id, o_status, o_paid
                     USING ERRCODE = 'check_violation', CONSTRAINT = 'store_credit_posting_matches_order';
+            END IF;
+            -- A refund before shipment pays the credit half back through its
+            -- return and then cancels the order; reversing the spend as well
+            -- would pay it twice.
+            IF EXISTS (SELECT 1 FROM return_requests r
+                       WHERE r.order_id = o_id AND r.status IN ('approved', 'completed')
+                         AND r.credit_refund_cents > 0) THEN
+                RAISE EXCEPTION 'store credit spend on order % was already returned by a return', o_id
+                    USING ERRCODE = 'check_violation', CONSTRAINT = 'store_credit_reversal_after_return_credit';
             END IF;
         END IF;
     END IF;
@@ -1768,6 +1818,48 @@ BEGIN
             USING ERRCODE = 'check_violation', CONSTRAINT = 'orders_legal_transition';
     END IF;
 
+    -- Once a paid order is refunded before shipment, cancelled is its only way on.
+    IF NEW.fulfillment_status <> 'cancelled' AND EXISTS (
+        SELECT 1 FROM return_requests r
+        WHERE r.order_id = NEW.id AND r.before_shipment
+    ) THEN
+        RAISE EXCEPTION 'order % is refunded before shipment and cannot be %',
+            NEW.order_number, NEW.fulfillment_status
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'orders_refunded_before_shipment';
+    END IF;
+
+    -- A paid order is not cancelled by a status change: its money goes back
+    -- through a full refund before shipment first, and the 統一發票 is voided or
+    -- relieved by allowances. The storefront never reaches this branch — it
+    -- cancels uncommitted orders only — and its access to invoice_operations is
+    -- revoked.
+    IF NEW.fulfillment_status = 'cancelled' AND order_is_committed(OLD.id) THEN
+        IF NOT EXISTS (
+            SELECT 1 FROM return_requests r
+            WHERE r.order_id = NEW.id AND r.before_shipment
+              AND r.status = 'approved'
+              AND NOT return_payout_outstanding(r.id)
+        ) THEN
+            RAISE EXCEPTION 'order % is paid; refund it before shipment to cancel it',
+                NEW.order_number
+                USING ERRCODE = 'check_violation', CONSTRAINT = 'orders_paid_cancel_needs_refund';
+        END IF;
+        IF EXISTS (SELECT 1 FROM invoice_operations
+                   WHERE order_id = NEW.id AND status IN ('pending', 'attention'))
+           OR EXISTS (
+               SELECT 1 FROM invoice_documents d
+               WHERE d.order_id = NEW.id AND d.kind = 'invoice' AND d.status = 'issued'
+                 AND d.amount_cents > coalesce((
+                     SELECT sum(a.amount_cents) FROM invoice_documents a
+                     WHERE a.original_id = d.id AND a.kind = 'allowance' AND a.status = 'issued'
+                 ), 0)
+           ) THEN
+            RAISE EXCEPTION 'order % has an unresolved invoice operation or an unrelieved invoice',
+                NEW.order_number
+                USING ERRCODE = 'check_violation', CONSTRAINT = 'orders_cancel_invoice_resolved';
+        END IF;
+    END IF;
+
     -- goen does not ship what it has not collected. Leaving pending requires the
     -- order to owe nothing — free or fully store-credited — or to carry a
     -- succeeded payment. A new funding source is added HERE.
@@ -1897,16 +1989,37 @@ CREATE TABLE order_lines (
         ON DELETE RESTRICT
 );
 
--- Legacy/admin import callers historically supplied only variant_id. Bind its
--- durable product identity before the CHECK/FK run; an explicitly supplied,
--- mismatched pair is left untouched and refused by the composite FK.
+-- A variant fixes the identity at purchase time. Either catalogue language is
+-- a valid display snapshot; later catalogue edits must not rewrite the order.
+-- Explicitly mismatched product/variant pairs remain the composite FK's rule.
 CREATE FUNCTION order_lines_bind_product() RETURNS trigger
 LANGUAGE plpgsql AS $$
+DECLARE
+    v_product_id uuid;
+    v_sku text;
+    v_name text;
+    v_name_en text;
 BEGIN
-    IF NEW.variant_id IS NOT NULL AND NEW.product_id IS NULL THEN
-        SELECT pv.product_id INTO NEW.product_id
+    IF NEW.variant_id IS NOT NULL THEN
+        SELECT pv.product_id, pv.sku, p.name, p.name_en
+        INTO v_product_id, v_sku, v_name, v_name_en
         FROM product_variants pv
+        JOIN products p ON p.id = pv.product_id
         WHERE pv.id = NEW.variant_id;
+        IF NEW.product_id IS NULL THEN
+            NEW.product_id := v_product_id;
+        END IF;
+        IF FOUND AND NEW.product_id = v_product_id THEN
+            IF NEW.sku IS DISTINCT FROM v_sku THEN
+                RAISE EXCEPTION 'order line SKU must identify its variant'
+                    USING ERRCODE = '23514', CONSTRAINT = 'order_lines_sku_matches_variant';
+            END IF;
+            IF NEW.product_name IS DISTINCT FROM v_name
+               AND NEW.product_name IS DISTINCT FROM v_name_en THEN
+                RAISE EXCEPTION 'order line name must identify its product'
+                    USING ERRCODE = '23514', CONSTRAINT = 'order_lines_name_matches_product';
+            END IF;
+        END IF;
     END IF;
     RETURN NEW;
 END;
@@ -2164,6 +2277,9 @@ CREATE TABLE order_events (
     kind          text NOT NULL,
     note          text,
     actor_user_id uuid REFERENCES users (id) ON DELETE SET NULL,
+    -- No person acted: the hold sweeper cancelled an order whose payment window
+    -- closed. Without it an actor-less cancellation reads as the customer's own.
+    by_system     boolean NOT NULL DEFAULT false,
     occurred_at   timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT order_events_kind_known CHECK (kind IN (
         'placed', 'paid', 'picking', 'shipped', 'in_transit',
@@ -2412,6 +2528,9 @@ CREATE TABLE return_requests (
     credit_refund_cents    bigint,
     created_at         timestamptz NOT NULL DEFAULT now(),
     decided_at         timestamptz,
+    -- A full refund of a paid order nothing has shipped from. Only
+    -- open_refund_before_shipment sets it: no role's column grant names it.
+    before_shipment    boolean NOT NULL DEFAULT false,
     CONSTRAINT return_requests_status_known
         CHECK (status IN ('requested', 'approved', 'rejected', 'completed')),
     -- A BLANK reason is legal: Consumer Protection Act §19 I lets a customer
@@ -2573,6 +2692,7 @@ CREATE FUNCTION return_lines_within_purchase() RETURNS trigger
 LANGUAGE plpgsql AS $$
 DECLARE
     shipped integer;
+    v_limit integer;
     already integer;
 BEGIN
     -- Two statements, because PostgreSQL refuses FOR UPDATE with GROUP BY. The
@@ -2593,6 +2713,19 @@ BEGIN
     SELECT coalesce(sum(sl.quantity), 0) INTO shipped
     FROM order_shipment_lines sl
     WHERE sl.order_line_id = NEW.order_line_id;
+    v_limit := shipped;
+
+    -- A refund before shipment takes back what was ORDERED, and exists only
+    -- while nothing of the order has gone out.
+    IF EXISTS (SELECT 1 FROM return_requests r
+               WHERE r.id = NEW.return_request_id AND r.before_shipment) THEN
+        IF EXISTS (SELECT 1 FROM order_shipments s WHERE s.order_id = NEW.order_id) THEN
+            RAISE EXCEPTION 'order % has shipped, so it is not refunded before shipment',
+                NEW.order_id
+                USING ERRCODE = 'check_violation', CONSTRAINT = 'return_within_shipment';
+        END IF;
+        SELECT ol.quantity INTO v_limit FROM order_lines ol WHERE ol.id = NEW.order_line_id;
+    END IF;
 
     SELECT coalesce(sum(rl.quantity), 0) INTO already
     FROM return_request_lines rl
@@ -2601,7 +2734,7 @@ BEGIN
       AND r.status <> 'rejected'
       AND rl.return_request_id <> NEW.return_request_id;
 
-    IF already + NEW.quantity > shipped THEN
+    IF already + NEW.quantity > v_limit THEN
         RAISE EXCEPTION 'returning % of a line that shipped % (already claimed %)',
             NEW.quantity, shipped, already
             USING ERRCODE = 'check_violation', CONSTRAINT = 'return_within_shipment';
@@ -2623,6 +2756,16 @@ DECLARE
     v_request_id uuid;
     v_status text;
 BEGIN
+    -- Nothing of an order refunded before shipment left the warehouse, so
+    -- nothing comes back and nothing is restocked: its held stock is released.
+    IF TG_OP <> 'DELETE'
+       AND (coalesce(NEW.received_quantity, 0) <> 0 OR coalesce(NEW.restocked_quantity, 0) <> 0)
+       AND EXISTS (SELECT 1 FROM return_requests r
+                   WHERE r.id = NEW.return_request_id AND r.before_shipment) THEN
+        RAISE EXCEPTION 'return % was refunded before shipment; nothing is received', NEW.return_request_id
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'return_before_shipment_nothing_received';
+    END IF;
     IF TG_OP = 'UPDATE'
        AND NEW.order_id IS NOT DISTINCT FROM OLD.order_id
        AND NEW.return_request_id IS NOT DISTINCT FROM OLD.return_request_id
@@ -2865,6 +3008,27 @@ CREATE TRIGGER return_requests_legal_transition
     BEFORE UPDATE OF status, goods_refund_cents, shipping_refund_cents,
                      card_refund_cents, credit_refund_cents ON return_requests
     FOR EACH ROW EXECUTE FUNCTION return_requests_recount();
+
+-- A refund before shipment is closed only by the step that cancels its order,
+-- in the same transaction. Cancelled is terminal, so reading it unlocked cannot
+-- admit a completion the order later takes back.
+CREATE FUNCTION return_before_shipment_completes_cancelled() RETURNS trigger
+LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
+BEGIN
+    IF NEW.before_shipment AND NEW.status = 'completed' AND OLD.status <> 'completed'
+       AND NOT EXISTS (SELECT 1 FROM orders o
+                       WHERE o.id = NEW.order_id AND o.fulfillment_status = 'cancelled') THEN
+        RAISE EXCEPTION 'return % completes only once its order is cancelled', NEW.id
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'return_before_shipment_completes_cancelled';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER return_before_shipment_completes_cancelled
+    BEFORE UPDATE OF status ON return_requests
+    FOR EACH ROW EXECUTE FUNCTION return_before_shipment_completes_cancelled();
 
 -- Inserting straight into 'approved' would skip the transition machine above,
 -- exactly as orders_start_pending guards orders.
@@ -3865,6 +4029,9 @@ CREATE TABLE outbox_messages (
     -- receipt and password reset written after it.
     priority     smallint NOT NULL DEFAULT 0,
     available_at timestamptz NOT NULL DEFAULT now(),
+    -- available_at moves on every claim, so it cannot say how old a message is;
+    -- the retention sweep needs that for one that was never delivered.
+    created_at   timestamptz NOT NULL DEFAULT now(),
     delivered_at timestamptz,
     attempts     integer NOT NULL DEFAULT 0,
     last_error   text,
@@ -7812,6 +7979,98 @@ $$;
 
 GRANT EXECUTE ON FUNCTION return_payout_outstanding(uuid) TO admin;
 
+-- A paid order nothing has shipped from leaves as a return of everything it
+-- bought, opened and approved in one step; the existing return payout then
+-- pays it. admin can neither name a return's order nor insert its lines — a
+-- back office that could would refund goods on a customer's behalf — so this
+-- door takes no lines and no amounts: return_requests_recount freezes the
+-- card/credit split, and the total must be the order's.
+CREATE FUNCTION open_refund_before_shipment(
+    p_order_number text,
+    p_reason text,
+    p_actor uuid,
+    p_request_id text
+) RETURNS uuid
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE
+    v_order orders%ROWTYPE;
+    v_return return_requests%ROWTYPE;
+    v_total bigint;
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM users
+                   WHERE id = p_actor AND role IN ('staff', 'admin')) THEN
+        RAISE EXCEPTION 'a refund before shipment requires a durable staff actor'
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'return_before_shipment_actor';
+    END IF;
+    IF p_request_id IS NULL
+       OR p_request_id !~ '[^[:space:]]'
+       OR char_length(p_request_id) > 200 THEN
+        RAISE EXCEPTION 'a refund before shipment requires a bounded request id'
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'return_before_shipment_request';
+    END IF;
+
+    -- The same row Ship's parcel insert locks, so a dispatch and this door
+    -- cannot both pass the no-shipment test.
+    SELECT * INTO v_order FROM orders WHERE order_number = p_order_number FOR UPDATE;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'no order %', p_order_number
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'return_before_shipment_eligible';
+    END IF;
+
+    -- A second press resumes the refund this door already opened.
+    SELECT * INTO v_return FROM return_requests
+    WHERE order_id = v_order.id AND before_shipment;
+    IF FOUND THEN
+        RETURN v_return.id;
+    END IF;
+
+    IF NOT order_is_committed(v_order.id)
+       OR v_order.fulfillment_status NOT IN ('pending', 'picking')
+       OR EXISTS (SELECT 1 FROM order_shipments WHERE order_id = v_order.id)
+       OR EXISTS (SELECT 1 FROM return_requests WHERE order_id = v_order.id) THEN
+        RAISE EXCEPTION 'order % is not a paid order awaiting its first parcel with no return',
+            p_order_number
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'return_before_shipment_eligible';
+    END IF;
+
+    INSERT INTO return_requests (order_id, requested_by_user_id, reason, before_shipment)
+    VALUES (v_order.id, p_actor, '', true)
+    RETURNING * INTO v_return;
+    INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity)
+    SELECT ol.order_id, v_return.id, ol.id, ol.quantity
+    FROM order_lines ol WHERE ol.order_id = v_order.id;
+    UPDATE return_requests
+    SET status = 'approved', resolution = p_reason, decided_at = now()
+    WHERE id = v_return.id
+    RETURNING * INTO v_return;
+
+    SELECT coalesce(sum(ol.unit_price_cents * ol.quantity), 0)
+           - v_order.discount_cents + v_order.shipping_cents + v_order.tax_cents
+    INTO v_total
+    FROM order_lines ol WHERE ol.order_id = v_order.id;
+    IF v_return.goods_refund_cents + v_return.shipping_refund_cents <> v_total THEN
+        RAISE EXCEPTION 'order % would refund % of its %',
+            p_order_number, v_return.goods_refund_cents + v_return.shipping_refund_cents, v_total
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'return_before_shipment_full_total';
+    END IF;
+
+    PERFORM record_audit_event(
+        p_actor, 'return.refund_before_shipment', 'return_requests', v_return.id,
+        NULL,
+        jsonb_build_object(
+            'order_number', v_order.order_number,
+            'resolution', p_reason,
+            'card_refund_cents', v_return.card_refund_cents,
+            'credit_refund_cents', v_return.credit_refund_cents
+        ),
+        p_request_id
+    );
+    RETURN v_return.id;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION open_refund_before_shipment(text, text, uuid, text) TO admin;
+
 -- ---------------------------------------------------------------------------
 -- Co-purchase projection
 --
@@ -8328,6 +8587,36 @@ BEGIN
             USING ERRCODE = 'check_violation', CONSTRAINT = 'loyalty_redemption_owner';
     END IF;
 
+    -- Points a return will claw back must stay in the account until the clawback
+    -- is recorded: spent into store credit first, it finds nothing to reverse
+    -- and the shop absorbs it. The clawback is a later transaction than the
+    -- payout, so a paid return still owes it while its allocation is positive.
+    IF EXISTS (
+        SELECT 1
+        FROM return_requests r
+        JOIN orders o ON o.id = r.order_id
+        JOIN loyalty_entries award ON award.order_id = o.id AND award.kind = 'award'
+        WHERE award.account_id = v_account_id
+          AND r.status = 'approved'
+          AND award.points > 0
+          AND NOT EXISTS (
+              SELECT 1 FROM loyalty_entries c
+              WHERE c.return_request_id = r.id AND c.kind = 'clawback'
+          )
+          AND (return_loyalty_points_allocation(r.id) > 0
+               OR return_refundable_amount(r.id) > (
+                   coalesce((SELECT sum(rf.amount_cents) FROM refunds rf
+                             WHERE rf.return_request_id = r.id
+                               AND rf.status = 'succeeded'), 0)
+                   + coalesce((SELECT sum(e.amount_cents) FROM store_credit_entries e
+                               WHERE e.idempotency_key = 'return-credit:' || r.id::text), 0)))
+    ) THEN
+        RAISE EXCEPTION 'account % has an approved return that is not fully settled',
+            v_account_id
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'loyalty_redemption_return_unsettled';
+    END IF;
+
     -- FIFO by soonest expiry costs the customer least. Two awards can expire on
     -- the same day, so created_at then id are the deterministic tie-break. One
     -- redemption spanning lots is one INSERT per settled fact; no award row is
@@ -8439,6 +8728,22 @@ REVOKE INSERT, UPDATE, DELETE ON
     order_shipments, order_shipment_lines, invoice_documents, invoice_operations,
     invoice_document_lines
     FROM store;
+REVOKE DELETE ON product_questions, product_reviews FROM store;
+REVOKE UPDATE ON wishlist_items FROM store;
+REVOKE DELETE ON
+    products, product_variants, product_options, product_option_values,
+    variant_option_values, product_reviews, product_questions, product_answers,
+    coupons, hero_slides, promo_banners, sale_campaigns, shipping_methods
+    FROM admin;
+REVOKE UPDATE ON
+    product_images, product_specs, product_options, product_option_values,
+    variant_option_values, membership_tiers, sale_campaign_products,
+    order_shipment_lines
+    FROM admin;
+-- After the revoke, which takes column grants with it. In place, the back office
+-- only orders a product's images and says which option value each one shows.
+GRANT UPDATE (position, option_value_id) ON product_images TO admin;
+REVOKE UPDATE, DELETE ON outbox_messages FROM admin;
 
 -- user_identities is the STOREFRONT's. INSERT and DELETE only: linking and
 -- unlinking are the two things that happen to a link, and an UPDATE would repoint

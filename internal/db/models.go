@@ -373,6 +373,7 @@ type OrderEvent struct {
 	Kind            string
 	Note            pgtype.Text
 	ActorUserID     uuid.NullUUID
+	BySystem        bool
 	OccurredAt      time.Time
 	ReturnRequestID uuid.NullUUID
 }
@@ -444,6 +445,7 @@ type OutboxMessage struct {
 	Payload     []byte
 	Priority    int16
 	AvailableAt time.Time
+	CreatedAt   time.Time
 	DeliveredAt pgtype.Timestamptz
 	Attempts    int32
 	LastError   pgtype.Text
@@ -524,15 +526,16 @@ type ProductCopurchase struct {
 }
 
 type ProductImage struct {
-	ID         uuid.UUID
-	ProductID  uuid.UUID
-	StorageKey string
-	AltText    string
-	AltTextEn  pgtype.Text
-	Width      pgtype.Int4
-	Height     pgtype.Int4
-	Position   int32
-	CreatedAt  time.Time
+	ID            uuid.UUID
+	ProductID     uuid.UUID
+	StorageKey    string
+	AltText       string
+	AltTextEn     pgtype.Text
+	Width         pgtype.Int4
+	Height        pgtype.Int4
+	Position      int32
+	OptionValueID uuid.NullUUID
+	CreatedAt     time.Time
 }
 
 type ProductOption struct {
@@ -671,6 +674,7 @@ type ReturnRequest struct {
 	CreditRefundCents   pgtype.Int8
 	CreatedAt           time.Time
 	DecidedAt           pgtype.Timestamptz
+	BeforeShipment      bool
 }
 
 type ReturnRequestLine struct {

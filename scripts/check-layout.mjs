@@ -88,6 +88,8 @@ const EXPECTED = [
 // deliberately wider than a phone and scroll inside their own box, and nothing
 // but this says whether the PAGE stayed put.
 const PAGES = [
+  { label: 'campaign 375', width: 375, height: 812, path: '/s/layout-campaign', marker: '.goen-tiles__grid .goen-tile' },
+  { label: 'campaign 1440', width: 1440, height: 900, path: '/s/layout-campaign', marker: '.goen-tiles__grid .goen-tile' },
   { label: 'about 375', width: 375, height: 812, path: '/about', marker: '.about' },
   { label: 'about 1440', width: 1440, height: 900, path: '/about', marker: '.about' },
   { label: 'contact 375', width: 375, height: 812, path: '/contact', marker: 'form' },
@@ -159,7 +161,8 @@ const CART = [
   // choose rather than a street address — so a layout row for the default
   // method measures only half the page. PICKUP_SHIP is the version id the
   // Makefile reads from the database, and the marker insists the chain
-  // chooser is there.
+  // chooser is there. Checkout offers 超商取貨 only where the store map is
+  // configured, so the server under test must have GOEN_ECPAY_LOGISTICS set.
   { label: 'pickup 375', width: 375, height: 812, path: '/checkout?ship=PICKUP_SHIP', marker: 'input[name=pickup_brand]' },
   { label: 'pickup 1440', width: 1440, height: 900, path: '/checkout?ship=PICKUP_SHIP', marker: 'input[name=pickup_brand]' },
   // The payment page. PLACED_ORDER is the NUMBER of the order the Makefile just
@@ -1512,6 +1515,47 @@ const CART_PROBE = `(() => {
   };
 })()`;
 
+// Hold one real checkout update at the fetch boundary, inspect its pending
+// state, then release it and require the same request to settle successfully.
+async function proveCheckoutRequestFeedback(label) {
+  const result = await evalPage(`(async () => {
+    const choice = document.querySelector('input[name="shipping"]:not(:checked)');
+    const form = choice?.form;
+    if (!choice || !form) return { ok: false, why: 'no alternate shipping choice' };
+    const originalFetch = window.fetch;
+    let release;
+    const held = new Promise(resolve => { release = resolve; });
+    let started;
+    const issued = new Promise(resolve => { started = resolve; });
+    window.fetch = async (...args) => { started(); await held; return originalFetch(...args); };
+    let finish;
+    const done = new Promise(resolve => { finish = resolve; });
+    const source = choice.closest('[hx-post]');
+    if (!source) { window.fetch = originalFetch; return { ok: false, why: 'choice has no request source' }; }
+    let watched;
+    const watchRequest = (event) => {
+      const ctx = event.detail?.ctx;
+      if (ctx?.request?.form !== form || (ctx.sourceElement !== source && !source.contains(ctx.sourceElement))) return;
+      watched = ctx;
+    };
+    // On document: the source is detached by the swap before it could hear this.
+    const watchFinish = (event) => { if (watched && event.detail?.ctx === watched) finish(); };
+    document.addEventListener('htmx:before:request', watchRequest);
+    document.addEventListener('htmx:finally:request', watchFinish);
+    try {
+      choice.click();
+      await Promise.race([issued, new Promise((_, reject) => setTimeout(() => reject(new Error('checkout request did not start')), 5000))]);
+      const busy = form.getAttribute('aria-busy') === 'true' && !!form.querySelector('[aria-disabled="true"]');
+      release();
+      await Promise.race([done, new Promise((_, reject) => setTimeout(() => reject(new Error('checkout request did not finish')), 15000))]);
+      // The original form: the swap replaces it, and the copy in the page is not the one that was held.
+      const cleared = !form.hasAttribute('data-request-pending') && form.getAttribute('aria-busy') !== 'true' && !form.querySelector('[aria-disabled="true"]');
+      return { ok: busy && cleared, busy, cleared };
+    } finally { release(); document.removeEventListener('htmx:before:request', watchRequest); document.removeEventListener('htmx:finally:request', watchFinish); window.fetch = originalFetch; }
+  })()`);
+  if (!result.ok) fail(label, 'request feedback: ' + JSON.stringify(result));
+}
+
 // Exercise the checkout's actual inputs: native validity and the blur feedback
 // must agree before an order can leave this form.
 async function checkoutConstraintFeedback(label) {
@@ -1595,7 +1639,38 @@ for (const want of [...CART, ...PAGES]) {
   console.log(`${at.padEnd(16)} scrollW=${got.scrollWidth}/${got.viewportWidth} ` +
     `controls=${got.controls} tap=${got.minTap}`);
   if (want.path === '/checkout') await checkoutConstraintFeedback(at);
+  if (want.path === '/checkout') await proveCheckoutRequestFeedback(at);
 }
+
+// The served transition rules must honor reduced motion, including pseudo-
+// elements and native details content that the global element override misses.
+for (const motion of ['no-preference', 'reduce']) {
+  await send(ws, 'Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: motion }] });
+  await send(ws, 'Emulation.setDeviceMetricsOverride', { width: 375, height: 812, deviceScaleFactor: 1, mobile: true });
+  await send(ws, 'Page.navigate', { url: ORIGIN + '/' });
+  await settled(ws, 'motion ' + motion, ORIGIN + '/');
+  const checked = await evalPage(`(async () => {
+    const menu = document.querySelector('[data-menu]');
+    if (!menu) return { ok: false, why: 'missing native menu' };
+    menu.querySelector('summary').click();
+    const duration = getComputedStyle(menu, '::details-content').transitionDuration;
+    if (!document.startViewTransition) return { ok: true, supported: false, duration };
+    const transition = document.startViewTransition(() => { document.body.dataset.motionProbe = 'changed'; });
+    await transition.ready;
+    const animation = getComputedStyle(document.documentElement, '::view-transition-new(root)').animationName;
+    transition.skipTransition();
+    await transition.finished;
+    return { ok: true, supported: true, animation, duration };
+  })()`);
+  if (!checked.ok) fail('motion ' + motion, JSON.stringify(checked));
+  if (checked.supported && (motion === 'reduce' ? checked.animation !== 'none' : checked.animation === 'none')) fail('motion ' + motion, 'transition animation = ' + checked.animation);
+  if (motion === 'reduce' && checked.duration !== '0s') fail('motion reduce', 'menu still transitions: ' + checked.duration);
+  await send(ws, 'Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+  await send(ws, 'Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+  const closed = await evalPage(`(() => { const menu = document.querySelector('[data-menu]'); return !menu.open && document.activeElement === menu.querySelector('summary'); })()`);
+  if (closed !== true) fail('motion ' + motion, 'Escape did not close the menu and return focus');
+}
+await send(ws, 'Emulation.setEmulatedMedia', { features: [] });
 
 // The comparison table. CART_PROBE's marker-only check is not enough: the
 // wrapper is present on the empty state, and the table's job is to scroll
@@ -2079,6 +2154,9 @@ if (process.env.ADMIN_TOKEN) {
             'causes this check knows about — worth reading before trusting the rest.';
       fail('admin session', `${why}\n    Not running the ${ADMIN.length} back-office rows: ` +
         'each would have reported this one cause as a failure of its own page.');
+      // Each row is a failure of its own, so a surface that was not measured
+      // is listed by name and never leaves the run smaller and green.
+      for (const row of ADMIN) fail(row.label, 'not measured: the admin session was unusable (see "admin session" above)');
       ADMIN.length = 0;
     }
   }
@@ -2126,6 +2204,43 @@ if (process.env.ADMIN_TOKEN) {
     }
     console.log(`${at.padEnd(16)} scrollW=${got.scrollWidth}/${got.viewportWidth} ` +
       `controls=${got.controls} tap=${got.minTap}`);
+  }
+
+  // The order page is the packing slip: printed, the back office around it is
+  // gone and the delivery block and the lines are what is left.
+  if (ADMIN.length && process.env.INVOICE_ORDER) {
+    const label = 'admin order print';
+    const target = `${ORIGIN}/admin/orders/${process.env.INVOICE_ORDER}`;
+    await send(ws, 'Emulation.setDeviceMetricsOverride', {
+      width: 794, height: 1123, deviceScaleFactor: 1, mobile: false,
+    });
+    await send(ws, 'Emulation.setEmulatedMedia', { media: 'print' });
+    try {
+      await send(ws, 'Page.navigate', { url: target });
+      await settled(ws, label, target);
+      const printed = await evalPage(`(() => {
+        const shown = (selector) => [...document.querySelectorAll(selector)]
+          .filter((el) => getComputedStyle(el).display !== 'none' && el.getClientRects().length > 0).length;
+        return {
+          lines: shown('.goen-order__line'),
+          delivery: shown('.ui-dl__row'),
+          nav: shown('.goen-admin__nav'),
+          bar: shown('.goen-adminbar'),
+          forms: shown('.goen-admin__orderpanel form, .goen-admin__orderside form'),
+        };
+      })()`);
+      if (printed.threw) {
+        fail(label, `print probe did not run — ${printed.why}`);
+      } else {
+        if (printed.lines === 0) fail(label, 'no order lines are shown when printed');
+        if (printed.delivery === 0) fail(label, 'the recipient and destination are not shown when printed');
+        if (printed.nav || printed.bar) fail(label, 'the back-office bar or rail is still shown when printed');
+        if (printed.forms) fail(label, `${printed.forms} action forms are still shown when printed`);
+        console.log(`${label.padEnd(16)} lines=${printed.lines} delivery=${printed.delivery} nav=${printed.nav} forms=${printed.forms}`);
+      }
+    } finally {
+      await send(ws, 'Emulation.setEmulatedMedia', { media: '' });
+    }
   }
 } else {
   console.log('admin           skipped (no ADMIN_TOKEN)');
@@ -2371,7 +2486,22 @@ const provePdpAdd = async (label, scriptingOff) => {
       return { ok: false, why: 'add-to-cart is not ready before submit' };
     }
     add.scrollIntoView({ block: 'center', behavior: 'instant' });
-    form.requestSubmit();
+    // With script, press twice in the same tick: the second request queues
+    // behind the first, and the first response swaps this form out of the page.
+    // Exactly one POST may leave, or a double press adds the product twice.
+    window.__pdpAddPosts = 0;
+    if (!${scriptingOff}) {
+      const originalFetch = window.fetch;
+      window.fetch = (input, init) => {
+        const method = String((init && init.method) || (input && input.method) || 'GET').toUpperCase();
+        if (method === 'POST') window.__pdpAddPosts += 1;
+        return originalFetch.call(window, input, init);
+      };
+      form.requestSubmit();
+      form.requestSubmit();
+    } else {
+      form.requestSubmit();
+    }
     return { ok: true };
   })()`);
   if (submit.threw || !submit.ok) {
@@ -2411,6 +2541,14 @@ const provePdpAdd = async (label, scriptingOff) => {
   if (got.threw) {
     fail(label, `post-add probe did not run — ${got.why}`);
     return;
+  }
+  if (!scriptingOff) {
+    // Let a wrongly issued second request reach the wrapper before counting.
+    await new Promise((r) => setTimeout(r, 500));
+    const posts = await evalPage('window.__pdpAddPosts');
+    if (posts.threw || posts !== 1) {
+      fail(label, `two quick add-to-cart presses sent ${posts.threw ? posts.why : posts} POSTs, want exactly 1`);
+    }
   }
   if (got.addDisabled) {
     fail(label, 'add-to-cart is disabled after a successful add');
@@ -2490,6 +2628,151 @@ const provePdpAdd = async (label, scriptingOff) => {
 
 await provePdpAdd('pdp add 375 off', true);
 await provePdpAdd('pdp add 375 on', false);
+await send(ws, 'Emulation.setScriptExecutionDisabled', { value: false });
+
+// Choosing a colour whose photograph is tagged puts that photograph first. With
+// script the gallery rides the buy column's swap; with none the navigation
+// renders it. Both start from the page's default state and press the swatch
+// through the input pipeline, so a swatch something else covers fails here.
+// The scripted pass then presses the other colour from the column the swap
+// brought in, because a control a swap delivers has to work as well as the one
+// the page loaded with.
+const COLOUR_SLUG = process.env.COLOUR_SLUG || '';
+const COLOUR_VALUE = process.env.COLOUR_VALUE || '';
+const COLOUR_KEY = process.env.COLOUR_KEY || '';
+
+// A press while a swap's cross-fade runs lands on the view transition's overlay
+// and not on the page, so with script the previous transition finishes first.
+// Without script nothing swaps, and nothing here may wait on a page callback.
+const pressMarked = async (afterTransition) => {
+  if (afterTransition) {
+    const idle = await evalPage(`(async () => {
+      const fading = () => document.getAnimations().filter((a) =>
+        String((a.effect && a.effect.pseudoElement) || '').startsWith('::view-transition'));
+      if (document.activeViewTransition) await document.activeViewTransition.finished.catch(() => {});
+      await Promise.all(fading().map((a) => a.finished.catch(() => {})));
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      return true;
+    })()`);
+    if (idle !== true) return false;
+  }
+  const at = await evalPage(`(() => {
+    const el = document.querySelector('[data-layout-press]');
+    if (!el) return { ok: false };
+    el.scrollIntoView({ block: 'center', behavior: 'instant' });
+    const r = el.getBoundingClientRect();
+    return { ok: true, x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  })()`);
+  if (at.threw || !at.ok) return false;
+  for (const type of ['mousePressed', 'mouseReleased']) {
+    await send(ws, 'Input.dispatchMouseEvent', { type, x: at.x, y: at.y, button: 'left', clickCount: 1 });
+  }
+  return true;
+};
+
+const galleryState = `(() => {
+  const galleries = document.querySelectorAll('#gallery');
+  const main = document.querySelector('#gallery img');
+  return {
+    galleries: galleries.length,
+    src: main ? main.getAttribute('src') : '',
+    values: [...new URL(location.href).searchParams.values()],
+    documentStarted: performance.timeOrigin,
+  };
+})()`;
+
+const waitForGallery = async (want) => {
+  for (let i = 0; i < 50; i++) {
+    const got = await evalPage(galleryState);
+    if (!got.threw && want(got)) return got;
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  return evalPage(galleryState);
+};
+
+const provePdpColourPhoto = async (label, scriptingOff) => {
+  if (!COLOUR_SLUG || !COLOUR_VALUE || !COLOUR_KEY) {
+    fail(label, 'COLOUR_SLUG, COLOUR_VALUE and COLOUR_KEY are unset — run it through make check-layout, whose fixture tags the photograph');
+    return;
+  }
+  await send(ws, 'Emulation.setScriptExecutionDisabled', { value: scriptingOff });
+  await send(ws, 'Emulation.setDeviceMetricsOverride', {
+    width: 375, height: 812, deviceScaleFactor: 1, mobile: true,
+  });
+  const start = `${ORIGIN}/p/${COLOUR_SLUG}`;
+  await send(ws, 'Page.navigate', { url: start });
+  await settled(ws, `${label} open`, start);
+
+  const before = await evalPage(galleryState);
+  if (before.threw) {
+    fail(label, `gallery probe did not run — ${before.why}`);
+    return;
+  }
+  if (!before.src || before.src.includes(`/${COLOUR_KEY}`)) {
+    fail(label, `the default page opens on ${before.src || 'no photograph'}, so choosing ${COLOUR_VALUE} can show no change`);
+    return;
+  }
+
+  const marked = await evalPage(`(() => {
+    const want = ${JSON.stringify(COLOUR_VALUE)};
+    const swatch = [...document.querySelectorAll('#buybox a.goen-swatch')]
+      .find((a) => [...new URL(a.href).searchParams.values()].includes(want));
+    if (!swatch) return false;
+    swatch.setAttribute('data-layout-press', '');
+    return true;
+  })()`);
+  if (marked !== true || !(await pressMarked(!scriptingOff))) {
+    fail(label, `no swatch on the default page chooses ${COLOUR_VALUE}`);
+    return;
+  }
+  const chosen = await waitForGallery((g) => g.values.includes(COLOUR_VALUE) && g.src.includes(`/${COLOUR_KEY}`));
+  if (chosen.threw || !chosen.src.includes(`/${COLOUR_KEY}`)) {
+    fail(label, `choosing ${COLOUR_VALUE} left the gallery opening on ${chosen.src || 'nothing'}, want ${COLOUR_KEY}`);
+    return;
+  }
+  if (!chosen.values.includes(COLOUR_VALUE)) {
+    fail(label, `the address does not carry ${COLOUR_VALUE} after choosing it`);
+  }
+  if (chosen.galleries !== 1) {
+    fail(label, `the page holds ${chosen.galleries} #gallery elements after choosing, want 1`);
+  }
+  // In place with script, a new document without: the two paths are what make
+  // the swatch work either way, and each must be the one that ran.
+  if ((chosen.documentStarted !== before.documentStarted) !== scriptingOff) {
+    fail(label, scriptingOff
+      ? 'choosing a colour with scripting off did not load a new page'
+      : 'choosing a colour with script loaded a new page instead of swapping in place');
+  }
+
+  if (!scriptingOff) {
+    const other = await evalPage(`(() => {
+      const on = document.querySelector('#buybox a.goen-swatch--on');
+      const box = on && on.closest('fieldset');
+      const next = box && box.querySelector('a.goen-swatch:not(.goen-swatch--on)');
+      if (!next) return false;
+      next.setAttribute('data-layout-press', '');
+      return true;
+    })()`);
+    if (other !== true || !(await pressMarked(true))) {
+      fail(label, 'the swapped buy column offers no other colour to choose');
+      return;
+    }
+    const back = await waitForGallery((g) => !g.values.includes(COLOUR_VALUE) && g.src === before.src);
+    if (!back.threw && back.documentStarted !== before.documentStarted) {
+      fail(label, 'the swatch the swap delivered loaded a new page instead of swapping in place');
+    }
+    if (back.threw || back.src !== before.src) {
+      fail(label, `choosing the other colour from the swapped column opens on ${back.src || 'nothing'}, ` +
+        `want ${before.src} (address carries ${JSON.stringify(back.values || [])})`);
+    } else if (back.galleries !== 1) {
+      fail(label, `the page holds ${back.galleries} #gallery elements after choosing back, want 1`);
+    }
+  }
+  console.log(`${label.padEnd(24)} scripting=${scriptingOff ? 'off' : 'on'} opens=${before.src} chosen=${chosen.src}`);
+};
+
+await provePdpColourPhoto('pdp colour photo 375 off', true);
+await provePdpColourPhoto('pdp colour photo 375 on', false);
 await send(ws, 'Emulation.setScriptExecutionDisabled', { value: false });
 
 // axe-core, once per route.

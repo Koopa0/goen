@@ -66,6 +66,8 @@ const (
 	actionRemoveSpec               Action = "spec.remove"
 	actionAttachImage              Action = "image.attach"
 	actionDetachImage              Action = "image.detach"
+	actionSetImageOption           Action = "image.option"
+	actionMoveImage                Action = "image.move"
 	actionCreateShippingMethod     Action = "shipping.method.create"
 	actionToggleShippingMethod     Action = "shipping.method.toggle"
 	actionCreateShippingZone       Action = "shipping.zone.create"
@@ -193,16 +195,18 @@ func encodeState(v any) ([]byte, error) {
 }
 
 // Audit reads the trail.
-func (s *Store) Audit(ctx context.Context) (pages.AuditView, error) {
-	rows, err := s.q.AuditEvents(ctx, MaxAuditRows+1)
+func (s *Store) Audit(ctx context.Context, after ...string) (pages.AuditView, error) {
+	scope := "/admin/audit"
+	cursor := readPageCursor(scope, after)
+	rows, err := s.q.AuditEvents(ctx, db.AuditEventsParams{HasCursor: cursor.Valid, AfterAt: cursor.At, AfterID: cursor.ID, RowLimit: MaxAuditRows + 1})
 	if err != nil {
 		return pages.AuditView{}, fmt.Errorf("read audit events: %w", err)
 	}
 	// The trail has its own size, and this is the list where silence costs
 	// most: a page that shows 200 of fifty thousand without saying so is a
 	// record somebody may take for the whole record.
-	rows, more := pageOf(rows, MaxAuditRows)
-	view := pages.AuditView{ListBound: pages.Bound(more, MaxAuditRows)}
+	rows, bound := pageBound(cursor, scope, rows, MaxAuditRows, func(r *db.AuditEventsRow) string { return r.PageCursor })
+	view := pages.AuditView{ListBound: bound}
 	for i := range rows {
 		e := &rows[i]
 		view.Rows = append(view.Rows, pages.AuditEntry{

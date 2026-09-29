@@ -3,9 +3,11 @@
 package db_test
 
 import (
+	"context"
 	"errors"
 	"os"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -369,6 +371,23 @@ var appWritableThroughDefiner = map[string]string{
 	"store_credit_accounts": "created on first use; UPDATE is what is revoked",
 }
 
+// sharedCleanup is a verb a cleanup-only SECURITY DEFINER function performs that
+// the role's own production queries perform too, keyed role.table.VERB, with the
+// caller. The definer is not the only door here: revoking the verb would break
+// the caller, and an entry the scan never reaches fails as stale.
+var sharedCleanup = map[string]string{
+	"store.sessions.DELETE": "sign-out, a password change or reset, and the expiry sweep end sessions directly (DeleteSession, " +
+		"DeleteUserSessions, DeleteExpiredSessions); revoke_staff and secure_promoted_account end them too",
+	"admin.sessions.DELETE": "removing a staff member's TOTP ends their sessions (RemoveTOTPAndSessions); " +
+		"revoke_staff and secure_promoted_account end them too",
+	"store.outbox_messages.DELETE": "the relay sweeps delivered rows and expired undelivered ones (SweepDeliveredMessages, SweepUndeliveredMessages) and account " +
+		"flows drop superseded letters; erase_user drops a customer's messages",
+	"store.order_access_grants.DELETE": "the retention sweep deletes grants nobody can present " +
+		"(DeleteOldOrderAccessGrants); erase_user deletes a customer's",
+	"store.newsletter_confirmations.DELETE": "confirming spends the token (SpendNewsletterConfirmation); " +
+		"erase_user deletes a customer's",
+}
+
 func goenAppHasTablePriv(t *testing.T, table, priv string) bool {
 	t.Helper()
 	var ok bool
@@ -379,19 +398,44 @@ func goenAppHasTablePriv(t *testing.T, table, priv string) bool {
 	return ok
 }
 
-// TestEveryDefinerWrittenTableIsRevoked holds the rule that a table a SECURITY DEFINER function
-// writes is one the app writes only through it, derived from the catalog rather than a list.
+// TestEveryDefinerWrittenTableIsRevoked enforces exclusive ledger writes and
+// requires an ownership decision for newly discovered cleanup overlaps.
 func TestEveryDefinerWrittenTableIsRevoked(t *testing.T) {
 	tables := definerWrittenTables(t)
+	byVerb := map[string][]string{
+		"INSERT": definerTargetTables(t, `INSERT\s+INTO\s+(?:ONLY\s+)?([a-z_][a-z0-9_]*)`),
+		"UPDATE": definerTargetTables(t, `UPDATE\s+(?:ONLY\s+)?([a-z_][a-z0-9_]*)`),
+		"DELETE": definerTargetTables(t, `DELETE\s+FROM\s+(?:ONLY\s+)?([a-z_][a-z0-9_]*)`),
+	}
 	if len(tables) < 8 {
 		t.Fatalf("only %d definer-written tables found; the catalog query is not "+
 			"finding them and this test would pass on nothing", len(tables))
 	}
 
+	consulted := map[string]bool{}
 	for _, table := range tables {
 		for _, role := range []string{"store", "admin"} {
 			for _, priv := range []string{"INSERT", "UPDATE", "DELETE"} {
 				if !hasTablePriv(t, role, table, priv) {
+					continue
+				}
+				// Inserting ledger functions have an exclusive-door contract.
+				// A cleanup-only definer does not establish that same contract;
+				// its overlap needs a decision before treating callers as forbidden.
+				if !slices.Contains(byVerb["INSERT"], table) {
+					if !slices.Contains(byVerb[priv], table) {
+						continue
+					}
+					key := role + "." + table + "." + priv
+					if why, shared := sharedCleanup[key]; shared {
+						consulted[key] = true
+						t.Logf("%s may %s %s: %s", role, priv, table, why)
+						continue
+					}
+					t.Errorf("unclassified definer/direct-write overlap: %s holds %s on %s.\n"+
+						"  Find the production caller. If the role needs the verb, name it in "+
+						"sharedCleanup with that caller; if not, revoke it and let the "+
+						"definer be the only door.", role, priv, table)
 					continue
 				}
 				// Scoped to INSERT: the exception is "created on first use", not "unguarded".
@@ -406,22 +450,35 @@ func TestEveryDefinerWrittenTableIsRevoked(t *testing.T) {
 			}
 		}
 	}
+	for key, why := range sharedCleanup {
+		if !consulted[key] {
+			t.Errorf("sharedCleanup has %q (%s), but no cleanup-only definer and that "+
+				"role share the verb any more. Remove the entry.", key, why)
+		}
+	}
 }
 
-// definerWrittenTables is every table a SECURITY DEFINER function inserts into, read from
-// prosrc — a text search, so it would miss a dynamic INSERT; goen has none.
+// definerWrittenTables covers static writes in SECURITY DEFINER bodies.
+// Dynamic SQL needs an explicit contract because its target cannot be read here.
 func definerWrittenTables(t *testing.T) []string {
+	t.Helper()
+	return definerTargetTables(t, `(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM)\s+(?:ONLY\s+)?([a-z_][a-z0-9_]*)`)
+}
+
+func definerTargetTables(t *testing.T, pattern string) []string {
 	t.Helper()
 	rows, err := schemaPool(t).Query(t.Context(), `
 		WITH written AS (
 			SELECT DISTINCT lower(m[1]) AS tbl
 			FROM pg_proc p,
-			     LATERAL regexp_matches(p.prosrc, 'INSERT\s+INTO\s+([a-z_]+)', 'gi') m
+			     LATERAL regexp_matches(
+				 regexp_replace(regexp_replace(p.prosrc, '/\*.*?\*/', '', 'gs'), '--[^\n]*', '', 'g'),
+				 $1, 'gi') m
 			WHERE p.prosecdef AND p.pronamespace = 'public'::regnamespace
 		)
 		SELECT w.tbl FROM written w
 		JOIN pg_tables t ON t.tablename = w.tbl AND t.schemaname = 'public'
-		ORDER BY 1`)
+		ORDER BY 1`, pattern)
 	if err != nil {
 		t.Fatalf("read definer-written tables: %v", err)
 	}
@@ -1072,4 +1129,46 @@ func TestNoGrantNamesARoleThatDoesNotExistYet(t *testing.T) {
 // lineOf is the 1-indexed line an offset falls on.
 func lineOf(src string, offset int) int {
 	return strings.Count(src[:offset], "\n") + 1
+}
+
+func TestDefinerCorpusIncludesUpdateAndDelete(t *testing.T) {
+	ctx := t.Context()
+	_, err := pool.Exec(ctx, `
+		CREATE TABLE public.guard_update_only (value integer);
+		CREATE TABLE public.guard_delete_only (value integer);
+		CREATE TABLE public.guard_commented_write (value integer);
+		CREATE FUNCTION public.guard_update_only() RETURNS void
+		LANGUAGE sql SECURITY DEFINER SET search_path = public, pg_temp
+		AS $$
+            -- DELETE FROM guard_commented_write;
+            /* INSERT INTO guard_commented_write (value) VALUES (1); */
+            UPDATE guard_update_only SET value = 1 $$;
+		CREATE FUNCTION public.guard_delete_only() RETURNS void
+		LANGUAGE sql SECURITY DEFINER SET search_path = public, pg_temp
+		AS $$ DELETE FROM guard_delete_only $$;
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_, err := pool.Exec(context.WithoutCancel(ctx), `
+			DROP FUNCTION public.guard_update_only();
+			DROP FUNCTION public.guard_delete_only();
+			DROP TABLE public.guard_update_only;
+			DROP TABLE public.guard_delete_only;
+			DROP TABLE public.guard_commented_write;
+		`)
+		if err != nil {
+			t.Error(err)
+		}
+	})
+	tables := definerWrittenTables(t)
+	if slices.Contains(tables, "guard_commented_write") {
+		t.Error("definer corpus counted a commented-out write")
+	}
+	for _, want := range []string{"guard_update_only", "guard_delete_only"} {
+		if !slices.Contains(tables, want) {
+			t.Errorf("definer corpus omitted %s", want)
+		}
+	}
 }

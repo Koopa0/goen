@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/payment"
@@ -17,7 +18,8 @@ func TestPayPageShowsTestCardGuidanceOnlyForSandboxKeys(t *testing.T) {
 	for _, key := range []string{"sk_test_example", "rk_test_example", "rkcs_test_example", "sk_live_example", "rk_live_example", "unrecognized", ""} {
 		for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 			t.Run(key+"/"+string(locale), func(t *testing.T) {
-				number, _ := order(t, 50000)
+				number, id := order(t, 50000)
+				hold(t, id, 0, 60*time.Minute, "sandbox:"+number)
 				gateway, err := payment.NewGateway(key, "whsec_example", "https://goen.example")
 				if err != nil {
 					t.Fatal(err)

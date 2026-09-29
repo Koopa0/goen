@@ -208,6 +208,10 @@ func (v *AdminProductView) CanPublish() bool {
 // NeedsVariant reports whether it cannot be published because it has nothing to sell.
 func (v *AdminProductView) NeedsVariant() bool { return !v.IsNew && len(v.Variants) == 0 }
 
+// OptionsFrozen reports whether a new option can no longer be added: any SKU,
+// active or not, is referenced by order history, so the options are settled.
+func (v *AdminProductView) OptionsFrozen() bool { return !v.IsNew && len(v.Variants) > 0 }
+
 // HasOptions reports whether this product has variant axes at all.
 func (v *AdminProductView) HasOptions() bool { return len(v.Options) > 0 }
 
@@ -238,9 +242,19 @@ func (v *AdminProductView) HasImages() bool { return len(v.Images) > 0 }
 // ImageAction is where the upload form posts.
 func (v *AdminProductView) ImageAction() string { return "/admin/products/" + v.Slug + "/images" }
 
+// ImageMoveAction is where the cover and reorder forms post.
+func (v *AdminProductView) ImageMoveAction() string {
+	return "/admin/products/" + v.Slug + "/images/move"
+}
+
 // ImageRemoveAction is where the remove form posts.
 func (v *AdminProductView) ImageRemoveAction() string {
 	return "/admin/products/" + v.Slug + "/images/remove"
+}
+
+// ImageOptionAction is where an attached image's option form posts.
+func (v *AdminProductView) ImageOptionAction() string {
+	return "/admin/products/" + v.Slug + "/images/option"
 }
 
 // ReuseAction is where the picker posts.

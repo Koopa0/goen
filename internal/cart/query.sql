@@ -25,13 +25,16 @@ SELECT lock_user_for_checkout(@user_id::uuid);
 -- name: LockCartCatalogue :exec
 SELECT lock_cart_catalogue(@cart_id::uuid);
 
--- least() caps a repeat add at the CHECK's own ceiling rather than raising a
--- constraint violation the visitor did nothing to deserve.
+-- The caller has already clamped the line's total against sellable stock and
+-- the line ceiling, so a conflict stores the total it was handed. It overwrites
+-- rather than adds: two unlocked callers would each write a total computed from
+-- the same stale read, so every caller must hold the cart row lock that
+-- lockCart takes in mutateCart.
 -- name: AddCartItem :exec
 INSERT INTO cart_items (cart_id, variant_id, quantity)
 VALUES ($1, $2, $3)
 ON CONFLICT (cart_id, variant_id) DO UPDATE
-SET quantity = least(cart_items.quantity + EXCLUDED.quantity, 999);
+SET quantity = EXCLUDED.quantity;
 
 -- name: SetCartItemQuantity :exec
 UPDATE cart_items SET quantity = $3
@@ -39,6 +42,9 @@ WHERE cart_id = $1 AND variant_id = $2;
 
 -- name: RemoveCartItem :exec
 DELETE FROM cart_items WHERE cart_id = $1 AND variant_id = $2;
+
+-- name: CartLineQuantity :one
+SELECT quantity FROM cart_items WHERE cart_id = $1 AND variant_id = $2;
 
 -- name: ClearCart :exec
 DELETE FROM cart_items WHERE cart_id = $1;
@@ -88,8 +94,16 @@ JOIN product_variants pv ON pv.id = ci.variant_id
 JOIN products p ON p.id = pv.product_id
 JOIN brands b ON b.id = p.brand_id
 LEFT JOIN LATERAL (
-    SELECT storage_key, alt_text, width FROM product_images
-    WHERE product_id = p.id ORDER BY position LIMIT 1
+    -- The line's own photograph when one shows its option value, else the
+    -- product's first.
+    SELECT i.storage_key, i.alt_text, i.width FROM product_images i
+    WHERE i.product_id = p.id
+    ORDER BY EXISTS (
+                 SELECT 1 FROM variant_option_values vov
+                 WHERE vov.variant_id = pv.id AND vov.option_value_id = i.option_value_id
+             ) DESC,
+             i.position
+    LIMIT 1
 ) img ON true
 WHERE ci.cart_id = $1
 ORDER BY ci.added_at, pv.id;
@@ -103,7 +117,9 @@ SELECT coalesce(sum(quantity), 0)::bigint FROM cart_items WHERE cart_id = $1;
 -- name: CartLineCapacity :one
 SELECT count(*)::integer AS line_count,
        (count(*) FILTER (WHERE variant_id = @variant_id::uuid) > 0)::boolean
-           AS already_present
+           AS already_present,
+       coalesce(sum(quantity) FILTER (WHERE variant_id = @variant_id::uuid), 0)::integer
+           AS existing_quantity
 FROM cart_items
 WHERE cart_id = @cart_id::uuid;
 
@@ -356,12 +372,29 @@ LIMIT $1;
 -- name: ReleaseReservation :exec
 SELECT release_reservation($1);
 
--- The customer's own cancellation. The ABSENCE of an actor is what distinguishes
--- it from a back-office cancel, and it is carried structurally because the
--- customer's own order page renders any note in whatever language it was written.
+-- A cancellation no staff member made: the customer's own, or, with by_system,
+-- the sweeper's at the payment deadline. The ABSENCE of an actor is what
+-- distinguishes it from a back-office cancel, and both are carried structurally
+-- because the customer's own order page renders any note in whatever language
+-- it was written.
 -- name: RecordCancellation :exec
-INSERT INTO order_events (order_id, kind)
-SELECT id, 'cancelled' FROM orders WHERE order_number = $1;
+INSERT INTO order_events (order_id, kind, by_system)
+SELECT id, 'cancelled', @by_system::boolean FROM orders WHERE order_number = @order_number::text;
+
+-- Money may have reached Stripe for this unpaid order: a provider-complete
+-- session, its resolution, or a provider event that needed a person. Staff
+-- refund such money, so a cancellation notice must not say nothing was charged.
+-- name: OrderMayHaveTakenMoney :one
+SELECT EXISTS (
+    SELECT 1 FROM payments p
+    WHERE p.order_id = $1
+      AND (p.status IN ('requires_reconciliation', 'reconciled')
+           OR EXISTS (
+               SELECT 1 FROM payment_webhook_events e
+               WHERE e.provider = p.provider AND e.object_ref = p.provider_ref
+                 AND e.unreconciled IS NOT NULL
+           ))
+)::boolean AS may_have_taken_money;
 
 -- Ordered by variant first so cancellation shares the global stock-root lock
 -- order with checkout and returns; id is the stable tie-breaker.
@@ -379,6 +412,75 @@ UPDATE orders SET fulfillment_status = 'cancelled', cancelled_at = now()
 WHERE order_number = $1
   AND fulfillment_status = 'pending'
   AND id NOT IN (SELECT id FROM committed_orders);
+
+-- Unpaid orders none of whose holds is live any more. A Checkout Session must
+-- end before the order's hold, so such an order can never be paid. The rest of
+-- the predicate keeps any order that has money or may still take some: zero-owed
+-- is paid in full while pending, and a live session, a provider-complete session
+-- awaiting its webhook, or an unresolved provider event may already hold money.
+-- CancelLapsedOrder repeats this predicate under the order lock.
+-- name: LapsedUnpaidOrders :many
+SELECT o.order_number
+FROM orders o
+WHERE o.fulfillment_status = 'pending'
+  AND NOT order_is_committed(o.id)
+  AND order_amount_owed(o.id) <> 0
+  AND EXISTS (SELECT 1 FROM inventory_reservations ir WHERE ir.order_id = o.id)
+  AND NOT EXISTS (
+      SELECT 1 FROM inventory_reservations ir
+      WHERE ir.order_id = o.id AND ir.state = 'held' AND ir.expires_at >= now()
+  )
+  AND NOT EXISTS (
+      SELECT 1 FROM payments p
+      WHERE p.order_id = o.id
+        AND p.status IN ('requires_payment', 'requires_action', 'processing',
+                         'requires_reconciliation')
+  )
+  AND NOT EXISTS (
+      SELECT 1
+      FROM payment_webhook_events e
+      JOIN payments p
+        ON p.provider = e.provider AND p.provider_ref = e.object_ref
+      WHERE p.order_id = o.id
+        AND e.unreconciled IS NOT NULL AND e.reconciled_at IS NULL
+  )
+ORDER BY o.placed_at
+LIMIT $1;
+
+-- Its own statement, before CancelLapsedOrder: open_payment and capture_payment
+-- lock this row without updating it, so an UPDATE that waited for them would
+-- still judge their payments by the snapshot it took before waiting.
+-- name: LockOrderForExpiry :one
+SELECT id FROM orders WHERE order_number = $1 FOR UPDATE;
+
+-- LapsedUnpaidOrders' predicate, read again after LockOrderForExpiry: `pending`
+-- refuses a second cancellation, and the payment clauses now see every payment
+-- committed before the lock was granted.
+-- name: CancelLapsedOrder :execrows
+UPDATE orders o SET fulfillment_status = 'cancelled', cancelled_at = now()
+WHERE o.id = $1
+  AND o.fulfillment_status = 'pending'
+  AND NOT order_is_committed(o.id)
+  AND order_amount_owed(o.id) <> 0
+  AND EXISTS (SELECT 1 FROM inventory_reservations ir WHERE ir.order_id = o.id)
+  AND NOT EXISTS (
+      SELECT 1 FROM inventory_reservations ir
+      WHERE ir.order_id = o.id AND ir.state = 'held' AND ir.expires_at >= now()
+  )
+  AND NOT EXISTS (
+      SELECT 1 FROM payments p
+      WHERE p.order_id = o.id
+        AND p.status IN ('requires_payment', 'requires_action', 'processing',
+                         'requires_reconciliation')
+  )
+  AND NOT EXISTS (
+      SELECT 1
+      FROM payment_webhook_events e
+      JOIN payments p
+        ON p.provider = e.provider AND p.provider_ref = e.object_ref
+      WHERE p.order_id = o.id
+        AND e.unreconciled IS NOT NULL AND e.reconciled_at IS NULL
+  );
 
 -- From store_credit_balances, the one definition of the figure.
 -- name: AvailableCredit :one

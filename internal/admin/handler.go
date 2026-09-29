@@ -177,7 +177,7 @@ func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
 // Orders serves GET /admin/orders.
 func (h *Handler) Orders(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Orders(r.Context(),
-		ParseStatus(r.URL.Query().Get("status")), r.URL.Query().Get("q"))
+		ParseStatus(r.URL.Query().Get("status")), r.URL.Query().Get("q"), r.URL.Query().Get(web.KeysetParam))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read orders", "error", err)
 		h.serverError(w, r)
@@ -224,6 +224,8 @@ func (h *Handler) AdvanceOrder(w http.ResponseWriter, r *http.Request) {
 	case err == nil:
 		h.closeSessions(r.Context(), number, sessions)
 		http.Redirect(w, r, "/admin/orders/"+number+"?ok=1", http.StatusSeeOther) //nolint:gosec // G710: validated by IsOrderNumber
+	case errors.Is(err, ErrPaidCancel), hasConstraint(err, "orders_paid_cancel_needs_refund"):
+		http.Redirect(w, r, "/admin/orders/"+number+"?paidcancel=1", http.StatusSeeOther) //nolint:gosec // G710: validated by IsOrderNumber
 	case errors.Is(err, ErrRefused):
 		// Logged in full; the page only says the move was refused, because a
 		// constraint name is not something a shop assistant can act on.
@@ -352,7 +354,7 @@ func (h *Handler) StaffNote(w http.ResponseWriter, r *http.Request) {
 
 // Variants serves GET /admin/stock.
 func (h *Handler) Variants(w http.ResponseWriter, r *http.Request) {
-	view, err := h.store.Variants(r.Context(), r.URL.Query().Get("low") == "1")
+	view, err := h.store.Variants(r.Context(), r.URL.Query().Get("low") == "1", r.URL.Query().Get(web.KeysetParam))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read variants", "error", err)
 		h.serverError(w, r)
@@ -488,8 +490,14 @@ var adminNotices = map[string]i18n.Key{
 	"inuse":          i18n.KeyAdminNoticeInUse,
 	"attachrefused":  i18n.KeyAdminNoticeAttachRefused,
 	"noalt":          i18n.KeyAdminNoticeNoAlt,
+	"badoption":      i18n.KeyAdminNoticeBadOption,
 	"nodiscount":     i18n.KeyAdminNoticeNoDiscount,
 	"refundfailed":   i18n.KeyAdminNoticeRefundFailed,
+	"paidcancel":     i18n.KeyAdminNoticePaidCancel,
+	"refunded":       i18n.KeyAdminNoticeRefunded,
+	"refundpending":  i18n.KeyAdminNoticeRefundPending,
+	"cancelinvoice":  i18n.KeyAdminNoticeCancelInvoice,
+	"refundretry":    i18n.KeyAdminNoticeRefundRetry,
 	"received":       i18n.KeyAdminNoticeReceived,
 	"badqty":         i18n.KeyAdminNoticeBadQty,
 	"inspected":      i18n.KeyAdminNoticeInspected,
@@ -549,7 +557,7 @@ func (h *Handler) serverError(w http.ResponseWriter, r *http.Request) {
 
 // Credit serves GET /admin/credit.
 func (h *Handler) Credit(w http.ResponseWriter, r *http.Request) {
-	view, err := h.store.Credit(r.Context())
+	view, err := h.store.Credit(r.Context(), r.URL.Query().Get(web.KeysetParam))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read credit ledger", "error", err)
 		h.serverError(w, r)
@@ -584,13 +592,13 @@ func (h *Handler) GrantCredit(w http.ResponseWriter, r *http.Request) {
 	view := pages.AdminCreditView{Email: r.PostFormValue("email"), Amount: r.PostFormValue("amount"), Reason: r.PostFormValue("reason"), OperationID: r.PostFormValue("operation_id")}
 	operationID, valid := validateCreditGrant(&view)
 	if !valid {
-		h.renderCreditForm(w, r, view, http.StatusUnprocessableEntity, i18n.KeyAdminNoticeNeeds)
+		h.renderCreditForm(w, r, &view, http.StatusUnprocessableEntity, i18n.KeyAdminNoticeNeeds)
 		return
 	}
 	if err := h.store.creditRecipient(r.Context(), &view); err != nil {
 		if errors.Is(err, ErrNotFound) {
 			view.EmailInvalid = true
-			h.renderCreditForm(w, r, view, http.StatusUnprocessableEntity, i18n.KeyAdminCreditUnknown)
+			h.renderCreditForm(w, r, &view, http.StatusUnprocessableEntity, i18n.KeyAdminCreditUnknown)
 		} else {
 			h.log.ErrorContext(r.Context(), "read credit recipient", "error", err)
 			h.serverError(w, r)
@@ -598,12 +606,12 @@ func (h *Handler) GrantCredit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.PostFormValue("edit") == "1" {
-		h.renderCreditForm(w, r, view, http.StatusOK, "")
+		h.renderCreditForm(w, r, &view, http.StatusOK, "")
 		return
 	}
 	if r.PostFormValue("confirm") != "grant" || r.PostFormValue("customer_id") != view.CustomerID {
 		view.Confirm = true
-		h.renderCreditForm(w, r, view, http.StatusOK, "")
+		h.renderCreditForm(w, r, &view, http.StatusOK, "")
 		return
 	}
 	customerID, parseErr := uuid.Parse(view.CustomerID)
@@ -638,7 +646,7 @@ func (h *Handler) notFound(w http.ResponseWriter, r *http.Request) {
 
 // Coupons serves GET /admin/coupons.
 func (h *Handler) Coupons(w http.ResponseWriter, r *http.Request) {
-	view, err := h.store.Coupons(r.Context())
+	view, err := h.store.Coupons(r.Context(), r.URL.Query().Get(web.KeysetParam))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read coupons", "error", err)
 		h.serverError(w, r)
@@ -663,7 +671,7 @@ func (h *Handler) CreateCoupon(w http.ResponseWriter, r *http.Request) {
 		h.log.ErrorContext(r.Context(), "create coupon", "error", err)
 		h.serverError(w, r)
 	case len(errs) > 0:
-		view, readErr := h.store.Coupons(r.Context())
+		view, readErr := h.store.Coupons(r.Context(), r.URL.Query().Get(web.KeysetParam))
 		if readErr != nil {
 			h.serverError(w, r)
 			return
@@ -770,7 +778,7 @@ func small(s string) int32 {
 
 // Campaigns serves GET /admin/campaigns.
 func (h *Handler) Campaigns(w http.ResponseWriter, r *http.Request) {
-	view, err := h.store.Campaigns(r.Context())
+	view, err := h.store.Campaigns(r.Context(), r.URL.Query().Get(web.KeysetParam))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read campaigns", "error", err)
 		h.serverError(w, r)
@@ -799,7 +807,7 @@ func (h *Handler) CreateCampaign(w http.ResponseWriter, r *http.Request) {
 		h.log.ErrorContext(r.Context(), "create campaign", "error", err)
 		h.serverError(w, r)
 	case len(errs) > 0:
-		view, readErr := h.store.Campaigns(r.Context())
+		view, readErr := h.store.Campaigns(r.Context(), r.URL.Query().Get(web.KeysetParam))
 		if readErr != nil {
 			h.serverError(w, r)
 			return
@@ -878,7 +886,7 @@ func (h *Handler) SetCampaignActive(w http.ResponseWriter, r *http.Request) {
 
 // Audit serves GET /admin/audit.
 func (h *Handler) Audit(w http.ResponseWriter, r *http.Request) {
-	view, err := h.store.Audit(r.Context())
+	view, err := h.store.Audit(r.Context(), r.URL.Query().Get(web.KeysetParam))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read audit", "error", err)
 		h.serverError(w, r)
@@ -890,7 +898,7 @@ func (h *Handler) Audit(w http.ResponseWriter, r *http.Request) {
 
 // Movements serves GET /admin/stock/{sku}.
 func (h *Handler) Movements(w http.ResponseWriter, r *http.Request) {
-	view, err := h.store.Movements(r.Context(), r.PathValue("sku"))
+	view, err := h.store.Movements(r.Context(), r.PathValue("sku"), r.URL.Query().Get(web.KeysetParam))
 	switch {
 	case err == nil:
 		view.Notice = noticeFor(r)
@@ -1513,7 +1521,12 @@ func (h *Handler) CorrectDelivery(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	number := r.PathValue("number")
-	err := h.store.CorrectDelivery(r.Context(), number, deliveryFormOf(r.PostFormValue))
+	submitted := deliveryFormOf(r.PostFormValue)
+	err := h.store.CorrectDelivery(r.Context(), number, submitted)
+	if refused, ok := errors.AsType[*DeliveryPostalError](err); ok {
+		h.rejectDelivery(w, r, submitted, i18n.T(r.Context(), refused.Key))
+		return
+	}
 
 	target := "/admin/orders/" + number
 	switch {
@@ -1536,9 +1549,25 @@ func (h *Handler) CorrectDelivery(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// rejectDelivery keeps proposed data in the form while the summary continues
+// to show the saved destination, so a refusal cannot look like a completed edit.
+func (h *Handler) rejectDelivery(w http.ResponseWriter, r *http.Request, d *Delivery, message string) {
+	view, err := h.store.Order(r.Context(), r.PathValue("number"))
+	if err != nil {
+		h.log.ErrorContext(r.Context(), "read refused delivery correction", "error", err)
+		h.serverError(w, r)
+		return
+	}
+	view.Delivery = pages.AdminDelivery(*d)
+	view.DeliveryError = message
+	view.AllowanceOperationID = uuid.NewString()
+	web.Render(w, r, h.log, http.StatusUnprocessableEntity,
+		pages.AdminOrder(layouts.Page{Title: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyAdminPageOrder), view.Number)}, &view))
+}
+
 // Reviews serves GET /admin/reviews.
 func (h *Handler) Reviews(w http.ResponseWriter, r *http.Request) {
-	view, err := h.store.Reviews(r.Context())
+	view, err := h.store.Reviews(r.Context(), r.URL.Query().Get(web.KeysetParam))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read reviews", "error", err)
 		h.serverError(w, r)
@@ -1577,7 +1606,7 @@ func (h *Handler) setReviewHidden(w http.ResponseWriter, r *http.Request, hidden
 
 // Messages serves GET /admin/messages.
 func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
-	view, err := h.store.Messages(r.Context())
+	view, err := h.store.Messages(r.Context(), r.URL.Query().Get(web.KeysetParam))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read contact messages", "error", err)
 		h.serverError(w, r)
@@ -1707,7 +1736,7 @@ func (h *Handler) newsletterView(r *http.Request) (pages.AdminNewsletterView, er
 
 // Customers serves GET /admin/customers.
 func (h *Handler) Customers(w http.ResponseWriter, r *http.Request) {
-	view, err := h.store.Customers(r.Context(), r.URL.Query().Get("q"))
+	view, err := h.store.Customers(r.Context(), r.URL.Query().Get("q"), r.URL.Query().Get(web.KeysetParam))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "search customers", "error", err)
 		h.serverError(w, r)
@@ -1719,7 +1748,7 @@ func (h *Handler) Customers(w http.ResponseWriter, r *http.Request) {
 
 // Warranties serves GET /admin/warranty, the shop's half of registration.
 func (h *Handler) Warranties(w http.ResponseWriter, r *http.Request) {
-	view, err := h.store.Warranties(r.Context(), r.URL.Query().Get("q"))
+	view, err := h.store.Warranties(r.Context(), r.URL.Query().Get("q"), r.URL.Query().Get(web.KeysetParam))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "search warranties", "error", err)
 		h.serverError(w, r)
@@ -1880,7 +1909,7 @@ func positiveDollarsToCents(raw string, maxCents int64) (int64, bool) {
 	return dollars * 100, true
 }
 
-func (h *Handler) renderCreditForm(w http.ResponseWriter, r *http.Request, view pages.AdminCreditView, status int, notice i18n.Key) {
+func (h *Handler) renderCreditForm(w http.ResponseWriter, r *http.Request, view *pages.AdminCreditView, status int, notice i18n.Key) {
 	ledger, err := h.store.Credit(r.Context())
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read credit ledger", "error", err)
@@ -1891,5 +1920,5 @@ func (h *Handler) renderCreditForm(w http.ResponseWriter, r *http.Request, view 
 	if notice != "" {
 		view.Notice = i18n.T(r.Context(), notice)
 	}
-	web.Render(w, r, h.log, status, pages.AdminCredit(layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageCredit)}, view))
+	web.Render(w, r, h.log, status, pages.AdminCredit(layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageCredit)}, *view))
 }

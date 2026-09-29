@@ -4,6 +4,7 @@ import (
 	"context"
 	"strconv"
 
+	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
 )
 
@@ -88,6 +89,10 @@ func (s AdminHeroSlide) ImageURL() string {
 	}
 	return "/media/" + s.ImageKey
 }
+
+// Srcset offers the 400px rendition to the back office's 160px tile; the
+// original upload is a multi-megabyte download for it.
+func (s AdminHeroSlide) Srcset() string { return assets.UploadedRenditionSrcset(s.ImageKey, 400) }
 
 // ToggleAction is where the on/off form posts.
 func (s AdminHeroSlide) ToggleAction() string { return "/admin/home/" + s.ID + "/active" }

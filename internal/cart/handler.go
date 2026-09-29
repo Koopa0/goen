@@ -40,6 +40,7 @@ type Handler struct {
 	// storeMap is the carrier's hosted store picker. Nil or disabled on a
 	// deployment with no carrier, where the checkout asks for a chain alone.
 	storeMap *Map
+	carriers CarrierChecker
 }
 
 // SessionCloser closes a checkout the customer may still have open at the
@@ -48,18 +49,32 @@ type SessionCloser interface {
 	ExpireSession(ctx context.Context, sessionID string) error
 }
 
+// CarrierChecker is the read-only subset of the invoice gateway checkout needs.
+type CarrierChecker interface {
+	CheckBarcode(context.Context, string) (invoicepkg.CarrierStatus, error)
+}
+
 // NewHandler returns a Handler writing through store. A nil sessions means no
 // provider is configured, so no session was ever opened to close; a nil or
 // disabled storeMap means no carrier picker, and the checkout asks for a chain
-// exactly as it did before one existed.
+// exactly as it did before one existed. An omitted carrier checker keeps local
+// shape validation on deployments without an invoice gateway.
 func NewHandler(store *Store, log *slog.Logger, secure bool, findLimit *ratelimit.Limiter,
-	sessions SessionCloser, storeMap *Map,
+	sessions SessionCloser, storeMap *Map, carriers ...CarrierChecker,
 ) *Handler {
 	if store == nil || log == nil || findLimit == nil {
 		panic("cart: NewHandler requires a store, a logger and a lookup limiter")
 	}
+	if len(carriers) > 1 {
+		panic("cart: NewHandler accepts one carrier checker")
+	}
+	var checker CarrierChecker
+	if len(carriers) == 1 {
+		checker = carriers[0]
+	}
 	return &Handler{
-		store: store, log: log, secure: secure, findLimit: findLimit,
+		carriers: checker,
+		store:    store, log: log, secure: secure, findLimit: findLimit,
 		sessions: sessions, storeMap: storeMap,
 	}
 }
@@ -93,7 +108,8 @@ func (h *Handler) closeSessions(ctx context.Context, number string, sessions []s
 func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 	cartID, ok := h.existingCart(r)
 	if !ok {
-		web.Render(w, r, h.log, http.StatusOK, pages.Cart(pages.CartMeta(r.Context()), pages.CartView{}))
+		view := pages.CartView{Notice: cartPageNotice(r), ContinueURL: cartContinuation(r)}
+		web.Render(w, r, h.log, http.StatusOK, pages.Cart(pages.CartMeta(r.Context()), view))
 		return
 	}
 	view, err := h.store.View(r.Context(), cartID)
@@ -102,8 +118,31 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 		h.serverError(w, r)
 		return
 	}
+	view.ContinueURL = cartContinuation(r)
 	view.ReorderAdded, view.ReorderSkipped = reorderOutcome(r)
+	view.ReorderAdjusted = view.FromReorder() && r.URL.Query().Get("qty") == "adjusted"
+	if notice := cartPageNotice(r); notice != "" && !view.ReorderAdjusted {
+		view.Notice = notice
+	}
 	web.Render(w, r, h.log, http.StatusOK, pages.Cart(pages.CartMeta(r.Context()), view))
+}
+
+func cartContinuation(r *http.Request) string {
+	if r.URL.Query().Get("qty") != "adjusted" {
+		return ""
+	}
+	return web.SitePathOr(r.URL.Query().Get("next"), "")
+}
+
+func cartPageNotice(r *http.Request) string {
+	switch r.URL.Query().Get("qty") {
+	case "adjusted":
+		return i18n.T(r.Context(), i18n.KeyCartQuantityAdjusted)
+	case "unavailable":
+		return i18n.T(r.Context(), i18n.KeyAddRefused)
+	default:
+		return ""
+	}
 }
 
 // reorderOutcome reads the counts a reorder redirect is reporting. A
@@ -140,6 +179,8 @@ func (h *Handler) AddItem(w http.ResponseWriter, r *http.Request) {
 	switch err := h.store.Add(r.Context(), cartID, variantID, quantity); {
 	case err == nil:
 		h.backToProduct(w, r, variantID, "added")
+	case errors.Is(err, ErrQuantityAdjusted):
+		h.backToProduct(w, r, variantID, "adjusted")
 	case errors.Is(err, ErrTooManyItems):
 		h.backToProduct(w, r, variantID, "full")
 	case errors.Is(err, ErrUnavailable), errors.Is(err, ErrNotFound):
@@ -183,8 +224,15 @@ func (h *Handler) UpdateItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.store.SetQuantity(r.Context(), cartID, variantID, quantity); err != nil {
-		h.log.ErrorContext(r.Context(), "update cart item", "error", err)
-		h.serverError(w, r)
+		switch {
+		case errors.Is(err, ErrQuantityAdjusted):
+			http.Redirect(w, r, "/cart?qty=adjusted", http.StatusSeeOther)
+		case errors.Is(err, ErrUnavailable), errors.Is(err, ErrNotFound):
+			http.Redirect(w, r, "/cart?qty=unavailable", http.StatusSeeOther)
+		default:
+			h.log.ErrorContext(r.Context(), "update cart item", "error", err)
+			h.serverError(w, r)
+		}
 		return
 	}
 	http.Redirect(w, r, "/cart", http.StatusSeeOther)
@@ -518,6 +566,10 @@ func (h *Handler) PlaceOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !h.checkMobileCarrier(w, r, &submission.invoice, &submission.view) {
+		return
+	}
+
 	number, err := h.store.placeOrder(
 		r.Context(), cartID, owner, submission.shippingID, &submission.address,
 		&submission.invoice, submission.view.CouponCode,
@@ -673,7 +725,6 @@ func (h *Handler) validateCheckoutSubmission(
 ) (checkoutQuoteID, bool) {
 	errs := checkoutErrors(
 		r.Context(), &submission.address, submission.shippingErr, &submission.invoice,
-		h.storeMap.Enabled(),
 	)
 	if submission.couponErr != "" {
 		if errs == nil {
@@ -882,7 +933,7 @@ func (h *Handler) refreshCheckoutState(
 	if err != nil {
 		return fmt.Errorf("read current cart: %w", err)
 	}
-	choices, err := h.store.ShippingChoices(ctx, cartID, cartView.SubtotalCents)
+	choices, err := h.offeredShipping(ctx, cartID, cartView.SubtotalCents)
 	if err != nil {
 		return err
 	}
@@ -964,19 +1015,19 @@ func (h *Handler) resolveCoupon(r *http.Request, view *pages.CheckoutView) strin
 	}
 }
 
-// checkoutErrors collects everything wrong with a submission. storeRequired is
-// the carrier's own rule rather than the schema's: where a store picker is
-// configured, a pickup order names a store, and it names one of the two chains
-// whose picker this deployment can open.
+// checkoutErrors collects everything wrong with a submission. A pickup order
+// names one of the two chains whose official map the shop offers and a store
+// chosen on it; the schema only bounds the values, so a submission that skipped
+// the map is refused here, whether or not this deployment can open the map.
 func checkoutErrors(
-	ctx context.Context, addr *Address, shipErr error, inv *Invoice, storeRequired bool,
+	ctx context.Context, addr *Address, shipErr error, inv *Invoice,
 ) map[string]string {
 	fieldErrs := addr.Validate()
 	if shipErr != nil {
 		fieldErrs = append(fieldErrs,
 			account.FieldError{Field: "shipping", MessageKey: i18n.KeyChooseShipping})
 	}
-	if storeRequired && addr.To == ToPickupPoint {
+	if addr.To == ToPickupPoint {
 		if !offeredAtCheckout(addr.PickupBrand) {
 			fieldErrs = append(fieldErrs,
 				account.FieldError{Field: "pickup_brand", MessageKey: i18n.KeyPickupBrandRequired})
@@ -1009,6 +1060,22 @@ func (h *Handler) quoteCheckoutShipping(
 	view.SurchargeCents = quote.Surcharge
 	view.ZoneName = quote.ZoneName
 	return nil
+}
+
+// offeredShipping is the store's choices for this cart, less pickup where the
+// store map is not configured: a pickup order needs a store chosen on the map,
+// so offering the method there would offer only a refusal.
+func (h *Handler) offeredShipping(
+	ctx context.Context, cartID uuid.UUID, subtotalCents int64,
+) ([]pages.ShippingChoice, error) {
+	choices, err := h.store.ShippingChoices(ctx, cartID, subtotalCents)
+	if err != nil || h.storeMap.Enabled() {
+		return choices, err
+	}
+	return slices.DeleteFunc(choices, func(c pages.ShippingChoice) bool {
+		to, ok := DestinationFor(c.DestinationKind)
+		return ok && to == ToPickupPoint
+	}), nil
 }
 
 // ownerOf is the signed-in customer, or a null id for a guest.
@@ -1148,10 +1215,14 @@ func (h *Handler) ReorderItems(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Counts, never product names: a query string is logged.
-	http.Redirect(w, r, "/cart?"+url.Values{
+	outcome := url.Values{
 		"added":   {strconv.Itoa(result.Added)},
 		"skipped": {strconv.Itoa(len(result.Skipped))},
-	}.Encode(), http.StatusSeeOther)
+	}
+	if result.Adjusted {
+		outcome.Set("qty", "adjusted")
+	}
+	http.Redirect(w, r, "/cart?"+outcome.Encode(), http.StatusSeeOther)
 }
 
 // CancelOrder serves POST /orders/{number}/cancel, under the same access rule as
@@ -1202,7 +1273,7 @@ func (h *Handler) checkoutView(ctx context.Context, cartID uuid.UUID, owner uuid
 	if err != nil {
 		return pages.CheckoutView{}, err
 	}
-	choices, err := h.store.ShippingChoices(ctx, cartID, cartView.SubtotalCents)
+	choices, err := h.offeredShipping(ctx, cartID, cartView.SubtotalCents)
 	if err != nil {
 		return pages.CheckoutView{}, err
 	}

@@ -1,5 +1,5 @@
 -- name: AdminOrders :many
-SELECT
+SELECT json_build_object('At', o.placed_at, 'ID', o.id)::text AS page_cursor,
     o.id,
     o.order_number,
     o.fulfillment_status,
@@ -15,6 +15,8 @@ SELECT
 FROM orders o
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
 WHERE (@status::text = '' OR o.fulfillment_status = @status::text)
+AND (NOT @has_cursor::boolean OR (o.placed_at < @after_at::timestamptz)
+       OR (o.placed_at = @after_at::timestamptz AND o.id < @after_id::uuid))
 ORDER BY o.placed_at DESC, o.id DESC
 LIMIT @row_limit::integer;
 
@@ -22,7 +24,7 @@ LIMIT @row_limit::integer;
 -- told apart rather than OR-ed with wildcards so each path stays index-backed.
 -- An erased order matches nothing: erase_user NULLs the name and the address.
 -- name: AdminSearchOrders :many
-SELECT
+SELECT json_build_object('At', o.placed_at, 'ID', o.id)::text AS page_cursor,
     o.id,
     o.order_number,
     o.fulfillment_status,
@@ -37,9 +39,11 @@ SELECT
     order_amount_owed(o.id) AS owed_cents
 FROM orders o
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
-WHERE o.order_number = upper(@term::text)
+WHERE (o.order_number = upper(@term::text)
    OR lower(pd.email) LIKE lower(@term::text) || '%'
-   OR pd.recipient_name LIKE @term::text || '%'
+   OR pd.recipient_name LIKE @term::text || '%')
+AND (NOT @has_cursor::boolean OR (o.placed_at < @after_at::timestamptz)
+       OR (o.placed_at = @after_at::timestamptz AND o.id < @after_id::uuid))
 ORDER BY o.placed_at DESC, o.id DESC
 LIMIT @row_limit::integer;
 
@@ -87,7 +91,8 @@ WHERE order_id = $1 AND delivered_at IS NULL;
 
 -- Lock before reading the prior state so concurrent completion cannot duplicate arrival mail.
 -- name: LockOrderForAdvance :one
-SELECT id, fulfillment_status FROM orders WHERE order_number = $1 FOR UPDATE;
+SELECT id, fulfillment_status, order_is_committed(id) AS committed
+FROM orders WHERE order_number = $1 FOR UPDATE;
 
 -- orders_check_transition validates the move, so this does not re-derive it.
 -- cancelled_at and completed_at are set here because the schema requires them
@@ -107,7 +112,7 @@ SELECT id, staff_note FROM orders WHERE order_number = $1 FOR UPDATE;
 UPDATE orders SET staff_note = $2 WHERE order_number = $1;
 
 -- name: AdminVariants :many
-SELECT
+SELECT json_build_object('Number', (pv.stock_quantity - pv.safety_stock), 'Name', p.name, 'Position', pv.position, 'ID', pv.id)::text AS page_cursor,
     pv.id,
     pv.sku,
     pv.price_cents,
@@ -123,7 +128,11 @@ FROM product_variants pv
 JOIN products p ON p.id = pv.product_id
 JOIN brands b ON b.id = p.brand_id
 WHERE (@low_only::boolean = false OR pv.stock_quantity <= pv.safety_stock)
-ORDER BY (pv.stock_quantity - pv.safety_stock), p.name, pv.position
+AND (NOT @has_cursor::boolean OR ((pv.stock_quantity - pv.safety_stock) > @after_number::integer)
+       OR ((pv.stock_quantity - pv.safety_stock) = @after_number::integer AND p.name > @after_name::text)
+       OR ((pv.stock_quantity - pv.safety_stock) = @after_number::integer AND p.name = @after_name::text AND pv.position > @after_position::integer)
+       OR ((pv.stock_quantity - pv.safety_stock) = @after_number::integer AND p.name = @after_name::text AND pv.position = @after_position::integer AND pv.id > @after_id::uuid))
+ORDER BY (pv.stock_quantity - pv.safety_stock) ASC, p.name ASC, pv.position ASC, pv.id ASC
 LIMIT @row_limit::integer;
 
 -- price_cents is read for the audit trail's "before": a reprice recorded without
@@ -249,7 +258,7 @@ SELECT id, fulfillment_status FROM orders WHERE order_number = $1;
 -- Oldest first: occurred_at then id, because two events recorded in the same
 -- statement share a timestamp and the uuidv7 key is the tie-break.
 -- name: OrderEvents :many
-SELECT e.kind, e.note, e.occurred_at, coalesce(u.full_name, '') AS actor_name
+SELECT e.kind, e.note, e.occurred_at, coalesce(u.full_name, '') AS actor_name, e.by_system
 FROM order_events e
 LEFT JOIN users u ON u.id = e.actor_user_id
 WHERE e.order_id = $1
@@ -270,7 +279,7 @@ VALUES (@order_id, @shipment_id, @order_line_id, @quantity::integer);
 -- reopen a window that line already closed. now() would move a filed request
 -- into a later window the day the staff member opens it.
 -- name: ReturnQueue :many
-SELECT r.id, r.status, r.reason, r.created_at, r.decided_at,
+SELECT json_build_object('Rank', return_payout_outstanding(r.id), 'Priority', (r.status = 'requested'), 'At', r.created_at, 'ID', r.id)::text AS page_cursor, r.id, r.status, r.reason, r.created_at, r.decided_at, r.before_shipment,
        o.order_number,
        (SELECT coalesce(sum(rl.quantity), 0) FROM return_request_lines rl
         WHERE rl.return_request_id = r.id)::integer AS units,
@@ -304,10 +313,12 @@ JOIN orders o ON o.id = r.order_id
 -- Recovery is the only retry door. Rank it before the intake queue and before
 -- LIMIT, or fifty newer requests can make an older approved-but-unpaid customer
 -- disappear from every actionable screen.
-ORDER BY return_payout_outstanding(r.id) DESC,
-         (r.status = 'requested') DESC,
-         r.created_at DESC
-LIMIT $1;
+WHERE (NOT @has_cursor::boolean OR (return_payout_outstanding(r.id) < @after_rank::boolean)
+       OR (return_payout_outstanding(r.id) = @after_rank::boolean AND (r.status = 'requested') < @after_priority::boolean)
+       OR (return_payout_outstanding(r.id) = @after_rank::boolean AND (r.status = 'requested') = @after_priority::boolean AND r.created_at < @after_at::timestamptz)
+       OR (return_payout_outstanding(r.id) = @after_rank::boolean AND (r.status = 'requested') = @after_priority::boolean AND r.created_at = @after_at::timestamptz AND r.id < @after_id::uuid))
+ORDER BY return_payout_outstanding(r.id) DESC, (r.status = 'requested') DESC, r.created_at DESC, r.id DESC
+LIMIT @row_limit::integer;
 
 -- The amount comes from return_refundable_amount and never from anything the
 -- request carried. It is a FUNCTION rather than an expression because the queue
@@ -534,6 +545,49 @@ UPDATE return_requests
 SET status = 'completed', resolution = coalesce(nullif(@resolution::text, ''), resolution)
 WHERE id = @id AND status = 'approved';
 
+-- One auto-committed statement: the door opens and approves the full return,
+-- or returns the one it opened before.
+-- name: OpenRefundBeforeShipment :one
+SELECT open_refund_before_shipment(
+    @order_number::text, @reason::text, @actor_user_id::uuid, @request_id::text
+)::uuid AS return_request_id;
+
+-- What the order page and the refund confirmation show. Once the door has run
+-- the split is the frozen one; before, card_cents is what
+-- return_requests_recount freezes for a full return of an order nothing else
+-- has refunded: the capture first, credit for the rest.
+-- name: BeforeShipmentRefund :one
+WITH target AS (
+    SELECT o.id, o.fulfillment_status,
+           order_is_committed(o.id) AS committed,
+           (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
+                      WHERE ol.order_id = o.id), 0)
+            - o.discount_cents + o.shipping_cents + o.tax_cents)::bigint AS total_cents,
+           coalesce((SELECT sum(p.captured_amount_cents) FROM payments p
+                     WHERE p.order_id = o.id AND p.status = 'succeeded'), 0)::bigint
+               AS card_capacity_cents
+    FROM orders o WHERE o.order_number = @order_number::text
+)
+SELECT t.id AS order_id, t.fulfillment_status, t.committed, t.total_cents,
+       EXISTS (SELECT 1 FROM order_shipments s WHERE s.order_id = t.id)::boolean AS shipped,
+       EXISTS (SELECT 1 FROM return_requests r WHERE r.order_id = t.id)::boolean AS has_return,
+       b.id AS return_request_id,
+       coalesce(b.status, '')::text AS return_status,
+       coalesce(b.card_refund_cents,
+                least(t.total_cents, t.card_capacity_cents))::bigint AS card_cents,
+       coalesce(b.credit_refund_cents,
+                t.total_cents - least(t.total_cents, t.card_capacity_cents))::bigint AS credit_cents
+FROM target t
+LEFT JOIN return_requests b ON b.order_id = t.id AND b.before_shipment;
+
+-- Nothing of a refund before shipment went out, so every line is closed as
+-- received and restocked nothing; return_requests_completed_is_inspected then
+-- admits the completion.
+-- name: CloseUnshippedReturnLines :execrows
+UPDATE return_request_lines
+SET received_quantity = 0, restocked_quantity = 0
+WHERE return_request_id = @return_request_id AND received_quantity IS NULL;
+
 -- :execrows, because `status = 'requested'` here is the ONLY place the question
 -- is asked under a lock: as :exec, the loser of two simultaneous decisions
 -- updates zero rows, SQL calls that success, and an audit row claims a decision
@@ -656,16 +710,18 @@ SELECT grant_store_credit(
 )::uuid AS entry_id;
 
 -- name: RecentCredit :many
-SELECT e.amount_cents, e.reason, e.created_at,
+SELECT json_build_object('At', e.created_at, 'ID', e.id)::text AS page_cursor, e.amount_cents, e.reason, e.created_at,
        coalesce(u.email, '') AS email
 FROM store_credit_entries e
 JOIN store_credit_accounts a ON a.id = e.account_id
 LEFT JOIN users u ON u.id = a.user_id
+WHERE (NOT @has_cursor::boolean OR (e.created_at < @after_at::timestamptz)
+       OR (e.created_at = @after_at::timestamptz AND e.id < @after_id::uuid))
 ORDER BY e.created_at DESC, e.id DESC
-LIMIT $1;
+LIMIT @row_limit::integer;
 
 -- name: AdminProducts :many
-SELECT p.id, p.slug, p.name, p.status, p.published_at,
+SELECT json_build_object('At', p.updated_at, 'ID', p.id)::text AS page_cursor, p.id, p.slug, p.name, p.status, p.published_at,
        (p.name_en IS NOT NULL)::boolean AS translated,
        b.name AS brand, c.name AS category,
        (SELECT count(*) FROM product_variants pv WHERE pv.product_id = p.id)::integer AS variants,
@@ -674,8 +730,10 @@ SELECT p.id, p.slug, p.name, p.status, p.published_at,
 FROM products p
 JOIN brands b ON b.id = p.brand_id
 JOIN categories c ON c.id = p.category_id
+WHERE (NOT @has_cursor::boolean OR (p.updated_at < @after_at::timestamptz)
+       OR (p.updated_at = @after_at::timestamptz AND p.id < @after_id::uuid))
 ORDER BY p.updated_at DESC, p.id DESC
-LIMIT $1;
+LIMIT @row_limit::integer;
 
 -- name: AdminProduct :one
 SELECT p.id, p.slug, p.name, coalesce(p.summary, '') AS summary, p.description,
@@ -768,7 +826,7 @@ FROM products p WHERE p.slug = @slug::text;
 -- The redemption count comes from the ledger and never from a column: the ledger
 -- is what the limit is counted from at checkout.
 -- name: AdminCoupons :many
-SELECT c.id, c.code, c.description, c.kind, c.amount_cents, c.percent_bp,
+SELECT json_build_object('Rank', c.is_active, 'At', c.created_at, 'ID', c.id)::text AS page_cursor, c.id, c.code, c.description, c.kind, c.amount_cents, c.percent_bp,
        c.min_subtotal_cents, c.max_discount_cents, c.max_redemptions,
        c.per_customer_limit, c.is_active, c.starts_at, c.ends_at,
        (SELECT count(*) FROM coupon_redemptions r WHERE r.coupon_id = c.id)::bigint AS redeemed,
@@ -776,8 +834,11 @@ SELECT c.id, c.code, c.description, c.kind, c.amount_cents, c.percent_bp,
         WHERE r.coupon_id = c.id)::bigint AS given_cents,
        (c.starts_at <= now() AND (c.ends_at IS NULL OR c.ends_at > now()))::boolean AS is_current
 FROM coupons c
-ORDER BY c.is_active DESC, c.created_at DESC
-LIMIT $1;
+WHERE (NOT @has_cursor::boolean OR (c.is_active < @after_rank::boolean)
+       OR (c.is_active = @after_rank::boolean AND c.created_at < @after_at::timestamptz)
+       OR (c.is_active = @after_rank::boolean AND c.created_at = @after_at::timestamptz AND c.id < @after_id::uuid))
+ORDER BY c.is_active DESC, c.created_at DESC, c.id DESC
+LIMIT @row_limit::integer;
 
 -- name: CreateCoupon :exec
 INSERT INTO coupons (code, description, kind, amount_cents, percent_bp,
@@ -797,12 +858,15 @@ VALUES (@code::text, @description::text, @kind::text,
 UPDATE coupons SET is_active = @is_active::boolean WHERE upper(code) = upper(@code::text);
 
 -- name: AdminCampaigns :many
-SELECT c.id, c.slug, c.title, c.starts_at, c.ends_at, c.is_active,
+SELECT json_build_object('Rank', c.is_active, 'At', c.ends_at, 'ID', c.id)::text AS page_cursor, c.id, c.slug, c.title, c.starts_at, c.ends_at, c.is_active,
        (SELECT count(*) FROM sale_campaign_products p WHERE p.campaign_id = c.id)::bigint AS products,
        (c.is_active AND c.starts_at <= now() AND c.ends_at > now())::boolean AS is_running
 FROM sale_campaigns c
-ORDER BY c.is_active DESC, c.ends_at DESC
-LIMIT $1;
+WHERE (NOT @has_cursor::boolean OR (c.is_active < @after_rank::boolean)
+       OR (c.is_active = @after_rank::boolean AND c.ends_at < @after_at::timestamptz)
+       OR (c.is_active = @after_rank::boolean AND c.ends_at = @after_at::timestamptz AND c.id < @after_id::uuid))
+ORDER BY c.is_active DESC, c.ends_at DESC, c.id DESC
+LIMIT @row_limit::integer;
 
 -- name: CreateCampaign :exec
 INSERT INTO sale_campaigns (slug, title, title_en, ends_at)
@@ -850,25 +914,35 @@ SELECT record_audit_event(@actor, @action::text, @entity_table::text,
                           @before, @after, sqlc.narg('request_id')::text);
 
 -- name: AuditEvents :many
-SELECT a.action, a.entity_table, a.entity_id, a.before, a.after,
+SELECT json_build_object('At', a.occurred_at, 'ID', a.id)::text AS page_cursor, a.action, a.entity_table, a.entity_id, a.before, a.after,
        a.request_id, a.occurred_at,
        coalesce(u.full_name, u.email, a.actor_id_snapshot::text) AS actor
 FROM audit_events a
 LEFT JOIN users u ON u.id = a.actor_user_id
+WHERE (NOT @has_cursor::boolean OR (a.occurred_at < @after_at::timestamptz)
+       OR (a.occurred_at = @after_at::timestamptz AND a.id < @after_id::uuid))
 ORDER BY a.occurred_at DESC, a.id DESC
-LIMIT $1;
+LIMIT @row_limit::integer;
 
 -- No foreign key on storage_key: product_images predates media_objects and still
 -- holds embedded-asset names from the seed, so the column carries two kinds of
 -- key.
 -- name: AttachProductImage :exec
 INSERT INTO product_images (product_id, storage_key, alt_text, alt_text_en,
-                            width, height, position)
+                            width, height, position, option_value_id)
 SELECT p.id, @storage_key::text, @alt_text::text, nullif(@alt_text_en::text, ''),
        @width::integer, @height::integer,
-       coalesce((SELECT max(position) + 1 FROM product_images x WHERE x.product_id = p.id), 0)
+       coalesce((SELECT max(position) + 1 FROM product_images x WHERE x.product_id = p.id), 0),
+       sqlc.narg('option_value_id')::uuid
 FROM products p
 WHERE p.slug = @slug::text;
+
+-- name: SetProductImageOptionValue :execrows
+UPDATE product_images
+SET option_value_id = sqlc.narg('option_value_id')::uuid
+FROM products p
+WHERE product_images.product_id = p.id AND p.slug = @slug::text
+  AND product_images.storage_key = @storage_key::text;
 
 -- name: DetachProductImage :execrows
 DELETE FROM product_images pi
@@ -876,11 +950,33 @@ USING products p
 WHERE pi.product_id = p.id AND p.slug = @slug::text AND pi.storage_key = @storage_key::text;
 
 -- name: AdminProductImages :many
-SELECT pi.storage_key, pi.alt_text, pi.width, pi.height
+SELECT pi.storage_key, pi.alt_text, pi.width, pi.height, pi.option_value_id
 FROM product_images pi
 JOIN products p ON p.id = pi.product_id
 WHERE p.slug = @slug::text
 ORDER BY pi.position, pi.id;
+
+-- One product's images in display order. Read after LockProductCatalogue, as its
+-- own statement: in the same statement the read would use a snapshot taken
+-- before that lock was won.
+-- name: ProductImageOrder :many
+SELECT pi.id, pi.storage_key
+FROM product_images pi
+JOIN products p ON p.id = pi.product_id
+WHERE p.slug = @slug::text
+ORDER BY pi.position, pi.id;
+
+-- (product_id, position) is a unique index checked row by row, so a reorder
+-- first moves every image clear of the range it is about to fill.
+-- name: ParkProductImages :exec
+UPDATE product_images pi SET position = pi.position + 1000000
+FROM products p
+WHERE pi.product_id = p.id AND p.slug = @slug::text;
+
+-- name: SetProductImageOrder :exec
+UPDATE product_images pi SET position = o.n::integer - 1
+FROM unnest(@ids::uuid[]) WITH ORDINALITY AS o(id, n)
+WHERE pi.id = o.id;
 
 -- name: AdminHeroSlides :many
 SELECT h.id, h.eyebrow, h.headline, h.primary_cta_label, h.primary_cta_href,
@@ -1009,19 +1105,26 @@ SELECT
     -- while Stripe still says pending), and created_at for the synchronous
     -- credit post.
     --
-    -- The positive-credit predicate deliberately matches order_refunds. That
-    -- includes reverse_order_credit on a CANCELLED order whose revenue was never
-    -- counted here; excluding cancellations in this caller would create another
-    -- definition. If the report should exclude them, change order_refunds so the
-    -- 折讓 form and invoice bound make the same decision. Neither time column has
-    -- an index yet; these are small ledgers, so a speculative index is not
-    -- warranted.
+    -- The positive-credit predicate deliberately matches order_refunds: an entry
+    -- counts only with an order_id and a positive amount, so a reversed checkout
+    -- spend, which carries none, is in neither figure. A change of that
+    -- definition belongs in order_refunds, so the 折讓 form and the invoice bound
+    -- move with it. An order refunded before shipment is left out of both
+    -- figures: its refund cancels it out of the committed revenue, and counting
+    -- the same money as refunded too would take it off the net twice. Neither
+    -- time column has an index yet; these are small ledgers, so a speculative
+    -- index is not warranted.
     (coalesce((SELECT sum(r.amount_cents) FROM refunds r
+               JOIN payments p ON p.id = r.payment_id
                WHERE r.status = 'succeeded'
-                 AND r.succeeded_at >= now() - make_interval(days => @window_days::integer)), 0)::bigint
+                 AND r.succeeded_at >= now() - make_interval(days => @window_days::integer)
+                 AND NOT EXISTS (SELECT 1 FROM return_requests b
+                                 WHERE b.order_id = p.order_id AND b.before_shipment)), 0)::bigint
      + coalesce((SELECT sum(e.amount_cents) FROM store_credit_entries e
                  WHERE e.order_id IS NOT NULL AND e.amount_cents > 0
-                   AND e.created_at >= now() - make_interval(days => @window_days::integer)), 0)::bigint
+                   AND e.created_at >= now() - make_interval(days => @window_days::integer)
+                   AND NOT EXISTS (SELECT 1 FROM return_requests b
+                                   WHERE b.order_id = e.order_id AND b.before_shipment)), 0)::bigint
     )::bigint AS refunded_cents
 FROM (
     SELECT (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity)
@@ -1030,6 +1133,8 @@ FROM (
     FROM orders o
     JOIN committed_orders c ON c.id = o.id
     WHERE o.placed_at >= now() - make_interval(days => @window_days::integer)
+      AND NOT EXISTS (SELECT 1 FROM return_requests b
+                      WHERE b.order_id = o.id AND b.before_shipment)
 ) t;
 
 -- name: BestSellersSince :many
@@ -1238,7 +1343,11 @@ SELECT authorize_invoice_allowance_resend(
 -- name: ShipmentRecipient :one
 SELECT coalesce(pd.email, '') AS email,
        coalesce(pd.recipient_name, '') AS recipient_name,
-       o.locale
+       o.locale,
+       coalesce((SELECT sm.destination_kind
+                 FROM shipping_method_versions v
+                 JOIN shipping_methods sm ON sm.id = v.method_id
+                 WHERE v.id = o.shipping_version_id), '')::text AS destination_kind
 FROM orders o
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
 WHERE o.id = $1;
@@ -1388,15 +1497,17 @@ WHERE o.order_number = $1;
 -- The BASE table, so hidden reviews are listed too: un-hiding one is not
 -- possible from a list that cannot show it.
 -- name: AdminReviews :many
-SELECT r.id, r.rating, coalesce(r.title, '') AS title, r.body,
+SELECT json_build_object('At', r.created_at, 'ID', r.id)::text AS page_cursor, r.id, r.rating, coalesce(r.title, '') AS title, r.body,
        r.is_verified_purchase, r.hidden_at, r.created_at,
        p.slug, p.name AS product_name,
        coalesce(u.full_name, '') AS author
 FROM product_reviews r
 JOIN products p ON p.id = r.product_id
 LEFT JOIN users u ON u.id = r.user_id
+WHERE (NOT @has_cursor::boolean OR (r.created_at < @after_at::timestamptz)
+       OR (r.created_at = @after_at::timestamptz AND r.id < @after_id::uuid))
 ORDER BY r.created_at DESC, r.id DESC
-LIMIT $1;
+LIMIT @row_limit::integer;
 
 -- name: HideReview :execrows
 UPDATE product_reviews SET hidden_at = now()
@@ -1410,12 +1521,15 @@ WHERE id = $1 AND hidden_at IS NOT NULL;
 -- clock: taking the difference in Go subtracts two clocks, and a container
 -- milliseconds ahead of its host reports a four-day-old message as three.
 -- name: AdminMessages :many
-SELECT id, name, email, subject, coalesce(order_ref, '') AS order_ref,
+SELECT json_build_object('Rank', (handled_at IS NOT NULL), 'At', created_at, 'ID', id)::text AS page_cursor, id, name, email, subject, coalesce(order_ref, '') AS order_ref,
        message, handled_at, created_at,
        floor(extract(epoch FROM now() - created_at) / 86400)::integer AS waiting_days
 FROM contact_messages
-ORDER BY (handled_at IS NOT NULL), created_at
-LIMIT $1;
+WHERE (NOT @has_cursor::boolean OR ((handled_at IS NOT NULL) > @after_rank::boolean)
+       OR ((handled_at IS NOT NULL) = @after_rank::boolean AND created_at > @after_at::timestamptz)
+       OR ((handled_at IS NOT NULL) = @after_rank::boolean AND created_at = @after_at::timestamptz AND id > @after_id::uuid))
+ORDER BY (handled_at IS NOT NULL) ASC, created_at ASC, id ASC
+LIMIT @row_limit::integer;
 
 -- name: HandleMessage :execrows
 UPDATE contact_messages SET handled_at = now()
@@ -1442,13 +1556,15 @@ SELECT reverse_return_points(@return_id::uuid)::bigint AS points_reversed;
 -- caller. Every role is searched, for AdminCustomer's reason. An erased
 -- customer's row is gone, so nothing extra is needed to exclude one.
 -- name: AdminSearchCustomers :many
-SELECT u.id, u.email, coalesce(u.full_name, '') AS full_name, u.created_at,
+SELECT json_build_object('At', u.created_at, 'ID', u.id)::text AS page_cursor, u.id, u.email, coalesce(u.full_name, '') AS full_name, u.created_at,
        (u.email_verified_at IS NOT NULL)::boolean AS verified,
        (SELECT count(*) FROM orders o WHERE o.user_id = u.id)::bigint AS orders
 FROM users u
 WHERE (lower(u.email) LIKE lower(@term::text) || '%'
        OR u.full_name LIKE @term::text || '%')
-ORDER BY u.created_at DESC
+AND (NOT @has_cursor::boolean OR (u.created_at < @after_at::timestamptz)
+       OR (u.created_at = @after_at::timestamptz AND u.id < @after_id::uuid))
+ORDER BY u.created_at DESC, u.id DESC
 LIMIT @row_limit::integer;
 
 -- Spend counts COMMITTED orders only, and both balances come from the VIEWS that
@@ -1564,6 +1680,10 @@ FROM product_options o
 JOIN products p ON p.id = o.product_id
 WHERE p.slug = @slug::text AND o.id = @option_id
 RETURNING id;
+
+-- Lock before reading options so a concurrently added axis participates in validation.
+-- name: LockProductCatalogue :one
+SELECT id FROM products WHERE slug = $1 FOR NO KEY UPDATE;
 
 -- name: ProductOptionCount :one
 SELECT count(*)::bigint FROM product_options o
@@ -1711,7 +1831,7 @@ WHERE z.id = @zone_id
 -- Each source discriminator selects its validated parent. A hold names its
 -- order; a release names the reservation and a restock names the return.
 -- name: VariantMovements :many
-SELECT m.created_at, m.delta, m.reason, m.source_type,
+SELECT json_build_object('ID', m.id)::text AS page_cursor, m.created_at, m.delta, m.reason, m.source_type,
        coalesce(o.order_number, ro.order_number, rro.order_number, '') AS order_number,
        coalesce(u.full_name, u.email, '') AS actor,
        (SELECT sum(e.delta) FROM inventory_movements e
@@ -1727,6 +1847,7 @@ LEFT JOIN return_requests rr
        ON m.source_type = 'return_request' AND rr.id = m.source_id
 LEFT JOIN orders rro ON rro.id = rr.order_id
 WHERE pv.sku = @sku::text
+AND (NOT @has_cursor::boolean OR (m.id < @after_id::uuid))
 ORDER BY m.id DESC
 LIMIT @row_limit::integer;
 
@@ -1743,7 +1864,7 @@ SELECT record_inventory_movement(
 -- without widening what the person on the phone can tell you. LEFT JOIN on the
 -- user, because user_id is ON DELETE SET NULL and erase_user leaves the row.
 -- name: AdminSearchWarranties :many
-SELECT w.id, w.unit_no, coalesce(w.serial_number, '') AS serial_number,
+SELECT json_build_object('At', w.expires_on::timestamptz, 'ID', w.id)::text AS page_cursor, w.id, w.unit_no, coalesce(w.serial_number, '') AS serial_number,
        w.registered_at, w.expires_on,
        (w.expires_on >= shop_today())::boolean AS in_force,
        ol.product_name, coalesce(ol.variant_label, '') AS variant_label,
@@ -1754,8 +1875,10 @@ FROM warranty_registrations w
 JOIN order_lines ol ON ol.id = w.order_line_id
 JOIN orders o ON o.id = ol.order_id
 LEFT JOIN users u ON u.id = w.user_id
-WHERE w.serial_number = @term::text OR o.order_number = @term::text
-ORDER BY w.expires_on DESC, w.id
+WHERE (w.serial_number = @term::text OR o.order_number = @term::text)
+AND (NOT @has_cursor::boolean OR (w.expires_on::timestamptz < @after_at::timestamptz)
+       OR (w.expires_on::timestamptz = @after_at::timestamptz AND w.id > @after_id::uuid))
+ORDER BY w.expires_on::timestamptz DESC, w.id ASC
 LIMIT @row_limit::integer;
 
 -- What has actually gone back to the customer on this order, so an allowance
@@ -1793,3 +1916,28 @@ JOIN orders o ON o.id = p.order_id;
 -- Checkout generation; paid attribution has a separate capture path.
 -- name: ReleaseCompletePayment :one
 SELECT release_complete_payment(@provider_ref::text);
+
+-- The order lock also belongs to shipment, cancellation and erasure. Read the
+-- destination after acquiring it so a correction cannot outlive that decision.
+-- name: LockOrderDelivery :one
+SELECT o.id, o.fulfillment_status, sm.destination_kind
+FROM orders o
+JOIN shipping_method_versions v ON v.id = o.shipping_version_id
+JOIN shipping_methods sm ON sm.id = v.method_id
+WHERE o.order_number = @order_number
+FOR UPDATE OF o;
+
+-- Whether the saved postcode and the proposed one sit in the same surcharge
+-- zone. Identity of the zone, not today's amount: a surcharge edited or removed
+-- after checkout must not open a cross-zone correction. The order records the
+-- postcode it was priced for, so that is the side compared. Two postcodes in no
+-- zone are both the mainland; a malformed one resolves to neither.
+-- name: DeliveryZoneComparison :one
+SELECT (pd.erased_at IS NOT NULL)::boolean AS erased,
+       coalesce(pd.postal_code ~ '^[0-9]{3,6}$', false)::boolean AS old_resolved,
+       coalesce(pd.postal_code ~ '^[0-9]{3,6}$'
+                AND old_zone.zone_id IS NOT DISTINCT FROM new_zone.zone_id, false)::boolean AS same_zone
+FROM order_private_data pd
+LEFT JOIN shipping_zone_prefixes old_zone ON old_zone.prefix = left(pd.postal_code, 3)
+LEFT JOIN shipping_zone_prefixes new_zone ON new_zone.prefix = left(@new_postal_code::text, 3)
+WHERE pd.order_id = @order_id;

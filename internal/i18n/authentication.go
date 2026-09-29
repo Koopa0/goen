@@ -155,4 +155,9 @@ var (
 		ZhHant: "密碼已重設,請用新密碼登入。",
 		En:     "Your password is reset. Sign in with the new one.",
 	})
+
+	KeyEraseNeedsRecentSignIn = key("auth.erase.reauth", Message{
+		ZhHant: "為了保護您的帳號,刪除帳號前請重新登入。",
+		En:     "To protect your account, sign in again before deleting it.",
+	})
 )

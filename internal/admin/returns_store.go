@@ -76,15 +76,17 @@ type returnPayoutIssue struct {
 }
 
 // Returns reads the back-office queue.
-func (s *Store) Returns(ctx context.Context) (ReturnQueue, error) {
-	rows, err := s.q.ReturnQueue(ctx, PageLimit)
+func (s *Store) Returns(ctx context.Context, after ...string) (ReturnQueue, error) {
+	scope := "/admin/returns"
+	cursor := readPageCursor(scope, after)
+	rows, err := s.q.ReturnQueue(ctx, db.ReturnQueueParams{HasCursor: cursor.Valid, AfterRank: cursor.Rank, AfterPriority: cursor.Priority, AfterAt: cursor.At, AfterID: cursor.ID, RowLimit: PageLimit})
 	if err != nil {
 		return ReturnQueue{}, fmt.Errorf("read return queue: %w", err)
 	}
 	// Dropped before ids is built, not after: the extra row exists to be
 	// counted, and reading its lines and payout facts would be work done for a
 	// return nobody is shown.
-	rows, more := pageOf(rows, PageSize)
+	rows, bound := pageBound(cursor, scope, rows, PageSize, func(r *db.ReturnQueueRow) string { return r.PageCursor })
 	ids := make([]uuid.UUID, 0, len(rows))
 	for i := range rows {
 		ids = append(ids, rows[i].ID)
@@ -134,7 +136,7 @@ func (s *Store) Returns(ctx context.Context) (ReturnQueue, error) {
 	}
 	// Set here rather than in the builder, which is given rows and knows
 	// nothing about the read that produced them.
-	view.Bound = pages.Bound(more, PageSize)
+	view.Bound = bound
 	return view, nil
 }
 
@@ -190,6 +192,8 @@ func buildReturnQueue(
 			Decided:     returns.ReturnStatus(r.Status) != returns.ReturnRequested,
 			Lines:       byRequest[r.ID],
 			Window:      r.RescissionWindow,
+
+			BeforeShipment: r.BeforeShipment,
 		}
 		if a, ok := assessmentByRequest[r.ID]; ok {
 			item.AssessmentVersion = a.Version
@@ -473,10 +477,28 @@ func (s *Store) retryApprovedReturn(
 	position returnPayoutPosition,
 	actor uuid.NullUUID,
 ) error {
+	worked, err := s.payOutstanding(ctx, row, position, actor)
+	if err != nil || worked {
+		return err
+	}
+	// Refused rather than reported as done: a return is decided once, and saying
+	// so is what tells the staff member the decision was somebody else's.
+	return fmt.Errorf(
+		"%w: return %s is already approved and its refund has landed", ErrRefused, row.ID)
+}
+
+// payOutstanding does whatever of an approved return's payout is still owed
+// and reports whether anything was.
+func (s *Store) payOutstanding(
+	ctx context.Context,
+	row *db.ReturnForDecisionRow,
+	position returnPayoutPosition,
+	actor uuid.NullUUID,
+) (bool, error) {
 	eventRepaired := false
 	if position.EventOutstanding {
 		if err := s.recordReturnRefundedEvent(ctx, row.ID, actor); err != nil {
-			return err
+			return true, err
 		}
 		eventRepaired = true
 	}
@@ -485,22 +507,16 @@ func (s *Store) retryApprovedReturn(
 		// meets refunds_settled_is_history, and re-posting the credit meets the
 		// idempotency key — so a retry that resent both could never finish the
 		// half that had failed.
-		return s.payApprovedReturn(ctx, row, position.Outstanding, actor)
+		return true, s.payApprovedReturn(ctx, row, position.Outstanding, actor)
 	}
 
 	// Money and points are separately durable. If the money committed and the
 	// clawback failed, this is useful work rather than a duplicate decision:
 	// finish that last idempotent posting and report success.
 	if position.PointsOutstanding {
-		return s.reverseReturnPoints(ctx, row)
+		return true, s.reverseReturnPoints(ctx, row)
 	}
-	if eventRepaired {
-		return nil
-	}
-	// Refused rather than reported as done: a return is decided once, and saying
-	// so is what tells the staff member the decision was somebody else's.
-	return fmt.Errorf(
-		"%w: return %s is already approved and its refund has landed", ErrRefused, row.ID)
+	return eventRepaired, nil
 }
 
 // returnUnderDecision reads the return this decision is about and says whether

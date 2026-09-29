@@ -34,7 +34,8 @@ endif
 .PHONY: build run test test-race test-integration production-build-check integration-build-check \
         image image-push lint fmt fmt-check vet deadcode gen templ-check vuln \
         sqlc sqlc-check squawk db-up db-down migrate-up migrate-down db-seed \
-        db-repair-invoice-faq db-repair-refund-faq db-repair-payment-faq \
+        db-repair-invoice-faq db-repair-refund-faq db-repair-payment-faq db-repair-shop-rules-faq \
+        db-repair-hold-faq \
         demo-restore-check cursor-scripts-check workflow-check verify verify-all check-layout db-reset clean
 
 build: gen
@@ -96,6 +97,10 @@ test-integration: gen
 # LAYOUT_CHROME is a target variable so the resolved path survives GNU make's
 # one-shell-per-recipe-line default. Quoted for the macOS app bundle path.
 check-layout: LAYOUT_CHROME := $(if $(CHROME),$(CHROME),$(shell scripts/resolve-chrome.sh 2>/dev/null))
+# The colour-photo fixture and the probe that reads it name the same three things.
+check-layout: COLOUR_SLUG := pixelight-9-pro
+check-layout: COLOUR_VALUE := 曜石黑
+check-layout: COLOUR_KEY := pixelight-9-pro-01-800.webp
 check-layout:
 	@test -n "$(LAYOUT_CHROME)" && test -x "$(LAYOUT_CHROME)" || { echo 'Chrome not found; set CHROME=/path/to/chrome' >&2; exit 2; }
 	@curl -sf -o /dev/null $${GOEN_URL:-http://127.0.0.1:9700/} \
@@ -184,6 +189,12 @@ check-layout:
 	@VARIANT=$$(psql "$$GOEN_DATABASE_URL" -tAc "SELECT pv.id FROM product_variants pv JOIN products p ON p.id = pv.product_id WHERE p.status = 'active' AND pv.is_active AND pv.stock_quantity > pv.safety_stock LIMIT 1"); \
 		curl -s -o /dev/null -b .layout-chrome/cookies -c .layout-chrome/cookies \
 			-d "variant=$$VARIANT&quantity=1" $${GOEN_URL:-http://127.0.0.1:9700}/cart/items
+	@# One photograph tagged with a colour, because the seed tags none and a probe
+	@# over an untagged gallery measures nothing. The product's own picture under
+	@# its 800px rendition's name: an <img> the probe can tell apart that is still
+	@# a picture of this product. Upserted, so a rerun re-tags rather than fails.
+	@test "$$(psql "$$GOEN_DATABASE_URL" -qtAc "INSERT INTO product_images (product_id, storage_key, alt_text, alt_text_en, width, height, position, option_value_id) SELECT p.id, '$(COLOUR_KEY)', p.name, p.name_en, 800, 600, (SELECT max(x.position) + 1 FROM product_images x WHERE x.product_id = p.id), v.id FROM products p JOIN product_option_values v ON v.product_id = p.id WHERE p.slug = '$(COLOUR_SLUG)' AND v.value = '$(COLOUR_VALUE)' ON CONFLICT (product_id, storage_key) DO UPDATE SET option_value_id = EXCLUDED.option_value_id RETURNING 1")" = "1" \
+		|| { echo 'the colour-photo fixture tagged no photograph — $(COLOUR_SLUG) or its $(COLOUR_VALUE) value is not in GOEN_DATABASE_URL' >&2; exit 2; }
 	@# The promotional strip is DATA — an empty promo_banners is a working site
 	@# and a correct blank page, so its layout rows measured nothing at all
 	@# until this fixture existed. The check's own marker guard is what said so.
@@ -385,6 +396,9 @@ check-layout:
 	@# A pending invoice_documents row is no longer a tax document. The stranded
 	@# claim — a 折讓 the provider never answered, aged past the window that
 	@# tells a stuck one from a call in flight — lives on invoice_operations.
+	@# available_at is a day ahead so the invoice worker, which the gate's ECPay
+	@# staging values enable, never leases this row: leasing calls the provider and
+	@# rewrites last_error, which removes the resend form this page is measured with.
 	@# The issued invoice and a partial issued allowance (always short of the
 	@# refunded whole-dollar room) are what put the 折讓 form on
 	@# /admin/orders/{number}: the form offers the remainder, and writing the
@@ -420,7 +434,7 @@ check-layout:
 		INSERT INTO invoice_operations \
 		    (order_id, kind, target_document_id, provider_key, amount_cents, \
 		     request_payload, actor_user_id, actor_id_snapshot, request_id, \
-		     send_attempts, last_send_at, last_error, created_at, updated_at) \
+		     send_attempts, last_send_at, last_error, available_at, created_at, updated_at) \
 		SELECT inv.order_id, 'allowance', inv.id, 'GD-LAYOUT1', \
 		       least(50000, (src.refunded / 100) * 100), \
 		       jsonb_build_object( \
@@ -434,7 +448,7 @@ check-layout:
 		               'amount_cents', least(50000, (src.refunded / 100) * 100)))), \
 		       src.actor_id, src.actor_id, 'invoice-layout-check', \
 		       1, now() - interval '1 hour', 'allowance_not_yet_visible', \
-		       now() - interval '1 hour', now() - interval '1 hour' \
+		       now() + interval '1 day', now() - interval '1 hour', now() - interval '1 hour' \
 		FROM inv JOIN src ON src.order_id = inv.order_id \
 		WHERE NOT EXISTS ( \
 		  SELECT 1 FROM invoice_operations WHERE request_id = 'invoice-layout-check')" >/dev/null
@@ -456,6 +470,8 @@ check-layout:
 			--data-urlencode "slug=$$PRODUCT_SLUG" $$U/account/wishlist; \
 		test "$$(psql "$$GOEN_DATABASE_URL" -tAc "SELECT count(*) FROM wishlist_items w JOIN users u ON u.id = w.user_id JOIN products p ON p.id = w.product_id WHERE u.email = 'layout-cust@goen.invalid' AND p.slug = '$$PRODUCT_SLUG'")" -ge 1 \
 			|| { echo 'wishlist fixture wrote no row for layout-cust@goen.invalid' >&2; exit 2; }
+	@psql "$$GOEN_DATABASE_URL" -v ON_ERROR_STOP=1 -qtAc "INSERT INTO sale_campaigns (slug, title, title_en, starts_at, ends_at) VALUES ('layout-campaign', 'Layout campaign', 'Layout campaign', now() - interval '1 day', now() + interval '1 day') ON CONFLICT (slug) DO UPDATE SET starts_at = EXCLUDED.starts_at, ends_at = EXCLUDED.ends_at, is_active = true" >/dev/null
+	@psql "$$GOEN_DATABASE_URL" -v ON_ERROR_STOP=1 -qtAc "INSERT INTO sale_campaign_products (campaign_id, product_id, position) SELECT c.id, p.id, 0 FROM sale_campaigns c CROSS JOIN LATERAL (SELECT p.id FROM products p WHERE p.status = 'active' AND EXISTS (SELECT 1 FROM product_variants v WHERE v.product_id = p.id AND v.is_active AND v.compare_at_price_cents IS NOT NULL) ORDER BY p.slug LIMIT 1) p WHERE c.slug = 'layout-campaign' ON CONFLICT (campaign_id, product_id) DO NOTHING" >/dev/null
 	@PLACED_TOKEN=$$(awk '/goen_placed/ {print $$7}' .layout-chrome/cookies); \
 		INVOICE_ORDER=$$(psql "$$GOEN_DATABASE_URL" -tAc "SELECT o.order_number FROM orders o JOIN return_requests r ON r.order_id = o.id JOIN invoice_documents d ON d.order_id = o.id AND d.number = 'GD-LAYOUT1' WHERE r.status IN ('approved', 'completed') ORDER BY o.placed_at DESC LIMIT 1"); \
 		test -n "$$INVOICE_ORDER" || { echo 'invoice fixture wrote no refunded order — /admin/orders/ would measure the list and call the 折讓 form covered' >&2; exit 2; }; \
@@ -475,6 +491,7 @@ check-layout:
 		CUSTOMER_ID=$$(psql "$$GOEN_DATABASE_URL" -tAc "SELECT id FROM users WHERE email = 'layout-cust@goen.invalid'") \
 		LAYOUT_SERIAL=$$(psql "$$GOEN_DATABASE_URL" -tAc "SELECT w.serial_number FROM warranty_registrations w JOIN users u ON u.id = w.user_id WHERE u.email = 'layout-cust@goen.invalid' ORDER BY w.registered_at DESC LIMIT 1") \
 		ADMIN_TOKEN=$$(cat .layout-chrome/admin-token) \
+		COLOUR_SLUG='$(COLOUR_SLUG)' COLOUR_VALUE='$(COLOUR_VALUE)' COLOUR_KEY='$(COLOUR_KEY)' \
 		CUST_TOKEN=$$(cat .layout-chrome/cust-token) node scripts/check-layout.mjs; status=$$?; \
 		kill $$(cat .layout-chrome/pid) 2>/dev/null; sleep 1; rm -rf .layout-chrome 2>/dev/null; \
 		exit $$status
@@ -643,7 +660,7 @@ migrate-down:
 # Load the development catalogue: brands, categories, ~15 products with variants,
 # images, specs and reviews. Runs as the owner (psql, not the app's store
 # role), so it may write the tables store is barred from. Development only.
-# Edit seed/gen_seed.py and re-run it to regenerate seed/dev_catalog.sql.
+# seed/dev_catalog.sql is edited by hand.
 db-seed:
 	@test -n "$${GOEN_DATABASE_URL:-}" || { echo 'GOEN_DATABASE_URL is required' >&2; exit 2; }
 	psql "$$GOEN_DATABASE_URL" -v ON_ERROR_STOP=1 -f seed/dev_catalog.sql
@@ -667,6 +684,19 @@ db-repair-refund-faq:
 db-repair-payment-faq:
 	@test -n "$${GOEN_DATABASE_URL:-}" || { echo 'GOEN_DATABASE_URL is required' >&2; exit 2; }
 	psql "$$GOEN_DATABASE_URL" -v ON_ERROR_STOP=1 -f seed/repair_payment_faq.sql
+
+# Update only the known discount, membership and company-invoice FAQ answers on
+# a kept database. Each locale is matched on its previous text so a shop-edited
+# answer stays.
+db-repair-shop-rules-faq:
+	@test -n "$${GOEN_DATABASE_URL:-}" || { echo 'GOEN_DATABASE_URL is required' >&2; exit 2; }
+	psql "$$GOEN_DATABASE_URL" -v ON_ERROR_STOP=1 -f seed/repair_shop_rules_faq.sql
+
+# Update only the known stock-hold FAQ, which promised a lapsed order could be
+# paid again, on a kept database.
+db-repair-hold-faq:
+	@test -n "$${GOEN_DATABASE_URL:-}" || { echo 'GOEN_DATABASE_URL is required' >&2; exit 2; }
+	psql "$$GOEN_DATABASE_URL" -v ON_ERROR_STOP=1 -f seed/repair_hold_faq.sql
 
 # Rebuild the development database from scratch.
 #

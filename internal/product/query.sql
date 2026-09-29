@@ -31,14 +31,24 @@ WITH RECURSIVE trail AS (
 )
 SELECT trail.slug, trail.name FROM trail ORDER BY trail.depth DESC;
 
+-- The photographs of the variant on show lead, then those showing the product
+-- whichever value is chosen, then the other values'. Ordered and never filtered,
+-- so a value nobody photographed still opens on a picture.
 -- name: ProductImages :many
-SELECT storage_key,
-       localized_name(alt_text, alt_text_en, @locale::text) AS alt_text,
-       coalesce(width, 0)::integer AS width,
-       coalesce(height, 0)::integer AS height
-FROM product_images
-WHERE product_id = @product_id
-ORDER BY position, id;
+SELECT pi.storage_key,
+       localized_name(pi.alt_text, pi.alt_text_en, @locale::text) AS alt_text,
+       coalesce(pi.width, 0)::integer AS width,
+       coalesce(pi.height, 0)::integer AS height,
+       (pi.option_value_id IS NOT NULL)::boolean AS shows_option
+FROM product_images pi
+WHERE pi.product_id = @product_id
+ORDER BY EXISTS (
+             SELECT 1 FROM variant_option_values vov
+             WHERE vov.variant_id = sqlc.narg('variant_id')::uuid
+               AND vov.option_value_id = pi.option_value_id
+         ) DESC,
+         (pi.option_value_id IS NULL) DESC,
+         pi.position, pi.id;
 
 -- name: ProductSpecs :many
 SELECT localized_name(label, label_en, @locale::text) AS label,

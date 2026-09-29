@@ -206,9 +206,9 @@ func TestRefundCopyNamesBothPayoutChannels(t *testing.T) {
 }
 
 // TestTheStatedHoldMatchesTheEnforcedOne proves every customer-facing policy
-// states the one presentation-layer hold duration.
+// states the one presentation-layer hold duration and start window.
 func TestTheStatedHoldMatchesTheEnforcedOne(t *testing.T) {
-	enforced := pages.HoldMinutesText()
+	enforced, start := pages.HoldMinutesText(), pages.PayStartMinutesText()
 
 	// The FAQ makes the same promise, from a seeded row.
 	seed, err := os.ReadFile(filepath.Join("..", "..", "seed", "dev_catalog.sql"))
@@ -218,10 +218,36 @@ func TestTheStatedHoldMatchesTheEnforcedOne(t *testing.T) {
 	for _, want := range []string{
 		fmt.Sprintf("保留庫存 %s 分鐘", enforced),
 		fmt.Sprintf("holds the stock for %s minutes", enforced),
+		start + " 分鐘內開始付款",
+		"start the payment within " + start + " minutes",
 	} {
 		if !strings.Contains(string(seed), want) {
 			t.Errorf("no FAQ row states %q, so the answer a customer reads and the "+
 				"window the sweeper enforces are two different numbers", want)
+		}
+	}
+}
+
+// TestNoPolicyPromisesALapsedOrderCanBePaid holds /payment and /shipping to
+// what the hold sweeper does: an order still unpaid when its hold ends is
+// cancelled, and nothing re-reserves its stock.
+func TestNoPolicyPromisesALapsedOrderCanBePaid(t *testing.T) {
+	t.Parallel()
+	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+		parts := []string{i18n.T(i18n.WithLocale(t.Context(), locale), i18n.KeyShippingHoldBody)}
+		for _, section := range policies["payment"].For(locale).Sections {
+			parts = append(parts, section.Body...)
+		}
+		body := strings.Join(parts, " ")
+		cancelled, retry := "自動取消", "重新付款"
+		if locale == i18n.En {
+			cancelled, retry = "cancelled automatically", "pay again"
+		}
+		if strings.Count(body, cancelled) != 2 {
+			t.Errorf("%s: /payment and /shipping do not both say a lapsed order is %q", locale, cancelled)
+		}
+		if strings.Contains(body, retry) {
+			t.Errorf("%s: a policy still promises %q after the hold lapses", locale, retry)
 		}
 	}
 }

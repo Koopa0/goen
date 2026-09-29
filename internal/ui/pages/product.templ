@@ -196,14 +196,13 @@ templ productBuy(v *ProductView) {
 						// that changes, so there is no second server path to keep
 						// in step with the first.
 						//
-						// What changes is the buy column and nothing else. The
-						// photography is per PRODUCT — product_images has no
-						// variant column — so the gallery the server sends for one
-						// colour is the gallery it sends for every other, byte for
-						// byte, and a test holds that. Selecting it into the swap
-						// would destroy the <img> and build an identical one, which
-						// is a fetch, a decode and an empty frame in between for a
-						// picture that did not change. It is left alone instead.
+						// The gallery comes along only when a photograph shows one
+						// option value, because only then can the choice reorder
+						// it. Otherwise the server sends every choice the same
+						// gallery, byte for byte, and a test holds that: selecting
+						// it would destroy the <img> and build an identical one, a
+						// fetch, a decode and an empty frame for a picture that did
+						// not change.
 						<a
 							class={ "goen-swatch",
 								templ.KV("goen-swatch--dot", o.HasSwatches()),
@@ -213,6 +212,9 @@ templ productBuy(v *ProductView) {
 							hx-get={ val.Href }
 							hx-select="#buybox"
 							hx-target="#buybox"
+							if v.GalleryFollowsChoice() {
+								hx-select-oob="#gallery"
+							}
 							hx-swap="outerHTML"
 							hx-push-url="true"
 							if val.Selected {
@@ -373,6 +375,12 @@ templ productAddForm(v *ProductView) {
 					Tone: components.ToneAccent, ID: "added", Class: "goen-pdp__added",
 				}) {
 					{ i18n.T(ctx, i18n.KeyAddedToCart) }
+					<a class="goen-pdp__addedlink" href="/cart">{ i18n.T(ctx, i18n.KeyViewCart) }</a>
+				}
+			}
+			if v.AddAdjusted() {
+				@components.Notice(components.NoticeProps{Tone: components.ToneAccent, ID: "added", Class: "goen-pdp__added"}) {
+					{ i18n.T(ctx, i18n.KeyAddAdjusted) }
 					<a class="goen-pdp__addedlink" href="/cart">{ i18n.T(ctx, i18n.KeyViewCart) }</a>
 				}
 			}

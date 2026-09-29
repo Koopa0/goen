@@ -16,6 +16,14 @@ var (
 			"instead when the invoice should not exist at all.",
 	})
 
+	// The endpoint goen calls is ECPay's paper-allowance one; goen records the
+	// allowance as filed and has no step that collects the buyer's agreement.
+	KeyAdminQueueAllowancePaper = key("admin.queue.allowance.paper", Message{
+		ZhHant: "這裡使用綠界的紙本折讓介面:店家必須取得買家簽回的折讓確認並自行保存;系統不會代為取得或保存。",
+		En: "This uses ECPay's paper-allowance API: the shop must obtain the buyer's signed " +
+			"allowance confirmation and keep it. goen neither collects nor stores it.",
+	})
+
 	KeyAdminQueueNoInvoicing = key("admin.queue.noinvoicing", Message{
 		ZhHant: "尚未設定加值中心,無法開立發票。設定 GOEN_ECPAY_MERCHANT_ID 後才會開放。",
 		En: "No e-invoice provider is configured, so nothing can be issued. Setting " +
@@ -119,6 +127,15 @@ var (
 		ZhHant: "加值中心拒絕了這次作廢，詳細原因在伺服器紀錄裡。請先到綠界確認。",
 		En: "The e-invoice provider refused the void; the reason is in the server log. " +
 			"Check ECPay first.",
+	})
+
+	// Void or allowance stays the staff member's choice: goen does not know
+	// whether the 作廢 deadline has passed or the buyer has signed a 折讓.
+	KeyAdminNoticeCancelInvoice = key("admin.notice.cancelinvoice", Message{
+		ZhHant: "退款已完成，但發票仍有未沖回的金額，或開立、作廢、折讓的結果尚未確認。請在本頁發票區作廢或開立折讓，完成後按「繼續退款」取消訂單。",
+		En: "The refund has landed, but an invoice still has an unrelieved amount or an issue, void or " +
+			"allowance is unresolved. Void it or file an allowance in this page's invoice section, then " +
+			"press Resume the refund to cancel the order.",
 	})
 
 	KeyAdminNoticeAllowFailed = key("admin.notice.allowfailed", Message{

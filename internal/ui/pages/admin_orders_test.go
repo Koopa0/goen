@@ -101,3 +101,25 @@ func tagWithID(t *testing.T, html, id string) string {
 	}
 	return html[start : at+end+1]
 }
+
+// An automatic action is the system's, never the customer's: only an actor-less
+// cancellation the sweeper did not make is the customer's own.
+func TestTheTimelineNamesWhoCancelled(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name   string
+		event  AdminOrderEvent
+		zh, en string
+	}{
+		{"staff", AdminOrderEvent{Kind: "cancelled", Actor: "王店長"}, "王店長", "王店長"},
+		{"payment deadline", AdminOrderEvent{Kind: "cancelled", System: true}, "系統", "System"},
+		{"customer", AdminOrderEvent{Kind: "cancelled"}, "顧客", "Customer"},
+		{"webhook", AdminOrderEvent{Kind: "paid"}, "系統", "System"},
+	} {
+		for locale, want := range map[i18n.Locale]string{i18n.ZhHant: tc.zh, i18n.En: tc.en} {
+			if got := tc.event.By(i18n.WithLocale(t.Context(), locale)); got != want {
+				t.Errorf("%s/%s: By = %q, want %q", tc.name, locale, got, want)
+			}
+		}
+	}
+}

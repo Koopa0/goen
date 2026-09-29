@@ -26,11 +26,16 @@ func terminalNotice(t *testing.T, id uuid.UUID, want ordernotice.Kind) {
 	if err := pool.QueryRow(t.Context(), `SELECT payload FROM outbox_messages WHERE topic=$1 AND dedupe_key=$2`, outbox.TopicOrderTerminal, id.String()+":"+string(want)).Scan(&payload); err != nil {
 		t.Fatalf("missing terminal notice: %v", err)
 	}
-	var fields map[string]string
+	var fields map[string]json.RawMessage
 	if err := json.Unmarshal(payload, &fields); err != nil {
 		t.Fatal(err)
 	}
-	if len(fields) != 2 || fields["order_id"] != id.String() || fields["kind"] != string(want) {
+	var orderID, kind string
+	var refunded bool
+	if len(fields) != 3 ||
+		json.Unmarshal(fields["order_id"], &orderID) != nil || orderID != id.String() ||
+		json.Unmarshal(fields["kind"], &kind) != nil || kind != string(want) ||
+		json.Unmarshal(fields["refunded"], &refunded) != nil || refunded {
 		t.Fatalf("notice contains wrong event or private data: %s", payload)
 	}
 }

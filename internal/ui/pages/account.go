@@ -109,6 +109,7 @@ type AccountView struct {
 	Name            string
 	Phone           string
 	Orders          []AccountOrder
+	OrdersBound     ListBound
 	Addresses       []AccountAddress
 	CreditCents     int64
 	Standing        MemberStanding
