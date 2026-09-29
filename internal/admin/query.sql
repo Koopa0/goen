@@ -904,12 +904,18 @@ JOIN products p ON p.id = pi.product_id
 WHERE p.slug = @slug::text
 ORDER BY pi.position, pi.id;
 
--- One product's images in display order, under the product's row lock, so two
--- reorders queue instead of computing from the same starting order.
--- name: LockProductImageOrder :many
+-- The product's row is what serialises everything that writes its image
+-- positions. It is its own statement: read under READ COMMITTED, an image read
+-- in the same statement would use a snapshot taken before the lock was won.
+-- name: LockProductForImages :one
+SELECT p.id FROM products p WHERE p.slug = @slug::text FOR UPDATE;
+
+-- One product's images in display order.
+-- name: ProductImageOrder :many
 SELECT pi.id, pi.storage_key
 FROM product_images pi
-WHERE pi.product_id = (SELECT p.id FROM products p WHERE p.slug = @slug::text FOR UPDATE)
+JOIN products p ON p.id = pi.product_id
+WHERE p.slug = @slug::text
 ORDER BY pi.position, pi.id;
 
 -- (product_id, position) is a unique index checked row by row, so a reorder

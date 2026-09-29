@@ -200,3 +200,41 @@ func TestConcurrentImageReordersNeverDuplicateAPosition(t *testing.T) {
 		t.Fatalf("positions distinct=%d of %d images", distinct, total)
 	}
 }
+
+// An attach computes max(position)+1 and a reorder renumbers every position; both
+// take the product's lock first, so neither can collide with the other.
+func TestConcurrentAttachAndReorderNeverCollideOnPosition(t *testing.T) {
+	ctx, _ := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	slug, _, keys := imageOrderProduct(t, 3)
+	var wg sync.WaitGroup
+	errs := make(chan error, 32)
+	for i := range 8 {
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			digest := strings.Repeat(fmt.Sprintf("%x", i+10), 64)[:64]
+			if err := s.AttachImage(ctx, slug, digest, "新圖", "", 800, 800); err != nil {
+				errs <- fmt.Errorf("attach: %w", err)
+			}
+		}()
+		go func() {
+			defer wg.Done()
+			if err := s.MoveImage(ctx, slug, keys[i%3], admin.MoveToCover); err != nil && !errors.Is(err, admin.ErrInvalid) {
+				errs <- fmt.Errorf("reorder: %w", err)
+			}
+		}()
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		t.Error(err)
+	}
+	var distinct, total int
+	if err := pool.QueryRow(ctx, `SELECT count(DISTINCT pi.position), count(*) FROM product_images pi JOIN products p ON p.id = pi.product_id WHERE p.slug = $1`, slug).Scan(&distinct, &total); err != nil {
+		t.Fatal(err)
+	}
+	if total != 11 || distinct != total {
+		t.Fatalf("positions distinct=%d of %d images, want 11 of 11", distinct, total)
+	}
+}

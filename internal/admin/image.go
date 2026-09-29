@@ -2,12 +2,14 @@ package admin
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
 	"unicode/utf8"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -33,6 +35,13 @@ func (s *Store) AttachImage(
 		After: map[string]any{"product": slug, "digest": digest, "alt": alt},
 	},
 		func(ctx context.Context, q *db.Queries) error {
+			// The same lock, taken before the next position is computed: MoveImage
+			// renumbers under it, and an attach that read positions mid-reorder
+			// would collide on the unique index. A missing product falls through
+			// to an insert that matches nothing.
+			if _, err := q.LockProductForImages(ctx, slug); err != nil && !errors.Is(err, pgx.ErrNoRows) {
+				return fmt.Errorf("%w: %w", ErrRefused, err)
+			}
 			if err := q.AttachProductImage(ctx, db.AttachProductImageParams{
 				Slug: slug, StorageKey: digest, AltText: alt, AltTextEn: altEn,
 				Width: width, Height: height,
@@ -84,7 +93,10 @@ func (s *Store) MoveImage(ctx context.Context, slug, digest string, move ImageMo
 		After: map[string]any{"product": slug, "digest": digest, "move": string(move), "order": &order},
 	},
 		func(ctx context.Context, q *db.Queries) error {
-			rows, err := q.LockProductImageOrder(ctx, slug)
+			if _, err := q.LockProductForImages(ctx, slug); err != nil {
+				return fmt.Errorf("%w: %w", ErrRefused, err)
+			}
+			rows, err := q.ProductImageOrder(ctx, slug)
 			if err != nil {
 				return fmt.Errorf("%w: %w", ErrRefused, err)
 			}

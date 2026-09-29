@@ -6934,38 +6934,18 @@ func (q *Queries) LockProductCatalogue(ctx context.Context, slug string) (uuid.U
 	return id, err
 }
 
-const lockProductImageOrder = `-- name: LockProductImageOrder :many
-SELECT pi.id, pi.storage_key
-FROM product_images pi
-WHERE pi.product_id = (SELECT p.id FROM products p WHERE p.slug = $1::text FOR UPDATE)
-ORDER BY pi.position, pi.id
+const lockProductForImages = `-- name: LockProductForImages :one
+SELECT p.id FROM products p WHERE p.slug = $1::text FOR UPDATE
 `
 
-type LockProductImageOrderRow struct {
-	ID         uuid.UUID
-	StorageKey string
-}
-
-// One product's images in display order, under the product's row lock, so two
-// reorders queue instead of computing from the same starting order.
-func (q *Queries) LockProductImageOrder(ctx context.Context, slug string) ([]LockProductImageOrderRow, error) {
-	rows, err := q.db.Query(ctx, lockProductImageOrder, slug)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []LockProductImageOrderRow{}
-	for rows.Next() {
-		var i LockProductImageOrderRow
-		if err := rows.Scan(&i.ID, &i.StorageKey); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
+// The product's row is what serialises everything that writes its image
+// positions. It is its own statement: read under READ COMMITTED, an image read
+// in the same statement would use a snapshot taken before the lock was won.
+func (q *Queries) LockProductForImages(ctx context.Context, slug string) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, lockProductForImages, slug)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
 }
 
 const lockReturnOrder = `-- name: LockReturnOrder :one
@@ -8663,6 +8643,40 @@ func (q *Queries) ProductBySlug(ctx context.Context, arg ProductBySlugParams) (P
 		&i.CategoryParentID,
 	)
 	return i, err
+}
+
+const productImageOrder = `-- name: ProductImageOrder :many
+SELECT pi.id, pi.storage_key
+FROM product_images pi
+JOIN products p ON p.id = pi.product_id
+WHERE p.slug = $1::text
+ORDER BY pi.position, pi.id
+`
+
+type ProductImageOrderRow struct {
+	ID         uuid.UUID
+	StorageKey string
+}
+
+// One product's images in display order.
+func (q *Queries) ProductImageOrder(ctx context.Context, slug string) ([]ProductImageOrderRow, error) {
+	rows, err := q.db.Query(ctx, productImageOrder, slug)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ProductImageOrderRow{}
+	for rows.Next() {
+		var i ProductImageOrderRow
+		if err := rows.Scan(&i.ID, &i.StorageKey); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const productImages = `-- name: ProductImages :many
