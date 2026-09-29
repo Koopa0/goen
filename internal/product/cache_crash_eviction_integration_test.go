@@ -40,7 +40,7 @@ func TestCacheFillOwnerProcess(t *testing.T) {
 	cache := openCacheOnAddr(t, os.Getenv("GOEN_CACHE_OWNER_VALKEY"), product.DefaultCacheConfig())
 	defer cache.Close()
 	product.SetIntegrationFillPause(func(ctx context.Context) error {
-		if err := os.WriteFile("ready", []byte("lease acquired"), 0600); err != nil {
+		if err := os.WriteFile("ready", []byte("lease acquired"), 0o600); err != nil {
 			return err
 		}
 		<-ctx.Done()
@@ -48,7 +48,7 @@ func TestCacheFillOwnerProcess(t *testing.T) {
 	})
 	defer product.SetIntegrationFillPause(nil)
 	server := cacheHTTPServer(t, childPool, cache)
-	if err := os.WriteFile("url", []byte(server.URL), 0600); err != nil {
+	if err := os.WriteFile("url", []byte(server.URL), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	select {
@@ -396,7 +396,7 @@ func cacheRecoveryArtifact(t *testing.T, scenario string) map[string]any {
 			t.Errorf("encode cache recovery evidence: %v", err)
 			return
 		}
-		if err := os.MkdirAll("artifacts", 0750); err != nil {
+		if err := os.MkdirAll("artifacts", 0o750); err != nil {
 			t.Errorf("create cache recovery artifact directory: %v", err)
 			return
 		}
@@ -406,11 +406,11 @@ func cacheRecoveryArtifact(t *testing.T, scenario string) map[string]any {
 			return
 		}
 		defer root.Close()
-		if err := root.MkdirAll(sha, 0750); err != nil {
+		if err := root.MkdirAll(sha, 0o750); err != nil {
 			t.Errorf("create tested-SHA evidence directory: %v", err)
 			return
 		}
-		if err := root.WriteFile(filepath.Join(sha, scenario+".json"), encoded, 0600); err != nil {
+		if err := root.WriteFile(filepath.Join(sha, scenario+".json"), encoded, 0o600); err != nil {
 			t.Errorf("write cache recovery evidence: %v", err)
 		}
 	})

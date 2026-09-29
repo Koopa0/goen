@@ -31,11 +31,13 @@ func TestDisabledCacheReadsThroughFill(t *testing.T) {
 
 // The socket poller can report its deadline before the context timer sets Err.
 type pendingDeadlineContext struct {
-	context.Context
 	deadline time.Time
 }
 
 func (ctx pendingDeadlineContext) Deadline() (time.Time, bool) { return ctx.deadline, true }
+func (pendingDeadlineContext) Done() <-chan struct{}           { return nil }
+func (pendingDeadlineContext) Err() error                      { return nil }
+func (pendingDeadlineContext) Value(any) any                   { return nil }
 
 func TestFallbackRefusesElapsedDeadlineBeforeContextTimer(t *testing.T) {
 	for _, elapsed := range []bool{false, true} {
@@ -46,7 +48,7 @@ func TestFallbackRefusesElapsedDeadlineBeforeContextTimer(t *testing.T) {
 			deadline = time.Now().Add(-time.Millisecond)
 		}
 		t.Run(name, func(t *testing.T) {
-			ctx := pendingDeadlineContext{Context: t.Context(), deadline: deadline}
+			ctx := pendingDeadlineContext{deadline: deadline}
 			if ctx.Err() != nil {
 				t.Fatal("fixture requires pending context timer")
 			}

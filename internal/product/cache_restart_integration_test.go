@@ -20,16 +20,16 @@ import (
 )
 
 func TestCacheFailureFallsBackWithBoundedAdmission(t *testing.T) {
-	container, err := valkeycontainer.Run(t.Context(), "valkey/valkey:8.0-alpine", testcontainers.WithCmdArgs("--maxmemory", "64mb", "--maxmemory-policy", "allkeys-lru", "--save", ""), fixedValkeyPort(t))
+	valkey, err := valkeycontainer.Run(t.Context(), "valkey/valkey:8.0-alpine", testcontainers.WithCmdArgs("--maxmemory", "64mb", "--maxmemory-policy", "allkeys-lru", "--save", ""), fixedValkeyPort(t))
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		if terminateErr := testcontainers.TerminateContainer(container); terminateErr != nil {
+		if terminateErr := testcontainers.TerminateContainer(valkey); terminateErr != nil {
 			t.Error(terminateErr)
 		}
 	})
-	addr, err := container.Endpoint(t.Context(), "")
+	addr, err := valkey.Endpoint(t.Context(), "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,7 +44,7 @@ func TestCacheFailureFallsBackWithBoundedAdmission(t *testing.T) {
 		t.Fatal(loadErr)
 	}
 	timeout := time.Second
-	if stopErr := container.Stop(t.Context(), &timeout); stopErr != nil {
+	if stopErr := valkey.Stop(t.Context(), &timeout); stopErr != nil {
 		t.Fatal(stopErr)
 	}
 	entered := make(chan struct{}, 5)
@@ -87,10 +87,10 @@ func TestCacheFailureFallsBackWithBoundedAdmission(t *testing.T) {
 		t.Fatalf("fallback admissions=%d, want 2", stats.Fallbacks)
 	}
 	product.SetIntegrationFillPause(nil)
-	if startErr := container.Start(t.Context()); startErr != nil {
+	if startErr := valkey.Start(t.Context()); startErr != nil {
 		t.Fatal(startErr)
 	}
-	recoveredAddr, endpointErr := container.Endpoint(t.Context(), "")
+	recoveredAddr, endpointErr := valkey.Endpoint(t.Context(), "")
 	if endpointErr != nil {
 		t.Fatal(endpointErr)
 	}
