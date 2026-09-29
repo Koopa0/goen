@@ -837,9 +837,9 @@ func text(s string) pgtype.Text {
 // GrantCredit puts store credit on a customer's account. The amount is in cents
 // and must be positive: a correction is its own posting with its own reason, so
 // the ledger reads as a history rather than a figure somebody edited.
-func (s *Store) GrantCredit(ctx context.Context, email string, amountCents int64, reason string, operationID uuid.UUID) (balanceCents int64, err error) {
-	email, reason = strings.TrimSpace(email), strings.TrimSpace(reason)
-	if email == "" || reason == "" || utf8.RuneCountInString(reason) > MaxCreditReasonRunes || amountCents <= 0 || operationID == uuid.Nil {
+func (s *Store) GrantCredit(ctx context.Context, customerID uuid.UUID, amountCents int64, reason string, operationID uuid.UUID) (balanceCents int64, err error) {
+	reason = strings.TrimSpace(reason)
+	if customerID == uuid.Nil || reason == "" || utf8.RuneCountInString(reason) > MaxCreditReasonRunes || amountCents <= 0 || operationID == uuid.Nil {
 		return 0, ErrInvalid
 	}
 	if amountCents > MaxCreditGrant {
@@ -853,13 +853,9 @@ func (s *Store) GrantCredit(ctx context.Context, email string, amountCents int64
 	if !ok {
 		return 0, ErrNoActor
 	}
-	user, err := s.q.CustomerByEmail(ctx, email)
-	if err != nil {
-		return 0, fmt.Errorf("%w: no customer for %s", ErrRefused, email)
-	}
 
 	event := Event{
-		Action: actionGrantCredit, Table: "store_credit_entries", ID: nullableID(user.ID),
+		Action: actionGrantCredit, Table: "store_credit_entries", ID: nullableID(customerID),
 		// The customer is named by ID and never by address: audit_events is
 		// append-only and erase_user does not reach it, so an email written here
 		// would outlive the erasure meant to remove it.
@@ -873,7 +869,7 @@ func (s *Store) GrantCredit(ctx context.Context, email string, amountCents int64
 	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
 	q := s.q.WithTx(tx)
 	entryID, err := q.PostStoreCredit(ctx, db.PostStoreCreditParams{
-		UserID: user.ID, AmountCents: amountCents, Reason: reason,
+		UserID: customerID, AmountCents: amountCents, Reason: reason,
 		ActorUserID: actorID, OperationID: operationID,
 	})
 	if err != nil {
@@ -888,7 +884,7 @@ func (s *Store) GrantCredit(ctx context.Context, email string, amountCents int64
 	}
 	// Read INSIDE the same transaction, so the number shown is the one this grant
 	// produced and not one a concurrent spend moved.
-	balanceCents, err = q.CreditBalance(ctx, uuid.NullUUID{UUID: user.ID, Valid: true})
+	balanceCents, err = q.CreditBalance(ctx, uuid.NullUUID{UUID: customerID, Valid: true})
 	if err != nil {
 		return 0, fmt.Errorf("read credit balance: %w", err)
 	}

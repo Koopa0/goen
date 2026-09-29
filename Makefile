@@ -276,11 +276,18 @@ check-layout:
 		CREDIT_PAGE=$$(curl -fsS -b "goen_session=$$AT" $$U/admin/credit); \
 		OP=$$(printf '%s' "$$CREDIT_PAGE" | grep -o 'name="operation_id" value="[^"]*"' | head -1 | cut -d'"' -f4); \
 		test -n "$$OP" || { echo 'credit grant form did not render an operation_id' >&2; exit 2; }; \
+		CREDIT_REVIEW=$$(curl -fsS -b "goen_session=$$AT" -H 'Sec-Fetch-Site: same-origin' \
+			--data-urlencode 'email=layout-cust@goen.invalid' --data-urlencode 'amount=99999' \
+			--data-urlencode "reason=版面檢查用的退貨樣本 $$$$" \
+			--data-urlencode "operation_id=$$OP" $$U/admin/credit); \
+		CUSTOMER_ID=$$(printf '%s' "$$CREDIT_REVIEW" | grep -o 'name="customer_id" value="[^"]*"' | head -1 | cut -d'"' -f4); \
+		test -n "$$CUSTOMER_ID" || { echo 'credit grant review did not render a customer_id' >&2; exit 2; }; \
 		GRANT=$$(curl -sS -o /dev/null -w '%{http_code} %{redirect_url}' -b "goen_session=$$AT" \
 			-H 'Sec-Fetch-Site: same-origin' \
 			--data-urlencode 'email=layout-cust@goen.invalid' --data-urlencode 'amount=99999' \
 			--data-urlencode "reason=版面檢查用的退貨樣本 $$$$" \
-			--data-urlencode "operation_id=$$OP" $$U/admin/credit); \
+			--data-urlencode "operation_id=$$OP" --data-urlencode "customer_id=$$CUSTOMER_ID" \
+			-d 'confirm=grant' $$U/admin/credit); \
 		test "$${GRANT%% *}" = 303 || { echo "credit grant answered $${GRANT%% *}, want 303" >&2; exit 2; }; \
 		printf '%s' "$${GRANT#* }" | grep -q 'ok=1' \
 			|| { echo "credit grant redirected to $${GRANT#* }, want ok=1" >&2; exit 2; }; \
