@@ -8384,6 +8384,18 @@ REVOKE INSERT, UPDATE, DELETE ON
     order_shipments, order_shipment_lines, invoice_documents, invoice_operations,
     invoice_document_lines
     FROM store;
+REVOKE DELETE ON product_questions, product_reviews FROM store;
+REVOKE UPDATE ON wishlist_items FROM store;
+REVOKE DELETE ON
+    products, product_variants, product_options, product_option_values,
+    variant_option_values, product_reviews, product_questions, product_answers,
+    coupons, hero_slides, promo_banners, sale_campaigns, shipping_methods
+    FROM admin;
+REVOKE UPDATE ON
+    product_images, product_specs, product_options, product_option_values,
+    variant_option_values, membership_tiers, sale_campaign_products,
+    order_shipment_lines
+    FROM admin;
 
 -- user_identities is the STOREFRONT's. INSERT and DELETE only: linking and
 -- unlinking are the two things that happen to a link, and an UPDATE would repoint
