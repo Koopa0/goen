@@ -85,6 +85,10 @@ WHERE o.order_number = $1;
 UPDATE order_shipments SET delivered_at = greatest(now(), shipped_at)
 WHERE order_id = $1 AND delivered_at IS NULL;
 
+-- Lock before reading the prior state so concurrent completion cannot duplicate arrival mail.
+-- name: LockOrderForAdvance :one
+SELECT id, fulfillment_status FROM orders WHERE order_number = $1 FOR UPDATE;
+
 -- orders_check_transition validates the move, so this does not re-derive it.
 -- cancelled_at and completed_at are set here because the schema requires them
 -- for those two states and orders_history_frozen refuses a later change.
