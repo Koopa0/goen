@@ -28,7 +28,7 @@ func TestReorderReportsAdjustedQuantities(t *testing.T) {
 				ctx := i18n.WithLocale(t.Context(), locale)
 				s := cart.NewStore(storeRolePool(t))
 				live, empty, _ := threeVariants(t, "reorder-adjustment")
-				if _, err := pool.Exec(ctx, `SELECT record_inventory_movement($1,-7,'adjustment',$2,NULL,NULL,NULL)`, live, "reorder-cap:"+live.String()); err != nil {
+				if _, err := pool.Exec(ctx, `SELECT record_inventory_movement($1,-7,'adjustment',$2,'admin',NULL,NULL)`, live, "reorder-cap:"+live.String()); err != nil {
 					t.Fatal(err)
 				}
 				lines := map[uuid.UUID]int32{live: 2}
