@@ -156,7 +156,7 @@ func (h *Handler) Deals(w http.ResponseWriter, r *http.Request) {
 		h.serverError(w, r)
 		return
 	}
-	campaigns, err := h.store.RunningCampaigns(r.Context())
+	campaigns, err := h.store.RunningCampaigns(r.Context(), ParsePage(r.URL.Query().Get("campaign_page")))
 	if err != nil {
 		// best-effort: the discounted products are the page's substance.
 		h.log.ErrorContext(r.Context(), "load campaigns", "error", err)
