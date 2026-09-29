@@ -37,10 +37,14 @@ func TestOptionAxesMustPrecedeVariants(t *testing.T) {
 		if rec.Code != http.StatusUnprocessableEntity {
 			t.Fatalf("%s response = %d: %s", locale, rec.Code, rec.Body.String())
 		}
-		for _, want := range []string{i18n.T(local, i18n.KeyFormOptionBeforeVariants), `aria-describedby="opt-name-error"`, `aria-invalid="true"`} {
+		for _, want := range []string{i18n.T(local, i18n.KeyFormOptionBeforeVariants), `id="opt-frozen"`, `id="opt-name-error"`} {
 			if !strings.Contains(rec.Body.String(), want) {
 				t.Errorf("%s refusal missing %q", locale, want)
 			}
+		}
+		// The page no longer offers the form the server just refused.
+		if strings.Contains(rec.Body.String(), `id="opt-name"`) {
+			t.Errorf("%s refusal still renders the add-option form", locale)
 		}
 	}
 	if _, err := pool.Exec(ctx, `UPDATE product_variants SET is_active = false WHERE product_id = (SELECT id FROM products WHERE slug = $1)`, slug); err != nil {
