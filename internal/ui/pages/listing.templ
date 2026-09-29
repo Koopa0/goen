@@ -52,7 +52,7 @@ templ Listing(p layouts.Page, v ListingView) {
 								}
 							</ul>
 						}
-						@pager(v.HasPrev(), v.HasNext(), v.PrevHref(), v.NextHref(), v.PageText(), v.PagesText())
+						@pager(i18n.T(ctx, i18n.KeyPagination), v.HasPrev(), v.HasNext(), v.PrevHref(), v.NextHref(), v.PageText(), v.PagesText())
 					}
 				</div>
 			</div>
@@ -164,9 +164,9 @@ templ listingFilters(v ListingView) {
 
 // pager is two links and a sentence. The end of the run stays visible as a
 // disabled span rather than disappearing, so the control does not move.
-templ pager(hasPrev, hasNext bool, prev, next, page, pages string) {
+templ pager(label string, hasPrev, hasNext bool, prev, next, page, pages string) {
 	if hasPrev || hasNext {
-		<nav class="goen-pager" aria-label={ i18n.T(ctx, i18n.KeyPagination) }>
+		<nav class="goen-pager" aria-label={ label }>
 			if hasPrev {
 				<a class="goen-btn goen-btn--outline goen-btn--sm" href={ templ.URL(prev) } rel="prev">{ i18n.T(ctx, i18n.KeyPrevPage) }</a>
 			} else {
@@ -227,7 +227,7 @@ templ Search(p layouts.Page, v SearchView) {
 						}
 					</ul>
 				}
-				@pager(v.HasPrev(), v.HasNext(), v.PrevHref(), v.NextHref(), v.PageText(), v.PagesText())
+				@pager(i18n.T(ctx, i18n.KeyPagination), v.HasPrev(), v.HasNext(), v.PrevHref(), v.NextHref(), v.PageText(), v.PagesText())
 			}
 		</div>
 	}

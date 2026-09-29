@@ -140,3 +140,5 @@ var (
 			"cannot feature it. Set one on the product page and try again.",
 	})
 )
+
+var KeyCampaignPagination = key("campaign.pagination", Message{ZhHant: "活動分頁", En: "Campaign pages"})
