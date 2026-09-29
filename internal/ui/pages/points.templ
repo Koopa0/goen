@@ -79,11 +79,9 @@ templ Points(p layouts.Page, v PointsView) {
 			}
 			<section class="goen-points__ledger" aria-labelledby="ledger-heading">
 				<h2 class="goen-points__ledgerhead" id="ledger-heading">{ i18n.T(ctx, i18n.KeyPointsLedger) }</h2>
-				if v.Empty() && v.HistoryFirst != "" {
-					<p class="goen-points__meta">{ i18n.T(ctx,i18n.KeyPointsPageEmpty) }</p>
-				} else if v.Empty() {
+				if v.Empty() && !v.PastEnd {
 					<p class="goen-points__meta">{ i18n.T(ctx, i18n.KeyPointsEmpty) }</p>
-				} else {
+				} else if !v.Empty() {
 					<ul class="goen-points" role="list">
 						for _, e := range v.Entries {
 							<li class={ "goen-points__item", templ.KV("is-expired", e.Expired) }>
@@ -108,20 +106,7 @@ templ Points(p layouts.Page, v PointsView) {
 						}
 					</ul>
 				}
-				if v.HistoryFirst != "" || v.HistoryNext != "" {
-					<nav class="goen-pager" aria-label={ i18n.T(ctx, i18n.KeyPagination) }>
-						if v.HistoryFirst != "" {
-							@components.ButtonLink(components.ButtonProps{Variant: components.VariantOutline}, templ.URL(v.HistoryFirst)) {
-								{ i18n.T(ctx, i18n.KeyPointsFirstPage) }
-							}
-						}
-						if v.HistoryNext != "" {
-							@components.ButtonLink(components.ButtonProps{Variant: components.VariantOutline, Attrs: templ.Attributes{"rel": "next"}}, templ.URL(v.HistoryNext)) {
-								{ i18n.T(ctx, i18n.KeyNextPage) }
-							}
-						}
-					</nav>
-				}
+				@listBound(v.ListBound)
 			</section>
 		</div>
 	}
