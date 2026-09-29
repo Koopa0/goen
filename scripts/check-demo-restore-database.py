@@ -45,7 +45,7 @@ def state(database="restore_target", user="restore_owner"):
     return sql("""
 SELECT 'brand|' || name FROM public.brands WHERE slug = 'restore-fixture';
 SELECT 'probe|' || value FROM restore_probe.z_failure ORDER BY value;
-SELECT 'constraint|' || conname || '|' || contype || '|' || pg_get_constraintdef(oid) FROM pg_constraint
+SELECT 'constraint|' || conname || '|' || contype::text || '|' || pg_get_constraintdef(oid) FROM pg_constraint
  WHERE conrelid = 'restore_probe.z_failure'::regclass ORDER BY conname;
 """, database, user)
 
