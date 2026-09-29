@@ -21,3 +21,15 @@ func TestEmptyOlderPointsPageOffersTheFirstPage(t *testing.T) {
 		t.Fatal("empty older page claimed the ledger never had entries")
 	}
 }
+
+func TestAnEmptyFirstPointsPageKeepsItsOwnSentence(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	body := renderComponent(t, ctx, Points(layouts.Page{Title: "Points"}, PointsView{}))
+	if !strings.Contains(body, i18n.T(ctx, i18n.KeyPointsEmpty)) {
+		t.Fatal("an account with no points history lost its no-points sentence")
+	}
+	if strings.Contains(body, i18n.T(ctx, i18n.KeyPageEmpty)) {
+		t.Fatal("an empty first page shows the later-page sentence")
+	}
+}
