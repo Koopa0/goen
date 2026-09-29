@@ -3,12 +3,18 @@ package main
 import (
 	"errors"
 	"net/mail"
+	"net/url"
 	"strings"
 
+	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/invoice"
+	"github.com/koopa0/goen/internal/payment"
 )
 
+// providerMode is the deployment's financial environment. It is a setting of
+// its own: HTTPS says nothing about whether the Stripe key or the 綠界
+// endpoints are real.
 type providerMode string
 
 const (
@@ -16,71 +22,64 @@ const (
 	providerLive    providerMode = "live"
 )
 
-// Cookie security describes transport; an HTTPS demonstration can still use
-// sandbox providers. Live commerce needs a separate, explicit configuration.
+// prepareProviderPosture refuses a live deployment that would take real orders
+// through a test or placeholder provider. Sandbox is as permissive as it was
+// before the mode existed.
 func (cfg *config) prepareProviderPosture() error {
-	if cfg.ProviderMode == "" {
-		cfg.ProviderMode = providerSandbox
-	}
-	if cfg.ProviderMode != providerSandbox && cfg.ProviderMode != providerLive {
+	switch cfg.ProviderMode {
+	case providerSandbox, "": // loadConfig defaults the setting to sandbox
+		return nil
+	case providerLive:
+	default:
 		return errors.New("GOEN_PROVIDER_MODE must be sandbox or live")
 	}
-	if cfg.ProviderMode == providerLive && !cfg.SecureCookies {
+	if !cfg.SecureCookies {
 		return errors.New("GOEN_PROVIDER_MODE=live requires secure cookies; remove GOEN_INSECURE_COOKIES")
 	}
-	if err := cfg.validateStripePosture(); err != nil {
+	if payment.ClassifyKey(cfg.StripeAPIKey) == payment.KeyTest {
+		return errors.New("GOEN_STRIPE_API_KEY is a Stripe test key while GOEN_PROVIDER_MODE is live")
+	}
+	if err := cfg.validateLiveInvoicing(); err != nil {
 		return err
 	}
-	if err := cfg.validateInvoicePosture(); err != nil {
-		return err
+	// Live reads the production store map unless told otherwise; the map has no
+	// other setting that says which environment it is.
+	if cfg.ECPayLogisticsBaseURL == "" {
+		cfg.ECPayLogisticsBaseURL = cart.MapProductionBaseURL
+	} else if namesHost(cfg.ECPayLogisticsBaseURL, cart.MapStagingBaseURL) {
+		return errors.New("GOEN_ECPAY_LOGISTICS_BASE_URL names the 綠界 staging store map while GOEN_PROVIDER_MODE is live")
 	}
-	return cfg.validateSenderPosture()
+	return cfg.validateLiveSender()
 }
 
-func (cfg *config) validateStripePosture() error {
-	if cfg.StripeAPIKey == "" {
-		return nil
+func (cfg *config) validateLiveInvoicing() error {
+	if cfg.ECPayMerchantID == "" || cfg.ECPayHashKey == "" || cfg.ECPayHashIV == "" {
+		return errors.New("GOEN_ECPAY_MERCHANT_ID, GOEN_ECPAY_HASH_KEY and GOEN_ECPAY_HASH_IV " +
+			"are required while GOEN_PROVIDER_MODE is live: without them no 統一發票 is issued")
 	}
-	prefixes := []string{"sk_test_", "rk_test_"}
-	if cfg.ProviderMode == providerLive {
-		prefixes = []string{"sk_live_", "rk_live_"}
-	}
-	if !strings.HasPrefix(cfg.StripeAPIKey, prefixes[0]) && !strings.HasPrefix(cfg.StripeAPIKey, prefixes[1]) {
-		return errors.New("GOEN_STRIPE_API_KEY must match GOEN_PROVIDER_MODE (sandbox test key or live key)")
+	// An empty URL is the staging endpoint by default.
+	if cfg.ECPayBaseURL == "" || namesHost(cfg.ECPayBaseURL, invoice.StagingBaseURL) {
+		return errors.New("GOEN_ECPAY_BASE_URL must name the production invoice endpoint " +
+			"while GOEN_PROVIDER_MODE is live; empty and the staging endpoint are refused")
 	}
 	return nil
 }
 
-func (cfg *config) validateInvoicePosture() error {
-	if cfg.ECPayMerchantID == "" && cfg.ECPayHashKey == "" && cfg.ECPayHashIV == "" {
-		return nil
-	}
-	endpoint := strings.TrimRight(cfg.ECPayBaseURL, "/")
-	if cfg.ProviderMode == providerLive {
-		if endpoint != invoice.ProductionBaseURL {
-			return errors.New("GOEN_ECPAY_BASE_URL must explicitly name the production invoice endpoint in live mode")
-		}
-		if cfg.ECPayMerchantID == "2000132" {
-			return errors.New("GOEN_ECPAY_MERCHANT_ID is the published staging merchant, not a live merchant")
-		}
-		return nil
-	}
-	if endpoint == invoice.ProductionBaseURL {
-		return errors.New("GOEN_ECPAY_BASE_URL names production while GOEN_PROVIDER_MODE is sandbox")
-	}
-	return nil
-}
-
-func (cfg *config) validateSenderPosture() error {
-	if cfg.SMTPAddr == "" {
-		return nil
-	}
+func (cfg *config) validateLiveSender() error {
 	from, err := mail.ParseAddress(strings.TrimSpace(cfg.SMTPFrom))
 	if err != nil || !email.Valid(from.Address) {
-		return errors.New("GOEN_SMTP_FROM must be a valid sender address")
+		return errors.New("GOEN_SMTP_FROM must be a valid sender address while GOEN_PROVIDER_MODE is live")
 	}
-	if cfg.ProviderMode == providerLive && strings.HasSuffix(strings.ToLower(from.Address), "@goen.example") {
-		return errors.New("GOEN_SMTP_FROM must replace the goen.example placeholder in live mode")
+	if strings.HasSuffix(strings.ToLower(from.Address), "@goen.example") {
+		return errors.New("GOEN_SMTP_FROM is the goen.example placeholder while GOEN_PROVIDER_MODE is live")
 	}
 	return nil
+}
+
+// namesHost reports whether raw points at the same host as reference, however
+// the scheme, case or trailing slash is spelled.
+func namesHost(raw, reference string) bool {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	ref, refErr := url.Parse(reference)
+	return err == nil && refErr == nil && strings.EqualFold(u.Hostname(), ref.Hostname())
 }

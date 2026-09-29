@@ -16,7 +16,6 @@ func validPosture() config {
 		SecureCookies: true,
 		TOTPKey:       validTOTPKey,
 		SMTPAddr:      "smtp.example:587",
-		SMTPFrom:      "goen <no-reply@goen.example>",
 		BaseURL:       "https://shop.example",
 	}
 }

@@ -54,6 +54,33 @@ func checkoutRedirectURL(raw string) bool {
 		u.Hostname() != "" && u.User == nil
 }
 
+// KeyMode is which Stripe environment a key belongs to, read from its prefix.
+type KeyMode int
+
+const (
+	// KeyUnknown is a key whose prefix names no environment. It is neither
+	// assured to be a test key nor refused as a live one.
+	KeyUnknown KeyMode = iota
+	KeyTest
+	KeyLive
+)
+
+// ClassifyKey is the one place goen reads a Stripe key's environment: the
+// sandbox notice and the startup posture check must agree on it.
+func ClassifyKey(apiKey string) KeyMode {
+	for _, prefix := range []string{"sk_test_", "rk_test_", "rkcs_test_"} {
+		if strings.HasPrefix(apiKey, prefix) {
+			return KeyTest
+		}
+	}
+	for _, prefix := range []string{"sk_live_", "rk_live_"} {
+		if strings.HasPrefix(apiKey, prefix) {
+			return KeyLive
+		}
+	}
+	return KeyUnknown
+}
+
 // NewGateway wires Stripe. A blank API key is not an error; a key with no
 // webhook secret is, and leaves the endpoint that takes money open.
 func NewGateway(apiKey, webhookSecret, baseURL string) (*Gateway, error) {
@@ -72,7 +99,7 @@ func NewGateway(apiKey, webhookSecret, baseURL string) (*Gateway, error) {
 		client:        stripe.NewClient(apiKey),
 		webhookSecret: webhookSecret,
 		baseURL:       origin,
-		sandbox:       strings.HasPrefix(apiKey, "sk_test_") || strings.HasPrefix(apiKey, "rk_test_") || strings.HasPrefix(apiKey, "rkcs_test_"),
+		sandbox:       ClassifyKey(apiKey) == KeyTest,
 	}, nil
 }
 
