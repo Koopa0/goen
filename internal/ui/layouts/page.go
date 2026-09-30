@@ -64,8 +64,10 @@ func WithSiteOrigin(ctx context.Context, origin string) context.Context {
 
 // SiteOrigin is the origin WithSiteOrigin set, or "" outside the middleware.
 func SiteOrigin(ctx context.Context) string {
-	origin, _ := ctx.Value(originKey{}).(string)
-	return origin
+	if origin, ok := ctx.Value(originKey{}).(string); ok {
+		return origin
+	}
+	return ""
 }
 
 type staffKey struct{}
