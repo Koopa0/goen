@@ -281,6 +281,56 @@ func TestOnlyTheMailboxLearnsThatAnAddressHasAnAccount(t *testing.T) {
 	}
 }
 
+// TestAnAddressIsAnotherAccountsWhateverItsCaseButNeverTheAskersOwn: the worker
+// compares addresses as sign-in does, whatever their case, and never counts the
+// account that asked, which may be proving the address it already holds.
+func TestAnAddressIsAnotherAccountsWhateverItsCaseButNeverTheAskersOwn(t *testing.T) {
+	ctx := t.Context()
+	s := account.NewStore(pool)
+	asker := registerProved(t, s, "Case-Asker-"+uuid.NewString()+"@Example.com")
+	owner := registerProved(t, s, "Case-Owner-"+uuid.NewString()+"@Example.com")
+
+	deliver := func(addr string) (sent []string, told []email.AccountExists) {
+		t.Helper()
+		requestVerification(t, s, asker.ID, addr)
+		var payload []byte
+		if err := pool.QueryRow(ctx, `
+			SELECT payload FROM outbox_messages
+			WHERE topic = $1 AND lower(payload->>'email') = lower($2)
+			ORDER BY id DESC LIMIT 1`, outbox.TopicEmailVerify, addr).Scan(&payload); err != nil {
+			t.Fatalf("read the queued link for %s: %v", addr, err)
+		}
+		var p email.AddressVerify
+		if err := json.Unmarshal(payload, &p); err != nil {
+			t.Fatalf("decode the queued link: %v", err)
+		}
+		if err := s.DeliverAddressVerify(ctx, &p,
+			func(_ context.Context, p *email.AddressVerify) error {
+				sent = append(sent, p.Email)
+				return nil
+			},
+			func(_ context.Context, p *email.AccountExists) error {
+				told = append(told, *p)
+				return nil
+			}); err != nil {
+			t.Fatalf("deliver the link for %s: %v", addr, err)
+		}
+		return sent, told
+	}
+
+	sent, told := deliver(strings.ToUpper(owner.Email))
+	if len(sent) != 0 || len(told) != 1 || told[0].Email != owner.Email || !told[0].Change {
+		t.Errorf("a change to %s, another account's address in another case, sent %v and told %+v; "+
+			"want no link and its holder told", strings.ToUpper(owner.Email), sent, told)
+	}
+
+	sent, told = deliver(asker.Email)
+	if len(told) != 0 || !slices.Equal(sent, []string{strings.ToLower(asker.Email)}) {
+		t.Errorf("proving the asker's own address sent %v and told %+v; want the link sent and nobody told",
+			sent, told)
+	}
+}
+
 // addressMailBudget is how many requests naming one address NewHandler takes
 // before the first refusal.
 const addressMailBudget = 3
