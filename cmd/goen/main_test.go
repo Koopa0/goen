@@ -2,13 +2,21 @@ package main
 
 import (
 	"bytes"
+	"context"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/koopa0/goen/internal/email"
+	"github.com/koopa0/goen/internal/outbox"
 )
 
 const validTOTPKey = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
@@ -437,4 +445,97 @@ func TestAMalformedSMTPAddressIsFatalAndNeverTheLogSender(t *testing.T) {
 	if _, ok := unauthenticated.(email.SMTPSender); !ok {
 		t.Errorf("unauthenticated sender = %T, want SMTPSender", unauthenticated)
 	}
+}
+
+// TestEveryTopicGoenEnqueuesHasAHandler: a message whose topic has no handler is
+// rescheduled for ever and fails nothing, so the mail it stands for silently
+// never leaves. The topics are read from the outbox package's source, so one is
+// held from the day it is declared rather than from the day somebody lists it.
+func TestEveryTopicGoenEnqueuesHasAHandler(t *testing.T) {
+	t.Parallel()
+
+	idle, err := pgxpool.New(t.Context(), "postgres://unused:unused@127.0.0.1:1/unused?sslmode=disable")
+	if err != nil {
+		t.Fatalf("open an unused pool: %v", err)
+	}
+	t.Cleanup(idle.Close)
+	log := slog.New(slog.DiscardHandler)
+	messages := outbox.NewStore(idle, log)
+	handleMessages(messages, workerDeps{pool: idle, admin: idle, maintenance: idle, log: log})
+
+	topics := declaredTopics(t)
+	if len(topics) < 13 {
+		t.Fatalf("read %d topics from internal/outbox, want at least 13; the source scan is not "+
+			"seeing the constants, and the check below would pass on nothing", len(topics))
+	}
+	for name, topic := range topics {
+		if !handled(t, messages, topic) {
+			t.Errorf("outbox.%s (%q) has no handler in startWorkers; every message on it is "+
+				"rescheduled for ever", name, topic)
+		}
+	}
+}
+
+// declaredTopics is every outbox.Topic* constant, by name, with its value.
+func declaredTopics(t *testing.T) map[string]string {
+	t.Helper()
+	files, err := filepath.Glob(filepath.Join("..", "..", "internal", "outbox", "*.go"))
+	if err != nil {
+		t.Fatalf("list internal/outbox: %v", err)
+	}
+	topics := map[string]string{}
+	fset := token.NewFileSet()
+	for _, path := range files {
+		if strings.HasSuffix(path, "_test.go") {
+			continue
+		}
+		file, err := parser.ParseFile(fset, path, nil, 0)
+		if err != nil {
+			t.Fatalf("parse %s: %v", path, err)
+		}
+		for _, decl := range file.Decls {
+			gen, ok := decl.(*ast.GenDecl)
+			if !ok || gen.Tok != token.CONST {
+				continue
+			}
+			for _, spec := range gen.Specs {
+				value, ok := spec.(*ast.ValueSpec)
+				if !ok {
+					continue
+				}
+				for i, name := range value.Names {
+					if !strings.HasPrefix(name.Name, "Topic") || i >= len(value.Values) {
+						continue
+					}
+					lit, ok := value.Values[i].(*ast.BasicLit)
+					if !ok || lit.Kind != token.STRING {
+						t.Fatalf("outbox.%s is not a string literal; read it some other way", name.Name)
+					}
+					topic, err := strconv.Unquote(lit.Value)
+					if err != nil {
+						t.Fatalf("outbox.%s: %v", name.Name, err)
+					}
+					topics[name.Name] = topic
+				}
+			}
+		}
+	}
+	return topics
+}
+
+// handled reports whether messages already has a handler for topic, by asking
+// for a second one: outbox refuses a duplicate registration by panicking.
+func handled(t *testing.T, messages *outbox.Store, topic string) (registered bool) {
+	t.Helper()
+	defer func() {
+		if r := recover(); r != nil {
+			msg, ok := r.(string)
+			if !ok || !strings.Contains(msg, "duplicate handler") {
+				t.Fatalf("registering %q panicked for another reason: %v", topic, r)
+			}
+			registered = true
+		}
+	}()
+	messages.Handle(topic, func(context.Context, []byte) error { return nil })
+	return false
 }
