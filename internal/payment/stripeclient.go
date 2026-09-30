@@ -29,7 +29,8 @@ var stripeHTTPClient = &http.Client{
 }
 
 // NewStripeClient returns a client for apiKey over stripeHTTPClient. Every
-// Stripe caller in goen builds its client here.
+// Stripe caller in goen builds its client here; .golangci.yml refuses a client
+// built anywhere else and the SDK's global backend.
 func NewStripeClient(apiKey string) *stripe.Client {
 	return newStripeClient(apiKey, &stripe.BackendConfig{})
 }

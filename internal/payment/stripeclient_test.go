@@ -3,11 +3,8 @@ package payment
 import (
 	"errors"
 	"io"
-	"io/fs"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -193,38 +190,5 @@ func TestEveryStripeClientUsesTheBoundedTransport(t *testing.T) {
 		if impl.HTTPClient != stripeHTTPClient {
 			t.Errorf("the %s backend uses %p, not goen's bounded client", name, impl.HTTPClient)
 		}
-	}
-}
-
-// TestOnlyNewStripeClientBuildsAStripeClient keeps the bound unavoidable: a
-// production file that builds a client of its own gets the SDK's defaults.
-func TestOnlyNewStripeClientBuildsAStripeClient(t *testing.T) {
-	tree := os.DirFS(filepath.Join("..", ".."))
-	var offenders []string
-	for _, dir := range []string{"internal", "cmd"} {
-		err := fs.WalkDir(tree, dir, func(path string, d fs.DirEntry, err error) error {
-			if err != nil {
-				return err
-			}
-			if d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
-				return nil
-			}
-			src, err := fs.ReadFile(tree, path)
-			if err != nil {
-				return err
-			}
-			if strings.Contains(string(src), "stripe.NewClient(") &&
-				path != "internal/payment/stripeclient.go" {
-				offenders = append(offenders, path)
-			}
-			return nil
-		})
-		if err != nil {
-			t.Fatalf("walk %s: %v", dir, err)
-		}
-	}
-	if len(offenders) > 0 {
-		t.Errorf("stripe.NewClient is called outside payment.NewStripeClient in %v; "+
-			"build the client there so it carries the timeout and the reply bound", offenders)
 	}
 }
