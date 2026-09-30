@@ -34,6 +34,8 @@ var (
 	ErrInvalidInput = errors.New("account: invalid input")
 	// ErrOpenReturn means erasure would orphan an unresolved store-credit payout.
 	ErrOpenReturn = errors.New("account: finish the open return before erasure")
+	// ErrLastAdmin means erasure would leave the shop with no administrator.
+	ErrLastAdmin = errors.New("account: the last administrator cannot be erased")
 	// ErrQuantityAdjusted means adoption or merge succeeded but at least one line
 	// was capped to what the shelf can supply.
 	ErrQuantityAdjusted = errors.New("account: quantity adjusted to available stock")
@@ -320,10 +322,12 @@ func profileInputValid(name, phone string) bool {
 }
 
 // A user agent is optional session decoration. Refuse to persist an unbounded
-// or control-bearing value, but never refuse the sign-in it describes.
+// or control-bearing value, but never refuse the sign-in it describes. HTTP
+// lets a header carry bytes that are not UTF-8, and PostgreSQL refuses the
+// whole session row over one of them.
 func normaliseUserAgent(s string) string {
 	s = strings.TrimSpace(s)
-	if utf8.RuneCountInString(s) > maxUserAgentRunes || hasControl(s) {
+	if !utf8.ValidString(s) || utf8.RuneCountInString(s) > maxUserAgentRunes || hasControl(s) {
 		return ""
 	}
 	return s

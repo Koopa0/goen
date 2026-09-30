@@ -3,6 +3,7 @@ package account
 import (
 	"crypto/sha256"
 	"encoding/base64"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -110,6 +111,40 @@ func TestGoogleRedirectUsesTheSiteOriginGrammar(t *testing.T) {
 	}
 	if g.redirectURL != "https://goen.example/auth/google/callback" {
 		t.Errorf("redirect URL = %q, want callback built from the canonical origin", g.redirectURL)
+	}
+}
+
+// Starting a Google sign-in is bounded per client. An IPv6 client chooses the
+// low 64 bits of its address freely, so a limit keyed on the whole address is
+// no limit.
+func TestTheGoogleSignInLimitCoversAWholeIPv6Slash64(t *testing.T) {
+	g, err := NewGoogle("client-id", "client-secret", "https://goen.example")
+	if err != nil {
+		t.Fatalf("NewGoogle: %v", err)
+	}
+	h := &Handler{
+		log: slog.New(slog.DiscardHandler), google: g,
+		signinLimit: accountTestLimiter(), resetLimit: accountTestLimiter(),
+	}
+
+	start := func(remoteAddr string) int {
+		t.Helper()
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/auth/google", http.NoBody)
+		req.RemoteAddr = remoteAddr
+		res := httptest.NewRecorder()
+		h.GoogleSignIn(res, req)
+		return res.Code
+	}
+
+	if got := start("[2001:db8:1:2::1]:1000"); got != http.StatusSeeOther {
+		t.Fatalf("the first sign-in answered %d, want 303 to Google", got)
+	}
+	if got := start("[2001:db8:1:2:aaaa:bbbb:cccc:dddd]:1001"); got != http.StatusTooManyRequests {
+		t.Errorf("another address in the same /64 answered %d, want 429; "+
+			"rotating the low bits bought a fresh allowance", got)
+	}
+	if got := start("[2001:db8:1:3::1]:1002"); got != http.StatusSeeOther {
+		t.Errorf("an address in another /64 answered %d, want 303; it shared a bucket", got)
 	}
 }
 

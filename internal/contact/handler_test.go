@@ -83,7 +83,7 @@ func throttledContact(t *testing.T, htmx bool) (*Handler, *http.Request) {
 	if htmx {
 		req.Header.Set("HX-Request", "true")
 	}
-	if _, ok := limit.Allow(ratelimit.ClientIP(req)); !ok {
+	if _, ok := limit.Allow(ratelimit.ClientKey(req)); !ok {
 		t.Fatal("setup could not spend the per-IP token")
 	}
 	return h, req
@@ -94,5 +94,38 @@ func assertRetryAfter(t *testing.T, res *httptest.ResponseRecorder) {
 	seconds, err := strconv.Atoi(res.Header().Get("Retry-After"))
 	if err != nil || seconds < 1 {
 		t.Errorf("Retry-After = %q, want a positive second count", res.Header().Get("Retry-After"))
+	}
+}
+
+// An IPv6 sender chooses the low 64 bits of its address freely, so a limit
+// keyed on the whole address is no limit.
+func TestTheContactLimitCoversAWholeIPv6Slash64(t *testing.T) {
+	limit := ratelimit.New(ratelimit.Config{
+		Every: time.Hour, Burst: 1, TTL: time.Hour, MaxKeys: 8,
+	})
+	h := &Handler{limit: limit, log: slog.New(slog.DiscardHandler)}
+
+	// An empty form that clears the limit is refused at 422 before it reaches
+	// the store, which this handler does not have.
+	submit := func(remoteAddr string) int {
+		req := httptest.NewRequestWithContext(
+			i18n.WithLocale(t.Context(), i18n.ZhHant),
+			http.MethodPost, "/contact", http.NoBody)
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.RemoteAddr = remoteAddr
+		res := httptest.NewRecorder()
+		h.Submit(res, req)
+		return res.Code
+	}
+
+	if got := submit("[2001:db8:1:2::1]:1000"); got != http.StatusUnprocessableEntity {
+		t.Fatalf("the first submission answered %d, want 422", got)
+	}
+	if got := submit("[2001:db8:1:2:aaaa:bbbb:cccc:dddd]:1001"); got != http.StatusTooManyRequests {
+		t.Errorf("another address in the same /64 answered %d, want 429; "+
+			"rotating the low bits bought a fresh allowance", got)
+	}
+	if got := submit("[2001:db8:1:3::1]:1002"); got != http.StatusUnprocessableEntity {
+		t.Errorf("an address in another /64 answered %d, want 422; it shared a bucket", got)
 	}
 }

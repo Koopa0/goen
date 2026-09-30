@@ -84,6 +84,21 @@ func (p *Proxies) clientIP(r *http.Request) string {
 	return host
 }
 
+// Overlaps reports whether any address in prefix is one this set trusts. A
+// deployment asks it of the addresses its listener's peers can have: a set that
+// overlaps none of them reads no header from anybody.
+func (p *Proxies) Overlaps(prefix netip.Prefix) bool {
+	if p == nil {
+		return false
+	}
+	for _, n := range p.nets {
+		if n.Overlaps(prefix) {
+			return true
+		}
+	}
+	return false
+}
+
 func (p *Proxies) trusts(addr netip.Addr) bool {
 	if p == nil || !addr.IsValid() {
 		return false

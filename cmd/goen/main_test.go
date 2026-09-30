@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -233,6 +235,35 @@ func TestProductionPostureRefusesAnUnsafeBaseURL(t *testing.T) {
 	}
 }
 
+// TestAListenAddressWithNoHostIsNotGuessedAsTheOrigin: ":9701" is the usual Go
+// listen address, and "http://" + it would put a host-less origin in every
+// Stripe return URL, emailed link and sitemap location.
+func TestAListenAddressWithNoHostIsNotGuessedAsTheOrigin(t *testing.T) {
+	t.Setenv("GOEN_DATABASE_URL", "postgres://store.example/goen")
+	t.Setenv("GOEN_LOG_LEVEL", "info")
+	t.Setenv("GOEN_INSECURE_COOKIES", "1")
+	t.Setenv("GOEN_BASE_URL", "")
+
+	for _, addr := range []string{":9701", "0.0.0.0:9701", "[::]:9701"} {
+		t.Run(addr, func(t *testing.T) {
+			t.Setenv("GOEN_ADDR", addr)
+			cfg, err := loadConfig()
+			if err != nil {
+				t.Fatalf("loadConfig: %v", err)
+			}
+			err = cfg.prepareRuntimePosture(slog.New(slog.DiscardHandler))
+			if err == nil {
+				t.Fatalf("GOEN_ADDR=%s started with the origin %q", addr, cfg.BaseURL)
+			}
+			for _, want := range []string{"GOEN_ADDR", "GOEN_BASE_URL"} {
+				if !strings.Contains(err.Error(), want) {
+					t.Errorf("refusal does not name %s: %v", want, err)
+				}
+			}
+		})
+	}
+}
+
 // TestPostureReportsTheFirstBrokenDependency holds the mandated diagnostic
 // order: TOTP, then SMTP, then the origin. A later arm must never hide the
 // first configuration mistake.
@@ -254,6 +285,98 @@ func TestPostureReportsTheFirstBrokenDependency(t *testing.T) {
 				t.Errorf("prepareRuntimePosture error = %v, want %q", err, tt.want)
 			}
 		})
+	}
+}
+
+// TestATrustListNoPeerOfTheListenerCanMatchIsRefused keeps a proxy list from
+// starting that believes nobody. A loopback listener is reached only from this
+// host's loopback, so a list without a loopback address never reads
+// X-Forwarded-For, and every visitor shares the proxy's one rate-limit bucket.
+// Where the listener's peers cannot be known, nothing is refused.
+func TestATrustListNoPeerOfTheListenerCanMatchIsRefused(t *testing.T) {
+	t.Parallel()
+
+	const private = "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
+	for _, tt := range []struct {
+		name    string
+		addr    string
+		trusted string
+		refused bool
+	}{
+		{name: "IPv4 loopback, private networks only", addr: "127.0.0.1:9700", trusted: private, refused: true},
+		{name: "IPv4 loopback, IPv6 loopback only", addr: "127.0.0.1:9700", trusted: "::1", refused: true},
+		{name: "IPv4 loopback, same-host proxy", addr: "127.0.0.1:9700", trusted: "127.0.0.1,::1"},
+		{name: "IPv4 loopback, the loopback network", addr: "127.0.0.2:9700", trusted: "127.0.0.0/8"},
+		{name: "IPv4 loopback, a mapped spelling", addr: "[::ffff:127.0.0.1]:9700", trusted: "127.0.0.1"},
+		{name: "IPv6 loopback, IPv4 loopback only", addr: "[::1]:9700", trusted: "127.0.0.1", refused: true},
+		{name: "IPv6 loopback, same-host proxy", addr: "[::1]:9700", trusted: "::1"},
+		{name: "localhost, private networks only", addr: "localhost:9700", trusted: private, refused: true},
+		{name: "localhost, IPv6 loopback only", addr: "localhost:9700", trusted: "::1", refused: true},
+		{name: "localhost, IPv4 loopback", addr: "localhost:9700", trusted: "127.0.0.1"},
+		{name: "localhost in capitals, same-host proxy", addr: "LOCALHOST:9700", trusted: "127.0.0.1,::1"},
+		{name: "every interface", addr: ":9700", trusted: private},
+		{name: "IPv4 wildcard", addr: "0.0.0.0:9700", trusted: private},
+		{name: "IPv6 wildcard", addr: "[::]:9700", trusted: private},
+		{name: "an interface address", addr: "10.0.0.5:9700", trusted: private},
+		{name: "a host name", addr: "goen.internal:9700", trusted: "127.0.0.1"},
+		{name: "loopback with nothing trusted keeps the warning", addr: "127.0.0.1:9700", trusted: ""},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := config{Addr: tt.addr, TrustedProxies: tt.trusted, SecureCookies: true}
+			proxies, err := cfg.trustedProxies(slog.New(slog.DiscardHandler))
+			if !tt.refused {
+				if err != nil {
+					t.Fatalf("GOEN_ADDR=%s GOEN_TRUSTED_PROXIES=%q refused: %v", tt.addr, tt.trusted, err)
+				}
+				if proxies == nil {
+					t.Fatal("accepted without a proxy set")
+				}
+				return
+			}
+			if err == nil {
+				t.Fatalf("GOEN_ADDR=%s GOEN_TRUSTED_PROXIES=%q started; no peer of that "+
+					"listener is trusted, so every visitor shares one bucket", tt.addr, tt.trusted)
+			}
+			for _, want := range []string{"GOEN_TRUSTED_PROXIES", "GOEN_ADDR", "127.0.0.1,::1"} {
+				if !strings.Contains(err.Error(), want) {
+					t.Errorf("refusal %q does not name %s", err, want)
+				}
+			}
+		})
+	}
+}
+
+// TestTheDemoManifestTrustsItsOwnProxy runs the deployment template's pair
+// through the same startup check, so the template cannot drift back into a
+// list its listener never meets.
+func TestTheDemoManifestTrustsItsOwnProxy(t *testing.T) {
+	t.Parallel()
+
+	raw, err := os.ReadFile(filepath.Join("..", "..", "deploy", "demo", "manifest.env"))
+	if err != nil {
+		t.Fatalf("read the demo manifest: %v", err)
+	}
+	values := map[string]string{}
+	for line := range strings.SplitSeq(string(raw), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		if name, value, ok := strings.Cut(line, "="); ok {
+			values[name] = value
+		}
+	}
+	cfg := config{
+		Addr: values["GOEN_ADDR"], TrustedProxies: values["GOEN_TRUSTED_PROXIES"], SecureCookies: true,
+	}
+	if cfg.Addr == "" || cfg.TrustedProxies == "" {
+		t.Fatalf("the manifest sets GOEN_ADDR=%q and GOEN_TRUSTED_PROXIES=%q; TLS terminates "+
+			"in front of the demo, so both must be set", cfg.Addr, cfg.TrustedProxies)
+	}
+	if _, err := cfg.trustedProxies(slog.New(slog.DiscardHandler)); err != nil {
+		t.Errorf("the demo manifest would not start: %v", err)
 	}
 }
 

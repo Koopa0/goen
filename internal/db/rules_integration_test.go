@@ -113,6 +113,14 @@ func TestRulesAccept(t *testing.T) {
 	}
 }
 
+// pendingHoldableLine puts two of the 256GB variant on the pending fixture
+// order. Its fixture line names no variant, and hold_inventory holds only what
+// an order's own lines carry.
+const pendingHoldableLine = `INSERT INTO order_lines (order_id, variant_id, sku, product_name, unit_price_cents, quantity, position)
+	VALUES ('6666aaaa-6666-4666-8666-666666666666', '44444444-4444-4444-8444-444444444444',
+	        'PXL-9P-256-BL', 'Pixelight 9 Pro 5G', 3390000, 2, 5);
+`
+
 type ruleCase struct {
 	rule       string
 	reject     string
@@ -955,8 +963,11 @@ var ruleCases = []ruleCase{
 	{
 		rule: "coupon_within_customer_limit",
 		// The fixture's redemption belongs to 王小明, and it is the SAME customer
-		// asking again: a guest would meet the total cap instead.
+		// asking again, on an order that is theirs: a guest would meet the total
+		// cap instead.
 		reject: `UPDATE coupons SET per_customer_limit = 1 WHERE id = 'cccc0009-0000-4000-8000-000000000009';
+		         UPDATE orders SET user_id = '55555555-5555-4555-8555-555555555555'
+		         WHERE id = '6666aaaa-6666-4666-8666-666666666666';
 		         INSERT INTO coupon_redemptions (coupon_id, order_id, user_id, amount_cents)
 		         VALUES ('cccc0009-0000-4000-8000-000000000009',
 		                 '6666bbbb-6666-4666-8666-666666666666',
@@ -965,6 +976,8 @@ var ruleCases = []ruleCase{
 		         '6666aaaa-6666-4666-8666-666666666666',
 		         '55555555-5555-4555-8555-555555555555', 20000);`,
 		accept: `UPDATE coupons SET per_customer_limit = 2 WHERE id = 'cccc0009-0000-4000-8000-000000000009';
+		         UPDATE orders SET user_id = '55555555-5555-4555-8555-555555555555'
+		         WHERE id = '6666aaaa-6666-4666-8666-666666666666';
 		         INSERT INTO coupon_redemptions (coupon_id, order_id, user_id, amount_cents)
 		         VALUES ('cccc0009-0000-4000-8000-000000000009',
 		                 '6666bbbb-6666-4666-8666-666666666666',
@@ -975,34 +988,73 @@ var ruleCases = []ruleCase{
 	},
 	{
 		rule: "inventory_reservations_hold_for_positive",
-		reject: `SELECT hold_inventory('6666aaaa-6666-4666-8666-666666666666',
+		reject: pendingHoldableLine + `SELECT hold_inventory('6666aaaa-6666-4666-8666-666666666666',
 		             '44444444-4444-4444-8444-444444444444', 1, interval '0', 'rule-hold-duration');`,
-		accept: `SELECT hold_inventory('6666aaaa-6666-4666-8666-666666666666',
+		accept: pendingHoldableLine + `SELECT hold_inventory('6666aaaa-6666-4666-8666-666666666666',
 		             '44444444-4444-4444-8444-444444444444', 1, interval '1 hour', 'rule-hold-duration');`,
 	},
 	{
 		rule: "inventory_reservation_state",
-		reject: `SELECT hold_inventory('6666aaaa-6666-4666-8666-666666666666',
+		reject: pendingHoldableLine + `SELECT hold_inventory('6666aaaa-6666-4666-8666-666666666666',
 		             '44444444-4444-4444-8444-444444444444', 2, interval '1 hour', 'rule-hold');
 		         SELECT consume_reservation(id) FROM inventory_reservations
 		         WHERE order_id = '6666aaaa-6666-4666-8666-666666666666';
 		         SELECT consume_reservation(id) FROM inventory_reservations
 		         WHERE order_id = '6666aaaa-6666-4666-8666-666666666666' AND state = 'consumed';`,
-		accept: `SELECT hold_inventory('6666aaaa-6666-4666-8666-666666666666',
+		accept: pendingHoldableLine + `SELECT hold_inventory('6666aaaa-6666-4666-8666-666666666666',
 		             '44444444-4444-4444-8444-444444444444', 2, interval '1 hour', 'rule-hold');
 		         SELECT consume_reservation(id) FROM inventory_reservations
 		         WHERE order_id = '6666aaaa-6666-4666-8666-666666666666';`,
 	},
 	{
 		rule: "inventory_reservation_consume_within_hold",
-		reject: `SELECT hold_inventory('6666aaaa-6666-4666-8666-666666666666',
+		reject: pendingHoldableLine + `SELECT hold_inventory('6666aaaa-6666-4666-8666-666666666666',
 		             '44444444-4444-4444-8444-444444444444', 2, interval '1 hour', 'rule-hold');
 		         SELECT consume_reservation_partial(id, 3) FROM inventory_reservations
 		         WHERE order_id = '6666aaaa-6666-4666-8666-666666666666';`,
-		accept: `SELECT hold_inventory('6666aaaa-6666-4666-8666-666666666666',
+		accept: pendingHoldableLine + `SELECT hold_inventory('6666aaaa-6666-4666-8666-666666666666',
 		             '44444444-4444-4444-8444-444444444444', 2, interval '1 hour', 'rule-hold');
 		         SELECT consume_reservation_partial(id, 1) FROM inventory_reservations
 		         WHERE order_id = '6666aaaa-6666-4666-8666-666666666666';`,
+	},
+	{
+		// As store, the role checkout runs as and the one granted the function:
+		// the order carries two, so a third is stock it never bought.
+		rule: "inventory_hold_within_order_lines",
+		reject: pendingHoldableLine + `SET LOCAL ROLE store;
+		         SELECT hold_inventory('6666aaaa-6666-4666-8666-666666666666',
+		             '44444444-4444-4444-8444-444444444444', 3, interval '1 hour', 'rule-hold-lines');`,
+		accept: pendingHoldableLine + `SET LOCAL ROLE store;
+		         SELECT hold_inventory('6666aaaa-6666-4666-8666-666666666666',
+		             '44444444-4444-4444-8444-444444444444', 2, interval '1 hour', 'rule-hold-lines');`,
+	},
+	{
+		// As admin, the role that inserts assessments directly: NULL is what erasure
+		// leaves, never what an insert may choose.
+		rule: "return_eligibility_assessments_assessor_named",
+		reject: `SET LOCAL ROLE admin;
+		         INSERT INTO return_eligibility_assessments (order_id, return_request_id, version, assessed_by, assessed_by_snapshot, basis)
+		         VALUES ('66666666-6666-4666-8666-666666666666', '88880001-0000-4000-8000-000000000000',
+		                 1, NULL, '5555aaaa-5555-4555-8555-555555555555', 'saw it');`,
+		accept: `SET LOCAL ROLE admin;
+		         INSERT INTO return_eligibility_assessments (order_id, return_request_id, version, assessed_by, assessed_by_snapshot, basis)
+		         VALUES ('66666666-6666-4666-8666-666666666666', '88880001-0000-4000-8000-000000000000',
+		                 1, '5555aaaa-5555-4555-8555-555555555555', '5555aaaa-5555-4555-8555-555555555555', 'saw it');`,
+	},
+	{
+		// An account's order named as a guest's escapes the per-customer count.
+		rule: "coupon_redemption_order_owner",
+		reject: `UPDATE orders SET user_id = '55555555-5555-4555-8555-555555555555'
+		         WHERE id = '6666aaaa-6666-4666-8666-666666666666';
+		         SET LOCAL ROLE store;
+		         SELECT redeem_coupon('cccc0009-0000-4000-8000-000000000009',
+		         '6666aaaa-6666-4666-8666-666666666666', NULL, 20000);`,
+		accept: `UPDATE orders SET user_id = '55555555-5555-4555-8555-555555555555'
+		         WHERE id = '6666aaaa-6666-4666-8666-666666666666';
+		         SET LOCAL ROLE store;
+		         SELECT redeem_coupon('cccc0009-0000-4000-8000-000000000009',
+		         '6666aaaa-6666-4666-8666-666666666666',
+		         '55555555-5555-4555-8555-555555555555', 20000);`,
 	},
 	{
 		rule:       "payments_provider_ref_known",
@@ -1798,6 +1850,14 @@ func TestReleaseReservationRefusesPaidOrder(t *testing.T) {
 	// The hold has to land while the order is still pending; afterwards
 	// hold_inventory refuses, and release still has to see committed stock.
 	const pending = "6666aaaa-6666-4666-8666-666666666666"
+	// The held variant's line is priced at zero, so the order still owes the
+	// fixture's 3,690,000.
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO order_lines (order_id, variant_id, sku, product_name, unit_price_cents, quantity, position)
+		VALUES ($1, '44444444-4444-4444-8444-444444444444', 'PXL-9P-256-BL', 'Pixelight 9 Pro 5G', 0, 1, 5)`,
+		pending); err != nil {
+		t.Fatalf("add a holdable line: %v", err)
+	}
 	var held string
 	if err := tx.QueryRow(ctx,
 		`SELECT hold_inventory($1,
@@ -1833,13 +1893,13 @@ func TestHoldInventoryRefusesSettledOrders(t *testing.T) {
 	)
 
 	t.Run("pending still holds", func(t *testing.T) {
-		if err := run(t, fmt.Sprintf(holdSQL, pending, "hold-pending-ok")); err != nil {
+		if err := run(t, pendingHoldableLine+fmt.Sprintf(holdSQL, pending, "hold-pending-ok")); err != nil {
 			t.Fatalf("a live checkout was refused a hold: %v", err)
 		}
 	})
 
 	t.Run("cancelled is refused by name", func(t *testing.T) {
-		err := run(t, `UPDATE orders SET fulfillment_status = 'cancelled', cancelled_at = now()
+		err := run(t, pendingHoldableLine+`UPDATE orders SET fulfillment_status = 'cancelled', cancelled_at = now()
 			WHERE id = '`+pending+`';`+fmt.Sprintf(holdSQL, pending, "hold-cancelled"))
 		if err == nil {
 			t.Fatal("held stock on a cancelled order")
@@ -1874,6 +1934,181 @@ func TestHoldInventoryRefusesSettledOrders(t *testing.T) {
 			t.Fatalf("refused by %q, want inventory_hold_needs_pending: %v", name, err)
 		}
 	})
+}
+
+// TestHoldInventoryHoldsOnlyWhatTheOrderCarries runs as store, the role
+// checkout holds stock as. Any pending order id store can name must not become
+// a handle on the whole shelf: a hold is bounded by that order's own lines,
+// less what it already holds or has consumed, and a refusal moves no stock.
+func TestHoldInventoryHoldsOnlyWhatTheOrderCarries(t *testing.T) {
+	const (
+		order = "6666eeee-6666-4666-8666-666666666666"
+		v256  = "44444444-4444-4444-8444-444444444444"
+		v512  = "4444aaaa-4444-4444-8444-444444444444"
+	)
+	ctx := t.Context()
+	tx, err := schemaPool(t).Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
+	if _, err := tx.Exec(ctx, fixtures); err != nil {
+		t.Fatalf("fixtures: %v", err)
+	}
+	// One line, one 512GB phone.
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO orders (id, order_number, shipping_version_id, shipping_method_code,
+		                    shipping_method_name)
+		VALUES ($1, 'GO-260721-000621',
+		        'ffff0002-0000-4000-8000-000000000000', 'home_delivery', '宅配到府')`, order); err != nil {
+		t.Fatalf("create pending order: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO order_lines (order_id, variant_id, sku, product_name, unit_price_cents, quantity, position)
+		VALUES ($1, $2, 'PXL-9P-512-BL', 'Pixelight 9 Pro 5G', 3690000, 1, 0)`, order, v512); err != nil {
+		t.Fatalf("create order line: %v", err)
+	}
+
+	// hold runs one call as store inside a savepoint, so a refusal leaves the
+	// transaction usable for the next step.
+	hold := func(variant string, quantity int, key string) error {
+		t.Helper()
+		if _, err := tx.Exec(ctx, `SAVEPOINT hold; SET LOCAL ROLE store`); err != nil {
+			t.Fatalf("savepoint: %v", err)
+		}
+		_, holdErr := tx.Exec(ctx,
+			`SELECT hold_inventory($1, $2, $3, interval '1 hour', $4)`, order, variant, quantity, key)
+		after := `RESET ROLE; RELEASE SAVEPOINT hold`
+		if holdErr != nil {
+			after = `ROLLBACK TO SAVEPOINT hold; RELEASE SAVEPOINT hold`
+		}
+		if _, err := tx.Exec(ctx, after); err != nil {
+			t.Fatalf("close savepoint: %v", err)
+		}
+		return holdErr
+	}
+	refused := func(step string, err error) {
+		t.Helper()
+		if err == nil {
+			t.Fatalf("%s: the hold was accepted", step)
+		}
+		if _, name := constraintViolation(err); name != "inventory_hold_within_order_lines" {
+			t.Fatalf("%s: refused by %q, want inventory_hold_within_order_lines: %v", step, name, err)
+		}
+	}
+	settle := func(fn string) {
+		t.Helper()
+		if _, err := tx.Exec(ctx, `SELECT `+fn+`(id) FROM inventory_reservations
+			WHERE order_id = $1 AND state = 'held'`, order); err != nil {
+			t.Fatalf("%s: %v", fn, err)
+		}
+	}
+
+	refused("more than the line carries", hold(v512, 4, "carry-1"))
+	// One unit, which the order's lines would cover were they counted across
+	// variants.
+	refused("a variant the order does not carry", hold(v256, 1, "carry-2"))
+	var stock256, stock512 int
+	if err := tx.QueryRow(ctx, `
+		SELECT (SELECT stock_quantity FROM product_variants WHERE id = $1),
+		       (SELECT stock_quantity FROM product_variants WHERE id = $2)`, v256, v512).
+		Scan(&stock256, &stock512); err != nil {
+		t.Fatalf("read stock: %v", err)
+	}
+	if stock256 != 14 || stock512 != 6 {
+		t.Fatalf("stock after two refused holds = %d/%d, want the fixture's 14/6", stock256, stock512)
+	}
+
+	if err := hold(v512, 1, "carry-3"); err != nil {
+		t.Fatalf("the order's own line was refused its hold: %v", err)
+	}
+	refused("again while the line is held", hold(v512, 1, "carry-4"))
+
+	// A released hold put its unit back, so the line may hold it again.
+	settle("release_reservation")
+	if err := hold(v512, 1, "carry-5"); err != nil {
+		t.Fatalf("a line whose hold was released was refused a new one: %v", err)
+	}
+
+	// A consumed hold did not: that unit left the shelf for this order.
+	settle("consume_reservation")
+	refused("again after the line's hold was consumed", hold(v512, 1, "carry-6"))
+}
+
+// TestRedeemCouponCountsTheOrdersCustomer runs as store. The per-customer
+// limit reads the customer from the order: an account's order named as a
+// guest's must not be the way past it.
+func TestRedeemCouponCountsTheOrdersCustomer(t *testing.T) {
+	const (
+		// 王小明 has already used the coupon once, and the limit is one.
+		spent = `UPDATE coupons SET per_customer_limit = 1 WHERE id = 'cccc0009-0000-4000-8000-000000000009';
+		         INSERT INTO coupon_redemptions (coupon_id, order_id, user_id, amount_cents)
+		         VALUES ('cccc0009-0000-4000-8000-000000000009', '6666bbbb-6666-4666-8666-666666666666',
+		                 '55555555-5555-4555-8555-555555555555', 100000);
+		         SET LOCAL ROLE store;
+		`
+		accountOrder = `UPDATE orders SET user_id = '55555555-5555-4555-8555-555555555555'
+		                WHERE id = '6666aaaa-6666-4666-8666-666666666666';
+		`
+		redeemAs = `SELECT redeem_coupon('cccc0009-0000-4000-8000-000000000009',
+		            '6666aaaa-6666-4666-8666-666666666666', %s, 20000);`
+	)
+	for _, tc := range []struct {
+		name string
+		stmt string
+		want string
+	}{
+		{"an account's order named as a guest's", accountOrder + spent + fmt.Sprintf(redeemAs, "NULL"),
+			"coupon_redemption_order_owner"},
+		{"an account's order named as its owner's", accountOrder + spent +
+			fmt.Sprintf(redeemAs, "'55555555-5555-4555-8555-555555555555'::uuid"),
+			"coupon_within_customer_limit"},
+		{"a guest's order named as an account's", spent +
+			fmt.Sprintf(redeemAs, "'5555aaaa-5555-4555-8555-555555555555'::uuid"),
+			"coupon_redemption_order_owner"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := run(t, tc.stmt)
+			if err == nil {
+				t.Fatal("the redemption was accepted")
+			}
+			if _, name := constraintViolation(err); name != tc.want {
+				t.Fatalf("refused by %q, want %q: %v", name, tc.want, err)
+			}
+		})
+	}
+
+	// The neighbour: a guest's own order, named as a guest's, still redeems.
+	if err := run(t, spent+fmt.Sprintf(redeemAs, "NULL")); err != nil {
+		t.Fatalf("a guest checkout was refused its coupon: %v", err)
+	}
+}
+
+// TestAnAssessmentNamesItsLiveAssessor runs as admin, which inserts assessments
+// directly. Either way an insert could leave the live assessor untrue is
+// refused by name; the rule case holds the legal neighbour.
+func TestAnAssessmentNamesItsLiveAssessor(t *testing.T) {
+	const insert = `SET LOCAL ROLE admin;
+		INSERT INTO return_eligibility_assessments
+			(order_id, return_request_id, version, assessed_by, assessed_by_snapshot, basis)
+		VALUES ('66666666-6666-4666-8666-666666666666', '88880001-0000-4000-8000-000000000000',
+		        1, %s, '5555aaaa-5555-4555-8555-555555555555', 'saw it');`
+	for _, tc := range []struct{ name, assessor string }{
+		{"no live assessor", "NULL"},
+		{"another live assessor than the snapshot", "'55555555-5555-4555-8555-555555555555'::uuid"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := run(t, fmt.Sprintf(insert, tc.assessor))
+			if err == nil {
+				t.Fatal("the assessment was accepted")
+			}
+			if code, name := constraintViolation(err); code != "23514" ||
+				name != "return_eligibility_assessments_assessor_named" {
+				t.Fatalf("refused by SQLSTATE %s constraint %q, want 23514/return_eligibility_assessments_assessor_named: %v",
+					code, name, err)
+			}
+		})
+	}
 }
 
 // TestACancelledOrderIsSettledButNotCommitted holds the line between the two views from the side
@@ -2072,8 +2307,53 @@ func TestEraseUserHonorsThePersonalDataBoundary(t *testing.T) {
 		t.Fatalf("write an invoice operation attributed to the erased actor: %v", err)
 	}
 
+	// The other places a person is recorded as having acted. Erasure may clear
+	// who acted but must not be refused because they once did.
+	const assessment = "ae040001-0000-4000-8000-000000000001"
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO return_eligibility_assessments
+			(id, order_id, return_request_id, version, assessed_by, assessed_by_snapshot, basis)
+		VALUES ($1, '66666666-6666-4666-8666-666666666666', '88880001-0000-4000-8000-000000000000',
+		        1, $2, $2, 'assessed by the erased actor')`, assessment, user); err != nil {
+		t.Fatalf("write an eligibility assessment by the erased actor: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		SELECT record_inventory_movement('44444444-4444-4444-8444-444444444444', 1, 'receipt',
+		       'erase-actor-receipt', 'admin', NULL, $1)`, user); err != nil {
+		t.Fatalf("write a stock movement by the erased actor: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO order_events (order_id, kind, actor_user_id)
+		VALUES ('66666666-6666-4666-8666-666666666666', 'in_transit', $1)`, user); err != nil {
+		t.Fatalf("write an order event by the erased actor: %v", err)
+	}
+
 	if _, err := tx.Exec(ctx, `SELECT erase_user($1)`, user); err != nil {
 		t.Fatalf("erase_user: %v", err)
+	}
+	var assessorGone, assessorKept bool
+	if err := tx.QueryRow(ctx, `
+		SELECT assessed_by IS NULL, assessed_by_snapshot = $2
+		FROM return_eligibility_assessments WHERE id = $1`, assessment, user).
+		Scan(&assessorGone, &assessorKept); err != nil {
+		t.Fatalf("read the assessment after erasure: %v", err)
+	}
+	if !assessorGone || !assessorKept {
+		t.Errorf("assessment attribution after erasure live-null/snapshot-kept = %t/%t, want true/true",
+			assessorGone, assessorKept)
+	}
+	var movementActors, eventActors int
+	if err := tx.QueryRow(ctx, `
+		SELECT (SELECT count(*) FROM inventory_movements
+		        WHERE idempotency_key = 'erase-actor-receipt' AND actor_user_id IS NULL),
+		       (SELECT count(*) FROM order_events
+		        WHERE order_id = '66666666-6666-4666-8666-666666666666' AND kind = 'in_transit'
+		          AND actor_user_id IS NULL)`).Scan(&movementActors, &eventActors); err != nil {
+		t.Fatalf("read the actor rows after erasure: %v", err)
+	}
+	if movementActors != 1 || eventActors != 1 {
+		t.Errorf("stock movement/order event kept after erasure with no live actor = %d/%d, want 1/1",
+			movementActors, eventActors)
 	}
 	var actorGone, snapshotKept bool
 	if err := tx.QueryRow(ctx, `
@@ -2189,8 +2469,9 @@ func TestZeroOwedOrderIsCommitted(t *testing.T) {
 			t.Fatalf("create pending zero-owed sibling: %v", err)
 		}
 		if _, err := tx.Exec(ctx, `
-			INSERT INTO order_lines (order_id, sku, product_name, unit_price_cents, quantity, position)
-			VALUES ($1, 'PXL-9P-512-BL', 'Pixelight 9 Pro 5G', 100000, 1, 0)`, stillPending); err != nil {
+			INSERT INTO order_lines (order_id, variant_id, sku, product_name, unit_price_cents, quantity, position)
+			VALUES ($1, '44444444-4444-4444-8444-444444444444', 'PXL-9P-256-BL',
+			        'Pixelight 9 Pro 5G', 100000, 1, 0)`, stillPending); err != nil {
 			t.Fatalf("create sibling line: %v", err)
 		}
 		if _, err := tx.Exec(ctx, `

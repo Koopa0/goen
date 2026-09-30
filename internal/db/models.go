@@ -640,13 +640,14 @@ type Refund struct {
 }
 
 type ReturnEligibilityAssessment struct {
-	ID              uuid.UUID
-	OrderID         uuid.UUID
-	ReturnRequestID uuid.UUID
-	Version         int32
-	AssessedBy      uuid.UUID
-	AssessedAt      time.Time
-	Basis           string
+	ID                 uuid.UUID
+	OrderID            uuid.UUID
+	ReturnRequestID    uuid.UUID
+	Version            int32
+	AssessedBy         uuid.NullUUID
+	AssessedBySnapshot uuid.UUID
+	AssessedAt         time.Time
+	Basis              string
 }
 
 type ReturnEligibilityFact struct {

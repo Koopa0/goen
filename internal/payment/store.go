@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -382,6 +383,13 @@ func (w *webhookTx) Capture(ctx context.Context, c Capture) (orderNumber string,
 		return row.OrderNumber, fmt.Errorf("%w: session %s captured %d against an intent of %d for order %s",
 			errCaptureRefused,
 			c.SessionID, c.AmountRecv, row.IntendedAmountCents, row.OrderNumber)
+	}
+	// payments.currency is pinned to TWD and capture_payment is never told the
+	// provider's currency, so this is the only place a foreign charge of the
+	// same number of minor units is told apart from what the order owes.
+	if !strings.EqualFold(c.Currency, Currency) {
+		return row.OrderNumber, fmt.Errorf("%w: session %s captured in %q, not %s, for order %s",
+			errCaptureRefused, c.SessionID, c.Currency, Currency, row.OrderNumber)
 	}
 	// Manual paid attribution can win the provider-reference lock before a late
 	// signed webhook. The money and its side effects already committed together;

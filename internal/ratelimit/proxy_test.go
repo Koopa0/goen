@@ -3,6 +3,7 @@ package ratelimit
 import (
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"testing"
 	"time"
 )
@@ -261,5 +262,38 @@ func TestParseProxiesRefusesWhatCannotBeAConfiguration(t *testing.T) {
 				t.Fatalf("ParseProxies(%q) returned nil with no error", tt.list)
 			}
 		})
+	}
+}
+
+// TestOverlapsAsksWhetherAnyAddressInThePrefixIsTrusted is the question
+// cmd/goen puts to a loopback listener's peers, so it has to answer for a
+// block the trusted set only partly shares and never across address families.
+func TestOverlapsAsksWhetherAnyAddressInThePrefixIsTrusted(t *testing.T) {
+	t.Parallel()
+
+	loopback := netip.MustParsePrefix("127.0.0.0/8")
+	tests := []struct {
+		list string
+		want bool
+	}{
+		{list: "", want: false},
+		{list: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16", want: false},
+		{list: "::1", want: false},
+		{list: "127.0.0.1", want: true},
+		{list: "10.0.0.0/8, 127.0.0.0/16", want: true},
+		{list: "0.0.0.0/1", want: true},
+	}
+	for _, tt := range tests {
+		p, err := ParseProxies(tt.list)
+		if err != nil {
+			t.Fatalf("ParseProxies(%q) = %v", tt.list, err)
+		}
+		if got := p.Overlaps(loopback); got != tt.want {
+			t.Errorf("ParseProxies(%q).Overlaps(%s) = %v, want %v", tt.list, loopback, got, tt.want)
+		}
+	}
+	var none *Proxies
+	if none.Overlaps(loopback) {
+		t.Error("a nil set trusts something")
 	}
 }

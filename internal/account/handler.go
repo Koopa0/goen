@@ -21,9 +21,12 @@ import (
 	"github.com/koopa0/goen/internal/web"
 )
 
-// CartFinder finds the cart a request's cookie names, so sign-in can adopt it.
+// CartFinder is what account needs of the cart: the cart a request's cookie
+// names, so sign-in can adopt it, and forgetting that cookie at sign-out, so the
+// browser keeps no reference to the account's cart.
 type CartFinder interface {
 	CartIDForRequest(ctx context.Context, r *http.Request) (uuid.UUID, bool)
+	ForgetCart(w http.ResponseWriter, r *http.Request)
 }
 
 // Handler serves sign-in, registration and the customer's own pages.
@@ -252,6 +255,9 @@ func (h *Handler) SignOut(w http.ResponseWriter, r *http.Request) {
 		h.log.ErrorContext(r.Context(), "end session", "error", err)
 	}
 	ClearSessionCookie(w, h.secure)
+	if h.carts != nil {
+		h.carts.ForgetCart(w, r)
+	}
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
@@ -296,6 +302,8 @@ func accountNotice(r *http.Request) string {
 		return i18n.T(ctx, i18n.KeyEraseNeedsEmail)
 	case q.Get("erase") == "return":
 		return i18n.T(ctx, i18n.KeyEraseOpenReturn)
+	case q.Get("erase") == "admin":
+		return i18n.T(ctx, i18n.KeyEraseLastAdmin)
 	case q.Get("email") == "sent":
 		return i18n.T(ctx, i18n.KeyEmailSent)
 	case q.Get("email") == "taken":
@@ -620,10 +628,14 @@ func (h *Handler) Erase(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/account?erase=confirm", http.StatusSeeOther)
 		return
 	}
-	if err := h.store.Erase(r.Context(), u.ID); errors.Is(err, ErrOpenReturn) {
+	switch err := h.store.Erase(r.Context(), u.ID); {
+	case errors.Is(err, ErrOpenReturn):
 		http.Redirect(w, r, "/account?erase=return", http.StatusSeeOther)
 		return
-	} else if err != nil {
+	case errors.Is(err, ErrLastAdmin):
+		http.Redirect(w, r, "/account?erase=admin", http.StatusSeeOther)
+		return
+	case err != nil:
 		h.log.ErrorContext(r.Context(), "erase account", "error", err)
 		h.serverError(w, r)
 		return
@@ -803,7 +815,7 @@ func (h *Handler) GoogleSignIn(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	if retryAfter, ok := h.signinLimit.Allow("oauth:" + clientIP(r)); !ok {
+	if retryAfter, ok := h.signinLimit.Allow("oauth:" + ratelimit.ClientKey(r)); !ok {
 		ratelimit.Refuse(r.Context(), w, retryAfter)
 		return
 	}

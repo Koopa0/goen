@@ -240,6 +240,19 @@ linters:
             # not imported; anything reaching for a second is a human decision.
             - pkg: github.com/a-h/templ/generator
               desc: templ generation runs through the tool directive, not application code
+        # GOEN: stripe-go's resource packages (refund, checkout/session, ...)
+        # call Stripe through the SDK's global backend, over the SDK's own HTTP
+        # client with no reply bound; a test through one reaches Stripe, not its
+        # stand-in. The allowlist names the major version, so a bump has to
+        # re-admit the root here rather than the deny lapsing.
+        stripe:
+          list-mode: lax
+          allow:
+            - github.com/stripe/stripe-go/v86$
+            - github.com/stripe/stripe-go/v86/webhook$
+          deny:
+            - pkg: github.com/stripe/stripe-go/
+              desc: only the stripe-go root and its webhook package are admitted; call Stripe through a client from payment.NewStripeClient
 
     forbidigo:
       analyze-types: true
@@ -254,6 +267,16 @@ linters:
           msg: use http.Server + graceful shutdown
         - pattern: ^errors\.As$
           msg: use errors.AsType[T] (Go 1.26)
+        # GOEN: a Stripe client or backend built anywhere else, or the SDK's
+        # global backend, calls Stripe over the SDK's own HTTP client unless one
+        # is handed in: no reply bound. Matched by type, so an import alias does
+        # not hide the call.
+        - pattern: ^stripe\.(NewClient|NewBackends|NewBackendsWithConfig|GetBackendWithConfig)$
+          pkg: ^github\.com/stripe/stripe-go/v\d+$
+          msg: a Stripe client is built only by payment.NewStripeClient, which carries goen's timeout and reply bound
+        - pattern: ^stripe\.(GetBackend|GetRawRequestBackend|RawRequest|SetBackend|SetHTTPClient)$
+          pkg: ^github\.com/stripe/stripe-go/v\d+$
+          msg: the SDK's global backend has no reply bound; call Stripe through a client from payment.NewStripeClient
 
     sloglint:
       no-mixed-args: true
@@ -321,9 +344,17 @@ linters:
           - gocyclo
           - gocognit
           - errcheck
+      # GOEN: main prints and exits; the rest of forbidigo, the Stripe client
+      # rules among it, holds in cmd/ too.
       - path: ^cmd/
         linters:
           - forbidigo
+        text: use log/slog
+      # GOEN: the one constructor, and tests building clients over stand-ins.
+      - path: ^internal/payment/stripeclient\.go$|_test\.go$
+        linters:
+          - forbidigo
+        text: a Stripe client is built only by payment\.NewStripeClient
       # GOEN: templ writes these; the generator's style is not ours to fix.
       - path: _templ\.go
         linters:

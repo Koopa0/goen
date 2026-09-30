@@ -1052,6 +1052,8 @@ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 DECLARE
     reservation_id uuid;
     order_status text;
+    ordered integer;
+    already_held integer;
 BEGIN
     IF p_quantity <= 0 THEN
         RAISE EXCEPTION 'a hold must be for a positive quantity'
@@ -1075,6 +1077,23 @@ BEGIN
     IF order_status <> 'pending' THEN
         RAISE EXCEPTION 'order % is % and cannot take a hold', p_order_id, order_status
             USING ERRCODE = 'check_violation', CONSTRAINT = 'inventory_hold_needs_pending';
+    END IF;
+
+    -- A hold takes no more of a variant than the order's lines carry of it,
+    -- less what the order already holds. The bound is the lines as they stand
+    -- when the hold is taken; which lines an order may carry is not decided
+    -- here. Lines and holds are both written under the order lock taken above,
+    -- so neither sum can move before the insert below. A consumed hold left the
+    -- shelf for this order as well; only a released one came back.
+    SELECT coalesce(sum(quantity), 0) INTO ordered
+    FROM order_lines WHERE order_id = p_order_id AND variant_id = p_variant_id;
+    SELECT coalesce(sum(quantity), 0) INTO already_held
+    FROM inventory_reservations
+    WHERE order_id = p_order_id AND variant_id = p_variant_id AND state <> 'released';
+    IF p_quantity > ordered - already_held THEN
+        RAISE EXCEPTION 'order % carries % of variant % and holds %; % more exceeds its lines',
+            p_order_id, ordered, p_variant_id, already_held, p_quantity
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'inventory_hold_within_order_lines';
     END IF;
 
     -- The idempotency key is the CALLER's: a retry of the same attempt is a
@@ -7590,11 +7609,20 @@ DECLARE
     used integer;
     used_by_customer integer;
     redemption_id uuid;
+    order_owner uuid;
 BEGIN
     SELECT * INTO c FROM coupons WHERE id = p_coupon_id FOR UPDATE;
     IF NOT FOUND THEN
         RAISE EXCEPTION 'no such coupon'
             USING ERRCODE = 'check_violation', CONSTRAINT = 'coupon_exists';
+    END IF;
+
+    -- The customer is the order's, never the caller's: naming an account's
+    -- order as a guest's would skip the per-customer count below.
+    SELECT user_id INTO order_owner FROM orders WHERE id = p_order_id;
+    IF NOT FOUND OR p_user_id IS DISTINCT FROM order_owner THEN
+        RAISE EXCEPTION 'redemption on order % must name its owner', p_order_id
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'coupon_redemption_order_owner';
     END IF;
 
     IF NOT c.is_active
@@ -8949,19 +8977,28 @@ CREATE TABLE return_eligibility_assessments (
     order_id          uuid NOT NULL,
     return_request_id uuid NOT NULL,
     version           integer NOT NULL,
-    assessed_by       uuid NOT NULL,
+    -- The live assessor may be erased; the immutable snapshot keeps who judged
+    -- this return without making a staff member's erasure depend on it.
+    assessed_by       uuid,
+    assessed_by_snapshot uuid NOT NULL,
     assessed_at       timestamptz NOT NULL DEFAULT now(),
     basis             text NOT NULL,
     CONSTRAINT return_eligibility_assessments_version_positive CHECK (version > 0),
+    CONSTRAINT return_eligibility_assessments_assessor_snapshot_matches
+        CHECK (assessed_by IS NULL OR assessed_by = assessed_by_snapshot),
     CONSTRAINT return_eligibility_assessments_basis_present CHECK (char_length(btrim(basis, E' \t\n\r')) > 0),
     CONSTRAINT return_eligibility_assessments_basis_bounded CHECK (char_length(basis) <= 500),
     CONSTRAINT return_eligibility_assessments_request_fk
         FOREIGN KEY (order_id, return_request_id)
         REFERENCES return_requests (order_id, id) ON DELETE CASCADE,
     CONSTRAINT return_eligibility_assessments_assessor_fk
-        FOREIGN KEY (assessed_by) REFERENCES users (id) ON DELETE RESTRICT,
+        FOREIGN KEY (assessed_by) REFERENCES users (id) ON DELETE SET NULL,
     CONSTRAINT return_eligibility_assessments_version_key
-        UNIQUE (return_request_id, version)
+        UNIQUE (return_request_id, version),
+    -- Referenced by the facts' composite foreign key, which is what keeps a
+    -- fact on the order and return of the assessment it is filed under.
+    CONSTRAINT return_eligibility_assessments_return_key
+        UNIQUE (id, order_id, return_request_id)
 );
 
 CREATE INDEX return_eligibility_assessments_request_idx
@@ -8970,6 +9007,28 @@ CREATE INDEX return_eligibility_assessments_request_fk_idx
     ON return_eligibility_assessments (order_id, return_request_id);
 CREATE INDEX return_eligibility_assessments_assessor_idx
     ON return_eligibility_assessments (assessed_by);
+
+-- admin inserts assessments directly rather than through a door that checks
+-- its actor, so the table itself refuses an unnamed or mismatched assessor. A
+-- NULL assessed_by is the state erasure's SET NULL leaves behind, never one an
+-- insert may choose; no role holds UPDATE, so that foreign key action is the
+-- only writer after the insert.
+CREATE FUNCTION return_eligibility_assessments_check_assessor() RETURNS trigger
+LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
+BEGIN
+    IF NEW.assessed_by IS NULL
+       OR NEW.assessed_by IS DISTINCT FROM NEW.assessed_by_snapshot THEN
+        RAISE EXCEPTION 'an eligibility assessment names its live assessor'
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'return_eligibility_assessments_assessor_named';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER return_eligibility_assessments_assessor_named
+    BEFORE INSERT ON return_eligibility_assessments
+    FOR EACH ROW EXECUTE FUNCTION return_eligibility_assessments_check_assessor();
 
 CREATE TABLE return_eligibility_facts (
     assessment_id        uuid NOT NULL REFERENCES return_eligibility_assessments (id) ON DELETE CASCADE,
@@ -8996,11 +9055,20 @@ CREATE TABLE return_eligibility_facts (
     CONSTRAINT return_eligibility_facts_line_fk
         FOREIGN KEY (return_request_id, order_line_id)
         REFERENCES return_request_lines (return_request_id, order_line_id)
+        ON DELETE CASCADE,
+    -- admin inserts facts directly and they are read back by assessment_id
+    -- alone, as the evidence for that return's 消保法 §19 decision. Without this
+    -- a line of one return could be filed as evidence under another's.
+    CONSTRAINT return_eligibility_facts_assessment_fk
+        FOREIGN KEY (assessment_id, order_id, return_request_id)
+        REFERENCES return_eligibility_assessments (id, order_id, return_request_id)
         ON DELETE CASCADE
 );
 
 CREATE INDEX return_eligibility_facts_line_idx
     ON return_eligibility_facts (return_request_id, order_line_id);
+CREATE INDEX return_eligibility_facts_assessment_fk_idx
+    ON return_eligibility_facts (assessment_id, order_id, return_request_id);
 
 -- These tables are created after the blanket ALL TABLES grants. Admin writes
 -- assessments; storefront and reporting may read but never write.
@@ -9008,7 +9076,8 @@ GRANT SELECT ON return_eligibility_assessments TO store, admin, reporting;
 GRANT SELECT ON return_eligibility_facts TO store, admin, reporting;
 REVOKE INSERT, UPDATE, DELETE ON return_eligibility_assessments FROM store, reporting;
 REVOKE INSERT, UPDATE, DELETE ON return_eligibility_facts FROM store, reporting;
-GRANT INSERT (id, order_id, return_request_id, version, assessed_by, assessed_at, basis)
+GRANT INSERT (id, order_id, return_request_id, version, assessed_by, assessed_by_snapshot,
+              assessed_at, basis)
     ON return_eligibility_assessments TO admin;
 GRANT INSERT (assessment_id, order_id, return_request_id, order_line_id,
               unused, packaging_complete, accessories_complete,

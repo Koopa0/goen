@@ -208,6 +208,11 @@ func TestCheckoutMoneyRejectsEveryOverflowBoundary(t *testing.T) {
 		{"line multiplication", func() (int64, error) {
 			return addCheckoutLine(0, math.MaxInt64, 2)
 		}},
+		// (2^62+1)×4 wraps to 4: a product that lands small and positive, which
+		// no later sign check can tell from a real four-cent line.
+		{"line multiplication wrapping to a small positive", func() (int64, error) {
+			return addCheckoutLine(0, 1<<62+1, 4)
+		}},
 		{"subtotal accumulation", func() (int64, error) {
 			return addCheckoutLine(math.MaxInt64, 1, 1)
 		}},

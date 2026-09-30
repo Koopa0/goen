@@ -1340,7 +1340,9 @@ func loyaltyReturn(t *testing.T, prices []int64, returnLine int) (
 		Type: "checkout.session.completed", ObjectRef: session,
 		Payload: []byte(`{"object":"event"}`),
 	}, func(ctx context.Context, tx *payment.WebhookTx) error {
-		_, captureErr := tx.Capture(ctx, payment.Capture{SessionID: session, AmountRecv: total})
+		_, captureErr := tx.Capture(ctx, payment.Capture{
+			SessionID: session, AmountRecv: total, Currency: payment.Currency,
+		})
 		return captureErr
 	})
 	if err != nil {
@@ -6628,6 +6630,45 @@ func TestAnErasedOrderIsNotFoundByItsOldAddress(t *testing.T) {
 	}
 }
 
+// TestAnOrderSearchTakesWildcardsLiterally: "%%" passes the two-rune floor, and
+// a typed _ is part of an address, not a stand-in for any character.
+func TestAnOrderSearchTakesWildcardsLiterally(t *testing.T) {
+	ctx, _ := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	underscored, _, _ := searchableOrder(t)
+	lettered, _, _ := searchableOrder(t)
+	stem := strings.ReplaceAll(uuid.NewString(), "-", "")
+	for number, addr := range map[string]string{
+		underscored: "lk_" + stem + "@goen.invalid",
+		lettered:    "lkx" + stem + "@goen.invalid",
+	} {
+		if _, err := pool.Exec(ctx, `
+			UPDATE order_private_data pd SET email = $2
+			FROM orders o WHERE pd.order_id = o.id AND o.order_number = $1`, number, addr); err != nil {
+			t.Fatalf("address order %s: %v", number, err)
+		}
+	}
+
+	view, err := s.Orders(ctx, "", "%%")
+	if err != nil {
+		t.Fatalf("Orders(%%%%): %v", err)
+	}
+	if len(view.Orders) != 0 {
+		t.Errorf(`searching "%%%%" listed %d orders; no address or name starts with it`, len(view.Orders))
+	}
+
+	view, err = s.Orders(ctx, "", "lk_"+stem)
+	if err != nil {
+		t.Fatalf("Orders: %v", err)
+	}
+	if !hasOrder(view, underscored) {
+		t.Errorf("searching the underscored address did not find %s", underscored)
+	}
+	if hasOrder(view, lettered) {
+		t.Errorf("a typed _ matched %s, whose address has an x there", lettered)
+	}
+}
+
 func hasOrder(v pages.AdminOrdersView, number string) bool {
 	for i := range v.Orders {
 		if v.Orders[i].Number == number {
@@ -6779,6 +6820,48 @@ func TestACustomerIsFoundByTheStartOfTheirAddress(t *testing.T) {
 		if !found {
 			t.Errorf("searching %q did not find the customer", term)
 		}
+	}
+}
+
+// TestACustomerSearchTakesWildcardsLiterally holds the stance that the customer
+// list is searched, never browsed: "%%" passes the two-rune floor and must not
+// list every account, and a typed _ matches only an underscore.
+func TestACustomerSearchTakesWildcardsLiterally(t *testing.T) {
+	ctx, _ := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	stem := strings.ReplaceAll(uuid.NewString(), "-", "")
+	ids := map[string]uuid.UUID{}
+	for _, addr := range []string{"lk_" + stem + "@goen.invalid", "lkx" + stem + "@goen.invalid"} {
+		var id uuid.UUID
+		if err := pool.QueryRow(ctx, `
+			INSERT INTO users (email, role, full_name) VALUES ($1, 'customer', 'wildcard')
+			RETURNING id`, addr).Scan(&id); err != nil {
+			t.Fatalf("create %s: %v", addr, err)
+		}
+		ids[addr] = id
+	}
+
+	view, err := s.Customers(ctx, "%%")
+	if err != nil {
+		t.Fatalf("Customers(%%%%): %v", err)
+	}
+	if len(view.Rows) != 0 {
+		t.Errorf(`searching "%%%%" listed %d customers; no address or name starts with it`, len(view.Rows))
+	}
+
+	view, err = s.Customers(ctx, "lk_"+stem)
+	if err != nil {
+		t.Fatalf("Customers: %v", err)
+	}
+	found := map[string]bool{}
+	for i := range view.Rows {
+		found[view.Rows[i].ID] = true
+	}
+	if !found[ids["lk_"+stem+"@goen.invalid"].String()] {
+		t.Error("searching the underscored address did not find its customer")
+	}
+	if found[ids["lkx"+stem+"@goen.invalid"].String()] {
+		t.Error("a typed _ matched a customer whose address has an x there")
 	}
 }
 
@@ -6935,11 +7018,22 @@ func TestTheBackOfficeSeesTheSystemCancelAtThePaymentDeadline(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
 	number := placeUnpaidOrder(t)
+	// hold_inventory holds only what the order's own lines carry.
 	if _, err := pool.Exec(ctx, `
-		SELECT hold_inventory(o.id,
-			(SELECT id FROM product_variants ORDER BY stock_quantity DESC, id LIMIT 1),
+		INSERT INTO order_lines (order_id, variant_id, sku, product_name, unit_price_cents, quantity, position)
+		SELECT o.id, pv.id, pv.sku, p.name, 0, 1, 1
+		FROM orders o,
+		     (SELECT id, sku, product_id FROM product_variants
+		      ORDER BY stock_quantity DESC, id LIMIT 1) pv
+		JOIN products p ON p.id = pv.product_id
+		WHERE o.order_number = $1`, number); err != nil {
+		t.Fatalf("put the held variant on the order: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		SELECT hold_inventory(ol.order_id, ol.variant_id,
 			1, interval '30 minutes', 'deadline-actor:' || o.order_number)
-		FROM orders o WHERE o.order_number = $1`, number); err != nil {
+		FROM orders o JOIN order_lines ol ON ol.order_id = o.id AND ol.variant_id IS NOT NULL
+		WHERE o.order_number = $1`, number); err != nil {
 		t.Fatalf("hold stock: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `

@@ -524,9 +524,14 @@ func TestUserAgentDecorationIsBoundedWithoutRejectingTheSession(t *testing.T) {
 	if got := normaliseUserAgent(strings.Repeat("a", maxUserAgentRunes)); len(got) != maxUserAgentRunes {
 		t.Errorf("exact user-agent ceiling became %d runes", len([]rune(got)))
 	}
+	if got := normaliseUserAgent("瀏覽器/1"); got != "瀏覽器/1" {
+		t.Errorf("a UTF-8 user agent became %q", got)
+	}
 	for _, raw := range []string{
 		strings.Repeat("a", maxUserAgentRunes+1),
 		"browser\nforged",
+		"Mozilla/5.0 Caf\xe9Browser/1.0",
+		"browser/\xe7\x80",
 	} {
 		if got := normaliseUserAgent(raw); got != "" {
 			t.Errorf("unsafe user agent survived as %q", got)
@@ -580,6 +585,19 @@ func TestAccountNoticeExplainsWhyAnOpenReturnBlocksErasure(t *testing.T) {
 			"/account?erase=return", http.NoBody)
 		if got, want := accountNotice(r), i18n.T(ctx, i18n.KeyEraseOpenReturn); got != want {
 			t.Errorf("%s open-return erasure notice = %q, want %q", locale, got, want)
+		}
+	}
+}
+
+func TestAccountNoticeExplainsWhyTheLastAdminCannotBeErased(t *testing.T) {
+	t.Parallel()
+
+	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+		ctx := i18n.WithLocale(t.Context(), locale)
+		r := httptest.NewRequestWithContext(ctx, http.MethodGet,
+			"/account?erase=admin", http.NoBody)
+		if got, want := accountNotice(r), i18n.T(ctx, i18n.KeyEraseLastAdmin); got != want {
+			t.Errorf("%s last-admin erasure notice = %q, want %q", locale, got, want)
 		}
 	}
 }

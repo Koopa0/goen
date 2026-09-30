@@ -24,7 +24,6 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
-	stripe "github.com/stripe/stripe-go/v86"
 
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/admin"
@@ -102,9 +101,13 @@ func order(t *testing.T, totalCents int64) (number string, id uuid.UUID) {
 
 // captureThroughWebhook applies c through the same transaction boundary as a
 // real webhook. Every call uses a distinct event because these tests exercise
-// capture behavior, not webhook redelivery.
+// capture behavior, not webhook redelivery. A paid session always names its
+// currency, so a fixture that leaves it out means the one goen charges in.
 func captureThroughWebhook(t *testing.T, s *payment.Store, c payment.Capture) (string, error) {
 	t.Helper()
+	if c.Currency == "" {
+		c.Currency = payment.Currency
+	}
 	eventID := "evt_capture_test_" + uuid.NewString()
 	var orderNumber string
 	claimed, err := s.ProcessWebhook(t.Context(), &payment.WebhookEvent{
@@ -1177,7 +1180,7 @@ func TestWebhookAndOpenShareProviderReferenceLock(t *testing.T) {
 				Payload: []byte(`{"object":"event"}`),
 			}, func(ctx context.Context, tx *payment.WebhookTx) error {
 				got, captureErr := tx.Capture(ctx, payment.Capture{
-					SessionID: session, AmountRecv: 92000,
+					SessionID: session, AmountRecv: 92000, Currency: payment.Currency,
 				})
 				if captureErr != nil {
 					return captureErr
@@ -1456,14 +1459,29 @@ func TestHoldAdmissionUsesTheDatabaseTransactionClock(t *testing.T) {
 	}
 }
 
-// hold reserves one unit of the nth-largest-stock variant for an order.
+// hold reserves one unit of the nth-largest-stock variant for an order. The
+// order first gets a line carrying that variant, because hold_inventory holds
+// nothing an order's own lines do not; the line is free, so what the order
+// owes, which every session here is priced from, does not move.
 func hold(t *testing.T, orderID uuid.UUID, nth int, forDuration time.Duration, key string) time.Time {
 	t.Helper()
+	var variantID uuid.UUID
+	if err := pool.QueryRow(t.Context(), `
+		SELECT id FROM product_variants ORDER BY stock_quantity DESC, id LIMIT 1 OFFSET $1`,
+		nth).Scan(&variantID); err != nil {
+		t.Fatalf("pick a variant to hold: %v", err)
+	}
+	if _, err := pool.Exec(t.Context(), `
+		INSERT INTO order_lines (order_id, variant_id, sku, product_name, unit_price_cents, quantity, position)
+		SELECT $1, pv.id, pv.sku, p.name, 0, 1,
+		       (SELECT max(position) + 1 FROM order_lines WHERE order_id = $1)
+		FROM product_variants pv JOIN products p ON p.id = pv.product_id
+		WHERE pv.id = $2`, orderID, variantID); err != nil {
+		t.Fatalf("put the held variant on the order: %v", err)
+	}
 	var reservationID uuid.UUID
 	if err := pool.QueryRow(t.Context(), `
-		SELECT hold_inventory($1,
-			(SELECT id FROM product_variants ORDER BY stock_quantity DESC, id LIMIT 1 OFFSET $2),
-			1, $3::interval, $4)`, orderID, nth, pgtype.Interval{
+		SELECT hold_inventory($1, $2, 1, $3::interval, $4)`, orderID, variantID, pgtype.Interval{
 		Microseconds: int64(forDuration / time.Microsecond), Valid: true,
 	}, key).Scan(&reservationID); err != nil {
 		t.Fatalf("hold stock: %v", err)
@@ -2429,8 +2447,7 @@ func (alwaysPlacedHere) PlacedHere(context.Context, *http.Request, string, bool)
 }
 
 // gatewayRecordingCalls gives an external-package integration test a real
-// Gateway whose SDK backend is a local server. The global backend is restored
-// before this helper returns; the client retains the injected backend.
+// Gateway whose Stripe is a local server counting the sessions it creates.
 func gatewayRecordingCalls(t *testing.T, sessionID string) (gateway *payment.Gateway, calls *int) {
 	t.Helper()
 	var callCount int
@@ -2445,20 +2462,20 @@ func gatewayRecordingCalls(t *testing.T, sessionID string) (gateway *payment.Gat
 			sessionID, sessionID)
 	}))
 	t.Cleanup(srv.Close)
+	return gatewayAt(t, srv.URL), &callCount
+}
 
-	original := stripe.GetBackend(stripe.APIBackend)
-	noRetries := int64(0)
-	backend := stripe.GetBackendWithConfig(stripe.APIBackend, &stripe.BackendConfig{
-		URL: stripe.String(srv.URL), MaxNetworkRetries: &noRetries,
-	})
-	stripe.SetBackend(stripe.APIBackend, backend)
-	defer stripe.SetBackend(stripe.APIBackend, original)
-
-	gateway, err := payment.NewGateway("sk_test_notreal", testWebhookSecret, "https://goen.example")
+// gatewayAt is a real Gateway, built through the production Stripe client,
+// whose Stripe is the stand-in at stripeURL.
+func gatewayAt(t *testing.T, stripeURL string) *payment.Gateway {
+	t.Helper()
+	gateway, err := payment.NewGatewayAt(
+		"sk_test_notreal", testWebhookSecret, "https://goen.example", stripeURL,
+	)
 	if err != nil {
 		t.Fatalf("gateway: %v", err)
 	}
-	return gateway, &callCount
+	return gateway
 }
 
 // TestPaidCompleteResolutionCannotOpenSecondSession covers the irreversible
@@ -2657,19 +2674,7 @@ func TestAdmittedCompleteSessionsBecomeVisibleAndResolvable(t *testing.T) {
 			}))
 			t.Cleanup(srv.Close)
 
-			originalBackend := stripe.GetBackend(stripe.APIBackend)
-			noRetries := int64(0)
-			stripe.SetBackend(stripe.APIBackend, stripe.GetBackendWithConfig(
-				stripe.APIBackend,
-				&stripe.BackendConfig{URL: stripe.String(srv.URL), MaxNetworkRetries: &noRetries},
-			))
-			gateway, err := payment.NewGateway(
-				"sk_test_notreal", testWebhookSecret, "https://goen.example",
-			)
-			stripe.SetBackend(stripe.APIBackend, originalBackend)
-			if err != nil {
-				t.Fatalf("gateway: %v", err)
-			}
+			gateway := gatewayAt(t, srv.URL)
 			h := payment.NewHandler(s, gateway, alwaysPlacedHere{},
 				slog.New(slog.DiscardHandler), false)
 			post := func() *httptest.ResponseRecorder {
@@ -3134,17 +3139,7 @@ func TestACompleteSessionRejectedAfterItsWebhookAdvancesGeneration(t *testing.T)
 	}))
 	t.Cleanup(srv.Close)
 
-	original := stripe.GetBackend(stripe.APIBackend)
-	noRetries := int64(0)
-	backend := stripe.GetBackendWithConfig(stripe.APIBackend, &stripe.BackendConfig{
-		URL: stripe.String(srv.URL), MaxNetworkRetries: &noRetries,
-	})
-	stripe.SetBackend(stripe.APIBackend, backend)
-	gateway, err := payment.NewGateway("sk_test_notreal", testWebhookSecret, "https://goen.example")
-	stripe.SetBackend(stripe.APIBackend, original)
-	if err != nil {
-		t.Fatalf("gateway: %v", err)
-	}
+	gateway := gatewayAt(t, srv.URL)
 	h = payment.NewHandler(payment.NewStore(pool), gateway, alwaysPlacedHere{},
 		slog.New(slog.DiscardHandler), false)
 	close(handlerReady)
@@ -3396,17 +3391,7 @@ func TestAnExpiredRejectedSessionConsumesItsIdempotencyGeneration(t *testing.T) 
 	}))
 	defer srv.Close()
 
-	original := stripe.GetBackend(stripe.APIBackend)
-	noRetries := int64(0)
-	backend := stripe.GetBackendWithConfig(stripe.APIBackend, &stripe.BackendConfig{
-		URL: stripe.String(srv.URL), MaxNetworkRetries: &noRetries,
-	})
-	stripe.SetBackend(stripe.APIBackend, backend)
-	gateway, err := payment.NewGateway("sk_test_notreal", testWebhookSecret, "https://goen.example")
-	stripe.SetBackend(stripe.APIBackend, original)
-	if err != nil {
-		t.Fatalf("gateway: %v", err)
-	}
+	gateway := gatewayAt(t, srv.URL)
 	h := payment.NewHandler(s, gateway, alwaysPlacedHere{}, slog.New(slog.DiscardHandler), false)
 	post := func() *httptest.ResponseRecorder {
 		t.Helper()
@@ -3590,17 +3575,7 @@ func TestObsoleteSessionCleanupConvergesAfterALocalWriteFailure(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	original := stripe.GetBackend(stripe.APIBackend)
-	noRetries := int64(0)
-	stripe.SetBackend(stripe.APIBackend, stripe.GetBackendWithConfig(
-		stripe.APIBackend,
-		&stripe.BackendConfig{URL: stripe.String(srv.URL), MaxNetworkRetries: &noRetries},
-	))
-	gateway, err := payment.NewGateway("sk_test_notreal", testWebhookSecret, "https://goen.example")
-	stripe.SetBackend(stripe.APIBackend, original)
-	if err != nil {
-		t.Fatalf("gateway: %v", err)
-	}
+	gateway := gatewayAt(t, srv.URL)
 	h := payment.NewHandler(s, gateway, alwaysPlacedHere{}, slog.New(slog.DiscardHandler), false)
 	post := func() *httptest.ResponseRecorder {
 		t.Helper()
@@ -3707,17 +3682,7 @@ func TestObsoleteSessionCleanupSurvivesAClientDisconnect(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	original := stripe.GetBackend(stripe.APIBackend)
-	noRetries := int64(0)
-	stripe.SetBackend(stripe.APIBackend, stripe.GetBackendWithConfig(
-		stripe.APIBackend,
-		&stripe.BackendConfig{URL: stripe.String(srv.URL), MaxNetworkRetries: &noRetries},
-	))
-	gateway, err := payment.NewGateway("sk_test_notreal", testWebhookSecret, "https://goen.example")
-	stripe.SetBackend(stripe.APIBackend, original)
-	if err != nil {
-		t.Fatalf("gateway: %v", err)
-	}
+	gateway := gatewayAt(t, srv.URL)
 
 	h := payment.NewHandler(s, gateway, alwaysPlacedHere{}, slog.New(slog.DiscardHandler), false)
 	reqCtx, disconnect := context.WithCancel(ctx)
@@ -4556,7 +4521,9 @@ func TestMoneyForACancelledOrderLeavesSomethingToActOn(t *testing.T) {
 		ID: eventID, Type: "checkout.session.completed", ObjectRef: session,
 		Payload: []byte(`{"probe":true}`),
 	}, func(ctx context.Context, tx *payment.WebhookTx) error {
-		_, captureErr := tx.Capture(ctx, payment.Capture{SessionID: session, AmountRecv: 77700})
+		_, captureErr := tx.Capture(ctx, payment.Capture{
+			SessionID: session, AmountRecv: 77700, Currency: payment.Currency,
+		})
 		if !errors.Is(captureErr, payment.ErrOrderCancelled) {
 			return captureErr
 		}
@@ -4621,17 +4588,7 @@ func TestCompleteSessionShowsProcessingNotPayAgain(t *testing.T) {
 		}))
 		t.Cleanup(srv.Close)
 
-		originalBackend := stripe.GetBackend(stripe.APIBackend)
-		noRetries := int64(0)
-		stripe.SetBackend(stripe.APIBackend, stripe.GetBackendWithConfig(
-			stripe.APIBackend,
-			&stripe.BackendConfig{URL: stripe.String(srv.URL), MaxNetworkRetries: &noRetries},
-		))
-		gateway, err := payment.NewGateway("sk_test_notreal", testWebhookSecret, "https://goen.example")
-		stripe.SetBackend(stripe.APIBackend, originalBackend)
-		if err != nil {
-			t.Fatalf("gateway: %v", err)
-		}
+		gateway := gatewayAt(t, srv.URL)
 
 		h := payment.NewHandler(s, gateway, alwaysPlacedHere{}, slog.New(slog.DiscardHandler), false)
 
@@ -4718,17 +4675,7 @@ func TestCompleteSessionShowsProcessingNotPayAgain(t *testing.T) {
 		}))
 		t.Cleanup(srv.Close)
 
-		originalBackend := stripe.GetBackend(stripe.APIBackend)
-		noRetries := int64(0)
-		stripe.SetBackend(stripe.APIBackend, stripe.GetBackendWithConfig(
-			stripe.APIBackend,
-			&stripe.BackendConfig{URL: stripe.String(srv.URL), MaxNetworkRetries: &noRetries},
-		))
-		gateway, err := payment.NewGateway("sk_test_notreal", testWebhookSecret, "https://goen.example")
-		stripe.SetBackend(stripe.APIBackend, originalBackend)
-		if err != nil {
-			t.Fatalf("gateway: %v", err)
-		}
+		gateway := gatewayAt(t, srv.URL)
 
 		h := payment.NewHandler(s, gateway, alwaysPlacedHere{}, slog.New(slog.DiscardHandler), false)
 

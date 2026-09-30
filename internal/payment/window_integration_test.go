@@ -12,8 +12,6 @@ import (
 	"testing"
 	"time"
 
-	stripe "github.com/stripe/stripe-go/v86"
-
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/shoptime"
@@ -109,16 +107,7 @@ func TestAnOpenSessionStillResumesAfterTheStartWindowCloses(t *testing.T) {
 		_, _ = fmt.Fprintf(w, `{"id":%q,"object":"checkout.session","status":"open","url":%q}`, sessionID, destination)
 	}))
 	t.Cleanup(provider.Close)
-	original := stripe.GetBackend(stripe.APIBackend)
-	stripe.SetBackend(stripe.APIBackend, stripe.GetBackendWithConfig(stripe.APIBackend, &stripe.BackendConfig{
-		URL: stripe.String(provider.URL), MaxNetworkRetries: stripe.Int64(0),
-	}))
-	gateway, err := payment.NewGateway("sk_test_notreal", testWebhookSecret, "https://goen.example")
-	stripe.SetBackend(stripe.APIBackend, original)
-	if err != nil {
-		t.Fatal(err)
-	}
-	h := payment.NewHandler(s, gateway, alwaysPlacedHere{}, slog.New(slog.DiscardHandler), false)
+	h := payment.NewHandler(s, gatewayAt(t, provider.URL), alwaysPlacedHere{}, slog.New(slog.DiscardHandler), false)
 
 	get := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/orders/"+number+"/pay", http.NoBody)
 	get.SetPathValue("number", number)

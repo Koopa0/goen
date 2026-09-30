@@ -6,6 +6,7 @@ package db_test
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 	"strings"
@@ -130,6 +131,7 @@ var expectedForeignKeys = map[string]bool{
 	"return_eligibility_assessments_request_fk":   true,
 	"return_eligibility_assessments_assessor_fk":  true,
 	"return_eligibility_facts_assessment_id_fkey": true,
+	"return_eligibility_facts_assessment_fk":      true,
 	"return_eligibility_facts_line_fk":            true,
 	"sale_campaign_products_campaign_id_fkey":     true,
 	"sale_campaign_products_product_id_fkey":      true,
@@ -236,5 +238,115 @@ func TestEveryForeignKeyIsIndexed(t *testing.T) {
 	}
 	if len(missing) > 0 {
 		t.Errorf("foreign keys with no index to support them:\n  %s", strings.Join(missing, "\n  "))
+	}
+}
+
+// TestEveryForeignKeyToAUserLetsTheAccountBeErased reads every foreign key to
+// users from the catalogue. Erasure deletes the users row, so a key that
+// refuses the delete, or that sets a NOT NULL column to NULL, fails erasure for
+// every account it names: a new actor column added that way fails here first.
+func TestEveryForeignKeyToAUserLetsTheAccountBeErased(t *testing.T) {
+	rows, err := schemaPool(t).Query(t.Context(), `
+		SELECT c.conrelid::regclass::text, c.conname, c.confdeltype::text,
+		       coalesce((
+		           SELECT string_agg(a.attname, ', ' ORDER BY a.attnum)
+		           FROM pg_attribute a
+		           WHERE a.attrelid = c.conrelid
+		             AND a.attnum = ANY (coalesce(c.confdelsetcols, c.conkey))
+		             AND a.attnotnull
+		       ), '')
+		FROM pg_constraint c
+		WHERE c.contype = 'f' AND c.confrelid = 'public.users'::regclass
+		ORDER BY 1, 2`)
+	if err != nil {
+		t.Fatalf("query foreign keys to users: %v", err)
+	}
+	defer rows.Close()
+
+	refusing := map[string]string{"a": "NO ACTION", "r": "RESTRICT", "d": "SET DEFAULT"}
+	var keys int
+	var blocking []string
+	for rows.Next() {
+		var table, name, action, notNull string
+		if err := rows.Scan(&table, &name, &action, &notNull); err != nil {
+			t.Fatalf("scan: %v", err)
+		}
+		keys++
+		switch {
+		case refusing[action] != "":
+			blocking = append(blocking, fmt.Sprintf("%s (%s) is ON DELETE %s", table, name, refusing[action]))
+		case action == "n" && notNull != "":
+			blocking = append(blocking, fmt.Sprintf("%s (%s) is ON DELETE SET NULL on NOT NULL %s",
+				table, name, notNull))
+		}
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate: %v", err)
+	}
+	if keys == 0 {
+		t.Fatal("no foreign key references users; the query is not reading the schema it guards")
+	}
+	if len(blocking) > 0 {
+		t.Errorf("erasure deletes the user, and these foreign keys would refuse it; each must be "+
+			"ON DELETE CASCADE or ON DELETE SET NULL on a nullable column:\n  %s",
+			strings.Join(blocking, "\n  "))
+	}
+}
+
+// TestAnEligibilityFactStaysWithItsAssessment files facts as admin, which holds
+// INSERT on the table directly. A fact is read back by assessment_id alone, as
+// evidence for that return's decision, so one naming another order or another
+// return's line must be refused rather than read as the wrong return's evidence.
+func TestAnEligibilityFactStaysWithItsAssessment(t *testing.T) {
+	const (
+		// R1 on the paid fixture order, with its shipped line, assessed once. R1 is
+		// then decided so the same order can open R2 on the same line.
+		assessed = `
+			INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity)
+			VALUES ('66666666-6666-4666-8666-666666666666', '88880001-0000-4000-8000-000000000000',
+			        '66660003-0000-4000-8000-000000000000', 1);
+			INSERT INTO return_eligibility_assessments (id, order_id, return_request_id, version, assessed_by, assessed_by_snapshot, basis)
+			VALUES ('ae030001-0000-4000-8000-000000000001', '66666666-6666-4666-8666-666666666666',
+			        '88880001-0000-4000-8000-000000000000', 1, '55555555-5555-4555-8555-555555555555', '55555555-5555-4555-8555-555555555555', 'saw it');
+			UPDATE return_requests SET status = 'rejected', decided_at = now()
+			WHERE id = '88880001-0000-4000-8000-000000000000';
+			INSERT INTO return_requests (id, order_id, reason)
+			VALUES ('88880002-0000-4000-8000-000000000000', '66666666-6666-4666-8666-666666666666', '');
+			INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity)
+			VALUES ('66666666-6666-4666-8666-666666666666', '88880002-0000-4000-8000-000000000000',
+			        '66660003-0000-4000-8000-000000000000', 1);
+			SET LOCAL ROLE admin;
+		`
+		file = `
+			INSERT INTO return_eligibility_facts
+			    (assessment_id, order_id, return_request_id, order_line_id, requested_at, policy_window)
+			VALUES ('ae030001-0000-4000-8000-000000000001', '%s', '%s',
+			        '66660003-0000-4000-8000-000000000000', now(), 'undelivered');`
+		orderA   = "66666666-6666-4666-8666-666666666666"
+		orderB   = "6666aaaa-6666-4666-8666-666666666666"
+		returnR1 = "88880001-0000-4000-8000-000000000000"
+		returnR2 = "88880002-0000-4000-8000-000000000000"
+	)
+
+	for _, tc := range []struct{ name, order, request string }{
+		{"under another order", orderB, returnR1},
+		{"another return's line", orderA, returnR2},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := run(t, assessed+fmt.Sprintf(file, tc.order, tc.request))
+			if err == nil {
+				t.Fatal("the fact was filed under an assessment of a different return")
+			}
+			if code, name := constraintViolation(err); code != "23503" ||
+				name != "return_eligibility_facts_assessment_fk" {
+				t.Fatalf("refused by SQLSTATE %s constraint %q, want 23503/return_eligibility_facts_assessment_fk: %v",
+					code, name, err)
+			}
+		})
+	}
+
+	// The neighbour: the assessment's own order, return and line.
+	if err := run(t, assessed+fmt.Sprintf(file, orderA, returnR1)); err != nil {
+		t.Fatalf("a fact for the assessed return's own line was refused: %v", err)
 	}
 }

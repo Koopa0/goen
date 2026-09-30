@@ -3,13 +3,23 @@
 // argon2id runs at 64 MiB a hash, so the limiter must run BEFORE the hash or it
 // defends nothing. It is a throttle and never a lockout — every key recovers on
 // its own — and its state is per process, so N replicas allow N times the rate.
+//
+// Every request runs under one mutex, and some keys are chosen by the client,
+// so a client that can fill the table must not also be able to make each of its
+// misses walk it. A hit, and a miss that makes room at capacity, cost the same
+// whatever the table holds. Dropping expired keys is amortised instead: one
+// miss per interval drops every key that has expired, which can be the whole
+// table, but each key is dropped once, and was paid for by the miss that
+// inserted it.
 package ratelimit
 
 import (
+	"container/list"
 	"crypto/sha256"
 	"encoding/base64"
 	"net"
 	"net/http"
+	"net/netip"
 	"strings"
 	"sync"
 	"time"
@@ -40,10 +50,16 @@ type Config struct {
 type Limiter struct {
 	cfg Config
 
-	mu        sync.Mutex
-	buckets   map[bucketKey]*bucket
+	// mu guards the four fields below together: a bucket, its place in the
+	// eviction order and the sweep clock are one invariant.
+	mu      sync.Mutex
+	buckets map[bucketKey]*bucket
+	// order holds every bucket, the most recently seen at the front, so both
+	// the expired keys and the eviction victim are at the back.
+	order     *list.List
 	lastSweep time.Time
-	sweeps    int // counted so a test can lock the amortisation guarantee
+	// sweeps counts the sweeps run, so a test can lock how rarely they run.
+	sweeps int
 }
 
 // bucketKey keeps bounded digests in a namespace separate from raw keys. The
@@ -55,8 +71,10 @@ type bucketKey struct {
 }
 
 type bucket struct {
+	key     bucketKey
 	limiter *rate.Limiter
 	seen    time.Time
+	place   *list.Element // this bucket in Limiter.order
 }
 
 // New returns a Limiter.
@@ -64,7 +82,7 @@ func New(cfg Config) *Limiter {
 	if cfg.Every <= 0 || cfg.Burst < 1 || cfg.TTL <= 0 || cfg.MaxKeys < 1 {
 		panic("ratelimit: New requires a positive Every, Burst, TTL and MaxKeys")
 	}
-	return &Limiter{cfg: cfg, buckets: make(map[bucketKey]*bucket)}
+	return &Limiter{cfg: cfg, buckets: make(map[bucketKey]*bucket), order: list.New()}
 }
 
 // Allow reports whether this key may proceed, and how long to wait if not. A
@@ -72,28 +90,18 @@ func New(cfg Config) *Limiter {
 // per-IP limiting cannot see a distributed attack on one account.
 func (l *Limiter) Allow(key string) (retryAfter time.Duration, ok bool) {
 	mapKey := clampKey(key)
-	now := time.Now()
 
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	// Read under the lock, so order and seen agree exactly: a clock read before
+	// the wait would let a later arrival carry an earlier time.
+	now := time.Now()
 
 	b, found := l.buckets[mapKey]
-	if !found {
-		// Work proportional to N once per new key is O(N^2), and during a
-		// sustained arrival no key is old enough to free; sweep on an interval
-		// instead. Both the per-miss cost and the map stay bound.
-		if now.Sub(l.lastSweep) >= l.cfg.TTL/8 || len(l.buckets) >= l.cfg.MaxKeys {
-			l.evictLocked(now)
-			l.lastSweep = now
-		}
-		// A short key may be a small substring of a large allocation. Clone it
-		// only on insertion so the map does not pin the caller's whole backing
-		// allocation, without allocating on a hit.
-		if !mapKey.hashed {
-			mapKey.value = strings.Clone(mapKey.value)
-		}
-		b = &bucket{limiter: rate.NewLimiter(rate.Every(l.cfg.Every), l.cfg.Burst)}
-		l.buckets[mapKey] = b
+	if found {
+		l.order.MoveToFront(b.place)
+	} else {
+		b = l.admitLocked(mapKey, now)
 	}
 	b.seen = now
 
@@ -105,6 +113,34 @@ func (l *Limiter) Allow(key string) (retryAfter time.Duration, ok bool) {
 		return delay, false
 	}
 	return 0, true
+}
+
+// admitLocked makes room for a key not yet tracked and tracks it. Called with mu
+// held.
+func (l *Limiter) admitLocked(mapKey bucketKey, now time.Time) *bucket {
+	// Expired keys are dropped on an interval and not on every miss: during a
+	// sustained arrival no key is old enough to free, and a walk per new key is
+	// O(N^2) across N keys.
+	if now.Sub(l.lastSweep) >= l.cfg.TTL/8 {
+		l.sweepLocked(now)
+		l.lastSweep = now
+	}
+	// At capacity the back of the order is the least recently seen key, and it
+	// is an expired one if any key is. One removal is sufficient: every previous
+	// insertion left len(buckets) <= MaxKeys.
+	if len(l.buckets) >= l.cfg.MaxKeys {
+		l.dropLocked(l.order.Back())
+	}
+	// A short key may be a small substring of a large allocation. Clone it only
+	// on insertion so the map does not pin the caller's whole backing
+	// allocation, without allocating on a hit.
+	if !mapKey.hashed {
+		mapKey.value = strings.Clone(mapKey.value)
+	}
+	b := &bucket{key: mapKey, limiter: rate.NewLimiter(rate.Every(l.cfg.Every), l.cfg.Burst)}
+	b.place = l.order.PushFront(b)
+	l.buckets[mapKey] = b
+	return b
 }
 
 // clampKey bounds one stored representation without merging long keys that
@@ -122,38 +158,58 @@ func clampKey(key string) bucketKey {
 	}
 }
 
-// evictLocked drops expired keys and, if the incoming miss still needs room,
-// the one least recently seen live key. Called with mu held. One deletion is
-// sufficient: every previous insertion left len(buckets) <= MaxKeys.
-func (l *Limiter) evictLocked(now time.Time) {
+// sweepLocked drops every expired key. Called with mu held. The order is by last
+// seen, so the expired keys are one run at the back and the walk ends at the
+// first live key: each key is examined once on its way out, plus that one.
+func (l *Limiter) sweepLocked(now time.Time) {
 	l.sweeps++
-	var oldestKey bucketKey
-	var oldestSeen time.Time
-	haveOldest := false
-	for key, b := range l.buckets {
-		if now.Sub(b.seen) > l.cfg.TTL {
-			delete(l.buckets, key)
-			continue
+	for el := l.order.Back(); el != nil; el = l.order.Back() {
+		if b, isBucket := el.Value.(*bucket); isBucket && now.Sub(b.seen) <= l.cfg.TTL {
+			return
 		}
-		if !haveOldest || b.seen.Before(oldestSeen) {
-			oldestKey = key
-			oldestSeen = b.seen
-			haveOldest = true
-		}
-	}
-	if len(l.buckets) >= l.cfg.MaxKeys && haveOldest {
-		delete(l.buckets, oldestKey)
+		l.dropLocked(el)
 	}
 }
 
-// ClientIP is the address to key an HTTP request on: r.RemoteAddr, unless
+// dropLocked forgets one bucket. Called with mu held.
+func (l *Limiter) dropLocked(el *list.Element) {
+	l.order.Remove(el)
+	if b, isBucket := el.Value.(*bucket); isBucket {
+		delete(l.buckets, b.key)
+	}
+}
+
+// ClientIP is the address an HTTP request came from: r.RemoteAddr, unless
 // [Proxies.Resolve] has run and decided otherwise. A header read on faith hands
-// every attacker an unlimited supply of keys, so no header is read here.
+// every attacker an unlimited supply of keys, so no header is read here. It is
+// the address to record; a limit keys on [ClientKey].
 func ClientIP(r *http.Request) string {
 	if ip, ok := r.Context().Value(clientIPKey{}).(string); ok && ip != "" {
 		return ip
 	}
 	return remoteHost(r)
+}
+
+// clientPrefixBits is how much of an IPv6 address identifies a client. A /64 is
+// the smallest network a host autoconfigures in, so it is the least any
+// subscriber is routed, and the low 64 bits are the subscriber's to choose.
+const clientPrefixBits = 64
+
+// ClientKey is what to key a per-client limit on: [ClientIP], with an IPv6
+// address reduced to its /64. Keyed on the whole address, a client that rotates
+// the low 64 bits has 2^64 keys and a fresh allowance on every request. An IPv4
+// address, and an IPv6 address that only spells one, keep the dotted form.
+func ClientKey(r *http.Request) string {
+	host := ClientIP(r)
+	addr, err := netip.ParseAddr(host)
+	if err != nil {
+		return host
+	}
+	addr = normalise(addr)
+	if addr.Is4() {
+		return addr.String()
+	}
+	return netip.PrefixFrom(addr, clientPrefixBits).Masked().String()
 }
 
 func remoteHost(r *http.Request) string {

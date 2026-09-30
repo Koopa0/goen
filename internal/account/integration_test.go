@@ -339,6 +339,7 @@ func TestUnsafeUserAgentDoesNotRefuseOrDecorateASession(t *testing.T) {
 	}{
 		{name: "overlong", userAgent: strings.Repeat("a", 513)},
 		{name: "control character", userAgent: "browser\nforged"},
+		{name: "not UTF-8", userAgent: "Mozilla/5.0 Caf\xe9Browser/1.0"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			token, err := s.StartSession(ctx, u.ID, tt.userAgent, "192.0.2.1")
@@ -1189,6 +1190,8 @@ func TestFailedCartAdoptionOnSignInShowsNoticeAndPreservesBothCarts(t *testing.T
 
 // TestAdoptCartRefusesGuestCartOwnedByAnotherAccount holds that a cart already
 // attached to someone else is never recovered through sign-in or POST retry.
+// The browser's token names no cart this account may use, so there is nothing
+// to adopt and nothing to recover: both land where they were going.
 func TestAdoptCartRefusesGuestCartOwnedByAnotherAccount(t *testing.T) {
 	ctx := t.Context()
 	accounts := account.NewStore(pool)
@@ -1252,9 +1255,9 @@ func TestAdoptCartRefusesGuestCartOwnedByAnotherAccount(t *testing.T) {
 	if signed.Code != http.StatusSeeOther {
 		t.Fatalf("sign-in status = %d, want 303", signed.Code)
 	}
-	wantRecovery := "/account/cart-recovery?next=%2Faccount"
-	if loc := signed.Header().Get("Location"); loc != wantRecovery {
-		t.Fatalf("sign-in redirect = %q, want %q", loc, wantRecovery)
+	const wantLanding = "/account"
+	if loc := signed.Header().Get("Location"); loc != wantLanding {
+		t.Fatalf("sign-in redirect = %q, want %q", loc, wantLanding)
 	}
 
 	session := sessionCookie(t, signed)
@@ -1270,8 +1273,8 @@ func TestAdoptCartRefusesGuestCartOwnedByAnotherAccount(t *testing.T) {
 	if retryRec.Code != http.StatusSeeOther {
 		t.Fatalf("retry status = %d, want 303", retryRec.Code)
 	}
-	if loc := retryRec.Header().Get("Location"); loc != wantRecovery {
-		t.Fatalf("retry redirect = %q, want recovery %q", loc, wantRecovery)
+	if loc := retryRec.Header().Get("Location"); loc != wantLanding {
+		t.Fatalf("retry redirect = %q, want %q", loc, wantLanding)
 	}
 
 	if qty := cartItemQuantity(t, accountCart, accountVariant); qty != 1 {
@@ -1287,6 +1290,83 @@ func TestAdoptCartRefusesGuestCartOwnedByAnotherAccount(t *testing.T) {
 	}
 	if owner != otherUID {
 		t.Errorf("guest cart owner = %s, want other account %s", owner, otherUID)
+	}
+}
+
+// TestAdoptCartNeverTakesAnotherAccountsCart calls the store directly with a
+// cart another account owns, as a sign-in that lost a race for it would. The
+// lines are sellable, so nothing but the ownership guard stands between that
+// call and the other account's cart being merged away or taken over.
+func TestAdoptCartNeverTakesAnotherAccountsCart(t *testing.T) {
+	ctx := t.Context()
+	accounts := account.NewStore(pool)
+	ownVariant := sellableVariant(t, ctx)
+	theirVariant := anotherSellableVariant(t, ctx, ownVariant)
+
+	for _, tt := range []struct {
+		name     string
+		hasACart bool
+	}{
+		{"into the account's own cart", true},
+		{"as the account's first cart", false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			u := register(t, accounts, "adopt-owned-"+uuid.NewString()+"@example.com")
+			other := register(t, accounts, "adopt-owned-other-"+uuid.NewString()+"@example.com")
+			otherUID := uuid.MustParse(other.ID)
+
+			var ownCart uuid.UUID
+			if tt.hasACart {
+				if err := pool.QueryRow(ctx,
+					`INSERT INTO carts (token_hash, user_id) VALUES ($1, $2) RETURNING id`,
+					account.HashToken("adopt-owned-own-"+u.ID), uuid.MustParse(u.ID)).Scan(&ownCart); err != nil {
+					t.Fatalf("account cart: %v", err)
+				}
+				if _, err := pool.Exec(ctx,
+					`INSERT INTO cart_items (cart_id, variant_id, quantity) VALUES ($1, $2, 1)`,
+					ownCart, ownVariant); err != nil {
+					t.Fatalf("account line: %v", err)
+				}
+			}
+			var theirCart uuid.UUID
+			if err := pool.QueryRow(ctx,
+				`INSERT INTO carts (token_hash, user_id) VALUES ($1, $2) RETURNING id`,
+				account.HashToken("adopt-owned-theirs-"+u.ID), otherUID).Scan(&theirCart); err != nil {
+				t.Fatalf("other account's cart: %v", err)
+			}
+			if _, err := pool.Exec(ctx,
+				`INSERT INTO cart_items (cart_id, variant_id, quantity) VALUES ($1, $2, 2)`,
+				theirCart, theirVariant); err != nil {
+				t.Fatalf("other account's line: %v", err)
+			}
+
+			if err := accounts.AdoptCart(ctx, u.ID, theirCart); !errors.Is(err, account.ErrNotFound) {
+				t.Errorf("adopting another account's cart returned %v, want ErrNotFound", err)
+			}
+
+			var owner uuid.NullUUID
+			if err := pool.QueryRow(ctx, `SELECT user_id FROM carts WHERE id = $1`, theirCart).
+				Scan(&owner); err != nil {
+				t.Fatalf("the other account's cart is gone: %v", err)
+			}
+			if owner.UUID != otherUID {
+				t.Errorf("the other account's cart is owned by %v, want %s", owner, otherUID)
+			}
+			if qty := cartItemQuantity(t, theirCart, theirVariant); qty != 2 {
+				t.Errorf("the other account's line quantity = %d, want 2", qty)
+			}
+			if tt.hasACart {
+				var lines int
+				if err := pool.QueryRow(ctx, `SELECT count(*) FROM cart_items WHERE cart_id = $1`,
+					ownCart).Scan(&lines); err != nil {
+					t.Fatalf("count the account's lines: %v", err)
+				}
+				if qty := cartItemQuantity(t, ownCart, ownVariant); lines != 1 || qty != 1 {
+					t.Errorf("the account's cart holds %d lines, its own at %d; want only its "+
+						"own line at 1", lines, qty)
+				}
+			}
+		})
 	}
 }
 
@@ -2433,6 +2513,65 @@ func TestConcurrentAdminErasureKeepsOneAdmin(t *testing.T) {
 	}
 	if admins != 1 {
 		t.Errorf("concurrent erasure left %d admins, want 1", admins)
+	}
+}
+
+// TestTheLastAdminIsToldWhyErasureWasRefused: erase_user refuses the only
+// administrator by name, and the page must say so and keep the account usable
+// rather than answer a server error for a request the shop decided to refuse.
+func TestTheLastAdminIsToldWhyErasureWasRefused(t *testing.T) {
+	ctx := t.Context()
+	s := account.NewStore(pool)
+	u := register(t, s, "erase-last-admin-"+uuid.NewString()+"@example.com")
+	id := uuid.MustParse(u.ID)
+	t.Cleanup(func() {
+		// The schema gives even the owner no way back to zero administrators, so a
+		// sentinel takes the role before the fixture gives it up.
+		cleanupCtx := context.WithoutCancel(ctx)
+		_, _ = pool.Exec(cleanupCtx, `
+			INSERT INTO users (email, role, full_name)
+			VALUES ('account-suite-admin@goen.invalid', 'admin', 'Account suite sentinel')
+			ON CONFLICT (lower(email)) DO UPDATE SET role = 'admin'`)
+		_, _ = pool.Exec(cleanupCtx, `DELETE FROM users WHERE id = $1`, id)
+	})
+	if _, err := pool.Exec(ctx, `UPDATE users SET role = 'admin' WHERE id = $1`, id); err != nil {
+		t.Fatalf("promote the fixture: %v", err)
+	}
+	if _, err := pool.Exec(ctx,
+		`UPDATE users SET role = 'customer' WHERE role = 'admin' AND id <> $1`, id); err != nil {
+		t.Fatalf("leave the fixture as the only administrator: %v", err)
+	}
+
+	if err := s.Erase(ctx, u.ID); !errors.Is(err, account.ErrLastAdmin) {
+		t.Fatalf("erasing the last administrator = %v, want ErrLastAdmin", err)
+	}
+
+	h := account.NewHandler(s, nil, slog.New(slog.DiscardHandler), false, nil)
+	token, err := s.StartSession(ctx, u.ID, "test", "192.0.2.1")
+	if err != nil {
+		t.Fatalf("start session: %v", err)
+	}
+	form := url.Values{"confirm": {u.Email}}
+	req := httptest.NewRequestWithContext(account.WithUser(ctx, u), http.MethodPost,
+		"/account/erase", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.AddCookie(&http.Cookie{Name: "goen_session", Value: token}) //nolint:gosec // G124: a request cookie, not a response
+	out := httptest.NewRecorder()
+	h.Erase(out, req)
+	if out.Code != http.StatusSeeOther || out.Header().Get("Location") != "/account?erase=admin" {
+		t.Fatalf("erase handler = %d Location %q, want 303 /account?erase=admin",
+			out.Code, out.Header().Get("Location"))
+	}
+	if cookies := out.Result().Cookies(); len(cookies) != 0 {
+		t.Errorf("refused erasure changed %d cookie(s); the signed-in account must remain usable", len(cookies))
+	}
+	var left int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM users WHERE id = $1 AND role = 'admin'`, id).
+		Scan(&left); err != nil {
+		t.Fatalf("read the administrator: %v", err)
+	}
+	if left != 1 {
+		t.Error("the refused erasure removed the only administrator")
 	}
 }
 

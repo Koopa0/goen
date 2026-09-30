@@ -8,9 +8,11 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/netip"
 	"net/smtp"
 	"os"
 	"os/signal"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -185,6 +187,11 @@ func (cfg *config) prepareRuntimePosture(log *slog.Logger) error {
 			"the listen address produces URLs that only work on this machine")
 	}
 	origin, scheme, ok := web.SiteOrigin(cfg.BaseURL)
+	if !ok && os.Getenv("GOEN_BASE_URL") == "" {
+		return fmt.Errorf("GOEN_BASE_URL is unset and %q, guessed from GOEN_ADDR, is not an "+
+			"origin: a listen address with no host or an unspecified one names no machine "+
+			"a link can reach. Set GOEN_BASE_URL, or give GOEN_ADDR a host", cfg.BaseURL)
+	}
 	if !ok {
 		return fmt.Errorf("GOEN_BASE_URL %q is not an origin: it must be scheme://host "+
 			"with no path, query or credentials, because goen concatenates paths onto "+
@@ -202,11 +209,22 @@ func (cfg *config) prepareRuntimePosture(log *slog.Logger) error {
 
 // trustedProxies is the CIDR set whose X-Forwarded-For goen will believe. A
 // mistyped CIDR is fatal rather than a warning: it would otherwise keep the
-// collapsed single-bucket behaviour it is configuring its way out of.
+// collapsed single-bucket behaviour it is configuring its way out of. So is a
+// set no peer of the listener can be in, which configures nothing and starts
+// looking configured.
 func (cfg *config) trustedProxies(log *slog.Logger) (*ratelimit.Proxies, error) {
 	proxies, err := ratelimit.ParseProxies(cfg.TrustedProxies)
 	if err != nil {
 		return nil, fmt.Errorf("GOEN_TRUSTED_PROXIES: %w", err)
+	}
+	if cfg.TrustedProxies != "" {
+		if peers := listenerPeers(cfg.Addr); peers != nil && !slices.ContainsFunc(peers, proxies.Overlaps) {
+			return nil, fmt.Errorf("GOEN_TRUSTED_PROXIES %q trusts no address that can connect "+
+				"to GOEN_ADDR %s: only this host's loopback reaches that listener, so goen would "+
+				"never read X-Forwarded-For and every visitor would share one rate-limit bucket. "+
+				"Trust the proxy's own address: 127.0.0.1,::1 for a proxy on this host",
+				cfg.TrustedProxies, cfg.Addr)
+		}
 	}
 	if cfg.TrustedProxies == "" && cfg.SecureCookies {
 		log.Warn("GOEN_TRUSTED_PROXIES is not set; if anything terminates TLS in "+
@@ -214,6 +232,38 @@ func (cfg *config) trustedProxies(log *slog.Logger) (*ratelimit.Proxies, error) 
 			"set", "GOEN_TRUSTED_PROXIES")
 	}
 	return proxies, nil
+}
+
+// The loopback networks. A connection to a loopback listener can only come
+// from this host, and it arrives from its own family's loopback address.
+var (
+	loopbackV4 = netip.MustParsePrefix("127.0.0.0/8")
+	loopbackV6 = netip.MustParsePrefix("::1/128")
+)
+
+// listenerPeers is where every connection to a listener on addr comes from,
+// when that can be known: only for a loopback listener. nil is a listener any
+// address might reach, such as ":9700", a wildcard, a host name or an
+// interface address, where no trusted set can be ruled out.
+func listenerPeers(addr string) []netip.Prefix {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		return nil
+	}
+	if strings.EqualFold(host, "localhost") {
+		// net.Listen binds the first IPv4 address a host name resolves to, and
+		// localhost resolves to 127.0.0.1, so a listener there is never reached
+		// from ::1, even where ::1 is localhost too.
+		return []netip.Prefix{loopbackV4}
+	}
+	ip, err := netip.ParseAddr(host)
+	if err != nil || !ip.IsLoopback() {
+		return nil
+	}
+	if ip.Unmap().Is4() {
+		return []netip.Prefix{loopbackV4}
+	}
+	return []netip.Prefix{loopbackV6}
 }
 
 // newServer builds the HTTP server, with its timeouts and its outermost

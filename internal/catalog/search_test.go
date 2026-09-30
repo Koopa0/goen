@@ -115,3 +115,21 @@ func TestSearchKeepsATermWrappedInUnicodeSpaceThenCapsRunes(t *testing.T) {
 		t.Fatalf("SearchPattern after edge trim+cap = %q, want the same %d-rune term", got, MaxQueryRunes)
 	}
 }
+
+// TestEscapeLikeLeavesNoWildcard: every search pattern goen builds from typed
+// words, storefront and back office, escapes LIKE's syntax through this.
+func TestEscapeLikeLeavesNoWildcard(t *testing.T) {
+	for q, want := range map[string]string{
+		"%%":           `\%\%`,
+		"a_b@goen.dev": `a\_b@goen.dev`,
+		`50\%`:         `50\\\%`,
+		"pixel":        "pixel",
+	} {
+		if got := EscapeLike(q); got != want {
+			t.Errorf("EscapeLike(%q) = %q, want %q", q, got, want)
+		}
+	}
+	if got := SearchPattern("_"); got != `%\_%` {
+		t.Errorf("SearchPattern(%q) = %q, want the escaped term between goen's own wildcards", "_", got)
+	}
+}
