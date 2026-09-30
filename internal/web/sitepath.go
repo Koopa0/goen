@@ -1,7 +1,7 @@
 package web
 
 import (
-	"net"
+	"net/netip"
 	"net/url"
 	"strings"
 	"unicode"
@@ -77,9 +77,14 @@ func SiteOrigin(raw string) (origin, scheme string, ok bool) {
 // linkableHost refuses what a listen address allows and a link cannot use.
 // u.Host is ":9701" for "http://:9701", so only the hostname shows it is
 // empty, and 0.0.0.0 or :: means every interface to a listener but no machine
-// to a customer following a Stripe return URL or an emailed link.
+// to a customer following a Stripe return URL or an emailed link, whether it
+// is spelled IPv4-mapped or with a zone.
 func linkableHost(host string) bool {
-	return host != "" && !net.ParseIP(host).IsUnspecified()
+	if host == "" {
+		return false
+	}
+	addr, err := netip.ParseAddr(host)
+	return err != nil || !addr.Unmap().WithZone("").IsUnspecified()
 }
 
 func hasControl(s string) bool {

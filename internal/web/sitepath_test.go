@@ -171,6 +171,7 @@ func TestSiteOriginRefusesWhatIsNotAnOrigin(t *testing.T) {
 		{"the unspecified IPv4 address", "http://0.0.0.0:9701", "", ""},
 		{"the unspecified IPv6 address", "http://[::]:9701", "", ""},
 		{"the unspecified address, IPv4-mapped", "http://[::ffff:0.0.0.0]:9701", "", ""},
+		{"the unspecified IPv6 address with a zone", "http://[::%25eth0]:9701", "", ""},
 		{"an IPv6 loopback", "http://[::1]:9700", "http://[::1]:9700", "http"},
 		{"empty", "", "", ""},
 	}
