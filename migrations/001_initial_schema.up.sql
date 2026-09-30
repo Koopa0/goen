@@ -2572,13 +2572,14 @@ CREATE TRIGGER orders_history_frozen
     BEFORE UPDATE OF cancelled_at, completed_at ON orders
     FOR EACH ROW EXECUTE FUNCTION orders_freeze_history();
 
--- The account an order belongs to is a fact of the sale: spend_store_credit
--- debits the owner it reads here and redeem_coupon counts the coupon against it,
--- so a writer who could move it could spend another account's credit or step
--- round a per-customer limit and put the owner back. Checkout writes it once, as
--- the order is placed; the one later change is erasure's ON DELETE SET NULL,
--- which runs after the account row has gone. Everything else is refused: another
--- account, an owner for a guest order, and NULL while the account still exists.
+-- Once an order is written, the account it belongs to changes only by erasure's
+-- ON DELETE SET NULL, which runs after the account row has gone. Everything else
+-- is refused: another account, an owner for a guest order, and NULL while the
+-- account still exists. spend_store_credit debits the owner it reads here and
+-- redeem_coupon counts the coupon against it, so an owner moved afterwards would
+-- spend another account's credit, or step round a per-customer limit and be put
+-- back. The owner an order is written with is not this trigger's to judge: store
+-- writes it as it places the order, and that is the storefront role's trust.
 CREATE FUNCTION orders_freeze_owner() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
