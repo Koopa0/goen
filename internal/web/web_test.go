@@ -8,11 +8,11 @@ import (
 	"testing"
 )
 
-// TestAFormThatIsNotUTF8IsRefused: a byte sequence that is not UTF-8 passes
+// TestAFormWhoseTextCannotBeStoredIsRefused: a byte sequence that is not UTF-8 passes
 // every rune-counting validator and is refused only by PostgreSQL, as a 500.
 // ParseForm is the one place every form handler reads through, so it refuses
 // the request there, and each caller answers 400.
-func TestAFormThatIsNotUTF8IsRefused(t *testing.T) {
+func TestAFormWhoseTextCannotBeStoredIsRefused(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		name  string
@@ -21,11 +21,14 @@ func TestAFormThatIsNotUTF8IsRefused(t *testing.T) {
 		want  error
 	}{
 		{name: "UTF-8", body: "name=%E7%8E%8B%E5%B0%8F%E6%98%8E&message=hello", want: nil},
-		{name: "lone byte in a value", body: "name=x&message=%E9%E9%E9", want: ErrFormNotUTF8},
-		{name: "truncated sequence in a value", body: "name=%E7%8E", want: ErrFormNotUTF8},
-		{name: "overlong encoding in a value", body: "name=%C0%AF", want: ErrFormNotUTF8},
-		{name: "not UTF-8 in a name", body: "%E9=x", want: ErrFormNotUTF8},
-		{name: "not UTF-8 in the query", query: "?next=%E9", body: "name=x", want: ErrFormNotUTF8},
+		{name: "lone byte in a value", body: "name=x&message=%E9%E9%E9", want: ErrFormText},
+		{name: "truncated sequence in a value", body: "name=%E7%8E", want: ErrFormText},
+		{name: "overlong encoding in a value", body: "name=%C0%AF", want: ErrFormText},
+		{name: "not UTF-8 in a name", body: "%E9=x", want: ErrFormText},
+		{name: "not UTF-8 in the query", query: "?next=%E9", body: "name=x", want: ErrFormText},
+		{name: "NUL in a value", body: "email=a%00%40example.com", want: ErrFormText},
+		{name: "NUL in a name", body: "na%00me=x", want: ErrFormText},
+		{name: "NUL in the query", query: "?number=GO%00", body: "name=x", want: ErrFormText},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()

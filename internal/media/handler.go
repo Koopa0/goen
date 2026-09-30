@@ -141,7 +141,7 @@ func (h *Handler) OpenUpload(w http.ResponseWriter, r *http.Request, field strin
 	}
 	// The caller reads the text fields beside the image from this same parse,
 	// and web.ParseForm is not on this path to refuse them.
-	if err := web.FormIsUTF8(r.Form); err != nil {
+	if err := web.CheckFormText(r.Form); err != nil {
 		_ = r.MultipartForm.RemoveAll() //nolint:errcheck // best-effort temp cleanup
 		return nil, err
 	}

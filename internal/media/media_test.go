@@ -424,10 +424,10 @@ func TestA1600RenditionIsRendered(t *testing.T) {
 	}
 }
 
-// TestAnUploadFormThatIsNotUTF8IsRefused: the image is optional on a hero
+// TestAnUploadFormWhoseTextCannotBeStoredIsRefused: the image is optional on a hero
 // slide, so an upload form with no file still has its text fields stored, and
 // one that is not UTF-8 would reach PostgreSQL.
-func TestAnUploadFormThatIsNotUTF8IsRefused(t *testing.T) {
+func TestAnUploadFormWhoseTextCannotBeStoredIsRefused(t *testing.T) {
 	var body bytes.Buffer
 	mw := multipart.NewWriter(&body)
 	if err := mw.WriteField("alt", "Caf\xe9"); err != nil {
@@ -444,7 +444,7 @@ func TestAnUploadFormThatIsNotUTF8IsRefused(t *testing.T) {
 	http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, err = h.ReadUpload(w, r, "image")
 	}).ServeHTTP(httptest.NewRecorder(), r)
-	if !errors.Is(err, web.ErrFormNotUTF8) {
-		t.Fatalf("ReadUpload = %v, want web.ErrFormNotUTF8", err)
+	if !errors.Is(err, web.ErrFormText) {
+		t.Fatalf("ReadUpload = %v, want web.ErrFormText", err)
 	}
 }
