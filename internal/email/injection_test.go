@@ -3,6 +3,7 @@ package email
 import (
 	"context"
 	"net/url"
+	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
@@ -19,55 +20,80 @@ func (r *recorded) Send(_ context.Context, m *Message) error {
 	return nil
 }
 
-// letters sends one of every letter goen writes, with each free-text field
-// the payload carries set to text.
+// letters sends one of every letter goen writes, keyed by the Notifier method
+// that writes it, with each free-text field the payload carries set to text.
 func letters(text string) map[string]func(context.Context, Notifier) error {
 	const to = "someone@example.com"
 	return map[string]func(context.Context, Notifier) error{
-		"order.placed": func(ctx context.Context, n Notifier) error {
+		"SendOrderPlaced": func(ctx context.Context, n Notifier) error {
 			return n.SendOrderPlaced(ctx, &OrderPlaced{
 				Email: to, Name: text, OrderNumber: "GO-260101-000001", TotalCents: 123400,
 			})
 		},
-		"order.paid": func(ctx context.Context, n Notifier) error {
+		"SendOrderPaid": func(ctx context.Context, n Notifier) error {
 			return n.SendOrderPaid(ctx, &OrderPaid{
 				Email: to, Name: text, OrderNumber: "GO-260101-000001", AmountCents: 123400, Card: text,
 			})
 		},
-		"order.shipped": func(ctx context.Context, n Notifier) error {
+		"SendOrderShipped": func(ctx context.Context, n Notifier) error {
 			return n.SendOrderShipped(ctx, &OrderShipped{
 				Email: to, Name: text, OrderNumber: "GO-260101-000001", Carrier: text, Tracking: text,
 			})
 		},
-		"order.terminal": func(ctx context.Context, n Notifier) error {
+		"SendOrderTerminal": func(ctx context.Context, n Notifier) error {
 			return n.SendOrderTerminal(ctx, &OrderTerminal{OrderID: uuid.New(), Kind: TerminalDelivered},
 				TerminalRecipient{Address: to, Name: text, OrderNumber: "GO-260101-000001"})
 		},
-		"catalogue.restocked": func(ctx context.Context, n Notifier) error {
+		"SendRestockNotice": func(ctx context.Context, n Notifier) error {
 			return n.SendRestockNotice(ctx, &RestockNotice{
 				Email: to, ProductName: text, Slug: "koto-pad", SKU: "KP-1",
 			})
 		},
-		"account.password_reset": func(ctx context.Context, n Notifier) error {
+		"SendPasswordReset": func(ctx context.Context, n Notifier) error {
 			return n.SendPasswordReset(ctx, &PasswordReset{Email: to, Token: "tok"})
 		},
-		"account.email_verify": func(ctx context.Context, n Notifier) error {
+		"SendAddressVerify": func(ctx context.Context, n Notifier) error {
 			return n.SendAddressVerify(ctx, &AddressVerify{Email: to, Token: "tok"})
 		},
-		"staff.invitation": func(ctx context.Context, n Notifier) error {
+		"SendStaffInvitation": func(ctx context.Context, n Notifier) error {
 			return n.SendStaffInvitation(ctx, &StaffInvitation{UserID: uuid.NewString()}, to, text)
 		},
-		"newsletter.confirm": func(ctx context.Context, n Notifier) error {
+		"SendNewsletterConfirm": func(ctx context.Context, n Notifier) error {
 			return n.SendNewsletterConfirm(ctx, &NewsletterConfirm{Email: to, Token: "tok"})
 		},
-		"newsletter.welcome": func(ctx context.Context, n Notifier) error {
+		"SendNewsletterWelcome": func(ctx context.Context, n Notifier) error {
 			return n.SendNewsletterWelcome(ctx, &NewsletterWelcome{Email: to, UnsubscribeToken: "tok"})
 		},
-		"newsletter.issue": func(ctx context.Context, n Notifier) error {
+		"SendNewsletterIssue": func(ctx context.Context, n Notifier) error {
 			return n.SendNewsletterIssue(ctx, &NewsletterIssue{
 				Email: to, Subject: text, Body: "本期內容", UnsubscribeToken: "tok",
 			})
 		},
+	}
+}
+
+// TestLettersWritesEveryLetterNotifierSends holds letters to Notifier's Send
+// methods, so a letter added to Notifier is held to the header and link tests
+// below rather than passing them unseen.
+func TestLettersWritesEveryLetterNotifierSends(t *testing.T) {
+	t.Parallel()
+	table := letters("Alex")
+	notifier := reflect.TypeFor[*Notifier]()
+	sends := make(map[string]bool)
+	for i := range notifier.NumMethod() {
+		name := notifier.Method(i).Name
+		if !strings.HasPrefix(name, "Send") {
+			continue
+		}
+		sends[name] = true
+		if _, ok := table[name]; !ok {
+			t.Errorf("Notifier.%s sends a letter that letters() never writes", name)
+		}
+	}
+	for name := range table {
+		if !sends[name] {
+			t.Errorf("letters() writes %q, which is no Send method of Notifier", name)
+		}
 	}
 }
 
@@ -93,8 +119,8 @@ func TestNoTextInALetterCanAddAMailHeader(t *testing.T) {
 		"王小明\r\n\r\nContent-Type: text/html",
 		"Alex\u2028Bcc: harvest@example.net",
 	} {
-		for topic, send := range letters(text) {
-			t.Run(topic+"/"+strconv.Itoa(i), func(t *testing.T) {
+		for letter, send := range letters(text) {
+			t.Run(letter+"/"+strconv.Itoa(i), func(t *testing.T) {
 				t.Parallel()
 				sink := &recorded{}
 				if err := send(t.Context(), New(sink, "https://goen.test", "", "")); err != nil {
@@ -169,8 +195,8 @@ func TestEveryMailedLinkStartsAtTheConfiguredOrigin(t *testing.T) {
 	t.Parallel()
 	const origin = "https://shop.configured.example"
 
-	for topic, send := range letters("Alex") {
-		t.Run(topic, func(t *testing.T) {
+	for letter, send := range letters("Alex") {
+		t.Run(letter, func(t *testing.T) {
 			t.Parallel()
 			sink := &recorded{}
 			if err := send(t.Context(), New(sink, origin+"/", "", "")); err != nil {
@@ -182,13 +208,13 @@ func TestEveryMailedLinkStartsAtTheConfiguredOrigin(t *testing.T) {
 			links := mailedLink.FindAllString(sink.msgs[0].Body, -1)
 			if len(links) == 0 {
 				t.Fatalf("the %s letter carries no link; the test would prove nothing:\n%s",
-					topic, sink.msgs[0].Body)
+					letter, sink.msgs[0].Body)
 			}
 			for _, link := range links {
 				u, err := url.Parse(link)
 				if err != nil || u.Scheme+"://"+u.Host != origin || u.User != nil ||
 					!strings.HasPrefix(link, origin+"/") {
-					t.Errorf("the %s letter links to %q, outside %s", topic, link, origin)
+					t.Errorf("the %s letter links to %q, outside %s", letter, link, origin)
 				}
 			}
 		})
