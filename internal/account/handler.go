@@ -23,8 +23,8 @@ import (
 
 // CartFinder is what account needs of the cart: the cart a request's cookie
 // names, so sign-in can adopt it, and forgetting that cookie and the one naming
-// the browser's orders at sign-out, so the browser keeps no reference to the
-// account's cart or to any order.
+// the browser's orders when a session ends, so the browser keeps no reference
+// to the account's cart or to any order.
 type CartFinder interface {
 	CartIDForRequest(ctx context.Context, r *http.Request) (uuid.UUID, bool)
 	ForgetCart(w http.ResponseWriter, r *http.Request)
@@ -100,7 +100,7 @@ func (h *Handler) Authenticate(next http.Handler) http.Handler {
 			// member out at once during a blip — unrecoverably, because the row
 			// survives and the browser no longer holds the token for it.
 			if errors.Is(err, ErrNotFound) {
-				ClearSessionCookie(w, h.secure)
+				h.forgetSession(w, r)
 			} else {
 				h.log.ErrorContext(r.Context(), "read session", "error", err)
 			}
@@ -261,12 +261,20 @@ func (h *Handler) SignOut(w http.ResponseWriter, r *http.Request) {
 	if err := h.store.EndSession(r.Context(), ReadSessionCookie(r, h.secure)); err != nil {
 		h.log.ErrorContext(r.Context(), "end session", "error", err)
 	}
+	h.forgetSession(w, r)
+	http.Redirect(w, r, "/", http.StatusSeeOther)
+}
+
+// forgetSession clears what a browser keeps of a session that has ended: the
+// session cookie, and the account's cart and the browser's orders. A session
+// also ends without its browser signing out, when it expires or is ended from
+// another device, and the next person at that browser must inherit none of it.
+func (h *Handler) forgetSession(w http.ResponseWriter, r *http.Request) {
 	ClearSessionCookie(w, h.secure)
 	if h.carts != nil {
 		h.carts.ForgetCart(w, r)
 		h.carts.ForgetOrders(w, r)
 	}
-	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
 // Overview serves GET /account.
@@ -626,7 +634,7 @@ func (h *Handler) Erase(w http.ResponseWriter, r *http.Request) {
 		if err := h.store.EndSession(r.Context(), token); err != nil {
 			h.log.ErrorContext(r.Context(), "end stale session", "error", err)
 		}
-		ClearSessionCookie(w, h.secure)
+		h.forgetSession(w, r)
 		http.Redirect(w, r, "/signin?next=%2Faccount&reauth=erase", http.StatusSeeOther)
 		return
 	}

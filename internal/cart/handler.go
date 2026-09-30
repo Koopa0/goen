@@ -1564,11 +1564,11 @@ func (h *Handler) CartIDForRequest(ctx context.Context, r *http.Request) (uuid.U
 	return id, ok
 }
 
-// ForgetCart expires this browser's cart cookie at sign-out unless it names a
-// guest cart no account owns. An account's cart must not stay reachable from
-// the browser for the next person at it. A guest cart is the browser's: when
-// sign-in could not adopt it the customer kept shopping in it, and the cookie
-// is the only way back to it.
+// ForgetCart expires this browser's cart cookie when its session ends unless it
+// names a guest cart no account owns. An account's cart must not stay
+// reachable from the browser for the next person at it. A guest cart is the
+// browser's: when sign-in could not adopt it the customer kept shopping in it,
+// and the cookie is the only way back to it.
 func (h *Handler) ForgetCart(w http.ResponseWriter, r *http.Request) {
 	token := ReadCookie(r, h.secure)
 	if token == "" {
@@ -1587,10 +1587,10 @@ func (h *Handler) ForgetCart(w http.ResponseWriter, r *http.Request) {
 }
 
 // ForgetOrders ends this browser's access to the orders it placed or found and
-// expires the cookie naming them, so a browser that signs out keeps no way back
-// into an order's name, address and actions for the next person at it. The
+// expires the cookie naming them, so a browser whose session ends keeps no way
+// back into an order's name, address and actions for the next person at it. The
 // grants go as well as the cookie, because a client can ignore an expiry. A
-// failure to revoke is logged rather than stopping the sign-out.
+// failure to revoke is logged rather than stopping the session's end.
 func (h *Handler) ForgetOrders(w http.ResponseWriter, r *http.Request) {
 	if err := h.store.ForgetOrders(r.Context(), r, h.secure); err != nil {
 		h.log.ErrorContext(r.Context(), "forget this browser's orders", "error", err)

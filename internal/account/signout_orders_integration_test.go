@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -128,6 +129,234 @@ func TestSigningOutEndsTheBrowsersAccessToItsOrders(t *testing.T) {
 	}
 	if code := opens(guestOrder, placedCookie(t, found)); code != http.StatusOK {
 		t.Errorf("an order found again answered %d, want 200", code)
+	}
+}
+
+// placedOrders is a browser holding proof of access to a guest order it placed
+// and to an order it placed signed in as u, served by the router's own
+// Authenticate and cart middleware.
+type placedOrders struct {
+	t        *testing.T
+	h        *account.Handler
+	carts    *cart.Handler
+	accounts *account.Store
+	u        account.User
+	orders   []string
+	placed   *http.Cookie
+}
+
+func newPlacedOrders(t *testing.T, name string) *placedOrders {
+	t.Helper()
+	ctx := t.Context()
+	appPool := accountStorePool(t, name)
+	shop := cart.NewStore(appPool)
+	p := &placedOrders{t: t, accounts: account.NewStore(appPool)}
+	p.carts = cart.NewHandler(shop, slog.New(slog.DiscardHandler), false,
+		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}),
+		nil, nil)
+	p.h = account.NewHandler(p.accounts, p.carts, slog.New(slog.DiscardHandler), false, nil)
+	addr := name + "-" + uuid.NewString() + "@example.com"
+	p.u = registerProved(t, p.accounts, addr)
+
+	var shippingID uuid.UUID
+	if err := pool.QueryRow(ctx, `
+		SELECT v.id FROM shipping_method_versions v JOIN shipping_methods m ON m.id = v.method_id
+		WHERE m.code = 'home_delivery' ORDER BY v.effective_at DESC, v.id DESC LIMIT 1`).Scan(&shippingID); err != nil {
+		t.Fatalf("read the delivery method: %v", err)
+	}
+	variant := ownVariant(t, name)
+	for _, buyer := range []uuid.NullUUID{{}, {UUID: uuid.MustParse(p.u.ID), Valid: true}} {
+		token, err := cart.NewToken()
+		if err != nil {
+			t.Fatalf("cart token: %v", err)
+		}
+		cartID, err := shop.Create(ctx, token, buyer)
+		if err != nil {
+			t.Fatalf("create cart: %v", err)
+		}
+		if err = shop.Add(ctx, cartID, variant, 1); err != nil {
+			t.Fatalf("add to cart: %v", err)
+		}
+		address := &cart.Address{Email: addr, Name: "登出測試", Phone: "0912345678",
+			PostalCode: "110", City: "台北市", District: "信義區", Street: "松仁路 1 號"}
+		number, err := shop.PlaceOrder(ctx, cartID, buyer, shippingID, address, nil, "",
+			accountCheckoutQuote(t, shop, cartID, buyer, shippingID, address.PostalCode),
+			checkoutAttemptKey(name+"-"+uuid.NewString()))
+		if err != nil {
+			t.Fatalf("place order: %v", err)
+		}
+		req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/checkout", http.NoBody)
+		if p.placed != nil {
+			req.AddCookie(p.placed)
+		}
+		rec := httptest.NewRecorder()
+		if err := shop.RememberOrder(ctx, rec, req, number, false); err != nil {
+			t.Fatalf("remember order: %v", err)
+		}
+		p.orders = append(p.orders, number)
+		p.placed = placedCookie(t, rec)
+	}
+	for _, number := range p.orders {
+		if code := p.opens(number, p.placed); code != http.StatusOK {
+			t.Fatalf("order %s answered %d to the browser that placed it, want 200; "+
+				"the fixture proves nothing", number, code)
+		}
+	}
+	return p
+}
+
+// ownVariant is a published product of the calling test's own with one variant
+// in stock. The suite shuffles, and orders held on a shared variant take the
+// stock other tests count on.
+func ownVariant(t *testing.T, name string) uuid.UUID {
+	t.Helper()
+	ctx := t.Context()
+	slug := name + "-" + uuid.NewString()[:8]
+	var productID, variantID uuid.UUID
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO products (brand_id, category_id, slug, name, status, published_at)
+		SELECT b.id, c.id, $1, $1, 'draft', NULL
+		FROM brands b, categories c
+		ORDER BY b.id, c.id LIMIT 1
+		RETURNING id`, slug).Scan(&productID); err != nil {
+		t.Fatalf("create product %s: %v", slug, err)
+	}
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO product_variants (product_id, sku, price_cents, is_active, position)
+		VALUES ($1, $2, 199900, true, 0) RETURNING id`,
+		productID, strings.ToUpper(slug)).Scan(&variantID); err != nil {
+		t.Fatalf("create variant: %v", err)
+	}
+	if _, err := pool.Exec(ctx,
+		`SELECT record_inventory_movement($1, 10, 'adjustment', $2, 'admin', NULL, NULL)`,
+		variantID, "fixture:"+variantID.String()); err != nil {
+		t.Fatalf("stock the variant: %v", err)
+	}
+	// Published only now: products_active_has_variant is deferred and fires from
+	// both sides.
+	if _, err := pool.Exec(ctx,
+		`UPDATE products SET status = 'active', published_at = now() WHERE id = $1`, productID); err != nil {
+		t.Fatalf("publish %s: %v", slug, err)
+	}
+	return variantID
+}
+
+func (p *placedOrders) serve(route http.HandlerFunc, req *http.Request) *httptest.ResponseRecorder {
+	rec := httptest.NewRecorder()
+	p.h.Authenticate(p.carts.WithCount(route)).ServeHTTP(rec, req)
+	return rec
+}
+
+func (p *placedOrders) opens(number string, cookies ...*http.Cookie) int {
+	p.t.Helper()
+	req := httptest.NewRequestWithContext(p.t.Context(), http.MethodGet, "/orders/"+number, http.NoBody)
+	req.SetPathValue("number", number)
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+	return p.serve(p.carts.OrderPage, req).Code
+}
+
+// signIn starts a session for p.u and returns the cookie a browser holds for it.
+func (p *placedOrders) signIn() *http.Cookie {
+	p.t.Helper()
+	session, err := p.accounts.StartSession(p.t.Context(), p.u.ID, "session-end", "127.0.0.1")
+	if err != nil {
+		p.t.Fatalf("start session: %v", err)
+	}
+	//nolint:gosec // G124: the development session cookie a browser sends back
+	return &http.Cookie{Name: "goen_session", Value: session}
+}
+
+// forgotten fails the test unless rec expired the placed cookie and the old
+// cookie now opens neither order.
+func (p *placedOrders) forgotten(step string, rec *httptest.ResponseRecorder) {
+	p.t.Helper()
+	if c := placedCookie(p.t, rec); c.MaxAge >= 0 {
+		p.t.Errorf("%s: the answer left the placed cookie %q (Max-Age %d), want it expired", step, c.Value, c.MaxAge)
+	}
+	for _, number := range p.orders {
+		if code := p.opens(number, p.placed); code != http.StatusNotFound {
+			p.t.Errorf("%s: order %s answered %d to the old cookie, want 404", step, number, code)
+		}
+	}
+}
+
+// TestASessionThatEndsWithoutSignOutEndsTheBrowsersAccessToItsOrders: a session
+// expires, or is ended from another device, and its browser never signs out.
+// The next request that brings its cookie finds it gone, and the browser keeps
+// no more of the orders than sign-out would leave it.
+func TestASessionThatEndsWithoutSignOutEndsTheBrowsersAccessToItsOrders(t *testing.T) {
+	for name, end := range map[string]func(*testing.T, *placedOrders, *http.Cookie){
+		"ended from another device": func(t *testing.T, p *placedOrders, session *http.Cookie) {
+			t.Helper()
+			if err := p.accounts.EndSession(t.Context(), session.Value); err != nil {
+				t.Fatalf("end the session: %v", err)
+			}
+		},
+		"expired": func(t *testing.T, _ *placedOrders, session *http.Cookie) {
+			t.Helper()
+			if _, err := pool.Exec(t.Context(), `
+				UPDATE sessions SET created_at = now() - interval '15 days',
+				                    expires_at = now() - interval '1 second'
+				WHERE token_hash = $1`,
+				account.HashToken(session.Value)); err != nil {
+				t.Fatalf("expire the session: %v", err)
+			}
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			p := newPlacedOrders(t, "session-end")
+			session := p.signIn()
+			end(t, p, session)
+
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody)
+			req.AddCookie(session)
+			req.AddCookie(p.placed)
+			p.forgotten("the next request", p.serve(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusNoContent)
+			}, req))
+		})
+	}
+}
+
+// TestAStaleSessionAtErasureEndsTheBrowsersAccessToItsOrders: erasure asks a
+// session older than its window to sign in again and ends it first, which is a
+// session ending like any other.
+func TestAStaleSessionAtErasureEndsTheBrowsersAccessToItsOrders(t *testing.T) {
+	p := newPlacedOrders(t, "erase-stale")
+	session := p.signIn()
+	if _, err := pool.Exec(t.Context(), `
+		UPDATE sessions SET created_at = now() - interval '1 day' WHERE token_hash = $1`,
+		account.HashToken(session.Value)); err != nil {
+		t.Fatalf("age the session: %v", err)
+	}
+	req := cartForm(t.Context(), "/account/erase", url.Values{"confirm": {p.u.Email}})
+	req.AddCookie(session)
+	req.AddCookie(p.placed)
+	rec := p.serve(p.h.Erase, req)
+	if loc := rec.Header().Get("Location"); !strings.HasPrefix(loc, "/signin?") {
+		t.Fatalf("erasure with a stale session answered %d to %q, want the sign-in page", rec.Code, loc)
+	}
+	p.forgotten("erasure with a stale session", rec)
+}
+
+// TestABrowserThatNeverSignedInKeepsItsOrders: a guest's own proof is its only
+// way back to its orders, and nothing here ends a session it never had.
+func TestABrowserThatNeverSignedInKeepsItsOrders(t *testing.T) {
+	p := newPlacedOrders(t, "never-signed-in")
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody)
+	req.AddCookie(p.placed)
+	rec := p.serve(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) }, req)
+	for _, c := range rec.Result().Cookies() {
+		if c.Name == "goen_placed" {
+			t.Errorf("a browser that never signed in was sent %s (Max-Age %d)", c.Name, c.MaxAge)
+		}
+	}
+	for _, number := range p.orders {
+		if code := p.opens(number, p.placed); code != http.StatusOK {
+			t.Errorf("order %s answered %d to the browser that placed it, want 200", number, code)
+		}
 	}
 }
 
