@@ -277,3 +277,69 @@ func TestOnlyTheMailboxLearnsThatAnAddressHasAnAccount(t *testing.T) {
 		t.Errorf("a free address was sent %v and %v told; want the link sent to it and nobody told", sent, told)
 	}
 }
+
+// TestALinkThatCanNoLongerBeFollowedIsNeverMailed: by the time the worker
+// reaches a queued link it may have been replaced by a later request, spent, or
+// left to expire. Mailed, it would only be a letter that fails when followed, so
+// nothing is sent and nobody is told.
+func TestALinkThatCanNoLongerBeFollowedIsNeverMailed(t *testing.T) {
+	for name, kill := range map[string]func(t *testing.T, s *account.Store, asker account.User, p *email.AddressVerify){
+		"replaced by a later request": func(t *testing.T, s *account.Store, asker account.User, _ *email.AddressVerify) {
+			t.Helper()
+			requestVerification(t, s, asker.ID, "dead-link-later-"+uuid.NewString()+"@example.com")
+		},
+		"spent": func(t *testing.T, s *account.Store, asker account.User, p *email.AddressVerify) {
+			t.Helper()
+			if _, err := s.ConfirmVerification(t.Context(), p.Token, asker.ID); err != nil {
+				t.Fatalf("spend the link: %v", err)
+			}
+		},
+		"expired": func(t *testing.T, _ *account.Store, asker account.User, _ *email.AddressVerify) {
+			t.Helper()
+			if _, err := pool.Exec(t.Context(), `
+				UPDATE email_verifications
+				SET created_at = now() - interval '50 hours', expires_at = now() - interval '2 hours'
+				WHERE user_id = $1`, uuid.MustParse(asker.ID)); err != nil {
+				t.Fatalf("age the link: %v", err)
+			}
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			ctx := t.Context()
+			s := account.NewStore(pool)
+			asker := registerProved(t, s, "dead-link-"+uuid.NewString()+"@example.com")
+			free := "dead-link-to-" + uuid.NewString() + "@example.com"
+			requestVerification(t, s, asker.ID, free)
+			var payload []byte
+			if err := pool.QueryRow(ctx, `
+				SELECT payload FROM outbox_messages
+				WHERE topic = $1 AND lower(payload->>'email') = lower($2)
+				ORDER BY id DESC LIMIT 1`, outbox.TopicEmailVerify, free).Scan(&payload); err != nil {
+				t.Fatalf("read the queued link for %s: %v", free, err)
+			}
+			var p email.AddressVerify
+			if err := json.Unmarshal(payload, &p); err != nil {
+				t.Fatalf("decode the queued link: %v", err)
+			}
+			kill(t, s, asker, &p)
+
+			var sent []string
+			var told []email.AccountExists
+			if err := s.DeliverAddressVerify(ctx, &p,
+				func(_ context.Context, p *email.AddressVerify) error {
+					sent = append(sent, p.Email)
+					return nil
+				},
+				func(_ context.Context, p *email.AccountExists) error {
+					told = append(told, *p)
+					return nil
+				}); err != nil {
+				t.Fatalf("deliver the link: %v", err)
+			}
+			if len(sent) != 0 || len(told) != 0 {
+				t.Errorf("a link that can no longer be followed was sent to %v and %v told; want nothing mailed",
+					sent, told)
+			}
+		})
+	}
+}
