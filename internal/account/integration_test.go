@@ -1293,6 +1293,83 @@ func TestAdoptCartRefusesGuestCartOwnedByAnotherAccount(t *testing.T) {
 	}
 }
 
+// TestAdoptCartNeverTakesAnotherAccountsCart calls the store directly with a
+// cart another account owns, as a sign-in that lost a race for it would. The
+// lines are sellable, so nothing but the ownership guard stands between that
+// call and the other account's cart being merged away or taken over.
+func TestAdoptCartNeverTakesAnotherAccountsCart(t *testing.T) {
+	ctx := t.Context()
+	accounts := account.NewStore(pool)
+	ownVariant := sellableVariant(t, ctx)
+	theirVariant := anotherSellableVariant(t, ctx, ownVariant)
+
+	for _, tt := range []struct {
+		name     string
+		hasACart bool
+	}{
+		{"into the account's own cart", true},
+		{"as the account's first cart", false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			u := register(t, accounts, "adopt-owned-"+uuid.NewString()+"@example.com")
+			other := register(t, accounts, "adopt-owned-other-"+uuid.NewString()+"@example.com")
+			otherUID := uuid.MustParse(other.ID)
+
+			var ownCart uuid.UUID
+			if tt.hasACart {
+				if err := pool.QueryRow(ctx,
+					`INSERT INTO carts (token_hash, user_id) VALUES ($1, $2) RETURNING id`,
+					account.HashToken("adopt-owned-own-"+u.ID), uuid.MustParse(u.ID)).Scan(&ownCart); err != nil {
+					t.Fatalf("account cart: %v", err)
+				}
+				if _, err := pool.Exec(ctx,
+					`INSERT INTO cart_items (cart_id, variant_id, quantity) VALUES ($1, $2, 1)`,
+					ownCart, ownVariant); err != nil {
+					t.Fatalf("account line: %v", err)
+				}
+			}
+			var theirCart uuid.UUID
+			if err := pool.QueryRow(ctx,
+				`INSERT INTO carts (token_hash, user_id) VALUES ($1, $2) RETURNING id`,
+				account.HashToken("adopt-owned-theirs-"+u.ID), otherUID).Scan(&theirCart); err != nil {
+				t.Fatalf("other account's cart: %v", err)
+			}
+			if _, err := pool.Exec(ctx,
+				`INSERT INTO cart_items (cart_id, variant_id, quantity) VALUES ($1, $2, 2)`,
+				theirCart, theirVariant); err != nil {
+				t.Fatalf("other account's line: %v", err)
+			}
+
+			if err := accounts.AdoptCart(ctx, u.ID, theirCart); !errors.Is(err, account.ErrNotFound) {
+				t.Errorf("adopting another account's cart returned %v, want ErrNotFound", err)
+			}
+
+			var owner uuid.NullUUID
+			if err := pool.QueryRow(ctx, `SELECT user_id FROM carts WHERE id = $1`, theirCart).
+				Scan(&owner); err != nil {
+				t.Fatalf("the other account's cart is gone: %v", err)
+			}
+			if owner.UUID != otherUID {
+				t.Errorf("the other account's cart is owned by %v, want %s", owner, otherUID)
+			}
+			if qty := cartItemQuantity(t, theirCart, theirVariant); qty != 2 {
+				t.Errorf("the other account's line quantity = %d, want 2", qty)
+			}
+			if tt.hasACart {
+				var lines int
+				if err := pool.QueryRow(ctx, `SELECT count(*) FROM cart_items WHERE cart_id = $1`,
+					ownCart).Scan(&lines); err != nil {
+					t.Fatalf("count the account's lines: %v", err)
+				}
+				if qty := cartItemQuantity(t, ownCart, ownVariant); lines != 1 || qty != 1 {
+					t.Errorf("the account's cart holds %d lines, its own at %d; want only its "+
+						"own line at 1", lines, qty)
+				}
+			}
+		})
+	}
+}
+
 func sessionCookie(t *testing.T, rec *httptest.ResponseRecorder) *http.Cookie {
 	t.Helper()
 	for _, c := range rec.Result().Cookies() {
