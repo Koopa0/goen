@@ -422,7 +422,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	handler = onlyVisitorPaths(customers.Authenticate, handler)
 	handler = withStorefrontRequestBudget(handler)
 	handler = crossOriginProtection(handler, cfg.StoreMap.Enabled())
-	handler = securityHeaders(handler, policyWith(cfg.StoreMap.Origin()))
+	handler = securityHeaders(handler, policyWith(cfg.StoreMap.Origin()), secureCookies)
 	handler = web.Compress(handler)
 	return withRequestTracing(handler, log)
 }
@@ -510,12 +510,25 @@ func validRequestID(s string) bool {
 	return true
 }
 
-func securityHeaders(next http.Handler, policy string) http.Handler {
+// strictTransportSecurity tells a browser that has reached goen over https to
+// use nothing else for a year, on this host and its subdomains, so a network
+// that rewrites an http:// link cannot keep a visitor in cleartext to read a
+// password, a second-factor code or an address. preload is left to the owner:
+// it is hard to undo.
+const strictTransportSecurity = "max-age=31536000; includeSubDomains"
+
+// securityHeaders sets what every response carries. HSTS goes only with secure
+// cookies: development serves plain http, and a browser that once saw the
+// header on localhost would refuse http there for a year.
+func securityHeaders(next http.Handler, policy string, secure bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h := w.Header()
 		h.Set("Content-Security-Policy", policy)
 		h.Set("X-Content-Type-Options", "nosniff")
 		h.Set("Referrer-Policy", "strict-origin-when-cross-origin")
+		if secure {
+			h.Set("Strict-Transport-Security", strictTransportSecurity)
+		}
 		if speculates(r) {
 			h.Set("Speculation-Rules", `"`+assets.URL(assets.SpeculationRules)+`"`)
 		}

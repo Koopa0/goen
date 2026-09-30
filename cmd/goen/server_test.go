@@ -18,8 +18,12 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/account"
+	"github.com/koopa0/goen/internal/admin"
+	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/web"
 )
@@ -117,7 +121,7 @@ func TestNothingStatelessRendersChrome(t *testing.T) {
 }
 
 func TestAnAssetIsNotCompressedTwiceByTheChain(t *testing.T) {
-	h := web.Compress(securityHeaders(assets.Handler(slog.New(slog.DiscardHandler)), contentSecurityPolicy))
+	h := web.Compress(securityHeaders(assets.Handler(slog.New(slog.DiscardHandler)), contentSecurityPolicy, false))
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, assets.URL(assets.AppCSS), http.NoBody)
 	req.Header.Set("Accept-Encoding", "gzip")
 	res := httptest.NewRecorder()
@@ -903,6 +907,47 @@ func TestNoPageForOneVisitorIsKeptByTheBrowser(t *testing.T) {
 					"loses its instant Back and protects nobody", tt.method, tt.path, got)
 			}
 		})
+	}
+}
+
+// TestOnlyTheSecurePosturePinsHTTPS drives the real router in both postures.
+// With secure cookies goen is behind TLS, and HSTS stops a network that rewrites
+// an http:// link from keeping a visitor in cleartext. Without them it serves
+// http://127.0.0.1, where the header would pin a developer's localhost to https.
+func TestOnlyTheSecurePosturePinsHTTPS(t *testing.T) {
+	t.Parallel()
+
+	idle, err := pgxpool.New(t.Context(), "postgres://unused:unused@127.0.0.1:1/unused?sslmode=disable")
+	if err != nil {
+		t.Fatalf("open an unused pool: %v", err)
+	}
+	t.Cleanup(idle.Close)
+	gateway, err := payment.NewGateway("", "", "http://127.0.0.1")
+	if err != nil {
+		t.Fatalf("build a disabled payment gateway: %v", err)
+	}
+
+	for _, tt := range []struct {
+		secure bool
+		want   string
+	}{
+		{secure: true, want: "max-age=31536000; includeSubDomains"},
+		{secure: false, want: ""},
+	} {
+		router := newRouter(&RouterConfig{
+			Pool: idle, AdminPool: idle, Payments: gateway,
+			Refunder: admin.NewRefunder(""), BaseURL: "https://goen.test",
+			SecureCookies: tt.secure,
+		}, slog.New(slog.DiscardHandler))
+		// A probe reaches no database, so the idle pool answers for nothing.
+		res := httptest.NewRecorder()
+		router.ServeHTTP(res, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/healthz", http.NoBody))
+		if res.Code != http.StatusOK {
+			t.Fatalf("secure=%v: /healthz answered %d", tt.secure, res.Code)
+		}
+		if got := res.Header().Get("Strict-Transport-Security"); got != tt.want {
+			t.Errorf("secure=%v: Strict-Transport-Security = %q, want %q", tt.secure, got, tt.want)
+		}
 	}
 }
 
