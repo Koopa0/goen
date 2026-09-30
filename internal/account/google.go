@@ -158,7 +158,7 @@ func (g *Google) token(ctx context.Context, code, verifier string) (string, erro
 	}
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("google refused the code exchange: %d %s",
-			resp.StatusCode, strings.TrimSpace(string(body)))
+			resp.StatusCode, oauthErrorCode(body))
 	}
 	var out struct {
 		AccessToken string `json:"access_token"`
@@ -170,6 +170,31 @@ func (g *Google) token(ctx context.Context, code, verifier string) (string, erro
 		return "", errors.New("google returned no access token")
 	}
 	return out.AccessToken, nil
+}
+
+// maxOAuthErrorCode bounds the one field of a refusal goen keeps; the longest
+// code RFC 6749 defines is 22 bytes.
+const maxOAuthErrorCode = 40
+
+// oauthErrorCode is the error field of a token endpoint's refusal (RFC 6749
+// §5.2) when it is a code, or "unrecognised". The rest of the body is dropped
+// before anything logs it: the description and whatever else a provider or a
+// proxy in between adds are free text, and can carry the request's own code or
+// the client's details.
+func oauthErrorCode(body []byte) string {
+	var refusal struct {
+		Error string `json:"error"`
+	}
+	if json.Unmarshal(body, &refusal) != nil ||
+		refusal.Error == "" || len(refusal.Error) > maxOAuthErrorCode {
+		return "unrecognised"
+	}
+	for _, c := range refusal.Error {
+		if (c < 'a' || c > 'z') && c != '_' {
+			return "unrecognised"
+		}
+	}
+	return refusal.Error
 }
 
 func (g *Google) userInfo(ctx context.Context, token string) (Identity, error) {
