@@ -32,22 +32,40 @@ const openSessionReply = `{"id":"cs_bounded","object":"checkout.session","status
 	`"url":"https://checkout.stripe.com/c/pay/cs_bounded"}`
 
 // TestAStripeReplyPastTheBoundIsRefused holds the read bound on the one
-// provider whose SDK reads a reply whole. The oversized reply is a VALID
-// session behind leading whitespace, so only the bound can refuse it.
+// provider whose SDK reads a reply whole, and holds that the bound fails the
+// reply rather than cutting it short. A cut reply is invalid JSON, and the SDK
+// quotes the first 500 bytes of invalid JSON into the error goen logs, so a
+// cutting bound would log a customer's email. Each oversized reply is valid
+// JSON with that email in its leading bytes: only the bound can refuse it, and
+// only a failing bound keeps the email out of the error.
 func TestAStripeReplyPastTheBoundIsRefused(t *testing.T) {
+	const customer = "bound-probe@example.com"
+	session := func(pad int) string {
+		return `{"id":"cs_bounded","object":"checkout.session","customer_email":"` + customer +
+			`","pad":"` + strings.Repeat("x", pad) +
+			`","status":"open","url":"https://checkout.stripe.com/c/pay/cs_bounded"}`
+	}
+	declined := func(pad int) string {
+		return `{"error":{"type":"card_error","code":"card_declined",` +
+			`"payment_intent":{"id":"pi_bounded","receipt_email":"` + customer +
+			`"},"pad":"` + strings.Repeat("x", pad) + `"}}`
+	}
 	tests := []struct {
 		name   string
-		padded int
+		status int
+		reply  string
 		ok     bool
 	}{
-		{name: "an ordinary reply", padded: 0, ok: true},
-		{name: "a reply past the bound", padded: stripeReplyLimit, ok: false},
+		{name: "an ordinary reply", status: http.StatusOK, reply: session(0), ok: true},
+		{name: "a session past the bound", status: http.StatusOK, reply: session(stripeReplyLimit)},
+		{name: "an error past the bound", status: http.StatusPaymentRequired, reply: declined(stripeReplyLimit)},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.Header().Set("Content-Type", "application/json")
-				_, _ = io.WriteString(w, strings.Repeat(" ", tt.padded)+openSessionReply)
+				w.WriteHeader(tt.status)
+				_, _ = io.WriteString(w, tt.reply)
 			}))
 			t.Cleanup(srv.Close)
 
@@ -59,8 +77,13 @@ func TestAStripeReplyPastTheBoundIsRefused(t *testing.T) {
 				return
 			}
 			if err == nil {
-				t.Fatalf("ResumeSession() read a %d-byte reply whole and returned %q",
-					tt.padded+len(openSessionReply), redirect)
+				t.Fatalf("ResumeSession() read a %d-byte reply whole and returned %q", len(tt.reply), redirect)
+			}
+			if strings.Contains(err.Error(), customer) {
+				t.Errorf("the error goen would log quotes the reply's customer %q:\n%v", customer, err)
+			}
+			if _, ok := errors.AsType[*http.MaxBytesError](err); !ok {
+				t.Errorf("ResumeSession() error = %v; want the reply failed at the %d-byte bound", err, stripeReplyLimit)
 			}
 		})
 	}
