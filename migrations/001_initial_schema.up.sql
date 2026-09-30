@@ -1079,10 +1079,11 @@ BEGIN
             USING ERRCODE = 'check_violation', CONSTRAINT = 'inventory_hold_needs_pending';
     END IF;
 
-    -- The order's own lines bound what it may hold. Without this, any pending
-    -- order id store can name takes any variant off sale for the hold window.
-    -- Lines and holds are both written under the order lock taken above, so
-    -- neither sum can move before the insert below. A consumed hold left the
+    -- A hold takes no more of a variant than the order's lines carry of it,
+    -- less what the order already holds. The bound is the lines as they stand
+    -- when the hold is taken; which lines an order may carry is not decided
+    -- here. Lines and holds are both written under the order lock taken above,
+    -- so neither sum can move before the insert below. A consumed hold left the
     -- shelf for this order as well; only a released one came back.
     SELECT coalesce(sum(quantity), 0) INTO ordered
     FROM order_lines WHERE order_id = p_order_id AND variant_id = p_variant_id;
