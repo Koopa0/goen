@@ -185,6 +185,51 @@ func queuedResetRequests(t *testing.T) map[string]string {
 	return out
 }
 
+// TestSpentRegistrationsLeaveAnAddressItsResetLink: anybody may register an
+// address, and a reset is how its owner takes back an account somebody else
+// registered there. Reset requests are counted apart from registrations and
+// address changes, so spending those for the address does not stop the reset.
+func TestSpentRegistrationsLeaveAnAddressItsResetLink(t *testing.T) {
+	ctx := t.Context()
+	h := account.NewHandler(account.NewStore(pool), nil, slog.New(slog.DiscardHandler), false, nil)
+	addr := "forgot-apart-" + uuid.NewString() + "@example.com"
+	register := func() int {
+		rec := httptest.NewRecorder()
+		h.Register(rec, registrationForm(ctx, addr, "an intruder's long password", "/account"))
+		return rec.Code
+	}
+	for i := range 3 {
+		if code := register(); code != http.StatusSeeOther {
+			t.Fatalf("registration %d of the address answered %d, want 303", i+1, code)
+		}
+	}
+	if code := register(); code != http.StatusTooManyRequests {
+		t.Fatalf("a fourth registration answered %d, want 429; the address's registration budget "+
+			"is not spent, so the check below proves nothing", code)
+	}
+	var owner string
+	if err := pool.QueryRow(ctx, `SELECT id::text FROM users WHERE lower(email) = lower($1)`, addr).
+		Scan(&owner); err != nil {
+		t.Fatalf("read the account the registrations made: %v", err)
+	}
+
+	before := queuedResetRequests(t)
+	rec := httptest.NewRecorder()
+	h.Forgot(rec, cartForm(ctx, "/forgot", url.Values{"email": {addr}}))
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("a reset request after the registrations answered %d, want 303", rec.Code)
+	}
+	queued := 0
+	for key, user := range queuedResetRequests(t) {
+		if _, old := before[key]; !old && user == owner {
+			queued++
+		}
+	}
+	if queued != 1 {
+		t.Errorf("the reset request queued %d requests for the address's account, want 1", queued)
+	}
+}
+
 // TestResetRequestsForOneAddressAreBoundedWithoutSayingWhoHasAnAccount: a reset
 // request mails the account at the address whoever asks, so the requests naming
 // one address are bounded at the pace of every other form that mails an
@@ -200,14 +245,17 @@ func TestResetRequestsForOneAddressAreBoundedWithoutSayingWhoHasAnAccount(t *tes
 		h.Forgot(rec, cartForm(ctx, "/forgot", url.Values{"email": {addr}}))
 		return rec
 	}
+	// Spent in spellings of one address the form accepts: its capitalisations
+	// and padding name the same mailbox, and none may buy a budget of its own.
 	refusal := func(addr string) *httptest.ResponseRecorder {
 		t.Helper()
-		for i := range 3 {
-			if rec := forgot(addr); rec.Code != http.StatusSeeOther {
-				t.Fatalf("reset request %d for %s answered %d, want 303", i+1, addr, rec.Code)
+		spellings := []string{addr, strings.ToUpper(addr), " " + strings.ToUpper(addr[:1]) + addr[1:] + " "}
+		for i, spelling := range spellings {
+			if rec := forgot(spelling); rec.Code != http.StatusSeeOther {
+				t.Fatalf("reset request %d for %q answered %d, want 303", i+1, spelling, rec.Code)
 			}
 		}
-		return forgot(addr)
+		return forgot(strings.ToUpper(addr[:len(addr)/2]) + addr[len(addr)/2:])
 	}
 	knownRec, unknownRec := refusal(known), refusal(unknown)
 
