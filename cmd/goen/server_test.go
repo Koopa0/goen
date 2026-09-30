@@ -845,7 +845,7 @@ func TestSiteOriginReachesTheChromeFromTheConfiguredBaseURL(t *testing.T) {
 	h := withSiteOrigin(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 		got = layouts.SiteOrigin(r.Context())
 	}), "https://shop.example/")
-	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "http://evil.example/", http.NoBody))
+	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequestWithContext(t.Context(), http.MethodGet, "http://evil.example/", http.NoBody))
 	if got != "https://shop.example" {
 		t.Errorf("origin = %q, want the configured one and never the request's Host", got)
 	}
