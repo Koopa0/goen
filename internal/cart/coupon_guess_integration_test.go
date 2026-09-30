@@ -230,6 +230,44 @@ func TestWrongCouponCodesSentAtOnceAreBoundedByTheSameBudget(t *testing.T) {
 	}
 }
 
+// TestACodeAnsweredBeforeItsLookupCostsNothing: a checkout carrying a code can
+// be answered before the code is looked up, when the cart was emptied in
+// another tab. Nothing was learned about the code, so the tokens set aside for
+// it go back, and no number of such answers refuses the client a code later.
+func TestACodeAnsweredBeforeItsLookupCostsNothing(t *testing.T) {
+	g := newCouponGuesses(t, "coupon-unlooked")
+	valid := "UNLOOKED" + strings.ToUpper(uuid.NewString()[:6])
+	coupon(t, valid, "amount", 1000, 0, 0, 0, 0)
+	const client = "198.51.100.88:5000"
+
+	token, err := cart.NewToken()
+	if err != nil {
+		t.Fatalf("token: %v", err)
+	}
+	if _, err := g.s.Create(t.Context(), token, uuid.NullUUID{}); err != nil {
+		t.Fatalf("create cart: %v", err)
+	}
+	for i := range couponMissBudget + 5 {
+		res := g.ask(token, client, "EMPTIED"+strconv.Itoa(i), nil)
+		switch {
+		case res.Code == http.StatusSeeOther && res.Header().Get("Location") == "/cart":
+		case res.Code == http.StatusTooManyRequests:
+			t.Fatalf("code %d for an empty cart was refused 429: the codes before it were charged "+
+				"although none was looked up", i+1)
+		default:
+			t.Fatalf("a code for an empty cart answered %d to %q, want 303 to /cart; "+
+				"the test needs an answer that comes before the lookup", res.Code, res.Header().Get("Location"))
+		}
+	}
+
+	unknown := i18n.T(t.Context(), i18n.KeyCouponUnknown)
+	if res := g.ask(g.guestCart(), client, valid, nil); res.Code != http.StatusOK ||
+		strings.Contains(res.Body.String(), unknown) {
+		t.Errorf("after %d answers that came before any lookup, the client's code that applies "+
+			"answered %d; nothing was looked up, so nothing may be charged", couponMissBudget+5, res.Code)
+	}
+}
+
 // TestACartsWrongCouponCodesAreBoundedFromEveryClient: signed out, a wrong code
 // is charged to the cart as well as the client, so one cart asking through many
 // addresses has one budget between them.
