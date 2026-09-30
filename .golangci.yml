@@ -267,13 +267,14 @@ linters:
           msg: use http.Server + graceful shutdown
         - pattern: ^errors\.As$
           msg: use errors.AsType[T] (Go 1.26)
-        # GOEN: a Stripe client built anywhere else, or the SDK's global
-        # backend, calls Stripe over the SDK's own HTTP client: no reply bound.
-        # Matched by type, so an import alias does not hide the call.
-        - pattern: ^stripe\.NewClient$
+        # GOEN: a Stripe client or backend built anywhere else, or the SDK's
+        # global backend, calls Stripe over the SDK's own HTTP client unless one
+        # is handed in: no reply bound. Matched by type, so an import alias does
+        # not hide the call.
+        - pattern: ^stripe\.(NewClient|NewBackends|NewBackendsWithConfig|GetBackendWithConfig)$
           pkg: ^github\.com/stripe/stripe-go/v\d+$
           msg: a Stripe client is built only by payment.NewStripeClient, which carries goen's timeout and reply bound
-        - pattern: ^stripe\.(GetBackend|GetRawRequestBackend|RawRequest)$
+        - pattern: ^stripe\.(GetBackend|GetRawRequestBackend|RawRequest|SetBackend|SetHTTPClient)$
           pkg: ^github\.com/stripe/stripe-go/v\d+$
           msg: the SDK's global backend has no reply bound; call Stripe through a client from payment.NewStripeClient
 
