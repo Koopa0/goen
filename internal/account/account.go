@@ -28,7 +28,8 @@ var (
 	ErrLastSignInMethod = errors.New("account: that is the only way to sign in")
 	// ErrBadCredentials is a wrong email or password: one error for both, or the form enumerates accounts.
 	ErrBadCredentials = errors.New("account: bad credentials")
-	// ErrEmailTaken is a registration for an address that already has an account.
+	// ErrEmailTaken is an address another account holds by the time a link
+	// would prove it for this one.
 	ErrEmailTaken = errors.New("account: email taken")
 	// ErrInvalidInput is profile or saved-address text outside the server bounds.
 	ErrInvalidInput = errors.New("account: invalid input")

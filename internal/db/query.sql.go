@@ -5791,26 +5791,6 @@ func (q *Queries) EligibilityFactsForAssessments(ctx context.Context, assessment
 	return items, nil
 }
 
-const emailBelongsToSomebodyElse = `-- name: EmailBelongsToSomebodyElse :one
-SELECT EXISTS (
-    SELECT 1 FROM users
-    WHERE lower(email) = lower($1::text) AND id <> $2
-) AS taken
-`
-
-type EmailBelongsToSomebodyElseParams struct {
-	Email  string
-	UserID uuid.UUID
-}
-
-// Not the guard: users_email_key is, because an address can be taken in between.
-func (q *Queries) EmailBelongsToSomebodyElse(ctx context.Context, arg EmailBelongsToSomebodyElseParams) (bool, error) {
-	row := q.db.QueryRow(ctx, emailBelongsToSomebodyElse, arg.Email, arg.UserID)
-	var taken bool
-	err := row.Scan(&taken)
-	return taken, err
-}
-
 const emailVerification = `-- name: EmailVerification :one
 SELECT (u.email_verified_at IS NOT NULL)::boolean AS verified,
        coalesce((SELECT v.email FROM email_verifications v
@@ -8625,6 +8605,31 @@ func (q *Queries) OrderTracking(ctx context.Context, orderID uuid.UUID) ([]Order
 		return nil, err
 	}
 	return items, nil
+}
+
+const otherAccountAtAddress = `-- name: OtherAccountAtAddress :one
+SELECT email, full_name FROM users
+WHERE lower(email) = lower($1::text) AND id <> $2
+`
+
+type OtherAccountAtAddressParams struct {
+	Email  string
+	UserID uuid.UUID
+}
+
+type OtherAccountAtAddressRow struct {
+	Email    string
+	FullName pgtype.Text
+}
+
+// Read by the outbox worker, never by the request, so asking to move to an
+// address costs the same whether or not it has an account. Not the guard:
+// users_email_key is, because an address can be taken in between.
+func (q *Queries) OtherAccountAtAddress(ctx context.Context, arg OtherAccountAtAddressParams) (OtherAccountAtAddressRow, error) {
+	row := q.db.QueryRow(ctx, otherAccountAtAddress, arg.Email, arg.UserID)
+	var i OtherAccountAtAddressRow
+	err := row.Scan(&i.Email, &i.FullName)
+	return i, err
 }
 
 const parkProductImages = `-- name: ParkProductImages :exec

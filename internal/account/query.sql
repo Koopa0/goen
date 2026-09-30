@@ -368,12 +368,12 @@ SELECT (u.email_verified_at IS NOT NULL)::boolean AS verified,
                  WHERE v.user_id = u.id AND v.expires_at > now()), '')::text AS pending_email
 FROM users u WHERE u.id = $1;
 
--- Not the guard: users_email_key is, because an address can be taken in between.
--- name: EmailBelongsToSomebodyElse :one
-SELECT EXISTS (
-    SELECT 1 FROM users
-    WHERE lower(email) = lower(@email::text) AND id <> @user_id
-) AS taken;
+-- Read by the outbox worker, never by the request, so asking to move to an
+-- address costs the same whether or not it has an account. Not the guard:
+-- users_email_key is, because an address can be taken in between.
+-- name: OtherAccountAtAddress :one
+SELECT email, full_name FROM users
+WHERE lower(email) = lower(@email::text) AND id <> @user_id;
 -- Keyed on the SUBJECT: a Google account can change address, and a released
 -- Workspace address can be reassigned to somebody else.
 -- name: LockGoogleSubject :exec

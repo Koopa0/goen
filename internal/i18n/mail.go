@@ -119,6 +119,18 @@ var (
 			"If you have forgotten the password, reset it here:\n%s\n\nIf it was not " +
 			"you, ignore this message — nothing about your account has changed.",
 	})
+	KeyMailAddressInUseSubject = key("mail.inuse.subject", Message{
+		ZhHant: "有人要求使用你的 goen 信箱",
+		En:     "Somebody asked to use your goen address",
+	})
+	KeyMailAddressInUseBody = key("mail.inuse.body", Message{
+		ZhHant: "有人要求把另一個 goen 帳號的信箱改成這個信箱。這個信箱已經屬於你的帳號,所以沒有任何帳號被改動。\n\n如果是你,直接用這個信箱登入就可以:\n%s\n\n忘記密碼的話,在這裡重設:\n%s\n\n如果這不是你,不用理會這封信 —— 你的帳號沒有任何改變。",
+		En: "Somebody asked to move another goen account to this address. It already " +
+			"belongs to your account, so no account was changed.\n\nIf that was you, sign " +
+			"in with this address here:\n%s\n\nIf you have forgotten the password, reset " +
+			"it here:\n%s\n\nIf it was not you, ignore this message — nothing about your " +
+			"account has changed.",
+	})
 
 	KeyMailNewsConfirmSubject = key("mail.news.confirm.subject", Message{
 		ZhHant: "確認訂閱 goen 電子報",

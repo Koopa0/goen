@@ -696,7 +696,7 @@ func handleMessages(messages *outbox.Store, d workerDeps) {
 	messages.HandleJSON[email.OrderTerminal](outbox.TopicOrderTerminal, terminalOrderHandler(ordernotice.NewRecipients(d.pool), d.notifier))
 	messages.HandleJSON[email.NewsletterConfirm](outbox.TopicNewsletterConfirm, d.notifier.SendNewsletterConfirm)
 	messages.HandleJSON[email.NewsletterWelcome](outbox.TopicNewsletterWelcome, d.notifier.SendNewsletterWelcome)
-	messages.HandleJSON[email.AddressVerify](outbox.TopicEmailVerify, d.notifier.SendAddressVerify)
+	messages.HandleJSON[email.AddressVerify](outbox.TopicEmailVerify, addressVerifyHandler(account.NewStore(d.pool), d.notifier))
 	messages.HandleJSON[email.StaffInvitation](outbox.TopicStaffInvitation, staffInvitationHandler(twofactor.NewStore(d.pool, nil), d.notifier))
 	messages.HandleJSON[email.NewsletterIssue](outbox.TopicNewsletterIssue,
 		newsletterIssueHandler(newsletter.NewStore(d.pool), d.notifier))
@@ -732,6 +732,15 @@ func newsletterIssueHandler(
 func registrationHandler(accounts *account.Store, notifier email.Notifier) func(context.Context, *account.Registration) error {
 	return func(ctx context.Context, r *account.Registration) error {
 		return accounts.FollowUpRegistration(ctx, r, notifier.SendAccountExists)
+	}
+}
+
+// addressVerifyHandler delivers a link to prove an address on the store pool,
+// which is the one that wrote it: the link goes out, or, when the address is
+// by now another account's, that account is told instead.
+func addressVerifyHandler(accounts *account.Store, notifier email.Notifier) func(context.Context, *email.AddressVerify) error {
+	return func(ctx context.Context, p *email.AddressVerify) error {
+		return accounts.DeliverAddressVerify(ctx, p, notifier.SendAddressVerify, notifier.SendAccountExists)
 	}
 }
 

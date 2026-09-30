@@ -314,8 +314,6 @@ func accountNotice(r *http.Request) string {
 		return i18n.T(ctx, i18n.KeyEraseLastAdmin)
 	case q.Get("email") == "sent":
 		return i18n.T(ctx, i18n.KeyEmailSent)
-	case q.Get("email") == "taken":
-		return i18n.T(ctx, i18n.KeyEmailTakenNotice)
 	case q.Get("email") == "invalid":
 		return i18n.T(ctx, i18n.KeyEmailInvalidNotice)
 	case q.Get("unlinked") == "1":
@@ -725,15 +723,14 @@ func (h *Handler) ChangeEmail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	switch err := h.store.requestVerification(r.Context(), u.ID, addr); {
-	case err == nil:
-		http.Redirect(w, r, "/account?email=sent", http.StatusSeeOther)
-	case errors.Is(err, ErrEmailTaken):
-		http.Redirect(w, r, "/account?email=taken", http.StatusSeeOther)
-	default:
+	// The same answer whether or not the address has an account: only the
+	// mailbox is told which, by the outbox worker.
+	if err := h.store.requestVerification(r.Context(), u.ID, addr); err != nil {
 		h.log.ErrorContext(r.Context(), "request email verification", "error", err)
 		h.serverError(w, r)
+		return
 	}
+	http.Redirect(w, r, "/account?email=sent", http.StatusSeeOther)
 }
 
 // ResendVerification serves POST /account/email/resend.

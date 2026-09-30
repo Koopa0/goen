@@ -3,18 +3,25 @@
 package account_test
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"slices"
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/account"
+	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/outbox"
 )
 
 // changeBrowser drives the account handlers the way the router does, through
@@ -166,5 +173,107 @@ func TestAnAddressChangeLinkTakesTheAccountThatAskedBackThroughSignIn(t *testing
 	}
 	if got := emailOf(t, asker.ID); got != target {
 		t.Errorf("the account is at %s after confirming, want %s", got, target)
+	}
+}
+
+// TestAnAddressChangeAnswersTheSameWhetherOrNotTheAddressIsTaken: any account
+// may ask to move to any address, so the answer must not say which addresses
+// have an account. A taken address and a free one get the same answer and the
+// same headers, from the same statements.
+func TestAnAddressChangeAnswersTheSameWhetherOrNotTheAddressIsTaken(t *testing.T) {
+	ctx := t.Context()
+	asker := registerProved(t, account.NewStore(pool), "change-probe-"+uuid.NewString()+"@example.com")
+	taken := registerProved(t, account.NewStore(pool), "change-taken-"+uuid.NewString()+"@example.com").Email
+	free := "change-free-" + uuid.NewString() + "@example.com"
+	session := changeBrowser{t: t, h: account.NewHandler(account.NewStore(pool), nil,
+		slog.New(slog.DiscardHandler), false, nil)}.signIn(asker.Email)
+
+	statements := &statementLog{}
+	b := changeBrowser{t: t, h: account.NewHandler(account.NewStore(tracedStorePool(t, statements)), nil,
+		slog.New(slog.DiscardHandler), false, nil)}
+	ask := func(addr string) (*httptest.ResponseRecorder, []string) {
+		statements.take()
+		rec := b.askToMove(session, addr)
+		return rec, statements.take()
+	}
+	takenRec, takenSQL := ask(taken)
+	freeRec, freeSQL := ask(free)
+
+	if takenRec.Code != http.StatusSeeOther || freeRec.Code != takenRec.Code {
+		t.Fatalf("statuses taken/free = %d/%d, want 303 for both", takenRec.Code, freeRec.Code)
+	}
+	if loc := freeRec.Header().Get("Location"); loc != "/account?email=sent" {
+		t.Errorf("a change lands at %q, want /account?email=sent", loc)
+	}
+	if diff := cmp.Diff(takenRec.Header(), freeRec.Header()); diff != "" {
+		t.Errorf("changes to a taken and a free address answer different headers (-taken +free):\n%s", diff)
+	}
+	if takenRec.Body.String() != freeRec.Body.String() {
+		t.Errorf("changes to a taken and a free address answer different bodies: %q and %q",
+			takenRec.Body.String(), freeRec.Body.String())
+	}
+	if len(takenSQL) == 0 {
+		t.Fatal("the tracer recorded no statement for a change; the comparison below measures nothing")
+	}
+	if !slices.Equal(takenSQL, freeSQL) {
+		t.Errorf("a taken address sends %d statements and a free one %d; they must be the same "+
+			"work, statement for statement:\ntaken: %q\nfree:  %q",
+			len(takenSQL), len(freeSQL), takenSQL, freeSQL)
+	}
+	if state, err := account.NewStore(pool).EmailVerification(ctx, asker.ID); err != nil || state.PendingEmail != free {
+		t.Errorf("the account page shows %q pending (%v), want the address last asked for", state.PendingEmail, err)
+	}
+}
+
+// TestOnlyTheMailboxLearnsThatAnAddressHasAnAccount is the worker's half: the
+// link to a free address goes out, and a taken address's owner is told that
+// somebody asked for it instead, with nothing that proves or opens anything.
+func TestOnlyTheMailboxLearnsThatAnAddressHasAnAccount(t *testing.T) {
+	ctx := t.Context()
+	s := account.NewStore(pool)
+	asker := registerProved(t, s, "change-mail-"+uuid.NewString()+"@example.com")
+	owner := registerProved(t, s, "change-mail-owner-"+uuid.NewString()+"@example.com")
+	free := "change-mail-free-" + uuid.NewString() + "@example.com"
+
+	deliver := func(addr string) (sent []string, told []email.AccountExists) {
+		t.Helper()
+		requestVerification(t, s, asker.ID, addr)
+		var payload []byte
+		if err := pool.QueryRow(ctx, `
+			SELECT payload FROM outbox_messages
+			WHERE topic = $1 AND lower(payload->>'email') = lower($2)
+			ORDER BY id DESC LIMIT 1`, outbox.TopicEmailVerify, addr).Scan(&payload); err != nil {
+			t.Fatalf("read the queued link for %s: %v", addr, err)
+		}
+		var p email.AddressVerify
+		if err := json.Unmarshal(payload, &p); err != nil {
+			t.Fatalf("decode the queued link: %v", err)
+		}
+		if err := s.DeliverAddressVerify(ctx, &p,
+			func(_ context.Context, p *email.AddressVerify) error {
+				sent = append(sent, p.Email)
+				return nil
+			},
+			func(_ context.Context, p *email.AccountExists) error {
+				told = append(told, *p)
+				return nil
+			}); err != nil {
+			t.Fatalf("deliver the link for %s: %v", addr, err)
+		}
+		return sent, told
+	}
+
+	sent, told := deliver(owner.Email)
+	if len(sent) != 0 {
+		t.Errorf("the link to move an account to %s went to %v; it is another account's address", owner.Email, sent)
+	}
+	want := []email.AccountExists{{Email: owner.Email, Name: owner.Name, Change: true}}
+	if diff := cmp.Diff(want, told, cmpopts.IgnoreFields(email.AccountExists{}, "Locale")); diff != "" {
+		t.Errorf("the address's owner was told (-want +got):\n%s", diff)
+	}
+
+	sent, told = deliver(free)
+	if !slices.Equal(sent, []string{free}) || len(told) != 0 {
+		t.Errorf("a free address was sent %v and %v told; want the link sent to it and nobody told", sent, told)
 	}
 }

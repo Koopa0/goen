@@ -55,7 +55,9 @@ func (s *Store) EmailVerification(ctx context.Context, userID string) (Verificat
 
 // requestVerification atomically asks for addr to be proved and queues the
 // link. The token is operation-local; the account keeps its old address until
-// the queued link is followed.
+// the queued link is followed. It does the same work whether or not addr is
+// another account's, so the caller can answer both the same; the outbox worker
+// decides what the mailbox is sent, in [Store.DeliverAddressVerify].
 func (s *Store) requestVerification(ctx context.Context, userID, addr string) error {
 	return s.queueVerification(ctx, userID, addr, email.AddressVerify{})
 }
@@ -71,16 +73,6 @@ func (s *Store) queueVerification(ctx context.Context, userID, addr string, link
 	addr = email.Clean(addr)
 	if EmailError(addr) != "" {
 		return fmt.Errorf("requesting verification of %q: not a usable address", addr)
-	}
-
-	taken, takenErr := s.q.EmailBelongsToSomebodyElse(ctx, db.EmailBelongsToSomebodyElseParams{
-		Email: addr, UserID: id,
-	})
-	if takenErr != nil {
-		return fmt.Errorf("check whether %q is taken: %w", addr, takenErr)
-	}
-	if taken {
-		return ErrEmailTaken
 	}
 
 	token, tokenErr := NewToken()
@@ -129,6 +121,39 @@ func (s *Store) queueVerification(ctx context.Context, userID, addr string, link
 		return fmt.Errorf("commit verification request: %w", err)
 	}
 	return nil
+}
+
+// DeliverAddressVerify is the outbox's half of a request to prove an address.
+// The link goes out through send, unless by now the address is another
+// account's: then that account is told through tell, at the address it holds,
+// and the link goes nowhere. The request answered both the same, so only the
+// mailbox learns which it was. A link already spent, expired or replaced is
+// nothing to send.
+func (s *Store) DeliverAddressVerify(
+	ctx context.Context,
+	p *email.AddressVerify,
+	send func(context.Context, *email.AddressVerify) error,
+	tell func(context.Context, *email.AccountExists) error,
+) error {
+	verification, err := usableVerification(ctx, s.q, HashToken(p.Token))
+	if errors.Is(err, ErrVerifyInvalid) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	holder, err := s.q.OtherAccountAtAddress(ctx, db.OtherAccountAtAddressParams{
+		Email: verification.Email, UserID: verification.UserID,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return send(ctx, p)
+	}
+	if err != nil {
+		return fmt.Errorf("read the account at the address: %w", err)
+	}
+	return tell(ctx, &email.AccountExists{
+		Locale: p.Locale, Email: holder.Email, Name: holder.FullName.String, Change: true,
+	})
 }
 
 // Confirmed is what following a verification link did.

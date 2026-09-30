@@ -3,34 +3,46 @@ package email
 import (
 	"strings"
 	"testing"
+
+	"github.com/koopa0/goen/internal/i18n"
 )
 
 // TestTheAccountExistsLetterCarriesNoCapability: a second registration of an
-// address is answered in this letter, to its owner, and whoever registered can
-// make it arrive at will. So it points at the two doors the owner already has
-// and carries nothing that opens one.
+// address, or a request to move another account to it, is answered in this
+// letter, to its owner, and whoever asked can make it arrive at will. So it
+// points at the two doors the owner already has and carries nothing that opens
+// one, and it says which of the two was attempted.
 func TestTheAccountExistsLetterCarriesNoCapability(t *testing.T) {
 	t.Parallel()
-	for _, locale := range []string{"en", "zh-TW"} {
-		n, sink := notifier(t)
-		if err := n.SendAccountExists(t.Context(), &AccountExists{
-			Locale: locale, Email: "owner@example.com", Name: "Owner",
-		}); err != nil {
-			t.Fatal(err)
+	for _, change := range []bool{false, true} {
+		subject := i18n.KeyMailAccountExistsSubject
+		if change {
+			subject = i18n.KeyMailAddressInUseSubject
 		}
-		if sink.msg == nil || sink.msg.To != "owner@example.com" {
-			t.Fatalf("the letter went to %+v, want the account's own address", sink.msg)
-		}
-		for _, link := range []string{"https://goen.test/signin", "https://goen.test/forgot"} {
-			if !strings.Contains(sink.msg.Body, link) {
-				t.Errorf("the %s letter does not point at %s:\n%s", locale, link, sink.msg.Body)
+		for _, locale := range []string{"en", "zh-TW"} {
+			n, sink := notifier(t)
+			if err := n.SendAccountExists(t.Context(), &AccountExists{
+				Locale: locale, Email: "owner@example.com", Name: "Owner", Change: change,
+			}); err != nil {
+				t.Fatal(err)
 			}
-		}
-		if strings.Contains(sink.msg.Body, "token=") {
-			t.Errorf("the %s letter carries a token:\n%s", locale, sink.msg.Body)
-		}
-		if hasHan(sink.msg.Body) != (locale == "zh-TW") {
-			t.Errorf("the letter ignored locale %q", locale)
+			if sink.msg == nil || sink.msg.To != "owner@example.com" {
+				t.Fatalf("the letter went to %+v, want the account's own address", sink.msg)
+			}
+			if want := i18n.T(i18n.WithLocale(t.Context(), i18n.Parse(locale)), subject); sink.msg.Subject != want {
+				t.Errorf("the %s letter for change=%v is titled %q, want %q", locale, change, sink.msg.Subject, want)
+			}
+			for _, link := range []string{"https://goen.test/signin", "https://goen.test/forgot"} {
+				if !strings.Contains(sink.msg.Body, link) {
+					t.Errorf("the %s letter does not point at %s:\n%s", locale, link, sink.msg.Body)
+				}
+			}
+			if strings.Contains(sink.msg.Body, "token=") {
+				t.Errorf("the %s letter carries a token:\n%s", locale, sink.msg.Body)
+			}
+			if hasHan(sink.msg.Body) != (locale == "zh-TW") {
+				t.Errorf("the letter ignored locale %q", locale)
+			}
 		}
 	}
 	n, _ := notifier(t)
