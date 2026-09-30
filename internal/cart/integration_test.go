@@ -734,14 +734,14 @@ func TestCartIsFoundByTokenNotByID(t *testing.T) {
 		t.Fatalf("create: %v", err)
 	}
 
-	got, err := s.CartByToken(t.Context(), tok)
+	got, err := s.CartByToken(t.Context(), tok, uuid.NullUUID{})
 	if err != nil || got != id {
 		t.Fatalf("CartByToken(token) = %v/%v, want %v", got, err, id)
 	}
-	if _, err := s.CartByToken(t.Context(), tok+"x"); err == nil {
+	if _, err := s.CartByToken(t.Context(), tok+"x", uuid.NullUUID{}); err == nil {
 		t.Error("a near-miss token found a cart")
 	}
-	if _, err := s.CartByToken(t.Context(), ""); err == nil {
+	if _, err := s.CartByToken(t.Context(), "", uuid.NullUUID{}); err == nil {
 		t.Error("an empty token found a cart")
 	}
 

@@ -21,9 +21,12 @@ import (
 	"github.com/koopa0/goen/internal/web"
 )
 
-// CartFinder finds the cart a request's cookie names, so sign-in can adopt it.
+// CartFinder is what account needs of the cart: the cart a request's cookie
+// names, so sign-in can adopt it, and expiring that cookie, so sign-out leaves
+// the browser no reference to the account's cart.
 type CartFinder interface {
 	CartIDForRequest(ctx context.Context, r *http.Request) (uuid.UUID, bool)
+	ForgetCart(w http.ResponseWriter)
 }
 
 // Handler serves sign-in, registration and the customer's own pages.
@@ -252,6 +255,9 @@ func (h *Handler) SignOut(w http.ResponseWriter, r *http.Request) {
 		h.log.ErrorContext(r.Context(), "end session", "error", err)
 	}
 	ClearSessionCookie(w, h.secure)
+	if h.carts != nil {
+		h.carts.ForgetCart(w)
+	}
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 

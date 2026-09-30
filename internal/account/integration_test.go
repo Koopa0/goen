@@ -1190,6 +1190,8 @@ func TestFailedCartAdoptionOnSignInShowsNoticeAndPreservesBothCarts(t *testing.T
 
 // TestAdoptCartRefusesGuestCartOwnedByAnotherAccount holds that a cart already
 // attached to someone else is never recovered through sign-in or POST retry.
+// The browser's token names no cart this account may use, so there is nothing
+// to adopt and nothing to recover: both land where they were going.
 func TestAdoptCartRefusesGuestCartOwnedByAnotherAccount(t *testing.T) {
 	ctx := t.Context()
 	accounts := account.NewStore(pool)
@@ -1253,9 +1255,9 @@ func TestAdoptCartRefusesGuestCartOwnedByAnotherAccount(t *testing.T) {
 	if signed.Code != http.StatusSeeOther {
 		t.Fatalf("sign-in status = %d, want 303", signed.Code)
 	}
-	wantRecovery := "/account/cart-recovery?next=%2Faccount"
-	if loc := signed.Header().Get("Location"); loc != wantRecovery {
-		t.Fatalf("sign-in redirect = %q, want %q", loc, wantRecovery)
+	const wantLanding = "/account"
+	if loc := signed.Header().Get("Location"); loc != wantLanding {
+		t.Fatalf("sign-in redirect = %q, want %q", loc, wantLanding)
 	}
 
 	session := sessionCookie(t, signed)
@@ -1271,8 +1273,8 @@ func TestAdoptCartRefusesGuestCartOwnedByAnotherAccount(t *testing.T) {
 	if retryRec.Code != http.StatusSeeOther {
 		t.Fatalf("retry status = %d, want 303", retryRec.Code)
 	}
-	if loc := retryRec.Header().Get("Location"); loc != wantRecovery {
-		t.Fatalf("retry redirect = %q, want recovery %q", loc, wantRecovery)
+	if loc := retryRec.Header().Get("Location"); loc != wantLanding {
+		t.Fatalf("retry redirect = %q, want %q", loc, wantLanding)
 	}
 
 	if qty := cartItemQuantity(t, accountCart, accountVariant); qty != 1 {

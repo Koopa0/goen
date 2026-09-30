@@ -1365,11 +1365,10 @@ func invoiceChoices(ctx context.Context) []pages.InvoiceChoice {
 }
 
 // existingCart returns the cart this request should see, without creating one.
-// A GET must not create a cart: a crawler would leave a row per visit. The
-// cookie is tried first. After a merge-adopt it still names the deleted guest
-// row, so a signed-in miss falls through to the account cart.
+// A GET must not create a cart: a crawler would leave a row per visit.
 func (h *Handler) existingCart(r *http.Request) (uuid.UUID, bool) {
-	return h.lookupCart(r.Context(), r)
+	id, ok, _ := h.lookupCart(r.Context(), r)
+	return id, ok
 }
 
 // cartForWrite returns the request's cart, opening one if this is the visitor's
@@ -1393,22 +1392,29 @@ func (h *Handler) cartForWrite(w http.ResponseWriter, r *http.Request) (uuid.UUI
 	return id, nil
 }
 
-func (h *Handler) lookupCart(ctx context.Context, r *http.Request) (uuid.UUID, bool) {
+// lookupCart is the one place a request's cart is decided: the cart page, every
+// write, checkout and sign-in adoption all come through it. The cookie is tried
+// first, and it reaches an unowned cart or the requester's own; a cart another
+// account owns is no cart, and stale reports a cookie naming one. After a
+// merge-adopt the cookie names the deleted guest row, so a signed-in miss falls
+// through to the account cart.
+func (h *Handler) lookupCart(ctx context.Context, r *http.Request) (id uuid.UUID, ok, stale bool) {
+	owner := ownerOf(r)
 	if token := ReadCookie(r, h.secure); token != "" {
-		id, err := h.store.CartByToken(ctx, token)
+		tokenCart, err := h.store.CartByToken(ctx, token, owner)
 		if err == nil {
-			return id, true
+			return tokenCart, true, false
 		}
+		stale = errors.Is(err, ErrNotYourCart)
 	}
-	u, ok := account.FromContext(r.Context())
-	if !ok {
-		return uuid.Nil, false
+	if !owner.Valid {
+		return uuid.Nil, false, stale
 	}
-	id, err := h.store.CartForUser(ctx, u.ID)
+	accountCart, err := h.store.CartForUser(ctx, owner.UUID.String())
 	if err != nil {
-		return uuid.Nil, false
+		return uuid.Nil, false, stale
 	}
-	return id, true
+	return accountCart, true, stale
 }
 
 func signedInOwner(r *http.Request) uuid.NullUUID {
@@ -1482,14 +1488,27 @@ func (h *Handler) notFoundPage(r *http.Request) layouts.Page {
 
 // CartIDForRequest returns the cart a request should see, without creating one.
 func (h *Handler) CartIDForRequest(ctx context.Context, r *http.Request) (uuid.UUID, bool) {
-	return h.lookupCart(ctx, r)
+	id, ok, _ := h.lookupCart(ctx, r)
+	return id, ok
+}
+
+// ForgetCart expires this browser's cart cookie, so a browser that signs out
+// keeps no reference to the account's cart for the next person at it.
+func (h *Handler) ForgetCart(w http.ResponseWriter) {
+	ClearCookie(w, h.secure)
 }
 
 // WithCount puts the visitor's cart size into the request context for the
-// header badge, rather than a line each handler must remember to write.
+// header badge, rather than a line each handler must remember to write. It
+// resolves the cart on every visitor request, so it is also where a cookie
+// naming another account's cart is expired; a handler that opens a new cart
+// sets its own cookie after this one.
 func (h *Handler) WithCount(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		id, ok := h.CartIDForRequest(r.Context(), r)
+		id, ok, stale := h.lookupCart(r.Context(), r)
+		if stale {
+			h.ForgetCart(w)
+		}
 		if !ok {
 			next.ServeHTTP(w, r)
 			return
