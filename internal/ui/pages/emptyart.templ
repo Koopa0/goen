@@ -1,0 +1,12 @@
+package pages
+
+import "github.com/koopa0/goen/assets"
+
+// emptyArt is the picture an empty state opens with. It is decoration: the
+// title and text below it say the same thing, and it takes the 96px the icon
+// disc it replaces took, so the action below does not move down.
+templ emptyArt(name string) {
+	if assets.Has(name) {
+		<img class="goen-empty__art" src={ assets.URL(name) } alt="" width="128" height="96" decoding="async"/>
+	}
+}

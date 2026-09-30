@@ -838,3 +838,15 @@ func TestTheCatalogueStaysEligibleForSpeculation(t *testing.T) {
 		t.Error("the rules refuse nothing; the exclusions have been lost")
 	}
 }
+
+func TestSiteOriginReachesTheChromeFromTheConfiguredBaseURL(t *testing.T) {
+	t.Parallel()
+	var got string
+	h := withSiteOrigin(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		got = layouts.SiteOrigin(r.Context())
+	}), "https://shop.example/")
+	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "http://evil.example/", nil))
+	if got != "https://shop.example" {
+		t.Errorf("origin = %q, want the configured one and never the request's Host", got)
+	}
+}

@@ -1381,6 +1381,17 @@ h4,
   width: 28px;
 }
 
+/* The photograph fills the tile's width; its own ground matches the page's, so
+   the tile needs no frame around it. */
+.goen-cat__photo {
+  aspect-ratio: 1;
+  border-radius: var(--r-md);
+  display: block;
+  height: auto;
+  max-width: 128px;
+  width: 100%;
+}
+
 .goen-cat:hover .goen-cat__icon {
   color: var(--fg);
 }
@@ -3365,6 +3376,12 @@ h4,
   width: 40px;
 }
 
+.goen-empty__art {
+  display: block;
+  height: 96px;
+  width: 128px;
+}
+
 .goen-medallion--success {
   background: var(--success-bg);
   color: var(--success);
@@ -4896,6 +4913,14 @@ h4,
 .about__mark {
   height: 40px;
   width: 40px;
+}
+
+.about__photo {
+  aspect-ratio: 16 / 9;
+  border-radius: var(--r-lg);
+  display: block;
+  height: auto;
+  width: 100%;
 }
 
 .about__title {

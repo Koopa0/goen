@@ -51,6 +51,23 @@ func TopNavFrom(ctx context.Context) []NavItem {
 	return items
 }
 
+type originKey struct{}
+
+// WithSiteOrigin carries the shop's own origin, scheme and host only, so the
+// head can name an absolute URL: a share preview is fetched by a crawler that
+// has no page to resolve a relative one against. Middleware sets it from the
+// configured base URL, never from the request's Host header, which a client
+// chooses.
+func WithSiteOrigin(ctx context.Context, origin string) context.Context {
+	return context.WithValue(ctx, originKey{}, origin)
+}
+
+// SiteOrigin is the origin WithSiteOrigin set, or "" outside the middleware.
+func SiteOrigin(ctx context.Context) string {
+	origin, _ := ctx.Value(originKey{}).(string)
+	return origin
+}
+
 type staffKey struct{}
 
 // WithStaff records that this request's visitor may reach the back office, so

@@ -81,9 +81,24 @@ templ Home(p layouts.Page, v HomeView) {
 					for _, c := range v.Categories {
 						<li>
 							<a class="goen-cat" href={ templ.URL("/c/" + c.Slug) }>
-								<span class="goen-cat__icon">
-									@icons.Category(c.IconKey)
-								</span>
+								if src, srcset, ok := assets.CategoryImage(c.Slug); ok {
+									// The name below is the label, so the photograph is decoration.
+									<img
+										class="goen-cat__photo"
+										src={ src }
+										srcset={ srcset }
+										sizes="(min-width: 1024px) 160px, 30vw"
+										alt=""
+										width="800"
+										height="800"
+										loading="lazy"
+										decoding="async"
+									/>
+								} else {
+									<span class="goen-cat__icon">
+										@icons.Category(c.IconKey)
+									</span>
+								}
 								<span class="goen-cat__name">{ c.Name }</span>
 							</a>
 						</li>

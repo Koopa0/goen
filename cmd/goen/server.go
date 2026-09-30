@@ -414,6 +414,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	handler = withBanner(handler, home.NewStore(pool), log, secureCookies)
 	handler = withTopNav(handler, home.NewStore(pool), log)
 	handler = withStaffEntrance(handler)
+	handler = withSiteOrigin(handler, baseURL)
 	handler = onlyVisitorPaths(func(next http.Handler) http.Handler {
 		return withLocale(next, secureCookies)
 	}, handler)
@@ -871,4 +872,16 @@ func sessionCloser(g *payment.Gateway) cart.SessionCloser {
 		return nil
 	}
 	return g
+}
+
+// withSiteOrigin puts the configured origin on every request's context, for the
+// chrome's absolute URLs. A base URL that is not an origin adds nothing.
+func withSiteOrigin(next http.Handler, baseURL string) http.Handler {
+	origin, _, ok := web.SiteOrigin(baseURL)
+	if !ok {
+		return next
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		next.ServeHTTP(w, r.WithContext(layouts.WithSiteOrigin(r.Context(), origin)))
+	})
 }
