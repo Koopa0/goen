@@ -22,9 +22,10 @@ const decoderState = 128 << 10
 // TestTheBudgetBoundsWhatDecodeAllocates decodes one real file of every layout
 // the budget prices differently and holds decodeCost above both the image
 // image.Decode returns and everything it allocated on the way. The headers
-// DecodeConfig reads do not say what either will be: a tRNS chunk, an Adobe
-// segment after the first scan or a VP8L frame behind a VP8X header each
-// decode wider than the header's colour model.
+// DecodeConfig reads do not say what either will be: a tRNS chunk or an Adobe
+// segment after the first scan decodes wider than the header's colour model.
+// Lossless WebP is refused before it is decoded, and
+// TestALosslessWebPIsRefusedBeforeItIsDecoded holds that.
 //
 // It is not parallel: it reads the process's allocation counter, which a test
 // running beside it would add to.
@@ -67,24 +68,15 @@ func TestTheBudgetBoundsWhatDecodeAllocates(t *testing.T) {
 			after: [][]byte{jpegSegmentOf(jpegAPP0, []byte("JFXX\x00\x10")), adobeSegment(0)},
 		})},
 		{"GIF", gifFile(t, w, h, false)},
-		// Twice the side here and for the colour-indexed and alpha WebPs: what
-		// they allocate beside the image is a byte or two a pixel, and has to
-		// stand clear of decoderState to be seen.
+		// Twice the side: the copy an interlaced GIF adds is a byte a pixel, and
+		// has to stand clear of decoderState to be seen.
 		{"interlaced GIF", gifFile(t, 2*w, 2*h, true)},
 		{"lossy WebP", webpFile(riffChunk{"VP8 ", vp8Frame(w, h)})},
-		{"lossless WebP", webpFile(riffChunk{"VP8L", vp8lFrame(w, h, false)})},
-		{"colour-indexed lossless WebP", webpFile(riffChunk{"VP8L", vp8lFrame(2*w, 2*h, true)})},
 		{"extended WebP with a lossy frame", webpFile(riffChunk{"VP8X", vp8xHeader(w, h, false)}, riffChunk{"VP8 ", vp8Frame(w, h)})},
-		{"extended WebP with a lossless frame", webpFile(riffChunk{"VP8X", vp8xHeader(w, h, false)}, riffChunk{"VP8L", vp8lFrame(w, h, true)})},
 		{"extended WebP with raw alpha", webpFile(
 			riffChunk{"VP8X", vp8xHeader(w, h, true)},
 			riffChunk{"ALPH", append([]byte{0}, make([]byte, w*h)...)},
 			riffChunk{"VP8 ", vp8Frame(w, h)},
-		)},
-		{"extended WebP with lossless alpha", webpFile(
-			riffChunk{"VP8X", vp8xHeader(2*w, 2*h, true)},
-			riffChunk{"ALPH", append([]byte{1}, vp8lFrame(2*w, 2*h, true)[5:]...)},
-			riffChunk{"VP8 ", vp8Frame(2*w, 2*h)},
 		)},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -395,6 +387,9 @@ func webpFile(chunks ...riffChunk) []byte {
 	out.Write(body.Bytes())
 	return out.Bytes()
 }
+
+// webpAlphaFlag is VP8X's flag for a file that carries alpha.
+const webpAlphaFlag = 0x10
 
 // vp8xHeader is a VP8X chunk's body for a w by h canvas.
 func vp8xHeader(w, h int, alpha bool) []byte {

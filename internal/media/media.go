@@ -27,11 +27,10 @@ const MaxPixels = 40_000_000
 //
 // At 128 MiB the largest square pictures it lets through are, in megapixels:
 // 40, where MaxPixels binds first, for a grey or YCbCr baseline JPEG, a
-// paletted PNG, a GIF and a lossy WebP; 33.5 for any other 8-bit PNG; 19.8 for
-// a lossless WebP and a lossy one carrying metadata; 19.1 for an RGB JPEG; 16.7
-// for a 16-bit or an interlaced 8-bit PNG and a CMYK JPEG; 14.8 for a
-// progressive 4:2:0 JPEG; 14.5 for a WebP with alpha; 8.9 for a progressive
-// 4:4:4 JPEG; and 8.3 for an interlaced 16-bit PNG.
+// paletted PNG, a GIF and a WebP; 33.5 for any other 8-bit PNG; 19.1 for an
+// RGB JPEG; 16.7 for a 16-bit or an interlaced 8-bit PNG and a CMYK JPEG; 14.8
+// for a progressive 4:2:0 JPEG; 8.9 for a progressive 4:4:4 JPEG; and 8.3 for
+// an interlaced 16-bit PNG.
 const MaxDecodedBytes = 128 << 20
 
 // MaxDimension bounds either side, matching media_objects_dimensions_sane.
@@ -57,6 +56,11 @@ var (
 	ErrTooLarge = errors.New("media: the image is too large")
 	// ErrBusy is an upload refused because every upload slot is decoding.
 	ErrBusy = errors.New("media: every upload slot is busy")
+	// ErrLosslessWebP is a WebP whose decode would run x/image's lossless
+	// decoder, for its frame or its alpha. That decoder builds up to 2600
+	// Huffman groups whatever the picture's size, over 100 MB that no header
+	// declares, so no budget read before decoding can bound it.
+	ErrLosslessWebP = errors.New("media: lossless WebP is not accepted")
 	// ErrNotFound is a digest with no row.
 	ErrNotFound = errors.New("media: no such image")
 )

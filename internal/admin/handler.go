@@ -486,6 +486,7 @@ var adminNotices = map[string]i18n.Key{
 	"needs":          i18n.KeyAdminNoticeNeeds,
 	"toobig":         i18n.KeyAdminNoticeTooBig,
 	"notimage":       i18n.KeyAdminNoticeNotImage,
+	"losslesswebp":   i18n.KeyAdminNoticeLosslessWebP,
 	"uploadfailed":   i18n.KeyAdminNoticeUploadFailed,
 	"uploadbusy":     i18n.KeyAdminNoticeUploadBusy,
 	"inuse":          i18n.KeyAdminNoticeInUse,

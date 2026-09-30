@@ -41,6 +41,11 @@ func Normalise(r io.Reader) (obj Object, data []byte, err error) {
 	if err != nil {
 		return Object{}, nil, ErrNotAnImage
 	}
+	if format == "webp" {
+		if webpErr := refuseLosslessWebP(raw); webpErr != nil {
+			return Object{}, nil, webpErr
+		}
+	}
 	if boundsErr := boundsOK(cfg.Width, cfg.Height); boundsErr != nil {
 		return Object{}, nil, boundsErr
 	}

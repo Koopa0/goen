@@ -24,7 +24,7 @@ func decodeCost(raw []byte, cfg image.Config, format string) int64 {
 	case "gif":
 		return gifCost(w * h)
 	case "webp":
-		return webpCost(raw, w, h)
+		return webpCost(w, h)
 	default:
 		// A decoder that holds more than one image of the widest pixel needs a
 		// case of its own before it is registered.
@@ -73,52 +73,11 @@ func gifCost(pixels int64) int64 {
 	return pixels * 2
 }
 
-// The first RIFF chunk of a WebP file, which image.DecodeConfig's sniffing
-// found at these offsets, and VP8X's alpha flag.
-const (
-	webpFirstChunk     = 12
-	webpFirstChunkData = 20
-	webpAlphaFlag      = 0x10
-)
-
-// webpCost: x/image/webp's DecodeConfig reports YCbCr for an extended file
-// without its alpha flag whichever frame follows it, so only a simple file's
-// first chunk says which frame Decode builds. An extended file is costed at the
-// most any frame it may carry allocates, and with its alpha flag set, at a
-// losslessly compressed alpha chunk too: that is decoded as a whole lossless
-// image and copied out into an alpha plane before the lossy frame is decoded
-// beside it.
-func webpCost(raw []byte, w, h int64) int64 {
-	lossy, lossless := webpLossyCost(w, h), webpLosslessCost(w, h)
-	if len(raw) > webpFirstChunkData {
-		switch string(raw[webpFirstChunk : webpFirstChunk+4]) {
-		case "VP8 ":
-			return lossy
-		case "VP8L":
-			return lossless
-		case "VP8X":
-			if raw[webpFirstChunkData]&webpAlphaFlag == 0 {
-				return max(lossy, lossless)
-			}
-		}
-	}
-	return lossless + w*h + lossy
-}
-
-// webpLossyCost is x/image/vp8's frame: YCbCr 4:2:0 over whole 16x16
-// macroblocks, 384 bytes each.
-func webpLossyCost(w, h int64) int64 {
-	return ((w + 15) / 16) * ((h + 15) / 16) * 384
-}
-
-// webpLosslessCost is x/image/vp8l's NRGBA image, four bytes a pixel, beside
-// the most its transforms hold: a colour-indexed frame is first decoded packed,
-// at most four bytes for every two pixels, and then expanded into a new image;
-// and the predictor, colour transform and Huffman group images hold four bytes
-// for each tile of at least 4x4 pixels.
-func webpLosslessCost(w, h int64) int64 {
-	tiles := ((w + 3) / 4) * ((h + 3) / 4)
-	return 4*w*h + 4*((w+1)/2)*h + 3*4*tiles
+// webpCost is what x/image/webp allocates for the only WebP Normalise lets it
+// decode, a lossy one: YCbCr 4:2:0 over whole 16x16 macroblocks, 384 bytes
+// each, and beside it the raw alpha plane an extended file may carry.
+func webpCost(w, h int64) int64 {
+	return ((w+15)/16)*((h+15)/16)*384 + w*h
 }
 
 // jpegCost is what image/jpeg allocates for the frame header's picture:
