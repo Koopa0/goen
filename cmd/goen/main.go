@@ -251,8 +251,10 @@ func listenerPeers(addr string) []netip.Prefix {
 		return nil
 	}
 	if strings.EqualFold(host, "localhost") {
-		// net.Listen picks one of localhost's addresses, of either family.
-		return []netip.Prefix{loopbackV4, loopbackV6}
+		// net.Listen binds the first IPv4 address a host name resolves to, and
+		// localhost resolves to 127.0.0.1, so a listener there is never reached
+		// from ::1, even where ::1 is localhost too.
+		return []netip.Prefix{loopbackV4}
 	}
 	ip, err := netip.ParseAddr(host)
 	if err != nil || !ip.IsLoopback() {
