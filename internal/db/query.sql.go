@@ -5893,6 +5893,35 @@ func (q *Queries) EnqueueMessage(ctx context.Context, arg EnqueueMessageParams) 
 	return err
 }
 
+const enqueuePasswordResetRequest = `-- name: EnqueuePasswordResetRequest :exec
+INSERT INTO outbox_messages (topic, dedupe_key, payload)
+SELECT $1::text, $2::text,
+       jsonb_build_object('user_id', u.id, 'locale', $3::text)
+FROM (VALUES (true)) AS request (queued)
+LEFT JOIN users u ON lower(u.email) = lower($4::text)
+`
+
+type EnqueuePasswordResetRequestParams struct {
+	Topic     string
+	DedupeKey string
+	Locale    string
+	Email     string
+}
+
+// A forgotten-password request is this one INSERT whatever the address: the
+// account is looked up inside it and names nobody when there is none, so a
+// known address costs the request exactly what an unknown one does. The token
+// is issued later, off the request, from the account id alone.
+func (q *Queries) EnqueuePasswordResetRequest(ctx context.Context, arg EnqueuePasswordResetRequestParams) error {
+	_, err := q.db.Exec(ctx, enqueuePasswordResetRequest,
+		arg.Topic,
+		arg.DedupeKey,
+		arg.Locale,
+		arg.Email,
+	)
+	return err
+}
+
 const eraseUser = `-- name: EraseUser :exec
 SELECT erase_user($1)
 `
@@ -13808,7 +13837,7 @@ func (q *Queries) UserForOAuthLink(ctx context.Context, email string) (UserForOA
 const userForPasswordReset = `-- name: UserForPasswordReset :one
 SELECT id, email
 FROM users
-WHERE lower(email) = lower($1)
+WHERE id = $1::uuid
 FOR UPDATE
 `
 
@@ -13822,8 +13851,8 @@ type UserForPasswordResetRow struct {
 // against erase_user, so only one unused token remains, and either both reset
 // records commit first and erasure purges them, or erasure wins and this
 // returns no row.
-func (q *Queries) UserForPasswordReset(ctx context.Context, lower string) (UserForPasswordResetRow, error) {
-	row := q.db.QueryRow(ctx, userForPasswordReset, lower)
+func (q *Queries) UserForPasswordReset(ctx context.Context, userID uuid.UUID) (UserForPasswordResetRow, error) {
+	row := q.db.QueryRow(ctx, userForPasswordReset, userID)
 	var i UserForPasswordResetRow
 	err := row.Scan(&i.ID, &i.Email)
 	return i, err

@@ -37,6 +37,10 @@ const (
 	TopicNewsletterIssue = "newsletter.issue"
 	TopicEmailVerify     = "account.email_verify"
 	TopicStaffInvitation = "staff.invitation"
+	// TopicPasswordResetRequest is a forgotten-password request, queued the
+	// same way whether or not the address has an account. Its handler issues
+	// the token and queues the TopicPasswordReset message.
+	TopicPasswordResetRequest = "account.password_reset_request"
 )
 
 // BulkPriority is where a send that can wait goes in the queue. Transactional

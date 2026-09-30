@@ -3,6 +3,17 @@
 SELECT id, email, password_hash, full_name, role
 FROM users WHERE lower(email) = lower($1);
 
+-- A forgotten-password request is this one INSERT whatever the address: the
+-- account is looked up inside it and names nobody when there is none, so a
+-- known address costs the request exactly what an unknown one does. The token
+-- is issued later, off the request, from the account id alone.
+-- name: EnqueuePasswordResetRequest :exec
+INSERT INTO outbox_messages (topic, dedupe_key, payload)
+SELECT @topic::text, @dedupe_key::text,
+       jsonb_build_object('user_id', u.id, 'locale', @locale::text)
+FROM (VALUES (true)) AS request (queued)
+LEFT JOIN users u ON lower(u.email) = lower(@email::text);
+
 -- A reset token and its outbox message are created while this lock is held.
 -- FOR UPDATE serializes a replacement request against another issuance and
 -- against erase_user, so only one unused token remains, and either both reset
@@ -11,7 +22,7 @@ FROM users WHERE lower(email) = lower($1);
 -- name: UserForPasswordReset :one
 SELECT id, email
 FROM users
-WHERE lower(email) = lower($1)
+WHERE id = @user_id::uuid
 FOR UPDATE;
 
 -- name: UserByID :one

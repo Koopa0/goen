@@ -665,6 +665,7 @@ func startWorkers(ctx context.Context, d workerDeps) {
 	messages := outbox.NewStore(d.pool, d.log)
 	messages.HandleJSON[email.OrderPlaced](outbox.TopicOrderPlaced, d.notifier.SendOrderPlaced)
 	messages.HandleJSON[email.PasswordReset](outbox.TopicPasswordReset, d.notifier.SendPasswordReset)
+	messages.HandleJSON[account.ResetRequest](outbox.TopicPasswordResetRequest, account.NewStore(d.pool).IssueReset)
 	messages.HandleJSON[email.OrderPaid](outbox.TopicOrderPaid, d.notifier.SendOrderPaid)
 	messages.HandleJSON[email.OrderShipped](outbox.TopicOrderShipped, d.notifier.SendOrderShipped)
 	messages.HandleJSON[email.OrderTerminal](outbox.TopicOrderTerminal, terminalOrderHandler(ordernotice.NewRecipients(d.pool), d.notifier))

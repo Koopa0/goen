@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
@@ -28,15 +29,52 @@ var ErrResetInvalid = errors.New("account: that reset link is not usable")
 // ErrInvalidPassword is a new password the rules refuse.
 var ErrInvalidPassword = errors.New("account: password refused")
 
-// beginReset atomically issues a reset token and queues its message when the
-// address belongs to an account. Earlier unused tokens die in the same
-// transaction, so a replacement link is the only one that can still spend. An
-// unknown address is the same nil result: the caller must not become an
-// account-existence oracle.
-func (s *Store) beginReset(ctx context.Context, email string) error {
-	email = email2.Clean(email)
-	if EmailError(email) != "" {
+// ResetRequest is a queued forgotten-password request. It names the account by
+// id and never by address, and it names none when the address has no account:
+// the request is queued either way, so asking about an address costs the same
+// whether or not it belongs to somebody.
+type ResetRequest struct {
+	UserID string `json:"user_id"`
+	Locale string `json:"locale"`
+}
+
+// requestReset queues a forgotten-password request and nothing else. Every
+// address the rules accept is the same single statement, so the caller cannot
+// become an account-existence oracle through what it answers or how long it
+// takes; [Store.IssueReset] does the work that only a real account needs.
+func (s *Store) requestReset(ctx context.Context, addr string) error {
+	return s.queueResetRequest(ctx, addr, "reset-request:"+uuid.NewString())
+}
+
+func (s *Store) queueResetRequest(ctx context.Context, addr, dedupeKey string) error {
+	addr = email2.Clean(addr)
+	if EmailError(addr) != "" {
 		return nil
+	}
+	if err := s.q.EnqueuePasswordResetRequest(ctx, db.EnqueuePasswordResetRequestParams{
+		Topic:     outbox.TopicPasswordResetRequest,
+		DedupeKey: dedupeKey,
+		Locale:    i18n.FromContext(ctx).Tag(),
+		Email:     addr,
+	}); err != nil {
+		return fmt.Errorf("queue password reset request: %w", err)
+	}
+	return nil
+}
+
+// IssueReset is the outbox's half of a forgotten-password request: it
+// atomically issues a reset token and queues its message when the request named
+// an account that still exists. Earlier unused tokens die in the same
+// transaction, so a replacement link is the only one that can still spend. The
+// address is read here rather than carried in the request, so the link goes to
+// the account's current address.
+func (s *Store) IssueReset(ctx context.Context, req *ResetRequest) error {
+	if req.UserID == "" {
+		return nil
+	}
+	id, err := uuid.Parse(req.UserID)
+	if err != nil {
+		return fmt.Errorf("parse reset request account: %w", err)
 	}
 
 	tx, err := s.pool.Begin(ctx)
@@ -46,7 +84,7 @@ func (s *Store) beginReset(ctx context.Context, email string) error {
 	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
 	q := s.q.WithTx(tx)
 
-	row, err := q.UserForPasswordReset(ctx, email)
+	row, err := q.UserForPasswordReset(ctx, id)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil
@@ -60,7 +98,7 @@ func (s *Store) beginReset(ctx context.Context, email string) error {
 	}
 	digest := sha256.Sum256([]byte(token))
 	payload, err := json.Marshal(email2.PasswordReset{
-		Email: row.Email, Token: token, Locale: i18n.FromContext(ctx).Tag(),
+		Email: row.Email, Token: token, Locale: req.Locale,
 	})
 	if err != nil {
 		return fmt.Errorf("encode reset message: %w", err)
