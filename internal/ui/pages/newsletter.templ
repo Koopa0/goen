@@ -19,9 +19,6 @@ templ NewsletterAction(p layouts.Page, v NewsletterActionView) {
 			if v.Token != "" {
 				<form class="notice__form" method="post" action={ templ.SafeURL(v.Action) }>
 					<input type="hidden" name="token" value={ v.Token }/>
-					if v.Next != "" {
-						<input type="hidden" name="next" value={ v.Next }/>
-					}
 					@components.Button(components.ButtonProps{Variant: components.VariantPrimary, Size: components.SizeLarge, Block: true}, "submit") {
 						{ v.Submit }
 					}

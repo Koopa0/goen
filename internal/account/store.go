@@ -19,6 +19,7 @@ import (
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/db"
+	email2 "github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -128,7 +129,9 @@ func (s *Store) FollowUpRegistration(
 		return nil
 	}
 	ctx = i18n.WithLocale(ctx, i18n.Parse(r.Locale))
-	return s.requestVerificationTo(ctx, r.UserID, row.Email, r.Next)
+	return s.queueVerification(ctx, r.UserID, row.Email, email2.AddressVerify{
+		Registration: true, Next: r.Next,
+	})
 }
 
 // Authenticate checks an email and password.
@@ -149,12 +152,7 @@ func (s *Store) Authenticate(ctx context.Context, email, password string) (User,
 		}
 		return User{}, fmt.Errorf("read user: %w", err)
 	}
-	if !row.PasswordHash.Valid {
-		burnHashTime(password)
-		return User{}, ErrBadCredentials
-	}
-
-	if !VerifyPassword(row.PasswordHash.String, password) {
+	if !passwordMatches(row.PasswordHash, password) {
 		return User{}, ErrBadCredentials
 	}
 	// After the hash, so an unproved account costs what a wrong password does.
@@ -168,6 +166,17 @@ func (s *Store) Authenticate(ctx context.Context, email, password string) (User,
 		return User{}, fmt.Errorf("touch last login: %w", err)
 	}
 	return User{ID: row.ID.String(), Email: row.Email, Name: row.FullName.String, Role: row.Role}, nil
+}
+
+// passwordMatches is the password check every sign-in makes. An account with no
+// password costs the hash a wrong password does, so the two cannot be told
+// apart by how long the answer takes.
+func passwordMatches(hash pgtype.Text, password string) bool {
+	if !hash.Valid {
+		burnHashTime(password)
+		return false
+	}
+	return VerifyPassword(hash.String, password)
 }
 
 // burnHashTime makes a wrong email cost the time a wrong password does.

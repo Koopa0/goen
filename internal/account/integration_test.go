@@ -1807,14 +1807,16 @@ func TestSessionWriteFailureDoesNotFallThroughToRedirect(t *testing.T) {
 			},
 		},
 		{
-			// A registration starts its session when its link is followed.
-			name: "registration link", target: "/verify", handle: h.Verify,
+			// A registration starts its session when its link is followed with
+			// the password chosen at registration.
+			name: "registration link", target: "/register/complete", handle: h.CompleteRegistration,
 			form: func(t *testing.T) url.Values {
 				t.Helper()
 				pending := register(t, s, "session-failure-register-"+uuid.NewString()+"@example.com")
 				return url.Values{
-					"token": {requestVerification(t, s, pending.ID, pending.Email)},
-					"next":  {"/account"},
+					"token":    {requestVerification(t, s, pending.ID, pending.Email)},
+					"password": {"a sufficiently long password"},
+					"next":     {"/account"},
 				}
 			},
 		},
@@ -3452,9 +3454,11 @@ func TestAnAddressIsProvedByFollowingTheLink(t *testing.T) {
 		t.Error("a freshly registered address reads as proved; nothing has proved it")
 	}
 
+	// An address that was never proved is proved by its link together with
+	// the password chosen at registration.
 	token := requestVerification(t, s, u.ID, u.Email)
-	if _, confirmErr := s.ConfirmVerification(ctx, token); confirmErr != nil {
-		t.Fatalf("ConfirmVerification: %v", confirmErr)
+	if _, confirmErr := s.CompleteRegistration(ctx, token, "a sufficiently long password"); confirmErr != nil {
+		t.Fatalf("CompleteRegistration: %v", confirmErr)
 	}
 
 	state, err = s.EmailVerification(ctx, u.ID)
@@ -3605,7 +3609,7 @@ func TestErasureMatchesOutboxRecipientsExactly(t *testing.T) {
 	pendingLookalike := "pending-looks-like-" + suffix + "@goen.invalid"
 	u := register(t, s, current)
 	currentToken := requestVerification(t, s, u.ID, current)
-	if _, err := s.ConfirmVerification(ctx, currentToken); err != nil {
+	if _, err := s.CompleteRegistration(ctx, currentToken, "a sufficiently long password"); err != nil {
 		t.Fatalf("prove patterned current address: %v", err)
 	}
 	if err := account.RequestVerification(ctx, s, u.ID, pending); err != nil {
@@ -3793,7 +3797,7 @@ func TestAskingAgainLeavesOneLiveLink(t *testing.T) {
 	if _, err := s.ConfirmVerification(ctx, first); !errors.Is(err, account.ErrVerifyInvalid) {
 		t.Errorf("the earlier link still works: %v", err)
 	}
-	if _, err := s.ConfirmVerification(ctx, second); err != nil {
+	if _, err := s.CompleteRegistration(ctx, second, "a sufficiently long password"); err != nil {
 		t.Errorf("the newest link does not work: %v", err)
 	}
 }

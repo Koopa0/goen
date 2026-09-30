@@ -760,7 +760,6 @@ func (h *Handler) VerifyPage(w http.ResponseWriter, r *http.Request) {
 			Action:  "/verify",
 			Submit:  i18n.T(ctx, i18n.KeyVerifySubmit),
 			Token:   r.URL.Query().Get("token"),
-			Next:    web.SitePathOr(r.URL.Query().Get("next"), "/account"),
 		}))
 }
 
@@ -772,17 +771,13 @@ func (h *Handler) Verify(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx := r.Context()
 
-	confirmed, err := h.store.ConfirmVerification(ctx, r.PostFormValue("token"))
+	token := r.PostFormValue("token")
+	confirmed, err := h.store.ConfirmVerification(ctx, token)
 	switch {
-	case err == nil && confirmed.Completed:
-		// The registration's last step, and the first moment its account may be
-		// signed into: this browser proved it reads the mailbox.
-		started, adoption := h.startSession(w, r, User{ID: confirmed.UserID})
-		if !started {
-			return
-		}
-		next := cartAdoptionLanding(web.SitePathOr(r.PostFormValue("next"), "/account"), adoption)
-		http.Redirect(w, r, next, http.StatusSeeOther) //nolint:gosec // G710: bounded by web.SitePathOr
+	case errors.Is(err, ErrVerifyNeedsPassword):
+		// A registration link reached the page for proving an address; it is
+		// completed only with the password chosen at registration.
+		http.Redirect(w, r, "/register/complete?"+url.Values{"token": {token}}.Encode(), http.StatusSeeOther)
 	case err == nil:
 		web.Render(w, r, h.log, http.StatusOK, pages.NewsletterAction(
 			pages.NewsletterMeta(i18n.T(ctx, i18n.KeyVerifyDone)),
@@ -797,6 +792,75 @@ func (h *Handler) Verify(w http.ResponseWriter, r *http.Request) {
 	default:
 		h.log.ErrorContext(ctx, "confirm email verification", "error", err)
 		h.verifyFailed(w, r, i18n.T(ctx, i18n.KeyTryAgainTitle), i18n.T(ctx, i18n.KeyTryAgainBody))
+	}
+}
+
+// CompleteRegistrationPage serves GET /register/complete, where a registration
+// link lands. The token is not checked here: that would tell a guesser it is
+// real.
+func (h *Handler) CompleteRegistrationPage(w http.ResponseWriter, r *http.Request) {
+	// The page carries a live registration token; keep it out of BREACH's reach.
+	web.NoCompress(w)
+	web.Render(w, r, h.log, http.StatusOK, pages.RegisterComplete(
+		pages.RegisterCompleteMeta(r.Context()), pages.RegisterCompleteView{
+			Token: r.URL.Query().Get("token"),
+			Next:  web.SitePathOr(r.URL.Query().Get("next"), "/account"),
+		}))
+}
+
+// CompleteRegistration serves POST /register/complete. The link proves the
+// mailbox and the password proves who registered; only both together prove the
+// address, sign this browser in and adopt its cart. A wrong password is
+// answered as sign-in answers one, under sign-in's own per-account limit, so
+// this is no second place to guess it.
+func (h *Handler) CompleteRegistration(w http.ResponseWriter, r *http.Request) {
+	// A refused password re-renders the still-live token; never compress it.
+	web.NoCompress(w)
+	if err := web.ParseForm(w, r); err != nil {
+		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
+		return
+	}
+	ctx := r.Context()
+	token := r.PostFormValue("token")
+	next := web.SitePathOr(r.PostFormValue("next"), "/account")
+
+	addr, err := h.store.RegistrationAddress(ctx, token)
+	if errors.Is(err, ErrVerifyInvalid) {
+		h.verifyFailed(w, r, i18n.T(ctx, i18n.KeyVerifyDeadTitle), i18n.T(ctx, i18n.KeyVerifyDeadBody))
+		return
+	}
+	if err != nil {
+		h.log.ErrorContext(ctx, "read registration link", "error", err)
+		h.serverError(w, r)
+		return
+	}
+	// Before the hash, and the key sign-in uses, so the two share one budget.
+	if retryAfter, ok := h.signinLimit.Allow("account:" + email.Clean(addr)); !ok {
+		h.log.WarnContext(ctx, "registration completion throttled by account")
+		ratelimit.Refuse(ctx, w, retryAfter)
+		return
+	}
+
+	confirmed, err := h.store.CompleteRegistration(ctx, token, r.PostFormValue("password"))
+	switch {
+	case err == nil:
+		started, adoption := h.startSession(w, r, User{ID: confirmed.UserID})
+		if !started {
+			return
+		}
+		http.Redirect(w, r, cartAdoptionLanding(next, adoption), http.StatusSeeOther) //nolint:gosec // G710: bounded by web.SitePathOr
+	case errors.Is(err, ErrBadCredentials):
+		web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.RegisterComplete(
+			pages.RegisterCompleteMeta(ctx), pages.RegisterCompleteView{
+				Token: token, Next: next, Error: i18n.T(ctx, i18n.KeyBadCredentials),
+			}))
+	case errors.Is(err, ErrEmailTaken):
+		h.verifyFailed(w, r, i18n.T(ctx, i18n.KeyVerifyTakenTitle), i18n.T(ctx, i18n.KeyVerifyTakenBody))
+	case errors.Is(err, ErrVerifyInvalid):
+		h.verifyFailed(w, r, i18n.T(ctx, i18n.KeyVerifyDeadTitle), i18n.T(ctx, i18n.KeyVerifyDeadBody))
+	default:
+		h.log.ErrorContext(ctx, "complete registration", "error", err)
+		h.serverError(w, r)
 	}
 }
 

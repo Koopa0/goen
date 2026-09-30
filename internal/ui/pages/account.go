@@ -156,6 +156,21 @@ type AuthView struct {
 	GoogleSignIn bool
 }
 
+// RegisterCompleteView is the page a registration link lands on.
+type RegisterCompleteView struct {
+	Token string
+	Next  string
+	Error string
+}
+
+// HasError reports whether the password was refused.
+func (v RegisterCompleteView) HasError() bool { return v.Error != "" }
+
+// RegisterCompleteMeta is the chrome view model for that page.
+func RegisterCompleteMeta(ctx context.Context) layouts.Page {
+	return layouts.Page{Title: i18n.T(ctx, i18n.KeyRegisterCompleteTitle)}
+}
+
 // GoogleLink is where the button goes, carrying wherever the visitor was headed.
 func (v AuthView) GoogleLink() string {
 	if v.Next == "" {

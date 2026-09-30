@@ -147,6 +147,20 @@ var (
 		En:     "Not interested any more? Unsubscribe here:\n%s",
 	})
 
+	KeyMailRegisterSubject = key("mail.register.subject", Message{
+		ZhHant: "完成 goen 註冊",
+		En:     "Finish creating your goen account",
+	})
+	KeyMailRegisterBody = key("mail.register.body", Message{
+		ZhHant: "有人用這個信箱在 goen 註冊了帳號。\n\n如果是你,點下面的連結,輸入你註冊時設定的密碼,就完成註冊,兩天內有效:\n%s\n\n如果不是你,不用理會這封信 —— 沒有那組密碼,這個帳號就無法完成註冊。想用這個信箱在 goen 購物,請用「忘記密碼」重新設定一組,帳號就是你的。",
+		En: "Somebody registered a goen account with this address.\n\nIf that was you, " +
+			"follow this link and enter the password you chose to finish. It works for " +
+			"two days:\n%s\n\nIf it was not you, ignore this message — without that " +
+			"password the account cannot be finished. To use this address at goen " +
+			"yourself, choose a new password on the forgotten-password page and the " +
+			"account is yours.",
+	})
+
 	KeyMailVerifySubject = key("mail.verify.subject", Message{
 		ZhHant: "確認你的 goen 電子郵件",
 		En:     "Confirm your goen email address",

@@ -32,7 +32,7 @@ func TestCartAdjustmentSurvivesAuthenticationAndCheckout(t *testing.T) {
 					accounts := account.NewStore(appPool)
 					suffix := uuid.NewString()
 					email := "adjust-" + suffix + "@example.com"
-					password := "a sufficiently long password"
+					password := cartOwnerPassword
 					var uid, productID, variantID uuid.UUID
 					if err := pool.QueryRow(ctx, `INSERT INTO products (slug, name, brand_id, category_id)
       SELECT $1, 'Adjustment fixture', b.id, c.id FROM brands b, categories c
@@ -121,7 +121,7 @@ func TestCartAdjustmentSurvivesAuthenticationAndCheckout(t *testing.T) {
 						signed = followRegistrationLink(t, accounts, email,
 							func(link *http.Request) *httptest.ResponseRecorder {
 								rec := httptest.NewRecorder()
-								h.Verify(rec, link.WithContext(ctx))
+								h.CompleteRegistration(rec, link.WithContext(ctx))
 								return rec
 							},
 							//nolint:gosec // G124: the fixture is the browser's guest-cart cookie.

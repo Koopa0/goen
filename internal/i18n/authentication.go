@@ -150,6 +150,26 @@ var (
 			"arrived, check your spam folder.",
 	})
 
+	KeyRegisterCompleteTitle = key("auth.register.complete.title", Message{
+		ZhHant: "完成註冊",
+		En:     "Finish creating your account",
+	})
+
+	KeyRegisterCompleteLede = key("auth.register.complete.lede", Message{
+		ZhHant: "輸入你註冊時設定的密碼,就完成註冊並登入。",
+		En:     "Enter the password you chose when you registered to finish and sign in.",
+	})
+
+	KeyRegisterCompleteSubmit = key("auth.register.complete.submit", Message{
+		ZhHant: "完成註冊並登入",
+		En:     "Finish and sign in",
+	})
+
+	KeyRegisterCompleteNotYou = key("auth.register.complete.notyou", Message{
+		ZhHant: "沒有在這裡註冊過?用「忘記密碼」重新設定一組,這個信箱的帳號就是你的。",
+		En:     "Did not register here? Choose a new password instead, and the account at this address is yours.",
+	})
+
 	KeyAccountCreated = key("auth.created", Message{
 		ZhHant: "帳號已建立,請登入。",
 		En:     "Your account is created. Sign in to continue.",

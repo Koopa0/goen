@@ -26,6 +26,10 @@ const VerifyTokenTTL = 48 * time.Hour
 // ErrVerifyInvalid is a link that is unknown, spent or expired.
 var ErrVerifyInvalid = errors.New("account: that verification link is not usable")
 
+// ErrVerifyNeedsPassword is a link that would complete a registration, followed
+// without the password chosen at registration. It is left unspent.
+var ErrVerifyNeedsPassword = errors.New("account: completing a registration takes its password")
+
 // Verification is what the account page shows about the customer's address.
 type Verification struct {
 	Verified     bool
@@ -49,13 +53,13 @@ func (s *Store) EmailVerification(ctx context.Context, userID string) (Verificat
 // link. The token is operation-local; the account keeps its old address until
 // the queued link is followed.
 func (s *Store) requestVerification(ctx context.Context, userID, addr string) error {
-	return s.requestVerificationTo(ctx, userID, addr, "")
+	return s.queueVerification(ctx, userID, addr, email.AddressVerify{})
 }
 
-// requestVerificationTo is requestVerification with a same-site path for the
-// link to carry, which is where following it lands when it completes a
-// registration.
-func (s *Store) requestVerificationTo(ctx context.Context, userID, addr, next string) error {
+// queueVerification is requestVerification for a link shaped by link: its
+// Registration and Next are kept, and its address, token and locale are set
+// here.
+func (s *Store) queueVerification(ctx context.Context, userID, addr string, link email.AddressVerify) error {
 	id, parseErr := uuid.Parse(userID)
 	if parseErr != nil {
 		return fmt.Errorf("parse user id: %w", parseErr)
@@ -103,9 +107,8 @@ func (s *Store) requestVerificationTo(ctx context.Context, userID, addr, next st
 		return fmt.Errorf("record verification request: %w", reqErr)
 	}
 
-	payload, marshalErr := json.Marshal(email.AddressVerify{
-		Email: addr, Token: token, Locale: i18n.FromContext(ctx).Tag(), Next: next,
-	})
+	link.Email, link.Token, link.Locale = addr, token, i18n.FromContext(ctx).Tag()
+	payload, marshalErr := json.Marshal(link)
 	if marshalErr != nil {
 		return fmt.Errorf("encode verification message: %w", marshalErr)
 	}
@@ -130,14 +133,63 @@ type Confirmed struct {
 	Email string
 	// UserID is the account it belongs to.
 	UserID string
-	// Completed is a link that proved the address of an account whose address
-	// had never been proved: the last step of a registration, after which the
-	// account may be signed into.
-	Completed bool
 }
 
-// ConfirmVerification spends a link, moves the address and marks it proved.
+// ConfirmVerification spends a link, moves the address and marks it proved. A
+// link that would complete a registration is refused with
+// ErrVerifyNeedsPassword and left unspent: that takes CompleteRegistration.
 func (s *Store) ConfirmVerification(ctx context.Context, token string) (Confirmed, error) {
+	return s.confirm(ctx, token, false)
+}
+
+// RegistrationAddress is the address a registration link would prove, read
+// without spending it, or ErrVerifyInvalid.
+func (s *Store) RegistrationAddress(ctx context.Context, token string) (string, error) {
+	if token == "" {
+		return "", ErrVerifyInvalid
+	}
+	verification, err := usableVerification(ctx, s.q, HashToken(token))
+	if err != nil {
+		return "", err
+	}
+	return verification.Email, nil
+}
+
+// CompleteRegistration spends a registration link, proves the address and
+// makes the account usable, when password is the one chosen at registration.
+// The link reaches the mailbox and the password was chosen by whoever
+// registered; only together are they the registrant. Anything else leaves the
+// account unproved: a
+// wrong password is ErrBadCredentials, at the cost of the same hash sign-in
+// makes, and a link that completes no registration is ErrVerifyInvalid.
+func (s *Store) CompleteRegistration(ctx context.Context, token, password string) (Confirmed, error) {
+	if len(password) > MaxPasswordBytes {
+		return Confirmed{}, ErrBadCredentials
+	}
+	if token == "" {
+		return Confirmed{}, ErrVerifyInvalid
+	}
+	verification, err := usableVerification(ctx, s.q, HashToken(token))
+	if err != nil {
+		return Confirmed{}, err
+	}
+	credential, err := s.q.RegistrationCredential(ctx, verification.UserID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Confirmed{}, ErrVerifyInvalid
+	}
+	if err != nil {
+		return Confirmed{}, fmt.Errorf("read the registered credential: %w", err)
+	}
+	if !passwordMatches(credential, password) {
+		return Confirmed{}, ErrBadCredentials
+	}
+	return s.confirm(ctx, token, true)
+}
+
+// confirm spends a link inside one transaction. completing says whether the
+// caller has proved it is the registrant: without that, a link that would
+// complete a registration is refused; with it, any other link is.
+func (s *Store) confirm(ctx context.Context, token string, completing bool) (Confirmed, error) {
 	if token == "" {
 		return Confirmed{}, ErrVerifyInvalid
 	}
@@ -158,6 +210,14 @@ func (s *Store) ConfirmVerification(ctx context.Context, token string) (Confirme
 	if err != nil {
 		return Confirmed{}, err
 	}
+	// Read under the lock: a reset spent in between proves the address itself.
+	registration := !lockedUser.Verified && strings.EqualFold(lockedUser.Email, verification.Email)
+	switch {
+	case registration && !completing:
+		return Confirmed{}, ErrVerifyNeedsPassword
+	case !registration && completing:
+		return Confirmed{}, ErrVerifyInvalid
+	}
 	row, err := spendMatchingVerification(ctx, q, digest, verification)
 	if err != nil {
 		return Confirmed{}, err
@@ -175,11 +235,7 @@ func (s *Store) ConfirmVerification(ctx context.Context, token string) (Confirme
 	if err := tx.Commit(ctx); err != nil {
 		return Confirmed{}, fmt.Errorf("commit verification: %w", err)
 	}
-	return Confirmed{
-		Email:     row.Email,
-		UserID:    row.UserID.String(),
-		Completed: !lockedUser.Verified && strings.EqualFold(lockedUser.Email, row.Email),
-	}, nil
+	return Confirmed{Email: row.Email, UserID: row.UserID.String()}, nil
 }
 
 func usableVerification(

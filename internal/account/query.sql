@@ -51,6 +51,11 @@ FROM (VALUES (true)) AS attempt (made)
 LEFT JOIN created c ON true
 LEFT JOIN users u ON lower(u.email) = lower(@email::text);
 
+-- The registrant's half of completing a registration: the password chosen when
+-- the account was made.
+-- name: RegistrationCredential :one
+SELECT password_hash FROM users WHERE id = $1;
+
 -- name: RegistrationAccount :one
 SELECT email, full_name, (email_verified_at IS NOT NULL)::boolean AS verified
 FROM users WHERE id = $1;

@@ -10383,6 +10383,19 @@ func (q *Queries) RegistrationAccount(ctx context.Context, id uuid.UUID) (Regist
 	return i, err
 }
 
+const registrationCredential = `-- name: RegistrationCredential :one
+SELECT password_hash FROM users WHERE id = $1
+`
+
+// The registrant's half of completing a registration: the password chosen when
+// the account was made.
+func (q *Queries) RegistrationCredential(ctx context.Context, id uuid.UUID) (pgtype.Text, error) {
+	row := q.db.QueryRow(ctx, registrationCredential, id)
+	var password_hash pgtype.Text
+	err := row.Scan(&password_hash)
+	return password_hash, err
+}
+
 const rejectInvoiceOperation = `-- name: RejectInvoiceOperation :one
 SELECT reject_invoice_operation(
     $1::uuid, $2::uuid, $3::text

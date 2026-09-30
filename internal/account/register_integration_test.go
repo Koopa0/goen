@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"html"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -20,6 +21,7 @@ import (
 
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/cart"
+	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/ratelimit"
 )
@@ -80,8 +82,10 @@ func queuedLink(t *testing.T, addr string) (token, next string) {
 	return token, next
 }
 
-// followRegistrationLink follows the link a registration of addr mailed, from
-// a browser holding cookies, through serve, and returns the answer.
+// followRegistrationLink completes the registration of addr as its registrant
+// does: the mailed link, and the password chosen at registration, which is
+// cartOwnerPassword for every registration it follows, posted from a browser
+// holding cookies through serve. It returns the answer.
 func followRegistrationLink(
 	t *testing.T,
 	s *account.Store,
@@ -94,7 +98,9 @@ func followRegistrationLink(
 		t.Fatalf("%d registrations were queued for %s, want 1", n, addr)
 	}
 	token, next := queuedLink(t, addr)
-	req := cartForm(t.Context(), "/verify", url.Values{"token": {token}, "next": {next}})
+	req := cartForm(t.Context(), "/register/complete", url.Values{
+		"token": {token}, "next": {next}, "password": {cartOwnerPassword},
+	})
 	for _, c := range cookies {
 		req.AddCookie(c)
 	}
@@ -174,8 +180,8 @@ func TestRegistrationAnswersTheSameWhetherOrNotTheAddressIsTaken(t *testing.T) {
 
 // TestARegistrationIsUsableOnlyOnceItsLinkIsFollowed is the other half: the
 // account a registration creates cannot be signed into with its password until
-// the mailed link is followed, and following it signs that browser in, adopts
-// its cart and lands where the registration was headed.
+// the mailed link is followed with that password, and following it signs that
+// browser in, adopts its cart and lands where the registration was headed.
 func TestARegistrationIsUsableOnlyOnceItsLinkIsFollowed(t *testing.T) {
 	ctx := t.Context()
 	appPool := accountStorePool(t, "registration-link")
@@ -213,16 +219,20 @@ func TestARegistrationIsUsableOnlyOnceItsLinkIsFollowed(t *testing.T) {
 	}
 
 	page := httptest.NewRecorder()
-	h.VerifyPage(page, httptest.NewRequestWithContext(ctx, http.MethodGet,
-		"/verify?"+url.Values{"token": {token}, "next": {next}}.Encode(), http.NoBody))
-	if !strings.Contains(page.Body.String(), `name="next" value="/cart"`) {
-		t.Errorf("the link's page does not carry next back to its form:\n%s", page.Body.String())
+	h.CompleteRegistrationPage(page, httptest.NewRequestWithContext(ctx, http.MethodGet,
+		"/register/complete?"+url.Values{"token": {token}, "next": {next}}.Encode(), http.NoBody))
+	for _, want := range []string{`name="next" value="/cart"`, `name="password"`} {
+		if !strings.Contains(page.Body.String(), want) {
+			t.Errorf("the link's page does not carry %s:\n%s", want, page.Body.String())
+		}
 	}
 
-	confirm := cartForm(ctx, "/verify", url.Values{"token": {token}, "next": {next}})
+	confirm := cartForm(ctx, "/register/complete", url.Values{
+		"token": {token}, "next": {next}, "password": {password},
+	})
 	confirm.AddCookie(guestCart)
 	followed := httptest.NewRecorder()
-	h.Verify(followed, confirm)
+	h.CompleteRegistration(followed, confirm)
 	if followed.Code != http.StatusSeeOther {
 		t.Fatalf("following the link answered %d, want 303; body=%s", followed.Code, followed.Body.String())
 	}
@@ -241,6 +251,90 @@ func TestARegistrationIsUsableOnlyOnceItsLinkIsFollowed(t *testing.T) {
 	}
 	if _, err := s.Authenticate(ctx, addr, password); err != nil {
 		t.Errorf("the password does not sign in after the link was followed: %v", err)
+	}
+}
+
+// TestARegistrationLinkWithoutItsPasswordProvesNothing: the link goes to the
+// mailbox, and the password to whoever registered. Somebody may register an
+// address that is not theirs; if its owner then follows the link and uses the
+// account, their addresses and orders sit behind a password somebody else
+// chose. So the link alone signs nobody in and proves nothing, and neither
+// does it with a password other than the one chosen at registration.
+func TestARegistrationLinkWithoutItsPasswordProvesNothing(t *testing.T) {
+	ctx := t.Context()
+	s := account.NewStore(pool)
+	h := account.NewHandler(s, nil, slog.New(slog.DiscardHandler), false, nil)
+	addr := "register-claim-" + uuid.NewString() + "@example.com"
+	const chosen = "the password chosen at registration"
+
+	h.Register(httptest.NewRecorder(), registrationForm(ctx, addr, chosen, "/account"))
+	if n := followUpRegistrations(t, s, addr, neverTold(t)); n != 1 {
+		t.Fatalf("%d registrations were queued, want 1", n)
+	}
+	token, _ := queuedLink(t, addr)
+
+	stillUnproved := func(t *testing.T, res *httptest.ResponseRecorder) {
+		t.Helper()
+		for _, c := range res.Result().Cookies() {
+			if strings.HasSuffix(c.Name, "goen_session") && c.Value != "" && c.MaxAge >= 0 {
+				t.Errorf("the answer signed the browser in (%s)", c.Name)
+			}
+		}
+		var proved bool
+		if err := pool.QueryRow(ctx, `
+			SELECT email_verified_at IS NOT NULL FROM users WHERE lower(email) = lower($1)`,
+			addr).Scan(&proved); err != nil {
+			t.Fatalf("read the account: %v", err)
+		}
+		if proved {
+			t.Error("the address reads as proved")
+		}
+		if _, err := s.Authenticate(ctx, addr, chosen); !errors.Is(err, account.ErrBadCredentials) {
+			t.Errorf("the registered password signs in: %v", err)
+		}
+	}
+
+	t.Run("the link alone", func(t *testing.T) {
+		res := httptest.NewRecorder()
+		h.Verify(res, cartForm(ctx, "/verify", url.Values{"token": {token}, "next": {"/account"}}))
+		stillUnproved(t, res)
+		if loc := res.Header().Get("Location"); res.Code != http.StatusSeeOther ||
+			!strings.HasPrefix(loc, "/register/complete?") {
+			t.Errorf("the link alone answered %d to %q, want 303 to the page that asks for the password",
+				res.Code, loc)
+		}
+	})
+
+	// Answered as sign-in answers a wrong password, and the link survives it.
+	for name, password := range map[string]string{
+		"no password":      "",
+		"a wrong password": "a password somebody else might guess",
+	} {
+		t.Run(name, func(t *testing.T) {
+			res := httptest.NewRecorder()
+			h.CompleteRegistration(res, cartForm(ctx, "/register/complete", url.Values{
+				"token": {token}, "next": {"/account"}, "password": {password},
+			}))
+			stillUnproved(t, res)
+			if res.Code != http.StatusUnprocessableEntity {
+				t.Errorf("answered %d, want 422", res.Code)
+			}
+			if !strings.Contains(res.Body.String(), html.EscapeString(i18n.T(ctx, i18n.KeyBadCredentials))) {
+				t.Error("the refusal is not sign-in's refusal of a wrong password")
+			}
+		})
+	}
+
+	// The control: the refusals above were about the password, not a dead link.
+	res := httptest.NewRecorder()
+	h.CompleteRegistration(res, cartForm(ctx, "/register/complete", url.Values{
+		"token": {token}, "next": {"/account"}, "password": {chosen},
+	}))
+	if res.Code != http.StatusSeeOther {
+		t.Fatalf("the link with the chosen password answered %d, want 303", res.Code)
+	}
+	if _, err := s.Authenticate(ctx, addr, chosen); err != nil {
+		t.Errorf("the chosen password does not sign in once the registration is complete: %v", err)
 	}
 }
 

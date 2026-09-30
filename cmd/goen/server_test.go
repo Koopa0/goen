@@ -673,7 +673,7 @@ func TestSpeculationRulesAreOfferedOnlyWhereTheyAreSafe(t *testing.T) {
 		"/orders/find", "/orders/GO-1/pay",
 		"/account", "/account/points", "/account/wishlist",
 		"/admin", "/admin/orders",
-		"/signin", "/register", "/reset?token=x", "/verify?token=x",
+		"/signin", "/register", "/register/complete?token=x", "/reset?token=x", "/verify?token=x",
 		"/static/css/app/app.css",
 	}
 
@@ -852,6 +852,7 @@ func TestEveryWriteThatChangesTheChromeClearsSpeculations(t *testing.T) {
 		`"POST /signin"`,
 		`"POST /signout"`,
 		`"POST /register"`,
+		`"POST /register/complete"`,
 	} {
 		line := routeLine(text, route)
 		if line == "" {
@@ -963,6 +964,7 @@ func TestNoPageForOneVisitorIsKeptByTheBrowser(t *testing.T) {
 		{name: "the checkout", method: http.MethodGet, path: "/checkout", want: true},
 		{name: "a password reset link", method: http.MethodGet, path: "/reset?token=x", want: true},
 		{name: "an address verification link", method: http.MethodGet, path: "/verify?token=x", want: true},
+		{name: "a registration link", method: http.MethodGet, path: "/register/complete?token=x", want: true},
 		{name: "a newsletter confirmation link", method: http.MethodGet, path: "/newsletter/confirm?token=x", want: true},
 		{name: "the sign-in form", method: http.MethodGet, path: "/signin", want: true},
 		{name: "the registration form", method: http.MethodGet, path: "/register?next=/cart", want: true},

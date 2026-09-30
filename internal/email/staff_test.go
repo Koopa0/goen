@@ -37,6 +37,35 @@ func TestTheAccountExistsLetterCarriesNoCapability(t *testing.T) {
 	}
 }
 
+// TestARegistrationLetterLeadsToThePasswordNotStraightIn: the mailbox alone
+// does not say who registered, so a registration's link goes to the page that
+// asks for the password chosen at registration, never to the page that proves
+// an address on the link alone.
+func TestARegistrationLetterLeadsToThePasswordNotStraightIn(t *testing.T) {
+	t.Parallel()
+	for _, locale := range []string{"en", "zh-TW"} {
+		n, sink := notifier(t)
+		if err := n.SendAddressVerify(t.Context(), &AddressVerify{
+			Locale: locale, Email: "new@example.com", Token: "tok", Registration: true, Next: "/cart",
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if sink.msg == nil || sink.msg.To != "new@example.com" {
+			t.Fatalf("the letter went to %+v, want the registered address", sink.msg)
+		}
+		if !strings.Contains(sink.msg.Body, "https://goen.test/register/complete?token=tok&next=%2Fcart") {
+			t.Errorf("the %s letter does not link to the password page:\n%s", locale, sink.msg.Body)
+		}
+		if strings.Contains(sink.msg.Body, "/verify?") {
+			t.Errorf("the %s letter links to the page that proves an address on the link alone:\n%s",
+				locale, sink.msg.Body)
+		}
+		if hasHan(sink.msg.Body) != (locale == "zh-TW") {
+			t.Errorf("the letter ignored locale %q", locale)
+		}
+	}
+}
+
 func TestStaffInvitationPointsToMailboxProofWithoutACapability(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []string{"en", "zh-TW"} {

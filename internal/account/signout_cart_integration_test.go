@@ -55,9 +55,10 @@ func TestAnAccountCartAnswersOnlyToItsAccount(t *testing.T) {
 	if registeredA.Code != http.StatusSeeOther {
 		t.Fatalf("A's registration status = %d, want 303; body=%s", registeredA.Code, registeredA.Body.String())
 	}
-	// A registration signs in, and adopts the cart, where its link is followed.
+	// A registration signs in, and adopts the cart, where its link is followed
+	// with the password chosen at registration.
 	completedA := followRegistrationLink(t, account.NewStore(appPool), aEmail,
-		func(req *http.Request) *httptest.ResponseRecorder { return serve(h.Verify, req) },
+		func(req *http.Request) *httptest.ResponseRecorder { return serve(h.CompleteRegistration, req) },
 		browserCart(aToken))
 	aSession := sessionCookie(t, completedA)
 	var aCart uuid.UUID
@@ -111,7 +112,7 @@ func TestAnAccountCartAnswersOnlyToItsAccount(t *testing.T) {
 		t.Fatalf("B's registration status = %d, want 303", registeredB.Code)
 	}
 	completedB := followRegistrationLink(t, account.NewStore(appPool), bEmail,
-		func(req *http.Request) *httptest.ResponseRecorder { return serve(h.Verify, req) },
+		func(req *http.Request) *httptest.ResponseRecorder { return serve(h.CompleteRegistration, req) },
 		browserCart(aToken))
 	if loc := completedB.Header().Get("Location"); loc != "/account" {
 		t.Errorf("B's registration link lands at %q, want /account: there was no cart of B's to adopt", loc)
@@ -210,7 +211,7 @@ func TestSignOutLeavesAGuestCartWithTheBrowser(t *testing.T) {
 		t.Fatalf("registration status = %d, want 303; body=%s", registered.Code, registered.Body.String())
 	}
 	completed := followRegistrationLink(t, account.NewStore(appPool), email,
-		func(req *http.Request) *httptest.ResponseRecorder { return serve(h.Verify, req) })
+		func(req *http.Request) *httptest.ResponseRecorder { return serve(h.CompleteRegistration, req) })
 	var owner uuid.NullUUID
 	if err := pool.QueryRow(ctx, `SELECT user_id FROM carts WHERE token_hash = $1`,
 		cart.HashToken(guestToken)).Scan(&owner); err != nil {

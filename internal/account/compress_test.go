@@ -27,6 +27,7 @@ func TestSecretBearingAccountPagesAreNotCompressed(t *testing.T) {
 			body: url.Values{"token": {token}, "password": {"one value"}, "confirm": {"a different value"}},
 		},
 		{name: "email verification page", method: http.MethodGet, target: "/verify?token=" + token, handler: h.VerifyPage},
+		{name: "registration completion page", method: http.MethodGet, target: "/register/complete?token=" + token, handler: h.CompleteRegistrationPage},
 	}
 
 	for _, tt := range tests {
