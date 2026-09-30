@@ -42,17 +42,27 @@ func refuseLosslessWebP(raw []byte) error {
 	}
 }
 
-// refuseLosslessAlpha reads an ALPH chunk's compression method, the low two
-// bits of its first byte: 0 is raw, 1 is lossless, and x/image refuses any
-// other.
+// alphaCompression is an ALPH chunk's compression method, the low two bits of
+// its first byte. x/image refuses any method but these two.
+type alphaCompression byte
+
+const (
+	alphaCompressionBits = 0x03
+
+	alphaRaw      alphaCompression = 0
+	alphaLossless alphaCompression = 1
+)
+
+// refuseLosslessAlpha reads an ALPH chunk's compression method and refuses a
+// lossless one, which x/image decodes with its lossless decoder.
 func refuseLosslessAlpha(chunk []byte) error {
 	if len(chunk) == 0 {
 		return ErrNotAnImage
 	}
-	switch chunk[0] & 0x03 {
-	case 0:
+	switch alphaCompression(chunk[0] & alphaCompressionBits) {
+	case alphaRaw:
 		return nil
-	case 1:
+	case alphaLossless:
 		return ErrLosslessWebP
 	default:
 		return ErrNotAnImage
