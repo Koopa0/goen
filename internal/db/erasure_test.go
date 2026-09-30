@@ -321,6 +321,158 @@ func TestErasureReachesTheGuestOrdersOfAProvedAddress(t *testing.T) {
 	}
 }
 
+// TestAnAccountEveryForeignKeyNamesCanBeErased references one account from every
+// foreign key to users, derived from the catalog so a new one is refused until it
+// is populated here, and erases it as store, the role /account/erase runs as. Each
+// key's ON DELETE action fires the triggers of the table it rewrites, and one of
+// them refusing is a customer who can never leave.
+func TestAnAccountEveryForeignKeyNamesCanBeErased(t *testing.T) {
+	ctx := t.Context()
+	tx, err := schemaPool(t).Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
+	if _, fixErr := tx.Exec(ctx, fixtures); fixErr != nil {
+		t.Fatalf("fixtures: %v", fixErr)
+	}
+
+	const (
+		account  = "11110095-0000-4000-8000-000000000001"
+		order    = "11110095-0000-4000-8000-000000000002"
+		line     = "11110095-0000-4000-8000-000000000003"
+		parcel   = "11110095-0000-4000-8000-000000000004"
+		claim    = "11110095-0000-4000-8000-000000000005"
+		question = "11110095-0000-4000-8000-000000000006"
+	)
+	for _, stmt := range []string{
+		`INSERT INTO users (id, email, full_name) VALUES ('` + account + `', 'everything@example.com', '全部')`,
+		// The account's own order, free through its discount so it can ship with
+		// no payment, delivered so a unit of it can carry cover.
+		`INSERT INTO orders (id, order_number, user_id, shipping_version_id, shipping_method_code,
+		                     shipping_method_name, discount_cents)
+		 VALUES ('` + order + `', 'GO-260721-000995', '` + account + `',
+		         'ffff0002-0000-4000-8000-000000000000', 'home_delivery', '宅配到府', 1000)`,
+		`INSERT INTO order_lines (id, order_id, variant_id, sku, product_name, unit_price_cents, quantity, position)
+		 VALUES ('` + line + `', '` + order + `', '44444444-4444-4444-8444-444444444444',
+		         'PXL-9P-256-BL', 'Pixelight 9 Pro 5G', 1000, 1, 0)`,
+		`INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street)
+		 VALUES ('` + order + `', 'everything@example.com', '全部', '0912345678', '110', '台北市', '信義區', '路 1 號')`,
+		`UPDATE orders SET fulfillment_status = 'picking' WHERE id = '` + order + `'`,
+		`UPDATE orders SET fulfillment_status = 'shipped' WHERE id = '` + order + `'`,
+		`INSERT INTO order_shipments (id, order_id, carrier, tracking_number, delivered_at)
+		 VALUES ('` + parcel + `', '` + order + `', '黑貓宅急便', 'EVERY-FK-1', now())`,
+		`INSERT INTO order_shipment_lines (order_id, shipment_id, order_line_id, quantity)
+		 VALUES ('` + order + `', '` + parcel + `', '` + line + `', 1)`,
+		`INSERT INTO warranty_registrations (order_line_id, unit_no, user_id, expires_on)
+		 VALUES ('` + line + `', 1, '` + account + `', current_date + 365)`,
+		`INSERT INTO coupon_redemptions (coupon_id, order_id, user_id, amount_cents)
+		 VALUES ('cccc0009-0000-4000-8000-000000000009', '` + order + `', '` + account + `', 1000)`,
+		`INSERT INTO return_requests (id, order_id, requested_by_user_id, reason)
+		 VALUES ('` + claim + `', '` + order + `', '` + account + `', '')`,
+		`INSERT INTO return_eligibility_assessments
+		     (order_id, return_request_id, version, assessed_by, assessed_by_snapshot, basis)
+		 VALUES ('` + order + `', '` + claim + `', 1, '` + account + `', '` + account + `', '看過了')`,
+		`INSERT INTO order_events (order_id, kind, actor_user_id) VALUES ('` + order + `', 'in_transit', '` + account + `')`,
+		`INSERT INTO invoice_operations (order_id, kind, provider_key, amount_cents, request_payload,
+		                                 actor_user_id, actor_id_snapshot, request_id)
+		 VALUES ('66666666-6666-4666-8666-666666666666', 'issue', 'GO260721000387', 6788000, '{}',
+		         '` + account + `', '` + account + `', 'every-fk')`,
+		`INSERT INTO audit_events (actor_user_id, actor_id_snapshot, action, entity_table)
+		 VALUES ('` + account + `', '` + account + `', 'probe.every_fk', 'users')`,
+		`SELECT record_inventory_movement('44444444-4444-4444-8444-444444444444', 1, 'receipt',
+		        'every-fk-receipt', 'admin', NULL, '` + account + `')`,
+		`INSERT INTO store_credit_accounts (user_id) VALUES ('` + account + `')`,
+		`INSERT INTO store_credit_entries (account_id, amount_cents, reason, idempotency_key, actor_user_id)
+		 VALUES ('a0000001-0000-4000-8000-000000000000', 100, '補償', 'every-fk-credit', '` + account + `')`,
+		`INSERT INTO loyalty_redemption_operations (user_id) VALUES ('` + account + `')`,
+		`INSERT INTO newsletter_issues (subject, body, sent_by) VALUES ('每一個', '每一個外鍵', '` + account + `')`,
+		`INSERT INTO addresses (user_id, recipient_name, phone, postal_code, city, district, street)
+		 VALUES ('` + account + `', '全部', '0912345678', '110', '台北市', '信義區', '路 1 號')`,
+		`INSERT INTO carts (token_hash, user_id) VALUES ('\x0995', '` + account + `')`,
+		`INSERT INTO wishlist_items (user_id, product_id) VALUES ('` + account + `', '33333333-3333-4333-8333-333333333333')`,
+		`INSERT INTO stock_notifications (variant_id, user_id, email)
+		 VALUES ('44444444-4444-4444-8444-444444444444', '` + account + `', 'everything@example.com')`,
+		`INSERT INTO product_questions (id, product_id, user_id, body)
+		 VALUES ('` + question + `', '33333333-3333-4333-8333-333333333333', '` + account + `', '有保固嗎?')`,
+		`INSERT INTO product_answers (question_id, user_id, body) VALUES ('` + question + `', '` + account + `', '有。')`,
+		`INSERT INTO product_reviews (product_id, user_id, rating, body)
+		 VALUES ('33333333-3333-4333-8333-333333333333', '` + account + `', 5, '好用')`,
+		`INSERT INTO sessions (token_hash, user_id, expires_at)
+		 VALUES (sha256('every-fk-session'::bytea), '` + account + `', now() + interval '1 day')`,
+		`INSERT INTO password_reset_tokens (token_hash, user_id, expires_at)
+		 VALUES (sha256('every-fk-reset'::bytea), '` + account + `', now() + interval '1 hour')`,
+		`INSERT INTO email_verifications (user_id, email, digest, expires_at)
+		 VALUES ('` + account + `', 'everything.new@example.com', sha256('every-fk-verify'::bytea), now() + interval '1 day')`,
+		`INSERT INTO user_identities (user_id, provider, provider_subject) VALUES ('` + account + `', 'google', 'every-fk')`,
+		`INSERT INTO staff_totp_credentials (user_id, secret_encrypted) VALUES ('` + account + `', '\x01')`,
+	} {
+		if _, refErr := tx.Exec(ctx, stmt); refErr != nil {
+			t.Fatalf("reference the account: %v\n%s", refErr, stmt)
+		}
+	}
+
+	type key struct{ table, column string }
+	rows, err := tx.Query(ctx, `
+		SELECT c.conrelid::regclass::text, a.attname
+		FROM pg_constraint c
+		JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = ANY (c.conkey)
+		WHERE c.contype = 'f' AND c.confrelid = 'users'::regclass
+		ORDER BY 1, 2`)
+	if err != nil {
+		t.Fatalf("read the foreign keys to users: %v", err)
+	}
+	var keys []key
+	for rows.Next() {
+		var k key
+		if scanErr := rows.Scan(&k.table, &k.column); scanErr != nil {
+			t.Fatalf("scan: %v", scanErr)
+		}
+		keys = append(keys, k)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		t.Fatalf("walk the foreign keys: %v", err)
+	}
+	if len(keys) < 20 {
+		t.Fatalf("only %d foreign keys to users found — the catalog query is wrong", len(keys))
+	}
+	references := func(k key) int {
+		t.Helper()
+		var n int
+		if err := tx.QueryRow(ctx, fmt.Sprintf(`SELECT count(*) FROM %s WHERE %s = $1`,
+			pgx.Identifier{k.table}.Sanitize(), pgx.Identifier{k.column}.Sanitize()),
+			account).Scan(&n); err != nil {
+			t.Fatalf("count %s.%s: %v", k.table, k.column, err)
+		}
+		return n
+	}
+	for _, k := range keys {
+		if references(k) == 0 {
+			t.Errorf("no row of %s.%s names the account. Add one above: a foreign key "+
+				"nobody erases through is where the next refused erasure hides.", k.table, k.column)
+		}
+	}
+	if t.Failed() {
+		t.FailNow()
+	}
+
+	if _, err := tx.Exec(ctx, `SET LOCAL ROLE store`); err != nil {
+		t.Fatalf("assume store: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `SELECT erase_user($1)`, account); err != nil {
+		t.Fatalf("erase_user refused an account every foreign key names: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `RESET ROLE`); err != nil {
+		t.Fatalf("reset role: %v", err)
+	}
+	for _, k := range keys {
+		if n := references(k); n != 0 {
+			t.Errorf("%s.%s still names the erased account in %d row(s)", k.table, k.column, n)
+		}
+	}
+}
+
 // deref reads an optional column for a failure message.
 func deref(s *string) string {
 	if s == nil {

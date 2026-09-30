@@ -60,16 +60,19 @@ BEGIN
 END;
 $$;
 
--- Refuses any UPDATE or DELETE; a correction is a new row.
+-- Refuses any UPDATE or DELETE; a correction is a new row. The trigger's second
+-- argument names the column that references users, actor_user_id when omitted.
 CREATE FUNCTION forbid_change() RETURNS trigger
 LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
+DECLARE
+    user_column text := coalesce(TG_ARGV[1], 'actor_user_id');
 BEGIN
-    -- The one permitted mutation: the ON DELETE SET NULL that nulls
-    -- actor_user_id when the acting user is erased. Everything else must be
-    -- byte-identical, so a value becomes unknown and never false.
+    -- The one permitted mutation: the ON DELETE SET NULL that nulls that
+    -- column when the user is erased. Everything else must be byte-identical,
+    -- so a value becomes unknown and never false.
     IF TG_OP = 'UPDATE'
-       AND (to_jsonb(NEW) - 'actor_user_id') = (to_jsonb(OLD) - 'actor_user_id')
-       AND to_jsonb(NEW) ->> 'actor_user_id' IS NULL THEN
+       AND (to_jsonb(NEW) - user_column) = (to_jsonb(OLD) - user_column)
+       AND to_jsonb(NEW) ->> user_column IS NULL THEN
         RETURN NEW;
     END IF;
     RAISE EXCEPTION '% is append-only; correct it with a new row', TG_TABLE_NAME
@@ -2420,7 +2423,7 @@ CREATE INDEX coupon_redemptions_user_idx ON coupon_redemptions (user_id);
 
 CREATE TRIGGER coupon_redemptions_append_only
     BEFORE UPDATE OR DELETE ON coupon_redemptions
-    FOR EACH ROW EXECUTE FUNCTION forbid_change('coupon_redemptions_append_only');
+    FOR EACH ROW EXECUTE FUNCTION forbid_change('coupon_redemptions_append_only', 'user_id');
 
 -- The redemption and the order's discount_cents are one fact, so the database
 -- keeps them one.
