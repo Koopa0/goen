@@ -9,10 +9,12 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -181,4 +183,58 @@ func queuedResetRequests(t *testing.T) map[string]string {
 		t.Fatalf("read queued reset requests: %v", err)
 	}
 	return out
+}
+
+// TestResetRequestsForOneAddressAreBoundedWithoutSayingWhoHasAnAccount: a reset
+// request mails the account at the address whoever asks, so the requests naming
+// one address are bounded at the pace of every other form that mails an
+// address, three and then one every ten minutes. The count is the address's
+// own, so the refusal is the same whether or not it has an account.
+func TestResetRequestsForOneAddressAreBoundedWithoutSayingWhoHasAnAccount(t *testing.T) {
+	ctx := t.Context()
+	h := account.NewHandler(account.NewStore(pool), nil, slog.New(slog.DiscardHandler), false, nil)
+	known := registerProved(t, account.NewStore(pool), "forgot-bound-"+uuid.NewString()+"@example.com").Email
+	unknown := "forgot-bound-nobody-" + uuid.NewString() + "@example.com"
+	forgot := func(addr string) *httptest.ResponseRecorder {
+		rec := httptest.NewRecorder()
+		h.Forgot(rec, cartForm(ctx, "/forgot", url.Values{"email": {addr}}))
+		return rec
+	}
+	refusal := func(addr string) *httptest.ResponseRecorder {
+		t.Helper()
+		for i := range 3 {
+			if rec := forgot(addr); rec.Code != http.StatusSeeOther {
+				t.Fatalf("reset request %d for %s answered %d, want 303", i+1, addr, rec.Code)
+			}
+		}
+		return forgot(addr)
+	}
+	knownRec, unknownRec := refusal(known), refusal(unknown)
+
+	if knownRec.Code != http.StatusTooManyRequests || unknownRec.Code != knownRec.Code {
+		t.Fatalf("a fourth reset request for a known and an unknown address answered %d and %d, "+
+			"want 429 for both", knownRec.Code, unknownRec.Code)
+	}
+	for name, rec := range map[string]*httptest.ResponseRecorder{"known": knownRec, "unknown": unknownRec} {
+		wait, err := strconv.Atoi(rec.Header().Get("Retry-After"))
+		if err != nil {
+			t.Fatalf("the %s address's refusal carries Retry-After %q", name, rec.Header().Get("Retry-After"))
+		}
+		if wait <= 9*60 {
+			t.Errorf("the %s address may ask again in %d s; want the ten-minute pace of every "+
+				"form that mails an address", name, wait)
+		}
+	}
+	// Retry-After counts down from each address's own first request, so its
+	// value is compared only above.
+	knownHeader, unknownHeader := knownRec.Header().Clone(), unknownRec.Header().Clone()
+	knownHeader.Del("Retry-After")
+	unknownHeader.Del("Retry-After")
+	if diff := cmp.Diff(knownHeader, unknownHeader); diff != "" {
+		t.Errorf("the refusals for a known and an unknown address differ (-known +unknown):\n%s", diff)
+	}
+	if knownRec.Body.String() != unknownRec.Body.String() {
+		t.Errorf("the refusals for a known and an unknown address answer %q and %q",
+			knownRec.Body.String(), unknownRec.Body.String())
+	}
 }

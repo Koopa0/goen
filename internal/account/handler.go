@@ -34,12 +34,15 @@ type CartFinder interface {
 // Handler serves sign-in, registration and the customer's own pages.
 type Handler struct {
 	signinLimit *ratelimit.Limiter
-	resetLimit  *ratelimit.Limiter
-	store       *Store
-	carts       CartFinder
-	log         *slog.Logger
-	secure      bool
-	google      *Google
+	// resetLimit bounds reset requests per address at mailLimit's pace, on a
+	// budget of its own: spending the registration and change budget for an
+	// address must not stop its owner getting a reset link.
+	resetLimit *ratelimit.Limiter
+	store      *Store
+	carts      CartFinder
+	log        *slog.Logger
+	secure     bool
+	google     *Google
 
 	// mailLimit bounds, per address, the forms that mail an address whoever
 	// names it: registration and an address change. Each mails the address
@@ -62,13 +65,16 @@ func NewHandler(store *Store, carts CartFinder, log *slog.Logger, secure bool, g
 		signinLimit: ratelimit.New(ratelimit.Config{
 			Every: 15 * time.Second, Burst: 6, TTL: time.Hour, MaxKeys: 65_536,
 		}),
-		resetLimit: ratelimit.New(ratelimit.Config{
-			Every: time.Minute, Burst: 3, TTL: time.Hour, MaxKeys: 65_536,
-		}),
-		mailLimit: ratelimit.New(ratelimit.Config{
-			Every: 10 * time.Minute, Burst: 3, TTL: time.Hour, MaxKeys: 65_536,
-		}),
+		resetLimit: ratelimit.New(addressMailPace),
+		mailLimit:  ratelimit.New(addressMailPace),
 	}
+}
+
+// addressMailPace is how often a form anybody can submit may make goen mail one
+// address: three at once, then one every ten minutes, more than somebody
+// retyping or asking again needs.
+var addressMailPace = ratelimit.Config{
+	Every: 10 * time.Minute, Burst: 3, TTL: time.Hour, MaxKeys: 65_536,
 }
 
 type contextKey struct{}
