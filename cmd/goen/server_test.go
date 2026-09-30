@@ -91,6 +91,55 @@ func TestCheckoutIsGuardedPerClient(t *testing.T) {
 	}
 }
 
+// TestTextPostgreSQLCannotStoreIsRefusedBeforeRouting drives the router with
+// the bytes no browser sends and PostgreSQL refuses to hold, in a query value,
+// a query name and a path value, on the storefront and in the back office.
+// Each is answered 400 before any handler reads it.
+func TestTextPostgreSQLCannotStoreIsRefusedBeforeRouting(t *testing.T) {
+	router := storeMapRouter(t, false)
+	get := func(target string) *httptest.ResponseRecorder {
+		res := httptest.NewRecorder()
+		router.ServeHTTP(res, httptest.NewRequestWithContext(t.Context(), http.MethodGet, target, http.NoBody))
+		return res
+	}
+
+	for _, bad := range []string{"%E9", "%00", "a%C3%28b", "a%00b"} {
+		for _, target := range []string{
+			"/search?q=" + bad,
+			"/search?" + bad + "=1",
+			"/c/phones?brand=" + bad,
+			"/c/" + bad,
+			"/p/" + bad,
+			"/s/" + bad,
+			"/compare?p=" + bad,
+			"/compare?p=aurora-slate&p=" + bad,
+			"/admin/customers?q=" + bad,
+			"/admin/orders?q=" + bad,
+			"/admin/warranty?q=" + bad,
+		} {
+			res := get(target)
+			if res.Code != http.StatusBadRequest {
+				t.Errorf("GET %s answered %d, want 400", target, res.Code)
+				continue
+			}
+			if !strings.HasPrefix(res.Body.String(), "400 ") {
+				t.Errorf("GET %s refusal body = %q, want the plain 400", target, res.Body.String())
+			}
+		}
+	}
+
+	// The control: text PostgreSQL stores, and a pair no reader decodes, pass.
+	for _, target := range []string{
+		"/search?q=%E6%89%8B%E6%A9%9F",
+		"/search?q=phone&utm_content=50%off",
+		"/c/phones?brand=koto",
+	} {
+		if res := get(target); res.Code == http.StatusBadRequest {
+			t.Errorf("GET %s answered 400; only unstorable text is refused", target)
+		}
+	}
+}
+
 func TestAnAssetRequestNeverReachesPerVisitorMiddleware(t *testing.T) {
 	tests := []struct {
 		path    string
