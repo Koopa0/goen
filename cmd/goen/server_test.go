@@ -846,9 +846,10 @@ func TestTheCatalogueStaysEligibleForSpeculation(t *testing.T) {
 // TestNoPageForOneVisitorIsKeptByTheBrowser holds both halves of withNoStore.
 // A page kept in the back/forward cache comes back with the Back button after
 // its owner has signed out, so the next person at a shared computer reads an
-// account, a customer list or a second-factor seed. The anonymous catalogue is
-// the other half: storing nothing there would cost every shopper an instant
-// Back and protect nobody.
+// account, a customer list or a second-factor seed, or finds a signed-out
+// visitor's sign-in, registration or password form holding what was typed
+// into it. The anonymous catalogue is the other half: storing nothing there
+// would cost every shopper an instant Back and protect nobody.
 func TestNoPageForOneVisitorIsKeptByTheBrowser(t *testing.T) {
 	t.Parallel()
 
@@ -874,6 +875,8 @@ func TestNoPageForOneVisitorIsKeptByTheBrowser(t *testing.T) {
 		{name: "an address verification link", method: http.MethodGet, path: "/verify?token=x", want: true},
 		{name: "a newsletter confirmation link", method: http.MethodGet, path: "/newsletter/confirm?token=x", want: true},
 		{name: "the sign-in form", method: http.MethodGet, path: "/signin", want: true},
+		{name: "the registration form", method: http.MethodGet, path: "/register?next=/cart", want: true},
+		{name: "the forgotten-password form", method: http.MethodGet, path: "/forgot", want: true},
 		{name: "a refused form's answer", method: http.MethodPost, path: "/contact", want: true},
 		{name: "the home page", method: http.MethodGet, path: "/", want: false},
 		{name: "a product page", method: http.MethodGet, path: "/p/aurora-slate", want: false},
