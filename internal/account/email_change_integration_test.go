@@ -412,7 +412,9 @@ func TestAnAddressIsMailedABoundedNumberOfTimesWhoeverAsks(t *testing.T) {
 
 // TestARefusalForAnAddressSaysNothingAboutIt: the bound is the address's own
 // count, whoever holds it, so the refusal once it is spent is the same for an
-// address with an account and one without.
+// address with an account and one without. The budget is spent in the
+// spellings of one address the form accepts, which are its capitalisations:
+// each is the same mailbox, and none may buy a budget of its own.
 func TestARefusalForAnAddressSaysNothingAboutIt(t *testing.T) {
 	b := changeBrowser{t: t, h: account.NewHandler(account.NewStore(pool), nil,
 		slog.New(slog.DiscardHandler), false, nil)}
@@ -423,12 +425,14 @@ func TestARefusalForAnAddressSaysNothingAboutIt(t *testing.T) {
 
 	refusal := func(addr string) *httptest.ResponseRecorder {
 		t.Helper()
+		spellings := []string{addr, strings.ToUpper(addr), strings.ToUpper(addr[:1]) + addr[1:]}
 		for i := range addressMailBudget {
-			if rec := b.askToMove(session, addr); rec.Code != http.StatusSeeOther {
-				t.Fatalf("request %d naming %s answered %d, want 303", i+1, addr, rec.Code)
+			spelling := spellings[i%len(spellings)]
+			if rec := b.askToMove(session, spelling); rec.Code != http.StatusSeeOther {
+				t.Fatalf("request %d naming %s answered %d, want 303", i+1, spelling, rec.Code)
 			}
 		}
-		return b.askToMove(session, addr)
+		return b.askToMove(session, strings.ToUpper(addr[:len(addr)/2])+addr[len(addr)/2:])
 	}
 	takenRec, freeRec := refusal(taken), refusal(free)
 
