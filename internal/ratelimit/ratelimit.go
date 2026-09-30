@@ -3,9 +3,14 @@
 // argon2id runs at 64 MiB a hash, so the limiter must run BEFORE the hash or it
 // defends nothing. It is a throttle and never a lockout — every key recovers on
 // its own — and its state is per process, so N replicas allow N times the rate.
+//
+// Every request costs a bounded amount of work under one mutex, whatever the
+// table holds: some keys are chosen by the client, so a client that can fill the
+// table must not also be able to make each of its misses walk it.
 package ratelimit
 
 import (
+	"container/list"
 	"crypto/sha256"
 	"encoding/base64"
 	"net"
@@ -40,10 +45,17 @@ type Config struct {
 type Limiter struct {
 	cfg Config
 
-	mu        sync.Mutex
-	buckets   map[bucketKey]*bucket
+	// mu guards the four fields below together: a bucket, its place in the
+	// eviction order and the sweep clock are one invariant.
+	mu      sync.Mutex
+	buckets map[bucketKey]*bucket
+	// order holds every bucket, the most recently seen at the front, so both
+	// the expired keys and the eviction victim are at the back.
+	order     *list.List
 	lastSweep time.Time
-	sweeps    int // counted so a test can lock the amortisation guarantee
+	// The two counters exist so a test can lock the amortisation guarantee.
+	sweeps  int // sweeps run
+	scanned int // buckets examined to make room
 }
 
 // bucketKey keeps bounded digests in a namespace separate from raw keys. The
@@ -55,8 +67,10 @@ type bucketKey struct {
 }
 
 type bucket struct {
+	key     bucketKey
 	limiter *rate.Limiter
 	seen    time.Time
+	place   *list.Element // this bucket in Limiter.order
 }
 
 // New returns a Limiter.
@@ -64,7 +78,7 @@ func New(cfg Config) *Limiter {
 	if cfg.Every <= 0 || cfg.Burst < 1 || cfg.TTL <= 0 || cfg.MaxKeys < 1 {
 		panic("ratelimit: New requires a positive Every, Burst, TTL and MaxKeys")
 	}
-	return &Limiter{cfg: cfg, buckets: make(map[bucketKey]*bucket)}
+	return &Limiter{cfg: cfg, buckets: make(map[bucketKey]*bucket), order: list.New()}
 }
 
 // Allow reports whether this key may proceed, and how long to wait if not. A
@@ -72,28 +86,18 @@ func New(cfg Config) *Limiter {
 // per-IP limiting cannot see a distributed attack on one account.
 func (l *Limiter) Allow(key string) (retryAfter time.Duration, ok bool) {
 	mapKey := clampKey(key)
-	now := time.Now()
 
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	// Read under the lock, so order and seen agree exactly: a clock read before
+	// the wait would let a later arrival carry an earlier time.
+	now := time.Now()
 
 	b, found := l.buckets[mapKey]
-	if !found {
-		// Work proportional to N once per new key is O(N^2), and during a
-		// sustained arrival no key is old enough to free; sweep on an interval
-		// instead. Both the per-miss cost and the map stay bound.
-		if now.Sub(l.lastSweep) >= l.cfg.TTL/8 || len(l.buckets) >= l.cfg.MaxKeys {
-			l.evictLocked(now)
-			l.lastSweep = now
-		}
-		// A short key may be a small substring of a large allocation. Clone it
-		// only on insertion so the map does not pin the caller's whole backing
-		// allocation, without allocating on a hit.
-		if !mapKey.hashed {
-			mapKey.value = strings.Clone(mapKey.value)
-		}
-		b = &bucket{limiter: rate.NewLimiter(rate.Every(l.cfg.Every), l.cfg.Burst)}
-		l.buckets[mapKey] = b
+	if found {
+		l.order.MoveToFront(b.place)
+	} else {
+		b = l.admitLocked(mapKey, now)
 	}
 	b.seen = now
 
@@ -105,6 +109,35 @@ func (l *Limiter) Allow(key string) (retryAfter time.Duration, ok bool) {
 		return delay, false
 	}
 	return 0, true
+}
+
+// admitLocked makes room for a key not yet tracked and tracks it. Called with mu
+// held.
+func (l *Limiter) admitLocked(mapKey bucketKey, now time.Time) *bucket {
+	// Expired keys are dropped on an interval and not on every miss: during a
+	// sustained arrival no key is old enough to free, and a walk per new key is
+	// O(N^2) across N keys.
+	if now.Sub(l.lastSweep) >= l.cfg.TTL/8 {
+		l.sweepLocked(now)
+		l.lastSweep = now
+	}
+	// At capacity the back of the order is the least recently seen key, and it
+	// is an expired one if any key is. One removal is sufficient: every previous
+	// insertion left len(buckets) <= MaxKeys.
+	if len(l.buckets) >= l.cfg.MaxKeys {
+		l.scanned++
+		l.dropLocked(l.order.Back())
+	}
+	// A short key may be a small substring of a large allocation. Clone it only
+	// on insertion so the map does not pin the caller's whole backing
+	// allocation, without allocating on a hit.
+	if !mapKey.hashed {
+		mapKey.value = strings.Clone(mapKey.value)
+	}
+	b := &bucket{key: mapKey, limiter: rate.NewLimiter(rate.Every(l.cfg.Every), l.cfg.Burst)}
+	b.place = l.order.PushFront(b)
+	l.buckets[mapKey] = b
+	return b
 }
 
 // clampKey bounds one stored representation without merging long keys that
@@ -122,27 +155,25 @@ func clampKey(key string) bucketKey {
 	}
 }
 
-// evictLocked drops expired keys and, if the incoming miss still needs room,
-// the one least recently seen live key. Called with mu held. One deletion is
-// sufficient: every previous insertion left len(buckets) <= MaxKeys.
-func (l *Limiter) evictLocked(now time.Time) {
+// sweepLocked drops every expired key. Called with mu held. The order is by last
+// seen, so the expired keys are one run at the back and the walk ends at the
+// first live key: each key is examined once on its way out, plus that one.
+func (l *Limiter) sweepLocked(now time.Time) {
 	l.sweeps++
-	var oldestKey bucketKey
-	var oldestSeen time.Time
-	haveOldest := false
-	for key, b := range l.buckets {
-		if now.Sub(b.seen) > l.cfg.TTL {
-			delete(l.buckets, key)
-			continue
+	for el := l.order.Back(); el != nil; el = l.order.Back() {
+		l.scanned++
+		if b, isBucket := el.Value.(*bucket); isBucket && now.Sub(b.seen) <= l.cfg.TTL {
+			return
 		}
-		if !haveOldest || b.seen.Before(oldestSeen) {
-			oldestKey = key
-			oldestSeen = b.seen
-			haveOldest = true
-		}
+		l.dropLocked(el)
 	}
-	if len(l.buckets) >= l.cfg.MaxKeys && haveOldest {
-		delete(l.buckets, oldestKey)
+}
+
+// dropLocked forgets one bucket. Called with mu held.
+func (l *Limiter) dropLocked(el *list.Element) {
+	l.order.Remove(el)
+	if b, isBucket := el.Value.(*bucket); isBucket {
+		delete(l.buckets, b.key)
 	}
 }
 

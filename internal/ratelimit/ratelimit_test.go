@@ -133,6 +133,151 @@ func TestAHitRefreshesTheOldestKey(t *testing.T) {
 	}
 }
 
+// requireAgreement fails the test when the map and the eviction order disagree
+// about how many keys there are: a key in one and not the other is either
+// memory nothing bounds or a key nothing can evict.
+func requireAgreement(t *testing.T, l *Limiter) {
+	t.Helper()
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.order.Len() != len(l.buckets) {
+		t.Fatalf("order holds %d keys and the map %d", l.order.Len(), len(l.buckets))
+	}
+}
+
+// held reports whether key is tracked.
+func held(t *testing.T, l *Limiter, key string) bool {
+	t.Helper()
+	requireAgreement(t, l)
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	_, ok := l.buckets[clampKey(key)]
+	return ok
+}
+
+func TestTheLeastRecentlySeenKeyIsEvictedFirst(t *testing.T) {
+	l := New(Config{Every: time.Minute, Burst: 1, TTL: time.Hour, MaxKeys: 3})
+	l.Allow("a")
+	l.Allow("b")
+	l.Allow("c")
+	l.Allow("a") // a hit: b is now the least recently seen, and a the most.
+
+	l.Allow("d")
+	if held(t, l, "b") || !held(t, l, "a") || !held(t, l, "c") || !held(t, l, "d") {
+		t.Fatalf("after d: a=%v b=%v c=%v d=%v; want b evicted and the rest kept",
+			held(t, l, "a"), held(t, l, "b"), held(t, l, "c"), held(t, l, "d"))
+	}
+
+	l.Allow("e")
+	if held(t, l, "c") || !held(t, l, "a") || !held(t, l, "d") || !held(t, l, "e") {
+		t.Fatalf("after e: a=%v c=%v d=%v e=%v; want c evicted next and the rest kept",
+			held(t, l, "a"), held(t, l, "c"), held(t, l, "d"), held(t, l, "e"))
+	}
+}
+
+func TestARecentlySeenKeySurvivesAFloodOfNewKeys(t *testing.T) {
+	const maxKeys = 8
+	l := New(Config{Every: time.Minute, Burst: 1, TTL: time.Hour, MaxKeys: maxKeys})
+	l.Allow("busy")
+	for i := range 100 {
+		l.Allow("flood-" + strconv.Itoa(i))
+		// Seen again before maxKeys newer keys have arrived, so it is never the
+		// back of the order.
+		if _, ok := l.Allow("busy"); ok {
+			t.Fatalf("round %d: busy was allowed a second time; its bucket was "+
+				"evicted and replaced, which resets its allowance", i)
+		}
+	}
+	if !held(t, l, "busy") {
+		t.Error("the key seen most recently was evicted before ones seen long ago")
+	}
+}
+
+func TestTheTableNeverExceedsMaxKeys(t *testing.T) {
+	const maxKeys = 8
+	l := New(Config{Every: time.Minute, Burst: 1, TTL: time.Hour, MaxKeys: maxKeys})
+	for i := range 500 {
+		l.Allow("key-" + strconv.Itoa(i))
+		l.Allow("key-" + strconv.Itoa(i/2)) // a hit, or a miss on an evicted key
+		requireAgreement(t, l)
+		if got := bucketCount(l); got > maxKeys {
+			t.Fatalf("%d keys held after %d inserts, want at most %d", got, i+1, maxKeys)
+		}
+	}
+}
+
+func TestASweepDropsTheExpiredAndKeepsTheLive(t *testing.T) {
+	l := New(Config{Every: time.Minute, Burst: 1, TTL: time.Hour, MaxKeys: testMaxKeys})
+	l.Allow("expired-first")
+	l.Allow("expired-second")
+	l.Allow("live")
+
+	now := time.Now()
+	l.mu.Lock()
+	l.buckets[clampKey("expired-first")].seen = now.Add(-3 * time.Hour)
+	l.buckets[clampKey("expired-second")].seen = now.Add(-2 * time.Hour)
+	l.lastSweep = time.Time{} // the interval has passed
+	l.mu.Unlock()
+
+	l.Allow("new")
+	if held(t, l, "expired-first") || held(t, l, "expired-second") {
+		t.Error("an expired key survived the sweep")
+	}
+	if !held(t, l, "live") || !held(t, l, "new") {
+		t.Error("the sweep dropped a key that had not expired")
+	}
+}
+
+// The work a miss does at capacity must not depend on how many keys the table
+// holds. Some keys are chosen by the client, so a full table is something a
+// client can arrange, and every later miss then runs under the one mutex every
+// request needs.
+func TestAMissAtCapacityExaminesOneKeyWhateverTheTableSize(t *testing.T) {
+	const misses = 1000
+	for _, maxKeys := range []int{16, 4096} {
+		t.Run(strconv.Itoa(maxKeys), func(t *testing.T) {
+			l := New(Config{Every: time.Minute, Burst: 1, TTL: time.Hour, MaxKeys: maxKeys})
+			for i := range maxKeys {
+				l.Allow("fill-" + strconv.Itoa(i))
+			}
+
+			l.mu.Lock()
+			before := l.scanned
+			l.mu.Unlock()
+			for i := range misses {
+				l.Allow("miss-" + strconv.Itoa(i))
+			}
+			l.mu.Lock()
+			examined := l.scanned - before
+			l.mu.Unlock()
+
+			if examined > misses {
+				t.Errorf("%d keys examined for %d misses at a capacity of %d, want at "+
+					"most one a miss — eviction is walking the table", examined, misses, maxKeys)
+			}
+			if got := bucketCount(l); got != maxKeys {
+				t.Errorf("%d keys held, want the capacity %d", got, maxKeys)
+			}
+		})
+	}
+}
+
+func BenchmarkAllowAtCapacity(b *testing.B) {
+	const maxKeys = 65_536 // what cmd/goen configures
+	l := New(Config{Every: time.Minute, Burst: 1, TTL: time.Hour, MaxKeys: maxKeys})
+	for i := range maxKeys {
+		l.Allow("fill-" + strconv.Itoa(i))
+	}
+	keys := make([]string, b.N)
+	for i := range keys {
+		keys[i] = "miss-" + strconv.Itoa(i)
+	}
+	b.ResetTimer()
+	for i := range b.N {
+		l.Allow(keys[i])
+	}
+}
+
 func TestTheSweepIsAmortised(t *testing.T) {
 	l := New(Config{Every: time.Minute, Burst: 1, TTL: time.Hour, MaxKeys: 1 << 20})
 	for i := range 10_000 {
