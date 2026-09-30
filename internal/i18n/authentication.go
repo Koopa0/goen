@@ -136,14 +136,18 @@ var (
 
 	KeyPasswordTooLong = key("valid.password.long", Message{ZhHant: "密碼過長", En: "That password is too long"})
 
+	// The second sentence is for everybody, because an account whose link has
+	// not been followed yet is refused exactly as a wrong password is.
 	KeyBadCredentials = key("auth.badcredentials", Message{
-		ZhHant: "電子郵件或密碼不正確",
-		En:     "That email address or password is not right",
+		ZhHant: "電子郵件或密碼不正確。剛註冊的話,請先點我們寄給你的信裡的連結。",
+		En: "That email address or password is not right. If you have just registered, " +
+			"follow the link in the message we sent you first.",
 	})
 
-	KeyEmailTaken = key("auth.emailtaken", Message{
-		ZhHant: "這個電子郵件已經註冊過了",
-		En:     "That email address is already registered",
+	KeyRegisterSent = key("auth.register.sent", Message{
+		ZhHant: "我們寄了一封信到這個信箱,照信裡的說明完成註冊。沒收到請看看垃圾郵件。",
+		En: "We have sent a message to that address. Follow it to finish — if it has not " +
+			"arrived, check your spam folder.",
 	})
 
 	KeyAccountCreated = key("auth.created", Message{

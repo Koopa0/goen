@@ -242,6 +242,32 @@ func rateLimitedAccountHandler(store *Store) *Handler {
 	}
 }
 
+// TestRegistrationsOfOneAddressAreBounded: a registration mails the address it
+// names, whether or not that address has an account, so the form must not be a
+// way to fill one inbox. The bound is keyed on the address as the rules read it
+// and refuses every address the same way.
+func TestRegistrationsOfOneAddressAreBounded(t *testing.T) {
+	h := NewHandler(deadAccountStore(t), nil, slog.New(slog.DiscardHandler), false, nil)
+	const password = "a sufficiently long password"
+	register := func(addr string) int {
+		return postAccountForm(t, "/register", url.Values{
+			"email": {addr}, "password": {password}, "confirm": {password},
+		}, h.Register).Code
+	}
+
+	for i := range 3 {
+		if code := register("bounded@example.com"); code == http.StatusTooManyRequests {
+			t.Fatalf("registration %d of one address was refused; the bound is too tight", i+1)
+		}
+	}
+	if code := register(" Bounded@Example.com "); code != http.StatusTooManyRequests {
+		t.Errorf("a fourth registration of one address answered %d, want 429", code)
+	}
+	if code := register("another@example.com"); code == http.StatusTooManyRequests {
+		t.Error("a different address was refused; the bound is per address")
+	}
+}
+
 func accountTestLimiter() *ratelimit.Limiter {
 	return ratelimit.New(ratelimit.Config{
 		Every: time.Hour, Burst: 1, TTL: time.Hour, MaxKeys: 10,

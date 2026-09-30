@@ -97,6 +97,9 @@ type AddressVerify struct {
 	Locale string `json:"locale"`
 	Email  string `json:"email"`
 	Token  string `json:"token"`
+	// Next is the same-site path a registration was headed for. The link
+	// carries it and the page it lands on checks it again.
+	Next string `json:"next,omitempty"`
 }
 
 // SendAddressVerify asks somebody to prove an address is theirs.
@@ -107,6 +110,9 @@ func (n Notifier) SendAddressVerify(ctx context.Context, p *AddressVerify) error
 
 	ctx = n.locale(ctx, p.Locale)
 	link := strings.TrimRight(n.baseURL, "/") + "/verify?token=" + url.QueryEscape(p.Token)
+	if p.Next != "" {
+		link += "&next=" + url.QueryEscape(p.Next)
+	}
 	return n.sender.Send(ctx, &Message{
 		To:      p.Email,
 		Subject: i18n.T(ctx, i18n.KeyMailVerifySubject),

@@ -41,6 +41,10 @@ const (
 	// same way whether or not the address has an account. Its handler issues
 	// the token and queues the TopicPasswordReset message.
 	TopicPasswordResetRequest = "account.password_reset_request"
+	// TopicRegistration is a registration, queued the same way whether or not
+	// the address already had an account. Its handler sends the link that
+	// completes a new account, or tells an existing one's owner of the attempt.
+	TopicRegistration = "account.registration"
 )
 
 // BulkPriority is where a send that can wait goes in the queue. Transactional

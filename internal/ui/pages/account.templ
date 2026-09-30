@@ -94,6 +94,11 @@ templ Register(p layouts.Page, v AuthView) {
 		<div class="goen-auth">
 			<div class="goen-auth__panel goen-auth__panel--wide">
 				<h1 class="goen-auth__title">{ i18n.T(ctx, i18n.KeyCreateAccount) }</h1>
+				if v.HasNotice() {
+					@components.Notice(components.NoticeProps{Tone: components.ToneAccent, ID: "register-sent"}) {
+						{ v.Notice }
+					}
+				}
 				if v.AnyErrors() {
 					@components.Notice(components.NoticeProps{Tone: components.ToneDanger}) {
 						{ i18n.T(ctx, i18n.KeyFormHasErrors) }

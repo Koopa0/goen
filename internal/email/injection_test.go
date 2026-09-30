@@ -55,6 +55,9 @@ func letters(text string) map[string]func(context.Context, Notifier) error {
 		"SendAddressVerify": func(ctx context.Context, n Notifier) error {
 			return n.SendAddressVerify(ctx, &AddressVerify{Email: to, Token: "tok"})
 		},
+		"SendAccountExists": func(ctx context.Context, n Notifier) error {
+			return n.SendAccountExists(ctx, "", to, text)
+		},
 		"SendStaffInvitation": func(ctx context.Context, n Notifier) error {
 			return n.SendStaffInvitation(ctx, &StaffInvitation{UserID: uuid.NewString()}, to, text)
 		},

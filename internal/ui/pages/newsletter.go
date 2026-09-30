@@ -9,6 +9,8 @@ type NewsletterActionView struct {
 	Action  string
 	Submit  string
 	Token   string
+	// Next is a same-site path the form carries back, or empty for none.
+	Next string
 }
 
 // NewsletterMeta is the document shell for both newsletter link pages.

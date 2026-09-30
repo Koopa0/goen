@@ -49,6 +49,13 @@ func (s *Store) EmailVerification(ctx context.Context, userID string) (Verificat
 // link. The token is operation-local; the account keeps its old address until
 // the queued link is followed.
 func (s *Store) requestVerification(ctx context.Context, userID, addr string) error {
+	return s.requestVerificationTo(ctx, userID, addr, "")
+}
+
+// requestVerificationTo is requestVerification with a same-site path for the
+// link to carry, which is where following it lands when it completes a
+// registration.
+func (s *Store) requestVerificationTo(ctx context.Context, userID, addr, next string) error {
 	id, parseErr := uuid.Parse(userID)
 	if parseErr != nil {
 		return fmt.Errorf("parse user id: %w", parseErr)
@@ -97,7 +104,7 @@ func (s *Store) requestVerification(ctx context.Context, userID, addr string) er
 	}
 
 	payload, marshalErr := json.Marshal(email.AddressVerify{
-		Email: addr, Token: token, Locale: i18n.FromContext(ctx).Tag(),
+		Email: addr, Token: token, Locale: i18n.FromContext(ctx).Tag(), Next: next,
 	})
 	if marshalErr != nil {
 		return fmt.Errorf("encode verification message: %w", marshalErr)
@@ -117,46 +124,62 @@ func (s *Store) requestVerification(ctx context.Context, userID, addr string) er
 	return nil
 }
 
+// Confirmed is what following a verification link did.
+type Confirmed struct {
+	// Email is the address now proved.
+	Email string
+	// UserID is the account it belongs to.
+	UserID string
+	// Completed is a link that proved the address of an account whose address
+	// had never been proved: the last step of a registration, after which the
+	// account may be signed into.
+	Completed bool
+}
+
 // ConfirmVerification spends a link, moves the address and marks it proved.
-func (s *Store) ConfirmVerification(ctx context.Context, token string) (string, error) {
+func (s *Store) ConfirmVerification(ctx context.Context, token string) (Confirmed, error) {
 	if token == "" {
-		return "", ErrVerifyInvalid
+		return Confirmed{}, ErrVerifyInvalid
 	}
 	digest := HashToken(token)
 	verification, err := usableVerification(ctx, s.q, digest)
 	if err != nil {
-		return "", err
+		return Confirmed{}, err
 	}
 
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return "", fmt.Errorf("begin verification: %w", err)
+		return Confirmed{}, fmt.Errorf("begin verification: %w", err)
 	}
 	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
 	q := s.q.WithTx(tx)
 
 	lockedUser, err := lockVerificationAccount(ctx, q, verification.UserID)
 	if err != nil {
-		return "", err
+		return Confirmed{}, err
 	}
 	row, err := spendMatchingVerification(ctx, q, digest, verification)
 	if err != nil {
-		return "", err
+		return Confirmed{}, err
 	}
 
 	if err := setVerifiedEmail(ctx, q, row); err != nil {
-		return "", err
+		return Confirmed{}, err
 	}
 	// A reset link was sent to the old address. Once that address no longer
 	// identifies this account, its holder must not be able to choose a password.
 	if err := retireOldMailboxResets(ctx, q, lockedUser.Email, row); err != nil {
-		return "", err
+		return Confirmed{}, err
 	}
 
 	if err := tx.Commit(ctx); err != nil {
-		return "", fmt.Errorf("commit verification: %w", err)
+		return Confirmed{}, fmt.Errorf("commit verification: %w", err)
 	}
-	return row.Email, nil
+	return Confirmed{
+		Email:     row.Email,
+		UserID:    row.UserID.String(),
+		Completed: !lockedUser.Verified && strings.EqualFold(lockedUser.Email, row.Email),
+	}, nil
 }
 
 func usableVerification(

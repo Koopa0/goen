@@ -5004,43 +5004,6 @@ func (q *Queries) CreateShippingZone(ctx context.Context, arg CreateShippingZone
 	return id, err
 }
 
-const createUser = `-- name: CreateUser :one
-INSERT INTO users (email, password_hash, full_name, phone)
-VALUES ($1, $2, $3, $4)
-RETURNING id, email, full_name, role
-`
-
-type CreateUserParams struct {
-	Email        string
-	PasswordHash pgtype.Text
-	FullName     pgtype.Text
-	Phone        pgtype.Text
-}
-
-type CreateUserRow struct {
-	ID       uuid.UUID
-	Email    string
-	FullName pgtype.Text
-	Role     string
-}
-
-func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (CreateUserRow, error) {
-	row := q.db.QueryRow(ctx, createUser,
-		arg.Email,
-		arg.PasswordHash,
-		arg.FullName,
-		arg.Phone,
-	)
-	var i CreateUserRow
-	err := row.Scan(
-		&i.ID,
-		&i.Email,
-		&i.FullName,
-		&i.Role,
-	)
-	return i, err
-}
-
 const createUserFromIdentity = `-- name: CreateUserFromIdentity :one
 INSERT INTO users (email, full_name, email_verified_at)
 VALUES ($1::text, nullif($2::text, ''), now())
@@ -5070,6 +5033,43 @@ func (q *Queries) CreateUserFromIdentity(ctx context.Context, arg CreateUserFrom
 		&i.FullName,
 		&i.Role,
 	)
+	return i, err
+}
+
+const createUserUnlessRegistered = `-- name: CreateUserUnlessRegistered :one
+WITH created AS (
+    INSERT INTO users (email, password_hash, full_name)
+    VALUES ($1::text, $2::text, $3)
+    ON CONFLICT ((lower(email))) DO NOTHING
+    RETURNING id
+)
+SELECT coalesce(c.id, u.id, '00000000-0000-0000-0000-000000000000'::uuid)::uuid AS user_id,
+       (c.id IS NOT NULL)::boolean AS created
+FROM (VALUES (true)) AS attempt (made)
+LEFT JOIN created c ON true
+LEFT JOIN users u ON lower(u.email) = lower($1::text)
+`
+
+type CreateUserUnlessRegisteredParams struct {
+	Email        string
+	PasswordHash string
+	FullName     pgtype.Text
+}
+
+type CreateUserUnlessRegisteredRow struct {
+	UserID  uuid.UUID
+	Created bool
+}
+
+// A registration is this one statement whether or not the address is taken:
+// created says which, and user_id names the account either way. users_email_key
+// decides, so two registrations of one address make one account. user_id is the
+// nil UUID only when a concurrent registration committed the address after this
+// statement's snapshot was taken, and then there is nobody to write to.
+func (q *Queries) CreateUserUnlessRegistered(ctx context.Context, arg CreateUserUnlessRegisteredParams) (CreateUserUnlessRegisteredRow, error) {
+	row := q.db.QueryRow(ctx, createUserUnlessRegistered, arg.Email, arg.PasswordHash, arg.FullName)
+	var i CreateUserUnlessRegisteredRow
+	err := row.Scan(&i.UserID, &i.Created)
 	return i, err
 }
 
@@ -7243,18 +7243,23 @@ func (q *Queries) LockUserForCheckout(ctx context.Context, userID uuid.UUID) (bo
 }
 
 const lockUserForEmailVerification = `-- name: LockUserForEmailVerification :one
-SELECT id, email FROM users WHERE id = $1::uuid FOR UPDATE
+SELECT id, email, (email_verified_at IS NOT NULL)::boolean AS verified
+FROM users WHERE id = $1::uuid FOR UPDATE
 `
 
 type LockUserForEmailVerificationRow struct {
-	ID    uuid.UUID
-	Email string
+	ID       uuid.UUID
+	Email    string
+	Verified bool
 }
 
+// verified is read under the lock: a link that proves the address of an
+// account whose address was never proved is the one that completes a
+// registration.
 func (q *Queries) LockUserForEmailVerification(ctx context.Context, userID uuid.UUID) (LockUserForEmailVerificationRow, error) {
 	row := q.db.QueryRow(ctx, lockUserForEmailVerification, userID)
 	var i LockUserForEmailVerificationRow
-	err := row.Scan(&i.ID, &i.Email)
+	err := row.Scan(&i.ID, &i.Email, &i.Verified)
 	return i, err
 }
 
@@ -9379,6 +9384,18 @@ func (q *Queries) PromoteHeroSlide(ctx context.Context, id uuid.UUID) (int64, er
 	return result.RowsAffected(), nil
 }
 
+const proveEmailByReset = `-- name: ProveEmailByReset :exec
+UPDATE users SET email_verified_at = now()
+WHERE id = $1 AND email_verified_at IS NULL
+`
+
+// Spending a reset link proves the address it was mailed to, which is the
+// account's current one: every reset token dies when the address changes.
+func (q *Queries) ProveEmailByReset(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, proveEmailByReset, id)
+	return err
+}
+
 const publishShippingVersion = `-- name: PublishShippingVersion :one
 INSERT INTO shipping_method_versions (method_id, name, carrier, name_en, carrier_en,
                                       fee_cents, free_over_cents)
@@ -10346,6 +10363,24 @@ func (q *Queries) RegistrableLines(ctx context.Context, arg RegistrableLinesPara
 		return nil, err
 	}
 	return items, nil
+}
+
+const registrationAccount = `-- name: RegistrationAccount :one
+SELECT email, full_name, (email_verified_at IS NOT NULL)::boolean AS verified
+FROM users WHERE id = $1
+`
+
+type RegistrationAccountRow struct {
+	Email    string
+	FullName pgtype.Text
+	Verified bool
+}
+
+func (q *Queries) RegistrationAccount(ctx context.Context, id uuid.UUID) (RegistrationAccountRow, error) {
+	row := q.db.QueryRow(ctx, registrationAccount, id)
+	var i RegistrationAccountRow
+	err := row.Scan(&i.Email, &i.FullName, &i.Verified)
+	return i, err
 }
 
 const rejectInvoiceOperation = `-- name: RejectInvoiceOperation :one
@@ -13719,7 +13754,8 @@ func (q *Queries) UpsertStaff(ctx context.Context, arg UpsertStaffParams) (bool,
 }
 
 const userByEmail = `-- name: UserByEmail :one
-SELECT id, email, password_hash, full_name, role
+SELECT id, email, password_hash, full_name, role,
+       (email_verified_at IS NOT NULL)::boolean AS verified
 FROM users WHERE lower(email) = lower($1)
 `
 
@@ -13729,9 +13765,12 @@ type UserByEmailRow struct {
 	PasswordHash pgtype.Text
 	FullName     pgtype.Text
 	Role         string
+	Verified     bool
 }
 
-// lower(email) matches the unique index.
+// lower(email) matches the unique index. verified is what a password sign-in
+// turns on: until the address is proved, the password may be whoever
+// registered it rather than whoever reads the mailbox.
 func (q *Queries) UserByEmail(ctx context.Context, lower string) (UserByEmailRow, error) {
 	row := q.db.QueryRow(ctx, userByEmail, lower)
 	var i UserByEmailRow
@@ -13741,6 +13780,7 @@ func (q *Queries) UserByEmail(ctx context.Context, lower string) (UserByEmailRow
 		&i.PasswordHash,
 		&i.FullName,
 		&i.Role,
+		&i.Verified,
 	)
 	return i, err
 }

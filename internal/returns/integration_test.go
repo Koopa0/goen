@@ -278,15 +278,19 @@ func fundedShippedOrderForReturnErasure(
 			quantity, cardCents, storeFundsCents)
 	}
 	ctx := t.Context()
-	u, err := account.NewStore(pool).Register(ctx, &account.Credentials{
-		Email:    "return-erasure-" + uuid.NewString() + "@example.com",
+	addr := "return-erasure-" + uuid.NewString() + "@example.com"
+	if err := account.NewStore(pool).Register(ctx, &account.Credentials{
+		Email:    addr,
 		Password: "a sufficiently long password",
 		Name:     "退貨競態測試",
-	})
-	if err != nil {
+	}, "/account"); err != nil {
 		t.Fatalf("register return-erasure account: %v", err)
 	}
-	fixture := returnErasureOrder{userID: uuid.MustParse(u.ID)}
+	var fixture returnErasureOrder
+	if err := pool.QueryRow(ctx, `SELECT id FROM users WHERE lower(email) = lower($1)`, addr).
+		Scan(&fixture.userID); err != nil {
+		t.Fatalf("read return-erasure account: %v", err)
+	}
 
 	tx, err := pool.Begin(ctx)
 	if err != nil {

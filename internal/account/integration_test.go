@@ -64,13 +64,43 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
+// register makes an account the way the registration form does, up to the
+// mailed link: the account exists and holds the password, and its address is
+// unproved. The queued follow-up is marked delivered, because a fixture has no
+// worker to send it.
 func register(t *testing.T, s *account.Store, email string) account.User {
 	t.Helper()
-	u, err := s.Register(t.Context(), &account.Credentials{
+	if err := s.Register(t.Context(), &account.Credentials{
 		Email: email, Password: "a sufficiently long password", Name: "測試",
-	})
-	if err != nil {
+	}, "/account"); err != nil {
 		t.Fatalf("register %s: %v", email, err)
+	}
+	var id uuid.UUID
+	var u account.User
+	if err := pool.QueryRow(t.Context(), `
+		SELECT id, email, coalesce(full_name, ''), role
+		FROM users WHERE lower(email) = lower($1)`, email).
+		Scan(&id, &u.Email, &u.Name, &u.Role); err != nil {
+		t.Fatalf("read the account registered for %s: %v", email, err)
+	}
+	u.ID = id.String()
+	if _, err := pool.Exec(t.Context(), `
+		UPDATE outbox_messages SET delivered_at = now()
+		WHERE topic = $1 AND payload->>'user_id' = $2 AND delivered_at IS NULL`,
+		outbox.TopicRegistration, u.ID); err != nil {
+		t.Fatalf("settle the registration follow-up for %s: %v", email, err)
+	}
+	return u
+}
+
+// registerProved is a completed registration: register, then what following
+// the mailed link does to the account. A password signs into nothing less.
+func registerProved(t *testing.T, s *account.Store, email string) account.User {
+	t.Helper()
+	u := register(t, s, email)
+	if _, err := pool.Exec(t.Context(),
+		`UPDATE users SET email_verified_at = now() WHERE id = $1`, uuid.MustParse(u.ID)); err != nil {
+		t.Fatalf("prove the address of %s: %v", email, err)
 	}
 	return u
 }
@@ -289,15 +319,25 @@ func TestAnOverLongPasswordIsAlwaysBadCredentials(t *testing.T) {
 // The unique index is on lower(email).
 func TestAuthenticateIsCaseInsensitiveOnEmail(t *testing.T) {
 	s := account.NewStore(pool)
-	register(t, s, "Mixed@Example.com")
+	registerProved(t, s, "Mixed@Example.com")
 
 	if _, err := s.Authenticate(t.Context(), "mixed@example.com", "a sufficiently long password"); err != nil {
 		t.Errorf("sign-in with a differently-cased email failed: %v", err)
 	}
-	if _, dupErr := s.Register(t.Context(), &account.Credentials{
+	// A registration answers a taken address as it answers a free one, so the
+	// case-folded duplicate is told apart by the account count, not an error.
+	if dupErr := s.Register(t.Context(), &account.Credentials{
 		Email: "MIXED@EXAMPLE.COM", Password: "a sufficiently long password",
-	}); !errors.Is(dupErr, account.ErrEmailTaken) {
-		t.Errorf("registering the same address in another case gave %v, want ErrEmailTaken", dupErr)
+	}, "/account"); dupErr != nil {
+		t.Errorf("registering the same address in another case gave %v, want nil", dupErr)
+	}
+	var accounts int
+	if err := pool.QueryRow(t.Context(),
+		`SELECT count(*) FROM users WHERE lower(email) = 'mixed@example.com'`).Scan(&accounts); err != nil {
+		t.Fatalf("count accounts: %v", err)
+	}
+	if accounts != 1 {
+		t.Errorf("%d accounts hold one address in two cases, want 1", accounts)
 	}
 }
 
@@ -414,7 +454,7 @@ func TestExpiredSessionIsNobody(t *testing.T) {
 func TestChangingPasswordEndsEveryOtherSession(t *testing.T) {
 	ctx := t.Context()
 	s := account.NewStore(pool)
-	u := register(t, s, "rotate@example.com")
+	u := registerProved(t, s, "rotate@example.com")
 
 	stolen, err := s.StartSession(ctx, u.ID, "thief", "")
 	if err != nil {
@@ -442,7 +482,7 @@ func TestChangingPasswordInvalidatesPriorResetTokens(t *testing.T) {
 	ctx := t.Context()
 	s := account.NewStore(pool)
 	email := "rotate-reset-" + uuid.NewString() + "@example.com"
-	u := register(t, s, email)
+	u := registerProved(t, s, email)
 
 	token := beginReset(t, s, email)
 	if err := s.ChangePassword(ctx, u.ID, "an entirely different password"); err != nil {
@@ -942,7 +982,7 @@ func TestAdoptRefusesInactiveLinesWithoutTouchingEitherCart(t *testing.T) {
 func TestAMergedCartIsVisibleAfterSignInWithTheDeletedGuestCookie(t *testing.T) {
 	ctx := t.Context()
 	accounts := account.NewStore(pool)
-	u := register(t, accounts, "merge-cookie-"+uuid.NewString()+"@example.com")
+	u := registerProved(t, accounts, "merge-cookie-"+uuid.NewString()+"@example.com")
 	uid := uuid.MustParse(u.ID)
 
 	a := sellableVariant(t, ctx)
@@ -1047,7 +1087,7 @@ func cartLineQuantity(body string, variant uuid.UUID) string {
 func TestFailedCartAdoptionOnSignInShowsNoticeAndPreservesBothCarts(t *testing.T) {
 	ctx := t.Context()
 	accounts := account.NewStore(pool)
-	u := register(t, accounts, "adopt-fail-"+uuid.NewString()+"@example.com")
+	u := registerProved(t, accounts, "adopt-fail-"+uuid.NewString()+"@example.com")
 	uid := uuid.MustParse(u.ID)
 
 	accountVariant := sellableVariant(t, ctx)
@@ -1195,7 +1235,7 @@ func TestFailedCartAdoptionOnSignInShowsNoticeAndPreservesBothCarts(t *testing.T
 func TestAdoptCartRefusesGuestCartOwnedByAnotherAccount(t *testing.T) {
 	ctx := t.Context()
 	accounts := account.NewStore(pool)
-	u := register(t, accounts, "adopt-refuse-"+uuid.NewString()+"@example.com")
+	u := registerProved(t, accounts, "adopt-refuse-"+uuid.NewString()+"@example.com")
 	uid := uuid.MustParse(u.ID)
 	otherUser := register(t, accounts, "adopt-refuse-other-"+uuid.NewString()+"@example.com")
 	otherUID := uuid.MustParse(otherUser.ID)
@@ -1749,17 +1789,17 @@ func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) {
 func TestSessionWriteFailureDoesNotFallThroughToRedirect(t *testing.T) {
 	s := account.NewStore(pool)
 	h := account.NewHandler(s, nil, slog.New(slog.DiscardHandler), false, nil)
-	existing := register(t, s, "session-failure-signin-"+uuid.NewString()+"@example.com")
+	existing := registerProved(t, s, "session-failure-signin-"+uuid.NewString()+"@example.com")
 
 	for _, tt := range []struct {
 		name   string
 		target string
-		form   func() url.Values
+		form   func(t *testing.T) url.Values
 		handle http.HandlerFunc
 	}{
 		{
 			name: "sign in", target: "/signin", handle: h.SignIn,
-			form: func() url.Values {
+			form: func(*testing.T) url.Values {
 				return url.Values{
 					"email": {existing.Email}, "password": {"a sufficiently long password"},
 					"next": {"/account"},
@@ -1767,20 +1807,21 @@ func TestSessionWriteFailureDoesNotFallThroughToRedirect(t *testing.T) {
 			},
 		},
 		{
-			name: "registration", target: "/register", handle: h.Register,
-			form: func() url.Values {
+			// A registration starts its session when its link is followed.
+			name: "registration link", target: "/verify", handle: h.Verify,
+			form: func(t *testing.T) url.Values {
+				t.Helper()
+				pending := register(t, s, "session-failure-register-"+uuid.NewString()+"@example.com")
 				return url.Values{
-					"email":    {"session-failure-register-" + uuid.NewString() + "@example.com"},
-					"password": {"another sufficiently long password"},
-					"confirm":  {"another sufficiently long password"}, "name": {"測試"},
-					"next": {"/account"},
+					"token": {requestVerification(t, s, pending.ID, pending.Email)},
+					"next":  {"/account"},
 				}
 			},
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			forceSessionInsertFailure(t)
-			body := tt.form().Encode()
+			body := tt.form(t).Encode()
 			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost,
 				tt.target, strings.NewReader(body))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -3790,12 +3831,16 @@ func TestRegisteringAsksForTheAddressToBeProved(t *testing.T) {
 	s := account.NewStore(pool)
 	addr := "asked-" + uuid.NewString() + "@goen.invalid"
 
-	u := register(t, s, addr)
-
-	// register() goes through the store, so ask the way the handler does.
-	if err := account.RequestVerification(ctx, s, u.ID, u.Email); err != nil {
-		t.Fatalf("RequestVerification: %v", err)
+	if err := s.Register(ctx, &account.Credentials{
+		Email: addr, Password: "a sufficiently long password",
+	}, "/account"); err != nil {
+		t.Fatalf("Register: %v", err)
 	}
+	followUpRegistrations(t, s, addr, func(context.Context, string, string, string) error {
+		t.Error("a new address was told it already has an account")
+		return nil
+	})
+
 	var messages int
 	if err := pool.QueryRow(ctx, `
 		SELECT count(*) FROM outbox_messages

@@ -666,6 +666,7 @@ func startWorkers(ctx context.Context, d workerDeps) {
 	messages.HandleJSON[email.OrderPlaced](outbox.TopicOrderPlaced, d.notifier.SendOrderPlaced)
 	messages.HandleJSON[email.PasswordReset](outbox.TopicPasswordReset, d.notifier.SendPasswordReset)
 	messages.HandleJSON[account.ResetRequest](outbox.TopicPasswordResetRequest, account.NewStore(d.pool).IssueReset)
+	messages.HandleJSON[account.Registration](outbox.TopicRegistration, registrationHandler(account.NewStore(d.pool), d.notifier))
 	messages.HandleJSON[email.OrderPaid](outbox.TopicOrderPaid, d.notifier.SendOrderPaid)
 	messages.HandleJSON[email.OrderShipped](outbox.TopicOrderShipped, d.notifier.SendOrderShipped)
 	messages.HandleJSON[email.OrderTerminal](outbox.TopicOrderTerminal, terminalOrderHandler(ordernotice.NewRecipients(d.pool), d.notifier))
@@ -715,6 +716,15 @@ func newsletterIssueHandler(
 			return nil
 		}
 		return notifier.SendNewsletterIssue(ctx, p)
+	}
+}
+
+// registrationHandler follows a registration up on the store pool, which is the
+// one that wrote it: a new account's link is queued there, and an address that
+// already had an account is told so by mail.
+func registrationHandler(accounts *account.Store, notifier email.Notifier) func(context.Context, *account.Registration) error {
+	return func(ctx context.Context, r *account.Registration) error {
+		return accounts.FollowUpRegistration(ctx, r, notifier.SendAccountExists)
 	}
 }
 

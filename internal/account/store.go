@@ -2,6 +2,7 @@ package account
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -18,6 +19,7 @@ import (
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages"
 
@@ -38,24 +40,95 @@ func NewStore(pool *pgxpool.Pool) *Store {
 	return &Store{pool: pool, q: db.New(pool)}
 }
 
-// Register creates an account.
-func (s *Store) Register(ctx context.Context, c *Credentials) (User, error) {
+// Registration is a queued registration. It names the account by id and never
+// by address: the new one, or the one that already held the address. Next is
+// the same-site path the registrant was headed for, carried to the link.
+type Registration struct {
+	UserID  string `json:"user_id"`
+	Created bool   `json:"created"`
+	Locale  string `json:"locale"`
+	Next    string `json:"next"`
+}
+
+// Register records a registration and queues its follow-up, and does the same
+// work whether or not the address already has an account: the password is
+// hashed either way, and one statement both creates the account when the
+// address is free and names the account when it is not. The caller must answer
+// both the same, so a registration cannot be asked whether an address is
+// taken. Nobody is signed in: the account is usable once the link mailed to
+// the address has been followed, by [Store.ConfirmVerification].
+func (s *Store) Register(ctx context.Context, c *Credentials, next string) error {
 	hash, err := HashPassword(c.Password)
 	if err != nil {
-		return User{}, fmt.Errorf("hash password: %w", err)
+		return fmt.Errorf("hash password: %w", err)
 	}
-	row, err := s.q.CreateUser(ctx, db.CreateUserParams{
-		Email:        c.Email,
-		PasswordHash: pgtype.Text{String: hash, Valid: true},
-		FullName:     text(c.Name),
+
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin registration: %w", err)
+	}
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
+	q := s.q.WithTx(tx)
+
+	row, err := q.CreateUserUnlessRegistered(ctx, db.CreateUserUnlessRegisteredParams{
+		Email: c.Email, PasswordHash: hash, FullName: text(c.Name),
 	})
 	if err != nil {
-		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok && pgErr.Code == "23505" {
-			return User{}, ErrEmailTaken
-		}
-		return User{}, fmt.Errorf("create user: %w", err)
+		return fmt.Errorf("record registration: %w", err)
 	}
-	return User{ID: row.ID.String(), Email: row.Email, Name: row.FullName.String, Role: row.Role}, nil
+	registration := Registration{Created: row.Created, Locale: i18n.FromContext(ctx).Tag(), Next: next}
+	if row.UserID != uuid.Nil {
+		registration.UserID = row.UserID.String()
+	}
+	payload, err := json.Marshal(registration)
+	if err != nil {
+		return fmt.Errorf("encode registration: %w", err)
+	}
+	if err := q.EnqueueMessage(ctx, db.EnqueueMessageParams{
+		Topic:     outbox.TopicRegistration,
+		DedupeKey: "registration:" + uuid.NewString(),
+		Payload:   payload,
+	}); err != nil {
+		return fmt.Errorf("queue registration: %w", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit registration: %w", err)
+	}
+	return nil
+}
+
+// FollowUpRegistration is the outbox's half of a registration. A new account is
+// sent the link that completes it; an address that already had one is told so,
+// through tell, at the address that account holds now. The account is read
+// here rather than carried in the message, so one erased in between, or
+// completed some other way, is nothing to do.
+func (s *Store) FollowUpRegistration(
+	ctx context.Context,
+	r *Registration,
+	tell func(ctx context.Context, locale, address, name string) error,
+) error {
+	if r.UserID == "" {
+		return nil
+	}
+	id, err := uuid.Parse(r.UserID)
+	if err != nil {
+		return fmt.Errorf("parse registered account: %w", err)
+	}
+	row, err := s.q.RegistrationAccount(ctx, id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("read registered account: %w", err)
+	}
+	if !r.Created {
+		return tell(ctx, r.Locale, row.Email, row.FullName.String)
+	}
+	if row.Verified {
+		return nil
+	}
+	ctx = i18n.WithLocale(ctx, i18n.Parse(r.Locale))
+	return s.requestVerificationTo(ctx, r.UserID, row.Email, r.Next)
 }
 
 // Authenticate checks an email and password.
@@ -82,6 +155,13 @@ func (s *Store) Authenticate(ctx context.Context, email, password string) (User,
 	}
 
 	if !VerifyPassword(row.PasswordHash.String, password) {
+		return User{}, ErrBadCredentials
+	}
+	// After the hash, so an unproved account costs what a wrong password does.
+	// Its password was chosen by whoever registered the address, who has not
+	// yet shown they read the mailbox, and a different answer would say which
+	// registrations created an account.
+	if !row.Verified {
 		return User{}, ErrBadCredentials
 	}
 	if err := s.q.TouchLastLogin(ctx, row.ID); err != nil {

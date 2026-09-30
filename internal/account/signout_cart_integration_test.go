@@ -55,7 +55,11 @@ func TestAnAccountCartAnswersOnlyToItsAccount(t *testing.T) {
 	if registeredA.Code != http.StatusSeeOther {
 		t.Fatalf("A's registration status = %d, want 303; body=%s", registeredA.Code, registeredA.Body.String())
 	}
-	aSession := sessionCookie(t, registeredA)
+	// A registration signs in, and adopts the cart, where its link is followed.
+	completedA := followRegistrationLink(t, account.NewStore(appPool), aEmail,
+		func(req *http.Request) *httptest.ResponseRecorder { return serve(h.Verify, req) },
+		browserCart(aToken))
+	aSession := sessionCookie(t, completedA)
 	var aCart uuid.UUID
 	var aOwner uuid.NullUUID
 	if err := pool.QueryRow(ctx, `SELECT id, user_id FROM carts WHERE token_hash = $1`,
@@ -103,11 +107,16 @@ func TestAnAccountCartAnswersOnlyToItsAccount(t *testing.T) {
 
 	registerB := cartForm(ctx, "/register", registration(bEmail))
 	registerB.AddCookie(browserCart(aToken))
-	registeredB := serve(h.Register, registerB)
-	if loc := registeredB.Header().Get("Location"); loc != "/account" {
-		t.Errorf("B's registration redirect = %q, want /account: there was no cart of B's to adopt", loc)
+	if registeredB := serve(h.Register, registerB); registeredB.Code != http.StatusSeeOther {
+		t.Fatalf("B's registration status = %d, want 303", registeredB.Code)
 	}
-	bSession := sessionCookie(t, registeredB)
+	completedB := followRegistrationLink(t, account.NewStore(appPool), bEmail,
+		func(req *http.Request) *httptest.ResponseRecorder { return serve(h.Verify, req) },
+		browserCart(aToken))
+	if loc := completedB.Header().Get("Location"); loc != "/account" {
+		t.Errorf("B's registration link lands at %q, want /account: there was no cart of B's to adopt", loc)
+	}
+	bSession := sessionCookie(t, completedB)
 
 	t.Run("the next customer does not see it", func(t *testing.T) {
 		page := httptest.NewRequestWithContext(ctx, http.MethodGet, "/cart", http.NoBody)
@@ -192,13 +201,16 @@ func TestSignOutLeavesAGuestCartWithTheBrowser(t *testing.T) {
 	}))
 	guestToken := lastCartCookie(t, added).Value
 
-	// Registering without the cart cookie adopts nothing, which is the state a
-	// failed adoption leaves: a session, and a cookie naming an unowned cart.
-	registered := serve(h.Register, cartForm(ctx, "/register",
-		registration("guest-cart-kept-"+uuid.NewString()+"@example.com")))
+	// Completing a registration without the cart cookie adopts nothing, which is
+	// the state a failed adoption leaves: a session, and a cookie naming an
+	// unowned cart.
+	email := "guest-cart-kept-" + uuid.NewString() + "@example.com"
+	registered := serve(h.Register, cartForm(ctx, "/register", registration(email)))
 	if registered.Code != http.StatusSeeOther {
 		t.Fatalf("registration status = %d, want 303; body=%s", registered.Code, registered.Body.String())
 	}
+	completed := followRegistrationLink(t, account.NewStore(appPool), email,
+		func(req *http.Request) *httptest.ResponseRecorder { return serve(h.Verify, req) })
 	var owner uuid.NullUUID
 	if err := pool.QueryRow(ctx, `SELECT user_id FROM carts WHERE token_hash = $1`,
 		cart.HashToken(guestToken)).Scan(&owner); err != nil {
@@ -209,7 +221,7 @@ func TestSignOutLeavesAGuestCartWithTheBrowser(t *testing.T) {
 	}
 
 	signOut := cartForm(ctx, "/signout", url.Values{})
-	signOut.AddCookie(sessionCookie(t, registered))
+	signOut.AddCookie(sessionCookie(t, completed))
 	signOut.AddCookie(browserCart(guestToken))
 	signedOut := serve(h.SignOut, signOut)
 	if signedOut.Code != http.StatusSeeOther {

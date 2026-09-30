@@ -141,3 +141,21 @@ func (n Notifier) SendPasswordReset(ctx context.Context, p *PasswordReset) error
 		Body:    n.letter(ctx, "", fmt.Sprintf(i18n.T(ctx, i18n.KeyMailResetBody), link)),
 	})
 }
+
+// SendAccountExists tells the owner of an address that somebody tried to
+// register it again. The registration page answers every address the same, so
+// this letter is the only place the answer "you already have an account" is
+// given, and it goes to the mailbox rather than to whoever asked.
+func (n Notifier) SendAccountExists(ctx context.Context, locale, address, name string) error {
+	if !Valid(address) {
+		return errors.New("an account-exists notice has no usable recipient")
+	}
+	ctx = n.locale(ctx, locale)
+	base := strings.TrimRight(n.baseURL, "/")
+	return n.sender.Send(ctx, &Message{
+		To:      address,
+		Subject: i18n.T(ctx, i18n.KeyMailAccountExistsSubject),
+		Body: n.letter(ctx, name, fmt.Sprintf(i18n.T(ctx, i18n.KeyMailAccountExistsBody),
+			base+"/signin", base+"/forgot")),
+	})
+}

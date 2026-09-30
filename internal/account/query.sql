@@ -1,6 +1,9 @@
--- lower(email) matches the unique index.
+-- lower(email) matches the unique index. verified is what a password sign-in
+-- turns on: until the address is proved, the password may be whoever
+-- registered it rather than whoever reads the mailbox.
 -- name: UserByEmail :one
-SELECT id, email, password_hash, full_name, role
+SELECT id, email, password_hash, full_name, role,
+       (email_verified_at IS NOT NULL)::boolean AS verified
 FROM users WHERE lower(email) = lower($1);
 
 -- A forgotten-password request is this one INSERT whatever the address: the
@@ -30,10 +33,33 @@ SELECT id, email, full_name, phone, role, created_at,
        (password_hash IS NOT NULL)::boolean AS has_password
 FROM users WHERE id = $1;
 
--- name: CreateUser :one
-INSERT INTO users (email, password_hash, full_name, phone)
-VALUES ($1, $2, $3, $4)
-RETURNING id, email, full_name, role;
+-- A registration is this one statement whether or not the address is taken:
+-- created says which, and user_id names the account either way. users_email_key
+-- decides, so two registrations of one address make one account. user_id is the
+-- nil UUID only when a concurrent registration committed the address after this
+-- statement's snapshot was taken, and then there is nobody to write to.
+-- name: CreateUserUnlessRegistered :one
+WITH created AS (
+    INSERT INTO users (email, password_hash, full_name)
+    VALUES (@email::text, @password_hash::text, @full_name)
+    ON CONFLICT ((lower(email))) DO NOTHING
+    RETURNING id
+)
+SELECT coalesce(c.id, u.id, '00000000-0000-0000-0000-000000000000'::uuid)::uuid AS user_id,
+       (c.id IS NOT NULL)::boolean AS created
+FROM (VALUES (true)) AS attempt (made)
+LEFT JOIN created c ON true
+LEFT JOIN users u ON lower(u.email) = lower(@email::text);
+
+-- name: RegistrationAccount :one
+SELECT email, full_name, (email_verified_at IS NOT NULL)::boolean AS verified
+FROM users WHERE id = $1;
+
+-- Spending a reset link proves the address it was mailed to, which is the
+-- account's current one: every reset token dies when the address changes.
+-- name: ProveEmailByReset :exec
+UPDATE users SET email_verified_at = now()
+WHERE id = $1 AND email_verified_at IS NULL;
 
 -- name: SetPasswordHash :exec
 UPDATE users SET password_hash = $2 WHERE id = $1;
@@ -318,8 +344,12 @@ RETURNING user_id, email;
 SELECT user_id, email FROM email_verifications
 WHERE digest = $1 AND expires_at > now();
 
+-- verified is read under the lock: a link that proves the address of an
+-- account whose address was never proved is the one that completes a
+-- registration.
 -- name: LockUserForEmailVerification :one
-SELECT id, email FROM users WHERE id = @user_id::uuid FOR UPDATE;
+SELECT id, email, (email_verified_at IS NOT NULL)::boolean AS verified
+FROM users WHERE id = @user_id::uuid FOR UPDATE;
 
 -- One statement, because an address goen has proved and one goen is using must
 -- not be able to disagree. users_email_key catches an address taken in between.

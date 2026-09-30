@@ -108,6 +108,18 @@ var (
 			"ignore this message — nothing about your password changes.",
 	})
 
+	KeyMailAccountExistsSubject = key("mail.exists.subject", Message{
+		ZhHant: "你已經有 goen 帳號了",
+		En:     "You already have a goen account",
+	})
+	KeyMailAccountExistsBody = key("mail.exists.body", Message{
+		ZhHant: "有人用這個信箱在 goen 註冊,但這個信箱已經有帳號了,所以沒有建立新的帳號。\n\n如果是你,直接登入就可以:\n%s\n\n忘記密碼的話,在這裡重設:\n%s\n\n如果這不是你,不用理會這封信 —— 你的帳號沒有任何改變。",
+		En: "Somebody tried to create a goen account with this address. It already has " +
+			"one, so no new account was made.\n\nIf that was you, sign in here:\n%s\n\n" +
+			"If you have forgotten the password, reset it here:\n%s\n\nIf it was not " +
+			"you, ignore this message — nothing about your account has changed.",
+	})
+
 	KeyMailNewsConfirmSubject = key("mail.news.confirm.subject", Message{
 		ZhHant: "確認訂閱 goen 電子報",
 		En:     "Confirm your goen newsletter subscription",

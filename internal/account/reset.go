@@ -172,19 +172,31 @@ func (s *Store) CompleteReset(ctx context.Context, token, password string) error
 		return errors.New("account: reset token changed owner")
 	}
 
+	if err := applyReset(ctx, q, userID, hash); err != nil {
+		return err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit reset: %w", err)
+	}
+	return nil
+}
+
+// applyReset is what a spent reset link does to its account, inside the
+// transaction that spent it.
+func applyReset(ctx context.Context, q *db.Queries, userID uuid.UUID, hash string) error {
 	if err := q.SetPasswordHash(ctx, db.SetPasswordHashParams{
 		ID: userID, PasswordHash: pgtype.Text{String: hash, Valid: true},
 	}); err != nil {
 		return fmt.Errorf("set password: %w", err)
+	}
+	if err := q.ProveEmailByReset(ctx, userID); err != nil {
+		return fmt.Errorf("prove the address the link went to: %w", err)
 	}
 	if err := q.InvalidateResetTokens(ctx, userID); err != nil {
 		return fmt.Errorf("invalidate other reset tokens: %w", err)
 	}
 	if err := q.DeleteUserSessions(ctx, userID); err != nil {
 		return fmt.Errorf("end sessions: %w", err)
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("commit reset: %w", err)
 	}
 	return nil
 }
