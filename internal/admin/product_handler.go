@@ -528,6 +528,8 @@ func uploadReason(err error) string {
 		return "toobig=1"
 	case errors.Is(err, media.ErrNotAnImage):
 		return "notimage=1"
+	case errors.Is(err, media.ErrBusy):
+		return "uploadbusy=1"
 	default:
 		return "uploadfailed=1"
 	}

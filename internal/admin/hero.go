@@ -41,6 +41,11 @@ type HeroForm struct {
 	SecondLabelEn  string
 	ImageAltEn     string
 	Days           int32
+
+	// ImageChosen is a file the form carries that is not stored yet. The alt
+	// text rule applies to it before it is decoded, so a slide refused for its
+	// copy leaves no stored image behind.
+	ImageChosen bool
 }
 
 // Validate refuses what the schema would, and a CTA href that leaves this site.
@@ -76,7 +81,7 @@ func (f *HeroForm) Validate(ctx context.Context) map[string]string {
 		}
 	}
 
-	if f.ImageKey != "" && f.ImageAlt == "" {
+	if (f.ImageKey != "" || f.ImageChosen) && f.ImageAlt == "" {
 		errs["alt"] = i18n.T(ctx, i18n.KeyFormHeroAlt)
 	}
 	if f.Days < 0 || f.Days > MaxHeroDays {

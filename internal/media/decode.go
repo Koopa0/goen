@@ -44,6 +44,9 @@ func Normalise(r io.Reader) (obj Object, data []byte, err error) {
 	if boundsErr := boundsOK(cfg.Width, cfg.Height); boundsErr != nil {
 		return Object{}, nil, boundsErr
 	}
+	if decodeCost(raw, cfg, format) > MaxDecodedBytes {
+		return Object{}, nil, ErrTooLarge
+	}
 
 	img, _, decodeErr := image.Decode(bytes.NewReader(raw))
 	if decodeErr != nil {
@@ -86,10 +89,26 @@ func normaliseDecoded(
 	}, encoded, nil
 }
 
+// resizeBand is how many rows, then columns, one call to the scaler covers.
+const resizeBand = 64
+
 // fitLongestSide scales img down, keeping its aspect ratio, so that neither side
 // exceeds limit. An image already within it is returned as is: goen never
 // upscales.
+//
+// It scales the width across bands of rows, then the height across bands of
+// columns. x/image/draw's kernel scaler holds 32 bytes per destination column
+// per source row, which in one call is 485 MB for a 6320px square scaled to
+// 2400. Across a band whose other axis keeps its size, CatmullRom's weights are
+// exactly 1 and 0, so the bands meet without a seam and the scaler's buffer is
+// one band's worth.
 func fitLongestSide(img image.Image, limit int) image.Image {
+	return fitLongestSideWith(img, limit, draw.CatmullRom.NewScaler)
+}
+
+// fitLongestSideWith is fitLongestSide over the scalers newScaler makes, which
+// is draw.CatmullRom.NewScaler in every wiring goen has.
+func fitLongestSideWith(img image.Image, limit int, newScaler func(dw, dh, sw, sh int) draw.Scaler) image.Image {
 	b := img.Bounds()
 	long := max(b.Dx(), b.Dy())
 	if long <= limit {
@@ -97,8 +116,23 @@ func fitLongestSide(img image.Image, limit int) image.Image {
 	}
 	w := max(b.Dx()*limit/long, 1)
 	h := max(b.Dy()*limit/long, 1)
+
+	narrow := image.NewRGBA(image.Rect(0, 0, w, b.Dy()))
+	across := newScaler(w, resizeBand, b.Dx(), resizeBand)
+	for y := 0; y < b.Dy(); y += resizeBand {
+		y1 := min(y+resizeBand, b.Dy())
+		// A shorter last band differs from the scaler's size, and Scale then
+		// builds a scaler of its own for it.
+		across.Scale(narrow, image.Rect(0, y, w, y1),
+			img, image.Rect(b.Min.X, b.Min.Y+y, b.Max.X, b.Min.Y+y1), draw.Src, nil)
+	}
+
 	dst := image.NewRGBA(image.Rect(0, 0, w, h))
-	draw.CatmullRom.Scale(dst, dst.Bounds(), img, b, draw.Over, nil)
+	down := newScaler(resizeBand, h, resizeBand, b.Dy())
+	for x := 0; x < w; x += resizeBand {
+		x1 := min(x+resizeBand, w)
+		down.Scale(dst, image.Rect(x, 0, x1, h), narrow, image.Rect(x, 0, x1, b.Dy()), draw.Src, nil)
+	}
 	return dst
 }
 

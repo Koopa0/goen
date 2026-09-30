@@ -487,6 +487,7 @@ var adminNotices = map[string]i18n.Key{
 	"toobig":         i18n.KeyAdminNoticeTooBig,
 	"notimage":       i18n.KeyAdminNoticeNotImage,
 	"uploadfailed":   i18n.KeyAdminNoticeUploadFailed,
+	"uploadbusy":     i18n.KeyAdminNoticeUploadBusy,
 	"inuse":          i18n.KeyAdminNoticeInUse,
 	"attachrefused":  i18n.KeyAdminNoticeAttachRefused,
 	"noalt":          i18n.KeyAdminNoticeNoAlt,
@@ -1096,14 +1097,16 @@ func (h *Handler) rejectBanner(
 
 // CreateHeroSlide serves POST /admin/home. Multipart, because the artwork
 // arrives with the copy; the image is optional and a slide with none falls back
-// to the built-in artwork.
+// to the built-in artwork. The copy is checked before the image is decoded, so
+// a refused slide stores nothing.
 func (h *Handler) CreateHeroSlide(w http.ResponseWriter, r *http.Request) {
-	obj, err := h.images.ReadUpload(w, r, "image")
-	if err != nil && !errors.Is(err, media.ErrNotAnImage) {
+	upload, err := h.images.OpenUpload(w, r, "image")
+	if err != nil {
 		h.log.WarnContext(r.Context(), "hero image", "error", err)
 		http.Redirect(w, r, "/admin/home?"+uploadReason(err), http.StatusSeeOther)
 		return
 	}
+	defer upload.Close()
 
 	f := &HeroForm{
 		Eyebrow:        r.PostFormValue("eyebrow"),
@@ -1113,7 +1116,7 @@ func (h *Handler) CreateHeroSlide(w http.ResponseWriter, r *http.Request) {
 		PrimaryHref:    r.PostFormValue("primary_href"),
 		SecondLabel:    r.PostFormValue("second_label"),
 		SecondHref:     r.PostFormValue("second_href"),
-		ImageKey:       obj.Digest,
+		ImageChosen:    upload != nil,
 		ImageAlt:       r.PostFormValue("alt"),
 		EyebrowEn:      r.PostFormValue("eyebrow_en"),
 		HeadlineEn:     r.PostFormValue("headline_en"),
@@ -1123,32 +1126,54 @@ func (h *Handler) CreateHeroSlide(w http.ResponseWriter, r *http.Request) {
 		ImageAltEn:     r.PostFormValue("alt_en"),
 		Days:           small(r.PostFormValue("days")),
 	}
+	if errs := f.Validate(r.Context()); len(errs) > 0 {
+		h.rejectHeroSlide(w, r, f, errs)
+		return
+	}
+	if upload != nil {
+		obj, storeErr := upload.Store(r.Context())
+		// A file no decoder accepts leaves the slide on the built-in artwork.
+		if storeErr != nil && !errors.Is(storeErr, media.ErrNotAnImage) {
+			h.log.WarnContext(r.Context(), "hero image", "error", storeErr)
+			http.Redirect(w, r, "/admin/home?"+uploadReason(storeErr), http.StatusSeeOther)
+			return
+		}
+		f.ImageKey = obj.Digest
+	}
+
 	errs, err := h.store.CreateHeroSlide(r.Context(), f)
 	switch {
 	case err != nil:
 		h.log.ErrorContext(r.Context(), "create hero slide", "error", err)
 		h.serverError(w, r)
 	case len(errs) > 0:
-		view, readErr := h.store.HeroSlides(r.Context())
-		if readErr != nil {
-			h.serverError(w, r)
-			return
-		}
-		view.Errors = errs
-		view.Draft = pages.AdminHeroDraft{
-			Eyebrow: f.Eyebrow, Headline: f.Headline, Body: f.Body,
-			PrimaryLabel: f.PrimaryLabel, PrimaryHref: r.PostFormValue("primary_href"),
-			SecondLabel: f.SecondLabel, SecondHref: r.PostFormValue("second_href"),
-			ImageKey: f.ImageKey, ImageAlt: f.ImageAlt, Days: r.PostFormValue("days"),
-			EyebrowEn: f.EyebrowEn, HeadlineEn: f.HeadlineEn, BodyEn: f.BodyEn,
-			PrimaryLabelEn: f.PrimaryLabelEn, SecondLabelEn: f.SecondLabelEn,
-			ImageAltEn: f.ImageAltEn,
-		}
-		web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.AdminHome(
-			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageHero)}, &view))
+		h.rejectHeroSlide(w, r, f, errs)
 	default:
 		http.Redirect(w, r, "/admin/home?ok=1", http.StatusSeeOther)
 	}
+}
+
+// rejectHeroSlide re-renders the page at 422 with what was typed still in it.
+func (h *Handler) rejectHeroSlide(
+	w http.ResponseWriter, r *http.Request, f *HeroForm, errs map[string]string,
+) {
+	view, err := h.store.HeroSlides(r.Context())
+	if err != nil {
+		h.serverError(w, r)
+		return
+	}
+	view.Errors = errs
+	view.Draft = pages.AdminHeroDraft{
+		Eyebrow: f.Eyebrow, Headline: f.Headline, Body: f.Body,
+		PrimaryLabel: f.PrimaryLabel, PrimaryHref: r.PostFormValue("primary_href"),
+		SecondLabel: f.SecondLabel, SecondHref: r.PostFormValue("second_href"),
+		ImageKey: f.ImageKey, ImageAlt: f.ImageAlt, Days: r.PostFormValue("days"),
+		EyebrowEn: f.EyebrowEn, HeadlineEn: f.HeadlineEn, BodyEn: f.BodyEn,
+		PrimaryLabelEn: f.PrimaryLabelEn, SecondLabelEn: f.SecondLabelEn,
+		ImageAltEn: f.ImageAltEn,
+	}
+	web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.AdminHome(
+		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageHero)}, &view))
 }
 
 // SetHeroSlideActive serves POST /admin/home/{id}/active.

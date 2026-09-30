@@ -19,6 +19,13 @@ const MaxStoredBytes = 8 << 20
 // MaxPixels bounds what goen will decode.
 const MaxPixels = 40_000_000
 
+// MaxDecodedBytes bounds the memory one decode may hold, read from the header
+// before any pixel is allocated. MaxPixels alone cannot: a 16-bit PNG holds
+// eight bytes a pixel, and a progressive JPEG keeps every coefficient beside
+// its pixels, so forty million pixels from a file of a few hundred kilobytes
+// can cost hundreds of megabytes.
+const MaxDecodedBytes = 128 << 20
+
 // MaxDimension bounds either side, matching media_objects_dimensions_sane.
 const MaxDimension = 8000
 
@@ -37,8 +44,11 @@ const CacheTTL = 365 * 24 * time.Hour
 var (
 	// ErrNotAnImage is a file whose bytes no supported decoder accepts.
 	ErrNotAnImage = errors.New("media: not a supported image")
-	// ErrTooLarge is a file over MaxUploadBytes or an image over MaxPixels.
+	// ErrTooLarge is a file over MaxUploadBytes, or an image over MaxPixels or
+	// MaxDecodedBytes.
 	ErrTooLarge = errors.New("media: the image is too large")
+	// ErrBusy is an upload refused because every upload slot is decoding.
+	ErrBusy = errors.New("media: every upload slot is busy")
 	// ErrNotFound is a digest with no row.
 	ErrNotFound = errors.New("media: no such image")
 )
