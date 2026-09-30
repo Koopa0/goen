@@ -86,6 +86,10 @@ func ClassifyKey(apiKey string) KeyMode {
 // NewGateway wires Stripe. A blank API key is not an error; a key with no
 // webhook secret is, and leaves the endpoint that takes money open.
 func NewGateway(apiKey, webhookSecret, baseURL string) (*Gateway, error) {
+	return newGateway(apiKey, webhookSecret, baseURL, &stripe.BackendConfig{})
+}
+
+func newGateway(apiKey, webhookSecret, baseURL string, backend *stripe.BackendConfig) (*Gateway, error) {
 	if apiKey == "" {
 		return &Gateway{baseURL: baseURL}, nil
 	}
@@ -98,7 +102,7 @@ func NewGateway(apiKey, webhookSecret, baseURL string) (*Gateway, error) {
 		return nil, fmt.Errorf("payment: base URL %q is not usable for Stripe return URLs", baseURL)
 	}
 	return &Gateway{
-		client:        stripe.NewClient(apiKey),
+		client:        newStripeClient(apiKey, backend),
 		webhookSecret: webhookSecret,
 		baseURL:       origin,
 		sandbox:       ClassifyKey(apiKey) == KeyTest,
