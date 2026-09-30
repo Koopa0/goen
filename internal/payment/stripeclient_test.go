@@ -1,6 +1,7 @@
 package payment
 
 import (
+	"errors"
 	"io"
 	"io/fs"
 	"net/http"
@@ -65,6 +66,50 @@ func TestAStripeReplyPastTheBoundIsRefused(t *testing.T) {
 	}
 }
 
+// TestAStripeErrorCarriesNoSecretCustomerOrCardFacts holds what a Stripe error
+// can put in goen's logs, which record err on every provider call. Stripe may
+// embed the PaymentIntent, PaymentMethod, SetupIntent or Source an error
+// concerns, and the SDK renders an error as its whole JSON; goen reads only an
+// error's type, code and message, so the embedded objects never reach it.
+func TestAStripeErrorCarriesNoSecretCustomerOrCardFacts(t *testing.T) {
+	const (
+		intentSecret = "pi_probe_secret_q7Wm2Lx9"
+		setupSecret  = "seti_probe_secret_R4nV8c" //nolint:gosec // G101: a fixture, not a credential
+		email        = "stripe-error-probe@example.com"
+		fingerprint  = "fpProbeZ3k"
+	)
+	reply := `{"error":{"type":"card_error","code":"card_declined","message":"Your card was declined.",` +
+		`"payment_intent":{"id":"pi_probe","object":"payment_intent","client_secret":"` + intentSecret +
+		`","receipt_email":"` + email + `"},` +
+		`"payment_method":{"id":"pm_probe","object":"payment_method","billing_details":{"email":"` + email +
+		`","name":"Probe Holder"},"card":{"brand":"visa","last4":"9731","exp_month":12,"exp_year":2030,` +
+		`"fingerprint":"` + fingerprint + `"}},` +
+		`"setup_intent":{"id":"seti_probe","object":"setup_intent","client_secret":"` + setupSecret + `"},` +
+		`"source":{"id":"src_probe","object":"source","owner":{"email":"` + email + `"}}}}`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusPaymentRequired)
+		_, _ = io.WriteString(w, reply)
+	}))
+	t.Cleanup(srv.Close)
+
+	_, _, err := gatewayOver(t, srv.URL).ResumeSession(t.Context(), "cs_bounded")
+	if err == nil {
+		t.Fatal("ResumeSession() succeeded on a 402")
+	}
+	text := err.Error()
+	for _, leaked := range []string{intentSecret, setupSecret, email, fingerprint, `"last4"`, "Probe Holder"} {
+		if strings.Contains(text, leaked) {
+			t.Errorf("the Stripe error goen would log carries %q:\n%s", leaked, text)
+		}
+	}
+	stripeErr, ok := errors.AsType[*stripe.Error](err)
+	if !ok || stripeErr.Type != stripe.ErrorTypeCard || stripeErr.Code != stripe.ErrorCodeCardDeclined ||
+		stripeErr.Msg != "Your card was declined." {
+		t.Errorf("the error lost what goen reads from it: %v", err)
+	}
+}
+
 // TestStripeIsReachedOnlyOverVerifiedTLS holds certificate verification on the
 // client that carries the secret key: a server whose certificate no system
 // root vouches for is never sent a request.
@@ -108,8 +153,8 @@ func TestEveryStripeClientUsesTheBoundedTransport(t *testing.T) {
 		t.Fatalf("stripeHTTPClient.Timeout = %v, want a finite bound no longer than %v",
 			stripeHTTPClient.Timeout, stripeAttemptTimeout)
 	}
-	if _, ok := stripeHTTPClient.Transport.(boundedReplies); !ok {
-		t.Fatalf("stripeHTTPClient.Transport is %T, want boundedReplies", stripeHTTPClient.Transport)
+	if _, ok := stripeHTTPClient.Transport.(stripeTransport); !ok {
+		t.Fatalf("stripeHTTPClient.Transport is %T, want stripeTransport", stripeHTTPClient.Transport)
 	}
 
 	c := NewStripeClient("sk_test_notarealkey")
