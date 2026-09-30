@@ -11582,6 +11582,17 @@ func (q *Queries) ReverseReturnPoints(ctx context.Context, returnID uuid.UUID) (
 	return points_reversed, err
 }
 
+const revokeOrderAccess = `-- name: RevokeOrderAccess :exec
+DELETE FROM order_access_grants WHERE digest = ANY($1::bytea[])
+`
+
+// The grants a browser presents, gone when it signs out. Expiring the cookie is
+// not enough: a client can ignore an expiry and present the tokens again.
+func (q *Queries) RevokeOrderAccess(ctx context.Context, digests [][]byte) error {
+	_, err := q.db.Exec(ctx, revokeOrderAccess, digests)
+	return err
+}
+
 const revokeStaff = `-- name: RevokeStaff :one
 SELECT revoke_staff($1)::boolean
 `

@@ -408,6 +408,36 @@ func (s *Store) PlacedHere(ctx context.Context, r *http.Request, number string, 
 	return ok
 }
 
+// ForgetOrders ends the access a browser's placed cookie grants to every order
+// it names.
+func (s *Store) ForgetOrders(ctx context.Context, r *http.Request, secure bool) error {
+	tokens := placedTokens(r, secure)
+	if len(tokens) == 0 {
+		return nil
+	}
+	digests := make([][]byte, 0, len(tokens))
+	for _, t := range tokens {
+		digests = append(digests, HashToken(t))
+	}
+	if err := s.q.RevokeOrderAccess(ctx, digests); err != nil {
+		return fmt.Errorf("revoke this browser's order access: %w", err)
+	}
+	return nil
+}
+
+// clearPlacedCookie expires the placed cookie.
+func clearPlacedCookie(w http.ResponseWriter, secure bool) {
+	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: dev-only opt-out, secure by default
+		Name:     placedCookieName(secure),
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		HttpOnly: true,
+		Secure:   secure,
+		SameSite: http.SameSiteLaxMode,
+	})
+}
+
 func placedCookieName(secure bool) string {
 	if secure {
 		return PlacedCookieName

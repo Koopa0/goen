@@ -1549,6 +1549,18 @@ func (h *Handler) ForgetCart(w http.ResponseWriter, r *http.Request) {
 	clearCookie(w, h.secure)
 }
 
+// ForgetOrders ends this browser's access to the orders it placed or found and
+// expires the cookie naming them, so a browser that signs out keeps no way back
+// into an order's name, address and actions for the next person at it. The
+// grants go as well as the cookie, because a client can ignore an expiry. A
+// failure to revoke is logged rather than stopping the sign-out.
+func (h *Handler) ForgetOrders(w http.ResponseWriter, r *http.Request) {
+	if err := h.store.ForgetOrders(r.Context(), r, h.secure); err != nil {
+		h.log.ErrorContext(r.Context(), "forget this browser's orders", "error", err)
+	}
+	clearPlacedCookie(w, h.secure)
+}
+
 // WithCount puts the visitor's cart size into the request context for the
 // header badge, rather than a line each handler must remember to write. It
 // resolves the cart on every visitor request, so it is also where a cookie
