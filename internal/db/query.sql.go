@@ -1566,11 +1566,11 @@ LIMIT $5::integer
 `
 
 type AdminSearchCustomersParams struct {
-	Term      string
-	HasCursor bool
-	AfterAt   time.Time
-	AfterID   uuid.UUID
-	RowLimit  int32
+	EscapedTerm string
+	HasCursor   bool
+	AfterAt     time.Time
+	AfterID     uuid.UUID
+	RowLimit    int32
 }
 
 type AdminSearchCustomersRow struct {
@@ -1585,10 +1585,11 @@ type AdminSearchCustomersRow struct {
 
 // Prefix on both, each index-backed, with a floor on the term enforced by the
 // caller. Every role is searched, for AdminCustomer's reason. An erased
-// customer's row is gone, so nothing extra is needed to exclude one.
+// customer's row is gone, so nothing extra is needed to exclude one. The term
+// arrives LIKE-escaped: "%%" passes the floor and would otherwise list everyone.
 func (q *Queries) AdminSearchCustomers(ctx context.Context, arg AdminSearchCustomersParams) ([]AdminSearchCustomersRow, error) {
 	rows, err := q.db.Query(ctx, adminSearchCustomers,
-		arg.Term,
+		arg.EscapedTerm,
 		arg.HasCursor,
 		arg.AfterAt,
 		arg.AfterID,
@@ -1637,20 +1638,21 @@ SELECT json_build_object('At', o.placed_at, 'ID', o.id)::text AS page_cursor,
 FROM orders o
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
 WHERE (o.order_number = upper($1::text)
-   OR lower(pd.email) LIKE lower($1::text) || '%'
-   OR pd.recipient_name LIKE $1::text || '%')
-AND (NOT $2::boolean OR (o.placed_at < $3::timestamptz)
-       OR (o.placed_at = $3::timestamptz AND o.id < $4::uuid))
+   OR lower(pd.email) LIKE lower($2::text) || '%'
+   OR pd.recipient_name LIKE $2::text || '%')
+AND (NOT $3::boolean OR (o.placed_at < $4::timestamptz)
+       OR (o.placed_at = $4::timestamptz AND o.id < $5::uuid))
 ORDER BY o.placed_at DESC, o.id DESC
-LIMIT $5::integer
+LIMIT $6::integer
 `
 
 type AdminSearchOrdersParams struct {
-	Term      string
-	HasCursor bool
-	AfterAt   time.Time
-	AfterID   uuid.UUID
-	RowLimit  int32
+	Term        string
+	EscapedTerm string
+	HasCursor   bool
+	AfterAt     time.Time
+	AfterID     uuid.UUID
+	RowLimit    int32
 }
 
 type AdminSearchOrdersRow struct {
@@ -1671,9 +1673,12 @@ type AdminSearchOrdersRow struct {
 // An order-number-shaped term is matched exactly and anything else as a prefix,
 // told apart rather than OR-ed with wildcards so each path stays index-backed.
 // An erased order matches nothing: erase_user NULLs the name and the address.
+// The prefixes take @escaped_term, the same words with LIKE's own syntax
+// escaped: a typed % or _ would otherwise match any address or name.
 func (q *Queries) AdminSearchOrders(ctx context.Context, arg AdminSearchOrdersParams) ([]AdminSearchOrdersRow, error) {
 	rows, err := q.db.Query(ctx, adminSearchOrders,
 		arg.Term,
+		arg.EscapedTerm,
 		arg.HasCursor,
 		arg.AfterAt,
 		arg.AfterID,
