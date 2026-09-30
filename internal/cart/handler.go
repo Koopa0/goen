@@ -1524,7 +1524,7 @@ func (h *Handler) FindOrder(w http.ResponseWriter, r *http.Request) {
 
 	// Bounded per IP, and BEFORE the read: unbounded, this endpoint is an oracle
 	// for the secret half of the pair.
-	if retryAfter, ok := h.findLimit.Allow("findorder:" + ratelimit.ClientIP(r)); !ok {
+	if retryAfter, ok := h.findLimit.Allow("findorder:" + ratelimit.ClientKey(r)); !ok {
 		ratelimit.Refuse(r.Context(), w, retryAfter)
 		return
 	}

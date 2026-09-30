@@ -474,6 +474,147 @@ func TestTheKeyIsTheAddressAndNeverAHeader(t *testing.T) {
 	}
 }
 
+func TestAClientKeyIsTheAddressForIPv4AndTheSlash64ForIPv6(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		remoteAddr string
+		want       string
+	}{
+		{name: "an IPv4 address is its own key", remoteAddr: "203.0.113.9:54321", want: "203.0.113.9"},
+		{name: "an IPv4 address without a port", remoteAddr: "203.0.113.9", want: "203.0.113.9"},
+		{name: "an IPv6 address is its /64", remoteAddr: "[2001:db8:1:2:dead:beef:0:9]:443", want: "2001:db8:1:2::/64"},
+		{name: "the low 64 bits are not part of the key", remoteAddr: "[2001:db8:1:2::1]:443", want: "2001:db8:1:2::/64"},
+		{name: "the next /64 is another key", remoteAddr: "[2001:db8:1:3::1]:443", want: "2001:db8:1:3::/64"},
+		{name: "an IPv4-mapped address is its IPv4 form", remoteAddr: "[::ffff:203.0.113.9]:443", want: "203.0.113.9"},
+		{name: "an IPv6 zone is not part of the key", remoteAddr: "[fe80::a:b:c:d%eth0]:443", want: "fe80::/64"},
+		{name: "something that is no address is kept whole", remoteAddr: "pipe", want: "pipe"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := ClientKey(request(t, tt.remoteAddr)); got != tt.want {
+				t.Errorf("ClientKey(%q) = %q, want %q", tt.remoteAddr, got, tt.want)
+			}
+		})
+	}
+}
+
+// ClientIP is what sessions and logs record, so it must keep the whole address
+// while the limiter keys on less.
+func TestTheAddressToRecordKeepsAllOfAnIPv6Address(t *testing.T) {
+	t.Parallel()
+
+	r := request(t, "[2001:db8:1:2:dead:beef:0:9]:443")
+	if got := ClientIP(r); got != "2001:db8:1:2:dead:beef:0:9" {
+		t.Errorf("ClientIP = %q, want the whole address", got)
+	}
+}
+
+// guarded sends one request from remoteAddr through a Guard whose burst is one
+// and reports whether the limiter let it reach the handler.
+func guarded(t *testing.T, h http.HandlerFunc, remoteAddr string) bool {
+	t.Helper()
+
+	w := httptest.NewRecorder()
+	h(w, request(t, remoteAddr))
+	return w.Code != http.StatusTooManyRequests
+}
+
+func TestAnIPv6ClientCannotBuyAFreshAllowanceByRotatingItsLowBits(t *testing.T) {
+	t.Parallel()
+
+	l := New(Config{Every: time.Minute, Burst: 1, TTL: time.Hour, MaxKeys: testMaxKeys})
+	h := Guard(l, discardLogger(), func(http.ResponseWriter, *http.Request) {})
+
+	if !guarded(t, h, "[2001:db8:1:2::1]:443") {
+		t.Fatal("the first request from the /64 was refused")
+	}
+	for _, addr := range []string{
+		"[2001:db8:1:2::2]:443",
+		"[2001:db8:1:2:ffff:ffff:ffff:ffff]:443",
+		"[2001:db8:1:2:1234:5678:9abc:def0]:60000",
+	} {
+		if guarded(t, h, addr) {
+			t.Errorf("a request from %s was allowed after another address in its /64 "+
+				"spent the burst; rotating the low 64 bits buys a fresh bucket", addr)
+		}
+	}
+}
+
+func TestDifferentSlash64sDoNotShareABucket(t *testing.T) {
+	t.Parallel()
+
+	l := New(Config{Every: time.Minute, Burst: 1, TTL: time.Hour, MaxKeys: testMaxKeys})
+	h := Guard(l, discardLogger(), func(http.ResponseWriter, *http.Request) {})
+
+	for _, addr := range []string{
+		"[2001:db8:1:2::1]:443",
+		"[2001:db8:1:3::1]:443",
+		"[2001:db8:2:2::1]:443",
+	} {
+		if !guarded(t, h, addr) {
+			t.Errorf("the first request from %s was refused; another client's /64 "+
+				"was spent", addr)
+		}
+	}
+}
+
+func TestIPv4ClientsKeepTheirOwnBucketsAndTheMappedFormSharesOne(t *testing.T) {
+	t.Parallel()
+
+	l := New(Config{Every: time.Minute, Burst: 1, TTL: time.Hour, MaxKeys: testMaxKeys})
+	h := Guard(l, discardLogger(), func(http.ResponseWriter, *http.Request) {})
+
+	if !guarded(t, h, "203.0.113.9:1000") {
+		t.Fatal("the first IPv4 request was refused")
+	}
+	if guarded(t, h, "203.0.113.9:2000") {
+		t.Error("the same IPv4 address on another port bought a fresh allowance")
+	}
+	if guarded(t, h, "[::ffff:203.0.113.9]:3000") {
+		t.Error("the IPv4-mapped spelling of a spent address bought a fresh allowance")
+	}
+	if !guarded(t, h, "203.0.113.10:1000") {
+		t.Error("a neighbouring IPv4 address was refused; IPv4 clients must stay apart")
+	}
+	// Mapped addresses all sit in one /64, which they must not be keyed as.
+	if !guarded(t, h, "[::ffff:203.0.113.11]:1000") {
+		t.Error("a mapped address was refused; it was keyed as an IPv6 /64 and " +
+			"shares a bucket with every other mapped client")
+	}
+	if !guarded(t, h, "[::ffff:203.0.113.12]:1000") {
+		t.Error("a second mapped address was refused; mapped clients share one bucket")
+	}
+}
+
+func TestAForwardedIPv6ClientIsKeyedOnItsSlash64(t *testing.T) {
+	t.Parallel()
+
+	p, err := ParseProxies("10.0.0.0/8")
+	if err != nil {
+		t.Fatalf("ParseProxies: %v", err)
+	}
+	l := New(Config{Every: time.Minute, Burst: 1, TTL: time.Hour, MaxKeys: testMaxKeys})
+
+	allowed := func(client string) bool {
+		var ok bool
+		p.Resolve(http.HandlerFunc(func(_ http.ResponseWriter, seen *http.Request) {
+			_, ok = l.Allow(ClientKey(seen))
+		})).ServeHTTP(httptest.NewRecorder(), request(t, "10.0.0.9:443", client))
+		return ok
+	}
+
+	if !allowed("2001:db8:1:2::1") {
+		t.Fatal("the first forwarded request was refused")
+	}
+	if allowed("2001:db8:1:2:9:9:9:9") {
+		t.Error("a forwarded address in a spent /64 bought a fresh allowance")
+	}
+}
+
 func discardLogger() *slog.Logger { return slog.New(slog.DiscardHandler) }
 
 func TestARefusalIsInTheReadersLanguage(t *testing.T) {

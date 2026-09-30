@@ -127,7 +127,7 @@ func (h *Handler) Review(w http.ResponseWriter, r *http.Request) {
 
 // Notify serves POST /p/{slug}/notify.
 func (h *Handler) Notify(w http.ResponseWriter, r *http.Request) {
-	if retryAfter, allowed := h.notifyLimit.Allow(ratelimit.ClientIP(r)); !allowed {
+	if retryAfter, allowed := h.notifyLimit.Allow(ratelimit.ClientKey(r)); !allowed {
 		ratelimit.Refuse(r.Context(), w, retryAfter)
 		return
 	}

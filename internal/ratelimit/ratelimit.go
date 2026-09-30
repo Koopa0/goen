@@ -15,6 +15,7 @@ import (
 	"encoding/base64"
 	"net"
 	"net/http"
+	"net/netip"
 	"strings"
 	"sync"
 	"time"
@@ -177,14 +178,37 @@ func (l *Limiter) dropLocked(el *list.Element) {
 	}
 }
 
-// ClientIP is the address to key an HTTP request on: r.RemoteAddr, unless
+// ClientIP is the address an HTTP request came from: r.RemoteAddr, unless
 // [Proxies.Resolve] has run and decided otherwise. A header read on faith hands
-// every attacker an unlimited supply of keys, so no header is read here.
+// every attacker an unlimited supply of keys, so no header is read here. It is
+// the address to record; a limit keys on [ClientKey].
 func ClientIP(r *http.Request) string {
 	if ip, ok := r.Context().Value(clientIPKey{}).(string); ok && ip != "" {
 		return ip
 	}
 	return remoteHost(r)
+}
+
+// clientPrefixBits is how much of an IPv6 address identifies a client. A /64 is
+// the smallest network a host autoconfigures in, so it is the least any
+// subscriber is routed, and the low 64 bits are the subscriber's to choose.
+const clientPrefixBits = 64
+
+// ClientKey is what to key a per-client limit on: [ClientIP], with an IPv6
+// address reduced to its /64. Keyed on the whole address, a client that rotates
+// the low 64 bits has 2^64 keys and a fresh allowance on every request. An IPv4
+// address, and an IPv6 address that only spells one, keep the dotted form.
+func ClientKey(r *http.Request) string {
+	host := ClientIP(r)
+	addr, err := netip.ParseAddr(host)
+	if err != nil {
+		return host
+	}
+	addr = normalise(addr)
+	if addr.Is4() {
+		return addr.String()
+	}
+	return netip.PrefixFrom(addr, clientPrefixBits).Masked().String()
 }
 
 func remoteHost(r *http.Request) string {

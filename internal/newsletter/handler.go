@@ -37,7 +37,7 @@ func NewHandler(store *Store, limit *ratelimit.Limiter, log *slog.Logger) *Handl
 func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
 	// Per-IP lives here rather than in Guard so an HTMX refusal can still
 	// replace the footer form; Guard's plain 429 would swap over it.
-	if retryAfter, ok := h.limit.Allow(ratelimit.ClientIP(r)); !ok {
+	if retryAfter, ok := h.limit.Allow(ratelimit.ClientKey(r)); !ok {
 		h.log.WarnContext(r.Context(), "rate limited",
 			"path", r.URL.Path, "retry_after_seconds", int(retryAfter.Seconds()+1))
 		h.throttled(w, r, "", retryAfter)

@@ -58,7 +58,7 @@ func TestHTMXOverLimitKeepsTheFooterForm(t *testing.T) {
 		{
 			name: "per-IP",
 			spend: func(l *ratelimit.Limiter, r *http.Request) {
-				if _, ok := l.Allow(ratelimit.ClientIP(r)); !ok {
+				if _, ok := l.Allow(ratelimit.ClientKey(r)); !ok {
 					t.Fatal("setup could not spend the per-IP token")
 				}
 			},
@@ -116,7 +116,7 @@ func TestPlainOverLimitIsStillText(t *testing.T) {
 	})
 	h := &Handler{limit: limit, log: slog.New(slog.DiscardHandler)}
 	req := newsletterSubmit(t, "me@example.com", false)
-	if _, ok := limit.Allow(ratelimit.ClientIP(req)); !ok {
+	if _, ok := limit.Allow(ratelimit.ClientKey(req)); !ok {
 		t.Fatal("setup could not spend the per-IP token")
 	}
 
@@ -172,5 +172,35 @@ func TestInvalidUnsubscribeOffersTheOwnedMailbox(t *testing.T) {
 				t.Error("invalid unsubscribe exposes an unowned or unformatted contact")
 			}
 		})
+	}
+}
+
+// An IPv6 sender chooses the low 64 bits of its address freely, so a limit
+// keyed on the whole address is no limit.
+func TestTheNewsletterLimitCoversAWholeIPv6Slash64(t *testing.T) {
+	limit := ratelimit.New(ratelimit.Config{
+		Every: time.Hour, Burst: 1, TTL: time.Hour, MaxKeys: 8,
+	})
+	h := &Handler{limit: limit, log: slog.New(slog.DiscardHandler)}
+
+	// An empty address that clears the limit is refused at 422 before it
+	// reaches the store, which this handler does not have.
+	submit := func(remoteAddr string) int {
+		req := newsletterSubmit(t, "", false)
+		req.RemoteAddr = remoteAddr
+		res := httptest.NewRecorder()
+		h.Submit(res, req)
+		return res.Code
+	}
+
+	if got := submit("[2001:db8:1:2::1]:1000"); got != http.StatusUnprocessableEntity {
+		t.Fatalf("the first submission answered %d, want 422", got)
+	}
+	if got := submit("[2001:db8:1:2:aaaa:bbbb:cccc:dddd]:1001"); got != http.StatusTooManyRequests {
+		t.Errorf("another address in the same /64 answered %d, want 429; "+
+			"rotating the low bits bought a fresh allowance", got)
+	}
+	if got := submit("[2001:db8:1:3::1]:1002"); got != http.StatusUnprocessableEntity {
+		t.Errorf("an address in another /64 answered %d, want 422; it shared a bucket", got)
 	}
 }
