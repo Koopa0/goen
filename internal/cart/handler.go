@@ -15,6 +15,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/account"
+	"github.com/koopa0/goen/internal/email"
 
 	"github.com/koopa0/goen/internal/i18n"
 	invoicepkg "github.com/koopa0/goen/internal/invoice"
@@ -45,6 +46,11 @@ type Handler struct {
 	// wrong: a wrong code and a right one answer differently, so unbounded it
 	// is a way to find codes that were never handed out.
 	couponMisses *ratelimit.Limiter
+	// findPerAddress bounds the order lookup per submitted address as well as
+	// per client. The number half of the pair is guessable, so the address is
+	// the only secret, and a bound per client alone is lifted by changing
+	// client.
+	findPerAddress *ratelimit.Limiter
 }
 
 // SessionCloser closes a checkout the customer may still have open at the
@@ -84,6 +90,11 @@ func NewHandler(store *Store, log *slog.Logger, secure bool, findLimit *ratelimi
 		// minutes: more than a shopper retyping a code from a flyer ever needs.
 		couponMisses: ratelimit.New(ratelimit.Config{
 			Every: 2 * time.Minute, Burst: 20, TTL: time.Hour, MaxKeys: 65_536,
+		}),
+		// Five lookups of one address at once, then five an hour, from anywhere:
+		// a customer finding their own order needs one or two.
+		findPerAddress: ratelimit.New(ratelimit.Config{
+			Every: 12 * time.Minute, Burst: 5, TTL: time.Hour, MaxKeys: 65_536,
 		}),
 	}
 }
@@ -1586,6 +1597,15 @@ func (h *Handler) FindOrder(w http.ResponseWriter, r *http.Request) {
 	if retryAfter, ok := h.findLimit.Allow("findorder:" + ratelimit.ClientKey(r)); !ok {
 		ratelimit.Refuse(r.Context(), w, retryAfter)
 		return
+	}
+	// Keyed on the address as the lookup reads it, so a change of case or
+	// spacing is the same address. One longer than the policy names no order
+	// and is not kept as a key.
+	if key := email.Clean(addr); key != "" && len(key) <= email.Max {
+		if retryAfter, ok := h.findPerAddress.Allow("findorder:" + key); !ok {
+			ratelimit.Refuse(r.Context(), w, retryAfter)
+			return
+		}
 	}
 
 	found, err := h.store.OrderBelongsToEmail(r.Context(), number, addr)
