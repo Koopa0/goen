@@ -524,9 +524,14 @@ func TestUserAgentDecorationIsBoundedWithoutRejectingTheSession(t *testing.T) {
 	if got := normaliseUserAgent(strings.Repeat("a", maxUserAgentRunes)); len(got) != maxUserAgentRunes {
 		t.Errorf("exact user-agent ceiling became %d runes", len([]rune(got)))
 	}
+	if got := normaliseUserAgent("瀏覽器/1"); got != "瀏覽器/1" {
+		t.Errorf("a UTF-8 user agent became %q", got)
+	}
 	for _, raw := range []string{
 		strings.Repeat("a", maxUserAgentRunes+1),
 		"browser\nforged",
+		"Mozilla/5.0 Caf\xe9Browser/1.0",
+		"browser/\xe7\x80",
 	} {
 		if got := normaliseUserAgent(raw); got != "" {
 			t.Errorf("unsafe user agent survived as %q", got)

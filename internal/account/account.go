@@ -320,10 +320,12 @@ func profileInputValid(name, phone string) bool {
 }
 
 // A user agent is optional session decoration. Refuse to persist an unbounded
-// or control-bearing value, but never refuse the sign-in it describes.
+// or control-bearing value, but never refuse the sign-in it describes. HTTP
+// lets a header carry bytes that are not UTF-8, and PostgreSQL refuses the
+// whole session row over one of them.
 func normaliseUserAgent(s string) string {
 	s = strings.TrimSpace(s)
-	if utf8.RuneCountInString(s) > maxUserAgentRunes || hasControl(s) {
+	if !utf8.ValidString(s) || utf8.RuneCountInString(s) > maxUserAgentRunes || hasControl(s) {
 		return ""
 	}
 	return s

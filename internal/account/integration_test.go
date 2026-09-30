@@ -339,6 +339,7 @@ func TestUnsafeUserAgentDoesNotRefuseOrDecorateASession(t *testing.T) {
 	}{
 		{name: "overlong", userAgent: strings.Repeat("a", 513)},
 		{name: "control character", userAgent: "browser\nforged"},
+		{name: "not UTF-8", userAgent: "Mozilla/5.0 Caf\xe9Browser/1.0"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			token, err := s.StartSession(ctx, u.ID, tt.userAgent, "192.0.2.1")
