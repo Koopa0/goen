@@ -108,12 +108,14 @@ func (s *Store) RevokeStaff(ctx context.Context, userID, actorID string) error {
 	if err != nil {
 		return ErrInvalidStaff
 	}
-	if userID == actorID {
-		return ErrSelf
-	}
 	actor, err := uuid.Parse(actorID)
 	if err != nil {
 		return ErrInvalidStaff
+	}
+	// Compared parsed: uuid.Parse also reads upper case, {braces} and urn:uuid:,
+	// so comparing the submitted text lets another spelling of oneself through.
+	if target == actor {
+		return ErrSelf
 	}
 
 	return s.withStaffAudit(ctx, actor, actionRevokeStaff, func(ctx context.Context, q *db.Queries) (uuid.UUID, any, error) {
@@ -138,9 +140,6 @@ func (s *Store) RevokeStaff(ctx context.Context, userID, actorID string) error {
 // RemoveFactor deletes somebody else's second factor, which is how a lost
 // authenticator is recovered.
 func (s *Store) RemoveFactor(ctx context.Context, userID, actorID string) error {
-	if userID == actorID {
-		return ErrSelf
-	}
 	target, err := uuid.Parse(userID)
 	if err != nil {
 		return ErrNotEnrolled
@@ -148,6 +147,10 @@ func (s *Store) RemoveFactor(ctx context.Context, userID, actorID string) error 
 	actor, err := uuid.Parse(actorID)
 	if err != nil {
 		return ErrInvalidStaff
+	}
+	// Compared parsed, for the reason RevokeStaff gives.
+	if target == actor {
+		return ErrSelf
 	}
 
 	return s.withStaffAudit(ctx, actor, actionRemoveStaffFactor, func(ctx context.Context, q *db.Queries) (uuid.UUID, any, error) {
