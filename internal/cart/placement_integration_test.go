@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -84,6 +85,56 @@ func TestAPlacedOrderTakesNoLineFromALaterRequest(t *testing.T) {
 	if stockAfter != stockBefore {
 		t.Errorf("stock moved from %d to %d against an order placed by somebody else",
 			stockBefore, stockAfter)
+	}
+}
+
+// TestAnOrderTakesNoLineFromAnotherTransactionThatBeganWithIt: two checkouts
+// can begin at the same instant, so the begin time alone does not say which
+// transaction placed an order; the transaction's id does.
+func TestAnOrderTakesNoLineFromAnotherTransactionThatBeganWithIt(t *testing.T) {
+	ctx := t.Context()
+	asStore := storeRolePool(t)
+	number := placeUnpaidOrderFor(t, cart.NewStore(asStore),
+		"same-instant-"+uuid.NewString()[:8]+"@example.com")
+
+	var orderID, target uuid.UUID
+	if err := pool.QueryRow(ctx, `
+		SELECT o.id, pv.id
+		FROM orders o, product_variants pv
+		WHERE o.order_number = $1
+		  AND pv.stock_quantity > 3
+		  AND NOT EXISTS (SELECT 1 FROM order_lines l
+		                  WHERE l.order_id = o.id AND l.variant_id = pv.id)
+		ORDER BY pv.stock_quantity DESC, pv.id LIMIT 1`, number).
+		Scan(&orderID, &target); err != nil {
+		t.Fatalf("read the placed order and a variant it does not carry: %v", err)
+	}
+
+	tx, err := asStore.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin as store: %v", err)
+	}
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
+	var began time.Time
+	if err := tx.QueryRow(ctx, `SELECT transaction_timestamp()`).Scan(&began); err != nil {
+		t.Fatalf("read the transaction's start: %v", err)
+	}
+	// Another transaction that began at the same instant placed this order.
+	if _, err := pool.Exec(ctx, `UPDATE orders SET placed_in_xact_began = $2 WHERE id = $1`,
+		orderID, began); err != nil {
+		t.Fatalf("forge the placing transaction's start: %v", err)
+	}
+
+	_, lineErr := tx.Exec(ctx, `
+		INSERT INTO order_lines (order_id, variant_id, sku, product_name,
+		                         unit_price_cents, quantity, position)
+		SELECT $1, pv.id, pv.sku, p.name, 0, 5, 99
+		FROM product_variants pv JOIN products p ON p.id = pv.product_id
+		WHERE pv.id = $2`, orderID, target)
+	pgErr, ok := errors.AsType[*pgconn.PgError](lineErr)
+	if !ok || pgErr.ConstraintName != "order_lines_written_while_placing" {
+		t.Errorf("a line added by another transaction that began at the placing one's instant = %v, "+
+			"want order_lines_written_while_placing", lineErr)
 	}
 }
 
