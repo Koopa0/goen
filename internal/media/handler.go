@@ -176,9 +176,12 @@ func (u *Upload) Close() {
 	_ = u.form.RemoveAll() //nolint:errcheck // best-effort temp cleanup
 }
 
-// uploadSlots is how many uploads may be decoded at once. Each can hold
-// MaxDecodedBytes, and the back office has no reason to decode more than a
-// couple of images at the same moment.
+// uploadSlots is how many uploads may be decoded at once. A slot holds the
+// upload, up to MaxUploadBytes, and its decode, up to MaxDecodedBytes, and
+// beside them the resize to MaxStoredSide: a band as tall as the picture at the
+// stored width, up to 61 MB; the stored-size image, 23 MB; and the scaler's
+// scratch, up to 33 MB. That is about 250 MB a slot, and the back office has no
+// reason to decode more than a couple of images at the same moment.
 const uploadSlots = 2
 
 // uploader normalises and stores uploads, at most uploadSlots at a time.

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"image"
-	"image/color"
 	"image/jpeg"
 	"testing"
 )
@@ -31,8 +30,13 @@ func TestAnImageOverTheByteBudgetIsRefusedBeforeItIsDecoded(t *testing.T) {
 			want: ErrTooLarge,
 		},
 		{
-			name: "the same pixels as 8-bit grey, one byte a pixel",
+			name: "an 8-bit grey PNG, four bytes a pixel once a tRNS chunk follows",
 			body: pngHeader(side, side, 8, pngGrey),
+			want: ErrTooLarge,
+		},
+		{
+			name: "the same pixels paletted, one byte a pixel even with a tRNS chunk",
+			body: pngHeader(side, side, 8, pngPaletted, pngChunk{"PLTE", make([]byte, 6)}, pngChunk{"tRNS", []byte{0}}),
 			want: ErrNotAnImage,
 		},
 		{
@@ -60,48 +64,39 @@ func TestAnImageOverTheByteBudgetIsRefusedBeforeItIsDecoded(t *testing.T) {
 	}
 }
 
-// TestTheBudgetCountsWhatEachDecoderHolds pins the per-pixel figures to the
-// buffers the standard decoders allocate for each model.
-func TestTheBudgetCountsWhatEachDecoderHolds(t *testing.T) {
+// TestAProgressiveJPEGIsCostedAtEveryCoefficient pins the coefficient count to
+// what image/jpeg allocates at 4:2:0: four bytes a pixel of blocks for the
+// component sampled 2x2 and one for each of the others, beside the three-byte
+// planes. image/jpeg sizes the MCU grid from the largest factors, which need
+// not be luma's.
+func TestAProgressiveJPEGIsCostedAtEveryCoefficient(t *testing.T) {
 	t.Parallel()
 
+	const side = 1600
 	for _, tt := range []struct {
-		model color.Model
-		want  int64
+		name    string
+		factors [3]byte
 	}{
-		{color.Palette{color.Black, color.White}, 1},
-		{color.GrayModel, 1},
-		{color.Gray16Model, 2},
-		{color.YCbCrModel, 3},
-		{color.NRGBAModel, 4},
-		{color.RGBAModel, 4},
-		{color.CMYKModel, 4},
-		{color.NRGBA64Model, 8},
-		{color.RGBA64Model, 8},
-		{color.ModelFunc(func(c color.Color) color.Color { return c }), 8},
+		{"luma sampled 2x2", [3]byte{0x22, 0x11, 0x11}},
+		{"Cb sampled 2x2", [3]byte{0x11, 0x22, 0x11}},
 	} {
-		if got := bytesPerPixel(tt.model); got != tt.want {
-			t.Errorf("bytesPerPixel(%T) = %d, want %d", tt.model, got, tt.want)
+		raw := jpegHeaderSampled(side, side, jpegSOF2, tt.factors)
+		cfg, format, err := image.DecodeConfig(bytes.NewReader(raw))
+		if err != nil {
+			t.Fatalf("%s: decode config: %v", tt.name, err)
 		}
-	}
-
-	// 4:2:0 progressive: the luma blocks hold four bytes a pixel and each
-	// chroma plane one, beside the three-byte image.
-	raw := jpegHeaderSampled(1600, 1600, jpegSOF2, 0x22)
-	cfg, format, err := image.DecodeConfig(bytes.NewReader(raw))
-	if err != nil {
-		t.Fatalf("decode config: %v", err)
-	}
-	pixels := int64(1600 * 1600)
-	if got, want := decodeCost(raw, cfg, format), pixels*3+pixels*6; got != want {
-		t.Errorf("progressive 4:2:0 costs %d, want %d", got, want)
+		pixels := int64(side * side)
+		if got, want := decodeCost(raw, cfg, format), pixels*3+pixels*6; got != want {
+			t.Errorf("%s: a progressive frame costs %d, want %d", tt.name, got, want)
+		}
 	}
 }
 
-// FuzzTheFrameWalkFindsTheFrameImageJPEGDecodes keeps jpegFrame reading the
-// same header image/jpeg does. Where they disagreed, an attacker could show the
-// budget a small baseline frame and the decoder a large progressive one.
-func FuzzTheFrameWalkFindsTheFrameImageJPEGDecodes(f *testing.F) {
+// FuzzTheJPEGWalkSeesWhatImageJPEGDecodes keeps jpegWalk reading the stream
+// image/jpeg does. Where they disagreed, an attacker could show the budget a
+// small baseline frame and the decoder a large progressive one, or hide from
+// it the segment that makes the decoder convert.
+func FuzzTheJPEGWalkSeesWhatImageJPEGDecodes(f *testing.F) {
 	f.Add(jpegHeader(640, 480, jpegSOF0))
 	f.Add(jpegHeader(640, 480, jpegSOF2))
 	// Junk before a marker, a stuffed zero and fill bytes, all of which
@@ -112,25 +107,36 @@ func FuzzTheFrameWalkFindsTheFrameImageJPEGDecodes(f *testing.F) {
 		f.Fatalf("encode: %v", err)
 	}
 	f.Add(buf.Bytes())
+	f.Add(jpegFile(f, jpegSpec{w: 40, h: 24, factors: []byte{0x22, 0x11, 0x11}, after: [][]byte{adobeSegment(0)}}))
+	f.Add(jpegFile(f, jpegSpec{w: 40, h: 24, factors: []byte{0x11, 0x11, 0x11, 0x11}, before: [][]byte{adobeSegment(0)}}))
+	f.Add(jpegFile(f, jpegSpec{w: 40, h: 24, factors: []byte{0x11, 0x22, 0x11}, progressive: true}))
 
 	f.Fuzz(func(t *testing.T, raw []byte) {
 		cfg, err := jpeg.DecodeConfig(bytes.NewReader(raw))
 		if err != nil {
 			return
 		}
-		header, _, ok := jpegFrame(raw)
-		if !ok {
-			// Costed as progressive at full resolution: safe, if pessimistic.
+		if stream := jpegWalk(raw); stream.frame != nil {
+			frame, ok := readJPEGFrame(stream.frame)
+			if !ok {
+				t.Fatalf("the walk found a frame header it cannot read in a stream image/jpeg accepts")
+			}
+			if frame.width != int64(cfg.Width) || frame.height != int64(cfg.Height) {
+				t.Errorf("the walk found a %dx%d frame; image/jpeg decodes %dx%d",
+					frame.width, frame.height, cfg.Width, cfg.Height)
+			}
+		}
+		// A frame this large is refused by its size alone, and decoding it
+		// would slow the search down.
+		if cfg.Width*cfg.Height > 1<<18 {
 			return
 		}
-		if len(header) < 5 {
-			t.Fatalf("frame header of %d bytes for a stream image/jpeg decoded", len(header))
+		img, err := jpeg.Decode(bytes.NewReader(raw))
+		if err != nil {
+			return
 		}
-		height := int(header[1])<<8 | int(header[2])
-		width := int(header[3])<<8 | int(header[4])
-		if width != cfg.Width || height != cfg.Height {
-			t.Errorf("the walk found a %dx%d frame; image/jpeg decodes %dx%d",
-				width, height, cfg.Width, cfg.Height)
+		if cost, held := decodeCost(raw, cfg, "jpeg"), heldBytes(t, img); cost < held {
+			t.Errorf("decodeCost = %d, but image/jpeg returned %T holding %d bytes", cost, img, held)
 		}
 	})
 }
@@ -142,8 +148,8 @@ const (
 )
 
 // pngHeader is a PNG signature plus an IHDR declaring w by h at the given bit
-// depth and colour type, with no image data.
-func pngHeader(w, h uint32, depth, colourType byte) []byte {
+// depth and colour type, then any extra chunks, with no image data.
+func pngHeader(w, h uint32, depth, colourType byte, extra ...pngChunk) []byte {
 	var buf bytes.Buffer
 	buf.WriteString("\x89PNG\r\n\x1a\n")
 	ihdr := make([]byte, 0, 21)
@@ -153,24 +159,27 @@ func pngHeader(w, h uint32, depth, colourType byte) []byte {
 	ihdr = append(ihdr, depth, colourType, 0, 0, 0)
 	buf.Write(ihdr)
 	buf.Write(crcOf(ihdr[4:]))
+	for _, c := range extra {
+		writePNGChunk(&buf, c.kind, c.data)
+	}
 	return buf.Bytes()
 }
 
 // jpegHeader is a JFIF JPEG with three 1x1-sampled components that stops after
 // its frame header, which is as far as image.DecodeConfig reads.
 func jpegHeader(w, h uint16, sof byte) []byte {
-	return jpegHeaderSampled(w, h, sof, 0x11)
+	return jpegHeaderSampled(w, h, sof, [3]byte{0x11, 0x11, 0x11})
 }
 
-// jpegHeaderSampled is jpegHeader with the luma component's sampling factors
-// given as the header's own nibble pair.
-func jpegHeaderSampled(w, h uint16, sof, luma byte) []byte {
+// jpegHeaderSampled is jpegHeader with each component's sampling factors given
+// as the header's own nibble pair.
+func jpegHeaderSampled(w, h uint16, sof byte, factors [3]byte) []byte {
 	return []byte{
 		0xff, jpegSOI,
 		0xff, 0xe0, 0, 16, 'J', 'F', 'I', 'F', 0, 1, 1, 0, 0, 1, 0, 1, 0, 0,
 		0xff, sof, 0, 17, 8, byte(h >> 8 & 0xff), byte(h & 0xff), byte(w >> 8 & 0xff), byte(w & 0xff), 3,
-		1, luma, 0,
-		2, 0x11, 1,
-		3, 0x11, 1,
+		1, factors[0], 0,
+		2, factors[1], 1,
+		3, factors[2], 1,
 	}
 }

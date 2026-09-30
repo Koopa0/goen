@@ -2,119 +2,278 @@ package media
 
 import (
 	"image"
-	"image/color"
 )
 
-// decodeCost is the memory decoding raw holds at once, read from its header:
-// the pixel buffer its colour model needs, and for a JPEG what image/jpeg keeps
-// beside that buffer.
+// widestPixel is the most a standard decoder's image holds for one pixel: four
+// 16-bit channels.
+const widestPixel = 8
+
+// decodeCost bounds the pixel buffers image.Decode allocates for raw: the image
+// it returns and every other buffer the size of the picture that its decoder
+// fills on the way. It is read from raw's own headers, never from
+// cfg.ColorModel: DecodeConfig stops reading before the chunks and segments
+// that change what Decode builds, such as a PNG's tRNS or a JPEG's Adobe
+// segment after its first scan.
 func decodeCost(raw []byte, cfg image.Config, format string) int64 {
-	pixels := int64(cfg.Width) * int64(cfg.Height)
-	cost := pixels * bytesPerPixel(cfg.ColorModel)
-	if format == "jpeg" {
-		cost += jpegWorkingSet(raw, cfg.ColorModel, pixels)
-	}
-	return cost
-}
-
-// bytesPerPixel is what the image a decoder returns holds per pixel. A model no
-// decoder goen registers returns is costed as the widest one.
-func bytesPerPixel(m color.Model) int64 {
-	// Before the switch: a Palette is a slice, and comparing two interfaces
-	// that both hold one panics.
-	if _, paletted := m.(color.Palette); paletted {
-		return 1
-	}
-	switch m {
-	case color.GrayModel, color.AlphaModel:
-		return 1
-	case color.Gray16Model, color.Alpha16Model:
-		return 2
-	case color.YCbCrModel:
-		return 3
-	case color.NYCbCrAModel, color.CMYKModel, color.RGBAModel, color.NRGBAModel:
-		return 4
+	w, h := int64(cfg.Width), int64(cfg.Height)
+	switch format {
+	case "png":
+		return pngCost(raw, w*h)
+	case "jpeg":
+		return jpegCost(raw, w, h)
+	case "gif":
+		return gifCost(w * h)
+	case "webp":
+		return webpCost(raw, w, h)
 	default:
-		return 8
+		// A decoder that holds more than one image of the widest pixel needs a
+		// case of its own before it is registered.
+		return w * h * widestPixel
 	}
 }
 
-// jpegWorkingSet is what image/jpeg holds beside the image it returns. An RGB
-// or CMYK frame is decoded into YCbCr and black planes first and converted into
-// a second image. A progressive frame keeps every DCT coefficient of every
-// 8x8 block, 64 int32s each, until its last scan. A baseline YCbCr or grey
-// frame decodes block by block into its image and holds nothing more.
-func jpegWorkingSet(raw []byte, model color.Model, pixels int64) int64 {
-	var cost int64
-	if model == color.RGBAModel || model == color.CMYKModel {
-		cost += pixels * 4
+// IHDR's fields as offsets into the file. image/png refuses a file whose first
+// chunk is not IHDR, so a file DecodeConfig accepted has them here.
+const (
+	pngBitDepth   = 24
+	pngColourType = 25
+	pngInterlace  = 28
+
+	pngPaletted = 3
+)
+
+// pngCost: image/png decodes grey and truecolour into NRGBA, or NRGBA64 at 16
+// bits, whenever a tRNS chunk follows IHDR, and DecodeConfig stops at IHDR, so
+// every image but a paletted one is costed as if it had one. An interlaced
+// image is also decoded pass by pass into an image per pass, and every pixel is
+// in exactly one pass, so the passes allocate as much again as the image.
+func pngCost(raw []byte, pixels int64) int64 {
+	if len(raw) <= pngInterlace {
+		return pixels * widestPixel * 2
 	}
-	const blockBytes = 64 * 4
-	header, progressive, found := jpegFrame(raw)
-	blocks, counted := jpegBlocks(header)
+	var perPixel int64
 	switch {
-	case !found || !counted:
-		// A frame header not found the way image/jpeg finds it could say
-		// anything, so the frame is costed as progressive at full resolution
-		// in every component.
-		cost += pixels * 4 * jpegComponents(model)
-	case progressive:
-		cost += blocks * blockBytes
+	case raw[pngColourType] == pngPaletted:
+		perPixel = 1
+	case raw[pngBitDepth] == 16:
+		perPixel = 8
+	default:
+		perPixel = 4
+	}
+	if raw[pngInterlace] != 0 {
+		perPixel *= 2
+	}
+	return pixels * perPixel
+}
+
+// gifCost: image/gif decodes the first frame, which lies inside the screen
+// DecodeConfig reports, at a byte a pixel, and copies an interlaced frame once
+// more to put its rows in order.
+func gifCost(pixels int64) int64 {
+	return pixels * 2
+}
+
+// The first RIFF chunk of a WebP file, which image.DecodeConfig's sniffing
+// found at these offsets, and VP8X's alpha flag.
+const (
+	webpFirstChunk     = 12
+	webpFirstChunkData = 20
+	webpAlphaFlag      = 0x10
+)
+
+// webpCost: x/image/webp's DecodeConfig reports YCbCr for an extended file
+// without its alpha flag whichever frame follows it, so only a simple file's
+// first chunk says which frame Decode builds. An extended file is costed at the
+// most any frame it may carry allocates, and with its alpha flag set, at a
+// losslessly compressed alpha chunk too: that is decoded as a whole lossless
+// image and copied out into an alpha plane before the lossy frame is decoded
+// beside it.
+func webpCost(raw []byte, w, h int64) int64 {
+	lossy, lossless := webpLossyCost(w, h), webpLosslessCost(w, h)
+	if len(raw) > webpFirstChunkData {
+		switch string(raw[webpFirstChunk : webpFirstChunk+4]) {
+		case "VP8 ":
+			return lossy
+		case "VP8L":
+			return lossless
+		case "VP8X":
+			if raw[webpFirstChunkData]&webpAlphaFlag == 0 {
+				return max(lossy, lossless)
+			}
+		}
+	}
+	return lossless + w*h + lossy
+}
+
+// webpLossyCost is x/image/vp8's frame: YCbCr 4:2:0 over whole 16x16
+// macroblocks, 384 bytes each.
+func webpLossyCost(w, h int64) int64 {
+	return ((w + 15) / 16) * ((h + 15) / 16) * 384
+}
+
+// webpLosslessCost is x/image/vp8l's NRGBA image, four bytes a pixel, beside
+// the most its transforms hold: a colour-indexed frame is first decoded packed,
+// at most four bytes for every two pixels, and then expanded into a new image;
+// and the predictor, colour transform and Huffman group images hold four bytes
+// for each tile of at least 4x4 pixels.
+func webpLosslessCost(w, h int64) int64 {
+	tiles := ((w + 3) / 4) * ((h + 3) / 4)
+	return 4*w*h + 4*((w+1)/2)*h + 3*4*tiles
+}
+
+// jpegCost is what image/jpeg allocates for the frame header's picture:
+//   - a plane per component to decode into, over whole MCUs, each costed at
+//     full resolution, which is how image/jpeg lays out a sampling ratio it has
+//     no subsampled layout for;
+//   - for a progressive frame, 64 int32 coefficients for every 8x8 block of
+//     every component, kept until the last scan;
+//   - for four components, or three that are RGB, a second image at four
+//     bytes a pixel that the planes are converted into.
+//
+// Three components are RGB when their ids spell it or an Adobe segment says
+// so, and that segment may follow the first scan, where DecodeConfig stops. A
+// JFIF segment overrules both, but any later APP0 segment takes that back, so
+// it is not counted on.
+func jpegCost(raw []byte, w, h int64) int64 {
+	stream := jpegWalk(raw)
+	frame, ok := readJPEGFrame(stream.frame)
+	if !ok {
+		// A frame this walk cannot read as image/jpeg did is costed at the
+		// largest MCU, with four planes, four components' coefficients and the
+		// converted image.
+		padded := ((w + 31) / 32 * 32) * ((h + 31) / 32 * 32)
+		return padded*(4+4*jpegBlockBytes/64) + w*h*4
+	}
+	cost := frame.padded() * frame.components
+	if stream.progressive {
+		cost += frame.mcusX * frame.mcusY * frame.blocksPerMCU * jpegBlockBytes
+	}
+	if frame.components == 4 || (frame.components == 3 && (frame.rgbIDs || stream.adobeRGB)) {
+		cost += frame.width * frame.height * 4
 	}
 	return cost
 }
 
-// jpegComponents is how many components a JPEG of this decoded model carries.
-func jpegComponents(m color.Model) int64 {
-	switch m {
-	case color.GrayModel:
-		return 1
-	case color.CMYKModel:
-		return 4
-	default:
-		return 3
+// jpegBlockBytes is one 8x8 block of int32 coefficients.
+const jpegBlockBytes = 64 * 4
+
+// jpegFrame is what a frame header decides about image/jpeg's buffers.
+type jpegFrame struct {
+	width, height int64
+	components    int64
+	// rgbIDs is three components whose ids are 'R', 'G' and 'B'.
+	rgbIDs bool
+	// The MCU grid is sized by the largest sampling factors, and a single
+	// component is treated as 1x1 whatever its header says.
+	maxH, maxV   int64
+	mcusX, mcusY int64
+	blocksPerMCU int64
+}
+
+// padded is a full-resolution plane's pixels over whole MCUs.
+func (f jpegFrame) padded() int64 {
+	return f.mcusX * 8 * f.maxH * f.mcusY * 8 * f.maxV
+}
+
+// readJPEGFrame reads a frame header's body. ok is false for one it cannot
+// size, which image/jpeg refuses too.
+func readJPEGFrame(header []byte) (f jpegFrame, ok bool) {
+	if len(header) < 6 {
+		return jpegFrame{}, false
 	}
+	f.height = int64(header[1])<<8 | int64(header[2])
+	f.width = int64(header[3])<<8 | int64(header[4])
+	f.components = int64(header[5])
+	if (f.components != 1 && f.components != 3 && f.components != 4) || len(header) < 6+3*int(f.components) {
+		return jpegFrame{}, false
+	}
+	f.maxH, f.maxV = 1, 1
+	for c := range int(f.components) {
+		h, v := int64(1), int64(1)
+		if f.components > 1 {
+			hv := header[6+3*c+1]
+			h, v = int64(hv>>4), int64(hv&0x0f)
+		}
+		if h < 1 || h > 4 || v < 1 || v > 4 {
+			return jpegFrame{}, false
+		}
+		f.maxH, f.maxV = max(f.maxH, h), max(f.maxV, v)
+		f.blocksPerMCU += h * v
+	}
+	f.mcusX = (f.width + 8*f.maxH - 1) / (8 * f.maxH)
+	f.mcusY = (f.height + 8*f.maxV - 1) / (8 * f.maxV)
+	f.rgbIDs = f.components == 3 && header[6] == 'R' && header[9] == 'G' && header[12] == 'B'
+	return f, true
 }
 
 // JPEG markers, from Table B.1 of the specification.
 const (
-	jpegSOF0 = 0xc0 // baseline
-	jpegSOF1 = 0xc1 // extended sequential
-	jpegSOF2 = 0xc2 // progressive
-	jpegRST0 = 0xd0
-	jpegRST7 = 0xd7
-	jpegSOI  = 0xd8
-	jpegEOI  = 0xd9
-	jpegSOS  = 0xda
+	jpegSOF0  = 0xc0 // baseline
+	jpegSOF1  = 0xc1 // extended sequential
+	jpegSOF2  = 0xc2 // progressive
+	jpegRST0  = 0xd0
+	jpegRST7  = 0xd7
+	jpegSOI   = 0xd8
+	jpegEOI   = 0xd9
+	jpegSOS   = 0xda
+	jpegAPP14 = 0xee
 )
 
-// jpegFrame walks raw to its first frame header the way image/jpeg's decoder
-// does, skipping what that decoder skips, and returns the header's body and
-// whether the frame is progressive. ok is false for a stream it cannot walk to
-// a frame header.
-func jpegFrame(raw []byte) (header []byte, progressive, ok bool) {
+// jpegStream is what image/jpeg's decoder reads from a stream's segments.
+type jpegStream struct {
+	// frame is the first frame header's body, the only one image/jpeg accepts,
+	// or nil.
+	frame       []byte
+	progressive bool
+	// adobeRGB is an Adobe segment naming transform 0, which image/jpeg
+	// decodes as RGB unless a JFIF segment says otherwise.
+	adobeRGB bool
+}
+
+// jpegWalk reads raw's segments from SOI to EOI as image/jpeg's decoder does.
+// A scan's entropy-coded bytes need no decoding to step over: image/jpeg
+// consumes them only as stuffed bytes and restart markers and stops at any
+// other marker, so its marker loop meets the segments this walk does. It
+// converts the planes only on reaching EOI, so a segment past where this walk
+// has to stop can never make it convert.
+func jpegWalk(raw []byte) jpegStream {
+	var s jpegStream
 	if len(raw) < 2 || raw[0] != 0xff || raw[1] != jpegSOI {
-		return nil, false, false
+		return s
 	}
 	for i := 2; ; {
-		marker, next, found := jpegMarker(raw, i)
-		if !found || marker == jpegEOI || marker == jpegSOS {
-			return nil, false, false
+		marker, next, ok := jpegMarker(raw, i)
+		if !ok || marker == jpegEOI {
+			return s
 		}
+		i = next
 		if jpegRST0 <= marker && marker <= jpegRST7 {
 			// A restart marker carries no length.
-			i = next
 			continue
 		}
 		body, after, whole := jpegSegment(raw, next)
 		if !whole {
-			return nil, false, false
+			return s
 		}
-		if marker == jpegSOF0 || marker == jpegSOF1 || marker == jpegSOF2 {
-			return body, marker == jpegSOF2, true
-		}
+		s.read(marker, body)
 		i = after
 	}
+}
+
+// read takes from one segment what image/jpeg's decoder does.
+func (s *jpegStream) read(marker byte, body []byte) {
+	switch {
+	case s.frame == nil && (marker == jpegSOF0 || marker == jpegSOF1 || marker == jpegSOF2):
+		s.frame, s.progressive = body, marker == jpegSOF2
+	case marker == jpegAPP14 && adobeRGB(body):
+		s.adobeRGB = true
+	}
+}
+
+// adobeRGB reports an Adobe segment naming transform 0, read as image/jpeg
+// reads one: from its first twelve bytes, and not at all if it is shorter.
+func adobeRGB(body []byte) bool {
+	return len(body) >= 12 && string(body[:5]) == "Adobe" && body[11] == 0
 }
 
 // jpegSegment reads the length-prefixed segment body at raw[i], whose length
@@ -160,39 +319,4 @@ func jpegMarker(raw []byte, i int) (marker byte, next int, ok bool) {
 		}
 		return second, i, true
 	}
-}
-
-// jpegBlocks counts the 8x8 blocks image/jpeg allocates coefficients for, from
-// a frame header's body: per component, the frame's MCUs times that
-// component's sampling factors. image/jpeg sizes the MCU grid from the first
-// component, which it requires to have the largest factors, and treats a
-// single component as 1x1 whatever its header says.
-func jpegBlocks(header []byte) (int64, bool) {
-	if len(header) < 6 {
-		return 0, false
-	}
-	height := int64(header[1])<<8 | int64(header[2])
-	width := int64(header[3])<<8 | int64(header[4])
-	components := int(header[5])
-	if components == 0 || len(header) < 6+3*components {
-		return 0, false
-	}
-	factors := func(c int) (int64, int64) {
-		if components == 1 {
-			return 1, 1
-		}
-		hv := header[6+3*c+1]
-		return int64(hv >> 4), int64(hv & 0x0f)
-	}
-	h0, v0 := factors(0)
-	if h0 == 0 || v0 == 0 {
-		return 0, false
-	}
-	mcus := ((width + 8*h0 - 1) / (8 * h0)) * ((height + 8*v0 - 1) / (8 * v0))
-	var blocks int64
-	for c := range components {
-		h, v := factors(c)
-		blocks += mcus * h * v
-	}
-	return blocks, true
 }
