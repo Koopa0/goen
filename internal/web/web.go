@@ -6,9 +6,12 @@ package web
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
+	"unicode/utf8"
 
 	"github.com/a-h/templ"
 )
@@ -17,12 +20,33 @@ import (
 // memory before anything can reject it; goen's largest form is 2,000 runes.
 const MaxFormBytes = 64 << 10
 
+// ErrFormNotUTF8 is a form with a name or value that is not UTF-8. No browser
+// sends one, the field validators count runes and would pass it, and
+// PostgreSQL refuses it wherever it is stored, which answers 500.
+var ErrFormNotUTF8 = errors.New("web: form is not UTF-8")
+
 // ParseForm reads a bounded form body, so no handler calls r.ParseForm directly
 // and forgets the limit.
 func ParseForm(w http.ResponseWriter, r *http.Request) error {
 	r.Body = http.MaxBytesReader(w, r.Body, MaxFormBytes)
 	if err := r.ParseForm(); err != nil {
 		return fmt.Errorf("parse form: %w", err)
+	}
+	return FormIsUTF8(r.Form)
+}
+
+// FormIsUTF8 refuses a parsed form, the query included, that carries a name or
+// value which is not UTF-8.
+func FormIsUTF8(form url.Values) error {
+	for name, values := range form {
+		if !utf8.ValidString(name) {
+			return ErrFormNotUTF8
+		}
+		for _, v := range values {
+			if !utf8.ValidString(v) {
+				return ErrFormNotUTF8
+			}
+		}
 	}
 	return nil
 }

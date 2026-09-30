@@ -8,10 +8,14 @@ import (
 	"image/gif"
 	"image/jpeg"
 	"image/png"
+	"mime/multipart"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"github.com/koopa0/goen/assets"
+	"github.com/koopa0/goen/internal/web"
 )
 
 func pngBytes(t *testing.T, w, h int) []byte {
@@ -417,5 +421,30 @@ func TestA1600RenditionIsRendered(t *testing.T) {
 	}
 	if cfg.Width != 1600 || cfg.Height != 1066 {
 		t.Errorf("the 1600 rendition is %dx%d, want 1600x1066", cfg.Width, cfg.Height)
+	}
+}
+
+// TestAnUploadFormThatIsNotUTF8IsRefused: the image is optional on a hero
+// slide, so an upload form with no file still has its text fields stored, and
+// one that is not UTF-8 would reach PostgreSQL.
+func TestAnUploadFormThatIsNotUTF8IsRefused(t *testing.T) {
+	var body bytes.Buffer
+	mw := multipart.NewWriter(&body)
+	if err := mw.WriteField("alt", "Caf\xe9"); err != nil {
+		t.Fatalf("write field: %v", err)
+	}
+	if err := mw.Close(); err != nil {
+		t.Fatalf("close multipart: %v", err)
+	}
+	r := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/admin/home", &body)
+	r.Header.Set("Content-Type", mw.FormDataContentType())
+
+	h := &Handler{}
+	var err error
+	http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, err = h.ReadUpload(w, r, "image")
+	}).ServeHTTP(httptest.NewRecorder(), r)
+	if !errors.Is(err, web.ErrFormNotUTF8) {
+		t.Fatalf("ReadUpload = %v, want web.ErrFormNotUTF8", err)
 	}
 }

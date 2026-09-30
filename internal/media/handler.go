@@ -9,6 +9,7 @@ import (
 	"strconv"
 
 	"github.com/koopa0/goen/assets"
+	"github.com/koopa0/goen/internal/web"
 )
 
 // digestPath is the only shape a media URL may have, checked before the
@@ -118,6 +119,11 @@ func (h *Handler) ReadUpload(w http.ResponseWriter, r *http.Request, field strin
 		return Object{}, ErrTooLarge
 	}
 	defer func() { _ = r.MultipartForm.RemoveAll() }() //nolint:errcheck // best-effort temp cleanup
+	// The caller reads the text fields beside the image from this same parse,
+	// and web.ParseForm is not on this path to refuse them.
+	if err := web.FormIsUTF8(r.Form); err != nil {
+		return Object{}, err
+	}
 
 	file, _, err := r.FormFile(field)
 	if err != nil {
