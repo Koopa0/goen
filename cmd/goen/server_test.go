@@ -838,3 +838,103 @@ func TestTheCatalogueStaysEligibleForSpeculation(t *testing.T) {
 		t.Error("the rules refuse nothing; the exclusions have been lost")
 	}
 }
+
+// TestNoPageForOneVisitorIsKeptByTheBrowser holds both halves of withNoStore.
+// A page kept in the back/forward cache comes back with the Back button after
+// its owner has signed out, so the next person at a shared computer reads an
+// account, a customer list or a second-factor seed. The anonymous catalogue is
+// the other half: storing nothing there would cost every shopper an instant
+// Back and protect nobody.
+func TestNoPageForOneVisitorIsKeptByTheBrowser(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name     string
+		method   string
+		path     string
+		signedIn bool
+		want     bool
+	}{
+		{name: "the account page", method: http.MethodGet, path: "/account", signedIn: true, want: true},
+		{name: "an account order", method: http.MethodGet, path: "/account/orders/G2601-0001", signedIn: true, want: true},
+		{name: "the back office", method: http.MethodGet, path: "/admin/orders", signedIn: true, want: true},
+		{name: "a customer search", method: http.MethodGet, path: "/admin/customers?q=chen", signedIn: true, want: true},
+		{name: "the second-factor seed", method: http.MethodPost, path: "/admin/verify/enrol", signedIn: true, want: true},
+		{name: "a product page, signed in", method: http.MethodGet, path: "/p/aurora-slate", signedIn: true, want: true},
+		{name: "the home page, signed in", method: http.MethodGet, path: "/", signedIn: true, want: true},
+		{name: "an order opened by its link", method: http.MethodGet, path: "/orders/G2601-0001?token=x", want: true},
+		{name: "an order's pay page", method: http.MethodGet, path: "/orders/G2601-0001/pay", want: true},
+		{name: "the cart", method: http.MethodGet, path: "/cart", want: true},
+		{name: "the checkout", method: http.MethodGet, path: "/checkout", want: true},
+		{name: "a password reset link", method: http.MethodGet, path: "/reset?token=x", want: true},
+		{name: "an address verification link", method: http.MethodGet, path: "/verify?token=x", want: true},
+		{name: "a newsletter confirmation link", method: http.MethodGet, path: "/newsletter/confirm?token=x", want: true},
+		{name: "the sign-in form", method: http.MethodGet, path: "/signin", want: true},
+		{name: "a refused form's answer", method: http.MethodPost, path: "/contact", want: true},
+		{name: "the home page", method: http.MethodGet, path: "/", want: false},
+		{name: "a product page", method: http.MethodGet, path: "/p/aurora-slate", want: false},
+		{name: "a listing", method: http.MethodGet, path: "/c/phones", want: false},
+		{name: "a search", method: http.MethodGet, path: "/search?q=x", want: false},
+		{name: "the returns policy", method: http.MethodGet, path: "/returns", want: false},
+		{name: "the payment policy", method: http.MethodGet, path: "/payment", want: false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			h := withNoStore(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusOK)
+			}))
+			req := httptest.NewRequestWithContext(t.Context(), tt.method, tt.path, http.NoBody)
+			if tt.signedIn {
+				req = req.WithContext(account.WithUser(req.Context(), account.User{
+					ID: "user-1", Email: "somebody@example.com", Role: "admin",
+				}))
+			}
+			res := httptest.NewRecorder()
+			h.ServeHTTP(res, req)
+
+			got := res.Header().Get("Cache-Control")
+			switch {
+			case tt.want && got != "no-store":
+				t.Errorf("%s %s signedIn=%v: Cache-Control = %q, want no-store: the Back "+
+					"button brings the page back after sign-out", tt.method, tt.path, tt.signedIn, got)
+			case !tt.want && got != "":
+				t.Errorf("%s %s anonymous: Cache-Control = %q, want none: a public page "+
+					"loses its instant Back and protects nobody", tt.method, tt.path, got)
+			}
+		})
+	}
+}
+
+// TestSigningOutEmptiesTheBrowsersCache pins the second line behind
+// withNoStore: sign-out asks the browser to drop what it holds for this site,
+// and still throws away the speculations the chrome was rendered into.
+func TestSigningOutEmptiesTheBrowsersCache(t *testing.T) {
+	t.Parallel()
+
+	src, err := os.ReadFile("server.go")
+	if err != nil {
+		t.Fatalf("read server.go: %v", err)
+	}
+	line := routeLine(string(src), `"POST /signout"`)
+	if !strings.Contains(line, "clearCache(") {
+		t.Errorf("POST /signout does not empty the browser's cache\n  %s", strings.TrimSpace(line))
+	}
+
+	signOut := clearSpeculations(clearCache(func(http.ResponseWriter, *http.Request) {}))
+	res := httptest.NewRecorder()
+	signOut(res, httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signout", http.NoBody))
+	value := res.Header().Get("Clear-Site-Data")
+	for _, want := range []string{`"cache"`, `"prefetchCache"`, `"prerenderCache"`} {
+		if !strings.Contains(value, want) {
+			t.Errorf("sign-out Clear-Site-Data = %q, want it to carry %s", value, want)
+		}
+	}
+	// Sign-out clears its own session cookie; "cookies" would also drop the
+	// visitor's language and cart, and "storage" and "*" reach further still.
+	for _, forbidden := range []string{`"cookies"`, `"storage"`, `"*"`} {
+		if strings.Contains(value, forbidden) {
+			t.Errorf("sign-out Clear-Site-Data = %q carries %s", value, forbidden)
+		}
+	}
+}

@@ -275,7 +275,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	mux.HandleFunc("POST /verify", ratelimit.Guard(authLimit, log, customers.Verify))
 	mux.HandleFunc("GET /register", customers.RegisterPage)
 	mux.HandleFunc("POST /register", clearSpeculations(ratelimit.Guard(authLimit, log, customers.Register)))
-	mux.HandleFunc("POST /signout", clearSpeculations(customers.SignOut))
+	mux.HandleFunc("POST /signout", clearSpeculations(clearCache(customers.SignOut)))
 	mux.HandleFunc("GET /account", customers.RequireUser(customers.Overview))
 	mux.HandleFunc("GET /account/cart-recovery", customers.RequireUser(customers.CartRecoveryPage))
 	mux.HandleFunc("POST /account/cart/retry", customers.RequireUser(customers.RetryCartAdoption))
@@ -414,6 +414,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	handler = withBanner(handler, home.NewStore(pool), log, secureCookies)
 	handler = withTopNav(handler, home.NewStore(pool), log)
 	handler = withStaffEntrance(handler)
+	handler = withNoStore(handler)
 	handler = onlyVisitorPaths(func(next http.Handler) http.Handler {
 		return withLocale(next, secureCookies)
 	}, handler)
@@ -571,7 +572,26 @@ func clearSpeculations(next http.HandlerFunc) http.HandlerFunc {
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
 			// Only on a write. On a page response this would throw away the
 			// speculations the visitor's own browsing has just earned.
-			w.Header().Set("Clear-Site-Data", `"prefetchCache", "prerenderCache"`)
+			w.Header().Set("Clear-Site-Data", speculationCaches)
+		}
+		next(w, r)
+	}
+}
+
+// speculationCaches are the Clear-Site-Data directives clearSpeculations sends.
+const speculationCaches = `"prefetchCache", "prerenderCache"`
+
+// clearCache is sign-out's addition to clearSpeculations: it asks the browser
+// to empty this site's cache as the session ends. withNoStore is what keeps a
+// signed-in page out of the caches; this is the second line, for a page a
+// browser kept regardless. It is sign-out's alone because it discards every
+// cached asset too, which the visitor then downloads again. Its value repeats
+// the speculation directives, so the header is complete whichever wrapper sets
+// it last.
+func clearCache(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+			w.Header().Set("Clear-Site-Data", `"cache", `+speculationCaches)
 		}
 		next(w, r)
 	}
@@ -841,6 +861,49 @@ func withStaffEntrance(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r.WithContext(layouts.WithStaff(r.Context(), true)))
 	})
+}
+
+// unstoredPrefixes own pages that carry one visitor's data or a secret whoever
+// asks for them: the account, an order and the link that opens it, the cart and
+// the checkout, the back office, and every page a mailed token opens. /returns
+// and /payment are policy pages and stay cacheable; an order's own return and
+// pay pages live under /orders.
+var unstoredPrefixes = []string{
+	"/account", "/admin", "/orders", "/cart", "/checkout",
+	"/signin", "/register", "/forgot", "/reset", "/verify", "/newsletter", "/auth",
+}
+
+// withNoStore keeps every cache, the browser's back/forward cache included,
+// from holding a response that belongs to one visitor. Otherwise the Back
+// button on a shared computer shows the next person an account page, a
+// customer list or a second-factor seed after the owner has signed out.
+//
+// It runs inside Authenticate, because anything rendered for a signed-in
+// visitor is theirs. An anonymous visitor's catalogue page is left alone, so
+// it still returns instantly with the Back button. The answer to a write is
+// never stored either, because a refused form comes back with what was typed.
+func withNoStore(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if unstored(r) {
+			w.Header().Set("Cache-Control", "no-store")
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func unstored(r *http.Request) bool {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		return true
+	}
+	if _, signedIn := account.FromContext(r.Context()); signedIn {
+		return true
+	}
+	for _, prefix := range unstoredPrefixes {
+		if r.URL.Path == prefix || strings.HasPrefix(r.URL.Path, prefix+"/") {
+			return true
+		}
+	}
+	return false
 }
 
 // navPath reports whether a path renders the storefront header.
