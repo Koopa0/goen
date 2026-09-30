@@ -557,22 +557,19 @@ func (h *Handler) PlaceOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Before the code is looked up: a refusal that came only after a miss would
-	// itself say the code was wrong.
-	if NormaliseCode(r.PostFormValue("coupon")) != "" {
-		for _, key := range couponKeys(r, cartID) {
-			if retryAfter, spent := h.couponMisses.Spent(key); spent {
-				ratelimit.Refuse(r.Context(), w, retryAfter)
-				return
-			}
-		}
+	guess, ok := h.reserveCouponGuess(w, r, cartID)
+	if !ok {
+		return
 	}
+	// A request answered before its code was looked up costs nothing.
+	defer guess.settle(false)
 
 	owner := ownerOf(r)
 	submission, ok := h.checkoutSubmission(w, r, cartID, owner, attemptID, attemptErr == nil)
 	if !ok {
 		return
 	}
+	guess.settle(submission.couponMissed)
 
 	// A CHOOSER CHANGE, not an order. The delivery method, the saved address and
 	// the 發票 type each decide which fields the form asks for, so changing one
@@ -643,6 +640,9 @@ type checkoutSubmission struct {
 	shippingID  uuid.UUID
 	shippingErr error
 	couponErr   string
+	// couponMissed is a code that was looked up and refused, which is what
+	// couponMisses charges.
+	couponMissed bool
 }
 
 func (h *Handler) checkoutSubmission(
@@ -724,11 +724,6 @@ func (h *Handler) checkoutSubmission(
 	}
 
 	couponErr, missed := h.resolveCoupon(r, &view)
-	if missed {
-		for _, key := range couponKeys(r, cartID) {
-			h.couponMisses.Allow(key)
-		}
-	}
 	shippingID, shipErr := uuid.Parse(view.Chosen)
 	if shipErr == nil {
 		if quoteErr := h.quoteCheckoutShipping(
@@ -751,6 +746,7 @@ func (h *Handler) checkoutSubmission(
 	return &checkoutSubmission{
 		view: view, address: addr, invoice: inv,
 		shippingID: shippingID, shippingErr: shipErr, couponErr: couponErr,
+		couponMissed: missed,
 	}, true
 }
 
@@ -1050,6 +1046,47 @@ func (h *Handler) resolveCoupon(r *http.Request, view *pages.CheckoutView) (mess
 	default:
 		h.log.ErrorContext(r.Context(), "resolve coupon", "error", err)
 		return i18n.T(r.Context(), i18n.KeyCouponUnavailable), false
+	}
+}
+
+// couponGuess is one token set aside from each of couponKeys for the code a
+// request carries. It holds nothing when the request carries no code.
+type couponGuess []*ratelimit.Reservation
+
+// reserveCouponGuess sets the tokens aside before the code is looked up, or
+// answers 429 and reports false. Before, because a refusal that came only after
+// a miss would itself say the code was wrong; set aside rather than checked,
+// because every request that passed a check while one token was left would be
+// told about its code.
+func (h *Handler) reserveCouponGuess(w http.ResponseWriter, r *http.Request, cartID uuid.UUID) (couponGuess, bool) {
+	if NormaliseCode(r.PostFormValue("coupon")) == "" {
+		return nil, true
+	}
+	keys := couponKeys(r, cartID)
+	guess := make(couponGuess, 0, len(keys))
+	for _, key := range keys {
+		reservation, retryAfter, ok := h.couponMisses.Reserve(key)
+		if !ok {
+			guess.settle(false)
+			ratelimit.Refuse(r.Context(), w, retryAfter)
+			return nil, false
+		}
+		guess = append(guess, reservation)
+	}
+	return guess, true
+}
+
+// settle keeps the tokens when the code was looked up and refused, and gives
+// them back otherwise: a code that applies is never charged, and neither is a
+// lookup that failed, which is the shop's fault and says nothing about the
+// code. Only the first call counts.
+func (g couponGuess) settle(missed bool) {
+	for _, reservation := range g {
+		if missed {
+			reservation.Keep()
+		} else {
+			reservation.Refund()
+		}
 	}
 }
 

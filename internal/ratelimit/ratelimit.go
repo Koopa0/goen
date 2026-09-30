@@ -75,6 +75,10 @@ type bucket struct {
 	limiter *rate.Limiter
 	seen    time.Time
 	place   *list.Element // this bucket in Limiter.order
+	// held counts the tokens [Limiter.Reserve] has set aside and nobody has
+	// settled yet. They stay in limiter until kept, so a refund needs no way to
+	// put a token back, and they count against every later reservation.
+	held int
 }
 
 // New returns a Limiter.
@@ -96,14 +100,7 @@ func (l *Limiter) Allow(key string) (retryAfter time.Duration, ok bool) {
 	// Read under the lock, so order and seen agree exactly: a clock read before
 	// the wait would let a later arrival carry an earlier time.
 	now := time.Now()
-
-	b, found := l.buckets[mapKey]
-	if found {
-		l.order.MoveToFront(b.place)
-	} else {
-		b = l.admitLocked(mapKey, now)
-	}
-	b.seen = now
+	b := l.seeLocked(mapKey, now)
 
 	reservation := b.limiter.ReserveN(now, 1)
 	if delay := reservation.DelayFrom(now); delay > 0 {
@@ -115,24 +112,94 @@ func (l *Limiter) Allow(key string) (retryAfter time.Duration, ok bool) {
 	return 0, true
 }
 
-// Spent reports whether key has nothing left to spend now, without spending
-// and without tracking a key it has not seen. It is for a limit charged only
-// when what it guards turns out to be a miss: the check has to come before the
-// guarded work, or a refusal would arrive only on a miss and say which it was.
-func (l *Limiter) Spent(key string) (retryAfter time.Duration, spent bool) {
+// Reservation is one token [Limiter.Reserve] set aside. Settle it with Keep or
+// Refund; only the first settlement counts, so a deferred Refund after a Keep
+// gives nothing back.
+type Reservation struct {
+	l *Limiter
+	b *bucket
+	// settled is guarded by l.mu.
+	settled bool
+}
+
+// Reserve sets one of key's tokens aside, or reports how long until one is
+// free. It is for a limit charged only when what it guards turns out to be a
+// miss. Both halves matter: the refusal has to come before the guarded work,
+// or it would arrive only after a miss and say which it was; and the token has
+// to be taken before the work, or every request that arrives while one token
+// is left does the work. Allow on the same key does not see what is set aside,
+// so a key charged by reservations is charged by nothing else.
+func (l *Limiter) Reserve(key string) (r *Reservation, retryAfter time.Duration, ok bool) {
 	mapKey := clampKey(key)
 
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	b, found := l.buckets[mapKey]
-	if !found {
-		return 0, false
-	}
 	now := time.Now()
-	reservation := b.limiter.ReserveN(now, 1)
-	delay := reservation.DelayFrom(now)
-	reservation.CancelAt(now)
-	return delay, delay > 0
+	b := l.seeLocked(mapKey, now)
+	if short := float64(b.held+1) - b.limiter.TokensAt(now); short > 0 {
+		return nil, time.Duration(short * float64(l.cfg.Every)), false
+	}
+	b.held++
+	return &Reservation{l: l, b: b}, 0, true
+}
+
+// Keep spends the reserved token: the work turned out to be a miss.
+func (r *Reservation) Keep() {
+	l := r.l
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if r.settled {
+		return
+	}
+	r.settled = true
+	now := time.Now()
+	b := r.b
+	if l.buckets[b.key] == b {
+		b.held--
+		b.seen = now
+		l.order.MoveToFront(b.place)
+	} else {
+		// Evicted with its token still set aside: the miss is charged to the key
+		// as it is tracked now.
+		b = l.seeLocked(b.key, now)
+	}
+	// Never cancelled: the work this token paid for has been done.
+	b.limiter.ReserveN(now, 1)
+}
+
+// Refund gives the reserved token back: the work turned out not to be a miss.
+func (r *Reservation) Refund() {
+	l := r.l
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if r.settled {
+		return
+	}
+	r.settled = true
+	b := r.b
+	if l.buckets[b.key] != b {
+		return
+	}
+	b.held--
+	// A full bucket with nothing set aside answers exactly as an untracked key
+	// does. Forgetting it keeps work that cost nothing from filling the table
+	// and evicting keys that have missed.
+	if b.held == 0 && b.limiter.TokensAt(time.Now()) >= float64(l.cfg.Burst) {
+		l.dropLocked(b.place)
+	}
+}
+
+// seeLocked returns key's bucket, tracking it if it is new, as seen now: at the
+// front of the order. Called with mu held.
+func (l *Limiter) seeLocked(mapKey bucketKey, now time.Time) *bucket {
+	b, found := l.buckets[mapKey]
+	if found {
+		l.order.MoveToFront(b.place)
+	} else {
+		b = l.admitLocked(mapKey, now)
+	}
+	b.seen = now
+	return b
 }
 
 // admitLocked makes room for a key not yet tracked and tracks it. Called with mu

@@ -86,16 +86,20 @@ func TestAWrongCouponIsChargedToAWholeIPv6Slash64(t *testing.T) {
 	spent := func(remoteAddr string) bool {
 		t.Helper()
 		for _, key := range keys(remoteAddr) {
-			if _, out := h.couponMisses.Spent(key); out {
+			reservation, _, ok := h.couponMisses.Reserve(key)
+			if !ok {
 				return true
 			}
+			reservation.Refund()
 		}
 		return false
 	}
 
 	for range 100 {
 		for _, key := range keys("[2001:db8:1:2::1]:1000") {
-			h.couponMisses.Allow(key)
+			if reservation, _, ok := h.couponMisses.Reserve(key); ok {
+				reservation.Keep()
+			}
 		}
 	}
 	if !spent("[2001:db8:1:2::1]:1000") {

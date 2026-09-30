@@ -9,11 +9,14 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 
+	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ratelimit"
@@ -109,5 +112,159 @@ func TestWrongCouponCodesAreBoundedWithoutSayingWhichCodeWasRight(t *testing.T) 
 	}
 	if res := ask(guestCart(), "198.51.100.21:5000", "WRONGELSEWHERE"); res.Code != http.StatusOK {
 		t.Errorf("another client with its own cart answered %d, want 200", res.Code)
+	}
+}
+
+// couponMissBudget is how many wrong codes NewHandler lets one shopper be told
+// about before the first refusal.
+const couponMissBudget = 20
+
+// couponGuesses is one handler, whose coupon budget is the only bound in play,
+// and what a checkout needs besides a code.
+type couponGuesses struct {
+	t    *testing.T
+	s    *cart.Store
+	h    *cart.Handler
+	vid  uuid.UUID
+	ship uuid.UUID
+}
+
+func newCouponGuesses(t *testing.T, label string) *couponGuesses {
+	t.Helper()
+	s := cart.NewStore(pool)
+	return &couponGuesses{
+		t: t, s: s,
+		h: cart.NewHandler(s, slog.New(slog.DiscardHandler), false,
+			ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}),
+			nil, nil),
+		vid:  freshVariant(t, label),
+		ship: shipVersionFor(t, "home_delivery"),
+	}
+}
+
+// guestCart opens a cart no account owns, holding one unit, and returns its
+// cookie value.
+func (g *couponGuesses) guestCart() string {
+	g.t.Helper()
+	token, err := cart.NewToken()
+	if err != nil {
+		g.t.Fatalf("token: %v", err)
+	}
+	id, err := g.s.Create(g.t.Context(), token, uuid.NullUUID{})
+	if err != nil {
+		g.t.Fatalf("create cart: %v", err)
+	}
+	if err := g.s.Add(g.t.Context(), id, g.vid, 1); err != nil {
+		g.t.Fatalf("add item: %v", err)
+	}
+	return token
+}
+
+// ask posts a chooser change carrying code from remote with the cart token,
+// signed in as who when who is not nil. A chooser change looks the code up and
+// re-renders, and places nothing.
+func (g *couponGuesses) ask(token, remote, code string, who *account.User) *httptest.ResponseRecorder {
+	form := url.Values{"coupon": {code}, "update": {"shipping"}, "shipping": {g.ship.String()}}
+	req := httptest.NewRequestWithContext(g.t.Context(), http.MethodPost, "/checkout",
+		strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.RemoteAddr = remote
+	req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token}) //nolint:gosec // G124: dev cart cookie under test
+	if who != nil {
+		req = req.WithContext(account.WithUser(req.Context(), *who))
+	}
+	res := httptest.NewRecorder()
+	g.h.PlaceOrder(res, req)
+	return res
+}
+
+// spendFromManyClients is told a code is wrong couponMissBudget times, each
+// time from another client, so no client's own key comes near its limit.
+func (g *couponGuesses) spendFromManyClients(cartFor func() string, who *account.User) {
+	g.t.Helper()
+	unknown := i18n.T(g.t.Context(), i18n.KeyCouponUnknown)
+	for i := range couponMissBudget {
+		res := g.ask(cartFor(), "203.0.113."+strconv.Itoa(i+1)+":5000", "SPREAD"+strconv.Itoa(i), who)
+		if res.Code != http.StatusOK || !strings.Contains(res.Body.String(), unknown) {
+			g.t.Fatalf("wrong code %d from its own client answered %d without the unknown-code message",
+				i+1, res.Code)
+		}
+	}
+}
+
+// TestWrongCouponCodesSentAtOnceAreBoundedByTheSameBudget: the budget is taken
+// before the lookup, so codes sent together are no cheaper than codes sent one
+// after another. However many arrive at once, no more than the budget are
+// looked up and every other one is refused before it is.
+func TestWrongCouponCodesSentAtOnceAreBoundedByTheSameBudget(t *testing.T) {
+	g := newCouponGuesses(t, "coupon-race")
+	token := g.guestCart()
+	unknown := i18n.T(t.Context(), i18n.KeyCouponUnknown)
+	const parallel = 3 * couponMissBudget
+
+	var told, refused atomic.Int32
+	var wg sync.WaitGroup
+	start := make(chan struct{})
+	for i := range parallel {
+		wg.Go(func() {
+			<-start
+			res := g.ask(token, "198.51.100.77:5000", "RACE"+strconv.Itoa(i), nil)
+			switch {
+			case res.Code == http.StatusTooManyRequests:
+				refused.Add(1)
+			case res.Code == http.StatusOK && strings.Contains(res.Body.String(), unknown):
+				told.Add(1)
+			default:
+				t.Errorf("a wrong code answered %d without the unknown-code message", res.Code)
+			}
+		})
+	}
+	close(start)
+	wg.Wait()
+	if told.Load() > couponMissBudget {
+		t.Errorf("%d wrong codes sent at once were looked up and %d refused; one client and one "+
+			"cart may be told about at most %d", told.Load(), refused.Load(), couponMissBudget)
+	}
+	if told.Load()+refused.Load() != parallel {
+		t.Errorf("%d told and %d refused of %d sent", told.Load(), refused.Load(), parallel)
+	}
+}
+
+// TestACartsWrongCouponCodesAreBoundedFromEveryClient: signed out, a wrong code
+// is charged to the cart as well as the client, so one cart asking through many
+// addresses has one budget between them.
+func TestACartsWrongCouponCodesAreBoundedFromEveryClient(t *testing.T) {
+	g := newCouponGuesses(t, "coupon-cart-key")
+	token := g.guestCart()
+	g.spendFromManyClients(func() string { return token }, nil)
+
+	if res := g.ask(token, "203.0.113.200:5000", "SPREADMORE", nil); res.Code != http.StatusTooManyRequests {
+		t.Errorf("the cart's next code from a client it never used answered %d, want 429: "+
+			"changing address bought the cart a fresh allowance", res.Code)
+	}
+	if res := g.ask(g.guestCart(), "203.0.113.201:5000", "ELSEWHERE", nil); res.Code != http.StatusOK {
+		t.Errorf("another cart from another client answered %d, want 200", res.Code)
+	}
+}
+
+// TestAnAccountsWrongCouponCodesAreBoundedFromEveryClientAndCart: signed in, a
+// wrong code is charged to the account, so neither a new cart nor a new address
+// buys the account a fresh allowance.
+func TestAnAccountsWrongCouponCodesAreBoundedFromEveryClientAndCart(t *testing.T) {
+	g := newCouponGuesses(t, "coupon-account-key")
+	var userID uuid.UUID
+	if err := pool.QueryRow(t.Context(), `INSERT INTO users (email) VALUES ($1) RETURNING id`,
+		"coupon-guesser-"+uuid.NewString()+"@example.com").Scan(&userID); err != nil {
+		t.Fatalf("create account: %v", err)
+	}
+	who := &account.User{ID: userID.String(), Role: "customer"}
+	g.spendFromManyClients(g.guestCart, who)
+
+	if res := g.ask(g.guestCart(), "203.0.113.200:5000", "SPREADMORE", who); res.Code != http.StatusTooManyRequests {
+		t.Errorf("the account's next code from a new cart and a new client answered %d, want 429: "+
+			"a new cart and address bought the account a fresh allowance", res.Code)
+	}
+	if res := g.ask(g.guestCart(), "203.0.113.201:5000", "ELSEWHERE", nil); res.Code != http.StatusOK {
+		t.Errorf("a signed-out cart from another client answered %d, want 200", res.Code)
 	}
 }
