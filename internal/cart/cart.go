@@ -425,19 +425,6 @@ func (s *Store) ForgetOrders(ctx context.Context, r *http.Request, secure bool) 
 	return nil
 }
 
-// clearPlacedCookie expires the placed cookie.
-func clearPlacedCookie(w http.ResponseWriter, secure bool) {
-	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: dev-only opt-out, secure by default
-		Name:     placedCookieName(secure),
-		Value:    "",
-		Path:     "/",
-		MaxAge:   -1,
-		HttpOnly: true,
-		Secure:   secure,
-		SameSite: http.SameSiteLaxMode,
-	})
-}
-
 func placedCookieName(secure bool) string {
 	if secure {
 		return PlacedCookieName
@@ -504,10 +491,12 @@ func SetCookie(w http.ResponseWriter, token string, secure bool) {
 	})
 }
 
-// clearCookie expires the cart cookie.
-func clearCookie(w http.ResponseWriter, secure bool) {
+// expireCookie expires the cart or placed cookie named name. It carries the
+// attributes both are set with: a browser replaces a cookie only with one of
+// the same name and path, and refuses a __Host- name without Secure.
+func expireCookie(w http.ResponseWriter, name string, secure bool) {
 	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: dev-only opt-out, secure by default
-		Name:     cookieName(secure),
+		Name:     name,
 		Value:    "",
 		Path:     "/",
 		MaxAge:   -1,

@@ -66,7 +66,7 @@ func TestEveryMessageIsSentInThePayloadsLanguage(t *testing.T) {
 			return n.SendPasswordReset(ctx, &PasswordReset{Locale: l, Email: "a@b.co", Token: "tok"})
 		},
 		"account.registration": func(n Notifier, ctx context.Context, l string) error {
-			return n.SendAccountExists(ctx, l, "a@b.co", "")
+			return n.SendAccountExists(ctx, &AccountExists{Locale: l, Email: "a@b.co"})
 		},
 		"newsletter.confirm": func(n Notifier, ctx context.Context, l string) error {
 			return n.SendNewsletterConfirm(ctx, &NewsletterConfirm{

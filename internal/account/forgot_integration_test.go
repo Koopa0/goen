@@ -75,11 +75,11 @@ func tracedStorePool(t *testing.T, log *statementLog) *pgxpool.Pool {
 }
 
 // TestForgotDoesTheSameWorkWhetherOrNotTheAddressHasAnAccount holds /forgot to
-// the promise its answer makes. The two answers were always identical; the
-// work behind them was not, and a request that writes a token, a message and a
-// commit for a customer's address and reads one row for a stranger's is timed
-// apart from outside. So the request sends the same statements for both, and
-// the token waits for the outbox worker, which only a real account reaches.
+// the promise its answer makes. Identical answers are not enough: a request
+// that writes a token, a message and a commit for a customer's address and
+// reads one row for a stranger's is timed apart from outside. So the request
+// sends the same statements for both, and the token waits for the outbox
+// worker, which only a real account reaches.
 func TestForgotDoesTheSameWorkWhetherOrNotTheAddressHasAnAccount(t *testing.T) {
 	ctx := t.Context()
 	known := "forgot-known-" + uuid.NewString() + "@example.com"

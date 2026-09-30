@@ -57,7 +57,8 @@ type Registration struct {
 // address is free and names the account when it is not. The caller must answer
 // both the same, so a registration cannot be asked whether an address is
 // taken. Nobody is signed in: the account is usable once the link mailed to
-// the address has been followed, by [Store.ConfirmVerification].
+// the address has been followed with the password chosen here, by
+// [Store.CompleteRegistration].
 func (s *Store) Register(ctx context.Context, c *Credentials, next string) error {
 	hash, err := HashPassword(c.Password)
 	if err != nil {
@@ -106,7 +107,7 @@ func (s *Store) Register(ctx context.Context, c *Credentials, next string) error
 func (s *Store) FollowUpRegistration(
 	ctx context.Context,
 	r *Registration,
-	tell func(ctx context.Context, locale, address, name string) error,
+	tell func(context.Context, *email2.AccountExists) error,
 ) error {
 	if r.UserID == "" {
 		return nil
@@ -123,7 +124,7 @@ func (s *Store) FollowUpRegistration(
 		return fmt.Errorf("read registered account: %w", err)
 	}
 	if !r.Created {
-		return tell(ctx, r.Locale, row.Email, row.FullName.String)
+		return tell(ctx, &email2.AccountExists{Locale: r.Locale, Email: row.Email, Name: row.FullName.String})
 	}
 	if row.Verified {
 		return nil

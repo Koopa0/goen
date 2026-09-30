@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"image"
 	"image/png"
+	"log/slog"
 	"math"
+	"runtime"
 	"testing"
 
 	"golang.org/x/image/draw"
@@ -92,6 +94,20 @@ func TestRendersRunNoWiderThanTheirMemoryBoundOnAnyMachine(t *testing.T) {
 	}
 	if renderSlots < 1 || renderSlots > maxRenderSlots {
 		t.Errorf("renderSlots = %d, want between 1 and %d", renderSlots, maxRenderSlots)
+	}
+}
+
+// TestTheHandlersRendersRunNoWiderThanTheBound holds the bound where requests
+// meet it: the renderer NewHandler builds. It is built on a machine with more
+// cores than the bound, so a renderer sized by the core count is caught
+// whatever machine runs the test. Not parallel, because GOMAXPROCS is the
+// process's.
+func TestTheHandlersRendersRunNoWiderThanTheBound(t *testing.T) {
+	defer runtime.GOMAXPROCS(runtime.GOMAXPROCS(8 * maxRenderSlots))
+	h := NewHandler(&Store{}, slog.New(slog.DiscardHandler))
+	if got := cap(h.renditions.slots); got != renderSlots {
+		t.Errorf("the handler renders %d at once on %d cores, want renderSlots = %d",
+			got, runtime.GOMAXPROCS(0), renderSlots)
 	}
 }
 

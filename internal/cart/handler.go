@@ -1583,7 +1583,7 @@ func (h *Handler) ForgetCart(w http.ResponseWriter, r *http.Request) {
 	if !errors.Is(err, ErrNotFound) && !errors.Is(err, ErrNotYourCart) {
 		h.log.ErrorContext(r.Context(), "read the cart at sign-out", "error", err)
 	}
-	clearCookie(w, h.secure)
+	expireCookie(w, cookieName(h.secure), h.secure)
 }
 
 // ForgetOrders ends this browser's access to the orders it placed or found and
@@ -1595,7 +1595,7 @@ func (h *Handler) ForgetOrders(w http.ResponseWriter, r *http.Request) {
 	if err := h.store.ForgetOrders(r.Context(), r, h.secure); err != nil {
 		h.log.ErrorContext(r.Context(), "forget this browser's orders", "error", err)
 	}
-	clearPlacedCookie(w, h.secure)
+	expireCookie(w, placedCookieName(h.secure), h.secure)
 }
 
 // WithCount puts the visitor's cart size into the request context for the
@@ -1607,7 +1607,7 @@ func (h *Handler) WithCount(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id, ok, stale := h.lookupCart(r.Context(), r)
 		if stale {
-			clearCookie(w, h.secure)
+			expireCookie(w, cookieName(h.secure), h.secure)
 		}
 		if !ok {
 			next.ServeHTTP(w, r)

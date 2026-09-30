@@ -13,7 +13,9 @@ func TestTheAccountExistsLetterCarriesNoCapability(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []string{"en", "zh-TW"} {
 		n, sink := notifier(t)
-		if err := n.SendAccountExists(t.Context(), locale, "owner@example.com", "Owner"); err != nil {
+		if err := n.SendAccountExists(t.Context(), &AccountExists{
+			Locale: locale, Email: "owner@example.com", Name: "Owner",
+		}); err != nil {
 			t.Fatal(err)
 		}
 		if sink.msg == nil || sink.msg.To != "owner@example.com" {
@@ -32,7 +34,7 @@ func TestTheAccountExistsLetterCarriesNoCapability(t *testing.T) {
 		}
 	}
 	n, _ := notifier(t)
-	if err := n.SendAccountExists(t.Context(), "en", "", "Owner"); err == nil {
+	if err := n.SendAccountExists(t.Context(), &AccountExists{Locale: "en", Name: "Owner"}); err == nil {
 		t.Error("a letter with no recipient was sent")
 	}
 }

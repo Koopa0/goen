@@ -3840,10 +3840,7 @@ func TestRegisteringAsksForTheAddressToBeProved(t *testing.T) {
 	}, "/account"); err != nil {
 		t.Fatalf("Register: %v", err)
 	}
-	followUpRegistrations(t, s, addr, func(context.Context, string, string, string) error {
-		t.Error("a new address was told it already has an account")
-		return nil
-	})
+	followUpRegistrations(t, s, addr, neverTold(t))
 
 	var messages int
 	if err := pool.QueryRow(ctx, `

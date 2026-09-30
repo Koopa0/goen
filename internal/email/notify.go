@@ -142,20 +142,29 @@ func (n Notifier) SendPasswordReset(ctx context.Context, p *PasswordReset) error
 	})
 }
 
+// AccountExists is the account to tell that somebody tried to register its
+// address again: its address and name as they are when the letter is sent, and
+// the locale the registration was made in.
+type AccountExists struct {
+	Locale string
+	Email  string
+	Name   string
+}
+
 // SendAccountExists tells the owner of an address that somebody tried to
 // register it again. The registration page answers every address the same, so
 // this letter is the only place the answer "you already have an account" is
 // given, and it goes to the mailbox rather than to whoever asked.
-func (n Notifier) SendAccountExists(ctx context.Context, locale, address, name string) error {
-	if !Valid(address) {
+func (n Notifier) SendAccountExists(ctx context.Context, p *AccountExists) error {
+	if !Valid(p.Email) {
 		return errors.New("an account-exists notice has no usable recipient")
 	}
-	ctx = n.locale(ctx, locale)
+	ctx = n.locale(ctx, p.Locale)
 	base := strings.TrimRight(n.baseURL, "/")
 	return n.sender.Send(ctx, &Message{
-		To:      address,
+		To:      p.Email,
 		Subject: i18n.T(ctx, i18n.KeyMailAccountExistsSubject),
-		Body: n.letter(ctx, name, fmt.Sprintf(i18n.T(ctx, i18n.KeyMailAccountExistsBody),
+		Body: n.letter(ctx, p.Name, fmt.Sprintf(i18n.T(ctx, i18n.KeyMailAccountExistsBody),
 			base+"/signin", base+"/forgot")),
 	})
 }

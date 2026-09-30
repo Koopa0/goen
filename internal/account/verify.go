@@ -159,9 +159,9 @@ func (s *Store) RegistrationAddress(ctx context.Context, token string) (string, 
 // makes the account usable, when password is the one chosen at registration.
 // The link reaches the mailbox and the password was chosen by whoever
 // registered; only together are they the registrant. Anything else leaves the
-// account unproved: a
-// wrong password is ErrBadCredentials, at the cost of the same hash sign-in
-// makes, and a link that completes no registration is ErrVerifyInvalid.
+// account unproved: a wrong password is ErrBadCredentials, at the cost of the
+// same hash sign-in makes, and a link that completes no registration is
+// ErrVerifyInvalid.
 func (s *Store) CompleteRegistration(ctx context.Context, token, password string) (Confirmed, error) {
 	if len(password) > MaxPasswordBytes {
 		return Confirmed{}, ErrBadCredentials

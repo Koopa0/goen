@@ -21,6 +21,7 @@ import (
 
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/cart"
+	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/ratelimit"
@@ -33,7 +34,7 @@ func followUpRegistrations(
 	t *testing.T,
 	s *account.Store,
 	addr string,
-	tell func(ctx context.Context, locale, address, name string) error,
+	tell func(context.Context, *email.AccountExists) error,
 ) int {
 	t.Helper()
 	rows, err := pool.Query(t.Context(), `
@@ -119,19 +120,18 @@ func registrationForm(ctx context.Context, addr, password, next string) *http.Re
 	})
 }
 
-func neverTold(t *testing.T) func(context.Context, string, string, string) error {
+func neverTold(t *testing.T) func(context.Context, *email.AccountExists) error {
 	t.Helper()
-	return func(_ context.Context, _, address, _ string) error {
-		t.Errorf("%s was told it already has an account", address)
+	return func(_ context.Context, p *email.AccountExists) error {
+		t.Errorf("%s was told it already has an account", p.Email)
 		return nil
 	}
 }
 
 // TestRegistrationAnswersTheSameWhetherOrNotTheAddressIsTaken is the
 // registration form's promise not to say who has an account. A taken address
-// used to be refused in place and a free one signed straight in; now both get
-// the same answer, the same headers and no session, from the same statements,
-// and only the mailbox learns which it was.
+// and a free one get the same answer, the same headers and no session, from the
+// same statements, and only the mailbox learns which it was.
 func TestRegistrationAnswersTheSameWhetherOrNotTheAddressIsTaken(t *testing.T) {
 	ctx := t.Context()
 	taken := "register-taken-" + uuid.NewString() + "@example.com"
@@ -338,8 +338,34 @@ func TestARegistrationLinkWithoutItsPasswordProvesNothing(t *testing.T) {
 	}
 }
 
+// TestCompletingARegistrationRefusesALinkThatCompletesNone: completion proves an
+// address and signs the browser in on a link and a password. A link that moves
+// a proved account to another address completes no registration, and the
+// account's own password does not make it one.
+func TestCompletingARegistrationRefusesALinkThatCompletesNone(t *testing.T) {
+	ctx := t.Context()
+	s := account.NewStore(pool)
+	u := registerProved(t, s, "complete-change-"+uuid.NewString()+"@example.com")
+	moved := "complete-change-to-" + uuid.NewString() + "@example.com"
+	token := requestVerification(t, s, u.ID, moved)
+
+	if _, err := s.CompleteRegistration(ctx, token, "a sufficiently long password"); !errors.Is(err, account.ErrVerifyInvalid) {
+		t.Errorf("completing a registration with an address-change link and the account's password = %v, "+
+			"want ErrVerifyInvalid", err)
+	}
+	var addr string
+	if err := pool.QueryRow(ctx, `SELECT email FROM users WHERE id = $1`, uuid.MustParse(u.ID)).
+		Scan(&addr); err != nil {
+		t.Fatalf("read the account: %v", err)
+	}
+	if addr != u.Email {
+		t.Errorf("the account moved to %s through registration completion", addr)
+	}
+}
+
 // TestRegisteringATakenAddressTellsItsOwnerAndChangesNothing: the answer the
-// form no longer gives goes to the mailbox, and the account keeps its password.
+// form never gives, that the address has an account, goes to the mailbox, and
+// the account keeps its password.
 func TestRegisteringATakenAddressTellsItsOwnerAndChangesNothing(t *testing.T) {
 	ctx := t.Context()
 	s := account.NewStore(pool)
@@ -354,8 +380,8 @@ func TestRegisteringATakenAddressTellsItsOwnerAndChangesNothing(t *testing.T) {
 	}
 
 	var told []string
-	n := followUpRegistrations(t, s, addr, func(_ context.Context, _, address, name string) error {
-		told = append(told, address+"|"+name)
+	n := followUpRegistrations(t, s, addr, func(_ context.Context, p *email.AccountExists) error {
+		told = append(told, p.Email+"|"+p.Name)
 		return nil
 	})
 	if n != 1 {
