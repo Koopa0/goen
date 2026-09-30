@@ -1850,7 +1850,12 @@ func TestReleaseReservationRefusesPaidOrder(t *testing.T) {
 	// The hold has to land while the order is still pending; afterwards
 	// hold_inventory refuses, and release still has to see committed stock.
 	const pending = "6666aaaa-6666-4666-8666-666666666666"
-	if _, err := tx.Exec(ctx, pendingHoldableLine); err != nil {
+	// The held variant's line is priced at zero, so the order still owes the
+	// fixture's 3,690,000.
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO order_lines (order_id, variant_id, sku, product_name, unit_price_cents, quantity, position)
+		VALUES ($1, '44444444-4444-4444-8444-444444444444', 'PXL-9P-256-BL', 'Pixelight 9 Pro 5G', 0, 1, 5)`,
+		pending); err != nil {
 		t.Fatalf("add a holdable line: %v", err)
 	}
 	var held string
@@ -1860,11 +1865,10 @@ func TestReleaseReservationRefusesPaidOrder(t *testing.T) {
 		Scan(&held); err != nil {
 		t.Fatalf("hold: %v", err)
 	}
-	// 3,690,000 for the fixture line and 2 × 3,390,000 for the holdable one.
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO payments (order_id, provider_ref, status, intended_amount_cents,
 		                      captured_amount_cents, paid_at)
-		VALUES ($1, 'pi-hold-then-pay', 'succeeded', 10470000, 10470000, now())`, pending); err != nil {
+		VALUES ($1, 'pi-hold-then-pay', 'succeeded', 3690000, 3690000, now())`, pending); err != nil {
 		t.Fatalf("fund: %v", err)
 	}
 	if _, err := tx.Exec(ctx,
@@ -2001,7 +2005,9 @@ func TestHoldInventoryHoldsOnlyWhatTheOrderCarries(t *testing.T) {
 	}
 
 	refused("more than the line carries", hold(v512, 4, "carry-1"))
-	refused("a variant the order does not carry", hold(v256, 10, "carry-2"))
+	// One unit, which the order's lines would cover were they counted across
+	// variants.
+	refused("a variant the order does not carry", hold(v256, 1, "carry-2"))
 	var stock256, stock512 int
 	if err := tx.QueryRow(ctx, `
 		SELECT (SELECT stock_quantity FROM product_variants WHERE id = $1),

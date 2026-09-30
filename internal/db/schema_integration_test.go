@@ -241,6 +241,58 @@ func TestEveryForeignKeyIsIndexed(t *testing.T) {
 	}
 }
 
+// TestEveryForeignKeyToAUserLetsTheAccountBeErased reads every foreign key to
+// users from the catalogue. Erasure deletes the users row, so a key that
+// refuses the delete, or that sets a NOT NULL column to NULL, fails erasure for
+// every account it names: a new actor column added that way fails here first.
+func TestEveryForeignKeyToAUserLetsTheAccountBeErased(t *testing.T) {
+	rows, err := schemaPool(t).Query(t.Context(), `
+		SELECT c.conrelid::regclass::text, c.conname, c.confdeltype::text,
+		       coalesce((
+		           SELECT string_agg(a.attname, ', ' ORDER BY a.attnum)
+		           FROM pg_attribute a
+		           WHERE a.attrelid = c.conrelid
+		             AND a.attnum = ANY (coalesce(c.confdelsetcols, c.conkey))
+		             AND a.attnotnull
+		       ), '')
+		FROM pg_constraint c
+		WHERE c.contype = 'f' AND c.confrelid = 'public.users'::regclass
+		ORDER BY 1, 2`)
+	if err != nil {
+		t.Fatalf("query foreign keys to users: %v", err)
+	}
+	defer rows.Close()
+
+	refusing := map[string]string{"a": "NO ACTION", "r": "RESTRICT", "d": "SET DEFAULT"}
+	var keys int
+	var blocking []string
+	for rows.Next() {
+		var table, name, action, notNull string
+		if err := rows.Scan(&table, &name, &action, &notNull); err != nil {
+			t.Fatalf("scan: %v", err)
+		}
+		keys++
+		switch {
+		case refusing[action] != "":
+			blocking = append(blocking, fmt.Sprintf("%s (%s) is ON DELETE %s", table, name, refusing[action]))
+		case action == "n" && notNull != "":
+			blocking = append(blocking, fmt.Sprintf("%s (%s) is ON DELETE SET NULL on NOT NULL %s",
+				table, name, notNull))
+		}
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate: %v", err)
+	}
+	if keys == 0 {
+		t.Fatal("no foreign key references users; the query is not reading the schema it guards")
+	}
+	if len(blocking) > 0 {
+		t.Errorf("erasure deletes the user, and these foreign keys would refuse it; each must be "+
+			"ON DELETE CASCADE or ON DELETE SET NULL on a nullable column:\n  %s",
+			strings.Join(blocking, "\n  "))
+	}
+}
+
 // TestAnEligibilityFactStaysWithItsAssessment files facts as admin, which holds
 // INSERT on the table directly. A fact is read back by assessment_id alone, as
 // evidence for that return's decision, so one naming another order or another
