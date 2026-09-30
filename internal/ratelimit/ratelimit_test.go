@@ -495,25 +495,30 @@ func TestReservationsMadeAtOnceShareOneBurst(t *testing.T) {
 	requireConsistent(t, l)
 }
 
+// In a synctest bubble the fifty refusals share one instant, so a slow or
+// loaded machine cannot refill the bucket between them and pass a refusal off
+// as an allowance.
 func TestARefusedAttemptDoesNotSpendTheAllowance(t *testing.T) {
-	l := New(Config{Every: 10 * time.Millisecond, Burst: 1, TTL: time.Hour, MaxKeys: testMaxKeys})
+	synctest.Test(t, func(t *testing.T) {
+		l := New(Config{Every: 10 * time.Millisecond, Burst: 1, TTL: time.Hour, MaxKeys: testMaxKeys})
 
-	if _, ok := l.Allow("k"); !ok {
-		t.Fatal("the first attempt was refused")
-	}
-	// Each of these eats a future token if the reservation is not cancelled.
-	for range 50 {
-		if _, ok := l.Allow("k"); ok {
-			t.Fatal("an attempt was allowed inside the refill interval")
+		if _, ok := l.Allow("k"); !ok {
+			t.Fatal("the first attempt was refused")
 		}
-	}
+		// Each of these eats a future token if the reservation is not cancelled.
+		for range 50 {
+			if _, ok := l.Allow("k"); ok {
+				t.Fatal("an attempt was allowed inside the refill interval")
+			}
+		}
 
-	// One token back, not the zero fifty uncancelled reservations would leave.
-	time.Sleep(30 * time.Millisecond)
-	if _, ok := l.Allow("k"); !ok {
-		t.Error("the key never recovered; refused attempts are consuming the " +
-			"allowance, which turns a throttle into a lockout")
-	}
+		// One token back, not the zero fifty uncancelled reservations would leave.
+		time.Sleep(30 * time.Millisecond)
+		if _, ok := l.Allow("k"); !ok {
+			t.Error("the key never recovered; refused attempts are consuming the " +
+				"allowance, which turns a throttle into a lockout")
+		}
+	})
 }
 
 func TestKeysAreIndependent(t *testing.T) {
