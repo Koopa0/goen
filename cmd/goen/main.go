@@ -662,8 +662,7 @@ type workerDeps struct {
 
 // startWorkers wires everything that runs on its own schedule.
 func startWorkers(ctx context.Context, d workerDeps) {
-	messages := outbox.NewStore(d.pool, d.log)
-	handleMessages(messages, d)
+	messages := newMessageStore(d)
 	d.run(func() { messages.Run(ctx) })
 	d.run(func() { messages.SweepForever(ctx, d.log) })
 
@@ -683,10 +682,11 @@ func startWorkers(ctx context.Context, d workerDeps) {
 	d.run(func() { recommend.NewStore(d.maintenance, d.log).RefreshForever(ctx) })
 }
 
-// handleMessages registers what each topic goen enqueues does. A message whose
-// topic has no handler is rescheduled for ever and fails nothing, so a missing
-// line here is mail that silently never leaves.
-func handleMessages(messages *outbox.Store, d workerDeps) {
+// newMessageStore is the outbox with a handler for each topic goen enqueues. A
+// message whose topic has no handler is rescheduled for ever and fails nothing,
+// so a missing line here is mail that silently never leaves.
+func newMessageStore(d workerDeps) *outbox.Store {
+	messages := outbox.NewStore(d.pool, d.log)
 	messages.HandleJSON[email.OrderPlaced](outbox.TopicOrderPlaced, d.notifier.SendOrderPlaced)
 	messages.HandleJSON[email.PasswordReset](outbox.TopicPasswordReset, d.notifier.SendPasswordReset)
 	messages.HandleJSON[account.ResetRequest](outbox.TopicPasswordResetRequest, account.NewStore(d.pool).IssueReset)
@@ -701,6 +701,7 @@ func handleMessages(messages *outbox.Store, d workerDeps) {
 	messages.HandleJSON[email.NewsletterIssue](outbox.TopicNewsletterIssue,
 		newsletterIssueHandler(newsletter.NewStore(d.pool), d.notifier))
 	messages.HandleJSON[email.RestockNotice](outbox.TopicRestocked, d.notifier.SendRestockNotice)
+	return messages
 }
 
 // newsletterIssueHandler delivers one copy of an issue, and asks at DELIVERY

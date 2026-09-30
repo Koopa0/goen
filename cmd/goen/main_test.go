@@ -460,8 +460,7 @@ func TestEveryTopicGoenEnqueuesHasAHandler(t *testing.T) {
 	}
 	t.Cleanup(idle.Close)
 	log := slog.New(slog.DiscardHandler)
-	messages := outbox.NewStore(idle, log)
-	handleMessages(messages, workerDeps{pool: idle, admin: idle, maintenance: idle, log: log})
+	messages := newMessageStore(workerDeps{pool: idle, admin: idle, maintenance: idle, log: log})
 
 	topics := declaredTopics(t)
 	if len(topics) < 13 {
@@ -470,7 +469,7 @@ func TestEveryTopicGoenEnqueuesHasAHandler(t *testing.T) {
 	}
 	for name, topic := range topics {
 		if !handled(t, messages, topic) {
-			t.Errorf("outbox.%s (%q) has no handler in startWorkers; every message on it is "+
+			t.Errorf("outbox.%s (%q) has no handler in newMessageStore; every message on it is "+
 				"rescheduled for ever", name, topic)
 		}
 	}
