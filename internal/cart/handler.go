@@ -41,6 +41,10 @@ type Handler struct {
 	// deployment with no carrier, where the checkout asks for a chain alone.
 	storeMap *Map
 	carriers CarrierChecker
+	// couponMisses bounds how many coupon codes one shopper may be told are
+	// wrong: a wrong code and a right one answer differently, so unbounded it
+	// is a way to find codes that were never handed out.
+	couponMisses *ratelimit.Limiter
 }
 
 // SessionCloser closes a checkout the customer may still have open at the
@@ -76,6 +80,11 @@ func NewHandler(store *Store, log *slog.Logger, secure bool, findLimit *ratelimi
 		carriers: checker,
 		store:    store, log: log, secure: secure, findLimit: findLimit,
 		sessions: sessions, storeMap: storeMap,
+		// Twenty wrong codes before the first refusal, then one every two
+		// minutes: more than a shopper retyping a code from a flyer ever needs.
+		couponMisses: ratelimit.New(ratelimit.Config{
+			Every: 2 * time.Minute, Burst: 20, TTL: time.Hour, MaxKeys: 65_536,
+		}),
 	}
 }
 
@@ -537,6 +546,17 @@ func (h *Handler) PlaceOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Before the code is looked up: a refusal that came only after a miss would
+	// itself say the code was wrong.
+	if NormaliseCode(r.PostFormValue("coupon")) != "" {
+		for _, key := range couponKeys(r, cartID) {
+			if retryAfter, spent := h.couponMisses.Spent(key); spent {
+				ratelimit.Refuse(r.Context(), w, retryAfter)
+				return
+			}
+		}
+	}
+
 	owner := ownerOf(r)
 	submission, ok := h.checkoutSubmission(w, r, cartID, owner, attemptID, attemptErr == nil)
 	if !ok {
@@ -692,7 +712,12 @@ func (h *Handler) checkoutSubmission(
 		CompanyName: inv.CompanyName, TaxID: inv.TaxID,
 	}
 
-	couponErr := h.resolveCoupon(r, &view)
+	couponErr, missed := h.resolveCoupon(r, &view)
+	if missed {
+		for _, key := range couponKeys(r, cartID) {
+			h.couponMisses.Allow(key)
+		}
+	}
 	shippingID, shipErr := uuid.Parse(view.Chosen)
 	if shipErr == nil {
 		if quoteErr := h.quoteCheckoutShipping(
@@ -833,7 +858,7 @@ func (h *Handler) answerCheckoutChanged(
 		h.serverError(w, r)
 		return
 	}
-	if couponErr := h.resolveCoupon(r, view); couponErr != "" {
+	if couponErr, _ := h.resolveCoupon(r, view); couponErr != "" {
 		view.Errors = map[string]string{"coupon": couponErr}
 	}
 	view.Repriced = i18n.T(r.Context(), i18n.KeyCheckoutChanged)
@@ -983,12 +1008,13 @@ func (h *Handler) refreshCheckoutState(
 }
 
 // resolveCoupon looks up the typed code and applies it to this view, or reports
-// why not. An empty field is not an error.
-func (h *Handler) resolveCoupon(r *http.Request, view *pages.CheckoutView) string {
+// why it cannot. missed is a code that was looked up and refused, which is what
+// couponMisses charges; a lookup that failed is the shop's fault, not a guess.
+func (h *Handler) resolveCoupon(r *http.Request, view *pages.CheckoutView) (message string, missed bool) {
 	raw := r.PostFormValue("coupon")
 	view.CouponCode = NormaliseCode(raw)
 	if view.CouponCode == "" {
-		return ""
+		return "", false
 	}
 
 	subtotal := view.Cart.SubtotalCents
@@ -999,21 +1025,31 @@ func (h *Handler) resolveCoupon(r *http.Request, view *pages.CheckoutView) strin
 			view.CouponApplied = c.description
 			view.CouponDiscountCents = discountCents
 			view.CouponFreeShipping = freeShipping
-			return ""
+			return "", false
 		}
 		err = applyErr
 	}
 	switch {
 	case errors.Is(err, ErrCouponExpired):
-		return i18n.T(r.Context(), i18n.KeyCouponExpired)
+		return i18n.T(r.Context(), i18n.KeyCouponExpired), true
 	case errors.Is(err, ErrCouponMinimum):
-		return i18n.T(r.Context(), i18n.KeyCouponBelowMinimum)
+		return i18n.T(r.Context(), i18n.KeyCouponBelowMinimum), true
 	case errors.Is(err, ErrNoSuchCoupon):
-		return i18n.T(r.Context(), i18n.KeyCouponUnknown)
+		return i18n.T(r.Context(), i18n.KeyCouponUnknown), true
 	default:
 		h.log.ErrorContext(r.Context(), "resolve coupon", "error", err)
-		return i18n.T(r.Context(), i18n.KeyCouponUnavailable)
+		return i18n.T(r.Context(), i18n.KeyCouponUnavailable), false
 	}
+}
+
+// couponKeys are who a wrong coupon code is charged to: the client, whatever
+// cart it brings, and the account when one is signed in or else the cart.
+func couponKeys(r *http.Request, cartID uuid.UUID) [2]string {
+	holder := "cart:" + cartID.String()
+	if owner := ownerOf(r); owner.Valid {
+		holder = "account:" + owner.UUID.String()
+	}
+	return [2]string{"client:" + ratelimit.ClientKey(r), holder}
 }
 
 // checkoutErrors collects everything wrong with a submission. A pickup order

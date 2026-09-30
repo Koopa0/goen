@@ -50,6 +50,47 @@ func TestNotifyRouteIsGuardedPerIP(t *testing.T) {
 	}
 }
 
+// TestCheckoutIsGuardedPerClient drives the router: every checkout post looks
+// up the coupon it carries, so the route is bounded per client before the
+// handler runs, generously enough that a shopper changing every chooser on the
+// page is never refused.
+func TestCheckoutIsGuardedPerClient(t *testing.T) {
+	router := storeMapRouter(t, false)
+	post := func(remote string) *httptest.ResponseRecorder {
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/checkout",
+			strings.NewReader("coupon=GUESS"))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.RemoteAddr = remote
+		res := httptest.NewRecorder()
+		router.ServeHTTP(res, req)
+		return res
+	}
+
+	const shopper = 20
+	for i := range shopper {
+		if res := post("192.0.2.10:4000"); res.Code == http.StatusTooManyRequests {
+			t.Fatalf("checkout post %d was refused; a shopper's whole checkout must fit", i+1)
+		}
+	}
+	refused := false
+	for range 60 {
+		res := post("192.0.2.10:4000")
+		if res.Code == http.StatusTooManyRequests {
+			refused = true
+			if res.Header().Get("Retry-After") == "" {
+				t.Error("the refusal carries no Retry-After")
+			}
+			break
+		}
+	}
+	if !refused {
+		t.Fatalf("%d checkout posts from one client were never refused", shopper+60)
+	}
+	if res := post("192.0.2.11:4000"); res.Code == http.StatusTooManyRequests {
+		t.Error("another client was refused; the bound is per client")
+	}
+}
+
 func TestAnAssetRequestNeverReachesPerVisitorMiddleware(t *testing.T) {
 	tests := []struct {
 		path    string

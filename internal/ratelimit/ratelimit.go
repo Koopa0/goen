@@ -115,6 +115,26 @@ func (l *Limiter) Allow(key string) (retryAfter time.Duration, ok bool) {
 	return 0, true
 }
 
+// Spent reports whether key has nothing left to spend now, without spending
+// and without tracking a key it has not seen. It is for a limit charged only
+// when what it guards turns out to be a miss: the check has to come before the
+// guarded work, or a refusal would arrive only on a miss and say which it was.
+func (l *Limiter) Spent(key string) (retryAfter time.Duration, spent bool) {
+	mapKey := clampKey(key)
+
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	b, found := l.buckets[mapKey]
+	if !found {
+		return 0, false
+	}
+	now := time.Now()
+	reservation := b.limiter.ReserveN(now, 1)
+	delay := reservation.DelayFrom(now)
+	reservation.CancelAt(now)
+	return delay, delay > 0
+}
+
 // admitLocked makes room for a key not yet tracked and tracks it. Called with mu
 // held.
 func (l *Limiter) admitLocked(mapKey bucketKey, now time.Time) *bucket {

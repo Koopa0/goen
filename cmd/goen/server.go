@@ -146,6 +146,12 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	findLimit := ratelimit.New(ratelimit.Config{
 		Every: 6 * time.Minute, Burst: 10, TTL: time.Hour, MaxKeys: 65_536,
 	})
+	// Every checkout submission looks up the coupon it carries, and a chooser
+	// change is a submission too, so a whole checkout is a dozen posts at most.
+	// cart.Handler bounds the wrong codes themselves; this bounds the rest.
+	checkoutLimit := ratelimit.New(ratelimit.Config{
+		Every: 2 * time.Second, Burst: 30, TTL: time.Hour, MaxKeys: 65_536,
+	})
 	var carrierChecker cart.CarrierChecker
 	if cfg.Invoices.Enabled() {
 		carrierChecker = cfg.Invoices
@@ -232,7 +238,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	mux.HandleFunc("POST /cart/items", clearSpeculations(basket.AddItem))
 	mux.HandleFunc("POST /cart/items/update", clearSpeculations(basket.UpdateItem))
 	mux.HandleFunc("GET /checkout", basket.Checkout)
-	mux.HandleFunc("POST /checkout", basket.PlaceOrder)
+	mux.HandleFunc("POST /checkout", ratelimit.Guard(checkoutLimit, log, basket.PlaceOrder))
 	if cfg.StoreMap.Enabled() {
 		// The carrier's page posts the chosen store here from the SHOPPER'S
 		// browser, so it arrives cross-site with none of goen's cookies. It

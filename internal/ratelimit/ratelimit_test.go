@@ -317,6 +317,42 @@ func TestTheBurstIsSpentThenRefused(t *testing.T) {
 	}
 }
 
+// TestAskingWhetherAKeyIsSpentSpendsNothing: Spent answers the question Allow
+// would, and asking it any number of times leaves the allowance where it was.
+func TestAskingWhetherAKeyIsSpentSpendsNothing(t *testing.T) {
+	l := New(Config{Every: time.Minute, Burst: 2, TTL: time.Hour, MaxKeys: testMaxKeys})
+
+	if _, spent := l.Spent("unseen"); spent {
+		t.Error("a key never charged reads as spent")
+	}
+	if got := bucketCount(l); got != 0 {
+		t.Errorf("asking about a key tracked it: %d keys held, want 0", got)
+	}
+	for range 50 {
+		if _, spent := l.Spent("k"); spent {
+			t.Fatal("an uncharged key reads as spent")
+		}
+	}
+	if _, ok := l.Allow("k"); !ok {
+		t.Fatal("the first charge was refused")
+	}
+	for range 50 {
+		if _, spent := l.Spent("k"); spent {
+			t.Fatal("a key with one charge left reads as spent")
+		}
+	}
+	if _, ok := l.Allow("k"); !ok {
+		t.Fatal("the second charge was refused; asking spent the allowance")
+	}
+	retryAfter, spent := l.Spent("k")
+	if !spent {
+		t.Fatal("a key with nothing left does not read as spent")
+	}
+	if retryAfter <= 0 || retryAfter > time.Minute {
+		t.Errorf("retry-after is %v, want something inside the refill interval", retryAfter)
+	}
+}
+
 func TestARefusedAttemptDoesNotSpendTheAllowance(t *testing.T) {
 	l := New(Config{Every: 10 * time.Millisecond, Burst: 1, TTL: time.Hour, MaxKeys: testMaxKeys})
 
