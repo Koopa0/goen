@@ -45,6 +45,8 @@ var actionLabels = map[string]i18n.Key{
 	"coupon.toggle":                       i18n.KeyAuditCouponToggle,
 	"campaign.create":                     i18n.KeyAuditCampaignCreate,
 	"campaign.toggle":                     i18n.KeyAuditCampaignToggle,
+	"campaign.image.set":                  i18n.KeyAuditCampaignImageSet,
+	"campaign.image.clear":                i18n.KeyAuditCampaignImageClear,
 	"campaign.feature":                    i18n.KeyAuditCampaignFeature,
 	"campaign.unfeature":                  i18n.KeyAuditCampaignUnfeature,
 	"option.add":                          i18n.KeyAuditOptionAdd,

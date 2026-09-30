@@ -353,10 +353,14 @@ LIMIT $1;
 
 -- The window is judged against the database's clock, which wrote the timestamps.
 -- name: RunningCampaign :one
-SELECT id, slug, localized_name(title, title_en, @locale::text) AS title, ends_at
-FROM sale_campaigns
-WHERE slug = @slug::text AND is_active
-  AND starts_at <= now() AND ends_at > now();
+SELECT c.id, c.slug, localized_name(c.title, c.title_en, @locale::text) AS title, c.ends_at,
+       coalesce(c.image_key, '')::text AS image_key,
+       coalesce(localized_name(c.image_alt, c.image_alt_en, @locale::text), '')::text AS image_alt,
+       coalesce(m.width, 0)::integer AS image_width
+FROM sale_campaigns c
+LEFT JOIN media_objects m ON m.digest = c.image_key
+WHERE c.slug = @slug::text AND c.is_active
+  AND c.starts_at <= now() AND c.ends_at > now();
 
 -- name: RunningCampaigns :many
 SELECT c.id, c.slug, localized_name(c.title, c.title_en, @locale::text) AS title,

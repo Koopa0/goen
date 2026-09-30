@@ -5,6 +5,8 @@ versioned `/static/` asset handler.
 
 - `products/` contains files named by `product_images.storage_key`, as
   `<slug>-NN.webp`: a 1600x1200 source on a `#f9f9f9` ground.
+- `campaign-banner-01.webp` (1600x600) is in `products/` because a campaign's
+  `image_key` is resolved by the same function as a product image's storage key.
 - `hero/` contains home-page hero artwork.
 - `*-400.webp`, `*-800.webp`, and the hero `*-720.webp` files are responsive
   derivatives; the unsuffixed storage-key files remain the source assets.

@@ -874,6 +874,28 @@ INSERT INTO sale_campaigns (slug, title, title_en, ends_at)
 VALUES (@slug::text, @title::text, nullif(@title_en::text, ''),
         now() + (@days::integer || ' days')::interval);
 
+-- name: SetCampaignImage :execrows
+UPDATE sale_campaigns
+SET image_key = @image_key::text, image_alt = @image_alt::text,
+    image_alt_en = nullif(@image_alt_en::text, '')
+WHERE slug = @slug::text;
+
+-- name: ClearCampaignImage :execrows
+UPDATE sale_campaigns
+SET image_key = NULL, image_alt = NULL, image_alt_en = NULL
+WHERE slug = @slug::text;
+
+-- The stored width and height come from media_objects, and are 0 for a key that
+-- is not an upload.
+-- name: AdminCampaignImage :one
+SELECT coalesce(c.image_key, '')::text AS image_key,
+       coalesce(c.image_alt, '')::text AS image_alt,
+       coalesce(c.image_alt_en, '')::text AS image_alt_en,
+       coalesce(m.width, 0)::integer AS image_width
+FROM sale_campaigns c
+LEFT JOIN media_objects m ON m.digest = c.image_key
+WHERE c.slug = @slug::text;
+
 -- name: SetCampaignActive :execrows
 UPDATE sale_campaigns SET is_active = @is_active::boolean WHERE slug = @slug::text;
 

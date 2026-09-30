@@ -30,7 +30,19 @@ type CampaignView struct {
 	Title    string
 	EndsAt   string
 	Products []ProductTile
+	Image    CampaignImage
 }
+
+// CampaignImage is the header across the top of a campaign page. URL is empty
+// when the campaign has none, or names a file that is not there.
+type CampaignImage struct {
+	URL    string
+	Srcset string
+	Alt    string
+}
+
+// Shown reports whether there is a header to draw.
+func (i CampaignImage) Shown() bool { return i.URL != "" }
 
 // Empty reports whether the promotion features nothing that is still for sale.
 func (v CampaignView) Empty() bool { return len(v.Products) == 0 }

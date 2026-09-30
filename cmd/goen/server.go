@@ -398,6 +398,8 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	mux.HandleFunc("POST /admin/campaigns", back.RequireStaff(back.CreateCampaign))
 	mux.HandleFunc("GET /admin/campaigns/{slug}", back.RequireStaff(back.EditCampaign))
 	mux.HandleFunc("POST /admin/campaigns/{slug}/products", back.RequireStaff(back.FeatureProduct))
+	mux.HandleFunc("POST /admin/campaigns/{slug}/image", back.RequireStaff(back.SetCampaignImage))
+	mux.HandleFunc("POST /admin/campaigns/{slug}/image/remove", back.RequireStaff(back.RemoveCampaignImage))
 	mux.HandleFunc("POST /admin/campaigns/{slug}/active", back.RequireStaff(back.SetCampaignActive))
 	mux.HandleFunc("GET /admin/coupons", back.RequireStaff(back.Coupons))
 	mux.HandleFunc("POST /admin/coupons", back.RequireStaff(back.CreateCoupon))

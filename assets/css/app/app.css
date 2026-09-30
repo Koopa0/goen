@@ -3103,6 +3103,15 @@ h4,
   min-height: 60vh;
 }
 
+.goen-campaign__header {
+  aspect-ratio: 8 / 3;
+  border-radius: var(--radius-lg, 12px);
+  display: block;
+  height: auto;
+  object-fit: cover;
+  width: 100%;
+}
+
 .goen-pagehead {
   display: flex;
   flex-direction: column;

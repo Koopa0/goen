@@ -826,6 +826,12 @@ func (h *Handler) CreateCampaign(w http.ResponseWriter, r *http.Request) {
 
 // EditCampaign serves GET /admin/campaigns/{slug}.
 func (h *Handler) EditCampaign(w http.ResponseWriter, r *http.Request) {
+	h.renderCampaign(w, r, http.StatusOK, noticeFor(r), nil)
+}
+
+// renderCampaign draws a campaign's edit page. A refused image form draws it
+// again at 422 with the reason at the field.
+func (h *Handler) renderCampaign(w http.ResponseWriter, r *http.Request, status int, notice string, errs map[string]string) {
 	slug := r.PathValue("slug")
 	products, err := h.store.CampaignProducts(r.Context(), slug)
 	if err != nil {
@@ -833,10 +839,71 @@ func (h *Handler) EditCampaign(w http.ResponseWriter, r *http.Request) {
 		h.serverError(w, r)
 		return
 	}
-	web.Render(w, r, h.log, http.StatusOK, pages.AdminCampaignForm(
+	image, err := h.store.CampaignImage(r.Context(), slug)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			h.notFound(w, r)
+			return
+		}
+		h.log.ErrorContext(r.Context(), "read campaign image", "error", err)
+		h.serverError(w, r)
+		return
+	}
+	web.Render(w, r, h.log, status, pages.AdminCampaignForm(
 		layouts.Page{Title: slug}, pages.AdminCampaignView{
-			Slug: slug, Products: products, Notice: noticeFor(r),
+			Slug: slug, Products: products, Notice: notice, Image: image, Errors: errs,
 		}))
+}
+
+// SetCampaignImage serves POST /admin/campaigns/{slug}/image. Multipart: the
+// picture arrives with its alt text.
+func (h *Handler) SetCampaignImage(w http.ResponseWriter, r *http.Request) {
+	slug := r.PathValue("slug")
+	obj, err := h.images.ReadUpload(w, r, "image")
+	if err != nil {
+		h.log.WarnContext(r.Context(), "campaign image upload", "error", err, "slug", slug)
+		reason := i18n.KeyAdminNoticeUploadFailed
+		switch {
+		case errors.Is(err, media.ErrTooLarge):
+			reason = i18n.KeyAdminNoticeTooBig
+		case errors.Is(err, media.ErrNotAnImage):
+			reason = i18n.KeyAdminNoticeNotImage
+		}
+		h.renderCampaign(w, r, http.StatusUnprocessableEntity, "", map[string]string{"image": i18n.T(r.Context(), reason)})
+		return
+	}
+	err = h.store.SetCampaignImage(r.Context(), slug, obj.Digest, r.PostFormValue("alt"), r.PostFormValue("alt_en"))
+	switch {
+	case err == nil:
+		//nolint:gosec // G710: slug is the route's own path value
+		http.Redirect(w, r, "/admin/campaigns/"+slug+"?ok=1", http.StatusSeeOther)
+	case errors.Is(err, ErrNotFound):
+		h.notFound(w, r)
+	case errors.Is(err, ErrInvalid):
+		h.renderCampaign(w, r, http.StatusUnprocessableEntity, "", map[string]string{"alt": i18n.T(r.Context(), i18n.KeyFormHeroAlt)})
+	default:
+		h.log.ErrorContext(r.Context(), "set campaign image", "error", err, "slug", slug)
+		h.serverError(w, r)
+	}
+}
+
+// RemoveCampaignImage serves POST /admin/campaigns/{slug}/image/remove.
+func (h *Handler) RemoveCampaignImage(w http.ResponseWriter, r *http.Request) {
+	if err := web.ParseForm(w, r); err != nil {
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
+		return
+	}
+	slug := r.PathValue("slug")
+	switch err := h.store.ClearCampaignImage(r.Context(), slug); {
+	case err == nil:
+		//nolint:gosec // G710: slug is the route's own path value
+		http.Redirect(w, r, "/admin/campaigns/"+slug+"?ok=1", http.StatusSeeOther)
+	case errors.Is(err, ErrNotFound):
+		h.notFound(w, r)
+	default:
+		h.log.ErrorContext(r.Context(), "remove campaign image", "error", err, "slug", slug)
+		h.serverError(w, r)
+	}
 }
 
 // FeatureProduct serves POST /admin/campaigns/{slug}/products.
