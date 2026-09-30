@@ -950,9 +950,9 @@ func TestPendingIssueSettlementPreservesAnErasedFilingActor(t *testing.T) {
 
 func TestErasedCustomerCommittedOrderStillIssuesFromFilingSnapshot(t *testing.T) {
 	ctx := t.Context()
-	number := orderToInvoice(t, 100000, 0, 0)
-	ownerID := attachInvoiceOrderToCustomer(t, number)
-	eraseInvoiceCustomer(t, ownerID)
+	owner := invoiceCustomer(t, "即將刪除的顧客", true)
+	number := ownedOrderToInvoice(t, owner, 100000, 0, 0, PreferenceMember, "王小明", "")
+	eraseInvoiceCustomer(t, owner.UUID)
 
 	var sent issueRequest
 	const invoiceNumber = "PS12345678"
@@ -1099,9 +1099,9 @@ func TestProviderRejectedIssueConsumesItsRelateNumber(t *testing.T) {
 
 func TestErasedCustomerRefundStillAllowancesFromFilingSnapshot(t *testing.T) {
 	ctx := t.Context()
-	number := invoicedOrderWithRefund(t, 50000)
-	ownerID := attachInvoiceOrderToCustomer(t, number)
-	eraseInvoiceCustomer(t, ownerID)
+	owner := invoiceCustomer(t, "即將刪除的顧客", true)
+	number := invoicedOrderWithRefundFor(t, owner, 50000)
+	eraseInvoiceCustomer(t, owner.UUID)
 
 	var sent allowanceRequest
 	const allowanceNumber = "2026090112345678"
@@ -1180,8 +1180,9 @@ func TestTerminalInvoiceOperationsScrubDuplicateContactPII(t *testing.T) {
 
 	t.Run("legacy terminal envelopes on erasure", func(t *testing.T) {
 		ctx := t.Context()
-		number := invoicedOrderWithRefund(t, 50000)
-		ownerID := attachInvoiceOrderToCustomer(t, number)
+		owner := invoiceCustomer(t, "即將刪除的顧客", true)
+		ownerID := owner.UUID
+		number := invoicedOrderWithRefundFor(t, owner, 50000)
 		operationIDs := make([]uuid.UUID, 0, 2)
 		for _, status := range []string{"succeeded", "rejected"} {
 			var operationID uuid.UUID
@@ -1220,24 +1221,19 @@ func TestTerminalInvoiceOperationsScrubDuplicateContactPII(t *testing.T) {
 	})
 }
 
-func attachInvoiceOrderToCustomer(t *testing.T, orderNumber string) uuid.UUID {
+// invoiceCustomer is an account for a test order to be placed by. The order must
+// be placed by it: orders_owner_frozen refuses an owner added afterwards.
+func invoiceCustomer(t *testing.T, fullName string, verified bool) uuid.NullUUID {
 	t.Helper()
-	ctx := t.Context()
 	var userID uuid.UUID
-	if err := pool.QueryRow(ctx, `
+	if err := pool.QueryRow(t.Context(), `
 		INSERT INTO users (email, full_name, email_verified_at)
-		VALUES ('invoice-owner-' || gen_random_uuid() || '@goen.invalid',
-		        '即將刪除的顧客', now())
-		RETURNING id`).Scan(&userID); err != nil {
+		VALUES ('invoice-owner-' || gen_random_uuid() || '@goen.invalid', $1,
+		        CASE WHEN $2::boolean THEN now() END)
+		RETURNING id`, fullName, verified).Scan(&userID); err != nil {
 		t.Fatalf("create invoice owner: %v", err)
 	}
-	if command, err := pool.Exec(ctx, `
-		UPDATE orders SET user_id=$1 WHERE order_number=$2`, userID, orderNumber); err != nil {
-		t.Fatalf("attach invoice order to owner: %v", err)
-	} else if command.RowsAffected() != 1 {
-		t.Fatalf("attach invoice order to owner affected %d rows, want 1", command.RowsAffected())
-	}
-	return userID
+	return uuid.NullUUID{UUID: userID, Valid: true}
 }
 
 func eraseInvoiceCustomer(t *testing.T, userID uuid.UUID) {
@@ -2902,6 +2898,13 @@ func rejectAllowanceTestOperation(t *testing.T, conn *pgxpool.Conn, operationID 
 // refused a payment inserted alongside the lines it needs.
 func invoicedOrderWithRefund(t *testing.T, refundCents int64) string {
 	t.Helper()
+	return invoicedOrderWithRefundFor(t, uuid.NullUUID{}, refundCents)
+}
+
+// invoicedOrderWithRefundFor is invoicedOrderWithRefund placed by owner, or by a
+// guest when owner is not valid.
+func invoicedOrderWithRefundFor(t *testing.T, owner uuid.NullUUID, refundCents int64) string {
+	t.Helper()
 	ctx := t.Context()
 
 	tx, err := pool.Begin(ctx)
@@ -2912,14 +2915,14 @@ func invoicedOrderWithRefund(t *testing.T, refundCents int64) string {
 
 	var orderID, number string
 	if err := tx.QueryRow(ctx, `
-		INSERT INTO orders (order_number, shipping_version_id, shipping_method_code,
+		INSERT INTO orders (order_number, user_id, shipping_version_id, shipping_method_code,
 		                    shipping_method_name, shipping_cents, locale, fulfillment_status)
 		SELECT 'GO-991231-' || lpad((floor(random()*900000)+100000)::bigint::text, 6, '0'),
-		       smv.id, sm.code, smv.name, 0, 'zh-Hant', 'pending'
+		       $1, smv.id, sm.code, smv.name, 0, 'zh-Hant', 'pending'
 		FROM shipping_method_versions smv
 		JOIN shipping_methods sm ON sm.id = smv.method_id
 		LIMIT 1
-		RETURNING id::text, order_number`).Scan(&orderID, &number); err != nil {
+		RETURNING id::text, order_number`, owner).Scan(&orderID, &number); err != nil {
 		t.Fatalf("create the order: %v", err)
 	}
 	if _, err := tx.Exec(ctx, `
@@ -3445,8 +3448,9 @@ func TestAnAllowanceRelievesACreditRefundToo(t *testing.T) {
 	s := NewStore(pool, g)
 
 	// No card refund at all: everything went back as store credit.
-	number := invoicedOrderWithRefund(t, 0)
-	creditRefund(t, number, 40000)
+	owner := invoiceCustomer(t, "王小明", false)
+	number := invoicedOrderWithRefundFor(t, owner, 0)
+	creditRefund(t, owner.UUID, number, 40000)
 
 	doc, err := s.Allowance(filingTestContext(t, ctx), number, uuid.New())
 	if err != nil {
@@ -3459,23 +3463,17 @@ func TestAnAllowanceRelievesACreditRefundToo(t *testing.T) {
 	}
 }
 
-// creditRefund posts a positive store-credit entry against the order, which is
-// what compensating a return out of credit writes.
-func creditRefund(t *testing.T, orderNumber string, cents int64) {
+// creditRefund posts a positive store-credit entry against the order userID
+// placed, which is what compensating a return out of credit writes.
+func creditRefund(t *testing.T, userID uuid.UUID, orderNumber string, cents int64) {
 	t.Helper()
 	ctx := t.Context()
 
-	var userID, orderID string
-	if err := pool.QueryRow(ctx, `
-		INSERT INTO users (email, full_name)
-		VALUES ('credit-' || gen_random_uuid() || '@goen.invalid', '王小明')
-		RETURNING id::text`).Scan(&userID); err != nil {
-		t.Fatalf("create the customer: %v", err)
-	}
+	var orderID string
 	if err := pool.QueryRow(ctx,
-		`UPDATE orders SET user_id = $1 WHERE order_number = $2 RETURNING id::text`,
-		userID, orderNumber).Scan(&orderID); err != nil {
-		t.Fatalf("attach the order to a customer: %v", err)
+		`SELECT id::text FROM orders WHERE order_number = $1 AND user_id = $2`,
+		orderNumber, userID).Scan(&orderID); err != nil {
+		t.Fatalf("read the customer's order: %v", err)
 	}
 	var accountID string
 	if err := pool.QueryRow(ctx,
@@ -3747,6 +3745,20 @@ func orderToInvoiceFor(
 	buyerName, taxID string,
 ) string {
 	t.Helper()
+	return ownedOrderToInvoice(t, uuid.NullUUID{},
+		itemCents, shippingCents, discountCents, preference, buyerName, taxID)
+}
+
+// ownedOrderToInvoice is orderToInvoiceFor placed by owner, or by a guest when
+// owner is not valid.
+func ownedOrderToInvoice(
+	t *testing.T,
+	owner uuid.NullUUID,
+	itemCents, shippingCents, discountCents int64,
+	preference Preference,
+	buyerName, taxID string,
+) string {
+	t.Helper()
 	ctx := t.Context()
 
 	tx, err := pool.Begin(ctx)
@@ -3757,15 +3769,15 @@ func orderToInvoiceFor(
 
 	var orderID, number string
 	if err := tx.QueryRow(ctx, `
-		INSERT INTO orders (order_number, shipping_version_id, shipping_method_code,
+		INSERT INTO orders (order_number, user_id, shipping_version_id, shipping_method_code,
 		                    shipping_method_name, shipping_cents, discount_cents,
 		                    locale, fulfillment_status)
 		SELECT 'GO-991230-' || lpad((floor(random()*900000)+100000)::bigint::text, 6, '0'),
-		       smv.id, sm.code, smv.name, $1, $2, 'zh-Hant', 'pending'
+		       $3, smv.id, sm.code, smv.name, $1, $2, 'zh-Hant', 'pending'
 		FROM shipping_method_versions smv
 		JOIN shipping_methods sm ON sm.id = smv.method_id
 		LIMIT 1
-		RETURNING id::text, order_number`, shippingCents, discountCents).
+		RETURNING id::text, order_number`, shippingCents, discountCents, owner).
 		Scan(&orderID, &number); err != nil {
 		t.Fatalf("create the order: %v", err)
 	}

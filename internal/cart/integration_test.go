@@ -2476,6 +2476,13 @@ func commitBareOrder(t *testing.T, vid uuid.UUID) uuid.UUID {
 // the past. paid decides whether it is funded.
 func heldOrder(t *testing.T, vid uuid.UUID, ago time.Duration, paid bool) (orderID uuid.UUID) {
 	t.Helper()
+	return heldOrderFor(t, uuid.NullUUID{}, vid, ago, paid)
+}
+
+// heldOrderFor is heldOrder placed by owner, or by a guest when owner is not
+// valid.
+func heldOrderFor(t *testing.T, owner uuid.NullUUID, vid uuid.UUID, ago time.Duration, paid bool) (orderID uuid.UUID) {
+	t.Helper()
 	ctx := t.Context()
 
 	tx, err := pool.Begin(ctx)
@@ -2486,12 +2493,12 @@ func heldOrder(t *testing.T, vid uuid.UUID, ago time.Duration, paid bool) (order
 
 	var number string
 	if err := tx.QueryRow(ctx, `
-		INSERT INTO orders (order_number, shipping_version_id, shipping_method_code,
+		INSERT INTO orders (order_number, user_id, shipping_version_id, shipping_method_code,
 		                    shipping_method_name, shipping_cents)
-		SELECT next_order_number(), v.id, sm.code, v.name, 0
+		SELECT next_order_number(), $1, v.id, sm.code, v.name, 0
 		FROM shipping_method_versions v JOIN shipping_methods sm ON sm.id = v.method_id
 		ORDER BY v.effective_at LIMIT 1
-		RETURNING id, order_number`).Scan(&orderID, &number); err != nil {
+		RETURNING id, order_number`, owner).Scan(&orderID, &number); err != nil {
 		t.Fatalf("create order: %v", err)
 	}
 	if _, err := tx.Exec(ctx, `
@@ -4032,11 +4039,7 @@ func TestACancelledOrderIsNotAVerifiedPurchase(t *testing.T) {
 		`INSERT INTO users (email) VALUES ('cancelbadge@example.com') RETURNING id`).Scan(&userID); err != nil {
 		t.Fatalf("create user: %v", err)
 	}
-	orderID := heldOrder(t, vid, -time.Hour, true) // funded
-	if _, err := pool.Exec(ctx,
-		`UPDATE orders SET user_id = $2 WHERE id = $1`, orderID, userID); err != nil {
-		t.Fatalf("attach owner: %v", err)
-	}
+	orderID := heldOrderFor(t, uuid.NullUUID{UUID: userID, Valid: true}, vid, -time.Hour, true) // funded
 
 	var productID uuid.UUID
 	if err := pool.QueryRow(ctx,

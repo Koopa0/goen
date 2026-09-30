@@ -721,9 +721,10 @@ var ruleCases = []ruleCase{
 	},
 	{
 		rule: "return_credit_requires_live_account",
+		// Erasure's own path to an ownerless order: the account row goes and ON
+		// DELETE SET NULL clears the owner, which is all orders_owner_frozen admits.
 		reject: openReturnAccountFixture + `
-		        UPDATE orders SET user_id = NULL
-		        WHERE id = '11110070-0000-4000-8000-000000000001';
+		        DELETE FROM users WHERE id = '55555555-5555-4555-8555-555555555555';
 		        SET CONSTRAINTS return_credit_requires_live_account IMMEDIATE;`,
 		accept: openReturnAccountFixture + `
 		        UPDATE return_requests SET status = 'approved', decided_at = now()
@@ -735,8 +736,7 @@ var ruleCases = []ruleCase{
 		            '退貨退回購物金', '11110070-0000-4000-8000-000000000001',
 		            'return-credit:11110074-0000-4000-8000-000000000001'
 		        );
-		        UPDATE orders SET user_id = NULL
-		        WHERE id = '11110070-0000-4000-8000-000000000001';
+		        DELETE FROM users WHERE id = '55555555-5555-4555-8555-555555555555';
 		        SET CONSTRAINTS return_credit_requires_live_account IMMEDIATE;`,
 	},
 	{
@@ -968,25 +968,21 @@ var ruleCases = []ruleCase{
 		// The fixture's redemption belongs to 王小明, and it is the SAME customer
 		// asking again, on an order that is theirs: a guest would meet the total
 		// cap instead.
-		reject: `UPDATE coupons SET per_customer_limit = 1 WHERE id = 'cccc0009-0000-4000-8000-000000000009';
-		         UPDATE orders SET user_id = '55555555-5555-4555-8555-555555555555'
-		         WHERE id = '6666aaaa-6666-4666-8666-666666666666';
+		reject: mingPendingOrder + `UPDATE coupons SET per_customer_limit = 1 WHERE id = 'cccc0009-0000-4000-8000-000000000009';
 		         INSERT INTO coupon_redemptions (coupon_id, order_id, user_id, amount_cents)
 		         VALUES ('cccc0009-0000-4000-8000-000000000009',
 		                 '6666bbbb-6666-4666-8666-666666666666',
 		                 '55555555-5555-4555-8555-555555555555', 100000);
 		         SELECT redeem_coupon('cccc0009-0000-4000-8000-000000000009',
-		         '6666aaaa-6666-4666-8666-666666666666',
+		         '6666cccc-6666-4666-8666-666666666666',
 		         '55555555-5555-4555-8555-555555555555', 20000);`,
-		accept: `UPDATE coupons SET per_customer_limit = 2 WHERE id = 'cccc0009-0000-4000-8000-000000000009';
-		         UPDATE orders SET user_id = '55555555-5555-4555-8555-555555555555'
-		         WHERE id = '6666aaaa-6666-4666-8666-666666666666';
+		accept: mingPendingOrder + `UPDATE coupons SET per_customer_limit = 2 WHERE id = 'cccc0009-0000-4000-8000-000000000009';
 		         INSERT INTO coupon_redemptions (coupon_id, order_id, user_id, amount_cents)
 		         VALUES ('cccc0009-0000-4000-8000-000000000009',
 		                 '6666bbbb-6666-4666-8666-666666666666',
 		                 '55555555-5555-4555-8555-555555555555', 100000);
 		         SELECT redeem_coupon('cccc0009-0000-4000-8000-000000000009',
-		         '6666aaaa-6666-4666-8666-666666666666',
+		         '6666cccc-6666-4666-8666-666666666666',
 		         '55555555-5555-4555-8555-555555555555', 20000);`,
 	},
 	{
@@ -1047,17 +1043,24 @@ var ruleCases = []ruleCase{
 	{
 		// An account's order named as a guest's escapes the per-customer count.
 		rule: "coupon_redemption_order_owner",
-		reject: `UPDATE orders SET user_id = '55555555-5555-4555-8555-555555555555'
-		         WHERE id = '6666aaaa-6666-4666-8666-666666666666';
-		         SET LOCAL ROLE store;
+		reject: mingPendingOrder + `SET LOCAL ROLE store;
 		         SELECT redeem_coupon('cccc0009-0000-4000-8000-000000000009',
-		         '6666aaaa-6666-4666-8666-666666666666', NULL, 20000);`,
-		accept: `UPDATE orders SET user_id = '55555555-5555-4555-8555-555555555555'
-		         WHERE id = '6666aaaa-6666-4666-8666-666666666666';
-		         SET LOCAL ROLE store;
+		         '6666cccc-6666-4666-8666-666666666666', NULL, 20000);`,
+		accept: mingPendingOrder + `SET LOCAL ROLE store;
 		         SELECT redeem_coupon('cccc0009-0000-4000-8000-000000000009',
-		         '6666aaaa-6666-4666-8666-666666666666',
+		         '6666cccc-6666-4666-8666-666666666666',
 		         '55555555-5555-4555-8555-555555555555', 20000);`,
+	},
+	{
+		// As store, the one role granted UPDATE on the column: an order moved to
+		// another account spends that account's credit.
+		rule: "orders_owner_frozen",
+		reject: `SET LOCAL ROLE store;
+		         UPDATE orders SET user_id = '5555aaaa-5555-4555-8555-555555555555'
+		         WHERE id = '66666666-6666-4666-8666-666666666666';`,
+		// Erasure is the one change the owner takes after the order is placed.
+		accept: `SET LOCAL ROLE store;
+		         SELECT erase_user('55555555-5555-4555-8555-555555555555');`,
 	},
 	{
 		rule:       "payments_provider_ref_known",
@@ -1439,6 +1442,24 @@ const pendingRefundForOutcome = `
 // A fully store-credit-funded, shipped order with one open full return. It is
 // the smallest fixture for the erasure/return constraint pair: no card money is
 // available, so the exact NT$1,000 obligation needs the still-live account.
+// mingPendingOrder is 王小明's own order awaiting payment, the fixture guest order's
+// twin. It is owned from the moment it is placed, as checkout places one:
+// orders_owner_frozen refuses giving a guest order an owner afterwards.
+const mingPendingOrder = `
+	INSERT INTO orders (id, order_number, user_id, shipping_version_id,
+	                    shipping_method_code, shipping_method_name)
+	VALUES ('6666cccc-6666-4666-8666-666666666666', 'GO-260721-000390',
+	        '55555555-5555-4555-8555-555555555555',
+	        'ffff0002-0000-4000-8000-000000000000', 'home_delivery', '宅配到府');
+	INSERT INTO order_lines (id, order_id, sku, product_name, unit_price_cents, quantity, position)
+	VALUES ('6666c001-0000-4000-8000-000000000000', '6666cccc-6666-4666-8666-666666666666',
+	        'PXL-9P-512-BL', 'Pixelight 9 Pro 5G', 3690000, 1, 0);
+	INSERT INTO order_private_data (order_id, email, recipient_name, phone,
+	                                postal_code, city, district, street)
+	VALUES ('6666cccc-6666-4666-8666-666666666666', 'ming@example.com', '王小明', '0912345678',
+	        '110', '台北市', '信義區', '松高路 68 號');
+`
+
 const openReturnAccountFixture = `
 	INSERT INTO orders (
 	    id, order_number, user_id, shipping_version_id,
@@ -2050,24 +2071,24 @@ func TestRedeemCouponCountsTheOrdersCustomer(t *testing.T) {
 		                 '55555555-5555-4555-8555-555555555555', 100000);
 		         SET LOCAL ROLE store;
 		`
-		accountOrder = `UPDATE orders SET user_id = '55555555-5555-4555-8555-555555555555'
-		                WHERE id = '6666aaaa-6666-4666-8666-666666666666';
-		`
-		redeemAs = `SELECT redeem_coupon('cccc0009-0000-4000-8000-000000000009',
-		            '6666aaaa-6666-4666-8666-666666666666', %s, 20000);`
+		accountOrder = "6666cccc-6666-4666-8666-666666666666"
+		guestOrder   = "6666aaaa-6666-4666-8666-666666666666"
+		redeemAs     = `SELECT redeem_coupon('cccc0009-0000-4000-8000-000000000009',
+		            '%s', %s, 20000);`
 	)
 	for _, tc := range []struct {
 		name string
 		stmt string
 		want string
 	}{
-		{"an account's order named as a guest's", accountOrder + spent + fmt.Sprintf(redeemAs, "NULL"),
+		{"an account's order named as a guest's", mingPendingOrder + spent +
+			fmt.Sprintf(redeemAs, accountOrder, "NULL"),
 			"coupon_redemption_order_owner"},
-		{"an account's order named as its owner's", accountOrder + spent +
-			fmt.Sprintf(redeemAs, "'55555555-5555-4555-8555-555555555555'::uuid"),
+		{"an account's order named as its owner's", mingPendingOrder + spent +
+			fmt.Sprintf(redeemAs, accountOrder, "'55555555-5555-4555-8555-555555555555'::uuid"),
 			"coupon_within_customer_limit"},
 		{"a guest's order named as an account's", spent +
-			fmt.Sprintf(redeemAs, "'5555aaaa-5555-4555-8555-555555555555'::uuid"),
+			fmt.Sprintf(redeemAs, guestOrder, "'5555aaaa-5555-4555-8555-555555555555'::uuid"),
 			"coupon_redemption_order_owner"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -2082,8 +2103,83 @@ func TestRedeemCouponCountsTheOrdersCustomer(t *testing.T) {
 	}
 
 	// The neighbour: a guest's own order, named as a guest's, still redeems.
-	if err := run(t, spent+fmt.Sprintf(redeemAs, "NULL")); err != nil {
+	if err := run(t, spent+fmt.Sprintf(redeemAs, guestOrder, "NULL")); err != nil {
 		t.Fatalf("a guest checkout was refused its coupon: %v", err)
+	}
+}
+
+// TestAnOrderKeepsTheAccountItWasPlacedBy runs as store, the one role granted
+// UPDATE on orders.user_id. spend_store_credit and redeem_coupon both read the
+// customer from the order, so every way of moving that owner is refused by name,
+// including taking it away for one redemption and putting it back.
+func TestAnOrderKeepsTheAccountItWasPlacedBy(t *testing.T) {
+	const (
+		ming         = "'55555555-5555-4555-8555-555555555555'"
+		hua          = "'5555aaaa-5555-4555-8555-555555555555'"
+		mingsOrder   = "'66666666-6666-4666-8666-666666666666'"
+		mingsPending = "'6666cccc-6666-4666-8666-666666666666'"
+		guestsOrder  = "'6666aaaa-6666-4666-8666-666666666666'"
+	)
+	for _, tc := range []struct{ name, stmt string }{
+		{"to another account",
+			`SET LOCAL ROLE store;
+			 UPDATE orders SET user_id = ` + hua + ` WHERE id = ` + mingsOrder + `;`},
+		{"to no account while the account still exists",
+			`SET LOCAL ROLE store;
+			 UPDATE orders SET user_id = NULL WHERE id = ` + mingsOrder + `;`},
+		{"to an account, on an order placed as a guest",
+			`SET LOCAL ROLE store;
+			 UPDATE orders SET user_id = ` + hua + ` WHERE id = ` + guestsOrder + `;`},
+		// 王小明 has used the coupon once and the limit is one; as a guest's order
+		// the redemption would be counted against nobody.
+		{"away for one guest redemption and back again", mingPendingOrder + `
+			 UPDATE coupons SET per_customer_limit = 1
+			 WHERE id = 'cccc0009-0000-4000-8000-000000000009';
+			 INSERT INTO coupon_redemptions (coupon_id, order_id, user_id, amount_cents)
+			 VALUES ('cccc0009-0000-4000-8000-000000000009', '6666bbbb-6666-4666-8666-666666666666',
+			         ` + ming + `, 100000);
+			 SET LOCAL ROLE store;
+			 UPDATE orders SET user_id = NULL WHERE id = ` + mingsPending + `;
+			 SELECT redeem_coupon('cccc0009-0000-4000-8000-000000000009', ` + mingsPending + `,
+			                      NULL, 20000);
+			 UPDATE orders SET user_id = ` + ming + ` WHERE id = ` + mingsPending + `;`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := run(t, tc.stmt)
+			if err == nil {
+				t.Fatal("the order's account was moved")
+			}
+			if _, name := constraintViolation(err); name != "orders_owner_frozen" {
+				t.Fatalf("refused by %q, want orders_owner_frozen: %v", name, err)
+			}
+		})
+	}
+
+	// The neighbours: writing the same account back changes nothing, and
+	// erasure takes the account away and leaves the order as the record it is.
+	ctx := t.Context()
+	tx, err := schemaPool(t).Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
+	if _, err := tx.Exec(ctx, fixtures); err != nil {
+		t.Fatalf("fixtures: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `SET LOCAL ROLE store;
+		UPDATE orders SET user_id = user_id, customer_note = '請按門鈴'
+		WHERE id = `+mingsOrder+`;
+		SELECT erase_user(`+ming+`);
+		RESET ROLE;`); err != nil {
+		t.Fatalf("the order's own account written back, then erased: %v", err)
+	}
+	var owned bool
+	if err := tx.QueryRow(ctx,
+		`SELECT user_id IS NOT NULL FROM orders WHERE id = `+mingsOrder).Scan(&owned); err != nil {
+		t.Fatalf("the erased customer's order is gone: %v", err)
+	}
+	if owned {
+		t.Error("the erased customer's order still names an account")
 	}
 }
 
