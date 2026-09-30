@@ -37,6 +37,9 @@ var coveredByNamedTest = map[string]string{
 	"users_keep_one_admin_on_delete":         "TestUsersTriggerKeepsOneAdmin (internal/db)",
 	// Exercised where the send is: proving it needs an issue that has actually been sent.
 	"newsletter_issues_frozen_once_sent": "TestASentIssueCannotBeRewritten (internal/newsletter)",
+	// It reduces rather than refuses, so it has no violation to name.
+	"payment_webhook_events_evidence_only": "TestAPaymentEventIsKeptWithoutTheCustomersDetails " +
+		"(internal/payment), TestErasureLeavesNoCustomerDetailsInPaymentEvents",
 }
 
 // TestEveryRuleTriggerIsExercised requires a case for every rule trigger in the catalog.

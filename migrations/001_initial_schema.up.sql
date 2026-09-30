@@ -4035,6 +4035,44 @@ CREATE INDEX payment_webhook_events_unprocessed_idx
     WHERE processed_at IS NULL;
 CREATE INDEX payment_webhook_events_object_idx ON payment_webhook_events (object_ref);
 
+-- The stored payload is evidence of WHICH event said WHAT about the money, not a
+-- replayable original: the signature is checked before the row is written, and
+-- every effect is attributed from goen's own payments row. A Checkout Session
+-- also carries the customer's name, email, phone and address, which here would
+-- outlive the account they belong to, as would whatever Stripe adds to an object
+-- later. So this names what is KEPT, scalars only, so no nested object can bring
+-- a person back in. It runs on every write of the payload, which is how
+-- erase_user reduces a row that was loaded without passing through it.
+CREATE FUNCTION payment_webhook_events_keep_evidence() RETURNS trigger
+LANGUAGE plpgsql AS $$
+DECLARE
+    event_part  jsonb := CASE jsonb_typeof(NEW.payload)
+                             WHEN 'object' THEN NEW.payload ELSE '{}' END;
+    object_part jsonb := CASE jsonb_typeof(NEW.payload #> '{data,object}')
+                             WHEN 'object' THEN NEW.payload #> '{data,object}' ELSE '{}' END;
+BEGIN
+    NEW.payload := coalesce((
+            SELECT jsonb_object_agg(f.key, f.value)
+            FROM jsonb_each(event_part) AS f
+            WHERE f.key IN ('id', 'object', 'type', 'created', 'livemode', 'api_version')
+              AND jsonb_typeof(f.value) IN ('string', 'number', 'boolean')
+        ), '{}')
+        || jsonb_build_object('data', jsonb_build_object('object', coalesce((
+            SELECT jsonb_object_agg(f.key, f.value)
+            FROM jsonb_each(object_part) AS f
+            WHERE f.key IN ('id', 'object', 'status', 'payment_status', 'amount_total',
+                            'currency', 'mode', 'created', 'expires_at',
+                            'client_reference_id', 'payment_intent')
+              AND jsonb_typeof(f.value) IN ('string', 'number', 'boolean')
+        ), '{}')));
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER payment_webhook_events_evidence_only
+    BEFORE INSERT OR UPDATE OF payload ON payment_webhook_events
+    FOR EACH ROW EXECUTE FUNCTION payment_webhook_events_keep_evidence();
+
 -- ============================================================================
 -- Outbox
 --
@@ -4650,6 +4688,17 @@ BEGIN
       AND op.status IN ('succeeded', 'rejected')
       AND (op.request_payload ? 'customer_name' OR op.request_payload ? 'email');
 
+    -- Stripe's copy of a Checkout Session names the customer. Writing the payload
+    -- back makes payment_webhook_events_evidence_only reduce it to evidence: a
+    -- restore loads rows before it creates triggers, so a restored row may still
+    -- carry the whole event. Attributed through goen's own payment row, as the
+    -- webhook itself is.
+    UPDATE payment_webhook_events e SET payload = e.payload
+    FROM payments p
+    JOIN orders o ON o.id = p.order_id
+    WHERE e.provider = p.provider AND e.object_ref = p.provider_ref
+      AND o.user_id = p_user_id;
+
     -- Cross-table address ownership begins only after the mailbox is proved.
     -- Registration and a pending address change accept an arbitrary address;
     -- treating either as authority would let an attacker erase a victim's guest
@@ -4678,6 +4727,13 @@ BEGIN
         -- legacy Go field name remains readable for rows queued by older code.
         DELETE FROM outbox_messages m
         WHERE lower(coalesce(m.payload ->> 'email', m.payload ->> 'Email', '')) =
+              lower(addr);
+
+        -- A payment event no payment row attributes, such as money for a session
+        -- goen never linked, can still name this address.
+        UPDATE payment_webhook_events e SET payload = e.payload
+        WHERE lower(coalesce(e.payload #>> '{data,object,customer_details,email}',
+                             e.payload #>> '{data,object,customer_email}', '')) =
               lower(addr);
     END IF;
 

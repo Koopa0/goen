@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/jackc/pgx/v5"
@@ -105,6 +106,91 @@ func TestUsersTriggerKeepsOneAdmin(t *testing.T) {
 	if _, err := tx.Exec(ctx,
 		`UPDATE users SET role = 'staff' WHERE id = $1`, only); err != nil {
 		t.Fatalf("demote with a surviving admin: %v", err)
+	}
+}
+
+// TestErasureLeavesNoCustomerDetailsInPaymentEvents plants payment events the way a
+// restore loads them — before any trigger exists — so the reduction at write time
+// has not touched them, and holds erase_user to reducing the erased customer's.
+func TestErasureLeavesNoCustomerDetailsInPaymentEvents(t *testing.T) {
+	ctx := t.Context()
+	tx, err := schemaPool(t).Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
+	if _, err := tx.Exec(ctx, fixtures); err != nil {
+		t.Fatalf("fixtures: %v", err)
+	}
+
+	const user = "55555555-5555-4555-8555-555555555555"
+	if _, err := tx.Exec(ctx,
+		`UPDATE users SET email_verified_at = now() WHERE id = $1`, user); err != nil {
+		t.Fatalf("prove the mailbox: %v", err)
+	}
+
+	type planted struct {
+		event, objectRef, email, phone string
+	}
+	// Attributed through the fixture order's own payment, under an address typed at
+	// Stripe that the account never proved; named only by the proved address, in
+	// another case; and somebody else's, which must survive.
+	owned := planted{"evt_erase_owned", "pi_fixture", "ming.checkout@example.com", "0912345678"}
+	unlinked := planted{"evt_erase_unlinked", "cs_erase_unlinked", "MING@example.com", "0911222333"}
+	other := planted{"evt_erase_other", "cs_erase_other", "someone.else@example.com", "0987654321"}
+
+	if _, err := tx.Exec(ctx, `SET LOCAL session_replication_role = replica`); err != nil {
+		t.Fatalf("load as a restore does: %v", err)
+	}
+	for _, p := range []planted{owned, unlinked, other} {
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO payment_webhook_events (provider, event_id, type, object_ref, payload)
+			VALUES ('stripe', $1, 'checkout.session.completed', $2, jsonb_build_object(
+			    'id', $1::text, 'type', 'checkout.session.completed',
+			    'data', jsonb_build_object('object', jsonb_build_object(
+			        'id', $2::text, 'amount_total', 6790000, 'customer_email', $3::text,
+			        'customer_details', jsonb_build_object(
+			            'email', $3::text, 'phone', $4::text, 'name', '王小明',
+			            'address', jsonb_build_object('line1', '松高路 68 號'))))))`,
+			p.event, p.objectRef, p.email, p.phone); err != nil {
+			t.Fatalf("plant %s: %v", p.event, err)
+		}
+	}
+	if _, err := tx.Exec(ctx, `SET LOCAL session_replication_role = origin`); err != nil {
+		t.Fatalf("restore trigger enforcement: %v", err)
+	}
+
+	if _, err := tx.Exec(ctx, `SELECT erase_user($1)`, user); err != nil {
+		t.Fatalf("erase_user: %v", err)
+	}
+
+	read := func(event string) string {
+		t.Helper()
+		var payload string
+		if err := tx.QueryRow(ctx, `
+			SELECT payload::text FROM payment_webhook_events
+			WHERE provider = 'stripe' AND event_id = $1`, event).Scan(&payload); err != nil {
+			t.Fatalf("read %s: %v", event, err)
+		}
+		return payload
+	}
+	for _, p := range []planted{owned, unlinked} {
+		payload := read(p.event)
+		for _, personal := range []string{strings.ToLower(p.email), p.phone, "王小明", "松高路"} {
+			if strings.Contains(strings.ToLower(payload), personal) {
+				t.Errorf("%s still carries %q after its customer was erased: %s",
+					p.event, personal, payload)
+			}
+		}
+		if !strings.Contains(payload, p.event) || !strings.Contains(payload, p.objectRef) ||
+			!strings.Contains(payload, "6790000") {
+			t.Errorf("%s lost the evidence erasure has no reason to touch: %s", p.event, payload)
+		}
+	}
+
+	// The control: an erasure reducing every event would pass everything above.
+	if payload := read(other.event); !strings.Contains(payload, other.email) {
+		t.Errorf("erasing one customer reduced another's event: %s", payload)
 	}
 }
 

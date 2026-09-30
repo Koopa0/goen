@@ -3954,6 +3954,112 @@ func TestAnUnsettledCompletedSessionIsRecordedForAPerson(t *testing.T) {
 	}
 }
 
+// TestAPaymentEventIsKeptWithoutTheCustomersDetails holds the stored copy of a
+// verified event to evidence: which event it was and what it said about the
+// money, never who paid. The capture, its attribution and the redelivery are
+// asserted as well, because a reduction that broke any of them would cost more
+// than the copy it saves.
+func TestAPaymentEventIsKeptWithoutTheCustomersDetails(t *testing.T) {
+	ctx := t.Context()
+	s := payment.NewStore(pool)
+	h := payment.NewHandler(s, enabledGateway(t), alwaysPlacedHere{},
+		slog.New(slog.DiscardHandler), false)
+
+	number, _ := order(t, 45600)
+	session := "cs_evidence_" + uuid.NewString()[:12]
+	if err := s.OpenPayment(ctx, number, session, 45600); err != nil {
+		t.Fatalf("open the payment: %v", err)
+	}
+
+	const (
+		buyerEmail  = "evidence.buyer@example.com"
+		buyerPhone  = "+886912000111"
+		buyerName   = "Evidence Buyer"
+		buyerStreet = "100 Songren Road"
+	)
+	eventID := "evt_" + uuid.NewString()[:12]
+	ev := sessionEvent(eventID, session, "paid", 45600)
+	ev = sessionField(ev, "client_reference_id", number)
+	ev = sessionField(ev, "customer_email", buyerEmail)
+	ev = sessionField(ev, "customer_details", map[string]any{
+		"email": buyerEmail, "phone": buyerPhone, "name": buyerName,
+		"address": map[string]any{"line1": buyerStreet, "country": "TW"},
+	})
+	ev = sessionField(ev, "shipping_details", map[string]any{
+		"name": buyerName, "address": map[string]any{"line1": buyerStreet},
+	})
+	ev = sessionField(ev, "metadata", map[string]any{"note": buyerPhone})
+	body, header := signed(t, ev)
+	post := func() int {
+		t.Helper()
+		req := httptest.NewRequestWithContext(ctx, http.MethodPost,
+			"/webhooks/stripe", bytes.NewReader(body))
+		req.Header.Set("Stripe-Signature", header)
+		w := httptest.NewRecorder()
+		h.Webhook(w, req)
+		return w.Code
+	}
+	if code := post(); code != http.StatusOK {
+		t.Fatalf("Webhook() status = %d, want 200", code)
+	}
+
+	var stored []byte
+	if err := pool.QueryRow(ctx, `
+		SELECT payload FROM payment_webhook_events
+		WHERE provider = 'stripe' AND event_id = $1`, eventID).Scan(&stored); err != nil {
+		t.Fatalf("read the stored event: %v", err)
+	}
+	for _, personal := range []string{buyerEmail, buyerPhone, buyerName, buyerStreet} {
+		if strings.Contains(string(stored), personal) {
+			t.Errorf("the stored event still carries %q, which outlives the customer's "+
+				"account; it keeps: %s", personal, stored)
+		}
+	}
+
+	var kept struct {
+		ID   string `json:"id"`
+		Type string `json:"type"`
+		Data struct {
+			Object struct {
+				ID                string `json:"id"`
+				PaymentStatus     string `json:"payment_status"`
+				AmountTotal       int64  `json:"amount_total"`
+				ClientReferenceID string `json:"client_reference_id"`
+			} `json:"object"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(stored, &kept); err != nil {
+		t.Fatalf("decode the stored event: %v", err)
+	}
+	o := kept.Data.Object
+	if kept.ID != eventID || kept.Type != "checkout.session.completed" || o.ID != session ||
+		o.PaymentStatus != "paid" || o.AmountTotal != 45600 || o.ClientReferenceID != number {
+		t.Errorf("the stored event lost its evidence: %s", stored)
+	}
+
+	var status string
+	if err := pool.QueryRow(ctx,
+		`SELECT status FROM payments WHERE provider_ref = $1`, session).Scan(&status); err != nil {
+		t.Fatalf("read the payment: %v", err)
+	}
+	if status != "succeeded" {
+		t.Errorf("the payment is %q after its paid event, want succeeded", status)
+	}
+
+	if code := post(); code != http.StatusOK {
+		t.Fatalf("redelivered Webhook() status = %d, want 200", code)
+	}
+	var rows int
+	if err := pool.QueryRow(ctx,
+		`SELECT count(*) FROM payment_webhook_events WHERE event_id = $1`, eventID).
+		Scan(&rows); err != nil {
+		t.Fatalf("count the event: %v", err)
+	}
+	if rows != 1 {
+		t.Errorf("the redelivered event is recorded %d times, want once", rows)
+	}
+}
+
 // TestAnUnreadableKnownEventIsRecordedForAPerson drives the signature verifier,
 // handler switch and durable alarm together. The payment row is real and open,
 // so this cannot pass by accidentally taking the unattributed-capture branch.
