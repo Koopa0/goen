@@ -4802,9 +4802,9 @@ GRANT USAGE ON SCHEMA public TO store, reporting;
 GRANT SELECT ON ALL TABLES IN SCHEMA public TO store, reporting;
 GRANT INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO store;
 
--- reporting reads BUSINESS data, not everything. A table added later is swept in
--- by the blanket GRANT above and stays there silently, so
--- TestReportingCannotReadCredentialsOrPII asks per named table.
+-- reporting reads BUSINESS data, not everything. A table or column added later is
+-- swept in by the blanket GRANT above and stays there silently, so
+-- TestReportingCannotReadCredentialsOrPII asks of every column that can hold words.
 REVOKE SELECT ON
     sessions, password_reset_tokens, staff_totp_credentials, user_identities,
     order_private_data, payment_webhook_events, order_access_grants,
@@ -4816,6 +4816,21 @@ REVOKE SELECT ON
     invoice_operations,
     newsletter_subscribers, outbox_messages, stock_notifications
     FROM reporting;
+
+-- What a customer typed about an order or a return is theirs, and routinely
+-- carries a phone number or an address; the figures around it are the report.
+-- Named a column at a time, so a column added to either table stays unreadable
+-- until somebody decides it is business data.
+REVOKE SELECT ON orders, return_requests FROM reporting;
+GRANT SELECT (id, order_number, user_id, fulfillment_status, currency,
+              discount_cents, shipping_cents, tax_cents, shipping_version_id,
+              shipping_method_code, shipping_method_name, staff_note, locale,
+              placed_at, cancelled_at, completed_at, updated_at)
+    ON orders TO reporting;
+GRANT SELECT (id, order_id, requested_by_user_id, status, resolution,
+              goods_refund_cents, shipping_refund_cents, card_refund_cents,
+              credit_refund_cents, created_at, decided_at, before_shipment)
+    ON return_requests TO reporting;
 
 -- Tables whose integrity depends on going through a function; SELECT stays.
 -- INSERT is revoked with UPDATE and DELETE, or store writes a born-succeeded
