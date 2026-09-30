@@ -22,11 +22,11 @@ import (
 )
 
 // CartFinder is what account needs of the cart: the cart a request's cookie
-// names, so sign-in can adopt it, and expiring that cookie, so sign-out leaves
-// the browser no reference to the account's cart.
+// names, so sign-in can adopt it, and forgetting that cookie at sign-out, so the
+// browser keeps no reference to the account's cart.
 type CartFinder interface {
 	CartIDForRequest(ctx context.Context, r *http.Request) (uuid.UUID, bool)
-	ForgetCart(w http.ResponseWriter)
+	ForgetCart(w http.ResponseWriter, r *http.Request)
 }
 
 // Handler serves sign-in, registration and the customer's own pages.
@@ -256,7 +256,7 @@ func (h *Handler) SignOut(w http.ResponseWriter, r *http.Request) {
 	}
 	ClearSessionCookie(w, h.secure)
 	if h.carts != nil {
-		h.carts.ForgetCart(w)
+		h.carts.ForgetCart(w, r)
 	}
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }

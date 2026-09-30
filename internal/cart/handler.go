@@ -1384,7 +1384,7 @@ func (h *Handler) cartForWrite(w http.ResponseWriter, r *http.Request) (uuid.UUI
 	if err != nil {
 		return uuid.Nil, err
 	}
-	id, err := h.store.Create(r.Context(), token, signedInOwner(r))
+	id, err := h.store.Create(r.Context(), token, ownerOf(r))
 	if err != nil {
 		return uuid.Nil, err
 	}
@@ -1415,18 +1415,6 @@ func (h *Handler) lookupCart(ctx context.Context, r *http.Request) (id uuid.UUID
 		return uuid.Nil, false, stale
 	}
 	return accountCart, true, stale
-}
-
-func signedInOwner(r *http.Request) uuid.NullUUID {
-	u, ok := account.FromContext(r.Context())
-	if !ok {
-		return uuid.NullUUID{}
-	}
-	id, err := uuid.Parse(u.ID)
-	if err != nil {
-		return uuid.NullUUID{}
-	}
-	return uuid.NullUUID{UUID: id, Valid: true}
 }
 
 // backToProduct answers 303 to the product the form came from, carrying an
@@ -1492,10 +1480,26 @@ func (h *Handler) CartIDForRequest(ctx context.Context, r *http.Request) (uuid.U
 	return id, ok
 }
 
-// ForgetCart expires this browser's cart cookie, so a browser that signs out
-// keeps no reference to the account's cart for the next person at it.
-func (h *Handler) ForgetCart(w http.ResponseWriter) {
-	ClearCookie(w, h.secure)
+// ForgetCart expires this browser's cart cookie at sign-out unless it names a
+// guest cart no account owns. An account's cart must not stay reachable from
+// the browser for the next person at it. A guest cart is the browser's: when
+// sign-in could not adopt it the customer kept shopping in it, and the cookie
+// is the only way back to it.
+func (h *Handler) ForgetCart(w http.ResponseWriter, r *http.Request) {
+	token := ReadCookie(r, h.secure)
+	if token == "" {
+		return
+	}
+	// Asked on behalf of nobody, the lookup answers only for a cart no account
+	// owns. Anything else, a failed read included, forgets the cookie.
+	_, err := h.store.CartByToken(r.Context(), token, uuid.NullUUID{})
+	if err == nil {
+		return
+	}
+	if !errors.Is(err, ErrNotFound) && !errors.Is(err, ErrNotYourCart) {
+		h.log.ErrorContext(r.Context(), "read the cart at sign-out", "error", err)
+	}
+	clearCookie(w, h.secure)
 }
 
 // WithCount puts the visitor's cart size into the request context for the
@@ -1507,7 +1511,7 @@ func (h *Handler) WithCount(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id, ok, stale := h.lookupCart(r.Context(), r)
 		if stale {
-			h.ForgetCart(w)
+			clearCookie(w, h.secure)
 		}
 		if !ok {
 			next.ServeHTTP(w, r)

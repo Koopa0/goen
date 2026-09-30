@@ -36,7 +36,7 @@ var (
 	ErrNotFound = errors.New("cart: not found")
 	// ErrNotYourCart is a cart token naming a cart that belongs to an account
 	// other than the requester's, or to any account when nobody is signed in.
-	ErrNotYourCart = errors.New("cart: the cart belongs to another account")
+	ErrNotYourCart = errors.New("cart: the cart belongs to an account the requester is not signed in as")
 	// ErrUnavailable is a variant that cannot be added or ordered.
 	ErrUnavailable = errors.New("cart: variant unavailable")
 	// ErrCreditChanged means the customer's available store credit moved while
@@ -474,8 +474,8 @@ func SetCookie(w http.ResponseWriter, token string, secure bool) {
 	})
 }
 
-// ClearCookie expires the cart cookie.
-func ClearCookie(w http.ResponseWriter, secure bool) {
+// clearCookie expires the cart cookie.
+func clearCookie(w http.ResponseWriter, secure bool) {
 	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: dev-only opt-out, secure by default
 		Name:     cookieName(secure),
 		Value:    "",

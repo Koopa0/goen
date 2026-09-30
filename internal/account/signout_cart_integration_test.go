@@ -169,6 +169,66 @@ func TestAnAccountCartAnswersOnlyToItsAccount(t *testing.T) {
 	})
 }
 
+// TestSignOutLeavesAGuestCartWithTheBrowser is sign-in that did not adopt the
+// browser's guest cart: the customer is signed in and shopping in a cart no
+// account owns. That cart is the browser's, and the cookie the only way back to
+// it, so sign-out leaves the cookie where it forgets an account's.
+func TestSignOutLeavesAGuestCartWithTheBrowser(t *testing.T) {
+	ctx := t.Context()
+	appPool := accountStorePool(t, "account-guest-cart-kept")
+	carts := cart.NewHandler(cart.NewStore(appPool), slog.New(slog.DiscardHandler), false,
+		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}),
+		nil, nil)
+	h := account.NewHandler(account.NewStore(appPool), carts, slog.New(slog.DiscardHandler), false, nil)
+	serve := func(route http.HandlerFunc, req *http.Request) *httptest.ResponseRecorder {
+		rec := httptest.NewRecorder()
+		h.Authenticate(carts.WithCount(route)).ServeHTTP(rec, req)
+		return rec
+	}
+
+	variant := sellableVariant(t, ctx)
+	added := serve(carts.AddItem, cartForm(ctx, "/cart/items", url.Values{
+		"variant": {variant.String()}, "quantity": {"1"},
+	}))
+	guestToken := lastCartCookie(t, added).Value
+
+	// Registering without the cart cookie adopts nothing, which is the state a
+	// failed adoption leaves: a session, and a cookie naming an unowned cart.
+	registered := serve(h.Register, cartForm(ctx, "/register",
+		registration("guest-cart-kept-"+uuid.NewString()+"@example.com")))
+	if registered.Code != http.StatusSeeOther {
+		t.Fatalf("registration status = %d, want 303; body=%s", registered.Code, registered.Body.String())
+	}
+	var owner uuid.NullUUID
+	if err := pool.QueryRow(ctx, `SELECT user_id FROM carts WHERE token_hash = $1`,
+		cart.HashToken(guestToken)).Scan(&owner); err != nil {
+		t.Fatalf("read the guest cart: %v", err)
+	}
+	if owner.Valid {
+		t.Fatal("registration adopted the guest cart; the fixture proves nothing")
+	}
+
+	signOut := cartForm(ctx, "/signout", url.Values{})
+	signOut.AddCookie(sessionCookie(t, registered))
+	signOut.AddCookie(browserCart(guestToken))
+	signedOut := serve(h.SignOut, signOut)
+	if signedOut.Code != http.StatusSeeOther {
+		t.Fatalf("sign-out status = %d, want 303", signedOut.Code)
+	}
+	for _, c := range signedOut.Result().Cookies() {
+		if c.Name == "goen_cart" {
+			t.Errorf("sign-out set the cart cookie to %q (Max-Age %d); the browser's own "+
+				"guest cart would be lost", c.Value, c.MaxAge)
+		}
+	}
+
+	page := httptest.NewRequestWithContext(ctx, http.MethodGet, "/cart", http.NoBody)
+	page.AddCookie(browserCart(guestToken))
+	if q := cartLineQuantity(serve(carts.Page, page).Body.String(), variant); q != "1" {
+		t.Errorf("the signed-out browser's cart line quantity = %q, want 1", q)
+	}
+}
+
 const cartOwnerPassword = "a sufficiently long password"
 
 func registration(email string) url.Values {
