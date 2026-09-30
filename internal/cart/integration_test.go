@@ -155,6 +155,26 @@ func checkoutQuote(
 	couponCode string,
 ) cart.CheckoutQuoteID {
 	t.Helper()
+	facts := checkoutQuoteFacts(t, s, cartID, owner, shippingID, addr, couponCode)
+	id, err := facts.ID()
+	if err != nil {
+		t.Fatalf("build checkout quote: %v", err)
+	}
+	return id
+}
+
+// checkoutQuoteFacts is the quote checkoutQuote hashes, for a test that has to
+// change one fact of what the checkout rendered.
+func checkoutQuoteFacts(
+	t *testing.T,
+	s *cart.Store,
+	cartID uuid.UUID,
+	owner uuid.NullUUID,
+	shippingID uuid.UUID,
+	addr *cart.Address,
+	couponCode string,
+) cart.CheckoutQuote {
+	t.Helper()
 	view, err := s.View(t.Context(), cartID)
 	if err != nil {
 		t.Fatalf("read cart quote: %v", err)
@@ -196,7 +216,7 @@ func checkoutQuote(
 			UnitCents: line.UnitCents,
 		})
 	}
-	id, err := (cart.CheckoutQuote{
+	return cart.CheckoutQuote{
 		CartID:            cartID,
 		Lines:             lines,
 		ShippingVersionID: shippingID,
@@ -204,11 +224,7 @@ func checkoutQuote(
 		CouponCode:        cart.NormaliseCode(couponCode),
 		DiscountCents:     discount,
 		CreditCents:       min(balance, gross),
-	}).ID()
-	if err != nil {
-		t.Fatalf("build checkout quote: %v", err)
 	}
-	return id
 }
 
 func placeOrder(
