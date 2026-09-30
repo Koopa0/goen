@@ -4,9 +4,13 @@
 // defends nothing. It is a throttle and never a lockout — every key recovers on
 // its own — and its state is per process, so N replicas allow N times the rate.
 //
-// Every request costs a bounded amount of work under one mutex, whatever the
-// table holds: some keys are chosen by the client, so a client that can fill the
-// table must not also be able to make each of its misses walk it.
+// Every request runs under one mutex, and some keys are chosen by the client,
+// so a client that can fill the table must not also be able to make each of its
+// misses walk it. A hit, and a miss that makes room at capacity, cost the same
+// whatever the table holds. Dropping expired keys is amortised instead: one
+// miss per interval drops every key that has expired, which can be the whole
+// table, but each key is dropped once, and was paid for by the miss that
+// inserted it.
 package ratelimit
 
 import (
@@ -54,9 +58,8 @@ type Limiter struct {
 	// the expired keys and the eviction victim are at the back.
 	order     *list.List
 	lastSweep time.Time
-	// The two counters exist so a test can lock the amortisation guarantee.
-	sweeps  int // sweeps run
-	scanned int // buckets examined to make room
+	// sweeps counts the sweeps run, so a test can lock how rarely they run.
+	sweeps int
 }
 
 // bucketKey keeps bounded digests in a namespace separate from raw keys. The
@@ -126,7 +129,6 @@ func (l *Limiter) admitLocked(mapKey bucketKey, now time.Time) *bucket {
 	// is an expired one if any key is. One removal is sufficient: every previous
 	// insertion left len(buckets) <= MaxKeys.
 	if len(l.buckets) >= l.cfg.MaxKeys {
-		l.scanned++
 		l.dropLocked(l.order.Back())
 	}
 	// A short key may be a small substring of a large allocation. Clone it only
@@ -162,7 +164,6 @@ func clampKey(key string) bucketKey {
 func (l *Limiter) sweepLocked(now time.Time) {
 	l.sweeps++
 	for el := l.order.Back(); el != nil; el = l.order.Back() {
-		l.scanned++
 		if b, isBucket := el.Value.(*bucket); isBucket && now.Sub(b.seen) <= l.cfg.TTL {
 			return
 		}

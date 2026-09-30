@@ -4,10 +4,12 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/koopa0/goen/internal/i18n"
@@ -77,34 +79,18 @@ func TestTheKeyCountIsCapped(t *testing.T) {
 	}
 }
 
+// The empty string is a key like any other, and its stored form is the zero
+// bucketKey, so nothing may read it as "no key to evict".
 func TestTheOldestKeyMakesRoomAtTheCap(t *testing.T) {
-	// Use independent map seeds so a valid empty key is exercised in different
-	// traversal positions; it must never be mistaken for "no oldest key yet".
-	for attempt := range 100 {
-		l := New(Config{Every: time.Minute, Burst: 1, TTL: time.Hour, MaxKeys: 2})
-		l.Allow("")
-		l.Allow("newer")
+	l := New(Config{Every: time.Minute, Burst: 1, TTL: time.Hour, MaxKeys: 2})
+	l.Allow("")
+	l.Allow("newer")
 
-		// Explicit live timestamps avoid making this a clock-resolution test.
-		now := time.Now()
-		l.mu.Lock()
-		l.buckets[clampKey("")].seen = now.Add(-2 * time.Minute)
-		l.buckets[clampKey("newer")].seen = now.Add(-time.Minute)
-		l.mu.Unlock()
-
-		l.Allow("fresh")
-		l.mu.Lock()
-		_, keptEmpty := l.buckets[clampKey("")]
-		_, keptNewer := l.buckets[clampKey("newer")]
-		_, keptFresh := l.buckets[clampKey("fresh")]
-		gotSize := len(l.buckets)
-		l.mu.Unlock()
-
-		if keptEmpty || !keptNewer || !keptFresh || gotSize != 2 {
-			t.Fatalf("attempt %d after capacity eviction: empty=%v newer=%v "+
-				"fresh=%v size=%d; want the empty-string oldest key gone",
-				attempt, keptEmpty, keptNewer, keptFresh, gotSize)
-		}
+	l.Allow("fresh")
+	if held(t, l, "") || !held(t, l, "newer") || !held(t, l, "fresh") || bucketCount(l) != 2 {
+		t.Fatalf("after capacity eviction: empty=%v newer=%v fresh=%v size=%d; "+
+			"want the empty-string oldest key gone",
+			held(t, l, ""), held(t, l, "newer"), held(t, l, "fresh"), bucketCount(l))
 	}
 }
 
@@ -112,12 +98,6 @@ func TestAHitRefreshesTheOldestKey(t *testing.T) {
 	l := New(Config{Every: time.Minute, Burst: 1, TTL: time.Hour, MaxKeys: 2})
 	l.Allow("")
 	l.Allow("untouched")
-
-	now := time.Now()
-	l.mu.Lock()
-	l.buckets[clampKey("")].seen = now.Add(-2 * time.Minute)
-	l.buckets[clampKey("untouched")].seen = now.Add(-time.Minute)
-	l.mu.Unlock()
 
 	l.Allow("") // A hit makes the logical empty key the newest.
 	l.Allow("fresh")
@@ -228,37 +208,65 @@ func TestASweepDropsTheExpiredAndKeepsTheLive(t *testing.T) {
 	}
 }
 
-// The work a miss does at capacity must not depend on how many keys the table
-// holds. Some keys are chosen by the client, so a full table is something a
-// client can arrange, and every later miss then runs under the one mutex every
-// request needs.
-func TestAMissAtCapacityExaminesOneKeyWhateverTheTableSize(t *testing.T) {
-	const misses = 1000
-	for _, maxKeys := range []int{16, 4096} {
-		t.Run(strconv.Itoa(maxKeys), func(t *testing.T) {
-			l := New(Config{Every: time.Minute, Burst: 1, TTL: time.Hour, MaxKeys: maxKeys})
-			for i := range maxKeys {
-				l.Allow("fill-" + strconv.Itoa(i))
-			}
+// A miss at capacity must cost the same whatever the table holds. Some keys are
+// chosen by the client, so a full table is something a client can arrange, and
+// every later miss then runs under the one mutex every request needs.
+//
+// The cost is measured, not counted: a count the implementation keeps of its
+// own work is satisfied by a walk that keeps the count. The two tables differ
+// 256-fold in size, so a miss that walks the table costs hundreds of times more
+// in the large one, while a miss that makes room at the back costs within a
+// small factor in both, the large table's cache misses being that factor. The
+// bound sits far from both. The sizes are measured in turn, so load on the
+// machine falls on both, and each keeps its fastest batch, the one the
+// scheduler and the collector disturbed least; the race detector slows both
+// alike.
+func TestAMissAtCapacityCostsTheSameWhateverTheTableSize(t *testing.T) {
+	const (
+		small    = 256
+		large    = small * 256 // what cmd/goen configures
+		misses   = 256
+		rounds   = 9
+		maxRatio = 16
+	)
+	full := func(maxKeys int) *Limiter {
+		l := New(Config{Every: time.Minute, Burst: 1, TTL: time.Hour, MaxKeys: maxKeys})
+		for i := range maxKeys {
+			l.Allow("fill-" + strconv.Itoa(i))
+		}
+		return l
+	}
+	tables := []*Limiter{full(small), full(large)}
+	fastest := []time.Duration{time.Hour, time.Hour}
 
-			l.mu.Lock()
-			before := l.scanned
-			l.mu.Unlock()
-			for i := range misses {
-				l.Allow("miss-" + strconv.Itoa(i))
+	keys := make([]string, misses)
+	for round := range rounds {
+		for i, l := range tables {
+			for j := range keys {
+				keys[j] = "miss-" + strconv.Itoa(round) + "-" + strconv.Itoa(j)
 			}
-			l.mu.Lock()
-			examined := l.scanned - before
-			l.mu.Unlock()
+			runtime.GC()
+			start := time.Now()
+			for _, key := range keys {
+				l.Allow(key)
+			}
+			fastest[i] = min(fastest[i], time.Since(start))
+		}
+	}
 
-			if examined > misses {
-				t.Errorf("%d keys examined for %d misses at a capacity of %d, want at "+
-					"most one a miss — eviction is walking the table", examined, misses, maxKeys)
-			}
-			if got := bucketCount(l); got != maxKeys {
-				t.Errorf("%d keys held, want the capacity %d", got, maxKeys)
-			}
-		})
+	for i, maxKeys := range []int{small, large} {
+		if got := bucketCount(tables[i]); got != maxKeys {
+			t.Errorf("%d keys held, want the capacity %d", got, maxKeys)
+		}
+	}
+	perMiss := func(d time.Duration) time.Duration { return d / misses }
+	ratio := float64(fastest[1]) / float64(fastest[0])
+	t.Logf("a miss costs %v at a capacity of %d and %v at %d (%.1f times)",
+		perMiss(fastest[0]), small, perMiss(fastest[1]), large, ratio)
+	if ratio > maxRatio {
+		t.Errorf("a miss at a capacity of %d costs %v and at %d costs %v, %.0f times as "+
+			"much, want at most %d times — making room is walking the table",
+			small, perMiss(fastest[0]), large, perMiss(fastest[1]), ratio, maxRatio)
 	}
 }
 
@@ -383,6 +391,71 @@ func TestTheLimiterIsSafeUnderConcurrency(t *testing.T) {
 	// passing on absence alone.
 	if bucketCount(l) == 0 {
 		t.Error("no keys were recorded")
+	}
+}
+
+// At capacity every miss evicts, and after a quiet spell a miss sweeps, so here
+// both run while other goroutines wait on the mutex. The race detector is the
+// first assertion; the table's own invariants, checked after, are the second.
+// synctest, so the quiet spells cost no wall-clock time.
+func TestTheLimiterIsSafeUnderConcurrencyAtCapacity(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		const (
+			maxKeys = 8
+			ttl     = 8 * time.Millisecond
+		)
+		l := New(Config{Every: time.Millisecond, Burst: 2, TTL: ttl, MaxKeys: maxKeys})
+
+		var wg sync.WaitGroup
+		for g := range 32 {
+			wg.Go(func() {
+				for round := range 20 {
+					for k := range 4 {
+						l.Allow("g" + strconv.Itoa(g) + "-" + strconv.Itoa(k))
+					}
+					l.Allow("shared")
+					pause := ttl / 4
+					if round%5 == 4 {
+						pause = 2 * ttl // every key expires, and the next miss sweeps
+					}
+					time.Sleep(pause)
+				}
+			})
+		}
+		wg.Wait()
+
+		requireConsistent(t, l)
+		l.mu.Lock()
+		defer l.mu.Unlock()
+		if len(l.buckets) > maxKeys {
+			t.Errorf("%d keys held, want at most %d", len(l.buckets), maxKeys)
+		}
+		if l.sweeps < 4 {
+			t.Errorf("%d sweeps ran, want one after each quiet spell; the test never "+
+				"swept under contention", l.sweeps)
+		}
+	})
+}
+
+// requireConsistent fails the test unless the map and the eviction order name
+// the same buckets and the order runs from most to least recently seen: a
+// bucket out of place is evicted before a key that is older, or never.
+func requireConsistent(t *testing.T, l *Limiter) {
+	t.Helper()
+	requireAgreement(t, l)
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	var newer time.Time
+	for el := l.order.Front(); el != nil; el = el.Next() {
+		b, isBucket := el.Value.(*bucket)
+		if !isBucket || l.buckets[b.key] != b || b.place != el {
+			t.Fatalf("the order holds %v, which the map does not name at that place", el.Value)
+		}
+		if !newer.IsZero() && b.seen.After(newer) {
+			t.Fatalf("%q, seen at %v, sits behind a key seen earlier, at %v",
+				b.key.value, b.seen, newer)
+		}
+		newer = b.seen
 	}
 }
 
