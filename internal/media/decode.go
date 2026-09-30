@@ -100,13 +100,6 @@ const resizeBand = 64
 // fitLongestSide scales img down, keeping its aspect ratio, so that neither side
 // exceeds limit. An image already within it is returned as is: goen never
 // upscales.
-//
-// It scales the width across bands of rows, then the height across bands of
-// columns. x/image/draw's kernel scaler holds 32 bytes per destination column
-// per source row, which in one call is 485 MB for a 6320px square scaled to
-// 2400. Across a band whose other axis keeps its size, CatmullRom's weights are
-// exactly 1 and 0, so the bands meet without a seam and the scaler's buffer is
-// one band's worth.
 func fitLongestSide(img image.Image, limit int) image.Image {
 	return fitLongestSideWith(img, limit, draw.CatmullRom.NewScaler)
 }
@@ -119,9 +112,17 @@ func fitLongestSideWith(img image.Image, limit int, newScaler func(dw, dh, sw, s
 	if long <= limit {
 		return img
 	}
-	w := max(b.Dx()*limit/long, 1)
-	h := max(b.Dy()*limit/long, 1)
+	return scaleInBands(img, max(b.Dx()*limit/long, 1), max(b.Dy()*limit/long, 1), newScaler)
+}
 
+// scaleInBands draws img at w x h. It scales the width across bands of rows,
+// then the height across bands of columns. x/image/draw's kernel scaler holds
+// 32 bytes per destination column per source row, which in one call is 485 MB
+// for a 6320px square scaled to 2400. Across a band whose other axis keeps its
+// size, CatmullRom's weights are exactly 1 and 0, so the bands meet without a
+// seam and the scaler's buffer is one band's worth.
+func scaleInBands(img image.Image, w, h int, newScaler func(dw, dh, sw, sh int) draw.Scaler) *image.RGBA {
+	b := img.Bounds()
 	narrow := image.NewRGBA(image.Rect(0, 0, w, b.Dy()))
 	across := newScaler(w, resizeBand, b.Dx(), resizeBand)
 	for y := 0; y < b.Dy(); y += resizeBand {

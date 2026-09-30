@@ -16,6 +16,15 @@ import (
 // upscaling. It bounds nothing but the width it accepts; the renderer in
 // render.go is what stops it running once per request.
 func Resize(data []byte, contentType string, width int) ([]byte, error) {
+	return resizeWith(data, contentType, width, draw.CatmullRom.NewScaler)
+}
+
+// resizeWith is Resize over the scalers newScaler makes, which is
+// draw.CatmullRom.NewScaler in every wiring goen has.
+func resizeWith(
+	data []byte, contentType string, width int,
+	newScaler func(dw, dh, sw, sh int) draw.Scaler,
+) ([]byte, error) {
 	if !assets.KnownWidth(width) {
 		return nil, fmt.Errorf("media: %d is not a rendition goen offers", width)
 	}
@@ -30,8 +39,10 @@ func Resize(data []byte, contentType string, width int) ([]byte, error) {
 	}
 	height := max(b.Dy()*width/b.Dx(), 1)
 
-	dst := image.NewRGBA(image.Rect(0, 0, width, height))
-	draw.CatmullRom.Scale(dst, dst.Bounds(), src, b, draw.Over, nil)
+	// In bands, as an upload is: any visitor can ask for a rendition, and one
+	// scale over the whole image holds 32 bytes per rendition column per source
+	// row, 123 MB for a 2400px source at 1600.
+	dst := scaleInBands(src, width, height, newScaler)
 
 	var buf bytes.Buffer
 	if contentType == "image/png" {
