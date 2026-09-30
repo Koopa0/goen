@@ -1340,7 +1340,9 @@ func loyaltyReturn(t *testing.T, prices []int64, returnLine int) (
 		Type: "checkout.session.completed", ObjectRef: session,
 		Payload: []byte(`{"object":"event"}`),
 	}, func(ctx context.Context, tx *payment.WebhookTx) error {
-		_, captureErr := tx.Capture(ctx, payment.Capture{SessionID: session, AmountRecv: total})
+		_, captureErr := tx.Capture(ctx, payment.Capture{
+			SessionID: session, AmountRecv: total, Currency: payment.Currency,
+		})
 		return captureErr
 	})
 	if err != nil {

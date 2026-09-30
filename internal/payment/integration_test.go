@@ -102,9 +102,13 @@ func order(t *testing.T, totalCents int64) (number string, id uuid.UUID) {
 
 // captureThroughWebhook applies c through the same transaction boundary as a
 // real webhook. Every call uses a distinct event because these tests exercise
-// capture behavior, not webhook redelivery.
+// capture behavior, not webhook redelivery. A paid session always names its
+// currency, so a fixture that leaves it out means the one goen charges in.
 func captureThroughWebhook(t *testing.T, s *payment.Store, c payment.Capture) (string, error) {
 	t.Helper()
+	if c.Currency == "" {
+		c.Currency = payment.Currency
+	}
 	eventID := "evt_capture_test_" + uuid.NewString()
 	var orderNumber string
 	claimed, err := s.ProcessWebhook(t.Context(), &payment.WebhookEvent{
@@ -1177,7 +1181,7 @@ func TestWebhookAndOpenShareProviderReferenceLock(t *testing.T) {
 				Payload: []byte(`{"object":"event"}`),
 			}, func(ctx context.Context, tx *payment.WebhookTx) error {
 				got, captureErr := tx.Capture(ctx, payment.Capture{
-					SessionID: session, AmountRecv: 92000,
+					SessionID: session, AmountRecv: 92000, Currency: payment.Currency,
 				})
 				if captureErr != nil {
 					return captureErr
@@ -4571,7 +4575,9 @@ func TestMoneyForACancelledOrderLeavesSomethingToActOn(t *testing.T) {
 		ID: eventID, Type: "checkout.session.completed", ObjectRef: session,
 		Payload: []byte(`{"probe":true}`),
 	}, func(ctx context.Context, tx *payment.WebhookTx) error {
-		_, captureErr := tx.Capture(ctx, payment.Capture{SessionID: session, AmountRecv: 77700})
+		_, captureErr := tx.Capture(ctx, payment.Capture{
+			SessionID: session, AmountRecv: 77700, Currency: payment.Currency,
+		})
 		if !errors.Is(captureErr, payment.ErrOrderCancelled) {
 			return captureErr
 		}

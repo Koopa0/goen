@@ -310,7 +310,7 @@ func CaptureFrom(ev *stripe.Event) (Capture, bool) {
 	if !ValidStripeID(sess.ID) || sess.AmountTotal <= 0 {
 		return Capture{}, false
 	}
-	c := Capture{SessionID: sess.ID, AmountRecv: sess.AmountTotal}
+	c := Capture{SessionID: sess.ID, AmountRecv: sess.AmountTotal, Currency: string(sess.Currency)}
 	if pi := sess.PaymentIntent; pi != nil && pi.LatestCharge != nil {
 		if d := pi.LatestCharge.PaymentMethodDetails; d != nil && d.Card != nil {
 			c.CardBrand = string(d.Card.Brand)
