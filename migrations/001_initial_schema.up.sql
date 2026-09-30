@@ -8988,7 +8988,11 @@ CREATE TABLE return_eligibility_assessments (
     CONSTRAINT return_eligibility_assessments_assessor_fk
         FOREIGN KEY (assessed_by) REFERENCES users (id) ON DELETE RESTRICT,
     CONSTRAINT return_eligibility_assessments_version_key
-        UNIQUE (return_request_id, version)
+        UNIQUE (return_request_id, version),
+    -- Referenced by the facts' composite foreign key, which is what keeps a
+    -- fact on the order and return of the assessment it is filed under.
+    CONSTRAINT return_eligibility_assessments_return_key
+        UNIQUE (id, order_id, return_request_id)
 );
 
 CREATE INDEX return_eligibility_assessments_request_idx
@@ -9023,11 +9027,20 @@ CREATE TABLE return_eligibility_facts (
     CONSTRAINT return_eligibility_facts_line_fk
         FOREIGN KEY (return_request_id, order_line_id)
         REFERENCES return_request_lines (return_request_id, order_line_id)
+        ON DELETE CASCADE,
+    -- admin inserts facts directly and they are read back by assessment_id
+    -- alone, as the evidence for that return's 消保法 §19 decision. Without this
+    -- a line of one return could be filed as evidence under another's.
+    CONSTRAINT return_eligibility_facts_assessment_fk
+        FOREIGN KEY (assessment_id, order_id, return_request_id)
+        REFERENCES return_eligibility_assessments (id, order_id, return_request_id)
         ON DELETE CASCADE
 );
 
 CREATE INDEX return_eligibility_facts_line_idx
     ON return_eligibility_facts (return_request_id, order_line_id);
+CREATE INDEX return_eligibility_facts_assessment_fk_idx
+    ON return_eligibility_facts (assessment_id, order_id, return_request_id);
 
 -- These tables are created after the blanket ALL TABLES grants. Admin writes
 -- assessments; storefront and reporting may read but never write.

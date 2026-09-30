@@ -6,6 +6,7 @@ package db_test
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 	"strings"
@@ -130,6 +131,7 @@ var expectedForeignKeys = map[string]bool{
 	"return_eligibility_assessments_request_fk":   true,
 	"return_eligibility_assessments_assessor_fk":  true,
 	"return_eligibility_facts_assessment_id_fkey": true,
+	"return_eligibility_facts_assessment_fk":      true,
 	"return_eligibility_facts_line_fk":            true,
 	"sale_campaign_products_campaign_id_fkey":     true,
 	"sale_campaign_products_product_id_fkey":      true,
@@ -236,5 +238,63 @@ func TestEveryForeignKeyIsIndexed(t *testing.T) {
 	}
 	if len(missing) > 0 {
 		t.Errorf("foreign keys with no index to support them:\n  %s", strings.Join(missing, "\n  "))
+	}
+}
+
+// TestAnEligibilityFactStaysWithItsAssessment files facts as admin, which holds
+// INSERT on the table directly. A fact is read back by assessment_id alone, as
+// evidence for that return's decision, so one naming another order or another
+// return's line must be refused rather than read as the wrong return's evidence.
+func TestAnEligibilityFactStaysWithItsAssessment(t *testing.T) {
+	const (
+		// R1 on the paid fixture order, with its shipped line, assessed once. R1 is
+		// then decided so the same order can open R2 on the same line.
+		assessed = `
+			INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity)
+			VALUES ('66666666-6666-4666-8666-666666666666', '88880001-0000-4000-8000-000000000000',
+			        '66660003-0000-4000-8000-000000000000', 1);
+			INSERT INTO return_eligibility_assessments (id, order_id, return_request_id, version, assessed_by, basis)
+			VALUES ('ae030001-0000-4000-8000-000000000001', '66666666-6666-4666-8666-666666666666',
+			        '88880001-0000-4000-8000-000000000000', 1, '55555555-5555-4555-8555-555555555555', 'saw it');
+			UPDATE return_requests SET status = 'rejected', decided_at = now()
+			WHERE id = '88880001-0000-4000-8000-000000000000';
+			INSERT INTO return_requests (id, order_id, reason)
+			VALUES ('88880002-0000-4000-8000-000000000000', '66666666-6666-4666-8666-666666666666', '');
+			INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity)
+			VALUES ('66666666-6666-4666-8666-666666666666', '88880002-0000-4000-8000-000000000000',
+			        '66660003-0000-4000-8000-000000000000', 1);
+			SET LOCAL ROLE admin;
+		`
+		file = `
+			INSERT INTO return_eligibility_facts
+			    (assessment_id, order_id, return_request_id, order_line_id, requested_at, policy_window)
+			VALUES ('ae030001-0000-4000-8000-000000000001', '%s', '%s',
+			        '66660003-0000-4000-8000-000000000000', now(), 'undelivered');`
+		orderA   = "66666666-6666-4666-8666-666666666666"
+		orderB   = "6666aaaa-6666-4666-8666-666666666666"
+		returnR1 = "88880001-0000-4000-8000-000000000000"
+		returnR2 = "88880002-0000-4000-8000-000000000000"
+	)
+
+	for _, tc := range []struct{ name, order, request string }{
+		{"under another order", orderB, returnR1},
+		{"another return's line", orderA, returnR2},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := run(t, assessed+fmt.Sprintf(file, tc.order, tc.request))
+			if err == nil {
+				t.Fatal("the fact was filed under an assessment of a different return")
+			}
+			if code, name := constraintViolation(err); code != "23503" ||
+				name != "return_eligibility_facts_assessment_fk" {
+				t.Fatalf("refused by SQLSTATE %s constraint %q, want 23503/return_eligibility_facts_assessment_fk: %v",
+					code, name, err)
+			}
+		})
+	}
+
+	// The neighbour: the assessment's own order, return and line.
+	if err := run(t, assessed+fmt.Sprintf(file, orderA, returnR1)); err != nil {
+		t.Fatalf("a fact for the assessed return's own line was refused: %v", err)
 	}
 }
