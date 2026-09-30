@@ -444,7 +444,7 @@ func TestInventoryConstraintIsReportedAsSoldOut(t *testing.T) {
 		t.Fatalf("add last unit: %v", err)
 	}
 
-	blockOrder := commitBareOrder(t)
+	blockOrder := commitBareOrder(t, vid)
 	blocker, err := pool.Begin(ctx)
 	if err != nil {
 		t.Fatalf("begin blocker: %v", err)
@@ -481,7 +481,7 @@ func TestInventoryConstraintIsReportedAsSoldOut(t *testing.T) {
 	// name, so the PgError itself is verified through the same production door.
 	_, namedErr := pool.Exec(ctx,
 		`SELECT hold_inventory($1, $2, 1, interval '30 minutes', $3)`,
-		commitBareOrder(t), vid, "prove-empty:"+vid.String())
+		commitBareOrder(t, vid), vid, "prove-empty:"+vid.String())
 	pgErr, ok := errors.AsType[*pgconn.PgError](namedErr)
 	if !ok || pgErr.ConstraintName != "inventory_never_negative" {
 		t.Fatalf("exhausted fixture was refused by %v, want inventory_never_negative", namedErr)
@@ -2356,8 +2356,8 @@ func TestTwoOrdersCannotTakeTheSameLastUnit(t *testing.T) {
 		t.Fatalf("fixture: %v", err)
 	}
 
-	order1 := commitBareOrder(t)
-	order2 := commitBareOrder(t)
+	order1 := commitBareOrder(t, vid)
+	order2 := commitBareOrder(t, vid)
 
 	tx1, err := pool.Begin(ctx)
 	if err != nil {
@@ -2416,8 +2416,10 @@ func TestTwoOrdersCannotTakeTheSameLastUnit(t *testing.T) {
 	}
 }
 
-// commitBareOrder writes the minimum an order needs to exist, and commits it.
-func commitBareOrder(t *testing.T) uuid.UUID {
+// commitBareOrder writes the minimum an order needs to exist, one of vid, and
+// commits it. The line is what lets the order hold vid: hold_inventory holds
+// nothing an order's own lines do not carry.
+func commitBareOrder(t *testing.T, vid uuid.UUID) uuid.UUID {
 	t.Helper()
 	ctx := t.Context()
 	tx, err := pool.Begin(ctx)
@@ -2435,8 +2437,10 @@ func commitBareOrder(t *testing.T) uuid.UUID {
 		t.Fatalf("create order: %v", err)
 	}
 	if _, err := tx.Exec(ctx, `
-		INSERT INTO order_lines (order_id, sku, product_name, unit_price_cents, quantity)
-		VALUES ($1, 'RACE-SKU', '測試', 100000, 1)`, id); err != nil {
+		INSERT INTO order_lines (order_id, variant_id, sku, product_name, unit_price_cents, quantity)
+		SELECT $1, pv.id, pv.sku, p.name, 100000, 1
+		FROM product_variants pv JOIN products p ON p.id = pv.product_id
+		WHERE pv.id = $2`, id, vid); err != nil {
 		t.Fatalf("create line: %v", err)
 	}
 	if _, err := tx.Exec(ctx, `

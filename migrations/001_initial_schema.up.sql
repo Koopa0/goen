@@ -1052,6 +1052,8 @@ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 DECLARE
     reservation_id uuid;
     order_status text;
+    ordered integer;
+    already_held integer;
 BEGIN
     IF p_quantity <= 0 THEN
         RAISE EXCEPTION 'a hold must be for a positive quantity'
@@ -1075,6 +1077,22 @@ BEGIN
     IF order_status <> 'pending' THEN
         RAISE EXCEPTION 'order % is % and cannot take a hold', p_order_id, order_status
             USING ERRCODE = 'check_violation', CONSTRAINT = 'inventory_hold_needs_pending';
+    END IF;
+
+    -- The order's own lines bound what it may hold. Without this, any pending
+    -- order id store can name takes any variant off sale for the hold window.
+    -- Lines and holds are both written under the order lock taken above, so
+    -- neither sum can move before the insert below. A consumed hold left the
+    -- shelf for this order as well; only a released one came back.
+    SELECT coalesce(sum(quantity), 0) INTO ordered
+    FROM order_lines WHERE order_id = p_order_id AND variant_id = p_variant_id;
+    SELECT coalesce(sum(quantity), 0) INTO already_held
+    FROM inventory_reservations
+    WHERE order_id = p_order_id AND variant_id = p_variant_id AND state <> 'released';
+    IF p_quantity > ordered - already_held THEN
+        RAISE EXCEPTION 'order % carries % of variant % and holds %; % more exceeds its lines',
+            p_order_id, ordered, p_variant_id, already_held, p_quantity
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'inventory_hold_within_order_lines';
     END IF;
 
     -- The idempotency key is the CALLER's: a retry of the same attempt is a
@@ -7590,11 +7608,20 @@ DECLARE
     used integer;
     used_by_customer integer;
     redemption_id uuid;
+    order_owner uuid;
 BEGIN
     SELECT * INTO c FROM coupons WHERE id = p_coupon_id FOR UPDATE;
     IF NOT FOUND THEN
         RAISE EXCEPTION 'no such coupon'
             USING ERRCODE = 'check_violation', CONSTRAINT = 'coupon_exists';
+    END IF;
+
+    -- The customer is the order's, never the caller's: naming an account's
+    -- order as a guest's would skip the per-customer count below.
+    SELECT user_id INTO order_owner FROM orders WHERE id = p_order_id;
+    IF NOT FOUND OR p_user_id IS DISTINCT FROM order_owner THEN
+        RAISE EXCEPTION 'redemption on order % must name its owner', p_order_id
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'coupon_redemption_order_owner';
     END IF;
 
     IF NOT c.is_active

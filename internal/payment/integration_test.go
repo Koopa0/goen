@@ -1456,14 +1456,29 @@ func TestHoldAdmissionUsesTheDatabaseTransactionClock(t *testing.T) {
 	}
 }
 
-// hold reserves one unit of the nth-largest-stock variant for an order.
+// hold reserves one unit of the nth-largest-stock variant for an order. The
+// order first gets a line carrying that variant, because hold_inventory holds
+// nothing an order's own lines do not; the line is free, so what the order
+// owes, which every session here is priced from, does not move.
 func hold(t *testing.T, orderID uuid.UUID, nth int, forDuration time.Duration, key string) time.Time {
 	t.Helper()
+	var variantID uuid.UUID
+	if err := pool.QueryRow(t.Context(), `
+		SELECT id FROM product_variants ORDER BY stock_quantity DESC, id LIMIT 1 OFFSET $1`,
+		nth).Scan(&variantID); err != nil {
+		t.Fatalf("pick a variant to hold: %v", err)
+	}
+	if _, err := pool.Exec(t.Context(), `
+		INSERT INTO order_lines (order_id, variant_id, sku, product_name, unit_price_cents, quantity, position)
+		SELECT $1, pv.id, pv.sku, p.name, 0, 1,
+		       (SELECT max(position) + 1 FROM order_lines WHERE order_id = $1)
+		FROM product_variants pv JOIN products p ON p.id = pv.product_id
+		WHERE pv.id = $2`, orderID, variantID); err != nil {
+		t.Fatalf("put the held variant on the order: %v", err)
+	}
 	var reservationID uuid.UUID
 	if err := pool.QueryRow(t.Context(), `
-		SELECT hold_inventory($1,
-			(SELECT id FROM product_variants ORDER BY stock_quantity DESC, id LIMIT 1 OFFSET $2),
-			1, $3::interval, $4)`, orderID, nth, pgtype.Interval{
+		SELECT hold_inventory($1, $2, 1, $3::interval, $4)`, orderID, variantID, pgtype.Interval{
 		Microseconds: int64(forDuration / time.Microsecond), Valid: true,
 	}, key).Scan(&reservationID); err != nil {
 		t.Fatalf("hold stock: %v", err)

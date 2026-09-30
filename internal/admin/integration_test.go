@@ -6935,11 +6935,22 @@ func TestTheBackOfficeSeesTheSystemCancelAtThePaymentDeadline(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
 	number := placeUnpaidOrder(t)
+	// hold_inventory holds only what the order's own lines carry.
 	if _, err := pool.Exec(ctx, `
-		SELECT hold_inventory(o.id,
-			(SELECT id FROM product_variants ORDER BY stock_quantity DESC, id LIMIT 1),
+		INSERT INTO order_lines (order_id, variant_id, sku, product_name, unit_price_cents, quantity, position)
+		SELECT o.id, pv.id, pv.sku, p.name, 0, 1, 1
+		FROM orders o,
+		     (SELECT id, sku, product_id FROM product_variants
+		      ORDER BY stock_quantity DESC, id LIMIT 1) pv
+		JOIN products p ON p.id = pv.product_id
+		WHERE o.order_number = $1`, number); err != nil {
+		t.Fatalf("put the held variant on the order: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		SELECT hold_inventory(ol.order_id, ol.variant_id,
 			1, interval '30 minutes', 'deadline-actor:' || o.order_number)
-		FROM orders o WHERE o.order_number = $1`, number); err != nil {
+		FROM orders o JOIN order_lines ol ON ol.order_id = o.id AND ol.variant_id IS NOT NULL
+		WHERE o.order_number = $1`, number); err != nil {
 		t.Fatalf("hold stock: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `
