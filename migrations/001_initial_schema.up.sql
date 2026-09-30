@@ -1762,10 +1762,14 @@ CREATE TABLE orders (
     -- notice from a back-office click, with no visitor present to read.
     locale               text NOT NULL DEFAULT 'zh-Hant',
     placed_at            timestamptz NOT NULL DEFAULT now(),
-    -- The transaction that placed the order, which order_lines_written_while_placing
-    -- is the only reader of. No role is granted the column, so this DEFAULT is its
-    -- only writer.
+    -- The transaction that placed the order, and when it began, which
+    -- order_lines_written_while_placing is the only reader of. The id alone is
+    -- not enough: a dump restored into another cluster keeps it, and that
+    -- cluster's counter reaches it again, while no later transaction begins at
+    -- the same instant. No role is granted either column, so these DEFAULTs are
+    -- their only writers.
     placed_in_xact       bigint NOT NULL DEFAULT pg_current_xact_id()::text::bigint,
+    placed_in_xact_began timestamptz NOT NULL DEFAULT transaction_timestamp(),
     cancelled_at         timestamptz,
     completed_at         timestamptz,
     updated_at           timestamptz NOT NULL DEFAULT now(),
@@ -2076,6 +2080,7 @@ BEGIN
         SELECT 1 FROM orders o
         WHERE o.id = NEW.order_id
           AND o.placed_in_xact = pg_current_xact_id()::text::bigint
+          AND o.placed_in_xact_began = transaction_timestamp()
     ) THEN
         RAISE EXCEPTION 'order % was placed by another transaction and takes no more lines',
             NEW.order_id

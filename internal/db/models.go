@@ -358,6 +358,7 @@ type Order struct {
 	Locale             string
 	PlacedAt           time.Time
 	PlacedInXact       int64
+	PlacedInXactBegan  time.Time
 	CancelledAt        pgtype.Timestamptz
 	CompletedAt        pgtype.Timestamptz
 	UpdatedAt          time.Time
