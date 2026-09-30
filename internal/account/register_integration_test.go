@@ -25,6 +25,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/ratelimit"
+	"github.com/koopa0/goen/internal/web"
 )
 
 // followUpRegistrations delivers every queued registration naming addr's
@@ -306,18 +307,29 @@ func TestARegistrationLinkWithoutItsPasswordProvesNothing(t *testing.T) {
 	})
 
 	// Answered as sign-in answers a wrong password, and the link survives it.
+	// The refusal carries the still-live token back into the form, so it is
+	// served through the compressor the router puts in front and must pass it
+	// by.
 	for name, password := range map[string]string{
 		"no password":      "",
 		"a wrong password": "a password somebody else might guess",
 	} {
 		t.Run(name, func(t *testing.T) {
-			res := httptest.NewRecorder()
-			h.CompleteRegistration(res, cartForm(ctx, "/register/complete", url.Values{
+			req := cartForm(ctx, "/register/complete", url.Values{
 				"token": {token}, "next": {"/account"}, "password": {password},
-			}))
+			})
+			req.Header.Set("Accept-Encoding", "gzip")
+			res := httptest.NewRecorder()
+			web.Compress(http.HandlerFunc(h.CompleteRegistration)).ServeHTTP(res, req)
 			stillUnproved(t, res)
 			if res.Code != http.StatusUnprocessableEntity {
 				t.Errorf("answered %d, want 422", res.Code)
+			}
+			if got := res.Header().Get("Content-Encoding"); got != "" {
+				t.Errorf("the refusal carrying the live token is sent with Content-Encoding %q, want identity", got)
+			}
+			if !strings.Contains(res.Body.String(), token) {
+				t.Error("the refusal does not carry the live token back; the check above proves nothing")
 			}
 			if !strings.Contains(res.Body.String(), html.EscapeString(i18n.T(ctx, i18n.KeyBadCredentials))) {
 				t.Error("the refusal is not sign-in's refusal of a wrong password")
