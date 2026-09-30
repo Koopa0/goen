@@ -5005,18 +5005,23 @@ REVOKE SELECT ON
 
 -- What a customer typed about an order or a return is theirs, and routinely
 -- carries a phone number or an address; the figures around it are the report.
--- Named a column at a time, so a column added to either table stays unreadable
--- until somebody decides it is business data.
-REVOKE SELECT ON orders, return_requests FROM reporting;
+-- What staff type about an order is the same kind of text: that the customer
+-- rang from a number, or wants the parcel left at the back door.
+-- Named a column at a time, so a column added to any of these tables stays
+-- unreadable until somebody decides it is business data.
+REVOKE SELECT ON orders, return_requests, order_events FROM reporting;
 GRANT SELECT (id, order_number, user_id, fulfillment_status, currency,
               discount_cents, shipping_cents, tax_cents, shipping_version_id,
-              shipping_method_code, shipping_method_name, staff_note, locale,
+              shipping_method_code, shipping_method_name, locale,
               placed_at, cancelled_at, completed_at, updated_at)
     ON orders TO reporting;
 GRANT SELECT (id, order_id, requested_by_user_id, status, resolution,
               goods_refund_cents, shipping_refund_cents, card_refund_cents,
               credit_refund_cents, created_at, decided_at, before_shipment)
     ON return_requests TO reporting;
+GRANT SELECT (id, order_id, kind, actor_user_id, by_system, occurred_at,
+              return_request_id)
+    ON order_events TO reporting;
 
 -- Tables whose integrity depends on going through a function; SELECT stays.
 -- INSERT is revoked with UPDATE and DELETE, or store writes a born-succeeded
