@@ -57,6 +57,13 @@ const EraseSignInWindow = 15 * time.Minute
 // SessionTTL is how long a session lives.
 const SessionTTL = 14 * 24 * 60 * 60
 
+// sessionCookieMaxAge is how long a browser presents a session's cookie: past
+// the session itself, for as long as it can hold proof of an order placed
+// signed in, which cart keeps 30 days from the last order. The cookie of an
+// ended session grants nothing, and presenting it is the only way Authenticate
+// learns to take that proof away.
+const sessionCookieMaxAge = SessionTTL + 30*24*60*60
+
 // ResetTTL is how long a password-reset link is good for.
 const ResetTTL = 60 * 60
 
@@ -170,7 +177,7 @@ func SetSessionCookie(w http.ResponseWriter, token string, secure bool) {
 		Name:     sessionCookieName(secure),
 		Value:    token,
 		Path:     "/",
-		MaxAge:   SessionTTL,
+		MaxAge:   sessionCookieMaxAge,
 		HttpOnly: true,
 		Secure:   secure,
 		SameSite: http.SameSiteStrictMode,

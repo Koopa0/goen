@@ -282,43 +282,54 @@ func (p *placedOrders) forgotten(step string, rec *httptest.ResponseRecorder) {
 	}
 }
 
-// TestASessionThatEndsWithoutSignOutEndsTheBrowsersAccessToItsOrders: a session
-// expires, or is ended from another device, and its browser never signs out.
-// The next request that brings its cookie finds it gone, and the browser keeps
-// no more of the orders than sign-out would leave it.
-func TestASessionThatEndsWithoutSignOutEndsTheBrowsersAccessToItsOrders(t *testing.T) {
-	for name, end := range map[string]func(*testing.T, *placedOrders, *http.Cookie){
-		"ended from another device": func(t *testing.T, p *placedOrders, session *http.Cookie) {
-			t.Helper()
-			if err := p.accounts.EndSession(t.Context(), session.Value); err != nil {
-				t.Fatalf("end the session: %v", err)
-			}
-		},
-		"expired": func(t *testing.T, _ *placedOrders, session *http.Cookie) {
-			t.Helper()
-			if _, err := pool.Exec(t.Context(), `
-				UPDATE sessions SET created_at = now() - interval '15 days',
-				                    expires_at = now() - interval '1 second'
-				WHERE token_hash = $1`,
-				account.HashToken(session.Value)); err != nil {
-				t.Fatalf("expire the session: %v", err)
-			}
-		},
-	} {
-		t.Run(name, func(t *testing.T) {
-			p := newPlacedOrders(t, "session-end")
-			session := p.signIn()
-			end(t, p, session)
-
-			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody)
-			req.AddCookie(session)
-			req.AddCookie(p.placed)
-			p.forgotten("the next request", p.serve(func(w http.ResponseWriter, _ *http.Request) {
-				w.WriteHeader(http.StatusNoContent)
-			}, req))
-		})
+// TestASessionEndedFromAnotherDeviceEndsTheBrowsersAccessToItsOrders: the
+// browser never signs out, and the next request that brings its cookie finds
+// the session gone. The browser keeps no more of the orders than sign-out
+// would leave it.
+func TestASessionEndedFromAnotherDeviceEndsTheBrowsersAccessToItsOrders(t *testing.T) {
+	p := newPlacedOrders(t, "session-end")
+	session := p.signIn()
+	if err := p.accounts.EndSession(t.Context(), session.Value); err != nil {
+		t.Fatalf("end the session: %v", err)
 	}
+
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody)
+	req.AddCookie(session)
+	req.AddCookie(p.placed)
+	p.forgotten("the next request", p.serve(noContent, req))
 }
+
+// TestASessionThatExpiresEndsTheBrowsersAccessToItsOrders is the browser a
+// session expires in, which sends a cookie only while its Max-Age lasts. An
+// order placed at the session's last moment keeps its proof for the placed
+// cookie's whole life after that, and until that proof's last day the browser
+// must still present the session's cookie: nothing else tells goen the session
+// it was proof for has ended.
+func TestASessionThatExpiresEndsTheBrowsersAccessToItsOrders(t *testing.T) {
+	ctx := t.Context()
+	p := newPlacedOrders(t, "session-expiry")
+	signedIn := httptest.NewRecorder()
+	p.h.SignIn(signedIn, cartForm(ctx, "/signin", url.Values{
+		"email": {p.u.Email}, "password": {"a sufficiently long password"}, "next": {"/account"},
+	}))
+	session := sessionCookie(t, signedIn)
+	if _, err := pool.Exec(ctx, `
+		UPDATE sessions SET created_at = now() - interval '15 days',
+		                    expires_at = now() - interval '1 second'
+		WHERE token_hash = $1`, account.HashToken(session.Value)); err != nil {
+		t.Fatalf("expire the session: %v", err)
+	}
+
+	proofLastSent := time.Duration(account.SessionTTL+p.placed.MaxAge)*time.Second - time.Second
+	req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/", http.NoBody)
+	if time.Duration(session.MaxAge)*time.Second > proofLastSent {
+		req.AddCookie(&http.Cookie{Name: session.Name, Value: session.Value}) //nolint:gosec // G124: the name and value a browser sends back
+	}
+	req.AddCookie(p.placed)
+	p.forgotten("on the last day the placed cookie is sent", p.serve(noContent, req))
+}
+
+func noContent(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) }
 
 // TestAStaleSessionAtErasureEndsTheBrowsersAccessToItsOrders: erasure asks a
 // session older than its window to sign in again and ends it first, which is a
@@ -347,7 +358,7 @@ func TestABrowserThatNeverSignedInKeepsItsOrders(t *testing.T) {
 	p := newPlacedOrders(t, "never-signed-in")
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody)
 	req.AddCookie(p.placed)
-	rec := p.serve(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) }, req)
+	rec := p.serve(noContent, req)
 	for _, c := range rec.Result().Cookies() {
 		if c.Name == "goen_placed" {
 			t.Errorf("a browser that never signed in was sent %s (Max-Age %d)", c.Name, c.MaxAge)
