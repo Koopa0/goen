@@ -194,6 +194,141 @@ func TestErasureLeavesNoCustomerDetailsInPaymentEvents(t *testing.T) {
 	}
 }
 
+// TestErasureReachesTheGuestOrdersOfAProvedAddress holds erase_user to treating an
+// order the proved address placed as a guest the way it treats the account's own:
+// delivery details, the customer's note and every browser's access go, and the
+// order stays as the financial record it is. The controls are the three orders the
+// same address must NOT reach.
+func TestErasureReachesTheGuestOrdersOfAProvedAddress(t *testing.T) {
+	ctx := t.Context()
+	tx, err := schemaPool(t).Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
+	if _, err := tx.Exec(ctx, fixtures); err != nil {
+		t.Fatalf("fixtures: %v", err)
+	}
+
+	const (
+		ming     = "55555555-5555-4555-8555-555555555555"
+		hua      = "5555aaaa-5555-4555-8555-555555555555"
+		unproved = "11110090-0000-4000-8000-000000000001"
+		// Placed as a guest under Ming's address, in another case.
+		guestOrder = "11110091-0000-4000-8000-000000000001"
+		// Hua's own order, delivered to Ming's address: it is Hua's to erase.
+		huaOrder = "11110091-0000-4000-8000-000000000002"
+		// A guest order under an address its account never proved.
+		unprovedOrder = "11110091-0000-4000-8000-000000000003"
+		// The fixture's guest order, under somebody else's address entirely.
+		otherGuestOrder = "6666aaaa-6666-4666-8666-666666666666"
+	)
+	if _, err := tx.Exec(ctx, `
+		UPDATE users SET email_verified_at = now() WHERE id = $1;`, ming); err != nil {
+		t.Fatalf("prove Ming's mailbox: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO users (id, email, full_name) VALUES ($1, 'unproved@example.com', '未驗證');`,
+		unproved); err != nil {
+		t.Fatalf("create the unproved account: %v", err)
+	}
+	for _, o := range []struct{ id, number, owner, email string }{
+		{guestOrder, "GO-260721-000981", "", "MING@example.com"},
+		{huaOrder, "GO-260721-000982", hua, "ming@example.com"},
+		{unprovedOrder, "GO-260721-000983", "", "unproved@example.com"},
+	} {
+		for _, stmt := range []struct {
+			sql  string
+			args []any
+		}{
+			{`INSERT INTO orders (id, order_number, user_id, shipping_version_id,
+			                      shipping_method_code, shipping_method_name, customer_note)
+			  VALUES ($1, $2, nullif($3, '')::uuid, 'ffff0002-0000-4000-8000-000000000000',
+			          'home_delivery', '宅配到府', '請撥 0912345678 找王小明')`,
+				[]any{o.id, o.number, o.owner}},
+			{`INSERT INTO order_lines (order_id, sku, product_name, unit_price_cents, quantity)
+			  VALUES ($1, 'GUEST-ERASE', '訪客訂單商品', 1000, 1)`, []any{o.id}},
+			{`INSERT INTO order_private_data (order_id, email, recipient_name, phone,
+			                                  postal_code, city, district, street)
+			  VALUES ($1, $2, '王小明', '0912345678', '110', '台北市', '信義區', '松高路 68 號')`,
+				[]any{o.id, o.email}},
+			{`INSERT INTO order_access_grants (digest, order_id)
+			  VALUES (sha256(convert_to($1::uuid::text, 'UTF8')), $1)`, []any{o.id}},
+		} {
+			if _, err := tx.Exec(ctx, stmt.sql, stmt.args...); err != nil {
+				t.Fatalf("place order %s: %v", o.number, err)
+			}
+		}
+	}
+
+	for _, user := range []string{ming, unproved} {
+		if _, err := tx.Exec(ctx, `SELECT erase_user($1)`, user); err != nil {
+			t.Fatalf("erase_user(%s): %v", user, err)
+		}
+	}
+
+	type state struct {
+		email, recipient, phone, street, note *string
+		erased                                bool
+		grants                                int
+		lines                                 int
+	}
+	read := func(order string) state {
+		t.Helper()
+		var s state
+		if err := tx.QueryRow(ctx, `
+			SELECT pd.email, pd.recipient_name, pd.phone, pd.street, o.customer_note,
+			       pd.erased_at IS NOT NULL,
+			       (SELECT count(*) FROM order_access_grants g WHERE g.order_id = o.id),
+			       (SELECT count(*) FROM order_lines l WHERE l.order_id = o.id)
+			FROM orders o JOIN order_private_data pd ON pd.order_id = o.id
+			WHERE o.id = $1`, order).Scan(&s.email, &s.recipient, &s.phone, &s.street,
+			&s.note, &s.erased, &s.grants, &s.lines); err != nil {
+			t.Fatalf("read order %s: %v", order, err)
+		}
+		return s
+	}
+
+	got := read(guestOrder)
+	if got.email != nil || got.recipient != nil || got.phone != nil || got.street != nil ||
+		!got.erased {
+		t.Errorf("the guest order Ming's proved address placed kept its delivery details "+
+			"(email %v, recipient %v, phone %v, street %v, erased %t)",
+			deref(got.email), deref(got.recipient), deref(got.phone), deref(got.street), got.erased)
+	}
+	if got.note != nil {
+		t.Errorf("the guest order kept the customer's note %q", *got.note)
+	}
+	if got.grants != 0 {
+		t.Errorf("%d browser(s) can still open the erased guest order", got.grants)
+	}
+	if got.lines != 1 {
+		t.Errorf("the guest order has %d line(s) after erasure, want the 1 it was sold with", got.lines)
+	}
+
+	for _, control := range []struct{ order, why string }{
+		{huaOrder, "an account's order delivered to that address is the account's to erase"},
+		{unprovedOrder, "an address nobody proved is no authority over the orders placed under it"},
+		{otherGuestOrder, "a guest order under another address is nobody's business here"},
+	} {
+		got := read(control.order)
+		if got.email == nil || got.recipient == nil || got.erased {
+			t.Errorf("order %s lost its delivery details, but %s", control.order, control.why)
+		}
+	}
+	if note := read(huaOrder).note; note == nil {
+		t.Errorf("Hua's order lost its note to Ming's erasure")
+	}
+}
+
+// deref reads an optional column for a failure message.
+func deref(s *string) string {
+	if s == nil {
+		return "<nil>"
+	}
+	return *s
+}
+
 // assertNoTableHoldsTheAddress asks every table with a text email column, derived from
 // information_schema, whether it still holds the address after erasure.
 func assertNoTableHoldsTheAddress(ctx context.Context, t *testing.T, tx pgx.Tx, addr string) {

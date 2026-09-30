@@ -4576,6 +4576,7 @@ DECLARE
     addr text;
     account_role text;
     address_verified boolean;
+    erased_orders uuid[];
 BEGIN
     -- Take the roster guard before the target row, matching staff role changes.
     -- This order avoids a user-row/advisory-lock cycle with a concurrent demotion.
@@ -4621,6 +4622,26 @@ BEGIN
                   CONSTRAINT = 'erase_user_open_return';
     END IF;
 
+    -- Every order below is one of these: the account's own and, under the same
+    -- proved-mailbox rule as the address-keyed block further down, the orders
+    -- that address placed as a guest. The privacy policy promises their delivery
+    -- details go with the account. Collected and locked before anything below
+    -- blanks the address they are found by.
+    SELECT coalesce(array_agg(o.id ORDER BY o.id), '{}') INTO erased_orders
+    FROM orders o WHERE o.user_id = p_user_id;
+    IF addr IS NOT NULL AND address_verified THEN
+        SELECT erased_orders || coalesce(array_agg(g.id ORDER BY g.id), '{}')
+        INTO erased_orders
+        FROM (
+            SELECT o.id
+            FROM orders o
+            JOIN order_private_data pd ON pd.order_id = o.id
+            WHERE o.user_id IS NULL AND lower(pd.email) = lower(addr)
+            ORDER BY o.id
+            FOR UPDATE OF o
+        ) g;
+    END IF;
+
     -- Blank every delivery field and stamp erased_at: the all-NULL state
     -- order_private_data_all_or_erased permits.
     UPDATE order_private_data pd SET
@@ -4628,14 +4649,13 @@ BEGIN
         city = NULL, district = NULL, street = NULL,
         pickup_brand = NULL, pickup_store_code = NULL, pickup_store_name = NULL,
         erased_at = now()
-    FROM orders o
-    WHERE pd.order_id = o.id AND o.user_id = p_user_id AND pd.erased_at IS NULL;
+    WHERE pd.order_id = ANY (erased_orders) AND pd.erased_at IS NULL;
 
     -- customer_note is the customer's own words and routinely carries PII;
     -- staff_note is internal and stays. Nulling a note does not trip
     -- orders_freeze_money, so a paid order erases too.
     UPDATE orders SET customer_note = NULL
-    WHERE user_id = p_user_id AND customer_note IS NOT NULL;
+    WHERE id = ANY (erased_orders) AND customer_note IS NOT NULL;
 
     -- Remove messages whose ownership is derived from a user-bound row before
     -- those rows cascade or lose their user_id. This remains safe even when the
@@ -4656,7 +4676,7 @@ BEGIN
 
     DELETE FROM outbox_messages m
     USING orders o
-    WHERE o.user_id = p_user_id
+    WHERE o.id = ANY (erased_orders)
       AND m.topic IN ('order.placed', 'order.paid', 'order.shipped')
       AND coalesce(m.payload ->> 'order_number', m.payload ->> 'OrderNumber', '') =
           o.order_number;
@@ -4682,9 +4702,7 @@ BEGIN
     UPDATE invoice_operations op
     SET request_payload = request_payload - 'customer_name' - 'email',
         updated_at = now()
-    FROM orders o
-    WHERE op.order_id = o.id
-      AND o.user_id = p_user_id
+    WHERE op.order_id = ANY (erased_orders)
       AND op.status IN ('succeeded', 'rejected')
       AND (op.request_payload ? 'customer_name' OR op.request_payload ? 'email');
 
@@ -4695,9 +4713,8 @@ BEGIN
     -- webhook itself is.
     UPDATE payment_webhook_events e SET payload = e.payload
     FROM payments p
-    JOIN orders o ON o.id = p.order_id
     WHERE e.provider = p.provider AND e.object_ref = p.provider_ref
-      AND o.user_id = p_user_id;
+      AND p.order_id = ANY (erased_orders);
 
     -- Cross-table address ownership begins only after the mailbox is proved.
     -- Registration and a pending address change accept an arbitrary address;
@@ -4741,8 +4758,7 @@ BEGIN
     -- credential keyed on the ORDER, with ON DELETE RESTRICT, so nothing above
     -- reaches it.
     DELETE FROM order_access_grants g
-    USING orders o
-    WHERE g.order_id = o.id AND o.user_id = p_user_id;
+    WHERE g.order_id = ANY (erased_orders);
 
     -- The account itself. Its foreign keys carry the rest: actor columns go to
     -- NULL, auth rows cascade.
