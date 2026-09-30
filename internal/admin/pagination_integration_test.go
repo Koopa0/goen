@@ -33,8 +33,10 @@ func TestEveryAdminQueueReachesBeyondItsFirstPage(t *testing.T) {
  SELECT (SELECT id FROM brands LIMIT 1), (SELECT id FROM categories LIMIT 1), 'paging-' || n, 'Paging product ' || n FROM generate_series(1, 101) n;
  INSERT INTO product_variants (product_id, sku, price_cents, position, safety_stock)
  SELECT id, upper(slug), 100, 0, 10 FROM products WHERE slug LIKE 'paging-%';
- INSERT INTO orders (order_number, shipping_version_id, shipping_method_code, shipping_method_name)
- SELECT next_order_number(), v.id, sm.code, v.name FROM generate_series(1,101) n
+ INSERT INTO orders (order_number, user_id, shipping_version_id, shipping_method_code, shipping_method_name)
+ SELECT next_order_number(),
+        CASE WHEN n = 1 THEN (SELECT id FROM users WHERE email = 'paging-1@example.invalid') END,
+        v.id, sm.code, v.name FROM generate_series(1,101) n
  CROSS JOIN (SELECT id, method_id, name FROM shipping_method_versions ORDER BY effective_at LIMIT 1) v
  JOIN shipping_methods sm ON sm.id = v.method_id;
  INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street)
@@ -52,8 +54,13 @@ func TestEveryAdminQueueReachesBeyondItsFirstPage(t *testing.T) {
  INSERT INTO return_requests (order_id, reason) SELECT id, order_number FROM orders;
  INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity)
  SELECT r.order_id, r.id, l.id, 1 FROM return_requests r JOIN order_lines l ON l.order_id = r.order_id;
- INSERT INTO warranty_registrations (order_line_id, unit_no, serial_number, expires_on)
- SELECT (SELECT id FROM order_lines LIMIT 1), n, 'PAGING-' || n, current_date + 365 FROM generate_series(1,51) n;
+ UPDATE order_shipments SET delivered_at = now()
+ WHERE order_id = (SELECT id FROM orders WHERE user_id IS NOT NULL);
+ INSERT INTO warranty_registrations (order_line_id, unit_no, user_id, serial_number, expires_on)
+ SELECT l.id, n, o.user_id, 'PAGING-' || n, current_date + 365
+ FROM generate_series(1,51) n
+ CROSS JOIN orders o JOIN order_lines l ON l.order_id = o.id
+ WHERE o.user_id IS NOT NULL;
  INSERT INTO coupons (code, description, kind, is_active)
  SELECT 'PAGING-' || n, 'Paging coupon', 'free_shipping', n <= 51 FROM generate_series(1,101) n;
  INSERT INTO sale_campaigns (slug, title, ends_at, is_active)

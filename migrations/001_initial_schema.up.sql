@@ -3150,15 +3150,57 @@ CREATE UNIQUE INDEX warranty_registrations_serial_key
     ON warranty_registrations (serial_number) WHERE serial_number IS NOT NULL;
 CREATE INDEX warranty_registrations_user_id_idx ON warranty_registrations (user_id);
 
+-- A registration is a fact about a unit somebody holds: a unit the line bought,
+-- registered by the account that placed the order, carried by a parcel that has
+-- arrived — unit n is the n-th unit across the line's parcels in shipment order,
+-- as RegisterWarranty counts it. That statement already asks all three; here
+-- they hold for any writer. Erasure's ON DELETE SET NULL is the one change a
+-- registration takes after it is made.
 CREATE FUNCTION warranty_within_purchase() RETURNS trigger
 LANGUAGE plpgsql AS $$
 DECLARE
     bought integer;
+    placed_by uuid;
 BEGIN
-    SELECT quantity INTO bought FROM order_lines WHERE id = NEW.order_line_id;
+    SELECT ol.quantity, o.user_id INTO bought, placed_by
+    FROM order_lines ol JOIN orders o ON o.id = ol.order_id
+    WHERE ol.id = NEW.order_line_id;
     IF NEW.unit_no > bought THEN
         RAISE EXCEPTION 'unit % of a line that had %', NEW.unit_no, bought
             USING ERRCODE = 'check_violation', CONSTRAINT = 'warranty_unit_within_purchase';
+    END IF;
+    -- warranty_registrations_unit_positive names a unit below one once this returns.
+    IF NEW.unit_no < 1 THEN
+        RETURN NEW;
+    END IF;
+
+    IF TG_OP = 'UPDATE' AND NEW.user_id IS NULL
+       AND NEW.order_line_id = OLD.order_line_id AND NEW.unit_no = OLD.unit_no THEN
+        RETURN NEW;
+    END IF;
+
+    IF NEW.user_id IS NULL OR NEW.user_id IS DISTINCT FROM placed_by THEN
+        RAISE EXCEPTION 'unit % is registered to an account that did not place its order',
+            NEW.unit_no
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'warranty_registered_by_owner';
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1
+        FROM (
+            SELECT s.delivered_at, sl.quantity,
+                   sum(sl.quantity) OVER (ORDER BY s.shipped_at, s.id) - sl.quantity
+                       AS units_before
+            FROM order_shipment_lines sl
+            JOIN order_shipments s ON s.id = sl.shipment_id
+            WHERE sl.order_line_id = NEW.order_line_id
+        ) p
+        WHERE NEW.unit_no > p.units_before
+          AND NEW.unit_no <= p.units_before + p.quantity
+          AND p.delivered_at IS NOT NULL
+    ) THEN
+        RAISE EXCEPTION 'unit % of its line has not arrived', NEW.unit_no
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'warranty_unit_delivered';
     END IF;
     RETURN NEW;
 END;

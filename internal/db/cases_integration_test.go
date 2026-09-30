@@ -1936,8 +1936,8 @@ VALUES ('a0000001-0000-4000-8000-000000000000', 1, repeat('購', 200), 'sc-reaso
 	},
 	{
 		constraint: "warranty_registrations_unit_positive",
-		reject:     `INSERT INTO warranty_registrations (id, order_line_id, unit_no, expires_on) VALUES ('11110001-0000-4000-8000-000000000004', '66660001-0000-4000-8000-000000000000', 0, '2027-01-01');`,
-		accept:     `INSERT INTO warranty_registrations (id, order_line_id, unit_no, expires_on) VALUES ('11110001-0000-4000-8000-000000000004', '66660001-0000-4000-8000-000000000000', 1, '2027-01-01');`,
+		reject:     deliveredWarrantyLine + `INSERT INTO warranty_registrations (id, order_line_id, unit_no, user_id, expires_on) VALUES ('11110001-0000-4000-8000-000000000004', '66660001-0000-4000-8000-000000000000', 0, '55555555-5555-4555-8555-555555555555', '2027-01-01');`,
+		accept:     deliveredWarrantyLine + `INSERT INTO warranty_registrations (id, order_line_id, unit_no, user_id, expires_on) VALUES ('11110001-0000-4000-8000-000000000004', '66660001-0000-4000-8000-000000000000', 1, '55555555-5555-4555-8555-555555555555', '2027-01-01');`,
 	},
 	{
 		constraint: "invoice_document_lines_description_bounded",
@@ -2616,12 +2616,12 @@ VALUES ('11110001-0000-4000-8000-000000000003', 'a0000001-0000-4000-8000-0000000
 	},
 	{
 		index:  "warranty_registrations_serial_key",
-		reject: `INSERT INTO warranty_registrations (id, order_line_id, unit_no, serial_number, expires_on) VALUES ('11110002-0000-4000-8000-000000000001', '66660001-0000-4000-8000-000000000000', 1, 'SN-DUP-001', '2027-01-01'); INSERT INTO warranty_registrations (id, order_line_id, unit_no, serial_number, expires_on) VALUES ('11110002-0000-4000-8000-000000000002', '66660001-0000-4000-8000-000000000000', 2, 'SN-DUP-001', '2027-01-01');`,
-		accept: `INSERT INTO warranty_registrations (id, order_line_id, unit_no, serial_number, expires_on) VALUES ('11110002-0000-4000-8000-000000000003', '66660001-0000-4000-8000-000000000000', 1, NULL, '2027-01-01'); INSERT INTO warranty_registrations (id, order_line_id, unit_no, serial_number, expires_on) VALUES ('11110002-0000-4000-8000-000000000004', '66660001-0000-4000-8000-000000000000', 2, NULL, '2027-01-01');`,
+		reject: deliveredWarrantyLine + `INSERT INTO warranty_registrations (id, order_line_id, unit_no, user_id, serial_number, expires_on) VALUES ('11110002-0000-4000-8000-000000000001', '66660001-0000-4000-8000-000000000000', 1, '55555555-5555-4555-8555-555555555555', 'SN-DUP-001', '2027-01-01'); INSERT INTO warranty_registrations (id, order_line_id, unit_no, user_id, serial_number, expires_on) VALUES ('11110002-0000-4000-8000-000000000002', '66660001-0000-4000-8000-000000000000', 2, '55555555-5555-4555-8555-555555555555', 'SN-DUP-001', '2027-01-01');`,
+		accept: deliveredWarrantyLine + `INSERT INTO warranty_registrations (id, order_line_id, unit_no, user_id, serial_number, expires_on) VALUES ('11110002-0000-4000-8000-000000000003', '66660001-0000-4000-8000-000000000000', 1, '55555555-5555-4555-8555-555555555555', NULL, '2027-01-01'); INSERT INTO warranty_registrations (id, order_line_id, unit_no, user_id, serial_number, expires_on) VALUES ('11110002-0000-4000-8000-000000000004', '66660001-0000-4000-8000-000000000000', 2, '55555555-5555-4555-8555-555555555555', NULL, '2027-01-01');`,
 	},
 	{
 		index:  "warranty_registrations_unit_key",
-		reject: `INSERT INTO warranty_registrations (id, order_line_id, unit_no, expires_on) VALUES ('11110003-0000-4000-8000-000000000001', '66660001-0000-4000-8000-000000000000', 1, '2027-01-01'); INSERT INTO warranty_registrations (id, order_line_id, unit_no, expires_on) VALUES ('11110003-0000-4000-8000-000000000002', '66660001-0000-4000-8000-000000000000', 1, '2027-01-01');`,
-		accept: `INSERT INTO warranty_registrations (id, order_line_id, unit_no, expires_on) VALUES ('11110003-0000-4000-8000-000000000003', '66660001-0000-4000-8000-000000000000', 1, '2027-01-01'); INSERT INTO warranty_registrations (id, order_line_id, unit_no, expires_on) VALUES ('11110003-0000-4000-8000-000000000004', '66660001-0000-4000-8000-000000000000', 2, '2027-01-01');`,
+		reject: deliveredWarrantyLine + `INSERT INTO warranty_registrations (id, order_line_id, unit_no, user_id, expires_on) VALUES ('11110003-0000-4000-8000-000000000001', '66660001-0000-4000-8000-000000000000', 1, '55555555-5555-4555-8555-555555555555', '2027-01-01'); INSERT INTO warranty_registrations (id, order_line_id, unit_no, user_id, expires_on) VALUES ('11110003-0000-4000-8000-000000000002', '66660001-0000-4000-8000-000000000000', 1, '55555555-5555-4555-8555-555555555555', '2027-01-01');`,
+		accept: deliveredWarrantyLine + `INSERT INTO warranty_registrations (id, order_line_id, unit_no, user_id, expires_on) VALUES ('11110003-0000-4000-8000-000000000003', '66660001-0000-4000-8000-000000000000', 1, '55555555-5555-4555-8555-555555555555', '2027-01-01'); INSERT INTO warranty_registrations (id, order_line_id, unit_no, user_id, expires_on) VALUES ('11110003-0000-4000-8000-000000000004', '66660001-0000-4000-8000-000000000000', 2, '55555555-5555-4555-8555-555555555555', '2027-01-01');`,
 	},
 }

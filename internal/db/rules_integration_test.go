@@ -124,6 +124,16 @@ const pendingHoldableLine = `INSERT INTO order_lines (order_id, variant_id, sku,
 	        'PXL-9P-256-BL', 'Pixelight 9 Pro 5G', 3390000, 2, 5);
 `
 
+// deliveredWarrantyLine sends both units of the fixture order's first line in a
+// parcel that has arrived, which is what a warranty registration is made against.
+const deliveredWarrantyLine = `INSERT INTO order_shipments (id, order_id, carrier, tracking_number, delivered_at)
+	VALUES ('66660004-0000-4000-8000-000000000000', '66666666-6666-4666-8666-666666666666',
+	        '黑貓宅急便', '903-2214-8872', now());
+	INSERT INTO order_shipment_lines (order_id, shipment_id, order_line_id, quantity)
+	VALUES ('66666666-6666-4666-8666-666666666666', '66660004-0000-4000-8000-000000000000',
+	        '66660001-0000-4000-8000-000000000000', 2);
+`
+
 type ruleCase struct {
 	rule       string
 	reject     string
@@ -333,13 +343,46 @@ var ruleCases = []ruleCase{
 	},
 	{
 		rule: "warranty_unit_within_purchase",
-		reject: `INSERT INTO warranty_registrations (order_line_id, unit_no, expires_on)
-		         VALUES ('66660001-0000-4000-8000-000000000000', 3, current_date + 730);`,
+		reject: deliveredWarrantyLine + `SET LOCAL ROLE store;
+		         INSERT INTO warranty_registrations (order_line_id, unit_no, user_id, expires_on)
+		         VALUES ('66660001-0000-4000-8000-000000000000', 3,
+		                 '55555555-5555-4555-8555-555555555555', current_date + 730);`,
 		// Two were bought, so unit 2 exists. Registration is per UNIT, which is why the accept
 		// registers both: one row per order line could not represent the second unit at all.
-		accept: `INSERT INTO warranty_registrations (order_line_id, unit_no, expires_on)
-		         VALUES ('66660001-0000-4000-8000-000000000000', 1, current_date + 730),
-		                ('66660001-0000-4000-8000-000000000000', 2, current_date + 730);`,
+		accept: deliveredWarrantyLine + `SET LOCAL ROLE store;
+		         INSERT INTO warranty_registrations (order_line_id, unit_no, user_id, expires_on)
+		         VALUES ('66660001-0000-4000-8000-000000000000', 1,
+		                 '55555555-5555-4555-8555-555555555555', current_date + 730),
+		                ('66660001-0000-4000-8000-000000000000', 2,
+		                 '55555555-5555-4555-8555-555555555555', current_date + 730);`,
+	},
+	{
+		// As store, the role granted the INSERT: cover on 王小明's delivered unit,
+		// registered to 李大華, is a warranty for somebody who never bought it.
+		rule: "warranty_registered_by_owner",
+		reject: deliveredWarrantyLine + `SET LOCAL ROLE store;
+		         INSERT INTO warranty_registrations (order_line_id, unit_no, user_id, expires_on)
+		         VALUES ('66660001-0000-4000-8000-000000000000', 1,
+		                 '5555aaaa-5555-4555-8555-555555555555', current_date + 730);`,
+		accept: deliveredWarrantyLine + `SET LOCAL ROLE store;
+		         INSERT INTO warranty_registrations (order_line_id, unit_no, user_id, expires_on)
+		         VALUES ('66660001-0000-4000-8000-000000000000', 1,
+		                 '55555555-5555-4555-8555-555555555555', current_date + 730);`,
+	},
+	{
+		// The fixture's parcel carries unit 1 of the second line and has not
+		// arrived; it is the arrival the accept adds and nothing else.
+		rule: "warranty_unit_delivered",
+		reject: `SET LOCAL ROLE store;
+		         INSERT INTO warranty_registrations (order_line_id, unit_no, user_id, expires_on)
+		         VALUES ('66660003-0000-4000-8000-000000000000', 1,
+		                 '55555555-5555-4555-8555-555555555555', current_date + 730);`,
+		accept: `UPDATE order_shipments SET delivered_at = now()
+		         WHERE id = '66660002-0000-4000-8000-000000000000';
+		         SET LOCAL ROLE store;
+		         INSERT INTO warranty_registrations (order_line_id, unit_no, user_id, expires_on)
+		         VALUES ('66660003-0000-4000-8000-000000000000', 1,
+		                 '55555555-5555-4555-8555-555555555555', current_date + 730);`,
 	},
 	{
 		rule: "invoice_preferences_immutable",
@@ -2180,6 +2223,68 @@ func TestAnOrderKeepsTheAccountItWasPlacedBy(t *testing.T) {
 	}
 	if owned {
 		t.Error("the erased customer's order still names an account")
+	}
+}
+
+// TestWarrantyCoversOnlyADeliveredUnitForItsBuyer runs as store, the role granted
+// INSERT on warranty_registrations, and replays what RegisterWarranty's own WHERE
+// clause refuses: cover for nobody, for a unit still to ship, and for an order
+// nobody has paid for. Erasure clearing the holder is the change a registration
+// still takes.
+func TestWarrantyCoversOnlyADeliveredUnitForItsBuyer(t *testing.T) {
+	const register = `SET LOCAL ROLE store;
+		INSERT INTO warranty_registrations (order_line_id, unit_no, user_id, expires_on)
+		VALUES ('%s', %d, %s, current_date + 730);`
+	const ming = "'55555555-5555-4555-8555-555555555555'"
+	for _, tc := range []struct {
+		name, setup, line string
+		unit              int
+		holder, want      string
+	}{
+		{"a delivered unit registered to nobody", deliveredWarrantyLine,
+			"66660001-0000-4000-8000-000000000000", 1, "NULL", "warranty_registered_by_owner"},
+		{"a guest's order registered to an account", "",
+			"6666a001-0000-4000-8000-000000000000", 1, ming, "warranty_registered_by_owner"},
+		{"the unit the arrived parcel did not carry",
+			`UPDATE order_shipments SET delivered_at = now()
+			 WHERE id = '66660002-0000-4000-8000-000000000000';`,
+			"66660003-0000-4000-8000-000000000000", 2, ming, "warranty_unit_delivered"},
+		{"an order still awaiting payment", mingPendingOrder,
+			"6666c001-0000-4000-8000-000000000000", 1, ming, "warranty_unit_delivered"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := run(t, tc.setup+fmt.Sprintf(register, tc.line, tc.unit, tc.holder))
+			if err == nil {
+				t.Fatal("the registration was accepted")
+			}
+			if _, name := constraintViolation(err); name != tc.want {
+				t.Fatalf("refused by %q, want %q: %v", name, tc.want, err)
+			}
+		})
+	}
+
+	// The neighbour: the buyer's delivered unit registers, and erasing the buyer
+	// keeps the registration without them.
+	ctx := t.Context()
+	tx, err := schemaPool(t).Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
+	if _, err := tx.Exec(ctx, fixtures+deliveredWarrantyLine+
+		fmt.Sprintf(register, "66660001-0000-4000-8000-000000000000", 1, ming)+
+		`SELECT erase_user(`+ming+`); RESET ROLE;`); err != nil {
+		t.Fatalf("register the buyer's delivered unit, then erase the buyer: %v", err)
+	}
+	var held bool
+	if err := tx.QueryRow(ctx, `
+		SELECT user_id IS NOT NULL FROM warranty_registrations
+		WHERE order_line_id = '66660001-0000-4000-8000-000000000000' AND unit_no = 1`).
+		Scan(&held); err != nil {
+		t.Fatalf("the registration did not survive its holder's erasure: %v", err)
+	}
+	if held {
+		t.Error("the registration still names the erased account")
 	}
 }
 
