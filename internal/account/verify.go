@@ -30,6 +30,10 @@ var ErrVerifyInvalid = errors.New("account: that verification link is not usable
 // without the password chosen at registration. It is left unspent.
 var ErrVerifyNeedsPassword = errors.New("account: completing a registration takes its password")
 
+// ErrVerifyNeedsSignIn is a link that would move an account to a new address,
+// followed from a browser signed in to no account. It is left unspent.
+var ErrVerifyNeedsSignIn = errors.New("account: proving a new address takes the account that asked for it")
+
 // Verification is what the account page shows about the customer's address.
 type Verification struct {
 	Verified     bool
@@ -135,11 +139,24 @@ type Confirmed struct {
 	UserID string
 }
 
-// ConfirmVerification spends a link, moves the address and marks it proved. A
-// link that would complete a registration is refused with
-// ErrVerifyNeedsPassword and left unspent: that takes CompleteRegistration.
-func (s *Store) ConfirmVerification(ctx context.Context, token string) (Confirmed, error) {
-	return s.confirm(ctx, token, false)
+// ConfirmVerification spends a link, moves the address and marks it proved,
+// for the account userID is signed in to, or "" for none. The link reaches the
+// mailbox and nothing says the mailbox's owner is the account that asked, so
+// it proves the address only for that account, signed in: followed from no
+// account it is ErrVerifyNeedsSignIn, and from another account ErrVerifyInvalid,
+// the answer to a dead link, both left unspent. A link that would complete a
+// registration is refused with ErrVerifyNeedsPassword and left unspent: that
+// takes CompleteRegistration.
+func (s *Store) ConfirmVerification(ctx context.Context, token, userID string) (Confirmed, error) {
+	var asker uuid.NullUUID
+	if userID != "" {
+		id, err := uuid.Parse(userID)
+		if err != nil {
+			return Confirmed{}, fmt.Errorf("parse user id: %w", err)
+		}
+		asker = uuid.NullUUID{UUID: id, Valid: true}
+	}
+	return s.confirm(ctx, token, asker, false)
 }
 
 // RegistrationAddress is the address a registration link would prove, read
@@ -183,13 +200,14 @@ func (s *Store) CompleteRegistration(ctx context.Context, token, password string
 	if !passwordMatches(credential, password) {
 		return Confirmed{}, ErrBadCredentials
 	}
-	return s.confirm(ctx, token, true)
+	return s.confirm(ctx, token, uuid.NullUUID{}, true)
 }
 
 // confirm spends a link inside one transaction. completing says whether the
 // caller has proved it is the registrant: without that, a link that would
-// complete a registration is refused; with it, any other link is.
-func (s *Store) confirm(ctx context.Context, token string, completing bool) (Confirmed, error) {
+// complete a registration is refused; with it, any other link is. Any other
+// link is spent only for asker, the signed-in account that asked for it.
+func (s *Store) confirm(ctx context.Context, token string, asker uuid.NullUUID, completing bool) (Confirmed, error) {
 	if token == "" {
 		return Confirmed{}, ErrVerifyInvalid
 	}
@@ -212,11 +230,8 @@ func (s *Store) confirm(ctx context.Context, token string, completing bool) (Con
 	}
 	// Read under the lock: a reset spent in between proves the address itself.
 	registration := !lockedUser.Verified && strings.EqualFold(lockedUser.Email, verification.Email)
-	switch {
-	case registration && !completing:
-		return Confirmed{}, ErrVerifyNeedsPassword
-	case !registration && completing:
-		return Confirmed{}, ErrVerifyInvalid
+	if refusal := linkRefusal(registration, completing, asker, verification.UserID); refusal != nil {
+		return Confirmed{}, refusal
 	}
 	row, err := spendMatchingVerification(ctx, q, digest, verification)
 	if err != nil {
@@ -236,6 +251,26 @@ func (s *Store) confirm(ctx context.Context, token string, completing bool) (Con
 		return Confirmed{}, fmt.Errorf("commit verification: %w", err)
 	}
 	return Confirmed{Email: row.Email, UserID: row.UserID.String()}, nil
+}
+
+// linkRefusal is why a link owned by owner may not be spent by this caller, or
+// nil. A registration link is spent only by its registrant, completing; any
+// other link only by asker, the account that asked for it, signed in.
+func linkRefusal(registration, completing bool, asker uuid.NullUUID, owner uuid.UUID) error {
+	switch {
+	case registration && !completing:
+		return ErrVerifyNeedsPassword
+	case registration:
+		return nil
+	case completing:
+		return ErrVerifyInvalid
+	case !asker.Valid:
+		return ErrVerifyNeedsSignIn
+	case asker.UUID != owner:
+		// The dead-link answer: another account learns nothing about the link.
+		return ErrVerifyInvalid
+	}
+	return nil
 }
 
 func usableVerification(

@@ -275,14 +275,16 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	mux.HandleFunc("POST /forgot", ratelimit.Guard(authLimit, log, customers.Forgot))
 	mux.HandleFunc("GET /reset", customers.ResetPage)
 	mux.HandleFunc("POST /reset", ratelimit.Guard(authLimit, log, customers.Reset))
-	// Open to a signed-OUT visitor on purpose: the token is the proof, not the
-	// session, and the link is followed on whatever device the mail is on.
+	// Open to a signed-out visitor, who is sent on rather than refused: a
+	// registration link to the page that asks for its password, and a new
+	// address's link to sign in first. The token proves only the mailbox, and
+	// the address goes to the account that asked for it.
 	mux.HandleFunc("GET /verify", customers.VerifyPage)
 	mux.HandleFunc("POST /verify", ratelimit.Guard(authLimit, log, customers.Verify))
 	mux.HandleFunc("GET /register", customers.RegisterPage)
 	mux.HandleFunc("POST /register", clearSpeculations(ratelimit.Guard(authLimit, log, customers.Register)))
-	// Open to a signed-out visitor, as /verify is: the link and the password
-	// chosen at registration are the proof. Under authLimit because it runs
+	// Open to a signed-out visitor: the link and the password chosen at
+	// registration are the proof. Under authLimit because it runs
 	// argon2, and it signs in, so it clears speculations.
 	mux.HandleFunc("GET /register/complete", customers.CompleteRegistrationPage)
 	mux.HandleFunc("POST /register/complete", clearSpeculations(ratelimit.Guard(authLimit, log, customers.CompleteRegistration)))

@@ -3468,7 +3468,7 @@ func TestAnAddressIsProvedByFollowingTheLink(t *testing.T) {
 	if !state.Verified {
 		t.Error("the address is not proved after its link was followed")
 	}
-	if _, err := s.ConfirmVerification(ctx, token); !errors.Is(err, account.ErrVerifyInvalid) {
+	if _, err := s.ConfirmVerification(ctx, token, u.ID); !errors.Is(err, account.ErrVerifyInvalid) {
 		t.Errorf("re-using the link = %v, want ErrVerifyInvalid", err)
 	}
 }
@@ -3493,7 +3493,7 @@ func TestAChangeTakesEffectOnlyWhenConfirmed(t *testing.T) {
 		t.Errorf("pending address is %q, want %q", state.PendingEmail, next)
 	}
 
-	if _, err := s.ConfirmVerification(ctx, token); err != nil {
+	if _, err := s.ConfirmVerification(ctx, token, u.ID); err != nil {
 		t.Fatalf("ConfirmVerification: %v", err)
 	}
 	if got := emailOf(t, u.ID); got != next {
@@ -3513,7 +3513,7 @@ func TestChangingEmailInvalidatesResetLinksSentToTheOldMailbox(t *testing.T) {
 	newAddress := "new-reset-" + uuid.NewString() + "@goen.invalid"
 
 	verification := requestVerification(t, s, u.ID, newAddress)
-	if _, err := s.ConfirmVerification(ctx, verification); err != nil {
+	if _, err := s.ConfirmVerification(ctx, verification, u.ID); err != nil {
 		t.Fatalf("confirm address change: %v", err)
 	}
 	if err := s.CompleteReset(ctx, oldMailboxToken, "password chosen by old mailbox"); !errors.Is(err, account.ErrResetInvalid) {
@@ -3716,7 +3716,7 @@ func TestVerificationAndErasureUseUserBeforeToken(t *testing.T) {
 	eraseStore := account.NewStore(accountStorePool(t, eraseName))
 	confirmDone, eraseDone := make(chan error, 1), make(chan error, 1)
 	go func() {
-		_, confirmErr := confirmStore.ConfirmVerification(context.WithoutCancel(ctx), token)
+		_, confirmErr := confirmStore.ConfirmVerification(context.WithoutCancel(ctx), token, u.ID)
 		confirmDone <- confirmErr
 	}()
 	waitForAccountLock(t, confirmName, confirmDone)
@@ -3760,7 +3760,7 @@ func TestAChangeToATakenAddressIsRefused(t *testing.T) {
 	token := requestVerification(t, s, mine.ID, wanted)
 	register(t, s, wanted)
 
-	if _, err := s.ConfirmVerification(ctx, token); !errors.Is(err, account.ErrEmailTaken) {
+	if _, err := s.ConfirmVerification(ctx, token, mine.ID); !errors.Is(err, account.ErrEmailTaken) {
 		t.Errorf("confirming a taken address = %v, want ErrEmailTaken", err)
 	}
 	if got := emailOf(t, mine.ID); got != mine.Email {
@@ -3794,7 +3794,7 @@ func TestAskingAgainLeavesOneLiveLink(t *testing.T) {
 	if messages != 1 {
 		t.Errorf("%d verification messages after asking twice, want only the newest", messages)
 	}
-	if _, err := s.ConfirmVerification(ctx, first); !errors.Is(err, account.ErrVerifyInvalid) {
+	if _, err := s.ConfirmVerification(ctx, first, u.ID); !errors.Is(err, account.ErrVerifyInvalid) {
 		t.Errorf("the earlier link still works: %v", err)
 	}
 	if _, err := s.CompleteRegistration(ctx, second, "a sufficiently long password"); err != nil {
@@ -3815,7 +3815,7 @@ func TestAnExpiredVerificationIsRefused(t *testing.T) {
 		t.Fatalf("age the request: %v", err)
 	}
 
-	if _, err := s.ConfirmVerification(ctx, token); !errors.Is(err, account.ErrVerifyInvalid) {
+	if _, err := s.ConfirmVerification(ctx, token, u.ID); !errors.Is(err, account.ErrVerifyInvalid) {
 		t.Errorf("an expired link = %v, want ErrVerifyInvalid", err)
 	}
 }

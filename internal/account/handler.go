@@ -128,6 +128,8 @@ func (h *Handler) SignInPage(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/account", http.StatusSeeOther)
 		return
 	}
+	// next can be a live link back to /verify; never compress it.
+	web.NoCompress(w)
 	view := pages.AuthView{
 		Next:         web.SitePathOr(r.URL.Query().Get("next"), "/account"),
 		GoogleSignIn: h.google.Enabled(),
@@ -193,6 +195,8 @@ func (h *Handler) SignIn(w http.ResponseWriter, r *http.Request) {
 // a wrong password: two submissions differ only in the address the visitor
 // already gave goen, never in information about an account.
 func (h *Handler) signInFailed(w http.ResponseWriter, r *http.Request, addr, next string) {
+	// next can be a live link back to /verify, beside an address the visitor typed.
+	web.NoCompress(w)
 	web.Render(w, r, h.log, http.StatusUnprocessableEntity,
 		pages.SignIn(pages.SignInMeta(r.Context()), pages.AuthView{
 			Email: addr, Next: next,
@@ -772,12 +776,21 @@ func (h *Handler) Verify(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	token := r.PostFormValue("token")
-	confirmed, err := h.store.ConfirmVerification(ctx, token)
+	var asker string
+	if u, ok := FromContext(ctx); ok {
+		asker = u.ID
+	}
+	confirmed, err := h.store.ConfirmVerification(ctx, token, asker)
 	switch {
 	case errors.Is(err, ErrVerifyNeedsPassword):
 		// A registration link reached the page for proving an address; it is
 		// completed only with the password chosen at registration.
 		http.Redirect(w, r, "/register/complete?"+url.Values{"token": {token}}.Encode(), http.StatusSeeOther)
+	case errors.Is(err, ErrVerifyNeedsSignIn):
+		// The address goes only to the account that asked for it, so the link
+		// is followed again once that account is signed in.
+		back := "/verify?" + url.Values{"token": {token}}.Encode()
+		http.Redirect(w, r, "/signin?"+url.Values{"next": {back}}.Encode(), http.StatusSeeOther)
 	case err == nil:
 		web.Render(w, r, h.log, http.StatusOK, pages.NewsletterAction(
 			pages.NewsletterMeta(i18n.T(ctx, i18n.KeyVerifyDone)),

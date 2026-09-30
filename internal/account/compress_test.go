@@ -28,6 +28,18 @@ func TestSecretBearingAccountPagesAreNotCompressed(t *testing.T) {
 		},
 		{name: "email verification page", method: http.MethodGet, target: "/verify?token=" + token, handler: h.VerifyPage},
 		{name: "registration completion page", method: http.MethodGet, target: "/register/complete?token=" + token, handler: h.CompleteRegistrationPage},
+		{
+			name: "sign-in page on the way back to a verification link", method: http.MethodGet,
+			target: "/signin?next=" + url.QueryEscape("/verify?token="+token), handler: h.SignInPage,
+		},
+		{
+			name: "refused sign-in on the way back to a verification link", method: http.MethodPost,
+			target: "/signin", handler: h.SignIn,
+			body: url.Values{
+				"email": {strings.Repeat("a", 300) + "@example.com"}, "password": {"one value"},
+				"next": {"/verify?token=" + token},
+			},
+		},
 	}
 
 	for _, tt := range tests {
