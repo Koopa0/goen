@@ -249,21 +249,25 @@ func rateLimitedAccountHandler(store *Store) *Handler {
 func TestRegistrationsOfOneAddressAreBounded(t *testing.T) {
 	h := NewHandler(deadAccountStore(t), nil, slog.New(slog.DiscardHandler), false, nil)
 	const password = "a sufficiently long password"
-	register := func(addr string) int {
+	register := func(addr string) *httptest.ResponseRecorder {
 		return postAccountForm(t, "/register", url.Values{
 			"email": {addr}, "password": {password}, "confirm": {password},
-		}, h.Register).Code
+		}, h.Register)
 	}
 
 	for i := range 3 {
-		if code := register("bounded@example.com"); code == http.StatusTooManyRequests {
+		if code := register("bounded@example.com").Code; code == http.StatusTooManyRequests {
 			t.Fatalf("registration %d of one address was refused; the bound is too tight", i+1)
 		}
 	}
-	if code := register(" Bounded@Example.com "); code != http.StatusTooManyRequests {
-		t.Errorf("a fourth registration of one address answered %d, want 429", code)
+	refused := register(" Bounded@Example.com ")
+	if refused.Code != http.StatusTooManyRequests {
+		t.Errorf("a fourth registration of one address answered %d, want 429", refused.Code)
+	} else if wait, err := strconv.Atoi(refused.Header().Get("Retry-After")); err != nil || wait <= 9*60 {
+		t.Errorf("a refused address may register again in %q s; want the ten-minute pace of every "+
+			"form that mails an address", refused.Header().Get("Retry-After"))
 	}
-	if code := register("another@example.com"); code == http.StatusTooManyRequests {
+	if code := register("another@example.com").Code; code == http.StatusTooManyRequests {
 		t.Error("a different address was refused; the bound is per address")
 	}
 }

@@ -441,8 +441,14 @@ func TestARefusalForAnAddressSaysNothingAboutIt(t *testing.T) {
 			takenRec.Code, freeRec.Code)
 	}
 	for _, rec := range []*httptest.ResponseRecorder{takenRec, freeRec} {
-		if rec.Header().Get("Retry-After") == "" {
-			t.Error("a refusal carries no Retry-After")
+		wait, err := strconv.Atoi(rec.Header().Get("Retry-After"))
+		if err != nil {
+			t.Errorf("a refusal carries Retry-After %q", rec.Header().Get("Retry-After"))
+			continue
+		}
+		if wait <= 9*60 {
+			t.Errorf("a refused address may be asked for again in %d s; want the ten-minute pace "+
+				"of every form that mails an address", wait)
 		}
 	}
 	// Retry-After counts down from each address's own first request, so its
