@@ -365,6 +365,15 @@ func TestAdvanceRefusesAnIllegalTransition(t *testing.T) {
 
 func placeUnpaidOrder(t *testing.T) string {
 	t.Helper()
+	return placeUnpaidOrderHolding(t, false)
+}
+
+// placeUnpaidOrderHolding is placeUnpaidOrder that, when holding, also carries a
+// free unit of the variant with the most stock and holds it for 30 minutes, in
+// the transaction placing the order as checkout does: no line or hold is taken
+// against an order a later transaction did not place.
+func placeUnpaidOrderHolding(t *testing.T, holding bool) string {
+	t.Helper()
 	ctx := t.Context()
 
 	tx, err := pool.Begin(ctx)
@@ -394,6 +403,23 @@ func placeUnpaidOrder(t *testing.T) string {
 		VALUES ($1, 'x@example.com', '收件人', '0912345678', '110', '台北市', '信義區', '路 1 號')`,
 		orderID); err != nil {
 		t.Fatalf("create private data: %v", err)
+	}
+	if holding {
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO order_lines (order_id, variant_id, sku, product_name, unit_price_cents, quantity, position)
+			SELECT $1, pv.id, pv.sku, p.name, 0, 1, 1
+			FROM (SELECT id, sku, product_id FROM product_variants
+			      ORDER BY stock_quantity DESC, id LIMIT 1) pv
+			JOIN products p ON p.id = pv.product_id`, orderID); err != nil {
+			t.Fatalf("put the held variant on the order: %v", err)
+		}
+		if _, err := tx.Exec(ctx, `
+			SELECT hold_inventory(ol.order_id, ol.variant_id,
+				1, interval '30 minutes', 'deadline-actor:' || $2::text)
+			FROM order_lines ol WHERE ol.order_id = $1 AND ol.variant_id IS NOT NULL`,
+			orderID, number); err != nil {
+			t.Fatalf("hold stock: %v", err)
+		}
 	}
 	if err := tx.Commit(ctx); err != nil {
 		t.Fatalf("commit: %v", err)
@@ -7017,25 +7043,7 @@ func orderForCustomer(t *testing.T, userID uuid.UUID, cents int64, paid bool) uu
 func TestTheBackOfficeSeesTheSystemCancelAtThePaymentDeadline(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
-	number := placeUnpaidOrder(t)
-	// hold_inventory holds only what the order's own lines carry.
-	if _, err := pool.Exec(ctx, `
-		INSERT INTO order_lines (order_id, variant_id, sku, product_name, unit_price_cents, quantity, position)
-		SELECT o.id, pv.id, pv.sku, p.name, 0, 1, 1
-		FROM orders o,
-		     (SELECT id, sku, product_id FROM product_variants
-		      ORDER BY stock_quantity DESC, id LIMIT 1) pv
-		JOIN products p ON p.id = pv.product_id
-		WHERE o.order_number = $1`, number); err != nil {
-		t.Fatalf("put the held variant on the order: %v", err)
-	}
-	if _, err := pool.Exec(ctx, `
-		SELECT hold_inventory(ol.order_id, ol.variant_id,
-			1, interval '30 minutes', 'deadline-actor:' || o.order_number)
-		FROM orders o JOIN order_lines ol ON ol.order_id = o.id AND ol.variant_id IS NOT NULL
-		WHERE o.order_number = $1`, number); err != nil {
-		t.Fatalf("hold stock: %v", err)
-	}
+	number := placeUnpaidOrderHolding(t, true)
 	if _, err := pool.Exec(ctx, `
 		UPDATE inventory_reservations
 		SET created_at = now() - interval '2 hours', expires_at = now() - interval '1 minute'

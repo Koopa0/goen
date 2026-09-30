@@ -40,6 +40,9 @@ var coveredByNamedTest = map[string]string{
 	// It reduces rather than refuses, so it has no violation to name.
 	"payment_webhook_events_evidence_only": "TestAPaymentEventIsKeptWithoutTheCustomersDetails " +
 		"(internal/payment), TestErasureLeavesNoCustomerDetailsInPaymentEvents",
+	// Its violation needs an order a committed checkout placed, which a case run inside the
+	// fixtures' own transaction cannot have.
+	"order_lines_written_while_placing": "TestAPlacedOrderTakesNoLineFromALaterRequest (internal/cart)",
 }
 
 // TestEveryRuleTriggerIsExercised requires a case for every rule trigger in the catalog.
@@ -1034,6 +1037,18 @@ var ruleCases = []ruleCase{
 		             '44444444-4444-4444-8444-444444444444', 1, interval '0', 'rule-hold-duration');`,
 		accept: pendingHoldableLine + `SELECT hold_inventory('6666aaaa-6666-4666-8666-666666666666',
 		             '44444444-4444-4444-8444-444444444444', 1, interval '1 hour', 'rule-hold-duration');`,
+	},
+	{
+		// As store, the role granted the function: checkout holds for the window
+		// the policy page states, and a hold beyond it is stock off sale that no
+		// payment can be waiting for.
+		rule: "inventory_hold_within_checkout_window",
+		reject: pendingHoldableLine + `SET LOCAL ROLE store;
+		         SELECT hold_inventory('6666aaaa-6666-4666-8666-666666666666',
+		             '44444444-4444-4444-8444-444444444444', 1, interval '100 years', 'rule-hold-window');`,
+		accept: pendingHoldableLine + `SET LOCAL ROLE store;
+		         SELECT hold_inventory('6666aaaa-6666-4666-8666-666666666666',
+		             '44444444-4444-4444-8444-444444444444', 1, interval '60 minutes', 'rule-hold-window');`,
 	},
 	{
 		rule: "inventory_reservation_state",

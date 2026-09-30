@@ -66,6 +66,17 @@ func TestMain(m *testing.M) {
 // because orders_has_lines refuses an order with no lines yet.
 func order(t *testing.T, totalCents int64) (number string, id uuid.UUID) {
 	t.Helper()
+	return placedOrder(t, totalCents, 0)
+}
+
+// holdableOrder is order carrying two holdable variant lines for hold.
+func holdableOrder(t *testing.T, totalCents int64) (number string, id uuid.UUID) {
+	t.Helper()
+	return placedOrder(t, totalCents, 2)
+}
+
+func placedOrder(t *testing.T, totalCents int64, holdable int) (number string, id uuid.UUID) {
+	t.Helper()
 	ctx := t.Context()
 	tx, err := pool.Begin(ctx)
 	if err != nil {
@@ -86,6 +97,7 @@ func order(t *testing.T, totalCents int64) (number string, id uuid.UUID) {
 		VALUES ($1, 'PAY-SKU', '測試商品', $2, 1)`, id, totalCents); err != nil {
 		t.Fatalf("create line: %v", err)
 	}
+	addHoldableLines(t, tx, id, holdable)
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO order_private_data (order_id, email, recipient_name, phone,
 		                                postal_code, city, district, street)
@@ -1400,7 +1412,7 @@ func TestACaptureIsRefusedForACancelledOrder(t *testing.T) {
 func TestTheSessionExpiryComesFromTheEarliestLiveHold(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
-	number, id := order(t, 60000)
+	number, id := holdableOrder(t, 60000)
 
 	o, err := s.Order(ctx, number)
 	if err != nil {
@@ -1432,7 +1444,7 @@ func TestTheSessionExpiryComesFromTheEarliestLiveHold(t *testing.T) {
 
 func TestHoldAdmissionUsesTheDatabaseTransactionClock(t *testing.T) {
 	ctx := t.Context()
-	_, orderID := order(t, 10000)
+	_, orderID := holdableOrder(t, 10000)
 	tx, err := pool.Begin(ctx)
 	if err != nil {
 		t.Fatalf("begin clock transaction: %v", err)
@@ -1459,25 +1471,16 @@ func TestHoldAdmissionUsesTheDatabaseTransactionClock(t *testing.T) {
 	}
 }
 
-// hold reserves one unit of the nth-largest-stock variant for an order. The
-// order first gets a line carrying that variant, because hold_inventory holds
-// nothing an order's own lines do not; the line is free, so what the order
-// owes, which every session here is priced from, does not move.
+// hold reserves the unit on the nth variant line of an order holdableOrder
+// placed.
 func hold(t *testing.T, orderID uuid.UUID, nth int, forDuration time.Duration, key string) time.Time {
 	t.Helper()
 	var variantID uuid.UUID
 	if err := pool.QueryRow(t.Context(), `
-		SELECT id FROM product_variants ORDER BY stock_quantity DESC, id LIMIT 1 OFFSET $1`,
-		nth).Scan(&variantID); err != nil {
-		t.Fatalf("pick a variant to hold: %v", err)
-	}
-	if _, err := pool.Exec(t.Context(), `
-		INSERT INTO order_lines (order_id, variant_id, sku, product_name, unit_price_cents, quantity, position)
-		SELECT $1, pv.id, pv.sku, p.name, 0, 1,
-		       (SELECT max(position) + 1 FROM order_lines WHERE order_id = $1)
-		FROM product_variants pv JOIN products p ON p.id = pv.product_id
-		WHERE pv.id = $2`, orderID, variantID); err != nil {
-		t.Fatalf("put the held variant on the order: %v", err)
+		SELECT variant_id FROM order_lines
+		WHERE order_id = $1 AND variant_id IS NOT NULL
+		ORDER BY position LIMIT 1 OFFSET $2`, orderID, nth).Scan(&variantID); err != nil {
+		t.Fatalf("find variant line %d of the order, which holdableOrder places: %v", nth, err)
 	}
 	var reservationID uuid.UUID
 	if err := pool.QueryRow(t.Context(), `
@@ -1858,6 +1861,31 @@ func TestConcurrentCapturesSerializeTierAwards(t *testing.T) {
 // ownedOrder places an order for a signed-in customer without opening payment.
 func ownedOrder(t *testing.T, userID uuid.UUID, cents int64) (number string, orderID uuid.UUID) {
 	t.Helper()
+	return ownedOrderHolding(t, userID, cents, 0)
+}
+
+// addHoldableLines puts one unit each of the n variants with the most stock on
+// an order, free, inside the transaction placing it: order_lines_written_while_placing
+// admits no line later, and hold_inventory holds nothing an order's own lines do
+// not carry. Free, so what the order owes, which every session here is priced
+// from, does not move.
+func addHoldableLines(t *testing.T, tx pgx.Tx, orderID uuid.UUID, n int) {
+	t.Helper()
+	if _, err := tx.Exec(t.Context(), `
+		INSERT INTO order_lines (order_id, variant_id, sku, product_name, unit_price_cents,
+		                         quantity, position)
+		SELECT $1, pv.id, pv.sku, p.name, 0, 1,
+		       row_number() OVER (ORDER BY pv.stock_quantity DESC, pv.id)
+		FROM (SELECT id, sku, product_id, stock_quantity FROM product_variants
+		      ORDER BY stock_quantity DESC, id LIMIT $2) pv
+		JOIN products p ON p.id = pv.product_id`, orderID, n); err != nil {
+		t.Fatalf("put holdable variants on the order: %v", err)
+	}
+}
+
+// ownedOrderHolding is ownedOrder with holdable free variant lines for hold.
+func ownedOrderHolding(t *testing.T, userID uuid.UUID, cents int64, holdable int) (number string, orderID uuid.UUID) {
+	t.Helper()
 	ctx := t.Context()
 
 	tx, err := pool.Begin(ctx)
@@ -1880,6 +1908,7 @@ func ownedOrder(t *testing.T, userID uuid.UUID, cents int64) (number string, ord
 		VALUES ($1, 'TIER-SKU', '測試商品', $2, 1)`, orderID, cents); err != nil {
 		t.Fatalf("create line: %v", err)
 	}
+	addHoldableLines(t, tx, orderID, holdable)
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO order_private_data (order_id, email, recipient_name, phone,
 		                                postal_code, city, district, street)
@@ -2493,7 +2522,7 @@ func TestPaidCompleteResolutionCannotOpenSecondSession(t *testing.T) {
 		RETURNING id`).Scan(&customerID); err != nil {
 		t.Fatalf("create customer: %v", err)
 	}
-	number, orderID := ownedOrder(t, customerID, amount)
+	number, orderID := ownedOrderHolding(t, customerID, amount, 1)
 	hold(t, orderID, 0, 60*time.Minute, "complete-paid:"+number)
 	providerRef := "cs_complete_paid_" + uuid.NewString()[:12]
 	if _, err := pool.Exec(ctx,
@@ -2622,7 +2651,7 @@ func TestAdmittedCompleteSessionsBecomeVisibleAndResolvable(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := t.Context()
 			const originalAmount = int64(100000)
-			number, orderID := order(t, originalAmount)
+			number, orderID := holdableOrder(t, originalAmount)
 			hold(t, orderID, 0, 60*time.Minute, "admitted-complete:"+number)
 			oldSession := "cs_admitted_complete_" + uuid.NewString()[:12]
 			s := payment.NewStore(pool)
@@ -2795,7 +2824,7 @@ func TestPaymentReconciliationPinsExpiredStock(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := t.Context()
 			const amount = int64(110000)
-			number, orderID := order(t, amount)
+			number, orderID := holdableOrder(t, amount)
 			hold(t, orderID, 0, 60*time.Minute, "reconcile-stock:"+number)
 			var reservationID uuid.UUID
 			if err := pool.QueryRow(ctx, `
@@ -2902,7 +2931,7 @@ func TestReleasedStockMakesLateMoneyARefundCase(t *testing.T) {
 	t.Run("late signed capture is durable and cannot reopen payment", func(t *testing.T) {
 		ctx := t.Context()
 		const amount = int64(117000)
-		number, orderID := order(t, amount)
+		number, orderID := holdableOrder(t, amount)
 		hold(t, orderID, 0, 60*time.Minute, "late-stock-webhook:"+number)
 		providerRef := "cs_late_stock_webhook_" + uuid.NewString()[:12]
 		s := payment.NewStore(pool)
@@ -2962,7 +2991,7 @@ func TestReleasedStockMakesLateMoneyARefundCase(t *testing.T) {
 	t.Run("manual paid attribution is refused until staff refund and release", func(t *testing.T) {
 		ctx := t.Context()
 		const amount = int64(118000)
-		number, orderID := order(t, amount)
+		number, orderID := holdableOrder(t, amount)
 		hold(t, orderID, 0, 60*time.Minute, "late-stock-admin:"+number)
 		providerRef := "cs_late_stock_admin_" + uuid.NewString()[:12]
 		s := payment.NewStore(pool)
@@ -3049,7 +3078,7 @@ func TestReleasedStockMakesLateMoneyARefundCase(t *testing.T) {
 func TestACompleteSessionRejectedAfterItsWebhookAdvancesGeneration(t *testing.T) {
 	ctx := t.Context()
 	const amount = int64(125000)
-	number, orderID := order(t, amount)
+	number, orderID := holdableOrder(t, amount)
 	hold(t, orderID, 0, 60*time.Minute, "complete-race:"+number)
 
 	completeSession := "cs_complete_race_" + uuid.NewString()[:12]
@@ -3238,7 +3267,7 @@ func TestAnExpiredRejectedSessionConsumesItsIdempotencyGeneration(t *testing.T) 
 	ctx := t.Context()
 	s := payment.NewStore(pool)
 	const amount = int64(130000)
-	number, orderID := order(t, amount)
+	number, orderID := holdableOrder(t, amount)
 	hold(t, orderID, 0, 60*time.Minute, "generation:"+number)
 
 	oldSession := "cs_generation_old_" + uuid.NewString()[:12]
@@ -3491,7 +3520,7 @@ func TestAnExpiredRejectedSessionConsumesItsIdempotencyGeneration(t *testing.T) 
 func TestObsoleteSessionCleanupConvergesAfterALocalWriteFailure(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
-	number, orderID := order(t, 100000)
+	number, orderID := holdableOrder(t, 100000)
 	hold(t, orderID, 0, 60*time.Minute, "obsolete-cleanup:"+number)
 	oldSession := "cs_obsolete_cleanup_" + uuid.NewString()[:12]
 	if err := s.OpenPayment(ctx, number, oldSession, 100000); err != nil {
@@ -3637,7 +3666,7 @@ func TestObsoleteSessionCleanupConvergesAfterALocalWriteFailure(t *testing.T) {
 func TestObsoleteSessionCleanupSurvivesAClientDisconnect(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
-	number, orderID := order(t, 100000)
+	number, orderID := holdableOrder(t, 100000)
 	hold(t, orderID, 0, 60*time.Minute, "obsolete-disconnect:"+number)
 	oldSession := "cs_obsolete_disconnect_" + uuid.NewString()[:12]
 	if err := s.OpenPayment(ctx, number, oldSession, 100000); err != nil {
@@ -4289,7 +4318,7 @@ func TestTheWebhookPersistsCapturesLocalInvariantsRefuse(t *testing.T) {
 			h := payment.NewHandler(s, enabledGateway(t), alwaysPlacedHere{},
 				slog.New(slog.NewTextHandler(&logs, nil)), false)
 
-			number, id := order(t, 100000)
+			number, id := holdableOrder(t, 100000)
 			hold(t, id, 0, 45*time.Minute, "refused:"+number)
 			session := "cs_refused_" + uuid.NewString()[:12]
 			if err := s.OpenPayment(ctx, number, session, 100000); err != nil {
@@ -4674,7 +4703,7 @@ func TestCompleteSessionShowsProcessingNotPayAgain(t *testing.T) {
 	t.Run("complete session redirects to processing page and webhook resolves it", func(t *testing.T) {
 		ctx := t.Context()
 		const amount = int64(100000)
-		number, orderID := order(t, amount)
+		number, orderID := holdableOrder(t, amount)
 		hold(t, orderID, 0, 60*time.Minute, "complete-proc:"+number)
 		sessionID := "cs_complete_proc_" + uuid.NewString()[:12]
 		s := payment.NewStore(pool)
@@ -4761,7 +4790,7 @@ func TestCompleteSessionShowsProcessingNotPayAgain(t *testing.T) {
 	t.Run("health reconciliation failure path allows customer to pay again", func(t *testing.T) {
 		ctx := t.Context()
 		const amount = int64(100000)
-		number, orderID := order(t, amount)
+		number, orderID := holdableOrder(t, amount)
 		hold(t, orderID, 0, 60*time.Minute, "complete-proc-fail:"+number)
 		sessionID := "cs_complete_proc_fail_" + uuid.NewString()[:12]
 		s := payment.NewStore(pool)

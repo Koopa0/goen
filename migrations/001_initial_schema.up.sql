@@ -1065,6 +1065,15 @@ BEGIN
             USING ERRCODE = 'check_violation', CONSTRAINT = 'inventory_reservations_hold_for_positive';
     END IF;
 
+    -- The storefront's hold window (cart.holdTTL), which the shop's policy page
+    -- states and a Checkout Session's expiry is bound to. Longer is stock off sale
+    -- that no payment can be waiting for.
+    IF p_hold_for > interval '60 minutes' THEN
+        RAISE EXCEPTION 'a hold of % outlasts the checkout hold window', p_hold_for
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'inventory_hold_within_checkout_window';
+    END IF;
+
     -- Every path that needs both roots takes the order before stock. In
     -- particular, a concurrent re-hold must not own the variant while a
     -- cancellation/expiry release owns the order and waits for that variant.
@@ -1750,6 +1759,10 @@ CREATE TABLE orders (
     -- notice from a back-office click, with no visitor present to read.
     locale               text NOT NULL DEFAULT 'zh-Hant',
     placed_at            timestamptz NOT NULL DEFAULT now(),
+    -- The transaction that placed the order, which order_lines_written_while_placing
+    -- is the only reader of. No role is granted the column, so this DEFAULT is its
+    -- only writer.
+    placed_in_xact       bigint NOT NULL DEFAULT pg_current_xact_id()::text::bigint,
     cancelled_at         timestamptz,
     completed_at         timestamptz,
     updated_at           timestamptz NOT NULL DEFAULT now(),
@@ -2047,6 +2060,31 @@ $$;
 CREATE TRIGGER order_lines_bind_product
     BEFORE INSERT ON order_lines
     FOR EACH ROW EXECUTE FUNCTION order_lines_bind_product();
+
+-- An order's lines are written by the transaction that places it and by nothing
+-- after: hold_inventory bounds a hold by the order's lines, so a line added to
+-- an order already placed would let a later request take stock off sale against
+-- somebody else's order. Checkout writes the order and every line in one
+-- transaction, and orders_have_lines refuses an order committed without them.
+CREATE FUNCTION order_lines_check_placing() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM orders o
+        WHERE o.id = NEW.order_id
+          AND o.placed_in_xact = pg_current_xact_id()::text::bigint
+    ) THEN
+        RAISE EXCEPTION 'order % was placed by another transaction and takes no more lines',
+            NEW.order_id
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'order_lines_written_while_placing';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER order_lines_written_while_placing
+    BEFORE INSERT ON order_lines
+    FOR EACH ROW EXECUTE FUNCTION order_lines_check_placing();
 
 CREATE UNIQUE INDEX order_lines_position_key ON order_lines (order_id, position);
 -- Supports the composite FK's referencing side; its leading column also serves

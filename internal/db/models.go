@@ -357,6 +357,7 @@ type Order struct {
 	StaffNote          pgtype.Text
 	Locale             string
 	PlacedAt           time.Time
+	PlacedInXact       int64
 	CancelledAt        pgtype.Timestamptz
 	CompletedAt        pgtype.Timestamptz
 	UpdatedAt          time.Time
