@@ -11,8 +11,10 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -22,6 +24,7 @@ import (
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/outbox"
+	"github.com/koopa0/goen/internal/ratelimit"
 )
 
 // changeBrowser drives the account handlers the way the router does, through
@@ -275,6 +278,162 @@ func TestOnlyTheMailboxLearnsThatAnAddressHasAnAccount(t *testing.T) {
 	sent, told = deliver(free)
 	if !slices.Equal(sent, []string{free}) || len(told) != 0 {
 		t.Errorf("a free address was sent %v and %v told; want the link sent to it and nobody told", sent, told)
+	}
+}
+
+// addressMailBudget is how many requests naming one address NewHandler takes
+// before the first refusal.
+const addressMailBudget = 3
+
+// TestAnAddressIsMailedABoundedNumberOfTimesWhoeverAsks: every address change
+// mails the address it names, the link or its owner a note that somebody asked
+// for it, and anybody can have an account with their own mailbox. So requests
+// naming one address are bounded per address, however many accounts and
+// clients they come from.
+func TestAnAddressIsMailedABoundedNumberOfTimesWhoeverAsks(t *testing.T) {
+	ctx := t.Context()
+	s := account.NewStore(accountStorePool(t, "change-bound"))
+	h := account.NewHandler(s, nil, slog.New(slog.DiscardHandler), false, nil)
+	// The route as cmd/goen wires it: per client, 20 at once then one every 3 s.
+	authLimit := ratelimit.New(ratelimit.Config{Every: 3 * time.Second, Burst: 20, TTL: time.Hour, MaxKeys: 65_536})
+	route := ratelimit.Guard(authLimit, slog.New(slog.DiscardHandler), h.RequireUser(h.ChangeEmail))
+	b := changeBrowser{t: t, h: h}
+	owner := registerProved(t, account.NewStore(pool), "change-bound-owner-"+uuid.NewString()+"@example.com")
+
+	// deliver hands the asker's queued message to the worker's half, and
+	// reports whether the address's owner was told.
+	deliver := func(askerID string) bool {
+		t.Helper()
+		var payload []byte
+		if err := pool.QueryRow(ctx, `
+			UPDATE outbox_messages m SET delivered_at = now()
+			FROM email_verifications v
+			WHERE m.topic = $1 AND m.delivered_at IS NULL
+			  AND m.dedupe_key = 'verify:' || encode(v.digest, 'hex') AND v.user_id = $2
+			RETURNING m.payload`, outbox.TopicEmailVerify, uuid.MustParse(askerID)).Scan(&payload); err != nil {
+			t.Fatalf("take the queued message: %v", err)
+		}
+		var p email.AddressVerify
+		if err := json.Unmarshal(payload, &p); err != nil {
+			t.Fatalf("decode the queued message: %v", err)
+		}
+		told := false
+		if err := s.DeliverAddressVerify(ctx, &p,
+			func(context.Context, *email.AddressVerify) error { return nil },
+			func(_ context.Context, e *email.AccountExists) error {
+				told = told || e.Email == owner.Email
+				return nil
+			}); err != nil {
+			t.Fatalf("deliver: %v", err)
+		}
+		return told
+	}
+
+	letters := 0
+	const accounts, perAccount = 3, 10
+	for a := range accounts {
+		asker := registerProved(t, account.NewStore(pool), "change-bound-asker-"+uuid.NewString()+"@example.com")
+		session := b.signIn(asker.Email)
+		for range perAccount {
+			req := cartForm(ctx, "/account/email", url.Values{
+				"email": {owner.Email}, "current": {"a sufficiently long password"},
+			})
+			req.RemoteAddr = "203.0.113." + strconv.Itoa(10+a) + ":4000"
+			req.AddCookie(session)
+			rec := httptest.NewRecorder()
+			h.Authenticate(route).ServeHTTP(rec, req)
+			switch {
+			case rec.Code == http.StatusSeeOther && rec.Header().Get("Location") == "/account?email=sent":
+				if deliver(asker.ID) {
+					letters++
+				}
+			case rec.Code == http.StatusTooManyRequests && rec.Header().Get("Retry-After") != "":
+			default:
+				t.Fatalf("a change request answered %d to %q", rec.Code, rec.Header().Get("Location"))
+			}
+		}
+	}
+	if letters > addressMailBudget {
+		t.Errorf("%d accounts on %d clients made one customer's address receive %d letters; "+
+			"one address may be mailed at most %d times before the first refusal",
+			accounts, accounts, letters, addressMailBudget)
+	}
+}
+
+// TestARefusalForAnAddressSaysNothingAboutIt: the bound is the address's own
+// count, whoever holds it, so the refusal once it is spent is the same for an
+// address with an account and one without.
+func TestARefusalForAnAddressSaysNothingAboutIt(t *testing.T) {
+	b := changeBrowser{t: t, h: account.NewHandler(account.NewStore(pool), nil,
+		slog.New(slog.DiscardHandler), false, nil)}
+	asker := registerProved(t, account.NewStore(pool), "change-refused-"+uuid.NewString()+"@example.com")
+	taken := registerProved(t, account.NewStore(pool), "change-refused-taken-"+uuid.NewString()+"@example.com").Email
+	free := "change-refused-free-" + uuid.NewString() + "@example.com"
+	session := b.signIn(asker.Email)
+
+	refusal := func(addr string) *httptest.ResponseRecorder {
+		t.Helper()
+		for i := range addressMailBudget {
+			if rec := b.askToMove(session, addr); rec.Code != http.StatusSeeOther {
+				t.Fatalf("request %d naming %s answered %d, want 303", i+1, addr, rec.Code)
+			}
+		}
+		return b.askToMove(session, addr)
+	}
+	takenRec, freeRec := refusal(taken), refusal(free)
+
+	if takenRec.Code != http.StatusTooManyRequests || freeRec.Code != takenRec.Code {
+		t.Fatalf("once spent, a taken and a free address answered %d and %d, want 429 for both",
+			takenRec.Code, freeRec.Code)
+	}
+	for _, rec := range []*httptest.ResponseRecorder{takenRec, freeRec} {
+		if rec.Header().Get("Retry-After") == "" {
+			t.Error("a refusal carries no Retry-After")
+		}
+	}
+	// Retry-After counts down from each address's own first request, so its
+	// value is compared only for presence.
+	takenHeader, freeHeader := takenRec.Header().Clone(), freeRec.Header().Clone()
+	takenHeader.Del("Retry-After")
+	freeHeader.Del("Retry-After")
+	if diff := cmp.Diff(takenHeader, freeHeader); diff != "" {
+		t.Errorf("the refusals for a taken and a free address differ (-taken +free):\n%s", diff)
+	}
+	if takenRec.Body.String() != freeRec.Body.String() {
+		t.Errorf("the refusals for a taken and a free address answer %q and %q",
+			takenRec.Body.String(), freeRec.Body.String())
+	}
+}
+
+// TestRegistrationAndAnAddressChangeShareOneBudgetPerAddress: both forms mail
+// the address they name, so taking turns between them buys no more letters.
+func TestRegistrationAndAnAddressChangeShareOneBudgetPerAddress(t *testing.T) {
+	ctx := t.Context()
+	b := changeBrowser{t: t, h: account.NewHandler(account.NewStore(pool), nil,
+		slog.New(slog.DiscardHandler), false, nil)}
+	asker := registerProved(t, account.NewStore(pool), "shared-budget-asker-"+uuid.NewString()+"@example.com")
+	session := b.signIn(asker.Email)
+	addr := "shared-budget-" + uuid.NewString() + "@example.com"
+	register := func() int {
+		rec := httptest.NewRecorder()
+		b.h.Register(rec, registrationForm(ctx, addr, "a sufficiently long password", "/account"))
+		return rec.Code
+	}
+
+	for i := range addressMailBudget - 1 {
+		if code := register(); code != http.StatusSeeOther {
+			t.Fatalf("registration %d of the address answered %d, want 303", i+1, code)
+		}
+	}
+	if code := b.askToMove(session, addr).Code; code != http.StatusSeeOther {
+		t.Fatalf("the change request that spends the last of the budget answered %d, want 303", code)
+	}
+	if code := b.askToMove(session, addr).Code; code != http.StatusTooManyRequests {
+		t.Errorf("a change request past the address's budget answered %d, want 429", code)
+	}
+	if code := register(); code != http.StatusTooManyRequests {
+		t.Errorf("a registration past the address's budget answered %d, want 429: the change "+
+			"requests were not counted against it", code)
 	}
 }
 

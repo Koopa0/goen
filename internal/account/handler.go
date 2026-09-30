@@ -41,10 +41,12 @@ type Handler struct {
 	secure      bool
 	google      *Google
 
-	// registerLimit bounds registrations per submitted address. A registration
-	// mails the address whether or not it has an account, so without it the
-	// form is a way to fill somebody else's inbox.
-	registerLimit *ratelimit.Limiter
+	// mailLimit bounds, per address, the forms that mail an address whoever
+	// names it: registration and an address change. Each mails the address
+	// whether or not it has an account, and anybody can have an account with
+	// their own mailbox, so without it either form is a way to fill somebody
+	// else's inbox. One budget for both, so using the two does not double it.
+	mailLimit *ratelimit.Limiter
 }
 
 // NewHandler returns a Handler over store.
@@ -63,7 +65,7 @@ func NewHandler(store *Store, carts CartFinder, log *slog.Logger, secure bool, g
 		resetLimit: ratelimit.New(ratelimit.Config{
 			Every: time.Minute, Burst: 3, TTL: time.Hour, MaxKeys: 65_536,
 		}),
-		registerLimit: ratelimit.New(ratelimit.Config{
+		mailLimit: ratelimit.New(ratelimit.Config{
 			Every: 10 * time.Minute, Burst: 3, TTL: time.Hour, MaxKeys: 65_536,
 		}),
 	}
@@ -243,7 +245,7 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// After validation, so only an address the rules accept becomes a key.
-	if retryAfter, ok := h.registerLimit.Allow("register:" + email.Clean(c.Email)); !ok {
+	if retryAfter, ok := h.mailLimit.Allow("mail:" + email.Clean(c.Email)); !ok {
 		ratelimit.Refuse(r.Context(), w, retryAfter)
 		return
 	}
@@ -728,6 +730,12 @@ func (h *Handler) ChangeEmail(w http.ResponseWriter, r *http.Request) {
 	addr := r.PostFormValue("email")
 	if EmailError(addr) != "" {
 		http.Redirect(w, r, "/account?email=invalid", http.StatusSeeOther)
+		return
+	}
+	// After validation, so only an address the rules accept becomes a key, and
+	// on the address's own count, so the refusal says nothing about its holder.
+	if retryAfter, ok := h.mailLimit.Allow("mail:" + email.Clean(addr)); !ok {
+		ratelimit.Refuse(r.Context(), w, retryAfter)
 		return
 	}
 
