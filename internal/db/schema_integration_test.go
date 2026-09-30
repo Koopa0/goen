@@ -253,9 +253,9 @@ func TestAnEligibilityFactStaysWithItsAssessment(t *testing.T) {
 			INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity)
 			VALUES ('66666666-6666-4666-8666-666666666666', '88880001-0000-4000-8000-000000000000',
 			        '66660003-0000-4000-8000-000000000000', 1);
-			INSERT INTO return_eligibility_assessments (id, order_id, return_request_id, version, assessed_by, basis)
+			INSERT INTO return_eligibility_assessments (id, order_id, return_request_id, version, assessed_by, assessed_by_snapshot, basis)
 			VALUES ('ae030001-0000-4000-8000-000000000001', '66666666-6666-4666-8666-666666666666',
-			        '88880001-0000-4000-8000-000000000000', 1, '55555555-5555-4555-8555-555555555555', 'saw it');
+			        '88880001-0000-4000-8000-000000000000', 1, '55555555-5555-4555-8555-555555555555', '55555555-5555-4555-8555-555555555555', 'saw it');
 			UPDATE return_requests SET status = 'rejected', decided_at = now()
 			WHERE id = '88880001-0000-4000-8000-000000000000';
 			INSERT INTO return_requests (id, order_id, reason)

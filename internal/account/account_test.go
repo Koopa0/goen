@@ -589,6 +589,19 @@ func TestAccountNoticeExplainsWhyAnOpenReturnBlocksErasure(t *testing.T) {
 	}
 }
 
+func TestAccountNoticeExplainsWhyTheLastAdminCannotBeErased(t *testing.T) {
+	t.Parallel()
+
+	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+		ctx := i18n.WithLocale(t.Context(), locale)
+		r := httptest.NewRequestWithContext(ctx, http.MethodGet,
+			"/account?erase=admin", http.NoBody)
+		if got, want := accountNotice(r), i18n.T(ctx, i18n.KeyEraseLastAdmin); got != want {
+			t.Errorf("%s last-admin erasure notice = %q, want %q", locale, got, want)
+		}
+	}
+}
+
 func TestCartRecoveryLandingPreservesContinuation(t *testing.T) {
 	t.Parallel()
 

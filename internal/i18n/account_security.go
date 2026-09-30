@@ -74,4 +74,9 @@ var (
 		ZhHant: "這個帳號仍有尚未完成的購物金退貨。請等待退貨完成或聯絡客服後再刪除帳號。",
 		En:     "This account has an unfinished return involving store credit. Finish it or contact support before deleting the account.",
 	})
+
+	KeyEraseLastAdmin = key("account.notice.erase.admin", Message{
+		ZhHant: "你是最後一位管理員,這個帳號不能刪除。請先讓另一位同事成為管理員。",
+		En:     "You are the last administrator, so this account cannot be deleted. Make a colleague an administrator first.",
+	})
 )

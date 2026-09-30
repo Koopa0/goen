@@ -302,6 +302,8 @@ func accountNotice(r *http.Request) string {
 		return i18n.T(ctx, i18n.KeyEraseNeedsEmail)
 	case q.Get("erase") == "return":
 		return i18n.T(ctx, i18n.KeyEraseOpenReturn)
+	case q.Get("erase") == "admin":
+		return i18n.T(ctx, i18n.KeyEraseLastAdmin)
 	case q.Get("email") == "sent":
 		return i18n.T(ctx, i18n.KeyEmailSent)
 	case q.Get("email") == "taken":
@@ -626,10 +628,14 @@ func (h *Handler) Erase(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/account?erase=confirm", http.StatusSeeOther)
 		return
 	}
-	if err := h.store.Erase(r.Context(), u.ID); errors.Is(err, ErrOpenReturn) {
+	switch err := h.store.Erase(r.Context(), u.ID); {
+	case errors.Is(err, ErrOpenReturn):
 		http.Redirect(w, r, "/account?erase=return", http.StatusSeeOther)
 		return
-	} else if err != nil {
+	case errors.Is(err, ErrLastAdmin):
+		http.Redirect(w, r, "/account?erase=admin", http.StatusSeeOther)
+		return
+	case err != nil:
 		h.log.ErrorContext(r.Context(), "erase account", "error", err)
 		h.serverError(w, r)
 		return

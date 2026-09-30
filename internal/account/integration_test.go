@@ -2439,6 +2439,65 @@ func TestConcurrentAdminErasureKeepsOneAdmin(t *testing.T) {
 	}
 }
 
+// TestTheLastAdminIsToldWhyErasureWasRefused: erase_user refuses the only
+// administrator by name, and the page must say so and keep the account usable
+// rather than answer a server error for a request the shop decided to refuse.
+func TestTheLastAdminIsToldWhyErasureWasRefused(t *testing.T) {
+	ctx := t.Context()
+	s := account.NewStore(pool)
+	u := register(t, s, "erase-last-admin-"+uuid.NewString()+"@example.com")
+	id := uuid.MustParse(u.ID)
+	t.Cleanup(func() {
+		// The schema gives even the owner no way back to zero administrators, so a
+		// sentinel takes the role before the fixture gives it up.
+		cleanupCtx := context.WithoutCancel(ctx)
+		_, _ = pool.Exec(cleanupCtx, `
+			INSERT INTO users (email, role, full_name)
+			VALUES ('account-suite-admin@goen.invalid', 'admin', 'Account suite sentinel')
+			ON CONFLICT (lower(email)) DO UPDATE SET role = 'admin'`)
+		_, _ = pool.Exec(cleanupCtx, `DELETE FROM users WHERE id = $1`, id)
+	})
+	if _, err := pool.Exec(ctx, `UPDATE users SET role = 'admin' WHERE id = $1`, id); err != nil {
+		t.Fatalf("promote the fixture: %v", err)
+	}
+	if _, err := pool.Exec(ctx,
+		`UPDATE users SET role = 'customer' WHERE role = 'admin' AND id <> $1`, id); err != nil {
+		t.Fatalf("leave the fixture as the only administrator: %v", err)
+	}
+
+	if err := s.Erase(ctx, u.ID); !errors.Is(err, account.ErrLastAdmin) {
+		t.Fatalf("erasing the last administrator = %v, want ErrLastAdmin", err)
+	}
+
+	h := account.NewHandler(s, nil, slog.New(slog.DiscardHandler), false, nil)
+	token, err := s.StartSession(ctx, u.ID, "test", "192.0.2.1")
+	if err != nil {
+		t.Fatalf("start session: %v", err)
+	}
+	form := url.Values{"confirm": {u.Email}}
+	req := httptest.NewRequestWithContext(account.WithUser(ctx, u), http.MethodPost,
+		"/account/erase", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.AddCookie(&http.Cookie{Name: "goen_session", Value: token}) //nolint:gosec // G124: a request cookie, not a response
+	out := httptest.NewRecorder()
+	h.Erase(out, req)
+	if out.Code != http.StatusSeeOther || out.Header().Get("Location") != "/account?erase=admin" {
+		t.Fatalf("erase handler = %d Location %q, want 303 /account?erase=admin",
+			out.Code, out.Header().Get("Location"))
+	}
+	if cookies := out.Result().Cookies(); len(cookies) != 0 {
+		t.Errorf("refused erasure changed %d cookie(s); the signed-in account must remain usable", len(cookies))
+	}
+	var left int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM users WHERE id = $1 AND role = 'admin'`, id).
+		Scan(&left); err != nil {
+		t.Fatalf("read the administrator: %v", err)
+	}
+	if left != 1 {
+		t.Error("the refused erasure removed the only administrator")
+	}
+}
+
 // TestResetIssueAndErasureCannotSplitTokenFromMessage pauses reset issuance at
 // its outbox insert, after it has locked the account and inserted the token in
 // the same transaction. Erasure must wait, then purge both committed records;

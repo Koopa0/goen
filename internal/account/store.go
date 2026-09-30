@@ -662,9 +662,16 @@ func (s *Store) Erase(ctx context.Context, userID string) error {
 		return fmt.Errorf("parse user id: %w", err)
 	}
 	if err := s.q.EraseUser(ctx, id); err != nil {
-		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok &&
-			pgErr.ConstraintName == "erase_user_open_return" {
-			return ErrOpenReturn
+		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok {
+			switch pgErr.ConstraintName {
+			case "erase_user_open_return":
+				return ErrOpenReturn
+			// users_keep_one_admin is the trigger behind erase_user's own check,
+			// reached only if that check is ever bypassed; the refusal is the same.
+			// The database's answer stays in the chain for callers that name it.
+			case "erase_user_keeps_one_admin", "users_keep_one_admin":
+				return fmt.Errorf("%w: %w", ErrLastAdmin, err)
+			}
 		}
 		return fmt.Errorf("erase user: %w", err)
 	}

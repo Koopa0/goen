@@ -6343,11 +6343,12 @@ func (q *Queries) IdentitiesForUser(ctx context.Context, userID uuid.UUID) ([]Id
 
 const insertEligibilityAssessment = `-- name: InsertEligibilityAssessment :one
 INSERT INTO return_eligibility_assessments (
-    order_id, return_request_id, version, assessed_by, basis
+    order_id, return_request_id, version, assessed_by, assessed_by_snapshot, basis
 ) VALUES (
-    $1, $2, $3, $4, $5
+    $1, $2, $3, $4::uuid, $4::uuid, $5
 )
-RETURNING id, order_id, return_request_id, version, assessed_by, assessed_at, basis
+RETURNING id, order_id, return_request_id, version, assessed_by, assessed_by_snapshot,
+          assessed_at, basis
 `
 
 type InsertEligibilityAssessmentParams struct {
@@ -6358,6 +6359,8 @@ type InsertEligibilityAssessmentParams struct {
 	Basis           string
 }
 
+// The live assessor and its snapshot are one fact at insert; erasure later
+// clears the live column only.
 func (q *Queries) InsertEligibilityAssessment(ctx context.Context, arg InsertEligibilityAssessmentParams) (ReturnEligibilityAssessment, error) {
 	row := q.db.QueryRow(ctx, insertEligibilityAssessment,
 		arg.OrderID,
@@ -6373,6 +6376,7 @@ func (q *Queries) InsertEligibilityAssessment(ctx context.Context, arg InsertEli
 		&i.ReturnRequestID,
 		&i.Version,
 		&i.AssessedBy,
+		&i.AssessedBySnapshot,
 		&i.AssessedAt,
 		&i.Basis,
 	)
@@ -6785,7 +6789,8 @@ func (q *Queries) LapsedUnpaidOrders(ctx context.Context, limit int32) ([]string
 }
 
 const latestEligibilityAssessment = `-- name: LatestEligibilityAssessment :one
-SELECT id, order_id, return_request_id, version, assessed_by, assessed_at, basis
+SELECT id, order_id, return_request_id, version, assessed_by, assessed_by_snapshot,
+       assessed_at, basis
 FROM return_eligibility_assessments
 WHERE return_request_id = $1
 ORDER BY version DESC
@@ -6804,6 +6809,7 @@ func (q *Queries) LatestEligibilityAssessment(ctx context.Context, returnRequest
 		&i.ReturnRequestID,
 		&i.Version,
 		&i.AssessedBy,
+		&i.AssessedBySnapshot,
 		&i.AssessedAt,
 		&i.Basis,
 	)
@@ -6812,7 +6818,8 @@ func (q *Queries) LatestEligibilityAssessment(ctx context.Context, returnRequest
 
 const latestEligibilityAssessments = `-- name: LatestEligibilityAssessments :many
 SELECT DISTINCT ON (return_request_id)
-    id, order_id, return_request_id, version, assessed_by, assessed_at, basis
+    id, order_id, return_request_id, version, assessed_by, assessed_by_snapshot,
+    assessed_at, basis
 FROM return_eligibility_assessments
 WHERE return_request_id = ANY($1::uuid[])
 ORDER BY return_request_id, version DESC
@@ -6833,6 +6840,7 @@ func (q *Queries) LatestEligibilityAssessments(ctx context.Context, requestIds [
 			&i.ReturnRequestID,
 			&i.Version,
 			&i.AssessedBy,
+			&i.AssessedBySnapshot,
 			&i.AssessedAt,
 			&i.Basis,
 		); err != nil {

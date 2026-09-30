@@ -1029,6 +1029,19 @@ var ruleCases = []ruleCase{
 		             '44444444-4444-4444-8444-444444444444', 2, interval '1 hour', 'rule-hold-lines');`,
 	},
 	{
+		// As admin, the role that inserts assessments directly: NULL is what erasure
+		// leaves, never what an insert may choose.
+		rule: "return_eligibility_assessments_assessor_named",
+		reject: `SET LOCAL ROLE admin;
+		         INSERT INTO return_eligibility_assessments (order_id, return_request_id, version, assessed_by, assessed_by_snapshot, basis)
+		         VALUES ('66666666-6666-4666-8666-666666666666', '88880001-0000-4000-8000-000000000000',
+		                 1, NULL, '5555aaaa-5555-4555-8555-555555555555', 'saw it');`,
+		accept: `SET LOCAL ROLE admin;
+		         INSERT INTO return_eligibility_assessments (order_id, return_request_id, version, assessed_by, assessed_by_snapshot, basis)
+		         VALUES ('66666666-6666-4666-8666-666666666666', '88880001-0000-4000-8000-000000000000',
+		                 1, '5555aaaa-5555-4555-8555-555555555555', '5555aaaa-5555-4555-8555-555555555555', 'saw it');`,
+	},
+	{
 		// An account's order named as a guest's escapes the per-customer count.
 		rule: "coupon_redemption_order_owner",
 		reject: `UPDATE orders SET user_id = '55555555-5555-4555-8555-555555555555'
@@ -2065,6 +2078,33 @@ func TestRedeemCouponCountsTheOrdersCustomer(t *testing.T) {
 	}
 }
 
+// TestAnAssessmentNamesItsLiveAssessor runs as admin, which inserts assessments
+// directly. Either way an insert could leave the live assessor untrue is
+// refused by name; the rule case holds the legal neighbour.
+func TestAnAssessmentNamesItsLiveAssessor(t *testing.T) {
+	const insert = `SET LOCAL ROLE admin;
+		INSERT INTO return_eligibility_assessments
+			(order_id, return_request_id, version, assessed_by, assessed_by_snapshot, basis)
+		VALUES ('66666666-6666-4666-8666-666666666666', '88880001-0000-4000-8000-000000000000',
+		        1, %s, '5555aaaa-5555-4555-8555-555555555555', 'saw it');`
+	for _, tc := range []struct{ name, assessor string }{
+		{"no live assessor", "NULL"},
+		{"another live assessor than the snapshot", "'55555555-5555-4555-8555-555555555555'::uuid"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := run(t, fmt.Sprintf(insert, tc.assessor))
+			if err == nil {
+				t.Fatal("the assessment was accepted")
+			}
+			if code, name := constraintViolation(err); code != "23514" ||
+				name != "return_eligibility_assessments_assessor_named" {
+				t.Fatalf("refused by SQLSTATE %s constraint %q, want 23514/return_eligibility_assessments_assessor_named: %v",
+					code, name, err)
+			}
+		})
+	}
+}
+
 // TestACancelledOrderIsSettledButNotCommitted holds the line between the two views from the side
 // where they disagree: a cancelled order's money is frozen while its held stock must come back,
 // and one predicate answering both leaves those units with no door to the shelf.
@@ -2261,8 +2301,53 @@ func TestEraseUserHonorsThePersonalDataBoundary(t *testing.T) {
 		t.Fatalf("write an invoice operation attributed to the erased actor: %v", err)
 	}
 
+	// The other places a person is recorded as having acted. Erasure may clear
+	// who acted but must not be refused because they once did.
+	const assessment = "ae040001-0000-4000-8000-000000000001"
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO return_eligibility_assessments
+			(id, order_id, return_request_id, version, assessed_by, assessed_by_snapshot, basis)
+		VALUES ($1, '66666666-6666-4666-8666-666666666666', '88880001-0000-4000-8000-000000000000',
+		        1, $2, $2, 'assessed by the erased actor')`, assessment, user); err != nil {
+		t.Fatalf("write an eligibility assessment by the erased actor: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		SELECT record_inventory_movement('44444444-4444-4444-8444-444444444444', 1, 'receipt',
+		       'erase-actor-receipt', 'admin', NULL, $1)`, user); err != nil {
+		t.Fatalf("write a stock movement by the erased actor: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO order_events (order_id, kind, actor_user_id)
+		VALUES ('66666666-6666-4666-8666-666666666666', 'in_transit', $1)`, user); err != nil {
+		t.Fatalf("write an order event by the erased actor: %v", err)
+	}
+
 	if _, err := tx.Exec(ctx, `SELECT erase_user($1)`, user); err != nil {
 		t.Fatalf("erase_user: %v", err)
+	}
+	var assessorGone, assessorKept bool
+	if err := tx.QueryRow(ctx, `
+		SELECT assessed_by IS NULL, assessed_by_snapshot = $2
+		FROM return_eligibility_assessments WHERE id = $1`, assessment, user).
+		Scan(&assessorGone, &assessorKept); err != nil {
+		t.Fatalf("read the assessment after erasure: %v", err)
+	}
+	if !assessorGone || !assessorKept {
+		t.Errorf("assessment attribution after erasure live-null/snapshot-kept = %t/%t, want true/true",
+			assessorGone, assessorKept)
+	}
+	var movementActors, eventActors int
+	if err := tx.QueryRow(ctx, `
+		SELECT (SELECT count(*) FROM inventory_movements
+		        WHERE idempotency_key = 'erase-actor-receipt' AND actor_user_id IS NULL),
+		       (SELECT count(*) FROM order_events
+		        WHERE order_id = '66666666-6666-4666-8666-666666666666' AND kind = 'in_transit'
+		          AND actor_user_id IS NULL)`).Scan(&movementActors, &eventActors); err != nil {
+		t.Fatalf("read the actor rows after erasure: %v", err)
+	}
+	if movementActors != 1 || eventActors != 1 {
+		t.Errorf("stock movement/order event kept after erasure with no live actor = %d/%d, want 1/1",
+			movementActors, eventActors)
 	}
 	var actorGone, snapshotKept bool
 	if err := tx.QueryRow(ctx, `

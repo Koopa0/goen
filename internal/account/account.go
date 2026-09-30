@@ -34,6 +34,8 @@ var (
 	ErrInvalidInput = errors.New("account: invalid input")
 	// ErrOpenReturn means erasure would orphan an unresolved store-credit payout.
 	ErrOpenReturn = errors.New("account: finish the open return before erasure")
+	// ErrLastAdmin means erasure would leave the shop with no administrator.
+	ErrLastAdmin = errors.New("account: the last administrator cannot be erased")
 	// ErrQuantityAdjusted means adoption or merge succeeded but at least one line
 	// was capped to what the shelf can supply.
 	ErrQuantityAdjusted = errors.New("account: quantity adjusted to available stock")
