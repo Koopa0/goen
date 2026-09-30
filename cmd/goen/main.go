@@ -185,6 +185,11 @@ func (cfg *config) prepareRuntimePosture(log *slog.Logger) error {
 			"the listen address produces URLs that only work on this machine")
 	}
 	origin, scheme, ok := web.SiteOrigin(cfg.BaseURL)
+	if !ok && os.Getenv("GOEN_BASE_URL") == "" {
+		return fmt.Errorf("GOEN_BASE_URL is unset and %q, guessed from GOEN_ADDR, is not an "+
+			"origin: a listen address with no host or an unspecified one names no machine "+
+			"a link can reach. Set GOEN_BASE_URL, or give GOEN_ADDR a host", cfg.BaseURL)
+	}
 	if !ok {
 		return fmt.Errorf("GOEN_BASE_URL %q is not an origin: it must be scheme://host "+
 			"with no path, query or credentials, because goen concatenates paths onto "+

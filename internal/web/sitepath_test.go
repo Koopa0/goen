@@ -1,6 +1,7 @@
 package web
 
 import (
+	"net"
 	"net/url"
 	"strings"
 	"testing"
@@ -166,6 +167,11 @@ func TestSiteOriginRefusesWhatIsNotAnOrigin(t *testing.T) {
 		{"a query", "https://shop.example?q=1", "", ""},
 		{"a fragment", "https://shop.example#part", "", ""},
 		{"an empty host", "https://", "", ""},
+		{"a port with no host", "http://:9701", "", ""},
+		{"the unspecified IPv4 address", "http://0.0.0.0:9701", "", ""},
+		{"the unspecified IPv6 address", "http://[::]:9701", "", ""},
+		{"the unspecified address, IPv4-mapped", "http://[::ffff:0.0.0.0]:9701", "", ""},
+		{"an IPv6 loopback", "http://[::1]:9700", "http://[::1]:9700", "http"},
 		{"empty", "", "", ""},
 	}
 	for _, tt := range tests {
@@ -244,6 +250,7 @@ func FuzzSiteOrigin(f *testing.F) {
 		"http://127.0.0.1:9700", "httpx://evil.example",
 		"https://ok@evil.example", "https://shop.example/path?q=1#part",
 		"https://[::1]:9700", string([]byte("https://shop.example/\xff")),
+		"http://:9701", "http://0.0.0.0:9701", "http://[::]:9701",
 	} {
 		f.Add(seed)
 	}
@@ -263,9 +270,12 @@ func FuzzSiteOrigin(f *testing.F) {
 		if err != nil {
 			t.Fatalf("SiteOrigin(%q) returned unparsable origin %q: %v", raw, origin, err)
 		}
-		if u.Scheme != scheme || u.Host == "" || u.User != nil ||
+		if u.Scheme != scheme || u.Hostname() == "" || u.User != nil ||
 			u.Path != "" || u.RawQuery != "" || u.Fragment != "" {
 			t.Errorf("SiteOrigin(%q) returned non-origin %q with scheme %q", raw, origin, scheme)
+		}
+		if net.ParseIP(u.Hostname()).IsUnspecified() {
+			t.Errorf("SiteOrigin(%q) returned %q, which names no machine", raw, origin)
 		}
 		again, againScheme, againOK := SiteOrigin(origin)
 		if !againOK || again != origin || againScheme != scheme {

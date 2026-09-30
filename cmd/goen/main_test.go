@@ -233,6 +233,35 @@ func TestProductionPostureRefusesAnUnsafeBaseURL(t *testing.T) {
 	}
 }
 
+// TestAListenAddressWithNoHostIsNotGuessedAsTheOrigin: ":9701" is the usual Go
+// listen address, and "http://" + it would put a host-less origin in every
+// Stripe return URL, emailed link and sitemap location.
+func TestAListenAddressWithNoHostIsNotGuessedAsTheOrigin(t *testing.T) {
+	t.Setenv("GOEN_DATABASE_URL", "postgres://store.example/goen")
+	t.Setenv("GOEN_LOG_LEVEL", "info")
+	t.Setenv("GOEN_INSECURE_COOKIES", "1")
+	t.Setenv("GOEN_BASE_URL", "")
+
+	for _, addr := range []string{":9701", "0.0.0.0:9701", "[::]:9701"} {
+		t.Run(addr, func(t *testing.T) {
+			t.Setenv("GOEN_ADDR", addr)
+			cfg, err := loadConfig()
+			if err != nil {
+				t.Fatalf("loadConfig: %v", err)
+			}
+			err = cfg.prepareRuntimePosture(slog.New(slog.DiscardHandler))
+			if err == nil {
+				t.Fatalf("GOEN_ADDR=%s started with the origin %q", addr, cfg.BaseURL)
+			}
+			for _, want := range []string{"GOEN_ADDR", "GOEN_BASE_URL"} {
+				if !strings.Contains(err.Error(), want) {
+					t.Errorf("refusal does not name %s: %v", want, err)
+				}
+			}
+		})
+	}
+}
+
 // TestPostureReportsTheFirstBrokenDependency holds the mandated diagnostic
 // order: TOTP, then SMTP, then the origin. A later arm must never hide the
 // first configuration mistake.
