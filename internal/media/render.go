@@ -21,9 +21,10 @@ const RenderTimeout = 30 * time.Second
 
 // maxRenderSlots bounds renderSlots whatever the core count. A render holds a
 // decoded source of at most MaxStoredSide square, its width-scaled
-// intermediate, the rendition and one band of scaler scratch: about 55 MB at
-// the widest rendition. Anonymous visitors choose when renders run, so the
-// bound is on memory, and four is 220 MB.
+// intermediate, the rendition and one band of scaler scratch: about 83 MB at
+// the widest rendition of a 16-bit source, which Normalise keeps at 16 bits.
+// Anonymous visitors choose when renders run, so the bound is on memory, and
+// four is about 330 MB.
 const maxRenderSlots = 4
 
 // renderSlots is how many renditions may be produced at the same time. Requests

@@ -81,6 +81,11 @@ func TestARefusedCodeExchangeLogsOnlyItsStatusAndErrorCode(t *testing.T) {
 			body:     `{"error":"invalid grant DROPME"}`,
 			wantCode: "unrecognised",
 		},
+		// 41 bytes of the alphabet codes use: the length alone refuses it.
+		"a code longer than any OAuth defines": {
+			body:     `{"error":"invalid_invalid_invalid_invalid_invalid_x"}`,
+			wantCode: "unrecognised",
+		},
 		"not JSON": {
 			body:     `<html>proxy page DROPME</html>`,
 			wantCode: "unrecognised",
