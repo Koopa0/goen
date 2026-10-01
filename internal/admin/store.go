@@ -820,22 +820,23 @@ func (s *Store) AdjustStock(ctx context.Context, sku string, delta int32, actorI
 	if err != nil {
 		return fmt.Errorf("adjust stock: actor %q is not a user id: %w", actorID, err)
 	}
-	return s.audited(ctx, Event{
+	err = s.audited(ctx, Event{
 		Action: actionAdjustStock, Table: "product_variants", ID: nullableID(v.ID),
 		Before: map[string]any{"sku": sku, "stock": v.StockQuantity},
 		After:  map[string]any{"delta": delta},
 	},
 		func(ctx context.Context, q *db.Queries) error {
-			if err := q.AdjustStock(ctx, db.AdjustStockParams{
+			if moveErr := q.AdjustStock(ctx, db.AdjustStockParams{
 				VariantID: v.ID, Delta: delta, IdempotencyKey: key, ActorUserID: actor,
-			}); err != nil {
-				return fmt.Errorf("%w: %w", ErrRefused, err)
+			}); moveErr != nil {
+				return fmt.Errorf("%w: %w", ErrRefused, moveErr)
 			}
 			// Called on EVERY adjustment: the claim's own EXISTS decides whether
 			// the variant is back above its threshold, so a movement that does
 			// not cross it claims nothing.
 			return enqueueRestockNotices(ctx, q, v.ID)
 		})
+	return s.settleReplay(ctx, err, v.ID, delta, "adjustment", key)
 }
 
 // ReceiveStock books a delivery in, through the ledger's own 'receipt' reason,
@@ -853,21 +854,42 @@ func (s *Store) ReceiveStock(ctx context.Context, sku string, quantity int32, ac
 	if err != nil {
 		return fmt.Errorf("receive stock: actor %q is not a user id: %w", actorID, err)
 	}
-	return s.audited(ctx, Event{
+	err = s.audited(ctx, Event{
 		Action: actionReceiveStock, Table: "product_variants", ID: nullableID(v.ID),
 		Before: map[string]any{"sku": sku, "stock": v.StockQuantity},
 		After:  map[string]any{"received": quantity},
 	},
 		func(ctx context.Context, q *db.Queries) error {
-			if err := q.ReceiveStock(ctx, db.ReceiveStockParams{
+			if moveErr := q.ReceiveStock(ctx, db.ReceiveStockParams{
 				VariantID: v.ID, Delta: quantity, IdempotencyKey: key, ActorUserID: actor,
-			}); err != nil {
-				return fmt.Errorf("%w: %w", ErrRefused, err)
+			}); moveErr != nil {
+				return fmt.Errorf("%w: %w", ErrRefused, moveErr)
 			}
 			// A receipt is the movement most likely to carry a variant back
 			// above its safety stock.
 			return enqueueRestockNotices(ctx, q, v.ID)
 		})
+	return s.settleReplay(ctx, err, v.ID, quantity, "receipt", key)
+}
+
+// settleReplay turns the ledger's refusal of a key it already holds into the
+// success it earlier answered, when the held movement is this very one. The
+// refusal rolled back the whole statement, so stock moved once; reporting it
+// as refused sends a staff member to re-enter it from a fresh form, which
+// lands it twice. A key reused for a different movement stays refused.
+func (s *Store) settleReplay(
+	ctx context.Context, err error, variantID uuid.UUID, delta int32, reason, key string,
+) error {
+	if err == nil || !hasConstraint(err, "inventory_movements_idempotency_key") {
+		return err
+	}
+	applied, checkErr := s.q.StockMovementApplied(ctx, db.StockMovementAppliedParams{
+		IdempotencyKey: key, VariantID: variantID, Delta: delta, Reason: reason,
+	})
+	if checkErr != nil || !applied {
+		return err
+	}
+	return nil
 }
 
 // SetVariantActive retires or restores a variant. A refusal here is usually
@@ -931,6 +953,9 @@ func variantRow(r *db.AdminVariantsRow) pages.AdminVariant {
 		PriceCents: r.PriceCents, CompareCents: r.CompareAtPriceCents.Int64,
 		Stock: r.StockQuantity, Safety: r.SafetyStock,
 		Active: r.IsActive, ProductStatus: r.ProductStatus,
+		// One per rendered row, so the adjust form's key is spent by that form
+		// alone and not by whichever stock level the variant next returns to.
+		FormID: uuid.NewString(),
 	}
 }
 
@@ -1060,7 +1085,8 @@ func (s *Store) Movements(ctx context.Context, sku string, after ...string) (pag
 		ListBound: bound,
 		SKU:       v.SKU, ProductName: v.ProductName, Slug: v.Slug,
 		Stock: v.StockQuantity, Safety: v.SafetyStock,
-		Rows: make([]pages.AdminMovement, 0, len(rows)),
+		FormID: uuid.NewString(),
+		Rows:   make([]pages.AdminMovement, 0, len(rows)),
 	}
 	for i := range rows {
 		m := &rows[i]

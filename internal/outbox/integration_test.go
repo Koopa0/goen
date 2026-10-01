@@ -627,3 +627,63 @@ func TestTheSweepDropsAnUndeliveredMessagePastRetain(t *testing.T) {
 		}
 	}
 }
+
+// TestAMessageSentAsShutdownLandsIsStillStamped: SIGTERM cancels the drain's
+// context between the handler's success and the stamp. The stamp must survive
+// it, or the next process sends the letter again once the lease expires.
+func TestAMessageSentAsShutdownLandsIsStillStamped(t *testing.T) {
+	emptyOutbox(t)
+	s := outbox.NewStore(pool, quiet())
+	key := uuid.NewString()
+	enqueue(t, "test.shutdown.sent", key, `{}`)
+
+	ctx, shutdown := context.WithCancel(t.Context())
+	defer shutdown()
+	s.Handle("test.shutdown.sent", func(context.Context, []byte) error {
+		shutdown()
+		return nil
+	})
+
+	if _, _, err := s.Drain(ctx); err != nil {
+		t.Fatalf("drain: %v", err)
+	}
+
+	var stamped bool
+	if err := pool.QueryRow(t.Context(), `
+		SELECT delivered_at IS NOT NULL FROM outbox_messages WHERE dedupe_key = $1`, key).Scan(&stamped); err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	if !stamped {
+		t.Error("a message whose handler succeeded was left unstamped by the shutdown")
+	}
+}
+
+// TestAFailureAsShutdownLandsIsStillRecorded: the reschedule shares the stamp's
+// context, and a failure that is not recorded leaves the message claimed until
+// the lease expires with no reason on the row.
+func TestAFailureAsShutdownLandsIsStillRecorded(t *testing.T) {
+	emptyOutbox(t)
+	s := outbox.NewStore(pool, quiet())
+	key := uuid.NewString()
+	enqueue(t, "test.shutdown.failed", key, `{}`)
+
+	ctx, shutdown := context.WithCancel(t.Context())
+	defer shutdown()
+	s.Handle("test.shutdown.failed", func(context.Context, []byte) error {
+		shutdown()
+		return errors.New("the provider said no")
+	})
+
+	if _, _, err := s.Drain(ctx); err != nil {
+		t.Fatalf("drain: %v", err)
+	}
+
+	var lastErr string
+	if err := pool.QueryRow(t.Context(), `
+		SELECT coalesce(last_error, '') FROM outbox_messages WHERE dedupe_key = $1`, key).Scan(&lastErr); err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	if lastErr == "" {
+		t.Error("a failure that landed with the shutdown was not recorded")
+	}
+}

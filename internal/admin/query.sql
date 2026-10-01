@@ -23,12 +23,22 @@ AND (NOT @has_cursor::boolean OR (o.placed_at < @after_at::timestamptz)
 ORDER BY o.placed_at DESC, o.id DESC
 LIMIT @row_limit::integer;
 
--- An order-number-shaped term is matched exactly and anything else as a prefix,
--- told apart rather than OR-ed with wildcards so each path stays index-backed.
+-- An order-number-shaped term is matched exactly and anything else as a prefix.
+-- Each probe reads one table by its own index and the UNION joins the ids back to
+-- orders; OR-ing the three across the join could only be a join filter.
 -- An erased order matches nothing: erase_user NULLs the name and the address.
 -- The prefixes take @escaped_term, the same words with LIKE's own syntax
 -- escaped: a typed % or _ would otherwise match any address or name.
 -- name: AdminSearchOrders :many
+WITH hits AS (
+    SELECT o.id FROM orders o WHERE o.order_number = upper(@term::text)
+    UNION
+    SELECT pd.order_id FROM order_private_data pd
+    WHERE lower(pd.email) LIKE lower(@escaped_term::text) || '%'
+    UNION
+    SELECT pd.order_id FROM order_private_data pd
+    WHERE pd.recipient_name LIKE @escaped_term::text || '%'
+)
 SELECT json_build_object('At', o.placed_at, 'ID', o.id)::text AS page_cursor,
     o.id,
     o.order_number,
@@ -43,11 +53,9 @@ SELECT json_build_object('At', o.placed_at, 'ID', o.id)::text AS page_cursor,
     order_is_committed(o.id) AS committed,
     order_amount_owed(o.id) AS owed_cents
 FROM orders o
+JOIN hits h ON h.id = o.id
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
-WHERE (o.order_number = upper(@term::text)
-   OR lower(pd.email) LIKE lower(@escaped_term::text) || '%'
-   OR pd.recipient_name LIKE @escaped_term::text || '%')
-AND (NOT @has_cursor::boolean OR (o.placed_at < @after_at::timestamptz)
+WHERE (NOT @has_cursor::boolean OR (o.placed_at < @after_at::timestamptz)
        OR (o.placed_at = @after_at::timestamptz AND o.id < @after_id::uuid))
 ORDER BY o.placed_at DESC, o.id DESC
 LIMIT @row_limit::integer;
@@ -158,6 +166,18 @@ WHERE pv.sku = $1;
 SELECT record_inventory_movement(
     @variant_id, @delta::integer, 'adjustment',
     @idempotency_key::text, 'admin', NULL, @actor_user_id::uuid
+);
+
+-- Whether this exact movement is already in the ledger under the key, so a
+-- replay of the form that booked it can be told from a different movement that
+-- reuses the key.
+-- name: StockMovementApplied :one
+SELECT EXISTS (
+    SELECT 1 FROM inventory_movements
+    WHERE idempotency_key = @idempotency_key::text
+      AND variant_id = @variant_id
+      AND delta = @delta::integer
+      AND reason = @reason::text
 );
 
 -- sqlc.narg on the actor: actor_user_id is nullable with a foreign key, so a
@@ -1251,6 +1271,8 @@ WHERE id = @question_id AND hidden_at IS NULL;
 -- the claim lease and the backoff push it forward. copurchase_ever_built is
 -- separate from the age because max() over an empty table is NULL, which sqlc
 -- infers as non-nullable and pgx then refuses to scan: a fresh deployment only.
+-- Both read copurchase_refreshes and not product_copurchases: a rebuild that
+-- found no pair of products leaves the projection empty and is still a rebuild.
 -- name: WorkerHealth :one
 SELECT
     (SELECT count(*) FROM outbox_messages
@@ -1287,9 +1309,9 @@ SELECT
                  AND e.unreconciled IS NOT NULL AND e.reconciled_at IS NULL
            )
        )))::bigint AS expired_holds,
-    (SELECT coalesce(extract(epoch FROM now() - max(computed_at)), 0)
-     FROM product_copurchases)::bigint AS copurchase_age_seconds,
-    EXISTS (SELECT 1 FROM product_copurchases) AS copurchase_ever_built,
+    (SELECT coalesce(extract(epoch FROM now() - max(refreshed_at)), 0)
+     FROM copurchase_refreshes)::bigint AS copurchase_age_seconds,
+    EXISTS (SELECT 1 FROM copurchase_refreshes) AS copurchase_ever_built,
     (SELECT count(*) FROM sessions WHERE expires_at <= now())::bigint AS expired_sessions,
     (SELECT count(*) FROM media_objects m
      WHERE NOT EXISTS (SELECT 1 FROM product_images p WHERE p.storage_key = m.digest)

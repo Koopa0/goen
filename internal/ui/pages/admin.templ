@@ -509,11 +509,26 @@ templ AdminOrder(p layouts.Page, v *AdminOrderView) {
 						<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/orders/" + v.Number + "/ship") }>
 							<div class="ui-field">
 								<label class="ui-label" for="ship-carrier">{ i18n.T(ctx, i18n.KeyAdminColCarrier) }</label>
-								<input class="ui-input" id="ship-carrier" name="carrier" required maxlength="60" autocomplete="off"/>
+								<input class="ui-input" id="ship-carrier" name="carrier" value={ v.ShipCarrier } required maxlength="60" autocomplete="off"/>
 							</div>
 							<div class="ui-field">
 								<label class="ui-label" for="ship-tracking">{ i18n.T(ctx, i18n.KeyAdminQueueTracking) }</label>
-								<input class="ui-input" id="ship-tracking" name="tracking" required maxlength="60" autocomplete="off"/>
+								<input
+									class="ui-input"
+									id="ship-tracking"
+									name="tracking"
+									value={ v.ShipTracking }
+									required
+									maxlength="60"
+									autocomplete="off"
+									if v.TrackingError != "" {
+										aria-invalid="true"
+										aria-describedby="ship-tracking-error"
+									}
+								/>
+								if v.TrackingError != "" {
+									<p id="ship-tracking-error" class="ui-error-text" role="alert">{ v.TrackingError }</p>
+								}
 							</div>
 							for _, l := range v.Shippable {
 								<div class="ui-field">

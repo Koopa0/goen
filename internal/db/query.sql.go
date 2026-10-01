@@ -1661,6 +1661,15 @@ func (q *Queries) AdminSearchCustomers(ctx context.Context, arg AdminSearchCusto
 }
 
 const adminSearchOrders = `-- name: AdminSearchOrders :many
+WITH hits AS (
+    SELECT o.id FROM orders o WHERE o.order_number = upper($5::text)
+    UNION
+    SELECT pd.order_id FROM order_private_data pd
+    WHERE lower(pd.email) LIKE lower($6::text) || '%'
+    UNION
+    SELECT pd.order_id FROM order_private_data pd
+    WHERE pd.recipient_name LIKE $6::text || '%'
+)
 SELECT json_build_object('At', o.placed_at, 'ID', o.id)::text AS page_cursor,
     o.id,
     o.order_number,
@@ -1675,23 +1684,21 @@ SELECT json_build_object('At', o.placed_at, 'ID', o.id)::text AS page_cursor,
     order_is_committed(o.id) AS committed,
     order_amount_owed(o.id) AS owed_cents
 FROM orders o
+JOIN hits h ON h.id = o.id
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
-WHERE (o.order_number = upper($1::text)
-   OR lower(pd.email) LIKE lower($2::text) || '%'
-   OR pd.recipient_name LIKE $2::text || '%')
-AND (NOT $3::boolean OR (o.placed_at < $4::timestamptz)
-       OR (o.placed_at = $4::timestamptz AND o.id < $5::uuid))
+WHERE (NOT $1::boolean OR (o.placed_at < $2::timestamptz)
+       OR (o.placed_at = $2::timestamptz AND o.id < $3::uuid))
 ORDER BY o.placed_at DESC, o.id DESC
-LIMIT $6::integer
+LIMIT $4::integer
 `
 
 type AdminSearchOrdersParams struct {
-	Term        string
-	EscapedTerm string
 	HasCursor   bool
 	AfterAt     time.Time
 	AfterID     uuid.UUID
 	RowLimit    int32
+	Term        string
+	EscapedTerm string
 }
 
 type AdminSearchOrdersRow struct {
@@ -1709,19 +1716,20 @@ type AdminSearchOrdersRow struct {
 	OwedCents         int64
 }
 
-// An order-number-shaped term is matched exactly and anything else as a prefix,
-// told apart rather than OR-ed with wildcards so each path stays index-backed.
+// An order-number-shaped term is matched exactly and anything else as a prefix.
+// Each probe reads one table by its own index and the UNION joins the ids back to
+// orders; OR-ing the three across the join could only be a join filter.
 // An erased order matches nothing: erase_user NULLs the name and the address.
 // The prefixes take @escaped_term, the same words with LIKE's own syntax
 // escaped: a typed % or _ would otherwise match any address or name.
 func (q *Queries) AdminSearchOrders(ctx context.Context, arg AdminSearchOrdersParams) ([]AdminSearchOrdersRow, error) {
 	rows, err := q.db.Query(ctx, adminSearchOrders,
-		arg.Term,
-		arg.EscapedTerm,
 		arg.HasCursor,
 		arg.AfterAt,
 		arg.AfterID,
 		arg.RowLimit,
+		arg.Term,
+		arg.EscapedTerm,
 	)
 	if err != nil {
 		return nil, err
@@ -2941,7 +2949,7 @@ WHERE o.id = $1
   )
 `
 
-// LapsedUnpaidOrders' predicate, read again after LockOrderForExpiry: `pending`
+// LapsedUnpaidOrders' predicate, read again after LockOrderByNumber: `pending`
 // refuses a second cancellation, and the payment clauses now see every payment
 // committed before the lock was granted.
 func (q *Queries) CancelLapsedOrder(ctx context.Context, id uuid.UUID) (int64, error) {
@@ -2954,16 +2962,18 @@ func (q *Queries) CancelLapsedOrder(ctx context.Context, id uuid.UUID) (int64, e
 
 const cancelOrderByCustomer = `-- name: CancelOrderByCustomer :execrows
 UPDATE orders SET fulfillment_status = 'cancelled', cancelled_at = now()
-WHERE order_number = $1
+WHERE id = $1
   AND fulfillment_status = 'pending'
-  AND id NOT IN (SELECT id FROM committed_orders)
+  AND NOT order_is_committed(id)
 `
 
 // Both predicates are load-bearing: `pending` refuses a second cancellation,
-// `not committed` refuses one somebody has paid for. In the WHERE clause, so two
-// cancellations racing a capture cannot both decide it was cancellable.
-func (q *Queries) CancelOrderByCustomer(ctx context.Context, orderNumber string) (int64, error) {
-	result, err := q.db.Exec(ctx, cancelOrderByCustomer, orderNumber)
+// `not committed` refuses one somebody has paid for. Run it after
+// LockOrderByNumber: a capture holds the order lock without updating the row,
+// so an UPDATE that waited for it would judge payment by the snapshot taken
+// before the wait and reach the transition trigger, which store may not run.
+func (q *Queries) CancelOrderByCustomer(ctx context.Context, id uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, cancelOrderByCustomer, id)
 	if err != nil {
 		return 0, err
 	}
@@ -3466,11 +3476,13 @@ SELECT
     coalesce(localized_name(p.summary, p.summary_en, $1::text), '')::text AS summary,
     b.name AS brand,
     mv.price_cents AS min_price_cents,
-    -- Whether that price is the cheapest of several, so a card can say "from"
-    -- rather than state one variant's price as the product's.
+    -- Whether that price is the cheapest of several within the filters, so a card
+    -- can say "from" rather than state one variant's price as the product's.
     EXISTS (
         SELECT 1 FROM product_variants dv
         WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
+          AND (NOT $2::boolean OR dv.stock_quantity > dv.safety_stock)
+          AND ($3::bigint = 0 OR dv.price_cents <= $3::bigint)
     ) AS price_varies,
     mv.compare_at_price_cents,
     coalesce(rv.rating, 0)::float8 AS rating,
@@ -3490,6 +3502,11 @@ JOIN LATERAL (
     SELECT price_cents, compare_at_price_cents
     FROM product_variants
     WHERE product_id = p.id AND is_active
+      -- The card shows a variant the filters accepted, or it states a price the
+      -- shopper excluded; these are the predicates of the EXISTS below.
+      AND (NOT $2::boolean OR stock_quantity > safety_stock)
+      AND ($4::bigint = 0 OR price_cents >= $4::bigint)
+      AND ($3::bigint = 0 OR price_cents <= $3::bigint)
     -- A buyable variant first: the price on a card is a promise.
     ORDER BY (stock_quantity > safety_stock) DESC, price_cents
     LIMIT 1
@@ -3503,17 +3520,17 @@ LEFT JOIN LATERAL (
     FROM product_images WHERE product_id = p.id ORDER BY position LIMIT 1
 ) img ON true
 WHERE p.status = 'active'
-  AND p.category_id = ANY($2::uuid[])
-  AND ($3::uuid[] = ARRAY[]::uuid[] OR p.brand_id = ANY($3::uuid[]))
+  AND p.category_id = ANY($5::uuid[])
+  AND ($6::uuid[] = ARRAY[]::uuid[] OR p.brand_id = ANY($6::uuid[]))
   -- One variant satisfies every variant-level filter at once.
   AND (
-      NOT $4::boolean
+      NOT $7::boolean
       OR EXISTS (
           SELECT 1 FROM product_variants v
           WHERE v.product_id = p.id AND v.is_active
-            AND (NOT $5::boolean OR v.stock_quantity > v.safety_stock)
-            AND ($6::bigint = 0 OR v.price_cents >= $6::bigint)
-            AND ($7::bigint = 0 OR v.price_cents <= $7::bigint)
+            AND (NOT $2::boolean OR v.stock_quantity > v.safety_stock)
+            AND ($4::bigint = 0 OR v.price_cents >= $4::bigint)
+            AND ($3::bigint = 0 OR v.price_cents <= $3::bigint)
       )
   )
 ORDER BY
@@ -3526,12 +3543,12 @@ LIMIT $10::integer OFFSET $9::integer
 
 type CategoryListingParams struct {
 	Locale         string
+	InStockOnly    bool
+	MaxPrice       int64
+	MinPrice       int64
 	CategoryIds    []uuid.UUID
 	BrandIds       []uuid.UUID
 	FilterVariants bool
-	InStockOnly    bool
-	MinPrice       int64
-	MaxPrice       int64
 	Sort           string
 	PageOffset     int32
 	PageSize       int32
@@ -3560,12 +3577,12 @@ type CategoryListingRow struct {
 func (q *Queries) CategoryListing(ctx context.Context, arg CategoryListingParams) ([]CategoryListingRow, error) {
 	rows, err := q.db.Query(ctx, categoryListing,
 		arg.Locale,
+		arg.InStockOnly,
+		arg.MaxPrice,
+		arg.MinPrice,
 		arg.CategoryIds,
 		arg.BrandIds,
 		arg.FilterVariants,
-		arg.InStockOnly,
-		arg.MinPrice,
-		arg.MaxPrice,
 		arg.Sort,
 		arg.PageOffset,
 		arg.PageSize,
@@ -6065,6 +6082,7 @@ SELECT coalesce(min(v.free_over_cents), 0)::bigint AS free_over_cents
 FROM shipping_methods sm
 JOIN shipping_method_versions v ON v.method_id = sm.id
 WHERE sm.is_active
+  AND ($1::boolean OR sm.destination_kind <> 'pickup_point')
   AND v.effective_at <= now()
   AND v.free_over_cents > 0
   AND v.id = (SELECT id FROM shipping_method_versions
@@ -6072,11 +6090,14 @@ WHERE sm.is_active
               ORDER BY effective_at DESC LIMIT 1)
 `
 
+// with_pickup is false where the store map is not configured: checkout offers no
+// pickup there, so a floor or threshold that counted it would promise a price
+// nobody can choose.
 // MIN across methods: the strip makes one claim, and the most generous true one
 // is the lowest threshold any active method honours. coalesce AND cast, because
 // min() over an empty set is NULL and sqlc types the result as non-null.
-func (q *Queries) FreeDeliveryThreshold(ctx context.Context) (int64, error) {
-	row := q.db.QueryRow(ctx, freeDeliveryThreshold)
+func (q *Queries) FreeDeliveryThreshold(ctx context.Context, withPickup bool) (int64, error) {
+	row := q.db.QueryRow(ctx, freeDeliveryThreshold, withPickup)
 	var free_over_cents int64
 	err := row.Scan(&free_over_cents)
 	return free_over_cents, err
@@ -7124,6 +7145,20 @@ func (q *Queries) LockHeroAppendPosition(ctx context.Context) error {
 	return err
 }
 
+const lockOrderByNumber = `-- name: LockOrderByNumber :one
+SELECT id FROM orders WHERE order_number = $1 FOR UPDATE
+`
+
+// Its own statement, before CancelLapsedOrder and CancelOrderByCustomer: open_payment and capture_payment
+// lock this row without updating it, so an UPDATE that waited for them would
+// still judge their payments by the snapshot it took before waiting.
+func (q *Queries) LockOrderByNumber(ctx context.Context, orderNumber string) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, lockOrderByNumber, orderNumber)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
 const lockOrderDelivery = `-- name: LockOrderDelivery :one
 SELECT o.id, o.fulfillment_status, sm.destination_kind
 FROM orders o
@@ -7165,20 +7200,6 @@ func (q *Queries) LockOrderForAdvance(ctx context.Context, orderNumber string) (
 	var i LockOrderForAdvanceRow
 	err := row.Scan(&i.ID, &i.FulfillmentStatus, &i.Committed)
 	return i, err
-}
-
-const lockOrderForExpiry = `-- name: LockOrderForExpiry :one
-SELECT id FROM orders WHERE order_number = $1 FOR UPDATE
-`
-
-// Its own statement, before CancelLapsedOrder: open_payment and capture_payment
-// lock this row without updating it, so an UPDATE that waited for them would
-// still judge their payments by the snapshot it took before waiting.
-func (q *Queries) LockOrderForExpiry(ctx context.Context, orderNumber string) (uuid.UUID, error) {
-	row := q.db.QueryRow(ctx, lockOrderForExpiry, orderNumber)
-	var id uuid.UUID
-	err := row.Scan(&id)
-	return id, err
 }
 
 const lockOrderForStaffNote = `-- name: LockOrderForStaffNote :one
@@ -7322,17 +7343,21 @@ SELECT coalesce(min(v.fee_cents), 0)::bigint AS fee_cents
 FROM shipping_methods sm
 JOIN shipping_method_versions v ON v.method_id = sm.id
 WHERE sm.is_active
+  AND ($1::boolean OR sm.destination_kind <> 'pickup_point')
   AND v.effective_at <= now()
   AND v.id = (SELECT id FROM shipping_method_versions
               WHERE method_id = sm.id AND effective_at <= now()
               ORDER BY effective_at DESC LIMIT 1)
 `
 
+// with_pickup is false where the store map is not configured: checkout offers no
+// pickup there, so a floor or threshold that counted it would promise a price
+// nobody can choose.
 // MIN across methods: the strip states one floor, and the honest one is the
 // lowest fee any active method charges. coalesce AND cast, because min() over
 // an empty set is NULL and sqlc types the result as non-null.
-func (q *Queries) LowestDeliveryFee(ctx context.Context) (int64, error) {
-	row := q.db.QueryRow(ctx, lowestDeliveryFee)
+func (q *Queries) LowestDeliveryFee(ctx context.Context, withPickup bool) (int64, error) {
+	row := q.db.QueryRow(ctx, lowestDeliveryFee, withPickup)
 	var fee_cents int64
 	err := row.Scan(&fee_cents)
 	return fee_cents, err
@@ -8497,7 +8522,7 @@ SELECT o.id, o.order_number, o.fulfillment_status,
        coalesce(pd.pickup_store_name, '') AS pickup_store_name,
        -- 'pending' does NOT mean unpaid: a webhook can capture minutes before
        -- the shop moves the order to picking.
-       (o.id IN (SELECT id FROM committed_orders))::boolean AS committed,
+       EXISTS (SELECT 1 FROM committed_orders c WHERE c.id = o.id) AS committed,
        -- NOT derivable from ` + "`" + `committed` + "`" + `: a fully store-credited order has no
        -- payment row and stays 'pending' while the customer owes nothing.
        order_amount_owed(o.id)::bigint AS owed_cents
@@ -11896,6 +11921,12 @@ func (q *Queries) SavedAddresses(ctx context.Context, userID uuid.UUID) ([]Saved
 }
 
 const searchProducts = `-- name: SearchProducts :many
+WITH RECURSIVE category_match AS (
+    SELECT id FROM categories
+    WHERE name ILIKE $2::text OR coalesce(name_en, '') ILIKE $2::text
+    UNION
+    SELECT c.id FROM categories c JOIN category_match m ON c.parent_id = m.id
+)
 SELECT
     p.slug,
     localized_name(p.name, p.name_en, $1::text) AS name,
@@ -11945,6 +11976,7 @@ WHERE p.status = 'active'
        OR coalesce(p.summary, '') ILIKE $2::text
        OR coalesce(p.summary_en, '') ILIKE $2::text
        OR b.name ILIKE $2::text
+       OR p.category_id IN (SELECT id FROM category_match)
        OR EXISTS (
            SELECT 1 FROM product_variants sku_match
            WHERE sku_match.product_id = p.id AND sku_match.is_active
@@ -11960,15 +11992,17 @@ WHERE p.status = 'active'
        ))
 ORDER BY
     -- Field relevance is explicit; repeated words, sales and ratings do not change it.
-    -- A complete variant SKU leads; a partial SKU follows a partial name match.
+    -- A complete variant SKU leads; the category follows a partial name match and
+    -- a partial SKU follows the category.
     CASE
         WHEN EXISTS (
             SELECT 1 FROM product_variants exact_sku
             WHERE exact_sku.product_id = p.id AND exact_sku.is_active
               AND exact_sku.sku ILIKE $3::text
-        ) THEN 6
-        WHEN p.name ILIKE $3::text OR coalesce(p.name_en, '') ILIKE $3::text THEN 5
-        WHEN p.name ILIKE $2::text OR coalesce(p.name_en, '') ILIKE $2::text THEN 4
+        ) THEN 7
+        WHEN p.name ILIKE $3::text OR coalesce(p.name_en, '') ILIKE $3::text THEN 6
+        WHEN p.name ILIKE $2::text OR coalesce(p.name_en, '') ILIKE $2::text THEN 5
+        WHEN p.category_id IN (SELECT id FROM category_match) THEN 4
         WHEN EXISTS (
             SELECT 1 FROM product_variants partial_sku
             WHERE partial_sku.product_id = p.id AND partial_sku.is_active
@@ -12051,6 +12085,12 @@ func (q *Queries) SearchProducts(ctx context.Context, arg SearchProductsParams) 
 }
 
 const searchProductsCount = `-- name: SearchProductsCount :one
+WITH RECURSIVE category_match AS (
+    SELECT id FROM categories
+    WHERE name ILIKE $1::text OR coalesce(name_en, '') ILIKE $1::text
+    UNION
+    SELECT c.id FROM categories c JOIN category_match m ON c.parent_id = m.id
+)
 SELECT count(*)::bigint
 FROM products p
 JOIN brands b ON b.id = p.brand_id
@@ -12060,6 +12100,7 @@ WHERE p.status = 'active'
        OR coalesce(p.summary, '') ILIKE $1::text
        OR coalesce(p.summary_en, '') ILIKE $1::text
        OR b.name ILIKE $1::text
+       OR p.category_id IN (SELECT id FROM category_match)
        OR EXISTS (
            SELECT 1 FROM product_variants sku_match
            WHERE sku_match.product_id = p.id AND sku_match.is_active
@@ -12780,8 +12821,15 @@ SELECT DISTINCT ON (sm.id)
 FROM shipping_methods sm
 JOIN shipping_method_versions v ON v.method_id = sm.id
 WHERE sm.is_active AND v.effective_at <= now()
+  -- Pickup is listed only where checkout offers it.
+  AND ($2::boolean OR sm.destination_kind <> 'pickup_point')
 ORDER BY sm.id, v.effective_at DESC
 `
+
+type ShippingPolicyParams struct {
+	Locale     string
+	WithPickup bool
+}
 
 type ShippingPolicyRow struct {
 	Code          string
@@ -12793,8 +12841,8 @@ type ShippingPolicyRow struct {
 }
 
 // The shipping methods a policy page describes.
-func (q *Queries) ShippingPolicy(ctx context.Context, locale string) ([]ShippingPolicyRow, error) {
-	rows, err := q.db.Query(ctx, shippingPolicy, locale)
+func (q *Queries) ShippingPolicy(ctx context.Context, arg ShippingPolicyParams) ([]ShippingPolicyRow, error) {
+	rows, err := q.db.Query(ctx, shippingPolicy, arg.Locale, arg.WithPickup)
 	if err != nil {
 		return nil, err
 	}
@@ -12947,11 +12995,17 @@ func (q *Queries) ShowReview(ctx context.Context, id uuid.UUID) (int64, error) {
 }
 
 const sitemapCategories = `-- name: SitemapCategories :many
+WITH RECURSIVE tree AS (
+    SELECT id, id AS root FROM categories
+    UNION ALL
+    SELECT k.id, t.root FROM categories k JOIN tree t ON k.parent_id = t.id
+)
 SELECT DISTINCT c.slug, c.updated_at
 FROM categories c
 WHERE EXISTS (
-    SELECT 1 FROM products p
-    WHERE p.category_id = c.id AND p.status = 'active'
+    SELECT 1 FROM tree t
+    JOIN products p ON p.category_id = t.id
+    WHERE t.root = c.id AND p.status = 'active'
 )
 ORDER BY c.updated_at DESC
 LIMIT $1
@@ -12962,6 +13016,8 @@ type SitemapCategoriesRow struct {
 	UpdatedAt time.Time
 }
 
+// A department holds no product itself and lists those of every category below
+// it, so the test is over the subtree, as CategoryDescendants is.
 func (q *Queries) SitemapCategories(ctx context.Context, limit int32) ([]SitemapCategoriesRow, error) {
 	rows, err := q.db.Query(ctx, sitemapCategories, limit)
 	if err != nil {
@@ -13234,6 +13290,38 @@ func (q *Queries) StockAtRisk(ctx context.Context, arg StockAtRiskParams) ([]Sto
 		return nil, err
 	}
 	return items, nil
+}
+
+const stockMovementApplied = `-- name: StockMovementApplied :one
+SELECT EXISTS (
+    SELECT 1 FROM inventory_movements
+    WHERE idempotency_key = $1::text
+      AND variant_id = $2
+      AND delta = $3::integer
+      AND reason = $4::text
+)
+`
+
+type StockMovementAppliedParams struct {
+	IdempotencyKey string
+	VariantID      uuid.UUID
+	Delta          int32
+	Reason         string
+}
+
+// Whether this exact movement is already in the ledger under the key, so a
+// replay of the form that booked it can be told from a different movement that
+// reuses the key.
+func (q *Queries) StockMovementApplied(ctx context.Context, arg StockMovementAppliedParams) (bool, error) {
+	row := q.db.QueryRow(ctx, stockMovementApplied,
+		arg.IdempotencyKey,
+		arg.VariantID,
+		arg.Delta,
+		arg.Reason,
+	)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
 }
 
 const storeCreditBalance = `-- name: StoreCreditBalance :one
@@ -14059,7 +14147,7 @@ SELECT
     -- Both columns: a captured card leaves the order committed and still owing,
     -- a fully store-credited one owes nothing and is not committed until it
     -- leaves pending.
-    (o.id IN (SELECT id FROM committed_orders))::boolean AS committed,
+    EXISTS (SELECT 1 FROM committed_orders c WHERE c.id = o.id) AS committed,
     order_amount_owed(o.id)::bigint AS owed_cents
 FROM orders o
 WHERE o.user_id = $1
@@ -14460,9 +14548,9 @@ SELECT
                  AND e.unreconciled IS NOT NULL AND e.reconciled_at IS NULL
            )
        )))::bigint AS expired_holds,
-    (SELECT coalesce(extract(epoch FROM now() - max(computed_at)), 0)
-     FROM product_copurchases)::bigint AS copurchase_age_seconds,
-    EXISTS (SELECT 1 FROM product_copurchases) AS copurchase_ever_built,
+    (SELECT coalesce(extract(epoch FROM now() - max(refreshed_at)), 0)
+     FROM copurchase_refreshes)::bigint AS copurchase_age_seconds,
+    EXISTS (SELECT 1 FROM copurchase_refreshes) AS copurchase_ever_built,
     (SELECT count(*) FROM sessions WHERE expires_at <= now())::bigint AS expired_sessions,
     (SELECT count(*) FROM media_objects m
      WHERE NOT EXISTS (SELECT 1 FROM product_images p WHERE p.storage_key = m.digest)
@@ -14503,6 +14591,8 @@ type WorkerHealthRow struct {
 // the claim lease and the backoff push it forward. copurchase_ever_built is
 // separate from the age because max() over an empty table is NULL, which sqlc
 // infers as non-nullable and pgx then refuses to scan: a fresh deployment only.
+// Both read copurchase_refreshes and not product_copurchases: a rebuild that
+// found no pair of products leaves the projection empty and is still a rebuild.
 func (q *Queries) WorkerHealth(ctx context.Context, maxAttempts int32) (WorkerHealthRow, error) {
 	row := q.db.QueryRow(ctx, workerHealth, maxAttempts)
 	var i WorkerHealthRow
