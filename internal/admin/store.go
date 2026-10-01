@@ -799,10 +799,10 @@ func (s *Store) AdjustStock(ctx context.Context, sku string, delta int32, actorI
 		After:  map[string]any{"delta": delta},
 	},
 		func(ctx context.Context, q *db.Queries) error {
-			if err := q.AdjustStock(ctx, db.AdjustStockParams{
+			if moveErr := q.AdjustStock(ctx, db.AdjustStockParams{
 				VariantID: v.ID, Delta: delta, IdempotencyKey: key, ActorUserID: actor,
-			}); err != nil {
-				return fmt.Errorf("%w: %w", ErrRefused, err)
+			}); moveErr != nil {
+				return fmt.Errorf("%w: %w", ErrRefused, moveErr)
 			}
 			// Called on EVERY adjustment: the claim's own EXISTS decides whether
 			// the variant is back above its threshold, so a movement that does
@@ -833,10 +833,10 @@ func (s *Store) ReceiveStock(ctx context.Context, sku string, quantity int32, ac
 		After:  map[string]any{"received": quantity},
 	},
 		func(ctx context.Context, q *db.Queries) error {
-			if err := q.ReceiveStock(ctx, db.ReceiveStockParams{
+			if moveErr := q.ReceiveStock(ctx, db.ReceiveStockParams{
 				VariantID: v.ID, Delta: quantity, IdempotencyKey: key, ActorUserID: actor,
-			}); err != nil {
-				return fmt.Errorf("%w: %w", ErrRefused, err)
+			}); moveErr != nil {
+				return fmt.Errorf("%w: %w", ErrRefused, moveErr)
 			}
 			// A receipt is the movement most likely to carry a variant back
 			// above its safety stock.
