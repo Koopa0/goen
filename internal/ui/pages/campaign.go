@@ -34,7 +34,7 @@ type CampaignView struct {
 }
 
 // CampaignImage is the header across the top of a campaign page. URL is empty
-// when the campaign has none, or names a file that is not there.
+// when the campaign has none.
 type CampaignImage struct {
 	URL    string
 	Srcset string

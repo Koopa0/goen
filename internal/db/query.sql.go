@@ -366,8 +366,8 @@ type AdminCampaignImageRow struct {
 	ImageWidth int32
 }
 
-// The stored width and height come from media_objects, and are 0 for a key that
-// is not an upload.
+// The stored width comes from media_objects, and is 0 for a key that is not an
+// upload.
 func (q *Queries) AdminCampaignImage(ctx context.Context, slug string) (AdminCampaignImageRow, error) {
 	row := q.db.QueryRow(ctx, adminCampaignImage, slug)
 	var i AdminCampaignImageRow
@@ -5574,6 +5574,7 @@ DELETE FROM media_objects m
 WHERE m.digest = $1::text
   AND NOT EXISTS (SELECT 1 FROM product_images p WHERE p.storage_key = m.digest)
   AND NOT EXISTS (SELECT 1 FROM hero_slides h WHERE h.image_key = m.digest)
+  AND NOT EXISTS (SELECT 1 FROM sale_campaigns c WHERE c.image_key = m.digest)
 `
 
 // The reference predicate is REPEATED here, not assumed. Selecting candidates
@@ -13640,6 +13641,7 @@ const unreferencedMedia = `-- name: UnreferencedMedia :many
 SELECT digest FROM media_objects m
 WHERE NOT EXISTS (SELECT 1 FROM product_images p WHERE p.storage_key = m.digest)
   AND NOT EXISTS (SELECT 1 FROM hero_slides h WHERE h.image_key = m.digest)
+  AND NOT EXISTS (SELECT 1 FROM sale_campaigns c WHERE c.image_key = m.digest)
   AND m.created_at < now() - interval '24 hours'
 ORDER BY m.created_at
 LIMIT $1
@@ -14426,6 +14428,7 @@ SELECT
     (SELECT count(*) FROM media_objects m
      WHERE NOT EXISTS (SELECT 1 FROM product_images p WHERE p.storage_key = m.digest)
        AND NOT EXISTS (SELECT 1 FROM hero_slides h WHERE h.image_key = m.digest)
+       AND NOT EXISTS (SELECT 1 FROM sale_campaigns c WHERE c.image_key = m.digest)
        AND m.created_at < now() - interval '24 hours')::bigint AS unreferenced_media,
     -- Events accepted and NOT acted on: a known Stripe object this binary could
     -- not read, paid money with no local payment row, paid money for an order

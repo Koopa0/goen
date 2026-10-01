@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 
@@ -882,7 +883,11 @@ func (h *Handler) SetCampaignImage(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, ErrNotFound):
 		h.notFound(w, r)
 	case errors.Is(err, ErrInvalid):
-		h.renderCampaign(w, r, http.StatusUnprocessableEntity, "", map[string]string{"alt": i18n.T(r.Context(), i18n.KeyFormHeroAlt)})
+		field, reason := "alt", i18n.KeyFormHeroAlt
+		if utf8.RuneCountInString(strings.TrimSpace(r.PostFormValue("alt_en"))) > MaxCampaignAltRunes {
+			field, reason = "alt_en", i18n.KeyFormCampaignAltEnLong
+		}
+		h.renderCampaign(w, r, http.StatusUnprocessableEntity, "", map[string]string{field: i18n.T(r.Context(), reason)})
 	default:
 		h.log.ErrorContext(r.Context(), "set campaign image", "error", err, "slug", slug)
 		h.serverError(w, r)

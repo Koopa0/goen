@@ -892,8 +892,8 @@ UPDATE sale_campaigns
 SET image_key = NULL, image_alt = NULL, image_alt_en = NULL
 WHERE slug = @slug::text;
 
--- The stored width and height come from media_objects, and are 0 for a key that
--- is not an upload.
+-- The stored width comes from media_objects, and is 0 for a key that is not an
+-- upload.
 -- name: AdminCampaignImage :one
 SELECT coalesce(c.image_key, '')::text AS image_key,
        coalesce(c.image_alt, '')::text AS image_alt,
@@ -1287,6 +1287,7 @@ SELECT
     (SELECT count(*) FROM media_objects m
      WHERE NOT EXISTS (SELECT 1 FROM product_images p WHERE p.storage_key = m.digest)
        AND NOT EXISTS (SELECT 1 FROM hero_slides h WHERE h.image_key = m.digest)
+       AND NOT EXISTS (SELECT 1 FROM sale_campaigns c WHERE c.image_key = m.digest)
        AND m.created_at < now() - interval '24 hours')::bigint AS unreferenced_media,
     -- Events accepted and NOT acted on: a known Stripe object this binary could
     -- not read, paid money with no local payment row, paid money for an order

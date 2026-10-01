@@ -31,6 +31,11 @@ var (
 		En:     "An image needs alt text — it is how somebody using a screen reader knows what it shows.",
 	})
 
+	KeyFormCampaignAltEnLong = key("form.campaign.alt_en.long", Message{
+		ZhHant: "英文說明文字過長。",
+		En:     "The English alt text is too long.",
+	})
+
 	KeyAdminHomeLead = key("admin.home.lead", Message{
 		ZhHant: "顧客看到的是排在最前面、而且在檔期內的那一則。沒有任何一則符合時,首頁會顯示內建的預設文案。",
 		En: "Visitors see the first slide in the queue that is also inside its window. " +

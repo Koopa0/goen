@@ -278,6 +278,32 @@ func TestAHeroSlidesImageIsNotReclaimed(t *testing.T) {
 	}
 }
 
+// TestACampaignsHeaderImageIsNotReclaimed covers the third referencing column:
+// a delete that missed it would blank a campaign page's header.
+func TestACampaignsHeaderImageIsNotReclaimed(t *testing.T) {
+	ctx := t.Context()
+	s := media.NewStore(pool)
+
+	header, err := s.Put(ctx, bytes.NewReader(samplePNG(t, 73, 53)))
+	if err != nil {
+		t.Fatalf("upload: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO sale_campaigns (slug, title, starts_at, ends_at, image_key, image_alt)
+		VALUES ('header-sweep-check', '版面檢查', now() - interval '1 day', now() + interval '1 day', $1, '測試圖片')`,
+		header.Digest); err != nil {
+		t.Fatalf("attach to a campaign: %v", err)
+	}
+	ageUploads(t, header.Digest)
+
+	if _, err := s.Sweep(ctx, slog.New(slog.DiscardHandler)); err != nil {
+		t.Fatalf("sweep: %v", err)
+	}
+	if !exists(t, header.Digest) {
+		t.Error("the campaign page's header image was reclaimed")
+	}
+}
+
 func exists(t *testing.T, digest string) bool {
 	t.Helper()
 	var n int
