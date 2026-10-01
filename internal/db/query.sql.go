@@ -12935,12 +12935,16 @@ func (q *Queries) ShowReview(ctx context.Context, id uuid.UUID) (int64, error) {
 }
 
 const sitemapCategories = `-- name: SitemapCategories :many
-SELECT DISTINCT c.slug, c.updated_at
-FROM categories c
-WHERE EXISTS (
-    SELECT 1 FROM products p
-    WHERE p.category_id = c.id AND p.status = 'active'
+WITH RECURSIVE populated AS (
+    SELECT DISTINCT p.category_id AS id FROM products p WHERE p.status = 'active'
+    UNION
+    SELECT c.parent_id FROM categories c
+    JOIN populated pl ON c.id = pl.id
+    WHERE c.parent_id IS NOT NULL
 )
+SELECT c.slug, c.updated_at
+FROM categories c
+JOIN populated pl ON pl.id = c.id
 ORDER BY c.updated_at DESC
 LIMIT $1
 `
@@ -12950,6 +12954,10 @@ type SitemapCategoriesRow struct {
 	UpdatedAt time.Time
 }
 
+// A category is worth a URL when it or a descendant holds an active product:
+// the listing counts the whole subtree, so a parent whose products all sit in
+// its children is not an empty page. categories_acyclic guarantees the upward
+// walk terminates.
 func (q *Queries) SitemapCategories(ctx context.Context, limit int32) ([]SitemapCategoriesRow, error) {
 	rows, err := q.db.Query(ctx, sitemapCategories, limit)
 	if err != nil {

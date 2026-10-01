@@ -341,13 +341,21 @@ WHERE status = 'active'
 ORDER BY updated_at DESC
 LIMIT $1;
 
+-- A category is worth a URL when it or a descendant holds an active product:
+-- the listing counts the whole subtree, so a parent whose products all sit in
+-- its children is not an empty page. categories_acyclic guarantees the upward
+-- walk terminates.
 -- name: SitemapCategories :many
-SELECT DISTINCT c.slug, c.updated_at
-FROM categories c
-WHERE EXISTS (
-    SELECT 1 FROM products p
-    WHERE p.category_id = c.id AND p.status = 'active'
+WITH RECURSIVE populated AS (
+    SELECT DISTINCT p.category_id AS id FROM products p WHERE p.status = 'active'
+    UNION
+    SELECT c.parent_id FROM categories c
+    JOIN populated pl ON c.id = pl.id
+    WHERE c.parent_id IS NOT NULL
 )
+SELECT c.slug, c.updated_at
+FROM categories c
+JOIN populated pl ON pl.id = c.id
 ORDER BY c.updated_at DESC
 LIMIT $1;
 

@@ -978,3 +978,50 @@ func TestPromotionalTilesArePricedOnTheDiscountedVariant(t *testing.T) {
 		t.Error("campaign tile says its discounted price is the bottom of a range, but a cheaper variant exists")
 	}
 }
+
+// The listing counts the whole subtree, so a parent whose products all sit in
+// its children is a real page and belongs in the sitemap; an empty branch does not.
+func TestSitemapListsAParentWhoseProductsAreAllInItsChildren(t *testing.T) {
+	ctx := t.Context()
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
+
+	if _, execErr := tx.Exec(ctx, `
+		WITH root AS (
+			INSERT INTO categories (slug, name, position)
+			SELECT 'sm-root', '空的父類', coalesce(max(position) + 1, 0) FROM categories WHERE parent_id IS NULL
+			RETURNING id
+		), mid AS (
+			INSERT INTO categories (slug, name, parent_id, position) SELECT 'sm-mid', '中層', id, 0 FROM root RETURNING id
+		), leaf AS (
+			INSERT INTO categories (slug, name, parent_id, position) SELECT 'sm-leaf', '末層', id, 0 FROM mid RETURNING id
+		), bare AS (
+			INSERT INTO categories (slug, name, parent_id, position) SELECT 'sm-bare', '沒有商品', id, 1 FROM root RETURNING id
+		)
+		INSERT INTO products (brand_id, category_id, slug, name, status, published_at)
+		SELECT b.id, leaf.id, 'sm-product', '深層商品', 'active', now()
+		FROM brands b, leaf WHERE b.slug = 'pixelight'`,
+	); execErr != nil {
+		t.Fatalf("fixture: %v", execErr)
+	}
+
+	rows, queryErr := catalog.NewStore(tx).SitemapCategories(ctx, 1000)
+	if queryErr != nil {
+		t.Fatalf("sitemap categories: %v", queryErr)
+	}
+	got := map[string]int{}
+	for _, r := range rows {
+		got[r.Slug]++
+	}
+	for _, slug := range []string{"sm-root", "sm-mid", "sm-leaf"} {
+		if got[slug] != 1 {
+			t.Errorf("%s listed %d times, want once: it holds an active product in its subtree", slug, got[slug])
+		}
+	}
+	if got["sm-bare"] != 0 {
+		t.Error("sm-bare is listed, but nothing in its subtree is for sale")
+	}
+}
