@@ -63,7 +63,7 @@ templ campaignStrip(campaigns []CampaignSummary) {
 					<a class="goen-campaigns__item" href={ templ.SafeURL(c.Href()) }>
 						<span class="goen-campaigns__title">{ c.Title }</span>
 						<span class="goen-campaigns__meta">
-							{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCampaignProducts), c.ProductsText()) }
+							{ i18n.Count(ctx, i18n.KeyCampaignProducts, c.Products, c.ProductsText()) }
 							if c.EndsIn != "" {
 								· { c.EndsIn }
 							}

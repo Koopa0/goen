@@ -135,13 +135,13 @@ func (v *WorkerHealthView) RecommendText(ctx context.Context) string {
 func humanDuration(ctx context.Context, d time.Duration) string {
 	switch {
 	case d < time.Minute:
-		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminSeconds), int(d.Seconds()))
+		return i18n.Count(ctx, i18n.KeyAdminSeconds, int64(int(d.Seconds())), int(d.Seconds()))
 	case d < time.Hour:
-		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminMinutes), int(d.Minutes()))
+		return i18n.Count(ctx, i18n.KeyAdminMinutes, int64(int(d.Minutes())), int(d.Minutes()))
 	case d < 24*time.Hour:
-		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminHours), int(d.Hours()))
+		return i18n.Count(ctx, i18n.KeyAdminHours, int64(int(d.Hours())), int(d.Hours()))
 	default:
-		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminDays), int(d.Hours()/24))
+		return i18n.Count(ctx, i18n.KeyAdminDays, int64(int(d.Hours()/24)), int(d.Hours()/24))
 	}
 }
 
