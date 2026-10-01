@@ -115,8 +115,14 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	})
 	catalogue := catalog.NewStore(pool)
 	browse := catalog.NewHandler(catalogue, log)
-	sitePages := site.NewHandler(log, baseURL, catalogue, site.NewStore(pool), secureCookies)
-	storefront := home.NewHandler(home.NewStore(pool), log, secureCookies)
+	// Everything that describes shipping reads what checkout offers: pickup needs
+	// the store map, so without it nothing may promise pickup or its price.
+	siteStore, homeStore, productStore := site.NewStore(pool), home.NewStore(pool), product.NewStore(pool)
+	if !cfg.StoreMap.Enabled() {
+		siteStore, homeStore, productStore = siteStore.WithoutPickup(), homeStore.WithoutPickup(), productStore.WithoutPickup()
+	}
+	sitePages := site.NewHandler(log, baseURL, catalogue, siteStore, secureCookies)
+	storefront := home.NewHandler(homeStore, log, secureCookies)
 	probes := health.NewHandler(log,
 		health.Dependency{Name: "storefront", DB: pool},
 		health.Dependency{Name: "admin", DB: adminPool},
@@ -142,7 +148,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	signups := newsletter.NewHandler(newsletter.NewStore(pool), signupLimit, log)
 	cover := warranty.NewHandler(warranty.NewStore(pool), log)
 	points := loyalty.NewHandler(loyalty.NewStore(pool), log)
-	items := product.NewHandler(product.NewStore(pool), log, baseURL)
+	items := product.NewHandler(productStore, log, baseURL)
 	// Half of the order-lookup credential is a guessable order number, so
 	// unlimited asking makes the endpoint an oracle for the other half.
 	findLimit := ratelimit.New(ratelimit.Config{

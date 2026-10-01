@@ -62,11 +62,22 @@ type HomeView struct {
 	Categories        []HomeCategory
 	FreeDeliveryCents int64
 	LowestFeeCents    int64
-	Recommended       []ProductTile
+	// PickupOffered is whether checkout offers store pickup, which the shipping
+	// strip may only claim where it does.
+	PickupOffered bool
+	Recommended   []ProductTile
 }
 
 // FreeDelivery is the threshold the trust strip states, or "" for none.
 func (v *HomeView) FreeDelivery() string { return FreeDeliveryText(v.FreeDeliveryCents) }
+
+// ShippingBodyKey is the strip's sentence for the methods checkout offers.
+func (v *HomeView) ShippingBodyKey() i18n.Key {
+	if v.PickupOffered {
+		return i18n.KeyTrustShippingBody
+	}
+	return i18n.KeyTrustShippingHomeBody
+}
 
 // LowestFee is the floor the trust body states.
 func (v *HomeView) LowestFee() string { return twd(v.LowestFeeCents) }
