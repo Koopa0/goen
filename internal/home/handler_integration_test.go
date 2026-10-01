@@ -4,7 +4,6 @@ package home_test
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -743,17 +742,25 @@ func TestTheHeaderAndTheTilesAgreeOnOrder(t *testing.T) {
 func TestTheTrustBodyDescribesOnlyTheMethodsCheckoutOffers(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 
-	var homeFee, pickupFee int64
-	if err := pool.QueryRow(ctx, `
-		SELECT min(v.fee_cents) FILTER (WHERE sm.destination_kind = 'address'),
-		       min(v.fee_cents) FILTER (WHERE sm.destination_kind = 'pickup_point')
-		FROM shipping_methods sm
-		JOIN shipping_method_versions v ON v.method_id = sm.id
-		WHERE sm.is_active`).Scan(&homeFee, &pickupFee); err != nil {
-		t.Fatalf("read the seeded fees: %v", err)
+	// New versions, because shipping_method_versions is append-only and a
+	// sibling test leaves every method at one fee. The fixture names its own.
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO shipping_method_versions
+		    (method_id, name, carrier, fee_cents, free_over_cents, effective_at)
+		SELECT DISTINCT ON (v.method_id) v.method_id, v.name, v.carrier,
+		       CASE sm.destination_kind WHEN 'pickup_point' THEN 6000 ELSE 8000 END,
+		       300000, now()
+		FROM shipping_method_versions v
+		JOIN shipping_methods sm ON sm.id = v.method_id
+		WHERE sm.is_active
+		ORDER BY v.method_id, v.effective_at DESC`); err != nil {
+		t.Fatalf("publish the fees: %v", err)
 	}
-	if pickupFee >= homeFee {
-		t.Fatalf("fixture: pickup %d is not below home %d; the floor cannot tell them apart", pickupFee, homeFee)
+	var pickups int
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*) FROM shipping_methods
+		WHERE is_active AND destination_kind = 'pickup_point'`).Scan(&pickups); err != nil || pickups == 0 {
+		t.Fatalf("fixture: no active pickup method (%d): %v", pickups, err)
 	}
 
 	render := func(s *home.Store) string {
@@ -767,6 +774,9 @@ func TestTheTrustBodyDescribesOnlyTheMethodsCheckoutOffers(t *testing.T) {
 	}
 
 	with := render(home.NewStore(pool))
+	if !strings.Contains(with, "未達門檻運費 NT$60 起") {
+		t.Error("a shop that offers pickup does not state its NT$60 floor")
+	}
 	if !strings.Contains(with, "超商取貨皆適用") {
 		t.Error("a shop that offers pickup does not say so")
 	}
@@ -774,7 +784,7 @@ func TestTheTrustBodyDescribesOnlyTheMethodsCheckoutOffers(t *testing.T) {
 	if strings.Contains(without, "超商取貨皆適用") {
 		t.Error("the strip promises pickup where checkout does not offer it")
 	}
-	if want := fmt.Sprintf("未達門檻運費 NT$%d 起", homeFee/100); !strings.Contains(without, want) {
+	if want := "未達門檻運費 NT$80 起"; !strings.Contains(without, want) {
 		t.Errorf("the strip's floor is not the home delivery fee; want %q", want)
 	}
 }
