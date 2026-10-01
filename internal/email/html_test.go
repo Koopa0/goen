@@ -2,16 +2,22 @@ package email
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"html"
 	"io"
+	"maps"
 	"mime"
 	"mime/multipart"
 	"net/mail"
 	"reflect"
 	"regexp"
+	"slices"
+	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/assets"
 )
@@ -73,12 +79,70 @@ func parts(t *testing.T, wire []byte) (text, page string) {
 	return decoded[0], decoded[1]
 }
 
-var href = regexp.MustCompile(`href="([^"]*)"`)
+var (
+	href = regexp.MustCompile(`href="([^"]*)"`)
+	tag  = regexp.MustCompile(`<[^>]*>`)
+)
+
+// variants writes each letter one Send method chooses by its payload that
+// letters() does not reach, with each free-text field set to text.
+func variants(text string) map[string]func(context.Context, Notifier) error {
+	const to, number = "someone@example.com", "GO-260101-000001"
+	out := map[string]func(context.Context, Notifier) error{
+		"SendOrderPlaced funded": func(ctx context.Context, n Notifier) error {
+			owed := int64(0)
+			return n.SendOrderPlaced(ctx, &OrderPlaced{
+				Email: to, Name: text, OrderNumber: number, TotalCents: 123400, OwedCents: &owed,
+			})
+		},
+		"SendOrderPaid no card": func(ctx context.Context, n Notifier) error {
+			return n.SendOrderPaid(ctx, &OrderPaid{Email: to, Name: text, OrderNumber: number, AmountCents: 123400})
+		},
+		"SendOrderShipped pickup": func(ctx context.Context, n Notifier) error {
+			return n.SendOrderShipped(ctx, &OrderShipped{
+				Email: to, Name: text, OrderNumber: number, Carrier: text, Tracking: text, Pickup: true,
+			})
+		},
+	}
+	for _, m := range []OrderTerminal{
+		{Kind: TerminalCancelledByCustomer},
+		{Kind: TerminalCancelledByCustomer, Refunded: true},
+		{Kind: TerminalCancelledByStaff},
+		{Kind: TerminalCancelledByPaymentDeadline},
+		{Kind: TerminalCancelledByPaymentDeadline, Refunded: true},
+		{Kind: TerminalCollected},
+	} {
+		out["SendOrderTerminal "+string(m.Kind)+" refunded="+strconv.FormatBool(m.Refunded)] =
+			func(ctx context.Context, n Notifier) error {
+				m.OrderID = uuid.New()
+				return n.SendOrderTerminal(ctx, &m, TerminalRecipient{Address: to, Name: text, OrderNumber: number})
+			}
+	}
+	return out
+}
+
+// lines is the text of a letter line by line, without its blank lines. For
+// an HTML part it is what a reader sees: the markup gone, a break or a
+// paragraph's end a line break, and the entities read back.
+func lines(s string, page bool) []string {
+	if page {
+		s = strings.NewReplacer("<br>", "\n", "</p>", "\n").Replace(s)
+		s = html.UnescapeString(tag.ReplaceAllString(s, ""))
+	}
+	var out []string
+	for line := range strings.SplitSeq(crlf(s), "\r\n") {
+		if strings.TrimSpace(line) != "" {
+			out = append(out, line)
+		}
+	}
+	return out
+}
 
 // TestEveryLetterIsSentAsTextAndHTML holds every letter goen writes to its two
-// parts: the text part exactly the text goen composed, and an HTML part with
-// the header, every link the text has, and nothing a payload's free text can
-// turn into markup or into a link.
+// parts: the text part exactly the text goen composed, and an HTML part that
+// reads the same, line for line — the statutory disclosure included — with the
+// header, every link the text has, and nothing a payload's free text can turn
+// into markup or into a link.
 func TestEveryLetterIsSentAsTextAndHTML(t *testing.T) {
 	t.Parallel()
 	const origin = "https://goen.test"
@@ -89,11 +153,14 @@ func TestEveryLetterIsSentAsTextAndHTML(t *testing.T) {
 	const hostile = `<script>alert(1)</script> https://goen.test.evil.example/x`
 
 	for _, text := range []string{"Alex", hostile} {
-		for letter, send := range letters(text) {
+		all := letters(text)
+		maps.Copy(all, variants(text))
+		for letter, send := range all {
 			t.Run(letter+"/"+text[:4], func(t *testing.T) {
 				t.Parallel()
 				sink := &recorded{}
-				if err := send(t.Context(), New(sink, origin+"/", "", "")); err != nil {
+				n := New(sink, origin+"/", "goen Co., Ltd.", "support@goen.example")
+				if err := send(t.Context(), n); err != nil {
 					t.Fatalf("send: %v", err)
 				}
 				if len(sink.msgs) != 1 {
@@ -104,6 +171,9 @@ func TestEveryLetterIsSentAsTextAndHTML(t *testing.T) {
 
 				if plain != crlf(m.Body) {
 					t.Errorf("the text part is not the letter goen wrote:\n got %q\nwant %q", plain, crlf(m.Body))
+				}
+				if got, want := lines(page, true), lines(plain, false); !slices.Equal(got, want) {
+					t.Errorf("the HTML part does not read as the text part does:\n got %q\nwant %q", got, want)
 				}
 				if !strings.Contains(page, header) {
 					t.Errorf("the HTML part has no header image at %s:\n%s", header, page)
