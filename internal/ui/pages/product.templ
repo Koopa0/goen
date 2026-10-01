@@ -14,56 +14,71 @@ import (
 templ Product(p layouts.Page, v *ProductView) {
 	@layouts.Base(p) {
 		<div class="goen-pdp">
-			@components.Breadcrumb(components.BreadcrumbProps{
-				Label:  i18n.T(ctx, i18n.KeyBreadcrumb),
-				Crumbs: v.Trail(ctx),
-			})
-			<div class="goen-pdp__top">
-				@productGallery(v)
-				@productBuy(v)
-			</div>
-			if v.Description != "" || v.HasSpecs() || v.HasWarranty() || v.WarrantyNote != "" {
-				<div class="goen-pdp__detail">
-					if v.Description != "" {
-						<section class="goen-pdp__desc" aria-labelledby="desc-heading">
-							<h2 id="desc-heading" class="goen-pdp__sectiontitle">{ i18n.T(ctx, i18n.KeySectionDescription) }</h2>
-							<p class="goen-pdp__prose">{ v.Description }</p>
-						</section>
-					}
-					if v.HasWarranty() || v.WarrantyNote != "" || v.HasSpecs() {
-						<div class="goen-pdp__facts">
-							if v.HasWarranty() || v.WarrantyNote != "" {
-								<section class="goen-pdp__desc" aria-labelledby="warranty-heading">
-									<h2 id="warranty-heading" class="goen-pdp__sectiontitle">{ i18n.T(ctx, i18n.KeySectionWarranty) }</h2>
-									@components.Card(components.CardProps{}) {
-										if v.HasWarranty() {
-											<p class="goen-pdp__warranty">{ v.WarrantyText(ctx) }</p>
-										}
-										if v.WarrantyNote != "" {
-											<p class="goen-pdp__warranty">{ v.WarrantyNote }</p>
-										}
-									}
-								</section>
-							}
-							if v.HasSpecs() {
-								<section class="goen-pdp__specs" aria-labelledby="specs-heading">
-									<h2 id="specs-heading" class="goen-pdp__sectiontitle">{ i18n.T(ctx, i18n.KeySectionSpecs) }</h2>
-									@components.Card(components.CardProps{}) {
-										<dl class="goen-pdp__speclist">
-											for _, s := range v.Specs {
-												<div class="goen-pdp__specrow">
-													<dt class="goen-pdp__specterm">{ s.Label }</dt>
-													<dd class="goen-pdp__specvalue">{ s.Value }</dd>
-												</div>
-											}
-										</dl>
-									}
-								</section>
-							}
-						</div>
-					}
+			<div class="goen-pdp__intro">
+				@components.Breadcrumb(components.BreadcrumbProps{
+					Label:  i18n.T(ctx, i18n.KeyBreadcrumb),
+					Crumbs: v.Trail(ctx),
+				})
+				<div class="goen-pdp__top">
+					@productGallery(v)
+					@productBuy(v)
 				</div>
-			}
+			</div>
+			<div class="goen-pdp__more">
+				if v.Description != "" || v.HasSpecs() || v.HasWarranty() || v.WarrantyNote != "" {
+					<div class="goen-pdp__detail">
+						if v.Description != "" {
+							<section class="goen-pdp__desc" aria-labelledby="desc-heading">
+								<h2 id="desc-heading" class="goen-pdp__sectiontitle">{ i18n.T(ctx, i18n.KeySectionDescription) }</h2>
+								<p class="goen-pdp__prose">{ v.Description }</p>
+							</section>
+						}
+						if v.HasSpecs() {
+							<details class="goen-pdp__acc goen-pdp__specs" open>
+								<summary class="goen-pdp__accsummary">
+									<h2 id="specs-heading" class="goen-pdp__acctitle">{ i18n.T(ctx, i18n.KeySectionSpecs) }</h2>
+								</summary>
+								<div class="goen-pdp__accpanel">
+									<dl class="goen-pdp__speclist">
+										for _, s := range v.Specs {
+											<div class="goen-pdp__specrow">
+												<dt class="goen-pdp__specterm">{ s.Label }</dt>
+												<dd class="goen-pdp__specvalue">{ s.Value }</dd>
+											</div>
+										}
+									</dl>
+								</div>
+							</details>
+						}
+						if v.HasWarranty() || v.WarrantyNote != "" {
+							<details class="goen-pdp__acc">
+								<summary class="goen-pdp__accsummary">
+									<h2 id="warranty-heading" class="goen-pdp__acctitle">{ i18n.T(ctx, i18n.KeySectionWarranty) }</h2>
+								</summary>
+								<div class="goen-pdp__accpanel">
+									if v.HasWarranty() {
+										<p class="goen-pdp__warranty">{ v.WarrantyText(ctx) }</p>
+									}
+									if v.WarrantyNote != "" {
+										<p class="goen-pdp__warranty">{ v.WarrantyNote }</p>
+									}
+								</div>
+							</details>
+						}
+					</div>
+				}
+				<details class="goen-pdp__acc">
+					<summary class="goen-pdp__accsummary">
+						<h2 id="delivery-heading" class="goen-pdp__acctitle">{ i18n.T(ctx, i18n.KeySectionDelivery) }</h2>
+					</summary>
+					<div class="goen-pdp__accpanel">
+						<ul class="goen-pdp__policies" role="list">
+							<li><a href="/shipping">{ i18n.T(ctx, i18n.KeyShippingPolicy) } <span aria-hidden="true">&rarr;</span></a></li>
+							<li><a href="/returns">{ i18n.T(ctx, i18n.KeyReturnsPolicy) } <span aria-hidden="true">&rarr;</span></a></li>
+						</ul>
+					</div>
+				</details>
+			</div>
 			@productReviews(v)
 			@productQuestions(v)
 			if v.HasRelated() {
@@ -90,31 +105,60 @@ templ Product(p layouts.Page, v *ProductView) {
 	}
 }
 
-// productGallery stacks every shot. No carousel and no lightbox: a stacked
-// gallery needs no script, and every image is reachable by scrolling.
+// productGallery is one stage and a row of thumbnails, chosen with a radio
+// group and drawn with CSS alone, so it works with scripting off and a swap of
+// #gallery by the colour swatches needs no state kept anywhere.
+//
+// Every shot is laid out in the same cell and the unchosen ones are only hidden
+// with visibility: a lazy image that is display:none never starts, and the
+// page's "every image in main loaded" check would wait on it for good.
 templ productGallery(v *ProductView) {
 	<div class="goen-pdp__gallery" id="gallery">
 		if v.HasImages() {
 			for i, img := range v.Images {
-				<figure class="goen-pdp__shot">
-					<img
-						class="goen-pdp__shotimg"
-						src={ img.URL }
-						srcset={ img.Srcset }
-						sizes="(min-width: 1024px) calc((100vw - 96px) * 0.55), calc(100vw - 32px)"
-						alt={ img.Alt }
-						if img.HasDimensions() {
-							width={ img.WidthText() }
-							height={ img.HeightText() }
-						}
-						if i == 0 {
-							fetchpriority="high"
-						} else {
-							loading="lazy"
-						}
-						decoding="async"
-					/>
-				</figure>
+				<div class="goen-pdp__item">
+					if len(v.Images) > 1 {
+						<input
+							class="goen-sr-only goen-pdp__pick"
+							type="radio"
+							name="shot"
+							id={ "shot-" + strconv.Itoa(i) }
+							checked?={ i == 0 }
+						/>
+					}
+					<figure class="goen-pdp__shot">
+						<img
+							class="goen-pdp__shotimg"
+							src={ img.URL }
+							srcset={ img.Srcset }
+							sizes="(min-width: 1024px) 42rem, calc(100vw - 2rem)"
+							alt={ img.Alt }
+							if img.HasDimensions() {
+								width={ img.WidthText() }
+								height={ img.HeightText() }
+							}
+							if i == 0 {
+								fetchpriority="high"
+							} else {
+								loading="lazy"
+							}
+							decoding="async"
+						/>
+					</figure>
+					if len(v.Images) > 1 {
+						<label class="goen-pdp__thumb" for={ "shot-" + strconv.Itoa(i) }>
+							<img
+								class="goen-pdp__thumbimg"
+								src={ img.URL }
+								srcset={ img.Srcset }
+								sizes="6rem"
+								alt={ img.Alt }
+								loading="lazy"
+								decoding="async"
+							/>
+						</label>
+					}
+				</div>
 			}
 		} else {
 			<div class="goen-pdp__shot goen-pdp__shot--empty">
@@ -122,6 +166,18 @@ templ productGallery(v *ProductView) {
 			</div>
 		}
 	</div>
+}
+
+// ratingStars draws n of five stars. It is decoration: the caller supplies the
+// words a screen reader is given.
+templ ratingStars(n int) {
+	<span class="goen-pdp__rate" aria-hidden="true">
+		for i := 1; i <= 5; i++ {
+			<span class={ templ.KV("goen-pdp__rate--on", i <= n) }>
+				@icons.Star()
+			</span>
+		}
+	</span>
 }
 
 templ productBuy(v *ProductView) {
@@ -132,15 +188,15 @@ templ productBuy(v *ProductView) {
 				<h1 class="goen-pdp__title">{ v.Name }</h1>
 				if v.SelectionOK {
 					if v.AllSoldOut() {
-						@components.Badge(components.BadgeProps{Tone: components.ToneDanger}) {
+						@components.Badge(components.BadgeProps{}) {
 							{ i18n.T(ctx, i18n.KeyAllSoldOut) }
 						}
 					} else if v.SoldOut() {
-						@components.Badge(components.BadgeProps{Tone: components.ToneDanger}) {
+						@components.Badge(components.BadgeProps{}) {
 							{ i18n.T(ctx, i18n.KeySoldOut) }
 						}
 					} else if v.LowStock() {
-						@components.Badge(components.BadgeProps{Tone: components.ToneWarn}) {
+						@components.Badge(components.BadgeProps{}) {
 							{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOnlyLeft), v.AvailableText()) }
 						}
 					} else if v.InStock() {
@@ -152,13 +208,10 @@ templ productBuy(v *ProductView) {
 			</div>
 			if v.HasRating() {
 				<a class="goen-pdp__rating" href="#reviews">
-					<span class="goen-pdp__ratingstars" aria-hidden="true">{ v.Stars() }</span>
-					<span class="goen-pdp__ratingcount" aria-hidden="true">({ v.ReviewCountText() })</span>
+					@ratingStars(v.StarCount())
+					<span class="goen-pdp__ratingcount" aria-hidden="true">{ v.RatingText() } ({ v.ReviewCountText() })</span>
 					<span class="goen-sr-only">{ v.RatingLabel(ctx) }</span>
 				</a>
-			}
-			if v.Summary != "" {
-				<p class="goen-pdp__lede">{ v.Summary }</p>
 			}
 		</div>
 		if v.SelectionOK {
@@ -173,11 +226,14 @@ templ productBuy(v *ProductView) {
 				if v.OnSale() {
 					<span class="goen-sr-only">{ i18n.T(ctx, i18n.KeyWasPrice) }</span>
 					<s class="goen-pdp__was">{ v.Compare() }</s>
-					@components.Badge(components.BadgeProps{Tone: components.ToneAccent}) {
+					@components.Badge(components.BadgeProps{}) {
 						{ i18n.T(ctx, i18n.KeyOnSale) }
 					}
 				}
 			</div>
+		}
+		if v.Summary != "" {
+			<p class="goen-pdp__lede">{ v.Summary }</p>
 		}
 		for _, o := range v.Options {
 			<fieldset class="goen-pdp__option">
@@ -226,7 +282,7 @@ templ productBuy(v *ProductView) {
 								// screen reader is given, because a fill is not
 								// a label. A presentation attribute and not a
 								// style one, so the policy has nothing to refuse.
-								<svg class="goen-swatch__dot" viewBox="0 0 36 36" width="36" height="36" aria-hidden="true">
+								<svg class="goen-swatch__dot" viewBox="0 0 36 36" width="32" height="32" aria-hidden="true">
 									<circle cx="18" cy="18" r="17.5" fill={ val.SwatchHex }></circle>
 									if !val.Available {
 										// Struck through, not dimmed: a line SAYS
@@ -274,21 +330,7 @@ templ productBuy(v *ProductView) {
 		if v.SoldOut() {
 			@productNotifyForm(v)
 		}
-		if !v.AlreadyComparing() && !v.ComparingFull() {
-			@components.ButtonLink(components.ButtonProps{
-				Variant: components.VariantSecondary, Block: true, Class: "goen-pdp__compare",
-			}, templ.SafeURL(v.CompareHref())) {
-				{ i18n.T(ctx, i18n.KeyAddToCompare) }
-			}
-		} else if v.AlreadyComparing() {
-			@components.ButtonLink(components.ButtonProps{
-				Variant: components.VariantSecondary, Block: true, Class: "goen-pdp__compare",
-			}, templ.SafeURL(v.CompareHref())) {
-				{ i18n.T(ctx, i18n.KeyViewCompare) }
-			}
-		} else {
-			<p class="goen-pdp__hint">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCompareFull), MaxCompare) }</p>
-		}
+		@productLinks(v)
 		<ul class="goen-pdp__assurances" role="list">
 			if v.HasWarranty() {
 				<li class="goen-pdp__assurance">
@@ -310,14 +352,57 @@ templ productBuy(v *ProductView) {
 	</div>
 }
 
-// productAddForm is the page's one filled action, with the wishlist beside it
-// as an icon. The outcome of the last press sits directly under the button
-// with nothing between them: a phone has to show the two together, or the
-// confirmation is a sentence about a control that has scrolled away.
-//
-// The wishlist is a second form rather than a second button, because it posts
-// somewhere else and a form cannot nest inside a form. The wrapper is what
-// puts them on one row.
+// productLinks holds the two quiet actions under the buy row. The wishlist is
+// a form of its own because it posts somewhere else and a form cannot nest
+// inside the add form.
+templ productLinks(v *ProductView) {
+	<div class="goen-pdp__links">
+		if v.SignedIn {
+			<form method="post" action="/account/wishlist" class="goen-pdp__wish">
+				<input type="hidden" name="slug" value={ v.Slug }/>
+				<input type="hidden" name="return" value={ "/p/" + v.Slug }/>
+				if v.Saved {
+					<input type="hidden" name="action" value="remove"/>
+				}
+				@components.Button(components.ButtonProps{
+					Variant: components.VariantGhost,
+					Attrs: templ.Attributes{
+						"aria-label":   v.WishlistLabel(ctx),
+						"aria-pressed": v.SavedText(),
+					},
+				}, "submit") {
+					@icons.Heart()
+					<span>{ v.WishlistLabel(ctx) }</span>
+				}
+			</form>
+		} else {
+			@components.ButtonLink(components.ButtonProps{Variant: components.VariantGhost}, templ.SafeURL("/signin?next=/p/"+v.Slug)) {
+				@icons.Heart()
+				<span>{ i18n.T(ctx, i18n.KeyWishlistSignIn) }</span>
+			}
+		}
+		if !v.AlreadyComparing() && !v.ComparingFull() {
+			@components.ButtonLink(components.ButtonProps{
+				Variant: components.VariantGhost, Class: "goen-pdp__compare",
+			}, templ.SafeURL(v.CompareHref())) {
+				{ i18n.T(ctx, i18n.KeyAddToCompare) }
+			}
+		} else if v.AlreadyComparing() {
+			@components.ButtonLink(components.ButtonProps{
+				Variant: components.VariantGhost, Class: "goen-pdp__compare",
+			}, templ.SafeURL(v.CompareHref())) {
+				{ i18n.T(ctx, i18n.KeyViewCompare) }
+			}
+		} else {
+			<p class="goen-pdp__hint">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCompareFull), MaxCompare) }</p>
+		}
+	</div>
+}
+
+// productAddForm is the page's one filled action. The outcome of the last
+// press sits directly under the button with nothing between them: a phone has
+// to show the two together, or the confirmation is a sentence about a control
+// that has scrolled away.
 templ productAddForm(v *ProductView) {
 	<div class="goen-pdp__actions">
 		// Still a form, still a POST, still /cart/items, and with scripting off
@@ -403,30 +488,7 @@ templ productAddForm(v *ProductView) {
 				}
 			}
 		</form>
-		if v.SignedIn {
-			<form method="post" action="/account/wishlist" class="goen-pdp__wish">
-				<input type="hidden" name="slug" value={ v.Slug }/>
-				<input type="hidden" name="return" value={ "/p/" + v.Slug }/>
-				if v.Saved {
-					<input type="hidden" name="action" value="remove"/>
-				}
-				@components.Button(components.ButtonProps{
-					Variant: components.VariantOutline, Icon: true,
-					Attrs: templ.Attributes{
-						"aria-label":   v.WishlistLabel(ctx),
-						"aria-pressed": v.SavedText(),
-					},
-				}, "submit") {
-					@icons.Heart()
-				}
-			</form>
-		}
 	</div>
-	if !v.SignedIn {
-		<p class="goen-pdp__reviewnote">
-			<a href={ templ.SafeURL("/signin?next=/p/" + v.Slug) }>{ i18n.T(ctx, i18n.KeyWishlistSignIn) }</a>
-		</p>
-	}
 }
 
 templ productNotifyForm(v *ProductView) {
@@ -473,8 +535,9 @@ templ productReviews(v *ProductView) {
 		}
 		if v.HasRating() {
 			<div class="goen-pdp__reviewlayout">
-				@components.Card(components.CardProps{Class: "goen-pdp__summary"}) {
+				<div class="goen-pdp__summary">
 					<p class="goen-pdp__score">{ v.RatingText() }</p>
+					@ratingStars(v.StarCount())
 					<p class="goen-pdp__scorecount">{ i18n.Count(ctx, i18n.KeyReviewCount, v.RatingCount, v.ReviewCountText()) }</p>
 					<div class="goen-pdp__bars">
 						for _, b := range v.RatingBars {
@@ -487,13 +550,15 @@ templ productReviews(v *ProductView) {
 							</div>
 						}
 					</div>
-				}
+				</div>
 				<div class="goen-pdp__reviewlist">
 					for _, r := range v.Reviews {
 						<article class="goen-pdp__review">
 							<div class="goen-pdp__reviewhead">
 								<span class="goen-pdp__reviewname">{ r.DisplayAuthor(ctx) }</span>
-								<span class="goen-pdp__reviewstars" aria-label={ r.RatingLabel(ctx) }>{ r.ReviewStars() }</span>
+								<span class="goen-pdp__reviewstars" role="img" aria-label={ r.RatingLabel(ctx) }>
+									@ratingStars(r.Rating)
+								</span>
 								if r.Verified {
 									@components.Badge(components.BadgeProps{}) {
 										{ i18n.T(ctx, i18n.KeyVerifiedBuyer) }
@@ -537,7 +602,7 @@ templ productQuestions(v *ProductView) {
 										<span class="goen-pdp__meta">
 											{ a.Who(ctx) }
 											if a.IsStaff {
-												@components.Badge(components.BadgeProps{Tone: components.ToneAccent}) {
+												@components.Badge(components.BadgeProps{}) {
 													{ i18n.T(ctx, i18n.KeyStaffAnswer) }
 												}
 											}
@@ -599,7 +664,7 @@ templ reviewForm(v *ProductView) {
 	} else if !v.CanReview {
 		<p class="goen-pdp__reviewnote">{ i18n.T(ctx, i18n.KeyAlreadyReviewed) }</p>
 	} else {
-		@components.Card(components.CardProps{Class: "goen-pdp__reviewform"}) {
+		<div class="goen-pdp__reviewform">
 			<form id="write-review" method="post" action={ templ.SafeURL(v.ReviewAction()) }>
 				<h3 class="goen-pdp__reviewformhead">{ i18n.T(ctx, i18n.KeyWriteReview) }</h3>
 				if v.WouldVerify {
@@ -652,6 +717,6 @@ templ reviewForm(v *ProductView) {
 					{ i18n.T(ctx, i18n.KeyReviewSubmit) }
 				}
 			</form>
-		}
+		</div>
 	}
 }

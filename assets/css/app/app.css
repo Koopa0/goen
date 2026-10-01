@@ -2224,22 +2224,19 @@ h3 {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
-/* ---------- Product detail ----------
+/* ---------- Product page ----------
 
-   The composition follows the reference bundle's product page: a two-column
-   top with the gallery beside a single buy column, then description, facts,
-   reviews, questions and the two tile grids in source order down the page.
+   A breadcrumb over two columns: the gallery 7/12 and the buy column 5/12 from
+   1024, stacked below. Under them an accordion, the reviews, the questions and
+   a row of similar products, in source order.
 
-   Three places depart from it, each for a reason the reference could not know:
+   Two choices are not the obvious ones, each for a reason the page's own
+   behaviour sets:
 
-   - The gallery is a stack of framed shots, not a carousel. A carousel needs
-     script, and every shot here is reachable by scrolling.
-   - A variant is chosen by a LINK, because the choice is a URL. The reference
-     uses a scripted select, which would make the choice unreachable with
-     scripting off.
-   - There is ONE filled button. The reference puts a second full-weight action
-     beside it; this page has a primary and two quiet secondaries, which is the
-     complaint the issue opened with.
+   - A variant is chosen by a LINK, because the choice is a URL. A scripted
+     select would make it unreachable with scripting off.
+   - The gallery is a radio group drawn with CSS: nothing to initialise, so the
+     swap of #gallery by a colour swatch has no state to carry across.
    ------------------------------------------------------------------------ */
 
 /* overflow-anchor is what moved the swatch row under a thumb, and it was trying
@@ -2250,77 +2247,116 @@ h3 {
    the region that swaps — the node the browser anchors to is below that region,
    which is why doing it there had no effect. */
 .goen-pdp {
-  box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: 32px;
+  gap: 4rem;
   margin: 0 auto;
-  max-width: var(--page-box);
+  max-width: var(--page-width);
   overflow-anchor: none;
-  padding: 16px var(--page-gutter) 56px;
-  width: 100%;
+  padding: 1.5rem var(--page-gutter) 4rem;
+}
+
+.goen-pdp__intro {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
 }
 
 .goen-pdp__top {
   display: grid;
-  gap: 32px;
+  gap: 2rem;
 }
 
 .goen-pdp__sectiontitle {
-  color: var(--fg);
-  font-family: var(--font-display);
-  font-size: var(--fs-ed-20);
+  color: var(--n-900);
+  font-size: var(--fs-ed-24);
   font-weight: var(--fw-semibold);
-  line-height: var(--lh-snug);
+  line-height: 1.35;
   margin: 0;
 }
 
-/* Gallery. Every shot in a frame of its own: the catalogue's photography is
-   not uniformly cropped, and a frame with a fixed ratio keeps the column from
-   jumping as each one loads. */
+/* Gallery. The stage and the thumbnails share one grid: every shot sits in the
+   first row across all columns, so only the chosen one is visible and the row
+   keeps its height as the choice changes. Five columns so a thumbnail stays a
+   comfortable target at 375 and a sixth wraps rather than shrinks. */
 .goen-pdp__gallery {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-auto-rows: min-content;
   min-width: 0;
+  position: relative;
+}
+
+/* The item is only a grouping for the markup: its children are laid out by the
+   gallery's grid. */
+.goen-pdp__item {
+  display: contents;
 }
 
 .goen-pdp__shot {
-  aspect-ratio: 1 / 1;
-  background: var(--photo-ground);
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
+  aspect-ratio: 1;
+  background: var(--photo);
+  border-radius: var(--r-lg);
+  grid-column: 1 / -1;
+  grid-row: 1;
   margin: 0;
   overflow: hidden;
+}
+
+.goen-pdp__pick:not(:checked) ~ .goen-pdp__shot {
+  visibility: hidden;
 }
 
 .goen-pdp__shotimg {
   display: block;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   width: 100%;
 }
 
 .goen-pdp__shot--empty {
   align-items: center;
-  color: var(--fg-muted);
+  color: var(--n-500);
   display: flex;
   font-size: var(--fs-14);
   justify-content: center;
 }
 
-/* Buy column. The groups are separated by a hairline rather than by a rule
-   element: the line is decoration, and an <hr> would put a separator in the
-   accessibility tree between a price and the control that acts on it. */
-/* scroll-margin-top is for the visitor with no script: adding to the cart is a
-   POST, a 303 and a landing on #buybox, and without it the browser puts the
-   column's first pixel flush against the top of the window. The header does not
-   overlap it — nothing on this site is sticky — so this is breathing room and
-   not clearance, which is why it is one gap and not a header's height. */
+.goen-pdp__thumb {
+  aspect-ratio: 1;
+  background: var(--photo);
+  border-radius: var(--r-md);
+  cursor: pointer;
+  grid-row: 2;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.goen-pdp__thumbimg {
+  display: block;
+  height: 100%;
+  object-fit: contain;
+  width: 100%;
+}
+
+.goen-pdp__pick:checked ~ .goen-pdp__thumb {
+  outline: 2px solid var(--n-900);
+  outline-offset: 2px;
+}
+
+.goen-pdp__pick:focus-visible ~ .goen-pdp__thumb {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Buy column. scroll-margin-top is for the visitor with no script: adding to
+   the cart is a POST, a 303 and a landing on #buybox, and without it the
+   browser puts the column's first pixel flush against the top of the window. */
 .goen-pdp__buy {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 1.5rem;
   min-width: 0;
   scroll-margin-top: 24px;
 }
@@ -2328,127 +2364,129 @@ h3 {
 .goen-pdp__head {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 0.5rem;
 }
 
 .goen-pdp__brand {
-  color: var(--fg-muted);
-  font-size: var(--fs-13);
+  color: var(--n-500);
+  font-size: var(--fs-14);
+  line-height: 1.5;
   margin: 0;
 }
 
 .goen-pdp__titlerow {
-  align-items: flex-start;
+  align-items: center;
   display: flex;
-  gap: 12px;
-  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
 }
 
 .goen-pdp__title {
-  color: var(--fg);
-  font-family: var(--font-display);
-  font-size: var(--fs-ed-24);
+  color: var(--n-900);
+  font-size: var(--fs-ed-30);
   font-weight: var(--fw-semibold);
-  line-height: var(--lh-snug);
+  line-height: 1.3;
   margin: 0;
 }
 
 .goen-pdp__lede {
-  color: var(--fg-muted);
-  font-size: var(--fs-14);
-  line-height: var(--lh-normal);
+  color: var(--n-700);
+  line-height: 1.7;
   margin: 0;
 }
 
 .goen-pdp__rating {
   align-items: center;
   align-self: flex-start;
-  color: var(--fg-muted);
+  color: var(--n-500);
   display: inline-flex;
-  font-size: var(--fs-13);
-  gap: 4px;
+  font-size: var(--fs-14);
+  font-variant-numeric: tabular-nums;
+  gap: 0.5rem;
   text-decoration: none;
-  transition: color var(--dur-base) var(--ease-standard);
 }
 
 .goen-pdp__rating:hover {
-  color: var(--fg);
+  color: var(--n-900);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
-/* Amber, not the brand colour: a star that is the same blue as the buy button
-   reads as something to press. */
-.goen-pdp__ratingstars,
-.goen-pdp__reviewstars {
-  color: var(--warn);
-  letter-spacing: 0.08em;
+/* The star is a graphic, so its fill may be the one amber the page uses; the
+   words beside it are --n-500 and carry the number. An unfilled star is the
+   control border grey. */
+.goen-pdp__rate {
+  display: inline-flex;
+  gap: 2px;
 }
 
-.goen-pdp__ratingcount {
-  color: var(--fg-muted);
+.goen-pdp__rate svg {
+  color: var(--n-300);
+  display: block;
+  height: 1rem;
+  width: 1rem;
+}
+
+.goen-pdp__rate--on svg {
+  color: var(--star);
+  fill: var(--star);
 }
 
 .goen-pdp__pricebox {
   align-items: baseline;
-  border-top: 1px solid var(--border-faint);
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  padding-top: 20px;
+  gap: 0.25rem 0.75rem;
 }
 
 .goen-pdp__price {
-  color: var(--fg);
-  font-size: var(--fs-ed-24);
+  color: var(--n-900);
+  font-size: var(--fs-ed-30);
   font-variant-numeric: tabular-nums;
-  font-weight: var(--fw-semibold);
+  font-weight: var(--fw-regular);
+  line-height: 1.3;
 }
 
 .goen-pdp__was {
-  color: var(--fg-muted);
-  font-size: var(--fs-14);
+  color: var(--n-500);
+  font-size: var(--fs-16);
   font-variant-numeric: tabular-nums;
 }
 
 /* An option group. The fieldset keeps the legend, which is the only thing that
-   tells a screen reader what the row of chips is choosing between. */
+   tells a screen reader what the row of choices is choosing between. */
 .goen-pdp__option {
   border: 0;
-  border-top: 1px solid var(--border);
   margin: 0;
-  padding: 20px 0 0;
-}
-
-/* Only the first group takes the rule: consecutive groups are one block of
-   choices, not two sections. */
-.goen-pdp__option + .goen-pdp__option {
-  border-top: 0;
-  padding-top: 12px;
+  min-width: 0;
+  padding: 0;
 }
 
 .goen-pdp__optname {
-  color: var(--fg);
+  color: var(--n-900);
   display: flex;
   flex-wrap: wrap;
   font-size: var(--fs-14);
   font-weight: var(--fw-medium);
-  gap: 6px;
-  padding: 0 0 8px;
+  gap: 0.375rem;
+  line-height: 1.5;
+  padding: 0 0 0.75rem;
 }
 
 /* A colour has no words on it, so the chosen one says its name here. */
 .goen-pdp__optchosen {
-  color: var(--fg-muted);
-  font-weight: 400;
+  color: var(--n-500);
+  font-weight: var(--fw-regular);
 }
 
 .goen-pdp__values {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 0.5rem;
 }
 
 .goen-pdp__values--swatches {
-  gap: 4px;
+  gap: 0.25rem;
 }
 
 /* An option value. A LINK, not a button: choosing navigates to the URL for
@@ -2456,24 +2494,27 @@ h3 {
    scripting being off. */
 .goen-swatch {
   align-items: center;
-  background: transparent;
+  background: var(--n-0);
   border: 1px solid var(--n-300);
   border-radius: var(--r-md);
   box-sizing: border-box;
   color: var(--n-900);
   display: inline-flex;
   font-size: var(--fs-14);
-  min-height: 44px;
-  padding: 6px 14px;
+  font-weight: var(--fw-medium);
+  justify-content: center;
+  min-height: 2.75rem;
+  min-width: 2.75rem;
+  padding: 0 1rem;
   text-decoration: none;
   transition:
     background-color var(--dur-base) var(--ease-standard),
-    border-color var(--dur-base) var(--ease-standard),
-    box-shadow var(--dur-base) var(--ease-standard);
+    color var(--dur-base) var(--ease-standard);
 }
 
 .goen-swatch:hover {
   background: var(--n-50);
+  color: var(--n-900);
 }
 
 .goen-swatch--on,
@@ -2484,30 +2525,31 @@ h3 {
 }
 
 /* Unavailable in combination with the other choices. Shown, not hidden: a
-   visitor who cannot have this colour still needs to know the shop sells it,
-   and the link still leads to that variant's page. */
+   visitor who cannot have this one still needs to know the shop sells it, and
+   the link still leads to that variant's page. */
 .goen-swatch--out {
   border-style: dashed;
-  color: var(--fg-muted);
+  color: var(--n-500);
 }
 
-/* A colour swatch. The link is the target and the disc is what is seen: 44px
-   of reachable area around a 36px circle, so a thumb has the room a finger
-   needs without the colours drifting apart into a loose row. */
-.goen-swatch--dot {
-  align-items: center;
-  background: transparent;
-  border: 0;
-  border-radius: var(--r-full);
-  justify-content: center;
-  min-height: 44px;
-  padding: 0;
-  width: 44px;
-}
-
+/* A colour swatch: a 2rem disc inside a 44px target, so a thumb has the room a
+   finger needs and the colours still read as one row. The ring is an outline on
+   the disc, two pixels off its edge. */
+.goen-swatch--dot,
 .goen-swatch--dot:hover,
 .goen-swatch--dot.goen-swatch--on:hover {
   background: transparent;
+  border: 0;
+  border-radius: 50%;
+  padding: 0;
+  width: 2.75rem;
+}
+
+.goen-swatch__dot {
+  border-radius: 50%;
+  display: block;
+  height: 2rem;
+  width: 2rem;
 }
 
 .goen-swatch__dot circle {
@@ -2515,28 +2557,15 @@ h3 {
   stroke-width: 1;
 }
 
-/* The chosen colour. The circle draws back so the ring can be struck at the
-   edge the disc used to reach, half on the colour and half on the ground, and
-   the page's own box-shadow ring is dropped: one mark, not two. */
-.goen-swatch--dot.goen-swatch--on {
-  background: transparent;
-  border: 0;
-  box-shadow: none;
+.goen-swatch--dot.goen-swatch--on .goen-swatch__dot {
+  outline: 2px solid var(--n-900);
+  outline-offset: 2px;
 }
 
-.goen-swatch--dot.goen-swatch--on .goen-swatch__dot circle {
-  r: 16;
-  stroke: var(--n-900);
-  stroke-width: 2;
-}
-
-/* Unavailable in this combination. Shown rather than hidden, and struck rather
-   than dimmed: a visitor still needs to know the shop sells this colour, and a
-   fainter disc reads as a paler colour instead of as a colour they cannot have.
-   The strike is two lines on one diagonal, both drawn in the markup: the wider
-   one carries the page's ground and the narrower one the page's ink, so the
-   mark is legible on a near-white disc and on a near-black one without either
-   stroke touching the colour's own edge. */
+/* Unavailable in this combination: struck rather than dimmed, because a fainter
+   disc reads as a paler colour instead of one they cannot have. The strike is
+   two lines on one diagonal, the wider in the page's ground and the narrower in
+   its ink, so it reads on a near-white disc and a near-black one alike. */
 .goen-swatch--dot.goen-swatch--out {
   border: 0;
 }
@@ -2564,42 +2593,34 @@ h3 {
    voice the assurances use. */
 .goen-pdp__hint {
   align-items: center;
-  color: var(--fg-muted);
+  color: var(--n-500);
   display: flex;
   font-size: var(--fs-14);
-  gap: 8px;
+  gap: 0.5rem;
   margin: 0;
 }
 
 .goen-pdp__hint svg {
   flex: none;
-  height: 16px;
-  width: 16px;
+  height: 1rem;
+  width: 1rem;
 }
 
 /* The one primary action, and the outcome of the last press directly under it
    with nothing in between. A phone has to show both at once, or the
    confirmation is a sentence about a button that has scrolled away. */
-.goen-pdp__actions {
-  align-items: flex-start;
-  border-top: 1px solid var(--border);
-  display: flex;
-  gap: 8px;
-  padding-top: 20px;
-}
-
 .goen-pdp__form {
   display: flex;
-  flex: 1 1 auto;
   flex-direction: column;
-  gap: 12px;
+  gap: 0.75rem;
   min-width: 0;
 }
 
 .goen-pdp__buyrow {
   align-items: stretch;
   display: flex;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 0.75rem;
 }
 
 .goen-pdp__qty {
@@ -2608,36 +2629,26 @@ h3 {
 
 /* The one button in goen whose label is a sentence. `.goen-btn` keeps every
    other button on a single line, which is right for 加入購物車 and wrong for
-   目前全部規格都已售完: at 375 this control shares a 291px row with the quantity
-   stepper, and a sentence that cannot break makes the row as wide as the
-   sentence rather than as wide as the column. Three declarations undo that,
-   here and nowhere else — min-width so flex may shrink it below its text at
-   all, white-space so the text has somewhere to break, and height as a minimum
-   so a second line is not cut off. The tap target stays 44px because the
-   minimum is the height it had.
-
-   A label that fitted on one line would be a better button than one that wraps
-   well; that is `pdp.allsoldout`, and it is the shop's sentence. This rule is
-   what stops any label, in any font, from deciding how wide the page is. */
+   目前全部規格都已售完: a sentence that cannot break makes the row as wide as the
+   sentence rather than as wide as the column. min-width lets flex shrink it
+   below its text, white-space gives the text somewhere to break, and the height
+   is a minimum so a second line is not cut off. The tap target stays 44px.
+   Full width of the column below 1024, beside the stepper from there. */
 .goen-pdp__add {
-  flex: 1 1 auto;
+  flex: 1 1 100%;
   height: auto;
   line-height: var(--lh-snug);
   min-height: 2.75rem;
   min-width: 0;
-  padding-block: 8px;
+  padding-block: 0.5rem;
   white-space: normal;
-}
-
-.goen-pdp__compare {
-  margin-top: -4px;
 }
 
 .goen-pdp__added {
   align-items: center;
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 0.5rem;
   scroll-margin-top: 12px;
 }
 
@@ -2648,15 +2659,15 @@ h3 {
 }
 
 .goen-pdp__notify {
-  border-top: 1px solid var(--border-faint);
+  border-top: 1px solid var(--n-200);
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding-top: 20px;
+  gap: 0.75rem;
+  padding-top: 1.5rem;
 }
 
 .goen-pdp__notifyhead {
-  color: var(--fg);
+  color: var(--n-900);
   font-size: var(--fs-14);
   font-weight: var(--fw-semibold);
   margin: 0;
@@ -2665,7 +2676,7 @@ h3 {
 .goen-pdp__notifyrow {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 0.5rem;
 }
 
 .goen-pdp__notifyrow .goen-input {
@@ -2673,179 +2684,254 @@ h3 {
   min-width: 14ch;
 }
 
+/* Wishlist and compare: text buttons. The row is pulled out by the buttons'
+   own padding so the first label lines up with the column's edge. */
+.goen-pdp__links {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 0.5rem;
+  margin: -0.75rem 0 0 -0.75rem;
+}
+
+.goen-pdp__links .goen-btn {
+  color: var(--n-700);
+  padding: 0 0.75rem;
+}
+
 .goen-pdp__wish {
   display: flex;
-  flex: none;
   margin: 0;
 }
 
+/* Assurances: a bare line icon and one sentence, set apart by a hairline. */
 .goen-pdp__assurances {
-  border-top: 1px solid var(--border);
-  color: var(--fg-muted);
-  display: flex;
-  flex-wrap: wrap;
-  font-size: var(--fs-14);
-  gap: 12px 20px;
+  border-top: 1px solid var(--n-200);
+  display: grid;
+  gap: 0.75rem;
   list-style: none;
   margin: 0;
-  padding-left: 0;
-  padding-top: 20px;
+  padding: 1.5rem 0 0;
 }
 
 .goen-pdp__assurance {
   align-items: center;
+  color: var(--n-700);
   display: flex;
-  gap: 8px;
+  font-size: var(--fs-14);
+  gap: 0.75rem;
 }
 
 .goen-pdp__assurance svg {
+  color: var(--n-900);
   flex: none;
-  height: 16px;
-  width: 16px;
+  height: 1.5rem;
+  width: 1.5rem;
 }
 
-/* Description, warranty and specifications. Never behind tabs: everything a
-   shopper might be looking for is on the page and findable with a text search. */
-.goen-pdp__detail {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
+/* Description, then the accordion. Never behind tabs, and the specifications
+   open: what a shopper compares is on the page without a press. */
+.goen-pdp__more {
+  border-bottom: 1px solid var(--n-200);
+  min-width: 0;
 }
 
-.goen-pdp__desc,
-.goen-pdp__specs {
+.goen-pdp__desc {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 1rem;
+  margin-bottom: 3rem;
   min-width: 0;
 }
 
 .goen-pdp__prose {
-  color: var(--fg-muted);
-  font-size: var(--fs-16);
-  line-height: var(--lh-read);
+  color: var(--n-700);
+  line-height: 1.7;
   margin: 0;
   max-width: 68ch;
 }
 
-.goen-pdp__facts {
-  display: grid;
-  gap: 24px;
+.goen-pdp__acc {
+  border-top: 1px solid var(--n-200);
+}
+
+.goen-pdp__accsummary {
+  align-items: center;
+  cursor: pointer;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  list-style: none;
+  min-height: 3.5rem;
+}
+
+.goen-pdp__accsummary::-webkit-details-marker {
+  display: none;
+}
+
+.goen-pdp__accsummary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* The second value is the accessible text: the mark is a picture of a state the
+   open attribute already states. */
+.goen-pdp__accsummary::after {
+  color: var(--n-500);
+  content: '+';
+  content: '+' / '';
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.goen-pdp__acc[open] > .goen-pdp__accsummary::after {
+  content: '\2212';
+  content: '\2212' / '';
+}
+
+.goen-pdp__acctitle {
+  color: var(--n-900);
+  font-size: 1.125rem;
+  font-weight: var(--fw-medium);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.goen-pdp__accpanel {
+  max-width: 48rem;
+  padding-bottom: 1.5rem;
 }
 
 .goen-pdp__warranty {
-  color: var(--fg-muted);
-  font-size: var(--fs-14);
-  line-height: var(--lh-normal);
+  color: var(--n-700);
+  line-height: 1.7;
   margin: 0;
 }
 
 .goen-pdp__warranty + .goen-pdp__warranty {
-  margin-top: 8px;
+  margin-top: 0.5rem;
+}
+
+.goen-pdp__policies {
+  display: grid;
+  gap: 0.5rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.goen-pdp__policies a {
+  font-weight: var(--fw-medium);
+  text-decoration: none;
+}
+
+.goen-pdp__policies a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .goen-pdp__speclist {
-  display: grid;
-  font-size: var(--fs-14);
-  gap: 8px;
   margin: 0;
 }
 
 .goen-pdp__specrow {
   display: grid;
-  gap: 16px;
-  grid-template-columns: minmax(8rem, auto) 1fr;
+  gap: 0.25rem 1.5rem;
+  padding: 0.75rem 0;
+}
+
+.goen-pdp__specrow + .goen-pdp__specrow {
+  border-top: 1px solid var(--n-200);
 }
 
 .goen-pdp__specterm {
-  color: var(--fg-muted);
+  color: var(--n-500);
+  font-size: var(--fs-14);
 }
 
 .goen-pdp__specvalue {
-  color: var(--fg);
-  font-weight: var(--fw-medium);
+  color: var(--n-900);
   margin: 0;
 }
 
-/* Reviews. The summary and the list sit side by side where there is room; the
-   distribution is a histogram the shopper reads at a glance and the numbers
-   beside it are what they read exactly. */
+/* Reviews, questions and the two tile rows: the same section rhythm. */
 .goen-pdp__reviews,
 .goen-pdp__qa,
 .goen-pdp__related,
 .goen-pdp__also {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 1.5rem;
   min-width: 0;
+}
+
+/* Similar products are a 4-up row from 1024 and two across below: four tiles
+   in the listing's three columns would leave one on a line of its own. */
+.goen-pdp .goen-tiles__grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .goen-pdp__reviewlayout {
   display: grid;
-  gap: 24px;
+  gap: 2rem;
 }
 
 .goen-pdp__summary {
   align-self: start;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 0.5rem;
 }
 
 .goen-pdp__score {
-  color: var(--fg);
-  font-family: var(--font-display);
+  color: var(--n-900);
   font-size: var(--fs-ed-38);
   font-variant-numeric: tabular-nums;
   font-weight: var(--fw-semibold);
-  line-height: 1;
+  line-height: 1.1;
   margin: 0;
 }
 
 .goen-pdp__scorecount {
-  color: var(--fg-muted);
-  font-size: var(--fs-12);
+  color: var(--n-500);
+  font-size: var(--fs-14);
   margin: 0;
 }
 
 .goen-pdp__bars {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  margin-top: 12px;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
 }
 
 .goen-pdp__bar {
   align-items: center;
   display: grid;
-  gap: 8px;
+  gap: 0.5rem;
   grid-template-columns: 3.5em 1fr 2.5em;
 }
 
 .goen-pdp__barlabel,
 .goen-pdp__barcount {
-  color: var(--fg-muted);
-  font-size: var(--fs-12);
+  color: var(--n-500);
+  font-size: var(--fs-13);
   font-variant-numeric: tabular-nums;
 }
 
 .goen-pdp__barcount {
-  font-variant-numeric: tabular-nums;
   text-align: right;
 }
 
-/* The bar's track and fill. Both are drawn here rather than borrowed: the
-   base.css carries no progress rule at all, and the fill needs
-   a display of its own because width does not apply to an inline span.
-
-   The width is a class and not an inline style, because style-src carries no
-   'unsafe-inline' and a refused width leaves a row with a label, a count and
-   nothing between them. Ten steps; five buckets show no finer ratio. */
+/* The bar's track and fill. The width is a class and not an inline style,
+   because style-src carries no 'unsafe-inline' and a refused width leaves a row
+   with a label, a count and nothing between them. Ten steps; five buckets show
+   no finer ratio. */
 .goen-pdp__bartrack {
   background: var(--n-200);
   border-radius: var(--r-full);
   display: block;
-  height: 6px;
+  height: 0.5rem;
   overflow: hidden;
 }
 
@@ -2854,7 +2940,6 @@ h3 {
   border-radius: inherit;
   display: block;
   height: 100%;
-  transition: width var(--dur-slow) var(--ease-standard);
 }
 
 .goen-pdp__barfill--0 {
@@ -2901,80 +2986,88 @@ h3 {
   width: 100%;
 }
 
+/* A review is a row between hairlines, not a card. */
 .goen-pdp__reviewlist {
   display: flex;
   flex-direction: column;
-  gap: 12px;
   min-width: 0;
 }
 
 .goen-pdp__review {
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
+  border-top: 1px solid var(--n-200);
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 16px;
+  gap: 0.5rem;
+  padding: 1.5rem 0;
+}
+
+.goen-pdp__review:first-child {
+  border-top: 0;
+  padding-top: 0;
 }
 
 .goen-pdp__reviewhead {
   align-items: center;
   display: flex;
   flex-wrap: wrap;
-  font-size: var(--fs-13);
-  gap: 8px;
+  font-size: var(--fs-14);
+  gap: 0.5rem;
+}
+
+.goen-pdp__reviewstars .goen-pdp__rate svg {
+  height: 0.875rem;
+  width: 0.875rem;
 }
 
 .goen-pdp__reviewname {
-  color: var(--fg);
+  color: var(--n-900);
   font-weight: var(--fw-medium);
 }
 
 .goen-pdp__reviewdate {
-  color: var(--fg-muted);
-  font-size: var(--fs-12);
+  color: var(--n-500);
+  font-size: var(--fs-13);
   font-variant-numeric: tabular-nums;
   margin-left: auto;
 }
 
 .goen-pdp__reviewtitle {
-  color: var(--fg);
-  font-size: var(--fs-14);
+  color: var(--n-900);
   font-weight: var(--fw-medium);
   margin: 0;
 }
 
 .goen-pdp__reviewbody {
-  color: var(--fg-muted);
-  font-size: var(--fs-14);
-  line-height: var(--lh-normal);
+  color: var(--n-700);
+  line-height: 1.7;
   margin: 0;
 }
 
 .goen-pdp__noreviews,
 .goen-pdp__reviewnote,
 .goen-pdp__meta {
-  color: var(--fg-muted);
-  font-size: var(--fs-13);
+  color: var(--n-500);
+  font-size: var(--fs-14);
   margin: 0;
 }
 
+/* The review form is the one panel on the page: --n-50 ground, no border. */
 .goen-pdp__reviewform {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
+  background: var(--n-50);
+  border-radius: var(--r-lg);
+  padding: 1.5rem;
 }
 
 .goen-pdp__reviewform form {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 1rem;
 }
 
 .goen-pdp__reviewformhead {
-  color: var(--fg);
-  font-size: var(--fs-16);
-  font-weight: var(--fw-semibold);
+  color: var(--n-900);
+  font-size: 1.125rem;
+  font-weight: var(--fw-medium);
   margin: 0;
 }
 
@@ -2984,27 +3077,28 @@ h3 {
   border: 0;
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 0.75rem;
   margin: 0;
   padding: 0;
 }
 
 .goen-pdp__star {
   align-items: center;
-  color: var(--fg-muted);
+  color: var(--n-700);
   cursor: pointer;
   display: inline-flex;
-  font-size: var(--fs-13);
-  gap: 6px;
-  min-height: 44px;
+  font-size: var(--fs-14);
+  gap: 0.375rem;
+  min-height: 2.75rem;
 }
 
 .goen-pdp__reviewbody.goen-input {
   min-height: 0;
 }
 
-/* Questions and answers. An answer is indented under its question by a rule on
-   the left, so the relationship survives at any width without a nested grid. */
+/* Questions and answers, as hairline rows. An answer is indented under its
+   question by a rule on the left, so the relationship survives at any width
+   without a nested grid. */
 .goen-qa {
   display: flex;
   flex-direction: column;
@@ -3014,11 +3108,15 @@ h3 {
 }
 
 .goen-qa__item {
-  border-bottom: 1px solid var(--border-faint);
+  border-bottom: 1px solid var(--n-200);
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 16px 0;
+  gap: 0.375rem;
+  padding: 1rem 0;
+}
+
+.goen-qa__item:first-child {
+  padding-top: 0;
 }
 
 .goen-qa__item:last-child {
@@ -3026,65 +3124,58 @@ h3 {
 }
 
 .goen-qa__answers {
-  border-left: 2px solid var(--border);
+  border-left: 2px solid var(--n-200);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 0.5rem;
   list-style: none;
-  margin: 8px 0 0;
-  padding: 0 0 0 16px;
+  margin: 0.5rem 0 0;
+  padding: 0 0 0 1rem;
 }
 
 .goen-qa__answer {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 0.25rem;
 }
 
 .goen-qa__answerbody {
-  color: var(--fg-muted);
-  font-size: var(--fs-14);
-  line-height: var(--lh-normal);
+  color: var(--n-700);
+  line-height: 1.7;
   margin: 0;
 }
 
-@media (min-width: 768px) {
+@media (min-width: 640px) {
   .goen-pdp {
-    gap: 40px;
-    padding: 24px var(--page-gutter) 56px;
+    gap: 6rem;
+    padding-bottom: 6rem;
   }
+}
 
-  .goen-pdp__facts {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .goen-pdp__title {
-    font-size: var(--fs-ed-30);
+@media (min-width: 768px) {
+  .goen-pdp__specrow {
+    grid-template-columns: 12rem 1fr;
   }
 }
 
 @media (min-width: 1024px) {
-  .goen-pdp {
-    gap: 48px;
-    padding: 32px var(--page-gutter) 72px;
-  }
-
   .goen-pdp__top {
     align-items: start;
-    gap: 48px;
-    grid-template-columns: 1fr 1fr;
+    gap: 3rem;
+    grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
   }
 
-  .goen-pdp__title {
-    font-size: var(--fs-ed-38);
-  }
-
-  .goen-pdp__price {
-    font-size: var(--fs-ed-30);
+  .goen-pdp__add {
+    flex: 1 1 0;
   }
 
   .goen-pdp__reviewlayout {
+    gap: 4rem;
     grid-template-columns: minmax(0, 16rem) minmax(0, 1fr);
+  }
+
+  .goen-pdp .goen-tiles__grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 
