@@ -155,6 +155,18 @@ SELECT record_inventory_movement(
     @idempotency_key::text, 'admin', NULL, @actor_user_id::uuid
 );
 
+-- Whether this exact movement is already in the ledger under the key, so a
+-- replay of the form that booked it can be told from a different movement that
+-- reuses the key.
+-- name: StockMovementApplied :one
+SELECT EXISTS (
+    SELECT 1 FROM inventory_movements
+    WHERE idempotency_key = @idempotency_key::text
+      AND variant_id = @variant_id
+      AND delta = @delta::integer
+      AND reason = @reason::text
+);
+
 -- sqlc.narg on the actor: actor_user_id is nullable with a foreign key, so a
 -- zero UUID is not "nobody" — it is an id that does not exist, and the FK
 -- refuses it.

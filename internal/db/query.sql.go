@@ -13255,6 +13255,38 @@ func (q *Queries) StockAtRisk(ctx context.Context, arg StockAtRiskParams) ([]Sto
 	return items, nil
 }
 
+const stockMovementApplied = `-- name: StockMovementApplied :one
+SELECT EXISTS (
+    SELECT 1 FROM inventory_movements
+    WHERE idempotency_key = $1::text
+      AND variant_id = $2
+      AND delta = $3::integer
+      AND reason = $4::text
+)
+`
+
+type StockMovementAppliedParams struct {
+	IdempotencyKey string
+	VariantID      uuid.UUID
+	Delta          int32
+	Reason         string
+}
+
+// Whether this exact movement is already in the ledger under the key, so a
+// replay of the form that booked it can be told from a different movement that
+// reuses the key.
+func (q *Queries) StockMovementApplied(ctx context.Context, arg StockMovementAppliedParams) (bool, error) {
+	row := q.db.QueryRow(ctx, stockMovementApplied,
+		arg.IdempotencyKey,
+		arg.VariantID,
+		arg.Delta,
+		arg.Reason,
+	)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const storeCreditBalance = `-- name: StoreCreditBalance :one
 SELECT coalesce((SELECT b.balance_cents FROM store_credit_balances b
                  WHERE b.user_id = $1), 0)::bigint AS balance_cents
