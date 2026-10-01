@@ -349,6 +349,28 @@ h4,
   letter-spacing: 0;
 }
 
+/* Three weights only: the browser's bold is 700 and the face is set at 600. */
+h1,
+h2,
+h4,
+h5,
+h6,
+strong,
+b,
+th {
+  font-weight: var(--fw-semibold);
+}
+
+h3 {
+  font-weight: var(--fw-medium);
+}
+
+/* Long text reads at a looser measure than the controls around it. */
+.goen-doc__article p,
+.about p {
+  line-height: 1.7;
+}
+
 /* ---------- Components ----------
 
    goen's own presentation layer: the shapes a page repeats, ported from the
@@ -900,7 +922,9 @@ h4,
   font-weight: var(--fw-medium);
   height: 18px;
   justify-content: center;
-  left: 31px;
+  /* The button is 44px with a 16px glyph centred in it; the pill starts just
+     past the glyph's right edge. */
+  left: calc(50% + 9px);
   line-height: 1;
   min-width: 18px;
   padding: 0 5px;
