@@ -170,3 +170,114 @@ func TestSearchRanksTheChineseNameAndEnglishSummaryArms(t *testing.T) {
 		}
 	}
 }
+
+func TestSearchFindsAProductByItsCategoryNameAndRanksItAboveASummaryMention(t *testing.T) {
+	ctx := t.Context()
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = tx.Rollback(context.WithoutCancel(ctx)) })
+	token := "kind" + uuid.NewString()[:8]
+	var categoryID uuid.UUID
+	if fixtureErr := tx.QueryRow(ctx, `INSERT INTO categories (slug, name, name_en, position)
+   SELECT $1, $2, $3, coalesce(max(position) + 1, 0) FROM categories WHERE parent_id IS NULL RETURNING id`,
+		"cat-"+uuid.NewString(), "類別"+token, "Category "+token).Scan(&categoryID); fixtureErr != nil {
+		t.Fatal(fixtureErr)
+	}
+	// The mention is newer, so recency alone would list it first.
+	fixtures := []struct {
+		inCategory bool
+		summary    string
+	}{
+		{inCategory: true, summary: "Fixture summary"},
+		{summary: "Fits every " + token},
+	}
+	slugs := make([]string, len(fixtures))
+	for i, f := range fixtures {
+		slugs[i] = "relevance-cat-" + uuid.NewString()
+		var category *uuid.UUID
+		if f.inCategory {
+			category = &categoryID
+		}
+		var brandID, productID uuid.UUID
+		if fixtureErr := tx.QueryRow(ctx, `INSERT INTO brands (slug, name) VALUES ($1, 'Fixture brand') RETURNING id`, "brand-"+uuid.NewString()).Scan(&brandID); fixtureErr != nil {
+			t.Fatal(fixtureErr)
+		}
+		if fixtureErr := tx.QueryRow(ctx, `INSERT INTO products (brand_id, category_id, slug, name, summary, status, published_at)
+   SELECT $1, coalesce($5::uuid, category_id), $2, 'Original fixture', $3, 'draft', now() + ($4 * interval '1 second')
+   FROM products LIMIT 1 RETURNING id`, brandID, slugs[i], f.summary, i, category).Scan(&productID); fixtureErr != nil {
+			t.Fatal(fixtureErr)
+		}
+		if _, fixtureErr := tx.Exec(ctx, `INSERT INTO product_variants (product_id, sku, price_cents) VALUES ($1, $2, 10000)`, productID, "RANKCAT-"+strings.ToUpper(uuid.NewString())); fixtureErr != nil {
+			t.Fatal(fixtureErr)
+		}
+		if _, fixtureErr := tx.Exec(ctx, `UPDATE products SET status = 'active' WHERE id = $1`, productID); fixtureErr != nil {
+			t.Fatal(fixtureErr)
+		}
+	}
+	for _, q := range []string{"類別" + token, strings.ToUpper("category " + token)} {
+		view, searchErr := catalog.NewStore(tx).Search(ctx, catalog.SearchPattern(q), 1)
+		if searchErr != nil {
+			t.Fatal(searchErr)
+		}
+		if view.Total != 1 || len(view.Products) != 1 || view.Products[0].Slug != slugs[0] {
+			t.Errorf("q=%q total=%d products=%v, want only the category's product", q, view.Total, view.Products)
+		}
+	}
+	view, err := catalog.NewStore(tx).Search(ctx, catalog.SearchPattern(token), 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if view.Total != 2 || len(view.Products) != 2 || view.Products[0].Slug != slugs[0] || view.Products[1].Slug != slugs[1] {
+		t.Errorf("q=%q total=%d, want the category's product above the summary mention", token, view.Total)
+	}
+}
+
+func TestSearchFindsAProductByAnAncestorCategoryName(t *testing.T) {
+	ctx := t.Context()
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = tx.Rollback(context.WithoutCancel(ctx)) })
+	token := "dept" + uuid.NewString()[:8]
+	var rootID, middleID, leafID uuid.UUID
+	if fixtureErr := tx.QueryRow(ctx, `INSERT INTO categories (slug, name, name_en, position)
+   SELECT $1, $2, $3, coalesce(max(position) + 1, 0) FROM categories WHERE parent_id IS NULL RETURNING id`,
+		"cat-"+uuid.NewString(), "部門"+token, "Department "+token).Scan(&rootID); fixtureErr != nil {
+		t.Fatal(fixtureErr)
+	}
+	if fixtureErr := tx.QueryRow(ctx, `INSERT INTO categories (slug, name, parent_id, position) VALUES ($1, '中層', $2, 0) RETURNING id`,
+		"cat-"+uuid.NewString(), rootID).Scan(&middleID); fixtureErr != nil {
+		t.Fatal(fixtureErr)
+	}
+	if fixtureErr := tx.QueryRow(ctx, `INSERT INTO categories (slug, name, parent_id, position) VALUES ($1, '末層', $2, 0) RETURNING id`,
+		"cat-"+uuid.NewString(), middleID).Scan(&leafID); fixtureErr != nil {
+		t.Fatal(fixtureErr)
+	}
+	var brandID, productID uuid.UUID
+	if fixtureErr := tx.QueryRow(ctx, `INSERT INTO brands (slug, name) VALUES ($1, 'Fixture brand') RETURNING id`, "brand-"+uuid.NewString()).Scan(&brandID); fixtureErr != nil {
+		t.Fatal(fixtureErr)
+	}
+	slug := "relevance-anc-" + uuid.NewString()
+	if fixtureErr := tx.QueryRow(ctx, `INSERT INTO products (brand_id, category_id, slug, name, summary, status, published_at)
+   VALUES ($1, $2, $3, 'Original fixture', 'Fixture summary', 'draft', now()) RETURNING id`, brandID, leafID, slug).Scan(&productID); fixtureErr != nil {
+		t.Fatal(fixtureErr)
+	}
+	if _, fixtureErr := tx.Exec(ctx, `INSERT INTO product_variants (product_id, sku, price_cents) VALUES ($1, $2, 10000)`, productID, "RANKANC-"+strings.ToUpper(uuid.NewString())); fixtureErr != nil {
+		t.Fatal(fixtureErr)
+	}
+	if _, fixtureErr := tx.Exec(ctx, `UPDATE products SET status = 'active' WHERE id = $1`, productID); fixtureErr != nil {
+		t.Fatal(fixtureErr)
+	}
+	for _, q := range []string{"部門" + token, strings.ToUpper("department " + token)} {
+		view, searchErr := catalog.NewStore(tx).Search(ctx, catalog.SearchPattern(q), 1)
+		if searchErr != nil {
+			t.Fatal(searchErr)
+		}
+		if view.Total != 1 || len(view.Products) != 1 || view.Products[0].Slug != slug {
+			t.Errorf("q=%q total=%d products=%v, want the product two levels below the named category", q, view.Total, view.Products)
+		}
+	}
+}

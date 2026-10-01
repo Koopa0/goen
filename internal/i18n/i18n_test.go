@@ -48,7 +48,7 @@ func TestAMissingTranslationIsRefused(t *testing.T) {
 
 // englishQuotesCJK is every key whose English text carries CJK on purpose, and why.
 var englishQuotesCJK = map[Key]string{
-	"about.name": "explains ご縁 and 五円, so it has to print them",
+	"about.name": "explains ご縁, the word the name comes from, so it has to print it",
 }
 
 func TestEnglishIsActuallyEnglish(t *testing.T) {

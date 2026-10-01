@@ -3,6 +3,7 @@ package pages
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -116,11 +117,24 @@ type AdminProductView struct {
 	VariantDraft      AdminVariantDraft
 }
 
-// AdminVariantDraft carries a refused variant form's exact text back.
+// AdminVariantDraft carries a refused form's exact input back: the variant
+// form's, and the two option forms', so a corrected resubmit files what the
+// staff member chose and not what the page defaults to.
 type AdminVariantDraft struct {
 	SKU, Price, Compare              string
 	Safety, ParcelLongest, ParcelSum string
 	ParcelWeight                     string
+	// OptionValueIDs are the option values the variant form had chosen.
+	OptionValueIDs []string
+	// The add-axis form.
+	OptionName, OptionNameEn string
+	// The add-value form: the axis it was filed under, then the value's fields.
+	ValueOption, Value, ValueEn, Swatch string
+}
+
+// Chose reports whether the refused variant form had picked this option value.
+func (d *AdminVariantDraft) Chose(valueID string) bool {
+	return slices.Contains(d.OptionValueIDs, valueID)
 }
 
 // AdminOption is one axis of a product's variants.
@@ -268,9 +282,9 @@ func (v *AdminProductView) HasLibrary() bool { return len(v.Library) > 0 }
 // Examples for the Chinese half of each paired field. They do not follow the reader's
 // locale: which language each field takes is fixed by the schema.
 const (
-	altExample       = "銀色筆電,螢幕開啟,側面 45 度" // i18n-exempt: a Chinese example for a field that takes Chinese
-	optionExample    = "顏色"                // i18n-exempt: as above — 顏色, not Colour, is what goes in this box
-	optionValExample = "星霧藍"               // i18n-exempt: as above
-	specLabelExample = "螢幕"                // i18n-exempt: as above
-	specValueExample = "6.3 吋 OLED"        // i18n-exempt: as above
+	altExample       = "白色陶瓷馬克杯,側面,把手朝右" // i18n-exempt: a Chinese example for a field that takes Chinese
+	optionExample    = "顏色"              // i18n-exempt: as above — 顏色, not Colour, is what goes in this box
+	optionValExample = "星霧藍"             // i18n-exempt: as above
+	specLabelExample = "容量"              // i18n-exempt: as above
+	specValueExample = "350 ml"          // i18n-exempt: as above
 )

@@ -194,7 +194,7 @@ SELECT
     -- Both columns: a captured card leaves the order committed and still owing,
     -- a fully store-credited one owes nothing and is not committed until it
     -- leaves pending.
-    (o.id IN (SELECT id FROM committed_orders))::boolean AS committed,
+    EXISTS (SELECT 1 FROM committed_orders c WHERE c.id = o.id) AS committed,
     order_amount_owed(o.id)::bigint AS owed_cents
 FROM orders o
 WHERE o.user_id = @user_id
