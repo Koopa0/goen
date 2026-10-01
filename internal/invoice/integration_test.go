@@ -15,6 +15,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math/rand/v2"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -3816,4 +3817,47 @@ func ownedOrderToInvoice(
 		t.Fatalf("commit the fixture: %v", err)
 	}
 	return number
+}
+
+// TestTaxIDChecksumAgreesWithTheSchema holds the Go validator and its PL/pgSQL
+// twin to one answer over the cases that bend the rule (a seventh digit of 7)
+// and a seeded random sample, so neither can drift without this failing.
+func TestTaxIDChecksumAgreesWithTheSchema(t *testing.T) {
+	corpus := []string{
+		"", "00000000", "10458575", "04595257", "10458570", "1045857", "104585750",
+		"1045857a", "２０４５８５７５", "04595252", "04595253", "00000007", "00000070",
+	}
+	rng := rand.New(rand.NewPCG(555, 555))
+	for range 5000 {
+		v := fmt.Sprintf("%08d", rng.IntN(100_000_000))
+		if rng.IntN(4) == 0 {
+			v = v[:6] + "7" + v[7:]
+		}
+		corpus = append(corpus, v)
+	}
+
+	rows, err := pool.Query(t.Context(),
+		`SELECT v, valid_business_tax_id(v) FROM unnest($1::text[]) AS v`, corpus)
+	if err != nil {
+		t.Fatalf("ask the schema: %v", err)
+	}
+	defer rows.Close()
+	var agreed int
+	for rows.Next() {
+		var value string
+		var sql bool
+		if err := rows.Scan(&value, &sql); err != nil {
+			t.Fatalf("scan: %v", err)
+		}
+		if goValid := ValidTaxID(value); goValid != sql {
+			t.Errorf("%q: ValidTaxID = %t, valid_business_tax_id = %t", value, goValid, sql)
+		}
+		agreed++
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	if agreed != len(corpus) {
+		t.Fatalf("the schema answered %d of %d values", agreed, len(corpus))
+	}
 }
