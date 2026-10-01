@@ -29,6 +29,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	invoicepkg "github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/pickup"
+	"github.com/koopa0/goen/internal/web"
 )
 
 var (
@@ -800,13 +801,14 @@ func hasControl(s string) bool {
 	return strings.ContainsFunc(s, unicode.IsControl)
 }
 
-// Trim strips the whitespace around every field and uppercases the store code,
-// which isStoreCode will not fold.
+// Trim strips the whitespace around every field, folds full-width digits in the
+// phone and postal code, and uppercases the store code, which isStoreCode will
+// not fold.
 func (a *Address) Trim() {
 	a.Email = strings.TrimSpace(a.Email)
 	a.Name = strings.TrimSpace(a.Name)
-	a.Phone = strings.TrimSpace(a.Phone)
-	a.PostalCode = strings.TrimSpace(a.PostalCode)
+	a.Phone = strings.TrimSpace(web.FoldWidth(a.Phone))
+	a.PostalCode = strings.TrimSpace(web.FoldWidth(a.PostalCode))
 	a.City = strings.TrimSpace(a.City)
 	a.District = strings.TrimSpace(a.District)
 	a.Street = strings.TrimSpace(a.Street)
@@ -861,10 +863,10 @@ type Invoice struct {
 // Validate refuses what the schema would refuse, in the customer's language.
 func (i *Invoice) Validate() []account.FieldError {
 	i.Type = invoicepkg.Preference(strings.TrimSpace(string(i.Type)))
-	i.Carrier = strings.ToUpper(strings.TrimSpace(i.Carrier))
+	i.Carrier = strings.ToUpper(strings.TrimSpace(web.FoldWidth(i.Carrier)))
 	i.DonationCode = strings.TrimSpace(i.DonationCode)
 	i.CompanyName = strings.TrimSpace(i.CompanyName)
-	i.TaxID = strings.TrimSpace(i.TaxID)
+	i.TaxID = strings.TrimSpace(web.FoldWidth(i.TaxID))
 
 	if i.Type == "" {
 		i.Type = invoicepkg.PreferenceMember

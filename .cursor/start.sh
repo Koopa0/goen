@@ -11,11 +11,11 @@ cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # GOEN_DATABASE_URL and friends. The Makefile also reads .env, but the psql
 # probe below needs it exported into this shell.
+# .env is make syntax, so it is read by load-env.sh and not sourced as bash.
 if [ -f .env ]; then
-	set -a
-	# shellcheck disable=SC1091
-	. ./.env
-	set +a
+	# shellcheck source=lib/load-env.sh
+	. "$(dirname "${BASH_SOURCE[0]}")/lib/load-env.sh"
+	load_env .env
 fi
 
 # ---------------------------------------------------------------------------

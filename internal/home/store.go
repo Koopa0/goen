@@ -15,6 +15,8 @@ import (
 // Store reads the home page's data.
 type Store struct {
 	q *db.Queries
+	// noPickup leaves pickup out of every price and method the store describes.
+	noPickup bool
 }
 
 // NewStore returns a Store reading through dbtx.
@@ -23,6 +25,14 @@ func NewStore(dbtx db.DBTX) *Store {
 		panic("home: NewStore requires a database handle")
 	}
 	return &Store{q: db.New(dbtx)}
+}
+
+// WithoutPickup is the store for a deployment whose store map is not configured:
+// checkout offers no pickup there, so what this store describes must not either.
+func (s *Store) WithoutPickup() *Store {
+	c := *s
+	c.noPickup = true
+	return &c
 }
 
 // Load reads the category tiles and the top recommended product tiles.
@@ -43,11 +53,11 @@ func (s *Store) Load(ctx context.Context, recommended int32) (pages.HomeView, er
 	}
 
 	// The shop edits this at /admin/shipping; a page restating it drifts from the till.
-	freeOver, err := s.q.FreeDeliveryThreshold(ctx)
+	freeOver, err := s.q.FreeDeliveryThreshold(ctx, !s.noPickup)
 	if err != nil {
 		return pages.HomeView{}, fmt.Errorf("read free delivery threshold: %w", err)
 	}
-	lowestFee, err := s.q.LowestDeliveryFee(ctx)
+	lowestFee, err := s.q.LowestDeliveryFee(ctx, !s.noPickup)
 	if err != nil {
 		return pages.HomeView{}, fmt.Errorf("read lowest delivery fee: %w", err)
 	}
@@ -58,6 +68,7 @@ func (s *Store) Load(ctx context.Context, recommended int32) (pages.HomeView, er
 		Recommended:       make([]pages.ProductTile, 0, len(tiles)),
 		FreeDeliveryCents: freeOver,
 		LowestFeeCents:    lowestFee,
+		PickupOffered:     !s.noPickup,
 	}
 	for _, c := range cats {
 		view.Categories = append(view.Categories, pages.HomeCategory{
