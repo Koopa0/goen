@@ -1,10 +1,10 @@
 package assets
 
 import (
+	"encoding/hex"
 	"io/fs"
 	"math"
 	"regexp"
-	"strconv"
 	"testing"
 )
 
@@ -20,12 +20,12 @@ func linear(c uint8) float64 {
 	return math.Pow((v+0.055)/1.055, 2.4)
 }
 
-func luminance(hex string) float64 {
-	n, err := strconv.ParseUint(hex, 16, 32)
-	if err != nil {
+func luminance(h string) float64 {
+	b, err := hex.DecodeString(h)
+	if err != nil || len(b) != 3 {
 		return math.NaN()
 	}
-	return 0.2126*linear(uint8(n>>16)) + 0.7152*linear(uint8(n>>8)) + 0.0722*linear(uint8(n))
+	return 0.2126*linear(b[0]) + 0.7152*linear(b[1]) + 0.0722*linear(b[2])
 }
 
 func contrast(a, b string) float64 {
