@@ -39,9 +39,7 @@ and refunds, warranty requests, invoices, and customer inquiries.
 ## Current limits
 
 Payments, electronic invoices, and email delivery have not yet been verified
-with their service providers. The return review
-process does not yet enforce the advertised eligibility windows
-([#50](https://github.com/Koopa0/goen/issues/50)).
+with their service providers.
 
 The interface is available in English and Traditional Chinese. Product content
 uses the translations supplied by the shop.
