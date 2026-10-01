@@ -9,7 +9,7 @@ English | [繁體中文](README.zh-TW.md)
 goen is an e-commerce project for shoppers and shop operators. Browse and compare
 products, place an order, manage purchases, and handle fulfillment from the back office.
 It is a demonstration and reference project, not a shop you can buy from:
-[goen.koopa0.dev](https://goen.koopa0.dev) runs the twenty-product sample
+[goen.koopa0.dev](https://goen.koopa0.dev) runs the forty-product sample
 catalogue with Stripe sandbox payments. Use test card **4242 4242 4242 4242**,
 any future expiry date and any three-digit CVC; do not enter a real card. No real
 money is charged. The intended demo setup keeps mail on the host and restores

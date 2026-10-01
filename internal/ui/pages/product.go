@@ -340,7 +340,7 @@ func (v *ProductView) ReviewCountText() string { return strconv.FormatInt(v.Rati
 
 // RatingLabel is the summary as one sentence for assistive technology.
 func (v *ProductView) RatingLabel(ctx context.Context) string {
-	return fmt.Sprintf(i18n.T(ctx, i18n.KeyRatingSummary), v.RatingText(), v.ReviewCountText())
+	return i18n.Count(ctx, i18n.KeyRatingSummary, v.RatingCount, v.RatingText(), v.ReviewCountText())
 }
 
 // ReviewDraft carries a refused review form's values back into it.
@@ -353,8 +353,13 @@ type ReviewDraft struct {
 // IsRating reports whether n is the chosen star count, for the radio group.
 func (d ReviewDraft) IsRating(n int) bool { return d.Rating == n }
 
-// ReviewAction is where the review form posts.
-func (v *ProductView) ReviewAction() string { return "/p/" + v.Slug + "/reviews" }
+// ReviewBodyMinRunes is the shortest review the form lets through before the
+// server would refuse it; product.MinReviewBodyRunes is the same number.
+const ReviewBodyMinRunes = 5
+
+// ReviewAction is where the review form posts. The fragment rides into the 422
+// page's address, so a refused review opens at the form, error in view.
+func (v *ProductView) ReviewAction() string { return "/p/" + v.Slug + "/reviews#write-review" }
 
 // HasReviewErr reports whether a review field was refused.
 func (v *ProductView) HasReviewErr(f string) bool { _, ok := v.ReviewErrors[f]; return ok }

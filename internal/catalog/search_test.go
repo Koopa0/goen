@@ -133,3 +133,12 @@ func TestEscapeLikeLeavesNoWildcard(t *testing.T) {
 		t.Errorf("SearchPattern(%q) = %q, want the escaped term between goen's own wildcards", "_", got)
 	}
 }
+
+func TestSearchFoldsFullWidthLettersAndDigits(t *testing.T) {
+	if got := SearchPattern("Ｐｉｘｅｌ６５Ｗ"); got != "%Pixel65W%" {
+		t.Errorf("SearchPattern = %q, want the folded term", got)
+	}
+	if got := trimForDisplay("　Ｐｉｘｅｌ　"); got != "Pixel" {
+		t.Errorf("trimForDisplay = %q, want the folded query the page echoes", got)
+	}
+}
