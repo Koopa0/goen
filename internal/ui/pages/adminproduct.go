@@ -133,7 +133,7 @@ type AdminVariantDraft struct {
 }
 
 // Chose reports whether the refused variant form had picked this option value.
-func (d AdminVariantDraft) Chose(valueID string) bool {
+func (d *AdminVariantDraft) Chose(valueID string) bool {
 	return slices.Contains(d.OptionValueIDs, valueID)
 }
 
