@@ -174,7 +174,7 @@ func Deals(p layouts.Page, v SearchView) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				for _, t := range v.Products {
+				for _, t := range FirstRowEager(v.Products) {
 					templ_7745c5c3_Err = Tile(t).Render(ctx, templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err

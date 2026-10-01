@@ -45,7 +45,7 @@ templ Listing(p layouts.Page, v ListingView) {
 						<h2 class="goen-sr-only">{ i18n.T(ctx, i18n.KeyResultsHeading) }</h2>
 						@compareForm() {
 							<ul class="goen-tiles__grid" role="list">
-								for _, t := range v.Products {
+								for _, t := range FirstRowEager(v.Products) {
 									@Tile(t)
 								}
 							</ul>
@@ -216,7 +216,7 @@ templ Search(p layouts.Page, v SearchView) {
 				<h2 class="goen-sr-only">{ i18n.T(ctx, i18n.KeyResultsHeading) }</h2>
 				@compareForm() {
 					<ul class="goen-tiles__grid" role="list">
-						for _, t := range v.Products {
+						for _, t := range FirstRowEager(v.Products) {
 							@Tile(t)
 						}
 					</ul>
