@@ -74,13 +74,13 @@ func TestReorderReportsAdjustedQuantities(t *testing.T) {
 				if shown.Code != http.StatusOK {
 					t.Fatalf("cart status=%d", shown.Code)
 				}
-				notice := fmt.Sprintf(i18n.T(ctx, i18n.KeyReorderAll), 1)
+				notice := i18n.Count(ctx, i18n.KeyReorderAll, 1, 1)
 				if adjusted {
 					notice = i18n.T(ctx, i18n.KeyReorderAdjusted)
 					if scenario.skipped {
 						notice = fmt.Sprintf(i18n.T(ctx, i18n.KeyReorderAdjustedPartial), 1)
 					}
-					if strings.Contains(shown.Body.String(), fmt.Sprintf(i18n.T(ctx, i18n.KeyReorderAll), 1)) {
+					if strings.Contains(shown.Body.String(), i18n.Count(ctx, i18n.KeyReorderAll, 1, 1)) {
 						t.Error("adjusted reorder claims all quantities were added")
 					}
 				}

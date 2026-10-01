@@ -1,7 +1,6 @@
 package pages
 
 import (
-	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
@@ -52,7 +51,7 @@ templ AdminCampaigns(p layouts.Page, v AdminCampaignsView) {
 									<a href={ templ.SafeURL(c.Href()) }>{ c.Title }</a>
 									<span class="goen-admin__meta">/s/{ c.Slug }</span>
 									<span class="goen-admin__meta">
-										{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminCampMeta), c.ProductsText(), c.EndsAt) }
+										{ i18n.Count(ctx, i18n.KeyAdminCampMeta, c.Products, c.ProductsText(), c.EndsAt) }
 									</span>
 								</td>
 								<td>

@@ -82,10 +82,7 @@ var (
 
 	KeyAdminCampEmpty = key("admin.camp.empty", Message{ZhHant: "還沒有任何活動。", En: "No campaigns yet."})
 
-	KeyAdminCampMeta = key("admin.camp.meta", Message{
-		ZhHant: "%s 件商品 · 至 %s",
-		En:     "%s products · until %s",
-	})
+	KeyAdminCampMeta = countKey("admin.camp.meta", "%s 件商品 · 至 %s", "%s product · until %s", "%s products · until %s")
 
 	KeyAdminCampProductSlug = key("admin.camp.product.slug", Message{
 		ZhHant: "商品網址代稱",

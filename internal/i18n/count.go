@@ -11,10 +11,11 @@ import (
 var singulars = map[Key]string{}
 
 // countKey registers a counted message: enOne is read when the count is 1, and
-// the registered En (enMany) otherwise. Both carry one %s or %d for the number.
+// the registered En (enMany) otherwise. The two English forms take the same
+// arguments, and the number that decides between them comes first.
 func countKey(id, zhHant, enOne, enMany string) Key {
-	if strings.Count(enOne, "%") != 1 || strings.Count(enMany, "%") != 1 {
-		panic("i18n: " + id + " needs exactly one verb in each English form")
+	if verbs := strings.Count(enMany, "%"); verbs == 0 || verbs != strings.Count(enOne, "%") {
+		panic("i18n: " + id + " needs the same verbs, at least one, in both English forms")
 	}
 	if enOne == enMany {
 		panic("i18n: " + id + " has the same English for one and many")
@@ -24,12 +25,12 @@ func countKey(id, zhHant, enOne, enMany string) Key {
 	return k
 }
 
-// Count renders a counted message for n, with shown as the number the reader
-// sees (n itself, or n formatted).
-func Count(ctx context.Context, k Key, n int64, shown any) string {
+// Count renders a counted message for n. args are the message's arguments in
+// order; the first is the number the reader sees (n itself, or n formatted).
+func Count(ctx context.Context, k Key, n int64, args ...any) string {
 	format := T(ctx, k)
 	if one, ok := singulars[k]; ok && n == 1 && FromContext(ctx) == En {
 		format = one
 	}
-	return fmt.Sprintf(format, shown)
+	return fmt.Sprintf(format, args...)
 }
