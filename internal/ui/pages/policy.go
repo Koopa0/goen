@@ -163,7 +163,44 @@ type AdminFAQView struct {
 	Rows   []AdminFAQEntry
 	Notice string
 	Errors map[string]string
-	Draft  AdminFAQEntry
+	// Draft is the add form's text.
+	Draft AdminFAQEntry
+	// Edit and EditErrors are a refused edit of one listed entry, carried apart
+	// from Draft and Errors so the refusal lands on that entry and not on the
+	// add form, where fixing it would publish a second copy.
+	Edit       AdminFAQEntry
+	EditErrors map[string]string
+}
+
+// faqEditFields are the fields an entry's own form can be refused on.
+var faqEditFields = []string{"category", "question", "answer", "category_en", "question_en", "answer_en"}
+
+// Listed is the entry as its own form shows it: the refused submission when
+// this is the entry whose edit was refused, otherwise what is stored.
+func (v *AdminFAQView) Listed(e *AdminFAQEntry) AdminFAQEntry {
+	if v.Edit.ID != e.ID {
+		return *e
+	}
+	out := v.Edit
+	out.UpdatedAt = e.UpdatedAt
+	return out
+}
+
+// RowErr reports whether this entry's own form had the field refused.
+func (v *AdminFAQView) RowErr(e *AdminFAQEntry, f string) bool {
+	_, refused := v.EditErrors[f]
+	return refused && v.Edit.ID == e.ID
+}
+
+// RowErrFields are the fields of this entry's form that were refused, in form order.
+func (v *AdminFAQView) RowErrFields(e *AdminFAQEntry) []string {
+	var out []string
+	for _, f := range faqEditFields {
+		if v.RowErr(e, f) {
+			out = append(out, f)
+		}
+	}
+	return out
 }
 
 // Empty reports whether the shop has published no FAQ at all.
