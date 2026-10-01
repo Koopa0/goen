@@ -34,7 +34,7 @@ templ AdminReturns(p layouts.Page, v AdminReturnsView) {
 				for _, r := range v.Rows {
 					<li class="goen-admin__return">
 						<div class="goen-admin__returninfo">
-							<p class="goen-admin__returnorder">{ r.OrderNumber }</p>
+							<p class="goen-admin__returnorder"><a href={ templ.SafeURL(r.OrderAction()) }>{ r.OrderNumber }</a></p>
 							<div class="goen-admin__cellbadges">
 								@components.Badge(components.BadgeProps{}) {
 									{ r.StatusText }
@@ -79,7 +79,8 @@ templ AdminReturns(p layouts.Page, v AdminReturnsView) {
 											if l.Inspected {
 												<span class="goen-admin__meta">
 													{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRetReceivedRestocked), l.ReceivedText(), l.RestockedText()) }
-													if l.Shortfall() {
+													// Nothing shipped on a refund before shipment, so nothing can be short.
+													if l.Shortfall() && !r.BeforeShipment {
 														<strong>{ i18n.T(ctx, i18n.KeyAdminRetShortfall) }</strong>
 													}
 													if l.Scrapped() {
