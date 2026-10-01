@@ -1404,16 +1404,25 @@ for (const locale of ['zh-Hant', 'en']) {
 // navigation on a phone. Paint order is invisible to axe, so each link is hit
 // tested: whatever sits at its centre has to be the link, or a tap lands on the
 // photo underneath and counts as an outside click.
-const DRAWER_PROBE = `(() => {
+//
+// The drawer's content fades in and leaves content-visibility:hidden only when
+// that transition ends, and a hidden box is not hit by anything, so the probe
+// waits it out before it measures.
+const DRAWER_PROBE = `(async () => {
   const menu = document.querySelector('.goen-header__menu');
   if (!menu) return { ok: false, why: 'the header menu is missing' };
   menu.open = true;
+  await new Promise((done) => setTimeout(done, 1000));
   const links = [...menu.querySelectorAll('.goen-header__drawer a')];
   const covered = links.filter((a) => {
     const r = a.getBoundingClientRect();
     const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
     return !hit || !a.contains(hit);
-  }).map((a) => a.textContent.trim());
+  }).map((a) => {
+    const r = a.getBoundingClientRect();
+    const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+    return a.textContent.trim() + ' under ' + (hit ? hit.tagName + '.' + String(hit.className).split(' ')[0] : 'nothing');
+  });
   return { ok: true, links: links.length, covered };
 })()`;
 
