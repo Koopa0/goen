@@ -176,10 +176,12 @@ func boundsOK(w, h int) error {
 }
 
 // encode writes the decoded pixels back out as PNG or JPEG, chosen from the
-// DECODED format rather than from a client-supplied type.
+// DECODED format rather than from a client-supplied type. A pixel that is not
+// opaque forces PNG whatever the format: JPEG has no alpha channel and writes a
+// transparent pixel as black, which turns a product cut-out into a black frame.
 func encode(img image.Image, format string) (data []byte, contentType string, err error) {
 	var buf bytes.Buffer
-	if format == "png" {
+	if format == "png" || hasAlpha(img) {
 		enc := png.Encoder{CompressionLevel: png.BestCompression}
 		if err := enc.Encode(&buf, img); err != nil {
 			return nil, "", fmt.Errorf("re-encode png: %w", err)
@@ -190,4 +192,11 @@ func encode(img image.Image, format string) (data []byte, contentType string, er
 		return nil, "", fmt.Errorf("re-encode jpeg: %w", err)
 	}
 	return buf.Bytes(), "image/jpeg", nil
+}
+
+// hasAlpha reports whether img has a pixel that is not opaque. Every standard
+// image type answers; one that does not is treated as opaque.
+func hasAlpha(img image.Image) bool {
+	o, ok := img.(interface{ Opaque() bool })
+	return ok && !o.Opaque()
 }
