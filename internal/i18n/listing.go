@@ -2,8 +2,8 @@ package i18n
 
 var (
 	KeyListingDescription = key("listing.description", Message{
-		ZhHant: "%s — goen。台灣出貨。保固期限寫在各商品頁。",
-		En:     "%s — goen. Ships from Taiwan. Warranty terms are on each product page.",
+		ZhHant: "goen 的%s。",
+		En:     "%s at goen.",
 	})
 
 	KeySearchTitle = key("search.title", Message{ZhHant: "搜尋", En: "Search"})
@@ -14,7 +14,7 @@ var (
 
 	KeyHome = key("nav.home", Message{ZhHant: "首頁", En: "Home"})
 
-	KeyListingCount = key("listing.count", Message{ZhHant: "共 %s 件商品", En: "%s products"})
+	KeyListingCount = countKey("listing.count", "共 %s 件商品", "%s product", "%s products")
 
 	KeyListingEmpty = key("listing.empty", Message{
 		ZhHant: "找不到符合的商品",
@@ -98,7 +98,7 @@ var (
 
 	KeySearchHeading = key("search.heading", Message{ZhHant: "搜尋商品", En: "Search products"})
 
-	KeySearchResults = key("search.results", Message{ZhHant: "找到 %s 件商品", En: "%s products found"})
+	KeySearchResults = countKey("search.results", "找到 %s 件商品", "%s product found", "%s products found")
 
 	KeyResultsHeading = key("search.results.heading", Message{ZhHant: "搜尋結果", En: "Results"})
 
@@ -128,10 +128,10 @@ var (
 
 	KeyWasPrice = key("card.wasprice", Message{ZhHant: "原價", En: "Was"})
 
-	KeyRatingSummary = key("card.rating", Message{
-		ZhHant: "評分 %s 分,共 %s 則評價",
-		En:     "Rated %s out of 5, from %s reviews",
-	})
+	KeyRatingSummary = countKey("card.rating",
+		"評分 %s 分,共 %s 則評價",
+		"Rated %s out of 5, from %s review",
+		"Rated %s out of 5, from %s reviews")
 
 	KeyCategoryNotFound = key("listing.notfound", Message{ZhHant: "找不到這個分類", En: "Category not found"})
 

@@ -58,16 +58,20 @@
       const value = Number(field.value || 0);
       box.querySelectorAll("[data-stepper-step]").forEach((step) => {
         const next = value + Number(step.dataset.stepperStep);
-        step.disabled = field.disabled ||
-          next < Number(field.min || 0) ||
+        const atBound = next < Number(field.min || 0) ||
           (field.max !== "" && next > Number(field.max));
+        // A bound is aria-disabled, not disabled: the button that reaches it
+        // has focus, and disabling a focused button sends focus to the body.
+        // The whole stepper being unavailable is the server's disabled.
+        if (atBound) step.setAttribute("aria-disabled", "true");
+        else step.removeAttribute("aria-disabled");
       });
     };
 
     document.addEventListener("click", (event) => {
       if (!(event.target instanceof Element)) return;
       const step = event.target.closest("[data-stepper-step]");
-      if (!step) return;
+      if (!step || step.getAttribute("aria-disabled") === "true") return;
       const box = step.closest("[data-stepper]");
       const field = box?.querySelector("input");
       if (!field) return;

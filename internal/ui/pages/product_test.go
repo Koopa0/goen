@@ -1,6 +1,7 @@
 package pages
 
 import (
+	"strconv"
 	"strings"
 	"testing"
 
@@ -204,4 +205,22 @@ func TestControlsThatSwapTheirOwnRegionKeepAStableID(t *testing.T) {
 	if !strings.Contains(contact, `id="contact-submit"`) {
 		t.Error("the contact form's submit button has no id, so a refused submit drops focus to the body")
 	}
+=======
+func TestTheReviewFormWarnsBeforeSubmittingAndRefusesToTheForm(t *testing.T) {
+	t.Parallel()
+	view := ProductView{Slug: "sample-product", Name: "Sample", SignedIn: true, CanReview: true}
+	var body strings.Builder
+	if err := Product(ProductMeta(&view), &view).Render(i18n.WithLocale(t.Context(), i18n.ZhHant), &body); err != nil {
+		t.Fatal(err)
+	}
+	markup := body.String()
+	for _, want := range []string{
+		`<form id="write-review" method="post" action="/p/sample-product/reviews#write-review">`,
+		`minlength="` + strconv.Itoa(ReviewBodyMinRunes) + `"`,
+	} {
+		if !strings.Contains(markup, want) {
+			t.Errorf("the review form lacks %s", want)
+		}
+	}
+>>>>>>> origin/main
 }

@@ -42,6 +42,7 @@ type ciStep struct {
 	If              string            `yaml:"if"`
 	ContinueOnError bool              `yaml:"continue-on-error"`
 	With            map[string]string `yaml:"with"`
+	Shell           string            `yaml:"shell"`
 }
 
 func readCIWorkflow(t *testing.T, name string) ciWorkflow {
@@ -150,6 +151,18 @@ func TestCIRulesetNamesRealFailClosedGates(t *testing.T) {
 		if !found {
 			t.Errorf("%s must invoke %s unpiped", jobName, command)
 		}
+	}
+	// The layout step pipes through tee for its log. Actions' default `bash -e`
+	// has no pipefail, so tee's status would replace make's and a red browser
+	// gate would read as green; `shell: bash` adds -o pipefail.
+	layoutGate := false
+	for _, step := range verify.Jobs["layout"].Steps {
+		if step.Run == "make check-layout 2>&1 | tee layout.log" && step.If == "" && step.Shell == "bash" {
+			layoutGate = true
+		}
+	}
+	if !layoutGate {
+		t.Error("layout must run make check-layout through tee under shell: bash, or pipefail is off and the gate cannot fail")
 	}
 	codeql := readCIWorkflow(t, "codeql.yml")
 	contexts := map[string]bool{}

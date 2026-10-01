@@ -19,10 +19,10 @@ lib_dir="$(dirname "${BASH_SOURCE[0]}")/lib"
 
 # Prefer an injected secret; fall back to .env for a locally-set key.
 if [ -z "${GOEN_STRIPE_API_KEY:-}" ] && [ -f .env ]; then
-	set -a
-	# shellcheck disable=SC1091
-	. ./.env
-	set +a
+	# .env is make syntax, so it is read by load-env.sh and not sourced as bash.
+	# shellcheck source=lib/load-env.sh
+	. "${lib_dir}/load-env.sh"
+	load_env .env
 fi
 
 forward_url="http://127.0.0.1:9700/webhooks/stripe"

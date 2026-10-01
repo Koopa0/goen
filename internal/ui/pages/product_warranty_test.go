@@ -2,6 +2,7 @@ package pages
 
 import (
 	"context"
+	htmlpkg "html"
 	"strings"
 	"testing"
 
@@ -147,6 +148,13 @@ func TestProductWarrantyRendersWithoutDescriptionOrSpecs(t *testing.T) {
 				if strings.Contains(html, warrantyHeading) || strings.Contains(html, warrantyBlock) {
 					t.Error("rendered an empty warranty section")
 				}
+			}
+			// The assurance beside the buy button promises cover, so a product
+			// that states no term must not carry it; a note alone is not a term.
+			assurance := htmlpkg.EscapeString(i18n.T(ctx, i18n.KeyGuaranteeWarranty))
+			if got := strings.Contains(html, assurance); got != v.HasWarranty() {
+				t.Errorf("warranty assurance present = %v, want %v (months %d)",
+					got, v.HasWarranty(), v.WarrantyMonths)
 			}
 			if v.Description == "" && strings.Contains(html, descHeading) {
 				t.Error("rendered a description section without copy")

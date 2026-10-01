@@ -11,6 +11,10 @@ import (
 
 // ProductTile is one product card and the cheapest buyable variant's price.
 type ProductTile struct {
+	// Eager and Priority are set by FirstRowEager for the tiles a listing shows
+	// without scrolling, whose photograph is the page's largest paint.
+	Eager    bool
+	Priority bool
 	Slug       string
 	Name       string
 	Summary    string
@@ -74,7 +78,7 @@ func (t ProductTile) ReviewCountText() string { return strconv.FormatInt(t.Ratin
 
 // RatingLabel is the rating as one sentence for assistive technology.
 func (t ProductTile) RatingLabel(ctx context.Context) string {
-	return fmt.Sprintf(i18n.T(ctx, i18n.KeyRatingSummary), t.RatingText(), t.ReviewCountText())
+	return i18n.Count(ctx, i18n.KeyRatingSummary, t.RatingCount, t.RatingText(), t.ReviewCountText())
 }
 
 // TWD is twd for callers outside this package.
@@ -90,4 +94,21 @@ func FreeDeliveryText(cents int64) string {
 		return ""
 	}
 	return twd(cents)
+}
+
+// eagerTiles is how many leading tiles load their photograph at once: the first
+// row at the widest grid, which is also the first two rows of a phone's.
+const eagerTiles = 4
+
+// FirstRowEager returns tiles with the leading ones marked to load eagerly, the
+// first at high priority. Every later tile stays lazy. The caller's slice is not
+// changed.
+func FirstRowEager(tiles []ProductTile) []ProductTile {
+	out := make([]ProductTile, len(tiles))
+	copy(out, tiles)
+	for i := range min(eagerTiles, len(out)) {
+		out[i].Eager = true
+		out[i].Priority = i == 0
+	}
+	return out
 }

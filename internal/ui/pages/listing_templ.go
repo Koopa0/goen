@@ -82,7 +82,7 @@ func Listing(p layouts.Page, v ListingView) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var4 string
-			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf(i18n.T(ctx, i18n.KeyListingCount), v.TotalText()))
+			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.Count(ctx, i18n.KeyListingCount, v.Total, v.TotalText()))
 			if templ_7745c5c3_Err != nil {
 				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/listing.templ`, Line: 24, Col: 97}
 			}
@@ -211,7 +211,7 @@ func Listing(p layouts.Page, v ListingView) templ.Component {
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					for _, t := range v.Products {
+					for _, t := range FirstRowEager(v.Products) {
 						templ_7745c5c3_Err = Tile(t).Render(ctx, templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
@@ -947,7 +947,7 @@ func Search(p layouts.Page, v SearchView) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var51 string
-				templ_7745c5c3_Var51, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf(i18n.T(ctx, i18n.KeySearchResults), v.TotalText()))
+				templ_7745c5c3_Var51, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.Count(ctx, i18n.KeySearchResults, v.Total, v.TotalText()))
 				if templ_7745c5c3_Err != nil {
 					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/listing.templ`, Line: 196, Col: 99}
 				}
@@ -1089,7 +1089,7 @@ func Search(p layouts.Page, v SearchView) templ.Component {
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					for _, t := range v.Products {
+					for _, t := range FirstRowEager(v.Products) {
 						templ_7745c5c3_Err = Tile(t).Render(ctx, templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err

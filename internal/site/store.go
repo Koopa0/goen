@@ -15,6 +15,8 @@ import (
 // Store reads the content the policy pages show.
 type Store struct {
 	q *db.Queries
+	// noPickup leaves pickup out of every price and method the store describes.
+	noPickup bool
 }
 
 // NewStore returns a Store over pool.
@@ -23,6 +25,14 @@ func NewStore(pool *pgxpool.Pool) *Store {
 		panic("site: NewStore requires a pool")
 	}
 	return &Store{q: db.New(pool)}
+}
+
+// WithoutPickup is the store for a deployment whose store map is not configured:
+// checkout offers no pickup there, so what this store describes must not either.
+func (s *Store) WithoutPickup() *Store {
+	c := *s
+	c.noPickup = true
+	return &c
 }
 
 // FAQEntries is every question, in the order the back office set.
@@ -37,7 +47,9 @@ func (s *Store) FAQEntries(ctx context.Context) ([]db.FAQEntriesRow, error) {
 // ShippingPolicy is each active method's current version, with the zones that
 // cost extra to reach.
 func (s *Store) ShippingPolicy(ctx context.Context) ([]pages.ShippingMethod, error) {
-	rows, err := s.q.ShippingPolicy(ctx, string(i18n.FromContext(ctx)))
+	rows, err := s.q.ShippingPolicy(ctx, db.ShippingPolicyParams{
+		Locale: string(i18n.FromContext(ctx)), WithPickup: !s.noPickup,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("read shipping policy: %w", err)
 	}

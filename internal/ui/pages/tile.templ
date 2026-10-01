@@ -49,8 +49,15 @@ templ tileCard(t ProductTile) {
 						width={ t.ImageWidthText() }
 						height={ t.ImageHeightText() }
 					}
-					loading="lazy"
-					decoding="async"
+					if t.Eager {
+						decoding="async"
+					} else {
+						loading="lazy"
+						decoding="async"
+					}
+					if t.Priority {
+						fetchpriority="high"
+					}
 				/>
 			} else {
 				<span class="goen-tile__ph" aria-hidden="true"></span>

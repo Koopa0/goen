@@ -295,10 +295,12 @@ templ productBuy(v *ProductView) {
 			<p class="goen-pdp__hint">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCompareFull), MaxCompare) }</p>
 		}
 		<ul class="goen-pdp__assurances" role="list">
-			<li class="goen-pdp__assurance">
-				@icons.Shield()
-				<span>{ i18n.T(ctx, i18n.KeyGuaranteeWarranty) }</span>
-			</li>
+			if v.HasWarranty() {
+				<li class="goen-pdp__assurance">
+					@icons.Shield()
+					<span>{ i18n.T(ctx, i18n.KeyGuaranteeWarranty) }</span>
+				</li>
+			}
 			if v.FreeDelivery() != "" {
 				<li class="goen-pdp__assurance">
 					@icons.Truck()
@@ -478,11 +480,11 @@ templ productReviews(v *ProductView) {
 			<div class="goen-pdp__reviewlayout">
 				@components.Card(components.CardProps{Class: "goen-pdp__summary"}) {
 					<p class="goen-pdp__score">{ v.RatingText() }</p>
-					<p class="goen-pdp__scorecount">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyReviewCount), v.ReviewCountText()) }</p>
+					<p class="goen-pdp__scorecount">{ i18n.Count(ctx, i18n.KeyReviewCount, v.RatingCount, v.ReviewCountText()) }</p>
 					<div class="goen-pdp__bars">
 						for _, b := range v.RatingBars {
 							<div class="goen-pdp__bar">
-								<span class="goen-pdp__barlabel">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyStarsLabel), b.StarsText()) }</span>
+								<span class="goen-pdp__barlabel">{ i18n.Count(ctx, i18n.KeyStarsLabel, int64(b.Stars), b.StarsText()) }</span>
 								<span class="goen-pdp__bartrack">
 									<span class={ "goen-pdp__barfill", b.WidthClass() }></span>
 								</span>
@@ -603,7 +605,7 @@ templ reviewForm(v *ProductView) {
 		<p class="goen-pdp__reviewnote">{ i18n.T(ctx, i18n.KeyAlreadyReviewed) }</p>
 	} else {
 		@components.Card(components.CardProps{Class: "goen-pdp__reviewform"}) {
-			<form method="post" action={ templ.SafeURL(v.ReviewAction()) }>
+			<form id="write-review" method="post" action={ templ.SafeURL(v.ReviewAction()) }>
 				<h3 class="goen-pdp__reviewformhead">{ i18n.T(ctx, i18n.KeyWriteReview) }</h3>
 				if v.WouldVerify {
 					<p class="goen-pdp__reviewnote">{ i18n.T(ctx, i18n.KeyReviewWillBeVerified) }</p>
@@ -620,7 +622,7 @@ templ reviewForm(v *ProductView) {
 								required
 								checked?={ v.ReviewDraft.IsRating(n) }
 							/>
-							<span>{ fmt.Sprintf(i18n.T(ctx, i18n.KeyStarsLabel), strconv.Itoa(n)) }</span>
+							<span>{ i18n.Count(ctx, i18n.KeyStarsLabel, int64(n), strconv.Itoa(n)) }</span>
 						</label>
 					}
 				</fieldset>
@@ -643,7 +645,7 @@ templ reviewForm(v *ProductView) {
 					@components.Textarea(components.FieldProps{
 						ID: "review-body", Name: "body", Class: "goen-pdp__reviewbody",
 						Invalid: v.HasReviewErr("body"), Describes: "review-body-error",
-						Attrs: templ.Attributes{"rows": "5", "required": true, "maxlength": "2000"},
+						Attrs: templ.Attributes{"rows": "5", "required": true, "minlength": strconv.Itoa(ReviewBodyMinRunes), "maxlength": "2000"},
 					}) {
 						{ v.ReviewDraft.Body }
 					}

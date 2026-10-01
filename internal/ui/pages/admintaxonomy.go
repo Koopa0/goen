@@ -37,9 +37,9 @@ func (t AdminTaxon) Why(ctx context.Context) string {
 	case t.Children > 0 && t.Products > 0:
 		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminTaxonomyBoth), t.ProductsText(), t.Children)
 	case t.Children > 0:
-		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminTaxonomyChildren), t.Children)
+		return i18n.Count(ctx, i18n.KeyAdminTaxonomyChildren, t.Children, t.Children)
 	default:
-		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminTaxonomyProducts), t.ProductsText())
+		return i18n.Count(ctx, i18n.KeyAdminTaxonomyProducts, t.Products, t.ProductsText())
 	}
 }
 
