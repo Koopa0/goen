@@ -2062,9 +2062,9 @@ func productReviews(v *ProductView) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var109 string
-				templ_7745c5c3_Var109, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf(i18n.T(ctx, i18n.KeyReviewCount), v.ReviewCountText()))
+				templ_7745c5c3_Var109, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.Count(ctx, i18n.KeyReviewCount, v.RatingCount, v.ReviewCountText()))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/product.templ`, Line: 476, Col: 105}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/product.templ`, Line: 476, Col: 111}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var109))
 				if templ_7745c5c3_Err != nil {
@@ -2080,9 +2080,9 @@ func productReviews(v *ProductView) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var110 string
-					templ_7745c5c3_Var110, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf(i18n.T(ctx, i18n.KeyStarsLabel), b.StarsText()))
+					templ_7745c5c3_Var110, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.Count(ctx, i18n.KeyStarsLabel, int64(b.Stars), b.StarsText()))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/product.templ`, Line: 480, Col: 102}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/product.templ`, Line: 480, Col: 109}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var110))
 					if templ_7745c5c3_Err != nil {
@@ -2955,9 +2955,9 @@ func reviewForm(v *ProductView) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var160 string
-					templ_7745c5c3_Var160, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf(i18n.T(ctx, i18n.KeyStarsLabel), strconv.Itoa(n)))
+					templ_7745c5c3_Var160, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.Count(ctx, i18n.KeyStarsLabel, int64(n), strconv.Itoa(n)))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/product.templ`, Line: 618, Col: 76}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/product.templ`, Line: 618, Col: 77}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var160))
 					if templ_7745c5c3_Err != nil {

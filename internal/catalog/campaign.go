@@ -83,9 +83,9 @@ func humanRemaining(ctx context.Context, seconds int64) string {
 	case seconds < 60*60:
 		return i18n.T(ctx, i18n.KeyEndsWithinHour)
 	case seconds < 24*60*60:
-		return fmt.Sprintf(i18n.T(ctx, i18n.KeyEndsInHours), seconds/(60*60))
+		return i18n.Count(ctx, i18n.KeyEndsInHours, seconds/(60*60), seconds/(60*60))
 	default:
-		return fmt.Sprintf(i18n.T(ctx, i18n.KeyEndsInDays), seconds/(24*60*60))
+		return i18n.Count(ctx, i18n.KeyEndsInDays, seconds/(24*60*60), seconds/(24*60*60))
 	}
 }
 
