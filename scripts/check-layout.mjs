@@ -1400,6 +1400,47 @@ for (const locale of ['zh-Hant', 'en']) {
   await proveListingDesktopResize(`listing audio desktop ${locale}`, locale);
 }
 
+// The category drawer hangs below the header and is the only category
+// navigation on a phone. Paint order is invisible to axe, so each link is hit
+// tested: whatever sits at its centre has to be the link, or a tap lands on the
+// photo underneath and counts as an outside click.
+const DRAWER_PROBE = `(() => {
+  const menu = document.querySelector('.goen-header__menu');
+  if (!menu) return { ok: false, why: 'the header menu is missing' };
+  menu.open = true;
+  const links = [...menu.querySelectorAll('.goen-header__drawer a')];
+  const covered = links.filter((a) => {
+    const r = a.getBoundingClientRect();
+    const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+    return !hit || !a.contains(hit);
+  }).map((a) => a.textContent.trim());
+  return { ok: true, links: links.length, covered };
+})()`;
+
+for (const want of [
+  { label: 'drawer home 375', width: 375, height: 812, path: '/' },
+  { label: 'drawer pdp 375', width: 375, height: 812, path: '/p/PRODUCT_SLUG' },
+  { label: 'drawer home 768', width: 768, height: 1024, path: '/' },
+  { label: 'drawer pdp 768', width: 768, height: 1024, path: '/p/PRODUCT_SLUG' },
+]) {
+  await send(ws, 'Emulation.setDeviceMetricsOverride', {
+    width: want.width, height: want.height, deviceScaleFactor: 1, mobile: want.width < 768,
+  });
+  const target = ORIGIN + want.path.replace('PRODUCT_SLUG', process.env.PRODUCT_SLUG || '');
+  await send(ws, 'Page.navigate', { url: target });
+  await settled(ws, want.label, target);
+  const got = await evalPage(DRAWER_PROBE);
+  if (got.threw || !got.ok) {
+    fail(want.label, `the drawer probe did not run — ${got.why}`);
+    continue;
+  }
+  if (!got.links) fail(want.label, 'the open drawer lists no links — this check proved nothing');
+  if (got.covered.length) {
+    fail(want.label, `${got.covered.length} of ${got.links} drawer links are painted over: ${got.covered.join(', ')}`);
+  }
+  console.log(`${want.label.padEnd(24)} links=${got.links} covered=${got.covered.length}${got.covered.length ? '' : ' ok'}`);
+}
+
 const HEADER_EN_PROBE = `(() => {
   const de = document.documentElement;
   const clipped = (e) => {
