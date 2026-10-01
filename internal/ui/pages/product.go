@@ -370,11 +370,6 @@ func (v *ProductView) ReviewErr(f string) string { return v.ReviewErrors[f] }
 // ReviewStars is the rating drawn as stars.
 func (r ProductReview) ReviewStars() string { return starsOf(r.Rating) }
 
-// RatingLabel is what a screen reader is told, because the stars are punctuation to it.
-func (r ProductReview) RatingLabel(ctx context.Context) string {
-	return fmt.Sprintf(i18n.T(ctx, i18n.KeyRatingOutOf), strconv.Itoa(r.Rating))
-}
-
 func starsOf(n int) string {
 	n = max(0, min(n, 5))
 	return strings.Repeat("★", n) + strings.Repeat("☆", 5-n)

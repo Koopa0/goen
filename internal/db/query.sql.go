@@ -3702,6 +3702,42 @@ func (q *Queries) CheckoutCompletionSince(ctx context.Context, windowDays int32)
 	return i, err
 }
 
+const childCategories = `-- name: ChildCategories :many
+SELECT parent_id, slug, localized_name(name, name_en, $1::text) AS name
+FROM categories
+WHERE parent_id IS NOT NULL
+ORDER BY position, name, id
+`
+
+type ChildCategoriesRow struct {
+	ParentID uuid.NullUUID
+	Slug     string
+	Name     string
+}
+
+// The sub-categories under every root, for the header's department panels. One
+// read for all of them, in the order the catalogue lists them, so a header with
+// seven departments is two queries and not eight.
+func (q *Queries) ChildCategories(ctx context.Context, locale string) ([]ChildCategoriesRow, error) {
+	rows, err := q.db.Query(ctx, childCategories, locale)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ChildCategoriesRow{}
+	for rows.Next() {
+		var i ChildCategoriesRow
+		if err := rows.Scan(&i.ParentID, &i.Slug, &i.Name); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const claimInvoiceAllowance = `-- name: ClaimInvoiceAllowance :one
 SELECT claim_invoice_allowance(
     $1::uuid,
