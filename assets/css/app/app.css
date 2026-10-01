@@ -618,7 +618,8 @@ h4,
   color: var(--fg);
 }
 
-.goen-stepper__step:disabled {
+.goen-stepper__step:disabled,
+.goen-stepper__step[aria-disabled='true'] {
   cursor: not-allowed;
   opacity: 0.4;
 }
