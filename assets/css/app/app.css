@@ -3275,22 +3275,12 @@ h3 {
 }
 
 .goen-line--cart .goen-line__money {
-  align-items: flex-end;
-  display: flex;
-  flex: none;
-  flex-direction: column;
-  font-variant-numeric: tabular-nums;
-  gap: 0.125rem;
-  margin-left: auto;
-  text-align: right;
+  grid-area: money;
 }
 
 .goen-line--cart .goen-line__controls {
-  align-items: center;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  margin: 0;
+  align-self: end;
+  grid-area: controls;
 }
 
 /* Remove reads as text, not as a button: it is the quietest of the three
@@ -3352,8 +3342,8 @@ h3 {
   align-items: center;
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 8px;
+  gap: 0.75rem;
+  margin: 0;
 }
 
 .goen-returns__qty .goen-input {
@@ -3370,7 +3360,7 @@ h3 {
   flex: none;
   flex-direction: column;
   font-variant-numeric: tabular-nums;
-  gap: 2px;
+  gap: 0.125rem;
   margin-left: auto;
   text-align: right;
 }
