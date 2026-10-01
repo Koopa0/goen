@@ -154,7 +154,6 @@ COMMENT ON FUNCTION localized_name(text, text, text) IS
 -- GRANT naming a role the file has not created fails the migration outright.
 
 CREATE UNIQUE INDEX categories_slug_key ON categories (slug);
-CREATE INDEX categories_parent_id_idx ON categories (parent_id);
 
 CREATE TRIGGER categories_set_updated_at
     BEFORE UPDATE ON categories
@@ -961,7 +960,6 @@ CREATE TABLE inventory_movements (
 CREATE UNIQUE INDEX inventory_movements_idempotency_key
     ON inventory_movements (idempotency_key);
 CREATE INDEX inventory_movements_variant_idx ON inventory_movements (variant_id, created_at DESC);
-CREATE INDEX inventory_movements_source_idx ON inventory_movements (source_type, source_id);
 CREATE INDEX inventory_movements_actor_idx ON inventory_movements (actor_user_id);
 
 CREATE TRIGGER inventory_movements_append_only
@@ -1527,7 +1525,6 @@ CREATE TABLE coupons (
 -- Case-insensitive: SUMMER20 and summer20 are one code to whoever reads a card,
 -- and issuing both is how one of them silently stops working.
 CREATE UNIQUE INDEX coupons_code_key ON coupons (upper(code));
-CREATE INDEX coupons_active_idx ON coupons (is_active, starts_at, ends_at);
 
 CREATE TRIGGER coupons_set_updated_at
     BEFORE UPDATE ON coupons
@@ -2226,8 +2223,6 @@ CREATE TABLE order_private_data (
     )
 );
 
-CREATE INDEX order_private_data_email_idx ON order_private_data (lower(email));
-
 CREATE TABLE order_shipments (
     id                    uuid PRIMARY KEY DEFAULT uuidv7(),
     order_id              uuid NOT NULL REFERENCES orders (id) ON DELETE RESTRICT,
@@ -2242,7 +2237,6 @@ CREATE TABLE order_shipments (
         CHECK (delivered_at IS NULL OR delivered_at >= shipped_at)
 );
 
-CREATE INDEX order_shipments_order_id_idx ON order_shipments (order_id);
 CREATE UNIQUE INDEX order_shipments_tracking_key ON order_shipments (carrier, tracking_number);
 -- Referenced by the composite foreign key that ties a shipment line to a
 -- shipment of the same order.
@@ -2668,7 +2662,6 @@ CREATE TABLE return_requests (
     )
 );
 
-CREATE INDEX return_requests_order_id_idx ON return_requests (order_id);
 CREATE UNIQUE INDEX return_requests_order_key ON return_requests (order_id, id);
 CREATE INDEX return_requests_requester_idx ON return_requests (requested_by_user_id);
 CREATE INDEX return_requests_open_idx ON return_requests (created_at) WHERE status = 'requested';
@@ -3897,7 +3890,6 @@ CREATE UNIQUE INDEX refunds_request_key_key ON refunds (request_key);
 CREATE UNIQUE INDEX refunds_provider_ref_key ON refunds (provider_ref)
     WHERE provider_ref IS NOT NULL;
 CREATE INDEX refunds_payment_id_idx ON refunds (payment_id);
-CREATE INDEX refunds_return_request_idx ON refunds (return_request_id);
 CREATE INDEX refunds_previous_same_return_idx
     ON refunds (return_request_id, previous_refund_id);
 -- One provider identity may be ambiguous, but there is never a second attempt
@@ -4146,9 +4138,6 @@ CREATE INDEX payment_webhook_events_unreconciled_idx
     ON payment_webhook_events (received_at)
     WHERE unreconciled IS NOT NULL AND reconciled_at IS NULL;
 
-CREATE INDEX payment_webhook_events_unprocessed_idx
-    ON payment_webhook_events (received_at)
-    WHERE processed_at IS NULL;
 CREATE INDEX payment_webhook_events_object_idx ON payment_webhook_events (object_ref);
 
 -- The stored payload is evidence of WHICH event said WHAT about the money, not a
@@ -4533,7 +4522,6 @@ CREATE TABLE contact_messages (
     CONSTRAINT contact_messages_message_present CHECK (message ~ '[^[:space:]]')
 );
 
-CREATE INDEX contact_messages_created_at_idx ON contact_messages (created_at DESC);
 CREATE INDEX contact_messages_unhandled_idx ON contact_messages (created_at)
     WHERE handled_at IS NULL;
 
@@ -9217,8 +9205,6 @@ CREATE TABLE return_eligibility_assessments (
         UNIQUE (id, order_id, return_request_id)
 );
 
-CREATE INDEX return_eligibility_assessments_request_idx
-    ON return_eligibility_assessments (return_request_id, version DESC);
 CREATE INDEX return_eligibility_assessments_request_fk_idx
     ON return_eligibility_assessments (order_id, return_request_id);
 CREATE INDEX return_eligibility_assessments_assessor_idx
