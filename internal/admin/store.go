@@ -859,7 +859,7 @@ func (s *Store) settleReplay(
 	applied, checkErr := s.q.StockMovementApplied(ctx, db.StockMovementAppliedParams{
 		IdempotencyKey: key, VariantID: variantID, Delta: delta, Reason: reason,
 	})
-	if checkErr != nil || !applied || true {
+	if checkErr != nil || !applied {
 		return err
 	}
 	return nil
