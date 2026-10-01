@@ -11678,3 +11678,32 @@ func TestAPickupOrderDispatchNoticeIsMarkedAsPickup(t *testing.T) {
 		t.Error("a convenience-store order's dispatch notice is not marked as pickup, so it reads as a home delivery")
 	}
 }
+
+func TestAdvanceRefusesTheStatusAnOrderAlreadyHas(t *testing.T) {
+	ctx, staff := staffContext(t)
+	actor := uuid.NullUUID{UUID: staff, Valid: true}
+	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	number, orderID, _ := paidUnshippedOrder(t, 500000, 0, false)
+
+	if _, err := s.Advance(ctx, number, pages.FulfillmentPicking, actor); err != nil {
+		t.Fatalf("first picking: %v", err)
+	}
+	if _, err := s.Advance(ctx, number, pages.FulfillmentPicking, actor); !errors.Is(err, admin.ErrRefused) {
+		t.Fatalf("a repeated picking gave %v, want ErrRefused", err)
+	}
+	var events, audits int
+	if err := pool.QueryRow(ctx, `
+		SELECT (SELECT count(*) FROM order_events WHERE order_id = $1 AND kind = 'picking'),
+		       (SELECT count(*) FROM audit_events WHERE action = 'order.advance' AND entity_id = $1)`,
+		orderID).Scan(&events, &audits); err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if events != 1 || audits != 1 {
+		t.Errorf("picking recorded %d events and %d audit rows, want 1 and 1", events, audits)
+	}
+
+	pending := placeUnpaidOrder(t)
+	if _, err := s.Advance(ctx, pending, pages.FulfillmentPending, actor); !errors.Is(err, admin.ErrRefused) {
+		t.Errorf("pending on a pending order gave %v, want ErrRefused", err)
+	}
+}

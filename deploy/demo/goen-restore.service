@@ -6,4 +6,4 @@ Wants=postgresql.service
 [Service]
 Type=oneshot
 EnvironmentFile=/etc/goen/restore.env
-ExecStart=/opt/goen/deploy/restore-demo-db.sh
+ExecStart=/opt/goen/deploy/demo/restore-demo-db.sh
