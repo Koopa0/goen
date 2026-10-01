@@ -14170,6 +14170,33 @@ func (q *Queries) UserOrders(ctx context.Context, arg UserOrdersParams) ([]UserO
 	return items, nil
 }
 
+const variantCombinationTaken = `-- name: VariantCombinationTaken :one
+SELECT EXISTS (
+    SELECT 1
+    FROM variant_option_values vov
+    JOIN products p ON p.id = vov.product_id
+    WHERE p.slug = $1::text
+      AND vov.option_value_id = ANY($2::uuid[])
+    GROUP BY vov.variant_id
+    HAVING count(*) = cardinality($2::uuid[])
+)
+`
+
+type VariantCombinationTakenParams struct {
+	Slug           string
+	OptionValueIds []uuid.UUID
+}
+
+// A variant of the product already carries every one of the chosen values. The
+// storefront sells a selection only when exactly one variant matches it, so a
+// second variant on the same combination leaves neither of them buyable.
+func (q *Queries) VariantCombinationTaken(ctx context.Context, arg VariantCombinationTakenParams) (bool, error) {
+	row := q.db.QueryRow(ctx, variantCombinationTaken, arg.Slug, arg.OptionValueIds)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const variantForCart = `-- name: VariantForCart :one
 SELECT pv.id, pv.is_active,
        (pv.stock_quantity - pv.safety_stock)::integer AS sellable_quantity,

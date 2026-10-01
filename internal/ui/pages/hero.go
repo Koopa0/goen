@@ -42,12 +42,12 @@ func (h Hero) ImageHeightText() string { return strconv.Itoa(h.ImageHeight) }
 // Custom reports whether this came from the database rather than the fallback.
 func (h Hero) Custom() bool { return h.ImageKey != "" }
 
-// DefaultHero is what the home page shows when nothing is scheduled.
+// DefaultHero is what the home page shows when nothing is scheduled: what the
+// shop sells, named by its own categories.
 func DefaultHero(ctx context.Context) Hero {
 	return Hero{
-		Eyebrow:      i18n.T(ctx, i18n.KeyHeroEyebrow),
 		Headline:     i18n.T(ctx, i18n.KeyHeroHeadline),
-		Body:         i18n.T(ctx, i18n.KeyHeroBody),
+		Body:         departments(ctx),
 		PrimaryCTA:   CTA{Label: i18n.T(ctx, i18n.KeyHeroPrimaryCTA), Href: "/deals"},
 		SecondaryCTA: CTA{Label: i18n.T(ctx, i18n.KeyHeroSecondaryCTA), Href: "/about"},
 	}

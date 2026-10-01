@@ -340,7 +340,7 @@ func (v *ProductView) ReviewCountText() string { return strconv.FormatInt(v.Rati
 
 // RatingLabel is the summary as one sentence for assistive technology.
 func (v *ProductView) RatingLabel(ctx context.Context) string {
-	return fmt.Sprintf(i18n.T(ctx, i18n.KeyRatingSummary), v.RatingText(), v.ReviewCountText())
+	return i18n.Count(ctx, i18n.KeyRatingSummary, v.RatingCount, v.RatingText(), v.ReviewCountText())
 }
 
 // ReviewDraft carries a refused review form's values back into it.

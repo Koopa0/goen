@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -787,6 +788,9 @@ func withBanner(next http.Handler, store *home.Store, log *slog.Logger, secure b
 		}
 		banner, err := store.Banner(r.Context(), home.ReadDismissal(r, secure))
 		if err != nil {
+			if errors.Is(err, context.Canceled) {
+				return // the caller left; there is nobody to serve
+			}
 			// Not fatal: an absent banner renders as nothing at all.
 			log.ErrorContext(r.Context(), "read promo banner", "error", err)
 			next.ServeHTTP(w, r)
@@ -864,6 +868,9 @@ func withTopNav(next http.Handler, store *home.Store, log *slog.Logger) http.Han
 		}
 		items, err := store.Nav(r.Context())
 		if err != nil {
+			if errors.Is(err, context.Canceled) {
+				return // the caller left; there is nobody to serve
+			}
 			log.ErrorContext(r.Context(), "read nav categories", "error", err)
 			next.ServeHTTP(w, r)
 			return
