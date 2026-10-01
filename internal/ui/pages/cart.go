@@ -97,11 +97,11 @@ func (v CartView) FromReorder() bool { return v.ReorderAdded > 0 || v.ReorderSki
 func (v CartView) ReorderText(ctx context.Context) string {
 	switch {
 	case v.ReorderAdjusted && v.ReorderSkipped > 0:
-		return fmt.Sprintf(i18n.T(ctx, i18n.KeyReorderAdjustedPartial), v.ReorderSkipped)
+		return i18n.Count(ctx, i18n.KeyReorderAdjustedPartial, int64(v.ReorderSkipped), v.ReorderSkipped)
 	case v.ReorderAdjusted:
 		return i18n.T(ctx, i18n.KeyReorderAdjusted)
 	case v.ReorderSkipped == 0:
-		return fmt.Sprintf(i18n.T(ctx, i18n.KeyReorderAll), v.ReorderAdded)
+		return i18n.Count(ctx, i18n.KeyReorderAll, int64(v.ReorderAdded), v.ReorderAdded)
 	case v.ReorderAdded == 0:
 		return i18n.T(ctx, i18n.KeyReorderNone)
 	default:

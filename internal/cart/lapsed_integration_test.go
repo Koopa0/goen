@@ -480,3 +480,43 @@ func TestTheSweepAndTheCustomerCancelOnce(t *testing.T) {
 		})
 	}
 }
+
+// TestACancelBehindACaptureIsRefusedNotFailed: capture_payment holds the order
+// lock without updating the row. The customer's cancel waits for it, and must
+// then see the payment and answer ErrNotCancellable rather than reach the
+// transition trigger, whose helper the store role may not execute.
+func TestACancelBehindACaptureIsRefusedNotFailed(t *testing.T) {
+	ctx := t.Context()
+	orderID := heldOrder(t, freshVariant(t, "cancel-capture"), time.Hour, false)
+	number := numberOf(t, orderID)
+	session := "cs_cancel_capture_" + strings.ReplaceAll(uuid.NewString(), "-", "")[:12]
+	if _, err := pool.Exec(ctx, `SELECT open_payment($1, $2, 100000)`, orderID, session); err != nil {
+		t.Fatalf("open payment: %v", err)
+	}
+
+	capturer, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin capture: %v", err)
+	}
+	defer func() { _ = capturer.Rollback(context.WithoutCancel(ctx)) }()
+	if _, err := capturer.Exec(ctx, `SELECT capture_payment($1, 100000, NULL, NULL)`, session); err != nil {
+		t.Fatalf("capture: %v", err)
+	}
+
+	customer := cart.NewStore(storeApplicationPool(t, "cancel-behind-capture"))
+	done := make(chan error, 1)
+	go func() {
+		_, cancelErr := customer.Cancel(ctx, number)
+		done <- cancelErr
+	}()
+	waitForApplicationLock(t, "cancel-behind-capture", done)
+	if err := capturer.Commit(ctx); err != nil {
+		t.Fatalf("commit capture: %v", err)
+	}
+	if err := <-done; !errors.Is(err, cart.ErrNotCancellable) {
+		t.Errorf("cancel behind a capture = %v; want ErrNotCancellable", err)
+	}
+	if f := factsOf(t, number, uuid.Nil); f.status == "cancelled" {
+		t.Error("a paid order was cancelled")
+	}
+}

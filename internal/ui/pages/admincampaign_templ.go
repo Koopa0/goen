@@ -9,8 +9,6 @@ import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
 import (
-	"fmt"
-
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -61,7 +59,7 @@ func AdminCampaigns(p layouts.Page, v AdminCampaignsView) templ.Component {
 			var templ_7745c5c3_Var3 string
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminEyebrow))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 20, Col: 72}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 18, Col: 72}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 			if templ_7745c5c3_Err != nil {
@@ -74,7 +72,7 @@ func AdminCampaigns(p layouts.Page, v AdminCampaignsView) templ.Component {
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminPageCampaigns))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 21, Col: 77}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 19, Col: 77}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {
@@ -87,7 +85,7 @@ func AdminCampaigns(p layouts.Page, v AdminCampaignsView) templ.Component {
 			var templ_7745c5c3_Var5 string
 			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminCampLead))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 23, Col: 41}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 21, Col: 41}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {
@@ -113,7 +111,7 @@ func AdminCampaigns(p layouts.Page, v AdminCampaignsView) templ.Component {
 					var templ_7745c5c3_Var7 string
 					templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(v.Notice)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 29, Col: 14}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 27, Col: 14}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 					if templ_7745c5c3_Err != nil {
@@ -138,7 +136,7 @@ func AdminCampaigns(p layouts.Page, v AdminCampaignsView) templ.Component {
 				var templ_7745c5c3_Var8 string
 				templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminCampEmpty))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 34, Col: 75}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 32, Col: 75}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 				if templ_7745c5c3_Err != nil {
@@ -156,7 +154,7 @@ func AdminCampaigns(p layouts.Page, v AdminCampaignsView) templ.Component {
 				var templ_7745c5c3_Var9 string
 				templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminCampCurrent))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 41, Col: 62}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 39, Col: 62}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 				if templ_7745c5c3_Err != nil {
@@ -169,7 +167,7 @@ func AdminCampaigns(p layouts.Page, v AdminCampaignsView) templ.Component {
 				var templ_7745c5c3_Var10 string
 				templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminColStatus))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 42, Col: 60}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 40, Col: 60}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 				if templ_7745c5c3_Err != nil {
@@ -182,7 +180,7 @@ func AdminCampaigns(p layouts.Page, v AdminCampaignsView) templ.Component {
 				var templ_7745c5c3_Var11 string
 				templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminColActions))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 44, Col: 73}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 42, Col: 73}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 				if templ_7745c5c3_Err != nil {
@@ -200,7 +198,7 @@ func AdminCampaigns(p layouts.Page, v AdminCampaignsView) templ.Component {
 					var templ_7745c5c3_Var12 templ.SafeURL
 					templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(c.Href()))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 52, Col: 42}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 50, Col: 42}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 					if templ_7745c5c3_Err != nil {
@@ -213,7 +211,7 @@ func AdminCampaigns(p layouts.Page, v AdminCampaignsView) templ.Component {
 					var templ_7745c5c3_Var13 string
 					templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(c.Title)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 52, Col: 54}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 50, Col: 54}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 					if templ_7745c5c3_Err != nil {
@@ -226,7 +224,7 @@ func AdminCampaigns(p layouts.Page, v AdminCampaignsView) templ.Component {
 					var templ_7745c5c3_Var14 string
 					templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(c.Slug)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 53, Col: 51}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 51, Col: 51}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 					if templ_7745c5c3_Err != nil {
@@ -237,9 +235,9 @@ func AdminCampaigns(p layouts.Page, v AdminCampaignsView) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var15 string
-					templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminCampMeta), c.ProductsText(), c.EndsAt))
+					templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.Count(ctx, i18n.KeyAdminCampMeta, c.Products, c.ProductsText(), c.EndsAt))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 55, Col: 87}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 53, Col: 90}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 					if templ_7745c5c3_Err != nil {
@@ -265,7 +263,7 @@ func AdminCampaigns(p layouts.Page, v AdminCampaignsView) templ.Component {
 							var templ_7745c5c3_Var17 string
 							templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(c.State(ctx))
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 61, Col: 25}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 59, Col: 25}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 							if templ_7745c5c3_Err != nil {
@@ -293,7 +291,7 @@ func AdminCampaigns(p layouts.Page, v AdminCampaignsView) templ.Component {
 							var templ_7745c5c3_Var19 string
 							templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(c.State(ctx))
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 65, Col: 25}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 63, Col: 25}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 							if templ_7745c5c3_Err != nil {
@@ -313,7 +311,7 @@ func AdminCampaigns(p layouts.Page, v AdminCampaignsView) templ.Component {
 					var templ_7745c5c3_Var20 templ.SafeURL
 					templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(c.ToggleAction()))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 70, Col: 69}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 68, Col: 69}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 					if templ_7745c5c3_Err != nil {
@@ -326,7 +324,7 @@ func AdminCampaigns(p layouts.Page, v AdminCampaignsView) templ.Component {
 					var templ_7745c5c3_Var21 string
 					templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.ResolveAttributeValue(c.NextActive())
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 71, Col: 67}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 69, Col: 67}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var21)
 					if templ_7745c5c3_Err != nil {
@@ -351,7 +349,7 @@ func AdminCampaigns(p layouts.Page, v AdminCampaignsView) templ.Component {
 						var templ_7745c5c3_Var23 string
 						templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(c.ToggleLabel(ctx))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 76, Col: 31}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 74, Col: 31}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 						if templ_7745c5c3_Err != nil {
@@ -399,7 +397,7 @@ func AdminCampaigns(p layouts.Page, v AdminCampaignsView) templ.Component {
 				var templ_7745c5c3_Var25 string
 				templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminCampCreate))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 87, Col: 73}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 85, Col: 73}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
 				if templ_7745c5c3_Err != nil {
@@ -424,7 +422,7 @@ func AdminCampaigns(p layouts.Page, v AdminCampaignsView) templ.Component {
 					var templ_7745c5c3_Var27 string
 					templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminCampTitle))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 91, Col: 43}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 89, Col: 43}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var27))
 					if templ_7745c5c3_Err != nil {
@@ -443,7 +441,7 @@ func AdminCampaigns(p layouts.Page, v AdminCampaignsView) templ.Component {
 				var templ_7745c5c3_Var28 string
 				templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.ResolveAttributeValue(i18n.T(ctx, i18n.KeyAdminCampTitleExample))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 99, Col: 62}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 97, Col: 62}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var28)
 				if templ_7745c5c3_Err != nil {
@@ -456,7 +454,7 @@ func AdminCampaigns(p layouts.Page, v AdminCampaignsView) templ.Component {
 				var templ_7745c5c3_Var29 string
 				templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.ResolveAttributeValue(v.Draft.Title)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 100, Col: 27}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 98, Col: 27}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var29)
 				if templ_7745c5c3_Err != nil {
@@ -484,7 +482,7 @@ func AdminCampaigns(p layouts.Page, v AdminCampaignsView) templ.Component {
 					var templ_7745c5c3_Var30 string
 					templ_7745c5c3_Var30, templ_7745c5c3_Err = templ.JoinStringErrs(v.Err("title"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 107, Col: 66}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 105, Col: 66}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var30))
 					if templ_7745c5c3_Err != nil {
@@ -514,7 +512,7 @@ func AdminCampaigns(p layouts.Page, v AdminCampaignsView) templ.Component {
 					var templ_7745c5c3_Var32 string
 					templ_7745c5c3_Var32, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminCampaignTitleEn))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 112, Col: 49}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 110, Col: 49}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var32))
 					if templ_7745c5c3_Err != nil {
@@ -533,7 +531,7 @@ func AdminCampaigns(p layouts.Page, v AdminCampaignsView) templ.Component {
 				var templ_7745c5c3_Var33 string
 				templ_7745c5c3_Var33, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminCampaignTitleEnHint))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 114, Col: 101}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 112, Col: 101}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var33))
 				if templ_7745c5c3_Err != nil {
@@ -546,7 +544,7 @@ func AdminCampaigns(p layouts.Page, v AdminCampaignsView) templ.Component {
 				var templ_7745c5c3_Var34 string
 				templ_7745c5c3_Var34, templ_7745c5c3_Err = templ.ResolveAttributeValue(v.Draft.TitleEn)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 120, Col: 29}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 118, Col: 29}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var34)
 				if templ_7745c5c3_Err != nil {
@@ -579,7 +577,7 @@ func AdminCampaigns(p layouts.Page, v AdminCampaignsView) templ.Component {
 					var templ_7745c5c3_Var35 string
 					templ_7745c5c3_Var35, templ_7745c5c3_Err = templ.JoinStringErrs(v.Err("title_en"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 129, Col: 72}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 127, Col: 72}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var35))
 					if templ_7745c5c3_Err != nil {
@@ -609,7 +607,7 @@ func AdminCampaigns(p layouts.Page, v AdminCampaignsView) templ.Component {
 					var templ_7745c5c3_Var37 string
 					templ_7745c5c3_Var37, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminColSlug))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 135, Col: 42}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 133, Col: 42}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var37))
 					if templ_7745c5c3_Err != nil {
@@ -621,14 +619,14 @@ func AdminCampaigns(p layouts.Page, v AdminCampaignsView) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 42, "<input class=\"goen-input\" id=\"k-slug\" name=\"slug\" required maxlength=\"120\" placeholder=\"summer-3c\" value=\"")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 42, "<input class=\"goen-input\" id=\"k-slug\" name=\"slug\" required maxlength=\"120\" placeholder=\"summer-sale\" value=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var38 string
 				templ_7745c5c3_Var38, templ_7745c5c3_Err = templ.ResolveAttributeValue(v.Draft.Slug)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 144, Col: 27}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 142, Col: 27}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var38)
 				if templ_7745c5c3_Err != nil {
@@ -656,7 +654,7 @@ func AdminCampaigns(p layouts.Page, v AdminCampaignsView) templ.Component {
 					var templ_7745c5c3_Var39 string
 					templ_7745c5c3_Var39, templ_7745c5c3_Err = templ.JoinStringErrs(v.Err("slug"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 151, Col: 65}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 149, Col: 65}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var39))
 					if templ_7745c5c3_Err != nil {
@@ -686,7 +684,7 @@ func AdminCampaigns(p layouts.Page, v AdminCampaignsView) templ.Component {
 					var templ_7745c5c3_Var41 string
 					templ_7745c5c3_Var41, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminCampDays))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 156, Col: 43}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 154, Col: 43}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var41))
 					if templ_7745c5c3_Err != nil {
@@ -705,7 +703,7 @@ func AdminCampaigns(p layouts.Page, v AdminCampaignsView) templ.Component {
 				var templ_7745c5c3_Var42 string
 				templ_7745c5c3_Var42, templ_7745c5c3_Err = templ.ResolveAttributeValue(v.Draft.Days)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 168, Col: 27}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 166, Col: 27}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var42)
 				if templ_7745c5c3_Err != nil {
@@ -733,7 +731,7 @@ func AdminCampaigns(p layouts.Page, v AdminCampaignsView) templ.Component {
 					var templ_7745c5c3_Var43 string
 					templ_7745c5c3_Var43, templ_7745c5c3_Err = templ.JoinStringErrs(v.Err("days"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 175, Col: 65}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 173, Col: 65}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var43))
 					if templ_7745c5c3_Err != nil {
@@ -763,7 +761,7 @@ func AdminCampaigns(p layouts.Page, v AdminCampaignsView) templ.Component {
 					var templ_7745c5c3_Var45 string
 					templ_7745c5c3_Var45, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminCampCreate))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 183, Col: 43}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 181, Col: 43}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var45))
 					if templ_7745c5c3_Err != nil {
@@ -847,7 +845,7 @@ func AdminCampaignForm(p layouts.Page, v AdminCampaignView) templ.Component {
 			var templ_7745c5c3_Var48 string
 			templ_7745c5c3_Var48, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminPageCampaigns))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 197, Col: 73}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 195, Col: 73}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var48))
 			if templ_7745c5c3_Err != nil {
@@ -860,7 +858,7 @@ func AdminCampaignForm(p layouts.Page, v AdminCampaignView) templ.Component {
 			var templ_7745c5c3_Var49 string
 			templ_7745c5c3_Var49, templ_7745c5c3_Err = templ.JoinStringErrs(v.Slug)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 199, Col: 44}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 197, Col: 44}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var49))
 			if templ_7745c5c3_Err != nil {
@@ -886,7 +884,7 @@ func AdminCampaignForm(p layouts.Page, v AdminCampaignView) templ.Component {
 					var templ_7745c5c3_Var51 string
 					templ_7745c5c3_Var51, templ_7745c5c3_Err = templ.JoinStringErrs(v.Notice)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 204, Col: 14}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 202, Col: 14}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var51))
 					if templ_7745c5c3_Err != nil {
@@ -911,7 +909,7 @@ func AdminCampaignForm(p layouts.Page, v AdminCampaignView) templ.Component {
 				var templ_7745c5c3_Var52 string
 				templ_7745c5c3_Var52, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminCampNoProducts))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 209, Col: 80}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 207, Col: 80}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var52))
 				if templ_7745c5c3_Err != nil {
@@ -929,7 +927,7 @@ func AdminCampaignForm(p layouts.Page, v AdminCampaignView) templ.Component {
 				var templ_7745c5c3_Var53 string
 				templ_7745c5c3_Var53, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminCampProducts))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 216, Col: 63}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 214, Col: 63}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var53))
 				if templ_7745c5c3_Err != nil {
@@ -942,7 +940,7 @@ func AdminCampaignForm(p layouts.Page, v AdminCampaignView) templ.Component {
 				var templ_7745c5c3_Var54 string
 				templ_7745c5c3_Var54, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminColActions))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 218, Col: 73}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 216, Col: 73}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var54))
 				if templ_7745c5c3_Err != nil {
@@ -960,7 +958,7 @@ func AdminCampaignForm(p layouts.Page, v AdminCampaignView) templ.Component {
 					var templ_7745c5c3_Var55 templ.SafeURL
 					templ_7745c5c3_Var55, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL("/admin/products/" + item.Slug))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 226, Col: 64}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 224, Col: 64}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var55))
 					if templ_7745c5c3_Err != nil {
@@ -973,7 +971,7 @@ func AdminCampaignForm(p layouts.Page, v AdminCampaignView) templ.Component {
 					var templ_7745c5c3_Var56 string
 					templ_7745c5c3_Var56, templ_7745c5c3_Err = templ.JoinStringErrs(item.Name)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 226, Col: 78}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 224, Col: 78}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var56))
 					if templ_7745c5c3_Err != nil {
@@ -986,7 +984,7 @@ func AdminCampaignForm(p layouts.Page, v AdminCampaignView) templ.Component {
 					var templ_7745c5c3_Var57 string
 					templ_7745c5c3_Var57, templ_7745c5c3_Err = templ.JoinStringErrs(item.Slug)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 227, Col: 54}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 225, Col: 54}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var57))
 					if templ_7745c5c3_Err != nil {
@@ -999,7 +997,7 @@ func AdminCampaignForm(p layouts.Page, v AdminCampaignView) templ.Component {
 					var templ_7745c5c3_Var58 templ.SafeURL
 					templ_7745c5c3_Var58, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(v.FeatureAction()))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 230, Col: 70}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 228, Col: 70}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var58))
 					if templ_7745c5c3_Err != nil {
@@ -1012,7 +1010,7 @@ func AdminCampaignForm(p layouts.Page, v AdminCampaignView) templ.Component {
 					var templ_7745c5c3_Var59 string
 					templ_7745c5c3_Var59, templ_7745c5c3_Err = templ.ResolveAttributeValue(item.Slug)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 231, Col: 63}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 229, Col: 63}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var59)
 					if templ_7745c5c3_Err != nil {
@@ -1037,7 +1035,7 @@ func AdminCampaignForm(p layouts.Page, v AdminCampaignView) templ.Component {
 						var templ_7745c5c3_Var61 string
 						templ_7745c5c3_Var61, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminRemove))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 237, Col: 45}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 235, Col: 45}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var61))
 						if templ_7745c5c3_Err != nil {
@@ -1085,7 +1083,7 @@ func AdminCampaignForm(p layouts.Page, v AdminCampaignView) templ.Component {
 				var templ_7745c5c3_Var63 string
 				templ_7745c5c3_Var63, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminCampImage))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 248, Col: 72}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 246, Col: 72}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var63))
 				if templ_7745c5c3_Err != nil {
@@ -1103,7 +1101,7 @@ func AdminCampaignForm(p layouts.Page, v AdminCampaignView) templ.Component {
 					var templ_7745c5c3_Var64 string
 					templ_7745c5c3_Var64, templ_7745c5c3_Err = templ.ResolveAttributeValue(v.Image.URL())
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 250, Col: 88}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 248, Col: 88}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var64)
 					if templ_7745c5c3_Err != nil {
@@ -1116,7 +1114,7 @@ func AdminCampaignForm(p layouts.Page, v AdminCampaignView) templ.Component {
 					var templ_7745c5c3_Var65 string
 					templ_7745c5c3_Var65, templ_7745c5c3_Err = templ.ResolveAttributeValue(v.Image.Srcset())
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 250, Col: 116}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 248, Col: 116}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var65)
 					if templ_7745c5c3_Err != nil {
@@ -1129,7 +1127,7 @@ func AdminCampaignForm(p layouts.Page, v AdminCampaignView) templ.Component {
 					var templ_7745c5c3_Var66 string
 					templ_7745c5c3_Var66, templ_7745c5c3_Err = templ.ResolveAttributeValue(v.Image.Alt)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 250, Col: 150}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 248, Col: 150}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var66)
 					if templ_7745c5c3_Err != nil {
@@ -1142,7 +1140,7 @@ func AdminCampaignForm(p layouts.Page, v AdminCampaignView) templ.Component {
 					var templ_7745c5c3_Var67 templ.SafeURL
 					templ_7745c5c3_Var67, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(v.ImageRemoveAction()))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 251, Col: 69}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 249, Col: 69}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var67))
 					if templ_7745c5c3_Err != nil {
@@ -1167,7 +1165,7 @@ func AdminCampaignForm(p layouts.Page, v AdminCampaignView) templ.Component {
 						var templ_7745c5c3_Var69 string
 						templ_7745c5c3_Var69, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminRemove))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 256, Col: 40}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 254, Col: 40}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var69))
 						if templ_7745c5c3_Err != nil {
@@ -1194,7 +1192,7 @@ func AdminCampaignForm(p layouts.Page, v AdminCampaignView) templ.Component {
 				var templ_7745c5c3_Var70 templ.SafeURL
 				templ_7745c5c3_Var70, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(v.ImageAction()))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 261, Col: 87}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 259, Col: 87}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var70))
 				if templ_7745c5c3_Err != nil {
@@ -1219,7 +1217,7 @@ func AdminCampaignForm(p layouts.Page, v AdminCampaignView) templ.Component {
 					var templ_7745c5c3_Var72 string
 					templ_7745c5c3_Var72, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminProdUpload))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 264, Col: 44}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 262, Col: 44}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var72))
 					if templ_7745c5c3_Err != nil {
@@ -1253,7 +1251,7 @@ func AdminCampaignForm(p layouts.Page, v AdminCampaignView) templ.Component {
 					var templ_7745c5c3_Var73 string
 					templ_7745c5c3_Var73, templ_7745c5c3_Err = templ.JoinStringErrs(v.Err("image"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 279, Col: 79}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 277, Col: 79}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var73))
 					if templ_7745c5c3_Err != nil {
@@ -1271,7 +1269,7 @@ func AdminCampaignForm(p layouts.Page, v AdminCampaignView) templ.Component {
 					var templ_7745c5c3_Var74 string
 					templ_7745c5c3_Var74, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminCampImageHint))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 281, Col: 75}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 279, Col: 75}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var74))
 					if templ_7745c5c3_Err != nil {
@@ -1301,7 +1299,7 @@ func AdminCampaignForm(p layouts.Page, v AdminCampaignView) templ.Component {
 					var templ_7745c5c3_Var76 string
 					templ_7745c5c3_Var76, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminAltText))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 286, Col: 41}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 284, Col: 41}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var76))
 					if templ_7745c5c3_Err != nil {
@@ -1335,7 +1333,7 @@ func AdminCampaignForm(p layouts.Page, v AdminCampaignView) templ.Component {
 					var templ_7745c5c3_Var77 string
 					templ_7745c5c3_Var77, templ_7745c5c3_Err = templ.JoinStringErrs(v.Err("alt"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 300, Col: 75}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 298, Col: 75}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var77))
 					if templ_7745c5c3_Err != nil {
@@ -1365,7 +1363,7 @@ func AdminCampaignForm(p layouts.Page, v AdminCampaignView) templ.Component {
 					var templ_7745c5c3_Var79 string
 					templ_7745c5c3_Var79, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminHomeAltEn))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 305, Col: 43}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 303, Col: 43}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var79))
 					if templ_7745c5c3_Err != nil {
@@ -1399,7 +1397,7 @@ func AdminCampaignForm(p layouts.Page, v AdminCampaignView) templ.Component {
 					var templ_7745c5c3_Var80 string
 					templ_7745c5c3_Var80, templ_7745c5c3_Err = templ.JoinStringErrs(v.Err("alt_en"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 318, Col: 81}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 316, Col: 81}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var80))
 					if templ_7745c5c3_Err != nil {
@@ -1429,7 +1427,7 @@ func AdminCampaignForm(p layouts.Page, v AdminCampaignView) templ.Component {
 					var templ_7745c5c3_Var82 string
 					templ_7745c5c3_Var82, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminProdSave))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 325, Col: 41}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 323, Col: 41}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var82))
 					if templ_7745c5c3_Err != nil {
@@ -1477,7 +1475,7 @@ func AdminCampaignForm(p layouts.Page, v AdminCampaignView) templ.Component {
 				var templ_7745c5c3_Var84 string
 				templ_7745c5c3_Var84, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminCampAdd))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 330, Col: 70}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 328, Col: 70}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var84))
 				if templ_7745c5c3_Err != nil {
@@ -1490,7 +1488,7 @@ func AdminCampaignForm(p layouts.Page, v AdminCampaignView) templ.Component {
 				var templ_7745c5c3_Var85 templ.SafeURL
 				templ_7745c5c3_Var85, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(v.FeatureAction()))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 331, Col: 89}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 329, Col: 89}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var85))
 				if templ_7745c5c3_Err != nil {
@@ -1515,7 +1513,7 @@ func AdminCampaignForm(p layouts.Page, v AdminCampaignView) templ.Component {
 					var templ_7745c5c3_Var87 string
 					templ_7745c5c3_Var87, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminCampProductSlug))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 334, Col: 49}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 332, Col: 49}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var87))
 					if templ_7745c5c3_Err != nil {
@@ -1527,14 +1525,14 @@ func AdminCampaignForm(p layouts.Page, v AdminCampaignView) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 111, "<input class=\"goen-input\" id=\"k-product\" name=\"product\" required maxlength=\"120\" placeholder=\"pixelight-9\" autocomplete=\"off\"><p class=\"goen-admin__hint\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 111, "<input class=\"goen-input\" id=\"k-product\" name=\"product\" required maxlength=\"120\" placeholder=\"ceramic-mug\" autocomplete=\"off\"><p class=\"goen-admin__hint\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var88 string
 				templ_7745c5c3_Var88, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminCampProductHint))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 337, Col: 76}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 335, Col: 76}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var88))
 				if templ_7745c5c3_Err != nil {
@@ -1559,7 +1557,7 @@ func AdminCampaignForm(p layouts.Page, v AdminCampaignView) templ.Component {
 					var templ_7745c5c3_Var90 string
 					templ_7745c5c3_Var90, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminCampAdd))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 343, Col: 40}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincampaign.templ`, Line: 341, Col: 40}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var90))
 					if templ_7745c5c3_Err != nil {
