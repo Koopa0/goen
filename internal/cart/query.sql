@@ -532,11 +532,16 @@ INSERT INTO outbox_messages (topic, dedupe_key, payload)
 VALUES (@topic::text, @dedupe_key::text, @payload)
 ON CONFLICT (topic, dedupe_key) DO NOTHING;
 
--- The same enqueue, behind everything transactional. A separate query rather
--- than a parameter, because every other caller is transactional.
--- name: EnqueueBulkMessage :exec
+-- Many messages of one topic in ONE statement. A restock or a newsletter fans out
+-- to every subscriber, and a statement each holds the caller's transaction, and
+-- the row locks it took, open for a round trip per recipient. The payloads are
+-- JSON text, paired with their dedupe keys by position. A bulk send passes
+-- the priority that lets transactional mail go first.
+-- name: EnqueueMessages :exec
 INSERT INTO outbox_messages (topic, dedupe_key, payload, priority)
-VALUES (@topic::text, @dedupe_key::text, @payload, @priority)
+SELECT @topic::text, t.dedupe_key, t.payload::jsonb, @priority::smallint
+FROM (SELECT unnest(@dedupe_keys::text[]) AS dedupe_key,
+             unnest(@payloads::text[]) AS payload) t
 ON CONFLICT (topic, dedupe_key) DO NOTHING;
 
 -- Checkout idempotency keys past their replay window. Deleting a row frees its

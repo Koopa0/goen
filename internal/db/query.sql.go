@@ -5904,31 +5904,6 @@ func (q *Queries) EmailVerificationToken(ctx context.Context, digest []byte) (Em
 	return i, err
 }
 
-const enqueueBulkMessage = `-- name: EnqueueBulkMessage :exec
-INSERT INTO outbox_messages (topic, dedupe_key, payload, priority)
-VALUES ($1::text, $2::text, $3, $4)
-ON CONFLICT (topic, dedupe_key) DO NOTHING
-`
-
-type EnqueueBulkMessageParams struct {
-	Topic     string
-	DedupeKey string
-	Payload   []byte
-	Priority  int16
-}
-
-// The same enqueue, behind everything transactional. A separate query rather
-// than a parameter, because every other caller is transactional.
-func (q *Queries) EnqueueBulkMessage(ctx context.Context, arg EnqueueBulkMessageParams) error {
-	_, err := q.db.Exec(ctx, enqueueBulkMessage,
-		arg.Topic,
-		arg.DedupeKey,
-		arg.Payload,
-		arg.Priority,
-	)
-	return err
-}
-
 const enqueueMessage = `-- name: EnqueueMessage :exec
 INSERT INTO outbox_messages (topic, dedupe_key, payload)
 VALUES ($1::text, $2::text, $3)
@@ -5945,6 +5920,36 @@ type EnqueueMessageParams struct {
 // DO NOTHING against (topic, dedupe_key), so a retried checkout enqueues once.
 func (q *Queries) EnqueueMessage(ctx context.Context, arg EnqueueMessageParams) error {
 	_, err := q.db.Exec(ctx, enqueueMessage, arg.Topic, arg.DedupeKey, arg.Payload)
+	return err
+}
+
+const enqueueMessages = `-- name: EnqueueMessages :exec
+INSERT INTO outbox_messages (topic, dedupe_key, payload, priority)
+SELECT $1::text, t.dedupe_key, t.payload::jsonb, $2::smallint
+FROM (SELECT unnest($3::text[]) AS dedupe_key,
+             unnest($4::text[]) AS payload) t
+ON CONFLICT (topic, dedupe_key) DO NOTHING
+`
+
+type EnqueueMessagesParams struct {
+	Topic      string
+	Priority   int16
+	DedupeKeys []string
+	Payloads   []string
+}
+
+// Many messages of one topic in ONE statement. A restock or a newsletter fans out
+// to every subscriber, and a statement each holds the caller's transaction, and
+// the row locks it took, open for a round trip per recipient. The payloads are
+// JSON text, paired with their dedupe keys by position. A bulk send passes
+// the priority that lets transactional mail go first.
+func (q *Queries) EnqueueMessages(ctx context.Context, arg EnqueueMessagesParams) error {
+	_, err := q.db.Exec(ctx, enqueueMessages,
+		arg.Topic,
+		arg.Priority,
+		arg.DedupeKeys,
+		arg.Payloads,
+	)
 	return err
 }
 

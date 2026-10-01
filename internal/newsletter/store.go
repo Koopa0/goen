@@ -173,23 +173,6 @@ func interval(d time.Duration) pgtype.Interval {
 	return pgtype.Interval{Microseconds: int64(d / time.Microsecond), Valid: true}
 }
 
-// enqueueBulk is enqueue at [outbox.BulkPriority].
-func enqueueBulk(ctx context.Context, q *db.Queries, topic, dedupeKey string, payload any) error {
-	encoded, err := json.Marshal(payload)
-	if err != nil {
-		return fmt.Errorf("encoding %s message: %w", topic, err)
-	}
-	if err := q.EnqueueBulkMessage(ctx, db.EnqueueBulkMessageParams{
-		Topic:     topic,
-		DedupeKey: dedupeKey,
-		Payload:   encoded,
-		Priority:  outbox.BulkPriority,
-	}); err != nil {
-		return fmt.Errorf("enqueueing %s message: %w", topic, err)
-	}
-	return nil
-}
-
 // StillSubscribed reports whether an address has not opted out since the issue
 // was queued. Asked at delivery, because the enqueue froze the recipient and
 // the queue can take hours to reach it.
