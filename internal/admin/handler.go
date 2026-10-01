@@ -1072,10 +1072,18 @@ func (h *Handler) rejectFAQ(
 		h.serverError(w, r)
 		return
 	}
-	view.Errors = errs
-	view.Draft = pages.AdminFAQEntry{
+	typed := pages.AdminFAQEntry{
+		ID:       f.ID,
 		Category: f.Category, Question: f.Question, Answer: f.Answer,
 		CategoryEn: f.CategoryEn, QuestionEn: f.QuestionEn, AnswerEn: f.AnswerEn,
+	}
+	// An edit goes back to the entry it was made on. The add form's draft is the
+	// wrong place: its error would send the operator to press 新增 and publish a
+	// second copy while the original stays unedited.
+	if f.ID != "" {
+		view.Edit, view.EditErrors = typed, errs
+	} else {
+		view.Draft, view.Errors = typed, errs
 	}
 	web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.AdminFAQ(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageFAQ)}, &view))
