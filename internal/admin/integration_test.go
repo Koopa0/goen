@@ -11707,3 +11707,79 @@ func TestAdvanceRefusesTheStatusAnOrderAlreadyHas(t *testing.T) {
 		t.Errorf("pending on a pending order gave %v, want ErrRefused", err)
 	}
 }
+
+func TestTheStatusMenuOffersOnlyWhatTheDatabaseWillAccept(t *testing.T) {
+	ctx, staff := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	actor := uuid.NullUUID{UUID: staff, Valid: true}
+	offers := func(v *pages.AdminOrderView, status pages.FulfillmentStatus) bool {
+		for _, n := range v.Next {
+			if n.Value == status {
+				return true
+			}
+		}
+		return false
+	}
+
+	unpaid, err := s.Order(ctx, placeUnpaidOrder(t))
+	if err != nil {
+		t.Fatalf("Order: %v", err)
+	}
+	if offers(&unpaid, pages.FulfillmentPicking) {
+		t.Error("an unpaid order is offered picking, which orders_funded_to_leave_pending refuses")
+	}
+	if !unpaid.NextIsDestructive() {
+		t.Error("an unpaid order's menu preselects cancelling")
+	}
+
+	number, _, lines, _ := twoLineOrderWithStock(t, "menu")
+	if err := s.Ship(ctx, number, admin.Dispatch{
+		Carrier: "黑貓宅急便", Tracking: "MENU-" + number, Lines: map[uuid.UUID]int32{lines[0]: 1},
+	}, actor); err != nil {
+		t.Fatalf("first parcel: %v", err)
+	}
+	partly, err := s.Order(ctx, number)
+	if err != nil {
+		t.Fatalf("Order: %v", err)
+	}
+	if offers(&partly, pages.FulfillmentCompleted) {
+		t.Error("an order still owing a parcel is offered completed, which orders_finished_when_shipped refuses")
+	}
+	if !offers(&partly, pages.FulfillmentDelivered) {
+		t.Error("delivered must stay offered: it is the only way to record that the first parcel arrived")
+	}
+}
+
+func TestARefusedStatusMoveNamesItsReason(t *testing.T) {
+	ctx, staff := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	h := adminHandlerOver(pool, s)
+	post := func(number, status string) string {
+		t.Helper()
+		form := url.Values{"status": {status}}
+		req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/orders/"+number+"/status", strings.NewReader(form.Encode()))
+		req.SetPathValue("number", number)
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		w := httptest.NewRecorder()
+		h.RequireStaff(h.AdvanceOrder)(w, req)
+		if w.Code != http.StatusSeeOther {
+			t.Fatalf("POST status=%s = %d, want 303", status, w.Code)
+		}
+		return w.Header().Get("Location")
+	}
+
+	unpaid := placeUnpaidOrder(t)
+	if got, want := post(unpaid, "picking"), "/admin/orders/"+unpaid+"?unfunded=1"; got != want {
+		t.Errorf("picking an unpaid order redirected to %q, want %q", got, want)
+	}
+
+	number, _, lines, _ := twoLineOrderWithStock(t, "reason")
+	if err := s.Ship(ctx, number, admin.Dispatch{
+		Carrier: "黑貓宅急便", Tracking: "RSN-" + number, Lines: map[uuid.UUID]int32{lines[0]: 1},
+	}, uuid.NullUUID{UUID: staff, Valid: true}); err != nil {
+		t.Fatalf("first parcel: %v", err)
+	}
+	if got, want := post(number, "completed"), "/admin/orders/"+number+"?owesparcel=1"; got != want {
+		t.Errorf("completing an order that owes a parcel redirected to %q, want %q", got, want)
+	}
+}

@@ -565,7 +565,11 @@ templ AdminOrder(p layouts.Page, v *AdminOrderView) {
 						<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/orders/" + v.Number + "/status") }>
 							<div class="ui-field">
 								<label class="ui-label" for="next-status">{ i18n.T(ctx, i18n.KeyAdminQueueNextStatus) }</label>
-								<select class="ui-select" id="next-status" name="status">
+								<select class="ui-select" id="next-status" name="status" required?={ v.NextIsDestructive() }>
+									// Cancelling is irreversible, so it is never the preselected move.
+									if v.NextIsDestructive() {
+										<option value="" selected disabled>{ i18n.T(ctx, i18n.KeyAdminQueueNextChoose) }</option>
+									}
 									for _, n := range v.Next {
 										<option value={ string(n.Value) }>{ n.Label }</option>
 									}

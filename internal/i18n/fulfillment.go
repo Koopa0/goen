@@ -230,6 +230,21 @@ var (
 		En:     "A carrier and a tracking number are both needed.",
 	})
 
+	KeyAdminNoticeUnfunded = key("admin.notice.unfunded", Message{
+		ZhHant: "這筆訂單還沒收到款項,不能進入備貨。",
+		En:     "This order has not been paid, so it cannot move into picking.",
+	})
+
+	KeyAdminNoticeOwesParcel = key("admin.notice.owesparcel", Message{
+		ZhHant: "這筆訂單還有包裹沒出貨,不能標為已完成。請先出貨剩下的包裹。",
+		En:     "This order still owes a parcel, so it cannot be marked completed. Ship the rest first.",
+	})
+
+	KeyAdminQueueNextChoose = key("admin.queue.next.choose", Message{
+		ZhHant: "請選擇下一步",
+		En:     "Choose the next step",
+	})
+
 	KeyAdminNoticeBadParcel = key("admin.notice.badparcel", Message{
 		ZhHant: "出貨數量填寫有問題:每一項不能超過還沒出貨的數量,也不能超過這筆訂單保留的庫存。",
 		En: "Those quantities do not work: no line can exceed what is still outstanding, or what this " +

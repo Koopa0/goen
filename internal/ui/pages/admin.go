@@ -183,17 +183,20 @@ type AdminOrderView struct {
 	// retries without collapsing a later, legitimate equal partial allowance.
 	AllowanceOperationID string
 	Committed            bool
-	Next                 []AdminTransition
-	CanShip              bool
-	Shippable            []AdminShippableLine
-	Notice               string
-	Timeline             []AdminOrderEvent
-	Shipments            []AdminShipment
-	DeliveryError        string
-	Delivery             AdminDelivery
-	Correctable          bool
-	PickupDestination    bool
-	PickupBrands         []PickupBrandChoice
+	// Unpaid is a pending order that still owes money and has no payment: the
+	// database refuses to move it into picking.
+	Unpaid            bool
+	Next              []AdminTransition
+	CanShip           bool
+	Shippable         []AdminShippableLine
+	Notice            string
+	Timeline          []AdminOrderEvent
+	Shipments         []AdminShipment
+	DeliveryError     string
+	Delivery          AdminDelivery
+	Correctable       bool
+	PickupDestination bool
+	PickupBrands      []PickupBrandChoice
 
 	// RefundOffered is a paid order nothing has shipped from and no return
 	// exists for; RefundOpen is one whose refund before shipment Resume finishes.
@@ -308,6 +311,12 @@ func (v *AdminOrderView) Discount() string {
 
 // CanAdvance reports whether this order has any legal move left.
 func (v *AdminOrderView) CanAdvance() bool { return len(v.Next) > 0 }
+
+// NextIsDestructive reports that the first move offered is the cancellation, so
+// the menu must not preselect it.
+func (v *AdminOrderView) NextIsDestructive() bool {
+	return len(v.Next) > 0 && v.Next[0].Value == FulfillmentCancelled
+}
 
 // Final reports whether the order has ended. A paid order in picking has no
 // status move left either, and is not final: it ships or is refunded.
