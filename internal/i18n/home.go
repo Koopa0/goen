@@ -42,6 +42,11 @@ var (
 			"%s.",
 	})
 
+	KeyTrustShippingHomeBody = key("home.trust.shipping.home", Message{
+		ZhHant: "未達門檻運費 %s 起。",
+		En:     "Below the threshold, delivery is from %s.",
+	})
+
 	// A numbered landing window here is a second SLA next to /returns, which
 	// leaves the day to the card issuer.
 	KeyTrustReturnsBody = key("home.trust.returns", Message{
@@ -60,6 +65,11 @@ var (
 	KeyHeroHeadline = key("home.hero.headline", Message{
 		ZhHant: "goen 販售的商品",
 		En:     "What goen sells",
+	})
+
+	KeyHeroImageAlt = key("home.hero.image_alt", Message{
+		ZhHant: "早晨的木桌與日常用品",
+		En:     "A wooden table in morning light with everyday things",
 	})
 
 	KeyHeroPrimaryCTA = key("home.hero.cta.primary", Message{

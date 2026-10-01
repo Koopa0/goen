@@ -20,6 +20,8 @@ SELECT DISTINCT ON (sm.id)
 FROM shipping_methods sm
 JOIN shipping_method_versions v ON v.method_id = sm.id
 WHERE sm.is_active AND v.effective_at <= now()
+  -- Pickup is listed only where checkout offers it.
+  AND (@with_pickup::boolean OR sm.destination_kind <> 'pickup_point')
 ORDER BY sm.id, v.effective_at DESC;
 
 -- The zone surcharges those methods carry, one row per surcharge. A string_agg
