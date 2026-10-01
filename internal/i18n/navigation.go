@@ -23,7 +23,7 @@ var (
 		En:     "Cart, currently empty",
 	})
 
-	KeyCartCount = key("nav.cart.count", Message{ZhHant: "購物車,%s 件商品", En: "Cart, %s items"})
+	KeyCartCount = countKey("nav.cart.count", "購物車,%s 件商品", "Cart, %s item", "Cart, %s items")
 
 	KeyDeals = key("nav.deals", Message{ZhHant: "限時優惠", En: "Deals"})
 
