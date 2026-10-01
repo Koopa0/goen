@@ -320,8 +320,14 @@ func TestAdjustmentIsIdempotent(t *testing.T) {
 		t.Fatalf("read stock: %v", err)
 	}
 
-	if err := s.AdjustStock(ctx, sku, 5, actor, key); err == nil {
-		t.Error("the same idempotency key adjusted stock twice")
+	// A replay of the form that already booked it is that adjustment's success,
+	// not a refusal: the staff member who sees "refused" re-enters it.
+	if err := s.AdjustStock(ctx, sku, 5, actor, key); err != nil {
+		t.Errorf("replaying an applied adjustment = %v, want the earlier success", err)
+	}
+	// The key is spent by that movement alone.
+	if err := s.AdjustStock(ctx, sku, 6, actor, key); !errors.Is(err, admin.ErrRefused) {
+		t.Errorf("reusing the key for a different adjustment = %v, want ErrRefused", err)
 	}
 	var afterSecond int32
 	if err := pool.QueryRow(ctx,
