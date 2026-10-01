@@ -180,7 +180,8 @@ func TestSearchFindsAProductByItsCategoryNameAndRanksItAboveASummaryMention(t *t
 	t.Cleanup(func() { _ = tx.Rollback(context.WithoutCancel(ctx)) })
 	token := "kind" + uuid.NewString()[:8]
 	var categoryID uuid.UUID
-	if fixtureErr := tx.QueryRow(ctx, `INSERT INTO categories (slug, name, name_en) VALUES ($1, $2, $3) RETURNING id`,
+	if fixtureErr := tx.QueryRow(ctx, `INSERT INTO categories (slug, name, name_en, position)
+   SELECT $1, $2, $3, coalesce(max(position) + 1, 0) FROM categories WHERE parent_id IS NULL RETURNING id`,
 		"cat-"+uuid.NewString(), "類別"+token, "Category "+token).Scan(&categoryID); fixtureErr != nil {
 		t.Fatal(fixtureErr)
 	}
