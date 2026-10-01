@@ -61,3 +61,26 @@ func renderNotice(t *testing.T, c templ.Component, ctx context.Context) string {
 	}
 	return b.String()
 }
+
+func TestNotFoundListsTheDepartmentsAndAServerErrorDoesNot(t *testing.T) {
+	t.Parallel()
+	ctx := layouts.WithTopNav(i18n.WithLocale(t.Context(), i18n.En), []layouts.NavItem{
+		{Slug: "phones", Name: "Phones", Href: "/c/phones"},
+		{Slug: "laptops", Name: "Laptops", Href: "/c/laptops"},
+	})
+	page := layouts.Page{Title: "test"}
+	missing := renderNotice(t, Notice(page, "404", "Not found", "Gone"), ctx)
+	for _, want := range []string{`class="notice__departments"`, `href="/c/phones"`, `href="/c/laptops"`, ">Laptops<"} {
+		if !strings.Contains(missing, want) {
+			t.Errorf("the 404 lacks %q", want)
+		}
+	}
+	broken := renderNotice(t, Notice(page, "500", "Broken", "Try again"), ctx)
+	if strings.Contains(broken, "notice__departments") {
+		t.Error("a 500 lists departments; only a missing page sends the visitor elsewhere")
+	}
+	bare := renderNotice(t, Notice(page, "404", "Not found", "Gone"), i18n.WithLocale(t.Context(), i18n.En))
+	if strings.Contains(bare, "notice__departments") {
+		t.Error("a 404 outside the middleware draws an empty department list")
+	}
+}

@@ -20,7 +20,26 @@ templ Notice(p layouts.Page, code, heading, body string) {
 					{ i18n.T(ctx, i18n.KeyBackToShop) }
 				}
 			</div>
+			if code == "404" {
+				@departmentLinks()
+			}
 		</div>
+	}
+}
+
+// departmentLinks lists the header's own category row, so a visitor who landed
+// on a missing page has somewhere to go that is known to exist. It renders
+// nothing outside the middleware that carries the row.
+templ departmentLinks() {
+	if items := layouts.TopNavFrom(ctx); len(items) > 0 {
+		<nav class="notice__departments" aria-labelledby="notice-departments">
+			<h2 class="notice__departmentshead" id="notice-departments">{ i18n.T(ctx, i18n.KeySectionCategories) }</h2>
+			<ul class="notice__departmentlist" role="list">
+				for _, it := range items {
+					<li><a class="notice__department" href={ templ.SafeURL(it.Href) }>{ it.Name }</a></li>
+				}
+			</ul>
+		</nav>
 	}
 }
 

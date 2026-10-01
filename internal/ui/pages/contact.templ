@@ -15,14 +15,14 @@ templ Contact(p layouts.Page, f ContactForm) {
 				<h1 class="goen-pagehead__title">{ i18n.T(ctx, i18n.KeyContactTitle) }</h1>
 				<p class="goen-pagehead__sub">{ i18n.T(ctx, i18n.KeyContactHours) }</p>
 			</div>
-			<div class="contact__methods">
-				@contactMethod("mailto:"+layouts.ContactEmail, i18n.T(ctx, i18n.KeyFieldEmail), layouts.ContactEmail) {
-					@icons.Mail()
-				}
-			</div>
 			<div class="contact__layout">
 				@ContactPanel(f)
 				<aside class="contact__aside">
+					<div class="contact__methods">
+						@contactMethod("mailto:"+layouts.ContactEmail, i18n.T(ctx, i18n.KeyFieldEmail), layouts.ContactEmail) {
+							@icons.Mail()
+						}
+					</div>
 					<a
 						class="contact__map"
 						href="https://www.google.com/maps/search/?api=1&query=%E5%8F%B0%E5%8C%97%E5%B8%82%E4%BF%A1%E7%BE%A9%E5%8D%80%E6%9D%BE%E9%AB%98%E8%B7%AF68%E8%99%9F"
@@ -72,7 +72,7 @@ templ ContactPanel(f ContactForm) {
 		</div>
 	} else {
 		<form
-			class="goen-card contact__panel"
+			class="contact__panel"
 			id="contact-form"
 			method="post"
 			action="/contact"

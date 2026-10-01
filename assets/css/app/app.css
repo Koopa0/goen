@@ -3141,15 +3141,6 @@ h3 {
   min-height: 60vh;
 }
 
-.goen-campaign__header {
-  aspect-ratio: 8 / 3;
-  border-radius: var(--r-lg);
-  display: block;
-  height: auto;
-  object-fit: cover;
-  width: 100%;
-}
-
 .goen-pagehead {
   display: flex;
   flex-direction: column;
@@ -3432,16 +3423,17 @@ h3 {
 }
 
 .goen-empty__title {
-  color: var(--fg);
-  font-size: var(--fs-ed-24);
+  color: var(--n-900);
+  font-size: 1rem;
   font-weight: var(--fw-semibold);
+  line-height: 1.5;
   margin: 0;
 }
 
 .goen-empty__text {
-  color: var(--fg-muted);
+  color: var(--n-500);
   font-size: var(--fs-14);
-  line-height: var(--lh-normal);
+  line-height: 1.5;
   margin: 0;
   max-width: 40ch;
 }
@@ -3921,17 +3913,40 @@ h3 {
   }
 }
 
-/* ---------- Sign in, register, account ----------
+/* ---------- Account, sign-in, content and campaign pages ----------
 
-   One centred card carries every credential form — sign in, register, forgot,
-   reset and the guest order lookup — and behind it the account page: a column
-   of links beside a stack of cards. There are no tabs. Every section is in the
-   document and the nav moves the page it is already on, which is what keeps
-   the whole surface working with scripting off.
+   Every surface here is a single column a visitor reads or fills in, so they
+   share one rhythm: a page title, 1.5rem to the content, and sections parted by
+   a hairline rather than boxed. Auth is a bare 24rem form. The account is a
+   column of links beside its sections. Policy, FAQ and about are one 48rem
+   prose column. Contact puts the form beside the facts. The 404 and the
+   campaign page close the set.
 
-   The card is a card from 768 up and nothing below it. A 375 screen has no
-   room to spend on a border around a form that already fills it.
+   Every section is in the document and the account nav moves the page it is
+   already on, which is what keeps the whole surface working with scripting off.
    ------------------------------------------------------------------------ */
+
+/* Page title and display sizes, written once for the four heads below. */
+.goen-auth__title,
+.goen-doc__head .goen-pagehead__title,
+.contact .goen-pagehead__title,
+.about__title,
+.notice__title {
+  font-size: 1.875rem;
+  line-height: 1.3;
+}
+
+@media (min-width: 640px) {
+  .goen-auth__title,
+  .goen-doc__head .goen-pagehead__title,
+  .contact .goen-pagehead__title,
+  .about__title,
+  .notice__title {
+    font-size: 2.25rem;
+  }
+}
+
+/* ----- Sign in, register, forgot, reset and the order lookup ----- */
 
 .goen-auth {
   box-sizing: border-box;
@@ -3940,43 +3955,44 @@ h3 {
   margin: 0 auto;
   max-width: var(--page-box);
   min-height: 60vh;
-  padding: 32px var(--page-gutter) 56px;
+  padding: 3rem var(--page-gutter) 4rem;
   width: 100%;
 }
 
+/* No card at any width: a form on a white page needs a column, not a box. */
 .goen-auth__panel {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  margin: auto 0;
+  gap: 1.25rem;
+  margin: 0 auto auto;
   max-width: 24rem;
   width: 100%;
 }
 
-/* Registration asks for four fields where signing in asks for two, so its card
-   is one step wider rather than one step taller. */
+/* Registration is the same column. The modifier stays as a marker the markup
+   already carries. */
 .goen-auth__panel--wide {
-  max-width: 28rem;
+  max-width: 24rem;
 }
 
 .goen-auth__title {
-  color: var(--fg);
-  font-size: var(--fs-ed-24);
+  color: var(--n-900);
   font-weight: var(--fw-semibold);
   margin: 0;
 }
 
 .goen-auth__lede,
 .goen-auth__hint {
-  color: var(--fg-muted);
+  color: var(--n-500);
   font-size: var(--fs-14);
+  line-height: 1.5;
   margin: 0;
 }
 
 .goen-auth__form {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 1.25rem;
 }
 
 /* The way out of a forgotten password sits on the label's own row, beside the
@@ -3985,25 +4001,26 @@ h3 {
 .goen-auth__labelrow {
   align-items: center;
   display: flex;
-  gap: 8px;
+  gap: 0.5rem;
   justify-content: space-between;
 }
 
 .goen-auth__forgot {
   color: var(--accent-text);
   font-size: var(--fs-14);
+  font-weight: var(--fw-medium);
   text-decoration: none;
 }
 
 .goen-auth__forgot:hover {
+  color: var(--accent-text-hover);
   text-decoration: underline;
 }
 
-/* The line between the password path and the Google one. It is a rule and not
-   a word: a sentence goen says lives in internal/i18n, and the shop has not
-   written one for this. */
+/* A rule and not a word: a sentence goen says lives in internal/i18n, and the
+   shop has not written one for this. */
 .goen-auth__divider {
-  background: var(--border);
+  background: var(--n-200);
   border: 0;
   height: 1px;
   margin: 0;
@@ -4014,7 +4031,7 @@ h3 {
 }
 
 .goen-auth__alt {
-  color: var(--fg-muted);
+  color: var(--n-500);
   font-size: var(--fs-14);
   margin: 0;
   text-align: center;
@@ -4026,16 +4043,16 @@ h3 {
   text-underline-offset: 4px;
 }
 
-/* The account page, and the two pages that hang off it. The shell is shared:
-   one content column, one page head, and the sections under it. */
+/* ----- The account, and the pages that hang off it ----- */
+
 .goen-account {
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 1.5rem;
   margin: 0 auto;
   max-width: var(--page-box);
-  padding: 16px var(--page-gutter) 56px;
+  padding: 2rem var(--page-gutter) 4rem;
   width: 100%;
 }
 
@@ -4051,12 +4068,12 @@ h3 {
    handle and the appearance is decided in this file. */
 .goen-account__head {
   align-items: flex-end;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--n-200);
   display: flex;
   flex-wrap: wrap;
-  gap: 16px;
+  gap: 1rem;
   justify-content: space-between;
-  padding-bottom: 16px;
+  padding-bottom: 1.5rem;
 }
 
 .goen-account__headactions {
@@ -4066,39 +4083,54 @@ h3 {
 .goen-account__layout {
   align-items: start;
   display: grid;
-  gap: 24px;
+  gap: 1.5rem;
   grid-template-columns: 1fr;
   min-width: 0;
 }
 
-/* Below 1024 the nav is a strip that scrolls inside itself. The strip scrolls;
-   the page does not, which is the thing the overflow gate measures. */
+/* Below 1024 the nav is a strip of soft buttons that scrolls inside itself.
+   The strip scrolls; the page does not, which is the thing the overflow gate
+   measures. */
 .goen-account__nav {
   display: flex;
-  gap: 8px;
+  gap: 0.5rem;
   overflow-x: auto;
-  padding-bottom: 8px;
+  padding-bottom: 0.5rem;
 }
 
 .goen-account__navitem {
   align-items: center;
-  border: 1px solid var(--border);
+  background: var(--n-100);
   border-radius: var(--r-md);
   box-sizing: border-box;
-  color: var(--fg);
+  color: var(--n-900);
   display: inline-flex;
   flex: none;
-  gap: 8px;
+  gap: 0.5rem;
   min-height: 2.75rem;
-  padding: 0 12px;
+  padding: 0 1rem;
   text-decoration: none;
-  transition: background-color var(--dur-base) var(--ease-standard);
   white-space: nowrap;
 }
 
 .goen-account__navitem:hover {
-  background: var(--overlay);
-  color: var(--fg);
+  background: var(--n-200);
+  color: var(--n-900);
+}
+
+/* The current item. A link to a section of this page is current while its
+   section is the target of the address, which needs no script; a page of its
+   own would say aria-current. */
+.goen-account__navitem[aria-current='page'],
+.goen-account__layout:has(#standing-heading:target) .goen-account__navitem[href='#standing-heading'],
+.goen-account__layout:has(#orders-heading:target) .goen-account__navitem[href='#orders-heading'],
+.goen-account__layout:has(#profile-heading:target) .goen-account__navitem[href='#profile-heading'],
+.goen-account__layout:has(#addresses-heading:target) .goen-account__navitem[href='#addresses-heading'],
+.goen-account__layout:has(#email-heading:target) .goen-account__navitem[href='#email-heading'],
+.goen-account__layout:has(#password-heading:target) .goen-account__navitem[href='#password-heading'],
+.goen-account__layout:has(#google-heading:target) .goen-account__navitem[href='#google-heading'],
+.goen-account__layout:has(#erase-heading:target) .goen-account__navitem[href='#erase-heading'] {
+  background: var(--n-200);
 }
 
 .goen-account__navname {
@@ -4114,7 +4146,7 @@ h3 {
 
 /* Between the sections of this page and the pages of their own. */
 .goen-account__navrule {
-  background: var(--border);
+  background: var(--n-200);
   border: 0;
   flex: none;
   height: 2.75rem;
@@ -4125,85 +4157,98 @@ h3 {
 .goen-account__panels {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  max-width: 48rem;
   min-width: 0;
 }
 
-.goen-account__section {
+/* A section is parted from the one above by a hairline and 2rem, not boxed.
+   The .goen-card on the markup is a panel recipe this page does not want, so
+   the pair of classes cancels it. */
+.goen-account__section.goen-card {
+  background: none;
+  border-radius: 0;
+  border-top: 1px solid var(--n-200);
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 1rem;
   min-width: 0;
-  scroll-margin-top: 24px;
+  padding: 2rem 0;
+  scroll-margin-top: 1.5rem;
 }
 
-/* Deleting an account is irreversible, so its card reads as the exception it
-   is rather than as one more panel. */
-.goen-account__section--danger {
-  border-color: var(--error);
+.goen-account__section.goen-card:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+/* Deleting an account is irreversible, so its section reads as the exception it
+   is: the rule above it takes the error outline. */
+.goen-account__section--danger.goen-card {
+  border-top-color: var(--error-outline);
 }
 
 /* The nav's anchors aim at these headings, so the margin that keeps a jumped-to
-   heading off the top edge belongs here rather than on the card around it. */
+   heading off the top edge belongs here rather than on the section around it. */
 .goen-account__heading {
-  color: var(--fg);
-  font-size: var(--fs-16);
-  font-weight: var(--fw-semibold);
+  color: var(--n-900);
+  font-size: 1.125rem;
+  font-weight: var(--fw-medium);
+  line-height: 1.5;
   margin: 0;
-  scroll-margin-top: 24px;
+  scroll-margin-top: 1.5rem;
 }
 
 .goen-account__standing {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 0.25rem;
 }
 
 .goen-account__tier {
-  color: var(--fg);
-  font-size: var(--fs-18);
-  font-weight: var(--fw-semibold);
+  color: var(--n-900);
+  font-size: 1.125rem;
+  font-weight: var(--fw-medium);
   margin: 0;
 }
 
 /* No tier reached is a sentence, not an empty medallion. */
 .goen-account__tier--none {
-  color: var(--fg-muted);
+  color: var(--n-500);
   font-size: var(--fs-14);
   font-weight: var(--fw-regular);
 }
 
 .goen-account__meta,
 .goen-account__hint {
-  color: var(--fg-muted);
+  color: var(--n-500);
   font-size: var(--fs-14);
   font-variant-numeric: tabular-nums;
+  line-height: 1.5;
   margin: 0;
 }
 
-/* Store credit sits inside the standing card rather than in a card of its own:
-   it is one figure about where a shopper stands, and a card holding one figure
-   reads as a section with something missing. */
+/* Store credit sits inside the standing section: it is one figure about where
+   a shopper stands, so it is a panel on the quiet ground rather than a section
+   of its own. */
 .goen-account__credit {
-  background: var(--elevated);
-  border-radius: var(--r-md);
+  background: var(--n-50);
+  border-radius: var(--r-lg);
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: 16px;
+  gap: 0.125rem;
+  padding: 1rem 1.25rem;
 }
 
 .goen-account__creditlabel {
-  color: var(--fg-muted);
-  font-size: var(--fs-12);
-  font-weight: var(--fw-medium);
+  color: var(--n-500);
+  font-size: 0.8125rem;
 }
 
 .goen-account__creditamount {
-  color: var(--fg);
-  font-size: var(--fs-18);
+  color: var(--n-900);
+  font-size: 1.125rem;
   font-variant-numeric: tabular-nums;
-  font-weight: var(--fw-semibold);
+  font-weight: var(--fw-medium);
 }
 
 /* The order history. One table at every width: below 768 the date column folds
@@ -4216,17 +4261,17 @@ h3 {
 }
 
 .goen-account__orders th {
-  border-bottom: 1px solid var(--border);
-  color: var(--fg-muted);
-  font-size: var(--fs-12);
+  border-bottom: 1px solid var(--n-200);
+  color: var(--n-500);
+  font-size: 0.8125rem;
   font-weight: var(--fw-medium);
-  padding: 8px 8px 8px 0;
+  padding: 0.5rem 0.5rem 0.5rem 0;
   text-align: left;
 }
 
 .goen-account__orders td {
-  border-bottom: 1px solid var(--border);
-  padding: 12px 8px 12px 0;
+  border-bottom: 1px solid var(--n-200);
+  padding: 0.75rem 0.5rem 0.75rem 0;
   vertical-align: top;
 }
 
@@ -4235,13 +4280,14 @@ h3 {
 }
 
 .goen-account__number {
-  color: var(--fg);
+  color: var(--n-900);
+  font-variant-numeric: tabular-nums;
   font-weight: var(--fw-medium);
   text-decoration: none;
 }
 
 .goen-account__number:hover {
-  color: var(--fg);
+  color: var(--n-900);
   text-decoration: underline;
 }
 
@@ -4250,10 +4296,10 @@ h3 {
 }
 
 .goen-account__ordermeta {
-  color: var(--fg-muted);
+  color: var(--n-500);
   display: block;
-  font-size: var(--fs-12);
-  margin-top: 2px;
+  font-size: 0.8125rem;
+  margin-top: 0.125rem;
 }
 
 .goen-account__ordertotal {
@@ -4262,7 +4308,7 @@ h3 {
 }
 
 .goen-account__empty {
-  color: var(--fg-muted);
+  color: var(--n-500);
   font-size: var(--fs-14);
   margin: 0;
 }
@@ -4270,78 +4316,80 @@ h3 {
 .goen-account__form {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 1rem;
 }
 
 .goen-account__fields {
   display: grid;
-  gap: 16px;
+  gap: 1rem;
   grid-template-columns: 1fr;
 }
 
 .goen-account__actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 0.5rem;
 }
 
 .goen-account__value {
   align-items: center;
-  color: var(--fg);
+  color: var(--n-900);
   display: flex;
   flex-wrap: wrap;
   font-size: var(--fs-14);
-  gap: 8px;
+  gap: 0.5rem;
   margin: 0;
 }
 
+/* Saved addresses are rows parted by hairlines. */
 .goen-account__addresses {
   display: flex;
   flex-direction: column;
-  gap: 12px;
   list-style: none;
   margin: 0;
   padding: 0;
 }
 
 .goen-account__address {
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
+  border-bottom: 1px solid var(--n-200);
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 16px;
+  gap: 0.5rem;
+  padding: 1rem 0;
+}
+
+.goen-account__address:first-child {
+  padding-top: 0;
 }
 
 .goen-account__addrbody {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 0.25rem;
   min-width: 0;
 }
 
 .goen-account__addrlabel {
   align-items: center;
-  color: var(--fg);
+  color: var(--n-900);
   display: flex;
   flex-wrap: wrap;
   font-size: var(--fs-14);
   font-weight: var(--fw-medium);
-  gap: 8px;
+  gap: 0.5rem;
 }
 
 .goen-account__addractions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 0.5rem;
 }
 
 /* A native <details> used as "show me the form". The forms are long and mostly
    unused; collapsing them keeps the page readable without hiding anything from
    a visitor with scripting off. */
 .goen-account__disclosure {
-  border-top: 1px solid var(--border);
-  padding-top: 16px;
+  padding-top: 0.5rem;
 }
 
 .goen-account__summary {
@@ -4360,14 +4408,15 @@ h3 {
 }
 
 .goen-account__disclosure[open] > .goen-account__summary {
-  margin-bottom: 8px;
+  margin-bottom: 0.5rem;
 }
 
-/* The storefront's one destructive control. It keeps the outline shape so it is
-   not read as the action its card is about, and takes the error colour so it is
-   not pressed by accident. */
+/* The storefront's one destructive control: white, error text, the error
+   outline. It is not the action its section is about, and it is not pressed by
+   accident. */
 .goen-account__erase {
-  border-color: var(--error);
+  background: var(--n-0);
+  border-color: var(--error-outline);
   color: var(--error);
 }
 
@@ -4381,11 +4430,11 @@ h3 {
    keyboard already know. */
 .goen-check {
   align-items: center;
-  color: var(--fg);
+  color: var(--n-900);
   cursor: pointer;
   display: flex;
   font-size: var(--fs-14);
-  gap: 8px;
+  gap: 0.5rem;
   min-height: 2.75rem;
 }
 
@@ -4396,88 +4445,11 @@ h3 {
   width: 1rem;
 }
 
-@media (min-width: 768px) {
-  .goen-account__fields {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .goen-auth__panel {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: var(--r-lg);
-    padding: 32px;
-  }
-
-  .goen-account__field--wide {
-    grid-column: 1 / -1;
-  }
-
-  .goen-account__ordercol {
-    display: table-cell;
-  }
-
-  .goen-account__ordermeta {
-    display: none;
-  }
-
-  .goen-auth {
-    padding: 56px var(--page-gutter) 80px;
-  }
-}
-
-@media (min-width: 1024px) {
-  .goen-account {
-    gap: 32px;
-  }
-
-  .goen-account__layout {
-    gap: 32px;
-    grid-template-columns: 14rem minmax(0, 1fr);
-  }
-
-  .goen-account__nav {
-    align-self: start;
-    flex-direction: column;
-    gap: 2px;
-    overflow-x: visible;
-    padding-bottom: 0;
-    position: sticky;
-    top: 32px;
-  }
-
-  .goen-account__navitem {
-    align-items: flex-start;
-    border-color: transparent;
-    flex-direction: column;
-    gap: 2px;
-    justify-content: center;
-    padding: 8px 12px;
-    white-space: normal;
-  }
-
-  .goen-account__navhint {
-    color: var(--fg-muted);
-    display: block;
-    font-size: var(--fs-12);
-  }
-
-  .goen-account__navrule {
-    height: 1px;
-    margin: 8px 0;
-    width: auto;
-  }
-}
-
-/* ---------- Points and warranty registration ----------
-
-   Two pages that hang off the account: what the shop owes in points, and what
-   it covers. Both are one column of short rows inside the account shell, so
-   only the rows are declared here.
-   ------------------------------------------------------------------------ */
+/* ----- Points and warranty registration ----- */
 
 .goen-points__figures {
   display: grid;
-  gap: 16px;
+  gap: 1rem;
   grid-template-columns: 1fr;
   list-style: none;
   margin: 0;
@@ -4485,36 +4457,37 @@ h3 {
 }
 
 .goen-points__figure {
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
+  background: var(--n-50);
+  border-radius: var(--r-lg);
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 16px;
+  gap: 0.25rem;
+  padding: 1.25rem 1.5rem;
 }
 
 .goen-points__label {
-  color: var(--fg-muted);
-  font-size: var(--fs-12);
+  color: var(--n-500);
+  font-size: 0.8125rem;
   font-weight: var(--fw-medium);
 }
 
 .goen-points__value {
-  color: var(--fg);
-  font-size: var(--fs-ed-24);
+  color: var(--n-900);
+  font-size: 1.5rem;
   font-variant-numeric: tabular-nums;
   font-weight: var(--fw-semibold);
+  letter-spacing: -0.02em;
 }
 
 .goen-points__meta {
-  color: var(--fg-muted);
+  color: var(--n-500);
   font-size: var(--fs-14);
   margin: 0;
 }
 
 .goen-points__rule {
-  color: var(--fg-muted);
-  font-size: var(--fs-12);
+  color: var(--n-500);
+  font-size: 0.8125rem;
   margin: 0;
 }
 
@@ -4530,7 +4503,7 @@ h3 {
 .goen-qa__form .ui-input:focus,
 .goen-qa__form .ui-input:hover {
   background: transparent;
-  border-color: var(--border);
+  border-color: var(--n-300);
 }
 
 /* One control, not a bar: the form asks for a number and then offers the one
@@ -4542,13 +4515,13 @@ h3 {
 .goen-points__ledger {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 0.75rem;
 }
 
 .goen-points__ledgerhead {
-  color: var(--fg);
-  font-size: var(--fs-16);
-  font-weight: var(--fw-semibold);
+  color: var(--n-900);
+  font-size: 1.125rem;
+  font-weight: var(--fw-medium);
   margin: 0;
 }
 
@@ -4564,11 +4537,11 @@ h3 {
 
 .goen-points__item {
   align-items: baseline;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--n-200);
   display: grid;
-  gap: 4px 12px;
+  gap: 0.25rem 0.75rem;
   grid-template-columns: auto minmax(0, 1fr);
-  padding: 12px 0;
+  padding: 0.75rem 0;
 }
 
 .goen-points__item:last-child {
@@ -4582,7 +4555,7 @@ h3 {
 }
 
 .goen-points__amount {
-  color: var(--fg-muted);
+  color: var(--n-500);
   font-size: var(--fs-14);
   font-variant-numeric: tabular-nums;
   font-weight: var(--fw-medium);
@@ -4593,34 +4566,36 @@ h3 {
 }
 
 .goen-points__what {
-  color: var(--fg);
+  color: var(--n-900);
   font-size: var(--fs-14);
 }
 
 .goen-points .goen-points__meta {
-  font-size: var(--fs-12);
+  font-size: 0.8125rem;
   grid-column: 2;
 }
 
 /* Registered cover, and the lines that can still be registered. One column of
-   bordered rows: each entry is read rather than compared against its
+   hairline-divided rows: each entry is read rather than compared against its
    neighbours, so a table would make a customer scan across for one date. */
 .goen-warranty {
   display: flex;
   flex-direction: column;
-  gap: 12px;
   list-style: none;
   margin: 0;
   padding: 0;
 }
 
 .goen-warranty__item {
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
+  border-bottom: 1px solid var(--n-200);
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 16px;
+  gap: 0.25rem;
+  padding: 1rem 0;
+}
+
+.goen-warranty__item:first-child {
+  padding-top: 0;
 }
 
 .goen-warranty__item.is-expired {
@@ -4631,31 +4606,31 @@ h3 {
   align-items: baseline;
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 0.5rem;
   justify-content: space-between;
 }
 
 .goen-warranty__name {
-  color: var(--fg);
+  color: var(--n-900);
   font-size: var(--fs-14);
   font-weight: var(--fw-medium);
   text-decoration: none;
 }
 
 .goen-warranty__name:hover {
-  color: var(--fg);
+  color: var(--n-900);
   text-decoration: underline;
 }
 
 .goen-warranty__meta {
-  color: var(--fg-muted);
+  color: var(--n-500);
   font-size: var(--fs-14);
   margin: 0;
 }
 
 .goen-warranty__hint {
-  color: var(--fg-muted);
-  font-size: var(--fs-12);
+  color: var(--n-500);
+  font-size: 0.8125rem;
   margin: 0;
 }
 
@@ -4663,8 +4638,8 @@ h3 {
   align-items: flex-end;
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 12px;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
 }
 
 .goen-warranty__field {
@@ -4675,119 +4650,132 @@ h3 {
    (internal/ui/pages/warranty_test.go:180,184), so the paragraphs carry the
    shared spelling alone and every declaration is made here. */
 .goen-empty .ui-empty__title {
-  color: var(--fg);
+  color: var(--n-900);
   font-family: var(--font-sans);
-  font-size: var(--fs-ed-24);
+  font-size: 1rem;
   font-weight: var(--fw-semibold);
+  line-height: 1.5;
   margin: 0;
 }
 
 .goen-empty .ui-empty__desc {
-  color: var(--fg-muted);
+  color: var(--n-500);
   font-family: var(--font-sans);
   font-size: var(--fs-14);
-  line-height: var(--lh-normal);
+  line-height: 1.5;
   margin: 0;
   max-width: 40ch;
 }
 
-@media (min-width: 768px) {
-  .goen-points__figures {
-    grid-template-columns: 1fr 1fr;
-  }
-}
+/* ----- Policy, FAQ, shipping and the public warranty ----- */
 
-/* ---------- Policy, FAQ, shipping and the public warranty ----------
-
-   One shell for every page that is prose. The article sits in the page's own
-   column with the section list beside it from 1024 up and above it below that
-   — a list of links, because a contents list a reader has to open is a
-   contents list nobody opens.
-
-   /admin/verify renders through .goen-doc, .goen-doc__section, .goen-doc__qa
-   and .goen-doc__contact as well. They are rewritten here with the rest so the
-   back office stays on one ground until the PR that rebuilds it.
-   ------------------------------------------------------------------------ */
-
+/* One 48rem column of prose. /admin/verify renders through .goen-doc,
+   .goen-doc__section, .goen-doc__qa and .goen-doc__contact as well, so the
+   back office takes this column until the PR that rebuilds it. */
 .goen-doc {
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 2rem;
   margin: 0 auto;
-  max-width: var(--page-box);
-  padding: 16px var(--page-gutter) 56px;
+  max-width: 48rem;
+  padding: 2rem var(--page-gutter) 4rem;
   width: 100%;
 }
 
 .goen-doc__head {
-  border-bottom: 1px solid var(--border);
-  padding-bottom: 16px;
+  gap: 0.5rem;
+}
+
+/* The eyebrow is a sentence-case line in the link ink, not a small-caps label. */
+.goen-doc__head .goen-pagehead__eyebrow {
+  color: var(--accent-text);
+  font-size: var(--fs-14);
+  font-weight: var(--fw-medium);
+}
+
+.goen-doc__head .goen-pagehead__title {
+  color: var(--n-900);
+  font-weight: var(--fw-semibold);
+}
+
+.goen-doc__head .goen-pagehead__sub {
+  color: var(--n-700);
+  font-size: 1.25rem;
+  line-height: 1.6;
 }
 
 .goen-doc__layout {
-  align-items: start;
-  display: grid;
-  gap: 24px;
-  grid-template-columns: 1fr;
-}
-
-.goen-doc__toc {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1.5rem;
+}
+
+/* The section list is a row of soft buttons above the text, because a column
+   of 48rem has no room for a rail beside it. */
+.goen-doc__toc {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
   min-width: 0;
 }
 
 .goen-doc__tochead {
-  color: var(--fg-muted);
-  font-size: var(--fs-12);
+  color: var(--n-900);
+  flex: 0 0 100%;
+  font-size: var(--fs-14);
   font-weight: var(--fw-medium);
-  margin: 0 0 4px;
+  margin: 0;
 }
 
 .goen-doc__toclink {
   align-items: center;
-  color: var(--fg-muted);
-  display: flex;
+  background: var(--n-100);
+  border-radius: var(--r-md);
+  color: var(--n-900);
+  display: inline-flex;
   font-size: var(--fs-14);
+  font-weight: var(--fw-medium);
   min-height: 2.75rem;
+  padding: 0 1rem;
   text-decoration: none;
-  transition: color var(--dur-base) var(--ease-standard);
 }
 
 .goen-doc__toclink:hover {
-  color: var(--fg);
+  background: var(--n-200);
+  color: var(--n-900);
 }
 
-/* A measure, not a column width: a policy page is read, and a wide measure is
-   what makes one feel unreadable regardless of what it says. */
 .goen-doc__article {
   display: flex;
   flex-direction: column;
-  gap: 32px;
-  max-width: 68ch;
   min-width: 0;
 }
 
 .goen-doc__section {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  scroll-margin-top: 24px;
+  gap: 1rem;
+  margin-top: 3rem;
+  scroll-margin-top: 1.5rem;
+}
+
+.goen-doc__section:first-child {
+  margin-top: 0;
 }
 
 .goen-doc__section h2 {
-  color: var(--fg);
-  font-size: var(--fs-18);
+  color: var(--n-900);
+  font-size: 1.5rem;
   font-weight: var(--fw-semibold);
+  line-height: 1.35;
   margin: 0;
 }
 
 .goen-doc__section p {
-  color: var(--fg-muted);
-  font-size: var(--fs-14);
-  line-height: var(--lh-read);
+  color: var(--n-700);
+  font-size: 1rem;
+  line-height: 1.7;
   margin: 0;
 }
 
@@ -4797,30 +4785,30 @@ h3 {
    difference is a rule beside the text rather than a lighter grey: grey enough
    to read as pending is grey enough to fail a contrast check. */
 .goen-doc__section.is-pending {
-  border-left: 2px solid var(--border-strong);
-  padding-left: 16px;
+  border-left: 2px solid var(--n-300);
+  padding-left: 1rem;
 }
 
 .goen-doc__qa {
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--n-200);
 }
 
-.goen-doc__qa:last-child {
-  border-bottom: 0;
+.goen-doc__qa:first-of-type {
+  border-top: 1px solid var(--n-200);
 }
 
 .goen-doc__qa summary {
   align-items: center;
-  color: var(--fg);
+  color: var(--n-900);
   cursor: pointer;
   display: flex;
-  font-size: var(--fs-14);
+  font-size: 1rem;
   font-weight: var(--fw-medium);
-  gap: 12px;
+  gap: 1rem;
   justify-content: space-between;
   list-style: none;
   min-height: 2.75rem;
-  padding: 12px 0;
+  padding: 1rem 0;
 }
 
 .goen-doc__qa summary::-webkit-details-marker {
@@ -4828,28 +4816,22 @@ h3 {
 }
 
 /* A flex summary drops the marker the browser would draw, so the affordance is
-   drawn here: two borders of one box, turned. */
+   drawn here: a plus that becomes a minus. */
 .goen-doc__qa summary::after {
-  border-bottom: 2px solid currentcolor;
-  border-right: 2px solid currentcolor;
-  color: var(--fg-muted);
-  content: '';
+  color: var(--n-500);
+  content: '+';
   flex: none;
-  height: 8px;
-  transform: rotate(45deg);
-  width: 8px;
+  font-size: 1.25rem;
+  font-weight: var(--fw-regular);
+  line-height: 1;
 }
 
 .goen-doc__qa[open] summary::after {
-  transform: rotate(-135deg);
+  content: '\2212';
 }
 
 .goen-doc__qa p {
-  color: var(--fg-muted);
-  font-size: var(--fs-14);
-  line-height: var(--lh-read);
-  margin: 0;
-  padding-bottom: 16px;
+  padding-bottom: 1rem;
 }
 
 .goen-doc__methods {
@@ -4862,11 +4844,11 @@ h3 {
 
 .goen-doc__method {
   align-items: baseline;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--n-200);
   display: flex;
-  gap: 12px;
+  gap: 0.75rem;
   justify-content: space-between;
-  padding: 12px 0;
+  padding: 0.75rem 0;
 }
 
 .goen-doc__method:last-child {
@@ -4874,254 +4856,225 @@ h3 {
 }
 
 .goen-doc__methodname {
-  color: var(--fg);
+  color: var(--n-900);
   display: flex;
   flex-direction: column;
-  font-size: var(--fs-14);
+  font-size: 1rem;
   font-weight: var(--fw-medium);
-  gap: 2px;
+  gap: 0.125rem;
 }
 
 .goen-doc__methodfee {
-  color: var(--fg);
+  color: var(--n-900);
   display: flex;
   flex-direction: column;
-  font-size: var(--fs-14);
+  font-size: 1rem;
   font-variant-numeric: tabular-nums;
-  gap: 2px;
+  gap: 0.125rem;
   text-align: right;
 }
 
 .goen-doc__methodmeta {
-  color: var(--fg-muted);
-  font-size: var(--fs-12);
+  color: var(--n-500);
+  font-size: 0.8125rem;
   font-weight: var(--fw-regular);
 }
 
 .goen-doc__contact {
-  color: var(--fg-muted);
+  color: var(--n-500);
   font-size: var(--fs-14);
-  margin: 0;
+  margin: 3rem 0 0;
 }
 
-@media (min-width: 1024px) {
-  .goen-doc {
-    gap: 32px;
-  }
+/* ----- About ----- */
 
-  .goen-doc__layout {
-    gap: 32px;
-    grid-template-columns: 14rem minmax(0, 1fr);
-  }
-
-  .goen-doc__toc {
-    position: sticky;
-    top: 32px;
-  }
-}
-
-/* ---------- About ----------
-
-   One centred column: the mark, the claim, two paragraphs, the three things
-   the shop says it does, and the lines a company has to print. Only the three
-   are cards, because they are three of one kind.
-   ------------------------------------------------------------------------ */
-
+/* One 48rem column: the photograph, the title, a lead, a paragraph, three
+   short sections in the policy rhythm, and the lines a company has to print. */
 .about {
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 1.5rem;
   margin: 0 auto;
   max-width: 48rem;
-  padding: 32px var(--page-gutter) 56px;
+  padding: 2rem var(--page-gutter) 4rem;
   width: 100%;
-}
-
-.about__mark {
-  height: 40px;
-  width: 40px;
 }
 
 .about__photo {
   aspect-ratio: 16 / 9;
+  background: var(--photo);
   border-radius: var(--r-lg);
   display: block;
   height: auto;
+  object-fit: cover;
   width: 100%;
 }
 
 .about__title {
-  color: var(--fg);
-  font-size: var(--fs-ed-30);
+  color: var(--n-900);
   font-weight: var(--fw-semibold);
   margin: 0;
 }
 
 .about__lede {
-  color: var(--fg-muted);
-  font-size: var(--fs-16);
-  line-height: var(--lh-read);
+  color: var(--n-700);
+  font-size: 1rem;
+  line-height: 1.7;
   margin: 0;
 }
 
+/* The first paragraph under the title is the lead. */
+.about__title + .about__lede {
+  font-size: 1.25rem;
+  line-height: 1.6;
+}
+
 .about__values {
-  display: grid;
-  gap: 16px;
-  grid-template-columns: 1fr;
+  display: flex;
+  flex-direction: column;
 }
 
 .about__value {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 1rem;
+  margin-top: 3rem;
+}
+
+.about__value:first-child {
+  margin-top: 1.5rem;
 }
 
 .about__valuetitle {
-  color: var(--fg);
-  font-size: var(--fs-16);
+  color: var(--n-900);
+  font-size: 1.5rem;
   font-weight: var(--fw-semibold);
+  line-height: 1.35;
   margin: 0;
 }
 
 .about__valuebody {
-  color: var(--fg-muted);
-  font-size: var(--fs-14);
-  line-height: var(--lh-normal);
+  color: var(--n-700);
+  font-size: 1rem;
+  line-height: 1.7;
   margin: 0;
 }
 
 .about__legal {
-  color: var(--fg-muted);
-  font-size: var(--fs-12);
-  line-height: var(--lh-read);
+  color: var(--n-500);
+  font-size: 0.8125rem;
+  line-height: 1.7;
   margin: 0;
 }
 
 /* One hairline, drawn as an element because the page uses it to part two kinds
    of content rather than to decorate a box. */
 .goen-separator {
-  background: var(--border);
+  background: var(--n-200);
   border: 0;
   height: 1px;
-  margin: 0;
+  margin: 1.5rem 0 0;
 }
 
-@media (min-width: 768px) {
-  .about {
-    gap: 32px;
-    padding: 56px var(--page-gutter) 80px;
-  }
+/* ----- Contact ----- */
 
-  .about__mark {
-    height: 56px;
-    width: 56px;
-  }
-
-  .about__title {
-    font-size: var(--fs-ed-38);
-  }
-
-  .about__values {
-    gap: 24px;
-    grid-template-columns: repeat(3, 1fr);
-  }
-}
-
-/* ---------- Contact ----------
-
-   The three ways to reach the shop, then the form beside what a visitor would
-   otherwise have to ask for: the hours, the address and the way there.
-
-   The two banners inside the form are written in the page rather than through
-   the notice component, because the layout gate reads the refusal's sentence
-   through a shared descendant pair (scripts/check-layout.mjs:2068) and one
-   caller does not earn a Prop.
-   ------------------------------------------------------------------------ */
-
+/* The form beside the facts. The two banners inside the form are written in the
+   page rather than through the notice component, because the layout gate reads
+   the refusal's sentence through a shared descendant pair
+   (scripts/check-layout.mjs:2068) and one caller does not earn a Prop. */
 .contact {
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 2rem;
   margin: 0 auto;
   max-width: var(--page-box);
-  padding: 16px var(--page-gutter) 56px;
+  padding: 2rem var(--page-gutter) 4rem;
   width: 100%;
+}
+
+.contact .goen-pagehead {
+  gap: 0.5rem;
+}
+
+.contact .goen-pagehead__title {
+  color: var(--n-900);
+  font-weight: var(--fw-semibold);
+}
+
+.contact .goen-pagehead__sub {
+  color: var(--n-500);
+  font-size: 1rem;
+}
+
+.contact__layout {
+  align-items: start;
+  display: grid;
+  gap: 2.5rem;
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .contact__methods {
   display: grid;
-  gap: 8px;
+  gap: 0.5rem;
   grid-template-columns: 1fr;
 }
 
 .contact-method {
   align-items: center;
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
   box-sizing: border-box;
+  color: var(--n-900);
   display: flex;
-  gap: 12px;
+  gap: 0.75rem;
   min-height: 2.75rem;
-  padding: 12px 16px;
   text-decoration: none;
-  transition: border-color var(--dur-base) var(--ease-standard);
 }
 
-.contact-method:hover {
-  border-color: var(--border-strong);
+.contact-method:hover .contact-method__value {
+  text-decoration: underline;
 }
 
 .contact-method__icon {
   align-items: center;
-  color: var(--fg-muted);
+  color: var(--n-700);
   display: inline-flex;
   flex: none;
   justify-content: center;
 }
 
 .contact-method__icon svg {
-  height: 20px;
-  width: 20px;
+  height: 1.5rem;
+  width: 1.5rem;
 }
 
 .contact-method__text {
   display: flex;
   flex-direction: column;
-  gap: 2px;
   min-width: 0;
 }
 
 .contact-method__label {
-  color: var(--fg-muted);
-  font-size: var(--fs-12);
+  color: var(--n-500);
+  font-size: 0.8125rem;
 }
 
 .contact-method__value {
-  color: var(--fg);
+  color: var(--n-900);
   font-size: var(--fs-14);
   font-weight: var(--fw-medium);
-}
-
-.contact__layout {
-  align-items: start;
-  display: grid;
-  gap: 24px;
-  grid-template-columns: 1fr;
 }
 
 .contact__panel {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  max-width: 32rem;
+  gap: 1.25rem;
 }
 
 .contact__panel--done {
   align-items: flex-start;
   flex-direction: row;
-  gap: 12px;
+  gap: 0.75rem;
 }
 
 .contact__donemark {
@@ -5131,20 +5084,21 @@ h3 {
 }
 
 .contact__formtitle {
-  color: var(--fg);
-  font-size: var(--fs-16);
-  font-weight: var(--fw-semibold);
+  color: var(--n-900);
+  font-size: 1.125rem;
+  font-weight: var(--fw-medium);
+  line-height: 1.5;
   margin: 0;
 }
 
 .contact__req {
   color: var(--error);
-  margin-left: 2px;
+  margin-left: 0.125rem;
 }
 
 .contact__fields {
   display: grid;
-  gap: 16px;
+  gap: 1.25rem;
   grid-template-columns: 1fr;
 }
 
@@ -5167,31 +5121,31 @@ h3 {
 .contact__aside {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 1.5rem;
 }
 
 .contact__map {
   align-items: center;
   aspect-ratio: 4 / 3;
-  background: var(--elevated);
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
-  color: var(--fg-muted);
+  background: var(--n-50);
+  border-radius: var(--r-lg);
+  color: var(--accent-text);
   display: flex;
   font-size: var(--fs-14);
+  font-weight: var(--fw-medium);
   justify-content: center;
   text-decoration: none;
 }
 
 .contact__map:hover {
-  border-color: var(--border-strong);
-  color: var(--fg);
+  background: var(--n-100);
+  color: var(--accent-text-hover);
 }
 
 .contact__address {
-  color: var(--fg-muted);
+  color: var(--n-700);
   font-size: var(--fs-14);
-  line-height: var(--lh-read);
+  line-height: 1.7;
   margin: 0;
 }
 
@@ -5202,78 +5156,47 @@ h3 {
   color: inherit;
 }
 
-@media (min-width: 768px) {
-  .contact {
-    gap: 32px;
-    padding: 32px var(--page-gutter) 80px;
-  }
+/* ----- The 404 and the other one-message pages ----- */
 
-  .contact__fields {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .contact__methods {
-    gap: 16px;
-    grid-template-columns: repeat(3, 1fr);
-  }
-
-  .contact__submit {
-    align-self: flex-start;
-  }
-}
-
-@media (min-width: 1024px) {
-  .contact__layout {
-    gap: 32px;
-    grid-template-columns: minmax(0, 1fr) 20rem;
-  }
-}
-
-/* ---------- Simple centred message page (404 / 500) ----------
-
-   The 404, the two grant failures, the newsletter links and /verify. One
+/* The 404, the two grant failures, the newsletter links and /verify. One
    centred stack: the code where there is one, the heading, the sentence, and
-   at most two ways on — one filled and one outline, never three of equal
-   weight.
-   ------------------------------------------------------------------------ */
-
+   at most two ways on, one filled and one outline. On a 404 the departments
+   follow as a plain list. */
 .notice {
   align-items: center;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 0.75rem;
   justify-content: center;
   margin: 0 auto;
-  max-width: 32rem;
+  max-width: 40rem;
   min-height: 50vh;
-  padding: 56px var(--page-gutter) 80px;
+  padding: 4rem var(--page-gutter) 6rem;
   text-align: center;
   width: 100%;
 }
 
-/* Display type with no step on the ladder: large enough to read as the page's
-   subject, light enough not to be read as its message, and small enough that a
-   375 viewport never scrolls sideways around it. */
+/* A sentence-case line above the heading, in the link ink. */
 .notice__code {
-  color: var(--fg-muted);
-  font-size: 3.75rem;
+  color: var(--accent-text);
+  font-size: var(--fs-14);
   font-variant-numeric: tabular-nums;
-  font-weight: var(--fw-semibold);
-  line-height: 1;
+  font-weight: var(--fw-medium);
+  line-height: 1.5;
 }
 
 .notice__title {
-  color: var(--fg);
-  font-size: var(--fs-ed-30);
+  color: var(--n-900);
   font-weight: var(--fw-semibold);
   margin: 0;
+  text-wrap: balance;
 }
 
 .notice__body {
-  color: var(--fg-muted);
-  font-size: var(--fs-16);
-  line-height: var(--lh-normal);
+  color: var(--n-700);
+  font-size: 1rem;
+  line-height: 1.7;
   margin: 0;
 }
 
@@ -5285,7 +5208,8 @@ h3 {
 .notice__actions {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
   width: 100%;
 }
 
@@ -5293,7 +5217,140 @@ h3 {
   width: 100%;
 }
 
+.notice__departments {
+  border-top: 1px solid var(--n-200);
+  margin-top: 2.5rem;
+  padding-top: 2rem;
+  width: 100%;
+}
+
+.notice__departmentshead {
+  color: var(--n-500);
+  font-size: var(--fs-14);
+  font-weight: var(--fw-medium);
+  margin: 0 0 0.5rem;
+}
+
+.notice__departmentlist {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 1.5rem;
+  justify-content: center;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.notice__department {
+  align-items: center;
+  color: var(--n-700);
+  display: inline-flex;
+  font-size: 0.9375rem;
+  font-weight: var(--fw-medium);
+  min-height: 2.75rem;
+  text-decoration: none;
+}
+
+.notice__department:hover {
+  color: var(--n-900);
+  text-decoration: underline;
+}
+
+/* ----- A campaign page ----- */
+
+/* The band takes its ground from the campaign's tone. A campaign carries no
+   tone yet, so the fallback is the stone ground: oklch(97% 0.006 70). The
+   photograph sits flush on the band, above the title at 375 and on the right
+   half from 1024. */
+.goen-campaign__band {
+  background: var(--tone-ground, #f8f4f1);
+  border-radius: var(--r-lg);
+  display: grid;
+  gap: 0;
+  overflow: hidden;
+}
+
+.goen-campaign__header {
+  aspect-ratio: 8 / 3;
+  display: block;
+  height: auto;
+  object-fit: cover;
+  width: 100%;
+}
+
+.goen-campaign__band .goen-pagehead {
+  gap: 0.5rem;
+  padding: 1.5rem 1.25rem;
+}
+
+.goen-campaign__band .goen-pagehead__eyebrow {
+  color: var(--accent-text);
+  font-size: var(--fs-14);
+}
+
+.goen-campaign__band .goen-pagehead__title {
+  font-size: 2.25rem;
+  line-height: 1.25;
+  text-wrap: balance;
+}
+
+.goen-campaign__band .goen-pagehead__sub {
+  color: var(--n-500);
+  font-size: 1rem;
+}
+
+/* ----- Wider than a phone ----- */
+
+@media (min-width: 640px) {
+  .goen-account__address {
+    align-items: center;
+    flex-direction: row;
+    justify-content: space-between;
+  }
+
+  .goen-doc {
+    padding: 3rem var(--page-gutter) 6rem;
+  }
+
+  .about {
+    padding: 3rem var(--page-gutter) 6rem;
+  }
+
+  .contact {
+    padding: 3rem var(--page-gutter) 6rem;
+  }
+
+  .goen-auth {
+    padding: 4rem var(--page-gutter) 6rem;
+  }
+
+  .notice {
+    padding: 6rem var(--page-gutter) 8rem;
+  }
+}
+
 @media (min-width: 768px) {
+  .goen-account__fields,
+  .contact__fields {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .goen-account__field--wide {
+    grid-column: 1 / -1;
+  }
+
+  .goen-account__ordercol {
+    display: table-cell;
+  }
+
+  .goen-account__ordermeta {
+    display: none;
+  }
+
+  .goen-points__figures {
+    grid-template-columns: 1fr 1fr;
+  }
+
   .notice__actions {
     flex-direction: row;
     justify-content: center;
@@ -5303,9 +5360,90 @@ h3 {
   .notice__form {
     width: auto;
   }
+}
 
-  .notice__code {
-    font-size: 5rem;
+@media (min-width: 1024px) {
+  .goen-account {
+    gap: 2rem;
+  }
+
+  .goen-account__layout {
+    gap: 3rem;
+    grid-template-columns: 14rem minmax(0, 1fr);
+  }
+
+  .goen-account__nav {
+    align-self: start;
+    flex-direction: column;
+    gap: 0.125rem;
+    overflow-x: visible;
+    padding-bottom: 0;
+    position: sticky;
+    top: 2rem;
+  }
+
+  .goen-account__navitem {
+    align-items: flex-start;
+    background: transparent;
+    flex-direction: column;
+    gap: 0.125rem;
+    justify-content: center;
+    padding: 0.5rem 0.75rem;
+    white-space: normal;
+  }
+
+  .goen-account__navitem:hover {
+    background: var(--n-100);
+  }
+
+  .goen-account__navitem[aria-current='page'],
+  .goen-account__layout:has(#standing-heading:target) .goen-account__navitem[href='#standing-heading'],
+  .goen-account__layout:has(#orders-heading:target) .goen-account__navitem[href='#orders-heading'],
+  .goen-account__layout:has(#profile-heading:target) .goen-account__navitem[href='#profile-heading'],
+  .goen-account__layout:has(#addresses-heading:target) .goen-account__navitem[href='#addresses-heading'],
+  .goen-account__layout:has(#email-heading:target) .goen-account__navitem[href='#email-heading'],
+  .goen-account__layout:has(#password-heading:target) .goen-account__navitem[href='#password-heading'],
+  .goen-account__layout:has(#google-heading:target) .goen-account__navitem[href='#google-heading'],
+  .goen-account__layout:has(#erase-heading:target) .goen-account__navitem[href='#erase-heading'] {
+    background: var(--n-100);
+  }
+
+  .goen-account__navhint {
+    color: var(--n-500);
+    display: block;
+    font-size: 0.8125rem;
+  }
+
+  .goen-account__navrule {
+    height: 1px;
+    margin: 0.5rem 0;
+    width: auto;
+  }
+
+  .contact__layout {
+    gap: 4rem;
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  }
+
+  .goen-campaign__band {
+    align-items: center;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .goen-campaign__header {
+    aspect-ratio: 3 / 2;
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .goen-campaign__band .goen-pagehead {
+    grid-column: 1;
+    grid-row: 1;
+    padding: 3rem;
+  }
+
+  .goen-campaign__band .goen-pagehead__title {
+    font-size: 3rem;
   }
 }
 
