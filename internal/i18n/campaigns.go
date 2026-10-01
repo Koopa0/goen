@@ -25,7 +25,7 @@ var (
 		En:     "%s — a limited-time offer from goen",
 	})
 
-	KeyCampaignProducts = key("campaign.products", Message{ZhHant: "%s 件商品", En: "%s products"})
+	KeyCampaignProducts = countKey("campaign.products", "%s 件商品", "%s product", "%s products")
 
 	KeyDealsEmpty = key("deals.empty", Message{
 		ZhHant: "目前沒有正在特價的商品。歡迎逛逛全部分類。",
@@ -37,9 +37,9 @@ var (
 		En:     "under an hour left",
 	})
 
-	KeyEndsInHours = key("campaign.ends.hours", Message{ZhHant: "剩 %d 小時", En: "%d hours left"})
+	KeyEndsInHours = countKey("campaign.ends.hours", "剩 %d 小時", "%d hour left", "%d hours left")
 
-	KeyEndsInDays = key("campaign.ends.days", Message{ZhHant: "剩 %d 天", En: "%d days left"})
+	KeyEndsInDays = countKey("campaign.ends.days", "剩 %d 天", "%d day left", "%d days left")
 
 	KeyCampaignNotFound = key("campaign.notfound", Message{ZhHant: "找不到這個活動", En: "Offer not found"})
 
@@ -52,7 +52,7 @@ var (
 
 	KeyDealsTitle = key("deals.title", Message{ZhHant: "現正優惠", En: "On sale now"})
 
-	KeyDealsCount = key("deals.count", Message{ZhHant: "%s 件商品正在特價", En: "%s products reduced"})
+	KeyDealsCount = countKey("deals.count", "%s 件商品正在特價", "%s product reduced", "%s products reduced")
 )
 
 var (
@@ -82,10 +82,7 @@ var (
 
 	KeyAdminCampEmpty = key("admin.camp.empty", Message{ZhHant: "還沒有任何活動。", En: "No campaigns yet."})
 
-	KeyAdminCampMeta = key("admin.camp.meta", Message{
-		ZhHant: "%s 件商品 · 至 %s",
-		En:     "%s products · until %s",
-	})
+	KeyAdminCampMeta = countKey("admin.camp.meta", "%s 件商品 · 至 %s", "%s product · until %s", "%s products · until %s")
 
 	KeyAdminCampProductSlug = key("admin.camp.product.slug", Message{
 		ZhHant: "商品網址代稱",

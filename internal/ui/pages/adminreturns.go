@@ -172,7 +172,8 @@ func (r *AdminReturn) UnitsText() string { return strconv.FormatInt(int64(r.Unit
 // Action is where a decision on this return posts.
 func (r *AdminReturn) Action() string { return "/admin/returns/" + r.ID + "/decide" }
 
-// OrderAction is the order page, where a refund before shipment resumes.
+// OrderAction is the order page: where a refund before shipment resumes, and
+// where the shipment and delivery date of any return are read.
 func (r *AdminReturn) OrderAction() string { return "/admin/orders/" + r.OrderNumber }
 
 // AssessAction is where a pre-decision eligibility assessment posts.
