@@ -69,6 +69,11 @@ func IsHTMX(r *http.Request) bool {
 func Render(w http.ResponseWriter, r *http.Request, log *slog.Logger, status int, c templ.Component) {
 	var buf bytes.Buffer
 	if err := c.Render(r.Context(), &buf); err != nil {
+		if errors.Is(r.Context().Err(), context.Canceled) {
+			// The caller left, so the render stopped and nobody reads a 500. A
+			// deadline is not this: it stays an error below.
+			return
+		}
 		log.ErrorContext(r.Context(), "render component", "error", err, "path", r.URL.Path)
 		// i18n-exempt: the render failed, so there is no page to translate onto
 		// and no guaranteed locale. Both languages, so neither reader is left out.

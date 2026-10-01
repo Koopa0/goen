@@ -230,6 +230,11 @@ var (
 		En:     "A carrier and a tracking number are both needed.",
 	})
 
+	KeyAdminTrackingTaken = key("admin.tracking.taken", Message{
+		ZhHant: "這個物流商與查詢編號已經登記過，請核對編號。",
+		En:     "That carrier and tracking number are already on record. Check the number.",
+	})
+
 	KeyAdminNoticeBadParcel = key("admin.notice.badparcel", Message{
 		ZhHant: "出貨數量填寫有問題:每一項不能超過還沒出貨的數量,也不能超過這筆訂單保留的庫存。",
 		En: "Those quantities do not work: no line can exceed what is still outstanding, or what this " +
