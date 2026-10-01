@@ -11884,6 +11884,12 @@ func (q *Queries) SavedAddresses(ctx context.Context, userID uuid.UUID) ([]Saved
 }
 
 const searchProducts = `-- name: SearchProducts :many
+WITH RECURSIVE category_match AS (
+    SELECT id FROM categories
+    WHERE name ILIKE $2::text OR coalesce(name_en, '') ILIKE $2::text
+    UNION
+    SELECT c.id FROM categories c JOIN category_match m ON c.parent_id = m.id
+)
 SELECT
     p.slug,
     localized_name(p.name, p.name_en, $1::text) AS name,
@@ -11910,7 +11916,6 @@ SELECT
     coalesce(img.height, 0)::integer AS image_height
 FROM products p
 JOIN brands b ON b.id = p.brand_id
-JOIN categories c ON c.id = p.category_id
 JOIN LATERAL (
     SELECT price_cents, compare_at_price_cents
     FROM product_variants
@@ -11934,8 +11939,7 @@ WHERE p.status = 'active'
        OR coalesce(p.summary, '') ILIKE $2::text
        OR coalesce(p.summary_en, '') ILIKE $2::text
        OR b.name ILIKE $2::text
-       OR c.name ILIKE $2::text
-       OR coalesce(c.name_en, '') ILIKE $2::text
+       OR p.category_id IN (SELECT id FROM category_match)
        OR EXISTS (
            SELECT 1 FROM product_variants sku_match
            WHERE sku_match.product_id = p.id AND sku_match.is_active
@@ -11961,7 +11965,7 @@ ORDER BY
         ) THEN 7
         WHEN p.name ILIKE $3::text OR coalesce(p.name_en, '') ILIKE $3::text THEN 6
         WHEN p.name ILIKE $2::text OR coalesce(p.name_en, '') ILIKE $2::text THEN 5
-        WHEN c.name ILIKE $2::text OR coalesce(c.name_en, '') ILIKE $2::text THEN 4
+        WHEN p.category_id IN (SELECT id FROM category_match) THEN 4
         WHEN EXISTS (
             SELECT 1 FROM product_variants partial_sku
             WHERE partial_sku.product_id = p.id AND partial_sku.is_active
@@ -12044,18 +12048,22 @@ func (q *Queries) SearchProducts(ctx context.Context, arg SearchProductsParams) 
 }
 
 const searchProductsCount = `-- name: SearchProductsCount :one
+WITH RECURSIVE category_match AS (
+    SELECT id FROM categories
+    WHERE name ILIKE $1::text OR coalesce(name_en, '') ILIKE $1::text
+    UNION
+    SELECT c.id FROM categories c JOIN category_match m ON c.parent_id = m.id
+)
 SELECT count(*)::bigint
 FROM products p
 JOIN brands b ON b.id = p.brand_id
-JOIN categories c ON c.id = p.category_id
 WHERE p.status = 'active'
   AND (p.name ILIKE $1::text
        OR coalesce(p.name_en, '') ILIKE $1::text
        OR coalesce(p.summary, '') ILIKE $1::text
        OR coalesce(p.summary_en, '') ILIKE $1::text
        OR b.name ILIKE $1::text
-       OR c.name ILIKE $1::text
-       OR coalesce(c.name_en, '') ILIKE $1::text
+       OR p.category_id IN (SELECT id FROM category_match)
        OR EXISTS (
            SELECT 1 FROM product_variants sku_match
            WHERE sku_match.product_id = p.id AND sku_match.is_active

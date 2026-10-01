@@ -134,6 +134,12 @@ WHERE p.status = 'active'
 -- The trigram GIN index serves Latin queries; short Chinese ones fall back to a
 -- sequential scan. The caller escapes %, _ and \ before binding.
 -- name: SearchProducts :many
+WITH RECURSIVE category_match AS (
+    SELECT id FROM categories
+    WHERE name ILIKE @pattern::text OR coalesce(name_en, '') ILIKE @pattern::text
+    UNION
+    SELECT c.id FROM categories c JOIN category_match m ON c.parent_id = m.id
+)
 SELECT
     p.slug,
     localized_name(p.name, p.name_en, @locale::text) AS name,
@@ -160,7 +166,6 @@ SELECT
     coalesce(img.height, 0)::integer AS image_height
 FROM products p
 JOIN brands b ON b.id = p.brand_id
-JOIN categories c ON c.id = p.category_id
 JOIN LATERAL (
     SELECT price_cents, compare_at_price_cents
     FROM product_variants
@@ -184,8 +189,7 @@ WHERE p.status = 'active'
        OR coalesce(p.summary, '') ILIKE @pattern::text
        OR coalesce(p.summary_en, '') ILIKE @pattern::text
        OR b.name ILIKE @pattern::text
-       OR c.name ILIKE @pattern::text
-       OR coalesce(c.name_en, '') ILIKE @pattern::text
+       OR p.category_id IN (SELECT id FROM category_match)
        OR EXISTS (
            SELECT 1 FROM product_variants sku_match
            WHERE sku_match.product_id = p.id AND sku_match.is_active
@@ -211,7 +215,7 @@ ORDER BY
         ) THEN 7
         WHEN p.name ILIKE @exact_pattern::text OR coalesce(p.name_en, '') ILIKE @exact_pattern::text THEN 6
         WHEN p.name ILIKE @pattern::text OR coalesce(p.name_en, '') ILIKE @pattern::text THEN 5
-        WHEN c.name ILIKE @pattern::text OR coalesce(c.name_en, '') ILIKE @pattern::text THEN 4
+        WHEN p.category_id IN (SELECT id FROM category_match) THEN 4
         WHEN EXISTS (
             SELECT 1 FROM product_variants partial_sku
             WHERE partial_sku.product_id = p.id AND partial_sku.is_active
@@ -226,18 +230,22 @@ LIMIT @page_size::integer OFFSET @page_offset::integer;
 
 -- The same predicate as SearchProducts, and it has to stay the same.
 -- name: SearchProductsCount :one
+WITH RECURSIVE category_match AS (
+    SELECT id FROM categories
+    WHERE name ILIKE @pattern::text OR coalesce(name_en, '') ILIKE @pattern::text
+    UNION
+    SELECT c.id FROM categories c JOIN category_match m ON c.parent_id = m.id
+)
 SELECT count(*)::bigint
 FROM products p
 JOIN brands b ON b.id = p.brand_id
-JOIN categories c ON c.id = p.category_id
 WHERE p.status = 'active'
   AND (p.name ILIKE @pattern::text
        OR coalesce(p.name_en, '') ILIKE @pattern::text
        OR coalesce(p.summary, '') ILIKE @pattern::text
        OR coalesce(p.summary_en, '') ILIKE @pattern::text
        OR b.name ILIKE @pattern::text
-       OR c.name ILIKE @pattern::text
-       OR coalesce(c.name_en, '') ILIKE @pattern::text
+       OR p.category_id IN (SELECT id FROM category_match)
        OR EXISTS (
            SELECT 1 FROM product_variants sku_match
            WHERE sku_match.product_id = p.id AND sku_match.is_active
