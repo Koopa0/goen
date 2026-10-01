@@ -273,7 +273,7 @@ func TestAProductWithNoReviewsCanReceiveItsFirst(t *testing.T) {
 	}
 	html := renderToString(t, Product(ProductMeta(&fresh), &fresh))
 
-	if !strings.Contains(html, `action="/p/newly-listed/reviews"`) {
+	if !strings.Contains(html, `action="/p/newly-listed/reviews#write-review"`) {
 		t.Error("a product with no reviews offers no way to write one, so it can " +
 			"never have any")
 	}
