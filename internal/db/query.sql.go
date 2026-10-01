@@ -14448,9 +14448,9 @@ SELECT
                  AND e.unreconciled IS NOT NULL AND e.reconciled_at IS NULL
            )
        )))::bigint AS expired_holds,
-    (SELECT coalesce(extract(epoch FROM now() - max(computed_at)), 0)
-     FROM product_copurchases)::bigint AS copurchase_age_seconds,
-    EXISTS (SELECT 1 FROM product_copurchases) AS copurchase_ever_built,
+    (SELECT coalesce(extract(epoch FROM now() - max(refreshed_at)), 0)
+     FROM copurchase_refreshes)::bigint AS copurchase_age_seconds,
+    EXISTS (SELECT 1 FROM copurchase_refreshes) AS copurchase_ever_built,
     (SELECT count(*) FROM sessions WHERE expires_at <= now())::bigint AS expired_sessions,
     (SELECT count(*) FROM media_objects m
      WHERE NOT EXISTS (SELECT 1 FROM product_images p WHERE p.storage_key = m.digest)
@@ -14491,6 +14491,8 @@ type WorkerHealthRow struct {
 // the claim lease and the backoff push it forward. copurchase_ever_built is
 // separate from the age because max() over an empty table is NULL, which sqlc
 // infers as non-nullable and pgx then refuses to scan: a fresh deployment only.
+// Both read copurchase_refreshes and not product_copurchases: a rebuild that
+// found no pair of products leaves the projection empty and is still a rebuild.
 func (q *Queries) WorkerHealth(ctx context.Context, maxAttempts int32) (WorkerHealthRow, error) {
 	row := q.db.QueryRow(ctx, workerHealth, maxAttempts)
 	var i WorkerHealthRow
