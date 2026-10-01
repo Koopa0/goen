@@ -744,3 +744,16 @@ func TestAdjustedCartLandingKeepsContinuation(t *testing.T) {
 		}
 	}
 }
+
+func TestSavedAddressFoldsFullWidthDigits(t *testing.T) {
+	a := Address{Name: "王小明", Phone: "０９１２３４５６７８", PostalCode: "１１０", City: "台北市", District: "信義區", Street: "市府路1號"}
+	a.Trim()
+	if a.Phone != "0912345678" || a.PostalCode != "110" {
+		t.Fatalf("Trim kept phone %q postal code %q, want the ASCII forms", a.Phone, a.PostalCode)
+	}
+	for _, e := range a.Validate() {
+		if e.Field == "phone" || e.Field == "postal_code" {
+			t.Errorf("full-width input refused: %s %v", e.Field, e.MessageKey)
+		}
+	}
+}
