@@ -889,6 +889,7 @@ h3 {
 
 .goen-dept__links {
   align-content: start;
+  max-width: 44rem;
   column-gap: 2rem;
   columns: 3 11rem;
   list-style: none;
@@ -927,7 +928,7 @@ h3 {
   background: var(--photo);
   border-radius: var(--r-lg);
   display: block;
-  object-fit: contain;
+  object-fit: cover;
   width: 100%;
 }
 
@@ -1124,15 +1125,27 @@ h3 {
   transition: background-color var(--dur-base) var(--ease-standard);
 }
 
+/* Sub-categories run inline under their department as soft chips: a drawer of
+   six departments with two each has to show every link at once on a phone, and
+   a column of 44px rows would not. */
+.goen-header__subs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 12px 8px;
+}
+
 .goen-header__drawer .goen-header__subitem {
+  background: var(--n-100);
   color: var(--n-700);
-  font-size: var(--fs-15);
+  font-size: var(--fs-14);
   font-weight: var(--fw-regular);
-  padding-left: 28px;
+  min-height: 36px;
+  padding: 0 12px;
 }
 
 .goen-header__drawer .ui-navitem:hover {
-  background: var(--n-100);
+  background: var(--n-200);
   color: var(--n-900);
 }
 
@@ -1176,6 +1189,25 @@ h3 {
     max-width: 22rem;
     min-width: 8.75rem;
     order: 0;
+  }
+}
+
+@media (min-width: 1024px) and (max-width: 1279px) {
+  .goen-header__bar {
+    column-gap: 1rem;
+  }
+
+  .goen-header__nav {
+    gap: 0.875rem;
+  }
+
+  .goen-header__nav .ui-navitem {
+    font-size: var(--fs-14);
+  }
+
+  .goen-header__search {
+    flex-basis: 7.5rem;
+    min-width: 7.5rem;
   }
 }
 

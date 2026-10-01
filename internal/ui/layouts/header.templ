@@ -30,8 +30,12 @@ templ Header(p Page) {
 				<nav class="goen-header__drawer" aria-label={ i18n.T(ctx, i18n.KeyCategoryNav) }>
 					for _, n := range TopNavFrom(ctx) {
 						<a class="ui-navitem" aria-current={ p.ariaCurrent(n) } href={ templ.URL(n.Href) }>{ n.Name }</a>
-						for _, c := range n.Children {
-							<a class="ui-navitem goen-header__subitem" aria-current={ p.ariaCurrent(c) } href={ templ.URL(c.Href) }>{ c.Name }</a>
+						if len(n.Children) > 0 {
+							<div class="goen-header__subs">
+								for _, c := range n.Children {
+									<a class="ui-navitem goen-header__subitem" aria-current={ p.ariaCurrent(c) } href={ templ.URL(c.Href) }>{ c.Name }</a>
+								}
+							</div>
 						}
 					}
 					<a class="ui-navitem goen-header__navitem--deal" href="/deals">{ i18n.T(ctx, i18n.KeyDeals) }</a>
