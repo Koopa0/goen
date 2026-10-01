@@ -458,6 +458,9 @@ type AdminVariantsView struct {
 	Variants []AdminVariant
 	LowOnly  bool
 	Notice   string
+	// Return is this page's own address, filter and position, which each form
+	// posts back so a write returns to the page it was made on.
+	Return string
 }
 
 // Empty reports whether the list has nothing in it.
