@@ -628,9 +628,11 @@ squawk:
 	@version=$$(squawk --version); case "$$version" in *"$(SQUAWK_VERSION)"*) ;; *) echo "squawk $(SQUAWK_VERSION) is required, found $$version" >&2; exit 1;; esac
 	squawk migrations/*.sql
 
+# --wait uses the compose healthcheck and fails when the container exits or
+# never turns healthy, where an unbounded pg_isready loop hung forever on a
+# database that had died, and CI's schema and layout jobs hung with it.
 db-up:
-	docker compose up -d db
-	@until docker compose exec -T db pg_isready -U goen -d goen >/dev/null 2>&1; do sleep 1; done
+	@docker compose up -d --wait db || { echo 'the database did not become healthy:' >&2; docker compose logs --tail=20 db >&2; exit 1; }
 	@echo 'database ready on 127.0.0.1:5433'
 
 db-down:
