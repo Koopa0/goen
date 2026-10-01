@@ -156,7 +156,7 @@ func TestNormalizedOutputHasItsOwnByteCap(t *testing.T) {
 		t.Fatalf("one byte beyond normalized-output ceiling = %v, want ErrTooLarge", err)
 	}
 	img := image.NewRGBA(image.Rect(0, 0, 1, 1))
-	_, _, err := normaliseDecoded(img, "png", func(image.Image, string) ([]byte, string, error) {
+	_, _, err := normaliseDecoded(img, "png", 1, func(image.Image, string) ([]byte, string, error) {
 		return make([]byte, MaxStoredBytes+1), "image/png", nil
 	})
 	if !errors.Is(err, ErrTooLarge) {
@@ -169,7 +169,7 @@ func TestDecodedBoundsAreRefusedBeforeEncoding(t *testing.T) {
 
 	called := false
 	img := boundsOnlyImage{bounds: image.Rect(0, 0, MaxDimension+1, 1)}
-	_, _, err := normaliseDecoded(img, "png", func(image.Image, string) ([]byte, string, error) {
+	_, _, err := normaliseDecoded(img, "png", 1, func(image.Image, string) ([]byte, string, error) {
 		called = true
 		return []byte("must not be produced"), "image/png", nil
 	})

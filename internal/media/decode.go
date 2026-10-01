@@ -57,13 +57,20 @@ func Normalise(r io.Reader) (obj Object, data []byte, err error) {
 	if decodeErr != nil {
 		return Object{}, nil, ErrNotAnImage
 	}
-	return normaliseDecoded(img, format, encode)
+	orientation := 1
+	if format == "jpeg" {
+		orientation = exifOrientation(raw)
+	}
+	return normaliseDecoded(img, format, orientation, encode)
 }
 
-// normaliseDecoded bounds, encodes and digests already-decoded pixels.
+// normaliseDecoded bounds, orients, encodes and digests already-decoded pixels.
+// The orientation is applied after the fit, so the copy it makes is of the
+// stored size and not of a camera's full frame.
 func normaliseDecoded(
 	img image.Image,
 	format string,
+	orientation int,
 	encoder func(image.Image, string) ([]byte, string, error),
 ) (obj Object, data []byte, err error) {
 	// Re-check the DECODED bounds: a decoder that produced something other than
@@ -73,7 +80,7 @@ func normaliseDecoded(
 		return Object{}, nil, boundsErr
 	}
 
-	img = fitLongestSide(img, MaxStoredSide)
+	img = orient(fitLongestSide(img, MaxStoredSide), orientation)
 	b = img.Bounds()
 
 	encoded, contentType, err := encoder(img, format)
