@@ -349,6 +349,37 @@ func (q *Queries) AdminBrands(ctx context.Context) ([]AdminBrandsRow, error) {
 	return items, nil
 }
 
+const adminCampaignImage = `-- name: AdminCampaignImage :one
+SELECT coalesce(c.image_key, '')::text AS image_key,
+       coalesce(c.image_alt, '')::text AS image_alt,
+       coalesce(c.image_alt_en, '')::text AS image_alt_en,
+       coalesce(m.width, 0)::integer AS image_width
+FROM sale_campaigns c
+LEFT JOIN media_objects m ON m.digest = c.image_key
+WHERE c.slug = $1::text
+`
+
+type AdminCampaignImageRow struct {
+	ImageKey   string
+	ImageAlt   string
+	ImageAltEn string
+	ImageWidth int32
+}
+
+// The stored width comes from media_objects, and is 0 for a key that is not an
+// upload.
+func (q *Queries) AdminCampaignImage(ctx context.Context, slug string) (AdminCampaignImageRow, error) {
+	row := q.db.QueryRow(ctx, adminCampaignImage, slug)
+	var i AdminCampaignImageRow
+	err := row.Scan(
+		&i.ImageKey,
+		&i.ImageAlt,
+		&i.ImageAltEn,
+		&i.ImageWidth,
+	)
+	return i, err
+}
+
 const adminCampaignProducts = `-- name: AdminCampaignProducts :many
 SELECT p.slug, p.name, cp.position
 FROM sale_campaign_products cp
@@ -3836,6 +3867,20 @@ func (q *Queries) ClaimReturnRefundExecution(ctx context.Context, arg ClaimRetur
 	return claim_return_refund_execution, err
 }
 
+const clearCampaignImage = `-- name: ClearCampaignImage :execrows
+UPDATE sale_campaigns
+SET image_key = NULL, image_alt = NULL, image_alt_en = NULL
+WHERE slug = $1::text
+`
+
+func (q *Queries) ClearCampaignImage(ctx context.Context, slug string) (int64, error) {
+	result, err := q.db.Exec(ctx, clearCampaignImage, slug)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const clearCart = `-- name: ClearCart :exec
 DELETE FROM cart_items WHERE cart_id = $1
 `
@@ -5529,6 +5574,7 @@ DELETE FROM media_objects m
 WHERE m.digest = $1::text
   AND NOT EXISTS (SELECT 1 FROM product_images p WHERE p.storage_key = m.digest)
   AND NOT EXISTS (SELECT 1 FROM hero_slides h WHERE h.image_key = m.digest)
+  AND NOT EXISTS (SELECT 1 FROM sale_campaigns c WHERE c.image_key = m.digest)
 `
 
 // The reference predicate is REPEATED here, not assumed. Selecting candidates
@@ -11681,10 +11727,14 @@ func (q *Queries) RootCategories(ctx context.Context, locale string) ([]RootCate
 }
 
 const runningCampaign = `-- name: RunningCampaign :one
-SELECT id, slug, localized_name(title, title_en, $1::text) AS title, ends_at
-FROM sale_campaigns
-WHERE slug = $2::text AND is_active
-  AND starts_at <= now() AND ends_at > now()
+SELECT c.id, c.slug, localized_name(c.title, c.title_en, $1::text) AS title, c.ends_at,
+       coalesce(c.image_key, '')::text AS image_key,
+       coalesce(localized_name(c.image_alt, c.image_alt_en, $1::text), '')::text AS image_alt,
+       coalesce(m.width, 0)::integer AS image_width
+FROM sale_campaigns c
+LEFT JOIN media_objects m ON m.digest = c.image_key
+WHERE c.slug = $2::text AND c.is_active
+  AND c.starts_at <= now() AND c.ends_at > now()
 `
 
 type RunningCampaignParams struct {
@@ -11693,10 +11743,13 @@ type RunningCampaignParams struct {
 }
 
 type RunningCampaignRow struct {
-	ID     uuid.UUID
-	Slug   string
-	Title  string
-	EndsAt time.Time
+	ID         uuid.UUID
+	Slug       string
+	Title      string
+	EndsAt     time.Time
+	ImageKey   string
+	ImageAlt   string
+	ImageWidth int32
 }
 
 // The window is judged against the database's clock, which wrote the timestamps.
@@ -11708,6 +11761,9 @@ func (q *Queries) RunningCampaign(ctx context.Context, arg RunningCampaignParams
 		&i.Slug,
 		&i.Title,
 		&i.EndsAt,
+		&i.ImageKey,
+		&i.ImageAlt,
+		&i.ImageWidth,
 	)
 	return i, err
 }
@@ -12110,6 +12166,33 @@ type SetCampaignActiveParams struct {
 
 func (q *Queries) SetCampaignActive(ctx context.Context, arg SetCampaignActiveParams) (int64, error) {
 	result, err := q.db.Exec(ctx, setCampaignActive, arg.IsActive, arg.Slug)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const setCampaignImage = `-- name: SetCampaignImage :execrows
+UPDATE sale_campaigns
+SET image_key = $1::text, image_alt = $2::text,
+    image_alt_en = nullif($3::text, '')
+WHERE slug = $4::text
+`
+
+type SetCampaignImageParams struct {
+	ImageKey   string
+	ImageAlt   string
+	ImageAltEn string
+	Slug       string
+}
+
+func (q *Queries) SetCampaignImage(ctx context.Context, arg SetCampaignImageParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setCampaignImage,
+		arg.ImageKey,
+		arg.ImageAlt,
+		arg.ImageAltEn,
+		arg.Slug,
+	)
 	if err != nil {
 		return 0, err
 	}
@@ -13558,6 +13641,7 @@ const unreferencedMedia = `-- name: UnreferencedMedia :many
 SELECT digest FROM media_objects m
 WHERE NOT EXISTS (SELECT 1 FROM product_images p WHERE p.storage_key = m.digest)
   AND NOT EXISTS (SELECT 1 FROM hero_slides h WHERE h.image_key = m.digest)
+  AND NOT EXISTS (SELECT 1 FROM sale_campaigns c WHERE c.image_key = m.digest)
   AND m.created_at < now() - interval '24 hours'
 ORDER BY m.created_at
 LIMIT $1
@@ -14344,6 +14428,7 @@ SELECT
     (SELECT count(*) FROM media_objects m
      WHERE NOT EXISTS (SELECT 1 FROM product_images p WHERE p.storage_key = m.digest)
        AND NOT EXISTS (SELECT 1 FROM hero_slides h WHERE h.image_key = m.digest)
+       AND NOT EXISTS (SELECT 1 FROM sale_campaigns c WHERE c.image_key = m.digest)
        AND m.created_at < now() - interval '24 hours')::bigint AS unreferenced_media,
     -- Events accepted and NOT acted on: a known Stripe object this binary could
     -- not read, paid money with no local payment row, paid money for an order

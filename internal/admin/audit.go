@@ -58,6 +58,8 @@ const (
 	actionToggleCoupon             Action = "coupon.toggle"
 	actionCreateCampaign           Action = "campaign.create"
 	actionToggleCampaign           Action = "campaign.toggle"
+	actionSetCampaignImage         Action = "campaign.image.set"
+	actionClearCampaignImage       Action = "campaign.image.clear"
 	actionFeatureProduct           Action = "campaign.feature"
 	actionUnfeatureProduct         Action = "campaign.unfeature"
 	actionAddOption                Action = "option.add"

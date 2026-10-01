@@ -4,6 +4,7 @@ import (
 	"context"
 	"strconv"
 
+	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
 )
 
@@ -101,6 +102,40 @@ type AdminCampaignView struct {
 	Running  bool
 	Products []AdminCampaignProduct
 	Notice   string
+	Image    AdminCampaignImage
+	// Errors names the fields a refused image form got wrong, by field name.
+	Errors map[string]string
+}
+
+// AdminCampaignImage is the header the campaign has now.
+type AdminCampaignImage struct {
+	Key   string
+	Alt   string
+	AltEn string
+	Width int32
+}
+
+// Has reports whether the campaign has a header.
+func (i AdminCampaignImage) Has() bool { return i.Key != "" }
+
+// URL is where the header is served, or "" for a key that names nothing.
+func (i AdminCampaignImage) URL() string { return assets.ProductImageURL(i.Key) }
+
+// Srcset offers the smaller renditions to the edit page's preview tile.
+func (i AdminCampaignImage) Srcset() string { return assets.ProductImageSrcsetAt(i.Key, int(i.Width)) }
+
+// HasErr reports whether a field of the image form was refused.
+func (v AdminCampaignView) HasErr(f string) bool { _, ok := v.Errors[f]; return ok }
+
+// Err is why.
+func (v AdminCampaignView) Err(f string) string { return v.Errors[f] }
+
+// ImageAction is where the header upload form posts.
+func (v AdminCampaignView) ImageAction() string { return "/admin/campaigns/" + v.Slug + "/image" }
+
+// ImageRemoveAction is where the remove form posts.
+func (v AdminCampaignView) ImageRemoveAction() string {
+	return "/admin/campaigns/" + v.Slug + "/image/remove"
 }
 
 // Empty reports whether it features nothing.

@@ -4385,6 +4385,11 @@ CREATE TABLE sale_campaigns (
     title      text NOT NULL,
     -- /s/{slug} is a page whose whole heading is this title.
     title_en   text,
+    -- The header of /s/{slug}. A key of the kind product_images.storage_key
+    -- holds, so one resolver serves an uploaded digest and an embedded file.
+    image_key    text,
+    image_alt    text,
+    image_alt_en text,
     starts_at  timestamptz NOT NULL DEFAULT now(),
     ends_at    timestamptz NOT NULL,
     is_active  boolean NOT NULL DEFAULT true,
@@ -4394,6 +4399,9 @@ CREATE TABLE sale_campaigns (
     CONSTRAINT sale_campaigns_title_present CHECK (title ~ '[^[:space:]]'),
     CONSTRAINT sale_campaigns_title_en_present
         CHECK (title_en IS NULL OR title_en ~ '[^[:space:]]'),
+    CONSTRAINT sale_campaigns_image_has_alt
+        CHECK (image_key IS NULL
+               OR (image_alt IS NOT NULL AND image_alt ~ '[^[:space:]]')),
     CONSTRAINT sale_campaigns_window_ordered CHECK (ends_at > starts_at)
 );
 

@@ -97,6 +97,13 @@ var (
 		En:     "The product must already state an original price, or it cannot be added.",
 	})
 
+	KeyAdminCampImage = key("admin.camp.image", Message{ZhHant: "活動頁首圖片", En: "Campaign header image"})
+
+	KeyAdminCampImageHint = key("admin.camp.imagehint", Message{
+		ZhHant: "顯示在活動頁最上方,會從中央裁成 8:3。建議 1600×600。",
+		En:     "Shown across the top of the campaign page, cropped from the centre to 8:3. 1600×600 works best.",
+	})
+
 	KeyAdminCampAdd = key("admin.camp.add", Message{ZhHant: "加入活動", En: "Add to the campaign"})
 
 	KeyAdminCampProducts = key("admin.camp.products", Message{
