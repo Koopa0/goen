@@ -761,6 +761,11 @@ h3 {
   background: var(--bg);
   border-bottom: 1px solid var(--border);
   position: relative;
+  /* The view-transition-name below makes the header a stacking context, so the
+     drawer's own z-index is only ever compared inside it. Without a level of its
+     own the header sits under any later positioned block, the hero and the
+     gallery photo included, and the open drawer is painted over. */
+  z-index: var(--z-dropdown);
 }
 
 .goen-header__bar {
