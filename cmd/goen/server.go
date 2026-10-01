@@ -724,11 +724,29 @@ func (s *statusRecorder) statusCode() int {
 
 var slugFormat = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
 
+// productFormSlug is the product a refused review or question form re-rendered
+// under: those POST-only addresses have no page of their own to return to.
+func productFormSlug(path string) (string, bool) {
+	rest, ok := strings.CutPrefix(path, "/p/")
+	if !ok {
+		return "", false
+	}
+	for _, form := range []string{"/reviews", "/questions"} {
+		if slug, ok := strings.CutSuffix(rest, form); ok && slugFormat.MatchString(slug) {
+			return slug, true
+		}
+	}
+	return "", false
+}
+
 // localeReturnPath computes the target path to send a visitor back to after a
 // language switch. RawQuery is dropped to avoid carrying a search term or
 // sensitive parameter into a redirect target; only /compare preserves a
 // bounded allowlist of public product slugs.
 func localeReturnPath(r *http.Request) string {
+	if slug, ok := productFormSlug(r.URL.Path); ok {
+		return "/p/" + slug
+	}
 	if r.URL.Path != "/compare" {
 		return r.URL.Path
 	}

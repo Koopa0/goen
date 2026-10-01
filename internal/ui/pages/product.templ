@@ -598,7 +598,7 @@ templ reviewForm(v *ProductView) {
 		<p class="goen-pdp__reviewnote">{ i18n.T(ctx, i18n.KeyAlreadyReviewed) }</p>
 	} else {
 		@components.Card(components.CardProps{Class: "goen-pdp__reviewform"}) {
-			<form method="post" action={ templ.SafeURL(v.ReviewAction()) }>
+			<form id="write-review" method="post" action={ templ.SafeURL(v.ReviewAction()) }>
 				<h3 class="goen-pdp__reviewformhead">{ i18n.T(ctx, i18n.KeyWriteReview) }</h3>
 				if v.WouldVerify {
 					<p class="goen-pdp__reviewnote">{ i18n.T(ctx, i18n.KeyReviewWillBeVerified) }</p>
@@ -638,7 +638,7 @@ templ reviewForm(v *ProductView) {
 					@components.Textarea(components.FieldProps{
 						ID: "review-body", Name: "body", Class: "goen-pdp__reviewbody",
 						Invalid: v.HasReviewErr("body"), Describes: "review-body-error",
-						Attrs: templ.Attributes{"rows": "5", "required": true, "maxlength": "2000"},
+						Attrs: templ.Attributes{"rows": "5", "required": true, "minlength": strconv.Itoa(ReviewBodyMinRunes), "maxlength": "2000"},
 					}) {
 						{ v.ReviewDraft.Body }
 					}
