@@ -375,7 +375,20 @@ func openProviders(cfg *config, log *slog.Logger) (
 		log.Warn("stripe is not configured; the payment page will say so",
 			"set", "GOEN_STRIPE_API_KEY and GOEN_STRIPE_WEBHOOK_SECRET")
 	}
+	warnSellerUnset(cfg, log)
 	return payments, invoices, googleSignIn, storeMap, nil
+}
+
+// warnSellerUnset says when the confirmation mail will carry no seller
+// disclosure: the mail omits it unless both values are set, and nothing else
+// reports the omission.
+func warnSellerUnset(cfg *config, log *slog.Logger) {
+	if cfg.Seller != "" && cfg.SellerContact != "" {
+		return
+	}
+	// i18n-exempt: a startup log line, read by an operator rather than a visitor.
+	log.Warn("seller is not configured; order mail will carry no 消保法 §18 disclosure",
+		"set", "GOEN_SELLER and GOEN_SELLER_CONTACT")
 }
 
 // openGoogleSignIn builds the OAuth client and says when there is none.
