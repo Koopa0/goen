@@ -1,6 +1,7 @@
 package product
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -55,6 +56,10 @@ func (h *Handler) Detail(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			h.notFound(w, r)
+			return
+		}
+		if errors.Is(err, context.Canceled) {
+			// The caller left; there is nobody to answer. A deadline stays an error.
 			return
 		}
 		h.log.ErrorContext(r.Context(), "load product", "error", err, "slug", slug)

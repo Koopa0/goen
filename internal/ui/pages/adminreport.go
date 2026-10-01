@@ -2,7 +2,6 @@ package pages
 
 import (
 	"context"
-	"fmt"
 	"strconv"
 
 	"github.com/koopa0/goen/internal/i18n"
@@ -39,7 +38,7 @@ type AdminStockRisk struct {
 
 // Cover is the days of stock left, in words.
 func (r AdminStockRisk) Cover(ctx context.Context) string {
-	return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminDays), r.DaysCover)
+	return i18n.Count(ctx, i18n.KeyAdminDays, int64(r.DaysCover), r.DaysCover)
 }
 
 // Urgent reports whether it runs out inside the fortnight a reorder takes.
@@ -109,7 +108,7 @@ func (v AdminReportView) WindowHref(days int32) string {
 
 // WindowLabel is what that link says.
 func (v AdminReportView) WindowLabel(ctx context.Context, days int32) string {
-	return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminDays), days)
+	return i18n.Count(ctx, i18n.KeyAdminDays, int64(days), days)
 }
 
 // IsWindow reports whether days is the one being shown.
