@@ -134,6 +134,12 @@ WHERE p.status = 'active'
 -- The trigram GIN index serves Latin queries; short Chinese ones fall back to a
 -- sequential scan. The caller escapes %, _ and \ before binding.
 -- name: SearchProducts :many
+WITH RECURSIVE category_match AS (
+    SELECT id FROM categories
+    WHERE name ILIKE @pattern::text OR coalesce(name_en, '') ILIKE @pattern::text
+    UNION
+    SELECT c.id FROM categories c JOIN category_match m ON c.parent_id = m.id
+)
 SELECT
     p.slug,
     localized_name(p.name, p.name_en, @locale::text) AS name,
@@ -183,6 +189,7 @@ WHERE p.status = 'active'
        OR coalesce(p.summary, '') ILIKE @pattern::text
        OR coalesce(p.summary_en, '') ILIKE @pattern::text
        OR b.name ILIKE @pattern::text
+       OR p.category_id IN (SELECT id FROM category_match)
        OR EXISTS (
            SELECT 1 FROM product_variants sku_match
            WHERE sku_match.product_id = p.id AND sku_match.is_active
@@ -198,15 +205,17 @@ WHERE p.status = 'active'
        ))
 ORDER BY
     -- Field relevance is explicit; repeated words, sales and ratings do not change it.
-    -- A complete variant SKU leads; a partial SKU follows a partial name match.
+    -- A complete variant SKU leads; the category follows a partial name match and
+    -- a partial SKU follows the category.
     CASE
         WHEN EXISTS (
             SELECT 1 FROM product_variants exact_sku
             WHERE exact_sku.product_id = p.id AND exact_sku.is_active
               AND exact_sku.sku ILIKE @exact_pattern::text
-        ) THEN 6
-        WHEN p.name ILIKE @exact_pattern::text OR coalesce(p.name_en, '') ILIKE @exact_pattern::text THEN 5
-        WHEN p.name ILIKE @pattern::text OR coalesce(p.name_en, '') ILIKE @pattern::text THEN 4
+        ) THEN 7
+        WHEN p.name ILIKE @exact_pattern::text OR coalesce(p.name_en, '') ILIKE @exact_pattern::text THEN 6
+        WHEN p.name ILIKE @pattern::text OR coalesce(p.name_en, '') ILIKE @pattern::text THEN 5
+        WHEN p.category_id IN (SELECT id FROM category_match) THEN 4
         WHEN EXISTS (
             SELECT 1 FROM product_variants partial_sku
             WHERE partial_sku.product_id = p.id AND partial_sku.is_active
@@ -221,6 +230,12 @@ LIMIT @page_size::integer OFFSET @page_offset::integer;
 
 -- The same predicate as SearchProducts, and it has to stay the same.
 -- name: SearchProductsCount :one
+WITH RECURSIVE category_match AS (
+    SELECT id FROM categories
+    WHERE name ILIKE @pattern::text OR coalesce(name_en, '') ILIKE @pattern::text
+    UNION
+    SELECT c.id FROM categories c JOIN category_match m ON c.parent_id = m.id
+)
 SELECT count(*)::bigint
 FROM products p
 JOIN brands b ON b.id = p.brand_id
@@ -230,6 +245,7 @@ WHERE p.status = 'active'
        OR coalesce(p.summary, '') ILIKE @pattern::text
        OR coalesce(p.summary_en, '') ILIKE @pattern::text
        OR b.name ILIKE @pattern::text
+       OR p.category_id IN (SELECT id FROM category_match)
        OR EXISTS (
            SELECT 1 FROM product_variants sku_match
            WHERE sku_match.product_id = p.id AND sku_match.is_active
