@@ -24,8 +24,6 @@
 SET lock_timeout = '3s';
 SET statement_timeout = '120s';
 
-CREATE EXTENSION IF NOT EXISTS pg_trgm;
-
 -- ============================================================================
 -- Roles
 --
@@ -244,11 +242,6 @@ CREATE INDEX products_category_published_idx
 CREATE INDEX products_category_brand_published_idx
     ON products (category_id, brand_id, published_at DESC, id DESC)
     WHERE status = 'active';
-
--- Measured at 10,000 products: a Latin query is a bitmap index scan at 1.5 ms,
--- while a two-character Chinese query is far too unselective for the planner and
--- scans at 8.8 ms.
-CREATE INDEX products_name_trgm_idx ON products USING gin (name gin_trgm_ops);
 
 CREATE TRIGGER products_set_updated_at
     BEFORE UPDATE ON products
