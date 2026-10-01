@@ -1648,8 +1648,8 @@ SELECT u.id, u.email, coalesce(u.full_name, '') AS full_name,
        coalesce((SELECT b.balance_cents FROM store_credit_balances b
                  WHERE b.user_id = u.id), 0)::bigint AS credit_cents,
        coalesce((SELECT lb.points FROM loyalty_balances lb
-                 JOIN store_credit_accounts a ON a.id = lb.account_id
-                 WHERE a.user_id = u.id), 0)::bigint AS points
+                 WHERE lb.account_id = (SELECT a.id FROM store_credit_accounts a
+                                        WHERE a.user_id = u.id)), 0)::bigint AS points
 FROM users u
 WHERE u.id = $1;
 

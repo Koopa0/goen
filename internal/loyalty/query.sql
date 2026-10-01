@@ -7,11 +7,16 @@ SELECT redeem_loyalty_points(
     @user_id::uuid, @points::bigint, @operation_id::uuid
 );
 
--- A customer's spendable balance and their account, which may not exist.
+-- A customer's spendable balance and their account, which may not exist. The
+-- view is filtered by its own grouping column through a scalar subquery:
+-- PostgreSQL does not push a join condition into an aggregated subquery, so
+-- joining the view would total every account's ledger to keep one row.
 -- name: PointsBalance :one
-SELECT a.id AS account_id, coalesce(b.points, 0)::bigint AS points
+SELECT a.id AS account_id,
+       coalesce((SELECT lb.points FROM loyalty_balances lb
+                 WHERE lb.account_id = (SELECT x.id FROM store_credit_accounts x
+                                        WHERE x.user_id = @user_id)), 0)::bigint AS points
 FROM store_credit_accounts a
-LEFT JOIN loyalty_balances b ON b.account_id = a.id
 WHERE a.user_id = @user_id;
 
 -- The ledger a customer sees, expired awards included and marked.
