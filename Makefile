@@ -36,7 +36,7 @@ endif
         sqlc sqlc-check squawk db-up db-down migrate-up migrate-down db-seed \
         db-repair-invoice-faq db-repair-refund-faq db-repair-payment-faq db-repair-shop-rules-faq \
         db-repair-hold-faq \
-        demo-restore-check cursor-scripts-check workflow-check verify verify-all check-layout db-reset clean
+        demo-restore-check cursor-scripts-check workflow-check verify verify-all check-layout check-layout-run db-reset clean
 
 build: gen
 	go build -o bin/goen ./cmd/goen
@@ -96,20 +96,30 @@ test-integration: gen
 #
 # LAYOUT_CHROME is a target variable so the resolved path survives GNU make's
 # one-shell-per-recipe-line default. Quoted for the macOS app bundle path.
-check-layout: LAYOUT_CHROME := $(if $(CHROME),$(CHROME),$(shell scripts/resolve-chrome.sh 2>/dev/null))
+check-layout-run: LAYOUT_CHROME := $(if $(CHROME),$(CHROME),$(shell scripts/resolve-chrome.sh 2>/dev/null))
 # The seed's photograph tagged with COLOUR_VALUE, which the colour probe expects
 # to lead COLOUR_SLUG's gallery once that value is chosen.
-check-layout: COLOUR_SLUG := pixelight-9-pro
-check-layout: COLOUR_VALUE := 曜石黑
-check-layout: COLOUR_KEY := pixelight-9-pro-02.webp
+check-layout-run: COLOUR_SLUG := pixelight-9-pro
+check-layout-run: COLOUR_VALUE := 曜石黑
+check-layout-run: COLOUR_KEY := pixelight-9-pro-02.webp
+# Chrome is launched in the background several recipe lines in, and each line is
+# its own shell, so no line can clean up after a later one that fails. This
+# wrapper owns the cleanup: the browser and its profile are removed on every way
+# out, success, a failed fixture, Ctrl-C and SIGTERM. The pid file is the only
+# handle on a browser that outlives its shell.
 check-layout:
+	@trap 'if [ -f .layout-chrome/pid ]; then kill $$(cat .layout-chrome/pid) 2>/dev/null; fi; rm -rf .layout-chrome' EXIT; \
+		trap 'exit 130' INT; trap 'exit 143' TERM; \
+		$(MAKE) --no-print-directory check-layout-run
+
+check-layout-run:
 	@test -n "$(LAYOUT_CHROME)" && test -x "$(LAYOUT_CHROME)" || { echo 'Chrome not found; set CHROME=/path/to/chrome' >&2; exit 2; }
 	@curl -sf -o /dev/null $${GOEN_URL:-http://127.0.0.1:9700/} \
 		|| { echo 'no server on $${GOEN_URL:-http://127.0.0.1:9700/} — run `make run` first' >&2; exit 2; }
 	@rm -rf .layout-chrome && mkdir -p .layout-chrome
 	@"$(LAYOUT_CHROME)" --headless --disable-gpu --no-first-run \
 		--remote-debugging-port=$${CDP_PORT:-9222} \
-		--user-data-dir=$(PWD)/.layout-chrome about:blank >/dev/null 2>&1 & echo $$! > .layout-chrome/pid
+		--user-data-dir=$(CURDIR)/.layout-chrome about:blank >/dev/null 2>&1 & echo $$! > .layout-chrome/pid
 	@sleep 3
 	@# axe-core, fetched at the pin above and checked against it. Downloaded
 	@# AFTER the browser is launched so the wait for Chrome pays for the fetch,
