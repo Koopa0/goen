@@ -1309,24 +1309,6 @@ func TestCartShowsCurrentPriceAndAvailability(t *testing.T) {
 // product's first, which is the only picture an untagged product has.
 func TestACartLineShowsItsOwnColoursPhotograph(t *testing.T) {
 	ctx := t.Context()
-	var tagged uuid.UUID
-	// Another product's embedded file, because a key naming no embedded file has
-	// no URL to compare.
-	if err := pool.QueryRow(ctx, `
-		INSERT INTO product_images (product_id, storage_key, alt_text, position, option_value_id)
-		SELECT p.id, 'pixelight-9-01.webp', '曜石黑', 1, v.id
-		FROM products p JOIN product_option_values v ON v.product_id = p.id
-		WHERE p.slug = 'pixelight-9-pro' AND v.value = '曜石黑'
-		RETURNING id`).Scan(&tagged); err != nil {
-		t.Fatalf("tag a photograph: %v", err)
-	}
-	t.Cleanup(func() {
-		if _, err := pool.Exec(context.WithoutCancel(ctx),
-			`DELETE FROM product_images WHERE id = $1`, tagged); err != nil {
-			t.Errorf("remove the tagged photograph: %v", err)
-		}
-	})
-
 	s := cart.NewStore(pool)
 	id := newCart(t, s)
 	for _, sku := range []string{"PXL-9P-2-1", "PXL-9P-1-1"} {
@@ -1347,7 +1329,7 @@ func TestACartLineShowsItsOwnColoursPhotograph(t *testing.T) {
 		t.Fatalf("cart holds %d lines, want 2", len(view.Lines))
 	}
 	want := map[string]string{
-		"PXL-9P-2-1": assets.ProductImageURL("pixelight-9-01.webp"),     // 曜石黑, tagged
+		"PXL-9P-2-1": assets.ProductImageURL("pixelight-9-pro-02.webp"), // 曜石黑, tagged by the seed
 		"PXL-9P-1-1": assets.ProductImageURL("pixelight-9-pro-01.webp"), // 星霧藍, the product's first
 	}
 	for _, line := range view.Lines {

@@ -138,12 +138,12 @@ func render(t *testing.T, slug, query string, headers map[string]string) *httpte
 // TestAnUntaggedGalleryIsTheSameForEveryChoice is why a product whose
 // photographs show no option value keeps its gallery out of the swatch's swap.
 //
-// None of the seed's photographs is tagged, so every combination of a product's
+// meridian-book-16-pro's photograph is untagged, so every combination of its
 // options is served the same gallery. Selecting it into the swap would tear down
 // an <img> and build an identical one: a cache read, a decode, and an empty
 // frame in between for a picture nobody changed.
 func TestAnUntaggedGalleryIsTheSameForEveryChoice(t *testing.T) {
-	for _, slug := range []string{"pixelight-9-pro", "nimbus-buds-pro", "meridian-watch-s3"} {
+	for _, slug := range []string{"meridian-book-16-pro"} {
 		t.Run(slug, func(t *testing.T) {
 			_, first := get(t, slug, "")
 			base := gallery(t, first)
@@ -174,18 +174,18 @@ func TestTheChosenValuesPhotographsLeadTheGallery(t *testing.T) {
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
-	// Other products' embedded files, because a key naming no embedded file is
-	// dropped from the gallery before it is rendered.
+	// The seed tags pixelight-9-pro-02 with the black value at position 1. The
+	// blue one borrows another product's embedded file, because a key naming no
+	// embedded file is dropped from the gallery before it is rendered.
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO product_images (product_id, storage_key, alt_text, position, option_value_id)
 		SELECT p.id, m.key, m.value, m.position, v.id
 		FROM products p
 		JOIN product_option_values v ON v.product_id = p.id
-		JOIN (VALUES ('曜石黑', 'pixelight-9-01.webp', 1),
-		             ('星霧藍', 'aurora-edge-7-01.webp', 2)) AS m(value, key, position)
+		JOIN (VALUES ('星霧藍', 'aurora-edge-7-01.webp', 2)) AS m(value, key, position)
 		  ON m.value = v.value
 		WHERE p.slug = 'pixelight-9-pro'`); err != nil {
-		t.Fatalf("tag two photographs: %v", err)
+		t.Fatalf("tag a photograph: %v", err)
 	}
 	// An untagged photograph placed AFTER both colours', so position alone would
 	// put the other colour's photograph ahead of it.
@@ -198,7 +198,7 @@ func TestTheChosenValuesPhotographsLeadTheGallery(t *testing.T) {
 
 	first := assets.ProductImageURL("pixelight-9-pro-01.webp")
 	late := assets.ProductImageURL("nimbus-buds-pro-01.webp")
-	black := assets.ProductImageURL("pixelight-9-01.webp")
+	black := assets.ProductImageURL("pixelight-9-pro-02.webp")
 	blue := assets.ProductImageURL("aurora-edge-7-01.webp")
 	for _, tc := range []struct {
 		name string
