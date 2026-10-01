@@ -116,12 +116,12 @@ func wireHeaders(m *Message) []string {
 }
 
 // TestNoTextInALetterCanAddAMailHeader holds the header block of every letter
-// to the six headers render writes. A subject, a name, a product name, a card
+// to the eight headers render writes. A subject, a name, a product name, a card
 // label or a carrier carrying a line break is text in a header or in the body,
 // never a header of its own, and a recipient carrying one is never sent to.
 func TestNoTextInALetterCanAddAMailHeader(t *testing.T) {
 	t.Parallel()
-	want := []string{"From: ", "To: ", "Subject: ", "MIME-Version: ", "Content-Type: ", "Content-Transfer-Encoding: "}
+	want := []string{"From: ", "To: ", "Subject: ", "Date: ", "Message-ID: ", "MIME-Version: ", "Content-Type: ", "Content-Transfer-Encoding: "}
 
 	for i, text := range []string{
 		"Alex\r\nBcc: harvest@example.net",
@@ -157,6 +157,9 @@ func TestNoTextInALetterCanAddAMailHeader(t *testing.T) {
 				}
 				if got := headers[1]; got != "To: someone@example.com" {
 					t.Errorf("the recipient header is %q", got)
+				}
+				if got := headers[4]; !strings.HasSuffix(got, "@goen.example>") {
+					t.Errorf("the Message-ID header is %q, want an id in the sender's domain", got)
 				}
 			})
 		}

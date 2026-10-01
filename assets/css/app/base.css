@@ -11,11 +11,6 @@
    ============================================================ */
 
 :root {
-  /* The one palette entry app.css has no opinion about: the informational
-     tint, which only the inline notice wears. */
-  --info: oklch(0.52 0.09 220);
-  --info-bg: oklch(0.52 0.09 220 / 0.10);
-
   /* The brand names are the accent under the spelling the shared
      primitives were written against. They follow --accent rather than
      repeating it, so the accent moves in one place. */
@@ -82,7 +77,7 @@ body {
 
 /* Every focusable thing has a ring before any component asks for one. */
 *:focus-visible {
-  outline: 2px solid var(--fg-muted);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
   border-radius: var(--r-sm);
 }
@@ -92,7 +87,7 @@ body {
 .ui-btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   appearance: none; -webkit-appearance: none;
-  font-family: var(--font-sans); font-weight: var(--fw-semibold); line-height: 1;
+  font-family: var(--font-sans); font-weight: var(--fw-medium); line-height: 1;
   border-radius: var(--r-sm); border: 1px solid transparent;
   cursor: pointer; white-space: nowrap; text-decoration: none;
   padding: 8px 14px; font-size: var(--fs-13);
@@ -106,13 +101,13 @@ body {
 .ui-btn--icon { padding: 8px; }            /* square icon-only */
 .ui-btn--icon.ui-btn--sm { padding: 6px; }
 
-.ui-btn--primary { background: var(--accent); color: var(--on-accent); box-shadow: 0 1px 2px rgb(0 0 0 / 0.10), inset 0 1px 0 rgb(255 255 255 / 0.15); }
-.ui-btn--primary:hover  { background: var(--accent-strong); }
-.ui-btn--primary:active { background: var(--accent-strong); box-shadow: inset 0 1px 2px rgb(0 0 0 / 0.20); }
+.ui-btn--primary { background: var(--n-900); color: var(--n-0); box-shadow: var(--sh-xs); }
+.ui-btn--primary:hover  { background: #27272a; }
+.ui-btn--primary:active { background: #27272a; }
 
-.ui-btn--secondary { background: var(--elevated); color: var(--fg); border-color: var(--border); }
-.ui-btn--secondary:hover  { background: var(--overlay); border-color: var(--border-strong); }
-.ui-btn--secondary:active { background: var(--panel); }
+.ui-btn--secondary { background: var(--n-0); color: var(--n-700); border-color: var(--n-300); }
+.ui-btn--secondary:hover  { background: var(--n-50); }
+.ui-btn--secondary:active { background: var(--n-100); }
 
 .ui-btn--ghost { background: transparent; color: var(--fg-muted); }
 .ui-btn--ghost:hover  { background: var(--overlay); color: var(--fg); }
@@ -129,14 +124,14 @@ body {
   line-height: 1; padding: 3px 8px; border-radius: var(--r-sm);
   background: var(--elevated); color: var(--fg-muted); border: 1px solid var(--border-faint);
 }
-.ui-badge--brand { background: var(--brand-muted); color: var(--brand); border-color: transparent; }
+.ui-badge--brand { background: var(--brand-muted); color: var(--accent-text); border-color: transparent; }
 .ui-badge--warn  { background: var(--warn-bg);     color: var(--warn);  border-color: transparent; }
 
 /* count pill (the cart's number) */
 .ui-badge--count {
   min-width: 18px; height: 18px; padding: 0 5px; justify-content: center;
-  border-radius: var(--r-full); font-family: var(--font-mono); font-size: var(--fs-11);
-  background: var(--brand); color: var(--on-accent); border: none;
+  border-radius: var(--r-full); font-size: var(--fs-11); font-variant-numeric: tabular-nums;
+  background: var(--n-900); color: var(--n-0); border: none;
 }
 
 /* ---------- Form controls ---------- */
@@ -150,25 +145,24 @@ body {
 
 .ui-input, .ui-textarea {
   font-family: var(--font-sans); font-size: var(--fs-13); color: var(--fg);
-  background: var(--elevated); border: 1px solid var(--border); border-radius: var(--r-sm);
+  background: var(--n-0); border: 1px solid var(--n-300); border-radius: var(--r-md);
   padding: 8px 10px; width: 100%; box-sizing: border-box; outline: none;
   transition: border-color var(--dur-base) var(--ease-standard), background var(--dur-base);
 }
 .ui-input::placeholder, .ui-textarea::placeholder { color: var(--fg-muted); }
 .ui-input:hover, .ui-textarea:hover { border-color: var(--border-strong); }
-.ui-input:focus, .ui-textarea:focus { border-color: var(--brand); background: var(--panel); }
+.ui-input:focus, .ui-textarea:focus { border-color: var(--accent); }
 .ui-input:disabled, .ui-textarea:disabled { opacity: 0.45; cursor: not-allowed; }
-.ui-input[aria-invalid="true"], .ui-textarea[aria-invalid="true"] { border-color: var(--error); }
 .ui-textarea { resize: vertical; min-height: 80px; line-height: var(--lh-normal); }
 
 .ui-input--sm { padding: 6px 8px; font-size: var(--fs-12); }
 
 .ui-select {
   font-family: var(--font-sans); font-size: var(--fs-13); color: var(--fg);
-  background: var(--elevated); border: 1px solid var(--border); border-radius: var(--r-sm);
+  background-color: var(--n-0); border: 1px solid var(--n-300); border-radius: var(--r-md);
   padding: 8px 30px 8px 10px; width: 100%; box-sizing: border-box; outline: none; cursor: pointer;
   appearance: none; -webkit-appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2366666d' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   background-repeat: no-repeat; background-position: right 9px center;
   transition: border-color var(--dur-base);
 }
@@ -178,17 +172,17 @@ body {
 
 /* ---------- Stat (back-office figures) ---------- */
 
-.ui-stat { background: var(--panel); border: 1px solid var(--border); border-radius: var(--r-md); padding: 18px 18px 16px; box-shadow: var(--shadow-1); display: flex; flex-direction: column; gap: 8px; }
+.ui-stat { background: var(--panel); border: 1px solid var(--border); border-radius: var(--r-md); padding: 18px 18px 16px; display: flex; flex-direction: column; gap: 8px; }
 .ui-stat__label { font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-muted); letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap; }
 .ui-stat__value { font-family: var(--font-display); font-size: var(--fs-ed-30); font-weight: var(--fw-semibold); color: var(--fg); line-height: 1; letter-spacing: var(--track-tight); font-variant-numeric: tabular-nums; }
 
 /* ---------- Breadcrumbs ---------- */
 
-.ui-crumbs { display: flex; align-items: center; gap: 8px; font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-muted); flex-wrap: wrap; }
+.ui-crumbs { display: flex; align-items: center; gap: 8px; font-size: var(--fs-14); color: var(--n-500); flex-wrap: wrap; font-variant-numeric: tabular-nums; }
 .ui-crumbs a { color: var(--fg-muted); text-decoration: none; }
-.ui-crumbs a:hover { color: var(--fg); }
-.ui-crumbs__sep { color: var(--fg-muted); }
-.ui-crumbs__current { color: var(--fg-muted); }
+.ui-crumbs a:hover { color: var(--n-900); }
+.ui-crumbs__sep { color: var(--n-300); }
+.ui-crumbs__current { color: var(--n-900); }
 
 /* ---------- Navigation item (header and back-office rail) ---------- */
 
@@ -198,16 +192,16 @@ body {
   text-decoration: none; cursor: pointer; transition: background var(--dur-base), color var(--dur-base);
 }
 .ui-navitem:hover { background: var(--overlay); color: var(--fg); }
-.ui-navitem[aria-current="page"], .ui-navitem.is-active { background: var(--brand-faint); color: var(--fg); }
+.ui-navitem[aria-current="page"], .ui-navitem.is-active { background: var(--n-100); color: var(--fg); }
 .ui-navitem svg { width: 17px; height: 17px; color: var(--fg-muted); flex: none; }
-.ui-navitem.is-active svg { color: var(--brand); }
+.ui-navitem.is-active svg { color: var(--n-900); }
 
 /* ---------- Inline alert ---------- */
 
 .ui-alert { display: flex; gap: 10px; padding: 10px 12px; border-radius: var(--r-sm); font-family: var(--font-sans); font-size: var(--fs-13); line-height: var(--lh-normal); }
 .ui-alert svg { width: 16px; height: 16px; flex: none; margin-top: 1px; }
-.ui-alert--info  { background: var(--info-bg);  color: var(--info); }
-.ui-alert--error { background: var(--error-bg); color: var(--error); }
+.ui-alert--info  { background: var(--info-bg);  color: #1e3a5f; }
+.ui-alert--error { background: var(--error-bg); color: #991b1b; }
 .ui-alert strong { font-weight: var(--fw-semibold); }
 .ui-alert__body { color: var(--fg-muted); }
 
@@ -250,8 +244,8 @@ body {
 .ui-filterbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .ui-filter { display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-sans); font-size: var(--fs-12); font-weight: var(--fw-medium); color: var(--fg-muted); background: var(--elevated); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 5px 10px; cursor: pointer; transition: color var(--dur-base), border-color var(--dur-base), background var(--dur-base); }
 .ui-filter:hover { color: var(--fg); border-color: var(--border-strong); }
-.ui-filter__count { font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-muted); }
-.ui-filterbar__clear { font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-muted); background: none; border: none; cursor: pointer; padding: 4px; }
+.ui-filter__count { font-variant-numeric: tabular-nums; font-size: var(--fs-12); color: var(--fg-muted); }
+.ui-filterbar__clear { font-family: inherit; font-size: var(--fs-12); color: var(--fg-muted); background: none; border: none; cursor: pointer; padding: 4px; }
 .ui-filterbar__clear:hover { color: var(--fg-muted); }
 
 /* ---------- Cross-cutting states ----------
@@ -261,7 +255,7 @@ body {
    ------------------------------------------------------------------ */
 
 .ui-navitem:focus-visible {
-  outline: 2px solid var(--ring);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
   border-radius: var(--r-sm);
 }
@@ -280,4 +274,4 @@ body {
 
 /* ---------- Commerce ---------- */
 
-.ui-cart-line__meta { font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-muted); }
+.ui-cart-line__meta { font-variant-numeric: tabular-nums; font-size: var(--fs-12); color: var(--fg-muted); }
