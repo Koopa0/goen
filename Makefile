@@ -971,6 +971,7 @@ cursor-scripts-check:
 	@for f in .cursor/*.sh .cursor/lib/*.sh; do bash -n "$$f" || exit 1; done
 	@bash .cursor/lib/stripe-config-key.test.sh
 	@bash .cursor/lib/stripe-sandbox-key.test.sh
+	@bash .cursor/lib/load-env.test.sh
 
 demo-restore-check:
 	bash -n deploy/demo/restore-demo-db.sh scripts/demo-restore-test.sh
