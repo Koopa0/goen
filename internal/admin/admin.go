@@ -109,6 +109,32 @@ var statuses = [...]struct {
 	{pages.FulfillmentCancelled, i18n.KeyAdminStatusCancelled},
 }
 
+// queueTabs is the orders queue's closed set of filters, in the order it shows
+// them. Pending is two queues because FundedStatusLabel reads it as two: money
+// still owed, and funded and waiting to be picked.
+var queueTabs = [...]struct {
+	filter pages.QueueFilter
+	label  i18n.Key
+}{
+	{pages.QueueAwaitingPayment, i18n.KeyAdminStatusPending},
+	{pages.QueueReady, i18n.KeyAdminStatusReadyToPick},
+	{pages.QueuePicking, i18n.KeyAdminStatusPicking},
+	{pages.QueueShipped, i18n.KeyAdminStatusShipped},
+	{pages.QueueDelivered, i18n.KeyAdminStatusDelivered},
+	{pages.QueueCompleted, i18n.KeyAdminStatusCompleted},
+	{pages.QueueCancelled, i18n.KeyAdminStatusCancelled},
+}
+
+// ParseQueueFilter maps a query value to a queue filter, or "" for all.
+func ParseQueueFilter(s string) pages.QueueFilter {
+	for _, tab := range queueTabs {
+		if string(tab.filter) == s {
+			return tab.filter
+		}
+	}
+	return pages.QueueAll
+}
+
 // ParseStatus maps a query value to a fulfilment state, or "" for all.
 func ParseStatus(s string) pages.FulfillmentStatus {
 	status := pages.FulfillmentStatus(s)

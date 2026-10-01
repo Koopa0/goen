@@ -164,7 +164,7 @@ templ adminProductDetails(v AdminProductView) {
 						name="slug"
 						required
 						maxlength="120"
-						placeholder="pixelight-9-pro"
+						placeholder="ceramic-mug"
 						value={ v.Slug }
 						if v.HasErr("slug") {
 							aria-invalid="true"
@@ -429,7 +429,7 @@ templ adminProductImages(v AdminProductView) {
 					@components.Label(components.LabelProps{For: "p-alt-en"}) {
 						{ i18n.T(ctx, i18n.KeyAdminProdAltEn) }
 					}
-					<input class="goen-input" id="p-alt-en" name="alt_en" maxlength="200" placeholder="Silver laptop, screen open, 45 degrees"/>
+					<input class="goen-input" id="p-alt-en" name="alt_en" maxlength="200" placeholder="White ceramic mug, side view, handle on the right"/>
 					<p class="goen-admin__hint">
 						{ i18n.T(ctx, i18n.KeyAdminProdAltEnHint) }
 					</p>
@@ -563,6 +563,7 @@ templ adminProductOptions(v AdminProductView) {
 							required
 							maxlength="40"
 							autocomplete="off"
+							value={ v.VariantDraft.OptionName }
 							placeholder={ optionExample }
 							if v.HasErr("option") {
 								aria-invalid="true"
@@ -583,6 +584,7 @@ templ adminProductOptions(v AdminProductView) {
 							name="name_en"
 							maxlength="40"
 							autocomplete="off"
+							value={ v.VariantDraft.OptionNameEn }
 							placeholder="Colour"
 							if v.HasErr("option_en") {
 								aria-invalid="true"
@@ -611,7 +613,7 @@ templ adminProductOptions(v AdminProductView) {
 					}
 					<select class="goen-input" id="optval-option" name="option" required>
 						for _, o := range v.Options {
-							<option value={ o.ID }>{ o.Name }</option>
+							<option value={ o.ID } selected?={ v.VariantDraft.ValueOption == o.ID }>{ o.Name }</option>
 						}
 					</select>
 				</div>
@@ -627,6 +629,7 @@ templ adminProductOptions(v AdminProductView) {
 							required
 							maxlength="40"
 							autocomplete="off"
+							value={ v.VariantDraft.Value }
 							placeholder={ optionValExample }
 							if v.HasErr("value") {
 								aria-invalid="true"
@@ -647,6 +650,7 @@ templ adminProductOptions(v AdminProductView) {
 							name="value_en"
 							maxlength="40"
 							autocomplete="off"
+							value={ v.VariantDraft.ValueEn }
 							placeholder="Mist Blue"
 							if v.HasErr("value_en") {
 								aria-invalid="true"
@@ -668,6 +672,7 @@ templ adminProductOptions(v AdminProductView) {
 							maxlength="7"
 							autocomplete="off"
 							pattern="#[0-9a-f]{6}"
+							value={ v.VariantDraft.Swatch }
 							placeholder="#1c1c1e"
 							if v.HasErr("swatch_hex") {
 								aria-invalid="true"
@@ -802,7 +807,7 @@ templ adminProductVariants(v AdminProductView) {
 								required
 							>
 								for _, val := range o.Values {
-									<option value={ val.ID }>{ val.Value }</option>
+									<option value={ val.ID } selected?={ v.VariantDraft.Chose(val.ID) }>{ val.Value }</option>
 								}
 							</select>
 						</div>
@@ -1020,7 +1025,7 @@ templ adminProductSpecs(v AdminProductView) {
 						name="label_en"
 						maxlength="40"
 						autocomplete="off"
-						placeholder="Screen"
+						placeholder="Capacity"
 						if v.HasErr("spec_label_en") {
 							aria-invalid="true"
 							aria-describedby="spec-label-en-error"
@@ -1040,7 +1045,7 @@ templ adminProductSpecs(v AdminProductView) {
 						name="value_en"
 						maxlength="200"
 						autocomplete="off"
-						placeholder="6.3-inch OLED"
+						placeholder="350 ml"
 						if v.HasErr("spec_value_en") {
 							aria-invalid="true"
 							aria-describedby="spec-value-en-error"

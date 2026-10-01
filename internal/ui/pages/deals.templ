@@ -2,7 +2,6 @@ package pages
 
 import (
 	"context"
-	"fmt"
 	"strconv"
 
 	"github.com/koopa0/goen/internal/i18n"
@@ -23,7 +22,7 @@ templ Deals(p layouts.Page, v SearchView) {
 				<p class="goen-pagehead__eyebrow">{ i18n.T(ctx, i18n.KeyDeals2) }</p>
 				<h1 class="goen-pagehead__title">{ i18n.T(ctx, i18n.KeyDealsTitle) }</h1>
 				if v.Total > 0 {
-					<p class="goen-pagehead__sub">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyDealsCount), v.TotalText()) }</p>
+					<p class="goen-pagehead__sub">{ i18n.Count(ctx, i18n.KeyDealsCount, v.Total, v.TotalText()) }</p>
 				}
 			</div>
 			if v.HasCampaigns() {
@@ -39,7 +38,7 @@ templ Deals(p layouts.Page, v SearchView) {
 			} else {
 				<h2 class="goen-sr-only">{ i18n.T(ctx, i18n.KeyResultsHeading) }</h2>
 				<ul class="goen-tiles__grid" role="list">
-					for _, t := range v.Products {
+					for _, t := range FirstRowEager(v.Products) {
 						@Tile(t)
 					}
 				</ul>

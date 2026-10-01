@@ -1,7 +1,7 @@
 package i18n
 
 var (
-	KeyCartItemCount = key("cart.count", Message{ZhHant: "%s 件商品", En: "%s items"})
+	KeyCartItemCount = countKey("cart.count", "%s 件商品", "%s item", "%s items")
 
 	KeyCartEmptyDesc = key("cart.empty.desc", Message{
 		ZhHant: "還沒有挑到東西?",
@@ -64,15 +64,15 @@ var (
 		En:     "Some quantities from that order were adjusted to available stock. Please review your cart.",
 	})
 
-	KeyReorderAdjustedPartial = key("cart.reorder.adjusted_partial", Message{
-		ZhHant: "再次購買的部分數量已依目前庫存調整，另有 %d 項已下架或缺貨，請確認購物車。",
-		En:     "Some quantities from that order were adjusted to available stock; %d items are discontinued or out of stock. Please review your cart.",
-	})
+	KeyReorderAdjustedPartial = countKey("cart.reorder.adjusted_partial",
+		"再次購買的部分數量已依目前庫存調整，另有 %d 項已下架或缺貨，請確認購物車。",
+		"Some quantities from that order were adjusted to available stock; %d item is discontinued or out of stock. Please review your cart.",
+		"Some quantities from that order were adjusted to available stock; %d items are discontinued or out of stock. Please review your cart.")
 
-	KeyReorderAll = key("cart.reorder.all", Message{
-		ZhHant: "已把上次的 %d 項商品放回購物車。",
-		En:     "Put %d items from that order back in your cart.",
-	})
+	KeyReorderAll = countKey("cart.reorder.all",
+		"已把上次的 %d 項商品放回購物車。",
+		"Put %d item from that order back in your cart.",
+		"Put %d items from that order back in your cart.")
 
 	KeyReorderNone = key("cart.reorder.none", Message{
 		ZhHant: "上次訂單裡的商品都已經下架或缺貨,沒有東西可以放回購物車。",

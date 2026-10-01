@@ -10,13 +10,39 @@ import (
 	"testing"
 )
 
-// ambientFormat matches a date or time rendered straight off a time.Time, which
-// takes whatever zone the value happens to carry.
-var ambientFormat = regexp.MustCompile(`\.Format\("2006-01-02[^"]*"\)`)
+// anyFormat matches a time rendered with .Format( whatever the layout is: a
+// literal, time.DateOnly, a constant or a variable. A value takes whatever
+// zone it happens to carry.
+var anyFormat = regexp.MustCompile(`\.Format\(`)
 
 // providerUTC matches the one legitimate shape: a value explicitly moved to UTC
 // before formatting, because it belongs to somebody else's protocol.
-var providerUTC = regexp.MustCompile(`\.UTC\(\)\.Format\("2006-01-02[^"]*"\)`)
+var providerUTC = regexp.MustCompile(`\.UTC\(\)\.Format\(`)
+
+// ambientFormat reports a .Format( on this line that is not preceded by .UTC().
+func ambientFormat(line string) bool {
+	return len(anyFormat.FindAllStringIndex(line, -1)) >
+		len(providerUTC.FindAllStringIndex(line, -1))
+}
+
+func TestTheZoneRuleSeesWhatTheOldPatternMissed(t *testing.T) {
+	t.Parallel()
+	for line, want := range map[string]bool{
+		`s := t.Format("2006-01-02 15:04")`:    true,
+		`s := t.Format(time.DateOnly)`:         true,
+		`s := t.Format(layout)`:                true,
+		`s := t.Format("15:04")`:               true,
+		`{ o.PlacedAt.Format("2006-01-02") }`:  true,
+		`s := t.UTC().Format("2006-01-02")`:    false,
+		`s := t.UTC().Format(time.DateOnly)`:   false,
+		`s := a.UTC().Format(x) + b.Format(x)`: true,
+		`s := strings.Title("no format call")`: false,
+	} {
+		if got := ambientFormat(line); got != want {
+			t.Errorf("ambientFormat(%q) = %v, want %v", line, got, want)
+		}
+	}
+}
 
 // TestNoTimeIsRenderedInAnUnstatedZone derives its corpus from the tree.
 //
@@ -26,6 +52,9 @@ var providerUTC = regexp.MustCompile(`\.UTC\(\)\.Format\("2006-01-02[^"]*"\)`)
 // "2026-09-03 13:09" locally against "2026-09-03 05:09" deployed. Every order
 // time, message, audit row and delivery date was eight hours early in
 // production and correct on the machine of anyone who could have noticed.
+//
+// The rule is every .Format( call, in .go and .templ sources alike, so a layout
+// held in a constant or a template expression cannot step round it.
 //
 // This is the Go half of the rule SQL already follows, where ambient
 // current_date is forbidden and shop_day is the one definition.
@@ -46,7 +75,9 @@ func TestNoTimeIsRenderedInAnUnstatedZone(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			if d.IsDir() || !strings.HasSuffix(path, ".go") ||
+			// A .templ source is read, and the _templ.go it generates is not:
+			// the .templ is what somebody edits.
+			if d.IsDir() || !(strings.HasSuffix(path, ".go") || strings.HasSuffix(path, ".templ")) ||
 				strings.HasSuffix(path, "_test.go") || strings.HasSuffix(path, "_templ.go") {
 				return nil
 			}
@@ -65,7 +96,7 @@ func TestNoTimeIsRenderedInAnUnstatedZone(t *testing.T) {
 				return readErr
 			}
 			for i, line := range strings.Split(string(src), "\n") {
-				if !ambientFormat.MatchString(line) || providerUTC.MatchString(line) {
+				if !ambientFormat(line) {
 					continue
 				}
 				offenders = append(offenders,

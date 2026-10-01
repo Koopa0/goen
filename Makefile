@@ -36,7 +36,7 @@ endif
         sqlc sqlc-check squawk db-up db-down migrate-up migrate-down db-seed \
         db-repair-invoice-faq db-repair-refund-faq db-repair-payment-faq db-repair-shop-rules-faq \
         db-repair-hold-faq \
-        demo-restore-check cursor-scripts-check workflow-check verify verify-all check-layout db-reset clean
+        demo-restore-check cursor-scripts-check workflow-check verify verify-all check-layout check-layout-run db-reset clean
 
 build: gen
 	go build -o bin/goen ./cmd/goen
@@ -49,7 +49,12 @@ build: gen
 # schema-drift is the existing catalogue comparison against migrations/; a dev
 # database built before an amended 001 fails here instead of as a 500 later.
 run: gen
-	@$(MAKE) --no-print-directory schema-drift || { echo 'run: the development database does not match migrations/; back up anything you need, then run make db-reset' >&2; exit 1; }
+	@$(MAKE) --no-print-directory schema-drift; status=$$?; \
+		case $$status in \
+		0) ;; \
+		1) echo 'run: the development database does not match migrations/; back up anything you need, then run make db-reset' >&2; exit 1;; \
+		*) echo "run: could not compare the development database with migrations/ (schema-drift exited $$status; its message is above). If the database is not running: make db-up" >&2; exit $$status;; \
+		esac
 	GOEN_INSECURE_COOKIES=1 go run ./cmd/goen
 
 test: gen
@@ -96,20 +101,30 @@ test-integration: gen
 #
 # LAYOUT_CHROME is a target variable so the resolved path survives GNU make's
 # one-shell-per-recipe-line default. Quoted for the macOS app bundle path.
-check-layout: LAYOUT_CHROME := $(if $(CHROME),$(CHROME),$(shell scripts/resolve-chrome.sh 2>/dev/null))
+check-layout-run: LAYOUT_CHROME := $(if $(CHROME),$(CHROME),$(shell scripts/resolve-chrome.sh 2>/dev/null))
 # The seed's photograph tagged with COLOUR_VALUE, which the colour probe expects
 # to lead COLOUR_SLUG's gallery once that value is chosen.
-check-layout: COLOUR_SLUG := pixelight-9-pro
-check-layout: COLOUR_VALUE := 曜石黑
-check-layout: COLOUR_KEY := pixelight-9-pro-02.webp
+check-layout-run: COLOUR_SLUG := pixelight-9-pro
+check-layout-run: COLOUR_VALUE := 曜石黑
+check-layout-run: COLOUR_KEY := pixelight-9-pro-02.webp
+# Chrome is launched in the background several recipe lines in, and each line is
+# its own shell, so no line can clean up after a later one that fails. This
+# wrapper owns the cleanup: the browser and its profile are removed on every way
+# out, success, a failed fixture, Ctrl-C and SIGTERM. The pid file is the only
+# handle on a browser that outlives its shell.
 check-layout:
+	@trap 'if [ -f .layout-chrome/pid ]; then kill $$(cat .layout-chrome/pid) 2>/dev/null; fi; rm -rf .layout-chrome' EXIT; \
+		trap 'exit 130' INT; trap 'exit 143' TERM; \
+		$(MAKE) --no-print-directory check-layout-run
+
+check-layout-run:
 	@test -n "$(LAYOUT_CHROME)" && test -x "$(LAYOUT_CHROME)" || { echo 'Chrome not found; set CHROME=/path/to/chrome' >&2; exit 2; }
 	@curl -sf -o /dev/null $${GOEN_URL:-http://127.0.0.1:9700/} \
 		|| { echo 'no server on $${GOEN_URL:-http://127.0.0.1:9700/} — run `make run` first' >&2; exit 2; }
 	@rm -rf .layout-chrome && mkdir -p .layout-chrome
 	@"$(LAYOUT_CHROME)" --headless --disable-gpu --no-first-run \
 		--remote-debugging-port=$${CDP_PORT:-9222} \
-		--user-data-dir=$(PWD)/.layout-chrome about:blank >/dev/null 2>&1 & echo $$! > .layout-chrome/pid
+		--user-data-dir=$(CURDIR)/.layout-chrome about:blank >/dev/null 2>&1 & echo $$! > .layout-chrome/pid
 	@sleep 3
 	@# axe-core, fetched at the pin above and checked against it. Downloaded
 	@# AFTER the browser is launched so the wait for Chrome pays for the fetch,
@@ -628,9 +643,11 @@ squawk:
 	@version=$$(squawk --version); case "$$version" in *"$(SQUAWK_VERSION)"*) ;; *) echo "squawk $(SQUAWK_VERSION) is required, found $$version" >&2; exit 1;; esac
 	squawk migrations/*.sql
 
+# --wait uses the compose healthcheck and fails when the container exits or
+# never turns healthy, where an unbounded pg_isready loop hung forever on a
+# database that had died, and CI's schema and layout jobs hung with it.
 db-up:
-	docker compose up -d db
-	@until docker compose exec -T db pg_isready -U goen -d goen >/dev/null 2>&1; do sleep 1; done
+	@docker compose up -d --wait db || { echo 'the database did not become healthy:' >&2; docker compose logs --tail=20 db >&2; exit 1; }
 	@echo 'database ready on 127.0.0.1:5433'
 
 db-down:
@@ -644,7 +661,7 @@ migrate-down:
 	@test -n "$${GOEN_DATABASE_URL:-}" || { echo 'GOEN_DATABASE_URL is required' >&2; exit 2; }
 	$(MIGRATE) -path migrations -database "$$GOEN_DATABASE_URL" down 1
 
-# Load the development catalogue: brands, categories, 20 products with variants,
+# Load the development catalogue: brands, categories, 40 products with variants,
 # images, specs and reviews. Runs as the owner (psql, not the app's store
 # role), so it may write the tables store is barred from. Development only.
 # seed/dev_catalog.sql is edited by hand.
@@ -780,34 +797,40 @@ ACL_SQL := \
 # that 001 has stopped being the whole truth, and therefore that 002 begins.
 #
 # Needs the dev container and a GOEN_DATABASE_URL pointing at the database to
-# check. Outside `verify` for the reason test-integration is: it needs something
+# check. Exit 1 is DRIFT and nothing else: every other failure, a stopped
+# container or a missing tool included, exits 2 or more, so `run` can tell a stale
+# schema from an environment that was never ready. Outside `verify` for the reason test-integration is: it needs something
 # the gate cannot assume.
 .PHONY: schema-drift
 schema-drift:
 	@test -n "$${GOEN_DATABASE_URL:-}" || { echo 'GOEN_DATABASE_URL is required: the database to CHECK' >&2; exit 2; }
 	@set -eu; \
 	ref=goen_schema_ref_$$$$; \
-	trap 'docker compose exec -T db dropdb -U goen --if-exists --force "$$ref" >/dev/null 2>&1 || true' 0 HUP INT TERM; \
+	tmp=$$(mktemp -d); drift=; \
+	trap 'rc=$$?; docker compose exec -T db dropdb -U goen --if-exists --force "$$ref" >/dev/null 2>&1 || true; rm -rf "$$tmp"; if [ "$$rc" = 1 ] && [ -z "$$drift" ]; then exit 4; fi' 0 HUP INT TERM; \
+	docker compose exec -T db true >/dev/null 2>&1 \
+		|| { echo 'schema-drift: the compose db service is not running; start it with make db-up' >&2; exit 4; }; \
 	docker compose exec -T db createdb -U goen "$$ref"; \
 	base=$${GOEN_DATABASE_URL%%\?*}; \
 	case "$$GOEN_DATABASE_URL" in *\?*) query="?$${GOEN_DATABASE_URL#*\?}";; *) query="";; esac; \
 	refurl="$${base%/*}/$$ref$$query"; \
 	$(MIGRATE) -path migrations -database "$$refurl" up >/dev/null; \
 	:; \
-	psql "$$refurl" -At -c $(CATALOG_SQL) | sort > /tmp/goen-schema-ref.txt; \
-	test -s /tmp/goen-schema-ref.txt || { echo 'schema-drift: the reference database is EMPTY; it was not built' >&2; exit 3; }; \
+	psql "$$refurl" -At -c $(CATALOG_SQL) | sort > "$$tmp"/ref.txt; \
+	test -s "$$tmp"/ref.txt || { echo 'schema-drift: the reference database is EMPTY; it was not built' >&2; exit 3; }; \
 	psql "$$refurl" -At -c "SELECT current_database()" | grep -qx "$$ref" \
 		|| { echo 'schema-drift: the reference URL does not point at the reference database, so this would compare the live one with itself' >&2; exit 3; }; \
-	psql "$$GOEN_DATABASE_URL" -At -c $(CATALOG_SQL) | sort > /tmp/goen-schema-live.txt; \
-	if diff -u /tmp/goen-schema-ref.txt /tmp/goen-schema-live.txt > /tmp/goen-schema-drift.txt; then \
+	psql "$$GOEN_DATABASE_URL" -At -c $(CATALOG_SQL) | sort > "$$tmp"/live.txt; \
+	if diff -u "$$tmp"/ref.txt "$$tmp"/live.txt > "$$tmp"/drift.txt; then \
 		echo 'schema-drift: PASS — the deployed schema matches migrations/'; \
 	else \
+		[ "$$?" = 1 ] || { echo 'schema-drift: diff itself failed' >&2; exit 4; }; \
 		echo 'schema-drift: FAIL — the deployed schema and migrations/ disagree.'; \
 		echo '  -  is what migrations/ declares; +  is what the database has.'; \
 		echo '  An amended CHECK is not re-validated by PostgreSQL, so this is'; \
 		echo '  where amend-in-place stops being safe and 002 begins.'; \
-		cat /tmp/goen-schema-drift.txt; \
-		exit 1; \
+		cat "$$tmp"/drift.txt; \
+		drift=1; exit 1; \
 	fi
 
 # Prove the backup can be restored. Not that one exists — that a dump of this
@@ -947,6 +970,7 @@ cursor-scripts-check:
 	@for f in .cursor/*.sh .cursor/lib/*.sh; do bash -n "$$f" || exit 1; done
 	@bash .cursor/lib/stripe-config-key.test.sh
 	@bash .cursor/lib/stripe-sandbox-key.test.sh
+	@bash .cursor/lib/load-env.test.sh
 
 demo-restore-check:
 	bash -n deploy/demo/restore-demo-db.sh scripts/demo-restore-test.sh
