@@ -538,3 +538,54 @@ func handled(t *testing.T, messages *outbox.Store, topic string) (registered boo
 	messages.Handle(topic, func(context.Context, []byte) error { return nil })
 	return false
 }
+
+// TestAMissingSellerIsAnnouncedAtStartup keeps the omission of the 消保法 §18
+// disclosure from mail visible: with either value blank nothing else says so.
+func TestAMissingSellerIsAnnouncedAtStartup(t *testing.T) {
+	t.Parallel()
+
+	for name, cfg := range map[string]config{
+		"both blank":    {},
+		"contact blank": {Seller: "Shop"},
+		"name blank":    {SellerContact: "a@b.example"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			buf := &bytes.Buffer{}
+			warnSellerUnset(&cfg, slog.New(slog.NewTextHandler(buf, nil)))
+			for _, want := range []string{"level=WARN", "GOEN_SELLER", "GOEN_SELLER_CONTACT"} {
+				if !strings.Contains(buf.String(), want) {
+					t.Errorf("log %q lacks %q", buf.String(), want)
+				}
+			}
+		})
+	}
+
+	buf := &bytes.Buffer{}
+	warnSellerUnset(&config{Seller: "Shop", SellerContact: "a@b.example"}, slog.New(slog.NewTextHandler(buf, nil)))
+	if buf.Len() != 0 {
+		t.Errorf("a configured seller logged %q", buf.String())
+	}
+}
+
+// TestSellerVariablesAreDocumented holds the two names in the files a deployer
+// reads, since the binary's reads are the only other place they appear.
+func TestSellerVariablesAreDocumented(t *testing.T) {
+	t.Parallel()
+
+	for _, file := range []string{
+		filepath.Join("..", "..", ".env.example"),
+		filepath.Join("..", "..", "deploy", "demo", "manifest.env"),
+	} {
+		//nolint:gosec // G304: the two paths are fixed above
+		raw, err := os.ReadFile(file)
+		if err != nil {
+			t.Fatalf("read %s: %v", file, err)
+		}
+		for _, name := range []string{"GOEN_SELLER=", "GOEN_SELLER_CONTACT="} {
+			if !strings.Contains(string(raw), name) {
+				t.Errorf("%s does not document %s", file, name)
+			}
+		}
+	}
+}
