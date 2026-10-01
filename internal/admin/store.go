@@ -302,13 +302,9 @@ func (s *Store) Order(ctx context.Context, number string) (pages.AdminOrderView,
 // The Checkout Sessions returned are a CANCELLATION's, for the caller to close
 // at Stripe once this has committed; every other status returns none.
 func (s *Store) Advance(ctx context.Context, number string, status pages.FulfillmentStatus, actor uuid.NullUUID) ([]string, error) {
-	if !status.Known() {
-		return nil, ErrRefused
-	}
-	// Ship is the only door to 'shipped', because a dispatch also records the
-	// carrier and settles the held stock.
-	if status == pages.FulfillmentShipped {
-		return nil, ErrRefused
+	kind, err := advanceKind(status)
+	if err != nil {
+		return nil, err
 	}
 
 	tx, err := s.pool.Begin(ctx)
@@ -321,6 +317,11 @@ func (s *Store) Advance(ctx context.Context, number string, status pages.Fulfill
 	row, err := q.LockOrderForAdvance(ctx, number)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrRefused, err)
+	}
+	// orders_check_transition lets a same-status UPDATE through, so a double
+	// submit would otherwise record the step and its audit row twice.
+	if pages.FulfillmentStatus(row.FulfillmentStatus) == status {
+		return nil, ErrRefused
 	}
 	if advanceErr := q.AdvanceOrder(ctx, db.AdvanceOrderParams{
 		OrderNumber: number, Status: string(status),
@@ -350,7 +351,7 @@ func (s *Store) Advance(ctx context.Context, number string, status pages.Fulfill
 		return nil, err
 	}
 	if err := q.RecordOrderEvent(ctx, db.RecordOrderEventParams{
-		OrderID: row.ID, Kind: eventKindFor(status), ActorUserID: actor,
+		OrderID: row.ID, Kind: kind, ActorUserID: actor,
 	}); err != nil {
 		return nil, fmt.Errorf("record order event: %w", err)
 	}
@@ -374,6 +375,16 @@ func (s *Store) Advance(ctx context.Context, number string, status pages.Fulfill
 		return nil, fmt.Errorf("commit advance: %w", err)
 	}
 	return sessions, nil
+}
+
+// advanceKind is the order_events kind of a status the staff may request.
+func advanceKind(status pages.FulfillmentStatus) (string, error) {
+	// Ship is the only door to 'shipped', because a dispatch also records the
+	// carrier and settles the held stock.
+	if !status.Known() || status == pages.FulfillmentShipped {
+		return "", ErrRefused
+	}
+	return eventKindFor(status)
 }
 
 // statusEffect is one status move and what it has to reach.
@@ -456,21 +467,22 @@ func enqueueStatusNotice(ctx context.Context, q *db.Queries, e statusEffect) err
 }
 
 // eventKindFor maps a fulfilment status to its order_events kind. The two
-// vocabularies overlap without being the same list.
-func eventKindFor(status pages.FulfillmentStatus) string {
+// vocabularies overlap without being the same list. A status with no kind is
+// refused rather than panicked on, because the status comes from the request.
+func eventKindFor(status pages.FulfillmentStatus) (string, error) {
 	switch status {
 	case pages.FulfillmentPicking:
-		return "picking"
+		return "picking", nil
 	case pages.FulfillmentShipped:
-		return "shipped"
+		return "shipped", nil
 	case pages.FulfillmentDelivered:
-		return "delivered"
+		return "delivered", nil
 	case pages.FulfillmentCompleted:
-		return "completed"
+		return "completed", nil
 	case pages.FulfillmentCancelled:
-		return "cancelled"
+		return "cancelled", nil
 	default:
-		panic("admin: no order_events kind for fulfilment status " + string(status))
+		return "", fmt.Errorf("%w: no order_events kind for fulfilment status %s", ErrRefused, status)
 	}
 }
 
