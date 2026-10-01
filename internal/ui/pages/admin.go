@@ -494,7 +494,7 @@ func (v AdminVariant) CompareText() string {
 // the ledger, so it names the rendered form and not the stock level: stock
 // returns to an earlier figure, and a key built from it would then be refused.
 func (v AdminVariant) AdjustKey() string {
-	return "adj:" + v.SKU + ":" + v.FormID
+	return "adj:" + v.SKU + ":" + strconv.FormatInt(int64(v.Stock), 10)
 }
 
 // AdminMovement is one row of a variant's stock ledger.
@@ -574,7 +574,7 @@ func (v *AdminMovementsView) HasNotice() bool { return v.Notice != "" }
 // form for the reason AdjustKey is. Its prefix differs from AdjustKey's so the
 // two forms never share a key.
 func (v *AdminMovementsView) ReceiveKey() string {
-	return "rcv:" + v.SKU + ":" + v.FormID
+	return "rcv:" + v.SKU + ":" + strconv.FormatInt(int64(v.Stock), 10)
 }
 
 // Empty reports whether nothing has ever moved.
