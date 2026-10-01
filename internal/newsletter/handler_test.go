@@ -1,6 +1,7 @@
 package newsletter
 
 import (
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -9,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/web"
@@ -202,5 +204,42 @@ func TestTheNewsletterLimitCoversAWholeIPv6Slash64(t *testing.T) {
 	}
 	if got := submit("[2001:db8:1:3::1]:1002"); got != http.StatusUnprocessableEntity {
 		t.Errorf("an address in another /64 answered %d, want 422; it shared a bucket", got)
+	}
+}
+
+func TestRefusedAddressesRenderTheirMessage(t *testing.T) {
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	tests := []struct {
+		name string
+		addr string
+		want string
+	}{
+		{"empty", "", i18n.T(ctx, i18n.KeyEmailRequired)},
+		{"malformed", "bad@x", i18n.T(ctx, i18n.KeyEmailMalformed)},
+		{"too long", strings.Repeat("a", email.Max) + "@example.com",
+			fmt.Sprintf(i18n.T(ctx, i18n.KeyEmailTooLong), email.Max)},
+	}
+	for _, tt := range tests {
+		for _, htmx := range []bool{true, false} {
+			t.Run(fmt.Sprintf("%s/htmx=%t", tt.name, htmx), func(t *testing.T) {
+				limit := ratelimit.New(ratelimit.Config{
+					Every: time.Hour, Burst: 8, TTL: time.Hour, MaxKeys: 8,
+				})
+				h := &Handler{limit: limit, log: slog.New(slog.DiscardHandler)}
+				res := httptest.NewRecorder()
+				h.Submit(res, newsletterSubmit(t, tt.addr, htmx))
+
+				if res.Code != http.StatusUnprocessableEntity {
+					t.Fatalf("status = %d, want 422", res.Code)
+				}
+				body := res.Body.String()
+				if strings.Contains(body, "%!") {
+					t.Errorf("body carries a formatting error:\n%s", body)
+				}
+				if !strings.Contains(body, tt.want) {
+					t.Errorf("body does not contain %q:\n%s", tt.want, body)
+				}
+			})
+		}
 	}
 }

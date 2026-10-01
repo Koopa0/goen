@@ -1722,6 +1722,20 @@ SELECT count(*)::bigint FROM product_options o
 JOIN products p ON p.id = o.product_id
 WHERE p.slug = $1;
 
+-- A variant of the product already carries every one of the chosen values. The
+-- storefront sells a selection only when exactly one variant matches it, so a
+-- second variant on the same combination leaves neither of them buyable.
+-- name: VariantCombinationTaken :one
+SELECT EXISTS (
+    SELECT 1
+    FROM variant_option_values vov
+    JOIN products p ON p.id = vov.product_id
+    WHERE p.slug = @slug::text
+      AND vov.option_value_id = ANY(@option_value_ids::uuid[])
+    GROUP BY vov.variant_id
+    HAVING count(*) = cardinality(@option_value_ids::uuid[])
+);
+
 -- Every id is resolved inside the statement, so nothing crosses products:
 -- variant_option_values carries product_id precisely so the composite keys can
 -- refuse a variant of A paired with a value of B.
