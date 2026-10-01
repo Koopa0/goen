@@ -42,13 +42,22 @@ func (h Hero) ImageHeightText() string { return strconv.Itoa(h.ImageHeight) }
 // Custom reports whether this came from the database rather than the fallback.
 func (h Hero) Custom() bool { return h.ImageKey != "" }
 
-// DefaultHero is what the home page shows when nothing is scheduled.
+// DefaultHero is what the home page shows when nothing is scheduled: what the
+// shop sells, named by its own categories.
 func DefaultHero(ctx context.Context) Hero {
 	return Hero{
-		Headline:     i18n.T(ctx, i18n.KeyHeroHeadline),
-		Body:         i18n.T(ctx, i18n.KeyHeroBody),
-		PrimaryCTA:   CTA{Label: i18n.T(ctx, i18n.KeyHeroPrimaryCTA), Href: "/deals"},
-		SecondaryCTA: CTA{Label: i18n.T(ctx, i18n.KeyHeroSecondaryCTA), Href: "/about"},
+		Headline:   i18n.T(ctx, i18n.KeyHeroHeadline),
+		Body:       departments(ctx),
+		PrimaryCTA: CTA{Label: i18n.T(ctx, i18n.KeyHeroPrimaryCTA), Href: "/deals"},
+	}
+}
+
+// CampaignHero is the built-in hero while a campaign runs: its title, and one
+// button to its page. slug is a stored, format-checked sale_campaigns.slug.
+func CampaignHero(ctx context.Context, title, slug string) Hero {
+	return Hero{
+		Headline:   title,
+		PrimaryCTA: CTA{Label: i18n.T(ctx, i18n.KeyHeroCampaignCTA), Href: "/s/" + slug},
 	}
 }
 

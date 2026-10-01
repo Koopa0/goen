@@ -64,6 +64,15 @@ ORDER BY (5 * global.m + coalesce(rv.s, 0)) / (5 + coalesce(rv.n, 0)) DESC,
          p.published_at DESC
 LIMIT $1;
 
+-- The campaign the built-in hero announces: the one ending soonest. The window
+-- is judged against the database's clock, which wrote the timestamps.
+-- name: SoonestEndingCampaign :one
+SELECT c.slug, localized_name(c.title, c.title_en, @locale::text) AS title
+FROM sale_campaigns c
+WHERE c.is_active AND c.starts_at <= now() AND c.ends_at > now()
+ORDER BY c.ends_at, c.id
+LIMIT 1;
+
 -- One slide, not a carousel: `position` is how an editor queues the next one.
 -- The window is judged against the database's clock, which wrote the timestamps.
 -- name: CurrentHeroSlide :one
@@ -124,6 +133,9 @@ FROM categories
 WHERE parent_id IS NULL
 ORDER BY position, name, id;
 
+-- with_pickup is false where the store map is not configured: checkout offers no
+-- pickup there, so a floor or threshold that counted it would promise a price
+-- nobody can choose.
 -- MIN across methods: the strip makes one claim, and the most generous true one
 -- is the lowest threshold any active method honours. coalesce AND cast, because
 -- min() over an empty set is NULL and sqlc types the result as non-null.
@@ -132,12 +144,16 @@ SELECT coalesce(min(v.free_over_cents), 0)::bigint AS free_over_cents
 FROM shipping_methods sm
 JOIN shipping_method_versions v ON v.method_id = sm.id
 WHERE sm.is_active
+  AND (@with_pickup::boolean OR sm.destination_kind <> 'pickup_point')
   AND v.effective_at <= now()
   AND v.free_over_cents > 0
   AND v.id = (SELECT id FROM shipping_method_versions
               WHERE method_id = sm.id AND effective_at <= now()
               ORDER BY effective_at DESC LIMIT 1);
 
+-- with_pickup is false where the store map is not configured: checkout offers no
+-- pickup there, so a floor or threshold that counted it would promise a price
+-- nobody can choose.
 -- MIN across methods: the strip states one floor, and the honest one is the
 -- lowest fee any active method charges. coalesce AND cast, because min() over
 -- an empty set is NULL and sqlc types the result as non-null.
@@ -146,6 +162,7 @@ SELECT coalesce(min(v.fee_cents), 0)::bigint AS fee_cents
 FROM shipping_methods sm
 JOIN shipping_method_versions v ON v.method_id = sm.id
 WHERE sm.is_active
+  AND (@with_pickup::boolean OR sm.destination_kind <> 'pickup_point')
   AND v.effective_at <= now()
   AND v.id = (SELECT id FROM shipping_method_versions
               WHERE method_id = sm.id AND effective_at <= now()

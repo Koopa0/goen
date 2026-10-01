@@ -22,17 +22,12 @@ templ Home(p layouts.Page, v HomeView) {
 					}
 					<div class="goen-hero__actions">
 						if v.Hero.PrimaryCTA.Shown() {
-							// ui-btn is kept beside the goen- recipe on these two: the
+							// ui-btn is kept beside the goen- recipe on this one: the
 							// home page's whole tap sweep is `.goen-cat` plus
 							// `.goen-hero__actions .ui-btn` (check-layout.mjs:479), and
-							// dropping the name would stop the buttons being measured.
+							// dropping the name would stop the button being measured.
 							<a class="goen-btn goen-btn--primary goen-btn--lg ui-btn" href={ templ.SafeURL(v.Hero.PrimaryCTA.Href) }>
 								{ v.Hero.PrimaryCTA.Label }
-							</a>
-						}
-						if v.Hero.SecondaryCTA.Shown() {
-							<a class="goen-btn goen-btn--outline goen-btn--lg ui-btn" href={ templ.SafeURL(v.Hero.SecondaryCTA.Href) }>
-								{ v.Hero.SecondaryCTA.Label }
 							</a>
 						}
 					</div>

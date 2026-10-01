@@ -14,6 +14,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -64,7 +65,7 @@ func TestHomeShowsCategoriesAndProducts(t *testing.T) {
 	}
 	body := res.Body.String()
 
-	for _, cat := range []string{"手機", "筆電", "平板", "耳機與音響", "穿戴裝置", "周邊配件"} {
+	for _, cat := range []string{"書籍文具", "居家生活", "美妝保養", "服飾配件", "美食飲品", "3C 數位"} {
 		if !strings.Contains(body, cat) {
 			t.Errorf("category tile %q is missing", cat)
 		}
@@ -142,6 +143,7 @@ func TestStoreLoadAggregatesTiles(t *testing.T) {
 func TestAnEmptyHeroTableIsAWorkingHomePage(t *testing.T) {
 	ctx := t.Context()
 	emptyHeroSlides(t)
+	stopCampaigns(t)
 
 	hero, err := home.NewStore(pool).Hero(ctx)
 	if err != nil {
@@ -162,6 +164,7 @@ func TestAnEmptyHeroTableIsAWorkingHomePage(t *testing.T) {
 func TestTheScheduledSlideIsTheOneShown(t *testing.T) {
 	ctx := t.Context()
 	s := home.NewStore(pool)
+	stopCampaigns(t)
 
 	tests := []struct {
 		name  string
@@ -492,6 +495,61 @@ func seedBanner(t *testing.T, message string) string {
 	return id.String()
 }
 
+// stopCampaigns switches every campaign off for the test: a running one
+// replaces the built-in hero, and the development seed runs two.
+func stopCampaigns(t *testing.T) {
+	t.Helper()
+	rows, err := pool.Query(t.Context(), `UPDATE sale_campaigns SET is_active = false WHERE is_active RETURNING id`)
+	if err != nil {
+		t.Fatalf("stop campaigns: %v", err)
+	}
+	ids, err := pgx.CollectRows(rows, pgx.RowTo[uuid.UUID])
+	if err != nil {
+		t.Fatalf("stop campaigns: %v", err)
+	}
+	t.Cleanup(func() {
+		clean, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if _, err := pool.Exec(clean, `UPDATE sale_campaigns SET is_active = true WHERE id = ANY($1)`, ids); err != nil {
+			t.Errorf("restart campaigns: %v", err)
+		}
+	})
+}
+
+func TestTheBuiltInHeroAnnouncesTheCampaignEndingSoonest(t *testing.T) {
+	ctx := t.Context()
+	emptyHeroSlides(t)
+	stopCampaigns(t)
+
+	for _, c := range []struct{ slug, title, titleEn, ends string }{
+		{"hero-later", "較晚結束", "Ends later", "2 hours"},
+		{"hero-sooner", "較早結束", "Ends sooner", "1 hour"},
+	} {
+		if _, err := pool.Exec(ctx, `
+			INSERT INTO sale_campaigns (slug, title, title_en, ends_at)
+			VALUES ($1, $2, $3, now() + $4::interval)`, c.slug, c.title, c.titleEn, c.ends); err != nil {
+			t.Fatalf("insert campaign %s: %v", c.slug, err)
+		}
+	}
+	t.Cleanup(func() {
+		clean, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if _, err := pool.Exec(clean, `DELETE FROM sale_campaigns WHERE slug LIKE 'hero-%'`); err != nil {
+			t.Errorf("clean up campaigns: %v", err)
+		}
+	})
+
+	for locale, want := range map[i18n.Locale]string{i18n.ZhHant: "較早結束", i18n.En: "Ends sooner"} {
+		hero, err := home.NewStore(pool).Hero(i18n.WithLocale(ctx, locale))
+		if err != nil {
+			t.Fatalf("hero: %v", err)
+		}
+		if hero.Headline != want || hero.PrimaryCTA.Href != "/s/hero-sooner" || hero.SecondaryCTA.Shown() {
+			t.Errorf("%s hero = %+v, want %q linking /s/hero-sooner with one button", locale, hero, want)
+		}
+	}
+}
+
 func emptyHeroSlides(t *testing.T) {
 	t.Helper()
 	if _, err := pool.Exec(t.Context(), `DELETE FROM hero_slides`); err != nil {
@@ -737,5 +795,57 @@ func TestTheHeaderAndTheTilesAgreeOnOrder(t *testing.T) {
 	}
 	if strings.Join(header, ">") != strings.Join(tiles, ">") {
 		t.Errorf("the header says %v and the tiles say %v, on one page", header, tiles)
+	}
+}
+
+// Checkout drops store pickup where the store map is not configured, so the
+// strip's floor and wording must describe the home delivery it still offers.
+func TestTheTrustBodyDescribesOnlyTheMethodsCheckoutOffers(t *testing.T) {
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+
+	// New versions, because shipping_method_versions is append-only and a
+	// sibling test leaves every method at one fee. The fixture names its own.
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO shipping_method_versions
+		    (method_id, name, carrier, fee_cents, free_over_cents, effective_at)
+		SELECT DISTINCT ON (v.method_id) v.method_id, v.name, v.carrier,
+		       CASE sm.destination_kind WHEN 'pickup_point' THEN 6000 ELSE 8000 END,
+		       300000, now()
+		FROM shipping_method_versions v
+		JOIN shipping_methods sm ON sm.id = v.method_id
+		WHERE sm.is_active
+		ORDER BY v.method_id, v.effective_at DESC`); err != nil {
+		t.Fatalf("publish the fees: %v", err)
+	}
+	var pickups int
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*) FROM shipping_methods
+		WHERE is_active AND destination_kind = 'pickup_point'`).Scan(&pickups); err != nil || pickups == 0 {
+		t.Fatalf("fixture: no active pickup method (%d): %v", pickups, err)
+	}
+
+	render := func(s *home.Store) string {
+		h := home.NewHandler(s, slog.New(slog.DiscardHandler), false)
+		res := httptest.NewRecorder()
+		h.Home(res, httptest.NewRequestWithContext(ctx, http.MethodGet, "/", http.NoBody))
+		if res.Code != http.StatusOK {
+			t.Fatalf("status = %d; want 200", res.Code)
+		}
+		return res.Body.String()
+	}
+
+	with := render(home.NewStore(pool))
+	if !strings.Contains(with, "未達門檻運費 NT$60 起") {
+		t.Error("a shop that offers pickup does not state its NT$60 floor")
+	}
+	if !strings.Contains(with, "超商取貨皆適用") {
+		t.Error("a shop that offers pickup does not say so")
+	}
+	without := render(home.NewStore(pool).WithoutPickup())
+	if strings.Contains(without, "超商取貨皆適用") {
+		t.Error("the strip promises pickup where checkout does not offer it")
+	}
+	if want := "未達門檻運費 NT$80 起"; !strings.Contains(without, want) {
+		t.Errorf("the strip's floor is not the home delivery fee; want %q", want)
 	}
 }

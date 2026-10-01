@@ -114,7 +114,9 @@ CREATE TABLE categories (
         CHECK (name_en IS NULL OR name_en ~ '[^[:space:]]'),
     CONSTRAINT categories_icon_key_known CHECK (
         icon_key IS NULL OR icon_key IN (
-            'phone', 'laptop', 'tablet', 'headphones', 'watch', 'plug', 'shield'
+            'phone', 'laptop', 'tablet', 'headphones', 'watch', 'plug', 'shield',
+            'book', 'stationery', 'home', 'kitchen', 'food', 'drink', 'beauty',
+            'apparel', 'kids', 'gift'
         )
     ),
     CONSTRAINT categories_not_own_parent CHECK (parent_id IS DISTINCT FROM id)
@@ -390,7 +392,7 @@ CREATE TABLE product_variants (
     CONSTRAINT product_variants_parcel_sum_covers_longest
         CHECK (parcel_sum_mm IS NULL OR parcel_longest_mm IS NULL
                OR parcel_sum_mm >= parcel_longest_mm),
-    -- Far above any 3C price and far below where quantity x price overflows
+    -- Far above any retail price and far below where quantity x price overflows
     -- bigint.
     CONSTRAINT product_variants_price_in_range
         CHECK (price_cents >= 0 AND price_cents <= 10000000000),
@@ -1805,6 +1807,9 @@ CREATE TABLE orders (
 
 CREATE UNIQUE INDEX orders_number_key ON orders (order_number);
 CREATE INDEX orders_user_placed_idx ON orders (user_id, placed_at DESC);
+-- The back office's queue pages every order newest first, whatever its status;
+-- without this each page sorts the whole table.
+CREATE INDEX orders_placed_idx ON orders (placed_at DESC, id DESC);
 CREATE INDEX orders_shipping_version_idx ON orders (shipping_version_id);
 CREATE INDEX orders_open_idx
     ON orders (placed_at)
@@ -8354,6 +8359,18 @@ CREATE INDEX product_copurchases_rank_idx
 CREATE INDEX product_copurchases_other_idx
     ON product_copurchases (other_product_id);
 
+-- When the projection was last rebuilt. The rows cannot say: a shop where no
+-- committed order holds two different products rebuilds to an empty table, and
+-- health would read that as a projection nobody ever built.
+CREATE TABLE copurchase_refreshes (
+    singleton    boolean PRIMARY KEY DEFAULT true CHECK (singleton),
+    refreshed_at timestamptz NOT NULL
+);
+
+COMMENT ON TABLE copurchase_refreshes IS
+    'One row, written only by refresh_copurchases(): the last time a rebuild '
+    'completed, whether or not it produced any pair.';
+
 -- Rebuild the whole projection. DELETE and re-INSERT inside one transaction, so
 -- a reader never sees a half-built projection; TRUNCATE would take ACCESS
 -- EXCLUSIVE and block every product page for the duration.
@@ -8375,6 +8392,10 @@ BEGIN
     GROUP BY mine.product_id, other.product_id;
 
     GET DIAGNOSTICS written = ROW_COUNT;
+
+    INSERT INTO copurchase_refreshes (refreshed_at) VALUES (now())
+    ON CONFLICT (singleton) DO UPDATE SET refreshed_at = EXCLUDED.refreshed_at;
+
     RETURN written;
 END;
 $$;
@@ -8404,6 +8425,8 @@ GRANT SELECT ON product_copurchases TO admin;
 GRANT SELECT ON product_copurchases TO reporting;
 -- A projection a request could rewrite is one a request can be made to rewrite.
 REVOKE INSERT, UPDATE, DELETE ON product_copurchases FROM store, admin;
+-- Health reads when the rebuild last ran; nothing but the definer writes it.
+GRANT SELECT ON copurchase_refreshes TO admin;
 
 -- refresh_copurchases is SECURITY DEFINER, so WHO may call it is the whole
 -- control.

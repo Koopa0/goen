@@ -1717,7 +1717,8 @@ func TestVoidReconcilerRetriesAfterMarkSentCrash(t *testing.T) {
 			retried = openInvalid(t, r)
 			reply(t, w, result{RtnCode: 1, InvoiceNo: invoiceNumber})
 		default:
-			t.Fatalf("unexpected provider path %s", r.URL.Path)
+			t.Errorf("unexpected provider path %s", r.URL.Path)
+			w.WriteHeader(http.StatusInternalServerError)
 		}
 	}))
 	defer srv.Close()
@@ -1725,6 +1726,7 @@ func TestVoidReconcilerRetriesAfterMarkSentCrash(t *testing.T) {
 	if err != nil {
 		t.Fatalf("gateway: %v", err)
 	}
+	parkOtherOperations(ctx, t, operationID)
 	result, err := NewStore(pool, g).ReconcileOnce(ctx)
 	if err != nil {
 		t.Fatalf("reconcile after mark-before-call crash: %v", err)
@@ -1764,6 +1766,19 @@ func TestVoidReconcilerRetriesAfterMarkSentCrash(t *testing.T) {
 			"actor %s snapshot %s request %q audit operation %q",
 			documentStatus, operationStatus, sendAttempts, auditActor,
 			auditActorSnapshot, auditRequestID, auditOperation)
+	}
+}
+
+// parkOtherOperations pushes every other pending invoice operation out of
+// reach. ReconcileOnce leases the oldest due operation in the whole shared
+// database, so without this a test reconciles whatever an earlier test left due
+// and its stand-in provider is asked about an operation it never saw.
+func parkOtherOperations(ctx context.Context, t *testing.T, keep uuid.UUID) {
+	t.Helper()
+	if _, err := pool.Exec(ctx, `
+		UPDATE invoice_operations SET available_at='2100-01-01 UTC'
+		WHERE status='pending' AND id<>$1`, keep); err != nil {
+		t.Fatalf("park other invoice operations: %v", err)
 	}
 }
 
@@ -1808,7 +1823,8 @@ func TestVoidTransportAmbiguitySettlesFromInvalidLookup(t *testing.T) {
 			w.WriteHeader(http.StatusBadGateway)
 			_, _ = w.Write([]byte("ambiguous"))
 		default:
-			t.Fatalf("unexpected provider path %s", r.URL.Path)
+			t.Errorf("unexpected provider path %s", r.URL.Path)
+			w.WriteHeader(http.StatusInternalServerError)
 		}
 	}))
 	defer srv.Close()
@@ -1839,6 +1855,7 @@ func TestVoidTransportAmbiguitySettlesFromInvalidLookup(t *testing.T) {
 		`UPDATE invoice_operations SET available_at=now() WHERE id=$1`, operationID); err != nil {
 		t.Fatalf("make reconciliation due: %v", err)
 	}
+	parkOtherOperations(ctx, t, operationID)
 	result, reconcileErr := store.ReconcileOnce(ctx)
 	if !errors.Is(reconcileErr, ErrPending) {
 		t.Fatalf("first reconciliation of stale Void = %v, want ErrPending", reconcileErr)
@@ -1855,6 +1872,7 @@ func TestVoidTransportAmbiguitySettlesFromInvalidLookup(t *testing.T) {
 		`UPDATE invoice_operations SET available_at=now() WHERE id=$1`, operationID); err != nil {
 		t.Fatalf("make propagated reconciliation due: %v", err)
 	}
+	parkOtherOperations(ctx, t, operationID)
 	result, reconcileErr = store.ReconcileOnce(ctx)
 	if reconcileErr != nil {
 		t.Fatalf("settle propagated Void: %v", reconcileErr)
@@ -3103,7 +3121,8 @@ func TestAllowanceTransportAmbiguitySettlesAfterPropagationLag(t *testing.T) {
 			w.WriteHeader(http.StatusBadGateway)
 			_, _ = w.Write([]byte("ambiguous"))
 		default:
-			t.Fatalf("unexpected provider path %s", r.URL.Path)
+			t.Errorf("unexpected provider path %s", r.URL.Path)
+			w.WriteHeader(http.StatusInternalServerError)
 		}
 	}))
 	defer srv.Close()
@@ -3148,6 +3167,7 @@ func TestAllowanceTransportAmbiguitySettlesAfterPropagationLag(t *testing.T) {
 		WHERE id=$1`, operationID); err != nil {
 		t.Fatalf("make stale reconciliation due: %v", err)
 	}
+	parkOtherOperations(ctx, t, operationID)
 	result, reconcileErr := store.ReconcileOnce(ctx)
 	if !errors.Is(reconcileErr, ErrPending) {
 		t.Fatalf("empty post-send allowance lookup = %v, want ErrPending", reconcileErr)
@@ -3170,6 +3190,7 @@ func TestAllowanceTransportAmbiguitySettlesAfterPropagationLag(t *testing.T) {
 		WHERE id=$1`, operationID); err != nil {
 		t.Fatalf("make propagated reconciliation due: %v", err)
 	}
+	parkOtherOperations(ctx, t, operationID)
 	result, reconcileErr = store.ReconcileOnce(ctx)
 	if reconcileErr != nil {
 		t.Fatalf("settle propagated Allowance: %v", reconcileErr)

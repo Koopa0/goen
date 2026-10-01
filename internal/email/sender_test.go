@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log/slog"
 	"net"
+	"net/mail"
 	"os"
 	"strings"
 	"sync"
@@ -76,6 +77,42 @@ func TestTheFromHeaderKeepsItsDisplayName(t *testing.T) {
 
 	if !strings.HasPrefix(wire, "From: goen <no-reply@goen.example>\r\n") {
 		t.Errorf("the From header is not the display-name form:\n%s", wire)
+	}
+}
+
+// TestAMessageCarriesItsDateAndAUniqueMessageID: RFC 5322 requires Date, and the
+// confirmation is a record the consumer keeps; Message-ID is how a receiver
+// threads and de-duplicates.
+func TestAMessageCarriesItsDateAndAUniqueMessageID(t *testing.T) {
+	t.Parallel()
+
+	read := func(m *Message) *mail.Message {
+		t.Helper()
+		msg, err := mail.ReadMessage(strings.NewReader(string(render("goen <no-reply@goen.example>", m))))
+		if err != nil {
+			t.Fatalf("the wire format does not parse: %v", err)
+		}
+		return msg
+	}
+	for _, m := range []*Message{
+		{To: "a@b.co", Subject: "hi", Body: "x"},
+		{To: "a@b.co", Subject: "hi", Body: "x", HTML: "<p>x</p>"},
+	} {
+		first := read(m)
+		sent, err := first.Header.Date()
+		if err != nil {
+			t.Fatalf("the Date header is unusable: %v", err)
+		}
+		if age := time.Since(sent); age < -time.Minute || age > time.Minute {
+			t.Errorf("Date %s is not the time of sending", sent)
+		}
+		id := first.Header.Get("Message-ID")
+		if !strings.HasPrefix(id, "<") || !strings.HasSuffix(id, "@goen.example>") {
+			t.Errorf("Message-ID = %q, want <unique@goen.example>", id)
+		}
+		if again := read(m).Header.Get("Message-ID"); again == id {
+			t.Errorf("two sends of one message share the Message-ID %q", id)
+		}
 	}
 }
 

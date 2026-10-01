@@ -1,11 +1,11 @@
 package i18n
 
 var (
-	KeyAdminDays = key("admin.days", Message{ZhHant: "%d 天", En: "%d days"})
+	KeyAdminDays = countKey("admin.days", "%d 天", "%d day", "%d days")
 
-	KeyAdminSeconds = key("admin.seconds", Message{ZhHant: "%d 秒", En: "%d seconds"})
+	KeyAdminSeconds = countKey("admin.seconds", "%d 秒", "%d second", "%d seconds")
 
-	KeyAdminMinutes = key("admin.minutes", Message{ZhHant: "%d 分鐘", En: "%d minutes"})
+	KeyAdminMinutes = countKey("admin.minutes", "%d 分鐘", "%d minute", "%d minutes")
 
-	KeyAdminHours = key("admin.hours", Message{ZhHant: "%d 小時", En: "%d hours"})
+	KeyAdminHours = countKey("admin.hours", "%d 小時", "%d hour", "%d hours")
 )

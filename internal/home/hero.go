@@ -18,7 +18,7 @@ func (s *Store) Hero(ctx context.Context) (pages.Hero, error) {
 	row, err := s.q.CurrentHeroSlide(ctx, string(i18n.FromContext(ctx)))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return pages.DefaultHero(ctx), nil
+			return s.builtInHero(ctx)
 		}
 		return pages.Hero{}, fmt.Errorf("read hero slide: %w", err)
 	}
@@ -50,4 +50,17 @@ func (s *Store) Hero(ctx context.Context) (pages.Hero, error) {
 		ImageWidth:   int(row.ImageWidth),
 		ImageHeight:  int(row.ImageHeight),
 	}, nil
+}
+
+// builtInHero announces the campaign ending soonest, or names the shop's
+// departments when none runs.
+func (s *Store) builtInHero(ctx context.Context) (pages.Hero, error) {
+	c, err := s.q.SoonestEndingCampaign(ctx, string(i18n.FromContext(ctx)))
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return pages.DefaultHero(ctx), nil
+		}
+		return pages.Hero{}, fmt.Errorf("read the running campaign: %w", err)
+	}
+	return pages.CampaignHero(ctx, c.Title, c.Slug), nil
 }
