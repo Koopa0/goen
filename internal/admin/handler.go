@@ -254,8 +254,7 @@ func (h *Handler) Ship(w http.ResponseWriter, r *http.Request) {
 	lines, parseErr := parcelLines(r)
 	if parseErr != nil {
 		h.log.WarnContext(r.Context(), "dispatch rejected", "order", number, "error", parseErr)
-		//nolint:gosec // G710: validated by IsOrderNumber
-		http.Redirect(w, r, "/admin/orders/"+number+"?badparcel=1", http.StatusSeeOther)
+		h.rejectShip(w, r, &shipRefusal{quantity: i18n.KeyAdminNoticeBadParcel})
 		return
 	}
 
@@ -269,36 +268,63 @@ func (h *Handler) Ship(w http.ResponseWriter, r *http.Request) {
 		//nolint:gosec // G710: validated by IsOrderNumber
 		http.Redirect(w, r, "/admin/orders/"+number+"?shipped=1", http.StatusSeeOther)
 	case hasConstraint(err, "order_shipments_tracking_key"):
-		h.rejectTracking(w, r)
+		h.rejectShip(w, r, &shipRefusal{tracking: i18n.KeyAdminTrackingTaken})
 	case errors.Is(err, ErrQuantity):
-		//nolint:gosec // G710: validated by IsOrderNumber
-		http.Redirect(w, r, "/admin/orders/"+number+"?badparcel=1", http.StatusSeeOther)
+		h.rejectShip(w, r, &shipRefusal{quantity: i18n.KeyAdminNoticeBadParcel})
 	case errors.Is(err, ErrInvalid):
-		//nolint:gosec // G710: validated by IsOrderNumber
-		http.Redirect(w, r, "/admin/orders/"+number+"?needs=1", http.StatusSeeOther)
+		refusal := shipRefusal{}
+		if strings.TrimSpace(r.PostFormValue("carrier")) == "" {
+			refusal.carrier = i18n.KeyAdminNoticeNeeds
+		}
+		if strings.TrimSpace(r.PostFormValue("tracking")) == "" {
+			refusal.tracking = i18n.KeyAdminNoticeNeeds
+		}
+		h.rejectShip(w, r, &refusal)
 	case errors.Is(err, ErrRefused):
 		h.log.WarnContext(r.Context(), "shipment refused", "order", number, "error", err)
-		//nolint:gosec // G710: validated by IsOrderNumber
-		http.Redirect(w, r, "/admin/orders/"+number+"?refused=1", http.StatusSeeOther)
+		h.rejectShip(w, r, &shipRefusal{notice: i18n.KeyAdminNoticeRefused})
 	default:
 		h.log.ErrorContext(r.Context(), "ship order", "error", err)
 		h.serverError(w, r)
 	}
 }
 
-// rejectTracking re-renders the order with the tracking number staff typed and
-// the field marked invalid, because a double submit and a reused number both
-// land here and neither is a server fault.
-func (h *Handler) rejectTracking(w http.ResponseWriter, r *http.Request) {
+// shipRefusal is what a refused dispatch says and where: a sentence under the
+// control it is about, or a banner for a refusal that has no control.
+type shipRefusal struct {
+	carrier, tracking, quantity, notice i18n.Key
+}
+
+// rejectShip re-renders the order with everything staff typed, the carrier, the
+// tracking number and each line's quantity, and the refused control marked,
+// because re-typing a long tracking number after every mistake is the cost a
+// redirect would put on the warehouse.
+func (h *Handler) rejectShip(w http.ResponseWriter, r *http.Request, refusal *shipRefusal) {
 	view, err := h.store.Order(r.Context(), r.PathValue("number"))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read order after refused dispatch", "error", err)
 		h.serverError(w, r)
 		return
 	}
+	say := func(k i18n.Key) string {
+		if k == "" {
+			return ""
+		}
+		return i18n.T(r.Context(), k)
+	}
 	view.ShipCarrier = r.PostFormValue("carrier")
 	view.ShipTracking = r.PostFormValue("tracking")
-	view.TrackingError = i18n.T(r.Context(), i18n.KeyAdminTrackingTaken)
+	view.ShipCarrierError = say(refusal.carrier)
+	view.TrackingError = say(refusal.tracking)
+	view.ShipQtyError = say(refusal.quantity)
+	view.Notice = say(refusal.notice)
+	view.ShipQty = map[string]string{}
+	for i := range view.Shippable {
+		id := view.Shippable[i].OrderLineID
+		if typed, ok := r.PostForm["qty_"+id]; ok && len(typed) > 0 {
+			view.ShipQty[id] = typed[0]
+		}
+	}
 	view.AllowanceOperationID = uuid.NewString()
 	web.Render(w, r, h.log, http.StatusUnprocessableEntity,
 		pages.AdminOrder(layouts.Page{Title: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyAdminPageOrder), view.Number)}, &view))
@@ -527,7 +553,6 @@ var adminNotices = map[string]i18n.Key{
 	"closed":         i18n.KeyAdminNoticeClosed,
 	"assessed":       i18n.KeyAdminNoticeAssessed,
 	"badcount":       i18n.KeyAdminNoticeBadCount,
-	"badparcel":      i18n.KeyAdminNoticeBadParcel,
 	"invoiced":       i18n.KeyAdminNoticeInvoiced,
 	"voided":         i18n.KeyAdminNoticeVoided,
 	"hasinvoice":     i18n.KeyAdminNoticeHasInvoice,

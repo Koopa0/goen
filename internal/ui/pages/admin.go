@@ -194,6 +194,11 @@ type AdminOrderView struct {
 	// refused; TrackingError marks the tracking field invalid.
 	ShipCarrier, ShipTracking string
 	TrackingError             string
+	ShipCarrierError          string
+	// ShipQtyError marks every quantity field of a refused dispatch, and
+	// ShipQty keeps what was typed in each, by order line id.
+	ShipQtyError string
+	ShipQty      map[string]string
 	Delivery                  AdminDelivery
 	Correctable               bool
 	PickupDestination         bool
@@ -312,6 +317,15 @@ func (v *AdminOrderView) Discount() string {
 
 // CanAdvance reports whether this order has any legal move left.
 func (v *AdminOrderView) CanAdvance() bool { return len(v.Next) > 0 }
+
+// QtyValue is what a dispatch quantity field holds: what staff typed on a
+// refused dispatch, otherwise everything still outstanding.
+func (v *AdminOrderView) QtyValue(l *AdminShippableLine) string {
+	if typed, ok := v.ShipQty[l.OrderLineID]; ok {
+		return typed
+	}
+	return l.RemainingText()
+}
 
 // Final reports whether the order has ended. A paid order in picking has no
 // status move left either, and is not final: it ships or is refunded.
