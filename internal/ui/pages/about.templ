@@ -13,7 +13,7 @@ import (
 func AboutMeta(ctx context.Context) layouts.Page {
 	return layouts.Page{
 		Title:       i18n.T(ctx, i18n.KeyAboutTitle),
-		Description: i18n.T(ctx, i18n.KeyAboutDescription),
+		Description: describeDepartments(ctx, i18n.KeyAboutDescription),
 	}
 }
 
@@ -32,7 +32,7 @@ templ About(p layouts.Page) {
 				decoding="async"
 			/>
 			@icons.Mark("about__mark")
-			<h1 class="about__title">{ i18n.T(ctx, i18n.KeyTagline) }</h1>
+			<h1 class="about__title">{ i18n.T(ctx, i18n.KeyAboutTitle) }</h1>
 			<p class="about__lede">
 				{ i18n.T(ctx, i18n.KeyAboutName) }
 			</p>
@@ -48,10 +48,12 @@ templ About(p layouts.Page) {
 					<h2 class="about__valuetitle">{ i18n.T(ctx, i18n.KeyAboutWarranty) }</h2>
 					<p class="about__valuebody">{ i18n.T(ctx, i18n.KeyAboutWarrantyBody) }</p>
 				</section>
-				<section class="goen-card about__value">
-					<h2 class="about__valuetitle">{ i18n.T(ctx, i18n.KeyAboutCurated) }</h2>
-					<p class="about__valuebody">{ i18n.T(ctx, i18n.KeyAboutCuratedBody) }</p>
-				</section>
+				if list := departments(ctx); list != "" {
+					<section class="goen-card about__value">
+						<h2 class="about__valuetitle">{ i18n.T(ctx, i18n.KeyAboutCurated) }</h2>
+						<p class="about__valuebody">{ list }</p>
+					</section>
+				}
 			</div>
 			<hr class="goen-separator"/>
 			<p class="about__legal">

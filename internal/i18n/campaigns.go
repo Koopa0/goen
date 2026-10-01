@@ -70,8 +70,8 @@ var (
 	KeyAdminCampTitle = key("admin.camp.title", Message{ZhHant: "活動標題", En: "Campaign title"})
 
 	KeyAdminCampTitleExample = key("admin.camp.title.example", Message{
-		ZhHant: "夏季 3C 展",
-		En:     "Summer electronics show",
+		ZhHant: "夏季特賣",
+		En:     "Summer sale",
 	})
 
 	KeyAdminCampDays = key("admin.camp.days", Message{ZhHant: "活動天數", En: "Days it runs"})

@@ -2,8 +2,8 @@ package i18n
 
 var (
 	KeyListingDescription = key("listing.description", Message{
-		ZhHant: "%s — goen。台灣出貨。保固期限寫在各商品頁。",
-		En:     "%s — goen. Ships from Taiwan. Warranty terms are on each product page.",
+		ZhHant: "goen 的%s。",
+		En:     "%s at goen.",
 	})
 
 	KeySearchTitle = key("search.title", Message{ZhHant: "搜尋", En: "Search"})
