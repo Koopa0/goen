@@ -8487,7 +8487,7 @@ SELECT o.id, o.order_number, o.fulfillment_status,
        coalesce(pd.pickup_store_name, '') AS pickup_store_name,
        -- 'pending' does NOT mean unpaid: a webhook can capture minutes before
        -- the shop moves the order to picking.
-       (o.id IN (SELECT id FROM committed_orders))::boolean AS committed,
+       EXISTS (SELECT 1 FROM committed_orders c WHERE c.id = o.id) AS committed,
        -- NOT derivable from ` + "`" + `committed` + "`" + `: a fully store-credited order has no
        -- payment row and stays 'pending' while the customer owes nothing.
        order_amount_owed(o.id)::bigint AS owed_cents
@@ -14049,7 +14049,7 @@ SELECT
     -- Both columns: a captured card leaves the order committed and still owing,
     -- a fully store-credited one owes nothing and is not committed until it
     -- leaves pending.
-    (o.id IN (SELECT id FROM committed_orders))::boolean AS committed,
+    EXISTS (SELECT 1 FROM committed_orders c WHERE c.id = o.id) AS committed,
     order_amount_owed(o.id)::bigint AS owed_cents
 FROM orders o
 WHERE o.user_id = $1
