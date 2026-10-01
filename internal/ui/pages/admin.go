@@ -62,9 +62,26 @@ type AdminTransition struct {
 	Label string
 }
 
+// QueueFilter is one view of the orders queue. It is not a fulfilment status:
+// pending orders are split by whether money is still owed, so the filters are
+// their own closed set. The values are the ?status= query values.
+type QueueFilter string
+
+// The orders queue's filters; QueueAll is every order.
+const (
+	QueueAll             QueueFilter = ""
+	QueueAwaitingPayment QueueFilter = "pending"
+	QueueReady           QueueFilter = "ready"
+	QueuePicking         QueueFilter = "picking"
+	QueueShipped         QueueFilter = "shipped"
+	QueueDelivered       QueueFilter = "delivered"
+	QueueCompleted       QueueFilter = "completed"
+	QueueCancelled       QueueFilter = "cancelled"
+)
+
 // AdminStatusTab is one filter in the order queue.
 type AdminStatusTab struct {
-	Value    FulfillmentStatus
+	Value    QueueFilter
 	Label    string
 	Count    int64
 	Selected bool
@@ -81,6 +98,7 @@ func (t AdminStatusTab) CountText() string { return strconv.FormatInt(t.Count, 1
 // about.
 type AdminDashboardView struct {
 	PendingOrders  int64
+	ReadyOrders    int64
 	PickingOrders  int64
 	LowStock       int64
 	ActiveProducts int64
@@ -91,6 +109,9 @@ type AdminDashboardView struct {
 
 // PendingText is how many orders are waiting to be paid.
 func (v AdminDashboardView) PendingText() string { return strconv.FormatInt(v.PendingOrders, 10) }
+
+// ReadyText is how many funded orders are waiting to be picked.
+func (v AdminDashboardView) ReadyText() string { return strconv.FormatInt(v.ReadyOrders, 10) }
 
 // PickingText is how many orders are being packed.
 func (v AdminDashboardView) PickingText() string { return strconv.FormatInt(v.PickingOrders, 10) }
@@ -117,7 +138,7 @@ type AdminOrdersView struct {
 
 	Term     string
 	Searched bool
-	Status   FulfillmentStatus
+	Status   QueueFilter
 	Orders   []AdminOrderRow
 	Tabs     []AdminStatusTab
 	Notice   string

@@ -15,6 +15,9 @@ SELECT json_build_object('At', o.placed_at, 'ID', o.id)::text AS page_cursor,
 FROM orders o
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
 WHERE (@status::text = '' OR o.fulfillment_status = @status::text)
+-- Pending is two queues: money still owed, and funded and waiting to be picked.
+-- FundedStatusLabel draws the same line, so a tab and the row's own label agree.
+AND (@funding::text = '' OR (@funding::text = 'funded') = (order_is_committed(o.id) OR order_amount_owed(o.id) <= 0))
 AND (NOT @has_cursor::boolean OR (o.placed_at < @after_at::timestamptz)
        OR (o.placed_at = @after_at::timestamptz AND o.id < @after_id::uuid))
 ORDER BY o.placed_at DESC, o.id DESC
@@ -58,8 +61,10 @@ ORDER BY o.placed_at DESC, o.id DESC
 LIMIT @row_limit::integer;
 
 -- name: AdminOrderCounts :many
-SELECT fulfillment_status, count(*)::bigint AS n
-FROM orders GROUP BY fulfillment_status;
+SELECT fulfillment_status,
+       (fulfillment_status = 'pending' AND (order_is_committed(id) OR order_amount_owed(id) <= 0))::boolean AS funded,
+       count(*)::bigint AS n
+FROM orders GROUP BY fulfillment_status, funded;
 
 -- discount_reason is JOINED and not snapshotted: coupons.code is never updated
 -- and the FK is ON DELETE RESTRICT, so one join always reaches it.
@@ -199,6 +204,8 @@ SELECT
     -- somebody looking for money that has already arrived.
     (SELECT count(*) FROM orders o WHERE o.fulfillment_status = 'pending'
        AND NOT order_is_committed(o.id) AND order_amount_owed(o.id) > 0)::bigint AS pending_orders,
+    (SELECT count(*) FROM orders o WHERE o.fulfillment_status = 'pending'
+       AND (order_is_committed(o.id) OR order_amount_owed(o.id) <= 0))::bigint AS ready_orders,
     (SELECT count(*) FROM orders WHERE fulfillment_status = 'picking')::bigint AS picking_orders,
     (SELECT count(*) FROM product_variants
      WHERE is_active AND stock_quantity <= safety_stock)::bigint AS low_stock,

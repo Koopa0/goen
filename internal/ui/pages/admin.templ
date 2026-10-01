@@ -29,6 +29,11 @@ templ AdminDashboard(p layouts.Page, v AdminDashboardView) {
 				Href:  "/admin/orders?status=pending",
 			})
 			@components.StatTile(components.StatTileProps{
+				Label: i18n.T(ctx, i18n.KeyAdminStatusReadyToPick),
+				Value: v.ReadyText(),
+				Href:  "/admin/orders?status=ready",
+			})
+			@components.StatTile(components.StatTileProps{
 				Label: i18n.T(ctx, i18n.KeyAdminStatusPicking),
 				Value: v.PickingText(),
 				Href:  "/admin/orders?status=picking",
