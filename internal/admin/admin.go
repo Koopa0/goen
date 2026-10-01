@@ -109,6 +109,20 @@ var statuses = [...]struct {
 	{pages.FulfillmentCancelled, i18n.KeyAdminStatusCancelled},
 }
 
+// StatusReady is a queue filter and not a lifecycle state: the pending orders
+// that are already funded and wait only for somebody to pick them. It is not
+// Known, so no transition can name it.
+const StatusReady pages.FulfillmentStatus = "ready"
+
+// ParseQueueStatus is ParseStatus for the orders queue, which also offers
+// [StatusReady].
+func ParseQueueStatus(s string) pages.FulfillmentStatus {
+	if pages.FulfillmentStatus(s) == StatusReady {
+		return StatusReady
+	}
+	return ParseStatus(s)
+}
+
 // ParseStatus maps a query value to a fulfilment state, or "" for all.
 func ParseStatus(s string) pages.FulfillmentStatus {
 	status := pages.FulfillmentStatus(s)

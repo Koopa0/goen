@@ -79,6 +79,7 @@ func (t AdminStatusTab) CountText() string { return strconv.FormatInt(t.Count, 1
 // about.
 type AdminDashboardView struct {
 	PendingOrders  int64
+	ReadyOrders    int64
 	PickingOrders  int64
 	LowStock       int64
 	ActiveProducts int64
@@ -89,6 +90,9 @@ type AdminDashboardView struct {
 
 // PendingText is how many orders are waiting to be paid.
 func (v AdminDashboardView) PendingText() string { return strconv.FormatInt(v.PendingOrders, 10) }
+
+// ReadyText is how many funded orders are waiting to be picked.
+func (v AdminDashboardView) ReadyText() string { return strconv.FormatInt(v.ReadyOrders, 10) }
 
 // PickingText is how many orders are being packed.
 func (v AdminDashboardView) PickingText() string { return strconv.FormatInt(v.PickingOrders, 10) }

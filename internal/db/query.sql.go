@@ -1069,12 +1069,15 @@ func (q *Queries) AdminOrderByNumber(ctx context.Context, orderNumber string) (A
 }
 
 const adminOrderCounts = `-- name: AdminOrderCounts :many
-SELECT fulfillment_status, count(*)::bigint AS n
-FROM orders GROUP BY fulfillment_status
+SELECT fulfillment_status,
+       (fulfillment_status = 'pending' AND (order_is_committed(id) OR order_amount_owed(id) <= 0))::boolean AS funded,
+       count(*)::bigint AS n
+FROM orders GROUP BY fulfillment_status, funded
 `
 
 type AdminOrderCountsRow struct {
 	FulfillmentStatus string
+	Funded            bool
 	N                 int64
 }
 
@@ -1087,7 +1090,7 @@ func (q *Queries) AdminOrderCounts(ctx context.Context) ([]AdminOrderCountsRow, 
 	items := []AdminOrderCountsRow{}
 	for rows.Next() {
 		var i AdminOrderCountsRow
-		if err := rows.Scan(&i.FulfillmentStatus, &i.N); err != nil {
+		if err := rows.Scan(&i.FulfillmentStatus, &i.Funded, &i.N); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -1115,14 +1118,16 @@ SELECT json_build_object('At', o.placed_at, 'ID', o.id)::text AS page_cursor,
 FROM orders o
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
 WHERE ($1::text = '' OR o.fulfillment_status = $1::text)
-AND (NOT $2::boolean OR (o.placed_at < $3::timestamptz)
-       OR (o.placed_at = $3::timestamptz AND o.id < $4::uuid))
+AND ($2::text = '' OR ($2::text = 'funded') = (order_is_committed(o.id) OR order_amount_owed(o.id) <= 0))
+AND (NOT $3::boolean OR (o.placed_at < $4::timestamptz)
+       OR (o.placed_at = $4::timestamptz AND o.id < $5::uuid))
 ORDER BY o.placed_at DESC, o.id DESC
-LIMIT $5::integer
+LIMIT $6::integer
 `
 
 type AdminOrdersParams struct {
 	Status    string
+	Funding   string
 	HasCursor bool
 	AfterAt   time.Time
 	AfterID   uuid.UUID
@@ -1144,9 +1149,12 @@ type AdminOrdersRow struct {
 	OwedCents         int64
 }
 
+// Pending is two queues: money still owed, and funded and waiting to be picked.
+// FundedStatusLabel draws the same line, so a tab and the row's own label agree.
 func (q *Queries) AdminOrders(ctx context.Context, arg AdminOrdersParams) ([]AdminOrdersRow, error) {
 	rows, err := q.db.Query(ctx, adminOrders,
 		arg.Status,
+		arg.Funding,
 		arg.HasCursor,
 		arg.AfterAt,
 		arg.AfterID,
@@ -1954,6 +1962,8 @@ SELECT
     -- somebody looking for money that has already arrived.
     (SELECT count(*) FROM orders o WHERE o.fulfillment_status = 'pending'
        AND NOT order_is_committed(o.id) AND order_amount_owed(o.id) > 0)::bigint AS pending_orders,
+    (SELECT count(*) FROM orders o WHERE o.fulfillment_status = 'pending'
+       AND (order_is_committed(o.id) OR order_amount_owed(o.id) <= 0))::bigint AS ready_orders,
     (SELECT count(*) FROM orders WHERE fulfillment_status = 'picking')::bigint AS picking_orders,
     (SELECT count(*) FROM product_variants
      WHERE is_active AND stock_quantity <= safety_stock)::bigint AS low_stock,
@@ -1963,6 +1973,7 @@ SELECT
 
 type AdminSummaryRow struct {
 	PendingOrders  int64
+	ReadyOrders    int64
 	PickingOrders  int64
 	LowStock       int64
 	ActiveProducts int64
@@ -1974,6 +1985,7 @@ func (q *Queries) AdminSummary(ctx context.Context) (AdminSummaryRow, error) {
 	var i AdminSummaryRow
 	err := row.Scan(
 		&i.PendingOrders,
+		&i.ReadyOrders,
 		&i.PickingOrders,
 		&i.LowStock,
 		&i.ActiveProducts,

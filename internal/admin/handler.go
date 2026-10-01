@@ -178,7 +178,7 @@ func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
 // Orders serves GET /admin/orders.
 func (h *Handler) Orders(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Orders(r.Context(),
-		ParseStatus(r.URL.Query().Get("status")), r.URL.Query().Get("q"), r.URL.Query().Get(web.KeysetParam))
+		ParseQueueStatus(r.URL.Query().Get("status")), r.URL.Query().Get("q"), r.URL.Query().Get(web.KeysetParam))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read orders", "error", err)
 		h.serverError(w, r)

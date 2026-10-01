@@ -516,3 +516,16 @@ func TestAMistypedPriceIsRefusedByEveryFormThatWritesOne(t *testing.T) {
 		})
 	}
 }
+
+func TestOnlyTheQueueOffersTheReadyFilter(t *testing.T) {
+	t.Parallel()
+	if got := ParseQueueStatus("ready"); got != StatusReady {
+		t.Errorf("ParseQueueStatus(ready) = %q, want StatusReady", got)
+	}
+	if got := ParseStatus("ready"); got != "" {
+		t.Errorf("ParseStatus(ready) = %q: a transition must not be able to name the queue filter", got)
+	}
+	if got := ParseQueueStatus("picking"); got != pages.FulfillmentPicking {
+		t.Errorf("ParseQueueStatus(picking) = %q", got)
+	}
+}

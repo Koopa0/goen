@@ -85,6 +85,7 @@ func (s *Store) Dashboard(ctx context.Context) (pages.AdminDashboardView, error)
 	}
 	view := pages.AdminDashboardView{
 		PendingOrders:  sum.PendingOrders,
+		ReadyOrders:    sum.ReadyOrders,
 		PickingOrders:  sum.PickingOrders,
 		LowStock:       sum.LowStock,
 		ActiveProducts: sum.ActiveProducts,
@@ -160,7 +161,15 @@ func (s *Store) Orders(ctx context.Context, status pages.FulfillmentStatus, term
 			}
 		}
 	} else {
-		rows, err = s.q.AdminOrders(ctx, db.AdminOrdersParams{HasCursor: cursor.Valid, AfterAt: cursor.At, AfterID: cursor.ID, Status: string(status), RowLimit: PageLimit})
+		// Pending is split in two the way FundedStatusLabel splits it.
+		filter, funding := string(status), ""
+		switch status {
+		case pages.FulfillmentPending:
+			funding = "unpaid"
+		case StatusReady:
+			filter, funding = string(pages.FulfillmentPending), "funded"
+		}
+		rows, err = s.q.AdminOrders(ctx, db.AdminOrdersParams{HasCursor: cursor.Valid, AfterAt: cursor.At, AfterID: cursor.ID, Status: filter, Funding: funding, RowLimit: PageLimit})
 	}
 	if err != nil {
 		return pages.AdminOrdersView{}, fmt.Errorf("read orders: %w", err)
@@ -182,10 +191,14 @@ func (s *Store) Orders(ctx context.Context, status pages.FulfillmentStatus, term
 	countsByStatus := make(map[pages.FulfillmentStatus]int64, len(counts))
 	var total int64
 	for _, c := range counts {
-		countsByStatus[pages.FulfillmentStatus(c.FulfillmentStatus)] = c.N
+		key := pages.FulfillmentStatus(c.FulfillmentStatus)
+		if c.Funded {
+			key = StatusReady
+		}
+		countsByStatus[key] += c.N
 		total += c.N
 	}
-	view.Tabs = make([]pages.AdminStatusTab, 0, len(statuses)+1)
+	view.Tabs = make([]pages.AdminStatusTab, 0, len(statuses)+2)
 	view.Tabs = append(view.Tabs, pages.AdminStatusTab{
 		Label: i18n.T(ctx, i18n.KeyAdminTabAll), Count: total, Selected: status == "",
 	})
@@ -194,6 +207,12 @@ func (s *Store) Orders(ctx context.Context, status pages.FulfillmentStatus, term
 			Value: definition.value, Label: i18n.T(ctx, definition.label),
 			Count: countsByStatus[definition.value], Selected: definition.value == status,
 		})
+		if definition.value == pages.FulfillmentPending {
+			view.Tabs = append(view.Tabs, pages.AdminStatusTab{
+				Value: StatusReady, Label: i18n.T(ctx, i18n.KeyAdminStatusReadyToPick),
+				Count: countsByStatus[StatusReady], Selected: status == StatusReady,
+			})
+		}
 	}
 	for i := range rows {
 		view.Orders = append(view.Orders, orderRow(ctx, &rows[i]))
