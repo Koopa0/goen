@@ -11884,6 +11884,12 @@ func (q *Queries) SavedAddresses(ctx context.Context, userID uuid.UUID) ([]Saved
 }
 
 const searchProducts = `-- name: SearchProducts :many
+WITH RECURSIVE category_match AS (
+    SELECT id FROM categories
+    WHERE name ILIKE $2::text OR coalesce(name_en, '') ILIKE $2::text
+    UNION
+    SELECT c.id FROM categories c JOIN category_match m ON c.parent_id = m.id
+)
 SELECT
     p.slug,
     localized_name(p.name, p.name_en, $1::text) AS name,
@@ -11933,6 +11939,7 @@ WHERE p.status = 'active'
        OR coalesce(p.summary, '') ILIKE $2::text
        OR coalesce(p.summary_en, '') ILIKE $2::text
        OR b.name ILIKE $2::text
+       OR p.category_id IN (SELECT id FROM category_match)
        OR EXISTS (
            SELECT 1 FROM product_variants sku_match
            WHERE sku_match.product_id = p.id AND sku_match.is_active
@@ -11948,15 +11955,17 @@ WHERE p.status = 'active'
        ))
 ORDER BY
     -- Field relevance is explicit; repeated words, sales and ratings do not change it.
-    -- A complete variant SKU leads; a partial SKU follows a partial name match.
+    -- A complete variant SKU leads; the category follows a partial name match and
+    -- a partial SKU follows the category.
     CASE
         WHEN EXISTS (
             SELECT 1 FROM product_variants exact_sku
             WHERE exact_sku.product_id = p.id AND exact_sku.is_active
               AND exact_sku.sku ILIKE $3::text
-        ) THEN 6
-        WHEN p.name ILIKE $3::text OR coalesce(p.name_en, '') ILIKE $3::text THEN 5
-        WHEN p.name ILIKE $2::text OR coalesce(p.name_en, '') ILIKE $2::text THEN 4
+        ) THEN 7
+        WHEN p.name ILIKE $3::text OR coalesce(p.name_en, '') ILIKE $3::text THEN 6
+        WHEN p.name ILIKE $2::text OR coalesce(p.name_en, '') ILIKE $2::text THEN 5
+        WHEN p.category_id IN (SELECT id FROM category_match) THEN 4
         WHEN EXISTS (
             SELECT 1 FROM product_variants partial_sku
             WHERE partial_sku.product_id = p.id AND partial_sku.is_active
@@ -12039,6 +12048,12 @@ func (q *Queries) SearchProducts(ctx context.Context, arg SearchProductsParams) 
 }
 
 const searchProductsCount = `-- name: SearchProductsCount :one
+WITH RECURSIVE category_match AS (
+    SELECT id FROM categories
+    WHERE name ILIKE $1::text OR coalesce(name_en, '') ILIKE $1::text
+    UNION
+    SELECT c.id FROM categories c JOIN category_match m ON c.parent_id = m.id
+)
 SELECT count(*)::bigint
 FROM products p
 JOIN brands b ON b.id = p.brand_id
@@ -12048,6 +12063,7 @@ WHERE p.status = 'active'
        OR coalesce(p.summary, '') ILIKE $1::text
        OR coalesce(p.summary_en, '') ILIKE $1::text
        OR b.name ILIKE $1::text
+       OR p.category_id IN (SELECT id FROM category_match)
        OR EXISTS (
            SELECT 1 FROM product_variants sku_match
            WHERE sku_match.product_id = p.id AND sku_match.is_active
@@ -14114,6 +14130,33 @@ func (q *Queries) UserOrders(ctx context.Context, arg UserOrdersParams) ([]UserO
 		return nil, err
 	}
 	return items, nil
+}
+
+const variantCombinationTaken = `-- name: VariantCombinationTaken :one
+SELECT EXISTS (
+    SELECT 1
+    FROM variant_option_values vov
+    JOIN products p ON p.id = vov.product_id
+    WHERE p.slug = $1::text
+      AND vov.option_value_id = ANY($2::uuid[])
+    GROUP BY vov.variant_id
+    HAVING count(*) = cardinality($2::uuid[])
+)
+`
+
+type VariantCombinationTakenParams struct {
+	Slug           string
+	OptionValueIds []uuid.UUID
+}
+
+// A variant of the product already carries every one of the chosen values. The
+// storefront sells a selection only when exactly one variant matches it, so a
+// second variant on the same combination leaves neither of them buyable.
+func (q *Queries) VariantCombinationTaken(ctx context.Context, arg VariantCombinationTakenParams) (bool, error) {
+	row := q.db.QueryRow(ctx, variantCombinationTaken, arg.Slug, arg.OptionValueIds)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
 }
 
 const variantForCart = `-- name: VariantForCart :one

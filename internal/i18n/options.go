@@ -37,6 +37,11 @@ var (
 			"reach this variant at all.",
 	})
 
+	KeyFormVariantCombinationTaken = key("form.variant.combinationtaken", Message{
+		ZhHant: "這個組合已經有 SKU 了。",
+		En:     "Another SKU already has this combination.",
+	})
+
 	KeyFormOptionNameTaken = key("form.option.name.taken", Message{
 		ZhHant: "這個商品已經有同名的規格項目了。",
 		En:     "This product already has an option with that name.",

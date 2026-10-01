@@ -848,7 +848,7 @@ func taxonForm(kind string, title i18n.Key, weight components.Variant, v *AdminT
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 65, "<input class=\"goen-input\" id=\"categories-parent\" name=\"parent\" maxlength=\"120\" placeholder=\"phones\" list=\"category-slugs\" value=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 65, "<input class=\"goen-input\" id=\"categories-parent\" name=\"parent\" maxlength=\"120\" placeholder=\"kitchen\" list=\"category-slugs\" value=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

@@ -16,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/koopa0/goen/internal/pickup"
+	"github.com/koopa0/goen/internal/ui/icons"
 )
 
 // Every test below derives what must be covered from the LIVE CATALOG, so a constraint added
@@ -195,6 +196,36 @@ func TestPickupBrandChoicesMatchDatabaseContract(t *testing.T) {
 	if code != "23514" || name != "order_private_data_pickup_brand_known" {
 		t.Fatalf("unknown pickup brand refused by SQLSTATE %s constraint %q, want 23514/order_private_data_pickup_brand_known: %v",
 			code, name, err)
+	}
+}
+
+// TestCategoryIconKeysMatchDatabaseContract binds the glyphs the renderer can
+// draw to the keys categories_icon_key_known admits. A key the picker offers
+// and the CHECK refuses fails the back-office form that offered it; a key the
+// CHECK admits and the renderer cannot draw is an empty tile.
+func TestCategoryIconKeysMatchDatabaseContract(t *testing.T) {
+	keys := icons.CategoryKeys()
+	if len(keys) == 0 {
+		t.Fatal("icons.CategoryKeys() is empty; this test would prove nothing")
+	}
+
+	var def string
+	if err := schemaPool(t).QueryRow(t.Context(), `
+		SELECT pg_get_constraintdef(oid)
+		FROM pg_constraint
+		WHERE conname = 'categories_icon_key_known'`).Scan(&def); err != nil {
+		t.Fatalf("read categories_icon_key_known: %v", err)
+	}
+	literals := regexp.MustCompile(`'([^']*)'::text`).FindAllStringSubmatch(def, -1)
+	admitted := make([]string, 0, len(literals))
+	for _, m := range literals {
+		admitted = append(admitted, m[1])
+	}
+	slices.Sort(admitted)
+	drawn := slices.Sorted(slices.Values(keys))
+	if !slices.Equal(admitted, drawn) {
+		t.Fatalf("categories_icon_key_known admits %v; icons.CategoryKeys() draws %v\n%s",
+			admitted, drawn, def)
 	}
 }
 

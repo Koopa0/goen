@@ -138,7 +138,7 @@ templ AdminCampaigns(p layouts.Page, v AdminCampaignsView) {
 							name="slug"
 							required
 							maxlength="120"
-							placeholder="summer-3c"
+							placeholder="summer-sale"
 							value={ v.Draft.Slug }
 							if v.HasErr("slug") {
 								aria-invalid="true"
@@ -331,7 +331,7 @@ templ AdminCampaignForm(p layouts.Page, v AdminCampaignView) {
 					@components.Label(components.LabelProps{For: "k-product"}) {
 						{ i18n.T(ctx, i18n.KeyAdminCampProductSlug) }
 					}
-					<input class="goen-input" id="k-product" name="product" required maxlength="120" placeholder="pixelight-9" autocomplete="off"/>
+					<input class="goen-input" id="k-product" name="product" required maxlength="120" placeholder="ceramic-mug" autocomplete="off"/>
 					<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminCampProductHint) }</p>
 				</div>
 				@components.Button(components.ButtonProps{

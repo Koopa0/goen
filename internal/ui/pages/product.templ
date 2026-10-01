@@ -290,10 +290,12 @@ templ productBuy(v *ProductView) {
 			<p class="goen-pdp__hint">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCompareFull), MaxCompare) }</p>
 		}
 		<ul class="goen-pdp__assurances" role="list">
-			<li class="goen-pdp__assurance">
-				@icons.Shield()
-				<span>{ i18n.T(ctx, i18n.KeyGuaranteeWarranty) }</span>
-			</li>
+			if v.HasWarranty() {
+				<li class="goen-pdp__assurance">
+					@icons.Shield()
+					<span>{ i18n.T(ctx, i18n.KeyGuaranteeWarranty) }</span>
+				</li>
+			}
 			if v.FreeDelivery() != "" {
 				<li class="goen-pdp__assurance">
 					@icons.Truck()

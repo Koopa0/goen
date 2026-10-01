@@ -139,3 +139,60 @@ func TestOptionAxisAndVariantCreationSerialize(t *testing.T) {
 		})
 	}
 }
+
+func TestTwoVariantsCannotShareAnOptionCombination(t *testing.T) {
+	ctx, _ := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	slug := draftProduct(t, ctx, s)
+
+	for _, axis := range []string{"Colour", "Edition"} {
+		if errs, err := s.AddOption(ctx, slug, admin.OptionDraft{Name: axis}); err != nil || len(errs) > 0 {
+			t.Fatalf("AddOption(%s): %v %v", axis, err, errs)
+		}
+	}
+	view, err := s.Product(ctx, slug)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, o := range view.Options {
+		for _, v := range []string{"A", "B"} {
+			if errs, addErr := s.AddOptionValue(ctx, slug, admin.OptionDraft{OptionID: o.ID, Name: v}); addErr != nil || len(errs) > 0 {
+				t.Fatalf("AddOptionValue(%s): %v %v", v, addErr, errs)
+			}
+		}
+	}
+	view, err = s.Product(ctx, slug)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pick := func(first, second int) []string {
+		return []string{view.Options[0].Values[first].ID, view.Options[1].Values[second].ID}
+	}
+	add := func(combination []string) (map[string]string, error) {
+		return s.AddVariant(ctx, slug, &admin.VariantForm{
+			SKU: "COMBO-" + strings.ToUpper(uuid.NewString()[:8]), PriceCents: 10000,
+			OptionValues: combination,
+		})
+	}
+
+	if errs, addErr := add(pick(0, 0)); addErr != nil || len(errs) > 0 {
+		t.Fatalf("first combination: %v %v", addErr, errs)
+	}
+	errs, addErr := add(pick(0, 0))
+	if addErr != nil || errs["options"] != i18n.T(ctx, i18n.KeyFormVariantCombinationTaken) {
+		t.Fatalf("repeated combination = %v %v, want the options refusal", addErr, errs)
+	}
+	// Sharing one value is not sharing the combination.
+	for _, combination := range [][]string{pick(0, 1), pick(1, 0)} {
+		if errs, addErr := add(combination); addErr != nil || len(errs) > 0 {
+			t.Fatalf("distinct combination refused: %v %v", addErr, errs)
+		}
+	}
+	var variants int
+	if queryErr := pool.QueryRow(ctx, `SELECT count(*) FROM product_variants WHERE product_id = (SELECT id FROM products WHERE slug = $1)`, slug).Scan(&variants); queryErr != nil {
+		t.Fatal(queryErr)
+	}
+	if variants != 3 {
+		t.Fatalf("variants = %d, want 3: the refused one must not be written", variants)
+	}
+}

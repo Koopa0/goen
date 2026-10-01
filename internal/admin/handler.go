@@ -268,6 +268,8 @@ func (h *Handler) Ship(w http.ResponseWriter, r *http.Request) {
 	case err == nil:
 		//nolint:gosec // G710: validated by IsOrderNumber
 		http.Redirect(w, r, "/admin/orders/"+number+"?shipped=1", http.StatusSeeOther)
+	case hasConstraint(err, "order_shipments_tracking_key"):
+		h.rejectTracking(w, r)
 	case errors.Is(err, ErrQuantity):
 		//nolint:gosec // G710: validated by IsOrderNumber
 		http.Redirect(w, r, "/admin/orders/"+number+"?badparcel=1", http.StatusSeeOther)
@@ -282,6 +284,24 @@ func (h *Handler) Ship(w http.ResponseWriter, r *http.Request) {
 		h.log.ErrorContext(r.Context(), "ship order", "error", err)
 		h.serverError(w, r)
 	}
+}
+
+// rejectTracking re-renders the order with the tracking number staff typed and
+// the field marked invalid, because a double submit and a reused number both
+// land here and neither is a server fault.
+func (h *Handler) rejectTracking(w http.ResponseWriter, r *http.Request) {
+	view, err := h.store.Order(r.Context(), r.PathValue("number"))
+	if err != nil {
+		h.log.ErrorContext(r.Context(), "read order after refused dispatch", "error", err)
+		h.serverError(w, r)
+		return
+	}
+	view.ShipCarrier = r.PostFormValue("carrier")
+	view.ShipTracking = r.PostFormValue("tracking")
+	view.TrackingError = i18n.T(r.Context(), i18n.KeyAdminTrackingTaken)
+	view.AllowanceOperationID = uuid.NewString()
+	web.Render(w, r, h.log, http.StatusUnprocessableEntity,
+		pages.AdminOrder(layouts.Page{Title: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyAdminPageOrder), view.Number)}, &view))
 }
 
 // parcelLines reads the `qty_<order_line_id>` fields; a nil map means everything
