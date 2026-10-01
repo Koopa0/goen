@@ -86,6 +86,37 @@ var categoryImages = map[string]string{
 
 const productMediaPrefix = "media/products/"
 
+// requiredMedia is the photography the storefront names by file but no
+// template reads yet: promotional banners, the six department photographs
+// (800px, each with a -400 rendition) and the campaign headers. The
+// headers sit under media/products/ because a campaign's image_key is resolved
+// by the product-image function.
+var requiredMedia = append(departmentMedia(
+	"books-stationery", "home-living", "beauty", "fashion", "food-drink", "tech",
+),
+	"media/promo/promo-desk.webp",
+	"media/promo/promo-desk-800.webp",
+	"media/promo/promo-morning-table.webp",
+	"media/promo/promo-morning-table-800.webp",
+	"media/products/campaign-autumn.webp",
+	"media/products/campaign-autumn-400.webp",
+	"media/products/campaign-autumn-800.webp",
+	"media/products/campaign-tea-week.webp",
+	"media/products/campaign-tea-week-400.webp",
+	"media/products/campaign-tea-week-800.webp",
+)
+
+// departmentMedia lists a department photograph's two files: the 800px source
+// and its -400 rendition, the pair CategoryImage serves.
+func departmentMedia(slugs ...string) []string {
+	names := make([]string, 0, 3*len(slugs))
+	for _, slug := range slugs {
+		base := "media/departments/" + slug
+		names = append(names, base+".webp", base+"-400.webp")
+	}
+	return names
+}
+
 var required = []string{
 	BaseCSS,
 	AppCSS,
@@ -151,7 +182,7 @@ func index() (assetIndex, error) {
 		return assetIndex{}, err
 	}
 
-	for _, name := range required {
+	for _, name := range slices.Concat(required, requiredMedia) {
 		if _, ok := indexed.digests[name]; !ok {
 			return assetIndex{}, fmt.Errorf("required asset %s is not embedded", name)
 		}

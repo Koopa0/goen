@@ -64,9 +64,9 @@ templ Home(p layouts.Page, v HomeView) {
 							src={ assets.URL(assets.HomeHeroImage) }
 							srcset={ assets.HomeHeroSrcset() }
 							sizes="(min-width: 1344px) 592px, (min-width: 1024px) calc((100vw - 96px) / 2), (min-width: 768px) calc(100vw - 48px), calc(100vw - 32px)"
-							alt=""
+							alt={ i18n.T(ctx, i18n.KeyHeroImageAlt) }
 							width="1440"
-							height="900"
+							height="720"
 							decoding="async"
 							fetchpriority="high"
 						/>

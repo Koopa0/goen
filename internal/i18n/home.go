@@ -76,6 +76,11 @@ var (
 		En:     "Tablets, headphones, wearables and accessories as well. Warranty terms are on each product page.",
 	})
 
+	KeyHeroImageAlt = key("home.hero.image_alt", Message{
+		ZhHant: "早晨的木桌與日常用品",
+		En:     "A wooden table in morning light with everyday things",
+	})
+
 	KeyHeroPrimaryCTA = key("home.hero.cta.primary", Message{
 		ZhHant: "看本週優惠",
 		En:     "This week's offers",
