@@ -268,9 +268,9 @@ func (v *AdminProductView) HasLibrary() bool { return len(v.Library) > 0 }
 // Examples for the Chinese half of each paired field. They do not follow the reader's
 // locale: which language each field takes is fixed by the schema.
 const (
-	altExample       = "銀色筆電,螢幕開啟,側面 45 度" // i18n-exempt: a Chinese example for a field that takes Chinese
-	optionExample    = "顏色"                // i18n-exempt: as above — 顏色, not Colour, is what goes in this box
-	optionValExample = "星霧藍"               // i18n-exempt: as above
-	specLabelExample = "螢幕"                // i18n-exempt: as above
-	specValueExample = "6.3 吋 OLED"        // i18n-exempt: as above
+	altExample       = "白色陶瓷馬克杯,側面,把手朝右" // i18n-exempt: a Chinese example for a field that takes Chinese
+	optionExample    = "顏色"              // i18n-exempt: as above — 顏色, not Colour, is what goes in this box
+	optionValExample = "星霧藍"             // i18n-exempt: as above
+	specLabelExample = "容量"              // i18n-exempt: as above
+	specValueExample = "350 ml"          // i18n-exempt: as above
 )
