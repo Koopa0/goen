@@ -49,7 +49,37 @@ const (
 	MarkSVG          = "brand/goen-mark.svg"
 	HomeHeroImage    = "media/hero/home-hero-01.webp"
 	HomeHeroImage720 = "media/hero/home-hero-01-720.webp"
+	// OGDefaultImage is the share-preview picture of a page that has none of
+	// its own. PNG because link-preview crawlers read it more reliably than
+	// WebP.
+	OGDefaultImage = "brand/og-default.png"
+	// AboutImage is the about page's photograph; its -400 and -800 renditions
+	// sit beside it under the product naming convention.
+	AboutImage    = "media/about/about-01.webp"
+	AboutImage400 = "media/about/about-01-400.webp"
+	AboutImage800 = "media/about/about-01-800.webp"
+	// The empty-state illustrations, each shown at 128x96.
+	EmptyCartImage     = "media/empty/cart.webp"
+	EmptySearchImage   = "media/empty/search.webp"
+	EmptyCampaignImage = "media/empty/campaign.webp"
 )
+
+// OG image geometry, stated in the tags so a crawler need not fetch it first.
+const (
+	OGDefaultWidth  = 1200
+	OGDefaultHeight = 630
+)
+
+// categoryImages is the closed set of category photographs, keyed by category
+// slug. A category outside it keeps its icon.
+var categoryImages = map[string]string{
+	"phones":      "media/categories/phones.webp",
+	"laptops":     "media/categories/laptops.webp",
+	"tablets":     "media/categories/tablets.webp",
+	"audio":       "media/categories/audio.webp",
+	"wearables":   "media/categories/wearables.webp",
+	"accessories": "media/categories/accessories.webp",
+}
 
 const productMediaPrefix = "media/products/"
 
@@ -64,6 +94,13 @@ var required = []string{
 	MarkSVG,
 	HomeHeroImage,
 	HomeHeroImage720,
+	OGDefaultImage,
+	AboutImage,
+	AboutImage400,
+	AboutImage800,
+	EmptyCartImage,
+	EmptySearchImage,
+	EmptyCampaignImage,
 }
 
 type assetIndex struct {
@@ -139,6 +176,26 @@ func Has(name string) bool {
 // mobile/tablet rendition through the full desktop source.
 func HomeHeroSrcset() string {
 	return URL(HomeHeroImage720) + " 720w, " + URL(HomeHeroImage) + " 1440w"
+}
+
+// rendition is the name of a -400 or -800 sibling of a WebP asset.
+func rendition(name string, width int) string {
+	return strings.TrimSuffix(name, ".webp") + "-" + strconv.Itoa(width) + ".webp"
+}
+
+// AboutSrcset is the about photograph's candidates, 400 to its 1600 source.
+func AboutSrcset() string {
+	return URL(AboutImage400) + " 400w, " + URL(AboutImage800) + " 800w, " + URL(AboutImage) + " 1600w"
+}
+
+// CategoryImage is the photograph for a category slug, its 800px source and a
+// srcset with the 400px rendition. ok is false for a slug with no photograph.
+func CategoryImage(slug string) (src, srcset string, ok bool) {
+	name, ok := categoryImages[slug]
+	if !ok || !Has(name) {
+		return "", "", false
+	}
+	return URL(name), URL(rendition(name, 400)) + " 400w, " + URL(name) + " 800w", true
 }
 
 // ProductImageURL maps a product_images.storage_key to its public embedded

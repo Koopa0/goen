@@ -934,6 +934,18 @@ func TestTheCatalogueStaysEligibleForSpeculation(t *testing.T) {
 	}
 }
 
+func TestSiteOriginReachesTheChromeFromTheConfiguredBaseURL(t *testing.T) {
+	t.Parallel()
+	var got string
+	h := withSiteOrigin(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		got = layouts.SiteOrigin(r.Context())
+	}), "https://shop.example/")
+	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequestWithContext(t.Context(), http.MethodGet, "http://evil.example/", http.NoBody))
+	if got != "https://shop.example" {
+		t.Errorf("origin = %q, want the configured one and never the request's Host", got)
+	}
+}
+
 // TestNoPageForOneVisitorIsKeptByTheBrowser holds both halves of withNoStore.
 // A page kept in the back/forward cache comes back with the Back button after
 // its owner has signed out, so the next person at a shared computer reads an
@@ -1043,6 +1055,39 @@ func TestOnlyTheSecurePosturePinsHTTPS(t *testing.T) {
 		if got := res.Header().Get("Strict-Transport-Security"); got != tt.want {
 			t.Errorf("secure=%v: Strict-Transport-Security = %q, want %q", tt.secure, got, tt.want)
 		}
+	}
+}
+
+// TestSharePreviewNamesTheConfiguredOriginNotTheRequestHost pins withSiteOrigin
+// in the router: a share preview's absolute URL is one a client must not be
+// able to choose by sending a Host header.
+func TestSharePreviewNamesTheConfiguredOriginNotTheRequestHost(t *testing.T) {
+	t.Parallel()
+
+	idle, err := pgxpool.New(t.Context(), "postgres://unused:unused@127.0.0.1:1/unused?sslmode=disable")
+	if err != nil {
+		t.Fatalf("open an unused pool: %v", err)
+	}
+	t.Cleanup(idle.Close)
+	gateway, err := payment.NewGateway("", "", "http://127.0.0.1")
+	if err != nil {
+		t.Fatalf("build a disabled payment gateway: %v", err)
+	}
+	router := newRouter(&RouterConfig{
+		Pool: idle, AdminPool: idle, Payments: gateway,
+		Refunder: admin.NewRefunder(""), BaseURL: "https://goen.test",
+	}, slog.New(slog.DiscardHandler))
+
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/about", http.NoBody)
+	req.Host = "evil.example"
+	res := httptest.NewRecorder()
+	router.ServeHTTP(res, req)
+	body := res.Body.String()
+	if !strings.Contains(body, `<meta property="og:image" content="https://goen.test/`) {
+		t.Errorf("/about (status %d) does not name the configured origin in og:image", res.Code)
+	}
+	if strings.Contains(body, "evil.example") {
+		t.Error("/about echoes the request's Host into the page")
 	}
 }
 
