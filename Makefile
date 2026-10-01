@@ -644,7 +644,7 @@ migrate-down:
 	@test -n "$${GOEN_DATABASE_URL:-}" || { echo 'GOEN_DATABASE_URL is required' >&2; exit 2; }
 	$(MIGRATE) -path migrations -database "$$GOEN_DATABASE_URL" down 1
 
-# Load the development catalogue: brands, categories, ~15 products with variants,
+# Load the development catalogue: brands, categories, 20 products with variants,
 # images, specs and reviews. Runs as the owner (psql, not the app's store
 # role), so it may write the tables store is barred from. Development only.
 # seed/dev_catalog.sql is edited by hand.

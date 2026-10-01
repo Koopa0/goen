@@ -93,7 +93,7 @@ FROM (VALUES
     ('meridian-book-13', 'Meridian Book 13',
      'A 13.3-inch 2.5K display in a 1.12kg body.'),
     ('nimbus-speaker-s1', 'Nimbus Speaker S1',
-     'An IP67 waterproof Bluetooth speaker with 12 hours of battery.'),
+     'An IP67 water-resistant Bluetooth speaker with 12 hours of battery.'),
     ('meridian-watch-c1', 'Meridian Watch C1',
      'A 42mm round smartwatch with five days of battery.'),
     ('aurora-power-bank-10000', 'Aurora Power Bank 10000mAh',
@@ -107,9 +107,9 @@ WHERE p.slug = m.slug;
 --
 -- This is the whole reason products.warranty_months is a column rather than a
 -- site-wide setting: a phone and a braided cable do not carry the same cover.
--- Registration is REFUSED while it is NULL, so the cases and bags below are left
--- unset on purpose — an untouched shop that has not thought about warranties should
--- see the honest refusal, not a term goen invented.
+-- Registration is REFUSED while it is NULL, so every product no one has stated a
+-- term for is left unset on purpose — an untouched shop that has not thought about
+-- warranties should see the honest refusal, not a term goen invented.
 UPDATE products p SET warranty_months = m.months
 FROM (VALUES
     ('pixelight-9-pro', 24), ('pixelight-9', 24), ('aurora-edge-7', 24),
@@ -117,9 +117,7 @@ FROM (VALUES
     ('meridian-book-14', 24), ('meridian-book-16-pro', 36),
     ('meridian-watch-s3', 24), ('nimbus-band-2', 12),
     ('koto-over-ear', 12), ('nimbus-buds-pro', 12),
-    ('aurora-charger-65', 12), ('koto-cable-braided', 6),
-    ('meridian-book-13', 24), ('nimbus-speaker-s1', 12),
-    ('meridian-watch-c1', 24), ('aurora-power-bank-10000', 12)
+    ('aurora-charger-65', 12), ('koto-cable-braided', 6)
 ) AS m(slug, months)
 WHERE p.slug = m.slug;
 
@@ -644,17 +642,17 @@ WHERE s.value = m.zh;
 INSERT INTO product_images (id, product_id, storage_key, alt_text, alt_text_en, width, height, position, option_value_id) VALUES
     ('0000001d-0000-4000-8000-00000000001d', '0000000e-0000-4000-8000-00000000000e', 'pixelight-9-pro-01.webp', 'Pixelight 9 Pro 5G 商品照', NULL, 1600, 1200, 0, NULL),
     ('0000002e-0000-4000-8000-00000000002e', '00000020-0000-4000-8000-000000000020', 'pixelight-9-01.webp', 'Pixelight 9 5G 商品照', NULL, 1600, 1200, 0, NULL),
-    ('0000003b-0000-4000-8000-00000000003b', '00000030-0000-4000-8000-000000000030', 'aurora-edge-7-01.webp', 'Aurora Edge 7 商品照', NULL, 1600, 1200, 0, NULL),
+    ('0000003b-0000-4000-8000-00000000003b', '00000030-0000-4000-8000-000000000030', 'aurora-edge-7-01.webp', 'Aurora Edge 7 商品照', NULL, 1600, 1200, 1, NULL),
     ('0000004d-0000-4000-8000-00000000004d', '0000003e-0000-4000-8000-00000000003e', 'meridian-book-14-01.webp', 'Meridian Book 14 商品照', NULL, 1600, 1200, 0, NULL),
     ('0000005b-0000-4000-8000-00000000005b', '00000050-0000-4000-8000-000000000050', 'meridian-book-16-pro-01.webp', 'Meridian Book 16 Pro 商品照', NULL, 1600, 1200, 0, NULL),
     ('0000006b-0000-4000-8000-00000000006b', '0000005d-0000-4000-8000-00000000005d', 'aurora-slate-11-01.webp', 'Aurora Slate 11 午夜灰 正面', 'Aurora Slate 11 in Midnight Grey, front', 1600, 1200, 0, '00000060-0000-4000-8000-000000000060'),
-    ('00000077-0000-4000-8000-000000000077', '0000006d-0000-4000-8000-00000000006d', 'koto-pad-mini-01.webp', 'Koto Pad mini 墨綠 正面', 'Koto Pad mini in Ink Green, front', 1600, 1200, 0, '00000070-0000-4000-8000-000000000070'),
+    ('00000077-0000-4000-8000-000000000077', '0000006d-0000-4000-8000-00000000006d', 'koto-pad-mini-01.webp', 'Koto Pad mini 墨綠 正面', 'Koto Pad mini in Ink Green, front', 1600, 1200, 1, '00000070-0000-4000-8000-000000000070'),
     ('00000085-0000-4000-8000-000000000085', '0000007a-0000-4000-8000-00000000007a', 'nimbus-buds-pro-01.webp', 'Nimbus Buds Pro 雲白 正面', 'Nimbus Buds Pro in Cloud White, front', 1600, 1200, 0, '0000007c-0000-4000-8000-00000000007c'),
     ('00000092-0000-4000-8000-000000000092', '00000089-0000-4000-8000-000000000089', 'koto-over-ear-01.webp', 'Koto Over-Ear 靜 炭黑 正面', 'Koto Over-Ear Quiet in Charcoal, front', 1600, 1200, 0, '0000008c-0000-4000-8000-00000000008c'),
-    ('000000a5-0000-4000-8000-0000000000a5', '00000094-0000-4000-8000-000000000094', 'meridian-watch-s3-01.webp', 'Meridian Watch S3 商品照', NULL, 1600, 1200, 0, NULL),
+    ('000000a5-0000-4000-8000-0000000000a5', '00000094-0000-4000-8000-000000000094', 'meridian-watch-s3-01.webp', 'Meridian Watch S3 商品照', NULL, 1600, 1200, 1, NULL),
     ('000000b3-0000-4000-8000-0000000000b3', '000000a8-0000-4000-8000-0000000000a8', 'nimbus-band-2-01.webp', 'Nimbus Band 2 黑 正面', 'Nimbus Band 2 in Black, front', 1600, 1200, 0, '000000aa-0000-4000-8000-0000000000aa'),
     ('000000ba-0000-4000-8000-0000000000ba', '000000b5-0000-4000-8000-0000000000b5', 'aurora-charger-65-01.webp', 'Aurora GaN 65W 充電器 商品照', NULL, 1600, 1200, 0, NULL),
-    ('000000c5-0000-4000-8000-0000000000c5', '000000bc-0000-4000-8000-0000000000bc', 'koto-cable-braided-01.webp', 'Koto 編織 USB-C 線 2m 商品照', NULL, 1600, 1200, 0, NULL),
+    ('000000c5-0000-4000-8000-0000000000c5', '000000bc-0000-4000-8000-0000000000bc', 'koto-cable-braided-01.webp', 'Koto 編織 USB-C 線 2m 商品照', NULL, 1600, 1200, 1, NULL),
     ('000000cf-0000-4000-8000-0000000000cf', '000000c7-0000-4000-8000-0000000000c7', 'meridian-book-sleeve-14-01.webp', 'Meridian 筆電內袋 14" 商品照', NULL, 1600, 1200, 0, NULL),
     ('000000d9-0000-4000-8000-0000000000d9', '000000d1-0000-4000-8000-0000000000d1', 'pixelight-9-pro-case-01.webp', 'Pixelight 9 Pro 保護殼 霧透 背面', 'Pixelight 9 Pro Case in Frosted, back', 1600, 1200, 0, '000000d4-0000-4000-8000-0000000000d4'),
     ('000000e7-0000-4000-8000-0000000000e7', '000000db-0000-4000-8000-0000000000db', 'meridian-book-13-01.webp', 'Meridian Book 13 太空銀 正面', 'Meridian Book 13 in Space Silver, front', 1600, 1200, 0, '000000dd-0000-4000-8000-0000000000dd'),
@@ -670,18 +668,18 @@ INSERT INTO product_images (id, product_id, storage_key, alt_text, alt_text_en, 
     ('0000011a-0000-4000-8000-00000000011a', '00000111-0000-4000-8000-000000000111', 'koto-pad-mini-folio-02.webp', 'Koto Pad mini 保護套 墨綠 正面', 'Koto Pad mini Folio in Ink Green, front', 1600, 1200, 1, '00000114-0000-4000-8000-000000000114'),
     ('0000011b-0000-4000-8000-00000000011b', '0000000e-0000-4000-8000-00000000000e', 'pixelight-9-pro-02.webp', 'Pixelight 9 Pro 5G 曜石黑 正面', 'Pixelight 9 Pro 5G in Obsidian Black, front', 1600, 1200, 1, '00000011-0000-4000-8000-000000000011'),
     ('0000011c-0000-4000-8000-00000000011c', '00000020-0000-4000-8000-000000000020', 'pixelight-9-02.webp', 'Pixelight 9 5G 曜石黑 正面', 'Pixelight 9 5G in Obsidian Black, front', 1600, 1200, 1, '00000023-0000-4000-8000-000000000023'),
-    ('0000011d-0000-4000-8000-00000000011d', '00000030-0000-4000-8000-000000000030', 'aurora-edge-7-02.webp', 'Aurora Edge 7 午夜灰 正面', 'Aurora Edge 7 in Midnight Grey, front', 1600, 1200, 1, '00000033-0000-4000-8000-000000000033'),
+    ('0000011d-0000-4000-8000-00000000011d', '00000030-0000-4000-8000-000000000030', 'aurora-edge-7-02.webp', 'Aurora Edge 7 午夜灰 正面', 'Aurora Edge 7 in Midnight Grey, front', 1600, 1200, 0, '00000033-0000-4000-8000-000000000033'),
     ('0000011e-0000-4000-8000-00000000011e', '0000003e-0000-4000-8000-00000000003e', 'meridian-book-14-02.webp', 'Meridian Book 14 石墨黑 正面', 'Meridian Book 14 in Graphite Black, front', 1600, 1200, 1, '00000041-0000-4000-8000-000000000041'),
     ('0000011f-0000-4000-8000-00000000011f', '0000005d-0000-4000-8000-00000000005d', 'aurora-slate-11-02.webp', 'Aurora Slate 11 曙光金 正面', 'Aurora Slate 11 in Dawn Gold, front', 1600, 1200, 1, '0000005f-0000-4000-8000-00000000005f'),
-    ('00000120-0000-4000-8000-000000000120', '0000006d-0000-4000-8000-00000000006d', 'koto-pad-mini-02.webp', 'Koto Pad mini 櫻花粉 正面', 'Koto Pad mini in Sakura Pink, front', 1600, 1200, 1, '0000006f-0000-4000-8000-00000000006f'),
+    ('00000120-0000-4000-8000-000000000120', '0000006d-0000-4000-8000-00000000006d', 'koto-pad-mini-02.webp', 'Koto Pad mini 櫻花粉 正面', 'Koto Pad mini in Sakura Pink, front', 1600, 1200, 0, '0000006f-0000-4000-8000-00000000006f'),
     ('00000121-0000-4000-8000-000000000121', '0000007a-0000-4000-8000-00000000007a', 'nimbus-buds-pro-02.webp', 'Nimbus Buds Pro 曜石黑 正面', 'Nimbus Buds Pro in Obsidian Black, front', 1600, 1200, 1, '0000007d-0000-4000-8000-00000000007d'),
     ('00000122-0000-4000-8000-000000000122', '0000007a-0000-4000-8000-00000000007a', 'nimbus-buds-pro-03.webp', 'Nimbus Buds Pro 薄荷綠 正面', 'Nimbus Buds Pro in Mint Green, front', 1600, 1200, 2, '0000007e-0000-4000-8000-00000000007e'),
     ('00000123-0000-4000-8000-000000000123', '00000089-0000-4000-8000-000000000089', 'koto-over-ear-02.webp', 'Koto Over-Ear 靜 胡桃 正面', 'Koto Over-Ear Quiet in Walnut, front', 1600, 1200, 1, '0000008b-0000-4000-8000-00000000008b'),
-    ('00000124-0000-4000-8000-000000000124', '00000094-0000-4000-8000-000000000094', 'meridian-watch-s3-02.webp', 'Meridian Watch S3 銀 正面', 'Meridian Watch S3 in Silver, front', 1600, 1200, 1, '00000096-0000-4000-8000-000000000096'),
+    ('00000124-0000-4000-8000-000000000124', '00000094-0000-4000-8000-000000000094', 'meridian-watch-s3-02.webp', 'Meridian Watch S3 銀 正面', 'Meridian Watch S3 in Silver, front', 1600, 1200, 0, '00000096-0000-4000-8000-000000000096'),
     ('00000125-0000-4000-8000-000000000125', '00000094-0000-4000-8000-000000000094', 'meridian-watch-s3-03.webp', 'Meridian Watch S3 玫瑰金 正面', 'Meridian Watch S3 in Rose Gold, front', 1600, 1200, 2, '00000098-0000-4000-8000-000000000098'),
     ('00000126-0000-4000-8000-000000000126', '000000a8-0000-4000-8000-0000000000a8', 'nimbus-band-2-02.webp', 'Nimbus Band 2 珊瑚橘 正面', 'Nimbus Band 2 in Coral Orange, front', 1600, 1200, 1, '000000ab-0000-4000-8000-0000000000ab'),
     ('00000127-0000-4000-8000-000000000127', '000000a8-0000-4000-8000-0000000000a8', 'nimbus-band-2-03.webp', 'Nimbus Band 2 天空藍 正面', 'Nimbus Band 2 in Sky Blue, front', 1600, 1200, 2, '000000ac-0000-4000-8000-0000000000ac'),
-    ('00000128-0000-4000-8000-000000000128', '000000bc-0000-4000-8000-0000000000bc', 'koto-cable-braided-02.webp', 'Koto 編織 USB-C 線 2m 墨綠', 'Koto Braided USB-C Cable 2m in Ink Green', 1600, 1200, 1, '000000be-0000-4000-8000-0000000000be'),
+    ('00000128-0000-4000-8000-000000000128', '000000bc-0000-4000-8000-0000000000bc', 'koto-cable-braided-02.webp', 'Koto 編織 USB-C 線 2m 墨綠', 'Koto Braided USB-C Cable 2m in Ink Green', 1600, 1200, 0, '000000be-0000-4000-8000-0000000000be'),
     ('00000129-0000-4000-8000-000000000129', '000000c7-0000-4000-8000-0000000000c7', 'meridian-book-sleeve-14-02.webp', 'Meridian 筆電內袋 14" 燕麥 正面', 'Meridian Laptop Sleeve 14" in Oat, front', 1600, 1200, 1, '000000ca-0000-4000-8000-0000000000ca'),
     ('0000012a-0000-4000-8000-00000000012a', '000000d1-0000-4000-8000-0000000000d1', 'pixelight-9-pro-case-02.webp', 'Pixelight 9 Pro 保護殼 透明 背面', 'Pixelight 9 Pro Case in Clear, back', 1600, 1200, 1, '000000d3-0000-4000-8000-0000000000d3');
 

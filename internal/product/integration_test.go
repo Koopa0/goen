@@ -146,6 +146,9 @@ func TestAnUntaggedGalleryIsTheSameForEveryChoice(t *testing.T) {
 	for _, slug := range []string{"meridian-book-16-pro"} {
 		t.Run(slug, func(t *testing.T) {
 			_, first := get(t, slug, "")
+			if strings.Contains(first, `hx-select-oob="#gallery"`) {
+				t.Fatalf("%s's gallery follows the choice; this lock needs a product whose photographs are all untagged", slug)
+			}
 			base := gallery(t, first)
 			for _, href := range optionHrefs(t, first) {
 				query := ""
