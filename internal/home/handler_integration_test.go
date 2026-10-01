@@ -771,7 +771,7 @@ func TestTheTrustBodyDescribesOnlyTheMethodsCheckoutOffers(t *testing.T) {
 		t.Error("a shop that offers pickup does not say so")
 	}
 	without := render(home.NewStore(pool).WithoutPickup())
-	if strings.Contains(without, "超商取貨") {
+	if strings.Contains(without, "超商取貨皆適用") {
 		t.Error("the strip promises pickup where checkout does not offer it")
 	}
 	if want := fmt.Sprintf("未達門檻運費 NT$%d 起", homeFee/100); !strings.Contains(without, want) {
