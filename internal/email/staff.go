@@ -22,5 +22,5 @@ func (n Notifier) SendStaffInvitation(ctx context.Context, p *StaffInvitation, a
 	}
 	ctx = n.locale(ctx, p.Locale)
 	link := strings.TrimRight(n.baseURL, "/") + "/forgot"
-	return n.sender.Send(ctx, &Message{To: address, Subject: i18n.T(ctx, i18n.KeyMailStaffInvitationSubject), Body: n.letter(ctx, name, fmt.Sprintf(i18n.T(ctx, i18n.KeyMailStaffInvitationBody), link))})
+	return n.send(ctx, &Message{To: address, Subject: i18n.T(ctx, i18n.KeyMailStaffInvitationSubject), Body: n.letter(ctx, name, fmt.Sprintf(i18n.T(ctx, i18n.KeyMailStaffInvitationBody), link))})
 }

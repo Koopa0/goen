@@ -2,7 +2,9 @@ package email
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/tls"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -19,8 +21,11 @@ import (
 type Message struct {
 	To      string
 	Subject string
-	// Body is plain text. goen sends no HTML mail.
+	// Body is plain text, the letter as written.
 	Body string
+	// HTML is Body laid out as a page, sent beside it as an alternative. Empty
+	// sends Body alone.
+	HTML string
 }
 
 // Sender delivers a message.
@@ -190,23 +195,60 @@ func deliver(c *smtp.Client, s SMTPSender, m *Message, host, envelope string) er
 
 // render builds the wire format. The subject is encoded per RFC 2047, or a
 // Traditional Chinese subject line arrives as mojibake.
+//
+// A message with HTML is multipart/alternative, text first: a client shows the
+// last part it can display, so one that cannot show HTML still has the letter.
+// Its Content-Transfer-Encoding is 7bit, which both base64 parts make true, so
+// the header block is the same six lines a text-only letter has.
 func render(from string, m *Message) []byte {
 	var b strings.Builder
 	b.WriteString("From: " + from + "\r\n")
 	b.WriteString("To: " + m.To + "\r\n")
 	b.WriteString("Subject: " + encodeHeader(m.Subject) + "\r\n")
 	b.WriteString("MIME-Version: 1.0\r\n")
-	b.WriteString("Content-Type: text/plain; charset=utf-8\r\n")
-	b.WriteString("Content-Transfer-Encoding: 8bit\r\n")
+	if m.HTML == "" {
+		b.WriteString("Content-Type: text/plain; charset=utf-8\r\n")
+		b.WriteString("Content-Transfer-Encoding: 8bit\r\n")
+		b.WriteString("\r\n")
+		b.WriteString(crlf(m.Body))
+		return []byte(b.String())
+	}
+	boundary := rand.Text()
+	b.WriteString(`Content-Type: multipart/alternative; boundary="` + boundary + "\"\r\n")
+	b.WriteString("Content-Transfer-Encoding: 7bit\r\n")
 	b.WriteString("\r\n")
-	// Every line break becomes CRLF, whichever form it arrived in: SMTP is a
-	// CRLF protocol, and a bare CR or a bare LF is what one server reads as the
-	// end of a line and the next does not, so the two can disagree about where
-	// the message ends.
-	body := strings.ReplaceAll(m.Body, "\r\n", "\n")
-	body = strings.ReplaceAll(body, "\r", "\n")
-	b.WriteString(strings.ReplaceAll(body, "\n", "\r\n"))
+	writePart(&b, boundary, "text/plain", m.Body)
+	writePart(&b, boundary, "text/html", m.HTML)
+	b.WriteString("--" + boundary + "--\r\n")
 	return []byte(b.String())
+}
+
+// writePart writes one base64 part. Base64 rather than quoted-printable: it
+// carries a Chinese letter in under half the bytes, and its alphabet has no
+// "-", so no line of a part can be read as the boundary.
+func writePart(b *strings.Builder, boundary, mediaType, text string) {
+	b.WriteString("--" + boundary + "\r\n")
+	b.WriteString("Content-Type: " + mediaType + "; charset=utf-8\r\n")
+	b.WriteString("Content-Transfer-Encoding: base64\r\n")
+	b.WriteString("\r\n")
+	// 76 is RFC 2045's limit for a base64 line.
+	encoded := base64.StdEncoding.EncodeToString([]byte(crlf(text)))
+	for len(encoded) > 76 {
+		b.WriteString(encoded[:76] + "\r\n")
+		encoded = encoded[76:]
+	}
+	b.WriteString(encoded + "\r\n")
+}
+
+// crlf makes every line break CRLF, whichever form it arrived in: SMTP is a
+// CRLF protocol, and a bare CR or a bare LF is what one server reads as the end
+// of a line and the next does not, so the two can disagree about where the
+// message ends. A text part is decoded to the same form, which RFC 2046 makes
+// the canonical one.
+func crlf(s string) string {
+	s = strings.ReplaceAll(s, "\r\n", "\n")
+	s = strings.ReplaceAll(s, "\r", "\n")
+	return strings.ReplaceAll(s, "\n", "\r\n")
 }
 
 // encodeHeader makes a header value safe for the wire.

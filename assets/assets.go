@@ -49,6 +49,9 @@ const (
 	MarkSVG          = "brand/goen-mark.svg"
 	HomeHeroImage    = "media/hero/home-hero-01.webp"
 	HomeHeroImage720 = "media/hero/home-hero-01-720.webp"
+	// EmailHeader heads every HTML letter. PNG, not WebP: a mail client
+	// renders what it can decode, and not every one decodes WebP.
+	EmailHeader = "brand/email-header.png"
 )
 
 const productMediaPrefix = "media/products/"
@@ -64,6 +67,7 @@ var required = []string{
 	MarkSVG,
 	HomeHeroImage,
 	HomeHeroImage720,
+	EmailHeader,
 }
 
 type assetIndex struct {

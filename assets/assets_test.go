@@ -60,6 +60,7 @@ func TestRequiredAssetsAreVersioned(t *testing.T) {
 		assets.MarkSVG,
 		assets.HomeHeroImage,
 		assets.HomeHeroImage720,
+		assets.EmailHeader,
 	}
 
 	for _, name := range names {
