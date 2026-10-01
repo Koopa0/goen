@@ -35,6 +35,10 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
+// samplePNG draws a w×h image. Uploads are stored by content digest, so each
+// test asks for a size no other test uses: two tests sharing one would share
+// one media_objects row, and a reference one test leaves behind would decide
+// the other under -shuffle.
 func samplePNG(t *testing.T, w, h int) []byte {
 	t.Helper()
 	img := image.NewRGBA(image.Rect(0, 0, w, h))
@@ -284,7 +288,7 @@ func TestACampaignsHeaderImageIsNotReclaimed(t *testing.T) {
 	ctx := t.Context()
 	s := media.NewStore(pool)
 
-	header, err := s.Put(ctx, bytes.NewReader(samplePNG(t, 73, 53)))
+	header, err := s.Put(ctx, bytes.NewReader(samplePNG(t, 75, 55)))
 	if err != nil {
 		t.Fatalf("upload: %v", err)
 	}
