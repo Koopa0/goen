@@ -1028,6 +1028,11 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 		accept:     `INSERT INTO payment_webhook_events (provider, event_id, type, payload) VALUES ('stripe','evt_acc_type','payment_intent.succeeded','{}'::jsonb);`,
 	},
 	{
+		constraint: "payments_captured_non_negative",
+		reject:     `INSERT INTO payments (id, order_id, provider_ref, status, intended_amount_cents, captured_amount_cents) VALUES ('11110001-0000-4000-8000-000000000004','6666aaaa-6666-4666-8666-666666666666','pi_rej_captured','processing',6788000,-1);`,
+		accept:     `INSERT INTO payments (id, order_id, provider_ref, status, intended_amount_cents, captured_amount_cents) VALUES ('11110001-0000-4000-8000-000000000004','6666aaaa-6666-4666-8666-666666666666','pi_acc_captured','processing',6788000,NULL);`,
+	},
+	{
 		constraint: "payments_currency_is_twd",
 		reject:     `INSERT INTO payments (id, order_id, provider_ref, status, intended_amount_cents, currency) VALUES ('11110001-0000-4000-8000-000000000005','6666aaaa-6666-4666-8666-666666666666','pi_rej_currency','requires_payment',6788000,'USD');`,
 		accept:     `INSERT INTO payments (id, order_id, provider_ref, status, intended_amount_cents, currency) VALUES ('11110001-0000-4000-8000-000000000005','6666aaaa-6666-4666-8666-666666666666','pi_acc_currency','requires_payment',6788000,'TWD');`,

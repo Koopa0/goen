@@ -3648,6 +3648,8 @@ CREATE TABLE payments (
     -- Bounded, or a capture can approach 2^63 and overflow the running sums the
     -- refund and store-credit guards compute.
     CONSTRAINT payments_intended_in_range CHECK (intended_amount_cents <= 10000000000),
+    CONSTRAINT payments_captured_non_negative
+        CHECK (captured_amount_cents IS NULL OR captured_amount_cents >= 0),
     CONSTRAINT payments_captured_in_range
         CHECK (captured_amount_cents IS NULL OR captured_amount_cents <= 10000000000),
     CONSTRAINT payments_currency_is_twd CHECK (currency = 'TWD'),
