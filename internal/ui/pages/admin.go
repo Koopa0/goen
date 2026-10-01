@@ -23,6 +23,8 @@ type AdminVariant struct {
 	Safety        int32
 	Active        bool
 	ProductStatus string
+	// FormID is unique to one rendering of this row's adjust form.
+	FormID string
 }
 
 // StockText is the stock on hand, as text.
@@ -492,9 +494,11 @@ func (v AdminVariant) CompareText() string {
 	return strconv.FormatInt(v.CompareCents/100, 10)
 }
 
-// AdjustKey is the adjustment form's idempotency key.
+// AdjustKey is the adjustment form's idempotency key. It is spent for good in
+// the ledger, so it names the rendered form and not the stock level: stock
+// returns to an earlier figure, and a key built from it would then be refused.
 func (v AdminVariant) AdjustKey() string {
-	return "adj:" + v.SKU + ":" + strconv.FormatInt(int64(v.Stock), 10)
+	return "adj:" + v.SKU + ":" + v.FormID
 }
 
 // AdminMovement is one row of a variant's stock ledger.
@@ -563,15 +567,18 @@ type AdminMovementsView struct {
 	Safety      int32
 	Rows        []AdminMovement
 	Notice      string
+	// FormID is unique to one rendering of the goods-receipt form.
+	FormID string
 }
 
 // HasNotice reports whether to show the banner.
 func (v *AdminMovementsView) HasNotice() bool { return v.Notice != "" }
 
-// ReceiveKey is the goods-receipt form's idempotency key. Its prefix differs from
-// AdjustKey's, or a correction and a delivery against the same figure collide.
+// ReceiveKey is the goods-receipt form's idempotency key, named by the rendered
+// form for the reason AdjustKey is. Its prefix differs from AdjustKey's so the
+// two forms never share a key.
 func (v *AdminMovementsView) ReceiveKey() string {
-	return "rcv:" + v.SKU + ":" + strconv.FormatInt(int64(v.Stock), 10)
+	return "rcv:" + v.SKU + ":" + v.FormID
 }
 
 // Empty reports whether nothing has ever moved.
