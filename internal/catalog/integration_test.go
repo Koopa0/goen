@@ -97,7 +97,7 @@ func headerSearchValue(html string) string {
 	return rest[:k]
 }
 
-// /c/accessories holds no products of its own; chargers and cases hold four
+// /c/accessories holds no products of its own; chargers and cases hold six
 // between them.
 func TestListingIncludesDescendants(t *testing.T) {
 	code, body := get(t, "/c/accessories")

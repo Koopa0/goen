@@ -2692,7 +2692,7 @@ const waitForGallery = async (want) => {
 
 const provePdpColourPhoto = async (label, scriptingOff) => {
   if (!COLOUR_SLUG || !COLOUR_VALUE || !COLOUR_KEY) {
-    fail(label, 'COLOUR_SLUG, COLOUR_VALUE and COLOUR_KEY are unset — run it through make check-layout, whose fixture tags the photograph');
+    fail(label, 'COLOUR_SLUG, COLOUR_VALUE and COLOUR_KEY are unset — run it through make check-layout, which names a photograph the seed tags');
     return;
   }
   await send(ws, 'Emulation.setScriptExecutionDisabled', { value: scriptingOff });

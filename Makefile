@@ -97,10 +97,11 @@ test-integration: gen
 # LAYOUT_CHROME is a target variable so the resolved path survives GNU make's
 # one-shell-per-recipe-line default. Quoted for the macOS app bundle path.
 check-layout: LAYOUT_CHROME := $(if $(CHROME),$(CHROME),$(shell scripts/resolve-chrome.sh 2>/dev/null))
-# The colour-photo fixture and the probe that reads it name the same three things.
+# The seed's photograph tagged with COLOUR_VALUE, which the colour probe expects
+# to lead COLOUR_SLUG's gallery once that value is chosen.
 check-layout: COLOUR_SLUG := pixelight-9-pro
 check-layout: COLOUR_VALUE := 曜石黑
-check-layout: COLOUR_KEY := pixelight-9-pro-01-800.webp
+check-layout: COLOUR_KEY := pixelight-9-pro-02.webp
 check-layout:
 	@test -n "$(LAYOUT_CHROME)" && test -x "$(LAYOUT_CHROME)" || { echo 'Chrome not found; set CHROME=/path/to/chrome' >&2; exit 2; }
 	@curl -sf -o /dev/null $${GOEN_URL:-http://127.0.0.1:9700/} \
@@ -189,12 +190,6 @@ check-layout:
 	@VARIANT=$$(psql "$$GOEN_DATABASE_URL" -tAc "SELECT pv.id FROM product_variants pv JOIN products p ON p.id = pv.product_id WHERE p.status = 'active' AND pv.is_active AND pv.stock_quantity > pv.safety_stock LIMIT 1"); \
 		curl -s -o /dev/null -b .layout-chrome/cookies -c .layout-chrome/cookies \
 			-d "variant=$$VARIANT&quantity=1" $${GOEN_URL:-http://127.0.0.1:9700}/cart/items
-	@# One photograph tagged with a colour, because the seed tags none and a probe
-	@# over an untagged gallery measures nothing. The product's own picture under
-	@# its 800px rendition's name: an <img> the probe can tell apart that is still
-	@# a picture of this product. Upserted, so a rerun re-tags rather than fails.
-	@test "$$(psql "$$GOEN_DATABASE_URL" -qtAc "INSERT INTO product_images (product_id, storage_key, alt_text, alt_text_en, width, height, position, option_value_id) SELECT p.id, '$(COLOUR_KEY)', p.name, p.name_en, 800, 600, (SELECT max(x.position) + 1 FROM product_images x WHERE x.product_id = p.id), v.id FROM products p JOIN product_option_values v ON v.product_id = p.id WHERE p.slug = '$(COLOUR_SLUG)' AND v.value = '$(COLOUR_VALUE)' ON CONFLICT (product_id, storage_key) DO UPDATE SET option_value_id = EXCLUDED.option_value_id RETURNING 1")" = "1" \
-		|| { echo 'the colour-photo fixture tagged no photograph — $(COLOUR_SLUG) or its $(COLOUR_VALUE) value is not in GOEN_DATABASE_URL' >&2; exit 2; }
 	@# The promotional strip is DATA — an empty promo_banners is a working site
 	@# and a correct blank page, so its layout rows measured nothing at all
 	@# until this fixture existed. The check's own marker guard is what said so.
@@ -649,7 +644,7 @@ migrate-down:
 	@test -n "$${GOEN_DATABASE_URL:-}" || { echo 'GOEN_DATABASE_URL is required' >&2; exit 2; }
 	$(MIGRATE) -path migrations -database "$$GOEN_DATABASE_URL" down 1
 
-# Load the development catalogue: brands, categories, ~15 products with variants,
+# Load the development catalogue: brands, categories, 20 products with variants,
 # images, specs and reviews. Runs as the owner (psql, not the app's store
 # role), so it may write the tables store is barred from. Development only.
 # seed/dev_catalog.sql is edited by hand.
