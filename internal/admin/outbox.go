@@ -89,6 +89,8 @@ func enqueueRestockNotices(ctx context.Context, q *db.Queries, variantID uuid.UU
 		subjects[c.Locale] = subject
 	}
 
+	keys := make([]string, 0, len(claimed))
+	payloads := make([][]byte, 0, len(claimed))
 	for _, c := range claimed {
 		subject := subjects[c.Locale]
 		payload, encErr := json.Marshal(RestockNotice{
@@ -99,11 +101,10 @@ func enqueueRestockNotices(ctx context.Context, q *db.Queries, variantID uuid.UU
 		if encErr != nil {
 			return fmt.Errorf("encode restock notice: %w", encErr)
 		}
-		if err := q.EnqueueMessage(ctx, db.EnqueueMessageParams{
-			Topic: outbox.TopicRestocked, DedupeKey: c.ID.String(), Payload: payload,
-		}); err != nil {
-			return fmt.Errorf("enqueue restock notice: %w", err)
-		}
+		keys = append(keys, c.ID.String())
+		payloads = append(payloads, payload)
 	}
-	return nil
+	// One statement, because this runs while the variant row is locked and every
+	// checkout of it waits for the loop to end.
+	return outbox.Enqueue(ctx, q, outbox.TopicRestocked, 0, keys, payloads)
 }

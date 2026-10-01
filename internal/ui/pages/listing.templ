@@ -21,7 +21,7 @@ templ Listing(p layouts.Page, v ListingView) {
 			})
 			<div class="goen-pagehead">
 				<h1 class="goen-pagehead__title">{ v.Name }</h1>
-				<p class="goen-pagehead__sub">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyListingCount), v.TotalText()) }</p>
+				<p class="goen-pagehead__sub">{ i18n.Count(ctx, i18n.KeyListingCount, v.Total, v.TotalText()) }</p>
 			</div>
 			<div class="goen-listing__layout">
 				@listingFilters(v)
@@ -45,7 +45,7 @@ templ Listing(p layouts.Page, v ListingView) {
 						<h2 class="goen-sr-only">{ i18n.T(ctx, i18n.KeyResultsHeading) }</h2>
 						@compareForm() {
 							<ul class="goen-tiles__grid" role="list">
-								for _, t := range v.Products {
+								for _, t := range FirstRowEager(v.Products) {
 									@Tile(t)
 								}
 							</ul>
@@ -193,7 +193,7 @@ templ Search(p layouts.Page, v SearchView) {
 					}
 				</h1>
 				if v.Searched() {
-					<p class="goen-pagehead__sub">{ fmt.Sprintf(i18n.T(ctx, i18n.KeySearchResults), v.TotalText()) }</p>
+					<p class="goen-pagehead__sub">{ i18n.Count(ctx, i18n.KeySearchResults, v.Total, v.TotalText()) }</p>
 				}
 			</div>
 			if !v.Searched() {
@@ -216,7 +216,7 @@ templ Search(p layouts.Page, v SearchView) {
 				<h2 class="goen-sr-only">{ i18n.T(ctx, i18n.KeyResultsHeading) }</h2>
 				@compareForm() {
 					<ul class="goen-tiles__grid" role="list">
-						for _, t := range v.Products {
+						for _, t := range FirstRowEager(v.Products) {
 							@Tile(t)
 						}
 					</ul>

@@ -1760,9 +1760,9 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var97 string
-					templ_7745c5c3_Var97, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf(i18n.T(ctx, i18n.KeyOrderLineCount), o.LineCountText()))
+					templ_7745c5c3_Var97, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.Count(ctx, i18n.KeyOrderLineCount, o.LineCount, o.LineCountText()))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 370, Col: 100}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 370, Col: 104}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var97))
 					if templ_7745c5c3_Err != nil {

@@ -33,6 +33,8 @@ func TestEveryCategoryNameIsLocalized(t *testing.T) {
 		"RenameCategory":  "the write",
 		"AdminCategories": "back office: the product form's category select",
 		"AdminProducts":   "back office: the product list's category column",
+		"SearchProductsCount": "matching, not display: the same predicate as " +
+			"SearchProducts, which matches the category name in either language",
 	}
 
 	used := map[string]bool{}

@@ -1,6 +1,6 @@
 # Demo deployment evidence
 
-[goen.koopa0.dev](https://goen.koopa0.dev) demonstrates the twenty-product sample
+[goen.koopa0.dev](https://goen.koopa0.dev) demonstrates the forty-product sample
 catalogue and Stripe sandbox checkout. It is not a shop that sells or ships goods.
 
 ## Trying payment

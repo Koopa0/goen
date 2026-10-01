@@ -137,3 +137,42 @@ func TestCreditConfirmationDoesNotFollowAReassignedEmail(t *testing.T) {
 		t.Error("the credit form's refusal carries the dispatch form's banner above the field errors")
 	}
 }
+
+func TestDispatchWithARecordedTrackingNumberIsRefusedOnTheField(t *testing.T) {
+	ctx, staff := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	h := adminHandlerOver(pool, s)
+	first, second := shippableOrder(t, "zh-Hant"), shippableOrder(t, "zh-Hant")
+	tracking := "DUP-" + uuid.NewString()[:8]
+	if err := s.Ship(ctx, first, admin.Dispatch{Carrier: "黑貓宅急便", Tracking: tracking},
+		uuid.NullUUID{UUID: staff, Valid: true}); err != nil {
+		t.Fatalf("first dispatch: %v", err)
+	}
+
+	form := url.Values{"carrier": {"黑貓宅急便"}, "tracking": {tracking}}
+	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/orders/"+second+"/ship", strings.NewReader(form.Encode()))
+	req.SetPathValue("number", second)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+	h.RequireStaff(h.Ship)(w, req)
+
+	if w.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("a reused tracking number answered %d, want 422", w.Code)
+	}
+	body := w.Body.String()
+	for _, want := range []string{`aria-invalid="true"`, `aria-describedby="ship-tracking-error"`,
+		`id="ship-tracking-error"`, `value="` + tracking + `"`, i18n.T(ctx, i18n.KeyAdminTrackingTaken)} {
+		if !strings.Contains(body, want) {
+			t.Errorf("refused dispatch is missing %q", want)
+		}
+	}
+	var parcels int
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*) FROM order_shipments s JOIN orders o ON o.id = s.order_id WHERE o.order_number = $1`,
+		second).Scan(&parcels); err != nil {
+		t.Fatal(err)
+	}
+	if parcels != 0 {
+		t.Errorf("the refused dispatch left %d parcels on the second order", parcels)
+	}
+}

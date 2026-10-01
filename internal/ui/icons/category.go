@@ -9,6 +9,16 @@ const (
 	categoryWatch      = "watch"
 	categoryPlug       = "plug"
 	categoryShield     = "shield"
+	categoryBook       = "book"
+	categoryStationery = "stationery"
+	categoryHome       = "home"
+	categoryKitchen    = "kitchen"
+	categoryFood       = "food"
+	categoryDrink      = "drink"
+	categoryBeauty     = "beauty"
+	categoryApparel    = "apparel"
+	categoryKids       = "kids"
+	categoryGift       = "gift"
 )
 
 // categoryKeys is the closed set Category renders, in picker order.
@@ -20,6 +30,16 @@ var categoryKeys = [...]string{
 	categoryWatch,
 	categoryPlug,
 	categoryShield,
+	categoryBook,
+	categoryStationery,
+	categoryHome,
+	categoryKitchen,
+	categoryFood,
+	categoryDrink,
+	categoryBeauty,
+	categoryApparel,
+	categoryKids,
+	categoryGift,
 }
 
 // CategoryKeys returns the keys Category can render, in picker order. Each

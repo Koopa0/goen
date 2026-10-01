@@ -148,6 +148,8 @@ func (s *Store) Send(ctx context.Context, issueID string, actor uuid.NullUUID) (
 		return 0, fmt.Errorf("reading the list: %w", err)
 	}
 
+	keys := make([]string, 0, len(subscribers))
+	payloads := make([][]byte, 0, len(subscribers))
 	for i := range subscribers {
 		to := &subscribers[i]
 		payload := email.NewsletterIssue{
@@ -158,10 +160,17 @@ func (s *Store) Send(ctx context.Context, issueID string, actor uuid.NullUUID) (
 			UnsubscribeToken: to.UnsubscribeToken,
 		}
 		// Keyed on (issue, subscriber): a retried send cannot mail one person twice.
-		key := issueID + ":" + dedupeOf(to.UnsubscribeToken)
-		if enqErr := enqueueBulk(ctx, q, outbox.TopicNewsletterIssue, key, payload); enqErr != nil {
-			return 0, enqErr
+		encoded, encErr := json.Marshal(payload)
+		if encErr != nil {
+			return 0, fmt.Errorf("encoding %s message: %w", outbox.TopicNewsletterIssue, encErr)
 		}
+		keys = append(keys, issueID+":"+dedupeOf(to.UnsubscribeToken))
+		payloads = append(payloads, encoded)
+	}
+	// One statement: a statement per subscriber spends the request's budget on
+	// round trips, and a list too long for it could never be sent.
+	if enqErr := outbox.Enqueue(ctx, q, outbox.TopicNewsletterIssue, outbox.BulkPriority, keys, payloads); enqErr != nil {
+		return 0, enqErr
 	}
 
 	n, err := q.MarkNewsletterIssueSent(ctx, db.MarkNewsletterIssueSentParams{
