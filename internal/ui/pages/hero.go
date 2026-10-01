@@ -45,7 +45,6 @@ func (h Hero) Custom() bool { return h.ImageKey != "" }
 // DefaultHero is what the home page shows when nothing is scheduled.
 func DefaultHero(ctx context.Context) Hero {
 	return Hero{
-		Eyebrow:      i18n.T(ctx, i18n.KeyHeroEyebrow),
 		Headline:     i18n.T(ctx, i18n.KeyHeroHeadline),
 		Body:         i18n.T(ctx, i18n.KeyHeroBody),
 		PrimaryCTA:   CTA{Label: i18n.T(ctx, i18n.KeyHeroPrimaryCTA), Href: "/deals"},

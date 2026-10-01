@@ -1241,90 +1241,146 @@ h3 {
 
 /* ---------- Home ----------
 
-   Four sections and no more: the hero, the categories, the recommended
-   products, and what the shop guarantees. `.goen-home` is the content column
-   the header bar and the footer grid are compared against
+   The hero photograph, the department tiles, the recommended products, one
+   promotional band and the guarantees. `.goen-home` is the content column the
+   header bar and the footer grid are compared against
    (`check-layout.mjs:496-498`), so its gutter is the shared one.
    ------------------------------------------------------------------------ */
 
 .goen-home {
   display: flex;
   flex-direction: column;
-  gap: 32px;
+  gap: 4rem;
   margin: 0 auto;
   max-width: var(--page-width);
-  padding: 32px var(--page-gutter) 56px;
+  padding: 1.5rem var(--page-gutter) 4rem;
 }
 
 .goen-home__section {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 1.5rem;
+}
+
+.goen-home__head {
+  align-items: baseline;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
 }
 
 .goen-home__heading {
   font-size: var(--fs-ed-24);
   font-weight: var(--fw-semibold);
-  letter-spacing: -0.02em;
+  line-height: 1.35;
   margin: 0;
 }
 
-/* The two halves start on the same line at desk width — the gate reads the
-   split off their box tops (`check-layout.mjs:493`), so the copy is centred
-   inside a stretched column rather than by align-items, which would offset the
-   shorter box and read as stacked. */
+.goen-home__more {
+  color: var(--accent-text);
+  flex: none;
+  font-size: var(--fs-14);
+  font-weight: var(--fw-medium);
+  text-decoration: none;
+}
+
+.goen-home__more:hover {
+  color: var(--accent-text-hover);
+  text-decoration: underline;
+}
+
+/* The copy sits over the photograph's lower left in one grid cell. The gate
+   reads the split off the two boxes' tops (`check-layout.mjs:524`): below
+   1024 the copy box is its own height and ends at the bottom, so its top is
+   lower than the photograph's (stacked); from 1024 it is stretched to the
+   photograph's height and its contents are pushed down, so the tops agree. */
 .goen-hero {
   display: grid;
-  gap: 32px;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.goen-hero__body,
+.goen-hero__media {
+  grid-area: 1 / 1;
 }
 
 .goen-hero__body {
+  align-self: end;
+  color: #fff;
   display: flex;
   flex-direction: column;
-  justify-content: center;
-}
-
-.goen-hero__eyebrow {
-  align-self: flex-start;
-  margin-bottom: 16px;
+  max-width: 36rem;
+  padding: 1.5rem;
+  position: relative;
+  z-index: 1;
 }
 
 .goen-hero__title {
   font-size: var(--fs-ed-30);
   font-weight: var(--fw-semibold);
-  letter-spacing: -0.02em;
+  line-height: 1.25;
   margin: 0;
+  text-wrap: balance;
 }
 
 .goen-hero__lede {
-  color: var(--fg-muted);
-  font-size: var(--fs-18);
+  color: rgb(255 255 255 / 0.9);
+  font-size: var(--fs-16);
   line-height: var(--lh-normal);
-  margin: 16px 0 0;
+  margin: 0.75rem 0 0;
 }
 
 .goen-hero__actions {
   display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin-top: 32px;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
 }
 
-/* The frame reserves its own height before the artwork arrives, which is what
-   keeps the copy from jumping on a slow connection. */
+/* The ink button would vanish into the scrim, so on the photograph the primary
+   inverts and the secondary is a white outline. */
+.goen-hero .goen-btn--primary {
+  background: #fff;
+  color: var(--n-900);
+}
+
+.goen-hero .goen-btn--primary:hover {
+  background: var(--n-100);
+}
+
+.goen-hero .goen-btn--outline {
+  background: transparent;
+  border-color: rgb(255 255 255 / 0.7);
+  color: #fff;
+}
+
+.goen-hero .goen-btn--outline:hover {
+  background: rgb(255 255 255 / 0.12);
+}
+
+/* The frame reserves its own height before the artwork arrives. The scrim
+   darkens the lower part where the copy is; the photograph's subject sits in
+   the upper right of a 2:1 frame, so the portrait crop keeps that side. */
 .goen-hero__media {
-  aspect-ratio: 16 / 10;
+  aspect-ratio: 4 / 5;
   background: var(--photo-ground);
   border-radius: var(--r-lg);
-  order: -1;
   overflow: hidden;
   position: relative;
+}
+
+.goen-hero__media::after {
+  background: linear-gradient(to top, rgb(0 0 0 / 0.55), rgb(0 0 0 / 0.2) 55%, transparent);
+  content: "";
+  inset: 0;
+  position: absolute;
 }
 
 .goen-hero__image {
   display: block;
   height: 100%;
   object-fit: cover;
+  object-position: 70% 50%;
   width: 100%;
 }
 
@@ -1345,7 +1401,7 @@ h3 {
 
 .goen-cats__grid {
   display: grid;
-  gap: 12px;
+  gap: 1.5rem 0.75rem;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   list-style: none;
   margin: 0;
@@ -1353,13 +1409,11 @@ h3 {
 }
 
 .goen-cat {
-  align-items: center;
   color: var(--n-900);
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
   min-height: 44px;
-  text-align: center;
   text-decoration: none;
 }
 
@@ -1371,51 +1425,87 @@ h3 {
   opacity: 0.85;
 }
 
+/* A category without a photograph keeps its icon, centred on the same square
+   ground so the row stays level. */
 .goen-cat__icon {
   align-items: center;
-  color: var(--fg-muted);
-  display: inline-flex;
-  height: 32px;
+  aspect-ratio: 1;
+  background: var(--photo);
+  border-radius: var(--r-lg);
+  color: var(--n-500);
+  display: flex;
   justify-content: center;
-  width: 32px;
+  width: 100%;
 }
 
 .goen-cat__icon svg {
-  height: 28px;
-  width: 28px;
+  height: 2rem;
+  width: 2rem;
 }
 
-/* The photograph fills the tile's width on its own ground, which is the
-   frame. */
+/* The photograph fills the tile's width on its own ground; a department
+   photograph is 4:3 and is cropped to the square. */
 .goen-cat__photo {
   aspect-ratio: 1;
   background: var(--photo);
   border-radius: var(--r-lg);
   display: block;
   height: auto;
-  object-fit: contain;
+  object-fit: cover;
   width: 100%;
 }
 
-.goen-cat:hover .goen-cat__icon {
-  color: var(--fg);
-}
-
 .goen-cat__name {
-  font-size: var(--fs-14);
+  font-size: var(--fs-15);
   font-weight: var(--fw-medium);
   line-height: var(--lh-normal);
 }
 
-/* What the shop guarantees. Four tiles, and the delivery one renders only
+/* One photograph and a line of chrome on a tone ground. --tone-ground is the
+   department theming token; stone is the fallback until a page sets one. */
+.goen-promoband {
+  background: var(--tone-ground, #f8f7f5);
+  border-radius: var(--r-lg);
+  display: flex;
+  flex-direction: column-reverse;
+  overflow: hidden;
+}
+
+.goen-promoband__body {
+  align-items: flex-start;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  justify-content: center;
+  padding: 1.5rem;
+}
+
+.goen-promoband__title {
+  font-size: var(--fs-ed-24);
+  font-weight: var(--fw-semibold);
+  line-height: 1.35;
+  margin: 0;
+}
+
+.goen-promoband__image {
+  aspect-ratio: 2 / 1;
+  display: block;
+  height: auto;
+  object-fit: cover;
+  width: 100%;
+}
+
+/* What the shop guarantees, on a quiet ground. The delivery item renders only
    where a free-delivery threshold is configured. */
+.goen-trust {
+  background: var(--n-50);
+  border-radius: var(--r-lg);
+  padding: 1.5rem;
+}
+
 .goen-trust__grid {
   display: grid;
   gap: 2rem;
-}
-
-.goen-trust__item {
-  padding: 0;
 }
 
 .goen-trust__head {
@@ -1450,20 +1540,44 @@ h3 {
   color: var(--fg-muted);
   font-size: var(--fs-14);
   line-height: var(--lh-normal);
-  margin: 8px 0 0;
+  margin: 0.5rem 0 0;
 }
 
 @media (min-width: 768px) {
   .goen-home {
-    gap: 40px;
+    padding-top: 2rem;
   }
 
-  .goen-cat__name {
-    font-size: var(--fs-14);
+  .goen-hero__body {
+    padding: 2rem;
   }
 
-  .goen-hero__actions {
+  .goen-hero__media {
+    aspect-ratio: 2 / 1;
+  }
+
+  .goen-hero__title {
+    font-size: var(--fs-ed-38);
+  }
+
+  .goen-promoband {
     flex-direction: row;
+  }
+
+  .goen-promoband__body {
+    flex: 0 0 40%;
+    padding: 2rem;
+  }
+
+  .goen-promoband__image {
+    aspect-ratio: auto;
+    flex: 1;
+    min-height: 100%;
+    min-width: 0;
+  }
+
+  .goen-trust {
+    padding: 2rem;
   }
 
   .goen-trust__grid {
@@ -1473,23 +1587,22 @@ h3 {
 
 @media (min-width: 1024px) {
   .goen-home {
-    gap: 56px;
-    padding: 48px var(--page-gutter) 56px;
+    gap: 6rem;
+    padding-bottom: 6rem;
   }
 
-  .goen-hero {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .goen-hero__body {
+    align-self: stretch;
+    justify-content: flex-end;
+    padding: 3rem;
   }
 
-  .goen-hero__media {
-    order: 0;
-  }
-
-  .goen-hero__title {
-    font-size: var(--fs-ed-38);
+  .goen-hero__image {
+    object-position: 50% 50%;
   }
 
   .goen-cats__grid {
+    gap: 1.5rem;
     grid-template-columns: repeat(6, minmax(0, 1fr));
   }
 

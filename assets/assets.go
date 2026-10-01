@@ -82,20 +82,27 @@ var categoryImages = map[string]string{
 	"audio":       "media/categories/audio.webp",
 	"wearables":   "media/categories/wearables.webp",
 	"accessories": "media/categories/accessories.webp",
+
+	"books-stationery": "media/departments/books-stationery.webp",
+	"home-living":      "media/departments/home-living.webp",
+	"beauty":           "media/departments/beauty.webp",
+	"fashion":          "media/departments/fashion.webp",
+	"food-drink":       "media/departments/food-drink.webp",
+	"tech":             "media/departments/tech.webp",
 }
 
 const productMediaPrefix = "media/products/"
 
-// requiredMedia is the photography the storefront names by file but no
-// template reads yet: promotional banners, the six department photographs
-// (800px, each with a -400 rendition) and the campaign headers. The
+// requiredMedia is the photography the storefront names by file: the promotional
+// banners, the six department photographs (800px, each with a -400 rendition)
+// and the campaign headers. The
 // headers sit under media/products/ because a campaign's image_key is resolved
 // by the product-image function.
 var requiredMedia = append(departmentMedia(
 	"books-stationery", "home-living", "beauty", "fashion", "food-drink", "tech",
 ),
-	"media/promo/promo-desk.webp",
-	"media/promo/promo-desk-800.webp",
+	PromoDesk,
+	PromoDesk800,
 	"media/promo/promo-morning-table.webp",
 	"media/promo/promo-morning-table-800.webp",
 	"media/products/campaign-autumn.webp",
@@ -205,6 +212,18 @@ func URL(name string) string {
 func Has(name string) bool {
 	_, ok := catalogue.digests[name]
 	return ok
+}
+
+// PromoDesk is the home page's promotional band photograph; its -800 rendition
+// sits beside it.
+const (
+	PromoDesk    = "media/promo/promo-desk.webp"
+	PromoDesk800 = "media/promo/promo-desk-800.webp"
+)
+
+// PromoDeskSrcset is the promotional photograph's two candidates.
+func PromoDeskSrcset() string {
+	return URL(PromoDesk800) + " 800w, " + URL(PromoDesk) + " 1600w"
 }
 
 // HomeHeroSrcset returns the responsive hero candidates, from the compact

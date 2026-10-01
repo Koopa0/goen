@@ -22,7 +22,7 @@ var (
 		En:     "Hero photography pending",
 	})
 
-	KeySectionCategories = key("home.categories", Message{ZhHant: "分類選購", En: "Shop by category"})
+	KeySectionCategories = key("home.categories", Message{ZhHant: "依館別選購", En: "Shop by department"})
 
 	KeySectionRecommended = key("home.recommended", Message{
 		ZhHant: "綜合推薦",
@@ -80,6 +80,12 @@ var (
 		ZhHant: "早晨的木桌與日常用品",
 		En:     "A wooden table in morning light with everyday things",
 	})
+
+	KeyHomeSeeAll = key("home.see_all", Message{ZhHant: "看全部", En: "See all"})
+
+	KeyHomePromoTitle = key("home.promo.title", Message{ZhHant: "書桌上的日常", En: "Everyday things for the desk"})
+
+	KeyHomePromoLink = key("home.promo.link", Message{ZhHant: "去看看", En: "Take a look"})
 
 	KeyHeroPrimaryCTA = key("home.hero.cta.primary", Message{
 		ZhHant: "看本週優惠",

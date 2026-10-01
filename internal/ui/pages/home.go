@@ -36,3 +36,15 @@ func (v *HomeView) FreeDelivery() string { return FreeDeliveryText(v.FreeDeliver
 
 // LowestFee is the floor the trust body states.
 func (v *HomeView) LowestFee() string { return twd(v.LowestFeeCents) }
+
+// PromoHref is where the promotional band leads: the books and stationery
+// department when the shop has one, else search.
+func (v *HomeView) PromoHref() string {
+	const slug = "books-stationery"
+	for _, c := range v.Categories {
+		if c.Slug == slug {
+			return "/c/" + slug
+		}
+	}
+	return "/search"
+}

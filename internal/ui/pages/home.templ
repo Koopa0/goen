@@ -5,23 +5,17 @@ import (
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/icons"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// Home renders the storefront home page: the hero, the categories, what the
-// shop recommends, and what it guarantees. Four sections and no more.
+// Home renders the storefront home page: the hero, the departments, what the
+// shop recommends, one promotional band, and what it guarantees.
 templ Home(p layouts.Page, v HomeView) {
 	@layouts.Base(p) {
 		<div class="goen-home">
 			<section class="goen-hero" aria-labelledby="hero-heading">
 				<div class="goen-hero__body">
-					if v.Hero.Eyebrow != "" {
-						@components.Badge(components.BadgeProps{Class: "goen-hero__eyebrow"}) {
-							{ v.Hero.Eyebrow }
-						}
-					}
 					<h1 id="hero-heading" class="goen-hero__title">{ v.Hero.Headline }</h1>
 					if v.Hero.Body != "" {
 						<p class="goen-hero__lede">{ v.Hero.Body }</p>
@@ -49,7 +43,7 @@ templ Home(p layouts.Page, v HomeView) {
 							class="goen-hero__image"
 							src={ assets.MediaURL(v.Hero.ImageKey) }
 							srcset={ assets.ProductImageSrcsetAt(v.Hero.ImageKey, v.Hero.ImageWidth) }
-							sizes="(min-width: 1344px) 592px, (min-width: 1024px) calc((100vw - 96px) / 2), (min-width: 768px) calc(100vw - 48px), calc(100vw - 32px)"
+							sizes="(min-width: 1344px) 1280px, (min-width: 1024px) calc(100vw - 64px), (min-width: 768px) calc(100vw - 48px), calc(100vw - 32px)"
 							alt={ v.Hero.ImageAlt }
 							if v.Hero.HasImageDimensions() {
 								width={ v.Hero.ImageWidthText() }
@@ -63,7 +57,7 @@ templ Home(p layouts.Page, v HomeView) {
 							class="goen-hero__image"
 							src={ assets.URL(assets.HomeHeroImage) }
 							srcset={ assets.HomeHeroSrcset() }
-							sizes="(min-width: 1344px) 592px, (min-width: 1024px) calc((100vw - 96px) / 2), (min-width: 768px) calc(100vw - 48px), calc(100vw - 32px)"
+							sizes="(min-width: 1344px) 1280px, (min-width: 1024px) calc(100vw - 64px), (min-width: 768px) calc(100vw - 48px), calc(100vw - 32px)"
 							alt={ i18n.T(ctx, i18n.KeyHeroImageAlt) }
 							width="1440"
 							height="720"
@@ -87,7 +81,7 @@ templ Home(p layouts.Page, v HomeView) {
 										class="goen-cat__photo"
 										src={ src }
 										srcset={ srcset }
-										sizes="128px"
+										sizes="(min-width: 1024px) 200px, 33vw"
 										alt=""
 										width="800"
 										height="800"
@@ -106,14 +100,41 @@ templ Home(p layouts.Page, v HomeView) {
 				</ul>
 			</section>
 			<section class="goen-home__section" aria-labelledby="rec-heading">
-				<h2 id="rec-heading" class="goen-home__heading">{ i18n.T(ctx, i18n.KeySectionRecommended) }</h2>
+				<div class="goen-home__head">
+					<h2 id="rec-heading" class="goen-home__heading">{ i18n.T(ctx, i18n.KeySectionRecommended) }</h2>
+					<a class="goen-home__more" href="/search">
+						{ i18n.T(ctx, i18n.KeyHomeSeeAll) }
+						<span aria-hidden="true">→</span>
+					</a>
+				</div>
 				<ul class="goen-tiles__grid" role="list">
 					for _, t := range v.Recommended {
 						@Tile(t)
 					}
 				</ul>
 			</section>
-			<section class="goen-home__section" aria-labelledby="trust-heading">
+			<section class="goen-promoband" aria-labelledby="promoband-heading">
+				<div class="goen-promoband__body">
+					<h2 id="promoband-heading" class="goen-promoband__title">{ i18n.T(ctx, i18n.KeyHomePromoTitle) }</h2>
+					<a class="goen-home__more" href={ templ.URL(v.PromoHref()) }>
+						{ i18n.T(ctx, i18n.KeyHomePromoLink) }
+						<span aria-hidden="true">→</span>
+					</a>
+				</div>
+				// The title is the band's label, so the photograph is decoration.
+				<img
+					class="goen-promoband__image"
+					src={ assets.URL(assets.PromoDesk) }
+					srcset={ assets.PromoDeskSrcset() }
+					sizes="(min-width: 1344px) 768px, (min-width: 768px) 60vw, calc(100vw - 32px)"
+					alt=""
+					width="1600"
+					height="667"
+					loading="lazy"
+					decoding="async"
+				/>
+			</section>
+			<section class="goen-trust" aria-labelledby="trust-heading">
 				<h2 id="trust-heading" class="goen-sr-only">{ i18n.T(ctx, i18n.KeySectionTrust) }</h2>
 				<div class="goen-trust__grid">
 					@incentive(icons.Shield(), i18n.T(ctx, i18n.KeyGuaranteeWarranty), i18n.T(ctx, i18n.KeyTrustWarrantyBody))
