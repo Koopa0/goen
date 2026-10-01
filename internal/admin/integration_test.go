@@ -11707,3 +11707,44 @@ func TestAdvanceRefusesTheStatusAnOrderAlreadyHas(t *testing.T) {
 		t.Errorf("pending on a pending order gave %v, want ErrRefused", err)
 	}
 }
+
+func TestTheShippingPageSaysWhenCheckoutHidesPickup(t *testing.T) {
+	ctx, _ := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	log := slog.New(slog.DiscardHandler)
+	enabled, err := cart.NewMap("2000132", "C2C", "", "https://shop.example")
+	if err != nil {
+		t.Fatalf("NewMap: %v", err)
+	}
+	note := i18n.T(ctx, i18n.KeyAdminShipPickupOff)
+
+	// A pickup-point method of its own, so the test does not depend on the seed.
+	create := url.Values{
+		"code": {"pk_" + uuid.NewString()[:8]}, "destination": {"pickup_point"},
+		"max_parcel_longest": {"450"}, "max_parcel_sum": {"1050"}, "max_parcel_weight": {"10000"},
+		"name": {"超商取貨測試"}, "carrier": {"測試承運人"}, "fee": {"60"}, "free_over": {"3000"},
+	}
+	creating := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/shipping/method", strings.NewReader(create.Encode()))
+	creating.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	created := httptest.NewRecorder()
+	adminHandlerOver(pool, s).CreateShippingMethod(created, creating)
+	if created.Code != http.StatusSeeOther {
+		t.Fatalf("create pickup method = %d: %s", created.Code, created.Body.String())
+	}
+
+	for name, storeMap := range map[string]*cart.Map{"no map": nil, "a map": enabled} {
+		h := admin.NewHandler(admin.HandlerDeps{
+			Store: s, Images: media.NewHandler(media.NewStore(pool), log), Outbox: outbox.NewStore(pool, log),
+			Letters: newsletter.NewStore(pool), Log: log, StoreMap: storeMap,
+		})
+		req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/admin/shipping", http.NoBody)
+		w := httptest.NewRecorder()
+		h.RequireStaff(h.Shipping)(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("%s: GET /admin/shipping = %d", name, w.Code)
+		}
+		if got, want := strings.Contains(w.Body.String(), note), storeMap == nil; got != want {
+			t.Errorf("%s: pickup-off note present = %t, want %t", name, got, want)
+		}
+	}
+}

@@ -235,6 +235,12 @@ var (
 		En:     "That carrier and tracking number are already on record. Check the number.",
 	})
 
+	KeyAdminShipPickupOff = key("admin.ship.pickupoff", Message{
+		ZhHant: "尚未設定超商地圖,結帳不會提供這個方式。設定 GOEN_ECPAY_LOGISTICS 後才會開放。",
+		En: "No store map is configured, so checkout does not offer this method. Setting " +
+			"GOEN_ECPAY_LOGISTICS is what turns it on.",
+	})
+
 	KeyAdminNoticeBadParcel = key("admin.notice.badparcel", Message{
 		ZhHant: "出貨數量填寫有問題:每一項不能超過還沒出貨的數量,也不能超過這筆訂單保留的庫存。",
 		En: "Those quantities do not work: no line can exceed what is still outstanding, or what this " +

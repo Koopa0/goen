@@ -17,6 +17,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/account"
+	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/media"
@@ -38,6 +39,7 @@ type Handler struct {
 	// sessions closes a cancelled order's checkout at the payment provider. Nil
 	// on a deployment with no Stripe key, where no session was ever opened.
 	sessions SessionCloser
+	storeMap *cart.Map
 	store    *Store
 	log      *slog.Logger
 }
@@ -57,6 +59,9 @@ type HandlerDeps struct {
 	Log      *slog.Logger
 	StepUp   func(*http.Request) (bool, error)
 	Sessions SessionCloser
+	// StoreMap decides whether checkout offers pickup-point methods; nil is a
+	// deployment with no map.
+	StoreMap *cart.Map
 }
 
 // NewHandler returns a Handler over the admin store.
@@ -67,7 +72,7 @@ func NewHandler(d HandlerDeps) *Handler {
 	}
 	return &Handler{
 		store: d.Store, images: d.Images, outbox: d.Outbox, letters: d.Letters,
-		log: d.Log, stepUp: d.StepUp, sessions: d.Sessions,
+		log: d.Log, stepUp: d.StepUp, sessions: d.Sessions, storeMap: d.StoreMap,
 	}
 }
 
