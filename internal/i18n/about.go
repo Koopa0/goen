@@ -43,7 +43,7 @@ var (
 var (
 	KeyAboutImageAlt = key("about.image_alt", Message{ZhHant: "goen 的工作台與商品", En: "goen's workbench and products"})
 	KeyOGImageAlt    = key("og.image_alt", Message{
-		ZhHant: "平板、手機、筆電、無線耳機與耳罩式耳機,放在淺灰色背景上",
-		En:     "A tablet, a phone, a laptop, wireless earbuds and over-ear headphones on a pale grey background",
+		ZhHant: "書、馬克杯、托特包、耳機與茶葉罐",
+		En:     "A book, a mug, a tote, headphones and a tea tin",
 	})
 )
