@@ -205,7 +205,8 @@ func TestControlsThatSwapTheirOwnRegionKeepAStableID(t *testing.T) {
 	if !strings.Contains(contact, `id="contact-submit"`) {
 		t.Error("the contact form's submit button has no id, so a refused submit drops focus to the body")
 	}
-=======
+}
+
 func TestTheReviewFormWarnsBeforeSubmittingAndRefusesToTheForm(t *testing.T) {
 	t.Parallel()
 	view := ProductView{Slug: "sample-product", Name: "Sample", SignedIn: true, CanReview: true}
@@ -222,5 +223,4 @@ func TestTheReviewFormWarnsBeforeSubmittingAndRefusesToTheForm(t *testing.T) {
 			t.Errorf("the review form lacks %s", want)
 		}
 	}
->>>>>>> origin/main
 }
