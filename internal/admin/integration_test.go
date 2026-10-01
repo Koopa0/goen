@@ -10555,8 +10555,13 @@ func TestAReceiptIsIdempotent(t *testing.T) {
 		t.Fatalf("read stock: %v", err)
 	}
 
-	if err := s.ReceiveStock(ctx, sku, 4, actor, key); err == nil {
-		t.Error("the same idempotency key booked one delivery in twice")
+	// A replay of the form that booked it is that delivery's success, and
+	// books nothing; the same key for a different delivery stays refused.
+	if err := s.ReceiveStock(ctx, sku, 4, actor, key); err != nil {
+		t.Errorf("replaying an applied receipt = %v, want the earlier success", err)
+	}
+	if err := s.ReceiveStock(ctx, sku, 5, actor, key); !errors.Is(err, admin.ErrRefused) {
+		t.Errorf("reusing the key for a different delivery = %v, want ErrRefused", err)
 	}
 	var afterSecond int32
 	if err := pool.QueryRow(ctx,
