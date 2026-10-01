@@ -4,7 +4,6 @@ package layouts
 import (
 	"context"
 	"strconv"
-	"strings"
 
 	"github.com/koopa0/goen/internal/i18n"
 )
@@ -151,5 +150,5 @@ func cartLabel(ctx context.Context, count int) string {
 		return i18n.T(ctx, i18n.KeyCartEmpty)
 	}
 	// Substituted, not appended: the two languages put the count in different places.
-	return strings.Replace(i18n.T(ctx, i18n.KeyCartCount), "%s", strconv.Itoa(count), 1)
+	return i18n.Count(ctx, i18n.KeyCartCount, int64(count), strconv.Itoa(count))
 }
