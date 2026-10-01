@@ -484,6 +484,25 @@ func variesOnAcceptEncoding(h http.Header) bool {
 	return false
 }
 
+// TestACartQuantityAppliesItselfWhereScriptRuns holds the two halves of one
+// promise: the script submits a quantity form on change, and the stylesheet
+// retires the 更新 button only for a browser that runs it. Dropping either
+// leaves a cart a shopper cannot update, or one with a button that does
+// nothing.
+func TestACartQuantityAppliesItselfWhereScriptRuns(t *testing.T) {
+	t.Parallel()
+
+	script := requestAsset(t, assets.AppJS, "", "").Body.String()
+	if !strings.Contains(script, "form[data-autosubmit]") || !strings.Contains(script, "requestSubmit") {
+		t.Errorf("served %s does not submit a data-autosubmit form on change", assets.AppJS)
+	}
+
+	sheet := requestAsset(t, assets.AppCSS, "", "").Body.String()
+	if !strings.Contains(sheet, "@media (scripting: enabled) {\n  .goen-line__update {\n    display: none;") {
+		t.Errorf("served %s does not hide .goen-line__update under scripting: enabled", assets.AppCSS)
+	}
+}
+
 func TestHandlerRefusesUnknownAndDirectories(t *testing.T) {
 	t.Parallel()
 

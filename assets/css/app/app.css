@@ -2154,8 +2154,25 @@ h3 {
   }
 
   .goen-pagehead__title {
-    font-size: var(--fs-ed-38);
-  }
+  color: var(--fg);
+  font-size: var(--fs-ed-30);
+  font-weight: var(--fw-semibold);
+  margin: 0;
+}
+
+.goen-cart .goen-pagehead__title,
+.goen-checkout .goen-pagehead__title,
+.goen-order .goen-pagehead__title,
+.goen-pay .goen-pagehead__title {
+  font-size: 1.875rem;
+  line-height: 1.3;
+}
+
+.goen-order .goen-pagehead__eyebrow,
+.goen-pay .goen-pagehead__eyebrow {
+  color: var(--accent-text);
+  font-size: var(--fs-14);
+}
 
   .goen-listing__layout {
     gap: 32px;
@@ -3085,19 +3102,14 @@ h3 {
 /* ---------- Cart, checkout, order, pay, returns and order lookup ----------
 
    Six screens carrying one transaction, so they share one composition: a page
-   head, a list of lines in the recipe below, and a card holding the money and
-   the single action the screen exists for. Cart, checkout and order put that
-   card in a third column and make it sticky from 1024 up; the phone puts it
-   after the lines, because the lines are what a shopper checks first.
+   head, hairline-divided lines, and a summary holding the money and the single
+   action the screen exists for. Cart and checkout put the summary in a right
+   column and keep it in view from 1024; the phone puts the cart's summary in a
+   bar fixed to the bottom edge, so the total is on screen however many lines
+   sit above it.
 
-   Four places depart from the reference, each for a reason it could not know:
-
-   - One list at every width. The reference renders a table for the desk and a
-     card list for the phone — the same data twice, and two places for a row to
-     go wrong.
-   - The chosen option is read from :has(input:checked) and nothing else. The
-     reference also paints it with a class the server renders; two sources for
-     one fact disagree the moment one is pressed.
+   - The chosen option is read from :has(input:checked) and nothing else: a
+     class the server renders would be a second source for one fact.
    - The radio inside a chooser card is visually hidden rather than removed, so
      the group keeps its place in the tab order and the arrow keys still move
      between options.
@@ -3114,10 +3126,10 @@ h3 {
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 1.5rem;
   margin: 0 auto;
   max-width: var(--page-box);
-  padding: 16px var(--page-gutter) 56px;
+  padding: 1.5rem var(--page-gutter) 4rem;
   width: 100%;
 }
 
@@ -3127,10 +3139,12 @@ h3 {
   max-width: 720px;
 }
 
-/* Pay is narrower still. It states one amount and offers one button, and a wide
-   column around that much content reads as a page with something missing. */
+/* The order and the payment hand-off are one reading column: a wider page
+   around this little content reads as one with something missing. The width
+   is added to the gutters because the box sizes itself with border-box. */
+.goen-order,
 .goen-pay {
-  max-width: 28rem;
+  max-width: calc(48rem + 2 * var(--page-gutter));
 }
 
 /* The lookup is a credential form, so it sits in the middle of the fold the
@@ -3184,20 +3198,17 @@ h3 {
 .goen-order__layout {
   align-items: start;
   display: grid;
-  gap: 24px;
+  gap: 1.5rem;
   grid-template-columns: 1fr;
   min-width: 0;
 }
 
-/* The line list. One bordered panel with hairlines between rows, rather than a
-   card per line: a cart is one list of one thing, and a stack of separate
-   cards reads as a stack of separate decisions. */
+/* The line list. Hairlines between rows and no box around them: a cart is one
+   list of one thing. */
 .goen-cart__lines,
 .goen-order .goen-order__lines,
 .goen-pay__lines {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--r-lg);
+  border-top: 1px solid var(--n-200);
   display: block;
   list-style: none;
   margin: 0;
@@ -3206,15 +3217,15 @@ h3 {
 }
 
 .goen-line {
-  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--n-200);
   display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
-  padding: 16px;
+  gap: 1rem;
+  justify-content: space-between;
+  padding: 1.25rem 0;
 }
 
-.goen-line:first-child {
-  border-top: 0;
+.goen-line:last-child {
+  border-bottom: 0;
 }
 
 /* A line the catalogue can no longer honour: dimmed, not hidden. A shopper has
@@ -3224,32 +3235,97 @@ h3 {
 }
 
 .goen-line__thumb {
-  background: var(--photo-ground);
-  border: 1px solid var(--border);
+  align-self: start;
+  aspect-ratio: 1 / 1;
+  background: var(--photo);
   border-radius: var(--r-md);
   display: block;
-  flex: none;
-  height: 96px;
   overflow: hidden;
-  width: 96px;
+  width: 100%;
 }
 
 .goen-line__img,
 .goen-line__ph {
   display: block;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   width: 100%;
 }
 
-/* 12rem of basis, so at 375 the money wraps to its own line under the controls
-   instead of squeezing the name into one word per row. */
+/* A line in the cart is a grid, so the money and the controls can sit under
+   the name at 375 without the name being squeezed to a word a row. The
+   thumbnail spans both rows. */
+.goen-line--cart {
+  align-items: start;
+  column-gap: 1rem;
+  display: grid;
+  grid-template-areas:
+    'thumb body money'
+    'thumb controls controls';
+  grid-template-columns: 6rem minmax(0, 1fr) auto;
+  row-gap: 0.75rem;
+}
+
+.goen-line--cart .goen-line__thumb {
+  grid-area: thumb;
+}
+
+.goen-line--cart .goen-line__body {
+  grid-area: body;
+}
+
+.goen-line--cart .goen-line__money {
+  align-items: flex-end;
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  font-variant-numeric: tabular-nums;
+  gap: 0.125rem;
+  margin-left: auto;
+  text-align: right;
+}
+
+.goen-line--cart .goen-line__controls {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin: 0;
+}
+
+/* Remove reads as text, not as a button: it is the quietest of the three
+   things a line offers. The box stays 44px tall, which is the target. */
+.goen-line__remove {
+  background: transparent;
+  color: var(--n-700);
+  font-size: var(--fs-14);
+  min-width: 2.75rem;
+  padding: 0 0.5rem;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.goen-line__remove:hover {
+  background: transparent;
+  color: var(--n-900);
+}
+
+/* The 更新 button is the way to apply a quantity with scripting off. With it
+   on, changing the quantity submits the form, so the button goes. Hidden when
+   the sheet is told scripting is on, so a browser that has never heard of the
+   query keeps the button that always works. */
+@media (scripting: enabled) {
+  .goen-line__update {
+    display: none;
+  }
+}
+
 .goen-line__body {
   align-items: flex-start;
   display: flex;
-  flex: 1 1 12rem;
+  flex: 1 1 0;
   flex-direction: column;
-  gap: 4px;
+  gap: 0.25rem;
   min-width: 0;
 }
 
@@ -3257,19 +3333,19 @@ h3 {
 .goen-line__meta,
 .goen-returns__meta {
   color: var(--fg-muted);
-  font-size: var(--fs-12);
+  font-size: var(--fs-13);
 }
 
 .goen-line__name {
-  color: var(--fg);
-  font-size: var(--fs-14);
+  color: var(--n-900);
+  font-size: 0.9375rem;
   font-weight: var(--fw-medium);
   text-decoration: none;
-  transition: color var(--dur-base) var(--ease-standard);
 }
 
 .goen-line__name:hover {
-  color: var(--accent-text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .goen-line__controls {
@@ -3308,7 +3384,11 @@ h3 {
   font-weight: var(--fw-medium);
 }
 
-/* The money card. .goen-card carries the border, the radius and the padding;
+.goen-line__total {
+  font-size: var(--fs-16);
+}
+
+/* The money panel. .goen-card carries the ground, the radius and the padding;
    these carry only what goes on inside it. */
 .goen-cart__summary,
 .goen-checkout__summary,
@@ -3318,8 +3398,16 @@ h3 {
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 1rem;
   min-width: 0;
+}
+
+/* The checkout's summary is the one white card on its grey page: a hairline and
+   the single shadow the system allows, on a box that carries no tint. */
+.goen-checkout__summary {
+  background: var(--n-0);
+  border: 1px solid var(--n-200);
+  box-shadow: var(--sh-xs);
 }
 
 /* With scripting off the 更新 button answers with the whole form again and its
@@ -3332,9 +3420,10 @@ h3 {
 .goen-summary__title,
 .goen-checkout__heading,
 .goen-order__subhead {
-  color: var(--fg);
-  font-size: var(--fs-16);
-  font-weight: var(--fw-semibold);
+  color: var(--n-900);
+  font-size: var(--fs-18);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-normal);
   margin: 0;
 }
 
@@ -3344,21 +3433,41 @@ h3 {
   gap: 12px;
 }
 
-.goen-summary,
 .goen-summary__actions,
 .goen-checkout__choices {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 0.75rem;
+}
+
+/* The money rows are a description list, one hairline between rows. */
+.goen-summary {
+  margin: 0;
 }
 
 .goen-summary__row {
   align-items: baseline;
+  border-top: 1px solid var(--n-200);
   color: var(--fg-muted);
   display: flex;
   font-size: var(--fs-14);
-  gap: 16px;
+  gap: 1rem;
   justify-content: space-between;
+  padding: 0.75rem 0;
+}
+
+.goen-summary__row:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.goen-summary__row:last-child {
+  padding-bottom: 0;
+}
+
+.goen-summary__row dt,
+.goen-summary__row dd {
+  margin: 0;
 }
 
 .goen-summary__value {
@@ -3367,11 +3476,9 @@ h3 {
 }
 
 .goen-summary__row--total {
-  border-top: 1px solid var(--border);
   color: var(--fg);
-  font-size: var(--fs-16);
-  font-weight: var(--fw-semibold);
-  padding-top: 12px;
+  font-size: var(--fs-18);
+  font-weight: var(--fw-medium);
 }
 
 /* The browse screens join this rule rather than declare a second one. They
@@ -3417,19 +3524,9 @@ h3 {
   width: 128px;
 }
 
-.goen-medallion--success {
-  background: var(--success-bg);
-  color: var(--success);
-}
 
-/* The confirmation head. The mark sits beside the number rather than over it,
-   so the order number stays the first thing read on a page opened to check it. */
-.goen-order__placed {
-  align-items: center;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
-}
+
+
 
 .goen-empty__title {
   color: var(--fg);
@@ -3450,8 +3547,39 @@ h3 {
 .goen-order__panels {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 1.5rem;
   min-width: 0;
+}
+
+/* The grey page the checkout sits on. Painted past the column on both sides
+   and clipped top and bottom, so the header and footer keep their own
+   grounds and no shadow reaches the scroll width. */
+.goen-checkout {
+  background: var(--n-50);
+  box-shadow: 0 0 0 100vmax var(--n-50);
+  clip-path: inset(0 -100vmax);
+}
+
+/* The sections are one white block, divided by hairlines rather than boxed
+   one by one. */
+.goen-checkout__main {
+  background: var(--n-0);
+  border-radius: var(--r-lg);
+  gap: 0;
+}
+
+.goen-checkout__main > .ui-alert {
+  margin: 1.5rem 1.25rem 0;
+}
+
+.goen-checkout__section {
+  background: transparent;
+  border-radius: 0;
+  padding: 1.5rem 1.25rem;
+}
+
+.goen-checkout__section + .goen-checkout__section {
+  border-top: 1px solid var(--n-200);
 }
 
 /* One option in a chooser. The card is the tap target — the radio inside it is
@@ -3459,38 +3587,39 @@ h3 {
    and check-layout measures this element by name. */
 .goen-checkout__ship {
   align-items: flex-start;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--r-xl);
+  background: var(--n-0);
+  border: 1px solid var(--n-300);
+  border-radius: var(--r-lg);
   box-sizing: border-box;
   color: inherit;
   cursor: pointer;
   display: flex;
-  gap: 12px;
+  gap: 0.75rem;
   justify-content: space-between;
   min-height: 44px;
-  padding: 16px;
+  padding: 1rem;
   text-decoration: none;
   transition:
-    border-color var(--dur-base) var(--ease-standard),
-    box-shadow var(--dur-base) var(--ease-standard);
+    background-color var(--dur-base) var(--ease-standard),
+    border-color var(--dur-base) var(--ease-standard);
 }
 
 .goen-checkout__ship:hover {
-  border-color: var(--border-strong);
+  background: var(--n-50);
 }
 
-/* The one source for "this is the chosen one". */
+/* The one source for "this is the chosen one": ink, not the accent. The extra
+   pixel makes the outline two without moving the content. */
 .goen-checkout__ship:has(input:checked) {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent);
+  border-color: var(--n-900);
+  box-shadow: 0 0 0 1px var(--n-900);
 }
 
 /* The card shows the focus its hidden radio has, or a keyboard user moving
    through the group would see nothing move. */
 .goen-checkout__ship:has(input:focus-visible) {
-  border-color: var(--ring);
-  box-shadow: 0 0 0 3px var(--accent-muted);
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .goen-checkout__shipname {
@@ -3658,20 +3787,19 @@ h3 {
 }
 
 .goen-checkout__lines {
-  border-bottom: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 0.75rem;
   list-style: none;
   margin: 0;
-  padding: 0 0 12px;
+  padding: 0;
 }
 
 .goen-checkout__lines li {
-  color: var(--fg-muted);
+  color: var(--n-700);
   display: flex;
-  font-size: var(--fs-12);
-  gap: 12px;
+  font-size: var(--fs-14);
+  gap: 0.75rem;
   justify-content: space-between;
 }
 
@@ -3767,13 +3895,11 @@ h3 {
 
 .goen-order__shipment {
   align-items: flex-start;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--r-xl);
+  border-top: 1px solid var(--n-200);
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 16px;
+  gap: 0.25rem;
+  padding: 0.75rem 0 0;
 }
 
 .goen-order__cancel {
@@ -3875,6 +4001,20 @@ h3 {
   text-underline-offset: 4px;
 }
 
+@media (min-width: 640px) {
+  .goen-cart .goen-pagehead__title,
+  .goen-checkout .goen-pagehead__title,
+  .goen-order .goen-pagehead__title,
+  .goen-pay .goen-pagehead__title {
+    font-size: 2.25rem;
+  }
+
+  .goen-line--cart {
+    column-gap: 1.5rem;
+    grid-template-columns: 8rem minmax(0, 1fr) auto;
+  }
+}
+
 @media (min-width: 768px) {
   .goen-cart,
   .goen-checkout,
@@ -3882,12 +4022,86 @@ h3 {
   .goen-pay,
   .goen-returns,
   .goen-findorder {
-    gap: 32px;
-    padding: 24px var(--page-gutter) 56px;
+    gap: 2rem;
+    padding: 2rem var(--page-gutter) 4rem;
   }
 
   .goen-checkout .goen-checkout__fields {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .goen-checkout__section {
+    padding: 1.5rem;
+  }
+
+  .goen-checkout__main > .ui-alert {
+    margin: 1.5rem 1.5rem 0;
+  }
+}
+
+/* Under 1024 the cart's summary is a bar fixed to the bottom edge: the total
+   and the button, nothing that would make it tall. It stays last in the
+   document, so it rests under the lines when the list ends. */
+@media (max-width: 1023.98px) {
+  .goen-cart__summary {
+    align-items: center;
+    background: var(--n-0);
+    border-radius: 0;
+    border-top: 1px solid var(--n-200);
+    bottom: 0;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+    justify-content: space-between;
+    margin-inline: calc(-1 * var(--page-gutter));
+    padding: 0.75rem var(--page-gutter);
+    position: sticky;
+    z-index: 5;
+  }
+
+  .goen-cart__summary .goen-summary__title {
+    block-size: 1px;
+    clip-path: inset(50%);
+    inline-size: 1px;
+    overflow: hidden;
+    position: absolute;
+  }
+
+  .goen-cart__summary .ui-alert,
+  .goen-cart__summary .goen-notice {
+    flex: 1 1 100%;
+    order: -1;
+  }
+
+  .goen-cart__summary .goen-summary {
+    flex: 1 1 0;
+  }
+
+  .goen-cart__summary .goen-summary__row:not(.goen-summary__row--total),
+  .goen-cart__summary .goen-summary__actions .goen-btn--ghost {
+    display: none;
+  }
+
+  .goen-cart__summary .goen-summary__row--total {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0;
+    padding: 0;
+  }
+
+  .goen-cart__summary .goen-summary__row--total dt {
+    color: var(--fg-muted);
+    font-size: var(--fs-13);
+    font-weight: var(--fw-regular);
+  }
+
+  .goen-cart__summary .goen-summary__actions {
+    flex: none;
+  }
+
+  .goen-cart__summary .goen-btn--block {
+    display: inline-flex;
+    width: auto;
   }
 }
 
@@ -3898,28 +4112,28 @@ h3 {
   .goen-pay,
   .goen-returns,
   .goen-findorder {
-    padding: 32px var(--page-gutter) 56px;
-  }
-
-  .goen-pagehead__title {
-    font-size: var(--fs-ed-38);
+    padding: 2.5rem var(--page-gutter) 5rem;
   }
 
   .goen-cart__layout,
-  .goen-checkout__layout,
-  .goen-order__layout {
-    gap: 32px;
-    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  .goen-checkout__layout {
+    gap: 3rem;
+    grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
   }
 
-  /* The money stays in view while the address is typed. */
   .goen-cart__summary,
-  .goen-checkout__summary,
-  .goen-order__summary {
+  .goen-checkout__summary {
+    padding: 2rem;
+  }
+
+  /* The money stays in view while the lines are read and the address typed. */
+  .goen-cart__summary,
+  .goen-checkout__summary {
     position: sticky;
-    top: 32px;
+    top: 2rem;
   }
 }
+
 
 /* ---------- Sign in, register, account ----------
 
