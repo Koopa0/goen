@@ -53,10 +53,13 @@ func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
 	addr := email.Clean(r.PostFormValue("email"))
 
 	if k := Validate(addr); k != "" {
-		// Sprintf on a message with no verb is a no-op, so one call covers all
-		// three messages and only the length one consumes the limit.
-		h.fail(w, r, http.StatusUnprocessableEntity, addr,
-			fmt.Sprintf(i18n.T(r.Context(), k), email.Max))
+		msg := i18n.T(r.Context(), k)
+		if k == i18n.KeyEmailTooLong {
+			// Only this message carries a verb; Sprintf appends %!(EXTRA ...)
+			// to one that has none.
+			msg = fmt.Sprintf(msg, email.Max)
+		}
+		h.fail(w, r, http.StatusUnprocessableEntity, addr, msg)
 		return
 	}
 

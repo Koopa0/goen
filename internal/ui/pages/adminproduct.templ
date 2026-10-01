@@ -164,7 +164,7 @@ templ adminProductDetails(v AdminProductView) {
 						name="slug"
 						required
 						maxlength="120"
-						placeholder="pixelight-9-pro"
+						placeholder="ceramic-mug"
 						value={ v.Slug }
 						if v.HasErr("slug") {
 							aria-invalid="true"
@@ -429,7 +429,7 @@ templ adminProductImages(v AdminProductView) {
 					@components.Label(components.LabelProps{For: "p-alt-en"}) {
 						{ i18n.T(ctx, i18n.KeyAdminProdAltEn) }
 					}
-					<input class="goen-input" id="p-alt-en" name="alt_en" maxlength="200" placeholder="Silver laptop, screen open, 45 degrees"/>
+					<input class="goen-input" id="p-alt-en" name="alt_en" maxlength="200" placeholder="White ceramic mug, side view, handle on the right"/>
 					<p class="goen-admin__hint">
 						{ i18n.T(ctx, i18n.KeyAdminProdAltEnHint) }
 					</p>
@@ -1025,7 +1025,7 @@ templ adminProductSpecs(v AdminProductView) {
 						name="label_en"
 						maxlength="40"
 						autocomplete="off"
-						placeholder="Screen"
+						placeholder="Capacity"
 						if v.HasErr("spec_label_en") {
 							aria-invalid="true"
 							aria-describedby="spec-label-en-error"
@@ -1045,7 +1045,7 @@ templ adminProductSpecs(v AdminProductView) {
 						name="value_en"
 						maxlength="200"
 						autocomplete="off"
-						placeholder="6.3-inch OLED"
+						placeholder="350 ml"
 						if v.HasErr("spec_value_en") {
 							aria-invalid="true"
 							aria-describedby="spec-value-en-error"

@@ -102,6 +102,15 @@ func (s *Store) insertVariant(
 			if err != nil {
 				return err
 			}
+			taken, err := q.VariantCombinationTaken(ctx, db.VariantCombinationTakenParams{
+				Slug: slug, OptionValueIds: chosen,
+			})
+			if err != nil {
+				return fmt.Errorf("check option combination of product %s: %w", slug, err)
+			}
+			if taken {
+				return errVariantCombinationTaken
+			}
 			if createErr := q.CreateVariant(ctx, db.CreateVariantParams{
 				Slug: slug, SKU: f.SKU,
 				PriceCents: f.PriceCents, CompareAtPriceCents: f.CompareCents,
@@ -127,11 +136,17 @@ func (s *Store) insertVariant(
 		})
 }
 
-var errVariantNeedsEveryOption = errors.New("variant requires every option")
+var (
+	errVariantNeedsEveryOption = errors.New("variant requires every option")
+	errVariantCombinationTaken = errors.New("variant combination already exists")
+)
 
 func variantWriteError(ctx context.Context, slug string, err error) (map[string]string, error) {
 	if errors.Is(err, errVariantNeedsEveryOption) {
 		return map[string]string{"options": i18n.T(ctx, i18n.KeyFormVariantNeedsEveryOption)}, nil
+	}
+	if errors.Is(err, errVariantCombinationTaken) {
+		return map[string]string{"options": i18n.T(ctx, i18n.KeyFormVariantCombinationTaken)}, nil
 	}
 	if hasConstraint(err, "product_variants_sku_key") {
 		return map[string]string{"sku": i18n.T(ctx, i18n.KeyFormSKUTaken)}, nil
