@@ -138,7 +138,7 @@ const PAGES = [
 
 // The comparison TABLE. Enough() needs two columns; one p= is the too-few
 // empty state, and .goen-compare wraps that state too. A marker on the
-// wrapper measures chrome and calls the table covered (CLAUDE.md #24).
+// wrapper measures chrome and calls the table covered.
 // COMPARE_SLUG_B is a second active seed product. table: true is what says
 // this row measured columns, the sticky first cell, and (at 375) overflow
 // inside the scroll box — not merely that a marker existed.
@@ -268,7 +268,7 @@ const ADMIN = [
   // The customer pages. Both need a fixture and neither is measured without one:
   // /admin/customers lists NOTHING until somebody searches, so a row against the
   // bare path would measure a search box and call the page covered — the promo
-  // strip's lesson (CLAUDE.md #24). CUSTOMER_ID is the customer the Makefile
+  // strip's lesson. CUSTOMER_ID is the customer the Makefile
   // seeded and places the return fixture's orders for, signed in, so the detail
   // page has its stats and its order table on screen rather than the empty state.
   // The FAQ page. Its marker is the LIST rather than .goen-admin, because the seed
@@ -294,7 +294,7 @@ const ADMIN = [
   // rule, because these rows carry a customer's name beside what they own. So the
   // row searches for the serial the Makefile's fixture registered, and the marker
   // is the table that exists only when the search found it. A row against the bare
-  // path would measure a search box and report a checked page (CLAUDE.md #26).
+  // path would measure a search box and report a checked page.
   { label: 'admin warranty 375', width: 375, height: 812, path: '/admin/warranty?q=LAYOUT_SERIAL', marker: '.goen-admin__warranties' },
   { label: 'admin warranty 1440', width: 1440, height: 900, path: '/admin/warranty?q=LAYOUT_SERIAL', marker: '.goen-admin__warranties' },
   { label: 'admin returns 375', width: 375, height: 812, path: '/admin/returns', marker: '.goen-admin__returns' },
@@ -1770,7 +1770,7 @@ const ADMIN_PROBE = `(() => {
   // And the row's own marker, substituted per page. .goen-admin is the back office
   // CHROME — it is there on an empty search, a 404 body and a page whose data
   // fixture never ran, so a check that only asks for it reports a measured page
-  // where it measured a nav bar. CLAUDE.md #24, in the section that learned it.
+  // where it measured a nav bar.
   if (__MARKER__ && !document.querySelector(__MARKER__)) return { noMarker: true };
   // Nav links, buttons and inputs. Table cells are not targets.
   const taps = [...document.querySelectorAll('.goen-admin .ui-navitem, .goen-admin button, .goen-admin input, .goen-admin .ui-filter')]

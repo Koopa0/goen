@@ -27,8 +27,8 @@ var providerUTC = regexp.MustCompile(`\.UTC\(\)\.Format\("2006-01-02[^"]*"\)`)
 // time, message, audit row and delivery date was eight hours early in
 // production and correct on the machine of anyone who could have noticed.
 //
-// This is the Go half of the rule CLAUDE.md already states for SQL, where
-// ambient current_date is forbidden and shop_day is the one definition.
+// This is the Go half of the rule SQL already follows, where ambient
+// current_date is forbidden and shop_day is the one definition.
 //
 // The exception is a timestamp that is not the shop's to interpret: ECPay's
 // invoice dates are a wall clock labelled UTC, and moving one to Taipei is a
