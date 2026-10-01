@@ -42,6 +42,11 @@ func (s *Store) Campaign(ctx context.Context, slug string) (pages.CampaignView, 
 		Title:    c.Title,
 		EndsAt:   shoptime.Minute(c.EndsAt),
 		Products: campaignTiles(rows),
+		Image: pages.CampaignImage{
+			URL:    assets.ProductImageURL(c.ImageKey),
+			Srcset: assets.ProductImageSrcsetAt(c.ImageKey, int(c.ImageWidth)),
+			Alt:    c.ImageAlt,
+		},
 	}, nil
 }
 

@@ -234,10 +234,21 @@ func ProductMeta(v *ProductView) layouts.Page {
 	if desc == "" {
 		desc = v.Name
 	}
-	return layouts.Page{
+	page := layouts.Page{
 		Title: v.Name + " — " + v.Brand, Description: desc,
 		Nav: v.RootSlug(),
 	}
+	// A shared product link previews the product, and the first photograph is
+	// the one the page opens with, at the rendition the gallery serves.
+	if v.HasImages() {
+		img := v.Images[0]
+		alt := img.Alt
+		if alt == "" {
+			alt = v.Name
+		}
+		page.Share = layouts.ShareImage{Path: img.URL, Width: img.Width, Height: img.Height, Alt: alt}
+	}
+	return page
 }
 
 // HasWarranty reports whether the shop has stated a term for this product.

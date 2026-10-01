@@ -37,7 +37,9 @@ var (
 
 	KeyAuditCampaignCreate = key("audit.campaign.create", Message{ZhHant: "建立活動", En: "Create campaign"})
 
-	KeyAuditCampaignToggle = key("audit.campaign.toggle", Message{ZhHant: "活動啟用狀態", En: "Campaign active state"})
+	KeyAuditCampaignImageSet   = key("audit.campaign.image.set", Message{ZhHant: "設定活動頁首圖片", En: "Set campaign header image"})
+	KeyAuditCampaignImageClear = key("audit.campaign.image.clear", Message{ZhHant: "移除活動頁首圖片", En: "Remove campaign header image"})
+	KeyAuditCampaignToggle     = key("audit.campaign.toggle", Message{ZhHant: "活動啟用狀態", En: "Campaign active state"})
 
 	KeyAuditCampaignFeature = key("audit.campaign.feature", Message{ZhHant: "活動加入商品", En: "Add product to campaign"})
 

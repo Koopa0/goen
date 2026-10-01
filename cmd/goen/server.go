@@ -411,6 +411,8 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	mux.HandleFunc("POST /admin/campaigns", back.RequireStaff(back.CreateCampaign))
 	mux.HandleFunc("GET /admin/campaigns/{slug}", back.RequireStaff(back.EditCampaign))
 	mux.HandleFunc("POST /admin/campaigns/{slug}/products", back.RequireStaff(back.FeatureProduct))
+	mux.HandleFunc("POST /admin/campaigns/{slug}/image", back.RequireStaff(back.SetCampaignImage))
+	mux.HandleFunc("POST /admin/campaigns/{slug}/image/remove", back.RequireStaff(back.RemoveCampaignImage))
 	mux.HandleFunc("POST /admin/campaigns/{slug}/active", back.RequireStaff(back.SetCampaignActive))
 	mux.HandleFunc("GET /admin/coupons", back.RequireStaff(back.Coupons))
 	mux.HandleFunc("POST /admin/coupons", back.RequireStaff(back.CreateCoupon))
@@ -427,6 +429,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	handler = withBanner(handler, home.NewStore(pool), log, secureCookies)
 	handler = withTopNav(handler, home.NewStore(pool), log)
 	handler = withStaffEntrance(handler)
+	handler = withSiteOrigin(handler, baseURL)
 	handler = withNoStore(handler)
 	handler = onlyVisitorPaths(func(next http.Handler) http.Handler {
 		return withLocale(next, secureCookies)
@@ -963,4 +966,16 @@ func sessionCloser(g *payment.Gateway) cart.SessionCloser {
 		return nil
 	}
 	return g
+}
+
+// withSiteOrigin puts the configured origin on every request's context, for the
+// chrome's absolute URLs. A base URL that is not an origin adds nothing.
+func withSiteOrigin(next http.Handler, baseURL string) http.Handler {
+	origin, _, ok := web.SiteOrigin(baseURL)
+	if !ok {
+		return next
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		next.ServeHTTP(w, r.WithContext(layouts.WithSiteOrigin(r.Context(), origin)))
+	})
 }

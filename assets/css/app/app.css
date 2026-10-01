@@ -1381,6 +1381,17 @@ h4,
   width: 28px;
 }
 
+/* The photograph fills the tile's width; its own ground matches the page's, so
+   the tile needs no frame around it. */
+.goen-cat__photo {
+  aspect-ratio: 1;
+  border-radius: var(--r-md);
+  display: block;
+  height: auto;
+  max-width: 128px;
+  width: 100%;
+}
+
 .goen-cat:hover .goen-cat__icon {
   color: var(--fg);
 }
@@ -3103,6 +3114,15 @@ h4,
   min-height: 60vh;
 }
 
+.goen-campaign__header {
+  aspect-ratio: 8 / 3;
+  border-radius: var(--r-lg);
+  display: block;
+  height: auto;
+  object-fit: cover;
+  width: 100%;
+}
+
 .goen-pagehead {
   display: flex;
   flex-direction: column;
@@ -3363,6 +3383,12 @@ h4,
 .goen-medallion svg {
   height: 40px;
   width: 40px;
+}
+
+.goen-empty__art {
+  display: block;
+  height: 96px;
+  width: 128px;
 }
 
 .goen-medallion--success {
@@ -4898,6 +4924,14 @@ h4,
   width: 40px;
 }
 
+.about__photo {
+  aspect-ratio: 16 / 9;
+  border-radius: var(--r-lg);
+  display: block;
+  height: auto;
+  width: 100%;
+}
+
 .about__title {
   color: var(--fg);
   font-size: var(--fs-ed-30);
@@ -6366,6 +6400,10 @@ h4,
   object-fit: cover;
   border-radius: var(--r-sm);
   background: var(--panel);
+}
+
+.goen-admin__heroshot--campaign {
+  height: 60px;
 }
 
 .goen-admin__heroactions {
