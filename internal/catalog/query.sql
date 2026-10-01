@@ -56,11 +56,13 @@ SELECT
     coalesce(localized_name(p.summary, p.summary_en, @locale::text), '')::text AS summary,
     b.name AS brand,
     mv.price_cents AS min_price_cents,
-    -- Whether that price is the cheapest of several, so a card can say "from"
-    -- rather than state one variant's price as the product's.
+    -- Whether that price is the cheapest of several within the filters, so a card
+    -- can say "from" rather than state one variant's price as the product's.
     EXISTS (
         SELECT 1 FROM product_variants dv
         WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
+          AND (NOT @in_stock_only::boolean OR dv.stock_quantity > dv.safety_stock)
+          AND (@max_price::bigint = 0 OR dv.price_cents <= @max_price::bigint)
     ) AS price_varies,
     mv.compare_at_price_cents,
     coalesce(rv.rating, 0)::float8 AS rating,
@@ -80,6 +82,11 @@ JOIN LATERAL (
     SELECT price_cents, compare_at_price_cents
     FROM product_variants
     WHERE product_id = p.id AND is_active
+      -- The card shows a variant the filters accepted, or it states a price the
+      -- shopper excluded; these are the predicates of the EXISTS below.
+      AND (NOT @in_stock_only::boolean OR stock_quantity > safety_stock)
+      AND (@min_price::bigint = 0 OR price_cents >= @min_price::bigint)
+      AND (@max_price::bigint = 0 OR price_cents <= @max_price::bigint)
     -- A buyable variant first: the price on a card is a promise.
     ORDER BY (stock_quantity > safety_stock) DESC, price_cents
     LIMIT 1
