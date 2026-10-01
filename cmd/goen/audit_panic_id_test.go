@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -118,7 +119,7 @@ func TestAbortHandlerIsNotTurnedIntoA500(t *testing.T) {
 
 	response := httptest.NewRecorder()
 	defer func() {
-		if recover() != http.ErrAbortHandler {
+		if err, _ := recover().(error); !errors.Is(err, http.ErrAbortHandler) {
 			t.Error("http.ErrAbortHandler was not re-panicked")
 		}
 		if response.Body.Len() != 0 || logs.Len() != 0 {

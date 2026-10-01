@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -672,7 +673,7 @@ func recoverPanic(next http.Handler, log *slog.Logger) http.Handler {
 			if v := recover(); v != nil {
 				// net/http's own recovery treats this as the handler's way to
 				// abort the response; turning it into a 500 would send a body.
-				if v == http.ErrAbortHandler {
+				if err, ok := v.(error); ok && errors.Is(err, http.ErrAbortHandler) {
 					panic(v)
 				}
 				log.Error("panic serving request",
