@@ -1805,6 +1805,9 @@ CREATE TABLE orders (
 
 CREATE UNIQUE INDEX orders_number_key ON orders (order_number);
 CREATE INDEX orders_user_placed_idx ON orders (user_id, placed_at DESC);
+-- The back office's queue pages every order newest first, whatever its status;
+-- without this each page sorts the whole table.
+CREATE INDEX orders_placed_idx ON orders (placed_at DESC, id DESC);
 CREATE INDEX orders_shipping_version_idx ON orders (shipping_version_id);
 CREATE INDEX orders_open_idx
     ON orders (placed_at)
