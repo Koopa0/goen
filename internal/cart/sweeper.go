@@ -79,7 +79,7 @@ func (s *Store) cancelLapsedOrder(ctx context.Context, number string) (bool, err
 	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
 	q := s.q.WithTx(tx)
 
-	orderID, err := q.LockOrderForExpiry(ctx, number)
+	orderID, err := q.LockOrderByNumber(ctx, number)
 	if err != nil {
 		return false, fmt.Errorf("lock order %s: %w", number, err)
 	}

@@ -98,6 +98,12 @@ type ContactMessage struct {
 	CreatedAt time.Time
 }
 
+// One row, written only by refresh_copurchases(): the last time a rebuild completed, whether or not it produced any pair.
+type CopurchaseRefresh struct {
+	Singleton   bool
+	RefreshedAt time.Time
+}
+
 type Coupon struct {
 	ID          uuid.UUID
 	Code        string

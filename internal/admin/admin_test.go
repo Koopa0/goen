@@ -516,3 +516,20 @@ func TestAMistypedPriceIsRefusedByEveryFormThatWritesOne(t *testing.T) {
 		})
 	}
 }
+
+func TestTheQueueFiltersAreTheirOwnClosedSet(t *testing.T) {
+	t.Parallel()
+	for _, tab := range queueTabs {
+		if got := ParseQueueFilter(string(tab.filter)); got != tab.filter {
+			t.Errorf("ParseQueueFilter(%q) = %q, want the same filter", tab.filter, got)
+		}
+	}
+	for _, in := range []string{"", "all", "PENDING", " ready ", "paid"} {
+		if got := ParseQueueFilter(in); got != pages.QueueAll {
+			t.Errorf("ParseQueueFilter(%q) = %q, want every order", in, got)
+		}
+	}
+	if got := ParseStatus("ready"); got != "" {
+		t.Errorf("ParseStatus(ready) = %q: a transition must not be able to name a queue filter", got)
+	}
+}

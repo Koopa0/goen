@@ -101,15 +101,9 @@ var (
 		En:     "%s products and %d sub-categories",
 	})
 
-	KeyAdminTaxonomyChildren = key("admin.taxonomy.children", Message{
-		ZhHant: "有 %d 個子分類",
-		En:     "%d sub-categories",
-	})
+	KeyAdminTaxonomyChildren = countKey("admin.taxonomy.children", "有 %d 個子分類", "%d sub-category", "%d sub-categories")
 
-	KeyAdminTaxonomyProducts = key("admin.taxonomy.products", Message{
-		ZhHant: "有 %s 個商品",
-		En:     "%s products",
-	})
+	KeyAdminTaxonomyProducts = countKey("admin.taxonomy.products", "有 %s 個商品", "%s product", "%s products")
 )
 
 var (

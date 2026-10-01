@@ -1013,3 +1013,30 @@ func TestCheckoutRefusesPickupThatSkippedTheMapWhateverTheDeployment(t *testing.
 		}
 	}
 }
+
+func TestFullWidthDigitsAreFoldedBeforeTheCheckoutFieldsAreChecked(t *testing.T) {
+	addr := Address{
+		To: ToAddress, Email: "a@example.com", Name: "王小明",
+		Phone: "０９１２３４５６７８", PostalCode: "１１０",
+		City: "台北市", District: "信義區", Street: "市府路1號",
+	}
+	addr.Trim()
+	if addr.Phone != "0912345678" || addr.PostalCode != "110" {
+		t.Errorf("Trim kept phone %q postal code %q, want the ASCII forms", addr.Phone, addr.PostalCode)
+	}
+	for _, e := range addr.Validate() {
+		if e.Field == "phone" || e.Field == "postal_code" {
+			t.Errorf("full-width input refused: %s %v", e.Field, e.MessageKey)
+		}
+	}
+
+	inv := Invoice{Type: invoice.PreferenceMobile, Carrier: "／ＡＢＣ＋１２３"}
+	if errs := inv.Validate(); len(errs) != 0 || inv.Carrier != "/ABC+123" {
+		t.Errorf("carrier %q errors %v, want the folded carrier accepted", inv.Carrier, errs)
+	}
+	company := Invoice{Type: invoice.PreferenceCompany, TaxID: "１２３４５６７８", CompanyName: "公司"}
+	company.Validate()
+	if company.TaxID != "12345678" {
+		t.Errorf("tax ID = %q, want the ASCII digits", company.TaxID)
+	}
+}

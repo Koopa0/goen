@@ -23,6 +23,7 @@ import (
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/web"
 
 	"github.com/koopa0/goen/internal/i18n"
 )
@@ -598,7 +599,7 @@ func (s *Store) UpdateProfile(ctx context.Context, userID, name, phone string) e
 	if err != nil {
 		return fmt.Errorf("parse user id: %w", err)
 	}
-	name, phone = strings.TrimSpace(name), strings.TrimSpace(phone)
+	name, phone = strings.TrimSpace(name), strings.TrimSpace(web.FoldWidth(phone))
 	if !profileInputValid(name, phone) {
 		return ErrInvalidInput
 	}
@@ -866,12 +867,13 @@ func appendAddressFieldError(
 	}
 }
 
-// Trim normalises the whitespace a form carries.
+// Trim normalises the whitespace a form carries and folds full-width digits in
+// the phone and postal code.
 func (a *Address) Trim() {
 	a.Label = strings.TrimSpace(a.Label)
 	a.Name = strings.TrimSpace(a.Name)
-	a.Phone = strings.TrimSpace(a.Phone)
-	a.PostalCode = strings.TrimSpace(a.PostalCode)
+	a.Phone = strings.TrimSpace(web.FoldWidth(a.Phone))
+	a.PostalCode = strings.TrimSpace(web.FoldWidth(a.PostalCode))
 	a.City = strings.TrimSpace(a.City)
 	a.District = strings.TrimSpace(a.District)
 	a.Street = strings.TrimSpace(a.Street)

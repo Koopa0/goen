@@ -367,7 +367,7 @@ templ Account(p layouts.Page, v *AccountView) {
 													{ o.Number }
 												</a>
 												<span class="goen-account__ordermeta">
-													{ o.PlacedAt } · { fmt.Sprintf(i18n.T(ctx, i18n.KeyOrderLineCount), o.LineCountText()) }
+													{ o.PlacedAt } · { i18n.Count(ctx, i18n.KeyOrderLineCount, o.LineCount, o.LineCountText()) }
 												</span>
 											</td>
 											<td>
