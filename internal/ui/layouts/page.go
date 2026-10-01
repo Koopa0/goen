@@ -24,6 +24,19 @@ type Page struct {
 	Nav            string
 	StructuredData string
 	SearchQuery    string
+	// Share is the picture a link preview shows in place of the default; the
+	// zero value keeps the default.
+	Share ShareImage
+}
+
+// ShareImage is a page's own preview picture. Path is site-relative because
+// the head prefixes the configured origin, which a crawler needs to fetch it.
+// Width and Height are 0 where unknown and are then left out of the tags
+// rather than stated wrong.
+type ShareImage struct {
+	Path          string
+	Width, Height int32
+	Alt           string
 }
 
 // NavItem is one top-level category entry in the header.

@@ -386,7 +386,7 @@ func Home(p layouts.Page, v HomeView) templ.Component {
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 33, "\" sizes=\"(min-width: 1024px) 160px, 30vw\" alt=\"\" width=\"800\" height=\"800\" loading=\"lazy\" decoding=\"async\"> ")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 33, "\" sizes=\"128px\" alt=\"\" width=\"800\" height=\"800\" loading=\"lazy\" decoding=\"async\"> ")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}

@@ -1058,6 +1058,39 @@ func TestOnlyTheSecurePosturePinsHTTPS(t *testing.T) {
 	}
 }
 
+// TestSharePreviewNamesTheConfiguredOriginNotTheRequestHost pins withSiteOrigin
+// in the router: a share preview's absolute URL is one a client must not be
+// able to choose by sending a Host header.
+func TestSharePreviewNamesTheConfiguredOriginNotTheRequestHost(t *testing.T) {
+	t.Parallel()
+
+	idle, err := pgxpool.New(t.Context(), "postgres://unused:unused@127.0.0.1:1/unused?sslmode=disable")
+	if err != nil {
+		t.Fatalf("open an unused pool: %v", err)
+	}
+	t.Cleanup(idle.Close)
+	gateway, err := payment.NewGateway("", "", "http://127.0.0.1")
+	if err != nil {
+		t.Fatalf("build a disabled payment gateway: %v", err)
+	}
+	router := newRouter(&RouterConfig{
+		Pool: idle, AdminPool: idle, Payments: gateway,
+		Refunder: admin.NewRefunder(""), BaseURL: "https://goen.test",
+	}, slog.New(slog.DiscardHandler))
+
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/about", http.NoBody)
+	req.Host = "evil.example"
+	res := httptest.NewRecorder()
+	router.ServeHTTP(res, req)
+	body := res.Body.String()
+	if !strings.Contains(body, `<meta property="og:image" content="https://goen.test/`) {
+		t.Errorf("/about (status %d) does not name the configured origin in og:image", res.Code)
+	}
+	if strings.Contains(body, "evil.example") {
+		t.Error("/about echoes the request's Host into the page")
+	}
+}
+
 // TestSigningOutEmptiesTheBrowsersCache pins the second line behind
 // withNoStore: sign-out asks the browser to drop what it holds for this site,
 // and still throws away the speculations the chrome was rendered into.

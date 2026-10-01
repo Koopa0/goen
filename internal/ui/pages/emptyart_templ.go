@@ -11,8 +11,8 @@ import templruntime "github.com/a-h/templ/runtime"
 import "github.com/koopa0/goen/assets"
 
 // emptyArt is the picture an empty state opens with. It is decoration: the
-// title and text below it say the same thing, and it takes the 96px the icon
-// disc it replaces took, so the action below does not move down.
+// title and text below it say the same thing, and it holds 96px of height so
+// the action below sits where it would under an icon disc.
 func emptyArt(name string) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context

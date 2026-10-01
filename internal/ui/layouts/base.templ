@@ -46,10 +46,19 @@ templ documentHead(p Page) {
 		// Where no origin is configured the tags are left out rather than sent
 		// relative, which a crawler cannot use.
 		if origin := SiteOrigin(ctx); origin != "" {
-			<meta property="og:image" content={ origin + assets.URL(assets.OGDefaultImage) }/>
-			<meta property="og:image:width" content={ strconv.Itoa(assets.OGDefaultWidth) }/>
-			<meta property="og:image:height" content={ strconv.Itoa(assets.OGDefaultHeight) }/>
-			<meta property="og:image:alt" content={ i18n.T(ctx, i18n.KeyOGImageAlt) }/>
+			if p.Share.Path != "" {
+				<meta property="og:image" content={ origin + p.Share.Path }/>
+				if p.Share.Width > 0 && p.Share.Height > 0 {
+					<meta property="og:image:width" content={ strconv.Itoa(int(p.Share.Width)) }/>
+					<meta property="og:image:height" content={ strconv.Itoa(int(p.Share.Height)) }/>
+				}
+				<meta property="og:image:alt" content={ p.Share.Alt }/>
+			} else {
+				<meta property="og:image" content={ origin + assets.URL(assets.OGDefaultImage) }/>
+				<meta property="og:image:width" content={ strconv.Itoa(assets.OGDefaultWidth) }/>
+				<meta property="og:image:height" content={ strconv.Itoa(assets.OGDefaultHeight) }/>
+				<meta property="og:image:alt" content={ i18n.T(ctx, i18n.KeyOGImageAlt) }/>
+			}
 		}
 		<link rel="icon" type="image/svg+xml" href={ templ.URL(assets.URL(assets.MarkSVG)) }/>
 		// goen's own faces, from goen's own origin. There is no preconnect
