@@ -1,6 +1,7 @@
 package web
 
 import (
+	"net/netip"
 	"net/url"
 	"strings"
 	"unicode"
@@ -66,11 +67,24 @@ func hasSitePathShape(raw string) bool {
 func SiteOrigin(raw string) (origin, scheme string, ok bool) {
 	u, err := url.Parse(raw)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") ||
-		u.Host == "" || u.User != nil ||
+		!linkableHost(u.Hostname()) || u.User != nil ||
 		(u.Path != "" && u.Path != "/") || u.RawQuery != "" || u.Fragment != "" {
 		return "", "", false
 	}
 	return strings.TrimRight(u.Scheme+"://"+u.Host, "/"), u.Scheme, true
+}
+
+// linkableHost refuses what a listen address allows and a link cannot use.
+// u.Host is ":9701" for "http://:9701", so only the hostname shows it is
+// empty, and 0.0.0.0 or :: means every interface to a listener but no machine
+// to a customer following a Stripe return URL or an emailed link, whether it
+// is spelled IPv4-mapped or with a zone.
+func linkableHost(host string) bool {
+	if host == "" {
+		return false
+	}
+	addr, err := netip.ParseAddr(host)
+	return err != nil || !addr.Unmap().WithZone("").IsUnspecified()
 }
 
 func hasControl(s string) bool {

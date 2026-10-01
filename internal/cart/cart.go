@@ -34,6 +34,9 @@ import (
 var (
 	// ErrNotFound is a cart, order or variant that does not exist.
 	ErrNotFound = errors.New("cart: not found")
+	// ErrNotYourCart is a cart token naming a cart that belongs to an account
+	// other than the requester's, or to any account when nobody is signed in.
+	ErrNotYourCart = errors.New("cart: the cart belongs to an account the requester is not signed in as")
 	// ErrUnavailable is a variant that cannot be added or ordered.
 	ErrUnavailable = errors.New("cart: variant unavailable")
 	// ErrCreditChanged means the customer's available store credit moved while
@@ -405,6 +408,23 @@ func (s *Store) PlacedHere(ctx context.Context, r *http.Request, number string, 
 	return ok
 }
 
+// ForgetOrders ends the access a browser's placed cookie grants to every order
+// it names.
+func (s *Store) ForgetOrders(ctx context.Context, r *http.Request, secure bool) error {
+	tokens := placedTokens(r, secure)
+	if len(tokens) == 0 {
+		return nil
+	}
+	digests := make([][]byte, 0, len(tokens))
+	for _, t := range tokens {
+		digests = append(digests, HashToken(t))
+	}
+	if err := s.q.RevokeOrderAccess(ctx, digests); err != nil {
+		return fmt.Errorf("revoke this browser's order access: %w", err)
+	}
+	return nil
+}
+
 func placedCookieName(secure bool) string {
 	if secure {
 		return PlacedCookieName
@@ -465,6 +485,21 @@ func SetCookie(w http.ResponseWriter, token string, secure bool) {
 		Value:    token,
 		Path:     "/",
 		MaxAge:   cookieMaxAge,
+		HttpOnly: true,
+		Secure:   secure,
+		SameSite: http.SameSiteLaxMode,
+	})
+}
+
+// expireCookie expires the cart or placed cookie named name. It carries the
+// attributes both are set with: a browser replaces a cookie only with one of
+// the same name and path, and refuses a __Host- name without Secure.
+func expireCookie(w http.ResponseWriter, name string, secure bool) {
+	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: dev-only opt-out, secure by default
+		Name:     name,
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
 		HttpOnly: true,
 		Secure:   secure,
 		SameSite: http.SameSiteLaxMode,

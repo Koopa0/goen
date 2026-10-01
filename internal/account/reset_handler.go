@@ -44,8 +44,8 @@ func (h *Handler) Forgot(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.store.beginReset(r.Context(), addr); err != nil {
-		h.log.ErrorContext(r.Context(), "begin password reset", "error", err)
+	if err := h.store.requestReset(r.Context(), addr); err != nil {
+		h.log.ErrorContext(r.Context(), "queue password reset request", "error", err)
 		h.serverError(w, r)
 		return
 	}

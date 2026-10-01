@@ -136,14 +136,38 @@ var (
 
 	KeyPasswordTooLong = key("valid.password.long", Message{ZhHant: "密碼過長", En: "That password is too long"})
 
+	// The second sentence is for everybody, because an account whose link has
+	// not been followed yet is refused exactly as a wrong password is.
 	KeyBadCredentials = key("auth.badcredentials", Message{
-		ZhHant: "電子郵件或密碼不正確",
-		En:     "That email address or password is not right",
+		ZhHant: "電子郵件或密碼不正確。剛註冊的話,請先點我們寄給你的信裡的連結。",
+		En: "That email address or password is not right. If you have just registered, " +
+			"follow the link in the message we sent you first.",
 	})
 
-	KeyEmailTaken = key("auth.emailtaken", Message{
-		ZhHant: "這個電子郵件已經註冊過了",
-		En:     "That email address is already registered",
+	KeyRegisterSent = key("auth.register.sent", Message{
+		ZhHant: "我們寄了一封信到這個信箱,照信裡的說明完成註冊。沒收到請看看垃圾郵件。",
+		En: "We have sent a message to that address. Follow it to finish — if it has not " +
+			"arrived, check your spam folder.",
+	})
+
+	KeyRegisterCompleteTitle = key("auth.register.complete.title", Message{
+		ZhHant: "完成註冊",
+		En:     "Finish creating your account",
+	})
+
+	KeyRegisterCompleteLede = key("auth.register.complete.lede", Message{
+		ZhHant: "輸入你註冊時設定的密碼,就完成註冊並登入。",
+		En:     "Enter the password you chose when you registered to finish and sign in.",
+	})
+
+	KeyRegisterCompleteSubmit = key("auth.register.complete.submit", Message{
+		ZhHant: "完成註冊並登入",
+		En:     "Finish and sign in",
+	})
+
+	KeyRegisterCompleteNotYou = key("auth.register.complete.notyou", Message{
+		ZhHant: "沒有在這裡註冊過?用「忘記密碼」重新設定一組,這個信箱的帳號就是你的。",
+		En:     "Did not register here? Choose a new password instead, and the account at this address is yours.",
 	})
 
 	KeyAccountCreated = key("auth.created", Message{

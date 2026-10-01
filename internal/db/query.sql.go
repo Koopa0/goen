@@ -1597,11 +1597,11 @@ LIMIT $5::integer
 `
 
 type AdminSearchCustomersParams struct {
-	Term      string
-	HasCursor bool
-	AfterAt   time.Time
-	AfterID   uuid.UUID
-	RowLimit  int32
+	EscapedTerm string
+	HasCursor   bool
+	AfterAt     time.Time
+	AfterID     uuid.UUID
+	RowLimit    int32
 }
 
 type AdminSearchCustomersRow struct {
@@ -1616,10 +1616,11 @@ type AdminSearchCustomersRow struct {
 
 // Prefix on both, each index-backed, with a floor on the term enforced by the
 // caller. Every role is searched, for AdminCustomer's reason. An erased
-// customer's row is gone, so nothing extra is needed to exclude one.
+// customer's row is gone, so nothing extra is needed to exclude one. The term
+// arrives LIKE-escaped: "%%" passes the floor and would otherwise list everyone.
 func (q *Queries) AdminSearchCustomers(ctx context.Context, arg AdminSearchCustomersParams) ([]AdminSearchCustomersRow, error) {
 	rows, err := q.db.Query(ctx, adminSearchCustomers,
-		arg.Term,
+		arg.EscapedTerm,
 		arg.HasCursor,
 		arg.AfterAt,
 		arg.AfterID,
@@ -1668,20 +1669,21 @@ SELECT json_build_object('At', o.placed_at, 'ID', o.id)::text AS page_cursor,
 FROM orders o
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
 WHERE (o.order_number = upper($1::text)
-   OR lower(pd.email) LIKE lower($1::text) || '%'
-   OR pd.recipient_name LIKE $1::text || '%')
-AND (NOT $2::boolean OR (o.placed_at < $3::timestamptz)
-       OR (o.placed_at = $3::timestamptz AND o.id < $4::uuid))
+   OR lower(pd.email) LIKE lower($2::text) || '%'
+   OR pd.recipient_name LIKE $2::text || '%')
+AND (NOT $3::boolean OR (o.placed_at < $4::timestamptz)
+       OR (o.placed_at = $4::timestamptz AND o.id < $5::uuid))
 ORDER BY o.placed_at DESC, o.id DESC
-LIMIT $5::integer
+LIMIT $6::integer
 `
 
 type AdminSearchOrdersParams struct {
-	Term      string
-	HasCursor bool
-	AfterAt   time.Time
-	AfterID   uuid.UUID
-	RowLimit  int32
+	Term        string
+	EscapedTerm string
+	HasCursor   bool
+	AfterAt     time.Time
+	AfterID     uuid.UUID
+	RowLimit    int32
 }
 
 type AdminSearchOrdersRow struct {
@@ -1702,9 +1704,12 @@ type AdminSearchOrdersRow struct {
 // An order-number-shaped term is matched exactly and anything else as a prefix,
 // told apart rather than OR-ed with wildcards so each path stays index-backed.
 // An erased order matches nothing: erase_user NULLs the name and the address.
+// The prefixes take @escaped_term, the same words with LIKE's own syntax
+// escaped: a typed % or _ would otherwise match any address or name.
 func (q *Queries) AdminSearchOrders(ctx context.Context, arg AdminSearchOrdersParams) ([]AdminSearchOrdersRow, error) {
 	rows, err := q.db.Query(ctx, adminSearchOrders,
 		arg.Term,
+		arg.EscapedTerm,
 		arg.HasCursor,
 		arg.AfterAt,
 		arg.AfterID,
@@ -5044,43 +5049,6 @@ func (q *Queries) CreateShippingZone(ctx context.Context, arg CreateShippingZone
 	return id, err
 }
 
-const createUser = `-- name: CreateUser :one
-INSERT INTO users (email, password_hash, full_name, phone)
-VALUES ($1, $2, $3, $4)
-RETURNING id, email, full_name, role
-`
-
-type CreateUserParams struct {
-	Email        string
-	PasswordHash pgtype.Text
-	FullName     pgtype.Text
-	Phone        pgtype.Text
-}
-
-type CreateUserRow struct {
-	ID       uuid.UUID
-	Email    string
-	FullName pgtype.Text
-	Role     string
-}
-
-func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (CreateUserRow, error) {
-	row := q.db.QueryRow(ctx, createUser,
-		arg.Email,
-		arg.PasswordHash,
-		arg.FullName,
-		arg.Phone,
-	)
-	var i CreateUserRow
-	err := row.Scan(
-		&i.ID,
-		&i.Email,
-		&i.FullName,
-		&i.Role,
-	)
-	return i, err
-}
-
 const createUserFromIdentity = `-- name: CreateUserFromIdentity :one
 INSERT INTO users (email, full_name, email_verified_at)
 VALUES ($1::text, nullif($2::text, ''), now())
@@ -5110,6 +5078,43 @@ func (q *Queries) CreateUserFromIdentity(ctx context.Context, arg CreateUserFrom
 		&i.FullName,
 		&i.Role,
 	)
+	return i, err
+}
+
+const createUserUnlessRegistered = `-- name: CreateUserUnlessRegistered :one
+WITH created AS (
+    INSERT INTO users (email, password_hash, full_name)
+    VALUES ($1::text, $2::text, $3)
+    ON CONFLICT ((lower(email))) DO NOTHING
+    RETURNING id
+)
+SELECT coalesce(c.id, u.id, '00000000-0000-0000-0000-000000000000'::uuid)::uuid AS user_id,
+       (c.id IS NOT NULL)::boolean AS created
+FROM (VALUES (true)) AS attempt (made)
+LEFT JOIN created c ON true
+LEFT JOIN users u ON lower(u.email) = lower($1::text)
+`
+
+type CreateUserUnlessRegisteredParams struct {
+	Email        string
+	PasswordHash string
+	FullName     pgtype.Text
+}
+
+type CreateUserUnlessRegisteredRow struct {
+	UserID  uuid.UUID
+	Created bool
+}
+
+// A registration is this one statement whether or not the address is taken:
+// created says which, and user_id names the account either way. users_email_key
+// decides, so two registrations of one address make one account. user_id is the
+// nil UUID only when a concurrent registration committed the address after this
+// statement's snapshot was taken, and then there is nobody to write to.
+func (q *Queries) CreateUserUnlessRegistered(ctx context.Context, arg CreateUserUnlessRegisteredParams) (CreateUserUnlessRegisteredRow, error) {
+	row := q.db.QueryRow(ctx, createUserUnlessRegistered, arg.Email, arg.PasswordHash, arg.FullName)
+	var i CreateUserUnlessRegisteredRow
+	err := row.Scan(&i.UserID, &i.Created)
 	return i, err
 }
 
@@ -5831,26 +5836,6 @@ func (q *Queries) EligibilityFactsForAssessments(ctx context.Context, assessment
 	return items, nil
 }
 
-const emailBelongsToSomebodyElse = `-- name: EmailBelongsToSomebodyElse :one
-SELECT EXISTS (
-    SELECT 1 FROM users
-    WHERE lower(email) = lower($1::text) AND id <> $2
-) AS taken
-`
-
-type EmailBelongsToSomebodyElseParams struct {
-	Email  string
-	UserID uuid.UUID
-}
-
-// Not the guard: users_email_key is, because an address can be taken in between.
-func (q *Queries) EmailBelongsToSomebodyElse(ctx context.Context, arg EmailBelongsToSomebodyElseParams) (bool, error) {
-	row := q.db.QueryRow(ctx, emailBelongsToSomebodyElse, arg.Email, arg.UserID)
-	var taken bool
-	err := row.Scan(&taken)
-	return taken, err
-}
-
 const emailVerification = `-- name: EmailVerification :one
 SELECT (u.email_verified_at IS NOT NULL)::boolean AS verified,
        coalesce((SELECT v.email FROM email_verifications v
@@ -5930,6 +5915,35 @@ type EnqueueMessageParams struct {
 // DO NOTHING against (topic, dedupe_key), so a retried checkout enqueues once.
 func (q *Queries) EnqueueMessage(ctx context.Context, arg EnqueueMessageParams) error {
 	_, err := q.db.Exec(ctx, enqueueMessage, arg.Topic, arg.DedupeKey, arg.Payload)
+	return err
+}
+
+const enqueuePasswordResetRequest = `-- name: EnqueuePasswordResetRequest :exec
+INSERT INTO outbox_messages (topic, dedupe_key, payload)
+SELECT $1::text, $2::text,
+       jsonb_build_object('user_id', u.id, 'locale', $3::text)
+FROM (VALUES (true)) AS request (queued)
+LEFT JOIN users u ON lower(u.email) = lower($4::text)
+`
+
+type EnqueuePasswordResetRequestParams struct {
+	Topic     string
+	DedupeKey string
+	Locale    string
+	Email     string
+}
+
+// A forgotten-password request is this one INSERT whatever the address: the
+// account is looked up inside it and names nobody when there is none, so a
+// known address costs the request exactly what an unknown one does. The token
+// is issued later, off the request, from the account id alone.
+func (q *Queries) EnqueuePasswordResetRequest(ctx context.Context, arg EnqueuePasswordResetRequestParams) error {
+	_, err := q.db.Exec(ctx, enqueuePasswordResetRequest,
+		arg.Topic,
+		arg.DedupeKey,
+		arg.Locale,
+		arg.Email,
+	)
 	return err
 }
 
@@ -6388,11 +6402,12 @@ func (q *Queries) IdentitiesForUser(ctx context.Context, userID uuid.UUID) ([]Id
 
 const insertEligibilityAssessment = `-- name: InsertEligibilityAssessment :one
 INSERT INTO return_eligibility_assessments (
-    order_id, return_request_id, version, assessed_by, basis
+    order_id, return_request_id, version, assessed_by, assessed_by_snapshot, basis
 ) VALUES (
-    $1, $2, $3, $4, $5
+    $1, $2, $3, $4::uuid, $4::uuid, $5
 )
-RETURNING id, order_id, return_request_id, version, assessed_by, assessed_at, basis
+RETURNING id, order_id, return_request_id, version, assessed_by, assessed_by_snapshot,
+          assessed_at, basis
 `
 
 type InsertEligibilityAssessmentParams struct {
@@ -6403,6 +6418,8 @@ type InsertEligibilityAssessmentParams struct {
 	Basis           string
 }
 
+// The live assessor and its snapshot are one fact at insert; erasure later
+// clears the live column only.
 func (q *Queries) InsertEligibilityAssessment(ctx context.Context, arg InsertEligibilityAssessmentParams) (ReturnEligibilityAssessment, error) {
 	row := q.db.QueryRow(ctx, insertEligibilityAssessment,
 		arg.OrderID,
@@ -6418,6 +6435,7 @@ func (q *Queries) InsertEligibilityAssessment(ctx context.Context, arg InsertEli
 		&i.ReturnRequestID,
 		&i.Version,
 		&i.AssessedBy,
+		&i.AssessedBySnapshot,
 		&i.AssessedAt,
 		&i.Basis,
 	)
@@ -6830,7 +6848,8 @@ func (q *Queries) LapsedUnpaidOrders(ctx context.Context, limit int32) ([]string
 }
 
 const latestEligibilityAssessment = `-- name: LatestEligibilityAssessment :one
-SELECT id, order_id, return_request_id, version, assessed_by, assessed_at, basis
+SELECT id, order_id, return_request_id, version, assessed_by, assessed_by_snapshot,
+       assessed_at, basis
 FROM return_eligibility_assessments
 WHERE return_request_id = $1
 ORDER BY version DESC
@@ -6849,6 +6868,7 @@ func (q *Queries) LatestEligibilityAssessment(ctx context.Context, returnRequest
 		&i.ReturnRequestID,
 		&i.Version,
 		&i.AssessedBy,
+		&i.AssessedBySnapshot,
 		&i.AssessedAt,
 		&i.Basis,
 	)
@@ -6857,7 +6877,8 @@ func (q *Queries) LatestEligibilityAssessment(ctx context.Context, returnRequest
 
 const latestEligibilityAssessments = `-- name: LatestEligibilityAssessments :many
 SELECT DISTINCT ON (return_request_id)
-    id, order_id, return_request_id, version, assessed_by, assessed_at, basis
+    id, order_id, return_request_id, version, assessed_by, assessed_by_snapshot,
+    assessed_at, basis
 FROM return_eligibility_assessments
 WHERE return_request_id = ANY($1::uuid[])
 ORDER BY return_request_id, version DESC
@@ -6878,6 +6899,7 @@ func (q *Queries) LatestEligibilityAssessments(ctx context.Context, requestIds [
 			&i.ReturnRequestID,
 			&i.Version,
 			&i.AssessedBy,
+			&i.AssessedBySnapshot,
 			&i.AssessedAt,
 			&i.Basis,
 		); err != nil {
@@ -7246,18 +7268,23 @@ func (q *Queries) LockUserForCheckout(ctx context.Context, userID uuid.UUID) (bo
 }
 
 const lockUserForEmailVerification = `-- name: LockUserForEmailVerification :one
-SELECT id, email FROM users WHERE id = $1::uuid FOR UPDATE
+SELECT id, email, (email_verified_at IS NOT NULL)::boolean AS verified
+FROM users WHERE id = $1::uuid FOR UPDATE
 `
 
 type LockUserForEmailVerificationRow struct {
-	ID    uuid.UUID
-	Email string
+	ID       uuid.UUID
+	Email    string
+	Verified bool
 }
 
+// verified is read under the lock: a link that proves the address of an
+// account whose address was never proved is the one that completes a
+// registration.
 func (q *Queries) LockUserForEmailVerification(ctx context.Context, userID uuid.UUID) (LockUserForEmailVerificationRow, error) {
 	row := q.db.QueryRow(ctx, lockUserForEmailVerification, userID)
 	var i LockUserForEmailVerificationRow
-	err := row.Scan(&i.ID, &i.Email)
+	err := row.Scan(&i.ID, &i.Email, &i.Verified)
 	return i, err
 }
 
@@ -8625,6 +8652,31 @@ func (q *Queries) OrderTracking(ctx context.Context, orderID uuid.UUID) ([]Order
 	return items, nil
 }
 
+const otherAccountAtAddress = `-- name: OtherAccountAtAddress :one
+SELECT email, full_name FROM users
+WHERE lower(email) = lower($1::text) AND id <> $2
+`
+
+type OtherAccountAtAddressParams struct {
+	Email  string
+	UserID uuid.UUID
+}
+
+type OtherAccountAtAddressRow struct {
+	Email    string
+	FullName pgtype.Text
+}
+
+// Read by the outbox worker, never by the request, so asking to move to an
+// address costs the same whether or not it has an account. Not the guard:
+// users_email_key is, because an address can be taken in between.
+func (q *Queries) OtherAccountAtAddress(ctx context.Context, arg OtherAccountAtAddressParams) (OtherAccountAtAddressRow, error) {
+	row := q.db.QueryRow(ctx, otherAccountAtAddress, arg.Email, arg.UserID)
+	var i OtherAccountAtAddressRow
+	err := row.Scan(&i.Email, &i.FullName)
+	return i, err
+}
+
 const parkProductImages = `-- name: ParkProductImages :exec
 UPDATE product_images pi SET position = pi.position + 1000000
 FROM products p
@@ -9380,6 +9432,18 @@ func (q *Queries) PromoteHeroSlide(ctx context.Context, id uuid.UUID) (int64, er
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const proveEmailByReset = `-- name: ProveEmailByReset :exec
+UPDATE users SET email_verified_at = now()
+WHERE id = $1 AND email_verified_at IS NULL
+`
+
+// Spending a reset link proves the address it was mailed to, which is the
+// account's current one: every reset token dies when the address changes.
+func (q *Queries) ProveEmailByReset(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, proveEmailByReset, id)
+	return err
 }
 
 const publishShippingVersion = `-- name: PublishShippingVersion :one
@@ -10349,6 +10413,37 @@ func (q *Queries) RegistrableLines(ctx context.Context, arg RegistrableLinesPara
 		return nil, err
 	}
 	return items, nil
+}
+
+const registrationAccount = `-- name: RegistrationAccount :one
+SELECT email, full_name, (email_verified_at IS NOT NULL)::boolean AS verified
+FROM users WHERE id = $1
+`
+
+type RegistrationAccountRow struct {
+	Email    string
+	FullName pgtype.Text
+	Verified bool
+}
+
+func (q *Queries) RegistrationAccount(ctx context.Context, id uuid.UUID) (RegistrationAccountRow, error) {
+	row := q.db.QueryRow(ctx, registrationAccount, id)
+	var i RegistrationAccountRow
+	err := row.Scan(&i.Email, &i.FullName, &i.Verified)
+	return i, err
+}
+
+const registrationCredential = `-- name: RegistrationCredential :one
+SELECT password_hash FROM users WHERE id = $1
+`
+
+// The registrant's half of completing a registration: the password chosen when
+// the account was made.
+func (q *Queries) RegistrationCredential(ctx context.Context, id uuid.UUID) (pgtype.Text, error) {
+	row := q.db.QueryRow(ctx, registrationCredential, id)
+	var password_hash pgtype.Text
+	err := row.Scan(&password_hash)
+	return password_hash, err
 }
 
 const rejectInvoiceOperation = `-- name: RejectInvoiceOperation :one
@@ -11548,6 +11643,17 @@ func (q *Queries) ReverseReturnPoints(ctx context.Context, returnID uuid.UUID) (
 	var points_reversed int64
 	err := row.Scan(&points_reversed)
 	return points_reversed, err
+}
+
+const revokeOrderAccess = `-- name: RevokeOrderAccess :exec
+DELETE FROM order_access_grants WHERE digest = ANY($1::bytea[])
+`
+
+// The grants a browser presents, gone when it signs out. Expiring the cookie is
+// not enough: a client can ignore an expiry and present the tokens again.
+func (q *Queries) RevokeOrderAccess(ctx context.Context, digests [][]byte) error {
+	_, err := q.db.Exec(ctx, revokeOrderAccess, digests)
+	return err
 }
 
 const revokeStaff = `-- name: RevokeStaff :one
@@ -13759,7 +13865,8 @@ func (q *Queries) UpsertStaff(ctx context.Context, arg UpsertStaffParams) (bool,
 }
 
 const userByEmail = `-- name: UserByEmail :one
-SELECT id, email, password_hash, full_name, role
+SELECT id, email, password_hash, full_name, role,
+       (email_verified_at IS NOT NULL)::boolean AS verified
 FROM users WHERE lower(email) = lower($1)
 `
 
@@ -13769,9 +13876,12 @@ type UserByEmailRow struct {
 	PasswordHash pgtype.Text
 	FullName     pgtype.Text
 	Role         string
+	Verified     bool
 }
 
-// lower(email) matches the unique index.
+// lower(email) matches the unique index. verified is what a password sign-in
+// turns on: until the address is proved, the password may be whoever
+// registered it rather than whoever reads the mailbox.
 func (q *Queries) UserByEmail(ctx context.Context, lower string) (UserByEmailRow, error) {
 	row := q.db.QueryRow(ctx, userByEmail, lower)
 	var i UserByEmailRow
@@ -13781,6 +13891,7 @@ func (q *Queries) UserByEmail(ctx context.Context, lower string) (UserByEmailRow
 		&i.PasswordHash,
 		&i.FullName,
 		&i.Role,
+		&i.Verified,
 	)
 	return i, err
 }
@@ -13877,7 +13988,7 @@ func (q *Queries) UserForOAuthLink(ctx context.Context, email string) (UserForOA
 const userForPasswordReset = `-- name: UserForPasswordReset :one
 SELECT id, email
 FROM users
-WHERE lower(email) = lower($1)
+WHERE id = $1::uuid
 FOR UPDATE
 `
 
@@ -13891,8 +14002,8 @@ type UserForPasswordResetRow struct {
 // against erase_user, so only one unused token remains, and either both reset
 // records commit first and erasure purges them, or erasure wins and this
 // returns no row.
-func (q *Queries) UserForPasswordReset(ctx context.Context, lower string) (UserForPasswordResetRow, error) {
-	row := q.db.QueryRow(ctx, userForPasswordReset, lower)
+func (q *Queries) UserForPasswordReset(ctx context.Context, userID uuid.UUID) (UserForPasswordResetRow, error) {
+	row := q.db.QueryRow(ctx, userForPasswordReset, userID)
 	var i UserForPasswordResetRow
 	err := row.Scan(&i.ID, &i.Email)
 	return i, err

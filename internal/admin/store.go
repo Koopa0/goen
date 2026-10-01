@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/cart"
+	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
@@ -144,7 +145,7 @@ func (s *Store) Orders(ctx context.Context, status pages.FulfillmentStatus, term
 		// order, not that order if it is in the tab they had open.
 		var found []db.AdminSearchOrdersRow
 		if found, err = s.q.AdminSearchOrders(ctx, db.AdminSearchOrdersParams{HasCursor: cursor.Valid, AfterAt: cursor.At, AfterID: cursor.ID,
-			Term: term, RowLimit: PageLimit,
+			Term: term, EscapedTerm: catalog.EscapeLike(term), RowLimit: PageLimit,
 		}); err == nil {
 			rows = make([]db.AdminOrdersRow, 0, len(found))
 			for i := range found {

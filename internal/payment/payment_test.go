@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	stripe "github.com/stripe/stripe-go/v86"
 
@@ -81,6 +82,52 @@ func TestWebhookRejectsAForgedSignature(t *testing.T) {
 			_, err := g.VerifyWebhook(tt.payload, tt.header)
 			if err == nil {
 				t.Fatal("verification accepted a payload Stripe did not sign")
+			}
+			if !errors.Is(err, payment.ErrBadSignature) {
+				t.Errorf("error is %v, want ErrBadSignature so the handler answers 400", err)
+			}
+		})
+	}
+}
+
+// TestWebhookRefusesASignatureOutsideTheTolerance holds the replay window: a
+// genuine signature is evidence only for the five minutes Stripe allows, after
+// which the same bytes are refused as unsigned rather than processed.
+func TestWebhookRefusesASignatureOutsideTheTolerance(t *testing.T) {
+	g := enabledGateway(t)
+	raw, err := json.Marshal(sessionEvent("evt_window", "cs_test_window", "paid", 199900))
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	signedAt := func(age time.Duration) (payload []byte, header string) {
+		p := stripe.GenerateTestSignedPayload(&stripe.UnsignedPayload{
+			Payload: raw, Secret: testWebhookSecret, Timestamp: time.Now().Add(-age),
+		})
+		return p.Payload, p.Header
+	}
+
+	tests := []struct {
+		name   string
+		age    time.Duration
+		accept bool
+	}{
+		{name: "inside the window", age: 4 * time.Minute, accept: true},
+		{name: "just past the window", age: 6 * time.Minute},
+		{name: "a day old", age: 24 * time.Hour},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			payload, header := signedAt(tt.age)
+			_, err := g.VerifyWebhook(payload, header)
+			if tt.accept {
+				if err != nil {
+					t.Fatalf("VerifyWebhook() refused a signature %v old: %v", tt.age, err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatalf("VerifyWebhook() accepted a signature %v old — a captured "+
+					"delivery would be replayable forever", tt.age)
 			}
 			if !errors.Is(err, payment.ErrBadSignature) {
 				t.Errorf("error is %v, want ErrBadSignature so the handler answers 400", err)

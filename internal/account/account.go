@@ -28,12 +28,15 @@ var (
 	ErrLastSignInMethod = errors.New("account: that is the only way to sign in")
 	// ErrBadCredentials is a wrong email or password: one error for both, or the form enumerates accounts.
 	ErrBadCredentials = errors.New("account: bad credentials")
-	// ErrEmailTaken is a registration for an address that already has an account.
+	// ErrEmailTaken is an address another account holds by the time a link
+	// would prove it for this one.
 	ErrEmailTaken = errors.New("account: email taken")
 	// ErrInvalidInput is profile or saved-address text outside the server bounds.
 	ErrInvalidInput = errors.New("account: invalid input")
 	// ErrOpenReturn means erasure would orphan an unresolved store-credit payout.
 	ErrOpenReturn = errors.New("account: finish the open return before erasure")
+	// ErrLastAdmin means erasure would leave the shop with no administrator.
+	ErrLastAdmin = errors.New("account: the last administrator cannot be erased")
 	// ErrQuantityAdjusted means adoption or merge succeeded but at least one line
 	// was capped to what the shelf can supply.
 	ErrQuantityAdjusted = errors.New("account: quantity adjusted to available stock")
@@ -53,6 +56,13 @@ const EraseSignInWindow = 15 * time.Minute
 
 // SessionTTL is how long a session lives.
 const SessionTTL = 14 * 24 * 60 * 60
+
+// sessionCookieMaxAge is how long a browser presents a session's cookie: past
+// the session itself, for as long as it can hold proof of an order placed
+// signed in, which cart keeps 30 days from the last order. The cookie of an
+// ended session grants nothing, and presenting it is the only way Authenticate
+// learns to take that proof away.
+const sessionCookieMaxAge = SessionTTL + 30*24*60*60
 
 // ResetTTL is how long a password-reset link is good for.
 const ResetTTL = 60 * 60
@@ -167,7 +177,7 @@ func SetSessionCookie(w http.ResponseWriter, token string, secure bool) {
 		Name:     sessionCookieName(secure),
 		Value:    token,
 		Path:     "/",
-		MaxAge:   SessionTTL,
+		MaxAge:   sessionCookieMaxAge,
 		HttpOnly: true,
 		Secure:   secure,
 		SameSite: http.SameSiteStrictMode,
@@ -320,10 +330,12 @@ func profileInputValid(name, phone string) bool {
 }
 
 // A user agent is optional session decoration. Refuse to persist an unbounded
-// or control-bearing value, but never refuse the sign-in it describes.
+// or control-bearing value, but never refuse the sign-in it describes. HTTP
+// lets a header carry bytes that are not UTF-8, and PostgreSQL refuses the
+// whole session row over one of them.
 func normaliseUserAgent(s string) string {
 	s = strings.TrimSpace(s)
-	if utf8.RuneCountInString(s) > maxUserAgentRunes || hasControl(s) {
+	if !utf8.ValidString(s) || utf8.RuneCountInString(s) > maxUserAgentRunes || hasControl(s) {
 		return ""
 	}
 	return s

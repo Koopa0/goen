@@ -12,8 +12,6 @@ import (
 	"testing"
 	"time"
 
-	stripe "github.com/stripe/stripe-go/v86"
-
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/shoptime"
@@ -36,7 +34,7 @@ func TestThePayPageOffersPaymentOnlyWhileASessionCanStart(t *testing.T) {
 		{name: "cancelled", hold: 60 * time.Minute, cancelled: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			number, id := order(t, 100000)
+			number, id := holdableOrder(t, 100000)
 			var expiry time.Time
 			if tc.hold > 0 {
 				expiry = hold(t, id, 0, tc.hold, "window:"+number)
@@ -88,7 +86,7 @@ func TestThePayPageOffersPaymentOnlyWhileASessionCanStart(t *testing.T) {
 }
 
 func TestAnOpenSessionStillResumesAfterTheStartWindowCloses(t *testing.T) {
-	number, id := order(t, 100000)
+	number, id := holdableOrder(t, 100000)
 	hold(t, id, 0, 60*time.Minute, "resume-window:"+number)
 	s := payment.NewStore(pool)
 	sessionID := "cs_window_" + number
@@ -109,16 +107,7 @@ func TestAnOpenSessionStillResumesAfterTheStartWindowCloses(t *testing.T) {
 		_, _ = fmt.Fprintf(w, `{"id":%q,"object":"checkout.session","status":"open","url":%q}`, sessionID, destination)
 	}))
 	t.Cleanup(provider.Close)
-	original := stripe.GetBackend(stripe.APIBackend)
-	stripe.SetBackend(stripe.APIBackend, stripe.GetBackendWithConfig(stripe.APIBackend, &stripe.BackendConfig{
-		URL: stripe.String(provider.URL), MaxNetworkRetries: stripe.Int64(0),
-	}))
-	gateway, err := payment.NewGateway("sk_test_notreal", testWebhookSecret, "https://goen.example")
-	stripe.SetBackend(stripe.APIBackend, original)
-	if err != nil {
-		t.Fatal(err)
-	}
-	h := payment.NewHandler(s, gateway, alwaysPlacedHere{}, slog.New(slog.DiscardHandler), false)
+	h := payment.NewHandler(s, gatewayAt(t, provider.URL), alwaysPlacedHere{}, slog.New(slog.DiscardHandler), false)
 
 	get := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/orders/"+number+"/pay", http.NoBody)
 	get.SetPathValue("number", number)

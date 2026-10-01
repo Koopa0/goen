@@ -10,7 +10,8 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-// Guard wraps a handler with a per-IP limit, answering 429 with Retry-After.
+// Guard wraps a handler with a limit per [ClientKey], answering 429 with
+// Retry-After.
 // Middleware and not a check inside the handler, because it must run before
 // anything expensive.
 func Guard(l *Limiter, log *slog.Logger, next http.HandlerFunc) http.HandlerFunc {
@@ -18,8 +19,7 @@ func Guard(l *Limiter, log *slog.Logger, next http.HandlerFunc) http.HandlerFunc
 		panic("ratelimit: Guard requires a limiter and a logger")
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
-		ip := ClientIP(r)
-		retryAfter, ok := l.Allow(ip)
+		retryAfter, ok := l.Allow(ClientKey(r))
 		if !ok {
 			log.WarnContext(r.Context(), "rate limited",
 				"path", r.URL.Path, "retry_after_seconds", int(retryAfter.Seconds()+1))

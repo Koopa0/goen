@@ -19,9 +19,22 @@ const RenditionCacheBytes = 64 << 20
 // the scaling: draw.CatmullRom does not look at a context.
 const RenderTimeout = 30 * time.Second
 
+// maxRenderSlots bounds renderSlots whatever the core count. A render holds a
+// decoded source of at most MaxStoredSide square, its width-scaled
+// intermediate, the rendition and one band of scaler scratch: about 83 MB at
+// the widest rendition of a 16-bit source, which Normalise keeps at 16 bits.
+// Anonymous visitors choose when renders run, so the bound is on memory, and
+// four is about 330 MB.
+const maxRenderSlots = 4
+
 // renderSlots is how many renditions may be produced at the same time. Requests
 // over the bound wait rather than fail.
-var renderSlots = runtime.GOMAXPROCS(0)
+var renderSlots = renderSlotsFor(runtime.GOMAXPROCS(0))
+
+// renderSlotsFor is one render per core, up to maxRenderSlots.
+func renderSlotsFor(procs int) int {
+	return max(1, min(procs, maxRenderSlots))
+}
 
 // source reads a stored image's bytes. It is [Store.Bytes] in every wiring goen
 // has.

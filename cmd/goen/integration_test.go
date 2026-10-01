@@ -22,6 +22,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/assets"
+	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/db/dbtest"
@@ -223,6 +224,72 @@ func TestTheRouterKeepsAssetsStatelessAndCompressesPages(t *testing.T) {
 	}
 	if got := integrationGunzip(t, page.Body.Bytes()); !bytes.Contains(got, []byte("<!doctype html>")) {
 		t.Error("gunzipped home response is not HTML")
+	}
+}
+
+// TestTheRouterKeepsNoSignedInPageInAnyCache is withNoStore through the real
+// chain and a real session. The signed-in home page is the case only this test
+// can see: "/" is on no private prefix, so its no-store proves the user
+// Authenticate resolved reaches the middleware. The seed page is the one the
+// Back button must never bring back.
+func TestTheRouterKeepsNoSignedInPageInAnyCache(t *testing.T) {
+	ctx := t.Context()
+	gateway, err := payment.NewGateway("", "", "http://127.0.0.1")
+	if err != nil {
+		t.Fatalf("build disabled payment gateway: %v", err)
+	}
+	router := newRouter(&RouterConfig{
+		Pool: pool, AdminPool: pool, Payments: gateway,
+		Refunder: admin.NewRefunder(""), BaseURL: "http://127.0.0.1",
+		TOTPKey: bytes.Repeat([]byte{7}, 32),
+	}, slog.New(slog.DiscardHandler))
+
+	var staffID string
+	if insertErr := pool.QueryRow(ctx, `INSERT INTO users (email, role) VALUES ($1, 'staff') RETURNING id`,
+		"nostore-"+uuid.NewString()+"@example.com").Scan(&staffID); insertErr != nil {
+		t.Fatalf("create staff: %v", insertErr)
+	}
+	token, err := account.NewStore(pool).StartSession(ctx, staffID, "test", "127.0.0.1")
+	if err != nil {
+		t.Fatalf("start session: %v", err)
+	}
+
+	serve := func(method, path string, signedIn bool) *httptest.ResponseRecorder {
+		t.Helper()
+		req := httptest.NewRequestWithContext(ctx, method, path, http.NoBody)
+		if signedIn {
+			req.Header.Set("Cookie", "goen_session="+token)
+		}
+		res := httptest.NewRecorder()
+		router.ServeHTTP(res, req)
+		return res
+	}
+
+	for _, tt := range []struct {
+		method, path string
+		signedIn     bool
+		wantStatus   int
+		want         string
+	}{
+		{http.MethodGet, "/", true, http.StatusOK, "no-store"},
+		{http.MethodGet, "/account", true, http.StatusOK, "no-store"},
+		{http.MethodPost, "/admin/verify/enrol", true, http.StatusOK, "no-store"},
+		{http.MethodGet, "/admin/orders", true, http.StatusSeeOther, "no-store"},
+		{http.MethodGet, "/checkout", false, http.StatusSeeOther, "no-store"},
+		{http.MethodGet, "/", false, http.StatusOK, ""},
+	} {
+		res := serve(tt.method, tt.path, tt.signedIn)
+		if res.Code != tt.wantStatus {
+			t.Errorf("%s %s signedIn=%v answered %d, want %d; the header below would "+
+				"describe a different page", tt.method, tt.path, tt.signedIn, res.Code, tt.wantStatus)
+		}
+		if got := res.Header().Get("Cache-Control"); got != tt.want {
+			t.Errorf("%s %s signedIn=%v: Cache-Control = %q, want %q",
+				tt.method, tt.path, tt.signedIn, got, tt.want)
+		}
+		if tt.path == "/admin/verify/enrol" && !strings.Contains(res.Body.String(), "otpauth://") {
+			t.Error("the enrolment answer carries no seed; its no-store was measured on another page")
+		}
 	}
 }
 

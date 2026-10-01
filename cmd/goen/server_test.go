@@ -18,8 +18,12 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/account"
+	"github.com/koopa0/goen/internal/admin"
+	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/web"
 )
@@ -43,6 +47,96 @@ func TestNotifyRouteIsGuardedPerIP(t *testing.T) {
 	want := `mux.HandleFunc("POST /p/{slug}/notify", ratelimit.Guard(notifyLimit, log, items.Notify))`
 	if !bytes.Contains(src, []byte(want)) {
 		t.Fatal("POST /p/{slug}/notify is registered without ratelimit.Guard")
+	}
+}
+
+// TestCheckoutIsGuardedPerClient drives the router: every checkout post looks
+// up the coupon it carries, so the route is bounded per client before the
+// handler runs, generously enough that a shopper changing every chooser on the
+// page is never refused.
+func TestCheckoutIsGuardedPerClient(t *testing.T) {
+	router := storeMapRouter(t, false)
+	post := func(remote string) *httptest.ResponseRecorder {
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/checkout",
+			strings.NewReader("coupon=GUESS"))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.RemoteAddr = remote
+		res := httptest.NewRecorder()
+		router.ServeHTTP(res, req)
+		return res
+	}
+
+	const shopper = 20
+	for i := range shopper {
+		if res := post("192.0.2.10:4000"); res.Code == http.StatusTooManyRequests {
+			t.Fatalf("checkout post %d was refused; a shopper's whole checkout must fit", i+1)
+		}
+	}
+	refused := false
+	for range 60 {
+		res := post("192.0.2.10:4000")
+		if res.Code == http.StatusTooManyRequests {
+			refused = true
+			if res.Header().Get("Retry-After") == "" {
+				t.Error("the refusal carries no Retry-After")
+			}
+			break
+		}
+	}
+	if !refused {
+		t.Fatalf("%d checkout posts from one client were never refused", shopper+60)
+	}
+	if res := post("192.0.2.11:4000"); res.Code == http.StatusTooManyRequests {
+		t.Error("another client was refused; the bound is per client")
+	}
+}
+
+// TestTextPostgreSQLCannotStoreIsRefusedBeforeRouting drives the router with
+// the bytes no browser sends and PostgreSQL refuses to hold, in a query value,
+// a query name and a path value, on the storefront and in the back office.
+// Each is answered 400 before any handler reads it.
+func TestTextPostgreSQLCannotStoreIsRefusedBeforeRouting(t *testing.T) {
+	router := storeMapRouter(t, false)
+	get := func(target string) *httptest.ResponseRecorder {
+		res := httptest.NewRecorder()
+		router.ServeHTTP(res, httptest.NewRequestWithContext(t.Context(), http.MethodGet, target, http.NoBody))
+		return res
+	}
+
+	for _, bad := range []string{"%E9", "%00", "a%C3%28b", "a%00b"} {
+		for _, target := range []string{
+			"/search?q=" + bad,
+			"/search?" + bad + "=1",
+			"/c/phones?brand=" + bad,
+			"/c/" + bad,
+			"/p/" + bad,
+			"/s/" + bad,
+			"/compare?p=" + bad,
+			"/compare?p=aurora-slate&p=" + bad,
+			"/admin/customers?q=" + bad,
+			"/admin/orders?q=" + bad,
+			"/admin/warranty?q=" + bad,
+		} {
+			res := get(target)
+			if res.Code != http.StatusBadRequest {
+				t.Errorf("GET %s answered %d, want 400", target, res.Code)
+				continue
+			}
+			if !strings.HasPrefix(res.Body.String(), "400 ") {
+				t.Errorf("GET %s refusal body = %q, want the plain 400", target, res.Body.String())
+			}
+		}
+	}
+
+	// The control: text PostgreSQL stores, and a pair no reader decodes, pass.
+	for _, target := range []string{
+		"/search?q=%E6%89%8B%E6%A9%9F",
+		"/search?q=phone&utm_content=50%off",
+		"/c/phones?brand=koto",
+	} {
+		if res := get(target); res.Code == http.StatusBadRequest {
+			t.Errorf("GET %s answered 400; only unstorable text is refused", target)
+		}
 	}
 }
 
@@ -117,7 +211,7 @@ func TestNothingStatelessRendersChrome(t *testing.T) {
 }
 
 func TestAnAssetIsNotCompressedTwiceByTheChain(t *testing.T) {
-	h := web.Compress(securityHeaders(assets.Handler(slog.New(slog.DiscardHandler)), contentSecurityPolicy))
+	h := web.Compress(securityHeaders(assets.Handler(slog.New(slog.DiscardHandler)), contentSecurityPolicy, false))
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, assets.URL(assets.AppCSS), http.NoBody)
 	req.Header.Set("Accept-Encoding", "gzip")
 	res := httptest.NewRecorder()
@@ -579,7 +673,7 @@ func TestSpeculationRulesAreOfferedOnlyWhereTheyAreSafe(t *testing.T) {
 		"/orders/find", "/orders/GO-1/pay",
 		"/account", "/account/points", "/account/wishlist",
 		"/admin", "/admin/orders",
-		"/signin", "/register", "/reset?token=x", "/verify?token=x",
+		"/signin", "/register", "/register/complete?token=x", "/reset?token=x", "/verify?token=x",
 		"/static/css/app/app.css",
 	}
 
@@ -758,6 +852,7 @@ func TestEveryWriteThatChangesTheChromeClearsSpeculations(t *testing.T) {
 		`"POST /signin"`,
 		`"POST /signout"`,
 		`"POST /register"`,
+		`"POST /register/complete"`,
 	} {
 		line := routeLine(text, route)
 		if line == "" {
@@ -836,5 +931,150 @@ func TestTheCatalogueStaysEligibleForSpeculation(t *testing.T) {
 	// outside /p/ and /c/, or a nofollow selector, needs a reason in review.
 	if refusals == 0 {
 		t.Error("the rules refuse nothing; the exclusions have been lost")
+	}
+}
+
+// TestNoPageForOneVisitorIsKeptByTheBrowser holds both halves of withNoStore.
+// A page kept in the back/forward cache comes back with the Back button after
+// its owner has signed out, so the next person at a shared computer reads an
+// account, a customer list or a second-factor seed, or finds a signed-out
+// visitor's sign-in, registration or password form holding what was typed
+// into it. The anonymous catalogue is the other half: storing nothing there
+// would cost every shopper an instant Back and protect nobody.
+func TestNoPageForOneVisitorIsKeptByTheBrowser(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name     string
+		method   string
+		path     string
+		signedIn bool
+		want     bool
+	}{
+		{name: "the account page", method: http.MethodGet, path: "/account", signedIn: true, want: true},
+		{name: "an account order", method: http.MethodGet, path: "/account/orders/G2601-0001", signedIn: true, want: true},
+		{name: "the back office", method: http.MethodGet, path: "/admin/orders", signedIn: true, want: true},
+		{name: "a customer search", method: http.MethodGet, path: "/admin/customers?q=chen", signedIn: true, want: true},
+		{name: "the second-factor seed", method: http.MethodPost, path: "/admin/verify/enrol", signedIn: true, want: true},
+		{name: "a product page, signed in", method: http.MethodGet, path: "/p/aurora-slate", signedIn: true, want: true},
+		{name: "the home page, signed in", method: http.MethodGet, path: "/", signedIn: true, want: true},
+		{name: "an order opened by its link", method: http.MethodGet, path: "/orders/G2601-0001?token=x", want: true},
+		{name: "an order's pay page", method: http.MethodGet, path: "/orders/G2601-0001/pay", want: true},
+		{name: "the cart", method: http.MethodGet, path: "/cart", want: true},
+		{name: "the checkout", method: http.MethodGet, path: "/checkout", want: true},
+		{name: "a password reset link", method: http.MethodGet, path: "/reset?token=x", want: true},
+		{name: "an address verification link", method: http.MethodGet, path: "/verify?token=x", want: true},
+		{name: "a registration link", method: http.MethodGet, path: "/register/complete?token=x", want: true},
+		{name: "a newsletter confirmation link", method: http.MethodGet, path: "/newsletter/confirm?token=x", want: true},
+		{name: "the sign-in form", method: http.MethodGet, path: "/signin", want: true},
+		{name: "the registration form", method: http.MethodGet, path: "/register?next=/cart", want: true},
+		{name: "the forgotten-password form", method: http.MethodGet, path: "/forgot", want: true},
+		{name: "a refused form's answer", method: http.MethodPost, path: "/contact", want: true},
+		{name: "the home page", method: http.MethodGet, path: "/", want: false},
+		{name: "a product page", method: http.MethodGet, path: "/p/aurora-slate", want: false},
+		{name: "a listing", method: http.MethodGet, path: "/c/phones", want: false},
+		{name: "a search", method: http.MethodGet, path: "/search?q=x", want: false},
+		{name: "the returns policy", method: http.MethodGet, path: "/returns", want: false},
+		{name: "the payment policy", method: http.MethodGet, path: "/payment", want: false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			h := withNoStore(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusOK)
+			}))
+			req := httptest.NewRequestWithContext(t.Context(), tt.method, tt.path, http.NoBody)
+			if tt.signedIn {
+				req = req.WithContext(account.WithUser(req.Context(), account.User{
+					ID: "user-1", Email: "somebody@example.com", Role: "admin",
+				}))
+			}
+			res := httptest.NewRecorder()
+			h.ServeHTTP(res, req)
+
+			got := res.Header().Get("Cache-Control")
+			switch {
+			case tt.want && got != "no-store":
+				t.Errorf("%s %s signedIn=%v: Cache-Control = %q, want no-store: the Back "+
+					"button brings the page back after sign-out", tt.method, tt.path, tt.signedIn, got)
+			case !tt.want && got != "":
+				t.Errorf("%s %s anonymous: Cache-Control = %q, want none: a public page "+
+					"loses its instant Back and protects nobody", tt.method, tt.path, got)
+			}
+		})
+	}
+}
+
+// TestOnlyTheSecurePosturePinsHTTPS drives the real router in both postures.
+// With secure cookies goen is behind TLS, and HSTS stops a network that rewrites
+// an http:// link from keeping a visitor in cleartext. Without them it serves
+// http://127.0.0.1, where the header would pin a developer's localhost to https.
+func TestOnlyTheSecurePosturePinsHTTPS(t *testing.T) {
+	t.Parallel()
+
+	idle, err := pgxpool.New(t.Context(), "postgres://unused:unused@127.0.0.1:1/unused?sslmode=disable")
+	if err != nil {
+		t.Fatalf("open an unused pool: %v", err)
+	}
+	t.Cleanup(idle.Close)
+	gateway, err := payment.NewGateway("", "", "http://127.0.0.1")
+	if err != nil {
+		t.Fatalf("build a disabled payment gateway: %v", err)
+	}
+
+	for _, tt := range []struct {
+		secure bool
+		want   string
+	}{
+		{secure: true, want: "max-age=31536000; includeSubDomains"},
+		{secure: false, want: ""},
+	} {
+		router := newRouter(&RouterConfig{
+			Pool: idle, AdminPool: idle, Payments: gateway,
+			Refunder: admin.NewRefunder(""), BaseURL: "https://goen.test",
+			SecureCookies: tt.secure,
+		}, slog.New(slog.DiscardHandler))
+		// A probe reaches no database, so the idle pool answers for nothing.
+		res := httptest.NewRecorder()
+		router.ServeHTTP(res, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/healthz", http.NoBody))
+		if res.Code != http.StatusOK {
+			t.Fatalf("secure=%v: /healthz answered %d", tt.secure, res.Code)
+		}
+		if got := res.Header().Get("Strict-Transport-Security"); got != tt.want {
+			t.Errorf("secure=%v: Strict-Transport-Security = %q, want %q", tt.secure, got, tt.want)
+		}
+	}
+}
+
+// TestSigningOutEmptiesTheBrowsersCache pins the second line behind
+// withNoStore: sign-out asks the browser to drop what it holds for this site,
+// and still throws away the speculations the chrome was rendered into.
+func TestSigningOutEmptiesTheBrowsersCache(t *testing.T) {
+	t.Parallel()
+
+	src, err := os.ReadFile("server.go")
+	if err != nil {
+		t.Fatalf("read server.go: %v", err)
+	}
+	line := routeLine(string(src), `"POST /signout"`)
+	if !strings.Contains(line, "clearCache(") {
+		t.Errorf("POST /signout does not empty the browser's cache\n  %s", strings.TrimSpace(line))
+	}
+
+	signOut := clearSpeculations(clearCache(func(http.ResponseWriter, *http.Request) {}))
+	res := httptest.NewRecorder()
+	signOut(res, httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signout", http.NoBody))
+	value := res.Header().Get("Clear-Site-Data")
+	for _, want := range []string{`"cache"`, `"prefetchCache"`, `"prerenderCache"`} {
+		if !strings.Contains(value, want) {
+			t.Errorf("sign-out Clear-Site-Data = %q, want it to carry %s", value, want)
+		}
+	}
+	// Sign-out clears its own session cookie; "cookies" would also drop the
+	// visitor's language and cart, and "storage" and "*" reach further still.
+	for _, forbidden := range []string{`"cookies"`, `"storage"`, `"*"`} {
+		if strings.Contains(value, forbidden) {
+			t.Errorf("sign-out Clear-Site-Data = %q carries %s", value, forbidden)
+		}
 	}
 }

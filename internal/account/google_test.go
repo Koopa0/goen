@@ -1,8 +1,11 @@
 package account
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/base64"
+	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -60,6 +63,83 @@ func TestTheAuthorizationURLCarriesEverySecurityParameter(t *testing.T) {
 	}
 }
 
+// TestARefusedCodeExchangeLogsOnlyItsStatusAndErrorCode drives a callback
+// whose code Google refuses, and reads what the handler logs. A refusal's body
+// is free text chosen by whoever answered, so only its status and its OAuth
+// error code may reach the log.
+func TestARefusedCodeExchangeLogsOnlyItsStatusAndErrorCode(t *testing.T) {
+	const kept = "invalid_grant"
+	for name, tt := range map[string]struct {
+		body     string
+		wantCode string
+	}{
+		"an OAuth refusal": {
+			body:     `{"error":"invalid_grant","error_description":"description text DROPME","extra":"DROPME"}`,
+			wantCode: kept,
+		},
+		"a code that is not one": {
+			body:     `{"error":"invalid grant DROPME"}`,
+			wantCode: "unrecognised",
+		},
+		// 41 bytes of the alphabet codes use: the length alone refuses it.
+		"a code longer than any OAuth defines": {
+			body:     `{"error":"invalid_invalid_invalid_invalid_invalid_x"}`,
+			wantCode: "unrecognised",
+		},
+		"not JSON": {
+			body:     `<html>proxy page DROPME</html>`,
+			wantCode: "unrecognised",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			g, err := NewGoogle("client-id", "client-secret", "https://goen.example")
+			if err != nil {
+				t.Fatalf("NewGoogle: %v", err)
+			}
+			g.http = &http.Client{Transport: roundTrip(func(r *http.Request) (*http.Response, error) {
+				return &http.Response{
+					StatusCode: http.StatusBadRequest, Header: make(http.Header),
+					Body: io.NopCloser(strings.NewReader(tt.body)), Request: r,
+				}, nil
+			})}
+			var logs bytes.Buffer
+			h := NewHandler(deadAccountStore(t), nil, slog.New(slog.NewJSONHandler(&logs, nil)), false, g)
+
+			start := httptest.NewRecorder()
+			h.GoogleSignIn(start, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/auth/google", http.NoBody))
+			target, err := url.Parse(start.Header().Get("Location"))
+			if err != nil {
+				t.Fatalf("parse the authorisation redirect: %v", err)
+			}
+			callback := httptest.NewRequestWithContext(t.Context(), http.MethodGet,
+				"/auth/google/callback?code=the-code&state="+url.QueryEscape(target.Query().Get("state")), http.NoBody)
+			for _, c := range start.Result().Cookies() {
+				callback.AddCookie(c)
+			}
+			res := httptest.NewRecorder()
+			h.GoogleCallback(res, callback)
+			if loc := res.Header().Get("Location"); loc != "/signin?oauth=failed" {
+				t.Fatalf("a refused exchange lands at %q, want /signin?oauth=failed", loc)
+			}
+
+			line := logs.String()
+			if !strings.Contains(line, "exchange the google code") {
+				t.Fatalf("the refusal was not logged: %s", line)
+			}
+			if !strings.Contains(line, "400 "+tt.wantCode) {
+				t.Errorf("the log does not carry the status and %q: %s", tt.wantCode, line)
+			}
+			if strings.Contains(line, "DROPME") || strings.Contains(line, "the-code") {
+				t.Errorf("the log carries the refusal's body or the code: %s", line)
+			}
+		})
+	}
+}
+
+type roundTrip func(*http.Request) (*http.Response, error)
+
+func (f roundTrip) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
 func TestTwoSignInsDoNotShareAState(t *testing.T) {
 	g, _ := NewGoogle("client-id", "client-secret", "https://goen.example")
 	_, first, err := g.AuthorizeURL("/")
@@ -110,6 +190,40 @@ func TestGoogleRedirectUsesTheSiteOriginGrammar(t *testing.T) {
 	}
 	if g.redirectURL != "https://goen.example/auth/google/callback" {
 		t.Errorf("redirect URL = %q, want callback built from the canonical origin", g.redirectURL)
+	}
+}
+
+// Starting a Google sign-in is bounded per client. An IPv6 client chooses the
+// low 64 bits of its address freely, so a limit keyed on the whole address is
+// no limit.
+func TestTheGoogleSignInLimitCoversAWholeIPv6Slash64(t *testing.T) {
+	g, err := NewGoogle("client-id", "client-secret", "https://goen.example")
+	if err != nil {
+		t.Fatalf("NewGoogle: %v", err)
+	}
+	h := &Handler{
+		log: slog.New(slog.DiscardHandler), google: g,
+		signinLimit: accountTestLimiter(), resetLimit: accountTestLimiter(),
+	}
+
+	start := func(remoteAddr string) int {
+		t.Helper()
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/auth/google", http.NoBody)
+		req.RemoteAddr = remoteAddr
+		res := httptest.NewRecorder()
+		h.GoogleSignIn(res, req)
+		return res.Code
+	}
+
+	if got := start("[2001:db8:1:2::1]:1000"); got != http.StatusSeeOther {
+		t.Fatalf("the first sign-in answered %d, want 303 to Google", got)
+	}
+	if got := start("[2001:db8:1:2:aaaa:bbbb:cccc:dddd]:1001"); got != http.StatusTooManyRequests {
+		t.Errorf("another address in the same /64 answered %d, want 429; "+
+			"rotating the low bits bought a fresh allowance", got)
+	}
+	if got := start("[2001:db8:1:3::1]:1002"); got != http.StatusSeeOther {
+		t.Errorf("an address in another /64 answered %d, want 303; it shared a bucket", got)
 	}
 }
 

@@ -38,8 +38,13 @@ func NewStore(pool *pgxpool.Pool) *Store {
 	return &Store{pool: pool, q: db.New(pool)}
 }
 
-// CartByToken returns the cart a token names, or ErrNotFound.
-func (s *Store) CartByToken(ctx context.Context, token string) (uuid.UUID, error) {
+// CartByToken returns the cart a token names if requester, the signed-in
+// account or invalid for a signed-out visitor, may use it. A cart attached to
+// an account answers only to that account: adoption keeps the token the
+// browser already holds, so after sign-out, or for the next customer at a
+// shared computer, the token still names the account's cart. That is
+// ErrNotYourCart, and the token is stale.
+func (s *Store) CartByToken(ctx context.Context, token string, requester uuid.NullUUID) (uuid.UUID, error) {
 	if token == "" {
 		return uuid.Nil, ErrNotFound
 	}
@@ -49,6 +54,9 @@ func (s *Store) CartByToken(ctx context.Context, token string) (uuid.UUID, error
 			return uuid.Nil, ErrNotFound
 		}
 		return uuid.Nil, fmt.Errorf("read cart: %w", err)
+	}
+	if row.UserID.Valid && (!requester.Valid || row.UserID.UUID != requester.UUID) {
+		return uuid.Nil, ErrNotYourCart
 	}
 	return row.ID, nil
 }

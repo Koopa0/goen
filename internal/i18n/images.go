@@ -61,8 +61,18 @@ var (
 
 var (
 	KeyAdminNoticeTooBig = key("admin.notice.toobig", Message{
-		ZhHant: "圖片太大了,請用 8 MB 以內的檔案。",
-		En:     "That image is too large. Use a file under 8 MB.",
+		ZhHant: "圖片太大了,請用 8 MB 以內、像素尺寸較小的檔案。",
+		En:     "That image is too large. Use a file under 8 MB with smaller pixel dimensions.",
+	})
+
+	KeyAdminNoticeLosslessWebP = key("admin.notice.losslesswebp", Message{
+		ZhHant: "不接受無損 WebP 圖片,請改上傳 PNG 或有損 WebP。",
+		En:     "Lossless WebP images are not accepted. Upload a PNG or a lossy WebP instead.",
+	})
+
+	KeyAdminNoticeUploadBusy = key("admin.notice.uploadbusy", Message{
+		ZhHant: "其他圖片正在處理中,請稍候再上傳一次。",
+		En:     "Other images are being processed. Please upload again in a moment.",
 	})
 
 	KeyAdminNoticeNotImage = key("admin.notice.notimage", Message{

@@ -199,9 +199,13 @@ func render(from string, m *Message) []byte {
 	b.WriteString("Content-Type: text/plain; charset=utf-8\r\n")
 	b.WriteString("Content-Transfer-Encoding: 8bit\r\n")
 	b.WriteString("\r\n")
-	// Lone newlines become CRLF: SMTP is a CRLF protocol, and a bare LF is the
-	// kind of thing one server accepts and the next rejects.
-	b.WriteString(strings.ReplaceAll(strings.ReplaceAll(m.Body, "\r\n", "\n"), "\n", "\r\n"))
+	// Every line break becomes CRLF, whichever form it arrived in: SMTP is a
+	// CRLF protocol, and a bare CR or a bare LF is what one server reads as the
+	// end of a line and the next does not, so the two can disagree about where
+	// the message ends.
+	body := strings.ReplaceAll(m.Body, "\r\n", "\n")
+	body = strings.ReplaceAll(body, "\r", "\n")
+	b.WriteString(strings.ReplaceAll(body, "\n", "\r\n"))
 	return []byte(b.String())
 }
 

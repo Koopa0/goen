@@ -84,8 +84,12 @@ type Line struct {
 type Capture struct {
 	SessionID  string
 	AmountRecv int64
-	CardBrand  string
-	CardLast4  string
+	// Currency is the session's own ISO code. AmountRecv means nothing without
+	// it: the same number of another currency's minor units is not what the
+	// order owes.
+	Currency  string
+	CardBrand string
+	CardLast4 string
 }
 
 // webhookEvent is a verified Stripe event, ready to be recorded.

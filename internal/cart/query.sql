@@ -595,6 +595,11 @@ SELECT order_number FROM orders WHERE id = @id;
 -- name: DeleteOldOrderAccessGrants :exec
 DELETE FROM order_access_grants WHERE created_at < now() - @retain::interval;
 
+-- The grants a browser presents, gone when it signs out. Expiring the cookie is
+-- not enough: a client can ignore an expiry and present the tokens again.
+-- name: RevokeOrderAccess :exec
+DELETE FROM order_access_grants WHERE digest = ANY(@digests::bytea[]);
+
 -- Compared IN the database and answered as a boolean: which token matched is not
 -- something any page needs to disclose.
 -- name: OrderAccessibleWith :one

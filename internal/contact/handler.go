@@ -66,7 +66,7 @@ func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
 	// nobody, and its address field is the sender's own claim, so bounding on it
 	// would let anybody buy more attempts by editing a field. After Clean so a
 	// 429 fragment can keep the values the same way 422 does.
-	if retryAfter, allowed := h.limit.Allow(ratelimit.ClientIP(r)); !allowed {
+	if retryAfter, allowed := h.limit.Allow(ratelimit.ClientKey(r)); !allowed {
 		form.Errors = map[string]string{"": i18n.T(r.Context(), i18n.KeyTooManyRequests)}
 		if web.IsHTMX(r) {
 			ratelimit.SetRetryAfter(w, retryAfter)

@@ -155,6 +155,26 @@ func checkoutQuote(
 	couponCode string,
 ) cart.CheckoutQuoteID {
 	t.Helper()
+	facts := checkoutQuoteFacts(t, s, cartID, owner, shippingID, addr, couponCode)
+	id, err := facts.ID()
+	if err != nil {
+		t.Fatalf("build checkout quote: %v", err)
+	}
+	return id
+}
+
+// checkoutQuoteFacts is the quote checkoutQuote hashes, for a test that has to
+// change one fact of what the checkout rendered.
+func checkoutQuoteFacts(
+	t *testing.T,
+	s *cart.Store,
+	cartID uuid.UUID,
+	owner uuid.NullUUID,
+	shippingID uuid.UUID,
+	addr *cart.Address,
+	couponCode string,
+) cart.CheckoutQuote {
+	t.Helper()
 	view, err := s.View(t.Context(), cartID)
 	if err != nil {
 		t.Fatalf("read cart quote: %v", err)
@@ -196,7 +216,7 @@ func checkoutQuote(
 			UnitCents: line.UnitCents,
 		})
 	}
-	id, err := (cart.CheckoutQuote{
+	return cart.CheckoutQuote{
 		CartID:            cartID,
 		Lines:             lines,
 		ShippingVersionID: shippingID,
@@ -204,11 +224,7 @@ func checkoutQuote(
 		CouponCode:        cart.NormaliseCode(couponCode),
 		DiscountCents:     discount,
 		CreditCents:       min(balance, gross),
-	}).ID()
-	if err != nil {
-		t.Fatalf("build checkout quote: %v", err)
 	}
-	return id
 }
 
 func placeOrder(
@@ -444,7 +460,7 @@ func TestInventoryConstraintIsReportedAsSoldOut(t *testing.T) {
 		t.Fatalf("add last unit: %v", err)
 	}
 
-	blockOrder := commitBareOrder(t)
+	blockOrder := commitBareOrder(t, vid)
 	blocker, err := pool.Begin(ctx)
 	if err != nil {
 		t.Fatalf("begin blocker: %v", err)
@@ -481,7 +497,7 @@ func TestInventoryConstraintIsReportedAsSoldOut(t *testing.T) {
 	// name, so the PgError itself is verified through the same production door.
 	_, namedErr := pool.Exec(ctx,
 		`SELECT hold_inventory($1, $2, 1, interval '30 minutes', $3)`,
-		commitBareOrder(t), vid, "prove-empty:"+vid.String())
+		commitBareOrder(t, vid), vid, "prove-empty:"+vid.String())
 	pgErr, ok := errors.AsType[*pgconn.PgError](namedErr)
 	if !ok || pgErr.ConstraintName != "inventory_never_negative" {
 		t.Fatalf("exhausted fixture was refused by %v, want inventory_never_negative", namedErr)
@@ -734,14 +750,14 @@ func TestCartIsFoundByTokenNotByID(t *testing.T) {
 		t.Fatalf("create: %v", err)
 	}
 
-	got, err := s.CartByToken(t.Context(), tok)
+	got, err := s.CartByToken(t.Context(), tok, uuid.NullUUID{})
 	if err != nil || got != id {
 		t.Fatalf("CartByToken(token) = %v/%v, want %v", got, err, id)
 	}
-	if _, err := s.CartByToken(t.Context(), tok+"x"); err == nil {
+	if _, err := s.CartByToken(t.Context(), tok+"x", uuid.NullUUID{}); err == nil {
 		t.Error("a near-miss token found a cart")
 	}
-	if _, err := s.CartByToken(t.Context(), ""); err == nil {
+	if _, err := s.CartByToken(t.Context(), "", uuid.NullUUID{}); err == nil {
 		t.Error("an empty token found a cart")
 	}
 
@@ -2356,8 +2372,8 @@ func TestTwoOrdersCannotTakeTheSameLastUnit(t *testing.T) {
 		t.Fatalf("fixture: %v", err)
 	}
 
-	order1 := commitBareOrder(t)
-	order2 := commitBareOrder(t)
+	order1 := commitBareOrder(t, vid)
+	order2 := commitBareOrder(t, vid)
 
 	tx1, err := pool.Begin(ctx)
 	if err != nil {
@@ -2416,8 +2432,10 @@ func TestTwoOrdersCannotTakeTheSameLastUnit(t *testing.T) {
 	}
 }
 
-// commitBareOrder writes the minimum an order needs to exist, and commits it.
-func commitBareOrder(t *testing.T) uuid.UUID {
+// commitBareOrder writes the minimum an order needs to exist, one of vid, and
+// commits it. The line is what lets the order hold vid: hold_inventory holds
+// nothing an order's own lines do not carry.
+func commitBareOrder(t *testing.T, vid uuid.UUID) uuid.UUID {
 	t.Helper()
 	ctx := t.Context()
 	tx, err := pool.Begin(ctx)
@@ -2435,8 +2453,10 @@ func commitBareOrder(t *testing.T) uuid.UUID {
 		t.Fatalf("create order: %v", err)
 	}
 	if _, err := tx.Exec(ctx, `
-		INSERT INTO order_lines (order_id, sku, product_name, unit_price_cents, quantity)
-		VALUES ($1, 'RACE-SKU', '測試', 100000, 1)`, id); err != nil {
+		INSERT INTO order_lines (order_id, variant_id, sku, product_name, unit_price_cents, quantity)
+		SELECT $1, pv.id, pv.sku, p.name, 100000, 1
+		FROM product_variants pv JOIN products p ON p.id = pv.product_id
+		WHERE pv.id = $2`, id, vid); err != nil {
 		t.Fatalf("create line: %v", err)
 	}
 	if _, err := tx.Exec(ctx, `
@@ -2456,6 +2476,13 @@ func commitBareOrder(t *testing.T) uuid.UUID {
 // the past. paid decides whether it is funded.
 func heldOrder(t *testing.T, vid uuid.UUID, ago time.Duration, paid bool) (orderID uuid.UUID) {
 	t.Helper()
+	return heldOrderFor(t, uuid.NullUUID{}, vid, ago, paid)
+}
+
+// heldOrderFor is heldOrder placed by owner, or by a guest when owner is not
+// valid.
+func heldOrderFor(t *testing.T, owner uuid.NullUUID, vid uuid.UUID, ago time.Duration, paid bool) (orderID uuid.UUID) {
+	t.Helper()
 	ctx := t.Context()
 
 	tx, err := pool.Begin(ctx)
@@ -2466,12 +2493,12 @@ func heldOrder(t *testing.T, vid uuid.UUID, ago time.Duration, paid bool) (order
 
 	var number string
 	if err := tx.QueryRow(ctx, `
-		INSERT INTO orders (order_number, shipping_version_id, shipping_method_code,
+		INSERT INTO orders (order_number, user_id, shipping_version_id, shipping_method_code,
 		                    shipping_method_name, shipping_cents)
-		SELECT next_order_number(), v.id, sm.code, v.name, 0
+		SELECT next_order_number(), $1, v.id, sm.code, v.name, 0
 		FROM shipping_method_versions v JOIN shipping_methods sm ON sm.id = v.method_id
 		ORDER BY v.effective_at LIMIT 1
-		RETURNING id, order_number`).Scan(&orderID, &number); err != nil {
+		RETURNING id, order_number`, owner).Scan(&orderID, &number); err != nil {
 		t.Fatalf("create order: %v", err)
 	}
 	if _, err := tx.Exec(ctx, `
@@ -4012,11 +4039,7 @@ func TestACancelledOrderIsNotAVerifiedPurchase(t *testing.T) {
 		`INSERT INTO users (email) VALUES ('cancelbadge@example.com') RETURNING id`).Scan(&userID); err != nil {
 		t.Fatalf("create user: %v", err)
 	}
-	orderID := heldOrder(t, vid, -time.Hour, true) // funded
-	if _, err := pool.Exec(ctx,
-		`UPDATE orders SET user_id = $2 WHERE id = $1`, orderID, userID); err != nil {
-		t.Fatalf("attach owner: %v", err)
-	}
+	orderID := heldOrderFor(t, uuid.NullUUID{UUID: userID, Valid: true}, vid, -time.Hour, true) // funded
 
 	var productID uuid.UUID
 	if err := pool.QueryRow(ctx,

@@ -32,7 +32,7 @@ func TestCartAdjustmentSurvivesAuthenticationAndCheckout(t *testing.T) {
 					accounts := account.NewStore(appPool)
 					suffix := uuid.NewString()
 					email := "adjust-" + suffix + "@example.com"
-					password := "a sufficiently long password"
+					password := cartOwnerPassword
 					var uid, productID, variantID uuid.UUID
 					if err := pool.QueryRow(ctx, `INSERT INTO products (slug, name, brand_id, category_id)
       SELECT $1, 'Adjustment fixture', b.id, c.id FROM brands b, categories c
@@ -51,7 +51,7 @@ func TestCartAdjustmentSurvivesAuthenticationAndCheckout(t *testing.T) {
 					var accountCart, guestCart uuid.UUID
 					guestQuantity := 5
 					if mode == "signin" || mode == "retry" {
-						u := register(t, accounts, email)
+						u := registerProved(t, accounts, email)
 						uid = uuid.MustParse(u.ID)
 						if err := pool.QueryRow(ctx, `INSERT INTO carts(token_hash,user_id) VALUES($1,$2) RETURNING id`, account.HashToken("account-"+suffix), uid).Scan(&accountCart); err != nil {
 							t.Fatal(err)
@@ -115,7 +115,17 @@ func TestCartAdjustmentSurvivesAuthenticationAndCheckout(t *testing.T) {
 					case "signin":
 						h.SignIn(signed, req)
 					case "register":
-						h.Register(signed, req)
+						// Registering answers without a session; following the
+						// mailed link is what signs in and adopts the cart.
+						h.Register(httptest.NewRecorder(), req)
+						signed = followRegistrationLink(t, accounts, email,
+							func(link *http.Request) *httptest.ResponseRecorder {
+								rec := httptest.NewRecorder()
+								h.CompleteRegistration(rec, link.WithContext(ctx))
+								return rec
+							},
+							//nolint:gosec // G124: the fixture is the browser's guest-cart cookie.
+							&http.Cookie{Name: "goen_cart", Value: guestToken})
 					case "google":
 						h.GoogleCallback(signed, req)
 					case "retry":
