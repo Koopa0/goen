@@ -405,13 +405,15 @@ WHERE o.order_number = $1 AND r.state = 'held'
 ORDER BY r.variant_id, r.id;
 
 -- Both predicates are load-bearing: `pending` refuses a second cancellation,
--- `not committed` refuses one somebody has paid for. In the WHERE clause, so two
--- cancellations racing a capture cannot both decide it was cancellable.
+-- `not committed` refuses one somebody has paid for. Run it after
+-- LockOrderByNumber: a capture holds the order lock without updating the row,
+-- so an UPDATE that waited for it would judge payment by the snapshot taken
+-- before the wait and reach the transition trigger, which store may not run.
 -- name: CancelOrderByCustomer :execrows
 UPDATE orders SET fulfillment_status = 'cancelled', cancelled_at = now()
-WHERE order_number = $1
+WHERE id = $1
   AND fulfillment_status = 'pending'
-  AND id NOT IN (SELECT id FROM committed_orders);
+  AND NOT order_is_committed(id);
 
 -- Unpaid orders none of whose holds is live any more. A Checkout Session must
 -- end before the order's hold, so such an order can never be paid. The rest of
@@ -447,13 +449,13 @@ WHERE o.fulfillment_status = 'pending'
 ORDER BY o.placed_at
 LIMIT $1;
 
--- Its own statement, before CancelLapsedOrder: open_payment and capture_payment
+-- Its own statement, before CancelLapsedOrder and CancelOrderByCustomer: open_payment and capture_payment
 -- lock this row without updating it, so an UPDATE that waited for them would
 -- still judge their payments by the snapshot it took before waiting.
--- name: LockOrderForExpiry :one
+-- name: LockOrderByNumber :one
 SELECT id FROM orders WHERE order_number = $1 FOR UPDATE;
 
--- LapsedUnpaidOrders' predicate, read again after LockOrderForExpiry: `pending`
+-- LapsedUnpaidOrders' predicate, read again after LockOrderByNumber: `pending`
 -- refuses a second cancellation, and the payment clauses now see every payment
 -- committed before the lock was granted.
 -- name: CancelLapsedOrder :execrows
