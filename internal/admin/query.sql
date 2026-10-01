@@ -20,12 +20,22 @@ AND (NOT @has_cursor::boolean OR (o.placed_at < @after_at::timestamptz)
 ORDER BY o.placed_at DESC, o.id DESC
 LIMIT @row_limit::integer;
 
--- An order-number-shaped term is matched exactly and anything else as a prefix,
--- told apart rather than OR-ed with wildcards so each path stays index-backed.
+-- An order-number-shaped term is matched exactly and anything else as a prefix.
+-- Each probe reads one table by its own index and the UNION joins the ids back to
+-- orders; OR-ing the three across the join could only be a join filter.
 -- An erased order matches nothing: erase_user NULLs the name and the address.
 -- The prefixes take @escaped_term, the same words with LIKE's own syntax
 -- escaped: a typed % or _ would otherwise match any address or name.
 -- name: AdminSearchOrders :many
+WITH hits AS (
+    SELECT o.id FROM orders o WHERE o.order_number = upper(@term::text)
+    UNION
+    SELECT pd.order_id FROM order_private_data pd
+    WHERE lower(pd.email) LIKE lower(@escaped_term::text) || '%'
+    UNION
+    SELECT pd.order_id FROM order_private_data pd
+    WHERE pd.recipient_name LIKE @escaped_term::text || '%'
+)
 SELECT json_build_object('At', o.placed_at, 'ID', o.id)::text AS page_cursor,
     o.id,
     o.order_number,
@@ -40,11 +50,9 @@ SELECT json_build_object('At', o.placed_at, 'ID', o.id)::text AS page_cursor,
     order_is_committed(o.id) AS committed,
     order_amount_owed(o.id) AS owed_cents
 FROM orders o
+JOIN hits h ON h.id = o.id
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
-WHERE (o.order_number = upper(@term::text)
-   OR lower(pd.email) LIKE lower(@escaped_term::text) || '%'
-   OR pd.recipient_name LIKE @escaped_term::text || '%')
-AND (NOT @has_cursor::boolean OR (o.placed_at < @after_at::timestamptz)
+WHERE (NOT @has_cursor::boolean OR (o.placed_at < @after_at::timestamptz)
        OR (o.placed_at = @after_at::timestamptz AND o.id < @after_id::uuid))
 ORDER BY o.placed_at DESC, o.id DESC
 LIMIT @row_limit::integer;

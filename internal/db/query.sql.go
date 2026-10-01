@@ -1653,6 +1653,15 @@ func (q *Queries) AdminSearchCustomers(ctx context.Context, arg AdminSearchCusto
 }
 
 const adminSearchOrders = `-- name: AdminSearchOrders :many
+WITH hits AS (
+    SELECT o.id FROM orders o WHERE o.order_number = upper($5::text)
+    UNION
+    SELECT pd.order_id FROM order_private_data pd
+    WHERE lower(pd.email) LIKE lower($6::text) || '%'
+    UNION
+    SELECT pd.order_id FROM order_private_data pd
+    WHERE pd.recipient_name LIKE $6::text || '%'
+)
 SELECT json_build_object('At', o.placed_at, 'ID', o.id)::text AS page_cursor,
     o.id,
     o.order_number,
@@ -1667,23 +1676,21 @@ SELECT json_build_object('At', o.placed_at, 'ID', o.id)::text AS page_cursor,
     order_is_committed(o.id) AS committed,
     order_amount_owed(o.id) AS owed_cents
 FROM orders o
+JOIN hits h ON h.id = o.id
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
-WHERE (o.order_number = upper($1::text)
-   OR lower(pd.email) LIKE lower($2::text) || '%'
-   OR pd.recipient_name LIKE $2::text || '%')
-AND (NOT $3::boolean OR (o.placed_at < $4::timestamptz)
-       OR (o.placed_at = $4::timestamptz AND o.id < $5::uuid))
+WHERE (NOT $1::boolean OR (o.placed_at < $2::timestamptz)
+       OR (o.placed_at = $2::timestamptz AND o.id < $3::uuid))
 ORDER BY o.placed_at DESC, o.id DESC
-LIMIT $6::integer
+LIMIT $4::integer
 `
 
 type AdminSearchOrdersParams struct {
-	Term        string
-	EscapedTerm string
 	HasCursor   bool
 	AfterAt     time.Time
 	AfterID     uuid.UUID
 	RowLimit    int32
+	Term        string
+	EscapedTerm string
 }
 
 type AdminSearchOrdersRow struct {
@@ -1701,19 +1708,20 @@ type AdminSearchOrdersRow struct {
 	OwedCents         int64
 }
 
-// An order-number-shaped term is matched exactly and anything else as a prefix,
-// told apart rather than OR-ed with wildcards so each path stays index-backed.
+// An order-number-shaped term is matched exactly and anything else as a prefix.
+// Each probe reads one table by its own index and the UNION joins the ids back to
+// orders; OR-ing the three across the join could only be a join filter.
 // An erased order matches nothing: erase_user NULLs the name and the address.
 // The prefixes take @escaped_term, the same words with LIKE's own syntax
 // escaped: a typed % or _ would otherwise match any address or name.
 func (q *Queries) AdminSearchOrders(ctx context.Context, arg AdminSearchOrdersParams) ([]AdminSearchOrdersRow, error) {
 	rows, err := q.db.Query(ctx, adminSearchOrders,
-		arg.Term,
-		arg.EscapedTerm,
 		arg.HasCursor,
 		arg.AfterAt,
 		arg.AfterID,
 		arg.RowLimit,
+		arg.Term,
+		arg.EscapedTerm,
 	)
 	if err != nil {
 		return nil, err
