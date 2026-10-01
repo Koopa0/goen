@@ -2929,7 +2929,7 @@ WHERE o.id = $1
   )
 `
 
-// LapsedUnpaidOrders' predicate, read again after LockOrderForExpiry: `pending`
+// LapsedUnpaidOrders' predicate, read again after LockOrderByNumber: `pending`
 // refuses a second cancellation, and the payment clauses now see every payment
 // committed before the lock was granted.
 func (q *Queries) CancelLapsedOrder(ctx context.Context, id uuid.UUID) (int64, error) {
@@ -2942,16 +2942,18 @@ func (q *Queries) CancelLapsedOrder(ctx context.Context, id uuid.UUID) (int64, e
 
 const cancelOrderByCustomer = `-- name: CancelOrderByCustomer :execrows
 UPDATE orders SET fulfillment_status = 'cancelled', cancelled_at = now()
-WHERE order_number = $1
+WHERE id = $1
   AND fulfillment_status = 'pending'
-  AND id NOT IN (SELECT id FROM committed_orders)
+  AND NOT order_is_committed(id)
 `
 
 // Both predicates are load-bearing: `pending` refuses a second cancellation,
-// `not committed` refuses one somebody has paid for. In the WHERE clause, so two
-// cancellations racing a capture cannot both decide it was cancellable.
-func (q *Queries) CancelOrderByCustomer(ctx context.Context, orderNumber string) (int64, error) {
-	result, err := q.db.Exec(ctx, cancelOrderByCustomer, orderNumber)
+// `not committed` refuses one somebody has paid for. Run it after
+// LockOrderByNumber: a capture holds the order lock without updating the row,
+// so an UPDATE that waited for it would judge payment by the snapshot taken
+// before the wait and reach the transition trigger, which store may not run.
+func (q *Queries) CancelOrderByCustomer(ctx context.Context, id uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, cancelOrderByCustomer, id)
 	if err != nil {
 		return 0, err
 	}
@@ -7123,6 +7125,20 @@ func (q *Queries) LockHeroAppendPosition(ctx context.Context) error {
 	return err
 }
 
+const lockOrderByNumber = `-- name: LockOrderByNumber :one
+SELECT id FROM orders WHERE order_number = $1 FOR UPDATE
+`
+
+// Its own statement, before CancelLapsedOrder and CancelOrderByCustomer: open_payment and capture_payment
+// lock this row without updating it, so an UPDATE that waited for them would
+// still judge their payments by the snapshot it took before waiting.
+func (q *Queries) LockOrderByNumber(ctx context.Context, orderNumber string) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, lockOrderByNumber, orderNumber)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
 const lockOrderDelivery = `-- name: LockOrderDelivery :one
 SELECT o.id, o.fulfillment_status, sm.destination_kind
 FROM orders o
@@ -7164,20 +7180,6 @@ func (q *Queries) LockOrderForAdvance(ctx context.Context, orderNumber string) (
 	var i LockOrderForAdvanceRow
 	err := row.Scan(&i.ID, &i.FulfillmentStatus, &i.Committed)
 	return i, err
-}
-
-const lockOrderForExpiry = `-- name: LockOrderForExpiry :one
-SELECT id FROM orders WHERE order_number = $1 FOR UPDATE
-`
-
-// Its own statement, before CancelLapsedOrder: open_payment and capture_payment
-// lock this row without updating it, so an UPDATE that waited for them would
-// still judge their payments by the snapshot it took before waiting.
-func (q *Queries) LockOrderForExpiry(ctx context.Context, orderNumber string) (uuid.UUID, error) {
-	row := q.db.QueryRow(ctx, lockOrderForExpiry, orderNumber)
-	var id uuid.UUID
-	err := row.Scan(&id)
-	return id, err
 }
 
 const lockOrderForStaffNote = `-- name: LockOrderForStaffNote :one
