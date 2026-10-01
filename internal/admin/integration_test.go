@@ -11711,7 +11711,7 @@ func TestAdvanceRefusesTheStatusAnOrderAlreadyHas(t *testing.T) {
 func TestTheDashboardAndTheQueueTabsSplitPendingTheSameWay(t *testing.T) {
 	ctx := t.Context()
 	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
-	tab := func(v pages.AdminOrdersView, status pages.FulfillmentStatus) int64 {
+	tab := func(v pages.AdminOrdersView, status pages.QueueFilter) int64 {
 		for _, tb := range v.Tabs {
 			if tb.Value == status {
 				return tb.Count
@@ -11740,10 +11740,10 @@ func TestTheDashboardAndTheQueueTabsSplitPendingTheSameWay(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Dashboard: %v", err)
 	}
-	if got := tab(after, pages.FulfillmentPending) - tab(before, pages.FulfillmentPending); got != 1 {
+	if got := tab(after, pages.QueueAwaitingPayment) - tab(before, pages.QueueAwaitingPayment); got != 1 {
 		t.Errorf("the awaiting-payment tab grew by %d, want 1: a funded order is not awaiting payment", got)
 	}
-	if got := tab(after, admin.StatusReady) - tab(before, admin.StatusReady); got != 1 {
+	if got := tab(after, pages.QueueReady) - tab(before, pages.QueueReady); got != 1 {
 		t.Errorf("the ready tab grew by %d, want 1", got)
 	}
 	if got := dashAfter.PendingOrders - dashBefore.PendingOrders; got != 1 {
@@ -11753,9 +11753,9 @@ func TestTheDashboardAndTheQueueTabsSplitPendingTheSameWay(t *testing.T) {
 		t.Errorf("the ready tile grew by %d, want 1", got)
 	}
 
-	for status, want := range map[pages.FulfillmentStatus]struct{ in, out string }{
-		pages.FulfillmentPending: {in: unpaid, out: funded},
-		admin.StatusReady:        {in: funded, out: unpaid},
+	for status, want := range map[pages.QueueFilter]struct{ in, out string }{
+		pages.QueueAwaitingPayment: {in: unpaid, out: funded},
+		pages.QueueReady:           {in: funded, out: unpaid},
 	} {
 		view, err := s.Orders(ctx, status, "")
 		if err != nil {

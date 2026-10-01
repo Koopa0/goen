@@ -134,7 +134,7 @@ func orderRow(ctx context.Context, o *db.AdminOrdersRow) pages.AdminOrderRow {
 }
 
 // Orders reads the order queue.
-func (s *Store) Orders(ctx context.Context, status pages.FulfillmentStatus, term string, after ...string) (pages.AdminOrdersView, error) {
+func (s *Store) Orders(ctx context.Context, status pages.QueueFilter, term string, after ...string) (pages.AdminOrdersView, error) {
 	term = strings.TrimSpace(term)
 	scope := web.ScopeURL("/admin/orders", "q", term, "status", string(status))
 	cursor := readPageCursor(scope, after)
@@ -161,12 +161,11 @@ func (s *Store) Orders(ctx context.Context, status pages.FulfillmentStatus, term
 			}
 		}
 	} else {
-		// Pending is split in two the way FundedStatusLabel splits it.
 		filter, funding := string(status), ""
 		switch status {
-		case pages.FulfillmentPending:
-			funding = "unpaid"
-		case StatusReady:
+		case pages.QueueAwaitingPayment:
+			filter, funding = string(pages.FulfillmentPending), "unpaid"
+		case pages.QueueReady:
 			filter, funding = string(pages.FulfillmentPending), "funded"
 		}
 		rows, err = s.q.AdminOrders(ctx, db.AdminOrdersParams{HasCursor: cursor.Valid, AfterAt: cursor.At, AfterID: cursor.ID, Status: filter, Funding: funding, RowLimit: PageLimit})
@@ -188,31 +187,28 @@ func (s *Store) Orders(ctx context.Context, status pages.FulfillmentStatus, term
 		ListBound: bound,
 		Status:    status, Term: term, Searched: searched,
 	}
-	countsByStatus := make(map[pages.FulfillmentStatus]int64, len(counts))
+	countsByFilter := make(map[pages.QueueFilter]int64, len(counts))
 	var total int64
 	for _, c := range counts {
-		key := pages.FulfillmentStatus(c.FulfillmentStatus)
-		if c.Funded {
-			key = StatusReady
+		key := pages.QueueFilter(c.FulfillmentStatus)
+		switch {
+		case c.FulfillmentStatus == string(pages.FulfillmentPending) && c.Funded:
+			key = pages.QueueReady
+		case c.FulfillmentStatus == string(pages.FulfillmentPending):
+			key = pages.QueueAwaitingPayment
 		}
-		countsByStatus[key] += c.N
+		countsByFilter[key] += c.N
 		total += c.N
 	}
-	view.Tabs = make([]pages.AdminStatusTab, 0, len(statuses)+2)
+	view.Tabs = make([]pages.AdminStatusTab, 0, len(queueTabs)+1)
 	view.Tabs = append(view.Tabs, pages.AdminStatusTab{
-		Label: i18n.T(ctx, i18n.KeyAdminTabAll), Count: total, Selected: status == "",
+		Label: i18n.T(ctx, i18n.KeyAdminTabAll), Count: total, Selected: status == pages.QueueAll,
 	})
-	for _, definition := range statuses {
+	for _, tab := range queueTabs {
 		view.Tabs = append(view.Tabs, pages.AdminStatusTab{
-			Value: definition.value, Label: i18n.T(ctx, definition.label),
-			Count: countsByStatus[definition.value], Selected: definition.value == status,
+			Value: tab.filter, Label: i18n.T(ctx, tab.label),
+			Count: countsByFilter[tab.filter], Selected: tab.filter == status,
 		})
-		if definition.value == pages.FulfillmentPending {
-			view.Tabs = append(view.Tabs, pages.AdminStatusTab{
-				Value: StatusReady, Label: i18n.T(ctx, i18n.KeyAdminStatusReadyToPick),
-				Count: countsByStatus[StatusReady], Selected: status == StatusReady,
-			})
-		}
 	}
 	for i := range rows {
 		view.Orders = append(view.Orders, orderRow(ctx, &rows[i]))

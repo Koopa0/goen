@@ -109,18 +109,30 @@ var statuses = [...]struct {
 	{pages.FulfillmentCancelled, i18n.KeyAdminStatusCancelled},
 }
 
-// StatusReady is a queue filter and not a lifecycle state: the pending orders
-// that are already funded and wait only for somebody to pick them. It is not
-// Known, so no transition can name it.
-const StatusReady pages.FulfillmentStatus = "ready"
+// queueTabs is the orders queue's closed set of filters, in the order it shows
+// them. Pending is two queues because FundedStatusLabel reads it as two: money
+// still owed, and funded and waiting to be picked.
+var queueTabs = [...]struct {
+	filter pages.QueueFilter
+	label  i18n.Key
+}{
+	{pages.QueueAwaitingPayment, i18n.KeyAdminStatusPending},
+	{pages.QueueReady, i18n.KeyAdminStatusReadyToPick},
+	{pages.QueuePicking, i18n.KeyAdminStatusPicking},
+	{pages.QueueShipped, i18n.KeyAdminStatusShipped},
+	{pages.QueueDelivered, i18n.KeyAdminStatusDelivered},
+	{pages.QueueCompleted, i18n.KeyAdminStatusCompleted},
+	{pages.QueueCancelled, i18n.KeyAdminStatusCancelled},
+}
 
-// ParseQueueStatus is ParseStatus for the orders queue, which also offers
-// [StatusReady].
-func ParseQueueStatus(s string) pages.FulfillmentStatus {
-	if pages.FulfillmentStatus(s) == StatusReady {
-		return StatusReady
+// ParseQueueFilter maps a query value to a queue filter, or "" for all.
+func ParseQueueFilter(s string) pages.QueueFilter {
+	for _, tab := range queueTabs {
+		if string(tab.filter) == s {
+			return tab.filter
+		}
 	}
-	return ParseStatus(s)
+	return pages.QueueAll
 }
 
 // ParseStatus maps a query value to a fulfilment state, or "" for all.

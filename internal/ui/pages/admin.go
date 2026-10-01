@@ -60,9 +60,26 @@ type AdminTransition struct {
 	Label string
 }
 
+// QueueFilter is one view of the orders queue. It is not a fulfilment status:
+// pending orders are split by whether money is still owed, so the filters are
+// their own closed set. The values are the ?status= query values.
+type QueueFilter string
+
+// The orders queue's filters; QueueAll is every order.
+const (
+	QueueAll             QueueFilter = ""
+	QueueAwaitingPayment QueueFilter = "pending"
+	QueueReady           QueueFilter = "ready"
+	QueuePicking         QueueFilter = "picking"
+	QueueShipped         QueueFilter = "shipped"
+	QueueDelivered       QueueFilter = "delivered"
+	QueueCompleted       QueueFilter = "completed"
+	QueueCancelled       QueueFilter = "cancelled"
+)
+
 // AdminStatusTab is one filter in the order queue.
 type AdminStatusTab struct {
-	Value    FulfillmentStatus
+	Value    QueueFilter
 	Label    string
 	Count    int64
 	Selected bool
@@ -119,7 +136,7 @@ type AdminOrdersView struct {
 
 	Term     string
 	Searched bool
-	Status   FulfillmentStatus
+	Status   QueueFilter
 	Orders   []AdminOrderRow
 	Tabs     []AdminStatusTab
 	Notice   string
