@@ -27,6 +27,9 @@ sink and supplies ECPay staging configuration. Going to production means switchi
 catalogue as `make db-seed`. These files describe the setup; they do not establish
 that a timer is installed or that today's restore succeeded.
 
+The unit runs the script from a checkout of this repository at `/opt/goen`, so the
+script's installed path is `/opt/goen/deploy/demo/restore-demo-db.sh`.
+
 The restore reads `/etc/goen/restore.env` (start from
 [restore.env.example](restore.env.example)), not the storefront's `demo.env`. Its
 login must be `goen`, the schema owner, or a LOGIN role that is a member of `goen`;

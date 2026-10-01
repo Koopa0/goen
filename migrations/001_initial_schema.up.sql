@@ -112,7 +112,9 @@ CREATE TABLE categories (
         CHECK (name_en IS NULL OR name_en ~ '[^[:space:]]'),
     CONSTRAINT categories_icon_key_known CHECK (
         icon_key IS NULL OR icon_key IN (
-            'phone', 'laptop', 'tablet', 'headphones', 'watch', 'plug', 'shield'
+            'phone', 'laptop', 'tablet', 'headphones', 'watch', 'plug', 'shield',
+            'book', 'stationery', 'home', 'kitchen', 'food', 'drink', 'beauty',
+            'apparel', 'kids', 'gift'
         )
     ),
     CONSTRAINT categories_not_own_parent CHECK (parent_id IS DISTINCT FROM id)
@@ -383,7 +385,7 @@ CREATE TABLE product_variants (
     CONSTRAINT product_variants_parcel_sum_covers_longest
         CHECK (parcel_sum_mm IS NULL OR parcel_longest_mm IS NULL
                OR parcel_sum_mm >= parcel_longest_mm),
-    -- Far above any 3C price and far below where quantity x price overflows
+    -- Far above any retail price and far below where quantity x price overflows
     -- bigint.
     CONSTRAINT product_variants_price_in_range
         CHECK (price_cents >= 0 AND price_cents <= 10000000000),

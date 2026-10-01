@@ -190,10 +190,14 @@ type AdminOrderView struct {
 	Timeline             []AdminOrderEvent
 	Shipments            []AdminShipment
 	DeliveryError        string
-	Delivery             AdminDelivery
-	Correctable          bool
-	PickupDestination    bool
-	PickupBrands         []PickupBrandChoice
+	// ShipCarrier and ShipTracking keep what staff typed when the dispatch was
+	// refused; TrackingError marks the tracking field invalid.
+	ShipCarrier, ShipTracking string
+	TrackingError             string
+	Delivery                  AdminDelivery
+	Correctable               bool
+	PickupDestination         bool
+	PickupBrands              []PickupBrandChoice
 
 	// RefundOffered is a paid order nothing has shipped from and no return
 	// exists for; RefundOpen is one whose refund before shipment Resume finishes.

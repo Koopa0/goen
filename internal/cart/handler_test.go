@@ -7,6 +7,10 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/google/uuid"
+
+	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 // sessionCloseObservation records the context at the existing SessionCloser
@@ -82,5 +86,48 @@ func TestSignedInCartLookupFallsBackToTheAccountCart(t *testing.T) {
 	}
 	if strings.Contains(body, "Create(r.Context(), token, uuid.NullUUID{})") {
 		t.Error("signed-in add still mints an unowned cart")
+	}
+}
+
+// TestRefusedCouponLeavesTheQuoteOfThePageWithoutIt locks that a typed code the
+// shop did not apply does not change the quote: the shopper who clears it must
+// be submitting the page they were shown.
+func TestRefusedCouponLeavesTheQuoteOfThePageWithoutIt(t *testing.T) {
+	t.Parallel()
+	cartID := uuid.MustParse("018f0000-0000-7000-8000-000000000001")
+	view := func() *pages.CheckoutView {
+		return &pages.CheckoutView{
+			Chosen: "018f0000-0000-7000-8000-000000000021",
+			Cart: pages.CartView{
+				SubtotalCents: 12000,
+				Lines: []pages.CartLine{{
+					VariantID: "018f0000-0000-7000-8000-000000000011",
+					Quantity:  1, UnitCents: 12000,
+				}},
+			},
+		}
+	}
+	quote := func(v *pages.CheckoutView) checkoutQuoteID {
+		t.Helper()
+		id, err := checkoutQuoteIDForView(cartID, v)
+		if err != nil {
+			t.Fatalf("quote: %v", err)
+		}
+		return id
+	}
+
+	plain := quote(view())
+	refused := view()
+	refused.CouponCode = "NOPE"
+	if got := quote(refused); got != plain {
+		t.Errorf("refused code changed the quote: got %s, want %s", got, plain)
+	}
+
+	applied := view()
+	applied.CouponCode = "SAVE100"
+	applied.CouponApplied = "save"
+	applied.CouponDiscountCents = 10000
+	if got := quote(applied); got == plain {
+		t.Error("applied coupon left the quote unchanged")
 	}
 }
