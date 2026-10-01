@@ -2268,6 +2268,10 @@ CREATE TABLE order_shipment_lines (
 
 CREATE INDEX order_shipment_lines_order_line_idx ON order_shipment_lines (order_id, order_line_id);
 CREATE INDEX order_shipment_lines_order_shipment_idx ON order_shipment_lines (order_id, shipment_id);
+-- The trigger lookups (shipment_lines_within_purchase, the completion check in
+-- orders_check_transition) filter on order_line_id alone, which no composite
+-- index above leads with. Without this each is a scan of the whole table.
+CREATE INDEX order_shipment_lines_line_idx ON order_shipment_lines (order_line_id);
 
 -- You cannot ship more of a line than was bought, counting every shipment. The
 -- line's order is locked first so two shipments cannot both pass.
@@ -2741,6 +2745,9 @@ CREATE TABLE return_request_lines (
 
 CREATE INDEX return_request_lines_order_line_idx ON return_request_lines (order_id, order_line_id);
 CREATE INDEX return_request_lines_order_request_idx ON return_request_lines (order_id, return_request_id);
+-- return_lines_within_purchase and return_requests_recount filter on
+-- order_line_id alone, which no composite index above leads with.
+CREATE INDEX return_request_lines_line_idx ON return_request_lines (order_line_id);
 
 -- Polymorphic source IDs must resolve before they become append-only audit
 -- data. Reservation and return sources also identify the SKU being moved;
