@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/jackc/pgx/v5"
+
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/ordernotice"
 )
@@ -23,11 +25,17 @@ func (s *Store) Cancel(ctx context.Context, number string) ([]string, error) {
 	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
 	q := s.q.WithTx(tx)
 
-	// The status UPDATE is the aggregate gate: it locks the order before either
-	// cancellation or the expiry sweeper can inspect/release its live holds.
-	// Reading first leaves a stale list if a sweeper releases one while this
-	// transaction is waiting for the order row.
-	cancelled, err := q.CancelOrderByCustomer(ctx, number)
+	// The lock is the aggregate gate: it is taken before either cancellation or
+	// the expiry sweeper can inspect/release its live holds, and before the
+	// payment test, which must see every capture committed ahead of the lock.
+	orderID, err := q.LockOrderByNumber(ctx, number)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNotCancellable
+	}
+	if err != nil {
+		return nil, fmt.Errorf("lock %s: %w", number, err)
+	}
+	cancelled, err := q.CancelOrderByCustomer(ctx, orderID)
 	if err != nil {
 		return nil, fmt.Errorf("cancel %s: %w", number, err)
 	}

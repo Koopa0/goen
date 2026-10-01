@@ -1,0 +1,32 @@
+package pages
+
+import (
+	"strings"
+	"testing"
+
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/layouts"
+)
+
+func TestTheStockListMarksItsFilterAndCarriesItsPlaceInEachForm(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	view := AdminVariantsView{
+		LowOnly: true, Return: "/admin/stock?low=1&after=T",
+		Variants: []AdminVariant{{SKU: "A-1", ProductName: "x"}},
+	}
+	html := renderComponent(t, ctx, AdminVariants(layouts.Page{}, view))
+
+	if got := strings.Count(html, `aria-current="page"`); got != 1 {
+		t.Errorf("%d filters are marked current, want 1", got)
+	}
+	if !strings.Contains(html, `href="/admin/stock?low=1" aria-current="page"`) {
+		t.Error("the low-stock filter is not the one marked current")
+	}
+	if !strings.Contains(html, `id="row-A-1"`) {
+		t.Error("the row has no anchor to return to")
+	}
+	if got := strings.Count(html, `name="return" value="/admin/stock?low=1&amp;after=T"`); got != 3 {
+		t.Errorf("%d forms post their place back, want price, adjust and active", got)
+	}
+}

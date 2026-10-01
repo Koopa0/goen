@@ -152,7 +152,6 @@ COMMENT ON FUNCTION localized_name(text, text, text) IS
 -- GRANT naming a role the file has not created fails the migration outright.
 
 CREATE UNIQUE INDEX categories_slug_key ON categories (slug);
-CREATE INDEX categories_parent_id_idx ON categories (parent_id);
 
 CREATE TRIGGER categories_set_updated_at
     BEFORE UPDATE ON categories
@@ -954,7 +953,6 @@ CREATE TABLE inventory_movements (
 CREATE UNIQUE INDEX inventory_movements_idempotency_key
     ON inventory_movements (idempotency_key);
 CREATE INDEX inventory_movements_variant_idx ON inventory_movements (variant_id, created_at DESC);
-CREATE INDEX inventory_movements_source_idx ON inventory_movements (source_type, source_id);
 CREATE INDEX inventory_movements_actor_idx ON inventory_movements (actor_user_id);
 
 CREATE TRIGGER inventory_movements_append_only
@@ -1520,7 +1518,6 @@ CREATE TABLE coupons (
 -- Case-insensitive: SUMMER20 and summer20 are one code to whoever reads a card,
 -- and issuing both is how one of them silently stops working.
 CREATE UNIQUE INDEX coupons_code_key ON coupons (upper(code));
-CREATE INDEX coupons_active_idx ON coupons (is_active, starts_at, ends_at);
 
 CREATE TRIGGER coupons_set_updated_at
     BEFORE UPDATE ON coupons
@@ -1800,6 +1797,9 @@ CREATE TABLE orders (
 
 CREATE UNIQUE INDEX orders_number_key ON orders (order_number);
 CREATE INDEX orders_user_placed_idx ON orders (user_id, placed_at DESC);
+-- The back office's queue pages every order newest first, whatever its status;
+-- without this each page sorts the whole table.
+CREATE INDEX orders_placed_idx ON orders (placed_at DESC, id DESC);
 CREATE INDEX orders_shipping_version_idx ON orders (shipping_version_id);
 CREATE INDEX orders_open_idx
     ON orders (placed_at)
@@ -2219,8 +2219,6 @@ CREATE TABLE order_private_data (
     )
 );
 
-CREATE INDEX order_private_data_email_idx ON order_private_data (lower(email));
-
 CREATE TABLE order_shipments (
     id                    uuid PRIMARY KEY DEFAULT uuidv7(),
     order_id              uuid NOT NULL REFERENCES orders (id) ON DELETE RESTRICT,
@@ -2235,7 +2233,6 @@ CREATE TABLE order_shipments (
         CHECK (delivered_at IS NULL OR delivered_at >= shipped_at)
 );
 
-CREATE INDEX order_shipments_order_id_idx ON order_shipments (order_id);
 CREATE UNIQUE INDEX order_shipments_tracking_key ON order_shipments (carrier, tracking_number);
 -- Referenced by the composite foreign key that ties a shipment line to a
 -- shipment of the same order.
@@ -2261,6 +2258,10 @@ CREATE TABLE order_shipment_lines (
 
 CREATE INDEX order_shipment_lines_order_line_idx ON order_shipment_lines (order_id, order_line_id);
 CREATE INDEX order_shipment_lines_order_shipment_idx ON order_shipment_lines (order_id, shipment_id);
+-- The trigger lookups (shipment_lines_within_purchase, the completion check in
+-- orders_check_transition) filter on order_line_id alone, which no composite
+-- index above leads with. Without this each is a scan of the whole table.
+CREATE INDEX order_shipment_lines_line_idx ON order_shipment_lines (order_line_id);
 
 -- You cannot ship more of a line than was bought, counting every shipment. The
 -- line's order is locked first so two shipments cannot both pass.
@@ -2661,7 +2662,6 @@ CREATE TABLE return_requests (
     )
 );
 
-CREATE INDEX return_requests_order_id_idx ON return_requests (order_id);
 CREATE UNIQUE INDEX return_requests_order_key ON return_requests (order_id, id);
 CREATE INDEX return_requests_requester_idx ON return_requests (requested_by_user_id);
 CREATE INDEX return_requests_open_idx ON return_requests (created_at) WHERE status = 'requested';
@@ -2734,6 +2734,9 @@ CREATE TABLE return_request_lines (
 
 CREATE INDEX return_request_lines_order_line_idx ON return_request_lines (order_id, order_line_id);
 CREATE INDEX return_request_lines_order_request_idx ON return_request_lines (order_id, return_request_id);
+-- return_lines_within_purchase and return_requests_recount filter on
+-- order_line_id alone, which no composite index above leads with.
+CREATE INDEX return_request_lines_line_idx ON return_request_lines (order_line_id);
 
 -- Polymorphic source IDs must resolve before they become append-only audit
 -- data. Reservation and return sources also identify the SKU being moved;
@@ -3890,7 +3893,6 @@ CREATE UNIQUE INDEX refunds_request_key_key ON refunds (request_key);
 CREATE UNIQUE INDEX refunds_provider_ref_key ON refunds (provider_ref)
     WHERE provider_ref IS NOT NULL;
 CREATE INDEX refunds_payment_id_idx ON refunds (payment_id);
-CREATE INDEX refunds_return_request_idx ON refunds (return_request_id);
 CREATE INDEX refunds_previous_same_return_idx
     ON refunds (return_request_id, previous_refund_id);
 -- One provider identity may be ambiguous, but there is never a second attempt
@@ -4139,9 +4141,6 @@ CREATE INDEX payment_webhook_events_unreconciled_idx
     ON payment_webhook_events (received_at)
     WHERE unreconciled IS NOT NULL AND reconciled_at IS NULL;
 
-CREATE INDEX payment_webhook_events_unprocessed_idx
-    ON payment_webhook_events (received_at)
-    WHERE processed_at IS NULL;
 CREATE INDEX payment_webhook_events_object_idx ON payment_webhook_events (object_ref);
 
 -- The stored payload is evidence of WHICH event said WHAT about the money, not a
@@ -4244,8 +4243,10 @@ CREATE TABLE audit_events (
         CHECK (actor_user_id IS NULL OR actor_user_id = actor_id_snapshot)
 );
 
-CREATE INDEX audit_events_entity_idx ON audit_events (entity_table, entity_id, occurred_at DESC);
-CREATE INDEX audit_events_actor_idx ON audit_events (actor_id_snapshot, occurred_at DESC);
+-- The one statement that reads this table pages newest first with no filter. No
+-- index on the entity or the actor: nothing selects by either, and each costs a
+-- write on every audited action.
+CREATE INDEX audit_events_occurred_idx ON audit_events (occurred_at DESC, id DESC);
 CREATE INDEX audit_events_actor_user_id_idx
     ON audit_events (actor_user_id) WHERE actor_user_id IS NOT NULL;
 
@@ -4526,7 +4527,6 @@ CREATE TABLE contact_messages (
     CONSTRAINT contact_messages_message_present CHECK (message ~ '[^[:space:]]')
 );
 
-CREATE INDEX contact_messages_created_at_idx ON contact_messages (created_at DESC);
 CREATE INDEX contact_messages_unhandled_idx ON contact_messages (created_at)
     WHERE handled_at IS NULL;
 
@@ -8349,6 +8349,18 @@ CREATE INDEX product_copurchases_rank_idx
 CREATE INDEX product_copurchases_other_idx
     ON product_copurchases (other_product_id);
 
+-- When the projection was last rebuilt. The rows cannot say: a shop where no
+-- committed order holds two different products rebuilds to an empty table, and
+-- health would read that as a projection nobody ever built.
+CREATE TABLE copurchase_refreshes (
+    singleton    boolean PRIMARY KEY DEFAULT true CHECK (singleton),
+    refreshed_at timestamptz NOT NULL
+);
+
+COMMENT ON TABLE copurchase_refreshes IS
+    'One row, written only by refresh_copurchases(): the last time a rebuild '
+    'completed, whether or not it produced any pair.';
+
 -- Rebuild the whole projection. DELETE and re-INSERT inside one transaction, so
 -- a reader never sees a half-built projection; TRUNCATE would take ACCESS
 -- EXCLUSIVE and block every product page for the duration.
@@ -8370,6 +8382,10 @@ BEGIN
     GROUP BY mine.product_id, other.product_id;
 
     GET DIAGNOSTICS written = ROW_COUNT;
+
+    INSERT INTO copurchase_refreshes (refreshed_at) VALUES (now())
+    ON CONFLICT (singleton) DO UPDATE SET refreshed_at = EXCLUDED.refreshed_at;
+
     RETURN written;
 END;
 $$;
@@ -8399,6 +8415,8 @@ GRANT SELECT ON product_copurchases TO admin;
 GRANT SELECT ON product_copurchases TO reporting;
 -- A projection a request could rewrite is one a request can be made to rewrite.
 REVOKE INSERT, UPDATE, DELETE ON product_copurchases FROM store, admin;
+-- Health reads when the rebuild last ran; nothing but the definer writes it.
+GRANT SELECT ON copurchase_refreshes TO admin;
 
 -- refresh_copurchases is SECURITY DEFINER, so WHO may call it is the whole
 -- control.
@@ -9210,8 +9228,6 @@ CREATE TABLE return_eligibility_assessments (
         UNIQUE (id, order_id, return_request_id)
 );
 
-CREATE INDEX return_eligibility_assessments_request_idx
-    ON return_eligibility_assessments (return_request_id, version DESC);
 CREATE INDEX return_eligibility_assessments_request_fk_idx
     ON return_eligibility_assessments (order_id, return_request_id);
 CREATE INDEX return_eligibility_assessments_assessor_idx

@@ -64,7 +64,7 @@ func TestHomeShowsCategoriesAndProducts(t *testing.T) {
 	}
 	body := res.Body.String()
 
-	for _, cat := range []string{"手機", "筆電", "平板", "耳機與音響", "穿戴裝置", "周邊配件"} {
+	for _, cat := range []string{"書籍文具", "居家生活", "美妝保養", "服飾配件", "美食飲品", "3C 數位"} {
 		if !strings.Contains(body, cat) {
 			t.Errorf("category tile %q is missing", cat)
 		}
@@ -100,8 +100,11 @@ func TestHomeShowsCategoriesAndProducts(t *testing.T) {
 		!strings.Contains(body, ` 1440w"`) {
 		t.Error("home hero is missing its responsive srcset candidates")
 	}
-	if !strings.Contains(body, `width="1440" height="900" decoding="async" fetchpriority="high"`) {
+	if !strings.Contains(body, `width="1440" height="720" decoding="async" fetchpriority="high"`) {
 		t.Error("home hero is missing its intrinsic dimensions or priority hint")
+	}
+	if !strings.Contains(body, `alt="早晨的木桌與日常用品"`) {
+		t.Error("home hero does not describe its photograph")
 	}
 	if !strings.Contains(body, "<html") {
 		t.Error("the home response is not a full document")

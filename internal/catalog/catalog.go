@@ -8,6 +8,8 @@ import (
 	"errors"
 	"strconv"
 	"strings"
+
+	"github.com/koopa0/goen/internal/web"
 )
 
 // ErrNotFound is returned when a slug names no category.
@@ -120,7 +122,7 @@ func ParsePrice(s string) int64 {
 // from. Unicode space counts as space, so a query of only NBSP is empty for
 // both rather than a searched term one side never queried.
 func trimmedQuery(q string) string {
-	q = strings.TrimSpace(q)
+	q = strings.TrimSpace(web.FoldWidth(q))
 	if r := []rune(q); len(r) > MaxQueryRunes {
 		return string(r[:MaxQueryRunes])
 	}

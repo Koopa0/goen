@@ -1400,6 +1400,56 @@ for (const locale of ['zh-Hant', 'en']) {
   await proveListingDesktopResize(`listing audio desktop ${locale}`, locale);
 }
 
+// The category drawer hangs below the header and is the only category
+// navigation on a phone. Paint order is invisible to axe, so each link is hit
+// tested: whatever sits at its centre has to be the link, or a tap lands on the
+// photo underneath and counts as an outside click.
+//
+// The drawer's content fades in and leaves content-visibility:hidden only when
+// that transition ends, and a hidden box is not hit by anything, so the probe
+// waits it out before it measures.
+const DRAWER_PROBE = `(async () => {
+  const menu = document.querySelector('.goen-header__menu');
+  if (!menu) return { ok: false, why: 'the header menu is missing' };
+  menu.open = true;
+  await new Promise((done) => setTimeout(done, 1000));
+  const links = [...menu.querySelectorAll('.goen-header__drawer a')];
+  const covered = links.filter((a) => {
+    const r = a.getBoundingClientRect();
+    const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+    return !hit || !a.contains(hit);
+  }).map((a) => {
+    const r = a.getBoundingClientRect();
+    const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+    return a.textContent.trim() + ' under ' + (hit ? hit.tagName + '.' + String(hit.className).split(' ')[0] : 'nothing');
+  });
+  return { ok: true, links: links.length, covered };
+})()`;
+
+for (const want of [
+  { label: 'drawer home 375', width: 375, height: 812, path: '/' },
+  { label: 'drawer pdp 375', width: 375, height: 812, path: '/p/PRODUCT_SLUG' },
+  { label: 'drawer home 768', width: 768, height: 1024, path: '/' },
+  { label: 'drawer pdp 768', width: 768, height: 1024, path: '/p/PRODUCT_SLUG' },
+]) {
+  await send(ws, 'Emulation.setDeviceMetricsOverride', {
+    width: want.width, height: want.height, deviceScaleFactor: 1, mobile: want.width < 768,
+  });
+  const target = ORIGIN + want.path.replace('PRODUCT_SLUG', process.env.PRODUCT_SLUG || '');
+  await send(ws, 'Page.navigate', { url: target });
+  await settled(ws, want.label, target);
+  const got = await evalPage(DRAWER_PROBE);
+  if (got.threw || !got.ok) {
+    fail(want.label, `the drawer probe did not run — ${got.why}`);
+    continue;
+  }
+  if (!got.links) fail(want.label, 'the open drawer lists no links — this check proved nothing');
+  if (got.covered.length) {
+    fail(want.label, `${got.covered.length} of ${got.links} drawer links are painted over: ${got.covered.join(', ')}`);
+  }
+  console.log(`${want.label.padEnd(24)} links=${got.links} covered=${got.covered.length}${got.covered.length ? '' : ' ok'}`);
+}
+
 const HEADER_EN_PROBE = `(() => {
   const de = document.documentElement;
   const clipped = (e) => {
@@ -1640,6 +1690,40 @@ for (const want of [...CART, ...PAGES]) {
     `controls=${got.controls} tap=${got.minTap}`);
   if (want.path === '/checkout') await checkoutConstraintFeedback(at);
   if (want.path === '/checkout') await proveCheckoutRequestFeedback(at);
+}
+
+// Stepping to a bound must leave keyboard focus on the button that was pressed:
+// disabling a focused button sends focus to the body.
+const STEPPER_FOCUS_PROBE = `(() => {
+  const up = document.querySelector('.goen-stepper__step[data-stepper-step="1"]');
+  const field = document.querySelector('.goen-stepper__value');
+  if (!up || !field || up.disabled || field.disabled || up.getBoundingClientRect().width === 0) {
+    return { ok: true, skipped: true };
+  }
+  up.focus();
+  for (let i = 0; i < 100 && up.getAttribute('aria-disabled') !== 'true'; i++) up.click();
+  return {
+    ok: true, skipped: false, value: field.value, max: field.max,
+    atBound: up.getAttribute('aria-disabled') === 'true',
+    focused: document.activeElement === up,
+    active: document.activeElement ? document.activeElement.tagName : 'none',
+  };
+})()`;
+
+{
+  const label = 'stepper focus 375';
+  await send(ws, 'Emulation.setDeviceMetricsOverride', { width: 375, height: 812, deviceScaleFactor: 1, mobile: true });
+  const target = ORIGIN + '/p/' + (process.env.PRODUCT_SLUG || '');
+  await send(ws, 'Page.navigate', { url: target });
+  await settled(ws, label, target);
+  const got = await evalPage(STEPPER_FOCUS_PROBE);
+  if (got.threw) fail(label, `the probe did not run — ${got.why}`);
+  else if (got.skipped) console.log(`${label.padEnd(24)} stepper not offered on this product, skipped`);
+  else {
+    if (!got.atBound) fail(label, `the + button never reached its bound (value ${got.value}, max ${got.max})`);
+    if (!got.focused) fail(label, `focus left the + button at the bound and sits on ${got.active}`);
+    console.log(`${label.padEnd(24)} value=${got.value}/${got.max} focused=${got.focused}${got.focused ? ' ok' : ''}`);
+  }
 }
 
 // The served transition rules must honor reduced motion, including pseudo-

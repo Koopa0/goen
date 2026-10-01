@@ -161,3 +161,12 @@ func TestSearchPatternSplitsOnWhitespaceAndBoundsTheTerms(t *testing.T) {
 		t.Errorf("SearchTerms exact = %q, want the whole query without goen's wildcards", exact)
 	}
 }
+
+func TestSearchFoldsFullWidthLettersAndDigits(t *testing.T) {
+	if got := SearchPattern("Ｐｉｘｅｌ６５Ｗ"); got != "%Pixel65W%" {
+		t.Errorf("SearchPattern = %q, want the folded term", got)
+	}
+	if got := trimForDisplay("　Ｐｉｘｅｌ　"); got != "Pixel" {
+		t.Errorf("trimForDisplay = %q, want the folded query the page echoes", got)
+	}
+}
