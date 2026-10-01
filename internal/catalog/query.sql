@@ -160,6 +160,7 @@ SELECT
     coalesce(img.height, 0)::integer AS image_height
 FROM products p
 JOIN brands b ON b.id = p.brand_id
+JOIN categories c ON c.id = p.category_id
 JOIN LATERAL (
     SELECT price_cents, compare_at_price_cents
     FROM product_variants
@@ -183,6 +184,8 @@ WHERE p.status = 'active'
        OR coalesce(p.summary, '') ILIKE @pattern::text
        OR coalesce(p.summary_en, '') ILIKE @pattern::text
        OR b.name ILIKE @pattern::text
+       OR c.name ILIKE @pattern::text
+       OR coalesce(c.name_en, '') ILIKE @pattern::text
        OR EXISTS (
            SELECT 1 FROM product_variants sku_match
            WHERE sku_match.product_id = p.id AND sku_match.is_active
@@ -198,15 +201,17 @@ WHERE p.status = 'active'
        ))
 ORDER BY
     -- Field relevance is explicit; repeated words, sales and ratings do not change it.
-    -- A complete variant SKU leads; a partial SKU follows a partial name match.
+    -- A complete variant SKU leads; the category follows a partial name match and
+    -- a partial SKU follows the category.
     CASE
         WHEN EXISTS (
             SELECT 1 FROM product_variants exact_sku
             WHERE exact_sku.product_id = p.id AND exact_sku.is_active
               AND exact_sku.sku ILIKE @exact_pattern::text
-        ) THEN 6
-        WHEN p.name ILIKE @exact_pattern::text OR coalesce(p.name_en, '') ILIKE @exact_pattern::text THEN 5
-        WHEN p.name ILIKE @pattern::text OR coalesce(p.name_en, '') ILIKE @pattern::text THEN 4
+        ) THEN 7
+        WHEN p.name ILIKE @exact_pattern::text OR coalesce(p.name_en, '') ILIKE @exact_pattern::text THEN 6
+        WHEN p.name ILIKE @pattern::text OR coalesce(p.name_en, '') ILIKE @pattern::text THEN 5
+        WHEN c.name ILIKE @pattern::text OR coalesce(c.name_en, '') ILIKE @pattern::text THEN 4
         WHEN EXISTS (
             SELECT 1 FROM product_variants partial_sku
             WHERE partial_sku.product_id = p.id AND partial_sku.is_active
@@ -224,12 +229,15 @@ LIMIT @page_size::integer OFFSET @page_offset::integer;
 SELECT count(*)::bigint
 FROM products p
 JOIN brands b ON b.id = p.brand_id
+JOIN categories c ON c.id = p.category_id
 WHERE p.status = 'active'
   AND (p.name ILIKE @pattern::text
        OR coalesce(p.name_en, '') ILIKE @pattern::text
        OR coalesce(p.summary, '') ILIKE @pattern::text
        OR coalesce(p.summary_en, '') ILIKE @pattern::text
        OR b.name ILIKE @pattern::text
+       OR c.name ILIKE @pattern::text
+       OR coalesce(c.name_en, '') ILIKE @pattern::text
        OR EXISTS (
            SELECT 1 FROM product_variants sku_match
            WHERE sku_match.product_id = p.id AND sku_match.is_active

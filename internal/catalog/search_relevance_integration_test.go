@@ -170,3 +170,65 @@ func TestSearchRanksTheChineseNameAndEnglishSummaryArms(t *testing.T) {
 		}
 	}
 }
+
+func TestSearchFindsAProductByItsCategoryNameAndRanksItAboveASummaryMention(t *testing.T) {
+	ctx := t.Context()
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = tx.Rollback(context.WithoutCancel(ctx)) })
+	token := "kind" + uuid.NewString()[:8]
+	var categoryID uuid.UUID
+	if fixtureErr := tx.QueryRow(ctx, `INSERT INTO categories (slug, name, name_en) VALUES ($1, $2, $3) RETURNING id`,
+		"cat-"+uuid.NewString(), "類別"+token, "Category "+token).Scan(&categoryID); fixtureErr != nil {
+		t.Fatal(fixtureErr)
+	}
+	// The mention is newer, so recency alone would list it first.
+	fixtures := []struct {
+		inCategory bool
+		summary    string
+	}{
+		{inCategory: true, summary: "Fixture summary"},
+		{summary: "Fits every " + token},
+	}
+	slugs := make([]string, len(fixtures))
+	for i, f := range fixtures {
+		slugs[i] = "relevance-cat-" + uuid.NewString()
+		var category *uuid.UUID
+		if f.inCategory {
+			category = &categoryID
+		}
+		var brandID, productID uuid.UUID
+		if fixtureErr := tx.QueryRow(ctx, `INSERT INTO brands (slug, name) VALUES ($1, 'Fixture brand') RETURNING id`, "brand-"+uuid.NewString()).Scan(&brandID); fixtureErr != nil {
+			t.Fatal(fixtureErr)
+		}
+		if fixtureErr := tx.QueryRow(ctx, `INSERT INTO products (brand_id, category_id, slug, name, summary, status, published_at)
+   SELECT $1, coalesce($5::uuid, category_id), $2, 'Original fixture', $3, 'draft', now() + ($4 * interval '1 second')
+   FROM products LIMIT 1 RETURNING id`, brandID, slugs[i], f.summary, i, category).Scan(&productID); fixtureErr != nil {
+			t.Fatal(fixtureErr)
+		}
+		if _, fixtureErr := tx.Exec(ctx, `INSERT INTO product_variants (product_id, sku, price_cents) VALUES ($1, $2, 10000)`, productID, "RANKCAT-"+strings.ToUpper(uuid.NewString())); fixtureErr != nil {
+			t.Fatal(fixtureErr)
+		}
+		if _, fixtureErr := tx.Exec(ctx, `UPDATE products SET status = 'active' WHERE id = $1`, productID); fixtureErr != nil {
+			t.Fatal(fixtureErr)
+		}
+	}
+	for _, q := range []string{"類別" + token, strings.ToUpper("category " + token)} {
+		view, searchErr := catalog.NewStore(tx).Search(ctx, catalog.SearchPattern(q), 1)
+		if searchErr != nil {
+			t.Fatal(searchErr)
+		}
+		if view.Total != 1 || len(view.Products) != 1 || view.Products[0].Slug != slugs[0] {
+			t.Errorf("q=%q total=%d products=%v, want only the category's product", q, view.Total, view.Products)
+		}
+	}
+	view, err := catalog.NewStore(tx).Search(ctx, catalog.SearchPattern(token), 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if view.Total != 2 || len(view.Products) != 2 || view.Products[0].Slug != slugs[0] || view.Products[1].Slug != slugs[1] {
+		t.Errorf("q=%q total=%d, want the category's product above the summary mention", token, view.Total)
+	}
+}
