@@ -76,12 +76,18 @@ const (
 // categoryImages is the closed set of category photographs, keyed by category
 // slug. A category outside it keeps its icon.
 var categoryImages = map[string]string{
-	"phones":      "media/categories/phones.webp",
-	"laptops":     "media/categories/laptops.webp",
-	"tablets":     "media/categories/tablets.webp",
-	"audio":       "media/categories/audio.webp",
-	"wearables":   "media/categories/wearables.webp",
-	"accessories": "media/categories/accessories.webp",
+	"books-stationery": "media/departments/books-stationery.webp",
+	"home-living":      "media/departments/home-living.webp",
+	"beauty":           "media/departments/beauty.webp",
+	"fashion":          "media/departments/fashion.webp",
+	"food-drink":       "media/departments/food-drink.webp",
+	"tech":             "media/departments/tech.webp",
+	"phones":           "media/categories/phones.webp",
+	"laptops":          "media/categories/laptops.webp",
+	"tablets":          "media/categories/tablets.webp",
+	"audio":            "media/categories/audio.webp",
+	"wearables":        "media/categories/wearables.webp",
+	"accessories":      "media/categories/accessories.webp",
 }
 
 const productMediaPrefix = "media/products/"

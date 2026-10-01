@@ -364,12 +364,20 @@ WHERE status = 'active'
 ORDER BY updated_at DESC
 LIMIT $1;
 
+-- A department holds no product itself and lists those of every category below
+-- it, so the test is over the subtree, as CategoryDescendants is.
 -- name: SitemapCategories :many
+WITH RECURSIVE tree AS (
+    SELECT id, id AS root FROM categories
+    UNION ALL
+    SELECT k.id, t.root FROM categories k JOIN tree t ON k.parent_id = t.id
+)
 SELECT DISTINCT c.slug, c.updated_at
 FROM categories c
 WHERE EXISTS (
-    SELECT 1 FROM products p
-    WHERE p.category_id = c.id AND p.status = 'active'
+    SELECT 1 FROM tree t
+    JOIN products p ON p.category_id = t.id
+    WHERE t.root = c.id AND p.status = 'active'
 )
 ORDER BY c.updated_at DESC
 LIMIT $1;

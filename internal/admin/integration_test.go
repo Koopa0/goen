@@ -3547,7 +3547,9 @@ func anyVariantSKU(t *testing.T) string {
 	t.Helper()
 	var sku string
 	if err := pool.QueryRow(t.Context(),
-		`SELECT sku FROM product_variants LIMIT 1`).Scan(&sku); err != nil {
+		`SELECT v.sku FROM product_variants v
+		   WHERE NOT EXISTS (SELECT 1 FROM sale_campaign_products cp WHERE cp.product_id = v.product_id)
+		   ORDER BY v.sku LIMIT 1`).Scan(&sku); err != nil {
 		t.Fatalf("find variant: %v", err)
 	}
 	return sku
