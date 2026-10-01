@@ -273,7 +273,7 @@ func TestAProductWithNoReviewsCanReceiveItsFirst(t *testing.T) {
 	}
 	html := renderToString(t, Product(ProductMeta(&fresh), &fresh))
 
-	if !strings.Contains(html, `action="/p/newly-listed/reviews"`) {
+	if !strings.Contains(html, `action="/p/newly-listed/reviews#write-review"`) {
 		t.Error("a product with no reviews offers no way to write one, so it can " +
 			"never have any")
 	}
@@ -397,5 +397,29 @@ func TestARefundedOrderCanFileAnAllowance(t *testing.T) {
 	partialHTML := renderToString(t, AdminOrder(layouts.Page{Title: "x"}, &partlyRelieved))
 	if !strings.Contains(partialHTML, `NT$549`) {
 		t.Error("the allowance form did not subtract the credit note already filed")
+	}
+}
+
+// The first row's photograph is the page's largest paint, so it must not wait
+// for layout; everything past it stays lazy.
+func TestTheFirstRowOfAListingLoadsItsPhotographsEagerly(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	var tiles []ProductTile
+	for i := range 6 {
+		slug := fmt.Sprintf("p%d", i)
+		tiles = append(tiles, ProductTile{Slug: slug, Name: slug, PriceCents: 1000, ImageURL: "/img/" + slug + ".webp", ImageAlt: slug})
+	}
+	view := ListingView{Slug: "audio", Name: "Audio", Products: tiles}
+	html := renderToString(t, Listing(ListingMeta(ctx, view), view))
+
+	if got := strings.Count(html, `loading="lazy"`); got != 2 {
+		t.Errorf("%d lazy photographs, want 2 (the tiles after the first row of 4)", got)
+	}
+	if got := strings.Count(html, `fetchpriority="high"`); got != 1 {
+		t.Errorf("%d high-priority photographs, want 1 (the first tile only)", got)
+	}
+	if view.Products[0].Eager {
+		t.Error("FirstRowEager changed the caller's slice")
 	}
 }

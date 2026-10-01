@@ -29,6 +29,11 @@ templ AdminDashboard(p layouts.Page, v AdminDashboardView) {
 				Href:  "/admin/orders?status=pending",
 			})
 			@components.StatTile(components.StatTileProps{
+				Label: i18n.T(ctx, i18n.KeyAdminStatusReadyToPick),
+				Value: v.ReadyText(),
+				Href:  "/admin/orders?status=ready",
+			})
+			@components.StatTile(components.StatTileProps{
 				Label: i18n.T(ctx, i18n.KeyAdminStatusPicking),
 				Value: v.PickingText(),
 				Href:  "/admin/orders?status=picking",
@@ -705,9 +710,21 @@ templ AdminVariants(p layouts.Page, v AdminVariantsView) {
 		if v.HasNotice() {
 			<p class="ui-alert ui-alert--info" role="status">{ v.Notice }</p>
 		}
-		<div class="ui-filterbar">
-			<a class={ "ui-filter", templ.KV("is-active", !v.LowOnly) } href="/admin/stock">{ i18n.T(ctx, i18n.KeyAdminTabAll) }</a>
-			<a class={ "ui-filter", templ.KV("is-active", v.LowOnly) } href="/admin/stock?low=1">{ i18n.T(ctx, i18n.KeyAdminQueueLowOnly) }</a>
+		<div class="ui-filterbar goen-admin__tabs">
+			<a
+				class="ui-filter"
+				href="/admin/stock"
+				if !v.LowOnly {
+					aria-current="page"
+				}
+			>{ i18n.T(ctx, i18n.KeyAdminTabAll) }</a>
+			<a
+				class="ui-filter"
+				href="/admin/stock?low=1"
+				if v.LowOnly {
+					aria-current="page"
+				}
+			>{ i18n.T(ctx, i18n.KeyAdminQueueLowOnly) }</a>
 		</div>
 		if v.Empty() && !v.PastEnd {
 			<div class="ui-empty">
@@ -715,14 +732,14 @@ templ AdminVariants(p layouts.Page, v AdminVariantsView) {
 			</div>
 		} else if !v.Empty() {
 			<div class="goen-admin__tablewrap">
-				@adminVariantTable(v.Variants)
+				@adminVariantTable(v.Variants, v.Return)
 			</div>
 		}
 		@listBound(v.ListBound)
 	}
 }
 
-templ adminVariantTable(variants []AdminVariant) {
+templ adminVariantTable(variants []AdminVariant, back string) {
 	<table class="ui-table goen-admin__table">
 		<thead>
 			<tr>
@@ -735,7 +752,7 @@ templ adminVariantTable(variants []AdminVariant) {
 		</thead>
 		<tbody>
 			for _, x := range variants {
-				<tr class={ templ.KV("goen-admin__row--low", x.Low()) }>
+				<tr id={ "row-" + x.SKU } class={ templ.KV("goen-admin__row--low", x.Low()) }>
 					<td>
 						<a href={ templ.SafeURL("/admin/stock/" + x.SKU) }>{ x.SKU }</a>
 						<span class="ui-cart-line__meta">
@@ -755,6 +772,7 @@ templ adminVariantTable(variants []AdminVariant) {
 					</td>
 					<td>
 						<form class="goen-admin__inline" method="post" action="/admin/stock/price">
+							<input type="hidden" name="return" value={ back }/>
 							<input type="hidden" name="sku" value={ x.SKU }/>
 							<label class="goen-sr-only" for={ "price-" + x.SKU }>{ i18n.T(ctx, i18n.KeyAdminQueuePrice) }</label>
 							<input class="ui-input ui-input--sm goen-admin__num" id={ "price-" + x.SKU } type="number" name="price" value={ x.PriceText() } min="0" step="1"/>
@@ -774,6 +792,7 @@ templ adminVariantTable(variants []AdminVariant) {
 					</td>
 					<td>
 						<form class="goen-admin__inline" method="post" action="/admin/stock/adjust">
+							<input type="hidden" name="return" value={ back }/>
 							<input type="hidden" name="sku" value={ x.SKU }/>
 							<input type="hidden" name="idempotency" value={ x.AdjustKey() }/>
 							<label class="goen-sr-only" for={ "adj-" + x.SKU }>{ i18n.T(ctx, i18n.KeyAdminQueueAdjustQty) }</label>
@@ -781,6 +800,7 @@ templ adminVariantTable(variants []AdminVariant) {
 							<button class="ui-btn ui-btn--secondary ui-btn--sm" type="submit">{ i18n.T(ctx, i18n.KeyAdminQueueAdjust) }</button>
 						</form>
 						<form class="goen-admin__inline" method="post" action="/admin/stock/active">
+							<input type="hidden" name="return" value={ back }/>
 							<input type="hidden" name="sku" value={ x.SKU }/>
 							if x.Active {
 								<input type="hidden" name="active" value="0"/>

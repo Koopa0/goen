@@ -178,7 +178,7 @@ func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
 // Orders serves GET /admin/orders.
 func (h *Handler) Orders(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Orders(r.Context(),
-		ParseStatus(r.URL.Query().Get("status")), r.URL.Query().Get("q"), r.URL.Query().Get(web.KeysetParam))
+		ParseQueueFilter(r.URL.Query().Get("status")), r.URL.Query().Get("q"), r.URL.Query().Get(web.KeysetParam))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read orders", "error", err)
 		h.serverError(w, r)
@@ -382,6 +382,7 @@ func (h *Handler) Variants(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	view.Notice = noticeFor(r)
+	view.Return = stockReturn(r.URL.Query().Get("low"), r.URL.Query().Get(web.KeysetParam), "", "")
 	web.Render(w, r, h.log, http.StatusOK, pages.AdminVariants(pages.AdminVariantsMeta(r.Context()), view))
 }
 
@@ -394,7 +395,7 @@ func (h *Handler) AdjustStock(w http.ResponseWriter, r *http.Request) {
 	}
 	delta, ok := ParseAdjustment(r.PostFormValue("delta"))
 	if !ok {
-		http.Redirect(w, r, "/admin/stock?refused=1", http.StatusSeeOther)
+		http.Redirect(w, r, stockBack(r, "refused"), http.StatusSeeOther)
 		return
 	}
 	key := r.PostFormValue("idempotency")
@@ -405,11 +406,11 @@ func (h *Handler) AdjustStock(w http.ResponseWriter, r *http.Request) {
 	err := h.store.AdjustStock(r.Context(), r.PostFormValue("sku"), delta, u.ID, key)
 	switch {
 	case err == nil:
-		http.Redirect(w, r, "/admin/stock?ok=1", http.StatusSeeOther)
+		http.Redirect(w, r, stockBack(r, "ok"), http.StatusSeeOther)
 	case errors.Is(err, ErrRefused), errors.Is(err, ErrNotFound):
 		h.log.WarnContext(r.Context(), "stock adjustment refused",
 			"sku", r.PostFormValue("sku"), "delta", delta, "error", err)
-		http.Redirect(w, r, "/admin/stock?refused=1", http.StatusSeeOther)
+		http.Redirect(w, r, stockBack(r, "refused"), http.StatusSeeOther)
 	default:
 		h.log.ErrorContext(r.Context(), "adjust stock", "error", err)
 		h.serverError(w, r)
@@ -460,11 +461,11 @@ func (h *Handler) SetVariantActive(w http.ResponseWriter, r *http.Request) {
 		r.PostFormValue("sku"), r.PostFormValue("active") == "1")
 	switch {
 	case err == nil:
-		http.Redirect(w, r, "/admin/stock?ok=1", http.StatusSeeOther)
+		http.Redirect(w, r, stockBack(r, "ok"), http.StatusSeeOther)
 	case errors.Is(err, ErrRefused), errors.Is(err, ErrNotFound):
 		h.log.WarnContext(r.Context(), "variant activation refused",
 			"sku", r.PostFormValue("sku"), "error", err)
-		http.Redirect(w, r, "/admin/stock?refused=1", http.StatusSeeOther)
+		http.Redirect(w, r, stockBack(r, "refused"), http.StatusSeeOther)
 	default:
 		h.log.ErrorContext(r.Context(), "set variant active", "error", err)
 		h.serverError(w, r)
@@ -480,22 +481,57 @@ func (h *Handler) SetVariantPrice(w http.ResponseWriter, r *http.Request) {
 	price, okPrice := ParsePrice(r.PostFormValue("price"))
 	compare, okCompare := ParsePrice(r.PostFormValue("compare_at"))
 	if !okPrice || !okCompare || price <= 0 {
-		http.Redirect(w, r, "/admin/stock?refused=1", http.StatusSeeOther)
+		http.Redirect(w, r, stockBack(r, "refused"), http.StatusSeeOther)
 		return
 	}
 
 	err := h.store.SetVariantPrice(r.Context(), r.PostFormValue("sku"), price, compare)
 	switch {
 	case err == nil:
-		http.Redirect(w, r, "/admin/stock?ok=1", http.StatusSeeOther)
+		http.Redirect(w, r, stockBack(r, "ok"), http.StatusSeeOther)
 	case errors.Is(err, ErrRefused), errors.Is(err, ErrNotFound):
 		h.log.WarnContext(r.Context(), "reprice refused",
 			"sku", r.PostFormValue("sku"), "error", err)
-		http.Redirect(w, r, "/admin/stock?refused=1", http.StatusSeeOther)
+		http.Redirect(w, r, stockBack(r, "refused"), http.StatusSeeOther)
 	default:
 		h.log.ErrorContext(r.Context(), "set variant price", "error", err)
 		h.serverError(w, r)
 	}
+}
+
+// stockReturn is the stock list's address for a filter and position, plus an
+// optional notice and the row to land on.
+func stockReturn(low, after, notice, sku string) string {
+	q := url.Values{}
+	if low == "1" {
+		q.Set("low", "1")
+	}
+	if after != "" {
+		q.Set(web.KeysetParam, after)
+	}
+	if notice != "" {
+		q.Set(notice, "1")
+	}
+	target := "/admin/stock"
+	if len(q) > 0 {
+		target += "?" + q.Encode()
+	}
+	if sku != "" {
+		target += "#row-" + url.PathEscape(sku)
+	}
+	return target
+}
+
+// stockBack is where a write on the stock list returns to: the filter and page
+// the form was posted from, with the notice and the row anchored. The posted
+// value is only ever read for those two parameters, so it cannot name another
+// address.
+func stockBack(r *http.Request, notice string) string {
+	var low, after string
+	if u, err := url.Parse(r.PostFormValue("return")); err == nil && u.Path == "/admin/stock" && u.Host == "" {
+		low, after = u.Query().Get("low"), u.Query().Get(web.KeysetParam)
+	}
+	return stockReturn(low, after, notice, r.PostFormValue("sku"))
 }
 
 // adminNotices is the one-shot message each redirect parameter carries.

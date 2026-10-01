@@ -42,7 +42,7 @@ templ Campaign(p layouts.Page, v CampaignView) {
 			} else {
 				<h2 class="goen-sr-only">{ i18n.T(ctx, i18n.KeyResultsHeading) }</h2>
 				<ul class="goen-tiles__grid" role="list">
-					for _, t := range v.Products {
+					for _, t := range FirstRowEager(v.Products) {
 						@Tile(t)
 					}
 				</ul>
