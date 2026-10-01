@@ -467,7 +467,7 @@ func Home(p layouts.Page, v HomeView) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			if v.FreeDelivery() != "" {
-				templ_7745c5c3_Err = incentive(icons.Truck(), fmt.Sprintf(i18n.T(ctx, i18n.KeyGuaranteeShipping), v.FreeDelivery()), fmt.Sprintf(i18n.T(ctx, i18n.KeyTrustShippingBody), v.LowestFee())).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = incentive(icons.Truck(), fmt.Sprintf(i18n.T(ctx, i18n.KeyGuaranteeShipping), v.FreeDelivery()), fmt.Sprintf(i18n.T(ctx, v.ShippingBodyKey()), v.LowestFee())).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
