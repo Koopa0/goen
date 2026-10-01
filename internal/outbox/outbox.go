@@ -366,3 +366,25 @@ func (s *Store) SweepForever(ctx context.Context, log *slog.Logger) {
 		}
 	}
 }
+
+// Enqueue writes every message of one topic in a single statement, in the
+// caller's transaction. keys and payloads pair by position; a key already
+// queued for the topic is left as it was.
+func Enqueue(ctx context.Context, q *db.Queries, topic string, priority int16, keys []string, payloads [][]byte) error {
+	if len(keys) != len(payloads) {
+		return errors.New("outbox: Enqueue needs one payload per key")
+	}
+	if len(keys) == 0 {
+		return nil
+	}
+	text := make([]string, len(payloads))
+	for i, p := range payloads {
+		text[i] = string(p)
+	}
+	if err := q.EnqueueMessages(ctx, db.EnqueueMessagesParams{
+		Topic: topic, Priority: priority, DedupeKeys: keys, Payloads: text,
+	}); err != nil {
+		return fmt.Errorf("enqueue %s messages: %w", topic, err)
+	}
+	return nil
+}
