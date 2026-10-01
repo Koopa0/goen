@@ -12028,9 +12028,11 @@ type SearchProductsRow struct {
 	ImageHeight         int32
 }
 
-// The trigram GIN index serves Latin queries; short Chinese ones fall back to a
-// sequential scan. A category matches by its own name or an ancestor's, so
-// searching a department finds what is filed under its sub-categories.
+// Search is a sequential scan of the active products: a term may match a column
+// of products, brands, variants, specs or categories, and no index serves an OR
+// across tables, so the term bound is what limits the work.
+// A category matches by its own name or an ancestor's, so searching a
+// department finds what is filed under its sub-categories.
 // @patterns holds one pattern per term; the caller escapes %, _ and \ in each
 // before binding, and @exact_pattern is the whole query.
 func (q *Queries) SearchProducts(ctx context.Context, arg SearchProductsParams) ([]SearchProductsRow, error) {

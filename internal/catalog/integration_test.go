@@ -282,7 +282,7 @@ func TestSearchPageKeepsTheHeaderInputInSyncWithTheHeading(t *testing.T) {
 	}
 }
 
-// The trigram index serves only one of the two scripts.
+// Both scripts match by substring.
 func TestSearchFindsLatinAndChinese(t *testing.T) {
 	for _, tc := range []struct{ q, want string }{
 		{"pixel", "Pixelight"},
