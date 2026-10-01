@@ -50,7 +50,7 @@ func NewRefunder(apiKey string) StripeRefunder {
 	if apiKey == "" {
 		return StripeRefunder{}
 	}
-	return StripeRefunder{client: stripe.NewClient(apiKey)}
+	return StripeRefunder{client: payment.NewStripeClient(apiKey)}
 }
 
 func (s StripeRefunder) PaymentIntentFor(ctx context.Context, sessionID string) (string, error) {

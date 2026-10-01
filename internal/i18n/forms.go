@@ -25,6 +25,11 @@ var (
 		ZhHant: "表單無法解析",
 		En:     "That form could not be read",
 	})
+
+	KeyAddressUnreadable = key("request.unreadable", Message{
+		ZhHant: "這個網址無法解析",
+		En:     "That web address could not be read",
+	})
 )
 
 var (

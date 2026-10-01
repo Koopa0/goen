@@ -146,6 +146,12 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	findLimit := ratelimit.New(ratelimit.Config{
 		Every: 6 * time.Minute, Burst: 10, TTL: time.Hour, MaxKeys: 65_536,
 	})
+	// Every checkout submission looks up the coupon it carries, and a chooser
+	// change is a submission too, so a whole checkout is a dozen posts at most.
+	// cart.Handler bounds the wrong codes themselves; this bounds the rest.
+	checkoutLimit := ratelimit.New(ratelimit.Config{
+		Every: 2 * time.Second, Burst: 30, TTL: time.Hour, MaxKeys: 65_536,
+	})
 	var carrierChecker cart.CarrierChecker
 	if cfg.Invoices.Enabled() {
 		carrierChecker = cfg.Invoices
@@ -232,7 +238,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	mux.HandleFunc("POST /cart/items", clearSpeculations(basket.AddItem))
 	mux.HandleFunc("POST /cart/items/update", clearSpeculations(basket.UpdateItem))
 	mux.HandleFunc("GET /checkout", basket.Checkout)
-	mux.HandleFunc("POST /checkout", basket.PlaceOrder)
+	mux.HandleFunc("POST /checkout", ratelimit.Guard(checkoutLimit, log, basket.PlaceOrder))
 	if cfg.StoreMap.Enabled() {
 		// The carrier's page posts the chosen store here from the SHOPPER'S
 		// browser, so it arrives cross-site with none of goen's cookies. It
@@ -269,13 +275,20 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	mux.HandleFunc("POST /forgot", ratelimit.Guard(authLimit, log, customers.Forgot))
 	mux.HandleFunc("GET /reset", customers.ResetPage)
 	mux.HandleFunc("POST /reset", ratelimit.Guard(authLimit, log, customers.Reset))
-	// Open to a signed-OUT visitor on purpose: the token is the proof, not the
-	// session, and the link is followed on whatever device the mail is on.
+	// Open to a signed-out visitor, who is sent on rather than refused: a
+	// registration link to the page that asks for its password, and a new
+	// address's link to sign in first. The token proves only the mailbox, and
+	// the address goes to the account that asked for it.
 	mux.HandleFunc("GET /verify", customers.VerifyPage)
 	mux.HandleFunc("POST /verify", ratelimit.Guard(authLimit, log, customers.Verify))
 	mux.HandleFunc("GET /register", customers.RegisterPage)
 	mux.HandleFunc("POST /register", clearSpeculations(ratelimit.Guard(authLimit, log, customers.Register)))
-	mux.HandleFunc("POST /signout", clearSpeculations(customers.SignOut))
+	// Open to a signed-out visitor: the link and the password chosen at
+	// registration are the proof. Under authLimit because it runs
+	// argon2, and it signs in, so it clears speculations.
+	mux.HandleFunc("GET /register/complete", customers.CompleteRegistrationPage)
+	mux.HandleFunc("POST /register/complete", clearSpeculations(ratelimit.Guard(authLimit, log, customers.CompleteRegistration)))
+	mux.HandleFunc("POST /signout", clearSpeculations(clearCache(customers.SignOut)))
 	mux.HandleFunc("GET /account", customers.RequireUser(customers.Overview))
 	mux.HandleFunc("GET /account/cart-recovery", customers.RequireUser(customers.CartRecoveryPage))
 	mux.HandleFunc("POST /account/cart/retry", customers.RequireUser(customers.RetryCartAdoption))
@@ -415,6 +428,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	handler = withTopNav(handler, home.NewStore(pool), log)
 	handler = withStaffEntrance(handler)
 	handler = withSiteOrigin(handler, baseURL)
+	handler = withNoStore(handler)
 	handler = onlyVisitorPaths(func(next http.Handler) http.Handler {
 		return withLocale(next, secureCookies)
 	}, handler)
@@ -422,7 +436,10 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	handler = onlyVisitorPaths(customers.Authenticate, handler)
 	handler = withStorefrontRequestBudget(handler)
 	handler = crossOriginProtection(handler, cfg.StoreMap.Enabled())
-	handler = securityHeaders(handler, policyWith(cfg.StoreMap.Origin()))
+	// Before routing and before every middleware that reads the request, so no
+	// path value or query value PostgreSQL refuses reaches a query.
+	handler = web.RefuseUnstorableText(handler, secureCookies)
+	handler = securityHeaders(handler, policyWith(cfg.StoreMap.Origin()), secureCookies)
 	handler = web.Compress(handler)
 	return withRequestTracing(handler, log)
 }
@@ -510,12 +527,25 @@ func validRequestID(s string) bool {
 	return true
 }
 
-func securityHeaders(next http.Handler, policy string) http.Handler {
+// strictTransportSecurity tells a browser that has reached goen over https to
+// use nothing else for a year, on this host and its subdomains, so a network
+// that rewrites an http:// link cannot keep a visitor in cleartext to read a
+// password, a second-factor code or an address. preload is left to the owner:
+// it is hard to undo.
+const strictTransportSecurity = "max-age=31536000; includeSubDomains"
+
+// securityHeaders sets what every response carries. HSTS goes only with secure
+// cookies: development serves plain http, and a browser that once saw the
+// header on localhost would refuse http there for a year.
+func securityHeaders(next http.Handler, policy string, secure bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h := w.Header()
 		h.Set("Content-Security-Policy", policy)
 		h.Set("X-Content-Type-Options", "nosniff")
 		h.Set("Referrer-Policy", "strict-origin-when-cross-origin")
+		if secure {
+			h.Set("Strict-Transport-Security", strictTransportSecurity)
+		}
 		if speculates(r) {
 			h.Set("Speculation-Rules", `"`+assets.URL(assets.SpeculationRules)+`"`)
 		}
@@ -572,7 +602,26 @@ func clearSpeculations(next http.HandlerFunc) http.HandlerFunc {
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
 			// Only on a write. On a page response this would throw away the
 			// speculations the visitor's own browsing has just earned.
-			w.Header().Set("Clear-Site-Data", `"prefetchCache", "prerenderCache"`)
+			w.Header().Set("Clear-Site-Data", speculationCaches)
+		}
+		next(w, r)
+	}
+}
+
+// speculationCaches are the Clear-Site-Data directives clearSpeculations sends.
+const speculationCaches = `"prefetchCache", "prerenderCache"`
+
+// clearCache is sign-out's addition to clearSpeculations: it asks the browser
+// to empty this site's cache as the session ends. withNoStore is what keeps a
+// signed-in page out of the caches; this is the second line, for a page a
+// browser kept regardless. It is sign-out's alone because it discards every
+// cached asset too, which the visitor then downloads again. Its value repeats
+// the speculation directives, so the header is complete whichever wrapper sets
+// it last.
+func clearCache(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+			w.Header().Set("Clear-Site-Data", `"cache", `+speculationCaches)
 		}
 		next(w, r)
 	}
@@ -842,6 +891,49 @@ func withStaffEntrance(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r.WithContext(layouts.WithStaff(r.Context(), true)))
 	})
+}
+
+// unstoredPrefixes own pages that carry one visitor's data or a secret whoever
+// asks for them: the account, an order and the link that opens it, the cart and
+// the checkout, the back office, and every page a mailed token opens. /returns
+// and /payment are policy pages and stay cacheable; an order's own return and
+// pay pages live under /orders.
+var unstoredPrefixes = []string{
+	"/account", "/admin", "/orders", "/cart", "/checkout",
+	"/signin", "/register", "/forgot", "/reset", "/verify", "/newsletter", "/auth",
+}
+
+// withNoStore keeps every cache, the browser's back/forward cache included,
+// from holding a response that belongs to one visitor. Otherwise the Back
+// button on a shared computer shows the next person an account page, a
+// customer list or a second-factor seed after the owner has signed out.
+//
+// It runs inside Authenticate, because anything rendered for a signed-in
+// visitor is theirs. An anonymous visitor's catalogue page is left alone, so
+// it still returns instantly with the Back button. The answer to a write is
+// never stored either, because a refused form comes back with what was typed.
+func withNoStore(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if unstored(r) {
+			w.Header().Set("Cache-Control", "no-store")
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func unstored(r *http.Request) bool {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		return true
+	}
+	if _, signedIn := account.FromContext(r.Context()); signedIn {
+		return true
+	}
+	for _, prefix := range unstoredPrefixes {
+		if r.URL.Path == prefix || strings.HasPrefix(r.URL.Path, prefix+"/") {
+			return true
+		}
+	}
+	return false
 }
 
 // navPath reports whether a path renders the storefront header.

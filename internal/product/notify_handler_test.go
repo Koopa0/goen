@@ -55,3 +55,31 @@ func postNotify(t *testing.T, h *Handler, remoteAddr, addr string) *httptest.Res
 	h.Notify(w, req)
 	return w
 }
+
+// An IPv6 client chooses the low 64 bits of its address freely, so a limit keyed
+// on the whole address is no limit.
+func TestNotifyBurstIsSharedByAWholeIPv6Slash64(t *testing.T) {
+	h := NewHandler(&Store{}, slog.New(slog.DiscardHandler), "https://goen.example")
+	const burst = 5
+
+	for i := range burst {
+		// A different address in one /64 each time.
+		ip := "[2001:db8:1:2::" + strconv.Itoa(i+1) + "]:54321"
+		w := postNotify(t, h, ip, "wait-"+strconv.Itoa(i)+"@example.com")
+		if w.Code != http.StatusSeeOther {
+			t.Fatalf("request %d status = %d, want 303; the limiter spent the burst before the test reached it",
+				i+1, w.Code)
+		}
+	}
+
+	refused := postNotify(t, h, "[2001:db8:1:2:aaaa:bbbb:cccc:dddd]:54321", "one-more@example.com")
+	if refused.Code != http.StatusTooManyRequests {
+		t.Fatalf("burst+1 from a new address in the same /64 status = %d, want 429; "+
+			"rotating the low bits bought a fresh allowance", refused.Code)
+	}
+
+	other := postNotify(t, h, "[2001:db8:1:3::1]:54321", "other-net@example.com")
+	if other.Code != http.StatusSeeOther {
+		t.Errorf("another /64 status = %d, want 303; it shared a bucket", other.Code)
+	}
+}

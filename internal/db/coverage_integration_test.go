@@ -5,6 +5,7 @@ package db_test
 import (
 	"context"
 	"errors"
+	"maps"
 	"os"
 	"regexp"
 	"slices"
@@ -512,69 +513,161 @@ func hasTablePriv(t *testing.T, role, table, priv string) bool {
 // TestReportingCannotReadCredentialsOrPII is the only counterweight to GRANT SELECT ON ALL
 // TABLES TO reporting: every other privilege guard asks about a write, or asserts positively
 // that a role CAN read, which cannot fail on a grant that is too wide.
+//
+// It asks of every COLUMN whose type can hold words, not of column names: what a customer
+// typed is called customer_note on an order and reason on a return, and no pattern over names
+// refuses either. A column readable here and absent from the list fails until somebody has
+// read it and decided it is business data.
 func TestReportingCannotReadCredentialsOrPII(t *testing.T) {
-	// An entry here is a claim somebody read the table and meant it.
-	allowed := map[string]string{
-		"order_events":  "a status timeline: no contact detail, and the note is the shop's own words",
-		"audit_events":  "the back-office trail, which records WHO acted and never what a customer wrote",
-		"media_objects": "image bytes and their digests; 'digest' matches the pattern and is content addressing",
+	const (
+		published   = "copy the shop publishes on the storefront"
+		shopWords   = "bookkeeping in the shop's own words and closed vocabularies"
+		customerPub = "written by a customer to be published on the product page"
+	)
+	// An entry here is a claim somebody read the column and meant it.
+	readable := map[string]reportingText{
+		"audit_events": {[]string{"action", "after", "before", "entity_table", "request_id"},
+			"the back-office trail, which records WHO acted and never what a customer wrote"},
+		"brands":     {[]string{"name", "slug"}, published},
+		"categories": {[]string{"icon_key", "name", "name_en", "slug"}, published},
+		"checkout_attempts": {[]string{"idempotency_key"},
+			"a server-issued replay key, which opens nothing without the cart cookie it is bound to"},
+		"coupons": {[]string{"code", "description", "kind"}, published},
+		"faq_entries": {[]string{"answer", "answer_en", "category", "category_en",
+			"question", "question_en"}, published},
+		"hero_slides": {[]string{"body", "body_en", "eyebrow", "eyebrow_en", "headline",
+			"headline_en", "image_alt", "image_alt_en", "image_key", "primary_cta_href",
+			"primary_cta_label", "primary_cta_label_en", "secondary_cta_href",
+			"secondary_cta_label", "secondary_cta_label_en"}, published},
+		"inventory_movements":    {[]string{"idempotency_key", "reason", "source_type"}, shopWords},
+		"inventory_reservations": {[]string{"state"}, shopWords},
+		"invoice_document_lines": {[]string{"description", "tax_type"},
+			"what a 統一發票 itemised: the catalogue snapshot and a closed vocabulary"},
+		"invoice_documents": {[]string{"kind", "number", "provider_ref", "request_key", "status"},
+			"the filed document's numbers and state; the buyer's identity is in invoice_preferences"},
+		"loyalty_entries": {[]string{"idempotency_key", "kind", "reason"}, shopWords},
+		"media_objects": {[]string{"bytes", "content_type", "digest"},
+			"catalogue images, content-addressed by their digest"},
+		"membership_tiers":  {[]string{"code", "name", "name_en"}, published},
+		"newsletter_issues": {[]string{"body", "subject"}, "what the shop mailed to its list"},
+		"order_events": {[]string{"kind"},
+			"a status timeline in a closed vocabulary; the note staff type is withheld"},
+		"order_lines": {[]string{"product_name", "sku", "variant_label", "warranty_note"},
+			"the catalogue snapshot taken at purchase"},
+		"order_refunds":   {[]string{"order_number"}, "the number a customer quotes to support"},
+		"order_shipments": {[]string{"carrier", "tracking_number"}, "the carrier's parcel reference"},
+		"orders": {[]string{"currency", "fulfillment_status", "locale", "order_number",
+			"shipping_method_code", "shipping_method_name"},
+			"closed vocabularies, the order number and the shipping snapshot; the staff note is withheld"},
+		"payments": {[]string{"card_brand", "card_last4", "currency", "provider", "provider_ref", "status"},
+			"the provider's references, and a card brand and last four, which identify nobody"},
+		"product_answers":       {[]string{"body"}, "published under the question it answers"},
+		"product_images":        {[]string{"alt_text", "alt_text_en", "storage_key"}, published},
+		"product_option_values": {[]string{"swatch_hex", "value", "value_en"}, published},
+		"product_options":       {[]string{"name", "name_en"}, published},
+		"product_questions":     {[]string{"body"}, customerPub},
+		"product_reviews":       {[]string{"body", "title"}, customerPub},
+		"product_specs":         {[]string{"label", "label_en", "value", "value_en"}, published},
+		"product_variants":      {[]string{"sku"}, published},
+		"products": {[]string{"description", "description_en", "name", "name_en", "slug",
+			"status", "summary", "summary_en", "warranty_note"}, published},
+		"promo_banners": {[]string{"code", "cta_href", "cta_label", "cta_label_en", "message",
+			"message_en", "message_short", "message_short_en"}, published},
+		"refunds": {[]string{"provider_ref", "reason", "request_key", "status"},
+			"the provider's references; the reason is the shop's resolution, not the customer's"},
+		"return_eligibility_assessments": {[]string{"basis"}, "the staff member's own assessment"},
+		"return_eligibility_facts": {[]string{"accessories_complete", "packaging_complete",
+			"policy_window", "unused"}, shopWords},
+		"return_request_lines": {[]string{"inspection_note"}, "what the shop found in the parcel"},
+		"return_requests": {[]string{"resolution", "status"},
+			"the shop's decision; the customer's own reason is withheld"},
+		"sale_campaigns":           {[]string{"slug", "title", "title_en"}, published},
+		"shipping_method_versions": {[]string{"carrier", "carrier_en", "name", "name_en"}, published},
+		"shipping_methods":         {[]string{"code", "destination_kind"}, published},
+		"shipping_zone_prefixes":   {[]string{"prefix"}, published},
+		"shipping_zones":           {[]string{"code", "name", "name_en"}, published},
+		"store_credit_entries":     {[]string{"idempotency_key", "reason"}, shopWords},
+		"visible_reviews":          {[]string{"body", "title"}, customerPub},
+		"warranty_registrations": {[]string{"serial_number"},
+			"the manufacturer's number on the unit, which the privacy policy retains"},
 	}
 
 	rows, err := schemaPool(t).Query(t.Context(), `
-		SELECT DISTINCT c.table_name
-		FROM information_schema.columns c
-		JOIN information_schema.tables t
-		  ON t.table_schema = c.table_schema AND t.table_name = c.table_name
-		WHERE c.table_schema = 'public'
-		  AND t.table_type = 'BASE TABLE'
-		  AND (c.column_name ~ '(token|secret|password|digest|payload)'
-		       OR c.column_name LIKE '%\_hash'
-		       OR c.column_name IN ('email', 'phone', 'street', 'full_name',
-		                            'recipient_name', 'pickup_store_code', 'tax_id'))
-		ORDER BY 1`)
+		SELECT c.relname, a.attname, format_type(a.atttypid, a.atttypmod)
+		FROM pg_attribute a
+		JOIN pg_class c ON c.oid = a.attrelid
+		JOIN pg_type ty ON ty.oid = a.atttypid
+		WHERE c.relnamespace = 'public'::regnamespace
+		  AND c.relkind IN ('r', 'p', 'v', 'm', 'f')
+		  AND a.attnum > 0 AND NOT a.attisdropped
+		  AND has_column_privilege('reporting', c.oid, a.attnum, 'SELECT')
+		  -- A number, a truth value, a moment, an enum label or a uuid cannot carry a
+		  -- sentence; text, JSON, bytes, arrays and every other type can.
+		  AND ty.typcategory NOT IN ('N', 'B', 'D', 'T', 'E')
+		  AND a.atttypid <> 'uuid'::regtype
+		ORDER BY 1, 2`)
 	if err != nil {
 		t.Fatalf("read the catalog: %v", err)
 	}
 	defer rows.Close()
 
-	var sensitive []string
+	seen := map[string]bool{}
 	for rows.Next() {
-		var name string
-		if err := rows.Scan(&name); err != nil {
+		var table, column, typ string
+		if err := rows.Scan(&table, &column, &typ); err != nil {
 			t.Fatalf("scan: %v", err)
 		}
-		sensitive = append(sensitive, name)
+		seen[table+"."+column] = true
+		if entry, ok := readable[table]; ok && slices.Contains(entry.columns, column) {
+			continue
+		}
+		t.Errorf("reporting may SELECT %s.%s (%s), which can hold whatever a customer "+
+			"typed or a credential, and nobody has said it is business data. A read-only "+
+			"dashboard role is the one most likely to be pointed at a BI tool, a notebook "+
+			"or a contractor; it reads aggregates, not people. Revoke it from reporting in "+
+			"migrations/001, granting the table's other columns by name as orders does, "+
+			"or name it in this test with the reason.", table, column, typ)
 	}
 	if err := rows.Err(); err != nil {
 		t.Fatalf("iterate: %v", err)
 	}
-	if len(sensitive) == 0 {
-		t.Fatal("the catalog reported no table holding a credential or a contact " +
-			"detail, which cannot be true of this schema — the query has stopped " +
-			"matching and this guard is asserting nothing")
+	if len(seen) < 100 {
+		t.Fatalf("the catalog reported %d columns reporting can read that hold words, "+
+			"which cannot be true of this schema — the query has stopped matching and "+
+			"this guard is asserting nothing", len(seen))
 	}
 
-	for _, table := range sensitive {
-		if why, ok := allowed[table]; ok {
-			t.Logf("%s is allowed: %s", table, why)
-			continue
-		}
-		if hasTablePriv(t, "reporting", table, "SELECT") {
-			t.Errorf("reporting may SELECT %s, which holds a credential or a "+
-				"customer's contact details. A read-only dashboard role is the one "+
-				"most likely to be pointed at a BI tool, a notebook or a contractor; "+
-				"it reads aggregates, not secrets. Add it to the REVOKE SELECT list "+
-				"in migrations/001, or to this test's allowlist with a reason.", table)
+	for _, table := range slices.Sorted(maps.Keys(readable)) {
+		entry := readable[table]
+		for _, column := range entry.columns {
+			if !seen[table+"."+column] {
+				t.Errorf("this test names %s.%s (%s), which reporting cannot read or which "+
+					"no longer holds words. Remove the entry: a list that stops describing "+
+					"the grants hides the next column it should have refused.",
+					table, column, entry.why)
+			}
 		}
 	}
 
 	// The control: a blanket revoke would satisfy every assertion above.
-	if !hasTablePriv(t, "reporting", "orders", "SELECT") {
-		t.Error("reporting cannot read orders; there is no dashboard left to build")
+	for _, c := range []struct{ table, column string }{
+		{"orders", "placed_at"},
+		{"orders", "discount_cents"},
+		{"return_requests", "goods_refund_cents"},
+		{"committed_orders", "id"},
+	} {
+		if !roleHasColumnPriv(t, "reporting", c.table, c.column, "SELECT") {
+			t.Errorf("reporting cannot read %s.%s; there is no dashboard left to build",
+				c.table, c.column)
+		}
 	}
-	if !hasTablePriv(t, "reporting", "committed_orders", "SELECT") {
-		t.Error("reporting cannot read committed_orders, which every report joins")
-	}
+}
+
+// reportingText is the columns of one relation that reporting may read and that can hold
+// words, with the reason none of them is a person.
+type reportingText struct {
+	columns []string
+	why     string
 }
 
 // TestAppendOnlyTablesDenyUpdateDelete requires every table a forbid_change trigger declares

@@ -2,11 +2,21 @@ package main
 
 import (
 	"bytes"
+	"context"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"log/slog"
+	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/koopa0/goen/internal/email"
+	"github.com/koopa0/goen/internal/outbox"
 )
 
 const validTOTPKey = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
@@ -233,6 +243,35 @@ func TestProductionPostureRefusesAnUnsafeBaseURL(t *testing.T) {
 	}
 }
 
+// TestAListenAddressWithNoHostIsNotGuessedAsTheOrigin: ":9701" is the usual Go
+// listen address, and "http://" + it would put a host-less origin in every
+// Stripe return URL, emailed link and sitemap location.
+func TestAListenAddressWithNoHostIsNotGuessedAsTheOrigin(t *testing.T) {
+	t.Setenv("GOEN_DATABASE_URL", "postgres://store.example/goen")
+	t.Setenv("GOEN_LOG_LEVEL", "info")
+	t.Setenv("GOEN_INSECURE_COOKIES", "1")
+	t.Setenv("GOEN_BASE_URL", "")
+
+	for _, addr := range []string{":9701", "0.0.0.0:9701", "[::]:9701"} {
+		t.Run(addr, func(t *testing.T) {
+			t.Setenv("GOEN_ADDR", addr)
+			cfg, err := loadConfig()
+			if err != nil {
+				t.Fatalf("loadConfig: %v", err)
+			}
+			err = cfg.prepareRuntimePosture(slog.New(slog.DiscardHandler))
+			if err == nil {
+				t.Fatalf("GOEN_ADDR=%s started with the origin %q", addr, cfg.BaseURL)
+			}
+			for _, want := range []string{"GOEN_ADDR", "GOEN_BASE_URL"} {
+				if !strings.Contains(err.Error(), want) {
+					t.Errorf("refusal does not name %s: %v", want, err)
+				}
+			}
+		})
+	}
+}
+
 // TestPostureReportsTheFirstBrokenDependency holds the mandated diagnostic
 // order: TOTP, then SMTP, then the origin. A later arm must never hide the
 // first configuration mistake.
@@ -254,6 +293,98 @@ func TestPostureReportsTheFirstBrokenDependency(t *testing.T) {
 				t.Errorf("prepareRuntimePosture error = %v, want %q", err, tt.want)
 			}
 		})
+	}
+}
+
+// TestATrustListNoPeerOfTheListenerCanMatchIsRefused keeps a proxy list from
+// starting that believes nobody. A loopback listener is reached only from this
+// host's loopback, so a list without a loopback address never reads
+// X-Forwarded-For, and every visitor shares the proxy's one rate-limit bucket.
+// Where the listener's peers cannot be known, nothing is refused.
+func TestATrustListNoPeerOfTheListenerCanMatchIsRefused(t *testing.T) {
+	t.Parallel()
+
+	const private = "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
+	for _, tt := range []struct {
+		name    string
+		addr    string
+		trusted string
+		refused bool
+	}{
+		{name: "IPv4 loopback, private networks only", addr: "127.0.0.1:9700", trusted: private, refused: true},
+		{name: "IPv4 loopback, IPv6 loopback only", addr: "127.0.0.1:9700", trusted: "::1", refused: true},
+		{name: "IPv4 loopback, same-host proxy", addr: "127.0.0.1:9700", trusted: "127.0.0.1,::1"},
+		{name: "IPv4 loopback, the loopback network", addr: "127.0.0.2:9700", trusted: "127.0.0.0/8"},
+		{name: "IPv4 loopback, a mapped spelling", addr: "[::ffff:127.0.0.1]:9700", trusted: "127.0.0.1"},
+		{name: "IPv6 loopback, IPv4 loopback only", addr: "[::1]:9700", trusted: "127.0.0.1", refused: true},
+		{name: "IPv6 loopback, same-host proxy", addr: "[::1]:9700", trusted: "::1"},
+		{name: "localhost, private networks only", addr: "localhost:9700", trusted: private, refused: true},
+		{name: "localhost, IPv6 loopback only", addr: "localhost:9700", trusted: "::1", refused: true},
+		{name: "localhost, IPv4 loopback", addr: "localhost:9700", trusted: "127.0.0.1"},
+		{name: "localhost in capitals, same-host proxy", addr: "LOCALHOST:9700", trusted: "127.0.0.1,::1"},
+		{name: "every interface", addr: ":9700", trusted: private},
+		{name: "IPv4 wildcard", addr: "0.0.0.0:9700", trusted: private},
+		{name: "IPv6 wildcard", addr: "[::]:9700", trusted: private},
+		{name: "an interface address", addr: "10.0.0.5:9700", trusted: private},
+		{name: "a host name", addr: "goen.internal:9700", trusted: "127.0.0.1"},
+		{name: "loopback with nothing trusted keeps the warning", addr: "127.0.0.1:9700", trusted: ""},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := config{Addr: tt.addr, TrustedProxies: tt.trusted, SecureCookies: true}
+			proxies, err := cfg.trustedProxies(slog.New(slog.DiscardHandler))
+			if !tt.refused {
+				if err != nil {
+					t.Fatalf("GOEN_ADDR=%s GOEN_TRUSTED_PROXIES=%q refused: %v", tt.addr, tt.trusted, err)
+				}
+				if proxies == nil {
+					t.Fatal("accepted without a proxy set")
+				}
+				return
+			}
+			if err == nil {
+				t.Fatalf("GOEN_ADDR=%s GOEN_TRUSTED_PROXIES=%q started; no peer of that "+
+					"listener is trusted, so every visitor shares one bucket", tt.addr, tt.trusted)
+			}
+			for _, want := range []string{"GOEN_TRUSTED_PROXIES", "GOEN_ADDR", "127.0.0.1,::1"} {
+				if !strings.Contains(err.Error(), want) {
+					t.Errorf("refusal %q does not name %s", err, want)
+				}
+			}
+		})
+	}
+}
+
+// TestTheDemoManifestTrustsItsOwnProxy runs the deployment template's pair
+// through the same startup check, so the template cannot drift back into a
+// list its listener never meets.
+func TestTheDemoManifestTrustsItsOwnProxy(t *testing.T) {
+	t.Parallel()
+
+	raw, err := os.ReadFile(filepath.Join("..", "..", "deploy", "demo", "manifest.env"))
+	if err != nil {
+		t.Fatalf("read the demo manifest: %v", err)
+	}
+	values := map[string]string{}
+	for line := range strings.SplitSeq(string(raw), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		if name, value, ok := strings.Cut(line, "="); ok {
+			values[name] = value
+		}
+	}
+	cfg := config{
+		Addr: values["GOEN_ADDR"], TrustedProxies: values["GOEN_TRUSTED_PROXIES"], SecureCookies: true,
+	}
+	if cfg.Addr == "" || cfg.TrustedProxies == "" {
+		t.Fatalf("the manifest sets GOEN_ADDR=%q and GOEN_TRUSTED_PROXIES=%q; TLS terminates "+
+			"in front of the demo, so both must be set", cfg.Addr, cfg.TrustedProxies)
+	}
+	if _, err := cfg.trustedProxies(slog.New(slog.DiscardHandler)); err != nil {
+		t.Errorf("the demo manifest would not start: %v", err)
 	}
 }
 
@@ -314,4 +445,96 @@ func TestAMalformedSMTPAddressIsFatalAndNeverTheLogSender(t *testing.T) {
 	if _, ok := unauthenticated.(email.SMTPSender); !ok {
 		t.Errorf("unauthenticated sender = %T, want SMTPSender", unauthenticated)
 	}
+}
+
+// TestEveryTopicGoenEnqueuesHasAHandler: a message whose topic has no handler is
+// rescheduled for ever and fails nothing, so the mail it stands for silently
+// never leaves. The topics are read from the outbox package's source, so one is
+// held from the day it is declared rather than from the day somebody lists it.
+func TestEveryTopicGoenEnqueuesHasAHandler(t *testing.T) {
+	t.Parallel()
+
+	idle, err := pgxpool.New(t.Context(), "postgres://unused:unused@127.0.0.1:1/unused?sslmode=disable")
+	if err != nil {
+		t.Fatalf("open an unused pool: %v", err)
+	}
+	t.Cleanup(idle.Close)
+	log := slog.New(slog.DiscardHandler)
+	messages := newMessageStore(workerDeps{pool: idle, admin: idle, maintenance: idle, log: log})
+
+	topics := declaredTopics(t)
+	if len(topics) < 13 {
+		t.Fatalf("read %d topics from internal/outbox, want at least 13; the source scan is not "+
+			"seeing the constants, and the check below would pass on nothing", len(topics))
+	}
+	for name, topic := range topics {
+		if !handled(t, messages, topic) {
+			t.Errorf("outbox.%s (%q) has no handler in newMessageStore; every message on it is "+
+				"rescheduled for ever", name, topic)
+		}
+	}
+}
+
+// declaredTopics is every outbox.Topic* constant, by name, with its value.
+func declaredTopics(t *testing.T) map[string]string {
+	t.Helper()
+	files, err := filepath.Glob(filepath.Join("..", "..", "internal", "outbox", "*.go"))
+	if err != nil {
+		t.Fatalf("list internal/outbox: %v", err)
+	}
+	topics := map[string]string{}
+	fset := token.NewFileSet()
+	for _, path := range files {
+		if strings.HasSuffix(path, "_test.go") {
+			continue
+		}
+		file, err := parser.ParseFile(fset, path, nil, 0)
+		if err != nil {
+			t.Fatalf("parse %s: %v", path, err)
+		}
+		for _, decl := range file.Decls {
+			gen, ok := decl.(*ast.GenDecl)
+			if !ok || gen.Tok != token.CONST {
+				continue
+			}
+			for _, spec := range gen.Specs {
+				value, ok := spec.(*ast.ValueSpec)
+				if !ok {
+					continue
+				}
+				for i, name := range value.Names {
+					if !strings.HasPrefix(name.Name, "Topic") || i >= len(value.Values) {
+						continue
+					}
+					lit, ok := value.Values[i].(*ast.BasicLit)
+					if !ok || lit.Kind != token.STRING {
+						t.Fatalf("outbox.%s is not a string literal; read it some other way", name.Name)
+					}
+					topic, err := strconv.Unquote(lit.Value)
+					if err != nil {
+						t.Fatalf("outbox.%s: %v", name.Name, err)
+					}
+					topics[name.Name] = topic
+				}
+			}
+		}
+	}
+	return topics
+}
+
+// handled reports whether messages already has a handler for topic, by asking
+// for a second one: outbox refuses a duplicate registration by panicking.
+func handled(t *testing.T, messages *outbox.Store, topic string) (registered bool) {
+	t.Helper()
+	defer func() {
+		if r := recover(); r != nil {
+			msg, ok := r.(string)
+			if !ok || !strings.Contains(msg, "duplicate handler") {
+				t.Fatalf("registering %q panicked for another reason: %v", topic, r)
+			}
+			registered = true
+		}
+	}()
+	messages.Handle(topic, func(context.Context, []byte) error { return nil })
+	return false
 }

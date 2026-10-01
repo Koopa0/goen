@@ -78,6 +78,15 @@ func TestAnImageWithoutAltTextIsRefused(t *testing.T) {
 		t.Errorf("a complete slide was refused: %v", errs)
 	}
 
+	// Before it is stored: the handler checks the copy first, so a refusal
+	// leaves no image behind.
+	chosen := &HeroForm{
+		Headline: "標題", PrimaryLabel: "去", PrimaryHref: "/deals", ImageChosen: true,
+	}
+	if _, refused := chosen.Validate(t.Context())["alt"]; !refused {
+		t.Error("a chosen image with no alt text was accepted before it was stored")
+	}
+
 	noImage := &HeroForm{Headline: "標題", PrimaryLabel: "去", PrimaryHref: "/deals"}
 	if errs := noImage.Validate(t.Context()); len(errs) > 0 {
 		t.Errorf("a slide with no image was refused: %v", errs)

@@ -108,6 +108,30 @@ var (
 			"ignore this message — nothing about your password changes.",
 	})
 
+	KeyMailAccountExistsSubject = key("mail.exists.subject", Message{
+		ZhHant: "你已經有 goen 帳號了",
+		En:     "You already have a goen account",
+	})
+	KeyMailAccountExistsBody = key("mail.exists.body", Message{
+		ZhHant: "有人用這個信箱在 goen 註冊,但這個信箱已經有帳號了,所以沒有建立新的帳號。\n\n如果是你,直接登入就可以:\n%s\n\n忘記密碼的話,在這裡重設:\n%s\n\n如果這不是你,不用理會這封信 —— 你的帳號沒有任何改變。",
+		En: "Somebody tried to create a goen account with this address. It already has " +
+			"one, so no new account was made.\n\nIf that was you, sign in here:\n%s\n\n" +
+			"If you have forgotten the password, reset it here:\n%s\n\nIf it was not " +
+			"you, ignore this message — nothing about your account has changed.",
+	})
+	KeyMailAddressInUseSubject = key("mail.inuse.subject", Message{
+		ZhHant: "有人要求使用你的 goen 信箱",
+		En:     "Somebody asked to use your goen address",
+	})
+	KeyMailAddressInUseBody = key("mail.inuse.body", Message{
+		ZhHant: "有人要求把另一個 goen 帳號的信箱改成這個信箱。這個信箱已經屬於你的帳號,所以沒有任何帳號被改動。\n\n如果是你,直接用這個信箱登入就可以:\n%s\n\n忘記密碼的話,在這裡重設:\n%s\n\n如果這不是你,不用理會這封信 —— 你的帳號沒有任何改變。",
+		En: "Somebody asked to move another goen account to this address. It already " +
+			"belongs to your account, so no account was changed.\n\nIf that was you, sign " +
+			"in with this address here:\n%s\n\nIf you have forgotten the password, reset " +
+			"it here:\n%s\n\nIf it was not you, ignore this message — nothing about your " +
+			"account has changed.",
+	})
+
 	KeyMailNewsConfirmSubject = key("mail.news.confirm.subject", Message{
 		ZhHant: "確認訂閱 goen 電子報",
 		En:     "Confirm your goen newsletter subscription",
@@ -135,14 +159,30 @@ var (
 		En:     "Not interested any more? Unsubscribe here:\n%s",
 	})
 
+	KeyMailRegisterSubject = key("mail.register.subject", Message{
+		ZhHant: "完成 goen 註冊",
+		En:     "Finish creating your goen account",
+	})
+	KeyMailRegisterBody = key("mail.register.body", Message{
+		ZhHant: "有人用這個信箱在 goen 註冊了帳號。\n\n如果是你,點下面的連結,輸入你註冊時設定的密碼,就完成註冊,兩天內有效:\n%s\n\n如果不是你,不用理會這封信 —— 沒有那組密碼,這個帳號就無法完成註冊。想用這個信箱在 goen 購物,請用「忘記密碼」重新設定一組,帳號就是你的。",
+		En: "Somebody registered a goen account with this address.\n\nIf that was you, " +
+			"follow this link and enter the password you chose to finish. It works for " +
+			"two days:\n%s\n\nIf it was not you, ignore this message — without that " +
+			"password the account cannot be finished. To use this address at goen " +
+			"yourself, choose a new password on the forgotten-password page and the " +
+			"account is yours.",
+	})
+
 	KeyMailVerifySubject = key("mail.verify.subject", Message{
-		ZhHant: "確認你的 goen 電子郵件",
-		En:     "Confirm your goen email address",
+		ZhHant: "你要求把 goen 帳號的信箱改成這個嗎?",
+		En:     "Did you ask to use this address for your goen account?",
 	})
 	KeyMailVerifyBody = key("mail.verify.body", Message{
-		ZhHant: "請確認 %s 是你的信箱。\n\n點下面的連結完成確認,兩天內有效:\n%s\n\n如果這不是你要求的,不用理會這封信 —— 你的帳號和目前的信箱都不會改變。",
-		En: "Please confirm that %s is your address.\n\nFollow this link to finish. It " +
-			"works for two days:\n%s\n\nIf you did not ask for this, ignore this " +
-			"message — nothing about your account or its current address changes.",
+		ZhHant: "有人要求把一個 goen 帳號的信箱改成 %s。\n\n如果是你,請先登入提出要求的那個帳號,再點下面的連結確認,兩天內有效:\n%s\n\n如果不是你,請不要點這個連結,直接忽略這封信 —— 只有提出要求的帳號登入後確認,信箱才會改變;你自己的帳號不會有任何改變。",
+		En: "Somebody asked to move a goen account to %s.\n\nIf that was you, sign in to " +
+			"that account and follow this link to confirm. It works for two days:\n%s\n\n" +
+			"If it was not you, do not follow the link; ignore this message. The address " +
+			"moves only when the account that asked confirms it, signed in, and nothing " +
+			"about any account of yours changes.",
 	})
 )

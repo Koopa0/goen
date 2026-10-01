@@ -83,11 +83,6 @@ var (
 		En:     "Confirmation sent. Follow the link in it to finish.",
 	})
 
-	KeyEmailTakenNotice = key("account.notice.email.taken", Message{
-		ZhHant: "這個信箱已經有人使用。",
-		En:     "That address is already in use.",
-	})
-
 	KeyEmailInvalidNotice = key("account.notice.email.invalid", Message{
 		ZhHant: "信箱格式看起來不正確。",
 		En:     "That does not look like an email address.",

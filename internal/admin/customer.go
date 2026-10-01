@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -28,7 +29,7 @@ func (s *Store) Customers(ctx context.Context, term string, after ...string) (pa
 	view.Searched = true
 
 	rows, err := s.q.AdminSearchCustomers(ctx, db.AdminSearchCustomersParams{HasCursor: cursor.Valid, AfterAt: cursor.At, AfterID: cursor.ID,
-		Term: term, RowLimit: PageLimit,
+		EscapedTerm: catalog.EscapeLike(term), RowLimit: PageLimit,
 	})
 	if err != nil {
 		return pages.AdminCustomersView{}, fmt.Errorf("search customers: %w", err)

@@ -6,9 +6,13 @@ package web
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
+	"strings"
+	"unicode/utf8"
 
 	"github.com/a-h/templ"
 )
@@ -17,14 +21,40 @@ import (
 // memory before anything can reject it; goen's largest form is 2,000 runes.
 const MaxFormBytes = 64 << 10
 
+// ErrFormText is a form with a name or value PostgreSQL cannot store as text:
+// bytes that are not UTF-8, or a NUL, which is valid UTF-8 yet refused the
+// same way. No browser sends either, the field validators count runes and
+// would pass them, and the INSERT that reached PostgreSQL would answer 500.
+var ErrFormText = errors.New("web: form carries text that cannot be stored")
+
 // ParseForm reads a bounded form body, so no handler calls r.ParseForm directly
-// and forgets the limit.
+// and forgets the limit, and refuses a form CheckFormText refuses.
 func ParseForm(w http.ResponseWriter, r *http.Request) error {
 	r.Body = http.MaxBytesReader(w, r.Body, MaxFormBytes)
 	if err := r.ParseForm(); err != nil {
 		return fmt.Errorf("parse form: %w", err)
 	}
+	return CheckFormText(r.Form)
+}
+
+// CheckFormText answers ErrFormText for a parsed form, the query included, with
+// a name or value that is not storable text.
+func CheckFormText(form url.Values) error {
+	for name, values := range form {
+		if !storableText(name) {
+			return ErrFormText
+		}
+		for _, v := range values {
+			if !storableText(v) {
+				return ErrFormText
+			}
+		}
+	}
 	return nil
+}
+
+func storableText(s string) bool {
+	return utf8.ValidString(s) && !strings.ContainsRune(s, 0)
 }
 
 // IsHTMX reports whether htmx issued this request. Its absence means a plain

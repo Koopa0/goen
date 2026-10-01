@@ -64,13 +64,43 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
+// register makes an account the way the registration form does, up to the
+// mailed link: the account exists and holds the password, and its address is
+// unproved. The queued follow-up is marked delivered, because a fixture has no
+// worker to send it.
 func register(t *testing.T, s *account.Store, email string) account.User {
 	t.Helper()
-	u, err := s.Register(t.Context(), &account.Credentials{
+	if err := s.Register(t.Context(), &account.Credentials{
 		Email: email, Password: "a sufficiently long password", Name: "測試",
-	})
-	if err != nil {
+	}, "/account"); err != nil {
 		t.Fatalf("register %s: %v", email, err)
+	}
+	var id uuid.UUID
+	var u account.User
+	if err := pool.QueryRow(t.Context(), `
+		SELECT id, email, coalesce(full_name, ''), role
+		FROM users WHERE lower(email) = lower($1)`, email).
+		Scan(&id, &u.Email, &u.Name, &u.Role); err != nil {
+		t.Fatalf("read the account registered for %s: %v", email, err)
+	}
+	u.ID = id.String()
+	if _, err := pool.Exec(t.Context(), `
+		UPDATE outbox_messages SET delivered_at = now()
+		WHERE topic = $1 AND payload->>'user_id' = $2 AND delivered_at IS NULL`,
+		outbox.TopicRegistration, u.ID); err != nil {
+		t.Fatalf("settle the registration follow-up for %s: %v", email, err)
+	}
+	return u
+}
+
+// registerProved is a completed registration: register, then what following
+// the mailed link does to the account. A password signs into nothing less.
+func registerProved(t *testing.T, s *account.Store, email string) account.User {
+	t.Helper()
+	u := register(t, s, email)
+	if _, err := pool.Exec(t.Context(),
+		`UPDATE users SET email_verified_at = now() WHERE id = $1`, uuid.MustParse(u.ID)); err != nil {
+		t.Fatalf("prove the address of %s: %v", email, err)
 	}
 	return u
 }
@@ -289,15 +319,25 @@ func TestAnOverLongPasswordIsAlwaysBadCredentials(t *testing.T) {
 // The unique index is on lower(email).
 func TestAuthenticateIsCaseInsensitiveOnEmail(t *testing.T) {
 	s := account.NewStore(pool)
-	register(t, s, "Mixed@Example.com")
+	registerProved(t, s, "Mixed@Example.com")
 
 	if _, err := s.Authenticate(t.Context(), "mixed@example.com", "a sufficiently long password"); err != nil {
 		t.Errorf("sign-in with a differently-cased email failed: %v", err)
 	}
-	if _, dupErr := s.Register(t.Context(), &account.Credentials{
+	// A registration answers a taken address as it answers a free one, so the
+	// case-folded duplicate is told apart by the account count, not an error.
+	if dupErr := s.Register(t.Context(), &account.Credentials{
 		Email: "MIXED@EXAMPLE.COM", Password: "a sufficiently long password",
-	}); !errors.Is(dupErr, account.ErrEmailTaken) {
-		t.Errorf("registering the same address in another case gave %v, want ErrEmailTaken", dupErr)
+	}, "/account"); dupErr != nil {
+		t.Errorf("registering the same address in another case gave %v, want nil", dupErr)
+	}
+	var accounts int
+	if err := pool.QueryRow(t.Context(),
+		`SELECT count(*) FROM users WHERE lower(email) = 'mixed@example.com'`).Scan(&accounts); err != nil {
+		t.Fatalf("count accounts: %v", err)
+	}
+	if accounts != 1 {
+		t.Errorf("%d accounts hold one address in two cases, want 1", accounts)
 	}
 }
 
@@ -339,6 +379,7 @@ func TestUnsafeUserAgentDoesNotRefuseOrDecorateASession(t *testing.T) {
 	}{
 		{name: "overlong", userAgent: strings.Repeat("a", 513)},
 		{name: "control character", userAgent: "browser\nforged"},
+		{name: "not UTF-8", userAgent: "Mozilla/5.0 Caf\xe9Browser/1.0"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			token, err := s.StartSession(ctx, u.ID, tt.userAgent, "192.0.2.1")
@@ -413,7 +454,7 @@ func TestExpiredSessionIsNobody(t *testing.T) {
 func TestChangingPasswordEndsEveryOtherSession(t *testing.T) {
 	ctx := t.Context()
 	s := account.NewStore(pool)
-	u := register(t, s, "rotate@example.com")
+	u := registerProved(t, s, "rotate@example.com")
 
 	stolen, err := s.StartSession(ctx, u.ID, "thief", "")
 	if err != nil {
@@ -441,7 +482,7 @@ func TestChangingPasswordInvalidatesPriorResetTokens(t *testing.T) {
 	ctx := t.Context()
 	s := account.NewStore(pool)
 	email := "rotate-reset-" + uuid.NewString() + "@example.com"
-	u := register(t, s, email)
+	u := registerProved(t, s, email)
 
 	token := beginReset(t, s, email)
 	if err := s.ChangePassword(ctx, u.ID, "an entirely different password"); err != nil {
@@ -941,7 +982,7 @@ func TestAdoptRefusesInactiveLinesWithoutTouchingEitherCart(t *testing.T) {
 func TestAMergedCartIsVisibleAfterSignInWithTheDeletedGuestCookie(t *testing.T) {
 	ctx := t.Context()
 	accounts := account.NewStore(pool)
-	u := register(t, accounts, "merge-cookie-"+uuid.NewString()+"@example.com")
+	u := registerProved(t, accounts, "merge-cookie-"+uuid.NewString()+"@example.com")
 	uid := uuid.MustParse(u.ID)
 
 	a := sellableVariant(t, ctx)
@@ -1046,7 +1087,7 @@ func cartLineQuantity(body string, variant uuid.UUID) string {
 func TestFailedCartAdoptionOnSignInShowsNoticeAndPreservesBothCarts(t *testing.T) {
 	ctx := t.Context()
 	accounts := account.NewStore(pool)
-	u := register(t, accounts, "adopt-fail-"+uuid.NewString()+"@example.com")
+	u := registerProved(t, accounts, "adopt-fail-"+uuid.NewString()+"@example.com")
 	uid := uuid.MustParse(u.ID)
 
 	accountVariant := sellableVariant(t, ctx)
@@ -1189,10 +1230,12 @@ func TestFailedCartAdoptionOnSignInShowsNoticeAndPreservesBothCarts(t *testing.T
 
 // TestAdoptCartRefusesGuestCartOwnedByAnotherAccount holds that a cart already
 // attached to someone else is never recovered through sign-in or POST retry.
+// The browser's token names no cart this account may use, so there is nothing
+// to adopt and nothing to recover: both land where they were going.
 func TestAdoptCartRefusesGuestCartOwnedByAnotherAccount(t *testing.T) {
 	ctx := t.Context()
 	accounts := account.NewStore(pool)
-	u := register(t, accounts, "adopt-refuse-"+uuid.NewString()+"@example.com")
+	u := registerProved(t, accounts, "adopt-refuse-"+uuid.NewString()+"@example.com")
 	uid := uuid.MustParse(u.ID)
 	otherUser := register(t, accounts, "adopt-refuse-other-"+uuid.NewString()+"@example.com")
 	otherUID := uuid.MustParse(otherUser.ID)
@@ -1252,9 +1295,9 @@ func TestAdoptCartRefusesGuestCartOwnedByAnotherAccount(t *testing.T) {
 	if signed.Code != http.StatusSeeOther {
 		t.Fatalf("sign-in status = %d, want 303", signed.Code)
 	}
-	wantRecovery := "/account/cart-recovery?next=%2Faccount"
-	if loc := signed.Header().Get("Location"); loc != wantRecovery {
-		t.Fatalf("sign-in redirect = %q, want %q", loc, wantRecovery)
+	const wantLanding = "/account"
+	if loc := signed.Header().Get("Location"); loc != wantLanding {
+		t.Fatalf("sign-in redirect = %q, want %q", loc, wantLanding)
 	}
 
 	session := sessionCookie(t, signed)
@@ -1270,8 +1313,8 @@ func TestAdoptCartRefusesGuestCartOwnedByAnotherAccount(t *testing.T) {
 	if retryRec.Code != http.StatusSeeOther {
 		t.Fatalf("retry status = %d, want 303", retryRec.Code)
 	}
-	if loc := retryRec.Header().Get("Location"); loc != wantRecovery {
-		t.Fatalf("retry redirect = %q, want recovery %q", loc, wantRecovery)
+	if loc := retryRec.Header().Get("Location"); loc != wantLanding {
+		t.Fatalf("retry redirect = %q, want %q", loc, wantLanding)
 	}
 
 	if qty := cartItemQuantity(t, accountCart, accountVariant); qty != 1 {
@@ -1287,6 +1330,83 @@ func TestAdoptCartRefusesGuestCartOwnedByAnotherAccount(t *testing.T) {
 	}
 	if owner != otherUID {
 		t.Errorf("guest cart owner = %s, want other account %s", owner, otherUID)
+	}
+}
+
+// TestAdoptCartNeverTakesAnotherAccountsCart calls the store directly with a
+// cart another account owns, as a sign-in that lost a race for it would. The
+// lines are sellable, so nothing but the ownership guard stands between that
+// call and the other account's cart being merged away or taken over.
+func TestAdoptCartNeverTakesAnotherAccountsCart(t *testing.T) {
+	ctx := t.Context()
+	accounts := account.NewStore(pool)
+	ownVariant := sellableVariant(t, ctx)
+	theirVariant := anotherSellableVariant(t, ctx, ownVariant)
+
+	for _, tt := range []struct {
+		name     string
+		hasACart bool
+	}{
+		{"into the account's own cart", true},
+		{"as the account's first cart", false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			u := register(t, accounts, "adopt-owned-"+uuid.NewString()+"@example.com")
+			other := register(t, accounts, "adopt-owned-other-"+uuid.NewString()+"@example.com")
+			otherUID := uuid.MustParse(other.ID)
+
+			var ownCart uuid.UUID
+			if tt.hasACart {
+				if err := pool.QueryRow(ctx,
+					`INSERT INTO carts (token_hash, user_id) VALUES ($1, $2) RETURNING id`,
+					account.HashToken("adopt-owned-own-"+u.ID), uuid.MustParse(u.ID)).Scan(&ownCart); err != nil {
+					t.Fatalf("account cart: %v", err)
+				}
+				if _, err := pool.Exec(ctx,
+					`INSERT INTO cart_items (cart_id, variant_id, quantity) VALUES ($1, $2, 1)`,
+					ownCart, ownVariant); err != nil {
+					t.Fatalf("account line: %v", err)
+				}
+			}
+			var theirCart uuid.UUID
+			if err := pool.QueryRow(ctx,
+				`INSERT INTO carts (token_hash, user_id) VALUES ($1, $2) RETURNING id`,
+				account.HashToken("adopt-owned-theirs-"+u.ID), otherUID).Scan(&theirCart); err != nil {
+				t.Fatalf("other account's cart: %v", err)
+			}
+			if _, err := pool.Exec(ctx,
+				`INSERT INTO cart_items (cart_id, variant_id, quantity) VALUES ($1, $2, 2)`,
+				theirCart, theirVariant); err != nil {
+				t.Fatalf("other account's line: %v", err)
+			}
+
+			if err := accounts.AdoptCart(ctx, u.ID, theirCart); !errors.Is(err, account.ErrNotFound) {
+				t.Errorf("adopting another account's cart returned %v, want ErrNotFound", err)
+			}
+
+			var owner uuid.NullUUID
+			if err := pool.QueryRow(ctx, `SELECT user_id FROM carts WHERE id = $1`, theirCart).
+				Scan(&owner); err != nil {
+				t.Fatalf("the other account's cart is gone: %v", err)
+			}
+			if owner.UUID != otherUID {
+				t.Errorf("the other account's cart is owned by %v, want %s", owner, otherUID)
+			}
+			if qty := cartItemQuantity(t, theirCart, theirVariant); qty != 2 {
+				t.Errorf("the other account's line quantity = %d, want 2", qty)
+			}
+			if tt.hasACart {
+				var lines int
+				if err := pool.QueryRow(ctx, `SELECT count(*) FROM cart_items WHERE cart_id = $1`,
+					ownCart).Scan(&lines); err != nil {
+					t.Fatalf("count the account's lines: %v", err)
+				}
+				if qty := cartItemQuantity(t, ownCart, ownVariant); lines != 1 || qty != 1 {
+					t.Errorf("the account's cart holds %d lines, its own at %d; want only its "+
+						"own line at 1", lines, qty)
+				}
+			}
+		})
 	}
 }
 
@@ -1669,17 +1789,17 @@ func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) {
 func TestSessionWriteFailureDoesNotFallThroughToRedirect(t *testing.T) {
 	s := account.NewStore(pool)
 	h := account.NewHandler(s, nil, slog.New(slog.DiscardHandler), false, nil)
-	existing := register(t, s, "session-failure-signin-"+uuid.NewString()+"@example.com")
+	existing := registerProved(t, s, "session-failure-signin-"+uuid.NewString()+"@example.com")
 
 	for _, tt := range []struct {
 		name   string
 		target string
-		form   func() url.Values
+		form   func(t *testing.T) url.Values
 		handle http.HandlerFunc
 	}{
 		{
 			name: "sign in", target: "/signin", handle: h.SignIn,
-			form: func() url.Values {
+			form: func(*testing.T) url.Values {
 				return url.Values{
 					"email": {existing.Email}, "password": {"a sufficiently long password"},
 					"next": {"/account"},
@@ -1687,20 +1807,23 @@ func TestSessionWriteFailureDoesNotFallThroughToRedirect(t *testing.T) {
 			},
 		},
 		{
-			name: "registration", target: "/register", handle: h.Register,
-			form: func() url.Values {
+			// A registration starts its session when its link is followed with
+			// the password chosen at registration.
+			name: "registration link", target: "/register/complete", handle: h.CompleteRegistration,
+			form: func(t *testing.T) url.Values {
+				t.Helper()
+				pending := register(t, s, "session-failure-register-"+uuid.NewString()+"@example.com")
 				return url.Values{
-					"email":    {"session-failure-register-" + uuid.NewString() + "@example.com"},
-					"password": {"another sufficiently long password"},
-					"confirm":  {"another sufficiently long password"}, "name": {"測試"},
-					"next": {"/account"},
+					"token":    {requestVerification(t, s, pending.ID, pending.Email)},
+					"password": {"a sufficiently long password"},
+					"next":     {"/account"},
 				}
 			},
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			forceSessionInsertFailure(t)
-			body := tt.form().Encode()
+			body := tt.form(t).Encode()
 			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost,
 				tt.target, strings.NewReader(body))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -2433,6 +2556,65 @@ func TestConcurrentAdminErasureKeepsOneAdmin(t *testing.T) {
 	}
 	if admins != 1 {
 		t.Errorf("concurrent erasure left %d admins, want 1", admins)
+	}
+}
+
+// TestTheLastAdminIsToldWhyErasureWasRefused: erase_user refuses the only
+// administrator by name, and the page must say so and keep the account usable
+// rather than answer a server error for a request the shop decided to refuse.
+func TestTheLastAdminIsToldWhyErasureWasRefused(t *testing.T) {
+	ctx := t.Context()
+	s := account.NewStore(pool)
+	u := register(t, s, "erase-last-admin-"+uuid.NewString()+"@example.com")
+	id := uuid.MustParse(u.ID)
+	t.Cleanup(func() {
+		// The schema gives even the owner no way back to zero administrators, so a
+		// sentinel takes the role before the fixture gives it up.
+		cleanupCtx := context.WithoutCancel(ctx)
+		_, _ = pool.Exec(cleanupCtx, `
+			INSERT INTO users (email, role, full_name)
+			VALUES ('account-suite-admin@goen.invalid', 'admin', 'Account suite sentinel')
+			ON CONFLICT (lower(email)) DO UPDATE SET role = 'admin'`)
+		_, _ = pool.Exec(cleanupCtx, `DELETE FROM users WHERE id = $1`, id)
+	})
+	if _, err := pool.Exec(ctx, `UPDATE users SET role = 'admin' WHERE id = $1`, id); err != nil {
+		t.Fatalf("promote the fixture: %v", err)
+	}
+	if _, err := pool.Exec(ctx,
+		`UPDATE users SET role = 'customer' WHERE role = 'admin' AND id <> $1`, id); err != nil {
+		t.Fatalf("leave the fixture as the only administrator: %v", err)
+	}
+
+	if err := s.Erase(ctx, u.ID); !errors.Is(err, account.ErrLastAdmin) {
+		t.Fatalf("erasing the last administrator = %v, want ErrLastAdmin", err)
+	}
+
+	h := account.NewHandler(s, nil, slog.New(slog.DiscardHandler), false, nil)
+	token, err := s.StartSession(ctx, u.ID, "test", "192.0.2.1")
+	if err != nil {
+		t.Fatalf("start session: %v", err)
+	}
+	form := url.Values{"confirm": {u.Email}}
+	req := httptest.NewRequestWithContext(account.WithUser(ctx, u), http.MethodPost,
+		"/account/erase", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.AddCookie(&http.Cookie{Name: "goen_session", Value: token}) //nolint:gosec // G124: a request cookie, not a response
+	out := httptest.NewRecorder()
+	h.Erase(out, req)
+	if out.Code != http.StatusSeeOther || out.Header().Get("Location") != "/account?erase=admin" {
+		t.Fatalf("erase handler = %d Location %q, want 303 /account?erase=admin",
+			out.Code, out.Header().Get("Location"))
+	}
+	if cookies := out.Result().Cookies(); len(cookies) != 0 {
+		t.Errorf("refused erasure changed %d cookie(s); the signed-in account must remain usable", len(cookies))
+	}
+	var left int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM users WHERE id = $1 AND role = 'admin'`, id).
+		Scan(&left); err != nil {
+		t.Fatalf("read the administrator: %v", err)
+	}
+	if left != 1 {
+		t.Error("the refused erasure removed the only administrator")
 	}
 }
 
@@ -3272,9 +3454,11 @@ func TestAnAddressIsProvedByFollowingTheLink(t *testing.T) {
 		t.Error("a freshly registered address reads as proved; nothing has proved it")
 	}
 
+	// An address that was never proved is proved by its link together with
+	// the password chosen at registration.
 	token := requestVerification(t, s, u.ID, u.Email)
-	if _, confirmErr := s.ConfirmVerification(ctx, token); confirmErr != nil {
-		t.Fatalf("ConfirmVerification: %v", confirmErr)
+	if _, confirmErr := s.CompleteRegistration(ctx, token, "a sufficiently long password"); confirmErr != nil {
+		t.Fatalf("CompleteRegistration: %v", confirmErr)
 	}
 
 	state, err = s.EmailVerification(ctx, u.ID)
@@ -3284,7 +3468,7 @@ func TestAnAddressIsProvedByFollowingTheLink(t *testing.T) {
 	if !state.Verified {
 		t.Error("the address is not proved after its link was followed")
 	}
-	if _, err := s.ConfirmVerification(ctx, token); !errors.Is(err, account.ErrVerifyInvalid) {
+	if _, err := s.ConfirmVerification(ctx, token, u.ID); !errors.Is(err, account.ErrVerifyInvalid) {
 		t.Errorf("re-using the link = %v, want ErrVerifyInvalid", err)
 	}
 }
@@ -3309,7 +3493,7 @@ func TestAChangeTakesEffectOnlyWhenConfirmed(t *testing.T) {
 		t.Errorf("pending address is %q, want %q", state.PendingEmail, next)
 	}
 
-	if _, err := s.ConfirmVerification(ctx, token); err != nil {
+	if _, err := s.ConfirmVerification(ctx, token, u.ID); err != nil {
 		t.Fatalf("ConfirmVerification: %v", err)
 	}
 	if got := emailOf(t, u.ID); got != next {
@@ -3329,7 +3513,7 @@ func TestChangingEmailInvalidatesResetLinksSentToTheOldMailbox(t *testing.T) {
 	newAddress := "new-reset-" + uuid.NewString() + "@goen.invalid"
 
 	verification := requestVerification(t, s, u.ID, newAddress)
-	if _, err := s.ConfirmVerification(ctx, verification); err != nil {
+	if _, err := s.ConfirmVerification(ctx, verification, u.ID); err != nil {
 		t.Fatalf("confirm address change: %v", err)
 	}
 	if err := s.CompleteReset(ctx, oldMailboxToken, "password chosen by old mailbox"); !errors.Is(err, account.ErrResetInvalid) {
@@ -3425,7 +3609,7 @@ func TestErasureMatchesOutboxRecipientsExactly(t *testing.T) {
 	pendingLookalike := "pending-looks-like-" + suffix + "@goen.invalid"
 	u := register(t, s, current)
 	currentToken := requestVerification(t, s, u.ID, current)
-	if _, err := s.ConfirmVerification(ctx, currentToken); err != nil {
+	if _, err := s.CompleteRegistration(ctx, currentToken, "a sufficiently long password"); err != nil {
 		t.Fatalf("prove patterned current address: %v", err)
 	}
 	if err := account.RequestVerification(ctx, s, u.ID, pending); err != nil {
@@ -3532,7 +3716,7 @@ func TestVerificationAndErasureUseUserBeforeToken(t *testing.T) {
 	eraseStore := account.NewStore(accountStorePool(t, eraseName))
 	confirmDone, eraseDone := make(chan error, 1), make(chan error, 1)
 	go func() {
-		_, confirmErr := confirmStore.ConfirmVerification(context.WithoutCancel(ctx), token)
+		_, confirmErr := confirmStore.ConfirmVerification(context.WithoutCancel(ctx), token, u.ID)
 		confirmDone <- confirmErr
 	}()
 	waitForAccountLock(t, confirmName, confirmDone)
@@ -3576,7 +3760,7 @@ func TestAChangeToATakenAddressIsRefused(t *testing.T) {
 	token := requestVerification(t, s, mine.ID, wanted)
 	register(t, s, wanted)
 
-	if _, err := s.ConfirmVerification(ctx, token); !errors.Is(err, account.ErrEmailTaken) {
+	if _, err := s.ConfirmVerification(ctx, token, mine.ID); !errors.Is(err, account.ErrEmailTaken) {
 		t.Errorf("confirming a taken address = %v, want ErrEmailTaken", err)
 	}
 	if got := emailOf(t, mine.ID); got != mine.Email {
@@ -3610,10 +3794,10 @@ func TestAskingAgainLeavesOneLiveLink(t *testing.T) {
 	if messages != 1 {
 		t.Errorf("%d verification messages after asking twice, want only the newest", messages)
 	}
-	if _, err := s.ConfirmVerification(ctx, first); !errors.Is(err, account.ErrVerifyInvalid) {
+	if _, err := s.ConfirmVerification(ctx, first, u.ID); !errors.Is(err, account.ErrVerifyInvalid) {
 		t.Errorf("the earlier link still works: %v", err)
 	}
-	if _, err := s.ConfirmVerification(ctx, second); err != nil {
+	if _, err := s.CompleteRegistration(ctx, second, "a sufficiently long password"); err != nil {
 		t.Errorf("the newest link does not work: %v", err)
 	}
 }
@@ -3631,7 +3815,7 @@ func TestAnExpiredVerificationIsRefused(t *testing.T) {
 		t.Fatalf("age the request: %v", err)
 	}
 
-	if _, err := s.ConfirmVerification(ctx, token); !errors.Is(err, account.ErrVerifyInvalid) {
+	if _, err := s.ConfirmVerification(ctx, token, u.ID); !errors.Is(err, account.ErrVerifyInvalid) {
 		t.Errorf("an expired link = %v, want ErrVerifyInvalid", err)
 	}
 }
@@ -3651,12 +3835,13 @@ func TestRegisteringAsksForTheAddressToBeProved(t *testing.T) {
 	s := account.NewStore(pool)
 	addr := "asked-" + uuid.NewString() + "@goen.invalid"
 
-	u := register(t, s, addr)
-
-	// register() goes through the store, so ask the way the handler does.
-	if err := account.RequestVerification(ctx, s, u.ID, u.Email); err != nil {
-		t.Fatalf("RequestVerification: %v", err)
+	if err := s.Register(ctx, &account.Credentials{
+		Email: addr, Password: "a sufficiently long password",
+	}, "/account"); err != nil {
+		t.Fatalf("Register: %v", err)
 	}
+	followUpRegistrations(t, s, addr, neverTold(t))
+
 	var messages int
 	if err := pool.QueryRow(ctx, `
 		SELECT count(*) FROM outbox_messages

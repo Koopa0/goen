@@ -2,7 +2,21 @@
 
 package payment
 
-import "context"
+import (
+	"context"
+
+	stripe "github.com/stripe/stripe-go/v86"
+)
+
+// NewGatewayAt is NewGateway against a Stripe stand-in at stripeURL, through
+// the production HTTP client and with no network retries, so one refused
+// request is one request.
+func NewGatewayAt(apiKey, webhookSecret, baseURL, stripeURL string) (*Gateway, error) {
+	noRetries := int64(0)
+	return newGateway(apiKey, webhookSecret, baseURL, &stripe.BackendConfig{
+		URL: stripe.String(stripeURL), MaxNetworkRetries: &noRetries,
+	})
+}
 
 // WebhookEvent exposes a verified provider event only to integration fixtures.
 type WebhookEvent = webhookEvent

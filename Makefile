@@ -208,16 +208,6 @@ check-layout:
 	@# fixture with none makes every English page in the sweep look untranslated,
 	@# and the sweep is how the last few gaps were found.
 	@psql "$$GOEN_DATABASE_URL" -qtAc "INSERT INTO promo_banners (message, message_short, code, cta_label, cta_href, message_en, message_short_en, cta_label_en) SELECT '版面檢查用的促銷訊息,長度接近真實的一句文案', '版面檢查促銷', 'LAYOUT10', '看看', '/deals', 'A layout-check promotion, about as long as a real one', 'Layout promo', 'Look' WHERE NOT EXISTS (SELECT 1 FROM promo_banners)" >/dev/null 2>&1 || true
-	@# The guest order above is given an owner, for the two /admin/customers rows:
-	@# the search lists nothing until somebody searches, and the detail page of a
-	@# customer with no orders measures its empty state.
-	@#
-	@# Targeted through its own GRANT rather than "the newest order", and that is
-	@# load-bearing now: the return fixture below places a SECOND order, so the
-	@# newest one stops being this one. The comment further down already warns that
-	@# reading the order two different ways is how the cookie and the URL came to
-	@# name two different things — this is the same hazard one row up.
-	@psql "$$GOEN_DATABASE_URL" -qtAc "UPDATE orders o SET user_id = (SELECT id FROM users WHERE email = 'layout-cust@goen.invalid') FROM order_access_grants g WHERE g.order_id = o.id AND g.digest = sha256('$$(awk '/goen_placed/ {print $$7}' .layout-chrome/cookies)'::bytea)" >/dev/null
 	@# A contact message, a product question and a return request, because
 	@# /admin/messages, /admin/questions and /admin/returns each render an EMPTY
 	@# STATE that carries the back-office chrome and nothing else. Their rows in the

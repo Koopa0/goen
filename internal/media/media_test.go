@@ -8,10 +8,14 @@ import (
 	"image/gif"
 	"image/jpeg"
 	"image/png"
+	"mime/multipart"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"github.com/koopa0/goen/assets"
+	"github.com/koopa0/goen/internal/web"
 )
 
 func pngBytes(t *testing.T, w, h int) []byte {
@@ -417,5 +421,49 @@ func TestA1600RenditionIsRendered(t *testing.T) {
 	}
 	if cfg.Width != 1600 || cfg.Height != 1066 {
 		t.Errorf("the 1600 rendition is %dx%d, want 1600x1066", cfg.Width, cfg.Height)
+	}
+}
+
+// TestAnUploadFormWhoseTextCannotBeStoredIsRefused: the image is optional on a hero
+// slide, so an upload form with no file still has its text fields stored, and
+// one that is not UTF-8 would reach PostgreSQL. The hero slide's handler calls
+// OpenUpload itself, so the refusal is held there as well as through
+// ReadUpload.
+func TestAnUploadFormWhoseTextCannotBeStoredIsRefused(t *testing.T) {
+	h := &Handler{}
+	for _, tt := range []struct {
+		name string
+		read func(w http.ResponseWriter, r *http.Request) error
+	}{
+		{"OpenUpload", func(w http.ResponseWriter, r *http.Request) error {
+			upload, err := h.OpenUpload(w, r, "image")
+			upload.Close()
+			return err
+		}},
+		{"ReadUpload", func(w http.ResponseWriter, r *http.Request) error {
+			_, err := h.ReadUpload(w, r, "image")
+			return err
+		}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			var body bytes.Buffer
+			mw := multipart.NewWriter(&body)
+			if err := mw.WriteField("alt", "Caf\xe9"); err != nil {
+				t.Fatalf("write field: %v", err)
+			}
+			if err := mw.Close(); err != nil {
+				t.Fatalf("close multipart: %v", err)
+			}
+			r := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/admin/home", &body)
+			r.Header.Set("Content-Type", mw.FormDataContentType())
+
+			var err error
+			http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				err = tt.read(w, r)
+			}).ServeHTTP(httptest.NewRecorder(), r)
+			if !errors.Is(err, web.ErrFormText) {
+				t.Fatalf("%s = %v, want web.ErrFormText", tt.name, err)
+			}
+		})
 	}
 }

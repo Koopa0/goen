@@ -743,11 +743,24 @@ func TestAnAdminCannotRemoveTheirOwnFactor(t *testing.T) {
 	self, selfEmail := staff(t)
 	enrol(t, s, self, selfEmail)
 
-	if err := s.RemoveFactor(ctx, self, self); !errors.Is(err, twofactor.ErrSelf) {
-		t.Errorf("an admin removed their own factor: %v", err)
+	for _, submitted := range spellingsOf(self) {
+		if err := s.RemoveFactor(ctx, submitted, self); !errors.Is(err, twofactor.ErrSelf) {
+			t.Errorf("an admin removed their own factor as %q: %v", submitted, err)
+		}
+		if !enrolled(t, self) {
+			t.Fatalf("the credential was removed anyway, as %q", submitted)
+		}
 	}
-	if !enrolled(t, self) {
-		t.Error("the credential was removed anyway")
+}
+
+// spellingsOf is every form uuid.Parse reads as id, the way a hand-edited
+// form field would send it.
+func spellingsOf(id string) []string {
+	return []string{
+		id,
+		strings.ToUpper(id),
+		"{" + id + "}",
+		"urn:uuid:" + id,
 	}
 }
 
@@ -1396,8 +1409,10 @@ func TestRefusedStaffChangesLeaveNoTrail(t *testing.T) {
 	}
 
 	beforeRevoke := staffAuditCount(t, "staff.revoke")
-	if err := s.RevokeStaff(ctx, self, self); !errors.Is(err, twofactor.ErrSelf) {
-		t.Fatalf("self RevokeStaff = %v, want ErrSelf", err)
+	for _, submitted := range spellingsOf(self) {
+		if err := s.RevokeStaff(ctx, submitted, self); !errors.Is(err, twofactor.ErrSelf) {
+			t.Fatalf("self RevokeStaff as %q = %v, want ErrSelf", submitted, err)
+		}
 	}
 	if after := staffAuditCount(t, "staff.revoke"); after != beforeRevoke {
 		t.Errorf("self RevokeStaff left %d staff.revoke rows, want %d", after, beforeRevoke)
@@ -1405,8 +1420,10 @@ func TestRefusedStaffChangesLeaveNoTrail(t *testing.T) {
 
 	enrol(t, s, self, selfEmail)
 	beforeRemove := staffAuditCount(t, "staff.factor.remove")
-	if err := s.RemoveFactor(ctx, self, self); !errors.Is(err, twofactor.ErrSelf) {
-		t.Fatalf("self RemoveFactor = %v, want ErrSelf", err)
+	for _, submitted := range spellingsOf(self) {
+		if err := s.RemoveFactor(ctx, submitted, self); !errors.Is(err, twofactor.ErrSelf) {
+			t.Fatalf("self RemoveFactor as %q = %v, want ErrSelf", submitted, err)
+		}
 	}
 	missing := uuid.NewString()
 	if err := s.RemoveFactor(ctx, missing, helper); !errors.Is(err, twofactor.ErrNotEnrolled) {

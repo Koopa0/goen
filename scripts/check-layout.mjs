@@ -269,8 +269,8 @@ const ADMIN = [
   // /admin/customers lists NOTHING until somebody searches, so a row against the
   // bare path would measure a search box and call the page covered — the promo
   // strip's lesson (CLAUDE.md #24). CUSTOMER_ID is the customer the Makefile
-  // seeded and gave the placed order to, so the detail page has its stats and its
-  // order table on screen rather than the empty state.
+  // seeded and places the return fixture's orders for, signed in, so the detail
+  // page has its stats and its order table on screen rather than the empty state.
   // The FAQ page. Its marker is the LIST rather than .goen-admin, because the seed
   // populates faq_entries and the page's two halves are a form and that list — a row
   // that passed on the chrome alone would measure the form and call the page covered.
