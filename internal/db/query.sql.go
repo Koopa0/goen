@@ -6053,6 +6053,7 @@ SELECT coalesce(min(v.free_over_cents), 0)::bigint AS free_over_cents
 FROM shipping_methods sm
 JOIN shipping_method_versions v ON v.method_id = sm.id
 WHERE sm.is_active
+  AND ($1::boolean OR sm.destination_kind <> 'pickup_point')
   AND v.effective_at <= now()
   AND v.free_over_cents > 0
   AND v.id = (SELECT id FROM shipping_method_versions
@@ -6060,11 +6061,14 @@ WHERE sm.is_active
               ORDER BY effective_at DESC LIMIT 1)
 `
 
+// with_pickup is false where the store map is not configured: checkout offers no
+// pickup there, so a floor or threshold that counted it would promise a price
+// nobody can choose.
 // MIN across methods: the strip makes one claim, and the most generous true one
 // is the lowest threshold any active method honours. coalesce AND cast, because
 // min() over an empty set is NULL and sqlc types the result as non-null.
-func (q *Queries) FreeDeliveryThreshold(ctx context.Context) (int64, error) {
-	row := q.db.QueryRow(ctx, freeDeliveryThreshold)
+func (q *Queries) FreeDeliveryThreshold(ctx context.Context, withPickup bool) (int64, error) {
+	row := q.db.QueryRow(ctx, freeDeliveryThreshold, withPickup)
 	var free_over_cents int64
 	err := row.Scan(&free_over_cents)
 	return free_over_cents, err
@@ -7310,17 +7314,21 @@ SELECT coalesce(min(v.fee_cents), 0)::bigint AS fee_cents
 FROM shipping_methods sm
 JOIN shipping_method_versions v ON v.method_id = sm.id
 WHERE sm.is_active
+  AND ($1::boolean OR sm.destination_kind <> 'pickup_point')
   AND v.effective_at <= now()
   AND v.id = (SELECT id FROM shipping_method_versions
               WHERE method_id = sm.id AND effective_at <= now()
               ORDER BY effective_at DESC LIMIT 1)
 `
 
+// with_pickup is false where the store map is not configured: checkout offers no
+// pickup there, so a floor or threshold that counted it would promise a price
+// nobody can choose.
 // MIN across methods: the strip states one floor, and the honest one is the
 // lowest fee any active method charges. coalesce AND cast, because min() over
 // an empty set is NULL and sqlc types the result as non-null.
-func (q *Queries) LowestDeliveryFee(ctx context.Context) (int64, error) {
-	row := q.db.QueryRow(ctx, lowestDeliveryFee)
+func (q *Queries) LowestDeliveryFee(ctx context.Context, withPickup bool) (int64, error) {
+	row := q.db.QueryRow(ctx, lowestDeliveryFee, withPickup)
 	var fee_cents int64
 	err := row.Scan(&fee_cents)
 	return fee_cents, err
@@ -12768,8 +12776,15 @@ SELECT DISTINCT ON (sm.id)
 FROM shipping_methods sm
 JOIN shipping_method_versions v ON v.method_id = sm.id
 WHERE sm.is_active AND v.effective_at <= now()
+  -- Pickup is listed only where checkout offers it.
+  AND ($2::boolean OR sm.destination_kind <> 'pickup_point')
 ORDER BY sm.id, v.effective_at DESC
 `
+
+type ShippingPolicyParams struct {
+	Locale     string
+	WithPickup bool
+}
 
 type ShippingPolicyRow struct {
 	Code          string
@@ -12781,8 +12796,8 @@ type ShippingPolicyRow struct {
 }
 
 // The shipping methods a policy page describes.
-func (q *Queries) ShippingPolicy(ctx context.Context, locale string) ([]ShippingPolicyRow, error) {
-	rows, err := q.db.Query(ctx, shippingPolicy, locale)
+func (q *Queries) ShippingPolicy(ctx context.Context, arg ShippingPolicyParams) ([]ShippingPolicyRow, error) {
+	rows, err := q.db.Query(ctx, shippingPolicy, arg.Locale, arg.WithPickup)
 	if err != nil {
 		return nil, err
 	}

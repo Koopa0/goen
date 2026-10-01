@@ -347,7 +347,7 @@ func openStoreMap(cfg *config, log *slog.Logger) (*cart.Map, error) {
 	}
 	if !m.Enabled() {
 		// i18n-exempt: a startup log line, read by an operator rather than a visitor.
-		log.Info("no 超商 store map configured; a pickup order names a chain and no store",
+		log.Info("no 超商 store map configured; checkout offers no store pickup",
 			"set", "GOEN_ECPAY_LOGISTICS")
 	}
 	return m, nil

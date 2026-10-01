@@ -4,6 +4,7 @@ package home_test
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -734,5 +735,46 @@ func TestTheHeaderAndTheTilesAgreeOnOrder(t *testing.T) {
 	}
 	if strings.Join(header, ">") != strings.Join(tiles, ">") {
 		t.Errorf("the header says %v and the tiles say %v, on one page", header, tiles)
+	}
+}
+
+// Checkout drops store pickup where the store map is not configured, so the
+// strip's floor and wording must describe the home delivery it still offers.
+func TestTheTrustBodyDescribesOnlyTheMethodsCheckoutOffers(t *testing.T) {
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+
+	var homeFee, pickupFee int64
+	if err := pool.QueryRow(ctx, `
+		SELECT min(v.fee_cents) FILTER (WHERE sm.destination_kind = 'address'),
+		       min(v.fee_cents) FILTER (WHERE sm.destination_kind = 'pickup_point')
+		FROM shipping_methods sm
+		JOIN shipping_method_versions v ON v.method_id = sm.id
+		WHERE sm.is_active`).Scan(&homeFee, &pickupFee); err != nil {
+		t.Fatalf("read the seeded fees: %v", err)
+	}
+	if pickupFee >= homeFee {
+		t.Fatalf("fixture: pickup %d is not below home %d; the floor cannot tell them apart", pickupFee, homeFee)
+	}
+
+	render := func(s *home.Store) string {
+		h := home.NewHandler(s, slog.New(slog.DiscardHandler), false)
+		res := httptest.NewRecorder()
+		h.Home(res, httptest.NewRequestWithContext(ctx, http.MethodGet, "/", http.NoBody))
+		if res.Code != http.StatusOK {
+			t.Fatalf("status = %d; want 200", res.Code)
+		}
+		return res.Body.String()
+	}
+
+	with := render(home.NewStore(pool))
+	if !strings.Contains(with, "超商取貨皆適用") {
+		t.Error("a shop that offers pickup does not say so")
+	}
+	without := render(home.NewStore(pool).WithoutPickup())
+	if strings.Contains(without, "超商取貨") {
+		t.Error("the strip promises pickup where checkout does not offer it")
+	}
+	if want := fmt.Sprintf("未達門檻運費 NT$%d 起", homeFee/100); !strings.Contains(without, want) {
+		t.Errorf("the strip's floor is not the home delivery fee; want %q", want)
 	}
 }

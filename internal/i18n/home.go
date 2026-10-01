@@ -46,6 +46,11 @@ var (
 			"%s.",
 	})
 
+	KeyTrustShippingHomeBody = key("home.trust.shipping.home", Message{
+		ZhHant: "未達門檻運費 %s 起。",
+		En:     "Below the threshold, delivery is from %s.",
+	})
+
 	// A numbered landing window here is a second SLA next to /returns, which
 	// leaves the day to the card issuer.
 	KeyTrustReturnsBody = key("home.trust.returns", Message{
