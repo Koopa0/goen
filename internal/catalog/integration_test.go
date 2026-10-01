@@ -978,3 +978,63 @@ func TestPromotionalTilesArePricedOnTheDiscountedVariant(t *testing.T) {
 		t.Error("campaign tile says its discounted price is the bottom of a range, but a cheaper variant exists")
 	}
 }
+
+// The tile states a price, the "from" flag and the sale price of a variant the
+// filters accepted; otherwise a product that qualifies through one variant shows
+// another variant's price, outside the range the shopper asked for.
+func TestListingTileShowsAVariantThePriceFiltersAccept(t *testing.T) {
+	ctx := t.Context()
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
+
+	if _, execErr := tx.Exec(ctx, `
+		INSERT INTO products (id, brand_id, category_id, slug, name, status, published_at)
+		SELECT 'eeee0005-0000-4000-8000-000000000001', b.id, c.id, 'tile-range', '價格區間機', 'active', now()
+		FROM brands b, categories c WHERE b.slug='pixelight' AND c.slug='phones';
+
+		INSERT INTO product_variants (product_id, sku, price_cents, compare_at_price_cents, stock_quantity, position)
+		VALUES ('eeee0005-0000-4000-8000-000000000001', 'RANGE-SOLDOUT', 300000, NULL, 0, 90),
+		       ('eeee0005-0000-4000-8000-000000000001', 'RANGE-MID', 500000, NULL, 5, 91),
+		       ('eeee0005-0000-4000-8000-000000000001', 'RANGE-HIGH', 1200000, 1500000, 5, 92);`,
+	); execErr != nil {
+		t.Fatalf("fixture: %v", execErr)
+	}
+
+	tests := []struct {
+		name         string
+		filters      catalog.Filters
+		wantPrice    int64
+		wantVaries   bool
+		wantCompare  int64
+		wantNotStale string
+	}{
+		{"unfiltered shows the cheapest buyable variant", catalog.Filters{}, 500000, true, 0, ""},
+		{"min price shows the variant above it, not the cheaper one", catalog.Filters{MinPrice: 1000000}, 1200000, false, 1500000, "the cheaper in-range-excluded variant's price"},
+		{"max price shows the sold-out variant that qualifies it", catalog.Filters{MaxPrice: 400000}, 300000, false, 0, "the dearer in-stock variant's price, above the maximum"},
+		{"in stock and max price excludes dearer variants from the from flag", catalog.Filters{InStockOnly: true, MaxPrice: 600000}, 500000, false, 0, "a from flag for a variant above the maximum"},
+	}
+	store := catalog.NewStore(tx)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.filters.Page = 1
+			view, listErr := store.Listing(ctx, "phones", tt.filters)
+			if listErr != nil {
+				t.Fatalf("listing: %v", listErr)
+			}
+			for _, p := range view.Products {
+				if p.Slug != "tile-range" {
+					continue
+				}
+				if p.PriceCents != tt.wantPrice || p.PriceVaries != tt.wantVaries || p.CompareCents != tt.wantCompare {
+					t.Errorf("tile = price %d varies %t compare %d, want %d %t %d (not %s)",
+						p.PriceCents, p.PriceVaries, p.CompareCents, tt.wantPrice, tt.wantVaries, tt.wantCompare, tt.wantNotStale)
+				}
+				return
+			}
+			t.Fatal("the product is missing from the filtered listing")
+		})
+	}
+}
