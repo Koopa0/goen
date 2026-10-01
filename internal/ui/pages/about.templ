@@ -3,6 +3,7 @@ package pages
 import (
 	"context"
 
+	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/icons"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -20,6 +21,16 @@ func AboutMeta(ctx context.Context) layouts.Page {
 templ About(p layouts.Page) {
 	@layouts.Base(p) {
 		<article class="about">
+			<img
+				class="about__photo"
+				src={ assets.URL(assets.AboutImage) }
+				srcset={ assets.AboutSrcset() }
+				sizes="(min-width: 768px) 720px, calc(100vw - 32px)"
+				alt={ i18n.T(ctx, i18n.KeyAboutImageAlt) }
+				width="1600"
+				height="900"
+				decoding="async"
+			/>
 			@icons.Mark("about__mark")
 			<h1 class="about__title">{ i18n.T(ctx, i18n.KeyTagline) }</h1>
 			<p class="about__lede">

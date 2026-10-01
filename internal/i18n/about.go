@@ -45,3 +45,8 @@ var (
 		En:     "Phones, laptops, tablets, headphones, wearables and accessories.",
 	})
 )
+
+var (
+	KeyAboutImageAlt = key("about.image_alt", Message{ZhHant: "goen 的工作台與商品", En: "goen's workbench and products"})
+	KeyOGImageAlt    = key("og.image_alt", Message{ZhHant: "goen 台灣的 3C 店", En: "goen, a 3C shop in Taiwan"})
+)

@@ -497,6 +497,7 @@ integration-build-check:
 # output.
 gen:
 	go tool templ generate -path internal/ui
+	go tool templ generate -path internal/email
 
 # The committed *_templ.go must match the .templ sources. Nothing else checks
 # it: `gen` runs before every other target and would quietly repair a stale
@@ -504,6 +505,7 @@ gen:
 # surprising diff.
 templ-check:
 	go tool templ generate -check -path internal/ui
+	go tool templ generate -check -path internal/email
 
 # Vulnerability scan of the module graph and the code that actually reaches it.
 # govulncheck reports only vulnerabilities on a call path from this binary,
@@ -512,7 +514,7 @@ vuln:
 	$(GOVULNCHECK) ./...
 
 fmt:
-	go tool templ fmt internal/ui
+	go tool templ fmt internal/ui internal/email
 	golangci-lint fmt ./...
 
 # Read-only: templ's own -fail mode rewrites the tree before reporting, which
@@ -521,7 +523,7 @@ fmt-check:
 	@set -eu; \
 	tmp=$$(mktemp -d "$${TMPDIR:-/tmp}/goen-templ-fmt.XXXXXX"); \
 	trap 'rm -rf "$$tmp"' 0 HUP INT TERM; \
-	find internal/ui -type f -name '*.templ' -print | LC_ALL=C sort > "$$tmp/files"; \
+	find internal/ui internal/email -type f -name '*.templ' -print | LC_ALL=C sort > "$$tmp/files"; \
 	[ -s "$$tmp/files" ] || { echo 'templ source list is empty' >&2; exit 1; }; \
 	while IFS= read -r file; do \
 		go tool templ fmt -stdout "$$file" > "$$tmp/formatted"; \

@@ -25,7 +25,7 @@ func (n Notifier) SendNewsletterConfirm(ctx context.Context, p *NewsletterConfir
 
 	ctx = n.locale(ctx, p.Locale)
 	link := strings.TrimRight(n.baseURL, "/") + "/newsletter/confirm?token=" + url.QueryEscape(p.Token)
-	return n.sender.Send(ctx, &Message{
+	return n.send(ctx, &Message{
 		To:      p.Email,
 		Subject: i18n.T(ctx, i18n.KeyMailNewsConfirmSubject),
 		Body:    n.letter(ctx, "", fmt.Sprintf(i18n.T(ctx, i18n.KeyMailNewsConfirmBody), link)),
@@ -50,7 +50,7 @@ func (n Notifier) SendNewsletterWelcome(ctx context.Context, p *NewsletterWelcom
 	ctx = n.locale(ctx, p.Locale)
 	link := strings.TrimRight(n.baseURL, "/") + "/newsletter/unsubscribe?token=" +
 		url.QueryEscape(p.UnsubscribeToken)
-	return n.sender.Send(ctx, &Message{
+	return n.send(ctx, &Message{
 		To:      p.Email,
 		Subject: i18n.T(ctx, i18n.KeyMailNewsWelcomeSubject),
 		Body:    n.letter(ctx, "", fmt.Sprintf(i18n.T(ctx, i18n.KeyMailNewsWelcomeBody), link)),
@@ -87,7 +87,7 @@ func (n Notifier) SendNewsletterIssue(ctx context.Context, p *NewsletterIssue) e
 		"", i18n.T(ctx, i18n.KeyMailNoReply), "— goen", "",
 	}, "\n")
 
-	return n.sender.Send(ctx, &Message{To: p.Email, Subject: p.Subject, Body: body})
+	return n.send(ctx, &Message{To: p.Email, Subject: p.Subject, Body: body})
 }
 
 // AddressVerify is what an account.email_verify message carries. The address is
@@ -120,14 +120,14 @@ func (n Notifier) SendAddressVerify(ctx context.Context, p *AddressVerify) error
 		if p.Next != "" {
 			link += "&next=" + url.QueryEscape(p.Next)
 		}
-		return n.sender.Send(ctx, &Message{
+		return n.send(ctx, &Message{
 			To:      p.Email,
 			Subject: i18n.T(ctx, i18n.KeyMailRegisterSubject),
 			Body:    n.letter(ctx, "", fmt.Sprintf(i18n.T(ctx, i18n.KeyMailRegisterBody), link)),
 		})
 	}
 	link := base + "/verify?token=" + url.QueryEscape(p.Token)
-	return n.sender.Send(ctx, &Message{
+	return n.send(ctx, &Message{
 		To:      p.Email,
 		Subject: i18n.T(ctx, i18n.KeyMailVerifySubject),
 		Body:    n.letter(ctx, "", fmt.Sprintf(i18n.T(ctx, i18n.KeyMailVerifyBody), p.Email, link)),

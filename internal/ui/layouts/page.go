@@ -24,6 +24,19 @@ type Page struct {
 	Nav            string
 	StructuredData string
 	SearchQuery    string
+	// Share is the picture a link preview shows in place of the default; the
+	// zero value keeps the default.
+	Share ShareImage
+}
+
+// ShareImage is a page's own preview picture. Path is site-relative because
+// the head prefixes the configured origin, which a crawler needs to fetch it.
+// Width and Height are 0 where unknown and are then left out of the tags
+// rather than stated wrong.
+type ShareImage struct {
+	Path          string
+	Width, Height int32
+	Alt           string
 }
 
 // NavItem is one top-level category entry in the header.
@@ -49,6 +62,25 @@ func TopNavFrom(ctx context.Context) []NavItem {
 		return nil
 	}
 	return items
+}
+
+type originKey struct{}
+
+// WithSiteOrigin carries the shop's own origin, scheme and host only, so the
+// head can name an absolute URL: a share preview is fetched by a crawler that
+// has no page to resolve a relative one against. Middleware sets it from the
+// configured base URL, never from the request's Host header, which a client
+// chooses.
+func WithSiteOrigin(ctx context.Context, origin string) context.Context {
+	return context.WithValue(ctx, originKey{}, origin)
+}
+
+// SiteOrigin is the origin WithSiteOrigin set, or "" outside the middleware.
+func SiteOrigin(ctx context.Context) string {
+	if origin, ok := ctx.Value(originKey{}).(string); ok {
+		return origin
+	}
+	return ""
 }
 
 type staffKey struct{}

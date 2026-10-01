@@ -35,7 +35,7 @@ func (n Notifier) SendOrderPaid(ctx context.Context, p *OrderPaid) error {
 		body += "\n" + fmt.Sprintf(i18n.T(ctx, i18n.KeyMailPaidCard), p.Card)
 	}
 
-	return n.sender.Send(ctx, &Message{
+	return n.send(ctx, &Message{
 		To:      p.Email,
 		Subject: fmt.Sprintf(i18n.T(ctx, i18n.KeyMailPaidSubject), p.OrderNumber),
 		Body:    body,
@@ -65,7 +65,7 @@ func (n Notifier) SendOrderShipped(ctx context.Context, p *OrderShipped) error {
 	if p.Pickup {
 		body = i18n.KeyMailShippedPickupBody
 	}
-	return n.sender.Send(ctx, &Message{
+	return n.send(ctx, &Message{
 		To:      p.Email,
 		Subject: fmt.Sprintf(i18n.T(ctx, i18n.KeyMailShippedSubject), p.OrderNumber),
 		Body: n.letter(ctx, p.Name, fmt.Sprintf(i18n.T(ctx, body),
@@ -93,7 +93,7 @@ func (n Notifier) SendRestockNotice(ctx context.Context, p *RestockNotice) error
 	body := n.letter(ctx, "", fmt.Sprintf(i18n.T(ctx, i18n.KeyMailRestockBody),
 		p.ProductName, p.SKU, strings.TrimRight(n.baseURL, "/")+"/p/"+p.Slug))
 
-	return n.sender.Send(ctx, &Message{
+	return n.send(ctx, &Message{
 		To:      p.Email,
 		Subject: fmt.Sprintf(i18n.T(ctx, i18n.KeyMailRestockSubject), p.ProductName),
 		Body:    body,

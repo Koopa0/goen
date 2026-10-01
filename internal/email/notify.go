@@ -97,7 +97,7 @@ func (n Notifier) SendOrderPlaced(ctx context.Context, p *OrderPlaced) error {
 		owed = *p.OwedCents
 	}
 	body := placedLetterBody(ctx, p.OrderNumber, owed, n.orderURL(p.OrderNumber))
-	return n.sender.Send(ctx, &Message{
+	return n.send(ctx, &Message{
 		To:      p.Email,
 		Subject: fmt.Sprintf(i18n.T(ctx, i18n.KeyMailPlacedSubject), p.OrderNumber),
 		Body:    n.letter(ctx, p.Name, body+n.statutoryDisclosure(ctx)),
@@ -135,7 +135,7 @@ func (n Notifier) SendPasswordReset(ctx context.Context, p *PasswordReset) error
 
 	ctx = n.locale(ctx, p.Locale)
 	link := strings.TrimRight(n.baseURL, "/") + "/reset?token=" + url.QueryEscape(p.Token)
-	return n.sender.Send(ctx, &Message{
+	return n.send(ctx, &Message{
 		To:      p.Email,
 		Subject: i18n.T(ctx, i18n.KeyMailResetSubject),
 		Body:    n.letter(ctx, "", fmt.Sprintf(i18n.T(ctx, i18n.KeyMailResetBody), link)),
@@ -169,7 +169,7 @@ func (n Notifier) SendAccountExists(ctx context.Context, p *AccountExists) error
 	if p.Change {
 		subject, body = i18n.KeyMailAddressInUseSubject, i18n.KeyMailAddressInUseBody
 	}
-	return n.sender.Send(ctx, &Message{
+	return n.send(ctx, &Message{
 		To:      p.Email,
 		Subject: i18n.T(ctx, subject),
 		Body:    n.letter(ctx, p.Name, fmt.Sprintf(i18n.T(ctx, body), base+"/signin", base+"/forgot")),
