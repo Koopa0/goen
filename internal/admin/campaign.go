@@ -2,11 +2,13 @@ package admin
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"unicode/utf8"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
@@ -70,6 +72,67 @@ func (s *Store) Campaigns(ctx context.Context, after ...string) (pages.AdminCamp
 		})
 	}
 	return view, nil
+}
+
+// MaxCampaignAltRunes bounds the header's alternative text.
+const MaxCampaignAltRunes = 200
+
+// CampaignImage is the header a campaign shows, as the edit page reads it.
+func (s *Store) CampaignImage(ctx context.Context, slug string) (pages.AdminCampaignImage, error) {
+	row, err := s.q.AdminCampaignImage(ctx, slug)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return pages.AdminCampaignImage{}, ErrNotFound
+		}
+		return pages.AdminCampaignImage{}, fmt.Errorf("read campaign image: %w", err)
+	}
+	return pages.AdminCampaignImage{
+		Key: row.ImageKey, Alt: row.ImageAlt, AltEn: row.ImageAltEn, Width: row.ImageWidth,
+	}, nil
+}
+
+// SetCampaignImage makes a stored upload the campaign's header. The alt text is
+// required: sale_campaigns_image_has_alt refuses an image without it.
+func (s *Store) SetCampaignImage(ctx context.Context, slug, digest, alt, altEn string) error {
+	alt, altEn = strings.TrimSpace(alt), strings.TrimSpace(altEn)
+	if alt == "" || utf8.RuneCountInString(alt) > MaxCampaignAltRunes ||
+		utf8.RuneCountInString(altEn) > MaxCampaignAltRunes {
+		return fmt.Errorf("%w: header alt text is required and bounded at %d runes", ErrInvalid, MaxCampaignAltRunes)
+	}
+	return s.audited(ctx, Event{
+		Action: actionSetCampaignImage, Table: "sale_campaigns", ID: uuid.NullUUID{},
+		After: map[string]any{"campaign": slug, "digest": digest, "alt": alt},
+	},
+		func(ctx context.Context, q *db.Queries) error {
+			n, err := q.SetCampaignImage(ctx, db.SetCampaignImageParams{
+				Slug: strings.TrimSpace(slug), ImageKey: digest, ImageAlt: alt, ImageAltEn: altEn,
+			})
+			if err != nil {
+				return fmt.Errorf("%w: %w", ErrRefused, err)
+			}
+			if n == 0 {
+				return ErrNotFound
+			}
+			return nil
+		})
+}
+
+// ClearCampaignImage removes the header; the media object itself stays.
+func (s *Store) ClearCampaignImage(ctx context.Context, slug string) error {
+	return s.audited(ctx, Event{
+		Action: actionClearCampaignImage, Table: "sale_campaigns", ID: uuid.NullUUID{},
+		Before: map[string]any{"campaign": slug},
+	},
+		func(ctx context.Context, q *db.Queries) error {
+			n, err := q.ClearCampaignImage(ctx, strings.TrimSpace(slug))
+			if err != nil {
+				return fmt.Errorf("%w: %w", ErrRefused, err)
+			}
+			if n == 0 {
+				return ErrNotFound
+			}
+			return nil
+		})
 }
 
 // CreateCampaign starts a promotion, with nothing featured.
