@@ -4254,8 +4254,10 @@ CREATE TABLE audit_events (
         CHECK (actor_user_id IS NULL OR actor_user_id = actor_id_snapshot)
 );
 
-CREATE INDEX audit_events_entity_idx ON audit_events (entity_table, entity_id, occurred_at DESC);
-CREATE INDEX audit_events_actor_idx ON audit_events (actor_id_snapshot, occurred_at DESC);
+-- The one statement that reads this table pages newest first with no filter. No
+-- index on the entity or the actor: nothing selects by either, and each costs a
+-- write on every audited action.
+CREATE INDEX audit_events_occurred_idx ON audit_events (occurred_at DESC, id DESC);
 CREATE INDEX audit_events_actor_user_id_idx
     ON audit_events (actor_user_id) WHERE actor_user_id IS NOT NULL;
 
