@@ -71,8 +71,9 @@ var mailedURL = regexp.MustCompile(`https?://[A-Za-z0-9\-._~:/?#\[\]@!$&'*+,;=%]
 
 // segments marks the URLs in line that point at goen itself. Only those become
 // links: a name, a carrier or a product name is somebody else's text, and a URL
-// typed into one must not arrive as a link goen's own letter asks to be
-// followed.
+// typed into one that leads off goen must not arrive as a link goen's own
+// letter asks to be followed. One typed into such text that points at goen
+// still becomes a link, since the text alone cannot tell it from goen's own.
 func segments(line, origin string) []segment {
 	var out []segment
 	rest := 0
