@@ -319,7 +319,7 @@ func (h *Handler) ReuseImage(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		h.log.WarnContext(r.Context(), "reuse image", "error", err, "slug", slug)
 		//nolint:gosec // G710: slug is the route's own path value
-		http.Redirect(w, r, "/admin/products/"+slug+"?needs=1", http.StatusSeeOther)
+		http.Redirect(w, r, "/admin/products/"+slug+"?imageneeds=1", http.StatusSeeOther)
 		return
 	}
 	if err := h.store.AttachImage(r.Context(), slug, obj.Digest,

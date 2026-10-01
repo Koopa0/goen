@@ -485,6 +485,11 @@ var adminNotices = map[string]i18n.Key{
 	"shipped":        i18n.KeyAdminNoticeShipped,
 	"toolate":        i18n.KeyAdminNoticeTooLate,
 	"needs":          i18n.KeyAdminNoticeNeeds,
+	"creditneeds":    i18n.KeyAdminNoticeCreditNeeds,
+	"tiersneeds":     i18n.KeyAdminNoticeTiersNeeds,
+	"shippingneeds":  i18n.KeyAdminNoticeShippingNeeds,
+	"deliveryneeds":  i18n.KeyAdminNoticeDeliveryNeeds,
+	"imageneeds":     i18n.KeyAdminNoticeImageNeeds,
 	"toobig":         i18n.KeyAdminNoticeTooBig,
 	"notimage":       i18n.KeyAdminNoticeNotImage,
 	"losslesswebp":   i18n.KeyAdminNoticeLosslessWebP,
@@ -595,7 +600,8 @@ func (h *Handler) GrantCredit(w http.ResponseWriter, r *http.Request) {
 	view := pages.AdminCreditView{Email: r.PostFormValue("email"), Amount: r.PostFormValue("amount"), Reason: r.PostFormValue("reason"), OperationID: r.PostFormValue("operation_id")}
 	operationID, valid := validateCreditGrant(&view)
 	if !valid {
-		h.renderCreditForm(w, r, &view, http.StatusUnprocessableEntity, i18n.KeyAdminNoticeNeeds)
+		// The field errors under the controls already say what is wrong.
+		h.renderCreditForm(w, r, &view, http.StatusUnprocessableEntity, "")
 		return
 	}
 	if err := h.store.creditRecipient(r.Context(), &view); err != nil {
@@ -630,7 +636,7 @@ func (h *Handler) GrantCredit(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/admin/credit?ok=1&balance="+
 			strconv.FormatInt(balance, 10), http.StatusSeeOther)
 	case errors.Is(err, ErrInvalid):
-		http.Redirect(w, r, "/admin/credit?needs=1", http.StatusSeeOther)
+		http.Redirect(w, r, "/admin/credit?creditneeds=1", http.StatusSeeOther)
 	case errors.Is(err, ErrRefused):
 		h.log.WarnContext(r.Context(), "credit grant refused", "error", err)
 		http.Redirect(w, r, "/admin/credit?refused=1", http.StatusSeeOther)
@@ -1579,7 +1585,7 @@ func (h *Handler) CreateTier(w http.ResponseWriter, r *http.Request) {
 	threshold, tErr := strconv.ParseInt(strings.TrimSpace(r.PostFormValue("threshold")), 10, 64)
 	percent, pErr := strconv.ParseInt(strings.TrimSpace(r.PostFormValue("percent")), 10, 64)
 	if tErr != nil || pErr != nil {
-		http.Redirect(w, r, "/admin/tiers?needs=1", http.StatusSeeOther)
+		http.Redirect(w, r, "/admin/tiers?tiersneeds=1", http.StatusSeeOther)
 		return
 	}
 	err := h.store.CreateTier(r.Context(), r.PostFormValue("code"),
@@ -1602,7 +1608,7 @@ func (h *Handler) redirectTiers(w http.ResponseWriter, r *http.Request, err erro
 	case err == nil:
 		http.Redirect(w, r, "/admin/tiers?ok=1", http.StatusSeeOther)
 	case errors.Is(err, ErrInvalid), errors.Is(err, ErrNotFound):
-		http.Redirect(w, r, "/admin/tiers?needs=1", http.StatusSeeOther)
+		http.Redirect(w, r, "/admin/tiers?tiersneeds=1", http.StatusSeeOther)
 	case errors.Is(err, ErrRefused):
 		h.log.WarnContext(r.Context(), "tier change refused", "error", err)
 		http.Redirect(w, r, "/admin/tiers?refused=1", http.StatusSeeOther)
@@ -1636,7 +1642,7 @@ func (h *Handler) CorrectDelivery(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, target+"?toolate=1", http.StatusSeeOther)
 	case errors.Is(err, ErrInvalid), errors.Is(err, ErrNotFound):
 		//nolint:gosec // G710: same
-		http.Redirect(w, r, target+"?needs=1", http.StatusSeeOther)
+		http.Redirect(w, r, target+"?deliveryneeds=1", http.StatusSeeOther)
 	case errors.Is(err, ErrRefused):
 		h.log.WarnContext(r.Context(), "delivery correction refused", "error", err)
 		//nolint:gosec // G710: same

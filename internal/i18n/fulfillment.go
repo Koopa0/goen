@@ -230,6 +230,31 @@ var (
 		En:     "A carrier and a tracking number are both needed.",
 	})
 
+	KeyAdminNoticeCreditNeeds = key("admin.notice.creditneeds", Message{
+		ZhHant: "額度的金額或原因有誤,請重新確認後再送出。",
+		En:     "The credit amount or reason is not right. Check them and send again.",
+	})
+
+	KeyAdminNoticeTiersNeeds = key("admin.notice.tiersneeds", Message{
+		ZhHant: "會員等級的資料有誤,或找不到這個等級。門檻與折扣須為整數。",
+		En:     "The tier is not right, or it no longer exists. The threshold and discount must be whole numbers.",
+	})
+
+	KeyAdminNoticeShippingNeeds = key("admin.notice.shippingneeds", Message{
+		ZhHant: "運費設定的資料有誤。運費、免運門檻與加價都必須是整數金額。",
+		En:     "The shipping setting is not right. Fees, free-shipping thresholds and surcharges must be whole dollar amounts.",
+	})
+
+	KeyAdminNoticeDeliveryNeeds = key("admin.notice.deliveryneeds", Message{
+		ZhHant: "收件資料有誤,或找不到這筆訂單。請檢查後再送出。",
+		En:     "The delivery details are not right, or the order no longer exists. Check them and send again.",
+	})
+
+	KeyAdminNoticeImageNeeds = key("admin.notice.imageneeds", Message{
+		ZhHant: "找不到要重用的圖片,請從已上傳的圖片中選擇。",
+		En:     "That image could not be found. Choose one that has already been uploaded.",
+	})
+
 	KeyAdminNoticeBadParcel = key("admin.notice.badparcel", Message{
 		ZhHant: "出貨數量填寫有問題:每一項不能超過還沒出貨的數量,也不能超過這筆訂單保留的庫存。",
 		En: "Those quantities do not work: no line can exceed what is still outstanding, or what this " +

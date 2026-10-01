@@ -516,3 +516,15 @@ func TestAMistypedPriceIsRefusedByEveryFormThatWritesOne(t *testing.T) {
 		})
 	}
 }
+
+// TestOnlyTheDispatchFormUsesTheCarrierAndTrackingNotice holds that a refusal
+// names its own screen's problem: the carrier-and-tracking sentence once
+// answered tiers, shipping, store credit, delivery correction and image reuse.
+func TestOnlyTheDispatchFormUsesTheCarrierAndTrackingNotice(t *testing.T) {
+	t.Parallel()
+	for name, key := range adminNotices {
+		if key == i18n.KeyAdminNoticeNeeds && name != "needs" {
+			t.Errorf("?%s=1 answers with the dispatch form's notice", name)
+		}
+	}
+}
