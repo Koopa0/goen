@@ -2,10 +2,12 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"net/url"
 	"regexp"
+	"runtime/debug"
 	"slices"
 	"strings"
 	"time"
@@ -113,8 +115,14 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	})
 	catalogue := catalog.NewStore(pool)
 	browse := catalog.NewHandler(catalogue, log)
-	sitePages := site.NewHandler(log, baseURL, catalogue, site.NewStore(pool), secureCookies)
-	storefront := home.NewHandler(home.NewStore(pool), log, secureCookies)
+	// Everything that describes shipping reads what checkout offers: pickup needs
+	// the store map, so without it nothing may promise pickup or its price.
+	siteStore, homeStore, productStore := site.NewStore(pool), home.NewStore(pool), product.NewStore(pool)
+	if !cfg.StoreMap.Enabled() {
+		siteStore, homeStore, productStore = siteStore.WithoutPickup(), homeStore.WithoutPickup(), productStore.WithoutPickup()
+	}
+	sitePages := site.NewHandler(log, baseURL, catalogue, siteStore, secureCookies)
+	storefront := home.NewHandler(homeStore, log, secureCookies)
 	probes := health.NewHandler(log,
 		health.Dependency{Name: "storefront", DB: pool},
 		health.Dependency{Name: "admin", DB: adminPool},
@@ -140,7 +148,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	signups := newsletter.NewHandler(newsletter.NewStore(pool), signupLimit, log)
 	cover := warranty.NewHandler(warranty.NewStore(pool), log)
 	points := loyalty.NewHandler(loyalty.NewStore(pool), log)
-	items := product.NewHandler(product.NewStore(pool), log, baseURL)
+	items := product.NewHandler(productStore, log, baseURL)
 	// Half of the order-lookup credential is a guessable order number, so
 	// unlimited asking makes the endpoint an oracle for the other half.
 	findLimit := ratelimit.New(ratelimit.Config{
@@ -448,10 +456,11 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 
 // withRequestTracing wraps a handler with the request log, panic recovery,
 // and identifier middleware. withRequestID is outermost so recovery sees the
-// same context the response header was stamped from.
+// same context the response header was stamped from. Recovery sits inside the
+// request log, so a request that panicked is logged with the 500 recovery sent.
 func withRequestTracing(next http.Handler, log *slog.Logger) http.Handler {
-	next = requestLog(next, log)
 	next = recoverPanic(next, log)
+	next = requestLog(next, log)
 	return withRequestID(next)
 }
 
@@ -665,22 +674,34 @@ func requestLog(next http.Handler, log *slog.Logger) http.Handler {
 
 func recoverPanic(next http.Handler, log *slog.Logger) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		rec := &statusRecorder{ResponseWriter: w}
 		defer func() {
 			if v := recover(); v != nil {
+				// net/http's own recovery treats this as the handler's way to
+				// abort the response; turning it into a 500 would send a body.
+				if err, ok := v.(error); ok && errors.Is(err, http.ErrAbortHandler) {
+					panic(v)
+				}
 				log.Error("panic serving request",
 					"request_id", web.RequestID(r.Context()),
 					"panic", v,
+					"stack", string(debug.Stack()),
 					"method", r.Method,
 					"path", r.URL.Path,
 				)
+				// A handler that already sent its status cannot change it, and a
+				// second body would be appended to a response that said 200.
+				if rec.status != 0 {
+					return
+				}
 				// i18n-exempt: the request has just panicked and the locale
 				// middleware is one of the things that could have done it, so
 				// both languages go in the literal rather than a lookup.
-				http.Error(w, "500 內部錯誤 / Internal error",
+				http.Error(rec, "500 內部錯誤 / Internal error",
 					http.StatusInternalServerError)
 			}
 		}()
-		next.ServeHTTP(w, r)
+		next.ServeHTTP(rec, r)
 	})
 }
 
@@ -805,6 +826,9 @@ func withBanner(next http.Handler, store *home.Store, log *slog.Logger, secure b
 		}
 		banner, err := store.Banner(r.Context(), home.ReadDismissal(r, secure))
 		if err != nil {
+			if errors.Is(err, context.Canceled) {
+				return // the caller left; there is nobody to serve
+			}
 			// Not fatal: an absent banner renders as nothing at all.
 			log.ErrorContext(r.Context(), "read promo banner", "error", err)
 			next.ServeHTTP(w, r)
@@ -882,6 +906,9 @@ func withTopNav(next http.Handler, store *home.Store, log *slog.Logger) http.Han
 		}
 		items, err := store.Nav(r.Context())
 		if err != nil {
+			if errors.Is(err, context.Canceled) {
+				return // the caller left; there is nobody to serve
+			}
 			log.ErrorContext(r.Context(), "read nav categories", "error", err)
 			next.ServeHTTP(w, r)
 			return

@@ -347,7 +347,7 @@ func openStoreMap(cfg *config, log *slog.Logger) (*cart.Map, error) {
 	}
 	if !m.Enabled() {
 		// i18n-exempt: a startup log line, read by an operator rather than a visitor.
-		log.Info("no 超商 store map configured; a pickup order names a chain and no store",
+		log.Info("no 超商 store map configured; checkout offers no store pickup",
 			"set", "GOEN_ECPAY_LOGISTICS")
 	}
 	return m, nil
@@ -375,7 +375,20 @@ func openProviders(cfg *config, log *slog.Logger) (
 		log.Warn("stripe is not configured; the payment page will say so",
 			"set", "GOEN_STRIPE_API_KEY and GOEN_STRIPE_WEBHOOK_SECRET")
 	}
+	warnSellerUnset(cfg, log)
 	return payments, invoices, googleSignIn, storeMap, nil
+}
+
+// warnSellerUnset says when the confirmation mail will carry no seller
+// disclosure: the mail omits it unless both values are set, and nothing else
+// reports the omission.
+func warnSellerUnset(cfg *config, log *slog.Logger) {
+	if cfg.Seller != "" && cfg.SellerContact != "" {
+		return
+	}
+	// i18n-exempt: a startup log line, read by an operator rather than a visitor.
+	log.Warn("seller is not configured; order mail will carry no 消保法 §18 disclosure",
+		"set", "GOEN_SELLER and GOEN_SELLER_CONTACT")
 }
 
 // openGoogleSignIn builds the OAuth client and says when there is none.

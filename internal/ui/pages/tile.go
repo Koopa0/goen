@@ -74,7 +74,7 @@ func (t ProductTile) ReviewCountText() string { return strconv.FormatInt(t.Ratin
 
 // RatingLabel is the rating as one sentence for assistive technology.
 func (t ProductTile) RatingLabel(ctx context.Context) string {
-	return fmt.Sprintf(i18n.T(ctx, i18n.KeyRatingSummary), t.RatingText(), t.ReviewCountText())
+	return i18n.Count(ctx, i18n.KeyRatingSummary, t.RatingCount, t.RatingText(), t.ReviewCountText())
 }
 
 // TWD is twd for callers outside this package.
