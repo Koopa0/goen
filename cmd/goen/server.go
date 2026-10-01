@@ -146,6 +146,12 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	findLimit := ratelimit.New(ratelimit.Config{
 		Every: 6 * time.Minute, Burst: 10, TTL: time.Hour, MaxKeys: 65_536,
 	})
+	// Every checkout submission looks up the coupon it carries, and a chooser
+	// change is a submission too, so a whole checkout is a dozen posts at most.
+	// cart.Handler bounds the wrong codes themselves; this bounds the rest.
+	checkoutLimit := ratelimit.New(ratelimit.Config{
+		Every: 2 * time.Second, Burst: 30, TTL: time.Hour, MaxKeys: 65_536,
+	})
 	var carrierChecker cart.CarrierChecker
 	if cfg.Invoices.Enabled() {
 		carrierChecker = cfg.Invoices
@@ -232,7 +238,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	mux.HandleFunc("POST /cart/items", clearSpeculations(basket.AddItem))
 	mux.HandleFunc("POST /cart/items/update", clearSpeculations(basket.UpdateItem))
 	mux.HandleFunc("GET /checkout", basket.Checkout)
-	mux.HandleFunc("POST /checkout", basket.PlaceOrder)
+	mux.HandleFunc("POST /checkout", ratelimit.Guard(checkoutLimit, log, basket.PlaceOrder))
 	if cfg.StoreMap.Enabled() {
 		// The carrier's page posts the chosen store here from the SHOPPER'S
 		// browser, so it arrives cross-site with none of goen's cookies. It
@@ -269,12 +275,19 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	mux.HandleFunc("POST /forgot", ratelimit.Guard(authLimit, log, customers.Forgot))
 	mux.HandleFunc("GET /reset", customers.ResetPage)
 	mux.HandleFunc("POST /reset", ratelimit.Guard(authLimit, log, customers.Reset))
-	// Open to a signed-OUT visitor on purpose: the token is the proof, not the
-	// session, and the link is followed on whatever device the mail is on.
+	// Open to a signed-out visitor, who is sent on rather than refused: a
+	// registration link to the page that asks for its password, and a new
+	// address's link to sign in first. The token proves only the mailbox, and
+	// the address goes to the account that asked for it.
 	mux.HandleFunc("GET /verify", customers.VerifyPage)
 	mux.HandleFunc("POST /verify", ratelimit.Guard(authLimit, log, customers.Verify))
 	mux.HandleFunc("GET /register", customers.RegisterPage)
 	mux.HandleFunc("POST /register", clearSpeculations(ratelimit.Guard(authLimit, log, customers.Register)))
+	// Open to a signed-out visitor: the link and the password chosen at
+	// registration are the proof. Under authLimit because it runs
+	// argon2, and it signs in, so it clears speculations.
+	mux.HandleFunc("GET /register/complete", customers.CompleteRegistrationPage)
+	mux.HandleFunc("POST /register/complete", clearSpeculations(ratelimit.Guard(authLimit, log, customers.CompleteRegistration)))
 	mux.HandleFunc("POST /signout", clearSpeculations(clearCache(customers.SignOut)))
 	mux.HandleFunc("GET /account", customers.RequireUser(customers.Overview))
 	mux.HandleFunc("GET /account/cart-recovery", customers.RequireUser(customers.CartRecoveryPage))
@@ -422,6 +435,9 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	handler = onlyVisitorPaths(customers.Authenticate, handler)
 	handler = withStorefrontRequestBudget(handler)
 	handler = crossOriginProtection(handler, cfg.StoreMap.Enabled())
+	// Before routing and before every middleware that reads the request, so no
+	// path value or query value PostgreSQL refuses reaches a query.
+	handler = web.RefuseUnstorableText(handler, secureCookies)
 	handler = securityHeaders(handler, policyWith(cfg.StoreMap.Origin()), secureCookies)
 	handler = web.Compress(handler)
 	return withRequestTracing(handler, log)

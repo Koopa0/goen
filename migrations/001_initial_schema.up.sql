@@ -60,16 +60,19 @@ BEGIN
 END;
 $$;
 
--- Refuses any UPDATE or DELETE; a correction is a new row.
+-- Refuses any UPDATE or DELETE; a correction is a new row. The trigger's second
+-- argument names the column that references users, actor_user_id when omitted.
 CREATE FUNCTION forbid_change() RETURNS trigger
 LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
+DECLARE
+    user_column text := coalesce(TG_ARGV[1], 'actor_user_id');
 BEGIN
-    -- The one permitted mutation: the ON DELETE SET NULL that nulls
-    -- actor_user_id when the acting user is erased. Everything else must be
-    -- byte-identical, so a value becomes unknown and never false.
+    -- The one permitted mutation: the ON DELETE SET NULL that nulls that
+    -- column when the user is erased. Everything else must be byte-identical,
+    -- so a value becomes unknown and never false.
     IF TG_OP = 'UPDATE'
-       AND (to_jsonb(NEW) - 'actor_user_id') = (to_jsonb(OLD) - 'actor_user_id')
-       AND to_jsonb(NEW) ->> 'actor_user_id' IS NULL THEN
+       AND (to_jsonb(NEW) - user_column) = (to_jsonb(OLD) - user_column)
+       AND to_jsonb(NEW) ->> user_column IS NULL THEN
         RETURN NEW;
     END IF;
     RAISE EXCEPTION '% is append-only; correct it with a new row', TG_TABLE_NAME
@@ -1065,6 +1068,15 @@ BEGIN
             USING ERRCODE = 'check_violation', CONSTRAINT = 'inventory_reservations_hold_for_positive';
     END IF;
 
+    -- The storefront's hold window (cart.holdTTL), which the shop's policy page
+    -- states and a Checkout Session's expiry is bound to. Longer is stock off sale
+    -- that no payment can be waiting for.
+    IF p_hold_for > interval '60 minutes' THEN
+        RAISE EXCEPTION 'a hold of % outlasts the checkout hold window', p_hold_for
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'inventory_hold_within_checkout_window';
+    END IF;
+
     -- Every path that needs both roots takes the order before stock. In
     -- particular, a concurrent re-hold must not own the variant while a
     -- cancellation/expiry release owns the order and waits for that variant.
@@ -1750,6 +1762,14 @@ CREATE TABLE orders (
     -- notice from a back-office click, with no visitor present to read.
     locale               text NOT NULL DEFAULT 'zh-Hant',
     placed_at            timestamptz NOT NULL DEFAULT now(),
+    -- The transaction that placed the order, and when it began, which
+    -- order_lines_written_while_placing is the only reader of. The id alone is
+    -- not enough: a dump restored into another cluster keeps it, and that
+    -- cluster's counter reaches it again, while no later transaction begins at
+    -- the same instant. No role is granted either column, so these DEFAULTs are
+    -- their only writers.
+    placed_in_xact       bigint NOT NULL DEFAULT pg_current_xact_id()::text::bigint,
+    placed_in_xact_began timestamptz NOT NULL DEFAULT transaction_timestamp(),
     cancelled_at         timestamptz,
     completed_at         timestamptz,
     updated_at           timestamptz NOT NULL DEFAULT now(),
@@ -2047,6 +2067,32 @@ $$;
 CREATE TRIGGER order_lines_bind_product
     BEFORE INSERT ON order_lines
     FOR EACH ROW EXECUTE FUNCTION order_lines_bind_product();
+
+-- An order's lines are written by the transaction that places it and by nothing
+-- after: hold_inventory bounds a hold by the order's lines, so a line added to
+-- an order already placed would let a later request take stock off sale against
+-- somebody else's order. Checkout writes the order and every line in one
+-- transaction, and orders_have_lines refuses an order committed without them.
+CREATE FUNCTION order_lines_check_placing() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM orders o
+        WHERE o.id = NEW.order_id
+          AND o.placed_in_xact = pg_current_xact_id()::text::bigint
+          AND o.placed_in_xact_began = transaction_timestamp()
+    ) THEN
+        RAISE EXCEPTION 'order % was placed by another transaction and takes no more lines',
+            NEW.order_id
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'order_lines_written_while_placing';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER order_lines_written_while_placing
+    BEFORE INSERT ON order_lines
+    FOR EACH ROW EXECUTE FUNCTION order_lines_check_placing();
 
 CREATE UNIQUE INDEX order_lines_position_key ON order_lines (order_id, position);
 -- Supports the composite FK's referencing side; its leading column also serves
@@ -2382,7 +2428,7 @@ CREATE INDEX coupon_redemptions_user_idx ON coupon_redemptions (user_id);
 
 CREATE TRIGGER coupon_redemptions_append_only
     BEFORE UPDATE OR DELETE ON coupon_redemptions
-    FOR EACH ROW EXECUTE FUNCTION forbid_change('coupon_redemptions_append_only');
+    FOR EACH ROW EXECUTE FUNCTION forbid_change('coupon_redemptions_append_only', 'user_id');
 
 -- The redemption and the order's discount_cents are one fact, so the database
 -- keeps them one.
@@ -2525,6 +2571,32 @@ $$;
 CREATE TRIGGER orders_history_frozen
     BEFORE UPDATE OF cancelled_at, completed_at ON orders
     FOR EACH ROW EXECUTE FUNCTION orders_freeze_history();
+
+-- Once an order is written, the account it belongs to changes only by erasure's
+-- ON DELETE SET NULL, which runs after the account row has gone. Everything else
+-- is refused: another account, an owner for a guest order, and NULL while the
+-- account still exists. spend_store_credit debits the owner it reads here and
+-- redeem_coupon counts the coupon against it, so an owner moved afterwards would
+-- spend another account's credit, or step round a per-customer limit and be put
+-- back. The owner an order is written with is not this trigger's to judge: store
+-- writes it as it places the order, and that is the storefront role's trust.
+CREATE FUNCTION orders_freeze_owner() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+    IF NEW.user_id IS NULL
+       AND NOT EXISTS (SELECT 1 FROM users WHERE id = OLD.user_id) THEN
+        RETURN NEW;
+    END IF;
+    RAISE EXCEPTION 'order %: the account it was placed by cannot change', NEW.order_number
+        USING ERRCODE = 'check_violation', CONSTRAINT = 'orders_owner_frozen';
+END;
+$$;
+
+CREATE TRIGGER orders_owner_frozen
+    BEFORE UPDATE OF user_id ON orders
+    FOR EACH ROW
+    WHEN (NEW.user_id IS DISTINCT FROM OLD.user_id)
+    EXECUTE FUNCTION orders_freeze_owner();
 
 CREATE TABLE return_requests (
     id                 uuid PRIMARY KEY DEFAULT uuidv7(),
@@ -3125,15 +3197,57 @@ CREATE UNIQUE INDEX warranty_registrations_serial_key
     ON warranty_registrations (serial_number) WHERE serial_number IS NOT NULL;
 CREATE INDEX warranty_registrations_user_id_idx ON warranty_registrations (user_id);
 
+-- A registration is a fact about a unit somebody holds: a unit the line bought,
+-- registered by the account that placed the order, carried by a parcel that has
+-- arrived — unit n is the n-th unit across the line's parcels in shipment order,
+-- as RegisterWarranty counts it. That statement already asks all three; here
+-- they hold for any writer. Erasure's ON DELETE SET NULL is the one change a
+-- registration takes after it is made.
 CREATE FUNCTION warranty_within_purchase() RETURNS trigger
 LANGUAGE plpgsql AS $$
 DECLARE
     bought integer;
+    placed_by uuid;
 BEGIN
-    SELECT quantity INTO bought FROM order_lines WHERE id = NEW.order_line_id;
+    SELECT ol.quantity, o.user_id INTO bought, placed_by
+    FROM order_lines ol JOIN orders o ON o.id = ol.order_id
+    WHERE ol.id = NEW.order_line_id;
     IF NEW.unit_no > bought THEN
         RAISE EXCEPTION 'unit % of a line that had %', NEW.unit_no, bought
             USING ERRCODE = 'check_violation', CONSTRAINT = 'warranty_unit_within_purchase';
+    END IF;
+    -- warranty_registrations_unit_positive names a unit below one once this returns.
+    IF NEW.unit_no < 1 THEN
+        RETURN NEW;
+    END IF;
+
+    IF TG_OP = 'UPDATE' AND NEW.user_id IS NULL
+       AND NEW.order_line_id = OLD.order_line_id AND NEW.unit_no = OLD.unit_no THEN
+        RETURN NEW;
+    END IF;
+
+    IF NEW.user_id IS NULL OR NEW.user_id IS DISTINCT FROM placed_by THEN
+        RAISE EXCEPTION 'unit % is registered to an account that did not place its order',
+            NEW.unit_no
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'warranty_registered_by_owner';
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1
+        FROM (
+            SELECT s.delivered_at, sl.quantity,
+                   sum(sl.quantity) OVER (ORDER BY s.shipped_at, s.id) - sl.quantity
+                       AS units_before
+            FROM order_shipment_lines sl
+            JOIN order_shipments s ON s.id = sl.shipment_id
+            WHERE sl.order_line_id = NEW.order_line_id
+        ) p
+        WHERE NEW.unit_no > p.units_before
+          AND NEW.unit_no <= p.units_before + p.quantity
+          AND p.delivered_at IS NOT NULL
+    ) THEN
+        RAISE EXCEPTION 'unit % of its line has not arrived', NEW.unit_no
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'warranty_unit_delivered';
     END IF;
     RETURN NEW;
 END;
@@ -4035,6 +4149,44 @@ CREATE INDEX payment_webhook_events_unprocessed_idx
     WHERE processed_at IS NULL;
 CREATE INDEX payment_webhook_events_object_idx ON payment_webhook_events (object_ref);
 
+-- The stored payload is evidence of WHICH event said WHAT about the money, not a
+-- replayable original: the signature is checked before the row is written, and
+-- every effect is attributed from goen's own payments row. A Checkout Session
+-- also carries the customer's name, email, phone and address, which here would
+-- outlive the account they belong to, as would whatever Stripe adds to an object
+-- later. So this names what is KEPT, scalars only, so no nested object can bring
+-- a person back in. It runs on every write of the payload, which is how
+-- erase_user reduces a row that was loaded without passing through it.
+CREATE FUNCTION payment_webhook_events_keep_evidence() RETURNS trigger
+LANGUAGE plpgsql AS $$
+DECLARE
+    event_part  jsonb := CASE jsonb_typeof(NEW.payload)
+                             WHEN 'object' THEN NEW.payload ELSE '{}' END;
+    object_part jsonb := CASE jsonb_typeof(NEW.payload #> '{data,object}')
+                             WHEN 'object' THEN NEW.payload #> '{data,object}' ELSE '{}' END;
+BEGIN
+    NEW.payload := coalesce((
+            SELECT jsonb_object_agg(f.key, f.value)
+            FROM jsonb_each(event_part) AS f
+            WHERE f.key IN ('id', 'object', 'type', 'created', 'livemode', 'api_version')
+              AND jsonb_typeof(f.value) IN ('string', 'number', 'boolean')
+        ), '{}')
+        || jsonb_build_object('data', jsonb_build_object('object', coalesce((
+            SELECT jsonb_object_agg(f.key, f.value)
+            FROM jsonb_each(object_part) AS f
+            WHERE f.key IN ('id', 'object', 'status', 'payment_status', 'amount_total',
+                            'currency', 'mode', 'created', 'expires_at',
+                            'client_reference_id', 'payment_intent')
+              AND jsonb_typeof(f.value) IN ('string', 'number', 'boolean')
+        ), '{}')));
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER payment_webhook_events_evidence_only
+    BEFORE INSERT OR UPDATE OF payload ON payment_webhook_events
+    FOR EACH ROW EXECUTE FUNCTION payment_webhook_events_keep_evidence();
+
 -- ============================================================================
 -- Outbox
 --
@@ -4538,6 +4690,7 @@ DECLARE
     addr text;
     account_role text;
     address_verified boolean;
+    erased_orders uuid[];
 BEGIN
     -- Take the roster guard before the target row, matching staff role changes.
     -- This order avoids a user-row/advisory-lock cycle with a concurrent demotion.
@@ -4583,6 +4736,26 @@ BEGIN
                   CONSTRAINT = 'erase_user_open_return';
     END IF;
 
+    -- Every order below is one of these: the account's own and, under the same
+    -- proved-mailbox rule as the address-keyed block further down, the orders
+    -- that address placed as a guest. The privacy policy promises their delivery
+    -- details go with the account. Collected and locked before anything below
+    -- blanks the address they are found by.
+    SELECT coalesce(array_agg(o.id ORDER BY o.id), '{}') INTO erased_orders
+    FROM orders o WHERE o.user_id = p_user_id;
+    IF addr IS NOT NULL AND address_verified THEN
+        SELECT erased_orders || coalesce(array_agg(g.id ORDER BY g.id), '{}')
+        INTO erased_orders
+        FROM (
+            SELECT o.id
+            FROM orders o
+            JOIN order_private_data pd ON pd.order_id = o.id
+            WHERE o.user_id IS NULL AND lower(pd.email) = lower(addr)
+            ORDER BY o.id
+            FOR UPDATE OF o
+        ) g;
+    END IF;
+
     -- Blank every delivery field and stamp erased_at: the all-NULL state
     -- order_private_data_all_or_erased permits.
     UPDATE order_private_data pd SET
@@ -4590,14 +4763,13 @@ BEGIN
         city = NULL, district = NULL, street = NULL,
         pickup_brand = NULL, pickup_store_code = NULL, pickup_store_name = NULL,
         erased_at = now()
-    FROM orders o
-    WHERE pd.order_id = o.id AND o.user_id = p_user_id AND pd.erased_at IS NULL;
+    WHERE pd.order_id = ANY (erased_orders) AND pd.erased_at IS NULL;
 
     -- customer_note is the customer's own words and routinely carries PII;
     -- staff_note is internal and stays. Nulling a note does not trip
     -- orders_freeze_money, so a paid order erases too.
     UPDATE orders SET customer_note = NULL
-    WHERE user_id = p_user_id AND customer_note IS NOT NULL;
+    WHERE id = ANY (erased_orders) AND customer_note IS NOT NULL;
 
     -- Remove messages whose ownership is derived from a user-bound row before
     -- those rows cascade or lose their user_id. This remains safe even when the
@@ -4618,7 +4790,7 @@ BEGIN
 
     DELETE FROM outbox_messages m
     USING orders o
-    WHERE o.user_id = p_user_id
+    WHERE o.id = ANY (erased_orders)
       AND m.topic IN ('order.placed', 'order.paid', 'order.shipped')
       AND coalesce(m.payload ->> 'order_number', m.payload ->> 'OrderNumber', '') =
           o.order_number;
@@ -4644,11 +4816,19 @@ BEGIN
     UPDATE invoice_operations op
     SET request_payload = request_payload - 'customer_name' - 'email',
         updated_at = now()
-    FROM orders o
-    WHERE op.order_id = o.id
-      AND o.user_id = p_user_id
+    WHERE op.order_id = ANY (erased_orders)
       AND op.status IN ('succeeded', 'rejected')
       AND (op.request_payload ? 'customer_name' OR op.request_payload ? 'email');
+
+    -- Stripe's copy of a Checkout Session names the customer. Writing the payload
+    -- back makes payment_webhook_events_evidence_only reduce it to evidence: a
+    -- restore loads rows before it creates triggers, so a restored row may still
+    -- carry the whole event. Attributed through goen's own payment row, as the
+    -- webhook itself is.
+    UPDATE payment_webhook_events e SET payload = e.payload
+    FROM payments p
+    WHERE e.provider = p.provider AND e.object_ref = p.provider_ref
+      AND p.order_id = ANY (erased_orders);
 
     -- Cross-table address ownership begins only after the mailbox is proved.
     -- Registration and a pending address change accept an arbitrary address;
@@ -4679,14 +4859,20 @@ BEGIN
         DELETE FROM outbox_messages m
         WHERE lower(coalesce(m.payload ->> 'email', m.payload ->> 'Email', '')) =
               lower(addr);
+
+        -- A payment event no payment row attributes, such as money for a session
+        -- goen never linked, can still name this address.
+        UPDATE payment_webhook_events e SET payload = e.payload
+        WHERE lower(coalesce(e.payload #>> '{data,object,customer_details,email}',
+                             e.payload #>> '{data,object,customer_email}', '')) =
+              lower(addr);
     END IF;
 
     -- Every browser's proof of access to this person's orders: a live bearer
     -- credential keyed on the ORDER, with ON DELETE RESTRICT, so nothing above
     -- reaches it.
     DELETE FROM order_access_grants g
-    USING orders o
-    WHERE g.order_id = o.id AND o.user_id = p_user_id;
+    WHERE g.order_id = ANY (erased_orders);
 
     -- The account itself. Its foreign keys carry the rest: actor columns go to
     -- NULL, auth rows cascade.
@@ -4802,9 +4988,9 @@ GRANT USAGE ON SCHEMA public TO store, reporting;
 GRANT SELECT ON ALL TABLES IN SCHEMA public TO store, reporting;
 GRANT INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO store;
 
--- reporting reads BUSINESS data, not everything. A table added later is swept in
--- by the blanket GRANT above and stays there silently, so
--- TestReportingCannotReadCredentialsOrPII asks per named table.
+-- reporting reads BUSINESS data, not everything. A table or column added later is
+-- swept in by the blanket GRANT above and stays there silently, so
+-- TestReportingCannotReadCredentialsOrPII asks of every column that can hold words.
 REVOKE SELECT ON
     sessions, password_reset_tokens, staff_totp_credentials, user_identities,
     order_private_data, payment_webhook_events, order_access_grants,
@@ -4816,6 +5002,26 @@ REVOKE SELECT ON
     invoice_operations,
     newsletter_subscribers, outbox_messages, stock_notifications
     FROM reporting;
+
+-- What a customer typed about an order or a return is theirs, and routinely
+-- carries a phone number or an address; the figures around it are the report.
+-- What staff type about an order is the same kind of text: that the customer
+-- rang from a number, or wants the parcel left at the back door.
+-- Named a column at a time, so a column added to any of these tables stays
+-- unreadable until somebody decides it is business data.
+REVOKE SELECT ON orders, return_requests, order_events FROM reporting;
+GRANT SELECT (id, order_number, user_id, fulfillment_status, currency,
+              discount_cents, shipping_cents, tax_cents, shipping_version_id,
+              shipping_method_code, shipping_method_name, locale,
+              placed_at, cancelled_at, completed_at, updated_at)
+    ON orders TO reporting;
+GRANT SELECT (id, order_id, requested_by_user_id, status, resolution,
+              goods_refund_cents, shipping_refund_cents, card_refund_cents,
+              credit_refund_cents, created_at, decided_at, before_shipment)
+    ON return_requests TO reporting;
+GRANT SELECT (id, order_id, kind, actor_user_id, by_system, occurred_at,
+              return_request_id)
+    ON order_events TO reporting;
 
 -- Tables whose integrity depends on going through a function; SELECT stays.
 -- INSERT is revoked with UPDATE and DELETE, or store writes a born-succeeded

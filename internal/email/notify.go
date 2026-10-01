@@ -141,3 +141,37 @@ func (n Notifier) SendPasswordReset(ctx context.Context, p *PasswordReset) error
 		Body:    n.letter(ctx, "", fmt.Sprintf(i18n.T(ctx, i18n.KeyMailResetBody), link)),
 	})
 }
+
+// AccountExists is the account to tell that somebody tried to take its address:
+// its address and name as they are when the letter is sent, and the locale the
+// attempt was made in.
+type AccountExists struct {
+	Locale string
+	Email  string
+	Name   string
+	// Change is an attempt to move another account to the address, rather
+	// than to register it again.
+	Change bool
+}
+
+// SendAccountExists tells the owner of an address that somebody tried to
+// register it again, or to move another account to it. Both forms answer every
+// address the same, so this letter is the only place the answer "you already
+// have an account" is given, and it goes to the mailbox rather than to whoever
+// asked.
+func (n Notifier) SendAccountExists(ctx context.Context, p *AccountExists) error {
+	if !Valid(p.Email) {
+		return errors.New("an account-exists notice has no usable recipient")
+	}
+	ctx = n.locale(ctx, p.Locale)
+	base := strings.TrimRight(n.baseURL, "/")
+	subject, body := i18n.KeyMailAccountExistsSubject, i18n.KeyMailAccountExistsBody
+	if p.Change {
+		subject, body = i18n.KeyMailAddressInUseSubject, i18n.KeyMailAddressInUseBody
+	}
+	return n.sender.Send(ctx, &Message{
+		To:      p.Email,
+		Subject: i18n.T(ctx, subject),
+		Body:    n.letter(ctx, p.Name, fmt.Sprintf(i18n.T(ctx, body), base+"/signin", base+"/forgot")),
+	})
+}

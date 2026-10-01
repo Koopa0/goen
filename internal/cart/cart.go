@@ -408,6 +408,23 @@ func (s *Store) PlacedHere(ctx context.Context, r *http.Request, number string, 
 	return ok
 }
 
+// ForgetOrders ends the access a browser's placed cookie grants to every order
+// it names.
+func (s *Store) ForgetOrders(ctx context.Context, r *http.Request, secure bool) error {
+	tokens := placedTokens(r, secure)
+	if len(tokens) == 0 {
+		return nil
+	}
+	digests := make([][]byte, 0, len(tokens))
+	for _, t := range tokens {
+		digests = append(digests, HashToken(t))
+	}
+	if err := s.q.RevokeOrderAccess(ctx, digests); err != nil {
+		return fmt.Errorf("revoke this browser's order access: %w", err)
+	}
+	return nil
+}
+
 func placedCookieName(secure bool) string {
 	if secure {
 		return PlacedCookieName
@@ -474,10 +491,12 @@ func SetCookie(w http.ResponseWriter, token string, secure bool) {
 	})
 }
 
-// clearCookie expires the cart cookie.
-func clearCookie(w http.ResponseWriter, secure bool) {
+// expireCookie expires the cart or placed cookie named name. It carries the
+// attributes both are set with: a browser replaces a cookie only with one of
+// the same name and path, and refuses a __Host- name without Secure.
+func expireCookie(w http.ResponseWriter, name string, secure bool) {
 	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: dev-only opt-out, secure by default
-		Name:     cookieName(secure),
+		Name:     name,
 		Value:    "",
 		Path:     "/",
 		MaxAge:   -1,

@@ -317,25 +317,208 @@ func TestTheBurstIsSpentThenRefused(t *testing.T) {
 	}
 }
 
-func TestARefusedAttemptDoesNotSpendTheAllowance(t *testing.T) {
-	l := New(Config{Every: 10 * time.Millisecond, Burst: 1, TTL: time.Hour, MaxKeys: testMaxKeys})
-
-	if _, ok := l.Allow("k"); !ok {
-		t.Fatal("the first attempt was refused")
+// reserveThen reserves one of key's tokens and settles it at once, reporting
+// whether the reservation was granted.
+func reserveThen(l *Limiter, key string, keep bool) bool {
+	r, _, ok := l.Reserve(key)
+	if !ok {
+		return false
 	}
-	// Each of these eats a future token if the reservation is not cancelled.
+	if keep {
+		r.Keep()
+	} else {
+		r.Refund()
+	}
+	return true
+}
+
+// TestARefundedReservationSpendsNothing: a reservation given back leaves the
+// allowance where it was, however often, and a key that has only ever been
+// given back is not tracked; only a kept one is charged.
+func TestARefundedReservationSpendsNothing(t *testing.T) {
+	l := New(Config{Every: time.Minute, Burst: 2, TTL: time.Hour, MaxKeys: testMaxKeys})
+
+	if !reserveThen(l, "unseen", false) {
+		t.Error("a key never charged was refused")
+	}
+	if got := bucketCount(l); got != 0 {
+		t.Errorf("a reservation given back left its key tracked: %d keys held, want 0", got)
+	}
 	for range 50 {
-		if _, ok := l.Allow("k"); ok {
-			t.Fatal("an attempt was allowed inside the refill interval")
+		if !reserveThen(l, "k", false) {
+			t.Fatal("an uncharged key was refused")
 		}
 	}
-
-	// One token back, not the zero fifty uncancelled reservations would leave.
-	time.Sleep(30 * time.Millisecond)
-	if _, ok := l.Allow("k"); !ok {
-		t.Error("the key never recovered; refused attempts are consuming the " +
-			"allowance, which turns a throttle into a lockout")
+	if !reserveThen(l, "k", true) {
+		t.Fatal("the first charge was refused")
 	}
+	for range 50 {
+		if !reserveThen(l, "k", false) {
+			t.Fatal("a key with one charge left was refused")
+		}
+	}
+	if !reserveThen(l, "k", true) {
+		t.Fatal("the second charge was refused; a refund spent the allowance")
+	}
+	_, retryAfter, ok := l.Reserve("k")
+	if ok {
+		t.Fatal("a key with nothing left was granted a reservation")
+	}
+	if retryAfter <= 0 || retryAfter > time.Minute {
+		t.Errorf("retry-after is %v, want something inside the refill interval", retryAfter)
+	}
+}
+
+// TestAnUnsettledReservationCountsAgainstTheNext: a token set aside is gone
+// until it is given back, so work still in flight cannot be overtaken by more
+// of the same.
+func TestAnUnsettledReservationCountsAgainstTheNext(t *testing.T) {
+	l := New(Config{Every: time.Minute, Burst: 3, TTL: time.Hour, MaxKeys: testMaxKeys})
+
+	inFlight := make([]*Reservation, 0, 3)
+	for i := range 3 {
+		r, _, ok := l.Reserve("k")
+		if !ok {
+			t.Fatalf("reservation %d was refused inside the burst of 3", i+1)
+		}
+		inFlight = append(inFlight, r)
+	}
+	if _, retryAfter, ok := l.Reserve("k"); ok || retryAfter <= 0 {
+		t.Fatalf("a fourth reservation with three in flight answered ok=%v retry-after=%v, want a refusal",
+			ok, retryAfter)
+	}
+	inFlight[0].Refund()
+	if !reserveThen(l, "k", true) {
+		t.Fatal("the token given back could not be reserved again")
+	}
+	inFlight[1].Keep()
+	inFlight[2].Keep()
+	if _, _, ok := l.Reserve("k"); ok {
+		t.Error("three kept reservations left a token to reserve; the burst is 3")
+	}
+	requireConsistent(t, l)
+}
+
+// TestOnlyTheFirstSettlementCounts: a deferred Refund after a Keep gives
+// nothing back, and a Keep after a Refund charges nothing.
+func TestOnlyTheFirstSettlementCounts(t *testing.T) {
+	l := New(Config{Every: time.Minute, Burst: 1, TTL: time.Hour, MaxKeys: testMaxKeys})
+
+	r, _, ok := l.Reserve("refunded")
+	if !ok {
+		t.Fatal("the first reservation was refused")
+	}
+	r.Refund()
+	r.Keep()
+	if !reserveThen(l, "refunded", false) {
+		t.Error("a Keep after a Refund charged the key")
+	}
+
+	r, _, ok = l.Reserve("kept")
+	if !ok {
+		t.Fatal("the first reservation was refused")
+	}
+	r.Keep()
+	r.Refund()
+	if _, _, ok := l.Reserve("kept"); ok {
+		t.Error("a Refund after a Keep gave the token back")
+	}
+}
+
+// TestAKeptReservationIsChargedAfterItsKeyWasEvicted: the table may forget a
+// key while its token is set aside; the miss is still charged, to the key as it
+// is tracked when the miss is known.
+func TestAKeptReservationIsChargedAfterItsKeyWasEvicted(t *testing.T) {
+	l := New(Config{Every: time.Minute, Burst: 1, TTL: time.Hour, MaxKeys: 1})
+
+	r, _, ok := l.Reserve("k")
+	if !ok {
+		t.Fatal("the first reservation was refused")
+	}
+	l.Allow("another") // at capacity, the only other key goes
+	if held(t, l, "k") {
+		t.Fatal("the key was not evicted; the test proves nothing")
+	}
+	r.Keep()
+	if _, _, ok := l.Reserve("k"); ok {
+		t.Error("a miss kept after its key was evicted was never charged")
+	}
+	requireConsistent(t, l)
+}
+
+// TestReservationsMadeAtOnceShareOneBurst: the race detector is the first
+// assertion; the second is that simultaneous reservations are granted no more
+// often than the burst, which a check followed by a later charge would not be.
+func TestReservationsMadeAtOnceShareOneBurst(t *testing.T) {
+	const burst = 16
+	l := New(Config{Every: time.Hour, Burst: burst, TTL: time.Hour, MaxKeys: testMaxKeys})
+
+	var (
+		wg      sync.WaitGroup
+		mu      sync.Mutex
+		granted []*Reservation
+	)
+	start := make(chan struct{})
+	for range 8 * burst {
+		wg.Go(func() {
+			<-start
+			if r, _, ok := l.Reserve("shared"); ok {
+				mu.Lock()
+				granted = append(granted, r)
+				mu.Unlock()
+			}
+		})
+	}
+	close(start)
+	wg.Wait()
+	if len(granted) != burst {
+		t.Fatalf("%d reservations were granted at once, want the burst of %d", len(granted), burst)
+	}
+	for i, r := range granted {
+		wg.Go(func() {
+			if i%2 == 0 {
+				r.Keep()
+			} else {
+				r.Refund()
+			}
+		})
+	}
+	wg.Wait()
+	for range burst / 2 {
+		if !reserveThen(l, "shared", true) {
+			t.Fatal("a refunded token could not be reserved again")
+		}
+	}
+	if _, _, ok := l.Reserve("shared"); ok {
+		t.Error("more tokens were reserved than the burst holds")
+	}
+	requireConsistent(t, l)
+}
+
+// In a synctest bubble the fifty refusals share one instant, so a slow or
+// loaded machine cannot refill the bucket between them and pass a refusal off
+// as an allowance.
+func TestARefusedAttemptDoesNotSpendTheAllowance(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		l := New(Config{Every: 10 * time.Millisecond, Burst: 1, TTL: time.Hour, MaxKeys: testMaxKeys})
+
+		if _, ok := l.Allow("k"); !ok {
+			t.Fatal("the first attempt was refused")
+		}
+		// Each of these eats a future token if the reservation is not cancelled.
+		for range 50 {
+			if _, ok := l.Allow("k"); ok {
+				t.Fatal("an attempt was allowed inside the refill interval")
+			}
+		}
+
+		// One token back, not the zero fifty uncancelled reservations would leave.
+		time.Sleep(30 * time.Millisecond)
+		if _, ok := l.Allow("k"); !ok {
+			t.Error("the key never recovered; refused attempts are consuming the " +
+				"allowance, which turns a throttle into a lockout")
+		}
+	})
 }
 
 func TestKeysAreIndependent(t *testing.T) {

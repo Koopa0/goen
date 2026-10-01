@@ -1,8 +1,12 @@
 package media
 
 import (
+	"bytes"
 	"image"
+	"image/png"
+	"log/slog"
 	"math"
+	"runtime"
 	"testing"
 
 	"golang.org/x/image/draw"
@@ -36,6 +40,74 @@ func TestNoScaleHoldsMoreThanOneBandOfScratch(t *testing.T) {
 			t.Errorf("a scale from %v to %v holds %d cells of scratch, over one band's %d; "+
 				"the whole image's is %d", c.sr, c.dr, scratch, oneBand, limit*h)
 		}
+	}
+}
+
+// TestARenditionHoldsNoMoreThanOneBandOfScratch is the same bound on the
+// rendition an anonymous visitor asks for at /media/{digest}/{width}: every
+// scale Resize makes spans at most a band of the axis it is not reducing.
+func TestARenditionHoldsNoMoreThanOneBandOfScratch(t *testing.T) {
+	t.Parallel()
+
+	const w, h, width = 1000, 700, 400
+	var stored bytes.Buffer
+	if err := png.Encode(&stored, image.NewRGBA(image.Rect(0, 0, w, h))); err != nil {
+		t.Fatalf("encode the stored image: %v", err)
+	}
+	var calls []scaleCall
+	rendered, err := resizeWith(stored.Bytes(), "image/png", width, func(dw, dh, sw, sh int) draw.Scaler {
+		return recordingScaler{real: draw.CatmullRom.NewScaler(dw, dh, sw, sh), calls: &calls}
+	})
+	if err != nil {
+		t.Fatalf("resize: %v", err)
+	}
+	cfg, err := png.DecodeConfig(bytes.NewReader(rendered))
+	if err != nil {
+		t.Fatalf("decode the rendition: %v", err)
+	}
+	if cfg.Width != width || cfg.Height != width*h/w {
+		t.Fatalf("rendered %dx%d, want %dx%d", cfg.Width, cfg.Height, width, width*h/w)
+	}
+	if len(calls) == 0 {
+		t.Fatal("no scale went through the scalers handed in; the bound below measures nothing")
+	}
+
+	oneBand := resizeBand * max(width, h)
+	for _, c := range calls {
+		if scratch := c.dr.Dx() * c.sr.Dy(); scratch > oneBand {
+			t.Errorf("a scale from %v to %v holds %d cells of scratch, over one band's %d; "+
+				"the whole image's is %d", c.sr, c.dr, scratch, oneBand, width*h)
+		}
+	}
+}
+
+// TestRendersRunNoWiderThanTheirMemoryBoundOnAnyMachine: a render's memory is
+// set by the stored image, not by the machine, so more cores must not mean
+// more renders at once.
+func TestRendersRunNoWiderThanTheirMemoryBoundOnAnyMachine(t *testing.T) {
+	t.Parallel()
+
+	for procs, want := range map[int]int{0: 1, 1: 1, 2: 2, 4: maxRenderSlots, 64: maxRenderSlots} {
+		if got := renderSlotsFor(procs); got != want {
+			t.Errorf("renderSlotsFor(%d) = %d, want %d", procs, got, want)
+		}
+	}
+	if renderSlots < 1 || renderSlots > maxRenderSlots {
+		t.Errorf("renderSlots = %d, want between 1 and %d", renderSlots, maxRenderSlots)
+	}
+}
+
+// TestTheHandlersRendersRunNoWiderThanTheBound holds the bound where requests
+// meet it: the renderer NewHandler builds. It is built on a machine with more
+// cores than the bound, so a renderer sized by the core count is caught
+// whatever machine runs the test. Not parallel, because GOMAXPROCS is the
+// process's.
+func TestTheHandlersRendersRunNoWiderThanTheBound(t *testing.T) {
+	defer runtime.GOMAXPROCS(runtime.GOMAXPROCS(8 * maxRenderSlots))
+	h := NewHandler(&Store{}, slog.New(slog.DiscardHandler))
+	if got := cap(h.renditions.slots); got != renderSlots {
+		t.Errorf("the handler renders %d at once on %d cores, want renderSlots = %d",
+			got, runtime.GOMAXPROCS(0), renderSlots)
 	}
 }
 

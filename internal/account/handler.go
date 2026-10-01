@@ -22,22 +22,34 @@ import (
 )
 
 // CartFinder is what account needs of the cart: the cart a request's cookie
-// names, so sign-in can adopt it, and forgetting that cookie at sign-out, so the
-// browser keeps no reference to the account's cart.
+// names, so sign-in can adopt it, and forgetting that cookie and the one naming
+// the browser's orders when a session ends, so the browser keeps no reference
+// to the account's cart or to any order.
 type CartFinder interface {
 	CartIDForRequest(ctx context.Context, r *http.Request) (uuid.UUID, bool)
 	ForgetCart(w http.ResponseWriter, r *http.Request)
+	ForgetOrders(w http.ResponseWriter, r *http.Request)
 }
 
 // Handler serves sign-in, registration and the customer's own pages.
 type Handler struct {
 	signinLimit *ratelimit.Limiter
-	resetLimit  *ratelimit.Limiter
-	store       *Store
-	carts       CartFinder
-	log         *slog.Logger
-	secure      bool
-	google      *Google
+	// resetLimit bounds reset requests per address at mailLimit's pace, on a
+	// budget of its own: spending the registration and change budget for an
+	// address must not stop its owner getting a reset link.
+	resetLimit *ratelimit.Limiter
+	store      *Store
+	carts      CartFinder
+	log        *slog.Logger
+	secure     bool
+	google     *Google
+
+	// mailLimit bounds, per address, the forms that mail an address whoever
+	// names it: registration and an address change. Each mails the address
+	// whether or not it has an account, and anybody can have an account with
+	// their own mailbox, so without it either form is a way to fill somebody
+	// else's inbox. One budget for both, so using the two does not double it.
+	mailLimit *ratelimit.Limiter
 }
 
 // NewHandler returns a Handler over store.
@@ -53,10 +65,16 @@ func NewHandler(store *Store, carts CartFinder, log *slog.Logger, secure bool, g
 		signinLimit: ratelimit.New(ratelimit.Config{
 			Every: 15 * time.Second, Burst: 6, TTL: time.Hour, MaxKeys: 65_536,
 		}),
-		resetLimit: ratelimit.New(ratelimit.Config{
-			Every: time.Minute, Burst: 3, TTL: time.Hour, MaxKeys: 65_536,
-		}),
+		resetLimit: ratelimit.New(addressMailPace),
+		mailLimit:  ratelimit.New(addressMailPace),
 	}
+}
+
+// addressMailPace is how often a form anybody can submit may make goen mail one
+// address: three at once, then one every ten minutes, more than somebody
+// retyping or asking again needs.
+var addressMailPace = ratelimit.Config{
+	Every: 10 * time.Minute, Burst: 3, TTL: time.Hour, MaxKeys: 65_536,
 }
 
 type contextKey struct{}
@@ -90,7 +108,7 @@ func (h *Handler) Authenticate(next http.Handler) http.Handler {
 			// member out at once during a blip — unrecoverably, because the row
 			// survives and the browser no longer holds the token for it.
 			if errors.Is(err, ErrNotFound) {
-				ClearSessionCookie(w, h.secure)
+				h.forgetSession(w, r)
 			} else {
 				h.log.ErrorContext(r.Context(), "read session", "error", err)
 			}
@@ -118,6 +136,8 @@ func (h *Handler) SignInPage(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/account", http.StatusSeeOther)
 		return
 	}
+	// next can be a live link back to /verify; never compress it.
+	web.NoCompress(w)
 	view := pages.AuthView{
 		Next:         web.SitePathOr(r.URL.Query().Get("next"), "/account"),
 		GoogleSignIn: h.google.Enabled(),
@@ -183,6 +203,8 @@ func (h *Handler) SignIn(w http.ResponseWriter, r *http.Request) {
 // a wrong password: two submissions differ only in the address the visitor
 // already gave goen, never in information about an account.
 func (h *Handler) signInFailed(w http.ResponseWriter, r *http.Request, addr, next string) {
+	// next can be a live link back to /verify, beside an address the visitor typed.
+	web.NoCompress(w)
 	web.Render(w, r, h.log, http.StatusUnprocessableEntity,
 		pages.SignIn(pages.SignInMeta(r.Context()), pages.AuthView{
 			Email: addr, Next: next,
@@ -196,11 +218,16 @@ func (h *Handler) RegisterPage(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/account", http.StatusSeeOther)
 		return
 	}
-	web.Render(w, r, h.log, http.StatusOK, pages.Register(pages.RegisterMeta(r.Context()),
-		pages.AuthView{Next: web.SitePathOr(r.URL.Query().Get("next"), "/account")}))
+	view := pages.AuthView{Next: web.SitePathOr(r.URL.Query().Get("next"), "/account")}
+	if r.URL.Query().Get("sent") == "1" {
+		view.Notice = i18n.T(r.Context(), i18n.KeyRegisterSent)
+	}
+	web.Render(w, r, h.log, http.StatusOK, pages.Register(pages.RegisterMeta(r.Context()), view))
 }
 
-// Register serves POST /register.
+// Register serves POST /register. It answers every usable submission the same
+// way, whether or not the address already has an account: the mailbox is told
+// which, never the visitor. A refusal is only ever about what was typed.
 func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
@@ -223,30 +250,18 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	u, err := h.store.Register(r.Context(), c)
-	if err != nil {
-		if errors.Is(err, ErrEmailTaken) {
-			view.Errors = map[string]string{"email": i18n.T(r.Context(), i18n.KeyEmailTaken)}
-			web.Render(w, r, h.log, http.StatusUnprocessableEntity,
-				pages.Register(pages.RegisterMeta(r.Context()), view))
-			return
-		}
+	// After validation, so only an address the rules accept becomes a key.
+	if retryAfter, ok := h.mailLimit.Allow("mail:" + email.Clean(c.Email)); !ok {
+		ratelimit.Refuse(r.Context(), w, retryAfter)
+		return
+	}
+
+	if err := h.store.Register(r.Context(), c, next); err != nil {
 		h.log.ErrorContext(r.Context(), "register", "error", err)
 		h.serverError(w, r)
 		return
 	}
-
-	// Swallowed: a mail problem must not become a lost registration.
-	if err := h.store.requestVerification(r.Context(), u.ID, u.Email); err != nil {
-		h.log.WarnContext(r.Context(), "request verification at registration", "error", err)
-	}
-
-	started, adoption := h.startSession(w, r, u)
-	if !started {
-		return
-	}
-	next = cartAdoptionLanding(next, adoption)
-	http.Redirect(w, r, next, http.StatusSeeOther) //nolint:gosec // G710: bounded by web.SitePathOr
+	http.Redirect(w, r, "/register?sent=1", http.StatusSeeOther)
 }
 
 // SignOut serves POST /signout.
@@ -254,11 +269,20 @@ func (h *Handler) SignOut(w http.ResponseWriter, r *http.Request) {
 	if err := h.store.EndSession(r.Context(), ReadSessionCookie(r, h.secure)); err != nil {
 		h.log.ErrorContext(r.Context(), "end session", "error", err)
 	}
+	h.forgetSession(w, r)
+	http.Redirect(w, r, "/", http.StatusSeeOther)
+}
+
+// forgetSession clears what a browser keeps of a session that has ended: the
+// session cookie, and the account's cart and the browser's orders. A session
+// also ends without its browser signing out, when it expires or is ended from
+// another device, and the next person at that browser must inherit none of it.
+func (h *Handler) forgetSession(w http.ResponseWriter, r *http.Request) {
 	ClearSessionCookie(w, h.secure)
 	if h.carts != nil {
 		h.carts.ForgetCart(w, r)
+		h.carts.ForgetOrders(w, r)
 	}
-	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
 // Overview serves GET /account.
@@ -306,8 +330,6 @@ func accountNotice(r *http.Request) string {
 		return i18n.T(ctx, i18n.KeyEraseLastAdmin)
 	case q.Get("email") == "sent":
 		return i18n.T(ctx, i18n.KeyEmailSent)
-	case q.Get("email") == "taken":
-		return i18n.T(ctx, i18n.KeyEmailTakenNotice)
 	case q.Get("email") == "invalid":
 		return i18n.T(ctx, i18n.KeyEmailInvalidNotice)
 	case q.Get("unlinked") == "1":
@@ -620,7 +642,7 @@ func (h *Handler) Erase(w http.ResponseWriter, r *http.Request) {
 		if err := h.store.EndSession(r.Context(), token); err != nil {
 			h.log.ErrorContext(r.Context(), "end stale session", "error", err)
 		}
-		ClearSessionCookie(w, h.secure)
+		h.forgetSession(w, r)
 		http.Redirect(w, r, "/signin?next=%2Faccount&reauth=erase", http.StatusSeeOther)
 		return
 	}
@@ -716,16 +738,21 @@ func (h *Handler) ChangeEmail(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/account?email=invalid", http.StatusSeeOther)
 		return
 	}
+	// After validation, so only an address the rules accept becomes a key, and
+	// on the address's own count, so the refusal says nothing about its holder.
+	if retryAfter, ok := h.mailLimit.Allow("mail:" + email.Clean(addr)); !ok {
+		ratelimit.Refuse(r.Context(), w, retryAfter)
+		return
+	}
 
-	switch err := h.store.requestVerification(r.Context(), u.ID, addr); {
-	case err == nil:
-		http.Redirect(w, r, "/account?email=sent", http.StatusSeeOther)
-	case errors.Is(err, ErrEmailTaken):
-		http.Redirect(w, r, "/account?email=taken", http.StatusSeeOther)
-	default:
+	// The same answer whether or not the address has an account: only the
+	// mailbox is told which, by the outbox worker.
+	if err := h.store.requestVerification(r.Context(), u.ID, addr); err != nil {
 		h.log.ErrorContext(r.Context(), "request email verification", "error", err)
 		h.serverError(w, r)
+		return
 	}
+	http.Redirect(w, r, "/account?email=sent", http.StatusSeeOther)
 }
 
 // ResendVerification serves POST /account/email/resend.
@@ -767,14 +794,28 @@ func (h *Handler) Verify(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx := r.Context()
 
-	addr, err := h.store.ConfirmVerification(ctx, r.PostFormValue("token"))
+	token := r.PostFormValue("token")
+	var asker string
+	if u, ok := FromContext(ctx); ok {
+		asker = u.ID
+	}
+	confirmed, err := h.store.ConfirmVerification(ctx, token, asker)
 	switch {
+	case errors.Is(err, ErrVerifyNeedsPassword):
+		// A registration link reached the page for proving an address; it is
+		// completed only with the password chosen at registration.
+		http.Redirect(w, r, "/register/complete?"+url.Values{"token": {token}}.Encode(), http.StatusSeeOther)
+	case errors.Is(err, ErrVerifyNeedsSignIn):
+		// The address goes only to the account that asked for it, so the link
+		// is followed again once that account is signed in.
+		back := "/verify?" + url.Values{"token": {token}}.Encode()
+		http.Redirect(w, r, "/signin?"+url.Values{"next": {back}}.Encode(), http.StatusSeeOther)
 	case err == nil:
 		web.Render(w, r, h.log, http.StatusOK, pages.NewsletterAction(
 			pages.NewsletterMeta(i18n.T(ctx, i18n.KeyVerifyDone)),
 			pages.NewsletterActionView{
 				Heading: i18n.T(ctx, i18n.KeyVerifyDone),
-				Body:    fmt.Sprintf(i18n.T(ctx, i18n.KeyVerifyDoneBody), addr),
+				Body:    fmt.Sprintf(i18n.T(ctx, i18n.KeyVerifyDoneBody), confirmed.Email),
 			}))
 	case errors.Is(err, ErrEmailTaken):
 		h.verifyFailed(w, r, i18n.T(ctx, i18n.KeyVerifyTakenTitle), i18n.T(ctx, i18n.KeyVerifyTakenBody))
@@ -783,6 +824,75 @@ func (h *Handler) Verify(w http.ResponseWriter, r *http.Request) {
 	default:
 		h.log.ErrorContext(ctx, "confirm email verification", "error", err)
 		h.verifyFailed(w, r, i18n.T(ctx, i18n.KeyTryAgainTitle), i18n.T(ctx, i18n.KeyTryAgainBody))
+	}
+}
+
+// CompleteRegistrationPage serves GET /register/complete, where a registration
+// link lands. The token is not checked here: that would tell a guesser it is
+// real.
+func (h *Handler) CompleteRegistrationPage(w http.ResponseWriter, r *http.Request) {
+	// The page carries a live registration token; keep it out of BREACH's reach.
+	web.NoCompress(w)
+	web.Render(w, r, h.log, http.StatusOK, pages.RegisterComplete(
+		pages.RegisterCompleteMeta(r.Context()), pages.RegisterCompleteView{
+			Token: r.URL.Query().Get("token"),
+			Next:  web.SitePathOr(r.URL.Query().Get("next"), "/account"),
+		}))
+}
+
+// CompleteRegistration serves POST /register/complete. The link proves the
+// mailbox and the password proves who registered; only both together prove the
+// address, sign this browser in and adopt its cart. A wrong password is
+// answered as sign-in answers one, under sign-in's own per-account limit, so
+// this is no second place to guess it.
+func (h *Handler) CompleteRegistration(w http.ResponseWriter, r *http.Request) {
+	// A refused password re-renders the still-live token; never compress it.
+	web.NoCompress(w)
+	if err := web.ParseForm(w, r); err != nil {
+		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
+		return
+	}
+	ctx := r.Context()
+	token := r.PostFormValue("token")
+	next := web.SitePathOr(r.PostFormValue("next"), "/account")
+
+	addr, err := h.store.RegistrationAddress(ctx, token)
+	if errors.Is(err, ErrVerifyInvalid) {
+		h.verifyFailed(w, r, i18n.T(ctx, i18n.KeyVerifyDeadTitle), i18n.T(ctx, i18n.KeyVerifyDeadBody))
+		return
+	}
+	if err != nil {
+		h.log.ErrorContext(ctx, "read registration link", "error", err)
+		h.serverError(w, r)
+		return
+	}
+	// Before the hash, and the key sign-in uses, so the two share one budget.
+	if retryAfter, ok := h.signinLimit.Allow("account:" + email.Clean(addr)); !ok {
+		h.log.WarnContext(ctx, "registration completion throttled by account")
+		ratelimit.Refuse(ctx, w, retryAfter)
+		return
+	}
+
+	confirmed, err := h.store.CompleteRegistration(ctx, token, r.PostFormValue("password"))
+	switch {
+	case err == nil:
+		started, adoption := h.startSession(w, r, User{ID: confirmed.UserID})
+		if !started {
+			return
+		}
+		http.Redirect(w, r, cartAdoptionLanding(next, adoption), http.StatusSeeOther) //nolint:gosec // G710: bounded by web.SitePathOr
+	case errors.Is(err, ErrBadCredentials):
+		web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.RegisterComplete(
+			pages.RegisterCompleteMeta(ctx), pages.RegisterCompleteView{
+				Token: token, Next: next, Error: i18n.T(ctx, i18n.KeyBadCredentials),
+			}))
+	case errors.Is(err, ErrEmailTaken):
+		h.verifyFailed(w, r, i18n.T(ctx, i18n.KeyVerifyTakenTitle), i18n.T(ctx, i18n.KeyVerifyTakenBody))
+	case errors.Is(err, ErrVerifyInvalid):
+		h.verifyFailed(w, r, i18n.T(ctx, i18n.KeyVerifyDeadTitle), i18n.T(ctx, i18n.KeyVerifyDeadBody))
+	default:
+		h.log.ErrorContext(ctx, "complete registration", "error", err)
+		h.serverError(w, r)
 	}
 }
 

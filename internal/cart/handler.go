@@ -15,6 +15,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/account"
+	"github.com/koopa0/goen/internal/email"
 
 	"github.com/koopa0/goen/internal/i18n"
 	invoicepkg "github.com/koopa0/goen/internal/invoice"
@@ -41,6 +42,15 @@ type Handler struct {
 	// deployment with no carrier, where the checkout asks for a chain alone.
 	storeMap *Map
 	carriers CarrierChecker
+	// couponMisses bounds how many coupon codes one shopper may be told are
+	// wrong: a wrong code and a right one answer differently, so unbounded it
+	// is a way to find codes that were never handed out.
+	couponMisses *ratelimit.Limiter
+	// findPerAddress bounds the order lookup per submitted address as well as
+	// per client. The number half of the pair is guessable, so the address is
+	// the only secret, and a bound per client alone is lifted by changing
+	// client.
+	findPerAddress *ratelimit.Limiter
 }
 
 // SessionCloser closes a checkout the customer may still have open at the
@@ -76,6 +86,16 @@ func NewHandler(store *Store, log *slog.Logger, secure bool, findLimit *ratelimi
 		carriers: checker,
 		store:    store, log: log, secure: secure, findLimit: findLimit,
 		sessions: sessions, storeMap: storeMap,
+		// Twenty wrong codes before the first refusal, then one every two
+		// minutes: more than a shopper retyping a code from a flyer ever needs.
+		couponMisses: ratelimit.New(ratelimit.Config{
+			Every: 2 * time.Minute, Burst: 20, TTL: time.Hour, MaxKeys: 65_536,
+		}),
+		// Five lookups of one address at once, then five an hour, from anywhere:
+		// a customer finding their own order needs one or two.
+		findPerAddress: ratelimit.New(ratelimit.Config{
+			Every: 12 * time.Minute, Burst: 5, TTL: time.Hour, MaxKeys: 65_536,
+		}),
 	}
 }
 
@@ -537,11 +557,19 @@ func (h *Handler) PlaceOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	guess, ok := h.reserveCouponGuess(w, r, cartID)
+	if !ok {
+		return
+	}
+	// A request answered before its code was looked up costs nothing.
+	defer guess.settle(false)
+
 	owner := ownerOf(r)
 	submission, ok := h.checkoutSubmission(w, r, cartID, owner, attemptID, attemptErr == nil)
 	if !ok {
 		return
 	}
+	guess.settle(submission.couponMissed)
 
 	// A CHOOSER CHANGE, not an order. The delivery method, the saved address and
 	// the 發票 type each decide which fields the form asks for, so changing one
@@ -612,6 +640,9 @@ type checkoutSubmission struct {
 	shippingID  uuid.UUID
 	shippingErr error
 	couponErr   string
+	// couponMissed is a code that was looked up and refused, which is what
+	// couponMisses charges.
+	couponMissed bool
 }
 
 func (h *Handler) checkoutSubmission(
@@ -692,7 +723,7 @@ func (h *Handler) checkoutSubmission(
 		CompanyName: inv.CompanyName, TaxID: inv.TaxID,
 	}
 
-	couponErr := h.resolveCoupon(r, &view)
+	couponErr, missed := h.resolveCoupon(r, &view)
 	shippingID, shipErr := uuid.Parse(view.Chosen)
 	if shipErr == nil {
 		if quoteErr := h.quoteCheckoutShipping(
@@ -715,6 +746,7 @@ func (h *Handler) checkoutSubmission(
 	return &checkoutSubmission{
 		view: view, address: addr, invoice: inv,
 		shippingID: shippingID, shippingErr: shipErr, couponErr: couponErr,
+		couponMissed: missed,
 	}, true
 }
 
@@ -833,7 +865,7 @@ func (h *Handler) answerCheckoutChanged(
 		h.serverError(w, r)
 		return
 	}
-	if couponErr := h.resolveCoupon(r, view); couponErr != "" {
+	if couponErr, _ := h.resolveCoupon(r, view); couponErr != "" {
 		view.Errors = map[string]string{"coupon": couponErr}
 	}
 	view.Repriced = i18n.T(r.Context(), i18n.KeyCheckoutChanged)
@@ -983,12 +1015,13 @@ func (h *Handler) refreshCheckoutState(
 }
 
 // resolveCoupon looks up the typed code and applies it to this view, or reports
-// why not. An empty field is not an error.
-func (h *Handler) resolveCoupon(r *http.Request, view *pages.CheckoutView) string {
+// why it cannot. missed is a code that was looked up and refused, which is what
+// couponMisses charges; a lookup that failed is the shop's fault, not a guess.
+func (h *Handler) resolveCoupon(r *http.Request, view *pages.CheckoutView) (message string, missed bool) {
 	raw := r.PostFormValue("coupon")
 	view.CouponCode = NormaliseCode(raw)
 	if view.CouponCode == "" {
-		return ""
+		return "", false
 	}
 
 	subtotal := view.Cart.SubtotalCents
@@ -999,21 +1032,72 @@ func (h *Handler) resolveCoupon(r *http.Request, view *pages.CheckoutView) strin
 			view.CouponApplied = c.description
 			view.CouponDiscountCents = discountCents
 			view.CouponFreeShipping = freeShipping
-			return ""
+			return "", false
 		}
 		err = applyErr
 	}
 	switch {
 	case errors.Is(err, ErrCouponExpired):
-		return i18n.T(r.Context(), i18n.KeyCouponExpired)
+		return i18n.T(r.Context(), i18n.KeyCouponExpired), true
 	case errors.Is(err, ErrCouponMinimum):
-		return i18n.T(r.Context(), i18n.KeyCouponBelowMinimum)
+		return i18n.T(r.Context(), i18n.KeyCouponBelowMinimum), true
 	case errors.Is(err, ErrNoSuchCoupon):
-		return i18n.T(r.Context(), i18n.KeyCouponUnknown)
+		return i18n.T(r.Context(), i18n.KeyCouponUnknown), true
 	default:
 		h.log.ErrorContext(r.Context(), "resolve coupon", "error", err)
-		return i18n.T(r.Context(), i18n.KeyCouponUnavailable)
+		return i18n.T(r.Context(), i18n.KeyCouponUnavailable), false
 	}
+}
+
+// couponGuess is one token set aside from each of couponKeys for the code a
+// request carries. It holds nothing when the request carries no code.
+type couponGuess []*ratelimit.Reservation
+
+// reserveCouponGuess sets the tokens aside before the code is looked up, or
+// answers 429 and reports false. Before, because a refusal that came only after
+// a miss would itself say the code was wrong; set aside rather than checked,
+// because every request that passed a check while one token was left would be
+// told about its code.
+func (h *Handler) reserveCouponGuess(w http.ResponseWriter, r *http.Request, cartID uuid.UUID) (couponGuess, bool) {
+	if NormaliseCode(r.PostFormValue("coupon")) == "" {
+		return nil, true
+	}
+	keys := couponKeys(r, cartID)
+	guess := make(couponGuess, 0, len(keys))
+	for _, key := range keys {
+		reservation, retryAfter, ok := h.couponMisses.Reserve(key)
+		if !ok {
+			guess.settle(false)
+			ratelimit.Refuse(r.Context(), w, retryAfter)
+			return nil, false
+		}
+		guess = append(guess, reservation)
+	}
+	return guess, true
+}
+
+// settle keeps the tokens when the code was looked up and refused, and gives
+// them back otherwise: a code that applies is never charged, and neither is a
+// lookup that failed, which is the shop's fault and says nothing about the
+// code. Only the first call counts.
+func (g couponGuess) settle(missed bool) {
+	for _, reservation := range g {
+		if missed {
+			reservation.Keep()
+		} else {
+			reservation.Refund()
+		}
+	}
+}
+
+// couponKeys are who a wrong coupon code is charged to: the client, whatever
+// cart it brings, and the account when one is signed in or else the cart.
+func couponKeys(r *http.Request, cartID uuid.UUID) [2]string {
+	holder := "cart:" + cartID.String()
+	if owner := ownerOf(r); owner.Valid {
+		holder = "account:" + owner.UUID.String()
+	}
+	return [2]string{"client:" + ratelimit.ClientKey(r), holder}
 }
 
 // checkoutErrors collects everything wrong with a submission. A pickup order
@@ -1480,11 +1564,11 @@ func (h *Handler) CartIDForRequest(ctx context.Context, r *http.Request) (uuid.U
 	return id, ok
 }
 
-// ForgetCart expires this browser's cart cookie at sign-out unless it names a
-// guest cart no account owns. An account's cart must not stay reachable from
-// the browser for the next person at it. A guest cart is the browser's: when
-// sign-in could not adopt it the customer kept shopping in it, and the cookie
-// is the only way back to it.
+// ForgetCart expires this browser's cart cookie when its session ends unless it
+// names a guest cart no account owns. An account's cart must not stay
+// reachable from the browser for the next person at it. A guest cart is the
+// browser's: when sign-in could not adopt it the customer kept shopping in it,
+// and the cookie is the only way back to it.
 func (h *Handler) ForgetCart(w http.ResponseWriter, r *http.Request) {
 	token := ReadCookie(r, h.secure)
 	if token == "" {
@@ -1499,7 +1583,19 @@ func (h *Handler) ForgetCart(w http.ResponseWriter, r *http.Request) {
 	if !errors.Is(err, ErrNotFound) && !errors.Is(err, ErrNotYourCart) {
 		h.log.ErrorContext(r.Context(), "read the cart at sign-out", "error", err)
 	}
-	clearCookie(w, h.secure)
+	expireCookie(w, cookieName(h.secure), h.secure)
+}
+
+// ForgetOrders ends this browser's access to the orders it placed or found and
+// expires the cookie naming them, so a browser whose session ends keeps no way
+// back into an order's name, address and actions for the next person at it. The
+// grants go as well as the cookie, because a client can ignore an expiry. A
+// failure to revoke is logged rather than stopping the session's end.
+func (h *Handler) ForgetOrders(w http.ResponseWriter, r *http.Request) {
+	if err := h.store.ForgetOrders(r.Context(), r, h.secure); err != nil {
+		h.log.ErrorContext(r.Context(), "forget this browser's orders", "error", err)
+	}
+	expireCookie(w, placedCookieName(h.secure), h.secure)
 }
 
 // WithCount puts the visitor's cart size into the request context for the
@@ -1511,7 +1607,7 @@ func (h *Handler) WithCount(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id, ok, stale := h.lookupCart(r.Context(), r)
 		if stale {
-			clearCookie(w, h.secure)
+			expireCookie(w, cookieName(h.secure), h.secure)
 		}
 		if !ok {
 			next.ServeHTTP(w, r)
@@ -1550,6 +1646,15 @@ func (h *Handler) FindOrder(w http.ResponseWriter, r *http.Request) {
 	if retryAfter, ok := h.findLimit.Allow("findorder:" + ratelimit.ClientKey(r)); !ok {
 		ratelimit.Refuse(r.Context(), w, retryAfter)
 		return
+	}
+	// Keyed on the address as the lookup reads it, so a change of case or
+	// spacing is the same address. One longer than the policy names no order
+	// and is not kept as a key.
+	if key := email.Clean(addr); key != "" && len(key) <= email.Max {
+		if retryAfter, ok := h.findPerAddress.Allow("findorder:" + key); !ok {
+			ratelimit.Refuse(r.Context(), w, retryAfter)
+			return
+		}
 	}
 
 	found, err := h.store.OrderBelongsToEmail(r.Context(), number, addr)

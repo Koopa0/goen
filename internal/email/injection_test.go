@@ -21,7 +21,9 @@ func (r *recorded) Send(_ context.Context, m *Message) error {
 }
 
 // letters sends one of every letter goen writes, keyed by the Notifier method
-// that writes it, with each free-text field the payload carries set to text.
+// that writes it, and by that name, a space and a variant for each other
+// letter one method writes, with each free-text field the payload carries set
+// to text.
 func letters(text string) map[string]func(context.Context, Notifier) error {
 	const to = "someone@example.com"
 	return map[string]func(context.Context, Notifier) error{
@@ -54,6 +56,15 @@ func letters(text string) map[string]func(context.Context, Notifier) error {
 		},
 		"SendAddressVerify": func(ctx context.Context, n Notifier) error {
 			return n.SendAddressVerify(ctx, &AddressVerify{Email: to, Token: "tok"})
+		},
+		"SendAddressVerify registration": func(ctx context.Context, n Notifier) error {
+			return n.SendAddressVerify(ctx, &AddressVerify{Email: to, Token: "tok", Registration: true, Next: text})
+		},
+		"SendAccountExists": func(ctx context.Context, n Notifier) error {
+			return n.SendAccountExists(ctx, &AccountExists{Email: to, Name: text})
+		},
+		"SendAccountExists change": func(ctx context.Context, n Notifier) error {
+			return n.SendAccountExists(ctx, &AccountExists{Email: to, Name: text, Change: true})
 		},
 		"SendStaffInvitation": func(ctx context.Context, n Notifier) error {
 			return n.SendStaffInvitation(ctx, &StaffInvitation{UserID: uuid.NewString()}, to, text)
@@ -91,7 +102,7 @@ func TestLettersWritesEveryLetterNotifierSends(t *testing.T) {
 		}
 	}
 	for name := range table {
-		if !sends[name] {
+		if method, _, _ := strings.Cut(name, " "); !sends[method] {
 			t.Errorf("letters() writes %q, which is no Send method of Notifier", name)
 		}
 	}

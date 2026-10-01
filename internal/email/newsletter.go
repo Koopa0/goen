@@ -97,16 +97,36 @@ type AddressVerify struct {
 	Locale string `json:"locale"`
 	Email  string `json:"email"`
 	Token  string `json:"token"`
+	// Registration is a link that completes a registration. It lands on a page
+	// that asks for the password chosen at registration, because the mailbox
+	// alone does not say who chose it.
+	Registration bool `json:"registration,omitempty"`
+	// Next is the same-site path a registration was headed for. The link
+	// carries it and the page it lands on checks it again.
+	Next string `json:"next,omitempty"`
 }
 
-// SendAddressVerify asks somebody to prove an address is theirs.
+// SendAddressVerify asks somebody to prove an address is theirs, or, for a
+// registration, to finish it with the password they chose.
 func (n Notifier) SendAddressVerify(ctx context.Context, p *AddressVerify) error {
 	if !Valid(p.Email) {
 		return errors.New("an email verification has no usable address")
 	}
 
 	ctx = n.locale(ctx, p.Locale)
-	link := strings.TrimRight(n.baseURL, "/") + "/verify?token=" + url.QueryEscape(p.Token)
+	base := strings.TrimRight(n.baseURL, "/")
+	if p.Registration {
+		link := base + "/register/complete?token=" + url.QueryEscape(p.Token)
+		if p.Next != "" {
+			link += "&next=" + url.QueryEscape(p.Next)
+		}
+		return n.sender.Send(ctx, &Message{
+			To:      p.Email,
+			Subject: i18n.T(ctx, i18n.KeyMailRegisterSubject),
+			Body:    n.letter(ctx, "", fmt.Sprintf(i18n.T(ctx, i18n.KeyMailRegisterBody), link)),
+		})
+	}
+	link := base + "/verify?token=" + url.QueryEscape(p.Token)
 	return n.sender.Send(ctx, &Message{
 		To:      p.Email,
 		Subject: i18n.T(ctx, i18n.KeyMailVerifySubject),

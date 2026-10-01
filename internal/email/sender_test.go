@@ -79,6 +79,39 @@ func TestTheFromHeaderKeepsItsDisplayName(t *testing.T) {
 	}
 }
 
+// TestEveryLineOfAMessageEndsInCRLF: a body can carry any mix of line breaks —
+// a shop's own text, a customer's note — and the wire must carry exactly one
+// kind, or two servers on the way can read different line ends out of it.
+func TestEveryLineOfAMessageEndsInCRLF(t *testing.T) {
+	t.Parallel()
+
+	body := "first\rsecond\r\nthird\nfourth\r\r\nfifth\n\rsixth\r"
+	wire := string(render("goen <no-reply@goen.example>", &Message{
+		To: "a@b.co", Subject: "hi", Body: body,
+	}))
+
+	for i := range len(wire) {
+		switch wire[i] {
+		case '\r':
+			if i+1 >= len(wire) || wire[i+1] != '\n' {
+				t.Fatalf("a CR at byte %d is not followed by LF:\n%q", i, wire)
+			}
+		case '\n':
+			if i == 0 || wire[i-1] != '\r' {
+				t.Fatalf("an LF at byte %d is not preceded by CR:\n%q", i, wire)
+			}
+		}
+	}
+	_, got, found := strings.Cut(wire, "\r\n\r\n")
+	if !found {
+		t.Fatalf("no header/body separator in %q", wire)
+	}
+	want := "first\r\nsecond\r\nthird\r\nfourth\r\n\r\nfifth\r\n\r\nsixth\r\n"
+	if got != want {
+		t.Errorf("body on the wire = %q, want %q: every break kept, each one CRLF", got, want)
+	}
+}
+
 func TestASenderWithAnUnusableFromNeverOpensASocket(t *testing.T) {
 	t.Parallel()
 

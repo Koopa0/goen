@@ -34,7 +34,7 @@ func TestThePayPageOffersPaymentOnlyWhileASessionCanStart(t *testing.T) {
 		{name: "cancelled", hold: 60 * time.Minute, cancelled: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			number, id := order(t, 100000)
+			number, id := holdableOrder(t, 100000)
 			var expiry time.Time
 			if tc.hold > 0 {
 				expiry = hold(t, id, 0, tc.hold, "window:"+number)
@@ -86,7 +86,7 @@ func TestThePayPageOffersPaymentOnlyWhileASessionCanStart(t *testing.T) {
 }
 
 func TestAnOpenSessionStillResumesAfterTheStartWindowCloses(t *testing.T) {
-	number, id := order(t, 100000)
+	number, id := holdableOrder(t, 100000)
 	hold(t, id, 0, 60*time.Minute, "resume-window:"+number)
 	s := payment.NewStore(pool)
 	sessionID := "cs_window_" + number

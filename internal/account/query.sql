@@ -1,7 +1,21 @@
--- lower(email) matches the unique index.
+-- lower(email) matches the unique index. verified is what a password sign-in
+-- turns on: until the address is proved, the password may be whoever
+-- registered it rather than whoever reads the mailbox.
 -- name: UserByEmail :one
-SELECT id, email, password_hash, full_name, role
+SELECT id, email, password_hash, full_name, role,
+       (email_verified_at IS NOT NULL)::boolean AS verified
 FROM users WHERE lower(email) = lower($1);
+
+-- A forgotten-password request is this one INSERT whatever the address: the
+-- account is looked up inside it and names nobody when there is none, so a
+-- known address costs the request exactly what an unknown one does. The token
+-- is issued later, off the request, from the account id alone.
+-- name: EnqueuePasswordResetRequest :exec
+INSERT INTO outbox_messages (topic, dedupe_key, payload)
+SELECT @topic::text, @dedupe_key::text,
+       jsonb_build_object('user_id', u.id, 'locale', @locale::text)
+FROM (VALUES (true)) AS request (queued)
+LEFT JOIN users u ON lower(u.email) = lower(@email::text);
 
 -- A reset token and its outbox message are created while this lock is held.
 -- FOR UPDATE serializes a replacement request against another issuance and
@@ -11,7 +25,7 @@ FROM users WHERE lower(email) = lower($1);
 -- name: UserForPasswordReset :one
 SELECT id, email
 FROM users
-WHERE lower(email) = lower($1)
+WHERE id = @user_id::uuid
 FOR UPDATE;
 
 -- name: UserByID :one
@@ -19,10 +33,38 @@ SELECT id, email, full_name, phone, role, created_at,
        (password_hash IS NOT NULL)::boolean AS has_password
 FROM users WHERE id = $1;
 
--- name: CreateUser :one
-INSERT INTO users (email, password_hash, full_name, phone)
-VALUES ($1, $2, $3, $4)
-RETURNING id, email, full_name, role;
+-- A registration is this one statement whether or not the address is taken:
+-- created says which, and user_id names the account either way. users_email_key
+-- decides, so two registrations of one address make one account. user_id is the
+-- nil UUID only when a concurrent registration committed the address after this
+-- statement's snapshot was taken, and then there is nobody to write to.
+-- name: CreateUserUnlessRegistered :one
+WITH created AS (
+    INSERT INTO users (email, password_hash, full_name)
+    VALUES (@email::text, @password_hash::text, @full_name)
+    ON CONFLICT ((lower(email))) DO NOTHING
+    RETURNING id
+)
+SELECT coalesce(c.id, u.id, '00000000-0000-0000-0000-000000000000'::uuid)::uuid AS user_id,
+       (c.id IS NOT NULL)::boolean AS created
+FROM (VALUES (true)) AS attempt (made)
+LEFT JOIN created c ON true
+LEFT JOIN users u ON lower(u.email) = lower(@email::text);
+
+-- The registrant's half of completing a registration: the password chosen when
+-- the account was made.
+-- name: RegistrationCredential :one
+SELECT password_hash FROM users WHERE id = $1;
+
+-- name: RegistrationAccount :one
+SELECT email, full_name, (email_verified_at IS NOT NULL)::boolean AS verified
+FROM users WHERE id = $1;
+
+-- Spending a reset link proves the address it was mailed to, which is the
+-- account's current one: every reset token dies when the address changes.
+-- name: ProveEmailByReset :exec
+UPDATE users SET email_verified_at = now()
+WHERE id = $1 AND email_verified_at IS NULL;
 
 -- name: SetPasswordHash :exec
 UPDATE users SET password_hash = $2 WHERE id = $1;
@@ -307,8 +349,12 @@ RETURNING user_id, email;
 SELECT user_id, email FROM email_verifications
 WHERE digest = $1 AND expires_at > now();
 
+-- verified is read under the lock: a link that proves the address of an
+-- account whose address was never proved is the one that completes a
+-- registration.
 -- name: LockUserForEmailVerification :one
-SELECT id, email FROM users WHERE id = @user_id::uuid FOR UPDATE;
+SELECT id, email, (email_verified_at IS NOT NULL)::boolean AS verified
+FROM users WHERE id = @user_id::uuid FOR UPDATE;
 
 -- One statement, because an address goen has proved and one goen is using must
 -- not be able to disagree. users_email_key catches an address taken in between.
@@ -322,12 +368,12 @@ SELECT (u.email_verified_at IS NOT NULL)::boolean AS verified,
                  WHERE v.user_id = u.id AND v.expires_at > now()), '')::text AS pending_email
 FROM users u WHERE u.id = $1;
 
--- Not the guard: users_email_key is, because an address can be taken in between.
--- name: EmailBelongsToSomebodyElse :one
-SELECT EXISTS (
-    SELECT 1 FROM users
-    WHERE lower(email) = lower(@email::text) AND id <> @user_id
-) AS taken;
+-- Read by the outbox worker, never by the request, so asking to move to an
+-- address costs the same whether or not it has an account. Not the guard:
+-- users_email_key is, because an address can be taken in between.
+-- name: OtherAccountAtAddress :one
+SELECT email, full_name FROM users
+WHERE lower(email) = lower(@email::text) AND id <> @user_id;
 -- Keyed on the SUBJECT: a Google account can change address, and a released
 -- Workspace address can be reassigned to somebody else.
 -- name: LockGoogleSubject :exec

@@ -28,7 +28,8 @@ var (
 	ErrLastSignInMethod = errors.New("account: that is the only way to sign in")
 	// ErrBadCredentials is a wrong email or password: one error for both, or the form enumerates accounts.
 	ErrBadCredentials = errors.New("account: bad credentials")
-	// ErrEmailTaken is a registration for an address that already has an account.
+	// ErrEmailTaken is an address another account holds by the time a link
+	// would prove it for this one.
 	ErrEmailTaken = errors.New("account: email taken")
 	// ErrInvalidInput is profile or saved-address text outside the server bounds.
 	ErrInvalidInput = errors.New("account: invalid input")
@@ -55,6 +56,13 @@ const EraseSignInWindow = 15 * time.Minute
 
 // SessionTTL is how long a session lives.
 const SessionTTL = 14 * 24 * 60 * 60
+
+// sessionCookieMaxAge is how long a browser presents a session's cookie: past
+// the session itself, for as long as it can hold proof of an order placed
+// signed in, which cart keeps 30 days from the last order. The cookie of an
+// ended session grants nothing, and presenting it is the only way Authenticate
+// learns to take that proof away.
+const sessionCookieMaxAge = SessionTTL + 30*24*60*60
 
 // ResetTTL is how long a password-reset link is good for.
 const ResetTTL = 60 * 60
@@ -169,7 +177,7 @@ func SetSessionCookie(w http.ResponseWriter, token string, secure bool) {
 		Name:     sessionCookieName(secure),
 		Value:    token,
 		Path:     "/",
-		MaxAge:   SessionTTL,
+		MaxAge:   sessionCookieMaxAge,
 		HttpOnly: true,
 		Secure:   secure,
 		SameSite: http.SameSiteStrictMode,

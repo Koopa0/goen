@@ -50,6 +50,96 @@ func TestNotifyRouteIsGuardedPerIP(t *testing.T) {
 	}
 }
 
+// TestCheckoutIsGuardedPerClient drives the router: every checkout post looks
+// up the coupon it carries, so the route is bounded per client before the
+// handler runs, generously enough that a shopper changing every chooser on the
+// page is never refused.
+func TestCheckoutIsGuardedPerClient(t *testing.T) {
+	router := storeMapRouter(t, false)
+	post := func(remote string) *httptest.ResponseRecorder {
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/checkout",
+			strings.NewReader("coupon=GUESS"))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.RemoteAddr = remote
+		res := httptest.NewRecorder()
+		router.ServeHTTP(res, req)
+		return res
+	}
+
+	const shopper = 20
+	for i := range shopper {
+		if res := post("192.0.2.10:4000"); res.Code == http.StatusTooManyRequests {
+			t.Fatalf("checkout post %d was refused; a shopper's whole checkout must fit", i+1)
+		}
+	}
+	refused := false
+	for range 60 {
+		res := post("192.0.2.10:4000")
+		if res.Code == http.StatusTooManyRequests {
+			refused = true
+			if res.Header().Get("Retry-After") == "" {
+				t.Error("the refusal carries no Retry-After")
+			}
+			break
+		}
+	}
+	if !refused {
+		t.Fatalf("%d checkout posts from one client were never refused", shopper+60)
+	}
+	if res := post("192.0.2.11:4000"); res.Code == http.StatusTooManyRequests {
+		t.Error("another client was refused; the bound is per client")
+	}
+}
+
+// TestTextPostgreSQLCannotStoreIsRefusedBeforeRouting drives the router with
+// the bytes no browser sends and PostgreSQL refuses to hold, in a query value,
+// a query name and a path value, on the storefront and in the back office.
+// Each is answered 400 before any handler reads it.
+func TestTextPostgreSQLCannotStoreIsRefusedBeforeRouting(t *testing.T) {
+	router := storeMapRouter(t, false)
+	get := func(target string) *httptest.ResponseRecorder {
+		res := httptest.NewRecorder()
+		router.ServeHTTP(res, httptest.NewRequestWithContext(t.Context(), http.MethodGet, target, http.NoBody))
+		return res
+	}
+
+	for _, bad := range []string{"%E9", "%00", "a%C3%28b", "a%00b"} {
+		for _, target := range []string{
+			"/search?q=" + bad,
+			"/search?" + bad + "=1",
+			"/c/phones?brand=" + bad,
+			"/c/" + bad,
+			"/p/" + bad,
+			"/s/" + bad,
+			"/compare?p=" + bad,
+			"/compare?p=aurora-slate&p=" + bad,
+			"/admin/customers?q=" + bad,
+			"/admin/orders?q=" + bad,
+			"/admin/warranty?q=" + bad,
+		} {
+			res := get(target)
+			if res.Code != http.StatusBadRequest {
+				t.Errorf("GET %s answered %d, want 400", target, res.Code)
+				continue
+			}
+			if !strings.HasPrefix(res.Body.String(), "400 ") {
+				t.Errorf("GET %s refusal body = %q, want the plain 400", target, res.Body.String())
+			}
+		}
+	}
+
+	// The control: text PostgreSQL stores, and a pair no reader decodes, pass.
+	for _, target := range []string{
+		"/search?q=%E6%89%8B%E6%A9%9F",
+		"/search?q=phone&utm_content=50%off",
+		"/c/phones?brand=koto",
+	} {
+		if res := get(target); res.Code == http.StatusBadRequest {
+			t.Errorf("GET %s answered 400; only unstorable text is refused", target)
+		}
+	}
+}
+
 func TestAnAssetRequestNeverReachesPerVisitorMiddleware(t *testing.T) {
 	tests := []struct {
 		path    string
@@ -583,7 +673,7 @@ func TestSpeculationRulesAreOfferedOnlyWhereTheyAreSafe(t *testing.T) {
 		"/orders/find", "/orders/GO-1/pay",
 		"/account", "/account/points", "/account/wishlist",
 		"/admin", "/admin/orders",
-		"/signin", "/register", "/reset?token=x", "/verify?token=x",
+		"/signin", "/register", "/register/complete?token=x", "/reset?token=x", "/verify?token=x",
 		"/static/css/app/app.css",
 	}
 
@@ -762,6 +852,7 @@ func TestEveryWriteThatChangesTheChromeClearsSpeculations(t *testing.T) {
 		`"POST /signin"`,
 		`"POST /signout"`,
 		`"POST /register"`,
+		`"POST /register/complete"`,
 	} {
 		line := routeLine(text, route)
 		if line == "" {
@@ -873,6 +964,7 @@ func TestNoPageForOneVisitorIsKeptByTheBrowser(t *testing.T) {
 		{name: "the checkout", method: http.MethodGet, path: "/checkout", want: true},
 		{name: "a password reset link", method: http.MethodGet, path: "/reset?token=x", want: true},
 		{name: "an address verification link", method: http.MethodGet, path: "/verify?token=x", want: true},
+		{name: "a registration link", method: http.MethodGet, path: "/register/complete?token=x", want: true},
 		{name: "a newsletter confirmation link", method: http.MethodGet, path: "/newsletter/confirm?token=x", want: true},
 		{name: "the sign-in form", method: http.MethodGet, path: "/signin", want: true},
 		{name: "the registration form", method: http.MethodGet, path: "/register?next=/cart", want: true},

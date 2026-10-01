@@ -662,19 +662,7 @@ type workerDeps struct {
 
 // startWorkers wires everything that runs on its own schedule.
 func startWorkers(ctx context.Context, d workerDeps) {
-	messages := outbox.NewStore(d.pool, d.log)
-	messages.HandleJSON[email.OrderPlaced](outbox.TopicOrderPlaced, d.notifier.SendOrderPlaced)
-	messages.HandleJSON[email.PasswordReset](outbox.TopicPasswordReset, d.notifier.SendPasswordReset)
-	messages.HandleJSON[email.OrderPaid](outbox.TopicOrderPaid, d.notifier.SendOrderPaid)
-	messages.HandleJSON[email.OrderShipped](outbox.TopicOrderShipped, d.notifier.SendOrderShipped)
-	messages.HandleJSON[email.OrderTerminal](outbox.TopicOrderTerminal, terminalOrderHandler(ordernotice.NewRecipients(d.pool), d.notifier))
-	messages.HandleJSON[email.NewsletterConfirm](outbox.TopicNewsletterConfirm, d.notifier.SendNewsletterConfirm)
-	messages.HandleJSON[email.NewsletterWelcome](outbox.TopicNewsletterWelcome, d.notifier.SendNewsletterWelcome)
-	messages.HandleJSON[email.AddressVerify](outbox.TopicEmailVerify, d.notifier.SendAddressVerify)
-	messages.HandleJSON[email.StaffInvitation](outbox.TopicStaffInvitation, staffInvitationHandler(twofactor.NewStore(d.pool, nil), d.notifier))
-	messages.HandleJSON[email.NewsletterIssue](outbox.TopicNewsletterIssue,
-		newsletterIssueHandler(newsletter.NewStore(d.pool), d.notifier))
-	messages.HandleJSON[email.RestockNotice](outbox.TopicRestocked, d.notifier.SendRestockNotice)
+	messages := newMessageStore(d)
 	d.run(func() { messages.Run(ctx) })
 	d.run(func() { messages.SweepForever(ctx, d.log) })
 
@@ -692,6 +680,28 @@ func startWorkers(ctx context.Context, d workerDeps) {
 	}
 
 	d.run(func() { recommend.NewStore(d.maintenance, d.log).RefreshForever(ctx) })
+}
+
+// newMessageStore is the outbox with a handler for each topic goen enqueues. A
+// message whose topic has no handler is rescheduled for ever and fails nothing,
+// so a missing line here is mail that silently never leaves.
+func newMessageStore(d workerDeps) *outbox.Store {
+	messages := outbox.NewStore(d.pool, d.log)
+	messages.HandleJSON[email.OrderPlaced](outbox.TopicOrderPlaced, d.notifier.SendOrderPlaced)
+	messages.HandleJSON[email.PasswordReset](outbox.TopicPasswordReset, d.notifier.SendPasswordReset)
+	messages.HandleJSON[account.ResetRequest](outbox.TopicPasswordResetRequest, account.NewStore(d.pool).IssueReset)
+	messages.HandleJSON[account.Registration](outbox.TopicRegistration, registrationHandler(account.NewStore(d.pool), d.notifier))
+	messages.HandleJSON[email.OrderPaid](outbox.TopicOrderPaid, d.notifier.SendOrderPaid)
+	messages.HandleJSON[email.OrderShipped](outbox.TopicOrderShipped, d.notifier.SendOrderShipped)
+	messages.HandleJSON[email.OrderTerminal](outbox.TopicOrderTerminal, terminalOrderHandler(ordernotice.NewRecipients(d.pool), d.notifier))
+	messages.HandleJSON[email.NewsletterConfirm](outbox.TopicNewsletterConfirm, d.notifier.SendNewsletterConfirm)
+	messages.HandleJSON[email.NewsletterWelcome](outbox.TopicNewsletterWelcome, d.notifier.SendNewsletterWelcome)
+	messages.HandleJSON[email.AddressVerify](outbox.TopicEmailVerify, addressVerifyHandler(account.NewStore(d.pool), d.notifier))
+	messages.HandleJSON[email.StaffInvitation](outbox.TopicStaffInvitation, staffInvitationHandler(twofactor.NewStore(d.pool, nil), d.notifier))
+	messages.HandleJSON[email.NewsletterIssue](outbox.TopicNewsletterIssue,
+		newsletterIssueHandler(newsletter.NewStore(d.pool), d.notifier))
+	messages.HandleJSON[email.RestockNotice](outbox.TopicRestocked, d.notifier.SendRestockNotice)
+	return messages
 }
 
 // newsletterIssueHandler delivers one copy of an issue, and asks at DELIVERY
@@ -714,6 +724,24 @@ func newsletterIssueHandler(
 			return nil
 		}
 		return notifier.SendNewsletterIssue(ctx, p)
+	}
+}
+
+// registrationHandler follows a registration up on the store pool, which is the
+// one that wrote it: a new account's link is queued there, and an address that
+// already had an account is told so by mail.
+func registrationHandler(accounts *account.Store, notifier email.Notifier) func(context.Context, *account.Registration) error {
+	return func(ctx context.Context, r *account.Registration) error {
+		return accounts.FollowUpRegistration(ctx, r, notifier.SendAccountExists)
+	}
+}
+
+// addressVerifyHandler delivers a link to prove an address on the store pool,
+// which is the one that wrote it: the link goes out, or, when the address is
+// by now another account's, that account is told instead.
+func addressVerifyHandler(accounts *account.Store, notifier email.Notifier) func(context.Context, *email.AddressVerify) error {
+	return func(ctx context.Context, p *email.AddressVerify) error {
+		return accounts.DeliverAddressVerify(ctx, p, notifier.SendAddressVerify, notifier.SendAccountExists)
 	}
 }
 
