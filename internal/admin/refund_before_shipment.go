@@ -200,8 +200,12 @@ func cancelRefundedOrder(ctx context.Context, q *db.Queries, number string, retu
 func recordStaffCancellation(
 	ctx context.Context, q *db.Queries, orderID uuid.UUID, number string, returnID uuid.UUID, actor uuid.NullUUID,
 ) error {
+	kind, err := eventKindFor(pages.FulfillmentCancelled)
+	if err != nil {
+		return err
+	}
 	if err := q.RecordOrderEvent(ctx, db.RecordOrderEventParams{
-		OrderID: orderID, Kind: eventKindFor(pages.FulfillmentCancelled), ActorUserID: actor,
+		OrderID: orderID, Kind: kind, ActorUserID: actor,
 	}); err != nil {
 		return fmt.Errorf("record order event: %w", err)
 	}

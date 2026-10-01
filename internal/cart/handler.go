@@ -736,7 +736,7 @@ func (h *Handler) checkoutSubmission(
 	if couponErr != "" {
 		view.Errors = map[string]string{"coupon": couponErr}
 	}
-	if shipErr == nil && view.Repriced == "" && couponErr == "" {
+	if shipErr == nil && view.Repriced == "" {
 		if quoteErr := setCheckoutQuoteID(cartID, &view); quoteErr != nil {
 			h.log.ErrorContext(r.Context(), "build refreshed checkout quote", "error", quoteErr)
 			h.serverError(w, r)
@@ -768,8 +768,7 @@ func (h *Handler) validateCheckoutSubmission(
 
 	shown, shownErr := parseCheckoutQuoteID(r.PostFormValue("checkout_quote"))
 	current, currentErr := checkoutQuoteIDForView(cartID, &submission.view)
-	if submission.shippingErr == nil && submission.couponErr == "" &&
-		submission.view.Repriced == "" && currentErr != nil {
+	if submission.shippingErr == nil && submission.view.Repriced == "" && currentErr != nil {
 		h.log.ErrorContext(r.Context(), "build submitted checkout quote", "error", currentErr)
 		h.serverError(w, r)
 		return checkoutQuoteID{}, false
@@ -1416,12 +1415,19 @@ func checkoutQuoteIDForView(cartID uuid.UUID, view *pages.CheckoutView) (checkou
 		return checkoutQuoteID{}, fmt.Errorf("total rendered checkout quote: %w", err)
 	}
 	creditCents := min(max(view.AvailableCreditCents, 0), gross)
+	// The quote names the coupon that prices the page. A refused code is typed
+	// text only; hashing it would make the page after the shopper clears it
+	// look changed.
+	couponCode := ""
+	if view.HasCoupon() {
+		couponCode = NormaliseCode(view.CouponCode)
+	}
 	return (checkoutQuote{
 		CartID:            cartID,
 		Lines:             lines,
 		ShippingVersionID: shippingID,
 		ShippingCents:     shippingCents,
-		CouponCode:        NormaliseCode(view.CouponCode),
+		CouponCode:        couponCode,
 		DiscountCents:     view.CouponDiscountCents,
 		CreditCents:       creditCents,
 	}).ID()
