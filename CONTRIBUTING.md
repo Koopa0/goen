@@ -57,7 +57,7 @@ start against a database that no longer matches `migrations/`.
 ## Run the tests
 
 ```sh
-make test              # unit and handler tests, race-enabled, shuffled
+make test              # unit and handler tests, shuffled (make test-race adds the detector)
 make lint              # golangci-lint at the version the Makefile pins
 make test-integration  # the schema conformance suite, needs Docker
 ```
@@ -70,9 +70,10 @@ checks for unreachable code, builds under both build tags, and runs the race
 tests. `make verify-all` adds the database suite and the vulnerability scan.
 
 Two tools have to be on `PATH`, pinned at the top of the `Makefile`:
-`golangci-lint` and `squawk`. Every other tool is fetched by `go run` at its
-pinned version. `make check-layout` additionally needs a Chrome or Chromium
-binary and a running server; it drives every route in a real browser and asks
+`golangci-lint` and `squawk` (installed with `npm i -g squawk-cli@<pinned>`).
+Every other tool is fetched by `go run` at its pinned version.
+`make check-layout` additionally needs Node 22 or newer, `curl`, `openssl`,
+network access to fetch axe-core, a Chrome or Chromium binary and a running server; it drives every route in a real browser and asks
 the accessibility questions only a browser can answer. The Makefile probes common
 macOS app bundles and Linux package names; set `CHROME` when yours lives
 elsewhere.
