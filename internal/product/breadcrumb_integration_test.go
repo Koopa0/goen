@@ -23,8 +23,8 @@ func TestProductBreadcrumbNamesEveryVisibleCategory(t *testing.T) {
 			slug       string
 			categories []string
 		}{
-			{"nimbus-buds-pro", []string{"audio"}},
-			{"meridian-book-sleeve-14", []string{"accessories", "cases"}},
+			{"nimbus-buds-pro", []string{"tech", "audio"}},
+			{"meridian-book-sleeve-14", []string{"tech", "accessories", "cases"}},
 		} {
 			t.Run(string(locale)+"/"+tt.slug, func(t *testing.T) {
 				t.Parallel()

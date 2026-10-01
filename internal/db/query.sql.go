@@ -12975,11 +12975,17 @@ func (q *Queries) ShowReview(ctx context.Context, id uuid.UUID) (int64, error) {
 }
 
 const sitemapCategories = `-- name: SitemapCategories :many
+WITH RECURSIVE tree AS (
+    SELECT id, id AS root FROM categories
+    UNION ALL
+    SELECT k.id, t.root FROM categories k JOIN tree t ON k.parent_id = t.id
+)
 SELECT DISTINCT c.slug, c.updated_at
 FROM categories c
 WHERE EXISTS (
-    SELECT 1 FROM products p
-    WHERE p.category_id = c.id AND p.status = 'active'
+    SELECT 1 FROM tree t
+    JOIN products p ON p.category_id = t.id
+    WHERE t.root = c.id AND p.status = 'active'
 )
 ORDER BY c.updated_at DESC
 LIMIT $1
@@ -12990,6 +12996,8 @@ type SitemapCategoriesRow struct {
 	UpdatedAt time.Time
 }
 
+// A department holds no product itself and lists those of every category below
+// it, so the test is over the subtree, as CategoryDescendants is.
 func (q *Queries) SitemapCategories(ctx context.Context, limit int32) ([]SitemapCategoriesRow, error) {
 	rows, err := q.db.Query(ctx, sitemapCategories, limit)
 	if err != nil {

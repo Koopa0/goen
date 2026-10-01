@@ -64,7 +64,7 @@ func TestHomeShowsCategoriesAndProducts(t *testing.T) {
 	}
 	body := res.Body.String()
 
-	for _, cat := range []string{"手機", "筆電", "平板", "耳機與音響", "穿戴裝置", "周邊配件"} {
+	for _, cat := range []string{"書籍文具", "居家生活", "美妝保養", "服飾配件", "美食飲品", "3C 數位"} {
 		if !strings.Contains(body, cat) {
 			t.Errorf("category tile %q is missing", cat)
 		}

@@ -116,6 +116,43 @@ func TestListingIncludesDescendants(t *testing.T) {
 	}
 }
 
+// tech > accessories > chargers is three levels: the department lists a product
+// two levels down, and a department of the general-merchandise catalogue lists
+// the products of its sub-categories.
+func TestDepartmentListingReachesEveryLevel(t *testing.T) {
+	for slug, name := range map[string]string{
+		"tech":             "Aurora GaN 65W 充電器",
+		"books-stationery": "山茶十二月",
+		"food-drink":       "晨焙 咖啡豆",
+	} {
+		code, body := get(t, "/c/"+slug)
+		if code != http.StatusOK {
+			t.Fatalf("/c/%s status = %d, want 200", slug, code)
+		}
+		if !strings.Contains(body, name) {
+			t.Errorf("/c/%s omits %q, a product below it", slug, name)
+		}
+	}
+}
+
+// A department holds no product itself, so the sitemap must judge it by the
+// products below it.
+func TestSitemapNamesADepartmentThatHoldsNoProductItself(t *testing.T) {
+	rows, err := catalog.NewStore(pool).SitemapCategories(t.Context(), 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	slugs := make([]string, 0, len(rows))
+	for _, r := range rows {
+		slugs = append(slugs, r.Slug)
+	}
+	for _, want := range []string{"tech", "accessories", "books-stationery", "food-drink"} {
+		if !slices.Contains(slugs, want) {
+			t.Errorf("sitemap categories = %v; missing %q", slugs, want)
+		}
+	}
+}
+
 func TestUnknownCategoryIs404(t *testing.T) {
 	code, body := get(t, "/c/no-such-category")
 	if code != http.StatusNotFound {
