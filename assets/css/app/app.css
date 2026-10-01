@@ -13,11 +13,11 @@
    ============================================================ */
 
 a {
-  color: var(--accent-strong);
+  color: var(--accent-text);
 }
 
 a:hover {
-  color: var(--accent);
+  color: var(--accent-text-hover);
 }
 
 /* Motion a reader has asked not to see. The shared primitives carry
@@ -46,6 +46,9 @@ a:hover {
 :root {
   --page-gutter: 16px;
   --page-width: 1280px;
+  /* The content column plus its gutters, for the pages that size themselves
+     with border-box: their text then starts where the header's does. */
+  --page-box: calc(var(--page-width) + 2 * var(--page-gutter));
 }
 
 @media (min-width: 768px) {
@@ -113,7 +116,7 @@ a:hover {
    ------------------------------------------------------------------------ */
 
 .goen-promo {
-  background: var(--accent);
+  background: var(--n-900);
   color: var(--on-accent);
   display: block;
   font-size: var(--fs-14);
@@ -163,12 +166,13 @@ a:hover {
 /* The discount code reads as something to be copied rather than as part of the
    sentence, and user-select: all makes one tap take the whole of it. */
 .goen-promo__code {
-  background: var(--on-accent);
+  background: var(--n-0);
   border-radius: var(--r-sm);
-  color: var(--accent-strong);
+  color: var(--n-900);
   flex: none;
-  font-family: var(--font-mono);
   font-size: var(--fs-12);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--fw-medium);
   padding: 2px 6px;
   -webkit-user-select: all;
   user-select: all;
@@ -208,7 +212,7 @@ a:hover {
 }
 
 .goen-promo__close:hover {
-  background: var(--accent-strong);
+  background: var(--n-700);
 }
 
 @media (min-width: 768px) {
@@ -238,70 +242,66 @@ a:hover {
 
    Every value the storefront is drawn from. `app.css` is the last stylesheet
    the document links, so a token declared both here and in base.css is settled
-   by source order and these win. base.css declares a token only when this file
-   does not: one name, one declaration.
+   by source order and these win.
 
-   The palette, the radius base and the type steps are ported from the design
-   the shop is being rebuilt against: a white ground, near-black ink, one grey
-   for muted surfaces and one for muted text, a single hairline, and blue as
-   the one interactive colour. The warm oatmeal paper the previous ground used
-   is gone deliberately — it is what made every rebuilt page still read as the
-   old system.
+   The neutrals carry no chroma, because the product photographs sit on a
+   chroma-free #f9f9f9 and any tint in the page would show as an edge around
+   them. Colour is spent in two places only: the accent, and the functional
+   hues a status needs.
    ------------------------------------------------------------------------ */
 
 :root {
+  --n-0: #ffffff;
+  --n-50: #fafafa;
+  /* The ground baked into every product and category photograph. A container
+     that is not this exact value draws a visible edge around the picture. */
+  --photo: #f9f9f9;
+  --photo-ground: var(--photo);
+  --n-100: #f4f4f5;
+  --n-200: #e7e7e9;
+  --n-300: #d4d4d8;
+  /* Icons and placeholders. Below 3:1 on white as text, so never body copy. */
+  --n-400: #a1a1aa;
+  /* The lightest a text colour may be: 5.4:1 on white, 5.1:1 on --n-50. */
+  --n-500: #66666d;
+  --n-700: #3f3f46;
+  --n-900: #18181b;
 
-  /* The one interactive colour. */
-  --accent: oklch(0.546 0.245 262.881);
-  --accent-faint: oklch(0.546 0.245 262.881 / 0.06);
-  /* 0.10 rather than 0.12, which is the whole of what the back office's brand
-     pill needed: the accent printed on its own tint measured 4.42:1 at 0.12 and
-     4.55:1 at 0.10, and the alternative was darkening --accent itself and
-     repainting every primary button to fix a status pill. What it costs is two
-     percent of the soft halo on four focus rings; the ring itself is --ring and
-     does not move. */
-  --accent-muted: oklch(0.546 0.245 262.881 / 0.1);
-  --accent-strong: oklch(0.488 0.243 264.376);
-  /* Ground and surfaces. Panels sit ON the ground rather than above it: the
-     border carries the separation, not a second shade. */
-  --bg: oklch(1 0 0);
+  /* The one hue. --accent is for rings, outlines and fills; --accent-text is
+     the same hue darkened until it reads as link text on every neutral ground. */
+  --accent: #2a75ba;
+  --accent-text: #1f5b92;
+  --accent-text-hover: #174a78;
+  --accent-faint: rgb(42 117 186 / 0.06);
+  --accent-muted: rgb(42 117 186 / 0.1);
+  --accent-strong: var(--accent-text);
+  --on-accent: #ffffff;
+  --ring: var(--accent);
 
-  /* Lines. One hairline everywhere; the strong and faint steps exist for the
-     two places a border has to lead or recede, and nowhere else. */
-  --border: oklch(0.92 0.004 286.32);
-  --border-faint: oklch(0.955 0.003 286.32);
-  --border-strong: oklch(0.871 0.006 286.286);
-  --elevated: oklch(0.967 0.001 286.375);
+  /* The names the existing rules were written against, now on the ramp. */
+  --bg: var(--n-0);
+  --panel: var(--n-0);
+  --fg: var(--n-900);
+  --fg-muted: var(--n-500);
+  --border: var(--n-200);
+  --border-faint: var(--n-100);
+  --border-strong: var(--n-300);
+  --elevated: var(--n-100);
+  --overlay: var(--n-100);
 
-  /* The flat ground baked into the product and hero renders (assets/media),
-     in hex rather than oklch so the container and the photo match byte for
-     byte: a round-tripped oklch value would not land on the same sRGB bytes
-     the images were re-encoded to. */
-  --photo-ground: #f9f9f9;
+  /* Functional colours: a status says what it is by its words and its icon,
+     the colour only agrees. Each ink clears 4.5:1 on its own tint. */
+  --star: #e0a400;
+  --error: #b91c1c;
+  --error-bg: #fef2f2;
+  --error-outline: #fca5a5;
+  --success: #15803d;
+  --success-bg: #f0fdf4;
+  --warn: #92400e;
+  --warn-bg: #fffbeb;
+  --info: #1f5b92;
+  --info-bg: #eff6ff;
 
-  /* Slightly darker than the reference red, because this colour is a ground as
-     often as it is ink. White-ish text on the old value measured 4.38:1 in the
-     danger badge and the red itself measured 4.34:1 as text on --elevated;
-     0.562 clears 4.5 in both directions and on both grounds.
-
-     The tint keeps the reference lightness, as --warn-bg and --success-bg do: a
-     tint is a ground, and dragging a ground down because its ink moved takes
-     contrast from everything else printed on it. */
-  --error: oklch(0.562 0.245 27.325);
-  --error-bg: oklch(0.577 0.245 27.325 / 0.1);
-
-  /* Ink. One step of grey below --fg, and there is no second step to have.
-     That is not tidiness, it is the arithmetic: the lightest grey that reads at
-     4.5:1 on --elevated is L 0.544, and the lightest that reads on white is
-     L 0.568 — so between "readable" and "white" there is 0.024 of lightness to
-     spend, which is not a tier.
-
-     0.535 rather than the 0.544 the storefront needs, because the back office
-     prints this on the warn tint in a low-stock row: 4.35:1 at 0.544 and 4.55:1
-     at 0.535. Nine thousandths of lightness buys a whole route, and the two
-     values are the same colour to look at. */
-  --fg: oklch(0.141 0.005 285.823);
-  --fg-muted: oklch(0.535 0.016 285.938);
   --font-display: var(--font-sans);
 
   /* One family for everything, headings included. Noto Sans TC follows Inter
@@ -309,57 +309,31 @@ a:hover {
      second personality. */
   --font-sans: 'Inter', 'Noto Sans TC', ui-sans-serif, system-ui, -apple-system, sans-serif;
 
-  /* The steps that move; the rest of the ladder already matches. */
+  --fs-15: 0.9375rem;
   --fs-ed-24: 1.5rem;
   --fs-ed-30: 1.875rem;
   --fs-ed-38: 2.25rem;
-  --on-accent: oklch(0.97 0.014 254.604);
-  --overlay: oklch(0.967 0.001 286.375);
-  --panel: oklch(1 0 0);
-  --r-lg: var(--radius);
-  --r-md: calc(var(--radius) - 2px);
-  --r-sm: calc(var(--radius) - 4px);
-  --r-xl: calc(var(--radius) + 4px);
 
-  /* One radius, and the steps derived from it. A page never writes a corner
-     that is not on this ladder. */
-  --radius: 0.65rem;
-  --ring: oklch(0.623 0.214 259.815);
+  --r-sm: 0.25rem;
+  --r-md: 0.375rem;
+  --r-lg: 0.5rem;
+  --r-xl: 0.5rem;
+  --radius: var(--r-lg);
 
-  /* Two levels. There is no third. */
-  --shadow-1: 0 1px 2px 0 oklch(0 0 0 / 0.05);
-  --shadow-2:
-    0 4px 6px -1px oklch(0 0 0 / 0.1),
-    0 2px 4px -2px oklch(0 0 0 / 0.1);
-  /* Darker than the reference green, because every place this token is ink it
-     is ink on a pale ground: on its own 12% tint in the medallion it measured
-     3.17:1 and against white in the points ledger 3.65:1. 0.496 clears 4.5 on
-     both.
-
-     The tint keeps the reference lightness rather than following the ink down;
-     see --error-bg for why that is the rule for all three. */
-  --success: oklch(0.496 0.145 163.225);
-  --success-bg: oklch(0.596 0.145 163.225 / 0.12);
+  /* A button and the checkout summary carry the first; menus and popovers the
+     second; drawers and dialogs the third. Nothing else casts a shadow. */
+  --sh-xs: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --sh-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --sh-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+  --shadow-1: var(--sh-xs);
+  --shadow-2: var(--sh-lg);
 
   /* The hairline a swatch needs so a near-white colour is still a disc on a
-     white ground. Translucent black rather than a grey: it disappears into a
-     dark colour, which is where a ring would be noise. */
-  --swatch-ring: oklch(0 0 0 / 0.15);
-  /* Darker than the reference amber, for the same reason: the warn badge paints
-     this on its own 12% tint and measured 2.80:1, which is the worst pair on the
-     storefront. 0.534 clears 4.5 there and 5.47:1 on white.
+     white ground. */
+  --swatch-ring: rgb(0 0 0 / 0.1);
 
-     It costs something, and the cost is worth naming: .goen-pdp__reviewstars
-     borrows this token for a rating, so the stars darken with it. A star is not
-     a warning and should not be reading a warning's colour — but that is a rule
-     to move, not a value, so it is not fixed here.
-
-     The tint keeps the reference lightness, and here the reason is measurable:
-     the back office prints muted text on this ground in a low-stock row, and
-     that pair reads 4.55:1 with the tint left alone against 4.18:1 with it
-     dragged down behind the ink. */
-  --warn: oklch(0.534 0.179 58.318);
-  --warn-bg: oklch(0.666 0.179 58.318 / 0.12);
+  /* A select's arrow, in --n-500. */
+  --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2366666d' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
 }
 
 /* A heading is the body face at 600 with the tracking pulled in. The display
@@ -372,7 +346,7 @@ h4,
 .goen-pdp__sectiontitle,
 .goen-pdp__score {
   font-family: var(--font-sans);
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
 }
 
 /* ---------- Components ----------
@@ -401,13 +375,13 @@ h4,
   cursor: pointer;
   display: inline-flex;
   font-family: inherit;
-  font-size: var(--fs-14);
+  font-size: var(--fs-15);
   font-weight: var(--fw-medium);
   gap: 8px;
   height: 2.75rem;
   justify-content: center;
   line-height: 1;
-  padding: 0 1rem;
+  padding: 0 1.25rem;
   text-align: center;
   text-decoration: none;
   transition:
@@ -423,15 +397,10 @@ h4,
   width: 16px;
 }
 
-/* The focus ring is a shadow rather than an outline so it follows the radius,
-   and it is three pixels because a one-pixel ring on a one-pixel border is a
-   ring nobody sees. */
 .goen-btn:focus-visible,
-.goen-input:focus-visible,
 .goen-swatch:focus-visible {
-  border-color: var(--ring);
-  box-shadow: 0 0 0 3px var(--accent-muted);
-  outline: none;
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 /* Small is less padding and a smaller type step, never a smaller target. */
@@ -459,37 +428,38 @@ h4,
 /* One filled control to a surface. Everything else is quieter on purpose: a
    row of equally weighted buttons makes the shopper choose before they act. */
 .goen-btn--primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  box-shadow: var(--shadow-1);
-  color: var(--on-accent);
+  background: var(--n-900);
+  border-color: var(--n-900);
+  box-shadow: var(--sh-xs);
+  color: var(--n-0);
 }
 
 .goen-btn--primary:hover {
-  background: var(--accent-strong);
-  border-color: var(--accent-strong);
+  background: #27272a;
+  border-color: #27272a;
 }
 
+/* The soft button: a grey ground, no outline. */
 .goen-btn--secondary {
-  background: var(--elevated);
+  background: var(--n-100);
   border-color: transparent;
-  box-shadow: var(--shadow-1);
-  color: var(--fg);
+  color: var(--n-900);
 }
 
 .goen-btn--secondary:hover {
-  background: var(--border-faint);
+  background: var(--n-200);
 }
 
+/* The secondary button: white with a control border. */
 .goen-btn--outline {
-  background: var(--bg);
-  border-color: var(--border);
-  box-shadow: var(--shadow-1);
-  color: var(--fg);
+  background: var(--n-0);
+  border-color: var(--n-300);
+  box-shadow: var(--sh-xs);
+  color: var(--n-700);
 }
 
 .goen-btn--outline:hover {
-  background: var(--overlay);
+  background: var(--n-50);
 }
 
 .goen-btn--ghost {
@@ -528,8 +498,8 @@ h4,
 }
 
 .goen-badge--accent {
-  background: var(--accent);
-  color: var(--on-accent);
+  background: var(--accent-muted);
+  color: var(--accent-text);
 }
 
 .goen-badge--warn {
@@ -538,18 +508,16 @@ h4,
 }
 
 .goen-badge--danger {
-  background: var(--error);
-  color: var(--on-accent);
+  background: var(--error-bg);
+  color: var(--error);
 }
 
-/* A bordered panel on the same white as the ground: the border separates it,
-   not a second shade. It carries no heading, because the heading belongs to
+/* A panel on the quiet ground: one surface, never a border and a shadow and a
+   tint together. It carries no heading, because the heading belongs to
    the section around it, which is what decides the level announced. */
 .goen-card {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--r-xl);
-  box-shadow: var(--shadow-1);
+  background: var(--n-50);
+  border-radius: var(--r-lg);
   padding: 1.5rem;
 }
 
@@ -591,9 +559,8 @@ h4,
    that do nothing. */
 .goen-stepper {
   align-items: stretch;
-  border: 1px solid var(--border);
+  border: 1px solid var(--n-300);
   border-radius: var(--r-md);
-  box-shadow: var(--shadow-1);
   display: inline-flex;
   height: 2.75rem;
   overflow: hidden;
@@ -668,37 +635,55 @@ h4,
 }
 
 .goen-input {
-  background: transparent;
-  border: 1px solid var(--border);
+  background: var(--n-0);
+  border: 0;
   border-radius: var(--r-md);
-  box-shadow: var(--shadow-1);
   box-sizing: border-box;
   color: var(--fg);
   font-family: inherit;
-  font-size: var(--fs-14);
+  font-size: var(--fs-16);
   height: 2.75rem;
+  outline: 1px solid var(--n-300);
+  outline-offset: -1px;
   padding: 0.25rem 0.75rem;
-  transition:
-    border-color var(--dur-base) var(--ease-standard),
-    box-shadow var(--dur-base) var(--ease-standard);
   width: 100%;
 }
 
-.goen-input::placeholder {
-  color: var(--fg-muted);
+/* The border is an outline drawn inward, so the focused state thickens it
+   without moving the text. */
+.goen-input:focus-visible,
+.goen-filters .ui-input:focus-visible,
+.goen-filters .ui-select:focus-visible,
+.contact__select:focus-visible,
+.goen-checkout__select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }
 
-/* A refused field is marked by its border AND by the sentence beside it. A
-   border alone is a colour, and a colour alone is not a reason. */
+.goen-input::placeholder {
+  color: var(--n-500);
+}
+
+/* A refused field is marked by its outline AND by the sentence beside it. A
+   colour alone is not a reason. */
 .goen-input--invalid,
 .goen-input[aria-invalid='true'] {
-  border-color: var(--error);
+  outline-color: var(--error-outline);
 }
 
 .goen-input--invalid:focus-visible,
 .goen-input[aria-invalid='true']:focus-visible {
-  border-color: var(--error);
-  box-shadow: 0 0 0 3px var(--error-bg);
+  outline-color: var(--error);
+}
+
+@media (min-width: 640px) {
+  .goen-input,
+  .contact__select,
+  .goen-checkout__select,
+  .goen-filters .ui-input,
+  .goen-filters .ui-select {
+    font-size: var(--fs-15);
+  }
 }
 
 .goen-input--area {
@@ -790,7 +775,6 @@ h4,
 .goen-header__wordmark {
   font-size: var(--fs-18);
   font-weight: var(--fw-semibold);
-  letter-spacing: -0.02em;
 }
 
 /* The bar's category row, the drawer's, and the one link that is a promotion
@@ -806,9 +790,9 @@ h4,
   align-items: center;
   background: none;
   border-radius: var(--r-md);
-  color: var(--fg-muted);
+  color: var(--n-700);
   display: inline-flex;
-  font-size: var(--fs-14);
+  font-size: var(--fs-15);
   font-weight: var(--fw-medium);
   min-height: 44px;
   padding: 0 8px;
@@ -829,7 +813,7 @@ h4,
 }
 
 .goen-header .goen-header__navitem--deal {
-  color: var(--accent);
+  color: var(--n-700);
 }
 
 .goen-header__search {
@@ -905,23 +889,23 @@ h4,
    declarations are goen's. */
 .goen-header__cart .ui-badge--count {
   align-items: center;
-  background: var(--accent);
+  background: var(--n-900);
   border: none;
   border-radius: var(--r-full);
-  color: var(--on-accent);
+  color: var(--n-0);
   display: flex;
   font-family: inherit;
   font-size: var(--fs-11);
   font-variant-numeric: tabular-nums;
   font-weight: var(--fw-medium);
-  height: 20px;
+  height: 18px;
   justify-content: center;
+  left: 31px;
   line-height: 1;
-  min-width: 20px;
-  padding: 0 6px;
+  min-width: 18px;
+  padding: 0 5px;
   position: absolute;
-  right: -2px;
-  top: 2px;
+  top: 0;
 }
 
 /* The locale form, shared by the header bar, the drawer and the footer: a
@@ -972,7 +956,7 @@ h4,
 .goen-header__drawer {
   background: var(--bg);
   border-bottom: 1px solid var(--border);
-  box-shadow: var(--shadow-2);
+  box-shadow: var(--sh-lg);
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -1346,25 +1330,21 @@ h4,
 
 .goen-cat {
   align-items: center;
-  border: 1px solid var(--border);
-  border-radius: var(--r-lg);
-  color: var(--fg);
+  color: var(--n-900);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 0.75rem;
   min-height: 44px;
-  padding: 16px 8px;
   text-align: center;
   text-decoration: none;
-  transition:
-    background-color var(--dur-base) var(--ease-standard),
-    border-color var(--dur-base) var(--ease-standard);
 }
 
 .goen-cat:hover {
-  background: var(--elevated);
-  border-color: var(--accent);
-  color: var(--fg);
+  color: var(--n-900);
+}
+
+.goen-cat:hover .goen-cat__photo {
+  opacity: 0.85;
 }
 
 .goen-cat__icon {
@@ -1381,14 +1361,15 @@ h4,
   width: 28px;
 }
 
-/* The photograph fills the tile's width; its own ground matches the page's, so
-   the tile needs no frame around it. */
+/* The photograph fills the tile's width on its own ground, which is the
+   frame. */
 .goen-cat__photo {
   aspect-ratio: 1;
-  border-radius: var(--r-md);
+  background: var(--photo);
+  border-radius: var(--r-lg);
   display: block;
   height: auto;
-  max-width: 128px;
+  object-fit: contain;
   width: 100%;
 }
 
@@ -1397,45 +1378,42 @@ h4,
 }
 
 .goen-cat__name {
-  font-size: var(--fs-12);
+  font-size: var(--fs-14);
   font-weight: var(--fw-medium);
-  line-height: var(--lh-snug);
+  line-height: var(--lh-normal);
 }
 
 /* What the shop guarantees. Four tiles, and the delivery one renders only
    where a free-delivery threshold is configured. */
 .goen-trust__grid {
   display: grid;
-  gap: 24px;
+  gap: 2rem;
 }
 
 .goen-trust__item {
-  border: 1px solid var(--border);
-  border-radius: var(--r-lg);
-  padding: 24px;
+  padding: 0;
 }
 
 .goen-trust__head {
   align-items: center;
   display: flex;
-  gap: 8px;
+  gap: 0.75rem;
 }
 
+/* A bare line icon: no disc, no tint. */
 .goen-trust__icon {
   align-items: center;
-  background: var(--accent-faint);
-  border-radius: var(--r-md);
-  color: var(--accent);
+  color: var(--n-900);
   display: inline-flex;
   flex: none;
-  height: 32px;
+  height: 1.5rem;
   justify-content: center;
-  width: 32px;
+  width: 1.5rem;
 }
 
 .goen-trust__icon svg {
-  height: 16px;
-  width: 16px;
+  height: 1.5rem;
+  width: 1.5rem;
 }
 
 .goen-trust__title {
@@ -1506,7 +1484,7 @@ h4,
 
 .goen-tiles__grid {
   display: grid;
-  gap: 16px;
+  gap: 2.5rem 1rem;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   list-style: none;
   margin: 0;
@@ -1521,26 +1499,34 @@ h4,
 }
 
 .goen-tile {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--r-lg);
-  color: var(--fg);
+  color: var(--n-900);
   display: flex;
   flex: 1;
   flex-direction: column;
-  overflow: hidden;
+  gap: 1rem;
   text-decoration: none;
-  transition: border-color var(--dur-base) var(--ease-standard);
 }
 
 .goen-tile:hover {
-  border-color: var(--accent);
-  color: var(--fg);
+  color: var(--n-900);
 }
 
+.goen-tile:hover .goen-tile__img,
+.goen-tile:hover .goen-tile__ph {
+  opacity: 0.85;
+}
+
+.goen-tile:hover .goen-tile__name {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* The ground is the photographs' own, so the picture's edge disappears and
+   the product floats; contain keeps a wide render from being cropped. */
 .goen-tile__media {
   aspect-ratio: 1;
-  background: var(--photo-ground);
+  background: var(--photo);
+  border-radius: var(--r-lg);
   overflow: hidden;
   position: relative;
 }
@@ -1548,7 +1534,7 @@ h4,
 .goen-tile__img {
   display: block;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   width: 100%;
 }
 
@@ -1558,7 +1544,13 @@ h4,
   width: 100%;
 }
 
-.goen-tile__flag {
+/* A status is a neutral chip: the colour of a badge would compete with the
+   product. */
+.goen-tile .goen-tile__flag {
+  background: var(--n-0);
+  border: 1px solid var(--n-200);
+  color: var(--n-900);
+  font-size: 0.75rem;
   left: 8px;
   position: absolute;
   top: 8px;
@@ -1569,55 +1561,61 @@ h4,
   flex: 1;
   flex-direction: column;
   gap: 4px;
-  padding: 12px;
 }
 
 .goen-tile__brand {
-  color: var(--fg-muted);
-  font-size: var(--fs-12);
+  color: var(--n-500);
+  font-size: var(--fs-13);
+  line-height: var(--lh-normal);
 }
 
 .goen-tile__name {
   -webkit-box-orient: vertical;
+  color: var(--n-900);
   display: -webkit-box;
-  font-size: var(--fs-14);
-  font-weight: var(--fw-medium);
+  font-size: var(--fs-15);
+  font-weight: var(--fw-regular);
   -webkit-line-clamp: 2;
   line-clamp: 2;
-  line-height: var(--lh-snug);
+  line-height: var(--lh-normal);
   margin: 0;
   overflow: hidden;
 }
 
 .goen-tile__rating {
   align-items: center;
-  color: var(--fg-muted);
+  color: var(--n-500);
   display: flex;
-  font-size: var(--fs-12);
+  font-size: var(--fs-13);
+  font-variant-numeric: tabular-nums;
   gap: 4px;
 }
 
 .goen-tile__rating svg {
-  height: 16px;
-  width: 16px;
+  color: var(--star);
+  fill: var(--star);
+  height: 14px;
+  width: 14px;
 }
 
 .goen-tile__price {
   align-items: baseline;
+  color: var(--n-900);
   display: flex;
   flex-wrap: wrap;
   font-size: var(--fs-16);
   font-variant-numeric: tabular-nums;
-  font-weight: var(--fw-semibold);
+  font-weight: var(--fw-medium);
   gap: 8px;
   margin-top: auto;
   padding-top: 4px;
 }
 
 .goen-tile__was {
-  color: var(--fg-muted);
+  color: var(--n-500);
   font-size: var(--fs-13);
   font-weight: var(--fw-regular);
+  text-decoration: line-through;
 }
 
 /* Outside the card, never inside: the whole card is one link, and a control
@@ -1659,7 +1657,7 @@ h4,
 
 @media (min-width: 768px) {
   .goen-tiles__grid {
-    gap: 24px;
+    gap: 2.5rem 1.5rem;
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
@@ -1858,23 +1856,24 @@ h4,
 .goen-filters .ui-input,
 .goen-filters .ui-select {
   background: var(--bg);
-  border: 1px solid var(--border);
+  border: 0;
   border-radius: var(--r-md);
   box-sizing: border-box;
   color: var(--fg);
   font-family: inherit;
-  font-size: var(--fs-14);
+  font-size: var(--fs-16);
+  outline: 1px solid var(--n-300);
+  outline-offset: -1px;
   min-height: 44px;
   min-width: 0;
   padding: 0 12px;
   width: 100%;
 }
 
-.goen-filters .ui-input:focus-visible,
-.goen-filters .ui-select:focus-visible {
-  border-color: var(--ring);
-  box-shadow: 0 0 0 3px var(--accent-muted);
-  outline: none;
+.goen-filters .ui-select {
+  appearance: none;
+  background: var(--n-0) var(--chevron) no-repeat right 0.75rem center;
+  padding-right: 2.5rem;
 }
 
 .goen-filters__apply {
@@ -2226,9 +2225,9 @@ h4,
   flex-direction: column;
   gap: 32px;
   margin: 0 auto;
-  max-width: 1280px;
+  max-width: var(--page-box);
   overflow-anchor: none;
-  padding: 16px 16px 56px;
+  padding: 16px var(--page-gutter) 56px;
   width: 100%;
 }
 
@@ -2428,12 +2427,12 @@ h4,
 .goen-swatch {
   align-items: center;
   background: transparent;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--r-sm);
+  border: 1px solid var(--n-300);
+  border-radius: var(--r-md);
   box-sizing: border-box;
-  color: var(--fg);
+  color: var(--n-900);
   display: inline-flex;
-  font-size: var(--fs-13);
+  font-size: var(--fs-14);
   min-height: 44px;
   padding: 6px 14px;
   text-decoration: none;
@@ -2444,12 +2443,14 @@ h4,
 }
 
 .goen-swatch:hover {
-  background: var(--overlay);
+  background: var(--n-50);
 }
 
-.goen-swatch--on {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent);
+.goen-swatch--on,
+.goen-swatch--on:hover {
+  background: var(--n-900);
+  border-color: var(--n-900);
+  color: var(--n-0);
 }
 
 /* Unavailable in combination with the other choices. Shown, not hidden: a
@@ -2474,7 +2475,8 @@ h4,
   width: 44px;
 }
 
-.goen-swatch--dot:hover {
+.goen-swatch--dot:hover,
+.goen-swatch--dot.goen-swatch--on:hover {
   background: transparent;
 }
 
@@ -2487,13 +2489,14 @@ h4,
    edge the disc used to reach, half on the colour and half on the ground, and
    the page's own box-shadow ring is dropped: one mark, not two. */
 .goen-swatch--dot.goen-swatch--on {
+  background: transparent;
   border: 0;
   box-shadow: none;
 }
 
 .goen-swatch--dot.goen-swatch--on .goen-swatch__dot circle {
   r: 16;
-  stroke: var(--accent);
+  stroke: var(--n-900);
   stroke-width: 2;
 }
 
@@ -2609,7 +2612,7 @@ h4,
 }
 
 .goen-pdp__addedlink {
-  color: var(--accent);
+  color: var(--accent-text);
   font-weight: var(--fw-medium);
   text-decoration: underline;
 }
@@ -2792,8 +2795,8 @@ h4,
 .goen-pdp__barlabel,
 .goen-pdp__barcount {
   color: var(--fg-muted);
-  font-family: var(--font-mono);
-  font-size: var(--fs-11);
+  font-size: var(--fs-12);
+  font-variant-numeric: tabular-nums;
 }
 
 .goen-pdp__barcount {
@@ -2809,7 +2812,7 @@ h4,
    'unsafe-inline' and a refused width leaves a row with a label, a count and
    nothing between them. Ten steps; five buckets show no finer ratio. */
 .goen-pdp__bartrack {
-  background: var(--overlay);
+  background: var(--n-200);
   border-radius: var(--r-full);
   display: block;
   height: 6px;
@@ -2817,7 +2820,7 @@ h4,
 }
 
 .goen-pdp__barfill {
-  background: var(--accent);
+  background: var(--n-900);
   border-radius: inherit;
   display: block;
   height: 100%;
@@ -2899,8 +2902,8 @@ h4,
 
 .goen-pdp__reviewdate {
   color: var(--fg-muted);
-  font-family: var(--font-mono);
-  font-size: var(--fs-11);
+  font-size: var(--fs-12);
+  font-variant-numeric: tabular-nums;
   margin-left: auto;
 }
 
@@ -3018,7 +3021,7 @@ h4,
 @media (min-width: 768px) {
   .goen-pdp {
     gap: 40px;
-    padding: 24px 24px 56px;
+    padding: 24px var(--page-gutter) 56px;
   }
 
   .goen-pdp__facts {
@@ -3033,7 +3036,7 @@ h4,
 @media (min-width: 1024px) {
   .goen-pdp {
     gap: 48px;
-    padding: 32px 32px 72px;
+    padding: 32px var(--page-gutter) 72px;
   }
 
   .goen-pdp__top {
@@ -3089,8 +3092,8 @@ h4,
   flex-direction: column;
   gap: 24px;
   margin: 0 auto;
-  max-width: var(--container);
-  padding: 16px 16px 56px;
+  max-width: var(--page-box);
+  padding: 16px var(--page-gutter) 56px;
   width: 100%;
 }
 
@@ -3170,8 +3173,7 @@ h4,
 .goen-pay__lines {
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: var(--r-xl);
-  box-shadow: var(--shadow-1);
+  border-radius: var(--r-lg);
   display: block;
   list-style: none;
   margin: 0;
@@ -3243,7 +3245,7 @@ h4,
 }
 
 .goen-line__name:hover {
-  color: var(--accent);
+  color: var(--accent-text);
 }
 
 .goen-line__controls {
@@ -3587,7 +3589,7 @@ h4,
 }
 
 .goen-handoff__link {
-  color: var(--accent);
+  color: var(--accent-text);
   font-size: var(--fs-14);
   /* 44px, so the one control on this page is a tap target on a phone. */
   line-height: 44px;
@@ -3616,25 +3618,19 @@ h4,
    second one — it is the same control asking the same kind of question. */
 .contact__select,
 .goen-checkout__select {
-  background: var(--panel);
-  border: 1px solid var(--border);
+  appearance: none;
+  background: var(--n-0) var(--chevron) no-repeat right 0.75rem center;
+  border: 0;
   border-radius: var(--r-md);
-  box-shadow: var(--shadow-1);
   box-sizing: border-box;
   color: var(--fg);
   font-family: inherit;
-  font-size: var(--fs-14);
+  font-size: var(--fs-16);
   height: 2.75rem;
-  padding: 0.25rem 2rem 0.25rem 0.75rem;
-  transition: border-color var(--dur-base) var(--ease-standard);
+  outline: 1px solid var(--n-300);
+  outline-offset: -1px;
+  padding: 0.25rem 2.5rem 0.25rem 0.75rem;
   width: 100%;
-}
-
-.contact__select:focus-visible,
-.goen-checkout__select:focus-visible {
-  border-color: var(--ring);
-  box-shadow: 0 0 0 3px var(--accent-muted);
-  outline: none;
 }
 
 .goen-checkout__lines {
@@ -3850,7 +3846,7 @@ h4,
 }
 
 .goen-findorder__alt a {
-  color: var(--accent);
+  color: var(--accent-text);
   text-decoration: underline;
   text-underline-offset: 4px;
 }
@@ -3863,7 +3859,7 @@ h4,
   .goen-returns,
   .goen-findorder {
     gap: 32px;
-    padding: 24px 24px 56px;
+    padding: 24px var(--page-gutter) 56px;
   }
 
   .goen-checkout .goen-checkout__fields {
@@ -3878,7 +3874,7 @@ h4,
   .goen-pay,
   .goen-returns,
   .goen-findorder {
-    padding: 32px 32px 56px;
+    padding: 32px var(--page-gutter) 56px;
   }
 
   .goen-pagehead__title {
@@ -3918,7 +3914,7 @@ h4,
   display: flex;
   justify-content: center;
   margin: 0 auto;
-  max-width: var(--container);
+  max-width: var(--page-box);
   min-height: 60vh;
   padding: 32px var(--page-gutter) 56px;
   width: 100%;
@@ -3970,7 +3966,7 @@ h4,
 }
 
 .goen-auth__forgot {
-  color: var(--accent-strong);
+  color: var(--accent-text);
   font-size: var(--fs-14);
   text-decoration: none;
 }
@@ -4001,7 +3997,7 @@ h4,
 }
 
 .goen-auth__alt a {
-  color: var(--accent-strong);
+  color: var(--accent-text);
   font-weight: var(--fw-medium);
   text-underline-offset: 4px;
 }
@@ -4014,7 +4010,7 @@ h4,
   flex-direction: column;
   gap: 24px;
   margin: 0 auto;
-  max-width: var(--container);
+  max-width: var(--page-box);
   padding: 16px var(--page-gutter) 56px;
   width: 100%;
 }
@@ -4326,7 +4322,7 @@ h4,
 
 .goen-account__summary {
   align-items: center;
-  color: var(--accent-strong);
+  color: var(--accent-text);
   cursor: pointer;
   display: flex;
   font-size: var(--fs-14);
@@ -4384,8 +4380,7 @@ h4,
   .goen-auth__panel {
     background: var(--panel);
     border: 1px solid var(--border);
-    border-radius: var(--r-xl);
-    box-shadow: var(--shadow-1);
+    border-radius: var(--r-lg);
     padding: 32px;
   }
 
@@ -4696,7 +4691,7 @@ h4,
   flex-direction: column;
   gap: 24px;
   margin: 0 auto;
-  max-width: var(--container);
+  max-width: var(--page-box);
   padding: 16px var(--page-gutter) 56px;
   width: 100%;
 }
@@ -5026,7 +5021,7 @@ h4,
   flex-direction: column;
   gap: 24px;
   margin: 0 auto;
-  max-width: var(--container);
+  max-width: var(--page-box);
   padding: 16px var(--page-gutter) 56px;
   width: 100%;
 }
@@ -5133,10 +5128,8 @@ h4,
   grid-column: 1 / -1;
 }
 
-/* An order number is copied from a mail, so it is set in the face that makes
-   one character distinct from the next. */
 .contact__ref {
-  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
 }
 
 .contact__message {
@@ -5394,7 +5387,7 @@ h4,
   .goen-adminbar__tag {
     background: var(--accent-muted);
     border-radius: var(--r-sm);
-    color: var(--accent-strong);
+    color: var(--accent-text);
     display: inline-flex;
     font-size: var(--fs-12);
     font-weight: var(--fw-medium);
@@ -5553,7 +5546,7 @@ h4,
    carries. A state class beside it would be a second place to disagree. */
 .goen-admin__nav [aria-current='page'] {
   background: var(--accent-muted);
-  color: var(--accent-strong);
+  color: var(--accent-text);
   font-weight: var(--fw-semibold);
 }
 
