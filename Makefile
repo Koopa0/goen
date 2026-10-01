@@ -49,7 +49,12 @@ build: gen
 # schema-drift is the existing catalogue comparison against migrations/; a dev
 # database built before an amended 001 fails here instead of as a 500 later.
 run: gen
-	@$(MAKE) --no-print-directory schema-drift || { echo 'run: the development database does not match migrations/; back up anything you need, then run make db-reset' >&2; exit 1; }
+	@$(MAKE) --no-print-directory schema-drift; status=$$?; \
+		case $$status in \
+		0) ;; \
+		1) echo 'run: the development database does not match migrations/; back up anything you need, then run make db-reset' >&2; exit 1;; \
+		*) echo "run: could not compare the development database with migrations/ (schema-drift exited $$status; its message is above). If the database is not running: make db-up" >&2; exit $$status;; \
+		esac
 	GOEN_INSECURE_COOKIES=1 go run ./cmd/goen
 
 test: gen
@@ -792,34 +797,40 @@ ACL_SQL := \
 # that 001 has stopped being the whole truth, and therefore that 002 begins.
 #
 # Needs the dev container and a GOEN_DATABASE_URL pointing at the database to
-# check. Outside `verify` for the reason test-integration is: it needs something
+# check. Exit 1 is DRIFT and nothing else: every other failure, a stopped
+# container or a missing tool included, exits 2 or more, so `run` can tell a stale
+# schema from an environment that was never ready. Outside `verify` for the reason test-integration is: it needs something
 # the gate cannot assume.
 .PHONY: schema-drift
 schema-drift:
 	@test -n "$${GOEN_DATABASE_URL:-}" || { echo 'GOEN_DATABASE_URL is required: the database to CHECK' >&2; exit 2; }
 	@set -eu; \
 	ref=goen_schema_ref_$$$$; \
-	trap 'docker compose exec -T db dropdb -U goen --if-exists --force "$$ref" >/dev/null 2>&1 || true' 0 HUP INT TERM; \
+	tmp=$$(mktemp -d); drift=; \
+	trap 'rc=$$?; docker compose exec -T db dropdb -U goen --if-exists --force "$$ref" >/dev/null 2>&1 || true; rm -rf "$$tmp"; if [ "$$rc" = 1 ] && [ -z "$$drift" ]; then exit 4; fi' 0 HUP INT TERM; \
+	docker compose exec -T db true >/dev/null 2>&1 \
+		|| { echo 'schema-drift: the compose db service is not running; start it with make db-up' >&2; exit 4; }; \
 	docker compose exec -T db createdb -U goen "$$ref"; \
 	base=$${GOEN_DATABASE_URL%%\?*}; \
 	case "$$GOEN_DATABASE_URL" in *\?*) query="?$${GOEN_DATABASE_URL#*\?}";; *) query="";; esac; \
 	refurl="$${base%/*}/$$ref$$query"; \
 	$(MIGRATE) -path migrations -database "$$refurl" up >/dev/null; \
 	:; \
-	psql "$$refurl" -At -c $(CATALOG_SQL) | sort > /tmp/goen-schema-ref.txt; \
-	test -s /tmp/goen-schema-ref.txt || { echo 'schema-drift: the reference database is EMPTY; it was not built' >&2; exit 3; }; \
+	psql "$$refurl" -At -c $(CATALOG_SQL) | sort > "$$tmp"/ref.txt; \
+	test -s "$$tmp"/ref.txt || { echo 'schema-drift: the reference database is EMPTY; it was not built' >&2; exit 3; }; \
 	psql "$$refurl" -At -c "SELECT current_database()" | grep -qx "$$ref" \
 		|| { echo 'schema-drift: the reference URL does not point at the reference database, so this would compare the live one with itself' >&2; exit 3; }; \
-	psql "$$GOEN_DATABASE_URL" -At -c $(CATALOG_SQL) | sort > /tmp/goen-schema-live.txt; \
-	if diff -u /tmp/goen-schema-ref.txt /tmp/goen-schema-live.txt > /tmp/goen-schema-drift.txt; then \
+	psql "$$GOEN_DATABASE_URL" -At -c $(CATALOG_SQL) | sort > "$$tmp"/live.txt; \
+	if diff -u "$$tmp"/ref.txt "$$tmp"/live.txt > "$$tmp"/drift.txt; then \
 		echo 'schema-drift: PASS — the deployed schema matches migrations/'; \
 	else \
+		[ "$$?" = 1 ] || { echo 'schema-drift: diff itself failed' >&2; exit 4; }; \
 		echo 'schema-drift: FAIL — the deployed schema and migrations/ disagree.'; \
 		echo '  -  is what migrations/ declares; +  is what the database has.'; \
 		echo '  An amended CHECK is not re-validated by PostgreSQL, so this is'; \
 		echo '  where amend-in-place stops being safe and 002 begins.'; \
-		cat /tmp/goen-schema-drift.txt; \
-		exit 1; \
+		cat "$$tmp"/drift.txt; \
+		drift=1; exit 1; \
 	fi
 
 # Prove the backup can be restored. Not that one exists — that a dump of this
