@@ -552,7 +552,6 @@ var adminNotices = map[string]i18n.Key{
 	"inspected":      i18n.KeyAdminNoticeInspected,
 	"closed":         i18n.KeyAdminNoticeClosed,
 	"assessed":       i18n.KeyAdminNoticeAssessed,
-	"badcount":       i18n.KeyAdminNoticeBadCount,
 	"invoiced":       i18n.KeyAdminNoticeInvoiced,
 	"voided":         i18n.KeyAdminNoticeVoided,
 	"hasinvoice":     i18n.KeyAdminNoticeHasInvoice,
@@ -1477,12 +1476,33 @@ func (h *Handler) AnswerQuestion(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case err == nil:
 		http.Redirect(w, r, "/admin/questions?ok=1", http.StatusSeeOther)
-	case errors.Is(err, ErrNotFound), errors.Is(err, ErrInvalid):
+	case errors.Is(err, ErrInvalid):
+		h.rejectAnswer(w, r, id)
+	case errors.Is(err, ErrNotFound):
 		http.Redirect(w, r, "/admin/questions?refused=1", http.StatusSeeOther)
 	default:
 		h.log.ErrorContext(r.Context(), "answer question", "error", err)
 		h.serverError(w, r)
 	}
+}
+
+// rejectAnswer re-renders the questions with the reply staff typed kept in its
+// own box and marked invalid.
+func (h *Handler) rejectAnswer(w http.ResponseWriter, r *http.Request, id string) {
+	view, err := h.store.Questions(r.Context())
+	if err != nil {
+		h.log.ErrorContext(r.Context(), "read questions after refused answer", "error", err)
+		h.serverError(w, r)
+		return
+	}
+	for i := range view.Rows {
+		if view.Rows[i].ID == id {
+			view.Rows[i].Draft = r.PostFormValue("body")
+			view.Rows[i].Error = i18n.T(r.Context(), i18n.KeyAdminQuestionBodyError)
+		}
+	}
+	web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.AdminQuestions(
+		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageQuestions)}, view))
 }
 
 // ReconcilePayment serves POST /admin/health/reconcile.

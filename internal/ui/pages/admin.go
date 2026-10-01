@@ -199,12 +199,12 @@ type AdminOrderView struct {
 	ShipCarrierError          string
 	// ShipQtyError marks every quantity field of a refused dispatch, and
 	// ShipQty keeps what was typed in each, by order line id.
-	ShipQtyError string
-	ShipQty      map[string]string
-	Delivery                  AdminDelivery
-	Correctable               bool
-	PickupDestination         bool
-	PickupBrands              []PickupBrandChoice
+	ShipQtyError      string
+	ShipQty           map[string]string
+	Delivery          AdminDelivery
+	Correctable       bool
+	PickupDestination bool
+	PickupBrands      []PickupBrandChoice
 
 	// RefundOffered is a paid order nothing has shipped from and no return
 	// exists for; RefundOpen is one whose refund before shipment Resume finishes.
