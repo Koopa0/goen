@@ -8356,6 +8356,18 @@ CREATE INDEX product_copurchases_rank_idx
 CREATE INDEX product_copurchases_other_idx
     ON product_copurchases (other_product_id);
 
+-- When the projection was last rebuilt. The rows cannot say: a shop where no
+-- committed order holds two different products rebuilds to an empty table, and
+-- health would read that as a projection nobody ever built.
+CREATE TABLE copurchase_refreshes (
+    singleton    boolean PRIMARY KEY DEFAULT true CHECK (singleton),
+    refreshed_at timestamptz NOT NULL
+);
+
+COMMENT ON TABLE copurchase_refreshes IS
+    'One row, written only by refresh_copurchases(): the last time a rebuild '
+    'completed, whether or not it produced any pair.';
+
 -- Rebuild the whole projection. DELETE and re-INSERT inside one transaction, so
 -- a reader never sees a half-built projection; TRUNCATE would take ACCESS
 -- EXCLUSIVE and block every product page for the duration.
@@ -8377,6 +8389,10 @@ BEGIN
     GROUP BY mine.product_id, other.product_id;
 
     GET DIAGNOSTICS written = ROW_COUNT;
+
+    INSERT INTO copurchase_refreshes (refreshed_at) VALUES (now())
+    ON CONFLICT (singleton) DO UPDATE SET refreshed_at = EXCLUDED.refreshed_at;
+
     RETURN written;
 END;
 $$;
@@ -8406,6 +8422,8 @@ GRANT SELECT ON product_copurchases TO admin;
 GRANT SELECT ON product_copurchases TO reporting;
 -- A projection a request could rewrite is one a request can be made to rewrite.
 REVOKE INSERT, UPDATE, DELETE ON product_copurchases FROM store, admin;
+-- Health reads when the rebuild last ran; nothing but the definer writes it.
+GRANT SELECT ON copurchase_refreshes TO admin;
 
 -- refresh_copurchases is SECURITY DEFINER, so WHO may call it is the whole
 -- control.

@@ -4455,7 +4455,7 @@ func TestNeverRebuiltIsNotTheSameAsJustRebuilt(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
 
-	if _, err := pool.Exec(ctx, `DELETE FROM product_copurchases`); err != nil {
+	if _, err := pool.Exec(ctx, `DELETE FROM copurchase_refreshes`); err != nil {
 		t.Fatalf("clear: %v", err)
 	}
 	never, err := s.WorkerHealth(ctx, outbox.NewStore(pool, slog.New(slog.DiscardHandler)))
@@ -4463,17 +4463,19 @@ func TestNeverRebuiltIsNotTheSameAsJustRebuilt(t *testing.T) {
 		t.Fatalf("health: %v", err)
 	}
 	if never.CopurchaseEverBuilt {
-		t.Error("an empty projection reports itself as built")
+		t.Error("a projection that never rebuilt reports itself as built")
 	}
 	if never.RecommendHealthy() {
 		t.Error("a projection that has never been rebuilt reads as healthy")
 	}
 
-	if _, err := pool.Exec(ctx, `
-		INSERT INTO product_copurchases (product_id, other_product_id, orders)
-		SELECT p1.id, p2.id, 2 FROM products p1, products p2
-		WHERE p1.id <> p2.id LIMIT 1`); err != nil {
-		t.Fatalf("seed projection: %v", err)
+	// A rebuild that found no pair of products leaves the projection empty and
+	// is still a rebuild.
+	if _, err := pool.Exec(ctx, `SELECT refresh_copurchases()`); err != nil {
+		t.Fatalf("refresh: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `DELETE FROM product_copurchases`); err != nil {
+		t.Fatalf("empty the projection: %v", err)
 	}
 	fresh, freshErr := s.WorkerHealth(ctx, outbox.NewStore(pool, slog.New(slog.DiscardHandler)))
 	if freshErr != nil {
