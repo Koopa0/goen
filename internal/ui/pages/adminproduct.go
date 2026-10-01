@@ -3,6 +3,7 @@ package pages
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -116,11 +117,24 @@ type AdminProductView struct {
 	VariantDraft      AdminVariantDraft
 }
 
-// AdminVariantDraft carries a refused variant form's exact text back.
+// AdminVariantDraft carries a refused form's exact input back: the variant
+// form's, and the two option forms', so a corrected resubmit files what the
+// staff member chose and not what the page defaults to.
 type AdminVariantDraft struct {
 	SKU, Price, Compare              string
 	Safety, ParcelLongest, ParcelSum string
 	ParcelWeight                     string
+	// OptionValueIDs are the option values the variant form had chosen.
+	OptionValueIDs []string
+	// The add-axis form.
+	OptionName, OptionNameEn string
+	// The add-value form: the axis it was filed under, then the value's fields.
+	ValueOption, Value, ValueEn, Swatch string
+}
+
+// Chose reports whether the refused variant form had picked this option value.
+func (d AdminVariantDraft) Chose(valueID string) bool {
+	return slices.Contains(d.OptionValueIDs, valueID)
 }
 
 // AdminOption is one axis of a product's variants.

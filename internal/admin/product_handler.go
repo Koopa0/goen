@@ -179,9 +179,10 @@ func variantFormOf(r *http.Request) (*VariantForm, pages.AdminVariantDraft, map[
 	draft := pages.AdminVariantDraft{
 		SKU: r.PostFormValue("sku"), Price: r.PostFormValue("price"),
 		Compare: r.PostFormValue("compare"), Safety: r.PostFormValue("safety"),
-		ParcelLongest: r.PostFormValue("parcel_longest"),
-		ParcelSum:     r.PostFormValue("parcel_sum"),
-		ParcelWeight:  r.PostFormValue("parcel_weight"),
+		ParcelLongest:  r.PostFormValue("parcel_longest"),
+		ParcelSum:      r.PostFormValue("parcel_sum"),
+		ParcelWeight:   r.PostFormValue("parcel_weight"),
+		OptionValueIDs: r.PostForm["option_value"],
 	}
 	errs := map[string]string{}
 	safety := parseVariantCount(draft.Safety, safetyStockCeiling,
@@ -426,6 +427,11 @@ func (h *Handler) optionWrite(
 		return
 	}
 	slug := r.PathValue("slug")
+	draft := pages.AdminVariantDraft{
+		OptionName: r.PostFormValue("name"), OptionNameEn: r.PostFormValue("name_en"),
+		ValueOption: r.PostFormValue("option"), Value: r.PostFormValue("value"),
+		ValueEn: r.PostFormValue("value_en"), Swatch: r.PostFormValue("swatch_hex"),
+	}
 	errs, err := write(slug)
 	switch {
 	case err != nil:
@@ -434,12 +440,12 @@ func (h *Handler) optionWrite(
 		// missing product. Without this the page tells a staff member who
 		// mistyped a colour that the product they are looking at is gone.
 		if refused := optionRefusal(r.Context(), err); len(refused) > 0 {
-			h.editProductWithErrors(w, r, slug, refused, pages.AdminVariantDraft{})
+			h.editProductWithErrors(w, r, slug, refused, draft)
 			return
 		}
 		h.notFound(w, r)
 	case len(errs) > 0:
-		h.editProductWithErrors(w, r, slug, errs, pages.AdminVariantDraft{})
+		h.editProductWithErrors(w, r, slug, errs, draft)
 	default:
 		//nolint:gosec // G710: slug is the route's own path value
 		http.Redirect(w, r, "/admin/products/"+slug+"?ok=1", http.StatusSeeOther)
