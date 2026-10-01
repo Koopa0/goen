@@ -635,8 +635,8 @@ SELECT u.id, u.email, coalesce(u.full_name, '') AS full_name,
        coalesce((SELECT b.balance_cents FROM store_credit_balances b
                  WHERE b.user_id = u.id), 0)::bigint AS credit_cents,
        coalesce((SELECT lb.points FROM loyalty_balances lb
-                 JOIN store_credit_accounts a ON a.id = lb.account_id
-                 WHERE a.user_id = u.id), 0)::bigint AS points
+                 WHERE lb.account_id = (SELECT a.id FROM store_credit_accounts a
+                                        WHERE a.user_id = u.id)), 0)::bigint AS points
 FROM users u
 WHERE u.id = $1
 `
@@ -8766,9 +8766,11 @@ func (q *Queries) PaymentAttemptForOrder(ctx context.Context, arg PaymentAttempt
 }
 
 const pointsBalance = `-- name: PointsBalance :one
-SELECT a.id AS account_id, coalesce(b.points, 0)::bigint AS points
+SELECT a.id AS account_id,
+       coalesce((SELECT lb.points FROM loyalty_balances lb
+                 WHERE lb.account_id = (SELECT x.id FROM store_credit_accounts x
+                                        WHERE x.user_id = $1)), 0)::bigint AS points
 FROM store_credit_accounts a
-LEFT JOIN loyalty_balances b ON b.account_id = a.id
 WHERE a.user_id = $1
 `
 
@@ -8777,7 +8779,10 @@ type PointsBalanceRow struct {
 	Points    int64
 }
 
-// A customer's spendable balance and their account, which may not exist.
+// A customer's spendable balance and their account, which may not exist. The
+// view is filtered by its own grouping column through a scalar subquery:
+// PostgreSQL does not push a join condition into an aggregated subquery, so
+// joining the view would total every account's ledger to keep one row.
 func (q *Queries) PointsBalance(ctx context.Context, userID uuid.NullUUID) (PointsBalanceRow, error) {
 	row := q.db.QueryRow(ctx, pointsBalance, userID)
 	var i PointsBalanceRow
