@@ -281,9 +281,24 @@ templ AdminHome(p layouts.Page, v *AdminHeroView) {
 					</div>
 					<div class="ui-field">
 						<label class="ui-label" for="b-days">{ i18n.T(ctx, i18n.KeyAdminHomeDays) }</label>
-						<input class="ui-input" id="b-days" name="days" type="number" min="0" max="365" step="1" inputmode="numeric" value={ v.BannerDraft.Days } placeholder="0"/>
-						if v.HasErr("days") {
-							<p class="ui-error-text">{ v.Err("days") }</p>
+						<input
+							class="ui-input"
+							id="b-days"
+							name="days"
+							type="number"
+							min="0"
+							max="365"
+							step="1"
+							inputmode="numeric"
+							value={ v.BannerDraft.Days }
+							placeholder="0"
+							if v.HasErr("banner_days") {
+								aria-invalid="true"
+								aria-describedby="b-days-error"
+							}
+						/>
+						if v.HasErr("banner_days") {
+							<p class="ui-error-text" id="b-days-error">{ v.Err("banner_days") }</p>
 						}
 					</div>
 				</div>
@@ -294,15 +309,26 @@ templ AdminHome(p layouts.Page, v *AdminHeroView) {
 					</div>
 					<div class="ui-field">
 						<label class="ui-label" for="b-cta-href">{ i18n.T(ctx, i18n.KeyAdminHomeBannerCTAHref) }</label>
-						<input class="ui-input" id="b-cta-href" name="cta_href" maxlength="200" value={ v.BannerDraft.CTAHref } placeholder="/deals"/>
+						<input
+							class="ui-input"
+							id="b-cta-href"
+							name="cta_href"
+							maxlength="200"
+							value={ v.BannerDraft.CTAHref }
+							placeholder="/deals"
+							if v.HasErr("banner_cta") {
+								aria-invalid="true"
+								aria-describedby="b-cta-error"
+							}
+						/>
 					</div>
 				</div>
 				<div class="ui-field">
 					<label class="ui-label" for="b-cta-label-en">{ i18n.T(ctx, i18n.KeyAdminHomeBannerCTALabelEn) }</label>
 					<input class="ui-input" id="b-cta-label-en" name="cta_label_en" maxlength="20" value={ v.BannerDraft.CTALabelEn } placeholder="Shop"/>
 				</div>
-				if v.HasErr("cta") {
-					<p class="ui-error-text" role="alert">{ v.Err("cta") }</p>
+				if v.HasErr("banner_cta") {
+					<p class="ui-error-text" id="b-cta-error" role="alert">{ v.Err("banner_cta") }</p>
 				}
 				<button class="ui-btn ui-btn--primary" type="submit">{ i18n.T(ctx, i18n.KeyAdminHomeBannerAdd) }</button>
 			</form>

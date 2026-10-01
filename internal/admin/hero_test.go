@@ -92,3 +92,17 @@ func TestAnImageWithoutAltTextIsRefused(t *testing.T) {
 		t.Errorf("a slide with no image was refused: %v", errs)
 	}
 }
+
+// TestABannerRefusalDoesNotUseTheHeroKeys: both forms render on /admin/home
+// from one error map, so a banner's days or link must not be keyed as the hero's.
+func TestABannerRefusalDoesNotUseTheHeroKeys(t *testing.T) {
+	errs := (&BannerForm{Message: "m", Days: -1, CTALabel: "go", CTAHref: "http://evil.example"}).Validate(t.Context())
+	for _, key := range []string{"banner_days", "banner_cta"} {
+		if _, ok := errs[key]; !ok {
+			t.Errorf("no %q error in %v", key, errs)
+		}
+	}
+	if _, ok := errs["days"]; ok {
+		t.Errorf("the banner's days is keyed as the hero's: %v", errs)
+	}
+}

@@ -59,15 +59,16 @@ func (f *BannerForm) Validate(ctx context.Context) map[string]string {
 	}
 
 	if (f.CTALabel == "") != (f.CTAHref == "") {
-		errs["cta"] = i18n.T(ctx, i18n.KeyFormBannerCTAPair)
+		errs["banner_cta"] = i18n.T(ctx, i18n.KeyFormBannerCTAPair)
 	}
 	if f.CTAHref != "" {
 		if _, ok := web.SitePath(f.CTAHref); !ok {
-			errs["cta"] = i18n.T(ctx, i18n.KeyFormBannerCTAHref)
+			errs["banner_cta"] = i18n.T(ctx, i18n.KeyFormBannerCTAHref)
 		}
 	}
 	if f.Days < 0 || f.Days > MaxHeroDays {
-		errs["days"] = i18n.T(ctx, i18n.KeyFormRunDays)
+		// Namespaced: the hero form shares this page and this map, and has its own days.
+		errs["banner_days"] = i18n.T(ctx, i18n.KeyFormRunDays)
 	}
 	return errs
 }
