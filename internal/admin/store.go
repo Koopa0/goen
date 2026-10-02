@@ -918,10 +918,7 @@ func (s *Store) AdjustStock(ctx context.Context, sku string, delta int32, actorI
 			}); moveErr != nil {
 				return fmt.Errorf("%w: %w", ErrRefused, moveErr)
 			}
-			// Called on EVERY adjustment: the claim's own EXISTS decides whether
-			// the variant is back above its threshold, so a movement that does
-			// not cross it claims nothing.
-			return enqueueRestockNotices(ctx, q, v.ID)
+			return nil
 		})
 	return s.settleReplay(ctx, err, v.ID, delta, "adjustment", key)
 }
@@ -952,7 +949,7 @@ func (s *Store) ReceiveStock(ctx context.Context, sku string, quantity int32, ac
 			}); moveErr != nil {
 				return fmt.Errorf("%w: %w", ErrRefused, moveErr)
 			}
-			return enqueueRestockNotices(ctx, q, v.ID)
+			return nil
 		})
 	return s.settleReplay(ctx, err, v.ID, quantity, "receipt", key)
 }
