@@ -42,7 +42,6 @@ func newSlowQueryTracer(log *slog.Logger, pool string) *slowQueryTracer {
 	return &slowQueryTracer{log: log, pool: pool, threshold: slowQueryThreshold, now: time.Now}
 }
 
-// TraceQueryStart implements pgx.QueryTracer.
 func (t *slowQueryTracer) TraceQueryStart(
 	ctx context.Context, _ *pgx.Conn, data pgx.TraceQueryStartData,
 ) context.Context {
@@ -53,7 +52,6 @@ func (t *slowQueryTracer) TraceQueryStart(
 	return context.WithValue(ctx, slowQueryKey{}, slowQueryStart{at: t.now(), name: name})
 }
 
-// TraceQueryEnd implements pgx.QueryTracer.
 func (t *slowQueryTracer) TraceQueryEnd(ctx context.Context, _ *pgx.Conn, _ pgx.TraceQueryEndData) {
 	start, ok := ctx.Value(slowQueryKey{}).(slowQueryStart)
 	if !ok {
