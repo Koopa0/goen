@@ -29,11 +29,6 @@ var (
 		En:     "Choose options",
 	})
 
-	KeyChooseBeforeAdding = key("buy.choose_first", Message{
-		ZhHant: "請選擇完整規格後加入購物車。",
-		En:     "Choose every option before adding to the cart.",
-	})
-
 	KeyCheckout = key("buy.checkout", Message{ZhHant: "前往結帳", En: "Checkout"})
 
 	KeyContinue = key("buy.continue", Message{ZhHant: "繼續選購", En: "Keep shopping"})

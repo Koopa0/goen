@@ -174,14 +174,23 @@ templ productGallery(v *ProductView) {
 	</div>
 }
 
-// ratingStars draws n of five stars. It is decoration: the caller supplies the
-// words a screen reader is given.
-templ ratingStars(n int) {
+// ratingStars draws five stars with halves of them filled. It is decoration: the
+// caller supplies the words a screen reader is given.
+templ ratingStars(halves int) {
 	<span class="goen-pdp__rate" aria-hidden="true">
 		for i := 1; i <= 5; i++ {
-			<span class={ templ.KV("goen-pdp__rate--on", i <= n) }>
-				@icons.Star()
-			</span>
+			if halves == 2*i-1 {
+				<span class="goen-pdp__rate--half">
+					@icons.Star()
+					<span class="goen-pdp__ratehalf">
+						@icons.Star()
+					</span>
+				</span>
+			} else {
+				<span class={ templ.KV("goen-pdp__rate--on", halves >= 2*i) }>
+					@icons.Star()
+				</span>
+			}
 		}
 	</span>
 }
@@ -214,7 +223,7 @@ templ productBuy(v *ProductView) {
 			</div>
 			if v.HasRating() {
 				<a class="goen-pdp__rating" href="#reviews">
-					@ratingStars(v.StarCount())
+					@ratingStars(v.StarHalves())
 					<span class="goen-pdp__ratingcount" aria-hidden="true">{ v.RatingText() } ({ v.ReviewCountText() })</span>
 					<span class="goen-sr-only">{ v.RatingLabel(ctx) }</span>
 				</a>
@@ -329,15 +338,6 @@ templ productBuy(v *ProductView) {
 			@components.Notice(components.NoticeProps{Tone: components.ToneWarn, Class: "goen-pdp__note"}) {
 				{ i18n.T(ctx, i18n.KeyAllSoldOutHint) }
 			}
-		} else if v.NeedsChoice() {
-			// Guidance, not a state. A variant not found and a product sold out
-			// are things that went wrong; this one is an instruction, and a
-			// filled panel gives it the weight of a refusal on the page's
-			// landing view — which every link on the site opens.
-			<p class="goen-pdp__hint" role="status">
-				@icons.AlertCircle()
-				<span>{ i18n.T(ctx, i18n.KeyChooseBeforeAdding) }</span>
-			</p>
 		}
 		if v.NotifyUnavailable() {
 			@components.Notice(components.NoticeProps{Tone: components.ToneDanger, ID: "notify-unavailable"}) {
@@ -608,7 +608,7 @@ templ productReviews(v *ProductView) {
 			<div class="goen-pdp__reviewlayout">
 				<div class="goen-pdp__summary">
 					<p class="goen-pdp__score">{ v.RatingText() }</p>
-					@ratingStars(v.StarCount())
+					@ratingStars(v.StarHalves())
 					<p class="goen-pdp__scorecount">{ i18n.Count(ctx, i18n.KeyReviewCount, v.RatingCount, v.ReviewCountText()) }</p>
 					<div class="goen-pdp__bars">
 						for _, b := range v.RatingBars {
@@ -628,7 +628,7 @@ templ productReviews(v *ProductView) {
 							<div class="goen-pdp__reviewhead">
 								<span class="goen-pdp__reviewname">{ r.DisplayAuthor(ctx) }</span>
 								<span class="goen-pdp__reviewstars" aria-hidden="true">
-									@ratingStars(r.Rating)
+									@ratingStars(r.Rating * 2)
 								</span>
 								if r.Verified {
 									@components.Badge(components.BadgeProps{}) {

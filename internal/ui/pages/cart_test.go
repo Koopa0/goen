@@ -688,7 +688,7 @@ func TestTheProductPageSaysWhetherItAddedAnything(t *testing.T) {
 		return &ProductView{
 			Slug: "pixelight-9-pro", Name: "Pixelight 9 Pro",
 			VariantID: "v1", PriceCents: 3690000, Available: 3,
-			AddedOutcome: outcome,
+			AddedOutcome: AddOutcome(outcome),
 		}
 	}
 

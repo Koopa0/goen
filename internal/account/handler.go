@@ -783,7 +783,7 @@ func (h *Handler) Wishlist(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	web.Render(w, r, h.log, http.StatusOK, pages.Wishlist(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyWishlistTitle)}, pages.WishlistView{Products: tiles}))
+		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyWishlistTitle)}, pages.WishlistView{Products: tiles, Added: pages.AddOutcome(r.URL.Query().Get("added"))}))
 }
 
 // SaveWishlist serves POST /account/wishlist.

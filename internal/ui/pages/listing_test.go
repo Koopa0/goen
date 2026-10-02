@@ -113,11 +113,17 @@ func TestFilteredListingFocusesResults(t *testing.T) {
 	if !strings.Contains(html, `class="goen-filters__applied"`) {
 		t.Error("a filtered listing shows no applied-filter summary")
 	}
-	idxFilters := strings.Index(html, `class="goen-listing__filters"`)
+	idxMain := strings.Index(html, `class="goen-listing__main"`)
 	idxResults := strings.Index(html, `id="listing-results"`)
-	if idxFilters < 0 || idxResults < 0 ||
-		!strings.Contains(html[idxFilters:idxResults], `class="goen-filters__applied"`) {
-		t.Error("applied-filter summary is not grouped in the filter column")
+	idxRail := strings.Index(html, `class="goen-listing__filters"`)
+	if idxRail < 0 || idxMain < idxRail || idxResults < idxMain {
+		t.Fatal("the rail, the results column and the results do not come in that order")
+	}
+	if !strings.Contains(html[idxMain:idxResults], `class="goen-filters__applied"`) {
+		t.Error("applied-filter summary is not in the results column, above the results")
+	}
+	if strings.Contains(html[idxRail:idxMain], `class="goen-filters__applied"`) {
+		t.Error("applied-filter summary is still in the filter rail")
 	}
 	if !strings.Contains(html, i18n.T(ctx, i18n.KeyFacetInStock)) {
 		t.Error("the applied summary does not name the active stock filter")

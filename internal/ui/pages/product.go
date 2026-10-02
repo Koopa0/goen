@@ -223,14 +223,15 @@ type ProductView struct {
 	AskDraft string
 	// AddedOutcome is what the last add-to-cart did; without rendering it a
 	// refusal looks identical to a success.
-	AddedOutcome string
+	AddedOutcome AddOutcome
 	AlsoBought   []ProductTile
 
 	Related []ProductTile
 }
 
-// StarCount is how many of the five stars the average fills.
-func (v *ProductView) StarCount() int { return max(0, min(int(v.Rating+0.5), 5)) }
+// StarHalves is the average in half stars, rounded to the nearest, 0 to 10: an
+// average of 4.5 fills four stars and half of the fifth, not five.
+func (v *ProductView) StarHalves() int { return max(0, min(int(v.Rating*2+0.5), 10)) }
 
 // WishlistLabel names the wishlist control.
 func (v *ProductView) WishlistLabel(ctx context.Context) string {
@@ -393,8 +394,9 @@ func (v *ProductView) BuyBarOutcome(ctx context.Context) string {
 // HasSpecs reports whether the spec table has rows.
 func (v *ProductView) HasSpecs() bool { return len(v.Specs) > 0 }
 
-// HasRelated reports whether the same-category row has products.
-func (v *ProductView) HasRelated() bool { return len(v.Related) > 0 }
+// HasRelated reports whether the same-category row has enough products to be a
+// row: one card alone reads as a mistake.
+func (v *ProductView) HasRelated() bool { return len(v.Related) >= 2 }
 
 // HasRating reports whether anyone has rated this product.
 func (v *ProductView) HasRating() bool { return v.RatingCount > 0 }
@@ -521,20 +523,33 @@ func (v *ProductView) AskTaken() bool { return v.AskOutcome == "1" }
 // AskRefused reports whether the question was not usable.
 func (v *ProductView) AskRefused() bool { return v.AskOutcome == "bad" }
 
+// AddOutcome is what an add-to-cart came to, carried in ?added= back to the page
+// the form was on.
+type AddOutcome string
+
+const (
+	AddOutcomeAdded       AddOutcome = "added"
+	AddOutcomeAdjusted    AddOutcome = "adjusted"
+	AddOutcomeUnavailable AddOutcome = "unavailable"
+	AddOutcomeUnknown     AddOutcome = "unknown"
+	// AddOutcomeFull is another distinct product that would make the order too
+	// large for one provider invoice.
+	AddOutcomeFull AddOutcome = "full"
+)
+
 // JustAdded reports whether the last add-to-cart worked.
-func (v *ProductView) JustAdded() bool { return v.AddedOutcome == "added" }
+func (v *ProductView) JustAdded() bool { return v.AddedOutcome == AddOutcomeAdded }
 
 // AddAdjusted reports whether the last add kept less than requested.
-func (v *ProductView) AddAdjusted() bool { return v.AddedOutcome == "adjusted" }
+func (v *ProductView) AddAdjusted() bool { return v.AddedOutcome == AddOutcomeAdjusted }
 
 // AddRefused reports whether it did not.
 func (v *ProductView) AddRefused() bool {
-	return v.AddedOutcome == "unavailable" || v.AddedOutcome == "unknown"
+	return v.AddedOutcome == AddOutcomeUnavailable || v.AddedOutcome == AddOutcomeUnknown
 }
 
-// CartFull reports that another distinct product would make the order too
-// large for one provider invoice.
-func (v *ProductView) CartFull() bool { return v.AddedOutcome == "full" }
+// CartFull reports that the cart cannot take another distinct product.
+func (v *ProductView) CartFull() bool { return v.AddedOutcome == AddOutcomeFull }
 
 // AskAction is where the question form posts.
 func (v *ProductView) AskAction() string { return "/p/" + v.Slug + "/questions" }

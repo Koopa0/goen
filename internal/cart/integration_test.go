@@ -800,7 +800,7 @@ func TestAddToCartReturnsToTheChosenVariant(t *testing.T) {
 		t.Fatalf("follow-up GET answered %d", pres.Code)
 	}
 	body := pres.Body.String()
-	choose := i18n.T(i18n.WithLocale(t.Context(), i18n.ZhHant), i18n.KeyChooseBeforeAdding)
+	choose := i18n.T(i18n.WithLocale(t.Context(), i18n.ZhHant), i18n.KeyChooseOptions)
 	if strings.Contains(body, choose) {
 		t.Error("the returned page forgot the chosen variant after a successful add")
 	}

@@ -18,6 +18,9 @@ type WishlistItem struct {
 // WishlistView is a customer's saved products.
 type WishlistView struct {
 	Products []WishlistItem
+	// Added is what the last add-to-cart from this page did, as the cart's
+	// redirect names it.
+	Added AddOutcome
 }
 
 // Empty reports whether nothing has been saved.
@@ -48,6 +51,26 @@ templ Wishlist(p layouts.Page, v WishlistView) {
 						}
 					</div>
 				} else {
+					switch v.Added {
+						case AddOutcomeAdded:
+							@components.Notice(components.NoticeProps{Tone: components.ToneAccent, ID: "added", Class: "goen-wish__added"}) {
+								{ i18n.T(ctx, i18n.KeyAddedToCart) }
+								<a href="/cart">{ i18n.T(ctx, i18n.KeyViewCart) }</a>
+							}
+						case AddOutcomeAdjusted:
+							@components.Notice(components.NoticeProps{Tone: components.ToneAccent, ID: "added", Class: "goen-wish__added"}) {
+								{ i18n.T(ctx, i18n.KeyAddAdjusted) }
+								<a href="/cart">{ i18n.T(ctx, i18n.KeyViewCart) }</a>
+							}
+						case AddOutcomeUnavailable, AddOutcomeUnknown:
+							@components.Notice(components.NoticeProps{Tone: components.ToneDanger, ID: "added", Class: "goen-wish__added"}) {
+								{ i18n.T(ctx, i18n.KeyAddRefused) }
+							}
+						case AddOutcomeFull:
+							@components.Notice(components.NoticeProps{Tone: components.ToneDanger, ID: "added", Class: "goen-wish__added"}) {
+								{ i18n.T(ctx, i18n.KeyCartLineLimit) }
+							}
+					}
 					<h2 class="goen-sr-only">{ i18n.T(ctx, i18n.KeyResultsHeading) }</h2>
 					<ul class="goen-tiles__grid" role="list">
 						for _, t := range v.Products {
@@ -63,7 +86,7 @@ templ Wishlist(p layouts.Page, v WishlistView) {
 								if t.SoleVariantID != "" {
 									<form method="post" action="/cart/items" class="goen-wish__add">
 										<input type="hidden" name="variant" value={ t.SoleVariantID }/>
-										<input type="hidden" name="back" value={ t.Slug }/>
+										<input type="hidden" name="return" value="/account/wishlist"/>
 										<input type="hidden" name="quantity" value="1"/>
 										@components.Button(components.ButtonProps{Variant: components.VariantPrimary, Size: components.SizeSmall, Block: true}, "submit") {
 											{ i18n.T(ctx, i18n.KeyAddToCart) }
