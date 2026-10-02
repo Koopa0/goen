@@ -11,7 +11,7 @@ import (
 templ Base(p Page) {
 	<!DOCTYPE html>
 	<html lang={ i18n.FromContext(ctx).Tag() } class="theme-blue">
-		@documentHead(p)
+		@documentHead(p, false)
 		<body class="goen-shell">
 			<a class="goen-skip" href="#main">{ i18n.T(ctx, i18n.KeySkipToContent) }</a>
 			@promoBanner()
@@ -29,9 +29,11 @@ templ Base(p Page) {
 // configuration — is a fact about the document rather than about the storefront,
 // and a second copy is a second copy to keep current.
 //
-// base.css is linked before app.css because that order is the cascade: a value
-// set in both is settled by source order, and app.css is what wins.
-templ documentHead(p Page) {
+// The stylesheets are cascade layers declared in base.css (base, components,
+// pages), so a later layer wins whatever the selectors weigh. admin.css is the
+// back office's own rules, in the pages layer, and only the back office's shell
+// links it.
+templ documentHead(p Page, admin bool) {
 	<head>
 		<meta charset="utf-8"/>
 		<meta name="viewport" content="width=device-width, initial-scale=1"/>
@@ -74,6 +76,9 @@ templ documentHead(p Page) {
 		<link rel="stylesheet" href={ templ.URL(assets.URL(assets.FontsCSS)) }/>
 		<link rel="stylesheet" href={ templ.URL(assets.URL(assets.BaseCSS)) }/>
 		<link rel="stylesheet" href={ templ.URL(assets.URL(assets.AppCSS)) }/>
+		if admin {
+			<link rel="stylesheet" href={ templ.URL(assets.URL(assets.AdminCSS)) }/>
+		}
 		<script src={ templ.URL(assets.URL(assets.HTMXJS)) } defer></script>
 		<script src={ templ.URL(assets.URL(assets.AppJS)) } defer></script>
 	</head>

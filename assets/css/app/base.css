@@ -10,6 +10,12 @@
    it: one name, one declaration, one place to change it.
    ============================================================ */
 
+/* The cascade order of every stylesheet goen ships. A later layer beats an
+   earlier one whatever the selectors weigh, so a page rule never loses to a
+   primitive's heavier selector and never wins by accident either. */
+@layer base, components, pages;
+
+@layer base {
 :root {
   /* The brand names are the accent under the spelling the shared
      primitives were written against. They follow --accent rather than
@@ -81,7 +87,9 @@ body {
   outline-offset: 2px;
   border-radius: var(--r-sm);
 }
+}
 
+@layer components {
 /* ---------- Button ---------- */
 
 .ui-btn {
@@ -93,13 +101,9 @@ body {
   padding: 8px 14px; font-size: var(--fs-13);
   transition: background var(--dur-base) var(--ease-standard), border-color var(--dur-base) var(--ease-standard), box-shadow var(--dur-base) var(--ease-standard), color var(--dur-base) var(--ease-standard);
 }
-.ui-btn:disabled,
-.ui-btn[aria-disabled="true"],
-.ui-btn[disabled] { opacity: 0.4; cursor: not-allowed; pointer-events: none; }
 
 .ui-btn--sm { padding: 6px 10px; font-size: var(--fs-13); }
 .ui-btn--icon { padding: 8px; }            /* square icon-only */
-.ui-btn--icon.ui-btn--sm { padding: 6px; }
 
 .ui-btn--primary { background: var(--n-900); color: var(--n-0); box-shadow: var(--sh-xs); }
 .ui-btn--primary:hover  { background: #27272a; }
@@ -110,8 +114,6 @@ body {
 .ui-btn--secondary:active { background: var(--n-100); }
 
 .ui-btn--ghost { background: transparent; color: var(--fg-muted); }
-.ui-btn--ghost:hover  { background: var(--overlay); color: var(--fg); }
-.ui-btn--ghost:active { background: var(--panel); }
 
 .ui-btn svg { width: 16px; height: 16px; flex: none; }
 .ui-btn--sm svg { width: 14px; height: 14px; }
@@ -149,7 +151,6 @@ body {
   padding: 8px 10px; width: 100%; box-sizing: border-box; outline: none;
   transition: border-color var(--dur-base) var(--ease-standard), background var(--dur-base);
 }
-.ui-input::placeholder, .ui-textarea::placeholder { color: var(--fg-muted); }
 .ui-input:hover, .ui-textarea:hover { border-color: var(--border-strong); }
 .ui-input:focus, .ui-textarea:focus { border-color: var(--accent); }
 .ui-input:disabled, .ui-textarea:disabled { opacity: 0.45; cursor: not-allowed; }
@@ -191,8 +192,6 @@ body {
   font-family: var(--font-sans); font-size: var(--fs-13); color: var(--fg-muted);
   text-decoration: none; cursor: pointer; transition: background var(--dur-base), color var(--dur-base);
 }
-.ui-navitem:hover { background: var(--overlay); color: var(--fg); }
-.ui-navitem[aria-current="page"], .ui-navitem.is-active { background: var(--n-100); color: var(--fg); }
 .ui-navitem svg { width: 17px; height: 17px; color: var(--fg-muted); flex: none; }
 .ui-navitem.is-active svg { color: var(--n-900); }
 
@@ -265,13 +264,30 @@ body {
 .ui-input:user-valid, .ui-textarea:user-valid { border-color: var(--success); }
 .ui-input[aria-invalid="true"], .ui-textarea[aria-invalid="true"],
 .ui-input:user-invalid, .ui-textarea:user-invalid { border-color: var(--error); }
+
+/* ---------- Commerce ---------- */
+
+.ui-cart-line__meta { font-variant-numeric: tabular-nums; font-size: var(--fs-12); color: var(--fg-muted); }
+}
+
+/* Rules whose selector out-weighs a rule in a later layer that can share an
+   element with them, or that must keep their place beside one that does, so
+   they sit in the pages layer, where specificity and source order still
+   decide exactly as they did before layers. */
+@layer pages {
+.ui-btn:disabled,
+.ui-btn[aria-disabled="true"],
+.ui-btn[disabled] { opacity: 0.4; cursor: not-allowed; pointer-events: none; }
+.ui-btn--icon.ui-btn--sm { padding: 6px; }
+.ui-btn--ghost:hover  { background: var(--overlay); color: var(--fg); }
+.ui-btn--ghost:active { background: var(--panel); }
+.ui-input::placeholder, .ui-textarea::placeholder { color: var(--fg-muted); }
+.ui-navitem:hover { background: var(--overlay); color: var(--fg); }
+.ui-navitem[aria-current="page"], .ui-navitem.is-active { background: var(--n-100); color: var(--fg); }
 .ui-input:read-only:not([type="button"]), .ui-textarea:read-only {
   background: var(--panel); color: var(--fg-muted); cursor: default;
 }
 .ui-input:read-only:hover { border-color: var(--border); }
 
 .ui-navitem:active { background: var(--panel); }
-
-/* ---------- Commerce ---------- */
-
-.ui-cart-line__meta { font-variant-numeric: tabular-nums; font-size: var(--fs-12); color: var(--fg-muted); }
+}
