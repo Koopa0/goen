@@ -139,7 +139,8 @@ func TestDepartmentListingReachesEveryLevel(t *testing.T) {
 // A department's head offers its children as chips, from the department itself
 // and from any sub-category under it, so a shopper in one sees the others.
 func TestTheHeadOffersTheDepartmentsChildrenFromEveryPageUnderIt(t *testing.T) {
-	for _, slug := range []string{"accessories", "chargers"} {
+	// Tech is the department; accessories sits under it and chargers under that.
+	for _, slug := range []string{"tech", "accessories", "chargers"} {
 		view, err := catalog.NewStore(pool).Listing(i18n.WithLocale(t.Context(), i18n.ZhHant), slug, catalog.Filters{})
 		if err != nil {
 			t.Fatal(err)
@@ -148,8 +149,9 @@ func TestTheHeadOffersTheDepartmentsChildrenFromEveryPageUnderIt(t *testing.T) {
 		for _, c := range view.Theme.Children {
 			got = append(got, c.Slug)
 		}
-		if !slices.Equal(got, []string{"chargers", "cases"}) {
-			t.Errorf("/c/%s offers %v, want [chargers cases]", slug, got)
+		want := []string{"phones", "laptops", "tablets", "audio", "wearables", "accessories"}
+		if !slices.Equal(got, want) {
+			t.Errorf("/c/%s offers %v, want %v", slug, got, want)
 		}
 	}
 }

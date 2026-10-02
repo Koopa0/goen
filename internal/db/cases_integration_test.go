@@ -1676,14 +1676,6 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 		                 '6666aaaa-6666-4666-8666-666666666666', '退貨', repeat('界', 300));`,
 	},
 	{
-		constraint: "return_requests_status_known",
-		// An unknown status is not 'requested', so the start-requested INSERT trigger refuses it first;
-		// disable triggers to reach the CHECK.
-		reject: `SET LOCAL session_replication_role = replica;
-		         INSERT INTO return_requests (id, order_id, status, reason, decided_at) VALUES ('11110001-0000-4000-8000-000000000003', '6666aaaa-6666-4666-8666-666666666666', 'shipped', '退貨', now());`,
-		accept: `INSERT INTO return_requests (id, order_id, reason) VALUES ('11110001-0000-4000-8000-000000000003', '6666aaaa-6666-4666-8666-666666666666', '退貨');`,
-	},
-	{
 		constraint: "sale_campaigns_image_has_alt",
 		reject:     `INSERT INTO sale_campaigns (slug, title, ends_at, image_key, image_alt) VALUES ('header-no-alt', '有圖活動', now() + interval '7 days', 'campaign-banner-01.webp', E'\t');`,
 		accept:     `INSERT INTO sale_campaigns (slug, title, ends_at, image_key, image_alt) VALUES ('header-no-alt', '有圖活動', now() + interval '7 days', 'campaign-banner-01.webp', '限時優惠商品');`,

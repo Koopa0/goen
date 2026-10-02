@@ -45,7 +45,8 @@ func TestTheGalleryPicksWithoutScript(t *testing.T) {
 		if n := strings.Count(g, `name="shot"`); n != 3 {
 			t.Errorf("radios = %d, want 3", n)
 		}
-		if n := strings.Count(g, ` checked`); n != 1 || !strings.Contains(g[:strings.Index(g, `id="shot-1"`)], ` checked`) {
+		beforeSecond, _, found := strings.Cut(g, `id="shot-1"`)
+		if n := strings.Count(g, ` checked`); n != 1 || !found || !strings.Contains(beforeSecond, ` checked`) {
 			t.Errorf("want exactly the first radio checked, got %d checked", n)
 		}
 		for _, id := range []string{"shot-0", "shot-1", "shot-2"} {

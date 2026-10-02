@@ -15,7 +15,7 @@ func TestARefusedInspectionKeepsWhatWasTyped(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	view := AdminReturnsView{
 		Rows: []AdminReturn{{
-			ID: "r1", OrderNumber: "GO-260930-000012", Status: "approved", Decided: true,
+			ID: "r1", OrderNumber: "GO-260930-000012", Status: "approved", Window: "within", Decided: true,
 			Lines: []AdminReturnLine{{
 				OrderLineID: "l1", Name: "耳機", Quantity: 1, Restockable: true,
 				DraftReceived: "1", DraftRestocked: "3", DraftNote: "外盒破損",
