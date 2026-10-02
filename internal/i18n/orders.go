@@ -46,6 +46,8 @@ var (
 
 	KeyOrderDeliveredAt = key("order.deliveredat", Message{ZhHant: "%s 已送達", En: "Delivered %s"})
 
+	KeyOrderInvoiceIssued = key("order.invoice.issued", Message{ZhHant: "%s 開立", En: "Issued %s"})
+
 	KeyOrderShippedAt = key("order.shippedat", Message{ZhHant: "%s 出貨", En: "Dispatched %s"})
 
 	KeyOrderHistory = key("order.history", Message{ZhHant: "訂單紀錄", En: "Order history"})

@@ -8645,6 +8645,76 @@ func (q *Queries) OrderIDByNumber(ctx context.Context, orderNumber string) (Orde
 	return i, err
 }
 
+const orderInvoiceDocuments = `-- name: OrderInvoiceDocuments :many
+SELECT kind, number, amount_cents, status,
+       coalesce(provider_ref, '')::text AS provider_ref, issued_at
+FROM invoice_documents WHERE order_id = $1 ORDER BY issued_at, id
+`
+
+type OrderInvoiceDocumentsRow struct {
+	Kind        string
+	Number      string
+	AmountCents int64
+	Status      string
+	ProviderRef string
+	IssuedAt    time.Time
+}
+
+// What the customer may read of the order's filed invoice: nothing exists
+// before issue, so an order with no rows shows no panel.
+func (q *Queries) OrderInvoiceDocuments(ctx context.Context, orderID uuid.UUID) ([]OrderInvoiceDocumentsRow, error) {
+	rows, err := q.db.Query(ctx, orderInvoiceDocuments, orderID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []OrderInvoiceDocumentsRow{}
+	for rows.Next() {
+		var i OrderInvoiceDocumentsRow
+		if err := rows.Scan(
+			&i.Kind,
+			&i.Number,
+			&i.AmountCents,
+			&i.Status,
+			&i.ProviderRef,
+			&i.IssuedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const orderInvoicePreference = `-- name: OrderInvoicePreference :one
+SELECT invoice_type, coalesce(carrier_code, '')::text AS carrier_code,
+       coalesce(donation_code, '')::text AS donation_code,
+       coalesce(tax_id, '')::text AS tax_id
+FROM invoice_preferences WHERE order_id = $1
+`
+
+type OrderInvoicePreferenceRow struct {
+	InvoiceType  string
+	CarrierCode  string
+	DonationCode string
+	TaxID        string
+}
+
+func (q *Queries) OrderInvoicePreference(ctx context.Context, orderID uuid.UUID) (OrderInvoicePreferenceRow, error) {
+	row := q.db.QueryRow(ctx, orderInvoicePreference, orderID)
+	var i OrderInvoicePreferenceRow
+	err := row.Scan(
+		&i.InvoiceType,
+		&i.CarrierCode,
+		&i.DonationCode,
+		&i.TaxID,
+	)
+	return i, err
+}
+
 const orderIsPaid = `-- name: OrderIsPaid :one
 SELECT EXISTS (
     SELECT 1 FROM payments WHERE order_id = $1 AND status = 'succeeded'
