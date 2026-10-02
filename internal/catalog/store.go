@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -97,12 +96,20 @@ func (s *Store) Listing(ctx context.Context, slug string, f Filters) (pages.List
 	}
 
 	view := pages.ListingView{
-		Slug:     slug,
-		Name:     cat.Name,
-		Crumbs:   crumbs(cat.AncestorSlugs, cat.AncestorNames),
+		Slug:   slug,
+		Name:   cat.Name,
+		Crumbs: crumbs(cat.AncestorSlugs, cat.AncestorNames),
+		Theme: &pages.Theme{
+			Tone: pages.ResolveTone(cat.Tone),
+			Photo: pages.Photo{
+				URL:    assets.ProductImageURL(cat.ImageKey),
+				Srcset: assets.ProductImageSrcsetAt(cat.ImageKey, int(cat.ImageWidth)),
+				Alt:    cat.ImageAlt,
+			},
+		},
 		Products: tiles(rows),
 		Total:    total,
-		Page:     max(f.Page, 1),
+		Page:     int32(min(max(f.Page, 1), maxPage)),
 		PageSize: PageSize,
 	}
 	for _, b := range brands {
@@ -116,19 +123,20 @@ func (s *Store) Listing(ctx context.Context, slug string, f Filters) (pages.List
 	return view, nil
 }
 
-// Search reads one page of search results.
+// Search reads one page of search results. The pattern is SearchPattern's.
 func (s *Store) Search(ctx context.Context, pattern string, page int) (pages.SearchView, error) {
+	terms, exact := SearchTerms(pattern)
 	rows, err := s.q.SearchProducts(ctx, db.SearchProductsParams{
 		Locale:       string(i18n.FromContext(ctx)),
-		Pattern:      pattern,
-		ExactPattern: strings.TrimSuffix(strings.TrimPrefix(pattern, "%"), "%"),
+		Patterns:     terms,
+		ExactPattern: exact,
 		PageSize:     PageSize,
 		PageOffset:   offsetFor(page),
 	})
 	if err != nil {
 		return pages.SearchView{}, fmt.Errorf("search: %w", err)
 	}
-	total, err := s.q.SearchProductsCount(ctx, pattern)
+	total, err := s.q.SearchProductsCount(ctx, terms)
 	if err != nil {
 		return pages.SearchView{}, fmt.Errorf("count search: %w", err)
 	}
