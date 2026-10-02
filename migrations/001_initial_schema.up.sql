@@ -9185,6 +9185,27 @@ REVOKE INSERT, UPDATE, DELETE ON contact_messages FROM admin;
 GRANT UPDATE (handled_at)
     ON contact_messages TO admin;
 
+-- The last day of the seven-day right of rescission (消保法 §19) for one
+-- parcel: the shop's day it was delivered, plus seven. The one place the
+-- seven is written; the customer's order page, the delivery mail and
+-- return_line_policy_window all read it, so none can drift from the others.
+CREATE FUNCTION return_window_ends(delivered_at timestamptz)
+RETURNS date
+LANGUAGE sql
+IMMUTABLE
+AS $$
+    SELECT shop_day(delivered_at) + 7;
+$$;
+
+COMMENT ON FUNCTION return_window_ends(timestamptz) IS
+    'Last statutory day to return a parcel delivered at this moment, counted '
+    'in the shop''s day. NULL until the parcel is delivered.';
+
+-- Granted wherever return_line_policy_window is, because that function calls
+-- it with the caller's privileges. store reads it to tell the customer the day.
+GRANT EXECUTE ON FUNCTION return_window_ends(timestamptz)
+    TO store, admin, reporting;
+
 -- Pre-decision eligibility, separate from receive/restock. Unknown is the
 -- default and is not "does not meet": an unobserved parcel cannot satisfy the
 -- advertised unused-and-complete offer.
@@ -9195,7 +9216,7 @@ STABLE
 AS $$
     SELECT CASE
         WHEN delivered_at IS NULL THEN 'undelivered'
-        WHEN shop_day(requested_at) <= shop_day(delivered_at) + 7 THEN 'within'
+        WHEN shop_day(requested_at) <= return_window_ends(delivered_at) THEN 'within'
         WHEN shop_day(requested_at) <= shop_day(delivered_at) + 14 THEN 'goodwill'
         ELSE 'after'
     END;

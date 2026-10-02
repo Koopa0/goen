@@ -46,6 +46,12 @@ var (
 
 	KeyOrderDeliveredAt = key("order.deliveredat", Message{ZhHant: "%s 已送達", En: "Delivered %s"})
 
+	// The statutory right, stated plainly; the day is the database's.
+	KeyOrderRescissionEnds = key("order.rescissionends", Message{
+		ZhHant: "依消費者保護法,您可在收到商品後七日內退貨,最後一日為 %s。",
+		En:     "Under Taiwan's Consumer Protection Act you may return the goods within seven days of receiving them; the last day is %s.",
+	})
+
 	KeyOrderShippedAt = key("order.shippedat", Message{ZhHant: "%s 出貨", En: "Dispatched %s"})
 
 	KeyOrderHistory = key("order.history", Message{ZhHant: "訂單紀錄", En: "Order history"})

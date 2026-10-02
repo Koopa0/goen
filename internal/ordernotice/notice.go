@@ -50,6 +50,8 @@ func Enqueue(ctx context.Context, q *db.Queries, m Message) error {
 // Recipient is who a notice goes to, as the order holds it at delivery time.
 type Recipient struct {
 	Address, Name, Locale, OrderNumber string
+	// RescissionEnds is the last day to return what was delivered, or "".
+	RescissionEnds string
 }
 
 // Recipients reads them.
@@ -68,5 +70,5 @@ func (r Recipients) Of(ctx context.Context, orderID uuid.UUID) (Recipient, bool,
 	if err != nil {
 		return Recipient{}, false, fmt.Errorf("read terminal order recipient: %w", err)
 	}
-	return Recipient{Address: to.Email.String, Name: to.RecipientName.String, Locale: to.Locale, OrderNumber: to.OrderNumber}, true, nil
+	return Recipient{Address: to.Email.String, Name: to.RecipientName.String, Locale: to.Locale, OrderNumber: to.OrderNumber, RescissionEnds: to.RescissionEnds}, true, nil
 }

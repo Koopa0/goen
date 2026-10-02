@@ -1032,8 +1032,9 @@ func (s *Store) Order(ctx context.Context, number string) (pages.OrderView, erro
 	for _, sh := range shipments {
 		view.Shipments = append(view.Shipments, pages.OrderShipment{
 			Carrier: sh.Carrier, Tracking: sh.TrackingNumber,
-			ShippedAt:   shoptime.Minute(sh.ShippedAt),
-			DeliveredAt: nullableTime(sh.DeliveredAt),
+			ShippedAt:      shoptime.Minute(sh.ShippedAt),
+			DeliveredAt:    nullableTime(sh.DeliveredAt),
+			RescissionEnds: sh.RescissionEnds,
 		})
 	}
 	return view, nil
