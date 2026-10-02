@@ -219,7 +219,7 @@ func (h *Handler) PublishShippingVersion(w http.ResponseWriter, r *http.Request)
 	}
 	fee, feeErr := strconv.ParseInt(strings.TrimSpace(r.PostFormValue("fee")), 10, 64)
 	if feeErr != nil {
-		http.Redirect(w, r, "/admin/shipping?needs=1", http.StatusSeeOther)
+		http.Redirect(w, r, "/admin/shipping?shippingneeds=1", http.StatusSeeOther)
 		return
 	}
 	// An empty threshold is "no free shipping" and not zero, and ParseInt
@@ -228,7 +228,7 @@ func (h *Handler) PublishShippingVersion(w http.ResponseWriter, r *http.Request)
 	if raw := strings.TrimSpace(r.PostFormValue("free_over")); raw != "" {
 		parsed, parseErr := strconv.ParseInt(raw, 10, 64)
 		if parseErr != nil {
-			http.Redirect(w, r, "/admin/shipping?needs=1", http.StatusSeeOther)
+			http.Redirect(w, r, "/admin/shipping?shippingneeds=1", http.StatusSeeOther)
 			return
 		}
 		freeOver = parsed
@@ -259,7 +259,7 @@ func (h *Handler) SetZoneSurcharge(w http.ResponseWriter, r *http.Request) {
 	if raw := strings.TrimSpace(r.PostFormValue("amount")); raw != "" {
 		parsed, parseErr := strconv.ParseInt(raw, 10, 64)
 		if parseErr != nil {
-			http.Redirect(w, r, "/admin/shipping?needs=1", http.StatusSeeOther)
+			http.Redirect(w, r, "/admin/shipping?shippingneeds=1", http.StatusSeeOther)
 			return
 		}
 		amount = parsed
@@ -276,7 +276,7 @@ func (h *Handler) redirectShipping(w http.ResponseWriter, r *http.Request, err e
 	case err == nil:
 		http.Redirect(w, r, ok, http.StatusSeeOther)
 	case errors.Is(err, ErrInvalid):
-		http.Redirect(w, r, "/admin/shipping?needs=1", http.StatusSeeOther)
+		http.Redirect(w, r, "/admin/shipping?shippingneeds=1", http.StatusSeeOther)
 	case errors.Is(err, ErrRefused):
 		h.log.WarnContext(r.Context(), "shipping change refused", "error", err)
 		http.Redirect(w, r, "/admin/shipping?refused=1", http.StatusSeeOther)
