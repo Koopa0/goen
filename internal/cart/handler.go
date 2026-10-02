@@ -322,8 +322,7 @@ func (h *Handler) Checkout(w http.ResponseWriter, r *http.Request) {
 	}
 	if restored {
 		h.applyDraft(r, &view, &prefill, &draft)
-		// Whatever was typed stands; the box only reports whether it is the profile.
-		view.RecipientMe = view.OffersTheProfile() && isProfile(view.Profile, view.Address.Name, view.Address.Phone)
+		view.RecipientMe = view.OffersTheProfile() && matchesAccountRecipient(view.Profile, view.Address.Name, view.Address.Phone)
 	}
 	status := h.applyReturnedStore(r, &view)
 	shippingID, err := uuid.Parse(view.Chosen)
@@ -345,20 +344,16 @@ func (h *Handler) Checkout(w http.ResponseWriter, r *http.Request) {
 	h.renderCheckout(w, r, status, &view)
 }
 
-// isProfile reports whether the recipient fields hold the account's own values:
-// each one the account has, and at least one. A field the account has no value
-// for says nothing either way.
-func isProfile(p pages.CheckoutProfile, name, phone string) bool {
+// A field the account has no value for says nothing either way.
+func matchesAccountRecipient(p pages.CheckoutProfile, name, phone string) bool {
 	if p.Name == "" && p.Phone == "" {
 		return false
 	}
 	return (p.Name == "" || name == p.Name) && (p.Phone == "" || phone == p.Phone)
 }
 
-// prefillRecipient fills the recipient from the account when nothing else has: a
-// saved address brings its own recipient, which may be somebody else, and a
-// restored draft brings what was typed. The box is checked exactly when the
-// fields hold the profile's values.
+// A saved address brings its own recipient, which may be somebody else, and a
+// restored draft brings what was typed, so only empty fields are filled.
 func prefillRecipient(view *pages.CheckoutView, prefill *Address) {
 	if !view.OffersTheProfile() {
 		return
@@ -369,15 +364,12 @@ func prefillRecipient(view *pages.CheckoutView, prefill *Address) {
 	if prefill.Phone == "" {
 		prefill.Phone = view.Profile.Phone
 	}
-	view.RecipientMe = isProfile(view.Profile, prefill.Name, prefill.Phone)
+	view.RecipientMe = matchesAccountRecipient(view.Profile, prefill.Name, prefill.Phone)
 }
 
-// applyRecipient is the box applied without scripting. Ticking is an explicit
-// request: it puts the account's name and phone in the fields, over what they
-// held, and remembers that in the view so unticking can put it back. Unticking
-// restores it into a field that still holds the account's value, and leaves a
-// field the shopper has typed in since alone. The box then reports whether the
-// fields hold the account's values.
+// Ticking overwrites on purpose and remembers what was there; unticking restores
+// it only into a field still holding the account's value, so text typed since is
+// never wiped. This is the path without scripting; goen.js does the same.
 func applyRecipient(view *pages.CheckoutView, addr *Address) {
 	p := view.Profile
 	if view.RecipientMe {
@@ -401,7 +393,7 @@ func applyRecipient(view *pages.CheckoutView, addr *Address) {
 			addr.Phone, view.RecipientPrevPhone = view.RecipientPrevPhone, ""
 		}
 	}
-	view.RecipientMe = isProfile(p, addr.Name, addr.Phone)
+	view.RecipientMe = matchesAccountRecipient(p, addr.Name, addr.Phone)
 }
 
 // firstOf is the first of two values that says anything.
@@ -949,10 +941,9 @@ func (h *Handler) checkoutSubmission(
 	case "recipient":
 		applyRecipient(&view, &addr)
 	}
-	// Whatever the request was, the box shows ticked only over the account's own
-	// values; a ticked box posted back over someone else's name is unticked.
+	// A ticked box posted back over someone else's name is unticked.
 	if view.OffersTheProfile() {
-		view.RecipientMe = isProfile(view.Profile, addr.Name, addr.Phone)
+		view.RecipientMe = matchesAccountRecipient(view.Profile, addr.Name, addr.Phone)
 	}
 	view.Address = pages.CheckoutAddress{
 		Email: addr.Email, Name: addr.Name, Phone: addr.Phone,
@@ -1450,7 +1441,6 @@ func fillFromBook(view *pages.CheckoutView, addr *Address, wanted string) {
 	if len(view.SavedAddresses) == 0 {
 		return
 	}
-	// 「其他地址」: none of the saved ones, so nothing is filled from the book.
 	if wanted == pages.OtherAddress {
 		view.ChosenAddress = pages.OtherAddress
 		return

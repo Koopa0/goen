@@ -177,13 +177,10 @@ type CheckoutView struct {
 	PickupBrands   []PickupBrandChoice
 	SavedAddresses []SavedAddress
 	ChosenAddress  string
-	// Profile is what the signed-in customer keeps on their account, offered as
-	// 「收件人同會員資料」. Zero for a guest, who is offered nothing.
-	Profile CheckoutProfile
-	// RecipientMe says the recipient fields hold the profile's values.
-	RecipientMe bool
-	// RecipientPrevName and RecipientPrevPhone are what those fields held just
-	// before the box was ticked, which unticking puts back.
+	Profile        CheckoutProfile
+	RecipientMe    bool
+	// What the recipient fields held just before the box was ticked, which
+	// unticking puts back.
 	RecipientPrevName    string
 	RecipientPrevPhone   string
 	CouponCode           string
@@ -462,19 +459,15 @@ func (a SavedAddress) DisplayLabel(ctx context.Context) string {
 	return a.Label
 }
 
-// OtherAddress is the address chooser's value for none of the saved ones: the
-// fields are the shopper's to type.
+// OtherAddress is the address chooser's value for none of the saved ones.
 const OtherAddress = "new"
 
-// CheckoutProfile is the account's side of the recipient fields.
 type CheckoutProfile struct {
 	Email string
 	Name  string
 	Phone string
 }
 
-// OffersTheProfile reports whether 「收件人同會員資料」 has anything to fill in:
-// a signed-in customer with a name or a phone on file.
 func (v *CheckoutView) OffersTheProfile() bool {
 	return v.Profile.Email != "" && (v.Profile.Name != "" || v.Profile.Phone != "")
 }
