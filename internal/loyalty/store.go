@@ -18,18 +18,14 @@ import (
 	"github.com/koopa0/goen/internal/web"
 )
 
-// ExpiryWarningDays is how far ahead the page warns.
 const ExpiryWarningDays = 30
 
-// MaxHistoryRows bounds the ledger a customer sees.
 const MaxHistoryRows = 50
 
-// Store is the database side of the points programme.
 type Store struct {
 	q *db.Queries
 }
 
-// NewStore returns a Store over pool.
 func NewStore(pool *pgxpool.Pool) *Store {
 	if pool == nil {
 		panic("loyalty: NewStore requires a pool")
@@ -52,9 +48,9 @@ func (s *Store) Balance(ctx context.Context, userID string) (uuid.UUID, int64, e
 	return row.AccountID, row.Points, nil
 }
 
-// Redeem turns points into store credit. The database owns the exchange rate
-// and allocates the spend across award lots under the account lock, because a
-// comparison in Go is one two racers both pass.
+// Redeem lets the database own the exchange rate and allocate the spend across
+// award lots under the account lock, because a comparison in Go is one two
+// racers both pass.
 func (s *Store) Redeem(
 	ctx context.Context, userID string, points int64, operationID uuid.UUID,
 ) (int64, error) {
@@ -90,14 +86,12 @@ func (s *Store) Redeem(
 	return cents, nil
 }
 
-// historyScope is what a position token is bound to: the ledger has no filters.
 const historyScope = "/account/points"
 
-// historyCursor is one ledger group's ordering values. The group is the unit,
+// historyCursor is one ledger group's ordering values; the group is the unit,
 // so a spend across several award lots cannot be split between pages. Owner
-// binds the token to one account: a token minted for another account is
-// refused here as well as by the query's user_id predicate, which decides
-// whose ledger is read.
+// binds the token to one account: a token minted for another is refused here as
+// well as by the query's user_id predicate.
 type historyCursor struct {
 	At    time.Time
 	ID    uuid.UUID
@@ -114,7 +108,6 @@ func readHistoryCursor(owner, token string) historyCursor {
 	return c
 }
 
-// History is the ledger a customer sees, and what is about to expire.
 func (s *Store) History(ctx context.Context, userID, after string) (pages.PointsView, error) {
 	owner, err := uuid.Parse(userID)
 	if err != nil {

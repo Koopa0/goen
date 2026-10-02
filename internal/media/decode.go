@@ -101,7 +101,6 @@ func normaliseDecoded(
 	}, encoded, nil
 }
 
-// resizeBand is how many rows, then columns, one call to the scaler covers.
 const resizeBand = 64
 
 // fitLongestSide scales img down, keeping its aspect ratio, so that neither side
@@ -111,8 +110,6 @@ func fitLongestSide(img image.Image, limit int) image.Image {
 	return fitLongestSideWith(img, limit, draw.CatmullRom.NewScaler)
 }
 
-// fitLongestSideWith is fitLongestSide over the scalers newScaler makes, which
-// is draw.CatmullRom.NewScaler in every wiring goen has.
 func fitLongestSideWith(img image.Image, limit int, newScaler func(dw, dh, sw, sh int) draw.Scaler) image.Image {
 	b := img.Bounds()
 	long := max(b.Dx(), b.Dy())
@@ -159,7 +156,6 @@ func storedSizeOK(n int) error {
 	return nil
 }
 
-// boundsOK refuses an image that is too big to decode safely.
 func boundsOK(w, h int) error {
 	if w <= 0 || h <= 0 {
 		return ErrNotAnImage
@@ -194,8 +190,6 @@ func encode(img image.Image, format string) (data []byte, contentType string, er
 	return buf.Bytes(), "image/jpeg", nil
 }
 
-// hasAlpha reports whether img has a pixel that is not opaque. Every standard
-// image type answers; one that does not is treated as opaque.
 func hasAlpha(img image.Image) bool {
 	o, ok := img.(interface{ Opaque() bool })
 	return ok && !o.Opaque()

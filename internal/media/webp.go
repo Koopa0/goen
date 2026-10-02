@@ -2,8 +2,7 @@ package media
 
 import "encoding/binary"
 
-// webpFormStart is where a WebP file's chunks begin, after "RIFF", the form's
-// length and "WEBP".
+// webpFormStart is just past "RIFF", the form's length and "WEBP".
 const webpFormStart = 12
 
 // refuseLosslessWebP walks raw's RIFF chunks as x/image/webp does, as far as
