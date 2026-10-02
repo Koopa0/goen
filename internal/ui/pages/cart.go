@@ -585,6 +585,9 @@ type OrderShipment struct {
 	Tracking    string
 	ShippedAt   string
 	DeliveredAt string
+	// RescissionEnds is the last day of the seven-day right to return the
+	// parcel, which the database computes. Empty until it is delivered.
+	RescissionEnds string
 }
 
 // Delivered reports whether this shipment has arrived.

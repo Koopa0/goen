@@ -334,7 +334,8 @@ SELECT kind, note, occurred_at
 FROM order_events WHERE order_id = $1 ORDER BY occurred_at, id;
 
 -- name: OrderTracking :many
-SELECT carrier, tracking_number, shipped_at, delivered_at
+SELECT carrier, tracking_number, shipped_at, delivered_at,
+       coalesce(to_char(return_window_ends(delivered_at), 'YYYY-MM-DD'), '')::text AS rescission_ends
 FROM order_shipments WHERE order_id = $1 ORDER BY shipped_at, id;
 
 -- Reservations whose hold has run out and whose order never got funded.
