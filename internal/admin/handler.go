@@ -15,7 +15,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/admin/access"
@@ -43,12 +42,6 @@ type Handler struct {
 	storeMap *cart.StoreMap
 	store    *Store
 	log      *slog.Logger
-	pools    []NamedPool
-}
-
-type NamedPool struct {
-	Name string
-	Pool *pgxpool.Pool
 }
 
 type SessionCloser interface {
@@ -65,7 +58,6 @@ type HandlerDeps struct {
 	// StoreMap decides whether checkout offers pickup-point methods; nil is a
 	// deployment with no map.
 	StoreMap *cart.StoreMap
-	Pools    []NamedPool
 }
 
 func NewHandler(d HandlerDeps) *Handler {
@@ -76,7 +68,6 @@ func NewHandler(d HandlerDeps) *Handler {
 	return &Handler{
 		store: d.Store, images: d.Images, outbox: d.Outbox, letters: d.Letters,
 		log: d.Log, sessions: d.Sessions, storeMap: d.StoreMap,
-		pools: d.Pools,
 	}
 }
 
@@ -567,14 +558,10 @@ var adminNotices = map[string]i18n.Key{
 	"voidreason":     i18n.KeyAdminNoticeVoidReason,
 	"voidfailed":     i18n.KeyAdminNoticeVoidFailed,
 	"allowfailed":    i18n.KeyAdminNoticeAllowFailed,
-	"reconciled":     i18n.KeyAdminNoticeReconciled,
-	"invoicequeued":  i18n.KeyAdminNoticeInvoiceQueued,
 	"saved":          i18n.KeyAdminNoticeSaved,
 	"sent":           i18n.KeyAdminNoticeSent,
 	"already":        i18n.KeyAdminNoticeAlready,
 	"specfailed":     i18n.KeyAdminNoticeSpecFailed,
-	"notflagged":     i18n.KeyAdminNoticeNotFlagged,
-	"mustrefund":     i18n.KeyAdminNoticePaymentMustRefund,
 	"gone":           i18n.KeyAdminNoticeGone,
 }
 
@@ -1492,143 +1479,6 @@ func (h *Handler) rejectAnswer(w http.ResponseWriter, r *http.Request, id string
 	}
 	web.Render(w, r, h.log, http.StatusUnprocessableEntity, admin.Questions(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageQuestions)}, view))
-}
-
-// ReconcilePayment records an explicit money outcome: an event is released only after full
-// refund/already-succeeded accounting, while a provider-complete payment chooses
-// paid attribution or confirmed-unpaid/refunded. It also grants one Allowance
-// resend after a human confirms provider absence. The three subjects and their
-// outcomes use distinct form fields and database doors.
-func (h *Handler) ReconcilePayment(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
-		return
-	}
-	invoiceQueued, err := h.applyHealthReconciliation(
-		r.Context(), healthReconcileSubmissionOf(r),
-	)
-	switch {
-	case err == nil:
-		if invoiceQueued {
-			http.Redirect(w, r, "/admin/health?invoicequeued=1", http.StatusSeeOther)
-			return
-		}
-		http.Redirect(w, r, "/admin/health?reconciled=1", http.StatusSeeOther)
-	case errors.Is(err, ErrPaymentRequiresRefund):
-		http.Redirect(w, r, "/admin/health?mustrefund=1", http.StatusSeeOther)
-	case errors.Is(err, ErrNotFound), errors.Is(err, ErrInvalid):
-		http.Redirect(w, r, "/admin/health?notflagged=1", http.StatusSeeOther)
-	default:
-		h.log.ErrorContext(r.Context(), "reconcile payment", "error", err)
-		access.ServerError(w, r, h.log)
-	}
-}
-
-type healthReconcileSubmission struct {
-	eventID              string
-	providerRef          string
-	invoiceOperation     string
-	eventResolutionOK    bool
-	completeResolution   completePaymentResolution
-	completeResolutionOK bool
-	invoiceResolutionOK  bool
-}
-
-func healthReconcileSubmissionOf(r *http.Request) healthReconcileSubmission {
-	completeResolution, completeResolutionOK := parseCompletePaymentResolution(
-		r.PostFormValue("resolution"),
-	)
-	return healthReconcileSubmission{
-		eventID:              strings.TrimSpace(r.PostFormValue("event")),
-		providerRef:          strings.TrimSpace(r.PostFormValue("payment")),
-		invoiceOperation:     strings.TrimSpace(r.PostFormValue("invoice_operation")),
-		eventResolutionOK:    paymentEventSafeReleaseSubmitted(r.PostFormValue("event_resolution")),
-		completeResolution:   completeResolution,
-		completeResolutionOK: completeResolutionOK,
-		invoiceResolutionOK:  r.PostFormValue("invoice_resolution") == "confirmed_absent",
-	}
-}
-
-func (f healthReconcileSubmission) subject() string {
-	subject := ""
-	for name, value := range map[string]string{
-		"event": f.eventID, "payment": f.providerRef, "invoice": f.invoiceOperation,
-	} {
-		if value == "" {
-			continue
-		}
-		if subject != "" {
-			return ""
-		}
-		subject = name
-	}
-	return subject
-}
-
-func (f healthReconcileSubmission) resolutionMatches(subject string) bool {
-	switch subject {
-	case "event":
-		return f.eventResolutionOK && !f.completeResolutionOK && !f.invoiceResolutionOK
-	case "payment":
-		return f.completeResolutionOK && !f.eventResolutionOK && !f.invoiceResolutionOK
-	case "invoice":
-		return f.invoiceResolutionOK && !f.eventResolutionOK && !f.completeResolutionOK
-	default:
-		return false
-	}
-}
-
-func (h *Handler) applyHealthReconciliation(
-	ctx context.Context, form healthReconcileSubmission,
-) (invoiceQueued bool, err error) {
-	subject := form.subject()
-	if !form.resolutionMatches(subject) {
-		return false, ErrInvalid
-	}
-	switch subject {
-	case "event":
-		return false,
-			h.store.ReleasePaymentEventAfterRefundOrAccounting(ctx, form.eventID)
-	case "payment":
-		return false,
-			h.store.reconcileCompletePayment(ctx, form.providerRef, form.completeResolution)
-	case "invoice":
-		operationID, err := uuid.Parse(form.invoiceOperation)
-		if err != nil {
-			return true, ErrInvalid
-		}
-		return true,
-			h.store.AuthorizeInvoiceAllowanceResend(ctx, operationID)
-	default:
-		panic("admin: validated unknown health reconciliation subject")
-	}
-}
-
-func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
-	view, err := h.store.WorkerHealth(r.Context(), h.outbox)
-	if err != nil {
-		h.log.ErrorContext(r.Context(), "read worker health", "error", err)
-		access.ServerError(w, r, h.log)
-		return
-	}
-	view.Notice = noticeFor(r)
-	view.Pools = h.poolHealth()
-	web.Render(w, r, h.log, http.StatusOK, admin.Health(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageHealth)}, &view))
-}
-
-func (h *Handler) poolHealth() []admin.PoolHealth {
-	out := make([]admin.PoolHealth, 0, len(h.pools))
-	for _, p := range h.pools {
-		st := p.Pool.Stat()
-		out = append(out, admin.PoolHealth{
-			Name: p.Name, Max: st.MaxConns(), Acquired: st.AcquiredConns(),
-			Idle: st.IdleConns(), Total: st.TotalConns(),
-			TotalAcquires: st.AcquireCount(), EmptyAcquires: st.EmptyAcquireCount(),
-			AcquireWait: st.AcquireDuration(),
-		})
-	}
-	return out
 }
 
 func (h *Handler) Tiers(w http.ResponseWriter, r *http.Request) {
