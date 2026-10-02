@@ -38,7 +38,7 @@ func TestASecondRefreshWhileOneRunsDoesNoWork(t *testing.T) {
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
-	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
 
 	var first int32
 	if err := tx.QueryRow(ctx, `SELECT refresh_copurchases()`).Scan(&first); err != nil {

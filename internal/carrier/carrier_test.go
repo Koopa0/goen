@@ -48,6 +48,7 @@ func TestTrackingURL(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			if got := tt.c.TrackingURL(tt.number); got != tt.want {
 				t.Errorf("TrackingURL(%q) = %q, want %q", tt.number, got, tt.want)
 			}

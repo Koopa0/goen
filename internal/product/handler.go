@@ -187,7 +187,6 @@ func (h *Handler) redirectNotified(w http.ResponseWriter, r *http.Request, slug,
 		q.Set(k, v)
 	}
 	q.Set("notify", outcome)
-	//nolint:gosec // G710: slug is the route's own path value, escaped
 	http.Redirect(w, r, "/p/"+url.PathEscape(slug)+"?"+q.Encode(), http.StatusSeeOther)
 }
 
