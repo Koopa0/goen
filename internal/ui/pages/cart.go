@@ -791,3 +791,12 @@ func maskCarrier(code string) string {
 	}
 	return code[:1] + strings.Repeat("*", len(code)-3) + code[len(code)-2:]
 }
+
+// cartLineSwap names what one quantity update changes: that line's text and
+// price, the summary, the notices and the header's cart link. The thumbnail,
+// the stepper the shopper is using and every other line are not among them, so
+// they are never replaced, repainted or asked for again.
+func cartLineSwap(variantID string) string {
+	return "#line-body-" + variantID + ",#line-money-" + variantID +
+		",#cart-summary,#cart-notices,#cart-link"
+}
