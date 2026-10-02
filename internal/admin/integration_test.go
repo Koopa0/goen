@@ -11723,6 +11723,30 @@ func TestAdvanceRefusesTheStatusAnOrderAlreadyHas(t *testing.T) {
 	}
 }
 
+func TestAnAuditEntryNamesItsOrderAndLinksIt(t *testing.T) {
+	ctx, staff := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	number := shippableOrder(t, "zh-Hant")
+	if err := s.Ship(ctx, number, admin.Dispatch{Carrier: "黑貓宅急便", Tracking: "AUD-" + number},
+		uuid.NullUUID{UUID: staff, Valid: true}); err != nil {
+		t.Fatalf("Ship: %v", err)
+	}
+
+	view, err := s.Audit(ctx)
+	if err != nil {
+		t.Fatalf("Audit: %v", err)
+	}
+	for _, e := range view.Rows {
+		if e.Action == "order.ship" && e.Subject == number {
+			if e.Href != "/admin/orders/"+number {
+				t.Errorf("the shipment entry links %q, want /admin/orders/%s", e.Href, number)
+			}
+			return
+		}
+	}
+	t.Errorf("no order.ship entry names %s among %d rows", number, len(view.Rows))
+}
+
 func TestTheDashboardAndTheQueueTabsSplitPendingTheSameWay(t *testing.T) {
 	ctx := t.Context()
 	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
