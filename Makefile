@@ -330,7 +330,7 @@ check-layout-run:
 		curl -s -o /dev/null -b "goen_session=$$AT" -H 'Sec-Fetch-Site: same-origin' \
 			-d 'status=picking' $$U/admin/orders/$$RN/status; \
 		curl -s -o /dev/null -b "goen_session=$$AT" -H 'Sec-Fetch-Site: same-origin' \
-			--data-urlencode 'carrier=黑貓宅急便' --data-urlencode "tracking=LAYOUTCHECK$$$$" \
+			--data-urlencode 'carrier=black_cat' --data-urlencode "tracking=LAYOUTCHECK$$$$" \
 			--data-urlencode 'fee=80' $$U/admin/orders/$$RN/ship; \
 		LINE=$$(psql "$$GOEN_DATABASE_URL" -tAc "SELECT ol.id FROM order_lines ol JOIN orders o ON o.id = ol.order_id WHERE o.order_number = '$$RN' LIMIT 1"); \
 		curl -s -o /dev/null -b "goen_session=$$AT" -H 'Sec-Fetch-Site: same-origin' \
@@ -372,7 +372,7 @@ check-layout-run:
 		curl -s -o /dev/null -b "goen_session=$$AT" -H 'Sec-Fetch-Site: same-origin' \
 			-d 'status=picking' $$U/admin/orders/$$RETURN_FORM_ORDER/status; \
 		curl -s -o /dev/null -b "goen_session=$$AT" -H 'Sec-Fetch-Site: same-origin' \
-			--data-urlencode 'carrier=黑貓宅急便' --data-urlencode "tracking=LAYOUTCHECK2$$$$" \
+			--data-urlencode 'carrier=black_cat' --data-urlencode "tracking=LAYOUTCHECK2$$$$" \
 			--data-urlencode 'fee=80' $$U/admin/orders/$$RETURN_FORM_ORDER/ship; \
 		curl -s -o /dev/null -b "goen_session=$$AT" -H 'Sec-Fetch-Site: same-origin' \
 			-d 'status=delivered' $$U/admin/orders/$$RETURN_FORM_ORDER/status
