@@ -144,12 +144,13 @@
     });
 
     // What sits above the drawer varies (a notice row, the header's height), so
-    // its room is measured from where it actually starts.
+    // its room is measured from the header it hangs from. The drawer itself
+    // cannot be measured on open: its box is skipped while it fades in.
     const drawer = menu.querySelector(".goen-header__drawer");
     const fit = () => {
       if (!drawer || !menu.open) return;
-      const top = drawer.getBoundingClientRect().top;
-      drawer.style.setProperty("--drawer-room", `${Math.max(0, window.innerHeight - top)}px`);
+      const bottom = menu.closest("header")?.getBoundingClientRect().bottom ?? 0;
+      drawer.style.setProperty("--drawer-room", `${Math.max(0, window.innerHeight - bottom)}px`);
     };
     menu.addEventListener("toggle", fit);
     window.addEventListener("resize", fit);
