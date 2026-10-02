@@ -216,6 +216,47 @@ templ Health(p layouts.Page, v *WorkerHealthView) {
 				</div>
 			</section>
 		}
+		if v.UninvoicedCount > 0 {
+			// Read from the orders themselves, not from the outbox that should have
+			// claimed their invoices: that queue is what may have lost them.
+			<section class="goen-admin__queue" aria-labelledby="uninvoiced-heading">
+				<h2 class="goen-admin__heading" id="uninvoiced-heading">{ i18n.T(ctx, i18n.KeyAdminHPUninvoicedHeading) }</h2>
+				<p class="goen-admin__hint">{ v.UninvoicedText(ctx) }</p>
+				<div class="goen-admin__tablewrap">
+					<table class="ui-table goen-admin__table">
+						<thead>
+							<tr>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColOrder) }</th>
+								<th class="goen-admin__cellnum" scope="col">{ i18n.T(ctx, i18n.KeyAdminColAmount) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColPaid) }</th>
+								<th class="goen-admin__cellactions" scope="col"><span class="goen-sr-only">{ i18n.T(ctx, i18n.KeyAdminQueueIssue) }</span></th>
+							</tr>
+						</thead>
+						<tbody>
+							for _, o := range v.Uninvoiced {
+								<tr>
+									<td class="goen-admin__cellkey">
+										<a href={ templ.SafeURL("/admin/orders/" + o.OrderNumber) }>{ o.OrderNumber }</a>
+									</td>
+									<td class="goen-admin__cellnum">{ o.Amount() }</td>
+									<td>{ o.Since }</td>
+									<td class="goen-admin__cellactions">
+										<form method="post" action={ templ.SafeURL("/admin/orders/" + o.OrderNumber + "/invoice") }>
+											@components.Button(components.ButtonProps{
+												Variant: components.VariantOutline,
+												Size:    components.SizeSmall,
+											}, "submit") {
+												{ i18n.T(ctx, i18n.KeyAdminQueueIssue) }
+											}
+										</form>
+									</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			</section>
+		}
 		if len(v.StrandedClaims) > 0 {
 			// Ordinary ambiguity is reconciled automatically. An aged Allowance
 			// becomes actionable only after an operator verifies provider absence.

@@ -1711,6 +1711,53 @@ func TestPickingACreditFundedOrderQueuesNoInvoice(t *testing.T) {
 	}
 }
 
+// TestAPaidOrderWhoseInvoiceDueWasLostIsOnTheHealthPage: /admin/health reads
+// the orders, not the outbox that should have claimed their invoices, so a
+// capture whose invoice.due row is gone is listed until an issue exists.
+func TestAPaidOrderWhoseInvoiceDueWasLostIsOnTheHealthPage(t *testing.T) {
+	ctx := t.Context()
+	s := payment.NewStore(pool)
+	number, orderID := order(t, 159900)
+	preferMemberInvoice(t, orderID)
+	session := "cs_uninvoiced_" + number
+	if err := s.OpenPayment(ctx, number, session, 159900); err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	if _, err := captureThroughWebhook(t, s, payment.Capture{SessionID: session, AmountRecv: 159900}); err != nil {
+		t.Fatalf("capture: %v", err)
+	}
+	if tag, err := pool.Exec(ctx,
+		`DELETE FROM outbox_messages WHERE topic = $1 AND dedupe_key = $2`,
+		outbox.TopicInvoiceDue, number); err != nil || tag.RowsAffected() != 1 {
+		t.Fatalf("delete the queued invoice.due of %s: %d rows, %v", number, tag.RowsAffected(), err)
+	}
+
+	backOffice := admin.NewStore(adminRolePool(t), admin.NewRefunder(""), nil, nil)
+	listed := func() bool {
+		t.Helper()
+		orders, total, err := backOffice.UninvoicedOrders(ctx, 0)
+		if err != nil {
+			t.Fatalf("read paid orders with no invoice operation: %v", err)
+		}
+		if total < int64(len(orders)) {
+			t.Errorf("total %d is below the %d orders listed", total, len(orders))
+		}
+		for _, o := range orders {
+			if o.OrderNumber == number {
+				return true
+			}
+		}
+		return false
+	}
+	if !listed() {
+		t.Fatalf("%s was paid, its invoice.due is gone, and /admin/health does not list it", number)
+	}
+	claimDue(t, invoice.Due{OrderNumber: number, Trigger: "evt_reissued_" + number})
+	if listed() {
+		t.Errorf("%s is still listed once it holds an issue operation", number)
+	}
+}
+
 // preferMemberInvoice records the checkout's 發票 choice, the filing snapshot a
 // claim is built from.
 func preferMemberInvoice(t *testing.T, orderID uuid.UUID) {

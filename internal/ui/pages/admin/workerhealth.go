@@ -37,6 +37,10 @@ type WorkerHealthView struct {
 	Notice          string
 	OpenRefundCount int64
 	OpenRefunds     []OpenRefund
+	// UninvoicedCount is every committed order paid a while ago with no invoice
+	// operation; Uninvoiced is a bounded sample of them.
+	UninvoicedCount int64
+	Uninvoiced      []UninvoicedOrder
 
 	OutboxStaleAfter     time.Duration
 	MaxExpiredHolds      int64
@@ -100,8 +104,27 @@ func (v *WorkerHealthView) PaymentsReconciled() bool { return v.UnreconciledPaym
 func (v *WorkerHealthView) AllHealthy() bool {
 	return v.OutboxHealthy() && v.SweeperHealthy() &&
 		v.RecommendHealthy() && v.HousekeepingHealthy() && v.RefundsHealthy() &&
-		v.PaymentsReconciled() && v.ClaimsSettled()
+		v.PaymentsReconciled() && v.ClaimsSettled() && v.PaidOrdersInvoiced()
 }
+
+// PaidOrdersInvoiced reports whether every paid order has an invoice operation.
+func (v *WorkerHealthView) PaidOrdersInvoiced() bool { return v.UninvoicedCount == 0 }
+
+// UninvoicedText says how many paid orders have no invoice operation, counted
+// apart from the bounded list beneath it.
+func (v *WorkerHealthView) UninvoicedText(ctx context.Context) string {
+	return i18n.Count(ctx, i18n.KeyAdminHPUninvoicedHint, v.UninvoicedCount, v.UninvoicedCount)
+}
+
+// UninvoicedOrder is one paid order with no invoice operation.
+type UninvoicedOrder struct {
+	OrderNumber string
+	AmountCents int64
+	Since       string
+}
+
+// Amount is what its invoice would be for.
+func (o UninvoicedOrder) Amount() string { return money.TWD(o.AmountCents) }
 
 // OutboxText is the outbox's state in a sentence a person can act on.
 func (v *WorkerHealthView) OutboxText(ctx context.Context) string {
