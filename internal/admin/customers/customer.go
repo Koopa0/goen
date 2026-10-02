@@ -46,17 +46,8 @@ type position struct {
 	At time.Time
 }
 
-// resume reads the position a list was asked to continue from; ok is false for
-// the first page and for a token this list did not mint.
-func resume(scope string, after []string) (from position, ok bool) {
-	if len(after) == 0 {
-		return position{}, false
-	}
-	p, valid := web.ReadKeyset[position](scope, after[0])
-	if !valid || p.ID == uuid.Nil {
-		return position{}, false
-	}
-	return p, true
+func resume(scope string, after []string) (position, bool) {
+	return web.ResumeKeyset(scope, after, func(p position) bool { return p.ID != uuid.Nil })
 }
 
 func (s *Store) Search(ctx context.Context, term string, after ...string) (admin.CustomersView, error) {

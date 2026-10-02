@@ -561,7 +561,6 @@ var adminNotices = map[string]i18n.Key{
 	"sent":           i18n.KeyAdminNoticeSent,
 	"already":        i18n.KeyAdminNoticeAlready,
 	"specfailed":     i18n.KeyAdminNoticeSpecFailed,
-	"gone":           i18n.KeyAdminNoticeGone,
 }
 
 func noticeFor(r *http.Request) string {
@@ -1216,68 +1215,6 @@ func (h *Handler) EditTaxon(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *Handler) Questions(w http.ResponseWriter, r *http.Request) {
-	view, err := h.store.Questions(r.Context())
-	if err != nil {
-		h.log.ErrorContext(r.Context(), "read questions", "error", err)
-		access.ServerError(w, r, h.log)
-		return
-	}
-	view.Notice = noticeFor(r)
-	web.Render(w, r, h.log, http.StatusOK, admin.Questions(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageQuestions)}, view))
-}
-
-func (h *Handler) AnswerQuestion(w http.ResponseWriter, r *http.Request) {
-	u, ok := account.FromContext(r.Context())
-	if !ok {
-		access.NotFound(w, r, h.log)
-		return
-	}
-	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
-		return
-	}
-	id := r.PathValue("id")
-
-	var err error
-	if r.PostFormValue("action") == "hide" {
-		err = h.store.HideQuestion(r.Context(), id)
-	} else {
-		// staff=true, because this endpoint IS the shop; product_answers.is_staff
-		// is stored with the answer rather than re-derived later.
-		err = h.store.AnswerQuestion(r.Context(), id, u.ID, r.PostFormValue("body"))
-	}
-	switch {
-	case err == nil:
-		http.Redirect(w, r, "/admin/questions?ok=1", http.StatusSeeOther)
-	case errors.Is(err, ErrInvalid):
-		h.rejectAnswer(w, r, id)
-	case errors.Is(err, ErrNotFound):
-		http.Redirect(w, r, "/admin/questions?refused=1", http.StatusSeeOther)
-	default:
-		h.log.ErrorContext(r.Context(), "answer question", "error", err)
-		access.ServerError(w, r, h.log)
-	}
-}
-
-func (h *Handler) rejectAnswer(w http.ResponseWriter, r *http.Request, id string) {
-	view, err := h.store.Questions(r.Context())
-	if err != nil {
-		h.log.ErrorContext(r.Context(), "read questions after refused answer", "error", err)
-		access.ServerError(w, r, h.log)
-		return
-	}
-	for i := range view.Rows {
-		if view.Rows[i].ID == id {
-			view.Rows[i].Draft = r.PostFormValue("body")
-			view.Rows[i].Error = i18n.T(r.Context(), i18n.KeyAdminQuestionBodyError)
-		}
-	}
-	web.Render(w, r, h.log, http.StatusUnprocessableEntity, admin.Questions(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageQuestions)}, view))
-}
-
 func (h *Handler) CorrectDelivery(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
@@ -1326,78 +1263,6 @@ func (h *Handler) rejectDelivery(w http.ResponseWriter, r *http.Request, d *Deli
 	view.AllowanceOperationID = uuid.NewString()
 	web.Render(w, r, h.log, http.StatusUnprocessableEntity,
 		admin.Order(layouts.Page{Title: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyAdminPageOrder), view.Number)}, &view))
-}
-
-func (h *Handler) Reviews(w http.ResponseWriter, r *http.Request) {
-	view, err := h.store.Reviews(r.Context(), r.URL.Query().Get(web.KeysetParam))
-	if err != nil {
-		h.log.ErrorContext(r.Context(), "read reviews", "error", err)
-		access.ServerError(w, r, h.log)
-		return
-	}
-	view.Notice = noticeFor(r)
-	web.Render(w, r, h.log, http.StatusOK, admin.Reviews(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageReviews)}, view))
-}
-
-func (h *Handler) HideReview(w http.ResponseWriter, r *http.Request) {
-	h.setReviewHidden(w, r, true)
-}
-
-func (h *Handler) ShowReview(w http.ResponseWriter, r *http.Request) {
-	h.setReviewHidden(w, r, false)
-}
-
-func (h *Handler) setReviewHidden(w http.ResponseWriter, r *http.Request, hidden bool) {
-	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
-		return
-	}
-	switch err := h.store.SetReviewHidden(r.Context(), r.PostFormValue("review"), hidden); {
-	case err == nil:
-		http.Redirect(w, r, "/admin/reviews?ok=1", http.StatusSeeOther)
-	case errors.Is(err, ErrNotFound):
-		http.Redirect(w, r, "/admin/reviews?gone=1", http.StatusSeeOther)
-	default:
-		h.log.ErrorContext(r.Context(), "set review hidden", "error", err)
-		access.ServerError(w, r, h.log)
-	}
-}
-
-func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
-	view, err := h.store.Messages(r.Context(), r.URL.Query().Get(web.KeysetParam))
-	if err != nil {
-		h.log.ErrorContext(r.Context(), "read contact messages", "error", err)
-		access.ServerError(w, r, h.log)
-		return
-	}
-	view.Notice = noticeFor(r)
-	web.Render(w, r, h.log, http.StatusOK, admin.Messages(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageMessages)}, view))
-}
-
-func (h *Handler) HandleMessage(w http.ResponseWriter, r *http.Request) {
-	h.setMessageHandled(w, r, true)
-}
-
-func (h *Handler) ReopenMessage(w http.ResponseWriter, r *http.Request) {
-	h.setMessageHandled(w, r, false)
-}
-
-func (h *Handler) setMessageHandled(w http.ResponseWriter, r *http.Request, handled bool) {
-	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
-		return
-	}
-	switch err := h.store.SetMessageHandled(r.Context(), r.PostFormValue("message"), handled); {
-	case err == nil:
-		http.Redirect(w, r, "/admin/messages?ok=1", http.StatusSeeOther)
-	case errors.Is(err, ErrNotFound):
-		http.Redirect(w, r, "/admin/messages?gone=1", http.StatusSeeOther)
-	default:
-		h.log.ErrorContext(r.Context(), "set message handled", "error", err)
-		access.ServerError(w, r, h.log)
-	}
 }
 
 const NewsletterIssueLimit = 50

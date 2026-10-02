@@ -44,14 +44,7 @@ type position struct {
 
 func (s *Store) Events(ctx context.Context, after ...string) (admin.AuditView, error) {
 	const scope = "/admin/audit"
-	var from position
-	resumed := false
-	if len(after) > 0 {
-		p, ok := web.ReadKeyset[position](scope, after[0])
-		if ok && p.ID != uuid.Nil {
-			from, resumed = p, true
-		}
-	}
+	from, resumed := web.ResumeKeyset(scope, after, func(p position) bool { return p.ID != uuid.Nil })
 	rows, err := s.q.AuditEvents(ctx, db.AuditEventsParams{HasCursor: resumed, AfterAt: from.At, AfterID: from.ID, RowLimit: maxRows + 1})
 	if err != nil {
 		return admin.AuditView{}, fmt.Errorf("read audit events: %w", err)

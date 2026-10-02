@@ -1,4 +1,6 @@
-package admin
+// Package feedback is the back office's read of what customers send in: product
+// reviews to hide, questions to answer, and the contact inbox.
+package feedback
 
 import (
 	"context"
@@ -10,16 +12,17 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
+	"github.com/koopa0/goen/internal/web"
 )
 
 func (s *Store) Reviews(ctx context.Context, after ...string) (admin.ReviewsView, error) {
-	scope := "/admin/reviews"
-	cursor := readPageCursor(scope, after)
-	rows, err := s.q.AdminReviews(ctx, db.AdminReviewsParams{HasCursor: cursor.Valid, AfterAt: cursor.At, AfterID: cursor.ID, RowLimit: PageLimit})
+	const scope = "/admin/reviews"
+	from, resumed := web.ResumeKeyset(scope, after, func(p position) bool { return p.ID != uuid.Nil })
+	rows, err := s.q.AdminReviews(ctx, db.AdminReviewsParams{HasCursor: resumed, AfterAt: from.At, AfterID: from.ID, RowLimit: web.PageLimit})
 	if err != nil {
 		return admin.ReviewsView{}, fmt.Errorf("read reviews: %w", err)
 	}
-	rows, bound := pageBound(cursor, scope, rows, PageSize, func(r *db.AdminReviewsRow) string { return r.PageCursor })
+	rows, bound := web.PageBound(scope, resumed, rows, web.PageSize, func(r *db.AdminReviewsRow) string { return r.PageCursor })
 	view := admin.ReviewsView{
 		ListBound: bound,
 		Rows:      make([]admin.Review, 0, len(rows)),
