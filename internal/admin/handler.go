@@ -21,10 +21,10 @@ import (
 	"github.com/koopa0/goen/internal/admin/ordernumber"
 	"github.com/koopa0/goen/internal/carrier"
 	"github.com/koopa0/goen/internal/cart"
+	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/media"
-	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/newsletter"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -153,11 +153,11 @@ func (h *Handler) AdvanceOrder(w http.ResponseWriter, r *http.Request) {
 	case err == nil:
 		h.closeSessions(r.Context(), number, sessions)
 		http.Redirect(w, r, "/admin/orders/"+number+"?ok=1", http.StatusSeeOther) //nolint:gosec // G710: validated by ordernumber.Valid
-	case errors.Is(err, ErrPaidCancel), hasConstraint(err, "orders_paid_cancel_needs_refund"):
+	case errors.Is(err, ErrPaidCancel), db.HasConstraint(err, "orders_paid_cancel_needs_refund"):
 		http.Redirect(w, r, "/admin/orders/"+number+"?paidcancel=1", http.StatusSeeOther) //nolint:gosec // G710: validated by ordernumber.Valid
-	case hasConstraint(err, "orders_funded_to_leave_pending"):
+	case db.HasConstraint(err, "orders_funded_to_leave_pending"):
 		http.Redirect(w, r, "/admin/orders/"+number+"?unfunded=1", http.StatusSeeOther) //nolint:gosec // G710: validated by ordernumber.Valid
-	case hasConstraint(err, "orders_finished_when_shipped"):
+	case db.HasConstraint(err, "orders_finished_when_shipped"):
 		http.Redirect(w, r, "/admin/orders/"+number+"?owesparcel=1", http.StatusSeeOther) //nolint:gosec // G710: validated by ordernumber.Valid
 	case errors.Is(err, ErrRefused):
 		// Logged in full; the page names the rule only for the refusals a shop
@@ -198,7 +198,7 @@ func (h *Handler) Ship(w http.ResponseWriter, r *http.Request) {
 	case err == nil:
 		//nolint:gosec // G710: validated by ordernumber.Valid
 		http.Redirect(w, r, "/admin/orders/"+number+"?shipped=1", http.StatusSeeOther)
-	case hasConstraint(err, "order_shipments_tracking_key"):
+	case db.HasConstraint(err, "order_shipments_tracking_key"):
 		h.rejectShip(w, r, &shipRefusal{tracking: i18n.KeyAdminTrackingTaken})
 	case errors.Is(err, ErrQuantity):
 		h.rejectShip(w, r, &shipRefusal{quantity: i18n.KeyAdminNoticeBadParcel})
@@ -576,127 +576,12 @@ func newKey() string {
 	return base64.RawURLEncoding.EncodeToString(b)
 }
 
-func (h *Handler) Coupons(w http.ResponseWriter, r *http.Request) {
-	view, err := h.store.Coupons(r.Context(), r.URL.Query().Get(web.KeysetParam))
-	if err != nil {
-		h.log.ErrorContext(r.Context(), "read coupons", "error", err)
-		access.ServerError(w, r, h.log)
-		return
-	}
-	view.Notice = noticeFor(r)
-	web.Render(w, r, h.log, http.StatusOK, admin.Coupons(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageCoupons)}, view))
-}
-
-func (h *Handler) CreateCoupon(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
-		return
-	}
-	f := couponFormOf(r)
-
-	errs, err := h.store.CreateCoupon(r.Context(), f)
-	switch {
-	case err != nil:
-		h.log.ErrorContext(r.Context(), "create coupon", "error", err)
-		access.ServerError(w, r, h.log)
-	case len(errs) > 0:
-		view, readErr := h.store.Coupons(r.Context(), r.URL.Query().Get(web.KeysetParam))
-		if readErr != nil {
-			access.ServerError(w, r, h.log)
-			return
-		}
-		view.Errors = errs
-		view.Draft = admin.CouponDraft{
-			Code: f.Code, Description: f.Description, Kind: f.Kind,
-			Value:       r.PostFormValue("value"),
-			Cap:         r.PostFormValue("cap"),
-			MinSpend:    r.PostFormValue("min"),
-			MaxRedeem:   r.PostFormValue("max"),
-			PerCustomer: r.PostFormValue("percustomer"),
-			Days:        r.PostFormValue("days"),
-		}
-		web.Render(w, r, h.log, http.StatusUnprocessableEntity, admin.Coupons(
-			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageCoupons)}, view))
-	default:
-		http.Redirect(w, r, "/admin/coupons?ok=1", http.StatusSeeOther)
-	}
-}
-
-func couponFormOf(r *http.Request) *CouponForm {
-	f := &CouponForm{
-		Code:         r.PostFormValue("code"),
-		Description:  r.PostFormValue("description"),
-		Kind:         r.PostFormValue("kind"),
-		parseInvalid: map[string]bool{},
-	}
-	wholeFields := []struct {
-		name string
-		dst  *int64
-	}{{"value", &f.Value}, {"cap", &f.CapDollars}, {"min", &f.MinSpendDollars}}
-	for _, field := range wholeFields {
-		value, ok := whole(r.PostFormValue(field.name))
-		*field.dst = value
-		if !ok {
-			f.parseInvalid[field.name] = true
-		}
-	}
-	smallFields := []struct {
-		name string
-		dst  *int32
-	}{{"max", &f.MaxRedemptions}, {"percustomer", &f.PerCustomer}, {"days", &f.Days}}
-	for _, field := range smallFields {
-		value, ok := smallChecked(r.PostFormValue(field.name))
-		*field.dst = value
-		if !ok {
-			f.parseInvalid[field.name] = true
-		}
-	}
-	// An unfilled per-customer box means the schema's own default, not zero.
-	if strings.TrimSpace(r.PostFormValue("percustomer")) == "" {
-		f.PerCustomer = 1
-	}
-	return f
-}
-
-func (h *Handler) SetCouponActive(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
-		return
-	}
-	if err := h.store.SetCouponActive(r.Context(), r.PathValue("code"),
-		r.PostFormValue("active") == "true"); err != nil {
-		h.log.WarnContext(r.Context(), "set coupon active", "error", err)
-		http.Redirect(w, r, "/admin/coupons?refused=1", http.StatusSeeOther)
-		return
-	}
-	http.Redirect(w, r, "/admin/coupons?ok=1", http.StatusSeeOther)
-}
-
-func whole(s string) (int64, bool) {
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return 0, true
-	}
-	n, err := strconv.ParseInt(s, 10, 64)
-	return n, err == nil && n >= 0 && n <= money.MaxCents/100
-}
-
-func smallChecked(s string) (int32, bool) {
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return 0, true
-	}
-	n, err := strconv.ParseInt(s, 10, 32)
-	return int32(n), err == nil && n >= 0 && n <= 1_000_000
-}
-
 // small preserves malformed input as an invalid negative sentinel until the
 // form's Validate method can attribute the refusal. Banner and hero use zero to
 // mean "no end date", so silently collapsing unreadable input to zero would
 // turn a typo into an unbounded promotion.
 func small(s string) int32 {
-	n, ok := smallChecked(s)
+	n, ok := web.ParseCount(s)
 	if !ok {
 		return -1
 	}

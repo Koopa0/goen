@@ -12,6 +12,7 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/home"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
 )
@@ -106,7 +107,7 @@ func (s *Store) HeroSlides(ctx context.Context) (admin.HeroView, error) {
 			CTALabel: r.PrimaryCtaLabel, CTAHref: r.PrimaryCtaHref,
 			ImageKey: r.ImageKey.String, Active: r.IsActive,
 			InWindow: r.InWindow, Position: r.Position,
-			EndsAt: nullableDate(r.EndsAt),
+			EndsAt: shoptime.DayIf(r.EndsAt.Time, r.EndsAt.Valid),
 		})
 	}
 	return view, nil

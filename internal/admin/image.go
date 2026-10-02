@@ -97,7 +97,7 @@ func optionValueRef(raw string) (uuid.NullUUID, error) {
 // imageOptionRefusal names the one refusal a staff member can act on: the
 // composite key binding the value to the image's own product.
 func imageOptionRefusal(err error) error {
-	if hasConstraint(err, "product_images_option_value_fk") {
+	if db.HasConstraint(err, "product_images_option_value_fk") {
 		return ErrNotThisProductsOption
 	}
 	return fmt.Errorf("%w: %w", ErrRefused, err)

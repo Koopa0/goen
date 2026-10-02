@@ -91,7 +91,4 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 	mux.HandleFunc("POST /admin/campaigns/{slug}/image/remove", ac.RequireStaff(h.RemoveCampaignImage))
 	mux.HandleFunc("POST /admin/campaigns/{slug}/active", ac.RequireStaff(h.SetCampaignActive))
 	mux.HandleFunc("POST /admin/campaigns/{slug}/window", ac.RequireStaff(h.SetCampaignWindow))
-	mux.HandleFunc("GET /admin/coupons", ac.RequireStaff(h.Coupons))
-	mux.HandleFunc("POST /admin/coupons", ac.RequireStaff(h.CreateCoupon))
-	mux.HandleFunc("POST /admin/coupons/{code}/active", ac.RequireStaff(h.SetCouponActive))
 }

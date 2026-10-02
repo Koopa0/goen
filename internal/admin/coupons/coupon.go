@@ -1,15 +1,19 @@
-package admin
+// Package coupons is the back office's coupon desk: the list, the form that
+// creates one, and the switch that turns one off.
+package coupons
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
+	"time"
 	"unicode/utf8"
 
-	"github.com/jackc/pgx/v5/pgtype"
-
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
@@ -17,14 +21,34 @@ import (
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
+	"github.com/koopa0/goen/internal/web"
 )
 
-var couponCode = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9-]{1,31}$`)
+var (
+	ErrNotFound = errors.New("coupons: not found")
+	// ErrRefused is a write the database declined; its message is the database's
+	// own, because that names the rule.
+	ErrRefused = errors.New("coupons: refused")
+)
 
-const MaxCouponDescriptionRunes = 60
+type Store struct {
+	pool *pgxpool.Pool
+	q    *db.Queries
+}
 
-// CouponForm is what the back office submits, in DOLLARS and whole percent.
-type CouponForm struct {
+func NewStore(pool *pgxpool.Pool) *Store {
+	if pool == nil {
+		panic("coupons: NewStore requires a pool")
+	}
+	return &Store{pool: pool, q: db.New(pool)}
+}
+
+var codeShape = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9-]{1,31}$`)
+
+const maxDescriptionRunes = 60
+
+// Form is what the back office submits, in DOLLARS and whole percent.
+type Form struct {
 	Code        string
 	Description string
 	Kind        string
@@ -38,7 +62,7 @@ type CouponForm struct {
 	parseInvalid    map[string]bool
 }
 
-func (f *CouponForm) Validate(ctx context.Context) map[string]string {
+func (f *Form) Validate(ctx context.Context) map[string]string {
 	f.Code = strings.ToUpper(strings.TrimSpace(f.Code))
 	f.Description = strings.TrimSpace(f.Description)
 
@@ -57,10 +81,10 @@ func (f *CouponForm) Validate(ctx context.Context) map[string]string {
 			errs[field] = i18n.T(ctx, i18n.KeyFormCouponDays)
 		}
 	}
-	if !couponCode.MatchString(f.Code) {
+	if !codeShape.MatchString(f.Code) {
 		errs["code"] = i18n.T(ctx, i18n.KeyFormCouponCode)
 	}
-	if f.Description == "" || utf8.RuneCountInString(f.Description) > MaxCouponDescriptionRunes {
+	if f.Description == "" || utf8.RuneCountInString(f.Description) > maxDescriptionRunes {
 		errs["description"] = i18n.T(ctx, i18n.KeyFormCouponDescription)
 	}
 
@@ -93,7 +117,7 @@ func basisPoints(wholePercent int64) int32 {
 	}
 }
 
-func (f *CouponForm) validateKind(ctx context.Context, errs map[string]string) {
+func (f *Form) validateKind(ctx context.Context, errs map[string]string) {
 	switch f.Kind {
 	case "amount":
 		if f.Value <= 0 || f.Value > money.MaxCents/100 {
@@ -118,20 +142,35 @@ func (f *CouponForm) validateKind(ctx context.Context, errs map[string]string) {
 	}
 }
 
+// position is a reader's place in the list. The query builds it as PageCursor,
+// so its fields are the ordering values and nothing else.
+type position struct {
+	Rank bool
+	ID   uuid.UUID
+	At   time.Time
+}
+
 func (s *Store) Coupons(ctx context.Context, after ...string) (admin.CouponsView, error) {
-	scope := "/admin/coupons"
-	cursor := readPageCursor(scope, after)
-	rows, err := s.q.AdminCoupons(ctx, db.AdminCouponsParams{HasCursor: cursor.Valid, AfterRank: cursor.Rank, AfterAt: cursor.At, AfterID: cursor.ID, RowLimit: PageLimit})
+	const scope = "/admin/coupons"
+	var from position
+	resumed := false
+	if len(after) > 0 {
+		p, ok := web.ReadKeyset[position](scope, after[0])
+		if ok && p.ID != uuid.Nil {
+			from, resumed = p, true
+		}
+	}
+	rows, err := s.q.AdminCoupons(ctx, db.AdminCouponsParams{HasCursor: resumed, AfterRank: from.Rank, AfterAt: from.At, AfterID: from.ID, RowLimit: web.PageLimit})
 	if err != nil {
 		return admin.CouponsView{}, fmt.Errorf("read coupons: %w", err)
 	}
-	rows, bound := pageBound(cursor, scope, rows, PageSize, func(r *db.AdminCouponsRow) string { return r.PageCursor })
+	rows, bound := web.PageBound(scope, resumed, rows, web.PageSize, func(r *db.AdminCouponsRow) string { return r.PageCursor })
 	view := admin.CouponsView{ListBound: bound}
 	for i := range rows {
 		r := &rows[i]
 		view.Rows = append(view.Rows, admin.Coupon{
 			Code: r.Code, Description: r.Description, Kind: r.Kind,
-			KindText:    CouponKindLabel(ctx, r.Kind),
+			KindText:    kindLabel(ctx, r.Kind),
 			AmountCents: r.AmountCents.Int64,
 			PercentBP:   r.PercentBp.Int32,
 			CapCents:    r.MaxDiscountCents.Int64,
@@ -142,13 +181,13 @@ func (s *Store) Coupons(ctx context.Context, after ...string) (admin.CouponsView
 			GivenCents:  r.GivenCents,
 			Active:      r.IsActive,
 			Current:     r.IsCurrent,
-			EndsAt:      nullableDate(r.EndsAt),
+			EndsAt:      shoptime.DayIf(r.EndsAt.Time, r.EndsAt.Valid),
 		})
 	}
 	return view, nil
 }
 
-func (s *Store) CreateCoupon(ctx context.Context, f *CouponForm) (map[string]string, error) {
+func (s *Store) CreateCoupon(ctx context.Context, f *Form) (map[string]string, error) {
 	if errs := f.Validate(ctx); len(errs) > 0 {
 		return errs, nil
 	}
@@ -178,7 +217,7 @@ func (s *Store) CreateCoupon(ctx context.Context, f *CouponForm) (map[string]str
 		func(ctx context.Context, q *db.Queries) error {
 			return q.CreateCoupon(ctx, params)
 		}); err != nil {
-		if hasConstraint(err, "coupons_code_key") {
+		if db.HasConstraint(err, "coupons_code_key") {
 			return map[string]string{"code": i18n.T(ctx, i18n.KeyFormCouponTaken)}, nil
 		}
 		return nil, fmt.Errorf("%w: %w", ErrRefused, err)
@@ -208,7 +247,7 @@ func (s *Store) SetCouponActive(ctx context.Context, code string, active bool) e
 	return nil
 }
 
-func CouponKindLabel(ctx context.Context, kind string) string {
+func kindLabel(ctx context.Context, kind string) string {
 	switch kind {
 	case "amount":
 		return i18n.T(ctx, i18n.KeyCouponKindAmount)
@@ -217,13 +256,6 @@ func CouponKindLabel(ctx context.Context, kind string) string {
 	case "free_shipping":
 		return i18n.T(ctx, i18n.KeyCouponKindShipping)
 	default:
-		panic("admin: no label for coupon kind " + kind)
+		panic("coupons: no label for coupon kind " + kind)
 	}
-}
-
-func nullableDate(t pgtype.Timestamptz) string {
-	if !t.Valid {
-		return ""
-	}
-	return shoptime.Day(t.Time)
 }
