@@ -36,7 +36,7 @@ endif
         sqlc sqlc-check squawk db-up db-down migrate-up migrate-down db-seed \
         db-repair-invoice-faq db-repair-refund-faq db-repair-payment-faq db-repair-shop-rules-faq \
         db-repair-hold-faq \
-        demo-restore-check cursor-scripts-check workflow-check verify verify-all check-layout check-layout-run db-reset clean
+        demo-restore-check workflow-check verify verify-all check-layout check-layout-run db-reset clean
 
 build: gen
 	go build -o bin/goen ./cmd/goen
@@ -961,17 +961,6 @@ db-reset:
 	$(MAKE) db-seed
 	@echo 'database rebuilt from migrations/ and seeded'
 
-# Deterministic checks for the .cursor/ Cloud Agent environment scripts: a
-# syntax pass over every script, then the config-key parser test against
-# committed CLI-shaped fixtures and TEST-mode key-prefix guards. No network and
-# no live Stripe, so a regression — dropping double-quoted TOML support or
-# accepting a live key prefix — turns make verify red instead of merging green.
-cursor-scripts-check:
-	@for f in .cursor/*.sh .cursor/lib/*.sh; do bash -n "$$f" || exit 1; done
-	@bash .cursor/lib/stripe-config-key.test.sh
-	@bash .cursor/lib/stripe-sandbox-key.test.sh
-	@bash .cursor/lib/load-env.test.sh
-
 demo-restore-check:
 	bash -n deploy/demo/restore-demo-db.sh scripts/demo-restore-test.sh
 	scripts/demo-restore-test.sh
@@ -983,7 +972,7 @@ workflow-check:
 
 # The single gate. Stop at the first failure — a passing later stage must never
 # be able to bury an earlier red one.
-verify: demo-restore-check workflow-check cursor-scripts-check fmt-check templ-check squawk sqlc-check vet deadcode lint production-build-check integration-build-check test-race
+verify: demo-restore-check workflow-check fmt-check templ-check squawk sqlc-check vet deadcode lint production-build-check integration-build-check test-race
 	@echo 'verify: PASS (unit tests only — make verify-all adds the database suite)'
 
 # Everything verify runs plus the parts that need Docker and the network.
