@@ -3534,6 +3534,46 @@ func (q *Queries) CategoryBySlug(ctx context.Context, arg CategoryBySlugParams) 
 	return i, err
 }
 
+const categoryChildren = `-- name: CategoryChildren :many
+SELECT c.slug, localized_name(c.name, c.name_en, $2::text) AS name
+FROM categories c
+JOIN categories p ON p.id = c.parent_id
+WHERE p.slug = $1
+ORDER BY c.position, c.name, c.id
+`
+
+type CategoryChildrenParams struct {
+	Slug   string
+	Locale string
+}
+
+type CategoryChildrenRow struct {
+	Slug string
+	Name string
+}
+
+// The direct children of the category with slug $1, in shelf order: the chips
+// under a department's title.
+func (q *Queries) CategoryChildren(ctx context.Context, arg CategoryChildrenParams) ([]CategoryChildrenRow, error) {
+	rows, err := q.db.Query(ctx, categoryChildren, arg.Slug, arg.Locale)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CategoryChildrenRow{}
+	for rows.Next() {
+		var i CategoryChildrenRow
+		if err := rows.Scan(&i.Slug, &i.Name); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const categoryDescendants = `-- name: CategoryDescendants :many
 WITH RECURSIVE d AS (
     SELECT c.id FROM categories c WHERE c.id = $1
@@ -3795,6 +3835,42 @@ func (q *Queries) CheckoutCompletionSince(ctx context.Context, windowDays int32)
 	var i CheckoutCompletionSinceRow
 	err := row.Scan(&i.Placed, &i.Committed)
 	return i, err
+}
+
+const childCategories = `-- name: ChildCategories :many
+SELECT parent_id, slug, localized_name(name, name_en, $1::text) AS name
+FROM categories
+WHERE parent_id IS NOT NULL
+ORDER BY position, name, id
+`
+
+type ChildCategoriesRow struct {
+	ParentID uuid.NullUUID
+	Slug     string
+	Name     string
+}
+
+// The sub-categories under every root, for the header's department panels. One
+// read for all of them, in the order the catalogue lists them, so a header with
+// seven departments is two queries and not eight.
+func (q *Queries) ChildCategories(ctx context.Context, locale string) ([]ChildCategoriesRow, error) {
+	rows, err := q.db.Query(ctx, childCategories, locale)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ChildCategoriesRow{}
+	for rows.Next() {
+		var i ChildCategoriesRow
+		if err := rows.Scan(&i.ParentID, &i.Slug, &i.Name); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const claimInvoiceAllowance = `-- name: ClaimInvoiceAllowance :one
@@ -12382,9 +12458,11 @@ type SearchProductsRow struct {
 	ImageHeight         int32
 }
 
-// The trigram GIN index serves Latin queries; short Chinese ones fall back to a
-// sequential scan. A category matches by its own name or an ancestor's, so
-// searching a department finds what is filed under its sub-categories.
+// Search is a sequential scan of the active products: a term may match a column
+// of products, brands, variants, specs or categories, and no index serves an OR
+// across tables, so the term bound is what limits the work.
+// A category matches by its own name or an ancestor's, so searching a
+// department finds what is filed under its sub-categories.
 // @patterns holds one pattern per term; the caller escapes %, _ and \ in each
 // before binding, and @exact_pattern is the whole query.
 func (q *Queries) SearchProducts(ctx context.Context, arg SearchProductsParams) ([]SearchProductsRow, error) {

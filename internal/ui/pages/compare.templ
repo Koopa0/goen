@@ -143,7 +143,7 @@ templ comparePicker(v CompareView) {
 	if v.Full() {
 		<p class="goen-compare__note" role="status">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCompareFull), MaxCompare) }</p>
 	} else {
-		<form class="goen-compare__picker" method="get" action="/compare" role="search">
+		<form class="goen-compare__picker" method="get" action="/compare" role="search" aria-label={ i18n.T(ctx, i18n.KeyCompareSearchLabel) }>
 			for _, item := range v.Products {
 				<input type="hidden" name="p" value={ item.Slug }/>
 			}

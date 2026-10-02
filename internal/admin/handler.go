@@ -232,9 +232,13 @@ func (h *Handler) AdvanceOrder(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/admin/orders/"+number+"?ok=1", http.StatusSeeOther) //nolint:gosec // G710: validated by IsOrderNumber
 	case errors.Is(err, ErrPaidCancel), hasConstraint(err, "orders_paid_cancel_needs_refund"):
 		http.Redirect(w, r, "/admin/orders/"+number+"?paidcancel=1", http.StatusSeeOther) //nolint:gosec // G710: validated by IsOrderNumber
+	case hasConstraint(err, "orders_funded_to_leave_pending"):
+		http.Redirect(w, r, "/admin/orders/"+number+"?unfunded=1", http.StatusSeeOther) //nolint:gosec // G710: validated by IsOrderNumber
+	case hasConstraint(err, "orders_finished_when_shipped"):
+		http.Redirect(w, r, "/admin/orders/"+number+"?owesparcel=1", http.StatusSeeOther) //nolint:gosec // G710: validated by IsOrderNumber
 	case errors.Is(err, ErrRefused):
-		// Logged in full; the page only says the move was refused, because a
-		// constraint name is not something a shop assistant can act on.
+		// Logged in full; the page names the rule only for the refusals a shop
+		// assistant can act on, because a constraint name is not one of them.
 		h.log.WarnContext(r.Context(), "order transition refused",
 			"order", number, "error", err)
 		http.Redirect(w, r, "/admin/orders/"+number+"?refused=1", http.StatusSeeOther) //nolint:gosec // G710: validated by IsOrderNumber
@@ -259,8 +263,7 @@ func (h *Handler) Ship(w http.ResponseWriter, r *http.Request) {
 	lines, parseErr := parcelLines(r)
 	if parseErr != nil {
 		h.log.WarnContext(r.Context(), "dispatch rejected", "order", number, "error", parseErr)
-		//nolint:gosec // G710: validated by IsOrderNumber
-		http.Redirect(w, r, "/admin/orders/"+number+"?badparcel=1", http.StatusSeeOther)
+		h.rejectShip(w, r, &shipRefusal{quantity: i18n.KeyAdminNoticeBadParcel})
 		return
 	}
 
@@ -274,36 +277,63 @@ func (h *Handler) Ship(w http.ResponseWriter, r *http.Request) {
 		//nolint:gosec // G710: validated by IsOrderNumber
 		http.Redirect(w, r, "/admin/orders/"+number+"?shipped=1", http.StatusSeeOther)
 	case hasConstraint(err, "order_shipments_tracking_key"):
-		h.rejectTracking(w, r)
+		h.rejectShip(w, r, &shipRefusal{tracking: i18n.KeyAdminTrackingTaken})
 	case errors.Is(err, ErrQuantity):
-		//nolint:gosec // G710: validated by IsOrderNumber
-		http.Redirect(w, r, "/admin/orders/"+number+"?badparcel=1", http.StatusSeeOther)
+		h.rejectShip(w, r, &shipRefusal{quantity: i18n.KeyAdminNoticeBadParcel})
 	case errors.Is(err, ErrInvalid):
-		//nolint:gosec // G710: validated by IsOrderNumber
-		http.Redirect(w, r, "/admin/orders/"+number+"?needs=1", http.StatusSeeOther)
+		refusal := shipRefusal{}
+		if strings.TrimSpace(r.PostFormValue("carrier")) == "" {
+			refusal.carrier = i18n.KeyAdminNoticeNeeds
+		}
+		if strings.TrimSpace(r.PostFormValue("tracking")) == "" {
+			refusal.tracking = i18n.KeyAdminNoticeNeeds
+		}
+		h.rejectShip(w, r, &refusal)
 	case errors.Is(err, ErrRefused):
 		h.log.WarnContext(r.Context(), "shipment refused", "order", number, "error", err)
-		//nolint:gosec // G710: validated by IsOrderNumber
-		http.Redirect(w, r, "/admin/orders/"+number+"?refused=1", http.StatusSeeOther)
+		h.rejectShip(w, r, &shipRefusal{notice: i18n.KeyAdminNoticeRefused})
 	default:
 		h.log.ErrorContext(r.Context(), "ship order", "error", err)
 		h.serverError(w, r)
 	}
 }
 
-// rejectTracking re-renders the order with the tracking number staff typed and
-// the field marked invalid, because a double submit and a reused number both
-// land here and neither is a server fault.
-func (h *Handler) rejectTracking(w http.ResponseWriter, r *http.Request) {
+// shipRefusal is what a refused dispatch says and where: a sentence under the
+// control it is about, or a banner for a refusal that has no control.
+type shipRefusal struct {
+	carrier, tracking, quantity, notice i18n.Key
+}
+
+// rejectShip re-renders the order with everything staff typed, the carrier, the
+// tracking number and each line's quantity, and the refused control marked,
+// because re-typing a long tracking number after every mistake is the cost a
+// redirect would put on the warehouse.
+func (h *Handler) rejectShip(w http.ResponseWriter, r *http.Request, refusal *shipRefusal) {
 	view, err := h.store.Order(r.Context(), r.PathValue("number"))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read order after refused dispatch", "error", err)
 		h.serverError(w, r)
 		return
 	}
+	say := func(k i18n.Key) string {
+		if k == "" {
+			return ""
+		}
+		return i18n.T(r.Context(), k)
+	}
 	view.ShipCarrier = r.PostFormValue("carrier")
 	view.ShipTracking = r.PostFormValue("tracking")
-	view.TrackingError = i18n.T(r.Context(), i18n.KeyAdminTrackingTaken)
+	view.ShipCarrierError = say(refusal.carrier)
+	view.TrackingError = say(refusal.tracking)
+	view.ShipQtyError = say(refusal.quantity)
+	view.Notice = say(refusal.notice)
+	view.ShipQty = map[string]string{}
+	for i := range view.Shippable {
+		id := view.Shippable[i].OrderLineID
+		if typed, ok := r.PostForm["qty_"+id]; ok && len(typed) > 0 {
+			view.ShipQty[id] = typed[0]
+		}
+	}
 	view.AllowanceOperationID = uuid.NewString()
 	web.Render(w, r, h.log, http.StatusUnprocessableEntity,
 		pages.AdminOrder(layouts.Page{Title: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyAdminPageOrder), view.Number)}, &view))
@@ -400,7 +430,7 @@ func (h *Handler) AdjustStock(w http.ResponseWriter, r *http.Request) {
 	}
 	delta, ok := ParseAdjustment(r.PostFormValue("delta"))
 	if !ok {
-		http.Redirect(w, r, stockBack(r, "refused"), http.StatusSeeOther) //nolint:gosec // G710: stockBack answers /admin/stock with only an encoded query
+		h.rejectAdjustment(w, r, i18n.KeyAdminStockDeltaError)
 		return
 	}
 	key := r.PostFormValue("idempotency")
@@ -415,11 +445,41 @@ func (h *Handler) AdjustStock(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, ErrRefused), errors.Is(err, ErrNotFound):
 		h.log.WarnContext(r.Context(), "stock adjustment refused",
 			"sku", r.PostFormValue("sku"), "delta", delta, "error", err)
-		http.Redirect(w, r, stockBack(r, "refused"), http.StatusSeeOther) //nolint:gosec // G710: stockBack answers /admin/stock with only an encoded query
+		h.rejectAdjustment(w, r, i18n.KeyAdminStockAdjustRefused)
 	default:
 		h.log.ErrorContext(r.Context(), "adjust stock", "error", err)
 		h.serverError(w, r)
 	}
+}
+
+// rejectAdjustment re-renders the stock list the form was posted from, at 422,
+// with what was typed kept in its row and marked invalid.
+func (h *Handler) rejectAdjustment(w http.ResponseWriter, r *http.Request, key i18n.Key) {
+	var low, after string
+	if u, err := url.Parse(r.PostFormValue("return")); err == nil && u.Path == "/admin/stock" && u.Host == "" {
+		low, after = u.Query().Get("low"), u.Query().Get(web.KeysetParam)
+	}
+	view, err := h.store.Variants(r.Context(), low == "1", after)
+	if err != nil {
+		h.log.ErrorContext(r.Context(), "read variants after refused adjustment", "error", err)
+		h.serverError(w, r)
+		return
+	}
+	view.Return = stockReturn(low, after, "", "")
+	sku := r.PostFormValue("sku")
+	shown := false
+	for i := range view.Variants {
+		if view.Variants[i].SKU == sku {
+			view.Variants[i].DraftDelta = r.PostFormValue("delta")
+			view.Variants[i].DeltaError = i18n.T(r.Context(), key)
+			shown = true
+		}
+	}
+	if !shown {
+		// The row is not on this page, so the banner has to say it.
+		view.Notice = i18n.T(r.Context(), key)
+	}
+	web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.AdminVariants(pages.AdminVariantsMeta(r.Context()), view))
 }
 
 // ReceiveStock serves POST /admin/stock/receive, redirecting to the ledger.
@@ -572,8 +632,8 @@ var adminNotices = map[string]i18n.Key{
 	"inspected":      i18n.KeyAdminNoticeInspected,
 	"closed":         i18n.KeyAdminNoticeClosed,
 	"assessed":       i18n.KeyAdminNoticeAssessed,
-	"badcount":       i18n.KeyAdminNoticeBadCount,
-	"badparcel":      i18n.KeyAdminNoticeBadParcel,
+	"unfunded":       i18n.KeyAdminNoticeUnfunded,
+	"owesparcel":     i18n.KeyAdminNoticeOwesParcel,
 	"invoiced":       i18n.KeyAdminNoticeInvoiced,
 	"voided":         i18n.KeyAdminNoticeVoided,
 	"hasinvoice":     i18n.KeyAdminNoticeHasInvoice,
@@ -1522,12 +1582,33 @@ func (h *Handler) AnswerQuestion(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case err == nil:
 		http.Redirect(w, r, "/admin/questions?ok=1", http.StatusSeeOther)
-	case errors.Is(err, ErrNotFound), errors.Is(err, ErrInvalid):
+	case errors.Is(err, ErrInvalid):
+		h.rejectAnswer(w, r, id)
+	case errors.Is(err, ErrNotFound):
 		http.Redirect(w, r, "/admin/questions?refused=1", http.StatusSeeOther)
 	default:
 		h.log.ErrorContext(r.Context(), "answer question", "error", err)
 		h.serverError(w, r)
 	}
+}
+
+// rejectAnswer re-renders the questions with the reply staff typed kept in its
+// own box and marked invalid.
+func (h *Handler) rejectAnswer(w http.ResponseWriter, r *http.Request, id string) {
+	view, err := h.store.Questions(r.Context())
+	if err != nil {
+		h.log.ErrorContext(r.Context(), "read questions after refused answer", "error", err)
+		h.serverError(w, r)
+		return
+	}
+	for i := range view.Rows {
+		if view.Rows[i].ID == id {
+			view.Rows[i].Draft = r.PostFormValue("body")
+			view.Rows[i].Error = i18n.T(r.Context(), i18n.KeyAdminQuestionBodyError)
+		}
+	}
+	web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.AdminQuestions(
+		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageQuestions)}, view))
 }
 
 // ReconcilePayment serves POST /admin/health/reconcile.

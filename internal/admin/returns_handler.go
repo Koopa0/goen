@@ -202,6 +202,36 @@ func (h *Handler) renderReturnRefusal(w http.ResponseWriter, r *http.Request, er
 	return true
 }
 
+// renderInspection re-renders the returns queue at 422 with the counts and
+// notes staff typed on the refused return, and its inspection marked invalid.
+func (h *Handler) renderInspection(w http.ResponseWriter, r *http.Request, key i18n.Key) {
+	queue, readErr := h.store.Returns(r.Context(), r.URL.Query().Get(web.KeysetParam))
+	if readErr != nil {
+		h.log.ErrorContext(r.Context(), "read return queue after refused inspection", "error", readErr)
+		h.serverError(w, r)
+		return
+	}
+	id := r.PathValue("id")
+	view := pages.AdminReturnsView{
+		ListBound: queue.Bound,
+		Rows:      queue.Rows,
+		Errors:    map[string]string{id + ".inspect": i18n.T(r.Context(), key)},
+	}
+	for i := range view.Rows {
+		if view.Rows[i].ID != id {
+			continue
+		}
+		for j := range view.Rows[i].Lines {
+			line := &view.Rows[i].Lines[j]
+			line.DraftReceived = strings.TrimSpace(r.PostFormValue("received_" + line.OrderLineID))
+			line.DraftRestocked = strings.TrimSpace(r.PostFormValue("restocked_" + line.OrderLineID))
+			line.DraftNote = r.PostFormValue("note_" + line.OrderLineID)
+		}
+	}
+	web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.AdminReturns(
+		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageReturns)}, view))
+}
+
 func overlayDraftFacts(row *pages.AdminReturn, r *http.Request) {
 	for i := range row.Lines {
 		id := row.Lines[i].OrderLineID
@@ -249,7 +279,7 @@ func (h *Handler) Inspect(w http.ResponseWriter, r *http.Request) {
 	if parseErr != nil {
 		h.log.WarnContext(r.Context(), "return inspection rejected",
 			"return", r.PathValue("id"), "error", parseErr)
-		http.Redirect(w, r, "/admin/returns?badcount=1", http.StatusSeeOther)
+		h.renderInspection(w, r, i18n.KeyAdminNoticeBadCount)
 		return
 	}
 
@@ -258,11 +288,11 @@ func (h *Handler) Inspect(w http.ResponseWriter, r *http.Request) {
 	case err == nil:
 		http.Redirect(w, r, "/admin/returns?inspected=1", http.StatusSeeOther)
 	case errors.Is(err, ErrInvalid):
-		http.Redirect(w, r, "/admin/returns?badcount=1", http.StatusSeeOther)
+		h.renderInspection(w, r, i18n.KeyAdminNoticeBadCount)
 	case errors.Is(err, ErrRefused):
 		h.log.WarnContext(r.Context(), "return inspection refused",
 			"return", r.PathValue("id"), "error", err)
-		http.Redirect(w, r, "/admin/returns?refused=1", http.StatusSeeOther)
+		h.renderInspection(w, r, i18n.KeyAdminNoticeRefused)
 	default:
 		h.log.ErrorContext(r.Context(), "inspect return",
 			"return", r.PathValue("id"), "error", err)

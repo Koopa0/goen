@@ -63,7 +63,6 @@ var brandCopyJobs = []struct {
 	{name: "home hero headline", key: KeyHeroHeadline},
 	{name: "site title", key: KeySiteTitle},
 	{name: "about heading", key: KeyAboutTitle},
-	{name: "footer tagline", key: KeyFooterTagline},
 	{name: "home description", key: KeyHomeDescription},
 	{name: "about description", key: KeyAboutDescription},
 	{name: "newsletter note", key: KeyNewsletterNote},

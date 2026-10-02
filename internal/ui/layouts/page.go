@@ -38,11 +38,13 @@ type ShareImage struct {
 	Alt           string
 }
 
-// NavItem is one top-level category entry in the header.
+// NavItem is one top-level category entry in the header, with the
+// sub-categories its department panel lists.
 type NavItem struct {
-	Slug string
-	Name string
-	Href string
+	Slug     string
+	Name     string
+	Href     string
+	Children []NavItem
 }
 
 type topNavKey struct{}
@@ -110,7 +112,8 @@ type footerLink struct {
 // Label is the link's text in the request's language.
 func (l footerLink) Label(ctx context.Context) string { return i18n.T(ctx, l.Key) }
 
-// footerShopping and footerAbout are the footer's two fixed link columns.
+// footerShopping and footerAbout are the footer's two fixed link columns; the
+// third lists the departments.
 var (
 	footerShopping = [...]footerLink{
 		{Key: i18n.KeyShippingPolicy, Href: "/shipping"},

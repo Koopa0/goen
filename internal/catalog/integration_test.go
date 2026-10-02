@@ -136,6 +136,24 @@ func TestDepartmentListingReachesEveryLevel(t *testing.T) {
 	}
 }
 
+// A department's head offers its children as chips, from the department itself
+// and from any sub-category under it, so a shopper in one sees the others.
+func TestTheHeadOffersTheDepartmentsChildrenFromEveryPageUnderIt(t *testing.T) {
+	for _, slug := range []string{"accessories", "chargers"} {
+		view, err := catalog.NewStore(pool).Listing(i18n.WithLocale(t.Context(), i18n.ZhHant), slug, catalog.Filters{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := make([]string, 0, len(view.Theme.Children))
+		for _, c := range view.Theme.Children {
+			got = append(got, c.Slug)
+		}
+		if !slices.Equal(got, []string{"chargers", "cases"}) {
+			t.Errorf("/c/%s offers %v, want [chargers cases]", slug, got)
+		}
+	}
+}
+
 // A department holds no product itself, so the sitemap must judge it by the
 // products below it.
 func TestSitemapNamesADepartmentThatHoldsNoProductItself(t *testing.T) {
@@ -336,7 +354,7 @@ func TestSearchPageKeepsTheHeaderInputInSyncWithTheHeading(t *testing.T) {
 	}
 }
 
-// The trigram index serves only one of the two scripts.
+// Both scripts match by substring.
 func TestSearchFindsLatinAndChinese(t *testing.T) {
 	for _, tc := range []struct{ q, want string }{
 		{"pixel", "Pixelight"},

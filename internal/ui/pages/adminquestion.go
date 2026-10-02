@@ -17,6 +17,9 @@ type AdminQuestion struct {
 	Asked          string
 	Answers        int64
 	AnsweredByShop bool
+	// Draft is the reply staff typed when it was refused, and Error the sentence
+	// under it.
+	Draft, Error string
 }
 
 // Waiting reports whether the shop still owes an answer.
