@@ -137,8 +137,11 @@ SELECT EXISTS (
 );
 
 -- name: RecordPaidEvent :exec
-INSERT INTO order_events (order_id, kind, note)
-VALUES (@order_id, 'paid', @note);
+INSERT INTO order_events (order_id, kind, note, occurred_at)
+VALUES (@order_id, 'paid', @note, coalesce((
+    SELECT max(paid_at) FROM payments
+    WHERE order_id = @order_id AND status = 'succeeded'
+), now()));
 
 -- Idempotent on the order, which is why the amount is recomputed here rather
 -- than passed: a caller could supply a different one on the retry.
