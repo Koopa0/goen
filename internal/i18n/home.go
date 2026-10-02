@@ -1,15 +1,11 @@
 package i18n
 
 var (
-	KeyHomeTitle = key("home.title", Message{
-		ZhHant: "3C",
-		En:     "3C",
-	})
-
+	// %s is the root categories as one list: a list written here is one the
+	// shop's departments stop agreeing with.
 	KeyHomeDescription = key("home.description", Message{
-		ZhHant: "goen 賣手機、筆電、平板、耳機、穿戴裝置與配件。台灣出貨。保固期限寫在各商品頁。",
-		En: "Phones, laptops, tablets, headphones, wearables and accessories from goen. " +
-			"Ships from Taiwan. Warranty terms are on each product page.",
+		ZhHant: "goen 販售%s。",
+		En:     "goen sells %s.",
 	})
 
 	KeyCannotLoadHome = key("error.cannotload.home", Message{
@@ -32,9 +28,9 @@ var (
 	KeySectionTrust = key("home.trust", Message{ZhHant: "購物保障", En: "Shopping with goen"})
 
 	KeyTrustWarrantyBody = key("home.trust.warranty", Message{
-		ZhHant: "全機種原廠保固,維修免費收送(宅配訂單到府收件,超商取貨的訂單由超商寄回),保固可以線上登錄查詢。",
-		En: "Every model carries its manufacturer's warranty. Repairs are carried " +
-			"both ways for free: collected from your door for a home-delivery order, sent back from a " +
+		ZhHant: "有標示保固的商品,維修免費收送(宅配訂單到府收件,超商取貨的訂單由超商寄回),保固可以線上登錄查詢。",
+		En: "For a product that states a warranty, repairs are carried both ways for free: " +
+			"collected from your door for a home-delivery order, sent back from a " +
 			"convenience store for a pickup order. You can register and check your cover online.",
 	})
 
@@ -44,6 +40,11 @@ var (
 		ZhHant: "宅配與超商取貨皆適用;未達門檻運費 %s 起。",
 		En: "Home delivery and store pickup alike. Below the threshold, delivery is from " +
 			"%s.",
+	})
+
+	KeyTrustShippingHomeBody = key("home.trust.shipping.home", Message{
+		ZhHant: "未達門檻運費 %s 起。",
+		En:     "Below the threshold, delivery is from %s.",
 	})
 
 	// A numbered landing window here is a second SLA next to /returns, which
@@ -61,19 +62,14 @@ var (
 		En:     "Stripe handles the card. Your number never touches a goen server.",
 	})
 
-	KeyHeroEyebrow = key("home.hero.eyebrow", Message{
-		ZhHant: "台灣出貨",
-		En:     "Ships from Taiwan",
-	})
-
 	KeyHeroHeadline = key("home.hero.headline", Message{
-		ZhHant: "手機、筆電、平板與耳機",
-		En:     "Phones and laptops",
+		ZhHant: "goen 販售的商品",
+		En:     "What goen sells",
 	})
 
-	KeyHeroBody = key("home.hero.body", Message{
-		ZhHant: "也賣穿戴裝置與配件。保固見商品頁。",
-		En:     "Tablets, headphones, wearables and accessories as well. Warranty terms are on each product page.",
+	KeyHeroImageAlt = key("home.hero.image_alt", Message{
+		ZhHant: "早晨的木桌與日常用品",
+		En:     "A wooden table in morning light with everyday things",
 	})
 
 	KeyHeroPrimaryCTA = key("home.hero.cta.primary", Message{

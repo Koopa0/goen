@@ -10,7 +10,10 @@ import (
 )
 
 func TestCategoryKeysMatchTheRenderer(t *testing.T) {
-	want := []string{"phone", "laptop", "tablet", "headphones", "watch", "plug", "shield"}
+	want := []string{
+		"phone", "laptop", "tablet", "headphones", "watch", "plug", "shield",
+		"book", "stationery", "home", "kitchen", "food", "drink", "beauty", "apparel", "kids", "gift",
+	}
 	keys := icons.CategoryKeys()
 	if diff := cmp.Diff(want, keys); diff != "" {
 		t.Fatalf("CategoryKeys() mismatch (-want +got):\n%s", diff)

@@ -27,8 +27,9 @@ says what goen is and how to build it; read it first.
    error is not a red test.
 4. Under the same heading, name the gate. `make verify` unpiped, exit status
    quoted. `make test-integration` if you touched a `.sql` file or
-   `migrations/`. A scoped `go test ./internal/cart/` is worth reporting as
-   what it is.
+   `migrations/`. `make check-layout` if you touched `internal/ui`, `assets/` or
+   a route; CONTRIBUTING.md lists what it needs. A scoped
+   `go test ./internal/cart/` is worth reporting as what it is.
 5. Commits and GitHub text carry no agent identity. See below.
 6. Opening the pull request ends your work. Never merge.
 
@@ -42,7 +43,9 @@ Do not put any of the following in commit messages, PR titles/bodies, or Issue/P
 ## The gate
 
 - `make verify` on the exact commit you push. CI runs it plus the integration
-  suite plus the vulnerability scan; `main` accepts nothing that fails any.
+  suite, the vulnerability scan, `ci-policy`, `commit-attribution`, the `layout`
+  browser and accessibility check, and CodeQL for Go and for the workflows;
+  `main` accepts nothing that fails any.
 - Never weaken a gate, a golden file or a test oracle to reach green. If a gate
   is wrong, leave it red and say so under "Needs a ruling".
 - `golangci-lint` and `squawk` on `PATH` at the Makefile's pins; everything
