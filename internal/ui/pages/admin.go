@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/koopa0/goen/internal/carrier"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/pickup"
@@ -284,7 +285,7 @@ func (e AdminOrderEvent) By(ctx context.Context) string {
 
 // AdminShipment is one parcel.
 type AdminShipment struct {
-	Carrier     string
+	Carrier     carrier.Carrier
 	Tracking    string
 	ShippedAt   string
 	DeliveredAt string

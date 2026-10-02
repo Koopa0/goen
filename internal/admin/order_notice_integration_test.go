@@ -61,7 +61,7 @@ func TestTerminalArrivalIsNotRequeuedAfterCompletionOrOutboxRetention(t *testing
 	ctx, _ := staffContext(t)
 	number, id := pickingOrderHoldingStock(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
-	if err := s.Ship(ctx, number, admin.Dispatch{Carrier: "terminal", Tracking: uuid.NewString()}, uuid.NullUUID{}); err != nil {
+	if err := s.Ship(ctx, number, admin.Dispatch{Carrier: "black_cat", Tracking: uuid.NewString()}, uuid.NullUUID{}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := s.Advance(ctx, number, "delivered", uuid.NullUUID{}); err != nil {
@@ -143,7 +143,7 @@ func TestPickupCompletionQueuesCollectionWithoutADeliveryNotice(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
-	if err := s.Ship(ctx, number, admin.Dispatch{Carrier: "pickup", Tracking: uuid.NewString()}, uuid.NullUUID{}); err != nil {
+	if err := s.Ship(ctx, number, admin.Dispatch{Carrier: "seven_eleven", Tracking: uuid.NewString()}, uuid.NullUUID{}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := s.Advance(ctx, number, "delivered", uuid.NullUUID{}); err != nil {

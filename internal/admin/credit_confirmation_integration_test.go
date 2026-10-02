@@ -144,12 +144,12 @@ func TestDispatchWithARecordedTrackingNumberIsRefusedOnTheField(t *testing.T) {
 	h := adminHandlerOver(pool, s)
 	first, second := shippableOrder(t, "zh-Hant"), shippableOrder(t, "zh-Hant")
 	tracking := "DUP-" + uuid.NewString()[:8]
-	if err := s.Ship(ctx, first, admin.Dispatch{Carrier: "黑貓宅急便", Tracking: tracking},
+	if err := s.Ship(ctx, first, admin.Dispatch{Carrier: "black_cat", Tracking: tracking},
 		uuid.NullUUID{UUID: staff, Valid: true}); err != nil {
 		t.Fatalf("first dispatch: %v", err)
 	}
 
-	form := url.Values{"carrier": {"黑貓宅急便"}, "tracking": {tracking}}
+	form := url.Values{"carrier": {"black_cat"}, "tracking": {tracking}}
 	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/orders/"+second+"/ship", strings.NewReader(form.Encode()))
 	req.SetPathValue("number", second)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")

@@ -46,6 +46,8 @@ var (
 
 	KeyOrderDeliveredAt = key("order.deliveredat", Message{ZhHant: "%s 已送達", En: "Delivered %s"})
 
+	KeyOrderInvoiceIssued = key("order.invoice.issued", Message{ZhHant: "%s 開立", En: "Issued %s"})
+
 	// The statutory right, stated plainly; the day is the database's.
 	KeyOrderRescissionEnds = key("order.rescissionends", Message{
 		ZhHant: "依消費者保護法,您可在收到商品後七日內退貨,最後一日為 %s。",

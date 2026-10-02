@@ -15,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/assets"
+	"github.com/koopa0/goen/internal/carrier"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	invoicepkg "github.com/koopa0/goen/internal/invoice"
@@ -1025,19 +1026,51 @@ func (s *Store) Order(ctx context.Context, number string) (pages.OrderView, erro
 		})
 	}
 
+	if view.Invoice, err = s.orderInvoice(ctx, o.ID); err != nil {
+		return pages.OrderView{}, err
+	}
+
 	shipments, err := s.q.OrderTracking(ctx, o.ID)
 	if err != nil {
 		return pages.OrderView{}, fmt.Errorf("read order tracking: %w", err)
 	}
 	for _, sh := range shipments {
 		view.Shipments = append(view.Shipments, pages.OrderShipment{
-			Carrier: sh.Carrier, Tracking: sh.TrackingNumber,
+			Carrier: carrier.Carrier(sh.Carrier), Tracking: sh.TrackingNumber,
 			ShippedAt:      shoptime.Minute(sh.ShippedAt),
 			DeliveredAt:    nullableTime(sh.DeliveredAt),
 			RescissionEnds: sh.RescissionEnds,
 		})
 	}
 	return view, nil
+}
+
+// orderInvoice is the invoice the customer may see, or nil before one is filed.
+func (s *Store) orderInvoice(ctx context.Context, orderID uuid.UUID) (*pages.OrderInvoice, error) {
+	docs, err := s.q.OrderInvoiceDocuments(ctx, orderID)
+	if err != nil {
+		return nil, fmt.Errorf("read order invoice: %w", err)
+	}
+	if len(docs) == 0 {
+		return nil, nil //nolint:nilnil // no invoice filed yet is not an error
+	}
+	pref, err := s.q.OrderInvoicePreference(ctx, orderID)
+	if err != nil {
+		return nil, fmt.Errorf("read order invoice preference: %w", err)
+	}
+	out := &pages.OrderInvoice{
+		Type: invoicepkg.Preference(pref.InvoiceType), Carrier: pref.CarrierCode,
+		DonationCode: pref.DonationCode, TaxID: pref.TaxID,
+	}
+	for i := range docs {
+		d := &docs[i]
+		out.Documents = append(out.Documents, pages.OrderInvoiceDocument{
+			Allowance: d.Kind == "allowance", Number: d.Number, RandomCode: d.ProviderRef,
+			AmountCents: d.AmountCents, Voided: d.Status == "voided",
+			IssuedOn: shoptime.Day(d.IssuedAt),
+		})
+	}
+	return out, nil
 }
 
 // text wraps a string for a nullable text column, treating empty as NULL.

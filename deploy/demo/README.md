@@ -12,6 +12,14 @@ The goen payment page shows this guidance when its configured API key has an
 explicit Stripe test prefix. A live or unrecognized key does not display a
 sandbox assurance.
 
+## Deployment shape
+
+The demo runs one goen process against one PostgreSQL, which is the only shape
+goen supports. More instances multiply the in-memory rate limits, repeat the
+background loops and add to the connection pools; see "What goen assumes" in
+[CONTRIBUTING.md](../../CONTRIBUTING.md). Uploaded images are stored in the
+database, so the nightly snapshot restore resets them with everything else.
+
 ## Intended configuration
 
 [manifest.env](manifest.env) is a sanitized configuration template, not proof of
