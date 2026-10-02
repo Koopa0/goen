@@ -26,23 +26,17 @@ const (
 )
 
 var (
-	// ErrOAuthDisabled is a deployment with no Google credentials.
-	ErrOAuthDisabled = errors.New("account: google sign-in is not configured")
-	// ErrOAuthState is a callback whose state does not match the cookie.
-	ErrOAuthState = errors.New("account: the sign-in request does not match this browser")
-	// ErrOAuthUnverified is a Google account whose address Google has not proved.
+	ErrOAuthDisabled   = errors.New("account: google sign-in is not configured")
+	ErrOAuthState      = errors.New("account: the sign-in request does not match this browser")
 	ErrOAuthUnverified = errors.New("account: google has not verified that address")
-	// ErrOAuthCollision is an address that already has an unproved goen account.
-	ErrOAuthCollision = errors.New("account: that address already has an unverified account here")
-	errOAuthIdentity  = errors.New("account: google returned an invalid subject")
+	ErrOAuthCollision  = errors.New("account: that address already has an unverified account here")
+	errOAuthIdentity   = errors.New("account: google returned an invalid subject")
 )
 
-// oauthStateCookie carries the CSRF state and the PKCE verifier to the callback.
 const oauthStateCookie = "__Host-goen_oauth"
 
 const oauthStateTTL = 10 * time.Minute
 
-// Google is the OAuth client; the zero value is disabled.
 type Google struct {
 	clientID     string
 	clientSecret string
@@ -50,7 +44,6 @@ type Google struct {
 	http         *http.Client
 }
 
-// NewGoogle returns a client for the given credentials: both, or neither.
 func NewGoogle(clientID, clientSecret, baseURL string) (*Google, error) {
 	if clientID == "" && clientSecret == "" {
 		return &Google{}, nil
@@ -71,10 +64,8 @@ func NewGoogle(clientID, clientSecret, baseURL string) (*Google, error) {
 	}, nil
 }
 
-// Enabled reports whether this deployment offers Google sign-in.
 func (g *Google) Enabled() bool { return g != nil && g.clientID != "" }
 
-// AuthorizeURL returns where to send the browser and the state to remember.
 func (g *Google) AuthorizeURL(next string) (target string, state OAuthState, err error) {
 	if !g.Enabled() {
 		return "", OAuthState{}, ErrOAuthDisabled
@@ -103,14 +94,12 @@ func (g *Google) AuthorizeURL(next string) (target string, state OAuthState, err
 		OAuthState{Value: raw, Verifier: verifier, Next: next}, nil
 }
 
-// OAuthState is what the browser has to carry across the redirect.
 type OAuthState struct {
 	Value    string
 	Verifier string
 	Next     string
 }
 
-// Identity is who Google says this is.
 type Identity struct {
 	Subject       string
 	Email         string
@@ -118,7 +107,6 @@ type Identity struct {
 	Name          string
 }
 
-// Exchange turns the callback's code into an identity.
 func (g *Google) Exchange(ctx context.Context, code, verifier string) (Identity, error) {
 	if !g.Enabled() {
 		return Identity{}, ErrOAuthDisabled
@@ -176,11 +164,9 @@ func (g *Google) token(ctx context.Context, code, verifier string) (string, erro
 // code RFC 6749 defines is 22 bytes.
 const maxOAuthErrorCode = 40
 
-// oauthErrorCode is the error field of a token endpoint's refusal (RFC 6749
-// §5.2) when it is a code, or "unrecognised". The rest of the body is dropped
-// before anything logs it: the description and whatever else a provider or a
-// proxy in between adds are free text, and can carry the request's own code or
-// the client's details.
+// oauthErrorCode drops the rest of the body before anything logs it: the
+// description and whatever a proxy adds are free text and can carry the
+// request's own code or the client's details.
 func oauthErrorCode(body []byte) string {
 	var refusal struct {
 		Error string `json:"error"`

@@ -10,7 +10,6 @@ import (
 	"github.com/koopa0/goen/internal/web"
 )
 
-// FAQ serves GET /faq.
 func (h *Handler) FAQ(w http.ResponseWriter, r *http.Request) {
 	rows, err := h.content.FAQEntries(r.Context())
 	if err != nil {
@@ -38,7 +37,7 @@ func (h *Handler) FAQ(w http.ResponseWriter, r *http.Request) {
 		}, view))
 }
 
-// Shipping serves GET /shipping, from the same rows checkout charges from.
+// Shipping reads the same rows checkout charges from.
 func (h *Handler) Shipping(w http.ResponseWriter, r *http.Request) {
 	methods, err := h.content.ShippingPolicy(r.Context())
 	if err != nil {
@@ -54,7 +53,6 @@ func (h *Handler) Shipping(w http.ResponseWriter, r *http.Request) {
 		}, view))
 }
 
-// Policy serves the remaining static policy pages.
 func (h *Handler) Policy(w http.ResponseWriter, r *http.Request) {
 	doc, ok := policies[strings.TrimPrefix(r.URL.Path, "/")]
 	if !ok {
@@ -66,7 +64,6 @@ func (h *Handler) Policy(w http.ResponseWriter, r *http.Request) {
 		layouts.Page{Title: doc.Title, Description: doc.Summary}, doc))
 }
 
-// serverError renders the 500 page.
 func (h *Handler) serverError(w http.ResponseWriter, r *http.Request) {
 	web.Render(w, r, h.log, http.StatusInternalServerError, pages.Notice(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyTryAgainTitle)}, "500",

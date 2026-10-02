@@ -16,9 +16,9 @@ const (
 	ordersAnchor  = "#orders-heading"
 )
 
-// orderPosition is the last order a reader saw. Owner binds it to one account,
-// so a token minted for another customer's list is refused here as well as by
-// the query's user_id predicate.
+// orderPosition's Owner binds a token to one account, so a token minted for
+// another customer's list is refused here as well as by the query's user_id
+// predicate.
 type orderPosition struct {
 	ID    uuid.UUID
 	At    time.Time
@@ -42,8 +42,6 @@ func readOrderCursor(owner string, after []string) orderCursor {
 	return orderCursor{orderPosition: pos, Valid: true}
 }
 
-// orderBound trims a read made with orderPageSize+1 rows to its page and
-// builds the shared pager beside it.
 func orderBound[T any](c orderCursor, owner string, rows []T, key func(*T) (uuid.UUID, time.Time)) ([]T, pages.ListBound) {
 	rows, more := web.PageOf(rows, orderPageSize)
 	var b pages.ListBound

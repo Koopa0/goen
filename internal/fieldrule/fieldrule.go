@@ -49,11 +49,9 @@ const (
 	label = "[^\t\n\v\f\r @\"\\(\\),:;<>\\[\\]\\\\\\.]"
 )
 
-// Rule is one field's client-side contract.
 type Rule struct {
 	// Name is the data-rule value, which the browser script uses as a hook.
-	Name string
-	// InputMode is the keyboard the field asks for, or "".
+	Name      string
 	InputMode string
 	// Pattern matches the whole raw value, whitespace around it included. It is
 	// the pattern attribute and the Go test's regexp.
@@ -62,12 +60,10 @@ type Rule struct {
 	// count characters alongside the digits it counts, so the browser does.
 	MaxRunes int
 	// Check names an extra browser-side check a pattern cannot express, or "".
-	Check string
-	// Message is what the server says when the value is refused.
+	Check   string
 	Message i18n.Key
 }
 
-// The rules. Each is named for the field it governs, not the page it is on.
 var (
 	// Email accepts a bare address with a dotted domain. email.Valid is the
 	// server's judgment; this is the part of it a pattern can state.
@@ -126,7 +122,6 @@ var (
 	}
 )
 
-// All is every rule, for the tests that hold each to its server validator.
 var All = []Rule{Email, Phone, PostalCode, MobileBarcode, DonationCode, TaxID}
 
 // Attrs are the attributes that make an input carry this rule: the pattern the
@@ -166,11 +161,9 @@ type options struct {
 	errorID string
 }
 
-// Option adjusts Attrs for one form.
 type Option func(*options)
 
 // Message makes the form say key where its server does.
 func Message(key i18n.Key) Option { return func(o *options) { o.message = key } }
 
-// ErrorID names the element the form's refusal is written into.
 func ErrorID(id string) Option { return func(o *options) { o.errorID = id } }

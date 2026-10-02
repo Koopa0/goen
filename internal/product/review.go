@@ -19,29 +19,23 @@ import (
 )
 
 var (
-	// ErrAlreadyReviewed is a second review on one product from one person.
 	ErrAlreadyReviewed = errors.New("product: already reviewed")
 	ErrNotDelivered    = errors.New("product: no delivered order for this product")
-	// ErrReviewInvalid is a form goen refused before the database saw it.
-	ErrReviewInvalid = errors.New("product: invalid review")
+	ErrReviewInvalid   = errors.New("product: invalid review")
 )
 
-// Review length bounds, counted in runes.
 const (
 	MaxReviewTitleRunes = 80
 	MaxReviewBodyRunes  = 2000
 	MinReviewBodyRunes  = 5
 )
 
-// Review is what a customer is submitting.
 type Review struct {
 	Rating int16
 	Title  string
 	Body   string
 }
 
-// Validate refuses what the schema would, returning keys the caller renders in
-// the reader's locale.
 func (r *Review) Validate() map[string]i18n.Key {
 	r.Title = strings.TrimSpace(r.Title)
 	r.Body = strings.TrimSpace(r.Body)
@@ -72,7 +66,8 @@ func hasUnprintableReviewControl(s string) bool {
 	})
 }
 
-// ReviewStanding answers for a signed-in customer; a visitor is ReviewSignedOut.
+// ReviewStanding answers for a signed-in customer; a visitor is
+// ReviewSignedOut.
 func (s *Store) ReviewStanding(ctx context.Context, slug, userID string) (pages.ReviewStanding, error) {
 	id, parseErr := uuid.Parse(userID)
 	if parseErr != nil {
@@ -108,7 +103,6 @@ func (s *Store) ReviewStanding(ctx context.Context, slug, userID string) (pages.
 	return pages.ReviewOpen, nil
 }
 
-// AddReview records a review.
 func (s *Store) AddReview(ctx context.Context, slug, userID string, r *Review) (map[string]i18n.Key, error) {
 	if errs := r.Validate(); len(errs) > 0 {
 		return errs, nil
@@ -138,11 +132,11 @@ func (s *Store) AddReview(ctx context.Context, slug, userID string, r *Review) (
 		Title: r.Title, Body: r.Body,
 	})
 	if err != nil {
-		// Bound to the CONSTRAINT name, never to the message text: PostgreSQL
-		// happens to name the index in a unique violation, but the message is
-		// prose that lc_messages localizes and releases reword, while the name
-		// is a field. ReviewStanding answers first in the ordinary case, so only two
-		// racing submissions reach this branch.
+		// Bound to the CONSTRAINT name, never the message: PostgreSQL names the
+		// index in a unique violation, but the message is prose that
+		// lc_messages localizes and releases reword. ReviewStanding answers
+		// first in the ordinary case, so only two racing submissions reach this
+		// branch.
 		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok &&
 			pgErr.ConstraintName == "product_reviews_author_key" {
 			return nil, ErrAlreadyReviewed

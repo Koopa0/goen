@@ -113,15 +113,12 @@ func jpegCost(raw []byte, w, h int64) int64 {
 	return cost
 }
 
-// jpegBlockBytes is one 8x8 block of int32 coefficients.
 const jpegBlockBytes = 64 * 4
 
-// jpegFrame is what a frame header decides about image/jpeg's buffers.
 type jpegFrame struct {
 	width, height int64
 	components    int64
-	// rgbIDs is three components whose ids are 'R', 'G' and 'B'.
-	rgbIDs bool
+	rgbIDs        bool
 	// The MCU grid is sized by the largest sampling factors, and a single
 	// component is treated as 1x1 whatever its header says.
 	maxH, maxV   int64
@@ -129,7 +126,6 @@ type jpegFrame struct {
 	blocksPerMCU int64
 }
 
-// padded is a full-resolution plane's pixels over whole MCUs.
 func (f jpegFrame) padded() int64 {
 	return f.mcusX * 8 * f.maxH * f.mcusY * 8 * f.maxV
 }
@@ -178,10 +174,7 @@ const (
 	jpegAPP14 = 0xee
 )
 
-// jpegStream is what image/jpeg's decoder reads from a stream's segments.
 type jpegStream struct {
-	// frame is the first frame header's body, the only one image/jpeg accepts,
-	// or nil.
 	frame       []byte
 	progressive bool
 	// adobeRGB is an Adobe segment naming transform 0, which image/jpeg
@@ -219,7 +212,6 @@ func jpegWalk(raw []byte) jpegStream {
 	}
 }
 
-// read takes from one segment what image/jpeg's decoder does.
 func (s *jpegStream) read(marker byte, body []byte) {
 	switch {
 	case s.frame == nil && (marker == jpegSOF0 || marker == jpegSOF1 || marker == jpegSOF2):
@@ -235,8 +227,6 @@ func adobeRGB(body []byte) bool {
 	return len(body) >= 12 && string(body[:5]) == "Adobe" && body[11] == 0
 }
 
-// jpegSegment reads the length-prefixed segment body at raw[i], whose length
-// counts its own two bytes. next is the index just past the body.
 func jpegSegment(raw []byte, i int) (body []byte, next int, ok bool) {
 	if i+2 > len(raw) {
 		return nil, 0, false

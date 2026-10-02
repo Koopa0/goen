@@ -12,10 +12,8 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-// ErrNotifyInvalid is a restock request goen refused before the database saw it.
 var ErrNotifyInvalid = errors.New("product: invalid restock request")
 
-// RequestRestockNotice records that somebody wants to know when a variant is back.
 func (s *Store) RequestRestockNotice(ctx context.Context, slug, variantID, addr, userID string) error {
 	vid, err := uuid.Parse(variantID)
 	if err != nil {
@@ -33,7 +31,8 @@ func (s *Store) RequestRestockNotice(ctx context.Context, slug, variantID, addr,
 
 	eligible, err := s.q.RequestStockNotice(ctx, db.RequestStockNoticeParams{
 		Slug: slug, VariantID: vid, UserID: owner, Email: addr,
-		// A worker with no request sends this, so the locale travels on the row.
+		// A worker with no request sends this, so the locale travels on the
+		// row.
 		Locale: i18n.FromContext(ctx).Tag(),
 	})
 	if err != nil {

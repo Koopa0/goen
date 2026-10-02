@@ -11,16 +11,14 @@ import (
 	"github.com/koopa0/goen/internal/web"
 )
 
-// Handler serves the contact form.
 type Handler struct {
 	store *Store
 	limit *ratelimit.Limiter
 	log   *slog.Logger
 }
 
-// NewHandler returns a Handler writing through store. The limiter is required:
-// unbounded, a script fills contact_messages and buries the real customer on a
-// page ordered oldest-first.
+// NewHandler requires the limiter: unbounded, a script fills contact_messages
+// and buries the real customer on a page ordered oldest-first.
 func NewHandler(store *Store, limit *ratelimit.Limiter, log *slog.Logger) *Handler {
 	if store == nil || limit == nil || log == nil {
 		panic("contact: NewHandler requires a store, a limiter and a logger")
@@ -28,8 +26,8 @@ func NewHandler(store *Store, limit *ratelimit.Limiter, log *slog.Logger) *Handl
 	return &Handler{store: store, limit: limit, log: log}
 }
 
-// Page serves GET /contact. The sent flag is what the plain form's redirect
-// carries, so a reload shows the acknowledgement instead of re-submitting.
+// Page reads a sent flag, which the plain form's redirect carries, so a reload
+// shows the acknowledgement instead of re-submitting.
 func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 	form := pages.ContactForm{
 		Subjects: subjectChoices(r.Context()),
@@ -38,7 +36,6 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 	web.Render(w, r, h.log, http.StatusOK, pages.Contact(pages.ContactMeta(r.Context()), form))
 }
 
-// Submit serves POST /contact.
 func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		h.log.WarnContext(r.Context(), "parse contact form", "error", err)
@@ -63,9 +60,9 @@ func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Keyed on the IP alone, unlike /forgot and the newsletter: this form mails
-	// nobody, and its address field is the sender's own claim, so bounding on it
-	// would let anybody buy more attempts by editing a field. After Clean so a
-	// 429 fragment can keep the values the same way 422 does.
+	// nobody, and its address field is the sender's own claim, so bounding on
+	// it would let anybody buy more attempts by editing a field. After Clean so
+	// a 429 fragment can keep the values the way 422 does.
 	if retryAfter, allowed := h.limit.Allow(ratelimit.ClientKey(r)); !allowed {
 		form.Errors = map[string]string{"": i18n.T(r.Context(), i18n.KeyTooManyRequests)}
 		if web.IsHTMX(r) {
@@ -106,7 +103,6 @@ func (h *Handler) respond(w http.ResponseWriter, r *http.Request, status int, fo
 	web.Render(w, r, h.log, status, pages.Contact(pages.ContactMeta(r.Context()), form))
 }
 
-// subjectChoices renders the topic list for this request's locale.
 func subjectChoices(ctx context.Context) []pages.ContactSubject {
 	out := make([]pages.ContactSubject, 0, len(subjects))
 	for _, s := range subjects {

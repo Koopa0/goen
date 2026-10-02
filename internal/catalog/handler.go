@@ -15,13 +15,11 @@ import (
 	"github.com/koopa0/goen/internal/web"
 )
 
-// Handler serves the category listing and search pages.
 type Handler struct {
 	store *Store
 	log   *slog.Logger
 }
 
-// NewHandler returns a Handler reading through store.
 func NewHandler(store *Store, log *slog.Logger) *Handler {
 	if store == nil || log == nil {
 		panic("catalog: NewHandler requires a store and a logger")
@@ -29,7 +27,6 @@ func NewHandler(store *Store, log *slog.Logger) *Handler {
 	return &Handler{store: store, log: log}
 }
 
-// Listing serves GET /c/{slug}.
 func (h *Handler) Listing(w http.ResponseWriter, r *http.Request) {
 	if web.DropEmptyParams(w, r) {
 		return
@@ -63,7 +60,6 @@ func (h *Handler) Listing(w http.ResponseWriter, r *http.Request) {
 
 const newestOnEmpty = 4
 
-// Search serves GET /search.
 func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
 	if web.DropEmptyParams(w, r, "q") {
 		return
@@ -90,7 +86,6 @@ func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
 	web.Render(w, r, h.log, http.StatusOK, pages.Search(pages.SearchMeta(r.Context(), view.Query), view))
 }
 
-// searched runs a search and, when it finds nothing, adds the newest products.
 func (h *Handler) searched(ctx context.Context, pattern, query string, sort Sort, page int) (pages.SearchView, error) {
 	view, err := h.store.Search(ctx, pattern, sort, page)
 	if err != nil {
@@ -123,8 +118,8 @@ func (h *Handler) serverError(w http.ResponseWriter, r *http.Request) {
 		i18n.T(r.Context(), i18n.KeyCannotLoadListing)))
 }
 
-// parseFilters reads the listing's query string. Every value is bounded or
-// discarded here, so nothing downstream has to check again.
+// parseFilters bounds or discards every value, so nothing downstream checks
+// again.
 func parseFilters(q url.Values) Filters {
 	return Filters{
 		BrandSlugs:  boundedBrands(q["brand"]),
@@ -136,7 +131,6 @@ func parseFilters(q url.Values) Filters {
 	}
 }
 
-// maxBrandFilters caps how many brand values one URL may carry.
 const maxBrandFilters = 32
 
 func boundedBrands(v []string) []string {
@@ -155,8 +149,8 @@ func boundedBrands(v []string) []string {
 	return out
 }
 
-// canonicalQuery rebuilds the listing's query string from the parsed filters
-// rather than the request, so a pagination href carries nothing a visitor typed.
+// canonicalQuery rebuilds the query string from the parsed filters rather than
+// the request, so a pagination href carries nothing a visitor typed.
 func canonicalQuery(f Filters) string {
 	q := url.Values{}
 	for _, b := range f.BrandSlugs {
@@ -177,12 +171,10 @@ func canonicalQuery(f Filters) string {
 	return q.Encode()
 }
 
-// trimForDisplay bounds what a search term may be echoed back as.
 func trimForDisplay(q string) string {
 	return trimmedQuery(q)
 }
 
-// Deals serves GET /deals.
 func (h *Handler) Deals(w http.ResponseWriter, r *http.Request) {
 	page := ParsePage(r.URL.Query().Get("page"))
 	view, err := h.store.Deals(r.Context(), page)
@@ -193,14 +185,14 @@ func (h *Handler) Deals(w http.ResponseWriter, r *http.Request) {
 	}
 	campaigns, err := h.store.RunningCampaigns(r.Context(), ParsePage(r.URL.Query().Get("campaign_page")))
 	if err != nil {
-		// best-effort: the discounted products are the page's substance.
+		// Best effort: the discounted products are the page's substance.
 		h.log.ErrorContext(r.Context(), "load campaigns", "error", err)
 	}
 	view.Campaigns = campaigns
 	web.Render(w, r, h.log, http.StatusOK, pages.Deals(pages.DealsMeta(r.Context()), view))
 }
 
-// Campaign serves GET /s/{slug}. One outside its window is a 404.
+// Campaign answers 404 for a promotion outside its window.
 func (h *Handler) Campaign(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
 	view, err := h.store.Campaign(r.Context(), slug)
@@ -220,7 +212,7 @@ func (h *Handler) Campaign(w http.ResponseWriter, r *http.Request) {
 		pages.CampaignMeta(r.Context(), view.Title, view.Image), view))
 }
 
-// Compare serves GET /compare. The set lives in the URL and nowhere else.
+// Compare keeps the set in the URL and nowhere else.
 func (h *Handler) Compare(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Compare(r.Context(), r.URL.Query()["p"])
 	if err != nil {
@@ -247,7 +239,6 @@ func (h *Handler) Compare(w http.ResponseWriter, r *http.Request) {
 		}, view))
 }
 
-// compareCandidates keeps the search results that are not already compared.
 func compareCandidates(found []pages.ProductTile, view pages.CompareView) []pages.CompareCandidate {
 	out := make([]pages.CompareCandidate, 0, len(found))
 	for i := range found {

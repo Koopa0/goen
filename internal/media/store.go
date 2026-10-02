@@ -12,15 +12,12 @@ import (
 	"github.com/koopa0/goen/internal/db"
 )
 
-// MaxPickerRows bounds the back office's image list.
 const MaxPickerRows = 60
 
-// Store keeps images in PostgreSQL.
 type Store struct {
 	q *db.Queries
 }
 
-// NewStore returns a Store over pool.
 func NewStore(pool *pgxpool.Pool) *Store {
 	if pool == nil {
 		panic("media: NewStore requires a pool")
@@ -44,7 +41,6 @@ func (s *Store) Put(ctx context.Context, r io.Reader) (Object, error) {
 	return obj, nil
 }
 
-// Bytes reads an image out for serving.
 func (s *Store) Bytes(ctx context.Context, digest string) (contentType string, data []byte, err error) {
 	row, err := s.q.MediaBytes(ctx, digest)
 	if err != nil {
@@ -56,7 +52,6 @@ func (s *Store) Bytes(ctx context.Context, digest string) (contentType string, d
 	return row.ContentType, row.Bytes, nil
 }
 
-// Object reads one stored image's metadata.
 func (s *Store) Object(ctx context.Context, digest string) (Object, error) {
 	row, err := s.q.MediaObject(ctx, digest)
 	if err != nil {
@@ -68,7 +63,6 @@ func (s *Store) Object(ctx context.Context, digest string) (Object, error) {
 	}, nil
 }
 
-// Recent is the back office's picker.
 func (s *Store) Recent(ctx context.Context) ([]Object, error) {
 	rows, err := s.q.RecentMedia(ctx, MaxPickerRows)
 	if err != nil {

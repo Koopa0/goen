@@ -11,7 +11,6 @@ import (
 	"github.com/koopa0/goen/internal/money"
 )
 
-// Notifier turns outbox messages into mail.
 type Notifier struct {
 	sender  Sender
 	baseURL string
@@ -63,12 +62,10 @@ func (n Notifier) letter(ctx context.Context, name, body string) string {
 	}, "\n")
 }
 
-// orderURL is where a message points a customer at their own order.
 func (n Notifier) orderURL(number string) string {
 	return strings.TrimRight(n.baseURL, "/") + "/orders/" + number
 }
 
-// OrderPlaced is the payload of an order.placed message.
 type OrderPlaced struct {
 	Locale      string `json:"locale"`
 	OrderNumber string `json:"order_number"`
@@ -81,7 +78,6 @@ type OrderPlaced struct {
 	OwedCents *int64 `json:"owed_cents,omitempty"`
 }
 
-// SendOrderPlaced sends the confirmation.
 func (n Notifier) SendOrderPlaced(ctx context.Context, p *OrderPlaced) error {
 	if !Valid(p.Email) {
 		// Still an error though no retry can fix it: the outbox reschedules and
@@ -125,7 +121,6 @@ type PasswordReset struct {
 	Token string `json:"token"`
 }
 
-// SendPasswordReset mails somebody a link back into their account.
 func (n Notifier) SendPasswordReset(ctx context.Context, p *PasswordReset) error {
 	if !Valid(p.Email) {
 		return errors.New("a password reset has no usable email address")

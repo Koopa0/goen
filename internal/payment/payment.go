@@ -12,14 +12,11 @@ import (
 )
 
 var (
-	// ErrNotFound is an order number that names nothing.
 	ErrNotFound = errors.New("payment: order not found")
 	// ErrNotOpenable means a new Checkout Session cannot be safely admitted:
 	// the order changed, is funded, has an active attempt, or needs reconciliation.
-	ErrNotOpenable = errors.New("payment: a new checkout session cannot be safely opened")
-	// ErrDisabled is goen running without Stripe credentials.
-	ErrDisabled = errors.New("payment: stripe is not configured")
-	// ErrBadSignature is a webhook whose Stripe-Signature did not verify.
+	ErrNotOpenable  = errors.New("payment: a new checkout session cannot be safely opened")
+	ErrDisabled     = errors.New("payment: stripe is not configured")
 	ErrBadSignature = errors.New("payment: webhook signature did not verify")
 	// ErrNoTransaction is a paid-attribution call without the transaction that
 	// must also carry its side effects and admin audit.
@@ -108,7 +105,6 @@ type Capture struct {
 	PaymentIntentID string
 }
 
-// webhookEvent is a verified Stripe event, ready to be recorded.
 type webhookEvent struct {
 	ID        string
 	Type      string

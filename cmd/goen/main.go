@@ -67,7 +67,7 @@ type config struct {
 	ECPayBaseURL           string
 	// ECPayLogistics is the 物流 contract this merchant holds, c2c or b2c, and
 	// unset is the whole feature off: the checkout then asks for a chain and no
-	// store, exactly as it did before the map existed.
+	// store.
 	ECPayLogistics string
 	// ECPayLogisticsBaseURL defaults to the staging map.
 	ECPayLogisticsBaseURL string
@@ -270,8 +270,6 @@ func listenerPeers(addr string) []netip.Prefix {
 	return []netip.Prefix{loopbackV6}
 }
 
-// newServer builds the HTTP server, with its timeouts and its outermost
-// middleware.
 func newServer(cfg *config, routes *RouterConfig, proxies *ratelimit.Proxies, log *slog.Logger) *http.Server {
 	return &http.Server{
 		Addr: cfg.Addr,
@@ -345,7 +343,6 @@ func reachableAdminPool(ctx context.Context, url string, log *slog.Logger) (*pgx
 	return pool, nil
 }
 
-// openInvoicing builds the e-invoice provider gateway, or says there is none.
 func openInvoicing(cfg *config, log *slog.Logger) (*invoice.Gateway, error) {
 	g, err := invoice.NewGateway(cfg.ECPayMerchantID, cfg.ECPayHashKey,
 		cfg.ECPayHashIV, cfg.ECPayBaseURL)
@@ -360,7 +357,6 @@ func openInvoicing(cfg *config, log *slog.Logger) (*invoice.Gateway, error) {
 	return g, nil
 }
 
-// openStoreMap builds the convenience-store map and says when there is none.
 func openStoreMap(cfg *config, log *slog.Logger) (*cart.StoreMap, error) {
 	m, err := cart.NewStoreMap(cfg.ECPayMerchantID, cfg.ECPayLogistics,
 		cfg.ECPayLogisticsBaseURL, cfg.BaseURL)
@@ -427,7 +423,6 @@ func (cfg *config) demoAccount(log *slog.Logger) (account.DemoAccount, error) {
 	return d, nil
 }
 
-// openGoogleSignIn builds the OAuth client and says when there is none.
 func openGoogleSignIn(cfg *config, log *slog.Logger) (*account.Google, error) {
 	g, err := account.NewGoogle(cfg.GoogleClientID, cfg.GoogleClientSecret, cfg.BaseURL)
 	if err != nil {
@@ -567,7 +562,6 @@ const (
 	maintenanceStatementTimeout = 5 * time.Minute
 )
 
-// openPool builds the connection pool goen serves from.
 func openPool(ctx context.Context, url string, log *slog.Logger) (*pgxpool.Pool, error) {
 	return openPoolAs(ctx, url, log, "store", storeMaxConns, storeStatementTimeout)
 }
@@ -699,7 +693,6 @@ func newNotifier(cfg *config, log *slog.Logger) (email.Notifier, error) {
 	return email.New(sender, cfg.BaseURL, cfg.Seller, cfg.SellerContact), nil
 }
 
-// workerDeps is what the background workers need.
 type workerDeps struct {
 	pool        *pgxpool.Pool
 	admin       *pgxpool.Pool
@@ -710,7 +703,6 @@ type workerDeps struct {
 	run         func(func())
 }
 
-// startWorkers wires everything that runs on its own schedule.
 func startWorkers(ctx context.Context, d workerDeps) {
 	outboxStore := newOutboxStore(d)
 	d.run(func() { outboxStore.Run(ctx) })

@@ -24,13 +24,11 @@ type Dependency struct {
 	DB   Pinger
 }
 
-// Handler answers the liveness and readiness probes.
 type Handler struct {
 	deps []Dependency
 	log  *slog.Logger
 }
 
-// NewHandler returns a Handler that checks every dependency for readiness.
 func NewHandler(log *slog.Logger, deps ...Dependency) *Handler {
 	if log == nil || len(deps) == 0 {
 		panic("health: NewHandler requires a logger and at least one dependency")
