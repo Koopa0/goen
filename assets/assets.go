@@ -24,7 +24,6 @@ import (
 //go:embed all:brand all:css all:fonts all:js all:media all:speculation
 var files embed.FS
 
-// Prefix is the URL path the asset handler is mounted on.
 const Prefix = "/static/"
 
 // Asset names referenced by templates. Keep in sync with [required].
@@ -225,12 +224,10 @@ const (
 	PromoDesk800 = "media/promo/promo-desk-800.webp"
 )
 
-// PromoDeskSrcset is the promotional photograph's two candidates.
 func PromoDeskSrcset() string {
 	return URL(PromoDesk800) + " 800w, " + URL(PromoDesk) + " 1600w"
 }
 
-// rendition is the name of a -400 or -800 sibling of a WebP asset.
 func rendition(name string, width int) string {
 	return strings.TrimSuffix(name, ".webp") + "-" + strconv.Itoa(width) + ".webp"
 }
@@ -409,13 +406,10 @@ func ifNoneMatch(r *http.Request, etag string) bool {
 // service that costs the attacker one request.
 var mediaWidths = [...]int{400, 800, 1600}
 
-// KnownWidth reports whether w is a rendition goen will produce.
 func KnownWidth(w int) bool { return slices.Contains(mediaWidths[:], w) }
 
-// MediaURL is where an uploaded image is served at full size.
 func MediaURL(digest string) string { return "/media/" + digest }
 
-// MediaRenditionURL is where it is served at one of the allowed media widths.
 func MediaRenditionURL(digest string, width int) string {
 	return "/media/" + digest + "/" + strconv.Itoa(width)
 }
