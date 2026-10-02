@@ -325,18 +325,13 @@ func CaptureFrom(ev *stripe.Event) (Capture, bool) {
 }
 
 // cardOf is the card brand and last four of a charge Stripe reported, or
-// nothing for a charge that is absent, is not a card, or carries a value this
-// binary will not store.
+// nothing for a charge that is absent or is not a card.
 func cardOf(charge *stripe.Charge) (brand, last4 string) {
 	if charge == nil || charge.PaymentMethodDetails == nil || charge.PaymentMethodDetails.Card == nil {
 		return "", ""
 	}
 	card := charge.PaymentMethodDetails.Card
-	brand, last4 = string(card.Brand), card.Last4
-	if brand == "" || len(brand) > 32 || len(last4) != 4 || strings.Trim(last4, "0123456789") != "" {
-		return "", ""
-	}
-	return brand, last4
+	return string(card.Brand), card.Last4
 }
 
 // CardFacts reads the card brand and last four of what a PaymentIntent paid with:
@@ -361,6 +356,11 @@ func (g *Gateway) CardFacts(ctx context.Context, paymentIntentID string) (brand,
 			errInvalidStripeResponse, paymentIntentID)
 	}
 	brand, last4 = cardOf(pi.LatestCharge)
+	// A value read for display must not become a capture the database refuses:
+	// payments_last4_format would turn paid money into an unreconciled event.
+	if brand == "" || len(brand) > 32 || len(last4) != 4 || strings.Trim(last4, "0123456789") != "" {
+		return "", "", nil
+	}
 	return brand, last4, nil
 }
 
