@@ -1,6 +1,6 @@
 //go:build integration
 
-package admin_test
+package taxonomy_test
 
 import (
 	"strings"
@@ -8,23 +8,24 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/internal/admin"
+	"github.com/koopa0/goen/internal/admin/admintest"
+	"github.com/koopa0/goen/internal/admin/taxonomy"
 )
 
 // Only a department answers "compare products here". The answer is written on
 // create and on edit, a sub-category stores none and takes its department's,
 // and each write is audited with the value it made.
 func TestOnlyADepartmentStoresWhetherItCompares(t *testing.T) {
-	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	ctx, _ := admintest.StaffContext(t, pool)
+	s := taxonomy.NewStore(pool)
 
 	root := "cmp-" + strings.ReplaceAll(uuid.NewString(), "-", "")[:10]
 	child := root + "-sub"
-	if errs, err := s.CreateCategory(ctx, &admin.TaxonomyForm{Slug: root, Name: "可比較部門", Comparable: true}); err != nil || len(errs) > 0 {
+	if errs, err := s.CreateCategory(ctx, &taxonomy.Form{Slug: root, Name: "可比較部門", Comparable: true}); err != nil || len(errs) > 0 {
 		t.Fatalf("create the department: %v %v", errs, err)
 	}
 	// A ticked box on a sub-category is not stored: it is not the one that answers.
-	if errs, err := s.CreateCategory(ctx, &admin.TaxonomyForm{Slug: child, Name: "子架", Parent: root, Comparable: true}); err != nil || len(errs) > 0 {
+	if errs, err := s.CreateCategory(ctx, &taxonomy.Form{Slug: child, Name: "子架", Parent: root, Comparable: true}); err != nil || len(errs) > 0 {
 		t.Fatalf("create the sub-category: %v %v", errs, err)
 	}
 
@@ -44,7 +45,7 @@ func TestOnlyADepartmentStoresWhetherItCompares(t *testing.T) {
 
 	shown := func(slug string) bool {
 		t.Helper()
-		view, err := s.Taxonomy(ctx)
+		view, err := s.List(ctx)
 		if err != nil {
 			t.Fatalf("taxonomy: %v", err)
 		}

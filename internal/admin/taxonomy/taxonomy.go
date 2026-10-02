@@ -1,4 +1,6 @@
-package admin
+// Package taxonomy is the back office's brands and categories: creating,
+// renaming and deleting them, a category's tone, and its header photograph.
+package taxonomy
 
 import (
 	"context"
@@ -6,6 +8,8 @@ import (
 	"fmt"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
@@ -17,11 +21,30 @@ import (
 	"github.com/koopa0/goen/internal/web"
 )
 
-const MaxTaxonomyNameRunes = 60
+const MaxNameRunes = 60
 
-var ErrInUse = errors.New("admin: something still uses this")
+var (
+	ErrNotFound = errors.New("taxonomy: not found")
+	ErrInvalid  = errors.New("taxonomy: invalid input")
+	ErrInUse    = errors.New("taxonomy: something still uses this")
+	// ErrRefused is a write the database declined; its message is the database's
+	// own, because that names the rule.
+	ErrRefused = errors.New("taxonomy: refused")
+)
 
-type TaxonomyForm struct {
+type Store struct {
+	pool *pgxpool.Pool
+	q    *db.Queries
+}
+
+func NewStore(pool *pgxpool.Pool) *Store {
+	if pool == nil {
+		panic("taxonomy: NewStore requires a pool")
+	}
+	return &Store{pool: pool, q: db.New(pool)}
+}
+
+type Form struct {
 	Slug    string
 	Name    string
 	NameEn  string
@@ -34,7 +57,7 @@ type TaxonomyForm struct {
 	Comparable bool
 }
 
-func (f *TaxonomyForm) Validate(ctx context.Context) map[string]string {
+func (f *Form) Validate(ctx context.Context) map[string]string {
 	f.Slug = strings.ToLower(strings.TrimSpace(f.Slug))
 	f.Name = strings.TrimSpace(f.Name)
 	f.NameEn = strings.TrimSpace(f.NameEn)
@@ -44,10 +67,10 @@ func (f *TaxonomyForm) Validate(ctx context.Context) map[string]string {
 	if !web.ValidSlug(f.Slug) {
 		errs["slug"] = i18n.T(ctx, i18n.KeyFormSlugFormat)
 	}
-	if f.Name == "" || utf8.RuneCountInString(f.Name) > MaxTaxonomyNameRunes {
+	if f.Name == "" || utf8.RuneCountInString(f.Name) > MaxNameRunes {
 		errs["name"] = i18n.T(ctx, i18n.KeyFormNameRequired)
 	}
-	if utf8.RuneCountInString(f.NameEn) > MaxTaxonomyNameRunes {
+	if utf8.RuneCountInString(f.NameEn) > MaxNameRunes {
 		errs["name_en"] = i18n.T(ctx, i18n.KeyFormNameEnTooLong)
 	}
 	f.IconKey = strings.TrimSpace(f.IconKey)
@@ -61,7 +84,7 @@ func (f *TaxonomyForm) Validate(ctx context.Context) map[string]string {
 	return errs
 }
 
-func (s *Store) Taxonomy(ctx context.Context) (admin.TaxonomyView, error) {
+func (s *Store) List(ctx context.Context) (admin.TaxonomyView, error) {
 	brands, err := s.q.ManagedBrands(ctx)
 	if err != nil {
 		return admin.TaxonomyView{}, fmt.Errorf("read brands: %w", err)
@@ -89,7 +112,7 @@ func (s *Store) Taxonomy(ctx context.Context) (admin.TaxonomyView, error) {
 	return view, nil
 }
 
-func (s *Store) CreateBrand(ctx context.Context, f *TaxonomyForm) (map[string]string, error) {
+func (s *Store) CreateBrand(ctx context.Context, f *Form) (map[string]string, error) {
 	if errs := f.Validate(ctx); len(errs) > 0 {
 		return errs, nil
 	}
@@ -109,7 +132,7 @@ func (s *Store) CreateBrand(ctx context.Context, f *TaxonomyForm) (map[string]st
 	return nil, nil
 }
 
-func (s *Store) CreateCategory(ctx context.Context, f *TaxonomyForm) (map[string]string, error) {
+func (s *Store) CreateCategory(ctx context.Context, f *Form) (map[string]string, error) {
 	if errs := f.Validate(ctx); len(errs) > 0 {
 		return errs, nil
 	}
@@ -156,10 +179,10 @@ func (s *Store) CreateCategory(ctx context.Context, f *TaxonomyForm) (map[string
 func (s *Store) Rename(ctx context.Context, kind, slug, name, nameEn, iconKey, tone string, offersComparison bool) error {
 	name, nameEn = strings.TrimSpace(name), strings.TrimSpace(nameEn)
 	iconKey, tone = strings.TrimSpace(iconKey), strings.TrimSpace(tone)
-	if name == "" || utf8.RuneCountInString(name) > MaxTaxonomyNameRunes {
+	if name == "" || utf8.RuneCountInString(name) > MaxNameRunes {
 		return ErrInvalid
 	}
-	if utf8.RuneCountInString(nameEn) > MaxTaxonomyNameRunes {
+	if utf8.RuneCountInString(nameEn) > MaxNameRunes {
 		return ErrInvalid
 	}
 	if iconKey != "" && !icons.KnownCategory(iconKey) {
