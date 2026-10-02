@@ -1,10 +1,14 @@
 package pages
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/koopa0/goen/internal/fieldrule"
+)
 
 func TestCheckoutAddressConstraintsReachTheForm(t *testing.T) {
 	controls := renderedAutofillControls(t)
-	for id, pattern := range map[string]string{"postal_code": `\s*[0-9]{3,6}\s*`, "city": `\s*\S(?:.{0,18}\S)?\s*`, "district": `\s*\S(?:.{0,18}\S)?\s*`} {
+	for id, pattern := range map[string]string{"postal_code": fieldrule.PostalCode.Pattern, "city": `\s*\S(?:.{0,18}\S)?\s*`, "district": `\s*\S(?:.{0,18}\S)?\s*`} {
 		field := controls[id]
 		if field["pattern"] != pattern {
 			t.Errorf("%s pattern = %q, want %q", id, field["pattern"], pattern)

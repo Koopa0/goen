@@ -516,9 +516,9 @@ templ Account(p layouts.Page, v *AccountView) {
 											Value:     v.AddrValue("phone"),
 											Invalid:   v.AddrInvalid("phone"),
 											Describes: "addr-phone-error",
-											Name:  "phone",
-											Type:  "tel",
-											Attrs: fieldrule.Phone.Attrs(ctx, templ.Attributes{"required": true, "maxlength": "30", "autocomplete": "tel"}),
+											Name:      "phone",
+											Type:      "tel",
+											Attrs:     fieldrule.Phone.Attrs(ctx, templ.Attributes{"required": true, "maxlength": "30", "autocomplete": "tel"}),
 										})
 										if v.AddrInvalid("phone") {
 											<p class="ui-error-text" id="addr-phone-error" role="alert">{ v.AddrErr("phone") }</p>
@@ -533,8 +533,8 @@ templ Account(p layouts.Page, v *AccountView) {
 											Value:     v.AddrValue("postal_code"),
 											Invalid:   v.AddrInvalid("postal_code"),
 											Describes: "addr-postal-error",
-											Name: "postal_code",
-											Type: "text",
+											Name:      "postal_code",
+											Type:      "text",
 											Attrs: fieldrule.PostalCode.Attrs(ctx, templ.Attributes{
 												"required":     true,
 												"maxlength":    "6",

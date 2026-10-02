@@ -89,12 +89,13 @@ var (
 	})
 
 	// Phone is eight to fifteen digits with the punctuation phone numbers carry.
+	// It asks for no keyboard: type=tel already brings the phone pad, and some
+	// numeric inputmodes leave out the + that +886 starts with.
 	Phone = newRule(Rule{
-		Name:      "phone",
-		InputMode: "tel",
-		Pattern:   ws + punct + "(?:" + digit + punct + "){8,15}" + ws,
-		MaxRunes:  PhoneMaxRunes,
-		Message:   i18n.KeyPhoneMalformed,
+		Name:     "phone",
+		Pattern:  ws + punct + "(?:" + digit + punct + "){8,15}" + ws,
+		MaxRunes: PhoneMaxRunes,
+		Message:  i18n.KeyPhoneMalformed,
 	})
 
 	// PostalCode is three to six digits, with no guess at the city.
