@@ -8,9 +8,7 @@ package components
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
-// Button is a control that does something on this page or submits a form. Type
-// is explicit at every call: a button inside a form submits unless told not to,
-// and a control that only reveals or clears must say so.
+// Type is explicit at every call: a button inside a form submits unless told not to.
 func Button(p ButtonProps, buttonType string) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -57,7 +55,7 @@ func Button(p ButtonProps, buttonType string) templ.Component {
 		var templ_7745c5c3_Var4 string
 		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.ResolveAttributeValue(buttonType)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/components.templ`, Line: 7, Col: 46}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/components.templ`, Line: 5, Col: 46}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var4)
 		if templ_7745c5c3_Err != nil {
@@ -87,8 +85,7 @@ func Button(p ButtonProps, buttonType string) templ.Component {
 	})
 }
 
-// ButtonLink is a link that carries a button's weight. It stays an anchor:
-// choosing a variant is navigation, and navigation has to work with scripting
+// Stays an anchor: choosing a variant is navigation, which has to work with scripting
 // off and with the middle mouse button.
 func ButtonLink(p ButtonProps, href templ.SafeURL) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
@@ -136,7 +133,7 @@ func ButtonLink(p ButtonProps, href templ.SafeURL) templ.Component {
 		var templ_7745c5c3_Var8 templ.SafeURL
 		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinURLErrs(href)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/components.templ`, Line: 16, Col: 35}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/components.templ`, Line: 13, Col: 35}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 		if templ_7745c5c3_Err != nil {
@@ -166,7 +163,6 @@ func ButtonLink(p ButtonProps, href templ.SafeURL) templ.Component {
 	})
 }
 
-// Badge is a short state a visitor reads beside the thing it describes.
 func Badge(p BadgeProps) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -222,8 +218,6 @@ func Badge(p BadgeProps) templ.Component {
 	})
 }
 
-// Card is a bordered panel. The heading level belongs to the page, so a card
-// takes one as a child rather than deciding it here.
 func Card(p CardProps) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -287,8 +281,6 @@ func Card(p CardProps) templ.Component {
 	})
 }
 
-// Notice is one sentence about what just happened, announced to a screen reader
-// as it is reached or, for a refusal, as soon as it renders.
 func Notice(p NoticeProps) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -336,7 +328,7 @@ func Notice(p NoticeProps) templ.Component {
 			var templ_7745c5c3_Var18 string
 			templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.ResolveAttributeValue(p.ID)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/components.templ`, Line: 40, Col: 34}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/components.templ`, Line: 32, Col: 34}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var18)
 			if templ_7745c5c3_Err != nil {
@@ -349,7 +341,7 @@ func Notice(p NoticeProps) templ.Component {
 			var templ_7745c5c3_Var19 string
 			templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.ResolveAttributeValue(p.Intent.role())
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/components.templ`, Line: 40, Col: 59}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/components.templ`, Line: 32, Col: 59}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var19)
 			if templ_7745c5c3_Err != nil {
@@ -393,7 +385,7 @@ func Notice(p NoticeProps) templ.Component {
 			var templ_7745c5c3_Var22 string
 			templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.ResolveAttributeValue(p.Intent.role())
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/components.templ`, Line: 44, Col: 47}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/components.templ`, Line: 36, Col: 47}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var22)
 			if templ_7745c5c3_Err != nil {
@@ -416,8 +408,6 @@ func Notice(p NoticeProps) templ.Component {
 	})
 }
 
-// Label names a field. The for attribute is required rather than optional: a
-// label that names nothing is the failure this component exists to prevent.
 func Label(p LabelProps) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -464,7 +454,7 @@ func Label(p LabelProps) templ.Component {
 		var templ_7745c5c3_Var26 string
 		templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.ResolveAttributeValue(p.For)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/components.templ`, Line: 53, Col: 39}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/components.templ`, Line: 43, Col: 39}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var26)
 		if templ_7745c5c3_Err != nil {
@@ -486,8 +476,6 @@ func Label(p LabelProps) templ.Component {
 	})
 }
 
-// Input is a single-line field. aria-invalid and aria-describedby are set
-// together so a refused field always announces its reason.
 func Input(p FieldProps) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -534,7 +522,7 @@ func Input(p FieldProps) templ.Component {
 		var templ_7745c5c3_Var30 string
 		templ_7745c5c3_Var30, templ_7745c5c3_Err = templ.ResolveAttributeValue(p.ID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/components.templ`, Line: 63, Col: 11}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/components.templ`, Line: 51, Col: 11}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var30)
 		if templ_7745c5c3_Err != nil {
@@ -547,7 +535,7 @@ func Input(p FieldProps) templ.Component {
 		var templ_7745c5c3_Var31 string
 		templ_7745c5c3_Var31, templ_7745c5c3_Err = templ.ResolveAttributeValue(p.Name)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/components.templ`, Line: 64, Col: 15}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/components.templ`, Line: 52, Col: 15}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var31)
 		if templ_7745c5c3_Err != nil {
@@ -560,7 +548,7 @@ func Input(p FieldProps) templ.Component {
 		var templ_7745c5c3_Var32 string
 		templ_7745c5c3_Var32, templ_7745c5c3_Err = templ.ResolveAttributeValue(p.inputType())
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/components.templ`, Line: 65, Col: 22}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/components.templ`, Line: 53, Col: 22}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var32)
 		if templ_7745c5c3_Err != nil {
@@ -573,7 +561,7 @@ func Input(p FieldProps) templ.Component {
 		var templ_7745c5c3_Var33 string
 		templ_7745c5c3_Var33, templ_7745c5c3_Err = templ.ResolveAttributeValue(p.Value)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/components.templ`, Line: 66, Col: 17}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/components.templ`, Line: 54, Col: 17}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var33)
 		if templ_7745c5c3_Err != nil {
@@ -596,7 +584,7 @@ func Input(p FieldProps) templ.Component {
 				var templ_7745c5c3_Var34 string
 				templ_7745c5c3_Var34, templ_7745c5c3_Err = templ.ResolveAttributeValue(p.Describes)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/components.templ`, Line: 70, Col: 34}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/components.templ`, Line: 58, Col: 34}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var34)
 				if templ_7745c5c3_Err != nil {
@@ -620,8 +608,6 @@ func Input(p FieldProps) templ.Component {
 	})
 }
 
-// Textarea is the same field over several lines. Its value is a child because
-// the element carries its content between its tags.
 func Textarea(p FieldProps) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -668,7 +654,7 @@ func Textarea(p FieldProps) templ.Component {
 		var templ_7745c5c3_Var38 string
 		templ_7745c5c3_Var38, templ_7745c5c3_Err = templ.ResolveAttributeValue(p.ID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/components.templ`, Line: 82, Col: 11}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/components.templ`, Line: 68, Col: 11}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var38)
 		if templ_7745c5c3_Err != nil {
@@ -681,7 +667,7 @@ func Textarea(p FieldProps) templ.Component {
 		var templ_7745c5c3_Var39 string
 		templ_7745c5c3_Var39, templ_7745c5c3_Err = templ.ResolveAttributeValue(p.Name)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/components.templ`, Line: 83, Col: 15}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/components.templ`, Line: 69, Col: 15}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var39)
 		if templ_7745c5c3_Err != nil {
@@ -704,7 +690,7 @@ func Textarea(p FieldProps) templ.Component {
 				var templ_7745c5c3_Var40 string
 				templ_7745c5c3_Var40, templ_7745c5c3_Err = templ.ResolveAttributeValue(p.Describes)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/components.templ`, Line: 87, Col: 34}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/components.templ`, Line: 73, Col: 34}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var40)
 				if templ_7745c5c3_Err != nil {
@@ -736,20 +722,15 @@ func Textarea(p FieldProps) templ.Component {
 	})
 }
 
-// Crumb is one step on the trail. An empty Href marks the page itself, which is
-// rendered as text with aria-current rather than as a link to where you are.
+// An empty Href marks the page itself, rendered as text with aria-current, not a link to where you are.
 type Crumb struct {
 	Label string
 	Href  string
 }
 
-// Breadcrumb renders the trail. The label is the page's, because the sentence
-// "you are here" belongs to internal/i18n and not to this file.
-//
-// The class is the design system's spelling and not a goen- one. A test locates
-// the product page's trail by it (internal/product/integration_test.go:233), and
-// a selector a test reads keeps its spelling while its declarations change —
-// which is what app.css does with it. Renaming it would be an oracle change.
+// The class is the design system's spelling, not a goen- one: a test locates the
+// product page's trail by it (internal/product/integration_test.go), and a selector a
+// test reads keeps its spelling while app.css changes its declarations.
 func Breadcrumb(p BreadcrumbProps) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -778,7 +759,7 @@ func Breadcrumb(p BreadcrumbProps) templ.Component {
 		var templ_7745c5c3_Var42 string
 		templ_7745c5c3_Var42, templ_7745c5c3_Err = templ.ResolveAttributeValue(p.Label)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/components.templ`, Line: 111, Col: 44}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/components.templ`, Line: 92, Col: 44}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var42)
 		if templ_7745c5c3_Err != nil {
@@ -807,7 +788,7 @@ func Breadcrumb(p BreadcrumbProps) templ.Component {
 				var templ_7745c5c3_Var43 string
 				templ_7745c5c3_Var43, templ_7745c5c3_Err = templ.JoinStringErrs(c.Label)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/components.templ`, Line: 117, Col: 66}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/components.templ`, Line: 98, Col: 66}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var43))
 				if templ_7745c5c3_Err != nil {
@@ -825,7 +806,7 @@ func Breadcrumb(p BreadcrumbProps) templ.Component {
 				var templ_7745c5c3_Var44 templ.SafeURL
 				templ_7745c5c3_Var44, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(c.Href))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/components.templ`, Line: 119, Col: 59}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/components.templ`, Line: 100, Col: 59}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var44))
 				if templ_7745c5c3_Err != nil {
@@ -838,7 +819,7 @@ func Breadcrumb(p BreadcrumbProps) templ.Component {
 				var templ_7745c5c3_Var45 string
 				templ_7745c5c3_Var45, templ_7745c5c3_Err = templ.JoinStringErrs(c.Label)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/components.templ`, Line: 119, Col: 71}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/components.templ`, Line: 100, Col: 71}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var45))
 				if templ_7745c5c3_Err != nil {

@@ -14,17 +14,13 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
-// MaxQuestionRunes and MaxQuestions bound what can be written
-// and shown, counted in runes.
 const (
 	MaxQuestionRunes = 300
 	MaxQuestions     = 10
 )
 
-// ErrQuestionInvalid is a question or answer goen refused before the database saw it.
 var ErrQuestionInvalid = errors.New("product: the question or answer is not usable")
 
-// Ask records a question about a product.
 func (s *Store) Ask(ctx context.Context, slug, userID, body string) error {
 	body = strings.TrimSpace(body)
 	if body == "" || utf8.RuneCountInString(body) > MaxQuestionRunes {

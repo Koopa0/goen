@@ -16,36 +16,32 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
-// ECPay's convenience-store map. Staging is the default, and staging answers
-// with one fixed store instead of showing a map.
+// ECPay's convenience-store map. Staging is the default and answers with one
+// fixed store instead of a map.
 const (
 	MapStagingBaseURL    = "https://logistics-stage.ecpay.com.tw"
 	MapProductionBaseURL = "https://logistics.ecpay.com.tw"
 )
 
-// mapPath is the hosted picker, under either base URL.
 const mapPath = "/Express/map"
 
-// PickupReturnPath is where the shopper's own browser posts the chosen store.
-// It is a cross-site POST carrying none of goen's cookies, so the route is
-// exempt from the cross-origin defence and validates shape and nothing else.
+// PickupReturnPath receives a cross-site POST carrying none of goen's cookies,
+// so the route is exempt from the cross-origin defence and validates shape
+// only.
 const PickupReturnPath = "/checkout/pickup/return"
 
-// LogisticsMode is which contract the merchant holds with ECPay. It decides the
-// LogisticsSubType spelling and cannot be guessed from the request: ECPay
-// refuses a subtype the merchant did not apply for.
+// LogisticsMode cannot be guessed from the request: ECPay refuses a
+// LogisticsSubType the merchant did not apply for.
 type LogisticsMode string
 
 const (
-	// ModeB2C is 大宗寄倉, the merchant-to-consumer contract.
+	// ModeB2C is ECPay's 大宗寄倉 contract; ModeC2C is 店到店. A merchant holds one.
 	ModeB2C LogisticsMode = "b2c"
-	// ModeC2C is 店到店, the store-to-store contract.
 	ModeC2C LogisticsMode = "c2c"
 )
 
-// mapSubtypes is every chain the checkout offers, in both contracts. ECPay's
-// own set is larger; these two are what CheckoutPickupChainChoices offers, and
-// a chain outside it has no subtype rather than a guessed one.
+// mapSubtypes is what CheckoutPickupChainChoices offers; a chain outside it has
+// no subtype rather than a guessed one.
 var mapSubtypes = map[LogisticsMode]map[pickup.Chain]string{
 	ModeB2C: {
 		pickup.SevenEleven: "UNIMART",
@@ -57,23 +53,22 @@ var mapSubtypes = map[LogisticsMode]map[pickup.Chain]string{
 	},
 }
 
-// StoreMap is ECPay's hosted store picker. The zero value is DISABLED: the checkout
-// then asks for a chain alone, exactly as it did before this existed.
+// StoreMap is DISABLED at its zero value: the checkout then asks for a chain
+// alone.
 type StoreMap struct {
 	merchantID string
 	mode       LogisticsMode
-	// action is the full URL the map form posts to, and origin is the scheme
-	// and host of it that the Content-Security-Policy names.
+	// origin is the scheme and host of action that the Content-Security-Policy
+	// names.
 	action string
 	origin string
-	// returnURL is built from the configured public base URL. Never from the
-	// request's Host header: that is a value the client chooses.
+	// returnURL is built from the configured public base URL, never the
+	// request's Host header, which the client chooses.
 	returnURL string
 }
 
-// NewStoreMap returns the store picker for these credentials, or a disabled one when
-// no logistics mode is configured. It follows the 加值中心 posture beside it:
-// half a configuration refuses to start rather than failing at the first use.
+// NewStoreMap follows the 加值中心 posture beside it: half a configuration refuses
+// to start rather than failing at first use.
 func NewStoreMap(merchantID, mode, baseURL, siteBaseURL string) (*StoreMap, error) {
 	if mode == "" {
 		return &StoreMap{}, nil
@@ -114,11 +109,10 @@ func NewStoreMap(merchantID, mode, baseURL, siteBaseURL string) (*StoreMap, erro
 	}, nil
 }
 
-// Enabled reports whether this deployment offers the store picker.
 func (m *StoreMap) Enabled() bool { return m != nil && m.merchantID != "" }
 
-// Origin is the one third-party origin form-action has to name, or "" when the
-// picker is off and the policy stays exactly what it was.
+// Origin is the one third-party origin form-action must name, or "" when the
+// picker is off.
 func (m *StoreMap) Origin() string {
 	if !m.Enabled() {
 		return ""
@@ -126,8 +120,6 @@ func (m *StoreMap) Origin() string {
 	return m.origin
 }
 
-// Subtype is ECPay's LogisticsSubType for this chain under the configured
-// contract, and false for a chain the checkout does not offer.
 func (m *StoreMap) Subtype(chain pickup.Chain) (string, bool) {
 	if !m.Enabled() {
 		return "", false
@@ -136,9 +128,8 @@ func (m *StoreMap) Subtype(chain pickup.Chain) (string, bool) {
 	return s, ok
 }
 
-// ChainFor is the reverse: the chain a returned LogisticsSubType names, under
-// the configured contract only. A subtype from the other contract is refused,
-// because it cannot have come from a map call this deployment made.
+// ChainFor refuses a subtype from the other contract: it cannot have come from
+// a map call this deployment made.
 func (m *StoreMap) ChainFor(subtype string) (pickup.Chain, bool) {
 	if !m.Enabled() {
 		return "", false
@@ -151,12 +142,9 @@ func (m *StoreMap) ChainFor(subtype string) (pickup.Chain, bool) {
 	return "", false
 }
 
-// Request builds the map form for one chain, or false when the picker is off or
-// the chain has no subtype under this contract. The form carries ECPay's own
-// request parameters and NOTHING else: the checkout's name, phone, e-mail and
-// street address must never ride along to a third party.
-//
-// tradeNo is fresh per render, and the nonce travels in ExtraData, which ECPay
+// Request builds a form that carries ECPay's own parameters and NOTHING else: the
+// checkout's name, phone, e-mail and address must never ride to a third party.
+// tradeNo is fresh per render; the nonce travels in ExtraData, which ECPay
 // echoes back unchanged.
 func (m *StoreMap) Request(chain pickup.Chain, tradeNo, nonce string, mobile bool) (pages.CheckoutMapForm, bool) {
 	subtype, ok := m.Subtype(chain)
@@ -169,8 +157,8 @@ func (m *StoreMap) Request(chain pickup.Chain, tradeNo, nonce string, mobile boo
 		MerchantTradeNo:  tradeNo,
 		LogisticsType:    "CVS",
 		LogisticsSubType: subtype,
-		// N: the order is paid at goen or at Stripe. A map call saying Y would
-		// offer 貨到付款 at the counter for money nobody is expecting.
+		// N: the order is paid at goen or at Stripe; Y would offer 貨到付款 at the
+		// counter for money nobody expects.
 		IsCollection:   "N",
 		ServerReplyURL: m.returnURL,
 		ExtraData:      nonce,
@@ -183,14 +171,11 @@ func (m *StoreMap) Request(chain pickup.Chain, tradeNo, nonce string, mobile boo
 	return f, true
 }
 
-// MerchantID is the configured id, which the map form prints and the return
-// handler requires the callback to repeat. It is public information.
+// MerchantID is public; the return handler requires the callback to repeat it.
 func (m *StoreMap) MerchantID() string { return m.merchantID }
 
-// NewMerchantTradeNo is a fresh per-render correlation value. ECPay wants it
-// unique per call and never reuses it for anything; it is deliberately NOT the
-// nonce, which would put a browser-bound secret in a field the map echoes into
-// its own systems and logs.
+// NewMerchantTradeNo is deliberately NOT the nonce, which would put a
+// browser-bound secret in a field the map echoes into its own systems and logs.
 func NewMerchantTradeNo() (string, error) {
 	const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 	const length = 20
@@ -207,8 +192,6 @@ func NewMerchantTradeNo() (string, error) {
 // nonceBytes gives 80 bits, which fits ExtraData's 20 characters as hex.
 const nonceBytes = 10
 
-// newPickupNonce returns the browser-bound secret that decides whether a store
-// coming back in the URL is honoured.
 func newPickupNonce() (string, error) {
 	b := make([]byte, nonceBytes)
 	if _, err := rand.Read(b); err != nil {
@@ -217,7 +200,6 @@ func newPickupNonce() (string, error) {
 	return hex.EncodeToString(b), nil
 }
 
-// validNonce reports whether s has the exact shape newPickupNonce produces.
 func validNonce(s string) bool {
 	if len(s) != nonceBytes*2 {
 		return false
@@ -230,9 +212,8 @@ func validNonce(s string) bool {
 	return true
 }
 
-// PickupCookieName binds the nonce to this exact origin. A cookie claiming
-// __Host- without Secure is rejected by the browser, so the development path
-// uses a different name, as every other cookie here does.
+// PickupCookieName binds the nonce to this origin; development uses a different
+// name because a __Host- cookie without Secure is rejected.
 const PickupCookieName = "__Host-goen_pickup"
 
 func pickupCookieName(secure bool) string {
@@ -242,19 +223,18 @@ func pickupCookieName(secure bool) string {
 	return "goen_pickup"
 }
 
-// pickupCookieMaxAge is how long a shopper has to choose a store and come back.
-// The map itself times out after three idle minutes; this is the outer bound on
-// how long a nonce left in the address bar is worth anything.
+// pickupCookieMaxAge bounds how long a nonce left in the address bar is worth
+// anything; the map itself times out after three idle minutes.
 const pickupCookieMaxAge = 2 * 60 * 60
 
-// pickupState is what the pickup cookie carries. The three query keys ride with
-// the nonce because the return is a cross-site POST: the browser sends this Lax
-// cookie on the refreshed GET, and it is the only thing that survives the trip.
+// pickupState carries the three query keys with the nonce because the return is
+// a cross-site POST: the browser sends this Lax cookie on the refreshed GET,
+// the only thing that survives the trip.
 type pickupState struct {
 	Nonce string
-	// Ship, Invoice and Address are the exact three query keys Checkout reads.
-	// They are re-validated by the code that already validates them, so a
-	// tampered cookie chooses nothing a hand-typed URL could not.
+	// Ship, Invoice and Address are the three query keys Checkout reads and
+	// re-validates, so a tampered cookie chooses nothing a hand-typed URL could
+	// not.
 	Ship    string
 	Invoice string
 	Address string
@@ -292,10 +272,10 @@ func readPickupCookie(r *http.Request, secure bool) (pickupState, bool) {
 			continue
 		}
 		state := pickupState{Nonce: parts[0], Ship: parts[1], Invoice: parts[2], Address: parts[3]}
-		// Browsers can send same-name cookies from different paths. The one that
-		// carries the returned nonce wins; with none, the first valid cookie is
-		// still this browser's state, so its saved choices survive a mismatch,
-		// and honourPickupStore alone decides whether the store is believed.
+		// Browsers can send same-name cookies from different paths. The one
+		// carrying the returned nonce wins; otherwise the first valid cookie is
+		// still this browser's state, and honourPickupStore alone decides
+		// whether the store is believed.
 		if nonce != "" && subtle.ConstantTimeCompare([]byte(nonce), []byte(parts[0])) == 1 {
 			return state, true
 		}
@@ -306,8 +286,6 @@ func readPickupCookie(r *http.Request, secure bool) (pickupState, bool) {
 	return first, found
 }
 
-// pickupNonceMatched reports whether any same-name cookie carries the posted
-// nonce, for diagnostics only.
 func pickupNonceMatched(r *http.Request, secure bool, posted string) bool {
 	if !validNonce(posted) {
 		return false
@@ -326,8 +304,8 @@ func pickupNonceMatched(r *http.Request, secure bool, posted string) bool {
 	return matched
 }
 
-// clearPickupCookie removes it. A nonce left behind after an order is placed
-// would still honour a store for the next checkout in this browser.
+// A nonce left behind after an order is placed would still honour a store for
+// the next checkout in this browser.
 func clearPickupCookie(w http.ResponseWriter, secure bool) {
 	//nolint:gosec // G124: as above
 	http.SetCookie(w, &http.Cookie{
@@ -336,33 +314,28 @@ func clearPickupCookie(w http.ResponseWriter, secure bool) {
 	})
 }
 
-// PostedStore is a store as it arrives from the URL or from the checkout form.
-// Nothing about it is evidence: the map callback carries no signature, and the
-// map itself is run by the chain rather than by ECPay.
+// PostedStore is no evidence: the map callback carries no signature, and the
+// map is run by the chain rather than by ECPay.
 type PostedStore struct {
 	Chain pickup.Chain
 	Code  string
 	Name  string
-	// Nonce is what decides the whole question. It is the only field with
-	// weight; the rest are a delivery address a shopper could already type.
+	// Nonce is the only field with weight; the rest is a delivery address a
+	// shopper could already type.
 	Nonce string
 }
 
-// Empty reports whether nothing about a store was submitted at all, which is
-// the ordinary checkout and not a refusal.
 func (p PostedStore) Empty() bool {
 	return p.Chain == "" && p.Code == "" && p.Name == "" && p.Nonce == ""
 }
 
-// honourPickupStore is the ONE rule, in ONE place: a store is honoured only
-// when the nonce that came back equals the nonce in this browser's own Lax
-// cookie, compared in constant time, and the chain is one the checkout offers.
-// The chain equality is an internal-consistency check and carries no weight of
-// its own — both halves come from the same attacker-influenceable URL.
-//
+// honourPickupStore is the ONE rule: a store is honoured only when the returned
+// nonce equals the nonce in this browser's own Lax cookie, compared in constant
+// time, and the chain is one the checkout offers. The chain equality carries no
+// weight of its own: both halves come from the same attacker-influenceable URL.
 // It runs on the GET that renders a returned store AND on the POST that places
-// the order, because otherwise a 422 re-render would carry a dropped store back
-// in its own hidden fields.
+// the order, otherwise a 422 re-render would carry a dropped store back in its
+// hidden fields.
 func honourPickupStore(p PostedStore, state pickupState, known bool) bool {
 	if !known || !validNonce(state.Nonce) || !validNonce(p.Nonce) {
 		return false
@@ -373,22 +346,20 @@ func honourPickupStore(p PostedStore, state pickupState, known bool) bool {
 	return offeredAtCheckout(p.Chain)
 }
 
-// offeredAtCheckout reports whether a shopper may choose this chain today. The
-// back office offers more, because an order already placed at one of the others
-// has to stay correctable.
+// offeredAtCheckout is narrower than the back office, where an order already
+// placed at another chain must stay correctable.
 func offeredAtCheckout(chain pickup.Chain) bool {
 	return chain == pickup.SevenEleven || chain == pickup.FamilyMart
 }
 
-// The caps ECPay publishes for the fields it posts back. A value over them did
-// not come from the map, whatever it claims.
+// ECPay's published caps for the posted fields; a value over them did not come
+// from the map.
 const (
 	maxCallbackStoreNameRunes = 20
 	maxCallbackAddressRunes   = 80
 	maxCallbackFieldBytes     = 8 << 10
 )
 
-// callback is one store as ECPay's own page posts it back.
 type callback struct {
 	Chain   pickup.Chain
 	Code    string
@@ -397,9 +368,8 @@ type callback struct {
 	Nonce   string
 }
 
-// readCallback validates the SHAPE of a map callback and nothing else. It reads
-// no cookie, touches no database, and answers false for anything it does not
-// recognise rather than repeating what it was sent.
+// readCallback validates SHAPE only: no cookie, no database, and false for
+// anything unrecognised rather than repeating it.
 func (m *StoreMap) readCallback(r *http.Request) (callback, bool) {
 	if !m.Enabled() {
 		return callback{}, false
@@ -411,8 +381,8 @@ func (m *StoreMap) readCallback(r *http.Request) (callback, bool) {
 	if !ok {
 		return callback{}, false
 	}
-	// Uppercased first, exactly as Address.Trim does before placement checks the
-	// same shape: otherwise the return could refuse a code the order accepts.
+	// Uppercased first, as Address.Trim does before placement checks the same
+	// shape, so the return cannot refuse a code the order accepts.
 	code := strings.ToUpper(strings.TrimSpace(r.PostFormValue("CVSStoreID")))
 	if !isStoreCode(code) {
 		return callback{}, false
@@ -432,9 +402,8 @@ func (m *StoreMap) readCallback(r *http.Request) (callback, bool) {
 	return callback{Chain: chain, Code: code, Name: name, Address: address, Nonce: nonce}, true
 }
 
-// refreshTarget is where the interstitial sends the browser. The path is a
-// fixed local literal and every posted value is one encoded query parameter, so
-// nothing the callback carries can influence the scheme, the host or the path.
+// The path is a fixed literal and every posted value is one encoded query
+// parameter, so nothing in the callback can influence the scheme, host or path.
 func (c callback) refreshTarget() string {
 	q := url.Values{
 		"pickup_chain":      {string(c.Chain)},

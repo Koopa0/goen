@@ -6,26 +6,17 @@ import (
 	"github.com/koopa0/goen/internal/ui/icons"
 )
 
-// Admin is the back office's document shell. It shares the head with [Base] and
-// nothing else: the storefront chrome is a shopper's tools — a category row, a
-// product search, a wishlist, a cart, a newsletter signup, policy columns — and
-// on a screen a staff member reads all day every one of them is a row of noise
-// between them and the queue. What replaces it is a slim bar that answers the
-// three questions the chrome is there for: where am I, how do I leave, how do I
-// sign out.
+// Admin shares the head with [Base] and nothing else: the storefront chrome is a
+// shopper's tools and a row of noise for a staff member who reads the queue all day.
 //
-// It also owns the FRAME, and that is the fix for a rail that was on the left
-// of four screens and above the other nineteen. The two-column rule reaches the
-// rail through the element the work is wrapped in, so a screen that opened its
-// own .goen-admin and put its sections straight into it handed the grid extra
-// children and pushed the rail onto a row of its own. A page cannot get that
-// wrong if it never writes it: current names the screen, the shell renders the
-// rail and the column, and the page is only what goes inside them.
+// It owns the FRAME: the two-column rule reaches the rail through the element the
+// work is wrapped in, so a screen that opened its own .goen-admin pushed the rail
+// onto a row of its own. current names the screen; the shell renders the rail and
+// the column, and the page is only what goes inside them.
 //
-// An empty current is the screen that is not one of the 23 — the step-up
-// challenge, which is reached before the back office will answer — and it gets
-// the bar and nothing else, because every link in the rail would send a staff
-// member back to the challenge they are standing on.
+// An empty current is the step-up challenge, reached before the back office will
+// answer: it gets the bar alone, because every rail link would send a staff member
+// back to the challenge they are standing on.
 templ Admin(p Page, current string) {
 	<!DOCTYPE html>
 	<html lang={ i18n.FromContext(ctx).Tag() } class="theme-blue">
@@ -52,12 +43,8 @@ templ Admin(p Page, current string) {
 	</html>
 }
 
-// adminBar is the back office's top bar.
-//
-// It carries no page navigation: the 23 screens are the rail inside the page,
-// and a second route into them here would be a second list to keep current.
-// The mark links to the dashboard, which is what a brand mark in a back office
-// is for.
+// No page navigation here: the screens are the rail inside the page, and a second
+// route into them would be a second list to keep current.
 templ adminBar() {
 	<header class="goen-adminbar">
 		<div class="goen-adminbar__inner">
@@ -79,29 +66,19 @@ templ adminBar() {
 	</header>
 }
 
-// adminNav is the back office's own navigation: 23 screens, grouped by the
-// QUESTION each one answers rather than listed. Flat, they were 24 labels in
-// one row and finding a screen meant reading all of them.
+// Groups answer the QUESTION each screen answers, rather than a flat row of labels.
 //
-// It is a column beside the page from the wide breakpoint and a band above it
-// below one, which is one element and two stylesheets rather than two navs: a
-// second copy of 23 links is a second copy to keep current, and a screen
-// reader hears both.
+// One element and two stylesheets (a column from the wide breakpoint, a band above
+// the page below it), not two navs: a second copy of the links is a second copy to
+// keep current, and a screen reader would hear both.
 //
-// Every group is a native <details>, so the disclosure needs no script, and the
-// one holding the current screen is rendered `open` by the server — nothing
-// moves after the first byte. A closed group costs a keyboard user one key:
-// its <summary> is in the tab order and opens on Enter.
+// Every group is a native <details>: no script, and the server renders `open` on the
+// one holding the current screen. Groups are independent. The dashboard is nobody's
+// group and holds the queues group open: orders and returns are where a shift starts.
 //
-// The groups are independent: opening one leaves the others as they were, so a
-// staff member working between two of them is not closing one to read the
-// other. The dashboard is nobody's group and holds the queues group open, because
-// the screens a shift starts from are orders and returns and the dashboard is
-// where it starts.
-//
-// The whole nav is itself closed behind its summary until the desk width, where
-// the stylesheet shows it as the rail. On a phone it would otherwise be a screen
-// of links above every page's first line of work.
+// The whole nav is closed behind its summary until the desk width, where the
+// stylesheet shows it as the rail; on a phone it would otherwise fill the screen
+// above every page's first line of work.
 templ adminNav(current string) {
 	@components.Disclosure(components.DisclosureProps{
 		Class:   "goen-admin__nav",

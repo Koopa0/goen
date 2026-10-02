@@ -5,9 +5,6 @@ import (
 	"github.com/koopa0/goen/internal/ui/components"
 )
 
-// ListPager is the pager for any keyset-paged list. It is plain links, so it
-// works with scripting off, and it stays usable on an empty later page whose
-// boundary row no longer exists.
 templ ListPager(b ListBound) {
 	if b.PastEnd {
 		<p class="goen-pager__note">{ i18n.T(ctx, i18n.KeyPageEmpty) }</p>

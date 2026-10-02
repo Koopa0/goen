@@ -18,58 +18,46 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// ProductImage is one entry in the gallery.
 type ProductImage struct {
 	URL    string
 	Srcset string
 	Alt    string
 	Width  int32
 	Height int32
-	// ShowsOption is whether this photograph shows one option value rather than
-	// the product whichever value is chosen.
+	// ShowsOption is true for a photograph of one option value rather than the product.
 	ShowsOption bool
 }
 
-// WidthText is the intrinsic width as an attribute value.
 func (i ProductImage) WidthText() string { return strconv.FormatInt(int64(i.Width), 10) }
 
-// HeightText is the intrinsic height as an attribute value.
 func (i ProductImage) HeightText() string { return strconv.FormatInt(int64(i.Height), 10) }
 
-// HasDimensions reports whether both are known.
 func (i ProductImage) HasDimensions() bool { return i.Width > 0 && i.Height > 0 }
 
-// ProductSpec is one row of the spec table.
 type ProductSpec struct {
 	Label string
 	Value string
 }
 
-// ProductOptionValue is one choice in a picker.
 type ProductOptionValue struct {
-	// Value is the identity the URL carries; Label is what the visitor reads. A
-	// href built from the label would resolve differently for another reader.
+	// Value is the identity the URL carries; a href built from Label would resolve
+	// differently for another reader.
 	Value     string
 	Label     string
 	Selected  bool
 	Available bool
 	Href      string
-	// SwatchHex is the colour to draw, empty where the value is not a colour.
 	SwatchHex string
 }
 
-// ProductOption is one picker.
 type ProductOption struct {
 	Name   string
 	Label  string
 	Values []ProductOptionValue
 }
 
-// HasSwatches reports whether this option draws its values as colours.
-//
-// All or nothing, per option: one row of choices should look like one row, and
-// a colour beside a word reads as two kinds of thing. A shop that has given
-// half its colours a value gets words until it has given the rest.
+// HasSwatches is all or nothing per option: one row of choices should look like one row, and a
+// colour beside a word reads as two kinds of thing.
 func (o ProductOption) HasSwatches() bool {
 	if len(o.Values) == 0 {
 		return false
@@ -82,8 +70,7 @@ func (o ProductOption) HasSwatches() bool {
 	return true
 }
 
-// SelectedLabel is the name of the value chosen on this axis, empty when none
-// is. A swatch shows a colour and no words, so the name has to be somewhere.
+// SelectedLabel exists because a swatch shows a colour and no words, so the name has to be somewhere.
 func (o ProductOption) SelectedLabel() string {
 	for _, v := range o.Values {
 		if v.Selected {
@@ -93,44 +80,33 @@ func (o ProductOption) SelectedLabel() string {
 	return ""
 }
 
-// RatingBar is one row of the rating histogram.
 type RatingBar struct {
 	Stars   int
 	Count   int64
 	Percent int
 }
 
-// StarsText is the bar's star count as text.
 func (b RatingBar) StarsText() string { return strconv.Itoa(b.Stars) }
 
-// CountText is how many reviews gave this many stars.
 func (b RatingBar) CountText() string { return strconv.FormatInt(b.Count, 10) }
 
-// WidthClass is the bar's width, as a class app.css carries. It cannot be an
-// inline style: goen's Content-Security-Policy has no 'unsafe-inline' under
-// style-src, so a refused width draws no bar at all. The ladder steps by ten,
-// which is finer than five buckets can distinguish, and the nearest step is
-// taken rather than the one below so the error is never one-sided.
+// WidthClass is a class app.css carries, never an inline style: the CSP has no
+// 'unsafe-inline' under style-src, so a refused width draws no bar. The nearest
+// ten-step is taken, not the one below, so the error is never one-sided.
 func (b RatingBar) WidthClass() string {
 	return "goen-pdp__barfill--" + strconv.Itoa((b.Percent+5)/10*10)
 }
 
-// ReviewStanding is what the visitor may do about reviewing this product; the
-// zero value is the refusal.
 type ReviewStanding int
 
 const (
 	ReviewSignedOut ReviewStanding = iota
-	// ReviewNotDelivered covers a customer who never bought it and one whose
-	// order has not arrived.
 	ReviewNotDelivered
-	// ReviewAlreadyWritten counts a hidden review too: it still holds the
-	// unique index.
+	// ReviewAlreadyWritten counts a hidden review too: it still holds the unique index.
 	ReviewAlreadyWritten
 	ReviewOpen
 )
 
-// ProductReview is one published review.
 type ProductReview struct {
 	Rating   int
 	Title    string
@@ -140,13 +116,10 @@ type ProductReview struct {
 	Date     string
 }
 
-// RatingText is the review's own score.
 func (r ProductReview) RatingText() string { return strconv.Itoa(r.Rating) }
 
-// DisplayAuthor is the reviewer's name, or a stand-in when they gave none and
-// when erase_user has taken it away. The stand-in must not borrow the
-// verified-buyer wording: the badge beside it carries a claim
-// product_reviews_verified_is_real guards, and the byline is not covered by it.
+// DisplayAuthor gives a stand-in that must not borrow the verified-buyer wording: the badge beside it
+// carries a claim product_reviews_verified_is_real guards, and the byline is not covered.
 func (r ProductReview) DisplayAuthor(ctx context.Context) string {
 	if r.Author == "" {
 		return i18n.T(ctx, i18n.KeyAnonymousReviewer)
@@ -167,7 +140,6 @@ func maskedName(l i18n.Locale, name string) string {
 	return string(first) + "○○"
 }
 
-// ProductView is everything the detail page renders.
 type ProductView struct {
 	Saved        bool
 	Slug         string
@@ -190,9 +162,7 @@ type ProductView struct {
 	SelectionOK bool
 	Exact       bool
 	// PriceVaries reports that dearer variants exist than the one priced here.
-	PriceVaries bool
-	// AnySellable reports whether ANY variant can be bought; Exact says whether
-	// this visitor has chosen one. They answer different questions.
+	PriceVaries     bool
 	AnySellable     bool
 	VariantID       string
 	SKU             string
@@ -212,31 +182,23 @@ type ProductView struct {
 	ReviewErrors   map[string]string
 	ReviewDraft    ReviewDraft
 	NotifyOutcome  NotifyOutcome
-	// NotifyEmail is the address a refused restock request was posted with.
-	NotifyEmail  string
-	AccountEmail string
-	Comparing    []string
-	// Comparable is whether the product's department offers comparison; where
-	// it does not, the page shows no compare control.
-	Comparable bool
-	Questions  []Question
-	AskOutcome string
-	// AskDraft is a refused question, replayed into the textarea so a 422
-	// does not empty what the customer already typed.
-	AskDraft string
-	// AddedOutcome is what the last add-to-cart did; without rendering it a
-	// refusal looks identical to a success.
+	NotifyEmail    string
+	AccountEmail   string
+	Comparing      []string
+	Comparable     bool
+	Questions      []Question
+	AskOutcome     string
+	// AskDraft replays a refused question so a 422 does not empty the textarea.
+	AskDraft     string
 	AddedOutcome AddOutcome
 	AlsoBought   []ProductTile
 
 	Related []ProductTile
 }
 
-// StarHalves is the average in half stars, rounded to the nearest, 0 to 10: an
-// average of 4.5 fills four stars and half of the fifth, not five.
+// StarHalves keeps an average of 4.5 at four stars and half of the fifth, not five.
 func (v *ProductView) StarHalves() int { return max(0, min(int(v.Rating*2+0.5), 10)) }
 
-// WishlistLabel names the wishlist control.
 func (v *ProductView) WishlistLabel(ctx context.Context) string {
 	if v.Saved {
 		return i18n.T(ctx, i18n.KeyWishlistRemove)
@@ -244,7 +206,6 @@ func (v *ProductView) WishlistLabel(ctx context.Context) string {
 	return i18n.T(ctx, i18n.KeyWishlistAdd)
 }
 
-// SavedText is the aria-pressed state of the wishlist control.
 func (v *ProductView) SavedText() string {
 	if v.Saved {
 		return "true"
@@ -252,15 +213,14 @@ func (v *ProductView) SavedText() string {
 	return "false"
 }
 
-// CategoryTrail includes the direct category as well as its ancestors, so the
-// visible breadcrumb and structured data describe the same catalogue path.
+// CategoryTrail includes the direct category so the visible breadcrumb and
+// structured data describe the same catalogue path.
 func (v *ProductView) CategoryTrail() []Crumb {
 	return append(slices.Clone(v.Crumbs), Crumb{Slug: v.CategorySlug, Name: v.CategoryName})
 }
 
-// Trail is the breadcrumb, from the shop's front page down to this product.
-// The last step carries no link: a link to where you already are is a step a
-// keyboard has to pass through for nothing.
+// Trail leaves the last step without a link: a keyboard would have to pass through a link to
+// where you already are for nothing.
 func (v *ProductView) Trail(ctx context.Context) []components.Crumb {
 	trail := []components.Crumb{{Label: i18n.T(ctx, i18n.KeyHome), Href: "/"}}
 	for _, c := range v.CategoryTrail() {
@@ -269,7 +229,6 @@ func (v *ProductView) Trail(ctx context.Context) []components.Crumb {
 	return append(trail, components.Crumb{Label: v.Name})
 }
 
-// ProductMeta is the chrome view model for a product page.
 func ProductMeta(v *ProductView) layouts.Page {
 	desc := v.Summary
 	if desc == "" {
@@ -279,8 +238,7 @@ func ProductMeta(v *ProductView) layouts.Page {
 		Title: v.Name, Description: desc,
 		Nav: v.RootSlug(),
 	}
-	// A shared product link previews the product, and the first photograph is
-	// the one the page opens with, at the rendition the gallery serves.
+	// The first photograph is the one the page opens with, at the rendition the gallery serves.
 	if v.HasImages() {
 		img := v.Images[0]
 		alt := img.Alt
@@ -292,16 +250,13 @@ func ProductMeta(v *ProductView) layouts.Page {
 	return page
 }
 
-// HasWarranty reports whether the shop has stated a term for this product.
 func (v *ProductView) HasWarranty() bool { return v.WarrantyMonths > 0 }
 
-// WarrantyText is the cover in the visitor's language.
 func (v *ProductView) WarrantyText(ctx context.Context) string {
 	return fmt.Sprintf(i18n.T(ctx, i18n.KeyPDPWarranty),
 		strconv.FormatInt(int64(v.WarrantyMonths), 10))
 }
 
-// RootSlug is the top-level category this product sits under.
 func (v *ProductView) RootSlug() string {
 	if len(v.Crumbs) > 0 {
 		return v.Crumbs[0].Slug
@@ -309,57 +264,42 @@ func (v *ProductView) RootSlug() string {
 	return v.CategorySlug
 }
 
-// Price is the resolved variant's price.
 func (v *ProductView) Price() string { return twd(v.PriceCents) }
 
-// PriceFrom reports that Price is the cheapest of several rather than this
-// product's price: either the visitor has chosen no variant yet, or the one
-// they chose is the cheapest and dearer ones exist.
+// PriceFrom is true when the visitor has chosen no variant yet, or the one they chose is the
+// cheapest and dearer ones exist.
 func (v *ProductView) PriceFrom() bool { return v.PriceVaries && !v.Exact }
 
-// Compare is its struck-through original, shown only when OnSale.
 func (v *ProductView) Compare() string { return twd(v.CompareCents) }
 
-// OnSale reports whether to show a struck-through price.
 func (v *ProductView) OnSale() bool { return v.Sellable && v.CompareCents > v.PriceCents }
 
-// CanBuy reports whether the page can offer an add-to-cart button.
 func (v *ProductView) CanBuy() bool { return v.SelectionOK && v.Exact && v.Sellable }
 
-// InStock reports whether the chosen variant is buyable and not running out.
-// It is the state the other three badges do not cover, and it is only ever
-// shown once a variant is settled: on the bare product URL there is no one
-// variant whose stock it could describe.
+// InStock is only ever shown once a variant is settled: on the bare product URL no
+// one variant's stock can be described.
 func (v *ProductView) InStock() bool {
 	return v.CanBuy() && !v.LowStock() && !v.SoldOut() && !v.AllSoldOut()
 }
 
-// NeedsChoice reports whether the visitor still has an option to pick.
 func (v *ProductView) NeedsChoice() bool { return v.SelectionOK && !v.Exact }
 
-// AllSoldOut reports that nothing on this page is buyable, whatever is chosen.
 func (v *ProductView) AllSoldOut() bool { return v.SelectionOK && !v.AnySellable }
 
-// SoldOut reports whether the pinned combination exists but cannot be bought.
 func (v *ProductView) SoldOut() bool { return v.SelectionOK && v.Exact && !v.Sellable }
 
-// LowStock reports whether the remaining quantity is worth naming.
 func (v *ProductView) LowStock() bool { return v.Sellable && v.Available > 0 && v.Available <= 5 }
 
-// AvailableText is the buyable quantity as text.
 func (v *ProductView) AvailableText() string { return strconv.FormatInt(int64(v.Available), 10) }
 
-// MaxQuantity bounds the quantity input to what can actually be sold.
 func (v *ProductView) MaxQuantity() string {
 	n := max(min(v.Available, 99), 1)
 	return strconv.FormatInt(int64(n), 10)
 }
 
-// HasImages reports whether the gallery has anything to show.
 func (v *ProductView) HasImages() bool { return len(v.Images) > 0 }
 
-// GalleryFollowsChoice reports whether choosing another option value can
-// reorder the gallery, which it can only when a photograph shows one value.
+// GalleryFollowsChoice is true only when a photograph shows one value: only then can choosing another reorder the gallery.
 func (v *ProductView) GalleryFollowsChoice() bool {
 	return slices.ContainsFunc(v.Images, func(i ProductImage) bool { return i.ShowsOption })
 }
@@ -378,8 +318,7 @@ func (v *ProductView) BuyBarFollows() string {
 	return "add-to-cart"
 }
 
-// BuyBarOutcome repeats the notice under the add button, which is out of sight
-// whenever the bar is up.
+// BuyBarOutcome repeats the notice under the add button, out of sight whenever the bar is up.
 func (v *ProductView) BuyBarOutcome(ctx context.Context) string {
 	switch {
 	case v.JustAdded():
@@ -394,56 +333,43 @@ func (v *ProductView) BuyBarOutcome(ctx context.Context) string {
 	return ""
 }
 
-// HasSpecs reports whether the spec table has rows.
 func (v *ProductView) HasSpecs() bool { return len(v.Specs) > 0 }
 
-// HasRelated reports whether the same-category row has enough products to be a
-// row: one card alone reads as a mistake.
+// HasRelated needs two: one card alone reads as a mistake.
 func (v *ProductView) HasRelated() bool { return len(v.Related) >= 2 }
 
-// HasRating reports whether anyone has rated this product.
 func (v *ProductView) HasRating() bool { return v.RatingCount > 0 }
 
-// RatingText is the average rating to one decimal.
 func (v *ProductView) RatingText() string { return strconv.FormatFloat(v.Rating, 'f', 1, 64) }
 
-// ReviewCountText is how many people have rated it.
 func (v *ProductView) ReviewCountText() string { return strconv.FormatInt(v.RatingCount, 10) }
 
-// RatingLabel is the summary as one sentence for assistive technology.
 func (v *ProductView) RatingLabel(ctx context.Context) string {
 	return i18n.Count(ctx, i18n.KeyRatingSummary, v.RatingCount, v.RatingText(), v.ReviewCountText())
 }
 
-// ReviewDraft carries a refused review form's values back into it.
 type ReviewDraft struct {
 	Rating int
 	Title  string
 	Body   string
 }
 
-// IsRating reports whether n is the chosen star count, for the radio group.
 func (d ReviewDraft) IsRating(n int) bool { return d.Rating == n }
 
-// ReviewBodyMaxRunes is the longest review the form lets through;
-// product.MaxReviewBodyRunes is the same number.
+// ReviewBodyMaxRunes is the same number as product.MaxReviewBodyRunes.
 const ReviewBodyMaxRunes = 2000
 
-// ReviewBodyMinRunes is the shortest review the form lets through before the
-// server would refuse it; product.MinReviewBodyRunes is the same number.
+// ReviewBodyMinRunes is the same number as product.MinReviewBodyRunes.
 const ReviewBodyMinRunes = 5
 
-// ReviewAction is where the review form posts. The fragment rides into the 422
-// page's address, so a refused review opens at the form, error in view.
+// ReviewAction ends in a fragment that rides into the 422 page's address, so a refused review opens at the form.
 func (v *ProductView) ReviewAction() string { return "/p/" + v.Slug + "/reviews#write-review" }
 
-// ReviewBodyHint states the length bounds the form and the server share.
 func (v *ProductView) ReviewBodyHint(ctx context.Context) string {
 	return fmt.Sprintf(i18n.T(ctx, i18n.KeyReviewBodyHint), ReviewBodyMinRunes, ReviewBodyMaxRunes)
 }
 
-// reviewBodyAttrs sets aria-describedby only while the field is valid; the
-// Textarea sets it itself when the field is refused.
+// aria-describedby only while the field is valid; the Textarea sets it itself when refused.
 func (v *ProductView) reviewBodyAttrs() templ.Attributes {
 	attrs := templ.Attributes{
 		"rows": "5", "required": true,
@@ -455,10 +381,8 @@ func (v *ProductView) reviewBodyAttrs() templ.Attributes {
 	return attrs
 }
 
-// HasReviewErr reports whether a review field was refused.
 func (v *ProductView) HasReviewErr(f string) bool { _, ok := v.ReviewErrors[f]; return ok }
 
-// ReviewErr is why a review field was refused.
 func (v *ProductView) ReviewErr(f string) string { return v.ReviewErrors[f] }
 
 // NotifyOutcome is what a restock request came to, carried in ?notify=.
@@ -471,7 +395,6 @@ const (
 	NotifyVariantUnavailable NotifyOutcome = "unavailable"
 )
 
-// NotifyTaken reports whether a restock request was just recorded.
 func (v *ProductView) NotifyTaken() bool {
 	return v.NotifyOutcome == NotifyRecorded || v.NotifyOutcome == NotifyRecordedForAccount
 }
@@ -490,15 +413,11 @@ func (v *ProductView) NotifyEmailValue() string {
 	return v.AccountEmail
 }
 
-// NotifyRefused reports whether the address was not usable.
 func (v *ProductView) NotifyRefused() bool { return v.NotifyOutcome == NotifyBadAddress }
 
-// NotifyUnavailable reports a request for a variant that no longer needs one.
 func (v *ProductView) NotifyUnavailable() bool { return v.NotifyOutcome == NotifyVariantUnavailable }
 
-// NotifyAction is where the restock form posts. It carries the chosen options,
-// because the redirect that follows must land on the same selection or the
-// answer is not on the page it returns to.
+// NotifyAction carries the chosen options so the redirect that follows lands on the same selection.
 func (v *ProductView) NotifyAction() string {
 	q := url.Values{}
 	for i := range v.Options {
@@ -514,20 +433,15 @@ func (v *ProductView) NotifyAction() string {
 	return "/p/" + v.Slug + "/notify?" + q.Encode()
 }
 
-// HasRecommendations reports whether the strip has anything real to show.
 func (v *ProductView) HasRecommendations() bool { return len(v.AlsoBought) > 0 }
 
-// HasQuestions reports whether anybody has asked anything.
 func (v *ProductView) HasQuestions() bool { return len(v.Questions) > 0 }
 
-// AskTaken reports whether a question was just recorded.
 func (v *ProductView) AskTaken() bool { return v.AskOutcome == "1" }
 
-// AskRefused reports whether the question was not usable.
 func (v *ProductView) AskRefused() bool { return v.AskOutcome == "bad" }
 
-// AddOutcome is what an add-to-cart came to, carried in ?added= back to the page
-// the form was on.
+// AddOutcome is carried in ?added= back to the page the form was on.
 type AddOutcome string
 
 const (
@@ -535,35 +449,28 @@ const (
 	AddOutcomeAdjusted    AddOutcome = "adjusted"
 	AddOutcomeUnavailable AddOutcome = "unavailable"
 	AddOutcomeUnknown     AddOutcome = "unknown"
-	// AddOutcomeFull is another distinct product that would make the order too
-	// large for one provider invoice.
+	// AddOutcomeFull is another distinct product that would make the order too large
+	// for one provider invoice.
 	AddOutcomeFull AddOutcome = "full"
 )
 
-// JustAdded reports whether the last add-to-cart worked.
 func (v *ProductView) JustAdded() bool { return v.AddedOutcome == AddOutcomeAdded }
 
-// AddAdjusted reports whether the last add kept less than requested.
 func (v *ProductView) AddAdjusted() bool { return v.AddedOutcome == AddOutcomeAdjusted }
 
-// AddRefused reports whether it did not.
 func (v *ProductView) AddRefused() bool {
 	return v.AddedOutcome == AddOutcomeUnavailable || v.AddedOutcome == AddOutcomeUnknown
 }
 
-// CartFull reports that the cart cannot take another distinct product.
 func (v *ProductView) CartFull() bool { return v.AddedOutcome == AddOutcomeFull }
 
-// AskAction is where the question form posts.
 func (v *ProductView) AskAction() string { return "/p/" + v.Slug + "/questions" }
 
-// AskSignInHref returns the visitor to #questions after sign-in. The hash is
-// %23 in the query so it is part of next, not a fragment on /signin.
+// AskSignInHref writes the hash as %23 in the query so it is part of next, not a fragment on /signin.
 func (v *ProductView) AskSignInHref() string {
 	return "/signin?next=/p/" + v.Slug + "%23questions"
 }
 
-// CompareHref adds this product to a comparison, carrying whatever was already there.
 func (v *ProductView) CompareHref() string {
 	var b strings.Builder
 	b.WriteString("/compare")
@@ -583,15 +490,12 @@ func (v *ProductView) CompareHref() string {
 	return b.String()
 }
 
-// AlreadyComparing reports whether this product is already in the set.
 func (v *ProductView) AlreadyComparing() bool {
 	return slices.Contains(v.Comparing, v.Slug)
 }
 
-// ComparingFull reports whether the set has no room left.
 func (v *ProductView) ComparingFull() bool { return len(v.Comparing) >= MaxCompare }
 
-// FreeDelivery is the threshold the guarantee strip states, or "" for none.
 func (v *ProductView) FreeDelivery() string { return FreeDeliveryText(v.FreeDeliveryCents) }
 
 func (v *ProductView) ArrivalDay() string { return shoptime.Day(v.ExpectedArrival) }

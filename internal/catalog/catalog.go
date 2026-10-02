@@ -12,22 +12,18 @@ import (
 	"github.com/koopa0/goen/internal/web"
 )
 
-// ErrNotFound is returned when a slug names no category.
 var ErrNotFound = errors.New("catalog: not found")
 
-// PageSize is how many products a listing page shows.
 const PageSize = 24
 
-// MaxQueryRunes bounds a search term.
 const MaxQueryRunes = 100
 
-// Sort is an ordering of a listing or a search. A price or rating sort leads and
-// the page's own order breaks its ties: newest first on a listing, best match on
-// a search.
+// Sort orders a listing or search: a price or rating sort leads and the page's own order breaks its ties:
+// newest first on a listing, best match on a search.
 type Sort string
 
-// The orderings. SortNewest and SortRelevance are what a page shows when the
-// shopper chose none, so neither appears in an address.
+// SortNewest and SortRelevance are what a page shows when the shopper chose
+// none, so neither appears in an address.
 const (
 	SortNewest    Sort = "newest"
 	SortRelevance Sort = "relevance"
@@ -36,8 +32,6 @@ const (
 	SortRating    Sort = "rating"
 )
 
-// ParseSort maps a query-string value to a Sort, and anything else to unchosen,
-// the page's own order.
 func ParseSort(s string, unchosen Sort) Sort {
 	switch Sort(s) {
 	case SortPriceAsc:
@@ -51,7 +45,6 @@ func ParseSort(s string, unchosen Sort) Sort {
 	}
 }
 
-// Param is the sort's query-string value, empty for the page's own order.
 func (s Sort) Param() string {
 	if s == SortNewest || s == SortRelevance {
 		return ""
@@ -59,8 +52,7 @@ func (s Sort) Param() string {
 	return string(s)
 }
 
-// Filters is everything a listing URL can narrow by. MinPrice and MaxPrice are
-// in minor units, and zero means "no bound".
+// Filters holds MinPrice and MaxPrice in minor units; zero means no bound.
 type Filters struct {
 	BrandSlugs  []string
 	InStockOnly bool
@@ -70,13 +62,12 @@ type Filters struct {
 	Page        int // 1-based; 0 and below are treated as 1
 }
 
-// VariantScoped reports whether any filter has to be satisfied by a single
-// variant. When none is set the listing skips the EXISTS entirely.
+// VariantScoped is false when no filter needs a single variant, so the listing
+// skips the EXISTS entirely.
 func (f Filters) VariantScoped() bool {
 	return f.InStockOnly || f.MinPrice > 0 || f.MaxPrice > 0
 }
 
-// Offset is the row offset for the requested page.
 func (f Filters) Offset() int32 {
 	return offsetFor(f.Page)
 }
@@ -91,18 +82,14 @@ func offsetFor(page int) int32 {
 	return int32((page - 1) * PageSize)
 }
 
-// Active reports whether anything narrows the listing, which decides whether
-// the page offers a "clear all" control.
 func (f Filters) Active() bool {
 	return len(f.BrandSlugs) > 0 || f.VariantScoped()
 }
 
-// maxPage bounds the page number so a URL cannot make the database count its
-// way past the end of the catalogue.
+// maxPage stops a URL from making the database count its way past the end of
+// the catalogue.
 const maxPage = 500
 
-// ParsePage reads a 1-based page number, clamping anything invalid to 1 and
-// anything absurd to maxPage.
 func ParsePage(s string) int {
 	n, err := strconv.Atoi(s)
 	if err != nil || n < 1 {
@@ -114,8 +101,8 @@ func ParsePage(s string) int {
 	return n
 }
 
-// ParsePrice reads a price bound in whole New Taiwan dollars and returns minor
-// units. Anything unparseable, negative or above the schema's cap is no bound.
+// ParsePrice reads whole New Taiwan dollars and returns minor units; anything
+// unparseable, negative or above the schema's cap is no bound.
 func ParsePrice(s string) int64 {
 	if s == "" {
 		return 0
@@ -131,9 +118,9 @@ func ParsePrice(s string) int64 {
 	return n * 100
 }
 
-// trimmedQuery is what both the ILIKE pattern and the echoed heading start
-// from. Unicode space counts as space, so a query of only NBSP is empty for
-// both rather than a searched term one side never queried.
+// Unicode space counts as space, so a query of only NBSP is empty for both the
+// ILIKE pattern and the echoed heading rather than a term one side never
+// queried.
 func trimmedQuery(q string) string {
 	q = strings.TrimSpace(web.FoldWidth(q))
 	if r := []rune(q); len(r) > MaxQueryRunes {
@@ -142,14 +129,13 @@ func trimmedQuery(q string) string {
 	return q
 }
 
-// MaxSearchTerms bounds how many whitespace-separated terms narrow a search;
-// each one adds a predicate to a query that scans every product.
+// MaxSearchTerms bounds the terms because each adds a predicate to a query that
+// scans every product.
 const MaxSearchTerms = 5
 
-// SearchPattern turns a visitor's words into ILIKE patterns, one per
-// whitespace-separated term, joined by a space. A term holds no whitespace, so
-// SearchTerms can split the string again without losing a term. Escaping happens
-// before the wildcards are added, or it would escape goen's own.
+// SearchPattern joins one pattern per term by a space; a term holds no
+// whitespace, so SearchTerms can split it again. Escaping happens before the
+// wildcards are added, or it would escape goen's own.
 func SearchPattern(q string) string {
 	terms := strings.Fields(trimmedQuery(q))
 	if len(terms) > MaxSearchTerms {
@@ -161,8 +147,6 @@ func SearchPattern(q string) string {
 	return strings.Join(terms, " ")
 }
 
-// SearchTerms splits what SearchPattern built into one pattern per term, and
-// the whole query as an unwildcarded pattern for exact matches.
 func SearchTerms(pattern string) (terms []string, exact string) {
 	terms = strings.Fields(pattern)
 	bare := make([]string, len(terms))
@@ -172,12 +156,12 @@ func SearchTerms(pattern string) (terms []string, exact string) {
 	return terms, strings.Join(bare, " ")
 }
 
-// likeEscaper covers the three characters LIKE and ILIKE read as syntax;
-// the backslash is PostgreSQL's default escape character.
+// likeEscaper covers the three characters LIKE and ILIKE read as syntax; the
+// backslash is PostgreSQL's default escape character.
 var likeEscaper = strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
 
-// EscapeLike makes typed words match only themselves inside a LIKE or ILIKE
-// pattern: without it a typed % or _ is a wildcard, and "%%" matches every row.
+// EscapeLike makes typed words match only themselves: without it a typed % or _
+// is a wildcard, and "%%" matches every row.
 func EscapeLike(s string) string {
 	return likeEscaper.Replace(s)
 }

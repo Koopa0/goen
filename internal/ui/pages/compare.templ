@@ -9,9 +9,6 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// Compare renders the comparison table. One table at every width: it scrolls
-// inside its own box while the page stays put, and the label column stays where
-// it is so a reader never loses which row they are on.
 templ Compare(p layouts.Page, v CompareView) {
 	@layouts.Base(p) {
 		<div class="goen-compare">
@@ -86,8 +83,7 @@ templ Compare(p layouts.Page, v CompareView) {
 											}
 											<a class="goen-compare__name" href={ templ.SafeURL(v.ProductHref(item.Slug)) }>{ item.Name }</a>
 											<span class="goen-compare__brand">{ item.Brand }</span>
-											// A link, not a form button: the comparison set is the URL,
-											// so removing a column writes nothing.
+											// A link, not a form button: the comparison set is the URL, so removing writes nothing.
 											<a class="goen-compare__remove" href={ templ.SafeURL(v.RemoveHref(item.Slug)) }>
 												{ i18n.T(ctx, i18n.KeyRemove) }
 											</a>
@@ -148,8 +144,7 @@ templ Compare(p layouts.Page, v CompareView) {
 	}
 }
 
-// comparePicker adds a product to the comparison. It is a GET search and plain
-// links, so it works with scripting off and the address stays the comparison.
+// A GET search and plain links: works with scripting off and the address stays the comparison.
 templ comparePicker(v CompareView) {
 	if v.Full() {
 		<p class="goen-compare__note" role="status">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCompareFull), MaxCompare) }</p>
@@ -182,9 +177,6 @@ templ comparePicker(v CompareView) {
 	}
 }
 
-// compareSuggestions is what a lone product can be compared with: others from
-// its own shelf, nearest in price first, each added by a link to the address
-// that includes it, and the shelf itself for the rest.
 templ compareSuggestions(v CompareView) {
 	if len(v.Suggestions) > 0 {
 		<section class="goen-compare__suggest" aria-labelledby="compare-suggest-heading">

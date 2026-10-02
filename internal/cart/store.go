@@ -26,14 +26,13 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
-// Store reads and writes carts and places orders. It holds the pool rather than
-// a DBTX because multi-statement operations open and own their transactions.
+// Store holds the pool rather than a DBTX because multi-statement operations
+// open and own their transactions.
 type Store struct {
 	pool *pgxpool.Pool
 	q    *db.Queries
 }
 
-// NewStore returns a Store over pool.
 func NewStore(pool *pgxpool.Pool) *Store {
 	if pool == nil {
 		panic("cart: NewStore requires a pool")
@@ -41,12 +40,10 @@ func NewStore(pool *pgxpool.Pool) *Store {
 	return &Store{pool: pool, q: db.New(pool)}
 }
 
-// ByToken returns the cart a token names if requester, the signed-in
-// account or invalid for a signed-out visitor, may use it. A cart attached to
-// an account answers only to that account: adoption keeps the token the
-// browser already holds, so after sign-out, or for the next customer at a
-// shared computer, the token still names the account's cart. That is
-// ErrNotYourCart, and the token is stale.
+// ByToken answers a cart attached to an account only to that account: adoption
+// keeps the token the browser already holds, so after sign-out, or for the next
+// customer at a shared computer, the token still names the account's cart. That
+// is ErrNotYourCart, and the token is stale.
 func (s *Store) ByToken(ctx context.Context, token string, requester uuid.NullUUID) (uuid.UUID, error) {
 	if token == "" {
 		return uuid.Nil, ErrNotFound
@@ -64,9 +61,9 @@ func (s *Store) ByToken(ctx context.Context, token string, requester uuid.NullUU
 	return row.ID, nil
 }
 
-// Create opens a new cart and returns its id. Two signed-in first writes can
-// both observe no row; carts_one_per_user refuses the second insert, and the
-// winner is the account cart.
+// Create handles a race: two signed-in first writes can both observe no row;
+// carts_one_per_user refuses the second insert, and the winner is the account
+// cart.
 func (s *Store) Create(ctx context.Context, token string, userID uuid.NullUUID) (uuid.UUID, error) {
 	id, err := s.q.CreateCart(ctx, db.CreateCartParams{TokenHash: HashToken(token), UserID: userID})
 	if err != nil {
@@ -78,8 +75,7 @@ func (s *Store) Create(ctx context.Context, token string, userID uuid.NullUUID) 
 	return id, nil
 }
 
-// ownedCartIfTaken rereads the account cart after carts_one_per_user refuses
-// an insert. The unique index is the one-cart rule; this only names it.
+// The unique index is the one-cart rule; ownedCartIfTaken only names it.
 func (s *Store) ownedCartIfTaken(ctx context.Context, userID uuid.NullUUID, err error) (uuid.UUID, bool) {
 	if !userID.Valid {
 		return uuid.Nil, false
@@ -95,8 +91,8 @@ func (s *Store) ownedCartIfTaken(ctx context.Context, userID uuid.NullUUID, err 
 	return existing, true
 }
 
-// Add puts a variant in a cart, checked before the write so an inactive one is a
-// message rather than a foreign-key error.
+// Add checks before the write so an inactive variant is a message rather than a
+// foreign-key error.
 func (s *Store) Add(ctx context.Context, cartID, variantID uuid.UUID, quantity int32) error {
 	adjusted := false
 	err := s.mutateCart(ctx, cartID, func(q *db.Queries) error {
@@ -116,8 +112,8 @@ func (s *Store) Add(ctx context.Context, cartID, variantID uuid.UUID, quantity i
 	return nil
 }
 
-// addCartItem applies the cart's availability and quantity rules through the
-// caller's queries, which may be pool-backed or bound to a larger transaction.
+// addCartItem runs through the caller's queries, which may be pool-backed or
+// bound to a larger transaction.
 func addCartItem(
 	ctx context.Context,
 	q *db.Queries,
@@ -156,7 +152,6 @@ func addCartItem(
 	return target < wanted, nil
 }
 
-// SetQuantity changes a line, removing it at zero.
 func (s *Store) SetQuantity(ctx context.Context, cartID, variantID uuid.UUID, quantity int32) error {
 	adjusted := false
 	err := s.mutateCart(ctx, cartID, func(q *db.Queries) error {
@@ -207,7 +202,6 @@ func setCartLineQuantity(
 	return requested > quantity, nil
 }
 
-// Remove drops a line.
 func (s *Store) Remove(ctx context.Context, cartID, variantID uuid.UUID) error {
 	return s.mutateCart(ctx, cartID, func(q *db.Queries) error {
 		if err := q.RemoveCartItem(ctx, db.RemoveCartItemParams{CartID: cartID, VariantID: variantID}); err != nil {
@@ -217,9 +211,9 @@ func (s *Store) Remove(ctx context.Context, cartID, variantID uuid.UUID) error {
 	})
 }
 
-// mutateCart gives every standalone cart write the same aggregate lock used by
-// reorder, account adoption and checkout. The callback is valid only inside
-// this transaction and must not retain q.
+// mutateCart gives every standalone cart write the aggregate lock reorder,
+// adoption and checkout use. q is valid only inside the transaction and must
+// not be retained.
 func (s *Store) mutateCart(
 	ctx context.Context,
 	cartID uuid.UUID,
@@ -254,7 +248,7 @@ func lockCart(ctx context.Context, q *db.Queries, cartID uuid.UUID) error {
 	return nil
 }
 
-// Count is how many UNITS a cart holds, for the header badge.
+// Count is UNITS, not lines, for the header badge.
 func (s *Store) Count(ctx context.Context, cartID uuid.UUID) (int64, error) {
 	n, err := s.q.CartItemCount(ctx, cartID)
 	if err != nil {
@@ -263,8 +257,8 @@ func (s *Store) Count(ctx context.Context, cartID uuid.UUID) (int64, error) {
 	return n, nil
 }
 
-// View reads a cart for display. Prices and availability are read fresh every
-// time: a cart line is not a promise.
+// View reads prices and availability fresh every time: a cart line is not a
+// promise.
 func (s *Store) View(ctx context.Context, cartID uuid.UUID) (pages.CartView, error) {
 	rows, err := s.q.CartLines(ctx, db.CartLinesParams{
 		CartID: cartID, Locale: string(i18n.FromContext(ctx)),
@@ -307,16 +301,14 @@ func (s *Store) View(ctx context.Context, cartID uuid.UUID) (pages.CartView, err
 	return view, nil
 }
 
-// productReturnURL is where AddItem sends the browser after a write. The
-// selection query is rebuilt from the variant row the server accepted; only
-// added= comes from the handler outcome.
+// productReturnURL rebuilds the selection query from the variant row the server
+// accepted; only added= comes from the handler outcome.
 //
-// The fragment names the buy column rather than the notice inside it. A visitor
+// The fragment names the buy column rather than the notice inside it: a visitor
 // with no script arrives by navigation, and landing on the notice puts the
-// price, the picker and the button that produced it above the fold line; the
-// column carries scroll-margin-top so what arrives is the whole panel with room
-// above it. A visitor with script never navigates at all, and the fragment is
-// only what the address ends up saying.
+// price, picker and button above the fold line. The column carries
+// scroll-margin-top for room above. With script the page never navigates and
+// the fragment is only what the address ends up saying.
 func (s *Store) productReturnURL(
 	ctx context.Context, slug string, variantID uuid.UUID, outcome string,
 ) (string, error) {
@@ -341,7 +333,6 @@ func (s *Store) productReturnURL(
 	return "/p/" + row.Slug + "?" + q.Encode() + "#buybox", nil
 }
 
-// optionLabel renders a variant's option values, joined with a middle dot.
 func optionLabel(names, values []string) string {
 	n := min(len(names), len(values))
 	if n == 0 {
@@ -354,8 +345,8 @@ func optionLabel(names, values []string) string {
 	return strings.Join(parts, " · ")
 }
 
-// SavedAddresses is the delivery addresses an account has. A guest gets none
-// because the QUERY scopes to the owner, never a short-circuit here.
+// SavedAddresses gives a guest none because the QUERY scopes to the owner,
+// never a short-circuit here.
 func (s *Store) SavedAddresses(ctx context.Context, owner uuid.NullUUID) ([]pages.SavedAddress, error) {
 	rows, err := s.q.SavedAddresses(ctx, owner.UUID)
 	if err != nil {
@@ -373,7 +364,6 @@ func (s *Store) SavedAddresses(ctx context.Context, owner uuid.NullUUID) ([]page
 	return out, nil
 }
 
-// QuoteShipping is what one method charges to send this order to this address.
 func (s *Store) QuoteShipping(ctx context.Context, versionID uuid.UUID, subtotalCents int64, postalCode string) (Quote, error) {
 	v, err := s.q.ShippingVersion(ctx, db.ShippingVersionParams{
 		ID: versionID, Locale: string(i18n.FromContext(ctx)),
@@ -387,8 +377,8 @@ func (s *Store) QuoteShipping(ctx context.Context, versionID uuid.UUID, subtotal
 	return quoteFor(ctx, s.q, &v, subtotalCents, postalCode)
 }
 
-// quoteFor prices a version already read through the caller's query binding.
-// PlaceOrder passes transaction-bound queries so no price read escapes its locks.
+// PlaceOrder passes transaction-bound queries to quoteFor so no price read
+// escapes its locks.
 func quoteFor(
 	ctx context.Context,
 	q *db.Queries,
@@ -410,9 +400,8 @@ func quoteFor(
 	}, nil
 }
 
-// ShippingChoices is the shipping methods a checkout may offer FOR THIS CART: a
-// method whose carrier refuses a 27-inch monitor is not a choice for a basket
-// with one in it.
+// ShippingChoices is per cart: a method whose carrier refuses a 27-inch monitor
+// is not a choice for a basket with one in it.
 func (s *Store) ShippingChoices(ctx context.Context, cartID uuid.UUID, subtotalCents int64) ([]pages.ShippingChoice, error) {
 	rows, err := s.q.ShippingChoices(ctx, db.ShippingChoicesParams{
 		Locale: string(i18n.FromContext(ctx)),
@@ -438,11 +427,9 @@ func (s *Store) ShippingChoices(ctx context.Context, cartID uuid.UUID, subtotalC
 	return out, nil
 }
 
-// classifyCheckout maps the database ending a statement onto ErrBusy, so the
-// handler re-renders the form the customer filled in instead of answering 500.
-// Bound to the SQLSTATE: 57014 is query_canceled, which statement_timeout and an
-// operator's pg_cancel_backend both raise, and neither is a defect in what was
-// submitted.
+// classifyCheckout is bound to the SQLSTATE: 57014 is query_canceled, which
+// statement_timeout and an operator's pg_cancel_backend both raise, and neither
+// is a defect in what was submitted.
 func classifyCheckout(err error) error {
 	if err == nil {
 		return nil
@@ -453,11 +440,10 @@ func classifyCheckout(err error) error {
 	return err
 }
 
-// PlaceOrder turns a cart into an order in ONE transaction, recomputing the
-// shipping fee from the version rather than taking it from the form. quote is
-// not trusted as pricing input: it is compared with the locked recomputation so
-// an order cannot differ from what the customer confirmed. attemptID makes
-// a resubmitted checkout find its own order.
+// placeOrder recomputes the shipping fee from the version rather than the form.
+// quote is not pricing input: it is compared with the locked recomputation so
+// an order cannot differ from what the customer confirmed. attemptID makes a
+// resubmitted checkout find its own order.
 func (s *Store) placeOrder(
 	ctx context.Context,
 	cartID uuid.UUID,
@@ -469,13 +455,14 @@ func (s *Store) placeOrder(
 	shown checkoutQuoteID,
 	attemptID checkoutAttemptID,
 ) (number string, err error) {
-	// One classifier at the boundary rather than a check at each return: every
-	// statement below runs under the pool's statement_timeout, and a lock wait
-	// that outlives it is the ordinary shape of a busy shop rather than a fault.
+	// One classifier at the boundary: every statement below runs under the
+	// pool's statement_timeout, and a lock wait that outlives it is the
+	// ordinary shape of a busy shop.
 	defer func() { err = classifyCheckout(err) }()
 
-	// Nothing reads checkout_attempts on the pool first: claimCheckoutKey asks the
-	// same question under the lock, and the copy that can be wrong is the early one.
+	// Nothing reads checkout_attempts on the pool first: claimCheckoutKey asks
+	// the same question under the lock, and the early copy is the one that can
+	// be wrong.
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return "", fmt.Errorf("begin checkout: %w", err)
@@ -491,9 +478,9 @@ func (s *Store) placeOrder(
 		return prior, nil
 	}
 	if userID.Valid {
-		// Erasure/adoption start at the user aggregate. Hold its compatible
-		// KEY SHARE before checkoutCartSnapshot takes the cart row, so no path
-		// can own cart -> wait user while another owns user -> wait cart.
+		// Erasure/adoption start at the user aggregate. Hold its KEY SHARE
+		// before checkoutCartSnapshot takes the cart row, so no path owns cart
+		// -> wait user while another owns user -> wait cart.
 		lockedUser, lockErr := q.LockUserForCheckout(ctx, userID.UUID)
 		if lockErr != nil {
 			return "", fmt.Errorf("lock account for checkout: %w", lockErr)
@@ -517,8 +504,8 @@ func (s *Store) placeOrder(
 		ShippingCents:      terms.shippingFee,
 		DiscountCents:      terms.discount,
 		CustomerNote:       text(addr.Note),
-		// Every later message about this order is sent in this language, never in
-		// whatever the thing that triggered it happened to be reading.
+		// Every later message about this order is sent in this language, not in
+		// whatever the trigger happened to be reading.
 		Locale: i18n.FromContext(ctx).Tag(),
 	})
 	if err != nil {
@@ -550,10 +537,9 @@ func (s *Store) placeOrder(
 	return order.OrderNumber, nil
 }
 
-// checkoutTerms is the server-owned commercial snapshot after every aggregate
-// row it depends on has been locked and the customer's quote has matched it.
-// It is consumed inside the same transaction; no unlocked or form-supplied
-// amount can enter the order write below.
+// checkoutTerms is the server-owned snapshot after every row it depends on is
+// locked and the quote matched; no unlocked or form-supplied amount can enter
+// the order write below.
 type checkoutTerms struct {
 	lines       []db.CartLinesRow
 	ship        db.ShippingVersionRow
@@ -592,8 +578,8 @@ func lockCheckoutTerms(
 		return nil, fmt.Errorf("read shipping version: %w", err)
 	}
 
-	// The destination is re-derived from the method just read and the address is
-	// trimmed to it, the way the shipping fee is recomputed rather than trusted.
+	// The destination is re-derived from the method just read and the address
+	// trimmed to it, as the fee is recomputed rather than trusted.
 	to, ok := destination.For(ship.DestinationKind)
 	if !ok {
 		return nil, fmt.Errorf("shipping method %s has an unknown destination %q",
@@ -667,9 +653,8 @@ func checkoutQuoteLines(lines []db.CartLinesRow) []checkoutQuoteLine {
 	return quoted
 }
 
-// lockedAvailableCredit returns the balance at checkout's linearization point.
-// Guests own no account. Existing accounts remain locked until the order
-// transaction commits, which is the same row every credit posting must lock.
+// lockedAvailableCredit keeps an existing account's row locked until the order
+// transaction commits, the same row every credit posting must lock.
 func lockedAvailableCredit(
 	ctx context.Context,
 	q *db.Queries,
@@ -687,8 +672,7 @@ func lockedAvailableCredit(
 
 // checkoutCartSnapshot linearizes checkout against every cart writer, then
 // locks product and stock roots by UUID before reading publication, prices and
-// availability that become the order. The caller owns the surrounding
-// transaction.
+// availability.
 func checkoutCartSnapshot(
 	ctx context.Context,
 	q *db.Queries,
@@ -713,7 +697,6 @@ func checkoutCartSnapshot(
 	return lines, nil
 }
 
-// orderParts is what hangs off an order header.
 type orderParts struct {
 	orderID       uuid.UUID
 	lines         []db.CartLinesRow
@@ -727,32 +710,29 @@ type orderParts struct {
 	creditCents   int64
 }
 
-// writeOrderParts writes the lines, the stock hold, the first history entry, the
-// store-credit spend, the invoice choice, the redemption, the mail intent and,
-// when credit pays it all, the invoice due — all in the caller's transaction,
-// because each is part of what the order IS.
+// writeOrderParts runs in the caller's transaction because each part is part of
+// what the order IS.
 func writeOrderParts(ctx context.Context, q *db.Queries, p *orderParts) error {
 	if err := writeOrderLines(ctx, q, p.orderID, p.lines); err != nil {
 		return err
 	}
 
 	// Without the hold two customers can order the last unit and both succeed;
-	// record_inventory_movement's floor check is what refuses the second.
+	// record_inventory_movement's floor check refuses the second.
 	if err := holdOrderStock(ctx, q, p.orderID, p.lines); err != nil {
 		return err
 	}
 
-	// order_events is append-only, so an order whose history does not start with
-	// 'placed' could never be repaired.
+	// order_events is append-only, so an order whose history does not start
+	// with 'placed' could never be repaired.
 	if err := q.RecordPlacedEvent(ctx, p.orderID); err != nil {
 		return fmt.Errorf("record placed event: %w", err)
 	}
 
 	// Spent here because orders_funded_to_leave_pending reads the ledger, so a
-	// debit posted afterwards leaves a fully-credited order looking unpaid.
-	// Spend exactly what the customer confirmed, never whatever balance happens
-	// to exist now. p.totalCents bounds the request; the ledger guard catches a
-	// balance that fell below it while checkout was waiting.
+	// later debit leaves a fully-credited order looking unpaid. Spend exactly
+	// what the customer confirmed, never whatever balance exists now; the
+	// ledger guard catches a balance that fell below it while checkout waited.
 	if err := spendCredit(ctx, q, p.orderID, p.userID, p.totalCents, p.creditCents); err != nil {
 		return err
 	}
@@ -763,21 +743,18 @@ func writeOrderParts(ctx context.Context, q *db.Queries, p *orderParts) error {
 		return invErr
 	}
 
-	// coupon_redemption_matches_order refuses a row that disagrees with
-	// orders.discount_cents, so the two cannot drift.
 	if couponErr := redeemCoupon(
 		ctx, q, p.coupon, p.discountCents, p.orderID, p.userID,
 	); couponErr != nil {
 		return couponErr
 	}
 
-	// The confirmation email's INTENT, in the order's own transaction.
 	if mailErr := enqueueOrderPlaced(ctx, q, p.orderNumber, p.address, p.totalCents); mailErr != nil {
 		return mailErr
 	}
 
-	// Store credit paying the whole order is money received now, and 營業稅法
-	// §32 invoices money received before dispatch; picking is too late.
+	// Store credit paying the whole order is money received now, and 營業稅法 §32
+	// invoices money received before dispatch; picking is too late.
 	if p.creditCents > 0 && p.creditCents == p.totalCents {
 		if dueErr := invoicepkg.EnqueueDue(ctx, q, &outbox.InvoiceDue{
 			OrderNumber: p.orderNumber, Trigger: "commit:" + p.orderNumber,
@@ -789,9 +766,9 @@ func writeOrderParts(ctx context.Context, q *db.Queries, p *orderParts) error {
 	return nil
 }
 
-// writeInvoicePreference records the immutable filing identity alongside the
-// customer's carrier choice. Delivery details can later be erased, while a
-// committed sale and any refund against it still have a tax lifecycle.
+// writeInvoicePreference records the immutable filing identity: delivery
+// details can later be erased, while a committed sale and any refund against it
+// still have a tax lifecycle.
 func writeInvoicePreference(
 	ctx context.Context,
 	q *db.Queries,
@@ -820,8 +797,7 @@ func writeInvoicePreference(
 	return nil
 }
 
-// priceOrder is what an order costs to deliver and what a coupon takes off it. A
-// free-delivery coupon zeroes the BASE RATE and not the outlying-island
+// A free-delivery coupon zeroes the BASE RATE and not the outlying-island
 // surcharge, the same line the free-over threshold is held to.
 func priceOrder(
 	ctx context.Context,
@@ -840,7 +816,7 @@ func priceOrder(
 		return 0, 0, fmt.Errorf("total shipping quote: %w", err)
 	}
 
-	// Applied against what the cart holds NOW: both the amount and minimum-spend
+	// Applied against what the cart holds NOW: amount and minimum-spend
 	// eligibility can have changed since the form was rendered.
 	if coupon != nil {
 		var freeShipping bool
@@ -855,8 +831,6 @@ func priceOrder(
 	return shippingCents, discountCents, nil
 }
 
-// finishOrder writes the delivery details, the idempotency record and the
-// emptied cart, in the same transaction as the order.
 func finishOrder(
 	ctx context.Context,
 	q *db.Queries,
@@ -898,9 +872,8 @@ func finishOrder(
 	return nil
 }
 
-// claimCheckoutKey takes this checkout's idempotency key for the transaction and
-// reports the order a concurrent request already placed on it. An advisory lock
-// rather than an early INSERT, whose row would hold the key with order_id NULL.
+// claimCheckoutKey uses an advisory lock rather than an early INSERT, whose row
+// would hold the key with order_id NULL.
 func claimCheckoutKey(
 	ctx context.Context, q *db.Queries, cartID uuid.UUID, attemptID checkoutAttemptID,
 ) (prior string, placed bool, err error) {
@@ -908,8 +881,8 @@ func claimCheckoutKey(
 	if lockErr := q.LockCheckoutKey(ctx, key); lockErr != nil {
 		return "", false, fmt.Errorf("lock checkout key: %w", lockErr)
 	}
-	// Asked INSIDE the lock: the request that just waited is exactly the one any
-	// earlier read would have missed.
+	// Asked INSIDE the lock: the request that just waited is exactly the one
+	// any earlier read would have missed.
 	attempt, found, attemptErr := checkoutAttempt(ctx, q, attemptID)
 	if attemptErr != nil || !found {
 		return "", false, attemptErr
@@ -920,7 +893,6 @@ func claimCheckoutKey(
 	return checkoutAttemptOrder(ctx, q, attempt.OrderID)
 }
 
-// priorOrderTx is the same question asked through a given Queries.
 func priorOrderTx(
 	ctx context.Context,
 	q *db.Queries,
@@ -967,9 +939,8 @@ func checkoutAttemptOrder(
 	return number, true, nil
 }
 
-// priorOrder reports the completed order produced by this cart and checkout
-// key. The cart binding prevents an idempotency token from becoming cross-cart
-// order access; Handler uses it only to make a lost-response retry converge.
+// The cart binding stops an idempotency token from becoming cross-cart order
+// access; Handler uses priorOrder only so a lost-response retry converges.
 func (s *Store) priorOrder(
 	ctx context.Context,
 	cartID uuid.UUID,
@@ -978,7 +949,6 @@ func (s *Store) priorOrder(
 	return priorOrderTx(ctx, s.q, cartID, attemptID)
 }
 
-// OrderBelongsTo reports whether userID owns the named order.
 func (s *Store) OrderBelongsTo(ctx context.Context, number, userID string) (bool, error) {
 	id, err := uuid.Parse(userID)
 	if err != nil {
@@ -993,7 +963,6 @@ func (s *Store) OrderBelongsTo(ctx context.Context, number, userID string) (bool
 	return owns, nil
 }
 
-// Order reads a placed order for the confirmation page.
 func (s *Store) Order(ctx context.Context, number string) (pages.OrderView, error) {
 	o, err := s.q.OrderSummaryByNumber(ctx, db.OrderSummaryByNumberParams{
 		Number: number, Locale: i18n.FromContext(ctx).Tag(),
@@ -1065,7 +1034,6 @@ func (s *Store) Order(ctx context.Context, number string) (pages.OrderView, erro
 	return view, nil
 }
 
-// orderInvoice is the invoice the customer may see, or nil before one is filed.
 func (s *Store) orderInvoice(ctx context.Context, orderID uuid.UUID) (*pages.OrderInvoice, error) {
 	docs, err := s.q.OrderInvoiceDocuments(ctx, orderID)
 	if err != nil {
@@ -1093,7 +1061,6 @@ func (s *Store) orderInvoice(ctx context.Context, orderID uuid.UUID) (*pages.Ord
 	return out, nil
 }
 
-// text wraps a string for a nullable text column, treating empty as NULL.
 func text(s string) pgtype.Text {
 	if s == "" {
 		return pgtype.Text{}
@@ -1101,9 +1068,8 @@ func text(s string) pgtype.Text {
 	return pgtype.Text{String: s, Valid: true}
 }
 
-// holdOrderStock reserves every line's stock against the order. The idempotency
-// key is derived from the order and the variant, so a retried checkout under the
-// same order cannot double-hold.
+// holdOrderStock derives the idempotency key from the order and variant, so a
+// retried checkout cannot double-hold.
 func holdOrderStock(ctx context.Context, q *db.Queries, orderID uuid.UUID, lines []db.CartLinesRow) error {
 	holdFor := pgtype.Interval{
 		Microseconds: int64(holdTTL / time.Microsecond),
@@ -1128,9 +1094,8 @@ func holdOrderStock(ctx context.Context, q *db.Queries, orderID uuid.UUID, lines
 	return nil
 }
 
-// subtotalOf prices a cart, refusing anything that can no longer be supplied.
-// Re-checked INSIDE the transaction, because the last one could have sold since
-// the cart page rendered.
+// subtotalOf is re-checked INSIDE the transaction, because the last unit could
+// have sold since the cart page rendered.
 func subtotalOf(lines []db.CartLinesRow) (int64, error) {
 	var subtotal int64
 	for i := range lines {
@@ -1147,8 +1112,8 @@ func subtotalOf(lines []db.CartLinesRow) (int64, error) {
 	return subtotal, nil
 }
 
-// writeOrderLines copies each cart line onto the order. The price and warranty
-// promise are COPIED: a later catalogue change must not rewrite either one.
+// writeOrderLines COPIES the price and warranty promise: a later catalogue
+// change must not rewrite either.
 func writeOrderLines(ctx context.Context, q *db.Queries, orderID uuid.UUID, lines []db.CartLinesRow) error {
 	for i := range lines {
 		l := &lines[i]
@@ -1165,9 +1130,10 @@ func writeOrderLines(ctx context.Context, q *db.Queries, orderID uuid.UUID, line
 			Quantity:       l.Quantity,
 			Position:       int32(i),
 		}); err != nil {
-			// The cart read this line's name and SKU earlier in the transaction; an
-			// admin rename committing in between makes the snapshot stale, and the
-			// refreshed quote is what the shopper needs to see.
+			// The cart read this line's name and SKU earlier in the
+			// transaction; an admin rename committing in between makes the
+			// snapshot stale, and the refreshed quote is what the shopper needs
+			// to see.
 			if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok &&
 				(pgErr.ConstraintName == "order_lines_name_matches_product" ||
 					pgErr.ConstraintName == "order_lines_sku_matches_variant") {
@@ -1186,9 +1152,9 @@ func nullableTime(t pgtype.Timestamptz) string {
 	return shoptime.Minute(t.Time)
 }
 
-// spendCredit applies exactly the amount in the customer-confirmed quote. It is
-// bounded by the order total and the ledger refuses a balance that fell while
-// placement was waiting; a later increase is deliberately not auto-spent.
+// spendCredit is bounded by the order total and the ledger refuses a balance
+// that fell while placement waited; a later increase is deliberately not
+// auto-spent.
 func spendCredit(
 	ctx context.Context,
 	q *db.Queries,
@@ -1216,7 +1182,6 @@ func spendCredit(
 	return nil
 }
 
-// AvailableCredit is what a signed-in customer has to spend. Guests have none.
 func (s *Store) AvailableCredit(ctx context.Context, userID uuid.NullUUID) (int64, error) {
 	if !userID.Valid {
 		return 0, nil
@@ -1231,7 +1196,6 @@ func (s *Store) AvailableCredit(ctx context.Context, userID uuid.NullUUID) (int6
 	return balance, nil
 }
 
-// ItemCount is how many UNITS a cart holds, for the header badge.
 func (s *Store) ItemCount(ctx context.Context, cartID uuid.UUID) (int, error) {
 	n, err := s.q.CartItemCount(ctx, cartID)
 	if err != nil {

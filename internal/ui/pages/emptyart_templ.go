@@ -10,9 +10,7 @@ import templruntime "github.com/a-h/templ/runtime"
 
 import "github.com/koopa0/goen/assets"
 
-// emptyArt is the picture an empty state opens with. It is decoration: the
-// title and text below it say the same thing, and it holds 96px of height so
-// the action below sits where it would under an icon disc.
+// emptyArt is decoration: the title and text below say the same thing.
 func emptyArt(name string) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -42,7 +40,7 @@ func emptyArt(name string) templ.Component {
 			var templ_7745c5c3_Var2 string
 			templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.ResolveAttributeValue(assets.URL(name))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/emptyart.templ`, Line: 10, Col: 53}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/emptyart.templ`, Line: 8, Col: 53}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var2)
 			if templ_7745c5c3_Err != nil {

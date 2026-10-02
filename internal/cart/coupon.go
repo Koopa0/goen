@@ -15,22 +15,19 @@ import (
 )
 
 var (
-	// ErrNoSuchCoupon is a code that names nothing, and also one that is switched
-	// off, so a shop does not confirm which codes are real to somebody guessing.
-	ErrNoSuchCoupon = errors.New("cart: no such coupon")
-	// ErrCouponExpired is outside its window.
+	// ErrNoSuchCoupon covers a code that names nothing and one that is switched
+	// off, so a shop does not confirm which codes are real to somebody
+	// guessing.
+	ErrNoSuchCoupon  = errors.New("cart: no such coupon")
 	ErrCouponExpired = errors.New("cart: coupon expired")
-	// ErrCouponMinimum is an order that has not reached the minimum spend.
 	ErrCouponMinimum = errors.New("cart: order below the coupon minimum")
-	// ErrCouponUsedUp is a coupon at its total or per-customer limit.
-	ErrCouponUsedUp = errors.New("cart: coupon already used")
+	ErrCouponUsedUp  = errors.New("cart: coupon already used")
 )
 
-// couponCode is coupons_code_format, restated so a malformed code is a message
+// couponCode restates coupons_code_format so a malformed code is a message
 // rather than a query.
 var couponCode = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9-]{1,31}$`)
 
-// Coupon is a stable coupon definition as the cart works with it.
 type Coupon struct {
 	id          uuid.UUID
 	code        string
@@ -43,14 +40,11 @@ type Coupon struct {
 	minimumCents int64
 }
 
-// centsPerYuan is the size of one NT$ in the cents every amount is stored in.
 const centsPerYuan = 100
 
-// NormaliseCode upper-cases and trims a typed code, leaving hyphens alone.
 func NormaliseCode(s string) string { return strings.ToUpper(strings.TrimSpace(s)) }
 
-// Apply works out what this definition does to one order without retaining the
-// result. A discount is capped at the subtotal and never the total, which
+// Apply caps a discount at the subtotal, never the total, which
 // orders_total_non_negative refuses.
 func (c Coupon) Apply(subtotalCents int64) (discountCents int64, freeShipping bool, err error) {
 	if subtotalCents < c.minimumCents {
@@ -61,21 +55,17 @@ func (c Coupon) Apply(subtotalCents int64) (discountCents int64, freeShipping bo
 	case "amount":
 		return min(c.amountCents, subtotalCents), false, nil
 	case "percent":
-		// Integer basis points throughout. Split quotient and remainder before
-		// multiplying: subtotalCents itself may legitimately fit in int64 while
-		// subtotalCents*percentBP does not.
+		// Split quotient and remainder before multiplying: subtotalCents may
+		// fit in int64 while subtotalCents*percentBP does not.
 		basisPoints := int64(c.percentBP)
 		discountCents = subtotalCents/10000*basisPoints +
 			subtotalCents%10000*basisPoints/10000
-		// The discount is a whole NT$, so the quoted total, the amount charged
-		// to the card when no store credit funds part of the order, and the
-		// invoice filed for it are the same whole-NT$ figure. Refunds of a
-		// partial return and store-credit splits still carry cents. It rounds
-		// UP, in the customer's favour: a shopper never pays more than the
-		// advertised percentage allows. The cap and the subtotal bind after
-		// rounding, each floored to a whole NT$ so the rounding cannot carry
-		// the discount past either of them. Checking the limit first also keeps
-		// the round-up from overflowing near int64's end.
+		// The discount is a whole NT$, so the quoted total, the card charge and
+		// the invoice agree; refunds of a partial return and store-credit
+		// splits still carry cents. It rounds UP, in the customer's favour. The
+		// cap and the subtotal bind after rounding, each floored to a whole
+		// NT$, and the limit is checked first so the round-up cannot overflow
+		// near int64's end.
 		limit := subtotalCents
 		if c.capCents > 0 {
 			limit = min(limit, c.capCents)
@@ -91,22 +81,21 @@ func (c Coupon) Apply(subtotalCents int64) (discountCents int64, freeShipping bo
 	case "free_shipping":
 		return 0, true, nil
 	default:
-		// Coupon fields are private and CouponByCode reads a schema-constrained
-		// closed set. Reaching this arm is binary/schema skew or an internal
-		// construction bug, not input the customer can repair with another code.
+		// Reaching this arm is binary/schema skew or a construction bug, not
+		// input the customer can repair with another code.
 		panic(fmt.Sprintf("cart: coupon %s has unknown kind %q", c.code, c.kind))
 	}
 }
 
-// CouponByCode looks a code up. Order-specific eligibility and value belong to
-// Apply; redemption limits are counted by redeem_coupon under a coupon-row lock.
+// CouponByCode leaves eligibility and value to Apply; redemption limits are
+// counted by redeem_coupon under a coupon-row lock.
 func (s *Store) CouponByCode(ctx context.Context, code string) (*Coupon, error) {
 	return couponByCode(ctx, s.q, code)
 }
 
-// couponByCode uses the caller's query binding. Checkout first calls the narrow
-// lock_coupon_for_checkout door on that same binding, so this ordinary read and
-// the later quote comparison/redemption stay in the row-locking transaction.
+// couponByCode runs on the caller's binding: checkout first calls
+// lock_coupon_for_checkout on it, so this read and the later redemption stay in
+// the row-locking transaction.
 func couponByCode(ctx context.Context, q *db.Queries, code string) (*Coupon, error) {
 	code = NormaliseCode(code)
 	if !couponCode.MatchString(code) {
@@ -140,8 +129,8 @@ func couponByCode(ctx context.Context, q *db.Queries, code string) (*Coupon, err
 	}, nil
 }
 
-// redeemCoupon posts the redemption inside the order's transaction, carrying the
-// discount given — coupon_redemption_matches_order holds the two to each other.
+// redeemCoupon carries the discount given: coupon_redemption_matches_order
+// holds the two to each other.
 func redeemCoupon(
 	ctx context.Context,
 	q *db.Queries,
@@ -157,8 +146,8 @@ func redeemCoupon(
 		CouponID: c.id, OrderID: orderID, UserID: userID,
 		AmountCents: discountCents,
 	}); err != nil {
-		// Bound to the constraint NAME, never to the message: pgconn renders a
-		// PgError as severity + message + SQLSTATE, and the name is not in it.
+		// Bound to the constraint NAME: pgconn renders a PgError as severity +
+		// message + SQLSTATE, and the name is not in it.
 		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok {
 			switch pgErr.ConstraintName {
 			case "coupon_within_total_limit", "coupon_within_customer_limit":

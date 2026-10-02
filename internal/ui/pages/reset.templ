@@ -7,7 +7,6 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// Forgot renders the request-a-link page.
 templ Forgot(p layouts.Page, v ForgotView) {
 	@layouts.Base(p) {
 		<div class="goen-auth">
@@ -54,7 +53,6 @@ templ Forgot(p layouts.Page, v ForgotView) {
 	}
 }
 
-// Reset renders the set-a-new-password page.
 templ Reset(p layouts.Page, v ResetView) {
 	@layouts.Base(p) {
 		<div class="goen-auth">

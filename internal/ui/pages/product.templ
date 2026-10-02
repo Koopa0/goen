@@ -11,7 +11,6 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// Product renders the detail page: gallery, the buy panel, specs and reviews.
 templ Product(p layouts.Page, v *ProductView) {
 	@layouts.Base(p) {
 		<div class="goen-pdp">
@@ -111,13 +110,11 @@ templ Product(p layouts.Page, v *ProductView) {
 	}
 }
 
-// productGallery is one stage and a row of thumbnails, chosen with a radio
-// group and drawn with CSS alone, so it works with scripting off and a swap of
-// #gallery by the colour swatches needs no state kept anywhere.
+// A radio group drawn with CSS alone: works with scripting off, and a swap of
+// #gallery by the colour swatches keeps no state.
 //
-// Every shot is laid out in the same cell and the unchosen ones are only hidden
-// with visibility, none of them lazy: choosing a thumbnail has to show its
-// photograph at once, not start its download.
+// Every shot sits in the same cell and the unchosen ones are only hidden with
+// visibility, none lazy: choosing a thumbnail must show its photograph at once.
 templ productGallery(v *ProductView) {
 	<div class="goen-pdp__gallery" id="gallery">
 		if v.HasImages() {
@@ -175,8 +172,6 @@ templ productGallery(v *ProductView) {
 	</div>
 }
 
-// ratingStars draws five stars with halves of them filled. It is decoration: the
-// caller supplies the words a screen reader is given.
 templ ratingStars(halves int) {
 	<span class="goen-pdp__rate" aria-hidden="true">
 		for i := 1; i <= 5; i++ {
@@ -262,24 +257,13 @@ templ productBuy(v *ProductView) {
 				</legend>
 				<div class={ "goen-pdp__values", templ.KV("goen-pdp__values--swatches", o.HasSwatches()) }>
 					for vi, val := range o.Values {
-						// Still a link, and still the whole answer with scripting
-						// off: the href navigates, the URL carries the choice, and
-						// the server renders the page it always did. The hx-
-						// attributes ask for that same URL and keep only the part
-						// that changes, so there is no second server path to keep
-						// in step with the first.
+						// Still a link and the whole answer with scripting off. The hx- attributes ask for
+						// the same URL and keep only the part that changes: no second server path.
 						//
-						// The gallery comes along only when a photograph shows one
-						// option value, because only then can the choice reorder
-						// it. Otherwise the server sends every choice the same
-						// gallery, byte for byte, and a test holds that: selecting
-						// it would destroy the <img> and build an identical one, a
-						// fetch, a decode and an empty frame for a picture that did
-						// not change.
-						// The id is what lets htmx put focus back on the control
-						// that was activated: it restores focus after a swap only
-						// to an element it can find again by id, and the option and
-						// value positions are the same in the page that comes back.
+						// The gallery comes along only when a photograph shows one option value, because
+						// only then can the choice reorder it; otherwise a test holds that the server sends
+						// the same gallery byte for byte, and swapping it would rebuild an identical <img>.
+						// The id lets htmx restore focus to the activated control after a swap.
 						<a
 							id={ "swatch-" + strconv.Itoa(oi) + "-" + strconv.Itoa(vi) }
 							class={ "goen-swatch",
@@ -301,20 +285,13 @@ templ productBuy(v *ProductView) {
 							}
 						>
 							if o.HasSwatches() {
-								// The colour is the control; the name is what a
-								// screen reader is given, because a fill is not
-								// a label. A presentation attribute and not a
-								// style one, so the policy has nothing to refuse.
+								// A presentation attribute, not a style, so the CSP has nothing to refuse. The
+								// colour is the control; the name is what a screen reader is given.
 								<svg class="goen-swatch__dot" viewBox="0 0 36 36" width="32" height="32" aria-hidden="true">
 									<circle cx="18" cy="18" r="17.5" fill={ val.SwatchHex }></circle>
 									if !val.Available {
-										// Struck through, not dimmed: a line SAYS
-										// sold out where a lower opacity only says
-										// the page is tired. Two strokes on one
-										// diagonal, the page's ground under the
-										// page's ink, so the mark reads on a colour
-										// of any darkness — the same answer the
-										// selected ring gives, for the same reason.
+										// Struck through, not dimmed: a line says sold out where lower opacity says
+										// nothing. Two strokes, the ground under the ink, so the mark reads on a colour of any darkness.
 										<line class="goen-swatch__barground" x1="7.4" y1="28.6" x2="28.6" y2="7.4"></line>
 										<line class="goen-swatch__bar" x1="7.4" y1="28.6" x2="28.6" y2="7.4"></line>
 									}
@@ -374,13 +351,10 @@ templ productBuy(v *ProductView) {
 	</div>
 }
 
-// productLinks holds the wishlist under the buy row, a form of its own because
-// it posts somewhere else and a form cannot nest inside the add form.
 templ productLinks(v *ProductView) {
 	<div class="goen-pdp__links">
 		if v.SignedIn {
-			// Toggling swaps the form alone, so the page stays where it is; the
-			// plain post and its redirect serve a browser without script.
+			// Toggling swaps the form alone; the plain post and its redirect serve a browser without script.
 			<form
 				method="post"
 				action="/account/wishlist"
@@ -415,24 +389,15 @@ templ productLinks(v *ProductView) {
 	</div>
 }
 
-// productAddForm is the page's one filled action. The outcome of the last
-// press sits directly under the button with nothing between them: a phone has
-// to show the two together, or the confirmation is a sentence about a control
-// that has scrolled away.
 templ productAddForm(v *ProductView) {
 	<div class="goen-pdp__actions">
-		// Still a form, still a POST, still /cart/items, and with scripting off
-		// nothing below this line exists: the browser posts, the server answers
+		// With scripting off nothing below exists: the browser posts, the server answers
 		// 303 and the visitor lands on the product page with the notice on it.
 		//
-		// With script, the same POST goes through htmx and the answer is used
-		// rather than navigated to. There is no second server path: the 303 is
-		// followed, the page that comes back is the page a reload would give,
-		// and hx-select takes the buy column out of it. hx-select-oob names the
-		// header's cart link in that same response, so the count and the link's
-		// accessible name change from the document the server just rendered
-		// instead of from a number this page would have to keep. The address is
-		// not pushed: ?added= is not a page to come back to.
+		// With script, the same POST goes through htmx, the 303 is followed and hx-select
+		// takes the buy column out of the page a reload would give. hx-select-oob names the
+		// header's cart link in that response, so the count changes from the document the
+		// server just rendered. The address is not pushed: ?added= is not a page to come back to.
 		<form
 			id="pdp-add"
 			class="goen-pdp__form"
@@ -507,11 +472,9 @@ templ productAddForm(v *ProductView) {
 	</div>
 }
 
-// productBuyBar sits outside #buybox because a region with a
-// view-transition-name contains its fixed descendants, and rides every swap of
-// the buy box through hx-select-oob. The wrapper renders even when empty, or a
-// swap would leave the previous bar standing. The button submits the page's own
-// form so there is one way to add to the cart.
+// Outside #buybox because a region with a view-transition-name contains its fixed
+// descendants; rides every swap through hx-select-oob. It renders even when empty,
+// or a swap would leave the previous bar standing.
 templ productBuyBar(v *ProductView) {
 	<div id="buybar" class="goen-buybar" data-follows={ v.BuyBarFollows() }>
 		if msg := v.BuyBarOutcome(ctx); msg != "" {
@@ -539,9 +502,7 @@ templ productBuyBar(v *ProductView) {
 	</div>
 }
 
-// productCompare is the one way into a comparison, with the specs it compares
-// and only where the department offers one. It extends the comparison the
-// visitor arrived with, and is a plain link: the set is the address.
+// A plain link: the set is the address.
 templ productCompare(v *ProductView) {
 	if v.Comparable {
 		<div class="goen-pdp__similar">
@@ -602,9 +563,8 @@ templ productNotifyForm(v *ProductView) {
 templ productReviews(v *ProductView) {
 	<section class="goen-pdp__reviews" id="reviews" aria-labelledby="reviews-heading">
 		<h2 id="reviews-heading" class="goen-pdp__sectiontitle">{ i18n.T(ctx, i18n.KeySectionReviews) }</h2>
-		// The SUMMARY is what depends on there being ratings, not the section:
-		// the form that writes the first one is inside here, so gating the whole
-		// section on RatingCount > 0 meant a product could never receive one.
+		// The summary depends on there being ratings, not the section: the form that
+		// writes the first rating is inside.
 		if !v.HasRating() {
 			<p class="goen-pdp__noreviews">{ i18n.T(ctx, i18n.KeyNoReviewsYet) }</p>
 		}

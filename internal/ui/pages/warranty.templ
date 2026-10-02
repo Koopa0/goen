@@ -8,7 +8,6 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// WarrantyList renders what a customer has registered.
 templ WarrantyList(p layouts.Page, v WarrantyListView) {
 	@layouts.Base(p) {
 		<div class="goen-account goen-account--narrow">
@@ -65,7 +64,6 @@ templ WarrantyList(p layouts.Page, v WarrantyListView) {
 	}
 }
 
-// WarrantyOrder renders one order's registration form.
 templ WarrantyOrder(p layouts.Page, v WarrantyOrderView) {
 	@layouts.Base(p) {
 		<div class="goen-account goen-account--narrow">

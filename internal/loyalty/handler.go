@@ -15,13 +15,11 @@ import (
 	"github.com/koopa0/goen/internal/web"
 )
 
-// Handler serves the points page.
 type Handler struct {
 	store *Store
 	log   *slog.Logger
 }
 
-// NewHandler returns a Handler over store.
 func NewHandler(store *Store, log *slog.Logger) *Handler {
 	if store == nil || log == nil {
 		panic("loyalty: NewHandler requires a store and a logger")
@@ -29,7 +27,6 @@ func NewHandler(store *Store, log *slog.Logger) *Handler {
 	return &Handler{store: store, log: log}
 }
 
-// Page serves GET /account/points.
 func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 	u, ok := account.FromContext(r.Context())
 	if !ok {
@@ -50,7 +47,6 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyPointsTitle)}, view))
 }
 
-// Redeem serves POST /account/points.
 func (h *Handler) Redeem(w http.ResponseWriter, r *http.Request) {
 	u, ok := account.FromContext(r.Context())
 	if !ok {
@@ -97,8 +93,8 @@ func (h *Handler) serverError(w http.ResponseWriter, r *http.Request) {
 		i18n.T(r.Context(), i18n.KeyTryAgainBody)))
 }
 
-// renderRefusal answers 422 with the points page and the reason, so the refusal
-// is read where the form is instead of after a redirect.
+// renderRefusal answers 422 on the points page so the refusal is read where the
+// form is instead of after a redirect.
 func (h *Handler) renderRefusal(w http.ResponseWriter, r *http.Request, userID string, reason i18n.Key) {
 	view, err := h.store.History(r.Context(), userID, "")
 	if err != nil && !errors.Is(err, ErrNoAccount) {

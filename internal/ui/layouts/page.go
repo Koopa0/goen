@@ -1,4 +1,4 @@
-// Package layouts renders goen's shared page chrome.
+// Package layouts holds goen's shared page chrome.
 package layouts
 
 import (
@@ -8,38 +8,30 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-// htmxConfig configures htmx from the document, because a policy that allows no
-// inline script leaves nowhere else to set it. transitions asks the browser to
-// cross-fade a swapped region; the stylesheet gives that its duration and
-// silences it under reduced motion. includeIndicatorCSS is off because htmx
-// would otherwise adopt a stylesheet of its own, and every rule this site has
-// belongs in the sheet the policy already allows.
+// htmxConfig is set from the document because a policy that allows no inline script
+// leaves nowhere else. includeIndicatorCSS is off because htmx would otherwise adopt
+// a stylesheet of its own, and every rule belongs in the sheet the policy allows.
 const htmxConfig = `{"transitions":true,"includeIndicatorCSS":false}`
 
-// Page is the chrome-level view model every goen page supplies.
 type Page struct {
 	Title          string
 	Description    string
 	Nav            string
 	StructuredData string
 	SearchQuery    string
-	// Share is the picture a link preview shows in place of the default; the
-	// zero value keeps the default.
+	// Share's zero value keeps the default preview picture.
 	Share ShareImage
 }
 
-// ShareImage is a page's own preview picture. Path is site-relative because
-// the head prefixes the configured origin, which a crawler needs to fetch it.
-// Width and Height are 0 where unknown and are then left out of the tags
-// rather than stated wrong.
+// ShareImage has a site-relative Path because the head prefixes the configured origin,
+// which a crawler needs to fetch it. Width and Height are 0 where unknown and are then
+// left out of the tags rather than stated wrong.
 type ShareImage struct {
 	Path          string
 	Width, Height int32
 	Alt           string
 }
 
-// NavItem is one top-level category entry in the header, with the
-// sub-categories and the few products its department panel shows.
 type NavItem struct {
 	Slug     string
 	Name     string
@@ -48,8 +40,8 @@ type NavItem struct {
 	Picks    []NavPick
 }
 
-// NavPick is one product in a department panel. Price is already rendered,
-// "from" included where variants differ: the chrome prints it as given.
+// NavPick carries a Price that is already rendered, "from" included where variants differ: the
+// chrome prints it as given.
 type NavPick struct {
 	Slug        string
 	Name        string
@@ -60,14 +52,11 @@ type NavPick struct {
 
 type topNavKey struct{}
 
-// WithTopNav carries the header's category row down to the chrome. The row is
-// read from the catalogue, never a hard-coded list whose comment claimed
-// TestTopNavPointsAtRealCategories kept it honest. // named-test-exempt: this line RECORDS that the test was never written
+// WithTopNav carries the header's category row, read from the catalogue.
 func WithTopNav(ctx context.Context, items []NavItem) context.Context {
 	return context.WithValue(ctx, topNavKey{}, items)
 }
 
-// TopNavFrom is the header's category row, empty outside the middleware.
 func TopNavFrom(ctx context.Context) []NavItem {
 	items, ok := ctx.Value(topNavKey{}).([]NavItem)
 	if !ok {
@@ -78,16 +67,12 @@ func TopNavFrom(ctx context.Context) []NavItem {
 
 type originKey struct{}
 
-// WithSiteOrigin carries the shop's own origin, scheme and host only, so the
-// head can name an absolute URL: a share preview is fetched by a crawler that
-// has no page to resolve a relative one against. Middleware sets it from the
-// configured base URL, never from the request's Host header, which a client
-// chooses.
+// WithSiteOrigin carries scheme and host only, set by middleware from the configured
+// base URL and never from the request's Host header, which a client chooses.
 func WithSiteOrigin(ctx context.Context, origin string) context.Context {
 	return context.WithValue(ctx, originKey{}, origin)
 }
 
-// SiteOrigin is the origin WithSiteOrigin set, or "" outside the middleware.
 func SiteOrigin(ctx context.Context) string {
 	if origin, ok := ctx.Value(originKey{}).(string); ok {
 		return origin
@@ -97,13 +82,11 @@ func SiteOrigin(ctx context.Context) string {
 
 type pathKey struct{}
 
-// WithRequestPath carries the path the visitor asked for, without its query, so
-// the head can name the page's own address in og:url.
+// WithRequestPath carries the path without its query, for og:url.
 func WithRequestPath(ctx context.Context, escapedPath string) context.Context {
 	return context.WithValue(ctx, pathKey{}, escapedPath)
 }
 
-// RequestPath is the path WithRequestPath set, or "/" outside the middleware.
 func RequestPath(ctx context.Context) string {
 	if path, ok := ctx.Value(pathKey{}).(string); ok && path != "" {
 		return path
@@ -113,34 +96,25 @@ func RequestPath(ctx context.Context) string {
 
 type staffKey struct{}
 
-// WithStaff records that this request's visitor may reach the back office, so
-// the chrome can offer the entrance. Middleware sets it for the reason the cart
-// badge and the category row are set there: a chrome fact each handler has to
-// remember to fill is a fact that goes unfilled, which is what left
-// Page.CartCount reading 0 for every visitor with a full cart.
+// WithStaff is set in middleware: a chrome fact each handler has to remember to fill
+// goes unfilled.
 func WithStaff(ctx context.Context, staff bool) context.Context {
 	return context.WithValue(ctx, staffKey{}, staff)
 }
 
-// IsStaff reports whether the chrome should offer the back office. It is false
-// outside the middleware, so a customer — and any surface rendered without it —
-// is never shown a door that answers 404.
+// IsStaff is false outside the middleware, so a customer is never shown a door that answers 404.
 func IsStaff(ctx context.Context) bool {
 	staff, ok := ctx.Value(staffKey{}).(bool)
 	return ok && staff
 }
 
-// footerLink is one entry in a footer link column.
 type footerLink struct {
 	Key  i18n.Key
 	Href string
 }
 
-// Label is the link's text in the request's language.
 func (l footerLink) Label(ctx context.Context) string { return i18n.T(ctx, l.Key) }
 
-// footerShopping and footerAbout are the footer's two fixed link columns; the
-// third lists the departments.
 var (
 	footerShopping = [...]footerLink{
 		{Key: i18n.KeyShippingPolicy, Href: "/shipping"},

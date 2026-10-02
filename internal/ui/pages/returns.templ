@@ -8,7 +8,6 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// Returns is the customer's return request form.
 templ Returns(p layouts.Page, v ReturnsView) {
 	@layouts.Base(p) {
 		<div class="goen-returns">
@@ -20,9 +19,8 @@ templ Returns(p layouts.Page, v ReturnsView) {
 				</p>
 			</div>
 			if v.Error != "" {
-				// Written out rather than composed, because the textarea's
-				// aria-describedby points at this id and the guard in
-				// aria_test.go reads both out of this file's source.
+				// Written out, not composed: the textarea's aria-describedby points at this id
+				// and the guard in aria_test.go reads both from this source.
 				<p
 					class="goen-notice goen-notice--danger"
 					role="alert"
@@ -107,9 +105,8 @@ templ Returns(p layouts.Page, v ReturnsView) {
 							@components.Label(components.LabelProps{For: "return-reason"}) {
 								{ i18n.T(ctx, i18n.KeyFieldReturnReason) }
 							}
-							// Written out rather than composed: internal/site/policy_test.go
-							// reads this element out of this file to decide whether the
-							// policy page may say a reason is required.
+							// Written out, not composed: internal/site/policy_test.go reads this element
+							// to decide whether the policy page may say a reason is required.
 							<textarea
 								class="goen-input goen-input--area"
 								id="return-reason"

@@ -7,7 +7,6 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// AboutMeta is the chrome view model for the about page.
 func AboutMeta(ctx context.Context) layouts.Page {
 	return layouts.Page{
 		Title:       i18n.T(ctx, i18n.KeyAboutTitle),
@@ -15,7 +14,6 @@ func AboutMeta(ctx context.Context) layouts.Page {
 	}
 }
 
-// About renders the about page.
 templ About(p layouts.Page) {
 	@layouts.Base(p) {
 		<article class="about">
@@ -47,12 +45,8 @@ templ About(p layouts.Page) {
 	}
 }
 
-// aboutArt is goen's mark drawn large: the two rings of the name, ご縁, the bond
-// between a person and a thing, with the lens where they overlap lightly
-// filled. Decoration, so hidden from assistive technology: the heading and the
-// lead under it say what it means. Strokes do not scale with the drawing, so
-// the lines stay fine at every width and density; colours come from app.css
-// classes, because the site's CSP refuses inline style.
+// aboutArt is the mark drawn large and hidden from assistive technology.
+// Colours come from app.css classes because the site's CSP refuses inline style.
 templ aboutArt() {
 	<svg class="about__art" data-tone="paper" viewBox="0 0 1600 900" aria-hidden="true" focusable="false">
 		<path class="about__lens" d="M 715.6 534.4 A 193 193 0 0 0 884.4 365.6 A 193 193 0 0 0 715.6 534.4 Z"></path>

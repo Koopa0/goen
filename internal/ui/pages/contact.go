@@ -7,7 +7,6 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// ContactMeta is the chrome view model for the contact page.
 func ContactMeta(ctx context.Context) layouts.Page {
 	return layouts.Page{
 		Title:       i18n.T(ctx, i18n.KeyContactTitle),
@@ -15,13 +14,11 @@ func ContactMeta(ctx context.Context) layouts.Page {
 	}
 }
 
-// ContactSubject is one option in the subject control.
 type ContactSubject struct {
 	Value string
 	Label string
 }
 
-// ContactForm is what the contact panel renders.
 type ContactForm struct {
 	Name     string
 	Email    string

@@ -5,5 +5,4 @@ package recommend
 
 import "time"
 
-// Interval is how often the projection is rebuilt.
 const Interval = 15 * time.Minute

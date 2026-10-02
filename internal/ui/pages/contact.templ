@@ -8,7 +8,6 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// Contact renders the contact page.
 templ Contact(p layouts.Page, f ContactForm) {
 	@layouts.Base(p) {
 		<div class="contact">
@@ -42,11 +41,9 @@ templ contactMethod(href, label, value string) {
 	</a>
 }
 
-// ContactPanel is a plain form posting to /contact.
-//
-// Its two banners are written here rather than through the notice component:
-// the layout gate reads the refusal's sentence through a descendant pair
-// (`scripts/check-layout.mjs:2068`), and one caller does not earn a Prop.
+// The two banners are written here, not through the notice component: the layout
+// gate reads the refusal's sentence through a descendant pair
+// (scripts/check-layout.mjs).
 templ ContactPanel(f ContactForm) {
 	if f.Done {
 		<div class="goen-card contact__panel contact__panel--done" role="status" id="contact-form">

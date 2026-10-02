@@ -8,17 +8,10 @@ package components
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
-// Disclosure is a native <details> panel: a summary that opens it and the
-// content it holds. No script, and a browser that has never heard of the
-// element still shows both halves.
-//
-// It renders closed. The one shape that uses it — a navigation rail that is a
-// column beside the page on a desk and a band above it on a phone — shows the
-// panel at the wide breakpoint through ::details-content and hides the summary
-// there, so the stylesheet that closes it for a phone is the same one that
-// forces it open for a desk. A browser without ::details-content keeps the
-// summary at every width, which is a nav that is one tap further, not one that
-// is gone.
+// Renders closed. The navigation rail that uses it shows the panel at the wide
+// breakpoint through ::details-content and hides the summary there, so the stylesheet
+// that closes it for a phone forces it open for a desk. A browser without
+// ::details-content keeps the summary at every width: one tap further, not gone.
 func Disclosure(p DisclosureProps) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -65,7 +58,7 @@ func Disclosure(p DisclosureProps) templ.Component {
 		var templ_7745c5c3_Var4 string
 		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(p.Summary)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/disclosure.templ`, Line: 16, Col: 55}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/disclosure.templ`, Line: 9, Col: 55}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 		if templ_7745c5c3_Err != nil {

@@ -8,8 +8,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// Pay hands the customer over to Stripe's hosted card form. Nothing on this page
-// loads, so it has no skeleton and no spinner: the handover is a form post.
+// Nothing on this page loads, so it has no skeleton and no spinner: the handover is a form post.
 templ Pay(p layouts.Page, v PayView) {
 	@layouts.Base(p) {
 		<div class="goen-pay">

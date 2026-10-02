@@ -9,12 +9,10 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// DealsMeta is the chrome view model for the deals page.
 func DealsMeta(ctx context.Context) layouts.Page {
 	return layouts.Page{Title: i18n.T(ctx, i18n.KeyDeals2)}
 }
 
-// Deals renders the marked-down products, reusing SearchView.
 templ Deals(p layouts.Page, v SearchView) {
 	@layouts.Base(p) {
 		<div class="goen-listing">

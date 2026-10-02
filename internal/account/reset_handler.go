@@ -13,7 +13,6 @@ import (
 	"github.com/koopa0/goen/internal/web"
 )
 
-// ForgotPage serves GET /forgot.
 func (h *Handler) ForgotPage(w http.ResponseWriter, r *http.Request) {
 	if _, ok := FromContext(r.Context()); ok {
 		http.Redirect(w, r, "/account", http.StatusSeeOther)
@@ -27,7 +26,7 @@ func (h *Handler) ForgotPage(w http.ResponseWriter, r *http.Request) {
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyForgotTitle)}, view))
 }
 
-// Forgot serves POST /forgot, identically whether or not the address is known.
+// Forgot answers identically whether or not the address is known.
 func (h *Handler) Forgot(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
@@ -35,13 +34,12 @@ func (h *Handler) Forgot(w http.ResponseWriter, r *http.Request) {
 	}
 	addr := r.PostFormValue("email")
 	normalised := email.Clean(addr)
-	// The demo account's address is public, so saying so tells nobody anything.
 	if h.demo.holds(normalised) {
 		http.Redirect(w, r, "/forgot?demo=fixed", http.StatusSeeOther)
 		return
 	}
-	// The success redirect is also the refusal: an address outside the
-	// application's policy cannot name an account, and must not become a key.
+	// The success redirect is also the refusal: an address outside the policy
+	// cannot name an account and must not become a key.
 	if len(normalised) > email.Max {
 		http.Redirect(w, r, "/forgot?sent=1", http.StatusSeeOther)
 		return
@@ -60,16 +58,14 @@ func (h *Handler) Forgot(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/forgot?sent=1", http.StatusSeeOther)
 }
 
-// ResetPage serves GET /reset; checking the token here would tell a guesser it is real.
+// ResetPage does not check the token: that would tell a guesser it is real.
 func (h *Handler) ResetPage(w http.ResponseWriter, r *http.Request) {
-	// The live reset token is password-equivalent; keep its page out of BREACH's reach.
 	web.NoCompress(w)
 	web.Render(w, r, h.log, http.StatusOK, pages.Reset(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyResetTitle)},
 		pages.ResetView{Token: r.URL.Query().Get("token")}))
 }
 
-// Reset serves POST /reset.
 func (h *Handler) Reset(w http.ResponseWriter, r *http.Request) {
 	// A rejected password can re-render the still-live reset token; never compress it.
 	web.NoCompress(w)

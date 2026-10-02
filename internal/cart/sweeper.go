@@ -13,16 +13,14 @@ import (
 	"github.com/koopa0/goen/internal/email"
 )
 
-// SweepInterval is how often abandoned holds are returned to the shelf.
 const SweepInterval = time.Minute
 
 // SweepBatch bounds one pass, because every release holds a lock on a variant
 // row that live checkouts need.
 const SweepBatch = 200
 
-// Sweep returns expired holds to the shelf, then cancels the unpaid orders left
-// with no live hold, once. Each release and each cancellation is its own
-// transaction, so one that fails does not take the batch with it.
+// Sweep releases and cancels each in its own transaction, so one failure does
+// not take the batch with it.
 func (s *Store) Sweep(ctx context.Context, log *slog.Logger) (released, skipped int, err error) {
 	ids, err := s.q.ExpiredReservations(ctx, SweepBatch)
 	if err != nil {
@@ -45,8 +43,7 @@ func (s *Store) Sweep(ctx context.Context, log *slog.Logger) (released, skipped 
 	return released, skipped, s.cancelLapsed(ctx, log)
 }
 
-// cancelLapsed cancels each unpaid order that no live hold can pay for any more,
-// so its coupon slot and the store credit spent on it come back.
+// cancelLapsed returns the coupon slot and store credit spent on the order.
 func (s *Store) cancelLapsed(ctx context.Context, log *slog.Logger) error {
 	numbers, err := s.q.LapsedUnpaidOrders(ctx, SweepBatch)
 	if err != nil {
@@ -70,7 +67,7 @@ func (s *Store) cancelLapsed(ctx context.Context, log *slog.Logger) error {
 }
 
 // cancelLapsedOrder reports false when the order stopped qualifying between the
-// candidate read and its lock: it was paid, cancelled, or a payment opened.
+// candidate read and its lock: paid, cancelled, or a payment opened.
 func (s *Store) cancelLapsedOrder(ctx context.Context, number string) (bool, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -90,8 +87,8 @@ func (s *Store) cancelLapsedOrder(ctx context.Context, number string) (bool, err
 	if cancelled == 0 {
 		return false, nil
 	}
-	// No Checkout Session is left to close at Stripe: the predicate refused any
-	// order with a payment that could still take money.
+	// No Checkout Session is left to close: the predicate refused any order
+	// with a payment that could still take money.
 	if err := settleCancellation(ctx, q, number, email.TerminalCancelledByPaymentDeadline); err != nil {
 		return false, err
 	}
@@ -105,8 +102,8 @@ func benignSweepFailure(err error) bool {
 	return BenignSweepFailure(err)
 }
 
-// BenignSweepFailure reports whether a refusal is one the sweeper expects.
-// Bound to the constraint name, because a PgError's message never carries it.
+// BenignSweepFailure is bound to the constraint name, because a PgError's
+// message never carries it.
 func BenignSweepFailure(err error) bool {
 	pgErr, ok := errors.AsType[*pgconn.PgError](err)
 	if !ok {
@@ -118,8 +115,9 @@ func BenignSweepFailure(err error) bool {
 		// A zero-owed order is paid for and still pending, so committed_orders
 		// reports it false while release_reservation refuses it by name.
 		"inventory_reservation_funded_no_release",
-		// ExpiredReservations normally filters this state. The named refusal is
-		// the order-lock recheck when reconciliation begins after that snapshot.
+		// ExpiredReservations normally filters this state; the named refusal is
+		// the order-lock recheck when reconciliation begins after that
+		// snapshot.
 		"inventory_reservation_payment_reconciliation_no_release":
 		return true
 	default:
@@ -127,8 +125,7 @@ func BenignSweepFailure(err error) bool {
 	}
 }
 
-// SweepForever runs Sweep on a ticker until ctx is cancelled. It blocks, so the
-// caller owns the goroutine.
+// SweepForever blocks; the caller owns the goroutine.
 func (s *Store) SweepForever(ctx context.Context, log *slog.Logger) {
 	t := time.NewTicker(SweepInterval)
 	defer t.Stop()
@@ -150,20 +147,17 @@ func (s *Store) SweepForever(ctx context.Context, log *slog.Logger) {
 	}
 }
 
-// AttemptRetain is how long a checkout idempotency key is kept. Weeks rather
-// than hours, because deleting a row frees its key to be replayed.
+// AttemptRetain is weeks rather than hours, because deleting a row frees its
+// key to be replayed.
 const AttemptRetain = 30 * 24 * time.Hour
 
-// AttemptSweepInterval is how often that runs.
 const AttemptSweepInterval = 24 * time.Hour
 
-// GrantRetain is how long a browser's proof of access to an order is kept. It
-// must never be SHORTER than the placed cookie's MaxAge, which holds only
-// because TouchOrderAccessGrants restarts this clock with the cookie's.
+// GrantRetain must never be SHORTER than the placed cookie's MaxAge, which
+// holds only because TouchOrderAccessGrants restarts this clock with the
+// cookie's.
 const GrantRetain = cookieMaxAge * time.Second
 
-// SweepAttempts deletes checkout keys past [AttemptRetain] and access grants
-// past [GrantRetain], once.
 func (s *Store) SweepAttempts(ctx context.Context) error {
 	if err := s.q.DeleteOldCheckoutAttempts(ctx, pgtype.Interval{
 		Microseconds: int64(AttemptRetain / time.Microsecond), Valid: true,
@@ -178,7 +172,6 @@ func (s *Store) SweepAttempts(ctx context.Context) error {
 	return nil
 }
 
-// SweepAttemptsForever runs SweepAttempts on a ticker until ctx is cancelled.
 func (s *Store) SweepAttemptsForever(ctx context.Context, log *slog.Logger) {
 	t := time.NewTicker(AttemptSweepInterval)
 	defer t.Stop()
@@ -194,13 +187,11 @@ func (s *Store) SweepAttemptsForever(ctx context.Context, log *slog.Logger) {
 	}
 }
 
-// DraftSweepInterval is how often stale checkout drafts are cleared. A fraction
-// of [DraftTTL], so one that has outlived its window is gone within minutes: a
-// guest's cart is never deleted, so nothing else would ever clear what a guest
-// typed.
+// DraftSweepInterval is a fraction of [DraftTTL] so a stale draft is gone
+// within minutes: a guest's cart is never deleted, so nothing else would clear
+// what a guest typed.
 const DraftSweepInterval = DraftTTL / 4
 
-// SweepDrafts clears every checkout draft older than [DraftTTL], once.
 func (s *Store) SweepDrafts(ctx context.Context) error {
 	if err := s.q.ClearStaleCheckoutDrafts(ctx, pgtype.Interval{
 		Microseconds: int64(DraftTTL / time.Microsecond), Valid: true,
@@ -210,9 +201,8 @@ func (s *Store) SweepDrafts(ctx context.Context) error {
 	return nil
 }
 
-// SweepDraftsForever runs SweepDrafts once at startup, so a host redeployed more
-// often than the interval still clears drafts, and then on a ticker until ctx is
-// cancelled.
+// SweepDraftsForever runs once at startup, so a host redeployed more often than
+// the interval still clears drafts.
 func (s *Store) SweepDraftsForever(ctx context.Context, log *slog.Logger) {
 	t := time.NewTicker(DraftSweepInterval)
 	defer t.Stop()

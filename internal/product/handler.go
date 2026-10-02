@@ -23,7 +23,6 @@ import (
 	"github.com/koopa0/goen/internal/web"
 )
 
-// Handler serves the product detail page.
 type Handler struct {
 	askLimit    *ratelimit.Limiter
 	notifyLimit *ratelimit.Limiter
@@ -32,7 +31,6 @@ type Handler struct {
 	log         *slog.Logger
 }
 
-// NewHandler returns a Handler reading through store.
 func NewHandler(store *Store, log *slog.Logger, baseURL string) *Handler {
 	if store == nil || log == nil {
 		panic("product: NewHandler requires a store and a logger")
@@ -50,7 +48,6 @@ func NewHandler(store *Store, log *slog.Logger, baseURL string) *Handler {
 	}
 }
 
-// Detail serves GET /p/{slug}.
 func (h *Handler) Detail(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
 	sel := ParseSelection(r.URL.Query())
@@ -62,7 +59,8 @@ func (h *Handler) Detail(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if errors.Is(err, context.Canceled) {
-			// The caller left; there is nobody to answer. A deadline stays an error.
+			// The caller left; there is nobody to answer. A deadline stays an
+			// error.
 			return
 		}
 		h.log.ErrorContext(r.Context(), "load product", "error", err, "slug", slug)
@@ -97,7 +95,6 @@ func (h *Handler) notFound(w http.ResponseWriter, r *http.Request) {
 		i18n.T(r.Context(), i18n.KeyProductNotFoundBody)))
 }
 
-// Review serves POST /p/{slug}/reviews.
 func (h *Handler) Review(w http.ResponseWriter, r *http.Request) {
 	u, signedIn := account.FromContext(r.Context())
 	slug := r.PathValue("slug")
@@ -134,7 +131,6 @@ func (h *Handler) Review(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// Notify serves POST /p/{slug}/notify.
 func (h *Handler) Notify(w http.ResponseWriter, r *http.Request) {
 	if retryAfter, allowed := h.notifyLimit.Allow(ratelimit.ClientKey(r)); !allowed {
 		ratelimit.Refuse(r.Context(), w, retryAfter)
@@ -184,8 +180,6 @@ func (h *Handler) Notify(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// redirectNotified returns to the product at the selection the form was posted
-// from, with the outcome the page says aloud.
 func (h *Handler) redirectNotified(w http.ResponseWriter, r *http.Request, slug string, outcome pages.NotifyOutcome) {
 	q := url.Values{}
 	for k, v := range ParseSelection(r.URL.Query()) {
@@ -195,8 +189,6 @@ func (h *Handler) redirectNotified(w http.ResponseWriter, r *http.Request, slug 
 	http.Redirect(w, r, "/p/"+url.PathEscape(slug)+"?"+q.Encode(), http.StatusSeeOther)
 }
 
-// rejectNotify re-renders the product at 422 on the selection the form was
-// posted from, with the address as typed.
 func (h *Handler) rejectNotify(w http.ResponseWriter, r *http.Request, slug, addr string, outcome pages.NotifyOutcome) {
 	view, err := h.store.Load(r.Context(), slug, ParseSelection(r.URL.Query()))
 	if err != nil {
@@ -254,7 +246,8 @@ func (h *Handler) fillForViewer(r *http.Request, slug string, view *pages.Produc
 	view.ReviewStanding = standing
 }
 
-// parseRating returns 0 outside 1..5, which Validate reports as a missing rating.
+// parseRating returns 0 outside 1..5, which Validate reports as a missing
+// rating.
 func parseRating(s string) int16 {
 	n, err := strconv.ParseInt(strings.TrimSpace(s), 10, 16)
 	if err != nil || n < 1 || n > 5 {
@@ -263,7 +256,6 @@ func parseRating(s string) int16 {
 	return int16(n)
 }
 
-// Ask serves POST /p/{slug}/questions.
 func (h *Handler) Ask(w http.ResponseWriter, r *http.Request) {
 	u, ok := account.FromContext(r.Context())
 	if !ok {

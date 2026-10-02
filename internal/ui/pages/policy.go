@@ -9,7 +9,6 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-// PolicySection is one heading and its paragraphs.
 type PolicySection struct {
 	Heading   string
 	Body      []string
@@ -18,7 +17,6 @@ type PolicySection struct {
 	Pending   bool
 }
 
-// PolicyDoc is a static policy page.
 type PolicyDoc struct {
 	Title     string
 	TitleEn   string
@@ -27,7 +25,6 @@ type PolicyDoc struct {
 	Sections  []PolicySection
 }
 
-// For resolves the document into one locale's strings.
 func (d PolicyDoc) For(l i18n.Locale) PolicyDoc {
 	if l != i18n.En {
 		return d
@@ -43,44 +40,35 @@ func (d PolicyDoc) For(l i18n.Locale) PolicyDoc {
 	return out
 }
 
-// FAQItem is one question.
 type FAQItem struct {
 	Question string
 	Answer   string
 }
 
-// SectionID is the anchor one section answers to. A policy section has no
-// identifier of its own — the documents are prose in internal/site — so the
-// position in the document is what names it, and the contents list above is
-// built from the same numbers.
+// SectionID names a section by position, since a policy section has no identifier of its own (the documents are prose in
+// internal/site); the contents list uses the same numbers.
 func (d PolicyDoc) SectionID(i int) string {
 	return "doc-section-" + strconv.Itoa(i+1)
 }
 
-// SectionHref is the same anchor as a link.
 func (d PolicyDoc) SectionHref(i int) string { return "#" + d.SectionID(i) }
 
-// faqGroupID names one category the same way, for the same reason.
+// faqGroupID names a category the same way, for the same reason.
 func faqGroupID(i int) string { return "faq-group-" + strconv.Itoa(i+1) }
 
-// faqGroupHref is that anchor as a link.
 func faqGroupHref(i int) string { return "#" + faqGroupID(i) }
 
-// FAQGroup is the questions under one heading.
 type FAQGroup struct {
 	Category string
 	Items    []FAQItem
 }
 
-// FAQView is the whole FAQ.
 type FAQView struct {
 	Groups []FAQGroup
 }
 
-// Empty reports whether there is nothing to show.
 func (v FAQView) Empty() bool { return len(v.Groups) == 0 }
 
-// ShippingMethod is one delivery option, as the policy page states it.
 type ShippingMethod struct {
 	Name          string
 	Carrier       string
@@ -89,16 +77,13 @@ type ShippingMethod struct {
 	Surcharges    []ZoneSurcharge
 }
 
-// ZoneSurcharge is one place that costs more to reach, and how much more.
 type ZoneSurcharge struct {
 	Name  string
 	Cents int64
 }
 
-// HasSurcharges reports whether anywhere costs extra to reach by this method.
 func (m ShippingMethod) HasSurcharges() bool { return len(m.Surcharges) > 0 }
 
-// SurchargeText is the surcharges as one phrase in the visitor's language.
 func (m ShippingMethod) SurchargeText(ctx context.Context) string {
 	parts := make([]string, 0, len(m.Surcharges))
 	for _, z := range m.Surcharges {
@@ -108,10 +93,8 @@ func (m ShippingMethod) SurchargeText(ctx context.Context) string {
 	return strings.Join(parts, i18n.T(ctx, i18n.KeyListSeparator))
 }
 
-// Fee is what it costs.
 func (m ShippingMethod) Fee() string { return twd(m.FeeCents) }
 
-// FreeOver is the threshold above which it costs nothing, or empty for none.
 func (m ShippingMethod) FreeOver() string {
 	if m.FreeOverCents <= 0 {
 		return ""
@@ -119,26 +102,19 @@ func (m ShippingMethod) FreeOver() string {
 	return twd(m.FreeOverCents)
 }
 
-// ShippingView is the delivery policy.
 type ShippingView struct {
 	Methods []ShippingMethod
 }
 
-// Empty reports whether no method is configured.
 func (v ShippingView) Empty() bool { return len(v.Methods) == 0 }
 
-// holdMinutes is the customer-facing stock-hold duration. A cart-package test
-// binds HoldMinutesText to the private enforcement constant without widening
-// either package's API with a test-only number.
+// A cart-package test binds HoldMinutesText to this private enforcement constant.
 const holdMinutes = 60
 
-// HoldMinutesText is that number, for the template.
 func HoldMinutesText() string { return strconv.Itoa(holdMinutes) }
 
-// payStartMinutes is how long after an order is placed a payment can still
-// start: a Checkout Session must fit inside the hold. A payment-package test
-// binds it to the hold less the session lifetime the payment page enforces.
+// A Checkout Session must fit inside the hold. A payment-package test binds this
+// to the hold less the session lifetime the payment page enforces.
 const payStartMinutes = 29
 
-// PayStartMinutesText is that number, for the template.
 func PayStartMinutesText() string { return strconv.Itoa(payStartMinutes) }

@@ -15,10 +15,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/components"
 )
 
-// compareForm submits the ticked slugs to /compare. A GET, because a
-// comparison writes nothing — the set is the URL and there is no state to keep.
-// It wraps the grid only when some tile carries a box: a "compare selected"
-// bar with nothing to tick is a control that does nothing.
+// A GET, because the set is the URL and a comparison writes nothing. It wraps the
+// grid only when some tile carries a box: a bar with nothing to tick does nothing.
 func compareForm(offered bool) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -68,7 +66,7 @@ func compareForm(offered bool) templ.Component {
 				var templ_7745c5c3_Var3 string
 				templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyCompareSelected))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/tile.templ`, Line: 23, Col: 43}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/tile.templ`, Line: 21, Col: 43}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 				if templ_7745c5c3_Err != nil {
@@ -90,7 +88,7 @@ func compareForm(offered bool) templ.Component {
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyCompareLimit))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/tile.templ`, Line: 25, Col: 77}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/tile.templ`, Line: 23, Col: 77}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {
@@ -110,8 +108,6 @@ func compareForm(offered bool) templ.Component {
 	})
 }
 
-// tileCard is the product card body. Tile wraps it in the grid cell; the
-// wishlist wraps the same body in one list item with its remove form.
 func tileCard(t ProductTile) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -141,7 +137,7 @@ func tileCard(t ProductTile) templ.Component {
 			var templ_7745c5c3_Var6 string
 			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.ResolveAttributeValue(t.Slug)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/tile.templ`, Line: 40, Col: 49}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/tile.templ`, Line: 36, Col: 49}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var6)
 			if templ_7745c5c3_Err != nil {
@@ -154,7 +150,7 @@ func tileCard(t ProductTile) templ.Component {
 			var templ_7745c5c3_Var7 string
 			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.ResolveAttributeValue(t.CompareLabel(ctx))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/tile.templ`, Line: 40, Col: 103}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/tile.templ`, Line: 36, Col: 103}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var7)
 			if templ_7745c5c3_Err != nil {
@@ -167,7 +163,7 @@ func tileCard(t ProductTile) templ.Component {
 			var templ_7745c5c3_Var8 string
 			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyCompareAdd))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/tile.templ`, Line: 41, Col: 63}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/tile.templ`, Line: 37, Col: 63}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 			if templ_7745c5c3_Err != nil {
@@ -185,7 +181,7 @@ func tileCard(t ProductTile) templ.Component {
 		var templ_7745c5c3_Var9 templ.SafeURL
 		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL("/p/" + t.Slug))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/tile.templ`, Line: 44, Col: 54}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/tile.templ`, Line: 40, Col: 54}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 		if templ_7745c5c3_Err != nil {
@@ -203,7 +199,7 @@ func tileCard(t ProductTile) templ.Component {
 			var templ_7745c5c3_Var10 string
 			templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.ResolveAttributeValue(t.ImageURL)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/tile.templ`, Line: 49, Col: 21}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/tile.templ`, Line: 45, Col: 21}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var10)
 			if templ_7745c5c3_Err != nil {
@@ -216,7 +212,7 @@ func tileCard(t ProductTile) templ.Component {
 			var templ_7745c5c3_Var11 string
 			templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.ResolveAttributeValue(t.ImageSrcset)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/tile.templ`, Line: 50, Col: 27}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/tile.templ`, Line: 46, Col: 27}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var11)
 			if templ_7745c5c3_Err != nil {
@@ -229,7 +225,7 @@ func tileCard(t ProductTile) templ.Component {
 			var templ_7745c5c3_Var12 string
 			templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.ResolveAttributeValue(t.ImageAlt)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/tile.templ`, Line: 52, Col: 21}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/tile.templ`, Line: 48, Col: 21}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var12)
 			if templ_7745c5c3_Err != nil {
@@ -247,7 +243,7 @@ func tileCard(t ProductTile) templ.Component {
 				var templ_7745c5c3_Var13 string
 				templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.ResolveAttributeValue(t.ImageWidthText())
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/tile.templ`, Line: 54, Col: 32}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/tile.templ`, Line: 50, Col: 32}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var13)
 				if templ_7745c5c3_Err != nil {
@@ -260,7 +256,7 @@ func tileCard(t ProductTile) templ.Component {
 				var templ_7745c5c3_Var14 string
 				templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.ResolveAttributeValue(t.ImageHeightText())
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/tile.templ`, Line: 55, Col: 34}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/tile.templ`, Line: 51, Col: 34}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var14)
 				if templ_7745c5c3_Err != nil {
@@ -314,7 +310,7 @@ func tileCard(t ProductTile) templ.Component {
 				var templ_7745c5c3_Var16 string
 				templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeySoldOut))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/tile.templ`, Line: 72, Col: 35}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/tile.templ`, Line: 68, Col: 35}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 				if templ_7745c5c3_Err != nil {
@@ -334,7 +330,7 @@ func tileCard(t ProductTile) templ.Component {
 		var templ_7745c5c3_Var17 string
 		templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(t.Brand)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/tile.templ`, Line: 77, Col: 43}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/tile.templ`, Line: 73, Col: 43}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 		if templ_7745c5c3_Err != nil {
@@ -347,7 +343,7 @@ func tileCard(t ProductTile) templ.Component {
 		var templ_7745c5c3_Var18 string
 		templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(t.Name)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/tile.templ`, Line: 78, Col: 39}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/tile.templ`, Line: 74, Col: 39}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 		if templ_7745c5c3_Err != nil {
@@ -361,7 +357,7 @@ func tileCard(t ProductTile) templ.Component {
 			var templ_7745c5c3_Var19 string
 			templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf(i18n.T(ctx, i18n.KeyFromPrice), t.Price()))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/tile.templ`, Line: 82, Col: 62}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/tile.templ`, Line: 78, Col: 62}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 			if templ_7745c5c3_Err != nil {
@@ -371,7 +367,7 @@ func tileCard(t ProductTile) templ.Component {
 			var templ_7745c5c3_Var20 string
 			templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(t.Price())
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/tile.templ`, Line: 84, Col: 17}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/tile.templ`, Line: 80, Col: 17}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 			if templ_7745c5c3_Err != nil {
@@ -390,7 +386,7 @@ func tileCard(t ProductTile) templ.Component {
 			var templ_7745c5c3_Var21 string
 			templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyWasPrice))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/tile.templ`, Line: 88, Col: 63}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/tile.templ`, Line: 84, Col: 63}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
 			if templ_7745c5c3_Err != nil {
@@ -403,7 +399,7 @@ func tileCard(t ProductTile) templ.Component {
 			var templ_7745c5c3_Var22 string
 			templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(t.Compare())
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/tile.templ`, Line: 89, Col: 44}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/tile.templ`, Line: 85, Col: 44}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 			if templ_7745c5c3_Err != nil {
@@ -422,7 +418,6 @@ func tileCard(t ProductTile) templ.Component {
 	})
 }
 
-// Tile is one product card; the whole card is a single link.
 func Tile(t ProductTile) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context

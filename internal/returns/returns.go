@@ -16,26 +16,18 @@ import (
 )
 
 var (
-	// ErrNotFound is an order number that names nothing.
-	ErrNotFound = errors.New("returns: order not found")
-	// ErrNotReturnable is an order nothing can be sent back from — nothing has
-	// shipped, or every shipped unit is already claimed.
+	ErrNotFound      = errors.New("returns: order not found")
 	ErrNotReturnable = errors.New("returns: nothing on this order can be returned")
-	// ErrAlreadyOpen is a second request while one is still undecided.
-	ErrAlreadyOpen = errors.New("returns: this order already has an open request")
-	// ErrInvalid is a form goen refused before the database saw it.
-	ErrInvalid = errors.New("returns: invalid request")
-	// ErrTooMany is a requested quantity above what remains returnable.
-	ErrTooMany = errors.New("returns: quantity exceeds returnable amount")
+	ErrAlreadyOpen   = errors.New("returns: this order already has an open request")
+	ErrInvalid       = errors.New("returns: invalid request")
+	ErrTooMany       = errors.New("returns: quantity exceeds returnable amount")
 	// ErrAccountErased means a concurrent erasure removed the only destination
-	// for this return's store-credit payout before the request could commit.
+	// for the return's store-credit payout before the request could commit.
 	ErrAccountErased = errors.New("returns: account was erased before the return committed")
 )
 
-// MaxReasonRunes bounds the reason field.
 const MaxReasonRunes = 500
 
-// Line is one order line a customer may send back.
 type Line struct {
 	ID         string
 	SKU        string
@@ -45,14 +37,11 @@ type Line struct {
 	Returnable int32
 }
 
-// Request is what a customer is asking to send back.
 type Request struct {
 	Reason string
-	// Lines maps an order line id to how many units of it.
-	Lines map[string]int32
+	Lines  map[string]int32
 }
 
-// Status is return_requests.status, as return_requests_refund_snapshot_shape spells it.
 type Status string
 
 // The four states return_requests_refund_snapshot_shape allows.
@@ -70,9 +59,9 @@ var knownStatuses = [...]Status{
 	StatusCompleted,
 }
 
-// Validate refuses what the form should never have submitted. A blank reason is
-// legal: Consumer Protection Act §19 I lets a consumer rescind inside seven days
-// without giving one, and §19 V voids any agreement otherwise.
+// Validate allows a blank reason: Consumer Protection Act §19 I lets a consumer
+// rescind inside seven days without giving one, and §19 V voids any agreement
+// otherwise.
 func (r *Request) Validate() error {
 	r.Reason = strings.TrimSpace(r.Reason)
 	if utf8.RuneCountInString(r.Reason) > MaxReasonRunes {
@@ -97,7 +86,6 @@ func (r *Request) Validate() error {
 	return nil
 }
 
-// StatusLabel is a return's state in the chrome language.
 func StatusLabel(ctx context.Context, s Status) string {
 	switch s {
 	case StatusRequested:

@@ -11,14 +11,13 @@ import (
 	"github.com/koopa0/goen/internal/db"
 )
 
-// Store rebuilds the projection.
 type Store struct {
 	q   *db.Queries
 	log *slog.Logger
 }
 
-// NewStore returns a Store over pool, which must be the owner's: `store` and
-// `admin` hold no INSERT on what refresh_copurchases writes.
+// NewStore needs the owner's pool: `store` and `admin` hold no INSERT on what
+// refresh_copurchases writes.
 func NewStore(pool *pgxpool.Pool, log *slog.Logger) *Store {
 	if pool == nil || log == nil {
 		panic("recommend: NewStore requires a pool and a logger")
@@ -26,7 +25,6 @@ func NewStore(pool *pgxpool.Pool, log *slog.Logger) *Store {
 	return &Store{q: db.New(pool), log: log}
 }
 
-// Refresh rebuilds the projection once.
 func (s *Store) Refresh(ctx context.Context) (int32, error) {
 	started := time.Now()
 	pairs, err := s.q.RefreshCopurchases(ctx)
@@ -42,8 +40,6 @@ func (s *Store) Refresh(ctx context.Context) (int32, error) {
 	return pairs, nil
 }
 
-// RefreshForever rebuilds on a ticker until ctx is cancelled, once at startup
-// before the first tick.
 func (s *Store) RefreshForever(ctx context.Context) {
 	if _, err := s.Refresh(ctx); err != nil && ctx.Err() == nil {
 		s.log.ErrorContext(ctx, "initial co-purchase refresh", "error", err)

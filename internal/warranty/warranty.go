@@ -7,18 +7,13 @@ package warranty
 
 import "errors"
 
-// MaxSerialRunes bounds a serial number.
 const MaxSerialRunes = 60
 
 var (
-	// ErrNotFound is an order this customer does not own, or does not exist. One
-	// error for both, because telling them apart is what a prober wants.
-	ErrNotFound = errors.New("warranty: no such order")
-	// ErrNotRegistrable is a unit that cannot be registered: not delivered, no
-	// term set, already registered, or beyond what was bought.
+	// ErrNotFound is one error for an order this customer does not own and one
+	// that does not exist, because telling them apart is what a prober wants.
+	ErrNotFound       = errors.New("warranty: no such order")
 	ErrNotRegistrable = errors.New("warranty: this unit cannot be registered")
-	// ErrSerialTaken is a serial number already registered.
-	ErrSerialTaken = errors.New("warranty: that serial number is already registered")
-	// ErrInvalid is a malformed submission.
-	ErrInvalid = errors.New("warranty: invalid registration")
+	ErrSerialTaken    = errors.New("warranty: that serial number is already registered")
+	ErrInvalid        = errors.New("warranty: invalid registration")
 )

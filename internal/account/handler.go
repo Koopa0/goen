@@ -22,10 +22,9 @@ import (
 )
 
 // CartFinder is what account needs of the cart: the cart a request's cookie
-// names, so sign-in can adopt it, and forgetting that cookie and the one naming
-// the browser's orders when a session ends, so the browser keeps no reference
-// to the account's cart or to any order. It also says whether the shop takes
-// payment, which decides whether an unpaid order offers 付款.
+// names, so sign-in can adopt it; forgetting that cookie and the one naming the
+// browser's orders when a session ends; and whether the shop takes payment,
+// which decides whether an unpaid order offers 付款.
 type CartFinder interface {
 	IDForRequest(ctx context.Context, r *http.Request) (uuid.UUID, bool)
 	ForgetCart(w http.ResponseWriter, r *http.Request)
@@ -33,12 +32,10 @@ type CartFinder interface {
 	TakesPayment() bool
 }
 
-// Handler serves sign-in, registration and the customer's own pages.
 type Handler struct {
 	signinLimit *ratelimit.Limiter
-	// resetLimit bounds reset requests per address at mailLimit's pace, on a
-	// budget of its own: spending the registration and change budget for an
-	// address must not stop its owner getting a reset link.
+	// resetLimit has a budget of its own: spending the registration and change
+	// budget for an address must not stop its owner getting a reset link.
 	resetLimit *ratelimit.Limiter
 	store      *Store
 	carts      CartFinder
@@ -48,14 +45,12 @@ type Handler struct {
 	demo       DemoAccount
 
 	// mailLimit bounds, per address, the forms that mail an address whoever
-	// names it: registration and an address change. Each mails the address
-	// whether or not it has an account, and anybody can have an account with
-	// their own mailbox, so without it either form is a way to fill somebody
-	// else's inbox. One budget for both, so using the two does not double it.
+	// names it: each mails the address whether or not it has an account, so
+	// without it either form is a way to fill somebody else's inbox. One budget
+	// for both, so using the two does not double it.
 	mailLimit *ratelimit.Limiter
 }
 
-// NewHandler returns a Handler over store.
 func NewHandler(store *Store, carts CartFinder, log *slog.Logger, secure bool, google *Google) *Handler {
 	if store == nil || log == nil {
 		panic("account: NewHandler requires a store and a logger")
@@ -73,12 +68,9 @@ func NewHandler(store *Store, carts CartFinder, log *slog.Logger, secure bool, g
 	}
 }
 
-// OfferDemoAccount shows d on the sign-in page and keeps it the same account for
-// every visitor. Call it before the handler serves.
+// OfferDemoAccount must be called before the handler serves.
 func (h *Handler) OfferDemoAccount(d DemoAccount) { h.demo = d }
 
-// refuseDemoChange answers a change the demo account may not make, and reports
-// whether it did.
 func (h *Handler) refuseDemoChange(w http.ResponseWriter, r *http.Request, u User) bool {
 	if !h.demo.holds(u.Email) {
 		return false
@@ -87,9 +79,8 @@ func (h *Handler) refuseDemoChange(w http.ResponseWriter, r *http.Request, u Use
 	return true
 }
 
-// addressMailPace is how often a form anybody can submit may make goen mail one
-// address: three at once, then one every ten minutes, more than somebody
-// retyping or asking again needs.
+// addressMailPace is three at once, then one every ten minutes: more than
+// somebody retyping or asking again needs.
 var addressMailPace = ratelimit.Config{
 	Every: 10 * time.Minute, Burst: 3, TTL: time.Hour, MaxKeys: 65_536,
 }
@@ -98,18 +89,15 @@ type contextKey struct{}
 
 var userKey contextKey
 
-// WithUser attaches a user to a request context.
 func WithUser(ctx context.Context, u User) context.Context {
 	return context.WithValue(ctx, userKey, u)
 }
 
-// FromContext returns the signed-in user, if any.
 func FromContext(ctx context.Context) (User, bool) {
 	u, ok := ctx.Value(userKey).(User)
 	return u, ok
 }
 
-// Authenticate is middleware that attaches the signed-in user to every request.
 func (h *Handler) Authenticate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		token := ReadSessionCookie(r, h.secure)
@@ -121,9 +109,9 @@ func (h *Handler) Authenticate(next http.Handler) http.Handler {
 		if err != nil {
 			// The cookie is cleared only when the session is genuinely GONE. A
 			// database that cannot answer has not said the session is invalid,
-			// and clearing on any error signs every customer and every staff
-			// member out at once during a blip — unrecoverably, because the row
-			// survives and the browser no longer holds the token for it.
+			// and clearing on any error signs everybody out at once during a
+			// blip, unrecoverably: the row survives and the browser no longer
+			// holds its token.
 			if errors.Is(err, ErrNotFound) {
 				h.forgetSession(w, r)
 			} else {
@@ -136,7 +124,6 @@ func (h *Handler) Authenticate(next http.Handler) http.Handler {
 	})
 }
 
-// RequireUser wraps a handler that needs an account, sending a visitor to sign in.
 func (h *Handler) RequireUser(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if _, ok := FromContext(r.Context()); !ok {
@@ -147,7 +134,6 @@ func (h *Handler) RequireUser(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-// SignInPage serves GET /signin.
 func (h *Handler) SignInPage(w http.ResponseWriter, r *http.Request) {
 	if _, ok := FromContext(r.Context()); ok {
 		http.Redirect(w, r, "/account", http.StatusSeeOther)
@@ -172,7 +158,6 @@ func (h *Handler) SignInPage(w http.ResponseWriter, r *http.Request) {
 	web.Render(w, r, h.log, http.StatusOK, pages.SignIn(pages.SignInMeta(r.Context()), view))
 }
 
-// SignIn serves POST /signin.
 func (h *Handler) SignIn(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
@@ -182,18 +167,17 @@ func (h *Handler) SignIn(w http.ResponseWriter, r *http.Request) {
 	password := r.PostFormValue("password")
 	next := web.SitePathOr(r.PostFormValue("next"), "/account")
 	normalised := email.Clean(addr)
-	// email.Max is the application's address policy. The database column is
-	// text, so the handler must enforce the bound before an attacker-controlled
-	// form value becomes a long-lived limiter key.
+	// email.Max is the application's address policy; the column is text, so the
+	// handler must bound the value before it becomes a long-lived limiter key.
 	if len(normalised) > email.Max {
 		h.signInFailed(w, r, addr, next)
 		return
 	}
 
-	// Before Authenticate: argon2 at 64 MiB is the cost this limit protects. The
-	// demo account's password is printed on this page, so a bound per account
-	// guards nothing there and would let one visitor's mistakes shut out every
-	// other; the route's bound per client still holds the cost.
+	// Before Authenticate: argon2 at 64 MiB is the cost this limit protects.
+	// The demo account's password is printed on this page, so a per-account
+	// bound would guard nothing and let one visitor's mistakes shut out every
+	// other; the per-client bound still holds the cost.
 	if !h.demo.holds(normalised) {
 		if retryAfter, ok := h.signinLimit.Allow("account:" + normalised); !ok {
 			h.log.WarnContext(r.Context(), "sign-in throttled by account")
@@ -222,10 +206,9 @@ func (h *Handler) SignIn(w http.ResponseWriter, r *http.Request) {
 }
 
 // signInFailed is one response for an unusable address, an unknown account and
-// a wrong password: two submissions differ only in the address the visitor
-// already gave goen, never in information about an account.
+// a wrong password, so two submissions never differ in information about an
+// account.
 func (h *Handler) signInFailed(w http.ResponseWriter, r *http.Request, addr, next string) {
-	// next can be a live link back to /verify, beside an address the visitor typed.
 	web.NoCompress(w)
 	web.Render(w, r, h.log, http.StatusUnprocessableEntity,
 		pages.SignIn(pages.SignInMeta(r.Context()), h.signInView(pages.AuthView{
@@ -240,7 +223,6 @@ func (h *Handler) signInView(v pages.AuthView) pages.AuthView {
 	return v
 }
 
-// RegisterPage serves GET /register.
 func (h *Handler) RegisterPage(w http.ResponseWriter, r *http.Request) {
 	if _, ok := FromContext(r.Context()); ok {
 		http.Redirect(w, r, "/account", http.StatusSeeOther)
@@ -263,8 +245,8 @@ func (h *Handler) RegisterPage(w http.ResponseWriter, r *http.Request) {
 	web.Render(w, r, h.log, http.StatusOK, pages.Register(pages.RegisterMeta(r.Context()), view))
 }
 
-// ResendRegistration serves POST /register/resend. Every usable address gets the
-// same answer, so the form cannot be asked who has an account.
+// ResendRegistration gives every usable address the same answer, so the form
+// cannot be asked who has an account.
 func (h *Handler) ResendRegistration(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
@@ -330,9 +312,9 @@ func clearPendingRegistration(w http.ResponseWriter, secure bool) {
 	})
 }
 
-// Register serves POST /register. It answers every usable submission the same
-// way, whether or not the address already has an account: the mailbox is told
-// which, never the visitor. A refusal is only ever about what was typed.
+// Register answers every usable submission the same way, whether or not the
+// address already has an account: the mailbox is told which, never the visitor.
+// A refusal is only ever about what was typed.
 func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
@@ -370,7 +352,6 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/register?sent=1", http.StatusSeeOther)
 }
 
-// SignOut serves POST /signout.
 func (h *Handler) SignOut(w http.ResponseWriter, r *http.Request) {
 	if err := h.store.EndSession(r.Context(), ReadSessionCookie(r, h.secure)); err != nil {
 		h.log.ErrorContext(r.Context(), "end session", "error", err)
@@ -379,10 +360,9 @@ func (h *Handler) SignOut(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
-// forgetSession clears what a browser keeps of a session that has ended: the
-// session cookie, and the account's cart and the browser's orders. A session
-// also ends without its browser signing out, when it expires or is ended from
-// another device, and the next person at that browser must inherit none of it.
+// forgetSession also runs when a session ends without its browser signing out
+// (expired, or ended from another device): the next person at that browser must
+// inherit nothing.
 func (h *Handler) forgetSession(w http.ResponseWriter, r *http.Request) {
 	ClearSessionCookie(w, h.secure)
 	if h.carts != nil {
@@ -391,13 +371,10 @@ func (h *Handler) forgetSession(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// Overview serves GET /account.
 func (h *Handler) Overview(w http.ResponseWriter, r *http.Request) {
 	h.overview(w, r, http.StatusOK, nil)
 }
 
-// overview renders the account page; refused, when set, adds a refused form's
-// draft and messages to it.
 func (h *Handler) overview(w http.ResponseWriter, r *http.Request, status int, refused func(*pages.AccountView)) {
 	u, ok := FromContext(r.Context())
 	if !ok {
@@ -456,7 +433,6 @@ func accountNotice(r *http.Request) string {
 	return ""
 }
 
-// CartRecoveryPage serves GET /account/cart-recovery.
 func (h *Handler) CartRecoveryPage(w http.ResponseWriter, r *http.Request) {
 	if _, ok := FromContext(r.Context()); !ok {
 		http.Redirect(w, r, "/signin", http.StatusSeeOther)
@@ -471,7 +447,6 @@ func (h *Handler) CartRecoveryPage(w http.ResponseWriter, r *http.Request) {
 		}))
 }
 
-// RetryCartAdoption serves POST /account/cart/retry.
 func (h *Handler) RetryCartAdoption(w http.ResponseWriter, r *http.Request) {
 	u, ok := FromContext(r.Context())
 	if !ok {
@@ -487,7 +462,6 @@ func (h *Handler) RetryCartAdoption(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, next, http.StatusSeeOther) //nolint:gosec // G710: bounded by web.SitePathOr
 }
 
-// OrderPage redirects GET /account/orders/{number} to the canonical order page.
 func (h *Handler) OrderPage(w http.ResponseWriter, r *http.Request) {
 	if _, ok := FromContext(r.Context()); !ok {
 		http.Redirect(w, r, "/signin", http.StatusSeeOther)
@@ -497,7 +471,6 @@ func (h *Handler) OrderPage(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/orders/"+url.PathEscape(number), http.StatusSeeOther)
 }
 
-// UpdateProfile serves POST /account/profile.
 func (h *Handler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 	u, ok := FromContext(r.Context())
 	if !ok {
@@ -624,7 +597,6 @@ func (h *Handler) serverError(w http.ResponseWriter, r *http.Request) {
 		i18n.T(r.Context(), i18n.KeyBusyBody)))
 }
 
-// AddAddress serves POST /account/addresses.
 func (h *Handler) AddAddress(w http.ResponseWriter, r *http.Request) {
 	u, ok := FromContext(r.Context())
 	if !ok {
@@ -658,8 +630,6 @@ func (h *Handler) AddAddress(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/account?saved=1", http.StatusSeeOther)
 }
 
-// refuseAddress re-renders /account at 422 with the address as typed, and the
-// refused controls marked.
 func (h *Handler) refuseAddress(w http.ResponseWriter, r *http.Request, a *Address, errs map[string]string, notice string) {
 	h.overview(w, r, http.StatusUnprocessableEntity, func(v *pages.AccountView) {
 		v.AddressDraft = &pages.AddressDraft{
@@ -673,7 +643,6 @@ func (h *Handler) refuseAddress(w http.ResponseWriter, r *http.Request, a *Addre
 	})
 }
 
-// MakeDefaultAddress serves POST /account/addresses/default.
 func (h *Handler) MakeDefaultAddress(w http.ResponseWriter, r *http.Request) {
 	u, ok := FromContext(r.Context())
 	if !ok {
@@ -695,7 +664,6 @@ func (h *Handler) MakeDefaultAddress(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// DeleteAddress serves POST /account/addresses/delete.
 func (h *Handler) DeleteAddress(w http.ResponseWriter, r *http.Request) {
 	u, ok := FromContext(r.Context())
 	if !ok {
@@ -716,7 +684,6 @@ func (h *Handler) DeleteAddress(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/account?saved=1", http.StatusSeeOther)
 }
 
-// ChangePassword serves POST /account/password.
 func (h *Handler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 	u, ok := FromContext(r.Context())
 	if !ok {
@@ -752,7 +719,6 @@ func (h *Handler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/signin?changed=1", http.StatusSeeOther)
 }
 
-// Erase serves POST /account/erase.
 func (h *Handler) Erase(w http.ResponseWriter, r *http.Request) {
 	u, ok := FromContext(r.Context())
 	if !ok {
@@ -804,7 +770,6 @@ func (h *Handler) Erase(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/?erased=1", http.StatusSeeOther)
 }
 
-// Wishlist serves GET /account/wishlist.
 func (h *Handler) Wishlist(w http.ResponseWriter, r *http.Request) {
 	u, ok := FromContext(r.Context())
 	if !ok {
@@ -821,14 +786,13 @@ func (h *Handler) Wishlist(w http.ResponseWriter, r *http.Request) {
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyWishlistTitle)}, pages.WishlistView{Products: tiles, Added: pages.AddOutcome(r.URL.Query().Get("added"))}))
 }
 
-// SaveWishlist serves POST /account/wishlist.
 func (h *Handler) SaveWishlist(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
 		return
 	}
-	// web.SitePathOr refuses anything but a same-site path, which is what makes
-	// a redirect target read off a form safe to use.
+	// web.SitePathOr refuses anything but a same-site path, which makes a
+	// redirect target read off a form safe.
 	back := web.SitePathOr(r.PostFormValue("return"), "/account/wishlist")
 
 	u, ok := FromContext(r.Context())
@@ -854,7 +818,6 @@ func (h *Handler) SaveWishlist(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, back, http.StatusSeeOther)
 }
 
-// ChangeEmail serves POST /account/email.
 func (h *Handler) ChangeEmail(w http.ResponseWriter, r *http.Request) {
 	u, ok := FromContext(r.Context())
 	if !ok {
@@ -896,7 +859,6 @@ func (h *Handler) ChangeEmail(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/account?email=sent", http.StatusSeeOther)
 }
 
-// ResendVerification serves POST /account/email/resend.
 func (h *Handler) ResendVerification(w http.ResponseWriter, r *http.Request) {
 	u, ok := FromContext(r.Context())
 	if !ok {
@@ -914,7 +876,6 @@ func (h *Handler) ResendVerification(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/account?email=sent", http.StatusSeeOther)
 }
 
-// VerifyPage serves GET /verify.
 func (h *Handler) VerifyPage(w http.ResponseWriter, r *http.Request) {
 	// The live address-verification token changes identity data; never compress it.
 	web.NoCompress(w)
@@ -930,7 +891,6 @@ func (h *Handler) VerifyPage(w http.ResponseWriter, r *http.Request) {
 		}))
 }
 
-// Verify serves POST /verify.
 func (h *Handler) Verify(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
@@ -971,9 +931,8 @@ func (h *Handler) Verify(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// CompleteRegistrationPage serves GET /register/complete, where a registration
-// link lands. The token is not checked here: that would tell a guesser it is
-// real.
+// CompleteRegistrationPage does not check the token: that would tell a guesser
+// it is real.
 func (h *Handler) CompleteRegistrationPage(w http.ResponseWriter, r *http.Request) {
 	// The page carries a live registration token; keep it out of BREACH's reach.
 	web.NoCompress(w)
@@ -984,11 +943,10 @@ func (h *Handler) CompleteRegistrationPage(w http.ResponseWriter, r *http.Reques
 		}))
 }
 
-// CompleteRegistration serves POST /register/complete. The link proves the
-// mailbox and the password proves who registered; only both together prove the
-// address, sign this browser in and adopt its cart. A wrong password is
-// answered as sign-in answers one, under sign-in's own per-account limit, so
-// this is no second place to guess it.
+// CompleteRegistration needs both: the link proves the mailbox and the password proves who
+// registered; only both together prove the address, sign this browser in and
+// adopt its cart. A wrong password is answered as sign-in answers one, under
+// sign-in's per-account limit, so this is no second place to guess it.
 func (h *Handler) CompleteRegistration(w http.ResponseWriter, r *http.Request) {
 	// A refused password re-renders the still-live token; never compress it.
 	web.NoCompress(w)
@@ -1066,7 +1024,6 @@ func oauthOutcome(ctx context.Context, outcome string) map[string]string {
 	return map[string]string{"form": i18n.T(ctx, key)}
 }
 
-// GoogleSignIn serves GET /auth/google.
 func (h *Handler) GoogleSignIn(w http.ResponseWriter, r *http.Request) {
 	if !h.google.Enabled() {
 		http.NotFound(w, r)
@@ -1088,8 +1045,8 @@ func (h *Handler) GoogleSignIn(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, target, http.StatusSeeOther)
 }
 
-// GoogleCallback serves GET /auth/google/callback. Every failure ends at /signin
-// with a message rather than an error page: the customer is mid-sign-in.
+// GoogleCallback ends every failure at /signin with a message rather than an
+// error page: the customer is mid-sign-in.
 func (h *Handler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 	if !h.google.Enabled() {
 		http.NotFound(w, r)
@@ -1150,7 +1107,6 @@ func (h *Handler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, next, http.StatusSeeOther)
 }
 
-// UnlinkGoogle serves POST /account/google/unlink.
 func (h *Handler) UnlinkGoogle(w http.ResponseWriter, r *http.Request) {
 	u, ok := FromContext(r.Context())
 	if !ok {
@@ -1202,7 +1158,6 @@ func readOAuthState(r *http.Request, secure bool) (OAuthState, bool) {
 	}, true
 }
 
-// clearOAuthState removes it; a state left behind would match the next callback.
 func clearOAuthState(w http.ResponseWriter, secure bool) {
 	//nolint:gosec // G124: as above
 	http.SetCookie(w, &http.Cookie{
