@@ -30,7 +30,6 @@ type Topic[T any] struct{ name string }
 
 func topic[T any](name string) Topic[T] { return Topic[T]{name: name} }
 
-// Name is the value stored in outbox_messages.topic.
 func (t Topic[T]) Name() string { return t.name }
 
 // Topics goen publishes. A topic that fans out carries one message per
@@ -66,7 +65,6 @@ var (
 // in front of every message written after it.
 const BulkPriority = 100
 
-// PollInterval is how often the worker looks for due messages.
 const PollInterval = 5 * time.Second
 
 // HandlerBudget is the longest one message's handler may take. It mirrors
@@ -103,7 +101,6 @@ const Lease = 5 * time.Minute
 // (topic, dedupe_key) after this window would send twice.
 const Retain = 30 * 24 * time.Hour
 
-// SweepInterval is how often that happens.
 const SweepInterval = 24 * time.Hour
 
 // MaxAttempts is when a message stops being retried quickly and is retried
@@ -117,7 +114,6 @@ const MaxAttempts = 8
 // holds its claim past the lease, so its batch is delivered twice.
 type Handler func(ctx context.Context, payload []byte) error
 
-// Store drains the outbox.
 type Store struct {
 	pool     *pgxpool.Pool
 	q        *db.Queries
@@ -125,7 +121,6 @@ type Store struct {
 	log      *slog.Logger
 }
 
-// NewStore returns a Store over pool.
 func NewStore(pool *pgxpool.Pool, log *slog.Logger) *Store {
 	if pool == nil || log == nil {
 		panic("outbox: NewStore requires a pool and a logger")
@@ -306,7 +301,6 @@ func (s *Store) Run(ctx context.Context) {
 	}
 }
 
-// StuckMessage is one that has exhausted its attempts.
 type StuckMessage struct {
 	Topic     string
 	DedupeKey string
@@ -315,7 +309,6 @@ type StuckMessage struct {
 	Since     time.Time
 }
 
-// Stuck is what has failed too often, for a human.
 func (s *Store) Stuck(ctx context.Context, limit int32) ([]StuckMessage, error) {
 	rows, err := s.q.StuckOutbox(ctx, db.StuckOutboxParams{
 		MinAttempts: MaxAttempts, Limit: limit,
