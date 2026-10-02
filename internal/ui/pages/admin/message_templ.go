@@ -18,18 +18,10 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
-// Messages renders the customer-service inbox.
-//
-// How long a message has waited is a badge and not a shade of the row. It was
-// both before — the row was dimmed when it had been handled and marked when it
-// was overdue — and the dimming said "handled" in a colour nobody had been told
-// to read, while the overdue mark had no rule behind it at all and painted
-// nothing. The sentence the view model already writes says both facts, so the
-// badge carries it and the row stays legible.
-//
+// How long a message has waited is a badge and not a shade of the row: the sentence
+// the view model writes says both facts, so the row stays legible.
 // The list keeps the class the layout gate finds the page by
-// (scripts/check-layout.mjs:285-286); that rule stacks the list and this file's
-// divided-list rules shape the rows inside it.
+// (scripts/check-layout.mjs); that rule stacks the list.
 func Messages(p layouts.Page, v MessagesView) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -70,7 +62,7 @@ func Messages(p layouts.Page, v MessagesView) templ.Component {
 			var templ_7745c5c3_Var3 string
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminEyebrow))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/message.templ`, Line: 29, Col: 72}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/message.templ`, Line: 21, Col: 72}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 			if templ_7745c5c3_Err != nil {
@@ -83,7 +75,7 @@ func Messages(p layouts.Page, v MessagesView) templ.Component {
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminPageMessages))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/message.templ`, Line: 30, Col: 76}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/message.templ`, Line: 22, Col: 76}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {
@@ -96,7 +88,7 @@ func Messages(p layouts.Page, v MessagesView) templ.Component {
 			var templ_7745c5c3_Var5 string
 			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminMessagesLead))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/message.templ`, Line: 32, Col: 45}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/message.templ`, Line: 24, Col: 45}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {
@@ -122,7 +114,7 @@ func Messages(p layouts.Page, v MessagesView) templ.Component {
 					var templ_7745c5c3_Var7 string
 					templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminMessagesOpen), v.OpenCountText()))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/message.templ`, Line: 37, Col: 77}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/message.templ`, Line: 29, Col: 77}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 					if templ_7745c5c3_Err != nil {
@@ -155,7 +147,7 @@ func Messages(p layouts.Page, v MessagesView) templ.Component {
 					var templ_7745c5c3_Var9 string
 					templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(v.Notice)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/message.templ`, Line: 43, Col: 14}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/message.templ`, Line: 35, Col: 14}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 					if templ_7745c5c3_Err != nil {
@@ -188,7 +180,7 @@ func Messages(p layouts.Page, v MessagesView) templ.Component {
 				var templ_7745c5c3_Var10 string
 				templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminMessagesEmpty))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/message.templ`, Line: 51, Col: 79}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/message.templ`, Line: 43, Col: 79}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 				if templ_7745c5c3_Err != nil {
@@ -211,7 +203,7 @@ func Messages(p layouts.Page, v MessagesView) templ.Component {
 					var templ_7745c5c3_Var11 string
 					templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(m.Subject)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/message.templ`, Line: 59, Col: 51}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/message.templ`, Line: 51, Col: 51}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 					if templ_7745c5c3_Err != nil {
@@ -237,7 +229,7 @@ func Messages(p layouts.Page, v MessagesView) templ.Component {
 							var templ_7745c5c3_Var13 string
 							templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(m.Waiting(ctx))
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/message.templ`, Line: 62, Col: 26}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/message.templ`, Line: 54, Col: 26}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 							if templ_7745c5c3_Err != nil {
@@ -265,7 +257,7 @@ func Messages(p layouts.Page, v MessagesView) templ.Component {
 							var templ_7745c5c3_Var15 string
 							templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(m.Waiting(ctx))
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/message.templ`, Line: 66, Col: 26}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/message.templ`, Line: 58, Col: 26}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 							if templ_7745c5c3_Err != nil {
@@ -293,7 +285,7 @@ func Messages(p layouts.Page, v MessagesView) templ.Component {
 							var templ_7745c5c3_Var17 string
 							templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(m.Waiting(ctx))
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/message.templ`, Line: 70, Col: 26}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/message.templ`, Line: 62, Col: 26}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 							if templ_7745c5c3_Err != nil {
@@ -313,7 +305,7 @@ func Messages(p layouts.Page, v MessagesView) templ.Component {
 					var templ_7745c5c3_Var18 string
 					templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(m.Name)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/message.templ`, Line: 75, Col: 16}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/message.templ`, Line: 67, Col: 16}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 					if templ_7745c5c3_Err != nil {
@@ -326,7 +318,7 @@ func Messages(p layouts.Page, v MessagesView) templ.Component {
 					var templ_7745c5c3_Var19 string
 					templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(m.Email)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/message.templ`, Line: 75, Col: 31}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/message.templ`, Line: 67, Col: 31}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 					if templ_7745c5c3_Err != nil {
@@ -339,7 +331,7 @@ func Messages(p layouts.Page, v MessagesView) templ.Component {
 					var templ_7745c5c3_Var20 string
 					templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(m.At)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/message.templ`, Line: 75, Col: 43}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/message.templ`, Line: 67, Col: 43}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 					if templ_7745c5c3_Err != nil {
@@ -357,7 +349,7 @@ func Messages(p layouts.Page, v MessagesView) templ.Component {
 						var templ_7745c5c3_Var21 string
 						templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminMessagesOrder))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/message.templ`, Line: 79, Col: 50}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/message.templ`, Line: 71, Col: 50}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
 						if templ_7745c5c3_Err != nil {
@@ -370,7 +362,7 @@ func Messages(p layouts.Page, v MessagesView) templ.Component {
 						var templ_7745c5c3_Var22 templ.SafeURL
 						templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(m.OrderHref()))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/message.templ`, Line: 79, Col: 91}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/message.templ`, Line: 71, Col: 91}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 						if templ_7745c5c3_Err != nil {
@@ -383,7 +375,7 @@ func Messages(p layouts.Page, v MessagesView) templ.Component {
 						var templ_7745c5c3_Var23 string
 						templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(m.OrderRef)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/message.templ`, Line: 79, Col: 106}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/message.templ`, Line: 71, Col: 106}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 						if templ_7745c5c3_Err != nil {
@@ -401,7 +393,7 @@ func Messages(p layouts.Page, v MessagesView) templ.Component {
 					var templ_7745c5c3_Var24 string
 					templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(m.Message)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/message.templ`, Line: 82, Col: 46}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/message.templ`, Line: 74, Col: 46}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
 					if templ_7745c5c3_Err != nil {
@@ -414,7 +406,7 @@ func Messages(p layouts.Page, v MessagesView) templ.Component {
 					var templ_7745c5c3_Var25 templ.SafeURL
 					templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(m.Action()))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/message.templ`, Line: 85, Col: 61}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/message.templ`, Line: 77, Col: 61}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
 					if templ_7745c5c3_Err != nil {
@@ -427,7 +419,7 @@ func Messages(p layouts.Page, v MessagesView) templ.Component {
 					var templ_7745c5c3_Var26 string
 					templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.ResolveAttributeValue(m.ID)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/message.templ`, Line: 86, Col: 56}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/message.templ`, Line: 78, Col: 56}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var26)
 					if templ_7745c5c3_Err != nil {
@@ -452,7 +444,7 @@ func Messages(p layouts.Page, v MessagesView) templ.Component {
 						var templ_7745c5c3_Var28 string
 						templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.JoinStringErrs(m.ActionLabel(ctx))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/message.templ`, Line: 91, Col: 29}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/message.templ`, Line: 83, Col: 29}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var28))
 						if templ_7745c5c3_Err != nil {

@@ -17,14 +17,12 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
-// Store is the database side of the second factor.
 type Store struct {
 	pool   *pgxpool.Pool
 	q      *db.Queries
 	cipher *secretCipher
 }
 
-// NewStore returns a Store over pool, encrypting with parsed key material.
 func NewStore(pool *pgxpool.Pool, key []byte) *Store {
 	if pool == nil {
 		panic("twofactor: NewStore requires a pool")
@@ -32,7 +30,6 @@ func NewStore(pool *pgxpool.Pool, key []byte) *Store {
 	return &Store{pool: pool, q: db.New(pool), cipher: newCipher(key)}
 }
 
-// Enabled reports whether enrolment is possible in this deployment.
 func (s *Store) Enabled() bool { return s.cipher.enabled() }
 
 // Begin starts enrolment and returns the secret to show once. The credential is
@@ -66,7 +63,6 @@ func (s *Store) Begin(ctx context.Context, userID, email string) (secret []byte,
 	return secret, ProvisioningURI(email, secret), nil
 }
 
-// Confirm finishes enrolment by checking a code the person generated.
 func (s *Store) Confirm(ctx context.Context, userID, code string) error {
 	id, secret, lastStep, err := s.load(ctx, userID, false)
 	if err != nil {
@@ -109,7 +105,6 @@ func (s *Store) Verify(ctx context.Context, userID, code string) error {
 	return nil
 }
 
-// Enrolled reports whether this user has a confirmed credential.
 func (s *Store) Enrolled(ctx context.Context, userID string) (bool, error) {
 	_, _, _, err := s.load(ctx, userID, true)
 	switch {
@@ -122,7 +117,6 @@ func (s *Store) Enrolled(ctx context.Context, userID string) (bool, error) {
 	}
 }
 
-// MarkVerified records that this session proved a second factor.
 func (s *Store) MarkVerified(ctx context.Context, token string) error {
 	digest := sha256.Sum256([]byte(token))
 	if err := s.q.MarkSessionVerified(ctx, digest[:]); err != nil {
@@ -131,7 +125,6 @@ func (s *Store) MarkVerified(ctx context.Context, token string) error {
 	return nil
 }
 
-// SessionVerified reports whether this session's proof is still current.
 func (s *Store) SessionVerified(ctx context.Context, token string) (bool, error) {
 	digest := sha256.Sum256([]byte(token))
 	verified, err := s.q.SessionTOTPVerified(ctx, db.SessionTOTPVerifiedParams{
@@ -174,7 +167,6 @@ func (s *Store) load(ctx context.Context, userID string, requireConfirmed bool) 
 	return id, secret, row.LastStep.Int64, nil
 }
 
-// Staff reads who can reach the back office and who is protected.
 func (s *Store) Staff(ctx context.Context) (admin.StaffView, error) {
 	rows, err := s.q.StaffTOTPStatus(ctx)
 	if err != nil {

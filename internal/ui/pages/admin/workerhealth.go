@@ -10,7 +10,6 @@ import (
 	"github.com/koopa0/goen/internal/money"
 )
 
-// WorkerHealthView is what the background workers have and have not done.
 type WorkerHealthView struct {
 	OutboxPending int64
 	// OutboxOldest is how long the most overdue message has been due, not old.
@@ -30,17 +29,12 @@ type WorkerHealthView struct {
 	// are different evidence and route to different database functions.
 	UnreconciledEvents           []UnreconciledEvent
 	UnreconciledCompletePayments []UnreconciledCompletePayment
-	// StrandedClaims are aged or alarmed durable ECPay operations. The background
-	// reconciler handles ordinary ambiguity; this list is the remaining evidence.
-	StrandedClaims []StrandedClaim
-	// Notice is the one-shot message a 303 carries, so a write says what it did.
-	Notice          string
-	OpenRefundCount int64
-	OpenRefunds     []OpenRefund
-	// UninvoicedCount is every order paid a while ago with no invoice operation;
-	// Uninvoiced is a bounded sample of them.
-	UninvoicedCount int64
-	Uninvoiced      []UninvoicedOrder
+	StrandedClaims               []StrandedClaim
+	Notice                       string
+	OpenRefundCount              int64
+	OpenRefunds                  []OpenRefund
+	UninvoicedCount              int64
+	Uninvoiced                   []UninvoicedOrder
 
 	OutboxStaleAfter     time.Duration
 	MaxExpiredHolds      int64
@@ -48,8 +42,6 @@ type WorkerHealthView struct {
 	MaxExpiredSessions   int64
 	MaxUnreferencedMedia int64
 
-	// Pools are the connection pools' statistics as they stood when the page
-	// was read.
 	Pools []PoolHealth
 }
 
@@ -63,27 +55,22 @@ type PoolHealth struct {
 	AcquireWait                  time.Duration
 }
 
-// OutboxHealthy reports whether messages are moving; the signal is age.
 func (v *WorkerHealthView) OutboxHealthy() bool {
 	return v.OutboxStuck == 0 &&
 		(v.OutboxPending == 0 || v.OutboxOldest < v.OutboxStaleAfter)
 }
 
-// SweeperHealthy reports whether abandoned holds are being released.
 func (v *WorkerHealthView) SweeperHealthy() bool { return v.ExpiredHolds <= v.MaxExpiredHolds }
 
-// RecommendHealthy reports whether the projection is being rebuilt.
 func (v *WorkerHealthView) RecommendHealthy() bool {
 	return v.CopurchaseEverBuilt && v.CopurchaseAge < v.CopurchaseStaleAfter
 }
 
-// HousekeepingHealthy reports whether the two pruners are keeping up.
 func (v *WorkerHealthView) HousekeepingHealthy() bool {
 	return v.ExpiredSessions <= v.MaxExpiredSessions &&
 		v.UnreferencedMedia <= v.MaxUnreferencedMedia
 }
 
-// HousekeepingText is the pruners' state.
 func (v *WorkerHealthView) HousekeepingText(ctx context.Context) string {
 	if v.ExpiredSessions == 0 && v.UnreferencedMedia == 0 {
 		return i18n.T(ctx, i18n.KeyHealthSweeperClear)
@@ -92,7 +79,6 @@ func (v *WorkerHealthView) HousekeepingText(ctx context.Context) string {
 		v.ExpiredSessions, v.UnreferencedMedia)
 }
 
-// RefundsHealthy reports whether every refund goen opened has landed.
 func (v *WorkerHealthView) RefundsHealthy() bool { return v.OpenRefundCount == 0 }
 
 // PaymentsReconciled reports whether every accepted event was acted on. Any at
@@ -100,33 +86,26 @@ func (v *WorkerHealthView) RefundsHealthy() bool { return v.OpenRefundCount == 0
 // already taken back, and only a person can move it.
 func (v *WorkerHealthView) PaymentsReconciled() bool { return v.UnreconciledPayments == 0 }
 
-// AllHealthy reports whether everything is doing its job.
 func (v *WorkerHealthView) AllHealthy() bool {
 	return v.OutboxHealthy() && v.SweeperHealthy() &&
 		v.RecommendHealthy() && v.HousekeepingHealthy() && v.RefundsHealthy() &&
 		v.PaymentsReconciled() && v.ClaimsSettled() && v.PaidOrdersInvoiced()
 }
 
-// PaidOrdersInvoiced reports whether every paid order has an invoice operation.
 func (v *WorkerHealthView) PaidOrdersInvoiced() bool { return v.UninvoicedCount == 0 }
 
-// UninvoicedText says how many paid orders have no invoice operation, counted
-// apart from the bounded list beneath it.
 func (v *WorkerHealthView) UninvoicedText(ctx context.Context) string {
 	return i18n.Count(ctx, i18n.KeyAdminHPUninvoicedHint, v.UninvoicedCount, v.UninvoicedCount)
 }
 
-// UninvoicedOrder is one paid order with no invoice operation.
 type UninvoicedOrder struct {
 	OrderNumber string
 	AmountCents int64
 	Since       string
 }
 
-// Amount is what its invoice would be for.
 func (o UninvoicedOrder) Amount() string { return money.TWD(o.AmountCents) }
 
-// OutboxText is the outbox's state in a sentence a person can act on.
 func (v *WorkerHealthView) OutboxText(ctx context.Context) string {
 	switch {
 	case v.OutboxStuck > 0:
@@ -145,7 +124,6 @@ func (v *WorkerHealthView) OutboxText(ctx context.Context) string {
 	}
 }
 
-// SweeperText is the sweeper's state.
 func (v *WorkerHealthView) SweeperText(ctx context.Context) string {
 	if v.ExpiredHolds == 0 {
 		return i18n.T(ctx, i18n.KeyHealthHoldsClear)
@@ -153,7 +131,6 @@ func (v *WorkerHealthView) SweeperText(ctx context.Context) string {
 	return fmt.Sprintf(i18n.T(ctx, i18n.KeyHealthHoldsStuck), v.ExpiredHolds)
 }
 
-// RefundsText is the refund ledger's state.
 func (v *WorkerHealthView) RefundsText(ctx context.Context) string {
 	if v.OpenRefundCount == 0 {
 		return i18n.T(ctx, i18n.KeyHealthRefundsClear)
@@ -161,7 +138,6 @@ func (v *WorkerHealthView) RefundsText(ctx context.Context) string {
 	return fmt.Sprintf(i18n.T(ctx, i18n.KeyHealthRefundsStuck), v.OpenRefundCount)
 }
 
-// RecommendText is the projection's state.
 func (v *WorkerHealthView) RecommendText(ctx context.Context) string {
 	if !v.CopurchaseEverBuilt {
 		return i18n.T(ctx, i18n.KeyHealthProjectionNever)
@@ -183,7 +159,6 @@ func humanDuration(ctx context.Context, d time.Duration) string {
 	}
 }
 
-// UnreconciledEvent is a webhook goen accepted and could not act on.
 type UnreconciledEvent struct {
 	EventID string
 	Type    string
@@ -192,8 +167,6 @@ type UnreconciledEvent struct {
 	Since   string
 }
 
-// UnreconciledCompletePayment is a provider-complete payment identity with no
-// outstanding event alarm to resolve it.
 type UnreconciledCompletePayment struct {
 	OrderNumber            string
 	ProviderRef            string
@@ -210,7 +183,6 @@ func (p UnreconciledCompletePayment) Reason(ctx context.Context) string {
 	return i18n.T(ctx, i18n.KeyAdminHPCompleteOutcomeUnknown)
 }
 
-// StuckMessage is one delivery that has exhausted its attempts.
 type StuckMessage struct {
 	Topic     string
 	Key       string
@@ -219,10 +191,8 @@ type StuckMessage struct {
 	Since     string
 }
 
-// AttemptsText is how many times it has been tried.
 func (m StuckMessage) AttemptsText() string { return strconv.FormatInt(int64(m.Attempts), 10) }
 
-// Reason is the last error, or a stand-in when none was recorded.
 func (m StuckMessage) Reason(ctx context.Context) string {
 	if m.LastError == "" {
 		return i18n.T(ctx, i18n.KeyHealthNoReason)
@@ -230,7 +200,6 @@ func (m StuckMessage) Reason(ctx context.Context) string {
 	return m.LastError
 }
 
-// OpenRefund is one refund that has not landed.
 type OpenRefund struct {
 	OrderNumber string
 	Key         string
@@ -240,10 +209,8 @@ type OpenRefund struct {
 	Since       string
 }
 
-// Amount is what the customer is owed.
 func (r OpenRefund) Amount() string { return money.TWD(r.AmountCents) }
 
-// StatusText says what has to happen next; an unknown status renders as itself.
 func (r OpenRefund) StatusText(ctx context.Context) string {
 	switch r.Status {
 	case "pending":
@@ -259,7 +226,6 @@ func (r OpenRefund) StatusText(ctx context.Context) string {
 	}
 }
 
-// Reference is the provider's own id, blank when goen never got an answer.
 func (r OpenRefund) Reference(ctx context.Context) string {
 	if r.ProviderRef == "" {
 		return i18n.T(ctx, i18n.KeyHealthNoRef)
@@ -267,8 +233,6 @@ func (r OpenRefund) Reference(ctx context.Context) string {
 	return r.ProviderRef
 }
 
-// StrandedClaim is one durable Issue/Allowance/Void operation which is aged or
-// needs operator attention.
 type StrandedClaim struct {
 	Operation   string
 	OrderNumber string
@@ -284,13 +248,10 @@ type StrandedClaim struct {
 	CanAuthorizeResend bool
 }
 
-// Amount is what the claim was for.
 func (c StrandedClaim) Amount() string { return money.TWD(c.AmountCents) }
 
-// AttemptsText distinguishes provider sends from safe lookup/reconcile passes.
 func (c StrandedClaim) AttemptsText() string {
 	return fmt.Sprintf("%d / %d", c.Attempts, c.Sends)
 }
 
-// ClaimsSettled reports whether nothing is waiting on the provider.
 func (v *WorkerHealthView) ClaimsSettled() bool { return len(v.StrandedClaims) == 0 }

@@ -10,15 +10,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
-// Taxonomy renders the brands and the category tree with their forms.
-//
-// Two cards, each holding what it lists and the form that adds to it, because
-// a brand and a category are separate jobs and the list is what a reader checks
-// before typing into the form under it.
-//
-// The one filled button on the page is the category create. The tree is what
-// the storefront's navigation is built from, and a row of equally weighted
-// buttons makes a reader choose before they act.
+// Two cards, each holding what it lists and the form that adds to it, because a brand
+// and a category are separate jobs. The one filled button is the category create.
 templ Taxonomy(p layouts.Page, v *TaxonomyView) {
 	@layouts.Admin(p, "taxonomy") {
 		<div class="ui-page-head">
@@ -48,8 +41,7 @@ templ Taxonomy(p layouts.Page, v *TaxonomyView) {
 	}
 }
 
-// taxonForm adds a brand or a category. Its fields keep the ids and names the
-// handler and its tests read; only the boxes around them are new.
+// taxonForm's fields keep the ids and names the handler and its tests read.
 templ taxonForm(kind string, title i18n.Key, style components.ButtonStyle, v *TaxonomyView) {
 	<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/taxonomy/" + kind) }>
 		<h3 class="goen-admin__subhead">{ i18n.T(ctx, title) }</h3>
@@ -232,7 +224,6 @@ templ taxonList(kind string, empty i18n.Key, rows []Taxon) {
 									<option value={ k } selected?={ t.IconKey == k }>{ k }</option>
 								}
 							</select>
-							// Rendered with its current value, like the icon: the rename writes what the form carries.
 							<select
 								class="goen-input"
 								name="tone"
@@ -243,7 +234,6 @@ templ taxonList(kind string, empty i18n.Key, rows []Taxon) {
 									<option value={ string(k) } selected?={ t.Tone == string(k) }>{ k.Label(ctx) }</option>
 								}
 							</select>
-							// Only a department answers; a sub-category takes its department's.
 							if t.Depth == 0 {
 								<label class="goen-check">
 									<input

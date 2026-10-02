@@ -12,7 +12,6 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
-// Coupon is one promotion as the back office sees it.
 type Coupon struct {
 	Code        string
 	Description string
@@ -31,7 +30,6 @@ type Coupon struct {
 	EndsAt      string
 }
 
-// Value is what it takes off.
 func (c Coupon) Value(ctx context.Context) string {
 	switch c.Kind {
 	case "amount":
@@ -47,7 +45,6 @@ func (c Coupon) Value(ctx context.Context) string {
 	}
 }
 
-// Conditions is the fine print: the minimum spend and the limits.
 func (c Coupon) Conditions(ctx context.Context) string {
 	parts := make([]string, 0, 3)
 	if c.MinSpend > 0 {
@@ -60,7 +57,6 @@ func (c Coupon) Conditions(ctx context.Context) string {
 	return strings.Join(parts, " · ")
 }
 
-// Used is how many times it has been redeemed, and what that has cost.
 func (c Coupon) Used(ctx context.Context) string {
 	s := fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminCouponUsed), c.Redeemed)
 	if c.GivenCents > 0 {
@@ -69,7 +65,6 @@ func (c Coupon) Used(ctx context.Context) string {
 	return s
 }
 
-// State is whether the coupon works right now; active and current differ.
 func (c Coupon) State(ctx context.Context) string {
 	switch {
 	case !c.Active:
@@ -81,13 +76,10 @@ func (c Coupon) State(ctx context.Context) string {
 	}
 }
 
-// Live reports whether a customer could use it this moment.
 func (c Coupon) Live() bool { return c.Active && c.Current }
 
-// Action is where the on/off form posts.
 func (c Coupon) Action() string { return "/admin/coupons/" + c.Code + "/active" }
 
-// NextActive is what the toggle would set it to.
 func (c Coupon) NextActive() string {
 	if c.Active {
 		return "false"
@@ -95,7 +87,6 @@ func (c Coupon) NextActive() string {
 	return "true"
 }
 
-// ToggleLabel is what the button says.
 func (c Coupon) ToggleLabel(ctx context.Context) string {
 	if c.Active {
 		return i18n.T(ctx, i18n.KeyAdminToggleOff)
@@ -103,7 +94,6 @@ func (c Coupon) ToggleLabel(ctx context.Context) string {
 	return i18n.T(ctx, i18n.KeyAdminToggleOn)
 }
 
-// CouponsView is the promotions page.
 type CouponsView struct {
 	pages.ListBound
 
@@ -113,7 +103,6 @@ type CouponsView struct {
 	Draft  CouponDraft
 }
 
-// CouponDraft carries a refused form's values back into it.
 type CouponDraft struct {
 	Code        string
 	Description string
@@ -126,7 +115,6 @@ type CouponDraft struct {
 	Days        string
 }
 
-// IsKind reports whether k is the chosen kind.
 func (d CouponDraft) IsKind(k string) bool {
 	if d.Kind == "" {
 		return k == "amount"
@@ -134,11 +122,8 @@ func (d CouponDraft) IsKind(k string) bool {
 	return d.Kind == k
 }
 
-// Empty reports whether no promotion has been issued yet.
 func (v *CouponsView) Empty() bool { return len(v.Rows) == 0 }
 
-// HasErr reports whether a field was refused.
 func (v *CouponsView) HasErr(f string) bool { _, ok := v.Errors[f]; return ok }
 
-// Err is why a field was refused.
 func (v *CouponsView) Err(f string) string { return v.Errors[f] }

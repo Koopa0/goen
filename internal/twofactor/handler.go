@@ -18,18 +18,15 @@ import (
 	"github.com/koopa0/goen/internal/web"
 )
 
-// Handler serves enrolment and the step-up challenge.
 type Handler struct {
 	store *Store
 	log   *slog.Logger
 	// limit bounds code submissions: unthrottled, a million possibilities is
 	// under twenty minutes at a thousand guesses a second.
-	limit *ratelimit.Limiter
-	// secure selects the session cookie's name.
+	limit  *ratelimit.Limiter
 	secure bool
 }
 
-// NewHandler returns a Handler.
 func NewHandler(store *Store, log *slog.Logger, secure bool) *Handler {
 	if store == nil || log == nil {
 		panic("twofactor: NewHandler requires a store and a logger")
@@ -52,7 +49,6 @@ func (h *Handler) fault(w http.ResponseWriter, r *http.Request) {
 		i18n.T(r.Context(), i18n.KeyAdminFaultBody)))
 }
 
-// Challenge serves GET /admin/verify.
 func (h *Handler) Challenge(w http.ResponseWriter, r *http.Request) {
 	u, ok := account.FromContext(r.Context())
 	if !ok {
@@ -92,7 +88,6 @@ func (h *Handler) Challenge(w http.ResponseWriter, r *http.Request) {
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageTwoFactor)}, view))
 }
 
-// Verify serves POST /admin/verify.
 func (h *Handler) Verify(w http.ResponseWriter, r *http.Request) {
 	u, ok := account.FromContext(r.Context())
 	if !ok {
@@ -141,7 +136,6 @@ func (h *Handler) Verify(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/admin", http.StatusSeeOther)
 }
 
-// Enrol serves POST /admin/verify/enrol.
 func (h *Handler) Enrol(w http.ResponseWriter, r *http.Request) {
 	// The one-time TOTP seed is password-equivalent; keep its page out of BREACH's reach.
 	web.NoCompress(w)
@@ -184,7 +178,6 @@ func (h *Handler) Enrol(w http.ResponseWriter, r *http.Request) {
 		}))
 }
 
-// Confirm serves POST /admin/verify/confirm.
 func (h *Handler) Confirm(w http.ResponseWriter, r *http.Request) {
 	u, ok := account.FromContext(r.Context())
 	if !ok {
@@ -215,7 +208,6 @@ func (h *Handler) Confirm(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	// Confirming proves the factor, so the session is verified too.
 	token := account.ReadSessionCookie(r, h.secure)
 	if token == "" {
 		http.Redirect(w, r, "/signin", http.StatusSeeOther)
@@ -229,7 +221,6 @@ func (h *Handler) Confirm(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/admin?enrolled=1", http.StatusSeeOther)
 }
 
-// noticeFor turns a query flag into a sentence.
 func noticeFor(r *http.Request) string {
 	switch {
 	case r.URL.Query().Get("stale") == "1":
@@ -253,8 +244,6 @@ func (h *Handler) logUnreadable(r *http.Request) {
 		"set", "GOEN_TOTP_KEY")
 }
 
-// StepUp reports whether a request's session has proved a second factor
-// recently.
 func (h *Handler) StepUp(r *http.Request) (bool, error) {
 	token := account.ReadSessionCookie(r, h.secure)
 	if token == "" {
@@ -263,7 +252,6 @@ func (h *Handler) StepUp(r *http.Request) (bool, error) {
 	return h.store.SessionVerified(r.Context(), token)
 }
 
-// Staff serves GET /admin/staff.
 func (h *Handler) Staff(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Staff(r.Context())
 	if err != nil {
@@ -286,7 +274,6 @@ func (h *Handler) Staff(w http.ResponseWriter, r *http.Request) {
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageStaff)}, view))
 }
 
-// AddStaff serves POST /admin/staff.
 func (h *Handler) AddStaff(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
@@ -323,7 +310,6 @@ func (h *Handler) AddStaff(w http.ResponseWriter, r *http.Request) {
 	h.redirectStaff(w, r, err)
 }
 
-// RevokeStaff serves POST /admin/staff/revoke.
 func (h *Handler) RevokeStaff(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
@@ -333,7 +319,6 @@ func (h *Handler) RevokeStaff(w http.ResponseWriter, r *http.Request) {
 		r.PostFormValue("user"), actorID(r)))
 }
 
-// RemoveFactor serves POST /admin/staff/factor.
 func (h *Handler) RemoveFactor(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
@@ -343,7 +328,6 @@ func (h *Handler) RemoveFactor(w http.ResponseWriter, r *http.Request) {
 		r.PostFormValue("user"), actorID(r)))
 }
 
-// actorID is the signed-in admin, for the guards that refuse self-service.
 func actorID(r *http.Request) string {
 	if u, ok := account.FromContext(r.Context()); ok {
 		return u.ID
@@ -351,7 +335,6 @@ func actorID(r *http.Request) string {
 	return ""
 }
 
-// redirectStaff turns a store error into the page's own answer.
 func (h *Handler) redirectStaff(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case err == nil:
@@ -370,7 +353,6 @@ func (h *Handler) redirectStaff(w http.ResponseWriter, r *http.Request, err erro
 	}
 }
 
-// staffNotice is what the redirect is reporting.
 func staffNotice(r *http.Request) string {
 	switch {
 	case r.URL.Query().Get("ok") == "1":

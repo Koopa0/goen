@@ -45,7 +45,6 @@ func WithFilingIdentity(ctx context.Context, actorID uuid.UUID, requestID string
 	})
 }
 
-// NewStore returns a Store over the admin pool.
 func NewStore(pool *pgxpool.Pool, gateway *Gateway) *Store {
 	if pool == nil || gateway == nil {
 		panic("invoice: NewStore requires a pool and a gateway")
@@ -68,7 +67,6 @@ func filingAuditIdentity(ctx context.Context) (uuid.UUID, string, error) {
 	return identity.actorID, identity.requestID, nil
 }
 
-// Enabled reports whether this deployment can issue anything.
 func (s *Store) Enabled() bool { return s.gateway.Enabled() }
 
 // Issue durably freezes and claims a request before any provider call. ECPay's
@@ -136,7 +134,6 @@ func filingContext(ctx context.Context) (context.Context, context.CancelFunc) {
 	return context.WithTimeout(context.WithoutCancel(ctx), filingTimeout)
 }
 
-// Void cancels an issued invoice, at the provider and then here.
 func (s *Store) Void(ctx context.Context, orderNumber, reason string) error {
 	if !s.Enabled() {
 		return ErrDisabled
@@ -238,7 +235,6 @@ func invoiceLineArrays(lines []Line) (
 	return descriptions, quantities, unitPrices, amounts
 }
 
-// Documents is every filing against one order, for the back office.
 func (s *Store) Documents(ctx context.Context, orderNumber string) ([]Document, error) {
 	rows, err := s.q.InvoiceDocuments(ctx, orderNumber)
 	if err != nil {

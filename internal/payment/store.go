@@ -22,8 +22,8 @@ import (
 	"github.com/koopa0/goen/internal/outbox"
 )
 
-// Store is the database side of taking money. It holds the pool rather than a
-// DBTX because processing a webhook spans two writes that must commit together.
+// Store holds the pool rather than a DBTX because processing a webhook spans
+// two writes that must commit together.
 type Store struct {
 	pool *pgxpool.Pool
 	q    *db.Queries
@@ -39,7 +39,6 @@ type webhookTx struct {
 	objectRef string
 }
 
-// NewStore returns a Store over pool.
 func NewStore(pool *pgxpool.Pool) *Store {
 	if pool == nil {
 		panic("payment: NewStore requires a pool")
@@ -540,7 +539,6 @@ func (w *webhookTx) CancelPaymentRow(ctx context.Context) error {
 	return nil
 }
 
-// OrderBelongsTo reports whether userID owns the named order.
 func (s *Store) OrderBelongsTo(ctx context.Context, number, userID string) (bool, error) {
 	id, err := uuid.Parse(userID)
 	if err != nil {
@@ -555,7 +553,6 @@ func (s *Store) OrderBelongsTo(ctx context.Context, number, userID string) (bool
 	return owns, nil
 }
 
-// cardLabel is what the history shows about how an order was paid.
 func cardLabel(c Capture) string {
 	if c.CardBrand == "" || c.CardLast4 == "" {
 		return ""

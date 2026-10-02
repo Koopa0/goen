@@ -9,12 +9,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// Health renders what the background workers have and have not done.
-//
-// The five states are always on the page and the alarm tables only when there
-// is something in them, which is what makes the page readable at a glance: an
-// empty page means the shop is running itself, and anything below the states
-// is work.
+// The five states are always on the page and the alarm tables only when there is
+// something in them: an empty page means the shop is running itself.
 templ Health(p layouts.Page, v *WorkerHealthView) {
 	@layouts.Admin(p, "health") {
 		<div class="ui-page-head">
@@ -349,11 +345,8 @@ templ Health(p layouts.Page, v *WorkerHealthView) {
 	}
 }
 
-// healthItem is one background worker: what it is called, where it has got
-// to, and whether that is where it should be.
-//
-// The badge says the same thing the border does, on purpose: a state told only
-// by colour is a state somebody cannot read.
+// The badge says what the border says, on purpose: a state told only by colour
+// is a state somebody cannot read.
 templ healthItem(healthy bool, name, state, note string) {
 	<li class={ "goen-health__item", templ.KV("is-bad", !healthy) }>
 		<div class="goen-health__head">

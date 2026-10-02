@@ -9,22 +9,11 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// FAQ renders the FAQ management page.
-//
-// Two cards down the column rather than a form beside a list. The editor has
-// six fields and the entries it writes have four apiece, and a 320px side
-// column made both of them narrower than the sentences they hold — this is the
-// screen the shop's own answers are written on, and a textarea you cannot read
-// a paragraph in is how a wrong answer stays up.
-//
-// The shop's words are the shop's: nothing here rewrites an entry, and the
-// English column stays optional with the badge that says which entries have not
-// been translated yet.
-//
+// Two cards down the column rather than a form beside a list: a 320px side column
+// made the editor and the entries narrower than the sentences they hold.
 // The list keeps the class the layout gate finds the page by
-// (scripts/check-layout.mjs:279-280) — the gate markers this page on the LIST
-// rather than the chrome, so that a run which rendered only the form cannot
-// report the page as covered.
+// (scripts/check-layout.mjs): it marks the page on the LIST, so a run that rendered
+// only the form cannot report the page as covered.
 templ FAQ(p layouts.Page, v *FAQView) {
 	@layouts.Admin(p, "faq") {
 		<div class="ui-page-head">

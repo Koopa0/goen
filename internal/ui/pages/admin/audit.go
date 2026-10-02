@@ -8,19 +8,15 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
-// AuditEntry is one recorded back-office action.
 type AuditEntry struct {
-	Action string
-	Entity string
-	// Subject is the record's name (an order number, a SKU, a slug) and Href its
-	// page; both are empty when the record has neither.
+	Action    string
+	Entity    string
 	Subject   string
 	Href      string
 	Actor     string
 	At        string
 	RequestID string
-	// Changes are the fields the action recorded, one row each.
-	Changes []AuditChange
+	Changes   []AuditChange
 	// System is goen acting on a fact, such as the 統一發票 a sale owes; no
 	// person acted, and Label says what was done.
 	System bool
@@ -33,7 +29,6 @@ type AuditChange struct {
 	Before, After string
 }
 
-// Text is the value, or the value it changed from and to.
 func (c AuditChange) Text() string {
 	if c.Before != "" && c.After != "" {
 		return c.Before + " → " + c.After
@@ -41,7 +36,6 @@ func (c AuditChange) Text() string {
 	return c.Before + c.After
 }
 
-// Label is what the action is called on the page, in the reader's language.
 func (e AuditEntry) Label(ctx context.Context) string {
 	if k, ok := actionLabels[e.Action]; ok {
 		return i18n.T(ctx, k)
@@ -87,7 +81,6 @@ var entityLabels = map[string]i18n.Key{
 	"shipping_zones":           i18n.KeyAuditEntityShippingZones,
 }
 
-// EntityLabel is the record kind in the reader's language.
 func (e AuditEntry) EntityLabel(ctx context.Context) string {
 	if k, ok := entityLabels[e.Entity]; ok {
 		return i18n.T(ctx, k)
@@ -178,7 +171,6 @@ var actionLabels = map[string]i18n.Key{
 	"staff.factor.remove":                 i18n.KeyAuditStaffFactorRemove,
 }
 
-// ActorText is who did it, or a stand-in for an account that is gone.
 func (e AuditEntry) ActorText(ctx context.Context) string {
 	switch {
 	case e.System:
@@ -189,7 +181,6 @@ func (e AuditEntry) ActorText(ctx context.Context) string {
 	return e.Actor
 }
 
-// Money reports whether this action moved money or stock.
 func (e AuditEntry) Money() bool {
 	switch e.Action {
 	case "credit.grant", "return.decide", "stock.adjust", "variant.reprice":
@@ -199,7 +190,6 @@ func (e AuditEntry) Money() bool {
 	}
 }
 
-// ShortRequestID is enough of the id to match a log line by eye.
 func (e AuditEntry) ShortRequestID() string {
 	if len(e.RequestID) <= 8 {
 		return e.RequestID
@@ -207,17 +197,14 @@ func (e AuditEntry) ShortRequestID() string {
 	return e.RequestID[:8]
 }
 
-// AuditView is the trail.
 type AuditView struct {
 	pages.ListBound
 
 	Rows []AuditEntry
 }
 
-// Empty reports whether nothing has been recorded.
 func (v AuditView) Empty() bool { return len(v.Rows) == 0 }
 
-// Image is one image attached to a product, as the back office shows it.
 type Image struct {
 	Key    string
 	Alt    string
@@ -228,8 +215,6 @@ type Image struct {
 	OptionValueID string
 }
 
-// URL is where it is served: an uploaded image by digest under /media, a seeded
-// one from the embedded assets, and "" for a key that names neither.
 func (i Image) URL() string { return assets.ProductImageURL(i.Key) }
 
 // Srcset offers the 400px rendition, which is what the back office's 80 and 120
