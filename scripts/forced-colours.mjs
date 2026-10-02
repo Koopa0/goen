@@ -30,13 +30,13 @@ export async function measureChooserStates(name) {
   return { forced: matchMedia('(forced-colors: active)').matches, name, results };
 }
 
-export async function measureSwatchState() {
-  const selected = document.querySelector('.goen-swatch--on:not(.goen-swatch--dot)');
+export async function measureSwatchState(dot = false) {
+  const selected = document.querySelector(dot ? '.goen-swatch--dot.goen-swatch--on' : '.goen-swatch--on:not(.goen-swatch--dot)');
   if (!selected) return { error: 'selected text swatch missing' };
   const properties = ['color', 'backgroundColor', 'borderTopColor', 'borderTopWidth',
     'outlineColor', 'outlineWidth', 'outlineStyle', 'fontWeight', 'textDecorationLine'];
   const signature = () => {
-    const style = getComputedStyle(selected);
+    const style = getComputedStyle(dot ? selected.querySelector('.goen-swatch__dot') : selected);
     return Object.fromEntries(properties.map((key) => [key, style[key]]));
   };
   document.activeElement?.blur();
@@ -47,6 +47,6 @@ export async function measureSwatchState() {
   await new Promise((resolve) => setTimeout(resolve, 350));
   const checked = signature();
   return { forced: matchMedia('(forced-colors: active)').matches,
-    text: selected.textContent.trim(), checked, unchecked,
+    kind: dot ? 'colour' : 'text', text: selected.textContent.trim(), checked, unchecked,
     distinct: JSON.stringify(checked) !== JSON.stringify(unchecked) };
 }

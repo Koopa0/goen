@@ -2646,6 +2646,18 @@ try {
       fail('forced colours swatch', got.why || got.error || 'selected text swatch has no distinct visible cue');
     }
   }
+  const colourURL = await evalPage(`document.querySelector('.goen-swatch--dot')?.href || null`);
+  if (!colourURL || colourURL.threw) {
+    fail('forced colours colour swatch', 'no colour variant choice was rendered');
+  } else {
+    await send(ws, 'Page.navigate', { url: colourURL });
+    await settled(ws, 'forced colours chosen colour', colourURL);
+    const got = await evalPage(`(${measureSwatchState.toString()})(true)`);
+    console.log('forced colours colour swatch ' + JSON.stringify(got));
+    if (got.threw || got.error || !got.forced || !got.distinct) {
+      fail('forced colours colour swatch', got.why || got.error || 'selected colour swatch has no distinct visible cue');
+    }
+  }
   await openAt('forced colours language', '/contact');
   const language = await evalPage(`(() => {
     const menu = document.querySelector('.goen-langmenu');
