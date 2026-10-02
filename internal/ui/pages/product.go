@@ -360,6 +360,36 @@ func (v *ProductView) GalleryFollowsChoice() bool {
 	return slices.ContainsFunc(v.Images, func(i ProductImage) bool { return i.ShowsOption })
 }
 
+func (v *ProductView) ChoiceSwap() string {
+	if v.GalleryFollowsChoice() {
+		return "#gallery,#buybar"
+	}
+	return "#buybar"
+}
+
+func (v *ProductView) BuyBarFollows() string {
+	if v.SoldOut() {
+		return "restock"
+	}
+	return "add-to-cart"
+}
+
+// BuyBarOutcome repeats the notice under the add button, which is out of sight
+// whenever the bar is up.
+func (v *ProductView) BuyBarOutcome(ctx context.Context) string {
+	switch {
+	case v.JustAdded():
+		return i18n.T(ctx, i18n.KeyAddedToCart)
+	case v.AddAdjusted():
+		return i18n.T(ctx, i18n.KeyAddAdjusted)
+	case v.CartFull():
+		return i18n.T(ctx, i18n.KeyCartLineLimit)
+	case v.AddRefused():
+		return i18n.T(ctx, i18n.KeyAddRefused)
+	}
+	return ""
+}
+
 // HasSpecs reports whether the spec table has rows.
 func (v *ProductView) HasSpecs() bool { return len(v.Specs) > 0 }
 

@@ -3912,6 +3912,72 @@ a.goen-pager__step:hover {
   white-space: normal;
 }
 
+/* visibility, not just transform, keeps it out of the tab order and away from
+   assistive technology until goen.js sets .is-visible. */
+.goen-buybar {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .goen-buybar {
+    align-items: center;
+    background: var(--bg);
+    border-top: 1px solid var(--n-200);
+    bottom: 0;
+    display: flex;
+    gap: 1rem;
+    left: 0;
+    padding: 0.75rem 1rem calc(0.75rem + env(safe-area-inset-bottom));
+    position: fixed;
+    right: 0;
+    transform: translateY(100%);
+    visibility: hidden;
+    z-index: var(--z-dropdown);
+  }
+
+  .goen-buybar:empty {
+    display: none;
+  }
+
+  .goen-buybar.is-visible {
+    transform: none;
+    visibility: visible;
+  }
+
+  .goen-buybar__price {
+    color: var(--n-900);
+    flex: none;
+    font-size: var(--fs-18);
+    font-variant-numeric: tabular-nums;
+    font-weight: var(--fw-medium);
+    margin: 0;
+  }
+
+  .goen-buybar__msg {
+    color: var(--n-700);
+    flex: 1 1 auto;
+    font-size: var(--fs-14);
+    margin: 0;
+  }
+
+  .goen-buybar__btn {
+    flex: 1 1 auto;
+    height: 3rem;
+  }
+
+  body:has(.goen-buybar.is-visible) {
+    padding-bottom: calc(4.5rem + env(safe-area-inset-bottom));
+  }
+}
+
+@media (max-width: 768px) and (prefers-reduced-motion: no-preference) {
+  .goen-buybar {
+    transition:
+      transform var(--dur-slow) var(--ease-standard),
+      visibility var(--dur-slow);
+  }
+}
+
 .goen-pdp__added {
   align-items: center;
   display: flex;
