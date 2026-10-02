@@ -690,7 +690,7 @@ func ContactPanel(f ContactForm) templ.Component {
 				Class:     "contact__ref",
 				Attrs: templ.Attributes{
 					"maxlength":   "32",
-					"placeholder": "#GO-",
+					"placeholder": i18n.T(ctx, i18n.KeyOrderRefPlaceholder),
 				},
 			}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {

@@ -872,6 +872,21 @@ h3 {
   display: none;
 }
 
+/* With script, focus alone does not open a panel: its sub-links would be a tab
+   stop each before the search field. goen.js opens one from the department's
+   link (data-open); hover still opens it. Without script the rule above keeps
+   the panel open under focus, so it stays reachable. */
+@media (scripting: enabled) {
+  .goen-dept:not([data-open]):not(:hover) > .goen-dept__panel {
+    display: none;
+  }
+
+  .goen-dept[data-open] > .goen-dept__panel {
+    animation: goen-panel-in 100ms var(--ease-standard);
+    display: block;
+  }
+}
+
 @keyframes goen-panel-in {
   from {
     opacity: 0;
@@ -6436,21 +6451,17 @@ a.goen-pager__step:hover {
 }
 
 .contact__map {
-  align-items: center;
-  aspect-ratio: 4 / 3;
-  background: var(--n-50);
-  border-radius: var(--r-lg);
   color: var(--accent-text);
-  display: flex;
+  display: inline-block;
   font-size: var(--fs-14);
   font-weight: var(--fw-medium);
-  justify-content: center;
   text-decoration: none;
 }
 
 .contact__map:hover {
-  background: var(--n-100);
   color: var(--accent-text-hover);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .contact__address {

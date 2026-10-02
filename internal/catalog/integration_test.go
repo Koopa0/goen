@@ -1191,6 +1191,40 @@ func TestComparisonFollowsTheDepartmentDownItsTrail(t *testing.T) {
 	}
 }
 
+// With nothing chosen, the comparison page points at a department that offers
+// the box to tick, not at the home page, and at none when no department does.
+func TestAnEmptyComparisonPointsAtADepartmentThatOffersIt(t *testing.T) {
+	ctx := t.Context()
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
+	if _, err = tx.Exec(ctx, `
+		UPDATE categories SET comparable = NULL;
+		UPDATE categories SET comparable = true WHERE slug = 'books-stationery';`); err != nil {
+		t.Fatalf("fixture: %v", err)
+	}
+	s := catalog.NewStore(tx)
+	view, err := s.Compare(ctx, nil)
+	if err != nil {
+		t.Fatalf("Compare: %v", err)
+	}
+	if view.StartSlug != "books-stationery" || view.StartHref() != "/c/books-stationery" {
+		t.Errorf("start = %q (%q), want the one department that offers comparison", view.StartSlug, view.StartHref())
+	}
+
+	if _, err = tx.Exec(ctx, `UPDATE categories SET comparable = NULL`); err != nil {
+		t.Fatalf("fixture: %v", err)
+	}
+	if view, err = s.Compare(ctx, nil); err != nil {
+		t.Fatalf("Compare: %v", err)
+	}
+	if view.StartSlug != "" || view.StartHref() != "/" {
+		t.Errorf("start = %q (%q) with no department offering comparison, want none and the home page", view.StartSlug, view.StartHref())
+	}
+}
+
 // A comparison of one offers the others on its own shelf, nearest in price
 // first, at most six, never itself and never a product from another shelf.
 func TestAComparisonOfOneSuggestsItsShelfNearestPriceFirst(t *testing.T) {

@@ -623,6 +623,21 @@ WITH RECURSIVE eff AS (
 )
 SELECT eff.id FROM eff WHERE eff.comparable IS TRUE;
 
+-- Where to start choosing products to compare: the department nearest the top,
+-- then first in the shop's order, that offers comparison. Same inheritance as
+-- ComparableCategoryIDs.
+-- name: FirstComparableCategorySlug :one
+WITH RECURSIVE eff AS (
+    SELECT c.id, c.slug, c.position, 0 AS depth, c.comparable
+    FROM categories c WHERE c.parent_id IS NULL
+    UNION ALL
+    SELECT c.id, c.slug, c.position, e.depth + 1, coalesce(c.comparable, e.comparable)
+    FROM categories c JOIN eff e ON c.parent_id = e.id
+)
+SELECT eff.slug FROM eff WHERE eff.comparable IS TRUE
+ORDER BY eff.depth, eff.position, eff.slug
+LIMIT 1;
+
 -- What to compare a product with: the other active products on its own shelf,
 -- the ones priced closest first, with a stable order for equal distances.
 -- A product with no active variant has no price to show and is left out.

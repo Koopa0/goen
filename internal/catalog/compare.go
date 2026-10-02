@@ -2,8 +2,11 @@ package catalog
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
+
+	"github.com/jackc/pgx/v5"
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/db"
@@ -16,7 +19,7 @@ import (
 func (s *Store) Compare(ctx context.Context, slugs []string) (pages.CompareView, error) {
 	slugs, dropped := normaliseSlugs(slugs)
 	if len(slugs) == 0 {
-		return pages.CompareView{}, nil
+		return s.withStart(ctx, pages.CompareView{})
 	}
 
 	rows, err := s.q.CompareProducts(ctx, db.CompareProductsParams{
@@ -45,7 +48,7 @@ func (s *Store) Compare(ctx context.Context, slugs []string) (pages.CompareView,
 		})
 	}
 	if len(view.Products) == 0 {
-		return view, nil
+		return s.withStart(ctx, view)
 	}
 	if len(view.Products) < pages.MinCompare {
 		if view.Suggestions, err = s.compareSuggestions(ctx, &view.Products[0], slugs); err != nil {
@@ -101,6 +104,16 @@ func normaliseSlugs(raw []string) (out []string, dropped bool) {
 
 // suggestionCount is how many products a one-product comparison offers.
 const suggestionCount = 6
+
+// withStart names where to begin choosing when nothing is chosen.
+func (s *Store) withStart(ctx context.Context, view pages.CompareView) (pages.CompareView, error) {
+	slug, err := s.q.FirstComparableCategorySlug(ctx)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return pages.CompareView{}, fmt.Errorf("read comparable category: %w", err)
+	}
+	view.StartSlug = slug
+	return view, nil
+}
 
 // compareSuggestions reads what to compare a lone product with, as the tiles
 // the rest of the shop draws a product with.

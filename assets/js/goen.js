@@ -107,26 +107,79 @@
   }
 
   /*
-   * A department's panel opens by hover or focus, in CSS. Content that appears
-   * that way has to be dismissible without moving the pointer or the focus, so
-   * Escape marks the open one dismissed until the pointer leaves or the focus
-   * moves out.
+   * A department's panel opens by hover, in CSS. With this script running it
+   * does not open by focus: every sub-link of every department would be a tab
+   * stop before the search field. Keyboard users open it from the department's
+   * own link with ArrowDown, which moves into the panel; ArrowUp and Down move
+   * between its links and Escape closes it and returns to the link. Without
+   * the script the stylesheet keeps the panel open while focus is inside the
+   * department, so it stays reachable.
+   *
+   * Content that appears on hover has to be dismissible without moving the
+   * pointer or the focus, so Escape also marks a hover-opened panel dismissed
+   * until the pointer leaves or the focus moves out.
    */
   function departmentPanels() {
     const depts = document.querySelectorAll(".goen-dept");
     if (!depts.length) return;
 
+    const parts = (dept) => ({
+      link: dept.querySelector(":scope > a"),
+      items: [...dept.querySelectorAll(".goen-dept__panel a")],
+    });
+    const setOpen = (dept, open) => {
+      const { link } = parts(dept);
+      if (open) {
+        dept.setAttribute("data-open", "");
+        dept.removeAttribute("data-dismissed");
+      } else {
+        dept.removeAttribute("data-open");
+      }
+      link?.setAttribute("aria-expanded", String(open));
+    };
+
+    for (const dept of depts) {
+      const { link } = parts(dept);
+      link?.setAttribute("aria-haspopup", "true");
+      link?.setAttribute("aria-expanded", "false");
+
+      dept.addEventListener("keydown", (event) => {
+        const { link, items } = parts(dept);
+        const at = items.indexOf(document.activeElement);
+        if (event.key === "ArrowDown" && (document.activeElement === link || at >= 0)) {
+          event.preventDefault();
+          setOpen(dept, true);
+          items[Math.min(at + 1, items.length - 1)]?.focus();
+        } else if (event.key === "ArrowUp" && at >= 0) {
+          event.preventDefault();
+          if (at === 0) {
+            setOpen(dept, false);
+            link?.focus();
+          } else {
+            items[at - 1].focus();
+          }
+        }
+      });
+      dept.addEventListener("mouseleave", () => dept.removeAttribute("data-dismissed"));
+      dept.addEventListener("focusout", (event) => {
+        if (event.relatedTarget instanceof Node && dept.contains(event.relatedTarget)) return;
+        dept.removeAttribute("data-dismissed");
+        setOpen(dept, false);
+      });
+    }
+
     document.addEventListener("keydown", (event) => {
       if (event.key !== "Escape") return;
       for (const dept of depts) {
-        if (dept.matches(":hover, :focus-within")) dept.setAttribute("data-dismissed", "");
+        const { link, items } = parts(dept);
+        const inside = items.includes(document.activeElement);
+        if (dept.hasAttribute("data-open")) {
+          setOpen(dept, false);
+          if (inside) link?.focus();
+        }
+        if (dept.matches(":hover")) dept.setAttribute("data-dismissed", "");
       }
     });
-    for (const dept of depts) {
-      const reset = () => dept.removeAttribute("data-dismissed");
-      dept.addEventListener("mouseleave", reset);
-      dept.addEventListener("focusout", reset);
-    }
   }
 
   /*

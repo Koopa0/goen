@@ -172,7 +172,7 @@ templ ContactPanel(f ContactForm) {
 						Class:     "contact__ref",
 						Attrs: templ.Attributes{
 							"maxlength":   "32",
-							"placeholder": "#GO-",
+							"placeholder": i18n.T(ctx, i18n.KeyOrderRefPlaceholder),
 						},
 					})
 					if f.err("order_ref") != "" {

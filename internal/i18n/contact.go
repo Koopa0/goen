@@ -38,6 +38,10 @@ var (
 
 	KeyNamePlaceholder = key("field.name.placeholder", Message{ZhHant: "王小明", En: "Your name"})
 
+	// KeyOrderRefPlaceholder shows an order number in the shape goen issues:
+	// GO, the day as YYMMDD, then a six-digit sequence.
+	KeyOrderRefPlaceholder = key("field.orderref.placeholder", Message{ZhHant: "GO-260101-000001", En: "GO-260101-000001"})
+
 	KeyFieldSubject = key("field.subject", Message{ZhHant: "主題", En: "Subject"})
 
 	KeyFieldOrderRefOpt = key("field.orderref.optional", Message{

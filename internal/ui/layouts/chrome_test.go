@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/a-h/templ"
+
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
@@ -157,5 +159,27 @@ func TestOnlyADepartmentWithChildrenOpensAPanel(t *testing.T) {
 	}
 	if !strings.Contains(footer, `href="/c/phones"`) {
 		t.Error("the footer's department column does not link the departments")
+	}
+}
+
+// The first thing a keyboard reaches is the way past the header, and what it
+// names exists: a skip link to an id nothing carries does nothing.
+func TestTheSkipLinkIsTheFirstTabStopAndNamesTheMainLandmark(t *testing.T) {
+	t.Parallel()
+
+	var b strings.Builder
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	if err := layouts.Base(layouts.Page{Title: "t"}).Render(templ.WithChildren(ctx, templ.NopComponent), &b); err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	body := b.String()
+	body = body[strings.Index(body, "<body"):]
+	firstLink := strings.Index(body, "<a ")
+	skip := strings.Index(body, `<a class="goen-skip" href="#main">`)
+	if skip < 0 || skip != firstLink {
+		t.Errorf("the skip link is at %d and the first link at %d, want the same", skip, firstLink)
+	}
+	if !strings.Contains(body, `<main id="main">`) {
+		t.Error("nothing carries the id the skip link names")
 	}
 }

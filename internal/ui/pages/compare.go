@@ -122,6 +122,18 @@ type CompareView struct {
 	Suggestions []ProductTile
 	// ShelfSlug is the category the first product sits in.
 	ShelfSlug string
+	// StartSlug is where to begin choosing when nothing is chosen: the first
+	// category that offers comparison, or "" when none does.
+	StartSlug string
+}
+
+// StartHref is where to begin choosing products to compare: a category that
+// offers the comparison, since a shelf without it has no box to tick.
+func (v CompareView) StartHref() string {
+	if v.StartSlug == "" {
+		return "/"
+	}
+	return "/c/" + v.StartSlug
 }
 
 // ShelfHref is the shelf the chosen product sits on, where more to compare with

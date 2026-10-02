@@ -38,3 +38,23 @@ func TestPublicContactUsesTheOwnedEmail(t *testing.T) {
 		}
 	}
 }
+
+// TestTheOrderNumberFieldShowsTheFormatGoenIssues: a placeholder in another
+// shape, like "#GO-", is typed back and refused.
+func TestTheOrderNumberFieldShowsTheFormatGoenIssues(t *testing.T) {
+	t.Parallel()
+
+	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+		var b strings.Builder
+		if err := pages.Contact(layouts.Page{Title: "contact"}, pages.ContactForm{}).Render(i18n.WithLocale(t.Context(), locale), &b); err != nil {
+			t.Fatal(err)
+		}
+		out := b.String()
+		if !strings.Contains(out, `placeholder="GO-260101-000001"`) {
+			t.Errorf("%s: the order number field does not show an order number in the issued format", locale)
+		}
+		if strings.Contains(out, `placeholder="#GO-"`) {
+			t.Errorf("%s: the order number field still shows #GO-", locale)
+		}
+	}
+}
