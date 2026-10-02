@@ -7,8 +7,6 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/jackc/pgx/v5/pgconn"
-
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
@@ -101,7 +99,7 @@ func (s *Store) CreateBrand(ctx context.Context, f *TaxonomyForm) (map[string]st
 			return q.CreateBrand(ctx, db.CreateBrandParams{Slug: f.Slug, Name: f.Name})
 		})
 	if err != nil {
-		if hasConstraint(err, "brands_slug_key") {
+		if db.HasConstraint(err, "brands_slug_key") {
 			return map[string]string{"slug": i18n.T(ctx, i18n.KeyFormSlugTakenBrand)}, nil
 		}
 		return nil, fmt.Errorf("%w: %w", ErrRefused, err)
@@ -135,13 +133,13 @@ func (s *Store) CreateCategory(ctx context.Context, f *TaxonomyForm) (map[string
 		})
 	if err != nil {
 		switch {
-		case hasConstraint(err, "categories_slug_key"):
+		case db.HasConstraint(err, "categories_slug_key"):
 			return map[string]string{"slug": i18n.T(ctx, i18n.KeyFormSlugTakenCategory)}, nil
 		case errors.Is(err, ErrNotFound),
-			hasConstraint(err, "categories_parent_id_fkey"),
-			hasConstraint(err, "categories_not_own_parent"):
+			db.HasConstraint(err, "categories_parent_id_fkey"),
+			db.HasConstraint(err, "categories_not_own_parent"):
 			return map[string]string{"parent": i18n.T(ctx, i18n.KeyFormParentMissing)}, nil
-		case hasConstraint(err, "categories_position_key"):
+		case db.HasConstraint(err, "categories_position_key"):
 			// Not a field: position is computed inside the INSERT and never
 			// typed, so there is nothing on the form to point at. The second
 			// attempt reads a fresh maximum and goes through.
@@ -226,11 +224,4 @@ func (s *Store) Delete(ctx context.Context, kind, slug string) error {
 			}
 			return nil
 		})
-}
-
-// hasConstraint reports whether err is this constraint. Bound to ConstraintName: a
-// PgError's message never contains it, so a substring search cannot match.
-func hasConstraint(err error, constraint string) bool {
-	pgErr, ok := errors.AsType[*pgconn.PgError](err)
-	return ok && pgErr.ConstraintName == constraint
 }

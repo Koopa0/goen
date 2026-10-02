@@ -37,6 +37,15 @@ func In(t time.Time) time.Time { return t.In(location()) }
 // Day is the shop's calendar day, as shop_day answers it in SQL.
 func Day(t time.Time) string { return In(t).Format("2006-01-02") }
 
+// DayIf is Day for a timestamp that may be absent, as a nullable column is: the
+// empty string when it is.
+func DayIf(t time.Time, present bool) string {
+	if !present {
+		return ""
+	}
+	return Day(t)
+}
+
 // Date is a calendar day on the shop's clock, with whether its year differs
 // from the shop's current one, so a caller can say the year only when it helps.
 type Date struct {

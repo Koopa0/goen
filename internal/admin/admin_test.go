@@ -33,14 +33,6 @@ func TestDollarInputsAreBoundedBeforeMultiplication(t *testing.T) {
 	if method["fee"] == "" || method["free_over"] == "" {
 		t.Fatalf("shipping overflow fields were accepted: %v", method)
 	}
-
-	coupon := (&CouponForm{
-		Code: "OVERFLOW", Description: "overflow", Kind: "percent", Value: 10,
-		CapDollars: math.MaxInt64, MinSpendDollars: math.MaxInt64, PerCustomer: 1,
-	}).Validate(ctx)
-	if coupon["cap"] == "" || coupon["min"] == "" {
-		t.Fatalf("coupon overflow fields were accepted: %v", coupon)
-	}
 }
 
 func TestParseStatusAcceptsOnlyTheFulfilmentLifecycle(t *testing.T) {

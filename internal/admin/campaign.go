@@ -248,7 +248,7 @@ func (s *Store) CreateCampaign(ctx context.Context, f *CampaignForm) (map[string
 			})
 		})
 	if err != nil {
-		if hasConstraint(err, "sale_campaigns_slug_key") {
+		if db.HasConstraint(err, "sale_campaigns_slug_key") {
 			return map[string]string{"slug": i18n.T(ctx, i18n.KeyFormSlugTakenCampaign)}, nil
 		}
 		return nil, fmt.Errorf("%w: %w", ErrRefused, err)

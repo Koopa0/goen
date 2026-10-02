@@ -11,6 +11,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
 )
@@ -84,7 +85,7 @@ func (s *Store) Banners(ctx context.Context) ([]admin.Banner, error) {
 			Code: r.Code, CTALabel: r.CtaLabel, CTAHref: r.CtaHref,
 			MessageEn: r.MessageEn, ShortEn: r.MessageShortEn,
 			CTALabelEn: r.CtaLabelEn, Active: r.IsActive,
-			EndsAt: nullableDate(r.EndsAt),
+			EndsAt: shoptime.DayIf(r.EndsAt.Time, r.EndsAt.Valid),
 		})
 	}
 	return out, nil
