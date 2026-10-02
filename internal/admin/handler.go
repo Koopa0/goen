@@ -1612,7 +1612,7 @@ func (h *Handler) Reports(w http.ResponseWriter, r *http.Request) {
 
 // Questions serves GET /admin/questions.
 func (h *Handler) Questions(w http.ResponseWriter, r *http.Request) {
-	view, err := h.store.Questions(r.Context())
+	view, err := h.store.Questions(r.Context(), r.URL.Query().Get("hidden") == "1")
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read questions", "error", err)
 		h.serverError(w, r)
@@ -1623,7 +1623,6 @@ func (h *Handler) Questions(w http.ResponseWriter, r *http.Request) {
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageQuestions)}, view))
 }
 
-// AnswerQuestion serves POST /admin/questions/{id}: answer or hide.
 func (h *Handler) AnswerQuestion(w http.ResponseWriter, r *http.Request) {
 	u, ok := account.FromContext(r.Context())
 	if !ok {
@@ -1637,12 +1636,18 @@ func (h *Handler) AnswerQuestion(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 
 	var err error
-	if r.PostFormValue("action") == "hide" {
+	switch admin.QuestionAction(r.PostFormValue("action")) {
+	case admin.QuestionHideAction:
 		err = h.store.HideQuestion(r.Context(), id)
-	} else {
+	case admin.QuestionShowAction:
+		err = h.store.ShowQuestion(r.Context(), id)
+	case admin.QuestionAnswerAction, "":
 		// staff=true, because this endpoint IS the shop; product_answers.is_staff
 		// is stored with the answer rather than re-derived later.
 		err = h.store.AnswerQuestion(r.Context(), id, u.ID, r.PostFormValue("body"))
+	default:
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
+		return
 	}
 	switch {
 	case err == nil:

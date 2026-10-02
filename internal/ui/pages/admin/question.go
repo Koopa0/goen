@@ -17,17 +17,21 @@ type Question struct {
 	Asked          string
 	Answers        int64
 	AnsweredByShop bool
+	Hidden         bool
+	Replies        []QuestionAnswer
 	// Draft is the reply staff typed when it was refused, and Error the sentence
 	// under it.
 	Draft, Error string
 }
 
 // Waiting reports whether the shop still owes an answer.
-func (q Question) Waiting() bool { return !q.AnsweredByShop }
+func (q Question) Waiting() bool { return !q.Hidden && !q.AnsweredByShop }
 
 // State is the word a staff member scans for.
 func (q Question) State(ctx context.Context) string {
 	switch {
+	case q.Hidden:
+		return i18n.T(ctx, i18n.KeyAdminQHidden)
 	case q.AnsweredByShop:
 		return i18n.T(ctx, i18n.KeyAdminQAnswered)
 	case q.Answers > 0:
@@ -56,6 +60,7 @@ func (q Question) AnswerAction() string { return "/admin/questions/" + q.ID }
 
 // QuestionsView is the queue.
 type QuestionsView struct {
+	Hidden bool
 	Rows   []Question
 	Notice string
 }
@@ -76,3 +81,51 @@ func (v QuestionsView) Waiting() int {
 
 // WaitingText is that count.
 func (v QuestionsView) WaitingText() string { return strconv.Itoa(v.Waiting()) }
+
+type QuestionAction string
+
+const (
+	QuestionAnswerAction QuestionAction = "answer"
+	QuestionHideAction   QuestionAction = "hide"
+	QuestionShowAction   QuestionAction = "show"
+)
+
+type QuestionAnswer struct {
+	ID, Body, Author, At string
+	Staff, Hidden        bool
+}
+
+func (q Question) VisibilityAction() QuestionAction {
+	if q.Hidden {
+		return QuestionShowAction
+	}
+	return QuestionHideAction
+}
+
+func (q Question) VisibilityLabel(ctx context.Context) string {
+	if q.Hidden {
+		return i18n.T(ctx, i18n.KeyAdminQuestionShow)
+	}
+	return i18n.T(ctx, i18n.KeyAdminQuestionHide)
+}
+
+func (v QuestionsView) OtherQueueHref() string {
+	if v.Hidden {
+		return "/admin/questions"
+	}
+	return "/admin/questions?hidden=1"
+}
+
+func (v QuestionsView) OtherQueueLabel(ctx context.Context) string {
+	if v.Hidden {
+		return i18n.T(ctx, i18n.KeyAdminQuestionsVisible)
+	}
+	return i18n.T(ctx, i18n.KeyAdminQuestionsHidden)
+}
+
+func (v QuestionsView) EmptyLabel(ctx context.Context) string {
+	if v.Hidden {
+		return i18n.T(ctx, i18n.KeyAdminQuestionsHiddenEmpty)
+	}
+	return i18n.T(ctx, i18n.KeyAdminQuestionsEmpty)
+}

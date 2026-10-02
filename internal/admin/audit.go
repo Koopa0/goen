@@ -96,6 +96,7 @@ const (
 	actionDeleteCategory           Action = "category.delete"
 	actionAnswerQuestion           Action = "question.answer"
 	actionHideQuestion             Action = "question.hide"
+	actionShowQuestion             Action = "question.show"
 	actionGrantStaff               Action = "staff.grant"
 	actionRevokeStaff              Action = "staff.revoke"
 	actionRemoveStaffFactor        Action = "staff.factor.remove"

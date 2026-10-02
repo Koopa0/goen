@@ -43,7 +43,12 @@ var (
 )
 
 var (
-	KeyAdminPageQuestions = key("admin.page.questions", Message{ZhHant: "顧客提問", En: "Customer questions"})
+	KeyAdminQuestionsHiddenEmpty = key("admin.questions.hiddenempty", Message{ZhHant: "沒有隱藏的提問", En: "No hidden questions"})
+	KeyAdminQHidden              = key("admin.question.hidden", Message{ZhHant: "已隱藏", En: "Hidden"})
+	KeyAdminQuestionShow         = key("admin.question.show", Message{ZhHant: "恢復顯示這則提問", En: "Show this question again"})
+	KeyAdminQuestionsHidden      = key("admin.questions.hidden", Message{ZhHant: "查看隱藏的提問", En: "View hidden questions"})
+	KeyAdminQuestionsVisible     = key("admin.questions.visible", Message{ZhHant: "查看顯示中的提問", En: "View visible questions"})
+	KeyAdminPageQuestions        = key("admin.page.questions", Message{ZhHant: "顧客提問", En: "Customer questions"})
 
 	KeyAdminQuestionsLead = key("admin.questions.lead", Message{
 		ZhHant: "等最久的排在最前面 —— 問了三天沒人回的比今天早上剛問的更急。回覆會標示「官方回覆」，並排在該問題的最上面。",
