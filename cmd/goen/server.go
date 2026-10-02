@@ -80,6 +80,10 @@ type RouterConfig struct {
 	// is the privilege boundary, not a performance choice.
 	Pool      *pgxpool.Pool
 	AdminPool *pgxpool.Pool
+	// MaintenancePool is the background workers' pool. It serves no request;
+	// it is here only so the health page can show its connection statistics,
+	// and nil leaves it off the page.
+	MaintenancePool *pgxpool.Pool
 	// Payments is Stripe, or is disabled and the payment page says so.
 	Payments *payment.Gateway
 	// Refunder pays a decided return back to the card.
@@ -193,6 +197,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 		StepUp:   stepUp,
 		Sessions: sessionCloser(gateway),
 		StoreMap: cfg.StoreMap,
+		Pools:    poolsOnHealthPage(pool, adminPool, cfg.MaintenancePool),
 	})
 	// basketStore answers the order-access question for all three packages.
 	till := payment.NewHandler(payment.NewStore(pool), gateway, basketStore, log, secureCookies)
@@ -1028,4 +1033,18 @@ func withSiteOrigin(next http.Handler, baseURL string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		next.ServeHTTP(w, r.WithContext(layouts.WithSiteOrigin(r.Context(), origin)))
 	})
+}
+
+// poolsOnHealthPage names the pools whose statistics /admin/health shows. A nil
+// pool is left off rather than shown as an empty row.
+func poolsOnHealthPage(store, adminPool, maintenance *pgxpool.Pool) []admin.NamedPool {
+	var out []admin.NamedPool
+	for _, p := range []admin.NamedPool{
+		{Name: "store", Pool: store}, {Name: "admin", Pool: adminPool}, {Name: "maintenance", Pool: maintenance},
+	} {
+		if p.Pool != nil {
+			out = append(out, p)
+		}
+	}
+	return out
 }

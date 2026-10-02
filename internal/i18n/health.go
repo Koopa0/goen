@@ -92,6 +92,24 @@ var (
 	// "how long has this been broken" is not computable and must not be claimed.
 	KeyAdminHPColSince = key("admin.hp.col.since", Message{ZhHant: "下次重試", En: "Next retry"})
 
+	KeyAdminHPPoolsHeading = key("admin.hp.pools.heading", Message{
+		ZhHant: "資料庫連線池",
+		En:     "Database connection pools",
+	})
+	KeyAdminHPPoolsHint = key("admin.hp.pools.hint", Message{
+		ZhHant: "「等待連線次數」不是零、累計等待時間持續變長,代表連線不夠用。",
+		En: "Empty acquires above zero with a growing wait mean requests are " +
+			"queuing for a connection.",
+	})
+	KeyAdminHPColPool         = key("admin.hp.col.pool", Message{ZhHant: "連線池", En: "Pool"})
+	KeyAdminHPColPoolMax      = key("admin.hp.col.poolmax", Message{ZhHant: "上限", En: "Max"})
+	KeyAdminHPColPoolAcquired = key("admin.hp.col.poolacquired", Message{ZhHant: "使用中", En: "Acquired"})
+	KeyAdminHPColPoolIdle     = key("admin.hp.col.poolidle", Message{ZhHant: "閒置", En: "Idle"})
+	KeyAdminHPColPoolTotal    = key("admin.hp.col.pooltotal", Message{ZhHant: "已建立", En: "Open"})
+	KeyAdminHPColPoolAcquires = key("admin.hp.col.poolacquires", Message{ZhHant: "取用次數", En: "Total acquires"})
+	KeyAdminHPColPoolEmpty    = key("admin.hp.col.poolempty", Message{ZhHant: "等待連線次數", En: "Empty acquires"})
+	KeyAdminHPColPoolWait     = key("admin.hp.col.poolwait", Message{ZhHant: "累計等待", En: "Cumulative wait"})
+
 	KeyAdminHPOpenRefundsHeading = key("admin.hp.openrefunds.heading", Message{
 		ZhHant: "還沒退成功的退款",
 		En:     "Refunds that have not gone through",

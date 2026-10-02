@@ -26,12 +26,12 @@ func TestStaffInvitationRegrantSurvivesRetainedDelivery(t *testing.T) {
 			if err := pool.QueryRow(ctx, `INSERT INTO users(email,role) VALUES($1,'admin') RETURNING id`, "actor-"+uuid.NewString()+"@example.com").Scan(&actor); err != nil {
 				t.Fatal(err)
 			}
-			adminPool, err := openAdminPool(ctx, pool.Config().ConnString())
+			adminPool, err := openAdminPool(ctx, pool.Config().ConnString(), quietLog)
 			if err != nil {
 				t.Fatal(err)
 			}
 			defer adminPool.Close()
-			storePool, err := openPool(ctx, pool.Config().ConnString())
+			storePool, err := openPool(ctx, pool.Config().ConnString(), quietLog)
 			if err != nil {
 				t.Fatal(err)
 			}

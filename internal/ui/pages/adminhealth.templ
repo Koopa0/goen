@@ -1,6 +1,9 @@
 package pages
 
 import (
+	"strconv"
+	"time"
+
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -46,6 +49,42 @@ templ AdminHealth(p layouts.Page, v *WorkerHealthView) {
 			@adminHealthItem(v.RefundsHealthy(), i18n.T(ctx, i18n.KeyAdminHPRefundsName), v.RefundsText(ctx), i18n.T(ctx, i18n.KeyAdminHPRefundsNote))
 			@adminHealthItem(v.HousekeepingHealthy(), i18n.T(ctx, i18n.KeyAdminHPHousekeepingName), v.HousekeepingText(ctx), i18n.T(ctx, i18n.KeyAdminHPHousekeepingNote))
 		</ul>
+		if len(v.Pools) > 0 {
+			<section class="goen-admin__queue" aria-labelledby="pools-heading">
+				<h2 class="goen-admin__heading" id="pools-heading">{ i18n.T(ctx, i18n.KeyAdminHPPoolsHeading) }</h2>
+				<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminHPPoolsHint) }</p>
+				<div class="goen-admin__tablewrap">
+					<table class="ui-table goen-admin__table">
+						<thead>
+							<tr>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColPool) }</th>
+								<th class="goen-admin__cellnum" scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColPoolMax) }</th>
+								<th class="goen-admin__cellnum" scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColPoolAcquired) }</th>
+								<th class="goen-admin__cellnum" scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColPoolIdle) }</th>
+								<th class="goen-admin__cellnum" scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColPoolTotal) }</th>
+								<th class="goen-admin__cellnum" scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColPoolAcquires) }</th>
+								<th class="goen-admin__cellnum" scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColPoolEmpty) }</th>
+								<th class="goen-admin__cellnum" scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColPoolWait) }</th>
+							</tr>
+						</thead>
+						<tbody>
+							for _, p := range v.Pools {
+								<tr>
+									<td class="goen-admin__cellkey">{ p.Name }</td>
+									<td class="goen-admin__cellnum">{ strconv.Itoa(int(p.Max)) }</td>
+									<td class="goen-admin__cellnum">{ strconv.Itoa(int(p.Acquired)) }</td>
+									<td class="goen-admin__cellnum">{ strconv.Itoa(int(p.Idle)) }</td>
+									<td class="goen-admin__cellnum">{ strconv.Itoa(int(p.Total)) }</td>
+									<td class="goen-admin__cellnum">{ strconv.FormatInt(p.TotalAcquires, 10) }</td>
+									<td class="goen-admin__cellnum">{ strconv.FormatInt(p.EmptyAcquires, 10) }</td>
+									<td class="goen-admin__cellnum">{ p.AcquireWait.Round(time.Millisecond).String() }</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			</section>
+		}
 		if len(v.Stuck) > 0 {
 			<section class="goen-admin__queue" aria-labelledby="stuck-heading">
 				<h2 class="goen-admin__heading" id="stuck-heading">{ i18n.T(ctx, i18n.KeyAdminHPStuckHeading) }</h2>

@@ -22,13 +22,13 @@ import (
 // pool and proves a real catalog request finishes before the HTTP write
 // deadline because pool acquisition shares the request budget.
 func TestStorefrontPoolWaitRespectsRequestBudget(t *testing.T) {
-	p, err := openPool(t.Context(), pool.Config().ConnString())
+	p, err := openPool(t.Context(), pool.Config().ConnString(), quietLog)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer p.Close()
 
-	ap, err := openAdminPool(t.Context(), pool.Config().ConnString())
+	ap, err := openAdminPool(t.Context(), pool.Config().ConnString(), quietLog)
 	if err != nil {
 		t.Fatal(err)
 	}

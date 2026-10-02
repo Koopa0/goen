@@ -893,6 +893,9 @@ templ Order(p layouts.Page, v *OrderView) {
 											@components.Badge(components.BadgeProps{Tone: components.ToneNeutral}) {
 												{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOrderDeliveredAt), sh.DeliveredAt) }
 											}
+											if sh.RescissionEnds != "" {
+												<span class="goen-order__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOrderRescissionEnds), sh.RescissionEnds) }</span>
+											}
 										} else {
 											<span class="goen-order__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOrderShippedAt), sh.ShippedAt) }</span>
 										}
