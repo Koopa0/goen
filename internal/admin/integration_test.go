@@ -3547,7 +3547,9 @@ func anyVariantSKU(t *testing.T) string {
 	t.Helper()
 	var sku string
 	if err := pool.QueryRow(t.Context(),
-		`SELECT sku FROM product_variants LIMIT 1`).Scan(&sku); err != nil {
+		`SELECT v.sku FROM product_variants v
+		   WHERE NOT EXISTS (SELECT 1 FROM sale_campaign_products cp WHERE cp.product_id = v.product_id)
+		   ORDER BY v.sku LIMIT 1`).Scan(&sku); err != nil {
 		t.Fatalf("find variant: %v", err)
 	}
 	return sku
@@ -4455,7 +4457,7 @@ func TestNeverRebuiltIsNotTheSameAsJustRebuilt(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
 
-	if _, err := pool.Exec(ctx, `DELETE FROM product_copurchases`); err != nil {
+	if _, err := pool.Exec(ctx, `DELETE FROM copurchase_refreshes`); err != nil {
 		t.Fatalf("clear: %v", err)
 	}
 	never, err := s.WorkerHealth(ctx, outbox.NewStore(pool, slog.New(slog.DiscardHandler)))
@@ -4463,17 +4465,19 @@ func TestNeverRebuiltIsNotTheSameAsJustRebuilt(t *testing.T) {
 		t.Fatalf("health: %v", err)
 	}
 	if never.CopurchaseEverBuilt {
-		t.Error("an empty projection reports itself as built")
+		t.Error("a projection that never rebuilt reports itself as built")
 	}
 	if never.RecommendHealthy() {
 		t.Error("a projection that has never been rebuilt reads as healthy")
 	}
 
-	if _, err := pool.Exec(ctx, `
-		INSERT INTO product_copurchases (product_id, other_product_id, orders)
-		SELECT p1.id, p2.id, 2 FROM products p1, products p2
-		WHERE p1.id <> p2.id LIMIT 1`); err != nil {
-		t.Fatalf("seed projection: %v", err)
+	// A rebuild that found no pair of products leaves the projection empty and
+	// is still a rebuild.
+	if _, err := pool.Exec(ctx, `SELECT refresh_copurchases()`); err != nil {
+		t.Fatalf("refresh: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `DELETE FROM product_copurchases`); err != nil {
+		t.Fatalf("empty the projection: %v", err)
 	}
 	fresh, freshErr := s.WorkerHealth(ctx, outbox.NewStore(pool, slog.New(slog.DiscardHandler)))
 	if freshErr != nil {
@@ -11740,6 +11744,70 @@ func TestARefusedDispatchKeepsWhatWasTyped(t *testing.T) {
 	for _, want := range []string{`value="黑貓宅急便"`, `value="9001-2345"`, `value="99"`, `id="ship-qty-error"`, `aria-invalid="true"`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("the refused dispatch is missing %q", want)
+		}
+	}
+}
+
+func TestTheDashboardAndTheQueueTabsSplitPendingTheSameWay(t *testing.T) {
+	ctx := t.Context()
+	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	tab := func(v pages.AdminOrdersView, status pages.QueueFilter) int64 {
+		for _, tb := range v.Tabs {
+			if tb.Value == status {
+				return tb.Count
+			}
+		}
+		t.Fatalf("no %q tab", status)
+		return 0
+	}
+	before, err := s.Orders(ctx, "", "")
+	if err != nil {
+		t.Fatalf("Orders: %v", err)
+	}
+	dashBefore, err := s.Dashboard(ctx)
+	if err != nil {
+		t.Fatalf("Dashboard: %v", err)
+	}
+
+	unpaid := placeUnpaidOrder(t)
+	funded, _, _ := paidUnshippedOrder(t, 500000, 0, false)
+
+	after, err := s.Orders(ctx, "", "")
+	if err != nil {
+		t.Fatalf("Orders: %v", err)
+	}
+	dashAfter, err := s.Dashboard(ctx)
+	if err != nil {
+		t.Fatalf("Dashboard: %v", err)
+	}
+	if got := tab(after, pages.QueueAwaitingPayment) - tab(before, pages.QueueAwaitingPayment); got != 1 {
+		t.Errorf("the awaiting-payment tab grew by %d, want 1: a funded order is not awaiting payment", got)
+	}
+	if got := tab(after, pages.QueueReady) - tab(before, pages.QueueReady); got != 1 {
+		t.Errorf("the ready tab grew by %d, want 1", got)
+	}
+	if got := dashAfter.PendingOrders - dashBefore.PendingOrders; got != 1 {
+		t.Errorf("the awaiting-payment tile grew by %d, want 1", got)
+	}
+	if got := dashAfter.ReadyOrders - dashBefore.ReadyOrders; got != 1 {
+		t.Errorf("the ready tile grew by %d, want 1", got)
+	}
+
+	for status, want := range map[pages.QueueFilter]struct{ in, out string }{
+		pages.QueueAwaitingPayment: {in: unpaid, out: funded},
+		pages.QueueReady:           {in: funded, out: unpaid},
+	} {
+		view, err := s.Orders(ctx, status, "")
+		if err != nil {
+			t.Fatalf("Orders(%s): %v", status, err)
+		}
+		var sawIn, sawOut bool
+		for _, o := range view.Orders {
+			sawIn = sawIn || o.Number == want.in
+			sawOut = sawOut || o.Number == want.out
+		}
+		if !sawIn || sawOut {
+			t.Errorf("tab %q lists the expected order = %t and the other = %t, want true and false", status, sawIn, sawOut)
 		}
 	}
 }
