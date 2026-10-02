@@ -11694,6 +11694,25 @@ func TestAPickupOrderDispatchNoticeIsMarkedAsPickup(t *testing.T) {
 	}
 }
 
+type fixedInvoices []invoice.Document
+
+func (f fixedInvoices) Documents(context.Context, string) ([]invoice.Document, error) { return f, nil }
+
+func TestTheOrderPageShowsAnInvoiceAtTheTimeTheProviderIssuedIt(t *testing.T) {
+	ctx := t.Context()
+	number := placeUnpaidOrder(t)
+	issued := time.Date(2026, 9, 30, 17, 30, 0, 0, time.UTC) // ECPay said "2026-09-30 17:30:00"
+	s := admin.NewStore(pool, fakeRefunder{}, fixedInvoices{{Kind: "invoice", Number: "AB12345678", IssuedAt: issued}}, nil)
+
+	view, err := s.Order(ctx, number)
+	if err != nil {
+		t.Fatalf("Order: %v", err)
+	}
+	if len(view.InvoiceDocuments) != 1 || view.InvoiceDocuments[0].IssuedAt != "2026-09-30 17:30" {
+		t.Errorf("invoice documents = %+v, want one issued at 2026-09-30 17:30", view.InvoiceDocuments)
+	}
+}
+
 func TestOrderSearchLabelsAnUnpaidOrderAsAwaitingPayment(t *testing.T) {
 	ctx := t.Context()
 	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)

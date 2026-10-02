@@ -513,7 +513,7 @@ func (s *Store) fillInvoices(ctx context.Context, view *pages.AdminOrderView, nu
 		doc := pages.AdminInvoiceDocument{
 			Kind: d.Kind, Number: d.Number, ProviderRef: d.ProviderRef,
 			AmountCents: d.AmountCents, Status: d.Status,
-			IssuedAt: shoptime.Minute(d.IssuedAt),
+			IssuedAt: shoptime.ProviderMinute(d.IssuedAt),
 		}
 		for _, l := range d.Lines {
 			doc.Lines = append(doc.Lines, pages.AdminInvoiceLine{
