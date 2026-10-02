@@ -503,6 +503,19 @@ h3 {
   pointer-events: none;
 }
 
+/* A primary that cannot be pressed is a quiet grey control: at half opacity the
+   ink would be a mid-grey slab, the heaviest shape on the product page, for a
+   button whose whole message is "not yet". Only :disabled: aria-disabled is the
+   moment a form is in flight, and the button the shopper just pressed should
+   dim, not change colour. */
+.goen-btn--primary:disabled {
+  background: var(--n-100);
+  border-color: var(--n-100);
+  box-shadow: none;
+  color: var(--n-500);
+  opacity: 1;
+}
+
 .goen-badge {
   align-items: center;
   background: var(--elevated);
@@ -1598,10 +1611,31 @@ h3 {
   margin: 0;
 }
 
-/* The continuation after a section's name: same line, same size, grey. */
+/* The continuation after a section's name: same line, same size, grey. On a
+   phone the pair does not fit one line beside the link, and wrapping would split
+   a count from its unit ("8 / 件商品"), so there the continuation is its own
+   line at the body size and its separator is left to a screen reader. */
 .goen-home__aside {
   color: var(--n-500);
   font-weight: var(--fw-regular);
+}
+
+@media (max-width: 39.99rem) {
+  .goen-home__aside {
+    display: block;
+    font-size: var(--fs-16);
+    line-height: 1.5;
+    margin-top: 0.25rem;
+  }
+
+  .goen-home__sep {
+    clip-path: inset(50%);
+    height: 1px;
+    overflow: hidden;
+    position: absolute;
+    white-space: nowrap;
+    width: 1px;
+  }
 }
 
 .goen-home__more {
@@ -3897,6 +3931,13 @@ a.goen-pager__step:hover {
 .goen-pdp__policies a:hover {
   text-decoration: underline;
   text-underline-offset: 3px;
+}
+
+/* The table's hairlines run the accordion's full width, like the hairlines
+   between the sections above and below it; the panel's prose measure is for
+   paragraphs, and stopping these at it would stack two lengths of rule. */
+.goen-pdp__accpanel:has(> .goen-pdp__speclist) {
+  max-width: none;
 }
 
 .goen-pdp__speclist {
