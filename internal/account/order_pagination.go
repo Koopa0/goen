@@ -42,7 +42,7 @@ func readOrderCursor(owner string, after []string) orderCursor {
 	return orderCursor{orderPosition: pos, Valid: true}
 }
 
-func orderBound[T any](c orderCursor, owner string, rows []T, key func(*T) (uuid.UUID, time.Time)) ([]T, pages.ListBound) {
+func orderBound[T any](c orderCursor, owner string, rows []T, key func(*T) (uuid.UUID, time.Time)) (page []T, bound pages.ListBound) {
 	rows, more := web.PageOf(rows, orderPageSize)
 	var b pages.ListBound
 	if c.Valid {
