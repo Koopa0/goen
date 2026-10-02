@@ -10,11 +10,11 @@ import (
 	"github.com/koopa0/goen/internal/outbox"
 )
 
-// enqueueOrderPlaced writes the message in the order's own transaction, keyed on
-// the order number so a retried checkout cannot send a second confirmation.
+// enqueueOrderPlaced is keyed on the order number so a retried checkout cannot
+// send a second confirmation.
 func enqueueOrderPlaced(ctx context.Context, q *db.Queries, number string, addr *Address, totalCents int64) error {
-	// Credit is already posted in this transaction, so order_amount_owed is
-	// the figure the payment page will show.
+	// Credit is already posted in this transaction, so order_amount_owed is the
+	// figure the payment page will show.
 	summary, err := q.OrderSummaryByNumber(ctx, db.OrderSummaryByNumberParams{
 		Number: number, Locale: i18n.FromContext(ctx).Tag(),
 	})
