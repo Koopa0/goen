@@ -33,10 +33,11 @@ func TestTheShopCanPublishAnUnbrandedProduct(t *testing.T) {
 	if err != nil || len(errs) != 0 {
 		t.Fatalf("create unbranded product = %v, %v", err, errs)
 	}
-	sku := "GENERIC-" + uuid.NewString()[:8]
-	if variantErrs, variantErr := store.AddVariant(ctx, slug, &admin.VariantForm{SKU: sku, PriceCents: 10000}); variantErr != nil || len(variantErrs) != 0 {
+	variant := &admin.VariantForm{SKU: "GENERIC-" + uuid.NewString()[:8], PriceCents: 10000}
+	if variantErrs, variantErr := store.AddVariant(ctx, slug, variant); variantErr != nil || len(variantErrs) != 0 {
 		t.Fatalf("add variant = %v, %v", variantErr, variantErrs)
 	}
+	sku := variant.SKU
 	if publishErr := store.SetProductStatus(ctx, slug, "active"); publishErr != nil {
 		t.Fatalf("publish unbranded product: %v", publishErr)
 	}
@@ -71,7 +72,7 @@ func TestTheShopCanPublishAnUnbrandedProduct(t *testing.T) {
 	if !found {
 		t.Error("category listing dropped the unbranded product")
 	}
-	search, err := catalog.NewStore(p).Search(ctx, form.Name, catalog.SortRelevance, 1)
+	search, err := catalog.NewStore(p).Search(ctx, catalog.SearchPattern(form.Name), catalog.SortRelevance, 1)
 	if err != nil || len(search.Products) != 1 || search.Products[0].Slug != slug || search.Products[0].Brand != "" {
 		t.Errorf("unbranded search = %+v, %v", search.Products, err)
 	}
