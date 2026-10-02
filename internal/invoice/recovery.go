@@ -346,7 +346,7 @@ func (s *Store) sendAllowance(
 	if markErr := s.markSent(ctx, op, owner); markErr != nil {
 		return Document{}, markErr
 	}
-	doc, sendErr := s.gateway.Allowance(ctx, in)
+	doc, sendErr := s.gateway.FileAllowance(ctx, in)
 	if sendErr != nil {
 		if providerErr, ok := errors.AsType[*providerError](sendErr); ok {
 			category := "allowance_provider_rejected_" + strconv.Itoa(providerErr.Code)

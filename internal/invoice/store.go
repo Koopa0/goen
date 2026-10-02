@@ -197,10 +197,10 @@ func mapVoidClaim(documentNumber string, err error) error {
 	return fmt.Errorf("claim the void of %s: %w", documentNumber, err)
 }
 
-// Allowance files a credit note against an order's live invoice. The database
+// FileAllowance files a credit note against an order's live invoice. The database
 // derives the exact whole-dollar delta from settled refunds and prior
 // allowances while holding the original document lock; callers supply no money.
-func (s *Store) Allowance(
+func (s *Store) FileAllowance(
 	ctx context.Context, orderNumber string, operationID uuid.UUID,
 ) (Document, error) {
 	if !s.Enabled() {

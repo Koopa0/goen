@@ -505,7 +505,7 @@ func (o *webhookOutcome) apply() func(context.Context, *webhookTx) error {
 		}
 	case o.isAbandoned:
 		return func(ctx context.Context, tx *webhookTx) error {
-			return tx.CancelSession(ctx)
+			return tx.CancelPaymentRow(ctx)
 		}
 	case o.isUnsettled:
 		return func(ctx context.Context, tx *webhookTx) error {

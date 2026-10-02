@@ -78,7 +78,7 @@ func TestUploadsBeyondTheSlotsAreRefused(t *testing.T) {
 }
 
 // TestAFullUploaderRefusesTheFormAndStoresNothing is the same bound seen from a
-// request: ReadUpload goes through the slots, and a refusal names ErrBusy so
+// request: StoreUpload goes through the slots, and a refusal names ErrBusy so
 // the back office can say "try again" rather than "failed".
 func TestAFullUploaderRefusesTheFormAndStoresNothing(t *testing.T) {
 	t.Parallel()
@@ -106,8 +106,8 @@ func TestAFullUploaderRefusesTheFormAndStoresNothing(t *testing.T) {
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/admin/products/x/images", &body)
 	req.Header.Set("Content-Type", form.FormDataContentType())
 
-	if _, err := h.ReadUpload(httptest.NewRecorder(), req, "image"); !errors.Is(err, ErrBusy) {
-		t.Errorf("ReadUpload with every slot taken = %v, want ErrBusy", err)
+	if _, err := h.StoreUpload(httptest.NewRecorder(), req, "image"); !errors.Is(err, ErrBusy) {
+		t.Errorf("StoreUpload with every slot taken = %v, want ErrBusy", err)
 	}
 	if n := stored.Load(); n != 0 {
 		t.Errorf("%d images stored while every slot was taken, want 0", n)

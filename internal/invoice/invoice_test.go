@@ -292,7 +292,7 @@ func TestAnUnconfiguredGatewayIssuesNothingAndSaysSo(t *testing.T) {
 	if err := g.Void(t.Context(), "AB12345678", time.Now(), "測試"); !errors.Is(err, ErrDisabled) {
 		t.Errorf("Void on an unconfigured gateway = %v, want ErrDisabled", err)
 	}
-	if _, err := g.Allowance(t.Context(), AllowanceRequest{}); !errors.Is(err, ErrDisabled) {
+	if _, err := g.FileAllowance(t.Context(), AllowanceRequest{}); !errors.Is(err, ErrDisabled) {
 		t.Errorf("Allowance on an unconfigured gateway = %v, want ErrDisabled", err)
 	}
 }
@@ -685,7 +685,7 @@ func TestAnAllowanceReadsItsOwnNumberField(t *testing.T) {
 	defer srv.Close()
 
 	g, _ := NewGateway(testMerchantID, testHashKey, testHashIV, srv.URL)
-	doc, err := g.Allowance(t.Context(), AllowanceRequest{
+	doc, err := g.FileAllowance(t.Context(), AllowanceRequest{
 		InvoiceNumber: "LA45000603", InvoiceDate: time.Now(),
 		CustomerName: "王小明", Email: "a@example.com", AmountCents: 20000,
 		Lines: []Line{{Description: "傳輸線", Quantity: 1, UnitPriceCents: 20000, AmountCents: 20000}},
@@ -732,7 +732,7 @@ func TestAProviderSuccessMustCarryAValidDocumentIdentity(t *testing.T) {
 		if err != nil {
 			t.Fatalf("gateway: %v", err)
 		}
-		_, err = g.Allowance(t.Context(), AllowanceRequest{
+		_, err = g.FileAllowance(t.Context(), AllowanceRequest{
 			InvoiceNumber: "AB12345678", InvoiceDate: time.Now(), CustomerName: "測試",
 			Email: "a@example.com", AmountCents: 10000,
 			Lines: []Line{{Description: "退貨折讓", Quantity: 1, UnitPriceCents: 10000, AmountCents: 10000}},

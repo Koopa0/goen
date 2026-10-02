@@ -99,7 +99,7 @@ type RouterConfig struct {
 	// StoreMap is the carrier's convenience-store picker, or is disabled and
 	// the checkout asks for a chain alone, the route is not registered, the
 	// cross-origin defence gains no bypass, and the policy is unchanged.
-	StoreMap *cart.Map
+	StoreMap *cart.StoreMap
 	// DemoAccount is the account a public demonstration shares, or the zero
 	// value and the sign-in page offers none.
 	DemoAccount account.DemoAccount
@@ -127,7 +127,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 		siteStore, homeStore, productStore = siteStore.WithoutPickup(), homeStore.WithoutPickup(), productStore.WithoutPickup()
 	}
 	sitePages := site.NewHandler(log, baseURL, catalogue, siteStore, secureCookies)
-	storefront := home.NewHandler(homeStore, log, secureCookies)
+	homePage := home.NewHandler(homeStore, log, secureCookies)
 	probes := health.NewHandler(log,
 		health.Dependency{Name: "storefront", DB: pool},
 		health.Dependency{Name: "admin", DB: adminPool},
@@ -136,7 +136,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	contactLimit := ratelimit.New(ratelimit.Config{
 		Every: 5 * time.Minute, Burst: 5, TTL: time.Hour, MaxKeys: 65_536,
 	})
-	messages := contact.NewHandler(contact.NewStore(pool), contactLimit, log)
+	contactPage := contact.NewHandler(contact.NewStore(pool), contactLimit, log)
 	// Restock notify is the same anonymous mailbox door as /contact, without
 	// the contact form's other fields. A shared bucket would let one door
 	// spend the other's budget.
@@ -212,14 +212,14 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	mux.HandleFunc("GET /healthz", probes.Live)
 	mux.HandleFunc("GET /readyz", probes.Ready)
 
-	mux.HandleFunc("GET /{$}", storefront.Index)
+	mux.HandleFunc("GET /{$}", homePage.Index)
 	// The digest in the path is the only authorisation an image has, and it is
 	// unguessable by construction.
 	mux.HandleFunc("GET /media/{digest}", images.Serve)
 	mux.HandleFunc("GET /media/{digest}/{width}", images.Serve)
 	mux.HandleFunc("GET /sitemap.xml", sitePages.Sitemap)
 	mux.HandleFunc("GET /robots.txt", sitePages.Robots)
-	mux.HandleFunc("POST /promo/dismiss", storefront.Dismiss)
+	mux.HandleFunc("POST /promo/dismiss", homePage.Dismiss)
 	mux.HandleFunc("POST /locale", sitePages.SetLocale)
 	mux.HandleFunc("GET /faq", sitePages.FAQ)
 	mux.HandleFunc("GET /shipping", sitePages.Shipping)
@@ -229,8 +229,8 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	mux.HandleFunc("GET /privacy", sitePages.Policy)
 	mux.HandleFunc("GET /terms", sitePages.Policy)
 	mux.HandleFunc("GET /about", sitePages.About)
-	mux.HandleFunc("GET /contact", messages.Page)
-	mux.HandleFunc("POST /contact", messages.Submit)
+	mux.HandleFunc("GET /contact", contactPage.Page)
+	mux.HandleFunc("POST /contact", contactPage.Submit)
 	// Submit applies the per-IP bound itself: Guard would answer plain text and
 	// htmx would swap that over the footer form.
 	mux.HandleFunc("POST /newsletter", signups.Submit)

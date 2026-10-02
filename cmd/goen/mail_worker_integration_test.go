@@ -71,7 +71,7 @@ func TestTheWorkerMailsWhatEachAccountMessageMeans(t *testing.T) {
 	t.Cleanup(storePool.Close)
 	sender := &recordingSender{}
 	log := slog.New(slog.DiscardHandler)
-	messages := newMessageStore(workerDeps{
+	outboxStore := newOutboxStore(workerDeps{
 		pool: storePool, admin: storePool, maintenance: storePool, log: log,
 		notifier: email.New(sender, "https://goen.test", "", ""),
 		invoices: unconfiguredInvoicing(t),
@@ -80,7 +80,7 @@ func TestTheWorkerMailsWhatEachAccountMessageMeans(t *testing.T) {
 		t.Helper()
 		// Twice: a registration's handler queues the link a second pass sends.
 		for range 2 {
-			if _, _, err := messages.DrainAll(ctx); err != nil {
+			if _, _, err := outboxStore.DrainAll(ctx); err != nil {
 				t.Fatalf("drain the outbox: %v", err)
 			}
 		}

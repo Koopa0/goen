@@ -284,7 +284,7 @@ func (h *Handler) rejectProduct(w http.ResponseWriter, r *http.Request, f *Produ
 // failure between them leaves only an orphan UnreferencedMedia reclaims.
 func (h *Handler) UploadImage(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
-	obj, err := h.images.ReadUpload(w, r, "image")
+	obj, err := h.images.StoreUpload(w, r, "image")
 	if err != nil {
 		h.log.WarnContext(r.Context(), "image upload", "error", err, "slug", slug)
 		//nolint:gosec // G710: slug is the route's own path value

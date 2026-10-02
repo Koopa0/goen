@@ -361,8 +361,8 @@ func openInvoicing(cfg *config, log *slog.Logger) (*invoice.Gateway, error) {
 }
 
 // openStoreMap builds the convenience-store map and says when there is none.
-func openStoreMap(cfg *config, log *slog.Logger) (*cart.Map, error) {
-	m, err := cart.NewMap(cfg.ECPayMerchantID, cfg.ECPayLogistics,
+func openStoreMap(cfg *config, log *slog.Logger) (*cart.StoreMap, error) {
+	m, err := cart.NewStoreMap(cfg.ECPayMerchantID, cfg.ECPayLogistics,
 		cfg.ECPayLogisticsBaseURL, cfg.BaseURL)
 	if err != nil {
 		return nil, err
@@ -379,7 +379,7 @@ func openStoreMap(cfg *config, log *slog.Logger) (*cart.Map, error) {
 // absent. Each refuses to start on HALF a configuration.
 func openProviders(cfg *config, log *slog.Logger) (
 	payments *payment.Gateway, invoices *invoice.Gateway,
-	googleSignIn *account.Google, storeMap *cart.Map, err error,
+	googleSignIn *account.Google, storeMap *cart.StoreMap, err error,
 ) {
 	if payments, err = payment.NewGateway(cfg.StripeAPIKey, cfg.StripeWebhookSecret, cfg.BaseURL); err != nil {
 		return nil, nil, nil, nil, err
@@ -712,9 +712,9 @@ type workerDeps struct {
 
 // startWorkers wires everything that runs on its own schedule.
 func startWorkers(ctx context.Context, d workerDeps) {
-	messages := newMessageStore(d)
-	d.run(func() { messages.Run(ctx) })
-	d.run(func() { messages.SweepForever(ctx, d.log) })
+	outboxStore := newOutboxStore(d)
+	d.run(func() { outboxStore.Run(ctx) })
+	d.run(func() { outboxStore.SweepForever(ctx, d.log) })
 
 	holds := cart.NewStore(d.pool)
 	d.run(func() { holds.SweepForever(ctx, d.log) })
@@ -733,27 +733,27 @@ func startWorkers(ctx context.Context, d workerDeps) {
 	d.run(func() { recommend.NewStore(d.maintenance, d.log).RefreshForever(ctx) })
 }
 
-// newMessageStore is the outbox with a handler for each topic goen enqueues. A
+// newOutboxStore is the outbox with a handler for each topic goen enqueues. A
 // message whose topic has no handler is rescheduled for ever and fails nothing,
 // so a missing line here is mail that silently never leaves.
-func newMessageStore(d workerDeps) *outbox.Store {
-	messages := outbox.NewStore(d.pool, d.log)
-	messages.HandleJSON[email.OrderPlaced](outbox.TopicOrderPlaced, d.notifier.SendOrderPlaced)
-	messages.HandleJSON[email.PasswordReset](outbox.TopicPasswordReset, d.notifier.SendPasswordReset)
-	messages.HandleJSON[account.ResetRequest](outbox.TopicPasswordResetRequest, account.NewStore(d.pool).IssueReset)
-	messages.HandleJSON[account.Registration](outbox.TopicRegistration, registrationHandler(account.NewStore(d.pool), d.notifier))
-	messages.HandleJSON[email.OrderPaid](outbox.TopicOrderPaid, d.notifier.SendOrderPaid)
-	messages.HandleJSON[email.OrderShipped](outbox.TopicOrderShipped, d.notifier.SendOrderShipped)
-	messages.HandleJSON[email.OrderTerminal](outbox.TopicOrderTerminal, terminalOrderHandler(ordernotice.NewRecipients(d.pool), d.notifier))
-	messages.HandleJSON[email.NewsletterConfirm](outbox.TopicNewsletterConfirm, d.notifier.SendNewsletterConfirm)
-	messages.HandleJSON[email.NewsletterWelcome](outbox.TopicNewsletterWelcome, d.notifier.SendNewsletterWelcome)
-	messages.HandleJSON[email.AddressVerify](outbox.TopicEmailVerify, addressVerifyHandler(account.NewStore(d.pool), d.notifier))
-	messages.HandleJSON[email.StaffInvitation](outbox.TopicStaffInvitation, staffInvitationHandler(twofactor.NewStore(d.pool, nil), d.notifier))
-	messages.HandleJSON[email.NewsletterIssue](outbox.TopicNewsletterIssue,
+func newOutboxStore(d workerDeps) *outbox.Store {
+	outboxStore := outbox.NewStore(d.pool, d.log)
+	outboxStore.HandleJSON[email.OrderPlaced](outbox.TopicOrderPlaced, d.notifier.SendOrderPlaced)
+	outboxStore.HandleJSON[email.PasswordReset](outbox.TopicPasswordReset, d.notifier.SendPasswordReset)
+	outboxStore.HandleJSON[account.ResetRequest](outbox.TopicPasswordResetRequest, account.NewStore(d.pool).IssueReset)
+	outboxStore.HandleJSON[account.Registration](outbox.TopicRegistration, registrationHandler(account.NewStore(d.pool), d.notifier))
+	outboxStore.HandleJSON[email.OrderPaid](outbox.TopicOrderPaid, d.notifier.SendOrderPaid)
+	outboxStore.HandleJSON[email.OrderShipped](outbox.TopicOrderShipped, d.notifier.SendOrderShipped)
+	outboxStore.HandleJSON[email.OrderTerminal](outbox.TopicOrderTerminal, terminalOrderHandler(ordernotice.NewRecipients(d.pool), d.notifier))
+	outboxStore.HandleJSON[email.NewsletterConfirm](outbox.TopicNewsletterConfirm, d.notifier.SendNewsletterConfirm)
+	outboxStore.HandleJSON[email.NewsletterWelcome](outbox.TopicNewsletterWelcome, d.notifier.SendNewsletterWelcome)
+	outboxStore.HandleJSON[email.AddressVerify](outbox.TopicEmailVerify, addressVerifyHandler(account.NewStore(d.pool), d.notifier))
+	outboxStore.HandleJSON[email.StaffInvitation](outbox.TopicStaffInvitation, staffInvitationHandler(twofactor.NewStore(d.pool, nil), d.notifier))
+	outboxStore.HandleJSON[email.NewsletterIssue](outbox.TopicNewsletterIssue,
 		newsletterIssueHandler(newsletter.NewStore(d.pool), d.notifier))
-	messages.HandleJSON[email.RestockNotice](outbox.TopicRestocked, d.notifier.SendRestockNotice)
-	messages.HandleJSON[invoice.Due](outbox.TopicInvoiceDue, invoiceDueHandler(d.admin, d.invoices))
-	return messages
+	outboxStore.HandleJSON[email.RestockNotice](outbox.TopicRestocked, d.notifier.SendRestockNotice)
+	outboxStore.HandleJSON[invoice.Due](outbox.TopicInvoiceDue, invoiceDueHandler(d.admin, d.invoices))
+	return outboxStore
 }
 
 // invoiceDueHandler claims on the ADMIN pool: `store` holds no EXECUTE on the

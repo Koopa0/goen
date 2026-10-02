@@ -19,7 +19,7 @@ import (
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/db"
-	email2 "github.com/koopa0/goen/internal/email"
+	mailmsg "github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -123,7 +123,7 @@ func (s *Store) ResendRegistration(ctx context.Context, addr, next string) error
 func (s *Store) FollowUpRegistration(
 	ctx context.Context,
 	r *Registration,
-	tell func(context.Context, *email2.AccountExists) error,
+	tell func(context.Context, *mailmsg.AccountExists) error,
 ) error {
 	if r.UserID == "" {
 		return nil
@@ -140,13 +140,13 @@ func (s *Store) FollowUpRegistration(
 		return fmt.Errorf("read registered account: %w", err)
 	}
 	if !r.Created {
-		return tell(ctx, &email2.AccountExists{Locale: r.Locale, Email: row.Email, Name: row.FullName.String})
+		return tell(ctx, &mailmsg.AccountExists{Locale: r.Locale, Email: row.Email, Name: row.FullName.String})
 	}
 	if row.Verified {
 		return nil
 	}
 	ctx = i18n.WithLocale(ctx, i18n.Parse(r.Locale))
-	return s.queueVerification(ctx, r.UserID, row.Email, email2.AddressVerify{
+	return s.queueVerification(ctx, r.UserID, row.Email, mailmsg.AddressVerify{
 		Registration: true, Next: r.Next,
 	})
 }

@@ -27,9 +27,9 @@ const mapMerchantID = "1000001"
 // aForeignNonce is a well-formed nonce that no browser here holds.
 const aForeignNonce = "fedcba98765432100000"
 
-func configuredMap(t *testing.T) *cart.Map {
+func configuredMap(t *testing.T) *cart.StoreMap {
 	t.Helper()
-	m, err := cart.NewMap(mapMerchantID, string(cart.ModeB2C), "", "https://goen.test")
+	m, err := cart.NewStoreMap(mapMerchantID, string(cart.ModeB2C), "", "https://goen.test")
 	if err != nil {
 		t.Fatalf("build the store map: %v", err)
 	}
@@ -498,12 +498,12 @@ func postPickupCheckout(
 // TestPickupIsOfferedOnlyWhereTheStoreMapIsConfigured holds that checkout does
 // not offer a method that can only be refused.
 func TestPickupIsOfferedOnlyWhereTheStoreMapIsConfigured(t *testing.T) {
-	disabled, err := cart.NewMap("", "", "", "https://goen.test")
+	disabled, err := cart.NewStoreMap("", "", "", "https://goen.test")
 	if err != nil {
 		t.Fatalf("build a disabled map: %v", err)
 	}
 	for name, tt := range map[string]struct {
-		storeMap *cart.Map
+		storeMap *cart.StoreMap
 		offered  bool
 	}{"map enabled": {configuredMap(t), true}, "map disabled": {disabled, false}} {
 		t.Run(name, func(t *testing.T) {
@@ -529,11 +529,11 @@ func TestPickupIsOfferedOnlyWhereTheStoreMapIsConfigured(t *testing.T) {
 // hand-written POST naming another chain, or any chain and no store, is a 422
 // whether or not this deployment can open the map.
 func TestAForgedPickupPostIsRefusedWithOrWithoutTheMap(t *testing.T) {
-	disabled, err := cart.NewMap("", "", "", "https://goen.test")
+	disabled, err := cart.NewStoreMap("", "", "", "https://goen.test")
 	if err != nil {
 		t.Fatalf("build a disabled map: %v", err)
 	}
-	for name, storeMap := range map[string]*cart.Map{"map enabled": configuredMap(t), "map disabled": disabled} {
+	for name, storeMap := range map[string]*cart.StoreMap{"map enabled": configuredMap(t), "map disabled": disabled} {
 		for _, forged := range []struct {
 			name   string
 			fields url.Values
