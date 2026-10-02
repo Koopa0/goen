@@ -10,11 +10,8 @@
   "use strict";
 
   /*
-   * A rejected form comes back as 422 with the re-rendered form carrying its
-   * field errors — exactly what should replace the old one. htmx 4 swaps every
-   * response but 204 and 304, so that 422 (and a 500 error page) swaps on its
-   * own; the htmx-2 before-swap shim that used to admit it is gone. Nothing to
-   * configure here.
+   * htmx 4 swaps every response but 204 and 304, so a rejected form's 422 with
+   * its field errors replaces the old form with nothing configured here.
    */
 
   /*

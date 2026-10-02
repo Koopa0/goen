@@ -84,7 +84,6 @@ type RouterConfig struct {
 	MaintenancePool *pgxpool.Pool
 	// Payments is Stripe, or is disabled and the payment page says so.
 	Payments *payment.Gateway
-	// Refunder pays a decided return back to the card.
 	Refunder admin.Refunder
 	BaseURL  string
 	// SecureCookies selects the __Host- cookie prefix.
@@ -106,9 +105,8 @@ type RouterConfig struct {
 }
 
 func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
-	// The two pools were positional parameters the compiler demanded. As struct
-	// fields they can be omitted silently, and they sit beside Payments,
-	// Invoices, Google and TOTPKey, which may legitimately be nil.
+	// As struct fields the two pools can be omitted silently, and they sit
+	// beside Payments, Invoices, Google and TOTPKey, which may legitimately be nil.
 	if cfg == nil || cfg.Pool == nil || cfg.AdminPool == nil || log == nil {
 		panic("goen: newRouter requires both pools and a logger")
 	}
@@ -605,29 +603,17 @@ var unspeculated = []string{
 	"/verify",
 }
 
-// clearSpeculations is what a write says to a browser holding speculative
-// copies of this site: throw them away, they were taken before this happened.
+// clearSpeculations tells a browser holding speculative copies of this site to
+// throw them away after a write, because a copy is a whole document taken
+// before it: its header would show the cart's count from before an add.
 //
-// A speculated page is a whole document, header included, rendered when the
-// browser asked for it. goen renders the cart's count into that header, so a
-// copy of a product page taken before an add shows the count from before the
-// add — measured at 1440: hover a related product until the speculation fires,
-// add in place so the count goes 1 to 2, press the link, and the landed page's
-// header reads 1.
+// Only the writes that change what the shared chrome says carry it: the cart's
+// count and whether the visitor is staff. A wishlist write changes neither, and
+// /account* is never speculated.
 //
-// Which writes: the ones that change what the shared chrome says. The header
-// renders two things from the session — the cart's count, and whether the
-// visitor is staff (back office) or not (wishlist) — so the cart's four writes
-// and the three that change who you are all carry it. A wishlist write does
-// not: nothing in the chrome counts it, and /account* is refused by the rules
-// anyway, so there is no speculated copy of it to throw away.
-//
-// The asymmetry is what makes this worth shipping where putting /cart back into
-// the rules is not. A browser that ignores these directive names leaves a count
-// one behind for a single page view, and the next navigation corrects it. A
-// browser that ignored them with /cart speculated would show an empty cart to
-// somebody who had just filled it. One is a blemish; the other is a lie about
-// what the shop is holding for you.
+// A browser that ignores the directives is a count one behind for one page
+// view; speculating /cart instead would show an empty cart to somebody who had
+// just filled it.
 func clearSpeculations(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
@@ -791,7 +777,6 @@ func localeReturnPath(r *http.Request) string {
 	return r.URL.RequestURI()
 }
 
-// withLocale attaches the request's language to its context.
 func withLocale(next http.Handler, secure bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		l := i18n.Detect(r, secure)
@@ -915,8 +900,7 @@ func withTopNav(next http.Handler, store *home.Store, log *slog.Logger) http.Han
 }
 
 // withStaffEntrance tells the chrome whether this visitor may reach the back
-// office. Without it the only way in is typing the URL: a signed-in staff
-// member saw no link to /admin from anywhere on the site.
+// office.
 //
 // It reads the user Authenticate has already put on the context, and it is
 // middleware rather than a Page field for the reason the cart badge is — a
@@ -990,7 +974,6 @@ func navPath(path string) bool {
 	return true
 }
 
-// storefrontPath reports whether a path is somewhere a promotion belongs.
 func storefrontPath(path string) bool {
 	for _, prefix := range bannerFreePrefixes {
 		if path == prefix || strings.HasPrefix(path, prefix+"/") {
