@@ -1000,11 +1000,9 @@ func (h *Handler) checkoutSubmission(
 		PickupStoreName: addr.PickupStoreName, Note: addr.Note,
 	}
 	view.Chosen = r.PostFormValue("shipping")
-	// Resolved once: a round trip through string would be an unchecked
-	// conversion of a value destination.For has already vouched for.
-	destination := destinationOf(view.Shipping, view.Chosen)
-	view.Destination = destination
-	addr.To = destination
+	to := destinationOf(view.Shipping, view.Chosen)
+	view.Destination = to
+	addr.To = to
 	// Invalid form text never survives as internal state. checkoutView already
 	// owns a fresh identity for that case; a valid retry keeps its exact identity.
 	if attemptOK {
@@ -1294,7 +1292,7 @@ func (h *Handler) refreshCheckoutState(
 		view.Chosen = choices[0].VersionID
 	}
 	view.Destination = destinationOf(choices, view.Chosen)
-	addr.To = destination.Kind(view.Destination)
+	addr.To = view.Destination
 	shippingID, err := uuid.Parse(view.Chosen)
 	if err != nil {
 		return fmt.Errorf("parse current shipping choice: %w", err)
