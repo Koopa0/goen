@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -12,7 +13,9 @@ import (
 func optionsOffered(t *testing.T, html string) []string {
 	t.Helper()
 	var out []string
-	for _, c := range carrier.All() {
+	home, _ := carrier.ForDelivery("", false)
+	stores, _ := carrier.ForDelivery("", true)
+	for _, c := range slices.Concat(home, stores) {
 		if strings.Contains(html, `<option value="`+string(c)+`"`) {
 			out = append(out, string(c))
 		}

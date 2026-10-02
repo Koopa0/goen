@@ -2,6 +2,7 @@ package pages
 
 import (
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
@@ -47,8 +48,11 @@ func TestTheOrderPageLinksEachParcelToItsCarrier(t *testing.T) {
 func TestTheEnglishOrderPageHasNoChineseOfItsOwn(t *testing.T) {
 	t.Parallel()
 
-	shipments := make([]OrderShipment, 0, len(carrier.All()))
-	for _, c := range carrier.All() {
+	home, _ := carrier.ForDelivery("", false)
+	stores, _ := carrier.ForDelivery("", true)
+	every := slices.Concat(home, stores)
+	shipments := make([]OrderShipment, 0, len(every))
+	for _, c := range every {
 		shipments = append(shipments, OrderShipment{Carrier: c, Tracking: "T1", ShippedAt: "10/01 09:00"})
 	}
 	kinds := []string{"placed", "paid", "picking", "shipped", "in_transit", "delivered", "completed"}

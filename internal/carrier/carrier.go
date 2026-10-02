@@ -39,10 +39,6 @@ var all = [...]Carrier{
 	SevenEleven, FamilyMart, HiLife, OKMart,
 }
 
-// All returns every carrier a dispatch can name, in display order. The result
-// owns its storage, so a caller cannot mutate the canonical closed set.
-func All() []Carrier { return slices.Clone(all[:]) }
-
 // ForDelivery is the carriers a parcel for this order can go with, and the one
 // the order itself implies. pickupPoint is whether the order's shipping method
 // delivers to a store, and chain the convenience-store chain the customer picked,

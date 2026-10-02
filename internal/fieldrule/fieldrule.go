@@ -15,9 +15,6 @@ package fieldrule
 
 import (
 	"context"
-	"regexp"
-	"strings"
-	"unicode/utf8"
 
 	"github.com/a-h/templ"
 
@@ -68,86 +65,69 @@ type Rule struct {
 	Check string
 	// Message is what the server says when the value is refused.
 	Message i18n.Key
-
-	re *regexp.Regexp
-}
-
-func newRule(r Rule) Rule {
-	r.re = regexp.MustCompile("^(?:" + r.Pattern + ")$")
-	return r
 }
 
 // The rules. Each is named for the field it governs, not the page it is on.
 var (
 	// Email accepts a bare address with a dotted domain. email.Valid is the
 	// server's judgment; this is the part of it a pattern can state.
-	Email = newRule(Rule{
+	Email = Rule{
 		Name:      "email",
 		InputMode: "email",
 		Pattern:   ws + atext + "+@(?:" + label + "+(?:\\." + label + "+)+|\\[[^\t\n\v\f\r \\[\\]\\\\]*\\.[^\t\n\v\f\r \\[\\]\\\\]*\\])" + ws,
 		Message:   i18n.KeyCheckoutEmailMalformed,
-	})
+	}
 
 	// Phone is eight to fifteen digits with the punctuation phone numbers carry.
 	// It asks for no keyboard: type=tel already brings the phone pad, and some
 	// numeric inputmodes leave out the + that +886 starts with.
-	Phone = newRule(Rule{
+	Phone = Rule{
 		Name:     "phone",
 		Pattern:  ws + punct + "(?:" + digit + punct + "){8,15}" + ws,
 		MaxRunes: PhoneMaxRunes,
 		Message:  i18n.KeyPhoneMalformed,
-	})
+	}
 
 	// PostalCode is three to six digits, with no guess at the city.
-	PostalCode = newRule(Rule{
+	PostalCode = Rule{
 		Name:      "postal_code",
 		InputMode: "numeric",
 		Pattern:   ws + digit + "{3,6}" + ws,
 		Message:   i18n.KeyPostalCodeMalformed,
-	})
+	}
 
 	// MobileCarrier is a 手機條碼: a slash and seven characters. The server folds
 	// width and upper-cases before it looks, so lower case and full-width pass.
 	// ı and ſ are there because strings.ToUpper turns them into I and S.
-	MobileCarrier = newRule(Rule{
+	MobileCarrier = Rule{
 		Name:    "invoice_carrier",
 		Pattern: ws + "[\\/／][0-9A-Za-zıſ０-９Ａ-Ｚａ-ｚ\\+＋\\-－\\.．]{7}" + ws,
 		Message: i18n.KeyCarrierMalformed,
-	})
+	}
 
 	// DonationCode is three to seven ASCII digits. The server does not fold
 	// width for it, so full-width digits are refused here too.
-	DonationCode = newRule(Rule{
+	DonationCode = Rule{
 		Name:      "invoice_donation_code",
 		InputMode: "numeric",
 		Pattern:   ws + "[0-9]{3,7}" + ws,
 		Message:   i18n.KeyDonationCodeMalformed,
-	})
+	}
 
 	// TaxID is eight digits whose weighted sum the 財政部 accepts. The shape is
 	// the pattern; the sum is mirrored in the browser script as "taxid", because
 	// no pattern can state it.
-	TaxID = newRule(Rule{
+	TaxID = Rule{
 		Name:      "invoice_tax_id",
 		InputMode: "numeric",
 		Pattern:   ws + digit + "{8}" + ws,
 		Check:     "taxid",
 		Message:   i18n.KeyTaxIDMalformed,
-	})
+	}
 )
 
 // All is every rule, for the tests that hold each to its server validator.
 var All = []Rule{Email, Phone, PostalCode, MobileCarrier, DonationCode, TaxID}
-
-// Matches reports whether the browser would accept value for this rule on its
-// pattern and length. The Check, which only the browser can run, is not part of
-// it; the tax ID checksum is tested against the server separately.
-func (r Rule) Matches(value string) bool {
-	if !r.re.MatchString(value) {
-		return false
-	}
-	return r.MaxRunes == 0 || utf8.RuneCountInString(strings.TrimSpace(value)) <= r.MaxRunes
-}
 
 // Attrs are the attributes that make an input carry this rule: the pattern the
 // browser enforces natively, the keyboard, and what the script needs to say the

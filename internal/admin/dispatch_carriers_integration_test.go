@@ -90,13 +90,7 @@ func TestADispatchWithACarrierTheOrderCannotUseIsRefused(t *testing.T) {
 		t.Fatalf("a home delivery sent by a home carrier: %v", err)
 	}
 
-	store := shippableOrder(t, "zh-Hant")
-	if _, execErr := pool.Exec(ctx, `
-		UPDATE orders SET shipping_version_id = v.id, shipping_method_code = sm.code, shipping_method_name = v.name
-		FROM shipping_method_versions v JOIN shipping_methods sm ON sm.id = v.method_id
-		WHERE orders.order_number = $1 AND sm.destination_kind = 'pickup_point'`, store); execErr != nil {
-		t.Fatalf("make it a store order: %v", execErr)
-	}
+	store := shippableOrderFor(t, "zh-Hant", true)
 	if shipErr := s.Ship(ctx, store, admin.Dispatch{Carrier: "black_cat", Tracking: "WRONG-" + store}, actor); !errors.Is(shipErr, admin.ErrCarrier) {
 		t.Fatalf("a store order sent by a home carrier answered %v, want ErrCarrier", shipErr)
 	}

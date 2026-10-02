@@ -1,8 +1,10 @@
 package fieldrule_test
 
 import (
+	"regexp"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/cart"
@@ -10,6 +12,16 @@ import (
 	"github.com/koopa0/goen/internal/fieldrule"
 	"github.com/koopa0/goen/internal/invoice"
 )
+
+// matches reports whether the browser would accept value for rule on its
+// pattern and length. The Check, which only the browser can run, is not part of
+// it; the tax ID checksum is tested against the server separately.
+func matches(rule fieldrule.Rule, value string) bool {
+	if !regexp.MustCompile("^(?:" + rule.Pattern + ")$").MatchString(value) {
+		return false
+	}
+	return rule.MaxRunes == 0 || utf8.RuneCountInString(strings.TrimSpace(value)) <= rule.MaxRunes
+}
 
 // hasField reports whether a validator named field among its refusals.
 func hasField(errs []account.FieldError, field string) bool {
@@ -155,7 +167,7 @@ func TestNoRuleIsStricterThanItsValidator(t *testing.T) {
 			continue
 		}
 		for _, row := range rows {
-			serverOK, clientOK := valid(row.in), rule.Matches(row.in)
+			serverOK, clientOK := valid(row.in), matches(rule, row.in)
 			if serverOK && !clientOK {
 				t.Errorf("%s: the server accepts %q and the browser would refuse it", rule.Name, row.in)
 			}
@@ -177,7 +189,7 @@ func TestRulesWithoutAChecksumAgreeWithTheServerOnTheTable(t *testing.T) {
 			continue
 		}
 		for _, row := range tables[rule.Name] {
-			if serverOK, clientOK := server[rule.Name](row.in), rule.Matches(row.in); serverOK != clientOK {
+			if serverOK, clientOK := server[rule.Name](row.in), matches(rule, row.in); serverOK != clientOK {
 				t.Errorf("%s: %q server accepts = %t, browser accepts = %t", rule.Name, row.in, serverOK, clientOK)
 			}
 		}
