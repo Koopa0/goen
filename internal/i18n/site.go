@@ -11,6 +11,13 @@ var (
 		En:     "Support Monday to Friday, 09:00–18:00",
 	})
 
+	// KeyCompanyRegistration is the registration line under a company's name, in
+	// the footers and on the about page: the tax number belongs to the sentence.
+	KeyCompanyRegistration = key("site.company.registration", Message{
+		ZhHant: "統編 90123456",
+		En:     "Tax ID 90123456",
+	})
+
 	KeyCategoryNav = key("nav.categories", Message{ZhHant: "商品分類", En: "Categories"})
 
 	KeyCloseBanner = key("site.banner.close", Message{ZhHant: "關閉公告", En: "Dismiss"})

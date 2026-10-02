@@ -109,8 +109,15 @@ type DashboardView struct {
 	LowStock       int64
 	ActiveProducts int64
 	OpenMessages   int64
-	Recent         []OrderRow
-	Low            []Variant
+	// PendingReturns is the requests nobody has decided, and OldestReturnDays how
+	// many shop days ago the oldest of them was filed. It is the operator's own
+	// wait, not the consumer's seven days: for a request already filed that window
+	// is no clock of theirs.
+	PendingReturns      int64
+	OldestReturnDays    int64
+	UnansweredQuestions int64
+	Recent              []OrderRow
+	Low                 []Variant
 }
 
 // PendingText is how many orders are waiting to be paid.
@@ -133,6 +140,29 @@ func (v DashboardView) ActiveProductsText() string {
 // OpenMessagesText is how many contact messages are unanswered.
 func (v DashboardView) OpenMessagesText() string {
 	return strconv.FormatInt(v.OpenMessages, 10)
+}
+
+// PendingReturnsText is how many return requests wait for a decision.
+func (v DashboardView) PendingReturnsText() string {
+	return strconv.FormatInt(v.PendingReturns, 10)
+}
+
+// ReturnsAgeNote is the line under the returns tile: how long the oldest open
+// request has waited. Empty when nothing is waiting.
+func (v DashboardView) ReturnsAgeNote(ctx context.Context) string {
+	switch {
+	case v.PendingReturns == 0:
+		return ""
+	case v.OldestReturnDays <= 0:
+		return i18n.T(ctx, i18n.KeyAdminQueueStatReturnsToday)
+	default:
+		return i18n.Count(ctx, i18n.KeyAdminQueueStatReturnsAge, v.OldestReturnDays, v.OldestReturnDays)
+	}
+}
+
+// UnansweredQuestionsText is how many questions the shop still owes an answer.
+func (v DashboardView) UnansweredQuestionsText() string {
+	return strconv.FormatInt(v.UnansweredQuestions, 10)
 }
 
 // HasLow reports whether anything needs restocking.

@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"slices"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/google/uuid"
@@ -93,6 +94,16 @@ func (s *Store) Dashboard(ctx context.Context) (admin.DashboardView, error) {
 		LowStock:       sum.LowStock,
 		ActiveProducts: sum.ActiveProducts,
 		OpenMessages:   sum.OpenMessages,
+
+		PendingReturns:      sum.PendingReturns,
+		UnansweredQuestions: sum.UnansweredQuestions,
+	}
+	oldest, err := s.q.OldestPendingReturn(ctx)
+	if err != nil {
+		return admin.DashboardView{}, fmt.Errorf("read oldest open return: %w", err)
+	}
+	if oldest.AnyOpen {
+		view.OldestReturnDays = shoptime.DaysSince(oldest.FiledAt, time.Now())
 	}
 
 	// No status: the newest orders whatever state they are in. The tiles above

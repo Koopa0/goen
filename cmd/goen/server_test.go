@@ -572,7 +572,7 @@ func TestOnlyAStaffMemberGetsTheBackOfficeEntrance(t *testing.T) {
 	}
 }
 
-func TestLocaleReturnPathPreservesComparisonSlugs(t *testing.T) {
+func TestLocaleReturnPathKeepsTheQuery(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -582,25 +582,13 @@ func TestLocaleReturnPathPreservesComparisonSlugs(t *testing.T) {
 	}{
 		{name: "root", raw: "/", want: "/"},
 		{name: "deals", raw: "/deals", want: "/deals"},
-		{name: "search drops query", raw: "/search?q=pixelight", want: "/search"},
-		{name: "product drops query", raw: "/p/aurora-slate?ask=1", want: "/p/aurora-slate"},
+		{name: "search keeps the term", raw: "/search?q=pixelight", want: "/search?q=pixelight"},
+		{name: "listing keeps filters and sort", raw: "/c/phones?sort=price&brand=aurora", want: "/c/phones?sort=price&brand=aurora"},
+		{name: "product keeps the chosen options", raw: "/p/aurora-slate?%E9%A1%8F%E8%89%B2=%E9%8A%80", want: "/p/aurora-slate?%E9%A1%8F%E8%89%B2=%E9%8A%80"},
 		{name: "refused review returns to the product", raw: "/p/koto-over-ear/reviews", want: "/p/koto-over-ear"},
 		{name: "refused question returns to the product", raw: "/p/koto-over-ear/questions", want: "/p/koto-over-ear"},
 		{name: "a bad slug under reviews is left alone", raw: "/p/BAD_SLUG/reviews", want: "/p/BAD_SLUG/reviews"},
-		{name: "category drops query", raw: "/c/phones?sort=price", want: "/c/phones"},
-		{name: "cart drops query", raw: "/cart?x=1", want: "/cart"},
-		{name: "compare without query", raw: "/compare", want: "/compare"},
-		{name: "compare empty query", raw: "/compare?", want: "/compare"},
-		{name: "compare two valid slugs", raw: "/compare?p=aurora-charger-65&p=aurora-edge-7", want: "/compare?p=aurora-charger-65&p=aurora-edge-7"},
-		{name: "compare preserves order", raw: "/compare?p=aurora-edge-7&p=aurora-charger-65", want: "/compare?p=aurora-edge-7&p=aurora-charger-65"},
-		{name: "compare drops sensitive and unsupported params", raw: "/compare?p=aurora-charger-65&p=aurora-edge-7&q=secret&token=123", want: "/compare?p=aurora-charger-65&p=aurora-edge-7"},
-		{name: "compare drops invalid slug formats", raw: "/compare?p=aurora-charger-65&p=BAD_SLUG&p=../evil&p=aurora-edge-7", want: "/compare?p=aurora-charger-65&p=aurora-edge-7"},
-		{name: "compare deduplicates slugs", raw: "/compare?p=aurora-charger-65&p=aurora-charger-65&p=aurora-edge-7", want: "/compare?p=aurora-charger-65&p=aurora-edge-7"},
-		{name: "compare caps at max four slugs", raw: "/compare?p=p1&p=p2&p=p3&p=p4&p=p5", want: "/compare?p=p1&p=p2&p=p3&p=p4"},
-		{name: "compare single slug", raw: "/compare?p=aurora-charger-65", want: "/compare?p=aurora-charger-65"},
-		{name: "compare all invalid slugs falls back", raw: "/compare?p=BAD%201&p=BAD_2", want: "/compare"},
-		{name: "compare only invalid query keys falls back", raw: "/compare?q=search&sort=desc", want: "/compare"},
-		{name: "compare empty slug value is skipped", raw: "/compare?p=&p=aurora-edge-7", want: "/compare?p=aurora-edge-7"},
+		{name: "compare keeps its products", raw: "/compare?p=aurora-charger-65&p=aurora-edge-7", want: "/compare?p=aurora-charger-65&p=aurora-edge-7"},
 	}
 
 	for _, tt := range tests {
@@ -619,7 +607,7 @@ func TestLanguageSwitchComparisonJourney(t *testing.T) {
 	t.Parallel()
 
 	const rawURL = "/compare?p=aurora-charger-65&p=aurora-edge-7&q=search-leak"
-	const wantReturn = "/compare?p=aurora-charger-65&p=aurora-edge-7"
+	const wantReturn = rawURL
 
 	var onContext string
 	var renderedHTML string
@@ -647,9 +635,6 @@ func TestLanguageSwitchComparisonJourney(t *testing.T) {
 	extractedReturn := html.UnescapeString(matches[1])
 	if extractedReturn != wantReturn {
 		t.Fatalf("rendered return target = %q, want %q", extractedReturn, wantReturn)
-	}
-	if strings.Contains(renderedHTML, "search-leak") {
-		t.Fatal("rendered header carried raw query search term")
 	}
 
 	// Verify the return target resolves through the same-site redirect guard.

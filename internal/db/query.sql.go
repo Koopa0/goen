@@ -2021,16 +2021,26 @@ SELECT
     (SELECT count(*) FROM product_variants
      WHERE is_active AND stock_quantity <= safety_stock)::bigint AS low_stock,
     (SELECT count(*) FROM products WHERE status = 'active')::bigint AS active_products,
-    (SELECT count(*) FROM contact_messages WHERE handled_at IS NULL)::bigint AS open_messages
+    (SELECT count(*) FROM contact_messages WHERE handled_at IS NULL)::bigint AS open_messages,
+    (SELECT count(*) FROM return_requests WHERE status = 'requested')::bigint AS pending_returns,
+    -- The queue's own predicate (UnansweredQuestions, Question.Waiting): visible,
+    -- and no visible answer from the shop. A customer's reply does not answer it.
+    (SELECT count(*) FROM product_questions q
+     WHERE q.hidden_at IS NULL
+       AND NOT EXISTS (SELECT 1 FROM product_answers a
+                       WHERE a.question_id = q.id AND a.is_staff AND a.hidden_at IS NULL)
+    )::bigint AS unanswered_questions
 `
 
 type AdminSummaryRow struct {
-	PendingOrders  int64
-	ReadyOrders    int64
-	PickingOrders  int64
-	LowStock       int64
-	ActiveProducts int64
-	OpenMessages   int64
+	PendingOrders       int64
+	ReadyOrders         int64
+	PickingOrders       int64
+	LowStock            int64
+	ActiveProducts      int64
+	OpenMessages        int64
+	PendingReturns      int64
+	UnansweredQuestions int64
 }
 
 func (q *Queries) AdminSummary(ctx context.Context) (AdminSummaryRow, error) {
@@ -2043,6 +2053,8 @@ func (q *Queries) AdminSummary(ctx context.Context) (AdminSummaryRow, error) {
 		&i.LowStock,
 		&i.ActiveProducts,
 		&i.OpenMessages,
+		&i.PendingReturns,
+		&i.UnansweredQuestions,
 	)
 	return i, err
 }
@@ -3263,7 +3275,7 @@ SELECT
         ARRAY[]::text[]
     )::text[] AS option_values,
     coalesce(img.storage_key, '') AS image_key,
-    coalesce(img.alt_text, '') AS image_alt,
+    coalesce(localized_name(img.alt_text, img.alt_text_en, $2::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width
 FROM cart_items ci
 JOIN product_variants pv ON pv.id = ci.variant_id
@@ -3272,7 +3284,7 @@ JOIN brands b ON b.id = p.brand_id
 LEFT JOIN LATERAL (
     -- The line's own photograph when one shows its option value, else the
     -- product's first.
-    SELECT i.storage_key, i.alt_text, i.width FROM product_images i
+    SELECT i.storage_key, i.alt_text, i.alt_text_en, i.width FROM product_images i
     WHERE i.product_id = p.id
     ORDER BY EXISTS (
                  SELECT 1 FROM variant_option_values vov
@@ -8396,6 +8408,29 @@ func (q *Queries) NextEligibilityVersion(ctx context.Context, returnRequestID uu
 	return version, err
 }
 
+const oldestPendingReturn = `-- name: OldestPendingReturn :one
+SELECT coalesce(min(created_at), now())::timestamptz AS filed_at,
+       (count(*) > 0) AS any_open
+FROM return_requests
+WHERE status = 'requested'
+`
+
+type OldestPendingReturnRow struct {
+	FiledAt time.Time
+	AnyOpen bool
+}
+
+// When the oldest open return request was filed, which is how long a person has
+// been waiting for a decision. Two columns, not one nullable timestamp: min()
+// over no rows is NULL and sqlc infers the column non-nullable, so pgx cannot
+// scan it.
+func (q *Queries) OldestPendingReturn(ctx context.Context) (OldestPendingReturnRow, error) {
+	row := q.db.QueryRow(ctx, oldestPendingReturn)
+	var i OldestPendingReturnRow
+	err := row.Scan(&i.FiledAt, &i.AnyOpen)
+	return i, err
+}
+
 const openPayment = `-- name: OpenPayment :one
 SELECT open_payment($1, $2::text, $3::bigint)
 `
@@ -9106,7 +9141,10 @@ SELECT o.id, o.order_number, o.fulfillment_status,
        coalesce((SELECT c.code || ' · ' || c.description
                  FROM coupon_redemptions cr JOIN coupons c ON c.id = cr.coupon_id
                  WHERE cr.order_id = o.id), '')::text AS discount_reason,
-       o.shipping_method_name, o.placed_at,
+       -- The version the order was priced from, which is append-only, so an
+       -- English name is read without rewriting what the order chose.
+       localized_name(sv.name, sv.name_en, $1::text) AS shipping_method_name,
+       o.placed_at,
        coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
                  WHERE ol.order_id = o.id), 0)::bigint AS subtotal_cents,
        -- What store credit paid, as the difference between the total and what is
@@ -9132,9 +9170,15 @@ SELECT o.id, o.order_number, o.fulfillment_status,
        -- payment row and stays 'pending' while the customer owes nothing.
        order_amount_owed(o.id)::bigint AS owed_cents
 FROM orders o
+JOIN shipping_method_versions sv ON sv.id = o.shipping_version_id
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
-WHERE o.order_number = $1
+WHERE o.order_number = $2
 `
+
+type OrderSummaryByNumberParams struct {
+	Locale string
+	Number string
+}
 
 type OrderSummaryByNumberRow struct {
 	ID                 uuid.UUID
@@ -9160,8 +9204,8 @@ type OrderSummaryByNumberRow struct {
 	OwedCents          int64
 }
 
-func (q *Queries) OrderSummaryByNumber(ctx context.Context, orderNumber string) (OrderSummaryByNumberRow, error) {
-	row := q.db.QueryRow(ctx, orderSummaryByNumber, orderNumber)
+func (q *Queries) OrderSummaryByNumber(ctx context.Context, arg OrderSummaryByNumberParams) (OrderSummaryByNumberRow, error) {
+	row := q.db.QueryRow(ctx, orderSummaryByNumber, arg.Locale, arg.Number)
 	var i OrderSummaryByNumberRow
 	err := row.Scan(
 		&i.ID,

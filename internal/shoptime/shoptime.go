@@ -54,6 +54,17 @@ func DateOf(t, now time.Time) Date {
 	return Date{Year: t.Year(), Month: t.Month(), Day: t.Day(), OtherYear: t.Year() != In(now).Year()}
 }
 
+// DaysSince is how many shop calendar days lie between t and now. It counts
+// days on the shop's calendar, not 24-hour spans: a request filed at 23:50
+// yesterday is one day old at 00:10, and one filed at 00:10 is not one day old at
+// 23:50 the same day.
+func DaysSince(t, now time.Time) int64 {
+	a, b := In(t), In(now)
+	from := time.Date(a.Year(), a.Month(), a.Day(), 0, 0, 0, 0, time.UTC)
+	to := time.Date(b.Year(), b.Month(), b.Day(), 0, 0, 0, 0, time.UTC)
+	return int64(to.Sub(from).Hours() / 24)
+}
+
 // Minute is a moment to the minute, which is what queues and timelines show.
 func Minute(t time.Time) string { return In(t).Format("2006-01-02 15:04") }
 

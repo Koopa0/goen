@@ -9,6 +9,7 @@ import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
 import (
+	"github.com/koopa0/goen/internal/fieldrule"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -55,7 +56,7 @@ func Forgot(p layouts.Page, v ForgotView) templ.Component {
 			var templ_7745c5c3_Var3 string
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyForgotTitle))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/reset.templ`, Line: 14, Col: 67}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/reset.templ`, Line: 15, Col: 67}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 			if templ_7745c5c3_Err != nil {
@@ -68,7 +69,7 @@ func Forgot(p layouts.Page, v ForgotView) templ.Component {
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyForgotSub))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/reset.templ`, Line: 15, Col: 63}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/reset.templ`, Line: 16, Col: 63}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {
@@ -94,7 +95,7 @@ func Forgot(p layouts.Page, v ForgotView) templ.Component {
 					var templ_7745c5c3_Var6 string
 					templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyForgotSent))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/reset.templ`, Line: 18, Col: 39}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/reset.templ`, Line: 19, Col: 39}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 					if templ_7745c5c3_Err != nil {
@@ -126,7 +127,7 @@ func Forgot(p layouts.Page, v ForgotView) templ.Component {
 				var templ_7745c5c3_Var8 string
 				templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyFieldEmail))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/reset.templ`, Line: 24, Col: 40}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/reset.templ`, Line: 25, Col: 40}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 				if templ_7745c5c3_Err != nil {
@@ -142,12 +143,12 @@ func Forgot(p layouts.Page, v ForgotView) templ.Component {
 				ID:   "email",
 				Name: "email",
 				Type: "email",
-				Attrs: templ.Attributes{
+				Attrs: fieldrule.Email.Attrs(ctx, templ.Attributes{
 					"autocomplete": "email",
 					"autofocus":    true,
 					"maxlength":    "254",
 					"required":     true,
-				},
+				}),
 			}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -171,7 +172,7 @@ func Forgot(p layouts.Page, v ForgotView) templ.Component {
 				var templ_7745c5c3_Var10 string
 				templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyForgotSubmit))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/reset.templ`, Line: 39, Col: 41}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/reset.templ`, Line: 40, Col: 41}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 				if templ_7745c5c3_Err != nil {
@@ -190,7 +191,7 @@ func Forgot(p layouts.Page, v ForgotView) templ.Component {
 			var templ_7745c5c3_Var11 string
 			templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyRemembered))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/reset.templ`, Line: 43, Col: 38}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/reset.templ`, Line: 44, Col: 38}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 			if templ_7745c5c3_Err != nil {
@@ -203,7 +204,7 @@ func Forgot(p layouts.Page, v ForgotView) templ.Component {
 			var templ_7745c5c3_Var12 string
 			templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyBackToSignIn))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/reset.templ`, Line: 44, Col: 58}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/reset.templ`, Line: 45, Col: 58}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 			if templ_7745c5c3_Err != nil {
@@ -264,7 +265,7 @@ func Reset(p layouts.Page, v ResetView) templ.Component {
 			var templ_7745c5c3_Var15 string
 			templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyResetTitle))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/reset.templ`, Line: 56, Col: 66}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/reset.templ`, Line: 57, Col: 66}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 			if templ_7745c5c3_Err != nil {
@@ -282,7 +283,7 @@ func Reset(p layouts.Page, v ResetView) templ.Component {
 				var templ_7745c5c3_Var16 string
 				templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.ResolveAttributeValue(v.Token)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/reset.templ`, Line: 59, Col: 55}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/reset.templ`, Line: 60, Col: 55}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var16)
 				if templ_7745c5c3_Err != nil {
@@ -307,7 +308,7 @@ func Reset(p layouts.Page, v ResetView) templ.Component {
 					var templ_7745c5c3_Var18 string
 					templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyFieldNewPassword))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/reset.templ`, Line: 62, Col: 47}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/reset.templ`, Line: 63, Col: 47}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 					if templ_7745c5c3_Err != nil {
@@ -343,7 +344,7 @@ func Reset(p layouts.Page, v ResetView) templ.Component {
 					var templ_7745c5c3_Var19 string
 					templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(v.Error)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/reset.templ`, Line: 78, Col: 72}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/reset.templ`, Line: 79, Col: 72}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 					if templ_7745c5c3_Err != nil {
@@ -373,7 +374,7 @@ func Reset(p layouts.Page, v ResetView) templ.Component {
 					var templ_7745c5c3_Var21 string
 					templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyFieldAgain))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/reset.templ`, Line: 83, Col: 41}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/reset.templ`, Line: 84, Col: 41}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
 					if templ_7745c5c3_Err != nil {
@@ -407,7 +408,7 @@ func Reset(p layouts.Page, v ResetView) templ.Component {
 				var templ_7745c5c3_Var22 string
 				templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyResetEndsSessions))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/reset.templ`, Line: 98, Col: 73}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/reset.templ`, Line: 99, Col: 73}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 				if templ_7745c5c3_Err != nil {
@@ -432,7 +433,7 @@ func Reset(p layouts.Page, v ResetView) templ.Component {
 					var templ_7745c5c3_Var24 string
 					templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyResetTitle))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/reset.templ`, Line: 100, Col: 40}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/reset.templ`, Line: 101, Col: 40}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
 					if templ_7745c5c3_Err != nil {
@@ -464,7 +465,7 @@ func Reset(p layouts.Page, v ResetView) templ.Component {
 					var templ_7745c5c3_Var26 string
 					templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.JoinStringErrs(v.Refusal(ctx))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/reset.templ`, Line: 105, Col: 22}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/reset.templ`, Line: 106, Col: 22}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var26))
 					if templ_7745c5c3_Err != nil {
@@ -495,7 +496,7 @@ func Reset(p layouts.Page, v ResetView) templ.Component {
 					var templ_7745c5c3_Var28 string
 					templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyResetAgain))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/reset.templ`, Line: 109, Col: 40}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/reset.templ`, Line: 110, Col: 40}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var28))
 					if templ_7745c5c3_Err != nil {

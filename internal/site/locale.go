@@ -16,8 +16,7 @@ func (h *Handler) SetLocale(w http.ResponseWriter, r *http.Request) {
 	// An unknown value sets the default: a 400 on a language switch is a dead
 	// end for somebody who cannot read the page they are on.
 	i18n.SetCookie(w, i18n.Parse(r.PostFormValue("locale")), h.secure)
-	//nolint:gosec // G710: web.SitePathOr accepts only a same-site path; the
-	// taint analyser cannot see through it, and internal/web's own tests are
-	// what keep that true.
+	// web.SitePathOr accepts only a same-site path, so the switch can never
+	// send a visitor off the site; internal/web's own tests keep that true.
 	http.Redirect(w, r, web.SitePathOr(r.PostFormValue("return"), "/"), http.StatusSeeOther)
 }
