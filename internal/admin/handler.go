@@ -1432,23 +1432,6 @@ func (h *Handler) EditTaxon(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *Handler) Reports(w http.ResponseWriter, r *http.Request) {
-	// A parse failure is zero, which the store's allowlist turns into the
-	// default — the same answer an out-of-range number gets.
-	days, parseErr := strconv.ParseInt(r.URL.Query().Get("days"), 10, 32)
-	if parseErr != nil {
-		days = 0
-	}
-	view, err := h.store.Report(r.Context(), int32(days))
-	if err != nil {
-		h.log.ErrorContext(r.Context(), "read report", "error", err)
-		access.ServerError(w, r, h.log)
-		return
-	}
-	web.Render(w, r, h.log, http.StatusOK, admin.Report(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageReports)}, &view))
-}
-
 func (h *Handler) Questions(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Questions(r.Context())
 	if err != nil {

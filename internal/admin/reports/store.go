@@ -1,19 +1,32 @@
-package admin
+package reports
 
 import (
 	"context"
 	"fmt"
 	"slices"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
+
+type Store struct {
+	q *db.Queries
+}
+
+func NewStore(pool *pgxpool.Pool) *Store {
+	if pool == nil {
+		panic("reports: NewStore requires a pool")
+	}
+	return &Store{q: db.New(pool)}
+}
 
 var reportWindows = [...]int32{7, 30, 90}
 
 const DefaultWindow int32 = 30
 
-const MaxReportRows = 10
+const maxRows = 10
 
 func (s *Store) Report(ctx context.Context, days int32) (admin.ReportView, error) {
 	if !validWindow(days) {
@@ -29,13 +42,13 @@ func (s *Store) Report(ctx context.Context, days int32) (admin.ReportView, error
 		return admin.ReportView{}, fmt.Errorf("read completion: %w", err)
 	}
 	sellers, err := s.q.BestSellersSince(ctx, db.BestSellersSinceParams{
-		WindowDays: days, LimitTo: MaxReportRows,
+		WindowDays: days, LimitTo: maxRows,
 	})
 	if err != nil {
 		return admin.ReportView{}, fmt.Errorf("read best sellers: %w", err)
 	}
 	risk, err := s.q.StockAtRisk(ctx, db.StockAtRiskParams{
-		WindowDays: days, LimitTo: MaxReportRows,
+		WindowDays: days, LimitTo: maxRows,
 	})
 	if err != nil {
 		return admin.ReportView{}, fmt.Errorf("read stock at risk: %w", err)

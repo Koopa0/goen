@@ -22,6 +22,7 @@ sql:
       - "internal/account/query.sql"
       - "internal/admin/query.sql"
       - "internal/admin/audit/query.sql"
+      - "internal/admin/reports/query.sql"
       - "internal/invoice/query.sql"
     gen:
       go:
