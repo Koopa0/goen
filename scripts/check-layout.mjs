@@ -2578,13 +2578,15 @@ if (process.env.ADMIN_TOKEN) {
       const printed = await evalPage(`(() => {
         const slips = [...document.querySelectorAll('.goen-admin__slip')];
         const visible = (el) => getComputedStyle(el).display !== 'none' && el.getClientRects().length > 0;
+        const controls = [...document.querySelectorAll('.goen-adminbar,.goen-admin__nav,.goen-admin__batchcontrols,form')].filter(visible);
         return {
           slips: slips.length,
           lines: slips.map((slip) => slip.querySelectorAll('.goen-order__line').length),
           delivery: slips.map((slip) => slip.querySelectorAll('.ui-dl__row').length),
           breaks: slips.map((slip) => getComputedStyle(slip).breakAfter),
           pickLists: document.querySelectorAll('.goen-admin__picklist').length,
-          controls: [...document.querySelectorAll('.goen-adminbar,.goen-admin__nav,.goen-admin__batchcontrols,form')].filter(visible).length,
+          controls: controls.length,
+          controlNames: controls.map((el) => el.tagName.toLowerCase() + '.' + el.className),
         };
       })()`);
       if (printed.threw) {
@@ -2593,7 +2595,7 @@ if (process.env.ADMIN_TOKEN) {
         if (printed.slips < 2) fail(label, `only ${printed.slips} slips; the multi-order fixture did not run`);
         if (printed.lines.some((n) => n === 0) || printed.delivery.some((n) => n < 4)) fail(label, 'a slip lost its items or delivery');
         if (printed.breaks.slice(0, -1).some((value) => value !== 'page')) fail(label, 'a slip lacks its forced page break');
-        if (printed.pickLists !== 1 || printed.controls) fail(label, `pickLists=${printed.pickLists} controls=${printed.controls}`);
+        if (printed.pickLists !== 1 || printed.controls) fail(label, `pickLists=${printed.pickLists} controls=${printed.controls}: ${printed.controlNames.join(", ")}`);
         const pdf = await send(ws, 'Page.printToPDF', { preferCSSPageSize: true, printBackground: true });
         // Chromium writes page dictionaries outside compressed content streams.
         const pages = (Buffer.from(pdf.data, 'base64').toString('latin1').match(/\/Type\s*\/Page\b/g) || []).length;

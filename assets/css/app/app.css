@@ -9476,7 +9476,7 @@ form[data-request-pending] [aria-disabled="true"] {
 }
 
 @media print {
-  .goen-admin__batchcontrols,
+  .goen-admin .goen-admin__batchcontrols,
   .goen-skip,
   .goen-adminbar,
   .goen-admin__nav,
