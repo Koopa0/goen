@@ -18,12 +18,10 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-// ConfirmTTL is how long a confirmation link works.
 const ConfirmTTL = 48 * time.Hour
 
-// ErrNotFound is a link that matches nothing: unknown, spent, or expired. One
-// error for all three, so it cannot tell somebody walking tokens which of their
-// guesses was real.
+// ErrNotFound is one error for unknown, spent and expired, so it cannot tell
+// somebody walking tokens which guess was real.
 var ErrNotFound = errors.New("newsletter: that link is not usable")
 
 // Outcome is what a submission did, which the caller must NOT show the visitor:
@@ -31,15 +29,12 @@ var ErrNotFound = errors.New("newsletter: that link is not usable")
 type Outcome int
 
 const (
-	// Requested means a confirmation link is on its way.
 	Requested Outcome = iota
-	// AlreadyActive means the address is on the list and nothing was sent.
 	AlreadyActive
 )
 
 const tokenBytes = 32
 
-// NewToken returns a fresh opaque token for a link in an email.
 func NewToken() (string, error) {
 	b := make([]byte, tokenBytes)
 	if _, err := rand.Read(b); err != nil {
@@ -48,14 +43,11 @@ func NewToken() (string, error) {
 	return base64.RawURLEncoding.EncodeToString(b), nil
 }
 
-// HashToken digests a token for storage and lookup.
 func HashToken(token string) []byte {
 	sum := sha256.Sum256([]byte(token))
 	return sum[:]
 }
 
-// Validate returns the KEY of the message to show for addr, or "" when it is
-// acceptable.
 func Validate(addr string) i18n.Key {
 	switch {
 	case addr == "":

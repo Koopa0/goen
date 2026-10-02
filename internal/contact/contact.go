@@ -13,16 +13,15 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-// subject is one topic the form offers: the value STORED and the label read.
-// Translating the value at write time would put the visitor's language in a row.
+// subject: Value is STORED, Label is read; translating the value at write time
+// would put the visitor's language in a row.
 type subject struct {
 	Value    string
 	LabelKey i18n.Key
 }
 
-// subjects is the closed set of topics the form offers. The database repeats
-// these stored values in contact_messages_subject_known, so a lower-level
-// writer cannot widen the set.
+// subjects is closed: the database repeats these stored values in
+// contact_messages_subject_known, so a lower-level writer cannot widen the set.
 var subjects = [...]subject{
 	// i18n-exempt: the STORED value, per the note on subject.
 	{Value: "訂單問題", LabelKey: i18n.KeySubjectOrder},
@@ -45,7 +44,6 @@ func offersSubject(v string) bool {
 	return false
 }
 
-// Field length bounds, counted in RUNES.
 const (
 	maxName     = 80
 	maxOrderRef = 32
@@ -53,7 +51,6 @@ const (
 	maxMessage  = 2000
 )
 
-// Message is one submission of the contact form.
 type Message struct {
 	Name     string
 	Email    string
@@ -62,8 +59,6 @@ type Message struct {
 	Body     string
 }
 
-// Clean trims surrounding whitespace from every field and folds the address to
-// lower case, which is how it is stored and compared.
 func Clean(m Message) Message {
 	return Message{
 		Name:     strings.TrimSpace(m.Name),
@@ -74,8 +69,6 @@ func Clean(m Message) Message {
 	}
 }
 
-// Validate reports every problem with m keyed by the form field name; an empty
-// map means m may be stored. Callers pass the result of [Clean].
 func Validate(ctx context.Context, m Message) map[string]string {
 	errs := problems{}
 
@@ -123,7 +116,6 @@ func Validate(ctx context.Context, m Message) map[string]string {
 	return errs
 }
 
-// problems collects one message per field, first message wins.
 type problems map[string]string
 
 func (p problems) set(field, msg string) {
@@ -135,8 +127,8 @@ func (p problems) set(field, msg string) {
 	}
 }
 
-// singleLineProblem refuses every control character, the newline included:
-// these fields reach records and log lines where a break forges a boundary.
+// singleLineProblem refuses every control character, newline included: these
+// fields reach records and log lines where a break forges a boundary.
 func singleLineProblem(ctx context.Context, s string) string {
 	if !strings.ContainsFunc(s, forbiddenControl) {
 		return ""
@@ -144,7 +136,6 @@ func singleLineProblem(ctx context.Context, s string) string {
 	return i18n.T(ctx, i18n.KeyNoNewlines)
 }
 
-// multiLineProblem applies to the message body, where line breaks are content.
 func multiLineProblem(ctx context.Context, s string) string {
 	if !strings.ContainsFunc(s, func(r rune) bool {
 		return forbiddenControl(r) && r != '\n' && r != '\r'
