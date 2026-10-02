@@ -28,7 +28,7 @@ func terminalNotice(t *testing.T, id uuid.UUID, want email.TerminalKind) {
 func assertTerminalNotice(t *testing.T, id uuid.UUID, want email.TerminalKind, wantRefunded bool) {
 	t.Helper()
 	var payload []byte
-	if err := pool.QueryRow(t.Context(), `SELECT payload FROM outbox_messages WHERE topic=$1 AND dedupe_key=$2`, outbox.TopicOrderTerminal, id.String()+":"+string(want)).Scan(&payload); err != nil {
+	if err := pool.QueryRow(t.Context(), `SELECT payload FROM outbox_messages WHERE topic=$1 AND dedupe_key=$2`, outbox.TopicOrderTerminal.Name(), id.String()+":"+string(want)).Scan(&payload); err != nil {
 		t.Fatalf("missing terminal notice: %v", err)
 	}
 	var fields map[string]json.RawMessage
@@ -73,14 +73,14 @@ func TestTerminalArrivalIsNotRequeuedAfterCompletionOrOutboxRetention(t *testing
 		t.Fatal(err)
 	}
 	terminalNotice(t, id, email.TerminalDelivered)
-	if _, err := pool.Exec(t.Context(), `DELETE FROM outbox_messages WHERE topic=$1 AND dedupe_key=$2`, outbox.TopicOrderTerminal, id.String()+":"+string(email.TerminalDelivered)); err != nil {
+	if _, err := pool.Exec(t.Context(), `DELETE FROM outbox_messages WHERE topic=$1 AND dedupe_key=$2`, outbox.TopicOrderTerminal.Name(), id.String()+":"+string(email.TerminalDelivered)); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := s.Advance(ctx, number, "completed", uuid.NullUUID{}); err != nil {
 		t.Fatal(err)
 	}
 	var count int
-	if err := pool.QueryRow(t.Context(), `SELECT count(*) FROM outbox_messages WHERE topic=$1 AND payload->>'order_id'=$2`, outbox.TopicOrderTerminal, id.String()).Scan(&count); err != nil {
+	if err := pool.QueryRow(t.Context(), `SELECT count(*) FROM outbox_messages WHERE topic=$1 AND payload->>'order_id'=$2`, outbox.TopicOrderTerminal.Name(), id.String()).Scan(&count); err != nil {
 		t.Fatal(err)
 	}
 	if count != 0 {
@@ -102,7 +102,7 @@ func TestFailedAdvanceRollsBackItsTerminalNotice(t *testing.T) {
 		t.Fatalf("failed advance committed %s", status)
 	}
 	var count int
-	if err := pool.QueryRow(t.Context(), `SELECT count(*) FROM outbox_messages WHERE topic=$1 AND payload->>'order_id'=$2`, outbox.TopicOrderTerminal, id.String()).Scan(&count); err != nil {
+	if err := pool.QueryRow(t.Context(), `SELECT count(*) FROM outbox_messages WHERE topic=$1 AND payload->>'order_id'=$2`, outbox.TopicOrderTerminal.Name(), id.String()).Scan(&count); err != nil {
 		t.Fatal(err)
 	}
 	if count != 0 {
@@ -155,7 +155,7 @@ func TestPickupCompletionQueuesCollectionWithoutADeliveryNotice(t *testing.T) {
 		t.Fatal(err)
 	}
 	var early int
-	if err := pool.QueryRow(t.Context(), `SELECT count(*) FROM outbox_messages WHERE topic=$1 AND payload->>'order_id'=$2`, outbox.TopicOrderTerminal, id.String()).Scan(&early); err != nil {
+	if err := pool.QueryRow(t.Context(), `SELECT count(*) FROM outbox_messages WHERE topic=$1 AND payload->>'order_id'=$2`, outbox.TopicOrderTerminal.Name(), id.String()).Scan(&early); err != nil {
 		t.Fatal(err)
 	}
 	if early != 0 {
@@ -166,7 +166,7 @@ func TestPickupCompletionQueuesCollectionWithoutADeliveryNotice(t *testing.T) {
 	}
 	terminalNotice(t, id, email.TerminalCollected)
 	var count int
-	if err := pool.QueryRow(t.Context(), `SELECT count(*) FROM outbox_messages WHERE topic=$1 AND payload->>'order_id'=$2`, outbox.TopicOrderTerminal, id.String()).Scan(&count); err != nil {
+	if err := pool.QueryRow(t.Context(), `SELECT count(*) FROM outbox_messages WHERE topic=$1 AND payload->>'order_id'=$2`, outbox.TopicOrderTerminal.Name(), id.String()).Scan(&count); err != nil {
 		t.Fatal(err)
 	}
 	if count != 1 {

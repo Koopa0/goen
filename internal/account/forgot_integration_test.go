@@ -150,7 +150,7 @@ func TestForgotDoesTheSameWorkWhetherOrNotTheAddressHasAnAccount(t *testing.T) {
 	if err := pool.QueryRow(ctx, `
 		SELECT count(*) FROM outbox_messages
 		WHERE topic = $1 AND lower(payload->>'email') IN (lower($2), lower($3))`,
-		outbox.TopicPasswordReset, known, unknown).Scan(&mailed); err != nil {
+		outbox.TopicPasswordReset.Name(), known, unknown).Scan(&mailed); err != nil {
 		t.Fatalf("count reset messages: %v", err)
 	}
 	if mailed != 1 {
@@ -166,7 +166,7 @@ func queuedResetRequests(t *testing.T) map[string]string {
 	rows, err := pool.Query(t.Context(), `
 		SELECT dedupe_key, coalesce(payload->>'user_id', '')
 		FROM outbox_messages
-		WHERE topic = $1 AND delivered_at IS NULL`, outbox.TopicPasswordResetRequest)
+		WHERE topic = $1 AND delivered_at IS NULL`, outbox.TopicPasswordResetRequest.Name())
 	if err != nil {
 		t.Fatalf("list queued reset requests: %v", err)
 	}

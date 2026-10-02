@@ -183,7 +183,7 @@ func TestTheDemoAccountRefusesWhatWouldShutOutTheNextVisitorAndKeepsTheRest(t *t
 	if err := pool.QueryRow(ctx, `
 		SELECT count(*) FROM outbox_messages
 		WHERE topic IN ($1, $2) AND lower(payload->>'email') IN (lower($3), lower($4))`,
-		outbox.TopicEmailVerify, outbox.TopicPasswordReset, moveTo, demoAddr).Scan(&mail); err != nil {
+		outbox.TopicEmailVerify.Name(), outbox.TopicPasswordReset.Name(), moveTo, demoAddr).Scan(&mail); err != nil {
 		t.Fatalf("count mail: %v", err)
 	}
 	if mail != 0 {
@@ -247,7 +247,7 @@ func TestAResetLinkIsNeverQueuedForTheDemoAccount(t *testing.T) {
 		if err := pool.QueryRow(ctx, `
 			SELECT count(*) FROM outbox_messages m JOIN users u ON u.id::text = m.payload->>'user_id'
 			WHERE m.topic = $1 AND lower(u.email) = lower($2)`,
-			outbox.TopicPasswordResetRequest, addr).Scan(&n); err != nil {
+			outbox.TopicPasswordResetRequest.Name(), addr).Scan(&n); err != nil {
 			t.Fatalf("count reset requests: %v", err)
 		}
 		return n

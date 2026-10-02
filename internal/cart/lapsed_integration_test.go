@@ -153,7 +153,7 @@ func factsOf(t *testing.T, number string, couponID uuid.UUID) cancellationFacts 
 		         WHERE cr.coupon_id = $5 AND co.fulfillment_status <> 'cancelled'),
 		       (SELECT count(*) FROM inventory_reservations r WHERE r.order_id = o.id AND r.state = 'held')
 		FROM orders o WHERE o.order_number = $1`,
-		number, outbox.TopicOrderTerminal, string(email.TerminalCancelledByPaymentDeadline),
+		number, outbox.TopicOrderTerminal.Name(), string(email.TerminalCancelledByPaymentDeadline),
 		string(email.TerminalCancelledByCustomer), couponID).Scan(
 		&f.status, &f.events, &f.notices, &f.deadlineNotices, &f.customerNotice,
 		&f.reversals, &f.couponSlotsHeld, &f.heldHolds); err != nil {
@@ -196,7 +196,7 @@ func noticeRefunded(t *testing.T, number string) bool {
 		SELECT (m.payload->>'refunded')::boolean
 		FROM outbox_messages m JOIN orders o ON m.payload->>'order_id' = o.id::text
 		WHERE m.topic = $1 AND o.order_number = $2`,
-		outbox.TopicOrderTerminal, number).Scan(&refunded); err != nil {
+		outbox.TopicOrderTerminal.Name(), number).Scan(&refunded); err != nil {
 		t.Fatalf("read the terminal notice of %s: %v", number, err)
 	}
 	return refunded
