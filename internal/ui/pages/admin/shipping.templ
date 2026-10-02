@@ -30,7 +30,7 @@ templ Shipping(p layouts.Page, v ShippingView) {
 			</div>
 		</div>
 		if v.Notice != "" {
-			@components.Notice(components.NoticeProps{Tone: components.ToneAccent}) {
+			@components.Notice(components.NoticeProps{Intent: components.IntentAccent}) {
 				{ v.Notice }
 			}
 		}
@@ -88,8 +88,8 @@ templ Shipping(p layouts.Page, v ShippingView) {
 						</div>
 					</div>
 					@components.Button(components.ButtonProps{
-						Variant: components.VariantOutline,
-						Class:   "goen-admin__submit",
+						ButtonStyle: components.ButtonStyleOutline,
+						Class:       "goen-admin__submit",
 					}, "submit") {
 						{ i18n.T(ctx, i18n.KeyAdminShipPublish) }
 					}
@@ -98,16 +98,16 @@ templ Shipping(p layouts.Page, v ShippingView) {
 					if m.Active {
 						<input type="hidden" name="active" value="0"/>
 						@components.Button(components.ButtonProps{
-							Variant: components.VariantGhost,
-							Size:    components.SizeSmall,
+							ButtonStyle: components.ButtonStyleGhost,
+							Size:        components.SizeSmall,
 						}, "submit") {
 							{ i18n.T(ctx, i18n.KeyAdminShipDisable) }
 						}
 					} else {
 						<input type="hidden" name="active" value="1"/>
 						@components.Button(components.ButtonProps{
-							Variant: components.VariantOutline,
-							Size:    components.SizeSmall,
+							ButtonStyle: components.ButtonStyleOutline,
+							Size:        components.SizeSmall,
 						}, "submit") {
 							{ i18n.T(ctx, i18n.KeyAdminShipReenable) }
 						}
@@ -139,8 +139,8 @@ templ Shipping(p layouts.Page, v ShippingView) {
 										inputmode="numeric"
 									/>
 									@components.Button(components.ButtonProps{
-										Variant: components.VariantOutline,
-										Size:    components.SizeSmall,
+										ButtonStyle: components.ButtonStyleOutline,
+										Size:        components.SizeSmall,
 									}, "submit") {
 										{ i18n.T(ctx, i18n.KeyAdminShipSet) }
 									}
@@ -343,8 +343,8 @@ templ Shipping(p layouts.Page, v ShippingView) {
 					{ i18n.T(ctx, i18n.KeyAdminShipFirstVersion) }
 				</p>
 				@components.Button(components.ButtonProps{
-					Variant: components.VariantPrimary,
-					Class:   "goen-admin__submit",
+					ButtonStyle: components.ButtonStylePrimary,
+					Class:       "goen-admin__submit",
 				}, "submit") {
 					{ i18n.T(ctx, i18n.KeyAdminShipAddMethod) }
 				}
@@ -370,7 +370,7 @@ templ Shipping(p layouts.Page, v ShippingView) {
 									{ z.Name }
 									<span class="goen-admin__meta">{ z.Code }</span>
 									if z.NameEn == "" {
-										@components.Badge(components.BadgeProps{Tone: components.ToneWarn}) {
+										@components.Badge(components.BadgeProps{Intent: components.IntentWarn}) {
 											{ i18n.T(ctx, i18n.KeyAdminUntranslated) }
 										}
 									}
@@ -389,8 +389,8 @@ templ Shipping(p layouts.Page, v ShippingView) {
 											}
 										/>
 										@components.Button(components.ButtonProps{
-											Variant: components.VariantOutline,
-											Size:    components.SizeSmall,
+											ButtonStyle: components.ButtonStyleOutline,
+											Size:        components.SizeSmall,
 										}, "submit") {
 											{ i18n.T(ctx, i18n.KeyAdminShipSet) }
 										}
@@ -402,8 +402,8 @@ templ Shipping(p layouts.Page, v ShippingView) {
 								<td class="goen-admin__cellactions">
 									<form method="post" action={ templ.SafeURL("/admin/shipping/zone/" + z.ID + "/delete") }>
 										@components.Button(components.ButtonProps{
-											Variant: components.VariantGhost,
-											Size:    components.SizeSmall,
+											ButtonStyle: components.ButtonStyleGhost,
+											Size:        components.SizeSmall,
 										}, "submit") {
 											{ i18n.T(ctx, i18n.KeyAdminDelete) }
 										}
@@ -492,8 +492,8 @@ templ Shipping(p layouts.Page, v ShippingView) {
 					</div>
 				</div>
 				@components.Button(components.ButtonProps{
-					Variant: components.VariantOutline,
-					Class:   "goen-admin__submit",
+					ButtonStyle: components.ButtonStyleOutline,
+					Class:       "goen-admin__submit",
 				}, "submit") {
 					{ i18n.T(ctx, i18n.KeyAdminShipAddZone) }
 				}

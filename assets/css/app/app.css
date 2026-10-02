@@ -9304,7 +9304,9 @@ a.goen-pager__step:hover {
   view-transition-name: buybox;
 }
 
-/* Opacity only, at the slow step. The pair carries the cross-fade. The group
+/* Opacity only, at the base step: the old page stays on screen until the new
+   one has painted, so a longer fade is time the visitor waits on top of the
+   load. The pair carries the cross-fade. The group
    carries the geometry, and its keyframes are what would move or resize a named
    region when the two pages put it in different places: a page read halfway
    down leaves its header above the viewport, and the browser would otherwise
@@ -9313,14 +9315,14 @@ a.goen-pager__step:hover {
    fade there. The timing is set on the group as well because the user agent
    puts its own 0.25s there and the pair inherits from it. */
 ::view-transition-group(*) {
-  animation-duration: var(--dur-slow);
+  animation-duration: var(--dur-base);
   animation-name: none;
   animation-timing-function: var(--ease-standard);
 }
 
 ::view-transition-old(*),
 ::view-transition-new(*) {
-  animation-duration: var(--dur-slow);
+  animation-duration: var(--dur-base);
   animation-timing-function: var(--ease-standard);
 }
 

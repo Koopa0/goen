@@ -192,7 +192,7 @@ templ ContactPanel(f ContactForm) {
 					}
 				</div>
 			</div>
-			@components.Button(components.ButtonProps{Variant: components.VariantPrimary, Size: components.SizeLarge, Class: "contact__submit", Attrs: templ.Attributes{"id": "contact-submit"}}, "submit") {
+			@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Size: components.SizeLarge, Class: "contact__submit", Attrs: templ.Attributes{"id": "contact-submit"}}, "submit") {
 				{ i18n.T(ctx, i18n.KeyContactSubmit) }
 			}
 		</form>

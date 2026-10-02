@@ -25,12 +25,12 @@ templ Products(p layouts.Page, v ProductsView) {
 					{ i18n.T(ctx, i18n.KeyAdminProdLead) }
 				</p>
 			</div>
-			@components.ButtonLink(components.ButtonProps{Variant: components.VariantPrimary}, "/admin/products/new") {
+			@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary}, "/admin/products/new") {
 				{ i18n.T(ctx, i18n.KeyAdminPageNewProduct) }
 			}
 		</div>
 		if v.Notice != "" {
-			@components.Notice(components.NoticeProps{Tone: components.ToneAccent}) {
+			@components.Notice(components.NoticeProps{Intent: components.IntentAccent}) {
 				{ v.Notice }
 			}
 		}
@@ -69,16 +69,16 @@ templ Products(p layouts.Page, v ProductsView) {
 									// stop lining up.
 									<div class="goen-admin__cellbadges">
 										if row.Sellable() {
-											@components.Badge(components.BadgeProps{Tone: components.ToneAccent}) {
+											@components.Badge(components.BadgeProps{Intent: components.IntentAccent}) {
 												{ row.StatusText }
 											}
 										} else {
-											@components.Badge(components.BadgeProps{Tone: components.ToneNeutral}) {
+											@components.Badge(components.BadgeProps{Intent: components.IntentNeutral}) {
 												{ row.StatusText }
 											}
 										}
 										if !row.Translated {
-											@components.Badge(components.BadgeProps{Tone: components.ToneWarn}) {
+											@components.Badge(components.BadgeProps{Intent: components.IntentWarn}) {
 												{ i18n.T(ctx, i18n.KeyAdminUntranslated) }
 											}
 										}
@@ -119,7 +119,7 @@ templ ProductForm(p layouts.Page, v ProductView) {
 			}
 		</div>
 		if v.Notice != "" {
-			@components.Notice(components.NoticeProps{Tone: components.ToneAccent}) {
+			@components.Notice(components.NoticeProps{Intent: components.IntentAccent}) {
 				{ v.Notice }
 			}
 		}
@@ -339,8 +339,8 @@ templ productDetails(v ProductView) {
 				</div>
 			</div>
 			@components.Button(components.ButtonProps{
-				Variant: components.VariantPrimary,
-				Class:   "goen-admin__submit",
+				ButtonStyle: components.ButtonStylePrimary,
+				Class:       "goen-admin__submit",
 			}, "submit") {
 				if v.IsNew {
 					{ i18n.T(ctx, i18n.KeyAdminProdCreateDraft) }
@@ -359,8 +359,8 @@ templ imageMoveForm(v ProductView, digest, move string, label i18n.Key) {
 		<input type="hidden" name="digest" value={ digest }/>
 		<input type="hidden" name="move" value={ move }/>
 		@components.Button(components.ButtonProps{
-			Variant: components.VariantOutline,
-			Size:    components.SizeSmall,
+			ButtonStyle: components.ButtonStyleOutline,
+			Size:        components.SizeSmall,
 		}, "submit") {
 			{ i18n.T(ctx, label) }
 		}
@@ -393,8 +393,8 @@ templ productImages(v ProductView) {
 									@imageOptionChoices(v, img.OptionValueID)
 								</select>
 								@components.Button(components.ButtonProps{
-									Variant: components.VariantOutline,
-									Size:    components.SizeSmall,
+									ButtonStyle: components.ButtonStyleOutline,
+									Size:        components.SizeSmall,
 								}, "submit") {
 									{ i18n.T(ctx, i18n.KeyAdminProdSave) }
 								}
@@ -403,8 +403,8 @@ templ productImages(v ProductView) {
 						<form method="post" action={ templ.SafeURL(v.ImageRemoveAction()) }>
 							<input type="hidden" name="digest" value={ img.Key }/>
 							@components.Button(components.ButtonProps{
-								Variant: components.VariantOutline,
-								Size:    components.SizeSmall,
+								ButtonStyle: components.ButtonStyleOutline,
+								Size:        components.SizeSmall,
 							}, "submit") {
 								{ i18n.T(ctx, i18n.KeyAdminRemove) }
 							}
@@ -461,8 +461,8 @@ templ productImages(v ProductView) {
 				}
 			</div>
 			@components.Button(components.ButtonProps{
-				Variant: components.VariantOutline,
-				Class:   "goen-admin__submit",
+				ButtonStyle: components.ButtonStyleOutline,
+				Class:       "goen-admin__submit",
 			}, "submit") {
 				{ i18n.T(ctx, i18n.KeyAdminProdAddImage) }
 			}
@@ -486,8 +486,8 @@ templ productImages(v ProductView) {
 						<label class="goen-sr-only" for={ "reuse-alt-en-" + img.Key }>{ i18n.T(ctx, i18n.KeyAdminProdAltEn) }</label>
 						<input class="goen-input" id={ "reuse-alt-en-" + img.Key } name="alt_en" maxlength="200" placeholder="English alt text"/>
 						@components.Button(components.ButtonProps{
-							Variant: components.VariantOutline,
-							Size:    components.SizeSmall,
+							ButtonStyle: components.ButtonStyleOutline,
+							Size:        components.SizeSmall,
 						}, "submit") {
 							{ i18n.T(ctx, i18n.KeyAdminProdReuse) }
 						}
@@ -530,7 +530,7 @@ templ productOptions(v ProductView) {
 							if o.Translated() {
 								<span class="goen-admin__meta">{ o.NameEn }</span>
 							} else {
-								@components.Badge(components.BadgeProps{Tone: components.ToneWarn}) {
+								@components.Badge(components.BadgeProps{Intent: components.IntentWarn}) {
 									{ i18n.T(ctx, i18n.KeyAdminUntranslated) }
 								}
 							}
@@ -611,8 +611,8 @@ templ productOptions(v ProductView) {
 					</div>
 				</div>
 				@components.Button(components.ButtonProps{
-					Variant: components.VariantOutline,
-					Class:   "goen-admin__submit",
+					ButtonStyle: components.ButtonStyleOutline,
+					Class:       "goen-admin__submit",
 				}, "submit") {
 					{ i18n.T(ctx, i18n.KeyAdminProdOptionAdd) }
 				}
@@ -699,8 +699,8 @@ templ productOptions(v ProductView) {
 					</div>
 				</div>
 				@components.Button(components.ButtonProps{
-					Variant: components.VariantOutline,
-					Class:   "goen-admin__submit",
+					ButtonStyle: components.ButtonStyleOutline,
+					Class:       "goen-admin__submit",
 				}, "submit") {
 					{ i18n.T(ctx, i18n.KeyAdminProdValueAdd) }
 				}
@@ -913,8 +913,8 @@ templ productVariants(v ProductView) {
 				<p class="ui-error-text" role="alert">{ v.Err("options") }</p>
 			}
 			@components.Button(components.ButtonProps{
-				Variant: components.VariantOutline,
-				Class:   "goen-admin__submit",
+				ButtonStyle: components.ButtonStyleOutline,
+				Class:       "goen-admin__submit",
 			}, "submit") {
 				{ i18n.T(ctx, i18n.KeyAdminProdVariantAdd) }
 			}
@@ -958,7 +958,7 @@ templ productSpecs(v ProductView) {
 											<span class="goen-admin__meta">{ sp.ValueEn }</span>
 										}
 									} else {
-										@components.Badge(components.BadgeProps{Tone: components.ToneWarn}) {
+										@components.Badge(components.BadgeProps{Intent: components.IntentWarn}) {
 											{ i18n.T(ctx, i18n.KeyAdminUntranslated) }
 										}
 									}
@@ -967,8 +967,8 @@ templ productSpecs(v ProductView) {
 									<form method="post" action={ templ.SafeURL(v.SpecRemoveAction()) }>
 										<input type="hidden" name="spec" value={ sp.ID }/>
 										@components.Button(components.ButtonProps{
-											Variant: components.VariantGhost,
-											Size:    components.SizeSmall,
+											ButtonStyle: components.ButtonStyleGhost,
+											Size:        components.SizeSmall,
 										}, "submit") {
 											{ i18n.T(ctx, i18n.KeyAdminRemove) }
 										}
@@ -1074,8 +1074,8 @@ templ productSpecs(v ProductView) {
 				{ i18n.T(ctx, i18n.KeyAdminProdSpecHint) }
 			</p>
 			@components.Button(components.ButtonProps{
-				Variant: components.VariantOutline,
-				Class:   "goen-admin__submit",
+				ButtonStyle: components.ButtonStyleOutline,
+				Class:       "goen-admin__submit",
 			}, "submit") {
 				{ i18n.T(ctx, i18n.KeyAdminProdSpecAdd) }
 			}
@@ -1094,24 +1094,24 @@ templ productPublishing(v ProductView) {
 			<div class="goen-admin__decidebtns">
 				if v.CanPublish() {
 					@components.Button(components.ButtonProps{
-						Variant: components.VariantOutline,
-						Attrs:   templ.Attributes{"name": "status", "value": "active"},
+						ButtonStyle: components.ButtonStyleOutline,
+						Attrs:       templ.Attributes{"name": "status", "value": "active"},
 					}, "submit") {
 						{ i18n.T(ctx, i18n.KeyAdminProdPublish) }
 					}
 				}
 				if v.Status == "active" {
 					@components.Button(components.ButtonProps{
-						Variant: components.VariantOutline,
-						Attrs:   templ.Attributes{"name": "status", "value": "draft"},
+						ButtonStyle: components.ButtonStyleOutline,
+						Attrs:       templ.Attributes{"name": "status", "value": "draft"},
 					}, "submit") {
 						{ i18n.T(ctx, i18n.KeyAdminProdUnpublish) }
 					}
 				}
 				if v.Status != "archived" {
 					@components.Button(components.ButtonProps{
-						Variant: components.VariantGhost,
-						Attrs:   templ.Attributes{"name": "status", "value": "archived"},
+						ButtonStyle: components.ButtonStyleGhost,
+						Attrs:       templ.Attributes{"name": "status", "value": "archived"},
 					}, "submit") {
 						{ i18n.T(ctx, i18n.KeyAdminProdArchive) }
 					}

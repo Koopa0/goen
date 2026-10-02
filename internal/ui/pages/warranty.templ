@@ -24,7 +24,7 @@ templ WarrantyList(p layouts.Page, v WarrantyListView) {
 				<p class="goen-pagehead__sub">{ i18n.T(ctx, i18n.KeyWarrantySub) }</p>
 			</div>
 			if v.Notice != "" {
-				@components.Notice(components.NoticeProps{Tone: components.ToneAccent, ID: "warranty-notice"}) {
+				@components.Notice(components.NoticeProps{Intent: components.IntentAccent, ID: "warranty-notice"}) {
 					{ v.Notice }
 				}
 			}
@@ -81,7 +81,7 @@ templ WarrantyOrder(p layouts.Page, v WarrantyOrderView) {
 				<h1 class="goen-pagehead__title">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOrderMeta), v.Number) }</h1>
 			</div>
 			if v.Notice != "" {
-				@components.Notice(components.NoticeProps{Tone: components.ToneAccent, ID: "warranty-notice"}) {
+				@components.Notice(components.NoticeProps{Intent: components.IntentAccent, ID: "warranty-notice"}) {
 					{ v.Notice }
 				}
 			}
@@ -133,7 +133,7 @@ templ WarrantyOrder(p layouts.Page, v WarrantyOrderView) {
 										{ i18n.T(ctx, i18n.KeySerialHint) }
 									</p>
 								</div>
-								@components.Button(components.ButtonProps{Variant: components.VariantPrimary}, "submit") {
+								@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary}, "submit") {
 									{ i18n.T(ctx, i18n.KeyWarrantyRegister) }
 								}
 							</form>

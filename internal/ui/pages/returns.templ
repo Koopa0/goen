@@ -46,11 +46,11 @@ templ Returns(p layouts.Page, v ReturnsView) {
 									}
 								</span>
 								if e.Resolution != "" {
-									@components.Badge(components.BadgeProps{Tone: components.ToneNeutral}) {
+									@components.Badge(components.BadgeProps{Intent: components.IntentNeutral}) {
 										{ e.StatusText }
 									}
 								} else {
-									@components.Badge(components.BadgeProps{Tone: components.ToneWarn}) {
+									@components.Badge(components.BadgeProps{Intent: components.IntentWarn}) {
 										{ e.StatusText }
 									}
 								}
@@ -60,11 +60,11 @@ templ Returns(p layouts.Page, v ReturnsView) {
 				}
 			}
 			if v.HasOpen {
-				@components.Notice(components.NoticeProps{Tone: components.ToneAccent, ID: "return-inflight"}) {
+				@components.Notice(components.NoticeProps{Intent: components.IntentAccent, ID: "return-inflight"}) {
 					{ i18n.T(ctx, i18n.KeyReturnInFlight) }
 				}
 			} else if !v.AnyReturnable() {
-				@components.Notice(components.NoticeProps{Tone: components.ToneAccent, ID: "return-nothing"}) {
+				@components.Notice(components.NoticeProps{Intent: components.IntentAccent, ID: "return-nothing"}) {
 					{ i18n.T(ctx, i18n.KeyReturnNothing) }
 				}
 			} else {
@@ -123,11 +123,11 @@ templ Returns(p layouts.Page, v ReturnsView) {
 							>{ v.Reason }</textarea>
 						</div>
 						<div class="goen-returns__actions">
-							@components.Button(components.ButtonProps{Variant: components.VariantPrimary}, "submit") {
+							@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary}, "submit") {
 								{ i18n.T(ctx, i18n.KeyReturnSubmit) }
 							}
 							@components.ButtonLink(components.ButtonProps{
-								Variant: components.VariantGhost,
+								ButtonStyle: components.ButtonStyleGhost,
 							}, templ.SafeURL("/orders/"+v.Number)) {
 								{ i18n.T(ctx, i18n.KeyBackToOrder) }
 							}
@@ -138,7 +138,7 @@ templ Returns(p layouts.Page, v ReturnsView) {
 			if v.HasOpen || !v.AnyReturnable() {
 				<div class="goen-returns__actions">
 					@components.ButtonLink(components.ButtonProps{
-						Variant: components.VariantOutline,
+						ButtonStyle: components.ButtonStyleOutline,
 					}, templ.SafeURL("/orders/"+v.Number)) {
 						{ i18n.T(ctx, i18n.KeyBackToOrder) }
 					}

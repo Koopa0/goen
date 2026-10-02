@@ -15,12 +15,12 @@ templ ListPager(b ListBound) {
 	if b.First != "" || b.Next != "" {
 		<nav class="goen-pager" aria-label={ i18n.T(ctx, i18n.KeyPagination) }>
 			if b.First != "" {
-				@components.ButtonLink(components.ButtonProps{Variant: components.VariantOutline}, templ.URL(b.First)) {
+				@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, templ.URL(b.First)) {
 					{ i18n.T(ctx, i18n.KeyFirstPage) }
 				}
 			}
 			if b.Next != "" {
-				@components.ButtonLink(components.ButtonProps{Variant: components.VariantOutline, Attrs: templ.Attributes{"rel": "next"}}, templ.URL(b.Next)) {
+				@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline, Attrs: templ.Attributes{"rel": "next"}}, templ.URL(b.Next)) {
 					{ i18n.T(ctx, i18n.KeyNextPage) }
 				}
 			}

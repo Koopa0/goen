@@ -29,7 +29,7 @@ templ Movements(p layouts.Page, v *MovementsView) {
 			</div>
 		</div>
 		if v.HasNotice() {
-			@components.Notice(components.NoticeProps{Tone: components.ToneAccent}) {
+			@components.Notice(components.NoticeProps{Intent: components.IntentAccent}) {
 				{ v.Notice }
 			}
 		}
@@ -103,8 +103,8 @@ templ receiveForm(v *MovementsView) {
 				/>
 			</div>
 			@components.Button(components.ButtonProps{
-				Variant: components.VariantPrimary,
-				Class:   "goen-admin__submit",
+				ButtonStyle: components.ButtonStylePrimary,
+				Class:       "goen-admin__submit",
 			}, "submit") {
 				{ i18n.T(ctx, i18n.KeyAdminReceiveButton) }
 			}

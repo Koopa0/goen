@@ -148,7 +148,7 @@ func Movements(p layouts.Page, v *MovementsView) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = components.Notice(components.NoticeProps{Tone: components.ToneAccent}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var8), templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = components.Notice(components.NoticeProps{Intent: components.IntentAccent}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var8), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -569,8 +569,8 @@ func receiveForm(v *MovementsView) templ.Component {
 				return nil
 			})
 			templ_7745c5c3_Err = components.Button(components.ButtonProps{
-				Variant: components.VariantPrimary,
-				Class:   "goen-admin__submit",
+				ButtonStyle: components.ButtonStylePrimary,
+				Class:       "goen-admin__submit",
 			}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var34), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err

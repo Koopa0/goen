@@ -127,7 +127,7 @@ func Newsletter(p layouts.Page, v NewsletterView) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = components.Notice(components.NoticeProps{Tone: components.ToneAccent}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var6), templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = components.Notice(components.NoticeProps{Intent: components.IntentAccent}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var6), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -431,8 +431,8 @@ func Newsletter(p layouts.Page, v NewsletterView) templ.Component {
 					return nil
 				})
 				templ_7745c5c3_Err = components.Button(components.ButtonProps{
-					Variant: components.VariantOutline,
-					Class:   "goen-admin__submit",
+					ButtonStyle: components.ButtonStyleOutline,
+					Class:       "goen-admin__submit",
 				}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var25), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
@@ -664,8 +664,8 @@ func Newsletter(p layouts.Page, v NewsletterView) templ.Component {
 									return nil
 								})
 								templ_7745c5c3_Err = components.Button(components.ButtonProps{
-									Variant: components.VariantPrimary,
-									Size:    components.SizeSmall,
+									ButtonStyle: components.ButtonStylePrimary,
+									Size:        components.SizeSmall,
 								}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var37), templ_7745c5c3_Buffer)
 								if templ_7745c5c3_Err != nil {
 									return templ_7745c5c3_Err

@@ -38,7 +38,6 @@ templ Home(p layouts.Page, v HomeView) {
 											alt=""
 											width="800"
 											height="600"
-											loading="lazy"
 											decoding="async"
 										/>
 									}
@@ -56,7 +55,7 @@ templ Home(p layouts.Page, v HomeView) {
 						@seeAll(i18n.T(ctx, i18n.KeyHomeSeeAll), v.Row.Href)
 					</div>
 					<ul class="goen-tiles__grid" role="list">
-						for _, t := range v.Row.Tiles {
+						for _, t := range UnderLeadEager(v.Row.Tiles) {
 							@Tile(t)
 						}
 					</ul>

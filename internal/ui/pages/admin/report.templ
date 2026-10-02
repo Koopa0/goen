@@ -111,7 +111,7 @@ templ Report(p layouts.Page, v *ReportView) {
 						<span class="goen-report__num">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepLeft), item.StockText()) }</span>
 						<span class="goen-report__num">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepSold), item.SoldText()) }</span>
 						if item.Urgent() {
-							@components.Badge(components.BadgeProps{Tone: components.ToneWarn}) {
+							@components.Badge(components.BadgeProps{Intent: components.IntentWarn}) {
 								{ item.Cover(ctx) }
 							}
 						} else {

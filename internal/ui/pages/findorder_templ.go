@@ -123,8 +123,8 @@ func FindOrder(p layouts.Page, v FindOrderView) templ.Component {
 						return nil
 					})
 					templ_7745c5c3_Err = components.Notice(components.NoticeProps{
-						Tone: components.ToneDanger,
-						ID:   "find-error",
+						Intent: components.IntentDanger,
+						ID:     "find-error",
 					}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var6), templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
@@ -247,9 +247,9 @@ func FindOrder(p layouts.Page, v FindOrderView) templ.Component {
 					return nil
 				})
 				templ_7745c5c3_Err = components.Button(components.ButtonProps{
-					Variant: components.VariantPrimary,
-					Size:    components.SizeLarge,
-					Block:   true,
+					ButtonStyle: components.ButtonStylePrimary,
+					Size:        components.SizeLarge,
+					Block:       true,
 				}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var12), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err

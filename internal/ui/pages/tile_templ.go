@@ -77,8 +77,8 @@ func compareForm(offered bool) templ.Component {
 				return nil
 			})
 			templ_7745c5c3_Err = components.Button(components.ButtonProps{
-				Variant: components.VariantOutline,
-				Size:    components.SizeSmall,
+				ButtonStyle: components.ButtonStyleOutline,
+				Size:        components.SizeSmall,
 			}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -322,7 +322,7 @@ func tileCard(t ProductTile) templ.Component {
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = components.Badge(components.BadgeProps{Tone: components.ToneDanger, Class: "goen-tile__flag"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var15), templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = components.Badge(components.BadgeProps{Intent: components.IntentDanger, Class: "goen-tile__flag"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var15), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

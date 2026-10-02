@@ -28,10 +28,10 @@ templ ConfirmReturn(p layouts.Page, v ReturnConfirmation) {
 					<input class="ui-input" id="return-resolution" name="resolution" maxlength="300" autocomplete="off" value={ v.Resolution } required?={ v.Required }/>
 				</div>
 				<div class="goen-admin__decidebtns">
-					@components.Button(components.ButtonProps{Variant: components.VariantPrimary, Attrs: templ.Attributes{"name": "confirm", "value": v.Decision}}, "submit") {
+					@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Attrs: templ.Attributes{"name": "confirm", "value": v.Decision}}, "submit") {
 						{ v.Title(ctx) }
 					}
-					@components.ButtonLink(components.ButtonProps{Variant: components.VariantOutline}, "/admin/returns") {
+					@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, "/admin/returns") {
 						{ i18n.T(ctx,i18n.KeyAdminRetConfirmBack) }
 					}
 				</div>

@@ -26,7 +26,7 @@ templ Coupons(p layouts.Page, v CouponsView) {
 			</div>
 		</div>
 		if v.Notice != "" {
-			@components.Notice(components.NoticeProps{Tone: components.ToneAccent}) {
+			@components.Notice(components.NoticeProps{Intent: components.IntentAccent}) {
 				{ v.Notice }
 			}
 		}
@@ -72,11 +72,11 @@ templ Coupons(p layouts.Page, v CouponsView) {
 								</td>
 								<td>
 									if c.Live() {
-										@components.Badge(components.BadgeProps{Tone: components.ToneAccent}) {
+										@components.Badge(components.BadgeProps{Intent: components.IntentAccent}) {
 											{ c.State(ctx) }
 										}
 									} else {
-										@components.Badge(components.BadgeProps{Tone: components.ToneNeutral}) {
+										@components.Badge(components.BadgeProps{Intent: components.IntentNeutral}) {
 											{ c.State(ctx) }
 										}
 									}
@@ -85,8 +85,8 @@ templ Coupons(p layouts.Page, v CouponsView) {
 									<form method="post" action={ templ.SafeURL(c.Action()) }>
 										<input type="hidden" name="active" value={ c.NextActive() }/>
 										@components.Button(components.ButtonProps{
-											Variant: components.VariantOutline,
-											Size:    components.SizeSmall,
+											ButtonStyle: components.ButtonStyleOutline,
+											Size:        components.SizeSmall,
 										}, "submit") {
 											{ c.ToggleLabel(ctx) }
 										}
@@ -249,8 +249,8 @@ templ Coupons(p layouts.Page, v CouponsView) {
 					</div>
 				</div>
 				@components.Button(components.ButtonProps{
-					Variant: components.VariantPrimary,
-					Class:   "goen-admin__submit",
+					ButtonStyle: components.ButtonStylePrimary,
+					Class:       "goen-admin__submit",
 				}, "submit") {
 					{ i18n.T(ctx, i18n.KeyAdminCoupCreate) }
 				}

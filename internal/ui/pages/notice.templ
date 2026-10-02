@@ -16,7 +16,7 @@ templ Notice(p layouts.Page, code, heading, body string) {
 			<h1 class="notice__title">{ heading }</h1>
 			<p class="notice__body">{ body }</p>
 			<div class="notice__actions">
-				@components.ButtonLink(components.ButtonProps{Variant: components.VariantPrimary, Size: components.SizeLarge}, "/") {
+				@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Size: components.SizeLarge}, "/") {
 					{ i18n.T(ctx, i18n.KeyBackToShop) }
 				}
 			</div>
@@ -53,7 +53,7 @@ templ PlacementGrantFailed(p layouts.Page) {
 			<h1 class="notice__title">{ i18n.T(ctx, i18n.KeyPlacementGrantFailedTitle) }</h1>
 			<p class="notice__body">{ i18n.T(ctx, i18n.KeyPlacementGrantFailedBody) }</p>
 			<div class="notice__actions">
-				@components.ButtonLink(components.ButtonProps{Variant: components.VariantPrimary, Size: components.SizeLarge}, "/orders/find") {
+				@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Size: components.SizeLarge}, "/orders/find") {
 					{ i18n.T(ctx, i18n.KeyFindOrderTitle) }
 				}
 			</div>
@@ -71,7 +71,7 @@ templ FindOrderGrantFailed(p layouts.Page) {
 			<h1 class="notice__title">{ i18n.T(ctx, i18n.KeyFindOrderGrantFailedTitle) }</h1>
 			<p class="notice__body">{ i18n.T(ctx, i18n.KeyFindOrderGrantFailedBody) }</p>
 			<div class="notice__actions">
-				@components.ButtonLink(components.ButtonProps{Variant: components.VariantPrimary, Size: components.SizeLarge}, "/orders/find") {
+				@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Size: components.SizeLarge}, "/orders/find") {
 					{ i18n.T(ctx, i18n.KeyFindOrderTitle) }
 				}
 			</div>
@@ -87,10 +87,10 @@ templ OrderNotFound(p layouts.Page) {
 			<h1 class="notice__title">{ i18n.T(ctx, i18n.KeyOrderNotFound) }</h1>
 			<p class="notice__body">{ i18n.T(ctx, i18n.KeyOrderNotYours) }</p>
 			<div class="notice__actions">
-				@components.ButtonLink(components.ButtonProps{Variant: components.VariantPrimary, Size: components.SizeLarge}, "/orders/find") {
+				@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Size: components.SizeLarge}, "/orders/find") {
 					{ i18n.T(ctx, i18n.KeyFindOrderTitle) }
 				}
-				@components.ButtonLink(components.ButtonProps{Variant: components.VariantOutline, Size: components.SizeLarge}, "/signin") {
+				@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline, Size: components.SizeLarge}, "/signin") {
 					{ i18n.T(ctx, i18n.KeySignIn) }
 				}
 			</div>

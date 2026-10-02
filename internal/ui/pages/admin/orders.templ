@@ -96,7 +96,7 @@ templ Dashboard(p layouts.Page, v DashboardView) {
 												{ o.StatusText }
 											}
 											if o.Committed {
-												@components.Badge(components.BadgeProps{Tone: components.ToneAccent}) {
+												@components.Badge(components.BadgeProps{Intent: components.IntentAccent}) {
 													{ i18n.T(ctx, i18n.KeyAdminQueueCommitted) }
 												}
 											}
@@ -149,8 +149,8 @@ templ Dashboard(p layouts.Page, v DashboardView) {
 					</table>
 				</div>
 				@components.ButtonLink(components.ButtonProps{
-					Variant: components.VariantOutline,
-					Size:    components.SizeSmall,
+					ButtonStyle: components.ButtonStyleOutline,
+					Size:        components.SizeSmall,
 				}, "/admin/stock?low=1") {
 					{ i18n.T(ctx, i18n.KeyAdminQueueAllLowStock) }
 				}
@@ -174,7 +174,7 @@ templ Orders(p layouts.Page, v OrdersView) {
 			</div>
 		</div>
 		if v.HasNotice() {
-			@components.Notice(components.NoticeProps{Tone: components.ToneAccent}) {
+			@components.Notice(components.NoticeProps{Intent: components.IntentAccent}) {
 				{ v.Notice }
 			}
 		}
@@ -189,11 +189,11 @@ templ Orders(p layouts.Page, v OrdersView) {
 				placeholder={ i18n.T(ctx, i18n.KeyAdminQueueSearchPlaceholder) }
 				autocomplete="off"
 			/>
-			@components.Button(components.ButtonProps{Variant: components.VariantOutline}, "submit") {
+			@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, "submit") {
 				{ i18n.T(ctx, i18n.KeyAdminSearch) }
 			}
 			if v.Searching() {
-				@components.ButtonLink(components.ButtonProps{Variant: components.VariantGhost}, "/admin/orders") {
+				@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleGhost}, "/admin/orders") {
 					{ i18n.T(ctx, i18n.KeyAdminQueueClear) }
 				}
 			}
@@ -204,7 +204,7 @@ templ Orders(p layouts.Page, v OrdersView) {
 			</p>
 		}
 		if v.TermTooShort() {
-			@components.Notice(components.NoticeProps{Tone: components.ToneWarn}) {
+			@components.Notice(components.NoticeProps{Intent: components.IntentWarn}) {
 				{ i18n.T(ctx, i18n.KeyAdminQueueSearchShort) }
 			}
 		}
@@ -250,7 +250,7 @@ templ Orders(p layouts.Page, v OrdersView) {
 											{ o.StatusText }
 										}
 										if o.Committed {
-											@components.Badge(components.BadgeProps{Tone: components.ToneAccent}) {
+											@components.Badge(components.BadgeProps{Intent: components.IntentAccent}) {
 												{ i18n.T(ctx, i18n.KeyAdminQueueCommitted) }
 											}
 										}
@@ -294,7 +294,7 @@ templ Order(p layouts.Page, v *OrderView) {
 					{ v.StatusText }
 				}
 				if v.Committed {
-					@components.Badge(components.BadgeProps{Tone: components.ToneAccent}) {
+					@components.Badge(components.BadgeProps{Intent: components.IntentAccent}) {
 						{ i18n.T(ctx, i18n.KeyAdminQueueCommitted) }
 					}
 				}
@@ -303,7 +303,7 @@ templ Order(p layouts.Page, v *OrderView) {
 		if v.HasNotice() {
 			// The layout gate finds this screen's notice by the vendored
 			// spelling, so the element keeps it (#380 R8).
-			@components.Notice(components.NoticeProps{Tone: components.ToneAccent, Class: "ui-alert"}) {
+			@components.Notice(components.NoticeProps{Intent: components.IntentAccent, Class: "ui-alert"}) {
 				{ v.Notice }
 			}
 		}
@@ -432,7 +432,7 @@ templ Order(p layouts.Page, v *OrderView) {
 							<p class="goen-admin__hint">
 								{ i18n.T(ctx, i18n.KeyAdminQueueDeliveryHint) }
 							</p>
-							@components.Button(components.ButtonProps{Variant: components.VariantOutline}, "submit") {
+							@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, "submit") {
 								{ i18n.T(ctx, i18n.KeyAdminQueueDeliverySave) }
 							}
 						</form>
@@ -483,7 +483,7 @@ templ Order(p layouts.Page, v *OrderView) {
 						<label class="goen-sr-only" for="staff-note">{ i18n.T(ctx, i18n.KeyAdminQueueStaffNote) }</label>
 						<textarea class="ui-textarea" id="staff-note" name="note" rows="3" maxlength="1000">{ v.StaffNote }</textarea>
 						<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminQueueStaffNoteHint) }</p>
-						@components.Button(components.ButtonProps{Variant: components.VariantOutline}, "submit") {
+						@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, "submit") {
 							{ i18n.T(ctx, i18n.KeyAdminQueueNoteSave) }
 						}
 					</form>
@@ -624,7 +624,7 @@ templ Order(p layouts.Page, v *OrderView) {
 							if v.ShipQtyError != "" {
 								<p id="ship-qty-error" class="ui-error-text" role="alert">{ v.ShipQtyError }</p>
 							}
-							@components.Button(components.ButtonProps{Variant: components.VariantPrimary, Block: true}, "submit") {
+							@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Block: true}, "submit") {
 								{ i18n.T(ctx, i18n.KeyAdminQueueDispatch) }
 							}
 							<p class="goen-admin__hint">
@@ -639,11 +639,11 @@ templ Order(p layouts.Page, v *OrderView) {
 						<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/orders/" + v.Number + "/refund") }>
 							if v.RefundOpen {
 								<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminRefundOpen) }</p>
-								@components.Button(components.ButtonProps{Variant: components.VariantPrimary, Block: true}, "submit") {
+								@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Block: true}, "submit") {
 									{ i18n.T(ctx, i18n.KeyAdminRefundResume) }
 								}
 							} else {
-								@components.Button(components.ButtonProps{Variant: components.VariantOutline, Block: true}, "submit") {
+								@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline, Block: true}, "submit") {
 									{ i18n.T(ctx, i18n.KeyAdminRefundTitle) }
 								}
 								<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminRefundHint) }</p>
@@ -657,7 +657,7 @@ templ Order(p layouts.Page, v *OrderView) {
 						<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/orders/" + v.Number + "/status") }>
 							if v.StartsPicking() {
 								<input type="hidden" name="status" value={ string(pages.FulfillmentPicking) }/>
-								@components.Button(components.ButtonProps{Variant: components.VariantPrimary, Block: true}, "submit") {
+								@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Block: true}, "submit") {
 									{ i18n.T(ctx, i18n.KeyAdminQueueStartPicking) }
 								}
 							} else {
@@ -674,11 +674,11 @@ templ Order(p layouts.Page, v *OrderView) {
 									</select>
 								</div>
 								if v.CanShip {
-									@components.Button(components.ButtonProps{Variant: components.VariantOutline, Block: true}, "submit") {
+									@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline, Block: true}, "submit") {
 										{ i18n.T(ctx, i18n.KeyAdminQueueStatusSave) }
 									}
 								} else {
-									@components.Button(components.ButtonProps{Variant: components.VariantPrimary, Block: true}, "submit") {
+									@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Block: true}, "submit") {
 										{ i18n.T(ctx, i18n.KeyAdminQueueStatusSave) }
 									}
 								}
@@ -709,12 +709,12 @@ templ Order(p layouts.Page, v *OrderView) {
 											{ d.KindText(ctx) } { d.Number } · { d.Amount() }
 										</span>
 										if d.Voided() {
-											@components.Badge(components.BadgeProps{Tone: components.ToneWarn}) {
+											@components.Badge(components.BadgeProps{Intent: components.IntentWarn}) {
 												{ i18n.T(ctx, i18n.KeyAdminQueueVoided) }
 											}
 										}
 										if d.Pending() {
-											@components.Badge(components.BadgeProps{Tone: components.ToneWarn}) {
+											@components.Badge(components.BadgeProps{Intent: components.IntentWarn}) {
 												{ i18n.T(ctx, i18n.KeyAdminQueuePending) }
 											}
 										}
@@ -731,7 +731,7 @@ templ Order(p layouts.Page, v *OrderView) {
 						}
 						if v.CanIssueInvoice() {
 							<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/orders/" + v.Number + "/invoice") }>
-								@components.Button(components.ButtonProps{Variant: components.VariantOutline, Block: true}, "submit") {
+								@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline, Block: true}, "submit") {
 									{ i18n.T(ctx, i18n.KeyAdminQueueIssue) }
 								}
 								<p class="goen-admin__hint">
@@ -745,7 +745,7 @@ templ Order(p layouts.Page, v *OrderView) {
 									<label class="ui-label" for="void-reason">{ i18n.T(ctx, i18n.KeyAdminQueueVoidReason) }</label>
 									<input class="ui-input" id="void-reason" name="reason" required maxlength="20" autocomplete="off"/>
 								</div>
-								@components.Button(components.ButtonProps{Variant: components.VariantOutline, Block: true}, "submit") {
+								@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline, Block: true}, "submit") {
 									{ i18n.T(ctx, i18n.KeyAdminQueueVoid) }
 								}
 								<p class="goen-admin__hint">
@@ -760,7 +760,7 @@ templ Order(p layouts.Page, v *OrderView) {
 							// recording the whole sale.
 							<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/orders/" + v.Number + "/invoice/allowance") }>
 								<input type="hidden" name="operation_id" value={ v.AllowanceOperationID }/>
-								@components.Button(components.ButtonProps{Variant: components.VariantOutline, Block: true}, "submit") {
+								@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline, Block: true}, "submit") {
 									{ i18n.T(ctx, i18n.KeyAdminQueueAllowance) }
 								}
 								<p class="goen-admin__hint">

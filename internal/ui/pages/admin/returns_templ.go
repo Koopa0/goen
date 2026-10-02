@@ -118,7 +118,7 @@ func Returns(p layouts.Page, v ReturnsView) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = components.Notice(components.NoticeProps{Tone: components.ToneAccent}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var6), templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = components.Notice(components.NoticeProps{Intent: components.IntentAccent}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var6), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -789,7 +789,7 @@ func Returns(p layouts.Page, v ReturnsView) templ.Component {
 								}
 								return nil
 							})
-							templ_7745c5c3_Err = components.Button(components.ButtonProps{Variant: components.VariantOutline}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var45), templ_7745c5c3_Buffer)
+							templ_7745c5c3_Err = components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var45), templ_7745c5c3_Buffer)
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
 							}
@@ -980,8 +980,8 @@ func Returns(p layouts.Page, v ReturnsView) templ.Component {
 								return nil
 							})
 							templ_7745c5c3_Err = components.Button(components.ButtonProps{
-								Variant: components.VariantPrimary,
-								Attrs:   templ.Attributes{"name": "decision", "value": "approved"},
+								ButtonStyle: components.ButtonStylePrimary,
+								Attrs:       templ.Attributes{"name": "decision", "value": "approved"},
 							}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var58), templ_7745c5c3_Buffer)
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
@@ -1012,8 +1012,8 @@ func Returns(p layouts.Page, v ReturnsView) templ.Component {
 								return nil
 							})
 							templ_7745c5c3_Err = components.Button(components.ButtonProps{
-								Variant: components.VariantOutline,
-								Attrs:   templ.Attributes{"name": "decision", "value": "exception"},
+								ButtonStyle: components.ButtonStyleOutline,
+								Attrs:       templ.Attributes{"name": "decision", "value": "exception"},
 							}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var60), templ_7745c5c3_Buffer)
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
@@ -1044,8 +1044,8 @@ func Returns(p layouts.Page, v ReturnsView) templ.Component {
 								return nil
 							})
 							templ_7745c5c3_Err = components.Button(components.ButtonProps{
-								Variant: components.VariantOutline,
-								Attrs:   templ.Attributes{"name": "decision", "value": "rejected"},
+								ButtonStyle: components.ButtonStyleOutline,
+								Attrs:       templ.Attributes{"name": "decision", "value": "rejected"},
 							}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var62), templ_7745c5c3_Buffer)
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
@@ -1109,7 +1109,7 @@ func Returns(p layouts.Page, v ReturnsView) templ.Component {
 							}
 							return nil
 						})
-						templ_7745c5c3_Err = components.Button(components.ButtonProps{Variant: components.VariantPrimary}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var66), templ_7745c5c3_Buffer)
+						templ_7745c5c3_Err = components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var66), templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -1553,7 +1553,7 @@ func Returns(p layouts.Page, v ReturnsView) templ.Component {
 							}
 							return nil
 						})
-						templ_7745c5c3_Err = components.Button(components.ButtonProps{Variant: components.VariantPrimary}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var95), templ_7745c5c3_Buffer)
+						templ_7745c5c3_Err = components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var95), templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -1655,7 +1655,7 @@ func Returns(p layouts.Page, v ReturnsView) templ.Component {
 							}
 							return nil
 						})
-						templ_7745c5c3_Err = components.Button(components.ButtonProps{Variant: components.VariantPrimary}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var102), templ_7745c5c3_Buffer)
+						templ_7745c5c3_Err = components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var102), templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
