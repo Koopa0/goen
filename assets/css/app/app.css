@@ -3316,8 +3316,13 @@ a.goen-pager__step:hover {
     position: relative;
   }
 
+  /* Above the photograph, which is positioned and later in the document and
+     would otherwise paint over the end of the text and take the clicks meant
+     for the last chip where the two meet. */
   .goen-pagehead:has(.goen-pagehead__photo) .goen-pagehead__text {
     max-width: calc(50% - 2.5rem);
+    position: relative;
+    z-index: 1;
   }
 
   .goen-pagehead__chips {
