@@ -281,3 +281,58 @@ func TestSearchFindsAProductByAnAncestorCategoryName(t *testing.T) {
 		}
 	}
 }
+
+func TestSearchRequiresEveryTermAcrossFieldsInAnyOrder(t *testing.T) {
+	ctx := t.Context()
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = tx.Rollback(context.WithoutCancel(ctx)) })
+	brandTok := "brandtok" + uuid.NewString()[:8]
+	specTok := "spectok" + uuid.NewString()[:8]
+	fixtures := []struct {
+		brand, name, spec string
+	}{
+		{brand: "Fixture brand", name: brandTok + " " + specTok},   // both terms in the name
+		{brand: "Fixture brand", name: "Spec only", spec: specTok}, // one term only
+		{brand: brandTok, name: "Brand and spec", spec: specTok},   // two fields, newest
+		{brand: brandTok, name: "Brand only"},                      // one term only
+	}
+	slugs := make([]string, len(fixtures))
+	for i, f := range fixtures {
+		slugs[i] = "relevance-terms-" + uuid.NewString()
+		var brandID, productID uuid.UUID
+		if fixtureErr := tx.QueryRow(ctx, `INSERT INTO brands (slug, name) VALUES ($1, $2) RETURNING id`, "brand-"+uuid.NewString(), f.brand).Scan(&brandID); fixtureErr != nil {
+			t.Fatal(fixtureErr)
+		}
+		if fixtureErr := tx.QueryRow(ctx, `INSERT INTO products (brand_id, category_id, slug, name, summary, status, published_at)
+   SELECT $1, category_id, $2, $3, 'Fixture summary', 'draft', now() + ($4 * interval '1 second') FROM products LIMIT 1 RETURNING id`, brandID, slugs[i], f.name, i).Scan(&productID); fixtureErr != nil {
+			t.Fatal(fixtureErr)
+		}
+		if _, fixtureErr := tx.Exec(ctx, `INSERT INTO product_variants (product_id, sku, price_cents) VALUES ($1, $2, 10000)`, productID, "RANKTERMS-"+strings.ToUpper(uuid.NewString())); fixtureErr != nil {
+			t.Fatal(fixtureErr)
+		}
+		if f.spec != "" {
+			if _, fixtureErr := tx.Exec(ctx, `INSERT INTO product_specs (product_id, label, value, position) VALUES ($1, 'Lookup', $2, 0)`, productID, f.spec); fixtureErr != nil {
+				t.Fatal(fixtureErr)
+			}
+		}
+		if _, fixtureErr := tx.Exec(ctx, `UPDATE products SET status = 'active' WHERE id = $1`, productID); fixtureErr != nil {
+			t.Fatal(fixtureErr)
+		}
+	}
+	for _, q := range []string{brandTok + " " + specTok, specTok + "　" + brandTok, strings.ToUpper(brandTok) + "  " + specTok} {
+		view, searchErr := catalog.NewStore(tx).Search(ctx, catalog.SearchPattern(q), 1)
+		if searchErr != nil {
+			t.Fatal(searchErr)
+		}
+		if view.Total != 2 || len(view.Products) != 2 {
+			t.Errorf("q=%q total=%d rows=%d, want the two products that hold both terms", q, view.Total, len(view.Products))
+			continue
+		}
+		if view.Products[0].Slug != slugs[0] || view.Products[1].Slug != slugs[2] {
+			t.Errorf("q=%q ranked %s, %s; want the name holding every term first", q, view.Products[0].Slug, view.Products[1].Slug)
+		}
+	}
+}

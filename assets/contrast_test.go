@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"math"
 	"regexp"
+	"strings"
 	"testing"
 )
 
@@ -73,5 +74,80 @@ func TestTextTokensReadOnTheGroundsTheyAreUsedOn(t *testing.T) {
 	// draws an edge around every product.
 	if tokens["--photo"] != "f9f9f9" {
 		t.Errorf("--photo = #%s, want #f9f9f9, the ground the photographs carry", tokens["--photo"])
+	}
+}
+
+// toneBlock finds a [data-tone="…"] rule and its declarations.
+var toneBlock = regexp.MustCompile(`(?s)\[data-tone="([a-z]+)"\]\s*\{(.*?)\}`)
+
+// toneDecl finds one declaration inside a tone block. The value is a hex colour
+// or a var() naming a token.
+var toneDecl = regexp.MustCompile(`(--tone-[a-z]+):\s*(#[0-9a-fA-F]{6}|var\((--[a-z0-9-]+)\));`)
+
+// toneNames is pages.Tone's closed set. assets cannot import pages, whose test
+// repeats the list.
+var toneNames = []string{"paper", "stone", "mist", "sage", "blush", "ink"}
+
+// TestEveryToneGroundHoldsItsText holds the text a department or campaign head
+// shows to 4.5:1 on each tone's ground. A new tone is a new block, and one
+// whose ground drifts from its oklch source would fail a reader without any
+// route the axe gate visits showing it.
+func TestEveryToneGroundHoldsItsText(t *testing.T) {
+	t.Parallel()
+
+	sheet, err := fs.ReadFile(files, AppCSS)
+	if err != nil {
+		t.Fatalf("read %s: %v", AppCSS, err)
+	}
+	tokens := make(map[string]string)
+	for _, m := range tokenHex.FindAllStringSubmatch(string(sheet), -1) {
+		if _, seen := tokens[m[1]]; !seen {
+			tokens[m[1]] = m[2]
+		}
+	}
+
+	blocks := make(map[string]map[string]string)
+	for _, m := range toneBlock.FindAllStringSubmatch(string(sheet), -1) {
+		if _, dup := blocks[m[1]]; dup {
+			t.Errorf("%s declares data-tone=%q twice", AppCSS, m[1])
+		}
+		decls := make(map[string]string)
+		for _, d := range toneDecl.FindAllStringSubmatch(m[2], -1) {
+			if d[3] != "" {
+				decls[d[1]] = tokens[d[3]]
+			} else {
+				decls[d[1]] = strings.TrimPrefix(d[2], "#")
+			}
+		}
+		blocks[m[1]] = decls
+	}
+	if len(blocks) != len(toneNames) {
+		t.Errorf("%s has %d data-tone blocks, want the %d of the closed set", AppCSS, len(blocks), len(toneNames))
+	}
+
+	for _, name := range toneNames {
+		decl := blocks[name]
+		for _, prop := range []string{"--tone-ground", "--tone-rule", "--tone-text", "--tone-muted"} {
+			if len(decl[prop]) != 6 {
+				t.Fatalf("data-tone=%q declares no colour for %s", name, prop)
+			}
+		}
+		ground := decl["--tone-ground"]
+		for _, prop := range []string{"--tone-text", "--tone-muted"} {
+			if got := contrast(decl[prop], ground); got < 4.5 {
+				t.Errorf("%s (#%s) on the %s ground (#%s) = %.2f:1, want at least 4.5:1",
+					prop, decl[prop], name, ground, got)
+			}
+		}
+		if name == "ink" {
+			continue
+		}
+		// A light ground is also where links and the plain text tokens land.
+		for _, ink := range []string{"--n-500", "--n-900", "--accent-text"} {
+			if got := contrast(tokens[ink], ground); got < 4.5 {
+				t.Errorf("%s (#%s) on the %s ground (#%s) = %.2f:1, want at least 4.5:1",
+					ink, tokens[ink], name, ground, got)
+			}
+		}
 	}
 }

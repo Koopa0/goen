@@ -360,8 +360,8 @@ func TestEveryReturnRowLinksItsOrderAndOnlyShippedGoodsCanBeShort(t *testing.T) 
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	line := AdminReturnLine{Name: "耳機", Quantity: 1, Inspected: true, Received: 0}
 	view := AdminReturnsView{Rows: []AdminReturn{
-		{ID: "shipped", OrderNumber: "GO-260930-000012", Lines: []AdminReturnLine{line}},
-		{ID: "unshipped", OrderNumber: "GO-260930-000011", BeforeShipment: true, Lines: []AdminReturnLine{line}},
+		{ID: "shipped", OrderNumber: "GO-260930-000012", Window: "goodwill", Lines: []AdminReturnLine{line}},
+		{ID: "unshipped", OrderNumber: "GO-260930-000011", Window: "goodwill", BeforeShipment: true, Lines: []AdminReturnLine{line}},
 	}}
 	html := renderComponent(t, ctx, AdminReturns(layouts.Page{}, view))
 

@@ -17,7 +17,10 @@ func TestTheStockListMarksItsFilterAndCarriesItsPlaceInEachForm(t *testing.T) {
 	}
 	html := renderComponent(t, ctx, AdminVariants(layouts.Page{}, view))
 
-	if got := strings.Count(html, `aria-current="page"`); got != 1 {
+	// The sidebar marks the stock section itself, so only the filter bar counts.
+	_, afterBar, _ := strings.Cut(html, `ui-filterbar`)
+	bar, _, _ := strings.Cut(afterBar, "</div>")
+	if got := strings.Count(bar, `aria-current="page"`); got != 1 {
 		t.Errorf("%d filters are marked current, want 1", got)
 	}
 	if !strings.Contains(html, `href="/admin/stock?low=1" aria-current="page"`) {

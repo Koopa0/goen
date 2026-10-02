@@ -69,15 +69,22 @@ Stop if the change needs to cross one. If the ruling authorises it, do what it
 authorises and no more. Otherwise write `NEEDS-KOOPA` under "Needs a ruling",
 name the boundary, and open the pull request anyway.
 
-## House style, each enforced by a test named in `CLAUDE.md`
+## House style
 
-- Package by feature; no `services` / `models` / `util` directory.
+Each rule names the check that holds it in the tracked tree; "No check" means
+review is the only guard.
+
+- Package by feature; no `services` / `models` / `util` directory. No check.
 - An interface only where a second production implementation exists or a
-  consumer in another package needs a subset. Never for a test.
-- `PgError.ConstraintName` or `Code`, never the error's text.
-- A closed set is a type with constants.
-- Rollback with `context.WithoutCancel(ctx)`; render time through
-  `internal/shoptime`; render money through `internal/money`.
-- A sentence goen says lives in `internal/i18n`, both languages, one line.
+  consumer in another package needs a subset. Never for a test. The `iface`
+  linter in `.golangci.yml` holds part of it (identical, unused, opaque).
+- `PgError.ConstraintName` or `Code`, never the error's text. No check.
+- A closed set is a type with constants. No check.
+- Rollback with `context.WithoutCancel(ctx)`:
+  `TestEveryRollbackOutlivesItsRequest`. Render time through
+  `internal/shoptime`: `TestNoTimeIsRenderedInAnUnstatedZone`. Render money
+  through `internal/money`: no check.
+- A sentence goen says lives in `internal/i18n`, both languages, one line:
+  `TestNoChromeStringIsHardCoded`.
 - A comment carries the reason a reader needs to not break the line. No
-  history, no "used to be", no "proven by mutation".
+  history, no "used to be", no "proven by mutation". No check.

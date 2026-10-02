@@ -134,6 +134,34 @@ func TestEscapeLikeLeavesNoWildcard(t *testing.T) {
 	}
 }
 
+func TestSearchPatternSplitsOnWhitespaceAndBoundsTheTerms(t *testing.T) {
+	tests := []struct {
+		name, q, want string
+	}{
+		{"one term", "aurora", "%aurora%"},
+		{"two terms", "aurora 65W", "%aurora% %65W%"},
+		{"full-width space", "藍牙　耳機", "%藍牙% %耳機%"},
+		{"runs of space", " a \t b\n", "%a% %b%"},
+		{"each term escaped", "50% a_b", `%50\%% %a\_b%`},
+		{"more terms than the bound", "a b c d e f g", "%a% %b% %c% %d% %e%"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := SearchPattern(tt.q); got != tt.want {
+				t.Errorf("SearchPattern(%q) = %q, want %q", tt.q, got, tt.want)
+			}
+		})
+	}
+
+	terms, exact := SearchTerms(SearchPattern("Aurora 50%"))
+	if len(terms) != 2 || terms[0] != "%Aurora%" || terms[1] != `%50\%%` {
+		t.Errorf("SearchTerms terms = %q, want one pattern per term", terms)
+	}
+	if exact != `Aurora 50\%` {
+		t.Errorf("SearchTerms exact = %q, want the whole query without goen's wildcards", exact)
+	}
+}
+
 func TestSearchFoldsFullWidthLettersAndDigits(t *testing.T) {
 	if got := SearchPattern("Ｐｉｘｅｌ６５Ｗ"); got != "%Pixel65W%" {
 		t.Errorf("SearchPattern = %q, want the folded term", got)

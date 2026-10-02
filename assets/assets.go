@@ -76,12 +76,12 @@ const (
 // categoryImages is the closed set of category photographs, keyed by category
 // slug. A category outside it keeps its icon.
 var categoryImages = map[string]string{
-	"books-stationery": "media/departments/books-stationery.webp",
-	"home-living":      "media/departments/home-living.webp",
-	"beauty":           "media/departments/beauty.webp",
-	"fashion":          "media/departments/fashion.webp",
-	"food-drink":       "media/departments/food-drink.webp",
-	"tech":             "media/departments/tech.webp",
+	"books-stationery": "media/products/department-books-stationery.webp",
+	"home-living":      "media/products/department-home-living.webp",
+	"beauty":           "media/products/department-beauty.webp",
+	"fashion":          "media/products/department-fashion.webp",
+	"food-drink":       "media/products/department-food-drink.webp",
+	"tech":             "media/products/department-tech.webp",
 	"phones":           "media/categories/phones.webp",
 	"laptops":          "media/categories/laptops.webp",
 	"tablets":          "media/categories/tablets.webp",
@@ -117,7 +117,7 @@ var requiredMedia = append(departmentMedia(
 func departmentMedia(slugs ...string) []string {
 	names := make([]string, 0, 3*len(slugs))
 	for _, slug := range slugs {
-		base := "media/departments/" + slug
+		base := "media/products/department-" + slug
 		names = append(names, base+".webp", base+"-400.webp")
 	}
 	return names

@@ -1264,7 +1264,7 @@ func TestACancelledOrderLeavesNoSessionUnclosed(t *testing.T) {
 			done <- cancelResult{sessions: sessions, err: cancelErr}
 		}()
 		waitForSQLLock(t, ctx, returned,
-			"%UPDATE orders SET fulfillment_status = 'cancelled'%")
+			"%FROM orders WHERE order_number = $1 FOR UPDATE%")
 
 		if commitErr := tx1.Commit(ctx); commitErr != nil {
 			t.Fatalf("commit opening transaction: %v", commitErr)
