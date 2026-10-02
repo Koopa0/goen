@@ -10,6 +10,7 @@
 // Usage: make check-layout   (needs Chrome and a server on GOEN_URL)
 
 import { readFileSync } from 'node:fs';
+import { contrastRatio, measureControlBoundary } from './control-boundary.mjs';
 
 const CDP_PORT = Number(process.env.CDP_PORT || 9222);
 const ORIGIN = (process.env.GOEN_URL || 'http://127.0.0.1:9700/').replace(/\/$/, '');
@@ -2583,6 +2584,28 @@ const openAt = async (label, path) => {
   await send(ws, 'Page.navigate', { url: target });
   await settled(ws, label, target);
 };
+
+// These fields use their boundary or contrasting fill to identify the editable region.
+for (const locale of ['zh-Hant', 'en']) {
+  await send(ws, 'Network.setCookie', { name: 'goen_locale', value: locale, domain: '127.0.0.1', path: '/' });
+  console.log('control boundary locale ' + locale);
+await openAt('control boundary', '/contact');
+const boundarySelectors = ['#contact-name', '#contact-subject', '#contact-message', '#site-search', '#newsletter-email'];
+const boundaries = await evalPage(`(${measureControlBoundary.toString()})(${JSON.stringify(boundarySelectors)}, ${contrastRatio.toString()})`);
+if (boundaries.threw || !Array.isArray(boundaries)) {
+  fail('control boundary', boundaries.why || 'boundary probe returned no measurements');
+} else {
+  for (const boundary of boundaries) {
+    console.log('control boundary ' + JSON.stringify(boundary));
+    if (boundary.error) {
+      fail('control boundary', boundary.selector + ': ' + boundary.error);
+    } else if (Math.max(boundary.outlineContrast, boundary.borderContrast, boundary.fillContrast) < 3) {
+      fail('control boundary', boundary.selector + ': boundary and fill both below 3:1');
+    }
+  }
+}
+}
+await send(ws, 'Network.setCookie', { name: 'goen_locale', value: 'zh-Hant', domain: '127.0.0.1', path: '/' });
 
 const proveUsable = async (at, fieldSel, formSel) => {
   const got = await evalPage(`(() => {
