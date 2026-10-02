@@ -236,7 +236,7 @@ SELECT
     (SELECT count(*) FROM products WHERE status = 'active')::bigint AS active_products,
     (SELECT count(*) FROM contact_messages WHERE handled_at IS NULL)::bigint AS open_messages,
     (SELECT count(*) FROM return_requests WHERE status = 'requested')::bigint AS pending_returns,
-    -- The queue's own predicate (UnansweredQuestions, Question.Waiting): visible,
+    -- The queue's own predicate (AdminQuestions, Question.Waiting): visible,
     -- and no visible answer from the shop. A customer's reply does not answer it.
     (SELECT count(*) FROM product_questions q
      WHERE q.hidden_at IS NULL
@@ -1422,8 +1422,8 @@ WHERE pv.is_active AND p.status = 'active' AND sold.units > 0
 ORDER BY days_cover NULLS LAST, pv.stock_quantity
 LIMIT @limit_to::integer;
 
--- name: UnansweredQuestions :many
-SELECT q.id, q.body, q.created_at,
+-- name: AdminQuestions :many
+SELECT q.id, q.body, q.created_at, q.hidden_at,
        p.slug AS product_slug, p.name AS product_name,
        coalesce(u.full_name, '') AS asker,
        (SELECT count(*) FROM product_answers a
@@ -1433,13 +1433,25 @@ SELECT q.id, q.body, q.created_at,
 FROM product_questions q
 JOIN products p ON p.id = q.product_id
 LEFT JOIN users u ON u.id = q.user_id
-WHERE q.hidden_at IS NULL
+WHERE (q.hidden_at IS NOT NULL) = @hidden::boolean
 ORDER BY answered_by_shop, q.created_at
-LIMIT $1;
+LIMIT @row_limit::integer;
 
 -- name: HideQuestion :execrows
 UPDATE product_questions SET hidden_at = now()
 WHERE id = @question_id AND hidden_at IS NULL;
+
+-- name: ShowQuestion :execrows
+UPDATE product_questions SET hidden_at = NULL
+WHERE id = @question_id AND hidden_at IS NOT NULL;
+
+-- name: AdminQuestionAnswers :many
+SELECT a.id, a.question_id, a.body, a.is_staff, a.hidden_at, a.created_at,
+       coalesce(u.full_name, '')::text AS author
+FROM product_answers a
+LEFT JOIN users u ON u.id = a.user_id
+WHERE a.question_id = ANY(@question_ids::uuid[])
+ORDER BY a.question_id, a.created_at, a.id;
 
 -- Overdue is measured from available_at — when a message became DUE — because
 -- the claim lease and the backoff push it forward. copurchase_ever_built is

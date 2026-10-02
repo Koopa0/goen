@@ -152,6 +152,7 @@ var actionLabels = map[string]i18n.Key{
 	"category.delete":                     i18n.KeyAuditCategoryDelete,
 	"question.answer":                     i18n.KeyAuditQuestionAnswer,
 	"question.hide":                       i18n.KeyAuditQuestionHide,
+	"question.show":                       i18n.KeyAuditQuestionShow,
 	"return.inspect":                      i18n.KeyAuditReturnInspect,
 	"return.complete":                     i18n.KeyAuditReturnComplete,
 	"return.refund_before_shipment":       i18n.KeyAuditReturnRefundBeforeShipment,

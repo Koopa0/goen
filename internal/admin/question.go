@@ -17,20 +17,37 @@ import (
 const MaxQuestionRows = 50
 
 // Questions reads what customers have asked, unanswered first.
-func (s *Store) Questions(ctx context.Context) (admin.QuestionsView, error) {
-	rows, err := s.q.UnansweredQuestions(ctx, MaxQuestionRows)
+func (s *Store) Questions(ctx context.Context, hidden ...bool) (admin.QuestionsView, error) {
+	showHidden := len(hidden) > 0 && hidden[0]
+	rows, err := s.q.AdminQuestions(ctx, db.AdminQuestionsParams{Hidden: showHidden, RowLimit: MaxQuestionRows})
 	if err != nil {
 		return admin.QuestionsView{}, fmt.Errorf("read questions: %w", err)
 	}
-	view := admin.QuestionsView{}
+	view := admin.QuestionsView{Hidden: showHidden}
+	ids := make([]uuid.UUID, 0, len(rows))
+	index := make(map[uuid.UUID]int, len(rows))
 	for i := range rows {
 		r := &rows[i]
+		ids = append(ids, r.ID)
+		index[r.ID] = i
 		view.Rows = append(view.Rows, admin.Question{
 			ID: r.ID.String(), Body: r.Body, Asker: r.Asker,
 			ProductSlug: r.ProductSlug, ProductName: r.ProductName,
 			Asked:   shoptime.Minute(r.CreatedAt),
-			Answers: r.Answers, AnsweredByShop: r.AnsweredByShop,
+			Answers: r.Answers, AnsweredByShop: r.AnsweredByShop, Hidden: r.HiddenAt.Valid,
 		})
+	}
+	if len(ids) == 0 {
+		return view, nil
+	}
+	answers, err := s.q.AdminQuestionAnswers(ctx, ids)
+	if err != nil {
+		return admin.QuestionsView{}, fmt.Errorf("read question answers: %w", err)
+	}
+	for i := range answers {
+		a := &answers[i]
+		row := &view.Rows[index[a.QuestionID]]
+		row.Replies = append(row.Replies, admin.QuestionAnswer{ID: a.ID.String(), Body: a.Body, Author: a.Author, At: shoptime.Minute(a.CreatedAt), Staff: a.IsStaff, Hidden: a.HiddenAt.Valid})
 	}
 	return view, nil
 }
@@ -95,3 +112,20 @@ func (s *Store) AnswerQuestion(ctx context.Context, id, userID, body string) err
 
 // MaxStaffAnswerRunes bounds the shop's reply, in RUNES.
 const MaxStaffAnswerRunes = 1000
+
+func (s *Store) ShowQuestion(ctx context.Context, id string) error {
+	questionID, err := uuid.Parse(id)
+	if err != nil {
+		return ErrNotFound
+	}
+	return s.audited(ctx, Event{Action: actionShowQuestion, Table: "product_questions", ID: nullableID(questionID), After: map[string]any{"hidden": false}}, func(ctx context.Context, q *db.Queries) error {
+		changed, showErr := q.ShowQuestion(ctx, questionID)
+		if showErr != nil {
+			return fmt.Errorf("show question: %w", showErr)
+		}
+		if changed == 0 {
+			return ErrNotFound
+		}
+		return nil
+	})
+}
