@@ -90,6 +90,9 @@ type Capture struct {
 	Currency  string
 	CardBrand string
 	CardLast4 string
+	// PaymentIntentID is the intent Stripe reports the session paid with. The
+	// event carries only its id, so the card facts need one read of it.
+	PaymentIntentID string
 }
 
 // webhookEvent is a verified Stripe event, ready to be recorded.

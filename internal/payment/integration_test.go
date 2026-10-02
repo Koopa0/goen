@@ -1595,7 +1595,7 @@ func TestACaptureEnqueuesTheReceipt(t *testing.T) {
 	// order_private_data.
 	want := email.OrderPaid{
 		OrderNumber: number, Email: "pay@example.com", Name: "收件",
-		AmountCents: 149900, Card: "visa ****4242",
+		AmountCents: 149900, Card: "Visa •••• 4242",
 		Locale: "en",
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
@@ -2167,7 +2167,7 @@ func TestFundingCompleteSideEffectsOnce(t *testing.T) {
 		{
 			name:       "card-only",
 			wantPoints: 5,
-			want:       fundingReceipt{amountCents: cents, card: "visa ****4242"},
+			want:       fundingReceipt{amountCents: cents, card: "Visa •••• 4242"},
 			run: func(t *testing.T) (string, uuid.UUID, func()) {
 				t.Helper()
 				userID := newCustomer(t)
@@ -2218,7 +2218,7 @@ func TestFundingCompleteSideEffectsOnce(t *testing.T) {
 		{
 			name:       "split funding",
 			wantPoints: 5,
-			want:       fundingReceipt{amountCents: cents, card: "mastercard ****5555"},
+			want:       fundingReceipt{amountCents: cents, card: "Mastercard •••• 5555"},
 			run: func(t *testing.T) (string, uuid.UUID, func()) {
 				t.Helper()
 				const credit, card = int64(20000), int64(30000)

@@ -517,7 +517,26 @@ func cardLabel(c Capture) string {
 	if c.CardBrand == "" || c.CardLast4 == "" {
 		return ""
 	}
-	return c.CardBrand + " ****" + c.CardLast4
+	return CardLabel(c.CardBrand, c.CardLast4)
+}
+
+// CardLabel is a card as a person reads it, "Visa •••• 4242". Brand names are
+// Stripe's lowercase identifiers; one this list does not know is capitalised.
+func CardLabel(brand, last4 string) string {
+	if brand == "" || last4 == "" {
+		return ""
+	}
+	name, ok := cardBrandNames[brand]
+	if !ok {
+		name = strings.ToUpper(brand[:1]) + brand[1:]
+	}
+	return name + " •••• " + last4
+}
+
+var cardBrandNames = map[string]string{
+	"visa": "Visa", "mastercard": "Mastercard", "amex": "American Express", "jcb": "JCB",
+	"discover": "Discover", "diners": "Diners Club", "unionpay": "UnionPay", "cartes_bancaires": "Cartes Bancaires",
+	"eftpos_au": "EFTPOS",
 }
 
 // text is a nullable string for a column where "" means absent.

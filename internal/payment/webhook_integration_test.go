@@ -8,11 +8,13 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -495,7 +497,7 @@ func TestTheWebhookLogsNoSecretSignatureOrCustomerData(t *testing.T) {
 		t.Fatalf("the probe capture did not land (%+v); the log would not cover a capture", got)
 	}
 
-	forbidden := []string{testWebhookSecret, "whsec_", customerEmail, customerName, "****" + cardLast4}
+	forbidden := []string{testWebhookSecret, "whsec_", customerEmail, customerName, "****" + cardLast4, "•••• " + cardLast4}
 	for _, header := range headers {
 		forbidden = append(forbidden, header)
 		for part := range strings.SplitSeq(header, ",") {
@@ -558,5 +560,58 @@ func walkLogValues(prefix string, value any, visit func(key, text string)) {
 		for _, nested := range v {
 			walkLogValues(prefix, nested, visit)
 		}
+	}
+}
+
+// TestAPaidCheckoutRecordsTheCardStripeReports holds the card facts on the
+// payment row. Stripe's checkout event names the PaymentIntent as a bare id and
+// never carries its charge, so the brand and last four only exist after one
+// read of the intent with its charge expanded.
+func TestAPaidCheckoutRecordsTheCardStripeReports(t *testing.T) {
+	ctx := t.Context()
+	s := payment.NewStore(pool)
+	var expanded atomic.Bool
+	stripeStandIn := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet && r.URL.Path == "/v1/payment_intents/pi_card_probe" {
+			expanded.Store(strings.Contains(r.URL.RawQuery, "latest_charge"))
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = io.WriteString(w, `{"id":"pi_card_probe","object":"payment_intent","latest_charge":{`+
+				`"id":"ch_card_probe","object":"charge","payment_method_details":{"type":"card",`+
+				`"card":{"brand":"visa","last4":"4242"}}}}`)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	t.Cleanup(stripeStandIn.Close)
+	h := payment.NewHandler(s, gatewayAt(t, stripeStandIn.URL), alwaysPlacedHere{},
+		slog.New(slog.DiscardHandler), false)
+
+	number, id, session := openOrder(t, s, 87000, "cardfacts")
+	ev := sessionEvent("evt_card_"+uuid.NewString()[:8], session, "paid", 87000)
+	sessionField(ev, "payment_intent", "pi_card_probe")
+	raw, err := json.Marshal(ev)
+	if err != nil {
+		t.Fatal(err)
+	}
+	header := stripe.GenerateTestSignedPayload(&stripe.UnsignedPayload{Payload: raw, Secret: testWebhookSecret}).Header
+	if res := deliver(t, h, raw, header); res.Code != http.StatusOK {
+		t.Fatalf("webhook = %d, want 200", res.Code)
+	}
+
+	if got := moneyOf(t, ctx, number, id, session); got.status != "succeeded" {
+		t.Fatalf("the capture did not land: %+v", got)
+	}
+	if !expanded.Load() {
+		t.Error("the intent was read without expanding its charge")
+	}
+	var brand, last4, note string
+	if err := pool.QueryRow(ctx, `
+		SELECT p.card_brand, p.card_last4,
+		       (SELECT coalesce(e.note, '') FROM order_events e WHERE e.order_id = p.order_id AND e.kind = 'paid')
+		FROM payments p WHERE p.provider_ref = $1`, session).Scan(&brand, &last4, &note); err != nil {
+		t.Fatalf("read the payment: %v", err)
+	}
+	if brand != "visa" || last4 != "4242" || note != "Visa •••• 4242" {
+		t.Errorf("card = %q %q, paid note = %q; want visa 4242 and \"Visa •••• 4242\"", brand, last4, note)
 	}
 }

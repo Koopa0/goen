@@ -181,6 +181,7 @@ func TestEveryStripeClientUsesTheBoundedTransport(t *testing.T) {
 	for name, b := range map[string]stripe.Backend{
 		"checkout sessions": c.V1CheckoutSessions.B,
 		"refunds":           c.V1Refunds.B,
+		"payment intents":   c.V1PaymentIntents.B,
 	} {
 		impl, ok := b.(*stripe.BackendImplementation)
 		if !ok {
