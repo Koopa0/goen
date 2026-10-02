@@ -1771,7 +1771,7 @@ func TestAPaidOrderWhoseInvoiceDueWasLostIsOnTheHealthPage(t *testing.T) {
 	}
 
 	for _, number := range []string{captured, creditPaid} {
-		claimDue(t, invoice.Due{OrderNumber: number, Trigger: "evt_reissued_" + number})
+		claimDue(t, outbox.InvoiceDue{OrderNumber: number, Trigger: "evt_reissued_" + number})
 		if listed(number) {
 			t.Errorf("%s is still listed once it holds an issue operation", number)
 		}
@@ -1790,7 +1790,7 @@ func preferMemberInvoice(t *testing.T, orderID uuid.UUID) {
 }
 
 // invoiceDue is the one invoice.due message queued for number.
-func invoiceDue(t *testing.T, number string) invoice.Due {
+func invoiceDue(t *testing.T, number string) outbox.InvoiceDue {
 	t.Helper()
 	rows, err := pool.Query(t.Context(),
 		`SELECT payload FROM outbox_messages WHERE topic = $1 AND dedupe_key = $2`,
@@ -1805,7 +1805,7 @@ func invoiceDue(t *testing.T, number string) invoice.Due {
 	if len(payloads) != 1 {
 		t.Fatalf("%d invoice.due messages for %s, want 1", len(payloads), number)
 	}
-	var due invoice.Due
+	var due outbox.InvoiceDue
 	if err := json.Unmarshal(payloads[0], &due); err != nil {
 		t.Fatalf("decode invoice.due: %v", err)
 	}
@@ -1817,7 +1817,7 @@ func invoiceDue(t *testing.T, number string) invoice.Due {
 
 // claimDue runs the invoice.due handler as the worker does, on the admin role:
 // the outbox drains on the store pool, which holds no EXECUTE on the claim.
-func claimDue(t *testing.T, due invoice.Due) {
+func claimDue(t *testing.T, due outbox.InvoiceDue) {
 	t.Helper()
 	gateway, err := invoice.NewGateway("", "", "", "")
 	if err != nil {

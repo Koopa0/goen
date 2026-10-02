@@ -10,8 +10,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-// TerminalKind is the order fact an order.terminal message reports. It is a
-// separate copy of the producer's kinds, so a consumer may lag a version.
+// TerminalKind is the order fact an order.terminal message reports.
 type TerminalKind string
 
 // The terminal facts a message may carry.
@@ -28,8 +27,10 @@ const (
 type OrderTerminal struct {
 	OrderID uuid.UUID    `json:"order_id"`
 	Kind    TerminalKind `json:"kind"`
-	// Refunded is ordernotice.Message.Refunded. Absent from an older producer,
-	// it reads false.
+	// Refunded: money taken from the customer has been or will be returned, so
+	// the mail must not say nothing was charged. Set from what the cancelling
+	// transaction reads, including a payment that may still land. Absent from an
+	// older row, it reads false.
 	Refunded bool `json:"refunded"`
 }
 

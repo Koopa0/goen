@@ -3,7 +3,6 @@ package newsletter
 import (
 	"context"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -70,8 +69,8 @@ func (s *Store) Request(ctx context.Context, addr string) (Outcome, error) {
 		return AlreadyActive, fmt.Errorf("requesting confirmation: %w", err)
 	}
 
-	if err := enqueue(ctx, q, outbox.TopicNewsletterConfirm, "newsletter-confirm:"+dedupeOf(token),
-		email.NewsletterConfirm{Email: addr, Token: token, Locale: i18n.FromContext(ctx).Tag()}); err != nil {
+	if err := outbox.Enqueue(ctx, q, outbox.TopicNewsletterConfirm, "newsletter-confirm:"+dedupeOf(token),
+		&email.NewsletterConfirm{Email: addr, Token: token, Locale: i18n.FromContext(ctx).Tag()}); err != nil {
 		return AlreadyActive, err
 	}
 
@@ -117,8 +116,8 @@ func (s *Store) Confirm(ctx context.Context, token string) (string, error) {
 		return "", fmt.Errorf("adding subscriber: %w", err)
 	}
 
-	if err := enqueue(ctx, q, outbox.TopicNewsletterWelcome, "newsletter-welcome:"+dedupeOf(leave),
-		email.NewsletterWelcome{Email: addr, UnsubscribeToken: leave, Locale: i18n.FromContext(ctx).Tag()}); err != nil {
+	if err := outbox.Enqueue(ctx, q, outbox.TopicNewsletterWelcome, "newsletter-welcome:"+dedupeOf(leave),
+		&email.NewsletterWelcome{Email: addr, UnsubscribeToken: leave, Locale: i18n.FromContext(ctx).Tag()}); err != nil {
 		return "", err
 	}
 
@@ -144,22 +143,6 @@ func (s *Store) Unsubscribe(ctx context.Context, token string) (string, error) {
 		return "", fmt.Errorf("unsubscribing: %w", err)
 	}
 	return addr, nil
-}
-
-// enqueue writes one outbox message inside the caller's transaction.
-func enqueue(ctx context.Context, q *db.Queries, topic, dedupeKey string, payload any) error {
-	encoded, err := json.Marshal(payload)
-	if err != nil {
-		return fmt.Errorf("encoding %s message: %w", topic, err)
-	}
-	if err := q.EnqueueMessage(ctx, db.EnqueueMessageParams{
-		Topic:     topic,
-		DedupeKey: dedupeKey,
-		Payload:   encoded,
-	}); err != nil {
-		return fmt.Errorf("enqueueing %s message: %w", topic, err)
-	}
-	return nil
 }
 
 // dedupeOf keys a message on its token, hashed so the outbox row's key is not

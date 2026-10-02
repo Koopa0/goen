@@ -149,27 +149,22 @@ func (s *Store) Send(ctx context.Context, issueID string, actor uuid.NullUUID) (
 	}
 
 	keys := make([]string, 0, len(subscribers))
-	payloads := make([][]byte, 0, len(subscribers))
+	payloads := make([]email.NewsletterIssue, 0, len(subscribers))
 	for i := range subscribers {
 		to := &subscribers[i]
-		payload := email.NewsletterIssue{
+		payloads = append(payloads, email.NewsletterIssue{
 			Locale: to.Locale, Email: to.Email,
 			Subject: issue.Subject, Body: issue.Body,
 			// The token the subscriber already holds, so every link ever mailed
 			// to them goes on working.
 			UnsubscribeToken: to.UnsubscribeToken,
-		}
+		})
 		// Keyed on (issue, subscriber): a retried send cannot mail one person twice.
-		encoded, encErr := json.Marshal(payload)
-		if encErr != nil {
-			return 0, fmt.Errorf("encoding %s message: %w", outbox.TopicNewsletterIssue, encErr)
-		}
 		keys = append(keys, issueID+":"+dedupeOf(to.UnsubscribeToken))
-		payloads = append(payloads, encoded)
 	}
 	// One statement: a statement per subscriber spends the request's budget on
 	// round trips, and a list too long for it could never be sent.
-	if enqErr := outbox.Enqueue(ctx, q, outbox.TopicNewsletterIssue, outbox.BulkPriority, keys, payloads); enqErr != nil {
+	if enqErr := outbox.EnqueueAll(ctx, q, outbox.TopicNewsletterIssue, outbox.BulkPriority, keys, payloads); enqErr != nil {
 		return 0, enqErr
 	}
 

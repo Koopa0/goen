@@ -39,7 +39,7 @@ func IssueQueuedReset(ctx context.Context, s *Store, dedupeKey string) error {
 	if err != nil {
 		return err
 	}
-	var req ResetRequest
+	var req outbox.PasswordResetRequest
 	if err := json.Unmarshal(payload, &req); err != nil {
 		return err
 	}

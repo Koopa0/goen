@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/cart"
+	"github.com/koopa0/goen/internal/email"
 )
 
 // TestCheckoutWritesWhatThePlacedLetterStillOwes is the producer half of the
@@ -83,7 +84,7 @@ func TestCheckoutWritesWhatThePlacedLetterStillOwes(t *testing.T) {
 	})
 }
 
-func placedOrderPayload(t *testing.T, number string) (payload cart.OrderPlaced, total, owed int64) {
+func placedOrderPayload(t *testing.T, number string) (payload email.OrderPlaced, total, owed int64) {
 	t.Helper()
 	var raw []byte
 	if err := pool.QueryRow(t.Context(), `
