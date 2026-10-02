@@ -6,12 +6,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
-// Audit renders the back office's own history.
-//
 // A feed rather than a table: the detail line is a recorded payload of no fixed
-// width, and a column that has to hold one turns every other row into empty
-// space. What a table would give — one fact per column — the head line gives
-// instead, with the action first because that is what a reader is scanning for.
+// width, and a column that held one would turn every other row into empty space.
 templ Audit(p layouts.Page, v AuditView) {
 	@layouts.Admin(p, "audit") {
 		<div class="ui-page-head">

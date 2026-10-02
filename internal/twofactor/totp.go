@@ -14,7 +14,6 @@ import (
 	"time"
 )
 
-// NewSecret returns a fresh shared secret.
 func NewSecret() ([]byte, error) {
 	secret := make([]byte, SecretBytes)
 	if _, err := rand.Read(secret); err != nil {
@@ -29,7 +28,6 @@ func EncodeSecret(secret []byte) string {
 	return base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(secret)
 }
 
-// ProvisioningURI is the otpauth:// URI an authenticator app imports.
 func ProvisioningURI(account string, secret []byte) string {
 	label := url.PathEscape(Issuer + ":" + account)
 	q := url.Values{}
@@ -41,10 +39,8 @@ func ProvisioningURI(account string, secret []byte) string {
 	return "otpauth://totp/" + label + "?" + q.Encode()
 }
 
-// StepAt is the time step a moment falls in.
 func StepAt(t time.Time) int64 { return t.Unix() / int64(Step.Seconds()) }
 
-// Code is the six digits for one secret and one step.
 func Code(secret []byte, step int64) string {
 	var counter [8]byte
 	binary.BigEndian.PutUint64(counter[:], uint64(step)) //nolint:gosec // G115: a step is a positive Unix-derived value

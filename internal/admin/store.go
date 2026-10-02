@@ -31,7 +31,6 @@ import (
 	"github.com/koopa0/goen/internal/web"
 )
 
-// InvoiceReader reads the uniform invoices filed for an order.
 type InvoiceReader interface {
 	Documents(ctx context.Context, orderNumber string) ([]invoice.Document, error)
 }
@@ -53,7 +52,6 @@ var (
 	_ InvoiceWriter = (*invoice.Store)(nil)
 )
 
-// Store reads and writes through the ADMIN pool, which assumes the admin role.
 type Store struct {
 	pool     *pgxpool.Pool
 	q        *db.Queries
@@ -82,7 +80,6 @@ func NewStore(pool *pgxpool.Pool, refunder Refunder, reader InvoiceReader, write
 	}
 }
 
-// Dashboard reads the back office landing page.
 func (s *Store) Dashboard(ctx context.Context) (admin.DashboardView, error) {
 	sum, err := s.q.AdminSummary(ctx)
 	if err != nil {
@@ -128,8 +125,6 @@ func (s *Store) Dashboard(ctx context.Context) (admin.DashboardView, error) {
 	return view, nil
 }
 
-// DashboardRows is how much of the order queue the landing page shows. It is a
-// glance and not the queue itself: the heading beside it links to all of them.
 const DashboardRows = 8
 
 // orderRow is one order as both the queue and the landing page render it. The
@@ -148,7 +143,6 @@ func orderRow(ctx context.Context, o *db.AdminOrdersRow) admin.OrderRow {
 	}
 }
 
-// Orders reads the order queue.
 func (s *Store) Orders(ctx context.Context, status admin.QueueFilter, term string, after ...string) (admin.OrdersView, error) {
 	term = strings.TrimSpace(term)
 	scope := web.ScopeURL("/admin/orders", "q", term, "status", string(status))
@@ -227,8 +221,6 @@ func (s *Store) Orders(ctx context.Context, status admin.QueueFilter, term strin
 	return view, nil
 }
 
-// Order reads one order for the back office, with the delivery details a
-// storefront confirmation does not show.
 func (s *Store) Order(ctx context.Context, number string) (admin.OrderView, error) {
 	o, err := s.q.AdminOrderByNumber(ctx, number)
 	if err != nil {
@@ -331,9 +323,6 @@ func (s *Store) Order(ctx context.Context, number string) (admin.OrderView, erro
 	return view, nil
 }
 
-// correctable reports whether the order page offers the delivery-details form.
-// A parcel that has gone out cannot be redirected, and a cancelled order is not
-// going anywhere, so editing where it goes is a change to a record nobody reads.
 func correctable(status pages.FulfillmentStatus) bool {
 	switch status {
 	case pages.FulfillmentShipped, pages.FulfillmentDelivered,
@@ -427,7 +416,6 @@ func (s *Store) Advance(ctx context.Context, number string, status pages.Fulfill
 	return sessions, nil
 }
 
-// advanceKind is the order_events kind of a status the staff may request.
 func advanceKind(status pages.FulfillmentStatus) (string, error) {
 	// Ship is the only door to 'shipped', because a dispatch also records the
 	// carrier and settles the held stock.
@@ -437,15 +425,12 @@ func advanceKind(status pages.FulfillmentStatus) (string, error) {
 	return eventKindFor(status)
 }
 
-// statusEffect is one status move and what it has to reach.
 type statusEffect struct {
 	status   pages.FulfillmentStatus
 	previous pages.FulfillmentStatus
 	number   string
 	orderID  uuid.UUID
-	// held is the order's live reservations, read after the status UPDATE took
-	// the aggregate lock.
-	held []uuid.UUID
+	held     []uuid.UUID
 }
 
 // applyStatusEffects does what a status move MEANS beyond the column — the
@@ -459,7 +444,6 @@ func applyStatusEffects(ctx context.Context, q *db.Queries, e statusEffect) erro
 	}
 	switch e.status {
 	case pages.FulfillmentPending, pages.FulfillmentShipped:
-		// These moves only release the holds already walked above.
 	case pages.FulfillmentPicking:
 		if err := payment.CompleteFunding(ctx, q, e.orderID, e.number, payment.Capture{}); err != nil {
 			return fmt.Errorf("complete funding for %s: %w", e.number, err)
@@ -569,7 +553,6 @@ func (s *Store) fillInvoices(ctx context.Context, view *admin.OrderView, number 
 	return nil
 }
 
-// fillPayments puts how the order was paid and every refund of it on the page.
 func (s *Store) fillPayments(ctx context.Context, view *admin.OrderView, orderID uuid.UUID) error {
 	paid, err := s.q.OrderCapturedPayment(ctx, orderID)
 	switch {
@@ -653,7 +636,6 @@ func (s *Store) fillShippable(
 	return nil
 }
 
-// Dispatch is one parcel: what is in it, and who is carrying it.
 type Dispatch struct {
 	Carrier  string
 	Tracking string
@@ -746,9 +728,6 @@ func (s *Store) Ship(ctx context.Context, number string, d Dispatch, actor uuid.
 	return nil
 }
 
-// requireCarrierFor refuses a carrier that cannot deliver to where this order
-// goes: a home courier for a pickup point, or a store chain's own logistics for
-// another chain.
 func requireCarrierFor(
 	ctx context.Context, q *db.Queries, orderID uuid.UUID, number string, code carrier.Carrier,
 ) error {
@@ -791,7 +770,6 @@ func fillParcel(
 	return nil
 }
 
-// parcelLine is one line of a dispatch, with the hold it settles.
 type parcelLine struct {
 	lineID        uuid.UUID
 	reservationID uuid.UUID
@@ -891,7 +869,6 @@ func (s *Store) SetStaffNote(ctx context.Context, number, note string) error {
 	return nil
 }
 
-// Variants reads the stock list.
 func (s *Store) Variants(ctx context.Context, lowOnly bool, term string, after ...string) (admin.VariantsView, error) {
 	term = SearchTerm(term)
 	low := ""
@@ -972,8 +949,6 @@ func (s *Store) ReceiveStock(ctx context.Context, sku string, quantity int32, ac
 			}); moveErr != nil {
 				return fmt.Errorf("%w: %w", ErrRefused, moveErr)
 			}
-			// A receipt is the movement most likely to carry a variant back
-			// above its safety stock.
 			return enqueueRestockNotices(ctx, q, v.ID)
 		})
 	return s.settleReplay(ctx, err, v.ID, quantity, "receipt", key)
@@ -1134,7 +1109,6 @@ func (s *Store) GrantCredit(ctx context.Context, customerID uuid.UUID, amountCen
 	return balanceCents, nil
 }
 
-// Credit reads the recent ledger for the back office.
 func (s *Store) Credit(ctx context.Context, after ...string) (admin.CreditView, error) {
 	scope := "/admin/credit"
 	cursor := readPageCursor(scope, after)
@@ -1156,7 +1130,6 @@ func (s *Store) Credit(ctx context.Context, after ...string) (admin.CreditView, 
 	return view, nil
 }
 
-// nullableStamp formats a timestamp that may be absent.
 func nullableStamp(t pgtype.Timestamptz) string {
 	if !t.Valid {
 		return ""
@@ -1168,8 +1141,6 @@ func nullableStamp(t pgtype.Timestamptz) string {
 // total is computed over the WHOLE ledger, so a page is still truthful.
 const MovementPageSize = 50
 
-// Movements reads one variant's stock ledger: which sale, which return, which
-// hand adjustment, and by whom.
 func (s *Store) Movements(ctx context.Context, sku string, after ...string) (admin.MovementsView, error) {
 	scope := "/admin/stock/" + url.PathEscape(sku)
 	cursor := readPageCursor(scope, after)
@@ -1187,7 +1158,6 @@ func (s *Store) Movements(ctx context.Context, sku string, after ...string) (adm
 		return admin.MovementsView{}, fmt.Errorf("read movements of %s: %w", sku, err)
 	}
 
-	// This list has its own size, so it names its own rather than PageSize.
 	rows, bound := pageBound(cursor, scope, rows, MovementPageSize, func(r *db.VariantMovementsRow) string { return r.PageCursor })
 	view := admin.MovementsView{
 		ListBound: bound,
@@ -1339,7 +1309,6 @@ func (s *Store) AllowInvoice(
 	return err
 }
 
-// VoidInvoice cancels an order's live invoice, at the e-invoice provider and here.
 func (s *Store) VoidInvoice(ctx context.Context, number, reason string) error {
 	if s.invoiceWriter == nil {
 		return fmt.Errorf("%w: no e-invoice provider is configured", ErrRefused)

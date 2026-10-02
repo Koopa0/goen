@@ -6,8 +6,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// CategoryForm renders one category's header photograph. The tone is set
-// on the taxonomy row, beside the name it belongs to.
+// The tone is set on the taxonomy row, beside the name it belongs to.
 templ CategoryForm(p layouts.Page, v CategoryView) {
 	@layouts.Admin(p, "taxonomy") {
 		<div class="ui-page-head">

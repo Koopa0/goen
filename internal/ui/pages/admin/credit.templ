@@ -7,11 +7,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
-// Credit renders the store-credit ledger and the grant form.
-//
-// The grant is a card of its own because it writes money: a form that shares a
-// panel with the history it will extend invites a reader to take the history
-// for the form's own fields.
+// The grant is a card of its own because it writes money: sharing a panel with the
+// history it extends invites a reader to take the history for the form's fields.
 templ Credit(p layouts.Page, v CreditView) {
 	@layouts.Admin(p, "credit") {
 		<div class="ui-page-head">

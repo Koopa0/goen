@@ -9,15 +9,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// Newsletter renders the mailing list, the compose form and the issues.
-//
-// Three figures, then the thing you came to write, then what has already gone
-// out. The figures are the shop's own overview tiles rather than a second kind
-// of stat box, and they are divisions rather than links because no screen lists
-// the people they count — a tile that answers nothing when it is pressed is
-// worse than one that never looked pressable.
-//
-// Sending is the one decision on this page, so it is the only primary control;
+// The figures are divisions rather than links because no screen lists the people
+// they count. Sending is the one decision here, so the only primary control;
 // saving a draft is reversible and takes an outline.
 templ Newsletter(p layouts.Page, v NewsletterView) {
 	@layouts.Admin(p, "newsletter") {

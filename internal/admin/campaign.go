@@ -19,13 +19,10 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
-// MaxCampaignDays bounds how long one promotion may run.
 const MaxCampaignDays = 90
 
-// MaxCampaignTitleRunes bounds the heading a shopper reads.
 const MaxCampaignTitleRunes = 60
 
-// CampaignForm is what the back office submits.
 type CampaignForm struct {
 	Slug    string
 	Title   string
@@ -35,7 +32,6 @@ type CampaignForm struct {
 	Tone string
 }
 
-// Validate refuses what the schema would, and the window the shop should refuse.
 func (f *CampaignForm) Validate(ctx context.Context) map[string]string {
 	f.Slug = strings.ToLower(strings.TrimSpace(f.Slug))
 	f.Title = strings.TrimSpace(f.Title)
@@ -64,7 +60,6 @@ func (f *CampaignForm) Validate(ctx context.Context) map[string]string {
 	return errs
 }
 
-// Campaigns reads the promotions for the back office.
 func (s *Store) Campaigns(ctx context.Context, after ...string) (admin.CampaignsView, error) {
 	scope := "/admin/campaigns"
 	cursor := readPageCursor(scope, after)
@@ -86,11 +81,8 @@ func (s *Store) Campaigns(ctx context.Context, after ...string) (admin.Campaigns
 	return view, nil
 }
 
-// MaxCampaignAltRunes bounds the header's alternative text.
 const MaxCampaignAltRunes = 200
 
-// CampaignImage is the header a campaign shows and its tone, as the edit page
-// reads them.
 func (s *Store) CampaignImage(ctx context.Context, slug string) (admin.Header, string, error) {
 	row, err := s.q.AdminCampaignImage(ctx, slug)
 	if err != nil {
@@ -176,7 +168,6 @@ func (s *Store) SearchCampaignProducts(ctx context.Context, slug, term string) (
 	return out, nil
 }
 
-// SetCampaignTone changes the ground temperature of the campaign's page.
 func (s *Store) SetCampaignTone(ctx context.Context, slug, tone string) error {
 	tone = strings.TrimSpace(tone)
 	if _, ok := pages.ParseTone(tone); !ok {
@@ -242,7 +233,6 @@ func (s *Store) ClearCampaignImage(ctx context.Context, slug string) error {
 		})
 }
 
-// CreateCampaign starts a promotion, with nothing featured.
 func (s *Store) CreateCampaign(ctx context.Context, f *CampaignForm) (map[string]string, error) {
 	if errs := f.Validate(ctx); len(errs) > 0 {
 		return errs, nil
@@ -265,7 +255,6 @@ func (s *Store) CreateCampaign(ctx context.Context, f *CampaignForm) (map[string
 	return nil, nil
 }
 
-// SetCampaignActive switches a promotion on or off.
 func (s *Store) SetCampaignActive(ctx context.Context, slug string, active bool) error {
 	return s.audited(ctx, Event{
 		Action: actionToggleCampaign, Table: "sale_campaigns", ID: uuid.NullUUID{},
@@ -308,7 +297,6 @@ func (s *Store) FeatureProduct(ctx context.Context, campaign, product string) er
 		})
 }
 
-// UnfeatureProduct removes one.
 func (s *Store) UnfeatureProduct(ctx context.Context, campaign, product string) error {
 	return s.audited(ctx, Event{
 		Action: actionUnfeatureProduct, Table: "sale_campaign_products",
@@ -324,7 +312,6 @@ func (s *Store) UnfeatureProduct(ctx context.Context, campaign, product string) 
 		})
 }
 
-// CampaignProducts is what one campaign features.
 func (s *Store) CampaignProducts(ctx context.Context, slug string) ([]admin.CampaignProduct, error) {
 	rows, err := s.q.AdminCampaignProducts(ctx, slug)
 	if err != nil {

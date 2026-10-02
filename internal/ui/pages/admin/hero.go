@@ -21,10 +21,8 @@ type HeroSlide struct {
 	EndsAt   string
 }
 
-// Live reports whether a visitor could be seeing this one.
 func (s HeroSlide) Live() bool { return s.Active && s.InWindow }
 
-// State is the one word a staff member scans for.
 func (s HeroSlide) State() string {
 	switch {
 	case !s.Active:
@@ -36,7 +34,6 @@ func (s HeroSlide) State() string {
 	}
 }
 
-// ImageURL is where its artwork is served, or empty for the built-in one.
 func (s HeroSlide) ImageURL() string {
 	if s.ImageKey == "" {
 		return ""
@@ -48,13 +45,10 @@ func (s HeroSlide) ImageURL() string {
 // original upload is a multi-megabyte download for it.
 func (s HeroSlide) Srcset() string { return assets.UploadedRenditionSrcset(s.ImageKey, 400) }
 
-// ToggleAction is where the on/off form posts.
 func (s HeroSlide) ToggleAction() string { return "/admin/home/" + s.ID + "/active" }
 
-// PromoteAction is where the make-current form posts.
 func (s HeroSlide) PromoteAction() string { return "/admin/home/" + s.ID + "/promote" }
 
-// NextActive is what the toggle would set it to.
 func (s HeroSlide) NextActive() string {
 	if s.Active {
 		return "false"
@@ -62,7 +56,6 @@ func (s HeroSlide) NextActive() string {
 	return "true"
 }
 
-// ToggleLabel is what the button says.
 func (s HeroSlide) ToggleLabel() string {
 	if s.Active {
 		return "停用" // i18n-exempt: back office, /admin/home
@@ -70,7 +63,6 @@ func (s HeroSlide) ToggleLabel() string {
 	return "啟用" // i18n-exempt: back office, /admin/home
 }
 
-// HeroView is the scheduled-slides page; it carries the promotional strip too.
 type HeroView struct {
 	Rows     []HeroSlide
 	Carousel []pages.HeroSlide
@@ -82,7 +74,6 @@ type HeroView struct {
 	BannerDraft BannerDraft
 }
 
-// Banner is one promotional strip as the back office lists it.
 type Banner struct {
 	ID         string
 	Message    string
@@ -97,16 +88,12 @@ type Banner struct {
 	EndsAt     string
 }
 
-// Translated reports whether this strip reads in English; the message decides.
 func (b Banner) Translated() bool { return b.MessageEn != "" }
 
-// HasCTA reports whether this strip carries a button.
 func (b Banner) HasCTA() bool { return b.CTALabel != "" }
 
-// Scheduled reports whether it has an end date.
 func (b Banner) Scheduled() bool { return b.EndsAt != "" }
 
-// BannerDraft carries a refused strip form's values back.
 type BannerDraft struct {
 	Message, Short, Code    string
 	CTALabel, CTAHref, Days string
@@ -114,10 +101,8 @@ type BannerDraft struct {
 	CTALabelEn              string
 }
 
-// HasBanners reports whether any promotion exists.
 func (v *HeroView) HasBanners() bool { return len(v.Banners) > 0 }
 
-// HeroDraft carries a refused form's values back.
 type HeroDraft struct {
 	Eyebrow, Headline, Body       string
 	PrimaryLabel, PrimaryHref     string
@@ -128,7 +113,6 @@ type HeroDraft struct {
 	ImageAltEn                    string
 }
 
-// Empty reports whether no slide is scheduled.
 func (v *HeroView) Empty() bool { return len(v.Rows) == 0 }
 
 func (v *HeroView) scheduledShown() int {
@@ -159,7 +143,6 @@ func (v *HeroView) IsShowing(s HeroSlide) bool {
 	return false
 }
 
-// NoSlides reports whether the home page draws no carousel.
 func (v *HeroView) NoSlides() bool { return len(v.Carousel) == 0 }
 
 func SourceLabel(ctx context.Context, src pages.SlideSource) string {
@@ -174,8 +157,6 @@ func SourceLabel(ctx context.Context, src pages.SlideSource) string {
 	return i18n.T(ctx, i18n.KeyAdminHomeSourceOther)
 }
 
-// HasErr reports whether a field was refused.
 func (v *HeroView) HasErr(f string) bool { _, ok := v.Errors[f]; return ok }
 
-// Err is why.
 func (v *HeroView) Err(f string) string { return v.Errors[f] }

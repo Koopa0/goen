@@ -31,7 +31,6 @@ import (
 	"github.com/koopa0/goen/internal/web"
 )
 
-// Handler serves the back office.
 type Handler struct {
 	outbox *outbox.Store
 	images *media.Handler
@@ -48,19 +47,15 @@ type Handler struct {
 	pools    []NamedPool
 }
 
-// NamedPool is a connection pool the health page reports on.
 type NamedPool struct {
 	Name string
 	Pool *pgxpool.Pool
 }
 
-// SessionCloser closes a checkout still open at the payment provider.
 type SessionCloser interface {
 	ExpireSession(ctx context.Context, sessionID string) error
 }
 
-// HandlerDeps is what the back office is served from. StepUp and Sessions are
-// the two a deployment may leave nil; the rest are required.
 type HandlerDeps struct {
 	Store    *Store
 	Images   *media.Handler
@@ -72,11 +67,9 @@ type HandlerDeps struct {
 	// StoreMap decides whether checkout offers pickup-point methods; nil is a
 	// deployment with no map.
 	StoreMap *cart.StoreMap
-	// Pools are the pools whose connection statistics /admin/health shows.
-	Pools []NamedPool
+	Pools    []NamedPool
 }
 
-// NewHandler returns a Handler over the admin store.
 func NewHandler(d HandlerDeps) *Handler {
 	if d.Store == nil || d.Images == nil || d.Outbox == nil || d.Letters == nil || d.Log == nil {
 		panic("admin: NewHandler requires a store, a media handler, an outbox, " +
@@ -182,7 +175,6 @@ func (h *Handler) RequireAdmin(next http.HandlerFunc) http.HandlerFunc {
 	})
 }
 
-// Dashboard serves GET /admin.
 func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Dashboard(r.Context())
 	if err != nil {
@@ -193,7 +185,6 @@ func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
 	web.Render(w, r, h.log, http.StatusOK, admin.Dashboard(admin.Meta(r.Context()), view))
 }
 
-// Orders serves GET /admin/orders.
 func (h *Handler) Orders(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Orders(r.Context(),
 		ParseQueueFilter(r.URL.Query().Get("status")), r.URL.Query().Get("q"), r.URL.Query().Get(web.KeysetParam))
@@ -206,7 +197,6 @@ func (h *Handler) Orders(w http.ResponseWriter, r *http.Request) {
 	web.Render(w, r, h.log, http.StatusOK, admin.Orders(admin.OrdersMeta(r.Context()), view))
 }
 
-// Order serves GET /admin/orders/{number}.
 func (h *Handler) Order(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Order(r.Context(), r.PathValue("number"))
 	if err != nil {
@@ -227,7 +217,6 @@ func (h *Handler) Order(w http.ResponseWriter, r *http.Request) {
 		admin.Order(layouts.Page{Title: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyAdminPageOrder), view.Number)}, &view))
 }
 
-// AdvanceOrder serves POST /admin/orders/{number}/status.
 func (h *Handler) AdvanceOrder(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
@@ -261,7 +250,6 @@ func (h *Handler) AdvanceOrder(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// Ship serves POST /admin/orders/{number}/ship. See [Store.Ship].
 func (h *Handler) Ship(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
@@ -313,8 +301,6 @@ func (h *Handler) Ship(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// shipRefusal is what a refused dispatch says and where: a sentence under the
-// control it is about, or a banner for a refusal that has no control.
 type shipRefusal struct {
 	carrier, tracking, quantity, notice i18n.Key
 }
@@ -400,7 +386,6 @@ func staffID(r *http.Request) uuid.NullUUID {
 	return uuid.NullUUID{UUID: id, Valid: true}
 }
 
-// StaffNote serves POST /admin/orders/{number}/note.
 func (h *Handler) StaffNote(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
@@ -423,7 +408,6 @@ func (h *Handler) StaffNote(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/admin/orders/"+number+"?ok=1", http.StatusSeeOther) //nolint:gosec // G710: validated by IsOrderNumber
 }
 
-// Variants serves GET /admin/stock.
 func (h *Handler) Variants(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Variants(r.Context(), r.URL.Query().Get("low") == "1", r.URL.Query().Get("q"), r.URL.Query().Get(web.KeysetParam))
 	if err != nil {
@@ -436,7 +420,6 @@ func (h *Handler) Variants(w http.ResponseWriter, r *http.Request) {
 	web.Render(w, r, h.log, http.StatusOK, admin.Variants(admin.VariantsMeta(r.Context()), view))
 }
 
-// AdjustStock serves POST /admin/stock/adjust.
 func (h *Handler) AdjustStock(w http.ResponseWriter, r *http.Request) {
 	u, _ := account.FromContext(r.Context())
 	if err := web.ParseForm(w, r); err != nil {
@@ -467,8 +450,6 @@ func (h *Handler) AdjustStock(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// rejectAdjustment re-renders the stock list the form was posted from, at 422,
-// with what was typed kept in its row and marked invalid.
 func (h *Handler) rejectAdjustment(w http.ResponseWriter, r *http.Request, key i18n.Key) {
 	var low, term, after string
 	if u, err := url.Parse(r.PostFormValue("return")); err == nil && u.Path == "/admin/stock" && u.Host == "" {
@@ -497,7 +478,6 @@ func (h *Handler) rejectAdjustment(w http.ResponseWriter, r *http.Request, key i
 	web.Render(w, r, h.log, http.StatusUnprocessableEntity, admin.Variants(admin.VariantsMeta(r.Context()), view))
 }
 
-// ReceiveStock serves POST /admin/stock/receive, redirecting to the ledger.
 func (h *Handler) ReceiveStock(w http.ResponseWriter, r *http.Request) {
 	u, _ := account.FromContext(r.Context())
 	if err := web.ParseForm(w, r); err != nil {
@@ -531,7 +511,6 @@ func (h *Handler) ReceiveStock(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// SetVariantActive serves POST /admin/stock/active.
 func (h *Handler) SetVariantActive(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
@@ -552,7 +531,6 @@ func (h *Handler) SetVariantActive(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// SetVariantPrice serves POST /admin/stock/price.
 func (h *Handler) SetVariantPrice(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
@@ -579,8 +557,6 @@ func (h *Handler) SetVariantPrice(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// stockReturn is the stock list's address for a filter and position, plus an
-// optional notice and the row to land on.
 func stockReturn(low, term, after, notice, sku string) string {
 	q := url.Values{}
 	if low == "1" {
@@ -617,7 +593,6 @@ func stockBack(r *http.Request, notice string) string {
 	return stockReturn(low, term, after, notice, r.PostFormValue("sku"))
 }
 
-// adminNotices is the one-shot message each redirect parameter carries.
 var adminNotices = map[string]i18n.Key{
 	"ok":             i18n.KeyAdminNoticeOK,
 	"refused":        i18n.KeyAdminNoticeRefused,
@@ -674,7 +649,6 @@ var adminNotices = map[string]i18n.Key{
 	"gone":           i18n.KeyAdminNoticeGone,
 }
 
-// noticeFor turns a redirect's one-shot query parameter into a message.
 func noticeFor(r *http.Request) string {
 	q := r.URL.Query()
 	for name, k := range adminNotices {
@@ -685,7 +659,6 @@ func noticeFor(r *http.Request) string {
 	return ""
 }
 
-// newKey returns an idempotency key for an adjustment whose form lost its own.
 func newKey() string {
 	b := make([]byte, 16)
 	if _, err := rand.Read(b); err != nil {
@@ -701,7 +674,6 @@ func (h *Handler) serverError(w http.ResponseWriter, r *http.Request) {
 		i18n.T(r.Context(), i18n.KeyAdminErrorBody)))
 }
 
-// Credit serves GET /admin/credit.
 func (h *Handler) Credit(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Credit(r.Context(), r.URL.Query().Get(web.KeysetParam))
 	if err != nil {
@@ -738,7 +710,6 @@ func (h *Handler) GrantCredit(w http.ResponseWriter, r *http.Request) {
 	view := admin.CreditView{Email: r.PostFormValue("email"), Amount: r.PostFormValue("amount"), Reason: r.PostFormValue("reason"), OperationID: r.PostFormValue("operation_id")}
 	operationID, valid := validateCreditGrant(&view)
 	if !valid {
-		// The field errors under the controls already say what is wrong.
 		h.renderCreditForm(w, r, &view, http.StatusUnprocessableEntity, "")
 		return
 	}
@@ -791,7 +762,6 @@ func (h *Handler) notFound(w http.ResponseWriter, r *http.Request) {
 		i18n.T(r.Context(), i18n.KeyAdminNotFoundBody)))
 }
 
-// Coupons serves GET /admin/coupons.
 func (h *Handler) Coupons(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Coupons(r.Context(), r.URL.Query().Get(web.KeysetParam))
 	if err != nil {
@@ -804,7 +774,6 @@ func (h *Handler) Coupons(w http.ResponseWriter, r *http.Request) {
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageCoupons)}, view))
 }
 
-// CreateCoupon serves POST /admin/coupons.
 func (h *Handler) CreateCoupon(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
@@ -876,7 +845,6 @@ func couponFormOf(r *http.Request) *CouponForm {
 	return f
 }
 
-// SetCouponActive serves POST /admin/coupons/{code}/active.
 func (h *Handler) SetCouponActive(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
@@ -891,7 +859,6 @@ func (h *Handler) SetCouponActive(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/admin/coupons?ok=1", http.StatusSeeOther)
 }
 
-// whole reads a figure typed in whole units — dollars, or percent.
 func whole(s string) (int64, bool) {
 	s = strings.TrimSpace(s)
 	if s == "" {
@@ -901,7 +868,6 @@ func whole(s string) (int64, bool) {
 	return n, err == nil && n >= 0 && n <= MaxPriceCents/100
 }
 
-// small reads a count bounded well below int32, so no conversion overflows.
 func smallChecked(s string) (int32, bool) {
 	s = strings.TrimSpace(s)
 	if s == "" {
@@ -923,7 +889,6 @@ func small(s string) int32 {
 	return n
 }
 
-// Campaigns serves GET /admin/campaigns.
 func (h *Handler) Campaigns(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Campaigns(r.Context(), r.URL.Query().Get(web.KeysetParam))
 	if err != nil {
@@ -936,7 +901,6 @@ func (h *Handler) Campaigns(w http.ResponseWriter, r *http.Request) {
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageCampaigns)}, view))
 }
 
-// CreateCampaign serves POST /admin/campaigns.
 func (h *Handler) CreateCampaign(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
@@ -972,13 +936,10 @@ func (h *Handler) CreateCampaign(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// EditCampaign serves GET /admin/campaigns/{slug}.
 func (h *Handler) EditCampaign(w http.ResponseWriter, r *http.Request) {
 	h.renderCampaign(w, r, http.StatusOK, noticeFor(r), nil)
 }
 
-// renderCampaign draws a campaign's edit page. A refused image form draws it
-// again at 422 with the reason at the field.
 func (h *Handler) renderCampaign(w http.ResponseWriter, r *http.Request, status int, notice string, errs map[string]string) {
 	slug := r.PathValue("slug")
 	products, err := h.store.CampaignProducts(r.Context(), slug)
@@ -1020,7 +981,6 @@ func (h *Handler) renderCampaign(w http.ResponseWriter, r *http.Request, status 
 		}))
 }
 
-// SetCampaignWindow serves POST /admin/campaigns/{slug}/window.
 func (h *Handler) SetCampaignWindow(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
@@ -1043,7 +1003,6 @@ func (h *Handler) SetCampaignWindow(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// SetCampaignTone serves POST /admin/campaigns/{slug}/tone.
 func (h *Handler) SetCampaignTone(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
@@ -1064,8 +1023,6 @@ func (h *Handler) SetCampaignTone(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// SetCampaignImage serves POST /admin/campaigns/{slug}/image. Multipart: the
-// picture arrives with its alt text.
 func (h *Handler) SetCampaignImage(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
 	obj, err := h.images.StoreUpload(w, r, "image")
@@ -1100,7 +1057,6 @@ func (h *Handler) SetCampaignImage(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// RemoveCampaignImage serves POST /admin/campaigns/{slug}/image/remove.
 func (h *Handler) RemoveCampaignImage(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
@@ -1119,7 +1075,6 @@ func (h *Handler) RemoveCampaignImage(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// FeatureProduct serves POST /admin/campaigns/{slug}/products.
 func (h *Handler) FeatureProduct(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
@@ -1149,7 +1104,6 @@ func (h *Handler) FeatureProduct(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/admin/campaigns/"+slug+"?ok=1", http.StatusSeeOther)
 }
 
-// SetCampaignActive serves POST /admin/campaigns/{slug}/active.
 func (h *Handler) SetCampaignActive(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
@@ -1169,7 +1123,6 @@ func (h *Handler) SetCampaignActive(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, back+"?ok=1", http.StatusSeeOther) //nolint:gosec // G710: slug is the route's own path value
 }
 
-// Audit serves GET /admin/audit.
 func (h *Handler) Audit(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Audit(r.Context(), r.URL.Query().Get(web.KeysetParam))
 	if err != nil {
@@ -1181,7 +1134,6 @@ func (h *Handler) Audit(w http.ResponseWriter, r *http.Request) {
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageAudit)}, view))
 }
 
-// Movements serves GET /admin/stock/{sku}.
 func (h *Handler) Movements(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Movements(r.Context(), r.PathValue("sku"), r.URL.Query().Get(web.KeysetParam))
 	switch {
@@ -1197,7 +1149,6 @@ func (h *Handler) Movements(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// FAQ serves GET /admin/faq.
 func (h *Handler) FAQ(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.FAQ(r.Context())
 	if err != nil {
@@ -1210,7 +1161,6 @@ func (h *Handler) FAQ(w http.ResponseWriter, r *http.Request) {
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageFAQ)}, &view))
 }
 
-// CreateFAQEntry serves POST /admin/faq.
 func (h *Handler) CreateFAQEntry(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
@@ -1229,7 +1179,6 @@ func (h *Handler) CreateFAQEntry(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// EditFAQEntry serves POST /admin/faq/{id}: save or delete, by submitted button.
 func (h *Handler) EditFAQEntry(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
@@ -1262,7 +1211,6 @@ func (h *Handler) EditFAQEntry(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// faqFormOf reads the FAQ form off a request.
 func faqFormOf(r *http.Request) *FAQForm {
 	return &FAQForm{
 		Category:   r.PostFormValue("category"),
@@ -1274,7 +1222,6 @@ func faqFormOf(r *http.Request) *FAQForm {
 	}
 }
 
-// rejectFAQ re-renders the page at 422 with what was typed still in it.
 func (h *Handler) rejectFAQ(
 	w http.ResponseWriter, r *http.Request, f *FAQForm, errs map[string]string,
 ) {
@@ -1300,7 +1247,6 @@ func (h *Handler) rejectFAQ(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageFAQ)}, &view))
 }
 
-// HomeContent serves GET /admin/home.
 func (h *Handler) HomeContent(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.HeroSlides(r.Context())
 	if err != nil {
@@ -1320,7 +1266,6 @@ func (h *Handler) HomeContent(w http.ResponseWriter, r *http.Request) {
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageHero)}, &view))
 }
 
-// CreateBanner serves POST /admin/home/banner.
 func (h *Handler) CreateBanner(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
@@ -1349,7 +1294,6 @@ func (h *Handler) CreateBanner(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// SetBannerActive serves POST /admin/home/banner/{id}/active.
 func (h *Handler) SetBannerActive(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
@@ -1365,7 +1309,6 @@ func (h *Handler) SetBannerActive(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/admin/home?ok=1", http.StatusSeeOther)
 }
 
-// rejectBanner re-renders the page at 422 with what was typed still in it.
 func (h *Handler) rejectBanner(
 	w http.ResponseWriter, r *http.Request, f *BannerForm, errs map[string]string,
 ) {
@@ -1387,10 +1330,9 @@ func (h *Handler) rejectBanner(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageHero)}, &view))
 }
 
-// CreateHeroSlide serves POST /admin/home. Multipart, because the artwork
-// arrives with the copy; the image is optional and a slide with none falls back
-// to the built-in artwork. The copy is checked before the image is decoded, so
-// a refused slide stores nothing.
+// CreateHeroSlide takes the artwork with the copy, multipart. The image is
+// optional and a slide with none falls back to the built-in artwork; the copy is
+// checked before the image is decoded, so a refused slide stores nothing.
 func (h *Handler) CreateHeroSlide(w http.ResponseWriter, r *http.Request) {
 	upload, err := h.images.OpenUpload(w, r, "image")
 	if err != nil {
@@ -1445,7 +1387,6 @@ func (h *Handler) CreateHeroSlide(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// rejectHeroSlide re-renders the page at 422 with what was typed still in it.
 func (h *Handler) rejectHeroSlide(
 	w http.ResponseWriter, r *http.Request, f *HeroForm, errs map[string]string,
 ) {
@@ -1468,7 +1409,6 @@ func (h *Handler) rejectHeroSlide(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageHero)}, &view))
 }
 
-// SetHeroSlideActive serves POST /admin/home/{id}/active.
 func (h *Handler) SetHeroSlideActive(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
@@ -1483,7 +1423,6 @@ func (h *Handler) SetHeroSlideActive(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/admin/home?ok=1", http.StatusSeeOther)
 }
 
-// PromoteHeroSlide serves POST /admin/home/{id}/promote.
 func (h *Handler) PromoteHeroSlide(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
@@ -1497,7 +1436,6 @@ func (h *Handler) PromoteHeroSlide(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/admin/home?ok=1", http.StatusSeeOther)
 }
 
-// Taxonomy serves GET /admin/taxonomy.
 func (h *Handler) Taxonomy(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Taxonomy(r.Context())
 	if err != nil {
@@ -1510,8 +1448,7 @@ func (h *Handler) Taxonomy(w http.ResponseWriter, r *http.Request) {
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageTaxonomy)}, &view))
 }
 
-// CreateTaxon serves POST /admin/taxonomy/{kind}. The kind is a path value the
-// router constrains, never anything a form supplies.
+// CreateTaxon takes the kind from the path, which the router constrains, never from a form.
 func (h *Handler) CreateTaxon(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
@@ -1558,7 +1495,6 @@ func (h *Handler) CreateTaxon(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// EditTaxon serves POST /admin/taxonomy/{kind}/{slug}: rename or delete.
 func (h *Handler) EditTaxon(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
@@ -1592,7 +1528,6 @@ func (h *Handler) EditTaxon(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// Reports serves GET /admin/reports.
 func (h *Handler) Reports(w http.ResponseWriter, r *http.Request) {
 	// A parse failure is zero, which the store's allowlist turns into the
 	// default — the same answer an out-of-range number gets.
@@ -1610,7 +1545,6 @@ func (h *Handler) Reports(w http.ResponseWriter, r *http.Request) {
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageReports)}, &view))
 }
 
-// Questions serves GET /admin/questions.
 func (h *Handler) Questions(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Questions(r.Context())
 	if err != nil {
@@ -1623,7 +1557,6 @@ func (h *Handler) Questions(w http.ResponseWriter, r *http.Request) {
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageQuestions)}, view))
 }
 
-// AnswerQuestion serves POST /admin/questions/{id}: answer or hide.
 func (h *Handler) AnswerQuestion(w http.ResponseWriter, r *http.Request) {
 	u, ok := account.FromContext(r.Context())
 	if !ok {
@@ -1657,8 +1590,6 @@ func (h *Handler) AnswerQuestion(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// rejectAnswer re-renders the questions with the reply staff typed kept in its
-// own box and marked invalid.
 func (h *Handler) rejectAnswer(w http.ResponseWriter, r *http.Request, id string) {
 	view, err := h.store.Questions(r.Context())
 	if err != nil {
@@ -1676,9 +1607,7 @@ func (h *Handler) rejectAnswer(w http.ResponseWriter, r *http.Request, id string
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageQuestions)}, view))
 }
 
-// ReconcilePayment serves POST /admin/health/reconcile.
-//
-// This records an explicit money outcome: an event is released only after full
+// ReconcilePayment records an explicit money outcome: an event is released only after full
 // refund/already-succeeded accounting, while a provider-complete payment chooses
 // paid attribution or confirmed-unpaid/refunded. It also grants one Allowance
 // resend after a human confirms provider absence. The three subjects and their
@@ -1788,7 +1717,6 @@ func (h *Handler) applyHealthReconciliation(
 	}
 }
 
-// Health serves GET /admin/health.
 func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.WorkerHealth(r.Context(), h.outbox)
 	if err != nil {
@@ -1802,7 +1730,6 @@ func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageHealth)}, &view))
 }
 
-// poolHealth reads each pool's statistics as they stand now.
 func (h *Handler) poolHealth() []admin.PoolHealth {
 	out := make([]admin.PoolHealth, 0, len(h.pools))
 	for _, p := range h.pools {
@@ -1817,7 +1744,6 @@ func (h *Handler) poolHealth() []admin.PoolHealth {
 	return out
 }
 
-// Tiers serves GET /admin/tiers.
 func (h *Handler) Tiers(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Tiers(r.Context())
 	if err != nil {
@@ -1830,7 +1756,6 @@ func (h *Handler) Tiers(w http.ResponseWriter, r *http.Request) {
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageTiers)}, view))
 }
 
-// CreateTier serves POST /admin/tiers.
 func (h *Handler) CreateTier(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
@@ -1847,7 +1772,6 @@ func (h *Handler) CreateTier(w http.ResponseWriter, r *http.Request) {
 	h.redirectTiers(w, r, err)
 }
 
-// DeleteTier serves POST /admin/tiers/delete.
 func (h *Handler) DeleteTier(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
@@ -1856,7 +1780,6 @@ func (h *Handler) DeleteTier(w http.ResponseWriter, r *http.Request) {
 	h.redirectTiers(w, r, h.store.DeleteTier(r.Context(), r.PostFormValue("tier")))
 }
 
-// redirectTiers turns a store error into the page's own answer.
 func (h *Handler) redirectTiers(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case err == nil:
@@ -1872,7 +1795,6 @@ func (h *Handler) redirectTiers(w http.ResponseWriter, r *http.Request, err erro
 	}
 }
 
-// CorrectDelivery serves POST /admin/orders/{number}/delivery.
 func (h *Handler) CorrectDelivery(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
@@ -1923,7 +1845,6 @@ func (h *Handler) rejectDelivery(w http.ResponseWriter, r *http.Request, d *Deli
 		admin.Order(layouts.Page{Title: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyAdminPageOrder), view.Number)}, &view))
 }
 
-// Reviews serves GET /admin/reviews.
 func (h *Handler) Reviews(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Reviews(r.Context(), r.URL.Query().Get(web.KeysetParam))
 	if err != nil {
@@ -1936,12 +1857,10 @@ func (h *Handler) Reviews(w http.ResponseWriter, r *http.Request) {
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageReviews)}, view))
 }
 
-// HideReview serves POST /admin/reviews/hide.
 func (h *Handler) HideReview(w http.ResponseWriter, r *http.Request) {
 	h.setReviewHidden(w, r, true)
 }
 
-// ShowReview serves POST /admin/reviews/show.
 func (h *Handler) ShowReview(w http.ResponseWriter, r *http.Request) {
 	h.setReviewHidden(w, r, false)
 }
@@ -1962,7 +1881,6 @@ func (h *Handler) setReviewHidden(w http.ResponseWriter, r *http.Request, hidden
 	}
 }
 
-// Messages serves GET /admin/messages.
 func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Messages(r.Context(), r.URL.Query().Get(web.KeysetParam))
 	if err != nil {
@@ -1975,12 +1893,10 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageMessages)}, view))
 }
 
-// HandleMessage serves POST /admin/messages/handle.
 func (h *Handler) HandleMessage(w http.ResponseWriter, r *http.Request) {
 	h.setMessageHandled(w, r, true)
 }
 
-// ReopenMessage serves POST /admin/messages/reopen.
 func (h *Handler) ReopenMessage(w http.ResponseWriter, r *http.Request) {
 	h.setMessageHandled(w, r, false)
 }
@@ -2001,10 +1917,8 @@ func (h *Handler) setMessageHandled(w http.ResponseWriter, r *http.Request, hand
 	}
 }
 
-// NewsletterIssueLimit bounds the issue list.
 const NewsletterIssueLimit = 50
 
-// Newsletter serves GET /admin/newsletter.
 func (h *Handler) Newsletter(w http.ResponseWriter, r *http.Request) {
 	view, err := h.newsletterView(r)
 	if err != nil {
@@ -2017,8 +1931,7 @@ func (h *Handler) Newsletter(w http.ResponseWriter, r *http.Request) {
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageNewsletter)}, view))
 }
 
-// ComposeNewsletter serves POST /admin/newsletter. It writes a DRAFT and sends
-// nothing: the irreversible step gets its own button.
+// ComposeNewsletter writes a DRAFT and sends nothing: the irreversible step gets its own button.
 func (h *Handler) ComposeNewsletter(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
@@ -2051,9 +1964,8 @@ func (h *Handler) ComposeNewsletter(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/admin/newsletter?saved=1", http.StatusSeeOther)
 }
 
-// SendNewsletter serves POST /admin/newsletter/{id}/send. The store refuses a
-// second send in the UPDATE's own WHERE clause, because a reload is not the
-// only way two of these arrive.
+// SendNewsletter relies on the store refusing a second send in the UPDATE's own
+// WHERE clause, because a reload is not the only way two of these arrive.
 func (h *Handler) SendNewsletter(w http.ResponseWriter, r *http.Request) {
 	switch _, err := h.letters.Send(r.Context(), r.PathValue("id"), staffID(r)); {
 	case err == nil:
@@ -2068,7 +1980,6 @@ func (h *Handler) SendNewsletter(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// newsletterView reads the counts and the issues together.
 func (h *Handler) newsletterView(r *http.Request) (admin.NewsletterView, error) {
 	counts, err := h.letters.Counts(r.Context())
 	if err != nil {
@@ -2092,7 +2003,6 @@ func (h *Handler) newsletterView(r *http.Request) (admin.NewsletterView, error) 
 	return view, nil
 }
 
-// Customers serves GET /admin/customers.
 func (h *Handler) Customers(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Customers(r.Context(), r.URL.Query().Get("q"), r.URL.Query().Get(web.KeysetParam))
 	if err != nil {
@@ -2104,7 +2014,6 @@ func (h *Handler) Customers(w http.ResponseWriter, r *http.Request) {
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageCustomers)}, view))
 }
 
-// Warranties serves GET /admin/warranty, the shop's half of registration.
 func (h *Handler) Warranties(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Warranties(r.Context(), r.URL.Query().Get("q"), r.URL.Query().Get(web.KeysetParam))
 	if err != nil {
@@ -2116,7 +2025,6 @@ func (h *Handler) Warranties(w http.ResponseWriter, r *http.Request) {
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageWarranty)}, view))
 }
 
-// Customer serves GET /admin/customers/{id}.
 func (h *Handler) Customer(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Customer(r.Context(), r.PathValue("id"), staffID(r))
 	switch {
@@ -2131,8 +2039,6 @@ func (h *Handler) Customer(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// IssueInvoice serves POST /admin/orders/{number}/invoice, acting on the
-// invoice preference collected at checkout.
 func (h *Handler) IssueInvoice(w http.ResponseWriter, r *http.Request) {
 	number := r.PathValue("number")
 	if !IsOrderNumber(number) {
@@ -2167,9 +2073,8 @@ func (h *Handler) IssueInvoice(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// VoidInvoice serves POST /admin/orders/{number}/invoice/void. A uniform
-// invoice cannot be edited: a wrong one is voided and a correct one issued in
-// its place, which invoice_documents_guard enforces.
+// VoidInvoice voids a wrong invoice so a correct one can be issued in its
+// place: a uniform invoice cannot be edited, which invoice_documents_guard enforces.
 func (h *Handler) VoidInvoice(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
@@ -2207,9 +2112,7 @@ func (h *Handler) VoidInvoice(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// AllowInvoice serves POST /admin/orders/{number}/invoice/allowance.
-//
-// A refund leaves the 統一發票 recording a sale that partly did not happen, and
+// AllowInvoice files an allowance. A refund leaves the 統一發票 recording a sale that partly did not happen, and
 // a 折讓 is the correction the 財政部 accepts for it — a void is for an invoice
 // that should not exist, an allowance for one that should exist for less. The
 // amount is derived from settled refunds and prior filed allowances inside the

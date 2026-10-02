@@ -9,10 +9,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
-// Customers renders the customer search.
-//
-// The table appears only once somebody has searched: a back office that lists
-// every customer by default is a page nobody reads and a query nobody wanted.
+// The table appears only once somebody has searched: listing every customer by
+// default is a page nobody reads and a query nobody wanted.
 templ Customers(p layouts.Page, v CustomersView) {
 	@layouts.Admin(p, "customers") {
 		<div class="ui-page-head">
@@ -88,8 +86,6 @@ templ Customers(p layouts.Page, v CustomersView) {
 	}
 }
 
-// Customer renders one customer, whole: the four figures a staff member
-// checks first, then what the shop knows, then what they have bought.
 templ Customer(p layouts.Page, v *CustomerView) {
 	@layouts.Admin(p, "customers") {
 		@components.Breadcrumb(components.BreadcrumbProps{

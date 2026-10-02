@@ -17,7 +17,6 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
-// ErrTooLateToCorrect is a delivery address that can no longer be changed.
 var ErrTooLateToCorrect = errors.New("admin: this order has already shipped")
 
 // Delivery is the correction a staff member typed; which half applies follows
@@ -37,7 +36,6 @@ type Delivery struct {
 	PickupStoreName string
 }
 
-// DeliveryPostalError is a refusal the staff member reads at the postcode field.
 type DeliveryPostalError struct{ Key i18n.Key }
 
 func (e *DeliveryPostalError) Error() string {

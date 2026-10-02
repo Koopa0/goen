@@ -9,11 +9,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
-// Movements renders one variant's stock ledger.
-//
-// The receiving form comes before the ledger because that is why the page is
-// open: a delivery has arrived and the count has to be raised. The ledger
-// below is read afterwards to check it landed.
+// The receiving form comes before the ledger because a delivery has arrived and
+// the count has to be raised; the ledger is read afterwards to check it landed.
 templ Movements(p layouts.Page, v *MovementsView) {
 	@layouts.Admin(p, "stock") {
 		<div class="ui-page-head">
