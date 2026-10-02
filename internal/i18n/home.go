@@ -81,9 +81,8 @@ var (
 
 	KeyHeroPlay = key("home.hero.play", Message{ZhHant: "繼續輪播", En: "Play the carousel"})
 
-	// The grey continuation of a section heading, on the same line as its name:
-	// %s is the rest of the sentence.
-	KeyHomeAside = key("home.heading.aside", Message{ZhHant: "。%s", En: ". %s"})
+	// What joins a section's name to its grey continuation on the same line.
+	KeyHomeAside = key("home.heading.aside", Message{ZhHant: "。", En: ". "})
 
 	// The campaign row's continuation: %d is the product count, %s the last day.
 	KeyHomeCampaignRowFact = countKey("home.campaign.row_fact", "%d 件商品，至 %s",

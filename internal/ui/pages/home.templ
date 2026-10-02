@@ -138,7 +138,7 @@ templ heading(id, name, rest string) {
 	if rest == "" {
 		<h2 id={ id } class="goen-home__heading">{ name }</h2>
 	} else {
-		<h2 id={ id } class="goen-home__heading">{ name }<span class="goen-home__aside">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyHomeAside), rest) }</span></h2>
+		<h2 id={ id } class="goen-home__heading">{ name }<span class="goen-home__aside"><span class="goen-home__sep">{ i18n.T(ctx, i18n.KeyHomeAside) }</span>{ rest }</span></h2>
 	}
 }
 
