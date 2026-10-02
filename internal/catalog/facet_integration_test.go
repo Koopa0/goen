@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/catalog"
+	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 // A brand's count is what choosing it would show with the other filters kept,
@@ -61,8 +62,13 @@ func TestBrandCountsFollowTheOtherFiltersAndNotTheBrandFilter(t *testing.T) {
 			t.Fatal(listErr)
 		}
 		out := map[string]int64{}
-		for _, b := range view.Brands {
-			out[b.Value] = b.Count
+		for _, group := range view.Facets {
+			if group.Kind != pages.FacetBrand {
+				continue
+			}
+			for _, b := range group.Options {
+				out[b.Value] = b.Count
+			}
 		}
 		return out
 	}
