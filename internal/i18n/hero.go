@@ -50,9 +50,11 @@ var (
 			"no campaign running and no department with a photograph.",
 	})
 
-	KeyAdminHomeSourceScheduled = key("admin.home.source.scheduled", Message{ZhHant: "佇列主視覺", En: "Queued slide"})
+	KeyAdminHomeSourceScheduled = key("admin.home.source.scheduled", Message{ZhHant: "排程主視覺", En: "Scheduled slide"})
 
 	KeyAdminHomeSourceCampaign = key("admin.home.source.campaign", Message{ZhHant: "進行中的活動", En: "Running campaign"})
+
+	KeyAdminHomeSourceOther = key("admin.home.source.other", Message{ZhHant: "其他", En: "Other"})
 
 	KeyAdminHomeSourceDepartment = key("admin.home.source.department", Message{ZhHant: "部門主圖", En: "Department photo"})
 

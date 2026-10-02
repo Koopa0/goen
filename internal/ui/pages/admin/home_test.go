@@ -92,3 +92,22 @@ func TestAQueuedSlideIsShowingOnlyWhenTheStorefrontCarriesIt(t *testing.T) {
 		t.Error("a queued slide is marked while the carousel has none")
 	}
 }
+
+func TestEverySlideSourceHasItsOwnLabelAndAnUnknownOneIsNotAPanic(t *testing.T) {
+	t.Parallel()
+	for _, loc := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+		ctx := i18n.WithLocale(t.Context(), loc)
+		other := SourceLabel(ctx, pages.SlideSource("nowhere"))
+		seen := map[string]pages.SlideSource{}
+		for _, src := range pages.SlideSources() {
+			label := SourceLabel(ctx, src)
+			if label == "" || label == other {
+				t.Errorf("%v: source %q has no label of its own", loc, src)
+			}
+			if prev, dup := seen[label]; dup {
+				t.Errorf("%v: %q and %q share the label %q", loc, prev, src, label)
+			}
+			seen[label] = src
+		}
+	}
+}

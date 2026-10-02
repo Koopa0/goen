@@ -76,11 +76,11 @@ func (s *Store) Campaigns(ctx context.Context, after ...string) (admin.Campaigns
 	view := admin.CampaignsView{ListBound: bound}
 	for i := range rows {
 		c := &rows[i]
-		view.Rows = append(view.Rows, admin.Campaign{
+		view.Rows = append(view.Rows, admin.CampaignRow{
 			Slug: c.Slug, Title: c.Title, Products: c.Products,
 			Active: c.IsActive, Running: c.IsRunning,
-			StartsAt: shoptime.Day(c.StartsAt),
-			EndsAt:   shoptime.Minute(c.EndsAt),
+			StartsAtText: shoptime.Day(c.StartsAt),
+			EndsAtText:   shoptime.Minute(c.EndsAt),
 		})
 	}
 	return view, nil
@@ -104,7 +104,7 @@ func (s *Store) CampaignImage(ctx context.Context, slug string) (admin.Header, s
 	}, row.Tone, nil
 }
 
-func (s *Store) Campaign(ctx context.Context, slug string) (admin.CampaignDetail, error) {
+func (s *Store) CampaignDetail(ctx context.Context, slug string) (admin.CampaignDetail, error) {
 	row, err := s.q.AdminCampaign(ctx, slug)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -113,8 +113,8 @@ func (s *Store) Campaign(ctx context.Context, slug string) (admin.CampaignDetail
 		return admin.CampaignDetail{}, fmt.Errorf("read campaign: %w", err)
 	}
 	return admin.CampaignDetail{
-		Title:    row.Title,
-		StartsAt: shoptime.InputMinute(row.StartsAt), EndsAt: shoptime.InputMinute(row.EndsAt),
+		Title:         row.Title,
+		StartsAtInput: shoptime.InputMinute(row.StartsAt), EndsAtInput: shoptime.InputMinute(row.EndsAt),
 		Active: row.IsActive, Running: row.IsRunning,
 	}, nil
 }
@@ -127,12 +127,22 @@ func (s *Store) SetCampaignWindow(ctx context.Context, slug, startsAt, endsAt st
 	if !okStart || !okEnd || !ends.After(starts) || ends.Sub(starts) > MaxCampaignDays*24*time.Hour {
 		return map[string]string{"window": i18n.T(ctx, i18n.KeyFormCampaignWindow)}, nil
 	}
+	// Filled by the write below, read when the audit row is encoded after it.
+	before := map[string]any{"slug": slug}
 	return nil, s.audited(ctx, Event{
 		Action: actionSetCampaignWindow, Table: "sale_campaigns", ID: uuid.NullUUID{},
-		Before: map[string]any{"slug": slug},
-		After:  map[string]any{"starts_at": startsAt, "ends_at": endsAt},
+		Before: before,
+		After:  map[string]any{"slug": slug, "starts_at": starts.UTC(), "ends_at": ends.UTC()},
 	},
 		func(ctx context.Context, q *db.Queries) error {
+			prior, err := q.AdminCampaign(ctx, strings.TrimSpace(slug))
+			if errors.Is(err, pgx.ErrNoRows) {
+				return ErrNotFound
+			}
+			if err != nil {
+				return fmt.Errorf("read campaign dates: %w", err)
+			}
+			before["starts_at"], before["ends_at"] = prior.StartsAt.UTC(), prior.EndsAt.UTC()
 			n, err := q.SetCampaignWindow(ctx, db.SetCampaignWindowParams{
 				Slug: strings.TrimSpace(slug), StartsAt: starts, EndsAt: ends,
 			})
@@ -149,7 +159,7 @@ func (s *Store) SetCampaignWindow(ctx context.Context, slug, startsAt, endsAt st
 const campaignSearchLimit = 10
 
 func (s *Store) SearchCampaignProducts(ctx context.Context, slug, term string) ([]admin.CampaignProduct, error) {
-	term = strings.TrimSpace(term)
+	term = SearchTerm(term)
 	if term == "" {
 		return nil, nil
 	}

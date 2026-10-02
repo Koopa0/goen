@@ -37,7 +37,7 @@ func TestTheCampaignPageIsTitledAndEditsItsDatesAndAddsProductsBySearch(t *testi
 	page := renderComponent(t, ctx, CampaignForm(layouts.Page{Title: "c"}, CampaignView{
 		Slug: "autumn-picks",
 		CampaignDetail: CampaignDetail{
-			Title: "秋季精選", StartsAt: "2026-10-01T09:00", EndsAt: "2026-10-31T23:59", Active: true,
+			Title: "秋季精選", StartsAtInput: "2026-10-01T09:00", EndsAtInput: "2026-10-31T23:59", Active: true,
 		},
 		Term:    "mug",
 		Matches: []CampaignProduct{{Slug: "ceramic-mug", Name: "陶瓷馬克杯"}},

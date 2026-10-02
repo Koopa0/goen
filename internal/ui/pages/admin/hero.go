@@ -133,8 +133,8 @@ func (v *HeroView) Empty() bool { return len(v.Rows) == 0 }
 
 func (v *HeroView) scheduledShown() int {
 	n := 0
-	for _, s := range v.Carousel {
-		if s.Source == pages.SlideScheduled {
+	for i := range v.Carousel {
+		if v.Carousel[i].Source == pages.SlideScheduled {
 			n++
 		}
 	}
@@ -171,7 +171,7 @@ func SourceLabel(ctx context.Context, src pages.SlideSource) string {
 	case pages.SlideDepartment:
 		return i18n.T(ctx, i18n.KeyAdminHomeSourceDepartment)
 	}
-	panic("admin: unknown slide source " + string(src))
+	return i18n.T(ctx, i18n.KeyAdminHomeSourceOther)
 }
 
 // HasErr reports whether a field was refused.

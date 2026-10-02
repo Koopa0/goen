@@ -835,7 +835,7 @@ func (s *Store) SetStaffNote(ctx context.Context, number, note string) error {
 
 // Variants reads the stock list.
 func (s *Store) Variants(ctx context.Context, lowOnly bool, term string, after ...string) (admin.VariantsView, error) {
-	term = strings.TrimSpace(term)
+	term = SearchTerm(term)
 	low := ""
 	if lowOnly {
 		low = "1"
