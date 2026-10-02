@@ -40,9 +40,14 @@ func TestSoldOutGuidanceMatchesAvailableOptionPickers(t *testing.T) {
 				if got := strings.Contains(markup, i18n.T(ctx, i18n.KeyAllSoldOutHint)); got != withOptions {
 					t.Errorf("variant-selection hint visible = %t, want %t", got, withOptions)
 				}
+				// The request carries the selection so the answer lands on the same page.
+				notify := "/p/sold-out/notify"
+				if withOptions {
+					notify += "?colour=blue"
+				}
 				for _, want := range []string{
 					i18n.T(ctx, i18n.KeyAllSoldOut),
-					`method="post" action="/p/sold-out/notify"`,
+					`method="post" action="` + notify + `"`,
 					`name="variant" value="only-variant"`,
 					i18n.T(ctx, i18n.KeyRestockSubmit),
 				} {
