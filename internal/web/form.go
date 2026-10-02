@@ -12,13 +12,21 @@ const maxCount = 1_000_000
 
 // ParseCount reads an optional count from a form field: blank is zero, and
 // anything that is not a whole number from 0 to a million is not ok.
-func ParseCount(s string) (n int32, ok bool) {
+func ParseCount(s string) (n int32, ok bool) { return ParseBounded(s, maxCount) }
+
+// ParseBounded reads a non-negative whole number whose blank and zero forms both
+// mean zero. The boolean keeps unreadable and out-of-range input distinct from
+// that valid zero until the handler can render a field refusal.
+func ParseBounded(s string, ceiling int32) (n int32, ok bool) {
 	s = strings.TrimSpace(s)
 	if s == "" {
 		return 0, true
 	}
 	v, err := strconv.ParseInt(s, 10, 32)
-	return int32(v), err == nil && v >= 0 && v <= maxCount
+	if err != nil || v < 0 || v > int64(ceiling) {
+		return 0, false
+	}
+	return int32(v), true
 }
 
 // MinSearchRunes is the shortest back-office search that is a search. Counted in

@@ -9,13 +9,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"html"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/account"
@@ -213,4 +216,85 @@ func NamedPool(t *testing.T, pool *pgxpool.Pool, applicationName string) *pgxpoo
 	}
 	t.Cleanup(p.Close)
 	return p
+}
+
+func AssertRefusedInput(t *testing.T, body, id, raw string) {
+	t.Helper()
+	input := InputElementByID(t, body, id)
+	if got := InputAttribute(t, input, "value"); got != raw {
+		t.Errorf("input %q value = %q, want raw %q", id, got, raw)
+	}
+	if got := InputAttribute(t, input, "aria-invalid"); got != "true" {
+		t.Errorf("input %q aria-invalid = %q, want true", id, got)
+	}
+	errorID := id + "-error"
+	if got := InputAttribute(t, input, "aria-describedby"); got != errorID {
+		t.Errorf("input %q aria-describedby = %q, want %q", id, got, errorID)
+	}
+	if !regexp.MustCompile(`<p[^>]*id="` + regexp.QuoteMeta(errorID) + `"[^>]*>[^<]+</p>`).
+		MatchString(body) {
+		t.Errorf("input %q has no nonempty error element %q", id, errorID)
+	}
+}
+
+func AssertTextNumberControl(t *testing.T, body, id string) {
+	t.Helper()
+	input := InputElementByID(t, body, id)
+	if got := InputAttribute(t, input, "type"); got != "text" {
+		t.Errorf("input %q type = %q, want text", id, got)
+	}
+	if got := InputAttribute(t, input, "inputmode"); got != "numeric" {
+		t.Errorf("input %q inputmode = %q, want numeric", id, got)
+	}
+	for _, attribute := range []string{"min", "max", "step"} {
+		if got := InputAttribute(t, input, attribute); got != "" {
+			t.Errorf("input %q retains ineffective %s=%q", id, attribute, got)
+		}
+	}
+}
+
+func InputAttribute(t *testing.T, input, name string) string {
+	t.Helper()
+	match := regexp.MustCompile(`\b` + regexp.QuoteMeta(name) + `="([^"]*)"`).FindStringSubmatch(input)
+	if len(match) != 2 {
+		return ""
+	}
+	return html.UnescapeString(match[1])
+}
+
+func InputElementByID(t *testing.T, body, id string) string {
+	t.Helper()
+	match := regexp.MustCompile(`<input\b[^>]*\bid="` + regexp.QuoteMeta(id) + `"[^>]*>`).
+		FindString(body)
+	if match == "" {
+		t.Fatalf("no input with id %q in rendered page", id)
+	}
+	return match
+}
+
+func WaitForBlockedApplication(
+	t *testing.T, pool *pgxpool.Pool, ctx context.Context, applicationName string, blockerPID int32,
+) int32 {
+	t.Helper()
+	for {
+		var pid int32
+		var blockers []int32
+		err := pool.QueryRow(ctx, `
+			SELECT pid, pg_blocking_pids(pid) FROM pg_stat_activity
+			WHERE datname = current_database() AND application_name = $1
+			  AND state = 'active' AND wait_event_type = 'Lock'`, applicationName).
+			Scan(&pid, &blockers)
+		if err == nil {
+			for _, got := range blockers {
+				if got == blockerPID {
+					return pid
+				}
+			}
+		} else if !errors.Is(err, pgx.ErrNoRows) {
+			t.Fatalf("trace blocked writer %q: %v", applicationName, err)
+		}
+		if ctx.Err() != nil {
+			t.Fatalf("writer %q never blocked behind pid %d: %v", applicationName, blockerPID, ctx.Err())
+		}
+	}
 }

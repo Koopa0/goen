@@ -1,15 +1,21 @@
-package admin
+// Package shipping is the back office's shipping configuration: methods and
+// their versioned fees, delivery zones and their postal prefixes, and each
+// zone's surcharge.
+package shipping
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
 	"unicode/utf8"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/admin/audit"
+	"github.com/koopa0/goen/internal/carrier"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/destination"
 	"github.com/koopa0/goen/internal/i18n"
@@ -20,12 +26,33 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
-const MaxShippingFee = 500000
+const MaxFee = 500000
 
-// MaxShippingNameRunes bounds a method or zone name.
-const MaxShippingNameRunes = 60
+// MaxNameRunes bounds a method or zone name.
+const MaxNameRunes = 60
 
-func (s *Store) Shipping(ctx context.Context) (admin.ShippingView, error) {
+var (
+	ErrNotFound = errors.New("shipping: not found")
+	ErrInvalid  = errors.New("shipping: invalid input")
+	ErrInUse    = errors.New("shipping: something still uses this")
+	// ErrRefused is a write the database declined; its message is the database's
+	// own, because that names the rule.
+	ErrRefused = errors.New("shipping: refused")
+)
+
+type Store struct {
+	pool *pgxpool.Pool
+	q    *db.Queries
+}
+
+func NewStore(pool *pgxpool.Pool) *Store {
+	if pool == nil {
+		panic("shipping: NewStore requires a pool")
+	}
+	return &Store{pool: pool, q: db.New(pool)}
+}
+
+func (s *Store) Configuration(ctx context.Context) (admin.ShippingView, error) {
 	rows, err := s.q.AdminShippingMethods(ctx)
 	if err != nil {
 		return admin.ShippingView{}, fmt.Errorf("read shipping methods: %w", err)
@@ -93,13 +120,13 @@ func (s *Store) PublishShippingVersion(ctx context.Context, v ShippingVersion) e
 	if err != nil {
 		return ErrInvalid
 	}
-	name, carrier := strings.TrimSpace(v.Name), strings.TrimSpace(v.Carrier)
+	name, carrierName := strings.TrimSpace(v.Name), strings.TrimSpace(v.Carrier)
 	nameEn, carrierEn := strings.TrimSpace(v.NameEn), strings.TrimSpace(v.CarrierEn)
 	feeDollars, freeOverDollars := v.FeeDollars, v.FreeOverDollars
 	if name == "" || feeDollars < 0 || freeOverDollars < 0 {
 		return ErrInvalid
 	}
-	if feeDollars > MaxShippingFee/100 || freeOverDollars > money.MaxCents/100 {
+	if feeDollars > MaxFee/100 || freeOverDollars > money.MaxCents/100 {
 		return ErrInvalid
 	}
 
@@ -108,14 +135,14 @@ func (s *Store) PublishShippingVersion(ctx context.Context, v ShippingVersion) e
 		ID:     audit.EntityID(id),
 		Before: nil,
 		After: map[string]any{
-			"method_id": v.MethodID, "name": name, "carrier": carrier,
+			"method_id": v.MethodID, "name": name, "carrier": carrierName,
 			"name_en": nameEn, "carrier_en": carrierEn,
 			"fee_cents": feeDollars * 100, "free_over_cents": freeOverDollars * 100,
 		},
 	},
 		func(ctx context.Context, q *db.Queries) error {
 			versionID, insErr := q.PublishShippingVersion(ctx, db.PublishShippingVersionParams{
-				MethodID: id, Name: name, Carrier: carrier,
+				MethodID: id, Name: name, Carrier: carrierName,
 				NameEn: nameEn, CarrierEn: carrierEn,
 				FeeCents:      feeDollars * 100,
 				FreeOverCents: freeOverDollars * 100,
@@ -142,7 +169,7 @@ func (s *Store) SetZoneSurcharge(ctx context.Context, versionID, zoneID string, 
 	if err != nil {
 		return ErrInvalid
 	}
-	if dollars < 0 || dollars > MaxShippingFee/100 {
+	if dollars < 0 || dollars > MaxFee/100 {
 		return ErrInvalid
 	}
 
@@ -199,7 +226,7 @@ func (m *NewMethod) Validate(ctx context.Context) map[string]string {
 	if !methodCodeFormat.MatchString(m.Code) {
 		errs["code"] = i18n.T(ctx, i18n.KeyFormMethodCode)
 	}
-	if m.Name == "" || utf8.RuneCountInString(m.Name) > MaxShippingNameRunes {
+	if m.Name == "" || utf8.RuneCountInString(m.Name) > MaxNameRunes {
 		errs["name"] = i18n.T(ctx, i18n.KeyFormNameRequired)
 	}
 	// Asked of the package that owns the set, so a third destination is not
@@ -207,7 +234,7 @@ func (m *NewMethod) Validate(ctx context.Context) map[string]string {
 	if _, ok := destination.For(m.Destination); !ok {
 		errs["destination"] = i18n.T(ctx, i18n.KeyFormMethodDestination)
 	}
-	if m.FeeDollars < 0 || m.FeeDollars > MaxShippingFee/100 {
+	if m.FeeDollars < 0 || m.FeeDollars > MaxFee/100 {
 		errs["fee"] = i18n.T(ctx, i18n.KeyFormMethodFee)
 	}
 	if m.FreeOverDollars < 0 || m.FreeOverDollars > money.MaxCents/100 {
@@ -220,17 +247,17 @@ func (m *NewMethod) Validate(ctx context.Context) map[string]string {
 func validateMethodParcelLimits(ctx context.Context, m *NewMethod, errs map[string]string) {
 	// Method limits reuse the parcel reachability ceilings: larger figures can
 	// never match a valid measured parcel and are therefore input mistakes.
-	if m.MaxParcelLongestMM < 0 || m.MaxParcelLongestMM > parcelLongestCeilingMM {
+	if m.MaxParcelLongestMM < 0 || m.MaxParcelLongestMM > carrier.MaxParcelLongestMM {
 		errs["max_parcel_longest"] = fmt.Sprintf(
-			i18n.T(ctx, i18n.KeyFormMethodParcelLimit), parcelLongestCeilingMM)
+			i18n.T(ctx, i18n.KeyFormMethodParcelLimit), carrier.MaxParcelLongestMM)
 	}
-	if m.MaxParcelSumMM < 0 || m.MaxParcelSumMM > parcelSumCeilingMM {
+	if m.MaxParcelSumMM < 0 || m.MaxParcelSumMM > carrier.MaxParcelSumMM {
 		errs["max_parcel_sum"] = fmt.Sprintf(
-			i18n.T(ctx, i18n.KeyFormMethodParcelLimit), parcelSumCeilingMM)
+			i18n.T(ctx, i18n.KeyFormMethodParcelLimit), carrier.MaxParcelSumMM)
 	}
-	if m.MaxParcelWeightG < 0 || m.MaxParcelWeightG > parcelWeightCeilingG {
+	if m.MaxParcelWeightG < 0 || m.MaxParcelWeightG > carrier.MaxParcelWeightG {
 		errs["max_parcel_weight"] = fmt.Sprintf(
-			i18n.T(ctx, i18n.KeyFormMethodParcelLimit), parcelWeightCeilingG)
+			i18n.T(ctx, i18n.KeyFormMethodParcelLimit), carrier.MaxParcelWeightG)
 	}
 }
 
@@ -281,15 +308,15 @@ func methodWriteError(ctx context.Context, err error) (map[string]string, error)
 	}
 	if pgerr.IsConstraint(err, "shipping_methods_max_longest_positive") {
 		return map[string]string{"max_parcel_longest": fmt.Sprintf(
-			i18n.T(ctx, i18n.KeyFormMethodParcelLimit), parcelLongestCeilingMM)}, nil
+			i18n.T(ctx, i18n.KeyFormMethodParcelLimit), carrier.MaxParcelLongestMM)}, nil
 	}
 	if pgerr.IsConstraint(err, "shipping_methods_max_sum_positive") {
 		return map[string]string{"max_parcel_sum": fmt.Sprintf(
-			i18n.T(ctx, i18n.KeyFormMethodParcelLimit), parcelSumCeilingMM)}, nil
+			i18n.T(ctx, i18n.KeyFormMethodParcelLimit), carrier.MaxParcelSumMM)}, nil
 	}
 	if pgerr.IsConstraint(err, "shipping_methods_max_weight_positive") {
 		return map[string]string{"max_parcel_weight": fmt.Sprintf(
-			i18n.T(ctx, i18n.KeyFormMethodParcelLimit), parcelWeightCeilingG)}, nil
+			i18n.T(ctx, i18n.KeyFormMethodParcelLimit), carrier.MaxParcelWeightG)}, nil
 	}
 	return nil, fmt.Errorf("create shipping method: %w", err)
 }

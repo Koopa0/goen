@@ -1,15 +1,18 @@
-package admin
+package shipping
 
 import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"maps"
 	"net/http"
 	"strconv"
 	"strings"
 
 	"github.com/koopa0/goen/internal/admin/access"
+	"github.com/koopa0/goen/internal/carrier"
+	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/destination"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -17,7 +20,40 @@ import (
 	"github.com/koopa0/goen/internal/web"
 )
 
-func (h *Handler) CreateShippingMethod(w http.ResponseWriter, r *http.Request) {
+type Handler struct {
+	store    *Store
+	storeMap *cart.StoreMap
+	log      *slog.Logger
+}
+
+// NewHandler takes the store map, which is nil on a deployment with no map: the
+// page then marks pickup-point methods as not offered.
+func NewHandler(store *Store, storeMap *cart.StoreMap, log *slog.Logger) *Handler {
+	if store == nil || log == nil {
+		panic("shipping: NewHandler requires a store and a logger")
+	}
+	return &Handler{store: store, storeMap: storeMap, log: log}
+}
+
+func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
+	mux.HandleFunc("GET /admin/shipping", ac.RequireStaff(h.Page))
+	mux.HandleFunc("POST /admin/shipping/version", ac.RequireStaff(h.PublishVersion))
+	mux.HandleFunc("POST /admin/shipping/surcharge", ac.RequireStaff(h.SetZoneSurcharge))
+	mux.HandleFunc("POST /admin/shipping/method", ac.RequireStaff(h.CreateMethod))
+	mux.HandleFunc("POST /admin/shipping/method/{id}/active", ac.RequireStaff(h.SetMethodActive))
+	mux.HandleFunc("POST /admin/shipping/zone", ac.RequireStaff(h.CreateZone))
+	mux.HandleFunc("POST /admin/shipping/zone/{id}/prefixes", ac.RequireStaff(h.SetZonePrefixes))
+	mux.HandleFunc("POST /admin/shipping/zone/{id}/delete", ac.RequireStaff(h.DeleteZone))
+}
+
+var notices = map[string]i18n.Key{
+	"ok":            i18n.KeyAdminNoticeOK,
+	"refused":       i18n.KeyAdminNoticeRefused,
+	"shippingneeds": i18n.KeyAdminNoticeShippingNeeds,
+	"inuse":         i18n.KeyAdminNoticeInUse,
+}
+
+func (h *Handler) CreateMethod(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
@@ -52,7 +88,7 @@ func methodFormOf(r *http.Request) (*NewMethod, admin.MethodDraft, map[string]st
 	}
 	errs := map[string]string{}
 	parse := func(raw string, max int32, field string) int32 {
-		value, ok := parseBoundedInt(raw, max)
+		value, ok := web.ParseBounded(raw, max)
 		if !ok {
 			errs[field] = fmt.Sprintf(i18n.T(r.Context(), i18n.KeyFormMethodParcelLimit), max)
 		}
@@ -69,9 +105,9 @@ func methodFormOf(r *http.Request) (*NewMethod, admin.MethodDraft, map[string]st
 	return &NewMethod{
 		Code:               r.PostFormValue("code"),
 		Destination:        r.PostFormValue("destination"),
-		MaxParcelLongestMM: parse(draft.MaxLongest, parcelLongestCeilingMM, "max_parcel_longest"),
-		MaxParcelSumMM:     parse(draft.MaxSum, parcelSumCeilingMM, "max_parcel_sum"),
-		MaxParcelWeightG:   parse(draft.MaxWeight, parcelWeightCeilingG, "max_parcel_weight"),
+		MaxParcelLongestMM: parse(draft.MaxLongest, carrier.MaxParcelLongestMM, "max_parcel_longest"),
+		MaxParcelSumMM:     parse(draft.MaxSum, carrier.MaxParcelSumMM, "max_parcel_sum"),
+		MaxParcelWeightG:   parse(draft.MaxWeight, carrier.MaxParcelWeightG, "max_parcel_weight"),
 		Name:               r.PostFormValue("name"),
 		NameEn:             r.PostFormValue("name_en"),
 		Carrier:            r.PostFormValue("carrier"),
@@ -81,8 +117,8 @@ func methodFormOf(r *http.Request) (*NewMethod, admin.MethodDraft, map[string]st
 	}, draft, errs
 }
 
-// SetShippingMethodActive switches a method OFF, never deletes it: past orders name their version.
-func (h *Handler) SetShippingMethodActive(w http.ResponseWriter, r *http.Request) {
+// SetMethodActive switches a method OFF, never deletes it: past orders name their version.
+func (h *Handler) SetMethodActive(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
@@ -97,7 +133,7 @@ func (h *Handler) SetShippingMethodActive(w http.ResponseWriter, r *http.Request
 	http.Redirect(w, r, "/admin/shipping?ok=1", http.StatusSeeOther)
 }
 
-func (h *Handler) CreateShippingZone(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) CreateZone(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
@@ -145,7 +181,7 @@ func (h *Handler) SetZonePrefixes(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *Handler) DeleteShippingZone(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) DeleteZone(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
@@ -197,7 +233,7 @@ func dollars(v string, blankOK bool) (int64, bool) {
 // offered where checkout hides it: a method listed here with a disable button
 // reads as live, and the same condition as the checkout is what keeps it true.
 func (h *Handler) shippingView(ctx context.Context) (admin.ShippingView, error) {
-	view, err := h.store.Shipping(ctx)
+	view, err := h.store.Configuration(ctx)
 	if err != nil {
 		return view, err
 	}
@@ -208,19 +244,19 @@ func (h *Handler) shippingView(ctx context.Context) (admin.ShippingView, error) 
 	return view, nil
 }
 
-func (h *Handler) Shipping(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 	view, err := h.shippingView(r.Context())
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read shipping configuration", "error", err)
 		access.ServerError(w, r, h.log)
 		return
 	}
-	view.Notice = noticeFor(r)
+	view.Notice = web.Notice(r, notices)
 	web.Render(w, r, h.log, http.StatusOK, admin.Shipping(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageShipping)}, view))
 }
 
-func (h *Handler) PublishShippingVersion(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) PublishVersion(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return

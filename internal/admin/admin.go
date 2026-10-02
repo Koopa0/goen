@@ -27,8 +27,6 @@ var (
 	// already committed a `pending` row keyed on the return.
 	ErrRefundIncomplete = errors.New("admin: the return is approved and the refund did not complete")
 	ErrInvalid          = errors.New("admin: invalid input")
-	// ErrInUse is a delete the schema refuses because something still points at the row.
-	ErrInUse = errors.New("admin: something still uses this")
 	// ErrCarrier is a dispatch naming a carrier that cannot carry this order's
 	// parcel: a store order goes with its chain's carrier, a home delivery with a
 	// home carrier.
@@ -128,21 +126,6 @@ func ParsePrice(s string) (int64, bool) {
 		return 0, false
 	}
 	return n * 100, true
-}
-
-// parseBoundedInt reads a non-negative whole number whose blank and zero forms
-// both mean zero. The boolean keeps unreadable and out-of-range input distinct
-// from that valid zero until the handler can render a field refusal.
-func parseBoundedInt(s string, ceiling int32) (int32, bool) {
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return 0, true
-	}
-	n, err := strconv.ParseInt(s, 10, 32)
-	if err != nil || n < 0 || n > int64(ceiling) {
-		return 0, false
-	}
-	return int32(n), true
 }
 
 func ReturnStatusLabel(ctx context.Context, s returns.Status) string {

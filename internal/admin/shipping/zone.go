@@ -1,4 +1,4 @@
-package admin
+package shipping
 
 import (
 	"context"
@@ -35,7 +35,7 @@ func (s *Store) CreateZone(ctx context.Context, z *NewZone) (map[string]string, 
 	if !methodCodeFormat.MatchString(z.Code) {
 		errs["zone_code"] = i18n.T(ctx, i18n.KeyFormZoneCode)
 	}
-	if z.Name == "" || utf8.RuneCountInString(z.Name) > MaxShippingNameRunes {
+	if z.Name == "" || utf8.RuneCountInString(z.Name) > MaxNameRunes {
 		errs["zone_name"] = i18n.T(ctx, i18n.KeyFormNameRequired)
 	}
 	prefixes, prefixErr := parseRequiredPrefixes(ctx, z.Prefixes)

@@ -125,7 +125,7 @@ func TestOptionAxisAndVariantCreationSerialize(t *testing.T) {
 				}
 				done <- outcome{fields, err}
 			}()
-			waitForBlockedApplication(t, ctx, app, pid)
+			admintest.WaitForBlockedApplication(t, pool, ctx, app, pid)
 			if err := first.Commit(ctx); err != nil {
 				t.Fatal(err)
 			}

@@ -20,7 +20,6 @@ import (
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/admin/ordernumber"
 	"github.com/koopa0/goen/internal/carrier"
-	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/media"
@@ -40,7 +39,6 @@ type Handler struct {
 	// sessions closes a cancelled order's checkout at the payment provider. Nil
 	// on a deployment with no Stripe key, where no session was ever opened.
 	sessions SessionCloser
-	storeMap *cart.StoreMap
 	store    *Store
 	log      *slog.Logger
 }
@@ -56,9 +54,6 @@ type HandlerDeps struct {
 	Letters  *newsletter.Store
 	Log      *slog.Logger
 	Sessions SessionCloser
-	// StoreMap decides whether checkout offers pickup-point methods; nil is a
-	// deployment with no map.
-	StoreMap *cart.StoreMap
 }
 
 func NewHandler(d HandlerDeps) *Handler {
@@ -68,7 +63,7 @@ func NewHandler(d HandlerDeps) *Handler {
 	}
 	return &Handler{
 		store: d.Store, images: d.Images, outbox: d.Outbox, letters: d.Letters,
-		log: d.Log, sessions: d.Sessions, storeMap: d.StoreMap,
+		log: d.Log, sessions: d.Sessions,
 	}
 }
 
@@ -505,7 +500,6 @@ var adminNotices = map[string]i18n.Key{
 	"refused":        i18n.KeyAdminNoticeRefused,
 	"shipped":        i18n.KeyAdminNoticeShipped,
 	"toolate":        i18n.KeyAdminNoticeTooLate,
-	"shippingneeds":  i18n.KeyAdminNoticeShippingNeeds,
 	"deliveryneeds":  i18n.KeyAdminNoticeDeliveryNeeds,
 	"imageneeds":     i18n.KeyAdminNoticeImageNeeds,
 	"toobig":         i18n.KeyAdminNoticeTooBig,
@@ -513,7 +507,6 @@ var adminNotices = map[string]i18n.Key{
 	"losslesswebp":   i18n.KeyAdminNoticeLosslessWebP,
 	"uploadfailed":   i18n.KeyAdminNoticeUploadFailed,
 	"uploadbusy":     i18n.KeyAdminNoticeUploadBusy,
-	"inuse":          i18n.KeyAdminNoticeInUse,
 	"attachrefused":  i18n.KeyAdminNoticeAttachRefused,
 	"noalt":          i18n.KeyAdminNoticeNoAlt,
 	"badoption":      i18n.KeyAdminNoticeBadOption,
