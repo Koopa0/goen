@@ -359,8 +359,10 @@ func (h *Handler) redirectStaff(w http.ResponseWriter, r *http.Request, err erro
 		http.Redirect(w, r, "/admin/staff?self=1", http.StatusSeeOther)
 	case errors.Is(err, ErrLastAdmin):
 		http.Redirect(w, r, "/admin/staff?last=1", http.StatusSeeOther)
-	case errors.Is(err, ErrInvalidStaff), errors.Is(err, ErrNotEnrolled):
+	case errors.Is(err, ErrInvalidStaff):
 		http.Redirect(w, r, "/admin/staff?needs=1", http.StatusSeeOther)
+	case errors.Is(err, ErrNotEnrolled):
+		http.Redirect(w, r, "/admin/staff?notenrolled=1", http.StatusSeeOther)
 	default:
 		h.log.ErrorContext(r.Context(), "change staff", "error", err)
 		h.fault(w, r)
@@ -379,6 +381,8 @@ func staffNotice(r *http.Request) string {
 	case r.URL.Query().Get("last") == "1":
 		return i18n.T(r.Context(), i18n.KeyStaffLastAdmin)
 	case r.URL.Query().Get("needs") == "1":
+		return i18n.T(r.Context(), i18n.KeyStaffNeeds)
+	case r.URL.Query().Get("notenrolled") == "1":
 		return i18n.T(r.Context(), i18n.KeyStaffInvalid)
 	}
 	return ""

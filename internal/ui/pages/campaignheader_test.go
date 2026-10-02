@@ -16,7 +16,7 @@ func TestCampaignPageShowsItsHeaderOnlyWhenItHasOne(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	with := renderComponent(t, ctx, Campaign(layouts.Page{Title: "c"}, CampaignView{
 		Slug: "c", Title: "Sale", EndsAt: "soon",
-		Image: CampaignImage{
+		Image: Photo{
 			URL: assets.ProductImageURL(seedBanner), Srcset: assets.ProductImageSrcsetAt(seedBanner, 1600),
 			Alt: "Products on sale",
 		},
@@ -52,7 +52,7 @@ func TestCampaignImageFormFlagsAWrongFieldForAssistiveTech(t *testing.T) {
 	page := renderComponent(t, ctx, AdminCampaignForm(layouts.Page{Title: "c"}, AdminCampaignView{
 		Slug:   "c",
 		Errors: map[string]string{"alt": "alt needed", "image": "not an image"},
-		Image:  AdminCampaignImage{Key: seedBanner, Alt: "Products on sale", Width: 1600},
+		Image:  AdminHeader{Key: seedBanner, Alt: "Products on sale", Width: 1600},
 	}))
 	for _, want := range []string{
 		`aria-describedby="c-alt-error"`, `aria-describedby="c-image-error"`, `alt needed`, `not an image`,

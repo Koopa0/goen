@@ -5,11 +5,11 @@ import (
 	"testing"
 )
 
-func fuzzGateway(t testing.TB) *Gateway {
-	t.Helper()
+func fuzzGateway(tb testing.TB) *Gateway {
+	tb.Helper()
 	g, err := NewGateway(testMerchantID, testHashKey, testHashIV, "")
 	if err != nil {
-		t.Fatalf("gateway: %v", err)
+		tb.Fatalf("gateway: %v", err)
 	}
 	return g
 }

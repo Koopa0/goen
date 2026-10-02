@@ -98,7 +98,7 @@ templ NewsletterForm(s NewsletterState) {
 					"maxlength":    "254",
 				},
 			})
-			@components.Button(components.ButtonProps{Variant: components.VariantPrimary}, "submit") {
+			@components.Button(components.ButtonProps{Variant: components.VariantPrimary, Attrs: templ.Attributes{"id": "newsletter-submit"}}, "submit") {
 				{ i18n.T(ctx, i18n.KeyNewsletterSubmit) }
 			}
 			if s.Error != "" {
