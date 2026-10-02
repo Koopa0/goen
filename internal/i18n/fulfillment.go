@@ -230,9 +230,65 @@ var (
 		En:     "A carrier and a tracking number are both needed.",
 	})
 
+	KeyAdminNoticeUnfunded = key("admin.notice.unfunded", Message{
+		ZhHant: "這筆訂單還沒收到款項,不能進入備貨。",
+		En:     "This order has not been paid, so it cannot move into picking.",
+	})
+
+	KeyAdminNoticeOwesParcel = key("admin.notice.owesparcel", Message{
+		ZhHant: "這筆訂單還有包裹沒出貨,不能標為已完成。請先出貨剩下的包裹。",
+		En:     "This order still owes a parcel, so it cannot be marked completed. Ship the rest first.",
+	})
+
+	KeyAdminQueueNextChoose = key("admin.queue.next.choose", Message{
+		ZhHant: "請選擇下一步",
+		En:     "Choose the next step",
+	})
+
+	KeyAdminNoticeCreditNeeds = key("admin.notice.creditneeds", Message{
+		ZhHant: "額度的金額或原因有誤,請重新確認後再送出。",
+		En:     "The credit amount or reason is not right. Check them and send again.",
+	})
+
+	KeyAdminNoticeTiersNeeds = key("admin.notice.tiersneeds", Message{
+		ZhHant: "會員等級的資料有誤,或找不到這個等級。門檻與折扣須為整數。",
+		En:     "The tier is not right, or it no longer exists. The threshold and discount must be whole numbers.",
+	})
+
+	KeyAdminNoticeShippingNeeds = key("admin.notice.shippingneeds", Message{
+		ZhHant: "運費設定的資料有誤。運費、免運門檻與加價都必須是整數金額。",
+		En:     "The shipping setting is not right. Fees, free-shipping thresholds and surcharges must be whole dollar amounts.",
+	})
+
+	KeyAdminNoticeDeliveryNeeds = key("admin.notice.deliveryneeds", Message{
+		ZhHant: "收件資料有誤,或找不到這筆訂單。請檢查後再送出。",
+		En:     "The delivery details are not right, or the order no longer exists. Check them and send again.",
+	})
+
+	KeyAdminNoticeImageNeeds = key("admin.notice.imageneeds", Message{
+		ZhHant: "找不到要重用的圖片,請從已上傳的圖片中選擇。",
+		En:     "That image could not be found. Choose one that has already been uploaded.",
+	})
+
 	KeyAdminTrackingTaken = key("admin.tracking.taken", Message{
 		ZhHant: "這個物流商與查詢編號已經登記過，請核對編號。",
 		En:     "That carrier and tracking number are already on record. Check the number.",
+	})
+
+	KeyAdminStockDeltaError = key("admin.stock.deltaerror", Message{
+		ZhHant: "請輸入不為 0 的整數,例如 +10 或 -3。",
+		En:     "Enter a whole number other than 0, such as +10 or -3.",
+	})
+
+	KeyAdminStockAdjustRefused = key("admin.stock.adjustrefused", Message{
+		ZhHant: "這個調整沒有被接受:庫存不能低於 0,或找不到這個品項。",
+		En:     "That adjustment was not accepted: stock cannot go below 0, or the variant no longer exists.",
+	})
+
+	KeyAdminShipPickupOff = key("admin.ship.pickupoff", Message{
+		ZhHant: "尚未設定超商地圖,結帳不會提供這個方式。設定 GOEN_ECPAY_LOGISTICS 後才會開放。",
+		En: "No store map is configured, so checkout does not offer this method. Setting " +
+			"GOEN_ECPAY_LOGISTICS is what turns it on.",
 	})
 
 	KeyAdminNoticeBadParcel = key("admin.notice.badparcel", Message{

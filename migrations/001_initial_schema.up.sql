@@ -24,8 +24,6 @@
 SET lock_timeout = '3s';
 SET statement_timeout = '120s';
 
-CREATE EXTENSION IF NOT EXISTS pg_trgm;
-
 -- ============================================================================
 -- Roles
 --
@@ -105,6 +103,15 @@ CREATE TABLE categories (
     -- back to `name` at read time, and a blank would render an empty nav item.
     name_en    text,
     icon_key   text,
+    -- The ground temperature of the department page. NULL inherits from the
+    -- nearest ancestor that sets one, and a root with NULL is 'stone'; the set
+    -- is mirrored by pages.Tone.
+    tone       text,
+    -- The department's photograph, a key of the kind product_images.storage_key
+    -- holds, so one resolver serves an uploaded digest and an embedded file.
+    image_key    text,
+    image_alt    text,
+    image_alt_en text,
     position   integer NOT NULL DEFAULT 0,
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now(),
@@ -119,6 +126,12 @@ CREATE TABLE categories (
             'apparel', 'kids', 'gift'
         )
     ),
+    CONSTRAINT categories_tone_known CHECK (
+        tone IS NULL OR tone IN ('paper', 'stone', 'mist', 'sage', 'blush', 'ink')
+    ),
+    CONSTRAINT categories_image_has_alt
+        CHECK (image_key IS NULL
+               OR (image_alt IS NOT NULL AND image_alt ~ '[^[:space:]]')),
     CONSTRAINT categories_not_own_parent CHECK (parent_id IS DISTINCT FROM id)
 );
 
@@ -154,7 +167,6 @@ COMMENT ON FUNCTION localized_name(text, text, text) IS
 -- GRANT naming a role the file has not created fails the migration outright.
 
 CREATE UNIQUE INDEX categories_slug_key ON categories (slug);
-CREATE INDEX categories_parent_id_idx ON categories (parent_id);
 
 CREATE TRIGGER categories_set_updated_at
     BEFORE UPDATE ON categories
@@ -244,11 +256,6 @@ CREATE INDEX products_category_published_idx
 CREATE INDEX products_category_brand_published_idx
     ON products (category_id, brand_id, published_at DESC, id DESC)
     WHERE status = 'active';
-
--- Measured at 10,000 products: a Latin query is a bitmap index scan at 1.5 ms,
--- while a two-character Chinese query is far too unselective for the planner and
--- scans at 8.8 ms.
-CREATE INDEX products_name_trgm_idx ON products USING gin (name gin_trgm_ops);
 
 CREATE TRIGGER products_set_updated_at
     BEFORE UPDATE ON products
@@ -961,7 +968,6 @@ CREATE TABLE inventory_movements (
 CREATE UNIQUE INDEX inventory_movements_idempotency_key
     ON inventory_movements (idempotency_key);
 CREATE INDEX inventory_movements_variant_idx ON inventory_movements (variant_id, created_at DESC);
-CREATE INDEX inventory_movements_source_idx ON inventory_movements (source_type, source_id);
 CREATE INDEX inventory_movements_actor_idx ON inventory_movements (actor_user_id);
 
 CREATE TRIGGER inventory_movements_append_only
@@ -1527,7 +1533,6 @@ CREATE TABLE coupons (
 -- Case-insensitive: SUMMER20 and summer20 are one code to whoever reads a card,
 -- and issuing both is how one of them silently stops working.
 CREATE UNIQUE INDEX coupons_code_key ON coupons (upper(code));
-CREATE INDEX coupons_active_idx ON coupons (is_active, starts_at, ends_at);
 
 CREATE TRIGGER coupons_set_updated_at
     BEFORE UPDATE ON coupons
@@ -1840,8 +1845,6 @@ LANGUAGE plpgsql AS $$
 DECLARE
     legal boolean;
     lines integer;
-    subtotal bigint;
-    order_total bigint;
     owed           bigint;
 BEGIN
     IF NEW.fulfillment_status = OLD.fulfillment_status THEN
@@ -1908,8 +1911,6 @@ BEGIN
     -- order to owe nothing — free or fully store-credited — or to carry a
     -- succeeded payment. A new funding source is added HERE.
     IF OLD.fulfillment_status = 'pending' AND NEW.fulfillment_status = 'picking' THEN
-        SELECT count(*), coalesce(sum(unit_price_cents * quantity), 0)
-        INTO lines, subtotal FROM order_lines WHERE order_id = NEW.id;
         -- order_amount_owed is the ONE definition: total less store credit, net
         -- of reversals.
         owed := order_amount_owed(NEW.id);
@@ -2229,8 +2230,6 @@ CREATE TABLE order_private_data (
     )
 );
 
-CREATE INDEX order_private_data_email_idx ON order_private_data (lower(email));
-
 CREATE TABLE order_shipments (
     id                    uuid PRIMARY KEY DEFAULT uuidv7(),
     order_id              uuid NOT NULL REFERENCES orders (id) ON DELETE RESTRICT,
@@ -2245,7 +2244,6 @@ CREATE TABLE order_shipments (
         CHECK (delivered_at IS NULL OR delivered_at >= shipped_at)
 );
 
-CREATE INDEX order_shipments_order_id_idx ON order_shipments (order_id);
 CREATE UNIQUE INDEX order_shipments_tracking_key ON order_shipments (carrier, tracking_number);
 -- Referenced by the composite foreign key that ties a shipment line to a
 -- shipment of the same order.
@@ -2271,6 +2269,10 @@ CREATE TABLE order_shipment_lines (
 
 CREATE INDEX order_shipment_lines_order_line_idx ON order_shipment_lines (order_id, order_line_id);
 CREATE INDEX order_shipment_lines_order_shipment_idx ON order_shipment_lines (order_id, shipment_id);
+-- The trigger lookups (shipment_lines_within_purchase, the completion check in
+-- orders_check_transition) filter on order_line_id alone, which no composite
+-- index above leads with. Without this each is a scan of the whole table.
+CREATE INDEX order_shipment_lines_line_idx ON order_shipment_lines (order_line_id);
 
 -- You cannot ship more of a line than was bought, counting every shipment. The
 -- line's order is locked first so two shipments cannot both pass.
@@ -2642,8 +2644,6 @@ CREATE TABLE return_requests (
     CONSTRAINT return_requests_decided_has_time
         CHECK ((status = 'requested') = (decided_at IS NULL)),
     CONSTRAINT return_requests_refund_snapshot_shape CHECK (
-        status NOT IN ('requested', 'approved', 'rejected', 'completed')
-        OR
         (status IN ('approved', 'completed')
          AND goods_refund_cents IS NOT NULL
          AND card_refund_cents IS NOT NULL
@@ -2671,7 +2671,6 @@ CREATE TABLE return_requests (
     )
 );
 
-CREATE INDEX return_requests_order_id_idx ON return_requests (order_id);
 CREATE UNIQUE INDEX return_requests_order_key ON return_requests (order_id, id);
 CREATE INDEX return_requests_requester_idx ON return_requests (requested_by_user_id);
 CREATE INDEX return_requests_open_idx ON return_requests (created_at) WHERE status = 'requested';
@@ -2710,7 +2709,7 @@ CREATE INDEX order_events_return_request_fk_idx
 -- foreign key makes a cross-order return impossible.
 CREATE TABLE return_request_lines (
     order_id          uuid NOT NULL,
-    return_request_id uuid NOT NULL REFERENCES return_requests (id) ON DELETE CASCADE,
+    return_request_id uuid NOT NULL,
     order_line_id     uuid NOT NULL,
     quantity          integer NOT NULL,
     -- What actually came back, and how much of it went on the shelf again. NULL
@@ -2744,6 +2743,9 @@ CREATE TABLE return_request_lines (
 
 CREATE INDEX return_request_lines_order_line_idx ON return_request_lines (order_id, order_line_id);
 CREATE INDEX return_request_lines_order_request_idx ON return_request_lines (order_id, return_request_id);
+-- return_lines_within_purchase and return_requests_recount filter on
+-- order_line_id alone, which no composite index above leads with.
+CREATE INDEX return_request_lines_line_idx ON return_request_lines (order_line_id);
 
 -- Polymorphic source IDs must resolve before they become append-only audit
 -- data. Reservation and return sources also identify the SKU being moved;
@@ -3729,7 +3731,6 @@ DECLARE
     o orders%ROWTYPE;
     lines integer;
     subtotal bigint;
-    order_total bigint;
     owed           bigint;
 BEGIN
     IF NEW.status <> 'succeeded' THEN
@@ -3900,7 +3901,6 @@ CREATE UNIQUE INDEX refunds_request_key_key ON refunds (request_key);
 CREATE UNIQUE INDEX refunds_provider_ref_key ON refunds (provider_ref)
     WHERE provider_ref IS NOT NULL;
 CREATE INDEX refunds_payment_id_idx ON refunds (payment_id);
-CREATE INDEX refunds_return_request_idx ON refunds (return_request_id);
 CREATE INDEX refunds_previous_same_return_idx
     ON refunds (return_request_id, previous_refund_id);
 -- One provider identity may be ambiguous, but there is never a second attempt
@@ -4149,9 +4149,6 @@ CREATE INDEX payment_webhook_events_unreconciled_idx
     ON payment_webhook_events (received_at)
     WHERE unreconciled IS NOT NULL AND reconciled_at IS NULL;
 
-CREATE INDEX payment_webhook_events_unprocessed_idx
-    ON payment_webhook_events (received_at)
-    WHERE processed_at IS NULL;
 CREATE INDEX payment_webhook_events_object_idx ON payment_webhook_events (object_ref);
 
 -- The stored payload is evidence of WHICH event said WHAT about the money, not a
@@ -4254,8 +4251,10 @@ CREATE TABLE audit_events (
         CHECK (actor_user_id IS NULL OR actor_user_id = actor_id_snapshot)
 );
 
-CREATE INDEX audit_events_entity_idx ON audit_events (entity_table, entity_id, occurred_at DESC);
-CREATE INDEX audit_events_actor_idx ON audit_events (actor_id_snapshot, occurred_at DESC);
+-- The one statement that reads this table pages newest first with no filter. No
+-- index on the entity or the actor: nothing selects by either, and each costs a
+-- write on every audited action.
+CREATE INDEX audit_events_occurred_idx ON audit_events (occurred_at DESC, id DESC);
 CREATE INDEX audit_events_actor_user_id_idx
     ON audit_events (actor_user_id) WHERE actor_user_id IS NOT NULL;
 
@@ -4395,6 +4394,8 @@ CREATE TABLE sale_campaigns (
     image_key    text,
     image_alt    text,
     image_alt_en text,
+    -- The ground temperature of /s/{slug}; the set is mirrored by pages.Tone.
+    tone       text NOT NULL DEFAULT 'stone',
     starts_at  timestamptz NOT NULL DEFAULT now(),
     ends_at    timestamptz NOT NULL,
     is_active  boolean NOT NULL DEFAULT true,
@@ -4407,6 +4408,8 @@ CREATE TABLE sale_campaigns (
     CONSTRAINT sale_campaigns_image_has_alt
         CHECK (image_key IS NULL
                OR (image_alt IS NOT NULL AND image_alt ~ '[^[:space:]]')),
+    CONSTRAINT sale_campaigns_tone_known
+        CHECK (tone IN ('paper', 'stone', 'mist', 'sage', 'blush', 'ink')),
     CONSTRAINT sale_campaigns_window_ordered CHECK (ends_at > starts_at)
 );
 
@@ -4536,7 +4539,6 @@ CREATE TABLE contact_messages (
     CONSTRAINT contact_messages_message_present CHECK (message ~ '[^[:space:]]')
 );
 
-CREATE INDEX contact_messages_created_at_idx ON contact_messages (created_at DESC);
 CREATE INDEX contact_messages_unhandled_idx ON contact_messages (created_at)
     WHERE handled_at IS NULL;
 
@@ -8338,7 +8340,6 @@ CREATE TABLE product_copurchases (
     other_product_id uuid NOT NULL REFERENCES products (id) ON DELETE CASCADE,
     -- How many committed orders contained both.
     orders           integer NOT NULL,
-    computed_at      timestamptz NOT NULL DEFAULT now(),
 
     PRIMARY KEY (product_id, other_product_id),
     CONSTRAINT product_copurchases_orders_positive CHECK (orders > 0),
@@ -9238,8 +9239,6 @@ CREATE TABLE return_eligibility_assessments (
         UNIQUE (id, order_id, return_request_id)
 );
 
-CREATE INDEX return_eligibility_assessments_request_idx
-    ON return_eligibility_assessments (return_request_id, version DESC);
 CREATE INDEX return_eligibility_assessments_request_fk_idx
     ON return_eligibility_assessments (order_id, return_request_id);
 CREATE INDEX return_eligibility_assessments_assessor_idx

@@ -244,7 +244,7 @@ func TestOptionalRunDaysDoNotTurnMalformedInputIntoNoExpiry(t *testing.T) {
 		if days >= 0 {
 			t.Fatalf("small(%q) = %d, want an invalid sentinel", raw, days)
 		}
-		if errs := (&BannerForm{Message: "Sale", Days: days}).Validate(ctx); errs["days"] == "" {
+		if errs := (&BannerForm{Message: "Sale", Days: days}).Validate(ctx); errs["banner_days"] == "" {
 			t.Errorf("BannerForm accepted malformed days %q as an unbounded banner", raw)
 		}
 		if errs := (&HeroForm{
@@ -514,6 +514,18 @@ func TestAMistypedPriceIsRefusedByEveryFormThatWritesOne(t *testing.T) {
 					cmp.Or(tt.compare, tt.price), errs)
 			}
 		})
+	}
+}
+
+// TestOnlyTheDispatchFormUsesTheCarrierAndTrackingNotice holds that a refusal
+// names its own screen's problem: the carrier-and-tracking sentence once
+// answered tiers, shipping, store credit, delivery correction and image reuse.
+func TestOnlyTheDispatchFormUsesTheCarrierAndTrackingNotice(t *testing.T) {
+	t.Parallel()
+	for name, key := range adminNotices {
+		if key == i18n.KeyAdminNoticeNeeds && name != "needs" {
+			t.Errorf("?%s=1 answers with the dispatch form's notice", name)
+		}
 	}
 }
 

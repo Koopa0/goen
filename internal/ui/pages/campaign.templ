@@ -26,7 +26,7 @@ templ Campaign(p layouts.Page, v CampaignView) {
 					fetchpriority="high"
 				/>
 			}
-			<div class="goen-pagehead">
+			<div class="goen-pagehead" data-tone={ v.Tone.Attr() }>
 				<p class="goen-pagehead__eyebrow">{ i18n.T(ctx, i18n.KeyCampaignEyebrow) }</p>
 				<h1 class="goen-pagehead__title">{ v.Title }</h1>
 				<p class="goen-pagehead__sub">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCampaignEndsAt), v.EndsAt) }</p>

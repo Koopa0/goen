@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"maps"
@@ -8,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -176,7 +178,7 @@ type shippingDrafts struct {
 func (h *Handler) rejectShippingForm(
 	w http.ResponseWriter, r *http.Request, errs map[string]string, drafts *shippingDrafts,
 ) {
-	view, err := h.store.Shipping(r.Context())
+	view, err := h.shippingView(r.Context())
 	if err != nil {
 		h.serverError(w, r)
 		return
@@ -198,9 +200,25 @@ func dollars(v string, blankOK bool) (int64, bool) {
 	return n, err == nil && n >= 0
 }
 
+// shippingView is the configuration with each pickup-point method marked as not
+// offered where checkout hides it: a method listed here with a disable button
+// reads as live, and the same condition as the checkout is what keeps it true.
+func (h *Handler) shippingView(ctx context.Context) (pages.AdminShippingView, error) {
+	view, err := h.store.Shipping(ctx)
+	if err != nil {
+		return view, err
+	}
+	for i := range view.Methods {
+		m := &view.Methods[i]
+		to, ok := cart.DestinationFor(m.Destination)
+		m.PickupUnavailable = ok && to == cart.ToPickupPoint && !h.storeMap.Enabled()
+	}
+	return view, nil
+}
+
 // Shipping serves GET /admin/shipping.
 func (h *Handler) Shipping(w http.ResponseWriter, r *http.Request) {
-	view, err := h.store.Shipping(r.Context())
+	view, err := h.shippingView(r.Context())
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read shipping configuration", "error", err)
 		h.serverError(w, r)
@@ -219,7 +237,7 @@ func (h *Handler) PublishShippingVersion(w http.ResponseWriter, r *http.Request)
 	}
 	fee, feeErr := strconv.ParseInt(strings.TrimSpace(r.PostFormValue("fee")), 10, 64)
 	if feeErr != nil {
-		http.Redirect(w, r, "/admin/shipping?needs=1", http.StatusSeeOther)
+		http.Redirect(w, r, "/admin/shipping?shippingneeds=1", http.StatusSeeOther)
 		return
 	}
 	// An empty threshold is "no free shipping" and not zero, and ParseInt
@@ -228,7 +246,7 @@ func (h *Handler) PublishShippingVersion(w http.ResponseWriter, r *http.Request)
 	if raw := strings.TrimSpace(r.PostFormValue("free_over")); raw != "" {
 		parsed, parseErr := strconv.ParseInt(raw, 10, 64)
 		if parseErr != nil {
-			http.Redirect(w, r, "/admin/shipping?needs=1", http.StatusSeeOther)
+			http.Redirect(w, r, "/admin/shipping?shippingneeds=1", http.StatusSeeOther)
 			return
 		}
 		freeOver = parsed
@@ -259,7 +277,7 @@ func (h *Handler) SetZoneSurcharge(w http.ResponseWriter, r *http.Request) {
 	if raw := strings.TrimSpace(r.PostFormValue("amount")); raw != "" {
 		parsed, parseErr := strconv.ParseInt(raw, 10, 64)
 		if parseErr != nil {
-			http.Redirect(w, r, "/admin/shipping?needs=1", http.StatusSeeOther)
+			http.Redirect(w, r, "/admin/shipping?shippingneeds=1", http.StatusSeeOther)
 			return
 		}
 		amount = parsed
@@ -276,7 +294,7 @@ func (h *Handler) redirectShipping(w http.ResponseWriter, r *http.Request, err e
 	case err == nil:
 		http.Redirect(w, r, ok, http.StatusSeeOther)
 	case errors.Is(err, ErrInvalid):
-		http.Redirect(w, r, "/admin/shipping?needs=1", http.StatusSeeOther)
+		http.Redirect(w, r, "/admin/shipping?shippingneeds=1", http.StatusSeeOther)
 	case errors.Is(err, ErrRefused):
 		h.log.WarnContext(r.Context(), "shipping change refused", "error", err)
 		http.Redirect(w, r, "/admin/shipping?refused=1", http.StatusSeeOther)

@@ -118,11 +118,17 @@ LIMIT 1;
 -- two answers the moment CreateCategory's max(position)+1 handed out a
 -- duplicate. Nothing stops it: there is no unique index on (parent_id,
 -- position), so two staff creating a category at once both read the same max.
+-- A root's tone is its own, or 'stone'. The photograph is the department's own.
 -- name: RootCategories :many
-SELECT id, slug, localized_name(name, name_en, @locale::text) AS name, icon_key
-FROM categories
-WHERE parent_id IS NULL
-ORDER BY position, name, id;
+SELECT c.id, c.slug, localized_name(c.name, c.name_en, @locale::text) AS name, c.icon_key,
+       coalesce(c.tone, 'stone')::text AS tone,
+       coalesce(c.image_key, '')::text AS image_key,
+       coalesce(localized_name(c.image_alt, c.image_alt_en, @locale::text), '')::text AS image_alt,
+       coalesce(m.width, 0)::integer AS image_width
+FROM categories c
+LEFT JOIN media_objects m ON m.digest = c.image_key
+WHERE c.parent_id IS NULL
+ORDER BY c.position, c.name, c.id;
 
 -- The sub-categories under every root, for the header's department panels. One
 -- read for all of them, in the order the catalogue lists them, so a header with
