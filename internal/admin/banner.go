@@ -14,13 +14,11 @@ import (
 	"github.com/koopa0/goen/internal/web"
 )
 
-// MaxBanners bounds the back office's list.
 const MaxBanners = 20
 
 // MaxBannerRunes bounds the strip's copy: it is ONE row at every width.
 const MaxBannerRunes = 60
 
-// BannerForm is what the back office submits.
 type BannerForm struct {
 	Message    string
 	Short      string
@@ -33,7 +31,6 @@ type BannerForm struct {
 	Days       int32
 }
 
-// Validate refuses what the schema would, and the two things it cannot see.
 func (f *BannerForm) Validate(ctx context.Context) map[string]string {
 	f.Message = strings.TrimSpace(f.Message)
 	f.Short = strings.TrimSpace(f.Short)
@@ -73,7 +70,6 @@ func (f *BannerForm) Validate(ctx context.Context) map[string]string {
 	return errs
 }
 
-// Banners reads the list.
 func (s *Store) Banners(ctx context.Context) ([]admin.Banner, error) {
 	rows, err := s.q.ManagedBanners(ctx, MaxBanners)
 	if err != nil {
@@ -93,7 +89,6 @@ func (s *Store) Banners(ctx context.Context) ([]admin.Banner, error) {
 	return out, nil
 }
 
-// CreateBanner adds a promotion, active immediately.
 func (s *Store) CreateBanner(ctx context.Context, f *BannerForm) (map[string]string, error) {
 	if errs := f.Validate(ctx); len(errs) > 0 {
 		return errs, nil

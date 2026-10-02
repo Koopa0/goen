@@ -18,7 +18,6 @@ import (
 
 // Each threshold is a MULTIPLE of its worker's interval, so a healthy gap cannot alarm.
 const (
-	// OutboxStaleAfter is how old the oldest undelivered message may be.
 	OutboxStaleAfter = 10 * time.Minute
 	// MaxExpiredHolds is a COUNT, not a duration.
 	MaxExpiredHolds = 50
@@ -32,7 +31,6 @@ const (
 	UninvoicedAfter = 15 * time.Minute
 )
 
-// WorkerHealth reads what the background workers have and have not done.
 func (s *Store) WorkerHealth(ctx context.Context, messages *outbox.Store) (admin.WorkerHealthView, error) {
 	row, err := s.q.WorkerHealth(ctx, outbox.MaxAttempts)
 	if err != nil {
@@ -109,8 +107,6 @@ func (s *Store) WorkerHealth(ctx context.Context, messages *outbox.Store) (admin
 	return view, nil
 }
 
-// UninvoicedOrders is every order paid more than olderThan ago with no invoice
-// operation, newest first and bounded, and how many there are.
 func (s *Store) UninvoicedOrders(
 	ctx context.Context, olderThan time.Duration,
 ) ([]admin.UninvoicedOrder, int64, error) {
@@ -249,8 +245,6 @@ func durationFromSeconds(seconds int64) time.Duration {
 	return time.Duration(seconds) * time.Second
 }
 
-// StuckListLimit bounds the list beside the count.
 const StuckListLimit = 20
 
-// OpenRefundListLimit bounds the refund list.
 const OpenRefundListLimit = 20

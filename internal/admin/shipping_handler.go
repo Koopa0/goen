@@ -16,7 +16,6 @@ import (
 	"github.com/koopa0/goen/internal/web"
 )
 
-// CreateShippingMethod serves POST /admin/shipping/method.
 func (h *Handler) CreateShippingMethod(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
@@ -40,7 +39,6 @@ func (h *Handler) CreateShippingMethod(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// methodFormOf parses reachability limits while retaining their exact text.
 func methodFormOf(r *http.Request) (*NewMethod, admin.MethodDraft, map[string]string) {
 	draft := admin.MethodDraft{
 		Code: r.PostFormValue("code"), Destination: r.PostFormValue("destination"),
@@ -68,9 +66,8 @@ func methodFormOf(r *http.Request) (*NewMethod, admin.MethodDraft, map[string]st
 		errs["free_over"] = i18n.T(r.Context(), i18n.KeyFormMethodFreeOver)
 	}
 	return &NewMethod{
-		Code:        r.PostFormValue("code"),
-		Destination: r.PostFormValue("destination"),
-		// Zero is "no stated limit", the honest default for home delivery.
+		Code:               r.PostFormValue("code"),
+		Destination:        r.PostFormValue("destination"),
 		MaxParcelLongestMM: parse(draft.MaxLongest, parcelLongestCeilingMM, "max_parcel_longest"),
 		MaxParcelSumMM:     parse(draft.MaxSum, parcelSumCeilingMM, "max_parcel_sum"),
 		MaxParcelWeightG:   parse(draft.MaxWeight, parcelWeightCeilingG, "max_parcel_weight"),
@@ -83,8 +80,7 @@ func methodFormOf(r *http.Request) (*NewMethod, admin.MethodDraft, map[string]st
 	}, draft, errs
 }
 
-// SetShippingMethodActive serves POST /admin/shipping/method/{id}/active. A
-// method is switched OFF, never deleted: past orders name their version.
+// SetShippingMethodActive switches a method OFF, never deletes it: past orders name their version.
 func (h *Handler) SetShippingMethodActive(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
@@ -100,7 +96,6 @@ func (h *Handler) SetShippingMethodActive(w http.ResponseWriter, r *http.Request
 	http.Redirect(w, r, "/admin/shipping?ok=1", http.StatusSeeOther)
 }
 
-// CreateShippingZone serves POST /admin/shipping/zone.
 func (h *Handler) CreateShippingZone(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
@@ -126,7 +121,6 @@ func (h *Handler) CreateShippingZone(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// SetZonePrefixes serves POST /admin/shipping/zone/{id}/prefixes.
 func (h *Handler) SetZonePrefixes(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
@@ -150,7 +144,6 @@ func (h *Handler) SetZonePrefixes(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// DeleteShippingZone serves POST /admin/shipping/zone/{id}/delete.
 func (h *Handler) DeleteShippingZone(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
@@ -174,7 +167,6 @@ type shippingDrafts struct {
 	prefixes admin.ZonePrefixesDraft
 }
 
-// rejectShippingForm re-renders /admin/shipping at 422 with what was typed in it.
 func (h *Handler) rejectShippingForm(
 	w http.ResponseWriter, r *http.Request, errs map[string]string, drafts *shippingDrafts,
 ) {
@@ -215,7 +207,6 @@ func (h *Handler) shippingView(ctx context.Context) (admin.ShippingView, error) 
 	return view, nil
 }
 
-// Shipping serves GET /admin/shipping.
 func (h *Handler) Shipping(w http.ResponseWriter, r *http.Request) {
 	view, err := h.shippingView(r.Context())
 	if err != nil {
@@ -228,7 +219,6 @@ func (h *Handler) Shipping(w http.ResponseWriter, r *http.Request) {
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageShipping)}, view))
 }
 
-// PublishShippingVersion serves POST /admin/shipping/version.
 func (h *Handler) PublishShippingVersion(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
@@ -252,10 +242,9 @@ func (h *Handler) PublishShippingVersion(w http.ResponseWriter, r *http.Request)
 	}
 
 	err := h.store.PublishShippingVersion(r.Context(), ShippingVersion{
-		MethodID: r.PostFormValue("method"),
-		Name:     r.PostFormValue("name"),
-		Carrier:  r.PostFormValue("carrier"),
-		// Optional; the checkout's chooser reads them.
+		MethodID:        r.PostFormValue("method"),
+		Name:            r.PostFormValue("name"),
+		Carrier:         r.PostFormValue("carrier"),
 		NameEn:          r.PostFormValue("name_en"),
 		CarrierEn:       r.PostFormValue("carrier_en"),
 		FeeDollars:      fee,
@@ -264,7 +253,6 @@ func (h *Handler) PublishShippingVersion(w http.ResponseWriter, r *http.Request)
 	h.redirectShipping(w, r, err, "/admin/shipping?ok=1")
 }
 
-// SetZoneSurcharge serves POST /admin/shipping/surcharge.
 func (h *Handler) SetZoneSurcharge(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
@@ -287,7 +275,6 @@ func (h *Handler) SetZoneSurcharge(w http.ResponseWriter, r *http.Request) {
 	h.redirectShipping(w, r, err, "/admin/shipping?ok=1")
 }
 
-// redirectShipping turns a store error into the page's own answer.
 func (h *Handler) redirectShipping(w http.ResponseWriter, r *http.Request, err error, ok string) {
 	switch {
 	case err == nil:

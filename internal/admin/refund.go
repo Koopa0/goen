@@ -10,10 +10,8 @@ import (
 	"github.com/koopa0/goen/internal/payment"
 )
 
-// RefundState is what a provider says a refund IS, as refunds_status_known spells it.
 type RefundState string
 
-// The five states refunds_status_known allows.
 const (
 	RefundPending        RefundState = "pending"
 	RefundRequiresAction RefundState = "requires_action"
@@ -22,7 +20,6 @@ const (
 	RefundCancelled      RefundState = "cancelled"
 )
 
-// Refunder is the Stripe side of paying money back.
 type Refunder interface {
 	PaymentIntentFor(ctx context.Context, sessionID string) (string, error)
 	// Refund is keyed on requestKey so a retry cannot pay twice, and answers what
@@ -30,7 +27,6 @@ type Refunder interface {
 	Refund(ctx context.Context, paymentIntentID, requestKey string, amountCents int64) (string, RefundState, error)
 }
 
-// ErrNoRefunder is a back office running without Stripe credentials.
 var ErrNoRefunder = errors.New("admin: stripe is not configured")
 
 // ErrRefundCreateRejected is a decision from Stripe's refund-CREATE endpoint
@@ -40,12 +36,10 @@ var ErrNoRefunder = errors.New("admin: stripe is not configured")
 // claim while the first outcome is still unknown.
 var ErrRefundCreateRejected = errors.New("admin: Stripe rejected refund creation")
 
-// StripeRefunder is the production Refunder.
 type StripeRefunder struct {
 	client *stripe.Client
 }
 
-// NewRefunder wraps a Stripe client; a blank key yields one that refuses.
 func NewRefunder(apiKey string) StripeRefunder {
 	if apiKey == "" {
 		return StripeRefunder{}

@@ -18,7 +18,6 @@ import (
 	"github.com/koopa0/goen/internal/web"
 )
 
-// Customers searches for a customer by the start of their address or their name.
 func (s *Store) Customers(ctx context.Context, term string, after ...string) (admin.CustomersView, error) {
 	term = strings.TrimSpace(term)
 	scope := web.ScopeURL("/admin/customers", "q", term)

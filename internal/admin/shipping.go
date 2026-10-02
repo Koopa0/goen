@@ -17,10 +17,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
-// MaxShippingFee bounds a fee a staff member can publish.
 const MaxShippingFee = 500000
 
-// Shipping reads what the back office may change about delivery.
 func (s *Store) Shipping(ctx context.Context) (admin.ShippingView, error) {
 	rows, err := s.q.AdminShippingMethods(ctx)
 	if err != nil {
@@ -74,7 +72,6 @@ func (s *Store) Shipping(ctx context.Context) (admin.ShippingView, error) {
 	return view, nil
 }
 
-// ShippingVersion is what the publish form submits.
 type ShippingVersion struct {
 	MethodID        string
 	Name            string
@@ -85,7 +82,6 @@ type ShippingVersion struct {
 	FreeOverDollars int64
 }
 
-// PublishShippingVersion puts a new fee in force for one method, in DOLLARS.
 func (s *Store) PublishShippingVersion(ctx context.Context, v ShippingVersion) error {
 	id, err := uuid.Parse(v.MethodID)
 	if err != nil {
@@ -171,7 +167,6 @@ func (s *Store) SetZoneSurcharge(ctx context.Context, versionID, zoneID string, 
 		})
 }
 
-// NewMethod is a delivery method being created, with the version that prices it.
 type NewMethod struct {
 	Code        string
 	Destination string
@@ -187,7 +182,6 @@ type NewMethod struct {
 	FreeOverDollars    int64
 }
 
-// Validate refuses what the schema would, with a message naming the field.
 func (m *NewMethod) Validate(ctx context.Context) map[string]string {
 	m.Code = strings.ToLower(strings.TrimSpace(m.Code))
 	m.Name = strings.TrimSpace(m.Name)
@@ -236,7 +230,6 @@ func validateMethodParcelLimits(ctx context.Context, m *NewMethod, errs map[stri
 
 var methodCodeFormat = regexp.MustCompile(`^[a-z0-9]+(_[a-z0-9]+)*$`)
 
-// CreateMethod adds a delivery method and the version that prices it.
 func (s *Store) CreateMethod(ctx context.Context, m *NewMethod) (map[string]string, error) {
 	if errs := m.Validate(ctx); len(errs) > 0 {
 		return errs, nil
@@ -295,7 +288,6 @@ func methodWriteError(ctx context.Context, err error) (map[string]string, error)
 	return nil, fmt.Errorf("create shipping method: %w", err)
 }
 
-// SetMethodActive switches a method on or off.
 func (s *Store) SetMethodActive(ctx context.Context, id string, active bool) error {
 	methodID, err := uuid.Parse(id)
 	if err != nil {

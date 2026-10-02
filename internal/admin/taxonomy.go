@@ -16,13 +16,10 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
-// MaxTaxonomyNameRunes bounds a brand or category name.
 const MaxTaxonomyNameRunes = 60
 
-// ErrInUse is a brand or category something still points at.
 var ErrInUse = errors.New("admin: something still uses this")
 
-// TaxonomyForm is a brand or a category being created.
 type TaxonomyForm struct {
 	Slug    string
 	Name    string
@@ -36,7 +33,6 @@ type TaxonomyForm struct {
 	Comparable bool
 }
 
-// Validate refuses what the schema would, with a message naming the field.
 func (f *TaxonomyForm) Validate(ctx context.Context) map[string]string {
 	f.Slug = strings.ToLower(strings.TrimSpace(f.Slug))
 	f.Name = strings.TrimSpace(f.Name)
@@ -64,7 +60,6 @@ func (f *TaxonomyForm) Validate(ctx context.Context) map[string]string {
 	return errs
 }
 
-// Taxonomy reads the brands and the category tree.
 func (s *Store) Taxonomy(ctx context.Context) (admin.TaxonomyView, error) {
 	brands, err := s.q.ManagedBrands(ctx)
 	if err != nil {
@@ -93,7 +88,6 @@ func (s *Store) Taxonomy(ctx context.Context) (admin.TaxonomyView, error) {
 	return view, nil
 }
 
-// CreateBrand adds a brand.
 func (s *Store) CreateBrand(ctx context.Context, f *TaxonomyForm) (map[string]string, error) {
 	if errs := f.Validate(ctx); len(errs) > 0 {
 		return errs, nil
@@ -114,7 +108,6 @@ func (s *Store) CreateBrand(ctx context.Context, f *TaxonomyForm) (map[string]st
 	return nil, nil
 }
 
-// CreateCategory adds a category, optionally under a parent.
 func (s *Store) CreateCategory(ctx context.Context, f *TaxonomyForm) (map[string]string, error) {
 	if errs := f.Validate(ctx); len(errs) > 0 {
 		return errs, nil
@@ -208,7 +201,6 @@ func (s *Store) Rename(ctx context.Context, kind, slug, name, nameEn, iconKey, t
 		})
 }
 
-// Delete removes a brand or category, decided by the DELETE's own WHERE clause.
 func (s *Store) Delete(ctx context.Context, kind, slug string) error {
 	action, table := actionDeleteBrand, "brands"
 	if kind == "category" {

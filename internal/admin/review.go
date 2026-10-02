@@ -11,7 +11,6 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
-// Reviews reads the moderation queue, hidden ones included.
 func (s *Store) Reviews(ctx context.Context, after ...string) (admin.ReviewsView, error) {
 	scope := "/admin/reviews"
 	cursor := readPageCursor(scope, after)

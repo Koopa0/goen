@@ -13,7 +13,6 @@ import (
 	"github.com/koopa0/goen/internal/web"
 )
 
-// Products serves GET /admin/products.
 func (h *Handler) Products(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Products(r.Context(), r.URL.Query().Get(web.KeysetParam))
 	if err != nil {
@@ -26,7 +25,6 @@ func (h *Handler) Products(w http.ResponseWriter, r *http.Request) {
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageProducts)}, view))
 }
 
-// NewProduct serves GET /admin/products/new.
 func (h *Handler) NewProduct(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.NewProduct(r.Context())
 	if err != nil {
@@ -38,7 +36,6 @@ func (h *Handler) NewProduct(w http.ResponseWriter, r *http.Request) {
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageNewProduct)}, view))
 }
 
-// CreateProduct serves POST /admin/products.
 func (h *Handler) CreateProduct(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
@@ -63,13 +60,10 @@ func (h *Handler) CreateProduct(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// EditProduct serves GET /admin/products/{slug}.
 func (h *Handler) EditProduct(w http.ResponseWriter, r *http.Request) {
 	h.renderProduct(w, r, http.StatusOK, noticeFor(r))
 }
 
-// renderProduct draws the product's edit page. A refused form re-draws it with
-// the refusal and a 422, so the staff member sees the current state.
 func (h *Handler) renderProduct(w http.ResponseWriter, r *http.Request, status int, notice string) {
 	view, err := h.store.Product(r.Context(), r.PathValue("slug"))
 	if err != nil {
@@ -101,7 +95,6 @@ func (h *Handler) renderProduct(w http.ResponseWriter, r *http.Request, status i
 		layouts.Page{Title: view.Name}, view))
 }
 
-// UpdateProduct serves POST /admin/products/{slug}.
 func (h *Handler) UpdateProduct(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
@@ -130,7 +123,6 @@ func (h *Handler) UpdateProduct(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// PublishProduct serves POST /admin/products/{slug}/status.
 func (h *Handler) PublishProduct(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
@@ -148,7 +140,6 @@ func (h *Handler) PublishProduct(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/admin/products/"+slug+"?ok=1", http.StatusSeeOther)
 }
 
-// AddVariant serves POST /admin/products/{slug}/variants.
 func (h *Handler) AddVariant(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
@@ -174,7 +165,6 @@ func (h *Handler) AddVariant(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// variantFormOf parses the variant while retaining every submitted value.
 func variantFormOf(r *http.Request) (*VariantForm, admin.VariantDraft, map[string]string) {
 	draft := admin.VariantDraft{
 		SKU: r.PostFormValue("sku"), Price: r.PostFormValue("price"),
@@ -229,7 +219,6 @@ func parseVariantCount(raw string, ceiling int32, field, message string, errs ma
 	return value
 }
 
-// productFormOf reads the product form off a request without losing a bad term.
 func productFormOf(r *http.Request) (form *ProductForm, errs map[string]string) {
 	raw := r.PostFormValue("warranty_months")
 	warranty, ok := parseBoundedInt(raw, MaxWarrantyMonths)
@@ -253,7 +242,6 @@ func productFormOf(r *http.Request) (form *ProductForm, errs map[string]string) 
 	}, errs
 }
 
-// rejectProduct re-renders the form at 422 with what was typed still in it.
 func (h *Handler) rejectProduct(w http.ResponseWriter, r *http.Request, f *ProductForm, errs map[string]string, isNew bool) {
 	var view admin.ProductView
 	var err error
@@ -279,8 +267,7 @@ func (h *Handler) rejectProduct(w http.ResponseWriter, r *http.Request, f *Produ
 		layouts.Page{Title: view.Title(r.Context())}, view))
 }
 
-// UploadImage serves POST /admin/products/{slug}/images. Store then attach,
-// deliberately NOT one transaction: storing is idempotent by content, so a
+// UploadImage stores then attaches, deliberately NOT in one transaction: storing is idempotent by content, so a
 // failure between them leaves only an orphan UnreferencedMedia reclaims.
 func (h *Handler) UploadImage(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
@@ -305,8 +292,6 @@ func (h *Handler) UploadImage(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/admin/products/"+slug+"?ok=1", http.StatusSeeOther)
 }
 
-// ReuseImage serves POST /admin/products/{slug}/images/reuse, attaching an
-// image ALREADY uploaded to a second product.
 func (h *Handler) ReuseImage(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
@@ -335,8 +320,6 @@ func (h *Handler) ReuseImage(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/admin/products/"+slug+"?ok=1", http.StatusSeeOther)
 }
 
-// SetImageOption serves POST /admin/products/{slug}/images/option, saying which
-// option value an attached image shows, or that it shows none.
 func (h *Handler) SetImageOption(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
@@ -358,7 +341,6 @@ func (h *Handler) SetImageOption(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/admin/products/"+slug+"?ok=1", http.StatusSeeOther)
 }
 
-// RemoveImage serves POST /admin/products/{slug}/images/remove.
 func (h *Handler) RemoveImage(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
@@ -372,8 +354,6 @@ func (h *Handler) RemoveImage(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/admin/products/"+slug+"?ok=1", http.StatusSeeOther)
 }
 
-// MoveImage serves POST /admin/products/{slug}/images/move: set the cover, or
-// move one image a place.
 func (h *Handler) MoveImage(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
@@ -396,7 +376,6 @@ func (h *Handler) MoveImage(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// AddOption serves POST /admin/products/{slug}/options.
 func (h *Handler) AddOption(w http.ResponseWriter, r *http.Request) {
 	h.optionWrite(w, r, func(slug string) (map[string]string, error) {
 		return h.store.AddOption(r.Context(), slug, OptionDraft{
@@ -406,7 +385,6 @@ func (h *Handler) AddOption(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// AddOptionValue serves POST /admin/products/{slug}/options/values.
 func (h *Handler) AddOptionValue(w http.ResponseWriter, r *http.Request) {
 	h.optionWrite(w, r, func(slug string) (map[string]string, error) {
 		return h.store.AddOptionValue(r.Context(), slug, OptionDraft{
@@ -418,7 +396,6 @@ func (h *Handler) AddOptionValue(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// optionWrite is the shape both option forms share.
 func (h *Handler) optionWrite(
 	w http.ResponseWriter, r *http.Request, write func(slug string) (map[string]string, error),
 ) {
@@ -452,7 +429,6 @@ func (h *Handler) optionWrite(
 	}
 }
 
-// AddSpec serves POST /admin/products/{slug}/specs.
 func (h *Handler) AddSpec(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
@@ -478,7 +454,6 @@ func (h *Handler) AddSpec(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// RemoveSpec serves POST /admin/products/{slug}/specs/remove.
 func (h *Handler) RemoveSpec(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
@@ -492,7 +467,6 @@ func (h *Handler) RemoveSpec(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/admin/products/"+slug+"?ok=1", http.StatusSeeOther)
 }
 
-// editProductWithErrors re-renders the edit page at 422 with the refusals on it.
 func (h *Handler) editProductWithErrors(
 	w http.ResponseWriter, r *http.Request, slug string, errs map[string]string, draft *admin.VariantDraft,
 ) {
@@ -512,7 +486,6 @@ func (h *Handler) editProductWithErrors(
 		layouts.Page{Title: view.Title(r.Context())}, view))
 }
 
-// attachReason turns an attach failure into the query the page reads.
 func attachReason(err error) string {
 	switch {
 	case errors.Is(err, ErrInvalid):
