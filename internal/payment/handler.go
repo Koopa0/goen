@@ -426,6 +426,9 @@ func (h *Handler) Webhook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	capture, isCapture := CaptureFrom(&ev)
+	if isCapture {
+		h.addCardFacts(r.Context(), &capture)
+	}
 	abandonedSession, isAbandoned := AbandonedSessionFrom(&ev)
 	unsettledSession, isUnsettled := UnsettledSessionFrom(&ev)
 	outcome := &webhookOutcome{
@@ -454,6 +457,26 @@ func (h *Handler) Webhook(w http.ResponseWriter, r *http.Request) {
 
 	h.logWebhookOutcome(r.Context(), *outcome)
 	w.WriteHeader(http.StatusOK)
+}
+
+// cardFactsBudget bounds the one Stripe read made for the card on a receipt, so
+// a slow Stripe cannot hold the capture: without the card the order is still paid.
+const cardFactsBudget = 5 * time.Second
+
+// addCardFacts fills the card brand and last four when the event named only the
+// payment intent. A failure is logged and the capture goes ahead without them.
+func (h *Handler) addCardFacts(ctx context.Context, c *Capture) {
+	if c.CardBrand != "" || c.PaymentIntentID == "" {
+		return
+	}
+	ctx, cancel := context.WithTimeout(ctx, cardFactsBudget)
+	defer cancel()
+	brand, last4, err := h.gateway.CardFacts(ctx, c.PaymentIntentID)
+	if err != nil {
+		h.log.WarnContext(ctx, "could not read the card of a captured payment", "error", err)
+		return
+	}
+	c.CardBrand, c.CardLast4 = brand, last4
 }
 
 // apply is the effect this event is allowed to have. nil means record-and-

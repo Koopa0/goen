@@ -613,3 +613,34 @@ func TestNoKeyIsNotAnError(t *testing.T) {
 		t.Errorf("VerifyWebhook returned %v, want ErrDisabled", err)
 	}
 }
+
+func TestACheckoutEventNamesTheIntentAndNotItsCharge(t *testing.T) {
+	ev := sessionEvent("evt_card_1", "cs_card_1", "paid", 87000)
+	sessionField(ev, "payment_intent", "pi_3Q1abc")
+	raw, err := json.Marshal(ev)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var event stripe.Event
+	if err := json.Unmarshal(raw, &event); err != nil {
+		t.Fatal(err)
+	}
+	c, ok := payment.CaptureFrom(&event)
+	if !ok || c.PaymentIntentID != "pi_3Q1abc" || c.CardBrand != "" {
+		t.Fatalf("CaptureFrom = %+v, %v; want the intent id and no card yet", c, ok)
+	}
+}
+
+func TestACardIsLabelledTheWayAPersonReadsIt(t *testing.T) {
+	for _, tt := range []struct{ brand, last4, want string }{
+		{"visa", "4242", "Visa •••• 4242"},
+		{"amex", "0005", "American Express •••• 0005"},
+		{"newbrand", "1111", "Newbrand •••• 1111"},
+		{"", "4242", ""},
+		{"visa", "", ""},
+	} {
+		if got := payment.CardLabel(tt.brand, tt.last4); got != tt.want {
+			t.Errorf("CardLabel(%q, %q) = %q, want %q", tt.brand, tt.last4, got, tt.want)
+		}
+	}
+}

@@ -315,13 +315,53 @@ func CaptureFrom(ev *stripe.Event) (Capture, bool) {
 		return Capture{}, false
 	}
 	c := Capture{SessionID: sess.ID, AmountRecv: sess.AmountTotal, Currency: string(sess.Currency)}
-	if pi := sess.PaymentIntent; pi != nil && pi.LatestCharge != nil {
-		if d := pi.LatestCharge.PaymentMethodDetails; d != nil && d.Card != nil {
-			c.CardBrand = string(d.Card.Brand)
-			c.CardLast4 = d.Card.Last4
+	if pi := sess.PaymentIntent; pi != nil {
+		if ValidStripeID(pi.ID) {
+			c.PaymentIntentID = pi.ID
 		}
+		c.CardBrand, c.CardLast4 = cardOf(pi.LatestCharge)
 	}
 	return c, true
+}
+
+// cardOf is the card brand and last four of a charge Stripe reported, or
+// nothing for a charge that is absent, is not a card, or carries a value this
+// binary will not store.
+func cardOf(charge *stripe.Charge) (brand, last4 string) {
+	if charge == nil || charge.PaymentMethodDetails == nil || charge.PaymentMethodDetails.Card == nil {
+		return "", ""
+	}
+	card := charge.PaymentMethodDetails.Card
+	brand, last4 = string(card.Brand), card.Last4
+	if brand == "" || len(brand) > 32 || len(last4) != 4 || strings.Trim(last4, "0123456789") != "" {
+		return "", ""
+	}
+	return brand, last4
+}
+
+// CardFacts reads the card brand and last four of what a PaymentIntent paid with:
+// one retrieve with latest_charge expanded, because a checkout event names the
+// intent and never carries its charge. Used only when the event itself had no
+// charge; the answer is display only and never decides whether money arrived.
+func (g *Gateway) CardFacts(ctx context.Context, paymentIntentID string) (brand, last4 string, err error) {
+	if !g.Enabled() {
+		return "", "", ErrDisabled
+	}
+	if !ValidStripeID(paymentIntentID) {
+		return "", "", errors.New("payment: cannot retrieve an invalid Stripe payment intent id")
+	}
+	params := &stripe.PaymentIntentRetrieveParams{}
+	params.AddExpand("latest_charge")
+	pi, err := g.client.V1PaymentIntents.Retrieve(ctx, paymentIntentID, params)
+	if err != nil {
+		return "", "", fmt.Errorf("read payment intent %s: %w", paymentIntentID, err)
+	}
+	if pi == nil || pi.ID != paymentIntentID {
+		return "", "", fmt.Errorf("%w: retrieve payment intent %s returned a different or invalid intent",
+			errInvalidStripeResponse, paymentIntentID)
+	}
+	brand, last4 = cardOf(pi.LatestCharge)
+	return brand, last4, nil
 }
 
 // abandonedEvents are the two ways a Checkout Session ends with no money.

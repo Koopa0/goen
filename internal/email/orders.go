@@ -16,9 +16,9 @@ type OrderPaid struct {
 	Email       string `json:"email"`
 	Name        string `json:"name"`
 	AmountCents int64  `json:"amount_cents"`
-	// Card is "VISA ****4242" or empty. checkout.session.completed does not
-	// expand the charge, so the usual capture has neither brand nor last4 —
-	// the mail says nothing about the card rather than inventing one.
+	// Card is "Visa •••• 4242" or empty. It is empty when Stripe could not be
+	// asked for the charge; the mail then says nothing about the card rather
+	// than inventing one.
 	Card string `json:"card"`
 }
 
