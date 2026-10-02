@@ -1,0 +1,68 @@
+package admin
+
+import (
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/invoice"
+	"github.com/koopa0/goen/internal/ui/components"
+)
+
+templ productInvoice(v ProductView) {
+	@components.Card(components.CardProps{Class: "goen-admin__section", Attrs: templ.Attributes{"id": "sec-invoice"}}) {
+		<h2 class="goen-admin__heading">{ i18n.T(ctx,i18n.KeyProductInvoice) }</h2>
+		<form class="goen-admin__form" method="post" action={ templ.URL(v.InvoiceAction()) }>
+			<div class="goen-admin__field">
+				<label class="ui-label" for="invoice-tax">{ i18n.T(ctx,i18n.KeyInvoiceTaxType) }</label>
+				<select
+					class="ui-select"
+					id="invoice-tax"
+					name="tax_type"
+					required
+					if v.HasErr("tax_type") {
+						aria-invalid="true"
+						aria-describedby="invoice-tax-error"
+					}
+				>
+					if v.invoiceFacts().TaxType!=invoice.Taxable && v.invoiceFacts().TaxType!=invoice.Exempt {
+						<option value={ string(v.invoiceFacts().TaxType) } selected>{ string(v.invoiceFacts().TaxType) }</option>
+					}
+					for _, tax := range invoice.ProductTaxTypes() {
+						<option value={ string(tax) } selected?={ tax==v.invoiceFacts().TaxType }>{ tax.Label(ctx) }</option>
+					}
+				</select>
+				if v.HasErr("tax_type") {
+					<p class="ui-error-text" id="invoice-tax-error">{ v.Err("tax_type") }</p>
+				}
+			</div>
+			<div class="goen-admin__field">
+				<label class="ui-label" for="invoice-unit">{ i18n.T(ctx,i18n.KeyInvoiceUnit) }</label>
+				<input
+					class="ui-input"
+					id="invoice-unit"
+					name="invoice_unit"
+					value={ string(v.invoiceFacts().Unit) }
+					list="invoice-units"
+					required
+					maxlength="6"
+					if v.HasErr("invoice_unit") {
+						aria-invalid="true"
+						aria-describedby="invoice-unit-hint invoice-unit-error"
+					} else {
+						aria-describedby="invoice-unit-hint"
+					}
+				/>
+				<datalist id="invoice-units">
+					for _, unit := range invoice.CommonItemUnits() {
+						<option value={ string(unit) }></option>
+					}
+				</datalist>
+				<p class="goen-admin__meta" id="invoice-unit-hint">{ i18n.T(ctx,i18n.KeyInvoiceUnitHint) }</p>
+				if v.HasErr("invoice_unit") {
+					<p class="ui-error-text" id="invoice-unit-error">{ v.Err("invoice_unit") }</p>
+				}
+			</div>
+			@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, "submit") {
+				{ i18n.T(ctx,i18n.KeyInvoiceFactsSave) }
+			}
+		</form>
+	}
+}

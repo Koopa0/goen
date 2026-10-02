@@ -15,6 +15,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
@@ -122,7 +123,8 @@ func (s *Store) Product(ctx context.Context, slug string) (admin.ProductView, er
 	}
 	view := admin.ProductView{
 		Slug: p.Slug, Name: p.Name, Summary: p.Summary,
-		Description: p.Description, WarrantyNote: p.WarrantyNote,
+		InvoiceFacts: &invoice.ProductFacts{TaxType: invoice.TaxType(p.TaxType), Unit: invoice.ItemUnit(p.InvoiceUnit)},
+		Description:  p.Description, WarrantyNote: p.WarrantyNote,
 		NameEn: p.NameEn, SummaryEn: p.SummaryEn, DescriptionEn: p.DescriptionEn,
 		WarrantyMonths: p.WarrantyMonths,
 		Status:         pages.ProductStatus(p.Status), StatusText: ProductStatusLabel(ctx, p.Status),
