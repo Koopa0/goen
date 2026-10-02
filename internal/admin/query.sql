@@ -904,8 +904,8 @@ ORDER BY c.is_active DESC, c.ends_at DESC, c.id DESC
 LIMIT @row_limit::integer;
 
 -- name: CreateCampaign :exec
-INSERT INTO sale_campaigns (slug, title, title_en, ends_at)
-VALUES (@slug::text, @title::text, nullif(@title_en::text, ''),
+INSERT INTO sale_campaigns (slug, title, title_en, tone, ends_at)
+VALUES (@slug::text, @title::text, nullif(@title_en::text, ''), @tone::text,
         now() + (@days::integer || ' days')::interval);
 
 -- name: SetCampaignImage :execrows
@@ -925,10 +925,14 @@ WHERE slug = @slug::text;
 SELECT coalesce(c.image_key, '')::text AS image_key,
        coalesce(c.image_alt, '')::text AS image_alt,
        coalesce(c.image_alt_en, '')::text AS image_alt_en,
+       c.tone,
        coalesce(m.width, 0)::integer AS image_width
 FROM sale_campaigns c
 LEFT JOIN media_objects m ON m.digest = c.image_key
 WHERE c.slug = @slug::text;
+
+-- name: SetCampaignTone :execrows
+UPDATE sale_campaigns SET tone = @tone::text WHERE slug = @slug::text;
 
 -- name: SetCampaignActive :execrows
 UPDATE sale_campaigns SET is_active = @is_active::boolean WHERE slug = @slug::text;
@@ -1121,16 +1125,17 @@ WHERE b.slug = @slug::text
 
 -- name: ManagedCategories :many
 WITH RECURSIVE tree AS (
-    SELECT c.id, c.parent_id, c.slug, c.name, c.name_en, c.icon_key, c.position,
+    SELECT c.id, c.parent_id, c.slug, c.name, c.name_en, c.icon_key, c.tone, c.position,
            0 AS depth, array[c.position, 0] AS path
     FROM categories c WHERE c.parent_id IS NULL
     UNION ALL
-    SELECT c.id, c.parent_id, c.slug, c.name, c.name_en, c.icon_key, c.position,
+    SELECT c.id, c.parent_id, c.slug, c.name, c.name_en, c.icon_key, c.tone, c.position,
            t.depth + 1, t.path || array[c.position, 0]
     FROM categories c JOIN tree t ON t.id = c.parent_id
 )
 SELECT t.id, t.slug, t.name, coalesce(t.name_en, '') AS name_en,
        coalesce(t.icon_key, '') AS icon_key,
+       coalesce(t.tone, '') AS tone,
        t.depth::integer AS depth,
        coalesce(p.name, '') AS parent_name,
        (SELECT count(*) FROM products x WHERE x.category_id = t.id)::bigint AS products,
@@ -1143,9 +1148,9 @@ ORDER BY t.path, t.name;
 -- for a slug that does not exist, creating a ROOT category and reporting
 -- success. No rows is how the caller learns the parent was not found.
 -- name: CreateCategory :execrows
-INSERT INTO categories (slug, name, name_en, icon_key, parent_id, position)
+INSERT INTO categories (slug, name, name_en, icon_key, tone, parent_id, position)
 SELECT @slug::text, @name::text, nullif(@name_en::text, ''),
-       nullif(@icon_key::text, ''), parent.id,
+       nullif(@icon_key::text, ''), nullif(@tone::text, ''), parent.id,
        coalesce((SELECT max(c.position) + 1 FROM categories c
                  WHERE c.parent_id IS NOT DISTINCT FROM parent.id), 0)
 FROM (
@@ -1155,11 +1160,37 @@ FROM (
 ) parent;
 
 -- The DISPLAY names only: a slug is in every URL a search engine has indexed and
--- goen has no redirect table. nullif('') is what lets name_en be cleared.
+-- goen has no redirect table. nullif('') is what lets name_en be cleared, and
+-- an empty tone is what makes the category inherit its department's.
 -- name: RenameCategory :execrows
 UPDATE categories SET name = @name::text, name_en = nullif(@name_en::text, ''),
-                     icon_key = nullif(@icon_key::text, '')
+                     icon_key = nullif(@icon_key::text, ''),
+                     tone = nullif(@tone::text, '')
 WHERE slug = @slug::text;
+
+-- name: SetCategoryImage :execrows
+UPDATE categories
+SET image_key = @image_key::text, image_alt = @image_alt::text,
+    image_alt_en = nullif(@image_alt_en::text, '')
+WHERE slug = @slug::text;
+
+-- name: ClearCategoryImage :execrows
+UPDATE categories
+SET image_key = NULL, image_alt = NULL, image_alt_en = NULL
+WHERE slug = @slug::text;
+
+-- The stored width comes from media_objects, and is 0 for a key that is not an
+-- upload.
+-- name: AdminCategoryImage :one
+SELECT c.name,
+       coalesce(c.tone, '')::text AS tone,
+       coalesce(c.image_key, '')::text AS image_key,
+       coalesce(c.image_alt, '')::text AS image_alt,
+       coalesce(c.image_alt_en, '')::text AS image_alt_en,
+       coalesce(m.width, 0)::integer AS image_width
+FROM categories c
+LEFT JOIN media_objects m ON m.digest = c.image_key
+WHERE c.slug = @slug::text;
 
 -- name: DeleteCategory :execrows
 DELETE FROM categories c
@@ -1338,6 +1369,7 @@ SELECT
      WHERE NOT EXISTS (SELECT 1 FROM product_images p WHERE p.storage_key = m.digest)
        AND NOT EXISTS (SELECT 1 FROM hero_slides h WHERE h.image_key = m.digest)
        AND NOT EXISTS (SELECT 1 FROM sale_campaigns c WHERE c.image_key = m.digest)
+       AND NOT EXISTS (SELECT 1 FROM categories k WHERE k.image_key = m.digest)
        AND m.created_at < now() - interval '24 hours')::bigint AS unreferenced_media,
     -- Events accepted and NOT acted on: a known Stripe object this binary could
     -- not read, paid money with no local payment row, paid money for an order

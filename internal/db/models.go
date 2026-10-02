@@ -64,15 +64,19 @@ type CartItem struct {
 }
 
 type Category struct {
-	ID        uuid.UUID
-	ParentID  uuid.NullUUID
-	Slug      string
-	Name      string
-	NameEn    pgtype.Text
-	IconKey   pgtype.Text
-	Position  int32
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID         uuid.UUID
+	ParentID   uuid.NullUUID
+	Slug       string
+	Name       string
+	NameEn     pgtype.Text
+	IconKey    pgtype.Text
+	Tone       pgtype.Text
+	ImageKey   pgtype.Text
+	ImageAlt   pgtype.Text
+	ImageAltEn pgtype.Text
+	Position   int32
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
 }
 
 type CheckoutAttempt struct {
@@ -704,6 +708,7 @@ type SaleCampaign struct {
 	ImageKey   pgtype.Text
 	ImageAlt   pgtype.Text
 	ImageAltEn pgtype.Text
+	Tone       string
 	StartsAt   time.Time
 	EndsAt     time.Time
 	IsActive   bool

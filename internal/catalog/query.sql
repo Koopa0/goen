@@ -1,13 +1,23 @@
 -- categories_acyclic is what guarantees the upward walk terminates.
+-- The tone and the photograph are the nearest ones up the trail: a
+-- sub-category shows its department's. The photograph's key, alt text and width
+-- come from ONE row, so a description never belongs to another category's
+-- picture.
 -- name: CategoryBySlug :one
 WITH RECURSIVE trail AS (
     SELECT c.id, c.parent_id, c.slug,
-           localized_name(c.name, c.name_en, @locale::text) AS name, 0 AS depth
+           localized_name(c.name, c.name_en, @locale::text) AS name,
+           c.tone, c.image_key,
+           localized_name(c.image_alt, c.image_alt_en, @locale::text) AS image_alt,
+           0 AS depth
     FROM categories c
     WHERE c.slug = $1
     UNION ALL
     SELECT c.id, c.parent_id, c.slug,
-           localized_name(c.name, c.name_en, @locale::text), t.depth + 1
+           localized_name(c.name, c.name_en, @locale::text),
+           c.tone, c.image_key,
+           localized_name(c.image_alt, c.image_alt_en, @locale::text),
+           t.depth + 1
     FROM categories c
     JOIN trail t ON c.id = t.parent_id
 )
@@ -22,8 +32,20 @@ SELECT
     coalesce(
         (SELECT array_agg(a.name ORDER BY a.depth DESC) FROM trail a WHERE a.depth > 0),
         ARRAY[]::text[]
-    )::text[] AS ancestor_names
+    )::text[] AS ancestor_names,
+    coalesce(
+        (SELECT a.tone FROM trail a WHERE a.tone IS NOT NULL ORDER BY a.depth LIMIT 1),
+        'stone'
+    )::text AS tone,
+    coalesce(photo.image_key, '')::text AS image_key,
+    coalesce(photo.image_alt, '')::text AS image_alt,
+    coalesce(m.width, 0)::integer AS image_width
 FROM trail self
+LEFT JOIN LATERAL (
+    SELECT a.image_key, a.image_alt FROM trail a
+    WHERE a.image_key IS NOT NULL ORDER BY a.depth LIMIT 1
+) photo ON true
+LEFT JOIN media_objects m ON m.digest = photo.image_key
 WHERE self.depth = 0;
 
 -- Every category in the subtree rooted at $1, including $1 itself.
@@ -423,6 +445,7 @@ LIMIT $1;
 -- The window is judged against the database's clock, which wrote the timestamps.
 -- name: RunningCampaign :one
 SELECT c.id, c.slug, localized_name(c.title, c.title_en, @locale::text) AS title, c.ends_at,
+       c.tone,
        coalesce(c.image_key, '')::text AS image_key,
        coalesce(localized_name(c.image_alt, c.image_alt_en, @locale::text), '')::text AS image_alt,
        coalesce(m.width, 0)::integer AS image_width

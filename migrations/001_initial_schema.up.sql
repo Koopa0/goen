@@ -105,6 +105,15 @@ CREATE TABLE categories (
     -- back to `name` at read time, and a blank would render an empty nav item.
     name_en    text,
     icon_key   text,
+    -- The ground temperature of the department page. NULL inherits from the
+    -- nearest ancestor that sets one, and a root with NULL is 'stone'; the set
+    -- is mirrored by pages.Tone.
+    tone       text,
+    -- The department's photograph, a key of the kind product_images.storage_key
+    -- holds, so one resolver serves an uploaded digest and an embedded file.
+    image_key    text,
+    image_alt    text,
+    image_alt_en text,
     position   integer NOT NULL DEFAULT 0,
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now(),
@@ -119,6 +128,12 @@ CREATE TABLE categories (
             'apparel', 'kids', 'gift'
         )
     ),
+    CONSTRAINT categories_tone_known CHECK (
+        tone IS NULL OR tone IN ('paper', 'stone', 'mist', 'sage', 'blush', 'ink')
+    ),
+    CONSTRAINT categories_image_has_alt
+        CHECK (image_key IS NULL
+               OR (image_alt IS NOT NULL AND image_alt ~ '[^[:space:]]')),
     CONSTRAINT categories_not_own_parent CHECK (parent_id IS DISTINCT FROM id)
 );
 
@@ -4386,6 +4401,8 @@ CREATE TABLE sale_campaigns (
     image_key    text,
     image_alt    text,
     image_alt_en text,
+    -- The ground temperature of /s/{slug}; the set is mirrored by pages.Tone.
+    tone       text NOT NULL DEFAULT 'stone',
     starts_at  timestamptz NOT NULL DEFAULT now(),
     ends_at    timestamptz NOT NULL,
     is_active  boolean NOT NULL DEFAULT true,
@@ -4398,6 +4415,8 @@ CREATE TABLE sale_campaigns (
     CONSTRAINT sale_campaigns_image_has_alt
         CHECK (image_key IS NULL
                OR (image_alt IS NOT NULL AND image_alt ~ '[^[:space:]]')),
+    CONSTRAINT sale_campaigns_tone_known
+        CHECK (tone IN ('paper', 'stone', 'mist', 'sage', 'blush', 'ink')),
     CONSTRAINT sale_campaigns_window_ordered CHECK (ends_at > starts_at)
 );
 

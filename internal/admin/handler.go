@@ -865,6 +865,7 @@ func (h *Handler) CreateCampaign(w http.ResponseWriter, r *http.Request) {
 		Title:   r.PostFormValue("title"),
 		TitleEn: r.PostFormValue("title_en"),
 		Days:    small(r.PostFormValue("days")),
+		Tone:    r.PostFormValue("tone"),
 	}
 	errs, err := h.store.CreateCampaign(r.Context(), f)
 	switch {
@@ -879,7 +880,7 @@ func (h *Handler) CreateCampaign(w http.ResponseWriter, r *http.Request) {
 		}
 		view.Errors = errs
 		view.Draft = pages.AdminCampaignDraft{
-			Slug: f.Slug, Title: f.Title, TitleEn: f.TitleEn, Days: r.PostFormValue("days"),
+			Slug: f.Slug, Title: f.Title, TitleEn: f.TitleEn, Days: r.PostFormValue("days"), Tone: f.Tone,
 		}
 		web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.AdminCampaigns(
 			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageCampaigns)}, view))
@@ -904,7 +905,7 @@ func (h *Handler) renderCampaign(w http.ResponseWriter, r *http.Request, status 
 		h.serverError(w, r)
 		return
 	}
-	image, err := h.store.CampaignImage(r.Context(), slug)
+	image, tone, err := h.store.CampaignImage(r.Context(), slug)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			h.notFound(w, r)
@@ -916,8 +917,29 @@ func (h *Handler) renderCampaign(w http.ResponseWriter, r *http.Request, status 
 	}
 	web.Render(w, r, h.log, status, pages.AdminCampaignForm(
 		layouts.Page{Title: slug}, pages.AdminCampaignView{
-			Slug: slug, Products: products, Notice: notice, Image: image, Errors: errs,
+			Slug: slug, Products: products, Notice: notice, Image: image, Tone: tone, Errors: errs,
 		}))
+}
+
+// SetCampaignTone serves POST /admin/campaigns/{slug}/tone.
+func (h *Handler) SetCampaignTone(w http.ResponseWriter, r *http.Request) {
+	if err := web.ParseForm(w, r); err != nil {
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
+		return
+	}
+	slug := r.PathValue("slug")
+	switch err := h.store.SetCampaignTone(r.Context(), slug, r.PostFormValue("tone")); {
+	case err == nil:
+		//nolint:gosec // G710: slug is the route's own path value
+		http.Redirect(w, r, "/admin/campaigns/"+slug+"?ok=1", http.StatusSeeOther)
+	case errors.Is(err, ErrNotFound):
+		h.notFound(w, r)
+	case errors.Is(err, ErrInvalid):
+		h.renderCampaign(w, r, http.StatusUnprocessableEntity, "", map[string]string{"tone": i18n.T(r.Context(), i18n.KeyFormToneUnknown)})
+	default:
+		h.log.ErrorContext(r.Context(), "set campaign tone", "error", err, "slug", slug)
+		h.serverError(w, r)
+	}
 }
 
 // SetCampaignImage serves POST /admin/campaigns/{slug}/image. Multipart: the
@@ -1375,6 +1397,7 @@ func (h *Handler) CreateTaxon(w http.ResponseWriter, r *http.Request) {
 		NameEn:  r.PostFormValue("name_en"),
 		Parent:  r.PostFormValue("parent"),
 		IconKey: r.PostFormValue("icon_key"),
+		Tone:    r.PostFormValue("tone"),
 	}
 
 	var errs map[string]string
@@ -1397,7 +1420,7 @@ func (h *Handler) CreateTaxon(w http.ResponseWriter, r *http.Request) {
 		view.Which, view.Errors = kind, errs
 		view.Draft = pages.AdminTaxonDraft{
 			Slug: f.Slug, Name: f.Name, NameEn: f.NameEn, Parent: f.Parent,
-			IconKey: f.IconKey,
+			IconKey: f.IconKey, Tone: f.Tone,
 		}
 		web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.AdminTaxonomy(
 			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageTaxonomy)}, &view))
@@ -1424,7 +1447,7 @@ func (h *Handler) EditTaxon(w http.ResponseWriter, r *http.Request) {
 	} else {
 		err = h.store.Rename(r.Context(), kind, slug,
 			r.PostFormValue("name"), r.PostFormValue("name_en"),
-			r.PostFormValue("icon_key"))
+			r.PostFormValue("icon_key"), r.PostFormValue("tone"))
 	}
 	switch {
 	case err == nil:
