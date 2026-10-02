@@ -1308,6 +1308,18 @@ h3 {
     gap: 0;
   }
 
+  /* The mark is the brand where the row is this tight; the word stays in the
+     link's accessible name. */
+  .goen-header__wordmark {
+    clip-path: inset(50%);
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    position: absolute;
+    white-space: nowrap;
+    width: 1px;
+  }
+
   .goen-header__nav .ui-navitem {
     font-size: var(--fs-14);
   }
