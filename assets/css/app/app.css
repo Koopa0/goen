@@ -745,10 +745,6 @@ h3 {
   transition: color var(--dur-base) var(--ease-standard);
 }
 
-.goen-crumbs__link:hover {
-  color: var(--fg);
-}
-
 .ui-crumbs__sep {
   color: var(--fg-muted);
 }
@@ -7777,17 +7773,6 @@ a.goen-pager__step:hover {
   align-self: flex-start;
 }
 
-.goen-admin__panel {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 16px;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
-  min-width: 0;
-}
-
 .goen-admin__heading {
   color: var(--fg);
   font-size: var(--fs-ed-20);
@@ -7942,12 +7927,6 @@ a.goen-pager__step:hover {
 
 .goen-admin .ui-table tbody .goen-admin__cellkey {
   color: var(--fg);
-}
-
-/* Same reason as the wrapper above: the panel must be allowed to be narrower
-   than its widest child, or the child sets the page width. */
-.goen-admin__panel {
-  min-width: 0;
 }
 
 .goen-admin__stats .ui-stat {
@@ -8302,7 +8281,6 @@ a.goen-pager__step:hover {
   color: var(--fg-muted);
 }
 
-.goen-admin__productname,
 .goen-admin__sku {
   font-size: var(--fs-14);
   font-weight: var(--fw-medium);
