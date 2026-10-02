@@ -1084,8 +1084,8 @@ func (s *Store) orderInvoice(ctx context.Context, orderID uuid.UUID) (*pages.Ord
 	for i := range docs {
 		d := &docs[i]
 		out.Documents = append(out.Documents, pages.OrderInvoiceDocument{
-			Allowance: d.Kind == "allowance", Number: d.Number, RandomCode: d.ProviderRef,
-			AmountCents: d.AmountCents, Voided: d.Status == "voided",
+			Allowance: invoicepkg.DocumentKind(d.Kind) == invoicepkg.DocumentAllowance, Number: d.Number, RandomCode: d.ProviderRef,
+			AmountCents: d.AmountCents, Voided: invoicepkg.DocumentStatus(d.Status) == invoicepkg.DocumentVoided,
 			IssuedOn: shoptime.Day(d.IssuedAt),
 		})
 	}

@@ -286,8 +286,8 @@ func (s *Store) Documents(ctx context.Context, orderNumber string) ([]Document, 
 	for i := range rows {
 		d := &rows[i]
 		out = append(out, Document{
-			ID: d.ID.String(), Kind: d.Kind, Number: d.Number,
-			AmountCents: d.AmountCents, Status: d.Status,
+			ID: d.ID.String(), Kind: DocumentKind(d.Kind), Number: d.Number,
+			AmountCents: d.AmountCents, Status: DocumentStatus(d.Status),
 			IssuedAt: d.IssuedAt, ProviderRef: d.ProviderRef,
 			Lines: byDocument[d.ID],
 		})
