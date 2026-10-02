@@ -7,6 +7,8 @@ import (
 	"net/url"
 	"slices"
 	"strings"
+
+	"github.com/koopa0/goen/internal/pickup"
 )
 
 // Carrier is the value persisted in order_shipments.carrier and carried by the
@@ -40,6 +42,34 @@ var all = [...]Carrier{
 // All returns every carrier a dispatch can name, in display order. The result
 // owns its storage, so a caller cannot mutate the canonical closed set.
 func All() []Carrier { return slices.Clone(all[:]) }
+
+// ForDelivery is the carriers a parcel for this order can go with, and the one
+// the order itself implies. chain is the order's convenience-store chain, empty
+// for a home delivery.
+//
+// A store order is carried by the chain the customer picked: its parcel goes to
+// that chain's store and no other carrier will accept it there, so the list is
+// that one carrier and it is the implied one. A home delivery may go with any of
+// the four home carriers, and nothing on the order says which: the shipping
+// method names its carrier as display text, not as one of these codes, so no
+// carrier is implied.
+func ForDelivery(chain pickup.Brand) (valid []Carrier, implied Carrier) {
+	if chain == "" {
+		return []Carrier{BlackCat, HCT, ChunghwaPost, KerryTJ}, ""
+	}
+	switch chain {
+	case pickup.SevenEleven:
+		return []Carrier{SevenEleven}, SevenEleven
+	case pickup.FamilyMart:
+		return []Carrier{FamilyMart}, FamilyMart
+	case pickup.HiLife:
+		return []Carrier{HiLife}, HiLife
+	case pickup.OKMart:
+		return []Carrier{OKMart}, OKMart
+	default:
+		return []Carrier{SevenEleven, FamilyMart, HiLife, OKMart}, ""
+	}
+}
 
 // Known reports whether c is one of the closed set.
 func (c Carrier) Known() bool { return slices.Contains(all[:], c) }

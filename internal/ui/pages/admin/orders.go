@@ -225,8 +225,12 @@ type OrderView struct {
 	// ShipCarrier and ShipTracking keep what staff typed when the dispatch was
 	// refused; TrackingError marks the tracking field invalid.
 	ShipCarrier, ShipTracking string
-	TrackingError             string
-	ShipCarrierError          string
+	// ShipCarriers are the carriers the dispatch form lists, which is the ones
+	// that can carry this order's parcel. ShipCarrier holds the one the order
+	// implies until staff choose, or what they chose when a dispatch was refused.
+	ShipCarriers     []carrier.Carrier
+	TrackingError    string
+	ShipCarrierError string
 	// ShipQtyError marks every quantity field of a refused dispatch, and
 	// ShipQty keeps what was typed in each, by order line id.
 	ShipQtyError      string
@@ -345,6 +349,13 @@ func (v *OrderView) Discounted() bool { return v.DiscountCents > 0 }
 // Discount is what came off, as a negative figure.
 func (v *OrderView) Discount() string {
 	return "-" + money.TWD(v.DiscountCents)
+}
+
+// StartsPicking reports that the only move this order has is into picking: a
+// paid order awaiting fulfilment. It is one action, so the page shows it as a
+// button and not as a menu with one entry.
+func (v *OrderView) StartsPicking() bool {
+	return len(v.Next) == 1 && v.Next[0].Value == pages.FulfillmentPicking
 }
 
 // CanAdvance reports whether this order has any legal move left.

@@ -169,6 +169,13 @@ var (
 
 	// Completing is what stamps delivered_at, which starts the seven-day period
 	// /admin/returns counts from; for a store pickup nobody else witnesses the handover.
+	// KeyAdminQueueStartPicking is the one move a paid order awaiting fulfilment
+	// has, so it is a button and not a menu of one.
+	KeyAdminQueueStartPicking = key("admin.queue.startpicking", Message{
+		ZhHant: "開始備貨",
+		En:     "Start picking",
+	})
+
 	KeyAdminQueuePickupCompleteHint = key("admin.queue.pickup.complete.hint", Message{
 		ZhHant: "超商取貨的訂單:顧客到門市實際取貨後,才按「已完成」。這個時間點起算七天鑑賞期。",
 		En: "Store-pickup order: mark it Completed only after the customer has collected it at " +

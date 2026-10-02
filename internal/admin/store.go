@@ -252,8 +252,7 @@ func (s *Store) Order(ctx context.Context, number string) (admin.OrderView, erro
 		},
 		// UpdateOrderDelivery's WHERE clause is the authority; this only decides
 		// whether to offer the form.
-		Correctable: fulfillment != pages.FulfillmentShipped &&
-			fulfillment != pages.FulfillmentDelivered && fulfillment != pages.FulfillmentCompleted,
+		Correctable:         correctable(fulfillment),
 		PickupDestination:   o.PickupBrand != "",
 		PickupBrands:        pages.PickupBrandChoices(),
 		CustomerNote:        o.CustomerNote.String,
@@ -265,6 +264,9 @@ func (s *Store) Order(ctx context.Context, number string) (admin.OrderView, erro
 		Committed:           o.Committed,
 		Unpaid:              !o.Committed && o.OwedCents > 0,
 	}
+
+	carriers, implied := carrier.ForDelivery(pickup.Brand(o.PickupBrand))
+	view.ShipCarriers, view.ShipCarrier = carriers, string(implied)
 
 	if shipErr := s.fillShippable(ctx, &view, o.ID, fulfillment); shipErr != nil {
 		return admin.OrderView{}, shipErr
@@ -308,6 +310,19 @@ func (s *Store) Order(ctx context.Context, number string) (admin.OrderView, erro
 		})
 	}
 	return view, nil
+}
+
+// correctable reports whether the order page offers the delivery-details form.
+// A parcel that has gone out cannot be redirected, and a cancelled order is not
+// going anywhere, so editing where it goes is a change to a record nobody reads.
+func correctable(status pages.FulfillmentStatus) bool {
+	switch status {
+	case pages.FulfillmentShipped, pages.FulfillmentDelivered,
+		pages.FulfillmentCompleted, pages.FulfillmentCancelled:
+		return false
+	default:
+		return true
+	}
 }
 
 // Advance moves an order along its lifecycle. orders_check_transition validates

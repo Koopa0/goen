@@ -185,7 +185,7 @@ func buildReturnQueue(
 			ID:          r.ID.String(),
 			OrderNumber: r.OrderNumber,
 			Status:      r.Status,
-			StatusText:  ReturnStatusLabel(ctx, returns.ReturnStatus(r.Status)),
+			StatusText:  returnStatusText(ctx, returns.ReturnStatus(r.Status), r.BeforeShipment),
 			Reason:      r.Reason,
 			Units:       r.Units,
 			AmountCents: r.RefundableCents,
