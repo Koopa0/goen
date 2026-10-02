@@ -4,6 +4,7 @@ package catalog_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -43,7 +44,7 @@ func TestBrandCountsFollowTheOtherFiltersAndNotTheBrandFilter(t *testing.T) {
 				t.Fatal(err)
 			}
 			if _, err = tx.Exec(ctx, `INSERT INTO product_variants (product_id, sku, price_cents) VALUES ($1, $2, $3)`,
-				productID, "FACET-"+uuid.NewString(), price); err != nil {
+				productID, "FACET-"+strings.ToUpper(uuid.NewString()), price); err != nil {
 				t.Fatal(err)
 			}
 			if _, err = tx.Exec(ctx, `UPDATE products SET status = 'active' WHERE id = $1`, productID); err != nil {
