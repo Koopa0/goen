@@ -11,15 +11,9 @@ import (
 	"github.com/koopa0/goen/internal/web"
 )
 
-// Header renders the site header: one row, static at every width. The
-// departments sit in the bar from 1024 up, each one that has sub-categories
-// opening a full-width panel on hover or focus; below 1024 they sit behind a
-// native disclosure, and the search field wraps onto its own row. The language
-// menu sits in the bar from 768 up and in the drawer below that.
-//
-// The ui-navitem and ui-btn spellings inside it are not leftovers: two
-// assertions in backoffice_test.go locate the back-office entrance by the whole
-// tag, and app.css replaces every declaration those names carry upstream.
+// ui-navitem and ui-btn are not leftovers: two assertions in backoffice_test.go
+// locate the back-office entrance by the whole tag, and app.css replaces every
+// declaration those names carry upstream.
 templ Header(p Page) {
 	<header class="goen-header">
 		<div class="goen-header__bar">
@@ -28,9 +22,8 @@ templ Header(p Page) {
 					@icons.Menu()
 				</summary>
 				<nav class="goen-header__drawer" aria-label={ i18n.T(ctx, i18n.KeyCategoryNav) }>
-					// A visible way out beside the hamburger, which sits under the
-					// drawer's edge on a phone. goen.js closes the menu and returns the
-					// focus to the hamburger, as Escape does.
+					// A visible way out beside the hamburger, which sits under the drawer's edge on a
+					// phone. goen.js closes the menu and returns focus to the hamburger, as Escape does.
 					<button class="goen-header__close goen-btn goen-btn--ghost goen-btn--icon" type="button" data-menu-close aria-label={ i18n.T(ctx, i18n.KeyCloseMenu) }>
 						@icons.Close()
 					</button>
@@ -45,19 +38,12 @@ templ Header(p Page) {
 						}
 					}
 					<a class="ui-navitem goen-header__navitem--deal" href="/deals">{ i18n.T(ctx, i18n.KeyDeals) }</a>
-					// The back office is reached from the header HERE and not from the wide
-					// bar's action row, which has no room: at 1024 with the English
-					// catalogue names the search field is already on its floor, and a text
-					// button in that row overflows or wraps the bar. Making room is an
-					// app.css decision about what the wide bar drops first, not a markup
-					// one. Above 1024 this drawer is display:none and /account carries
-					// the entrance instead.
+					// Reached from the drawer, not the wide bar's action row: at 1024 with the English
+					// catalogue names the search field is already on its floor and a text button there
+					// overflows or wraps the bar. Above 1024 /account carries the entrance instead.
 					if IsStaff(ctx) {
 						<a class="ui-navitem" href="/admin">{ i18n.T(ctx, i18n.KeyBackOffice) }</a>
 					}
-					// What the phone's bar has no room for: the wishlist, the account
-					// (which sends a visitor who is not signed in to the sign-in page)
-					// and the language, the same menu the bar carries from 768 up.
 					<div class="goen-header__drawertools">
 						<a class="ui-navitem" href="/account/wishlist">{ i18n.T(ctx, i18n.KeyWishlist) }</a>
 						<a class="ui-navitem" href="/account">{ i18n.T(ctx, i18n.KeyAccount) }</a>
@@ -103,12 +89,9 @@ templ Header(p Page) {
 					@icons.User()
 				}
 				if IsStaff(ctx) {
-					// The wide slot, not a fourth button: at 1024 in English the
-					// search field is already on its floor, and anything added
-					// there overflows or wraps the bar. A staff member reaches
-					// the wishlist from /account; the back office is what they
-					// open all day, and below 1024 this slot is hidden and the
-					// drawer carries the entrance instead.
+					// The wide slot, not a fourth button: at 1024 in English the search field is
+					// already on its floor and anything added there overflows or wraps the bar. Below
+					// 1024 this slot is hidden and the drawer carries the entrance.
 					<a class="ui-btn ui-btn--ghost ui-btn--icon goen-header__action--wide" href="/admin" aria-label={ i18n.T(ctx, i18n.KeyBackOffice) }>
 						@icons.Lock()
 					</a>
@@ -123,15 +106,11 @@ templ Header(p Page) {
 	</header>
 }
 
-// department is a root category that has sub-categories: its link, and the
-// panel that opens under the header on hover or keyboard focus. The panel is
-// plain markup shown by CSS, so it needs no script to open: on hover, and under
-// :focus-within until goen.js is running, when ArrowDown on the department's
-// link opens it instead and its links are out of the tab order until then.
-// Three of the department's newest products sit between the sub-categories and
-// the department's photograph, so a department with two sub-categories still
-// fills its panel. A department without a photograph shows the caption alone.
-// Every image is lazy: a closed panel is display:none and fetches nothing.
+// The panel is plain markup shown by CSS: on hover, and under :focus-within until
+// goen.js runs, when ArrowDown on the department's link opens it instead. Three of
+// the newest products sit between the sub-categories and the photograph, so a
+// department with two sub-categories still fills its panel. Every image is lazy: a
+// closed panel is display:none and fetches nothing.
 templ department(p Page, n NavItem) {
 	<div class="goen-dept">
 		<a class="ui-navitem" aria-current={ p.ariaCurrent(n) } href={ templ.URL(n.Href) }>{ n.Name }</a>
@@ -148,7 +127,6 @@ templ department(p Page, n NavItem) {
 					<ul class="goen-dept__picks" role="list">
 						for _, pick := range n.Picks {
 							<li>
-								// The name is the link's label, so the photograph is decoration.
 								<a class="goen-dept__pick" href={ templ.URL("/p/" + pick.Slug) }>
 									<span class="goen-dept__well">
 										if pick.ImageURL != "" {
@@ -176,11 +154,10 @@ templ department(p Page, n NavItem) {
 	</div>
 }
 
-// cartLink carries an id because adding to the cart from a product page
-// replaces this element out of band, out of the same response the buy column
-// comes from. The whole link is the unit and not the number inside it: the
-// count appears and disappears, and the accessible name says how many are in
-// there, so swapping the number alone would leave the sentence behind.
+// cartLink carries an id because adding to the cart from a product page replaces
+// this element out of band, from the same response the buy column comes from. The
+// whole link is the unit: the accessible name says how many are in there, so swapping
+// the number alone would leave the sentence behind.
 templ cartLink() {
 	{{ count := web.CartCount(ctx) }}
 	@components.ButtonLink(components.ButtonProps{
@@ -199,14 +176,8 @@ templ cartLink() {
 	}
 }
 
-// languageMenu is the compact language control of the header and the back
-// office's bar: a globe and the current language's short name, opening a small
-// menu with both choices, each in its own language. It is a native <details>,
-// so it opens without script; goen.js adds Escape and the outside click.
-//
-// The button's accessible name is "Language" plus the short name, which is
-// what the eye reads, and the choices post to the same /locale form the
-// footer's switch uses.
+// A native <details>, so it opens without script; goen.js adds Escape and the
+// outside click. Its choices post to the same /locale form the footer's switch uses.
 templ languageMenu(class string) {
 	{{ current := i18n.FromContext(ctx) }}
 	<details class={ "goen-langmenu", templ.KV(class, class != "") } data-popover>
@@ -238,18 +209,17 @@ templ languageMenu(class string) {
 	</details>
 }
 
-// languageSwitch is the locale form of the footer. Which language is on is read from aria-pressed rather than from a
-// second class the server renders: one fact, one source.
+// Which language is on is read from aria-pressed, not from a second class the
+// server renders: one fact, one source.
 //
-// class is where the caller needs to place the form, and is empty where it does
-// not: the footer's sits in a flex row that already puts it at the end.
+// class is empty where the footer's flex row already puts the form at the end.
 templ languageSwitch(class, zh, en string) {
 	{{ current := i18n.FromContext(ctx) }}
 	<form class={ templ.KV(class, class != "") } method="post" action="/locale">
 		<input type="hidden" name="return" value={ returnPath(ctx) }/>
-		// The group is inside the form because a form may not take the group
-		// role. Each label carries its own language, so a screen reader reads
-		// 繁中 in Chinese on an English page and EN in English on a Chinese one.
+		// The group is inside the form because a form may not take the group role. Each
+		// label carries its own language, so a screen reader reads 繁中 in Chinese on an
+		// English page and EN in English on a Chinese one.
 		<div class="goen-lang" role="group" aria-label={ i18n.T(ctx, i18n.KeyLanguage) }>
 			for _, l := range i18n.Locales() {
 				<button
