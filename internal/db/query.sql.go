@@ -3555,21 +3555,33 @@ SELECT b.id, b.slug, b.name,
               OR EXISTS (
                   SELECT 1 FROM product_variants v
                   WHERE v.product_id = p.id AND v.is_active
-                    AND (NOT $2::boolean OR v.stock_quantity > v.safety_stock)
-                    AND ($3::bigint = 0 OR v.price_cents >= $3::bigint)
-                    AND ($4::bigint = 0 OR v.price_cents <= $4::bigint)
+            AND NOT EXISTS (
+              SELECT 1 FROM unnest($2::text[]) WITH ORDINALITY chosen(name, position)
+              WHERE NOT EXISTS (
+                  SELECT 1 FROM variant_option_values selected
+                  JOIN product_options axis ON axis.id = selected.option_id
+                  JOIN product_option_values choice ON choice.id = selected.option_value_id
+                  WHERE selected.variant_id = v.id
+                    AND axis.name = chosen.name AND choice.value = ($3::text[])[chosen.position]
+              )
+          )
+                    AND (NOT $4::boolean OR v.stock_quantity > v.safety_stock)
+                    AND ($5::bigint = 0 OR v.price_cents >= $5::bigint)
+                    AND ($6::bigint = 0 OR v.price_cents <= $6::bigint)
               )
        ))::bigint AS product_count
 FROM products p
 JOIN brands b ON b.id = p.brand_id
 WHERE p.status = 'active'
-  AND p.category_id = ANY($5::uuid[])
+  AND p.category_id = ANY($7::uuid[])
 GROUP BY b.id, b.slug, b.name
 ORDER BY b.name
 `
 
 type CategoryBrandsParams struct {
 	FilterVariants bool
+	OptionNames    []string
+	OptionValues   []string
 	InStockOnly    bool
 	MinPrice       int64
 	MaxPrice       int64
@@ -3590,6 +3602,8 @@ type CategoryBrandsRow struct {
 func (q *Queries) CategoryBrands(ctx context.Context, arg CategoryBrandsParams) ([]CategoryBrandsRow, error) {
 	rows, err := q.db.Query(ctx, categoryBrands,
 		arg.FilterVariants,
+		arg.OptionNames,
+		arg.OptionValues,
 		arg.InStockOnly,
 		arg.MinPrice,
 		arg.MaxPrice,
@@ -3784,8 +3798,18 @@ SELECT
     EXISTS (
         SELECT 1 FROM product_variants dv
         WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
-          AND (NOT $2::boolean OR dv.stock_quantity > dv.safety_stock)
-          AND ($3::bigint = 0 OR dv.price_cents <= $3::bigint)
+          AND NOT EXISTS (
+              SELECT 1 FROM unnest($2::text[]) WITH ORDINALITY chosen(name, position)
+              WHERE NOT EXISTS (
+                  SELECT 1 FROM variant_option_values selected
+                  JOIN product_options axis ON axis.id = selected.option_id
+                  JOIN product_option_values choice ON choice.id = selected.option_value_id
+                  WHERE selected.variant_id = dv.id
+                    AND axis.name = chosen.name AND choice.value = ($3::text[])[chosen.position]
+              )
+          )
+          AND (NOT $4::boolean OR dv.stock_quantity > dv.safety_stock)
+          AND ($5::bigint = 0 OR dv.price_cents <= $5::bigint)
     ) AS price_varies,
     mv.compare_at_price_cents,
     coalesce(rv.rating, 0)::float8 AS rating,
@@ -3793,6 +3817,16 @@ SELECT
     EXISTS (
         SELECT 1 FROM product_variants sv
         WHERE sv.product_id = p.id AND sv.is_active
+          AND NOT EXISTS (
+              SELECT 1 FROM unnest($2::text[]) WITH ORDINALITY chosen(name, position)
+              WHERE NOT EXISTS (
+                  SELECT 1 FROM variant_option_values selected
+                  JOIN product_options axis ON axis.id = selected.option_id
+                  JOIN product_option_values choice ON choice.id = selected.option_value_id
+                  WHERE selected.variant_id = sv.id
+                    AND axis.name = chosen.name AND choice.value = ($3::text[])[chosen.position]
+              )
+          )
           AND sv.stock_quantity > sv.safety_stock
     ) AS in_stock,
     coalesce(img.storage_key, '') AS image_key,
@@ -3803,13 +3837,23 @@ FROM products p
 JOIN brands b ON b.id = p.brand_id
 JOIN LATERAL (
     SELECT price_cents, compare_at_price_cents
-    FROM product_variants
+    FROM product_variants candidate
     WHERE product_id = p.id AND is_active
+      AND NOT EXISTS (
+              SELECT 1 FROM unnest($2::text[]) WITH ORDINALITY chosen(name, position)
+              WHERE NOT EXISTS (
+                  SELECT 1 FROM variant_option_values selected
+                  JOIN product_options axis ON axis.id = selected.option_id
+                  JOIN product_option_values choice ON choice.id = selected.option_value_id
+                  WHERE selected.variant_id = candidate.id
+                    AND axis.name = chosen.name AND choice.value = ($3::text[])[chosen.position]
+              )
+          )
       -- The card shows a variant the filters accepted, or it states a price the
       -- shopper excluded; these are the predicates of the EXISTS below.
-      AND (NOT $2::boolean OR stock_quantity > safety_stock)
-      AND ($4::bigint = 0 OR price_cents >= $4::bigint)
-      AND ($3::bigint = 0 OR price_cents <= $3::bigint)
+      AND (NOT $4::boolean OR stock_quantity > safety_stock)
+      AND ($6::bigint = 0 OR price_cents >= $6::bigint)
+      AND ($5::bigint = 0 OR price_cents <= $5::bigint)
     -- A buyable variant first: the price on a card is a promise.
     ORDER BY (stock_quantity > safety_stock) DESC, price_cents
     LIMIT 1
@@ -3823,29 +3867,41 @@ LEFT JOIN LATERAL (
     FROM product_images WHERE product_id = p.id ORDER BY position LIMIT 1
 ) img ON true
 WHERE p.status = 'active'
-  AND p.category_id = ANY($5::uuid[])
-  AND ($6::uuid[] = ARRAY[]::uuid[] OR p.brand_id = ANY($6::uuid[]))
+  AND p.category_id = ANY($7::uuid[])
+  AND ($8::uuid[] = ARRAY[]::uuid[] OR p.brand_id = ANY($8::uuid[]))
   -- One variant satisfies every variant-level filter at once.
   AND (
-      NOT $7::boolean
+      NOT $9::boolean
       OR EXISTS (
           SELECT 1 FROM product_variants v
           WHERE v.product_id = p.id AND v.is_active
-            AND (NOT $2::boolean OR v.stock_quantity > v.safety_stock)
-            AND ($4::bigint = 0 OR v.price_cents >= $4::bigint)
-            AND ($3::bigint = 0 OR v.price_cents <= $3::bigint)
+            AND NOT EXISTS (
+              SELECT 1 FROM unnest($2::text[]) WITH ORDINALITY chosen(name, position)
+              WHERE NOT EXISTS (
+                  SELECT 1 FROM variant_option_values selected
+                  JOIN product_options axis ON axis.id = selected.option_id
+                  JOIN product_option_values choice ON choice.id = selected.option_value_id
+                  WHERE selected.variant_id = v.id
+                    AND axis.name = chosen.name AND choice.value = ($3::text[])[chosen.position]
+              )
+          )
+            AND (NOT $4::boolean OR v.stock_quantity > v.safety_stock)
+            AND ($6::bigint = 0 OR v.price_cents >= $6::bigint)
+            AND ($5::bigint = 0 OR v.price_cents <= $5::bigint)
       )
   )
 ORDER BY
-    CASE WHEN $8::text = 'price_asc'  THEN mv.price_cents END ASC,
-    CASE WHEN $8::text = 'price_desc' THEN mv.price_cents END DESC,
-    CASE WHEN $8::text = 'rating'     THEN coalesce(rv.rating, 0) END DESC,
+    CASE WHEN $10::text = 'price_asc'  THEN mv.price_cents END ASC,
+    CASE WHEN $10::text = 'price_desc' THEN mv.price_cents END DESC,
+    CASE WHEN $10::text = 'rating'     THEN coalesce(rv.rating, 0) END DESC,
     p.published_at DESC, p.id DESC
-LIMIT $10::integer OFFSET $9::integer
+LIMIT $12::integer OFFSET $11::integer
 `
 
 type CategoryListingParams struct {
 	Locale         string
+	OptionNames    []string
+	OptionValues   []string
 	InStockOnly    bool
 	MaxPrice       int64
 	MinPrice       int64
@@ -3881,6 +3937,8 @@ type CategoryListingRow struct {
 func (q *Queries) CategoryListing(ctx context.Context, arg CategoryListingParams) ([]CategoryListingRow, error) {
 	rows, err := q.db.Query(ctx, categoryListing,
 		arg.Locale,
+		arg.OptionNames,
+		arg.OptionValues,
 		arg.InStockOnly,
 		arg.MaxPrice,
 		arg.MinPrice,
@@ -3936,9 +3994,19 @@ WHERE p.status = 'active'
       OR EXISTS (
           SELECT 1 FROM product_variants v
           WHERE v.product_id = p.id AND v.is_active
-            AND (NOT $4::boolean OR v.stock_quantity > v.safety_stock)
-            AND ($5::bigint = 0 OR v.price_cents >= $5::bigint)
-            AND ($6::bigint = 0 OR v.price_cents <= $6::bigint)
+            AND NOT EXISTS (
+              SELECT 1 FROM unnest($4::text[]) WITH ORDINALITY chosen(name, position)
+              WHERE NOT EXISTS (
+                  SELECT 1 FROM variant_option_values selected
+                  JOIN product_options axis ON axis.id = selected.option_id
+                  JOIN product_option_values choice ON choice.id = selected.option_value_id
+                  WHERE selected.variant_id = v.id
+                    AND axis.name = chosen.name AND choice.value = ($5::text[])[chosen.position]
+              )
+          )
+            AND (NOT $6::boolean OR v.stock_quantity > v.safety_stock)
+            AND ($7::bigint = 0 OR v.price_cents >= $7::bigint)
+            AND ($8::bigint = 0 OR v.price_cents <= $8::bigint)
       )
   )
 `
@@ -3947,6 +4015,8 @@ type CategoryListingCountParams struct {
 	CategoryIds    []uuid.UUID
 	BrandIds       []uuid.UUID
 	FilterVariants bool
+	OptionNames    []string
+	OptionValues   []string
 	InStockOnly    bool
 	MinPrice       int64
 	MaxPrice       int64
@@ -3958,6 +4028,8 @@ func (q *Queries) CategoryListingCount(ctx context.Context, arg CategoryListingC
 		arg.CategoryIds,
 		arg.BrandIds,
 		arg.FilterVariants,
+		arg.OptionNames,
+		arg.OptionValues,
 		arg.InStockOnly,
 		arg.MinPrice,
 		arg.MaxPrice,
@@ -3965,6 +4037,96 @@ func (q *Queries) CategoryListingCount(ctx context.Context, arg CategoryListingC
 	var column_1 int64
 	err := row.Scan(&column_1)
 	return column_1, err
+}
+
+const categoryOptionValues = `-- name: CategoryOptionValues :many
+SELECT axis.name AS option_name,
+       min(localized_name(axis.name, axis.name_en, $1::text))::text AS option_label,
+       choice.value,
+       min(localized_name(choice.value, choice.value_en, $1::text))::text AS value_label,
+       (count(DISTINCT p.id) FILTER (WHERE
+          ($2::uuid[] = ARRAY[]::uuid[] OR p.brand_id = ANY($2::uuid[]))
+          AND EXISTS (
+             SELECT 1 FROM product_variants candidate
+             JOIN variant_option_values selected ON selected.variant_id = candidate.id
+             WHERE candidate.product_id = p.id AND candidate.is_active
+               AND selected.option_id = axis.id AND selected.option_value_id = choice.id
+               AND (NOT $3::boolean OR candidate.stock_quantity > candidate.safety_stock)
+               AND ($4::bigint = 0 OR candidate.price_cents >= $4::bigint)
+               AND ($5::bigint = 0 OR candidate.price_cents <= $5::bigint)
+               AND NOT EXISTS (
+                  SELECT 1 FROM unnest($6::text[]) WITH ORDINALITY chosen(name, position)
+                  WHERE chosen.name <> axis.name AND NOT EXISTS (
+                    SELECT 1 FROM variant_option_values other_selected
+                    JOIN product_options other_axis ON other_axis.id = other_selected.option_id
+                    JOIN product_option_values other_choice ON other_choice.id = other_selected.option_value_id
+                    WHERE other_selected.variant_id = candidate.id
+                      AND other_axis.name = chosen.name AND other_choice.value = ($7::text[])[chosen.position]
+                  )
+               )
+          )
+       ))::bigint AS product_count
+FROM products p
+JOIN product_options axis ON axis.product_id = p.id
+JOIN product_option_values choice ON choice.option_id = axis.id
+WHERE p.status = 'active' AND p.category_id = ANY($8::uuid[])
+GROUP BY axis.name, choice.value
+ORDER BY min(axis.position), axis.name, min(choice.position), choice.value
+`
+
+type CategoryOptionValuesParams struct {
+	Locale       string
+	BrandIds     []uuid.UUID
+	InStockOnly  bool
+	MinPrice     int64
+	MaxPrice     int64
+	OptionNames  []string
+	OptionValues []string
+	CategoryIds  []uuid.UUID
+}
+
+type CategoryOptionValuesRow struct {
+	OptionName   string
+	OptionLabel  string
+	Value        string
+	ValueLabel   string
+	ProductCount int64
+}
+
+// A facet keeps its own zero-count choices so the checked value can still be removed.
+func (q *Queries) CategoryOptionValues(ctx context.Context, arg CategoryOptionValuesParams) ([]CategoryOptionValuesRow, error) {
+	rows, err := q.db.Query(ctx, categoryOptionValues,
+		arg.Locale,
+		arg.BrandIds,
+		arg.InStockOnly,
+		arg.MinPrice,
+		arg.MaxPrice,
+		arg.OptionNames,
+		arg.OptionValues,
+		arg.CategoryIds,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CategoryOptionValuesRow{}
+	for rows.Next() {
+		var i CategoryOptionValuesRow
+		if err := rows.Scan(
+			&i.OptionName,
+			&i.OptionLabel,
+			&i.Value,
+			&i.ValueLabel,
+			&i.ProductCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const checkoutAttempt = `-- name: CheckoutAttempt :one

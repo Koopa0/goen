@@ -116,6 +116,8 @@ func TestEveryOptionLabelIsLocalized(t *testing.T) {
 	t.Parallel()
 
 	allowed := map[string]string{
+		"CategoryBrands":       "matches canonical option identities when counting brands; no option label is displayed",
+		"CategoryListingCount": "counts matching canonical option identities; renders no text",
 		"ProductVariants": "matching, not display: these are the canonical values a " +
 			"URL selection is compared against",
 		"AdminProductOptions": "the back office, which shows BOTH — it is where the " +
@@ -165,6 +167,7 @@ func TestEveryProductNameIsLocalized(t *testing.T) {
 	t.Parallel()
 
 	allowed := map[string]string{
+		"CategoryListingCount": "matches option-axis names, not product names; renders no text",
 		"SearchProducts": "matches BOTH names — searchable in one language at a time " +
 			"would be worse than not translating at all",
 		"SearchProductsCount": "the same predicate as SearchProducts, and it has to stay " +

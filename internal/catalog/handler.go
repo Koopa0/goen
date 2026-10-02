@@ -122,12 +122,13 @@ func (h *Handler) serverError(w http.ResponseWriter, r *http.Request) {
 // again.
 func parseFilters(q url.Values) Filters {
 	return Filters{
-		BrandSlugs:  boundedBrands(q["brand"]),
-		InStockOnly: q.Get("in_stock") == "1",
-		MinPrice:    ParsePrice(q.Get("min_price")),
-		MaxPrice:    ParsePrice(q.Get("max_price")),
-		Sort:        ParseSort(q.Get("sort"), SortNewest),
-		Page:        ParsePage(q.Get("page")),
+		BrandSlugs:   boundedBrands(q["brand"]),
+		OptionValues: boundedOptionValues(q["opt"]),
+		InStockOnly:  q.Get("in_stock") == "1",
+		MinPrice:     ParsePrice(q.Get("min_price")),
+		MaxPrice:     ParsePrice(q.Get("max_price")),
+		Sort:         ParseSort(q.Get("sort"), SortNewest),
+		Page:         ParsePage(q.Get("page")),
 	}
 }
 
@@ -153,6 +154,9 @@ func boundedBrands(v []string) []string {
 // the request, so a pagination href carries nothing a visitor typed.
 func canonicalQuery(f Filters) string {
 	q := url.Values{}
+	for _, pair := range f.OptionValues {
+		q.Add("opt", pair.Name+":"+pair.Value)
+	}
 	for _, b := range f.BrandSlugs {
 		q.Add("brand", b)
 	}

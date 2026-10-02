@@ -54,18 +54,19 @@ func (s Sort) Param() string {
 
 // Filters holds MinPrice and MaxPrice in minor units; zero means no bound.
 type Filters struct {
-	BrandSlugs  []string
-	InStockOnly bool
-	MinPrice    int64
-	MaxPrice    int64
-	Sort        Sort
-	Page        int // 1-based; 0 and below are treated as 1
+	OptionValues []OptionFilter
+	BrandSlugs   []string
+	InStockOnly  bool
+	MinPrice     int64
+	MaxPrice     int64
+	Sort         Sort
+	Page         int // 1-based; 0 and below are treated as 1
 }
 
 // VariantScoped is false when no filter needs a single variant, so the listing
 // skips the EXISTS entirely.
 func (f Filters) VariantScoped() bool {
-	return f.InStockOnly || f.MinPrice > 0 || f.MaxPrice > 0
+	return len(f.OptionValues) > 0 || f.InStockOnly || f.MinPrice > 0 || f.MaxPrice > 0
 }
 
 func (f Filters) Offset() int32 {
