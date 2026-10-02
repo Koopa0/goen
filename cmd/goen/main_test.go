@@ -73,6 +73,7 @@ func TestLocalConfigurationIsPreparedBeforeExternalDependencies(t *testing.T) {
 		trustedProxy  string
 		stripeKey     string
 		stripeWebhook string
+		demoEmail     string
 		want          string
 	}{
 		{name: "posture", smtpAddr: "smtp.example:587", want: "GOEN_TOTP_KEY"},
@@ -88,6 +89,11 @@ func TestLocalConfigurationIsPreparedBeforeExternalDependencies(t *testing.T) {
 			name: "provider", totpKey: validTOTPKey, smtpAddr: "smtp.example:587",
 			trustedProxy: "127.0.0.1/32", stripeKey: "sk_test_configured",
 			want: "webhook secret",
+		},
+		{
+			name: "half a demo account", totpKey: validTOTPKey, smtpAddr: "smtp.example:587",
+			trustedProxy: "127.0.0.1/32", demoEmail: "demo@shop.example",
+			want: "GOEN_DEMO_ACCOUNT_PASSWORD",
 		},
 	}
 	for _, tt := range tests {
@@ -108,6 +114,8 @@ func TestLocalConfigurationIsPreparedBeforeExternalDependencies(t *testing.T) {
 			t.Setenv("GOEN_ECPAY_HASH_IV", "")
 			t.Setenv("GOEN_GOOGLE_CLIENT_ID", "")
 			t.Setenv("GOEN_GOOGLE_CLIENT_SECRET", "")
+			t.Setenv("GOEN_DEMO_ACCOUNT_EMAIL", tt.demoEmail)
+			t.Setenv("GOEN_DEMO_ACCOUNT_PASSWORD", "")
 
 			err := run()
 			if err == nil || !strings.Contains(err.Error(), tt.want) {

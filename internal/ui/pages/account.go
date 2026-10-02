@@ -213,7 +213,14 @@ type AuthView struct {
 	// Sent is a registration whose link is on its way to Email: the page
 	// confirms the address and offers to send again, in place of the form.
 	Sent bool
+	// DemoEmail and DemoPassword are the account a public demonstration shares
+	// with every visitor, printed on the sign-in page; empty is none.
+	DemoEmail    string
+	DemoPassword string
 }
+
+// OffersDemoAccount reports whether the sign-in page shows the demo account.
+func (v AuthView) OffersDemoAccount() bool { return v.DemoEmail != "" }
 
 // RegisterCompleteView is the page a registration link lands on.
 type RegisterCompleteView struct {

@@ -26,6 +26,9 @@ templ SignIn(p layouts.Page, v AuthView) {
 					// announced (internal/ui/pages/aria_test.go:122).
 					<p class="goen-notice goen-notice--danger" id="signin-error" role="alert">{ v.Err("form") }</p>
 				}
+				if v.OffersDemoAccount() {
+					@demoAccountNote(v)
+				}
 				<form class="goen-auth__form" method="post" action="/signin">
 					<input type="hidden" name="next" value={ v.Next }/>
 					<div class="goen-field">
@@ -87,6 +90,39 @@ templ SignIn(p layouts.Page, v AuthView) {
 			</div>
 		</div>
 	}
+}
+
+// demoAccountNote prints the shared account's credentials as text, which is
+// all a browser without scripting gets. goen.js reveals the button and fills
+// the form from its data attributes.
+templ demoAccountNote(v AuthView) {
+	<section class="goen-auth__demo" aria-labelledby="demo-account-title">
+		<h2 class="goen-auth__demotitle" id="demo-account-title">{ i18n.T(ctx, i18n.KeyDemoAccount) }</h2>
+		<dl class="goen-auth__democreds">
+			<div>
+				<dt>{ i18n.T(ctx, i18n.KeyFieldEmail) }</dt>
+				<dd><code>{ v.DemoEmail }</code></dd>
+			</div>
+			<div>
+				<dt>{ i18n.T(ctx, i18n.KeyFieldPassword) }</dt>
+				<dd><code>{ v.DemoPassword }</code></dd>
+			</div>
+		</dl>
+		<p class="goen-auth__demonote">{ i18n.T(ctx, i18n.KeyDemoAccountShared) }</p>
+		@components.Button(components.ButtonProps{
+			Variant: components.VariantOutline,
+			Block:   true,
+			Class:   "goen-auth__demofill",
+			Attrs: templ.Attributes{
+				"hidden":         true,
+				"data-demo-fill": true,
+				"data-email":     v.DemoEmail,
+				"data-password":  v.DemoPassword,
+			},
+		}, "button") {
+			{ i18n.T(ctx, i18n.KeyDemoAccountSignIn) }
+		}
+	</section>
 }
 
 // Register renders the registration form.

@@ -202,6 +202,18 @@ var (
 		En:     "Your password is reset. Sign in with the new one.",
 	})
 
+	KeyDemoAccount = key("auth.demo", Message{ZhHant: "示範帳號", En: "Demo account"})
+
+	KeyDemoAccountShared = key("auth.demo.shared", Message{
+		ZhHant: "這個帳號由所有訪客共用，每天清空一次，請不要輸入真實的個人資料。",
+		En:     "Every visitor shares this account and it is cleared each day, so do not enter real personal details.",
+	})
+
+	KeyDemoAccountSignIn = key("auth.demo.signin", Message{
+		ZhHant: "用示範帳號登入",
+		En:     "Sign in with the demo account",
+	})
+
 	KeyEraseNeedsRecentSignIn = key("auth.erase.reauth", Message{
 		ZhHant: "為了保護您的帳號,刪除帳號前請重新登入。",
 		En:     "To protect your account, sign in again before deleting it.",

@@ -75,6 +75,11 @@ var (
 		En:     "This account has an unfinished return involving store credit. Finish it or contact support before deleting the account.",
 	})
 
+	KeyDemoAccountFixed = key("account.notice.demo", Message{
+		ZhHant: "示範帳號無法變更這項設定。",
+		En:     "The demo account cannot change this setting.",
+	})
+
 	KeyEraseLastAdmin = key("account.notice.erase.admin", Message{
 		ZhHant: "你是最後一位管理員,這個帳號不能刪除。請先讓另一位同事成為管理員。",
 		En:     "You are the last administrator, so this account cannot be deleted. Make a colleague an administrator first.",
