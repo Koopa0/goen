@@ -338,7 +338,7 @@ func Dashboard(p layouts.Page, v DashboardView) templ.Component {
 							}
 							return nil
 						})
-						templ_7745c5c3_Err = components.Badge(components.BadgeProps{Tone: components.ToneAccent}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var16), templ_7745c5c3_Buffer)
+						templ_7745c5c3_Err = components.Badge(components.BadgeProps{Intent: components.IntentAccent}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var16), templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -578,8 +578,8 @@ func Dashboard(p layouts.Page, v DashboardView) templ.Component {
 					return nil
 				})
 				templ_7745c5c3_Err = components.ButtonLink(components.ButtonProps{
-					Variant: components.VariantOutline,
-					Size:    components.SizeSmall,
+					ButtonStyle: components.ButtonStyleOutline,
+					Size:        components.SizeSmall,
 				}, "/admin/stock?low=1").Render(templ.WithChildren(ctx, templ_7745c5c3_Var32), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
@@ -692,7 +692,7 @@ func Orders(p layouts.Page, v OrdersView) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = components.Notice(components.NoticeProps{Tone: components.ToneAccent}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var38), templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = components.Notice(components.NoticeProps{Intent: components.IntentAccent}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var38), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -763,7 +763,7 @@ func Orders(p layouts.Page, v OrdersView) templ.Component {
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = components.Button(components.ButtonProps{Variant: components.VariantOutline}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var43), templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var43), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -791,7 +791,7 @@ func Orders(p layouts.Page, v OrdersView) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = components.ButtonLink(components.ButtonProps{Variant: components.VariantGhost}, "/admin/orders").Render(templ.WithChildren(ctx, templ_7745c5c3_Var45), templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleGhost}, "/admin/orders").Render(templ.WithChildren(ctx, templ_7745c5c3_Var45), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -847,7 +847,7 @@ func Orders(p layouts.Page, v OrdersView) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = components.Notice(components.NoticeProps{Tone: components.ToneWarn}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var48), templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = components.Notice(components.NoticeProps{Intent: components.IntentWarn}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var48), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -1085,7 +1085,7 @@ func Orders(p layouts.Page, v OrdersView) templ.Component {
 							}
 							return nil
 						})
-						templ_7745c5c3_Err = components.Badge(components.BadgeProps{Tone: components.ToneAccent}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var63), templ_7745c5c3_Buffer)
+						templ_7745c5c3_Err = components.Badge(components.BadgeProps{Intent: components.IntentAccent}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var63), templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -1300,7 +1300,7 @@ func Order(p layouts.Page, v *OrderView) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = components.Badge(components.BadgeProps{Tone: components.ToneAccent}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var75), templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = components.Badge(components.BadgeProps{Intent: components.IntentAccent}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var75), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -1337,7 +1337,7 @@ func Order(p layouts.Page, v *OrderView) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = components.Notice(components.NoticeProps{Tone: components.ToneAccent, Class: "ui-alert"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var77), templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = components.Notice(components.NoticeProps{Intent: components.IntentAccent, Class: "ui-alert"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var77), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -2070,7 +2070,7 @@ func Order(p layouts.Page, v *OrderView) templ.Component {
 						}
 						return nil
 					})
-					templ_7745c5c3_Err = components.Button(components.ButtonProps{Variant: components.VariantOutline}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var125), templ_7745c5c3_Buffer)
+					templ_7745c5c3_Err = components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var125), templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -2462,7 +2462,7 @@ func Order(p layouts.Page, v *OrderView) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = components.Button(components.ButtonProps{Variant: components.VariantOutline}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var148), templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var148), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -3261,7 +3261,7 @@ func Order(p layouts.Page, v *OrderView) templ.Component {
 						}
 						return nil
 					})
-					templ_7745c5c3_Err = components.Button(components.ButtonProps{Variant: components.VariantPrimary, Block: true}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var193), templ_7745c5c3_Buffer)
+					templ_7745c5c3_Err = components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Block: true}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var193), templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -3373,7 +3373,7 @@ func Order(p layouts.Page, v *OrderView) templ.Component {
 							}
 							return nil
 						})
-						templ_7745c5c3_Err = components.Button(components.ButtonProps{Variant: components.VariantPrimary, Block: true}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var200), templ_7745c5c3_Buffer)
+						templ_7745c5c3_Err = components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Block: true}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var200), templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -3401,7 +3401,7 @@ func Order(p layouts.Page, v *OrderView) templ.Component {
 							}
 							return nil
 						})
-						templ_7745c5c3_Err = components.Button(components.ButtonProps{Variant: components.VariantOutline, Block: true}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var202), templ_7745c5c3_Buffer)
+						templ_7745c5c3_Err = components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline, Block: true}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var202), templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -3518,7 +3518,7 @@ func Order(p layouts.Page, v *OrderView) templ.Component {
 							}
 							return nil
 						})
-						templ_7745c5c3_Err = components.Button(components.ButtonProps{Variant: components.VariantPrimary, Block: true}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var209), templ_7745c5c3_Buffer)
+						templ_7745c5c3_Err = components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Block: true}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var209), templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -3629,7 +3629,7 @@ func Order(p layouts.Page, v *OrderView) templ.Component {
 								}
 								return nil
 							})
-							templ_7745c5c3_Err = components.Button(components.ButtonProps{Variant: components.VariantOutline, Block: true}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var215), templ_7745c5c3_Buffer)
+							templ_7745c5c3_Err = components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline, Block: true}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var215), templ_7745c5c3_Buffer)
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
 							}
@@ -3657,7 +3657,7 @@ func Order(p layouts.Page, v *OrderView) templ.Component {
 								}
 								return nil
 							})
-							templ_7745c5c3_Err = components.Button(components.ButtonProps{Variant: components.VariantPrimary, Block: true}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var217), templ_7745c5c3_Buffer)
+							templ_7745c5c3_Err = components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Block: true}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var217), templ_7745c5c3_Buffer)
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
 							}
@@ -3849,7 +3849,7 @@ func Order(p layouts.Page, v *OrderView) templ.Component {
 									}
 									return nil
 								})
-								templ_7745c5c3_Err = components.Badge(components.BadgeProps{Tone: components.ToneWarn}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var228), templ_7745c5c3_Buffer)
+								templ_7745c5c3_Err = components.Badge(components.BadgeProps{Intent: components.IntentWarn}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var228), templ_7745c5c3_Buffer)
 								if templ_7745c5c3_Err != nil {
 									return templ_7745c5c3_Err
 								}
@@ -3878,7 +3878,7 @@ func Order(p layouts.Page, v *OrderView) templ.Component {
 									}
 									return nil
 								})
-								templ_7745c5c3_Err = components.Badge(components.BadgeProps{Tone: components.ToneWarn}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var230), templ_7745c5c3_Buffer)
+								templ_7745c5c3_Err = components.Badge(components.BadgeProps{Intent: components.IntentWarn}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var230), templ_7745c5c3_Buffer)
 								if templ_7745c5c3_Err != nil {
 									return templ_7745c5c3_Err
 								}
@@ -3993,7 +3993,7 @@ func Order(p layouts.Page, v *OrderView) templ.Component {
 							}
 							return nil
 						})
-						templ_7745c5c3_Err = components.Button(components.ButtonProps{Variant: components.VariantOutline, Block: true}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var236), templ_7745c5c3_Buffer)
+						templ_7745c5c3_Err = components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline, Block: true}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var236), templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -4073,7 +4073,7 @@ func Order(p layouts.Page, v *OrderView) templ.Component {
 							}
 							return nil
 						})
-						templ_7745c5c3_Err = components.Button(components.ButtonProps{Variant: components.VariantOutline, Block: true}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var241), templ_7745c5c3_Buffer)
+						templ_7745c5c3_Err = components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline, Block: true}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var241), templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -4153,7 +4153,7 @@ func Order(p layouts.Page, v *OrderView) templ.Component {
 							}
 							return nil
 						})
-						templ_7745c5c3_Err = components.Button(components.ButtonProps{Variant: components.VariantOutline, Block: true}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var246), templ_7745c5c3_Buffer)
+						templ_7745c5c3_Err = components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline, Block: true}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var246), templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}

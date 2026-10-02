@@ -120,7 +120,7 @@ func Campaigns(p layouts.Page, v CampaignsView) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = components.Notice(components.NoticeProps{Tone: components.ToneAccent}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var6), templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = components.Notice(components.NoticeProps{Intent: components.IntentAccent}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var6), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -272,7 +272,7 @@ func Campaigns(p layouts.Page, v CampaignsView) templ.Component {
 							}
 							return nil
 						})
-						templ_7745c5c3_Err = components.Badge(components.BadgeProps{Tone: components.ToneAccent}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var16), templ_7745c5c3_Buffer)
+						templ_7745c5c3_Err = components.Badge(components.BadgeProps{Intent: components.IntentAccent}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var16), templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -300,7 +300,7 @@ func Campaigns(p layouts.Page, v CampaignsView) templ.Component {
 							}
 							return nil
 						})
-						templ_7745c5c3_Err = components.Badge(components.BadgeProps{Tone: components.ToneNeutral}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var18), templ_7745c5c3_Buffer)
+						templ_7745c5c3_Err = components.Badge(components.BadgeProps{Intent: components.IntentNeutral}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var18), templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -359,8 +359,8 @@ func Campaigns(p layouts.Page, v CampaignsView) templ.Component {
 						return nil
 					})
 					templ_7745c5c3_Err = components.Button(components.ButtonProps{
-						Variant: components.VariantOutline,
-						Size:    components.SizeSmall,
+						ButtonStyle: components.ButtonStyleOutline,
+						Size:        components.SizeSmall,
 					}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var22), templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
@@ -871,8 +871,8 @@ func Campaigns(p layouts.Page, v CampaignsView) templ.Component {
 					return nil
 				})
 				templ_7745c5c3_Err = components.Button(components.ButtonProps{
-					Variant: components.VariantPrimary,
-					Class:   "goen-admin__submit",
+					ButtonStyle: components.ButtonStylePrimary,
+					Class:       "goen-admin__submit",
 				}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var49), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
@@ -1044,7 +1044,7 @@ func CampaignForm(p layouts.Page, v CampaignView) templ.Component {
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = components.Button(components.ButtonProps{Variant: components.VariantOutline}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var59), templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var59), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1076,7 +1076,7 @@ func CampaignForm(p layouts.Page, v CampaignView) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = components.Notice(components.NoticeProps{Tone: components.ToneAccent}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var61), templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = components.Notice(components.NoticeProps{Intent: components.IntentAccent}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var61), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -1278,8 +1278,8 @@ func CampaignForm(p layouts.Page, v CampaignView) templ.Component {
 					return nil
 				})
 				templ_7745c5c3_Err = components.Button(components.ButtonProps{
-					Variant: components.VariantPrimary,
-					Class:   "goen-admin__submit",
+					ButtonStyle: components.ButtonStylePrimary,
+					Class:       "goen-admin__submit",
 				}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var73), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
@@ -1441,8 +1441,8 @@ func CampaignForm(p layouts.Page, v CampaignView) templ.Component {
 						return nil
 					})
 					templ_7745c5c3_Err = components.Button(components.ButtonProps{
-						Variant: components.VariantOutline,
-						Size:    components.SizeSmall,
+						ButtonStyle: components.ButtonStyleOutline,
+						Size:        components.SizeSmall,
 					}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var83), templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
@@ -1637,8 +1637,8 @@ func CampaignForm(p layouts.Page, v CampaignView) templ.Component {
 					return nil
 				})
 				templ_7745c5c3_Err = components.Button(components.ButtonProps{
-					Variant: components.VariantPrimary,
-					Class:   "goen-admin__submit",
+					ButtonStyle: components.ButtonStylePrimary,
+					Class:       "goen-admin__submit",
 				}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var93), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
@@ -1767,8 +1767,8 @@ func CampaignForm(p layouts.Page, v CampaignView) templ.Component {
 						return nil
 					})
 					templ_7745c5c3_Err = components.Button(components.ButtonProps{
-						Variant: components.VariantOutline,
-						Size:    components.SizeSmall,
+						ButtonStyle: components.ButtonStyleOutline,
+						Size:        components.SizeSmall,
 					}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var101), templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
@@ -2029,8 +2029,8 @@ func CampaignForm(p layouts.Page, v CampaignView) templ.Component {
 					return nil
 				})
 				templ_7745c5c3_Err = components.Button(components.ButtonProps{
-					Variant: components.VariantPrimary,
-					Class:   "goen-admin__submit",
+					ButtonStyle: components.ButtonStylePrimary,
+					Class:       "goen-admin__submit",
 				}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var114), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
@@ -2153,7 +2153,7 @@ func CampaignForm(p layouts.Page, v CampaignView) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = components.Button(components.ButtonProps{Variant: components.VariantOutline}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var122), templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var122), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -2283,8 +2283,8 @@ func CampaignForm(p layouts.Page, v CampaignView) templ.Component {
 							return nil
 						})
 						templ_7745c5c3_Err = components.Button(components.ButtonProps{
-							Variant: components.VariantOutline,
-							Size:    components.SizeSmall,
+							ButtonStyle: components.ButtonStyleOutline,
+							Size:        components.SizeSmall,
 						}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var130), templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err

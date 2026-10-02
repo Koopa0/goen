@@ -127,7 +127,7 @@ func Taxonomy(p layouts.Page, v *TaxonomyView) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = components.Notice(components.NoticeProps{Tone: components.ToneAccent}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var6), templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = components.Notice(components.NoticeProps{Intent: components.IntentAccent}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var6), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -173,7 +173,7 @@ func Taxonomy(p layouts.Page, v *TaxonomyView) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = taxonForm("brands", i18n.KeyAdminTaxNewBrand, components.VariantOutline, v).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = taxonForm("brands", i18n.KeyAdminTaxNewBrand, components.ButtonStyleOutline, v).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -224,7 +224,7 @@ func Taxonomy(p layouts.Page, v *TaxonomyView) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = taxonForm("categories", i18n.KeyAdminTaxNewCategory, components.VariantPrimary, v).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = taxonForm("categories", i18n.KeyAdminTaxNewCategory, components.ButtonStylePrimary, v).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -246,7 +246,7 @@ func Taxonomy(p layouts.Page, v *TaxonomyView) templ.Component {
 
 // taxonForm adds a brand or a category. Its fields keep the ids and names the
 // handler and its tests read; only the boxes around them are new.
-func taxonForm(kind string, title i18n.Key, weight components.Variant, v *TaxonomyView) templ.Component {
+func taxonForm(kind string, title i18n.Key, style components.ButtonStyle, v *TaxonomyView) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -1112,7 +1112,7 @@ func taxonForm(kind string, title i18n.Key, weight components.Variant, v *Taxono
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = components.Button(components.ButtonProps{Variant: weight, Class: "goen-admin__submit"}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var59), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = components.Button(components.ButtonProps{ButtonStyle: style, Class: "goen-admin__submit"}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var59), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1470,9 +1470,9 @@ func taxonList(kind string, empty i18n.Key, rows []Taxon) templ.Component {
 					return nil
 				})
 				templ_7745c5c3_Err = components.Button(components.ButtonProps{
-					Variant: components.VariantOutline,
-					Size:    components.SizeSmall,
-					Attrs:   templ.Attributes{"name": "action", "value": "rename"},
+					ButtonStyle: components.ButtonStyleOutline,
+					Size:        components.SizeSmall,
+					Attrs:       templ.Attributes{"name": "action", "value": "rename"},
 				}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var79), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
@@ -1502,9 +1502,9 @@ func taxonList(kind string, empty i18n.Key, rows []Taxon) templ.Component {
 						return nil
 					})
 					templ_7745c5c3_Err = components.Button(components.ButtonProps{
-						Variant: components.VariantGhost,
-						Size:    components.SizeSmall,
-						Attrs:   templ.Attributes{"name": "action", "value": "delete"},
+						ButtonStyle: components.ButtonStyleGhost,
+						Size:        components.SizeSmall,
+						Attrs:       templ.Attributes{"name": "action", "value": "delete"},
 					}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var81), templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
@@ -1551,7 +1551,7 @@ func taxonList(kind string, empty i18n.Key, rows []Taxon) templ.Component {
 						}
 						return nil
 					})
-					templ_7745c5c3_Err = components.Badge(components.BadgeProps{Tone: components.ToneWarn}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var84), templ_7745c5c3_Buffer)
+					templ_7745c5c3_Err = components.Badge(components.BadgeProps{Intent: components.IntentWarn}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var84), templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}

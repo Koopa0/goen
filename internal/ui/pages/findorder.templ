@@ -19,8 +19,8 @@ templ FindOrder(p layouts.Page, v FindOrderView) {
 				<p class="goen-findorder__sub">{ i18n.T(ctx, i18n.KeyFindOrderSub) }</p>
 				if v.Error != "" {
 					@components.Notice(components.NoticeProps{
-						Tone: components.ToneDanger,
-						ID:   "find-error",
+						Intent: components.IntentDanger,
+						ID:     "find-error",
 					}) {
 						{ v.Error }
 					}
@@ -62,9 +62,9 @@ templ FindOrder(p layouts.Page, v FindOrderView) {
 						})
 					</div>
 					@components.Button(components.ButtonProps{
-						Variant: components.VariantPrimary,
-						Size:    components.SizeLarge,
-						Block:   true,
+						ButtonStyle: components.ButtonStylePrimary,
+						Size:        components.SizeLarge,
+						Block:       true,
 					}, "submit") {
 						{ i18n.T(ctx, i18n.KeyFindOrderSubmit) }
 					}

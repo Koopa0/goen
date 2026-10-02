@@ -133,7 +133,7 @@ func FAQ(p layouts.Page, v *FAQView) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = components.Notice(components.NoticeProps{Tone: components.ToneAccent}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var6), templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = components.Notice(components.NoticeProps{Intent: components.IntentAccent}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var6), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -166,7 +166,7 @@ func FAQ(p layouts.Page, v *FAQView) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = components.Notice(components.NoticeProps{Tone: components.ToneWarn}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var8), templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = components.Notice(components.NoticeProps{Intent: components.IntentWarn}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var8), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -612,8 +612,8 @@ func FAQ(p layouts.Page, v *FAQView) templ.Component {
 					return nil
 				})
 				templ_7745c5c3_Err = components.Button(components.ButtonProps{
-					Variant: components.VariantPrimary,
-					Class:   "goen-admin__submit",
+					ButtonStyle: components.ButtonStylePrimary,
+					Class:       "goen-admin__submit",
 				}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var33), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
@@ -736,7 +736,7 @@ func FAQ(p layouts.Page, v *FAQView) templ.Component {
 								}
 								return nil
 							})
-							templ_7745c5c3_Err = components.Badge(components.BadgeProps{Tone: components.ToneWarn}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var39), templ_7745c5c3_Buffer)
+							templ_7745c5c3_Err = components.Badge(components.BadgeProps{Intent: components.IntentWarn}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var39), templ_7745c5c3_Buffer)
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
 							}
@@ -1065,9 +1065,9 @@ func FAQ(p layouts.Page, v *FAQView) templ.Component {
 							return nil
 						})
 						templ_7745c5c3_Err = components.Button(components.ButtonProps{
-							Variant: components.VariantOutline,
-							Size:    components.SizeSmall,
-							Attrs:   templ.Attributes{"name": "action", "value": "save"},
+							ButtonStyle: components.ButtonStyleOutline,
+							Size:        components.SizeSmall,
+							Attrs:       templ.Attributes{"name": "action", "value": "save"},
 						}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var59), templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
@@ -1096,9 +1096,9 @@ func FAQ(p layouts.Page, v *FAQView) templ.Component {
 							return nil
 						})
 						templ_7745c5c3_Err = components.Button(components.ButtonProps{
-							Variant: components.VariantGhost,
-							Size:    components.SizeSmall,
-							Attrs:   templ.Attributes{"name": "action", "value": "delete"},
+							ButtonStyle: components.ButtonStyleGhost,
+							Size:        components.SizeSmall,
+							Attrs:       templ.Attributes{"name": "action", "value": "delete"},
 						}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var61), templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err

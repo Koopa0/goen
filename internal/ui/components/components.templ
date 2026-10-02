@@ -37,11 +37,11 @@ templ Card(p CardProps) {
 // as it is reached or, for a refusal, as soon as it renders.
 templ Notice(p NoticeProps) {
 	if p.ID != "" {
-		<p class={ p.class() } id={ p.ID } role={ p.Tone.role() }>
+		<p class={ p.class() } id={ p.ID } role={ p.Intent.role() }>
 			{ children... }
 		</p>
 	} else {
-		<p class={ p.class() } role={ p.Tone.role() }>
+		<p class={ p.class() } role={ p.Intent.role() }>
 			{ children... }
 		</p>
 	}

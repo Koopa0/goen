@@ -92,18 +92,31 @@ func FreeDeliveryText(cents int64) string {
 }
 
 // eagerTiles is how many leading tiles load their photograph at once: the first
-// row at the widest grid, which is also the first two rows of a phone's.
-const eagerTiles = 4
+// two rows at the widest grid, which is also the first four of a phone's. A
+// second row starts inside a 900px-tall window, and a lazy photograph there
+// appears after the page has already painted.
+const eagerTiles = 8
 
 // FirstRowEager returns tiles with the leading ones marked to load eagerly, the
 // first at high priority. Every later tile stays lazy. The caller's slice is not
 // changed.
 func FirstRowEager(tiles []ProductTile) []ProductTile {
+	return eagerLeading(tiles, true)
+}
+
+// UnderLeadEager is FirstRowEager for tiles that sit under a hero photograph or
+// a lead row: that is the page's one high-priority image, and a second would
+// split the bandwidth it is meant to have.
+func UnderLeadEager(tiles []ProductTile) []ProductTile {
+	return eagerLeading(tiles, false)
+}
+
+func eagerLeading(tiles []ProductTile, lead bool) []ProductTile {
 	out := make([]ProductTile, len(tiles))
 	copy(out, tiles)
 	for i := range min(eagerTiles, len(out)) {
 		out[i].Eager = true
-		out[i].Priority = i == 0
+		out[i].Priority = lead && i == 0
 	}
 	return out
 }

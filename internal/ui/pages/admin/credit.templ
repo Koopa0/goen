@@ -24,7 +24,7 @@ templ Credit(p layouts.Page, v CreditView) {
 			</div>
 		</div>
 		if v.Notice != "" {
-			@components.Notice(components.NoticeProps{Tone: components.ToneAccent}) {
+			@components.Notice(components.NoticeProps{Intent: components.IntentAccent}) {
 				{ v.Notice }
 			}
 		}
@@ -55,10 +55,10 @@ templ Credit(p layouts.Page, v CreditView) {
 					<input type="hidden" name="email" value={ v.Email }/>
 					<input type="hidden" name="amount" value={ v.Amount }/>
 					<input type="hidden" name="reason" value={ v.Reason }/>
-					@components.Button(components.ButtonProps{Variant: components.VariantPrimary, Attrs: templ.Attributes{"name": "confirm", "value": "grant"}}, "submit") {
+					@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Attrs: templ.Attributes{"name": "confirm", "value": "grant"}}, "submit") {
 						{ i18n.T(ctx, i18n.KeyAdminCreditGrant) }
 					}
-					@components.Button(components.ButtonProps{Variant: components.VariantOutline, Attrs: templ.Attributes{"name": "edit", "value": "1"}}, "submit") {
+					@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline, Attrs: templ.Attributes{"name": "edit", "value": "1"}}, "submit") {
 						{ i18n.T(ctx, i18n.KeyAdminCreditEdit) }
 					}
 				</form>
@@ -87,7 +87,7 @@ templ Credit(p layouts.Page, v CreditView) {
 							<p class="ui-error-text" id="credit-reason-error">{ i18n.T(ctx, i18n.KeyAdminCreditReasonError) }</p>
 						}
 					</div>
-					@components.Button(components.ButtonProps{Variant: components.VariantPrimary}, "submit") {
+					@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary}, "submit") {
 						{ i18n.T(ctx, i18n.KeyAdminCreditReview) }
 					}
 				</form>

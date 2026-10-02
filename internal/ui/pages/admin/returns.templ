@@ -22,7 +22,7 @@ templ Returns(p layouts.Page, v ReturnsView) {
 			</div>
 		</div>
 		if v.Notice != "" {
-			@components.Notice(components.NoticeProps{Tone: components.ToneAccent}) {
+			@components.Notice(components.NoticeProps{Intent: components.IntentAccent}) {
 				{ v.Notice }
 			}
 		}
@@ -133,7 +133,7 @@ templ Returns(p layouts.Page, v ReturnsView) {
 										<p class="ui-error-text" id={ "basis-" + r.ID + "-error" }>{ v.FieldError(r.ID, "basis") }</p>
 									</div>
 									<div class="goen-admin__decidebtns">
-										@components.Button(components.ButtonProps{Variant: components.VariantOutline}, "submit") {
+										@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, "submit") {
 											{ i18n.T(ctx, i18n.KeyAdminRetAssessButton) }
 										}
 									</div>
@@ -161,24 +161,24 @@ templ Returns(p layouts.Page, v ReturnsView) {
 								<div class="goen-admin__decidebtns">
 									if !r.Late() {
 										@components.Button(components.ButtonProps{
-											Variant: components.VariantPrimary,
-											Attrs:   templ.Attributes{"name": "decision", "value": "approved"},
+											ButtonStyle: components.ButtonStylePrimary,
+											Attrs:       templ.Attributes{"name": "decision", "value": "approved"},
 										}, "submit") {
 											{ i18n.T(ctx, i18n.KeyAdminRetApprove) }
 										}
 									}
 									if r.Goodwill() || r.Mixed() || r.Late() {
 										@components.Button(components.ButtonProps{
-											Variant: components.VariantOutline,
-											Attrs:   templ.Attributes{"name": "decision", "value": "exception"},
+											ButtonStyle: components.ButtonStyleOutline,
+											Attrs:       templ.Attributes{"name": "decision", "value": "exception"},
 										}, "submit") {
 											{ i18n.T(ctx, i18n.KeyAdminRetException) }
 										}
 									}
 									if !r.Rescission() {
 										@components.Button(components.ButtonProps{
-											Variant: components.VariantOutline,
-											Attrs:   templ.Attributes{"name": "decision", "value": "rejected"},
+											ButtonStyle: components.ButtonStyleOutline,
+											Attrs:       templ.Attributes{"name": "decision", "value": "rejected"},
 										}, "submit") {
 											{ i18n.T(ctx, i18n.KeyAdminRetReject) }
 										}
@@ -190,7 +190,7 @@ templ Returns(p layouts.Page, v ReturnsView) {
 								<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminRetPayoutOutstanding) }</p>
 								<input type="hidden" name="decision" value="approved"/>
 								<div class="goen-admin__decidebtns">
-									@components.Button(components.ButtonProps{Variant: components.VariantPrimary}, "submit") {
+									@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary}, "submit") {
 										{ i18n.T(ctx, i18n.KeyAdminRetRetryPayout) }
 									}
 								</div>
@@ -259,7 +259,7 @@ templ Returns(p layouts.Page, v ReturnsView) {
 									<p class="ui-error-text" id={ "inspect-error-" + r.ID } role="alert">{ v.FieldError(r.ID, "inspect") }</p>
 								}
 								<div class="goen-admin__decidebtns">
-									@components.Button(components.ButtonProps{Variant: components.VariantPrimary}, "submit") {
+									@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary}, "submit") {
 										{ i18n.T(ctx, i18n.KeyAdminRetInspectButton) }
 									}
 								</div>
@@ -275,7 +275,7 @@ templ Returns(p layouts.Page, v ReturnsView) {
 									<input class="ui-input" id={ "done-" + r.ID } name="resolution" maxlength="300" autocomplete="off"/>
 								</div>
 								<div class="goen-admin__decidebtns">
-									@components.Button(components.ButtonProps{Variant: components.VariantPrimary}, "submit") {
+									@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary}, "submit") {
 										{ i18n.T(ctx, i18n.KeyAdminRetCloseButton) }
 									}
 								</div>

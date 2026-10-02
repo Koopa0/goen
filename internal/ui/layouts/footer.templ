@@ -110,7 +110,7 @@ templ NewsletterForm(s NewsletterState) {
 					"maxlength":    "254",
 				}, fieldrule.Message(i18n.KeyEmailMalformed), fieldrule.ErrorID("newsletter-error")),
 			})
-			@components.Button(components.ButtonProps{Variant: components.VariantOutline, Attrs: templ.Attributes{"id": "newsletter-submit"}}, "submit") {
+			@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline, Attrs: templ.Attributes{"id": "newsletter-submit"}}, "submit") {
 				{ i18n.T(ctx, i18n.KeyNewsletterSubmit) }
 			}
 			if s.Error != "" {

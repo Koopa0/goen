@@ -124,7 +124,7 @@ func Notice(p layouts.Page, code, heading, body string) templ.Component {
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = components.ButtonLink(components.ButtonProps{Variant: components.VariantPrimary, Size: components.SizeLarge}, "/").Render(templ.WithChildren(ctx, templ_7745c5c3_Var6), templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Size: components.SizeLarge}, "/").Render(templ.WithChildren(ctx, templ_7745c5c3_Var6), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -324,7 +324,7 @@ func PlacementGrantFailed(p layouts.Page) templ.Component {
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = components.ButtonLink(components.ButtonProps{Variant: components.VariantPrimary, Size: components.SizeLarge}, "/orders/find").Render(templ.WithChildren(ctx, templ_7745c5c3_Var16), templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Size: components.SizeLarge}, "/orders/find").Render(templ.WithChildren(ctx, templ_7745c5c3_Var16), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -431,7 +431,7 @@ func FindOrderGrantFailed(p layouts.Page) templ.Component {
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = components.ButtonLink(components.ButtonProps{Variant: components.VariantPrimary, Size: components.SizeLarge}, "/orders/find").Render(templ.WithChildren(ctx, templ_7745c5c3_Var22), templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Size: components.SizeLarge}, "/orders/find").Render(templ.WithChildren(ctx, templ_7745c5c3_Var22), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -536,7 +536,7 @@ func OrderNotFound(p layouts.Page) templ.Component {
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = components.ButtonLink(components.ButtonProps{Variant: components.VariantPrimary, Size: components.SizeLarge}, "/orders/find").Render(templ.WithChildren(ctx, templ_7745c5c3_Var28), templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Size: components.SizeLarge}, "/orders/find").Render(templ.WithChildren(ctx, templ_7745c5c3_Var28), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -563,7 +563,7 @@ func OrderNotFound(p layouts.Page) templ.Component {
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = components.ButtonLink(components.ButtonProps{Variant: components.VariantOutline, Size: components.SizeLarge}, "/signin").Render(templ.WithChildren(ctx, templ_7745c5c3_Var30), templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline, Size: components.SizeLarge}, "/signin").Render(templ.WithChildren(ctx, templ_7745c5c3_Var30), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

@@ -126,7 +126,7 @@ func Shipping(p layouts.Page, v ShippingView) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = components.Notice(components.NoticeProps{Tone: components.ToneAccent}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var6), templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = components.Notice(components.NoticeProps{Intent: components.IntentAccent}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var6), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -615,8 +615,8 @@ func Shipping(p layouts.Page, v ShippingView) templ.Component {
 						return nil
 					})
 					templ_7745c5c3_Err = components.Button(components.ButtonProps{
-						Variant: components.VariantOutline,
-						Class:   "goen-admin__submit",
+						ButtonStyle: components.ButtonStyleOutline,
+						Class:       "goen-admin__submit",
 					}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var40), templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
@@ -667,8 +667,8 @@ func Shipping(p layouts.Page, v ShippingView) templ.Component {
 							return nil
 						})
 						templ_7745c5c3_Err = components.Button(components.ButtonProps{
-							Variant: components.VariantGhost,
-							Size:    components.SizeSmall,
+							ButtonStyle: components.ButtonStyleGhost,
+							Size:        components.SizeSmall,
 						}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var43), templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
@@ -702,8 +702,8 @@ func Shipping(p layouts.Page, v ShippingView) templ.Component {
 							return nil
 						})
 						templ_7745c5c3_Err = components.Button(components.ButtonProps{
-							Variant: components.VariantOutline,
-							Size:    components.SizeSmall,
+							ButtonStyle: components.ButtonStyleOutline,
+							Size:        components.SizeSmall,
 						}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var45), templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
@@ -873,8 +873,8 @@ func Shipping(p layouts.Page, v ShippingView) templ.Component {
 								return nil
 							})
 							templ_7745c5c3_Err = components.Button(components.ButtonProps{
-								Variant: components.VariantOutline,
-								Size:    components.SizeSmall,
+								ButtonStyle: components.ButtonStyleOutline,
+								Size:        components.SizeSmall,
 							}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var56), templ_7745c5c3_Buffer)
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
@@ -1784,8 +1784,8 @@ func Shipping(p layouts.Page, v ShippingView) templ.Component {
 					return nil
 				})
 				templ_7745c5c3_Err = components.Button(components.ButtonProps{
-					Variant: components.VariantPrimary,
-					Class:   "goen-admin__submit",
+					ButtonStyle: components.ButtonStylePrimary,
+					Class:       "goen-admin__submit",
 				}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var107), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
@@ -1927,7 +1927,7 @@ func Shipping(p layouts.Page, v ShippingView) templ.Component {
 							}
 							return nil
 						})
-						templ_7745c5c3_Err = components.Badge(components.BadgeProps{Tone: components.ToneWarn}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var116), templ_7745c5c3_Buffer)
+						templ_7745c5c3_Err = components.Badge(components.BadgeProps{Intent: components.IntentWarn}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var116), templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -2048,8 +2048,8 @@ func Shipping(p layouts.Page, v ShippingView) templ.Component {
 						return nil
 					})
 					templ_7745c5c3_Err = components.Button(components.ButtonProps{
-						Variant: components.VariantOutline,
-						Size:    components.SizeSmall,
+						ButtonStyle: components.ButtonStyleOutline,
+						Size:        components.SizeSmall,
 					}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var124), templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
@@ -2127,8 +2127,8 @@ func Shipping(p layouts.Page, v ShippingView) templ.Component {
 						return nil
 					})
 					templ_7745c5c3_Err = components.Button(components.ButtonProps{
-						Variant: components.VariantGhost,
-						Size:    components.SizeSmall,
+						ButtonStyle: components.ButtonStyleGhost,
+						Size:        components.SizeSmall,
 					}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var129), templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
@@ -2493,8 +2493,8 @@ func Shipping(p layouts.Page, v ShippingView) templ.Component {
 					return nil
 				})
 				templ_7745c5c3_Err = components.Button(components.ButtonProps{
-					Variant: components.VariantOutline,
-					Class:   "goen-admin__submit",
+					ButtonStyle: components.ButtonStyleOutline,
+					Class:       "goen-admin__submit",
 				}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var150), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err

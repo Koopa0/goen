@@ -163,7 +163,7 @@ func Wishlist(p layouts.Page, v WishlistView) templ.Component {
 					return nil
 				})
 				templ_7745c5c3_Err = components.ButtonLink(components.ButtonProps{
-					Variant: components.VariantPrimary,
+					ButtonStyle: components.ButtonStylePrimary,
 				}, templ.SafeURL("/")).Render(templ.WithChildren(ctx, templ_7745c5c3_Var7), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
@@ -215,7 +215,7 @@ func Wishlist(p layouts.Page, v WishlistView) templ.Component {
 						}
 						return nil
 					})
-					templ_7745c5c3_Err = components.Notice(components.NoticeProps{Tone: components.ToneAccent, ID: "added", Class: "goen-wish__added"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var9), templ_7745c5c3_Buffer)
+					templ_7745c5c3_Err = components.Notice(components.NoticeProps{Intent: components.IntentAccent, ID: "added", Class: "goen-wish__added"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var9), templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -260,7 +260,7 @@ func Wishlist(p layouts.Page, v WishlistView) templ.Component {
 						}
 						return nil
 					})
-					templ_7745c5c3_Err = components.Notice(components.NoticeProps{Tone: components.ToneAccent, ID: "added", Class: "goen-wish__added"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var12), templ_7745c5c3_Buffer)
+					templ_7745c5c3_Err = components.Notice(components.NoticeProps{Intent: components.IntentAccent, ID: "added", Class: "goen-wish__added"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var12), templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -288,7 +288,7 @@ func Wishlist(p layouts.Page, v WishlistView) templ.Component {
 						}
 						return nil
 					})
-					templ_7745c5c3_Err = components.Notice(components.NoticeProps{Tone: components.ToneDanger, ID: "added", Class: "goen-wish__added"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var15), templ_7745c5c3_Buffer)
+					templ_7745c5c3_Err = components.Notice(components.NoticeProps{Intent: components.IntentDanger, ID: "added", Class: "goen-wish__added"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var15), templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -316,7 +316,7 @@ func Wishlist(p layouts.Page, v WishlistView) templ.Component {
 						}
 						return nil
 					})
-					templ_7745c5c3_Err = components.Notice(components.NoticeProps{Tone: components.ToneDanger, ID: "added", Class: "goen-wish__added"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var17), templ_7745c5c3_Buffer)
+					templ_7745c5c3_Err = components.Notice(components.NoticeProps{Intent: components.IntentDanger, ID: "added", Class: "goen-wish__added"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var17), templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -417,7 +417,7 @@ func Wishlist(p layouts.Page, v WishlistView) templ.Component {
 							}
 							return nil
 						})
-						templ_7745c5c3_Err = components.Button(components.ButtonProps{Variant: components.VariantPrimary, Size: components.SizeSmall, Block: true}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var23), templ_7745c5c3_Buffer)
+						templ_7745c5c3_Err = components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Size: components.SizeSmall, Block: true}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var23), templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -449,7 +449,7 @@ func Wishlist(p layouts.Page, v WishlistView) templ.Component {
 							}
 							return nil
 						})
-						templ_7745c5c3_Err = components.ButtonLink(components.ButtonProps{Variant: components.VariantPrimary, Size: components.SizeSmall, Block: true}, templ.SafeURL("/p/"+t.Slug)).Render(templ.WithChildren(ctx, templ_7745c5c3_Var25), templ_7745c5c3_Buffer)
+						templ_7745c5c3_Err = components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Size: components.SizeSmall, Block: true}, templ.SafeURL("/p/"+t.Slug)).Render(templ.WithChildren(ctx, templ_7745c5c3_Var25), templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}

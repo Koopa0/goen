@@ -141,7 +141,7 @@ func NewsletterAction(p layouts.Page, v NewsletterActionView) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = components.Button(components.ButtonProps{Variant: components.VariantPrimary, Size: components.SizeLarge, Block: true}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var7), templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Size: components.SizeLarge, Block: true}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var7), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -177,7 +177,7 @@ func NewsletterAction(p layouts.Page, v NewsletterActionView) templ.Component {
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = components.ButtonLink(components.ButtonProps{Variant: components.VariantOutline, Size: components.SizeLarge, Class: "notice__back"}, "/").Render(templ.WithChildren(ctx, templ_7745c5c3_Var9), templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline, Size: components.SizeLarge, Class: "notice__back"}, "/").Render(templ.WithChildren(ctx, templ_7745c5c3_Var9), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
