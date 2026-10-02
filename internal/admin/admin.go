@@ -30,6 +30,10 @@ var (
 	ErrRefundIncomplete = errors.New("admin: the return is approved and the refund did not complete")
 	// ErrInvalid is a form goen itself rejected before the database saw it.
 	ErrInvalid = errors.New("admin: invalid input")
+	// ErrCarrier is a dispatch naming a carrier that cannot carry this order's
+	// parcel: a store order goes with its chain's carrier, a home delivery with a
+	// home carrier.
+	ErrCarrier = errors.New("admin: carrier cannot carry this order")
 	// ErrQuantity is a per-line count the order cannot honour: more than remains
 	// to ship, or more than it still holds.
 	ErrQuantity = errors.New("admin: quantity out of range")

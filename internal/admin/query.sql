@@ -93,7 +93,10 @@ SELECT
  coalesce(ip.donation_code, '') AS invoice_donation_code,
     coalesce(ip.tax_id, '') AS invoice_tax_id,
     order_is_committed(o.id) AS committed,
-    order_amount_owed(o.id) AS owed_cents
+    order_amount_owed(o.id) AS owed_cents,
+    (SELECT sm.destination_kind FROM shipping_method_versions v
+     JOIN shipping_methods sm ON sm.id = v.method_id
+     WHERE v.id = o.shipping_version_id)::text AS destination_kind
 FROM orders o
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
 LEFT JOIN invoice_preferences ip ON ip.order_id = o.id
@@ -284,6 +287,16 @@ ON CONFLICT (return_request_id) WHERE return_request_id IS NOT NULL DO NOTHING;
 
 -- name: OrderIDByNumber :one
 SELECT id, fulfillment_status FROM orders WHERE order_number = $1;
+
+-- Where an order's parcel is going: whether its shipping method delivers to a
+-- store, and the chain the customer picked, which a store order can lack.
+-- name: OrderDispatchDestination :one
+SELECT sm.destination_kind, coalesce(pd.pickup_brand, '')::text AS pickup_brand
+FROM orders o
+JOIN shipping_method_versions v ON v.id = o.shipping_version_id
+JOIN shipping_methods sm ON sm.id = v.method_id
+LEFT JOIN order_private_data pd ON pd.order_id = o.id
+WHERE o.id = $1;
 
 -- Oldest first: occurred_at then id, because two events recorded in the same
 -- statement share a timestamp and the uuidv7 key is the tie-break.

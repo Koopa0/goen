@@ -1032,7 +1032,10 @@ SELECT
  coalesce(ip.donation_code, '') AS invoice_donation_code,
     coalesce(ip.tax_id, '') AS invoice_tax_id,
     order_is_committed(o.id) AS committed,
-    order_amount_owed(o.id) AS owed_cents
+    order_amount_owed(o.id) AS owed_cents,
+    (SELECT sm.destination_kind FROM shipping_method_versions v
+     JOIN shipping_methods sm ON sm.id = v.method_id
+     WHERE v.id = o.shipping_version_id)::text AS destination_kind
 FROM orders o
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
 LEFT JOIN invoice_preferences ip ON ip.order_id = o.id
@@ -1068,6 +1071,7 @@ type AdminOrderByNumberRow struct {
 	InvoiceTaxID        string
 	Committed           bool
 	OwedCents           int64
+	DestinationKind     string
 }
 
 // discount_reason is JOINED and not snapshotted: coupons.code is never updated
@@ -1104,6 +1108,7 @@ func (q *Queries) AdminOrderByNumber(ctx context.Context, orderNumber string) (A
 		&i.InvoiceTaxID,
 		&i.Committed,
 		&i.OwedCents,
+		&i.DestinationKind,
 	)
 	return i, err
 }
@@ -8662,6 +8667,29 @@ func (q *Queries) OrderDestinationKind(ctx context.Context, orderNumber string) 
 	row := q.db.QueryRow(ctx, orderDestinationKind, orderNumber)
 	var i OrderDestinationKindRow
 	err := row.Scan(&i.DestinationKind, &i.FulfillmentStatus)
+	return i, err
+}
+
+const orderDispatchDestination = `-- name: OrderDispatchDestination :one
+SELECT sm.destination_kind, coalesce(pd.pickup_brand, '')::text AS pickup_brand
+FROM orders o
+JOIN shipping_method_versions v ON v.id = o.shipping_version_id
+JOIN shipping_methods sm ON sm.id = v.method_id
+LEFT JOIN order_private_data pd ON pd.order_id = o.id
+WHERE o.id = $1
+`
+
+type OrderDispatchDestinationRow struct {
+	DestinationKind string
+	PickupBrand     string
+}
+
+// Where an order's parcel is going: whether its shipping method delivers to a
+// store, and the chain the customer picked, which a store order can lack.
+func (q *Queries) OrderDispatchDestination(ctx context.Context, id uuid.UUID) (OrderDispatchDestinationRow, error) {
+	row := q.db.QueryRow(ctx, orderDispatchDestination, id)
+	var i OrderDispatchDestinationRow
+	err := row.Scan(&i.DestinationKind, &i.PickupBrand)
 	return i, err
 }
 

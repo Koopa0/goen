@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"slices"
 	"strings"
 	"unicode/utf8"
 
@@ -265,7 +266,7 @@ func (s *Store) Order(ctx context.Context, number string) (admin.OrderView, erro
 		Unpaid:              !o.Committed && o.OwedCents > 0,
 	}
 
-	carriers, implied := carrier.ForDelivery(pickup.Brand(o.PickupBrand))
+	carriers, implied := carrier.ForDelivery(pickup.Brand(o.PickupBrand), o.DestinationKind == "pickup_point")
 	view.ShipCarriers, view.ShipCarrier = carriers, string(implied)
 
 	if shipErr := s.fillShippable(ctx, &view, o.ID, fulfillment); shipErr != nil {
@@ -622,6 +623,13 @@ func (s *Store) Ship(ctx context.Context, number string, d Dispatch, actor uuid.
 	default:
 		return fmt.Errorf("%w: order %s is %s and has not been picked",
 			ErrRefused, number, row.FulfillmentStatus)
+	}
+	dest, destErr := q.OrderDispatchDestination(ctx, row.ID)
+	if destErr != nil {
+		return fmt.Errorf("read destination of %s: %w", number, destErr)
+	}
+	if valid, _ := carrier.ForDelivery(pickup.Brand(dest.PickupBrand), dest.DestinationKind == "pickup_point"); !slices.Contains(valid, carrierCode) {
+		return fmt.Errorf("%w: %s cannot carry order %s", ErrCarrier, carrierCode, number)
 	}
 	shipmentID, shipErr := q.CreateShipment(ctx, db.CreateShipmentParams{
 		OrderID: row.ID, Carrier: string(carrierCode), TrackingNumber: tracking,

@@ -44,19 +44,18 @@ var all = [...]Carrier{
 func All() []Carrier { return slices.Clone(all[:]) }
 
 // ForDelivery is the carriers a parcel for this order can go with, and the one
-// the order itself implies. chain is the order's convenience-store chain, empty
-// for a home delivery.
+// the order itself implies. pickupPoint is whether the order's shipping method
+// delivers to a store, and chain the convenience-store chain the customer picked,
+// which an order can lack.
 //
-// A store order is carried by the chain the customer picked: its parcel goes to
-// that chain's store and no other carrier will accept it there, so the list is
-// that one carrier and it is the implied one. A home delivery may go with any of
+// A store order is carried by a store chain's carrier, and by the chain the
+// customer picked when the order has one: that parcel goes to that chain's store
+// and no other carrier will accept it there. A home delivery may go with any of
 // the four home carriers, and nothing on the order says which: the shipping
 // method names its carrier as display text, not as one of these codes, so no
 // carrier is implied.
-func ForDelivery(chain pickup.Brand) (valid []Carrier, implied Carrier) {
-	if chain == "" {
-		return []Carrier{BlackCat, HCT, ChunghwaPost, KerryTJ}, ""
-	}
+func ForDelivery(chain pickup.Brand, pickupPoint bool) (valid []Carrier, implied Carrier) {
+	stores := []Carrier{SevenEleven, FamilyMart, HiLife, OKMart}
 	switch chain {
 	case pickup.SevenEleven:
 		return []Carrier{SevenEleven}, SevenEleven
@@ -66,9 +65,11 @@ func ForDelivery(chain pickup.Brand) (valid []Carrier, implied Carrier) {
 		return []Carrier{HiLife}, HiLife
 	case pickup.OKMart:
 		return []Carrier{OKMart}, OKMart
-	default:
-		return []Carrier{SevenEleven, FamilyMart, HiLife, OKMart}, ""
 	}
+	if pickupPoint {
+		return stores, ""
+	}
+	return []Carrier{BlackCat, HCT, ChunghwaPost, KerryTJ}, ""
 }
 
 // Known reports whether c is one of the closed set.

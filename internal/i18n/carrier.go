@@ -20,6 +20,13 @@ var (
 	// tracking number the carrier's address cannot take.
 	KeyOrderTrackLink = key("order.tracking.link", Message{ZhHant: "到物流商網站查詢", En: "Track on the carrier's site"})
 
+	// KeyAdminCarrierNotForOrder is the refusal under the carrier list when a
+	// dispatch names a carrier the order cannot go with.
+	KeyAdminCarrierNotForOrder = key("admin.queue.carrier.notfororder", Message{
+		ZhHant: "這個物流商不能運送這筆訂單,請從清單中選擇。",
+		En:     "That carrier cannot carry this order. Choose one from the list.",
+	})
+
 	// KeyAdminCarrierChoose is the unselected state of the dispatch carrier list.
 	KeyAdminCarrierChoose = key("admin.queue.carrier.choose", Message{ZhHant: "請選擇物流商", En: "Choose a carrier"})
 
