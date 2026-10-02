@@ -117,3 +117,19 @@ func (s *Store) checkoutDraft(ctx context.Context, cartID uuid.UUID) (checkoutDr
 	}
 	return d, true, nil
 }
+
+// customerProfile is the name and phone the signed-in customer keeps on their
+// account. A guest has none, and neither does a customer who never gave them.
+func (s *Store) customerProfile(ctx context.Context, owner uuid.NullUUID) (name, phone string, err error) {
+	if !owner.Valid {
+		return "", "", nil
+	}
+	row, err := s.q.CheckoutProfile(ctx, owner.UUID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", "", nil
+	}
+	if err != nil {
+		return "", "", fmt.Errorf("read checkout profile: %w", err)
+	}
+	return row.FullName, row.Phone, nil
+}

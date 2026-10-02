@@ -184,6 +184,12 @@ var (
 
 	// The button beside each checkout chooser. It is formnovalidate: the customer
 	// is mid-form, so fields they have not reached yet are still empty.
+	KeyRecipientIsMe = key("checkout.recipient.me", Message{ZhHant: "收件人同會員資料", En: "Recipient is me"})
+
+	KeyChooseSavedAddress = key("checkout.address.choose", Message{ZhHant: "選擇常用地址", En: "Choose a saved address"})
+
+	KeyOtherAddress = key("checkout.address.other", Message{ZhHant: "其他地址", En: "Another address"})
+
 	KeyApplyChoice = key("checkout.apply", Message{
 		ZhHant: "更新",
 		En:     "Update",

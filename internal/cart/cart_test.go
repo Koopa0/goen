@@ -1040,3 +1040,81 @@ func TestFullWidthDigitsAreFoldedBeforeTheCheckoutFieldsAreChecked(t *testing.T)
 		t.Errorf("tax ID = %q, want the ASCII digits", company.TaxID)
 	}
 }
+
+// TestFillFromBookLeavesTheFormToTheShopperForAnotherAddress: 「其他地址」 is none
+// of the saved ones, so the book fills nothing and the choice is remembered.
+func TestFillFromBookLeavesTheFormToTheShopperForAnotherAddress(t *testing.T) {
+	t.Parallel()
+	view := pages.CheckoutView{SavedAddresses: []pages.SavedAddress{
+		{ID: "first", Name: "王小明", Street: "和平東路 1 號", Default: true},
+	}}
+	addr := Address{Street: "typed by hand"}
+	fillFromBook(&view, &addr, pages.OtherAddress)
+	if addr.Street != "typed by hand" || addr.Name != "" {
+		t.Errorf("another address filled the form from the book: %+v", addr)
+	}
+	if view.ChosenAddress != pages.OtherAddress {
+		t.Errorf("the choice was %q, want %q", view.ChosenAddress, pages.OtherAddress)
+	}
+}
+
+// TestTheRecipientBoxFillsOnlyWhatIsEmptyAndClearsOnlyWhatIsTheAccounts holds
+// the rule that nothing the shopper typed is overwritten or wiped.
+func TestTheRecipientBoxFillsOnlyWhatIsEmptyAndClearsOnlyWhatIsTheAccounts(t *testing.T) {
+	t.Parallel()
+	profile := pages.CheckoutProfile{Email: "me@example.com", Name: "王小明", Phone: "0912345678"}
+
+	for _, tt := range []struct {
+		name      string
+		checked   bool
+		in        Address
+		wantName  string
+		wantPhone string
+	}{
+		{"checked fills an empty form", true, Address{}, "王小明", "0912345678"},
+		{"checked keeps a typed name", true, Address{Name: "林小美"}, "林小美", "0912345678"},
+		{"unchecked clears the account's values", false,
+			Address{Name: "王小明", Phone: "0912345678"}, "", ""},
+		{"unchecked keeps what was typed instead", false,
+			Address{Name: "林小美", Phone: "0987654321"}, "林小美", "0987654321"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			view := pages.CheckoutView{Profile: profile, RecipientMe: tt.checked}
+			addr := tt.in
+			applyRecipient(&view, &addr)
+			if addr.Name != tt.wantName || addr.Phone != tt.wantPhone {
+				t.Errorf("name %q phone %q, want %q and %q", addr.Name, addr.Phone, tt.wantName, tt.wantPhone)
+			}
+		})
+	}
+}
+
+// TestPrefillRecipientNeverOverwritesAndReportsWhetherItIsTheMember.
+func TestPrefillRecipientNeverOverwritesAndReportsWhetherItIsTheMember(t *testing.T) {
+	t.Parallel()
+	profile := pages.CheckoutProfile{Email: "me@example.com", Name: "王小明", Phone: "0912345678"}
+
+	empty := Address{}
+	view := pages.CheckoutView{Profile: profile}
+	prefillRecipient(&view, &empty)
+	if empty.Name != "王小明" || empty.Phone != "0912345678" || !view.RecipientMe {
+		t.Errorf("an empty form was not filled from the account: %+v me=%v", empty, view.RecipientMe)
+	}
+
+	// A saved address for somebody else keeps its own recipient.
+	gift := Address{Name: "林小美", Phone: "0987654321"}
+	view = pages.CheckoutView{Profile: profile}
+	prefillRecipient(&view, &gift)
+	if gift.Name != "林小美" || gift.Phone != "0987654321" || view.RecipientMe {
+		t.Errorf("the account overwrote another recipient: %+v me=%v", gift, view.RecipientMe)
+	}
+
+	// A guest has no profile, so nothing is filled and no box is checked.
+	guest := Address{}
+	view = pages.CheckoutView{}
+	prefillRecipient(&view, &guest)
+	if guest.Name != "" || view.RecipientMe {
+		t.Errorf("a guest was prefilled: %+v me=%v", guest, view.RecipientMe)
+	}
+}

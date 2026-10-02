@@ -312,6 +312,9 @@ func (h *Handler) Checkout(w http.ResponseWriter, r *http.Request) {
 
 	var prefill Address
 	fillFromBook(&view, &prefill, chosen.Address)
+	if !restored {
+		prefillRecipient(&view, &prefill)
+	}
 	view.Address = pages.CheckoutAddress{
 		Email: emailOf(r), Name: prefill.Name, Phone: prefill.Phone,
 		PostalCode: prefill.PostalCode, City: prefill.City,
@@ -319,6 +322,8 @@ func (h *Handler) Checkout(w http.ResponseWriter, r *http.Request) {
 	}
 	if restored {
 		h.applyDraft(r, &view, &prefill, &draft)
+		// Whatever was typed stands; the box only reports whether it is the profile.
+		view.RecipientMe = view.OffersTheProfile() && isProfile(view.Profile, view.Address.Name, view.Address.Phone)
 	}
 	status := h.applyReturnedStore(r, &view)
 	shippingID, err := uuid.Parse(view.Chosen)
@@ -338,6 +343,50 @@ func (h *Handler) Checkout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.renderCheckout(w, r, status, &view)
+}
+
+// isProfile reports whether the name and phone are the account's own.
+func isProfile(p pages.CheckoutProfile, name, phone string) bool {
+	return name == p.Name && phone == p.Phone
+}
+
+// prefillRecipient fills the recipient from the account when nothing else has: a
+// saved address brings its own recipient, which may be somebody else, and a
+// restored draft brings what was typed. The box is checked exactly when the
+// fields hold the profile's values.
+func prefillRecipient(view *pages.CheckoutView, prefill *Address) {
+	if !view.OffersTheProfile() {
+		return
+	}
+	if prefill.Name == "" {
+		prefill.Name = view.Profile.Name
+	}
+	if prefill.Phone == "" {
+		prefill.Phone = view.Profile.Phone
+	}
+	view.RecipientMe = isProfile(view.Profile, prefill.Name, prefill.Phone)
+}
+
+// applyRecipient is the box applied without scripting: checked fills the
+// recipient fields that are empty, and unchecked clears the ones that hold the
+// profile's own values. Anything the shopper typed instead is left alone.
+func applyRecipient(view *pages.CheckoutView, addr *Address) {
+	p := view.Profile
+	if view.RecipientMe {
+		if addr.Name == "" {
+			addr.Name = p.Name
+		}
+		if addr.Phone == "" {
+			addr.Phone = p.Phone
+		}
+		return
+	}
+	if addr.Name == p.Name {
+		addr.Name = ""
+	}
+	if addr.Phone == p.Phone {
+		addr.Phone = ""
+	}
 }
 
 // firstOf is the first of two values that says anything.
@@ -873,8 +922,18 @@ func (h *Handler) checkoutSubmission(
 	// Echo what was submitted, except when the address chooser itself asks to
 	// replace those fields with one saved address.
 	view.ChosenAddress = r.PostFormValue("address")
-	if r.PostFormValue("update") == "address" {
+	view.RecipientMe = r.PostFormValue("recipient_me") == "1"
+	switch r.PostFormValue("update") {
+	case "address":
 		fillFromBook(&view, &addr, view.ChosenAddress)
+		if view.ChosenAddress == pages.OtherAddress {
+			addr.PostalCode, addr.City, addr.District, addr.Street = "", "", "", ""
+		}
+		if view.OffersTheProfile() {
+			view.RecipientMe = isProfile(view.Profile, addr.Name, addr.Phone)
+		}
+	case "recipient":
+		applyRecipient(&view, &addr)
 	}
 	view.Address = pages.CheckoutAddress{
 		Email: addr.Email, Name: addr.Name, Phone: addr.Phone,
@@ -1372,6 +1431,11 @@ func fillFromBook(view *pages.CheckoutView, addr *Address, wanted string) {
 	if len(view.SavedAddresses) == 0 {
 		return
 	}
+	// 「其他地址」: none of the saved ones, so nothing is filled from the book.
+	if wanted == pages.OtherAddress {
+		view.ChosenAddress = pages.OtherAddress
+		return
+	}
 	chosen := &view.SavedAddresses[0] // is_default first, then oldest
 	for i := range view.SavedAddresses {
 		if view.SavedAddresses[i].ID == wanted {
@@ -1560,6 +1624,10 @@ func (h *Handler) checkoutView(ctx context.Context, cartID uuid.UUID, owner uuid
 	if err != nil {
 		return pages.CheckoutView{}, err
 	}
+	name, phone, err := h.store.customerProfile(ctx, owner)
+	if err != nil {
+		return pages.CheckoutView{}, err
+	}
 	view := pages.CheckoutView{
 		Cart: cartView, Shipping: choices,
 		InvoiceChoices: invoiceChoices(ctx),
@@ -1572,6 +1640,9 @@ func (h *Handler) checkoutView(ctx context.Context, cartID uuid.UUID, owner uuid
 		return pages.CheckoutView{}, err
 	}
 	view.AvailableCreditCents = balance
+	if u, ok := account.FromContext(ctx); ok {
+		view.Profile = pages.CheckoutProfile{Email: u.Email, Name: name, Phone: phone}
+	}
 	if len(choices) > 0 {
 		view.Chosen = choices[0].VersionID
 		view.Destination = string(destinationOf(choices, view.Chosen))

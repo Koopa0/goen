@@ -3857,6 +3857,25 @@ func (q *Queries) CheckoutCompletionSince(ctx context.Context, windowDays int32)
 	return i, err
 }
 
+const checkoutProfile = `-- name: CheckoutProfile :one
+SELECT coalesce(full_name, '')::text AS full_name, coalesce(phone, '')::text AS phone
+FROM users WHERE id = $1
+`
+
+type CheckoutProfileRow struct {
+	FullName string
+	Phone    string
+}
+
+// The name and phone a signed-in customer keeps on their account, for the
+// checkout's 「收件人同會員資料」. Blank is as good as none.
+func (q *Queries) CheckoutProfile(ctx context.Context, userID uuid.UUID) (CheckoutProfileRow, error) {
+	row := q.db.QueryRow(ctx, checkoutProfile, userID)
+	var i CheckoutProfileRow
+	err := row.Scan(&i.FullName, &i.Phone)
+	return i, err
+}
+
 const childCategories = `-- name: ChildCategories :many
 SELECT parent_id, slug, localized_name(name, name_en, $1::text) AS name
 FROM categories

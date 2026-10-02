@@ -109,7 +109,7 @@ func TestChangingACheckoutChoiceAppliesIt(t *testing.T) {
 	if !strings.Contains(html, `id="checkout-form"`) {
 		t.Fatal("the checkout form has no id, so a swap has nothing to select or to replace")
 	}
-	for _, which := range []string{"shipping", "address", "invoice"} {
+	for _, which := range []string{"shipping", "invoice"} {
 		group := tagCarrying(t, html, `hx-vals="{&#34;update&#34;:&#34;`+which+`&#34;}"`)
 		for _, want := range []string{
 			`hx-post="/checkout"`,
@@ -129,11 +129,18 @@ func TestChangingACheckoutChoiceAppliesIt(t *testing.T) {
 			t.Errorf("a chooser sends update=%s, which no button sends", which)
 		}
 	}
+	// The saved-address select fills the fields from its own options, so it makes
+	// no request at all; the button below it is the path without scripting.
+	if strings.Contains(tagCarrying(t, html, `data-address-book`), "hx-post") {
+		t.Error("the address chooser asks the server for what its options already carry")
+	}
+	if !strings.Contains(html, `name="update" value="address"`) {
+		t.Error("no button applies the address choice without scripting")
+	}
 	// A swap restores the focus to the element whose id it finds again, so each
 	// radio carries one.
 	for _, want := range []string{
 		`id="shipping-ship-1"`,
-		`id="address-addr-1"`,
 		`id="invoice_type-mobile_carrier"`,
 	} {
 		if !strings.Contains(html, want) {
@@ -1125,6 +1132,80 @@ func TestCartLineUpdateSwapsOnlyWhatChanges(t *testing.T) {
 	for _, bad := range []string{`hx-target`, `hx-select=`} {
 		if strings.Contains(html, bad) {
 			t.Errorf("the line form carries %s, which would replace a whole region:\n%s", bad, html)
+		}
+	}
+}
+
+// TestARecipientCanBeTheMemberAndAnAddressTheirSavedOne holds the two controls a
+// signed-in customer gets above the recipient fields, with the data each fills
+// from rendered beside it so choosing costs no request.
+func TestARecipientCanBeTheMemberAndAnAddressTheirSavedOne(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+
+	view := CheckoutView{
+		Cart:     CartView{Lines: []CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
+		Shipping: []ShippingChoice{{VersionID: "ship-1", Code: "home", Name: "宅配到府"}},
+		Chosen:   "ship-1",
+		SavedAddresses: []SavedAddress{{
+			ID: "addr-1", Label: "家", Name: "王小明", Phone: "0912345678",
+			PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 68 號",
+		}},
+		ChosenAddress: "addr-1",
+		Profile:       CheckoutProfile{Email: "me@example.com", Name: "王小明", Phone: "0912345678"},
+		RecipientMe:   true,
+	}
+	html := renderToString(t, Checkout(CheckoutMeta(ctx), &view))
+
+	box := tagCarrying(t, html, "data-recipient-me")
+	for _, want := range []string{
+		`name="recipient_me"`, "checked", `data-name="王小明"`,
+		`data-phone="0912345678"`, `data-email="me@example.com"`,
+	} {
+		if !strings.Contains(box, want) {
+			t.Errorf("the recipient box lacks %s:\n%s", want, box)
+		}
+	}
+	if !strings.Contains(html, i18n.T(ctx, i18n.KeyRecipientIsMe)) {
+		t.Error("the recipient box has no label")
+	}
+	if !strings.Contains(html, `name="update" value="recipient"`) {
+		t.Error("no button applies the recipient box without scripting")
+	}
+
+	option := tagCarrying(t, html, `data-postal-code="110"`)
+	for _, want := range []string{`value="addr-1"`, "selected", `data-city="台北市"`,
+		`data-district="信義區"`, `data-street="松高路 68 號"`, `data-name="王小明"`} {
+		if !strings.Contains(option, want) {
+			t.Errorf("the saved-address option lacks %s:\n%s", want, option)
+		}
+	}
+	if !strings.Contains(html, `value="`+OtherAddress+`"`) || !strings.Contains(html, i18n.T(ctx, i18n.KeyOtherAddress)) {
+		t.Error("there is no 「其他地址」 option for typing a new address")
+	}
+	if !strings.Contains(html, i18n.T(ctx, i18n.KeyChooseSavedAddress)) {
+		t.Error("the address select has no label")
+	}
+}
+
+// TestAGuestIsOfferedNeitherControl: with no account there is no profile and no
+// address book, so the form is the one a guest has always had.
+func TestAGuestIsOfferedNeitherControl(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+
+	view := CheckoutView{
+		Cart:     CartView{Lines: []CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
+		Shipping: []ShippingChoice{{VersionID: "ship-1", Code: "home", Name: "宅配到府"}},
+		Chosen:   "ship-1",
+	}
+	html := renderToString(t, Checkout(CheckoutMeta(ctx), &view))
+	for _, gone := range []string{
+		"data-recipient-me", "recipient_me", "data-address-book",
+		i18n.T(ctx, i18n.KeyRecipientIsMe), i18n.T(ctx, i18n.KeyChooseSavedAddress),
+	} {
+		if strings.Contains(html, gone) {
+			t.Errorf("a guest's checkout carries %q", gone)
 		}
 	}
 }
