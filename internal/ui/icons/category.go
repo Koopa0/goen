@@ -1,4 +1,4 @@
-// Package icons renders the repository-owned SVG icon vocabulary.
+// Package icons holds goen's inline SVG icons.
 package icons
 
 const (
@@ -21,7 +21,7 @@ const (
 	categoryGift       = "gift"
 )
 
-// categoryKeys is the closed set Category renders, in picker order.
+// categoryKeys is in picker order.
 var categoryKeys = [...]string{
 	categoryPhone,
 	categoryLaptop,
@@ -42,15 +42,13 @@ var categoryKeys = [...]string{
 	categoryGift,
 }
 
-// CategoryKeys returns the keys Category can render, in picker order. Each
-// call returns independent storage.
+// CategoryKeys returns a fresh slice on every call.
 func CategoryKeys() []string {
 	out := make([]string, len(categoryKeys))
 	copy(out, categoryKeys[:])
 	return out
 }
 
-// KnownCategory reports whether key names a glyph Category can render.
 func KnownCategory(key string) bool {
 	for _, known := range categoryKeys {
 		if key == known {
