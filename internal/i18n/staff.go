@@ -43,8 +43,13 @@ var (
 	})
 
 	KeyStaffInvalid = key("staff.invalid", Message{
-		ZhHant: "資料不完整,或這個帳號沒有可以解除的兩階段驗證。",
-		En:     "Something is missing, or that account has no two-factor credential to remove.",
+		ZhHant: "這個帳號沒有可以解除的兩階段驗證。",
+		En:     "That account has no two-factor credential to remove.",
+	})
+
+	KeyStaffNeeds = key("staff.needs", Message{
+		ZhHant: "資料不完整,或這不是可用的員工帳號。請填寫有效的 Email 與姓名。",
+		En:     "Something is missing, or that is not a usable staff account. Enter a valid email and a name.",
 	})
 
 	KeyAdminStaffLead = key("admin.staff.lead", Message{

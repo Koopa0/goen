@@ -535,7 +535,6 @@ type ProductCopurchase struct {
 	ProductID      uuid.UUID
 	OtherProductID uuid.UUID
 	Orders         int32
-	ComputedAt     time.Time
 }
 
 type ProductImage struct {

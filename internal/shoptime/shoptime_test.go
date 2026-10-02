@@ -94,3 +94,19 @@ func mustLoad(t *testing.T, name string) *time.Location {
 	}
 	return loc
 }
+
+// TestAProviderClockIsReadBackAsSent holds that ECPay's "2026-09-30 17:30:00",
+// stored as 17:30Z, renders as 17:30 in whatever zone the process carries; the
+// shop's clock would give 2026-10-01 01:30.
+func TestAProviderClockIsReadBackAsSent(t *testing.T) {
+	stored := time.Date(2026, 9, 30, 17, 30, 0, 0, time.UTC)
+	for name, in := range map[string]time.Time{
+		"as stored":           stored,
+		"read in Taipei":      stored.In(mustLoad(t, "Asia/Taipei")),
+		"read somewhere else": stored.In(mustLoad(t, "America/New_York")),
+	} {
+		if got, want := shoptime.ProviderMinute(in), "2026-09-30 17:30"; got != want {
+			t.Errorf("%s: ProviderMinute() = %q, want %q", name, got, want)
+		}
+	}
+}

@@ -42,6 +42,10 @@ var (
 		En:     "Orders, stock and the catalogue are managed here",
 	})
 
+	// The caption under a department's photograph in its header panel; %s is the
+	// department's name.
+	KeyBrowseDepartment = key("nav.department.browse", Message{ZhHant: "逛逛%s", En: "Shop %s"})
+
 	KeyFooterHelp = key("footer.help", Message{ZhHant: "顧客服務", En: "Customer service"})
 
 	KeyFooterPolicies = key("footer.policies", Message{ZhHant: "政策", En: "Policies"})

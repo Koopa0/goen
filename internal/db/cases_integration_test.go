@@ -360,6 +360,12 @@ var checkCases = []checkCase{
 		                 '3333aaaa-3333-4333-8333-333333333333', 1);`,
 	},
 	{
+		constraint: "copurchase_refreshes_singleton_check",
+		// A second row would give health two answers to "when was it last rebuilt".
+		reject: `INSERT INTO copurchase_refreshes (singleton, refreshed_at) VALUES (false, now());`,
+		accept: `INSERT INTO copurchase_refreshes (singleton, refreshed_at) VALUES (true, now());`,
+	},
+	{
 		constraint: "products_warranty_months_sane",
 		// NULL stays legal: it is how the shop says it has stated no term, and registration is refused.
 		reject: `INSERT INTO products (brand_id, category_id, slug, name, warranty_months) SELECT b.id, c.id, 'warranty-check-a', '保固測試', 0 FROM brands b, categories c LIMIT 1;`,

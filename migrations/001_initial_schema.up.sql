@@ -24,8 +24,6 @@
 SET lock_timeout = '3s';
 SET statement_timeout = '120s';
 
-CREATE EXTENSION IF NOT EXISTS pg_trgm;
-
 -- ============================================================================
 -- Roles
 --
@@ -258,11 +256,6 @@ CREATE INDEX products_category_published_idx
 CREATE INDEX products_category_brand_published_idx
     ON products (category_id, brand_id, published_at DESC, id DESC)
     WHERE status = 'active';
-
--- Measured at 10,000 products: a Latin query is a bitmap index scan at 1.5 ms,
--- while a two-character Chinese query is far too unselective for the planner and
--- scans at 8.8 ms.
-CREATE INDEX products_name_trgm_idx ON products USING gin (name gin_trgm_ops);
 
 CREATE TRIGGER products_set_updated_at
     BEFORE UPDATE ON products
@@ -1852,8 +1845,6 @@ LANGUAGE plpgsql AS $$
 DECLARE
     legal boolean;
     lines integer;
-    subtotal bigint;
-    order_total bigint;
     owed           bigint;
 BEGIN
     IF NEW.fulfillment_status = OLD.fulfillment_status THEN
@@ -1920,8 +1911,6 @@ BEGIN
     -- order to owe nothing — free or fully store-credited — or to carry a
     -- succeeded payment. A new funding source is added HERE.
     IF OLD.fulfillment_status = 'pending' AND NEW.fulfillment_status = 'picking' THEN
-        SELECT count(*), coalesce(sum(unit_price_cents * quantity), 0)
-        INTO lines, subtotal FROM order_lines WHERE order_id = NEW.id;
         -- order_amount_owed is the ONE definition: total less store credit, net
         -- of reversals.
         owed := order_amount_owed(NEW.id);
@@ -2655,8 +2644,6 @@ CREATE TABLE return_requests (
     CONSTRAINT return_requests_decided_has_time
         CHECK ((status = 'requested') = (decided_at IS NULL)),
     CONSTRAINT return_requests_refund_snapshot_shape CHECK (
-        status NOT IN ('requested', 'approved', 'rejected', 'completed')
-        OR
         (status IN ('approved', 'completed')
          AND goods_refund_cents IS NOT NULL
          AND card_refund_cents IS NOT NULL
@@ -2722,7 +2709,7 @@ CREATE INDEX order_events_return_request_fk_idx
 -- foreign key makes a cross-order return impossible.
 CREATE TABLE return_request_lines (
     order_id          uuid NOT NULL,
-    return_request_id uuid NOT NULL REFERENCES return_requests (id) ON DELETE CASCADE,
+    return_request_id uuid NOT NULL,
     order_line_id     uuid NOT NULL,
     quantity          integer NOT NULL,
     -- What actually came back, and how much of it went on the shelf again. NULL
@@ -3744,7 +3731,6 @@ DECLARE
     o orders%ROWTYPE;
     lines integer;
     subtotal bigint;
-    order_total bigint;
     owed           bigint;
 BEGIN
     IF NEW.status <> 'succeeded' THEN
@@ -8354,7 +8340,6 @@ CREATE TABLE product_copurchases (
     other_product_id uuid NOT NULL REFERENCES products (id) ON DELETE CASCADE,
     -- How many committed orders contained both.
     orders           integer NOT NULL,
-    computed_at      timestamptz NOT NULL DEFAULT now(),
 
     PRIMARY KEY (product_id, other_product_id),
     CONSTRAINT product_copurchases_orders_positive CHECK (orders > 0),

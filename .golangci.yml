@@ -8,7 +8,7 @@ run:
   build-tags:
     - integration
 
-# Imported from go-spec (~/go-spec/.golangci.yml) and adapted for goen. The
+# Imported from go-spec's .golangci.yml and adapted for goen. The
 # differences from upstream are marked GOEN; everything else is upstream's
 # judgement, including the list of linters it evaluated and rejected.
 #
@@ -235,7 +235,7 @@ linters:
               desc: manual wiring in cmd/goen — no DI frameworks
             - pkg: go.uber.org/fx
               desc: manual wiring in cmd/goen — no DI frameworks
-            # GOEN: the do-not-introduce list from CLAUDE.md, mechanised.
+            # GOEN: the list of dependencies goen does not introduce, mechanised.
             # htmx is the one admitted client dependency and it is vendored,
             # not imported; anything reaching for a second is a human decision.
             - pkg: github.com/a-h/templ/generator

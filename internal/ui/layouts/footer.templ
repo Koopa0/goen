@@ -6,9 +6,10 @@ import (
 	"github.com/koopa0/goen/internal/ui/icons"
 )
 
-// Footer renders the site footer: the shop and how to reach it, two link
-// columns, the newsletter, and a bottom bar with the company line and the
-// language control.
+// Footer renders the site footer: the shop and how to reach it, three link
+// columns (the departments, then help, then policies), the newsletter, and a
+// bottom bar with the company line and the language control, which the page
+// shows nowhere else.
 templ Footer() {
 	<footer class="goen-footer">
 		<div class="goen-footer__grid">
@@ -17,13 +18,24 @@ templ Footer() {
 					@icons.Mark("goen-footer__mark")
 					<span class="goen-footer__wordmark">goen</span>
 				</div>
-				<p class="goen-footer__tagline">{ i18n.T(ctx, i18n.KeyFooterTagline) }</p>
 				<p class="goen-footer__contact">
 					{ i18n.T(ctx, i18n.KeySupportHours) }
 					<br/>
 					<a class="goen-footer__link" href={ templ.URL("mailto:" + ContactEmail) }>{ ContactEmail }</a>
 				</p>
 			</div>
+			if items := TopNavFrom(ctx); len(items) > 0 {
+				<nav class="goen-footer__links" aria-label={ i18n.T(ctx, i18n.KeyCategoryNav) }>
+					<span class="goen-footer__heading">{ i18n.T(ctx, i18n.KeyCategoryNav) }</span>
+					<ul class="goen-footer__list" role="list">
+						for _, n := range items {
+							<li>
+								<a class="goen-footer__link" href={ templ.URL(n.Href) }>{ n.Name }</a>
+							</li>
+						}
+					</ul>
+				</nav>
+			}
 			@footerColumn(i18n.T(ctx, i18n.KeyFooterHelp), footerShopping[:])
 			@footerColumn(i18n.T(ctx, i18n.KeyFooterPolicies), footerAbout[:])
 			<div class="goen-footer__news">
@@ -98,7 +110,7 @@ templ NewsletterForm(s NewsletterState) {
 					"maxlength":    "254",
 				},
 			})
-			@components.Button(components.ButtonProps{Variant: components.VariantPrimary}, "submit") {
+			@components.Button(components.ButtonProps{Variant: components.VariantOutline, Attrs: templ.Attributes{"id": "newsletter-submit"}}, "submit") {
 				{ i18n.T(ctx, i18n.KeyNewsletterSubmit) }
 			}
 			if s.Error != "" {

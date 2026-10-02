@@ -216,12 +216,25 @@ func (s *Store) Audit(ctx context.Context, after ...string) (pages.AuditView, er
 		e := &rows[i]
 		view.Rows = append(view.Rows, pages.AuditEntry{
 			Action: e.Action, Entity: e.EntityTable, Actor: e.Actor,
+			Subject: e.Subject, Href: auditHref(e.Subject, e.ProductSlug),
 			At:        shoptime.Second(e.OccurredAt),
 			RequestID: e.RequestID.String,
 			Detail:    summarise(e.Before, e.After),
 		})
 	}
 	return view, nil
+}
+
+// auditHref is the record's own page, where one exists: orders and what hangs
+// off them open the order, products and variants open the product.
+func auditHref(subject, productSlug string) string {
+	switch {
+	case subject != "" && IsOrderNumber(subject):
+		return "/admin/orders/" + subject
+	case productSlug != "":
+		return "/admin/products/" + productSlug
+	}
+	return ""
 }
 
 // summarise renders a before/after pair as one line a person can scan.

@@ -13,8 +13,8 @@ import (
 type ProductTile struct {
 	// Eager and Priority are set by FirstRowEager for the tiles a listing shows
 	// without scrolling, whose photograph is the page's largest paint.
-	Eager    bool
-	Priority bool
+	Eager      bool
+	Priority   bool
 	Slug       string
 	Name       string
 	Summary    string

@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -294,12 +295,28 @@ func TestInStockMeansSellable(t *testing.T) {
 }
 
 func TestSearchEscapesWildcards(t *testing.T) {
+	// The catalogue states "100%" in three products' text, so a bare % legitimately
+	// finds exactly those; an unescaped one would find every product.
 	code, body := get(t, "/search?q=%25")
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
 	}
-	if strings.Contains(body, "Pixelight 9 Pro 5G") {
-		t.Error("searching for a bare % returned products; the wildcard reached ILIKE unescaped")
+	links := regexp.MustCompile(`class="goen-tile" href="/p/([^"]+)"`).FindAllStringSubmatch(body, -1)
+	got := make([]string, 0, len(links))
+	for _, m := range links {
+		got = append(got, m[1])
+	}
+	slices.Sort(got)
+	want := []string{"orili-cotton-tee", "orili-oxford-shirt", "restwood-linen-tea-towel"}
+	if !slices.Equal(got, want) {
+		t.Errorf("searching for a bare %% found %v, want only the products that contain a percent sign %v: the wildcard reached ILIKE unescaped", got, want)
+	}
+
+	// No product text holds an underscore, so an unescaped _ would still match
+	// every product and an escaped one matches none.
+	code, body = get(t, "/search?q=_")
+	if code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", code)
 	}
 	if !strings.Contains(body, "找不到") {
 		t.Error("a search matching nothing did not render the empty state")
@@ -337,7 +354,7 @@ func TestSearchPageKeepsTheHeaderInputInSyncWithTheHeading(t *testing.T) {
 	}
 }
 
-// The trigram index serves only one of the two scripts.
+// Both scripts match by substring.
 func TestSearchFindsLatinAndChinese(t *testing.T) {
 	for _, tc := range []struct{ q, want string }{
 		{"pixel", "Pixelight"},

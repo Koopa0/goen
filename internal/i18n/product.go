@@ -12,6 +12,8 @@ var (
 		En:     "%s-month warranty",
 	})
 
+	KeySectionDelivery = key("pdp.delivery", Message{ZhHant: "配送與退貨", En: "Delivery and returns"})
+
 	KeySectionRelated = key("pdp.related", Message{ZhHant: "同類商品", En: "Similar products"})
 
 	KeySectionAlsoBought = key("pdp.alsobought", Message{

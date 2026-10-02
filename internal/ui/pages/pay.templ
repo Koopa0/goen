@@ -49,18 +49,18 @@ templ Pay(p layouts.Page, v PayView) {
 				}
 			</ul>
 			@components.Card(components.CardProps{Class: "goen-pay__summary"}) {
-				<div class="goen-summary">
+				<dl class="goen-summary">
 					if v.HasAdjustment() {
 						<div class="goen-summary__row">
-							<span>{ i18n.T(ctx, i18n.KeyPayApplied) }</span>
-							<span class="goen-summary__value">{ v.Adjustment() }</span>
+							<dt>{ i18n.T(ctx, i18n.KeyPayApplied) }</dt>
+							<dd class="goen-summary__value">{ v.Adjustment() }</dd>
 						</div>
 					}
 					<div class="goen-summary__row goen-summary__row--total">
-						<span>{ i18n.T(ctx, i18n.KeyTotal) }</span>
-						<span class="goen-summary__value">{ v.Total() }</span>
+						<dt>{ i18n.T(ctx, i18n.KeyTotal) }</dt>
+						<dd class="goen-summary__value">{ v.Total() }</dd>
 					</div>
-				</div>
+				</dl>
 				if v.Closed() {
 					@components.Notice(components.NoticeProps{
 						Tone: components.ToneAccent,
