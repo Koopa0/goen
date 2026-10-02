@@ -12,15 +12,12 @@ import (
 	"github.com/koopa0/goen/assets"
 )
 
-// Resize renders data at the given width, preserving aspect ratio and never
-// upscaling. It bounds nothing but the width it accepts; the renderer in
-// render.go is what stops it running once per request.
+// Resize bounds nothing but the width it accepts; the renderer in render.go is
+// what stops it running once per request.
 func Resize(data []byte, contentType string, width int) ([]byte, error) {
 	return resizeWith(data, contentType, width, draw.CatmullRom.NewScaler)
 }
 
-// resizeWith is Resize over the scalers newScaler makes, which is
-// draw.CatmullRom.NewScaler in every wiring goen has.
 func resizeWith(
 	data []byte, contentType string, width int,
 	newScaler func(dw, dh, sw, sh int) draw.Scaler,

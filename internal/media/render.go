@@ -12,7 +12,6 @@ import (
 	"golang.org/x/sync/singleflight"
 )
 
-// RenditionCacheBytes is how much memory rendered images may occupy.
 const RenditionCacheBytes = 64 << 20
 
 // RenderTimeout bounds one render. It reaches the stored-bytes read rather than
@@ -31,13 +30,10 @@ const maxRenderSlots = 4
 // over the bound wait rather than fail.
 var renderSlots = renderSlotsFor(runtime.GOMAXPROCS(0))
 
-// renderSlotsFor is one render per core, up to maxRenderSlots.
 func renderSlotsFor(procs int) int {
 	return max(1, min(procs, maxRenderSlots))
 }
 
-// source reads a stored image's bytes. It is [Store.Bytes] in every wiring goen
-// has.
 type source func(ctx context.Context, digest string) (contentType string, data []byte, err error)
 
 // renderer produces renditions, at most renderSlots at a time, at most once per
@@ -56,14 +52,12 @@ type renderer struct {
 	limit int
 }
 
-// rendition is one rendered image, and its place in the eviction order.
 type rendition struct {
 	key         string
 	contentType string
 	data        []byte
 }
 
-// newRenderer returns a renderer over read.
 func newRenderer(read source, slots, limit int) *renderer {
 	if read == nil || slots < 1 || limit < 1 {
 		panic("media: newRenderer requires a source, a slot count and a byte limit")
@@ -77,7 +71,6 @@ func newRenderer(read source, slots, limit int) *renderer {
 	}
 }
 
-// rendition answers with the bytes for digest at width.
 func (r *renderer) rendition(ctx context.Context, digest string, width int) (contentType string, data []byte, err error) {
 	key := digest + "/" + strconv.Itoa(width)
 	if hitType, hitData, ok := r.cached(key); ok {
@@ -107,7 +100,6 @@ func (r *renderer) rendition(ctx context.Context, digest string, width int) (con
 	}
 }
 
-// render does the work, once, for whoever asked first.
 func (r *renderer) render(ctx context.Context, key, digest string, width int) (*rendition, error) {
 	// Detached from the caller: this render answers everybody who joined the
 	// flight, so the first caller leaving must not fail the rest.
@@ -133,7 +125,6 @@ func (r *renderer) render(ctx context.Context, key, digest string, width int) (*
 	return &rendition{key: key, contentType: contentType, data: rendered}, nil
 }
 
-// cached reads an entry and marks it used.
 func (r *renderer) cached(key string) (contentType string, data []byte, ok bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()

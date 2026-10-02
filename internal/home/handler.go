@@ -10,15 +10,12 @@ import (
 	"github.com/koopa0/goen/internal/web"
 )
 
-// Handler serves the storefront home page.
 type Handler struct {
-	store *Store
-	log   *slog.Logger
-	// secure selects the dismissal cookie's name.
+	store  *Store
+	log    *slog.Logger
 	secure bool
 }
 
-// NewHandler returns a Handler reading through store.
 func NewHandler(store *Store, log *slog.Logger, secure bool) *Handler {
 	if store == nil || log == nil {
 		panic("home: NewHandler requires a store and a logger")
@@ -26,7 +23,6 @@ func NewHandler(store *Store, log *slog.Logger, secure bool) *Handler {
 	return &Handler{store: store, log: log, secure: secure}
 }
 
-// Index renders the home page.
 func (h *Handler) Index(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Load(r.Context())
 	if err != nil {

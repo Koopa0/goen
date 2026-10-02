@@ -17,13 +17,10 @@ import (
 	"github.com/koopa0/goen/internal/web"
 )
 
-// OrderAccess reports whether the browser making this request holds a token for
-// the order it is asking about.
 type OrderAccess interface {
 	PlacedHere(ctx context.Context, r *http.Request, number string, secure bool) bool
 }
 
-// Handler serves the customer's return form.
 type Handler struct {
 	access OrderAccess
 	store  *Store
@@ -31,7 +28,6 @@ type Handler struct {
 	secure bool
 }
 
-// NewHandler wires the return routes.
 func NewHandler(s *Store, access OrderAccess, log *slog.Logger, secureCookies bool) *Handler {
 	if s == nil || access == nil || log == nil {
 		panic("returns: NewHandler requires a store, an access check and a logger")
@@ -39,7 +35,6 @@ func NewHandler(s *Store, access OrderAccess, log *slog.Logger, secureCookies bo
 	return &Handler{store: s, access: access, log: log, secure: secureCookies}
 }
 
-// Page serves GET /orders/{number}/return.
 func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 	o, ok := h.ownOrder(w, r)
 	if !ok {
@@ -49,7 +44,6 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 		pages.ReturnsMeta(r.Context(), o.Number), viewOf(r.Context(), o, nil, "")))
 }
 
-// Submit serves POST /orders/{number}/return.
 func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
@@ -120,7 +114,6 @@ func (h *Handler) respondToOpen(
 	}
 }
 
-// reject re-renders the form at 422 with what the customer typed still in it.
 func (h *Handler) reject(w http.ResponseWriter, r *http.Request, o *Order, req *Request, msg string) {
 	fresh, err := h.store.Order(r.Context(), o.Number)
 	if err != nil {
@@ -135,9 +128,8 @@ func (h *Handler) reject(w http.ResponseWriter, r *http.Request, o *Order, req *
 		pages.ReturnsMeta(r.Context(), fresh.Number), viewOf(r.Context(), fresh, req, msg)))
 }
 
-// ownOrder loads an order the requester may act on, or writes the refusal. An
-// order number is a per-day counter, so knowing one is not authorisation: a
-// stranger gets the 404 an absent order gets.
+// ownOrder: an order number is a per-day counter, so knowing one is not
+// authorisation; a stranger gets the 404 an absent order gets.
 func (h *Handler) ownOrder(w http.ResponseWriter, r *http.Request) (*Order, bool) {
 	number := r.PathValue("number")
 	if !h.access.PlacedHere(r.Context(), r, number, h.secure) && !h.ownedBySignedInUser(r, number) {
@@ -180,7 +172,6 @@ func (h *Handler) notFound(w http.ResponseWriter, r *http.Request) {
 		i18n.T(r.Context(), i18n.KeyOrderNotYours)))
 }
 
-// viewOf assembles the page; req is nil on a first render.
 func viewOf(ctx context.Context, o *Order, req *Request, errMsg string) pages.ReturnsView {
 	v := pages.ReturnsView{
 		Number: o.Number, HasOpen: o.HasOpen, Error: errMsg,

@@ -18,29 +18,23 @@ import (
 	"github.com/koopa0/goen/internal/shoptime"
 )
 
-// Field bounds for an issue, counted in RUNES.
 const (
 	MaxIssueSubjectRunes = 120
 	MaxIssueBodyRunes    = 20000
 )
 
-// ErrAlreadySent is an issue somebody is trying to send twice.
 var ErrAlreadySent = errors.New("newsletter: that issue has already been sent")
 
-// Action names live here rather than beside internal/admin's other actions
-// because internal/admin imports this package.
+// Action names live here because internal/admin imports this package.
 const (
 	ActionSend    = "newsletter.send"
 	ActionCompose = "newsletter.compose"
 )
 
-// ErrNoActor is a compose or send with nobody to attribute it to.
 var ErrNoActor = errors.New("newsletter: a staff write needs a staff member to attribute it to")
 
-// ErrNoSuchIssue is an issue id that matches nothing.
 var ErrNoSuchIssue = errors.New("newsletter: no such issue")
 
-// Issue is one newsletter as the back office sees it.
 type Issue struct {
 	ID         string
 	Subject    string
@@ -51,7 +45,6 @@ type Issue struct {
 	SentBy     string
 }
 
-// ValidateIssue returns the field errors in an issue, keyed by form field.
 func ValidateIssue(subject, body string) map[string]i18n.Key {
 	errs := map[string]i18n.Key{}
 	switch n := utf8.RuneCountInString(strings.TrimSpace(subject)); {
@@ -69,10 +62,9 @@ func ValidateIssue(subject, body string) map[string]i18n.Key {
 	return errs
 }
 
-// Compose writes a draft and the staff audit row that names who wrote it.
-// One transaction: a draft with no trail, or a trail with no draft, cannot
-// commit. The subject travels and the body does not — audit_events is
-// append-only and erase_user does not reach it.
+// Compose writes the draft and the staff audit row in one transaction, so
+// neither can commit without the other. The subject travels and the body does
+// not: audit_events is append-only and erase_user does not reach it.
 func (s *Store) Compose(ctx context.Context, subject, body string, actor uuid.NullUUID) (string, error) {
 	if len(ValidateIssue(subject, body)) > 0 {
 		return "", errors.New("composing an issue: refused by validation")
@@ -117,9 +109,8 @@ func (s *Store) Compose(ctx context.Context, subject, body string, actor uuid.Nu
 	return id.String(), nil
 }
 
-// Send enqueues one copy of an issue for everybody on the list, and stamps it.
-// ONE transaction, and the stamp's own `sent_at IS NULL` is the ONLY place "has
-// this been sent?" is asked.
+// Send is ONE transaction, and the stamp's own `sent_at IS NULL` is the ONLY
+// place "has this been sent?" is asked.
 func (s *Store) Send(ctx context.Context, issueID string, actor uuid.NullUUID) (int, error) {
 	id, err := uuid.Parse(issueID)
 	if err != nil {
@@ -159,7 +150,8 @@ func (s *Store) Send(ctx context.Context, issueID string, actor uuid.NullUUID) (
 			// to them goes on working.
 			UnsubscribeToken: to.UnsubscribeToken,
 		})
-		// Keyed on (issue, subscriber): a retried send cannot mail one person twice.
+		// Keyed on (issue, subscriber): a retried send cannot mail one person
+		// twice.
 		keys = append(keys, issueID+":"+dedupeOf(to.UnsubscribeToken))
 	}
 	// One statement: a statement per subscriber spends the request's budget on
@@ -175,13 +167,13 @@ func (s *Store) Send(ctx context.Context, issueID string, actor uuid.NullUUID) (
 		return 0, fmt.Errorf("marking the issue sent: %w", err)
 	}
 	if n == 0 {
-		// Somebody else sent it between the read above and this statement. The
+		// Somebody else sent it between the read above and this statement; the
 		// enqueues roll back with the transaction.
 		return 0, ErrAlreadySent
 	}
 
-	// The subject travels and the body does not: audit_events is append-only and
-	// erase_user does not reach it.
+	// The subject travels and the body does not: audit_events is append-only
+	// and erase_user does not reach it.
 	after, err := json.Marshal(map[string]any{
 		"issue_id": issueID, "subject": issue.Subject, "recipients": len(subscribers),
 	})
@@ -200,7 +192,6 @@ func (s *Store) Send(ctx context.Context, issueID string, actor uuid.NullUUID) (
 	return len(subscribers), nil
 }
 
-// Issues is the back office's list, newest first.
 func (s *Store) Issues(ctx context.Context, limit int32) ([]Issue, error) {
 	rows, err := s.q.NewsletterIssues(ctx, limit)
 	if err != nil {
@@ -221,14 +212,12 @@ func (s *Store) Issues(ctx context.Context, limit int32) ([]Issue, error) {
 	return out, nil
 }
 
-// Counts is how many addresses are in each state.
 type Counts struct {
 	Active       int64
 	Unsubscribed int64
 	Awaiting     int64
 }
 
-// Counts reads the three figures the back office asks for.
 func (s *Store) Counts(ctx context.Context) (Counts, error) {
 	row, err := s.q.NewsletterCounts(ctx)
 	if err != nil {

@@ -15,25 +15,22 @@ import (
 	"github.com/koopa0/goen/internal/pickup"
 )
 
-// DraftTTL is how long what a shopper typed is kept for the way back from the
-// carrier's store map. A trip to the map takes minutes; the rest of the hour is
-// for a slow phone, and nothing typed is kept longer than that.
+// DraftTTL covers a trip to the carrier's map, which takes minutes; the rest of
+// the hour is for a slow phone.
 const DraftTTL = time.Hour
 
-// maxDraftField cuts each saved field. It does not by itself keep the draft under
-// the carts_checkout_draft_bounded CHECK (sixteen fields of this length can pass
-// 8 KB); maxDraftBytes does, on the encoded draft.
+// maxDraftField does not by itself keep the draft under the
+// carts_checkout_draft_bounded CHECK (sixteen fields of this length can pass 8
+// KB); maxDraftBytes does, on the encoded draft.
 const maxDraftField = 500
 
-// maxDraftBytes is the largest encoded draft that is saved, with room under the
-// CHECK's 8192 bytes for the spaces jsonb's text form adds. A larger one is a
-// crafted form: it is not saved, and the request goes on without it.
+// maxDraftBytes leaves room under the CHECK's 8192 bytes for the spaces jsonb's
+// text form adds. A larger draft is a crafted form: it is not saved and the
+// request goes on without it.
 const maxDraftBytes = 7000
 
-// checkoutDraft is what the checkout form had in it when the shopper left it
-// for the carrier's map, and nothing else. It is personal data, so it holds the
-// fields the form asks for and no more: no store (the map chooses that), no
-// payment, no quote and no idempotency key.
+// checkoutDraft is personal data, so it holds only what the form asks for: no
+// store (the map chooses that), no payment, no quote and no idempotency key.
 type checkoutDraft struct {
 	Email         string       `json:"email,omitempty"`
 	Name          string       `json:"name,omitempty"`
@@ -51,12 +48,11 @@ type checkoutDraft struct {
 	DonationCode  string       `json:"invoice_donation_code,omitempty"`
 	CompanyName   string       `json:"invoice_company_name,omitempty"`
 	TaxID         string       `json:"invoice_tax_id,omitempty"`
-	// Coupon is saved only when it was accepted, so restoring it can never be
-	// used to try codes.
+	// Coupon is saved only when accepted, so restoring it cannot be used to try
+	// codes.
 	Coupon string `json:"coupon,omitempty"`
 }
 
-// clipped cuts every field to maxDraftField runes.
 func (d *checkoutDraft) clipped() {
 	d.Chain = pickup.Chain(clip(string(d.Chain)))
 	for _, p := range []*string{
@@ -75,7 +71,6 @@ func clip(s string) string {
 	return s
 }
 
-// saveCheckoutDraft keeps what was typed on the cart, replacing any earlier draft.
 func (s *Store) saveCheckoutDraft(ctx context.Context, cartID uuid.UUID, d *checkoutDraft) error {
 	d.clipped()
 	raw, err := json.Marshal(d)
@@ -83,8 +78,8 @@ func (s *Store) saveCheckoutDraft(ctx context.Context, cartID uuid.UUID, d *chec
 		return fmt.Errorf("encode checkout draft: %w", err)
 	}
 	if len(raw) > maxDraftBytes {
-		// Too large to be a form a person filled in. An older draft would restore
-		// values the shopper has since changed, so none is kept.
+		// Too large to be a form a person filled in. An older draft would
+		// restore values the shopper has since changed, so none is kept.
 		if err := s.q.ClearCheckoutDraft(ctx, cartID); err != nil {
 			return fmt.Errorf("clear checkout draft: %w", err)
 		}
@@ -96,8 +91,6 @@ func (s *Store) saveCheckoutDraft(ctx context.Context, cartID uuid.UUID, d *chec
 	return nil
 }
 
-// checkoutDraft is the draft saved on the cart, if one is still inside its
-// window.
 func (s *Store) checkoutDraft(ctx context.Context, cartID uuid.UUID) (checkoutDraft, bool, error) {
 	raw, err := s.q.ReadCheckoutDraft(ctx, db.ReadCheckoutDraftParams{
 		CartID: cartID,
@@ -112,7 +105,7 @@ func (s *Store) checkoutDraft(ctx context.Context, cartID uuid.UUID) (checkoutDr
 	var d checkoutDraft
 	if err := json.Unmarshal(raw, &d); err != nil {
 		// Written by this code only; one that does not read back is as good as
-		// none, and the shopper types again.
+		// none.
 		return checkoutDraft{}, false, nil //nolint:nilerr // an unreadable draft is no draft
 	}
 	return d, true, nil

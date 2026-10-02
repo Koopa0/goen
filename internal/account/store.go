@@ -27,13 +27,11 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-// Store reads and writes accounts, sessions and the customer's own pages.
 type Store struct {
 	pool *pgxpool.Pool
 	q    *db.Queries
 }
 
-// NewStore returns a Store over pool.
 func NewStore(pool *pgxpool.Pool) *Store {
 	if pool == nil {
 		panic("account: NewStore requires a pool")
@@ -41,13 +39,11 @@ func NewStore(pool *pgxpool.Pool) *Store {
 	return &Store{pool: pool, q: db.New(pool)}
 }
 
-// Register records a registration and queues its follow-up, and does the same
-// work whether or not the address already has an account: the password is
-// hashed either way, and one statement both creates the account when the
-// address is free and names the account when it is not. The caller must answer
-// both the same, so a registration cannot be asked whether an address is
-// taken. Nobody is signed in: the account is usable once the link mailed to
-// the address has been followed with the password chosen here, by
+// Register does the same work whether or not the address already has an
+// account: the password is hashed either way, and one statement creates the
+// account when the address is free and names it when not. The caller must
+// answer both the same. Nobody is signed in: the account is usable once the
+// mailed link has been followed with the password chosen here, by
 // [Store.CompleteRegistration].
 func (s *Store) Register(ctx context.Context, c *Credentials, next string) error {
 	hash, err := HashPassword(c.Password)
@@ -81,8 +77,6 @@ func (s *Store) Register(ctx context.Context, c *Credentials, next string) error
 	return nil
 }
 
-// ResendRegistration does the same work whether or not addr has an unproved
-// account; only such an account's mailbox is sent a link.
 func (s *Store) ResendRegistration(ctx context.Context, addr, next string) error {
 	if err := s.q.EnqueueRegistrationResend(ctx, db.EnqueueRegistrationResendParams{
 		Topic:     outbox.TopicRegistration.Name(),
@@ -96,11 +90,9 @@ func (s *Store) ResendRegistration(ctx context.Context, addr, next string) error
 	return nil
 }
 
-// FollowUpRegistration is the outbox's half of a registration. A new account is
-// sent the link that completes it; an address that already had one is told so,
-// through tell, at the address that account holds now. The account is read
-// here rather than carried in the message, so one erased in between, or
-// completed some other way, is nothing to do.
+// FollowUpRegistration reads the account here rather than carrying it in the
+// message, so one erased in between, or completed some other way, is nothing to
+// do.
 func (s *Store) FollowUpRegistration(
 	ctx context.Context,
 	r *outbox.AccountRegistration,
@@ -132,12 +124,11 @@ func (s *Store) FollowUpRegistration(
 	})
 }
 
-// Authenticate checks an email and password.
 func (s *Store) Authenticate(ctx context.Context, email, password string) (User, error) {
-	// Refuse this before reading the account, or the outcomes are distinguishable:
-	// burnHashTime returns immediately at this length while VerifyPassword does
-	// not. Every password_hash writer in account goes through HashPassword, which
-	// refuses to produce a hash for an input over this same bound.
+	// Refuse this before reading the account, or the outcomes are
+	// distinguishable: burnHashTime returns immediately at this length while
+	// VerifyPassword does not. Every password_hash writer in account goes
+	// through HashPassword, which refuses an input over this same bound.
 	if len(password) > MaxPasswordBytes {
 		return User{}, ErrBadCredentials
 	}
@@ -166,9 +157,8 @@ func (s *Store) Authenticate(ctx context.Context, email, password string) (User,
 	return User{ID: row.ID.String(), Email: row.Email, Name: row.FullName.String, Role: Role(row.Role)}, nil
 }
 
-// passwordMatches is the password check every sign-in makes. An account with no
-// password costs the hash a wrong password does, so the two cannot be told
-// apart by how long the answer takes.
+// passwordMatches costs an account with no password the hash a wrong password
+// does, so the two cannot be told apart by how long the answer takes.
 func passwordMatches(hash pgtype.Text, password string) bool {
 	if !hash.Valid {
 		burnHashTime(password)
@@ -177,12 +167,10 @@ func passwordMatches(hash pgtype.Text, password string) bool {
 	return VerifyPassword(hash.String, password)
 }
 
-// burnHashTime makes a wrong email cost the time a wrong password does.
 func burnHashTime(password string) {
 	_, _ = HashPassword(password) //nolint:errcheck // discarding is the point
 }
 
-// StartSession issues a session and returns its token.
 func (s *Store) StartSession(ctx context.Context, userID, userAgent, ip string) (string, error) {
 	id, err := uuid.Parse(userID)
 	if err != nil {
@@ -212,7 +200,6 @@ func (s *Store) StartSession(ctx context.Context, userID, userAgent, ip string) 
 	return token, nil
 }
 
-// SessionUser returns who a session token belongs to.
 func (s *Store) SessionUser(ctx context.Context, token string) (User, error) {
 	if token == "" {
 		return User{}, ErrNotFound
@@ -227,8 +214,6 @@ func (s *Store) SessionUser(ctx context.Context, token string) (User, error) {
 	return User{ID: row.ID.String(), Email: row.Email, Name: row.FullName.String, Role: Role(row.Role)}, nil
 }
 
-// SignedInRecently reports whether this session was created within window. A
-// session that is gone or expired is not recent.
 func (s *Store) SignedInRecently(ctx context.Context, token string, window time.Duration) (bool, error) {
 	if token == "" {
 		return false, nil
@@ -246,7 +231,6 @@ func (s *Store) SignedInRecently(ctx context.Context, token string, window time.
 	return recent, nil
 }
 
-// EndSession signs one browser out.
 func (s *Store) EndSession(ctx context.Context, token string) error {
 	if token == "" {
 		return nil
@@ -257,7 +241,6 @@ func (s *Store) EndSession(ctx context.Context, token string) error {
 	return nil
 }
 
-// AdoptCart attaches a guest cart to an account on sign-in.
 func (s *Store) AdoptCart(ctx context.Context, userID string, guestCartID uuid.UUID) error {
 	id, err := uuid.Parse(userID)
 	if err != nil {
@@ -271,10 +254,11 @@ func (s *Store) AdoptCart(ctx context.Context, userID string, guestCartID uuid.U
 	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
 	q := s.q.WithTx(tx)
 
-	// The account is the stable aggregate root for the one-cart decision. Take it
-	// before reading CartForUser: two first adopters otherwise both observe no row
-	// and meet only at the partial unique index. Every cart lock comes afterwards
-	// and LockCarts sorts UUIDs, which keeps the cross-aggregate order canonical.
+	// The account is the stable aggregate root for the one-cart decision. Take
+	// it before reading CartForUser: two first adopters otherwise both observe
+	// no row and meet only at the partial unique index. Every cart lock comes
+	// afterwards and LockCarts sorts UUIDs, which keeps the cross-aggregate
+	// order canonical.
 	lockedUser, err := q.LockUserForCartAdoption(ctx, id)
 	if err != nil {
 		return fmt.Errorf("lock account for cart adoption: %w", err)
@@ -298,8 +282,6 @@ func (s *Store) AdoptCart(ctx context.Context, userID string, guestCartID uuid.U
 	return nil
 }
 
-// adoptGuestCart performs the cart-row portion after the caller has serialized
-// the account's one-cart decision. Cart locks are always acquired in UUID order.
 func adoptGuestCart(ctx context.Context, q *db.Queries, userID, guestCartID uuid.UUID) error {
 	existing, err := q.CartForUser(ctx, uuid.NullUUID{UUID: userID, Valid: true})
 	switch {
@@ -329,7 +311,6 @@ func adoptGuestCart(ctx context.Context, q *db.Queries, userID, guestCartID uuid
 	case err != nil:
 		return fmt.Errorf("read account cart: %w", err)
 	case existing == guestCartID:
-		// Already this account's cart. Nothing to do.
 	default:
 		if lockErr := lockCarts(ctx, q, guestCartID, existing); lockErr != nil {
 			return lockErr
@@ -446,9 +427,9 @@ func clampCartQuantity(wanted, sellable int32) int32 {
 	return wanted
 }
 
-// requireUnownedCart revalidates the guest identity after its cart-row lock is
-// held. A browser token can race another account's sign-in; ownership that won
-// that race is not permission for this transaction to move or delete its cart.
+// requireUnownedCart revalidates after the cart-row lock: a browser token can
+// race another account's sign-in, and ownership that won is not permission to
+// move or delete the cart.
 func requireUnownedCart(ctx context.Context, q *db.Queries, cartID uuid.UUID) error {
 	owner, err := q.CartOwner(ctx, cartID)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -474,7 +455,6 @@ func lockCarts(ctx context.Context, q *db.Queries, ids ...uuid.UUID) error {
 	return nil
 }
 
-// ChangePassword sets a new password and ends every other session.
 func (s *Store) ChangePassword(ctx context.Context, userID, password string) error {
 	id, err := uuid.Parse(userID)
 	if err != nil {
@@ -509,7 +489,6 @@ func (s *Store) ChangePassword(ctx context.Context, userID, password string) err
 	return nil
 }
 
-// Overview reads the account landing page.
 func (s *Store) Overview(ctx context.Context, u User, after ...string) (pages.AccountView, error) {
 	id, err := uuid.Parse(u.ID)
 	if err != nil {
@@ -589,7 +568,6 @@ func (s *Store) Overview(ctx context.Context, u User, after ...string) (pages.Ac
 	return view, nil
 }
 
-// UpdateProfile changes the name and phone on an account.
 func (s *Store) UpdateProfile(ctx context.Context, userID, name, phone string) error {
 	id, err := uuid.Parse(userID)
 	if err != nil {
@@ -614,8 +592,8 @@ func text(s string) pgtype.Text {
 	return pgtype.Text{String: s, Valid: true}
 }
 
-// AddAddress saves a delivery address. Clearing the previous default happens in
-// the same transaction: addresses_one_default_per_user is a unique partial index.
+// AddAddress clears the previous default in the same transaction:
+// addresses_one_default_per_user is a unique partial index.
 func (s *Store) AddAddress(ctx context.Context, userID string, a *Address) error {
 	id, err := uuid.Parse(userID)
 	if err != nil {
@@ -656,13 +634,10 @@ func (s *Store) AddAddress(ctx context.Context, userID string, a *Address) error
 	return nil
 }
 
-// SessionSweepInterval is how often expired sessions are deleted.
 const SessionSweepInterval = 6 * time.Hour
 
-// ResetTokenGrace is how long a dead reset token is kept after it stops working.
 const ResetTokenGrace = 7 * 24 * time.Hour
 
-// SweepSessions deletes every expired session and every dead reset token, once.
 func (s *Store) SweepSessions(ctx context.Context) error {
 	if err := s.q.DeleteExpiredSessions(ctx); err != nil {
 		return fmt.Errorf("delete expired sessions: %w", err)
@@ -675,7 +650,6 @@ func (s *Store) SweepSessions(ctx context.Context) error {
 	return nil
 }
 
-// SweepSessionsForever runs SweepSessions on a ticker until ctx is cancelled.
 func (s *Store) SweepSessionsForever(ctx context.Context, log *slog.Logger) {
 	ticker := time.NewTicker(SessionSweepInterval)
 	defer ticker.Stop()
@@ -691,7 +665,6 @@ func (s *Store) SweepSessionsForever(ctx context.Context, log *slog.Logger) {
 	}
 }
 
-// MakeDefaultAddress moves the default to another of this account's addresses.
 func (s *Store) MakeDefaultAddress(ctx context.Context, userID, addressID string) error {
 	uid, err := uuid.Parse(userID)
 	if err != nil {
@@ -726,7 +699,6 @@ func (s *Store) MakeDefaultAddress(ctx context.Context, userID, addressID string
 	return nil
 }
 
-// DeleteAddress removes one of this account's addresses.
 func (s *Store) DeleteAddress(ctx context.Context, userID, addressID string) error {
 	uid, err := uuid.Parse(userID)
 	if err != nil {
@@ -753,9 +725,10 @@ func (s *Store) Erase(ctx context.Context, userID string) error {
 			switch pgErr.ConstraintName {
 			case "erase_user_open_return":
 				return ErrOpenReturn
-			// users_keep_one_admin is the trigger behind erase_user's own check,
-			// reached only if that check is ever bypassed; the refusal is the same.
-			// The database's answer stays in the chain for callers that name it.
+			// users_keep_one_admin is the trigger behind erase_user's own
+			// check, reached only if that check is bypassed; the refusal is the
+			// same. The database's answer stays in the chain for callers that
+			// name it.
 			case "erase_user_keeps_one_admin", "users_keep_one_admin":
 				return fmt.Errorf("%w: %w", ErrLastAdmin, err)
 			}
@@ -765,7 +738,6 @@ func (s *Store) Erase(ctx context.Context, userID string) error {
 	return nil
 }
 
-// Address is a delivery address as a form supplies it.
 type Address struct {
 	Label      string
 	Name       string
@@ -777,7 +749,6 @@ type Address struct {
 	Default    bool
 }
 
-// Validate checks an address before it is saved.
 func (a *Address) Validate() []FieldError {
 	var errs []FieldError
 	appendAddressFieldError(&errs, "name", a.Name, maxNameRunes,
@@ -815,9 +786,8 @@ func (a *Address) Validate() []FieldError {
 	return errs
 }
 
-// looksLikeDeliveryPhone is deliberately the same contract checkout applies —
-// common Taiwan and international punctuation, 8–15 actual digits, a bounded
-// label-safe representation — so a saved address cannot fail at checkout.
+// looksLikeDeliveryPhone is deliberately the contract checkout applies, so a
+// saved address cannot fail at checkout.
 func looksLikeDeliveryPhone(s string) bool {
 	if utf8.RuneCountInString(s) > maxPhoneRunes {
 		return false
@@ -863,8 +833,6 @@ func appendAddressFieldError(
 	}
 }
 
-// Trim normalises the whitespace a form carries and folds full-width digits in
-// the phone and postal code.
 func (a *Address) Trim() {
 	a.Label = strings.TrimSpace(a.Label)
 	a.Name = strings.TrimSpace(a.Name)
@@ -875,7 +843,6 @@ func (a *Address) Trim() {
 	a.Street = strings.TrimSpace(a.Street)
 }
 
-// Wishlist reads a customer's saved products.
 func (s *Store) Wishlist(ctx context.Context, userID string) ([]pages.WishlistItem, error) {
 	id, err := uuid.Parse(userID)
 	if err != nil {
@@ -918,7 +885,6 @@ func (s *Store) Wishlist(ctx context.Context, userID string) ([]pages.WishlistIt
 	return out, nil
 }
 
-// SaveToWishlist adds a product, or does nothing if it is already there.
 func (s *Store) SaveToWishlist(ctx context.Context, userID, slug string) error {
 	id, err := uuid.Parse(userID)
 	if err != nil {
@@ -932,7 +898,6 @@ func (s *Store) SaveToWishlist(ctx context.Context, userID, slug string) error {
 	return nil
 }
 
-// RemoveFromWishlist drops a product.
 func (s *Store) RemoveFromWishlist(ctx context.Context, userID, slug string) error {
 	id, err := uuid.Parse(userID)
 	if err != nil {
@@ -946,7 +911,6 @@ func (s *Store) RemoveFromWishlist(ctx context.Context, userID, slug string) err
 	return nil
 }
 
-// SignInWithGoogle turns a verified Google identity into a goen session.
 func (s *Store) SignInWithGoogle(ctx context.Context, id Identity) (User, error) {
 	id, err := normaliseGoogleIdentity(id)
 	if err != nil {
@@ -960,10 +924,10 @@ func (s *Store) SignInWithGoogle(ctx context.Context, id Identity) (User, error)
 	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
 	q := s.q.WithTx(tx)
 
-	// The provider subject, not its mutable email, is the identity. Serialising on
-	// it makes the initial lookup and a possible link one decision across every
-	// process. hashtextextended collisions only serialize unrelated sign-ins; they
-	// cannot merge identities because the unique index remains the final guard.
+	// The provider subject, not its mutable email, is the identity. Serialising
+	// on it makes the lookup and a possible link one decision across every
+	// process. hashtextextended collisions only serialize unrelated sign-ins;
+	// the unique index remains the final guard.
 	if lockErr := q.LockGoogleSubject(ctx, id.Subject); lockErr != nil {
 		return User{}, fmt.Errorf("lock google subject: %w", lockErr)
 	}
@@ -990,8 +954,9 @@ func (s *Store) SignInWithGoogle(ctx context.Context, id Identity) (User, error)
 		return User{}, fmt.Errorf("link the google identity: %w", linkErr)
 	}
 	if n == 0 {
-		// Defensive even for a writer that did not take the advisory lock: never
-		// commit a just-created orphan or return the email-selected candidate.
+		// Defensive even for a writer that did not take the advisory lock:
+		// never commit a just-created orphan or return the email-selected
+		// candidate.
 		if rollbackErr := tx.Rollback(context.WithoutCancel(ctx)); rollbackErr != nil {
 			return User{}, fmt.Errorf("roll back lost google link: %w", rollbackErr)
 		}
@@ -1027,7 +992,7 @@ func googleLinkCandidate(
 			fmt.Errorf("read the account for %s: %w", id.Email, err)
 	case !existing.Verified:
 		// Pre-hijacking: an unverified account may belong to whoever registered
-		// the address rather than to whoever reads the mailbox.
+		// the address rather than whoever reads the mailbox.
 		return uuid.UUID{}, "", pgtype.Text{}, "", ErrOAuthCollision
 	default:
 		return existing.ID, existing.Email, existing.FullName, existing.Role, nil
@@ -1066,8 +1031,8 @@ func normaliseGoogleIdentity(id Identity) (Identity, error) {
 		return Identity{}, errOAuthIdentity
 	}
 
-	// The display name is optional provider decoration, not identity. A malformed
-	// or oversized value must not prevent sign-in or become an unbounded row.
+	// The display name is decoration, not identity: a malformed or oversized
+	// value must not prevent sign-in or become an unbounded row.
 	id.Name = strings.TrimSpace(id.Name)
 	if utf8.RuneCountInString(id.Name) > maxNameRunes || hasControl(id.Name) {
 		id.Name = ""
@@ -1075,8 +1040,8 @@ func normaliseGoogleIdentity(id Identity) (Identity, error) {
 	return id, nil
 }
 
-// googleSubjectOwner returns only the account the unique subject row names. It
-// is the conflict fallback for a writer that did not participate in our lock.
+// googleSubjectOwner is the conflict fallback for a writer that did not take
+// our lock.
 func (s *Store) googleSubjectOwner(ctx context.Context, subject string) (User, error) {
 	linked, err := s.q.UserByGoogleSubject(ctx, subject)
 	if err != nil {
@@ -1091,7 +1056,6 @@ func (s *Store) googleSubjectOwner(ctx context.Context, subject string) (User, e
 	}, nil
 }
 
-// UnlinkGoogle removes a provider from an account.
 func (s *Store) UnlinkGoogle(ctx context.Context, u User) error {
 	id, err := uuid.Parse(u.ID)
 	if err != nil {
