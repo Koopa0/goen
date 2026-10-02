@@ -110,6 +110,23 @@
     });
 
     document.querySelectorAll("[data-stepper]").forEach(atBounds);
+
+    /*
+     * A form marked data-autosubmit applies a changed quantity itself. The
+     * wait lets someone press + twice before the page answers once, and the
+     * form's own submit button stays in the markup for the browser that has
+     * no script.
+     */
+    const waiting = new WeakMap();
+    document.addEventListener("change", (event) => {
+      if (!(event.target instanceof Element)) return;
+      const form = event.target.closest("form[data-autosubmit]");
+      if (!form || !event.target.matches("[data-stepper] input")) return;
+      clearTimeout(waiting.get(form));
+      waiting.set(form, setTimeout(() => {
+        if (form.checkValidity()) form.requestSubmit();
+      }, 700));
+    });
   }
 
   // Request state is presentation only. Submitter names and values remain in

@@ -1082,3 +1082,20 @@ func TestCartLineLoadsTheSmallPhoto(t *testing.T) {
 		}
 	}
 }
+
+// TestCartLineStillWorksWithScriptingOff holds that the quantity form keeps the
+// submit button and the remove control a browser without script relies on, next
+// to the attribute that lets script apply a change on its own.
+func TestCartLineStillWorksWithScriptingOff(t *testing.T) {
+	t.Parallel()
+	html := renderToString(t, cartLine(CartLine{Slug: "buds", Name: "Buds", Quantity: 1, UnitCents: 100}))
+	for _, want := range []string{
+		`action="/cart/items/update" data-autosubmit`,
+		`goen-line__update" type="submit">更新`,
+		`name="remove" value="1"`,
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("cart line omits %s:\n%s", want, html)
+		}
+	}
+}
