@@ -172,7 +172,6 @@ func aStart(shipping uuid.UUID) url.Values {
 // come from startPickup.
 func openPickupCheckout(
 	t *testing.T, h *cart.Handler, token string, shipping uuid.UUID,
-	cookies ...*http.Cookie,
 ) (body string, pickupCookie *http.Cookie, status int) {
 	t.Helper()
 	form := url.Values{
@@ -184,9 +183,6 @@ func openPickupCheckout(
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	//nolint:gosec // G124: the browser's own cart cookie
 	req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token})
-	for _, c := range cookies {
-		req.AddCookie(c)
-	}
 	res := httptest.NewRecorder()
 	h.PlaceOrder(res, req)
 	return res.Body.String(), cookieNamed(res, "goen_pickup"), res.Code

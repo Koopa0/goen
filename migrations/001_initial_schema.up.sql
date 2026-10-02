@@ -1300,7 +1300,8 @@ CREATE TABLE carts (
 );
 
 CREATE UNIQUE INDEX carts_token_hash_key ON carts (token_hash);
--- The sweep of stale checkout drafts reads only the carts that hold one.
+-- ClearStaleCheckoutDrafts filters on both columns, so it reads only the carts
+-- that hold a draft.
 CREATE INDEX carts_checkout_draft_at_idx ON carts (checkout_draft_at)
     WHERE checkout_draft IS NOT NULL;
 -- One cart per account, or a merge that runs twice leaves two. Partial, but a

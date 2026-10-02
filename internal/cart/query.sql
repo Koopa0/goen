@@ -67,7 +67,7 @@ WHERE id = @cart_id AND checkout_draft IS NOT NULL;
 
 -- name: ClearStaleCheckoutDrafts :exec
 UPDATE carts SET checkout_draft = NULL, checkout_draft_at = NULL
-WHERE checkout_draft_at < now() - @ttl::interval;
+WHERE checkout_draft IS NOT NULL AND checkout_draft_at < now() - @ttl::interval;
 
 -- Everything in a cart, at CURRENT prices and availability. sellable_quantity is
 -- stock above safety_stock, the floor record_inventory_movement enforces.

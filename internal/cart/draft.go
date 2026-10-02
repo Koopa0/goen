@@ -76,7 +76,7 @@ func clip(s string) string {
 }
 
 // saveCheckoutDraft keeps what was typed on the cart, replacing any earlier draft.
-func (s *Store) saveCheckoutDraft(ctx context.Context, cartID uuid.UUID, d checkoutDraft) error {
+func (s *Store) saveCheckoutDraft(ctx context.Context, cartID uuid.UUID, d *checkoutDraft) error {
 	d.clipped()
 	raw, err := json.Marshal(d)
 	if err != nil {

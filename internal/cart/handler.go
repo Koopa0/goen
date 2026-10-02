@@ -318,7 +318,7 @@ func (h *Handler) Checkout(w http.ResponseWriter, r *http.Request) {
 		District: prefill.District, Street: prefill.Street,
 	}
 	if restored {
-		h.applyDraft(r, &view, &prefill, draft)
+		h.applyDraft(r, &view, &prefill, &draft)
 	}
 	status := h.applyReturnedStore(r, &view)
 	shippingID, err := uuid.Parse(view.Chosen)
@@ -368,17 +368,17 @@ func (h *Handler) restoredDraft(r *http.Request, cartID uuid.UUID) (checkoutDraf
 // so it replaces the account's and the address book's prefill; the signed-in
 // customer's address stays the account's.
 func (h *Handler) applyDraft(
-	r *http.Request, view *pages.CheckoutView, prefill *Address, d checkoutDraft,
+	r *http.Request, view *pages.CheckoutView, prefill *Address, d *checkoutDraft,
 ) {
-	email := d.Email
-	if account := emailOf(r); account != "" {
-		email = account
+	address := d.Email
+	if signedIn := emailOf(r); signedIn != "" {
+		address = signedIn
 	}
 	prefill.Name, prefill.Phone = d.Name, d.Phone
 	prefill.PostalCode, prefill.City = d.PostalCode, d.City
 	prefill.District, prefill.Street = d.District, d.Street
 	view.Address = pages.CheckoutAddress{
-		Email: email, Name: d.Name, Phone: d.Phone,
+		Email: address, Name: d.Name, Phone: d.Phone,
 		PostalCode: d.PostalCode, City: d.City, District: d.District, Street: d.Street,
 		PickupBrand: d.Brand, Note: d.Note,
 	}
@@ -437,7 +437,7 @@ func (h *Handler) PickupStart(w http.ResponseWriter, r *http.Request) {
 	if submission.couponErr == "" {
 		draft.Coupon = view.CouponCode
 	}
-	if err := h.store.saveCheckoutDraft(r.Context(), cartID, draft); err != nil {
+	if err := h.store.saveCheckoutDraft(r.Context(), cartID, &draft); err != nil {
 		h.log.ErrorContext(r.Context(), "keep the checkout draft", "error", err)
 		h.serverError(w, r)
 		return

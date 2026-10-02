@@ -4146,7 +4146,7 @@ func (q *Queries) ClearDefaultAddress(ctx context.Context, userID uuid.UUID) err
 
 const clearStaleCheckoutDrafts = `-- name: ClearStaleCheckoutDrafts :exec
 UPDATE carts SET checkout_draft = NULL, checkout_draft_at = NULL
-WHERE checkout_draft_at < now() - $1::interval
+WHERE checkout_draft IS NOT NULL AND checkout_draft_at < now() - $1::interval
 `
 
 func (q *Queries) ClearStaleCheckoutDrafts(ctx context.Context, ttl pgtype.Interval) error {
