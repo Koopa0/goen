@@ -25,7 +25,7 @@ func faqStrings(src string) []string {
 	return values
 }
 
-func TestTheFAQSeedUsesTheSameQuestionsForBothLocales(t *testing.T) {
+func TestTheFAQSeedMatchesLocaleQuestionsAndUsesChinesePunctuationAndNi(t *testing.T) {
 	seed, err := os.ReadFile("../../seed/dev_catalog.sql")
 	if err != nil {
 		t.Fatal(err)
