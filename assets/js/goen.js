@@ -98,11 +98,23 @@
     });
     root.addEventListener("pointerenter", () => { hovered = true; render(); });
     root.addEventListener("pointerleave", () => { hovered = false; render(); });
-    root.addEventListener("focusin", () => { focused = true; render(); });
+    // Only focus a keyboard put there holds the carousel: a mouse click on the
+    // pause button leaves focus on it, which must not freeze the slides again.
+    root.addEventListener("focusin", (event) => {
+      focused = event.target.matches(":focus-visible");
+      render();
+    });
     root.addEventListener("focusout", (event) => {
       if (!root.contains(event.relatedTarget)) { focused = false; render(); }
     });
-    pause?.addEventListener("click", () => { paused = !paused; render(); });
+    // Pressing play is an explicit request to move, so the hover or focus that
+    // was holding the carousel is set aside until the pointer or focus comes
+    // back to it.
+    pause?.addEventListener("click", () => {
+      paused = !paused;
+      if (!paused) { hovered = false; focused = false; }
+      render();
+    });
     reduced.addEventListener("change", () => { if (reduced.matches) stop(); });
     render();
   }
