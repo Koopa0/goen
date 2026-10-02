@@ -208,10 +208,11 @@ type ProductView struct {
 	ReviewPosted   bool
 	ReviewErrors   map[string]string
 	ReviewDraft    ReviewDraft
-	NotifyOutcome  string
+	NotifyOutcome  NotifyOutcome
 	// NotifyEmail is the address a refused restock request was posted with.
-	NotifyEmail string
-	Comparing   []string
+	NotifyEmail  string
+	AccountEmail string
+	Comparing    []string
 	// Comparable is whether the product's department offers comparison; where
 	// it does not, the page shows no compare control.
 	Comparable bool
@@ -425,14 +426,40 @@ func (v *ProductView) HasReviewErr(f string) bool { _, ok := v.ReviewErrors[f]; 
 // ReviewErr is why a review field was refused.
 func (v *ProductView) ReviewErr(f string) string { return v.ReviewErrors[f] }
 
+// NotifyOutcome is what a restock request came to, carried in ?notify=.
+type NotifyOutcome string
+
+const (
+	NotifyRecorded           NotifyOutcome = "1"
+	NotifyRecordedForAccount NotifyOutcome = "account"
+	NotifyBadAddress         NotifyOutcome = "bad"
+	NotifyVariantUnavailable NotifyOutcome = "unavailable"
+)
+
 // NotifyTaken reports whether a restock request was just recorded.
-func (v *ProductView) NotifyTaken() bool { return v.NotifyOutcome == "1" }
+func (v *ProductView) NotifyTaken() bool {
+	return v.NotifyOutcome == NotifyRecorded || v.NotifyOutcome == NotifyRecordedForAccount
+}
+
+func (v *ProductView) NotifyConfirmation(ctx context.Context) string {
+	if v.NotifyOutcome == NotifyRecordedForAccount && v.AccountEmail != "" {
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyRestockDoneTo), v.AccountEmail)
+	}
+	return i18n.T(ctx, i18n.KeyRestockDone)
+}
+
+func (v *ProductView) NotifyEmailValue() string {
+	if v.NotifyEmail != "" {
+		return v.NotifyEmail
+	}
+	return v.AccountEmail
+}
 
 // NotifyRefused reports whether the address was not usable.
-func (v *ProductView) NotifyRefused() bool { return v.NotifyOutcome == "bad" }
+func (v *ProductView) NotifyRefused() bool { return v.NotifyOutcome == NotifyBadAddress }
 
 // NotifyUnavailable reports a request for a variant that no longer needs one.
-func (v *ProductView) NotifyUnavailable() bool { return v.NotifyOutcome == "unavailable" }
+func (v *ProductView) NotifyUnavailable() bool { return v.NotifyOutcome == NotifyVariantUnavailable }
 
 // NotifyAction is where the restock form posts. It carries the chosen options,
 // because the redirect that follows must land on the same selection or the
