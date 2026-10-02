@@ -1686,38 +1686,29 @@ func TestACaptureQueuesTheInvoiceItOwesOnce(t *testing.T) {
 	assertSystemIssue(t, number, eventID)
 }
 
-// TestACreditFundedOrderQueuesItsInvoiceAtCommit: an order store credit pays in
-// full is never captured. It commits when the back office picks it, and that
-// commit is when its invoice is due.
-func TestACreditFundedOrderQueuesItsInvoiceAtCommit(t *testing.T) {
+// TestPickingACreditFundedOrderQueuesNoInvoice: the checkout that spent the
+// credit queued it, so picking, where such an order commits, adds none.
+func TestPickingACreditFundedOrderQueuesNoInvoice(t *testing.T) {
 	const cents = int64(50000)
 	ctx := t.Context()
 	userID := creditedUser(t, cents)
 	number, orderID := ownedOrder(t, userID, cents)
-	preferMemberInvoice(t, orderID)
 	spendCreditOnOrder(t, orderID, -cents)
-
-	var early int
-	if err := pool.QueryRow(ctx,
-		`SELECT count(*) FROM outbox_messages WHERE topic = $1 AND dedupe_key = $2`,
-		outbox.TopicInvoiceDue, number).Scan(&early); err != nil {
-		t.Fatalf("count invoice.due before commit: %v", err)
-	}
-	if early != 0 {
-		t.Fatalf("%d invoice.due messages before the order committed, want 0", early)
-	}
 
 	staff, actor := staffContext(t)
 	backOffice := admin.NewStore(adminRolePool(t), admin.NewRefunder(""), nil, nil)
 	if _, err := backOffice.Advance(staff, number, "picking", uuid.NullUUID{UUID: actor, Valid: true}); err != nil {
 		t.Fatalf("admin-role advance to picking: %v", err)
 	}
-	due := invoiceDue(t, number)
-	if due.Trigger != "commit:"+number {
-		t.Errorf("queued trigger = %q, want the order's commit", due.Trigger)
+	var queued int
+	if err := pool.QueryRow(ctx,
+		`SELECT count(*) FROM outbox_messages WHERE topic = $1 AND dedupe_key = $2`,
+		outbox.TopicInvoiceDue, number).Scan(&queued); err != nil {
+		t.Fatalf("count invoice.due: %v", err)
 	}
-	claimDue(t, due)
-	assertSystemIssue(t, number, "commit:"+number)
+	if queued != 0 {
+		t.Errorf("picking queued %d invoice.due messages, want 0", queued)
+	}
 }
 
 // preferMemberInvoice records the checkout's 發票 choice, the filing snapshot a
@@ -2488,8 +2479,7 @@ func adminRolePool(t *testing.T) *pgxpool.Pool {
 
 func replayCompleteFunding(t *testing.T, orderID uuid.UUID, number string) {
 	t.Helper()
-	if err := payment.CompleteFunding(t.Context(), db.New(pool), orderID, number, payment.Capture{},
-		"commit:"+number); err != nil {
+	if err := payment.CompleteFunding(t.Context(), db.New(pool), orderID, number, payment.Capture{}); err != nil {
 		t.Fatalf("replay CompleteFunding: %v", err)
 	}
 }

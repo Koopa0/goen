@@ -124,3 +124,28 @@ func TestTheTimelineNamesWhoCancelled(t *testing.T) {
 		}
 	}
 }
+
+// TestTheIssueButtonFollowsTheMoney: the button is offered for every order
+// whose money has arrived, including a pending one store credit paid in full,
+// and for no order still owing.
+func TestTheIssueButtonFollowsTheMoney(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		name string
+		view OrderView
+		want bool
+	}{
+		{name: "committed", view: OrderView{Status: pages.FulfillmentPicking, Committed: true}, want: true},
+		{name: "credit paid in full, pending", view: OrderView{Status: pages.FulfillmentPending}, want: true},
+		{name: "still owing", view: OrderView{Status: pages.FulfillmentPending, Unpaid: true}, want: false},
+		{name: "cancelled", view: OrderView{Status: pages.FulfillmentCancelled}, want: false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			tt.view.InvoicingEnabled = true
+			if got := tt.view.CanIssueInvoice(); got != tt.want {
+				t.Errorf("CanIssueInvoice = %t, want %t", got, tt.want)
+			}
+		})
+	}
+}

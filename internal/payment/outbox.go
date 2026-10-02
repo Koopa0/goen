@@ -8,7 +8,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/db"
-	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/outbox"
 )
 
@@ -45,21 +44,6 @@ func enqueueOrderPaid(ctx context.Context, q *db.Queries, orderID uuid.UUID, p *
 		Topic: outbox.TopicOrderPaid, DedupeKey: p.OrderNumber, Payload: payload,
 	}); err != nil {
 		return fmt.Errorf("enqueue order.paid: %w", err)
-	}
-	return nil
-}
-
-// enqueueInvoiceDue writes the 統一發票 a final sale owes in the transaction
-// that made it final, keyed on the order so the order is claimed once.
-func enqueueInvoiceDue(ctx context.Context, q *db.Queries, orderNumber, trigger string) error {
-	payload, err := json.Marshal(invoice.Due{OrderNumber: orderNumber, Trigger: trigger})
-	if err != nil {
-		return fmt.Errorf("encode invoice.due: %w", err)
-	}
-	if err := q.EnqueueMessage(ctx, db.EnqueueMessageParams{
-		Topic: outbox.TopicInvoiceDue, DedupeKey: orderNumber, Payload: payload,
-	}); err != nil {
-		return fmt.Errorf("enqueue invoice.due for order %s: %w", orderNumber, err)
 	}
 	return nil
 }

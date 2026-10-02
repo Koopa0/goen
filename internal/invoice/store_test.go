@@ -62,8 +62,11 @@ func TestADueClaimIsDoneOnlyWhenNothingIsLeftToFile(t *testing.T) {
 		{name: "no filing snapshot", err: &pgconn.PgError{
 			Code: "23514", ConstraintName: "invoice_issue_filing_snapshot",
 		}, done: false},
-		{name: "not committed", err: &pgconn.PgError{
+		{name: "cancelled before the claim", err: &pgconn.PgError{
 			Code: "23514", ConstraintName: "invoice_issue_committed",
+		}, done: true},
+		{name: "no such order", err: &pgconn.PgError{
+			Code: "23514", ConstraintName: "invoice_issue_order",
 		}, done: false},
 		{name: "connection lost", err: errors.New("conn closed"), done: false},
 	}

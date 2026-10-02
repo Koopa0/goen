@@ -2,6 +2,7 @@ package invoice
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -11,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/outbox"
 )
 
 const (
@@ -101,12 +103,29 @@ func (s *Store) Issue(ctx context.Context, orderNumber string) (Document, error)
 type Due struct {
 	OrderNumber string `json:"order_number"`
 	// Trigger is the provider event that captured the payment, the payment staff
-	// attributed, or the order's commit. It is the system claim's request id.
+	// attributed, or the checkout that store credit paid in full. It is the
+	// system claim's request id.
 	Trigger string `json:"trigger"`
 }
 
-// ClaimDue records the system's issue for an order. The reconciler sends it,
-// so a provider failure lands where a staff claim's would.
+// EnqueueDue writes the invoice a sale owes in the transaction that took the
+// money, keyed on the order so the order is claimed once.
+func EnqueueDue(ctx context.Context, q *db.Queries, due Due) error {
+	payload, err := json.Marshal(due)
+	if err != nil {
+		return fmt.Errorf("encode invoice.due: %w", err)
+	}
+	if err := q.EnqueueMessage(ctx, db.EnqueueMessageParams{
+		Topic: outbox.TopicInvoiceDue, DedupeKey: due.OrderNumber, Payload: payload,
+	}); err != nil {
+		return fmt.Errorf("enqueue invoice.due for order %s: %w", due.OrderNumber, err)
+	}
+	return nil
+}
+
+// ClaimDue records the system's issue for an order; the reconciler sends it.
+// It claims with or without a 加值中心, so one configured later still files
+// what was owed before it.
 func (s *Store) ClaimDue(ctx context.Context, due *Due) error {
 	_, err := s.q.ClaimSystemInvoiceIssue(ctx, db.ClaimSystemInvoiceIssueParams{
 		OrderNumber: due.OrderNumber, RequestID: due.Trigger,
@@ -123,6 +142,9 @@ func dueClaimOutcome(orderNumber string, err error) error {
 		return nil
 	case "invoice_issue_itemisation":
 		// A sale discounted to nothing has no amount to file.
+		return nil
+	case "invoice_issue_committed":
+		// Cancelled before its claim: the sale it was due for is undone.
 		return nil
 	}
 	if err != nil {
