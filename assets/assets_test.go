@@ -579,3 +579,26 @@ func TestTheCataloguePhotographsAreEmbedded(t *testing.T) {
 		}
 	}
 }
+
+// The back office's own rules live in admin.css, so the stylesheet every shopper
+// downloads carries none of them (a selector shared with a storefront component
+// stays where that component's rules are), and the layers are declared before any rule
+// uses one.
+func TestTheStorefrontStyleSheetCarriesNoBackOfficeRules(t *testing.T) {
+	t.Parallel()
+
+	app := requestAsset(t, assets.AppCSS, "", "").Body.String()
+	for _, selector := range []string{"\n.goen-admin {", "\n.goen-admin__main {", "\n.goen-adminbar__inner {"} {
+		if strings.Contains(app, selector) {
+			t.Errorf("served %s still carries %s", assets.AppCSS, selector)
+		}
+	}
+	admin := requestAsset(t, assets.AdminCSS, "", "")
+	if admin.Code != http.StatusOK || !strings.Contains(admin.Body.String(), "\n.goen-adminbar__inner {") {
+		t.Errorf("GET %s = %d without the back office rules", assets.AdminCSS, admin.Code)
+	}
+	base := requestAsset(t, assets.BaseCSS, "", "").Body.String()
+	if !strings.Contains(base, "@layer base, components, pages;") {
+		t.Errorf("served %s does not declare the layer order", assets.BaseCSS)
+	}
+}

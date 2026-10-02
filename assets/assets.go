@@ -31,8 +31,11 @@ const (
 	// BaseCSS carries the tokens, the element defaults and the shared
 	// primitives, and is linked before AppCSS: a value set in both is
 	// settled by source order.
-	BaseCSS  = "css/app/base.css"
-	AppCSS   = "css/app/app.css"
+	BaseCSS = "css/app/base.css"
+	AppCSS  = "css/app/app.css"
+	// AdminCSS is the back office's own rules, linked after AppCSS by the admin
+	// layout only, so the storefront does not ship them.
+	AdminCSS = "css/app/admin.css"
 	FontsCSS = "css/app/fonts.css"
 	// InterLatinWOFF2 is the one face worth a preload: every page paints Latin
 	// before it paints anything else, and the browser cannot discover a font
@@ -126,6 +129,7 @@ func departmentMedia(slugs ...string) []string {
 var required = []string{
 	BaseCSS,
 	AppCSS,
+	AdminCSS,
 	FontsCSS,
 	InterLatinWOFF2,
 	SpeculationRules,
