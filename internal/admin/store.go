@@ -452,7 +452,10 @@ func applyStatusEffects(ctx context.Context, q *db.Queries, e statusEffect) erro
 	case pages.FulfillmentPending, pages.FulfillmentShipped:
 		// These moves only release the holds already walked above.
 	case pages.FulfillmentPicking:
-		if err := payment.CompleteFunding(ctx, q, e.orderID, e.number, payment.Capture{}); err != nil {
+		// A zero-owed order commits here; for it, this commit is what makes the
+		// 統一發票 due.
+		if err := payment.CompleteFunding(ctx, q, e.orderID, e.number, payment.Capture{},
+			"commit:"+e.number); err != nil {
 			return fmt.Errorf("complete funding for %s: %w", e.number, err)
 		}
 	case pages.FulfillmentCancelled:

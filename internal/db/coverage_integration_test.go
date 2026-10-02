@@ -600,7 +600,7 @@ func TestReportingCannotReadCredentialsOrPII(t *testing.T) {
 	)
 	// An entry here is a claim somebody read the column and meant it.
 	readable := map[string]reportingText{
-		"audit_events": {[]string{"action", "after", "before", "entity_table", "request_id"},
+		"audit_events": {[]string{"action", "actor_kind", "after", "before", "entity_table", "request_id"},
 			"the back-office trail, which records WHO acted and never what a customer wrote"},
 		"brands":     {[]string{"name", "slug"}, published},
 		"categories": {[]string{"icon_key", "image_alt", "image_alt_en", "image_key", "name", "name_en", "slug", "tone"}, published},

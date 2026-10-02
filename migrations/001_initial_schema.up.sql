@@ -3468,7 +3468,7 @@ CREATE TRIGGER invoice_documents_only_void
 -- A provider request is durable BEFORE it leaves this database.  This is a
 -- separate table rather than a synthetic invoice_documents "pending" row:
 -- ECPay has not allocated a tax document yet, while the operation still needs
--- its frozen request, original staff attribution, retry evidence and lease.
+-- its frozen request, original attribution, retry evidence and lease.
 CREATE TABLE invoice_operations (
     id                 uuid PRIMARY KEY DEFAULT uuidv7(),
     order_id           uuid NOT NULL REFERENCES orders (id) ON DELETE RESTRICT,
@@ -3485,7 +3485,11 @@ CREATE TABLE invoice_operations (
     -- The live actor may be erased; the immutable UUID snapshot preserves tax
     -- filing attribution without making account erasure depend on tax history.
     actor_user_id      uuid REFERENCES users (id) ON DELETE SET NULL,
-    actor_id_snapshot  uuid NOT NULL,
+    actor_id_snapshot  uuid,
+    -- 'system' is the issue a final sale owes, claimed with no user and with the
+    -- provider event or order commit as its request_id. A staff row with a NULL
+    -- actor_user_id is still an erased account.
+    actor_kind         text NOT NULL DEFAULT 'staff',
     request_id         text NOT NULL,
     status             text NOT NULL DEFAULT 'pending',
     reconcile_attempts integer NOT NULL DEFAULT 0,
@@ -3517,6 +3521,11 @@ CREATE TABLE invoice_operations (
         CHECK (request_id ~ '[^[:space:]]' AND char_length(request_id) <= 200),
     CONSTRAINT invoice_operations_actor_snapshot_matches
         CHECK (actor_user_id IS NULL OR actor_id_snapshot = actor_user_id),
+    CONSTRAINT invoice_operations_actor_kind_shape CHECK (
+        (actor_kind = 'staff' AND actor_id_snapshot IS NOT NULL)
+        OR (actor_kind = 'system' AND kind = 'issue'
+            AND actor_user_id IS NULL AND actor_id_snapshot IS NULL)
+    ),
     CONSTRAINT invoice_operations_attempts_non_negative
         CHECK (reconcile_attempts >= 0 AND send_attempts >= 0
                AND resend_authorizations >= 0),
@@ -4263,7 +4272,9 @@ CREATE TABLE audit_events (
     -- on erasure. The non-FK snapshot is the durable answer to who acted; it is
     -- immutable because the complete audit row is append-only.
     actor_user_id     uuid REFERENCES users (id) ON DELETE SET NULL,
-    actor_id_snapshot uuid NOT NULL,
+    actor_id_snapshot uuid,
+    -- 'system' has no user: it is goen settling the issue a final sale owes.
+    actor_kind        text NOT NULL DEFAULT 'staff',
     action            text NOT NULL,
     entity_table      text NOT NULL,
     entity_id         uuid,
@@ -4274,7 +4285,11 @@ CREATE TABLE audit_events (
     CONSTRAINT audit_events_action_present CHECK (action ~ '[^[:space:]]'),
     CONSTRAINT audit_events_entity_present CHECK (entity_table ~ '[^[:space:]]'),
     CONSTRAINT audit_events_actor_snapshot_matches
-        CHECK (actor_user_id IS NULL OR actor_user_id = actor_id_snapshot)
+        CHECK (actor_user_id IS NULL OR actor_user_id = actor_id_snapshot),
+    CONSTRAINT audit_events_actor_kind_shape CHECK (
+        (actor_kind = 'staff' AND actor_id_snapshot IS NOT NULL)
+        OR (actor_kind = 'system' AND actor_user_id IS NULL AND actor_id_snapshot IS NULL)
+    )
 );
 
 -- The one statement that reads this table pages newest first with no filter. No
@@ -5726,8 +5741,10 @@ DECLARE
     v_lines jsonb;
     v_payload jsonb;
 BEGIN
-    IF NOT EXISTS (SELECT 1 FROM users
-                   WHERE id = p_actor_user_id AND role IN ('staff', 'admin')) THEN
+    -- A NULL actor is the system, claiming the issue a final sale owes.
+    IF p_actor_user_id IS NOT NULL
+       AND NOT EXISTS (SELECT 1 FROM users
+                       WHERE id = p_actor_user_id AND role IN ('staff', 'admin')) THEN
         RAISE EXCEPTION 'invoice claim requires a durable staff actor'
             USING ERRCODE = 'check_violation', CONSTRAINT = 'invoice_audit_actor';
     END IF;
@@ -5743,9 +5760,11 @@ BEGIN
         RAISE EXCEPTION 'no order %', p_order_number
             USING ERRCODE = 'check_violation', CONSTRAINT = 'invoice_issue_order';
     END IF;
+    -- The system claims once per order, whatever became of that claim: an issue
+    -- after a provider rejection or a void is a person's decision.
     SELECT id INTO v_existing FROM invoice_operations
     WHERE order_id = v_order.id AND kind = 'issue'
-      AND status IN ('pending', 'attention')
+      AND (p_actor_user_id IS NULL OR status IN ('pending', 'attention'))
     ORDER BY created_at, id LIMIT 1;
     IF FOUND THEN RETURN v_existing; END IF;
     IF NOT order_is_committed(v_order.id) THEN
@@ -5810,10 +5829,12 @@ BEGIN
 
     INSERT INTO invoice_operations
         (order_id, kind, provider_key, amount_cents, request_payload,
-         actor_user_id, actor_id_snapshot, request_id)
+         actor_user_id, actor_id_snapshot, actor_kind, request_id)
     VALUES
         (v_order.id, 'issue', v_relate_number, v_amount, v_payload,
-         p_actor_user_id, p_actor_user_id, p_request_id)
+         p_actor_user_id, p_actor_user_id,
+         CASE WHEN p_actor_user_id IS NULL THEN 'system' ELSE 'staff' END,
+         p_request_id)
     RETURNING id INTO v_existing;
     RETURN v_existing;
 END;
@@ -6424,12 +6445,12 @@ BEGIN
     END IF;
 
     INSERT INTO audit_events
-        (actor_user_id, actor_id_snapshot, action, entity_table, entity_id,
-         before, after, request_id)
+        (actor_user_id, actor_id_snapshot, actor_kind, action, entity_table,
+         entity_id, before, after, request_id)
     VALUES
         (v_operation.actor_user_id, v_operation.actor_id_snapshot,
-         'invoice.' || v_operation.kind, 'invoice_documents', p_entity_id,
-         NULL, p_after, v_operation.request_id)
+         v_operation.actor_kind, 'invoice.' || v_operation.kind,
+         'invoice_documents', p_entity_id, NULL, p_after, v_operation.request_id)
     RETURNING id INTO v_audit_id;
     RETURN v_audit_id;
 END;

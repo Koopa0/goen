@@ -221,10 +221,10 @@ func (s *Store) recordCompletePayment(
 
 // AttributeCompleteCapture posts a complete Session that staff have verified
 // as paid. tx is required (rather than a pool-backed query handle) so the
-// capture, order timeline, loyalty award, receipt and caller's audit row either
-// all commit or all roll back. The amount comes from the immutable payment row
-// inside attribute_complete_payment_paid; no operator-supplied amount crosses
-// this boundary.
+// capture, order timeline, loyalty award, invoice due, receipt and caller's
+// audit row either all commit or all roll back. The amount comes from the
+// immutable payment row inside attribute_complete_payment_paid; no
+// operator-supplied amount crosses this boundary.
 func AttributeCompleteCapture(
 	ctx context.Context, tx pgx.Tx, providerRef string,
 ) (bool, error) {
@@ -245,7 +245,7 @@ func AttributeCompleteCapture(
 		return false, fmt.Errorf("attribute complete payment %s: %w", providerRef, err)
 	}
 	capture := Capture{SessionID: providerRef, AmountRecv: row.AmountCents}
-	if err := CompleteFunding(ctx, q, row.OrderID, row.OrderNumber, capture); err != nil {
+	if err := CompleteFunding(ctx, q, row.OrderID, row.OrderNumber, capture, providerRef); err != nil {
 		return false, err
 	}
 	return true, nil
@@ -401,17 +401,19 @@ func (w *webhookTx) Capture(ctx context.Context, c Capture) (orderNumber string,
 	if err := w.postCapture(ctx, c); err != nil {
 		return capturePostingError(row.OrderNumber, c.SessionID, err)
 	}
-	if err := CompleteFunding(ctx, w.q, row.ID, row.OrderNumber, c); err != nil {
+	if err := CompleteFunding(ctx, w.q, row.ID, row.OrderNumber, c, w.eventID); err != nil {
 		return "", err
 	}
 	return row.OrderNumber, nil
 }
 
-// CompleteFunding appends the paid timeline event, loyalty award and receipt
-// once an order's funding has closed. A card capture passes the provider facts;
-// a zero-owed picking transition passes none.
+// CompleteFunding appends the paid timeline event, loyalty award, the
+// 統一發票 now due and the receipt once an order's funding has closed. A card
+// capture passes the provider facts; a zero-owed picking transition passes
+// none. trigger names what closed it, for the invoice's system attribution.
 func CompleteFunding(
 	ctx context.Context, q *db.Queries, orderID uuid.UUID, orderNumber string, c Capture,
+	trigger string,
 ) (err error) {
 	has, err := q.OrderHasPaidEvent(ctx, orderID)
 	if err != nil {
@@ -429,6 +431,10 @@ func CompleteFunding(
 
 	if _, err = q.AwardOrderPoints(ctx, orderID); err != nil {
 		return fmt.Errorf("award points for order %s: %w", orderNumber, err)
+	}
+
+	if dueErr := enqueueInvoiceDue(ctx, q, orderNumber, trigger); dueErr != nil {
+		return dueErr
 	}
 
 	var amount int64

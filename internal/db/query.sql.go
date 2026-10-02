@@ -2607,7 +2607,8 @@ func (q *Queries) AttributeCompletePaymentPaid(ctx context.Context, providerRef 
 const auditEvents = `-- name: AuditEvents :many
 SELECT json_build_object('At', a.occurred_at, 'ID', a.id)::text AS page_cursor, a.action, a.entity_table, a.entity_id, a.before, a.after,
        a.request_id, a.occurred_at,
-       coalesce(u.full_name, u.email, a.actor_id_snapshot::text) AS actor,
+       coalesce(u.full_name, u.email, a.actor_id_snapshot::text, '') AS actor,
+       (a.actor_kind = 'system')::boolean AS by_system,
        -- What a person calls the record: the order number (for a return, refund or
        -- payment, its order's), the SKU, or the slug. Empty where no name exists
        -- or the record is gone; the row still renders.
@@ -2654,6 +2655,7 @@ type AuditEventsRow struct {
 	RequestID   pgtype.Text
 	OccurredAt  time.Time
 	Actor       string
+	BySystem    bool
 	Subject     string
 	ProductSlug string
 }
@@ -2682,6 +2684,7 @@ func (q *Queries) AuditEvents(ctx context.Context, arg AuditEventsParams) ([]Aud
 			&i.RequestID,
 			&i.OccurredAt,
 			&i.Actor,
+			&i.BySystem,
 			&i.Subject,
 			&i.ProductSlug,
 		); err != nil {
@@ -4244,6 +4247,25 @@ func (q *Queries) ClaimReturnRefundExecution(ctx context.Context, arg ClaimRetur
 	var claim_return_refund_execution uuid.UUID
 	err := row.Scan(&claim_return_refund_execution)
 	return claim_return_refund_execution, err
+}
+
+const claimSystemInvoiceIssue = `-- name: ClaimSystemInvoiceIssue :one
+SELECT claim_invoice_issue(
+    $1::text, NULL::uuid, $2::text
+)::uuid AS operation_id
+`
+
+type ClaimSystemInvoiceIssueParams struct {
+	OrderNumber string
+	RequestID   string
+}
+
+// The system's claim: no actor, and what made the sale final as the request id.
+func (q *Queries) ClaimSystemInvoiceIssue(ctx context.Context, arg ClaimSystemInvoiceIssueParams) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, claimSystemInvoiceIssue, arg.OrderNumber, arg.RequestID)
+	var operation_id uuid.UUID
+	err := row.Scan(&operation_id)
+	return operation_id, err
 }
 
 const clearCampaignImage = `-- name: ClearCampaignImage :execrows
@@ -7409,7 +7431,7 @@ type InvoiceOperationRow struct {
 	ProviderKey          string
 	AmountCents          int64
 	RequestPayload       []byte
-	ActorIDSnapshot      uuid.UUID
+	ActorIDSnapshot      uuid.NullUUID
 	RequestID            string
 	Status               string
 	ReconcileAttempts    int32
@@ -14594,6 +14616,11 @@ FROM invoice_operations op
 JOIN orders o ON o.id = op.order_id
 WHERE op.status = 'attention'
    OR (op.status = 'pending' AND op.created_at < now() - interval '15 minutes')
+   OR (op.status = 'rejected' AND op.actor_kind = 'system'
+       AND order_is_committed(op.order_id)
+       AND NOT EXISTS (SELECT 1 FROM invoice_operations later
+                       WHERE later.order_id = op.order_id AND later.kind = 'issue'
+                         AND later.created_at > op.created_at))
 ORDER BY op.created_at
 LIMIT 50
 `
@@ -14612,8 +14639,10 @@ type StrandedInvoiceClaimsRow struct {
 }
 
 // Durable e-invoice operations which either explicitly alarmed or have remained
-// pending beyond several worker polls. Rejected and succeeded evidence remains
-// durable but is not an active health alarm.
+// pending beyond several worker polls. Succeeded evidence and a staff claim's
+// rejection, which that person saw, are not an active health alarm. A system
+// issue's rejection was seen by nobody, so it stays while the order still owes
+// an invoice and no later issue exists.
 func (q *Queries) StrandedInvoiceClaims(ctx context.Context) ([]StrandedInvoiceClaimsRow, error) {
 	rows, err := q.db.Query(ctx, strandedInvoiceClaims)
 	if err != nil {

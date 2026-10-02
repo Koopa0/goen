@@ -30,7 +30,8 @@ type Address struct {
 type AuditEvent struct {
 	ID              uuid.UUID
 	ActorUserID     uuid.NullUUID
-	ActorIDSnapshot uuid.UUID
+	ActorIDSnapshot uuid.NullUUID
+	ActorKind       string
 	Action          string
 	EntityTable     string
 	EntityID        uuid.NullUUID
@@ -245,7 +246,8 @@ type InvoiceOperation struct {
 	AmountCents          int64
 	RequestPayload       []byte
 	ActorUserID          uuid.NullUUID
-	ActorIDSnapshot      uuid.UUID
+	ActorIDSnapshot      uuid.NullUUID
+	ActorKind            string
 	RequestID            string
 	Status               string
 	ReconcileAttempts    int32

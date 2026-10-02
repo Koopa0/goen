@@ -1048,7 +1048,8 @@ SELECT record_audit_event(@actor, @action::text, @entity_table::text,
 -- name: AuditEvents :many
 SELECT json_build_object('At', a.occurred_at, 'ID', a.id)::text AS page_cursor, a.action, a.entity_table, a.entity_id, a.before, a.after,
        a.request_id, a.occurred_at,
-       coalesce(u.full_name, u.email, a.actor_id_snapshot::text) AS actor,
+       coalesce(u.full_name, u.email, a.actor_id_snapshot::text, '') AS actor,
+       (a.actor_kind = 'system')::boolean AS by_system,
        -- What a person calls the record: the order number (for a return, refund or
        -- payment, its order's), the SKU, or the slug. Empty where no name exists
        -- or the record is gone; the row still renders.
@@ -1497,8 +1498,10 @@ ORDER BY p.created_at
 LIMIT 50;
 
 -- Durable e-invoice operations which either explicitly alarmed or have remained
--- pending beyond several worker polls. Rejected and succeeded evidence remains
--- durable but is not an active health alarm.
+-- pending beyond several worker polls. Succeeded evidence and a staff claim's
+-- rejection, which that person saw, are not an active health alarm. A system
+-- issue's rejection was seen by nobody, so it stays while the order still owes
+-- an invoice and no later issue exists.
 -- name: StrandedInvoiceClaims :many
 SELECT op.id AS operation_id, o.order_number, op.kind, op.status,
        op.amount_cents, op.reconcile_attempts, op.send_attempts,
@@ -1515,6 +1518,11 @@ FROM invoice_operations op
 JOIN orders o ON o.id = op.order_id
 WHERE op.status = 'attention'
    OR (op.status = 'pending' AND op.created_at < now() - interval '15 minutes')
+   OR (op.status = 'rejected' AND op.actor_kind = 'system'
+       AND order_is_committed(op.order_id)
+       AND NOT EXISTS (SELECT 1 FROM invoice_operations later
+                       WHERE later.order_id = op.order_id AND later.kind = 'issue'
+                         AND later.created_at > op.created_at))
 ORDER BY op.created_at
 LIMIT 50;
 

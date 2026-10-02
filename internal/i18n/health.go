@@ -139,11 +139,13 @@ var (
 	KeyAdminHPClaimsHint = key("admin.hp.claims.hint", Message{
 		ZhHant: "系統會自動查詢綠界並收斂一般的逾時。這裡只列出過久仍未完成，或查到不一致、" +
 			"多筆候選而已安全停住的操作。折讓只有在最後一次送出至少 15 分鐘後，才可能顯示重送授權；" +
-			"授權前仍必須先到綠界依發票號碼確認折讓確實不存在。其他操作請勿手動重送。",
+			"授權前仍必須先到綠界依發票號碼確認折讓確實不存在。其他操作請勿手動重送。" +
+			"綠界退回的自動開立也列在這裡，直到有人從訂單頁再開立一次。",
 		En: "The worker automatically reconciles ordinary timeouts with ECPay. These operations are " +
 			"aged or stopped on a mismatch/multiple candidates. An Allowance resend can be authorized only " +
 			"after 15 minutes, and only after checking its invoice number in ECPay and confirming the allowance " +
-			"is absent. Do not manually resend any other operation.",
+			"is absent. Do not manually resend any other operation. An automatic issue ECPay refused stays " +
+			"here until someone issues the invoice again from the order page.",
 	})
 
 	KeyAdminHPAllowanceAbsentConfirm = key("admin.hp.allowance.absent", Message{
