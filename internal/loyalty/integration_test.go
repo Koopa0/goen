@@ -939,7 +939,7 @@ func approvedReturnFor(
 	}
 	if err := pool.QueryRow(ctx, `
 		INSERT INTO order_shipments (order_id, carrier, tracking_number)
-		VALUES ($1, 'loyalty-test', 'LOY-'||gen_random_uuid()) RETURNING id`, orderID).
+		VALUES ($1, 'black_cat', 'LOY-'||gen_random_uuid()) RETURNING id`, orderID).
 		Scan(&shipmentID); err != nil {
 		t.Fatalf("create return shipment: %v", err)
 	}
@@ -1018,7 +1018,7 @@ func splitReturnOrderFor(
 	}
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO order_shipments (order_id,carrier,tracking_number)
-		VALUES ($1,'loyalty-test','SPLIT-'||gen_random_uuid()) RETURNING id`, orderID).
+		VALUES ($1,'black_cat','SPLIT-'||gen_random_uuid()) RETURNING id`, orderID).
 		Scan(&shipmentID); err != nil {
 		t.Fatalf("create split-return shipment: %v", err)
 	}

@@ -38,7 +38,7 @@ func TestTerminalWorkerSkipsAnAddressErasedBeforeDelivery(t *testing.T) {
 	if err := tx.Commit(ctx); err != nil {
 		t.Fatal(err)
 	}
-	storePool, poolErr := openPool(ctx, pool.Config().ConnString())
+	storePool, poolErr := openPool(ctx, pool.Config().ConnString(), quietLog)
 	if poolErr != nil {
 		t.Fatal(poolErr)
 	}

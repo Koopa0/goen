@@ -361,7 +361,7 @@ func TestAnAccountEveryForeignKeyNamesCanBeErased(t *testing.T) {
 		`UPDATE orders SET fulfillment_status = 'picking' WHERE id = '` + order + `'`,
 		`UPDATE orders SET fulfillment_status = 'shipped' WHERE id = '` + order + `'`,
 		`INSERT INTO order_shipments (id, order_id, carrier, tracking_number, delivered_at)
-		 VALUES ('` + parcel + `', '` + order + `', '黑貓宅急便', 'EVERY-FK-1', now())`,
+		 VALUES ('` + parcel + `', '` + order + `', 'black_cat', 'EVERY-FK-1', now())`,
 		`INSERT INTO order_shipment_lines (order_id, shipment_id, order_line_id, quantity)
 		 VALUES ('` + order + `', '` + parcel + `', '` + line + `', 1)`,
 		`INSERT INTO warranty_registrations (order_line_id, unit_no, user_id, expires_on)

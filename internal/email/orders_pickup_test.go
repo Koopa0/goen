@@ -26,3 +26,39 @@ func TestAPickupDispatchNoticeSaysStorePickup(t *testing.T) {
 		}
 	}
 }
+
+func TestADispatchNoticeLinksTheCarriersTrackingPage(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name, carrier, want, wantName string
+	}{
+		{"black cat opens the parcel", "black_cat", "https://www.t-cat.com.tw/Inquire/TraceDetail.aspx?BillID=TW123", "黑貓宅急便"},
+		{"hct gives its lookup page", "hct", "https://www.hct.com.tw/Search/SearchGoods_n.aspx", "新竹物流"},
+		{"a carrier with no confirmed page links nothing", "ok_mart", "", "OK 超商"},
+		{"a value outside the closed set links nothing", "Black Cat", "", "Black Cat"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			n, sink := notifier(t)
+			if err := n.SendOrderShipped(t.Context(), &OrderShipped{
+				Locale: "zh-TW", Email: "a@b.co", Name: "Alex", OrderNumber: "GO-1",
+				Carrier: tt.carrier, Tracking: "TW123",
+			}); err != nil {
+				t.Fatal(err)
+			}
+			body := sink.msg.Body
+			if !strings.Contains(body, tt.wantName) {
+				t.Errorf("body does not name the carrier %q:\n%s", tt.wantName, body)
+			}
+			if tt.want == "" {
+				if strings.Contains(body, "查詢物流") {
+					t.Errorf("body links a tracking page for %q:\n%s", tt.carrier, body)
+				}
+				return
+			}
+			if !strings.Contains(body, tt.want) {
+				t.Errorf("body does not link %q:\n%s", tt.want, body)
+			}
+		})
+	}
+}

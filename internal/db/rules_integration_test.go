@@ -131,7 +131,7 @@ const pendingHoldableLine = `INSERT INTO order_lines (order_id, variant_id, sku,
 // parcel that has arrived, which is what a warranty registration is made against.
 const deliveredWarrantyLine = `INSERT INTO order_shipments (id, order_id, carrier, tracking_number, delivered_at)
 	VALUES ('66660004-0000-4000-8000-000000000000', '66666666-6666-4666-8666-666666666666',
-	        '黑貓宅急便', '903-2214-8872', now());
+	        'black_cat', '903-2214-8872', now());
 	INSERT INTO order_shipment_lines (order_id, shipment_id, order_line_id, quantity)
 	VALUES ('66666666-6666-4666-8666-666666666666', '66660004-0000-4000-8000-000000000000',
 	        '66660001-0000-4000-8000-000000000000', 2);
@@ -840,7 +840,7 @@ var ruleCases = []ruleCase{
 		         INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street)
 		         VALUES ('11110023-0000-4000-8000-000000000001', 'ship-rule@example.com', '王', '0912345678', '110', '台北市', '信義區', '路 1 號');
 		         INSERT INTO order_shipments (order_id, carrier, tracking_number)
-		         VALUES ('11110023-0000-4000-8000-000000000001', '黑貓', 'SHIP-RULE-REJECT');`,
+		         VALUES ('11110023-0000-4000-8000-000000000001', 'black_cat', 'SHIP-RULE-REJECT');`,
 		accept: `INSERT INTO orders (id, order_number, shipping_version_id, shipping_method_code, shipping_method_name, discount_cents)
 		         VALUES ('11110023-0000-4000-8000-000000000001', 'GO-260721-000903', 'ffff0002-0000-4000-8000-000000000000', 'home_delivery', '宅配到府', 100000);
 		         INSERT INTO order_lines (order_id, sku, product_name, unit_price_cents, quantity)
@@ -850,7 +850,7 @@ var ruleCases = []ruleCase{
 		         UPDATE orders SET fulfillment_status = 'picking'
 		         WHERE id = '11110023-0000-4000-8000-000000000001';
 		         INSERT INTO order_shipments (order_id, carrier, tracking_number)
-		         VALUES ('11110023-0000-4000-8000-000000000001', '黑貓', 'SHIP-RULE-ACCEPT');`,
+		         VALUES ('11110023-0000-4000-8000-000000000001', 'black_cat', 'SHIP-RULE-ACCEPT');`,
 	},
 	{
 		rule: "return_requests_legal_transition",
@@ -1367,7 +1367,7 @@ var ruleCases = []ruleCase{
 		rule: "return_before_shipment_eligible",
 		// Still picking, but a parcel exists.
 		reject: `INSERT INTO order_shipments (order_id, carrier, tracking_number)
-		         VALUES ('6666bbbb-6666-4666-8666-666666666666', '黑貓宅急便', 'TRK-BEFORE-DOOR');` +
+		         VALUES ('6666bbbb-6666-4666-8666-666666666666', 'black_cat', 'TRK-BEFORE-DOOR');` +
 			beforeShipmentRefund,
 		accept: beforeShipmentRefund,
 	},
@@ -1383,7 +1383,7 @@ var ruleCases = []ruleCase{
 		// A refund before shipment is bounded by what was ordered, and only while no
 		// parcel exists: the order-line ceiling alone would admit this.
 		reject: `INSERT INTO order_shipments (order_id, carrier, tracking_number)
-		         VALUES ('6666bbbb-6666-4666-8666-666666666666', '黑貓宅急便', 'TRK-BEFORE-SHIPMENT');` +
+		         VALUES ('6666bbbb-6666-4666-8666-666666666666', 'black_cat', 'TRK-BEFORE-SHIPMENT');` +
 			beforeShipmentLine,
 		accept: beforeShipmentLine,
 	},
@@ -1547,7 +1547,7 @@ const openReturnAccountFixture = `
 	WHERE id = '11110070-0000-4000-8000-000000000001';
 	INSERT INTO order_shipments (id, order_id, carrier, tracking_number)
 	VALUES ('11110072-0000-4000-8000-000000000001',
-	        '11110070-0000-4000-8000-000000000001', '黑貓', 'CREDIT-RETURN-1');
+	        '11110070-0000-4000-8000-000000000001', 'black_cat', 'CREDIT-RETURN-1');
 	INSERT INTO order_shipment_lines (
 	    order_id, shipment_id, order_line_id, quantity
 	) VALUES (
@@ -1995,7 +1995,7 @@ func TestHoldInventoryRefusesSettledOrders(t *testing.T) {
 		err := run(t, `
 			WITH s AS (
 				INSERT INTO order_shipments (order_id, carrier, tracking_number)
-				VALUES ('`+shipped+`', '黑貓', 'TRK-HOLD-DONE') RETURNING id
+				VALUES ('`+shipped+`', 'black_cat', 'TRK-HOLD-DONE') RETURNING id
 			)
 			INSERT INTO order_shipment_lines (order_id, shipment_id, order_line_id, quantity)
 			SELECT ol.order_id, s.id, ol.id,

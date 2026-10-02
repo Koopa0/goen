@@ -9,5 +9,6 @@ var (
 	KeyMailOrderStaffCancelledBody          = key("mail.order.cancelled.staff.body", Message{ZhHant: "商店已取消訂單 %s。請至訂單頁查看付款及退款狀態：%s", En: "The shop cancelled order %s. View its payment and refund status on the order page: %s"})
 	KeyMailOrderArrivedSubject              = key("mail.order.arrived.subject", Message{ZhHant: "訂單 %s 收貨狀態更新", En: "Receipt update for order %s"})
 	KeyMailOrderDeliveredBody               = key("mail.order.delivered.body", Message{ZhHant: "訂單 %s 已標記為送達。查看訂單：%s", En: "Order %s has been marked as delivered. View your order: %s"})
+	KeyMailRescissionEnds                   = key("mail.order.rescissionends", Message{ZhHant: "依消費者保護法,您可在收到商品後七日內退貨,最後一日為 %s。", En: "Under Taiwan's Consumer Protection Act you may return the goods within seven days of receiving them; the last day is %s."})
 	KeyMailOrderCollectedBody               = key("mail.order.collected.body", Message{ZhHant: "訂單 %s 已標記為取貨完成。查看訂單：%s", En: "Order %s has been marked as collected. View your order: %s"})
 )

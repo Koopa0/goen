@@ -8645,6 +8645,76 @@ func (q *Queries) OrderIDByNumber(ctx context.Context, orderNumber string) (Orde
 	return i, err
 }
 
+const orderInvoiceDocuments = `-- name: OrderInvoiceDocuments :many
+SELECT kind, number, amount_cents, status,
+       coalesce(provider_ref, '')::text AS provider_ref, issued_at
+FROM invoice_documents WHERE order_id = $1 ORDER BY issued_at, id
+`
+
+type OrderInvoiceDocumentsRow struct {
+	Kind        string
+	Number      string
+	AmountCents int64
+	Status      string
+	ProviderRef string
+	IssuedAt    time.Time
+}
+
+// What the customer may read of the order's filed invoice: nothing exists
+// before issue, so an order with no rows shows no panel.
+func (q *Queries) OrderInvoiceDocuments(ctx context.Context, orderID uuid.UUID) ([]OrderInvoiceDocumentsRow, error) {
+	rows, err := q.db.Query(ctx, orderInvoiceDocuments, orderID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []OrderInvoiceDocumentsRow{}
+	for rows.Next() {
+		var i OrderInvoiceDocumentsRow
+		if err := rows.Scan(
+			&i.Kind,
+			&i.Number,
+			&i.AmountCents,
+			&i.Status,
+			&i.ProviderRef,
+			&i.IssuedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const orderInvoicePreference = `-- name: OrderInvoicePreference :one
+SELECT invoice_type, coalesce(carrier_code, '')::text AS carrier_code,
+       coalesce(donation_code, '')::text AS donation_code,
+       coalesce(tax_id, '')::text AS tax_id
+FROM invoice_preferences WHERE order_id = $1
+`
+
+type OrderInvoicePreferenceRow struct {
+	InvoiceType  string
+	CarrierCode  string
+	DonationCode string
+	TaxID        string
+}
+
+func (q *Queries) OrderInvoicePreference(ctx context.Context, orderID uuid.UUID) (OrderInvoicePreferenceRow, error) {
+	row := q.db.QueryRow(ctx, orderInvoicePreference, orderID)
+	var i OrderInvoicePreferenceRow
+	err := row.Scan(
+		&i.InvoiceType,
+		&i.CarrierCode,
+		&i.DonationCode,
+		&i.TaxID,
+	)
+	return i, err
+}
+
 const orderIsPaid = `-- name: OrderIsPaid :one
 SELECT EXISTS (
     SELECT 1 FROM payments WHERE order_id = $1 AND status = 'succeeded'
@@ -9021,7 +9091,8 @@ func (q *Queries) OrderTotalByNumber(ctx context.Context, orderNumber string) (O
 }
 
 const orderTracking = `-- name: OrderTracking :many
-SELECT carrier, tracking_number, shipped_at, delivered_at
+SELECT carrier, tracking_number, shipped_at, delivered_at,
+       coalesce(to_char(return_window_ends(delivered_at), 'YYYY-MM-DD'), '')::text AS rescission_ends
 FROM order_shipments WHERE order_id = $1 ORDER BY shipped_at, id
 `
 
@@ -9030,6 +9101,7 @@ type OrderTrackingRow struct {
 	TrackingNumber string
 	ShippedAt      time.Time
 	DeliveredAt    pgtype.Timestamptz
+	RescissionEnds string
 }
 
 func (q *Queries) OrderTracking(ctx context.Context, orderID uuid.UUID) ([]OrderTrackingRow, error) {
@@ -9046,6 +9118,7 @@ func (q *Queries) OrderTracking(ctx context.Context, orderID uuid.UUID) ([]Order
 			&i.TrackingNumber,
 			&i.ShippedAt,
 			&i.DeliveredAt,
+			&i.RescissionEnds,
 		); err != nil {
 			return nil, err
 		}
@@ -13982,20 +14055,25 @@ func (q *Queries) TOTPCredential(ctx context.Context, userID uuid.UUID) (TOTPCre
 }
 
 const terminalOrderRecipient = `-- name: TerminalOrderRecipient :one
-SELECT o.order_number, o.locale, pd.email, pd.recipient_name
+SELECT o.order_number, o.locale, pd.email, pd.recipient_name,
+       coalesce((SELECT to_char(min(return_window_ends(s.delivered_at)), 'YYYY-MM-DD')
+                 FROM order_shipments s WHERE s.order_id = o.id), '')::text AS rescission_ends
 FROM orders o
 JOIN order_private_data pd ON pd.order_id = o.id
 WHERE o.id = $1 AND pd.erased_at IS NULL
 `
 
 type TerminalOrderRecipientRow struct {
-	OrderNumber   string
-	Locale        string
-	Email         pgtype.Text
-	RecipientName pgtype.Text
+	OrderNumber    string
+	Locale         string
+	Email          pgtype.Text
+	RecipientName  pgtype.Text
+	RescissionEnds string
 }
 
 // Delivery reads current private data so an erasure cannot be undone by a queued address.
+// rescission_ends is the earliest parcel's last day, or ” before any delivery,
+// so it is never later than the right of any parcel the notice may be about.
 func (q *Queries) TerminalOrderRecipient(ctx context.Context, id uuid.UUID) (TerminalOrderRecipientRow, error) {
 	row := q.db.QueryRow(ctx, terminalOrderRecipient, id)
 	var i TerminalOrderRecipientRow
@@ -14004,6 +14082,7 @@ func (q *Queries) TerminalOrderRecipient(ctx context.Context, id uuid.UUID) (Ter
 		&i.Locale,
 		&i.Email,
 		&i.RecipientName,
+		&i.RescissionEnds,
 	)
 	return i, err
 }

@@ -661,7 +661,7 @@ func TestShipDoesAllFourWritesOrNone(t *testing.T) {
 	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
 	number, orderID := pickingOrderHoldingStock(t)
 
-	if err := s.Ship(ctx, number, admin.Dispatch{Carrier: "黑貓宅急便", Tracking: "TW1234567890"}, uuid.NullUUID{}); err != nil {
+	if err := s.Ship(ctx, number, admin.Dispatch{Carrier: "black_cat", Tracking: "TW1234567890"}, uuid.NullUUID{}); err != nil {
 		t.Fatalf("ship: %v", err)
 	}
 
@@ -675,7 +675,7 @@ func TestShipDoesAllFourWritesOrNone(t *testing.T) {
 	if status != "shipped" {
 		t.Errorf("order is %q after shipping, want shipped", status)
 	}
-	if carrier != "黑貓宅急便" || tracking != "TW1234567890" {
+	if carrier != "black_cat" || tracking != "TW1234567890" {
 		t.Errorf("shipment is %q/%q, want the carrier and tracking that were submitted", carrier, tracking)
 	}
 
@@ -746,7 +746,7 @@ func TestShippingIsRefusedForAnOrderThatWasNeverPicked(t *testing.T) {
 		t.Fatalf("read stock before dispatch: %v", err)
 	}
 
-	err := s.Ship(ctx, number, admin.Dispatch{Carrier: "黑貓宅急便", Tracking: "TW999"}, actor)
+	err := s.Ship(ctx, number, admin.Dispatch{Carrier: "black_cat", Tracking: "TW999"}, actor)
 	if !errors.Is(err, admin.ErrRefused) {
 		t.Fatalf("shipping a pending order gave %v, want ErrRefused", err)
 	}
@@ -801,7 +801,7 @@ func TestShippingIsRefusedForAnOrderThatWasNeverPicked(t *testing.T) {
 		t.Fatalf("commit funding: %v", err)
 	}
 	if err := s.Ship(ctx, number,
-		admin.Dispatch{Carrier: "黑貓宅急便", Tracking: "TW999"}, actor); err != nil {
+		admin.Dispatch{Carrier: "black_cat", Tracking: "TW999"}, actor); err != nil {
 		t.Fatalf("ship the same order after picking: %v", err)
 	}
 	var status string
@@ -821,7 +821,9 @@ func TestShipNeedsACarrierAndATracking(t *testing.T) {
 
 	tests := []struct{ name, carrier, tracking string }{
 		{"no carrier", "", "TW1"},
-		{"no tracking", "黑貓", ""},
+		{"no tracking", "black_cat", ""},
+		{"a spelling outside the closed set", "黑貓", "TW1"},
+		{"the display name is not the code", "黑貓宅急便", "TW1"},
 		{"both blank", "", ""},
 		{"whitespace only", "   ", "\t"},
 	}
@@ -1137,7 +1139,7 @@ func returnedOrderOn(
 	var shipmentID uuid.UUID
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO order_shipments (order_id, carrier, tracking_number)
-		VALUES ($1, '黑貓', 'T-'||$2) RETURNING id`, orderID, orderNumber).Scan(&shipmentID); err != nil {
+		VALUES ($1, 'black_cat', 'T-'||$2) RETURNING id`, orderID, orderNumber).Scan(&shipmentID); err != nil {
 		t.Fatalf("create shipment: %v", err)
 	}
 	if _, err := tx.Exec(ctx, `
@@ -1220,7 +1222,7 @@ func returnedOrderAtWithReasonOn(
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO order_shipments (
 			order_id, carrier, tracking_number, shipped_at, delivered_at
-		) VALUES ($1, '黑貓', 'T-CALENDAR-' || $2, $3, $4)
+		) VALUES ($1, 'black_cat', 'T-CALENDAR-' || $2, $3, $4)
 		RETURNING id`, orderID, orderNumber, delivered.Add(-48*time.Hour), delivered).Scan(&shipmentID); err != nil {
 		t.Fatalf("create delivered shipment: %v", err)
 	}
@@ -1294,7 +1296,7 @@ func deliveredOrderAtOn(t *testing.T, p *pgxpool.Pool, delivered time.Time) (num
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO order_shipments (
 			order_id, carrier, tracking_number, shipped_at, delivered_at
-		) VALUES ($1, '黑貓', 'T-POLICY-' || $2, $3, $4)
+		) VALUES ($1, 'black_cat', 'T-POLICY-' || $2, $3, $4)
 		RETURNING id`, orderID, number, delivered.Add(-48*time.Hour), delivered).Scan(&shipmentID); err != nil {
 		t.Fatalf("create delivered shipment: %v", err)
 	}
@@ -1393,7 +1395,7 @@ func loyaltyReturn(t *testing.T, prices []int64, returnLine int) (
 	var shipmentID uuid.UUID
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO order_shipments (order_id, carrier, tracking_number, delivered_at)
-		VALUES ($1, '黑貓', 'RP-' || $2, now()) RETURNING id`,
+		VALUES ($1, 'black_cat', 'RP-' || $2, now()) RETURNING id`,
 		orderID, orderNumber).Scan(&shipmentID); err != nil {
 		t.Fatalf("create delivered shipment: %v", err)
 	}
@@ -1945,7 +1947,7 @@ func couponedShippedOrder(t *testing.T, lines int) (requestID uuid.UUID, orderNu
 	var shipmentID uuid.UUID
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO order_shipments (order_id, carrier, tracking_number)
-		VALUES ($1, '黑貓', 'TC-'||$2) RETURNING id`, orderID, orderNumber).Scan(&shipmentID); err != nil {
+		VALUES ($1, 'black_cat', 'TC-'||$2) RETURNING id`, orderID, orderNumber).Scan(&shipmentID); err != nil {
 		t.Fatalf("create shipment: %v", err)
 	}
 	if err := tx.QueryRow(ctx, `
@@ -2019,7 +2021,7 @@ func twoLineOrderForSequentialReturns(t *testing.T) (
 	var shipmentID uuid.UUID
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO order_shipments (order_id, carrier, tracking_number)
-		VALUES ($1, '黑貓', 'RETURN-FEE-' || $2) RETURNING id`, orderID, orderNumber).
+		VALUES ($1, 'black_cat', 'RETURN-FEE-' || $2) RETURNING id`, orderID, orderNumber).
 		Scan(&shipmentID); err != nil {
 		t.Fatalf("create shipment: %v", err)
 	}
@@ -4691,7 +4693,7 @@ func TestShippingEnqueuesTheDispatchNotice(t *testing.T) {
 	}
 	staffCtx := account.WithUser(ctx, account.User{ID: staff.String(), Role: "admin"})
 
-	if err := s.Ship(staffCtx, number, admin.Dispatch{Carrier: "黑貓宅急便", Tracking: "903-2214-0001"},
+	if err := s.Ship(staffCtx, number, admin.Dispatch{Carrier: "black_cat", Tracking: "903-2214-0001"},
 		uuid.NullUUID{UUID: staff, Valid: true}); err != nil {
 		t.Fatalf("ship: %v", err)
 	}
@@ -4711,7 +4713,7 @@ func TestShippingEnqueuesTheDispatchNotice(t *testing.T) {
 	}
 	want := admin.OrderShipped{
 		OrderNumber: number, Email: "ship@example.com", Name: "收件人",
-		Carrier: "黑貓宅急便", Tracking: "903-2214-0001",
+		Carrier: "black_cat", Tracking: "903-2214-0001",
 		Locale: "en",
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
@@ -5607,7 +5609,7 @@ func TestADeliveryAddressCanBeCorrectedUntilItShips(t *testing.T) {
 		t.Errorf("the address is %q after the correction", got)
 	}
 
-	if err := s.Ship(ctx, number, admin.Dispatch{Carrier: "黑貓宅急便", Tracking: "903-2214-9999"},
+	if err := s.Ship(ctx, number, admin.Dispatch{Carrier: "black_cat", Tracking: "903-2214-9999"},
 		uuid.NullUUID{UUID: staffID, Valid: true}); err != nil {
 		t.Fatalf("ship: %v", err)
 	}
@@ -6551,7 +6553,7 @@ func creditFundedReturnOn(
 	var shipmentID uuid.UUID
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO order_shipments (order_id, carrier, tracking_number)
-		VALUES ($1, '黑貓', 'TC-'||$2) RETURNING id`,
+		VALUES ($1, 'black_cat', 'TC-'||$2) RETURNING id`,
 		orderID, orderNumber).Scan(&shipmentID); err != nil {
 		t.Fatalf("create shipment: %v", err)
 	}
@@ -7123,7 +7125,7 @@ func TestADeliveredOrderMarksItsParcelsDelivered(t *testing.T) {
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
 	number := shippableOrder(t, "zh-Hant")
 
-	if err := s.Ship(ctx, number, admin.Dispatch{Carrier: "黑貓宅急便", Tracking: "DELIVERED-" + number}, actor); err != nil {
+	if err := s.Ship(ctx, number, admin.Dispatch{Carrier: "black_cat", Tracking: "DELIVERED-" + number}, actor); err != nil {
 		t.Fatalf("Ship: %v", err)
 	}
 	before, err := s.Order(ctx, number)
@@ -7167,7 +7169,7 @@ func TestAnOrderCompletedWithoutADeliveryStepStillStampsItsParcels(t *testing.T)
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
 	number := shippableOrder(t, "zh-Hant")
 
-	if err := s.Ship(ctx, number, admin.Dispatch{Carrier: "7-ELEVEN 交貨便", Tracking: "COLLECTED-" + number}, actor); err != nil {
+	if err := s.Ship(ctx, number, admin.Dispatch{Carrier: "seven_eleven", Tracking: "COLLECTED-" + number}, actor); err != nil {
 		t.Fatalf("Ship: %v", err)
 	}
 	if !deliveredAt(t, number).IsZero() {
@@ -7196,7 +7198,7 @@ func TestShippingIsRefusedWhenTheOrderHoldsNoStock(t *testing.T) {
 		t.Fatalf("strand the order: %v", err)
 	}
 
-	err := s.Ship(ctx, number, admin.Dispatch{Carrier: "黑貓宅急便", Tracking: "NOHOLD-" + number}, uuid.NullUUID{})
+	err := s.Ship(ctx, number, admin.Dispatch{Carrier: "black_cat", Tracking: "NOHOLD-" + number}, uuid.NullUUID{})
 	if !errors.Is(err, admin.ErrRefused) {
 		t.Fatalf("shipping an order holding no stock = %v, want ErrRefused", err)
 	}
@@ -10000,7 +10002,7 @@ func returnedOrderWithStock(t *testing.T, name string, qty int32) (requestID, va
 	var shipmentID uuid.UUID
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO order_shipments (order_id, carrier, tracking_number)
-		VALUES ($1, '黑貓', 'TS-'||$2) RETURNING id`,
+		VALUES ($1, 'black_cat', 'TS-'||$2) RETURNING id`,
 		orderID, orderNumber).Scan(&shipmentID); err != nil {
 		t.Fatalf("create shipment: %v", err)
 	}
@@ -10338,7 +10340,7 @@ func TestAnOrderCanShipInTwoParcels(t *testing.T) {
 	number, orderID, lines, variants := twoLineOrderWithStock(t, "partial")
 
 	if err := s.Ship(ctx, number, admin.Dispatch{
-		Carrier: "黑貓宅急便", Tracking: "P1-" + number,
+		Carrier: "black_cat", Tracking: "P1-" + number,
 		Lines: map[uuid.UUID]int32{lines[0]: 2},
 	}, actor); err != nil {
 		t.Fatalf("first parcel: %v", err)
@@ -10367,7 +10369,7 @@ func TestAnOrderCanShipInTwoParcels(t *testing.T) {
 	}
 
 	if err := s.Ship(ctx, number, admin.Dispatch{
-		Carrier: "黑貓宅急便", Tracking: "P2-" + number,
+		Carrier: "black_cat", Tracking: "P2-" + number,
 	}, actor); err != nil {
 		t.Fatalf("second parcel: %v", err)
 	}
@@ -10396,7 +10398,7 @@ func TestAnOrderCanShipInTwoParcels(t *testing.T) {
 	}
 
 	err := s.Ship(ctx, number, admin.Dispatch{
-		Carrier: "黑貓宅急便", Tracking: "P3-" + number,
+		Carrier: "black_cat", Tracking: "P3-" + number,
 	}, actor)
 	if !errors.Is(err, admin.ErrRefused) {
 		t.Errorf("a third parcel on a fully shipped order = %v, want ErrRefused", err)
@@ -10410,7 +10412,7 @@ func TestAParcelCannotCarryMoreThanRemains(t *testing.T) {
 	number, orderID, lines, variants := twoLineOrderWithStock(t, "overship")
 
 	err := s.Ship(ctx, number, admin.Dispatch{
-		Carrier: "黑貓宅急便", Tracking: "OVER-" + number,
+		Carrier: "black_cat", Tracking: "OVER-" + number,
 		Lines: map[uuid.UUID]int32{lines[0]: 4},
 	}, actor)
 	if !errors.Is(err, admin.ErrQuantity) {
@@ -10437,7 +10439,7 @@ func TestAnEmptyParcelIsRefused(t *testing.T) {
 	number, orderID, lines, _ := twoLineOrderWithStock(t, "emptyparcel")
 
 	err := s.Ship(ctx, number, admin.Dispatch{
-		Carrier: "黑貓宅急便", Tracking: "EMPTY-" + number,
+		Carrier: "black_cat", Tracking: "EMPTY-" + number,
 		Lines: map[uuid.UUID]int32{lines[0]: 0, lines[1]: 0},
 	}, actor)
 	if !errors.Is(err, admin.ErrQuantity) {
@@ -10460,13 +10462,13 @@ func TestEachParcelTellsTheCustomer(t *testing.T) {
 	number, orderID, lines, _ := twoLineOrderWithStock(t, "notice")
 
 	if err := s.Ship(ctx, number, admin.Dispatch{
-		Carrier: "黑貓宅急便", Tracking: "N1-" + number,
+		Carrier: "black_cat", Tracking: "N1-" + number,
 		Lines: map[uuid.UUID]int32{lines[0]: 3},
 	}, actor); err != nil {
 		t.Fatalf("first parcel: %v", err)
 	}
 	if err := s.Ship(ctx, number, admin.Dispatch{
-		Carrier: "黑貓宅急便", Tracking: "N2-" + number,
+		Carrier: "black_cat", Tracking: "N2-" + number,
 		Lines: map[uuid.UUID]int32{lines[1]: 3},
 	}, actor); err != nil {
 		t.Fatalf("second parcel: %v", err)
@@ -10737,7 +10739,7 @@ func registeredWarranty(t *testing.T, serial string) (registered, orderNumber st
 	var shipmentID uuid.UUID
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO order_shipments (order_id, carrier, tracking_number, shipped_at, delivered_at)
-		VALUES ($1, '黑貓', 'WR-' || $2, now() - interval '5 days', now() - interval '3 days')
+		VALUES ($1, 'black_cat', 'WR-' || $2, now() - interval '5 days', now() - interval '3 days')
 		RETURNING id`, orderID, number).Scan(&shipmentID); err != nil {
 		t.Fatalf("create shipment: %v", err)
 	}
@@ -10926,7 +10928,7 @@ func TestAnOrderCannotFinishWhileItStillOwesAParcel(t *testing.T) {
 
 	// One parcel, carrying part of the first line only.
 	if err := s.Ship(ctx, number, admin.Dispatch{
-		Carrier: "黑貓宅急便", Tracking: "U1-" + number,
+		Carrier: "black_cat", Tracking: "U1-" + number,
 		Lines: map[uuid.UUID]int32{lines[0]: 1},
 	}, actor); err != nil {
 		t.Fatalf("first parcel: %v", err)
@@ -10972,7 +10974,7 @@ func TestAnOrderCannotFinishWhileItStillOwesAParcel(t *testing.T) {
 
 	// And once everything has gone out, finishing works and nothing is held.
 	if err := s.Ship(ctx, number, admin.Dispatch{
-		Carrier: "黑貓宅急便", Tracking: "U2-" + number,
+		Carrier: "black_cat", Tracking: "U2-" + number,
 	}, actor); err != nil {
 		t.Fatalf("second parcel: %v", err)
 	}
@@ -11006,13 +11008,13 @@ func TestTwoCarriersSharingATrackingNumberBothNotify(t *testing.T) {
 	second, _, secondLines, _ := twoLineOrderWithStock(t, "carrier-b")
 
 	if err := s.Ship(ctx, first, admin.Dispatch{
-		Carrier: "黑貓宅急便", Tracking: shared,
+		Carrier: "black_cat", Tracking: shared,
 		Lines: map[uuid.UUID]int32{firstLines[0]: 1},
 	}, actor); err != nil {
 		t.Fatalf("first carrier: %v", err)
 	}
 	if err := s.Ship(ctx, second, admin.Dispatch{
-		Carrier: "新竹物流", Tracking: shared,
+		Carrier: "hct", Tracking: shared,
 		Lines: map[uuid.UUID]int32{secondLines[0]: 1},
 	}, actor); err != nil {
 		t.Fatalf("second carrier: %v — the database allows the pair, so the "+
@@ -11151,7 +11153,7 @@ func TestADeliveredOrderCanStillShipWhatItOwes(t *testing.T) {
 	// One parcel carrying part of the first line, then straight to delivered:
 	// what went out has arrived, and the rest is still to come.
 	if err := s.Ship(ctx, number, admin.Dispatch{
-		Carrier: "黑貓宅急便", Tracking: "D1-" + number,
+		Carrier: "black_cat", Tracking: "D1-" + number,
 		Lines: map[uuid.UUID]int32{lines[0]: 1},
 	}, actor); err != nil {
 		t.Fatalf("first parcel: %v", err)
@@ -11171,7 +11173,7 @@ func TestADeliveredOrderCanStillShipWhatItOwes(t *testing.T) {
 	}
 
 	if err := s.Ship(ctx, number, admin.Dispatch{
-		Carrier: "黑貓宅急便", Tracking: "D2-" + number,
+		Carrier: "black_cat", Tracking: "D2-" + number,
 	}, actor); err != nil {
 		t.Fatalf("the second parcel of a delivered order was refused: %v", err)
 	}
@@ -11785,7 +11787,7 @@ func TestTheStatusMenuOffersOnlyWhatTheDatabaseWillAccept(t *testing.T) {
 
 	number, _, lines, _ := twoLineOrderWithStock(t, "menu")
 	if err = s.Ship(ctx, number, admin.Dispatch{
-		Carrier: "黑貓宅急便", Tracking: "MENU-" + number, Lines: map[uuid.UUID]int32{lines[0]: 1},
+		Carrier: "black_cat", Tracking: "MENU-" + number, Lines: map[uuid.UUID]int32{lines[0]: 1},
 	}, actor); err != nil {
 		t.Fatalf("first parcel: %v", err)
 	}
@@ -11826,7 +11828,7 @@ func TestARefusedStatusMoveNamesItsReason(t *testing.T) {
 
 	number, _, lines, _ := twoLineOrderWithStock(t, "reason")
 	if err := s.Ship(ctx, number, admin.Dispatch{
-		Carrier: "黑貓宅急便", Tracking: "RSN-" + number, Lines: map[uuid.UUID]int32{lines[0]: 1},
+		Carrier: "black_cat", Tracking: "RSN-" + number, Lines: map[uuid.UUID]int32{lines[0]: 1},
 	}, uuid.NullUUID{UUID: staff, Valid: true}); err != nil {
 		t.Fatalf("first parcel: %v", err)
 	}
@@ -11880,7 +11882,7 @@ func TestAnAuditEntryNamesItsOrderAndLinksIt(t *testing.T) {
 	ctx, staff := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
 	number := shippableOrder(t, "zh-Hant")
-	if err := s.Ship(ctx, number, admin.Dispatch{Carrier: "黑貓宅急便", Tracking: "AUD-" + number},
+	if err := s.Ship(ctx, number, admin.Dispatch{Carrier: "black_cat", Tracking: "AUD-" + number},
 		uuid.NullUUID{UUID: staff, Valid: true}); err != nil {
 		t.Fatalf("Ship: %v", err)
 	}
@@ -11906,7 +11908,7 @@ func TestARefusedDispatchKeepsWhatWasTyped(t *testing.T) {
 	number, _, lines, _ := twoLineOrderWithStock(t, "retype")
 
 	form := url.Values{
-		"carrier": {"黑貓宅急便"}, "tracking": {"9001-2345"}, "qty_" + lines[0].String(): {"99"},
+		"carrier": {"black_cat"}, "tracking": {"9001-2345"}, "qty_" + lines[0].String(): {"99"},
 	}
 	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/orders/"+number+"/ship", strings.NewReader(form.Encode()))
 	req.SetPathValue("number", number)
@@ -11918,7 +11920,7 @@ func TestARefusedDispatchKeepsWhatWasTyped(t *testing.T) {
 		t.Fatalf("a quantity above what is outstanding answered %d, want 422", w.Code)
 	}
 	body := w.Body.String()
-	for _, want := range []string{`value="黑貓宅急便"`, `value="9001-2345"`, `value="99"`, `id="ship-qty-error"`, `aria-invalid="true"`} {
+	for _, want := range []string{`value="black_cat"`, `value="9001-2345"`, `value="99"`, `id="ship-qty-error"`, `aria-invalid="true"`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("the refused dispatch is missing %q", want)
 		}
