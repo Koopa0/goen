@@ -607,7 +607,8 @@ h3 {
   color: var(--fg);
 }
 
-.goen-stepper__step:disabled {
+.goen-stepper__step:disabled,
+.goen-stepper__step[aria-disabled='true'] {
   cursor: not-allowed;
   opacity: 0.4;
 }
@@ -3279,6 +3280,74 @@ h3 {
   font-size: var(--fs-14);
   font-variant-numeric: tabular-nums;
   margin: 0;
+}
+
+/* Department and campaign tone. data-tone is one of the closed set pages.Tone
+   names, on the page head; a custom property is never set inline because
+   style-src has no 'unsafe-inline'. Only these four properties vary: accent,
+   type, radii and buttons do not. The hex values are the oklch source rounded
+   to sRGB; assets/contrast_test.go holds every text colour on them to 4.5:1. */
+[data-tone="paper"] {
+  /* oklch(97.5% .012 85) / oklch(92% .02 85) */
+  --tone-ground: #faf6ee;
+  --tone-rule: #ebe4d6;
+  --tone-text: var(--n-900);
+  --tone-muted: var(--n-500);
+}
+
+[data-tone="stone"] {
+  /* oklch(97% .006 70) / oklch(92% .01 70) */
+  --tone-ground: #f8f4f1;
+  --tone-rule: #e9e4de;
+  --tone-text: var(--n-900);
+  --tone-muted: var(--n-500);
+}
+
+[data-tone="mist"] {
+  /* oklch(97.5% .008 250) / oklch(92% .015 250) */
+  --tone-ground: #f3f7fc;
+  --tone-rule: #dde6ee;
+  --tone-text: var(--n-900);
+  --tone-muted: var(--n-500);
+}
+
+[data-tone="sage"] {
+  /* oklch(97% .015 145) / oklch(92% .025 145) */
+  --tone-ground: #eff8ef;
+  --tone-rule: #dbe9db;
+  --tone-text: var(--n-900);
+  --tone-muted: var(--n-500);
+}
+
+[data-tone="blush"] {
+  /* oklch(97.5% .012 15) / oklch(92% .02 15) */
+  --tone-ground: #fff4f4;
+  --tone-rule: #f2e0e0;
+  --tone-text: var(--n-900);
+  --tone-muted: var(--n-500);
+}
+
+[data-tone="ink"] {
+  --tone-ground: #18181b;
+  --tone-rule: #27272a;
+  --tone-text: #ffffff;
+  --tone-muted: #a1a1aa;
+}
+
+.goen-pagehead[data-tone] {
+  background: var(--tone-ground);
+  border-bottom: 1px solid var(--tone-rule);
+  border-radius: var(--r-lg);
+  padding: 16px 20px;
+}
+
+.goen-pagehead[data-tone] .goen-pagehead__title {
+  color: var(--tone-text);
+}
+
+.goen-pagehead[data-tone] .goen-pagehead__sub,
+.goen-pagehead[data-tone] .goen-pagehead__eyebrow {
+  color: var(--tone-muted);
 }
 
 .goen-cart__layout,
@@ -6523,6 +6592,10 @@ h3 {
 
 .goen-admin__heroshot--campaign {
   height: 60px;
+}
+
+.goen-admin__heroshot--category {
+  height: 107px;
 }
 
 .goen-admin__heroactions {

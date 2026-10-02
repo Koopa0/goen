@@ -149,15 +149,10 @@ func (s *Store) Orders(ctx context.Context, status pages.QueueFilter, term strin
 			Term: term, EscapedTerm: catalog.EscapeLike(term), RowLimit: PageLimit,
 		}); err == nil {
 			rows = make([]db.AdminOrdersRow, 0, len(found))
+			// A conversion, not a field copy: it stops compiling when the two
+			// queries' columns drift, so a new column cannot be dropped silently.
 			for i := range found {
-				f := &found[i]
-				rows = append(rows, db.AdminOrdersRow{
-					PageCursor: f.PageCursor, ID: f.ID, OrderNumber: f.OrderNumber,
-					FulfillmentStatus: f.FulfillmentStatus, PlacedAt: f.PlacedAt,
-					ShippingCents: f.ShippingCents, DiscountCents: f.DiscountCents,
-					TaxCents: f.TaxCents, Recipient: f.Recipient,
-					SubtotalCents: f.SubtotalCents, Committed: f.Committed,
-				})
+				rows = append(rows, db.AdminOrdersRow(found[i]))
 			}
 		}
 	} else {
@@ -167,6 +162,7 @@ func (s *Store) Orders(ctx context.Context, status pages.QueueFilter, term strin
 			filter, funding = string(pages.FulfillmentPending), "unpaid"
 		case pages.QueueReady:
 			filter, funding = string(pages.FulfillmentPending), "funded"
+		default: // a fulfilment status filters by itself
 		}
 		rows, err = s.q.AdminOrders(ctx, db.AdminOrdersParams{HasCursor: cursor.Valid, AfterAt: cursor.At, AfterID: cursor.ID, Status: filter, Funding: funding, RowLimit: PageLimit})
 	}
@@ -517,7 +513,7 @@ func (s *Store) fillInvoices(ctx context.Context, view *pages.AdminOrderView, nu
 		doc := pages.AdminInvoiceDocument{
 			Kind: d.Kind, Number: d.Number, ProviderRef: d.ProviderRef,
 			AmountCents: d.AmountCents, Status: d.Status,
-			IssuedAt: shoptime.Minute(d.IssuedAt),
+			IssuedAt: shoptime.ProviderMinute(d.IssuedAt),
 		}
 		for _, l := range d.Lines {
 			doc.Lines = append(doc.Lines, pages.AdminInvoiceLine{

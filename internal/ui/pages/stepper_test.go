@@ -1,7 +1,10 @@
 package pages
 
 import (
+	"os"
+	"path/filepath"
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
@@ -71,6 +74,31 @@ func TestTheStepperButtonsNeverSubmit(t *testing.T) {
 		}
 		if !regexp.MustCompile(`aria-label="[^"]+"`).MatchString(step) {
 			t.Errorf("a stepper button has no name a screen reader can read: %s", step)
+		}
+	}
+}
+
+// TestTheStepperNeverDisablesTheButtonThatHasFocus reads the script, because
+// nothing else here runs it. The button that reaches a bound is the one with
+// focus, and a disabled focused button sends focus to the body, so a bound is
+// aria-disabled and the click handler ignores it.
+func TestTheStepperNeverDisablesTheButtonThatHasFocus(t *testing.T) {
+	t.Parallel()
+
+	src, err := os.ReadFile(filepath.Join("..", "..", "..", "assets", "js", "goen.js"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	script := string(src)
+	if strings.Contains(script, "step.disabled") {
+		t.Error("the stepper sets the disabled property on a step, which drops focus at a bound")
+	}
+	for _, want := range []string{
+		`step.setAttribute("aria-disabled", "true")`,
+		`step.getAttribute("aria-disabled") === "true"`,
+	} {
+		if !strings.Contains(script, want) {
+			t.Errorf("the stepper script lacks %s", want)
 		}
 	}
 }

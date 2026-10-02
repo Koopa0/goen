@@ -16,7 +16,7 @@ AXE_CORE_SHA256 := c24f097bd2f451d4f933e8bc7d8d539f8672a2ebcb5cc9f9f3eec8ca9470a
 
 # Tools that generate or inspect this module but are not part of it. `go run
 # pkg@version` pins each as firmly as a require line without joining the module
-# graph — see CLAUDE.md, "Build tools stay out of go.mod".
+# graph, so build tools stay out of go.mod.
 SQLC := go run github.com/sqlc-dev/sqlc/cmd/sqlc@$(SQLC_VERSION)
 MIGRATE := go run -tags='postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@$(MIGRATE_VERSION)
 GOVULNCHECK := go run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
@@ -36,7 +36,7 @@ endif
         sqlc sqlc-check squawk db-up db-down migrate-up migrate-down db-seed \
         db-repair-invoice-faq db-repair-refund-faq db-repair-payment-faq db-repair-shop-rules-faq \
         db-repair-hold-faq \
-        demo-restore-check cursor-scripts-check workflow-check verify verify-all check-layout db-reset clean
+        demo-restore-check cursor-scripts-check workflow-check verify verify-all check-layout check-layout-run db-reset clean
 
 build: gen
 	go build -o bin/goen ./cmd/goen
@@ -49,7 +49,12 @@ build: gen
 # schema-drift is the existing catalogue comparison against migrations/; a dev
 # database built before an amended 001 fails here instead of as a 500 later.
 run: gen
-	@$(MAKE) --no-print-directory schema-drift || { echo 'run: the development database does not match migrations/; back up anything you need, then run make db-reset' >&2; exit 1; }
+	@$(MAKE) --no-print-directory schema-drift; status=$$?; \
+		case $$status in \
+		0) ;; \
+		1) echo 'run: the development database does not match migrations/; back up anything you need, then run make db-reset' >&2; exit 1;; \
+		*) echo "run: could not compare the development database with migrations/ (schema-drift exited $$status; its message is above). If the database is not running: make db-up" >&2; exit $$status;; \
+		esac
 	GOEN_INSECURE_COOKIES=1 go run ./cmd/goen
 
 test: gen
@@ -96,20 +101,30 @@ test-integration: gen
 #
 # LAYOUT_CHROME is a target variable so the resolved path survives GNU make's
 # one-shell-per-recipe-line default. Quoted for the macOS app bundle path.
-check-layout: LAYOUT_CHROME := $(if $(CHROME),$(CHROME),$(shell scripts/resolve-chrome.sh 2>/dev/null))
+check-layout-run: LAYOUT_CHROME := $(if $(CHROME),$(CHROME),$(shell scripts/resolve-chrome.sh 2>/dev/null))
 # The seed's photograph tagged with COLOUR_VALUE, which the colour probe expects
 # to lead COLOUR_SLUG's gallery once that value is chosen.
-check-layout: COLOUR_SLUG := pixelight-9-pro
-check-layout: COLOUR_VALUE := 曜石黑
-check-layout: COLOUR_KEY := pixelight-9-pro-02.webp
+check-layout-run: COLOUR_SLUG := pixelight-9-pro
+check-layout-run: COLOUR_VALUE := 曜石黑
+check-layout-run: COLOUR_KEY := pixelight-9-pro-02.webp
+# Chrome is launched in the background several recipe lines in, and each line is
+# its own shell, so no line can clean up after a later one that fails. This
+# wrapper owns the cleanup: the browser and its profile are removed on every way
+# out, success, a failed fixture, Ctrl-C and SIGTERM. The pid file is the only
+# handle on a browser that outlives its shell.
 check-layout:
+	@trap 'if [ -f .layout-chrome/pid ]; then kill $$(cat .layout-chrome/pid) 2>/dev/null; fi; rm -rf .layout-chrome' EXIT; \
+		trap 'exit 130' INT; trap 'exit 143' TERM; \
+		$(MAKE) --no-print-directory check-layout-run
+
+check-layout-run:
 	@test -n "$(LAYOUT_CHROME)" && test -x "$(LAYOUT_CHROME)" || { echo 'Chrome not found; set CHROME=/path/to/chrome' >&2; exit 2; }
 	@curl -sf -o /dev/null $${GOEN_URL:-http://127.0.0.1:9700/} \
 		|| { echo 'no server on $${GOEN_URL:-http://127.0.0.1:9700/} — run `make run` first' >&2; exit 2; }
 	@rm -rf .layout-chrome && mkdir -p .layout-chrome
 	@"$(LAYOUT_CHROME)" --headless --disable-gpu --no-first-run \
 		--remote-debugging-port=$${CDP_PORT:-9222} \
-		--user-data-dir=$(PWD)/.layout-chrome about:blank >/dev/null 2>&1 & echo $$! > .layout-chrome/pid
+		--user-data-dir=$(CURDIR)/.layout-chrome about:blank >/dev/null 2>&1 & echo $$! > .layout-chrome/pid
 	@sleep 3
 	@# axe-core, fetched at the pin above and checked against it. Downloaded
 	@# AFTER the browser is launched so the wait for Chrome pays for the fetch,
@@ -134,7 +149,7 @@ check-layout:
 	@# to surface as the checkout fixture's "did not render its quote" further
 	@# down: a catalogue with nothing sellable, a GOEN_DATABASE_URL that is not the
 	@# database the server at GOEN_URL reads, and a genuinely broken add to cart all
-	@# arrived as that one sentence. Reporting three causes as one is CLAUDE.md #17.
+	@# arrived as that one sentence. Reporting three causes as one hides which to fix.
 	@VARIANT=$$(psql "$$GOEN_DATABASE_URL" -tAc "SELECT pv.id FROM product_variants pv JOIN products p ON p.id = pv.product_id WHERE p.status = 'active' AND pv.is_active AND pv.stock_quantity > pv.safety_stock LIMIT 1"); \
 		test -n "$$VARIANT" || { echo 'no sellable variant in GOEN_DATABASE_URL: run `make db-seed` against the database the server reads' >&2; exit 2; }; \
 		STATUS=$$(curl -s -o /dev/null -w '%{http_code}' -c .layout-chrome/cookies \
@@ -152,8 +167,8 @@ check-layout:
 	@# a missing user made the session INSERT ... SELECT write ZERO ROWS in silence
 	@# and all 48 admin rows then failed with one message — "the staff session is
 	@# not being accepted" — which names a rejected cookie and not an absent one.
-	@# A fixture that fails quietly is CLAUDE.md #26; a check reporting four causes
-	@# as one is #17. This target had both, on the same three lines.
+	@# A fixture that fails quietly, and a check that reports four causes as one,
+	@# are both what this target had, on the same three lines.
 	@psql "$$GOEN_DATABASE_URL" -qtAc "INSERT INTO users (email, role) VALUES ('layout-check@goen.invalid', 'admin') ON CONFLICT (lower(email)) DO NOTHING" >/dev/null
 	@psql "$$GOEN_DATABASE_URL" -qtAc "INSERT INTO users (email, role, full_name, phone) VALUES ('layout-cust@goen.invalid', 'customer', '版面顧客', '0912345678') ON CONFLICT (lower(email)) DO NOTHING" >/dev/null
 	@openssl rand -hex 32 > .layout-chrome/admin-token
@@ -207,8 +222,8 @@ check-layout:
 	@# /admin/messages, /admin/questions and /admin/returns each render an EMPTY
 	@# STATE that carries the back-office chrome and nothing else. Their rows in the
 	@# table measured 23 controls — the navigation — and reported a measured page.
-	@# That is the finding this fixture closes, and it is CLAUDE.md #26 for the
-	@# fourth time: a check over DATA needs that data seeded.
+	@# That is the finding this fixture closes: a check over DATA needs that data
+	@# seeded.
 	@#
 	@# All three go through the site's OWN forms. The point is not tidiness: if
 	@# writing to the shop breaks, this check has to break with it, which a psql
@@ -628,9 +643,11 @@ squawk:
 	@version=$$(squawk --version); case "$$version" in *"$(SQUAWK_VERSION)"*) ;; *) echo "squawk $(SQUAWK_VERSION) is required, found $$version" >&2; exit 1;; esac
 	squawk migrations/*.sql
 
+# --wait uses the compose healthcheck and fails when the container exits or
+# never turns healthy, where an unbounded pg_isready loop hung forever on a
+# database that had died, and CI's schema and layout jobs hung with it.
 db-up:
-	docker compose up -d db
-	@until docker compose exec -T db pg_isready -U goen -d goen >/dev/null 2>&1; do sleep 1; done
+	@docker compose up -d --wait db || { echo 'the database did not become healthy:' >&2; docker compose logs --tail=20 db >&2; exit 1; }
 	@echo 'database ready on 127.0.0.1:5433'
 
 db-down:
@@ -687,7 +704,7 @@ db-repair-hold-faq:
 
 # Rebuild the development database from scratch.
 #
-# 001 is still amended in place rather than superseded (see CLAUDE.md), so an
+# 001 is still amended in place rather than superseded (see CONTRIBUTING.md), so an
 # edit to it does NOT reach a database already at version 1 — `migrate up`
 # reports "no change" and the schema silently stays old. This is the documented
 # way to pick the edit up, and it exists as a target because the alternative is
@@ -780,34 +797,40 @@ ACL_SQL := \
 # that 001 has stopped being the whole truth, and therefore that 002 begins.
 #
 # Needs the dev container and a GOEN_DATABASE_URL pointing at the database to
-# check. Outside `verify` for the reason test-integration is: it needs something
+# check. Exit 1 is DRIFT and nothing else: every other failure, a stopped
+# container or a missing tool included, exits 2 or more, so `run` can tell a stale
+# schema from an environment that was never ready. Outside `verify` for the reason test-integration is: it needs something
 # the gate cannot assume.
 .PHONY: schema-drift
 schema-drift:
 	@test -n "$${GOEN_DATABASE_URL:-}" || { echo 'GOEN_DATABASE_URL is required: the database to CHECK' >&2; exit 2; }
 	@set -eu; \
 	ref=goen_schema_ref_$$$$; \
-	trap 'docker compose exec -T db dropdb -U goen --if-exists --force "$$ref" >/dev/null 2>&1 || true' 0 HUP INT TERM; \
+	tmp=$$(mktemp -d); drift=; \
+	trap 'rc=$$?; docker compose exec -T db dropdb -U goen --if-exists --force "$$ref" >/dev/null 2>&1 || true; rm -rf "$$tmp"; if [ "$$rc" = 1 ] && [ -z "$$drift" ]; then exit 4; fi' 0 HUP INT TERM; \
+	docker compose exec -T db true >/dev/null 2>&1 \
+		|| { echo 'schema-drift: the compose db service is not running; start it with make db-up' >&2; exit 4; }; \
 	docker compose exec -T db createdb -U goen "$$ref"; \
 	base=$${GOEN_DATABASE_URL%%\?*}; \
 	case "$$GOEN_DATABASE_URL" in *\?*) query="?$${GOEN_DATABASE_URL#*\?}";; *) query="";; esac; \
 	refurl="$${base%/*}/$$ref$$query"; \
 	$(MIGRATE) -path migrations -database "$$refurl" up >/dev/null; \
 	:; \
-	psql "$$refurl" -At -c $(CATALOG_SQL) | sort > /tmp/goen-schema-ref.txt; \
-	test -s /tmp/goen-schema-ref.txt || { echo 'schema-drift: the reference database is EMPTY; it was not built' >&2; exit 3; }; \
+	psql "$$refurl" -At -c $(CATALOG_SQL) | sort > "$$tmp"/ref.txt; \
+	test -s "$$tmp"/ref.txt || { echo 'schema-drift: the reference database is EMPTY; it was not built' >&2; exit 3; }; \
 	psql "$$refurl" -At -c "SELECT current_database()" | grep -qx "$$ref" \
 		|| { echo 'schema-drift: the reference URL does not point at the reference database, so this would compare the live one with itself' >&2; exit 3; }; \
-	psql "$$GOEN_DATABASE_URL" -At -c $(CATALOG_SQL) | sort > /tmp/goen-schema-live.txt; \
-	if diff -u /tmp/goen-schema-ref.txt /tmp/goen-schema-live.txt > /tmp/goen-schema-drift.txt; then \
+	psql "$$GOEN_DATABASE_URL" -At -c $(CATALOG_SQL) | sort > "$$tmp"/live.txt; \
+	if diff -u "$$tmp"/ref.txt "$$tmp"/live.txt > "$$tmp"/drift.txt; then \
 		echo 'schema-drift: PASS — the deployed schema matches migrations/'; \
 	else \
+		[ "$$?" = 1 ] || { echo 'schema-drift: diff itself failed' >&2; exit 4; }; \
 		echo 'schema-drift: FAIL — the deployed schema and migrations/ disagree.'; \
 		echo '  -  is what migrations/ declares; +  is what the database has.'; \
 		echo '  An amended CHECK is not re-validated by PostgreSQL, so this is'; \
 		echo '  where amend-in-place stops being safe and 002 begins.'; \
-		cat /tmp/goen-schema-drift.txt; \
-		exit 1; \
+		cat "$$tmp"/drift.txt; \
+		drift=1; exit 1; \
 	fi
 
 # Prove the backup can be restored. Not that one exists — that a dump of this
@@ -828,7 +851,6 @@ schema-drift:
 #
 # Rows alone passes on a restore that lost an index, a CHECK or a GRANT. Schema
 # alone passes on a dump that lost every row — the mutation is `pg_dump -s`.
-# Each half is recorded red in CLAUDE.md.
 #
 # The counts are EXACT and are read inside the DUMP'S OWN exported snapshot,
 # so a write landing during the drill cannot make it red. A drill that goes red
@@ -948,6 +970,7 @@ cursor-scripts-check:
 	@for f in .cursor/*.sh .cursor/lib/*.sh; do bash -n "$$f" || exit 1; done
 	@bash .cursor/lib/stripe-config-key.test.sh
 	@bash .cursor/lib/stripe-sandbox-key.test.sh
+	@bash .cursor/lib/load-env.test.sh
 
 demo-restore-check:
 	bash -n deploy/demo/restore-demo-db.sh scripts/demo-restore-test.sh

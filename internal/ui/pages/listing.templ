@@ -19,7 +19,7 @@ templ Listing(p layouts.Page, v ListingView) {
 				Label:  i18n.T(ctx, i18n.KeyBreadcrumb),
 				Crumbs: v.Trail(ctx),
 			})
-			<div class="goen-pagehead">
+			<div class="goen-pagehead" data-tone={ v.Theme.ToneAttr() }>
 				<h1 class="goen-pagehead__title">{ v.Name }</h1>
 				<p class="goen-pagehead__sub">{ i18n.Count(ctx, i18n.KeyListingCount, v.Total, v.TotalText()) }</p>
 			</div>
@@ -45,7 +45,7 @@ templ Listing(p layouts.Page, v ListingView) {
 						<h2 class="goen-sr-only">{ i18n.T(ctx, i18n.KeyResultsHeading) }</h2>
 						@compareForm() {
 							<ul class="goen-tiles__grid" role="list">
-								for _, t := range v.Products {
+								for _, t := range FirstRowEager(v.Products) {
 									@Tile(t)
 								}
 							</ul>
@@ -216,7 +216,7 @@ templ Search(p layouts.Page, v SearchView) {
 				<h2 class="goen-sr-only">{ i18n.T(ctx, i18n.KeyResultsHeading) }</h2>
 				@compareForm() {
 					<ul class="goen-tiles__grid" role="list">
-						for _, t := range v.Products {
+						for _, t := range FirstRowEager(v.Products) {
 							@Tile(t)
 						}
 					</ul>

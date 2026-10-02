@@ -17,6 +17,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/account"
+	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/media"
@@ -38,6 +39,7 @@ type Handler struct {
 	// sessions closes a cancelled order's checkout at the payment provider. Nil
 	// on a deployment with no Stripe key, where no session was ever opened.
 	sessions SessionCloser
+	storeMap *cart.Map
 	store    *Store
 	log      *slog.Logger
 }
@@ -57,6 +59,9 @@ type HandlerDeps struct {
 	Log      *slog.Logger
 	StepUp   func(*http.Request) (bool, error)
 	Sessions SessionCloser
+	// StoreMap decides whether checkout offers pickup-point methods; nil is a
+	// deployment with no map.
+	StoreMap *cart.Map
 }
 
 // NewHandler returns a Handler over the admin store.
@@ -67,7 +72,7 @@ func NewHandler(d HandlerDeps) *Handler {
 	}
 	return &Handler{
 		store: d.Store, images: d.Images, outbox: d.Outbox, letters: d.Letters,
-		log: d.Log, stepUp: d.StepUp, sessions: d.Sessions,
+		log: d.Log, stepUp: d.StepUp, sessions: d.Sessions, storeMap: d.StoreMap,
 	}
 }
 
@@ -382,6 +387,7 @@ func (h *Handler) Variants(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	view.Notice = noticeFor(r)
+	view.Return = stockReturn(r.URL.Query().Get("low"), r.URL.Query().Get(web.KeysetParam), "", "")
 	web.Render(w, r, h.log, http.StatusOK, pages.AdminVariants(pages.AdminVariantsMeta(r.Context()), view))
 }
 
@@ -394,7 +400,7 @@ func (h *Handler) AdjustStock(w http.ResponseWriter, r *http.Request) {
 	}
 	delta, ok := ParseAdjustment(r.PostFormValue("delta"))
 	if !ok {
-		http.Redirect(w, r, "/admin/stock?refused=1", http.StatusSeeOther)
+		http.Redirect(w, r, stockBack(r, "refused"), http.StatusSeeOther) //nolint:gosec // G710: stockBack answers /admin/stock with only an encoded query
 		return
 	}
 	key := r.PostFormValue("idempotency")
@@ -405,11 +411,11 @@ func (h *Handler) AdjustStock(w http.ResponseWriter, r *http.Request) {
 	err := h.store.AdjustStock(r.Context(), r.PostFormValue("sku"), delta, u.ID, key)
 	switch {
 	case err == nil:
-		http.Redirect(w, r, "/admin/stock?ok=1", http.StatusSeeOther)
+		http.Redirect(w, r, stockBack(r, "ok"), http.StatusSeeOther) //nolint:gosec // G710: stockBack answers /admin/stock with only an encoded query
 	case errors.Is(err, ErrRefused), errors.Is(err, ErrNotFound):
 		h.log.WarnContext(r.Context(), "stock adjustment refused",
 			"sku", r.PostFormValue("sku"), "delta", delta, "error", err)
-		http.Redirect(w, r, "/admin/stock?refused=1", http.StatusSeeOther)
+		http.Redirect(w, r, stockBack(r, "refused"), http.StatusSeeOther) //nolint:gosec // G710: stockBack answers /admin/stock with only an encoded query
 	default:
 		h.log.ErrorContext(r.Context(), "adjust stock", "error", err)
 		h.serverError(w, r)
@@ -460,11 +466,11 @@ func (h *Handler) SetVariantActive(w http.ResponseWriter, r *http.Request) {
 		r.PostFormValue("sku"), r.PostFormValue("active") == "1")
 	switch {
 	case err == nil:
-		http.Redirect(w, r, "/admin/stock?ok=1", http.StatusSeeOther)
+		http.Redirect(w, r, stockBack(r, "ok"), http.StatusSeeOther) //nolint:gosec // G710: stockBack answers /admin/stock with only an encoded query
 	case errors.Is(err, ErrRefused), errors.Is(err, ErrNotFound):
 		h.log.WarnContext(r.Context(), "variant activation refused",
 			"sku", r.PostFormValue("sku"), "error", err)
-		http.Redirect(w, r, "/admin/stock?refused=1", http.StatusSeeOther)
+		http.Redirect(w, r, stockBack(r, "refused"), http.StatusSeeOther) //nolint:gosec // G710: stockBack answers /admin/stock with only an encoded query
 	default:
 		h.log.ErrorContext(r.Context(), "set variant active", "error", err)
 		h.serverError(w, r)
@@ -480,22 +486,57 @@ func (h *Handler) SetVariantPrice(w http.ResponseWriter, r *http.Request) {
 	price, okPrice := ParsePrice(r.PostFormValue("price"))
 	compare, okCompare := ParsePrice(r.PostFormValue("compare_at"))
 	if !okPrice || !okCompare || price <= 0 {
-		http.Redirect(w, r, "/admin/stock?refused=1", http.StatusSeeOther)
+		http.Redirect(w, r, stockBack(r, "refused"), http.StatusSeeOther) //nolint:gosec // G710: stockBack answers /admin/stock with only an encoded query
 		return
 	}
 
 	err := h.store.SetVariantPrice(r.Context(), r.PostFormValue("sku"), price, compare)
 	switch {
 	case err == nil:
-		http.Redirect(w, r, "/admin/stock?ok=1", http.StatusSeeOther)
+		http.Redirect(w, r, stockBack(r, "ok"), http.StatusSeeOther) //nolint:gosec // G710: stockBack answers /admin/stock with only an encoded query
 	case errors.Is(err, ErrRefused), errors.Is(err, ErrNotFound):
 		h.log.WarnContext(r.Context(), "reprice refused",
 			"sku", r.PostFormValue("sku"), "error", err)
-		http.Redirect(w, r, "/admin/stock?refused=1", http.StatusSeeOther)
+		http.Redirect(w, r, stockBack(r, "refused"), http.StatusSeeOther) //nolint:gosec // G710: stockBack answers /admin/stock with only an encoded query
 	default:
 		h.log.ErrorContext(r.Context(), "set variant price", "error", err)
 		h.serverError(w, r)
 	}
+}
+
+// stockReturn is the stock list's address for a filter and position, plus an
+// optional notice and the row to land on.
+func stockReturn(low, after, notice, sku string) string {
+	q := url.Values{}
+	if low == "1" {
+		q.Set("low", "1")
+	}
+	if after != "" {
+		q.Set(web.KeysetParam, after)
+	}
+	if notice != "" {
+		q.Set(notice, "1")
+	}
+	target := "/admin/stock"
+	if len(q) > 0 {
+		target += "?" + q.Encode()
+	}
+	if sku != "" {
+		target += "#row-" + url.PathEscape(sku)
+	}
+	return target
+}
+
+// stockBack is where a write on the stock list returns to: the filter and page
+// the form was posted from, with the notice and the row anchored. The posted
+// value is only ever read for those two parameters, so it cannot name another
+// address.
+func stockBack(r *http.Request, notice string) string {
+	var low, after string
+	if u, err := url.Parse(r.PostFormValue("return")); err == nil && u.Path == "/admin/stock" && u.Host == "" {
+		low, after = u.Query().Get("low"), u.Query().Get(web.KeysetParam)
+	}
+	return stockReturn(low, after, notice, r.PostFormValue("sku"))
 }
 
 // adminNotices is the one-shot message each redirect parameter carries.
@@ -505,6 +546,11 @@ var adminNotices = map[string]i18n.Key{
 	"shipped":        i18n.KeyAdminNoticeShipped,
 	"toolate":        i18n.KeyAdminNoticeTooLate,
 	"needs":          i18n.KeyAdminNoticeNeeds,
+	"creditneeds":    i18n.KeyAdminNoticeCreditNeeds,
+	"tiersneeds":     i18n.KeyAdminNoticeTiersNeeds,
+	"shippingneeds":  i18n.KeyAdminNoticeShippingNeeds,
+	"deliveryneeds":  i18n.KeyAdminNoticeDeliveryNeeds,
+	"imageneeds":     i18n.KeyAdminNoticeImageNeeds,
 	"toobig":         i18n.KeyAdminNoticeTooBig,
 	"notimage":       i18n.KeyAdminNoticeNotImage,
 	"losslesswebp":   i18n.KeyAdminNoticeLosslessWebP,
@@ -615,7 +661,8 @@ func (h *Handler) GrantCredit(w http.ResponseWriter, r *http.Request) {
 	view := pages.AdminCreditView{Email: r.PostFormValue("email"), Amount: r.PostFormValue("amount"), Reason: r.PostFormValue("reason"), OperationID: r.PostFormValue("operation_id")}
 	operationID, valid := validateCreditGrant(&view)
 	if !valid {
-		h.renderCreditForm(w, r, &view, http.StatusUnprocessableEntity, i18n.KeyAdminNoticeNeeds)
+		// The field errors under the controls already say what is wrong.
+		h.renderCreditForm(w, r, &view, http.StatusUnprocessableEntity, "")
 		return
 	}
 	if err := h.store.creditRecipient(r.Context(), &view); err != nil {
@@ -650,7 +697,7 @@ func (h *Handler) GrantCredit(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/admin/credit?ok=1&balance="+
 			strconv.FormatInt(balance, 10), http.StatusSeeOther)
 	case errors.Is(err, ErrInvalid):
-		http.Redirect(w, r, "/admin/credit?needs=1", http.StatusSeeOther)
+		http.Redirect(w, r, "/admin/credit?creditneeds=1", http.StatusSeeOther)
 	case errors.Is(err, ErrRefused):
 		h.log.WarnContext(r.Context(), "credit grant refused", "error", err)
 		http.Redirect(w, r, "/admin/credit?refused=1", http.StatusSeeOther)
@@ -823,6 +870,7 @@ func (h *Handler) CreateCampaign(w http.ResponseWriter, r *http.Request) {
 		Title:   r.PostFormValue("title"),
 		TitleEn: r.PostFormValue("title_en"),
 		Days:    small(r.PostFormValue("days")),
+		Tone:    r.PostFormValue("tone"),
 	}
 	errs, err := h.store.CreateCampaign(r.Context(), f)
 	switch {
@@ -837,7 +885,7 @@ func (h *Handler) CreateCampaign(w http.ResponseWriter, r *http.Request) {
 		}
 		view.Errors = errs
 		view.Draft = pages.AdminCampaignDraft{
-			Slug: f.Slug, Title: f.Title, TitleEn: f.TitleEn, Days: r.PostFormValue("days"),
+			Slug: f.Slug, Title: f.Title, TitleEn: f.TitleEn, Days: r.PostFormValue("days"), Tone: f.Tone,
 		}
 		web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.AdminCampaigns(
 			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageCampaigns)}, view))
@@ -862,7 +910,7 @@ func (h *Handler) renderCampaign(w http.ResponseWriter, r *http.Request, status 
 		h.serverError(w, r)
 		return
 	}
-	image, err := h.store.CampaignImage(r.Context(), slug)
+	image, tone, err := h.store.CampaignImage(r.Context(), slug)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			h.notFound(w, r)
@@ -874,8 +922,29 @@ func (h *Handler) renderCampaign(w http.ResponseWriter, r *http.Request, status 
 	}
 	web.Render(w, r, h.log, status, pages.AdminCampaignForm(
 		layouts.Page{Title: slug}, pages.AdminCampaignView{
-			Slug: slug, Products: products, Notice: notice, Image: image, Errors: errs,
+			Slug: slug, Products: products, Notice: notice, Image: image, Tone: tone, Errors: errs,
 		}))
+}
+
+// SetCampaignTone serves POST /admin/campaigns/{slug}/tone.
+func (h *Handler) SetCampaignTone(w http.ResponseWriter, r *http.Request) {
+	if err := web.ParseForm(w, r); err != nil {
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
+		return
+	}
+	slug := r.PathValue("slug")
+	switch err := h.store.SetCampaignTone(r.Context(), slug, r.PostFormValue("tone")); {
+	case err == nil:
+		//nolint:gosec // G710: slug is the route's own path value
+		http.Redirect(w, r, "/admin/campaigns/"+slug+"?ok=1", http.StatusSeeOther)
+	case errors.Is(err, ErrNotFound):
+		h.notFound(w, r)
+	case errors.Is(err, ErrInvalid):
+		h.renderCampaign(w, r, http.StatusUnprocessableEntity, "", map[string]string{"tone": i18n.T(r.Context(), i18n.KeyFormToneUnknown)})
+	default:
+		h.log.ErrorContext(r.Context(), "set campaign tone", "error", err, "slug", slug)
+		h.serverError(w, r)
+	}
 }
 
 // SetCampaignImage serves POST /admin/campaigns/{slug}/image. Multipart: the
@@ -1333,6 +1402,7 @@ func (h *Handler) CreateTaxon(w http.ResponseWriter, r *http.Request) {
 		NameEn:  r.PostFormValue("name_en"),
 		Parent:  r.PostFormValue("parent"),
 		IconKey: r.PostFormValue("icon_key"),
+		Tone:    r.PostFormValue("tone"),
 	}
 
 	var errs map[string]string
@@ -1355,7 +1425,7 @@ func (h *Handler) CreateTaxon(w http.ResponseWriter, r *http.Request) {
 		view.Which, view.Errors = kind, errs
 		view.Draft = pages.AdminTaxonDraft{
 			Slug: f.Slug, Name: f.Name, NameEn: f.NameEn, Parent: f.Parent,
-			IconKey: f.IconKey,
+			IconKey: f.IconKey, Tone: f.Tone,
 		}
 		web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.AdminTaxonomy(
 			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageTaxonomy)}, &view))
@@ -1382,7 +1452,7 @@ func (h *Handler) EditTaxon(w http.ResponseWriter, r *http.Request) {
 	} else {
 		err = h.store.Rename(r.Context(), kind, slug,
 			r.PostFormValue("name"), r.PostFormValue("name_en"),
-			r.PostFormValue("icon_key"))
+			r.PostFormValue("icon_key"), r.PostFormValue("tone"))
 	}
 	switch {
 	case err == nil:
@@ -1607,7 +1677,7 @@ func (h *Handler) CreateTier(w http.ResponseWriter, r *http.Request) {
 	threshold, tErr := strconv.ParseInt(strings.TrimSpace(r.PostFormValue("threshold")), 10, 64)
 	percent, pErr := strconv.ParseInt(strings.TrimSpace(r.PostFormValue("percent")), 10, 64)
 	if tErr != nil || pErr != nil {
-		http.Redirect(w, r, "/admin/tiers?needs=1", http.StatusSeeOther)
+		http.Redirect(w, r, "/admin/tiers?tiersneeds=1", http.StatusSeeOther)
 		return
 	}
 	err := h.store.CreateTier(r.Context(), r.PostFormValue("code"),
@@ -1630,7 +1700,7 @@ func (h *Handler) redirectTiers(w http.ResponseWriter, r *http.Request, err erro
 	case err == nil:
 		http.Redirect(w, r, "/admin/tiers?ok=1", http.StatusSeeOther)
 	case errors.Is(err, ErrInvalid), errors.Is(err, ErrNotFound):
-		http.Redirect(w, r, "/admin/tiers?needs=1", http.StatusSeeOther)
+		http.Redirect(w, r, "/admin/tiers?tiersneeds=1", http.StatusSeeOther)
 	case errors.Is(err, ErrRefused):
 		h.log.WarnContext(r.Context(), "tier change refused", "error", err)
 		http.Redirect(w, r, "/admin/tiers?refused=1", http.StatusSeeOther)
@@ -1664,7 +1734,7 @@ func (h *Handler) CorrectDelivery(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, target+"?toolate=1", http.StatusSeeOther)
 	case errors.Is(err, ErrInvalid), errors.Is(err, ErrNotFound):
 		//nolint:gosec // G710: same
-		http.Redirect(w, r, target+"?needs=1", http.StatusSeeOther)
+		http.Redirect(w, r, target+"?deliveryneeds=1", http.StatusSeeOther)
 	case errors.Is(err, ErrRefused):
 		h.log.WarnContext(r.Context(), "delivery correction refused", "error", err)
 		//nolint:gosec // G710: same
