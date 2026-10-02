@@ -66,8 +66,8 @@ func (v AdminQuestionsView) Empty() bool { return len(v.Rows) == 0 }
 // Waiting is how many still need the shop.
 func (v AdminQuestionsView) Waiting() int {
 	n := 0
-	for _, q := range v.Rows {
-		if q.Waiting() {
+	for i := range v.Rows {
+		if v.Rows[i].Waiting() {
 			n++
 		}
 	}

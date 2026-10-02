@@ -276,7 +276,7 @@ func optionHrefs(t *testing.T, body string) []string {
 	return out
 }
 
-var optionHref = regexp.MustCompile(`<a class="goen-swatch[^"]*" href="([^"]+)"`)
+var optionHref = regexp.MustCompile(`<a [^>]*class="goen-swatch[^"]*"[^>]*href="([^"]+)"`)
 
 func TestDraftProductIs404(t *testing.T) {
 	ctx := t.Context()

@@ -235,7 +235,7 @@ type AdminReturnLine struct {
 }
 
 // ReceivedField is the received box's value: what was typed, else every unit claimed.
-func (l AdminReturnLine) ReceivedField() string {
+func (l *AdminReturnLine) ReceivedField() string {
 	if l.DraftReceived != "" {
 		return l.DraftReceived
 	}
@@ -243,7 +243,7 @@ func (l AdminReturnLine) ReceivedField() string {
 }
 
 // RestockedField is the restock box's value: what was typed, else none.
-func (l AdminReturnLine) RestockedField() string {
+func (l *AdminReturnLine) RestockedField() string {
 	if l.DraftRestocked != "" {
 		return l.DraftRestocked
 	}
@@ -252,7 +252,7 @@ func (l AdminReturnLine) RestockedField() string {
 
 // FactValue is the radio this line currently holds. Unknown is the default
 // so a first visit cannot look pre-ticked as met.
-func (l AdminReturnLine) FactValue(name string) string {
+func (l *AdminReturnLine) FactValue(name string) string {
 	var got string
 	switch name {
 	case "unused":
@@ -269,33 +269,33 @@ func (l AdminReturnLine) FactValue(name string) string {
 }
 
 // FactChecked is whether this radio is the current observation.
-func (l AdminReturnLine) FactChecked(name, value string) bool {
+func (l *AdminReturnLine) FactChecked(name, value string) bool {
 	return l.FactValue(name) == value
 }
 
 // ReceivedText and RestockedText are the figures as the form's default values.
-func (l AdminReturnLine) ReceivedText() string {
+func (l *AdminReturnLine) ReceivedText() string {
 	return strconv.FormatInt(int64(l.Received), 10)
 }
 
 // RestockedText is how many went back on the shelf.
-func (l AdminReturnLine) RestockedText() string {
+func (l *AdminReturnLine) RestockedText() string {
 	return strconv.FormatInt(int64(l.Restocked), 10)
 }
 
 // MaxQuantityText bounds the received input to what was claimed.
-func (l AdminReturnLine) MaxQuantityText() string {
+func (l *AdminReturnLine) MaxQuantityText() string {
 	return strconv.FormatInt(int64(l.Quantity), 10)
 }
 
 // Shortfall reports whether fewer units arrived than were claimed.
-func (l AdminReturnLine) Shortfall() bool { return l.Inspected && l.Received < l.Quantity }
+func (l *AdminReturnLine) Shortfall() bool { return l.Inspected && l.Received < l.Quantity }
 
 // Scrapped reports whether something came back that could not be resold.
-func (l AdminReturnLine) Scrapped() bool { return l.Inspected && l.Restocked < l.Received }
+func (l *AdminReturnLine) Scrapped() bool { return l.Inspected && l.Restocked < l.Received }
 
 // Line is the item as one row of text.
-func (l AdminReturnLine) Line() string {
+func (l *AdminReturnLine) Line() string {
 	name := l.Name
 	if l.Label != "" {
 		name += " · " + l.Label
@@ -304,7 +304,7 @@ func (l AdminReturnLine) Line() string {
 }
 
 // UnitPrice is what one of them cost.
-func (l AdminReturnLine) UnitPrice() string { return twd(l.UnitCents) }
+func (l *AdminReturnLine) UnitPrice() string { return twd(l.UnitCents) }
 
 // AdminReturnConfirmation is one selected decision, before it has side effects.
 type AdminReturnConfirmation struct {

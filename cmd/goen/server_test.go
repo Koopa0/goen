@@ -626,8 +626,8 @@ func TestLanguageSwitchComparisonJourney(t *testing.T) {
 	h := withLocale(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 		onContext = web.RequestPath(r.Context())
 		var buf bytes.Buffer
-		if err := layouts.Header(layouts.Page{}).Render(r.Context(), &buf); err != nil {
-			t.Fatalf("render header: %v", err)
+		if err := layouts.Footer().Render(r.Context(), &buf); err != nil {
+			t.Fatalf("render footer: %v", err)
 		}
 		renderedHTML = buf.String()
 	}), false)
@@ -642,7 +642,7 @@ func TestLanguageSwitchComparisonJourney(t *testing.T) {
 	re := regexp.MustCompile(`<input type="hidden" name="return" value="([^"]*)"`)
 	matches := re.FindStringSubmatch(renderedHTML)
 	if len(matches) < 2 {
-		t.Fatalf("language form return input not found in rendered header:\n%s", renderedHTML)
+		t.Fatalf("language form return input not found in rendered footer:\n%s", renderedHTML)
 	}
 	extractedReturn := html.UnescapeString(matches[1])
 	if extractedReturn != wantReturn {

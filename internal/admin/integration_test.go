@@ -11702,7 +11702,7 @@ func TestTheOrderPageShowsAnInvoiceAtTheTimeTheProviderIssuedIt(t *testing.T) {
 	ctx := t.Context()
 	number := placeUnpaidOrder(t)
 	issued := time.Date(2026, 9, 30, 17, 30, 0, 0, time.UTC) // ECPay said "2026-09-30 17:30:00"
-	s := admin.NewStore(pool, fakeRefunder{}, fixedInvoices{{Kind: "invoice", Number: "AB12345678", IssuedAt: issued}}, nil)
+	s := admin.NewStore(pool, fakeRefunder{}, fixedInvoices{{Kind: "invoice", Number: "AB12345678", IssuedAt: issued}}, disabledInvoiceWriter{})
 
 	view, err := s.Order(ctx, number)
 	if err != nil {
@@ -11784,7 +11784,7 @@ func TestTheStatusMenuOffersOnlyWhatTheDatabaseWillAccept(t *testing.T) {
 	}
 
 	number, _, lines, _ := twoLineOrderWithStock(t, "menu")
-	if err := s.Ship(ctx, number, admin.Dispatch{
+	if err = s.Ship(ctx, number, admin.Dispatch{
 		Carrier: "黑貓宅急便", Tracking: "MENU-" + number, Lines: map[uuid.UUID]int32{lines[0]: 1},
 	}, actor); err != nil {
 		t.Fatalf("first parcel: %v", err)
@@ -11839,7 +11839,7 @@ func TestTheShippingPageSaysWhenCheckoutHidesPickup(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
 	log := slog.New(slog.DiscardHandler)
-	enabled, err := cart.NewMap("2000132", "C2C", "", "https://shop.example")
+	enabled, err := cart.NewMap("2000132", string(cart.ModeC2C), "", "https://shop.example")
 	if err != nil {
 		t.Fatalf("NewMap: %v", err)
 	}

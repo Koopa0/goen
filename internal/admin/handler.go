@@ -605,7 +605,6 @@ var adminNotices = map[string]i18n.Key{
 	"refused":        i18n.KeyAdminNoticeRefused,
 	"shipped":        i18n.KeyAdminNoticeShipped,
 	"toolate":        i18n.KeyAdminNoticeTooLate,
-	"needs":          i18n.KeyAdminNoticeNeeds,
 	"creditneeds":    i18n.KeyAdminNoticeCreditNeeds,
 	"tiersneeds":     i18n.KeyAdminNoticeTiersNeeds,
 	"shippingneeds":  i18n.KeyAdminNoticeShippingNeeds,

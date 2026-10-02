@@ -29,10 +29,11 @@ func TestEveryCategoryNameIsLocalized(t *testing.T) {
 	allowed := map[string]string{
 		"ManagedCategories": "the back office, which is Chinese by decision — and it " +
 			"shows BOTH names, because it is where the translation is entered",
-		"CreateCategory":  "the write",
-		"RenameCategory":  "the write",
-		"AdminCategories": "back office: the product form's category select",
-		"AdminProducts":   "back office: the product list's category column",
+		"CreateCategory":     "the write",
+		"RenameCategory":     "the write",
+		"AdminCategories":    "back office: the product form's category select",
+		"AdminProducts":      "back office: the product list's category column",
+		"AdminCategoryImage": "back office: the category image form names the category it edits",
 		"SearchProductsCount": "matching, not display: the same predicate as " +
 			"SearchProducts, which matches the category name in either language",
 	}

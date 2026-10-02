@@ -250,7 +250,7 @@ func parseBoundedInt(s string, ceiling int32) (int32, bool) {
 }
 
 // ReturnStatusLabel is a return request's state in the chrome language. The
-// states are return_requests_status_known's CHECK.
+// states are the four return_requests_refund_snapshot_shape allows.
 func ReturnStatusLabel(ctx context.Context, s returns.ReturnStatus) string {
 	switch s {
 	case returns.ReturnRequested:

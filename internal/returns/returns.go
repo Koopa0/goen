@@ -52,10 +52,10 @@ type Request struct {
 	Lines map[string]int32
 }
 
-// ReturnStatus is return_requests.status, as return_requests_status_known spells it.
+// ReturnStatus is return_requests.status, as return_requests_refund_snapshot_shape spells it.
 type ReturnStatus string
 
-// The four states return_requests_status_known allows.
+// The four states return_requests_refund_snapshot_shape allows.
 const (
 	ReturnRequested ReturnStatus = "requested"
 	ReturnApproved  ReturnStatus = "approved"

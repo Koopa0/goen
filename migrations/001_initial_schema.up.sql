@@ -2629,8 +2629,6 @@ CREATE TABLE return_requests (
     -- A full refund of a paid order nothing has shipped from. Only
     -- open_refund_before_shipment sets it: no role's column grant names it.
     before_shipment    boolean NOT NULL DEFAULT false,
-    CONSTRAINT return_requests_status_known
-        CHECK (status IN ('requested', 'approved', 'rejected', 'completed')),
     -- A BLANK reason is legal: Consumer Protection Act §19 I lets a customer
     -- rescind within seven days without giving one, and §19 V voids any agreement
     -- otherwise. The column stays NOT NULL; '' is "none given".
