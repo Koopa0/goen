@@ -1174,7 +1174,6 @@ func TestABlankCityIsAskedToBeFilledIn(t *testing.T) {
 	if got != "請填寫縣市" {
 		t.Errorf("a blank city is refused with %q, want 請填寫縣市", got)
 	}
-	}
 }
 
 // TestTheCartSpeaksOfFreeDeliveryOnlyWhereItIsTrueForEveryMethod holds the cart's

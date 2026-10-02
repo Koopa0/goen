@@ -24,12 +24,12 @@ import (
 // CartFinder is what account needs of the cart: the cart a request's cookie
 // names, so sign-in can adopt it, and forgetting that cookie and the one naming
 // the browser's orders when a session ends, so the browser keeps no reference
-// to the account's cart or to any order.
+// to the account's cart or to any order. It also says whether the shop takes
+// payment, which decides whether an unpaid order offers 付款.
 type CartFinder interface {
 	IDForRequest(ctx context.Context, r *http.Request) (uuid.UUID, bool)
 	ForgetCart(w http.ResponseWriter, r *http.Request)
 	ForgetOrders(w http.ResponseWriter, r *http.Request)
-	// TakesPayment is whether a customer can pay for an order here at all.
 	TakesPayment() bool
 }
 

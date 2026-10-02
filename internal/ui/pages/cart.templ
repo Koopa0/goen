@@ -85,7 +85,7 @@ templ Cart(p layouts.Page, v CartView) {
 								<dd class="goen-summary__value">{ i18n.T(ctx, i18n.KeyShippingLater) }</dd>
 							</div>
 						</dl>
-						if v.FreeDelivery.Kind != "" {
+						if v.FreeDelivery.Kind != FreeDeliveryUnstated {
 							<p class="goen-cart__freedelivery">{ v.FreeDelivery.Text(ctx) }</p>
 						}
 						if v.Blocked() {
@@ -1069,7 +1069,7 @@ templ Order(p layouts.Page, v *OrderView) {
 								<dd class="goen-summary__value">{ v.Total() }</dd>
 							</div>
 						}
-						if v.PaymentState() != "" {
+						if v.PaymentState() != PaymentNone {
 							<div class="goen-summary__row">
 								<dt>{ i18n.T(ctx, i18n.KeyOrderPayment) }</dt>
 								<dd class="goen-summary__value">{ i18n.T(ctx, v.PaymentState().Key()) }</dd>

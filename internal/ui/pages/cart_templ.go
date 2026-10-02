@@ -369,7 +369,7 @@ func Cart(p layouts.Page, v CartView) templ.Component {
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					if v.FreeDelivery.Kind != "" {
+					if v.FreeDelivery.Kind != FreeDeliveryUnstated {
 						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "<p class=\"goen-cart__freedelivery\">")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
@@ -4990,7 +4990,7 @@ func Order(p layouts.Page, v *OrderView) templ.Component {
 						return templ_7745c5c3_Err
 					}
 				}
-				if v.PaymentState() != "" {
+				if v.PaymentState() != PaymentNone {
 					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 402, "<div class=\"goen-summary__row\"><dt>")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
