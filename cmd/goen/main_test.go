@@ -470,7 +470,7 @@ func TestEveryTopicGoenEnqueuesHasAHandler(t *testing.T) {
 	}
 	t.Cleanup(idle.Close)
 	log := slog.New(slog.DiscardHandler)
-	messages := newMessageStore(workerDeps{
+	outboxStore := newOutboxStore(workerDeps{
 		pool: idle, admin: idle, maintenance: idle, log: log, invoices: unconfiguredInvoicing(t),
 	})
 
@@ -480,8 +480,8 @@ func TestEveryTopicGoenEnqueuesHasAHandler(t *testing.T) {
 			"seeing the constants, and the check below would pass on nothing", len(topics))
 	}
 	for name, topic := range topics {
-		if !handled(t, messages, topic) {
-			t.Errorf("outbox.%s (%q) has no handler in newMessageStore; every message on it is "+
+		if !handled(t, outboxStore, topic) {
+			t.Errorf("outbox.%s (%q) has no handler in newOutboxStore; every message on it is "+
 				"rescheduled for ever", name, topic)
 		}
 	}
@@ -566,9 +566,9 @@ func declaredTopics(t *testing.T) map[string]string {
 	return topics
 }
 
-// handled reports whether messages already has a handler for topic, by asking
+// handled reports whether outboxStore already has a handler for topic, by asking
 // for a second one: outbox refuses a duplicate registration by panicking.
-func handled(t *testing.T, messages *outbox.Store, topic string) (registered bool) {
+func handled(t *testing.T, outboxStore *outbox.Store, topic string) (registered bool) {
 	t.Helper()
 	defer func() {
 		if r := recover(); r != nil {
@@ -579,7 +579,7 @@ func handled(t *testing.T, messages *outbox.Store, topic string) (registered boo
 			registered = true
 		}
 	}()
-	messages.Handle(topic, func(context.Context, []byte) error { return nil })
+	outboxStore.Handle(topic, func(context.Context, []byte) error { return nil })
 	return false
 }
 

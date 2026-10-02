@@ -112,7 +112,7 @@ func validatedDelivery(d *Delivery, to cart.Destination) (*cart.Address, error) 
 		}
 		return nil, fmt.Errorf("%w: %s (%s)", ErrInvalid, errs[0].Field, errs[0].MessageKey)
 	}
-	addr.ForDestination()
+	addr.DropOtherDestination()
 	return addr, nil
 }
 

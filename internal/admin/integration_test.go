@@ -7109,7 +7109,7 @@ func TestTheBackOfficeSeesWhoCancelled(t *testing.T) {
 	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
 	number := placeUnpaidOrder(t)
 
-	if _, err := basket.Cancel(ctx, number); err != nil {
+	if _, err := basket.CancelOrder(ctx, number); err != nil {
 		t.Fatalf("the customer cancels: %v", err)
 	}
 
@@ -9530,7 +9530,7 @@ func TestAReleaseInTheLedgerNamesItsOrder(t *testing.T) {
 	}
 	number := placeHeldOrder(t, vid)
 
-	if _, err := basket.Cancel(ctx, number); err != nil {
+	if _, err := basket.CancelOrder(ctx, number); err != nil {
 		t.Fatalf("cancel: %v", err)
 	}
 
@@ -11231,7 +11231,7 @@ func (*recordingInvoiceWriter) Void(context.Context, string, string) error {
 	return invoice.ErrDisabled
 }
 
-func (w *recordingInvoiceWriter) Allowance(
+func (w *recordingInvoiceWriter) FileAllowance(
 	_ context.Context, orderNumber string, operationID uuid.UUID,
 ) (invoice.Document, error) {
 	w.orders = append(w.orders, orderNumber)
@@ -11296,7 +11296,7 @@ func (disabledInvoiceWriter) Void(context.Context, string, string) error {
 	return invoice.ErrDisabled
 }
 
-func (disabledInvoiceWriter) Allowance(
+func (disabledInvoiceWriter) FileAllowance(
 	context.Context, string, uuid.UUID,
 ) (invoice.Document, error) {
 	return invoice.Document{}, invoice.ErrDisabled
@@ -11928,9 +11928,9 @@ func TestTheShippingPageSaysWhenCheckoutHidesPickup(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
 	log := slog.New(slog.DiscardHandler)
-	enabled, err := cart.NewMap("2000132", string(cart.ModeC2C), "", "https://shop.example")
+	enabled, err := cart.NewStoreMap("2000132", string(cart.ModeC2C), "", "https://shop.example")
 	if err != nil {
-		t.Fatalf("NewMap: %v", err)
+		t.Fatalf("NewStoreMap: %v", err)
 	}
 	note := i18n.T(ctx, i18n.KeyAdminShipPickupOff)
 
@@ -11948,7 +11948,7 @@ func TestTheShippingPageSaysWhenCheckoutHidesPickup(t *testing.T) {
 		t.Fatalf("create pickup method = %d: %s", created.Code, created.Body.String())
 	}
 
-	for name, storeMap := range map[string]*cart.Map{"no map": nil, "a map": enabled} {
+	for name, storeMap := range map[string]*cart.StoreMap{"no map": nil, "a map": enabled} {
 		h := admin.NewHandler(admin.HandlerDeps{
 			Store: s, Images: media.NewHandler(media.NewStore(pool), log), Outbox: outbox.NewStore(pool, log),
 			Letters: newsletter.NewStore(pool), Log: log, StoreMap: storeMap,

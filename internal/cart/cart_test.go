@@ -877,7 +877,7 @@ func TestForDestinationDropsTheOtherHalf(t *testing.T) {
 	}
 
 	a := both(ToPickupPoint)
-	a.ForDestination()
+	a.DropOtherDestination()
 	if a.Street != "" || a.City != "" || a.District != "" || a.PostalCode != "" {
 		t.Errorf("a pickup order kept an address: %q %q %q %q",
 			a.PostalCode, a.City, a.District, a.Street)
@@ -887,7 +887,7 @@ func TestForDestinationDropsTheOtherHalf(t *testing.T) {
 	}
 
 	b := both(ToAddress)
-	b.ForDestination()
+	b.DropOtherDestination()
 	if b.PickupChain != "" || b.PickupStoreCode != "" || b.PickupStoreName != "" {
 		t.Errorf("an address order kept a pickup point: %q %q %q",
 			b.PickupChain, b.PickupStoreCode, b.PickupStoreName)

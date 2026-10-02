@@ -13,7 +13,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	email2 "github.com/koopa0/goen/internal/email"
+	mailmsg "github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/outbox"
 
@@ -47,7 +47,7 @@ func (s *Store) requestReset(ctx context.Context, addr string) error {
 }
 
 func (s *Store) queueResetRequest(ctx context.Context, addr, dedupeKey string) error {
-	addr = email2.Clean(addr)
+	addr = mailmsg.Clean(addr)
 	if EmailError(addr) != "" {
 		return nil
 	}
@@ -97,7 +97,7 @@ func (s *Store) IssueReset(ctx context.Context, req *ResetRequest) error {
 		return err
 	}
 	digest := sha256.Sum256([]byte(token))
-	payload, err := json.Marshal(email2.PasswordReset{
+	payload, err := json.Marshal(mailmsg.PasswordReset{
 		Email: row.Email, Token: token, Locale: req.Locale,
 	})
 	if err != nil {

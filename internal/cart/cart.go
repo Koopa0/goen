@@ -711,9 +711,9 @@ func (a *Address) pickupPointErrors() []account.FieldError {
 	return errs
 }
 
-// ForDestination blanks the half of the address that does not apply, because
+// DropOtherDestination blanks the half of the address that does not apply, because
 // order_private_data_one_destination refuses a row carrying both.
-func (a *Address) ForDestination() {
+func (a *Address) DropOtherDestination() {
 	switch a.To {
 	case ToAddress:
 		a.PickupChain, a.PickupStoreCode, a.PickupStoreName = "", "", ""

@@ -15,9 +15,9 @@ import (
 // for every reason, so a guessable order number cannot be probed for its state.
 var ErrNotCancellable = errors.New("cart: this order cannot be cancelled")
 
-// Cancel calls off an order the customer has not paid for, and returns the
+// CancelOrder calls off an order the customer has not paid for, and returns the
 // Checkout Sessions the caller must close at Stripe once this has committed.
-func (s *Store) Cancel(ctx context.Context, number string) ([]string, error) {
+func (s *Store) CancelOrder(ctx context.Context, number string) ([]string, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("begin cancel: %w", err)
