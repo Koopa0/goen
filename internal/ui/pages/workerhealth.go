@@ -42,6 +42,20 @@ type WorkerHealthView struct {
 	CopurchaseStaleAfter time.Duration
 	MaxExpiredSessions   int64
 	MaxUnreferencedMedia int64
+
+	// Pools are the connection pools' statistics as they stood when the page
+	// was read.
+	Pools []PoolHealth
+}
+
+// PoolHealth is one connection pool's statistics. EmptyAcquires counts the
+// acquisitions that had to wait for a connection, and AcquireWait is the time
+// all acquisitions together spent waiting.
+type PoolHealth struct {
+	Name                         string
+	Max, Acquired, Idle, Total   int32
+	TotalAcquires, EmptyAcquires int64
+	AcquireWait                  time.Duration
 }
 
 // OutboxHealthy reports whether messages are moving; the signal is age.

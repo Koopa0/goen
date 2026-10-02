@@ -94,11 +94,11 @@ var policies = map[string]pages.PolicyDoc{
 				Heading:   "拆封之後還能退嗎",
 				HeadingEn: "Can I still return it once it is opened?",
 				Body: []string{
-					"可以。手機、耳機、傳輸線這類 3C 硬體拆封後仍在鑑賞期內 —— 鑑賞期本來就包含拆開來檢查。",
+					"可以。無論是哪一項商品,拆開包裹檢查商品都不會讓七天的解除權結束 —— 鑑賞期本來就包含拆開來檢查。",
 					"法律允許少數幾類商品排除鑑賞期,而且必須在購買前就明確告知才算數。goen 目前沒有任何商品排除鑑賞期,所以本店所有商品都適用完整的七天。",
 				},
 				BodyEn: []string{
-					"Yes. A phone, a pair of headphones, a cable — opening 3C hardware keeps you inside the seven days, because inspecting it is what they are for.",
+					"Yes. For every product, opening the parcel to inspect the goods does not end your seven days, because inspecting them is what the seven days are for.",
 					"The law allows a few narrow categories to be excluded, and only where the seller says so plainly BEFORE you buy. goen excludes nothing, so every product here carries the full seven days.",
 				},
 			},
@@ -188,10 +188,10 @@ var policies = map[string]pages.PolicyDoc{
 				Heading:   "保固範圍",
 				HeadingEn: "What is covered",
 				Body: []string{
-					"goen 販售的商品由原廠提供保固。各商品的保固內容寫在該商品頁面上,以商品頁的說明為準。",
+					"商品頁面標示了保固的商品,由原廠依標示的期限提供保固;沒有標示保固的商品,除法律另有規定外,goen 不另外提供保固。各商品的保固內容寫在該商品頁面上,以商品頁的說明為準。",
 				},
 				BodyEn: []string{
-					"What we sell is covered by the manufacturer. Each product page states its own term, and that page is what governs.",
+					"A product whose page states a warranty is covered by the manufacturer's warranty for the term stated there. A product that states none carries no warranty from goen beyond what the law gives you. Each product page states its own term, and that page is what governs.",
 				},
 			},
 			{
