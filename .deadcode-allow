@@ -1,0 +1,2 @@
+# Test-only helpers that unit tests in other packages import; the tool does not count test code as a caller.
+internal/admin/access/accesstest.RefuseOutsiders # reason: shared by every admin feature's untagged routes_test.go, which deadcode does not analyse

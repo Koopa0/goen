@@ -3368,7 +3368,7 @@ func TestAnAcknowledgedPaymentLeavesTheAlarm(t *testing.T) {
 	// asked, so there is no read-then-write for two staff members to both pass.
 	if err := health.NewStore(pool).ReleasePaymentEventAfterRefundOrAccounting(
 		ctx, eventID,
-	); !errors.Is(err, admin.ErrNotFound) {
+	); !errors.Is(err, health.ErrNotFound) {
 		t.Errorf("acknowledging it twice = %v, want ErrNotFound", err)
 	}
 	// And an event nobody flagged is not acknowledgeable at all.
@@ -3380,7 +3380,7 @@ func TestAnAcknowledgedPaymentLeavesTheAlarm(t *testing.T) {
 	}
 	if err := health.NewStore(pool).ReleasePaymentEventAfterRefundOrAccounting(
 		ctx, unflagged,
-	); !errors.Is(err, admin.ErrNotFound) {
+	); !errors.Is(err, health.ErrNotFound) {
 		t.Errorf("acknowledging an event that was never flagged = %v, want ErrNotFound", err)
 	}
 }
@@ -3460,7 +3460,7 @@ func TestACompletePaymentWithoutAFlaggedEventHasAResolutionDoor(t *testing.T) {
 		t.Errorf("reconciling complete payment added %d audit rows, want 1", got-beforeAudit)
 	}
 	if err := health.NewStore(pool).ReconcileCompletePayment(ctx, providerRef,
-		health.CompletePaymentUnpaidOrRefunded); !errors.Is(err, admin.ErrNotFound) {
+		health.CompletePaymentUnpaidOrRefunded); !errors.Is(err, health.ErrNotFound) {
 		t.Errorf("reconciling complete payment twice = %v, want ErrNotFound", err)
 	}
 }
