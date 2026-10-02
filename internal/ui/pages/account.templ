@@ -3,6 +3,7 @@ package pages
 import (
 	"fmt"
 
+	"github.com/koopa0/goen/internal/fieldrule"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -38,11 +39,11 @@ templ SignIn(p layouts.Page, v AuthView) {
 							Value:     v.Email,
 							Invalid:   v.HasErr("form"),
 							Describes: "signin-error",
-							Attrs: templ.Attributes{
+							Attrs: fieldrule.Email.Attrs(ctx, templ.Attributes{
 								"autocomplete": "email",
 								"autofocus":    true,
 								"required":     true,
-							},
+							}),
 						})
 					</div>
 					<div class="goen-field">
@@ -117,11 +118,11 @@ templ Register(p layouts.Page, v AuthView) {
 							Value:     v.Email,
 							Invalid:   v.HasErr("email"),
 							Describes: "email-error",
-							Attrs: templ.Attributes{
+							Attrs: fieldrule.Email.Attrs(ctx, templ.Attributes{
 								"autocomplete": "email",
 								"autofocus":    true,
 								"required":     true,
-							},
+							}),
 						})
 						if v.HasErr("email") {
 							<p class="ui-error-text" id="email-error" role="alert">{ v.Err("email") }</p>
@@ -517,7 +518,7 @@ templ Account(p layouts.Page, v *AccountView) {
 											Describes: "addr-phone-error",
 											Name:  "phone",
 											Type:  "tel",
-											Attrs: templ.Attributes{"required": true, "maxlength": "30", "autocomplete": "tel"},
+											Attrs: fieldrule.Phone.Attrs(ctx, templ.Attributes{"required": true, "maxlength": "30", "autocomplete": "tel"}),
 										})
 										if v.AddrInvalid("phone") {
 											<p class="ui-error-text" id="addr-phone-error" role="alert">{ v.AddrErr("phone") }</p>
@@ -534,12 +535,11 @@ templ Account(p layouts.Page, v *AccountView) {
 											Describes: "addr-postal-error",
 											Name: "postal_code",
 											Type: "text",
-											Attrs: templ.Attributes{
+											Attrs: fieldrule.PostalCode.Attrs(ctx, templ.Attributes{
 												"required":     true,
 												"maxlength":    "6",
-												"inputmode":    "numeric",
 												"autocomplete": "postal-code",
-											},
+											}),
 										})
 										if v.AddrInvalid("postal_code") {
 											<p class="ui-error-text" id="addr-postal-error" role="alert">{ v.AddrErr("postal_code") }</p>
@@ -651,7 +651,7 @@ templ Account(p layouts.Page, v *AccountView) {
 											ID:    "new-email",
 											Name:  "email",
 											Type:  "email",
-											Attrs: templ.Attributes{"required": true, "autocomplete": "email"},
+											Attrs: fieldrule.Email.Attrs(ctx, templ.Attributes{"required": true, "autocomplete": "email"}),
 										})
 									</div>
 									<div class="goen-field">

@@ -221,22 +221,137 @@
 
   requestFeedback();
 
-  // Delegation includes fields replaced by a checkout choice. Native browser
-  // constraints also work without this accessibility-state enhancement.
-  function checkoutConstraints() {
-    const constrained = (target) => target instanceof HTMLInputElement &&
-      target.hasAttribute("data-checkout-constraint");
-    document.addEventListener("focusout", (event) => {
-      if (!constrained(event.target)) return;
-      event.target.setAttribute("aria-invalid", String(!event.target.validity.valid));
+  /*
+   * A field that carries a rule says so in its markup (data-rule, a pattern, the
+   * message the server would give), all written from internal/fieldrule so the
+   * browser and the server cannot hold two opinions. This only reads them.
+   *
+   * A field is checked when the shopper leaves it, never while a fresh one is
+   * being typed; once it has been marked invalid it is re-checked on every
+   * keystroke, so the message goes the moment the value is right. The message
+   * lands in the element the 422 page uses (<id>-error, or data-rule-error), so
+   * both paths read alike. The browser's own bubbles are off for these forms —
+   * the script drives the messages, and the server stays authoritative.
+   *
+   * Delegated from the document, so a form that arrives in a swap needs no
+   * second initialisation. Without this file every form behaves as the server
+   * alone makes it.
+   */
+  function fieldRules() {
+    const ruled = (target) => target instanceof HTMLInputElement &&
+      (target.hasAttribute("data-rule") || target.hasAttribute("data-checkout-constraint"));
+
+    // goen's web.FoldWidth: full-width ASCII and the ideographic space.
+    const fold = (text) => text
+      .replace(/[\uFF01-\uFF5E]/gu, (c) => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
+      .replace(/\u3000/gu, " ");
+
+    // The 統編 weighted sum (invoice.ValidTaxID), which no pattern can state:
+    // since 2023 the sum is divisible by 5, and a seventh digit of 7 counts for
+    // 1 or 0. Mirrored, not shared; the Go test pins the vectors.
+    const checks = {
+      taxid(raw) {
+        const id = fold(raw.trim());
+        if (!/^[0-9]{8}$/u.test(id) || id === "00000000") return false;
+        const weights = [1, 2, 1, 2, 1, 2, 4, 1];
+        let sum = 0;
+        let seventh = false;
+        for (let i = 0; i < 8; i++) {
+          const digit = Number(id[i]);
+          if (i === 6 && digit === 7) {
+            sum += 1;
+            seventh = true;
+            continue;
+          }
+          const product = digit * weights[i];
+          sum += Math.floor(product / 10) + (product % 10);
+        }
+        return sum % 5 === 0 || (seventh && (sum - 1) % 5 === 0);
+      },
+    };
+
+    const refused = (field) => {
+      const value = field.value;
+      if (value === "") return false;
+      const check = field.dataset.ruleCheck;
+      // Clear first: validity.valid must be the pattern's verdict alone when a
+      // value that was refused for its checksum is edited.
+      field.setCustomValidity("");
+      if (field.validity.patternMismatch) return true;
+      const max = Number(field.dataset.ruleMax || 0);
+      if (max > 0 && Array.from(value.trim()).length > max) return true;
+      if (check && checks[check] && !checks[check](value)) {
+        field.setCustomValidity(field.dataset.ruleMessage || " ");
+        return true;
+      }
+      return false;
+    };
+
+    const messageFor = (field) => {
+      const id = field.dataset.ruleError || (field.id ? field.id + "-error" : "");
+      return id ? document.getElementById(id) : null;
+    };
+
+    const describe = (field, id, on) => {
+      const tokens = (field.getAttribute("aria-describedby") || "").split(/\s+/u).filter(Boolean);
+      const has = tokens.includes(id);
+      if (on && !has) tokens.push(id);
+      if (!on && has) tokens.splice(tokens.indexOf(id), 1);
+      if (tokens.length) field.setAttribute("aria-describedby", tokens.join(" "));
+      else field.removeAttribute("aria-describedby");
+    };
+
+    const mark = (field, invalid) => {
+      let message = messageFor(field);
+      const id = field.dataset.ruleError || (field.id ? field.id + "-error" : "");
+      if (invalid) {
+        field.setAttribute("aria-invalid", "true");
+        if (!message && id && field.dataset.ruleMessage) {
+          message = document.createElement("p");
+          message.className = "ui-error-text";
+          message.id = id;
+          field.insertAdjacentElement("afterend", message);
+        }
+        if (message) {
+          if (field.dataset.ruleMessage) message.textContent = field.dataset.ruleMessage;
+          message.hidden = false;
+          describe(field, message.id, true);
+        }
+      } else {
+        field.removeAttribute("aria-invalid");
+        if (message) {
+          message.hidden = true;
+          describe(field, message.id, false);
+        }
+      }
+    };
+
+    // The script drives the messages, so the browser's own are turned off for
+    // any form that has a ruled field. Done on first contact rather than on
+    // load, so a swapped-in form is covered and no-script browsers keep theirs.
+    document.addEventListener("focusin", (event) => {
+      if (!ruled(event.target) || !event.target.form) return;
+      event.target.form.noValidate = true;
     });
+
+    document.addEventListener("focusout", (event) => {
+      if (!ruled(event.target)) return;
+      // An empty field is the server's "required", and a tab through a form
+      // should not start by calling every field wrong.
+      if (event.target.value === "") {
+        if (event.target.getAttribute("aria-invalid") === "true") mark(event.target, false);
+        return;
+      }
+      mark(event.target, refused(event.target));
+    });
+
     document.addEventListener("input", (event) => {
-      if (!constrained(event.target) || !event.target.validity.valid) return;
-      event.target.removeAttribute("aria-invalid");
+      if (!ruled(event.target) || event.target.getAttribute("aria-invalid") !== "true") return;
+      if (event.target.value === "" || !refused(event.target)) mark(event.target, false);
     });
   }
 
-  checkoutConstraints();
+  fieldRules();
   headerMenu();
   departmentPanels();
   stepper();

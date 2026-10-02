@@ -8499,6 +8499,16 @@ form[data-request-pending] [aria-disabled="true"] {
   border-color: var(--error);
 }
 
+/* A field the script marked refused looks as the server's 422 renders it. */
+[data-rule][aria-invalid="true"] {
+  border-color: var(--error);
+}
+
+/* The live message hides with the attribute, whatever display the class sets. */
+.ui-error-text[hidden] {
+  display: none;
+}
+
 .goen-compare__picker {
   align-items: center;
   display: flex;
