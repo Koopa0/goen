@@ -102,7 +102,7 @@ func TestEverySlideSourceHasItsOwnLabelAndAnUnknownOneIsNotAPanic(t *testing.T) 
 		ctx := i18n.WithLocale(t.Context(), loc)
 		other := SourceLabel(ctx, pages.SlideSource("nowhere"))
 		seen := map[string]pages.SlideSource{}
-		for _, src := range pages.SlideSources() {
+		for _, src := range declaredSlideSources(t) {
 			label := SourceLabel(ctx, src)
 			if label == "" || label == other {
 				t.Errorf("%v: source %q has no label of its own", loc, src)
@@ -115,29 +115,39 @@ func TestEverySlideSourceHasItsOwnLabelAndAnUnknownOneIsNotAPanic(t *testing.T) 
 	}
 }
 
-// The label switch and SlideSources are both kept by hand; counting the
-// constants in the source is what makes a forgotten one fail.
-func TestSlideSourcesListsEveryDeclaredSource(t *testing.T) {
-	t.Parallel()
+// declaredSlideSources reads every SlideSource constant from the source, so a
+// constant added without a label fails the label test instead of falling back.
+func declaredSlideSources(t *testing.T) []pages.SlideSource {
+	t.Helper()
 	file, err := parser.ParseFile(token.NewFileSet(), "../hero.go", nil, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
-	declared := 0
+	var sources []pages.SlideSource
 	for _, decl := range file.Decls {
 		gen, ok := decl.(*ast.GenDecl)
 		if !ok || gen.Tok != token.CONST {
 			continue
 		}
 		for _, spec := range gen.Specs {
-			if v, isValue := spec.(*ast.ValueSpec); isValue {
-				if id, isIdent := v.Type.(*ast.Ident); isIdent && id.Name == "SlideSource" {
-					declared += len(v.Names)
+			v, isValue := spec.(*ast.ValueSpec)
+			if !isValue {
+				continue
+			}
+			if id, isIdent := v.Type.(*ast.Ident); !isIdent || id.Name != "SlideSource" {
+				continue
+			}
+			for _, value := range v.Values {
+				lit, isLit := value.(*ast.BasicLit)
+				if !isLit || lit.Kind != token.STRING {
+					t.Fatalf("a SlideSource constant is not a string literal: %#v", value)
 				}
+				sources = append(sources, pages.SlideSource(strings.Trim(lit.Value, `"`)))
 			}
 		}
 	}
-	if got := len(pages.SlideSources()); got != declared {
-		t.Errorf("SlideSources lists %d sources, %d are declared", got, declared)
+	if len(sources) == 0 {
+		t.Fatal("no SlideSource constants found in ../hero.go")
 	}
+	return sources
 }

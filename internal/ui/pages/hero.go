@@ -34,11 +34,6 @@ const (
 	SlideDepartment SlideSource = "department"
 )
 
-// SlideSources is every source, in the order the carousel takes them.
-func SlideSources() []SlideSource {
-	return []SlideSource{SlideScheduled, SlideCampaign, SlideDepartment}
-}
-
 // HeroSlide is one slide of the home page's carousel.
 type HeroSlide struct {
 	Source SlideSource
