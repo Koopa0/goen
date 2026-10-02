@@ -6777,8 +6777,11 @@ BEGIN
         RETURN payment_id;
     END IF;
 
-    -- The signed event is recorded under the provider-reference lock before
-    -- capture. An unpaid completion of a delayed method is not money received.
+    -- Event types and paid status must stay aligned with captureEvents and
+    -- CaptureFrom in internal/payment/stripe.go. The database cannot verify
+    -- signatures; the handler verifies before RecordWebhookEvent in this transaction.
+    -- No paid event (such as attribute_complete_payment_paid) falls back to now();
+    -- future times are capped there because paid_at is frozen once settled.
     SELECT min(to_timestamp(least(e.created, extract(epoch FROM now()))::double precision))
     INTO provider_event_at
     FROM (
