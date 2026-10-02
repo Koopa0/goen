@@ -160,6 +160,28 @@ var (
 		En:     "Enter the password you chose when you registered to finish and sign in.",
 	})
 
+	KeyRegisterCompleteWhy = key("auth.register.complete.why", Message{
+		ZhHant: "信裡的連結證明這個信箱是你的,密碼證明註冊的人是你,兩者都對才會啟用帳號。",
+		En:     "The link proves the mailbox is yours and the password proves you are the one who registered; the account opens only with both.",
+	})
+
+	KeyRegisterSentTo = key("auth.register.sentto", Message{
+		ZhHant: "確認信已寄到 %s。照信裡的說明完成註冊;沒收到請看看垃圾郵件。",
+		En:     "The message is on its way to %s. Follow it to finish; if it has not arrived, check your spam folder.",
+	})
+
+	KeyRegisterResent = key("auth.register.resent", Message{
+		ZhHant: "已再寄一封。如果這個信箱有等著完成的註冊,新的連結很快就會到。",
+		En:     "Sent again. If this address has a registration waiting to be finished, a new link will arrive shortly.",
+	})
+
+	KeyRegisterResend = key("auth.register.resend", Message{ZhHant: "再寄一次", En: "Send it again"})
+
+	KeyRegisterOtherAddress = key("auth.register.otheraddress", Message{
+		ZhHant: "信箱打錯了?換一個重新註冊",
+		En:     "Wrong address? Register again",
+	})
+
 	KeyRegisterCompleteSubmit = key("auth.register.complete.submit", Message{
 		ZhHant: "完成註冊並登入",
 		En:     "Finish and sign in",

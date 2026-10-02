@@ -6462,6 +6462,37 @@ func (q *Queries) EnqueuePasswordResetRequest(ctx context.Context, arg EnqueuePa
 	return err
 }
 
+const enqueueRegistrationResend = `-- name: EnqueueRegistrationResend :exec
+INSERT INTO outbox_messages (topic, dedupe_key, payload)
+SELECT $1::text, $2::text,
+       jsonb_build_object('user_id', u.id, 'created', true, 'locale', $3::text, 'next', $4::text)
+FROM (VALUES (true)) AS request (queued)
+LEFT JOIN users u ON lower(u.email) = lower($5::text) AND u.email_verified_at IS NULL
+`
+
+type EnqueueRegistrationResendParams struct {
+	Topic     string
+	DedupeKey string
+	Locale    string
+	Next      string
+	Email     string
+}
+
+// Asking again for a registration link is this one INSERT whatever the
+// address: the account is looked up inside it, and names nobody unless it is
+// registered and still unproved, so an address with no account, or one already
+// proved, costs the request what any other does.
+func (q *Queries) EnqueueRegistrationResend(ctx context.Context, arg EnqueueRegistrationResendParams) error {
+	_, err := q.db.Exec(ctx, enqueueRegistrationResend,
+		arg.Topic,
+		arg.DedupeKey,
+		arg.Locale,
+		arg.Next,
+		arg.Email,
+	)
+	return err
+}
+
 const eraseUser = `-- name: EraseUser :exec
 SELECT erase_user($1)
 `
@@ -15866,6 +15897,15 @@ SELECT
         WHERE sv.product_id = p.id AND sv.is_active
           AND sv.stock_quantity > sv.safety_stock
     ) AS in_stock,
+    -- The one variant a product has, when it has only one and it is in stock:
+    -- the only case where saying "add to cart" names what goes in the cart.
+    -- The nil uuid when there is none.
+    coalesce((
+        SELECT CASE WHEN count(*) = 1 AND bool_and(sv.stock_quantity > sv.safety_stock)
+                    THEN (array_agg(sv.id))[1] END
+        FROM product_variants sv
+        WHERE sv.product_id = p.id AND sv.is_active
+    ), '00000000-0000-0000-0000-000000000000'::uuid)::uuid AS sole_variant_id,
     coalesce(img.storage_key, '') AS image_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, $2::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
@@ -15908,6 +15948,7 @@ type WishlistItemsRow struct {
 	Rating              float64
 	RatingCount         int64
 	InStock             bool
+	SoleVariantID       uuid.UUID
 	ImageKey            string
 	ImageAlt            string
 	ImageWidth          int32
@@ -15936,6 +15977,7 @@ func (q *Queries) WishlistItems(ctx context.Context, arg WishlistItemsParams) ([
 			&i.Rating,
 			&i.RatingCount,
 			&i.InStock,
+			&i.SoleVariantID,
 			&i.ImageKey,
 			&i.ImageAlt,
 			&i.ImageWidth,

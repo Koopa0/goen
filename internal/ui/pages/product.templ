@@ -376,7 +376,17 @@ templ productBuy(v *ProductView) {
 templ productLinks(v *ProductView) {
 	<div class="goen-pdp__links">
 		if v.SignedIn {
-			<form method="post" action="/account/wishlist" class="goen-pdp__wish">
+			// Toggling swaps the form alone, so the page stays where it is; the
+			// plain post and its redirect serve a browser without script.
+			<form
+				method="post"
+				action="/account/wishlist"
+				class="goen-pdp__wish"
+				hx-post="/account/wishlist"
+				hx-target="this"
+				hx-select=".goen-pdp__wish"
+				hx-swap="outerHTML"
+			>
 				<input type="hidden" name="slug" value={ v.Slug }/>
 				<input type="hidden" name="return" value={ "/p/" + v.Slug }/>
 				if v.Saved {

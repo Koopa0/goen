@@ -210,6 +210,9 @@ type AuthView struct {
 	Errors       map[string]string
 	Notice       string
 	GoogleSignIn bool
+	// Sent is a registration whose link is on its way to Email: the page
+	// confirms the address and offers to send again, in place of the form.
+	Sent bool
 }
 
 // RegisterCompleteView is the page a registration link lands on.

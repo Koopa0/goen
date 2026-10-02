@@ -159,7 +159,16 @@ func TestRegistrationAnswersTheSameWhetherOrNotTheAddressIsTaken(t *testing.T) {
 	if loc := takenRec.Header().Get("Location"); loc != "/register?sent=1" {
 		t.Errorf("a registration lands at %q, want /register?sent=1", loc)
 	}
-	if diff := cmp.Diff(takenRec.Header(), freeRec.Header()); diff != "" {
+	for _, loc := range []string{takenRec.Header().Get("Location"), freeRec.Header().Get("Location")} {
+		if strings.ContainsAny(loc, "@%") {
+			t.Errorf("the redirect %q carries the address, which history and proxy logs keep", loc)
+		}
+	}
+	// The cookie echoes what each visitor typed, so it is the one header allowed to differ.
+	takenHeader, freeHeader := takenRec.Header().Clone(), freeRec.Header().Clone()
+	takenHeader.Del("Set-Cookie")
+	freeHeader.Del("Set-Cookie")
+	if diff := cmp.Diff(takenHeader, freeHeader); diff != "" {
 		t.Errorf("taken and free registrations answer different headers (-taken +free):\n%s", diff)
 	}
 	if takenRec.Body.String() != freeRec.Body.String() {
@@ -442,5 +451,71 @@ func TestAResetProvesTheAddressItWasMailedTo(t *testing.T) {
 	}
 	if _, err := s.Authenticate(ctx, addr, "the password chosen by reset"); err != nil {
 		t.Errorf("the reset password does not sign in: %v", err)
+	}
+}
+
+// TestResendingARegistrationLinkAnswersEveryAddressTheSame: asking again is the
+// form that would say who has an account, so an unproved account, a proved one
+// and an address nobody holds get the same answer, and only the unproved
+// account's mailbox is sent a link.
+func TestResendingARegistrationLinkAnswersEveryAddressTheSame(t *testing.T) {
+	ctx := t.Context()
+	s := account.NewStore(pool)
+	h := account.NewHandler(s, nil, slog.New(slog.DiscardHandler), false, nil)
+	unproved := "resend-unproved-" + uuid.NewString() + "@example.com"
+	proved := "resend-proved-" + uuid.NewString() + "@example.com"
+	unknown := "resend-unknown-" + uuid.NewString() + "@example.com"
+	register(t, s, unproved)
+	registerProved(t, s, proved)
+
+	for _, tt := range []struct {
+		addr      string
+		wantLinks int
+	}{
+		{unproved, 1},
+		{proved, 0},
+		{unknown, 0},
+	} {
+		rec := httptest.NewRecorder()
+		h.ResendRegistration(rec, cartForm(ctx, "/register/resend", url.Values{
+			"email": {tt.addr}, "next": {"/account"},
+		}))
+		if rec.Code != http.StatusSeeOther {
+			t.Fatalf("%s: status = %d, want 303", tt.addr, rec.Code)
+		}
+		want := "/register?sent=1&again=1"
+		if got := rec.Header().Get("Location"); got != want {
+			t.Errorf("%s: sent to %q, want %q", tt.addr, got, want)
+		}
+		followUpRegistrations(t, s, tt.addr, neverTold(t))
+		var links int
+		if err := pool.QueryRow(ctx, `
+			SELECT count(*) FROM outbox_messages
+			WHERE topic = $1 AND lower(payload->>'email') = lower($2)`,
+			outbox.TopicEmailVerify, tt.addr).Scan(&links); err != nil {
+			t.Fatalf("count links: %v", err)
+		}
+		if links != tt.wantLinks {
+			t.Errorf("%s: %d links queued, want %d", tt.addr, links, tt.wantLinks)
+		}
+	}
+}
+
+// TestResendingARegistrationLinkIsBoundedPerAddress: the form mails an address
+// whoever names it, so it spends the budget registration spends for that
+// address instead of opening a second one.
+func TestResendingARegistrationLinkIsBoundedPerAddress(t *testing.T) {
+	ctx := t.Context()
+	h := account.NewHandler(account.NewStore(pool), nil, slog.New(slog.DiscardHandler), false, nil)
+	addr := "resend-bounded-" + uuid.NewString() + "@example.com"
+
+	var last int
+	for range 4 {
+		rec := httptest.NewRecorder()
+		h.ResendRegistration(rec, cartForm(ctx, "/register/resend", url.Values{"email": {addr}}))
+		last = rec.Code
+	}
+	if last != http.StatusTooManyRequests {
+		t.Errorf("the fourth resend in a row answered %d, want 429", last)
 	}
 }

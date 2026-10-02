@@ -3315,7 +3315,15 @@ a.goen-pager__step:hover {
   min-width: 0;
 }
 
-.goen-wish__remove {
+.goen-wish__remove,
+.goen-wish__add {
+  margin: 0;
+}
+
+.goen-wish__stock {
+  color: var(--fg-muted);
+  font-size: var(--fs-13);
+  line-height: var(--lh-normal);
   margin: 0;
 }
 

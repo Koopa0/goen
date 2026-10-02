@@ -100,6 +100,21 @@ func (s *Store) Register(ctx context.Context, c *Credentials, next string) error
 	return nil
 }
 
+// ResendRegistration does the same work whether or not addr has an unproved
+// account; only such an account's mailbox is sent a link.
+func (s *Store) ResendRegistration(ctx context.Context, addr, next string) error {
+	if err := s.q.EnqueueRegistrationResend(ctx, db.EnqueueRegistrationResendParams{
+		Topic:     outbox.TopicRegistration,
+		DedupeKey: "registration:" + uuid.NewString(),
+		Locale:    i18n.FromContext(ctx).Tag(),
+		Next:      next,
+		Email:     addr,
+	}); err != nil {
+		return fmt.Errorf("queue registration resend: %w", err)
+	}
+	return nil
+}
+
 // FollowUpRegistration is the outbox's half of a registration. A new account is
 // sent the link that completes it; an address that already had one is told so,
 // through tell, at the address that account holds now. The account is read
@@ -880,7 +895,7 @@ func (a *Address) Trim() {
 }
 
 // Wishlist reads a customer's saved products.
-func (s *Store) Wishlist(ctx context.Context, userID string) ([]pages.ProductTile, error) {
+func (s *Store) Wishlist(ctx context.Context, userID string) ([]pages.WishlistItem, error) {
 	id, err := uuid.Parse(userID)
 	if err != nil {
 		return nil, ErrNotFound
@@ -891,25 +906,32 @@ func (s *Store) Wishlist(ctx context.Context, userID string) ([]pages.ProductTil
 	if err != nil {
 		return nil, fmt.Errorf("read wishlist: %w", err)
 	}
-	out := make([]pages.ProductTile, 0, len(rows))
+	out := make([]pages.WishlistItem, 0, len(rows))
 	for i := range rows {
 		r := &rows[i]
-		out = append(out, pages.ProductTile{
-			Slug:         r.Slug,
-			Name:         r.Name,
-			Summary:      r.Summary.String,
-			Brand:        r.Brand,
-			PriceCents:   r.MinPriceCents,
-			PriceVaries:  r.PriceVaries,
-			CompareCents: r.CompareAtPriceCents.Int64,
-			Rating:       r.Rating,
-			RatingCount:  r.RatingCount,
-			InStock:      r.InStock,
-			ImageURL:     assets.ProductImageURL(r.ImageKey),
-			ImageSrcset:  assets.ProductImageSrcsetAt(r.ImageKey, int(r.ImageWidth)),
-			ImageAlt:     r.ImageAlt,
-			ImageWidth:   r.ImageWidth,
-			ImageHeight:  r.ImageHeight,
+		var soleVariant string
+		if r.SoleVariantID != uuid.Nil {
+			soleVariant = r.SoleVariantID.String()
+		}
+		out = append(out, pages.WishlistItem{
+			SoleVariantID: soleVariant,
+			ProductTile: pages.ProductTile{
+				Slug:         r.Slug,
+				Name:         r.Name,
+				Summary:      r.Summary.String,
+				Brand:        r.Brand,
+				PriceCents:   r.MinPriceCents,
+				PriceVaries:  r.PriceVaries,
+				CompareCents: r.CompareAtPriceCents.Int64,
+				Rating:       r.Rating,
+				RatingCount:  r.RatingCount,
+				InStock:      r.InStock,
+				ImageURL:     assets.ProductImageURL(r.ImageKey),
+				ImageSrcset:  assets.ProductImageSrcsetAt(r.ImageKey, int(r.ImageWidth)),
+				ImageAlt:     r.ImageAlt,
+				ImageWidth:   r.ImageWidth,
+				ImageHeight:  r.ImageHeight,
+			},
 		})
 	}
 	return out, nil

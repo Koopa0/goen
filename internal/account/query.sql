@@ -51,6 +51,17 @@ FROM (VALUES (true)) AS attempt (made)
 LEFT JOIN created c ON true
 LEFT JOIN users u ON lower(u.email) = lower(@email::text);
 
+-- Asking again for a registration link is this one INSERT whatever the
+-- address: the account is looked up inside it, and names nobody unless it is
+-- registered and still unproved, so an address with no account, or one already
+-- proved, costs the request what any other does.
+-- name: EnqueueRegistrationResend :exec
+INSERT INTO outbox_messages (topic, dedupe_key, payload)
+SELECT @topic::text, @dedupe_key::text,
+       jsonb_build_object('user_id', u.id, 'created', true, 'locale', @locale::text, 'next', @next::text)
+FROM (VALUES (true)) AS request (queued)
+LEFT JOIN users u ON lower(u.email) = lower(@email::text) AND u.email_verified_at IS NULL;
+
 -- The registrant's half of completing a registration: the password chosen when
 -- the account was made.
 -- name: RegistrationCredential :one
@@ -254,6 +265,15 @@ SELECT
         WHERE sv.product_id = p.id AND sv.is_active
           AND sv.stock_quantity > sv.safety_stock
     ) AS in_stock,
+    -- The one variant a product has, when it has only one and it is in stock:
+    -- the only case where saying "add to cart" names what goes in the cart.
+    -- The nil uuid when there is none.
+    coalesce((
+        SELECT CASE WHEN count(*) = 1 AND bool_and(sv.stock_quantity > sv.safety_stock)
+                    THEN (array_agg(sv.id))[1] END
+        FROM product_variants sv
+        WHERE sv.product_id = p.id AND sv.is_active
+    ), '00000000-0000-0000-0000-000000000000'::uuid)::uuid AS sole_variant_id,
     coalesce(img.storage_key, '') AS image_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, @locale::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
