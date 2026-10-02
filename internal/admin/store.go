@@ -261,6 +261,7 @@ func (s *Store) Order(ctx context.Context, number string) (pages.AdminOrderView,
 		InvoiceDonationCode: o.InvoiceDonationCode,
 		InvoiceTaxID:        o.InvoiceTaxID,
 		Committed:           o.Committed,
+		Unpaid:              !o.Committed && o.OwedCents > 0,
 	}
 
 	if shipErr := s.fillShippable(ctx, &view, o.ID, fulfillment); shipErr != nil {

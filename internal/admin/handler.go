@@ -232,9 +232,13 @@ func (h *Handler) AdvanceOrder(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/admin/orders/"+number+"?ok=1", http.StatusSeeOther) //nolint:gosec // G710: validated by IsOrderNumber
 	case errors.Is(err, ErrPaidCancel), hasConstraint(err, "orders_paid_cancel_needs_refund"):
 		http.Redirect(w, r, "/admin/orders/"+number+"?paidcancel=1", http.StatusSeeOther) //nolint:gosec // G710: validated by IsOrderNumber
+	case hasConstraint(err, "orders_funded_to_leave_pending"):
+		http.Redirect(w, r, "/admin/orders/"+number+"?unfunded=1", http.StatusSeeOther) //nolint:gosec // G710: validated by IsOrderNumber
+	case hasConstraint(err, "orders_finished_when_shipped"):
+		http.Redirect(w, r, "/admin/orders/"+number+"?owesparcel=1", http.StatusSeeOther) //nolint:gosec // G710: validated by IsOrderNumber
 	case errors.Is(err, ErrRefused):
-		// Logged in full; the page only says the move was refused, because a
-		// constraint name is not something a shop assistant can act on.
+		// Logged in full; the page names the rule only for the refusals a shop
+		// assistant can act on, because a constraint name is not one of them.
 		h.log.WarnContext(r.Context(), "order transition refused",
 			"order", number, "error", err)
 		http.Redirect(w, r, "/admin/orders/"+number+"?refused=1", http.StatusSeeOther) //nolint:gosec // G710: validated by IsOrderNumber
@@ -628,6 +632,8 @@ var adminNotices = map[string]i18n.Key{
 	"inspected":      i18n.KeyAdminNoticeInspected,
 	"closed":         i18n.KeyAdminNoticeClosed,
 	"assessed":       i18n.KeyAdminNoticeAssessed,
+	"unfunded":       i18n.KeyAdminNoticeUnfunded,
+	"owesparcel":     i18n.KeyAdminNoticeOwesParcel,
 	"invoiced":       i18n.KeyAdminNoticeInvoiced,
 	"voided":         i18n.KeyAdminNoticeVoided,
 	"hasinvoice":     i18n.KeyAdminNoticeHasInvoice,

@@ -230,6 +230,21 @@ var (
 		En:     "A carrier and a tracking number are both needed.",
 	})
 
+	KeyAdminNoticeUnfunded = key("admin.notice.unfunded", Message{
+		ZhHant: "這筆訂單還沒收到款項,不能進入備貨。",
+		En:     "This order has not been paid, so it cannot move into picking.",
+	})
+
+	KeyAdminNoticeOwesParcel = key("admin.notice.owesparcel", Message{
+		ZhHant: "這筆訂單還有包裹沒出貨,不能標為已完成。請先出貨剩下的包裹。",
+		En:     "This order still owes a parcel, so it cannot be marked completed. Ship the rest first.",
+	})
+
+	KeyAdminQueueNextChoose = key("admin.queue.next.choose", Message{
+		ZhHant: "請選擇下一步",
+		En:     "Choose the next step",
+	})
+
 	KeyAdminNoticeCreditNeeds = key("admin.notice.creditneeds", Message{
 		ZhHant: "額度的金額或原因有誤,請重新確認後再送出。",
 		En:     "The credit amount or reason is not right. Check them and send again.",
