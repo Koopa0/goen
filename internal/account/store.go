@@ -182,7 +182,7 @@ func (s *Store) Authenticate(ctx context.Context, email, password string) (User,
 	if err := s.q.TouchLastLogin(ctx, row.ID); err != nil {
 		return User{}, fmt.Errorf("touch last login: %w", err)
 	}
-	return User{ID: row.ID.String(), Email: row.Email, Name: row.FullName.String, Role: row.Role}, nil
+	return User{ID: row.ID.String(), Email: row.Email, Name: row.FullName.String, Role: Role(row.Role)}, nil
 }
 
 // passwordMatches is the password check every sign-in makes. An account with no
@@ -243,7 +243,7 @@ func (s *Store) SessionUser(ctx context.Context, token string) (User, error) {
 		}
 		return User{}, fmt.Errorf("read session: %w", err)
 	}
-	return User{ID: row.ID.String(), Email: row.Email, Name: row.FullName.String, Role: row.Role}, nil
+	return User{ID: row.ID.String(), Email: row.Email, Name: row.FullName.String, Role: Role(row.Role)}, nil
 }
 
 // SignedInRecently reports whether this session was created within window. A
@@ -1069,7 +1069,7 @@ func finishGoogleSignIn(
 		return User{}, fmt.Errorf("commit google sign-in: %w", err)
 	}
 	return User{
-		ID: userID.String(), Email: email, Name: fullName.String, Role: role,
+		ID: userID.String(), Email: email, Name: fullName.String, Role: Role(role),
 	}, nil
 }
 
@@ -1106,7 +1106,7 @@ func (s *Store) googleSubjectOwner(ctx context.Context, subject string) (User, e
 	}
 	return User{
 		ID: linked.ID.String(), Email: linked.Email,
-		Name: linked.FullName.String, Role: linked.Role,
+		Name: linked.FullName.String, Role: Role(linked.Role),
 	}, nil
 }
 

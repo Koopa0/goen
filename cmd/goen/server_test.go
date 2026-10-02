@@ -559,7 +559,7 @@ func TestOnlyAStaffMemberGetsTheBackOfficeEntrance(t *testing.T) {
 			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, tt.path, http.NoBody)
 			if tt.role != "" {
 				req = req.WithContext(account.WithUser(req.Context(), account.User{
-					ID: "user-1", Email: "somebody@example.com", Role: tt.role,
+					ID: "user-1", Email: "somebody@example.com", Role: account.Role(tt.role),
 				}))
 			}
 			h.ServeHTTP(httptest.NewRecorder(), req)

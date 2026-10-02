@@ -3212,7 +3212,7 @@ func TestTheBackOfficeIsInvisibleToEveryoneButStaff(t *testing.T) {
 			}
 			req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/admin", nil)
 			req = req.WithContext(account.WithUser(req.Context(),
-				account.User{ID: id.String(), Role: role}))
+				account.User{ID: id.String(), Role: account.Role(role)}))
 			w := httptest.NewRecorder()
 			guarded(w, req)
 			if w.Code != http.StatusOK {
@@ -3247,7 +3247,7 @@ func TestOnlyAnAdminReachesTheStaffPage(t *testing.T) {
 			RETURNING id`, role).Scan(&id); err != nil {
 			t.Fatalf("create %s: %v", role, err)
 		}
-		return account.User{ID: id.String(), Role: role}
+		return account.User{ID: id.String(), Role: account.Role(role)}
 	}
 
 	for _, tt := range []struct {
