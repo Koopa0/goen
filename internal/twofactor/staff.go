@@ -19,17 +19,13 @@ import (
 	"github.com/koopa0/goen/internal/web"
 )
 
-// Errors the staff page branches on.
 var (
-	// ErrLastAdmin is a change that would leave nobody able to make another.
 	ErrLastAdmin = errors.New("twofactor: that would leave no admin")
 	// ErrSelf is an admin acting on their own account. The session doing it is
 	// already step-up verified, so self-service would turn a stolen session into
 	// permanent access.
-	ErrSelf = errors.New("twofactor: an admin cannot do that to their own account")
-	// ErrInvalidStaff is a form the rules refuse.
+	ErrSelf         = errors.New("twofactor: an admin cannot do that to their own account")
 	ErrInvalidStaff = errors.New("twofactor: that is not a usable staff account")
-	// ErrAlreadyStaff refuses an add without changing an existing colleague.
 	ErrAlreadyStaff = errors.New("twofactor: that account is already staff")
 )
 
@@ -103,7 +99,6 @@ func (s *Store) AddStaff(ctx context.Context, address, name, role, actorID strin
 	return cleared, nil
 }
 
-// RevokeStaff takes back-office access away, and ends every session that had it.
 func (s *Store) RevokeStaff(ctx context.Context, userID, actorID string) error {
 	target, err := uuid.Parse(userID)
 	if err != nil {

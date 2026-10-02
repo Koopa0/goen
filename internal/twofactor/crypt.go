@@ -11,7 +11,6 @@ import (
 	"strings"
 )
 
-// keyBytes is the AES-256 key length GOEN_TOTP_KEY must decode to.
 const keyBytes = 32
 
 // ParseKey decodes a configured GOEN_TOTP_KEY into raw key material. An empty
@@ -76,8 +75,6 @@ type secretCipher struct {
 	aead cipher.AEAD
 }
 
-// newCipher builds a secretCipher from key material produced by ParseKey. A nil
-// or empty key yields a disabled cipher rather than an error.
 func newCipher(key []byte) *secretCipher {
 	if len(key) == 0 {
 		return &secretCipher{}
