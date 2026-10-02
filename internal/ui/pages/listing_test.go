@@ -405,7 +405,7 @@ func TestARefundedOrderCanFileAnAllowance(t *testing.T) {
 func TestTheFirstRowOfAListingLoadsItsPhotographsEagerly(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	var tiles []ProductTile
+	tiles := make([]ProductTile, 0, 6)
 	for i := range 6 {
 		slug := fmt.Sprintf("p%d", i)
 		tiles = append(tiles, ProductTile{Slug: slug, Name: slug, PriceCents: 1000, ImageURL: "/img/" + slug + ".webp", ImageAlt: slug})

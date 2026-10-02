@@ -167,6 +167,7 @@ func (s *Store) Orders(ctx context.Context, status pages.QueueFilter, term strin
 			filter, funding = string(pages.FulfillmentPending), "unpaid"
 		case pages.QueueReady:
 			filter, funding = string(pages.FulfillmentPending), "funded"
+		default: // a fulfilment status filters by itself
 		}
 		rows, err = s.q.AdminOrders(ctx, db.AdminOrdersParams{HasCursor: cursor.Valid, AfterAt: cursor.At, AfterID: cursor.ID, Status: filter, Funding: funding, RowLimit: PageLimit})
 	}

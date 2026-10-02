@@ -244,7 +244,7 @@ func TestOptionalRunDaysDoNotTurnMalformedInputIntoNoExpiry(t *testing.T) {
 		if days >= 0 {
 			t.Fatalf("small(%q) = %d, want an invalid sentinel", raw, days)
 		}
-		if errs := (&BannerForm{Message: "Sale", Days: days}).Validate(ctx); errs["days"] == "" {
+		if errs := (&BannerForm{Message: "Sale", Days: days}).Validate(ctx); errs["banner_days"] == "" {
 			t.Errorf("BannerForm accepted malformed days %q as an unbounded banner", raw)
 		}
 		if errs := (&HeroForm{

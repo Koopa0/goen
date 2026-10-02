@@ -77,7 +77,7 @@ func TestNoTimeIsRenderedInAnUnstatedZone(t *testing.T) {
 			}
 			// A .templ source is read, and the _templ.go it generates is not:
 			// the .templ is what somebody edits.
-			if d.IsDir() || !(strings.HasSuffix(path, ".go") || strings.HasSuffix(path, ".templ")) ||
+			if d.IsDir() || (!strings.HasSuffix(path, ".go") && !strings.HasSuffix(path, ".templ")) ||
 				strings.HasSuffix(path, "_test.go") || strings.HasSuffix(path, "_templ.go") {
 				return nil
 			}

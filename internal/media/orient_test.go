@@ -6,6 +6,7 @@ import (
 	"image"
 	"image/color"
 	"image/jpeg"
+	"strings"
 	"testing"
 )
 
@@ -25,12 +26,12 @@ func letters(img image.Image) []string {
 	var rows []string
 	b := img.Bounds()
 	for y := b.Min.Y; y < b.Max.Y; y++ {
-		row := ""
+		var row strings.Builder
 		for x := b.Min.X; x < b.Max.X; x++ {
 			r, _, _, _ := img.At(x, y).RGBA()
-			row += string(rune('A' + (r>>8)/10 - 1))
+			row.WriteRune(rune('A' + (r>>8)/10 - 1))
 		}
-		rows = append(rows, row)
+		rows = append(rows, row.String())
 	}
 	return rows
 }
@@ -91,7 +92,7 @@ func withOrientation(t *testing.T, jpegData []byte, o uint16, order tiffOrder) [
 	tiff = order.AppendUint32(tiff, 0)
 
 	body := append([]byte("Exif\x00\x00"), tiff...)
-	seg := []byte{0xff, jpegAPP1, byte((len(body) + 2) >> 8), byte(len(body) + 2)}
+	seg := binary.BigEndian.AppendUint16([]byte{0xff, jpegAPP1}, uint16(len(body)+2)) //nolint:gosec // G115: a few hundred bytes of test EXIF
 	seg = append(seg, body...)
 	out := append([]byte{}, jpegData[:2]...)
 	out = append(out, seg...)
