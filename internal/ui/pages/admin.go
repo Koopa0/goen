@@ -209,6 +209,10 @@ type AdminOrderView struct {
 	// retries without collapsing a later, legitimate equal partial allowance.
 	AllowanceOperationID string
 	Committed            bool
+	// Payment is how the order was paid and Refunds every refund of it, for the
+	// back-office payment section.
+	Payment AdminPayment
+	Refunds []AdminRefund
 	// Unpaid is a pending order that still owes money and has no payment: the
 	// database refuses to move it into picking.
 	Unpaid        bool
@@ -639,3 +643,27 @@ func (v *AdminMovementsView) StockText() string { return strconv.FormatInt(int64
 
 // SafetyText is the floor below which nothing may be sold.
 func (v *AdminMovementsView) SafetyText() string { return strconv.FormatInt(int64(v.Safety), 10) }
+
+// AdminPayment is how an order was paid. Method is empty for an order nothing
+// has paid yet.
+type AdminPayment struct {
+	Method string
+	// Card is "Visa •••• 4242", or empty when Stripe reported none.
+	Card     string
+	Captured string
+	PaidAt   string
+}
+
+// Paid reports whether anything has paid the order.
+func (p AdminPayment) Paid() bool { return p.Method != "" }
+
+// AdminRefund is one refund of an order: the channel it went back through, its
+// amount and time, the reason it was given and the staff member behind it.
+type AdminRefund struct {
+	Channel string
+	Amount  string
+	At      string
+	Reason  string
+	Staff   string
+	Credit  bool
+}

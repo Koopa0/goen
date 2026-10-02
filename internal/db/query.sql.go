@@ -8505,6 +8505,39 @@ func (q *Queries) OrderByPaymentRef(ctx context.Context, providerRef string) (Or
 	return i, err
 }
 
+const orderCapturedPayment = `-- name: OrderCapturedPayment :one
+SELECT p.provider, coalesce(p.card_brand, '')::text AS card_brand,
+       coalesce(p.card_last4, '')::text AS card_last4,
+       coalesce(p.captured_amount_cents, 0)::bigint AS captured_cents,
+       p.paid_at
+FROM payments p
+WHERE p.order_id = $1 AND p.status = 'succeeded'
+ORDER BY p.paid_at DESC
+LIMIT 1
+`
+
+type OrderCapturedPaymentRow struct {
+	Provider      string
+	CardBrand     string
+	CardLast4     string
+	CapturedCents int64
+	PaidAt        pgtype.Timestamptz
+}
+
+// How an order was paid, for the back office: the captured card payment, if any.
+func (q *Queries) OrderCapturedPayment(ctx context.Context, orderID uuid.UUID) (OrderCapturedPaymentRow, error) {
+	row := q.db.QueryRow(ctx, orderCapturedPayment, orderID)
+	var i OrderCapturedPaymentRow
+	err := row.Scan(
+		&i.Provider,
+		&i.CardBrand,
+		&i.CardLast4,
+		&i.CapturedCents,
+		&i.PaidAt,
+	)
+	return i, err
+}
+
 const orderDestinationKind = `-- name: OrderDestinationKind :one
 SELECT sm.destination_kind, o.fulfillment_status
 FROM orders o
@@ -8819,6 +8852,65 @@ func (q *Queries) OrderRecipient(ctx context.Context, id uuid.UUID) (OrderRecipi
 	var i OrderRecipientRow
 	err := row.Scan(&i.Email, &i.RecipientName, &i.Locale)
 	return i, err
+}
+
+const orderRefundRows = `-- name: OrderRefundRows :many
+SELECT channel, amount_cents, at, reason, staff FROM (
+    SELECT 'card'::text AS channel, rf.amount_cents, rf.succeeded_at AS at,
+           coalesce(rf.reason, '')::text AS reason,
+           coalesce((SELECT coalesce(u.full_name, u.email)
+                     FROM audit_events a JOIN users u ON u.id = a.actor_user_id
+                     WHERE a.entity_table = 'refunds' AND a.entity_id = rf.id
+                     ORDER BY a.occurred_at LIMIT 1), '')::text AS staff
+    FROM refunds rf JOIN payments p ON p.id = rf.payment_id
+    WHERE p.order_id = $1 AND rf.status = 'succeeded'
+    UNION ALL
+    SELECT 'credit'::text, e.amount_cents, e.created_at,
+           e.reason::text,
+           coalesce((SELECT coalesce(u.full_name, u.email) FROM users u
+                     WHERE u.id = e.actor_user_id), '')::text
+    FROM store_credit_entries e
+    WHERE e.order_id = $1 AND e.amount_cents > 0
+) refunds_of_order
+ORDER BY at, channel
+`
+
+type OrderRefundRowsRow struct {
+	Channel     string
+	AmountCents int64
+	At          pgtype.Timestamptz
+	Reason      string
+	Staff       string
+}
+
+// Every refund of one order, card and store credit together, oldest first.
+// Credit refunds are the positive store-credit entries, the same definition
+// order_refunds uses. Who: the staff member the audit trail names for a card
+// refund, and the entry's own actor for a credit one; empty when none is known.
+func (q *Queries) OrderRefundRows(ctx context.Context, orderID uuid.UUID) ([]OrderRefundRowsRow, error) {
+	rows, err := q.db.Query(ctx, orderRefundRows, orderID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []OrderRefundRowsRow{}
+	for rows.Next() {
+		var i OrderRefundRowsRow
+		if err := rows.Scan(
+			&i.Channel,
+			&i.AmountCents,
+			&i.At,
+			&i.Reason,
+			&i.Staff,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const orderShipments = `-- name: OrderShipments :many

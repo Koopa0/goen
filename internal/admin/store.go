@@ -274,6 +274,9 @@ func (s *Store) Order(ctx context.Context, number string) (pages.AdminOrderView,
 	if refundErr := s.fillRefundBeforeShipment(ctx, &view, number); refundErr != nil {
 		return pages.AdminOrderView{}, refundErr
 	}
+	if payErr := s.fillPayments(ctx, &view, o.ID, o.Committed); payErr != nil {
+		return pages.AdminOrderView{}, payErr
+	}
 	for _, l := range lines {
 		view.Lines = append(view.Lines, pages.OrderLine{
 			SKU: l.SKU, Name: l.ProductName, Label: l.VariantLabel.String,
@@ -528,6 +531,43 @@ func (s *Store) fillInvoices(ctx context.Context, view *pages.AdminOrderView, nu
 		return fmt.Errorf("read settled refunds for %s: %w", number, err)
 	}
 	view.RefundedCents = refunded
+	return nil
+}
+
+// fillPayments puts how the order was paid and every refund of it on the page.
+func (s *Store) fillPayments(ctx context.Context, view *pages.AdminOrderView, orderID uuid.UUID, committed bool) error {
+	paid, err := s.q.OrderCapturedPayment(ctx, orderID)
+	switch {
+	case err == nil:
+		view.Payment = pages.AdminPayment{
+			Method:   i18n.T(ctx, i18n.KeyAdminPayMethodCard),
+			Card:     payment.CardLabel(paid.CardBrand, paid.CardLast4),
+			Captured: pages.TWD(paid.CapturedCents),
+			PaidAt:   nullableStamp(paid.PaidAt),
+		}
+	case errors.Is(err, pgx.ErrNoRows):
+		if committed {
+			view.Payment = pages.AdminPayment{Method: i18n.T(ctx, i18n.KeyAdminPayMethodCredit)}
+		}
+	default:
+		return fmt.Errorf("read payment of order %s: %w", view.Number, err)
+	}
+
+	refunds, err := s.q.OrderRefundRows(ctx, orderID)
+	if err != nil {
+		return fmt.Errorf("read refunds of order %s: %w", view.Number, err)
+	}
+	for i := range refunds {
+		r := &refunds[i]
+		channel := i18n.KeyAdminPayRefundCard
+		if r.Channel == "credit" {
+			channel = i18n.KeyAdminPayRefundCredit
+		}
+		view.Refunds = append(view.Refunds, pages.AdminRefund{
+			Channel: i18n.T(ctx, channel), Amount: pages.TWD(r.AmountCents),
+			At: nullableStamp(r.At), Reason: r.Reason, Staff: r.Staff,
+		})
+	}
 	return nil
 }
 
