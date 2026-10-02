@@ -24,8 +24,10 @@ import (
 )
 
 // paidUnshippedOrder is a customer's order for one unit, paid with card and
-// store credit, holding its stock and awarded its points. picking moves it on;
-// otherwise it is paid and still pending, which is committed all the same.
+// store credit, holding its stock. picking moves it on; otherwise it is paid
+// and still pending, which commits it once the card is captured. A committed
+// order is awarded its points; one credit alone paid stays uncommitted, and
+// earns them only when picked.
 func paidUnshippedOrder(t *testing.T, cardCents, creditCents int64, picking bool) (number string, orderID, variantID uuid.UUID) {
 	t.Helper()
 	ctx := t.Context()
@@ -89,8 +91,10 @@ func paidUnshippedOrder(t *testing.T, cardCents, creditCents int64, picking bool
 			t.Fatalf("to picking: %v", err)
 		}
 	}
-	if _, err := tx.Exec(ctx, `SELECT award_loyalty_points($1)`, orderID); err != nil {
-		t.Fatalf("award: %v", err)
+	if cardCents > 0 || picking {
+		if _, err := tx.Exec(ctx, `SELECT award_loyalty_points($1)`, orderID); err != nil {
+			t.Fatalf("award: %v", err)
+		}
 	}
 	if err := tx.Commit(ctx); err != nil {
 		t.Fatalf("commit: %v", err)
