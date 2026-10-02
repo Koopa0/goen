@@ -469,7 +469,7 @@ func stopCampaigns(t *testing.T) {
 		t.Fatalf("stop campaigns: %v", err)
 	}
 	t.Cleanup(func() {
-		clean, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		clean, cancel := context.WithTimeout(context.WithoutCancel(t.Context()), 5*time.Second)
 		defer cancel()
 		if _, err := pool.Exec(clean, `UPDATE sale_campaigns SET is_active = true WHERE id = ANY($1)`, ids); err != nil {
 			t.Errorf("restart campaigns: %v", err)
@@ -493,7 +493,7 @@ func TestRunningCampaignsFollowTheScheduledSlidesSoonestFirst(t *testing.T) {
 		}
 	}
 	t.Cleanup(func() {
-		clean, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		clean, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 		defer cancel()
 		if _, err := pool.Exec(clean, `DELETE FROM sale_campaigns WHERE slug LIKE 'hero-%'`); err != nil {
 			t.Errorf("clean up campaigns: %v", err)

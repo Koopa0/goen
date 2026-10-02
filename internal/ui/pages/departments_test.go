@@ -105,8 +105,8 @@ func TestHeroCarouselDrawsItsSlides(t *testing.T) {
 	t.Parallel()
 	campaign := HeroSlide{
 		Layout: SlidePhoto, Tone: ToneSage, Title: "Autumn desk sale",
-		Fact: "4 items · until 2027-10-01",
-		CTA:  CTA{Label: "See the campaign", Href: "/s/autumn-desk"},
+		Fact:  "4 items · until 2027-10-01",
+		CTA:   CTA{Label: "See the campaign", Href: "/s/autumn-desk"},
 		Photo: Photo{URL: "/static/a.webp", Alt: "a desk"}, PhotoWidth: 1600, PhotoHeight: 600,
 	}
 	department := HeroSlide{Layout: SlideSplit, Tone: ToneMist, Title: "Tech", CTA: CTA{Label: "Browse Tech", Href: "/c/tech"}}
