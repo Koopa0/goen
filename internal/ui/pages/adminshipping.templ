@@ -40,6 +40,9 @@ templ AdminShipping(p layouts.Page, v AdminShippingView) {
 					{ m.Name }
 					<span class="goen-admin__meta">{ m.Code } · { m.DestinationText(ctx) }</span>
 				</h2>
+				if m.PickupUnavailable {
+					<p class="goen-admin__hint"><strong>{ i18n.T(ctx, i18n.KeyAdminShipPickupOff) }</strong></p>
+				}
 				<p class="goen-admin__hint">
 					{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminShipCurrent), m.Fee(), m.FreeOver(ctx)) }
 					{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminShipSince), m.EffectiveAt, m.VersionCountText()) }

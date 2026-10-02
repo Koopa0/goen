@@ -25,6 +25,9 @@ type AdminVariant struct {
 	ProductStatus string
 	// FormID is unique to one rendering of this row's adjust form.
 	FormID string
+	// DraftDelta is what staff typed in a refused adjustment and DeltaError the
+	// sentence under it.
+	DraftDelta, DeltaError string
 }
 
 // StockText is the stock on hand, as text.
@@ -206,21 +209,29 @@ type AdminOrderView struct {
 	// retries without collapsing a later, legitimate equal partial allowance.
 	AllowanceOperationID string
 	Committed            bool
-	Next                 []AdminTransition
-	CanShip              bool
-	Shippable            []AdminShippableLine
-	Notice               string
-	Timeline             []AdminOrderEvent
-	Shipments            []AdminShipment
-	DeliveryError        string
+	// Unpaid is a pending order that still owes money and has no payment: the
+	// database refuses to move it into picking.
+	Unpaid        bool
+	Next          []AdminTransition
+	CanShip       bool
+	Shippable     []AdminShippableLine
+	Notice        string
+	Timeline      []AdminOrderEvent
+	Shipments     []AdminShipment
+	DeliveryError string
 	// ShipCarrier and ShipTracking keep what staff typed when the dispatch was
 	// refused; TrackingError marks the tracking field invalid.
 	ShipCarrier, ShipTracking string
 	TrackingError             string
-	Delivery                  AdminDelivery
-	Correctable               bool
-	PickupDestination         bool
-	PickupBrands              []PickupBrandChoice
+	ShipCarrierError          string
+	// ShipQtyError marks every quantity field of a refused dispatch, and
+	// ShipQty keeps what was typed in each, by order line id.
+	ShipQtyError      string
+	ShipQty           map[string]string
+	Delivery          AdminDelivery
+	Correctable       bool
+	PickupDestination bool
+	PickupBrands      []PickupBrandChoice
 
 	// RefundOffered is a paid order nothing has shipped from and no return
 	// exists for; RefundOpen is one whose refund before shipment Resume finishes.
@@ -335,6 +346,21 @@ func (v *AdminOrderView) Discount() string {
 
 // CanAdvance reports whether this order has any legal move left.
 func (v *AdminOrderView) CanAdvance() bool { return len(v.Next) > 0 }
+
+// NextIsDestructive reports that the first move offered is the cancellation, so
+// the menu must not preselect it.
+func (v *AdminOrderView) NextIsDestructive() bool {
+	return len(v.Next) > 0 && v.Next[0].Value == FulfillmentCancelled
+}
+
+// QtyValue is what a dispatch quantity field holds: what staff typed on a
+// refused dispatch, otherwise everything still outstanding.
+func (v *AdminOrderView) QtyValue(l *AdminShippableLine) string {
+	if typed, ok := v.ShipQty[l.OrderLineID]; ok {
+		return typed
+	}
+	return l.RemainingText()
+}
 
 // Final reports whether the order has ended. A paid order in picking has no
 // status move left either, and is not final: it ships or is refunded.

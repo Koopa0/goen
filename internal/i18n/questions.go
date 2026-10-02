@@ -67,6 +67,11 @@ var (
 		En:     "Reply as goen",
 	})
 
+	KeyAdminQuestionBodyError = key("admin.question.bodyerror", Message{
+		ZhHant: "回覆不能留白,最多 1000 字。",
+		En:     "A reply cannot be empty and may be at most 1,000 characters.",
+	})
+
 	KeyAdminQuestionSend = key("admin.question.send", Message{ZhHant: "送出官方回覆", En: "Post the shop's reply"})
 
 	KeyAdminQuestionHide = key("admin.question.hide", Message{ZhHant: "隱藏這則提問", En: "Hide this question"})

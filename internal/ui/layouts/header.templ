@@ -1,17 +1,21 @@
 package layouts
 
 import (
+	"fmt"
 	"strconv"
 
+	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/icons"
 	"github.com/koopa0/goen/internal/web"
 )
 
-// Header renders the site header: one row, static at every width. The category
-// links sit in the bar from 1024 up and behind a native disclosure below it;
-// the search field stays in the bar and wraps onto its own row.
+// Header renders the site header: one row, static at every width. The
+// departments sit in the bar from 1024 up, each one that has sub-categories
+// opening a full-width panel on hover or focus; below 1024 they sit behind a
+// native disclosure, and the search field wraps onto its own row. The language
+// control lives in the footer, once.
 //
 // The ui-navitem and ui-btn spellings inside it are not leftovers: two
 // assertions in backoffice_test.go locate the back-office entrance by the whole
@@ -26,6 +30,13 @@ templ Header(p Page) {
 				<nav class="goen-header__drawer" aria-label={ i18n.T(ctx, i18n.KeyCategoryNav) }>
 					for _, n := range TopNavFrom(ctx) {
 						<a class="ui-navitem" aria-current={ p.ariaCurrent(n) } href={ templ.URL(n.Href) }>{ n.Name }</a>
+						if len(n.Children) > 0 {
+							<div class="goen-header__subs">
+								for _, c := range n.Children {
+									<a class="ui-navitem goen-header__subitem" aria-current={ p.ariaCurrent(c) } href={ templ.URL(c.Href) }>{ c.Name }</a>
+								}
+							</div>
+						}
 					}
 					<a class="ui-navitem goen-header__navitem--deal" href="/deals">{ i18n.T(ctx, i18n.KeyDeals) }</a>
 					// The back office is reached from the header HERE and not from the wide
@@ -38,8 +49,6 @@ templ Header(p Page) {
 					if IsStaff(ctx) {
 						<a class="ui-navitem" href="/admin">{ i18n.T(ctx, i18n.KeyBackOffice) }</a>
 					}
-					// i18n-exempt: a language's own name, shown in both locales on purpose.
-					@languageSwitch("goen-header__lang", "繁中", "EN")
 				</nav>
 			</details>
 			<a class="goen-header__brand" href="/">
@@ -48,11 +57,15 @@ templ Header(p Page) {
 			</a>
 			<nav class="goen-header__nav" aria-label={ i18n.T(ctx, i18n.KeyCategoryNav) }>
 				for _, n := range TopNavFrom(ctx) {
-					<a class="ui-navitem" aria-current={ p.ariaCurrent(n) } href={ templ.URL(n.Href) }>{ n.Name }</a>
+					if len(n.Children) == 0 {
+						<a class="ui-navitem" aria-current={ p.ariaCurrent(n) } href={ templ.URL(n.Href) }>{ n.Name }</a>
+					} else {
+						@department(p, n)
+					}
 				}
 				<a class="ui-navitem goen-header__navitem--deal" href="/deals">{ i18n.T(ctx, i18n.KeyDeals) }</a>
 			</nav>
-			<form class="goen-header__search" role="search" action="/search" method="get">
+			<form class="goen-header__search" role="search" aria-label={ i18n.T(ctx, i18n.KeySearch) } action="/search" method="get">
 				<span class="goen-header__searchicon">
 					@icons.Search()
 				</span>
@@ -66,8 +79,6 @@ templ Header(p Page) {
 					Attrs: templ.Attributes{"placeholder": i18n.T(ctx, i18n.KeySearchHint)},
 				})
 			</form>
-			// i18n-exempt: a language's own name, shown in both locales on purpose.
-			@languageSwitch("goen-header__lang", "繁中", "EN")
 			<div class="goen-header__actions">
 				@components.ButtonLink(components.ButtonProps{
 					Variant: components.VariantGhost,
@@ -95,6 +106,35 @@ templ Header(p Page) {
 			</div>
 		</div>
 	</header>
+}
+
+// department is a root category that has sub-categories: its link, and the
+// panel that opens under the header on hover or keyboard focus. The panel is
+// plain markup shown by CSS (:hover, :focus-within), so it needs no script to
+// open and its links are in the tab order right after the department's own.
+// The photograph is the category's embedded one, and a department without one
+// shows the caption link alone.
+templ department(p Page, n NavItem) {
+	<div class="goen-dept">
+		<a class="ui-navitem" aria-current={ p.ariaCurrent(n) } href={ templ.URL(n.Href) }>{ n.Name }</a>
+		<div class="goen-dept__panel">
+			<div class="goen-dept__inner">
+				<ul class="goen-dept__links" role="list">
+					for _, c := range n.Children {
+						<li>
+							<a class="goen-dept__link" href={ templ.URL(c.Href) }>{ c.Name }</a>
+						</li>
+					}
+				</ul>
+				<a class="goen-dept__browse" href={ templ.URL(n.Href) }>
+					if src, srcset, ok := assets.CategoryImage(n.Slug); ok {
+						<img class="goen-dept__photo" src={ src } srcset={ srcset } sizes="224px" alt="" loading="lazy" decoding="async"/>
+					}
+					<span class="goen-dept__caption">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyBrowseDepartment), n.Name) }</span>
+				</a>
+			</div>
+		</div>
+	</div>
 }
 
 // cartLink carries an id because adding to the cart from a product page
@@ -129,23 +169,29 @@ templ cartLink() {
 // in a flex row that already puts it at the end.
 templ languageSwitch(class, zh, en string) {
 	{{ current := i18n.FromContext(ctx) }}
-	<form class={ "goen-lang", templ.KV(class, class != "") } method="post" action="/locale" role="group" aria-label={ i18n.T(ctx, i18n.KeyLanguage) }>
+	<form class={ templ.KV(class, class != "") } method="post" action="/locale">
 		<input type="hidden" name="return" value={ returnPath(ctx) }/>
-		for _, l := range i18n.Locales() {
-			<button
-				class="goen-lang__item"
-				type="submit"
-				name="locale"
-				value={ l.Tag() }
-				aria-pressed={ pressed(l == current) }
-			>
-				if l == i18n.En {
-					{ en }
-				} else {
-					{ zh }
-				}
-			</button>
-		}
+		// The group is inside the form because a form may not take the group
+		// role. Each label carries its own language, so a screen reader reads
+		// 繁中 in Chinese on an English page and EN in English on a Chinese one.
+		<div class="goen-lang" role="group" aria-label={ i18n.T(ctx, i18n.KeyLanguage) }>
+			for _, l := range i18n.Locales() {
+				<button
+					class="goen-lang__item"
+					type="submit"
+					name="locale"
+					value={ l.Tag() }
+					lang={ l.Tag() }
+					aria-pressed={ pressed(l == current) }
+				>
+					if l == i18n.En {
+						{ en }
+					} else {
+						{ zh }
+					}
+				</button>
+			}
+		</div>
 	</form>
 }
 

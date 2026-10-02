@@ -235,7 +235,7 @@ templ productBuy(v *ProductView) {
 		if v.Summary != "" {
 			<p class="goen-pdp__lede">{ v.Summary }</p>
 		}
-		for _, o := range v.Options {
+		for oi, o := range v.Options {
 			<fieldset class="goen-pdp__option">
 				<legend class="goen-pdp__optname">
 					{ o.Label }
@@ -244,7 +244,7 @@ templ productBuy(v *ProductView) {
 					}
 				</legend>
 				<div class={ "goen-pdp__values", templ.KV("goen-pdp__values--swatches", o.HasSwatches()) }>
-					for _, val := range o.Values {
+					for vi, val := range o.Values {
 						// Still a link, and still the whole answer with scripting
 						// off: the href navigates, the URL carries the choice, and
 						// the server renders the page it always did. The hx-
@@ -259,7 +259,12 @@ templ productBuy(v *ProductView) {
 						// it would destroy the <img> and build an identical one, a
 						// fetch, a decode and an empty frame for a picture that did
 						// not change.
+						// The id is what lets htmx put focus back on the control
+						// that was activated: it restores focus after a swap only
+						// to an element it can find again by id, and the option and
+						// value positions are the same in the page that comes back.
 						<a
+							id={ "swatch-" + strconv.Itoa(oi) + "-" + strconv.Itoa(vi) }
 							class={ "goen-swatch",
 								templ.KV("goen-swatch--dot", o.HasSwatches()),
 								templ.KV("goen-swatch--on", val.Selected),
@@ -443,7 +448,7 @@ templ productAddForm(v *ProductView) {
 				@components.Button(components.ButtonProps{
 					Variant: components.VariantPrimary,
 					Class:   "goen-pdp__add",
-					Attrs:   templ.Attributes{"disabled": !v.CanBuy()},
+					Attrs:   templ.Attributes{"id": "add-to-cart", "disabled": !v.CanBuy()},
 				}, "submit") {
 					@icons.Cart()
 					<span>
@@ -556,7 +561,7 @@ templ productReviews(v *ProductView) {
 						<article class="goen-pdp__review">
 							<div class="goen-pdp__reviewhead">
 								<span class="goen-pdp__reviewname">{ r.DisplayAuthor(ctx) }</span>
-								<span class="goen-pdp__reviewstars" role="img" aria-label={ r.RatingLabel(ctx) }>
+								<span class="goen-pdp__reviewstars" aria-hidden="true">
 									@ratingStars(r.Rating)
 								</span>
 								if r.Verified {

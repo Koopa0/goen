@@ -32,14 +32,18 @@ func (o FacetOption) CountText() string { return strconv.FormatInt(o.Count, 10) 
 
 // ListingView is everything a category listing page renders.
 type ListingView struct {
-	Slug     string
-	Name     string
-	Crumbs   []Crumb
+	Slug   string
+	Name   string
+	Crumbs []Crumb
+	// Theme is the category's tone and photograph, or its nearest ancestor's.
+	Theme    *Theme
 	Products []ProductTile
 	Brands   []FacetOption
 	Total    int64
-	Page     int
-	PageSize int
+	// Page and PageSize are int32 so that the two share a word: the view is
+	// passed by value, and one more field would put it over the lint's size limit.
+	Page     int32
+	PageSize int32
 
 	Query    string
 	Filtered bool
@@ -127,11 +131,11 @@ func (v ListingView) Pages() int {
 
 // HasPrev and HasNext report whether the pager's arrows are live.
 func (v ListingView) HasPrev() bool { return v.Page > 1 }
-func (v ListingView) HasNext() bool { return v.Page < v.Pages() }
+func (v ListingView) HasNext() bool { return int(v.Page) < v.Pages() }
 
 // PrevHref and NextHref are the neighbouring pages under these filters.
-func (v ListingView) PrevHref() string { return v.PageHref(v.Page - 1) }
-func (v ListingView) NextHref() string { return v.PageHref(v.Page + 1) }
+func (v ListingView) PrevHref() string { return v.PageHref(int(v.Page) - 1) }
+func (v ListingView) NextHref() string { return v.PageHref(int(v.Page) + 1) }
 
 // PageHref is the URL for a page of this listing under the current filters.
 func (v ListingView) PageHref(n int) string {
@@ -150,7 +154,7 @@ func (v ListingView) PageHref(n int) string {
 }
 
 // PageText is a page number as text.
-func (v ListingView) PageText() string { return strconv.Itoa(v.Page) }
+func (v ListingView) PageText() string { return strconv.Itoa(int(v.Page)) }
 
 // PagesText is the page count as text.
 func (v ListingView) PagesText() string { return strconv.Itoa(v.Pages()) }

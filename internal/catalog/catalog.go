@@ -129,14 +129,34 @@ func trimmedQuery(q string) string {
 	return q
 }
 
-// SearchPattern turns a visitor's words into an ILIKE pattern. Escaping happens
+// MaxSearchTerms bounds how many whitespace-separated terms narrow a search;
+// each one adds a predicate to a query that scans every product.
+const MaxSearchTerms = 5
+
+// SearchPattern turns a visitor's words into ILIKE patterns, one per
+// whitespace-separated term, joined by a space. A term holds no whitespace, so
+// SearchTerms can split the string again without losing a term. Escaping happens
 // before the wildcards are added, or it would escape goen's own.
 func SearchPattern(q string) string {
-	q = trimmedQuery(q)
-	if q == "" {
-		return ""
+	terms := strings.Fields(trimmedQuery(q))
+	if len(terms) > MaxSearchTerms {
+		terms = terms[:MaxSearchTerms]
 	}
-	return "%" + EscapeLike(q) + "%"
+	for i, t := range terms {
+		terms[i] = "%" + EscapeLike(t) + "%"
+	}
+	return strings.Join(terms, " ")
+}
+
+// SearchTerms splits what SearchPattern built into one pattern per term, and
+// the whole query as an unwildcarded pattern for exact matches.
+func SearchTerms(pattern string) (terms []string, exact string) {
+	terms = strings.Fields(pattern)
+	bare := make([]string, len(terms))
+	for i, t := range terms {
+		bare[i] = strings.TrimSuffix(strings.TrimPrefix(t, "%"), "%")
+	}
+	return terms, strings.Join(bare, " ")
 }
 
 // likeEscaper covers the three characters LIKE and ILIKE read as syntax;

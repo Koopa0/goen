@@ -31,6 +31,7 @@ SELECT digest FROM media_objects m
 WHERE NOT EXISTS (SELECT 1 FROM product_images p WHERE p.storage_key = m.digest)
   AND NOT EXISTS (SELECT 1 FROM hero_slides h WHERE h.image_key = m.digest)
   AND NOT EXISTS (SELECT 1 FROM sale_campaigns c WHERE c.image_key = m.digest)
+  AND NOT EXISTS (SELECT 1 FROM categories k WHERE k.image_key = m.digest)
   AND m.created_at < now() - interval '24 hours'
 ORDER BY m.created_at
 LIMIT $1;
@@ -59,4 +60,5 @@ DELETE FROM media_objects m
 WHERE m.digest = @digest::text
   AND NOT EXISTS (SELECT 1 FROM product_images p WHERE p.storage_key = m.digest)
   AND NOT EXISTS (SELECT 1 FROM hero_slides h WHERE h.image_key = m.digest)
-  AND NOT EXISTS (SELECT 1 FROM sale_campaigns c WHERE c.image_key = m.digest);
+  AND NOT EXISTS (SELECT 1 FROM sale_campaigns c WHERE c.image_key = m.digest)
+  AND NOT EXISTS (SELECT 1 FROM categories k WHERE k.image_key = m.digest);

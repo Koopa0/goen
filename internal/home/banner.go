@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
 	"github.com/koopa0/goen/internal/i18n"
@@ -114,15 +115,27 @@ func (h *Handler) Dismiss(w http.ResponseWriter, r *http.Request) {
 // Nav is the header's category row, in the reader's language. Like Banner it is
 // read by middleware rather than by a page's own handler.
 func (s *Store) Nav(ctx context.Context) ([]layouts.NavItem, error) {
-	rows, err := s.q.RootCategories(ctx, string(i18n.FromContext(ctx)))
+	locale := string(i18n.FromContext(ctx))
+	rows, err := s.q.RootCategories(ctx, locale)
 	if err != nil {
 		return nil, fmt.Errorf("read nav categories: %w", err)
+	}
+	subs, err := s.q.ChildCategories(ctx, locale)
+	if err != nil {
+		return nil, fmt.Errorf("read nav sub-categories: %w", err)
+	}
+	children := make(map[uuid.UUID][]layouts.NavItem, len(rows))
+	for i := range subs {
+		c := &subs[i]
+		children[c.ParentID.UUID] = append(children[c.ParentID.UUID], layouts.NavItem{
+			Slug: c.Slug, Name: c.Name, Href: "/c/" + c.Slug,
+		})
 	}
 	items := make([]layouts.NavItem, 0, len(rows))
 	for i := range rows {
 		r := &rows[i]
 		items = append(items, layouts.NavItem{
-			Slug: r.Slug, Name: r.Name, Href: "/c/" + r.Slug,
+			Slug: r.Slug, Name: r.Name, Href: "/c/" + r.Slug, Children: children[r.ID],
 		})
 	}
 	return items, nil
