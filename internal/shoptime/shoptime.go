@@ -32,7 +32,6 @@ var location = sync.OnceValue(func() *time.Location {
 	return loc
 })
 
-// In moves t onto the shop's clock without formatting it.
 func In(t time.Time) time.Time { return t.In(location()) }
 
 // Day is the shop's calendar day, as shop_day answers it in SQL.
@@ -64,7 +63,6 @@ func DaysSince(t, now time.Time) int64 {
 	return int64(to.Sub(from).Hours() / 24)
 }
 
-// InputMinute is t on the shop's clock as a datetime-local field carries it.
 func InputMinute(t time.Time) string { return In(t).Format("2006-01-02T15:04") }
 
 // ParseInputMinute reads what a datetime-local field posts as a minute on the
@@ -74,10 +72,8 @@ func ParseInputMinute(s string) (time.Time, bool) {
 	return t, err == nil
 }
 
-// Minute is a moment to the minute, which is what queues and timelines show.
 func Minute(t time.Time) string { return In(t).Format("2006-01-02 15:04") }
 
-// Second is a moment to the second, for the audit trail.
 func Second(t time.Time) string { return In(t).Format("2006-01-02 15:04:05") }
 
 // ParseSecond reads a zoneless "2006-01-02 15:04:05" wall clock as the shop's

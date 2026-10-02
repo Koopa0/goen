@@ -32,7 +32,6 @@ import (
 // bytes are not pinned in the map for the whole TTL.
 const maxKeyBytes = 128
 
-// Config is one limiter's shape.
 type Config struct {
 	// Every is how often one token is added back.
 	Every time.Duration
@@ -45,8 +44,7 @@ type Config struct {
 	MaxKeys int
 }
 
-// Limiter allows a bounded rate per key. The zero value is not usable; [New] is
-// the constructor.
+// Limiter is unusable as a zero value; build one with [New].
 type Limiter struct {
 	cfg Config
 
@@ -81,7 +79,6 @@ type bucket struct {
 	held int
 }
 
-// New returns a Limiter.
 func New(cfg Config) *Limiter {
 	if cfg.Every <= 0 || cfg.Burst < 1 || cfg.TTL <= 0 || cfg.MaxKeys < 1 {
 		panic("ratelimit: New requires a positive Every, Burst, TTL and MaxKeys")
