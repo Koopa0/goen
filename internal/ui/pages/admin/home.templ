@@ -7,7 +7,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// Home renders the hero queue and the form that adds to it.
+// Home renders the scheduled slides and the form that adds to it.
 templ Home(p layouts.Page, v *HeroView) {
 	@layouts.Admin(p, "home") {
 		<div class="ui-page-head">
@@ -22,9 +22,26 @@ templ Home(p layouts.Page, v *HeroView) {
 		if v.Notice != "" {
 			<p class="ui-alert ui-alert--info" role="status">{ v.Notice }</p>
 		}
-		if v.UsingFallback() {
-			<p class="ui-alert" role="status">{ i18n.T(ctx, i18n.KeyAdminHomeFallback) }</p>
-		}
+		<section aria-labelledby="live-slides">
+			<h2 class="goen-admin__subhead" id="live-slides">{ i18n.T(ctx, i18n.KeyAdminHomeCarouselHead) }</h2>
+			if v.NoSlides() {
+				<p class="ui-alert" role="status">{ i18n.T(ctx, i18n.KeyAdminHomeNoSlides) }</p>
+			} else {
+				<ol class="goen-admin__coupons" role="list">
+					for _, slide := range v.Carousel {
+						<li class="goen-admin__coupon">
+							<div class="goen-admin__couponhead">
+								<span class="goen-admin__sku">{ slide.Title }</span>
+								<span class="ui-badge">{ SourceLabel(ctx, slide.Source) }</span>
+							</div>
+							if slide.CTA.Shown() {
+								<span class="ui-cart-line__meta">{ slide.CTA.Label } → { slide.CTA.Href }</span>
+							}
+						</li>
+					}
+				</ol>
+			}
+		</section>
 		<div class="goen-admin__productlayout">
 			<form
 				class="goen-admin__form"
@@ -197,7 +214,7 @@ templ Home(p layouts.Page, v *HeroView) {
 				<button class="ui-btn ui-btn--primary" type="submit">{ i18n.T(ctx, i18n.KeyAdminHomeAdd) }</button>
 			</form>
 			<aside class="goen-admin__side">
-				<h2 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminHomeQueue) }</h2>
+				<h2 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminHomeScheduled) }</h2>
 				if v.Empty() {
 					<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminHomeEmpty) }</p>
 				} else {

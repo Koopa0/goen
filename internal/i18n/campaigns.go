@@ -84,9 +84,27 @@ var (
 
 	KeyAdminCampMeta = countKey("admin.camp.meta", "%s 件商品 · 至 %s", "%s product · until %s", "%s products · until %s")
 
-	KeyAdminCampProductSlug = key("admin.camp.product.slug", Message{
-		ZhHant: "商品網址代稱",
-		En:     "Product slug",
+	KeyAdminCampFind = key("admin.camp.find", Message{ZhHant: "搜尋商品", En: "Search products"})
+
+	KeyAdminCampFindPlaceholder = key("admin.camp.findplaceholder", Message{
+		ZhHant: "商品名稱或網址代稱",
+		En:     "Product name or slug",
+	})
+
+	KeyAdminCampFindNone = key("admin.camp.findnone", Message{
+		ZhHant: "找不到符合的商品,或它已經在這個活動裡。",
+		En:     "No product matches, or it is already in this campaign.",
+	})
+
+	KeyAdminCampWindow = key("admin.camp.window", Message{ZhHant: "檔期", En: "Dates"})
+
+	KeyAdminCampStarts = key("admin.camp.starts", Message{ZhHant: "開始時間", En: "Starts"})
+
+	KeyAdminCampEnds = key("admin.camp.ends", Message{ZhHant: "結束時間", En: "Ends"})
+
+	KeyFormCampaignWindow = key("form.campaign.window", Message{
+		ZhHant: "請填入開始與結束時間,結束必須晚於開始。",
+		En:     "Give a start and an end, the end after the start.",
 	})
 
 	KeyAdminCampProductHint = key("admin.camp.product.hint", Message{

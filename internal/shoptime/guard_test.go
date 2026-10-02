@@ -59,11 +59,10 @@ func TestTheZoneRuleSeesWhatTheOldPatternMissed(t *testing.T) {
 // This is the Go half of the rule SQL already follows, where ambient
 // current_date is forbidden and shop_day is the one definition.
 //
-// The exception is a timestamp that is not the shop's to interpret: ECPay's
-// invoice dates are a wall clock labelled UTC, and moving one to Taipei is a
-// filing the provider rejects with 1600003. Those are written with an explicit
-// .UTC() and are recognised by shape rather than by an allowlist of lines, so
-// the exemption cannot go stale against a file that moved.
+// The exception is a calendar date with no time in it, which a provider protocol
+// carries as a bare date parsed as midnight UTC. Those are written with an
+// explicit .UTC() and are recognised by shape rather than by an allowlist of
+// lines, so the exemption cannot go stale against a file that moved.
 func TestNoTimeIsRenderedInAnUnstatedZone(t *testing.T) {
 	t.Parallel()
 

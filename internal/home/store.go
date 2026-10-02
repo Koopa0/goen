@@ -49,16 +49,15 @@ const (
 	bandTiles = 3
 )
 
-// Load reads everything the home page draws.
-func (s *Store) Load(ctx context.Context) (pages.HomeView, error) {
+func (s *Store) carouselSources(ctx context.Context) ([]db.RootCategoriesRow, map[uuid.UUID][]string, []db.HomeCampaignsRow, error) {
 	locale := string(i18n.FromContext(ctx))
 	cats, err := s.q.RootCategories(ctx, locale)
 	if err != nil {
-		return pages.HomeView{}, fmt.Errorf("read home categories: %w", err)
+		return nil, nil, nil, fmt.Errorf("read home categories: %w", err)
 	}
 	subRows, err := s.q.HomeSubcategories(ctx, locale)
 	if err != nil {
-		return pages.HomeView{}, fmt.Errorf("read home subcategories: %w", err)
+		return nil, nil, nil, fmt.Errorf("read home subcategories: %w", err)
 	}
 	subs := make(map[uuid.UUID][]string)
 	for _, r := range subRows {
@@ -66,7 +65,26 @@ func (s *Store) Load(ctx context.Context) (pages.HomeView, error) {
 	}
 	camps, err := s.q.HomeCampaigns(ctx, db.HomeCampaignsParams{Locale: locale, MaxCampaigns: maxSlides})
 	if err != nil {
-		return pages.HomeView{}, fmt.Errorf("read home campaigns: %w", err)
+		return nil, nil, nil, fmt.Errorf("read home campaigns: %w", err)
+	}
+	return cats, subs, camps, nil
+}
+
+// Carousel is the slides the home page shows, exported so the back office
+// lists the same ones.
+func (s *Store) Carousel(ctx context.Context) ([]pages.HeroSlide, error) {
+	cats, subs, camps, err := s.carouselSources(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return s.slides(ctx, cats, subs, camps)
+}
+
+// Load reads everything the home page draws.
+func (s *Store) Load(ctx context.Context) (pages.HomeView, error) {
+	cats, subs, camps, err := s.carouselSources(ctx)
+	if err != nil {
+		return pages.HomeView{}, err
 	}
 
 	slides, err := s.slides(ctx, cats, subs, camps)

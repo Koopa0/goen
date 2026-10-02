@@ -97,6 +97,7 @@ var actionLabels = map[string]i18n.Key{
 	"campaign.create":                     i18n.KeyAuditCampaignCreate,
 	"campaign.toggle":                     i18n.KeyAuditCampaignToggle,
 	"campaign.tone.set":                   i18n.KeyAuditCampaignTone,
+	"campaign.window.set":                 i18n.KeyAuditCampaignWindow,
 	"category.image.set":                  i18n.KeyAuditCategoryImageSet,
 	"category.image.clear":                i18n.KeyAuditCategoryImageClear,
 	"campaign.image.set":                  i18n.KeyAuditCampaignImageSet,

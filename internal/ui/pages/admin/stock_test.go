@@ -52,3 +52,28 @@ func TestARefusedAdjustmentKeepsWhatWasTypedAndMarksIt(t *testing.T) {
 		t.Error("an untouched row is marked invalid")
 	}
 }
+
+func TestTheStockListSearchesAndTellsVariantsApartByTheirOptions(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	view := VariantsView{
+		LowOnly: true, Term: "koto",
+		Variants: []Variant{{SKU: "KOTO-CBL-1", ProductName: "x", Options: []string{"黑", "L"}}},
+	}
+	html := renderComponent(t, ctx, Variants(layouts.Page{}, view))
+
+	for _, want := range []string{
+		`action="/admin/stock"`, `name="q" value="koto"`, `name="low" value="1"`,
+		`for="stock-search"`, i18n.T(ctx, i18n.KeyAdminStockSearch),
+		"黑 · L",
+		`href="/admin/stock?q=koto"`, `href="/admin/stock?low=1&amp;q=koto"`,
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("stock list lacks %q", want)
+		}
+	}
+	// Every field on the row, price and adjustment alike, names itself.
+	if got, want := strings.Count(html, `<input class="ui-input`), strings.Count(html, `class="goen-sr-only" for=`); got != want {
+		t.Errorf("%d inputs but %d labels", got, want)
+	}
+}

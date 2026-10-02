@@ -21,8 +21,8 @@ func AsPartial(ctx context.Context) context.Context {
 }
 
 func isPartial(ctx context.Context) bool {
-	partial, _ := ctx.Value(partialKey{}).(bool)
-	return partial
+	partial, ok := ctx.Value(partialKey{}).(bool)
+	return ok && partial
 }
 
 func queryEscape(s string) string { return url.QueryEscape(s) }
@@ -222,21 +222,57 @@ func (v ListingView) FilterAction() string {
 	return "/c/" + v.Slug + "#listing-results"
 }
 
+// AppliedChip is one active filter and the address of this listing without it.
+type AppliedChip struct {
+	Label string
+	// Remove is the listing's URL with this one filter dropped.
+	Remove string
+	// RemoveLabel is the control's accessible name; its glyph says nothing.
+	RemoveLabel string
+}
+
 // AppliedChips names each active filter for the summary bar.
-func (v ListingView) AppliedChips(ctx context.Context) []string {
-	var chips []string
+func (v ListingView) AppliedChips(ctx context.Context) []AppliedChip {
+	var chips []AppliedChip
 	for _, b := range v.Brands {
 		if b.Selected {
-			chips = append(chips, b.Label)
+			chips = append(chips, v.chip(ctx, b.Label, "brand", b.Value))
 		}
 	}
 	if v.InStockOnly {
-		chips = append(chips, i18n.T(ctx, i18n.KeyFacetInStock))
+		chips = append(chips, v.chip(ctx, i18n.T(ctx, i18n.KeyFacetInStock), "in_stock", ""))
 	}
 	if v.MinPrice > 0 || v.MaxPrice > 0 {
-		chips = append(chips, v.priceRangeChip(ctx))
+		chips = append(chips, v.chip(ctx, v.priceRangeChip(ctx), "min_price", "", "max_price"))
 	}
 	return chips
+}
+
+// chip is a chip whose link drops key (only the one value, when value is set)
+// and any further keys from the listing's own query.
+func (v ListingView) chip(ctx context.Context, label, key, value string, more ...string) AppliedChip {
+	q, err := url.ParseQuery(v.Query)
+	if err != nil {
+		q = url.Values{}
+	}
+	if values := q[key]; value != "" {
+		q.Del(key)
+		for _, kept := range values {
+			if kept != value {
+				q.Add(key, kept)
+			}
+		}
+	} else {
+		q.Del(key)
+	}
+	for _, k := range more {
+		q.Del(k)
+	}
+	href := "/c/" + v.Slug
+	if enc := q.Encode(); enc != "" {
+		href += "?" + enc
+	}
+	return AppliedChip{Label: label, Remove: href, RemoveLabel: fmt.Sprintf(i18n.T(ctx, i18n.KeyRemoveFilter), label)}
 }
 
 func (v ListingView) priceRangeChip(ctx context.Context) string {
@@ -261,6 +297,24 @@ type SearchView struct {
 	PageSize  int
 	Campaigns CampaignPage
 	Path      string
+	// Sort is the ordering asked for; empty is best match.
+	Sort   string
+	Newest []ProductTile
+}
+
+// SortOptions is the search's orderings, with the active one marked. Its default
+// is best match: newest-first would bury the name that holds the whole query.
+func (v SearchView) SortOptions(ctx context.Context) []SortOption {
+	opts := []SortOption{
+		{Value: "", Label: i18n.T(ctx, i18n.KeySortBestMatch)},
+		{Value: "price_asc", Label: i18n.T(ctx, i18n.KeySortPriceAsc)},
+		{Value: "price_desc", Label: i18n.T(ctx, i18n.KeySortPriceDesc)},
+		{Value: "rating", Label: i18n.T(ctx, i18n.KeySortRating)},
+	}
+	for i := range opts {
+		opts[i].Selected = opts[i].Value == v.Sort
+	}
+	return opts
 }
 
 // SearchMeta is the chrome view model for the search page.
@@ -319,6 +373,9 @@ func (v SearchView) PageHref(n int) string {
 		return v.Path
 	}
 	u := "/search?q=" + queryEscape(v.Query)
+	if v.Sort != "" {
+		u += "&sort=" + queryEscape(v.Sort)
+	}
 	if n > 1 {
 		u += "&page=" + strconv.Itoa(n)
 	}

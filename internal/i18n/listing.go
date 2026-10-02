@@ -58,6 +58,8 @@ var (
 		En:     "Up to %s",
 	})
 
+	KeyRemoveFilter = key("listing.filters.remove", Message{ZhHant: "移除「%s」", En: "Remove “%s”"})
+
 	KeyClearFilters = key("listing.filters.clear", Message{ZhHant: "清除全部", En: "Clear all"})
 
 	KeyApplyFilters = key("listing.filters.apply", Message{ZhHant: "套用篩選", En: "Apply filters"})
@@ -81,6 +83,8 @@ var (
 	KeySort = key("listing.sort", Message{ZhHant: "排序", En: "Sort"})
 
 	KeySortNewest = key("listing.sort.newest", Message{ZhHant: "最新上架", En: "Newest"})
+
+	KeySortBestMatch = key("listing.sort.bestmatch", Message{ZhHant: "最相關", En: "Best match"})
 
 	KeySortPriceAsc = key("listing.sort.price.asc", Message{ZhHant: "價格由低到高", En: "Price, low to high"})
 
@@ -124,6 +128,10 @@ var (
 		ZhHant: "試試更短的關鍵字,或從下面的館別開始逛。",
 		En:     "Try a shorter term, or start from one of these departments.",
 	})
+
+	KeySearchSortApply = key("search.sort.apply", Message{ZhHant: "套用排序", En: "Apply sort"})
+
+	KeySearchNewest = key("search.none.newest", Message{ZhHant: "最新上架的商品", En: "Newest products"})
 
 	KeyOnSale = key("card.onsale", Message{ZhHant: "特價", En: "On sale"})
 

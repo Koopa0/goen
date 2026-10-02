@@ -349,6 +349,34 @@ func (q *Queries) AdminBrands(ctx context.Context) ([]AdminBrandsRow, error) {
 	return items, nil
 }
 
+const adminCampaign = `-- name: AdminCampaign :one
+SELECT c.title, c.starts_at, c.ends_at, c.is_active,
+       (c.is_active AND c.starts_at <= now() AND c.ends_at > now())::boolean AS is_running
+FROM sale_campaigns c
+WHERE c.slug = $1::text
+`
+
+type AdminCampaignRow struct {
+	Title     string
+	StartsAt  time.Time
+	EndsAt    time.Time
+	IsActive  bool
+	IsRunning bool
+}
+
+func (q *Queries) AdminCampaign(ctx context.Context, slug string) (AdminCampaignRow, error) {
+	row := q.db.QueryRow(ctx, adminCampaign, slug)
+	var i AdminCampaignRow
+	err := row.Scan(
+		&i.Title,
+		&i.StartsAt,
+		&i.EndsAt,
+		&i.IsActive,
+		&i.IsRunning,
+	)
+	return i, err
+}
+
 const adminCampaignImage = `-- name: AdminCampaignImage :one
 SELECT coalesce(c.image_key, '')::text AS image_key,
        coalesce(c.image_alt, '')::text AS image_alt,
@@ -381,6 +409,59 @@ func (q *Queries) AdminCampaignImage(ctx context.Context, slug string) (AdminCam
 		&i.ImageWidth,
 	)
 	return i, err
+}
+
+const adminCampaignProductSearch = `-- name: AdminCampaignProductSearch :many
+SELECT p.slug, localized_name(p.name, p.name_en, $1::text) AS name
+FROM products p
+WHERE p.status <> 'archived'
+  AND (p.name ILIKE '%' || $2::text || '%'
+       OR p.name_en ILIKE '%' || $2::text || '%'
+       OR p.slug ILIKE '%' || $2::text || '%')
+  AND NOT EXISTS (SELECT 1
+                  FROM sale_campaign_products cp
+                  JOIN sale_campaigns c ON c.id = cp.campaign_id
+                  WHERE c.slug = $3::text AND cp.product_id = p.id)
+ORDER BY p.name, p.id
+LIMIT $4::integer
+`
+
+type AdminCampaignProductSearchParams struct {
+	Locale      string
+	EscapedTerm string
+	Campaign    string
+	RowLimit    int32
+}
+
+type AdminCampaignProductSearchRow struct {
+	Slug string
+	Name string
+}
+
+// Archived products are left out: a campaign on one shows nothing.
+func (q *Queries) AdminCampaignProductSearch(ctx context.Context, arg AdminCampaignProductSearchParams) ([]AdminCampaignProductSearchRow, error) {
+	rows, err := q.db.Query(ctx, adminCampaignProductSearch,
+		arg.Locale,
+		arg.EscapedTerm,
+		arg.Campaign,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AdminCampaignProductSearchRow{}
+	for rows.Next() {
+		var i AdminCampaignProductSearchRow
+		if err := rows.Scan(&i.Slug, &i.Name); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const adminCampaignProducts = `-- name: AdminCampaignProducts :many
@@ -416,6 +497,23 @@ func (q *Queries) AdminCampaignProducts(ctx context.Context, campaign string) ([
 		return nil, err
 	}
 	return items, nil
+}
+
+const adminCampaignWindowForUpdate = `-- name: AdminCampaignWindowForUpdate :one
+SELECT starts_at, ends_at FROM sale_campaigns WHERE slug = $1::text FOR UPDATE
+`
+
+type AdminCampaignWindowForUpdateRow struct {
+	StartsAt time.Time
+	EndsAt   time.Time
+}
+
+// Locked so a concurrent edit cannot leave the audit row with a stale Before.
+func (q *Queries) AdminCampaignWindowForUpdate(ctx context.Context, slug string) (AdminCampaignWindowForUpdateRow, error) {
+	row := q.db.QueryRow(ctx, adminCampaignWindowForUpdate, slug)
+	var i AdminCampaignWindowForUpdateRow
+	err := row.Scan(&i.StartsAt, &i.EndsAt)
+	return i, err
 }
 
 const adminCampaigns = `-- name: AdminCampaigns :many
@@ -2145,21 +2243,33 @@ SELECT json_build_object('Number', (pv.stock_quantity - pv.safety_stock), 'Name'
     p.slug,
     p.name AS product_name,
     p.status AS product_status,
-    b.name AS brand
+    b.name AS brand,
+    ARRAY(SELECT localized_name(v.value, v.value_en, $1::text)
+          FROM variant_option_values vov
+          JOIN product_options o ON o.id = vov.option_id
+          JOIN product_option_values v ON v.id = vov.option_value_id
+          WHERE vov.variant_id = pv.id
+          ORDER BY o.position, o.id)::text[] AS option_values
 FROM product_variants pv
 JOIN products p ON p.id = pv.product_id
 JOIN brands b ON b.id = p.brand_id
-WHERE ($1::boolean = false OR pv.stock_quantity <= pv.safety_stock)
-AND (NOT $2::boolean OR ((pv.stock_quantity - pv.safety_stock) > $3::integer)
-       OR ((pv.stock_quantity - pv.safety_stock) = $3::integer AND p.name > $4::text)
-       OR ((pv.stock_quantity - pv.safety_stock) = $3::integer AND p.name = $4::text AND pv.position > $5::integer)
-       OR ((pv.stock_quantity - pv.safety_stock) = $3::integer AND p.name = $4::text AND pv.position = $5::integer AND pv.id > $6::uuid))
+WHERE ($2::boolean = false OR pv.stock_quantity <= pv.safety_stock)
+AND ($3::text = ''
+       OR pv.sku ILIKE '%' || $3::text || '%'
+       OR p.name ILIKE '%' || $3::text || '%'
+       OR p.name_en ILIKE '%' || $3::text || '%')
+AND (NOT $4::boolean OR ((pv.stock_quantity - pv.safety_stock) > $5::integer)
+       OR ((pv.stock_quantity - pv.safety_stock) = $5::integer AND p.name > $6::text)
+       OR ((pv.stock_quantity - pv.safety_stock) = $5::integer AND p.name = $6::text AND pv.position > $7::integer)
+       OR ((pv.stock_quantity - pv.safety_stock) = $5::integer AND p.name = $6::text AND pv.position = $7::integer AND pv.id > $8::uuid))
 ORDER BY (pv.stock_quantity - pv.safety_stock) ASC, p.name ASC, pv.position ASC, pv.id ASC
-LIMIT $7::integer
+LIMIT $9::integer
 `
 
 type AdminVariantsParams struct {
+	Locale        string
 	LowOnly       bool
+	EscapedTerm   string
 	HasCursor     bool
 	AfterNumber   int32
 	AfterName     string
@@ -2181,11 +2291,14 @@ type AdminVariantsRow struct {
 	ProductName         string
 	ProductStatus       string
 	Brand               string
+	OptionValues        []string
 }
 
 func (q *Queries) AdminVariants(ctx context.Context, arg AdminVariantsParams) ([]AdminVariantsRow, error) {
 	rows, err := q.db.Query(ctx, adminVariants,
+		arg.Locale,
 		arg.LowOnly,
+		arg.EscapedTerm,
 		arg.HasCursor,
 		arg.AfterNumber,
 		arg.AfterName,
@@ -2213,6 +2326,7 @@ func (q *Queries) AdminVariants(ctx context.Context, arg AdminVariantsParams) ([
 			&i.ProductName,
 			&i.ProductStatus,
 			&i.Brand,
+			&i.OptionValues,
 		); err != nil {
 			return nil, err
 		}
@@ -3425,14 +3539,32 @@ func (q *Queries) CategoryAncestors(ctx context.Context, arg CategoryAncestorsPa
 }
 
 const categoryBrands = `-- name: CategoryBrands :many
-SELECT b.id, b.slug, b.name, count(*)::bigint AS product_count
+SELECT b.id, b.slug, b.name,
+       (count(*) FILTER (
+           WHERE NOT $1::boolean
+              OR EXISTS (
+                  SELECT 1 FROM product_variants v
+                  WHERE v.product_id = p.id AND v.is_active
+                    AND (NOT $2::boolean OR v.stock_quantity > v.safety_stock)
+                    AND ($3::bigint = 0 OR v.price_cents >= $3::bigint)
+                    AND ($4::bigint = 0 OR v.price_cents <= $4::bigint)
+              )
+       ))::bigint AS product_count
 FROM products p
 JOIN brands b ON b.id = p.brand_id
 WHERE p.status = 'active'
-  AND p.category_id = ANY($1::uuid[])
+  AND p.category_id = ANY($5::uuid[])
 GROUP BY b.id, b.slug, b.name
 ORDER BY b.name
 `
+
+type CategoryBrandsParams struct {
+	FilterVariants bool
+	InStockOnly    bool
+	MinPrice       int64
+	MaxPrice       int64
+	CategoryIds    []uuid.UUID
+}
 
 type CategoryBrandsRow struct {
 	ID           uuid.UUID
@@ -3441,10 +3573,18 @@ type CategoryBrandsRow struct {
 	ProductCount int64
 }
 
-// Counted over products that would appear with no other filter applied, so a
-// brand offering nothing is not listed.
-func (q *Queries) CategoryBrands(ctx context.Context, categoryIds []uuid.UUID) ([]CategoryBrandsRow, error) {
-	rows, err := q.db.Query(ctx, categoryBrands, categoryIds)
+// Every brand with an active product in the category, counted over the products
+// the other filters leave: a brand's count is what choosing it would show, brand
+// filters aside. A brand the other filters empty stays listed at zero, so a
+// chosen one can always be unchosen.
+func (q *Queries) CategoryBrands(ctx context.Context, arg CategoryBrandsParams) ([]CategoryBrandsRow, error) {
+	rows, err := q.db.Query(ctx, categoryBrands,
+		arg.FilterVariants,
+		arg.InStockOnly,
+		arg.MinPrice,
+		arg.MaxPrice,
+		arg.CategoryIds,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -5301,27 +5441,26 @@ func (q *Queries) CreateReturnRequestLine(ctx context.Context, arg CreateReturnR
 
 const createReview = `-- name: CreateReview :execrows
 INSERT INTO product_reviews (product_id, user_id, rating, title, body, is_verified_purchase)
-SELECT p.id, $1, $2::smallint, nullif($3::text, ''), $4::text, $5::boolean
-FROM products p WHERE p.slug = $6::text AND p.status = 'active'
+SELECT p.id, $1, $2::smallint, nullif($3::text, ''), $4::text, true
+FROM products p WHERE p.slug = $5::text AND p.status = 'active'
 `
 
 type CreateReviewParams struct {
-	UserID   uuid.NullUUID
-	Rating   int16
-	Title    string
-	Body     string
-	Verified bool
-	Slug     string
+	UserID uuid.NullUUID
+	Rating int16
+	Title  string
+	Body   string
+	Slug   string
 }
 
-// product_reviews_verified_is_real refuses a false is_verified_purchase.
+// true is safe because only a customer who received the product reaches this
+// insert; product_reviews_verified_is_real refuses the claim otherwise.
 func (q *Queries) CreateReview(ctx context.Context, arg CreateReviewParams) (int64, error) {
 	result, err := q.db.Exec(ctx, createReview,
 		arg.UserID,
 		arg.Rating,
 		arg.Title,
 		arg.Body,
-		arg.Verified,
 		arg.Slug,
 	)
 	if err != nil {
@@ -6485,26 +6624,27 @@ func (q *Queries) HandleMessage(ctx context.Context, id uuid.UUID) (int64, error
 	return result.RowsAffected(), nil
 }
 
-const hasBoughtProduct = `-- name: HasBoughtProduct :one
+const hasDeliveredProduct = `-- name: HasDeliveredProduct :one
 SELECT EXISTS (
     SELECT 1
     FROM orders o
     JOIN order_lines ol ON ol.order_id = o.id
     WHERE o.user_id = $1 AND ol.product_id = $2
+      AND o.fulfillment_status IN ('delivered', 'completed')
       AND order_is_committed(o.id)
 )
 `
 
-type HasBoughtProductParams struct {
+type HasDeliveredProductParams struct {
 	UserID    uuid.NullUUID
 	ProductID uuid.NullUUID
 }
 
 // order_is_committed, never "EXISTS a succeeded payment": a store-credit-funded
-// order is committed with no payment row at all. product_id is the durable line
-// identity and survives deletion of the purchased variant.
-func (q *Queries) HasBoughtProduct(ctx context.Context, arg HasBoughtProductParams) (bool, error) {
-	row := q.db.QueryRow(ctx, hasBoughtProduct, arg.UserID, arg.ProductID)
+// order is committed with no payment row at all, and the verified-purchase
+// trigger asks the same question. product_id survives deletion of the variant.
+func (q *Queries) HasDeliveredProduct(ctx context.Context, arg HasDeliveredProductParams) (bool, error) {
+	row := q.db.QueryRow(ctx, hasDeliveredProduct, arg.UserID, arg.ProductID)
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
@@ -8455,6 +8595,114 @@ func (q *Queries) NavPicks(ctx context.Context, locale string) ([]NavPicksRow, e
 			&i.PriceVaries,
 			&i.ImageKey,
 			&i.ImageWidth,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const newestProducts = `-- name: NewestProducts :many
+SELECT
+    p.slug,
+    p.category_id,
+    localized_name(p.name, p.name_en, $1::text) AS name,
+    coalesce(localized_name(p.summary, p.summary_en, $1::text), '')::text AS summary,
+    b.name AS brand,
+    mv.price_cents AS min_price_cents,
+    -- Whether that price is the cheapest of several, so a card can say "from"
+    -- rather than state one variant's price as the product's.
+    EXISTS (
+        SELECT 1 FROM product_variants dv
+        WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
+    ) AS price_varies,
+    mv.compare_at_price_cents,
+    coalesce(rv.rating, 0)::float8 AS rating,
+    coalesce(rv.n, 0)::bigint AS rating_count,
+    EXISTS (
+        SELECT 1 FROM product_variants sv
+        WHERE sv.product_id = p.id AND sv.is_active
+          AND sv.stock_quantity > sv.safety_stock
+    ) AS in_stock,
+    coalesce(img.storage_key, '') AS image_key,
+    coalesce(localized_name(img.alt_text, img.alt_text_en, $1::text), '')::text AS image_alt,
+    coalesce(img.width, 0)::integer AS image_width,
+    coalesce(img.height, 0)::integer AS image_height
+FROM products p
+JOIN brands b ON b.id = p.brand_id
+JOIN LATERAL (
+    SELECT price_cents, compare_at_price_cents
+    FROM product_variants
+    WHERE product_id = p.id AND is_active
+    ORDER BY (stock_quantity > safety_stock) DESC, price_cents
+    LIMIT 1
+) mv ON true
+LEFT JOIN LATERAL (
+    SELECT avg(rating)::float8 AS rating, count(*) AS n
+    FROM visible_reviews WHERE product_id = p.id
+) rv ON true
+LEFT JOIN LATERAL (
+    SELECT storage_key, alt_text, alt_text_en, width, height
+    FROM product_images WHERE product_id = p.id ORDER BY position LIMIT 1
+) img ON true
+WHERE p.status = 'active'
+ORDER BY p.published_at DESC, p.id DESC
+LIMIT $2::integer
+`
+
+type NewestProductsParams struct {
+	Locale   string
+	PageSize int32
+}
+
+type NewestProductsRow struct {
+	Slug                string
+	CategoryID          uuid.UUID
+	Name                string
+	Summary             string
+	Brand               string
+	MinPriceCents       int64
+	PriceVaries         bool
+	CompareAtPriceCents pgtype.Int8
+	Rating              float64
+	RatingCount         int64
+	InStock             bool
+	ImageKey            string
+	ImageAlt            string
+	ImageWidth          int32
+	ImageHeight         int32
+}
+
+// The newest active products with a buyable price, for a page with nothing else to show.
+func (q *Queries) NewestProducts(ctx context.Context, arg NewestProductsParams) ([]NewestProductsRow, error) {
+	rows, err := q.db.Query(ctx, newestProducts, arg.Locale, arg.PageSize)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []NewestProductsRow{}
+	for rows.Next() {
+		var i NewestProductsRow
+		if err := rows.Scan(
+			&i.Slug,
+			&i.CategoryID,
+			&i.Name,
+			&i.Summary,
+			&i.Brand,
+			&i.MinPriceCents,
+			&i.PriceVaries,
+			&i.CompareAtPriceCents,
+			&i.Rating,
+			&i.RatingCount,
+			&i.InStock,
+			&i.ImageKey,
+			&i.ImageAlt,
+			&i.ImageWidth,
+			&i.ImageHeight,
 		); err != nil {
 			return nil, err
 		}
@@ -12883,17 +13131,24 @@ WHERE p.status = 'active'
       )
   )
 ORDER BY
+    -- A chosen sort leads and relevance breaks its ties; the default is
+    -- relevance alone, which is the zero value of @sort.
+    CASE WHEN $3::text = 'price_asc'  THEN mv.price_cents END ASC,
+    CASE WHEN $3::text = 'price_desc' THEN mv.price_cents END DESC,
+    CASE WHEN $3::text = 'rating'     THEN coalesce(rv.rating, 0) END DESC,
     -- Field relevance is explicit; repeated words, sales and ratings do not change it.
-    -- The exact tiers compare the whole query; a name that holds every term
-    -- leads one that holds only some, then category, SKU, brand and summary
-    -- follow on any term.
+    -- The exact tiers compare the whole query; a name that holds the whole query
+    -- leads one that holds every term in another order, which leads one that
+    -- holds only some, then category, SKU, brand and summary follow on any term.
     CASE
         WHEN EXISTS (
             SELECT 1 FROM product_variants exact_sku
             WHERE exact_sku.product_id = p.id AND exact_sku.is_active
-              AND exact_sku.sku ILIKE $3::text
-        ) THEN 8
-        WHEN p.name ILIKE $3::text OR coalesce(p.name_en, '') ILIKE $3::text THEN 7
+              AND exact_sku.sku ILIKE $4::text
+        ) THEN 9
+        WHEN p.name ILIKE $4::text OR coalesce(p.name_en, '') ILIKE $4::text THEN 8
+        WHEN p.name ILIKE '%' || $4::text || '%'
+             OR coalesce(p.name_en, '') ILIKE '%' || $4::text || '%' THEN 7
         WHEN NOT EXISTS (
             SELECT 1 FROM unnest($2::text[]) AS t(pattern)
             WHERE NOT (p.name ILIKE t.pattern OR coalesce(p.name_en, '') ILIKE t.pattern)
@@ -12918,12 +13173,13 @@ ORDER BY
         ELSE 0
     END DESC,
     p.published_at DESC, p.id DESC
-LIMIT $5::integer OFFSET $4::integer
+LIMIT $6::integer OFFSET $5::integer
 `
 
 type SearchProductsParams struct {
 	Locale       string
 	Patterns     []string
+	Sort         string
 	ExactPattern string
 	PageOffset   int32
 	PageSize     int32
@@ -12958,6 +13214,7 @@ func (q *Queries) SearchProducts(ctx context.Context, arg SearchProductsParams) 
 	rows, err := q.db.Query(ctx, searchProducts,
 		arg.Locale,
 		arg.Patterns,
+		arg.Sort,
 		arg.ExactPattern,
 		arg.PageOffset,
 		arg.PageSize,
@@ -13186,6 +13443,26 @@ type SetCampaignToneParams struct {
 
 func (q *Queries) SetCampaignTone(ctx context.Context, arg SetCampaignToneParams) (int64, error) {
 	result, err := q.db.Exec(ctx, setCampaignTone, arg.Tone, arg.Slug)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const setCampaignWindow = `-- name: SetCampaignWindow :execrows
+UPDATE sale_campaigns
+SET starts_at = $1::timestamptz, ends_at = $2::timestamptz
+WHERE slug = $3::text
+`
+
+type SetCampaignWindowParams struct {
+	StartsAt time.Time
+	EndsAt   time.Time
+	Slug     string
+}
+
+func (q *Queries) SetCampaignWindow(ctx context.Context, arg SetCampaignWindowParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setCampaignWindow, arg.StartsAt, arg.EndsAt, arg.Slug)
 	if err != nil {
 		return 0, err
 	}

@@ -39,6 +39,7 @@ var (
 
 	KeyAuditCampaignImageSet   = key("audit.campaign.image.set", Message{ZhHant: "設定活動頁首圖片", En: "Set campaign header image"})
 	KeyAuditCampaignImageClear = key("audit.campaign.image.clear", Message{ZhHant: "移除活動頁首圖片", En: "Remove campaign header image"})
+	KeyAuditCampaignWindow     = key("audit.campaign.window", Message{ZhHant: "活動檔期", En: "Campaign dates"})
 	KeyAuditCampaignTone       = key("audit.campaign.tone", Message{ZhHant: "活動色調", En: "Campaign tone"})
 
 	KeyAuditCategoryImageSet   = key("audit.category.image.set", Message{ZhHant: "設定分類頁首圖片", En: "Set category header image"})

@@ -19,9 +19,10 @@ import (
 
 // aMember is a signed-in customer with a name and phone on file, a cart holding
 // one thing, and the request context that says who they are.
-func aMember(t *testing.T, s *cart.Store, label string) (token string, user account.User, userID uuid.UUID) {
+func aMember(t *testing.T, s *cart.Store, label string) (token string, user account.User) {
 	t.Helper()
 	email := label + "-" + uuid.NewString() + "@example.com"
+	var userID uuid.UUID
 	if err := pool.QueryRow(t.Context(), `
 		INSERT INTO users (email, full_name, phone) VALUES ($1, '王小明', '0912345678')
 		RETURNING id`, email).Scan(&userID); err != nil {
@@ -38,7 +39,7 @@ func aMember(t *testing.T, s *cart.Store, label string) (token string, user acco
 	if err := s.Add(t.Context(), cartID, freshVariant(t, label), 1); err != nil {
 		t.Fatalf("add: %v", err)
 	}
-	return tok, account.User{ID: userID.String(), Email: email, Name: "王小明", Role: "customer"}, userID
+	return tok, account.User{ID: userID.String(), Email: email, Name: "王小明", Role: "customer"}
 }
 
 func checkoutAs(
@@ -64,7 +65,7 @@ func checkoutAs(
 func TestAMemberCheckoutIsFilledFromTheAccount(t *testing.T) {
 	s := cart.NewStore(pool)
 	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, testLimiter(), nil, nil)
-	token, user, _ := aMember(t, s, "recipient-member")
+	token, user := aMember(t, s, "recipient-member")
 
 	page := checkoutAs(t, h, token, &user, "")
 	for field, want := range map[string]string{
@@ -74,13 +75,12 @@ func TestAMemberCheckoutIsFilledFromTheAccount(t *testing.T) {
 			t.Errorf("the %s field is %q (present %v), want %q", field, got, ok, want)
 		}
 	}
-	box := regexpFirst(t, page, `<input[^>]*data-recipient-me[^>]*>`)
+	box := recipientBox(t, page)
 	if !strings.Contains(box, "checked") {
 		t.Errorf("the recipient box is not checked for a member with a name and phone on file: %s", box)
 	}
 }
 
-// TestAGuestCheckoutHasNeitherControlAndNoPrefill.
 func TestAGuestCheckoutHasNeitherControlAndNoPrefill(t *testing.T) {
 	s := cart.NewStore(pool)
 	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, testLimiter(), nil, nil)
@@ -114,7 +114,7 @@ func TestAGuestCheckoutHasNeitherControlAndNoPrefill(t *testing.T) {
 func TestTheRecipientBoxAppliedByTheServerTicksAndRestores(t *testing.T) {
 	s := cart.NewStore(pool)
 	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, testLimiter(), nil, nil)
-	token, user, _ := aMember(t, s, "recipient-typed")
+	token, user := aMember(t, s, "recipient-typed")
 
 	apply := func(fields url.Values) string {
 		fields.Set("update", "recipient")
@@ -141,7 +141,7 @@ func TestTheRecipientBoxAppliedByTheServerTicksAndRestores(t *testing.T) {
 			t.Errorf("after ticking, %s is %q, want %q", field, got, want)
 		}
 	}
-	if box := regexpFirst(t, ticked, `<input[^>]*data-recipient-me[^>]*>`); !strings.Contains(box, "checked") {
+	if box := recipientBox(t, ticked); !strings.Contains(box, "checked") {
 		t.Errorf("the box is not ticked over the account's own values: %s", box)
 	}
 
@@ -154,7 +154,7 @@ func TestTheRecipientBoxAppliedByTheServerTicksAndRestores(t *testing.T) {
 			t.Errorf("after unticking, %s is %q, want %q", field, got, want)
 		}
 	}
-	if box := regexpFirst(t, restored, `<input[^>]*data-recipient-me[^>]*>`); strings.Contains(box, "checked") {
+	if box := recipientBox(t, restored); strings.Contains(box, "checked") {
 		t.Errorf("the box is ticked over someone else's name: %s", box)
 	}
 }
@@ -164,27 +164,18 @@ func TestTheRecipientBoxAppliedByTheServerTicksAndRestores(t *testing.T) {
 func TestARestoredDraftIsNotOverwrittenByTheAccount(t *testing.T) {
 	s := cart.NewStore(pool)
 	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, testLimiter(), nil, configuredMap(t))
-	token, user, userID := aMember(t, s, "recipient-draft")
-	_ = userID
+	token, user := aMember(t, s, "recipient-draft")
 
 	shipping := shipVersionFor(t, "store_pickup")
 	fields := aStart(shipping)
 	fields.Set("name", "林小美")
 	fields.Set("phone", "0987654321")
 	fields.Set("email", user.Email)
-	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/checkout/pickup/start",
-		strings.NewReader(fields.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	//nolint:gosec // G124: the browser's own cart cookie
-	req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token})
-	req = req.WithContext(account.WithUser(req.Context(), user))
-	start := httptest.NewRecorder()
-	h.PickupStart(start, req)
-	if start.Code != http.StatusOK {
-		t.Fatalf("the start = %d, want 200", start.Code)
+	body, cookie, status := startPickupAs(t, h, token, &user, fields)
+	if status != http.StatusOK {
+		t.Fatalf("the hand-off page = %d, want 200", status)
 	}
-	nonce, _ := hiddenInputValue(start.Body.String(), "ExtraData")
-	cookie := cookieNamed(start, "goen_pickup")
+	nonce, _ := hiddenInputValue(body, "ExtraData")
 
 	target, _, _ := theMapAnswers(t, h, nonce, "131386", "南港園區", "台北市南港區三重路19-2號")
 	back := httptest.NewRequestWithContext(t.Context(), http.MethodGet, target, http.NoBody)
@@ -202,16 +193,16 @@ func TestARestoredDraftIsNotOverwrittenByTheAccount(t *testing.T) {
 	if got, _ := inputValue(page, "phone"); got != "0987654321" {
 		t.Errorf("the account overwrote the restored phone with %q", got)
 	}
-	if box := regexpFirst(t, page, `<input[^>]*data-recipient-me[^>]*>`); strings.Contains(box, "checked") {
+	if box := recipientBox(t, page); strings.Contains(box, "checked") {
 		t.Errorf("the box is checked though the recipient is not the member: %s", box)
 	}
 }
 
-func regexpFirst(t *testing.T, body, pattern string) string {
+func recipientBox(t *testing.T, body string) string {
 	t.Helper()
-	m := regexp.MustCompile(pattern).FindString(body)
+	m := regexp.MustCompile(`<input[^>]*data-recipient-me[^>]*>`).FindString(body)
 	if m == "" {
-		t.Fatalf("no match for %s", pattern)
+		t.Fatal("the page has no recipient box")
 	}
 	return m
 }

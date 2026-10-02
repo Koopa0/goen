@@ -117,7 +117,7 @@ func (s *Store) Dashboard(ctx context.Context) (admin.DashboardView, error) {
 		view.Recent = append(view.Recent, orderRow(ctx, &recent[i]))
 	}
 
-	low, err := s.q.AdminVariants(ctx, db.AdminVariantsParams{LowOnly: true, RowLimit: 10})
+	low, err := s.q.AdminVariants(ctx, db.AdminVariantsParams{Locale: string(i18n.FromContext(ctx)), LowOnly: true, RowLimit: 10})
 	if err != nil {
 		return admin.DashboardView{}, fmt.Errorf("read low stock: %w", err)
 	}
@@ -543,7 +543,7 @@ func (s *Store) fillInvoices(ctx context.Context, view *admin.OrderView, number 
 		doc := admin.InvoiceDocument{
 			Kind: d.Kind, Number: d.Number, ProviderRef: d.ProviderRef,
 			AmountCents: d.AmountCents, Status: d.Status,
-			IssuedAt: shoptime.ProviderMinute(d.IssuedAt),
+			IssuedAt: shoptime.Minute(d.IssuedAt),
 		}
 		for _, l := range d.Lines {
 			doc.Lines = append(doc.Lines, admin.InvoiceLine{
@@ -635,12 +635,8 @@ func (s *Store) Ship(ctx context.Context, number string, d Dispatch, actor uuid.
 		return fmt.Errorf("%w: order %s is %s and has not been picked",
 			ErrRefused, number, row.FulfillmentStatus)
 	}
-	dest, destErr := q.OrderDispatchDestination(ctx, row.ID)
-	if destErr != nil {
-		return fmt.Errorf("read destination of %s: %w", number, destErr)
-	}
-	if valid, _ := carrier.ForDelivery(pickup.Brand(dest.PickupBrand), dest.DestinationKind == "pickup_point"); !slices.Contains(valid, carrierCode) {
-		return fmt.Errorf("%w: %s cannot carry order %s", ErrCarrier, carrierCode, number)
+	if carrierErr := requireCarrierFor(ctx, q, row.ID, number, carrierCode); carrierErr != nil {
+		return carrierErr
 	}
 	shipmentID, shipErr := q.CreateShipment(ctx, db.CreateShipmentParams{
 		OrderID: row.ID, Carrier: string(carrierCode), TrackingNumber: tracking,
@@ -688,6 +684,23 @@ func (s *Store) Ship(ctx context.Context, number string, d Dispatch, actor uuid.
 
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("commit ship: %w", err)
+	}
+	return nil
+}
+
+// requireCarrierFor refuses a carrier that cannot deliver to where this order
+// goes: a home courier for a pickup point, or a store brand's own logistics for
+// another brand.
+func requireCarrierFor(
+	ctx context.Context, q *db.Queries, orderID uuid.UUID, number string, code carrier.Carrier,
+) error {
+	dest, err := q.OrderDispatchDestination(ctx, orderID)
+	if err != nil {
+		return fmt.Errorf("read destination of %s: %w", number, err)
+	}
+	valid, _ := carrier.ForDelivery(pickup.Brand(dest.PickupBrand), dest.DestinationKind == "pickup_point")
+	if !slices.Contains(valid, code) {
+		return fmt.Errorf("%w: %s cannot carry order %s", ErrCarrier, code, number)
 	}
 	return nil
 }
@@ -821,18 +834,20 @@ func (s *Store) SetStaffNote(ctx context.Context, number, note string) error {
 }
 
 // Variants reads the stock list.
-func (s *Store) Variants(ctx context.Context, lowOnly bool, after ...string) (admin.VariantsView, error) {
-	scope := "/admin/stock"
+func (s *Store) Variants(ctx context.Context, lowOnly bool, term string, after ...string) (admin.VariantsView, error) {
+	term = SearchTerm(term)
+	low := ""
 	if lowOnly {
-		scope = web.ScopeURL(scope, "low", "1")
+		low = "1"
 	}
+	scope := web.ScopeURL("/admin/stock", "low", low, "q", term)
 	cursor := readPageCursor(scope, after)
-	rows, err := s.q.AdminVariants(ctx, db.AdminVariantsParams{HasCursor: cursor.Valid, AfterNumber: cursor.Number, AfterName: cursor.Name, AfterPosition: cursor.Position, AfterID: cursor.ID, LowOnly: lowOnly, RowLimit: PageLimit})
+	rows, err := s.q.AdminVariants(ctx, db.AdminVariantsParams{Locale: string(i18n.FromContext(ctx)), HasCursor: cursor.Valid, AfterNumber: cursor.Number, AfterName: cursor.Name, AfterPosition: cursor.Position, AfterID: cursor.ID, LowOnly: lowOnly, EscapedTerm: catalog.EscapeLike(term), RowLimit: PageLimit})
 	if err != nil {
 		return admin.VariantsView{}, fmt.Errorf("read variants: %w", err)
 	}
 	rows, bound := pageBound(cursor, scope, rows, PageSize, func(r *db.AdminVariantsRow) string { return r.PageCursor })
-	view := admin.VariantsView{ListBound: bound, LowOnly: lowOnly}
+	view := admin.VariantsView{ListBound: bound, LowOnly: lowOnly, Term: term}
 	for i := range rows {
 		view.Variants = append(view.Variants, variantRow(&rows[i]))
 	}
@@ -987,6 +1002,7 @@ func variantRow(r *db.AdminVariantsRow) admin.Variant {
 		PriceCents: r.PriceCents, CompareCents: r.CompareAtPriceCents.Int64,
 		Stock: r.StockQuantity, Safety: r.SafetyStock,
 		Active: r.IsActive, ProductStatus: r.ProductStatus,
+		Options: r.OptionValues,
 		// One per rendered row, so the adjust form's key is spent by that form
 		// alone and not by whichever stock level the variant next returns to.
 		FormID: uuid.NewString(),

@@ -273,6 +273,8 @@ var (
 		En:     "No specification table yet.",
 	})
 
+	KeyAdminProdSectionNav = key("admin.prod.sectionnav", Message{ZhHant: "商品區段", En: "Product sections"})
+
 	KeyAdminProdPublishing = key("admin.prod.publishing", Message{
 		ZhHant: "上架狀態",
 		En:     "Publication status",

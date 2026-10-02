@@ -35,3 +35,22 @@ func TestAStockWriteCannotBeSentSomewhereElse(t *testing.T) {
 		}
 	}
 }
+
+func TestAStockWriteReturnsToTheSearchItWasMadeUnder(t *testing.T) {
+	t.Parallel()
+	got := stockBack(postedFrom(t, url.Values{"sku": {"A-1"}, "return": {"/admin/stock?q=koto+cbl&after=TOKEN"}}), "ok")
+	if want := "/admin/stock?after=TOKEN&ok=1&q=koto+cbl#row-A-1"; got != want {
+		t.Errorf("stockBack = %q, want %q", got, want)
+	}
+}
+
+func TestASearchTermIsTrimmedAndCutToItsBound(t *testing.T) {
+	t.Parallel()
+	if got := SearchTerm("  koto  "); got != "koto" {
+		t.Errorf("SearchTerm = %q, want the trimmed term", got)
+	}
+	long := strings.Repeat("字", MaxSearchRunes+20)
+	if got := SearchTerm(long); got != strings.Repeat("字", MaxSearchRunes) {
+		t.Errorf("a term of %d runes is cut to %d, got %d", MaxSearchRunes+20, MaxSearchRunes, len([]rune(got)))
+	}
+}

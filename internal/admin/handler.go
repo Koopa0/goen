@@ -425,14 +425,14 @@ func (h *Handler) StaffNote(w http.ResponseWriter, r *http.Request) {
 
 // Variants serves GET /admin/stock.
 func (h *Handler) Variants(w http.ResponseWriter, r *http.Request) {
-	view, err := h.store.Variants(r.Context(), r.URL.Query().Get("low") == "1", r.URL.Query().Get(web.KeysetParam))
+	view, err := h.store.Variants(r.Context(), r.URL.Query().Get("low") == "1", r.URL.Query().Get("q"), r.URL.Query().Get(web.KeysetParam))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read variants", "error", err)
 		h.serverError(w, r)
 		return
 	}
 	view.Notice = noticeFor(r)
-	view.Return = stockReturn(r.URL.Query().Get("low"), r.URL.Query().Get(web.KeysetParam), "", "")
+	view.Return = stockReturn(r.URL.Query().Get("low"), view.Term, r.URL.Query().Get(web.KeysetParam), "", "")
 	web.Render(w, r, h.log, http.StatusOK, admin.Variants(admin.VariantsMeta(r.Context()), view))
 }
 
@@ -470,17 +470,17 @@ func (h *Handler) AdjustStock(w http.ResponseWriter, r *http.Request) {
 // rejectAdjustment re-renders the stock list the form was posted from, at 422,
 // with what was typed kept in its row and marked invalid.
 func (h *Handler) rejectAdjustment(w http.ResponseWriter, r *http.Request, key i18n.Key) {
-	var low, after string
+	var low, term, after string
 	if u, err := url.Parse(r.PostFormValue("return")); err == nil && u.Path == "/admin/stock" && u.Host == "" {
-		low, after = u.Query().Get("low"), u.Query().Get(web.KeysetParam)
+		low, term, after = u.Query().Get("low"), u.Query().Get("q"), u.Query().Get(web.KeysetParam)
 	}
-	view, err := h.store.Variants(r.Context(), low == "1", after)
+	view, err := h.store.Variants(r.Context(), low == "1", term, after)
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read variants after refused adjustment", "error", err)
 		h.serverError(w, r)
 		return
 	}
-	view.Return = stockReturn(low, after, "", "")
+	view.Return = stockReturn(low, view.Term, after, "", "")
 	sku := r.PostFormValue("sku")
 	shown := false
 	for i := range view.Variants {
@@ -581,10 +581,13 @@ func (h *Handler) SetVariantPrice(w http.ResponseWriter, r *http.Request) {
 
 // stockReturn is the stock list's address for a filter and position, plus an
 // optional notice and the row to land on.
-func stockReturn(low, after, notice, sku string) string {
+func stockReturn(low, term, after, notice, sku string) string {
 	q := url.Values{}
 	if low == "1" {
 		q.Set("low", "1")
+	}
+	if term != "" {
+		q.Set("q", term)
 	}
 	if after != "" {
 		q.Set(web.KeysetParam, after)
@@ -607,11 +610,11 @@ func stockReturn(low, after, notice, sku string) string {
 // value is only ever read for those two parameters, so it cannot name another
 // address.
 func stockBack(r *http.Request, notice string) string {
-	var low, after string
+	var low, term, after string
 	if u, err := url.Parse(r.PostFormValue("return")); err == nil && u.Path == "/admin/stock" && u.Host == "" {
-		low, after = u.Query().Get("low"), u.Query().Get(web.KeysetParam)
+		low, term, after = u.Query().Get("low"), SearchTerm(u.Query().Get("q")), u.Query().Get(web.KeysetParam)
 	}
-	return stockReturn(low, after, notice, r.PostFormValue("sku"))
+	return stockReturn(low, term, after, notice, r.PostFormValue("sku"))
 }
 
 // adminNotices is the one-shot message each redirect parameter carries.
@@ -994,10 +997,50 @@ func (h *Handler) renderCampaign(w http.ResponseWriter, r *http.Request, status 
 		h.serverError(w, r)
 		return
 	}
+	detail, err := h.store.CampaignDetail(r.Context(), slug)
+	if err != nil {
+		h.log.ErrorContext(r.Context(), "read campaign", "error", err)
+		h.serverError(w, r)
+		return
+	}
+	if errs["window"] != "" {
+		detail.StartsAtInput, detail.EndsAtInput = r.PostFormValue("starts_at"), r.PostFormValue("ends_at")
+	}
+	term := SearchTerm(r.URL.Query().Get("find"))
+	matches, err := h.store.SearchCampaignProducts(r.Context(), slug, term)
+	if err != nil {
+		h.log.ErrorContext(r.Context(), "search campaign products", "error", err)
+		h.serverError(w, r)
+		return
+	}
 	web.Render(w, r, h.log, status, admin.CampaignForm(
-		layouts.Page{Title: slug}, admin.CampaignView{
-			Slug: slug, Products: products, Notice: notice, Image: image, Tone: tone, Errors: errs,
+		layouts.Page{Title: detail.Title}, admin.CampaignView{
+			Slug: slug, CampaignDetail: detail, Term: term, Matches: matches,
+			Products: products, Notice: notice, Image: image, Tone: tone, Errors: errs,
 		}))
+}
+
+// SetCampaignWindow serves POST /admin/campaigns/{slug}/window.
+func (h *Handler) SetCampaignWindow(w http.ResponseWriter, r *http.Request) {
+	if err := web.ParseForm(w, r); err != nil {
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
+		return
+	}
+	slug := r.PathValue("slug")
+	errs, err := h.store.SetCampaignWindow(r.Context(), slug,
+		r.PostFormValue("starts_at"), r.PostFormValue("ends_at"))
+	switch {
+	case err == nil && len(errs) > 0:
+		h.renderCampaign(w, r, http.StatusUnprocessableEntity, "", errs)
+	case err == nil:
+		//nolint:gosec // G710: slug is the route's own path value
+		http.Redirect(w, r, "/admin/campaigns/"+slug+"?ok=1", http.StatusSeeOther)
+	case errors.Is(err, ErrNotFound):
+		h.notFound(w, r)
+	default:
+		h.log.ErrorContext(r.Context(), "set campaign window", "error", err, "slug", slug)
+		h.serverError(w, r)
+	}
 }
 
 // SetCampaignTone serves POST /admin/campaigns/{slug}/tone.
@@ -1112,13 +1155,18 @@ func (h *Handler) SetCampaignActive(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
-	if err := h.store.SetCampaignActive(r.Context(), r.PathValue("slug"),
+	slug := r.PathValue("slug")
+	back := "/admin/campaigns"
+	if r.PostFormValue("back") == "detail" {
+		back += "/" + slug
+	}
+	if err := h.store.SetCampaignActive(r.Context(), slug,
 		r.PostFormValue("active") == "true"); err != nil {
 		h.log.WarnContext(r.Context(), "set campaign active", "error", err)
-		http.Redirect(w, r, "/admin/campaigns?refused=1", http.StatusSeeOther)
+		http.Redirect(w, r, back+"?refused=1", http.StatusSeeOther) //nolint:gosec // G710: slug is the route's own path value
 		return
 	}
-	http.Redirect(w, r, "/admin/campaigns?ok=1", http.StatusSeeOther)
+	http.Redirect(w, r, back+"?ok=1", http.StatusSeeOther) //nolint:gosec // G710: slug is the route's own path value
 }
 
 // Audit serves GET /admin/audit.

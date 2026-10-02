@@ -5,11 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/shoptime"
@@ -74,11 +76,11 @@ func (s *Store) Campaigns(ctx context.Context, after ...string) (admin.Campaigns
 	view := admin.CampaignsView{ListBound: bound}
 	for i := range rows {
 		c := &rows[i]
-		view.Rows = append(view.Rows, admin.Campaign{
+		view.Rows = append(view.Rows, admin.CampaignRow{
 			Slug: c.Slug, Title: c.Title, Products: c.Products,
 			Active: c.IsActive, Running: c.IsRunning,
-			StartsAt: shoptime.Day(c.StartsAt),
-			EndsAt:   shoptime.Minute(c.EndsAt),
+			StartsAtText: shoptime.Day(c.StartsAt),
+			EndsAtText:   shoptime.Minute(c.EndsAt),
 		})
 	}
 	return view, nil
@@ -100,6 +102,78 @@ func (s *Store) CampaignImage(ctx context.Context, slug string) (admin.Header, s
 	return admin.Header{
 		Key: row.ImageKey, Alt: row.ImageAlt, AltEn: row.ImageAltEn, Width: row.ImageWidth,
 	}, row.Tone, nil
+}
+
+func (s *Store) CampaignDetail(ctx context.Context, slug string) (admin.CampaignDetail, error) {
+	row, err := s.q.AdminCampaign(ctx, slug)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return admin.CampaignDetail{}, ErrNotFound
+		}
+		return admin.CampaignDetail{}, fmt.Errorf("read campaign: %w", err)
+	}
+	return admin.CampaignDetail{
+		Title:         row.Title,
+		StartsAtInput: shoptime.InputMinute(row.StartsAt), EndsAtInput: shoptime.InputMinute(row.EndsAt),
+		Active: row.IsActive, Running: row.IsRunning,
+	}, nil
+}
+
+// SetCampaignWindow moves a campaign's dates, typed on the shop's clock. Create
+// bounds a campaign at MaxCampaignDays, so editing may not stretch it past that.
+func (s *Store) SetCampaignWindow(ctx context.Context, slug, startsAt, endsAt string) (map[string]string, error) {
+	starts, okStart := shoptime.ParseInputMinute(startsAt)
+	ends, okEnd := shoptime.ParseInputMinute(endsAt)
+	if !okStart || !okEnd || !ends.After(starts) || ends.Sub(starts) > MaxCampaignDays*24*time.Hour {
+		return map[string]string{"window": i18n.T(ctx, i18n.KeyFormCampaignWindow)}, nil
+	}
+	// Filled inside the transaction, which is before the audit row is encoded.
+	before := map[string]any{"slug": slug}
+	return nil, s.audited(ctx, Event{
+		Action: actionSetCampaignWindow, Table: "sale_campaigns", ID: uuid.NullUUID{},
+		Before: before,
+		After:  map[string]any{"slug": slug, "starts_at": starts.UTC(), "ends_at": ends.UTC()},
+	},
+		func(ctx context.Context, q *db.Queries) error {
+			prior, err := q.AdminCampaignWindowForUpdate(ctx, strings.TrimSpace(slug))
+			if errors.Is(err, pgx.ErrNoRows) {
+				return ErrNotFound
+			}
+			if err != nil {
+				return fmt.Errorf("read campaign dates: %w", err)
+			}
+			before["starts_at"], before["ends_at"] = prior.StartsAt.UTC(), prior.EndsAt.UTC()
+			n, err := q.SetCampaignWindow(ctx, db.SetCampaignWindowParams{
+				Slug: strings.TrimSpace(slug), StartsAt: starts, EndsAt: ends,
+			})
+			if err != nil {
+				return fmt.Errorf("%w: %w", ErrRefused, err)
+			}
+			if n == 0 {
+				return ErrNotFound
+			}
+			return nil
+		})
+}
+
+const campaignSearchLimit = 10
+
+func (s *Store) SearchCampaignProducts(ctx context.Context, slug, term string) ([]admin.CampaignProduct, error) {
+	term = SearchTerm(term)
+	if term == "" {
+		return nil, nil
+	}
+	rows, err := s.q.AdminCampaignProductSearch(ctx, db.AdminCampaignProductSearchParams{
+		Locale: string(i18n.FromContext(ctx)), Campaign: slug, EscapedTerm: catalog.EscapeLike(term), RowLimit: campaignSearchLimit,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("search campaign products: %w", err)
+	}
+	out := make([]admin.CampaignProduct, 0, len(rows))
+	for i := range rows {
+		out = append(out, admin.CampaignProduct{Slug: rows[i].Slug, Name: rows[i].Name})
+	}
+	return out, nil
 }
 
 // SetCampaignTone changes the ground temperature of the campaign's page.

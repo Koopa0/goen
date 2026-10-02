@@ -176,7 +176,11 @@ func TestTheSkipLinkIsTheFirstTabStopAndNamesTheMainLandmark(t *testing.T) {
 		t.Fatalf("render: %v", err)
 	}
 	body := b.String()
-	body = body[strings.Index(body, "<body"):]
+	bodyAt := strings.Index(body, "<body")
+	if bodyAt < 0 {
+		t.Fatal("the page has no <body")
+	}
+	body = body[bodyAt:]
 	firstLink := strings.Index(body, "<a ")
 	skip := strings.Index(body, `<a class="goen-skip" href="#main">`)
 	if skip < 0 || skip != firstLink {
@@ -205,8 +209,16 @@ func TestADepartmentPanelOffersItsProducts(t *testing.T) {
 			t.Errorf("the panel does not contain %q", want)
 		}
 	}
-	picks := header[strings.Index(header, `class="goen-dept__picks"`):]
-	picks = picks[:strings.Index(picks, "</ul>")]
+	picksAt := strings.Index(header, `class="goen-dept__picks"`)
+	if picksAt < 0 {
+		t.Fatal("the panel has no products list")
+	}
+	picks := header[picksAt:]
+	listEnd := strings.Index(picks, "</ul>")
+	if listEnd < 0 {
+		t.Fatal("the products list is never closed")
+	}
+	picks = picks[:listEnd]
 	imgs := regexp.MustCompile(`<img[^>]*>`).FindAllString(picks, -1)
 	if len(imgs) != 1 {
 		t.Fatalf("the panel draws %d product pictures, want 1 — a product with no picture "+
