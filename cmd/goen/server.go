@@ -18,6 +18,7 @@ import (
 	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/admin/audit"
+	"github.com/koopa0/goen/internal/admin/reports"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/contact"
@@ -201,6 +202,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 		Pools:    poolsOnHealthPage(pool, adminPool, cfg.MaintenancePool),
 	})
 	trail := audit.NewHandler(audit.NewStore(adminPool), log)
+	figures := reports.NewHandler(reports.NewStore(adminPool), log)
 	// basketStore answers the order-access question for all three packages.
 	till := payment.NewHandler(payment.NewStore(pool), gateway, basketStore, log, secureCookies)
 	sendbacks := returns.NewHandler(returns.NewStore(pool), basketStore, log, secureCookies)
@@ -343,6 +345,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	backOffice := access.New(log, stepUp)
 	back.Routes(mux, backOffice)
 	trail.Routes(mux, backOffice)
+	figures.Routes(mux, backOffice)
 	// RequireAdmin and not RequireStaff, which accepts `staff` as well: these
 	// four promote, revoke, and strip an admin's second factor, and the listing
 	// names who has none yet.
