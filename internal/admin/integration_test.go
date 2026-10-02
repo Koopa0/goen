@@ -47,6 +47,7 @@ import (
 	"github.com/koopa0/goen/internal/twofactor"
 	"github.com/koopa0/goen/internal/ui/icons"
 	"github.com/koopa0/goen/internal/ui/pages"
+	adminpages "github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/warranty"
 	"github.com/koopa0/goen/internal/web"
 )
@@ -2395,7 +2396,7 @@ func TestAStalledRefundOffersItsRetryInTheQueue(t *testing.T) {
 			if err != nil {
 				t.Fatalf("read queue: %v", err)
 			}
-			var found *pages.AdminReturn
+			var found *adminpages.Return
 			for i := range view.Rows {
 				if view.Rows[i].ID == requestID.String() {
 					found = &view.Rows[i]
@@ -2785,7 +2786,7 @@ func TestTheHealthPageNamesARefundThatDidNotLand(t *testing.T) {
 	}
 
 	// Found by identity, never by position: the suite is shuffled and other tests leave refunds behind.
-	var found *pages.OpenRefund
+	var found *adminpages.OpenRefund
 	for i := range view.OpenRefunds {
 		if view.OpenRefunds[i].Key == "return:"+requestID.String() {
 			found = &view.OpenRefunds[i]
@@ -2796,7 +2797,7 @@ func TestTheHealthPageNamesARefundThatDidNotLand(t *testing.T) {
 		t.Fatalf("the stalled refund for return %s is on no page — the row exists "+
 			"only for reconciliation and nothing can read it", requestID)
 	}
-	want := pages.OpenRefund{
+	want := adminpages.OpenRefund{
 		OrderNumber: orderNumber,
 		Key:         "return:" + requestID.String(),
 		Status:      "pending",
@@ -4993,7 +4994,7 @@ func TestTheReturnQueueShowsWhatIsComingBack(t *testing.T) {
 		t.Fatalf("read the queue: %v", err)
 	}
 
-	var found *pages.AdminReturn
+	var found *adminpages.Return
 	for i := range view.Rows {
 		if view.Rows[i].ID == requestID.String() {
 			found = &view.Rows[i]
@@ -5067,7 +5068,7 @@ func TestTheReturnQueueNamesTheRefundChannels(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Returns: %v", err)
 			}
-			var found *pages.AdminReturn
+			var found *adminpages.Return
 			for i := range view.Rows {
 				if view.Rows[i].ID == requestID.String() {
 					found = &view.Rows[i]
@@ -5239,7 +5240,7 @@ func TestTheRescissionWindowIsCountedOnTheShopsCalendar(t *testing.T) {
 			if err != nil {
 				t.Fatalf("read the queue: %v", err)
 			}
-			var found *pages.AdminReturn
+			var found *adminpages.Return
 			for i := range view.Rows {
 				if view.Rows[i].ID == requestID.String() {
 					found = &view.Rows[i]
@@ -5341,7 +5342,7 @@ func TestPublishingAVersionKeepsItsEnglishName(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read shipping methods: %v", err)
 	}
-	var method *pages.AdminShippingMethod
+	var method *adminpages.ShippingMethod
 	for i := range view.Methods {
 		if view.Methods[i].Code == code {
 			method = &view.Methods[i]
@@ -6707,7 +6708,7 @@ func TestAnOrderSearchTakesWildcardsLiterally(t *testing.T) {
 	}
 }
 
-func hasOrder(v pages.AdminOrdersView, number string) bool {
+func hasOrder(v adminpages.OrdersView, number string) bool {
 	for i := range v.Orders {
 		if v.Orders[i].Number == number {
 			return true
@@ -7866,7 +7867,7 @@ func TestTheShopCanRunAPromotion(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Banners: %v", err)
 	}
-	var made *pages.AdminBanner
+	var made *adminpages.Banner
 	for i := range banners {
 		if banners[i].Message == "全站滿 NT$3,000 免運" {
 			made = &banners[i]
@@ -7959,7 +7960,7 @@ func TestSupportCanAnswerAQuestionWithoutADeploy(t *testing.T) {
 	if err != nil {
 		t.Fatalf("FAQ: %v", err)
 	}
-	var made *pages.AdminFAQEntry
+	var made *adminpages.FAQEntry
 	for i := range view.Rows {
 		if view.Rows[i].Category == category {
 			made = &view.Rows[i]
@@ -8105,7 +8106,7 @@ func TestSeededInvoiceFAQMatchesTheWiredIssuer(t *testing.T) {
 		}
 	})
 	plantStaleInvoiceFAQ(t, ctx, pool)
-	var entry pages.AdminFAQEntry
+	var entry adminpages.FAQEntry
 	view, err := s.FAQ(ctx)
 	if err != nil {
 		t.Fatalf("FAQ: %v", err)
@@ -11765,7 +11766,7 @@ func TestTheStatusMenuOffersOnlyWhatTheDatabaseWillAccept(t *testing.T) {
 	ctx, staff := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
-	offers := func(v *pages.AdminOrderView, status pages.FulfillmentStatus) bool {
+	offers := func(v *adminpages.OrderView, status pages.FulfillmentStatus) bool {
 		for _, n := range v.Next {
 			if n.Value == status {
 				return true
@@ -11930,7 +11931,7 @@ func TestARefusedDispatchKeepsWhatWasTyped(t *testing.T) {
 func TestTheDashboardAndTheQueueTabsSplitPendingTheSameWay(t *testing.T) {
 	ctx := t.Context()
 	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
-	tab := func(v pages.AdminOrdersView, status pages.QueueFilter) int64 {
+	tab := func(v adminpages.OrdersView, status adminpages.QueueFilter) int64 {
 		for _, tb := range v.Tabs {
 			if tb.Value == status {
 				return tb.Count
@@ -11959,10 +11960,10 @@ func TestTheDashboardAndTheQueueTabsSplitPendingTheSameWay(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Dashboard: %v", err)
 	}
-	if got := tab(after, pages.QueueAwaitingPayment) - tab(before, pages.QueueAwaitingPayment); got != 1 {
+	if got := tab(after, adminpages.QueueAwaitingPayment) - tab(before, adminpages.QueueAwaitingPayment); got != 1 {
 		t.Errorf("the awaiting-payment tab grew by %d, want 1: a funded order is not awaiting payment", got)
 	}
-	if got := tab(after, pages.QueueReady) - tab(before, pages.QueueReady); got != 1 {
+	if got := tab(after, adminpages.QueueReady) - tab(before, adminpages.QueueReady); got != 1 {
 		t.Errorf("the ready tab grew by %d, want 1", got)
 	}
 	if got := dashAfter.PendingOrders - dashBefore.PendingOrders; got != 1 {
@@ -11972,9 +11973,9 @@ func TestTheDashboardAndTheQueueTabsSplitPendingTheSameWay(t *testing.T) {
 		t.Errorf("the ready tile grew by %d, want 1", got)
 	}
 
-	for status, want := range map[pages.QueueFilter]struct{ in, out string }{
-		pages.QueueAwaitingPayment: {in: unpaid, out: funded},
-		pages.QueueReady:           {in: funded, out: unpaid},
+	for status, want := range map[adminpages.QueueFilter]struct{ in, out string }{
+		adminpages.QueueAwaitingPayment: {in: unpaid, out: funded},
+		adminpages.QueueReady:           {in: funded, out: unpaid},
 	} {
 		view, err := s.Orders(ctx, status, "")
 		if err != nil {

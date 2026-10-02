@@ -10,7 +10,7 @@ import (
 
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -74,15 +74,15 @@ func (f *BannerForm) Validate(ctx context.Context) map[string]string {
 }
 
 // Banners reads the list.
-func (s *Store) Banners(ctx context.Context) ([]pages.AdminBanner, error) {
+func (s *Store) Banners(ctx context.Context) ([]admin.Banner, error) {
 	rows, err := s.q.ManagedBanners(ctx, MaxBanners)
 	if err != nil {
 		return nil, fmt.Errorf("read promo banners: %w", err)
 	}
-	out := make([]pages.AdminBanner, 0, len(rows))
+	out := make([]admin.Banner, 0, len(rows))
 	for i := range rows {
 		r := &rows[i]
-		out = append(out, pages.AdminBanner{
+		out = append(out, admin.Banner{
 			ID: r.ID.String(), Message: r.Message, Short: r.MessageShort,
 			Code: r.Code, CTALabel: r.CtaLabel, CTAHref: r.CtaHref,
 			MessageEn: r.MessageEn, ShortEn: r.MessageShortEn,

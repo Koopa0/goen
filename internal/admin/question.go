@@ -10,22 +10,22 @@ import (
 
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/shoptime"
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 // MaxQuestionRows bounds the queue.
 const MaxQuestionRows = 50
 
 // Questions reads what customers have asked, unanswered first.
-func (s *Store) Questions(ctx context.Context) (pages.AdminQuestionsView, error) {
+func (s *Store) Questions(ctx context.Context) (admin.QuestionsView, error) {
 	rows, err := s.q.UnansweredQuestions(ctx, MaxQuestionRows)
 	if err != nil {
-		return pages.AdminQuestionsView{}, fmt.Errorf("read questions: %w", err)
+		return admin.QuestionsView{}, fmt.Errorf("read questions: %w", err)
 	}
-	view := pages.AdminQuestionsView{}
+	view := admin.QuestionsView{}
 	for i := range rows {
 		r := &rows[i]
-		view.Rows = append(view.Rows, pages.AdminQuestion{
+		view.Rows = append(view.Rows, admin.Question{
 			ID: r.ID.String(), Body: r.Body, Asker: r.Asker,
 			ProductSlug: r.ProductSlug, ProductName: r.ProductName,
 			Asked:   shoptime.Minute(r.CreatedAt),

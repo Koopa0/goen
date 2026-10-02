@@ -11,7 +11,7 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/shoptime"
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 // MaxFAQEntries bounds the back office's list.
@@ -67,15 +67,15 @@ func (f *FAQForm) Validate(ctx context.Context) map[string]string {
 }
 
 // FAQ reads the entries, grouped the way /faq groups them.
-func (s *Store) FAQ(ctx context.Context) (pages.AdminFAQView, error) {
+func (s *Store) FAQ(ctx context.Context) (admin.FAQView, error) {
 	rows, err := s.q.AdminFAQEntries(ctx, MaxFAQEntries)
 	if err != nil {
-		return pages.AdminFAQView{}, fmt.Errorf("read faq entries: %w", err)
+		return admin.FAQView{}, fmt.Errorf("read faq entries: %w", err)
 	}
-	view := pages.AdminFAQView{Rows: make([]pages.AdminFAQEntry, 0, len(rows))}
+	view := admin.FAQView{Rows: make([]admin.FAQEntry, 0, len(rows))}
 	for i := range rows {
 		r := &rows[i]
-		view.Rows = append(view.Rows, pages.AdminFAQEntry{
+		view.Rows = append(view.Rows, admin.FAQEntry{
 			ID: r.ID.String(), Category: r.Category, Question: r.Question,
 			Answer: r.Answer, CategoryEn: r.CategoryEn, QuestionEn: r.QuestionEn,
 			AnswerEn: r.AnswerEn, UpdatedAt: shoptime.Day(r.UpdatedAt),

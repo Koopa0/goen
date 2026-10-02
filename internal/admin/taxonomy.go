@@ -13,6 +13,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/icons"
 	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 // MaxTaxonomyNameRunes bounds a brand or category name.
@@ -61,26 +62,26 @@ func (f *TaxonomyForm) Validate(ctx context.Context) map[string]string {
 }
 
 // Taxonomy reads the brands and the category tree.
-func (s *Store) Taxonomy(ctx context.Context) (pages.AdminTaxonomyView, error) {
+func (s *Store) Taxonomy(ctx context.Context) (admin.TaxonomyView, error) {
 	brands, err := s.q.ManagedBrands(ctx)
 	if err != nil {
-		return pages.AdminTaxonomyView{}, fmt.Errorf("read brands: %w", err)
+		return admin.TaxonomyView{}, fmt.Errorf("read brands: %w", err)
 	}
 	cats, err := s.q.ManagedCategories(ctx)
 	if err != nil {
-		return pages.AdminTaxonomyView{}, fmt.Errorf("read categories: %w", err)
+		return admin.TaxonomyView{}, fmt.Errorf("read categories: %w", err)
 	}
 
-	view := pages.AdminTaxonomyView{}
+	view := admin.TaxonomyView{}
 	for i := range brands {
 		b := &brands[i]
-		view.Brands = append(view.Brands, pages.AdminTaxon{
+		view.Brands = append(view.Brands, admin.Taxon{
 			Slug: b.Slug, Name: b.Name, Products: b.Products,
 		})
 	}
 	for i := range cats {
 		c := &cats[i]
-		view.Categories = append(view.Categories, pages.AdminTaxon{
+		view.Categories = append(view.Categories, admin.Taxon{
 			Slug: c.Slug, Name: c.Name, NameEn: c.NameEn, IconKey: c.IconKey, Tone: c.Tone,
 			Products: c.Products,
 			Depth:    int(c.Depth), Children: c.Children, Parent: c.ParentName,

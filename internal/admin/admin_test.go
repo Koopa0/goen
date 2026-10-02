@@ -20,6 +20,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 func TestDollarInputsAreBoundedBeforeMultiplication(t *testing.T) {
@@ -61,7 +62,7 @@ func TestWorkerAgeSecondsSaturateInsteadOfWrappingHealthy(t *testing.T) {
 		t.Fatalf("durationFromSeconds(MaxInt64) = %v, want saturation at %v",
 			got, time.Duration(math.MaxInt64))
 	}
-	view := pages.WorkerHealthView{
+	view := admin.WorkerHealthView{
 		OutboxPending:        1,
 		OutboxOldest:         got,
 		OutboxStaleAfter:     OutboxStaleAfter,
@@ -537,7 +538,7 @@ func TestTheQueueFiltersAreTheirOwnClosedSet(t *testing.T) {
 		}
 	}
 	for _, in := range []string{"", "all", "PENDING", " ready ", "paid"} {
-		if got := ParseQueueFilter(in); got != pages.QueueAll {
+		if got := ParseQueueFilter(in); got != admin.QueueAll {
 			t.Errorf("ParseQueueFilter(%q) = %q, want every order", in, got)
 		}
 	}

@@ -8,25 +8,25 @@ import (
 
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/shoptime"
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 // Reviews reads the moderation queue, hidden ones included.
-func (s *Store) Reviews(ctx context.Context, after ...string) (pages.AdminReviewsView, error) {
+func (s *Store) Reviews(ctx context.Context, after ...string) (admin.ReviewsView, error) {
 	scope := "/admin/reviews"
 	cursor := readPageCursor(scope, after)
 	rows, err := s.q.AdminReviews(ctx, db.AdminReviewsParams{HasCursor: cursor.Valid, AfterAt: cursor.At, AfterID: cursor.ID, RowLimit: PageLimit})
 	if err != nil {
-		return pages.AdminReviewsView{}, fmt.Errorf("read reviews: %w", err)
+		return admin.ReviewsView{}, fmt.Errorf("read reviews: %w", err)
 	}
 	rows, bound := pageBound(cursor, scope, rows, PageSize, func(r *db.AdminReviewsRow) string { return r.PageCursor })
-	view := pages.AdminReviewsView{
+	view := admin.ReviewsView{
 		ListBound: bound,
-		Rows:      make([]pages.AdminReview, 0, len(rows)),
+		Rows:      make([]admin.Review, 0, len(rows)),
 	}
 	for i := range rows {
 		r := &rows[i]
-		view.Rows = append(view.Rows, pages.AdminReview{
+		view.Rows = append(view.Rows, admin.Review{
 			ID: r.ID.String(), Rating: int(r.Rating), Title: r.Title, Body: r.Body,
 			Verified: r.IsVerifiedPurchase, Hidden: r.HiddenAt.Valid,
 			At:   shoptime.Minute(r.CreatedAt),
