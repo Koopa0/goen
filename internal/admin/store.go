@@ -821,18 +821,20 @@ func (s *Store) SetStaffNote(ctx context.Context, number, note string) error {
 }
 
 // Variants reads the stock list.
-func (s *Store) Variants(ctx context.Context, lowOnly bool, after ...string) (admin.VariantsView, error) {
-	scope := "/admin/stock"
+func (s *Store) Variants(ctx context.Context, lowOnly bool, term string, after ...string) (admin.VariantsView, error) {
+	term = strings.TrimSpace(term)
+	low := ""
 	if lowOnly {
-		scope = web.ScopeURL(scope, "low", "1")
+		low = "1"
 	}
+	scope := web.ScopeURL("/admin/stock", "low", low, "q", term)
 	cursor := readPageCursor(scope, after)
-	rows, err := s.q.AdminVariants(ctx, db.AdminVariantsParams{HasCursor: cursor.Valid, AfterNumber: cursor.Number, AfterName: cursor.Name, AfterPosition: cursor.Position, AfterID: cursor.ID, LowOnly: lowOnly, RowLimit: PageLimit})
+	rows, err := s.q.AdminVariants(ctx, db.AdminVariantsParams{HasCursor: cursor.Valid, AfterNumber: cursor.Number, AfterName: cursor.Name, AfterPosition: cursor.Position, AfterID: cursor.ID, LowOnly: lowOnly, EscapedTerm: catalog.EscapeLike(term), RowLimit: PageLimit})
 	if err != nil {
 		return admin.VariantsView{}, fmt.Errorf("read variants: %w", err)
 	}
 	rows, bound := pageBound(cursor, scope, rows, PageSize, func(r *db.AdminVariantsRow) string { return r.PageCursor })
-	view := admin.VariantsView{ListBound: bound, LowOnly: lowOnly}
+	view := admin.VariantsView{ListBound: bound, LowOnly: lowOnly, Term: term}
 	for i := range rows {
 		view.Variants = append(view.Variants, variantRow(&rows[i]))
 	}
@@ -987,6 +989,7 @@ func variantRow(r *db.AdminVariantsRow) admin.Variant {
 		PriceCents: r.PriceCents, CompareCents: r.CompareAtPriceCents.Int64,
 		Stock: r.StockQuantity, Safety: r.SafetyStock,
 		Active: r.IsActive, ProductStatus: r.ProductStatus,
+		Options: r.OptionValues,
 		// One per rendered row, so the adjust form's key is spent by that form
 		// alone and not by whichever stock level the variant next returns to.
 		FormID: uuid.NewString(),

@@ -35,3 +35,11 @@ func TestAStockWriteCannotBeSentSomewhereElse(t *testing.T) {
 		}
 	}
 }
+
+func TestAStockWriteReturnsToTheSearchItWasMadeUnder(t *testing.T) {
+	t.Parallel()
+	got := stockBack(postedFrom(t, url.Values{"sku": {"A-1"}, "return": {"/admin/stock?q=koto+cbl&after=TOKEN"}}), "ok")
+	if want := "/admin/stock?after=TOKEN&ok=1&q=koto+cbl#row-A-1"; got != want {
+		t.Errorf("stockBack = %q, want %q", got, want)
+	}
+}

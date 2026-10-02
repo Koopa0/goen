@@ -1,7 +1,11 @@
 package admin
 
 import (
+	"context"
+
 	"github.com/koopa0/goen/assets"
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 type HeroSlide struct {
@@ -68,10 +72,11 @@ func (s HeroSlide) ToggleLabel() string {
 
 // HeroView is the queue page; it carries the promotional strip too.
 type HeroView struct {
-	Rows   []HeroSlide
-	Notice string
-	Errors map[string]string
-	Draft  HeroDraft
+	Rows     []HeroSlide
+	Carousel []pages.HeroSlide
+	Notice   string
+	Errors   map[string]string
+	Draft    HeroDraft
 
 	Banners     []Banner
 	BannerDraft BannerDraft
@@ -126,24 +131,51 @@ type HeroDraft struct {
 // Empty reports whether nothing is queued.
 func (v *HeroView) Empty() bool { return len(v.Rows) == 0 }
 
-// Showing is the slide a visitor sees right now, or "" for the built-in copy.
-func (v *HeroView) Showing() string {
-	for _, s := range v.Rows {
-		if s.Live() {
-			return s.ID
+func (v *HeroView) scheduledShown() int {
+	n := 0
+	for _, s := range v.Carousel {
+		if s.Source == pages.SlideScheduled {
+			n++
 		}
 	}
-	return ""
+	return n
 }
 
-// UsingFallback reports whether the storefront is showing the built-in copy.
-func (v *HeroView) UsingFallback() bool { return v.Showing() == "" }
+// IsShowing reports whether this queued slide is in the storefront's carousel:
+// the carousel takes the first live ones in queue order, as many as it shows.
+func (v *HeroView) IsShowing(s HeroSlide) bool {
+	n := v.scheduledShown()
+	for _, r := range v.Rows {
+		if n == 0 {
+			return false
+		}
+		if r.Live() {
+			if r.ID == s.ID {
+				return true
+			}
+			n--
+		}
+	}
+	return false
+}
+
+// NoSlides reports whether the home page draws no carousel.
+func (v *HeroView) NoSlides() bool { return len(v.Carousel) == 0 }
+
+func SourceLabel(ctx context.Context, src pages.SlideSource) string {
+	switch src {
+	case pages.SlideScheduled:
+		return i18n.T(ctx, i18n.KeyAdminHomeSourceScheduled)
+	case pages.SlideCampaign:
+		return i18n.T(ctx, i18n.KeyAdminHomeSourceCampaign)
+	case pages.SlideDepartment:
+		return i18n.T(ctx, i18n.KeyAdminHomeSourceDepartment)
+	}
+	panic("admin: unknown slide source " + string(src))
+}
 
 // HasErr reports whether a field was refused.
 func (v *HeroView) HasErr(f string) bool { _, ok := v.Errors[f]; return ok }
 
 // Err is why.
 func (v *HeroView) Err(f string) string { return v.Errors[f] }
-
-// IsShowing reports whether this slide is the one.
-func (v *HeroView) IsShowing(s HeroSlide) bool { return v.Showing() == s.ID }

@@ -124,7 +124,7 @@ func TestEveryAdminQueueReachesBeyondItsFirstPage(t *testing.T) {
 			return r, e
 		}},
 		{"stock", "SELECT count(*) FROM product_variants", func(after string) (result, error) {
-			v, e := s.Variants(ctx, false, after)
+			v, e := s.Variants(ctx, false, "", after)
 			r := result{bound: v.ListBound}
 			for _, x := range v.Variants {
 				r.keys = append(r.keys, x.SKU)
