@@ -39,6 +39,13 @@ var (
 	KeyAdminColTone = key("admin.col.tone", Message{ZhHant: "色調", En: "Tone"})
 
 	// KeyAdminToneInherit is the empty choice: the category takes its department's.
+	KeyAdminTonePaper = key("admin.tone.paper", Message{ZhHant: "紙白", En: "Paper"})
+	KeyAdminToneStone = key("admin.tone.stone", Message{ZhHant: "石白", En: "Stone"})
+	KeyAdminToneMist  = key("admin.tone.mist", Message{ZhHant: "霧藍", En: "Mist"})
+	KeyAdminToneSage  = key("admin.tone.sage", Message{ZhHant: "淡綠", En: "Sage"})
+	KeyAdminToneBlush = key("admin.tone.blush", Message{ZhHant: "淡粉", En: "Blush"})
+	KeyAdminToneInk   = key("admin.tone.ink", Message{ZhHant: "墨黑", En: "Ink"})
+
 	KeyAdminToneInherit = key("admin.tone.inherit", Message{ZhHant: "沿用上層色調", En: "Inherit the department's tone"})
 
 	KeyFormToneUnknown = key("form.tone.unknown", Message{

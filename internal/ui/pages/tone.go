@@ -1,5 +1,11 @@
 package pages
 
+import (
+	"context"
+
+	"github.com/koopa0/goen/internal/i18n"
+)
+
 // Tone is the ground temperature of a department or campaign page: a closed
 // set that categories.tone and sale_campaigns.tone check, and that app.css
 // answers with one [data-tone] block each. Accent, type and radii never vary
@@ -78,4 +84,22 @@ func (t *Theme) Image() Photo {
 		return Photo{}
 	}
 	return t.Photo
+}
+
+// Label is the tone's name in the reader's language, for the admin selects.
+func (t Tone) Label(ctx context.Context) string {
+	switch t {
+	case TonePaper:
+		return i18n.T(ctx, i18n.KeyAdminTonePaper)
+	case ToneMist:
+		return i18n.T(ctx, i18n.KeyAdminToneMist)
+	case ToneSage:
+		return i18n.T(ctx, i18n.KeyAdminToneSage)
+	case ToneBlush:
+		return i18n.T(ctx, i18n.KeyAdminToneBlush)
+	case ToneInk:
+		return i18n.T(ctx, i18n.KeyAdminToneInk)
+	default:
+		return i18n.T(ctx, i18n.KeyAdminToneStone)
+	}
 }

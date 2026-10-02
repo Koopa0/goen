@@ -144,7 +144,7 @@ templ taxonForm(kind string, title i18n.Key, weight components.Variant, v *Admin
 					<select class="goen-input" id="categories-tone" name="tone">
 						<option value="">{ i18n.T(ctx, i18n.KeyAdminToneInherit) }</option>
 						for _, k := range Tones() {
-							<option value={ string(k) } selected?={ v.DraftFor(kind, "tone") == string(k) }>{ string(k) }</option>
+							<option value={ string(k) } selected?={ v.DraftFor(kind, "tone") == string(k) }>{ k.Label(ctx) }</option>
 						}
 					</select>
 					if v.HasErr(kind, "tone") {
@@ -235,7 +235,7 @@ templ taxonList(kind string, empty i18n.Key, rows []AdminTaxon) {
 							>
 								<option value="">{ i18n.T(ctx, i18n.KeyAdminToneInherit) }</option>
 								for _, k := range Tones() {
-									<option value={ string(k) } selected?={ t.Tone == string(k) }>{ string(k) }</option>
+									<option value={ string(k) } selected?={ t.Tone == string(k) }>{ k.Label(ctx) }</option>
 								}
 							</select>
 						}

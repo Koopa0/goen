@@ -133,7 +133,7 @@ templ AdminCampaigns(p layouts.Page, v AdminCampaignsView) {
 					}
 					<select class="goen-input" id="k-tone" name="tone">
 						for _, k := range Tones() {
-							<option value={ string(k) } selected?={ v.Draft.ToneOrStone() == k }>{ string(k) }</option>
+							<option value={ string(k) } selected?={ v.Draft.ToneOrStone() == k }>{ k.Label(ctx) }</option>
 						}
 					</select>
 					if v.HasErr("tone") {
@@ -272,7 +272,7 @@ templ AdminCampaignForm(p layouts.Page, v AdminCampaignView) {
 						}
 					>
 						for _, k := range Tones() {
-							<option value={ string(k) } selected?={ v.Tone == string(k) }>{ string(k) }</option>
+							<option value={ string(k) } selected?={ v.Tone == string(k) }>{ k.Label(ctx) }</option>
 						}
 					</select>
 					if v.HasErr("tone") {

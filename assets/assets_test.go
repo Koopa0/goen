@@ -545,8 +545,8 @@ func TestTheCataloguePhotographsAreEmbedded(t *testing.T) {
 	for _, name := range []string{
 		"media/promo/promo-desk-800.webp",
 		"media/promo/promo-morning-table.webp",
-		"media/departments/books-stationery-400.webp",
-		"media/departments/tech.webp",
+		"media/products/department-books-stationery-400.webp",
+		"media/products/department-tech.webp",
 		"media/products/campaign-autumn-400.webp",
 		"media/products/campaign-tea-week.webp",
 	} {
