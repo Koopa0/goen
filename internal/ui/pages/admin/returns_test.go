@@ -42,7 +42,7 @@ func TestPayoutChannelNamesTheFrozenSources(t *testing.T) {
 		{
 			name: "split Traditional Chinese",
 			card: 140000, credit: 60000, locale: i18n.ZhHant,
-			want: "卡款 NT$1,400 走 Stripe,店儲 NT$600 退回額度",
+			want: "卡款 NT$1,400 走 Stripe，店儲 NT$600 退回額度",
 		},
 		{
 			name: "split English",
@@ -108,7 +108,7 @@ func TestTheReturnQueueHTMLNamesTheRefundChannels(t *testing.T) {
 			StatusText: "已同意", Window: "within", Decided: true,
 			CardRefundCents: 140000, CreditRefundCents: 60000,
 		})
-		want := "卡款 NT$1,400 走 Stripe,店儲 NT$600 退回額度"
+		want := "卡款 NT$1,400 走 Stripe，店儲 NT$600 退回額度"
 		if !strings.Contains(html, want) {
 			t.Errorf("split HTML lacks %q", want)
 		}

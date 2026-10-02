@@ -671,6 +671,41 @@ func TestOneReviewPerPersonPerProduct(t *testing.T) {
 	}
 }
 
+// The seeded reviews are what a demo visitor reads first. Each has a named
+// customer behind it, none is dated in the future, and they spread over more
+// than a month rather than all reading "today".
+func TestTheSeededReviewsReadLikeCustomers(t *testing.T) {
+	ctx := t.Context()
+	var total, nameless, future, beforeAccount int
+	var spanDays float64
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*),
+		       count(*) FILTER (WHERE coalesce(u.full_name, '') = ''),
+		       count(*) FILTER (WHERE r.created_at > now()),
+		       count(*) FILTER (WHERE r.created_at < u.created_at),
+		       coalesce(extract(epoch FROM max(r.created_at) - min(r.created_at)) / 86400, 0)::float8
+		FROM product_reviews r LEFT JOIN users u ON u.id = r.user_id
+		WHERE r.id::text LIKE '000000__-0000-4000-8000-0000000000__'`).
+		Scan(&total, &nameless, &future, &beforeAccount, &spanDays); err != nil {
+		t.Fatalf("read the seeded reviews: %v", err)
+	}
+	if total < 20 {
+		t.Fatalf("found %d seeded reviews; the seed or this filter moved", total)
+	}
+	if nameless != 0 {
+		t.Errorf("%d seeded reviews have no reviewer name and read as 匿名顧客", nameless)
+	}
+	if future != 0 {
+		t.Errorf("%d seeded reviews are dated in the future", future)
+	}
+	if beforeAccount != 0 {
+		t.Errorf("%d seeded reviews predate their reviewer's account", beforeAccount)
+	}
+	if spanDays < 30 {
+		t.Errorf("the seeded reviews span %.1f days; they read as written at once", spanDays)
+	}
+}
+
 func TestReviewValidation(t *testing.T) {
 	ctx := t.Context()
 	s := product.NewStore(pool)

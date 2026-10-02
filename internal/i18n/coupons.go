@@ -2,7 +2,7 @@ package i18n
 
 var (
 	KeyAdminCoupLead = key("admin.coup.lead", Message{
-		ZhHant: "金額用「元」,百分比用整數。停用的折扣碼會保留紀錄,不會刪除。",
+		ZhHant: "金額用「元」，百分比用整數。停用的折扣碼會保留紀錄，不會刪除。",
 		En: "Amounts are in whole New Taiwan dollars and percentages are whole numbers. " +
 			"Switching a coupon off keeps its record; nothing is deleted.",
 	})
@@ -22,7 +22,7 @@ var (
 	})
 
 	KeyAdminCoupValue = key("admin.coup.value", Message{
-		ZhHant: "折抵金額(元)或百分比",
+		ZhHant: "折抵金額（元）或百分比",
 		En:     "Discount amount (NT$) or percentage",
 	})
 
@@ -31,7 +31,7 @@ var (
 		En:     "Free shipping needs nothing here.",
 	})
 
-	KeyAdminCoupCap = key("admin.coup.cap", Message{ZhHant: "折抵上限(元)", En: "Discount cap (NT$)"})
+	KeyAdminCoupCap = key("admin.coup.cap", Message{ZhHant: "折抵上限（元）", En: "Discount cap (NT$)"})
 
 	KeyAdminCoupCapHint = key("admin.coup.cap.hint", Message{
 		ZhHant: "只用在百分比折扣。",
@@ -39,7 +39,7 @@ var (
 	})
 
 	KeyAdminCoupMinSpend = key("admin.coup.minspend", Message{
-		ZhHant: "最低消費(元)",
+		ZhHant: "最低消費（元）",
 		En:     "Minimum spend (NT$)",
 	})
 
@@ -60,7 +60,7 @@ var (
 	})
 
 	KeyAdminCoupPerCustomerHint = key("admin.coup.percustomer.hint", Message{
-		ZhHant: "只計算會員帳號;訪客結帳不受此限制,只受總使用次數限制。",
+		ZhHant: "只計算會員帳號；訪客結帳不受此限制，只受總使用次數限制。",
 		En:     "Counted per member account. Guest checkouts are not limited by it, only by the total redemptions.",
 	})
 
@@ -75,12 +75,12 @@ var (
 	KeyAdminCoupEndsAt = key("admin.coup.endsat", Message{ZhHant: "至 %s", En: "Until %s"})
 
 	KeyFormCouponCode = key("form.coupon.code", Message{
-		ZhHant: "折扣碼只能用英數與連字號,2 到 32 個字元。",
+		ZhHant: "折扣碼只能用英數與連字號，2 到 32 個字元。",
 		En:     "A coupon code takes letters, digits and hyphens, 2 to 32 characters.",
 	})
 
 	KeyFormCouponDescription = key("form.coupon.description", Message{
-		ZhHant: "請填寫顧客會看到的說明,不超過 60 個字。",
+		ZhHant: "請填寫顧客會看到的說明，不超過 60 個字。",
 		En:     "A description the customer will see is required, 60 characters at most.",
 	})
 
@@ -125,7 +125,7 @@ var (
 	})
 
 	KeyFormCouponCapOnAmount = key("form.coupon.cap.amount", Message{
-		ZhHant: "固定金額不需要上限,上限只用在百分比折扣。",
+		ZhHant: "固定金額不需要上限，上限只用在百分比折扣。",
 		En:     "A fixed amount needs no cap — a cap only bounds a percentage discount.",
 	})
 
@@ -147,7 +147,7 @@ var (
 
 	KeyAdminPageCoupons = key("admin.page.coupons", Message{ZhHant: "折扣碼", En: "Coupons"})
 
-	KeyAdminCouponCap = key("admin.coupon.cap", Message{ZhHant: "(上限 %s)", En: "(capped at %s)"})
+	KeyAdminCouponCap = key("admin.coupon.cap", Message{ZhHant: "（上限 %s）", En: "(capped at %s)"})
 
 	KeyAdminCouponMin = key("admin.coupon.min", Message{ZhHant: "滿 %s", En: "over %s"})
 

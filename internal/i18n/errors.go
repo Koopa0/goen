@@ -6,7 +6,7 @@ var (
 	KeyBusyBody = key("error.busy.body", Message{ZhHant: "請稍後再試。", En: "Please try again shortly."})
 
 	KeyTooManyRequests = key("error.ratelimited", Message{
-		ZhHant: "請求過於頻繁,請稍後再試。",
+		ZhHant: "請求過於頻繁，請稍後再試。",
 		En:     "Too many requests. Please try again shortly.",
 	})
 

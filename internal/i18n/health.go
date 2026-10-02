@@ -4,7 +4,7 @@ var (
 	KeyAdminColKind = key("admin.col.kind", Message{ZhHant: "種類", En: "Kind"})
 
 	KeyAdminHPLead = key("admin.hp.lead", Message{
-		ZhHant: "這些數字全部是從「工作有沒有被做完」算出來的,不是從 worker 自己回報的心跳 —— 一個空轉的 worker 心跳正常,但工作沒有前進。",
+		ZhHant: "這些數字全部是從「工作有沒有被做完」算出來的，不是從 worker 自己回報的心跳 —— 一個空轉的 worker 心跳正常，但工作沒有前進。",
 		En: "Every figure here is derived from whether the WORK has been done, not from a heartbeat a " +
 			"worker reports about itself — a worker spinning without progress has a perfectly healthy " +
 			"heartbeat while nothing moves.",
@@ -18,12 +18,12 @@ var (
 	})
 
 	KeyAdminHPOutboxName = key("admin.hp.outbox.name", Message{
-		ZhHant: "通知信件(outbox)",
+		ZhHant: "通知信件（outbox）",
 		En:     "Notification email (outbox)",
 	})
 
 	KeyAdminHPOutboxNote = key("admin.hp.outbox.note", Message{
-		ZhHant: "寄信在訂單的同一個交易裡排入,由背景 worker 送出。卡住代表顧客收不到通知。",
+		ZhHant: "寄信在訂單的同一個交易裡排入，由背景 worker 送出。卡住代表顧客收不到通知。",
 		En: "Mail is enqueued inside the order's own transaction and sent by a background worker. " +
 			"Stuck means customers are not being told anything.",
 	})
@@ -45,7 +45,7 @@ var (
 	})
 
 	KeyAdminHPProjectionNote = key("admin.hp.projection.note", Message{
-		ZhHant: "每 15 分鐘重建一次。過期只影響推薦的新鮮度,不影響任何交易。",
+		ZhHant: "每 15 分鐘重建一次。過期只影響推薦的新鮮度，不影響任何交易。",
 		En: "Rebuilt every 15 minutes. Staleness only affects how fresh the recommendations are; it " +
 			"affects no transaction.",
 	})
@@ -53,7 +53,7 @@ var (
 	KeyAdminHPRefundsName = key("admin.hp.refunds.name", Message{ZhHant: "退款", En: "Refunds"})
 
 	KeyAdminHPRefundsNote = key("admin.hp.refunds.note", Message{
-		ZhHant: "退款的紀錄是在打金流之前就寫進資料庫的,這樣中途斷線也留得下線索 —— 但沒有任何人在看那張表。這裡就是在看。沒有任何背景作業會自己把它結掉。",
+		ZhHant: "退款的紀錄是在打金流之前就寫進資料庫的，這樣中途斷線也留得下線索 —— 但沒有任何人在看那張表。這裡就是在看。沒有任何背景作業會自己把它結掉。",
 		En: "A refund is written to the database BEFORE the payment provider is called, so a crash " +
 			"half-way through still leaves a trail — but nobody was reading that table. This is the " +
 			"reading of it. No background job ever closes one of these on its own.",
@@ -97,7 +97,7 @@ var (
 		En:     "Database connection pools",
 	})
 	KeyAdminHPPoolsHint = key("admin.hp.pools.hint", Message{
-		ZhHant: "「等待連線次數」不是零、累計等待時間持續變長,代表連線不夠用。",
+		ZhHant: "「等待連線次數」不是零、累計等待時間持續變長，代表連線不夠用。",
 		En: "Empty acquires above zero with a growing wait mean requests are " +
 			"queuing for a connection.",
 	})
@@ -239,17 +239,17 @@ var (
 	KeyHealthOutboxClear = key("health.outbox.clear", Message{ZhHant: "沒有待送的訊息", En: "Nothing waiting to send"})
 
 	KeyHealthOutboxOverdue = key("health.outbox.overdue", Message{
-		ZhHant: "%d 封待送,最久的已經逾期 %s",
+		ZhHant: "%d 封待送，最久的已經逾期 %s",
 		En:     "%d waiting, the oldest overdue by %s",
 	})
 
 	KeyHealthOutboxNotYetDue = key("health.outbox.notyetdue", Message{
-		ZhHant: "%d 封待送,都還沒到重試時間",
+		ZhHant: "%d 封待送，都還沒到重試時間",
 		En:     "%d waiting, none of them due yet",
 	})
 
 	KeyHealthOutboxWaiting = key("health.outbox.waiting", Message{
-		ZhHant: "%d 封待送,最久的逾期 %s",
+		ZhHant: "%d 封待送，最久的逾期 %s",
 		En:     "%d waiting, the oldest overdue by %s",
 	})
 
@@ -283,15 +283,15 @@ var (
 		En:     "Last rebuilt %s ago",
 	})
 
-	KeyHealthNoReason = key("health.noreason", Message{ZhHant: "(沒有記錄原因)", En: "(no reason recorded)"})
+	KeyHealthNoReason = key("health.noreason", Message{ZhHant: "（沒有記錄原因）", En: "(no reason recorded)"})
 
 	KeyHealthNoRef = key("health.noref", Message{
-		ZhHant: "(金流端沒有回覆編號)",
+		ZhHant: "（金流端沒有回覆編號）",
 		En:     "(the provider returned no reference)",
 	})
 
 	KeyHealthRefundPending = key("health.refund.pending", Message{
-		ZhHant: "已送出,還沒收到金流端的結果",
+		ZhHant: "已送出，還沒收到金流端的結果",
 		En:     "Sent, no answer from the provider yet",
 	})
 
@@ -301,12 +301,12 @@ var (
 	})
 
 	KeyHealthRefundFailed = key("health.refund.failed", Message{
-		ZhHant: "金流端拒絕了,錢沒有退出去,退貨也還沒結案",
+		ZhHant: "金流端拒絕了，錢沒有退出去，退貨也還沒結案",
 		En:     "The provider refused it: no money moved, and the return is still open",
 	})
 
 	KeyHealthRefundCancelled = key("health.refund.cancelled", Message{
-		ZhHant: "金流端取消了這筆退款,錢沒有退出去,請從退貨清單重新退款",
+		ZhHant: "金流端取消了這筆退款，錢沒有退出去，請從退貨清單重新退款",
 		En:     "The provider cancelled it: no money moved; retry it from the returns queue",
 	})
 )

@@ -14,7 +14,7 @@ var (
 	KeyAdminCreditEdit                = key("admin.credit.edit", Message{ZhHant: "返回修改", En: "Back to edit"})
 	KeyAdminCreditUnknown             = key("admin.credit.unknown", Message{ZhHant: "找不到這個 Email 的會員，請核對後再試。", En: "No customer has that email. Check the address and try again."})
 
-	KeyAdminErasedShort = key("admin.erased.short", Message{ZhHant: "(已刪除)", En: "(deleted)"})
+	KeyAdminErasedShort = key("admin.erased.short", Message{ZhHant: "（已刪除）", En: "(deleted)"})
 
 	KeyAdminPageCredit = key("admin.page.credit", Message{ZhHant: "商店額度", En: "Store credit"})
 
@@ -26,7 +26,7 @@ var (
 
 	KeyAdminCreditEmail = key("admin.credit.email", Message{ZhHant: "會員 Email", En: "Customer email"})
 
-	KeyAdminCreditAmount = key("admin.credit.amount", Message{ZhHant: "金額(元)", En: "Amount (NT$)"})
+	KeyAdminCreditAmount = key("admin.credit.amount", Message{ZhHant: "金額（元）", En: "Amount (NT$)"})
 
 	KeyAdminCreditReason = key("admin.credit.reason", Message{ZhHant: "事由", En: "Reason"})
 

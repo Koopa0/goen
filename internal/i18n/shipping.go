@@ -26,7 +26,7 @@ var (
 	KeyShippingFreeOver = key("shipping.freeover", Message{ZhHant: "滿 %s 免運", En: "Free over %s"})
 
 	KeyShippingZoneNote = key("shipping.zonenote", Message{
-		ZhHant: "%s(免運不含)",
+		ZhHant: "%s（免運不含）",
 		En:     "%s (not covered by free delivery)",
 	})
 
@@ -49,10 +49,10 @@ var (
 
 	KeyShippingHold = key("shipping.hold", Message{ZhHant: "庫存保留", En: "Stock reservation"})
 
-	KeyShippingHoldBody = key("shipping.hold.body", Message{ZhHant: "送出訂單時系統會保留庫存 %s 分鐘,請在下單後 %s 分鐘內開始付款。保留時間結束仍未付款的訂單會自動取消,商品回到架上供其他人購買。", En: "Placing an order holds the stock for %s minutes; start the payment within %s minutes of ordering. An order still unpaid when the hold ends is cancelled automatically, and the goods go back on the shelf for somebody else."})
+	KeyShippingHoldBody = key("shipping.hold.body", Message{ZhHant: "送出訂單時系統會保留庫存 %s 分鐘，請在下單後 %s 分鐘內開始付款。保留時間結束仍未付款的訂單會自動取消，商品回到架上供其他人購買。", En: "Placing an order holds the stock for %s minutes; start the payment within %s minutes of ordering. An order still unpaid when the hold ends is cancelled automatically, and the goods go back on the shelf for somebody else."})
 
 	KeyShippingTrackingBody = key("shipping.tracking.body", Message{
-		ZhHant: "付款完成後我們會開始備貨。出貨時會記錄物流商與查詢編號,您可以在訂單頁看到,系統也會寄信通知。",
+		ZhHant: "付款完成後我們會開始備貨。出貨時會記錄物流商與查詢編號，你可以在訂單頁看到，系統也會寄信通知。",
 		En: "We start packing once the payment clears. When it ships we record the carrier " +
 			"and the tracking number: both appear on your order page, and an email goes out.",
 	})
@@ -62,7 +62,7 @@ var (
 	KeyAdminNone = key("admin.none", Message{ZhHant: "無", En: "None"})
 
 	KeyFormMethodCode = key("form.method.code", Message{
-		ZhHant: "代碼只能用小寫英數與底線,例如 home_delivery。",
+		ZhHant: "代碼只能用小寫英數與底線，例如 home_delivery。",
 		En:     "A code takes lower-case letters, digits and underscores — home_delivery, for example.",
 	})
 
@@ -87,12 +87,12 @@ var (
 	})
 
 	KeyFormMethodParcelLimit = key("form.method.parcel.limit", Message{
-		ZhHant: "上限請填 1 到 %d 的整數,或留空或填 0 表示不設限。",
+		ZhHant: "上限請填 1 到 %d 的整數，或留空或填 0 表示不設限。",
 		En:     "A limit is a whole number from 1 to %d, or blank or 0 for no stated limit.",
 	})
 
 	KeyFormZoneCode = key("form.zone.code", Message{
-		ZhHant: "代碼只能用小寫英數與底線,例如 offshore。",
+		ZhHant: "代碼只能用小寫英數與底線，例如 offshore。",
 		En:     "A code takes lower-case letters, digits and underscores — offshore, for example.",
 	})
 
@@ -112,45 +112,45 @@ var (
 	})
 
 	KeyFormZonePrefixShape = key("form.zone.prefix.shape", Message{
-		ZhHant: "前綴必須是三位數字,例如 880。看到的是「%s」。",
+		ZhHant: "前綴必須是三位數字，例如 880。看到的是「%s」。",
 		En:     "A prefix is three digits — 880, for example. This one reads %q.",
 	})
 
 	KeyAdminPageShipping = key("admin.page.shipping", Message{ZhHant: "配送與運費", En: "Delivery and fees"})
 
 	KeyAdminShipLead = key("admin.ship.lead", Message{
-		ZhHant: "改運費是「發布新版本」,不是改舊的 —— 每一張過去的訂單都記著自己是用哪個版本計價的。",
+		ZhHant: "改運費是「發布新版本」，不是改舊的 —— 每一張過去的訂單都記著自己是用哪個版本計價的。",
 		En: "Changing a fee publishes a NEW version rather than editing the old one — every past " +
 			"order records which version it was priced from.",
 	})
 
 	KeyAdminShipCurrent = key("admin.ship.current", Message{
-		ZhHant: "目前:%s,滿 %s 免運。",
+		ZhHant: "目前：%s，滿 %s 免運。",
 		En:     "Currently %s, free delivery over %s.",
 	})
 
 	KeyAdminShipSince = key("admin.ship.since", Message{
-		ZhHant: "%s 起生效,共 %s 個版本。",
+		ZhHant: "%s 起生效，共 %s 個版本。",
 		En:     "In force since %s, %s versions in all.",
 	})
 
 	KeyAdminShipCarrierOptional = key("admin.ship.carrier.optional", Message{
-		ZhHant: "物流商(選填)",
+		ZhHant: "物流商（選填）",
 		En:     "Carrier (optional)",
 	})
 
 	KeyAdminShipCarrierEn = key("admin.ship.carrier.en", Message{
-		ZhHant: "物流商(英文)",
+		ZhHant: "物流商（英文）",
 		En:     "Carrier (English)",
 	})
 
 	KeyAdminShipFee = key("admin.ship.fee", Message{
-		ZhHant: "運費(元)",
+		ZhHant: "運費（元）",
 		En:     "Delivery fee (NT$)",
 	})
 
 	KeyAdminShipFreeOver = key("admin.ship.freeover", Message{
-		ZhHant: "免運門檻(元,留空為無)",
+		ZhHant: "免運門檻（元，留空為無）",
 		En:     "Free-delivery threshold (NT$, blank for none)",
 	})
 
@@ -175,7 +175,7 @@ var (
 	})
 
 	KeyAdminShipSurchargeLead = key("admin.ship.surcharge.lead", Message{
-		ZhHant: "加在免運之後 —— 免運是本店對自己基本運費的優惠,跨海的錢是物流商收的。填 0 就是取消加價。",
+		ZhHant: "加在免運之後 —— 免運是本店對自己基本運費的優惠，跨海的錢是物流商收的。填 0 就是取消加價。",
 		En: "Added AFTER the free-delivery threshold — free delivery is this shop's own offer on its " +
 			"own base rate, and the carrier still charges to cross the water. Enter 0 to clear a surcharge.",
 	})
@@ -188,7 +188,7 @@ var (
 	KeyAdminShipSet = key("admin.ship.set", Message{ZhHant: "設定", En: "Set"})
 
 	KeyAdminShipNoZone = key("admin.ship.nozone", Message{
-		ZhHant: "這個方式收件到門市,沒有郵遞區號,所以永遠不會落在任何分區裡。",
+		ZhHant: "這個方式收件到門市，沒有郵遞區號，所以永遠不會落在任何分區裡。",
 		En: "This method delivers to a store, so it has no postal code and can never fall inside " +
 			"any zone.",
 	})
@@ -199,7 +199,7 @@ var (
 	})
 
 	KeyAdminShipCodeHint = key("admin.ship.code.hint", Message{
-		ZhHant: "結帳的網址會帶這個代碼,之後不能改。",
+		ZhHant: "結帳的網址會帶這個代碼，之後不能改。",
 		En:     "The checkout URL carries this code, and it cannot be changed afterwards.",
 	})
 
@@ -214,28 +214,28 @@ var (
 	})
 
 	KeyAdminShipDestinationHint = key("admin.ship.destination.hint", Message{
-		ZhHant: "這一項決定結帳要問街道還是問門市,選錯了收不到貨。",
+		ZhHant: "這一項決定結帳要問街道還是問門市，選錯了收不到貨。",
 		En: "This decides whether the checkout asks for a street or for a store. Choose the wrong " +
 			"one and the parcel cannot be delivered.",
 	})
 
 	KeyAdminShipMaxLongest = key("admin.ship.maxlongest", Message{
-		ZhHant: "包裹上限:最長邊(mm)",
+		ZhHant: "包裹上限：最長邊（mm）",
 		En:     "Parcel limit: longest side (mm)",
 	})
 
 	KeyAdminShipMaxSum = key("admin.ship.maxsum", Message{
-		ZhHant: "包裹上限:三邊合(mm)",
+		ZhHant: "包裹上限：三邊合（mm）",
 		En:     "Parcel limit: three sides added (mm)",
 	})
 
 	KeyAdminShipMaxWeight = key("admin.ship.maxweight", Message{
-		ZhHant: "包裹上限:重量(g)",
+		ZhHant: "包裹上限：重量（g）",
 		En:     "Parcel limit: weight (g)",
 	})
 
 	KeyAdminShipLimitsHint = key("admin.ship.limits.hint", Message{
-		ZhHant: "空白代表沒有上限。超商店到店是 450 / 1050 / 10000,萊爾富重量只到 5000。",
+		ZhHant: "空白代表沒有上限。超商店到店是 450 / 1050 / 10000，萊爾富重量只到 5000。",
 		En: "Blank means no limit. Convenience-store counter-to-counter is 450 / 1050 / 10000, " +
 			"and Hi-Life takes only 5000 by weight.",
 	})
@@ -278,7 +278,7 @@ var (
 	})
 
 	KeyAdminShipPrefixesHint = key("admin.ship.prefixes.hint", Message{
-		ZhHant: "空白或逗號分隔。新增分區時至少填一個;之後可把上方欄位清空,讓分區不再命中任何郵遞區號。",
+		ZhHant: "空白或逗號分隔。新增分區時至少填一個；之後可把上方欄位清空，讓分區不再命中任何郵遞區號。",
 		En: "Separated by spaces or commas. A new zone needs at least one; clear its field later " +
 			"to make it match no postal code.",
 	})

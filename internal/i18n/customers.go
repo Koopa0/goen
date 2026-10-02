@@ -17,7 +17,7 @@ var (
 	})
 
 	KeyAdminCustSearchShort = key("admin.cust.searchshort", Message{
-		ZhHant: "搜尋字串太短,至少要兩個字。",
+		ZhHant: "搜尋字串太短，至少要兩個字。",
 		En:     "That search is too short — two characters at least.",
 	})
 

@@ -4,21 +4,21 @@ var (
 	KeyLoyaltyPoints = key("account.points", Message{ZhHant: "會員點數", En: "Points"})
 
 	KeyLoyaltyPointsHint = key("account.points.hint", Message{
-		ZhHant: "每消費 NT$100 得 1 點,可換購物金",
+		ZhHant: "每消費 NT$100 得 1 點，可換購物金",
 		En:     "One point per NT$100 spent, redeemable for store credit",
 	})
 
 	KeyPointsTitle = key("points.title", Message{ZhHant: "會員點數", En: "Points"})
 
 	KeyPointsSub = key("points.sub", Message{
-		ZhHant: "每消費 NT$100 得 1 點,%s,可以兌換成購物金在結帳時折抵。",
+		ZhHant: "每消費 NT$100 得 1 點，%s，可以兌換成購物金在結帳時折抵。",
 		En:     "One point per NT$100 spent. %s, redeemable as store credit at checkout.",
 	})
 
 	// The lot's expires_on is award date + 365, and the redemption's credit entry
 	// carries no expiry, so only the points lapse.
 	KeyPointsExpiryTerms = key("points.expiry.terms", Message{
-		ZhHant: "點數自取得起一年到期;用點數兌換成的購物金不會到期。",
+		ZhHant: "點數自取得起一年到期；用點數兌換成的購物金不會到期。",
 		En:     "Points expire one year after you earn them; store credit you redeem from points does not expire.",
 	})
 
@@ -29,12 +29,12 @@ var (
 	KeyPointsUsing = key("points.using", Message{ZhHant: "用 %s 點", En: "Using %s points"})
 
 	KeyPointsHowMany = key("points.howmany", Message{
-		ZhHant: "要兌換幾點?",
+		ZhHant: "要兌換幾點？",
 		En:     "How many points?",
 	})
 
 	KeyPointsRule = key("points.rule", Message{
-		ZhHant: "最少 %s 點,而且要是 %s 的整數倍 —— 換不完的點數會留著。",
+		ZhHant: "最少 %s 點，而且要是 %s 的整數倍 —— 換不完的點數會留著。",
 		En: "At least %s points, in whole multiples of %s. Whatever is left over stays " +
 			"on your account.",
 	})
@@ -82,22 +82,22 @@ var (
 	})
 
 	KeyPointsRedeemed = key("points.notice.done", Message{
-		ZhHant: "已經兌換成購物金,結帳時會自動折抵。",
+		ZhHant: "已經兌換成購物金，結帳時會自動折抵。",
 		En:     "Redeemed. The credit comes off your next order automatically.",
 	})
 
 	KeyPointsBadAmount = key("points.notice.amount", Message{
-		ZhHant: "兌換的點數要是整數倍,而且不能低於最低門檻。",
+		ZhHant: "兌換的點數要是整數倍，而且不能低於最低門檻。",
 		En:     "Redeem a whole multiple, and not less than the minimum.",
 	})
 
 	KeyPointsBadForm = key("points.notice.badform", Message{
-		ZhHant: "這份兌換表單已過期,請重新送出。",
+		ZhHant: "這份兌換表單已過期，請重新送出。",
 		En:     "That redemption form expired. Submit it again.",
 	})
 
 	KeyPointsReturnUnsettled = key("points.notice.returnunsettled", Message{
-		ZhHant: "您有一筆已核准的退貨還沒完全處理完成,完成後才能兌換點數,因為該筆退貨會扣回對應的點數。",
+		ZhHant: "你有一筆已核准的退貨還沒完全處理完成，完成後才能兌換點數，因為該筆退貨會扣回對應的點數。",
 		En: "A return you were approved for is not fully settled yet. You can redeem points once " +
 			"it is, because that return takes back the points it earned.",
 	})
@@ -112,7 +112,7 @@ var (
 	KeyAdminPageTiers = key("admin.page.tiers", Message{ZhHant: "會員等級", En: "Membership tiers"})
 
 	KeyAdminTierLead = key("admin.tier.lead", Message{
-		ZhHant: "等級是「近一年消費了多少」算出來的,不是存在會員身上的欄位 —— 訂單取消,等級就跟著回去。",
+		ZhHant: "等級是「近一年消費了多少」算出來的，不是存在會員身上的欄位 —— 訂單取消，等級就跟著回去。",
 		En: "A band is computed from what somebody has spent in the last year rather than being a " +
 			"field held on the customer — cancel an order and the band follows it back down.",
 	})
@@ -134,18 +134,18 @@ var (
 	KeyAdminTierAdd = key("admin.tier.add", Message{ZhHant: "新增等級", En: "Add a band"})
 
 	KeyAdminTierNameEnHint = key("admin.tier.nameen.hint", Message{
-		ZhHant: "會員頁會把等級名稱放進句子裡,所以英文缺一半會讀起來像壞掉。",
+		ZhHant: "會員頁會把等級名稱放進句子裡，所以英文缺一半會讀起來像壞掉。",
 		En: "The account page puts a band name inside a sentence, so a missing English one leaves " +
 			"it reading as broken.",
 	})
 
 	KeyAdminTierThreshold = key("admin.tier.threshold", Message{
-		ZhHant: "近一年消費門檻(元)",
+		ZhHant: "近一年消費門檻（元）",
 		En:     "Spend over the last year to reach it (NT$)",
 	})
 
 	KeyAdminTierRate = key("admin.tier.rate", Message{
-		ZhHant: "點數倍率(%,100 為基本)",
+		ZhHant: "點數倍率（%，100 為基本）",
 		En:     "Points rate (%, 100 is the base)",
 	})
 )

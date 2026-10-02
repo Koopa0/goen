@@ -33,7 +33,7 @@ var (
 	})
 
 	KeyAlreadyReviewed = key("pdp.reviews.already", Message{
-		ZhHant: "你已經評價過這個商品了,每個商品只能評價一次。",
+		ZhHant: "你已經評價過這個商品了，每個商品只能評價一次。",
 		En:     "You have already reviewed this product. One review each.",
 	})
 
@@ -45,19 +45,19 @@ var (
 	})
 
 	KeyReviewThanks = key("pdp.reviews.thanks", Message{
-		ZhHant: "謝謝你的評價,它已經顯示在上面了。",
+		ZhHant: "謝謝你的評價，它已經顯示在上面了。",
 		En:     "Thank you for your review — it is on the page now.",
 	})
 
 	KeyReviewBodyHint = key("pdp.reviews.bodyhint", Message{
-		ZhHant: "至少 %d 個字,最多 %d 字。",
+		ZhHant: "至少 %d 個字，最多 %d 字。",
 		En:     "At least %d characters, at most %d.",
 	})
 
 	KeyFieldRating = key("field.rating", Message{ZhHant: "評分", En: "Rating"})
 
 	KeyFieldReviewTitle = key("field.review.title", Message{
-		ZhHant: "標題(可留空)",
+		ZhHant: "標題（可留空）",
 		En:     "Title (optional)",
 	})
 
@@ -87,12 +87,12 @@ var (
 )
 
 var (
-	KeyAdminErasedAccount = key("admin.erased.account", Message{ZhHant: "(已刪除帳號)", En: "(erased account)"})
+	KeyAdminErasedAccount = key("admin.erased.account", Message{ZhHant: "（已刪除帳號）", En: "(erased account)"})
 
 	KeyAdminPageReviews = key("admin.page.reviews", Message{ZhHant: "顧客評價", En: "Customer reviews"})
 
 	KeyAdminReviewsLead = key("admin.reviews.lead", Message{
-		ZhHant: "評價寫完就顯示,不先審 —— 每一則都要人核准的評價頁,讀起來就是廣告。隱藏是例外,而且會把那一則從評分裡一起拿掉。",
+		ZhHant: "評價寫完就顯示，不先審 —— 每一則都要人核准的評價頁，讀起來就是廣告。隱藏是例外，而且會把那一則從評分裡一起拿掉。",
 		En: "A review appears as soon as it is written, with no queue in front of it — a review page " +
 			"where every entry was approved by the shop reads as advertising. Hiding is the exception, " +
 			"and it takes that review out of the rating as well as off the page.",
@@ -105,7 +105,7 @@ var (
 	KeyAdminReviewBought = key("admin.review.bought", Message{ZhHant: "· 已購買", En: "· verified purchase"})
 
 	KeyAdminReviewHidden = key("admin.review.hidden", Message{
-		ZhHant: "· 已隱藏(不計入評分)",
+		ZhHant: "· 已隱藏（不計入評分）",
 		En:     "· hidden (not counted in the rating)",
 	})
 

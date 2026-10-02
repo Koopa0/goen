@@ -4,7 +4,7 @@ var (
 	KeyContactTitle = key("contact.title", Message{ZhHant: "聯絡我們", En: "Contact us"})
 
 	KeyContactDescription = key("contact.description", Message{
-		ZhHant: "goen 客服信箱,以及線上留言表單。週一至週五 09:00–18:00。",
+		ZhHant: "goen 客服信箱，以及線上留言表單。週一至週五 09:00–18:00。",
 		En:     "Email, plus a form. Monday to Friday, 09:00–18:00.",
 	})
 
@@ -25,7 +25,7 @@ var (
 	KeyContactFormTitle = key("contact.form", Message{ZhHant: "留言給我們", En: "Send us a message"})
 
 	KeyContactFormErrors = key("contact.form.errors", Message{
-		ZhHant: "表單還有欄位需要修正,請檢查下方標示的項目。",
+		ZhHant: "表單還有欄位需要修正，請檢查下方標示的項目。",
 		En:     "Some fields still need fixing — check the ones marked below.",
 	})
 
@@ -38,7 +38,7 @@ var (
 	KeyFieldSubject = key("field.subject", Message{ZhHant: "主題", En: "Subject"})
 
 	KeyFieldOrderRefOpt = key("field.orderref.optional", Message{
-		ZhHant: "訂單編號(選填)",
+		ZhHant: "訂單編號（選填）",
 		En:     "Order number (optional)",
 	})
 
@@ -52,7 +52,7 @@ var (
 	KeyContactSubmit = key("contact.submit", Message{ZhHant: "送出訊息", En: "Send message"})
 
 	KeyContactBusy = key("contact.busy", Message{
-		ZhHant: "系統暫時無法接收訊息,請稍後再試,或直接寄信給我們。",
+		ZhHant: "系統暫時無法接收訊息，請稍後再試，或直接寄信給我們。",
 		En:     "We cannot take the message right now. Try again shortly, or email us directly.",
 	})
 
@@ -92,7 +92,7 @@ var (
 	})
 
 	KeyMessageTooShort = key("valid.contact.message.short", Message{
-		ZhHant: "訊息內容請至少 %d 個字,讓我們知道發生什麼事",
+		ZhHant: "訊息內容請至少 %d 個字，讓我們知道發生什麼事",
 		En:     "At least %d characters, so we know what happened",
 	})
 
@@ -116,7 +116,7 @@ var (
 	KeyAdminPageMessages = key("admin.page.messages", Message{ZhHant: "聯絡訊息", En: "Contact messages"})
 
 	KeyAdminMessagesLead = key("admin.messages.lead", Message{
-		ZhHant: "等最久的排在最前面 —— 三天前寫信的人比今天早上寫的更急,最新排在前面剛好把他埋掉。",
+		ZhHant: "等最久的排在最前面 —— 三天前寫信的人比今天早上寫的更急，最新排在前面剛好把他埋掉。",
 		En: "The longest wait comes first — somebody who wrote three days ago is more urgent " +
 			"than somebody who wrote this morning, and newest-first would bury them exactly then.",
 	})

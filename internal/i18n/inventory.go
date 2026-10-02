@@ -17,7 +17,7 @@ var (
 	KeyAdminPageStockList = key("admin.page.stocklist", Message{ZhHant: "庫存管理", En: "Stock management"})
 
 	KeyAdminQueueStockLead = key("admin.queue.stock.lead", Message{
-		ZhHant: "庫存只能透過調整寫入,每次調整都會留下一筆異動紀錄。",
+		ZhHant: "庫存只能透過調整寫入，每次調整都會留下一筆異動紀錄。",
 		En: "Stock can only be written through an adjustment, and every adjustment leaves a " +
 			"movement in the ledger.",
 	})
@@ -68,18 +68,18 @@ var (
 	KeyAdminStockLink = key("admin.stock.link", Message{ZhHant: "庫存", En: "Stock"})
 
 	KeyAdminStockNowSafe = key("admin.stock.nowsafe", Message{
-		ZhHant: "· 目前 %s 件,安全庫存 %s",
+		ZhHant: "· 目前 %s 件，安全庫存 %s",
 		En:     "· %s in stock, safety level %s",
 	})
 
 	KeyAdminLedgerEmpty = key("admin.ledger.empty", Message{
-		ZhHant: "這個規格還沒有任何異動。新規格的庫存是 0,所有的量都從這張帳本進來。",
+		ZhHant: "這個規格還沒有任何異動。新規格的庫存是 0，所有的量都從這張帳本進來。",
 		En: "Nothing has moved for this variant yet. A new variant starts at zero, and every unit it " +
 			"ever holds arrives through this ledger.",
 	})
 
 	KeyAdminLedgerFoot = key("admin.ledger.foot", Message{
-		ZhHant: "最近 50 筆。結存是從帳本開頭累加到那一筆的數字,所以就算只看這一頁也是對的。",
+		ZhHant: "最近 50 筆。結存是從帳本開頭累加到那一筆的數字，所以就算只看這一頁也是對的。",
 		En: "The last 50 movements. The balance accumulates from the start of the ledger rather than " +
 			"from this page, so these rows are still true on their own.",
 	})
@@ -89,14 +89,14 @@ var (
 	KeyAdminReceiveButton = key("admin.receive.button", Message{ZhHant: "登記進貨", En: "Record receipt"})
 
 	KeyAdminReceiveHint = key("admin.receive.hint", Message{
-		ZhHant: "這會在帳本上記一筆「進貨」。數字算錯要往回修的話請用庫存頁的「調整」—— 東西進來和數字算錯是兩件事,帳本要分得出來。",
+		ZhHant: "這會在帳本上記一筆「進貨」。數字算錯要往回修的話請用庫存頁的「調整」—— 東西進來和數字算錯是兩件事，帳本要分得出來。",
 		En: "This writes a goods receipt to the ledger. To correct a count downward use Adjust on the " +
 			"stock page — goods arriving and a number being wrong are two different things, and the " +
 			"ledger has to keep them apart.",
 	})
 
 	KeyAdminStockOf = key("admin.stock.of", Message{
-		ZhHant: "%d 件(可售 %d)",
+		ZhHant: "%d 件（可售 %d）",
 		En:     "%d in stock (%d sellable)",
 	})
 
@@ -115,12 +115,12 @@ var (
 
 var (
 	KeyAdminNoticeReceived = key("admin.notice.received", Message{
-		ZhHant: "進貨已入庫,帳本上記的是「進貨」而不是「人工調整」。",
+		ZhHant: "進貨已入庫，帳本上記的是「進貨」而不是「人工調整」。",
 		En:     "Received. The ledger records this as a goods receipt, not as a manual correction.",
 	})
 
 	KeyAdminNoticeBadQty = key("admin.notice.badqty", Message{
-		ZhHant: "進貨數量要是正整數。要往下修正數字請用「調整」—— 進貨是有東西進來,調整是數字算錯了,帳本分得出這兩件事。",
+		ZhHant: "進貨數量要是正整數。要往下修正數字請用「調整」—— 進貨是有東西進來，調整是數字算錯了，帳本分得出這兩件事。",
 		En: "A receipt quantity is a positive whole number. To correct a count downward use Adjust — " +
 			"a receipt is goods arriving and an adjustment is a number that was wrong, and the ledger keeps them apart.",
 	})

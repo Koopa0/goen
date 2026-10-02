@@ -11,7 +11,7 @@ func TestTerminalNoticesDistinguishActorAndReceiptInBothLanguages(t *testing.T) 
 		kind   TerminalKind
 		en, zh string
 	}{
-		{TerminalCancelledByCustomer, "You cancelled", "您已取消"},
+		{TerminalCancelledByCustomer, "You cancelled", "你已取消"},
 		{TerminalCancelledByStaff, "The shop cancelled", "商店已取消"},
 		{TerminalCancelledByPaymentDeadline, "cancelled automatically", "已自動取消"},
 		{TerminalDelivered, "marked as delivered", "已標記為送達"},

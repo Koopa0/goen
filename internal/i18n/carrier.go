@@ -23,7 +23,7 @@ var (
 	// KeyAdminCarrierNotForOrder is the refusal under the carrier list when a
 	// dispatch names a carrier the order cannot go with.
 	KeyAdminCarrierNotForOrder = key("admin.queue.carrier.notfororder", Message{
-		ZhHant: "這個物流商不能運送這筆訂單,請從清單中選擇。",
+		ZhHant: "這個物流商不能運送這筆訂單，請從清單中選擇。",
 		En:     "That carrier cannot carry this order. Choose one from the list.",
 	})
 

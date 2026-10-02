@@ -21,7 +21,7 @@ var (
 var (
 	KeyAdminColName = key("admin.col.name", Message{ZhHant: "名稱", En: "Name"})
 
-	KeyAdminColNameEn = key("admin.col.nameen", Message{ZhHant: "名稱(英文)", En: "Name (English)"})
+	KeyAdminColNameEn = key("admin.col.nameen", Message{ZhHant: "名稱（英文）", En: "Name (English)"})
 
 	KeyAdminColEnglish = key("admin.col.english", Message{ZhHant: "英文", En: "English"})
 
