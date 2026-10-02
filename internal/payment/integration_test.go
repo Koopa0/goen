@@ -1711,6 +1711,73 @@ func TestPickingACreditFundedOrderQueuesNoInvoice(t *testing.T) {
 	}
 }
 
+// TestAPaidOrderWhoseInvoiceDueWasLostIsOnTheHealthPage: /admin/health reads
+// the orders, not the outbox that should have claimed their invoices, so a
+// paid order whose invoice.due is gone is listed until an issue exists. Paid
+// covers a capture and a pending order store credit paid in full at checkout;
+// an order still owing is not paid.
+func TestAPaidOrderWhoseInvoiceDueWasLostIsOnTheHealthPage(t *testing.T) {
+	ctx := t.Context()
+	s := payment.NewStore(pool)
+	captured, capturedID := order(t, 159900)
+	preferMemberInvoice(t, capturedID)
+	session := "cs_uninvoiced_" + captured
+	if err := s.OpenPayment(ctx, captured, session, 159900); err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	if _, err := captureThroughWebhook(t, s, payment.Capture{SessionID: session, AmountRecv: 159900}); err != nil {
+		t.Fatalf("capture: %v", err)
+	}
+	if tag, err := pool.Exec(ctx,
+		`DELETE FROM outbox_messages WHERE topic = $1 AND dedupe_key = $2`,
+		outbox.TopicInvoiceDue, captured); err != nil || tag.RowsAffected() != 1 {
+		t.Fatalf("delete the queued invoice.due of %s: %d rows, %v", captured, tag.RowsAffected(), err)
+	}
+
+	// Credit spent outside checkout queues nothing: the message is as lost as
+	// a deleted one.
+	const credit = int64(50000)
+	creditPaid, creditPaidID := ownedOrder(t, creditedUser(t, credit), credit)
+	preferMemberInvoice(t, creditPaidID)
+	spendCreditOnOrder(t, creditPaidID, -credit)
+	owing, _ := order(t, 70000)
+
+	backOffice := admin.NewStore(adminRolePool(t), admin.NewRefunder(""), nil, nil)
+	listed := func(number string) bool {
+		t.Helper()
+		orders, total, err := backOffice.UninvoicedOrders(ctx, 0)
+		if err != nil {
+			t.Fatalf("read paid orders with no invoice operation: %v", err)
+		}
+		if total < int64(len(orders)) {
+			t.Errorf("total %d is below the %d orders listed", total, len(orders))
+		}
+		for _, o := range orders {
+			if o.OrderNumber == number {
+				return true
+			}
+		}
+		return false
+	}
+	if !listed(captured) {
+		t.Errorf("%s was captured, its invoice.due is gone, and /admin/health does not list it", captured)
+	}
+	if !listed(creditPaid) {
+		t.Errorf("store credit paid all of pending %s, it has no invoice operation, and "+
+			"/admin/health does not list it", creditPaid)
+	}
+	if listed(owing) {
+		t.Errorf("%s still owes its whole total and is listed as paid", owing)
+	}
+
+	for _, number := range []string{captured, creditPaid} {
+		claimDue(t, invoice.Due{OrderNumber: number, Trigger: "evt_reissued_" + number})
+		if listed(number) {
+			t.Errorf("%s is still listed once it holds an issue operation", number)
+		}
+	}
+}
+
 // preferMemberInvoice records the checkout's 發票 choice, the filing snapshot a
 // claim is built from.
 func preferMemberInvoice(t *testing.T, orderID uuid.UUID) {

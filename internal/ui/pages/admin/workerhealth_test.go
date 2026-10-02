@@ -2,9 +2,12 @@ package admin
 
 import (
 	"fmt"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
 func TestCancelledRefundHealthStatusIsLocalized(t *testing.T) {
@@ -42,5 +45,31 @@ func TestRefundHealthUsesTheExactCountNotTheBoundedSample(t *testing.T) {
 	want := fmt.Sprintf(i18n.T(ctx, i18n.KeyHealthRefundsStuck), int64(37))
 	if got := view.RefundsText(ctx); got != want {
 		t.Errorf("refund health text = %q, want exact-count text %q", got, want)
+	}
+}
+
+// TestAPaidOrderWithNoInvoiceOperationIsWork: the page reads unhealthy, says
+// how many there are rather than how many it lists, and puts the order and its
+// issue action in front of the reader.
+func TestAPaidOrderWithNoInvoiceOperationIsWork(t *testing.T) {
+	t.Parallel()
+	view := &WorkerHealthView{CopurchaseEverBuilt: true, CopurchaseStaleAfter: time.Hour}
+	if !view.AllHealthy() {
+		t.Fatal("the fixture is unhealthy before any order is listed; the check below would prove nothing")
+	}
+	view.UninvoicedCount = 51
+	view.Uninvoiced = []UninvoicedOrder{{OrderNumber: "GO-261002-000001", AmountCents: 129900}}
+	if view.AllHealthy() {
+		t.Error("the page reads healthy with a paid order that has no invoice operation")
+	}
+	html := renderToString(t, Health(layouts.Page{Title: "health"}, view))
+	for _, want := range []string{
+		`href="/admin/orders/GO-261002-000001"`,
+		`action="/admin/orders/GO-261002-000001/invoice"`,
+		i18n.Count(i18n.WithLocale(t.Context(), i18n.ZhHant), i18n.KeyAdminHPUninvoicedHint, 51, int64(51)),
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("the health page does not carry %s", want)
+		}
 	}
 }

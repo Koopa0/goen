@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/outbox"
@@ -26,6 +27,9 @@ const (
 	// MaxExpiredSessions and MaxUnreferencedMedia are counts.
 	MaxExpiredSessions   = 500
 	MaxUnreferencedMedia = 200
+	// UninvoicedAfter is how long a paid order may go without an invoice
+	// operation: many passes of the outbox and of the invoice reconciler.
+	UninvoicedAfter = 15 * time.Minute
 )
 
 // WorkerHealth reads what the background workers have and have not done.
@@ -97,7 +101,36 @@ func (s *Store) WorkerHealth(ctx context.Context, messages *outbox.Store) (admin
 		return admin.WorkerHealthView{}, fmt.Errorf("read open refunds: %w", err)
 	}
 	view.OpenRefunds = openRefunds(open)
+
+	view.Uninvoiced, view.UninvoicedCount, err = s.UninvoicedOrders(ctx, UninvoicedAfter)
+	if err != nil {
+		return admin.WorkerHealthView{}, err
+	}
 	return view, nil
+}
+
+// UninvoicedOrders is every order paid more than olderThan ago with no invoice
+// operation, newest first and bounded, and how many there are.
+func (s *Store) UninvoicedOrders(
+	ctx context.Context, olderThan time.Duration,
+) ([]admin.UninvoicedOrder, int64, error) {
+	rows, err := s.q.UninvoicedOrders(ctx, pgtype.Interval{
+		Microseconds: olderThan.Microseconds(), Valid: true,
+	})
+	if err != nil {
+		return nil, 0, fmt.Errorf("read paid orders with no invoice operation: %w", err)
+	}
+	out := make([]admin.UninvoicedOrder, len(rows))
+	var total int64
+	for i := range rows {
+		r := &rows[i]
+		total = r.Total
+		out[i] = admin.UninvoicedOrder{
+			OrderNumber: r.OrderNumber, AmountCents: r.AmountCents,
+			Since: shoptime.Minute(r.FundedAt),
+		}
+	}
+	return out, total, nil
 }
 
 func stuckMessages(rows []outbox.StuckMessage) []admin.StuckMessage {

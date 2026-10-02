@@ -131,6 +131,20 @@ var (
 
 	KeyAdminHPColEvent = key("admin.hp.col.event", Message{ZhHant: "事件編號", En: "Event"})
 
+	KeyAdminHPUninvoicedHeading = key("admin.hp.uninvoiced.heading", Message{
+		ZhHant: "沒有發票作業的已收款訂單",
+		En:     "Paid orders with no invoice operation",
+	})
+
+	KeyAdminHPUninvoicedHint = countKey("admin.hp.uninvoiced.hint",
+		"%d 筆已收款的訂單沒有任何開立發票的作業：排入開立的訊息可能遺失或被刪除。請逐筆開立。",
+		"%d paid order has no invoice operation: the message that queues its issue may have been "+
+			"lost or deleted. Issue it.",
+		"%d paid orders have no invoice operation: the messages that queue their issue may have been "+
+			"lost or deleted. Issue each one.")
+
+	KeyAdminHPColPaid = key("admin.hp.col.paid", Message{ZhHant: "收款於", En: "Paid"})
+
 	KeyAdminHPClaimsHeading = key("admin.hp.claims.heading", Message{
 		ZhHant: "待確認的電子發票操作",
 		En:     "E-invoice operations awaiting confirmation",
