@@ -39,12 +39,23 @@ type ShareImage struct {
 }
 
 // NavItem is one top-level category entry in the header, with the
-// sub-categories its department panel lists.
+// sub-categories and the few products its department panel shows.
 type NavItem struct {
 	Slug     string
 	Name     string
 	Href     string
 	Children []NavItem
+	Picks    []NavPick
+}
+
+// NavPick is one product in a department panel. Price is already rendered,
+// "from" included where variants differ: the chrome prints it as given.
+type NavPick struct {
+	Slug        string
+	Name        string
+	Price       string
+	ImageURL    string
+	ImageSrcset string
 }
 
 type topNavKey struct{}

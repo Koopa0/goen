@@ -8329,6 +8329,104 @@ func (q *Queries) MyWarranties(ctx context.Context, userID uuid.NullUUID) ([]MyW
 	return items, nil
 }
 
+const navPicks = `-- name: NavPicks :many
+WITH RECURSIVE tree AS (
+    SELECT id, id AS root FROM categories WHERE parent_id IS NULL
+    UNION ALL
+    SELECT k.id, t.root FROM categories k JOIN tree t ON k.parent_id = t.id
+),
+recent AS (
+    SELECT t.root, p.id, p.slug, p.name, p.name_en, p.published_at,
+           row_number() OVER (PARTITION BY t.root ORDER BY p.published_at DESC, p.id DESC) AS nth
+    FROM tree t
+    CROSS JOIN LATERAL (
+        SELECT p.id, p.slug, p.name, p.name_en, p.published_at
+        FROM products p
+        WHERE p.category_id = t.id AND p.status = 'active'
+          AND EXISTS (
+              SELECT 1 FROM product_variants v
+              WHERE v.product_id = p.id AND v.is_active AND v.stock_quantity > v.safety_stock
+          )
+        ORDER BY p.published_at DESC, p.id DESC
+        LIMIT 3
+    ) p
+)
+SELECT r.root AS root_id,
+       r.slug,
+       localized_name(r.name, r.name_en, $1::text) AS name,
+       mv.price_cents,
+       EXISTS (
+           SELECT 1 FROM product_variants dv
+           WHERE dv.product_id = r.id AND dv.is_active AND dv.price_cents > mv.price_cents
+       ) AS price_varies,
+       coalesce(img.storage_key, '') AS image_key,
+       coalesce(img.width, 0)::integer AS image_width
+FROM recent r
+JOIN LATERAL (
+    SELECT price_cents
+    FROM product_variants
+    WHERE product_id = r.id AND is_active AND stock_quantity > safety_stock
+    ORDER BY price_cents
+    LIMIT 1
+) mv ON true
+LEFT JOIN LATERAL (
+    SELECT storage_key, width
+    FROM product_images
+    WHERE product_id = r.id
+    ORDER BY position
+    LIMIT 1
+) img ON true
+WHERE r.nth <= 3
+ORDER BY r.root, r.published_at DESC, r.id DESC
+`
+
+type NavPicksRow struct {
+	RootID      uuid.UUID
+	Slug        string
+	Name        string
+	PriceCents  int64
+	PriceVaries bool
+	ImageKey    string
+	ImageWidth  int32
+}
+
+// Each department's three newest products that can be bought, for its header
+// panel. One read for all of them, like ChildCategories, on every page with a
+// header, so its cost is bounded by the number of categories and never by the
+// catalogue: each category reads newest-first off
+// products_category_published_idx and stops at its third buyable product, and
+// a department's three newest are among its categories' three newest. Only
+// those few rows are ranked per department, and only the three kept are priced
+// and given a picture. The price is the cheapest buyable variant's, the one a
+// tile would state.
+func (q *Queries) NavPicks(ctx context.Context, locale string) ([]NavPicksRow, error) {
+	rows, err := q.db.Query(ctx, navPicks, locale)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []NavPicksRow{}
+	for rows.Next() {
+		var i NavPicksRow
+		if err := rows.Scan(
+			&i.RootID,
+			&i.Slug,
+			&i.Name,
+			&i.PriceCents,
+			&i.PriceVaries,
+			&i.ImageKey,
+			&i.ImageWidth,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const newsletterCounts = `-- name: NewsletterCounts :one
 SELECT
     count(*) FILTER (WHERE unsubscribed_at IS NULL)     AS active,

@@ -11,7 +11,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/web"
 )
@@ -131,12 +133,40 @@ func (s *Store) Nav(ctx context.Context) ([]layouts.NavItem, error) {
 			Slug: c.Slug, Name: c.Name, Href: "/c/" + c.Slug,
 		})
 	}
+	picks, err := s.navPicks(ctx, locale)
+	if err != nil {
+		return nil, err
+	}
 	items := make([]layouts.NavItem, 0, len(rows))
 	for i := range rows {
 		r := &rows[i]
 		items = append(items, layouts.NavItem{
-			Slug: r.Slug, Name: r.Name, Href: "/c/" + r.Slug, Children: children[r.ID],
+			Slug: r.Slug, Name: r.Name, Href: "/c/" + r.Slug, Children: children[r.ID], Picks: picks[r.ID],
 		})
 	}
 	return items, nil
+}
+
+// navPicks is each department's newest buyable products, keyed by department.
+func (s *Store) navPicks(ctx context.Context, locale string) (map[uuid.UUID][]layouts.NavPick, error) {
+	rows, err := s.q.NavPicks(ctx, locale)
+	if err != nil {
+		return nil, fmt.Errorf("read nav picks: %w", err)
+	}
+	out := make(map[uuid.UUID][]layouts.NavPick)
+	for i := range rows {
+		r := &rows[i]
+		price := money.TWD(r.PriceCents)
+		if r.PriceVaries {
+			price = fmt.Sprintf(i18n.T(ctx, i18n.KeyFromPrice), price)
+		}
+		out[r.RootID] = append(out[r.RootID], layouts.NavPick{
+			Slug:        r.Slug,
+			Name:        r.Name,
+			Price:       price,
+			ImageURL:    assets.ProductImageURL(r.ImageKey),
+			ImageSrcset: assets.ProductImageSrcsetAt(r.ImageKey, int(r.ImageWidth)),
+		})
+	}
+	return out, nil
 }

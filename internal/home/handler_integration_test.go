@@ -829,3 +829,91 @@ func TestTheTrustBodyDescribesOnlyTheMethodsCheckoutOffers(t *testing.T) {
 		t.Errorf("the strip's floor is not the home delivery fee; want %q", want)
 	}
 }
+
+// A department's header panel shows at most three of its own products, newest
+// first, and only ones that can be bought: the header is on every page, and a
+// sold-out product there is a click that ends at a disabled button. The newest
+// product of the department is sold out for the length of the test, so the rule
+// is exercised by a row it actually removes.
+func TestADepartmentPanelShowsItsNewestBuyableProducts(t *testing.T) {
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+
+	const dept = "tech"
+	var newest string
+	if err := pool.QueryRow(ctx, `
+		WITH RECURSIVE tree AS (
+		    SELECT id FROM categories WHERE slug = $1
+		    UNION ALL
+		    SELECT k.id FROM categories k JOIN tree t ON k.parent_id = t.id
+		)
+		SELECT p.slug FROM products p
+		WHERE p.category_id IN (SELECT id FROM tree) AND p.status = 'active'
+		ORDER BY p.published_at DESC, p.id DESC LIMIT 1`, dept).Scan(&newest); err != nil {
+		t.Fatalf("fixture: the newest %s product: %v", dept, err)
+	}
+	// Remembered in Go rather than a temporary table: a pool hands each
+	// statement whichever connection is free, and a temp table lives on one.
+	var ids []uuid.UUID
+	var stock []int32
+	if err := pool.QueryRow(ctx, `
+		SELECT array_agg(v.id), array_agg(v.stock_quantity) FROM product_variants v
+		JOIN products p ON p.id = v.product_id WHERE p.slug = $1`, newest).Scan(&ids, &stock); err != nil {
+		t.Fatalf("fixture: remember the stock: %v", err)
+	}
+	t.Cleanup(func() {
+		if _, err := pool.Exec(context.WithoutCancel(ctx), `
+			UPDATE product_variants v SET stock_quantity = s.stock
+			FROM unnest($1::uuid[], $2::integer[]) AS s(id, stock) WHERE s.id = v.id`, ids, stock); err != nil {
+			t.Errorf("restore the stock: %v", err)
+		}
+	})
+	if _, err := pool.Exec(ctx, `
+		UPDATE product_variants SET stock_quantity = safety_stock WHERE id = ANY($1::uuid[])`, ids); err != nil {
+		t.Fatalf("fixture: sell out %s: %v", newest, err)
+	}
+
+	nav, err := home.NewStore(pool).Nav(ctx)
+	if err != nil {
+		t.Fatalf("read the header: %v", err)
+	}
+	shown := 0
+	for i := range nav {
+		d := &nav[i]
+		rows, err := pool.Query(ctx, `
+			WITH RECURSIVE tree AS (
+			    SELECT id FROM categories WHERE slug = $1
+			    UNION ALL
+			    SELECT k.id FROM categories k JOIN tree t ON k.parent_id = t.id
+			)
+			SELECT p.slug FROM products p
+			WHERE p.category_id IN (SELECT id FROM tree) AND p.status = 'active'
+			  AND EXISTS (
+			      SELECT 1 FROM product_variants v
+			      WHERE v.product_id = p.id AND v.is_active AND v.stock_quantity > v.safety_stock)
+			ORDER BY p.published_at DESC, p.id DESC LIMIT 3`, d.Slug)
+		if err != nil {
+			t.Fatalf("read %s's products: %v", d.Slug, err)
+		}
+		want, err := pgx.CollectRows(rows, pgx.RowTo[string])
+		if err != nil {
+			t.Fatalf("read %s's products: %v", d.Slug, err)
+		}
+		got := make([]string, 0, len(d.Picks))
+		for _, p := range d.Picks {
+			got = append(got, p.Slug)
+			if p.Slug == newest {
+				t.Errorf("%s's panel offers %s, which is sold out", d.Slug, newest)
+			}
+			if !strings.HasPrefix(p.Price, "NT$") {
+				t.Errorf("%s's panel prices %s as %q", d.Slug, p.Slug, p.Price)
+			}
+		}
+		if strings.Join(got, ",") != strings.Join(want, ",") {
+			t.Errorf("%s's panel shows %v, want %v", d.Slug, got, want)
+		}
+		shown += len(got)
+	}
+	if shown == 0 {
+		t.Fatal("no department showed a product, so this compared nothing")
+	}
+}
