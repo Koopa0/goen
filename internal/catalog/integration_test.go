@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -112,6 +113,43 @@ func TestListingIncludesDescendants(t *testing.T) {
 	} {
 		if !strings.Contains(body, name) {
 			t.Errorf("a descendant category's product is missing from the listing: %q", name)
+		}
+	}
+}
+
+// tech > accessories > chargers is three levels: the department lists a product
+// two levels down, and a department of the general-merchandise catalogue lists
+// the products of its sub-categories.
+func TestDepartmentListingReachesEveryLevel(t *testing.T) {
+	for slug, name := range map[string]string{
+		"tech":             "Aurora GaN 65W 充電器",
+		"books-stationery": "山茶十二月",
+		"food-drink":       "晨焙 咖啡豆",
+	} {
+		code, body := get(t, "/c/"+slug)
+		if code != http.StatusOK {
+			t.Fatalf("/c/%s status = %d, want 200", slug, code)
+		}
+		if !strings.Contains(body, name) {
+			t.Errorf("/c/%s omits %q, a product below it", slug, name)
+		}
+	}
+}
+
+// A department holds no product itself, so the sitemap must judge it by the
+// products below it.
+func TestSitemapNamesADepartmentThatHoldsNoProductItself(t *testing.T) {
+	rows, err := catalog.NewStore(pool).SitemapCategories(t.Context(), 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	slugs := make([]string, 0, len(rows))
+	for _, r := range rows {
+		slugs = append(slugs, r.Slug)
+	}
+	for _, want := range []string{"tech", "accessories", "books-stationery", "food-drink"} {
+		if !slices.Contains(slugs, want) {
+			t.Errorf("sitemap categories = %v; missing %q", slugs, want)
 		}
 	}
 }
@@ -239,12 +277,28 @@ func TestInStockMeansSellable(t *testing.T) {
 }
 
 func TestSearchEscapesWildcards(t *testing.T) {
+	// The catalogue states "100%" in three products' text, so a bare % legitimately
+	// finds exactly those; an unescaped one would find every product.
 	code, body := get(t, "/search?q=%25")
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
 	}
-	if strings.Contains(body, "Pixelight 9 Pro 5G") {
-		t.Error("searching for a bare % returned products; the wildcard reached ILIKE unescaped")
+	links := regexp.MustCompile(`class="goen-tile" href="/p/([^"]+)"`).FindAllStringSubmatch(body, -1)
+	got := make([]string, 0, len(links))
+	for _, m := range links {
+		got = append(got, m[1])
+	}
+	slices.Sort(got)
+	want := []string{"orili-cotton-tee", "orili-oxford-shirt", "restwood-linen-tea-towel"}
+	if !slices.Equal(got, want) {
+		t.Errorf("searching for a bare %% found %v, want only the products that contain a percent sign %v: the wildcard reached ILIKE unescaped", got, want)
+	}
+
+	// No product text holds an underscore, so an unescaped _ would still match
+	// every product and an escaped one matches none.
+	code, body = get(t, "/search?q=_")
+	if code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", code)
 	}
 	if !strings.Contains(body, "找不到") {
 		t.Error("a search matching nothing did not render the empty state")
@@ -282,7 +336,7 @@ func TestSearchPageKeepsTheHeaderInputInSyncWithTheHeading(t *testing.T) {
 	}
 }
 
-// The trigram index serves only one of the two scripts.
+// Both scripts match by substring.
 func TestSearchFindsLatinAndChinese(t *testing.T) {
 	for _, tc := range []struct{ q, want string }{
 		{"pixel", "Pixelight"},
@@ -976,5 +1030,65 @@ func TestPromotionalTilesArePricedOnTheDiscountedVariant(t *testing.T) {
 	}
 	if campaignTile.PriceVaries {
 		t.Error("campaign tile says its discounted price is the bottom of a range, but a cheaper variant exists")
+	}
+}
+
+// The tile states a price, the "from" flag and the sale price of a variant the
+// filters accepted; otherwise a product that qualifies through one variant shows
+// another variant's price, outside the range the shopper asked for.
+func TestListingTileShowsAVariantThePriceFiltersAccept(t *testing.T) {
+	ctx := t.Context()
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
+
+	if _, execErr := tx.Exec(ctx, `
+		INSERT INTO products (id, brand_id, category_id, slug, name, status, published_at)
+		SELECT 'eeee0005-0000-4000-8000-000000000001', b.id, c.id, 'tile-range', '價格區間機', 'active', now()
+		FROM brands b, categories c WHERE b.slug='pixelight' AND c.slug='phones';
+
+		INSERT INTO product_variants (product_id, sku, price_cents, compare_at_price_cents, stock_quantity, position)
+		VALUES ('eeee0005-0000-4000-8000-000000000001', 'RANGE-SOLDOUT', 300000, NULL, 0, 90),
+		       ('eeee0005-0000-4000-8000-000000000001', 'RANGE-MID', 500000, NULL, 5, 91),
+		       ('eeee0005-0000-4000-8000-000000000001', 'RANGE-HIGH', 1200000, 1500000, 5, 92);`,
+	); execErr != nil {
+		t.Fatalf("fixture: %v", execErr)
+	}
+
+	tests := []struct {
+		name         string
+		filters      catalog.Filters
+		wantPrice    int64
+		wantVaries   bool
+		wantCompare  int64
+		wantNotStale string
+	}{
+		{"unfiltered shows the cheapest buyable variant", catalog.Filters{}, 500000, true, 0, ""},
+		{"min price shows the variant above it, not the cheaper one", catalog.Filters{MinPrice: 1000000}, 1200000, false, 1500000, "the cheaper in-range-excluded variant's price"},
+		{"max price shows the sold-out variant that qualifies it", catalog.Filters{MaxPrice: 400000}, 300000, false, 0, "the dearer in-stock variant's price, above the maximum"},
+		{"in stock and max price excludes dearer variants from the from flag", catalog.Filters{InStockOnly: true, MaxPrice: 600000}, 500000, false, 0, "a from flag for a variant above the maximum"},
+	}
+	store := catalog.NewStore(tx)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.filters.Page = 1
+			view, listErr := store.Listing(ctx, "phones", tt.filters)
+			if listErr != nil {
+				t.Fatalf("listing: %v", listErr)
+			}
+			for _, p := range view.Products {
+				if p.Slug != "tile-range" {
+					continue
+				}
+				if p.PriceCents != tt.wantPrice || p.PriceVaries != tt.wantVaries || p.CompareCents != tt.wantCompare {
+					t.Errorf("tile = price %d varies %t compare %d, want %d %t %d (not %s)",
+						p.PriceCents, p.PriceVaries, p.CompareCents, tt.wantPrice, tt.wantVaries, tt.wantCompare, tt.wantNotStale)
+				}
+				return
+			}
+			t.Fatal("the product is missing from the filtered listing")
+		})
 	}
 }

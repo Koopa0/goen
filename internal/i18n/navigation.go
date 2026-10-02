@@ -23,7 +23,7 @@ var (
 		En:     "Cart, currently empty",
 	})
 
-	KeyCartCount = key("nav.cart.count", Message{ZhHant: "購物車,%s 件商品", En: "Cart, %s items"})
+	KeyCartCount = countKey("nav.cart.count", "購物車,%s 件商品", "Cart, %s item", "Cart, %s items")
 
 	KeyDeals = key("nav.deals", Message{ZhHant: "限時優惠", En: "Deals"})
 
@@ -41,6 +41,10 @@ var (
 		ZhHant: "訂單、庫存與商品都在這裡管理",
 		En:     "Orders, stock and the catalogue are managed here",
 	})
+
+	// The caption under a department's photograph in its header panel; %s is the
+	// department's name.
+	KeyBrowseDepartment = key("nav.department.browse", Message{ZhHant: "逛逛%s", En: "Shop %s"})
 
 	KeyFooterHelp = key("footer.help", Message{ZhHant: "顧客服務", En: "Customer service"})
 

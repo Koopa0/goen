@@ -83,14 +83,20 @@ templ AdminQuestions(p layouts.Page, v AdminQuestionsView) {
 									{ i18n.T(ctx, i18n.KeyAdminQuestionReply) }
 								}
 								@components.Textarea(components.FieldProps{
-									ID:   "answer-" + q.ID,
-									Name: "body",
+									ID:        "answer-" + q.ID,
+									Name:      "body",
+									Invalid:   q.Error != "",
+									Describes: "answer-error-" + q.ID,
 									Attrs: templ.Attributes{
 										"maxlength":   "1000",
 										"placeholder": i18n.T(ctx, i18n.KeyAdminQuestionHint),
 										"rows":        "3",
 									},
 								}) {
+									{ q.Draft }
+								}
+								if q.Error != "" {
+									<p class="ui-error-text" id={ "answer-error-" + q.ID } role="alert">{ q.Error }</p>
 								}
 							</div>
 							<div class="goen-modqueue__actions">

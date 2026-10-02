@@ -557,3 +557,20 @@ func TestAnUploadedKeyResolvesToTheMediaHandler(t *testing.T) {
 		}
 	}
 }
+
+func TestTheCataloguePhotographsAreEmbedded(t *testing.T) {
+	t.Parallel()
+
+	for _, name := range []string{
+		"media/promo/promo-desk-800.webp",
+		"media/promo/promo-morning-table.webp",
+		"media/products/department-books-stationery-400.webp",
+		"media/products/department-tech.webp",
+		"media/products/campaign-autumn-400.webp",
+		"media/products/campaign-tea-week.webp",
+	} {
+		if !assets.Has(name) {
+			t.Errorf("assets.Has(%q) = false; want the photograph embedded", name)
+		}
+	}
+}

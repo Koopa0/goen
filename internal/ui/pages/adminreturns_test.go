@@ -354,3 +354,23 @@ func TestEachReturnDecisionPostsItsOwnAnswer(t *testing.T) {
 		}
 	}
 }
+
+func TestEveryReturnRowLinksItsOrderAndOnlyShippedGoodsCanBeShort(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	line := AdminReturnLine{Name: "耳機", Quantity: 1, Inspected: true, Received: 0}
+	view := AdminReturnsView{Rows: []AdminReturn{
+		{ID: "shipped", OrderNumber: "GO-260930-000012", Window: "goodwill", Lines: []AdminReturnLine{line}},
+		{ID: "unshipped", OrderNumber: "GO-260930-000011", Window: "goodwill", BeforeShipment: true, Lines: []AdminReturnLine{line}},
+	}}
+	html := renderComponent(t, ctx, AdminReturns(layouts.Page{}, view))
+
+	for _, number := range []string{"GO-260930-000012", "GO-260930-000011"} {
+		if !strings.Contains(html, `<a href="/admin/orders/`+number+`">`+number+`</a>`) {
+			t.Errorf("the row for %s does not link to its order", number)
+		}
+	}
+	if got := strings.Count(html, i18n.T(ctx, i18n.KeyAdminRetShortfall)); got != 1 {
+		t.Errorf("%q appears %d times, want once: shipped goods can be short, a refund before shipment cannot", i18n.T(ctx, i18n.KeyAdminRetShortfall), got)
+	}
+}

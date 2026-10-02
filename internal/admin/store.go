@@ -85,6 +85,7 @@ func (s *Store) Dashboard(ctx context.Context) (pages.AdminDashboardView, error)
 	}
 	view := pages.AdminDashboardView{
 		PendingOrders:  sum.PendingOrders,
+		ReadyOrders:    sum.ReadyOrders,
 		PickingOrders:  sum.PickingOrders,
 		LowStock:       sum.LowStock,
 		ActiveProducts: sum.ActiveProducts,
@@ -133,7 +134,7 @@ func orderRow(ctx context.Context, o *db.AdminOrdersRow) pages.AdminOrderRow {
 }
 
 // Orders reads the order queue.
-func (s *Store) Orders(ctx context.Context, status pages.FulfillmentStatus, term string, after ...string) (pages.AdminOrdersView, error) {
+func (s *Store) Orders(ctx context.Context, status pages.QueueFilter, term string, after ...string) (pages.AdminOrdersView, error) {
 	term = strings.TrimSpace(term)
 	scope := web.ScopeURL("/admin/orders", "q", term, "status", string(status))
 	cursor := readPageCursor(scope, after)
@@ -148,19 +149,22 @@ func (s *Store) Orders(ctx context.Context, status pages.FulfillmentStatus, term
 			Term: term, EscapedTerm: catalog.EscapeLike(term), RowLimit: PageLimit,
 		}); err == nil {
 			rows = make([]db.AdminOrdersRow, 0, len(found))
+			// A conversion, not a field copy: it stops compiling when the two
+			// queries' columns drift, so a new column cannot be dropped silently.
 			for i := range found {
-				f := &found[i]
-				rows = append(rows, db.AdminOrdersRow{
-					PageCursor: f.PageCursor, ID: f.ID, OrderNumber: f.OrderNumber,
-					FulfillmentStatus: f.FulfillmentStatus, PlacedAt: f.PlacedAt,
-					ShippingCents: f.ShippingCents, DiscountCents: f.DiscountCents,
-					TaxCents: f.TaxCents, Recipient: f.Recipient,
-					SubtotalCents: f.SubtotalCents, Committed: f.Committed,
-				})
+				rows = append(rows, db.AdminOrdersRow(found[i]))
 			}
 		}
 	} else {
-		rows, err = s.q.AdminOrders(ctx, db.AdminOrdersParams{HasCursor: cursor.Valid, AfterAt: cursor.At, AfterID: cursor.ID, Status: string(status), RowLimit: PageLimit})
+		filter, funding := string(status), ""
+		switch status {
+		case pages.QueueAwaitingPayment:
+			filter, funding = string(pages.FulfillmentPending), "unpaid"
+		case pages.QueueReady:
+			filter, funding = string(pages.FulfillmentPending), "funded"
+		default: // a fulfilment status filters by itself
+		}
+		rows, err = s.q.AdminOrders(ctx, db.AdminOrdersParams{HasCursor: cursor.Valid, AfterAt: cursor.At, AfterID: cursor.ID, Status: filter, Funding: funding, RowLimit: PageLimit})
 	}
 	if err != nil {
 		return pages.AdminOrdersView{}, fmt.Errorf("read orders: %w", err)
@@ -179,20 +183,27 @@ func (s *Store) Orders(ctx context.Context, status pages.FulfillmentStatus, term
 		ListBound: bound,
 		Status:    status, Term: term, Searched: searched,
 	}
-	countsByStatus := make(map[pages.FulfillmentStatus]int64, len(counts))
+	countsByFilter := make(map[pages.QueueFilter]int64, len(counts))
 	var total int64
 	for _, c := range counts {
-		countsByStatus[pages.FulfillmentStatus(c.FulfillmentStatus)] = c.N
+		key := pages.QueueFilter(c.FulfillmentStatus)
+		switch {
+		case c.FulfillmentStatus == string(pages.FulfillmentPending) && c.Funded:
+			key = pages.QueueReady
+		case c.FulfillmentStatus == string(pages.FulfillmentPending):
+			key = pages.QueueAwaitingPayment
+		}
+		countsByFilter[key] += c.N
 		total += c.N
 	}
-	view.Tabs = make([]pages.AdminStatusTab, 0, len(statuses)+1)
+	view.Tabs = make([]pages.AdminStatusTab, 0, len(queueTabs)+1)
 	view.Tabs = append(view.Tabs, pages.AdminStatusTab{
-		Label: i18n.T(ctx, i18n.KeyAdminTabAll), Count: total, Selected: status == "",
+		Label: i18n.T(ctx, i18n.KeyAdminTabAll), Count: total, Selected: status == pages.QueueAll,
 	})
-	for _, definition := range statuses {
+	for _, tab := range queueTabs {
 		view.Tabs = append(view.Tabs, pages.AdminStatusTab{
-			Value: definition.value, Label: i18n.T(ctx, definition.label),
-			Count: countsByStatus[definition.value], Selected: definition.value == status,
+			Value: tab.filter, Label: i18n.T(ctx, tab.label),
+			Count: countsByFilter[tab.filter], Selected: tab.filter == status,
 		})
 	}
 	for i := range rows {
@@ -250,6 +261,7 @@ func (s *Store) Order(ctx context.Context, number string) (pages.AdminOrderView,
 		InvoiceDonationCode: o.InvoiceDonationCode,
 		InvoiceTaxID:        o.InvoiceTaxID,
 		Committed:           o.Committed,
+		Unpaid:              !o.Committed && o.OwedCents > 0,
 	}
 
 	if shipErr := s.fillShippable(ctx, &view, o.ID, fulfillment); shipErr != nil {
@@ -502,7 +514,7 @@ func (s *Store) fillInvoices(ctx context.Context, view *pages.AdminOrderView, nu
 		doc := pages.AdminInvoiceDocument{
 			Kind: d.Kind, Number: d.Number, ProviderRef: d.ProviderRef,
 			AmountCents: d.AmountCents, Status: d.Status,
-			IssuedAt: shoptime.Minute(d.IssuedAt),
+			IssuedAt: shoptime.ProviderMinute(d.IssuedAt),
 		}
 		for _, l := range d.Lines {
 			doc.Lines = append(doc.Lines, pages.AdminInvoiceLine{
@@ -805,22 +817,23 @@ func (s *Store) AdjustStock(ctx context.Context, sku string, delta int32, actorI
 	if err != nil {
 		return fmt.Errorf("adjust stock: actor %q is not a user id: %w", actorID, err)
 	}
-	return s.audited(ctx, Event{
+	err = s.audited(ctx, Event{
 		Action: actionAdjustStock, Table: "product_variants", ID: nullableID(v.ID),
 		Before: map[string]any{"sku": sku, "stock": v.StockQuantity},
 		After:  map[string]any{"delta": delta},
 	},
 		func(ctx context.Context, q *db.Queries) error {
-			if err := q.AdjustStock(ctx, db.AdjustStockParams{
+			if moveErr := q.AdjustStock(ctx, db.AdjustStockParams{
 				VariantID: v.ID, Delta: delta, IdempotencyKey: key, ActorUserID: actor,
-			}); err != nil {
-				return fmt.Errorf("%w: %w", ErrRefused, err)
+			}); moveErr != nil {
+				return fmt.Errorf("%w: %w", ErrRefused, moveErr)
 			}
 			// Called on EVERY adjustment: the claim's own EXISTS decides whether
 			// the variant is back above its threshold, so a movement that does
 			// not cross it claims nothing.
 			return enqueueRestockNotices(ctx, q, v.ID)
 		})
+	return s.settleReplay(ctx, err, v.ID, delta, "adjustment", key)
 }
 
 // ReceiveStock books a delivery in, through the ledger's own 'receipt' reason,
@@ -838,21 +851,42 @@ func (s *Store) ReceiveStock(ctx context.Context, sku string, quantity int32, ac
 	if err != nil {
 		return fmt.Errorf("receive stock: actor %q is not a user id: %w", actorID, err)
 	}
-	return s.audited(ctx, Event{
+	err = s.audited(ctx, Event{
 		Action: actionReceiveStock, Table: "product_variants", ID: nullableID(v.ID),
 		Before: map[string]any{"sku": sku, "stock": v.StockQuantity},
 		After:  map[string]any{"received": quantity},
 	},
 		func(ctx context.Context, q *db.Queries) error {
-			if err := q.ReceiveStock(ctx, db.ReceiveStockParams{
+			if moveErr := q.ReceiveStock(ctx, db.ReceiveStockParams{
 				VariantID: v.ID, Delta: quantity, IdempotencyKey: key, ActorUserID: actor,
-			}); err != nil {
-				return fmt.Errorf("%w: %w", ErrRefused, err)
+			}); moveErr != nil {
+				return fmt.Errorf("%w: %w", ErrRefused, moveErr)
 			}
 			// A receipt is the movement most likely to carry a variant back
 			// above its safety stock.
 			return enqueueRestockNotices(ctx, q, v.ID)
 		})
+	return s.settleReplay(ctx, err, v.ID, quantity, "receipt", key)
+}
+
+// settleReplay turns the ledger's refusal of a key it already holds into the
+// success it earlier answered, when the held movement is this very one. The
+// refusal rolled back the whole statement, so stock moved once; reporting it
+// as refused sends a staff member to re-enter it from a fresh form, which
+// lands it twice. A key reused for a different movement stays refused.
+func (s *Store) settleReplay(
+	ctx context.Context, err error, variantID uuid.UUID, delta int32, reason, key string,
+) error {
+	if err == nil || !hasConstraint(err, "inventory_movements_idempotency_key") {
+		return err
+	}
+	applied, checkErr := s.q.StockMovementApplied(ctx, db.StockMovementAppliedParams{
+		IdempotencyKey: key, VariantID: variantID, Delta: delta, Reason: reason,
+	})
+	if checkErr != nil || !applied {
+		return err
+	}
+	return nil
 }
 
 // SetVariantActive retires or restores a variant. A refusal here is usually
@@ -916,6 +950,9 @@ func variantRow(r *db.AdminVariantsRow) pages.AdminVariant {
 		PriceCents: r.PriceCents, CompareCents: r.CompareAtPriceCents.Int64,
 		Stock: r.StockQuantity, Safety: r.SafetyStock,
 		Active: r.IsActive, ProductStatus: r.ProductStatus,
+		// One per rendered row, so the adjust form's key is spent by that form
+		// alone and not by whichever stock level the variant next returns to.
+		FormID: uuid.NewString(),
 	}
 }
 
@@ -1045,7 +1082,8 @@ func (s *Store) Movements(ctx context.Context, sku string, after ...string) (pag
 		ListBound: bound,
 		SKU:       v.SKU, ProductName: v.ProductName, Slug: v.Slug,
 		Stock: v.StockQuantity, Safety: v.SafetyStock,
-		Rows: make([]pages.AdminMovement, 0, len(rows)),
+		FormID: uuid.NewString(),
+		Rows:   make([]pages.AdminMovement, 0, len(rows)),
 	}
 	for i := range rows {
 		m := &rows[i]

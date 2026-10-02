@@ -12,6 +12,8 @@ var (
 		En:     "%s-month warranty",
 	})
 
+	KeySectionDelivery = key("pdp.delivery", Message{ZhHant: "配送與退貨", En: "Delivery and returns"})
+
 	KeySectionRelated = key("pdp.related", Message{ZhHant: "同類商品", En: "Similar products"})
 
 	KeySectionAlsoBought = key("pdp.alsobought", Message{
@@ -220,8 +222,8 @@ var (
 	})
 
 	KeyAdminProdWarrantyHint = key("admin.prod.warrantyhint", Message{
-		ZhHant: "每個商品可以不一樣 —— 手機和編織線本來就不該是同一個數字。留空表示沒有提供保固,顧客就無法登錄保固(而不是給他一個系統自己編出來的期限)。",
-		En: "It is per product — a phone and a braided cable were never going to carry the same " +
+		ZhHant: "每個商品可以不一樣 —— 電熱水壺和毛巾本來就不該是同一個數字。留空表示沒有提供保固,顧客就無法登錄保固(而不是給他一個系統自己編出來的期限)。",
+		En: "It is per product — a kettle and a towel were never going to carry the same " +
 			"number. Left blank it states no cover, and the customer then cannot register a " +
 			"warranty at all, rather than being given a term the system invented for them.",
 	})

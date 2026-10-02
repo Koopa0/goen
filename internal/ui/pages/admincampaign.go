@@ -83,7 +83,11 @@ type AdminCampaignDraft struct {
 	Title   string
 	TitleEn string
 	Days    string
+	Tone    string
 }
+
+// ToneOrStone is the tone to preselect: the refused draft's, or stone.
+func (d AdminCampaignDraft) ToneOrStone() Tone { return ResolveTone(d.Tone) }
 
 // Empty reports whether nothing has been created.
 func (v AdminCampaignsView) Empty() bool { return len(v.Rows) == 0 }
@@ -102,33 +106,37 @@ type AdminCampaignView struct {
 	Running  bool
 	Products []AdminCampaignProduct
 	Notice   string
-	Image    AdminCampaignImage
+	Image    AdminHeader
+	Tone     string
 	// Errors names the fields a refused image form got wrong, by field name.
 	Errors map[string]string
 }
 
-// AdminCampaignImage is the header the campaign has now.
-type AdminCampaignImage struct {
+// AdminHeader is the header photograph a campaign or a category has now.
+type AdminHeader struct {
 	Key   string
 	Alt   string
 	AltEn string
 	Width int32
 }
 
-// Has reports whether the campaign has a header.
-func (i AdminCampaignImage) Has() bool { return i.Key != "" }
+// Has reports whether there is a header.
+func (i AdminHeader) Has() bool { return i.Key != "" }
 
 // URL is where the header is served, or "" for a key that names nothing.
-func (i AdminCampaignImage) URL() string { return assets.ProductImageURL(i.Key) }
+func (i AdminHeader) URL() string { return assets.ProductImageURL(i.Key) }
 
 // Srcset offers the smaller renditions to the edit page's preview tile.
-func (i AdminCampaignImage) Srcset() string { return assets.ProductImageSrcsetAt(i.Key, int(i.Width)) }
+func (i AdminHeader) Srcset() string { return assets.ProductImageSrcsetAt(i.Key, int(i.Width)) }
 
 // HasErr reports whether a field of the image form was refused.
 func (v AdminCampaignView) HasErr(f string) bool { _, ok := v.Errors[f]; return ok }
 
 // Err is why.
 func (v AdminCampaignView) Err(f string) string { return v.Errors[f] }
+
+// ToneAction is where the tone form posts.
+func (v AdminCampaignView) ToneAction() string { return "/admin/campaigns/" + v.Slug + "/tone" }
 
 // ImageAction is where the header upload form posts.
 func (v AdminCampaignView) ImageAction() string { return "/admin/campaigns/" + v.Slug + "/image" }

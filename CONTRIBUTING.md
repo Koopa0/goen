@@ -4,12 +4,12 @@ goen has one maintainer, who reviews every submission and merges it once CI is g
 
 ## What goen is
 
-goen is a full-stack e-commerce application in Go for a Taiwanese 3C shop. It
-is one binary that serves the storefront, the customer account and the back
-office, over PostgreSQL, paying at Stripe and filing 統一發票 through 綠界. It
-is a demonstration and reference project. A public demo runs at
-[goen.koopa0.dev](https://goen.koopa0.dev); its sanitized configuration,
-scheduled restore job, and verification record live in
+goen is a full-stack e-commerce application in Go for a shop that sells in
+Taiwan under the 消保法. It is one binary that serves the storefront, the
+customer account and the back office, over PostgreSQL, paying at Stripe and
+filing 統一發票 through 綠界. It is a demonstration and reference project. A
+public demo runs at [goen.koopa0.dev](https://goen.koopa0.dev); its sanitized
+configuration, scheduled restore job, and verification record live in
 [deploy/demo/README.md](deploy/demo/README.md).
 
 Four boundaries hold, and each is enforced in the tree rather than by
@@ -57,7 +57,7 @@ start against a database that no longer matches `migrations/`.
 ## Run the tests
 
 ```sh
-make test              # unit and handler tests, race-enabled, shuffled
+make test              # unit and handler tests, shuffled (make test-race adds the detector)
 make lint              # golangci-lint at the version the Makefile pins
 make test-integration  # the schema conformance suite, needs Docker
 ```
@@ -70,9 +70,10 @@ checks for unreachable code, builds under both build tags, and runs the race
 tests. `make verify-all` adds the database suite and the vulnerability scan.
 
 Two tools have to be on `PATH`, pinned at the top of the `Makefile`:
-`golangci-lint` and `squawk`. Every other tool is fetched by `go run` at its
-pinned version. `make check-layout` additionally needs a Chrome or Chromium
-binary and a running server; it drives every route in a real browser and asks
+`golangci-lint` and `squawk` (installed with `npm i -g squawk-cli@<pinned>`).
+Every other tool is fetched by `go run` at its pinned version.
+`make check-layout` additionally needs Node 22 or newer, `curl`, `openssl`,
+network access to fetch axe-core, a Chrome or Chromium binary and a running server; it drives every route in a real browser and asks
 the accessibility questions only a browser can answer. The Makefile probes common
 macOS app bundles and Linux package names; set `CHROME` when yours lives
 elsewhere.
@@ -120,7 +121,7 @@ that `make image-push` builds carries an SPDX SBOM (`ko build --sbom=spdx`).
 
 - Package by feature under `internal/<feature>/`: types, handlers, store,
   queries and tests together. There is no `services`, `repositories`, `handlers`
-  or `models` directory, and a hook refuses to create one.
+  or `models` directory.
 - `internal/db` and every `*_templ.go` are generated. Edit the `.sql` or
   `.templ` source and run `make sqlc` or `make gen`; the gate compares the
   output against a fresh generation.

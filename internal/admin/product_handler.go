@@ -158,7 +158,7 @@ func (h *Handler) AddVariant(w http.ResponseWriter, r *http.Request) {
 	f, draft, errs := variantFormOf(r)
 	maps.Copy(errs, f.Validate(r.Context()))
 	if len(errs) > 0 {
-		h.editProductWithErrors(w, r, slug, errs, draft)
+		h.editProductWithErrors(w, r, slug, errs, &draft)
 		return
 	}
 	errs, err := h.store.AddVariant(r.Context(), slug, f)
@@ -167,7 +167,7 @@ func (h *Handler) AddVariant(w http.ResponseWriter, r *http.Request) {
 		h.log.ErrorContext(r.Context(), "add variant", "error", err)
 		h.serverError(w, r)
 	case len(errs) > 0:
-		h.editProductWithErrors(w, r, slug, errs, draft)
+		h.editProductWithErrors(w, r, slug, errs, &draft)
 	default:
 		//nolint:gosec // G710: validated by the route's own slug
 		http.Redirect(w, r, "/admin/products/"+slug+"?ok=1", http.StatusSeeOther)
@@ -179,9 +179,10 @@ func variantFormOf(r *http.Request) (*VariantForm, pages.AdminVariantDraft, map[
 	draft := pages.AdminVariantDraft{
 		SKU: r.PostFormValue("sku"), Price: r.PostFormValue("price"),
 		Compare: r.PostFormValue("compare"), Safety: r.PostFormValue("safety"),
-		ParcelLongest: r.PostFormValue("parcel_longest"),
-		ParcelSum:     r.PostFormValue("parcel_sum"),
-		ParcelWeight:  r.PostFormValue("parcel_weight"),
+		ParcelLongest:  r.PostFormValue("parcel_longest"),
+		ParcelSum:      r.PostFormValue("parcel_sum"),
+		ParcelWeight:   r.PostFormValue("parcel_weight"),
+		OptionValueIDs: r.PostForm["option_value"],
 	}
 	errs := map[string]string{}
 	safety := parseVariantCount(draft.Safety, safetyStockCeiling,
@@ -319,7 +320,7 @@ func (h *Handler) ReuseImage(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		h.log.WarnContext(r.Context(), "reuse image", "error", err, "slug", slug)
 		//nolint:gosec // G710: slug is the route's own path value
-		http.Redirect(w, r, "/admin/products/"+slug+"?needs=1", http.StatusSeeOther)
+		http.Redirect(w, r, "/admin/products/"+slug+"?imageneeds=1", http.StatusSeeOther)
 		return
 	}
 	if err := h.store.AttachImage(r.Context(), slug, obj.Digest,
@@ -426,6 +427,11 @@ func (h *Handler) optionWrite(
 		return
 	}
 	slug := r.PathValue("slug")
+	draft := pages.AdminVariantDraft{
+		OptionName: r.PostFormValue("name"), OptionNameEn: r.PostFormValue("name_en"),
+		ValueOption: r.PostFormValue("option"), Value: r.PostFormValue("value"),
+		ValueEn: r.PostFormValue("value_en"), Swatch: r.PostFormValue("swatch_hex"),
+	}
 	errs, err := write(slug)
 	switch {
 	case err != nil:
@@ -434,12 +440,12 @@ func (h *Handler) optionWrite(
 		// missing product. Without this the page tells a staff member who
 		// mistyped a colour that the product they are looking at is gone.
 		if refused := optionRefusal(r.Context(), err); len(refused) > 0 {
-			h.editProductWithErrors(w, r, slug, refused, pages.AdminVariantDraft{})
+			h.editProductWithErrors(w, r, slug, refused, &draft)
 			return
 		}
 		h.notFound(w, r)
 	case len(errs) > 0:
-		h.editProductWithErrors(w, r, slug, errs, pages.AdminVariantDraft{})
+		h.editProductWithErrors(w, r, slug, errs, &draft)
 	default:
 		//nolint:gosec // G710: slug is the route's own path value
 		http.Redirect(w, r, "/admin/products/"+slug+"?ok=1", http.StatusSeeOther)
@@ -465,7 +471,7 @@ func (h *Handler) AddSpec(w http.ResponseWriter, r *http.Request) {
 		//nolint:gosec // G710: slug is the route's own path value
 		http.Redirect(w, r, "/admin/products/"+slug+"?specfailed=1", http.StatusSeeOther)
 	case len(errs) > 0:
-		h.editProductWithErrors(w, r, slug, errs, pages.AdminVariantDraft{})
+		h.editProductWithErrors(w, r, slug, errs, &pages.AdminVariantDraft{})
 	default:
 		//nolint:gosec // G710: slug is the route's own path value
 		http.Redirect(w, r, "/admin/products/"+slug+"?ok=1", http.StatusSeeOther)
@@ -488,7 +494,7 @@ func (h *Handler) RemoveSpec(w http.ResponseWriter, r *http.Request) {
 
 // editProductWithErrors re-renders the edit page at 422 with the refusals on it.
 func (h *Handler) editProductWithErrors(
-	w http.ResponseWriter, r *http.Request, slug string, errs map[string]string, draft pages.AdminVariantDraft,
+	w http.ResponseWriter, r *http.Request, slug string, errs map[string]string, draft *pages.AdminVariantDraft,
 ) {
 	view, err := h.store.Product(r.Context(), slug)
 	if err != nil {
@@ -501,7 +507,7 @@ func (h *Handler) editProductWithErrors(
 		return
 	}
 	view.Errors = errs
-	view.VariantDraft = draft
+	view.VariantDraft = *draft
 	web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.AdminProductForm(
 		layouts.Page{Title: view.Title(r.Context())}, view))
 }

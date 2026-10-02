@@ -23,6 +23,11 @@ type AdminVariant struct {
 	Safety        int32
 	Active        bool
 	ProductStatus string
+	// FormID is unique to one rendering of this row's adjust form.
+	FormID string
+	// DraftDelta is what staff typed in a refused adjustment and DeltaError the
+	// sentence under it.
+	DraftDelta, DeltaError string
 }
 
 // StockText is the stock on hand, as text.
@@ -60,9 +65,26 @@ type AdminTransition struct {
 	Label string
 }
 
+// QueueFilter is one view of the orders queue. It is not a fulfilment status:
+// pending orders are split by whether money is still owed, so the filters are
+// their own closed set. The values are the ?status= query values.
+type QueueFilter string
+
+// The orders queue's filters; QueueAll is every order.
+const (
+	QueueAll             QueueFilter = ""
+	QueueAwaitingPayment QueueFilter = "pending"
+	QueueReady           QueueFilter = "ready"
+	QueuePicking         QueueFilter = "picking"
+	QueueShipped         QueueFilter = "shipped"
+	QueueDelivered       QueueFilter = "delivered"
+	QueueCompleted       QueueFilter = "completed"
+	QueueCancelled       QueueFilter = "cancelled"
+)
+
 // AdminStatusTab is one filter in the order queue.
 type AdminStatusTab struct {
-	Value    FulfillmentStatus
+	Value    QueueFilter
 	Label    string
 	Count    int64
 	Selected bool
@@ -79,6 +101,7 @@ func (t AdminStatusTab) CountText() string { return strconv.FormatInt(t.Count, 1
 // about.
 type AdminDashboardView struct {
 	PendingOrders  int64
+	ReadyOrders    int64
 	PickingOrders  int64
 	LowStock       int64
 	ActiveProducts int64
@@ -89,6 +112,9 @@ type AdminDashboardView struct {
 
 // PendingText is how many orders are waiting to be paid.
 func (v AdminDashboardView) PendingText() string { return strconv.FormatInt(v.PendingOrders, 10) }
+
+// ReadyText is how many funded orders are waiting to be picked.
+func (v AdminDashboardView) ReadyText() string { return strconv.FormatInt(v.ReadyOrders, 10) }
 
 // PickingText is how many orders are being packed.
 func (v AdminDashboardView) PickingText() string { return strconv.FormatInt(v.PickingOrders, 10) }
@@ -115,7 +141,7 @@ type AdminOrdersView struct {
 
 	Term     string
 	Searched bool
-	Status   FulfillmentStatus
+	Status   QueueFilter
 	Orders   []AdminOrderRow
 	Tabs     []AdminStatusTab
 	Notice   string
@@ -183,17 +209,29 @@ type AdminOrderView struct {
 	// retries without collapsing a later, legitimate equal partial allowance.
 	AllowanceOperationID string
 	Committed            bool
-	Next                 []AdminTransition
-	CanShip              bool
-	Shippable            []AdminShippableLine
-	Notice               string
-	Timeline             []AdminOrderEvent
-	Shipments            []AdminShipment
-	DeliveryError        string
-	Delivery             AdminDelivery
-	Correctable          bool
-	PickupDestination    bool
-	PickupBrands         []PickupBrandChoice
+	// Unpaid is a pending order that still owes money and has no payment: the
+	// database refuses to move it into picking.
+	Unpaid        bool
+	Next          []AdminTransition
+	CanShip       bool
+	Shippable     []AdminShippableLine
+	Notice        string
+	Timeline      []AdminOrderEvent
+	Shipments     []AdminShipment
+	DeliveryError string
+	// ShipCarrier and ShipTracking keep what staff typed when the dispatch was
+	// refused; TrackingError marks the tracking field invalid.
+	ShipCarrier, ShipTracking string
+	TrackingError             string
+	ShipCarrierError          string
+	// ShipQtyError marks every quantity field of a refused dispatch, and
+	// ShipQty keeps what was typed in each, by order line id.
+	ShipQtyError      string
+	ShipQty           map[string]string
+	Delivery          AdminDelivery
+	Correctable       bool
+	PickupDestination bool
+	PickupBrands      []PickupBrandChoice
 
 	// RefundOffered is a paid order nothing has shipped from and no return
 	// exists for; RefundOpen is one whose refund before shipment Resume finishes.
@@ -308,6 +346,21 @@ func (v *AdminOrderView) Discount() string {
 
 // CanAdvance reports whether this order has any legal move left.
 func (v *AdminOrderView) CanAdvance() bool { return len(v.Next) > 0 }
+
+// NextIsDestructive reports that the first move offered is the cancellation, so
+// the menu must not preselect it.
+func (v *AdminOrderView) NextIsDestructive() bool {
+	return len(v.Next) > 0 && v.Next[0].Value == FulfillmentCancelled
+}
+
+// QtyValue is what a dispatch quantity field holds: what staff typed on a
+// refused dispatch, otherwise everything still outstanding.
+func (v *AdminOrderView) QtyValue(l *AdminShippableLine) string {
+	if typed, ok := v.ShipQty[l.OrderLineID]; ok {
+		return typed
+	}
+	return l.RemainingText()
+}
 
 // Final reports whether the order has ended. A paid order in picking has no
 // status move left either, and is not final: it ships or is refunded.
@@ -454,6 +507,9 @@ type AdminVariantsView struct {
 	Variants []AdminVariant
 	LowOnly  bool
 	Notice   string
+	// Return is this page's own address, filter and position, which each form
+	// posts back so a write returns to the page it was made on.
+	Return string
 }
 
 // Empty reports whether the list has nothing in it.
@@ -488,9 +544,11 @@ func (v AdminVariant) CompareText() string {
 	return strconv.FormatInt(v.CompareCents/100, 10)
 }
 
-// AdjustKey is the adjustment form's idempotency key.
+// AdjustKey is the adjustment form's idempotency key. It is spent for good in
+// the ledger, so it names the rendered form and not the stock level: stock
+// returns to an earlier figure, and a key built from it would then be refused.
 func (v AdminVariant) AdjustKey() string {
-	return "adj:" + v.SKU + ":" + strconv.FormatInt(int64(v.Stock), 10)
+	return "adj:" + v.SKU + ":" + v.FormID
 }
 
 // AdminMovement is one row of a variant's stock ledger.
@@ -559,15 +617,18 @@ type AdminMovementsView struct {
 	Safety      int32
 	Rows        []AdminMovement
 	Notice      string
+	// FormID is unique to one rendering of the goods-receipt form.
+	FormID string
 }
 
 // HasNotice reports whether to show the banner.
 func (v *AdminMovementsView) HasNotice() bool { return v.Notice != "" }
 
-// ReceiveKey is the goods-receipt form's idempotency key. Its prefix differs from
-// AdjustKey's, or a correction and a delivery against the same figure collide.
+// ReceiveKey is the goods-receipt form's idempotency key, named by the rendered
+// form for the reason AdjustKey is. Its prefix differs from AdjustKey's so the
+// two forms never share a key.
 func (v *AdminMovementsView) ReceiveKey() string {
-	return "rcv:" + v.SKU + ":" + strconv.FormatInt(int64(v.Stock), 10)
+	return "rcv:" + v.SKU + ":" + v.FormID
 }
 
 // Empty reports whether nothing has ever moved.

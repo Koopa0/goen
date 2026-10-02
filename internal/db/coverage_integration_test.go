@@ -16,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/koopa0/goen/internal/pickup"
+	"github.com/koopa0/goen/internal/ui/icons"
 )
 
 // Every test below derives what must be covered from the LIVE CATALOG, so a constraint added
@@ -195,6 +196,36 @@ func TestPickupBrandChoicesMatchDatabaseContract(t *testing.T) {
 	if code != "23514" || name != "order_private_data_pickup_brand_known" {
 		t.Fatalf("unknown pickup brand refused by SQLSTATE %s constraint %q, want 23514/order_private_data_pickup_brand_known: %v",
 			code, name, err)
+	}
+}
+
+// TestCategoryIconKeysMatchDatabaseContract binds the glyphs the renderer can
+// draw to the keys categories_icon_key_known admits. A key the picker offers
+// and the CHECK refuses fails the back-office form that offered it; a key the
+// CHECK admits and the renderer cannot draw is an empty tile.
+func TestCategoryIconKeysMatchDatabaseContract(t *testing.T) {
+	keys := icons.CategoryKeys()
+	if len(keys) == 0 {
+		t.Fatal("icons.CategoryKeys() is empty; this test would prove nothing")
+	}
+
+	var def string
+	if err := schemaPool(t).QueryRow(t.Context(), `
+		SELECT pg_get_constraintdef(oid)
+		FROM pg_constraint
+		WHERE conname = 'categories_icon_key_known'`).Scan(&def); err != nil {
+		t.Fatalf("read categories_icon_key_known: %v", err)
+	}
+	literals := regexp.MustCompile(`'([^']*)'::text`).FindAllStringSubmatch(def, -1)
+	admitted := make([]string, 0, len(literals))
+	for _, m := range literals {
+		admitted = append(admitted, m[1])
+	}
+	slices.Sort(admitted)
+	drawn := slices.Sorted(slices.Values(keys))
+	if !slices.Equal(admitted, drawn) {
+		t.Fatalf("categories_icon_key_known admits %v; icons.CategoryKeys() draws %v\n%s",
+			admitted, drawn, def)
 	}
 }
 
@@ -529,7 +560,7 @@ func TestReportingCannotReadCredentialsOrPII(t *testing.T) {
 		"audit_events": {[]string{"action", "after", "before", "entity_table", "request_id"},
 			"the back-office trail, which records WHO acted and never what a customer wrote"},
 		"brands":     {[]string{"name", "slug"}, published},
-		"categories": {[]string{"icon_key", "name", "name_en", "slug"}, published},
+		"categories": {[]string{"icon_key", "image_alt", "image_alt_en", "image_key", "name", "name_en", "slug", "tone"}, published},
 		"checkout_attempts": {[]string{"idempotency_key"},
 			"a server-issued replay key, which opens nothing without the cart cookie it is bound to"},
 		"coupons": {[]string{"code", "description", "kind"}, published},
@@ -581,7 +612,7 @@ func TestReportingCannotReadCredentialsOrPII(t *testing.T) {
 		"return_request_lines": {[]string{"inspection_note"}, "what the shop found in the parcel"},
 		"return_requests": {[]string{"resolution", "status"},
 			"the shop's decision; the customer's own reason is withheld"},
-		"sale_campaigns":           {[]string{"image_alt", "image_alt_en", "image_key", "slug", "title", "title_en"}, published},
+		"sale_campaigns":           {[]string{"image_alt", "image_alt_en", "image_key", "slug", "title", "title_en", "tone"}, published},
 		"shipping_method_versions": {[]string{"carrier", "carrier_en", "name", "name_en"}, published},
 		"shipping_methods":         {[]string{"code", "destination_kind"}, published},
 		"shipping_zone_prefixes":   {[]string{"prefix"}, published},

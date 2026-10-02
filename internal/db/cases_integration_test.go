@@ -177,6 +177,16 @@ var checkCases = []checkCase{
 		accept:     `INSERT INTO categories (id, slug, name, icon_key, position) VALUES ('00000092-0000-4000-8000-000000000092', 'known-icon', '已知圖示', 'laptop', 15);`,
 	},
 	{
+		constraint: "categories_tone_known",
+		reject:     `INSERT INTO categories (id, slug, name, tone, position) VALUES ('00000093-0000-4000-8000-000000000093', 'unknown-tone', '未知色調', 'neon', 40);`,
+		accept:     `INSERT INTO categories (id, slug, name, tone, position) VALUES ('00000093-0000-4000-8000-000000000093', 'known-tone', '已知色調', 'sage', 40);`,
+	},
+	{
+		constraint: "categories_image_has_alt",
+		reject:     `INSERT INTO categories (id, slug, name, image_key, image_alt, position) VALUES ('00000094-0000-4000-8000-000000000094', 'photo-no-alt', '有圖館別', 'campaign-banner-01.webp', E'\t', 41);`,
+		accept:     `INSERT INTO categories (id, slug, name, image_key, image_alt, position) VALUES ('00000094-0000-4000-8000-000000000094', 'photo-with-alt', '有圖館別', 'campaign-banner-01.webp', '館別照片', 41);`,
+	},
+	{
 		constraint: "categories_not_own_parent",
 		reject:     `SET LOCAL session_replication_role = replica; INSERT INTO categories (id, parent_id, slug, name, position) VALUES ('11110002-0000-4000-8000-000000000001', '11110002-0000-4000-8000-000000000001', 'tablets', '平板', 13);`,
 		accept:     `SET LOCAL session_replication_role = replica; INSERT INTO categories (id, parent_id, slug, name, position) VALUES ('11110002-0000-4000-8000-000000000001', '22222222-2222-4222-8222-222222222222', 'tablets', '平板', 13);`,
@@ -348,6 +358,12 @@ var checkCases = []checkCase{
 		accept: `INSERT INTO product_copurchases (product_id, other_product_id, orders)
 		         VALUES ('33333333-3333-4333-8333-333333333333',
 		                 '3333aaaa-3333-4333-8333-333333333333', 1);`,
+	},
+	{
+		constraint: "copurchase_refreshes_singleton_check",
+		// A second row would give health two answers to "when was it last rebuilt".
+		reject: `INSERT INTO copurchase_refreshes (singleton, refreshed_at) VALUES (false, now());`,
+		accept: `INSERT INTO copurchase_refreshes (singleton, refreshed_at) VALUES (true, now());`,
 	},
 	{
 		constraint: "products_warranty_months_sane",
@@ -1671,6 +1687,11 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 		constraint: "sale_campaigns_image_has_alt",
 		reject:     `INSERT INTO sale_campaigns (slug, title, ends_at, image_key, image_alt) VALUES ('header-no-alt', '有圖活動', now() + interval '7 days', 'campaign-banner-01.webp', E'\t');`,
 		accept:     `INSERT INTO sale_campaigns (slug, title, ends_at, image_key, image_alt) VALUES ('header-no-alt', '有圖活動', now() + interval '7 days', 'campaign-banner-01.webp', '限時優惠商品');`,
+	},
+	{
+		constraint: "sale_campaigns_tone_known",
+		reject:     `INSERT INTO sale_campaigns (slug, title, ends_at, tone) VALUES ('unknown-tone', '未知色調活動', now() + interval '7 days', 'neon');`,
+		accept:     `INSERT INTO sale_campaigns (slug, title, ends_at, tone) VALUES ('unknown-tone', '已知色調活動', now() + interval '7 days', 'mist');`,
 	},
 	{
 		constraint: "sale_campaigns_slug_format",

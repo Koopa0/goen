@@ -44,7 +44,10 @@ func (s *Store) fillRefundBeforeShipment(ctx context.Context, view *pages.AdminO
 	}
 	for _, n := range NextStatuses(view.Status) {
 		if (n == pages.FulfillmentCancelled && view.Committed) ||
-			(n == pages.FulfillmentPicking && refund.ReturnRequestID.Valid) {
+			(n == pages.FulfillmentPicking && (refund.ReturnRequestID.Valid || view.Unpaid)) ||
+			// orders_finished_when_shipped: an order that still owes a parcel is
+			// not finished, and Shippable is what is still outstanding.
+			(n == pages.FulfillmentCompleted && len(view.Shippable) > 0) {
 			continue
 		}
 		view.Next = append(view.Next, pages.AdminTransition{Value: n, Label: StatusLabel(ctx, n)})

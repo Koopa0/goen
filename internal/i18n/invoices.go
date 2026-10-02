@@ -25,9 +25,9 @@ var (
 	})
 
 	KeyAdminQueueNoInvoicing = key("admin.queue.noinvoicing", Message{
-		ZhHant: "尚未設定加值中心,無法開立發票。設定 GOEN_ECPAY_MERCHANT_ID 後才會開放。",
+		ZhHant: "尚未設定加值中心,無法開立發票。需同時設定 GOEN_ECPAY_MERCHANT_ID、GOEN_ECPAY_HASH_KEY 與 GOEN_ECPAY_HASH_IV 才會開放。",
 		En: "No e-invoice provider is configured, so nothing can be issued. Setting " +
-			"GOEN_ECPAY_MERCHANT_ID is what turns this on.",
+			"GOEN_ECPAY_MERCHANT_ID, GOEN_ECPAY_HASH_KEY and GOEN_ECPAY_HASH_IV together is what turns this on.",
 	})
 
 	KeyAdminQueueVoided = key("admin.queue.voided", Message{ZhHant: "(已作廢)", En: "(voided)"})

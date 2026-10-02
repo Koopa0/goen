@@ -26,7 +26,7 @@ templ Campaign(p layouts.Page, v CampaignView) {
 					fetchpriority="high"
 				/>
 			}
-			<div class="goen-pagehead">
+			<div class="goen-pagehead" data-tone={ v.Tone.Attr() }>
 				<p class="goen-pagehead__eyebrow">{ i18n.T(ctx, i18n.KeyCampaignEyebrow) }</p>
 				<h1 class="goen-pagehead__title">{ v.Title }</h1>
 				<p class="goen-pagehead__sub">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCampaignEndsAt), v.EndsAt) }</p>
@@ -42,7 +42,7 @@ templ Campaign(p layouts.Page, v CampaignView) {
 			} else {
 				<h2 class="goen-sr-only">{ i18n.T(ctx, i18n.KeyResultsHeading) }</h2>
 				<ul class="goen-tiles__grid" role="list">
-					for _, t := range v.Products {
+					for _, t := range FirstRowEager(v.Products) {
 						@Tile(t)
 					}
 				</ul>
@@ -63,7 +63,7 @@ templ campaignStrip(campaigns []CampaignSummary) {
 					<a class="goen-campaigns__item" href={ templ.SafeURL(c.Href()) }>
 						<span class="goen-campaigns__title">{ c.Title }</span>
 						<span class="goen-campaigns__meta">
-							{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCampaignProducts), c.ProductsText()) }
+							{ i18n.Count(ctx, i18n.KeyCampaignProducts, c.Products, c.ProductsText()) }
 							if c.EndsIn != "" {
 								· { c.EndsIn }
 							}

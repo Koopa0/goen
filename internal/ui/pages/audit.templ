@@ -34,7 +34,14 @@ templ AdminAudit(p layouts.Page, v AuditView) {
 							<span class="goen-admin__auditaction">{ e.Label(ctx) }</span>
 							<span class="goen-admin__meta">{ e.At }</span>
 						</div>
-						<span class="goen-admin__meta">{ e.ActorText(ctx) } · { e.Entity }</span>
+						<span class="goen-admin__meta">
+							{ e.ActorText(ctx) } · { e.EntityLabel(ctx) }
+							if e.Subject != "" && e.Href != "" {
+								· <a href={ templ.SafeURL(e.Href) }>{ e.Subject }</a>
+							} else if e.Subject != "" {
+								· { e.Subject }
+							}
+						</span>
 						if e.Detail != "" {
 							<code class="goen-admin__auditdetail">{ e.Detail }</code>
 						}

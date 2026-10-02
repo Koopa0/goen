@@ -166,7 +166,9 @@ templ AdminFAQ(p layouts.Page, v *AdminFAQView) {
 				</div>
 			} else {
 				<ul class="goen-admin__coupons" role="list">
-					for _, e := range v.Rows {
+					for i := range v.Rows {
+						{{ e := v.Listed(&v.Rows[i]) }}
+						{{ stored := &v.Rows[i] }}
 						<li class="goen-modqueue__item">
 							<div class="goen-modqueue__head">
 								<p class="goen-modqueue__title">{ e.Category }</p>
@@ -183,10 +185,12 @@ templ AdminFAQ(p layouts.Page, v *AdminFAQView) {
 										{ i18n.T(ctx, i18n.KeyAdminFaqpQuestion) }
 									}
 									@components.Input(components.FieldProps{
-										ID:    "q-" + e.ID,
-										Name:  "question",
-										Value: e.Question,
-										Attrs: templ.Attributes{"maxlength": "200", "required": true},
+										ID:        "q-" + e.ID,
+										Name:      "question",
+										Value:     e.Question,
+										Invalid:   v.RowErr(stored, "question"),
+										Describes: "faq-err-question-" + e.ID,
+										Attrs:     templ.Attributes{"maxlength": "200", "required": true},
 									})
 								</div>
 								<div class="goen-admin__field">
@@ -194,9 +198,11 @@ templ AdminFAQ(p layouts.Page, v *AdminFAQView) {
 										{ i18n.T(ctx, i18n.KeyAdminFaqpAnswer) }
 									}
 									@components.Textarea(components.FieldProps{
-										ID:    "a-" + e.ID,
-										Name:  "answer",
-										Attrs: templ.Attributes{"maxlength": "2000", "required": true, "rows": "3"},
+										ID:        "a-" + e.ID,
+										Name:      "answer",
+										Invalid:   v.RowErr(stored, "answer"),
+										Describes: "faq-err-answer-" + e.ID,
+										Attrs:     templ.Attributes{"maxlength": "2000", "required": true, "rows": "3"},
 									}) {
 										{ e.Answer }
 									}
@@ -224,6 +230,9 @@ templ AdminFAQ(p layouts.Page, v *AdminFAQView) {
 										{ e.AnswerEn }
 									}
 								</div>
+								for _, f := range v.RowErrFields(stored) {
+									<p class="ui-error-text" id={ "faq-err-" + f + "-" + e.ID } role="alert">{ v.EditErrors[f] }</p>
+								}
 								<input type="hidden" name="category" value={ e.Category }/>
 								<input type="hidden" name="category_en" value={ e.CategoryEn }/>
 								<div class="goen-modqueue__actions">

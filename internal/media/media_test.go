@@ -156,7 +156,7 @@ func TestNormalizedOutputHasItsOwnByteCap(t *testing.T) {
 		t.Fatalf("one byte beyond normalized-output ceiling = %v, want ErrTooLarge", err)
 	}
 	img := image.NewRGBA(image.Rect(0, 0, 1, 1))
-	_, _, err := normaliseDecoded(img, "png", func(image.Image, string) ([]byte, string, error) {
+	_, _, err := normaliseDecoded(img, "png", 1, func(image.Image, string) ([]byte, string, error) {
 		return make([]byte, MaxStoredBytes+1), "image/png", nil
 	})
 	if !errors.Is(err, ErrTooLarge) {
@@ -169,7 +169,7 @@ func TestDecodedBoundsAreRefusedBeforeEncoding(t *testing.T) {
 
 	called := false
 	img := boundsOnlyImage{bounds: image.Rect(0, 0, MaxDimension+1, 1)}
-	_, _, err := normaliseDecoded(img, "png", func(image.Image, string) ([]byte, string, error) {
+	_, _, err := normaliseDecoded(img, "png", 1, func(image.Image, string) ([]byte, string, error) {
 		called = true
 		return []byte("must not be produced"), "image/png", nil
 	})
@@ -465,5 +465,44 @@ func TestAnUploadFormWhoseTextCannotBeStoredIsRefused(t *testing.T) {
 				t.Fatalf("%s = %v, want web.ErrFormText", tt.name, err)
 			}
 		})
+	}
+}
+
+// transparentGIFBytes is a red square on a transparent ground.
+func transparentGIFBytes(t *testing.T, w, h int) []byte {
+	t.Helper()
+	img := image.NewPaletted(image.Rect(0, 0, w, h),
+		color.Palette{color.Transparent, color.RGBA{R: 255, A: 255}})
+	for y := h / 4; y < h*3/4; y++ {
+		for x := w / 4; x < w*3/4; x++ {
+			img.SetColorIndex(x, y, 1)
+		}
+	}
+	var buf bytes.Buffer
+	if err := gif.Encode(&buf, img, nil); err != nil {
+		t.Fatalf("encode: %v", err)
+	}
+	return buf.Bytes()
+}
+
+// A transparent pixel written as JPEG comes out black, so an upload with alpha
+// is stored as PNG and keeps its transparent ground.
+func TestAnUploadWithAlphaKeepsItAsPNG(t *testing.T) {
+	obj, data, err := Normalise(bytes.NewReader(transparentGIFBytes(t, 20, 20)))
+	if err != nil {
+		t.Fatalf("refused: %v", err)
+	}
+	if obj.ContentType != "image/png" {
+		t.Fatalf("content type is %q, want image/png", obj.ContentType)
+	}
+	stored, err := png.Decode(bytes.NewReader(data))
+	if err != nil {
+		t.Fatalf("stored bytes are not a PNG: %v", err)
+	}
+	if _, _, _, a := stored.At(0, 0).RGBA(); a != 0 {
+		t.Errorf("the transparent corner has alpha %d, want 0", a)
+	}
+	if _, _, _, a := stored.At(10, 10).RGBA(); a == 0 {
+		t.Error("the opaque square lost its alpha")
 	}
 }
