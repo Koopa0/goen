@@ -20,6 +20,7 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 	mux.HandleFunc("GET /admin/products/new", ac.RequireStaff(h.NewProduct))
 	mux.HandleFunc("GET /admin/products/{slug}", ac.RequireStaff(h.EditProduct))
 	mux.HandleFunc("POST /admin/products/{slug}", ac.RequireStaff(h.UpdateProduct))
+	mux.HandleFunc("POST /admin/products/{slug}/label", ac.RequireStaff(h.ProductLabel))
 	mux.HandleFunc("POST /admin/products/{slug}/status", ac.RequireStaff(h.PublishProduct))
 	mux.HandleFunc("POST /admin/products/{slug}/variants", ac.RequireStaff(h.AddVariant))
 	mux.HandleFunc("GET /admin/stock", ac.RequireStaff(h.Variants))

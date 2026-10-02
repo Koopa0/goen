@@ -827,7 +827,13 @@ SELECT p.id, p.slug, p.name, coalesce(p.summary, '') AS summary, p.description,
        coalesce(p.summary_en, '') AS summary_en,
        coalesce(p.description_en, '') AS description_en,
        coalesce(p.warranty_note, '') AS warranty_note, p.status, p.published_at,
-       p.brand_id, p.category_id
+       p.brand_id, p.category_id,
+       coalesce(p.origin, '') AS origin, coalesce(p.origin_en, '') AS origin_en,
+       coalesce(p.responsible_party_name, '') AS responsible_party_name,
+       coalesce(p.responsible_party_phone, '') AS responsible_party_phone,
+       coalesce(p.responsible_party_address, '') AS responsible_party_address,
+       coalesce(p.net_quantity::text, '')::text AS net_quantity,
+       coalesce(p.net_unit, '') AS net_unit, p.min_age_months
 FROM products p WHERE p.slug = $1;
 
 -- name: AdminProductVariants :many
@@ -2181,3 +2187,17 @@ FROM order_private_data pd
 LEFT JOIN shipping_zone_prefixes old_zone ON old_zone.prefix = left(pd.postal_code, 3)
 LEFT JOIN shipping_zone_prefixes new_zone ON new_zone.prefix = left(@new_postal_code::text, 3)
 WHERE pd.order_id = @order_id;
+
+-- Lock before reading the label replaced, so the audit records the actual prior facts.
+-- name: LockProductLabel :one
+SELECT id, slug, origin, origin_en, responsible_party_name, responsible_party_phone,
+       responsible_party_address, net_quantity, net_unit, min_age_months
+FROM products WHERE slug = $1 FOR UPDATE;
+
+-- name: SetProductLabel :exec
+UPDATE products SET origin = nullif(@origin::text, ''), origin_en = nullif(@origin_en::text, ''),
+    responsible_party_name = nullif(@responsible_party_name::text, ''),
+    responsible_party_phone = nullif(@responsible_party_phone::text, ''),
+    responsible_party_address = nullif(@responsible_party_address::text, ''),
+    net_quantity = @net_quantity, net_unit = nullif(@net_unit::text, ''), min_age_months = @min_age_months
+WHERE id = @id;
