@@ -1,6 +1,7 @@
 package pages
 
 import (
+	"net/url"
 	"strconv"
 	"strings"
 	"testing"
@@ -222,5 +223,20 @@ func TestTheReviewFormWarnsBeforeSubmittingAndRefusesToTheForm(t *testing.T) {
 		if !strings.Contains(markup, want) {
 			t.Errorf("the review form lacks %s", want)
 		}
+	}
+}
+
+func TestTheRestockFormPostsFromTheChosenOptions(t *testing.T) {
+	t.Parallel()
+	view := ProductView{Slug: "book", Options: []ProductOption{
+		{Name: "顏色", Values: []ProductOptionValue{{Value: "太空銀", Selected: true}, {Value: "黑"}}},
+		{Name: "容量", Values: []ProductOptionValue{{Value: "16GB/512GB", Selected: true}}},
+	}}
+	want := "/p/book/notify?" + url.Values{"顏色": {"太空銀"}, "容量": {"16GB/512GB"}}.Encode()
+	if got := view.NotifyAction(); got != want {
+		t.Errorf("NotifyAction = %q; want %q", got, want)
+	}
+	if got := (&ProductView{Slug: "charger"}).NotifyAction(); got != "/p/charger/notify" {
+		t.Errorf("a product without options posts to %q", got)
 	}
 }

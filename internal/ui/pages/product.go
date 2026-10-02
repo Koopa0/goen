@@ -3,6 +3,7 @@ package pages
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"slices"
 	"strconv"
 	"strings"
@@ -377,8 +378,23 @@ func (v *ProductView) NotifyTaken() bool { return v.NotifyOutcome == "1" }
 // NotifyRefused reports whether the address was not usable.
 func (v *ProductView) NotifyRefused() bool { return v.NotifyOutcome == "bad" }
 
-// NotifyAction is where the restock form posts.
-func (v *ProductView) NotifyAction() string { return "/p/" + v.Slug + "/notify" }
+// NotifyAction is where the restock form posts. It carries the chosen options,
+// because the redirect that follows must land on the same selection or the
+// answer is not on the page it returns to.
+func (v *ProductView) NotifyAction() string {
+	q := url.Values{}
+	for i := range v.Options {
+		for _, val := range v.Options[i].Values {
+			if val.Selected {
+				q.Set(v.Options[i].Name, val.Value)
+			}
+		}
+	}
+	if len(q) == 0 {
+		return "/p/" + v.Slug + "/notify"
+	}
+	return "/p/" + v.Slug + "/notify?" + q.Encode()
+}
 
 // HasRecommendations reports whether the strip has anything real to show.
 func (v *ProductView) HasRecommendations() bool { return len(v.AlsoBought) > 0 }
