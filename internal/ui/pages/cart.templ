@@ -16,7 +16,7 @@ templ Cart(p layouts.Page, v CartView) {
 			<div class="goen-pagehead">
 				<h1 class="goen-pagehead__title">{ i18n.T(ctx, i18n.KeyCart) }</h1>
 				if !v.Empty() {
-					<p class="goen-pagehead__sub">{ i18n.Count(ctx, i18n.KeyCartItemCount, v.ItemCount, v.ItemCountText()) }</p>
+					<p id="cart-count" class="goen-pagehead__sub" role="status">{ i18n.Count(ctx, i18n.KeyCartItemCount, v.ItemCount, v.ItemCountText()) }</p>
 				}
 			</div>
 			// Always present, so an update that changes only the notice has
@@ -178,6 +178,7 @@ templ cartLine(l CartLine) {
 			hx-post="/cart/items/update"
 			hx-swap="none"
 			hx-select-oob={ cartLineSwap(l.VariantID) }
+			hx-sync="closest .goen-cart__lines:queue all"
 		>
 			<input type="hidden" name="variant" value={ l.VariantID }/>
 			<label class="goen-sr-only" for={ "qty-" + l.VariantID }>{ i18n.T(ctx, i18n.KeyQuantity) }</label>
@@ -204,7 +205,9 @@ templ cartLine(l CartLine) {
 				Variant: components.VariantGhost,
 				Size:    components.SizeSmall,
 				Class:   "goen-line__remove",
-				Attrs:   templ.Attributes{"name": "remove", "value": "1"},
+				// Not dimmed while a quantity request is pending: the request
+				// is about the number, and Remove stays available beside it.
+				Attrs: templ.Attributes{"name": "remove", "value": "1", "data-feedback-skip": true},
 			}, "submit") {
 				{ i18n.T(ctx, i18n.KeyRemove) }
 			}

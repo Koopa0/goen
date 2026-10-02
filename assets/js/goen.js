@@ -277,8 +277,10 @@
      * - A refusal is reconciled. The server answers a quantity it cannot
      *   honour with the page showing the quantity it kept, so the field takes
      *   that number back and the notice region carries the reason.
-     * - A change made while a request was in flight is sent after it, because
-     *   the request feedback drops a submit that arrives mid-request.
+     * - A change made while a request was in flight is sent once after it,
+     *   because the request feedback drops a submit that arrives mid-request.
+     * - Updates run one at a time across lines (hx-sync on the form), so the
+     *   last response is rendered after every change and its summary is whole.
      *
      * A response without the line (it was removed) or no usable response at
      * all is answered by loading the cart, which is always correct.
@@ -307,6 +309,9 @@
         return;
       }
       if (field.value !== form.dataset.sent) {
+        // One follow-up with the latest value. The debounce timer a change made
+        // during the request left behind would send the same value again.
+        clearTimeout(waiting.get(form));
         if (form.checkValidity()) form.requestSubmit();
         return;
       }
@@ -327,7 +332,7 @@
       else element.setAttribute(name, value);
     };
     const begin = (form) => {
-      const buttons = [...form.querySelectorAll('button[type="submit"], input[type="submit"]')]
+      const buttons = [...form.querySelectorAll('button[type="submit"]:not([data-feedback-skip]), input[type="submit"]')]
         .map((button) => [button, button.getAttribute("aria-disabled")]);
       pending.set(form, { busy: form.getAttribute("aria-busy"), buttons });
       form.setAttribute("aria-busy", "true");

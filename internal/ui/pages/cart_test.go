@@ -1112,7 +1112,9 @@ func TestCartLineUpdateSwapsOnlyWhatChanges(t *testing.T) {
 	for _, want := range []string{
 		`hx-post="/cart/items/update"`,
 		`hx-swap="none"`,
-		`hx-select-oob="#line-body-` + id + `,#line-money-` + id + `,#cart-summary,#cart-notices,#cart-link"`,
+		`hx-select-oob="#line-body-` + id + `,#line-money-` + id + `,#cart-summary,#cart-notices,#cart-link,#cart-count:innerHTML"`,
+		`hx-sync="closest .goen-cart__lines:queue all"`,
+		`data-feedback-skip`,
 		`id="line-body-` + id + `"`,
 		`id="line-money-` + id + `"`,
 	} {
