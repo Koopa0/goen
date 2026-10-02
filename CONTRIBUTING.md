@@ -80,13 +80,17 @@ elsewhere.
 
 The `layout` job runs that same command on every pull request, against a fresh
 database, the seeded catalogue and the runner's Chrome, and keeps `layout.log`
-as an artifact. It also runs axe-core's WCAG 2 A and AA rules once per route
+as an artifact. goen targets WCAG 2.2 level AA. The axe run selects `wcag2a`,
+`wcag2aa`, `wcag21a`, `wcag21aa` and `wcag22aa` once per route
 through the CDP session the check already holds, fetched at `AXE_CORE_VERSION`
 and verified against `AXE_CORE_SHA256` rather than loaded from a CDN; a finding
-at impact `serious` or `critical` fails the run unless `scripts/axe-baseline.json`
-already records that route and rule, and the run prints the exact replacement for
-that file whenever the set moves. The local recipe above is unchanged: `make run`
-in one shell, `make check-layout` in another.
+under those WCAG tags at impact `serious` or `critical` fails the run unless
+`scripts/axe-baseline.json` already records that route and rule, and the run prints the exact replacement for
+that file whenever the set moves. Best-practice findings remain advisory. The log
+names the pinned rule set, rules actually executed and incomplete checks needing
+manual review. An automated pass is not full WCAG conformance, screen-reader
+acceptance or real Windows High Contrast evidence. The local recipe above is unchanged: `make run` in one
+shell, `make check-layout` in another.
 
 Run the gate unpiped and report its exit status. A pipe reports the status of
 its last command, which has read a red gate as green here before.
