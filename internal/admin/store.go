@@ -310,7 +310,7 @@ func (s *Store) Order(ctx context.Context, number string) (admin.OrderView, erro
 	for i := range events {
 		e := &events[i]
 		view.Timeline = append(view.Timeline, admin.OrderEvent{
-			Kind: e.Kind, Note: e.Note.String,
+			Kind: pages.OrderEventKind(e.Kind), Note: e.Note.String,
 			At: shoptime.Minute(e.OccurredAt), Actor: e.ActorName, System: e.BySystem,
 		})
 	}

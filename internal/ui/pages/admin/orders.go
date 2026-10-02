@@ -310,7 +310,7 @@ type Delivery struct {
 
 // OrderEvent is one step in an order's history, as the shop sees it.
 type OrderEvent struct {
-	Kind  string
+	Kind  pages.OrderEventKind
 	Note  string
 	At    string
 	Actor string
@@ -328,7 +328,7 @@ func (e OrderEvent) By(ctx context.Context) string {
 		return e.Actor
 	case e.System:
 		return i18n.T(ctx, i18n.KeyAdminActorSystem)
-	case e.Kind == "cancelled":
+	case e.Kind == pages.EventCancelled:
 		return i18n.T(ctx, i18n.KeyAdminActorCustomer)
 	default:
 		return i18n.T(ctx, i18n.KeyAdminActorSystem)
