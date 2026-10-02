@@ -437,6 +437,12 @@ const ACCESSIBILITY = `
     // not flagged: the rule is that somebody decided, not that every image speaks.
     imagesWithoutAlt: [...document.querySelectorAll('img:not([alt])')]
       .slice(0, 3).map((e) => e.getAttribute('src') || '(no src)'),
+    // A field rule whose pattern the browser cannot compile is ignored without a
+    // word, and the field it guards is never refused. The v flag is what the
+    // pattern attribute is compiled with.
+    uncompiledRulePatterns: [...document.querySelectorAll('[data-rule][pattern]')].filter((f) => {
+      try { new RegExp('^(?:' + f.getAttribute('pattern') + ')$', 'v'); return false; } catch (e) { return true; }
+    }).slice(0, 3).map((f) => f.getAttribute('data-rule') + ' #' + f.id),
     // A control nobody can name. A label[for], an aria-label, an aria-labelledby, a
     // wrapping label, or a title — any of them is a decision; none is a control
     // announced as "edit text, blank".
@@ -704,6 +710,9 @@ const checkAccessibility = (at, got) => {
   for (const src of got.imagesWithoutAlt || []) {
     fail(at, `image has no alt attribute: ${src} — alt="" is correct for decoration, ` +
       `absent means nobody decided`);
+  }
+  for (const f of got.uncompiledRulePatterns || []) {
+    fail(at, `field rule pattern does not compile under the v flag: ${f} — the browser ignores it silently`);
   }
   for (const c of got.unnamedControls || []) {
     fail(at, `form control with no accessible name: ${c} — announced as "edit text, blank"`);

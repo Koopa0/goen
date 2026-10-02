@@ -111,7 +111,7 @@ func cat(parts ...[]input) []input {
 var tables = map[string][]input{
 	"email": cat(
 		ok("a@b.co", "user.name+tag@example.com", " a@b.co ", "a@b.co\n", "用戶@例え.jp", "a@b_c.co",
-			"ａ@b.co", "a@[1.2.3.4]", "a(b)@c.co", "a@b..co", "a.@b.co", ".a@b.co", "\"a b\"@c.co", "a@b.c"),
+			"ａ@b.co", "a\u00a0b@c.co", "a@b\u00a0c.co", "a@[1.2.3.4]", "a(b)@c.co", "a@b..co", "a.@b.co", ".a@b.co", "\"a b\"@c.co", "a@b.c"),
 		bad("a@b", "a@b.", "a@.co", "@b.co", "a@@b.co", "a b@c.co", "a@b c.co", "Name <a@b.co>",
 			"a@b.co,c@d.co", "a@b.co;", "user@localhost", "plain", "", "   "),
 	),
@@ -196,6 +196,60 @@ func TestTaxIDVectorsTheBrowserMirrors(t *testing.T) {
 	} {
 		if got := invoice.ValidTaxID(id); got != want {
 			t.Errorf("ValidTaxID(%s) = %t, want %t: update assets/js/goen.js's taxid check", id, got, want)
+		}
+	}
+}
+
+// classes returns the contents of each character class in a pattern.
+func classes(pattern string) []string {
+	var out []string
+	rs := []rune(pattern)
+	for i := 0; i < len(rs); i++ {
+		switch rs[i] {
+		case '\\':
+			i++
+		case '[':
+			start := i + 1
+			for i++; i < len(rs) && rs[i] != ']'; i++ {
+				if rs[i] == '\\' {
+					i++
+				}
+			}
+			if i < len(rs) {
+				out = append(out, string(rs[start:i]))
+			}
+		}
+	}
+	return out
+}
+
+// TestPatternsAreWrittenForTheBrowsersVFlag holds each pattern to what the v flag
+// reads inside a character class. A pattern the browser cannot compile is
+// ignored silently, so the field it guards would never be refused. Go's regexp
+// accepts all of these, which is why only a check on the source can catch them.
+func TestPatternsAreWrittenForTheBrowsersVFlag(t *testing.T) {
+	t.Parallel()
+	doubled := []string{"&&", "!!", "##", "$$", "%%", "**", "++", ",,", "..", "::", ";;", "<<", "==", ">>", "??", "@@", "^^", "``", "~~"}
+	for _, rule := range fieldrule.All {
+		for _, class := range classes(rule.Pattern) {
+			rs := []rune(strings.TrimPrefix(class, "^"))
+			for i := 0; i < len(rs); i++ {
+				switch rs[i] {
+				case '\\':
+					i++
+				case '(', ')', '[', ']', '{', '}', '/', '|':
+					t.Errorf("%s: %q is unescaped inside the class [%s]; the v flag refuses it", rule.Name, rs[i], class)
+				case '-':
+					if i == 0 || i == len(rs)-1 {
+						t.Errorf("%s: a bare hyphen at the end of the class [%s]; the v flag needs it escaped", rule.Name, class)
+					}
+				}
+			}
+			for _, d := range doubled {
+				if strings.Contains(class, d) {
+					t.Errorf("%s: %q inside the class [%s] is a reserved double punctuator under the v flag", rule.Name, d, class)
+				}
+			}
 		}
 	}
 }

@@ -40,12 +40,16 @@ const (
 	// punct is what a phone number may carry between its digits, in ASCII or
 	// the full-width forms FoldWidth maps onto them (and the ideographic space).
 	punct = "[\\-\\(\\)\\+ 　＋－（）]*"
+	// The classes below name ASCII whitespace outright: JS \s also matches
+	// U+00A0 and the rest, which RE2 does not, and net/mail accepts them in a
+	// local part, so a \s here would make the browser stricter than the server.
+	//
 	// atext are the characters of an address's local part and of a domain label
 	// that net/mail would take apart. It is deliberately lenient: it never
 	// refuses what email.Valid accepts, and a few things it accepts email.Valid
 	// refuses (a leading dot, two dots), which the server answers.
-	atext = "[^\\s@\"\\(\\),:;<>\\[\\]\\\\]"
-	label = "[^\\s@\"\\(\\),:;<>\\[\\]\\\\\\.]"
+	atext = "[^\t\n\v\f\r @\"\\(\\),:;<>\\[\\]\\\\]"
+	label = "[^\t\n\v\f\r @\"\\(\\),:;<>\\[\\]\\\\\\.]"
 )
 
 // Rule is one field's client-side contract.
@@ -80,7 +84,7 @@ var (
 	Email = newRule(Rule{
 		Name:      "email",
 		InputMode: "email",
-		Pattern:   ws + atext + "+@(?:" + label + "+(?:\\." + label + "+)+|\\[[^\\s\\[\\]\\\\]*\\.[^\\s\\[\\]\\\\]*\\])" + ws,
+		Pattern:   ws + atext + "+@(?:" + label + "+(?:\\." + label + "+)+|\\[[^\t\n\v\f\r \\[\\]\\\\]*\\.[^\t\n\v\f\r \\[\\]\\\\]*\\])" + ws,
 		Message:   i18n.KeyCheckoutEmailMalformed,
 	})
 
@@ -106,7 +110,7 @@ var (
 	// ı and ſ are there because strings.ToUpper turns them into I and S.
 	MobileCarrier = newRule(Rule{
 		Name:    "invoice_carrier",
-		Pattern: ws + "[/／][0-9A-Za-zıſ０-９Ａ-Ｚａ-ｚ\\+＋\\-－\\.．]{7}" + ws,
+		Pattern: ws + "[\\/／][0-9A-Za-zıſ０-９Ａ-Ｚａ-ｚ\\+＋\\-－\\.．]{7}" + ws,
 		Message: i18n.KeyCarrierMalformed,
 	})
 

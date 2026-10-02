@@ -337,8 +337,9 @@
    * being typed; once it has been marked invalid it is re-checked on every
    * keystroke, so the message goes the moment the value is right. The message
    * lands in the element the 422 page uses (<id>-error, or data-rule-error), so
-   * both paths read alike. The browser's own bubbles are off for these forms —
-   * the script drives the messages, and the server stays authoritative.
+   * both paths read alike. The browser's own validation still blocks a submit;
+   * for a refused ruled field the script shows the message in place of the
+   * bubble. The server stays authoritative.
    *
    * Delegated from the document, so a form that arrives in a swap needs no
    * second initialisation. Without this file every form behaves as the server
@@ -433,16 +434,32 @@
       }
     };
 
-    // The script drives the messages, so the browser's own are turned off for
-    // any form that has a ruled field. Done on first contact rather than on
-    // load, so a swapped-in form is covered and no-script browsers keep theirs.
-    document.addEventListener("focusin", (event) => {
-      if (!ruled(event.target) || !event.target.form) return;
-      event.target.form.noValidate = true;
-    });
+    // Submit stays blocked by the browser's own validation. For a ruled field
+    // holding a value the rule refuses, the script gives the message instead of
+    // the bubble and moves focus to the first such field. Everything else (an
+    // empty required field, a constraint the rule does not state) keeps the
+    // browser's report. invalid does not bubble, hence the capture phase.
+    document.addEventListener("invalid", (event) => {
+      const field = event.target;
+      if (!ruled(field) || field.value === "" || !refused(field)) return;
+      event.preventDefault();
+      mark(field, true);
+      const form = field.form;
+      if (!form || form.dataset.ruleFocusing) return;
+      form.dataset.ruleFocusing = "";
+      queueMicrotask(() => {
+        delete form.dataset.ruleFocusing;
+        const first = form.querySelector(":invalid");
+        if (first && first.getAttribute("aria-invalid") === "true") first.focus();
+      });
+    }, true);
 
     document.addEventListener("focusout", (event) => {
       if (!ruled(event.target)) return;
+      // Leaving for a submit button: a message appearing now would move the
+      // button from under the pointer and lose the press. The submit itself is
+      // validated, and its invalid handler gives the message.
+      if (event.relatedTarget instanceof Element && event.relatedTarget.matches('button[type="submit"], input[type="submit"], button:not([type])')) return;
       // An empty field is the server's "required", and a tab through a form
       // should not start by calling every field wrong.
       if (event.target.value === "") {
