@@ -11,22 +11,19 @@ import (
 	"github.com/koopa0/goen/internal/email"
 )
 
-// ErrDemoAccountIsStaff is a demo address that already names a staff account.
-// Its password would be printed on the sign-in page, and the storefront role
-// cannot make the account a customer again.
+// ErrDemoAccountIsStaff exists because the demo password would be printed on the sign-in
+// page, and the storefront role cannot make the account a customer again.
 var ErrDemoAccountIsStaff = errors.New("account: the demo address belongs to a staff account")
 
-// DemoAccount is the one customer account a public demonstration shares with
-// every visitor. Its password is printed on the sign-in page, so nothing done
-// while signed in to it may change how the next visitor signs in, or mail an
-// address a visitor chose. The zero value is no demo account.
+// DemoAccount is shared with every visitor and its password is printed on the
+// sign-in page, so nothing done while signed in to it may change how the next
+// visitor signs in, or mail an address a visitor chose. The zero value is no
+// demo account.
 type DemoAccount struct {
 	email    string
 	password string
 }
 
-// NewDemoAccount returns the demo account for the given credentials: both, or
-// neither.
 func NewDemoAccount(addr, password string) (DemoAccount, error) {
 	if addr == "" && password == "" {
 		return DemoAccount{}, nil
@@ -46,15 +43,13 @@ func NewDemoAccount(addr, password string) (DemoAccount, error) {
 	return DemoAccount{email: addr, password: password}, nil
 }
 
-// Enabled reports whether this deployment offers a demo account.
 func (d DemoAccount) Enabled() bool { return d.email != "" }
 
 func (d DemoAccount) holds(addr string) bool {
 	return d.Enabled() && email.Clean(addr) == d.email
 }
 
-// EnsureDemoAccount makes d a verified customer account that d's password signs
-// in to, and leaves alone what already is. goen restarts after every nightly
+// EnsureDemoAccount runs at startup because goen restarts after every nightly
 // demo restore, so a snapshot holding another password, or no such account, is
 // put right before anybody is served.
 func (s *Store) EnsureDemoAccount(ctx context.Context, d DemoAccount) error {

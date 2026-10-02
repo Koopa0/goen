@@ -19,19 +19,16 @@ import (
 	"github.com/koopa0/goen/internal/db"
 )
 
-// ResetTokenTTL is how long a reset link works.
 const ResetTokenTTL = time.Hour
 
-// ErrResetInvalid is a token that is unknown, spent or expired: one error for all three.
+// ErrResetInvalid is one error for a token that is unknown, spent or expired.
 var ErrResetInvalid = errors.New("account: that reset link is not usable")
 
-// ErrInvalidPassword is a new password the rules refuse.
 var ErrInvalidPassword = errors.New("account: password refused")
 
-// requestReset queues a forgotten-password request and nothing else. Every
-// address the rules accept is the same single statement, so the caller cannot
-// become an account-existence oracle through what it answers or how long it
-// takes; [Store.IssueReset] does the work that only a real account needs.
+// requestReset is the same single statement for every address the rules accept,
+// so the caller is no account-existence oracle by what it answers or how long
+// it takes; [Store.IssueReset] does the work only a real account needs.
 func (s *Store) requestReset(ctx context.Context, addr string) error {
 	return s.queueResetRequest(ctx, addr, "reset-request:"+uuid.NewString())
 }
@@ -52,12 +49,10 @@ func (s *Store) queueResetRequest(ctx context.Context, addr, dedupeKey string) e
 	return nil
 }
 
-// IssueReset is the outbox's half of a forgotten-password request: it
-// atomically issues a reset token and queues its message when the request named
-// an account that still exists. Earlier unused tokens die in the same
-// transaction, so a replacement link is the only one that can still spend. The
-// address is read here rather than carried in the request, so the link goes to
-// the account's current address.
+// IssueReset kills earlier unused tokens in the same transaction, so a
+// replacement link is the only one that can still spend. The address is read
+// here rather than carried in the request, so the link goes to the account's
+// current address.
 func (s *Store) IssueReset(ctx context.Context, req *outbox.PasswordResetRequest) error {
 	if req.UserID == "" {
 		return nil
@@ -107,14 +102,12 @@ func (s *Store) IssueReset(ctx context.Context, req *outbox.PasswordResetRequest
 	return nil
 }
 
-// CompleteReset spends a token and sets the password, in one transaction.
 func (s *Store) CompleteReset(ctx context.Context, token, password string) error {
 	if why := PasswordError(password); why != "" {
 		return fmt.Errorf("%w: %s", ErrInvalidPassword, why)
 	}
 	digest := sha256.Sum256([]byte(token))
 
-	// A cheap gate before argon2, which costs 64 MiB a call; the UPDATE decides.
 	userID, err := s.q.PasswordResetToken(ctx, digest[:])
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -161,8 +154,6 @@ func (s *Store) CompleteReset(ctx context.Context, token, password string) error
 	return nil
 }
 
-// applyReset is what a spent reset link does to its account, inside the
-// transaction that spent it.
 func applyReset(ctx context.Context, q *db.Queries, userID uuid.UUID, hash string) error {
 	if err := q.SetPasswordHash(ctx, db.SetPasswordHashParams{
 		ID: userID, PasswordHash: pgtype.Text{String: hash, Valid: true},
