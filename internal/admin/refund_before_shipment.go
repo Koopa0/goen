@@ -18,6 +18,7 @@ import (
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ordernotice"
+	"github.com/koopa0/goen/internal/pgerr"
 	"github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -256,7 +257,7 @@ func (h *Handler) RefundBeforeShipment(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, back+"?refunded=1", http.StatusSeeOther) //nolint:gosec // G710: validated by ordernumber.Valid
 	case errors.Is(err, ErrRefundUnsettled):
 		http.Redirect(w, r, back+"?refundpending=1", http.StatusSeeOther) //nolint:gosec // G710: validated by ordernumber.Valid
-	case db.HasConstraint(err, "orders_cancel_invoice_resolved"):
+	case pgerr.IsConstraint(err, "orders_cancel_invoice_resolved"):
 		http.Redirect(w, r, back+"?cancelinvoice=1", http.StatusSeeOther) //nolint:gosec // G710: validated by ordernumber.Valid
 	case errors.Is(err, ErrRefundIncomplete):
 		// Tested before ErrRefused: a payout may carry a database refusal as its

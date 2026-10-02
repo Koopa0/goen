@@ -25,6 +25,7 @@ import (
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/ordernotice"
 	"github.com/koopa0/goen/internal/payment"
+	"github.com/koopa0/goen/internal/pgerr"
 	"github.com/koopa0/goen/internal/pickup"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -963,7 +964,7 @@ func (s *Store) ReceiveStock(ctx context.Context, sku string, quantity int32, ac
 func (s *Store) settleReplay(
 	ctx context.Context, err error, variantID uuid.UUID, delta int32, reason, key string,
 ) error {
-	if err == nil || !db.HasConstraint(err, "inventory_movements_idempotency_key") {
+	if err == nil || !pgerr.IsConstraint(err, "inventory_movements_idempotency_key") {
 		return err
 	}
 	applied, checkErr := s.q.StockMovementApplied(ctx, db.StockMovementAppliedParams{
