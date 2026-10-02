@@ -1,6 +1,6 @@
 //go:build integration
 
-package twofactor_test
+package staff_test
 
 import (
 	"encoding/json"
@@ -10,15 +10,16 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/koopa0/goen/internal/admin/admintest"
+	"github.com/koopa0/goen/internal/admin/staff"
 	"github.com/koopa0/goen/internal/outbox"
-	"github.com/koopa0/goen/internal/twofactor"
 )
 
 func TestStaffInvitationCommitsWithANewGrantWithoutRecipientPII(t *testing.T) {
-	actor, _ := staff(t)
-	s := twofactor.NewStore(twofactorRolePool(t, "staff-invitation", "admin"), testKey)
+	actor, _ := admintest.AdminUser(t, pool)
+	s := staff.NewStore(rolePool(t, "staff-invitation", "admin"))
 	address := "invitation-" + uuid.NewString() + "@example.com"
-	if _, err := s.AddStaff(t.Context(), address, "Invited colleague", "staff", actor); err != nil {
+	if _, err := s.AddStaff(asActor(t.Context(), actor), address, "Invited colleague", "staff"); err != nil {
 		t.Fatal(err)
 	}
 	var id uuid.UUID
@@ -36,7 +37,7 @@ func TestStaffInvitationCommitsWithANewGrantWithoutRecipientPII(t *testing.T) {
 	if len(fields) != 2 || fields["user_id"] != id.String() || fields["locale"] == "" || strings.Contains(string(payload), address) || strings.Contains(string(payload), "Invited colleague") {
 		t.Fatalf("invitation payload retains unexpected data: %s", payload)
 	}
-	if _, err := s.AddStaff(t.Context(), address, "Duplicate", "staff", actor); !errors.Is(err, twofactor.ErrAlreadyStaff) {
+	if _, err := s.AddStaff(asActor(t.Context(), actor), address, "Duplicate", "staff"); !errors.Is(err, staff.ErrAlreadyStaff) {
 		t.Fatalf("duplicate add=%v", err)
 	}
 	var count int
@@ -58,7 +59,7 @@ func TestStaffInvitationCommitsWithANewGrantWithoutRecipientPII(t *testing.T) {
 	if recipientErr != nil || got != next {
 		t.Fatalf("invite did not follow current account address: %q %v", got, recipientErr)
 	}
-	if err := s.RevokeStaff(t.Context(), id.String(), actor); err != nil {
+	if err := s.RevokeStaff(asActor(t.Context(), actor), id.String()); err != nil {
 		t.Fatal(err)
 	}
 	got, _, recipientErr = s.InvitationRecipient(t.Context(), id.String())
@@ -75,13 +76,13 @@ func TestStaffInvitationCommitsWithANewGrantWithoutRecipientPII(t *testing.T) {
 }
 
 func TestFailedStaffAuditLeavesNoInvitation(t *testing.T) {
-	s := twofactor.NewStore(pool, testKey)
+	s := staff.NewStore(pool)
 	var before, after int
 	if err := pool.QueryRow(t.Context(), `SELECT count(*) FROM outbox_messages WHERE topic=$1`, outbox.TopicStaffInvitation.Name()).Scan(&before); err != nil {
 		t.Fatal(err)
 	}
 	address := "rollback-invite-" + uuid.NewString() + "@example.com"
-	if _, err := s.AddStaff(t.Context(), address, "Uncommitted", "staff", uuid.NewString()); err == nil {
+	if _, err := s.AddStaff(asActor(t.Context(), uuid.NewString()), address, "Uncommitted", "staff"); err == nil {
 		t.Fatal("missing audit actor accepted")
 	}
 	if err := pool.QueryRow(t.Context(), `SELECT count(*) FROM outbox_messages WHERE topic=$1`, outbox.TopicStaffInvitation.Name()).Scan(&after); err != nil {

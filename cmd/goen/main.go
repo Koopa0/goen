@@ -24,6 +24,7 @@ import (
 
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/admin"
+	"github.com/koopa0/goen/internal/admin/staff"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/invoice"
@@ -740,7 +741,7 @@ func newOutboxStore(d workerDeps) *outbox.Store {
 	outboxStore.HandleJSON(outbox.TopicNewsletterConfirm, d.notifier.SendNewsletterConfirm)
 	outboxStore.HandleJSON(outbox.TopicNewsletterWelcome, d.notifier.SendNewsletterWelcome)
 	outboxStore.HandleJSON(outbox.TopicEmailVerify, addressVerifyHandler(account.NewStore(d.pool), d.notifier))
-	outboxStore.HandleJSON(outbox.TopicStaffInvitation, staffInvitationHandler(twofactor.NewStore(d.pool, nil), d.notifier))
+	outboxStore.HandleJSON(outbox.TopicStaffInvitation, staffInvitationHandler(staff.NewStore(d.pool), d.notifier))
 	outboxStore.HandleJSON(outbox.TopicNewsletterIssue,
 		newsletterIssueHandler(newsletter.NewStore(d.pool), d.notifier))
 	outboxStore.HandleJSON(outbox.TopicRestocked, d.notifier.SendRestockNotice)
@@ -797,9 +798,9 @@ func addressVerifyHandler(accounts *account.Store, notifier email.Notifier) func
 
 // staffInvitationHandler reads the recipient on the store pool: `store` already
 // holds SELECT on users, and delivery writes nothing.
-func staffInvitationHandler(staff *twofactor.Store, notifier email.Notifier) func(context.Context, *email.StaffInvitation) error {
+func staffInvitationHandler(roster *staff.Store, notifier email.Notifier) func(context.Context, *email.StaffInvitation) error {
 	return func(ctx context.Context, p *email.StaffInvitation) error {
-		address, name, err := staff.InvitationRecipient(ctx, p.UserID)
+		address, name, err := roster.InvitationRecipient(ctx, p.UserID)
 		if err != nil {
 			return err
 		}

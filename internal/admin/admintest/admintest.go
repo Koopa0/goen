@@ -162,3 +162,16 @@ func OrderForCustomer(t *testing.T, pool *pgxpool.Pool, userID uuid.UUID, cents 
 	}
 	return orderID
 }
+
+// AdminUser creates an admin and returns their id and address.
+func AdminUser(t *testing.T, p *pgxpool.Pool) (userID, email string) {
+	t.Helper()
+	var id uuid.UUID
+	if err := p.QueryRow(t.Context(), `
+		INSERT INTO users (email, role, full_name)
+		VALUES ('totp-' || gen_random_uuid() || '@goen.invalid', 'admin', '測試')
+		RETURNING id, email`).Scan(&id, &email); err != nil {
+		t.Fatalf("create staff: %v", err)
+	}
+	return id.String(), email
+}
