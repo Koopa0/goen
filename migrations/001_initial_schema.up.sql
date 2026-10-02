@@ -6750,6 +6750,7 @@ DECLARE
     payment_id uuid;
     payment_order_id uuid;
     current_status text;
+    provider_event_at timestamptz;
 BEGIN
     -- Match open_payment's order -> payment lock order. Reading the immutable
     -- order_id first is safe: the store role can move no payment between
@@ -6776,10 +6777,24 @@ BEGIN
         RETURN payment_id;
     END IF;
 
+    -- The signed event is recorded under the provider-reference lock before
+    -- capture. An unpaid completion of a delayed method is not money received.
+    SELECT min(to_timestamp(least(e.created, extract(epoch FROM now()))::double precision))
+    INTO provider_event_at
+    FROM (
+        SELECT CASE WHEN jsonb_typeof(payload -> 'created') = 'number'
+                    THEN (payload ->> 'created')::numeric END AS created
+        FROM payment_webhook_events
+        WHERE provider = 'stripe' AND object_ref = p_provider_ref
+          AND type IN ('checkout.session.completed', 'checkout.session.async_payment_succeeded')
+          AND payload #>> '{data,object,payment_status}' = 'paid'
+    ) e
+    WHERE e.created > 0;
+
     UPDATE payments
     SET status = 'succeeded',
         captured_amount_cents = p_captured_amount_cents,
-        paid_at = now(),
+        paid_at = coalesce(provider_event_at, now()),
         card_brand = p_card_brand,
         card_last4 = p_card_last4
     WHERE id = payment_id;
