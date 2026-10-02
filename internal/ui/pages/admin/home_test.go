@@ -102,7 +102,7 @@ func TestEverySlideSourceHasItsOwnLabelAndAnUnknownOneIsNotAPanic(t *testing.T) 
 		ctx := i18n.WithLocale(t.Context(), loc)
 		other := SourceLabel(ctx, pages.SlideSource("nowhere"))
 		seen := map[string]pages.SlideSource{}
-		for _, src := range pages.SlideSources() {
+		for _, src := range slideSources() {
 			label := SourceLabel(ctx, src)
 			if label == "" || label == other {
 				t.Errorf("%v: source %q has no label of its own", loc, src)
@@ -137,7 +137,13 @@ func TestSlideSourcesListsEveryDeclaredSource(t *testing.T) {
 			}
 		}
 	}
-	if got := len(pages.SlideSources()); got != declared {
+	if got := len(slideSources()); got != declared {
 		t.Errorf("SlideSources lists %d sources, %d are declared", got, declared)
 	}
+}
+
+// slideSources is every source, in the order the carousel takes them. It lives
+// here because only these tests walk the set.
+func slideSources() []pages.SlideSource {
+	return []pages.SlideSource{pages.SlideScheduled, pages.SlideCampaign, pages.SlideDepartment}
 }
