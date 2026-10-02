@@ -32,7 +32,7 @@ func IssueQueuedReset(ctx context.Context, s *Store, dedupeKey string) error {
 	err := s.pool.QueryRow(ctx, `
 		UPDATE outbox_messages SET delivered_at = now()
 		WHERE topic = $1 AND dedupe_key = $2 AND delivered_at IS NULL
-		RETURNING payload`, outbox.TopicPasswordResetRequest, dedupeKey).Scan(&payload)
+		RETURNING payload`, outbox.TopicPasswordResetRequest.Name(), dedupeKey).Scan(&payload)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil
 	}

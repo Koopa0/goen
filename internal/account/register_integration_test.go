@@ -43,7 +43,7 @@ func followUpRegistrations(
 		FROM users u
 		WHERE m.topic = $1 AND m.delivered_at IS NULL
 		  AND m.payload->>'user_id' = u.id::text AND lower(u.email) = lower($2)
-		RETURNING m.payload`, outbox.TopicRegistration, addr)
+		RETURNING m.payload`, outbox.TopicRegistration.Name(), addr)
 	if err != nil {
 		t.Fatalf("take the queued registrations for %s: %v", addr, err)
 	}
@@ -78,7 +78,7 @@ func queuedLink(t *testing.T, addr string) (token, next string) {
 		SELECT payload->>'token', coalesce(payload->>'next', '')
 		FROM outbox_messages
 		WHERE topic = $1 AND lower(payload->>'email') = lower($2)
-		ORDER BY id DESC LIMIT 1`, outbox.TopicEmailVerify, addr).Scan(&token, &next); err != nil {
+		ORDER BY id DESC LIMIT 1`, outbox.TopicEmailVerify.Name(), addr).Scan(&token, &next); err != nil {
 		t.Fatalf("read the link mailed to %s: %v", addr, err)
 	}
 	return token, next
@@ -420,7 +420,7 @@ func TestRegisteringATakenAddressTellsItsOwnerAndChangesNothing(t *testing.T) {
 	if err := pool.QueryRow(ctx, `
 		SELECT count(*) FROM outbox_messages
 		WHERE topic = $1 AND lower(payload->>'email') = lower($2)`,
-		outbox.TopicEmailVerify, addr).Scan(&links); err != nil {
+		outbox.TopicEmailVerify.Name(), addr).Scan(&links); err != nil {
 		t.Fatalf("count links: %v", err)
 	}
 	if links != 0 {
@@ -497,7 +497,7 @@ func TestResendingARegistrationLinkAnswersEveryAddressTheSame(t *testing.T) {
 		if err := pool.QueryRow(ctx, `
 			SELECT count(*) FROM outbox_messages
 			WHERE topic = $1 AND lower(payload->>'email') = lower($2)`,
-			outbox.TopicEmailVerify, tt.addr).Scan(&links); err != nil {
+			outbox.TopicEmailVerify.Name(), tt.addr).Scan(&links); err != nil {
 			t.Fatalf("count links: %v", err)
 		}
 		if links != tt.wantLinks {

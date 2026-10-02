@@ -26,7 +26,7 @@ func TestStaffInvitationCommitsWithANewGrantWithoutRecipientPII(t *testing.T) {
 		t.Fatal(err)
 	}
 	var payload []byte
-	if err := pool.QueryRow(t.Context(), `SELECT payload FROM outbox_messages WHERE topic=$1 AND payload->>'user_id'=$2`, outbox.TopicStaffInvitation, id.String()).Scan(&payload); err != nil {
+	if err := pool.QueryRow(t.Context(), `SELECT payload FROM outbox_messages WHERE topic=$1 AND payload->>'user_id'=$2`, outbox.TopicStaffInvitation.Name(), id.String()).Scan(&payload); err != nil {
 		t.Fatalf("successful staff grant queued no invitation: %v", err)
 	}
 	var fields map[string]string
@@ -40,7 +40,7 @@ func TestStaffInvitationCommitsWithANewGrantWithoutRecipientPII(t *testing.T) {
 		t.Fatalf("duplicate add=%v", err)
 	}
 	var count int
-	if err := pool.QueryRow(t.Context(), `SELECT count(*) FROM outbox_messages WHERE topic=$1 AND payload->>'user_id'=$2`, outbox.TopicStaffInvitation, id.String()).Scan(&count); err != nil {
+	if err := pool.QueryRow(t.Context(), `SELECT count(*) FROM outbox_messages WHERE topic=$1 AND payload->>'user_id'=$2`, outbox.TopicStaffInvitation.Name(), id.String()).Scan(&count); err != nil {
 		t.Fatal(err)
 	}
 	if count != 1 {
@@ -77,14 +77,14 @@ func TestStaffInvitationCommitsWithANewGrantWithoutRecipientPII(t *testing.T) {
 func TestFailedStaffAuditLeavesNoInvitation(t *testing.T) {
 	s := twofactor.NewStore(pool, testKey)
 	var before, after int
-	if err := pool.QueryRow(t.Context(), `SELECT count(*) FROM outbox_messages WHERE topic=$1`, outbox.TopicStaffInvitation).Scan(&before); err != nil {
+	if err := pool.QueryRow(t.Context(), `SELECT count(*) FROM outbox_messages WHERE topic=$1`, outbox.TopicStaffInvitation.Name()).Scan(&before); err != nil {
 		t.Fatal(err)
 	}
 	address := "rollback-invite-" + uuid.NewString() + "@example.com"
 	if _, err := s.AddStaff(t.Context(), address, "Uncommitted", "staff", uuid.NewString()); err == nil {
 		t.Fatal("missing audit actor accepted")
 	}
-	if err := pool.QueryRow(t.Context(), `SELECT count(*) FROM outbox_messages WHERE topic=$1`, outbox.TopicStaffInvitation).Scan(&after); err != nil {
+	if err := pool.QueryRow(t.Context(), `SELECT count(*) FROM outbox_messages WHERE topic=$1`, outbox.TopicStaffInvitation.Name()).Scan(&after); err != nil {
 		t.Fatal(err)
 	}
 	if after != before {
