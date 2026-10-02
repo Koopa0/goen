@@ -14,11 +14,10 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
-// CampaignPageSize bounds one page of running promotions.
 const CampaignPageSize = 6
 
-// Campaign reads a running promotion and what it features. One outside its
-// window is ErrNotFound rather than an empty page.
+// Campaign returns ErrNotFound for a promotion outside its window rather than
+// an empty page.
 func (s *Store) Campaign(ctx context.Context, slug string) (pages.CampaignView, error) {
 	c, err := s.q.RunningCampaign(ctx, db.RunningCampaignParams{
 		Slug: slug, Locale: string(i18n.FromContext(ctx)),
@@ -50,7 +49,6 @@ func (s *Store) Campaign(ctx context.Context, slug string) (pages.CampaignView, 
 	}, nil
 }
 
-// RunningCampaigns reads one page of promotions and the total needed to reach all of them.
 func (s *Store) RunningCampaigns(ctx context.Context, page int) (pages.CampaignPage, error) {
 	total, err := s.q.RunningCampaignsCount(ctx)
 	if err != nil {

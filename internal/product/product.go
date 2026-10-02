@@ -8,23 +8,18 @@ import (
 	"unicode/utf8"
 )
 
-// ErrNotFound is returned when a slug names no active product.
 var ErrNotFound = errors.New("product: not found")
 
-// RelatedCount is how many other products from the same category the page shows.
 const RelatedCount = 4
 
-// ReviewCount is how many reviews the page lists.
 const ReviewCount = 6
 
 const maxOptionRunes = 64
 
-// Selection is the option values a URL picks, keyed by option name.
 type Selection map[string]string
 
-// ParseSelection reads a selection from a query string, ignoring the keys the
-// page uses for other purposes. For repeated keys it uses only the first value.
-// Only the product's variants know which keys are option names, so
+// ParseSelection uses only the first value of a repeated key. Only the
+// product's variants know which keys are option names, so
 // [Selection.OnlyOptionsOf] does the rest of the filtering.
 func ParseSelection(q url.Values) Selection {
 	sel := make(Selection, len(q))
@@ -47,9 +42,8 @@ func ParseSelection(q url.Values) Selection {
 	return sel
 }
 
-// OnlyOptionsOf returns the keys carried by a variant. It never mutates or
-// aliases s: a non-nil s produces a distinct, non-nil map, including when s is
-// empty or no key survives. A nil s produces nil.
+// OnlyOptionsOf never mutates or aliases s: a non-nil s produces a distinct
+// non-nil map, even when empty; a nil s produces nil.
 //
 // A key no variant carries would make Resolve find nothing at all, which the
 // page renders as "that combination does not exist" on a product that is in
@@ -82,7 +76,6 @@ func reservedParam(k string) bool {
 	}
 }
 
-// Variant is one buyable combination.
 type Variant struct {
 	ID           string
 	SKU          string
@@ -93,8 +86,7 @@ type Variant struct {
 	Options      map[string]string
 }
 
-// Matches reports whether this variant satisfies every value in sel. A
-// selection naming fewer options than the variant has still matches.
+// Matches is true for a selection naming fewer options than the variant has.
 func (v Variant) Matches(sel Selection) bool {
 	for name, want := range sel {
 		if got, ok := v.Options[name]; !ok || got != want {
@@ -104,9 +96,8 @@ func (v Variant) Matches(sel Selection) bool {
 	return true
 }
 
-// Resolve picks the variant a selection names, preferring one that can be
-// bought. exact is true only when the selection supplies every option on the
-// sole matching variant.
+// Resolve prefers a buyable variant; exact is true only when the selection
+// supplies every option on the sole matching variant.
 func Resolve(variants []Variant, sel Selection) (chosen Variant, exact bool) {
 	var first Variant
 	var found, pinned bool
@@ -120,13 +111,14 @@ func Resolve(variants []Variant, sel Selection) (chosen Variant, exact bool) {
 		if !found {
 			first, found = v, true
 		}
-		// Until a buyable match appears, retain the cheapest fallback: a sold-out
-		// product opens on the same lowest price its tile quoted.
+		// Until a buyable match appears, retain the cheapest fallback: a
+		// sold-out product opens on the same lowest price its tile quoted.
 		if !pinned && v.PriceCents < first.PriceCents {
 			first = v
 		}
 		// The CHEAPEST buyable one, not the first: a listing tile quotes the
-		// cheapest and links here, so position order would open a different price.
+		// cheapest and links here, so position order would open a different
+		// price.
 		if v.Sellable && (!pinned || v.PriceCents < first.PriceCents) {
 			first, pinned = v, true
 		}
@@ -137,7 +129,6 @@ func Resolve(variants []Variant, sel Selection) (chosen Variant, exact bool) {
 	return first, matches == 1 && len(sel) == len(first.Options)
 }
 
-// OptionValue is one entry in a picker.
 type OptionValue struct {
 	Value    string
 	Selected bool
@@ -147,22 +138,19 @@ type OptionValue struct {
 	Href      string
 	// Label is what the visitor reads; Value is what the URL carries.
 	Label string
-	// SwatchHex is the colour this value shows as, empty where the value is not
-	// a colour. A capacity has none, and neither has a finish the shop has not
-	// given one — the page shows the name instead.
+	// SwatchHex is empty where the value is not a colour: a capacity has none,
+	// nor has a finish the shop has not given one; the page shows the name
+	// instead.
 	SwatchHex string
 }
 
-// Option is one picker: a group name and its values.
 type Option struct {
-	// Name is the option's identity, what the URL carries. Never localized.
+	// Name is what the URL carries. Never localized.
 	Name   string
 	Label  string
 	Values []OptionValue
 }
 
-// BuildOptions turns the product's option groups into pickers, with each value
-// carrying the URL that selects it.
 func BuildOptions(slug string, groups map[string][]OptionChoice, order []string, labels map[string]string, variants []Variant, sel Selection) []Option {
 	opts := make([]Option, 0, len(order))
 	for _, name := range order {
@@ -196,8 +184,6 @@ func BuildOptions(slug string, groups map[string][]OptionChoice, order []string,
 	return opts
 }
 
-// OptionChoice is one value on an axis: what the URL selects on, and what the
-// visitor reads.
 type OptionChoice struct {
 	Value     string
 	Label     string
@@ -220,7 +206,6 @@ func anySellable(variants []Variant, sel Selection) bool {
 	return false
 }
 
-// Href is the product URL for a selection.
 func Href(slug string, sel Selection) string {
 	if len(sel) == 0 {
 		return "/p/" + slug

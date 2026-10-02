@@ -15,14 +15,11 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
-// Store reads the catalogue for the listing and search pages.
 type Store struct {
-	q *db.Queries
-	// now decides whether a campaign's last day is near enough to name.
+	q   *db.Queries
 	now func() time.Time
 }
 
-// NewStore returns a Store reading through dbtx.
 func NewStore(dbtx db.DBTX) *Store {
 	if dbtx == nil {
 		panic("catalog: NewStore requires a database handle")
@@ -30,9 +27,8 @@ func NewStore(dbtx db.DBTX) *Store {
 	return &Store{q: db.New(dbtx), now: time.Now}
 }
 
-// Listing reads one page of a category listing, with its crumbs and facets. One
-// set of descendant ids serves the listing, the count and the brand facet, which
-// otherwise disagree about scope.
+// Listing uses one set of descendant ids for the listing, the count and the
+// brand facet, which otherwise disagree about scope.
 func (s *Store) Listing(ctx context.Context, slug string, f Filters) (pages.ListingView, error) {
 	cat, err := s.q.CategoryBySlug(ctx, db.CategoryBySlugParams{
 		Slug: slug, Locale: string(i18n.FromContext(ctx)),
@@ -71,7 +67,7 @@ func (s *Store) Listing(ctx context.Context, slug string, f Filters) (pages.List
 		}
 	}
 	if len(f.BrandSlugs) > 0 && len(brandIDs) == 0 {
-		// Every named brand was unknown here, and uuid.Nil matches no product —
+		// Every named brand was unknown here, and uuid.Nil matches no product:
 		// an unfiltered page under a filtered URL would be the wrong answer.
 		brandIDs = append(brandIDs, uuid.Nil)
 	}
@@ -105,8 +101,6 @@ func (s *Store) Listing(ctx context.Context, slug string, f Filters) (pages.List
 	}
 
 	trail := crumbs(cat.AncestorSlugs, cat.AncestorNames)
-	// The chips are the department's children from any page under it, so a
-	// shopper in one sub-category sees the others.
 	department := slug
 	if len(trail) > 0 {
 		department = trail[0].Slug
@@ -145,8 +139,6 @@ func (s *Store) Listing(ctx context.Context, slug string, f Filters) (pages.List
 	return view, nil
 }
 
-// Search reads one page of search results. The pattern is SearchPattern's, and
-// sort is ParseSort's with SortRelevance as the unchosen order.
 func (s *Store) Search(ctx context.Context, pattern string, sort Sort, page int) (pages.SearchView, error) {
 	terms, exact := SearchTerms(pattern)
 	rows, err := s.q.SearchProducts(ctx, db.SearchProductsParams{
@@ -178,7 +170,6 @@ func (s *Store) Search(ctx context.Context, pattern string, sort Sort, page int)
 	}, nil
 }
 
-// NewestProducts reads the n most recently published active products.
 func (s *Store) NewestProducts(ctx context.Context, n int32) ([]pages.ProductTile, error) {
 	rows, err := s.q.NewestProducts(ctx, db.NewestProductsParams{
 		Locale:   string(i18n.FromContext(ctx)),
@@ -191,7 +182,8 @@ func (s *Store) NewestProducts(ctx context.Context, n int32) ([]pages.ProductTil
 	if err != nil {
 		return nil, err
 	}
-	// Same columns in the same order as SearchProducts, so one tile builder serves both.
+	// Same columns in the same order as SearchProducts, so one tile builder
+	// serves both.
 	asSearch := make([]db.SearchProductsRow, len(rows))
 	for i := range rows {
 		asSearch[i] = db.SearchProductsRow(rows[i])
@@ -207,8 +199,8 @@ func childCrumbs(rows []db.CategoryChildrenRow) []pages.Crumb {
 	return out
 }
 
-// crumbs pairs the ancestor slugs with their names. The shorter array wins: a
-// mismatched length would shift every label onto the wrong link.
+// The shorter array wins: a mismatched length would shift every label onto the
+// wrong link.
 func crumbs(slugs, names []string) []pages.Crumb {
 	n := min(len(slugs), len(names))
 	out := make([]pages.Crumb, 0, n)
@@ -218,7 +210,6 @@ func crumbs(slugs, names []string) []pages.Crumb {
 	return out
 }
 
-// brandFacets is the brand filter's options, the chosen ones marked.
 func brandFacets(brands []db.CategoryBrandsRow, selected map[string]bool) []pages.FacetOption {
 	out := make([]pages.FacetOption, 0, len(brands))
 	for _, b := range brands {
@@ -232,8 +223,8 @@ func brandFacets(brands []db.CategoryBrandsRow, selected map[string]bool) []page
 	return out
 }
 
-// comparableCategories is the set of categories that offer comparison, which a
-// listing and a search both read, so the two cannot disagree about a product.
+// comparableCategories is shared by listing and search so the two cannot
+// disagree about a product.
 func (s *Store) comparableCategories(ctx context.Context) (map[uuid.UUID]bool, error) {
 	ids, err := s.q.ComparableCategoryIDs(ctx)
 	if err != nil {
@@ -298,7 +289,6 @@ func searchTiles(rows []db.SearchProductsRow, offers map[uuid.UUID]bool) []pages
 	return out
 }
 
-// Deals reads the products with something marked down.
 func (s *Store) Deals(ctx context.Context, page int) (pages.SearchView, error) {
 	rows, err := s.q.DealProducts(ctx, db.DealProductsParams{
 		Locale:     string(i18n.FromContext(ctx)),
@@ -321,8 +311,8 @@ func (s *Store) Deals(ctx context.Context, page int) (pages.SearchView, error) {
 	}, nil
 }
 
-// dealTiles is searchTiles for the deals query; sqlc emits a row struct per
-// query, so one function cannot take both.
+// dealTiles exists because sqlc emits a row struct per query, so one function
+// cannot take both.
 func dealTiles(rows []db.DealProductsRow) []pages.ProductTile {
 	out := make([]pages.ProductTile, 0, len(rows))
 	for i := range rows {
@@ -348,7 +338,6 @@ func dealTiles(rows []db.DealProductsRow) []pages.ProductTile {
 	return out
 }
 
-// SitemapProducts is every active product's slug and when it last changed.
 func (s *Store) SitemapProducts(ctx context.Context, limit int32) ([]db.SitemapProductsRow, error) {
 	rows, err := s.q.SitemapProducts(ctx, limit)
 	if err != nil {
@@ -357,8 +346,6 @@ func (s *Store) SitemapProducts(ctx context.Context, limit int32) ([]db.SitemapP
 	return rows, nil
 }
 
-// SitemapCategories is the newest categories that have something to sell,
-// bounded by the sitemap document's remaining capacity.
 func (s *Store) SitemapCategories(ctx context.Context, limit int32) ([]db.SitemapCategoriesRow, error) {
 	rows, err := s.q.SitemapCategories(ctx, limit)
 	if err != nil {
