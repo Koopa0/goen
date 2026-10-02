@@ -17,9 +17,9 @@ func TestEachSavedProductIsOneWishlistListItem(t *testing.T) {
 	t.Parallel()
 
 	view := WishlistView{
-		Products: []ProductTile{
-			{Slug: "pixelight-9-pro", Name: "Pixelight 9 Pro", Brand: "Pixelight", PriceCents: 3690000, InStock: true},
-			{Slug: "aurora-fold-2", Name: "Aurora Fold 2", Brand: "Aurora", PriceCents: 5990000, InStock: true},
+		Products: []WishlistItem{
+			{ProductTile: ProductTile{Slug: "pixelight-9-pro", Name: "Pixelight 9 Pro", Brand: "Pixelight", PriceCents: 3690000, InStock: true}},
+			{ProductTile: ProductTile{Slug: "aurora-fold-2", Name: "Aurora Fold 2", Brand: "Aurora", PriceCents: 5990000, InStock: true}},
 		},
 	}
 	doc := parseWishlistHTML(t, view)
@@ -191,10 +191,10 @@ func TestAWishlistRowBuysOrSendsToTheProductAndSaysWhatIsInStock(t *testing.T) {
 	t.Parallel()
 
 	const variant = "7f0b6a3e-2c1d-4e5f-8a9b-0c1d2e3f4a5b"
-	view := WishlistView{Products: []ProductTile{
-		{Slug: "one-variant", Name: "One", InStock: true, SoleVariantID: variant},
-		{Slug: "many-variants", Name: "Many", InStock: true},
-		{Slug: "sold-out", Name: "Gone"},
+	view := WishlistView{Products: []WishlistItem{
+		{ProductTile: ProductTile{Slug: "one-variant", Name: "One", InStock: true}, SoleVariantID: variant},
+		{ProductTile: ProductTile{Slug: "many-variants", Name: "Many", InStock: true}},
+		{ProductTile: ProductTile{Slug: "sold-out", Name: "Gone"}},
 	}}
 	items := wishlistGrid(t, parseWishlistHTML(t, view))
 	if len(items) != 3 {
@@ -248,7 +248,7 @@ func TestAWishlistRowBuysOrSendsToTheProductAndSaysWhatIsInStock(t *testing.T) {
 func TestRemovingFromTheWishlistSwapsThePageInPlaceAndStillPosts(t *testing.T) {
 	t.Parallel()
 
-	items := wishlistGrid(t, parseWishlistHTML(t, WishlistView{Products: []ProductTile{{Slug: "a", Name: "A", InStock: true}}}))
+	items := wishlistGrid(t, parseWishlistHTML(t, WishlistView{Products: []WishlistItem{{ProductTile: ProductTile{Slug: "a", Name: "A", InStock: true}}}}))
 	form := findDescendant(items[0], func(n *html.Node) bool { return n.Data == "form" && hasClass(n, "goen-wish__remove") })
 	if form == nil {
 		t.Fatal("no remove form")

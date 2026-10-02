@@ -38,9 +38,6 @@ type ProductTile struct {
 	// listing and by search, which are where somebody is choosing between
 	// candidates; a shop window, a promotional list and a wishlist are not.
 	Comparable bool
-	// SoleVariantID is set by the wishlist when the product has one variant and
-	// it is in stock, so the row can add it to the cart without asking which.
-	SoleVariantID string
 }
 
 // AnyComparable reports whether any tile carries the compare box.
@@ -49,15 +46,15 @@ func AnyComparable(tiles []ProductTile) bool {
 }
 
 // CompareLabel is the checkbox's accessible name, which names the product.
-func (t *ProductTile) CompareLabel(ctx context.Context) string {
+func (t ProductTile) CompareLabel(ctx context.Context) string {
 	return fmt.Sprintf(i18n.T(ctx, i18n.KeyCompareAddNamed), t.Name)
 }
 
 // OnSale reports whether the tile shows a struck-through compare-at price.
-func (t *ProductTile) OnSale() bool { return t.InStock && t.CompareCents > t.PriceCents }
+func (t ProductTile) OnSale() bool { return t.InStock && t.CompareCents > t.PriceCents }
 
 // SoldOut reports whether nothing on this product can be bought.
-func (t *ProductTile) SoldOut() bool { return !t.InStock }
+func (t ProductTile) SoldOut() bool { return !t.InStock }
 
 // HasImage reports whether the tile has a product image to show.
 func (t ProductTile) HasImage() bool { return t.ImageURL != "" }

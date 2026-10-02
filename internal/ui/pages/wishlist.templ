@@ -7,9 +7,17 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
+// WishlistItem is a saved product. SoleVariantID is set when the product has one
+// variant and it is in stock: the only case where the row can add it to the cart
+// without asking which.
+type WishlistItem struct {
+	ProductTile
+	SoleVariantID string
+}
+
 // WishlistView is a customer's saved products.
 type WishlistView struct {
-	Products []ProductTile
+	Products []WishlistItem
 }
 
 // Empty reports whether nothing has been saved.
@@ -44,7 +52,7 @@ templ Wishlist(p layouts.Page, v WishlistView) {
 					<ul class="goen-tiles__grid" role="list">
 						for _, t := range v.Products {
 							<li class="goen-wish goen-tile__cell">
-								@tileCard(t)
+								@tileCard(t.ProductTile)
 								<p class="goen-wish__stock">
 									if t.InStock {
 										{ i18n.T(ctx, i18n.KeyInStock) }

@@ -895,7 +895,7 @@ func (a *Address) Trim() {
 }
 
 // Wishlist reads a customer's saved products.
-func (s *Store) Wishlist(ctx context.Context, userID string) ([]pages.ProductTile, error) {
+func (s *Store) Wishlist(ctx context.Context, userID string) ([]pages.WishlistItem, error) {
 	id, err := uuid.Parse(userID)
 	if err != nil {
 		return nil, ErrNotFound
@@ -906,30 +906,32 @@ func (s *Store) Wishlist(ctx context.Context, userID string) ([]pages.ProductTil
 	if err != nil {
 		return nil, fmt.Errorf("read wishlist: %w", err)
 	}
-	out := make([]pages.ProductTile, 0, len(rows))
+	out := make([]pages.WishlistItem, 0, len(rows))
 	for i := range rows {
 		r := &rows[i]
 		var soleVariant string
 		if r.SoleVariantID != uuid.Nil {
 			soleVariant = r.SoleVariantID.String()
 		}
-		out = append(out, pages.ProductTile{
+		out = append(out, pages.WishlistItem{
 			SoleVariantID: soleVariant,
-			Slug:          r.Slug,
-			Name:          r.Name,
-			Summary:       r.Summary.String,
-			Brand:         r.Brand,
-			PriceCents:    r.MinPriceCents,
-			PriceVaries:   r.PriceVaries,
-			CompareCents:  r.CompareAtPriceCents.Int64,
-			Rating:        r.Rating,
-			RatingCount:   r.RatingCount,
-			InStock:       r.InStock,
-			ImageURL:      assets.ProductImageURL(r.ImageKey),
-			ImageSrcset:   assets.ProductImageSrcsetAt(r.ImageKey, int(r.ImageWidth)),
-			ImageAlt:      r.ImageAlt,
-			ImageWidth:    r.ImageWidth,
-			ImageHeight:   r.ImageHeight,
+			ProductTile: pages.ProductTile{
+				Slug:         r.Slug,
+				Name:         r.Name,
+				Summary:      r.Summary.String,
+				Brand:        r.Brand,
+				PriceCents:   r.MinPriceCents,
+				PriceVaries:  r.PriceVaries,
+				CompareCents: r.CompareAtPriceCents.Int64,
+				Rating:       r.Rating,
+				RatingCount:  r.RatingCount,
+				InStock:      r.InStock,
+				ImageURL:     assets.ProductImageURL(r.ImageKey),
+				ImageSrcset:  assets.ProductImageSrcsetAt(r.ImageKey, int(r.ImageWidth)),
+				ImageAlt:     r.ImageAlt,
+				ImageWidth:   r.ImageWidth,
+				ImageHeight:  r.ImageHeight,
+			},
 		})
 	}
 	return out, nil
