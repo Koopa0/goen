@@ -19,10 +19,26 @@ type AuditEntry struct {
 	Actor     string
 	At        string
 	RequestID string
-	Detail    string
+	// Changes are the fields the action recorded, one row each.
+	Changes []AuditChange
 	// System is goen acting on a fact, such as the 統一發票 a sale owes; no
 	// person acted, and Label says what was done.
 	System bool
+}
+
+// AuditChange is one recorded field. Before is empty when the action only
+// recorded a value, After when it only recorded what was there.
+type AuditChange struct {
+	Field         string
+	Before, After string
+}
+
+// Text is the value, or the value it changed from and to.
+func (c AuditChange) Text() string {
+	if c.Before != "" && c.After != "" {
+		return c.Before + " → " + c.After
+	}
+	return c.Before + c.After
 }
 
 // Label is what the action is called on the page, in the reader's language.

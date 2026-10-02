@@ -43,8 +43,13 @@ templ Audit(p layouts.Page, v AuditView) {
 								· { e.Subject }
 							}
 						</span>
-						if e.Detail != "" {
-							<code class="goen-admin__auditdetail">{ e.Detail }</code>
+						if len(e.Changes) > 0 {
+							<dl class="goen-admin__auditdetail">
+								for _, c := range e.Changes {
+									<dt>{ c.Field }</dt>
+									<dd>{ c.Text() }</dd>
+								}
+							</dl>
 						}
 						if e.RequestID != "" {
 							<span class="goen-admin__meta">req { e.ShortRequestID() }</span>
