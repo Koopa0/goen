@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -63,7 +64,7 @@ func (s *Store) slides(ctx context.Context, cats []db.RootCategoriesRow, subs ma
 			Layout: pages.SlidePhoto,
 			Tone:   pages.ResolveTone(c.Tone),
 			Title:  c.Title,
-			Fact:   campaignFact(ctx, c),
+			Fact:   s.campaignFact(ctx, c),
 			CTA:    pages.CTA{Label: i18n.T(ctx, i18n.KeyHeroCampaignCTA), Href: "/s/" + c.Slug},
 		}
 		if c.ImageKey != "" {
@@ -102,9 +103,26 @@ func (s *Store) slides(ctx context.Context, cats []db.RootCategoriesRow, subs ma
 	return out, nil
 }
 
-// campaignFact is "{n} items · until {day}", the day in the shop's own zone.
-func campaignFact(ctx context.Context, c *db.HomeCampaignsRow) string {
-	return i18n.Count(ctx, i18n.KeyHomeCampaignFact, c.Products, c.Products, shoptime.Day(c.EndsAt))
+// campaignFact is "{n} items · until {day}", the day said the short way on the
+// shop's own calendar.
+func (s *Store) campaignFact(ctx context.Context, c *db.HomeCampaignsRow) string {
+	return i18n.Count(ctx, i18n.KeyHomeCampaignFact, c.Products, c.Products, s.endDay(ctx, c))
+}
+
+// endDay is the campaign's last day as a short date.
+func (s *Store) endDay(ctx context.Context, c *db.HomeCampaignsRow) string {
+	return shortDate(ctx, c.EndsAt, s.now())
+}
+
+// shortDate says a day in the reader's language, with its year only when it is
+// not the shop's current one.
+func shortDate(ctx context.Context, t, now time.Time) string {
+	d := shoptime.DateOf(t, now)
+	key := i18n.KeyShortDate
+	if d.OtherYear {
+		key = i18n.KeyShortDateYear
+	}
+	return fmt.Sprintf(i18n.T(ctx, key), d.Month.String()[:3], int(d.Month), d.Day, d.Year)
 }
 
 // departmentPhoto is a root category's own photograph, or none.

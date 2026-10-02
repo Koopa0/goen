@@ -85,6 +85,13 @@ var (
 	KeyHomeCampaignRowFact = countKey("home.campaign.row_fact", "%d 件商品，至 %s",
 		"%d item, until %s", "%d items, until %s")
 
+	// A day said the short way. The arguments are the English month name, the
+	// month number, the day and the year, picked by index; the year forms are
+	// for a day outside the shop's current year.
+	KeyShortDate = key("date.short", Message{ZhHant: "%[2]d 月 %[3]d 日", En: "%[1]s %[3]d"})
+
+	KeyShortDateYear = key("date.short.year", Message{ZhHant: "%[4]d 年 %[2]d 月 %[3]d 日", En: "%[1]s %[3]d, %[4]d"})
+
 	// %s is a department's name.
 	KeyHomeDepartmentCTA = key("home.department.cta", Message{ZhHant: "逛逛%s", En: "Browse %s"})
 
