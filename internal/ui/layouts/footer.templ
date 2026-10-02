@@ -7,10 +7,6 @@ import (
 	"github.com/koopa0/goen/internal/ui/icons"
 )
 
-// Footer renders the site footer: the shop and how to reach it, three link
-// columns (the departments, then help, then policies), the newsletter, and a
-// bottom bar with the company line and the language control, which the page
-// shows nowhere else.
 templ Footer() {
 	<footer class="goen-footer">
 		<div class="goen-footer__grid">
@@ -58,9 +54,8 @@ templ Footer() {
 	</footer>
 }
 
-// footerColumn is one titled list of links. The title is a span rather than a
-// heading: the footer sits after the page's own outline and a heading here
-// would take a level the page has already spent.
+// The title is a span, not a heading: the footer sits after the page's own outline
+// and a heading would take a level the page has already spent.
 templ footerColumn(title string, links []footerLink) {
 	<nav class="goen-footer__links" aria-label={ title }>
 		<span class="goen-footer__heading">{ title }</span>
@@ -74,14 +69,12 @@ templ footerColumn(title string, links []footerLink) {
 	</nav>
 }
 
-// NewsletterState carries the outcome of a subscribe attempt into the form.
 type NewsletterState struct {
 	Email string
 	Error string
 	Done  bool
 }
 
-// NewsletterForm posts to /newsletter as a plain form.
 templ NewsletterForm(s NewsletterState) {
 	<form
 		class="goen-footer__signup"

@@ -14,26 +14,17 @@ import (
 	"github.com/koopa0/goen/internal/ui/icons"
 )
 
-// Admin is the back office's document shell. It shares the head with [Base] and
-// nothing else: the storefront chrome is a shopper's tools — a category row, a
-// product search, a wishlist, a cart, a newsletter signup, policy columns — and
-// on a screen a staff member reads all day every one of them is a row of noise
-// between them and the queue. What replaces it is a slim bar that answers the
-// three questions the chrome is there for: where am I, how do I leave, how do I
-// sign out.
+// Admin shares the head with [Base] and nothing else: the storefront chrome is a
+// shopper's tools and a row of noise for a staff member who reads the queue all day.
 //
-// It also owns the FRAME, and that is the fix for a rail that was on the left
-// of four screens and above the other nineteen. The two-column rule reaches the
-// rail through the element the work is wrapped in, so a screen that opened its
-// own .goen-admin and put its sections straight into it handed the grid extra
-// children and pushed the rail onto a row of its own. A page cannot get that
-// wrong if it never writes it: current names the screen, the shell renders the
-// rail and the column, and the page is only what goes inside them.
+// It owns the FRAME: the two-column rule reaches the rail through the element the
+// work is wrapped in, so a screen that opened its own .goen-admin pushed the rail
+// onto a row of its own. current names the screen; the shell renders the rail and
+// the column, and the page is only what goes inside them.
 //
-// An empty current is the screen that is not one of the 23 — the step-up
-// challenge, which is reached before the back office will answer — and it gets
-// the bar and nothing else, because every link in the rail would send a staff
-// member back to the challenge they are standing on.
+// An empty current is the step-up challenge, reached before the back office will
+// answer: it gets the bar alone, because every rail link would send a staff member
+// back to the challenge they are standing on.
 func Admin(p Page, current string) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -62,7 +53,7 @@ func Admin(p Page, current string) templ.Component {
 		var templ_7745c5c3_Var2 string
 		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.ResolveAttributeValue(i18n.FromContext(ctx).Tag())
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/admin.templ`, Line: 31, Col: 41}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/admin.templ`, Line: 22, Col: 41}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var2)
 		if templ_7745c5c3_Err != nil {
@@ -83,7 +74,7 @@ func Admin(p Page, current string) templ.Component {
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeySkipToContent))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/admin.templ`, Line: 34, Col: 73}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/admin.templ`, Line: 25, Col: 73}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {
@@ -136,12 +127,8 @@ func Admin(p Page, current string) templ.Component {
 	})
 }
 
-// adminBar is the back office's top bar.
-//
-// It carries no page navigation: the 23 screens are the rail inside the page,
-// and a second route into them here would be a second list to keep current.
-// The mark links to the dashboard, which is what a brand mark in a back office
-// is for.
+// No page navigation here: the screens are the rail inside the page, and a second
+// route into them would be a second list to keep current.
 func adminBar() templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -178,7 +165,7 @@ func adminBar() templ.Component {
 		var templ_7745c5c3_Var5 string
 		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminEyebrow))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/admin.templ`, Line: 67, Col: 72}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/admin.templ`, Line: 54, Col: 72}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 		if templ_7745c5c3_Err != nil {
@@ -191,7 +178,7 @@ func adminBar() templ.Component {
 		var templ_7745c5c3_Var6 string
 		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyBackToShop))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/admin.templ`, Line: 70, Col: 77}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/admin.templ`, Line: 57, Col: 77}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 		if templ_7745c5c3_Err != nil {
@@ -224,7 +211,7 @@ func adminBar() templ.Component {
 			var templ_7745c5c3_Var8 string
 			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeySignOut))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/admin.templ`, Line: 74, Col: 36}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/admin.templ`, Line: 61, Col: 36}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 			if templ_7745c5c3_Err != nil {
@@ -244,29 +231,19 @@ func adminBar() templ.Component {
 	})
 }
 
-// adminNav is the back office's own navigation: 23 screens, grouped by the
-// QUESTION each one answers rather than listed. Flat, they were 24 labels in
-// one row and finding a screen meant reading all of them.
+// Groups answer the QUESTION each screen answers, rather than a flat row of labels.
 //
-// It is a column beside the page from the wide breakpoint and a band above it
-// below one, which is one element and two stylesheets rather than two navs: a
-// second copy of 23 links is a second copy to keep current, and a screen
-// reader hears both.
+// One element and two stylesheets (a column from the wide breakpoint, a band above
+// the page below it), not two navs: a second copy of the links is a second copy to
+// keep current, and a screen reader would hear both.
 //
-// Every group is a native <details>, so the disclosure needs no script, and the
-// one holding the current screen is rendered `open` by the server — nothing
-// moves after the first byte. A closed group costs a keyboard user one key:
-// its <summary> is in the tab order and opens on Enter.
+// Every group is a native <details>: no script, and the server renders `open` on the
+// one holding the current screen. Groups are independent. The dashboard is nobody's
+// group and holds the queues group open: orders and returns are where a shift starts.
 //
-// The groups are independent: opening one leaves the others as they were, so a
-// staff member working between two of them is not closing one to read the
-// other. The dashboard is nobody's group and holds the queues group open, because
-// the screens a shift starts from are orders and returns and the dashboard is
-// where it starts.
-//
-// The whole nav is itself closed behind its summary until the desk width, where
-// the stylesheet shows it as the rail. On a phone it would otherwise be a screen
-// of links above every page's first line of work.
+// The whole nav is closed behind its summary until the desk width, where the
+// stylesheet shows it as the rail; on a phone it would otherwise fill the screen
+// above every page's first line of work.
 func adminNav(current string) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -307,7 +284,7 @@ func adminNav(current string) templ.Component {
 			var templ_7745c5c3_Var11 string
 			templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.ResolveAttributeValue(i18n.T(ctx, i18n.KeyAdminQueueNavLabel))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/admin.templ`, Line: 110, Col: 87}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/admin.templ`, Line: 87, Col: 87}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var11)
 			if templ_7745c5c3_Err != nil {
@@ -330,7 +307,7 @@ func adminNav(current string) templ.Component {
 			var templ_7745c5c3_Var12 string
 			templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminQueueOverview))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/admin.templ`, Line: 117, Col: 45}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/admin.templ`, Line: 94, Col: 45}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 			if templ_7745c5c3_Err != nil {
@@ -353,7 +330,7 @@ func adminNav(current string) templ.Component {
 			var templ_7745c5c3_Var13 string
 			templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminNavQueues))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/admin.templ`, Line: 122, Col: 90}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/admin.templ`, Line: 99, Col: 90}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 			if templ_7745c5c3_Err != nil {
@@ -376,7 +353,7 @@ func adminNav(current string) templ.Component {
 			var templ_7745c5c3_Var14 string
 			templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminQueueOrders))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/admin.templ`, Line: 130, Col: 45}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/admin.templ`, Line: 107, Col: 45}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 			if templ_7745c5c3_Err != nil {
@@ -399,7 +376,7 @@ func adminNav(current string) templ.Component {
 			var templ_7745c5c3_Var15 string
 			templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminQueueReturns))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/admin.templ`, Line: 137, Col: 46}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/admin.templ`, Line: 114, Col: 46}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 			if templ_7745c5c3_Err != nil {
@@ -422,7 +399,7 @@ func adminNav(current string) templ.Component {
 			var templ_7745c5c3_Var16 string
 			templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminQueueQuestions))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/admin.templ`, Line: 144, Col: 48}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/admin.templ`, Line: 121, Col: 48}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 			if templ_7745c5c3_Err != nil {
@@ -445,7 +422,7 @@ func adminNav(current string) templ.Component {
 			var templ_7745c5c3_Var17 string
 			templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminPageMessages))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/admin.templ`, Line: 151, Col: 46}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/admin.templ`, Line: 128, Col: 46}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 			if templ_7745c5c3_Err != nil {
@@ -468,7 +445,7 @@ func adminNav(current string) templ.Component {
 			var templ_7745c5c3_Var18 string
 			templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminQueueReviews))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/admin.templ`, Line: 158, Col: 46}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/admin.templ`, Line: 135, Col: 46}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 			if templ_7745c5c3_Err != nil {
@@ -491,7 +468,7 @@ func adminNav(current string) templ.Component {
 			var templ_7745c5c3_Var19 string
 			templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminNavCatalogue))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/admin.templ`, Line: 165, Col: 93}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/admin.templ`, Line: 142, Col: 93}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 			if templ_7745c5c3_Err != nil {
@@ -514,7 +491,7 @@ func adminNav(current string) templ.Component {
 			var templ_7745c5c3_Var20 string
 			templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminPageProducts))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/admin.templ`, Line: 173, Col: 46}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/admin.templ`, Line: 150, Col: 46}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 			if templ_7745c5c3_Err != nil {
@@ -537,7 +514,7 @@ func adminNav(current string) templ.Component {
 			var templ_7745c5c3_Var21 string
 			templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminQueueStock))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/admin.templ`, Line: 180, Col: 44}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/admin.templ`, Line: 157, Col: 44}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
 			if templ_7745c5c3_Err != nil {
@@ -560,7 +537,7 @@ func adminNav(current string) templ.Component {
 			var templ_7745c5c3_Var22 string
 			templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminQueueTaxonomy))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/admin.templ`, Line: 187, Col: 47}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/admin.templ`, Line: 164, Col: 47}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 			if templ_7745c5c3_Err != nil {
@@ -583,7 +560,7 @@ func adminNav(current string) templ.Component {
 			var templ_7745c5c3_Var23 string
 			templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminQueueCampaigns))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/admin.templ`, Line: 194, Col: 48}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/admin.templ`, Line: 171, Col: 48}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 			if templ_7745c5c3_Err != nil {
@@ -606,7 +583,7 @@ func adminNav(current string) templ.Component {
 			var templ_7745c5c3_Var24 string
 			templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminPageCoupons))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/admin.templ`, Line: 201, Col: 45}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/admin.templ`, Line: 178, Col: 45}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
 			if templ_7745c5c3_Err != nil {
@@ -629,7 +606,7 @@ func adminNav(current string) templ.Component {
 			var templ_7745c5c3_Var25 string
 			templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminNavCustomers))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/admin.templ`, Line: 208, Col: 93}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/admin.templ`, Line: 185, Col: 93}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
 			if templ_7745c5c3_Err != nil {
@@ -652,7 +629,7 @@ func adminNav(current string) templ.Component {
 			var templ_7745c5c3_Var26 string
 			templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminPageCustomers))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/admin.templ`, Line: 216, Col: 47}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/admin.templ`, Line: 193, Col: 47}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var26))
 			if templ_7745c5c3_Err != nil {
@@ -675,7 +652,7 @@ func adminNav(current string) templ.Component {
 			var templ_7745c5c3_Var27 string
 			templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminQueueCredit))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/admin.templ`, Line: 223, Col: 45}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/admin.templ`, Line: 200, Col: 45}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var27))
 			if templ_7745c5c3_Err != nil {
@@ -698,7 +675,7 @@ func adminNav(current string) templ.Component {
 			var templ_7745c5c3_Var28 string
 			templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminPageTiers))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/admin.templ`, Line: 230, Col: 43}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/admin.templ`, Line: 207, Col: 43}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var28))
 			if templ_7745c5c3_Err != nil {
@@ -721,7 +698,7 @@ func adminNav(current string) templ.Component {
 			var templ_7745c5c3_Var29 string
 			templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminQueueWarranty))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/admin.templ`, Line: 237, Col: 47}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/admin.templ`, Line: 214, Col: 47}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var29))
 			if templ_7745c5c3_Err != nil {
@@ -744,7 +721,7 @@ func adminNav(current string) templ.Component {
 			var templ_7745c5c3_Var30 string
 			templ_7745c5c3_Var30, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminPageNewsletter))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/admin.templ`, Line: 244, Col: 48}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/admin.templ`, Line: 221, Col: 48}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var30))
 			if templ_7745c5c3_Err != nil {
@@ -767,7 +744,7 @@ func adminNav(current string) templ.Component {
 			var templ_7745c5c3_Var31 string
 			templ_7745c5c3_Var31, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminNavShop))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/admin.templ`, Line: 251, Col: 88}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/admin.templ`, Line: 228, Col: 88}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var31))
 			if templ_7745c5c3_Err != nil {
@@ -790,7 +767,7 @@ func adminNav(current string) templ.Component {
 			var templ_7745c5c3_Var32 string
 			templ_7745c5c3_Var32, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminQueueShipping))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/admin.templ`, Line: 259, Col: 47}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/admin.templ`, Line: 236, Col: 47}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var32))
 			if templ_7745c5c3_Err != nil {
@@ -813,7 +790,7 @@ func adminNav(current string) templ.Component {
 			var templ_7745c5c3_Var33 string
 			templ_7745c5c3_Var33, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminQueueHomePage))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/admin.templ`, Line: 266, Col: 47}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/admin.templ`, Line: 243, Col: 47}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var33))
 			if templ_7745c5c3_Err != nil {
@@ -836,7 +813,7 @@ func adminNav(current string) templ.Component {
 			var templ_7745c5c3_Var34 string
 			templ_7745c5c3_Var34, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminPageFAQ))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/admin.templ`, Line: 273, Col: 41}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/admin.templ`, Line: 250, Col: 41}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var34))
 			if templ_7745c5c3_Err != nil {
@@ -864,7 +841,7 @@ func adminNav(current string) templ.Component {
 				var templ_7745c5c3_Var35 string
 				templ_7745c5c3_Var35, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminQueueStaff))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/admin.templ`, Line: 281, Col: 45}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/admin.templ`, Line: 258, Col: 45}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var35))
 				if templ_7745c5c3_Err != nil {
@@ -892,7 +869,7 @@ func adminNav(current string) templ.Component {
 			var templ_7745c5c3_Var36 string
 			templ_7745c5c3_Var36, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminNavRecords))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/admin.templ`, Line: 289, Col: 91}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/admin.templ`, Line: 266, Col: 91}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var36))
 			if templ_7745c5c3_Err != nil {
@@ -915,7 +892,7 @@ func adminNav(current string) templ.Component {
 			var templ_7745c5c3_Var37 string
 			templ_7745c5c3_Var37, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminPageReports))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/admin.templ`, Line: 297, Col: 45}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/admin.templ`, Line: 274, Col: 45}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var37))
 			if templ_7745c5c3_Err != nil {
@@ -938,7 +915,7 @@ func adminNav(current string) templ.Component {
 			var templ_7745c5c3_Var38 string
 			templ_7745c5c3_Var38, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminPageAudit))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/admin.templ`, Line: 304, Col: 43}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/admin.templ`, Line: 281, Col: 43}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var38))
 			if templ_7745c5c3_Err != nil {
@@ -961,7 +938,7 @@ func adminNav(current string) templ.Component {
 			var templ_7745c5c3_Var39 string
 			templ_7745c5c3_Var39, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminPageHealth))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/admin.templ`, Line: 311, Col: 44}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/admin.templ`, Line: 288, Col: 44}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var39))
 			if templ_7745c5c3_Err != nil {
@@ -974,7 +951,7 @@ func adminNav(current string) templ.Component {
 			var templ_7745c5c3_Var40 string
 			templ_7745c5c3_Var40, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyBackToShop))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/admin.templ`, Line: 314, Col: 87}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/admin.templ`, Line: 291, Col: 87}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var40))
 			if templ_7745c5c3_Err != nil {

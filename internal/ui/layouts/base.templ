@@ -7,7 +7,6 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-// Base is the storefront's document shell.
 templ Base(p Page) {
 	<!DOCTYPE html>
 	<html lang={ i18n.FromContext(ctx).Tag() } class="theme-blue">
@@ -24,13 +23,10 @@ templ Base(p Page) {
 	</html>
 }
 
-// documentHead is the head both shells send. It is one templ and not two
-// because every entry in it — the fonts, the stylesheets, htmx and its
-// configuration — is a fact about the document rather than about the storefront,
-// and a second copy is a second copy to keep current.
+// One templ, not two: every entry is a fact about the document, not the storefront.
 //
-// base.css is linked before app.css because that order is the cascade: a value
-// set in both is settled by source order, and app.css is what wins.
+// base.css is linked before app.css because source order settles a value set in
+// both, and app.css is what wins.
 templ documentHead(p Page) {
 	<head>
 		<meta charset="utf-8"/>
@@ -50,8 +46,8 @@ templ documentHead(p Page) {
 		if p.StructuredData != "" {
 			@structuredData(p.StructuredData)
 		}
-		// Where no origin is configured the tags are left out rather than sent
-		// relative, which a crawler cannot use.
+		// Where no origin is configured the tags are left out rather than sent relative,
+		// which a crawler cannot use.
 		if origin := SiteOrigin(ctx); origin != "" {
 			<meta property="og:url" content={ origin + RequestPath(ctx) }/>
 			if p.Share.Path != "" {
@@ -71,15 +67,12 @@ templ documentHead(p Page) {
 		<link rel="icon" href="/favicon.ico" sizes="32x32"/>
 		<link rel="icon" type="image/svg+xml" href={ templ.URL(assets.URL(assets.FaviconSVG)) }/>
 		<link rel="apple-touch-icon" href={ templ.URL(assets.URL(assets.AppleTouchIcon)) }/>
-		// goen's own faces, from goen's own origin. There is no preconnect
-		// because there is no second origin to connect to: the stylesheet and
-		// every file it names arrive on the connection that fetched the page.
+		// goen's own faces from goen's own origin, so there is no preconnect: the stylesheet
+		// and every file it names arrive on the connection that fetched the page.
 		//
-		// The Latin face is preloaded because every page paints Latin before it
-		// paints anything else, and a browser cannot discover a font until it has
-		// parsed the sheet that names it. The Han subsets are not preloaded:
-		// which of the 105 a page needs depends on the characters on it, and a
-		// preloaded guess costs a file the page may never paint.
+		// The Latin face is preloaded because every page paints it first and a browser cannot
+		// find a font before it parses the sheet naming it. The Han subsets are not: which of
+		// the 105 a page needs depends on its characters, and a wrong guess costs a file.
 		<link rel="preload" href={ templ.URL(assets.URL(assets.InterLatinWOFF2)) } as="font" type="font/woff2" crossorigin/>
 		<link rel="stylesheet" href={ templ.URL(assets.URL(assets.FontsCSS)) }/>
 		<link rel="stylesheet" href={ templ.URL(assets.URL(assets.BaseCSS)) }/>
