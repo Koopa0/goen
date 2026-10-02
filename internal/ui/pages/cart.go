@@ -87,6 +87,39 @@ type CartView struct {
 	ReorderAdjusted bool
 	Notice          string
 	ContinueURL     string
+
+	FreeDelivery FreeDelivery
+}
+
+// FreeDeliveryKind is what the cart can truthfully say about free delivery.
+type FreeDeliveryKind string
+
+const (
+	// FreeDeliveryUnstated is silence: the delivery methods on offer do not
+	// agree, so no single sentence is true for every destination.
+	FreeDeliveryUnstated FreeDeliveryKind = ""
+	// FreeDeliveryShort is a cart still below the amount at which every method is free.
+	FreeDeliveryShort FreeDeliveryKind = "short"
+	// FreeDeliveryReached is a cart for which every method is already free.
+	FreeDeliveryReached FreeDeliveryKind = "reached"
+)
+
+// FreeDelivery is the cart's one line about free delivery.
+type FreeDelivery struct {
+	Kind           FreeDeliveryKind
+	ShortfallCents int64
+}
+
+// Text is the line, or "" when there is none to say.
+func (f FreeDelivery) Text(ctx context.Context) string {
+	switch f.Kind {
+	case FreeDeliveryShort:
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyCartFreeDeliveryShort), twd(f.ShortfallCents))
+	case FreeDeliveryReached:
+		return i18n.T(ctx, i18n.KeyCartFreeDeliveryReached)
+	default:
+		return ""
+	}
 }
 
 // HasNotice reports whether to show the notice banner.
@@ -147,6 +180,9 @@ type ShippingChoice struct {
 	Carrier         string
 	FeeCents        int64
 	Free            bool
+	// FreeOverCents is the subtotal from which this method is free, zero for a
+	// method that never is.
+	FreeOverCents int64
 }
 
 // Fee is what this method costs for the current subtotal.
@@ -729,7 +765,75 @@ type OrderView struct {
 	// PaymentRefreshSeconds and PaymentRefreshChecks are the bounds behind that
 	// URL, quoted in the notice so the copy cannot drift from the handler.
 	PaymentRefreshSeconds, PaymentRefreshChecks int
+	// PaymentsEnabled is whether this deployment can take a payment at all. Where
+	// it cannot, a link to the payment page leads to a page that sends the
+	// shopper back here.
+	PaymentsEnabled bool
 }
+
+// PaymentState is what the shopper is told about paying for an order.
+type PaymentState string
+
+const (
+	// PaymentNone is an order cancelled before anything was paid.
+	PaymentNone     PaymentState = ""
+	PaymentAwaiting PaymentState = "awaiting"
+	PaymentPaid     PaymentState = "paid"
+	PaymentRefunded PaymentState = "refunded"
+)
+
+// PaymentState reads the order's own facts. A cancelled order is refunded only
+// where a refund is on its timeline; a partial refund on a delivered order
+// leaves it paid, and the timeline shows the refund.
+func (v *OrderView) PaymentState() PaymentState {
+	switch {
+	case v.Status == FulfillmentCancelled:
+		for _, e := range v.Timeline {
+			if e.Kind == "refunded" {
+				return PaymentRefunded
+			}
+		}
+		return PaymentNone
+	case v.AwaitingPayment():
+		return PaymentAwaiting
+	default:
+		return PaymentPaid
+	}
+}
+
+// Key is the words for the state.
+func (s PaymentState) Key() i18n.Key {
+	switch s {
+	case PaymentAwaiting:
+		return i18n.KeyStatusAwaitingPayment
+	case PaymentRefunded:
+		return i18n.KeyStatusRefunded
+	default:
+		return i18n.KeyStatusPaid
+	}
+}
+
+// StateKey names the order's state in the page's eyebrow. Paying is a second
+// fact with its own row, so an order that is placed stays 訂單成立 until it moves.
+func (v *OrderView) StateKey() i18n.Key {
+	switch v.Status {
+	case FulfillmentPicking:
+		return i18n.KeyStatusPicking
+	case FulfillmentShipped:
+		return i18n.KeyStatusShipped
+	case FulfillmentDelivered:
+		return i18n.KeyStatusDelivered
+	case FulfillmentCompleted:
+		return i18n.KeyStatusCompleted
+	case FulfillmentCancelled:
+		return i18n.KeyStatusCancelled
+	default:
+		return i18n.KeyOrderPlaced
+	}
+}
+
+// Owed is what is left to pay after store credit.
+func (v *OrderView) Owed() string { return twd(v.OwedCents) }
 
 // CanCancel reports whether the customer may still call this order off.
 func (v *OrderView) CanCancel() bool {

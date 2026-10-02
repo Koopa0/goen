@@ -85,6 +85,9 @@ templ Cart(p layouts.Page, v CartView) {
 								<dd class="goen-summary__value">{ i18n.T(ctx, i18n.KeyShippingLater) }</dd>
 							</div>
 						</dl>
+						if v.FreeDelivery.Kind != "" {
+							<p class="goen-cart__freedelivery">{ v.FreeDelivery.Text(ctx) }</p>
+						}
 						if v.Blocked() {
 							@components.Notice(components.NoticeProps{Tone: components.ToneWarn}) {
 								{ i18n.T(ctx, i18n.KeyCartStockShort) }
@@ -877,7 +880,7 @@ templ Order(p layouts.Page, v *OrderView) {
 		<div class="goen-order">
 			<div class="goen-order__placed">
 				<div class="goen-pagehead">
-					<p class="goen-pagehead__eyebrow">{ i18n.T(ctx, i18n.KeyOrderPlaced) }</p>
+					<p class="goen-pagehead__eyebrow">{ i18n.T(ctx, v.StateKey()) }</p>
 					<h1 class="goen-pagehead__title">{ v.Number }</h1>
 					<p class="goen-pagehead__sub">
 						{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOrderPlacedAt), v.PlacedAt) }
@@ -914,7 +917,9 @@ templ Order(p layouts.Page, v *OrderView) {
 					ID:   "order-unpaid",
 				}) {
 					{ i18n.T(ctx, i18n.KeyOrderUnpaid) }
-					<a href={ templ.SafeURL("/orders/" + v.Number + "/pay") }>{ i18n.T(ctx, i18n.KeyPay) }</a>
+					if v.PaymentsEnabled {
+						<a href={ templ.SafeURL("/orders/" + v.Number + "/pay") }>{ i18n.T(ctx, i18n.KeyPay) }</a>
+					}
 				}
 			}
 			<div class="goen-order__layout">
@@ -1049,17 +1054,25 @@ templ Order(p layouts.Page, v *OrderView) {
 								<dd class="goen-summary__value">{ v.Discount() }</dd>
 							</div>
 						}
-						<div class="goen-summary__row goen-summary__row--total">
-							<dt>{ i18n.T(ctx, i18n.KeyOrderGrandTotal) }</dt>
-							<dd class="goen-summary__value">{ v.Total() }</dd>
-						</div>
-						// Below the total, because it is not a reduction of the
-						// price: the goods cost what they cost and this is part
-						// of how they were paid for.
 						if v.UsedCredit() {
 							<div class="goen-summary__row">
 								<dt>{ i18n.T(ctx, i18n.KeyOrderCreditApplied) }</dt>
 								<dd class="goen-summary__value">{ v.Credit() }</dd>
+							</div>
+							<div class="goen-summary__row goen-summary__row--total">
+								<dt>{ i18n.T(ctx, i18n.KeyOrderAmountDue) }</dt>
+								<dd class="goen-summary__value">{ v.Owed() }</dd>
+							</div>
+						} else {
+							<div class="goen-summary__row goen-summary__row--total">
+								<dt>{ i18n.T(ctx, i18n.KeyOrderGrandTotal) }</dt>
+								<dd class="goen-summary__value">{ v.Total() }</dd>
+							</div>
+						}
+						if v.PaymentState() != "" {
+							<div class="goen-summary__row">
+								<dt>{ i18n.T(ctx, i18n.KeyOrderPayment) }</dt>
+								<dd class="goen-summary__value">{ i18n.T(ctx, v.PaymentState().Key()) }</dd>
 							</div>
 						}
 					</dl>

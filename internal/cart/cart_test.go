@@ -1174,4 +1174,41 @@ func TestABlankCityIsAskedToBeFilledIn(t *testing.T) {
 	if got != "請填寫縣市" {
 		t.Errorf("a blank city is refused with %q, want 請填寫縣市", got)
 	}
+	}
+}
+
+// TestTheCartSpeaksOfFreeDeliveryOnlyWhereItIsTrueForEveryMethod holds the cart's
+// line to what checkout charges: one amount at which every method on offer turns
+// free, or nothing.
+func TestTheCartSpeaksOfFreeDeliveryOnlyWhereItIsTrueForEveryMethod(t *testing.T) {
+	t.Parallel()
+
+	home := pages.ShippingChoice{FeeCents: 100, FreeOverCents: 300000}
+	pickupPoint := pages.ShippingChoice{FeeCents: 60, FreeOverCents: 150000}
+	never := pages.ShippingChoice{FeeCents: 100}
+	free := func(c pages.ShippingChoice) pages.ShippingChoice { c.FeeCents, c.Free = 0, true; return c }
+
+	for _, tt := range []struct {
+		name     string
+		choices  []pages.ShippingChoice
+		subtotal int64
+		want     pages.FreeDelivery
+	}{
+		{"nothing offered", nil, 0, pages.FreeDelivery{}},
+		{"one method, short", []pages.ShippingChoice{home}, 100000,
+			pages.FreeDelivery{Kind: pages.FreeDeliveryShort, ShortfallCents: 200000}},
+		{"two thresholds, the higher one is the one that is true for both",
+			[]pages.ShippingChoice{home, pickupPoint}, 100000,
+			pages.FreeDelivery{Kind: pages.FreeDeliveryShort, ShortfallCents: 200000}},
+		{"one method is already free, the other is not",
+			[]pages.ShippingChoice{home, free(pickupPoint)}, 200000,
+			pages.FreeDelivery{Kind: pages.FreeDeliveryShort, ShortfallCents: 100000}},
+		{"a method that is never free says nothing", []pages.ShippingChoice{home, never}, 100000, pages.FreeDelivery{}},
+		{"every method free", []pages.ShippingChoice{free(home), free(pickupPoint)}, 300000,
+			pages.FreeDelivery{Kind: pages.FreeDeliveryReached}},
+	} {
+		if got := freeDeliveryFor(tt.choices, tt.subtotal); got != tt.want {
+			t.Errorf("%s: got %+v, want %+v", tt.name, got, tt.want)
+		}
+	}
 }

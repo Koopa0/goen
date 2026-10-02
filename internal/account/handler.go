@@ -29,6 +29,8 @@ type CartFinder interface {
 	IDForRequest(ctx context.Context, r *http.Request) (uuid.UUID, bool)
 	ForgetCart(w http.ResponseWriter, r *http.Request)
 	ForgetOrders(w http.ResponseWriter, r *http.Request)
+	// TakesPayment is whether a customer can pay for an order here at all.
+	TakesPayment() bool
 }
 
 // Handler serves sign-in, registration and the customer's own pages.
@@ -311,6 +313,7 @@ func (h *Handler) overview(w http.ResponseWriter, r *http.Request, status int, r
 		view.EmailVerified, view.PendingEmail = state.Verified, state.PendingEmail
 	}
 	view.Notice = accountNotice(r)
+	view.PaymentsEnabled = h.carts != nil && h.carts.TakesPayment()
 	if refused != nil {
 		refused(&view)
 	}

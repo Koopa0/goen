@@ -259,7 +259,7 @@ templ CartRecovery(p layouts.Page, v CartRecoveryView) {
 					{ v.Retry }
 				}
 			</form>
-			@components.ButtonLink(components.ButtonProps{Variant: components.VariantGhost, Class: "notice__back"}, templ.SafeURL(v.Next)) {
+			@components.ButtonLink(components.ButtonProps{Variant: components.VariantGhost, Class: "notice__back"}, "/") {
 				{ i18n.T(ctx, i18n.KeyBackToShop) }
 			}
 		</div>
@@ -374,6 +374,9 @@ templ Account(p layouts.Page, v *AccountView) {
 											<td>
 												@components.Badge(components.BadgeProps{Tone: o.BadgeTone()}) {
 													{ o.StatusText(ctx) }
+												}
+												if v.PaymentsEnabled && o.AwaitingPayment() {
+													<a class="goen-account__orderpay" href={ templ.SafeURL("/orders/" + o.Number + "/pay") }>{ i18n.T(ctx, i18n.KeyPay) }</a>
 												}
 											</td>
 											<td class="goen-account__ordertotal">{ o.Total() }</td>

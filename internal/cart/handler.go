@@ -99,6 +99,37 @@ func NewHandler(store *Store, log *slog.Logger, secure bool, findLimit *ratelimi
 	}
 }
 
+// freeDeliveryFor says what is true for every delivery method the checkout
+// offers this cart, which is all the cart can say: it does not know the
+// destination. Methods that turn free at different amounts are one sentence only
+// at the highest of them, and a method that never does makes it none.
+func freeDeliveryFor(choices []pages.ShippingChoice, subtotalCents int64) pages.FreeDelivery {
+	if len(choices) == 0 {
+		return pages.FreeDelivery{}
+	}
+	var allFreeAt int64
+	reached := true
+	for _, c := range choices {
+		if c.Free {
+			continue
+		}
+		reached = false
+		if c.FreeOverCents <= 0 {
+			return pages.FreeDelivery{}
+		}
+		allFreeAt = max(allFreeAt, c.FreeOverCents)
+	}
+	if reached {
+		return pages.FreeDelivery{Kind: pages.FreeDeliveryReached}
+	}
+	return pages.FreeDelivery{Kind: pages.FreeDeliveryShort, ShortfallCents: allFreeAt - subtotalCents}
+}
+
+// TakesPayment reports whether a customer can pay here. A session closer
+// exists exactly where a payment key does, so its absence is the shop having
+// no way to take a payment.
+func (h *Handler) TakesPayment() bool { return h.sessions != nil }
+
 // closeSessions expires the checkouts a cancelled order left open at Stripe,
 // post-commit and best effort: the cancellation has already committed, and money
 // that beats this there arrives as payment.ErrOrderCancelled.
@@ -139,6 +170,11 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	view.ContinueURL = cartContinuation(r)
+	if choices, err := h.offeredShipping(r.Context(), cartID, view.SubtotalCents); err != nil {
+		h.log.ErrorContext(r.Context(), "read shipping for the cart", "error", err)
+	} else {
+		view.FreeDelivery = freeDeliveryFor(choices, view.SubtotalCents)
+	}
 	view.ReorderAdded, view.ReorderSkipped = reorderOutcome(r)
 	view.ReorderAdjusted = view.FromReorder() && r.URL.Query().Get("qty") == "adjusted"
 	if notice := cartPageNotice(r); notice != "" && !view.ReorderAdjusted {
@@ -1515,6 +1551,7 @@ func (h *Handler) OrderPage(w http.ResponseWriter, r *http.Request) {
 		view.PaymentRefreshChecks = paymentReturnRefreshChecks
 	}
 	view.ShowWarrantyLink = h.ownedBySignedInUser(r, number)
+	view.PaymentsEnabled = h.TakesPayment()
 	web.Render(w, r, h.log, http.StatusOK, pages.Order(pages.OrderMeta(r.Context(), view.Number), &view))
 }
 

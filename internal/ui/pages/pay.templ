@@ -113,6 +113,12 @@ templ Pay(p layouts.Page, v PayView) {
 					}) {
 						{ i18n.T(ctx, i18n.KeyPayDisabled) }
 					}
+					@components.ButtonLink(components.ButtonProps{
+						Variant: components.VariantGhost,
+						Block:   true,
+					}, "/contact") {
+						{ i18n.T(ctx, i18n.KeyContact) }
+					}
 				}
 				@components.ButtonLink(components.ButtonProps{
 					Variant: components.VariantOutline,

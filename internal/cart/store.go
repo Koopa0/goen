@@ -430,6 +430,7 @@ func (s *Store) ShippingChoices(ctx context.Context, cartID uuid.UUID, subtotalC
 			Carrier:         r.Carrier,
 			FeeCents:        fee,
 			Free:            fee == 0,
+			FreeOverCents:   r.FreeOverCents.Int64,
 		})
 	}
 	return out, nil
