@@ -135,12 +135,11 @@ templ Home(p layouts.Page, v HomeView) {
 // heading is a section name in ink, then a short grey continuation on the same
 // line; it may wrap on a narrow screen.
 templ heading(id, name, rest string) {
-	<h2 id={ id } class="goen-home__heading">
-		{ name }
-		if rest != "" {
-			<span class="goen-home__aside">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyHomeAside), rest) }</span>
-		}
-	</h2>
+	if rest == "" {
+		<h2 id={ id } class="goen-home__heading">{ name }</h2>
+	} else {
+		<h2 id={ id } class="goen-home__heading">{ name }<span class="goen-home__aside">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyHomeAside), rest) }</span></h2>
+	}
 }
 
 templ seeAll(label, href string) {
