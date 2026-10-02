@@ -972,6 +972,32 @@ FROM sale_campaigns c
 LEFT JOIN media_objects m ON m.digest = c.image_key
 WHERE c.slug = @slug::text;
 
+-- name: AdminCampaign :one
+SELECT c.title, c.starts_at, c.ends_at, c.is_active,
+       (c.is_active AND c.starts_at <= now() AND c.ends_at > now())::boolean AS is_running
+FROM sale_campaigns c
+WHERE c.slug = @slug::text;
+
+-- name: SetCampaignWindow :execrows
+UPDATE sale_campaigns
+SET starts_at = @starts_at::timestamptz, ends_at = @ends_at::timestamptz
+WHERE slug = @slug::text;
+
+-- Archived products are left out: a campaign on one shows nothing.
+-- name: AdminCampaignProductSearch :many
+SELECT p.slug, p.name
+FROM products p
+WHERE p.status <> 'archived'
+  AND (p.name ILIKE '%' || @escaped_term::text || '%'
+       OR p.name_en ILIKE '%' || @escaped_term::text || '%'
+       OR p.slug ILIKE '%' || @escaped_term::text || '%')
+  AND NOT EXISTS (SELECT 1
+                  FROM sale_campaign_products cp
+                  JOIN sale_campaigns c ON c.id = cp.campaign_id
+                  WHERE c.slug = @campaign::text AND cp.product_id = p.id)
+ORDER BY p.name, p.id
+LIMIT @row_limit::integer;
+
 -- name: SetCampaignTone :execrows
 UPDATE sale_campaigns SET tone = @tone::text WHERE slug = @slug::text;
 

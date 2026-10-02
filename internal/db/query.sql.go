@@ -349,6 +349,34 @@ func (q *Queries) AdminBrands(ctx context.Context) ([]AdminBrandsRow, error) {
 	return items, nil
 }
 
+const adminCampaign = `-- name: AdminCampaign :one
+SELECT c.title, c.starts_at, c.ends_at, c.is_active,
+       (c.is_active AND c.starts_at <= now() AND c.ends_at > now())::boolean AS is_running
+FROM sale_campaigns c
+WHERE c.slug = $1::text
+`
+
+type AdminCampaignRow struct {
+	Title     string
+	StartsAt  time.Time
+	EndsAt    time.Time
+	IsActive  bool
+	IsRunning bool
+}
+
+func (q *Queries) AdminCampaign(ctx context.Context, slug string) (AdminCampaignRow, error) {
+	row := q.db.QueryRow(ctx, adminCampaign, slug)
+	var i AdminCampaignRow
+	err := row.Scan(
+		&i.Title,
+		&i.StartsAt,
+		&i.EndsAt,
+		&i.IsActive,
+		&i.IsRunning,
+	)
+	return i, err
+}
+
 const adminCampaignImage = `-- name: AdminCampaignImage :one
 SELECT coalesce(c.image_key, '')::text AS image_key,
        coalesce(c.image_alt, '')::text AS image_alt,
@@ -381,6 +409,53 @@ func (q *Queries) AdminCampaignImage(ctx context.Context, slug string) (AdminCam
 		&i.ImageWidth,
 	)
 	return i, err
+}
+
+const adminCampaignProductSearch = `-- name: AdminCampaignProductSearch :many
+SELECT p.slug, p.name
+FROM products p
+WHERE p.status <> 'archived'
+  AND (p.name ILIKE '%' || $1::text || '%'
+       OR p.name_en ILIKE '%' || $1::text || '%'
+       OR p.slug ILIKE '%' || $1::text || '%')
+  AND NOT EXISTS (SELECT 1
+                  FROM sale_campaign_products cp
+                  JOIN sale_campaigns c ON c.id = cp.campaign_id
+                  WHERE c.slug = $2::text AND cp.product_id = p.id)
+ORDER BY p.name, p.id
+LIMIT $3::integer
+`
+
+type AdminCampaignProductSearchParams struct {
+	EscapedTerm string
+	Campaign    string
+	RowLimit    int32
+}
+
+type AdminCampaignProductSearchRow struct {
+	Slug string
+	Name string
+}
+
+// Archived products are left out: a campaign on one shows nothing.
+func (q *Queries) AdminCampaignProductSearch(ctx context.Context, arg AdminCampaignProductSearchParams) ([]AdminCampaignProductSearchRow, error) {
+	rows, err := q.db.Query(ctx, adminCampaignProductSearch, arg.EscapedTerm, arg.Campaign, arg.RowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AdminCampaignProductSearchRow{}
+	for rows.Next() {
+		var i AdminCampaignProductSearchRow
+		if err := rows.Scan(&i.Slug, &i.Name); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const adminCampaignProducts = `-- name: AdminCampaignProducts :many
@@ -13207,6 +13282,26 @@ type SetCampaignToneParams struct {
 
 func (q *Queries) SetCampaignTone(ctx context.Context, arg SetCampaignToneParams) (int64, error) {
 	result, err := q.db.Exec(ctx, setCampaignTone, arg.Tone, arg.Slug)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const setCampaignWindow = `-- name: SetCampaignWindow :execrows
+UPDATE sale_campaigns
+SET starts_at = $1::timestamptz, ends_at = $2::timestamptz
+WHERE slug = $3::text
+`
+
+type SetCampaignWindowParams struct {
+	StartsAt time.Time
+	EndsAt   time.Time
+	Slug     string
+}
+
+func (q *Queries) SetCampaignWindow(ctx context.Context, arg SetCampaignWindowParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setCampaignWindow, arg.StartsAt, arg.EndsAt, arg.Slug)
 	if err != nil {
 		return 0, err
 	}

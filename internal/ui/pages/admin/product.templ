@@ -112,11 +112,25 @@ templ ProductForm(p layouts.Page, v ProductView) {
 					<p class="ui-page-head__sub">{ v.StatusText } · /p/{ v.Slug }</p>
 				}
 			</div>
+			if !v.IsNew {
+				<div class="ui-page-head__actions">
+					@productPublishing(v)
+				</div>
+			}
 		</div>
 		if v.Notice != "" {
 			@components.Notice(components.NoticeProps{Tone: components.ToneAccent}) {
 				{ v.Notice }
 			}
+		}
+		if !v.IsNew {
+			<nav class="goen-admin__sectionnav" aria-label={ i18n.T(ctx, i18n.KeyAdminProdSectionNav) }>
+				<a href="#sec-details">{ i18n.T(ctx, i18n.KeyAdminProdName) }</a>
+				<a href="#sec-images">{ i18n.T(ctx, i18n.KeyAdminProdImages) }</a>
+				<a href="#sec-options">{ i18n.T(ctx, i18n.KeyAdminProdOptions) }</a>
+				<a href="#sec-variants">{ i18n.T(ctx, i18n.KeyAdminProdVariants) }</a>
+				<a href="#sec-specs">{ i18n.T(ctx, i18n.KeyAdminProdSpecs) }</a>
+			</nav>
 		}
 		@productDetails(v)
 		if !v.IsNew {
@@ -124,14 +138,13 @@ templ ProductForm(p layouts.Page, v ProductView) {
 			@productOptions(v)
 			@productVariants(v)
 			@productSpecs(v)
-			@productPublishing(v)
 		}
 	}
 }
 
 // productDetails is what the product says, in both languages.
 templ productDetails(v ProductView) {
-	@components.Card(components.CardProps{Class: "goen-admin__section"}) {
+	@components.Card(components.CardProps{Class: "goen-admin__section", Attrs: templ.Attributes{"id": "sec-details"}}) {
 		<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminProdName) }</h2>
 		<form class="goen-admin__form" method="post" action={ templ.SafeURL(v.Action()) }>
 			<div class="goen-admin__field">
@@ -357,7 +370,7 @@ templ imageMoveForm(v ProductView, digest, move string, label i18n.Key) {
 // productImages is what the product looks like: what is attached, the
 // upload, and the pictures already in the library that can be attached again.
 templ productImages(v ProductView) {
-	@components.Card(components.CardProps{Class: "goen-admin__section"}) {
+	@components.Card(components.CardProps{Class: "goen-admin__section", Attrs: templ.Attributes{"id": "sec-images"}}) {
 		<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminProdImages) }</h2>
 		if v.HasImages() {
 			<ul class="goen-admin__images" role="list">
@@ -503,7 +516,7 @@ templ imageOptionChoices(v ProductView, chosen string) {
 
 // productOptions is the axes a variant is chosen on, and their values.
 templ productOptions(v ProductView) {
-	@components.Card(components.CardProps{Class: "goen-admin__section"}) {
+	@components.Card(components.CardProps{Class: "goen-admin__section", Attrs: templ.Attributes{"id": "sec-options"}}) {
 		<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminProdOptions) }</h2>
 		<p class="goen-admin__hint">
 			{ i18n.T(ctx, i18n.KeyAdminProdOptionsLead) }
@@ -699,7 +712,7 @@ templ productOptions(v ProductView) {
 // productVariants is what can actually be bought: the sellable units, and
 // the form that adds one.
 templ productVariants(v ProductView) {
-	@components.Card(components.CardProps{Class: "goen-admin__section"}) {
+	@components.Card(components.CardProps{Class: "goen-admin__section", Attrs: templ.Attributes{"id": "sec-variants"}}) {
 		<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminProdVariants) }</h2>
 		if len(v.Variants) == 0 {
 			<div class="goen-admin__empty">
@@ -915,7 +928,7 @@ templ productVariants(v ProductView) {
 // productSpecs is the 規格表 the product page prints. A table, because it
 // IS one on the storefront and a staff member is checking it row for row.
 templ productSpecs(v ProductView) {
-	@components.Card(components.CardProps{Class: "goen-admin__section"}) {
+	@components.Card(components.CardProps{Class: "goen-admin__section", Attrs: templ.Attributes{"id": "sec-specs"}}) {
 		<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminProdSpecs) }</h2>
 		<p class="goen-admin__hint">
 			{ i18n.T(ctx, i18n.KeyAdminProdSpecsLead) }
@@ -1070,42 +1083,40 @@ templ productSpecs(v ProductView) {
 	}
 }
 
-// productPublishing is whether the shop sells it. One form, three
-// mutually exclusive next steps, and only the ones that are legal now.
+// productPublishing is whether the shop sells it, in the page head where the
+// state it changes is named. One form, three buttons, each only where the
+// move is legal.
 templ productPublishing(v ProductView) {
-	@components.Card(components.CardProps{Class: "goen-admin__section"}) {
-		<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminProdPublishing) }</h2>
-		if v.NeedsVariant() {
-			<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminProdNeedsVariant) }</p>
-		} else {
-			<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/products/" + v.Slug + "/status") }>
-				<div class="goen-admin__decidebtns">
-					if v.CanPublish() {
-						@components.Button(components.ButtonProps{
-							Variant: components.VariantOutline,
-							Attrs:   templ.Attributes{"name": "status", "value": "active"},
-						}, "submit") {
-							{ i18n.T(ctx, i18n.KeyAdminProdPublish) }
-						}
+	if v.NeedsVariant() {
+		<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminProdNeedsVariant) }</p>
+	} else {
+		<form method="post" action={ templ.SafeURL("/admin/products/" + v.Slug + "/status") } aria-label={ i18n.T(ctx, i18n.KeyAdminProdPublishing) }>
+			<div class="goen-admin__decidebtns">
+				if v.CanPublish() {
+					@components.Button(components.ButtonProps{
+						Variant: components.VariantOutline,
+						Attrs:   templ.Attributes{"name": "status", "value": "active"},
+					}, "submit") {
+						{ i18n.T(ctx, i18n.KeyAdminProdPublish) }
 					}
-					if v.Status == "active" {
-						@components.Button(components.ButtonProps{
-							Variant: components.VariantOutline,
-							Attrs:   templ.Attributes{"name": "status", "value": "draft"},
-						}, "submit") {
-							{ i18n.T(ctx, i18n.KeyAdminProdUnpublish) }
-						}
+				}
+				if v.Status == "active" {
+					@components.Button(components.ButtonProps{
+						Variant: components.VariantOutline,
+						Attrs:   templ.Attributes{"name": "status", "value": "draft"},
+					}, "submit") {
+						{ i18n.T(ctx, i18n.KeyAdminProdUnpublish) }
 					}
-					if v.Status != "archived" {
-						@components.Button(components.ButtonProps{
-							Variant: components.VariantGhost,
-							Attrs:   templ.Attributes{"name": "status", "value": "archived"},
-						}, "submit") {
-							{ i18n.T(ctx, i18n.KeyAdminProdArchive) }
-						}
+				}
+				if v.Status != "archived" {
+					@components.Button(components.ButtonProps{
+						Variant: components.VariantGhost,
+						Attrs:   templ.Attributes{"name": "status", "value": "archived"},
+					}, "submit") {
+						{ i18n.T(ctx, i18n.KeyAdminProdArchive) }
 					}
-				</div>
-			</form>
-		}
+				}
+			</div>
+		</form>
 	}
 }

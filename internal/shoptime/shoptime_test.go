@@ -156,3 +156,20 @@ func TestDaysSinceCountsShopCalendarDays(t *testing.T) {
 		}
 	}
 }
+
+func TestAFormMinuteIsReadAndWrittenOnTheShopsClock(t *testing.T) {
+	instant := time.Date(2026, 9, 3, 20, 30, 0, 0, time.UTC)
+	field := shoptime.InputMinute(instant)
+	if field != "2026-09-04T04:30" {
+		t.Fatalf("InputMinute = %q, want the Taipei minute", field)
+	}
+	back, ok := shoptime.ParseInputMinute(field)
+	if !ok || !back.Equal(instant) {
+		t.Errorf("ParseInputMinute(%q) = %v, %v, want %v", field, back, ok, instant)
+	}
+	for _, bad := range []string{"", "2026-09-04", "2026-09-04 04:30", "tomorrow"} {
+		if _, ok := shoptime.ParseInputMinute(bad); ok {
+			t.Errorf("ParseInputMinute(%q) accepted a value a datetime-local field does not post", bad)
+		}
+	}
+}

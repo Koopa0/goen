@@ -99,12 +99,18 @@ func (v CampaignsView) HasErr(f string) bool { _, ok := v.Errors[f]; return ok }
 // Err is why.
 func (v CampaignsView) Err(f string) string { return v.Errors[f] }
 
+type CampaignDetail struct {
+	Title            string
+	StartsAt, EndsAt string
+	Active, Running  bool
+}
+
 // CampaignView is one campaign's edit page.
 type CampaignView struct {
-	Slug     string
-	Title    string
-	EndsAt   string
-	Running  bool
+	Slug string
+	CampaignDetail
+	Term     string
+	Matches  []CampaignProduct
 	Products []CampaignProduct
 	Notice   string
 	Image    Header
@@ -146,6 +152,26 @@ func (v CampaignView) ImageAction() string { return "/admin/campaigns/" + v.Slug
 func (v CampaignView) ImageRemoveAction() string {
 	return "/admin/campaigns/" + v.Slug + "/image/remove"
 }
+
+func (v CampaignView) WindowAction() string { return "/admin/campaigns/" + v.Slug + "/window" }
+
+// ActiveAction is where the on/off form posts.
+func (v CampaignView) ActiveAction() string { return "/admin/campaigns/" + v.Slug + "/active" }
+
+// StateText is the word the list uses for where the campaign stands.
+func (v CampaignView) StateText(ctx context.Context) string {
+	return Campaign{Active: v.Active, Running: v.Running, Products: int64(len(v.Products))}.State(ctx)
+}
+
+// ToggleLabel is what the on/off button says.
+func (v CampaignView) ToggleLabel(ctx context.Context) string {
+	return Campaign{Active: v.Active}.ToggleLabel(ctx)
+}
+
+// NextActive is what the on/off button sets.
+func (v CampaignView) NextActive() string { return Campaign{Active: v.Active}.NextActive() }
+
+func (v CampaignView) Searching() bool { return v.Term != "" }
 
 // Empty reports whether it features nothing.
 func (v CampaignView) Empty() bool { return len(v.Products) == 0 }

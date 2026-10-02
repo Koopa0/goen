@@ -20,10 +20,6 @@ func TestEveryViewModelFieldIsAssigned(t *testing.T) {
 	t.Parallel()
 
 	allowed := map[string]string{
-		"AdminCampaignView.Title":   "REPORTED: neither assigned nor rendered; the edit page heads itself with the slug",
-		"AdminCampaignView.EndsAt":  "REPORTED: neither assigned nor rendered; the edit page never states the window",
-		"AdminCampaignView.Running": "REPORTED: neither assigned nor rendered; the edit page never says whether it is live",
-
 		"AdminCustomersView.Notice": "REPORTED: neither assigned nor rendered, unlike every other back-office Notice",
 	}
 
