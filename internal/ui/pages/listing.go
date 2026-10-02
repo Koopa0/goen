@@ -160,7 +160,7 @@ func (v ListingView) Featured() []ProductTile {
 // Grid is the products the grid shows. Those in the lead row are not repeated.
 func (v ListingView) Grid() []ProductTile {
 	if v.hasFeatured() {
-		return v.Products[featuredCount:]
+		return UnderLeadEager(v.Products[featuredCount:])
 	}
 	return FirstRowEager(v.Products)
 }

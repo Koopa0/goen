@@ -116,8 +116,8 @@ templ Product(p layouts.Page, v *ProductView) {
 // #gallery by the colour swatches needs no state kept anywhere.
 //
 // Every shot is laid out in the same cell and the unchosen ones are only hidden
-// with visibility: a lazy image that is display:none never starts, and the
-// page's "every image in main loaded" check would wait on it for good.
+// with visibility, none of them lazy: choosing a thumbnail has to show its
+// photograph at once, not start its download.
 templ productGallery(v *ProductView) {
 	<div class="goen-pdp__gallery" id="gallery">
 		if v.HasImages() {
@@ -145,8 +145,6 @@ templ productGallery(v *ProductView) {
 							}
 							if i == 0 {
 								fetchpriority="high"
-							} else {
-								loading="lazy"
 							}
 							decoding="async"
 						/>
@@ -159,7 +157,10 @@ templ productGallery(v *ProductView) {
 								srcset={ img.Srcset }
 								sizes="6rem"
 								alt={ img.Alt }
-								loading="lazy"
+								if img.HasDimensions() {
+									width={ img.WidthText() }
+									height={ img.HeightText() }
+								}
 								decoding="async"
 							/>
 						</label>
