@@ -750,7 +750,29 @@
     document.addEventListener("htmx:after:swap", bind);
   }
 
+  /*
+   * The sign-in page's demo account. Its credentials are printed as text for a
+   * browser without this file; here the button appears, puts them in the form
+   * and signs in with it, as its label says.
+   */
+  function demoAccount() {
+    const fill = document.querySelector("[data-demo-fill]");
+    const form = document.querySelector('form[action="/signin"]');
+    if (!(fill instanceof HTMLButtonElement) || !(form instanceof HTMLFormElement)) return;
+    fill.hidden = false;
+    fill.addEventListener("click", () => {
+      for (const name of ["email", "password"]) {
+        const input = form.elements.namedItem(name);
+        if (!(input instanceof HTMLInputElement)) continue;
+        input.value = fill.dataset[name] ?? "";
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      }
+      form.requestSubmit();
+    });
+  }
+
   recipientBox();
+  demoAccount();
   handoff();
   buyBar();
   headerMenu();

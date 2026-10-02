@@ -100,6 +100,9 @@ type RouterConfig struct {
 	// the checkout asks for a chain alone, the route is not registered, the
 	// cross-origin defence gains no bypass, and the policy is unchanged.
 	StoreMap *cart.Map
+	// DemoAccount is the account a public demonstration shares, or the zero
+	// value and the sign-in page offers none.
+	DemoAccount account.DemoAccount
 }
 
 func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
@@ -170,6 +173,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	basket := cart.NewHandler(basketStore, log, secureCookies, findLimit,
 		sessionCloser(gateway), cfg.StoreMap, carrierChecker)
 	customers := account.NewHandler(account.NewStore(pool), basket, log, secureCookies, cfg.Google)
+	customers.OfferDemoAccount(cfg.DemoAccount)
 	// The second factor runs on the ADMIN pool. On the storefront pool `store`
 	// would need write on staff_totp_credentials and users.role, so any slip
 	// reachable from a product page escalates to admin.
