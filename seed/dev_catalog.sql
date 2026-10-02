@@ -108,7 +108,7 @@ INSERT INTO products (id, brand_id, category_id, slug, name, summary, descriptio
 
 -- English copy for the seed's catalogue.
 --
--- goen never invents a translation — CLAUDE.md's editorial line stands — but a dev
+-- goen never invents a translation, but a dev
 -- catalogue that leaves the products untranslated makes the English site look broken
 -- when it is working exactly as designed. These are what a shop would type.
 --

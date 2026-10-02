@@ -56,8 +56,8 @@ func TestTheZoneRuleSeesWhatTheOldPatternMissed(t *testing.T) {
 // The rule is every .Format( call, in .go and .templ sources alike, so a layout
 // held in a constant or a template expression cannot step round it.
 //
-// This is the Go half of the rule CLAUDE.md already states for SQL, where
-// ambient current_date is forbidden and shop_day is the one definition.
+// This is the Go half of the rule SQL already follows, where ambient
+// current_date is forbidden and shop_day is the one definition.
 //
 // The exception is a timestamp that is not the shop's to interpret: ECPay's
 // invoice dates are a wall clock labelled UTC, and moving one to Taipei is a
