@@ -118,7 +118,6 @@ check-layout:
 		$(MAKE) --no-print-directory check-layout-run
 
 check-layout-run:
-	@node --test scripts/axe-target.test.mjs
 	@test -n "$(LAYOUT_CHROME)" && test -x "$(LAYOUT_CHROME)" || { echo 'Chrome not found; set CHROME=/path/to/chrome' >&2; exit 2; }
 	@curl -sf -o /dev/null $${GOEN_URL:-http://127.0.0.1:9700/} \
 		|| { echo 'no server on $${GOEN_URL:-http://127.0.0.1:9700/} — run `make run` first' >&2; exit 2; }

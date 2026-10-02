@@ -207,7 +207,9 @@ jobs:
       # finds the runner's google-chrome without this file naming a path.
       - name: Layout and accessibility gate
         shell: bash
-        run: make check-layout 2>&1 | tee layout.log
+        run: |
+          node --test scripts/axe-target.test.mjs
+          make check-layout 2>&1 | tee layout.log
 
       - name: Keep the run's output
         if: always()
