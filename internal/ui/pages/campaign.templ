@@ -12,25 +12,27 @@ import (
 templ Campaign(p layouts.Page, v CampaignView) {
 	@layouts.Base(p) {
 		<div class="goen-listing">
-			if v.Image.Shown() {
-				<img
-					class="goen-campaign__header"
-					src={ v.Image.URL }
-					if v.Image.Srcset != "" {
-						srcset={ v.Image.Srcset }
-						sizes="(min-width: 1200px) 1200px, 100vw"
-					}
-					alt={ v.Image.Alt }
-					width="1600"
-					height="600"
-					fetchpriority="high"
-				/>
-			}
-			<div class="goen-pagehead" data-tone={ v.Tone.Attr() }>
-				<p class="goen-pagehead__eyebrow">{ i18n.T(ctx, i18n.KeyCampaignEyebrow) }</p>
-				<h1 class="goen-pagehead__title">{ v.Title }</h1>
-				<p class="goen-pagehead__sub">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCampaignEndsAt), v.EndsAt) }</p>
-			</div>
+			<header class="goen-campaign__band">
+				if v.Image.Shown() {
+					<img
+						class="goen-campaign__header"
+						src={ v.Image.URL }
+						if v.Image.Srcset != "" {
+							srcset={ v.Image.Srcset }
+							sizes="(min-width: 1024px) 600px, 100vw"
+						}
+						alt={ v.Image.Alt }
+						width="1600"
+						height="600"
+						fetchpriority="high"
+					/>
+				}
+				<div class="goen-pagehead" data-tone={ v.Tone.Attr() }>
+					<p class="goen-pagehead__eyebrow">{ i18n.T(ctx, i18n.KeyCampaignEyebrow) }</p>
+					<h1 class="goen-pagehead__title">{ v.Title }</h1>
+					<p class="goen-pagehead__sub">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCampaignEndsAt), v.EndsAt) }</p>
+				</div>
+			</header>
 			if v.Empty() {
 				<div class="ui-empty">
 					@emptyArt(assets.EmptyCampaignImage)
