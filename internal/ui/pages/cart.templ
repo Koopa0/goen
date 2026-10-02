@@ -211,7 +211,7 @@ templ cartLine(l CartLine) {
 				Class:   "goen-line__remove",
 				// Not dimmed while a quantity request is pending: the request
 				// is about the number, and Remove stays available beside it.
-				Attrs: templ.Attributes{"name": "remove", "value": "1", "data-feedback-skip": true},
+				Attrs: templ.Attributes{"name": "remove", "value": "1", "data-feedback-skip": true, "formnovalidate": true},
 			}, "submit") {
 				{ i18n.T(ctx, i18n.KeyRemove) }
 			}

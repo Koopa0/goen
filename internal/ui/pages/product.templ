@@ -245,8 +245,7 @@ templ productBuy(v *ProductView) {
 			<fieldset class="goen-pdp__option">
 				<legend class="goen-pdp__optname">
 					if o.SelectedLabel() != "" {
-						{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOptionChosen), o.Label) }
-						<span class="goen-pdp__optchosen">{ o.SelectedLabel() }</span>
+						{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOptionChosen), o.Label) }<span class="goen-pdp__optchosen">{ o.SelectedLabel() }</span>
 					} else {
 						{ o.Label }
 					}
