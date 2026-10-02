@@ -31,7 +31,7 @@ type Delivery struct {
 	District   string
 	Street     string
 
-	PickupBrand     pickup.Brand
+	PickupChain     pickup.Chain
 	PickupStoreCode string
 	PickupStoreName string
 }
@@ -83,7 +83,7 @@ func (s *Store) CorrectDelivery(ctx context.Context, number string, d *Delivery)
 			OrderNumber: number,
 			Email:       text(addr.Email), RecipientName: text(addr.Name), Phone: text(addr.Phone),
 			PostalCode: addr.PostalCode, City: addr.City, District: addr.District, Street: addr.Street,
-			PickupBrand: string(addr.PickupBrand), PickupStoreCode: addr.PickupStoreCode,
+			PickupChain: string(addr.PickupChain), PickupStoreCode: addr.PickupStoreCode,
 			PickupStoreName: addr.PickupStoreName,
 		})
 		if err != nil {
@@ -100,7 +100,7 @@ func validatedDelivery(d *Delivery, to cart.Destination) (*cart.Address, error) 
 	addr := &cart.Address{
 		To: to, Email: d.Email, Name: d.Recipient, Phone: d.Phone,
 		PostalCode: d.PostalCode, City: d.City, District: d.District, Street: d.Street,
-		PickupBrand: d.PickupBrand, PickupStoreCode: d.PickupStoreCode,
+		PickupChain: d.PickupChain, PickupStoreCode: d.PickupStoreCode,
 		PickupStoreName: d.PickupStoreName,
 	}
 	addr.Trim()
@@ -149,7 +149,7 @@ func deliveryFormOf(values func(string) string) *Delivery {
 		Email: get("email"), Recipient: get("recipient"), Phone: get("phone"),
 		PostalCode: get("postal_code"), City: get("city"),
 		District: get("district"), Street: get("street"),
-		PickupBrand: pickup.Brand(get("pickup_brand")), PickupStoreCode: get("pickup_store_code"),
+		PickupChain: pickup.Chain(get("pickup_chain")), PickupStoreCode: get("pickup_store_code"),
 		PickupStoreName: get("pickup_store_name"),
 	}
 }

@@ -3411,7 +3411,7 @@ func destinationOf(t *testing.T, number string) (street, brand, code, name strin
 	t.Helper()
 	var s, b, c, n *string
 	if err := pool.QueryRow(t.Context(),
-		`SELECT pd.street, pd.pickup_brand, pd.pickup_store_code, pd.pickup_store_name
+		`SELECT pd.street, pd.pickup_chain, pd.pickup_store_code, pd.pickup_store_name
 		 FROM order_private_data pd JOIN orders o ON o.id = pd.order_id
 		 WHERE o.order_number = $1`, number).Scan(&s, &b, &c, &n); err != nil {
 		t.Fatalf("read destination of %s: %v", number, err)
@@ -3439,7 +3439,7 @@ func TestThePickupDestinationComesFromTheMethodNotTheForm(t *testing.T) {
 		To:    cart.ToAddress,
 		Email: "pickup@example.com", Name: "陳小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
-		PickupBrand: "family_mart", PickupStoreCode: "012345", PickupStoreName: "台北車站門市",
+		PickupChain: "family_mart", PickupStoreCode: "012345", PickupStoreName: "台北車站門市",
 	}
 	number, err := placeOrder(t, s, ctx, id, uuid.NullUUID{},
 		shipVersionFor(t, "store_pickup"), addr, "", "dest-pickup-1")
@@ -3471,7 +3471,7 @@ func TestAPickupOrderIsPlacedWithTheChainAlone(t *testing.T) {
 	addr := &cart.Address{
 		To:    cart.ToPickupPoint,
 		Email: "chain@example.com", Name: "林小美", Phone: "0955666777",
-		PickupBrand: "seven_eleven",
+		PickupChain: "seven_eleven",
 	}
 	number, err := placeOrder(t, s, ctx, id, uuid.NullUUID{},
 		shipVersionFor(t, "store_pickup"), addr, "", "dest-chain-1")
@@ -3523,7 +3523,7 @@ func TestTheOrderNamesItsShippingMethodInTheReadersLanguage(t *testing.T) {
 	addr := &cart.Address{
 		To:    cart.ToPickupPoint,
 		Email: "named@example.com", Name: "林小美", Phone: "0955666777",
-		PickupBrand: "seven_eleven",
+		PickupChain: "seven_eleven",
 	}
 	number, err := placeOrder(t, s, ctx, id, uuid.NullUUID{}, versionID, addr, "",
 		"named-"+uuid.NewString()[:8])
@@ -3557,7 +3557,7 @@ func TestAnAddressOrderKeepsNoPickupPoint(t *testing.T) {
 		To:    cart.ToPickupPoint,
 		Email: "home@example.com", Name: "王大明", Phone: "0922333444",
 		PostalCode: "106", City: "台北市", District: "大安區", Street: "復興南路一段 1 號",
-		PickupBrand: "seven_eleven", PickupStoreCode: "987654", PickupStoreName: "光復門市",
+		PickupChain: "seven_eleven", PickupStoreCode: "987654", PickupStoreName: "光復門市",
 	}
 	number, err := placeOrder(t, s, ctx, id, uuid.NullUUID{},
 		shipVersionFor(t, "home_delivery"), addr, "", "dest-home-1")
@@ -3583,7 +3583,7 @@ func TestBothPagesShowWhereAPickupOrderGoes(t *testing.T) {
 	}
 	addr := &cart.Address{
 		Email: "shown@example.com", Name: "李小華", Phone: "0933444555",
-		PickupBrand: "hi_life", PickupStoreCode: "778899", PickupStoreName: "民生門市",
+		PickupChain: "hi_life", PickupStoreCode: "778899", PickupStoreName: "民生門市",
 	}
 	number, err := placeOrder(t, s, ctx, id, uuid.NullUUID{},
 		shipVersionFor(t, "store_pickup"), addr, "", "dest-shown-1")

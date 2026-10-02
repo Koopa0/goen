@@ -269,12 +269,12 @@ INSERT INTO order_lines (
 -- name: CreateOrderPrivateData :exec
 INSERT INTO order_private_data (
     order_id, email, recipient_name, phone, postal_code, city, district, street,
-    pickup_brand, pickup_store_code, pickup_store_name
+    pickup_chain, pickup_store_code, pickup_store_name
 ) VALUES (
     @order_id, @email, @recipient_name, @phone,
     nullif(@postal_code::text, ''), nullif(@city::text, ''),
     nullif(@district::text, ''), nullif(@street::text, ''),
-    nullif(@pickup_brand::text, ''), nullif(@pickup_store_code::text, ''),
+    nullif(@pickup_chain::text, ''), nullif(@pickup_store_code::text, ''),
     nullif(@pickup_store_name::text, '')
 );
 
@@ -310,7 +310,7 @@ SELECT o.id, o.order_number, o.fulfillment_status,
        coalesce(pd.city, '') AS city,
        coalesce(pd.district, '') AS district,
        coalesce(pd.street, '') AS street,
-       coalesce(pd.pickup_brand, '') AS pickup_brand,
+       coalesce(pd.pickup_chain, '') AS pickup_chain,
        coalesce(pd.pickup_store_code, '') AS pickup_store_code,
        coalesce(pd.pickup_store_name, '') AS pickup_store_name,
        -- 'pending' does NOT mean unpaid: a webhook can capture minutes before

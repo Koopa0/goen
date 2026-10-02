@@ -555,7 +555,7 @@ func TestAddressValidateAccepts(t *testing.T) {
 			Note: "請放管理室"},
 		// Convenience-store pickup, which has no street at all.
 		{To: ToPickupPoint, Email: "pick@example.com", Name: "陳小明", Phone: "0933444555",
-			PickupBrand: "family_mart", PickupStoreCode: "012345", PickupStoreName: "台北車站門市"},
+			PickupChain: "family_mart", PickupStoreCode: "012345", PickupStoreName: "台北車站門市"},
 	} {
 		if errs := a.Validate(); len(errs) != 0 {
 			t.Errorf("a valid address was rejected: %+v", errs)
@@ -587,35 +587,35 @@ func TestCheckoutShowsOneMessagePerField(t *testing.T) {
 	}
 }
 
-func TestEveryOfferedPickupBrandPassesAddressValidation(t *testing.T) {
-	brands := pickup.Offered()
-	if len(brands) == 0 {
-		t.Fatal("pickup.Offered() is empty; the test needs an offered brand")
+func TestEveryOfferedPickupChainPassesAddressValidation(t *testing.T) {
+	chains := pickup.Offered()
+	if len(chains) == 0 {
+		t.Fatal("pickup.Offered() is empty; the test needs an offered chain")
 	}
-	for _, brand := range brands {
+	for _, chain := range chains {
 		address := Address{
 			To: ToPickupPoint, Email: "pick@example.com", Name: "陳小明", Phone: "0933444555",
-			PickupBrand: brand, PickupStoreCode: "012345", PickupStoreName: "台北車站門市",
+			PickupChain: chain, PickupStoreCode: "012345", PickupStoreName: "台北車站門市",
 		}
 		if errs := address.Validate(); len(errs) != 0 {
-			t.Errorf("offered brand %q is invalid: %+v", brand, errs)
+			t.Errorf("offered chain %q is invalid: %+v", chain, errs)
 		}
 	}
 
 	address := Address{
 		To: ToPickupPoint, Email: "pick@example.com", Name: "陳小明", Phone: "0933444555",
-		PickupBrand: "other_chain", PickupStoreCode: "012345", PickupStoreName: "台北車站門市",
+		PickupChain: "other_chain", PickupStoreCode: "012345", PickupStoreName: "台北車站門市",
 	}
 	errs := address.Validate()
 	var refused bool
 	for _, err := range errs {
-		if err.Field == "pickup_brand" {
+		if err.Field == "pickup_chain" {
 			refused = true
 			break
 		}
 	}
 	if !refused {
-		t.Errorf("an unknown pickup brand was valid: %+v", errs)
+		t.Errorf("an unknown pickup chain was valid: %+v", errs)
 	}
 }
 
@@ -694,9 +694,9 @@ func TestValidateAsksForTheDestinationTheMethodNeeds(t *testing.T) {
 		a.PostalCode, a.City, a.District, a.Street = "110", "台北市", "信義區", "松高路 1 號"
 	}
 	pickupAddress := func(a *Address) {
-		a.PickupBrand, a.PickupStoreCode, a.PickupStoreName = "seven_eleven", "123456", "信義門市"
+		a.PickupChain, a.PickupStoreCode, a.PickupStoreName = "seven_eleven", "123456", "信義門市"
 	}
-	chainOnly := func(a *Address) { a.PickupBrand = "seven_eleven" }
+	chainOnly := func(a *Address) { a.PickupChain = "seven_eleven" }
 
 	cases := []struct {
 		name  string
@@ -729,7 +729,7 @@ func TestValidateAsksForTheDestinationTheMethodNeeds(t *testing.T) {
 			name:  "a pickup order carrying only an address",
 			to:    ToPickupPoint,
 			fill:  []func(*Address){contact, address},
-			wants: []string{"pickup_brand"},
+			wants: []string{"pickup_chain"},
 		},
 		{
 			name:  "a method whose destination is unknown here",
@@ -765,23 +765,23 @@ func TestValidateAsksForTheDestinationTheMethodNeeds(t *testing.T) {
 func TestAPickupStoreCodeIsWhateverTheChainNumbersItsStores(t *testing.T) {
 	cases := []struct {
 		name   string
-		brand  pickup.Brand
+		chain  pickup.Chain
 		code   string
 		refuse bool
 	}{
-		{name: "7-ELEVEN 千禧", brand: "seven_eleven", code: "110080"},
-		{name: "全家 永和保安店", brand: "family_mart", code: "010855"},
-		{name: "OK 福林店", brand: "ok_mart", code: "000002"},
-		{name: "萊爾富 高縣後庄店", brand: "hi_life", code: "S884"},
-		{name: "萊爾富, another lettered code", brand: "hi_life", code: "H869"},
+		{name: "7-ELEVEN 千禧", chain: "seven_eleven", code: "110080"},
+		{name: "全家 永和保安店", chain: "family_mart", code: "010855"},
+		{name: "OK 福林店", chain: "ok_mart", code: "000002"},
+		{name: "萊爾富 高縣後庄店", chain: "hi_life", code: "S884"},
+		{name: "萊爾富, another lettered code", chain: "hi_life", code: "H869"},
 		// Trim uppercases, so a shift key is not a rejected checkout.
-		{name: "萊爾富 高縣後庄店 typed in lower case", brand: "hi_life", code: "s884"},
+		{name: "萊爾富 高縣後庄店 typed in lower case", chain: "hi_life", code: "s884"},
 
-		{name: "a 店名 typed into the code field", brand: "seven_eleven", code: "信義門市", refuse: true},
+		{name: "a 店名 typed into the code field", chain: "seven_eleven", code: "信義門市", refuse: true},
 		// The chain is the whole choice a shopper makes; a code arrives from the
 		// back office, or from the carrier's picker when that is integrated.
-		{name: "no code at all", brand: "seven_eleven", code: ""},
-		{name: "longer than a 門市代碼", brand: "seven_eleven", code: "11008011008", refuse: true},
+		{name: "no code at all", chain: "seven_eleven", code: ""},
+		{name: "longer than a 門市代碼", chain: "seven_eleven", code: "11008011008", refuse: true},
 	}
 
 	for _, c := range cases {
@@ -799,7 +799,7 @@ func TestAPickupStoreCodeIsWhateverTheChainNumbersItsStores(t *testing.T) {
 				Email:           "who@example.com",
 				Name:            "王小明",
 				Phone:           "0912345678",
-				PickupBrand:     c.brand,
+				PickupChain:     c.chain,
 				PickupStoreCode: c.code,
 				PickupStoreName: storeName,
 			}
@@ -830,7 +830,7 @@ func TestPickupStoreCodeAndNameArePairedOrNeither(t *testing.T) {
 
 	base := Address{
 		To: ToPickupPoint, Email: "who@example.com", Name: "王小明", Phone: "0912345678",
-		PickupBrand: "seven_eleven",
+		PickupChain: "seven_eleven",
 	}
 
 	for _, tt := range []struct {
@@ -872,7 +872,7 @@ func TestForDestinationDropsTheOtherHalf(t *testing.T) {
 		return &Address{
 			To: to, Email: "e@example.com", Name: "n", Phone: "0912345678",
 			PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
-			PickupBrand: "seven_eleven", PickupStoreCode: "123456", PickupStoreName: "信義門市",
+			PickupChain: "seven_eleven", PickupStoreCode: "123456", PickupStoreName: "信義門市",
 		}
 	}
 
@@ -888,9 +888,9 @@ func TestForDestinationDropsTheOtherHalf(t *testing.T) {
 
 	b := both(ToAddress)
 	b.ForDestination()
-	if b.PickupBrand != "" || b.PickupStoreCode != "" || b.PickupStoreName != "" {
+	if b.PickupChain != "" || b.PickupStoreCode != "" || b.PickupStoreName != "" {
 		t.Errorf("an address order kept a pickup point: %q %q %q",
-			b.PickupBrand, b.PickupStoreCode, b.PickupStoreName)
+			b.PickupChain, b.PickupStoreCode, b.PickupStoreName)
 	}
 	if b.Street != "松高路 1 號" {
 		t.Errorf("the address was dropped: %q", b.Street)
@@ -1032,12 +1032,12 @@ func TestInvoicePreferenceNormalizesOnlyItsOwnFields(t *testing.T) {
 func TestCheckoutRefusesPickupThatSkippedTheMapWhateverTheDeployment(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	for name, addr := range map[string]*Address{
-		"hi_life":  {To: ToPickupPoint, PickupBrand: "hi_life", PickupStoreCode: "012345", PickupStoreName: "門市"},
-		"ok_mart":  {To: ToPickupPoint, PickupBrand: "ok_mart"},
-		"no store": {To: ToPickupPoint, PickupBrand: "seven_eleven"},
+		"hi_life":  {To: ToPickupPoint, PickupChain: "hi_life", PickupStoreCode: "012345", PickupStoreName: "門市"},
+		"ok_mart":  {To: ToPickupPoint, PickupChain: "ok_mart"},
+		"no store": {To: ToPickupPoint, PickupChain: "seven_eleven"},
 	} {
 		got := checkoutErrors(ctx, addr, nil, &Invoice{})
-		if got["pickup_brand"] == "" && got["pickup_store"] == "" {
+		if got["pickup_chain"] == "" && got["pickup_store"] == "" {
 			t.Errorf("%s: a pickup order that skipped the map was not refused: %v", name, got)
 		}
 	}

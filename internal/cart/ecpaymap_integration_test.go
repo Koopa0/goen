@@ -177,7 +177,7 @@ func startPickupAs(
 // made: the method, the chain and the invoice type.
 func aStart(shipping uuid.UUID) url.Values {
 	return url.Values{
-		"shipping": {shipping.String()}, "pickup_brand": {"seven_eleven"},
+		"shipping": {shipping.String()}, "pickup_chain": {"seven_eleven"},
 		"invoice_type": {"mobile_carrier"},
 	}
 }
@@ -191,8 +191,8 @@ func openPickupCheckout(
 ) (body string, pickupCookie *http.Cookie, status int) {
 	t.Helper()
 	form := url.Values{
-		"shipping": {shipping.String()}, "pickup_brand": {"seven_eleven"},
-		"invoice_type": {"mobile_carrier"}, "update": {"pickup_brand"},
+		"shipping": {shipping.String()}, "pickup_chain": {"seven_eleven"},
+		"invoice_type": {"mobile_carrier"}, "update": {"pickup_chain"},
 	}
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/checkout",
 		strings.NewReader(form.Encode()))
@@ -275,13 +275,13 @@ func TestAStoreChosenOnTheMapSurvivesTheRoundTripAndReachesTheOrder(t *testing.T
 
 	// 4. Placing the order carries the store into order_private_data.
 	number := placeThisCheckout(t, h, token, cookie, page, shipping, "map-roundtrip")
-	street, brand, code, name := destinationOf(t, number)
+	street, chain, code, name := destinationOf(t, number)
 	if street != "" {
 		t.Errorf("a pickup order recorded a street address %q", street)
 	}
-	if brand != "seven_eleven" || code != "131386" || name != "南港園區" {
+	if chain != "seven_eleven" || code != "131386" || name != "南港園區" {
 		t.Errorf("order destination = %q/%q/%q, want seven_eleven/131386/南港園區",
-			brand, code, name)
+			chain, code, name)
 	}
 }
 
@@ -302,12 +302,12 @@ func placeThisCheckout(
 	}
 	form := url.Values{
 		"email": {label + "@example.com"}, "name": {"王小明"}, "phone": {"0912345678"},
-		"shipping": {shipping.String()}, "pickup_brand": {"seven_eleven"},
+		"shipping": {shipping.String()}, "pickup_chain": {"seven_eleven"},
 		"invoice_type":   {"mobile_carrier"},
 		"checkout_quote": {quote}, "idempotency": {idempotency},
 	}
 	form.Set("invoice_carrier", "/ABC+123")
-	for _, name := range []string{"pickup_store_code", "pickup_store_name", "pickup_store_brand", "pickup_n"} {
+	for _, name := range []string{"pickup_store_code", "pickup_store_name", "pickup_store_chain", "pickup_n"} {
 		if v, found := hiddenInputValue(page, name); found {
 			form.Set(name, v)
 		}
@@ -395,7 +395,7 @@ func TestACraftedCheckoutLinkEndsWithNoStore(t *testing.T) {
 
 	crafted := "?" + url.Values{
 		"ship":              {shipping.String()},
-		"pickup_brand":      {"seven_eleven"},
+		"pickup_chain":      {"seven_eleven"},
 		"pickup_store_code": {"999999"},
 		"pickup_store_name": {"攻擊者的門市"},
 		"pickup_store_addr": {"攻擊者的地址"},
@@ -433,9 +433,9 @@ func TestPlacingAnOrderWithAnUnvouchedStoreDropsIt(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			form := url.Values{
 				"email": {"drop@example.com"}, "name": {"王小明"}, "phone": {"0912345678"},
-				"shipping": {shipping.String()}, "pickup_brand": {"seven_eleven"},
+				"shipping": {shipping.String()}, "pickup_chain": {"seven_eleven"},
 				"pickup_store_code": {"999999"}, "pickup_store_name": {"攻擊者的門市"},
-				"pickup_store_brand": {"seven_eleven"},
+				"pickup_store_chain": {"seven_eleven"},
 				"pickup_n":           {tt.nonce},
 				"invoice_type":       {"mobile_carrier"},
 				"invoice_carrier":    {"/ABC+123"},
@@ -539,10 +539,10 @@ func TestAForgedPickupPostIsRefusedWithOrWithoutTheMap(t *testing.T) {
 			fields url.Values
 			field  string
 		}{
-			{"hi_life", url.Values{"pickup_brand": {"hi_life"}, "pickup_store_code": {"999999"}, "pickup_store_name": {"攻擊者的門市"}}, "pickup_brand"},
-			{"ok_mart", url.Values{"pickup_brand": {"ok_mart"}}, "pickup_brand"},
-			{"no store", url.Values{"pickup_brand": {"seven_eleven"}}, "pickup_store"},
-			{"typed store", url.Values{"pickup_brand": {"family_mart"}, "pickup_store_code": {"999999"}, "pickup_store_name": {"攻擊者的門市"}}, "pickup_store"},
+			{"hi_life", url.Values{"pickup_chain": {"hi_life"}, "pickup_store_code": {"999999"}, "pickup_store_name": {"攻擊者的門市"}}, "pickup_chain"},
+			{"ok_mart", url.Values{"pickup_chain": {"ok_mart"}}, "pickup_chain"},
+			{"no store", url.Values{"pickup_chain": {"seven_eleven"}}, "pickup_store"},
+			{"typed store", url.Values{"pickup_chain": {"family_mart"}, "pickup_store_code": {"999999"}, "pickup_store_name": {"攻擊者的門市"}}, "pickup_store"},
 		} {
 			t.Run(name+"/"+forged.name, func(t *testing.T) {
 				s := cart.NewStore(pool)
@@ -591,10 +591,10 @@ func TestChangingTheChainDropsTheOtherChainsStore(t *testing.T) {
 	// The chain chooser re-renders the form; the store still names 7-ELEVEN.
 	form := url.Values{
 		"email": {"chain@example.com"}, "name": {"王小明"}, "phone": {"0912345678"},
-		"shipping": {shipping.String()}, "pickup_brand": {"family_mart"},
-		"update": {"pickup_brand"},
+		"shipping": {shipping.String()}, "pickup_chain": {"family_mart"},
+		"update": {"pickup_chain"},
 	}
-	for _, field := range []string{"pickup_store_code", "pickup_store_name", "pickup_store_brand", "pickup_n"} {
+	for _, field := range []string{"pickup_store_code", "pickup_store_name", "pickup_store_chain", "pickup_n"} {
 		if v, found := hiddenInputValue(page, field); found {
 			form.Set(field, v)
 		}
@@ -614,7 +614,7 @@ func TestChangingTheChainDropsTheOtherChainsStore(t *testing.T) {
 	}
 	// The map is opened for the chain posted with the button, never for a stale one.
 	fields := aStart(shipping)
-	fields.Set("pickup_brand", "family_mart")
+	fields.Set("pickup_chain", "family_mart")
 	again, _, _ := startPickup(t, h, token, fields, cookie)
 	if !strings.Contains(again, `value="FAMI"`) || strings.Contains(again, `value="UNIMART"`) {
 		t.Error("the map was not opened for the chain the shopper just chose")
@@ -643,9 +643,9 @@ func TestDuplicatePickupCookiesKeepTheReturnedStoreThroughPlacement(t *testing.T
 		t.Fatal("matching cookie did not restore the invoice choice")
 	}
 	number := placeThisCheckout(t, h, token, matching, page, shipping, "map-duplicate-cookie", stale)
-	_, brand, code, name := destinationOf(t, number)
-	if brand != "seven_eleven" || code != "131386" || name != "南港園區" {
-		t.Fatalf("placed destination = %q/%q/%q", brand, code, name)
+	_, chain, code, name := destinationOf(t, number)
+	if chain != "seven_eleven" || code != "131386" || name != "南港園區" {
+		t.Fatalf("placed destination = %q/%q/%q", chain, code, name)
 	}
 }
 

@@ -43,7 +43,7 @@ type checkoutDraft struct {
 	District     string       `json:"district,omitempty"`
 	Street       string       `json:"street,omitempty"`
 	Note         string       `json:"note,omitempty"`
-	Brand        pickup.Brand `json:"brand,omitempty"`
+	Chain        pickup.Chain `json:"brand,omitempty"`
 	Shipping     string       `json:"shipping,omitempty"`
 	SavedAddress string       `json:"saved_address,omitempty"`
 	InvoiceType  string       `json:"invoice_type,omitempty"`
@@ -58,7 +58,7 @@ type checkoutDraft struct {
 
 // clipped cuts every field to maxDraftField runes.
 func (d *checkoutDraft) clipped() {
-	d.Brand = pickup.Brand(clip(string(d.Brand)))
+	d.Chain = pickup.Chain(clip(string(d.Chain)))
 	for _, p := range []*string{
 		&d.Email, &d.Name, &d.Phone, &d.PostalCode, &d.City, &d.District, &d.Street,
 		&d.Note, &d.Shipping, &d.SavedAddress, &d.InvoiceType, &d.Carrier,

@@ -62,7 +62,7 @@ func TestTrackingURL(t *testing.T) {
 func TestForDeliveryNamesTheCarriersAnOrderCanUse(t *testing.T) {
 	t.Parallel()
 
-	for _, chain := range []pickup.Brand{pickup.SevenEleven, pickup.FamilyMart, pickup.HiLife, pickup.OKMart} {
+	for _, chain := range []pickup.Chain{pickup.SevenEleven, pickup.FamilyMart, pickup.HiLife, pickup.OKMart} {
 		valid, implied := ForDelivery(chain, true)
 		if implied != Carrier(chain) || len(valid) != 1 || valid[0] != implied {
 			t.Errorf("a %s order: valid %v implied %q, want only the chain's own carrier", chain, valid, implied)

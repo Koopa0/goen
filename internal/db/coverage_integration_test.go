@@ -140,18 +140,18 @@ func TestCheckConstraintsAccept(t *testing.T) {
 	}
 }
 
-// TestPickupBrandChoicesMatchDatabaseContract binds the customer-facing closed
+// TestPickupChainChoicesMatchDatabaseContract binds the customer-facing closed
 // set to the schema allowlist. A new form choice is not usable unless the
 // database admits it, and widening the CHECK must not make arbitrary carrier
 // routing codes valid at the write boundary.
-func TestPickupBrandChoicesMatchDatabaseContract(t *testing.T) {
-	brands := pickup.Offered()
-	if len(brands) == 0 {
+func TestPickupChainChoicesMatchDatabaseContract(t *testing.T) {
+	chains := pickup.Offered()
+	if len(chains) == 0 {
 		t.Fatal("pickup.Offered() is empty; this test would prove nothing")
 	}
 
-	for _, brand := range brands {
-		t.Run(string(brand), func(t *testing.T) {
+	for _, chain := range chains {
+		t.Run(string(chain), func(t *testing.T) {
 			ctx := t.Context()
 			tx, err := schemaPool(t).Begin(ctx)
 			if err != nil {
@@ -165,21 +165,21 @@ func TestPickupBrandChoicesMatchDatabaseContract(t *testing.T) {
 			if _, err := tx.Exec(ctx, `
 				UPDATE order_private_data
 				SET postal_code = NULL, city = NULL, district = NULL, street = NULL,
-				    pickup_brand = $1, pickup_store_code = 'TEST01',
+				    pickup_chain = $1, pickup_store_code = 'TEST01',
 				    pickup_store_name = '契約測試門市'
-				WHERE order_id = '6666aaaa-6666-4666-8666-666666666666'`, string(brand)); err != nil {
-				t.Fatalf("schema refused offered pickup brand %q: %v", brand, err)
+				WHERE order_id = '6666aaaa-6666-4666-8666-666666666666'`, string(chain)); err != nil {
+				t.Fatalf("schema refused offered pickup chain %q: %v", chain, err)
 			}
 
 			var stored string
 			if err := tx.QueryRow(ctx, `
-				SELECT pickup_brand
+				SELECT pickup_chain
 				FROM order_private_data
 				WHERE order_id = '6666aaaa-6666-4666-8666-666666666666'`).Scan(&stored); err != nil {
-				t.Fatalf("read stored pickup brand: %v", err)
+				t.Fatalf("read stored pickup chain: %v", err)
 			}
-			if stored != string(brand) {
-				t.Fatalf("stored pickup brand = %q, want offered value %q", stored, brand)
+			if stored != string(chain) {
+				t.Fatalf("stored pickup chain = %q, want offered value %q", stored, chain)
 			}
 		})
 	}
@@ -187,15 +187,15 @@ func TestPickupBrandChoicesMatchDatabaseContract(t *testing.T) {
 	err := run(t, `
 		UPDATE order_private_data
 		SET postal_code = NULL, city = NULL, district = NULL, street = NULL,
-		    pickup_brand = 'other_chain', pickup_store_code = 'TEST01',
+		    pickup_chain = 'other_chain', pickup_store_code = 'TEST01',
 		    pickup_store_name = '契約測試門市'
 		WHERE order_id = '6666aaaa-6666-4666-8666-666666666666'`)
 	if err == nil {
-		t.Fatal("database accepted an unknown pickup brand")
+		t.Fatal("database accepted an unknown pickup chain")
 	}
 	code, name := constraintViolation(err)
-	if code != "23514" || name != "order_private_data_pickup_brand_known" {
-		t.Fatalf("unknown pickup brand refused by SQLSTATE %s constraint %q, want 23514/order_private_data_pickup_brand_known: %v",
+	if code != "23514" || name != "order_private_data_pickup_chain_known" {
+		t.Fatalf("unknown pickup chain refused by SQLSTATE %s constraint %q, want 23514/order_private_data_pickup_chain_known: %v",
 			code, name, err)
 	}
 }

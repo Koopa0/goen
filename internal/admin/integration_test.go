@@ -4925,7 +4925,7 @@ func shippableOrderFor(t *testing.T, locale string, pickup bool) string {
 	if pickup {
 		private = `
 		INSERT INTO order_private_data (order_id, email, recipient_name, phone,
-		                                pickup_brand, pickup_store_code, pickup_store_name)
+		                                pickup_chain, pickup_store_code, pickup_store_name)
 		VALUES ($1, 'ship@example.com', '收件人', '0912345678',
 		        'family_mart', '012345', '台北車站門市')`
 	}
@@ -5676,14 +5676,14 @@ func TestCorrectingAPickupOrderCannotTurnItIntoAnAddressOne(t *testing.T) {
 	if err := s.CorrectDelivery(ctx, number, &admin.Delivery{
 		Email: "pickup@example.com", Recipient: "收件人", Phone: "0922333444",
 		PostalCode: "106", City: "台北市", District: "大安區", Street: "不該存下來的地址",
-		PickupBrand: "hi_life", PickupStoreCode: "778899", PickupStoreName: "民生門市",
+		PickupChain: "hi_life", PickupStoreCode: "778899", PickupStoreName: "民生門市",
 	}); err != nil {
 		t.Fatalf("correct a pickup order: %v", err)
 	}
 
 	var street, brand, code *string
 	if err := pool.QueryRow(ctx, `
-		SELECT pd.street, pd.pickup_brand, pd.pickup_store_code
+		SELECT pd.street, pd.pickup_chain, pd.pickup_store_code
 		FROM order_private_data pd JOIN orders o ON o.id = pd.order_id
 		WHERE o.order_number = $1`, number).Scan(&street, &brand, &code); err != nil {
 		t.Fatalf("read the delivery: %v", err)
@@ -5736,7 +5736,7 @@ func pickupOrderForCorrection(t *testing.T) string {
 	}
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO order_private_data (order_id, email, recipient_name, phone,
-		                                pickup_brand, pickup_store_code, pickup_store_name)
+		                                pickup_chain, pickup_store_code, pickup_store_name)
 		VALUES ($1, 'pickup@example.com', '收件', '0912345678',
 		        'family_mart', '012345', '台北車站門市')`, orderID); err != nil {
 		t.Fatalf("create private data: %v", err)

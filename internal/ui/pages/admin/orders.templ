@@ -374,10 +374,10 @@ templ Order(p layouts.Page, v *OrderView) {
 							if v.PickupDestination {
 								<div class="goen-admin__row">
 									<div class="ui-field">
-										<label class="ui-label" for="d-brand">{ i18n.T(ctx, i18n.KeyFieldPickupBrand) }</label>
-										<select class="ui-select" id="d-brand" name="pickup_brand" required>
-											for _, b := range v.PickupBrands {
-												<option value={ string(b.Value) } selected?={ b.Value == v.Delivery.PickupBrand }>{ b.Label }</option>
+										<label class="ui-label" for="d-chain">{ i18n.T(ctx, i18n.KeyFieldPickupChain) }</label>
+										<select class="ui-select" id="d-chain" name="pickup_chain" required>
+											for _, b := range v.PickupChains {
+												<option value={ string(b.Value) } selected?={ b.Value == v.Delivery.PickupChain }>{ b.Label }</option>
 											}
 										</select>
 									</div>
