@@ -5313,9 +5313,8 @@ type CreateReviewParams struct {
 	Slug   string
 }
 
-// Only a customer who received the product reaches this insert, so the review
-// is always a verified purchase; product_reviews_verified_is_real refuses the
-// claim without a committed order behind it.
+// true is safe because only a customer who received the product reaches this
+// insert; product_reviews_verified_is_real refuses the claim otherwise.
 func (q *Queries) CreateReview(ctx context.Context, arg CreateReviewParams) (int64, error) {
 	result, err := q.db.Exec(ctx, createReview,
 		arg.UserID,
@@ -6515,11 +6514,9 @@ type HasReceivedProductParams struct {
 	ProductID uuid.NullUUID
 }
 
-// A review speaks for goods the customer has held, so the order must have
-// arrived. order_is_committed, never "EXISTS a succeeded payment": a
-// store-credit-funded order is committed with no payment row at all, and the
-// verified-purchase trigger asks the same question. product_id is the durable
-// line identity and survives deletion of the purchased variant.
+// order_is_committed, never "EXISTS a succeeded payment": a store-credit-funded
+// order is committed with no payment row at all, and the verified-purchase
+// trigger asks the same question. product_id survives deletion of the variant.
 func (q *Queries) HasReceivedProduct(ctx context.Context, arg HasReceivedProductParams) (bool, error) {
 	row := q.db.QueryRow(ctx, hasReceivedProduct, arg.UserID, arg.ProductID)
 	var exists bool

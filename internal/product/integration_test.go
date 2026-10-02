@@ -462,7 +462,6 @@ func TestOnlyACustomerWhoReceivedTheProductMayReview(t *testing.T) {
 		}
 	}
 
-	// The handler is what a forged POST reaches: it answers 422 and writes nothing.
 	form := url.Values{"rating": {"5"}, "body": {"沒有收到商品也想送出評價。"}}
 	req := httptest.NewRequestWithContext(
 		account.WithUser(ctx, account.User{ID: browser.String()}),
@@ -800,8 +799,6 @@ func activeSlug(t *testing.T) string {
 	return slug
 }
 
-// receive gives a customer an order for the product that has arrived, which is
-// what lets them review it.
 func receive(t *testing.T, userID uuid.UUID, slug string) {
 	t.Helper()
 	buy(t, userID, slug)
@@ -813,7 +810,6 @@ func receive(t *testing.T, userID uuid.UUID, slug string) {
 	}
 }
 
-// buy gives a customer a committed order.
 func buy(t *testing.T, userID uuid.UUID, slug string) {
 	t.Helper()
 	ctx := t.Context()

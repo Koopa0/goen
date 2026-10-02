@@ -648,8 +648,6 @@ func TestANamelessReviewerIsNotBadgedAsABuyer(t *testing.T) {
 	}
 }
 
-// A review is public, so its byline shows a first character and nothing more,
-// the same way for every reviewer and in each language.
 func TestAReviewerIsMaskedTheSameWayForEveryReview(t *testing.T) {
 	t.Parallel()
 

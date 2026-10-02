@@ -231,9 +231,6 @@ func TestTheReviewFormWarnsBeforeSubmittingAndRefusesToTheForm(t *testing.T) {
 	}
 }
 
-// Somebody who has not received the product is told when they can review, and
-// is offered no form: the server refuses the post as well, this is what the
-// page says about it.
 func TestTheReviewFormIsReplacedUntilTheProductArrives(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)

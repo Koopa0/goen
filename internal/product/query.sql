@@ -175,11 +175,9 @@ LIMIT @row_limit::integer;
 SELECT id FROM products
 WHERE slug = @slug::text AND status = 'active';
 
--- A review speaks for goods the customer has held, so the order must have
--- arrived. order_is_committed, never "EXISTS a succeeded payment": a
--- store-credit-funded order is committed with no payment row at all, and the
--- verified-purchase trigger asks the same question. product_id is the durable
--- line identity and survives deletion of the purchased variant.
+-- order_is_committed, never "EXISTS a succeeded payment": a store-credit-funded
+-- order is committed with no payment row at all, and the verified-purchase
+-- trigger asks the same question. product_id survives deletion of the variant.
 -- name: HasReceivedProduct :one
 SELECT EXISTS (
     SELECT 1
@@ -198,9 +196,8 @@ SELECT EXISTS (
     WHERE r.user_id = @user_id AND r.product_id = @product_id
 );
 
--- Only a customer who received the product reaches this insert, so the review
--- is always a verified purchase; product_reviews_verified_is_real refuses the
--- claim without a committed order behind it.
+-- true is safe because only a customer who received the product reaches this
+-- insert; product_reviews_verified_is_real refuses the claim otherwise.
 -- name: CreateReview :execrows
 INSERT INTO product_reviews (product_id, user_id, rating, title, body, is_verified_purchase)
 SELECT p.id, @user_id, @rating::smallint, nullif(@title::text, ''), @body::text, true

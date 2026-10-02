@@ -137,9 +137,7 @@ func (r ProductReview) DisplayAuthor(ctx context.Context) string {
 	return maskName(i18n.FromContext(ctx), r.Author)
 }
 
-// maskName keeps the first character of a name and hides the rest, the same
-// way for every review: a Chinese name keeps its surname character, an English
-// one its initial. Reviews are public, and a full name beside a purchase is
+// maskName exists because reviews are public: a full name beside a purchase is
 // more than the shopper agreed to show.
 func maskName(l i18n.Locale, name string) string {
 	first, _ := utf8.DecodeRuneInString(strings.TrimSpace(name))
@@ -192,15 +190,12 @@ type ProductView struct {
 	Reviews     []ProductReview
 	SignedIn    bool
 	CanReview   bool
-	// ReviewAwaitsDelivery is a signed-in customer with no delivered order
-	// containing this product; !CanReview and !ReviewAwaitsDelivery is one who
-	// has already reviewed it.
+	// !CanReview && !ReviewAwaitsDelivery means the customer already reviewed it.
 	ReviewAwaitsDelivery bool
-	// ReviewPosted is the redirect that follows a recorded review.
-	ReviewPosted  bool
-	ReviewErrors  map[string]string
-	ReviewDraft   ReviewDraft
-	NotifyOutcome string
+	ReviewPosted         bool
+	ReviewErrors         map[string]string
+	ReviewDraft          ReviewDraft
+	NotifyOutcome        string
 	// NotifyEmail is the address a refused restock request was posted with.
 	NotifyEmail string
 	Comparing   []string
@@ -389,9 +384,8 @@ const ReviewBodyMinRunes = 5
 // page's address, so a refused review opens at the form, error in view.
 func (v *ProductView) ReviewAction() string { return "/p/" + v.Slug + "/reviews#write-review" }
 
-// reviewBodyAttrs describes the body field to assistive technology: the hint
-// always, and the refusal too when there is one (the Textarea adds the pair
-// itself then, so the attribute is set here only while the field is valid).
+// reviewBodyAttrs sets aria-describedby only while the field is valid; the
+// Textarea sets it itself when the field is refused.
 func (v *ProductView) reviewBodyAttrs() templ.Attributes {
 	attrs := templ.Attributes{
 		"rows": "5", "required": true,

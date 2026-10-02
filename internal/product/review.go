@@ -20,9 +20,7 @@ import (
 var (
 	// ErrAlreadyReviewed is a second review on one product from one person.
 	ErrAlreadyReviewed = errors.New("product: already reviewed")
-	// ErrNotDelivered is a review from somebody with no delivered order for
-	// the product.
-	ErrNotDelivered = errors.New("product: no delivered order for this product")
+	ErrNotDelivered    = errors.New("product: no delivered order for this product")
 	// ErrReviewInvalid is a form goen refused before the database saw it.
 	ErrReviewInvalid = errors.New("product: invalid review")
 )
@@ -73,20 +71,16 @@ func hasUnprintableReviewControl(s string) bool {
 	})
 }
 
-// ReviewRight is whether a signed-in customer may review a product now.
 type ReviewRight int
 
 const (
-	// MayReview is a customer who received the product and has not reviewed it.
 	MayReview ReviewRight = iota
-	// HasReviewed is a customer whose one review, visible or hidden, exists.
+	// HasReviewed counts a hidden review too: it still holds the unique index.
 	HasReviewed
-	// AwaitsDelivery is a customer with no delivered order containing it.
 	AwaitsDelivery
 )
 
-// CanReview reports whether this customer may review. Only somebody who
-// received the product may, so every review stands for goods that were held.
+// CanReview answers for a signed-in customer; a visitor gets AwaitsDelivery.
 func (s *Store) CanReview(ctx context.Context, slug, userID string) (ReviewRight, error) {
 	id, parseErr := uuid.Parse(userID)
 	if parseErr != nil {
