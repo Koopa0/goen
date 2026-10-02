@@ -251,7 +251,10 @@ func (v ListingView) AppliedChips(ctx context.Context) []AppliedChip {
 // chip is a chip whose link drops key (only the one value, when value is set)
 // and any further keys from the listing's own query.
 func (v ListingView) chip(ctx context.Context, label, key, value string, more ...string) AppliedChip {
-	q, _ := url.ParseQuery(v.Query)
+	q, err := url.ParseQuery(v.Query)
+	if err != nil {
+		q = url.Values{}
+	}
 	if values := q[key]; value != "" {
 		q.Del(key)
 		for _, kept := range values {
