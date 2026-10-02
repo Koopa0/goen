@@ -105,9 +105,9 @@ func ParseDecisionKind(s string) (DecisionKind, bool) {
 // Status is the return_requests.status this kind writes.
 func (k DecisionKind) Status() Status {
 	if k == DecisionReject {
-		return ReturnRejected
+		return StatusRejected
 	}
-	return ReturnApproved
+	return StatusApproved
 }
 
 // LineAssessment is one returned line's frozen window and the three

@@ -105,10 +105,10 @@ func TestEveryKnownReturnStatusHasAnAdminLabel(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), locale)
 		for _, status := range []returns.Status{
-			returns.ReturnRequested,
-			returns.ReturnApproved,
-			returns.ReturnRejected,
-			returns.ReturnCompleted,
+			returns.StatusRequested,
+			returns.StatusApproved,
+			returns.StatusRejected,
+			returns.StatusCompleted,
 		} {
 			label := ReturnStatusLabel(ctx, status)
 			if label == "" || label == string(status) {

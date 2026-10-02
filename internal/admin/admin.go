@@ -273,13 +273,13 @@ func parseBoundedInt(s string, ceiling int32) (int32, bool) {
 // states are the four return_requests_refund_snapshot_shape allows.
 func ReturnStatusLabel(ctx context.Context, s returns.Status) string {
 	switch s {
-	case returns.ReturnRequested:
+	case returns.StatusRequested:
 		return i18n.T(ctx, i18n.KeyAdminReturnRequested)
-	case returns.ReturnApproved:
+	case returns.StatusApproved:
 		return i18n.T(ctx, i18n.KeyAdminReturnApproved)
-	case returns.ReturnRejected:
+	case returns.StatusRejected:
 		return i18n.T(ctx, i18n.KeyAdminReturnRejected)
-	case returns.ReturnCompleted:
+	case returns.StatusCompleted:
 		return i18n.T(ctx, i18n.KeyAdminReturnCompleted)
 	default:
 		return string(s)
@@ -290,7 +290,7 @@ func ReturnStatusLabel(ctx context.Context, s returns.Status) string {
 // shipment that has finished is a cancellation: nothing came back, so
 // "completed" would read as a return that did.
 func returnStatusText(ctx context.Context, s returns.Status, beforeShipment bool) string {
-	if beforeShipment && s == returns.ReturnCompleted {
+	if beforeShipment && s == returns.StatusCompleted {
 		return i18n.T(ctx, i18n.KeyAdminReturnCancelledRefunded)
 	}
 	return ReturnStatusLabel(ctx, s)

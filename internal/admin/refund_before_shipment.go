@@ -26,7 +26,7 @@ import (
 // re-derives both under the order lock.
 func beforeShipmentRefundState(r *db.BeforeShipmentRefundRow) (offered, open bool) {
 	status := pages.FulfillmentStatus(r.FulfillmentStatus)
-	open = r.ReturnRequestID.Valid && returns.Status(r.ReturnStatus) == returns.ReturnApproved
+	open = r.ReturnRequestID.Valid && returns.Status(r.ReturnStatus) == returns.StatusApproved
 	offered = r.Committed && !r.Shipped && !r.HasReturn &&
 		(status == pages.FulfillmentPending || status == pages.FulfillmentPicking)
 	return offered, open

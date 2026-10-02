@@ -190,7 +190,7 @@ func buildReturnQueue(
 			Units:       r.Units,
 			AmountCents: r.RefundableCents,
 			CreatedAt:   shoptime.Minute(r.CreatedAt),
-			Decided:     returns.Status(r.Status) != returns.ReturnRequested,
+			Decided:     returns.Status(r.Status) != returns.StatusRequested,
 			Lines:       byRequest[r.ID],
 			Window:      r.RescissionWindow,
 
@@ -348,7 +348,7 @@ func (s *Store) returnPayoutFact(
 func fillReturnPayoutState(
 	status returns.Status, facts returnPayoutFacts, item *admin.Return,
 ) error {
-	if status != returns.ReturnApproved {
+	if status != returns.StatusApproved {
 		return nil
 	}
 	position, err := facts.position()
@@ -541,8 +541,8 @@ func (s *Store) returnUnderDecision(
 		return db.ReturnForDecisionRow{}, false, fmt.Errorf("%w: %w", ErrRefused, err)
 	}
 	status := returns.Status(row.Status)
-	retry := status == returns.ReturnApproved && kind == returns.DecisionApprove
-	if status != returns.ReturnRequested && !retry {
+	retry := status == returns.StatusApproved && kind == returns.DecisionApprove
+	if status != returns.StatusRequested && !retry {
 		return db.ReturnForDecisionRow{}, false,
 			fmt.Errorf("%w: return %s is already %s", ErrRefused, id, row.Status)
 	}
@@ -926,7 +926,7 @@ func (s *Store) Assess(ctx context.Context, id, basis string, facts []LineEligib
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrRefused, err)
 	}
-	if returns.Status(row.Status) != returns.ReturnRequested {
+	if returns.Status(row.Status) != returns.StatusRequested {
 		return fmt.Errorf("%w: return %s is already %s", ErrRefused, id, row.Status)
 	}
 	lines, err := q.ReturnLines(ctx, []uuid.UUID{requestID})

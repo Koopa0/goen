@@ -66,7 +66,7 @@ func (r *Return) PayoutStranded() bool {
 
 // AwaitingGoods reports whether an approved parcel is still unaccounted for.
 func (r *Return) AwaitingGoods() bool {
-	if r.Status != returns.ReturnApproved || r.BeforeShipment {
+	if r.Status != returns.StatusApproved || r.BeforeShipment {
 		return false
 	}
 	for i := range r.Lines {
@@ -79,7 +79,7 @@ func (r *Return) AwaitingGoods() bool {
 
 // CanComplete reports whether every line has been inspected.
 func (r *Return) CanComplete() bool {
-	if r.Status != returns.ReturnApproved || len(r.Lines) == 0 || r.BeforeShipment {
+	if r.Status != returns.StatusApproved || len(r.Lines) == 0 || r.BeforeShipment {
 		return false
 	}
 	for i := range r.Lines {
