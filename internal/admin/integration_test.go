@@ -3966,7 +3966,7 @@ func TestReleasedStockPaidAttributionReturnsARefundInstruction(t *testing.T) {
 
 func TestCancellingAnOrderInTheBackOfficeReturnsItsStock(t *testing.T) {
 	ctx := t.Context()
-	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	s := admin.NewStore(restockAdminPool(t, pool), fakeRefunder{}, nil, nil)
 
 	var vid uuid.UUID
 	if err := pool.QueryRow(ctx, `
@@ -3984,6 +3984,7 @@ func TestCancellingAnOrderInTheBackOfficeReturnsItsStock(t *testing.T) {
 		t.Fatalf("read stock: %v", err)
 	}
 
+	waitForRestock(t, vid)
 	var staff uuid.UUID
 	if err := pool.QueryRow(ctx, `
 		INSERT INTO users (email, role, full_name) VALUES ($1, 'admin', '取消人員')
@@ -3996,6 +3997,7 @@ func TestCancellingAnOrderInTheBackOfficeReturnsItsStock(t *testing.T) {
 		t.Fatalf("cancel: %v", err)
 	}
 
+	assertRestockQueued(t, pool, vid)
 	var after int32
 	var state string
 	if err := pool.QueryRow(ctx, `
@@ -9215,7 +9217,7 @@ func returnLineID(t *testing.T, requestID uuid.UUID) uuid.UUID {
 
 func TestAnInspectedReturnPutsTheSellableUnitsBack(t *testing.T) {
 	ctx, staff := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	s := admin.NewStore(restockAdminPool(t, pool), fakeRefunder{}, nil, nil)
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
 	requestID, variantID := returnedOrderWithStock(t, "restock", 2)
 	lineID := returnLineID(t, requestID)
@@ -9229,12 +9231,14 @@ func TestAnInspectedReturnPutsTheSellableUnitsBack(t *testing.T) {
 			before, got)
 	}
 
+	waitForRestock(t, variantID)
 	if err := s.InspectReturn(ctx, requestID.String(), []admin.ReturnLineInspection{{
 		OrderLineID: lineID, Received: 2, Restocked: 1, Note: "一件外盒破損",
 	}}, actor); err != nil {
 		t.Fatalf("inspect: %v", err)
 	}
 
+	assertRestockQueued(t, pool, variantID)
 	if got, want := stockOf(t, variantID), before+1; got != want {
 		t.Errorf("stock is %d after restocking one of two returned units, want %d", got, want)
 	}

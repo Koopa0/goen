@@ -18,13 +18,26 @@ import (
 )
 
 func TestCancellingTheLastHoldQueuesRestockNotices(t *testing.T) {
+	testLastHoldRestock(t, false)
+}
+
+func TestExpiringTheLastHoldQueuesRestockNotices(t *testing.T) {
+	testLastHoldRestock(t, true)
+}
+
+func testLastHoldRestock(t *testing.T, expired bool) {
+	t.Helper()
 	ctx := t.Context()
 	variant := freshVariant(t, "restock-last-hold")
 	if _, err := pool.Exec(ctx,
 		`UPDATE product_variants SET safety_stock = 9 WHERE id = $1`, variant); err != nil {
 		t.Fatal(err)
 	}
-	orderID := heldOrder(t, variant, -time.Hour, false)
+	age := -time.Hour
+	if expired {
+		age = time.Hour
+	}
+	orderID := heldOrder(t, variant, age, false)
 	number := numberOf(t, orderID)
 	if stock := stockOf(t, variant); stock != 9 {
 		t.Fatalf("held shelf stock = %d, want safety stock 9", stock)
@@ -55,15 +68,23 @@ func TestCancellingTheLastHoldQueuesRestockNotices(t *testing.T) {
 		}
 	}
 	store := cart.NewStore(appPool)
-	h := cart.NewHandler(store, log, false,
-		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
-	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/orders/"+number+"/cancel", http.NoBody)
-	req.SetPathValue("number", number)
-	req.AddCookie(placedCookie(t, store, number))
-	res := httptest.NewRecorder()
-	h.CancelOrder(res, req)
-	if res.Code != http.StatusSeeOther {
-		t.Fatalf("cancel = %d, body=%s", res.Code, res.Body.String())
+	if expired {
+		for pass := range 2 {
+			if _, _, err := store.Sweep(ctx, log); err != nil {
+				t.Fatalf("expiry sweep %d: %v", pass, err)
+			}
+		}
+	} else {
+		h := cart.NewHandler(store, log, false,
+			ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
+		req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/orders/"+number+"/cancel", http.NoBody)
+		req.SetPathValue("number", number)
+		req.AddCookie(placedCookie(t, store, number))
+		res := httptest.NewRecorder()
+		h.CancelOrder(res, req)
+		if res.Code != http.StatusSeeOther {
+			t.Fatalf("cancel = %d, body=%s", res.Code, res.Body.String())
+		}
 	}
 	if stock := stockOf(t, variant); stock != 10 {
 		t.Fatalf("released shelf stock = %d, want 10 above safety stock 9", stock)
@@ -79,8 +100,8 @@ func TestCancellingTheLastHoldQueuesRestockNotices(t *testing.T) {
 		WHERE n.variant_id = $1 AND m.topic = 'catalogue.restocked'`, variant).Scan(&queued); err != nil {
 		t.Fatal(err)
 	}
-	t.Logf("cancel accepted; stock=10 safety=9; unclaimed=%d restock_outbox=%d", waiting, queued)
+	t.Logf("stock recovery accepted; stock=10 safety=9; unclaimed=%d restock_outbox=%d", waiting, queued)
 	if waiting != 0 || queued != len(i18n.Locales()) {
-		t.Fatalf("restock after cancel: unclaimed=%d queued=%d, want 0/%d", waiting, queued, len(i18n.Locales()))
+		t.Fatalf("restock after release: unclaimed=%d queued=%d, want 0/%d", waiting, queued, len(i18n.Locales()))
 	}
 }
