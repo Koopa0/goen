@@ -21,6 +21,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	htmlnode "golang.org/x/net/html"
 
+	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/product"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -86,17 +87,39 @@ func recommendationFixture(t *testing.T) (*pgxpool.Pool, pages.ProductView, uuid
 		VALUES ($1, $2, 2) ON CONFLICT (product_id, other_product_id) DO UPDATE SET orders = 2`, productID, otherID); cacheErr != nil {
 		t.Fatal(cacheErr)
 	}
-	view, err := product.NewStore(p).Load(t.Context(), slug, nil)
+	variants, variantErr := db.New(p).ProductVariants(t.Context(), productID)
+	if variantErr != nil {
+		t.Fatal(variantErr)
+	}
+	selection := product.Selection{}
+	for _, variant := range variants {
+		if !variant.Sellable {
+			continue
+		}
+		for i, name := range variant.OptionNames {
+			selection[name] = variant.OptionValues[i]
+		}
+		break
+	}
+	view, err := product.NewStore(p).Load(t.Context(), slug, selection)
 	if err != nil || !view.CanBuy() || len(view.Related) == 0 || len(view.AlsoBought) == 0 {
 		t.Fatalf("recommendation fixture = buyable %t related %d bought %d, %v", view.CanBuy(), len(view.Related), len(view.AlsoBought), err)
 	}
 	return p, view, productID
 }
 
-func recommendationResponse(t *testing.T, ctx context.Context, h *product.Handler, slug string) *httptest.ResponseRecorder {
+func recommendationResponse(t *testing.T, ctx context.Context, h *product.Handler, want *pages.ProductView) *httptest.ResponseRecorder {
 	t.Helper()
-	req := httptest.NewRequestWithContext(web.WithRequestID(ctx, "req-optional-read"), http.MethodGet, "/p/"+slug, http.NoBody)
-	req.SetPathValue("slug", slug)
+	selection := url.Values{}
+	for _, option := range want.Options {
+		for _, value := range option.Values {
+			if value.Selected {
+				selection.Set(option.Name, value.Value)
+			}
+		}
+	}
+	req := httptest.NewRequestWithContext(web.WithRequestID(ctx, "req-optional-read"), http.MethodGet, "/p/"+want.Slug+"?"+selection.Encode(), http.NoBody)
+	req.SetPathValue("slug", want.Slug)
 	res := httptest.NewRecorder()
 	h.Detail(res, req)
 	return res
@@ -226,7 +249,7 @@ func TestOptionalRecommendationFailuresPreserveTheProductPage(t *testing.T) {
 				for range attempts {
 					ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 					started := time.Now()
-					res := recommendationResponse(t, ctx, h, want.Slug)
+					res := recommendationResponse(t, ctx, h, &want)
 					cancel()
 					if time.Since(started) > 3*time.Second {
 						t.Error("optional read escaped its bounded request time")
@@ -262,7 +285,7 @@ func TestHealthyAndEmptyRecommendationsAreNotFailures(t *testing.T) {
 	p, want, productID := recommendationFixture(t)
 	var log bytes.Buffer
 	h := product.NewHandler(product.NewStore(p), slog.New(slog.NewJSONHandler(&log, nil)), "https://goen.example")
-	doc := assertRecommendationCommerce(t, recommendationResponse(t, t.Context(), h, want.Slug), &want)
+	doc := assertRecommendationCommerce(t, recommendationResponse(t, t.Context(), h, &want), &want)
 	for _, heading := range []string{"related-heading", "also-heading"} {
 		if recommendationNode(doc, func(n *htmlnode.Node) bool { return recommendationAttr(n, "id") == heading }) == nil {
 			t.Errorf("healthy recommendations omitted %s", heading)
@@ -274,7 +297,7 @@ func TestHealthyAndEmptyRecommendationsAreNotFailures(t *testing.T) {
 	if _, err := p.Exec(t.Context(), "DELETE FROM product_copurchases WHERE product_id = $1", productID); err != nil {
 		t.Fatal(err)
 	}
-	doc = assertRecommendationCommerce(t, recommendationResponse(t, t.Context(), h, want.Slug), &want)
+	doc = assertRecommendationCommerce(t, recommendationResponse(t, t.Context(), h, &want), &want)
 	for _, heading := range []string{"related-heading", "also-heading"} {
 		if recommendationNode(doc, func(n *htmlnode.Node) bool { return recommendationAttr(n, "id") == heading }) != nil {
 			t.Errorf("empty recommendations retained %s", heading)
@@ -297,7 +320,7 @@ func TestRecommendationDegradationKeepsParentAndCoreFailures(t *testing.T) {
 	defer abandon()
 	requestDB := &recommendationFaultDB{Pool: p, queryName: "BoughtTogether", fault: queryFails, cancelParent: abandon}
 	requestHandler := product.NewHandler(product.NewStore(requestDB), slog.New(slog.DiscardHandler), "https://goen.example")
-	if res := recommendationResponse(t, requestCtx, requestHandler, want.Slug); res.Body.Len() != 0 || requestDB.calls != 1 {
+	if res := recommendationResponse(t, requestCtx, requestHandler, &want); res.Body.Len() != 0 || requestDB.calls != 1 {
 		t.Errorf("abandoned request produced a page of %d bytes after %d optional reads", res.Body.Len(), requestDB.calls)
 	}
 	deadline, stop := context.WithDeadline(t.Context(), time.Now().Add(-time.Second))
@@ -307,7 +330,7 @@ func TestRecommendationDegradationKeepsParentAndCoreFailures(t *testing.T) {
 	}
 	p.Close()
 	h := product.NewHandler(product.NewStore(p), slog.New(slog.DiscardHandler), "https://goen.example")
-	if res := recommendationResponse(t, t.Context(), h, want.Slug); res.Code != http.StatusInternalServerError {
+	if res := recommendationResponse(t, t.Context(), h, &want); res.Code != http.StatusInternalServerError {
 		t.Errorf("core read failure returned %d, want 500", res.Code)
 	}
 }
