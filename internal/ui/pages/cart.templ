@@ -16,36 +16,40 @@ templ Cart(p layouts.Page, v CartView) {
 			<div class="goen-pagehead">
 				<h1 class="goen-pagehead__title">{ i18n.T(ctx, i18n.KeyCart) }</h1>
 				if !v.Empty() {
-					<p class="goen-pagehead__sub">{ i18n.Count(ctx, i18n.KeyCartItemCount, v.ItemCount, v.ItemCountText()) }</p>
+					<p id="cart-count" class="goen-pagehead__sub" role="status">{ i18n.Count(ctx, i18n.KeyCartItemCount, v.ItemCount, v.ItemCountText()) }</p>
 				}
 			</div>
-			if v.HasNotice() {
-				if v.ContinueURL != "" {
-					<div class="ui-alert ui-alert--info" id="cart-adjustment" role="status">
-						<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-							<path d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Zm-7-4a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM9 9a.75.75 0 0 0 0 1.5h.253a.25.25 0 0 1 .244.304l-.459 2.066A1.75 1.75 0 0 0 10.747 15H11a.75.75 0 0 0 0-1.5h-.253a.25.25 0 0 1-.244-.304l.459-2.066A1.75 1.75 0 0 0 9.253 9H9Z" clip-rule="evenodd" fill-rule="evenodd"></path>
-						</svg>
-						<div class="goen-cart__adjustment-content">
-							<p class="goen-cart__adjustment-message">{ v.Notice }</p>
-							<p class="goen-cart__adjustment-action">
-								<a href={ templ.URL(v.ContinueURL) }>
-									{ i18n.T(ctx, i18n.KeyCartAdjustmentContinue) }
-									<span aria-hidden="true">→</span>
-								</a>
-							</p>
+			// Always present, so an update that changes only the notice has
+			// somewhere to put it. It adds no box of its own.
+			<div id="cart-notices" class="goen-cart__notices">
+				if v.HasNotice() {
+					if v.ContinueURL != "" {
+						<div class="ui-alert ui-alert--info" id="cart-adjustment" role="status">
+							<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+								<path d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Zm-7-4a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM9 9a.75.75 0 0 0 0 1.5h.253a.25.25 0 0 1 .244.304l-.459 2.066A1.75 1.75 0 0 0 10.747 15H11a.75.75 0 0 0 0-1.5h-.253a.25.25 0 0 1-.244-.304l.459-2.066A1.75 1.75 0 0 0 9.253 9H9Z" clip-rule="evenodd" fill-rule="evenodd"></path>
+							</svg>
+							<div class="goen-cart__adjustment-content">
+								<p class="goen-cart__adjustment-message">{ v.Notice }</p>
+								<p class="goen-cart__adjustment-action">
+									<a href={ templ.URL(v.ContinueURL) }>
+										{ i18n.T(ctx, i18n.KeyCartAdjustmentContinue) }
+										<span aria-hidden="true">→</span>
+									</a>
+								</p>
+							</div>
 						</div>
-					</div>
-				} else {
-					@components.Notice(components.NoticeProps{Tone: components.ToneAccent, ID: "cart-adjustment"}) {
-						{ v.Notice }
+					} else {
+						@components.Notice(components.NoticeProps{Tone: components.ToneAccent, ID: "cart-adjustment"}) {
+							{ v.Notice }
+						}
 					}
 				}
-			}
-			if v.FromReorder() {
-				@components.Notice(components.NoticeProps{Tone: components.ToneAccent}) {
-					{ v.ReorderText(ctx) }
+				if v.FromReorder() {
+					@components.Notice(components.NoticeProps{Tone: components.ToneAccent}) {
+						{ v.ReorderText(ctx) }
+					}
 				}
-			}
+			</div>
 			if v.Empty() {
 				<div class="goen-empty">
 					@emptyArt(assets.EmptyCartImage)
@@ -67,7 +71,7 @@ templ Cart(p layouts.Page, v CartView) {
 					</ul>
 					@components.Card(components.CardProps{
 						Class: "goen-cart__summary",
-						Attrs: templ.Attributes{"aria-labelledby": "summary-heading"},
+						Attrs: templ.Attributes{"id": "cart-summary", "aria-labelledby": "summary-heading"},
 					}) {
 						<h2 id="summary-heading" class="goen-summary__title">{ i18n.T(ctx, i18n.KeyOrderSummary) }</h2>
 						<dl class="goen-summary">
@@ -118,7 +122,7 @@ templ Cart(p layouts.Page, v CartView) {
 }
 
 templ cartLine(l CartLine) {
-	<li class={ "goen-line", "goen-line--cart", templ.KV("goen-line--out", l.Unavailable) }>
+	<li id={ "line-" + l.VariantID } class={ "goen-line", "goen-line--cart", templ.KV("goen-line--out", l.Unavailable) }>
 		<a class="goen-line__thumb" href={ templ.URL("/p/" + l.Slug) }>
 			if l.HasImage() {
 				// Width and height on the element, not only in the sheet: the
@@ -139,7 +143,7 @@ templ cartLine(l CartLine) {
 				<span class="goen-line__ph" aria-hidden="true"></span>
 			}
 		</a>
-		<div class="goen-line__body">
+		<div class="goen-line__body" id={ "line-body-" + l.VariantID }>
 			if l.Brand != "" {
 				<span class="goen-line__brand">{ l.Brand }</span>
 			}
@@ -158,7 +162,7 @@ templ cartLine(l CartLine) {
 				}
 			}
 		</div>
-		<div class="goen-line__money">
+		<div class="goen-line__money" id={ "line-money-" + l.VariantID }>
 			<span class="goen-line__total">{ l.LineTotal() }</span>
 			if l.Short {
 				<span class="goen-line__meta">
@@ -166,7 +170,16 @@ templ cartLine(l CartLine) {
 				</span>
 			}
 		</div>
-		<form class="goen-line__controls" method="post" action="/cart/items/update" data-autosubmit>
+		<form
+			class="goen-line__controls"
+			method="post"
+			action="/cart/items/update"
+			data-autosubmit
+			hx-post="/cart/items/update"
+			hx-swap="none"
+			hx-select-oob={ cartLineSwap(l.VariantID) }
+			hx-sync="closest .goen-cart__lines:queue all"
+		>
 			<input type="hidden" name="variant" value={ l.VariantID }/>
 			<label class="goen-sr-only" for={ "qty-" + l.VariantID }>{ i18n.T(ctx, i18n.KeyQuantity) }</label>
 			@components.Stepper(components.StepperProps{
@@ -192,7 +205,9 @@ templ cartLine(l CartLine) {
 				Variant: components.VariantGhost,
 				Size:    components.SizeSmall,
 				Class:   "goen-line__remove",
-				Attrs:   templ.Attributes{"name": "remove", "value": "1"},
+				// Not dimmed while a quantity request is pending: the request
+				// is about the number, and Remove stays available beside it.
+				Attrs: templ.Attributes{"name": "remove", "value": "1", "data-feedback-skip": true},
 			}, "submit") {
 				{ i18n.T(ctx, i18n.KeyRemove) }
 			}

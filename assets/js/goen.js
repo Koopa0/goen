@@ -266,6 +266,60 @@
         if (form.checkValidity()) form.requestSubmit();
       }, 700));
     });
+
+    /*
+     * The same form is an htmx request where script runs, and it swaps only
+     * the regions its hx-select-oob names. Three things htmx does not do for
+     * it are done here:
+     *
+     * - No view transition. Every swap is a cross-fade of the page by default,
+     *   and a quantity change must not repaint anything it did not change.
+     * - A refusal is reconciled. The server answers a quantity it cannot
+     *   honour with the page showing the quantity it kept, so the field takes
+     *   that number back and the notice region carries the reason.
+     * - A change made while a request was in flight is sent once after it,
+     *   because the request feedback drops a submit that arrives mid-request.
+     * - Updates run one at a time across lines (hx-sync on the form), so the
+     *   last response is rendered after every change and its summary is whole.
+     *
+     * A response without the line (it was removed) or no usable response at
+     * all is answered by loading the cart, which is always correct.
+     */
+    const quantity = (form) => form.querySelector("[data-stepper] input");
+
+    document.addEventListener("htmx:config:request", (event) => {
+      const ctx = event.detail?.ctx;
+      const form = ctx?.request?.form;
+      if (!(form instanceof HTMLFormElement) || !form.matches("form[data-autosubmit]")) return;
+      ctx.transition = false;
+      form.dataset.sent = quantity(form)?.value ?? "";
+    });
+
+    document.addEventListener("htmx:finally:request", (event) => {
+      const ctx = event.detail?.ctx;
+      const form = ctx?.request?.form;
+      if (!(form instanceof HTMLFormElement) || !form.matches("form[data-autosubmit]")) return;
+      const field = quantity(form);
+      const page = ctx.response?.status < 400 && ctx.text
+        ? new DOMParser().parseFromString(ctx.text, "text/html")
+        : null;
+      const kept = field && page ? page.getElementById(field.id) : null;
+      if (!kept) {
+        window.location.assign("/cart");
+        return;
+      }
+      if (field.value !== form.dataset.sent) {
+        // One follow-up with the latest value. The debounce timer a change made
+        // during the request left behind would send the same value again.
+        clearTimeout(waiting.get(form));
+        if (form.checkValidity()) form.requestSubmit();
+        return;
+      }
+      if (kept.value !== field.value) {
+        field.value = kept.value;
+        field.dispatchEvent(new Event("input", { bubbles: true }));
+      }
+    });
   }
 
   // Request state is presentation only. Submitter names and values remain in
@@ -278,7 +332,7 @@
       else element.setAttribute(name, value);
     };
     const begin = (form) => {
-      const buttons = [...form.querySelectorAll('button[type="submit"], input[type="submit"]')]
+      const buttons = [...form.querySelectorAll('button[type="submit"]:not([data-feedback-skip]), input[type="submit"]')]
         .map((button) => [button, button.getAttribute("aria-disabled")]);
       pending.set(form, { busy: form.getAttribute("aria-busy"), buttons });
       form.setAttribute("aria-busy", "true");

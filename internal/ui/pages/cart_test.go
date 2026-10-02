@@ -1099,3 +1099,32 @@ func TestCartLineStillWorksWithScriptingOff(t *testing.T) {
 		}
 	}
 }
+
+// TestCartLineUpdateSwapsOnlyWhatChanges holds that the quantity form is an
+// htmx request that replaces the line's text and price, the summary, the
+// notices and the header's cart link, and names neither the thumbnail, the
+// stepper nor the whole list. Naming any of those would repaint what the
+// shopper did not change.
+func TestCartLineUpdateSwapsOnlyWhatChanges(t *testing.T) {
+	t.Parallel()
+	const id = "11111111-1111-4111-8111-111111111111"
+	html := renderToString(t, cartLine(CartLine{VariantID: id, Slug: "buds", Name: "Buds", Quantity: 1, UnitCents: 100}))
+	for _, want := range []string{
+		`hx-post="/cart/items/update"`,
+		`hx-swap="none"`,
+		`hx-select-oob="#line-body-` + id + `,#line-money-` + id + `,#cart-summary,#cart-notices,#cart-link,#cart-count:innerHTML"`,
+		`hx-sync="closest .goen-cart__lines:queue all"`,
+		`data-feedback-skip`,
+		`id="line-body-` + id + `"`,
+		`id="line-money-` + id + `"`,
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("cart line omits %s:\n%s", want, html)
+		}
+	}
+	for _, bad := range []string{`hx-target`, `hx-select=`} {
+		if strings.Contains(html, bad) {
+			t.Errorf("the line form carries %s, which would replace a whole region:\n%s", bad, html)
+		}
+	}
+}
