@@ -9,6 +9,13 @@ import (
 
 const KeysetParam = "after"
 
+// PageSize is the rows a list page shows; a list query asks for PageLimit, the
+// page plus the one row that proves there is another.
+const (
+	PageSize  = 50
+	PageLimit = PageSize + 1
+)
+
 // maxKeysetToken bounds what a reader may hand back; a real token is a few
 // hundred bytes.
 const maxKeysetToken = 4096
@@ -78,4 +85,33 @@ func ReadKeyset[T any](scope, token string) (position T, ok bool) {
 		return zero, false
 	}
 	return position, true
+}
+
+// Bound is where one page of a keyset list sits, for the navigation beside it.
+type Bound struct {
+	// PastEnd marks a later page that came back empty because its rows are gone; the
+	// list's own empty state would be a lie there.
+	PastEnd bool
+	First   string
+	Next    string
+}
+
+// PageBound trims a read made with PageLimit to its page and builds the
+// navigation beside it. resumed is whether the request carried a valid position;
+// key names the last row's position, which each query builds in SQL as
+// PageCursor.
+func PageBound[T any](scope string, resumed bool, rows []T, size int, key func(*T) string) ([]T, Bound) {
+	rows, more := PageOf(rows, size)
+	var b Bound
+	if resumed {
+		b.First = scope
+	}
+	if len(rows) == 0 {
+		b.PastEnd = resumed
+		return rows, b
+	}
+	if more {
+		b.Next, _ = NextKeysetURL(scope, key(&rows[len(rows)-1]))
+	}
+	return rows, b
 }

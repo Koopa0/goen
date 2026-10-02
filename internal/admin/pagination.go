@@ -37,21 +37,6 @@ func readPageCursor(scope string, after []string) pageCursor {
 	return c
 }
 
-// pageBound trims a read made with PageLimit to its page and builds the
-// navigation beside it. key names the last row's position, which each query
-// builds in SQL as PageCursor.
-func pageBound[T any](c pageCursor, scope string, rows []T, size int, key func(*T) string) ([]T, pages.ListBound) {
-	rows, more := web.PageOf(rows, size)
-	var b pages.ListBound
-	if c.Valid {
-		b.First = scope
-	}
-	if len(rows) == 0 {
-		b.PastEnd = c.Valid
-		return rows, b
-	}
-	if more {
-		b.Next, _ = web.NextKeysetURL(scope, key(&rows[len(rows)-1]))
-	}
-	return rows, b
+func pageBound[T any](c pageCursor, scope string, rows []T, size int, key func(*T) string) (page []T, bound pages.ListBound) {
+	return web.PageBound(scope, c.Valid, rows, size, key)
 }

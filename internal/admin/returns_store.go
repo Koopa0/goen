@@ -999,7 +999,7 @@ func (s *Store) closeReturn(
 			ErrRefused, requestID)
 	}
 	if err := audit.In(ctx, q, audit.Event{
-		Action: audit.ActionDecideReturn, Table: "return_requests", ID: nullableID(requestID),
+		Action: audit.ActionDecideReturn, Table: "return_requests", ID: audit.EntityID(requestID),
 		After: returnDecisionAudit(kind.Status(), resolution, claim.Window, claim.Entitlement, assessmentVersion),
 	}); err != nil {
 		return err
@@ -1184,7 +1184,7 @@ func (s *Store) InspectReturn(
 	}
 
 	if err := audit.In(ctx, q, audit.Event{
-		Action: audit.ActionInspectReturn, Table: "return_requests", ID: nullableID(requestID),
+		Action: audit.ActionInspectReturn, Table: "return_requests", ID: audit.EntityID(requestID),
 		// Counts, never the note: audit_events is append-only and erase_user does
 		// not reach it.
 		After: map[string]any{"lines": len(lines), "restocked": len(restock)},
@@ -1234,7 +1234,7 @@ func (s *Store) CompleteReturn(ctx context.Context, id, resolution string, actor
 	}
 
 	if err := audit.In(ctx, q, audit.Event{
-		Action: audit.ActionCompleteReturn, Table: "return_requests", ID: nullableID(requestID),
+		Action: audit.ActionCompleteReturn, Table: "return_requests", ID: audit.EntityID(requestID),
 		After: map[string]any{"resolution": resolution},
 	}); err != nil {
 		return err

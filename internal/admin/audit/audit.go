@@ -29,6 +29,11 @@ type Event struct {
 	After  any
 }
 
+// EntityID is Event.ID for a row's identifier; the zero UUID is no entity.
+func EntityID(id uuid.UUID) uuid.NullUUID {
+	return uuid.NullUUID{UUID: id, Valid: id != uuid.Nil}
+}
+
 // Run runs a back-office write and records who did it, in ONE transaction:
 // an audit row for work that rolled back is a lie, and work that commits
 // without one is a gap.

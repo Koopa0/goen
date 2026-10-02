@@ -13,6 +13,7 @@ import (
 	"github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
+	"github.com/koopa0/goen/internal/web"
 )
 
 var (
@@ -40,7 +41,7 @@ var (
 	ErrRefundUnsettled = errors.New("admin: the refund is recorded and has not settled")
 )
 
-const PageSize = 50
+const PageSize = web.PageSize
 
 // MinSearchRunes is the shortest order search that is a search. Counted in
 // RUNES because two Chinese characters are a meaningful surname and two bytes
@@ -213,13 +214,6 @@ func returnStatusText(ctx context.Context, s returns.Status, beforeShipment bool
 	}
 	return ReturnStatusLabel(ctx, s)
 }
-
-// MaxCreditGrant bounds one posting, in cents: NT$100,000. Not a schema limit,
-// a fat-finger guard on a form that gives money away.
-const MaxCreditGrant = 10000000
-
-// MaxCreditReasonRunes matches the back-office form and the durable ledger.
-const MaxCreditReasonRunes = 200
 
 // funded reports that money is behind the order: a card capture or its fulfilment
 // has committed it, or store credit paid the whole of it while it is still

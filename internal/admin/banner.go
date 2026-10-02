@@ -117,7 +117,7 @@ func (s *Store) SetBannerActive(ctx context.Context, id string, active bool) err
 		return ErrNotFound
 	}
 	return audit.Run(ctx, s.pool, audit.Event{
-		Action: audit.ActionToggleBanner, Table: "promo_banners", ID: nullableID(bannerID),
+		Action: audit.ActionToggleBanner, Table: "promo_banners", ID: audit.EntityID(bannerID),
 		After: map[string]any{"active": active},
 	}, func(ctx context.Context, q *db.Queries) error {
 		n, execErr := q.SetBannerActive(ctx, db.SetBannerActiveParams{

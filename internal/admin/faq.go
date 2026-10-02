@@ -110,7 +110,7 @@ func (s *Store) UpdateFAQEntry(ctx context.Context, f *FAQForm) (map[string]stri
 		return errs, nil
 	}
 	if err := audit.Run(ctx, s.pool, audit.Event{
-		Action: audit.ActionUpdateFAQ, Table: "faq_entries", ID: nullableID(entryID),
+		Action: audit.ActionUpdateFAQ, Table: "faq_entries", ID: audit.EntityID(entryID),
 		After: map[string]any{"category": f.Category},
 	}, func(ctx context.Context, q *db.Queries) error {
 		n, execErr := q.UpdateFAQEntry(ctx, db.UpdateFAQEntryParams{
@@ -136,7 +136,7 @@ func (s *Store) DeleteFAQEntry(ctx context.Context, id string) error {
 		return ErrNotFound
 	}
 	return audit.Run(ctx, s.pool, audit.Event{
-		Action: audit.ActionDeleteFAQ, Table: "faq_entries", ID: nullableID(entryID),
+		Action: audit.ActionDeleteFAQ, Table: "faq_entries", ID: audit.EntityID(entryID),
 		Before: map[string]any{"id": id},
 	}, func(ctx context.Context, q *db.Queries) error {
 		n, execErr := q.DeleteFAQEntry(ctx, entryID)

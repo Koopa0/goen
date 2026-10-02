@@ -13,6 +13,7 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/destination"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
@@ -94,13 +95,13 @@ func (s *Store) PublishShippingVersion(ctx context.Context, v ShippingVersion) e
 	if name == "" || feeDollars < 0 || freeOverDollars < 0 {
 		return ErrInvalid
 	}
-	if feeDollars > MaxShippingFee/100 || freeOverDollars > MaxPriceCents/100 {
+	if feeDollars > MaxShippingFee/100 || freeOverDollars > money.MaxCents/100 {
 		return ErrInvalid
 	}
 
 	return audit.Run(ctx, s.pool, audit.Event{
 		Action: audit.ActionPublishShipping, Table: "shipping_method_versions",
-		ID:     nullableID(id),
+		ID:     audit.EntityID(id),
 		Before: nil,
 		After: map[string]any{
 			"method_id": v.MethodID, "name": name, "carrier": carrier,
@@ -143,7 +144,7 @@ func (s *Store) SetZoneSurcharge(ctx context.Context, versionID, zoneID string, 
 
 	return audit.Run(ctx, s.pool, audit.Event{
 		Action: audit.ActionSetSurcharge, Table: "shipping_version_zones",
-		ID:     nullableID(vid),
+		ID:     audit.EntityID(vid),
 		Before: nil,
 		After: map[string]any{
 			"version_id": versionID, "zone_id": zoneID,
@@ -205,7 +206,7 @@ func (m *NewMethod) Validate(ctx context.Context) map[string]string {
 	if m.FeeDollars < 0 || m.FeeDollars > MaxShippingFee/100 {
 		errs["fee"] = i18n.T(ctx, i18n.KeyFormMethodFee)
 	}
-	if m.FreeOverDollars < 0 || m.FreeOverDollars > MaxPriceCents/100 {
+	if m.FreeOverDollars < 0 || m.FreeOverDollars > money.MaxCents/100 {
 		errs["free_over"] = i18n.T(ctx, i18n.KeyFormMethodFreeOver)
 	}
 	validateMethodParcelLimits(ctx, m, errs)
@@ -296,7 +297,7 @@ func (s *Store) SetMethodActive(ctx context.Context, id string, active bool) err
 	}
 	return audit.Run(ctx, s.pool, audit.Event{
 		Action: audit.ActionToggleShippingMethod, Table: "shipping_methods",
-		ID:    nullableID(methodID),
+		ID:    audit.EntityID(methodID),
 		After: map[string]any{"active": active},
 	}, func(ctx context.Context, q *db.Queries) error {
 		n, execErr := q.SetShippingMethodActive(ctx, db.SetShippingMethodActiveParams{
