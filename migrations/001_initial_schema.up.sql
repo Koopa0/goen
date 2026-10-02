@@ -1837,8 +1837,6 @@ LANGUAGE plpgsql AS $$
 DECLARE
     legal boolean;
     lines integer;
-    subtotal bigint;
-    order_total bigint;
     owed           bigint;
 BEGIN
     IF NEW.fulfillment_status = OLD.fulfillment_status THEN
@@ -1905,8 +1903,6 @@ BEGIN
     -- order to owe nothing — free or fully store-credited — or to carry a
     -- succeeded payment. A new funding source is added HERE.
     IF OLD.fulfillment_status = 'pending' AND NEW.fulfillment_status = 'picking' THEN
-        SELECT count(*), coalesce(sum(unit_price_cents * quantity), 0)
-        INTO lines, subtotal FROM order_lines WHERE order_id = NEW.id;
         -- order_amount_owed is the ONE definition: total less store credit, net
         -- of reversals.
         owed := order_amount_owed(NEW.id);
@@ -2640,8 +2636,6 @@ CREATE TABLE return_requests (
     CONSTRAINT return_requests_decided_has_time
         CHECK ((status = 'requested') = (decided_at IS NULL)),
     CONSTRAINT return_requests_refund_snapshot_shape CHECK (
-        status NOT IN ('requested', 'approved', 'rejected', 'completed')
-        OR
         (status IN ('approved', 'completed')
          AND goods_refund_cents IS NOT NULL
          AND card_refund_cents IS NOT NULL
@@ -2707,7 +2701,7 @@ CREATE INDEX order_events_return_request_fk_idx
 -- foreign key makes a cross-order return impossible.
 CREATE TABLE return_request_lines (
     order_id          uuid NOT NULL,
-    return_request_id uuid NOT NULL REFERENCES return_requests (id) ON DELETE CASCADE,
+    return_request_id uuid NOT NULL,
     order_line_id     uuid NOT NULL,
     quantity          integer NOT NULL,
     -- What actually came back, and how much of it went on the shelf again. NULL
@@ -3729,7 +3723,6 @@ DECLARE
     o orders%ROWTYPE;
     lines integer;
     subtotal bigint;
-    order_total bigint;
     owed           bigint;
 BEGIN
     IF NEW.status <> 'succeeded' THEN
