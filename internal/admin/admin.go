@@ -303,6 +303,13 @@ const MaxCreditGrant = 10000000
 // MaxCreditReasonRunes matches the back-office form and the durable ledger.
 const MaxCreditReasonRunes = 200
 
+// funded reports that money is behind the order: a card capture or its fulfilment
+// has committed it, or store credit paid the whole of it while it is still
+// pending, which the database does not count as committed until it is picked.
+func funded(committed bool, owedCents, creditCents int64) bool {
+	return committed || (creditCents > 0 && owedCents <= 0)
+}
+
 // FundedStatusLabel is a fulfilment state read together with what the order
 // owes, which is the only way to tell the two halves of 'pending' apart: an
 // order stays pending from the moment the money arrives until a human picks it,

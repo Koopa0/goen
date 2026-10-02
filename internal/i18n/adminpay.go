@@ -6,7 +6,9 @@ var (
 
 	KeyAdminPayMethodCard = key("admin.pay.method.card", Message{ZhHant: "信用卡(Stripe)", En: "Card (Stripe)"})
 
-	KeyAdminPayMethodCredit = key("admin.pay.method.credit", Message{ZhHant: "商店額度或全額折抵", En: "Store credit or a full discount"})
+	KeyAdminPayMethodCredit = key("admin.pay.method.credit", Message{ZhHant: "購物金全額折抵", En: "Paid in full with store credit"})
+
+	KeyAdminPayMethodFree = key("admin.pay.method.free", Message{ZhHant: "全額折扣，無須付款", En: "Nothing to pay after the discount"})
 
 	KeyAdminPayNone = key("admin.pay.none", Message{ZhHant: "尚未收款", En: "No payment received yet"})
 

@@ -1131,6 +1131,12 @@ SELECT
     coalesce(ip.tax_id, '') AS invoice_tax_id,
     order_is_committed(o.id) AS committed,
     order_amount_owed(o.id) AS owed_cents,
+    -- What store credit paid, read as total less what is still owed so
+    -- order_amount_owed stays the one definition of that arithmetic.
+    (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
+               WHERE ol.order_id = o.id), 0)
+     - o.discount_cents + o.shipping_cents + o.tax_cents
+     - order_amount_owed(o.id))::bigint AS credit_cents,
     (SELECT sm.destination_kind FROM shipping_method_versions v
      JOIN shipping_methods sm ON sm.id = v.method_id
      WHERE v.id = o.shipping_version_id)::text AS destination_kind
@@ -1169,6 +1175,7 @@ type AdminOrderByNumberRow struct {
 	InvoiceTaxID        string
 	Committed           bool
 	OwedCents           int64
+	CreditCents         int64
 	DestinationKind     string
 }
 
@@ -1206,6 +1213,7 @@ func (q *Queries) AdminOrderByNumber(ctx context.Context, orderNumber string) (A
 		&i.InvoiceTaxID,
 		&i.Committed,
 		&i.OwedCents,
+		&i.CreditCents,
 		&i.DestinationKind,
 	)
 	return i, err
@@ -7957,21 +7965,34 @@ func (q *Queries) LockOrderDelivery(ctx context.Context, orderNumber string) (Lo
 }
 
 const lockOrderForAdvance = `-- name: LockOrderForAdvance :one
-SELECT id, fulfillment_status, order_is_committed(id) AS committed
-FROM orders WHERE order_number = $1 FOR UPDATE
+SELECT o.id, o.fulfillment_status, order_is_committed(o.id) AS committed,
+       order_amount_owed(o.id) AS owed_cents,
+       (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
+                  WHERE ol.order_id = o.id), 0)
+        - o.discount_cents + o.shipping_cents + o.tax_cents
+        - order_amount_owed(o.id))::bigint AS credit_cents
+FROM orders o WHERE o.order_number = $1 FOR UPDATE OF o
 `
 
 type LockOrderForAdvanceRow struct {
 	ID                uuid.UUID
 	FulfillmentStatus string
 	Committed         bool
+	OwedCents         int64
+	CreditCents       int64
 }
 
 // Lock before reading the prior state so concurrent completion cannot duplicate arrival mail.
 func (q *Queries) LockOrderForAdvance(ctx context.Context, orderNumber string) (LockOrderForAdvanceRow, error) {
 	row := q.db.QueryRow(ctx, lockOrderForAdvance, orderNumber)
 	var i LockOrderForAdvanceRow
-	err := row.Scan(&i.ID, &i.FulfillmentStatus, &i.Committed)
+	err := row.Scan(
+		&i.ID,
+		&i.FulfillmentStatus,
+		&i.Committed,
+		&i.OwedCents,
+		&i.CreditCents,
+	)
 	return i, err
 }
 
