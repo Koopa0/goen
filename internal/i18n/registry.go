@@ -5,16 +5,13 @@ import (
 	"fmt"
 )
 
-// Key is a message identifier.
 type Key string
 
-// Message is one string in every locale goen speaks.
 type Message struct {
 	ZhHant string
 	En     string
 }
 
-// in returns the message for l.
 func (m Message) in(l Locale) string {
 	switch l {
 	case ZhHant:
@@ -27,7 +24,6 @@ func (m Message) in(l Locale) string {
 
 var messages = map[Key]Message{}
 
-// key registers a message and returns its identifier.
 func key(id string, m Message) Key {
 	if id == "" {
 		panic("i18n: a message needs an id")
@@ -51,5 +47,4 @@ func T(ctx context.Context, k Key) string {
 	return string(k)
 }
 
-// Locales is every locale goen speaks.
 func Locales() []Locale { return []Locale{ZhHant, En} }

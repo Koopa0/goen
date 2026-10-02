@@ -7,8 +7,6 @@ import (
 	"strings"
 )
 
-// KeysetParam is the query parameter that carries a keyset position, the one
-// spelling every paged list shares.
 const KeysetParam = "after"
 
 // maxKeysetToken bounds what a reader may hand back; a real token is a few

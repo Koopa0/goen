@@ -8,20 +8,17 @@ import (
 	"strings"
 )
 
-// Locale is a language goen speaks.
 type Locale string
 
 const (
 	// ZhHant is Traditional Chinese, the language the content is authored in.
 	ZhHant Locale = "zh-Hant"
-	// En is English.
-	En Locale = "en"
+	En     Locale = "en"
 )
 
 // Default is what a visitor gets who has expressed no preference.
 const Default = ZhHant
 
-// CookieName remembers a visitor's choice.
 const CookieName = "__Host-goen_locale"
 
 // insecureCookieName is the development name: a __Host- cookie is never sent
@@ -31,12 +28,10 @@ const insecureCookieName = "goen_locale"
 // CookieMaxAge is a year. A language preference is not a session.
 const CookieMaxAge = 365 * 24 * 60 * 60
 
-// Known reports whether s names a locale goen speaks.
 func Known(s string) bool {
 	return Locale(s) == ZhHant || Locale(s) == En
 }
 
-// Parse turns a string into a locale, or returns Default.
 func Parse(s string) Locale {
 	if Known(s) {
 		return Locale(s)
@@ -47,7 +42,6 @@ func Parse(s string) Locale {
 // Tag is the value for <html lang>.
 func (l Locale) Tag() string { return string(l) }
 
-// Short is the compact name the language menu's button shows.
 func (l Locale) Short() string {
 	if l == En {
 		return "EN"
@@ -65,7 +59,6 @@ func (l Locale) Label() string {
 
 type localeKey struct{}
 
-// WithLocale attaches a locale to a request context.
 func WithLocale(ctx context.Context, l Locale) context.Context {
 	return context.WithValue(ctx, localeKey{}, l)
 }
@@ -91,7 +84,6 @@ func (l Locale) StripeTag() string {
 	panic("i18n: no Stripe locale for " + string(l))
 }
 
-// CookieNameFor is the cookie name for this deployment.
 func CookieNameFor(secure bool) string {
 	if secure {
 		return CookieName
@@ -194,7 +186,6 @@ func languageQuality(params []string) (float64, bool) {
 	return q, true
 }
 
-// SetCookie records a visitor's choice.
 func SetCookie(w http.ResponseWriter, l Locale, secure bool) {
 	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: dev-only opt-out, secure by default
 		Name:     CookieNameFor(secure),

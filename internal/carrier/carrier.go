@@ -68,7 +68,6 @@ func ForDelivery(chain pickup.Chain, pickupPoint bool) (valid []Carrier, implied
 	return []Carrier{BlackCat, HCT, ChunghwaPost, KerryTJ}, ""
 }
 
-// Known reports whether c is one of the closed set.
 func (c Carrier) Known() bool { return slices.Contains(all[:], c) }
 
 // blackCatTrace is the one public GET link that carries a tracking number.
