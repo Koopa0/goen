@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
+	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -235,8 +236,8 @@ func (s *Store) CreateProduct(ctx context.Context, f *ProductForm) (slug string,
 	}
 	brandID, categoryID := uuid.MustParse(f.BrandID), uuid.MustParse(f.CategoryID)
 
-	err = s.audited(ctx, Event{
-		Action: actionCreateProduct, Table: "products", ID: uuid.NullUUID{},
+	err = audit.Run(ctx, s.pool, audit.Event{
+		Action: audit.ActionCreateProduct, Table: "products", ID: uuid.NullUUID{},
 		Before: nil, After: map[string]any{"name": f.Name, "slug": f.Slug},
 	},
 		func(ctx context.Context, q *db.Queries) error {
@@ -267,8 +268,8 @@ func (s *Store) UpdateProduct(ctx context.Context, f *ProductForm) (map[string]s
 	if errs := f.Validate(ctx); len(errs) > 0 {
 		return errs, nil
 	}
-	err := s.audited(ctx, Event{
-		Action: actionUpdateProduct, Table: "products", ID: uuid.NullUUID{},
+	err := audit.Run(ctx, s.pool, audit.Event{
+		Action: audit.ActionUpdateProduct, Table: "products", ID: uuid.NullUUID{},
 		After: map[string]any{
 			"slug": f.Slug, "name": f.Name,
 			"brand_id": f.BrandID, "category_id": f.CategoryID,
@@ -319,8 +320,8 @@ func (s *Store) SetProductStatus(ctx context.Context, slug, status string) error
 	if !knownProductStatus(status) {
 		return ErrRefused
 	}
-	return s.audited(ctx, Event{
-		Action: actionPublishProduct, Table: "products", ID: uuid.NullUUID{},
+	return audit.Run(ctx, s.pool, audit.Event{
+		Action: audit.ActionPublishProduct, Table: "products", ID: uuid.NullUUID{},
 		Before: nil, After: map[string]any{"slug": slug, "status": status},
 	},
 		func(ctx context.Context, q *db.Queries) error {
@@ -396,8 +397,8 @@ func (s *Store) AddSpec(ctx context.Context, slug string, d SpecDraft) (map[stri
 		return errs, nil
 	}
 
-	err := s.audited(ctx, Event{
-		Action: actionAddSpec, Table: "product_specs", ID: uuid.NullUUID{},
+	err := audit.Run(ctx, s.pool, audit.Event{
+		Action: audit.ActionAddSpec, Table: "product_specs", ID: uuid.NullUUID{},
 		Before: nil, After: map[string]any{"slug": slug, "label": label},
 	}, func(ctx context.Context, q *db.Queries) error {
 		if _, err := q.AddProductSpec(ctx, db.AddProductSpecParams{
@@ -427,8 +428,8 @@ func (s *Store) RemoveSpec(ctx context.Context, slug, id string) error {
 	if err != nil {
 		return ErrNotFound
 	}
-	return s.audited(ctx, Event{
-		Action: actionRemoveSpec, Table: "product_specs", ID: nullableID(specID),
+	return audit.Run(ctx, s.pool, audit.Event{
+		Action: audit.ActionRemoveSpec, Table: "product_specs", ID: nullableID(specID),
 		Before: map[string]any{"slug": slug}, After: nil,
 	}, func(ctx context.Context, q *db.Queries) error {
 		rows, err := q.RemoveProductSpec(ctx, db.RemoveProductSpecParams{
@@ -461,8 +462,8 @@ func (s *Store) AddOption(ctx context.Context, slug string, d OptionDraft) (map[
 		return errs, nil
 	}
 
-	if err := s.audited(ctx, Event{
-		Action: actionAddOption, Table: "product_options", ID: uuid.NullUUID{},
+	if err := audit.Run(ctx, s.pool, audit.Event{
+		Action: audit.ActionAddOption, Table: "product_options", ID: uuid.NullUUID{},
 		Before: nil, After: map[string]any{"slug": slug, "name": name},
 	}, func(ctx context.Context, q *db.Queries) error {
 		if _, err := q.AddProductOption(ctx, db.AddProductOptionParams{
@@ -510,8 +511,8 @@ func (s *Store) AddOptionValue(ctx context.Context, slug string, d OptionDraft) 
 		return map[string]string{"swatch_hex": i18n.T(ctx, i18n.KeyFormSwatchHex)}, nil
 	}
 
-	if err := s.audited(ctx, Event{
-		Action: actionAddOptionValue, Table: "product_option_values", ID: nullableID(optionID),
+	if err := audit.Run(ctx, s.pool, audit.Event{
+		Action: audit.ActionAddOptionValue, Table: "product_option_values", ID: nullableID(optionID),
 		Before: nil, After: map[string]any{"slug": slug, "value": name},
 	}, func(ctx context.Context, q *db.Queries) error {
 		if _, err := q.AddProductOptionValue(ctx, db.AddProductOptionValueParams{

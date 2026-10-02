@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/shoptime"
@@ -209,13 +210,13 @@ func (s *Store) AuthorizeInvoiceAllowanceResend(
 	if operationID == uuid.Nil {
 		return ErrInvalid
 	}
-	actorID, ok := actorFrom(ctx)
+	actorID, ok := audit.Actor(ctx)
 	if !ok {
-		return ErrNoActor
+		return audit.ErrNoActor
 	}
 	requestID := web.RequestID(ctx)
 	if requestID == "" {
-		return ErrNoActor
+		return audit.ErrNoActor
 	}
 	authorized, err := s.q.AuthorizeInvoiceAllowanceResend(
 		ctx, db.AuthorizeInvoiceAllowanceResendParams{

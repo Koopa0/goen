@@ -5,6 +5,7 @@ package admin_test
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -17,6 +18,7 @@ import (
 
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/admin"
+	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/web"
@@ -95,10 +97,12 @@ func TestPickingTotalsSpanEveryPageAndSubtractRecordedShipments(t *testing.T) {
 		t.Fatalf("partially dispatched slip quantity=%d, want %d", view.Slips[0].Lines[0].Quantity, one[0].Remaining)
 	}
 	h := adminHandlerOver(owner, s)
+	mux := http.NewServeMux()
+	h.Routes(mux, access.New(slog.New(slog.DiscardHandler), nil))
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		req := httptest.NewRequestWithContext(i18n.WithLocale(ctx, locale), http.MethodGet, "/admin/orders/picking/slips", nil)
 		w := httptest.NewRecorder()
-		h.RequireStaff(h.PickingSlips)(w, req)
+		mux.ServeHTTP(w, req)
 		if w.Code != http.StatusOK {
 			t.Fatalf("%s staff GET=%d", locale, w.Code)
 		}
@@ -106,7 +110,7 @@ func TestPickingTotalsSpanEveryPageAndSubtractRecordedShipments(t *testing.T) {
 	for _, user := range []account.User{{}, {ID: uuid.NewString(), Role: account.RoleCustomer}} {
 		req := httptest.NewRequestWithContext(account.WithUser(t.Context(), user), http.MethodGet, "/admin/orders/picking/slips", nil)
 		w := httptest.NewRecorder()
-		h.RequireStaff(h.PickingSlips)(w, req)
+		mux.ServeHTTP(w, req)
 		if w.Code != http.StatusNotFound {
 			t.Fatalf("role=%q GET=%d, want 404", user.Role, w.Code)
 		}

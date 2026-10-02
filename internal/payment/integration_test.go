@@ -27,6 +27,7 @@ import (
 
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/admin"
+	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/db/dbtest"
@@ -1703,7 +1704,7 @@ func TestPickingACreditFundedOrderQueuesNoInvoice(t *testing.T) {
 	var queued int
 	if err := pool.QueryRow(ctx,
 		`SELECT count(*) FROM outbox_messages WHERE topic = $1 AND dedupe_key = $2`,
-		outbox.TopicInvoiceDue, number).Scan(&queued); err != nil {
+		outbox.TopicInvoiceDue.Name(), number).Scan(&queued); err != nil {
 		t.Fatalf("count invoice.due: %v", err)
 	}
 	if queued != 0 {
@@ -1730,7 +1731,7 @@ func TestAPaidOrderWhoseInvoiceDueWasLostIsOnTheHealthPage(t *testing.T) {
 	}
 	if tag, err := pool.Exec(ctx,
 		`DELETE FROM outbox_messages WHERE topic = $1 AND dedupe_key = $2`,
-		outbox.TopicInvoiceDue, captured); err != nil || tag.RowsAffected() != 1 {
+		outbox.TopicInvoiceDue.Name(), captured); err != nil || tag.RowsAffected() != 1 {
 		t.Fatalf("delete the queued invoice.due of %s: %d rows, %v", captured, tag.RowsAffected(), err)
 	}
 
@@ -1794,7 +1795,7 @@ func invoiceDue(t *testing.T, number string) outbox.InvoiceDue {
 	t.Helper()
 	rows, err := pool.Query(t.Context(),
 		`SELECT payload FROM outbox_messages WHERE topic = $1 AND dedupe_key = $2`,
-		outbox.TopicInvoiceDue, number)
+		outbox.TopicInvoiceDue.Name(), number)
 	if err != nil {
 		t.Fatalf("read invoice.due for %s: %v", number, err)
 	}
@@ -2751,7 +2752,7 @@ func TestPaidCompleteResolutionCannotOpenSecondSession(t *testing.T) {
 	backOffice := admin.NewStore(pool, admin.NewRefunder(""), nil, nil)
 	if err := backOffice.ReconcileCompletePayment(
 		ctx, providerRef, admin.CompletePaymentPaid,
-	); !errors.Is(err, admin.ErrNoActor) {
+	); !errors.Is(err, audit.ErrNoActor) {
 		t.Fatalf("paid attribution without an auditable actor = %v, want ErrNoActor", err)
 	}
 	var rolledBackStatus string

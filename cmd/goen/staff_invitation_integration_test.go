@@ -72,7 +72,7 @@ func TestStaffInvitationRegrantSurvivesRetainedDelivery(t *testing.T) {
 				t.Fatalf("first invitation sent=%d, want %d", sender.sent, wantSent)
 			}
 			var retained int
-			if err := pool.QueryRow(ctx, `SELECT count(*) FROM outbox_messages WHERE topic=$1 AND payload->>'user_id'=$2 AND delivered_at IS NOT NULL`, outbox.TopicStaffInvitation, target.String()).Scan(&retained); err != nil {
+			if err := pool.QueryRow(ctx, `SELECT count(*) FROM outbox_messages WHERE topic=$1 AND payload->>'user_id'=$2 AND delivered_at IS NOT NULL`, outbox.TopicStaffInvitation.Name(), target.String()).Scan(&retained); err != nil {
 				t.Fatal(err)
 			}
 			if retained != 1 {
@@ -88,7 +88,7 @@ func TestStaffInvitationRegrantSurvivesRetainedDelivery(t *testing.T) {
 				t.Fatalf("active staff duplicate=%v", err)
 			}
 			var total int
-			if err := pool.QueryRow(ctx, `SELECT count(*) FROM outbox_messages WHERE topic=$1 AND payload->>'user_id'=$2`, outbox.TopicStaffInvitation, target.String()).Scan(&total); err != nil {
+			if err := pool.QueryRow(ctx, `SELECT count(*) FROM outbox_messages WHERE topic=$1 AND payload->>'user_id'=$2`, outbox.TopicStaffInvitation.Name(), target.String()).Scan(&total); err != nil {
 				t.Fatal(err)
 			}
 			if total != 2 {

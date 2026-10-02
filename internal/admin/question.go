@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
@@ -38,8 +39,8 @@ func (s *Store) HideQuestion(ctx context.Context, id string) error {
 	if err != nil {
 		return ErrNotFound
 	}
-	return s.audited(ctx, Event{
-		Action: actionHideQuestion, Table: "product_questions",
+	return audit.Run(ctx, s.pool, audit.Event{
+		Action: audit.ActionHideQuestion, Table: "product_questions",
 		ID: uuid.NullUUID{UUID: qID, Valid: true},
 	},
 		func(ctx context.Context, q *db.Queries) error {
@@ -69,8 +70,8 @@ func (s *Store) AnswerQuestion(ctx context.Context, id, userID, body string) err
 	if err != nil {
 		return ErrInvalid
 	}
-	return s.audited(ctx, Event{
-		Action: actionAnswerQuestion, Table: "product_answers",
+	return audit.Run(ctx, s.pool, audit.Event{
+		Action: audit.ActionAnswerQuestion, Table: "product_answers",
 		ID:    uuid.NullUUID{UUID: qID, Valid: true},
 		After: map[string]any{"length": utf8.RuneCountInString(body)},
 	},

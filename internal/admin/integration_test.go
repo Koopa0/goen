@@ -31,6 +31,9 @@ import (
 
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/admin"
+	"github.com/koopa0/goen/internal/admin/access"
+	"github.com/koopa0/goen/internal/admin/admintest"
+	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/email"
@@ -78,19 +81,6 @@ func (t returnQueryTracer) TraceQueryStart(
 
 func (returnQueryTracer) TraceQueryEnd(context.Context, *pgx.Conn, pgx.TraceQueryEndData) {}
 
-func isolatedAdminSeedPool(t *testing.T) *pgxpool.Pool {
-	t.Helper()
-	isolated := dbtest.Pool(t)
-	seed, err := os.ReadFile("../../seed/dev_catalog.sql")
-	if err != nil {
-		t.Fatalf("read isolated admin seed: %v", err)
-	}
-	if _, execErr := isolated.Exec(t.Context(), string(seed)); execErr != nil {
-		t.Fatalf("load isolated admin seed: %v", execErr)
-	}
-	return isolated
-}
-
 func TestMain(m *testing.M) {
 	p, stop, err := dbtest.Start(context.Background())
 	if err != nil {
@@ -98,13 +88,7 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 	pool = p
-
-	seed, err := os.ReadFile("../../seed/dev_catalog.sql")
-	if err != nil {
-		slog.Error("read seed", "error", err)
-		os.Exit(1)
-	}
-	if _, err := pool.Exec(context.Background(), string(seed)); err != nil {
+	if err := admintest.LoadCatalogue(context.Background(), pool); err != nil {
 		slog.Error("load seed", "error", err)
 		os.Exit(1)
 	}
@@ -124,6 +108,9 @@ func staffID(t *testing.T) string {
 	}
 	return id.String()
 }
+
+// backOffice wraps a handler as its route in cmd/goen does, with 2FA off.
+var backOffice = access.New(slog.New(slog.DiscardHandler), nil)
 
 func adminHandlerOver(p *pgxpool.Pool, s *admin.Store) *admin.Handler {
 	log := slog.New(slog.DiscardHandler)
@@ -228,12 +215,12 @@ func TestProductUpdateDistinguishesAbsenceFromSuccess(t *testing.T) {
 		WarrantyNote: view.WarrantyNote, WarrantyMonths: view.WarrantyMonths,
 		BrandID: view.BrandID, CategoryID: view.CategoryID,
 	}
-	before := auditRows(t, admin.ActionUpdateProduct)
+	before := auditRows(t, audit.ActionUpdateProduct)
 	if errs, updateErr := s.UpdateProduct(ctx, form); !errors.Is(updateErr, admin.ErrNotFound) || len(errs) > 0 {
 		t.Fatalf("UpdateProduct(absent) = %v, %v; want ErrNotFound and no field errors",
 			errs, updateErr)
 	}
-	if after := auditRows(t, admin.ActionUpdateProduct); after != before {
+	if after := auditRows(t, audit.ActionUpdateProduct); after != before {
 		t.Fatalf("absent product update left %d audit rows, want %d", after, before)
 	}
 
@@ -514,11 +501,11 @@ func TestFeatureProductUnknownProductReturnsNotFound(t *testing.T) {
 	}
 
 	missing := "no-such-product-" + uuid.NewString()
-	before := auditRows(t, admin.ActionFeatureProduct)
+	before := auditRows(t, audit.ActionFeatureProduct)
 	if err := s.FeatureProduct(ctx, slug, missing); !errors.Is(err, admin.ErrNotFound) {
 		t.Fatalf("unknown product = %v, want ErrNotFound", err)
 	}
-	if after := auditRows(t, admin.ActionFeatureProduct); after != before {
+	if after := auditRows(t, audit.ActionFeatureProduct); after != before {
 		t.Errorf("%d audit rows after a zero-row feature, want %d", after, before)
 	}
 }
@@ -3095,7 +3082,7 @@ func TestGrantOperationIsIdempotentAndIdenticalOperationsRemainDistinct(t *testi
 		t.Fatalf("create user: %v", err)
 	}
 
-	auditsBefore := auditRows(t, admin.ActionGrantCredit)
+	auditsBefore := auditRows(t, audit.ActionGrantCredit)
 	firstOperation := uuid.New()
 	for range 3 {
 		if _, err := s.GrantCredit(ctx, creditCustomerID(t, address), 50000, "退貨補償", firstOperation); err != nil {
@@ -3119,7 +3106,7 @@ func TestGrantOperationIsIdempotentAndIdenticalOperationsRemainDistinct(t *testi
 		t.Errorf("%d entries totalling %d after retrying one operation three times, want 1 of 50000",
 			entries, balance)
 	}
-	if got := auditRows(t, admin.ActionGrantCredit) - auditsBefore; got != 1 {
+	if got := auditRows(t, audit.ActionGrantCredit) - auditsBefore; got != 1 {
 		t.Fatalf("one retried grant operation wrote %d audit rows, want 1", got)
 	}
 
@@ -3137,20 +3124,13 @@ func TestGrantOperationIsIdempotentAndIdenticalOperationsRemainDistinct(t *testi
 		t.Errorf("%d entries totalling %d after two identical but distinct operations, want 2 of 100000",
 			entries, balance)
 	}
-	if got := auditRows(t, admin.ActionGrantCredit) - auditsBefore; got != 2 {
+	if got := auditRows(t, audit.ActionGrantCredit) - auditsBefore; got != 2 {
 		t.Fatalf("two durable grant operations wrote %d audit rows, want 2", got)
 	}
 }
 
 func TestTheBackOfficeIsInvisibleToEveryoneButStaff(t *testing.T) {
 	ctx := t.Context()
-	h := admin.NewHandler(admin.HandlerDeps{
-		Store:   admin.NewStore(pool, fakeRefunder{}, nil, nil),
-		Images:  media.NewHandler(media.NewStore(pool), slog.New(slog.DiscardHandler)),
-		Outbox:  outbox.NewStore(pool, slog.New(slog.DiscardHandler)),
-		Letters: newsletter.NewStore(pool),
-		Log:     slog.New(slog.DiscardHandler),
-	})
 
 	var customerID uuid.UUID
 	if err := pool.QueryRow(ctx, `
@@ -3159,7 +3139,7 @@ func TestTheBackOfficeIsInvisibleToEveryoneButStaff(t *testing.T) {
 		t.Fatalf("create customer: %v", err)
 	}
 
-	guarded := h.RequireStaff(func(w http.ResponseWriter, _ *http.Request) {
+	guarded := backOffice.RequireStaff(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("the back office"))
 	})
@@ -3226,15 +3206,8 @@ func TestTheBackOfficeIsInvisibleToEveryoneButStaff(t *testing.T) {
 
 func TestOnlyAnAdminReachesTheStaffPage(t *testing.T) {
 	ctx := t.Context()
-	h := admin.NewHandler(admin.HandlerDeps{
-		Store:   admin.NewStore(pool, fakeRefunder{}, nil, nil),
-		Images:  media.NewHandler(media.NewStore(pool), slog.New(slog.DiscardHandler)),
-		Outbox:  outbox.NewStore(pool, slog.New(slog.DiscardHandler)),
-		Letters: newsletter.NewStore(pool),
-		Log:     slog.New(slog.DiscardHandler),
-	})
 
-	guarded := h.RequireAdmin(func(w http.ResponseWriter, _ *http.Request) {
+	guarded := backOffice.RequireAdmin(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("who works here"))
 	})
@@ -3299,7 +3272,7 @@ func staffContextOn(t *testing.T, p *pgxpool.Pool) (context.Context, uuid.UUID) 
 	return web.WithRequestID(ctx, "req-"+id.String()[:8]), id
 }
 
-func auditRows(t *testing.T, action admin.Action) int {
+func auditRows(t *testing.T, action audit.Action) int {
 	t.Helper()
 	var n int
 	if err := pool.QueryRow(t.Context(),
@@ -3318,24 +3291,24 @@ func TestEveryBackOfficeWriteLeavesATrail(t *testing.T) {
 
 	tests := []struct {
 		name   string
-		action admin.Action
+		action audit.Action
 		run    func() error
 	}{
-		{"adjust stock", admin.ActionAdjustStock, func() error {
+		{"adjust stock", audit.ActionAdjustStock, func() error {
 			return s.AdjustStock(ctx, sku, 3, actor.String(), uuid.NewString())
 		}},
-		{"reprice", admin.ActionRepriceVariant, func() error {
+		{"reprice", audit.ActionRepriceVariant, func() error {
 			return s.SetVariantPrice(ctx, sku, 123400, 0)
 		}},
-		{"publish", admin.ActionPublishProduct, func() error {
+		{"publish", audit.ActionPublishProduct, func() error {
 			return s.SetProductStatus(ctx, slug, "draft")
 		}},
-		{"grant credit", admin.ActionGrantCredit, func() error {
+		{"grant credit", audit.ActionGrantCredit, func() error {
 			_, grantErr := s.GrantCredit(ctx, actor, 500,
 				"測試", uuid.New())
 			return grantErr
 		}},
-		{"create campaign", admin.ActionCreateCampaign, func() error {
+		{"create campaign", audit.ActionCreateCampaign, func() error {
 			_, err := s.CreateCampaign(ctx, &admin.CampaignForm{
 				Slug: "trail-" + uuid.NewString()[:8], Title: "紀錄", Days: 7,
 			})
@@ -3379,7 +3352,7 @@ func TestAnAuditRowNamesItsActorAndRequest(t *testing.T) {
 		t.Error("no request id; the row cannot be put beside the log lines from " +
 			"the same request")
 	}
-	if action != string(admin.ActionPublishProduct) {
+	if action != string(audit.ActionPublishProduct) {
 		t.Errorf("action is %q", action)
 	}
 }
@@ -3399,7 +3372,7 @@ func TestProductUpdateAndAuditCommitTogether(t *testing.T) {
 		WarrantyNote: view.WarrantyNote, WarrantyMonths: view.WarrantyMonths,
 		BrandID: view.BrandID, CategoryID: view.CategoryID,
 	}
-	before := auditRows(t, admin.ActionUpdateProduct)
+	before := auditRows(t, audit.ActionUpdateProduct)
 	if errs, updateErr := s.UpdateProduct(ctx, form); updateErr != nil || len(errs) > 0 {
 		t.Fatalf("UpdateProduct: %v %v", updateErr, errs)
 	}
@@ -3412,7 +3385,7 @@ func TestProductUpdateAndAuditCommitTogether(t *testing.T) {
 		FROM audit_events
 		WHERE action = $1 AND after->>'slug' = $2
 		ORDER BY occurred_at DESC, id DESC LIMIT 1`,
-		string(admin.ActionUpdateProduct), slug).
+		string(audit.ActionUpdateProduct), slug).
 		Scan(&gotActor, &requestID, &auditedSlug, &auditedName); err != nil {
 		t.Fatalf("read product update audit row: %v", err)
 	}
@@ -3421,7 +3394,7 @@ func TestProductUpdateAndAuditCommitTogether(t *testing.T) {
 			"want %s/nonempty/%q/%q", gotActor, requestID, auditedSlug, auditedName,
 			actor, slug, form.Name)
 	}
-	if after := auditRows(t, admin.ActionUpdateProduct); after != before+1 {
+	if after := auditRows(t, audit.ActionUpdateProduct); after != before+1 {
 		t.Fatalf("successful update left %d audit rows, want %d", after, before+1)
 	}
 
@@ -3452,7 +3425,7 @@ func TestProductUpdateAndAuditCommitTogether(t *testing.T) {
 		t.Errorf("product name after audit failure = %q, want rolled back to %q",
 			persisted, form.Name)
 	}
-	if after := auditRows(t, admin.ActionUpdateProduct); after != before+1 {
+	if after := auditRows(t, audit.ActionUpdateProduct); after != before+1 {
 		t.Errorf("failed audit changed product-update trail from %d to %d", before+1, after)
 	}
 }
@@ -3473,7 +3446,7 @@ func TestAnActionWithNoActorIsRefused(t *testing.T) {
 	}
 
 	err := s.SetProductStatus(t.Context(), slug, target)
-	if !errors.Is(err, admin.ErrNoActor) {
+	if !errors.Is(err, audit.ErrNoActor) {
 		t.Fatalf("a back-office write with no actor gave %v, want ErrNoActor", err)
 	}
 
@@ -3492,14 +3465,14 @@ func TestAFailedWriteLeavesNoAuditRow(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
 
-	before := auditRows(t, admin.ActionPublishProduct)
+	before := auditRows(t, audit.ActionPublishProduct)
 	if err := s.SetProductStatus(ctx, anyProductSlug(t), "nonsense"); err == nil {
 		t.Fatal("an invalid status was accepted")
 	}
 	if err := s.SetProductStatus(ctx, "no-such-product-"+uuid.NewString(), "active"); !errors.Is(err, admin.ErrNotFound) {
 		t.Errorf("publishing an absent product gave %v, want ErrNotFound", err)
 	}
-	if after := auditRows(t, admin.ActionPublishProduct); after != before {
+	if after := auditRows(t, audit.ActionPublishProduct); after != before {
 		t.Errorf("%d audit rows after a refused write, want %d", after, before)
 	}
 }
@@ -4044,17 +4017,17 @@ func TestHidingAQuestionIsRecordedAndCannotBeRepeated(t *testing.T) {
 	asker := newAskingCustomer(t)
 	id := ask(t, ps, anyActiveProductSlug(t), asker, "會被隱藏的", 0)
 
-	before := auditRows(t, admin.ActionHideQuestion)
+	before := auditRows(t, audit.ActionHideQuestion)
 	if err := s.HideQuestion(ctx, id); err != nil {
 		t.Fatalf("hide: %v", err)
 	}
-	if after := auditRows(t, admin.ActionHideQuestion); after != before+1 {
+	if after := auditRows(t, audit.ActionHideQuestion); after != before+1 {
 		t.Errorf("hiding left %d audit rows, want one more than %d", after, before)
 	}
 	if err := s.HideQuestion(ctx, id); !errors.Is(err, admin.ErrNotFound) {
 		t.Errorf("hiding twice gave %v, want ErrNotFound", err)
 	}
-	if after := auditRows(t, admin.ActionHideQuestion); after != before+1 {
+	if after := auditRows(t, audit.ActionHideQuestion); after != before+1 {
 		t.Errorf("a refused hide wrote an audit row")
 	}
 }
@@ -4226,7 +4199,7 @@ func TestAnAcknowledgedPaymentLeavesTheAlarm(t *testing.T) {
 			stillOpen, stillFlagged)
 	}
 
-	beforeAudit := auditRows(t, admin.ActionReconcilePayment)
+	beforeAudit := auditRows(t, audit.ActionReconcilePayment)
 	if err := s.ReleasePaymentEventAfterRefundOrAccounting(ctx, eventID); err != nil {
 		t.Fatalf("reconcile: %v", err)
 	}
@@ -4253,7 +4226,7 @@ func TestAnAcknowledgedPaymentLeavesTheAlarm(t *testing.T) {
 			t.Errorf("acknowledged event %q remains on the payment alarm", eventID)
 		}
 	}
-	if afterAudit := auditRows(t, admin.ActionReconcilePayment); afterAudit != beforeAudit+1 {
+	if afterAudit := auditRows(t, audit.ActionReconcilePayment); afterAudit != beforeAudit+1 {
 		t.Errorf("saying the money went back by hand added %d audit rows, want 1",
 			afterAudit-beforeAudit)
 	}
@@ -4328,7 +4301,7 @@ func TestACompletePaymentWithoutAFlaggedEventHasAResolutionDoor(t *testing.T) {
 		t.Fatalf("health did not name complete provider reference %q", providerRef)
 	}
 
-	beforeAudit := auditRows(t, admin.ActionReconcilePayment)
+	beforeAudit := auditRows(t, audit.ActionReconcilePayment)
 	if reconcileErr := s.ReconcileCompletePayment(ctx, providerRef,
 		admin.CompletePaymentUnpaidOrRefunded); reconcileErr != nil {
 		t.Fatalf("reconcile complete payment: %v", reconcileErr)
@@ -4351,7 +4324,7 @@ func TestACompletePaymentWithoutAFlaggedEventHasAResolutionDoor(t *testing.T) {
 			t.Errorf("resolved provider reference %q remains on health", providerRef)
 		}
 	}
-	if got := auditRows(t, admin.ActionReconcilePayment); got != beforeAudit+1 {
+	if got := auditRows(t, audit.ActionReconcilePayment); got != beforeAudit+1 {
 		t.Errorf("reconciling complete payment added %d audit rows, want 1", got-beforeAudit)
 	}
 	if err := s.ReconcileCompletePayment(ctx, providerRef,
@@ -5188,7 +5161,7 @@ func TestTheReturnQueueUsesAConstantQueryCountForAnyNumberOfApprovedRows(t *test
 }
 
 func TestTheRescissionWindowIsCountedOnTheShopsCalendar(t *testing.T) {
-	isolated := isolatedAdminSeedPool(t)
+	isolated := admintest.Pool(t)
 	ctx, _ := staffContextOn(t, isolated)
 	s := admin.NewStore(isolated, fakeRefunder{}, nil, nil)
 
@@ -11660,7 +11633,7 @@ func TestAStrandedInvoiceClaimIsOnTheHealthPage(t *testing.T) {
 		                   AND a.action=$2
 		                 ORDER BY a.occurred_at LIMIT 1), '')
 		FROM invoice_operations op
-		WHERE op.id=$1`, operation, admin.ActionAuthorizeAllowanceResend).
+		WHERE op.id=$1`, operation, audit.ActionAuthorizeAllowanceResend).
 		Scan(&authorizations, &audits, &auditActor, &auditRequest); err != nil {
 		t.Fatalf("read authorization and audit: %v", err)
 	}
@@ -11902,7 +11875,7 @@ func TestARefusedStatusMoveNamesItsReason(t *testing.T) {
 		req.SetPathValue("number", number)
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		w := httptest.NewRecorder()
-		h.RequireStaff(h.AdvanceOrder)(w, req)
+		backOffice.RequireStaff(h.AdvanceOrder)(w, req)
 		if w.Code != http.StatusSeeOther {
 			t.Fatalf("POST status=%s = %d, want 303", status, w.Code)
 		}
@@ -11956,7 +11929,7 @@ func TestTheShippingPageSaysWhenCheckoutHidesPickup(t *testing.T) {
 		})
 		req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/admin/shipping", http.NoBody)
 		w := httptest.NewRecorder()
-		h.RequireStaff(h.Shipping)(w, req)
+		backOffice.RequireStaff(h.Shipping)(w, req)
 		if w.Code != http.StatusOK {
 			t.Fatalf("%s: GET /admin/shipping = %d", name, w.Code)
 		}
@@ -11975,7 +11948,7 @@ func TestAnAuditEntryNamesItsOrderAndLinksIt(t *testing.T) {
 		t.Fatalf("Ship: %v", err)
 	}
 
-	view, err := s.Audit(ctx)
+	view, err := audit.NewStore(pool).Events(ctx)
 	if err != nil {
 		t.Fatalf("Audit: %v", err)
 	}
@@ -11994,7 +11967,6 @@ func TestAnAuditEntryNamesItsOrderAndLinksIt(t *testing.T) {
 // snapshot, which must neither break the trail nor read as an erased account.
 func TestASystemAuditRowIsReadAsTheSystem(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
 	trigger := "evt_audit_" + uuid.NewString()
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO audit_events (actor_kind, action, entity_table, request_id)
@@ -12002,7 +11974,7 @@ func TestASystemAuditRowIsReadAsTheSystem(t *testing.T) {
 		t.Fatalf("record a system audit row: %v", err)
 	}
 
-	view, err := s.Audit(ctx)
+	view, err := audit.NewStore(pool).Events(ctx)
 	if err != nil {
 		t.Fatalf("Audit with a system row: %v", err)
 	}
@@ -12029,7 +12001,7 @@ func TestARefusedDispatchKeepsWhatWasTyped(t *testing.T) {
 	req.SetPathValue("number", number)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	w := httptest.NewRecorder()
-	h.RequireStaff(h.Ship)(w, req)
+	backOffice.RequireStaff(h.Ship)(w, req)
 
 	if w.Code != http.StatusUnprocessableEntity {
 		t.Fatalf("a quantity above what is outstanding answered %d, want 422", w.Code)
@@ -12117,7 +12089,7 @@ func TestARefusedStockAdjustmentKeepsWhatWasTyped(t *testing.T) {
 	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/stock/adjust", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	w := httptest.NewRecorder()
-	h.RequireStaff(h.AdjustStock)(w, req)
+	backOffice.RequireStaff(h.AdjustStock)(w, req)
 
 	if w.Code != http.StatusUnprocessableEntity {
 		t.Fatalf("an unreadable adjustment answered %d, want 422", w.Code)

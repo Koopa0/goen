@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
@@ -53,8 +54,8 @@ func (s *Store) CreateTier(
 	multiplier := int32(multiplierBP)
 	position := int32(min(thresholdDollars/10000, math.MaxInt32))
 
-	return s.audited(ctx, Event{
-		Action: actionCreateTier, Table: "membership_tiers",
+	return audit.Run(ctx, s.pool, audit.Event{
+		Action: audit.ActionCreateTier, Table: "membership_tiers",
 		Before: nil,
 		After: map[string]any{
 			"code": code, "name": name, "name_en": nameEn,
@@ -79,8 +80,8 @@ func (s *Store) DeleteTier(ctx context.Context, id string) error {
 	if err != nil {
 		return ErrNotFound
 	}
-	return s.audited(ctx, Event{
-		Action: actionDeleteTier, Table: "membership_tiers", ID: nullableID(tierID),
+	return audit.Run(ctx, s.pool, audit.Event{
+		Action: audit.ActionDeleteTier, Table: "membership_tiers", ID: nullableID(tierID),
 		Before: map[string]any{"id": id}, After: nil,
 	},
 		func(ctx context.Context, q *db.Queries) error {

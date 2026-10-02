@@ -6,6 +6,7 @@ import (
 	"maps"
 	"net/http"
 
+	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/media"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -17,7 +18,7 @@ func (h *Handler) Products(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Products(r.Context(), r.URL.Query().Get(web.KeysetParam))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read products", "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 		return
 	}
 	view.Notice = noticeFor(r)
@@ -29,7 +30,7 @@ func (h *Handler) NewProduct(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.NewProduct(r.Context())
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "new product form", "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 		return
 	}
 	web.Render(w, r, h.log, http.StatusOK, admin.ProductForm(
@@ -51,7 +52,7 @@ func (h *Handler) CreateProduct(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case err != nil:
 		h.log.ErrorContext(r.Context(), "create product", "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 	case len(errs) > 0:
 		h.rejectProduct(w, r, f, errs, true)
 	default:
@@ -68,11 +69,11 @@ func (h *Handler) renderProduct(w http.ResponseWriter, r *http.Request, status i
 	view, err := h.store.Product(r.Context(), r.PathValue("slug"))
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
-			h.notFound(w, r)
+			access.NotFound(w, r, h.log)
 			return
 		}
 		h.log.ErrorContext(r.Context(), "read product", "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 		return
 	}
 	view.Notice = notice
@@ -111,10 +112,10 @@ func (h *Handler) UpdateProduct(w http.ResponseWriter, r *http.Request) {
 	errs, err := h.store.UpdateProduct(r.Context(), f)
 	switch {
 	case errors.Is(err, ErrNotFound):
-		h.notFound(w, r)
+		access.NotFound(w, r, h.log)
 	case err != nil:
 		h.log.ErrorContext(r.Context(), "update product", "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 	case len(errs) > 0:
 		h.rejectProduct(w, r, f, errs, false)
 	default:
@@ -156,7 +157,7 @@ func (h *Handler) AddVariant(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case err != nil:
 		h.log.ErrorContext(r.Context(), "add variant", "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 	case len(errs) > 0:
 		h.editProductWithErrors(w, r, slug, errs, &draft)
 	default:
@@ -252,7 +253,7 @@ func (h *Handler) rejectProduct(w http.ResponseWriter, r *http.Request, f *Produ
 	}
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "rebuild product form", "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 		return
 	}
 	view.Slug, view.Name, view.Summary = f.Slug, f.Name, f.Summary
@@ -366,13 +367,13 @@ func (h *Handler) MoveImage(w http.ResponseWriter, r *http.Request) {
 		//nolint:gosec // G710: slug is the route's own path value
 		http.Redirect(w, r, "/admin/products/"+slug+"?ok=1", http.StatusSeeOther)
 	case errors.Is(err, ErrNotFound):
-		h.notFound(w, r)
+		access.NotFound(w, r, h.log)
 	case errors.Is(err, ErrInvalid):
 		h.log.WarnContext(r.Context(), "move image refused", "error", err, "slug", slug)
 		h.renderProduct(w, r, http.StatusUnprocessableEntity, i18n.T(r.Context(), i18n.KeyAdminNoticeImageStale))
 	default:
 		h.log.ErrorContext(r.Context(), "move image", "error", err, "slug", slug)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 	}
 }
 
@@ -420,7 +421,7 @@ func (h *Handler) optionWrite(
 			h.editProductWithErrors(w, r, slug, refused, &draft)
 			return
 		}
-		h.notFound(w, r)
+		access.NotFound(w, r, h.log)
 	case len(errs) > 0:
 		h.editProductWithErrors(w, r, slug, errs, &draft)
 	default:
@@ -473,11 +474,11 @@ func (h *Handler) editProductWithErrors(
 	view, err := h.store.Product(r.Context(), slug)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
-			h.notFound(w, r)
+			access.NotFound(w, r, h.log)
 			return
 		}
 		h.log.ErrorContext(r.Context(), "rebuild product form", "slug", slug, "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 		return
 	}
 	view.Errors = errs

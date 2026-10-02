@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 )
@@ -87,8 +88,8 @@ func (s *Store) AddVariant(ctx context.Context, slug string, f *VariantForm) (ma
 func (s *Store) insertVariant(
 	ctx context.Context, slug string, f *VariantForm,
 ) error {
-	return s.audited(ctx, Event{
-		Action: actionCreateVariant, Table: "product_variants", ID: uuid.NullUUID{},
+	return audit.Run(ctx, s.pool, audit.Event{
+		Action: audit.ActionCreateVariant, Table: "product_variants", ID: uuid.NullUUID{},
 		Before: nil, After: map[string]any{"product": slug, "sku": f.SKU, "price_cents": f.PriceCents},
 	},
 		func(ctx context.Context, q *db.Queries) error {

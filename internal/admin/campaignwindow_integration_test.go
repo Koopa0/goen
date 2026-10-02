@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/admin"
+	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/i18n"
 )
 
@@ -73,7 +74,7 @@ func TestEditingACampaignsDatesRecordsTheOldAndTheNewOnes(t *testing.T) {
 		WHERE action = $4 AND actor_id_snapshot = $5
 		ORDER BY occurred_at DESC, id DESC LIMIT 1`,
 		time.Date(2026, 11, 10, 1, 0, 0, 0, time.UTC), time.Date(2026, 11, 2, 2, 0, 0, 0, time.UTC),
-		slug, string(admin.ActionSetCampaignWindow), actor).Scan(&ok); err != nil {
+		slug, string(audit.ActionSetCampaignWindow), actor).Scan(&ok); err != nil {
 		t.Fatalf("read the audit row: %v", err)
 	}
 	if !ok {

@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/home"
 	"github.com/koopa0/goen/internal/i18n"
@@ -116,8 +117,8 @@ func (s *Store) CreateHeroSlide(ctx context.Context, f *HeroForm) (map[string]st
 	if errs := f.Validate(ctx); len(errs) > 0 {
 		return errs, nil
 	}
-	err := s.audited(ctx, Event{
-		Action: actionCreateHeroSlide, Table: "hero_slides",
+	err := audit.Run(ctx, s.pool, audit.Event{
+		Action: audit.ActionCreateHeroSlide, Table: "hero_slides",
 		After: map[string]any{"headline": f.Headline, "cta": f.PrimaryHref},
 	},
 		func(ctx context.Context, q *db.Queries) error {
@@ -146,8 +147,8 @@ func (s *Store) SetHeroSlideActive(ctx context.Context, id string, active bool) 
 	if err != nil {
 		return ErrNotFound
 	}
-	return s.audited(ctx, Event{
-		Action: actionToggleHeroSlide, Table: "hero_slides",
+	return audit.Run(ctx, s.pool, audit.Event{
+		Action: audit.ActionToggleHeroSlide, Table: "hero_slides",
 		ID:    uuid.NullUUID{UUID: slideID, Valid: true},
 		After: map[string]any{"active": active},
 	},
@@ -170,8 +171,8 @@ func (s *Store) PromoteHeroSlide(ctx context.Context, id string) error {
 	if err != nil {
 		return ErrNotFound
 	}
-	return s.audited(ctx, Event{
-		Action: actionPromoteHeroSlide, Table: "hero_slides",
+	return audit.Run(ctx, s.pool, audit.Event{
+		Action: audit.ActionPromoteHeroSlide, Table: "hero_slides",
 		ID: uuid.NullUUID{UUID: slideID, Valid: true},
 	},
 		func(ctx context.Context, q *db.Queries) error {

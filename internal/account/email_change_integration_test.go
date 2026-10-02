@@ -245,7 +245,7 @@ func TestOnlyTheMailboxLearnsThatAnAddressHasAnAccount(t *testing.T) {
 		if err := pool.QueryRow(ctx, `
 			SELECT payload FROM outbox_messages
 			WHERE topic = $1 AND lower(payload->>'email') = lower($2)
-			ORDER BY id DESC LIMIT 1`, outbox.TopicEmailVerify, addr).Scan(&payload); err != nil {
+			ORDER BY id DESC LIMIT 1`, outbox.TopicEmailVerify.Name(), addr).Scan(&payload); err != nil {
 			t.Fatalf("read the queued link for %s: %v", addr, err)
 		}
 		var p email.AddressVerify
@@ -297,7 +297,7 @@ func TestAnAddressIsAnotherAccountsWhateverItsCaseButNeverTheAskersOwn(t *testin
 		if err := pool.QueryRow(ctx, `
 			SELECT payload FROM outbox_messages
 			WHERE topic = $1 AND lower(payload->>'email') = lower($2)
-			ORDER BY id DESC LIMIT 1`, outbox.TopicEmailVerify, addr).Scan(&payload); err != nil {
+			ORDER BY id DESC LIMIT 1`, outbox.TopicEmailVerify.Name(), addr).Scan(&payload); err != nil {
 			t.Fatalf("read the queued link for %s: %v", addr, err)
 		}
 		var p email.AddressVerify
@@ -360,7 +360,7 @@ func TestAnAddressIsMailedABoundedNumberOfTimesWhoeverAsks(t *testing.T) {
 			FROM email_verifications v
 			WHERE m.topic = $1 AND m.delivered_at IS NULL
 			  AND m.dedupe_key = 'verify:' || encode(v.digest, 'hex') AND v.user_id = $2
-			RETURNING m.payload`, outbox.TopicEmailVerify, uuid.MustParse(askerID)).Scan(&payload); err != nil {
+			RETURNING m.payload`, outbox.TopicEmailVerify.Name(), uuid.MustParse(askerID)).Scan(&payload); err != nil {
 			t.Fatalf("take the queued message: %v", err)
 		}
 		var p email.AddressVerify
@@ -533,7 +533,7 @@ func TestALinkThatCanNoLongerBeFollowedIsNeverMailed(t *testing.T) {
 			if err := pool.QueryRow(ctx, `
 				SELECT payload FROM outbox_messages
 				WHERE topic = $1 AND lower(payload->>'email') = lower($2)
-				ORDER BY id DESC LIMIT 1`, outbox.TopicEmailVerify, free).Scan(&payload); err != nil {
+				ORDER BY id DESC LIMIT 1`, outbox.TopicEmailVerify.Name(), free).Scan(&payload); err != nil {
 				t.Fatalf("read the queued link for %s: %v", free, err)
 			}
 			var p email.AddressVerify

@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/destination"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -31,7 +32,7 @@ func (h *Handler) CreateShippingMethod(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case err != nil:
 		h.log.ErrorContext(r.Context(), "create shipping method", "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 	case len(errs) > 0:
 		h.rejectShippingForm(w, r, errs, &shippingDrafts{method: draft})
 	default:
@@ -90,7 +91,7 @@ func (h *Handler) SetShippingMethodActive(w http.ResponseWriter, r *http.Request
 		r.PostFormValue("active") == "1")
 	if err != nil {
 		h.log.WarnContext(r.Context(), "toggle shipping method", "error", err)
-		h.notFound(w, r)
+		access.NotFound(w, r, h.log)
 		return
 	}
 	http.Redirect(w, r, "/admin/shipping?ok=1", http.StatusSeeOther)
@@ -111,7 +112,7 @@ func (h *Handler) CreateShippingZone(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case err != nil:
 		h.log.ErrorContext(r.Context(), "create shipping zone", "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 	case len(errs) > 0:
 		h.rejectShippingForm(w, r, errs, &shippingDrafts{zone: admin.ZoneDraft{
 			Code: z.Code, Name: z.Name, NameEn: z.NameEn, Prefixes: z.Prefixes,
@@ -131,10 +132,10 @@ func (h *Handler) SetZonePrefixes(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case errors.Is(err, ErrNotFound):
 		h.log.WarnContext(r.Context(), "set zone prefixes", "error", err)
-		h.notFound(w, r)
+		access.NotFound(w, r, h.log)
 	case err != nil:
 		h.log.ErrorContext(r.Context(), "set zone prefixes", "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 	case len(errs) > 0:
 		h.rejectShippingForm(w, r, errs, &shippingDrafts{prefixes: admin.ZonePrefixesDraft{
 			ZoneID: zoneID, Prefixes: prefixes,
@@ -157,7 +158,7 @@ func (h *Handler) DeleteShippingZone(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/admin/shipping?inuse=1", http.StatusSeeOther)
 	default:
 		h.log.WarnContext(r.Context(), "delete shipping zone", "error", err)
-		h.notFound(w, r)
+		access.NotFound(w, r, h.log)
 	}
 }
 
@@ -172,7 +173,7 @@ func (h *Handler) rejectShippingForm(
 ) {
 	view, err := h.shippingView(r.Context())
 	if err != nil {
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 		return
 	}
 	view.Errors = errs
@@ -211,7 +212,7 @@ func (h *Handler) Shipping(w http.ResponseWriter, r *http.Request) {
 	view, err := h.shippingView(r.Context())
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read shipping configuration", "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 		return
 	}
 	view.Notice = noticeFor(r)
@@ -286,6 +287,6 @@ func (h *Handler) redirectShipping(w http.ResponseWriter, r *http.Request, err e
 		http.Redirect(w, r, "/admin/shipping?refused=1", http.StatusSeeOther)
 	default:
 		h.log.ErrorContext(r.Context(), "change shipping", "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 	}
 }

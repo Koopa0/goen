@@ -12,11 +12,12 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/admin"
+	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/i18n"
 )
 
 func TestRefundOnlyReportWindow(t *testing.T) {
-	p := isolatedAdminSeedPool(t)
+	p := admintest.Pool(t)
 	ctx := t.Context()
 	var orderID uuid.UUID
 	// Historical timestamps distinguish placement, refund request and settlement.
@@ -118,7 +119,7 @@ func TestRefundOnlyReportWindow(t *testing.T) {
 // shipment leaves Revenue, so its refund is not money gone back from that
 // revenue either. Counted as refunded, the net would take it off twice.
 func TestRefundBeforeShipmentLeavesBothReportFigures(t *testing.T) {
-	p := isolatedAdminSeedPool(t)
+	p := admintest.Pool(t)
 	ctx := t.Context()
 	var staff, buyer uuid.UUID
 	if err := p.QueryRow(ctx, `

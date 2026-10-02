@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
@@ -43,12 +44,12 @@ func (s *Store) SetMessageHandled(ctx context.Context, id string, handled bool) 
 	if err != nil {
 		return ErrNotFound
 	}
-	action := actionReopenMessage
+	action := audit.ActionReopenMessage
 	if handled {
-		action = actionHandleMessage
+		action = audit.ActionHandleMessage
 	}
 
-	return s.audited(ctx, Event{
+	return audit.Run(ctx, s.pool, audit.Event{
 		Action: action, Table: "contact_messages", ID: nullableID(messageID),
 		Before: nil,
 		After:  map[string]any{"message_id": id, "handled": handled},
