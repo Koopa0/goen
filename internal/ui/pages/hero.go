@@ -1,11 +1,9 @@
 package pages
 
 import (
-	"context"
 	"strconv"
 
 	"github.com/koopa0/goen/assets"
-	"github.com/koopa0/goen/internal/i18n"
 )
 
 // CTA is a call to action: a label and where it goes, both or neither.
@@ -17,49 +15,48 @@ type CTA struct {
 // Shown reports whether there is a button to draw.
 func (c CTA) Shown() bool { return c.Label != "" && c.Href != "" }
 
-// Hero is the band at the top of the home page.
-type Hero struct {
-	Eyebrow      string
-	Headline     string
-	Body         string
-	PrimaryCTA   CTA
-	SecondaryCTA CTA
-	ImageKey     string
-	ImageAlt     string
-	ImageWidth   int
-	ImageHeight  int
+// SlideLayout is how a hero slide sets its photograph: filling the slide with
+// the copy over its calm side, or beside the copy at its own proportions.
+type SlideLayout string
+
+// The two layouts. A campaign header and an uploaded slide image are wide
+// photographs and fill the slide; a department photograph is 4:3 and sits
+// beside its copy.
+const (
+	SlidePhoto SlideLayout = "photo"
+	SlideSplit SlideLayout = "split"
+)
+
+// HeroSlide is one slide of the home page's carousel.
+type HeroSlide struct {
+	Layout SlideLayout
+	Tone   Tone
+	Photo  Photo
+	// PhotoWidth and PhotoHeight are the photograph's intrinsic size, rendered
+	// together because a width on its own reserves no space.
+	PhotoWidth, PhotoHeight int
+	Title                   string
+	// Fact is the one muted line under the title; it states no discount.
+	Fact string
+	CTA  CTA
 }
 
-// HasImageDimensions reports whether both are known; they are rendered together
-// because a width on its own reserves no space and prevents no shift.
-func (h Hero) HasImageDimensions() bool { return h.ImageWidth > 0 && h.ImageHeight > 0 }
-
-// ImageWidthText and ImageHeightText are the intrinsic dimensions as attributes.
-func (h Hero) ImageWidthText() string { return strconv.Itoa(h.ImageWidth) }
-
-func (h Hero) ImageHeightText() string { return strconv.Itoa(h.ImageHeight) }
-
-// Custom reports whether this came from the database rather than the fallback.
-func (h Hero) Custom() bool { return h.ImageKey != "" }
-
-// DefaultHero is what the home page shows when nothing is scheduled: what the
-// shop sells, named by its own categories.
-func DefaultHero(ctx context.Context) Hero {
-	return Hero{
-		Headline:   i18n.T(ctx, i18n.KeyHeroHeadline),
-		Body:       departments(ctx),
-		PrimaryCTA: CTA{Label: i18n.T(ctx, i18n.KeyHeroPrimaryCTA), Href: "/deals"},
+// PhotoSizes is the img sizes attribute for the layout: the slide's width for
+// a photograph that fills it, the height-bound 4:3 box for one beside the copy.
+func (s HeroSlide) PhotoSizes() string {
+	if s.Layout == SlideSplit {
+		return "(min-width: 1024px) 800px, 100vw"
 	}
+	return "100vw"
 }
 
-// CampaignHero is the built-in hero while a campaign runs: its title, and one
-// button to its page. slug is a stored, format-checked sale_campaigns.slug.
-func CampaignHero(ctx context.Context, title, slug string) Hero {
-	return Hero{
-		Headline:   title,
-		PrimaryCTA: CTA{Label: i18n.T(ctx, i18n.KeyHeroCampaignCTA), Href: "/s/" + slug},
-	}
-}
+// HasPhotoSize reports whether both dimensions are known.
+func (s HeroSlide) HasPhotoSize() bool { return s.PhotoWidth > 0 && s.PhotoHeight > 0 }
+
+// PhotoWidthText and PhotoHeightText are the dimensions as attributes.
+func (s HeroSlide) PhotoWidthText() string { return strconv.Itoa(s.PhotoWidth) }
+
+func (s HeroSlide) PhotoHeightText() string { return strconv.Itoa(s.PhotoHeight) }
 
 // AdminHeroSlide is one queued slide as the back office sees it.
 type AdminHeroSlide struct {

@@ -49,25 +49,46 @@ func joinList(ctx context.Context, names []string) string {
 		i18n.T(ctx, i18n.KeyListLastSeparator) + names[last]
 }
 
-// HomeCategory is a top-level category tile.
+// HomeCategory is a department card: its own tone and photograph.
 type HomeCategory struct {
-	Slug    string
-	Name    string
-	IconKey string // "" when the category has no icon
-	Tone    Tone
-	Photo   Photo
+	Slug  string
+	Name  string
+	Tone  Tone
+	Photo Photo
+}
+
+// ProductRow is a heading, one muted line and a row of tiles: the running
+// campaign's products, or the newest of the shop when none runs.
+type ProductRow struct {
+	Title string
+	Fact  string
+	Href  string
+	Tiles []ProductTile
+}
+
+// DepartmentBand is the one department the home page features on its own
+// ground: its photograph large beside three of its products.
+type DepartmentBand struct {
+	Name  string
+	Fact  string
+	Href  string
+	Tone  Tone
+	Photo Photo
+	Tiles []ProductTile
 }
 
 // HomeView is everything the home page renders.
 type HomeView struct {
-	Hero              Hero
-	Categories        []HomeCategory
+	Slides     []HeroSlide
+	Categories []HomeCategory
+	Row        ProductRow
+	// Band is nil when no department has a photograph and three products.
+	Band              *DepartmentBand
 	FreeDeliveryCents int64
 	LowestFeeCents    int64
 	// PickupOffered is whether checkout offers store pickup, which the shipping
 	// strip may only claim where it does.
 	PickupOffered bool
-	Recommended   []ProductTile
 }
 
 // FreeDelivery is the threshold the trust strip states, or "" for none.

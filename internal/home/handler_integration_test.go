@@ -52,8 +52,9 @@ func TestMain(m *testing.M) {
 }
 
 func TestHomeShowsCategoriesAndProducts(t *testing.T) {
-	// The default hero shows only when no slide qualifies.
+	// Departments fill the carousel only when no slide or campaign does.
 	emptyHeroSlides(t)
+	stopCampaigns(t)
 
 	h := home.NewHandler(home.NewStore(pool), slog.New(slog.DiscardHandler), false)
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody)
@@ -70,8 +71,8 @@ func TestHomeShowsCategoriesAndProducts(t *testing.T) {
 			t.Errorf("category tile %q is missing", cat)
 		}
 	}
-	if !strings.Contains(body, "Meridian Book 14") {
-		t.Error("recommended products are missing")
+	if strings.Count(body, `class="goen-tile__cell"`) < 4 {
+		t.Error("the product row is missing its tiles")
 	}
 	if !strings.Contains(body, "NT$") {
 		t.Error("no price is formatted; the tiles have no price")
@@ -93,19 +94,11 @@ func TestHomeShowsCategoriesAndProducts(t *testing.T) {
 	if !strings.Contains(body, "goen-tile__ph") && strings.Count(body, "/static/media/products/") < 8 {
 		t.Error("a tile without embedded artwork rendered neither an image nor the placeholder")
 	}
-	if !strings.Contains(body, `src="/static/media/hero/home-hero-01.webp`) {
-		t.Error("home hero does not use the required embedded media URL")
+	if !strings.Contains(body, `class="goen-hero__slide goen-hero__slide--split"`) {
+		t.Error("with no scheduled slide and no campaign the carousel shows no department")
 	}
-	if !strings.Contains(body, `srcset="/static/media/hero/home-hero-01-720.webp`) ||
-		!strings.Contains(body, ` 720w, `) ||
-		!strings.Contains(body, ` 1440w"`) {
-		t.Error("home hero is missing its responsive srcset candidates")
-	}
-	if !strings.Contains(body, `width="1440" height="720" decoding="async" fetchpriority="high"`) {
-		t.Error("home hero is missing its intrinsic dimensions or priority hint")
-	}
-	if !strings.Contains(body, `alt="早晨的木桌與日常用品"`) {
-		t.Error("home hero does not describe its photograph")
+	if !strings.Contains(body, `src="/static/media/products/department-`) {
+		t.Error("a department photograph was not mapped to its embedded media URL")
 	}
 	if !strings.Contains(body, "<html") {
 		t.Error("the home response is not a full document")
@@ -113,18 +106,18 @@ func TestHomeShowsCategoriesAndProducts(t *testing.T) {
 }
 
 func TestStoreLoadAggregatesTiles(t *testing.T) {
-	v, err := home.NewStore(pool).Load(t.Context(), 8)
+	v, err := home.NewStore(pool).Load(t.Context())
 	if err != nil {
 		t.Fatalf("load: %v", err)
 	}
 	if len(v.Categories) != 6 {
 		t.Errorf("got %d category tiles; want the 6 root categories", len(v.Categories))
 	}
-	if len(v.Recommended) != 8 {
-		t.Fatalf("got %d recommended tiles; want 8", len(v.Recommended))
+	if len(v.Row.Tiles) != 4 {
+		t.Fatalf("got %d product-row tiles; want 4", len(v.Row.Tiles))
 	}
 
-	for _, tile := range v.Recommended {
+	for _, tile := range v.Row.Tiles {
 		if tile.PriceCents <= 0 {
 			t.Errorf("tile %q has no price (min active variant)", tile.Slug)
 		}
@@ -145,25 +138,39 @@ func TestAnEmptyHeroTableIsAWorkingHomePage(t *testing.T) {
 	emptyHeroSlides(t)
 	stopCampaigns(t)
 
-	hero, err := home.NewStore(pool).Hero(ctx)
+	slides := slidesOf(t, ctx)
+	if len(slides) == 0 || len(slides) > 5 {
+		t.Fatalf("an empty table produced %d slides, want 1 to 5 departments", len(slides))
+	}
+	for _, slide := range slides {
+		if slide.Layout != pages.SlideSplit || !slide.Photo.Shown() || !slide.CTA.Shown() {
+			t.Errorf("a department slide is %+v, want a photograph and a button", slide)
+		}
+	}
+}
+
+// slidesOf is the carousel the home page would draw.
+func slidesOf(t *testing.T, ctx context.Context) []pages.HeroSlide {
+	t.Helper()
+	view, err := home.NewStore(pool).Load(ctx)
 	if err != nil {
-		t.Fatalf("hero: %v", err)
+		t.Fatalf("load home: %v", err)
 	}
-	if hero.Headline == "" {
-		t.Fatal("an empty table produced a hero with no headline")
+	return view.Slides
+}
+
+func firstSlide(t *testing.T, ctx context.Context) pages.HeroSlide {
+	t.Helper()
+	slides := slidesOf(t, ctx)
+	if len(slides) == 0 {
+		t.Fatal("the carousel is empty")
 	}
-	if hero != pages.DefaultHero(t.Context()) {
-		t.Errorf("an empty table produced %+v, want the built-in copy", hero)
-	}
-	if !hero.PrimaryCTA.Shown() {
-		t.Error("the fallback hero has no button; the home page would have no call to action")
-	}
+	return slides[0]
 }
 
 // The window is judged by the database's clock, which wrote starts_at.
 func TestTheScheduledSlideIsTheOneShown(t *testing.T) {
 	ctx := t.Context()
-	s := home.NewStore(pool)
 	stopCampaigns(t)
 
 	tests := []struct {
@@ -195,24 +202,21 @@ func TestTheScheduledSlideIsTheOneShown(t *testing.T) {
 			if _, err := pool.Exec(ctx, tt.setup); err != nil {
 				t.Fatalf("setup: %v", err)
 			}
-			hero, err := s.Hero(ctx)
-			if err != nil {
-				t.Fatalf("hero: %v", err)
-			}
+			slide := firstSlide(t, ctx)
 			if tt.want == "" {
-				if hero != pages.DefaultHero(t.Context()) {
-					t.Errorf("headline is %q, want the built-in fallback", hero.Headline)
+				if slide.Layout != pages.SlideSplit {
+					t.Errorf("the first slide is %q, want a department", slide.Title)
 				}
 				return
 			}
-			if hero.Headline != tt.want {
-				t.Errorf("headline is %q, want %q", hero.Headline, tt.want)
+			if slide.Title != tt.want {
+				t.Errorf("headline is %q, want %q", slide.Title, tt.want)
 			}
 		})
 	}
 }
 
-func TestTheFirstQualifyingSlideWins(t *testing.T) {
+func TestScheduledSlidesKeepTheirQueueOrder(t *testing.T) {
 	ctx := t.Context()
 	if _, err := pool.Exec(ctx, `DELETE FROM hero_slides`); err != nil {
 		t.Fatalf("clear: %v", err)
@@ -234,13 +238,10 @@ func TestTheFirstQualifyingSlideWins(t *testing.T) {
 		}
 	}
 
-	hero, err := home.NewStore(pool).Hero(ctx)
-	if err != nil {
-		t.Fatalf("hero: %v", err)
-	}
-	if hero.Headline != "第二" {
-		t.Errorf("headline is %q, want 第二 — the queue must skip a disabled slide "+
-			"and stop at the first that qualifies", hero.Headline)
+	slides := slidesOf(t, ctx)
+	if len(slides) < 2 || slides[0].Title != "第二" || slides[1].Title != "第三" {
+		t.Errorf("the queue reads %+v, want 第二 then 第三 — a disabled slide is skipped "+
+			"and the rest keep the order the editor set", slides)
 	}
 }
 
@@ -262,21 +263,18 @@ func TestTheHeroImageCarriesItsRealWidth(t *testing.T) {
 		t.Fatalf("insert: %v", err)
 	}
 
-	hero, err := home.NewStore(pool).Hero(ctx)
-	if err != nil {
-		t.Fatalf("hero: %v", err)
+	slide := firstSlide(t, ctx)
+	if slide.PhotoWidth != 1440 {
+		t.Errorf("PhotoWidth is %d, want 1440 — the srcset would state a width "+
+			"the image does not have", slide.PhotoWidth)
 	}
-	if hero.ImageWidth != 1440 {
-		t.Errorf("ImageWidth is %d, want 1440 — the srcset would state a width "+
-			"the image does not have", hero.ImageWidth)
-	}
-	if hero.ImageHeight != 900 {
-		t.Errorf("ImageHeight is %d, want 900 — without it the hero <img> carries "+
+	if slide.PhotoHeight != 900 {
+		t.Errorf("PhotoHeight is %d, want 900 — without it the hero <img> carries "+
 			"no intrinsic ratio and the copy under it moves when the artwork lands",
-			hero.ImageHeight)
+			slide.PhotoHeight)
 	}
-	if !hero.Custom() {
-		t.Error("a slide with an image reported itself as the fallback")
+	if !slide.Photo.Shown() {
+		t.Error("a slide with an image drew no photograph")
 	}
 }
 
@@ -425,63 +423,26 @@ func TestAnOffSiteCTAIsDroppedNotRendered(t *testing.T) {
 
 // The admin form validates these paths too, but direct SQL and old rows still
 // reach the storefront reader.
-func TestAnOffSiteHeroCTAIsReplacedAtReadTime(t *testing.T) {
+func TestAnOffSiteHeroCTAIsDroppedAtReadTime(t *testing.T) {
 	ctx := t.Context()
-	s := home.NewStore(pool)
+	emptyHeroSlides(t)
+	var id uuid.UUID
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO hero_slides
+		    (headline, primary_cta_label, primary_cta_href, position)
+		VALUES ('仍是這張投影片', '假的按鈕', '///evil.example/x', -100)
+		RETURNING id`).Scan(&id); err != nil {
+		t.Fatalf("insert poisoned primary CTA: %v", err)
+	}
+	cleanupHeroSlide(t, ctx, id)
 
-	t.Run("primary uses the built-in CTA pair", func(t *testing.T) {
-		emptyHeroSlides(t)
-		var id uuid.UUID
-		if err := pool.QueryRow(ctx, `
-			INSERT INTO hero_slides
-			    (headline, primary_cta_label, primary_cta_href,
-			     secondary_cta_label, secondary_cta_href, position)
-			VALUES ('仍是這張投影片', '假的按鈕', '///evil.example/x',
-			        '原本安全的次按鈕', '/custom-safe', -100)
-			RETURNING id`).Scan(&id); err != nil {
-			t.Fatalf("insert poisoned primary CTA: %v", err)
-		}
-		cleanupHeroSlide(t, ctx, id)
-
-		hero, err := s.Hero(ctx)
-		if err != nil {
-			t.Fatalf("hero: %v", err)
-		}
-		if hero.Headline != "仍是這張投影片" {
-			t.Errorf("a bad link discarded the slide copy: %q", hero.Headline)
-		}
-		defaults := pages.DefaultHero(ctx)
-		if hero.PrimaryCTA != defaults.PrimaryCTA || hero.SecondaryCTA != defaults.SecondaryCTA {
-			t.Errorf("poisoned primary CTA left pairs %+v / %+v, want built-ins %+v / %+v",
-				hero.PrimaryCTA, hero.SecondaryCTA, defaults.PrimaryCTA, defaults.SecondaryCTA)
-		}
-	})
-
-	t.Run("secondary is dropped while primary survives", func(t *testing.T) {
-		emptyHeroSlides(t)
-		var id uuid.UUID
-		if err := pool.QueryRow(ctx, `
-			INSERT INTO hero_slides
-			    (headline, primary_cta_label, primary_cta_href,
-			     secondary_cta_label, secondary_cta_href, position)
-			VALUES ('安全的主按鈕', '看優惠', '/deals',
-			        '假的次按鈕', '///evil.example/x', -100)
-			RETURNING id`).Scan(&id); err != nil {
-			t.Fatalf("insert poisoned secondary CTA: %v", err)
-		}
-		cleanupHeroSlide(t, ctx, id)
-
-		hero, err := s.Hero(ctx)
-		if err != nil {
-			t.Fatalf("hero: %v", err)
-		}
-		if hero.PrimaryCTA != (pages.CTA{Label: "看優惠", Href: "/deals"}) {
-			t.Errorf("safe primary CTA changed: %+v", hero.PrimaryCTA)
-		}
-		if hero.SecondaryCTA != (pages.CTA{}) {
-			t.Errorf("poisoned secondary CTA survived: %+v", hero.SecondaryCTA)
-		}
-	})
+	slide := firstSlide(t, ctx)
+	if slide.Title != "仍是這張投影片" {
+		t.Errorf("a bad link discarded the slide copy: %q", slide.Title)
+	}
+	if slide.CTA.Shown() {
+		t.Errorf("a poisoned primary CTA survived as %+v", slide.CTA)
+	}
 }
 
 func seedBanner(t *testing.T, message string) string {
@@ -495,8 +456,8 @@ func seedBanner(t *testing.T, message string) string {
 	return id.String()
 }
 
-// stopCampaigns switches every campaign off for the test: a running one
-// replaces the built-in hero, and the development seed runs two.
+// stopCampaigns switches every campaign off for the test: a running one takes a
+// carousel slot and the product row, and the development seed runs two.
 func stopCampaigns(t *testing.T) {
 	t.Helper()
 	rows, err := pool.Query(t.Context(), `UPDATE sale_campaigns SET is_active = false WHERE is_active RETURNING id`)
@@ -516,7 +477,7 @@ func stopCampaigns(t *testing.T) {
 	})
 }
 
-func TestTheBuiltInHeroAnnouncesTheCampaignEndingSoonest(t *testing.T) {
+func TestRunningCampaignsFollowTheScheduledSlidesSoonestFirst(t *testing.T) {
 	ctx := t.Context()
 	emptyHeroSlides(t)
 	stopCampaigns(t)
@@ -539,14 +500,28 @@ func TestTheBuiltInHeroAnnouncesTheCampaignEndingSoonest(t *testing.T) {
 		}
 	})
 
-	for locale, want := range map[i18n.Locale]string{i18n.ZhHant: "較早結束", i18n.En: "Ends sooner"} {
-		hero, err := home.NewStore(pool).Hero(i18n.WithLocale(ctx, locale))
-		if err != nil {
-			t.Fatalf("hero: %v", err)
+	for locale, want := range map[i18n.Locale][2]string{
+		i18n.ZhHant: {"較早結束", "較晚結束"},
+		i18n.En:     {"Ends sooner", "Ends later"},
+	} {
+		slides := slidesOf(t, i18n.WithLocale(ctx, locale))
+		if len(slides) < 2 || slides[0].Title != want[0] || slides[1].Title != want[1] {
+			t.Fatalf("%s slides = %+v, want %q then %q first", locale, slides, want[0], want[1])
 		}
-		if hero.Headline != want || hero.PrimaryCTA.Href != "/s/hero-sooner" || hero.SecondaryCTA.Shown() {
-			t.Errorf("%s hero = %+v, want %q linking /s/hero-sooner with one button", locale, hero, want)
+		if slides[0].CTA.Href != "/s/hero-sooner" {
+			t.Errorf("%s campaign button goes to %q, want /s/hero-sooner", locale, slides[0].CTA.Href)
 		}
+		if len(slides) != 5 {
+			t.Errorf("%s carousel has %d slides, want departments filling it to 5", locale, len(slides))
+		}
+	}
+
+	view, err := home.NewStore(pool).Load(ctx)
+	if err != nil {
+		t.Fatalf("load home: %v", err)
+	}
+	if view.Row.Href != "/s/hero-sooner" {
+		t.Errorf("the product row is %q, want the campaign ending soonest", view.Row.Href)
 	}
 }
 
@@ -570,7 +545,6 @@ func cleanupHeroSlide(t *testing.T, ctx context.Context, id uuid.UUID) {
 
 func TestTheHeroSpeaksTheVisitorsLanguage(t *testing.T) {
 	ctx := t.Context()
-	s := home.NewStore(pool)
 
 	// Its own slide, at the front of the queue: another test's slide would
 	// otherwise decide what this one reads.
@@ -597,24 +571,25 @@ func TestTheHeroSpeaksTheVisitorsLanguage(t *testing.T) {
 		name     string
 		locale   i18n.Locale
 		headline string
+		body     string
 		cta      string
 	}{
-		{name: "Chinese", locale: i18n.ZhHant, headline: "挑一台好的", cta: "看商品"},
-		{name: "English", locale: i18n.En, headline: "Choose one good thing", cta: "Shop"},
+		{name: "Chinese", locale: i18n.ZhHant, headline: "挑一台好的", body: "說明文字", cta: "看商品"},
+		{name: "English", locale: i18n.En, headline: "Choose one good thing", body: "Body copy", cta: "Shop"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			hero, err := s.Hero(i18n.WithLocale(ctx, tt.locale))
-			if err != nil {
-				t.Fatalf("Hero: %v", err)
+			slide := firstSlide(t, i18n.WithLocale(ctx, tt.locale))
+			if slide.Title != tt.headline {
+				t.Errorf("the headline reads %q, want %q", slide.Title, tt.headline)
 			}
-			if hero.Headline != tt.headline {
-				t.Errorf("the headline reads %q, want %q", hero.Headline, tt.headline)
+			if slide.Fact != tt.body {
+				t.Errorf("the line reads %q, want %q", slide.Fact, tt.body)
 			}
-			if hero.PrimaryCTA.Label != tt.cta {
-				t.Errorf("the button reads %q, want %q", hero.PrimaryCTA.Label, tt.cta)
+			if slide.CTA.Label != tt.cta {
+				t.Errorf("the button reads %q, want %q", slide.CTA.Label, tt.cta)
 			}
-			if hero.PrimaryCTA.Href != "/c/phones" {
-				t.Errorf("the button points at %q, want /c/phones", hero.PrimaryCTA.Href)
+			if slide.CTA.Href != "/c/phones" {
+				t.Errorf("the button points at %q, want /c/phones", slide.CTA.Href)
 			}
 		})
 	}
@@ -624,7 +599,6 @@ func TestTheHeroSpeaksTheVisitorsLanguage(t *testing.T) {
 // non-null, so an uncoalesced wrap fails to scan a slide with no eyebrow.
 func TestASlideWithNoEyebrowStillRenders(t *testing.T) {
 	ctx := t.Context()
-	s := home.NewStore(pool)
 
 	var id uuid.UUID
 	if err := pool.QueryRow(ctx, `
@@ -642,15 +616,12 @@ func TestASlideWithNoEyebrowStillRenders(t *testing.T) {
 		}
 	})
 
-	hero, err := s.Hero(i18n.WithLocale(ctx, i18n.En))
-	if err != nil {
-		t.Fatalf("Hero: %v", err)
+	slide := firstSlide(t, i18n.WithLocale(ctx, i18n.En))
+	if slide.Title != "只有標題" {
+		t.Errorf("the headline reads %q", slide.Title)
 	}
-	if hero.Headline != "只有標題" {
-		t.Errorf("the headline reads %q", hero.Headline)
-	}
-	if hero.Eyebrow != "" || hero.Body != "" {
-		t.Errorf("absent copy came back as %q / %q", hero.Eyebrow, hero.Body)
+	if slide.Fact != "" {
+		t.Errorf("absent copy came back as %q", slide.Fact)
 	}
 }
 
@@ -671,7 +642,7 @@ func TestTheFreeDeliveryStripStatesWhatTheTillCharges(t *testing.T) {
 		t.Fatalf("publish a new threshold: %v", err)
 	}
 
-	view, err := home.NewStore(pool).Load(i18n.WithLocale(ctx, i18n.ZhHant), 4)
+	view, err := home.NewStore(pool).Load(i18n.WithLocale(ctx, i18n.ZhHant))
 	if err != nil {
 		t.Fatalf("load home: %v", err)
 	}
@@ -693,7 +664,7 @@ func TestTheFreeDeliveryStripStatesWhatTheTillCharges(t *testing.T) {
 		ORDER BY v.method_id, v.effective_at DESC`); bareErr != nil {
 		t.Fatalf("withdraw free delivery: %v", bareErr)
 	}
-	bare, err := home.NewStore(pool).Load(i18n.WithLocale(ctx, i18n.ZhHant), 4)
+	bare, err := home.NewStore(pool).Load(i18n.WithLocale(ctx, i18n.ZhHant))
 	if err != nil {
 		t.Fatalf("load home: %v", err)
 	}
@@ -777,7 +748,7 @@ func TestTheHeaderAndTheTilesAgreeOnOrder(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read the header: %v", err)
 	}
-	view, err := store.Load(locale, 4)
+	view, err := store.Load(locale)
 	if err != nil {
 		t.Fatalf("read the home page: %v", err)
 	}

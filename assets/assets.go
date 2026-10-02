@@ -73,28 +73,11 @@ const (
 	OGDefaultHeight = 630
 )
 
-// categoryImages is the closed set of category photographs, keyed by category
-// slug. A category outside it keeps its icon.
-var categoryImages = map[string]string{
-	"books-stationery": "media/products/department-books-stationery.webp",
-	"home-living":      "media/products/department-home-living.webp",
-	"beauty":           "media/products/department-beauty.webp",
-	"fashion":          "media/products/department-fashion.webp",
-	"food-drink":       "media/products/department-food-drink.webp",
-	"tech":             "media/products/department-tech.webp",
-	"phones":           "media/categories/phones.webp",
-	"laptops":          "media/categories/laptops.webp",
-	"tablets":          "media/categories/tablets.webp",
-	"audio":            "media/categories/audio.webp",
-	"wearables":        "media/categories/wearables.webp",
-	"accessories":      "media/categories/accessories.webp",
-}
-
 const productMediaPrefix = "media/products/"
 
 // requiredMedia is the photography the storefront names by file: the promotional
-// banners, the six department photographs (800px, each with a -400 rendition)
-// and the campaign headers. The
+// banners, the six department photographs (1600px, each with a -800 and a -400
+// rendition) and the campaign headers. The
 // headers sit under media/products/ because a campaign's image_key is resolved
 // by the product-image function.
 var requiredMedia = append(departmentMedia(
@@ -112,13 +95,13 @@ var requiredMedia = append(departmentMedia(
 	"media/products/campaign-tea-week-800.webp",
 )
 
-// departmentMedia lists a department photograph's two files: the 800px source
-// and its -400 rendition, the pair CategoryImage serves.
+// departmentMedia lists a department photograph's three files: the 1600px
+// source and its -800 and -400 renditions.
 func departmentMedia(slugs ...string) []string {
 	names := make([]string, 0, 3*len(slugs))
 	for _, slug := range slugs {
 		base := "media/products/department-" + slug
-		names = append(names, base+".webp", base+"-400.webp")
+		names = append(names, base+".webp", base+"-800.webp", base+"-400.webp")
 	}
 	return names
 }
@@ -231,24 +214,9 @@ func HomeHeroSrcset() string {
 	return URL(HomeHeroImage720) + " 720w, " + URL(HomeHeroImage) + " 1440w"
 }
 
-// rendition is the name of a -400 or -800 sibling of a WebP asset.
-func rendition(name string, width int) string {
-	return strings.TrimSuffix(name, ".webp") + "-" + strconv.Itoa(width) + ".webp"
-}
-
 // AboutSrcset is the about photograph's candidates, 400 to its 1600 source.
 func AboutSrcset() string {
 	return URL(AboutImage400) + " 400w, " + URL(AboutImage800) + " 800w, " + URL(AboutImage) + " 1600w"
-}
-
-// CategoryImage is the photograph for a category slug, its 800px source and a
-// srcset with the 400px rendition. ok is false for a slug with no photograph.
-func CategoryImage(slug string) (src, srcset string, ok bool) {
-	name, ok := categoryImages[slug]
-	if !ok || !Has(name) {
-		return "", "", false
-	}
-	return URL(name), URL(rendition(name, 400)) + " 400w, " + URL(name) + " 800w", true
 }
 
 // ProductImageURL maps a product_images.storage_key to its public embedded

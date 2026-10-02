@@ -5316,70 +5316,6 @@ func (q *Queries) CreditBalance(ctx context.Context, userID uuid.NullUUID) (int6
 	return column_1, err
 }
 
-const currentHeroSlide = `-- name: CurrentHeroSlide :one
-SELECT coalesce(localized_name(h.eyebrow, h.eyebrow_en, $1::text), '')::text
-           AS eyebrow,
-       localized_name(h.headline, h.headline_en, $1::text) AS headline,
-       coalesce(localized_name(h.body, h.body_en, $1::text), '')::text AS body,
-       localized_name(h.primary_cta_label, h.primary_cta_label_en, $1::text)
-           AS primary_cta_label,
-       h.primary_cta_href,
-       coalesce(localized_name(h.secondary_cta_label, h.secondary_cta_label_en,
-                               $1::text), '')::text AS secondary_cta_label,
-       h.secondary_cta_href, h.image_key,
-       coalesce(localized_name(h.image_alt, h.image_alt_en, $1::text), '')::text
-           AS image_alt,
-       -- Dimensions come from media_objects: one row of bytes, one row of size.
-       -- Both, because a width without a height reserves no space in the layout.
-       coalesce(m.width, 0)::integer AS image_width,
-       coalesce(m.height, 0)::integer AS image_height
-FROM hero_slides h
-LEFT JOIN media_objects m ON m.digest = h.image_key
-WHERE h.is_active
-  AND (h.starts_at IS NULL OR h.starts_at <= now())
-  AND (h.ends_at IS NULL OR h.ends_at > now())
-ORDER BY h.position, h.id
-LIMIT 1
-`
-
-type CurrentHeroSlideRow struct {
-	Eyebrow           string
-	Headline          string
-	Body              string
-	PrimaryCtaLabel   string
-	PrimaryCtaHref    string
-	SecondaryCtaLabel string
-	SecondaryCtaHref  pgtype.Text
-	ImageKey          pgtype.Text
-	ImageAlt          string
-	ImageWidth        int32
-	ImageHeight       int32
-}
-
-// One slide, not a carousel: `position` is how an editor queues the next one.
-// The window is judged against the database's clock, which wrote the timestamps.
-// Every word follows the visitor; the HREFs do not, because a link goes to one
-// page. The nullable fields are coalesced as well as wrapped: localized_name(NULL,
-// NULL, ...) is NULL and sqlc types the result as non-null.
-func (q *Queries) CurrentHeroSlide(ctx context.Context, locale string) (CurrentHeroSlideRow, error) {
-	row := q.db.QueryRow(ctx, currentHeroSlide, locale)
-	var i CurrentHeroSlideRow
-	err := row.Scan(
-		&i.Eyebrow,
-		&i.Headline,
-		&i.Body,
-		&i.PrimaryCtaLabel,
-		&i.PrimaryCtaHref,
-		&i.SecondaryCtaLabel,
-		&i.SecondaryCtaHref,
-		&i.ImageKey,
-		&i.ImageAlt,
-		&i.ImageWidth,
-		&i.ImageHeight,
-	)
-	return i, err
-}
-
 const currentPromoBanner = `-- name: CurrentPromoBanner :one
 SELECT id,
        localized_name(message, message_en, $1::text) AS message,
@@ -6346,6 +6282,88 @@ func (q *Queries) HeldReservationsForOrder(ctx context.Context, orderNumber stri
 	return items, nil
 }
 
+const heroSlides = `-- name: HeroSlides :many
+SELECT coalesce(localized_name(h.eyebrow, h.eyebrow_en, $1::text), '')::text
+           AS eyebrow,
+       localized_name(h.headline, h.headline_en, $1::text) AS headline,
+       coalesce(localized_name(h.body, h.body_en, $1::text), '')::text AS body,
+       localized_name(h.primary_cta_label, h.primary_cta_label_en, $1::text)
+           AS primary_cta_label,
+       h.primary_cta_href,
+       coalesce(localized_name(h.secondary_cta_label, h.secondary_cta_label_en,
+                               $1::text), '')::text AS secondary_cta_label,
+       h.secondary_cta_href, h.image_key,
+       coalesce(localized_name(h.image_alt, h.image_alt_en, $1::text), '')::text
+           AS image_alt,
+       -- Dimensions come from media_objects: one row of bytes, one row of size.
+       -- Both, because a width without a height reserves no space in the layout.
+       coalesce(m.width, 0)::integer AS image_width,
+       coalesce(m.height, 0)::integer AS image_height
+FROM hero_slides h
+LEFT JOIN media_objects m ON m.digest = h.image_key
+WHERE h.is_active
+  AND (h.starts_at IS NULL OR h.starts_at <= now())
+  AND (h.ends_at IS NULL OR h.ends_at > now())
+ORDER BY h.position, h.id
+LIMIT $2::integer
+`
+
+type HeroSlidesParams struct {
+	Locale    string
+	MaxSlides int32
+}
+
+type HeroSlidesRow struct {
+	Eyebrow           string
+	Headline          string
+	Body              string
+	PrimaryCtaLabel   string
+	PrimaryCtaHref    string
+	SecondaryCtaLabel string
+	SecondaryCtaHref  pgtype.Text
+	ImageKey          pgtype.Text
+	ImageAlt          string
+	ImageWidth        int32
+	ImageHeight       int32
+}
+
+// The scheduled slides in the order an editor queued them by `position`. The
+// window is judged against the database's clock, which wrote the timestamps.
+// Every word follows the visitor; the HREFs do not, because a link goes to one
+// page. The nullable fields are coalesced as well as wrapped: localized_name(NULL,
+// NULL, ...) is NULL and sqlc types the result as non-null.
+func (q *Queries) HeroSlides(ctx context.Context, arg HeroSlidesParams) ([]HeroSlidesRow, error) {
+	rows, err := q.db.Query(ctx, heroSlides, arg.Locale, arg.MaxSlides)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []HeroSlidesRow{}
+	for rows.Next() {
+		var i HeroSlidesRow
+		if err := rows.Scan(
+			&i.Eyebrow,
+			&i.Headline,
+			&i.Body,
+			&i.PrimaryCtaLabel,
+			&i.PrimaryCtaHref,
+			&i.SecondaryCtaLabel,
+			&i.SecondaryCtaHref,
+			&i.ImageKey,
+			&i.ImageAlt,
+			&i.ImageWidth,
+			&i.ImageHeight,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const hideQuestion = `-- name: HideQuestion :execrows
 UPDATE product_questions SET hidden_at = now()
 WHERE id = $1 AND hidden_at IS NULL
@@ -6399,15 +6417,153 @@ func (q *Queries) HoldForOrder(ctx context.Context, arg HoldForOrderParams) (uui
 	return hold_inventory, err
 }
 
-const homeRecommendedTiles = `-- name: HomeRecommendedTiles :many
+const homeCampaigns = `-- name: HomeCampaigns :many
+SELECT c.id, c.slug, localized_name(c.title, c.title_en, $1::text) AS title,
+       c.ends_at, c.tone,
+       coalesce(c.image_key, '')::text AS image_key,
+       coalesce(localized_name(c.image_alt, c.image_alt_en, $1::text), '')::text AS image_alt,
+       coalesce(m.width, 0)::integer AS image_width,
+       (SELECT count(*) FROM sale_campaign_products p WHERE p.campaign_id = c.id)::bigint AS products
+FROM sale_campaigns c
+LEFT JOIN media_objects m ON m.digest = c.image_key
+WHERE c.is_active AND c.starts_at <= now() AND c.ends_at > now()
+ORDER BY c.ends_at, c.id
+LIMIT $2::integer
+`
 
-WITH global AS (
-    SELECT coalesce(avg(rating), 0)::float8 AS m FROM visible_reviews
+type HomeCampaignsParams struct {
+	Locale       string
+	MaxCampaigns int32
+}
+
+type HomeCampaignsRow struct {
+	ID         uuid.UUID
+	Slug       string
+	Title      string
+	EndsAt     time.Time
+	Tone       string
+	ImageKey   string
+	ImageAlt   string
+	ImageWidth int32
+	Products   int64
+}
+
+// The running campaigns, soonest-ending first. The window is judged against the
+// database's clock, which wrote the timestamps.
+func (q *Queries) HomeCampaigns(ctx context.Context, arg HomeCampaignsParams) ([]HomeCampaignsRow, error) {
+	rows, err := q.db.Query(ctx, homeCampaigns, arg.Locale, arg.MaxCampaigns)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []HomeCampaignsRow{}
+	for rows.Next() {
+		var i HomeCampaignsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Slug,
+			&i.Title,
+			&i.EndsAt,
+			&i.Tone,
+			&i.ImageKey,
+			&i.ImageAlt,
+			&i.ImageWidth,
+			&i.Products,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const homeDepartmentStock = `-- name: HomeDepartmentStock :many
+WITH RECURSIVE tree AS (
+    SELECT id, id AS root FROM categories WHERE parent_id IS NULL
+    UNION ALL
+    SELECT k.id, t.root FROM categories k JOIN tree t ON k.parent_id = t.id
+)
+SELECT t.root AS id, count(p.id)::bigint AS products
+FROM tree t
+JOIN products p ON p.category_id = t.id AND p.status = 'active'
+GROUP BY t.root
+`
+
+type HomeDepartmentStockRow struct {
+	ID       uuid.UUID
+	Products int64
+}
+
+// How many active products each root holds across its whole subtree: a
+// department with fewer than three has no band to show.
+func (q *Queries) HomeDepartmentStock(ctx context.Context) ([]HomeDepartmentStockRow, error) {
+	rows, err := q.db.Query(ctx, homeDepartmentStock)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []HomeDepartmentStockRow{}
+	for rows.Next() {
+		var i HomeDepartmentStockRow
+		if err := rows.Scan(&i.ID, &i.Products); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const homeSubcategories = `-- name: HomeSubcategories :many
+SELECT c.parent_id, localized_name(c.name, c.name_en, $1::text) AS name
+FROM categories c
+JOIN categories r ON r.id = c.parent_id AND r.parent_id IS NULL
+ORDER BY c.position, c.name, c.id
+`
+
+type HomeSubcategoriesRow struct {
+	ParentID uuid.NullUUID
+	Name     string
+}
+
+// The direct children of every root, in the order the department's own page
+// lists them.
+func (q *Queries) HomeSubcategories(ctx context.Context, locale string) ([]HomeSubcategoriesRow, error) {
+	rows, err := q.db.Query(ctx, homeSubcategories, locale)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []HomeSubcategoriesRow{}
+	for rows.Next() {
+		var i HomeSubcategoriesRow
+		if err := rows.Scan(&i.ParentID, &i.Name); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const homeTiles = `-- name: HomeTiles :many
+
+WITH RECURSIVE d AS (
+    SELECT c.id FROM categories c WHERE c.id = $3::uuid
+    UNION ALL
+    SELECT c.id FROM categories c JOIN d ON c.parent_id = d.id
 )
 SELECT
     p.slug,
-    localized_name(p.name, p.name_en, $2::text) AS name,
-    coalesce(localized_name(p.summary, p.summary_en, $2::text), '')::text AS summary,
+    localized_name(p.name, p.name_en, $1::text) AS name,
+    coalesce(localized_name(p.summary, p.summary_en, $1::text), '')::text AS summary,
     b.name AS brand,
     mv.price_cents AS min_price_cents,
     -- Whether that price is the cheapest of several, so a card can say "from"
@@ -6422,7 +6578,7 @@ SELECT
     -- A product with no image yields NULL, which sqlc types as a non-null string
     -- and pgx cannot scan.
     coalesce(img.storage_key, '') AS image_key,
-    coalesce(localized_name(img.alt_text, img.alt_text_en, $2::text), '')::text AS image_alt,
+    coalesce(localized_name(img.alt_text, img.alt_text_en, $1::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height,
     -- Sellable, not merely present: record_inventory_movement refuses a hold
@@ -6455,19 +6611,26 @@ LEFT JOIN LATERAL (
     ORDER BY position
     LIMIT 1
 ) img ON true
-CROSS JOIN global
 WHERE p.status = 'active'
-ORDER BY (5 * global.m + coalesce(rv.s, 0)) / (5 + coalesce(rv.n, 0)) DESC,
-         p.published_at DESC
-LIMIT $1
+  AND ($2::uuid IS NULL OR EXISTS (
+      SELECT 1 FROM sale_campaign_products cp
+      WHERE cp.campaign_id = $2::uuid AND cp.product_id = p.id
+  ))
+  AND ($3::uuid IS NULL OR p.category_id IN (SELECT d.id FROM d))
+ORDER BY (SELECT cp.position FROM sale_campaign_products cp
+          WHERE cp.campaign_id = $2::uuid AND cp.product_id = p.id) NULLS LAST,
+         p.published_at DESC, p.id
+LIMIT $4::integer
 `
 
-type HomeRecommendedTilesParams struct {
-	Limit  int32
-	Locale string
+type HomeTilesParams struct {
+	Locale       string
+	CampaignID   uuid.NullUUID
+	DepartmentID uuid.NullUUID
+	MaxTiles     int32
 }
 
-type HomeRecommendedTilesRow struct {
+type HomeTilesRow struct {
 	Slug                string
 	Name                string
 	Summary             string
@@ -6485,18 +6648,24 @@ type HomeRecommendedTilesRow struct {
 }
 
 // The root categories only; children hang off these.
-// Bayesian-averaged rating (prior weight 5, global mean), so a lone 5-star does
-// not outrank a well-reviewed 4.6. status = 'active' is a literal, not a
-// parameter, so the partial index stays usable.
-func (q *Queries) HomeRecommendedTiles(ctx context.Context, arg HomeRecommendedTilesParams) ([]HomeRecommendedTilesRow, error) {
-	rows, err := q.db.Query(ctx, homeRecommendedTiles, arg.Limit, arg.Locale)
+// One tile query for the three rows the home page draws: a campaign's products
+// in the position the back office set, a department's products, or the newest
+// of the shop. A NULL filter is no filter. status = 'active' is a literal, not
+// a parameter, so the partial index stays usable.
+func (q *Queries) HomeTiles(ctx context.Context, arg HomeTilesParams) ([]HomeTilesRow, error) {
+	rows, err := q.db.Query(ctx, homeTiles,
+		arg.Locale,
+		arg.CampaignID,
+		arg.DepartmentID,
+		arg.MaxTiles,
+	)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []HomeRecommendedTilesRow{}
+	items := []HomeTilesRow{}
 	for rows.Next() {
-		var i HomeRecommendedTilesRow
+		var i HomeTilesRow
 		if err := rows.Scan(
 			&i.Slug,
 			&i.Name,
@@ -13300,28 +13469,6 @@ func (q *Queries) SitemapProducts(ctx context.Context, limit int32) ([]SitemapPr
 		return nil, err
 	}
 	return items, nil
-}
-
-const soonestEndingCampaign = `-- name: SoonestEndingCampaign :one
-SELECT c.slug, localized_name(c.title, c.title_en, $1::text) AS title
-FROM sale_campaigns c
-WHERE c.is_active AND c.starts_at <= now() AND c.ends_at > now()
-ORDER BY c.ends_at, c.id
-LIMIT 1
-`
-
-type SoonestEndingCampaignRow struct {
-	Slug  string
-	Title string
-}
-
-// The campaign the built-in hero announces: the one ending soonest. The window
-// is judged against the database's clock, which wrote the timestamps.
-func (q *Queries) SoonestEndingCampaign(ctx context.Context, locale string) (SoonestEndingCampaignRow, error) {
-	row := q.db.QueryRow(ctx, soonestEndingCampaign, locale)
-	var i SoonestEndingCampaignRow
-	err := row.Scan(&i.Slug, &i.Title)
-	return i, err
 }
 
 const spendCredit = `-- name: SpendCredit :one

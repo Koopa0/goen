@@ -1242,32 +1242,49 @@ h3 {
 
 /* ---------- Home ----------
 
-   The hero photograph, the department tiles, the recommended products, one
-   promotional band and the guarantees. `.goen-home` is the content column the
-   header bar and the footer grid are compared against
-   (`check-layout.mjs:496-498`), so its gutter is the shared one.
+   The carousel, the department cards, one product row, one department band,
+   one photograph and the guarantees. Sections are direct children of <main>;
+   every horizontal edge comes from the one container width, so `.goen-home`
+   (compared against the header bar and the footer grid, `check-layout.mjs`)
+   and `.goen-container` agree. Tones come from the [data-tone] blocks.
    ------------------------------------------------------------------------ */
 
+:root {
+  --home-section: 4rem;
+  --home-band: 4rem;
+}
+
+@media (min-width: 40rem) {
+  :root {
+    --home-section: 6rem;
+    --home-band: 6rem;
+  }
+}
+
+@media (min-width: 64rem) {
+  :root {
+    --home-band: 8rem;
+  }
+}
+
+.goen-container,
 .goen-home {
-  display: flex;
-  flex-direction: column;
-  gap: 4rem;
-  margin: 0 auto;
+  margin-inline: auto;
   max-width: var(--page-width);
-  padding: 1.5rem var(--page-gutter) 4rem;
+  padding-inline: var(--page-gutter);
+  width: 100%;
 }
 
 .goen-home__section {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
+  padding-top: var(--home-section);
 }
 
 .goen-home__head {
-  align-items: baseline;
+  align-items: flex-end;
   display: flex;
   gap: 1rem;
   justify-content: space-between;
+  margin-bottom: 1.5rem;
 }
 
 .goen-home__heading {
@@ -1277,47 +1294,97 @@ h3 {
   margin: 0;
 }
 
+.goen-home__sub {
+  color: var(--n-500);
+  font-size: var(--fs-14);
+  margin: 0.25rem 0 0;
+}
+
 .goen-home__more {
+  align-items: center;
   color: var(--accent-text);
+  display: inline-flex;
   flex: none;
   font-size: var(--fs-14);
   font-weight: var(--fw-medium);
+  min-height: 2.75rem;
   text-decoration: none;
+  white-space: nowrap;
 }
 
 .goen-home__more:hover {
   color: var(--accent-text-hover);
   text-decoration: underline;
+  text-underline-offset: 0.25em;
 }
 
-/* The copy sits over the photograph's lower left in one grid cell. The gate
-   reads the split off the two boxes' tops (`check-layout.mjs:524`): below
-   1024 the copy box is its own height and ends at the bottom, so its top is
-   lower than the photograph's (stacked); from 1024 it is stretched to the
-   photograph's height and its contents are pushed down, so the tops agree. */
+/* The link sits on the sub line's baseline rather than the box's bottom. */
+.goen-home__head .goen-home__more {
+  margin-bottom: -0.625rem;
+}
+
+/* ----- Carousel: native scroll-snap does the moving (swipe, trackpad,
+   keyboard); the script only wires the arrows and dots. ----- */
+
 .goen-hero {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
+  position: relative;
 }
 
-.goen-hero__body,
+.goen-hero__track {
+  display: flex;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+}
+
+.goen-hero__track::-webkit-scrollbar {
+  display: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .goen-hero__track {
+    scroll-behavior: smooth;
+  }
+}
+
+.goen-hero__slide {
+  background: var(--tone-ground);
+  display: flex;
+  flex: 0 0 100%;
+  flex-direction: column;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+}
+
 .goen-hero__media {
-  grid-area: 1 / 1;
+  aspect-ratio: 4 / 3;
+  background: var(--tone-ground);
+  overflow: hidden;
+  position: relative;
+}
+
+.goen-hero__media img {
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+
+.goen-hero__slide--photo .goen-hero__media img {
+  object-position: 82% 50%;
 }
 
 .goen-hero__body {
-  align-self: end;
-  color: #fff;
-  display: flex;
-  flex-direction: column;
-  max-width: 36rem;
-  padding: 1.5rem;
-  position: relative;
-  z-index: 1;
+  flex: 1;
+  padding: 1.5rem var(--page-gutter) 2rem;
+}
+
+.goen-hero__inner {
+  max-width: 30rem;
 }
 
 .goen-hero__title {
-  font-size: var(--fs-ed-30);
+  font-size: var(--fs-ed-38);
   font-weight: var(--fw-semibold);
   line-height: 1.25;
   margin: 0;
@@ -1325,10 +1392,17 @@ h3 {
 }
 
 .goen-hero__lede {
-  color: rgb(255 255 255 / 0.9);
-  font-size: var(--fs-16);
-  line-height: var(--lh-normal);
+  color: var(--n-700);
+  line-height: 1.7;
   margin: 0.75rem 0 0;
+  text-wrap: pretty;
+}
+
+/* Chinese wraps at punctuation and spaces here, not mid-word. */
+.goen-hero__title,
+.goen-hero__lede {
+  overflow-wrap: anywhere;
+  word-break: keep-all;
 }
 
 .goen-hero__actions {
@@ -1338,60 +1412,72 @@ h3 {
   margin-top: 1.5rem;
 }
 
-/* The ink button would vanish into the scrim, so on the photograph it inverts. */
-.goen-hero .goen-btn--primary {
-  background: #fff;
-  color: var(--n-900);
-}
-
-.goen-hero .goen-btn--primary:hover {
-  background: var(--n-100);
-}
-
-/* The frame reserves its own height before the artwork arrives. The scrim
-   darkens the lower part where the copy is; the photograph's subject sits in
-   the upper right of a 2:1 frame, so the portrait crop keeps that side. */
-.goen-hero__media {
-  aspect-ratio: 4 / 5;
-  background: var(--photo-ground);
-  border-radius: var(--r-lg);
-  overflow: hidden;
-  position: relative;
-}
-
-.goen-hero__media::after {
-  background: linear-gradient(to top, rgb(0 0 0 / 0.55), rgb(0 0 0 / 0.2) 55%, transparent);
-  content: "";
-  inset: 0;
-  position: absolute;
-}
-
-.goen-hero__image {
-  display: block;
-  height: 100%;
-  object-fit: cover;
-  object-position: 70% 50%;
-  width: 100%;
-}
-
-/* The standing note where artwork is not embedded yet. The catalogue names its
-   own photography, and a missing file should read as pending rather than as a
-   broken page. */
-.goen-ph {
+.goen-hero__controls {
   align-items: center;
-  color: var(--fg-muted);
   display: flex;
-  font-size: var(--fs-14);
-  height: 100%;
-  justify-content: center;
-  padding: 16px;
-  text-align: center;
-  width: 100%;
+  justify-content: space-between;
+  padding: 0.5rem var(--page-gutter);
 }
+
+.goen-hero__dots {
+  display: flex;
+}
+
+.goen-hero__dot {
+  background: none;
+  border: 0;
+  cursor: pointer;
+  display: grid;
+  height: 2.75rem;
+  padding: 0;
+  place-items: center start;
+  width: 2.75rem;
+}
+
+.goen-hero__dot::before {
+  background: rgb(24 24 27 / 0.2);
+  border-radius: 1px;
+  content: "";
+  height: 0.1875rem;
+  width: 1.75rem;
+}
+
+.goen-hero__dot[aria-current="true"]::before {
+  background: var(--n-900);
+}
+
+.goen-hero__arrows {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.goen-hero__arrow {
+  background: var(--n-0);
+  border: 1px solid var(--n-300);
+  border-radius: var(--r-md);
+  color: var(--n-900);
+  cursor: pointer;
+  display: grid;
+  height: 2.75rem;
+  padding: 0;
+  place-items: center;
+  width: 2.75rem;
+}
+
+.goen-hero__arrow:hover {
+  background: var(--n-50);
+}
+
+.goen-hero__arrow svg {
+  height: 1.25rem;
+  width: 1.25rem;
+}
+
+/* ----- Departments: six cards, each on its own tone. ----- */
 
 .goen-cats__grid {
   display: grid;
-  gap: 1.5rem 0.75rem;
+  gap: 0.5rem;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   list-style: none;
   margin: 0;
@@ -1399,103 +1485,146 @@ h3 {
 }
 
 .goen-cat {
+  background: var(--tone-ground);
+  border-radius: var(--r-lg);
   color: var(--n-900);
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  height: 100%;
   min-height: 44px;
+  overflow: hidden;
   text-decoration: none;
 }
 
-.goen-cat:hover {
-  color: var(--n-900);
-}
-
-.goen-cat:hover .goen-cat__photo {
-  opacity: 0.85;
-}
-
-/* A category without a photograph keeps its icon, centred on the same square
-   ground so the row stays level. */
-.goen-cat__icon {
-  align-items: center;
-  aspect-ratio: 1;
-  background: var(--photo);
-  border-radius: var(--r-lg);
-  color: var(--n-500);
-  display: flex;
-  justify-content: center;
-  width: 100%;
-}
-
-.goen-cat__icon svg {
-  height: 2rem;
-  width: 2rem;
-}
-
-/* The photograph fills the tile's width on its own ground; a department
-   photograph is 4:3 and is cropped to the square. */
-.goen-cat__photo {
-  aspect-ratio: 1;
-  background: var(--photo);
-  border-radius: var(--r-lg);
-  display: block;
-  height: auto;
-  object-fit: cover;
-  width: 100%;
+.goen-cat__text {
+  padding: 0.75rem 0.75rem 0;
 }
 
 .goen-cat__name {
-  font-size: var(--fs-15);
-  font-weight: var(--fw-medium);
-  line-height: var(--lh-normal);
-}
-
-/* One photograph and a line of chrome on a tone ground. --tone-ground is the
-   department theming token; stone is the fallback until a page sets one. */
-.goen-promoband {
-  background: var(--tone-ground, #f8f7f5);
-  border-radius: var(--r-lg);
-  display: flex;
-  flex-direction: column-reverse;
-  overflow: hidden;
-}
-
-.goen-promoband__body {
-  align-items: flex-start;
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  justify-content: center;
-  padding: 1.5rem;
-}
-
-.goen-promoband__title {
-  font-size: var(--fs-ed-24);
-  font-weight: var(--fw-semibold);
-  line-height: 1.35;
-  margin: 0;
-}
-
-.goen-promoband__image {
-  aspect-ratio: 2 / 1;
   display: block;
+  font-size: var(--fs-14);
+  font-weight: var(--fw-semibold);
+  line-height: 1.4;
+}
+
+.goen-cat__photo {
+  aspect-ratio: 4 / 3;
   height: auto;
+  margin-top: auto;
+  mask-image: linear-gradient(to bottom, transparent, #000 30%);
   object-fit: cover;
   width: 100%;
 }
 
-/* What the shop guarantees, on a quiet ground. The delivery item renders only
-   where a free-delivery threshold is configured. */
+.goen-cat:hover .goen-cat__name {
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.goen-cat:hover .goen-cat__photo {
+  opacity: 0.9;
+}
+
+/* ----- One department on its own ground: photograph beside three products. ----- */
+
+.goen-band {
+  background: var(--tone-ground);
+  margin-top: var(--home-section);
+  padding-block: var(--home-band);
+}
+
+.goen-band__grid {
+  display: grid;
+  gap: 2rem;
+}
+
+.goen-band__media {
+  aspect-ratio: 4 / 3;
+  border-radius: var(--r-lg);
+  overflow: hidden;
+}
+
+.goen-band__media img {
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+
+/* Below 768px the three products scroll sideways rather than stacking. */
+.goen-band__tiles {
+  display: grid;
+  gap: 1rem;
+  grid-auto-columns: 42%;
+  grid-auto-flow: column;
+  list-style: none;
+  margin: 0 calc(var(--page-gutter) * -1);
+  overflow-x: auto;
+  padding: 0 var(--page-gutter);
+  scroll-padding-inline: var(--page-gutter);
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+}
+
+.goen-band__tiles::-webkit-scrollbar {
+  display: none;
+}
+
+.goen-band__tiles > li {
+  scroll-snap-align: start;
+}
+
+/* ----- One photograph, the width of the container, and a caption. ----- */
+
+.goen-promo-photo__link {
+  color: var(--n-900);
+  display: block;
+  text-decoration: none;
+}
+
+.goen-promo-photo__media {
+  aspect-ratio: 4 / 3;
+  background: var(--n-100);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+}
+
+.goen-promo-photo__media img {
+  height: 100%;
+  object-fit: cover;
+  object-position: 84% 50%;
+  width: 100%;
+}
+
+.goen-promo-photo__caption {
+  align-items: baseline;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  margin-top: 1.25rem;
+}
+
+.goen-promo-photo__link:hover .goen-promo-photo__media img {
+  opacity: 0.92;
+}
+
+.goen-promo-photo__link:hover .goen-home__more {
+  text-decoration: underline;
+  text-underline-offset: 0.25em;
+}
+
+/* ----- What the shop guarantees: bare icons on a quiet ground. The delivery
+   item renders only where a free-delivery threshold is configured. ----- */
+
 .goen-trust {
   background: var(--n-50);
-  border-radius: var(--r-lg);
-  padding: 1.5rem;
+  border-top: 1px solid var(--n-200);
+  margin-top: var(--home-section);
 }
 
 .goen-trust__grid {
   display: grid;
   gap: 2rem;
+  padding-block: 3rem;
 }
 
 .goen-trust__head {
@@ -1504,100 +1633,196 @@ h3 {
   gap: 0.75rem;
 }
 
-/* A bare line icon: no disc, no tint. */
 .goen-trust__icon {
-  align-items: center;
   color: var(--n-900);
-  display: inline-flex;
   flex: none;
-  height: 1.5rem;
-  justify-content: center;
-  width: 1.5rem;
 }
 
 .goen-trust__icon svg {
+  display: block;
   height: 1.5rem;
   width: 1.5rem;
 }
 
 .goen-trust__title {
-  font-size: var(--fs-16);
+  font-size: var(--fs-15);
   font-weight: var(--fw-medium);
+  line-height: 1.5;
   margin: 0;
 }
 
 .goen-trust__body {
-  color: var(--fg-muted);
+  color: var(--n-500);
   font-size: var(--fs-14);
-  line-height: var(--lh-normal);
-  margin: 0.5rem 0 0;
+  line-height: 1.6;
+  margin: 0.375rem 0 0;
+  padding-left: 2.25rem;
 }
 
-@media (min-width: 768px) {
-  .goen-home {
-    padding-top: 2rem;
+@media (min-width: 40rem) {
+  .goen-hero__media {
+    aspect-ratio: 16 / 9;
   }
 
   .goen-hero__body {
-    padding: 2rem;
-  }
-
-  .goen-hero__media {
-    aspect-ratio: 2 / 1;
-  }
-
-  .goen-hero__title {
-    font-size: var(--fs-ed-38);
-  }
-
-  .goen-promoband {
-    flex-direction: row;
-  }
-
-  .goen-promoband__body {
-    flex: 0 0 40%;
-    padding: 2rem;
-  }
-
-  .goen-promoband__image {
-    aspect-ratio: auto;
-    flex: 1;
-    min-height: 100%;
-    min-width: 0;
-  }
-
-  .goen-trust {
-    padding: 2rem;
+    padding-block: 2rem 2.5rem;
   }
 
   .goen-trust__grid {
+    column-gap: 2.5rem;
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
-@media (min-width: 1024px) {
-  .goen-home {
-    gap: 6rem;
-    padding-bottom: 6rem;
+@media (min-width: 48rem) {
+  .goen-cats__grid {
+    gap: 1rem;
+  }
+
+  .goen-cat__text {
+    padding: 1.25rem 1.25rem 0;
+  }
+
+  .goen-cat__name {
+    font-size: var(--fs-16);
+  }
+
+  .goen-band__media {
+    aspect-ratio: 16 / 9;
+  }
+
+  .goen-band__tiles {
+    gap: 1.5rem;
+    grid-auto-flow: row;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    margin-inline: 0;
+    overflow: visible;
+    padding-inline: 0;
+  }
+
+  .goen-promo-photo__media {
+    aspect-ratio: 21 / 9;
+  }
+
+  .goen-promo-photo__media img {
+    object-position: 70% 50%;
+  }
+}
+
+@media (min-width: 64rem) {
+  /* The photo slide: the campaign photograph fills the slide and the copy sits
+     in its calm left third. The body is a full-height cell, so its top is the
+     photograph's top, which is how the gate reads a side-by-side hero. */
+  .goen-hero__slide {
+    flex-direction: row;
+    height: clamp(30rem, 40vw, 37.5rem);
+    position: relative;
+  }
+
+  .goen-hero__slide--photo .goen-hero__media {
+    aspect-ratio: auto;
+    inset: 0;
+    position: absolute;
+  }
+
+  .goen-hero__slide--photo .goen-hero__media img {
+    object-position: 72% 50%;
   }
 
   .goen-hero__body {
-    align-self: stretch;
-    justify-content: flex-end;
-    padding: 3rem;
+    align-items: center;
+    display: flex;
+    flex: 1;
+    padding: 0 2rem 3.5rem max(var(--page-gutter), calc((100% - var(--page-width)) / 2 + var(--page-gutter)));
+    position: relative;
   }
 
-  .goen-hero__image {
-    object-position: 50% 50%;
+  /* The split slide: the tone ground on the left, the 4:3 department photograph
+     on the right at its own proportions, its left edge fading into the ground. */
+  .goen-hero__slide--split .goen-hero__media {
+    aspect-ratio: 4 / 3;
+    flex: none;
+    height: 100%;
+    order: 2;
+  }
+
+  .goen-hero__slide--split .goen-hero__media img {
+    mask-image: linear-gradient(to right, transparent, #000 24%);
+  }
+
+  .goen-hero__title {
+    font-size: 3rem;
+  }
+
+  .goen-hero__lede {
+    font-size: 1.0625rem;
+  }
+
+  .goen-hero__actions {
+    margin-top: 2rem;
+  }
+
+  .goen-hero__controls {
+    bottom: 1.5rem;
+    left: 0;
+    margin-inline: auto;
+    max-width: var(--page-width);
+    padding-block: 0;
+    pointer-events: none;
+    position: absolute;
+    right: 0;
+  }
+
+  .goen-hero__controls > * {
+    pointer-events: auto;
   }
 
   .goen-cats__grid {
-    gap: 1.5rem;
     grid-template-columns: repeat(6, minmax(0, 1fr));
   }
 
+  .goen-cat__photo {
+    margin-top: 2rem;
+  }
+
+  .goen-band__grid {
+    align-items: stretch;
+    gap: 4rem;
+    grid-template-columns: 5fr 7fr;
+  }
+
+  .goen-band__media {
+    aspect-ratio: auto;
+  }
+
+  .goen-band__body {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+
   .goen-trust__grid {
+    column-gap: 0;
     grid-template-columns: repeat(4, minmax(0, 1fr));
+    padding-block: 3.5rem;
+  }
+
+  .goen-trust__item {
+    border-left: 1px solid var(--n-200);
+    padding-inline: 2rem;
+  }
+
+  .goen-trust__item:first-child {
+    border-left: 0;
+    padding-left: 0;
+  }
+
+  .goen-trust__item:last-child {
+    padding-right: 0;
+  }
+
+  .goen-trust__body {
+    padding-left: 0;
   }
 }
 
@@ -1649,7 +1874,8 @@ h3 {
 }
 
 /* The ground is the photographs' own, so the picture's edge disappears and
-   the product floats; contain keeps a wide render from being cropped. */
+   the product floats. The photographs keep their product inside the middle
+   three quarters of the width, so filling the square crops only ground. */
 .goen-tile__media {
   aspect-ratio: 1;
   background: var(--photo);
@@ -1661,7 +1887,7 @@ h3 {
 .goen-tile__img {
   display: block;
   height: 100%;
-  object-fit: contain;
+  object-fit: cover;
   width: 100%;
 }
 
@@ -3285,44 +3511,40 @@ h3 {
 /* Department and campaign tone. data-tone is one of the closed set pages.Tone
    names, on the page head; a custom property is never set inline because
    style-src has no 'unsafe-inline'. Only these four properties vary: accent,
-   type, radii and buttons do not. The hex values are the oklch source rounded
-   to sRGB; assets/contrast_test.go holds every text colour on them to 4.5:1. */
+   type, radii and buttons do not. Each ground is the ground of its department's
+   photographs, so a slide or a card and its photograph meet without a seam;
+   assets/contrast_test.go holds every text colour on them to 4.5:1. */
 [data-tone="paper"] {
-  /* oklch(97.5% .012 85) / oklch(92% .02 85) */
-  --tone-ground: #faf6ee;
-  --tone-rule: #ebe4d6;
+  --tone-ground: #efe9e1;
+  --tone-rule: #e2dad0;
   --tone-text: var(--n-900);
   --tone-muted: var(--n-500);
 }
 
 [data-tone="stone"] {
-  /* oklch(97% .006 70) / oklch(92% .01 70) */
-  --tone-ground: #f8f4f1;
-  --tone-rule: #e9e4de;
+  --tone-ground: #ece8e4;
+  --tone-rule: #dedad5;
   --tone-text: var(--n-900);
   --tone-muted: var(--n-500);
 }
 
 [data-tone="mist"] {
-  /* oklch(97.5% .008 250) / oklch(92% .015 250) */
-  --tone-ground: #f3f7fc;
-  --tone-rule: #dde6ee;
+  --tone-ground: #e6eff6;
+  --tone-rule: #d5e1eb;
   --tone-text: var(--n-900);
   --tone-muted: var(--n-500);
 }
 
 [data-tone="sage"] {
-  /* oklch(97% .015 145) / oklch(92% .025 145) */
-  --tone-ground: #eff8ef;
-  --tone-rule: #dbe9db;
+  --tone-ground: #e5ebe4;
+  --tone-rule: #d6ded5;
   --tone-text: var(--n-900);
   --tone-muted: var(--n-500);
 }
 
 [data-tone="blush"] {
-  /* oklch(97.5% .012 15) / oklch(92% .02 15) */
-  --tone-ground: #fff4f4;
-  --tone-rule: #f2e0e0;
+  --tone-ground: #f8ecec;
+  --tone-rule: #efdcdc;
   --tone-text: var(--n-900);
   --tone-muted: var(--n-500);
 }

@@ -18,6 +18,38 @@
    */
 
   /*
+   * The home carousel: scroll-snap does the moving (swipe, trackpad, keyboard),
+   * and prefers-reduced-motion is answered in CSS, where scroll-behavior is set.
+   * This only wires the arrows and dots and keeps aria-current on the slide in
+   * view. There is no autoplay.
+   */
+  function carousel() {
+    const root = document.querySelector(".goen-hero");
+    const track = root?.querySelector(".goen-hero__track");
+    if (!track || track.children.length < 2) return;
+
+    const slides = [...track.children];
+    const dots = [...root.querySelectorAll(".goen-hero__dot")];
+    let current = 0;
+    const go = (index) => {
+      const next = (index + slides.length) % slides.length;
+      track.scrollTo({ left: next * track.clientWidth });
+    };
+    root.querySelectorAll("[data-step]").forEach((button) => {
+      button.addEventListener("click", () => go(current + Number(button.dataset.step)));
+    });
+    dots.forEach((dot, index) => dot.addEventListener("click", () => go(index)));
+    const seen = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        current = slides.indexOf(entry.target);
+        dots.forEach((dot, index) => dot.setAttribute("aria-current", String(index === current)));
+      }
+    }, { root: track, threshold: 0.6 });
+    slides.forEach((slide) => seen.observe(slide));
+  }
+
+  /*
    * The header's category menu is a native <details>. Closing it on Escape and
    * on outside click is the ceremony the element does not ship with.
    */
@@ -167,4 +199,5 @@
   checkoutConstraints();
   headerMenu();
   stepper();
+  carousel();
 })();
