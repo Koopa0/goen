@@ -15,6 +15,7 @@ import (
 	"github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -66,7 +67,7 @@ type ReturnQueue struct {
 	// Bound is what the page says about its own edge: the queue reads one row
 	// more than it shows and drops it here.
 	Bound        pages.ListBound
-	Rows         []pages.AdminReturn
+	Rows         []admin.Return
 	payoutIssues []returnPayoutIssue
 }
 
@@ -99,10 +100,10 @@ func (s *Store) Returns(ctx context.Context, after ...string) (ReturnQueue, erro
 	if err != nil {
 		return ReturnQueue{}, err
 	}
-	byRequest := make(map[uuid.UUID][]pages.AdminReturnLine, len(rows))
+	byRequest := make(map[uuid.UUID][]admin.ReturnLine, len(rows))
 	for i := range lines {
 		l := &lines[i]
-		byRequest[l.ReturnRequestID] = append(byRequest[l.ReturnRequestID], pages.AdminReturnLine{
+		byRequest[l.ReturnRequestID] = append(byRequest[l.ReturnRequestID], admin.ReturnLine{
 			SKU: l.SKU, Name: l.ProductName, Label: l.VariantLabel.String,
 			UnitCents: l.UnitPriceCents, Quantity: l.Quantity,
 			OrderLineID: l.OrderLineID.String(),
@@ -143,7 +144,7 @@ func (s *Store) Returns(ctx context.Context, after ...string) (ReturnQueue, erro
 func overlayReturnAssessmentFacts(
 	ctx context.Context,
 	q *db.Queries,
-	byRequest map[uuid.UUID][]pages.AdminReturnLine,
+	byRequest map[uuid.UUID][]admin.ReturnLine,
 	assessmentIDs []uuid.UUID,
 ) error {
 	if len(assessmentIDs) == 0 {
@@ -173,14 +174,14 @@ func overlayReturnAssessmentFacts(
 func buildReturnQueue(
 	ctx context.Context,
 	rows []db.ReturnQueueRow,
-	byRequest map[uuid.UUID][]pages.AdminReturnLine,
+	byRequest map[uuid.UUID][]admin.ReturnLine,
 	assessmentByRequest map[uuid.UUID]db.ReturnEligibilityAssessment,
 	payoutFacts map[uuid.UUID]returnPayoutFacts,
 ) (ReturnQueue, error) {
 	view := ReturnQueue{}
 	for i := range rows {
 		r := &rows[i]
-		item := pages.AdminReturn{
+		item := admin.Return{
 			ID:          r.ID.String(),
 			OrderNumber: r.OrderNumber,
 			Status:      r.Status,
@@ -345,7 +346,7 @@ func (s *Store) returnPayoutFact(
 }
 
 func fillReturnPayoutState(
-	status returns.ReturnStatus, facts returnPayoutFacts, item *pages.AdminReturn,
+	status returns.ReturnStatus, facts returnPayoutFacts, item *admin.Return,
 ) error {
 	if status != returns.ReturnApproved {
 		return nil

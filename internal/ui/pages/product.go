@@ -3,6 +3,7 @@ package pages
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"slices"
 	"strconv"
 	"strings"
@@ -177,9 +178,14 @@ type ProductView struct {
 	ReviewErrors  map[string]string
 	ReviewDraft   ReviewDraft
 	NotifyOutcome string
-	Comparing     []string
-	Questions     []Question
-	AskOutcome    string
+	// NotifyEmail is the address a refused restock request was posted with.
+	NotifyEmail string
+	Comparing   []string
+	// Comparable is whether the product's department offers comparison; where
+	// it does not, the page shows no compare control.
+	Comparable bool
+	Questions  []Question
+	AskOutcome string
 	// AskDraft is a refused question, replayed into the textarea so a 422
 	// does not empty what the customer already typed.
 	AskDraft string
@@ -366,19 +372,32 @@ func (v *ProductView) HasReviewErr(f string) bool { _, ok := v.ReviewErrors[f]; 
 // ReviewErr is why a review field was refused.
 func (v *ProductView) ReviewErr(f string) string { return v.ReviewErrors[f] }
 
-func starsOf(n int) string {
-	n = max(0, min(n, 5))
-	return strings.Repeat("★", n) + strings.Repeat("☆", 5-n)
-}
-
 // NotifyTaken reports whether a restock request was just recorded.
 func (v *ProductView) NotifyTaken() bool { return v.NotifyOutcome == "1" }
 
 // NotifyRefused reports whether the address was not usable.
 func (v *ProductView) NotifyRefused() bool { return v.NotifyOutcome == "bad" }
 
-// NotifyAction is where the restock form posts.
-func (v *ProductView) NotifyAction() string { return "/p/" + v.Slug + "/notify" }
+// NotifyUnavailable reports a request for a variant that no longer needs one.
+func (v *ProductView) NotifyUnavailable() bool { return v.NotifyOutcome == "unavailable" }
+
+// NotifyAction is where the restock form posts. It carries the chosen options,
+// because the redirect that follows must land on the same selection or the
+// answer is not on the page it returns to.
+func (v *ProductView) NotifyAction() string {
+	q := url.Values{}
+	for i := range v.Options {
+		for _, val := range v.Options[i].Values {
+			if val.Selected {
+				q.Set(v.Options[i].Name, val.Value)
+			}
+		}
+	}
+	if len(q) == 0 {
+		return "/p/" + v.Slug + "/notify"
+	}
+	return "/p/" + v.Slug + "/notify?" + q.Encode()
+}
 
 // HasRecommendations reports whether the strip has anything real to show.
 func (v *ProductView) HasRecommendations() bool { return len(v.AlsoBought) > 0 }

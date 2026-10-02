@@ -14,7 +14,7 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/shoptime"
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 var couponCode = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9-]{1,31}$`)
@@ -119,18 +119,18 @@ func (f *CouponForm) validateKind(ctx context.Context, errs map[string]string) {
 }
 
 // Coupons reads the promotions for the back office.
-func (s *Store) Coupons(ctx context.Context, after ...string) (pages.AdminCouponsView, error) {
+func (s *Store) Coupons(ctx context.Context, after ...string) (admin.CouponsView, error) {
 	scope := "/admin/coupons"
 	cursor := readPageCursor(scope, after)
 	rows, err := s.q.AdminCoupons(ctx, db.AdminCouponsParams{HasCursor: cursor.Valid, AfterRank: cursor.Rank, AfterAt: cursor.At, AfterID: cursor.ID, RowLimit: PageLimit})
 	if err != nil {
-		return pages.AdminCouponsView{}, fmt.Errorf("read coupons: %w", err)
+		return admin.CouponsView{}, fmt.Errorf("read coupons: %w", err)
 	}
 	rows, bound := pageBound(cursor, scope, rows, PageSize, func(r *db.AdminCouponsRow) string { return r.PageCursor })
-	view := pages.AdminCouponsView{ListBound: bound}
+	view := admin.CouponsView{ListBound: bound}
 	for i := range rows {
 		r := &rows[i]
-		view.Rows = append(view.Rows, pages.AdminCoupon{
+		view.Rows = append(view.Rows, admin.Coupon{
 			Code: r.Code, Description: r.Description, Kind: r.Kind,
 			KindText:    CouponKindLabel(ctx, r.Kind),
 			AmountCents: r.AmountCents.Int64,

@@ -66,17 +66,73 @@ func TestNoFormCarriesARoleItMayNotHave(t *testing.T) {
 	}
 }
 
-// The language control is in the footer once; a second copy in the header is
-// a second thing to find and a second form to keep in step.
-func TestTheLanguageSwitchIsInTheFooterOnly(t *testing.T) {
+// The header's language control is one menu button and, once opened, one
+// choice per language, in the bar and again in the drawer, which CSS shows one
+// at a time; the footer keeps its own pair of plain buttons. Neither is a
+// second copy of the other's markup, and the button says which language is on.
+func TestTheLanguageControlIsAMenuInTheHeaderAndAPairInTheFooter(t *testing.T) {
 	t.Parallel()
 
-	header, footer := renderChrome(t, i18n.En, chromeNav)
-	if strings.Contains(header, "goen-lang") {
-		t.Error("the header still carries a language control")
+	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+		header, footer := renderChrome(t, locale, chromeNav)
+		want := len(i18n.Locales())
+		if got := strings.Count(header, "goen-langmenu__item"); got != 2*want {
+			t.Errorf("%s: the bar and the drawer have %d choices, want %d", locale, got, 2*want)
+		}
+		if strings.Contains(header, "goen-lang__item") {
+			t.Errorf("%s: the header carries the footer's pair as well as its menu", locale)
+		}
+		if got := strings.Count(footer, "goen-lang__item"); got != want {
+			t.Errorf("%s: the footer has %d language buttons, want %d", locale, got, want)
+		}
+		if !strings.Contains(header, `lang="`+locale.Tag()+`">`+locale.Short()+`</span>`) {
+			t.Errorf("%s: the menu button does not show %q", locale, locale.Short())
+		}
+		if got := strings.Count(header, `aria-pressed="true"`); got != 2 {
+			t.Errorf("%s: %d choices are marked current, want one per menu", locale, got)
+		}
 	}
-	if got := strings.Count(footer, "goen-lang__item"); got != len(i18n.Locales()) {
-		t.Errorf("the footer has %d language buttons, want %d", got, len(i18n.Locales()))
+}
+
+// A phone's bar has no room for the wishlist, the account or the language, so
+// the drawer carries them, and it carries a way out that has a name.
+func TestTheDrawerCarriesWhatThePhoneBarHasNoRoomFor(t *testing.T) {
+	t.Parallel()
+
+	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+		header, _ := renderChrome(t, locale, chromeNav)
+		start := strings.Index(header, `class="goen-header__drawer"`)
+		end := strings.Index(header, `class="goen-header__brand"`)
+		if start < 0 || end < start {
+			t.Fatalf("%s: the drawer is not in the header", locale)
+		}
+		drawer := header[start:end]
+		ctx := i18n.WithLocale(t.Context(), locale)
+		for _, want := range []string{
+			`href="/account/wishlist">` + i18n.T(ctx, i18n.KeyWishlist) + `</a>`,
+			`href="/account">` + i18n.T(ctx, i18n.KeyAccount) + `</a>`,
+			`aria-label="` + i18n.T(ctx, i18n.KeyCloseMenu) + `"`,
+			"data-menu-close",
+			"goen-langmenu__item",
+		} {
+			if !strings.Contains(drawer, want) {
+				t.Errorf("%s: the drawer does not contain %q", locale, want)
+			}
+		}
+	}
+}
+
+// The menu's choices carry their own language for the same reason the
+// footer's do: each is the language's name for itself.
+func TestTheLanguageMenuChoicesCarryTheirOwnLanguage(t *testing.T) {
+	t.Parallel()
+
+	header, _ := renderChrome(t, i18n.En, chromeNav)
+	for _, l := range i18n.Locales() {
+		button := regexp.MustCompile(`<button[^>]*goen-langmenu__item[^>]*value="` + l.Tag() + `"[^>]*>`).FindString(header)
+		if !strings.Contains(button, `lang="`+l.Tag()+`"`) {
+			t.Errorf("the %s choice is %q, want lang=%q", l.Tag(), button, l.Tag())
+		}
 	}
 }
 

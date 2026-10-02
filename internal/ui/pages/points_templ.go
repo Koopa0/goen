@@ -518,7 +518,7 @@ func Points(p layouts.Page, v PointsView) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = listBound(v.ListBound).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = ListPager(v.ListBound).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

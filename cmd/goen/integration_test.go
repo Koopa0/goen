@@ -51,7 +51,7 @@ func TestMain(m *testing.M) {
 // rejected by openMaintenancePool itself, not by the first projection refresh.
 func TestMaintenancePoolIsReachedAndRoleCheckedAtStartup(t *testing.T) {
 	ctx := t.Context()
-	maintenancePool, err := openMaintenancePool(ctx, pool.Config().ConnString())
+	maintenancePool, err := openMaintenancePool(ctx, pool.Config().ConnString(), quietLog)
 	if err != nil {
 		t.Fatalf("open reachable maintenance pool: %v", err)
 	}
@@ -87,7 +87,7 @@ func TestMaintenancePoolIsReachedAndRoleCheckedAtStartup(t *testing.T) {
 	}
 	probeDSN.User = url.UserPassword(role, password)
 	probeURL := probeDSN.String()
-	rejected, err := openMaintenancePool(ctx, probeURL)
+	rejected, err := openMaintenancePool(ctx, probeURL, quietLog)
 	if rejected != nil {
 		rejected.Close()
 	}
@@ -107,7 +107,7 @@ func TestEachPoolCarriesItsRoleStatementTimeout(t *testing.T) {
 	dsn := pool.Config().ConnString()
 	tests := []struct {
 		role   string
-		open   func(context.Context, string) (*pgxpool.Pool, error)
+		open   func(context.Context, string, *slog.Logger) (*pgxpool.Pool, error)
 		wantMS int64
 	}{
 		{role: "store", open: openPool, wantMS: 15_000},
@@ -118,7 +118,7 @@ func TestEachPoolCarriesItsRoleStatementTimeout(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.role, func(t *testing.T) {
-			p, err := tt.open(t.Context(), dsn)
+			p, err := tt.open(t.Context(), dsn, quietLog)
 			if err != nil {
 				t.Fatalf("open %s pool: %v", tt.role, err)
 			}

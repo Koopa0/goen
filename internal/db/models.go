@@ -71,6 +71,7 @@ type Category struct {
 	NameEn     pgtype.Text
 	IconKey    pgtype.Text
 	Tone       pgtype.Text
+	Comparable pgtype.Bool
 	ImageKey   pgtype.Text
 	ImageAlt   pgtype.Text
 	ImageAltEn pgtype.Text

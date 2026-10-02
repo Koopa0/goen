@@ -1083,6 +1083,108 @@ h3 {
   color: var(--n-900);
 }
 
+/* The language menu of the header and the back office's bar: a globe and the
+   current language's short name on a button, a small panel of the two choices
+   under it. The name is visible from 1280 and in the back office; where the
+   header is tight it is only the globe, and the name stays in the accessible
+   name. */
+.goen-langmenu {
+  position: relative;
+}
+
+.goen-langmenu > summary {
+  align-items: center;
+  border-radius: var(--r-md);
+  color: var(--n-700);
+  cursor: pointer;
+  display: inline-flex;
+  font-size: var(--fs-14);
+  font-weight: var(--fw-medium);
+  gap: 6px;
+  justify-content: center;
+  list-style: none;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 10px;
+  transition:
+    background-color var(--dur-base) var(--ease-standard),
+    color var(--dur-base) var(--ease-standard);
+}
+
+.goen-langmenu > summary::-webkit-details-marker {
+  display: none;
+}
+
+.goen-langmenu > summary:hover,
+.goen-langmenu[open] > summary {
+  background: var(--n-100);
+  color: var(--n-900);
+}
+
+.goen-langmenu svg {
+  flex: none;
+  height: 1.25rem;
+  width: 1.25rem;
+}
+
+.goen-header__actions .goen-langmenu svg {
+  height: 1.5rem;
+  width: 1.5rem;
+}
+
+.goen-header .goen-langmenu__current {
+  border: 0;
+  clip-path: inset(50%);
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  padding: 0;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}
+
+.goen-langmenu__panel {
+  background: var(--n-0);
+  border: 1px solid var(--n-200);
+  border-radius: var(--r-lg);
+  box-shadow: var(--sh-lg);
+  min-width: 11rem;
+  padding: 4px;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: var(--z-dropdown);
+}
+
+.goen-langmenu__item {
+  align-items: center;
+  background: none;
+  border: 0;
+  border-radius: var(--r-md);
+  color: var(--n-700);
+  cursor: pointer;
+  display: flex;
+  font-family: inherit;
+  font-size: var(--fs-15);
+  gap: 12px;
+  justify-content: space-between;
+  min-height: 44px;
+  padding: 0 12px;
+  text-align: left;
+  width: 100%;
+}
+
+.goen-langmenu__item:hover {
+  background: var(--n-100);
+  color: var(--n-900);
+}
+
+.goen-langmenu__item[aria-pressed='true'] {
+  color: var(--n-900);
+  font-weight: var(--fw-semibold);
+}
+
 /* The disclosure menu: a native <details>, no script involved in opening it. */
 .goen-header__menu > summary {
   list-style: none;
@@ -1155,6 +1257,54 @@ h3 {
   color: var(--n-900);
 }
 
+/* The way out of the drawer, and what the phone's bar has no room for. The
+   language menu opens in the flow here: an absolutely placed panel would be
+   clipped by the drawer's own scroll. Below 768 the bar's copy of the menu is
+   dropped, so one language control shows at a time. */
+.goen-header__close {
+  align-self: flex-end;
+}
+
+.goen-header__drawertools {
+  border-top: 1px solid var(--n-200);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 8px;
+  padding-top: 8px;
+}
+
+.goen-header__drawerlang > summary {
+  justify-content: flex-start;
+  width: 100%;
+}
+
+.goen-header .goen-header__drawerlang .goen-langmenu__current {
+  clip-path: none;
+  height: auto;
+  margin: 0;
+  overflow: visible;
+  position: static;
+  width: auto;
+}
+
+.goen-header__drawerlang .goen-langmenu__panel {
+  box-shadow: none;
+  position: static;
+}
+
+@media (max-width: 767px) {
+  .goen-header__lang {
+    display: none;
+  }
+}
+
+@media (min-width: 768px) {
+  .goen-header__drawerlang {
+    display: none;
+  }
+}
+
 /* English department names out-measure the zh-Hant ones, so the desktop row
    gives up the wishlist icon below 1280 before it lets the search field fall
    under the width `check-layout.mjs` calls usable; the account page carries
@@ -1195,11 +1345,27 @@ h3 {
 
 @media (min-width: 1024px) and (max-width: 1279px) {
   .goen-header__bar {
-    column-gap: 1rem;
+    column-gap: 0.75rem;
   }
 
   .goen-header__nav {
-    gap: 0.875rem;
+    gap: 0.75rem;
+  }
+
+  .goen-header__actions {
+    gap: 0;
+  }
+
+  /* The mark is the brand where the row is this tight; the word stays in the
+     link's accessible name. */
+  .goen-header__wordmark {
+    clip-path: inset(50%);
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    position: absolute;
+    white-space: nowrap;
+    width: 1px;
   }
 
   .goen-header__nav .ui-navitem {
@@ -1213,6 +1379,15 @@ h3 {
 }
 
 @media (min-width: 1280px) {
+  .goen-header .goen-langmenu__current {
+    clip-path: none;
+    height: auto;
+    margin: 0;
+    overflow: visible;
+    position: static;
+    width: auto;
+  }
+
   .goen-header__nav {
     gap: 1.75rem;
   }
@@ -2817,6 +2992,98 @@ a.goen-pager__step:hover {
   color: var(--fg-muted);
 }
 
+/* A row the products disagree on: a ground and the ink colour, and the row
+   label says so aloud. Shown by more than colour for a reader who cannot see
+   the ground. */
+.goen-compare__table .is-differs td,
+.goen-compare__table .is-differs th {
+  background: var(--n-50);
+  color: var(--n-900);
+}
+
+/* A lone product's way on: others from its shelf, each with the one action. */
+.goen-compare__suggest {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.goen-compare__suggesthead {
+  color: var(--n-900);
+  font-size: var(--fs-ed-24);
+  font-weight: var(--fw-semibold);
+  line-height: 1.35;
+  margin: 0;
+}
+
+.goen-compare__suggestlist {
+  display: grid;
+  gap: 2.5rem 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.goen-compare__suggestion {
+  align-items: flex-start;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.goen-compare__suggestmedia {
+  aspect-ratio: 1;
+  background: var(--photo);
+  border-radius: var(--r-lg);
+  display: block;
+  margin-bottom: 0.75rem;
+  overflow: hidden;
+  width: 100%;
+}
+
+.goen-compare__suggestmedia img {
+  display: block;
+  height: 100%;
+  object-fit: contain;
+  width: 100%;
+}
+
+.goen-compare__suggestion .goen-compare__price {
+  font-weight: var(--fw-medium);
+}
+
+.goen-compare__suggestion .goen-btn {
+  margin-top: 0.5rem;
+}
+
+.goen-compare__shelf {
+  margin: 0;
+}
+
+.goen-compare__shelf a {
+  font-weight: var(--fw-medium);
+  text-decoration: none;
+}
+
+.goen-compare__shelf a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+@media (min-width: 768px) {
+  .goen-compare__suggestlist {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1280px) {
+  .goen-compare__suggestlist {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
+
 /* One saved product: the card, and under it the form that removes it. The form
    stays outside the card because the card is a link. */
 .goen-wish {
@@ -3445,7 +3712,8 @@ a.goen-pager__step:hover {
 
 /* Wishlist and compare: text buttons. The row is pulled out by the buttons'
    own padding so the first label lines up with the column's edge. */
-.goen-pdp__links {
+.goen-pdp__links,
+.goen-pdp__similar {
   align-items: center;
   display: flex;
   flex-wrap: wrap;
@@ -3453,7 +3721,13 @@ a.goen-pager__step:hover {
   margin: -0.75rem 0 0 -0.75rem;
 }
 
-.goen-pdp__links .goen-btn {
+/* With the specs, not pulled up into the buy column's rhythm. */
+.goen-pdp__similar {
+  margin: 0.5rem 0 0 -0.75rem;
+}
+
+.goen-pdp__links .goen-btn,
+.goen-pdp__similar .goen-btn {
   color: var(--n-700);
   padding: 0 0.75rem;
 }

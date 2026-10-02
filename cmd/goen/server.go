@@ -5,10 +5,8 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
-	"net/url"
 	"regexp"
 	"runtime/debug"
-	"slices"
 	"strings"
 	"time"
 
@@ -36,7 +34,6 @@ import (
 	"github.com/koopa0/goen/internal/site"
 	"github.com/koopa0/goen/internal/twofactor"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/warranty"
 	"github.com/koopa0/goen/internal/web"
 )
@@ -80,6 +77,10 @@ type RouterConfig struct {
 	// is the privilege boundary, not a performance choice.
 	Pool      *pgxpool.Pool
 	AdminPool *pgxpool.Pool
+	// MaintenancePool is the background workers' pool. It serves no request;
+	// it is here only so the health page can show its connection statistics,
+	// and nil leaves it off the page.
+	MaintenancePool *pgxpool.Pool
 	// Payments is Stripe, or is disabled and the payment page says so.
 	Payments *payment.Gateway
 	// Refunder pays a decided return back to the card.
@@ -193,6 +194,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 		StepUp:   stepUp,
 		Sessions: sessionCloser(gateway),
 		StoreMap: cfg.StoreMap,
+		Pools:    poolsOnHealthPage(pool, adminPool, cfg.MaintenancePool),
 	})
 	// basketStore answers the order-access question for all three packages.
 	till := payment.NewHandler(payment.NewStore(pool), gateway, basketStore, log, secureCookies)
@@ -204,7 +206,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	mux.HandleFunc("GET /healthz", probes.Live)
 	mux.HandleFunc("GET /readyz", probes.Ready)
 
-	mux.HandleFunc("GET /{$}", storefront.Home)
+	mux.HandleFunc("GET /{$}", storefront.Index)
 	// The digest in the path is the only authorisation an image has, and it is
 	// unguessable by construction.
 	mux.HandleFunc("GET /media/{digest}", images.Serve)
@@ -765,36 +767,15 @@ func productFormSlug(path string) (string, bool) {
 	return "", false
 }
 
-// localeReturnPath computes the target path to send a visitor back to after a
-// language switch. RawQuery is dropped to avoid carrying a search term or
-// sensitive parameter into a redirect target; only /compare preserves a
-// bounded allowlist of public product slugs.
+// localeReturnPath is where a language switch sends the visitor back: the page
+// they are on, query string included, so a search term, a filter or a chosen
+// option survives the switch. The switch's handler still refuses anything but a
+// same-site path.
 func localeReturnPath(r *http.Request) string {
 	if slug, ok := productFormSlug(r.URL.Path); ok {
 		return "/p/" + slug
 	}
-	if r.URL.Path != "/compare" {
-		return r.URL.Path
-	}
-	raw := r.URL.Query()["p"]
-	if len(raw) == 0 {
-		return "/compare"
-	}
-	out := make([]string, 0, pages.MaxCompare)
-	for _, s := range raw {
-		if !slugFormat.MatchString(s) || slices.Contains(out, s) {
-			continue
-		}
-		out = append(out, s)
-		if len(out) == pages.MaxCompare {
-			break
-		}
-	}
-	if len(out) == 0 {
-		return "/compare"
-	}
-	q := url.Values{"p": out}
-	return "/compare?" + q.Encode()
+	return r.URL.RequestURI()
 }
 
 // withLocale attaches the request's language to its context.
@@ -805,9 +786,7 @@ func withLocale(next http.Handler, secure bool) http.Handler {
 		// a page somebody else asked for.
 		w.Header().Add("Vary", "Accept-Language, Cookie")
 		ctx := i18n.WithLocale(r.Context(), l)
-		// The path, so the language switch can send the visitor back. RawQuery
-		// is dropped: it would carry a search term into a redirect target.
-		// /compare preserves a bounded allowlist of public comparison slugs.
+		// The path and query, so the language switch can send the visitor back.
 		ctx = web.WithRequestPath(ctx, localeReturnPath(r))
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
@@ -1028,4 +1007,18 @@ func withSiteOrigin(next http.Handler, baseURL string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		next.ServeHTTP(w, r.WithContext(layouts.WithSiteOrigin(r.Context(), origin)))
 	})
+}
+
+// poolsOnHealthPage names the pools whose statistics /admin/health shows. A nil
+// pool is left off rather than shown as an empty row.
+func poolsOnHealthPage(store, adminPool, maintenance *pgxpool.Pool) []admin.NamedPool {
+	var out []admin.NamedPool
+	for _, p := range []admin.NamedPool{
+		{Name: "store", Pool: store}, {Name: "admin", Pool: adminPool}, {Name: "maintenance", Pool: maintenance},
+	} {
+		if p.Pool != nil {
+			out = append(out, p)
+		}
+	}
+	return out
 }

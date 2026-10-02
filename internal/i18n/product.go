@@ -60,9 +60,18 @@ var (
 		En:     "Enter a valid email address.",
 	})
 
+	KeyRestockUnavailable = key("pdp.restock.unavailable", Message{
+		ZhHant: "這個規格目前不需要補貨通知(已經有貨,或已不存在)。請確認規格後再試。",
+		En:     "This option needs no restock notice (it is in stock, or it is gone). Check the option and try again.",
+	})
+
 	KeyRestockSubmit = key("pdp.restock.submit", Message{ZhHant: "補貨時通知我", En: "Notify me"})
 
 	KeyAddToCompare = key("pdp.compare.add", Message{ZhHant: "加入比較", En: "Add to compare"})
+
+	// KeyCompareSimilar is the product page's one way into a comparison, offered
+	// only where the department compares: it says what it compares WITH.
+	KeyCompareSimilar = key("pdp.compare.similar", Message{ZhHant: "與同類商品比較", En: "Compare with similar"})
 
 	KeyViewCompare = key("pdp.compare.view", Message{ZhHant: "查看比較", En: "View comparison"})
 

@@ -87,7 +87,7 @@ SELECT
         ARRAY[]::text[]
     )::text[] AS option_values,
     coalesce(img.storage_key, '') AS image_key,
-    coalesce(img.alt_text, '') AS image_alt,
+    coalesce(localized_name(img.alt_text, img.alt_text_en, @locale::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width
 FROM cart_items ci
 JOIN product_variants pv ON pv.id = ci.variant_id
@@ -96,7 +96,7 @@ JOIN brands b ON b.id = p.brand_id
 LEFT JOIN LATERAL (
     -- The line's own photograph when one shows its option value, else the
     -- product's first.
-    SELECT i.storage_key, i.alt_text, i.width FROM product_images i
+    SELECT i.storage_key, i.alt_text, i.alt_text_en, i.width FROM product_images i
     WHERE i.product_id = p.id
     ORDER BY EXISTS (
                  SELECT 1 FROM variant_option_values vov
@@ -265,7 +265,10 @@ SELECT o.id, o.order_number, o.fulfillment_status,
        coalesce((SELECT c.code || ' · ' || c.description
                  FROM coupon_redemptions cr JOIN coupons c ON c.id = cr.coupon_id
                  WHERE cr.order_id = o.id), '')::text AS discount_reason,
-       o.shipping_method_name, o.placed_at,
+       -- The version the order was priced from, which is append-only, so an
+       -- English name is read without rewriting what the order chose.
+       localized_name(sv.name, sv.name_en, @locale::text) AS shipping_method_name,
+       o.placed_at,
        coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
                  WHERE ol.order_id = o.id), 0)::bigint AS subtotal_cents,
        -- What store credit paid, as the difference between the total and what is
@@ -291,8 +294,9 @@ SELECT o.id, o.order_number, o.fulfillment_status,
        -- payment row and stays 'pending' while the customer owes nothing.
        order_amount_owed(o.id)::bigint AS owed_cents
 FROM orders o
+JOIN shipping_method_versions sv ON sv.id = o.shipping_version_id
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
-WHERE o.order_number = $1;
+WHERE o.order_number = @number;
 
 -- An order's lines as a REORDER sees them. LEFT JOIN and not JOIN: variant_id is
 -- nullable so a line survives its variant being deleted, and dropping those rows
@@ -333,8 +337,22 @@ INSERT INTO order_events (order_id, kind) VALUES ($1, 'placed');
 SELECT kind, note, occurred_at
 FROM order_events WHERE order_id = $1 ORDER BY occurred_at, id;
 
+-- What the customer may read of the order's filed invoice: nothing exists
+-- before issue, so an order with no rows shows no panel.
+-- name: OrderInvoiceDocuments :many
+SELECT kind, number, amount_cents, status,
+       coalesce(provider_ref, '')::text AS provider_ref, issued_at
+FROM invoice_documents WHERE order_id = $1 ORDER BY issued_at, id;
+
+-- name: OrderInvoicePreference :one
+SELECT invoice_type, coalesce(carrier_code, '')::text AS carrier_code,
+       coalesce(donation_code, '')::text AS donation_code,
+       coalesce(tax_id, '')::text AS tax_id
+FROM invoice_preferences WHERE order_id = $1;
+
 -- name: OrderTracking :many
-SELECT carrier, tracking_number, shipped_at, delivered_at
+SELECT carrier, tracking_number, shipped_at, delivered_at,
+       coalesce(to_char(return_window_ends(delivered_at), 'YYYY-MM-DD'), '')::text AS rescission_ends
 FROM order_shipments WHERE order_id = $1 ORDER BY shipped_at, id;
 
 -- Reservations whose hold has run out and whose order never got funded.

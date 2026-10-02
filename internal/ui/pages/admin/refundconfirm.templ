@@ -1,0 +1,46 @@
+package admin
+
+import (
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/layouts"
+)
+
+templ ConfirmRefund(p layouts.Page, v RefundConfirmation) {
+	@layouts.Admin(p, "orders") {
+		<div class="ui-page-head"><h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyAdminRefundTitle) }</h1></div>
+		@components.Card(components.CardProps{Class: "goen-admin__op"}) {
+			<dl class="ui-dl">
+				<div class="ui-dl__row"><dt class="ui-dl__term">{ i18n.T(ctx, i18n.KeyAdminRetConfirmOrder) }</dt><dd class="ui-dl__desc">{ v.OrderNumber }</dd></div>
+				<div class="ui-dl__row"><dt class="ui-dl__term">{ i18n.T(ctx, i18n.KeyAdminRetConfirmAmount) }</dt><dd class="ui-dl__desc">{ v.Amount() }</dd></div>
+			</dl>
+			if ch := v.Channel(ctx); ch != "" {
+				<p class="goen-admin__hint">{ ch }</p>
+			}
+			<form method="post" action={ templ.SafeURL(v.Action()) } class="goen-admin__form">
+				<input type="hidden" name="total" value={ v.Total() }/>
+				if !v.Resume {
+					<div class="ui-field">
+						<label class="ui-label" for="refund-reason">{ i18n.T(ctx, i18n.KeyAdminRetResolution) }</label>
+						<input class="ui-input" id="refund-reason" name="reason" required maxlength="300" autocomplete="off" aria-invalid={ v.ReasonInvalid } aria-describedby="refund-reason-error" value={ v.Reason }/>
+						if v.ReasonInvalid {
+							<p class="ui-error-text" id="refund-reason-error">{ i18n.T(ctx, i18n.KeyAdminRefundErrReason) }</p>
+						}
+					</div>
+				}
+				<div class="goen-admin__decidebtns">
+					@components.Button(components.ButtonProps{Variant: components.VariantPrimary, Attrs: templ.Attributes{"name": "confirm", "value": "refund"}}, "submit") {
+						if v.Resume {
+							{ i18n.T(ctx, i18n.KeyAdminRefundResume) }
+						} else {
+							{ i18n.T(ctx, i18n.KeyAdminRefundTitle) }
+						}
+					}
+					@components.ButtonLink(components.ButtonProps{Variant: components.VariantOutline}, templ.SafeURL(v.Back())) {
+						{ i18n.T(ctx, i18n.KeyBackToOrder) }
+					}
+				</div>
+			</form>
+		}
+	}
+}

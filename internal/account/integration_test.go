@@ -1220,7 +1220,7 @@ func TestFailedCartAdoptionOnSignInShowsNoticeAndPreservesBothCarts(t *testing.T
 	var resolved uuid.UUID
 	var resolvedOK bool
 	h.Authenticate(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		resolved, resolvedOK = carts.CartIDForRequest(r.Context(), r)
+		resolved, resolvedOK = carts.IDForRequest(r.Context(), r)
 	})).ServeHTTP(httptest.NewRecorder(), lookupReq)
 	if !resolvedOK || resolved != accountCart {
 		t.Errorf("guest cookie after merge resolved to %s (ok=%v), want account cart %s",
@@ -1976,9 +1976,11 @@ func TestRawAndDirectAccountWritesRespectRenderedBounds(t *testing.T) {
 		"street": {"松高路 1 號"},
 	}
 	address := post("/account/addresses", validAddress, h.AddAddress)
-	if address.Code != http.StatusSeeOther || address.Header().Get("Location") != "/account?address=invalid" {
-		t.Errorf("overlong raw address = %d Location %q, want 303 invalid",
-			address.Code, address.Header().Get("Location"))
+	if address.Code != http.StatusUnprocessableEntity ||
+		!strings.Contains(address.Body.String(), `value="王小明"`) ||
+		!strings.Contains(address.Body.String(), `aria-invalid="true"`) {
+		t.Errorf("overlong raw address = %d, want 422 keeping the typed name and marking the refused field",
+			address.Code)
 	}
 	directAddress := &account.Address{
 		Label: "家", Name: "王小明", Phone: "0912345678", PostalCode: "110",
@@ -2224,7 +2226,7 @@ func creditFundedOpenReturnForErasure(
 	var shipmentID uuid.UUID
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO order_shipments (order_id, carrier, tracking_number)
-		VALUES ($1, '黑貓', 'ERASE-RETURN-' || $2)
+		VALUES ($1, 'black_cat', 'ERASE-RETURN-' || $2)
 		RETURNING id`, orderID, number).Scan(&shipmentID); err != nil {
 		t.Fatalf("create return fixture shipment: %v", err)
 	}

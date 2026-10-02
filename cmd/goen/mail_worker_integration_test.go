@@ -64,7 +64,7 @@ func subjectIs(m email.Message, key i18n.Key) bool {
 // already has an account is told so and sent no link.
 func TestTheWorkerMailsWhatEachAccountMessageMeans(t *testing.T) {
 	ctx := t.Context()
-	storePool, err := openPool(ctx, pool.Config().ConnString())
+	storePool, err := openPool(ctx, pool.Config().ConnString(), quietLog)
 	if err != nil {
 		t.Fatalf("open the store pool: %v", err)
 	}

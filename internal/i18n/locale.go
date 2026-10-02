@@ -47,6 +47,14 @@ func Parse(s string) Locale {
 // Tag is the value for <html lang>.
 func (l Locale) Tag() string { return string(l) }
 
+// Short is the compact name the language menu's button shows.
+func (l Locale) Short() string {
+	if l == En {
+		return "EN"
+	}
+	return "繁中"
+}
+
 // Label is what the switch calls this locale, in that locale.
 func (l Locale) Label() string {
 	if l == En {

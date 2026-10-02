@@ -26,7 +26,7 @@ import (
 // the browser's orders when a session ends, so the browser keeps no reference
 // to the account's cart or to any order.
 type CartFinder interface {
-	CartIDForRequest(ctx context.Context, r *http.Request) (uuid.UUID, bool)
+	IDForRequest(ctx context.Context, r *http.Request) (uuid.UUID, bool)
 	ForgetCart(w http.ResponseWriter, r *http.Request)
 	ForgetOrders(w http.ResponseWriter, r *http.Request)
 }
@@ -287,6 +287,12 @@ func (h *Handler) forgetSession(w http.ResponseWriter, r *http.Request) {
 
 // Overview serves GET /account.
 func (h *Handler) Overview(w http.ResponseWriter, r *http.Request) {
+	h.overview(w, r, http.StatusOK, nil)
+}
+
+// overview renders the account page; refused, when set, adds a refused form's
+// draft and messages to it.
+func (h *Handler) overview(w http.ResponseWriter, r *http.Request, status int, refused func(*pages.AccountView)) {
 	u, ok := FromContext(r.Context())
 	if !ok {
 		http.Redirect(w, r, "/signin", http.StatusSeeOther)
@@ -305,7 +311,10 @@ func (h *Handler) Overview(w http.ResponseWriter, r *http.Request) {
 		view.EmailVerified, view.PendingEmail = state.Verified, state.PendingEmail
 	}
 	view.Notice = accountNotice(r)
-	web.Render(w, r, h.log, http.StatusOK, pages.Account(pages.AccountMeta(r.Context()), &view))
+	if refused != nil {
+		refused(&view)
+	}
+	web.Render(w, r, h.log, status, pages.Account(pages.AccountMeta(r.Context()), &view))
 }
 
 func accountNotice(r *http.Request) string {
@@ -316,8 +325,6 @@ func accountNotice(r *http.Request) string {
 		return i18n.T(ctx, i18n.KeyProfileSaved)
 	case q.Get("profile") == "invalid":
 		return i18n.T(ctx, i18n.KeyProfileInvalid)
-	case q.Get("address") == "invalid":
-		return i18n.T(ctx, i18n.KeyAddressIncomplete)
 	case q.Get("password") == "wrong":
 		return i18n.T(ctx, i18n.KeyWrongCurrentPassword)
 	case q.Get("password") == "invalid":
@@ -429,7 +436,7 @@ func (h *Handler) adoptRequestCart(r *http.Request, userID string) cartAdoption 
 	if h.carts == nil {
 		return cartAdoptionUnchanged
 	}
-	cartID, ok := h.carts.CartIDForRequest(r.Context(), r)
+	cartID, ok := h.carts.IDForRequest(r.Context(), r)
 	if !ok {
 		return cartAdoptionUnchanged
 	}
@@ -527,12 +534,12 @@ func (h *Handler) AddAddress(w http.ResponseWriter, r *http.Request) {
 	}
 	a.Trim()
 	if errs := a.Validate(); len(errs) > 0 {
-		http.Redirect(w, r, "/account?address=invalid", http.StatusSeeOther)
+		h.refuseAddress(w, r, a, FieldMessages(r.Context(), errs), "")
 		return
 	}
 	if err := h.store.AddAddress(r.Context(), u.ID, a); err != nil {
 		if errors.Is(err, ErrInvalidInput) {
-			http.Redirect(w, r, "/account?address=invalid", http.StatusSeeOther)
+			h.refuseAddress(w, r, a, nil, i18n.T(r.Context(), i18n.KeyAddressIncomplete))
 			return
 		}
 		h.log.ErrorContext(r.Context(), "add address", "error", err)
@@ -540,6 +547,21 @@ func (h *Handler) AddAddress(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.Redirect(w, r, "/account?saved=1", http.StatusSeeOther)
+}
+
+// refuseAddress re-renders /account at 422 with the address as typed, and the
+// refused controls marked.
+func (h *Handler) refuseAddress(w http.ResponseWriter, r *http.Request, a *Address, errs map[string]string, notice string) {
+	h.overview(w, r, http.StatusUnprocessableEntity, func(v *pages.AccountView) {
+		v.AddressDraft = &pages.AddressDraft{
+			Label: a.Label, Name: a.Name, Phone: a.Phone, PostalCode: a.PostalCode,
+			City: a.City, District: a.District, Street: a.Street, Default: a.Default,
+		}
+		v.AddressErrors = errs
+		if notice != "" {
+			v.Notice = notice
+		}
+	})
 }
 
 // MakeDefaultAddress serves POST /account/addresses/default.

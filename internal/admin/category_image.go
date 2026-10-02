@@ -15,7 +15,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/media"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -24,17 +24,17 @@ const MaxCategoryAltRunes = 200
 
 // CategoryHeader reads a category's own tone and photograph, as its edit page
 // shows them.
-func (s *Store) CategoryHeader(ctx context.Context, slug string) (pages.AdminCategoryView, error) {
+func (s *Store) CategoryHeader(ctx context.Context, slug string) (admin.CategoryView, error) {
 	row, err := s.q.AdminCategoryImage(ctx, slug)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return pages.AdminCategoryView{}, ErrNotFound
+			return admin.CategoryView{}, ErrNotFound
 		}
-		return pages.AdminCategoryView{}, fmt.Errorf("read category header: %w", err)
+		return admin.CategoryView{}, fmt.Errorf("read category header: %w", err)
 	}
-	return pages.AdminCategoryView{
+	return admin.CategoryView{
 		Slug: slug, Name: row.Name, Tone: row.Tone,
-		Image: pages.AdminHeader{Key: row.ImageKey, Alt: row.ImageAlt, AltEn: row.ImageAltEn, Width: row.ImageWidth},
+		Image: admin.Header{Key: row.ImageKey, Alt: row.ImageAlt, AltEn: row.ImageAltEn, Width: row.ImageWidth},
 	}, nil
 }
 
@@ -102,7 +102,7 @@ func (h *Handler) renderCategory(w http.ResponseWriter, r *http.Request, status 
 		return
 	}
 	view.Notice, view.Errors = notice, errs
-	web.Render(w, r, h.log, status, pages.AdminCategoryForm(layouts.Page{Title: view.Name}, view))
+	web.Render(w, r, h.log, status, admin.CategoryForm(layouts.Page{Title: view.Name}, view))
 }
 
 // SetCategoryImage serves POST /admin/categories/{slug}/image. Multipart: the

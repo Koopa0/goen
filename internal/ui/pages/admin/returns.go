@@ -1,0 +1,374 @@
+package admin
+
+import (
+	"context"
+	"fmt"
+	"strconv"
+
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/money"
+	"github.com/koopa0/goen/internal/ui/pages"
+)
+
+// Return is one row in the back-office return queue.
+type Return struct {
+	Lines       []ReturnLine
+	ID          string
+	OrderNumber string
+	Status      string
+	StatusText  string
+	Reason      string
+	Units       int32
+	AmountCents int64
+	// CardRefundCents and CreditRefundCents are the frozen source allocation.
+	// Both stay zero until approval freezes them, so the queue does not invent
+	// a channel for an open request.
+	CardRefundCents   int64
+	CreditRefundCents int64
+	CreatedAt         string
+	// Window is "within", "goodwill", "after", "undelivered" or "mixed":
+	// the statutory seven days, the shop's advertised days 8–14, later
+	// than that, a parcel whose window has not started, or a request whose
+	// lines disagree. Counted from the request clock against each line.
+	Window            string
+	AssessmentVersion int32
+	AssessmentBasis   string
+	AssessedAt        string
+	// Resolution is the staff note still in the decide form. It is empty on a
+	// first paint and holds the submitted text after a 422 so the reason is
+	// not lost.
+	Resolution string
+	Decided    bool
+	// Decided and settled are separate facts: approval is committed before the
+	// provider or credit ledger completes what the shop owes.
+	PayoutOutstanding bool
+	// PayoutBlocked says the durable payout facts do not fit their frozen source
+	// allocation. Known terminal provider attempts are not blocked: retry appends
+	// a new generation with a fresh idempotency key.
+	PayoutBlocked bool
+	// BeforeShipment is a paid order refunded before anything shipped: nothing
+	// comes back to inspect, and its order page finishes it.
+	BeforeShipment bool
+}
+
+// CanRetryPayout reports whether the approved decision has money left behind a
+// resume-safe door.
+func (r *Return) CanRetryPayout() bool {
+	return r.Decided && r.PayoutOutstanding && !r.PayoutBlocked
+}
+
+// PayoutStranded reports whether a person must repair inconsistent durable
+// payout facts before goen can safely retry.
+func (r *Return) PayoutStranded() bool {
+	return r.Decided && r.PayoutOutstanding && r.PayoutBlocked
+}
+
+// AwaitingGoods reports whether an approved parcel is still unaccounted for.
+func (r *Return) AwaitingGoods() bool {
+	if r.Status != "approved" || r.BeforeShipment {
+		return false
+	}
+	for i := range r.Lines {
+		if !r.Lines[i].Inspected {
+			return true
+		}
+	}
+	return false
+}
+
+// CanComplete reports whether every line has been inspected.
+func (r *Return) CanComplete() bool {
+	if r.Status != "approved" || len(r.Lines) == 0 || r.BeforeShipment {
+		return false
+	}
+	for i := range r.Lines {
+		if !r.Lines[i].Inspected {
+			return false
+		}
+	}
+	return true
+}
+
+// RestockedUnitsText is how many units this return put back on the shelf.
+func (r *Return) RestockedUnitsText() string {
+	var n int32
+	for i := range r.Lines {
+		n += r.Lines[i].Restocked
+	}
+	return strconv.FormatInt(int64(n), 10)
+}
+
+// ReturnLineWindowText names one line's window without copying a queue row.
+func ReturnLineWindowText(ctx context.Context, window string) string {
+	return (&Return{Window: window}).WindowText(ctx)
+}
+
+// Rescission reports whether this request is inside the statutory seven days.
+func (r *Return) Rescission() bool { return r.Window == "within" }
+
+// Goodwill reports whether this request is inside the shop's advertised
+// days 8–14. Entitlement still depends on unused-and-complete facts.
+func (r *Return) Goodwill() bool { return r.Window == "goodwill" }
+
+// Late reports whether this request was filed after the advertised 14 days.
+func (r *Return) Late() bool { return r.Window == "after" }
+
+// Mixed reports whether the returned lines fall in more than one window.
+func (r *Return) Mixed() bool { return r.Window == "mixed" }
+
+// WindowText names the window in the reader's language.
+func (r *Return) WindowText(ctx context.Context) string {
+	switch r.Window {
+	case "within":
+		return i18n.T(ctx, i18n.KeyAdminReturnWindowWithin)
+	case "goodwill":
+		return i18n.T(ctx, i18n.KeyAdminReturnWindowGoodwill)
+	case "after":
+		return i18n.T(ctx, i18n.KeyAdminReturnWindowAfter)
+	case "undelivered":
+		return i18n.T(ctx, i18n.KeyAdminReturnWindowUndelivered)
+	case "mixed":
+		return i18n.T(ctx, i18n.KeyAdminReturnWindowMixed)
+	default:
+		panic("pages: unknown rescission window: " + r.Window)
+	}
+}
+
+// AssessmentVersionText is the hidden input the decide form freezes.
+func (r *Return) AssessmentVersionText() string {
+	return strconv.FormatInt(int64(r.AssessmentVersion), 10)
+}
+
+// AssessmentStamp is the version and when it was written, for the staff
+// member who is about to freeze it.
+func (r *Return) AssessmentStamp(ctx context.Context) string {
+	if r.AssessmentVersion == 0 {
+		return ""
+	}
+	return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRetAssessedAt),
+		r.AssessmentVersionText(), r.AssessedAt)
+}
+
+// Amount is what approving it would refund.
+func (r *Return) Amount() string { return money.TWD(r.AmountCents) }
+
+// PayoutChannel names the frozen refund sources. Empty until approval, because
+// the allocation does not exist until then.
+func (r *Return) PayoutChannel(ctx context.Context) string {
+	switch {
+	case r.CardRefundCents > 0 && r.CreditRefundCents > 0:
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRetPayoutSplit),
+			money.TWD(r.CardRefundCents), money.TWD(r.CreditRefundCents))
+	case r.CreditRefundCents > 0:
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRetPayoutCredit), money.TWD(r.CreditRefundCents))
+	case r.CardRefundCents > 0:
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRetPayoutCard), money.TWD(r.CardRefundCents))
+	default:
+		return ""
+	}
+}
+
+// UnitsText is how many items are being sent back.
+func (r *Return) UnitsText() string { return strconv.FormatInt(int64(r.Units), 10) }
+
+// Action is where a decision on this return posts.
+func (r *Return) Action() string { return "/admin/returns/" + r.ID + "/decide" }
+
+// OrderAction is the order page: where a refund before shipment resumes, and
+// where the shipment and delivery date of any return are read.
+func (r *Return) OrderAction() string { return "/admin/orders/" + r.OrderNumber }
+
+// AssessAction is where a pre-decision eligibility assessment posts.
+func (r *Return) AssessAction() string { return "/admin/returns/" + r.ID + "/assess" }
+
+// InspectAction and CompleteAction are the tail's two forms.
+func (r *Return) InspectAction() string { return "/admin/returns/" + r.ID + "/inspect" }
+
+// CompleteAction closes an inspected return.
+func (r *Return) CompleteAction() string { return "/admin/returns/" + r.ID + "/complete" }
+
+// ReturnsView is the return queue.
+type ReturnsView struct {
+	pages.ListBound
+
+	Rows   []Return
+	Notice string
+	// Errors keys as "{returnID}.{field}" so a 422 can mark one row without
+	// painting every other request on the queue.
+	Errors map[string]string
+}
+
+// FieldError is the sentence under one control on one request, if any.
+func (v ReturnsView) FieldError(returnID, field string) string {
+	if v.Errors == nil {
+		return ""
+	}
+	return v.Errors[returnID+"."+field]
+}
+
+// FieldInvalid reports whether that control should carry aria-invalid.
+func (v ReturnsView) FieldInvalid(returnID, field string) bool {
+	return v.FieldError(returnID, field) != ""
+}
+
+// Empty reports whether there is nothing to show.
+func (v ReturnsView) Empty() bool { return len(v.Rows) == 0 }
+
+// ReturnLine is one item in a return request.
+type ReturnLine struct {
+	SKU         string
+	Name        string
+	Label       string
+	UnitCents   int64
+	Quantity    int32
+	OrderLineID string
+	Inspected   bool
+	Received    int32
+	Restocked   int32
+	Note        string
+	Restockable bool
+	Window      string
+	Unused      string
+	Packaging   string
+	Accessories string
+	// DraftReceived, DraftRestocked and DraftNote are what staff typed on an
+	// inspection that was refused; empty means the form's own defaults.
+	DraftReceived, DraftRestocked, DraftNote string
+}
+
+// ReceivedField is the received box's value: what was typed, else every unit claimed.
+func (l *ReturnLine) ReceivedField() string {
+	if l.DraftReceived != "" {
+		return l.DraftReceived
+	}
+	return l.MaxQuantityText()
+}
+
+// RestockedField is the restock box's value: what was typed, else none.
+func (l *ReturnLine) RestockedField() string {
+	if l.DraftRestocked != "" {
+		return l.DraftRestocked
+	}
+	return "0"
+}
+
+// FactValue is the radio this line currently holds. Unknown is the default
+// so a first visit cannot look pre-ticked as met.
+func (l *ReturnLine) FactValue(name string) string {
+	var got string
+	switch name {
+	case "unused":
+		got = l.Unused
+	case "packaging":
+		got = l.Packaging
+	case "accessories":
+		got = l.Accessories
+	}
+	if got == "" {
+		return "unknown"
+	}
+	return got
+}
+
+// FactChecked is whether this radio is the current observation.
+func (l *ReturnLine) FactChecked(name, value string) bool {
+	return l.FactValue(name) == value
+}
+
+// ReceivedText and RestockedText are the figures as the form's default values.
+func (l *ReturnLine) ReceivedText() string {
+	return strconv.FormatInt(int64(l.Received), 10)
+}
+
+// RestockedText is how many went back on the shelf.
+func (l *ReturnLine) RestockedText() string {
+	return strconv.FormatInt(int64(l.Restocked), 10)
+}
+
+// MaxQuantityText bounds the received input to what was claimed.
+func (l *ReturnLine) MaxQuantityText() string {
+	return strconv.FormatInt(int64(l.Quantity), 10)
+}
+
+// Shortfall reports whether fewer units arrived than were claimed.
+func (l *ReturnLine) Shortfall() bool { return l.Inspected && l.Received < l.Quantity }
+
+// Scrapped reports whether something came back that could not be resold.
+func (l *ReturnLine) Scrapped() bool { return l.Inspected && l.Restocked < l.Received }
+
+// Line is the item as one row of text.
+func (l *ReturnLine) Line() string {
+	name := l.Name
+	if l.Label != "" {
+		name += " · " + l.Label
+	}
+	return name + " × " + strconv.FormatInt(int64(l.Quantity), 10)
+}
+
+// UnitPrice is what one of them cost.
+func (l *ReturnLine) UnitPrice() string { return money.TWD(l.UnitCents) }
+
+// ReturnConfirmation is one selected decision, before it has side effects.
+type ReturnConfirmation struct {
+	ID                string
+	OrderNumber       string
+	Decision          string
+	Reason            string
+	AmountCents       int64
+	Resolution        string
+	AssessmentVersion string
+	Required          bool
+	Retry             bool
+}
+
+// Title names the single operation the operator is confirming.
+func (v ReturnConfirmation) Title(ctx context.Context) string {
+	switch v.Decision {
+	case "rejected":
+		return i18n.T(ctx, i18n.KeyAdminRetConfirmReject)
+	case "exception":
+		return i18n.T(ctx, i18n.KeyAdminRetConfirmException)
+	default:
+		if v.Retry {
+			return i18n.T(ctx, i18n.KeyAdminRetConfirmRetry)
+		}
+		return i18n.T(ctx, i18n.KeyAdminRetConfirmApprove)
+	}
+}
+
+// Amount formats the amount currently eligible for this return.
+func (v ReturnConfirmation) Amount() string { return money.TWD(v.AmountCents) }
+
+// Action returns to the same decision handler for final validation.
+func (v ReturnConfirmation) Action() string { return "/admin/returns/" + v.ID + "/decide" }
+
+// RefundConfirmation is a refund before shipment, before it moves money.
+// Resume means the refund is already open, its split frozen and its reason
+// recorded.
+type RefundConfirmation struct {
+	OrderNumber   string
+	TotalCents    int64
+	CardCents     int64
+	CreditCents   int64
+	Resume        bool
+	Reason        string
+	ReasonInvalid bool
+}
+
+// Amount is what the refund pays back in all.
+func (v RefundConfirmation) Amount() string { return money.TWD(v.TotalCents) }
+
+// Total is the amount the confirming POST repeats; a different figure is a
+// refund the staff member was not shown.
+func (v RefundConfirmation) Total() string { return strconv.FormatInt(v.TotalCents, 10) }
+
+// Channel names the card and store-credit halves.
+func (v RefundConfirmation) Channel(ctx context.Context) string {
+	return (&Return{CardRefundCents: v.CardCents, CreditRefundCents: v.CreditCents}).PayoutChannel(ctx)
+}
+
+// Action is the refund handler, which confirms before it pays.
+func (v RefundConfirmation) Action() string { return "/admin/orders/" + v.OrderNumber + "/refund" }
+
+// Back is the order the refund belongs to.
+func (v RefundConfirmation) Back() string { return "/admin/orders/" + v.OrderNumber }

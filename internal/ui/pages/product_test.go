@@ -1,6 +1,7 @@
 package pages
 
 import (
+	"net/url"
 	"strconv"
 	"strings"
 	"testing"
@@ -39,9 +40,14 @@ func TestSoldOutGuidanceMatchesAvailableOptionPickers(t *testing.T) {
 				if got := strings.Contains(markup, i18n.T(ctx, i18n.KeyAllSoldOutHint)); got != withOptions {
 					t.Errorf("variant-selection hint visible = %t, want %t", got, withOptions)
 				}
+				// The request carries the selection so the answer lands on the same page.
+				notify := "/p/sold-out/notify"
+				if withOptions {
+					notify += "?colour=blue"
+				}
 				for _, want := range []string{
 					i18n.T(ctx, i18n.KeyAllSoldOut),
-					`method="post" action="/p/sold-out/notify"`,
+					`method="post" action="` + notify + `"`,
 					`name="variant" value="only-variant"`,
 					i18n.T(ctx, i18n.KeyRestockSubmit),
 				} {
@@ -222,5 +228,20 @@ func TestTheReviewFormWarnsBeforeSubmittingAndRefusesToTheForm(t *testing.T) {
 		if !strings.Contains(markup, want) {
 			t.Errorf("the review form lacks %s", want)
 		}
+	}
+}
+
+func TestTheRestockFormPostsFromTheChosenOptions(t *testing.T) {
+	t.Parallel()
+	view := ProductView{Slug: "book", Options: []ProductOption{
+		{Name: "顏色", Values: []ProductOptionValue{{Value: "太空銀", Selected: true}, {Value: "黑"}}},
+		{Name: "容量", Values: []ProductOptionValue{{Value: "16GB/512GB", Selected: true}}},
+	}}
+	want := "/p/book/notify?" + url.Values{"顏色": {"太空銀"}, "容量": {"16GB/512GB"}}.Encode()
+	if got := view.NotifyAction(); got != want {
+		t.Errorf("NotifyAction = %q; want %q", got, want)
+	}
+	if got := (&ProductView{Slug: "charger"}).NotifyAction(); got != "/p/charger/notify" {
+		t.Errorf("a product without options posts to %q", got)
 	}
 }

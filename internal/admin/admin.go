@@ -12,6 +12,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 var (
@@ -113,26 +114,26 @@ var statuses = [...]struct {
 // them. Pending is two queues because FundedStatusLabel reads it as two: money
 // still owed, and funded and waiting to be picked.
 var queueTabs = [...]struct {
-	filter pages.QueueFilter
+	filter admin.QueueFilter
 	label  i18n.Key
 }{
-	{pages.QueueAwaitingPayment, i18n.KeyAdminStatusPending},
-	{pages.QueueReady, i18n.KeyAdminStatusReadyToPick},
-	{pages.QueuePicking, i18n.KeyAdminStatusPicking},
-	{pages.QueueShipped, i18n.KeyAdminStatusShipped},
-	{pages.QueueDelivered, i18n.KeyAdminStatusDelivered},
-	{pages.QueueCompleted, i18n.KeyAdminStatusCompleted},
-	{pages.QueueCancelled, i18n.KeyAdminStatusCancelled},
+	{admin.QueueAwaitingPayment, i18n.KeyAdminStatusPending},
+	{admin.QueueReady, i18n.KeyAdminStatusReadyToPick},
+	{admin.QueuePicking, i18n.KeyAdminStatusPicking},
+	{admin.QueueShipped, i18n.KeyAdminStatusShipped},
+	{admin.QueueDelivered, i18n.KeyAdminStatusDelivered},
+	{admin.QueueCompleted, i18n.KeyAdminStatusCompleted},
+	{admin.QueueCancelled, i18n.KeyAdminStatusCancelled},
 }
 
 // ParseQueueFilter maps a query value to a queue filter, or "" for all.
-func ParseQueueFilter(s string) pages.QueueFilter {
+func ParseQueueFilter(s string) admin.QueueFilter {
 	for _, tab := range queueTabs {
 		if string(tab.filter) == s {
 			return tab.filter
 		}
 	}
-	return pages.QueueAll
+	return admin.QueueAll
 }
 
 // ParseStatus maps a query value to a fulfilment state, or "" for all.
