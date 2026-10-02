@@ -30,6 +30,7 @@ import (
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/db/dbtest"
+	"github.com/koopa0/goen/internal/destination"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/product"
@@ -3436,7 +3437,7 @@ func TestThePickupDestinationComesFromTheMethodNotTheForm(t *testing.T) {
 	addr := &cart.Address{
 		// The destination the CALLER claims is deliberately wrong: PlaceOrder re-reads
 		// the method and overrides it.
-		To:    cart.ToAddress,
+		To:    destination.Address,
 		Email: "pickup@example.com", Name: "陳小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 		PickupChain: "family_mart", PickupStoreCode: "012345", PickupStoreName: "台北車站門市",
@@ -3469,7 +3470,7 @@ func TestAPickupOrderIsPlacedWithTheChainAlone(t *testing.T) {
 	}
 
 	addr := &cart.Address{
-		To:    cart.ToPickupPoint,
+		To:    destination.PickupPoint,
 		Email: "chain@example.com", Name: "林小美", Phone: "0955666777",
 		PickupChain: "seven_eleven",
 	}
@@ -3521,7 +3522,7 @@ func TestTheOrderNamesItsShippingMethodInTheReadersLanguage(t *testing.T) {
 		t.Fatalf("add: %v", err)
 	}
 	addr := &cart.Address{
-		To:    cart.ToPickupPoint,
+		To:    destination.PickupPoint,
 		Email: "named@example.com", Name: "林小美", Phone: "0955666777",
 		PickupChain: "seven_eleven",
 	}
@@ -3554,7 +3555,7 @@ func TestAnAddressOrderKeepsNoPickupPoint(t *testing.T) {
 	}
 
 	addr := &cart.Address{
-		To:    cart.ToPickupPoint,
+		To:    destination.PickupPoint,
 		Email: "home@example.com", Name: "王大明", Phone: "0922333444",
 		PostalCode: "106", City: "台北市", District: "大安區", Street: "復興南路一段 1 號",
 		PickupChain: "seven_eleven", PickupStoreCode: "987654", PickupStoreName: "光復門市",

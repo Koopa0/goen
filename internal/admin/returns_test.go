@@ -67,7 +67,7 @@ func TestASplitRefundedEventWaitsUntilEverySourceSettled(t *testing.T) {
 				t.Errorf("MoneySettled = %t, want %t", position.MoneySettled, tt.wantSettled)
 			}
 			item := admin.Return{}
-			if fillErr := fillReturnPayoutState(returns.ReturnApproved, tt.facts, &item); fillErr != nil {
+			if fillErr := fillReturnPayoutState(returns.StatusApproved, tt.facts, &item); fillErr != nil {
 				t.Fatalf("fillReturnPayoutState() = %v", fillErr)
 			}
 			if item.PayoutOutstanding != tt.wantOutstanding {
@@ -120,7 +120,7 @@ func TestReturnPayoutDiagnosticRouting(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			item := admin.Return{}
-			err := fillReturnPayoutState(returns.ReturnApproved, tt.facts, &item)
+			err := fillReturnPayoutState(returns.StatusApproved, tt.facts, &item)
 			if got := errors.Is(err, ErrRefused); got != tt.wantErr {
 				t.Fatalf("fillReturnPayoutState() ErrRefused = %t, want %t; error = %v",
 					got, tt.wantErr, err)

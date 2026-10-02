@@ -52,22 +52,22 @@ type Request struct {
 	Lines map[string]int32
 }
 
-// ReturnStatus is return_requests.status, as return_requests_refund_snapshot_shape spells it.
-type ReturnStatus string
+// Status is return_requests.status, as return_requests_refund_snapshot_shape spells it.
+type Status string
 
 // The four states return_requests_refund_snapshot_shape allows.
 const (
-	ReturnRequested ReturnStatus = "requested"
-	ReturnApproved  ReturnStatus = "approved"
-	ReturnRejected  ReturnStatus = "rejected"
-	ReturnCompleted ReturnStatus = "completed"
+	StatusRequested Status = "requested"
+	StatusApproved  Status = "approved"
+	StatusRejected  Status = "rejected"
+	StatusCompleted Status = "completed"
 )
 
-var knownReturnStatuses = [...]ReturnStatus{
-	ReturnRequested,
-	ReturnApproved,
-	ReturnRejected,
-	ReturnCompleted,
+var knownStatuses = [...]Status{
+	StatusRequested,
+	StatusApproved,
+	StatusRejected,
+	StatusCompleted,
 }
 
 // Validate refuses what the form should never have submitted. A blank reason is
@@ -98,15 +98,15 @@ func (r *Request) Validate() error {
 }
 
 // StatusLabel is a return's state in the chrome language.
-func StatusLabel(ctx context.Context, s ReturnStatus) string {
+func StatusLabel(ctx context.Context, s Status) string {
 	switch s {
-	case ReturnRequested:
+	case StatusRequested:
 		return i18n.T(ctx, i18n.KeyReturnStateOpen)
-	case ReturnApproved:
+	case StatusApproved:
 		return i18n.T(ctx, i18n.KeyReturnStateApproved)
-	case ReturnRejected:
+	case StatusRejected:
 		return i18n.T(ctx, i18n.KeyReturnStateRefused)
-	case ReturnCompleted:
+	case StatusCompleted:
 		return i18n.T(ctx, i18n.KeyReturnStateDone)
 	default:
 		return string(s)

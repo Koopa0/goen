@@ -158,14 +158,28 @@ const (
 	InvoiceCarrierMobileBarcode InvoiceCarrier = "3"
 )
 
+// DocumentKind is invoice_documents.kind, closed by invoice_documents_kind_known.
+type DocumentKind string
+
+// DocumentStatus is invoice_documents.status, closed by invoice_documents_status_known.
+type DocumentStatus string
+
+const (
+	DocumentInvoice   DocumentKind = "invoice"
+	DocumentAllowance DocumentKind = "allowance"
+
+	DocumentIssued DocumentStatus = "issued"
+	DocumentVoided DocumentStatus = "voided"
+)
+
 // Document is an issued uniform invoice or credit note, as goen records it.
 type Document struct {
 	ID     string
-	Kind   string
+	Kind   DocumentKind
 	Number string
 	// AmountCents is what the document is for, tax included.
 	AmountCents int64
-	Status      string
+	Status      DocumentStatus
 	IssuedAt    time.Time
 	// ProviderRef is ECPay's own handle on it. For an invoice that is the
 	// RandomNumber, which is what a void needs alongside the number.
@@ -174,7 +188,7 @@ type Document struct {
 }
 
 // Voided reports whether this document has been cancelled.
-func (d Document) Voided() bool { return d.Status == "voided" }
+func (d Document) Voided() bool { return d.Status == DocumentVoided }
 
 // Line is one item on an invoice.
 type Line struct {
