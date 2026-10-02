@@ -22,19 +22,19 @@ func TestThePendingRegistrationTravelsInAnHttpOnlyCookieScopedToRegister(t *test
 		t.Errorf("cookie = %+v, want HttpOnly, Secure, Lax, Path /register, a few minutes", c)
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/register?sent=1", nil)
+	req := httptest.NewRequest(http.MethodGet, "/register?sent=1", http.NoBody)
 	req.AddCookie(c)
 	addr, next, ok := readPendingRegistration(req)
 	if !ok || addr != "ada@example.com" || next != "/cart" {
 		t.Errorf("read back %q, %q, %v", addr, next, ok)
 	}
 
-	bad := httptest.NewRequest(http.MethodGet, "/register?sent=1", nil)
-	bad.AddCookie(&http.Cookie{Name: pendingRegistrationCookie, Value: "bm90LWFuLWFkZHJlc3M"})
+	bad := httptest.NewRequest(http.MethodGet, "/register?sent=1", http.NoBody)
+	bad.AddCookie(&http.Cookie{Name: pendingRegistrationCookie, Value: "bm90LWFuLWFkZHJlc3M", HttpOnly: true, Secure: true, SameSite: http.SameSiteLaxMode})
 	if _, _, ok := readPendingRegistration(bad); ok {
 		t.Error("a cookie that holds no address was accepted")
 	}
-	if _, _, ok := readPendingRegistration(httptest.NewRequest(http.MethodGet, "/register?sent=1", nil)); ok {
+	if _, _, ok := readPendingRegistration(httptest.NewRequest(http.MethodGet, "/register?sent=1", http.NoBody)); ok {
 		t.Error("no cookie was read as one")
 	}
 }
