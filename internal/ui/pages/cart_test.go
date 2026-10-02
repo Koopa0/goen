@@ -646,8 +646,37 @@ func TestANamelessReviewerIsNotBadgedAsABuyer(t *testing.T) {
 			"claim %q — the badge is what says somebody bought, and this review "+
 			"has not", got, bought)
 	}
-	if named := (ProductReview{Author: "王小明"}).DisplayAuthor(ctx); named != "王小明" {
-		t.Errorf("a named reviewer rendered as %q", named)
+}
+
+// A review is public, so its byline shows a first character and nothing more,
+// the same way for every reviewer and in each language.
+func TestAReviewerIsMaskedTheSameWayForEveryReview(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		locale i18n.Locale
+		author string
+		want   string
+	}{
+		{"zh full name", i18n.ZhHant, "王小明", "王○○"},
+		{"zh one character", i18n.ZhHant, "王", "王○○"},
+		{"zh latin name", i18n.ZhHant, "alice Chen", "a○○"},
+		{"en full name", i18n.En, "Alice Chen", "A."},
+		{"en lower case", i18n.En, "bob", "B."},
+		{"en han name", i18n.En, "王小明", "王."},
+		{"padded", i18n.ZhHant, "  陳大文", "陳○○"},
+		{"no name zh", i18n.ZhHant, "", "匿名顧客"},
+		{"no name en", i18n.En, "", "Anonymous"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := (ProductReview{Author: tt.author}).DisplayAuthor(i18n.WithLocale(t.Context(), tt.locale))
+			if got != tt.want {
+				t.Errorf("DisplayAuthor(%q) in %s = %q, want %q", tt.author, tt.locale, got, tt.want)
+			}
+		})
 	}
 }
 

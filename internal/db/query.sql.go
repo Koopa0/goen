@@ -5301,27 +5301,27 @@ func (q *Queries) CreateReturnRequestLine(ctx context.Context, arg CreateReturnR
 
 const createReview = `-- name: CreateReview :execrows
 INSERT INTO product_reviews (product_id, user_id, rating, title, body, is_verified_purchase)
-SELECT p.id, $1, $2::smallint, nullif($3::text, ''), $4::text, $5::boolean
-FROM products p WHERE p.slug = $6::text AND p.status = 'active'
+SELECT p.id, $1, $2::smallint, nullif($3::text, ''), $4::text, true
+FROM products p WHERE p.slug = $5::text AND p.status = 'active'
 `
 
 type CreateReviewParams struct {
-	UserID   uuid.NullUUID
-	Rating   int16
-	Title    string
-	Body     string
-	Verified bool
-	Slug     string
+	UserID uuid.NullUUID
+	Rating int16
+	Title  string
+	Body   string
+	Slug   string
 }
 
-// product_reviews_verified_is_real refuses a false is_verified_purchase.
+// Only a customer who received the product reaches this insert, so the review
+// is always a verified purchase; product_reviews_verified_is_real refuses the
+// claim without a committed order behind it.
 func (q *Queries) CreateReview(ctx context.Context, arg CreateReviewParams) (int64, error) {
 	result, err := q.db.Exec(ctx, createReview,
 		arg.UserID,
 		arg.Rating,
 		arg.Title,
 		arg.Body,
-		arg.Verified,
 		arg.Slug,
 	)
 	if err != nil {
@@ -6485,31 +6485,6 @@ func (q *Queries) HandleMessage(ctx context.Context, id uuid.UUID) (int64, error
 	return result.RowsAffected(), nil
 }
 
-const hasBoughtProduct = `-- name: HasBoughtProduct :one
-SELECT EXISTS (
-    SELECT 1
-    FROM orders o
-    JOIN order_lines ol ON ol.order_id = o.id
-    WHERE o.user_id = $1 AND ol.product_id = $2
-      AND order_is_committed(o.id)
-)
-`
-
-type HasBoughtProductParams struct {
-	UserID    uuid.NullUUID
-	ProductID uuid.NullUUID
-}
-
-// order_is_committed, never "EXISTS a succeeded payment": a store-credit-funded
-// order is committed with no payment row at all. product_id is the durable line
-// identity and survives deletion of the purchased variant.
-func (q *Queries) HasBoughtProduct(ctx context.Context, arg HasBoughtProductParams) (bool, error) {
-	row := q.db.QueryRow(ctx, hasBoughtProduct, arg.UserID, arg.ProductID)
-	var exists bool
-	err := row.Scan(&exists)
-	return exists, err
-}
-
 const hasOpenReturn = `-- name: HasOpenReturn :one
 SELECT EXISTS (
     SELECT 1 FROM return_requests WHERE order_id = $1 AND status = 'requested'
@@ -6519,6 +6494,34 @@ SELECT EXISTS (
 // Whether this order already has a request nobody has decided yet.
 func (q *Queries) HasOpenReturn(ctx context.Context, orderID uuid.UUID) (bool, error) {
 	row := q.db.QueryRow(ctx, hasOpenReturn, orderID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const hasReceivedProduct = `-- name: HasReceivedProduct :one
+SELECT EXISTS (
+    SELECT 1
+    FROM orders o
+    JOIN order_lines ol ON ol.order_id = o.id
+    WHERE o.user_id = $1 AND ol.product_id = $2
+      AND o.fulfillment_status IN ('delivered', 'completed')
+      AND order_is_committed(o.id)
+)
+`
+
+type HasReceivedProductParams struct {
+	UserID    uuid.NullUUID
+	ProductID uuid.NullUUID
+}
+
+// A review speaks for goods the customer has held, so the order must have
+// arrived. order_is_committed, never "EXISTS a succeeded payment": a
+// store-credit-funded order is committed with no payment row at all, and the
+// verified-purchase trigger asks the same question. product_id is the durable
+// line identity and survives deletion of the purchased variant.
+func (q *Queries) HasReceivedProduct(ctx context.Context, arg HasReceivedProductParams) (bool, error) {
+	row := q.db.QueryRow(ctx, hasReceivedProduct, arg.UserID, arg.ProductID)
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err

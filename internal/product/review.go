@@ -20,6 +20,9 @@ import (
 var (
 	// ErrAlreadyReviewed is a second review on one product from one person.
 	ErrAlreadyReviewed = errors.New("product: already reviewed")
+	// ErrNotDelivered is a review from somebody with no delivered order for
+	// the product.
+	ErrNotDelivered = errors.New("product: no delivered order for this product")
 	// ErrReviewInvalid is a form goen refused before the database saw it.
 	ErrReviewInvalid = errors.New("product: invalid review")
 )
@@ -70,38 +73,53 @@ func hasUnprintableReviewControl(s string) bool {
 	})
 }
 
-// CanReview reports whether this customer may review, and whether it would
-// carry the verified badge.
-func (s *Store) CanReview(ctx context.Context, slug, userID string) (allowed, verified bool, err error) {
+// ReviewRight is whether a signed-in customer may review a product now.
+type ReviewRight int
+
+const (
+	// MayReview is a customer who received the product and has not reviewed it.
+	MayReview ReviewRight = iota
+	// HasReviewed is a customer whose one review, visible or hidden, exists.
+	HasReviewed
+	// AwaitsDelivery is a customer with no delivered order containing it.
+	AwaitsDelivery
+)
+
+// CanReview reports whether this customer may review. Only somebody who
+// received the product may, so every review stands for goods that were held.
+func (s *Store) CanReview(ctx context.Context, slug, userID string) (ReviewRight, error) {
 	id, parseErr := uuid.Parse(userID)
 	if parseErr != nil {
-		return false, false, nil //nolint:nilerr // not signed in is not an error
+		return AwaitsDelivery, nil //nolint:nilerr // not signed in is not an error
 	}
 	owner := uuid.NullUUID{UUID: id, Valid: true}
 
 	productID, err := s.q.ActiveProductForReview(ctx, slug)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return false, false, ErrNotFound
+			return AwaitsDelivery, ErrNotFound
 		}
-		return false, false, fmt.Errorf("find review product: %w", err)
+		return AwaitsDelivery, fmt.Errorf("find review product: %w", err)
 	}
 	reviewed, err := s.q.HasReviewed(ctx, db.HasReviewedParams{
 		UserID: owner, ProductID: productID,
 	})
 	if err != nil {
-		return false, false, fmt.Errorf("check existing review: %w", err)
+		return AwaitsDelivery, fmt.Errorf("check existing review: %w", err)
 	}
 	if reviewed {
-		return false, false, nil
+		return HasReviewed, nil
 	}
-	bought, err := s.q.HasBoughtProduct(ctx, db.HasBoughtProductParams{
+	received, err := s.q.HasReceivedProduct(ctx, db.HasReceivedProductParams{
 		UserID: owner, ProductID: uuid.NullUUID{UUID: productID, Valid: true},
 	})
 	if err != nil {
-		return false, false, fmt.Errorf("check purchase: %w", err)
+		return AwaitsDelivery, fmt.Errorf("check delivery: %w", err)
 	}
-	return true, bought, nil
+	if !received {
+		return AwaitsDelivery, nil
+	}
+	return MayReview, nil
 }
 
 // AddReview records a review.
@@ -115,17 +133,21 @@ func (s *Store) AddReview(ctx context.Context, slug, userID string, r *Review) (
 	}
 	owner := uuid.NullUUID{UUID: id, Valid: true}
 
-	allowed, verified, err := s.CanReview(ctx, slug, userID)
+	right, err := s.CanReview(ctx, slug, userID)
 	if err != nil {
 		return nil, err
 	}
-	if !allowed {
+	switch right {
+	case MayReview:
+	case HasReviewed:
 		return nil, ErrAlreadyReviewed
+	case AwaitsDelivery:
+		return nil, ErrNotDelivered
 	}
 
 	n, err := s.q.CreateReview(ctx, db.CreateReviewParams{
 		Slug: slug, UserID: owner, Rating: r.Rating,
-		Title: r.Title, Body: r.Body, Verified: verified,
+		Title: r.Title, Body: r.Body,
 	})
 	if err != nil {
 		// Bound to the CONSTRAINT name, never to the message text: PostgreSQL

@@ -39,9 +39,19 @@ var (
 
 	KeyWriteReview = key("pdp.reviews.write", Message{ZhHant: "留下你的評價", En: "Write a review"})
 
-	KeyReviewWillBeVerified = key("pdp.reviews.willverify", Message{
-		ZhHant: "你買過這個商品,評價會標示「已購買」。",
-		En:     "You bought this, so your review will be marked as a verified purchase.",
+	KeyReviewAfterDelivery = key("pdp.reviews.afterdelivery", Message{
+		ZhHant: "收到商品後即可評價。",
+		En:     "You can review this after it arrives.",
+	})
+
+	KeyReviewThanks = key("pdp.reviews.thanks", Message{
+		ZhHant: "謝謝你的評價,它已經顯示在上面了。",
+		En:     "Thank you for your review — it is on the page now.",
+	})
+
+	KeyReviewBodyHint = key("pdp.reviews.bodyhint", Message{
+		ZhHant: "至少 5 個字,最多 2000 字。",
+		En:     "At least 5 characters, at most 2000.",
 	})
 
 	KeyFieldRating = key("field.rating", Message{ZhHant: "評分", En: "Rating"})

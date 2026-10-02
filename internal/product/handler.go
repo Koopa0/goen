@@ -79,6 +79,7 @@ func (h *Handler) Detail(w http.ResponseWriter, r *http.Request) {
 	h.fillReviewForm(r, slug, &view)
 	view.NotifyOutcome = r.URL.Query().Get("notify")
 	view.AskOutcome = r.URL.Query().Get("ask")
+	view.ReviewPosted = r.URL.Query().Get("reviewed") == "1"
 	view.AddedOutcome = r.URL.Query().Get("added")
 	view.Comparing = boundedSlugs(r.URL.Query()["p"])
 	meta := pages.ProductMeta(&view)
@@ -117,8 +118,8 @@ func (h *Handler) Review(w http.ResponseWriter, r *http.Request) {
 	errs, err := h.store.AddReview(r.Context(), slug, u.ID, review)
 	switch {
 	case err == nil && len(errs) == 0:
-		http.Redirect(w, r, "/p/"+url.PathEscape(slug)+"#reviews", http.StatusSeeOther)
-	case errors.Is(err, ErrAlreadyReviewed):
+		http.Redirect(w, r, "/p/"+url.PathEscape(slug)+"?reviewed=1#reviews", http.StatusSeeOther)
+	case errors.Is(err, ErrAlreadyReviewed), errors.Is(err, ErrNotDelivered):
 		h.rejectReview(w, r, slug, review, nil)
 	case errors.Is(err, ErrNotFound):
 		h.notFound(w, r)
@@ -241,12 +242,13 @@ func (h *Handler) fillReviewForm(r *http.Request, slug string, view *pages.Produ
 	if !signedIn {
 		return
 	}
-	allowed, verified, err := h.store.CanReview(r.Context(), slug, u.ID)
+	right, err := h.store.CanReview(r.Context(), slug, u.ID)
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "check review eligibility", "error", err)
 		return
 	}
-	view.CanReview, view.WouldVerify = allowed, verified
+	view.CanReview = right == MayReview
+	view.ReviewAwaitsDelivery = right == AwaitsDelivery
 }
 
 // parseRating returns 0 outside 1..5, which Validate reports as a missing rating.

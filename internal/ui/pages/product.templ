@@ -602,6 +602,11 @@ templ productReviews(v *ProductView) {
 				</div>
 			</div>
 		}
+		if v.ReviewPosted {
+			@components.Notice(components.NoticeProps{Tone: components.ToneAccent}) {
+				{ i18n.T(ctx, i18n.KeyReviewThanks) }
+			}
+		}
 		@reviewForm(v)
 	</section>
 }
@@ -687,30 +692,34 @@ templ reviewForm(v *ProductView) {
 		<p class="goen-pdp__reviewnote">
 			<a href={ templ.SafeURL("/signin?next=/p/" + v.Slug) }>{ i18n.T(ctx, i18n.KeySignInFirst) }</a>{ i18n.T(ctx, i18n.KeySignInToReview) }
 		</p>
+	} else if v.ReviewAwaitsDelivery {
+		<p class="goen-pdp__reviewnote">{ i18n.T(ctx, i18n.KeyReviewAfterDelivery) }</p>
 	} else if !v.CanReview {
 		<p class="goen-pdp__reviewnote">{ i18n.T(ctx, i18n.KeyAlreadyReviewed) }</p>
 	} else {
 		<div class="goen-pdp__reviewform">
 			<form id="write-review" method="post" action={ templ.SafeURL(v.ReviewAction()) }>
 				<h3 class="goen-pdp__reviewformhead">{ i18n.T(ctx, i18n.KeyWriteReview) }</h3>
-				if v.WouldVerify {
-					<p class="goen-pdp__reviewnote">{ i18n.T(ctx, i18n.KeyReviewWillBeVerified) }</p>
-				}
 				<fieldset class="goen-pdp__stars">
 					<legend class="goen-label">{ i18n.T(ctx, i18n.KeyFieldRating) }</legend>
-					for _, n := range []int{5, 4, 3, 2, 1} {
-						<label class="goen-pdp__star">
-							<input
-								class="goen-pdp__starinput"
-								type="radio"
-								name="rating"
-								value={ n }
-								required
-								checked?={ v.ReviewDraft.IsRating(n) }
-							/>
-							<span>{ i18n.Count(ctx, i18n.KeyStarsLabel, int64(n), strconv.Itoa(n)) }</span>
-						</label>
-					}
+					<div class="goen-pdp__starrow">
+						for _, n := range []int{1, 2, 3, 4, 5} {
+							<label class="goen-pdp__star">
+								<input
+									class="goen-pdp__starinput goen-sr-only"
+									type="radio"
+									name="rating"
+									value={ n }
+									required
+									checked?={ v.ReviewDraft.IsRating(n) }
+								/>
+								<span class="goen-pdp__starmark" aria-hidden="true">
+									@icons.Star()
+								</span>
+								<span class="goen-sr-only">{ i18n.Count(ctx, i18n.KeyStarsLabel, int64(n), strconv.Itoa(n)) }</span>
+							</label>
+						}
+					</div>
 				</fieldset>
 				if v.HasReviewErr("rating") {
 					<p class="ui-error-text">{ v.ReviewErr("rating") }</p>
@@ -730,11 +739,12 @@ templ reviewForm(v *ProductView) {
 					}
 					@components.Textarea(components.FieldProps{
 						ID: "review-body", Name: "body", Class: "goen-pdp__reviewbody",
-						Invalid: v.HasReviewErr("body"), Describes: "review-body-error",
-						Attrs: templ.Attributes{"rows": "5", "required": true, "minlength": strconv.Itoa(ReviewBodyMinRunes), "maxlength": "2000"},
+						Invalid: v.HasReviewErr("body"), Describes: "review-body-error review-body-hint",
+						Attrs: v.reviewBodyAttrs(),
 					}) {
 						{ v.ReviewDraft.Body }
 					}
+					<p class="goen-pdp__reviewnote" id="review-body-hint">{ i18n.T(ctx, i18n.KeyReviewBodyHint) }</p>
 					if v.HasReviewErr("body") {
 						<p class="ui-error-text" id="review-body-error">{ v.ReviewErr("body") }</p>
 					}

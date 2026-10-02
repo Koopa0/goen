@@ -7,6 +7,9 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"unicode/utf8"
+
+	"github.com/a-h/templ"
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
@@ -131,7 +134,22 @@ func (r ProductReview) DisplayAuthor(ctx context.Context) string {
 	if r.Author == "" {
 		return i18n.T(ctx, i18n.KeyAnonymousReviewer)
 	}
-	return r.Author
+	return maskName(i18n.FromContext(ctx), r.Author)
+}
+
+// maskName keeps the first character of a name and hides the rest, the same
+// way for every review: a Chinese name keeps its surname character, an English
+// one its initial. Reviews are public, and a full name beside a purchase is
+// more than the shopper agreed to show.
+func maskName(l i18n.Locale, name string) string {
+	first, _ := utf8.DecodeRuneInString(strings.TrimSpace(name))
+	if first == utf8.RuneError {
+		return name
+	}
+	if l == i18n.En {
+		return strings.ToUpper(string(first)) + "."
+	}
+	return string(first) + "○○"
 }
 
 // ProductView is everything the detail page renders.
@@ -168,13 +186,18 @@ type ProductView struct {
 	Sellable     bool
 	Available    int32
 
-	Rating        float64
-	RatingCount   int64
-	RatingBars    []RatingBar
-	Reviews       []ProductReview
-	SignedIn      bool
-	CanReview     bool
-	WouldVerify   bool
+	Rating      float64
+	RatingCount int64
+	RatingBars  []RatingBar
+	Reviews     []ProductReview
+	SignedIn    bool
+	CanReview   bool
+	// ReviewAwaitsDelivery is a signed-in customer with no delivered order
+	// containing this product; !CanReview and !ReviewAwaitsDelivery is one who
+	// has already reviewed it.
+	ReviewAwaitsDelivery bool
+	// ReviewPosted is the redirect that follows a recorded review.
+	ReviewPosted  bool
 	ReviewErrors  map[string]string
 	ReviewDraft   ReviewDraft
 	NotifyOutcome string
@@ -365,6 +388,20 @@ const ReviewBodyMinRunes = 5
 // ReviewAction is where the review form posts. The fragment rides into the 422
 // page's address, so a refused review opens at the form, error in view.
 func (v *ProductView) ReviewAction() string { return "/p/" + v.Slug + "/reviews#write-review" }
+
+// reviewBodyAttrs describes the body field to assistive technology: the hint
+// always, and the refusal too when there is one (the Textarea adds the pair
+// itself then, so the attribute is set here only while the field is valid).
+func (v *ProductView) reviewBodyAttrs() templ.Attributes {
+	attrs := templ.Attributes{
+		"rows": "5", "required": true,
+		"minlength": strconv.Itoa(ReviewBodyMinRunes), "maxlength": "2000",
+	}
+	if !v.HasReviewErr("body") {
+		attrs["aria-describedby"] = "review-body-hint"
+	}
+	return attrs
+}
 
 // HasReviewErr reports whether a review field was refused.
 func (v *ProductView) HasReviewErr(f string) bool { _, ok := v.ReviewErrors[f]; return ok }
