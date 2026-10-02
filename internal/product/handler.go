@@ -12,7 +12,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/koopa0/goen/internal/account"
+	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -149,16 +152,24 @@ func (h *Handler) Notify(w http.ResponseWriter, r *http.Request) {
 		userID = u.ID
 	}
 
+	// Not a value the form can send: nothing on a page to re-render for.
+	if _, parseErr := uuid.Parse(variantID); parseErr != nil {
+		h.redirectNotified(w, r, slug, "bad")
+		return
+	}
+
 	err := h.store.RequestRestockNotice(r.Context(), slug, variantID, addr, userID)
 	switch {
 	case err == nil:
-		//nolint:gosec // G710: slug is the route's own path value, escaped
-		http.Redirect(w, r, "/p/"+url.PathEscape(slug)+"?"+r.URL.RawQuery+"&notify=1",
-			http.StatusSeeOther)
+		h.redirectNotified(w, r, slug, "1")
 	case errors.Is(err, ErrNotifyInvalid):
-		//nolint:gosec // G710: slug is the route's own path value, escaped
-		http.Redirect(w, r, "/p/"+url.PathEscape(slug)+"?"+r.URL.RawQuery+"&notify=bad",
-			http.StatusSeeOther)
+		// Two causes, two messages: an address goen will not mail, or a variant
+		// that no longer needs a notice (back in stock, or gone).
+		outcome := "unavailable"
+		if !email.Valid(email.Clean(addr)) {
+			outcome = "bad"
+		}
+		h.rejectNotify(w, r, slug, addr, outcome)
 	default:
 		h.log.ErrorContext(r.Context(), "restock notice", "error", err, "slug", slug)
 		web.Render(w, r, h.log, http.StatusInternalServerError, pages.Notice(
@@ -166,6 +177,40 @@ func (h *Handler) Notify(w http.ResponseWriter, r *http.Request) {
 			i18n.T(r.Context(), i18n.KeyTryAgainTitle),
 			i18n.T(r.Context(), i18n.KeyTryAgainBody)))
 	}
+}
+
+// redirectNotified returns to the product at the selection the form was posted
+// from, with the outcome the page says aloud.
+func (h *Handler) redirectNotified(w http.ResponseWriter, r *http.Request, slug, outcome string) {
+	q := url.Values{}
+	for k, v := range ParseSelection(r.URL.Query()) {
+		q.Set(k, v)
+	}
+	q.Set("notify", outcome)
+	http.Redirect(w, r, "/p/"+url.PathEscape(slug)+"?"+q.Encode(), http.StatusSeeOther)
+}
+
+// rejectNotify re-renders the product at 422 on the selection the form was
+// posted from, with the address as typed.
+func (h *Handler) rejectNotify(w http.ResponseWriter, r *http.Request, slug, addr, outcome string) {
+	view, err := h.store.Load(r.Context(), slug, ParseSelection(r.URL.Query()))
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			h.notFound(w, r)
+			return
+		}
+		h.log.ErrorContext(r.Context(), "reload product", "error", err, "slug", slug)
+		web.Render(w, r, h.log, http.StatusInternalServerError, pages.Notice(
+			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyTryAgainTitle)}, "",
+			i18n.T(r.Context(), i18n.KeyTryAgainTitle),
+			i18n.T(r.Context(), i18n.KeyTryAgainBody)))
+		return
+	}
+	h.fillReviewForm(r, slug, &view)
+	view.NotifyOutcome = outcome
+	view.NotifyEmail = addr
+	web.Render(w, r, h.log, http.StatusUnprocessableEntity,
+		pages.Product(pages.ProductMeta(&view), &view))
 }
 
 func (h *Handler) rejectReview(w http.ResponseWriter, r *http.Request, slug string, review *Review, errs map[string]i18n.Key) {

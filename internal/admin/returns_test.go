@@ -9,7 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/returns"
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 func TestASplitRefundedEventWaitsUntilEverySourceSettled(t *testing.T) {
@@ -66,7 +66,7 @@ func TestASplitRefundedEventWaitsUntilEverySourceSettled(t *testing.T) {
 			if position.MoneySettled != tt.wantSettled {
 				t.Errorf("MoneySettled = %t, want %t", position.MoneySettled, tt.wantSettled)
 			}
-			item := pages.AdminReturn{}
+			item := admin.Return{}
 			if fillErr := fillReturnPayoutState(returns.ReturnApproved, tt.facts, &item); fillErr != nil {
 				t.Fatalf("fillReturnPayoutState() = %v", fillErr)
 			}
@@ -119,13 +119,13 @@ func TestReturnPayoutDiagnosticRouting(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			item := pages.AdminReturn{}
+			item := admin.Return{}
 			err := fillReturnPayoutState(returns.ReturnApproved, tt.facts, &item)
 			if got := errors.Is(err, ErrRefused); got != tt.wantErr {
 				t.Fatalf("fillReturnPayoutState() ErrRefused = %t, want %t; error = %v",
 					got, tt.wantErr, err)
 			}
-			wantItem := pages.AdminReturn{
+			wantItem := admin.Return{
 				PayoutOutstanding: true,
 				PayoutBlocked:     tt.wantBlocked,
 			}

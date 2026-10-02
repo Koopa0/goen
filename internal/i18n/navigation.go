@@ -12,6 +12,9 @@ var (
 
 	KeyMenu = key("nav.menu", Message{ZhHant: "選單", En: "Menu"})
 
+	// KeyCloseMenu names the drawer's close control.
+	KeyCloseMenu = key("nav.menu.close", Message{ZhHant: "關閉選單", En: "Close menu"})
+
 	KeyAccount = key("nav.account", Message{ZhHant: "會員中心", En: "Account"})
 
 	KeyWishlist = key("nav.wishlist", Message{ZhHant: "願望清單", En: "Wishlist"})

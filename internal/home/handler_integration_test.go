@@ -59,7 +59,7 @@ func TestHomeShowsCategoriesAndProducts(t *testing.T) {
 	h := home.NewHandler(home.NewStore(pool), slog.New(slog.DiscardHandler), false)
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody)
 	res := httptest.NewRecorder()
-	h.Home(res, req)
+	h.Index(res, req)
 
 	if res.Code != http.StatusOK {
 		t.Fatalf("status = %d; want 200", res.Code)
@@ -492,6 +492,15 @@ func TestRunningCampaignsFollowTheScheduledSlidesSoonestFirst(t *testing.T) {
 			t.Fatalf("insert campaign %s: %v", c.slug, err)
 		}
 	}
+	// The row shows a campaign only when it holds a product; an empty one falls
+	// back to the newest of the shop.
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO sale_campaign_products (campaign_id, product_id)
+		SELECT c.id, p.id FROM sale_campaigns c, products p
+		WHERE c.slug = 'hero-sooner' AND p.status = 'active'
+		ORDER BY p.slug LIMIT 1`); err != nil {
+		t.Fatalf("attach a product to the soonest campaign: %v", err)
+	}
 	t.Cleanup(func() {
 		clean, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 		defer cancel()
@@ -696,7 +705,7 @@ func TestTheTrustBodyStatesTheLowestCurrentFee(t *testing.T) {
 	h := home.NewHandler(home.NewStore(pool), slog.New(slog.DiscardHandler), false)
 	req := httptest.NewRequestWithContext(i18n.WithLocale(ctx, i18n.ZhHant), http.MethodGet, "/", http.NoBody)
 	res := httptest.NewRecorder()
-	h.Home(res, req)
+	h.Index(res, req)
 	if res.Code != http.StatusOK {
 		t.Fatalf("status = %d; want 200", res.Code)
 	}
@@ -798,7 +807,7 @@ func TestTheTrustBodyDescribesOnlyTheMethodsCheckoutOffers(t *testing.T) {
 	render := func(s *home.Store) string {
 		h := home.NewHandler(s, slog.New(slog.DiscardHandler), false)
 		res := httptest.NewRecorder()
-		h.Home(res, httptest.NewRequestWithContext(ctx, http.MethodGet, "/", http.NoBody))
+		h.Index(res, httptest.NewRequestWithContext(ctx, http.MethodGet, "/", http.NoBody))
 		if res.Code != http.StatusOK {
 			t.Fatalf("status = %d; want 200", res.Code)
 		}

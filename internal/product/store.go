@@ -165,6 +165,12 @@ func (s *Store) loadDetail(ctx context.Context, p *db.ProductBySlugRow, view *pa
 }
 
 func (s *Store) loadPresentation(ctx context.Context, p *db.ProductBySlugRow, view *pages.ProductView) error {
+	offers, offersErr := s.q.ComparableCategoryIDs(ctx)
+	if offersErr != nil {
+		return fmt.Errorf("read comparable categories for %q: %w", p.Slug, offersErr)
+	}
+	view.Comparable = slices.Contains(offers, p.CategoryID)
+
 	if p.CategoryParentID.Valid {
 		trail, err := s.q.CategoryAncestors(ctx, db.CategoryAncestorsParams{
 			CategoryID: p.CategoryParentID.UUID, Locale: string(i18n.FromContext(ctx)),

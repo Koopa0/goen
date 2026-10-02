@@ -70,3 +70,26 @@ func TestACancellationSaysNothingWasChargedOnlyWhenNoMoneyArrived(t *testing.T) 
 		}
 	}
 }
+
+// The delivery and collection mails state the last day of the statutory right
+// of return when the order has a delivered parcel, and no day when it has not.
+func TestTheArrivalMailStatesTheLastDayToReturn(t *testing.T) {
+	t.Parallel()
+	for _, kind := range []TerminalKind{TerminalDelivered, TerminalCollected} {
+		for _, locale := range []string{"en", "zh-Hant"} {
+			for _, day := range []string{"2026-10-09", ""} {
+				n, sink := notifier(t)
+				to := TerminalRecipient{
+					Address: "reader@example.com", Name: "Reader", Locale: locale,
+					OrderNumber: "GO-260101-000001", RescissionEnds: day,
+				}
+				if err := n.SendOrderTerminal(t.Context(), &OrderTerminal{Kind: kind}, to); err != nil {
+					t.Fatal(err)
+				}
+				if got := strings.Contains(sink.msg.Body, "2026-10-09"); got != (day != "") {
+					t.Errorf("%s/%s day=%q: body names the day = %t:\n%s", kind, locale, day, got, sink.msg.Body)
+				}
+			}
+		}
+	}
+}

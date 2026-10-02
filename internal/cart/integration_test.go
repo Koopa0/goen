@@ -609,7 +609,7 @@ func TestAChangedCreditBalanceReRendersCheckoutWithTheFreshFigure(t *testing.T) 
 }
 
 // TestConcurrentSignedInFirstAddsShareOneOwnedCart holds an uncommitted owned
-// row so both HTTP first-adds miss CartForUser and wait on carts_one_per_user.
+// row so both HTTP first-adds miss ForUser and wait on carts_one_per_user.
 // Releasing that row lets one insert win; the loser must reread it, not 500.
 func TestConcurrentSignedInFirstAddsShareOneOwnedCart(t *testing.T) {
 	ctx := t.Context()
@@ -750,14 +750,14 @@ func TestCartIsFoundByTokenNotByID(t *testing.T) {
 		t.Fatalf("create: %v", err)
 	}
 
-	got, err := s.CartByToken(t.Context(), tok, uuid.NullUUID{})
+	got, err := s.ByToken(t.Context(), tok, uuid.NullUUID{})
 	if err != nil || got != id {
-		t.Fatalf("CartByToken(token) = %v/%v, want %v", got, err, id)
+		t.Fatalf("ByToken(token) = %v/%v, want %v", got, err, id)
 	}
-	if _, err := s.CartByToken(t.Context(), tok+"x", uuid.NullUUID{}); err == nil {
+	if _, err := s.ByToken(t.Context(), tok+"x", uuid.NullUUID{}); err == nil {
 		t.Error("a near-miss token found a cart")
 	}
-	if _, err := s.CartByToken(t.Context(), "", uuid.NullUUID{}); err == nil {
+	if _, err := s.ByToken(t.Context(), "", uuid.NullUUID{}); err == nil {
 		t.Error("an empty token found a cart")
 	}
 
@@ -3493,6 +3493,55 @@ func TestAPickupOrderIsPlacedWithTheChainAlone(t *testing.T) {
 	}
 	if !strings.Contains(view.DeliveryTo, "7-ELEVEN") {
 		t.Errorf("the confirmation does not name the chain: %q", view.DeliveryTo)
+	}
+}
+
+// TestTheOrderNamesItsShippingMethodInTheReadersLanguage: the method's name is
+// read from the version the order was priced from, so an English reader is not
+// shown the Chinese name the shop typed, and a Chinese reader still is.
+func TestTheOrderNamesItsShippingMethodInTheReadersLanguage(t *testing.T) {
+	ctx := t.Context()
+	s := cart.NewStore(pool)
+
+	var methodID uuid.UUID
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO shipping_methods (code, destination_kind)
+		VALUES ($1, 'pickup_point') RETURNING id`, "named"+uuid.NewString()[:6]).Scan(&methodID); err != nil {
+		t.Fatalf("create method: %v", err)
+	}
+	var versionID uuid.UUID
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO shipping_method_versions (method_id, name, name_en, fee_cents)
+		VALUES ($1, '測試超取', 'Test pickup', 6000) RETURNING id`, methodID).Scan(&versionID); err != nil {
+		t.Fatalf("create version: %v", err)
+	}
+
+	id := newCart(t, s)
+	if err := s.Add(ctx, id, variantOf(t, "pixelight-9-pro", true), 1); err != nil {
+		t.Fatalf("add: %v", err)
+	}
+	addr := &cart.Address{
+		To:    cart.ToPickupPoint,
+		Email: "named@example.com", Name: "林小美", Phone: "0955666777",
+		PickupBrand: "seven_eleven",
+	}
+	number, err := placeOrder(t, s, ctx, id, uuid.NullUUID{}, versionID, addr, "",
+		"named-"+uuid.NewString()[:8])
+	if err != nil {
+		t.Fatalf("place: %v", err)
+	}
+
+	for _, tt := range []struct {
+		locale i18n.Locale
+		want   string
+	}{{i18n.En, "Test pickup"}, {i18n.ZhHant, "測試超取"}} {
+		view, err := s.Order(i18n.WithLocale(ctx, tt.locale), number)
+		if err != nil {
+			t.Fatalf("read the order in %s: %v", tt.locale.Tag(), err)
+		}
+		if view.ShippingName != tt.want {
+			t.Errorf("shipping name in %s = %q, want %q", tt.locale.Tag(), view.ShippingName, tt.want)
+		}
 	}
 }
 

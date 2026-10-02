@@ -20,7 +20,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/shoptime"
-	"github.com/koopa0/goen/internal/ui/pages"
+	adminpages "github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
@@ -848,7 +848,7 @@ func openReturnIDOn(t *testing.T, p *pgxpool.Pool, number string) uuid.UUID {
 	return id
 }
 
-func queueRow(t *testing.T, s *admin.Store, requestID uuid.UUID) pages.AdminReturn {
+func queueRow(t *testing.T, s *admin.Store, requestID uuid.UUID) adminpages.Return {
 	t.Helper()
 	view, err := s.Returns(t.Context())
 	if err != nil {
@@ -860,7 +860,7 @@ func queueRow(t *testing.T, s *admin.Store, requestID uuid.UUID) pages.AdminRetu
 		}
 	}
 	t.Fatalf("return %s is not in the queue", requestID)
-	return pages.AdminReturn{}
+	return adminpages.Return{}
 }
 
 func queueWindow(t *testing.T, s *admin.Store, requestID uuid.UUID) string {
@@ -948,7 +948,7 @@ func mixedWindowReturnOn(t *testing.T, p *pgxpool.Pool, statutoryDelivered, good
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO order_shipments (
 			order_id, carrier, tracking_number, shipped_at, delivered_at
-		) VALUES ($1, '黑貓', 'T-MIX-S-' || $2, $3, $4)
+		) VALUES ($1, 'black_cat', 'T-MIX-S-' || $2, $3, $4)
 		RETURNING id`, orderID, number, statutoryDelivered.Add(-48*time.Hour), statutoryDelivered).
 		Scan(&firstShipment); err != nil {
 		t.Fatalf("create statutory parcel: %v", err)
@@ -961,7 +961,7 @@ func mixedWindowReturnOn(t *testing.T, p *pgxpool.Pool, statutoryDelivered, good
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO order_shipments (
 			order_id, carrier, tracking_number, shipped_at, delivered_at
-		) VALUES ($1, '黑貓', 'T-MIX-G-' || $2, $3, $4)
+		) VALUES ($1, 'black_cat', 'T-MIX-G-' || $2, $3, $4)
 		RETURNING id`, orderID, number, goodwillDelivered.Add(-48*time.Hour), goodwillDelivered).
 		Scan(&secondShipment); err != nil {
 		t.Fatalf("create goodwill parcel: %v", err)
@@ -1026,7 +1026,7 @@ func insertPartialReturnSecondShipment(
 		var undeliveredID uuid.UUID
 		if err := tx.QueryRow(ctx, `
 			INSERT INTO order_shipments (order_id, carrier, tracking_number, shipped_at)
-			VALUES ($1, '黑貓', 'T-PART-U-' || $2, $3)
+			VALUES ($1, 'black_cat', 'T-PART-U-' || $2, $3)
 			RETURNING id`, orderID, number, delivered.Add(-24*time.Hour)).Scan(&undeliveredID); err != nil {
 			t.Fatalf("create undelivered parcel: %v", err)
 		}
@@ -1041,7 +1041,7 @@ func insertPartialReturnSecondShipment(
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO order_shipments (
 			order_id, carrier, tracking_number, shipped_at, delivered_at
-		) VALUES ($1, '黑貓', 'T-PART-L-' || $2, $3, $4)
+		) VALUES ($1, 'black_cat', 'T-PART-L-' || $2, $3, $4)
 		RETURNING id`, orderID, number, extra.Add(-24*time.Hour), extra).Scan(&laterID); err != nil {
 		t.Fatalf("create later parcel: %v", err)
 	}
@@ -1101,7 +1101,7 @@ func twoLineReturnOn(t *testing.T, p *pgxpool.Pool, delivered, extra, requested 
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO order_shipments (
 			order_id, carrier, tracking_number, shipped_at, delivered_at
-		) VALUES ($1, '黑貓', 'T-PART-D-' || $2, $3, $4)
+		) VALUES ($1, 'black_cat', 'T-PART-D-' || $2, $3, $4)
 		RETURNING id`, orderID, number, delivered.Add(-48*time.Hour), delivered).Scan(&firstShipment); err != nil {
 		t.Fatalf("create delivered parcel: %v", err)
 	}

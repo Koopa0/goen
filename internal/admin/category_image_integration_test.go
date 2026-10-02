@@ -90,14 +90,14 @@ func TestACategoryTakesItsDepartmentsToneAndPhotographUntilItSetsItsOwn(t *testi
 	}
 
 	// The sub-category's own tone wins over the department's.
-	if err = s.Rename(ctx, "category", child, "子分類", "", "", "ink"); err != nil {
+	if err = s.Rename(ctx, "category", child, "子分類", "", "", "ink", false); err != nil {
 		t.Fatalf("set the sub-category's tone: %v", err)
 	}
 	view, err = store.Listing(ctx, child, catalog.Filters{})
 	if err != nil || view.Theme.ToneAttr() != "ink" {
 		t.Fatalf("sub-category tone = %q (err %v), want its own ink", view.Theme.ToneAttr(), err)
 	}
-	if err = s.Rename(ctx, "category", child, "子分類", "", "", "neon"); err == nil {
+	if err = s.Rename(ctx, "category", child, "子分類", "", "", "neon", false); err == nil {
 		t.Error("a tone outside the set was accepted")
 	}
 
@@ -138,7 +138,7 @@ func TestEveryToneOfTheClosedSetIsStorable(t *testing.T) {
 		if err = s.SetCampaignTone(ctx, camp, string(tone)); err != nil {
 			t.Errorf("SetCampaignTone(%q): %v", tone, err)
 		}
-		if err = s.Rename(ctx, "category", slug, "無色調", "", "", string(tone)); err != nil {
+		if err = s.Rename(ctx, "category", slug, "無色調", "", "", string(tone), false); err != nil {
 			t.Errorf("Rename with tone %q: %v", tone, err)
 		}
 	}

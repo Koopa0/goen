@@ -411,7 +411,7 @@ func Listing(p layouts.Page, v ListingView) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = compareForm().Render(templ.WithChildren(ctx, templ_7745c5c3_Var20), templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = compareForm(AnyComparable(v.Grid()) || AnyComparable(v.Featured())).Render(templ.WithChildren(ctx, templ_7745c5c3_Var20), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -1557,7 +1557,7 @@ func Search(p layouts.Page, v SearchView) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = compareForm().Render(templ.WithChildren(ctx, templ_7745c5c3_Var82), templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = compareForm(AnyComparable(v.Products)).Render(templ.WithChildren(ctx, templ_7745c5c3_Var82), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

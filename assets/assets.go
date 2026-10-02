@@ -229,12 +229,6 @@ func PromoDeskSrcset() string {
 	return URL(PromoDesk800) + " 800w, " + URL(PromoDesk) + " 1600w"
 }
 
-// HomeHeroSrcset returns the responsive hero candidates, from the compact
-// mobile/tablet rendition through the full desktop source.
-func HomeHeroSrcset() string {
-	return URL(HomeHeroImage720) + " 720w, " + URL(HomeHeroImage) + " 1440w"
-}
-
 // rendition is the name of a -400 or -800 sibling of a WebP asset.
 func rendition(name string, width int) string {
 	return strings.TrimSuffix(name, ".webp") + "-" + strconv.Itoa(width) + ".webp"

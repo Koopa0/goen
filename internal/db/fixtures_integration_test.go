@@ -128,7 +128,7 @@ WHERE id = '66666666-6666-4666-8666-666666666666';
 
 INSERT INTO order_shipments (id, order_id, carrier, tracking_number) VALUES
     ('66660002-0000-4000-8000-000000000000', '66666666-6666-4666-8666-666666666666',
-     '黑貓宅急便', '903-2214-8871');
+     'black_cat', '903-2214-8871');
 
 -- What was in that parcel, and ONE of the two deliberately: a line shipped in full cannot tell
 -- return_within_shipment from shipment_within_purchase, so the return cases pass either way.

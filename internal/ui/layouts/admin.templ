@@ -46,8 +46,7 @@ templ Admin(p Page, current string) {
 				}
 			</main>
 			<footer class="goen-adminfoot">
-				// i18n-exempt: a company registration line: a legal name and a tax number.
-				<span class="goen-adminfoot__copyright">© 2026 goen Co., Ltd. 統編 90123456</span>
+				<span class="goen-adminfoot__copyright">© 2026 goen Co., Ltd. { i18n.T(ctx, i18n.KeyCompanyRegistration) }</span>
 			</footer>
 		</body>
 	</html>
@@ -69,8 +68,7 @@ templ adminBar() {
 			</a>
 			<div class="goen-adminbar__actions">
 				<a class="goen-adminbar__link" href="/">{ i18n.T(ctx, i18n.KeyBackToShop) }</a>
-				// i18n-exempt: a language's own name, shown in both locales on purpose.
-				@languageSwitch("goen-adminbar__lang", "繁中", "EN")
+				@languageMenu("goen-adminbar__lang")
 				<form method="post" action="/signout">
 					@components.Button(components.ButtonProps{Variant: components.VariantOutline}, "submit") {
 						{ i18n.T(ctx, i18n.KeySignOut) }

@@ -10,10 +10,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
-func (s *Store) creditRecipient(ctx context.Context, view *pages.AdminCreditView) error {
+func (s *Store) creditRecipient(ctx context.Context, view *admin.CreditView) error {
 	user, err := s.q.CustomerByEmail(ctx, strings.TrimSpace(view.Email))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ErrNotFound
@@ -29,7 +29,7 @@ func (s *Store) creditRecipient(ctx context.Context, view *pages.AdminCreditView
 	return nil
 }
 
-func validateCreditGrant(view *pages.AdminCreditView) (uuid.UUID, bool) {
+func validateCreditGrant(view *admin.CreditView) (uuid.UUID, bool) {
 	cents, amountOK := positiveDollarsToCents(view.Amount, MaxCreditGrant)
 	view.GrantCents = cents
 	view.AmountInvalid = !amountOK

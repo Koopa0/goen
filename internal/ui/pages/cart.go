@@ -8,6 +8,7 @@ import (
 
 	"github.com/a-h/templ"
 
+	"github.com/koopa0/goen/internal/carrier"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/pickup"
@@ -581,11 +582,17 @@ func (e OrderEvent) LabelKey() i18n.Key {
 
 // OrderShipment is a dispatch the customer can follow.
 type OrderShipment struct {
-	Carrier     string
+	Carrier     carrier.Carrier
 	Tracking    string
 	ShippedAt   string
 	DeliveredAt string
+	// RescissionEnds is the last day of the seven-day right to return the
+	// parcel, which the database computes. Empty until it is delivered.
+	RescissionEnds string
 }
+
+// TrackURL is the carrier's public tracking page, or "" when it publishes none.
+func (s OrderShipment) TrackURL() string { return s.Carrier.TrackingURL(s.Tracking) }
 
 // Delivered reports whether this shipment has arrived.
 func (s OrderShipment) Delivered() bool { return s.DeliveredAt != "" }
@@ -635,8 +642,10 @@ type OrderView struct {
 	TaxCents       int64
 	Timeline       []OrderEvent
 	Shipments      []OrderShipment
-	Cancelled      bool
-	Committed      bool
+	// Invoice is nil until a 統一發票 has been filed.
+	Invoice   *OrderInvoice
+	Cancelled bool
+	Committed bool
 	// OwedCents is what is left to pay: the total less the store credit spent on it.
 	OwedCents int64
 	// ShowWarrantyLink is set when a signed-in account owns the order. Guest-token
@@ -727,3 +736,58 @@ func (v *CheckoutView) CouponDiscount() string { return "-" + twd(v.CouponDiscou
 
 // NeedsDonationCode reports whether the donation code field belongs on the form.
 func (i CheckoutInvoice) NeedsDonationCode() bool { return i.Chosen() == invoice.PreferenceDonate }
+
+// OrderInvoice is the 統一發票 filed for an order, as the customer reads it.
+type OrderInvoice struct {
+	Documents    []OrderInvoiceDocument
+	Type         invoice.Preference
+	Carrier      string
+	DonationCode string
+	TaxID        string
+}
+
+// OrderInvoiceDocument is one invoice or credit note, oldest first.
+type OrderInvoiceDocument struct {
+	Allowance   bool
+	Number      string
+	RandomCode  string
+	AmountCents int64
+	Voided      bool
+	IssuedOn    string
+}
+
+// Label names the document.
+func (d OrderInvoiceDocument) Label(ctx context.Context) string {
+	if d.Allowance {
+		return i18n.T(ctx, i18n.KeyAdminDocAllowance)
+	}
+	return i18n.T(ctx, i18n.KeyAdminDocInvoice)
+}
+
+// Amount is shown on a credit note, whose figure is its point.
+func (d OrderInvoiceDocument) Amount() string { return twd(d.AmountCents) }
+
+// ChoiceText says how the invoice was asked for. A mobile carrier is masked: it
+// is a key to somebody's invoice archive and the page may be read from a link.
+func (i *OrderInvoice) ChoiceText(ctx context.Context) string {
+	switch i.Type {
+	case invoice.PreferenceMember:
+		return i18n.T(ctx, i18n.KeyAdminCarrierMember)
+	case invoice.PreferenceMobile:
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminCarrierMobile), maskCarrier(i.Carrier))
+	case invoice.PreferenceDonate:
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminInvoiceDonate), i.DonationCode)
+	case invoice.PreferenceCompany:
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminCarrierTaxID), i.TaxID)
+	default:
+		panic("pages: no label for invoice type " + string(i.Type))
+	}
+}
+
+// maskCarrier keeps the slash and the last two characters of a 手機條碼.
+func maskCarrier(code string) string {
+	if len(code) <= 3 {
+		return code
+	}
+	return code[:1] + strings.Repeat("*", len(code)-3) + code[len(code)-2:]
+}
