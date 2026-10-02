@@ -66,17 +66,45 @@ func TestNoFormCarriesARoleItMayNotHave(t *testing.T) {
 	}
 }
 
-// The language control is in the footer once; a second copy in the header is
-// a second thing to find and a second form to keep in step.
-func TestTheLanguageSwitchIsInTheFooterOnly(t *testing.T) {
+// The header's language control is one menu button and, once opened, one
+// choice per language; the footer keeps its own pair of plain buttons. Neither
+// is a second copy of the other's markup, and the button says which language is
+// on.
+func TestTheLanguageControlIsAMenuInTheHeaderAndAPairInTheFooter(t *testing.T) {
 	t.Parallel()
 
-	header, footer := renderChrome(t, i18n.En, chromeNav)
-	if strings.Contains(header, "goen-lang") {
-		t.Error("the header still carries a language control")
+	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+		header, footer := renderChrome(t, locale, chromeNav)
+		want := len(i18n.Locales())
+		if got := strings.Count(header, "goen-langmenu__item"); got != want {
+			t.Errorf("%s: the header menu has %d choices, want %d", locale, got, want)
+		}
+		if strings.Contains(header, "goen-lang__item") {
+			t.Errorf("%s: the header carries the footer's pair as well as its menu", locale)
+		}
+		if got := strings.Count(footer, "goen-lang__item"); got != want {
+			t.Errorf("%s: the footer has %d language buttons, want %d", locale, got, want)
+		}
+		if !strings.Contains(header, `lang="`+locale.Tag()+`">`+locale.Short()+`</span>`) {
+			t.Errorf("%s: the menu button does not show %q", locale, locale.Short())
+		}
+		if got := strings.Count(header, `aria-pressed="true"`); got != 1 {
+			t.Errorf("%s: %d choices are marked current, want 1", locale, got)
+		}
 	}
-	if got := strings.Count(footer, "goen-lang__item"); got != len(i18n.Locales()) {
-		t.Errorf("the footer has %d language buttons, want %d", got, len(i18n.Locales()))
+}
+
+// The menu's choices carry their own language for the same reason the
+// footer's do: each is the language's name for itself.
+func TestTheLanguageMenuChoicesCarryTheirOwnLanguage(t *testing.T) {
+	t.Parallel()
+
+	header, _ := renderChrome(t, i18n.En, chromeNav)
+	for _, l := range i18n.Locales() {
+		button := regexp.MustCompile(`<button[^>]*goen-langmenu__item[^>]*value="` + l.Tag() + `"[^>]*>`).FindString(header)
+		if !strings.Contains(button, `lang="`+l.Tag()+`"`) {
+			t.Errorf("the %s choice is %q, want lang=%q", l.Tag(), button, l.Tag())
+		}
 	}
 }
 

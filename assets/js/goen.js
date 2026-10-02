@@ -70,6 +70,38 @@
   }
 
   /*
+   * Small menus built on <details data-popover>, such as the language menu.
+   * The element opens itself; what it does not ship with is closing on Escape
+   * with the focus returned to its button, closing on a click elsewhere, and
+   * one open at a time.
+   */
+  function popovers() {
+    const pops = document.querySelectorAll("details[data-popover]");
+    if (!pops.length) return;
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape") return;
+      for (const pop of pops) {
+        if (!pop.open) continue;
+        const inside = pop.contains(document.activeElement);
+        pop.open = false;
+        if (inside) pop.querySelector("summary")?.focus();
+      }
+    });
+    document.addEventListener("click", (event) => {
+      for (const pop of pops) {
+        if (pop.open && !pop.contains(event.target)) pop.open = false;
+      }
+    });
+    for (const pop of pops) {
+      pop.addEventListener("toggle", () => {
+        if (!pop.open) return;
+        for (const other of pops) if (other !== pop) other.open = false;
+      });
+    }
+  }
+
+  /*
    * A department's panel opens by hover or focus, in CSS. Content that appears
    * that way has to be dismissible without moving the pointer or the focus, so
    * Escape marks the open one dismissed until the pointer leaves or the focus
@@ -239,6 +271,7 @@
   checkoutConstraints();
   headerMenu();
   departmentPanels();
+  popovers();
   stepper();
   carousel();
 })();
