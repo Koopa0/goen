@@ -225,7 +225,14 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 				<p class="goen-pagehead__sub">{ i18n.T(ctx, i18n.KeyCheckoutSub) }</p>
 			</div>
 			<div id="checkout-region">
-				<form class="goen-checkout__layout" id="checkout-form" method="post" action="/checkout">
+				<form
+					class="goen-checkout__layout"
+					id="checkout-form"
+					method="post"
+					action="/checkout"
+					novalidate
+					data-focus-refused?={ v.AnyErrors() }
+				>
 					// The form's DEFAULT button, and the reason it is first: HTML
 					// makes the first submit button in tree order the one Enter
 					// activates, and the chooser's 更新 buttons sit above the real
@@ -243,7 +250,7 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 					// One fixed-size identity covers the cart lines and prices, delivery,
 					// coupon and exact credit spend. The server rebuilds it while holding
 					// the corresponding database locks; it is a witness, not pricing input.
-					<input type="hidden" name="checkout_quote" value={ v.QuoteID }/>
+					<input type="hidden" id="checkout-quote" name="checkout_quote" value={ v.QuoteID }/>
 					// No hidden `address` here. It carried the same NAME as the radios
 					// below and came FIRST, so PostFormValue returned it every time and
 					// the customer's pick was discarded — the whole chooser was inert.
@@ -254,7 +261,11 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 								Tone:  components.ToneDanger,
 								Class: "ui-alert--error",
 							}) {
-								{ i18n.T(ctx, i18n.KeyCheckoutHasErrors) }
+								if v.OnlyCouponRefused() {
+									{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCheckoutCouponRefused), v.Err("coupon")) }
+								} else {
+									{ i18n.T(ctx, i18n.KeyCheckoutHasErrors) }
+								}
 							}
 						}
 						@components.Card(components.CardProps{
@@ -634,7 +645,7 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 								</li>
 							}
 						</ul>
-						<dl class="goen-summary">
+						<dl class="goen-summary" id="summary-totals">
 							<div class="goen-summary__row">
 								<dt>{ i18n.T(ctx, i18n.KeySubtotal) }</dt>
 								<dd class="goen-summary__value">{ v.Cart.Subtotal() }</dd>
@@ -672,7 +683,7 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 								<dd class="goen-summary__value">{ v.Total() }</dd>
 							</div>
 						</dl>
-						<div class="goen-field">
+						<div class="goen-field" id="coupon-field">
 							@components.Label(components.LabelProps{For: "coupon"}) {
 								{ i18n.T(ctx, i18n.KeyCouponCode) }
 							}
@@ -692,17 +703,19 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 								/>
 								@components.Button(components.ButtonProps{
 									Variant: components.VariantOutline,
-									Attrs:   templ.Attributes{"name": "update", "value": "coupon", "formnovalidate": true},
+									Attrs:   couponButtonAttrs(ctx),
 								}, "submit") {
 									{ i18n.T(ctx, i18n.KeyApplyCoupon) }
 								}
 							</div>
-							if v.HasErr("coupon") {
-								<p class="ui-error-text" id="coupon-error">{ v.Err("coupon") }</p>
-							}
-							if v.HasCoupon() {
-								<p class="goen-checkout__note">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCouponApplied), v.CouponApplied) }</p>
-							}
+							<div id="coupon-message" aria-live="polite">
+								if v.HasErr("coupon") {
+									<p class="ui-error-text" id="coupon-error">{ v.Err("coupon") }</p>
+								}
+								if v.HasCoupon() {
+									<p class="goen-checkout__note">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCouponApplied), v.CouponApplied) }</p>
+								}
+							</div>
 						</div>
 						@components.Button(components.ButtonProps{
 							Variant: components.VariantPrimary,
