@@ -3698,7 +3698,7 @@ func TestASlugIsNeverRenamed(t *testing.T) {
 	if errs, err := s.CreateBrand(ctx, &admin.TaxonomyForm{Slug: slug, Name: "原名"}); err != nil || len(errs) > 0 {
 		t.Fatalf("create: err=%v errs=%v", err, errs)
 	}
-	if err := s.Rename(ctx, "brand", slug, "新名字", "", "", ""); err != nil {
+	if err := s.Rename(ctx, "brand", slug, "新名字", "", "", "", false); err != nil {
 		t.Fatalf("rename: %v", err)
 	}
 
@@ -3710,7 +3710,7 @@ func TestASlugIsNeverRenamed(t *testing.T) {
 	if name != "新名字" {
 		t.Errorf("name is %q, want 新名字", name)
 	}
-	if err := s.Rename(ctx, "brand", slug, "   ", "", "", ""); !errors.Is(err, admin.ErrInvalid) {
+	if err := s.Rename(ctx, "brand", slug, "   ", "", "", "", false); !errors.Is(err, admin.ErrInvalid) {
 		t.Errorf("a blank name gave %v, want ErrInvalid", err)
 	}
 }
@@ -7451,7 +7451,7 @@ func TestACategoryCarriesItsEnglishName(t *testing.T) {
 			"Chinese name", fallback)
 	}
 
-	if err := s.Rename(ctx, "category", slug, "測試分類", "", "", ""); err != nil {
+	if err := s.Rename(ctx, "category", slug, "測試分類", "", "", "", false); err != nil {
 		t.Fatalf("rename: %v", err)
 	}
 	var cleared *string
@@ -10796,7 +10796,7 @@ func TestACategoryCreatedInTheBackOfficeCanCarryAnIcon(t *testing.T) {
 		t.Errorf("category creation audit icon_key = %q, want laptop", auditedIcon)
 	}
 
-	if renameErr := s.Rename(ctx, "category", slug, "改名分類", "", "laptop", ""); renameErr != nil {
+	if renameErr := s.Rename(ctx, "category", slug, "改名分類", "", "laptop", "", false); renameErr != nil {
 		t.Fatalf("rename: %v", renameErr)
 	}
 	if readErr := pool.QueryRow(ctx,

@@ -2046,3 +2046,19 @@ func TestARefusedRestockRequestKeepsTheAddressAndNamesItsCause(t *testing.T) {
 		t.Errorf("a variant back in stock = %d; want 422 with the unavailable message and not the email one", back.Code)
 	}
 }
+
+// A product page offers comparison where its department does: phones inherit it
+// from tech, and a book sits under a department that does not compare.
+func TestAProductPageOffersComparisonWhereItsDepartmentDoes(t *testing.T) {
+	ctx := t.Context()
+	store := product.NewStore(pool)
+	for slug, want := range map[string]bool{"pixelight-9-pro": true, "fernway-mountain-tea-seasons": false} {
+		view, err := store.Load(ctx, slug, nil)
+		if err != nil {
+			t.Fatalf("load %s: %v", slug, err)
+		}
+		if view.Comparable != want {
+			t.Errorf("%s: Comparable = %v, want %v", slug, view.Comparable, want)
+		}
+	}
+}

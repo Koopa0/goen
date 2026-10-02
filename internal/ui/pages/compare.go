@@ -91,6 +91,22 @@ func (r CompareRow) Value(i int) string {
 // Comparable reports whether every product states this spec.
 func (r CompareRow) Comparable(products int) bool { return r.SharedBy >= products }
 
+// Marked reports whether the row is shown as one the products disagree on: a
+// spec only some of them state is already a quiet footnote, and is left as one.
+func (r CompareRow) Marked(products int) bool { return r.Comparable(products) && r.Differs() }
+
+// Differs reports whether the columns disagree about this spec. A product that
+// does not state it counts as a value of its own: "has it" against "does not"
+// is a difference worth showing.
+func (r CompareRow) Differs() bool {
+	for i := 1; i < len(r.Values); i++ {
+		if r.Values[i] != r.Values[0] {
+			return true
+		}
+	}
+	return false
+}
+
 // CompareView is the comparison table.
 type CompareView struct {
 	Products []CompareProduct
@@ -101,6 +117,20 @@ type CompareView struct {
 	// products already in the comparison.
 	Query      string
 	Candidates []CompareCandidate
+	// Suggestions are what a comparison of one product could add: the other
+	// products on its shelf, nearest in price first. Empty once there are two.
+	Suggestions []ProductTile
+	// ShelfSlug is the category the first product sits in.
+	ShelfSlug string
+}
+
+// ShelfHref is the shelf the chosen product sits on, where more to compare with
+// can be found, or "" when the comparison names no product.
+func (v CompareView) ShelfHref() string {
+	if len(v.Products) == 0 || v.ShelfSlug == "" {
+		return ""
+	}
+	return "/c/" + v.ShelfSlug
 }
 
 // Empty reports whether there is nothing to compare.

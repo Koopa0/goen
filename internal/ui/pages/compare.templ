@@ -17,17 +17,21 @@ templ Compare(p layouts.Page, v CompareView) {
 		<div class="goen-compare">
 			<div class="goen-pagehead">
 				<p class="goen-pagehead__eyebrow">{ i18n.T(ctx, i18n.KeyCompareTitle) }</p>
-				<h1 class="goen-pagehead__title">{ i18n.T(ctx, i18n.KeyCompareHeading) }</h1>
 				if v.Enough() {
+					<h1 class="goen-pagehead__title">{ i18n.T(ctx, i18n.KeyCompareHeading) }</h1>
 					<p class="goen-pagehead__sub">
 						{ i18n.T(ctx, i18n.KeyCompareSub) }
 					</p>
+				} else {
+					<h1 class="goen-pagehead__title">{ i18n.T(ctx, i18n.KeyCompareChoose) }</h1>
 				}
 			</div>
 			if v.Dropped {
 				<p class="goen-compare__note" role="status">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCompareOverflow), MaxCompare, MaxCompare) }</p>
 			}
-			@comparePicker(v)
+			if v.Enough() {
+				@comparePicker(v)
+			}
 			if !v.Enough() {
 				<div class="ui-empty">
 					<span class="goen-medallion" aria-hidden="true">
@@ -54,6 +58,8 @@ templ Compare(p layouts.Page, v CompareView) {
 						}
 					</ul>
 				}
+				@compareSuggestions(v)
+				@comparePicker(v)
 			} else {
 				<div class="goen-compare__scroll">
 					<table class="goen-compare__table">
@@ -122,8 +128,13 @@ templ Compare(p layouts.Page, v CompareView) {
 								}
 							</tr>
 							for _, row := range v.Rows {
-								<tr class={ templ.KV("is-partial", !row.Comparable(v.Count())) }>
-									<th scope="row">{ row.Label }</th>
+								<tr class={ templ.KV("is-partial", !row.Comparable(v.Count())), templ.KV("is-differs", row.Marked(v.Count())) }>
+									<th scope="row">
+										{ row.Label }
+										if row.Marked(v.Count()) {
+											<span class="goen-sr-only"> · { i18n.T(ctx, i18n.KeyCompareDiffers) }</span>
+										}
+									</th>
 									for i := range v.Products {
 										<td>{ row.Value(i) }</td>
 									}
@@ -168,5 +179,46 @@ templ comparePicker(v CompareView) {
 				}
 			</ul>
 		}
+	}
+}
+
+// compareSuggestions is what a lone product can be compared with: others from
+// its own shelf, nearest in price first, each added by a link to the address
+// that includes it, and the shelf itself for the rest.
+templ compareSuggestions(v CompareView) {
+	if len(v.Suggestions) > 0 {
+		<section class="goen-compare__suggest" aria-labelledby="compare-suggest-heading">
+			<h2 id="compare-suggest-heading" class="goen-compare__suggesthead">{ i18n.T(ctx, i18n.KeySectionRelated) }</h2>
+			<ul class="goen-compare__suggestlist" role="list">
+				for _, t := range v.Suggestions {
+					<li class="goen-compare__suggestion">
+						if t.ImageURL != "" {
+							<span class="goen-compare__suggestmedia">
+								<img
+									src={ t.ImageURL }
+									srcset={ t.ImageSrcset }
+									sizes="(min-width: 1024px) 12rem, 45vw"
+									alt=""
+									loading="lazy"
+									decoding="async"
+								/>
+							</span>
+						}
+						<a class="goen-compare__name" href={ templ.SafeURL(v.ProductHref(t.Slug)) }>{ t.Name }</a>
+						<span class="goen-compare__brand">{ t.Brand }</span>
+						<span class="goen-compare__price">{ t.Price() }</span>
+						@components.ButtonLink(components.ButtonProps{Variant: components.VariantOutline}, templ.SafeURL(v.AddHref(t.Slug))) {
+							{ i18n.T(ctx, i18n.KeyAddToCompare) }
+							<span class="goen-sr-only"> { t.Name }</span>
+						}
+					</li>
+				}
+			</ul>
+		</section>
+	}
+	if v.ShelfHref() != "" {
+		<p class="goen-compare__shelf">
+			<a href={ templ.SafeURL(v.ShelfHref()) }>{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCompareBrowse), v.Products[0].Category) } <span aria-hidden="true">&rarr;</span></a>
+		</p>
 	}
 }
