@@ -51,7 +51,7 @@ func TestPaymentFAQSeedAndRepairExplainTheSameChoices(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	zh := sqlStringAfter(t, string(seed), "('訂購與付款', '可以用哪些方式付款?',")
+	zh := sqlStringAfter(t, string(seed), "('訂購與付款', '可以用哪些方式付款？',")
 	en := sqlStringAfter(t, string(seed), "'How can I pay?',")
 	if zh != sqlStringAfter(t, string(repair), "SET answer =") || en != sqlStringAfter(t, string(repair), "SET answer_en =") {
 		t.Error("payment FAQ repair differs from fresh seed")
@@ -82,7 +82,7 @@ func TestHoldFAQSeedAndRepairStateTheSameDeadline(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	zh := sqlStringAfter(t, string(seed), "('訂購與付款', '下單之後商品會保留嗎?',")
+	zh := sqlStringAfter(t, string(seed), "('訂購與付款', '下單之後商品會保留嗎？',")
 	en := sqlStringAfter(t, string(seed), "'Is the stock held after I order?',")
 	if zh != sqlStringAfter(t, string(repair), "SET answer =") || en != sqlStringAfter(t, string(repair), "SET answer_en =") {
 		t.Error("hold FAQ repair differs from fresh seed")
