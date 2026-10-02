@@ -95,12 +95,27 @@ func (s *Store) Listing(ctx context.Context, slug string, f Filters) (pages.List
 		return pages.ListingView{}, fmt.Errorf("count listing for %q: %w", slug, err)
 	}
 
+	trail := crumbs(cat.AncestorSlugs, cat.AncestorNames)
+	// The chips are the department's children from any page under it, so a
+	// shopper in one sub-category sees the others.
+	department := slug
+	if len(trail) > 0 {
+		department = trail[0].Slug
+	}
+	children, err := s.q.CategoryChildren(ctx, db.CategoryChildrenParams{
+		Slug: department, Locale: string(i18n.FromContext(ctx)),
+	})
+	if err != nil {
+		return pages.ListingView{}, fmt.Errorf("read children of %q: %w", department, err)
+	}
+
 	view := pages.ListingView{
 		Slug:   slug,
 		Name:   cat.Name,
-		Crumbs: crumbs(cat.AncestorSlugs, cat.AncestorNames),
+		Crumbs: trail,
 		Theme: &pages.Theme{
-			Tone: pages.ResolveTone(cat.Tone),
+			Children: childCrumbs(children),
+			Tone:     pages.ResolveTone(cat.Tone),
 			Photo: pages.Photo{
 				URL:    assets.ProductImageURL(cat.ImageKey),
 				Srcset: assets.ProductImageSrcsetAt(cat.ImageKey, int(cat.ImageWidth)),
@@ -147,6 +162,14 @@ func (s *Store) Search(ctx context.Context, pattern string, page int) (pages.Sea
 		Page:     max(page, 1),
 		PageSize: PageSize,
 	}, nil
+}
+
+func childCrumbs(rows []db.CategoryChildrenRow) []pages.Crumb {
+	out := make([]pages.Crumb, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, pages.Crumb{Slug: r.Slug, Name: r.Name})
+	}
+	return out
 }
 
 // crumbs pairs the ancestor slugs with their names. The shorter array wins: a

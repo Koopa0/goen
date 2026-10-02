@@ -64,10 +64,12 @@ func (p Photo) Shown() bool { return p.URL != "" }
 // itself, or stone for a view that carries none.
 func (t Tone) Attr() string { return string(ResolveTone(string(t))) }
 
-// Theme is what a department page wears: its ground and its photograph.
+// Theme is what a department page wears: its ground, its photograph and the
+// sub-categories its head offers. A sub-category page wears its department's.
 type Theme struct {
-	Tone  Tone
-	Photo Photo
+	Tone     Tone
+	Photo    Photo
+	Children []Crumb
 }
 
 // ToneAttr is the data-tone value: stone for a page with no theme.

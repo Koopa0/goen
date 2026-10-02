@@ -3534,6 +3534,46 @@ func (q *Queries) CategoryBySlug(ctx context.Context, arg CategoryBySlugParams) 
 	return i, err
 }
 
+const categoryChildren = `-- name: CategoryChildren :many
+SELECT c.slug, localized_name(c.name, c.name_en, $2::text) AS name
+FROM categories c
+JOIN categories p ON p.id = c.parent_id
+WHERE p.slug = $1
+ORDER BY c.position, c.name, c.id
+`
+
+type CategoryChildrenParams struct {
+	Slug   string
+	Locale string
+}
+
+type CategoryChildrenRow struct {
+	Slug string
+	Name string
+}
+
+// The direct children of the category with slug $1, in shelf order: the chips
+// under a department's title.
+func (q *Queries) CategoryChildren(ctx context.Context, arg CategoryChildrenParams) ([]CategoryChildrenRow, error) {
+	rows, err := q.db.Query(ctx, categoryChildren, arg.Slug, arg.Locale)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CategoryChildrenRow{}
+	for rows.Next() {
+		var i CategoryChildrenRow
+		if err := rows.Scan(&i.Slug, &i.Name); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const categoryDescendants = `-- name: CategoryDescendants :many
 WITH RECURSIVE d AS (
     SELECT c.id FROM categories c WHERE c.id = $1

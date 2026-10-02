@@ -8,7 +8,7 @@ var (
 
 	KeySearchTitle = key("search.title", Message{ZhHant: "搜尋", En: "Search"})
 
-	KeySearchFor = key("search.for", Message{ZhHant: "搜尋:%s", En: "Search: %s"})
+	KeySearchFor = key("search.for", Message{ZhHant: "搜尋「%s」", En: "Search for “%s”"})
 
 	KeyBreadcrumb = key("nav.breadcrumb", Message{ZhHant: "麵包屑", En: "Breadcrumb"})
 
@@ -94,6 +94,12 @@ var (
 
 	KeyNextPage = key("listing.pager.next", Message{ZhHant: "下一頁", En: "Next"})
 
+	KeyFeaturedHeading = key("listing.featured", Message{ZhHant: "精選商品", En: "Featured"})
+
+	KeySubcategories = key("listing.subcategories", Message{ZhHant: "子分類", En: "Subcategories"})
+
+	KeyPageNumber = key("listing.pager.number", Message{ZhHant: "第 %s 頁", En: "Page %s"})
+
 	KeyPageOf = key("listing.pager.at", Message{ZhHant: "第 %s / %s 頁", En: "Page %s of %s"})
 
 	KeySearchHeading = key("search.heading", Message{ZhHant: "搜尋商品", En: "Search products"})
@@ -115,13 +121,8 @@ var (
 	})
 
 	KeySearchNoResultsHint = key("search.none.hint", Message{
-		ZhHant: "試試更短的關鍵字,或",
-		En:     "Try a shorter term, or",
-	})
-
-	KeySearchNoResultsLink = key("search.none.link", Message{
-		ZhHant: "回首頁瀏覽分類",
-		En:     "browse the categories from the home page",
+		ZhHant: "試試更短的關鍵字,或從下面的館別開始逛。",
+		En:     "Try a shorter term, or start from one of these departments.",
 	})
 
 	KeyOnSale = key("card.onsale", Message{ZhHant: "特價", En: "On sale"})

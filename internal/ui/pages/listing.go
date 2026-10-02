@@ -120,6 +120,50 @@ func (v ListingView) TotalText() string { return strconv.FormatInt(v.Total, 10) 
 // Empty reports whether this page has nothing to show.
 func (v ListingView) Empty() bool { return len(v.Products) == 0 }
 
+// featuredCount is how many products lead a long listing in larger cards, and
+// featuredFloor the listing size beyond which the lead row is worth having: on a
+// short shelf it would be the whole page twice.
+const (
+	featuredCount = 4
+	featuredFloor = 8
+)
+
+// hasFeatured reports whether the lead row shows. Only the unfiltered first page
+// has one: a filtered shelf is a search for something, and page two is a
+// continuation, so neither wants the shop's picks above it.
+func (v ListingView) hasFeatured() bool {
+	return !v.Filtered && v.Page <= 1 && v.Total > featuredFloor && len(v.Products) > featuredCount
+}
+
+// Featured is the lead row: the first products in the shelf's own order.
+func (v ListingView) Featured() []ProductTile {
+	if !v.hasFeatured() {
+		return nil
+	}
+	return FirstRowEager(v.Products[:featuredCount])
+}
+
+// Grid is the products the grid shows. Those in the lead row are not repeated.
+func (v ListingView) Grid() []ProductTile {
+	if v.hasFeatured() {
+		return v.Products[featuredCount:]
+	}
+	return FirstRowEager(v.Products)
+}
+
+// Children is the sub-categories the head offers as chips.
+func (v ListingView) Children() []Crumb {
+	if v.Theme == nil {
+		return nil
+	}
+	return v.Theme.Children
+}
+
+// PageLinks is the numbered pager for this listing.
+func (v ListingView) PageLinks() []PageLink {
+	return pageWindow(int(v.Page), v.Pages(), v.PageHref)
+}
+
 // Pages is how many pages the current filters produce.
 func (v ListingView) Pages() int {
 	if v.PageSize <= 0 || v.Total <= 0 {
@@ -237,6 +281,11 @@ func (v SearchView) Pages() int {
 func (v SearchView) HasPrev() bool { return v.Page > 1 }
 func (v SearchView) HasNext() bool { return v.Page < v.Pages() }
 
+// PageLinks is the numbered pager for these results.
+func (v SearchView) PageLinks() []PageLink {
+	return pageWindow(v.Page, v.Pages(), v.PageHref)
+}
+
 func (v SearchView) PrevHref() string { return v.PageHref(v.Page - 1) }
 func (v SearchView) NextHref() string { return v.PageHref(v.Page + 1) }
 
@@ -281,4 +330,31 @@ func (v SearchView) CampaignPageHref(page int) string {
 		href += "?" + q.Encode()
 	}
 	return href + "#campaigns"
+}
+
+// PageLink is one step in a numbered pager. A Gap has no address: it stands for
+// the pages left out between two that are shown.
+type PageLink struct {
+	Href    string
+	Label   string
+	Current bool
+	Gap     bool
+}
+
+// pageWindow lists the first and last page and the one on either side of the
+// current, with a gap where pages are left out, so a long run stays one row.
+func pageWindow(current, pages int, href func(int) string) []PageLink {
+	var out []PageLink
+	last := 0
+	for n := 1; n <= pages; n++ {
+		if n != 1 && n != pages && (n < current-1 || n > current+1) {
+			continue
+		}
+		if last != 0 && n-last > 1 {
+			out = append(out, PageLink{Gap: true})
+		}
+		out = append(out, PageLink{Href: href(n), Label: strconv.Itoa(n), Current: n == current})
+		last = n
+	}
+	return out
 }
