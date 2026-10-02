@@ -11957,10 +11957,11 @@ func (q *Queries) SavedAddresses(ctx context.Context, userID uuid.UUID) ([]Saved
 
 const searchProducts = `-- name: SearchProducts :many
 WITH RECURSIVE category_match AS (
-    SELECT id FROM categories
-    WHERE name ILIKE $2::text OR coalesce(name_en, '') ILIKE $2::text
+    SELECT t.pattern, c.id
+    FROM unnest($2::text[]) AS t(pattern)
+    JOIN categories c ON c.name ILIKE t.pattern OR coalesce(c.name_en, '') ILIKE t.pattern
     UNION
-    SELECT c.id FROM categories c JOIN category_match m ON c.parent_id = m.id
+    SELECT m.pattern, c.id FROM categories c JOIN category_match m ON c.parent_id = m.id
 )
 SELECT
     p.slug,
@@ -12005,46 +12006,69 @@ LEFT JOIN LATERAL (
 ) img ON true
 WHERE p.status = 'active'
   -- Both names: matching only the localized column would make the catalogue
-  -- searchable in one language at a time.
-  AND (p.name ILIKE $2::text
-       OR coalesce(p.name_en, '') ILIKE $2::text
-       OR coalesce(p.summary, '') ILIKE $2::text
-       OR coalesce(p.summary_en, '') ILIKE $2::text
-       OR b.name ILIKE $2::text
-       OR p.category_id IN (SELECT id FROM category_match)
-       OR EXISTS (
-           SELECT 1 FROM product_variants sku_match
-           WHERE sku_match.product_id = p.id AND sku_match.is_active
-             AND sku_match.sku ILIKE $2::text
-       )
-       OR EXISTS (
-           SELECT 1 FROM product_specs ps
-           WHERE ps.product_id = p.id
-             AND (ps.label ILIKE $2::text
-                  OR coalesce(ps.label_en, '') ILIKE $2::text
-                  OR ps.value ILIKE $2::text
-                  OR coalesce(ps.value_en, '') ILIKE $2::text)
-       ))
+  -- searchable in one language at a time. Every term must match some field, and
+  -- a term may match a different field from its neighbour: "aurora 65w" is a
+  -- brand and a spec.
+  AND NOT EXISTS (
+      SELECT 1 FROM unnest($2::text[]) AS t(pattern)
+      WHERE NOT (
+          p.name ILIKE t.pattern
+          OR coalesce(p.name_en, '') ILIKE t.pattern
+          OR coalesce(p.summary, '') ILIKE t.pattern
+          OR coalesce(p.summary_en, '') ILIKE t.pattern
+          OR b.name ILIKE t.pattern
+          OR EXISTS (
+              SELECT 1 FROM category_match m
+              WHERE m.pattern = t.pattern AND m.id = p.category_id
+          )
+          OR EXISTS (
+              SELECT 1 FROM product_variants sku_match
+              WHERE sku_match.product_id = p.id AND sku_match.is_active
+                AND sku_match.sku ILIKE t.pattern
+          )
+          OR EXISTS (
+              SELECT 1 FROM product_specs ps
+              WHERE ps.product_id = p.id
+                AND (ps.label ILIKE t.pattern
+                     OR coalesce(ps.label_en, '') ILIKE t.pattern
+                     OR ps.value ILIKE t.pattern
+                     OR coalesce(ps.value_en, '') ILIKE t.pattern)
+          )
+      )
+  )
 ORDER BY
     -- Field relevance is explicit; repeated words, sales and ratings do not change it.
-    -- A complete variant SKU leads; the category follows a partial name match and
-    -- a partial SKU follows the category.
+    -- The exact tiers compare the whole query; a name that holds every term
+    -- leads one that holds only some, then category, SKU, brand and summary
+    -- follow on any term.
     CASE
         WHEN EXISTS (
             SELECT 1 FROM product_variants exact_sku
             WHERE exact_sku.product_id = p.id AND exact_sku.is_active
               AND exact_sku.sku ILIKE $3::text
-        ) THEN 7
-        WHEN p.name ILIKE $3::text OR coalesce(p.name_en, '') ILIKE $3::text THEN 6
-        WHEN p.name ILIKE $2::text OR coalesce(p.name_en, '') ILIKE $2::text THEN 5
-        WHEN p.category_id IN (SELECT id FROM category_match) THEN 4
+        ) THEN 8
+        WHEN p.name ILIKE $3::text OR coalesce(p.name_en, '') ILIKE $3::text THEN 7
+        WHEN NOT EXISTS (
+            SELECT 1 FROM unnest($2::text[]) AS t(pattern)
+            WHERE NOT (p.name ILIKE t.pattern OR coalesce(p.name_en, '') ILIKE t.pattern)
+        ) THEN 6
         WHEN EXISTS (
-            SELECT 1 FROM product_variants partial_sku
+            SELECT 1 FROM unnest($2::text[]) AS t(pattern)
+            WHERE p.name ILIKE t.pattern OR coalesce(p.name_en, '') ILIKE t.pattern
+        ) THEN 5
+        WHEN EXISTS (SELECT 1 FROM category_match m WHERE m.id = p.category_id) THEN 4
+        WHEN EXISTS (
+            SELECT 1 FROM product_variants partial_sku, unnest($2::text[]) AS t(pattern)
             WHERE partial_sku.product_id = p.id AND partial_sku.is_active
-              AND partial_sku.sku ILIKE $2::text
+              AND partial_sku.sku ILIKE t.pattern
         ) THEN 3
-        WHEN b.name ILIKE $2::text THEN 2
-        WHEN coalesce(p.summary, '') ILIKE $2::text OR coalesce(p.summary_en, '') ILIKE $2::text THEN 1
+        WHEN EXISTS (
+            SELECT 1 FROM unnest($2::text[]) AS t(pattern) WHERE b.name ILIKE t.pattern
+        ) THEN 2
+        WHEN EXISTS (
+            SELECT 1 FROM unnest($2::text[]) AS t(pattern)
+            WHERE coalesce(p.summary, '') ILIKE t.pattern OR coalesce(p.summary_en, '') ILIKE t.pattern
+        ) THEN 1
         ELSE 0
     END DESC,
     p.published_at DESC, p.id DESC
@@ -12053,7 +12077,7 @@ LIMIT $5::integer OFFSET $4::integer
 
 type SearchProductsParams struct {
 	Locale       string
-	Pattern      string
+	Patterns     []string
 	ExactPattern string
 	PageOffset   int32
 	PageSize     int32
@@ -12077,11 +12101,14 @@ type SearchProductsRow struct {
 }
 
 // The trigram GIN index serves Latin queries; short Chinese ones fall back to a
-// sequential scan. The caller escapes %, _ and \ before binding.
+// sequential scan. A category matches by its own name or an ancestor's, so
+// searching a department finds what is filed under its sub-categories.
+// @patterns holds one pattern per term; the caller escapes %, _ and \ in each
+// before binding, and @exact_pattern is the whole query.
 func (q *Queries) SearchProducts(ctx context.Context, arg SearchProductsParams) ([]SearchProductsRow, error) {
 	rows, err := q.db.Query(ctx, searchProducts,
 		arg.Locale,
-		arg.Pattern,
+		arg.Patterns,
 		arg.ExactPattern,
 		arg.PageOffset,
 		arg.PageSize,
@@ -12121,39 +12148,50 @@ func (q *Queries) SearchProducts(ctx context.Context, arg SearchProductsParams) 
 
 const searchProductsCount = `-- name: SearchProductsCount :one
 WITH RECURSIVE category_match AS (
-    SELECT id FROM categories
-    WHERE name ILIKE $1::text OR coalesce(name_en, '') ILIKE $1::text
+    SELECT t.pattern, c.id
+    FROM unnest($1::text[]) AS t(pattern)
+    JOIN categories c ON c.name ILIKE t.pattern OR coalesce(c.name_en, '') ILIKE t.pattern
     UNION
-    SELECT c.id FROM categories c JOIN category_match m ON c.parent_id = m.id
+    SELECT m.pattern, c.id FROM categories c JOIN category_match m ON c.parent_id = m.id
 )
 SELECT count(*)::bigint
 FROM products p
 JOIN brands b ON b.id = p.brand_id
 WHERE p.status = 'active'
-  AND (p.name ILIKE $1::text
-       OR coalesce(p.name_en, '') ILIKE $1::text
-       OR coalesce(p.summary, '') ILIKE $1::text
-       OR coalesce(p.summary_en, '') ILIKE $1::text
-       OR b.name ILIKE $1::text
-       OR p.category_id IN (SELECT id FROM category_match)
-       OR EXISTS (
-           SELECT 1 FROM product_variants sku_match
-           WHERE sku_match.product_id = p.id AND sku_match.is_active
-             AND sku_match.sku ILIKE $1::text
-       )
-       OR EXISTS (
-           SELECT 1 FROM product_specs ps
-           WHERE ps.product_id = p.id
-             AND (ps.label ILIKE $1::text
-                  OR coalesce(ps.label_en, '') ILIKE $1::text
-                  OR ps.value ILIKE $1::text
-                  OR coalesce(ps.value_en, '') ILIKE $1::text)
-       ))
+  -- Every term must match some field, and a term may match a different field
+  -- from its neighbour.
+  AND NOT EXISTS (
+      SELECT 1 FROM unnest($1::text[]) AS t(pattern)
+      WHERE NOT (
+          p.name ILIKE t.pattern
+          OR coalesce(p.name_en, '') ILIKE t.pattern
+          OR coalesce(p.summary, '') ILIKE t.pattern
+          OR coalesce(p.summary_en, '') ILIKE t.pattern
+          OR b.name ILIKE t.pattern
+          OR EXISTS (
+              SELECT 1 FROM category_match m
+              WHERE m.pattern = t.pattern AND m.id = p.category_id
+          )
+          OR EXISTS (
+              SELECT 1 FROM product_variants sku_match
+              WHERE sku_match.product_id = p.id AND sku_match.is_active
+                AND sku_match.sku ILIKE t.pattern
+          )
+          OR EXISTS (
+              SELECT 1 FROM product_specs ps
+              WHERE ps.product_id = p.id
+                AND (ps.label ILIKE t.pattern
+                     OR coalesce(ps.label_en, '') ILIKE t.pattern
+                     OR ps.value ILIKE t.pattern
+                     OR coalesce(ps.value_en, '') ILIKE t.pattern)
+          )
+      )
+  )
 `
 
 // The same predicate as SearchProducts, and it has to stay the same.
-func (q *Queries) SearchProductsCount(ctx context.Context, pattern string) (int64, error) {
-	row := q.db.QueryRow(ctx, searchProductsCount, pattern)
+func (q *Queries) SearchProductsCount(ctx context.Context, patterns []string) (int64, error) {
+	row := q.db.QueryRow(ctx, searchProductsCount, patterns)
 	var column_1 int64
 	err := row.Scan(&column_1)
 	return column_1, err
