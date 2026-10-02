@@ -210,7 +210,42 @@ SELECT
     (SELECT count(*) FROM product_variants
      WHERE is_active AND stock_quantity <= safety_stock)::bigint AS low_stock,
     (SELECT count(*) FROM products WHERE status = 'active')::bigint AS active_products,
-    (SELECT count(*) FROM contact_messages WHERE handled_at IS NULL)::bigint AS open_messages;
+    (SELECT count(*) FROM contact_messages WHERE handled_at IS NULL)::bigint AS open_messages,
+    (SELECT count(*) FROM return_requests WHERE status = 'requested')::bigint AS pending_returns,
+    -- The queue's own predicate (UnansweredQuestions, Question.Waiting): visible,
+    -- and no visible answer from the shop. A customer's reply does not answer it.
+    (SELECT count(*) FROM product_questions q
+     WHERE q.hidden_at IS NULL
+       AND NOT EXISTS (SELECT 1 FROM product_answers a
+                       WHERE a.question_id = q.id AND a.is_staff AND a.hidden_at IS NULL)
+    )::bigint AS unanswered_questions;
+
+-- The earliest last day of the seven-day right of rescission (消保法 §19) among
+-- the parcels that open return requests are about. return_window_ends is the one
+-- place the seven is written, and the parcel is the same latest delivery per
+-- order line that ReturnQueue classifies the request against. Two columns, not
+-- one nullable date: min() over no rows is NULL and sqlc infers the column
+-- non-nullable, so pgx cannot scan it. A request on a parcel nobody has marked
+-- delivered has no clock yet and contributes nothing.
+-- name: PendingReturnDeadline :one
+SELECT coalesce(min(w.ends_on), shop_today())::date AS nearest_on,
+       (count(*) > 0) AS any_running
+FROM (
+    SELECT return_window_ends(sh.delivered_at) AS ends_on
+    FROM return_requests r
+    JOIN return_request_lines rl ON rl.return_request_id = r.id
+    JOIN LATERAL (
+        SELECT s.delivered_at
+        FROM order_shipment_lines osl
+        JOIN order_shipments s ON s.id = osl.shipment_id
+        WHERE osl.order_line_id = rl.order_line_id
+          AND s.order_id = r.order_id
+          AND s.delivered_at IS NOT NULL
+        ORDER BY s.delivered_at DESC
+        LIMIT 1
+    ) sh ON true
+    WHERE r.status = 'requested'
+) w;
 
 -- name: CreateShipment :one
 INSERT INTO order_shipments (order_id, carrier, tracking_number, estimated_delivery_on)

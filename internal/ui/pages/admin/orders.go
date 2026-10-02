@@ -109,8 +109,14 @@ type DashboardView struct {
 	LowStock       int64
 	ActiveProducts int64
 	OpenMessages   int64
-	Recent         []OrderRow
-	Low            []Variant
+	// PendingReturns is the requests nobody has decided. ReturnsDeadline is the
+	// first last day of the seven-day right of rescission among them, already on
+	// the shop's calendar, or empty when no open request is on a delivered parcel.
+	PendingReturns      int64
+	ReturnsDeadline     string
+	UnansweredQuestions int64
+	Recent              []OrderRow
+	Low                 []Variant
 }
 
 // PendingText is how many orders are waiting to be paid.
@@ -133,6 +139,25 @@ func (v DashboardView) ActiveProductsText() string {
 // OpenMessagesText is how many contact messages are unanswered.
 func (v DashboardView) OpenMessagesText() string {
 	return strconv.FormatInt(v.OpenMessages, 10)
+}
+
+// PendingReturnsText is how many return requests wait for a decision.
+func (v DashboardView) PendingReturnsText() string {
+	return strconv.FormatInt(v.PendingReturns, 10)
+}
+
+// ReturnsDeadlineNote is the deadline line under the returns tile, empty when
+// there is no deadline to name.
+func (v DashboardView) ReturnsDeadlineNote(ctx context.Context) string {
+	if v.PendingReturns == 0 || v.ReturnsDeadline == "" {
+		return ""
+	}
+	return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQueueStatReturnsBy), v.ReturnsDeadline)
+}
+
+// UnansweredQuestionsText is how many questions the shop still owes an answer.
+func (v DashboardView) UnansweredQuestionsText() string {
+	return strconv.FormatInt(v.UnansweredQuestions, 10)
 }
 
 // HasLow reports whether anything needs restocking.

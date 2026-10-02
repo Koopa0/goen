@@ -10,8 +10,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
-// Dashboard renders the back office landing page: the five figures the
-// shop is judged by, then the two queues somebody actually works from.
+// Dashboard renders the back office landing page: the figures the
+// shop is run by, then the two queues somebody actually works from.
 //
 // Every figure is a link. A count on its own tells a staff member that there is
 // work and not where it is, and the screen holding it is one they would
@@ -39,6 +39,17 @@ templ Dashboard(p layouts.Page, v DashboardView) {
 				Label: i18n.T(ctx, i18n.KeyAdminStatusPicking),
 				Value: v.PickingText(),
 				Href:  "/admin/orders?status=picking",
+			})
+			@components.StatTile(components.StatTileProps{
+				Label: i18n.T(ctx, i18n.KeyAdminQueueStatReturns),
+				Value: v.PendingReturnsText(),
+				Note:  v.ReturnsDeadlineNote(ctx),
+				Href:  "/admin/returns",
+			})
+			@components.StatTile(components.StatTileProps{
+				Label: i18n.T(ctx, i18n.KeyAdminQueueStatQuestions),
+				Value: v.UnansweredQuestionsText(),
+				Href:  "/admin/questions",
 			})
 			@components.StatTile(components.StatTileProps{
 				Label: i18n.T(ctx, i18n.KeyAdminQueueStatLowStock),

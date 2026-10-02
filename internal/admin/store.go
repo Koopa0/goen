@@ -92,6 +92,16 @@ func (s *Store) Dashboard(ctx context.Context) (admin.DashboardView, error) {
 		LowStock:       sum.LowStock,
 		ActiveProducts: sum.ActiveProducts,
 		OpenMessages:   sum.OpenMessages,
+
+		PendingReturns:      sum.PendingReturns,
+		UnansweredQuestions: sum.UnansweredQuestions,
+	}
+	deadline, err := s.q.PendingReturnDeadline(ctx)
+	if err != nil {
+		return admin.DashboardView{}, fmt.Errorf("read return deadline: %w", err)
+	}
+	if deadline.AnyRunning {
+		view.ReturnsDeadline = shoptime.Day(deadline.NearestOn)
 	}
 
 	// No status: the newest orders whatever state they are in. The tiles above

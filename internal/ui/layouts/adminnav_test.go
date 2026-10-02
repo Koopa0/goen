@@ -27,7 +27,12 @@ func TestEveryAdminNavGroupOpensOnItsOwnScreens(t *testing.T) {
 	}
 
 	for _, g := range groups {
-		declared := slices.Clone(g.declared)
+		// A standalone screen may open a group it is not in: the dashboard opens
+		// the queues group, because that is where a shift starts. Everything else
+		// a group declares still has to be one of its own links.
+		declared := slices.DeleteFunc(slices.Clone(g.declared), func(screen string) bool {
+			return slices.Contains(standalone, screen)
+		})
 		linked := slices.Clone(g.linked)
 		slices.Sort(declared)
 		slices.Sort(linked)

@@ -9,6 +9,10 @@ package components
 type StatTileProps struct {
 	Label string
 	Value string
+	// Note is one quiet line under the figure, for the fact that makes the count
+	// urgent. It follows the value in the document so the figure is still read
+	// right after its label.
+	Note  string
 	Href  string
 	Class string
 }

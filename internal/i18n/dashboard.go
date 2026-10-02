@@ -28,6 +28,23 @@ var (
 		En:     "Messages awaiting a reply",
 	})
 
+	KeyAdminQueueStatReturns = key("admin.queue.stat.returns", Message{
+		ZhHant: "待處理退貨申請",
+		En:     "Return requests to decide",
+	})
+
+	KeyAdminQueueStatQuestions = key("admin.queue.stat.questions", Message{
+		ZhHant: "待回覆提問",
+		En:     "Questions awaiting an answer",
+	})
+
+	// KeyAdminQueueStatReturnsBy is the line under the returns figure: the first
+	// last day of the seven-day right of rescission among the open requests.
+	KeyAdminQueueStatReturnsBy = key("admin.queue.stat.returnsby", Message{
+		ZhHant: "最近的七日期限:%s",
+		En:     "Earliest seven-day deadline: %s",
+	})
+
 	KeyAdminQueueRestockHead = key("admin.queue.restock", Message{
 		ZhHant: "需要補貨",
 		En:     "Needs restocking",
