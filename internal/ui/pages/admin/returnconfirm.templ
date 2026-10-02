@@ -19,7 +19,12 @@ templ ConfirmReturn(p layouts.Page, v ReturnConfirmation) {
 				<input type="hidden" name="decision" value={ v.Decision }/>
 				<input type="hidden" name="assessment_version" value={ v.AssessmentVersion }/>
 				<div class="ui-field">
-					<label class="ui-label" for="return-resolution">{ i18n.T(ctx,i18n.KeyAdminRetResolution) }</label>
+					<label class="ui-label" for="return-resolution">
+						{ i18n.T(ctx,i18n.KeyAdminRetResolution) }
+						if v.Required {
+							@requiredMark()
+						}
+					</label>
 					<input class="ui-input" id="return-resolution" name="resolution" maxlength="300" autocomplete="off" value={ v.Resolution } required?={ v.Required }/>
 				</div>
 				<div class="goen-admin__decidebtns">

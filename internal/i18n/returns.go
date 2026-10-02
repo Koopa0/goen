@@ -90,6 +90,14 @@ var (
 
 	KeyAdminReturnCompleted = key("admin.return.completed", Message{ZhHant: "已完成", En: "Completed"})
 
+	// KeyAdminReturnCancelledRefunded is what a finished refund before shipment is
+	// in the returns queue: the order was cancelled and paid back, and nothing came
+	// back to be inspected, so "completed" would read as a return that was.
+	KeyAdminReturnCancelledRefunded = key("admin.return.cancelledrefunded", Message{
+		ZhHant: "已取消並退款",
+		En:     "Cancelled and refunded",
+	})
+
 	// Consumer Protection Act §19's seven days, a right §19 V makes unwaivable —
 	// so the English says "right to cancel" and never "trial period".
 	KeyAdminReturnWindowWithin = key("admin.return.window.within", Message{
@@ -174,6 +182,10 @@ var (
 	KeyAdminRetScrapped = key("admin.ret.scrapped", Message{ZhHant: "(未入庫)", En: "(not restocked)"})
 
 	KeyAdminRetResolution = key("admin.ret.resolution", Message{ZhHant: "處理說明", En: "Resolution note"})
+
+	// KeyAdminRequiredMark follows the label of a field the form will not accept
+	// empty, because the browser says so only after the button is pressed.
+	KeyAdminRequiredMark = key("admin.field.required", Message{ZhHant: "必填", En: "Required"})
 
 	KeyAdminRetApprove = key("admin.ret.approve", Message{ZhHant: "同意並退款", En: "Approve and refund"})
 
@@ -384,6 +396,7 @@ var (
 	KeyAdminRetConfirmOrder       = key("admin.ret.confirm.order", Message{ZhHant: "訂單", En: "Order"})
 	KeyAdminRetConfirmReason      = key("admin.ret.confirm.reason", Message{ZhHant: "顧客退貨原因", En: "Customer return reason"})
 	KeyAdminRetConfirmAmount      = key("admin.ret.confirm.amount", Message{ZhHant: "本次退貨金額", En: "Return amount"})
+	KeyAdminRefundConfirmAmount   = key("admin.refund.confirm.amount", Message{ZhHant: "取消退款金額", En: "Refund on cancellation"})
 	KeyAdminRetConfirmBack        = key("admin.ret.confirm.back", Message{ZhHant: "返回退貨清單", En: "Back to returns"})
 	KeyAdminRetErrRejectionReason = key("admin.ret.err.rejectionreason", Message{ZhHant: "請填寫拒絕退貨的原因。", En: "Enter a reason for rejecting this return."})
 )

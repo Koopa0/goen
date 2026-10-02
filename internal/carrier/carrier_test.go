@@ -3,6 +3,8 @@ package carrier
 import (
 	"slices"
 	"testing"
+
+	"github.com/koopa0/goen/internal/pickup"
 )
 
 func TestAllIsTheKnownClosedSetAndReturnsFreshStorage(t *testing.T) {
@@ -56,5 +58,36 @@ func TestTrackingURL(t *testing.T) {
 				t.Errorf("DeepLinks() = %t, want %t", got, tt.deepens)
 			}
 		})
+	}
+}
+
+func TestForDeliveryNamesTheCarriersAnOrderCanUse(t *testing.T) {
+	t.Parallel()
+
+	for _, chain := range []pickup.Brand{pickup.SevenEleven, pickup.FamilyMart, pickup.HiLife, pickup.OKMart} {
+		valid, implied := ForDelivery(chain, true)
+		if implied != Carrier(chain) || len(valid) != 1 || valid[0] != implied {
+			t.Errorf("a %s order: valid %v implied %q, want only the chain's own carrier", chain, valid, implied)
+		}
+	}
+
+	home, implied := ForDelivery("", false)
+	if implied != "" {
+		t.Errorf("a home delivery implies %q: nothing on the order names a carrier code", implied)
+	}
+	for _, c := range home {
+		if !c.Known() {
+			t.Errorf("home delivery lists %q, which is not a carrier", c)
+		}
+		if slices.Contains([]Carrier{SevenEleven, FamilyMart, HiLife, OKMart}, c) {
+			t.Errorf("home delivery lists the convenience-store carrier %q", c)
+		}
+	}
+	stores, none := ForDelivery("", true)
+	if none != "" || len(stores) != 4 || slices.Contains(stores, BlackCat) {
+		t.Errorf("a store order with no chain lists %v implying %q, want the four store carriers and none implied", stores, none)
+	}
+	if len(home) != 4 {
+		t.Errorf("home delivery lists %d carriers, want 4", len(home))
 	}
 }

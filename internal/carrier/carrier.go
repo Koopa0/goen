@@ -7,6 +7,8 @@ import (
 	"net/url"
 	"slices"
 	"strings"
+
+	"github.com/koopa0/goen/internal/pickup"
 )
 
 // Carrier is the value persisted in order_shipments.carrier and carried by the
@@ -40,6 +42,35 @@ var all = [...]Carrier{
 // All returns every carrier a dispatch can name, in display order. The result
 // owns its storage, so a caller cannot mutate the canonical closed set.
 func All() []Carrier { return slices.Clone(all[:]) }
+
+// ForDelivery is the carriers a parcel for this order can go with, and the one
+// the order itself implies. pickupPoint is whether the order's shipping method
+// delivers to a store, and chain the convenience-store chain the customer picked,
+// which an order can lack.
+//
+// A store order is carried by a store chain's carrier, and by the chain the
+// customer picked when the order has one: that parcel goes to that chain's store
+// and no other carrier will accept it there. A home delivery may go with any of
+// the four home carriers, and nothing on the order says which: the shipping
+// method names its carrier as display text, not as one of these codes, so no
+// carrier is implied.
+func ForDelivery(chain pickup.Brand, pickupPoint bool) (valid []Carrier, implied Carrier) {
+	stores := []Carrier{SevenEleven, FamilyMart, HiLife, OKMart}
+	switch chain {
+	case pickup.SevenEleven:
+		return []Carrier{SevenEleven}, SevenEleven
+	case pickup.FamilyMart:
+		return []Carrier{FamilyMart}, FamilyMart
+	case pickup.HiLife:
+		return []Carrier{HiLife}, HiLife
+	case pickup.OKMart:
+		return []Carrier{OKMart}, OKMart
+	}
+	if pickupPoint {
+		return stores, ""
+	}
+	return []Carrier{BlackCat, HCT, ChunghwaPost, KerryTJ}, ""
+}
 
 // Known reports whether c is one of the closed set.
 func (c Carrier) Known() bool { return slices.Contains(all[:], c) }

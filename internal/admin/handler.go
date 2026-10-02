@@ -293,6 +293,8 @@ func (h *Handler) Ship(w http.ResponseWriter, r *http.Request) {
 		h.rejectShip(w, r, &shipRefusal{tracking: i18n.KeyAdminTrackingTaken})
 	case errors.Is(err, ErrQuantity):
 		h.rejectShip(w, r, &shipRefusal{quantity: i18n.KeyAdminNoticeBadParcel})
+	case errors.Is(err, ErrCarrier):
+		h.rejectShip(w, r, &shipRefusal{carrier: i18n.KeyAdminCarrierNotForOrder})
 	case errors.Is(err, ErrInvalid):
 		refusal := shipRefusal{}
 		if !carrier.Carrier(strings.TrimSpace(r.PostFormValue("carrier"))).Known() {

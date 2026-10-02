@@ -7381,6 +7381,12 @@ a.goen-pager__step:hover {
   text-decoration: underline;
 }
 
+/* Beside a label: said once, quietly, in the label's own size. */
+.goen-admin__mark {
+  font-weight: var(--fw-regular);
+  margin-inline-start: 4px;
+}
+
 .goen-admin__hint {
   color: var(--fg-muted);
   font-size: var(--fs-13);

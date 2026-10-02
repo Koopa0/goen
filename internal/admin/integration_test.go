@@ -7170,7 +7170,7 @@ func TestAnOrderCompletedWithoutADeliveryStepStillStampsItsParcels(t *testing.T)
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
 	number := shippableOrder(t, "zh-Hant")
 
-	if err := s.Ship(ctx, number, admin.Dispatch{Carrier: "seven_eleven", Tracking: "COLLECTED-" + number}, actor); err != nil {
+	if err := s.Ship(ctx, number, admin.Dispatch{Carrier: "black_cat", Tracking: "COLLECTED-" + number}, actor); err != nil {
 		t.Fatalf("Ship: %v", err)
 	}
 	if !deliveredAt(t, number).IsZero() {

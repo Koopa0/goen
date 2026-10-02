@@ -30,6 +30,10 @@ var (
 	ErrRefundIncomplete = errors.New("admin: the return is approved and the refund did not complete")
 	// ErrInvalid is a form goen itself rejected before the database saw it.
 	ErrInvalid = errors.New("admin: invalid input")
+	// ErrCarrier is a dispatch naming a carrier that cannot carry this order's
+	// parcel: a store order goes with its chain's carrier, a home delivery with a
+	// home carrier.
+	ErrCarrier = errors.New("admin: carrier cannot carry this order")
 	// ErrQuantity is a per-line count the order cannot honour: more than remains
 	// to ship, or more than it still holds.
 	ErrQuantity = errors.New("admin: quantity out of range")
@@ -265,6 +269,16 @@ func ReturnStatusLabel(ctx context.Context, s returns.ReturnStatus) string {
 	default:
 		return string(s)
 	}
+}
+
+// returnStatusText is a return's status as the queue shows it. A refund before
+// shipment that has finished is a cancellation: nothing came back, so
+// "completed" would read as a return that did.
+func returnStatusText(ctx context.Context, s returns.ReturnStatus, beforeShipment bool) string {
+	if beforeShipment && s == returns.ReturnCompleted {
+		return i18n.T(ctx, i18n.KeyAdminReturnCancelledRefunded)
+	}
+	return ReturnStatusLabel(ctx, s)
 }
 
 // MaxCreditGrant bounds one posting, in cents: NT$100,000. Not a schema limit,

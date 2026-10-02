@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -263,8 +264,7 @@ func (s *Store) Order(ctx context.Context, number string) (admin.OrderView, erro
 		},
 		// UpdateOrderDelivery's WHERE clause is the authority; this only decides
 		// whether to offer the form.
-		Correctable: fulfillment != pages.FulfillmentShipped &&
-			fulfillment != pages.FulfillmentDelivered && fulfillment != pages.FulfillmentCompleted,
+		Correctable:         correctable(fulfillment),
 		PickupDestination:   o.PickupBrand != "",
 		PickupBrands:        pages.PickupBrandChoices(),
 		CustomerNote:        o.CustomerNote.String,
@@ -276,6 +276,9 @@ func (s *Store) Order(ctx context.Context, number string) (admin.OrderView, erro
 		Committed:           o.Committed,
 		Unpaid:              !o.Committed && o.OwedCents > 0,
 	}
+
+	carriers, implied := carrier.ForDelivery(pickup.Brand(o.PickupBrand), o.DestinationKind == "pickup_point")
+	view.ShipCarriers, view.ShipCarrier = carriers, string(implied)
 
 	if shipErr := s.fillShippable(ctx, &view, o.ID, fulfillment); shipErr != nil {
 		return admin.OrderView{}, shipErr
@@ -319,6 +322,19 @@ func (s *Store) Order(ctx context.Context, number string) (admin.OrderView, erro
 		})
 	}
 	return view, nil
+}
+
+// correctable reports whether the order page offers the delivery-details form.
+// A parcel that has gone out cannot be redirected, and a cancelled order is not
+// going anywhere, so editing where it goes is a change to a record nobody reads.
+func correctable(status pages.FulfillmentStatus) bool {
+	switch status {
+	case pages.FulfillmentShipped, pages.FulfillmentDelivered,
+		pages.FulfillmentCompleted, pages.FulfillmentCancelled:
+		return false
+	default:
+		return true
+	}
 }
 
 // Advance moves an order along its lifecycle. orders_check_transition validates
@@ -618,6 +634,13 @@ func (s *Store) Ship(ctx context.Context, number string, d Dispatch, actor uuid.
 	default:
 		return fmt.Errorf("%w: order %s is %s and has not been picked",
 			ErrRefused, number, row.FulfillmentStatus)
+	}
+	dest, destErr := q.OrderDispatchDestination(ctx, row.ID)
+	if destErr != nil {
+		return fmt.Errorf("read destination of %s: %w", number, destErr)
+	}
+	if valid, _ := carrier.ForDelivery(pickup.Brand(dest.PickupBrand), dest.DestinationKind == "pickup_point"); !slices.Contains(valid, carrierCode) {
+		return fmt.Errorf("%w: %s cannot carry order %s", ErrCarrier, carrierCode, number)
 	}
 	shipmentID, shipErr := q.CreateShipment(ctx, db.CreateShipmentParams{
 		OrderID: row.ID, Carrier: string(carrierCode), TrackingNumber: tracking,
