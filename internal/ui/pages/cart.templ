@@ -671,7 +671,7 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 							}
 							if v.HasCoupon() && v.CouponDiscountCents > 0 {
 								<div class="goen-summary__row">
-									<dt>{ i18n.T(ctx, i18n.KeyDiscount) }({ v.CouponApplied })</dt>
+									<dt>{ DiscountLabel(ctx, v.CouponApplied) }</dt>
 									<dd class="goen-summary__value">{ v.CouponDiscount() }</dd>
 								</div>
 							}
@@ -1045,12 +1045,7 @@ templ Order(p layouts.Page, v *OrderView) {
 						</div>
 						if v.Discounted() {
 							<div class="goen-summary__row">
-								<dt>
-									{ i18n.T(ctx, i18n.KeyDiscount) }
-									if v.DiscountReason != "" {
-										({ v.DiscountReason })
-									}
-								</dt>
+								<dt>{ DiscountLabel(ctx, v.DiscountReason) }</dt>
 								<dd class="goen-summary__value">{ v.Discount() }</dd>
 							</div>
 						}

@@ -14,7 +14,7 @@ templ Pay(p layouts.Page, v PayView) {
 	@layouts.Base(p) {
 		<div class="goen-pay">
 			<div class="goen-pagehead">
-				<p class="goen-pagehead__eyebrow">{ i18n.T(ctx, i18n.KeyPayEyebrow) }</p>
+				<p class="goen-pagehead__eyebrow">{ i18n.T(ctx, v.EyebrowKey()) }</p>
 				<h1 class="goen-pagehead__title">{ v.Number }</h1>
 				<p class="goen-pagehead__sub">
 					if v.Closed() {
@@ -50,10 +50,24 @@ templ Pay(p layouts.Page, v PayView) {
 			</ul>
 			@components.Card(components.CardProps{Class: "goen-pay__summary"}) {
 				<dl class="goen-summary">
-					if v.HasAdjustment() {
+					<div class="goen-summary__row">
+						<dt>{ i18n.T(ctx, i18n.KeySubtotal) }</dt>
+						<dd class="goen-summary__value">{ v.Subtotal() }</dd>
+					</div>
+					<div class="goen-summary__row">
+						<dt>{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOrderShippingFee), v.ShippingName) }</dt>
+						<dd class="goen-summary__value">{ v.Shipping(ctx) }</dd>
+					</div>
+					if v.Discounted() {
 						<div class="goen-summary__row">
-							<dt>{ i18n.T(ctx, i18n.KeyPayApplied) }</dt>
-							<dd class="goen-summary__value">{ v.Adjustment() }</dd>
+							<dt>{ DiscountLabel(ctx, v.DiscountReason) }</dt>
+							<dd class="goen-summary__value">{ v.Discount() }</dd>
+						</div>
+					}
+					if v.UsedCredit() {
+						<div class="goen-summary__row">
+							<dt>{ i18n.T(ctx, i18n.KeyOrderCreditApplied) }</dt>
+							<dd class="goen-summary__value">{ v.Credit() }</dd>
 						</div>
 					}
 					<div class="goen-summary__row goen-summary__row--total">

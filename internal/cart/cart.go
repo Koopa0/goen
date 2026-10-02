@@ -650,7 +650,10 @@ func (a *Address) destinationErrors() []account.FieldError {
 
 	switch a.To {
 	case ToAddress:
-		if !isPostalCode(a.PostalCode) {
+		switch {
+		case strings.TrimSpace(a.PostalCode) == "":
+			add("postal_code", i18n.KeyPostalCodeRequired)
+		case !isPostalCode(a.PostalCode):
 			add("postal_code", i18n.KeyPostalCodeMalformed)
 		}
 		switch {

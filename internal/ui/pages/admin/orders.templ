@@ -501,12 +501,7 @@ templ Order(p layouts.Page, v *OrderView) {
 					</div>
 					if v.Discounted() {
 						<div class="goen-admin__totalrow">
-							<span>
-								{ i18n.T(ctx, i18n.KeyDiscount) }
-								if v.DiscountReason != "" {
-									({ v.DiscountReason })
-								}
-							</span>
+							<span>{ pages.DiscountLabel(ctx, v.DiscountReason) }</span>
 							<span class="goen-admin__totalval">{ v.Discount() }</span>
 						</div>
 					}

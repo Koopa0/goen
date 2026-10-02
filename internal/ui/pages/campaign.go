@@ -4,18 +4,34 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
+
+// CampaignEndsOn is a running promotion's last day in the reader's language, or
+// "" while that day is more than 30 days off: a year-long "limited time" date
+// reads as a deadline the shop does not mean.
+func CampaignEndsOn(ctx context.Context, endsAt, now time.Time) string {
+	if endsAt.After(now.AddDate(0, 0, 30)) {
+		return ""
+	}
+	d := shoptime.DateOf(endsAt, now)
+	key := i18n.KeyShortDate
+	if d.OtherYear {
+		key = i18n.KeyShortDateYear
+	}
+	return fmt.Sprintf(i18n.T(ctx, key), d.Month.String()[:3], int(d.Month), d.Day, d.Year)
+}
 
 // CampaignSummary is a running promotion, as a page that lists them shows it.
 type CampaignSummary struct {
 	Slug     string
 	Title    string
 	Products int64
-	EndsAt   string
-	EndsIn   string
+	EndsOn   string
 }
 
 // Href is the campaign's page.
@@ -28,7 +44,7 @@ func (c CampaignSummary) ProductsText() string { return strconv.FormatInt(c.Prod
 type CampaignView struct {
 	Slug     string
 	Title    string
-	EndsAt   string
+	EndsOn   string
 	Products []ProductTile
 	Image    Photo
 	Tone     Tone

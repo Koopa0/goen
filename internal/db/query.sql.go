@@ -13102,7 +13102,6 @@ func (q *Queries) RunningCampaign(ctx context.Context, arg RunningCampaignParams
 const runningCampaigns = `-- name: RunningCampaigns :many
 SELECT c.id, c.slug, localized_name(c.title, c.title_en, $1::text) AS title,
        c.ends_at,
-       extract(epoch FROM (c.ends_at - now()))::bigint AS remaining_seconds,
        (SELECT count(*) FROM sale_campaign_products p WHERE p.campaign_id = c.id)::bigint AS products
 FROM sale_campaigns c
 WHERE c.is_active AND c.starts_at <= now() AND c.ends_at > now()
@@ -13117,12 +13116,11 @@ type RunningCampaignsParams struct {
 }
 
 type RunningCampaignsRow struct {
-	ID               uuid.UUID
-	Slug             string
-	Title            string
-	EndsAt           time.Time
-	RemainingSeconds int64
-	Products         int64
+	ID       uuid.UUID
+	Slug     string
+	Title    string
+	EndsAt   time.Time
+	Products int64
 }
 
 func (q *Queries) RunningCampaigns(ctx context.Context, arg RunningCampaignsParams) ([]RunningCampaignsRow, error) {
@@ -13139,7 +13137,6 @@ func (q *Queries) RunningCampaigns(ctx context.Context, arg RunningCampaignsPara
 			&i.Slug,
 			&i.Title,
 			&i.EndsAt,
-			&i.RemainingSeconds,
 			&i.Products,
 		); err != nil {
 			return nil, err

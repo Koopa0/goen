@@ -52,6 +52,26 @@ type PayView struct {
 	// StartBy is the last minute a new Checkout Session can start, empty when
 	// the page resumes one already open.
 	StartBy string
+	// The rest of the order's own breakdown, so the rows between the lines and
+	// what is owed are the ones its order page lists.
+	ShippingName   string
+	ShippingCents  int64
+	DiscountCents  int64
+	DiscountReason string
+	CreditCents    int64
+}
+
+// EyebrowKey names the page by what the shopper can do here: 完成付款 only
+// while a payment can start or resume.
+func (v PayView) EyebrowKey() i18n.Key {
+	switch {
+	case v.Closure == PayOrderCancelled:
+		return i18n.KeyStatusCancelled
+	case v.Closed() || !v.Enabled:
+		return i18n.KeyStatusAwaitingPayment
+	default:
+		return i18n.KeyPayEyebrow
+	}
 }
 
 // Closed reports whether no payment can start or resume here.
@@ -73,29 +93,34 @@ func (v PayView) ClosedBody() i18n.Key {
 	return i18n.KeyPayWindowClosedBody
 }
 
-// LineTotalCents is the goods as recorded. TotalCents is still what is owed.
-// The two only match when nothing else was applied.
-func (v PayView) LineTotalCents() int64 {
+// Subtotal is what the lines came to.
+func (v PayView) Subtotal() string {
 	var n int64
 	for _, l := range v.Lines {
 		n += l.UnitCents * int64(l.Quantity)
 	}
-	return n
+	return twd(n)
 }
 
-// AdjustmentCents is LineTotalCents minus what is still owed. A positive
-// figure is the net reduction the summary can name. The page is given only
-// those two totals, so shipping and tax that also sit in TotalCents are
-// already netted in and cannot be labelled on their own.
-func (v PayView) AdjustmentCents() int64 { return v.LineTotalCents() - v.TotalCents }
+// Shipping is what delivery cost.
+func (v PayView) Shipping(ctx context.Context) string {
+	if v.ShippingCents == 0 {
+		return i18n.T(ctx, i18n.KeyFreeShipping)
+	}
+	return twd(v.ShippingCents)
+}
 
-// HasAdjustment is the extra summary row that closes the arithmetic when
-// owed is below the recorded lines.
-func (v PayView) HasAdjustment() bool { return v.AdjustmentCents() > 0 }
+// Discounted reports whether a discount came off.
+func (v PayView) Discounted() bool { return v.DiscountCents > 0 }
 
-// Adjustment is the extra row's amount. Prefixed so it cannot be read as
-// another charge sitting under the goods.
-func (v PayView) Adjustment() string { return "-" + twd(v.AdjustmentCents()) }
+// Discount is what came off, as a negative figure.
+func (v PayView) Discount() string { return "-" + twd(v.DiscountCents) }
+
+// UsedCredit reports whether store credit paid part of the order.
+func (v PayView) UsedCredit() bool { return v.CreditCents > 0 }
+
+// Credit is what the store credit took off, as a negative figure.
+func (v PayView) Credit() string { return "-" + twd(v.CreditCents) }
 
 // Total is what is owed.
 func (v PayView) Total() string { return twd(v.TotalCents) }

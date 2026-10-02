@@ -273,7 +273,7 @@ func ProductMeta(v *ProductView) layouts.Page {
 		desc = v.Name
 	}
 	page := layouts.Page{
-		Title: v.Name + " — " + v.Brand, Description: desc,
+		Title: v.Name, Description: desc,
 		Nav: v.RootSlug(),
 	}
 	// A shared product link previews the product, and the first photograph is

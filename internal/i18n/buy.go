@@ -39,6 +39,10 @@ var (
 
 	KeyDiscount = key("buy.discount", Message{ZhHant: "折扣", En: "Discount"})
 
+	// %s is what gave the discount: the code, and its description where the
+	// order records one.
+	KeyDiscountFor = key("buy.discount.for", Message{ZhHant: "折扣（%s）", En: "Discount (%s)"})
+
 	KeyTotal = key("buy.total", Message{ZhHant: "應付金額", En: "Total"})
 
 	KeyFreeShipping = key("buy.freeshipping", Message{ZhHant: "免運", En: "Free"})

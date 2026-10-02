@@ -18,37 +18,33 @@ var (
 	KeySectionTrust = key("home.trust", Message{ZhHant: "購物保障", En: "Shopping with goen"})
 
 	KeyTrustWarrantyBody = key("home.trust.warranty", Message{
-		ZhHant: "有標示保固的商品，維修免費收送（宅配訂單到府收件，超商取貨的訂單由超商寄回），保固可以線上登錄查詢。",
-		En: "For a product that states a warranty, repairs are carried both ways for free: " +
-			"collected from your door for a home-delivery order, sent back from a " +
-			"convenience store for a pickup order. You can register and check your cover online.",
+		ZhHant: "保固期內送修來回免運，保固在訂單頁登錄。",
+		En:     "Repairs under warranty travel free both ways. Register the warranty from your order page.",
 	})
 
 	// %s is the lowest fee, interpolated from shipping_method_versions: a literal
 	// here is a promise that stops agreeing with what checkout charges.
 	KeyTrustShippingBody = key("home.trust.shipping", Message{
 		ZhHant: "宅配與超商取貨皆適用；未達門檻運費 %s 起。",
-		En: "Home delivery and store pickup alike. Below the threshold, delivery is from " +
-			"%s.",
+		En:     "Home delivery or store pickup. Below that, delivery is from %s.",
 	})
 
 	KeyTrustShippingHomeBody = key("home.trust.shipping.home", Message{
 		ZhHant: "未達門檻運費 %s 起。",
-		En:     "Below the threshold, delivery is from %s.",
+		En:     "Below that, delivery is from %s.",
 	})
 
 	// A numbered landing window here is a second SLA next to /returns, which
 	// leaves the day to the card issuer.
 	KeyTrustReturnsBody = key("home.trust.returns", Message{
-		ZhHant: "線上申請、宅配回收，實際入帳時間由發卡銀行決定，通常是數個工作天。",
-		En: "Request it online, we collect it. When it lands is your card issuer's " +
-			"decision, usually a few working days.",
+		ZhHant: "在訂單頁申請退貨，退貨運費由 goen 負擔。",
+		En:     "Start a return from your order page. We pay the postage.",
 	})
 
 	KeyTrustPayment = key("home.trust.payment", Message{ZhHant: "付款安全", En: "Secure payment"})
 
 	KeyTrustPaymentBody = key("home.trust.payment.body", Message{
-		ZhHant: "Stripe 加密金流，卡號不經過 goen 伺服器。",
+		ZhHant: "刷卡由 Stripe 處理，卡號不經過 goen。",
 		En:     "Stripe handles the card. Your number never touches a goen server.",
 	})
 
@@ -82,7 +78,7 @@ var (
 	KeyHeroPlay = key("home.hero.play", Message{ZhHant: "繼續輪播", En: "Play the carousel"})
 
 	// What joins a section's name to its grey continuation on the same line.
-	KeyHomeAside = key("home.heading.aside", Message{ZhHant: "。", En: ". "})
+	KeyHomeAside = key("home.heading.aside", Message{ZhHant: " · ", En: ". "})
 
 	// The campaign row's continuation: %d is the product count, %s the last day.
 	KeyHomeCampaignRowFact = countKey("home.campaign.row_fact", "%d 件商品，至 %s",
