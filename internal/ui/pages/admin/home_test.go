@@ -20,8 +20,8 @@ func TestARefusedBannerMarksItsOwnFieldsAndNotTheHeros(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	view := HeroView{Errors: map[string]string{
-		"banner_days": "檔期天數必須介於 0(不限)到 365 天。",
-		"banner_cta":  "連結必須是本站路徑,例如 /deals。",
+		"banner_days": "檔期天數必須介於 0（不限）到 365 天。",
+		"banner_cta":  "連結必須是本站路徑，例如 /deals。",
 	}}
 	html := renderComponent(t, ctx, Home(layouts.Page{}, &view))
 

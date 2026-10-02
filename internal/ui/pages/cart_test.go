@@ -1309,7 +1309,7 @@ func TestACouponRefusalNamesItselfInTheBanner(t *testing.T) {
 	only := couponTestView()
 	only.Errors = map[string]string{"coupon": "找不到這組折扣碼。"}
 	html := renderToString(t, Checkout(CheckoutMeta(ctx), &only))
-	if !strings.Contains(html, "折扣碼無法套用:找不到這組折扣碼。") || strings.Contains(html, general) {
+	if !strings.Contains(html, "折扣碼無法套用：找不到這組折扣碼。") || strings.Contains(html, general) {
 		t.Error("the banner does not name the coupon refusal")
 	}
 

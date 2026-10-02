@@ -26,8 +26,8 @@ var (
 	KeyAdminRepCounts = key("admin.rep.counts", Message{ZhHant: "%s / %s 筆", En: "%s of %s orders"})
 
 	KeyAdminRepNote = key("admin.rep.note", Message{
-		ZhHant: "結帳完成率是「送出訂單之後付了款」的比例,不是網站的轉換率 —— " +
-			"goen 不蒐集流量資料,算不出多少訪客最後買了東西,所以不會顯示一個編出來的數字。",
+		ZhHant: "結帳完成率是「送出訂單之後付了款」的比例，不是網站的轉換率 —— " +
+			"goen 不蒐集流量資料，算不出多少訪客最後買了東西，所以不會顯示一個編出來的數字。",
 		En: "Checkout completion is the share of submitted orders that were then paid for, not the " +
 			"site's conversion rate — goen collects no traffic data, so it cannot work out what " +
 			"fraction of visitors ended up buying anything, and it will not show a number it invented.",

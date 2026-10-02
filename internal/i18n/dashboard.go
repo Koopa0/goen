@@ -54,7 +54,7 @@ var (
 	})
 
 	KeyAdminQueueSellableHint = key("admin.queue.sellable", Message{
-		ZhHant: "「可售」是庫存減去安全庫存,也就是資料庫實際允許賣出的數量。",
+		ZhHant: "「可售」是庫存減去安全庫存，也就是資料庫實際允許賣出的數量。",
 		En: "Sellable is stock minus safety stock — the number the database will actually " +
 			"let the shop sell.",
 	})

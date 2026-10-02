@@ -32,7 +32,7 @@ var (
 	})
 
 	KeyFormVariantNeedsEveryOption = key("form.variant.everyoption", Message{
-		ZhHant: "每一個規格項目都要選一個值,否則商品頁的選擇器找不到這個規格。",
+		ZhHant: "每一個規格項目都要選一個值，否則商品頁的選擇器找不到這個規格。",
 		En: "Every option needs a value chosen, or the product page's picker cannot " +
 			"reach this variant at all.",
 	})
@@ -53,7 +53,7 @@ var (
 	})
 
 	KeyAdminProdOptionsLead = key("admin.prod.optionslead", Message{
-		ZhHant: "顏色、容量這一類的軸線。商品頁的選擇器讀的就是這些 —— 有規格項目的商品,每一個 SKU 都要選一個值。",
+		ZhHant: "顏色、容量這一類的軸線。商品頁的選擇器讀的就是這些 —— 有規格項目的商品，每一個 SKU 都要選一個值。",
 		En: "Axes such as colour or capacity. The picker on the product page reads exactly these — " +
 			"on a product that has options, every SKU must name one value on each of them.",
 	})
@@ -66,7 +66,7 @@ var (
 	})
 
 	KeyAdminProdOptionNameEn = key("admin.prod.optionnameen", Message{
-		ZhHant: "項目名稱(英文)",
+		ZhHant: "項目名稱（英文）",
 		En:     "Option name (English)",
 	})
 
@@ -83,20 +83,20 @@ var (
 	KeyAdminProdValue = key("admin.prod.value", Message{ZhHant: "值", En: "Value"})
 
 	KeyAdminProdValueEn = key("admin.prod.valueen", Message{
-		ZhHant: "值(英文)",
+		ZhHant: "值（英文）",
 		En:     "Value (English)",
 	})
 
 	// PROPOSED WORDING, awaiting the shop's own: the field is optional and the
 	// value is a hex colour, which the placeholder shows.
 	KeyAdminProdValueSwatch = key("admin.prod.valueswatch", Message{
-		ZhHant: "色碼(選填)",
+		ZhHant: "色碼（選填）",
 		En:     "Colour (optional)",
 	})
 
 	// PROPOSED WORDING, awaiting the shop's own.
 	KeyFormSwatchHex = key("form.swatchhex", Message{
-		ZhHant: "色碼請寫成 # 加六位十六進位,例如 #1c1c1e。",
+		ZhHant: "色碼請寫成 # 加六位十六進位，例如 #1c1c1e。",
 		En:     "A colour is # and six hexadecimal digits, for example #1c1c1e.",
 	})
 
@@ -104,6 +104,6 @@ var (
 )
 
 var KeyFormOptionBeforeVariants = key("form.option.before_variants", Message{
-	ZhHant: "此商品已有 SKU,無法再新增規格項目。若要使用新的規格項目組合,請建立新商品,並在建立 SKU 之前設定好所有規格項目;既有商品與 SKU 不會變更。",
+	ZhHant: "此商品已有 SKU，無法再新增規格項目。若要使用新的規格項目組合，請建立新商品，並在建立 SKU 之前設定好所有規格項目；既有商品與 SKU 不會變更。",
 	En:     "This product already has SKUs, so another option cannot be added. To use a new set of options, create a new product and define every option before creating its SKUs; existing products and SKUs stay unchanged.",
 })

@@ -6,7 +6,7 @@ var (
 	KeyWishlistTitle = key("account.wishlist", Message{ZhHant: "願望清單", En: "Wishlist"})
 
 	KeyWishlistHint = key("account.wishlist.hint", Message{
-		ZhHant: "存起來,想好了再買",
+		ZhHant: "存起來，想好了再買",
 		En:     "Save it now, decide later",
 	})
 
@@ -16,7 +16,7 @@ var (
 	})
 
 	KeyWishlistEmptyHint = key("wishlist.empty.hint", Message{
-		ZhHant: "在商品頁按下「加入願望清單」,之後就能在這裡找到它。",
+		ZhHant: "在商品頁按下「加入願望清單」，之後就能在這裡找到它。",
 		En:     "Press \"Save for later\" on a product page and it will be here.",
 	})
 

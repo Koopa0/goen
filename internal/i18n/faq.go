@@ -24,7 +24,7 @@ var (
 	})
 
 	KeyAdminFaqpNoEnglish = key("admin.faqp.noenglish", Message{
-		ZhHant: "有 %s 則沒有英文答案,英文訪客讀到的是中文。",
+		ZhHant: "有 %s 則沒有英文答案，英文訪客讀到的是中文。",
 		En:     "%s entries have no English answer — an English visitor reads those in Chinese.",
 	})
 
@@ -43,27 +43,27 @@ var (
 	})
 
 	KeyAdminFaqpCategoryHint = key("admin.faqp.category.hint", Message{
-		ZhHant: "同一個分類會排在一起,順序是加入的順序。",
+		ZhHant: "同一個分類會排在一起，順序是加入的順序。",
 		En:     "Entries sharing a category sit together, in the order they were added.",
 	})
 
 	KeyAdminFaqpCategoryEn = key("admin.faqp.category.en", Message{
-		ZhHant: "分類(英文)",
+		ZhHant: "分類（英文）",
 		En:     "Category (English)",
 	})
 
 	KeyAdminFaqpQuestionEn = key("admin.faqp.question.en", Message{
-		ZhHant: "問題(英文)",
+		ZhHant: "問題（英文）",
 		En:     "Question (English)",
 	})
 
 	KeyAdminFaqpAnswerEn = key("admin.faqp.answer.en", Message{
-		ZhHant: "答案(英文)",
+		ZhHant: "答案（英文）",
 		En:     "Answer (English)",
 	})
 
 	KeyAdminFaqpEnHint = key("admin.faqp.en.hint", Message{
-		ZhHant: "留空的話,英文訪客會讀到中文 —— 讀得懂,但看得出還沒翻。",
+		ZhHant: "留空的話，英文訪客會讀到中文 —— 讀得懂，但看得出還沒翻。",
 		En: "Leave it empty and an English visitor reads the Chinese — legible, but " +
 			"visibly untranslated.",
 	})
@@ -83,17 +83,17 @@ var (
 	})
 
 	KeyFormFAQCategory = key("form.faq.category", Message{
-		ZhHant: "請填寫分類,不超過 40 個字。",
+		ZhHant: "請填寫分類，不超過 40 個字。",
 		En:     "A category is required, 40 characters at most.",
 	})
 
 	KeyFormFAQQuestion = key("form.faq.question", Message{
-		ZhHant: "請填寫問題,不超過 200 個字。",
+		ZhHant: "請填寫問題，不超過 200 個字。",
 		En:     "A question is required, 200 characters at most.",
 	})
 
 	KeyFormFAQAnswer = key("form.faq.answer", Message{
-		ZhHant: "請填寫答案,不超過 2000 個字。",
+		ZhHant: "請填寫答案，不超過 2000 個字。",
 		En:     "An answer is required, 2000 characters at most.",
 	})
 

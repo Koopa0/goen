@@ -22,7 +22,7 @@ var (
 	KeyCompareDiffers = key("compare.differs", Message{ZhHant: "規格不同", En: "Differs"})
 
 	KeyCompareDescription = key("compare.description", Message{
-		ZhHant: "把規格擺在一起看,而不是在兩個分頁之間來回。",
+		ZhHant: "把規格擺在一起看，而不是在兩個分頁之間來回。",
 		En:     "Put the specifications side by side instead of flipping between two tabs.",
 	})
 
@@ -57,7 +57,7 @@ var (
 	})
 
 	KeyCompareTooFewTail = key("compare.toofew.tail", Message{
-		ZhHant: "裡從商品頁加入比較,最多四個。",
+		ZhHant: "裡從商品頁加入比較，最多四個。",
 		En:     ".",
 	})
 
@@ -78,12 +78,12 @@ var (
 	})
 
 	KeyCompareFull = key("compare.full", Message{
-		ZhHant: "比較已滿 %d 個,請先移除一個再加入。",
+		ZhHant: "比較已滿 %d 個，請先移除一個再加入。",
 		En:     "The comparison holds %d products. Remove one to add another.",
 	})
 
 	KeyCompareOverflow = key("compare.overflow", Message{
-		ZhHant: "連結列出的商品超過 %d 個,只顯示前 %d 個。",
+		ZhHant: "連結列出的商品超過 %d 個，只顯示前 %d 個。",
 		En:     "The link names more than %d products; only the first %d are shown.",
 	})
 
@@ -98,7 +98,7 @@ var (
 	})
 
 	KeyCompareOneChosen = key("compare.one", Message{
-		ZhHant: "%s 已在比較中,再加入至少一個商品就能並排比較。",
+		ZhHant: "%s 已在比較中，再加入至少一個商品就能並排比較。",
 		En:     "%s is in the comparison. Add at least one more product to compare side by side.",
 	})
 
