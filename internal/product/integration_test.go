@@ -439,44 +439,61 @@ func TestDetailShowsWhatThePageIsFor(t *testing.T) {
 	}
 }
 
-func TestOnlyACommittedPurchaseEarnsTheBadge(t *testing.T) {
+func TestOnlyACustomerWhoReceivedTheProductMayReview(t *testing.T) {
 	ctx := t.Context()
 	s := product.NewStore(pool)
-
-	buyer := reviewer(t, "buyer")
-	browser := reviewer(t, "browser")
 	slug := activeSlug(t)
-	buy(t, buyer, slug)
 
-	if _, err := s.AddReview(ctx, slug, browser.String(), &product.Review{
-		Rating: 5, Body: "看起來不錯,還沒買。",
-	}); err != nil {
-		t.Fatalf("a signed-in non-buyer could not review: %v", err)
+	received := reviewer(t, "received")
+	receive(t, received, slug)
+	paidOnly := reviewer(t, "paid-only")
+	buy(t, paidOnly, slug)
+	browser := reviewer(t, "browser")
+
+	for name, who := range map[string]uuid.UUID{"never bought": browser, "paid, not delivered": paidOnly} {
+		standing, err := s.ReviewStanding(ctx, slug, who.String())
+		if err != nil || standing != pages.ReviewNotDelivered {
+			t.Errorf("%s: ReviewStanding = %v, %v; want ReviewNotDelivered", name, standing, err)
+		}
+		if _, err := s.AddReview(ctx, slug, who.String(), &product.Review{
+			Rating: 5, Body: "還沒收到商品,不能留下評價。",
+		}); !errors.Is(err, product.ErrNotDelivered) {
+			t.Errorf("%s: AddReview gave %v, want ErrNotDelivered", name, err)
+		}
 	}
-	if _, err := s.AddReview(ctx, slug, buyer.String(), &product.Review{
+
+	form := url.Values{"rating": {"5"}, "body": {"沒有收到商品也想送出評價。"}}
+	req := httptest.NewRequestWithContext(
+		account.WithUser(ctx, account.User{ID: browser.String()}),
+		http.MethodPost, "/p/"+slug+"/reviews", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.SetPathValue("slug", slug)
+	res := httptest.NewRecorder()
+	product.NewHandler(s, slog.New(slog.DiscardHandler), "https://goen.example").Review(res, req)
+	if res.Code != http.StatusUnprocessableEntity {
+		t.Errorf("a post without a delivered order returned %d, want 422", res.Code)
+	}
+
+	if standing, err := s.ReviewStanding(ctx, slug, received.String()); err != nil || standing != pages.ReviewOpen {
+		t.Fatalf("a delivered order: ReviewStanding = %v, %v; want ReviewOpen", standing, err)
+	}
+	if errs, err := s.AddReview(ctx, slug, received.String(), &product.Review{
 		Rating: 4, Body: "實際用過兩週,續航符合官方說法。",
-	}); err != nil {
-		t.Fatalf("a buyer could not review: %v", err)
+	}); err != nil || len(errs) != 0 {
+		t.Fatalf("a customer who received it could not review: %v %v", errs, err)
 	}
 
-	var buyerVerified, browserVerified bool
+	var rows int
+	var verified bool
 	if err := pool.QueryRow(ctx, `
-		SELECT is_verified_purchase FROM product_reviews r
-		JOIN products p ON p.id = r.product_id
-		WHERE p.slug = $1 AND r.user_id = $2`, slug, buyer).Scan(&buyerVerified); err != nil {
-		t.Fatalf("read buyer review: %v", err)
+		SELECT count(*), coalesce(bool_and(is_verified_purchase), false)
+		FROM product_reviews r JOIN products p ON p.id = r.product_id
+		WHERE p.slug = $1 AND r.user_id = ANY($2)`,
+		slug, []uuid.UUID{received, paidOnly, browser}).Scan(&rows, &verified); err != nil {
+		t.Fatalf("read reviews: %v", err)
 	}
-	if err := pool.QueryRow(ctx, `
-		SELECT is_verified_purchase FROM product_reviews r
-		JOIN products p ON p.id = r.product_id
-		WHERE p.slug = $1 AND r.user_id = $2`, slug, browser).Scan(&browserVerified); err != nil {
-		t.Fatalf("read browser review: %v", err)
-	}
-	if !buyerVerified {
-		t.Error("a committed purchase did not earn the badge")
-	}
-	if browserVerified {
-		t.Error("somebody who never bought it is marked 已購買")
+	if rows != 1 || !verified {
+		t.Errorf("%d reviews written (verified %t), want only the received customer's, verified", rows, verified)
 	}
 }
 
@@ -598,11 +615,16 @@ func TestRetiringAPurchasedVariantDoesNotEraseVerifiedPurchase(t *testing.T) {
 			keptProduct, keptVariant, productID, boughtVariant)
 	}
 
+	for _, status := range []string{"picking", "shipped", "delivered"} {
+		if _, moveErr := tx.Exec(ctx,
+			`UPDATE orders SET fulfillment_status = $2 WHERE id = $1`, orderID, status); moveErr != nil {
+			t.Fatalf("move the order to %s: %v", status, moveErr)
+		}
+	}
 	s := product.NewStore(tx)
-	allowed, verified, err := s.CanReview(ctx, slug, who.String())
-	if err != nil || !allowed || !verified {
-		t.Fatalf("CanReview after variant retirement = %t, %t, %v; want true, true, nil",
-			allowed, verified, err)
+	standing, err := s.ReviewStanding(ctx, slug, who.String())
+	if err != nil || standing != pages.ReviewOpen {
+		t.Fatalf("ReviewStanding after variant retirement = %v, %v; want ReviewOpen, nil", standing, err)
 	}
 	if errs, addErr := s.AddReview(ctx, slug, who.String(), &product.Review{
 		Rating: 5, Body: "買過的規格退役後仍然保留已購買證明。",
@@ -625,6 +647,7 @@ func TestOneReviewPerPersonPerProduct(t *testing.T) {
 	s := product.NewStore(pool)
 	who := reviewer(t, "once")
 	slug := activeSlug(t)
+	receive(t, who, slug)
 
 	if _, err := s.AddReview(ctx, slug, who.String(), &product.Review{
 		Rating: 5, Body: "第一次評價的內容。",
@@ -682,6 +705,7 @@ func TestReviewValidation(t *testing.T) {
 
 	// The control: a review at the boundary IS accepted.
 	who := reviewer(t, "v-ok")
+	receive(t, who, slug)
 	atLimit := strings.Repeat("字", product.MaxReviewBodyRunes)
 	if errs, err := s.AddReview(ctx, slug, who.String(), &product.Review{
 		Rating: 3, Body: atLimit,
@@ -718,6 +742,7 @@ func TestFeedbackCannotTargetAMissingOrInactiveProduct(t *testing.T) {
 		defer func() { _ = tx.Rollback(ctx) }()
 
 		slug := activeSlug(t)
+		receive(t, who, slug)
 		store := product.NewStore(tx)
 		if errs, err := store.AddReview(ctx, slug, who.String(), &product.Review{
 			Rating: 4, Body: "商品下架之前已經留下這則評價。",
@@ -774,7 +799,17 @@ func activeSlug(t *testing.T) string {
 	return slug
 }
 
-// buy gives a customer a committed order, which is what earns the badge.
+func receive(t *testing.T, userID uuid.UUID, slug string) {
+	t.Helper()
+	buy(t, userID, slug)
+	for _, status := range []string{"picking", "shipped", "delivered"} {
+		if _, err := pool.Exec(t.Context(),
+			`UPDATE orders SET fulfillment_status = $2 WHERE user_id = $1`, userID, status); err != nil {
+			t.Fatalf("move the order to %s: %v", status, err)
+		}
+	}
+}
+
 func buy(t *testing.T, userID uuid.UUID, slug string) {
 	t.Helper()
 	ctx := t.Context()
@@ -857,6 +892,45 @@ func TestRestockNoticeIsIdempotent(t *testing.T) {
 	}
 	if n != 1 {
 		t.Errorf("%d rows after the same address in a different case, want 1", n)
+	}
+}
+
+func TestTheRestockConfirmationNamesOnlyTheAccountsOwnAddress(t *testing.T) {
+	ctx := t.Context()
+	vid, slug := soldOutVariant(t)
+	h := product.NewHandler(product.NewStore(pool), slog.New(slog.DiscardHandler), "https://goen.example")
+	own := "own-" + waitingAddr(t)
+
+	post := func(signedIn bool, addr, remote string) string {
+		t.Helper()
+		reqCtx := ctx
+		if signedIn {
+			reqCtx = account.WithUser(ctx, account.User{ID: reviewer(t, "notify").String(), Email: own})
+		}
+		form := url.Values{"email": {addr}, "variant": {vid.String()}}
+		req := httptest.NewRequestWithContext(reqCtx, http.MethodPost, "/p/"+slug+"/notify",
+			strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.RemoteAddr = remote
+		req.SetPathValue("slug", slug)
+		res := httptest.NewRecorder()
+		h.Notify(res, req)
+		if res.Code != http.StatusSeeOther {
+			t.Fatalf("status = %d, want 303", res.Code)
+		}
+		return res.Header().Get("Location")
+	}
+
+	if got := post(true, strings.ToUpper(own), "198.51.100.11:1"); !strings.Contains(got, "notify=account") {
+		t.Errorf("own address, signed in: redirect %q does not say it was the account's", got)
+	}
+	got := post(true, "other-"+waitingAddr(t), "198.51.100.12:1")
+	if !strings.Contains(got, "notify=1") || strings.Contains(got, "account") {
+		t.Errorf("another address, signed in: redirect %q, want the generic outcome", got)
+	}
+	got = post(false, own, "198.51.100.13:1")
+	if !strings.Contains(got, "notify=1") || strings.Contains(got, "account") {
+		t.Errorf("signed out: redirect %q, want the generic outcome", got)
 	}
 }
 
@@ -1868,17 +1942,19 @@ func TestAHiddenReviewStillBlocksASecondOne(t *testing.T) {
 		`SELECT user_id FROM product_reviews WHERE id = $1`, reviewID).Scan(&userID); err != nil {
 		t.Fatalf("read author: %v", err)
 	}
+	// Delivered, so that only the hidden review stands between them and the form.
+	receive(t, userID, slug)
 
 	if _, err := pool.Exec(ctx,
 		`UPDATE product_reviews SET hidden_at = now() WHERE id = $1`, reviewID); err != nil {
 		t.Fatalf("hide: %v", err)
 	}
 
-	allowed, _, err := s.CanReview(ctx, slug, userID.String())
+	standing, err := s.ReviewStanding(ctx, slug, userID.String())
 	if err != nil {
-		t.Fatalf("CanReview: %v", err)
+		t.Fatalf("ReviewStanding: %v", err)
 	}
-	if allowed {
+	if standing == pages.ReviewOpen {
 		t.Error("a customer whose review is hidden was offered the form again — the " +
 			"insert would meet the unique index")
 	}
@@ -1904,12 +1980,12 @@ func reviewBy(t *testing.T, productID uuid.UUID, address string, rating int) (id
 }
 
 // TestASimultaneousSecondReviewIsRefusedByName reaches the INSERT's own refusal,
-// the mapping of product_reviews_author_key to ErrAlreadyReviewed: CanReview
+// the mapping of product_reviews_author_key to ErrAlreadyReviewed: ReviewStanding
 // answers first in every ordinary case, so only two racing submissions get there.
 //
 // The race is made deterministic rather than hoped for. T1 inserts the row and
 // holds its transaction OPEN: under read committed the row is invisible, so
-// CanReview passes, and the second INSERT then blocks on the unique index until
+// ReviewStanding passes, and the second INSERT then blocks on the unique index until
 // T1 commits. Two goroutines behind a start channel would finish microseconds
 // apart and never overlap.
 func TestASimultaneousSecondReviewIsRefusedByName(t *testing.T) {
@@ -1917,6 +1993,7 @@ func TestASimultaneousSecondReviewIsRefusedByName(t *testing.T) {
 	s := product.NewStore(pool)
 	who := reviewer(t, "race")
 	slug := activeSlug(t)
+	receive(t, who, slug)
 
 	tx, err := pool.Begin(ctx)
 	if err != nil {
@@ -1931,7 +2008,7 @@ func TestASimultaneousSecondReviewIsRefusedByName(t *testing.T) {
 		t.Fatalf("hold the first review open: %v", err)
 	}
 
-	// The second submission sees nothing yet, so it gets past CanReview and
+	// The second submission sees nothing yet, so it gets past ReviewStanding and
 	// then waits on the index.
 	refused := make(chan error, 1)
 	go func() {
@@ -2001,4 +2078,92 @@ func TestLoadIgnoresThePagesOwnParameters(t *testing.T) {
 func insertHistoricalCustomerAnswer(ctx context.Context, questionID, userID, body string) error {
 	_, err := pool.Exec(ctx, `INSERT INTO product_answers (question_id,user_id,body,is_staff) VALUES ($1,$2,$3,false)`, uuid.MustParse(questionID), uuid.MustParse(userID), body)
 	return err
+}
+
+// A refused restock request re-renders the product at 422 with the address as
+// typed, and says which of two causes it was.
+func TestARefusedRestockRequestKeepsTheAddressAndNamesItsCause(t *testing.T) {
+	ctx := t.Context()
+	h := product.NewHandler(product.NewStore(pool), slog.New(slog.DiscardHandler), "https://goen.example")
+	// The page's form posts to an action that carries the visitor's selection, so
+	// the 422 lands on the variant the request named; a product with options
+	// resolves no variant without it.
+	selectionOf := func(variant uuid.UUID) string {
+		t.Helper()
+		rows, err := pool.Query(ctx, `
+			SELECT o.name, v.value
+			FROM variant_option_values vo
+			JOIN product_options o ON o.id = vo.option_id
+			JOIN product_option_values v ON v.id = vo.option_value_id
+			WHERE vo.variant_id = $1`, variant)
+		if err != nil {
+			t.Fatalf("read the selection of %s: %v", variant, err)
+		}
+		defer rows.Close()
+		q := url.Values{}
+		for rows.Next() {
+			var name, value string
+			if err := rows.Scan(&name, &value); err != nil {
+				t.Fatalf("scan selection: %v", err)
+			}
+			q.Set(name, value)
+		}
+		if err := rows.Err(); err != nil {
+			t.Fatalf("read selection: %v", err)
+		}
+		return q.Encode()
+	}
+	notify := func(slug string, variant uuid.UUID, addr, remote string) *httptest.ResponseRecorder {
+		t.Helper()
+		form := url.Values{"email": {addr}, "variant": {variant.String()}}
+		req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/p/"+slug+"/notify?"+selectionOf(variant),
+			strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.RemoteAddr = remote
+		req.SetPathValue("slug", slug)
+		w := httptest.NewRecorder()
+		h.Notify(w, req)
+		return w
+	}
+
+	vid, slug := soldOutVariant(t)
+	bad := notify(slug, vid, "shopper@gmail", "203.0.113.141:1000")
+	if bad.Code != http.StatusUnprocessableEntity ||
+		!strings.Contains(bad.Body.String(), `value="shopper@gmail"`) ||
+		!strings.Contains(bad.Body.String(), `id="notify-email-error"`) {
+		t.Errorf("a mistyped address = %d; want 422 keeping the address with the email message", bad.Code)
+	}
+
+	var inStockID uuid.UUID
+	var inStockSlug string
+	if err := pool.QueryRow(ctx, `
+		SELECT pv.id, p.slug
+		FROM product_variants pv JOIN products p ON p.id = pv.product_id
+		WHERE p.status = 'active' AND pv.is_active
+		  AND pv.stock_quantity > pv.safety_stock
+		LIMIT 1`).Scan(&inStockID, &inStockSlug); err != nil {
+		t.Fatalf("find in-stock variant: %v", err)
+	}
+	back := notify(inStockSlug, inStockID, "shopper@gmail.com", "203.0.113.142:1000")
+	if back.Code != http.StatusUnprocessableEntity ||
+		!strings.Contains(back.Body.String(), `id="notify-unavailable"`) ||
+		strings.Contains(back.Body.String(), `id="notify-email-error"`) {
+		t.Errorf("a variant back in stock = %d; want 422 with the unavailable message and not the email one", back.Code)
+	}
+}
+
+// A product page offers comparison where its department does: phones inherit it
+// from tech, and a book sits under a department that does not compare.
+func TestAProductPageOffersComparisonWhereItsDepartmentDoes(t *testing.T) {
+	ctx := t.Context()
+	store := product.NewStore(pool)
+	for slug, want := range map[string]bool{"pixelight-9-pro": true, "fernway-mountain-tea-seasons": false} {
+		view, err := store.Load(ctx, slug, nil)
+		if err != nil {
+			t.Fatalf("load %s: %v", slug, err)
+		}
+		if view.Comparable != want {
+			t.Errorf("%s: Comparable = %v, want %v", slug, view.Comparable, want)
+		}
+	}
 }

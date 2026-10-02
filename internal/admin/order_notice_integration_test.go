@@ -22,6 +22,11 @@ import (
 
 func terminalNotice(t *testing.T, id uuid.UUID, want ordernotice.Kind) {
 	t.Helper()
+	assertTerminalNotice(t, id, want, false)
+}
+
+func assertTerminalNotice(t *testing.T, id uuid.UUID, want ordernotice.Kind, wantRefunded bool) {
+	t.Helper()
 	var payload []byte
 	if err := pool.QueryRow(t.Context(), `SELECT payload FROM outbox_messages WHERE topic=$1 AND dedupe_key=$2`, outbox.TopicOrderTerminal, id.String()+":"+string(want)).Scan(&payload); err != nil {
 		t.Fatalf("missing terminal notice: %v", err)
@@ -35,7 +40,7 @@ func terminalNotice(t *testing.T, id uuid.UUID, want ordernotice.Kind) {
 	if len(fields) != 3 ||
 		json.Unmarshal(fields["order_id"], &orderID) != nil || orderID != id.String() ||
 		json.Unmarshal(fields["kind"], &kind) != nil || kind != string(want) ||
-		json.Unmarshal(fields["refunded"], &refunded) != nil || refunded {
+		json.Unmarshal(fields["refunded"], &refunded) != nil || refunded != wantRefunded {
 		t.Fatalf("notice contains wrong event or private data: %s", payload)
 	}
 }
@@ -61,7 +66,7 @@ func TestTerminalArrivalIsNotRequeuedAfterCompletionOrOutboxRetention(t *testing
 	ctx, _ := staffContext(t)
 	number, id := pickingOrderHoldingStock(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
-	if err := s.Ship(ctx, number, admin.Dispatch{Carrier: "terminal", Tracking: uuid.NewString()}, uuid.NullUUID{}); err != nil {
+	if err := s.Ship(ctx, number, admin.Dispatch{Carrier: "black_cat", Tracking: uuid.NewString()}, uuid.NullUUID{}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := s.Advance(ctx, number, "delivered", uuid.NullUUID{}); err != nil {
@@ -143,7 +148,7 @@ func TestPickupCompletionQueuesCollectionWithoutADeliveryNotice(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
-	if err := s.Ship(ctx, number, admin.Dispatch{Carrier: "pickup", Tracking: uuid.NewString()}, uuid.NullUUID{}); err != nil {
+	if err := s.Ship(ctx, number, admin.Dispatch{Carrier: "seven_eleven", Tracking: uuid.NewString()}, uuid.NullUUID{}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := s.Advance(ctx, number, "delivered", uuid.NullUUID{}); err != nil {

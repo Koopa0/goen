@@ -9,8 +9,9 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/home"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -90,16 +91,21 @@ func (f *HeroForm) Validate(ctx context.Context) map[string]string {
 	return errs
 }
 
-// HeroSlides reads the queue.
-func (s *Store) HeroSlides(ctx context.Context) (pages.AdminHeroView, error) {
+// HeroSlides reads the scheduled slides.
+func (s *Store) HeroSlides(ctx context.Context) (admin.HeroView, error) {
 	rows, err := s.q.AdminHeroSlides(ctx, MaxSlides)
 	if err != nil {
-		return pages.AdminHeroView{}, fmt.Errorf("read hero slides: %w", err)
+		return admin.HeroView{}, fmt.Errorf("read hero slides: %w", err)
 	}
-	view := pages.AdminHeroView{}
+	// The storefront's builder, not a copy of its rules: two copies drift.
+	live, err := home.NewStore(s.pool).Carousel(ctx)
+	if err != nil {
+		return admin.HeroView{}, fmt.Errorf("read carousel: %w", err)
+	}
+	view := admin.HeroView{Carousel: live}
 	for i := range rows {
 		r := &rows[i]
-		view.Rows = append(view.Rows, pages.AdminHeroSlide{
+		view.Rows = append(view.Rows, admin.HeroSlide{
 			ID: r.ID.String(), Eyebrow: r.Eyebrow.String, Headline: r.Headline,
 			CTALabel: r.PrimaryCtaLabel, CTAHref: r.PrimaryCtaHref,
 			ImageKey: r.ImageKey.String, Active: r.IsActive,
@@ -110,7 +116,7 @@ func (s *Store) HeroSlides(ctx context.Context) (pages.AdminHeroView, error) {
 	return view, nil
 }
 
-// CreateHeroSlide queues one at the BACK; Promote is what makes one live.
+// CreateHeroSlide schedules one at the BACK; Promote is what makes one live.
 func (s *Store) CreateHeroSlide(ctx context.Context, f *HeroForm) (map[string]string, error) {
 	if errs := f.Validate(ctx); len(errs) > 0 {
 		return errs, nil

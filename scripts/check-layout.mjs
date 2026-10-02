@@ -437,6 +437,12 @@ const ACCESSIBILITY = `
     // not flagged: the rule is that somebody decided, not that every image speaks.
     imagesWithoutAlt: [...document.querySelectorAll('img:not([alt])')]
       .slice(0, 3).map((e) => e.getAttribute('src') || '(no src)'),
+    // A field rule whose pattern the browser cannot compile is ignored without a
+    // word, and the field it guards is never refused. The v flag is what the
+    // pattern attribute is compiled with.
+    uncompiledRulePatterns: [...document.querySelectorAll('[data-rule][pattern]')].filter((f) => {
+      try { new RegExp('^(?:' + f.getAttribute('pattern') + ')$', 'v'); return false; } catch (e) { return true; }
+    }).slice(0, 3).map((f) => f.getAttribute('data-rule') + ' #' + f.id),
     // A control nobody can name. A label[for], an aria-label, an aria-labelledby, a
     // wrapping label, or a title — any of them is a decision; none is a control
     // announced as "edit text, blank".
@@ -704,6 +710,9 @@ const checkAccessibility = (at, got) => {
   for (const src of got.imagesWithoutAlt || []) {
     fail(at, `image has no alt attribute: ${src} — alt="" is correct for decoration, ` +
       `absent means nobody decided`);
+  }
+  for (const f of got.uncompiledRulePatterns || []) {
+    fail(at, `field rule pattern does not compile under the v flag: ${f} — the browser ignores it silently`);
   }
   for (const c of got.unnamedControls || []) {
     fail(at, `form control with no accessible name: ${c} — announced as "edit text, blank"`);
@@ -1143,20 +1152,36 @@ const proveListingFilterJourney = async (label, locale) => {
     const summary = document.querySelector('.goen-filters__shell-summary');
     if (!shell || !summary) return { ok: false, why: 'shell summary missing' };
     summary.click();
-    const apply = document.querySelector('.goen-filters__apply');
-    const applyRect = apply ? apply.getBoundingClientRect() : null;
-    return {
-      ok: true,
-      shellOpen: shell.open,
-      applyVisible: !!(applyRect && applyRect.height > 0 && applyRect.bottom > 0),
-    };
+    return { ok: true, shellOpen: shell.open };
   })()`);
   if (expanded.threw || !expanded.ok) {
     fail(label, expanded.why || 'expanded probe failed');
     return;
   }
   if (!expanded.shellOpen) fail(label, 'filter shell did not open after the summary was activated');
-  if (!expanded.applyVisible) fail(label, 'apply control is not visible after expanding the shell');
+
+  // With scripting on a changed filter applies itself and the stylesheet hides
+  // the button; with scripting off the button is the only way to apply, so it
+  // must show once the shell opens. The page is reloaded because the shell above
+  // was opened by script.
+  await send(ws, 'Emulation.setScriptExecutionDisabled', { value: true });
+  const noScriptTarget = `${ORIGIN}/c/audio`;
+  await send(ws, 'Page.navigate', { url: noScriptTarget });
+  await settled(ws, `${label} no script`, noScriptTarget);
+  const noScript = await evalPage(`(() => {
+    const summary = document.querySelector('.goen-filters__shell-summary');
+    if (!summary) return { ok: false, why: 'shell summary missing with scripting off' };
+    summary.click();
+    const apply = document.querySelector('.goen-filters__apply');
+    const rect = apply ? apply.getBoundingClientRect() : null;
+    return { ok: true, applyVisible: !!(rect && rect.height > 0 && rect.bottom > 0) };
+  })()`);
+  await send(ws, 'Emulation.setScriptExecutionDisabled', { value: false });
+  if (noScript.threw || !noScript.ok) {
+    fail(label, noScript.why || 'no-script apply probe failed');
+    return;
+  }
+  if (!noScript.applyVisible) fail(label, 'apply control is not visible with scripting off after expanding the shell');
 
   const filtered = `${ORIGIN}/c/audio?in_stock=1#listing-results`;
   await send(ws, 'Page.navigate', { url: filtered });
@@ -1247,6 +1272,46 @@ const proveListingDesktopResize = async (label, locale) => {
   };
 
   await loadDesktop(false);
+
+  // With scripting on, ticking a filter updates the results in place: the URL
+  // follows, the chips appear, the region is a new node, the box keeps focus,
+  // the page does not scroll and the announced count is the page's own.
+  const live = await evalPage(`(async () => {
+    const box = document.querySelector('.goen-filters input[name=in_stock]');
+    if (!box) return { ok: false, why: 'stock filter missing' };
+    const before = document.getElementById('listing-results');
+    const y = window.scrollY;
+    box.focus();
+    box.click();
+    const deadline = Date.now() + 3000;
+    while (Date.now() < deadline) {
+      if (location.search.includes('in_stock=1') && document.getElementById('listing-results') !== before
+        && document.querySelector('#filters-applied .goen-filters__chip')) break;
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    const count = document.querySelector('.goen-listing__count');
+    return {
+      ok: true,
+      search: location.search,
+      chip: !!document.querySelector('#filters-applied .goen-filters__chip'),
+      replaced: document.getElementById('listing-results') !== before,
+      focusKept: document.activeElement === box,
+      scrolled: window.scrollY !== y,
+      status: (document.getElementById('listing-status')?.textContent || '').trim(),
+      count: count ? count.textContent.trim() : null,
+    };
+  })()`);
+  if (live.threw || !live.ok) {
+    fail(label, live.why || 'live filter probe failed');
+  } else {
+    if (!live.search.includes('in_stock=1')) fail(label, `ticking the stock filter did not update the URL — ${JSON.stringify(live)}`);
+    if (!live.chip) fail(label, `no active-filter chip after the update — ${JSON.stringify(live)}`);
+    if (!live.replaced) fail(label, 'the results region was not replaced by the update');
+    if (!live.focusKept) fail(label, 'focus left the filter box after the update');
+    if (live.scrolled) fail(label, 'the page scrolled after the update');
+    if (!live.count || live.status !== live.count) fail(label, `the announced count "${live.status}" is not the page's "${live.count}"`);
+  }
+
   await loadDesktop(true);
   await send(ws, 'Emulation.setScriptExecutionDisabled', { value: false });
 
@@ -1414,15 +1479,22 @@ const DRAWER_PROBE = `(async () => {
   menu.open = true;
   await new Promise((done) => setTimeout(done, 1000));
   const links = [...menu.querySelectorAll('.goen-header__drawer a')];
-  const covered = links.filter((a) => {
+  // The drawer scrolls on its own (the account links sit below the departments),
+  // and a point outside the viewport hits nothing: bring each link in before it
+  // is tested, so what is measured is what is painted over it and not how far
+  // down it is.
+  const hitOf = (a) => {
+    a.scrollIntoView({ block: 'nearest' });
     const r = a.getBoundingClientRect();
-    const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
-    return !hit || !a.contains(hit);
-  }).map((a) => {
-    const r = a.getBoundingClientRect();
-    const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
-    return a.textContent.trim() + ' under ' + (hit ? hit.tagName + '.' + String(hit.className).split(' ')[0] : 'nothing');
-  });
+    return document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+  };
+  const covered = [];
+  for (const a of links) {
+    const hit = hitOf(a);
+    if (!hit || !a.contains(hit)) {
+      covered.push(a.textContent.trim() + ' under ' + (hit ? hit.tagName + '.' + String(hit.className).split(' ')[0] : 'nothing'));
+    }
+  }
   return { ok: true, links: links.length, covered };
 })()`;
 
@@ -1723,6 +1795,49 @@ const STEPPER_FOCUS_PROBE = `(() => {
     if (!got.atBound) fail(label, `the + button never reached its bound (value ${got.value}, max ${got.max})`);
     if (!got.focused) fail(label, `focus left the + button at the bound and sits on ${got.active}`);
     console.log(`${label.padEnd(24)} value=${got.value}/${got.max} focused=${got.focused}${got.focused ? ' ok' : ''}`);
+  }
+}
+
+// A department's panel is not part of the tab order until it is opened: with
+// focus on the department's link its sub-links are not rendered, ArrowDown opens
+// the panel and moves into it, and Escape closes it and returns to the link.
+{
+  const label = 'department panel 1440';
+  await send(ws, 'Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
+  const target = ORIGIN + '/';
+  await send(ws, 'Page.navigate', { url: target });
+  await settled(ws, label, target);
+  const key = async (name, code) => {
+    for (const type of ['keyDown', 'keyUp']) {
+      await send(ws, 'Input.dispatchKeyEvent', { type, key: name, code: name, windowsVirtualKeyCode: code });
+    }
+  };
+  const state = () => evalPage(`(() => {
+    const dept = document.querySelector('.goen-dept');
+    const link = dept && dept.querySelector(':scope > a');
+    const panel = dept && dept.querySelector('.goen-dept__panel');
+    if (!link || !panel) return { skipped: true };
+    return {
+      skipped: false,
+      shown: [...panel.querySelectorAll('a')].filter(a => a.getClientRects().length > 0).length,
+      expanded: link.getAttribute('aria-expanded'),
+      inPanel: panel.contains(document.activeElement),
+      onLink: document.activeElement === link,
+    };
+  })()`);
+  await evalPage(`(() => { const a = document.querySelector('.goen-dept > a'); if (a) a.focus(); })()`);
+  const resting = await state();
+  if (resting.skipped) console.log(`${label.padEnd(24)} no department panel on this catalogue, skipped`);
+  else {
+    if (!resting.onLink) fail(label, 'the department link did not take focus');
+    if (resting.shown !== 0) fail(label, `${resting.shown} sub-links are rendered, so tab stops, with focus only on the department link`);
+    await key('ArrowDown', 40);
+    const opened = await state();
+    if (!opened.inPanel || opened.expanded !== 'true' || opened.shown === 0) fail(label, 'ArrowDown did not open the panel and move into it: ' + JSON.stringify(opened));
+    await key('Escape', 27);
+    const closed = await state();
+    if (!closed.onLink || closed.shown !== 0 || closed.expanded !== 'false') fail(label, 'Escape did not close the panel and return to the link: ' + JSON.stringify(closed));
+    console.log(`${label.padEnd(24)} panel closed on focus, opens with ArrowDown, Escape returns ok`);
   }
 }
 

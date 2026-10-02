@@ -2,6 +2,8 @@ package pages
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -133,7 +135,7 @@ func TestChangingACheckoutChoiceAppliesIt(t *testing.T) {
 	// radio carries one.
 	for _, want := range []string{
 		`id="shipping-ship-1"`,
-		`id="address-addr-1"`,
+		`id="address-book"`,
 		`id="invoice_type-mobile_carrier"`,
 	} {
 		if !strings.Contains(html, want) {
@@ -646,8 +648,35 @@ func TestANamelessReviewerIsNotBadgedAsABuyer(t *testing.T) {
 			"claim %q — the badge is what says somebody bought, and this review "+
 			"has not", got, bought)
 	}
-	if named := (ProductReview{Author: "王小明"}).DisplayAuthor(ctx); named != "王小明" {
-		t.Errorf("a named reviewer rendered as %q", named)
+}
+
+func TestAReviewerIsMaskedTheSameWayForEveryReview(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		locale i18n.Locale
+		author string
+		want   string
+	}{
+		{"zh full name", i18n.ZhHant, "王小明", "王○○"},
+		{"zh one character", i18n.ZhHant, "王", "王○○"},
+		{"zh latin name", i18n.ZhHant, "alice Chen", "a○○"},
+		{"en full name", i18n.En, "Alice Chen", "A."},
+		{"en lower case", i18n.En, "bob", "B."},
+		{"en han name", i18n.En, "王小明", "王."},
+		{"padded", i18n.ZhHant, "  陳大文", "陳○○"},
+		{"no name zh", i18n.ZhHant, "", "匿名顧客"},
+		{"no name en", i18n.En, "", "Anonymous"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := (ProductReview{Author: tt.author}).DisplayAuthor(i18n.WithLocale(t.Context(), tt.locale))
+			if got != tt.want {
+				t.Errorf("DisplayAuthor(%q) in %s = %q, want %q", tt.author, tt.locale, got, tt.want)
+			}
+		})
 	}
 }
 
@@ -988,9 +1017,7 @@ func TestTheChosenOptionIsMarkedOnTheRadioAlone(t *testing.T) {
 // place the order and read the total afterwards.
 //
 // It is an `update` submit like the three chooser buttons, because it wants the
-// same thing: re-render this form with one more decision applied. formnovalidate
-// travels with it for the same reason they carry it — the customer is mid-form
-// and the fields below are still empty.
+// same thing: re-render this form with one more decision applied.
 func TestACouponCanBeAppliedWithoutPlacingTheOrder(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
@@ -1016,7 +1043,7 @@ func TestACouponCanBeAppliedWithoutPlacingTheOrder(t *testing.T) {
 	if !ok {
 		t.Fatal("no control follows the coupon field, so a code can only be tried by buying")
 	}
-	for _, want := range []string{`name="update"`, `value="coupon"`, "formnovalidate"} {
+	for _, want := range []string{`name="update"`, `value="coupon"`} {
 		if !strings.Contains(button, want) {
 			t.Errorf("the control beside the coupon field is missing %s:\n%s", want, button)
 		}
@@ -1097,5 +1124,235 @@ func TestCartLineStillWorksWithScriptingOff(t *testing.T) {
 		if !strings.Contains(html, want) {
 			t.Errorf("cart line omits %s:\n%s", want, html)
 		}
+	}
+}
+
+// TestCartLineUpdateSwapsOnlyWhatChanges holds that the quantity form is an
+// htmx request that replaces the line's text and price, the summary, the
+// notices and the header's cart link, and names neither the thumbnail, the
+// stepper nor the whole list. Naming any of those would repaint what the
+// shopper did not change.
+func TestCartLineUpdateSwapsOnlyWhatChanges(t *testing.T) {
+	t.Parallel()
+	const id = "11111111-1111-4111-8111-111111111111"
+	html := renderToString(t, cartLine(CartLine{VariantID: id, Slug: "buds", Name: "Buds", Quantity: 1, UnitCents: 100}))
+	for _, want := range []string{
+		`hx-post="/cart/items/update"`,
+		`hx-swap="none"`,
+		`hx-select-oob="#line-body-` + id + `,#line-money-` + id + `,#cart-summary,#cart-notices,#cart-link,#cart-count:innerHTML"`,
+		`hx-sync="closest .goen-cart__lines:queue all"`,
+		`data-feedback-skip`,
+		`id="line-body-` + id + `"`,
+		`id="line-money-` + id + `"`,
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("cart line omits %s:\n%s", want, html)
+		}
+	}
+	for _, bad := range []string{`hx-target`, `hx-select=`} {
+		if strings.Contains(html, bad) {
+			t.Errorf("the line form carries %s, which would replace a whole region:\n%s", bad, html)
+		}
+	}
+}
+
+// TestARecipientCanBeTheMemberAndAnAddressTheirSavedOne holds the two controls a
+// signed-in customer gets above the recipient fields, with the data each fills
+// from rendered beside it so choosing costs no request.
+func TestARecipientCanBeTheMemberAndAnAddressTheirSavedOne(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+
+	view := CheckoutView{
+		Cart:     CartView{Lines: []CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
+		Shipping: []ShippingChoice{{VersionID: "ship-1", Code: "home", Name: "宅配到府"}},
+		Chosen:   "ship-1",
+		SavedAddresses: []SavedAddress{{
+			ID: "addr-1", Label: "家", Name: "王小明", Phone: "0912345678",
+			PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 68 號",
+		}},
+		ChosenAddress: "addr-1",
+		Profile:       CheckoutProfile{Email: "me@example.com", Name: "王小明", Phone: "0912345678"},
+		RecipientMe:   true,
+	}
+	html := renderToString(t, Checkout(CheckoutMeta(ctx), &view))
+
+	box := tagCarrying(t, html, "data-recipient-me")
+	for _, want := range []string{
+		`name="recipient_me"`, "checked", `data-name="王小明"`,
+		`data-phone="0912345678"`, `data-email="me@example.com"`,
+	} {
+		if !strings.Contains(box, want) {
+			t.Errorf("the recipient box lacks %s:\n%s", want, box)
+		}
+	}
+	if !strings.Contains(html, i18n.T(ctx, i18n.KeyRecipientIsMe)) {
+		t.Error("the recipient box has no label")
+	}
+	if !strings.Contains(html, `name="update" value="recipient"`) {
+		t.Error("no button applies the recipient box without scripting")
+	}
+
+	option := tagCarrying(t, html, `value="addr-1"`)
+	if !strings.Contains(option, "selected") {
+		t.Errorf("the chosen saved address is not selected:\n%s", option)
+	}
+	// Choosing applies on the server, which re-quotes delivery for the postal code.
+	if !strings.Contains(tagCarrying(t, html, `name="address"`), `hx-post="/checkout"`) {
+		t.Error("choosing a saved address does not re-render the form, so delivery keeps the old price")
+	}
+	for _, want := range []string{`name="recipient_prev_name"`, `name="recipient_prev_phone"`} {
+		if !strings.Contains(html, want) {
+			t.Errorf("the form does not carry %s, so unticking cannot restore what was there", want)
+		}
+	}
+	if !strings.Contains(html, `value="`+OtherAddress+`"`) || !strings.Contains(html, i18n.T(ctx, i18n.KeyOtherAddress)) {
+		t.Error("there is no 「其他地址」 option for typing a new address")
+	}
+	if !strings.Contains(html, i18n.T(ctx, i18n.KeyChooseSavedAddress)) {
+		t.Error("the address select has no label")
+	}
+}
+
+// TestAGuestIsOfferedNeitherControl: with no account there is no profile and no
+// address book, so the form is the one a guest has always had.
+func TestAGuestIsOfferedNeitherControl(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+
+	view := CheckoutView{
+		Cart:     CartView{Lines: []CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
+		Shipping: []ShippingChoice{{VersionID: "ship-1", Code: "home", Name: "宅配到府"}},
+		Chosen:   "ship-1",
+	}
+	html := renderToString(t, Checkout(CheckoutMeta(ctx), &view))
+	for _, gone := range []string{
+		"data-recipient-me", "recipient_me", "recipient_prev", `name="address"`,
+		i18n.T(ctx, i18n.KeyRecipientIsMe), i18n.T(ctx, i18n.KeyChooseSavedAddress),
+	} {
+		if strings.Contains(html, gone) {
+			t.Errorf("a guest's checkout carries %q", gone)
+		}
+	}
+}
+
+func TestQuestionsAndAnswersMaskNamesLikeReviews(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	if got := (Question{Asker: "王小明"}).Who(ctx); got != "王○○" {
+		t.Errorf("asker shown as %q, want 王○○", got)
+	}
+	if got := (Answer{Author: "陳大文"}).Who(ctx); got != "陳○○" {
+		t.Errorf("answerer shown as %q, want 陳○○", got)
+	}
+	if got := (Answer{Author: "陳大文", IsStaff: true}).Who(ctx); got != "goen" {
+		t.Errorf("staff answer shown as %q, want goen", got)
+	}
+}
+
+func couponTestView() CheckoutView {
+	return CheckoutView{
+		Cart:     CartView{Lines: []CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
+		Shipping: []ShippingChoice{{VersionID: "s1", Code: "home", Name: "宅配到府"}},
+		Chosen:   "s1",
+	}
+}
+
+// TestApplyingACouponSwapsOnlyTheCodeTheTotalsAndTheQuote holds what a script
+// replaces when 套用 is pressed. Each named id must exist in the page, or the
+// swap silently drops it; the quote is among them because the code changes it
+// and a stale one fails the next 送出訂單. The whole summary is not named: it
+// holds the buttons, and replacing them drops the focus.
+func TestApplyingACouponSwapsOnlyTheCodeTheTotalsAndTheQuote(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	view := couponTestView()
+	html := renderToString(t, Checkout(CheckoutMeta(ctx), &view))
+
+	button := tagCarrying(t, html, `value="coupon"`)
+	for _, want := range []string{
+		`hx-post="/checkout"`,
+		`hx-swap="none"`,
+		`hx-select-oob="#coupon,#coupon-message:innerHTML,#summary-totals,#checkout-quote"`,
+		`formaction="/checkout#coupon-field"`,
+		`data-coupon-apply`,
+		`data-busy="` + i18n.T(ctx, i18n.KeyTooManyRequests) + `"`,
+		`data-failed="` + i18n.T(ctx, i18n.KeyCouponUnavailable) + `"`,
+	} {
+		if !strings.Contains(button, want) {
+			t.Errorf("the coupon button omits %s:\n%s", want, button)
+		}
+	}
+	for _, id := range []string{"coupon", "coupon-message", "summary-totals", "checkout-quote", "coupon-field"} {
+		if !strings.Contains(html, `id="`+id+`"`) {
+			t.Errorf("the page has no element with id %q for the coupon swap", id)
+		}
+	}
+	for _, bad := range []string{`#summary,`, `#checkout-region`, `hx-target`} {
+		if strings.Contains(button, bad) {
+			t.Errorf("the coupon button names %s, which would replace more than the code and the totals", bad)
+		}
+	}
+	if !strings.Contains(html, `id="coupon-message" aria-live="polite"`) {
+		t.Error("the coupon's message is not in a live region, so a refusal is not announced")
+	}
+}
+
+// TestACouponRefusalNamesItselfInTheBanner holds that a form whose only problem
+// is the code does not send the shopper through the fields, while any other
+// refusal keeps the general banner.
+func TestACouponRefusalNamesItselfInTheBanner(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	general := i18n.T(ctx, i18n.KeyCheckoutHasErrors)
+
+	only := couponTestView()
+	only.Errors = map[string]string{"coupon": "找不到這組折扣碼。"}
+	html := renderToString(t, Checkout(CheckoutMeta(ctx), &only))
+	if !strings.Contains(html, "折扣碼無法套用:找不到這組折扣碼。") || strings.Contains(html, general) {
+		t.Error("the banner does not name the coupon refusal")
+	}
+
+	both := couponTestView()
+	both.Errors = map[string]string{"coupon": "找不到這組折扣碼。", "phone": "請填寫聯絡電話"}
+	html = renderToString(t, Checkout(CheckoutMeta(ctx), &both))
+	if !strings.Contains(html, general) {
+		t.Error("a form with other refusals lost the general banner")
+	}
+}
+
+// TestTheCheckoutFormIsCheckedByTheServerAndFocusesTheFirstRefusal holds that no
+// field is refused by the browser before the server has answered for all of
+// them, and that a refused page says so for the script that moves focus.
+func TestTheCheckoutFormIsCheckedByTheServerAndFocusesTheFirstRefusal(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+
+	fresh := couponTestView()
+	html := renderToString(t, Checkout(CheckoutMeta(ctx), &fresh))
+	form := tagCarrying(t, html, `id="checkout-form"`)
+	if !strings.Contains(form, "novalidate") {
+		t.Error("the browser can block a submit with its own bubble for one field and not the others")
+	}
+	if strings.Contains(form, "data-focus-refused") {
+		t.Error("a form nobody has submitted asks for focus on a refusal")
+	}
+
+	refused := couponTestView()
+	refused.Errors = map[string]string{"phone": "請填寫聯絡電話"}
+	html = renderToString(t, Checkout(CheckoutMeta(ctx), &refused))
+	if !strings.Contains(tagCarrying(t, html, `id="checkout-form"`), "data-focus-refused") {
+		t.Error("a refused form does not ask for focus on its first refusal")
+	}
+
+	src, err := os.ReadFile(filepath.Join("..", "..", "..", "assets", "js", "goen.js"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(src), `button.dataset.busy`) || !strings.Contains(string(src), `[data-coupon-apply]`) {
+		t.Error("the script does not show a refused or failed coupon request in the coupon's message region")
+	}
+	if !strings.Contains(string(src), `form[data-focus-refused] :is(input, select, textarea, button)[aria-invalid="true"]`) {
+		t.Error("the script does not focus the first refused control of a refused checkout")
 	}
 }

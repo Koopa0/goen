@@ -14,15 +14,16 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
 )
 
 // Customers searches for a customer by the start of their address or their name.
-func (s *Store) Customers(ctx context.Context, term string, after ...string) (pages.AdminCustomersView, error) {
+func (s *Store) Customers(ctx context.Context, term string, after ...string) (admin.CustomersView, error) {
 	term = strings.TrimSpace(term)
 	scope := web.ScopeURL("/admin/customers", "q", term)
 	cursor := readPageCursor(scope, after)
-	view := pages.AdminCustomersView{Term: term}
+	view := admin.CustomersView{Term: term}
 	if utf8.RuneCountInString(term) < MinSearchRunes {
 		return view, nil
 	}
@@ -32,13 +33,13 @@ func (s *Store) Customers(ctx context.Context, term string, after ...string) (pa
 		EscapedTerm: catalog.EscapeLike(term), RowLimit: PageLimit,
 	})
 	if err != nil {
-		return pages.AdminCustomersView{}, fmt.Errorf("search customers: %w", err)
+		return admin.CustomersView{}, fmt.Errorf("search customers: %w", err)
 	}
 	rows, bound := pageBound(cursor, scope, rows, PageSize, func(r *db.AdminSearchCustomersRow) string { return r.PageCursor })
 	view.ListBound = bound
 	for i := range rows {
 		r := &rows[i]
-		view.Rows = append(view.Rows, pages.AdminCustomerRow{
+		view.Rows = append(view.Rows, admin.CustomerRow{
 			ID: r.ID.String(), Email: r.Email, Name: r.FullName,
 			Since:    shoptime.Day(r.CreatedAt),
 			Verified: r.Verified, Orders: r.Orders,
@@ -49,16 +50,16 @@ func (s *Store) Customers(ctx context.Context, term string, after ...string) (pa
 
 // Customer reads one customer, whole, and RECORDS that somebody looked.
 func (s *Store) Customer(ctx context.Context, id string, actor uuid.NullUUID) (
-	pages.AdminCustomerView, error,
+	admin.CustomerView, error,
 ) {
 	uid, err := uuid.Parse(id)
 	if err != nil {
-		return pages.AdminCustomerView{}, ErrNotFound
+		return admin.CustomerView{}, ErrNotFound
 	}
 
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return pages.AdminCustomerView{}, fmt.Errorf("begin customer read: %w", err)
+		return admin.CustomerView{}, fmt.Errorf("begin customer read: %w", err)
 	}
 	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
 	q := s.q.WithTx(tx)
@@ -66,16 +67,16 @@ func (s *Store) Customer(ctx context.Context, id string, actor uuid.NullUUID) (
 	row, err := q.AdminCustomer(ctx, uid)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return pages.AdminCustomerView{}, ErrNotFound
+			return admin.CustomerView{}, ErrNotFound
 		}
-		return pages.AdminCustomerView{}, fmt.Errorf("read customer: %w", err)
+		return admin.CustomerView{}, fmt.Errorf("read customer: %w", err)
 	}
 
 	orders, err := q.AdminCustomerOrders(ctx, db.AdminCustomerOrdersParams{
 		UserID: uuid.NullUUID{UUID: uid, Valid: true}, Limit: PageSize,
 	})
 	if err != nil {
-		return pages.AdminCustomerView{}, fmt.Errorf("read customer orders: %w", err)
+		return admin.CustomerView{}, fmt.Errorf("read customer orders: %w", err)
 	}
 
 	// WHO was looked at, never what was read: audit_events outlives an erasure.
@@ -83,13 +84,13 @@ func (s *Store) Customer(ctx context.Context, id string, actor uuid.NullUUID) (
 		Action: actionViewCustomer, Table: "users", ID: nullableID(uid),
 		Before: nil, After: map[string]any{"user_id": id},
 	}); auditErr != nil {
-		return pages.AdminCustomerView{}, auditErr
+		return admin.CustomerView{}, auditErr
 	}
 	if err := tx.Commit(ctx); err != nil {
-		return pages.AdminCustomerView{}, fmt.Errorf("commit customer read: %w", err)
+		return admin.CustomerView{}, fmt.Errorf("commit customer read: %w", err)
 	}
 
-	view := pages.AdminCustomerView{
+	view := admin.CustomerView{
 		ID: row.ID.String(), Email: row.Email, Name: row.FullName, Phone: row.Phone,
 		Since: shoptime.Day(row.CreatedAt), Verified: row.Verified,
 		Orders: row.Orders, SpentCents: row.Spent,
@@ -98,7 +99,7 @@ func (s *Store) Customer(ctx context.Context, id string, actor uuid.NullUUID) (
 	for i := range orders {
 		o := &orders[i]
 		fulfillment := pages.FulfillmentStatus(o.FulfillmentStatus)
-		view.Recent = append(view.Recent, pages.AdminOrderRow{
+		view.Recent = append(view.Recent, admin.OrderRow{
 			Number: o.OrderNumber, Status: fulfillment,
 			StatusText: FundedStatusLabel(ctx, fulfillment, o.Committed, o.OwedCents),
 			PlacedAt:   shoptime.Minute(o.PlacedAt),

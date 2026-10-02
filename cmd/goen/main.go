@@ -308,8 +308,8 @@ func reachDatabase(ctx context.Context, pool *pgxpool.Pool, url string, log *slo
 // reachableAdminPool opens the back office's pool and proves it answers.
 // pgxpool connects lazily, so a wrong admin DSN otherwise gives a clean start,
 // a 200 from /readyz and a back office that 500s on every page.
-func reachableAdminPool(ctx context.Context, url string) (*pgxpool.Pool, error) {
-	pool, err := openAdminPool(ctx, url)
+func reachableAdminPool(ctx context.Context, url string, log *slog.Logger) (*pgxpool.Pool, error) {
+	pool, err := openAdminPool(ctx, url, log)
 	if err != nil {
 		return nil, fmt.Errorf("open admin pool: %w", err)
 	}
@@ -431,7 +431,7 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	pool, poolErr := openPool(ctx, cfg.DatabaseURL)
+	pool, poolErr := openPool(ctx, cfg.DatabaseURL, log)
 	if poolErr != nil {
 		return fmt.Errorf("open database pool: %w", redactURL(poolErr, cfg.DatabaseURL))
 	}
@@ -441,26 +441,26 @@ func run() error {
 		return reachErr
 	}
 
-	adminPool, adminErr := reachableAdminPool(ctx, cfg.AdminDatabaseURL)
+	adminPool, adminErr := reachableAdminPool(ctx, cfg.AdminDatabaseURL, log)
 	if adminErr != nil {
 		return adminErr
 	}
 	defer adminPool.Close()
 
-	srv := newServer(&cfg, &RouterConfig{
-		Pool: pool, AdminPool: adminPool, Payments: gateway, Refunder: refunder,
-		BaseURL: cfg.BaseURL, SecureCookies: cfg.SecureCookies, TOTPKey: cfg.totpKey,
-		Invoices: invoices, Google: googleSignIn, StoreMap: storeMap,
-	}, proxies, log)
-
 	// Opened here and not inside startWorkers: a pool closed by that function's
 	// own defer would be closed before the worker it belongs to has done
 	// anything.
-	maintenancePool, maintenanceErr := openMaintenancePool(ctx, cfg.MaintenanceDatabaseURL)
+	maintenancePool, maintenanceErr := openMaintenancePool(ctx, cfg.MaintenanceDatabaseURL, log)
 	if maintenanceErr != nil {
 		return fmt.Errorf("open maintenance pool: %w", maintenanceErr)
 	}
 	defer maintenancePool.Close()
+
+	srv := newServer(&cfg, &RouterConfig{
+		Pool: pool, AdminPool: adminPool, MaintenancePool: maintenancePool, Payments: gateway, Refunder: refunder,
+		BaseURL: cfg.BaseURL, SecureCookies: cfg.SecureCookies, TOTPKey: cfg.totpKey,
+		Invoices: invoices, Google: googleSignIn, StoreMap: storeMap,
+	}, proxies, log)
 
 	// Nothing above starts a goroutine: a return between a worker and the Wait
 	// that owns it would leave it running on a pool that is closing. Registered
@@ -532,23 +532,23 @@ const (
 )
 
 // openPool builds the connection pool goen serves from.
-func openPool(ctx context.Context, url string) (*pgxpool.Pool, error) {
-	return openPoolAs(ctx, url, "store", storeMaxConns, storeStatementTimeout)
+func openPool(ctx context.Context, url string, log *slog.Logger) (*pgxpool.Pool, error) {
+	return openPoolAs(ctx, url, log, "store", storeMaxConns, storeStatementTimeout)
 }
 
 // openAdminPool builds the pool the back office serves from. A second pool
 // rather than SET ROLE per request, which would leave the role set on a pooled
 // connection and run the next storefront request as admin.
-func openAdminPool(ctx context.Context, url string) (*pgxpool.Pool, error) {
-	return openPoolAs(ctx, url, "admin", adminMaxConns, adminStatementTimeout)
+func openAdminPool(ctx context.Context, url string, log *slog.Logger) (*pgxpool.Pool, error) {
+	return openPoolAs(ctx, url, log, "admin", adminMaxConns, adminStatementTimeout)
 }
 
 // openMaintenancePool builds and reaches the pool background jobs run on, as a
 // role no request ever holds. pgxpool.NewWithConfig is lazy: Ping belongs here
 // so a wrong independent DSN or a login that cannot SET ROLE maintenance stops
 // startup rather than failing only inside an unattended worker.
-func openMaintenancePool(ctx context.Context, url string) (*pgxpool.Pool, error) {
-	pool, err := openPoolAs(ctx, url, "maintenance", maintenanceMaxConns, maintenanceStatementTimeout)
+func openMaintenancePool(ctx context.Context, url string, log *slog.Logger) (*pgxpool.Pool, error) {
+	pool, err := openPoolAs(ctx, url, log, "maintenance", maintenanceMaxConns, maintenanceStatementTimeout)
 	if err != nil {
 		return nil, redactURL(err, url)
 	}
@@ -566,7 +566,7 @@ func openMaintenancePool(ctx context.Context, url string) (*pgxpool.Pool, error)
 // maxConns of them, and runs no statement longer than statementTimeout. The
 // limits are set here because Config() on a built pool hands back a copy.
 func openPoolAs(
-	ctx context.Context, url, role string,
+	ctx context.Context, url string, log *slog.Logger, role string,
 	maxConns int32, statementTimeout time.Duration,
 ) (*pgxpool.Pool, error) {
 	cfg, err := pgxpool.ParseConfig(url)
@@ -574,6 +574,7 @@ func openPoolAs(
 		return nil, fmt.Errorf("parse database url: %w", redactURL(err, url))
 	}
 	cfg.MaxConns = maxConns
+	cfg.ConnConfig.Tracer = newSlowQueryTracer(log, role)
 	// A bare number is milliseconds to PostgreSQL, and the startup packet is
 	// what makes it a property of the connection rather than of a caller.
 	cfg.ConnConfig.RuntimeParams["statement_timeout"] =
@@ -682,6 +683,7 @@ func startWorkers(ctx context.Context, d workerDeps) {
 	holds := cart.NewStore(d.pool)
 	d.run(func() { holds.SweepForever(ctx, d.log) })
 	d.run(func() { holds.SweepAttemptsForever(ctx, d.log) })
+	d.run(func() { holds.SweepDraftsForever(ctx, d.log) })
 
 	d.run(func() { account.NewStore(d.pool).SweepSessionsForever(ctx, d.log) })
 	// The media sweeper runs on the ADMIN pool: `store` holds SELECT on

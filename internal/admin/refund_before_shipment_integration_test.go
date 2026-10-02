@@ -229,6 +229,7 @@ func TestRefundBeforeShipmentPaysEveryLegAndCancels(t *testing.T) {
 			t.Fatalf("press %d: %v", press+1, err)
 		}
 	}
+	assertTerminalNotice(t, orderID, ordernotice.CancelledByStaff, true)
 
 	var returnID uuid.UUID
 	var returnStatus string
@@ -296,7 +297,6 @@ func TestRefundBeforeShipmentPaysEveryLegAndCancels(t *testing.T) {
 		t.Errorf("stock held/released/moves/restocks = %d/%d/%d/%d, %d -> %d; want the hold released once",
 			held, released, releaseMoves, restocks, stockHeld, stockAfter)
 	}
-	terminalNotice(t, orderID, ordernotice.CancelledByStaff)
 }
 
 func TestRefundBeforeShipmentStaysOpenUntilRefundSettles(t *testing.T) {
@@ -323,7 +323,7 @@ func TestRefundBeforeShipmentStaysOpenUntilRefundSettles(t *testing.T) {
 			}
 
 			if tc.picking {
-				err := s.Ship(ctx, number, admin.Dispatch{Carrier: "黑貓宅急便", Tracking: "TW-BS-" + number}, actor)
+				err := s.Ship(ctx, number, admin.Dispatch{Carrier: "black_cat", Tracking: "TW-BS-" + number}, actor)
 				if constraintFrom(err) != "orders_refunded_before_shipment" {
 					t.Fatalf("shipped an order being refunded: %v", err)
 				}
@@ -504,7 +504,7 @@ func TestRefundBeforeShipmentAndDispatchSerialize(t *testing.T) {
 			} else {
 				_, err = first.Exec(ctx, `
 					INSERT INTO order_shipments (order_id, carrier, tracking_number)
-					VALUES ($1, '黑貓宅急便', $2)`, orderID, "TW-FIRST-"+number)
+					VALUES ($1, 'black_cat', $2)`, orderID, "TW-FIRST-"+number)
 			}
 			if err != nil {
 				t.Fatalf("first writer: %v", err)
@@ -515,7 +515,7 @@ func TestRefundBeforeShipmentAndDispatchSerialize(t *testing.T) {
 			go func() {
 				defer close(done)
 				if doorFirst {
-					result <- s.Ship(ctx, number, admin.Dispatch{Carrier: "黑貓宅急便", Tracking: "TW-SECOND-" + number}, actor)
+					result <- s.Ship(ctx, number, admin.Dispatch{Carrier: "black_cat", Tracking: "TW-SECOND-" + number}, actor)
 				} else {
 					_, refundErr := s.RefundBeforeShipment(ctx, number, "顧客取消")
 					result <- refundErr

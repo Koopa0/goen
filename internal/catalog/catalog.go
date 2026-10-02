@@ -21,19 +21,24 @@ const PageSize = 24
 // MaxQueryRunes bounds a search term.
 const MaxQueryRunes = 100
 
-// Sort is a listing's ordering. The zero value is the default, newest first.
+// Sort is an ordering of a listing or a search. A price or rating sort leads and
+// the page's own order breaks its ties: newest first on a listing, best match on
+// a search.
 type Sort string
 
-// The orderings a listing offers.
+// The orderings. SortNewest and SortRelevance are what a page shows when the
+// shopper chose none, so neither appears in an address.
 const (
-	SortNewest    Sort = ""
+	SortNewest    Sort = "newest"
+	SortRelevance Sort = "relevance"
 	SortPriceAsc  Sort = "price_asc"
 	SortPriceDesc Sort = "price_desc"
 	SortRating    Sort = "rating"
 )
 
-// ParseSort maps a query-string value to a Sort, falling back to the default.
-func ParseSort(s string) Sort {
+// ParseSort maps a query-string value to a Sort, and anything else to unchosen,
+// the page's own order.
+func ParseSort(s string, unchosen Sort) Sort {
 	switch Sort(s) {
 	case SortPriceAsc:
 		return SortPriceAsc
@@ -42,8 +47,16 @@ func ParseSort(s string) Sort {
 	case SortRating:
 		return SortRating
 	default:
-		return SortNewest
+		return unchosen
 	}
+}
+
+// Param is the sort's query-string value, empty for the page's own order.
+func (s Sort) Param() string {
+	if s == SortNewest || s == SortRelevance {
+		return ""
+	}
+	return string(s)
 }
 
 // Filters is everything a listing URL can narrow by. MinPrice and MaxPrice are
@@ -57,9 +70,9 @@ type Filters struct {
 	Page        int // 1-based; 0 and below are treated as 1
 }
 
-// FiltersVariants reports whether any filter has to be satisfied by a single
+// VariantScoped reports whether any filter has to be satisfied by a single
 // variant. When none is set the listing skips the EXISTS entirely.
-func (f Filters) FiltersVariants() bool {
+func (f Filters) VariantScoped() bool {
 	return f.InStockOnly || f.MinPrice > 0 || f.MaxPrice > 0
 }
 
@@ -81,7 +94,7 @@ func offsetFor(page int) int32 {
 // Active reports whether anything narrows the listing, which decides whether
 // the page offers a "clear all" control.
 func (f Filters) Active() bool {
-	return len(f.BrandSlugs) > 0 || f.FiltersVariants()
+	return len(f.BrandSlugs) > 0 || f.VariantScoped()
 }
 
 // maxPage bounds the page number so a URL cannot make the database count its

@@ -28,15 +28,16 @@ const (
 type OrderTerminal struct {
 	OrderID uuid.UUID    `json:"order_id"`
 	Kind    TerminalKind `json:"kind"`
-	// Refunded says money may have reached the provider for this unpaid order
-	// and has been or will be returned. Absent from an older producer, it reads
-	// false.
+	// Refunded is ordernotice.Message.Refunded. Absent from an older producer,
+	// it reads false.
 	Refunded bool `json:"refunded"`
 }
 
 // TerminalRecipient is resolved at delivery, never retained in the outbox.
 type TerminalRecipient struct {
 	Address, Name, Locale, OrderNumber string
+	// RescissionEnds is the last day to return the goods, or "".
+	RescissionEnds string
 }
 
 // SendOrderTerminal reports an order fact without promising a new delivery. A
@@ -66,5 +67,9 @@ func (n Notifier) SendOrderTerminal(ctx context.Context, m *OrderTerminal, to Te
 	default:
 		return fmt.Errorf("unknown terminal order notice %q", m.Kind)
 	}
-	return n.send(ctx, &Message{To: to.Address, Subject: fmt.Sprintf(i18n.T(ctx, subject), to.OrderNumber), Body: n.letter(ctx, to.Name, fmt.Sprintf(i18n.T(ctx, body), to.OrderNumber, n.orderURL(to.OrderNumber)))})
+	text := fmt.Sprintf(i18n.T(ctx, body), to.OrderNumber, n.orderURL(to.OrderNumber))
+	if to.RescissionEnds != "" && (m.Kind == TerminalDelivered || m.Kind == TerminalCollected) {
+		text += "\n" + fmt.Sprintf(i18n.T(ctx, i18n.KeyMailRescissionEnds), to.RescissionEnds)
+	}
+	return n.send(ctx, &Message{To: to.Address, Subject: fmt.Sprintf(i18n.T(ctx, subject), to.OrderNumber), Body: n.letter(ctx, to.Name, text)})
 }

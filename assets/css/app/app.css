@@ -503,6 +503,19 @@ h3 {
   pointer-events: none;
 }
 
+/* A primary that cannot be pressed is a quiet grey control: at half opacity the
+   ink would be a mid-grey slab, the heaviest shape on the product page, for a
+   button whose whole message is "not yet". Only :disabled: aria-disabled is the
+   moment a form is in flight, and the button the shopper just pressed should
+   dim, not change colour. */
+.goen-btn--primary:disabled {
+  background: var(--n-100);
+  border-color: var(--n-100);
+  box-shadow: none;
+  color: var(--n-500);
+  opacity: 1;
+}
+
 .goen-badge {
   align-items: center;
   background: var(--elevated);
@@ -872,36 +885,64 @@ h3 {
   display: none;
 }
 
+/* With script, focus alone does not open a panel: its sub-links would be a tab
+   stop each before the search field. goen.js opens one from the department's
+   link (data-open); hover still opens it. Without script the rule above keeps
+   the panel open under focus, so it stays reachable. */
+@media (scripting: enabled) {
+  .goen-dept:not([data-open]):not(:hover) > .goen-dept__panel {
+    display: none;
+  }
+
+  .goen-dept[data-open] > .goen-dept__panel {
+    animation: goen-panel-in 100ms var(--ease-standard);
+    display: block;
+  }
+}
+
 @keyframes goen-panel-in {
   from {
     opacity: 0;
   }
 }
 
+/* The panel is as tall as what it holds: the sub-categories, three of the
+   department's newest products and a small photograph, on one row with the
+   free width between them. The products' track may shrink, so a long list of
+   sub-categories in English at 1024 squeezes the thumbnails rather than
+   pushing the row past the container. */
 .goen-dept__inner {
+  align-items: start;
+  column-gap: 3rem;
   display: grid;
-  gap: 3rem;
-  grid-template-columns: minmax(0, 1fr) 14rem;
+  grid-template-columns: max-content minmax(0, max-content) max-content;
+  justify-content: space-between;
   margin: 0 auto;
   max-width: var(--page-width);
-  padding: 2rem var(--page-gutter);
+  padding: 1.5rem var(--page-gutter) 2rem;
 }
 
+/* One column of sub-categories; from five, columns of three, read top to
+   bottom, so the list is never taller than the products beside it. */
 .goen-dept__links {
-  align-content: start;
-  max-width: 44rem;
-  column-gap: 2rem;
-  columns: 3 11rem;
+  column-gap: 2.5rem;
+  display: grid;
+  grid-auto-columns: max-content;
   list-style: none;
   margin: 0;
   padding: 0;
+}
+
+.goen-dept__links:has(> li:nth-child(5)) {
+  grid-auto-flow: column;
+  grid-template-rows: repeat(3, auto);
 }
 
 .goen-dept__link {
   color: var(--n-700);
   display: block;
   font-size: var(--fs-15);
-  padding: 0.5rem 0;
+  padding: 0.375rem 0;
   text-decoration: none;
 }
 
@@ -911,34 +952,127 @@ h3 {
   text-underline-offset: 3px;
 }
 
-.goen-dept__browse {
+.goen-dept__picks {
+  display: grid;
+  gap: 1.5rem;
+  grid-template-columns: repeat(3, minmax(0, 8rem));
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.goen-dept__pick {
   color: var(--n-900);
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.25rem;
   text-decoration: none;
 }
 
-.goen-dept__browse:hover {
+.goen-dept__pick:hover {
   color: var(--n-900);
 }
 
-.goen-dept__photo {
+/* The tile's well at a smaller size, on the photographs' own ground. At this
+   size the photograph fills it: held in from the edge, a 144px product would
+   shrink to a stamp. */
+.goen-dept__well {
   aspect-ratio: 1;
   background: var(--photo);
   border-radius: var(--r-lg);
   display: block;
+  margin-bottom: 0.5rem;
+  overflow: hidden;
+}
+
+.goen-dept__well img {
+  display: block;
+  height: 100%;
   object-fit: cover;
   width: 100%;
 }
 
-.goen-dept__browse:hover .goen-dept__photo {
+.goen-dept__name {
+  -webkit-box-orient: vertical;
+  display: -webkit-box;
+  font-size: var(--fs-14);
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  line-height: 1.45;
+  overflow: hidden;
+  text-wrap: pretty;
+}
+
+.goen-dept__price {
+  font-size: var(--fs-14);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--fw-medium);
+}
+
+.goen-dept__pick:hover .goen-dept__name {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.goen-dept__pick:hover img {
   opacity: 0.85;
 }
 
+/* Pinned to the last track: a department with nothing buyable has no product
+   list, and the link would otherwise fall into the middle of the row. */
+.goen-dept__browse {
+  color: var(--accent-text);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  grid-column: 3;
+  text-decoration: none;
+}
+
+.goen-dept__browse:hover {
+  color: var(--accent-text-hover);
+}
+
+/* Below 1280 the row has no room for a fourth picture, so the photograph goes
+   and its caption stays as the department's text link. Lazy and display:none,
+   it is never fetched there. */
+.goen-dept__photo {
+  display: none;
+}
+
 .goen-dept__caption {
-  font-size: var(--fs-15);
+  font-size: var(--fs-14);
   font-weight: var(--fw-medium);
+  padding-top: 0.375rem;
+  white-space: nowrap;
+}
+
+.goen-dept__browse:hover .goen-dept__caption {
+  text-decoration: underline;
+  text-underline-offset: 0.25em;
+}
+
+@media (min-width: 1280px) {
+  .goen-dept__picks {
+    grid-template-columns: repeat(3, minmax(0, 9rem));
+  }
+
+  .goen-dept__photo {
+    aspect-ratio: 4 / 3;
+    background: var(--photo);
+    border-radius: var(--r-lg);
+    display: block;
+    object-fit: cover;
+    width: 15rem;
+  }
+
+  .goen-dept__browse:hover .goen-dept__photo {
+    opacity: 0.85;
+  }
+
+  .goen-dept__caption {
+    padding-top: 0;
+  }
 }
 
 .goen-header .goen-header__navitem--deal {
@@ -1083,6 +1217,108 @@ h3 {
   color: var(--n-900);
 }
 
+/* The language menu of the header and the back office's bar: a globe and the
+   current language's short name on a button, a small panel of the two choices
+   under it. The name is visible from 1280 and in the back office; where the
+   header is tight it is only the globe, and the name stays in the accessible
+   name. */
+.goen-langmenu {
+  position: relative;
+}
+
+.goen-langmenu > summary {
+  align-items: center;
+  border-radius: var(--r-md);
+  color: var(--n-700);
+  cursor: pointer;
+  display: inline-flex;
+  font-size: var(--fs-14);
+  font-weight: var(--fw-medium);
+  gap: 6px;
+  justify-content: center;
+  list-style: none;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 10px;
+  transition:
+    background-color var(--dur-base) var(--ease-standard),
+    color var(--dur-base) var(--ease-standard);
+}
+
+.goen-langmenu > summary::-webkit-details-marker {
+  display: none;
+}
+
+.goen-langmenu > summary:hover,
+.goen-langmenu[open] > summary {
+  background: var(--n-100);
+  color: var(--n-900);
+}
+
+.goen-langmenu svg {
+  flex: none;
+  height: 1.25rem;
+  width: 1.25rem;
+}
+
+.goen-header__actions .goen-langmenu svg {
+  height: 1.5rem;
+  width: 1.5rem;
+}
+
+.goen-header .goen-langmenu__current {
+  border: 0;
+  clip-path: inset(50%);
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  padding: 0;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}
+
+.goen-langmenu__panel {
+  background: var(--n-0);
+  border: 1px solid var(--n-200);
+  border-radius: var(--r-lg);
+  box-shadow: var(--sh-lg);
+  min-width: 11rem;
+  padding: 4px;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: var(--z-dropdown);
+}
+
+.goen-langmenu__item {
+  align-items: center;
+  background: none;
+  border: 0;
+  border-radius: var(--r-md);
+  color: var(--n-700);
+  cursor: pointer;
+  display: flex;
+  font-family: inherit;
+  font-size: var(--fs-15);
+  gap: 12px;
+  justify-content: space-between;
+  min-height: 44px;
+  padding: 0 12px;
+  text-align: left;
+  width: 100%;
+}
+
+.goen-langmenu__item:hover {
+  background: var(--n-100);
+  color: var(--n-900);
+}
+
+.goen-langmenu__item[aria-pressed='true'] {
+  color: var(--n-900);
+  font-weight: var(--fw-semibold);
+}
+
 /* The disclosure menu: a native <details>, no script involved in opening it. */
 .goen-header__menu > summary {
   list-style: none;
@@ -1155,6 +1391,54 @@ h3 {
   color: var(--n-900);
 }
 
+/* The way out of the drawer, and what the phone's bar has no room for. The
+   language menu opens in the flow here: an absolutely placed panel would be
+   clipped by the drawer's own scroll. Below 768 the bar's copy of the menu is
+   dropped, so one language control shows at a time. */
+.goen-header__close {
+  align-self: flex-end;
+}
+
+.goen-header__drawertools {
+  border-top: 1px solid var(--n-200);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 8px;
+  padding-top: 8px;
+}
+
+.goen-header__drawerlang > summary {
+  justify-content: flex-start;
+  width: 100%;
+}
+
+.goen-header .goen-header__drawerlang .goen-langmenu__current {
+  clip-path: none;
+  height: auto;
+  margin: 0;
+  overflow: visible;
+  position: static;
+  width: auto;
+}
+
+.goen-header__drawerlang .goen-langmenu__panel {
+  box-shadow: none;
+  position: static;
+}
+
+@media (max-width: 767px) {
+  .goen-header__lang {
+    display: none;
+  }
+}
+
+@media (min-width: 768px) {
+  .goen-header__drawerlang {
+    display: none;
+  }
+}
+
 /* English department names out-measure the zh-Hant ones, so the desktop row
    gives up the wishlist icon below 1280 before it lets the search field fall
    under the width `check-layout.mjs` calls usable; the account page carries
@@ -1195,11 +1479,27 @@ h3 {
 
 @media (min-width: 1024px) and (max-width: 1279px) {
   .goen-header__bar {
-    column-gap: 1rem;
+    column-gap: 0.75rem;
   }
 
   .goen-header__nav {
-    gap: 0.875rem;
+    gap: 0.75rem;
+  }
+
+  .goen-header__actions {
+    gap: 0;
+  }
+
+  /* The mark is the brand where the row is this tight; the word stays in the
+     link's accessible name. */
+  .goen-header__wordmark {
+    clip-path: inset(50%);
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    position: absolute;
+    white-space: nowrap;
+    width: 1px;
   }
 
   .goen-header__nav .ui-navitem {
@@ -1213,6 +1513,15 @@ h3 {
 }
 
 @media (min-width: 1280px) {
+  .goen-header .goen-langmenu__current {
+    clip-path: none;
+    height: auto;
+    margin: 0;
+    overflow: visible;
+    position: static;
+    width: auto;
+  }
+
   .goen-header__nav {
     gap: 1.75rem;
   }
@@ -1387,19 +1696,11 @@ h3 {
 
 :root {
   --home-section: 4rem;
-  --home-band: 4rem;
 }
 
 @media (min-width: 40rem) {
   :root {
     --home-section: 6rem;
-    --home-band: 6rem;
-  }
-}
-
-@media (min-width: 64rem) {
-  :root {
-    --home-band: 8rem;
   }
 }
 
@@ -1431,10 +1732,31 @@ h3 {
   margin: 0;
 }
 
-/* The continuation after a section's name: same line, same size, grey. */
+/* The continuation after a section's name: same line, same size, grey. On a
+   phone the pair does not fit one line beside the link, and wrapping would split
+   a count from its unit ("8 / 件商品"), so there the continuation is its own
+   line at the body size and its separator is left to a screen reader. */
 .goen-home__aside {
   color: var(--n-500);
   font-weight: var(--fw-regular);
+}
+
+@media (max-width: 39.99rem) {
+  .goen-home__aside {
+    display: block;
+    font-size: var(--fs-16);
+    line-height: 1.5;
+    margin-top: 0.25rem;
+  }
+
+  .goen-home__sep {
+    clip-path: inset(50%);
+    height: 1px;
+    overflow: hidden;
+    position: absolute;
+    white-space: nowrap;
+    width: 1px;
+  }
 }
 
 .goen-home__more {
@@ -1566,16 +1888,90 @@ h3 {
   width: 2.75rem;
 }
 
-.goen-hero__dot::before {
-  background: rgb(24 24 27 / 0.2);
+.goen-hero__dot::before,
+.goen-hero__dot::after {
   border-radius: 1px;
   content: "";
+  grid-area: 1 / 1;
   height: 0.125rem;
   width: 1.75rem;
 }
 
+.goen-hero__dot::before {
+  background: rgb(24 24 27 / 0.2);
+}
+
 .goen-hero__dot[aria-current="true"]::before {
   background: var(--n-900);
+}
+
+/* While the carousel advances by itself the current line is a track and a fill:
+   the fill grows over the interval, and its end is what moves to the next slide,
+   so what is drawn and when it moves cannot disagree. The 6s is the one place the
+   interval is stated. Held or paused stops the fill where it is. */
+.goen-hero.is-playing .goen-hero__dot[aria-current="true"]::before {
+  background: rgb(24 24 27 / 0.2);
+}
+
+.goen-hero.is-playing .goen-hero__dot[aria-current="true"]::after {
+  animation: goen-hero-progress 6s linear forwards;
+  background: var(--n-900);
+  transform-origin: left center;
+}
+
+.goen-hero.is-held .goen-hero__dot[aria-current="true"]::after {
+  animation-play-state: paused;
+}
+
+@keyframes goen-hero-progress {
+  from {
+    transform: scaleX(0);
+  }
+
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.goen-hero__pause {
+  background: var(--n-0);
+  border: 1px solid var(--n-300);
+  border-radius: var(--r-md);
+  color: var(--n-900);
+  cursor: pointer;
+  display: grid;
+  height: 2.75rem;
+  padding: 0;
+  place-items: center;
+  width: 2.75rem;
+}
+
+.goen-hero__pause[hidden] {
+  display: none;
+}
+
+.goen-hero__pause:hover {
+  background: var(--n-50);
+}
+
+.goen-hero__pause span {
+  display: grid;
+}
+
+.goen-hero__pause[data-state="playing"] .goen-hero__pause-play,
+.goen-hero__pause[data-state="paused"] .goen-hero__pause-pause {
+  display: none;
+}
+
+/* Nothing moves by itself for a visitor who asked for less motion. */
+@media (prefers-reduced-motion: reduce) {
+  .goen-hero.is-playing .goen-hero__dot[aria-current="true"]::after {
+    animation: none;
+  }
+
+  .goen-hero__pause {
+    display: none;
+  }
 }
 
 .goen-hero__arrows {
@@ -1656,12 +2052,13 @@ h3 {
   opacity: 0.9;
 }
 
-/* ----- One department on its own ground: photograph beside three products. ----- */
+/* ----- One department: its photograph beside three of its products. The
+   department's tone stays with the photograph, which is shot on it; the
+   products stay on the page's white like every other card, because their
+   neutral well on a tinted band reads as a grey square laid on beige. ----- */
 
 .goen-band {
-  background: var(--tone-ground);
-  margin-top: var(--home-section);
-  padding-block: var(--home-band);
+  padding-top: var(--home-section);
 }
 
 /* minmax(0, ...) because the sideways product scroller would otherwise set the
@@ -1674,6 +2071,7 @@ h3 {
 
 .goen-band__media {
   aspect-ratio: 4 / 3;
+  background: var(--tone-ground);
   border-radius: var(--r-lg);
   overflow: hidden;
 }
@@ -1997,8 +2395,11 @@ h3 {
 }
 
 /* The ground is the photographs' own, so the picture's edge disappears and
-   the product floats. The photographs keep their product inside the middle
-   three quarters of the width, so filling the square crops only ground. */
+   the product floats. Every product photograph is shot on exactly that ground,
+   so the picture can be held in from the well's edge without drawing one: the
+   larger the card, the more air, so a 300px card is not a product pressing on
+   its corners, and a phone's 170px card keeps its product at full size.
+   Contain, not cover, so a photo of another proportion is never cropped. */
 .goen-tile__media {
   aspect-ratio: 1;
   background: var(--photo);
@@ -2008,9 +2409,11 @@ h3 {
 }
 
 .goen-tile__img {
+  box-sizing: border-box;
   display: block;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
+  padding: max(0px, calc((100% - 12rem) * 0.22));
   width: 100%;
 }
 
@@ -2056,6 +2459,8 @@ h3 {
   line-height: var(--lh-normal);
   margin: 0;
   overflow: hidden;
+  /* A two-line name never leaves one Han character alone on the second. */
+  text-wrap: pretty;
 }
 
 .goen-tile__price {
@@ -2118,7 +2523,9 @@ h3 {
   border-radius: var(--r-sm);
 }
 
-.goen-check {
+/* The bare checkbox; a label that carries the same name (the back office's)
+   must not inherit the 16px box, or its text overflows the row. */
+input.goen-check {
   accent-color: var(--accent);
   flex: none;
   height: 16px;
@@ -2244,10 +2651,20 @@ h3 {
   padding: 0 0 16px;
 }
 
+/* The heading keeps the outline unbroken at every width, but on a phone the
+   disclosure's own summary already says it, so it is read, not shown. */
 .goen-filters__title {
+  border: 0;
+  clip-path: inset(50%);
   font-size: var(--fs-16);
   font-weight: var(--fw-semibold);
-  margin: 0;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  padding: 0;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
 }
 
 .goen-filters__group {
@@ -2341,7 +2758,8 @@ h3 {
    at `check-layout.mjs:668` decides the desktop rail rendered at all by finding
    one of them, and the tap sweep at `:805` measures them. */
 .goen-filters .ui-input,
-.goen-filters .ui-select {
+.goen-filters .ui-select,
+.goen-search-sort .ui-select {
   background: var(--bg);
   border: 0;
   border-radius: var(--r-md);
@@ -2357,7 +2775,8 @@ h3 {
   width: 100%;
 }
 
-.goen-filters .ui-select {
+.goen-filters .ui-select,
+.goen-search-sort .ui-select {
   appearance: none;
   background: var(--n-0) var(--chevron) no-repeat right 0.75rem center;
   padding-right: 2.5rem;
@@ -2365,6 +2784,58 @@ h3 {
 
 .goen-filters__apply {
   margin-top: 8px;
+}
+
+/* The search's one control sits above the grid, on the right where a phone and
+   a desktop both find it. */
+.goen-search-sort {
+  align-items: flex-end;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  justify-content: flex-end;
+  margin-bottom: 16px;
+}
+
+.goen-search-sort .goen-filters__field {
+  min-width: min(100%, 16rem);
+}
+
+.goen-search-sort .goen-filters__apply {
+  margin-top: 0;
+}
+
+.goen-listing__subhead {
+  font-size: var(--fs-20);
+  margin: 32px 0 16px;
+}
+
+/* Where scripting is on, a changed filter or sort applies itself, so the button
+   goes. Hidden when the sheet is told scripting is on, so a browser that has
+   never heard of the query keeps the button that always works. */
+@media (scripting: enabled) {
+  .goen-filters__apply {
+    display: none;
+  }
+}
+
+/* Present even when nothing is filtered so a swap can fill or clear it; an
+   empty one must not add a flex gap. */
+#filters-applied:empty {
+  display: none;
+}
+
+.goen-filters__error {
+  color: var(--error);
+  font-size: var(--fs-14);
+  margin: 0;
+}
+
+/* The results region takes focus when a filtered page loads, so the next Tab
+   starts at the products. It is not a control and must not draw a ring. */
+#listing-results:focus,
+#listing-results:focus-visible {
+  outline: none;
 }
 
 .goen-filters__applied {
@@ -2743,6 +3214,98 @@ a.goen-pager__step:hover {
   color: var(--fg-muted);
 }
 
+/* A row the products disagree on: a ground and the ink colour, and the row
+   label says so aloud. Shown by more than colour for a reader who cannot see
+   the ground. */
+.goen-compare__table .is-differs td,
+.goen-compare__table .is-differs th {
+  background: var(--n-50);
+  color: var(--n-900);
+}
+
+/* A lone product's way on: others from its shelf, each with the one action. */
+.goen-compare__suggest {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.goen-compare__suggesthead {
+  color: var(--n-900);
+  font-size: var(--fs-ed-24);
+  font-weight: var(--fw-semibold);
+  line-height: 1.35;
+  margin: 0;
+}
+
+.goen-compare__suggestlist {
+  display: grid;
+  gap: 2.5rem 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.goen-compare__suggestion {
+  align-items: flex-start;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.goen-compare__suggestmedia {
+  aspect-ratio: 1;
+  background: var(--photo);
+  border-radius: var(--r-lg);
+  display: block;
+  margin-bottom: 0.75rem;
+  overflow: hidden;
+  width: 100%;
+}
+
+.goen-compare__suggestmedia img {
+  display: block;
+  height: 100%;
+  object-fit: contain;
+  width: 100%;
+}
+
+.goen-compare__suggestion .goen-compare__price {
+  font-weight: var(--fw-medium);
+}
+
+.goen-compare__suggestion .goen-btn {
+  margin-top: 0.5rem;
+}
+
+.goen-compare__shelf {
+  margin: 0;
+}
+
+.goen-compare__shelf a {
+  font-weight: var(--fw-medium);
+  text-decoration: none;
+}
+
+.goen-compare__shelf a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+@media (min-width: 768px) {
+  .goen-compare__suggestlist {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1280px) {
+  .goen-compare__suggestlist {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
+
 /* One saved product: the card, and under it the form that removes it. The form
    stays outside the card because the card is a link. */
 .goen-wish {
@@ -2782,10 +3345,6 @@ a.goen-pager__step:hover {
   .goen-featured__grid > li {
     flex-basis: 14rem;
   }
-
-  .goen-featured .goen-tile__media {
-    aspect-ratio: 3 / 4;
-  }
 }
 
 @media (min-width: 1024px) {
@@ -2815,12 +3374,27 @@ a.goen-pager__step:hover {
   font-size: var(--fs-14);
 }
 
+  /* The photograph is the head's right half, bled to its top, right and
+     bottom edges and faded into the tone on its left, so the head is one
+     surface: the photographs are shot on a vignetted ground a few levels off
+     the flat tone, and a frame inside the head would turn that difference into
+     an edge. */
   .goen-pagehead:has(.goen-pagehead__photo) {
-    align-items: center;
-    display: grid;
-    gap: 2rem;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    padding-block: 2rem;
+    box-sizing: border-box;
+    justify-content: center;
+    min-height: 20rem;
+    overflow: hidden;
+    padding: 2rem 2.5rem;
+    position: relative;
+  }
+
+  /* Above the photograph, which is positioned and later in the document and
+     would otherwise paint over the end of the text and take the clicks meant
+     for the last chip where the two meet. */
+  .goen-pagehead:has(.goen-pagehead__photo) .goen-pagehead__text {
+    max-width: calc(50% - 2.5rem);
+    position: relative;
+    z-index: 1;
   }
 
   .goen-pagehead__chips {
@@ -2831,12 +3405,13 @@ a.goen-pager__step:hover {
   }
 
   .goen-pagehead__photo {
-    aspect-ratio: 3 / 2;
-    border-radius: var(--r-lg);
     display: block;
-    max-height: 22rem;
+    height: 100%;
+    inset: 0 0 0 auto;
+    mask-image: linear-gradient(to right, transparent, #000 35%);
     object-fit: cover;
-    width: 100%;
+    position: absolute;
+    width: 55%;
   }
 
   .goen-featured__grid {
@@ -2869,6 +3444,16 @@ a.goen-pager__step:hover {
      wishlist keep the four the shared rule gives them. */
   .goen-listing__results .goen-tiles__grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .goen-filters__title {
+    clip-path: none;
+    height: auto;
+    margin: 0;
+    overflow: visible;
+    position: static;
+    white-space: normal;
+    width: auto;
   }
 
   /* The rail is open at every desk width: the summary goes, and the slot the
@@ -3149,11 +3734,8 @@ a.goen-pager__step:hover {
 
 .goen-pdp__optname {
   color: var(--n-900);
-  display: flex;
-  flex-wrap: wrap;
   font-size: var(--fs-14);
   font-weight: var(--fw-medium);
-  gap: 0.375rem;
   line-height: 1.5;
   padding: 0 0 0.75rem;
 }
@@ -3161,6 +3743,7 @@ a.goen-pager__step:hover {
 /* A colour has no words on it, so the chosen one says its name here. */
 .goen-pdp__optchosen {
   color: var(--n-500);
+  margin-inline-start: 0.25em;
   font-weight: var(--fw-regular);
 }
 
@@ -3371,7 +3954,8 @@ a.goen-pager__step:hover {
 
 /* Wishlist and compare: text buttons. The row is pulled out by the buttons'
    own padding so the first label lines up with the column's edge. */
-.goen-pdp__links {
+.goen-pdp__links,
+.goen-pdp__similar {
   align-items: center;
   display: flex;
   flex-wrap: wrap;
@@ -3379,7 +3963,13 @@ a.goen-pager__step:hover {
   margin: -0.75rem 0 0 -0.75rem;
 }
 
-.goen-pdp__links .goen-btn {
+/* With the specs, not pulled up into the buy column's rhythm. */
+.goen-pdp__similar {
+  margin: 0.5rem 0 0 -0.75rem;
+}
+
+.goen-pdp__links .goen-btn,
+.goen-pdp__similar .goen-btn {
   color: var(--n-700);
   padding: 0 0.75rem;
 }
@@ -3513,6 +4103,13 @@ a.goen-pager__step:hover {
 .goen-pdp__policies a:hover {
   text-decoration: underline;
   text-underline-offset: 3px;
+}
+
+/* The table's hairlines run the accordion's full width, like the hairlines
+   between the sections above and below it; the panel's prose measure is for
+   paragraphs, and stopping these at it would stack two lengths of rule. */
+.goen-pdp__accpanel:has(> .goen-pdp__speclist) {
+  max-width: none;
 }
 
 .goen-pdp__speclist {
@@ -3740,6 +4337,7 @@ a.goen-pager__step:hover {
 .goen-pdp__reviewform {
   background: var(--n-50);
   border-radius: var(--r-lg);
+  max-width: 40rem; /* content-box: the form inside is as wide as .goen-qa__form */
   padding: 1.5rem;
 }
 
@@ -3756,25 +4354,59 @@ a.goen-pager__step:hover {
   margin: 0;
 }
 
-/* The rating is a radio group and not a star widget: a row of stars that only
-   answers to a pointer is a control a keyboard cannot set. */
+/* The radios stay real so the arrow keys set the rating; a star is lit when it
+   or any later star is checked. The hover reset must match the checked rules'
+   specificity and come after them, or hover cannot preview a lower rating. */
 .goen-pdp__stars {
   border: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
   margin: 0;
   padding: 0;
 }
 
+.goen-pdp__starrow {
+  display: inline-flex;
+  gap: 0.25rem;
+}
+
 .goen-pdp__star {
   align-items: center;
-  color: var(--n-700);
   cursor: pointer;
   display: inline-flex;
-  font-size: var(--fs-14);
-  gap: 0.375rem;
+  justify-content: center;
   min-height: 2.75rem;
+  min-width: 2.75rem;
+  position: relative;
+}
+
+.goen-pdp__star:has(.goen-pdp__starinput:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--r-sm);
+}
+
+.goen-pdp__starmark svg {
+  color: var(--n-300);
+  display: block;
+  fill: none;
+  height: 1.75rem;
+  width: 1.75rem;
+}
+
+.goen-pdp__star:has(.goen-pdp__starinput:checked) .goen-pdp__starmark svg,
+.goen-pdp__star:has(~ .goen-pdp__star .goen-pdp__starinput:checked) .goen-pdp__starmark svg {
+  color: var(--star);
+  fill: var(--star);
+}
+
+.goen-pdp__starrow:hover .goen-pdp__star .goen-pdp__starmark svg {
+  color: var(--n-300);
+  fill: none;
+}
+
+.goen-pdp__starrow:hover .goen-pdp__star:hover .goen-pdp__starmark svg,
+.goen-pdp__starrow:hover .goen-pdp__star:has(~ .goen-pdp__star:hover) .goen-pdp__starmark svg {
+  color: var(--star);
+  fill: var(--star);
 }
 
 .goen-pdp__reviewbody.goen-input {
@@ -4075,6 +4707,12 @@ a.goen-pager__step:hover {
   height: 100%;
   object-fit: contain;
   width: 100%;
+}
+
+/* The notice region is always in the document so an update can fill it; it
+   draws nothing when empty and lets a notice sit in the page's own flow. */
+.goen-cart__notices {
+  display: contents;
 }
 
 /* A line in the cart is a grid, so the money and the controls can sit under
@@ -4523,14 +5161,6 @@ a.goen-pager__step:hover {
   font-size: var(--fs-14);
   line-height: var(--lh-normal);
   margin: 0;
-}
-
-/* The form that posts to the carrier holds nothing but hidden inputs, and the
-   button that submits it lives in the section above through form=. It is out
-   of the flow so it cannot open a gap between the checkout form and the page
-   below it. */
-.goen-pickup__map {
-  display: none;
 }
 
 /* The hop back from the carrier's page. No header, no footer: it exists for
@@ -5925,7 +6555,7 @@ a.goen-pager__step:hover {
 
 /* ----- About ----- */
 
-/* One 48rem column: the photograph, the title, a lead, a paragraph, three
+/* One 48rem column: the mark drawn large, the title, a lead, a paragraph, three
    short sections in the policy rhythm, and the lines a company has to print. */
 .about {
   box-sizing: border-box;
@@ -5938,14 +6568,32 @@ a.goen-pager__step:hover {
   width: 100%;
 }
 
-.about__photo {
+/* The paper tone's ground, the mark's two inks, and lines that stay fine at
+   every width: the rings carry non-scaling strokes. */
+.about__art {
   aspect-ratio: 16 / 9;
-  background: var(--photo);
+  background: var(--tone-ground);
   border-radius: var(--r-lg);
   display: block;
   height: auto;
-  object-fit: cover;
   width: 100%;
+}
+
+.about__ring {
+  fill: none;
+  stroke: var(--n-900);
+  stroke-width: 1.5;
+}
+
+.about__ring--accent {
+  stroke: var(--accent);
+}
+
+/* Where the two rings meet is lighter than the paper around it, not darker:
+   a tint of either ink there reads as a grey shadow on the warm ground. */
+.about__lens {
+  fill: var(--n-0);
+  fill-opacity: 0.6;
 }
 
 .about__title {
@@ -6162,21 +6810,17 @@ a.goen-pager__step:hover {
 }
 
 .contact__map {
-  align-items: center;
-  aspect-ratio: 4 / 3;
-  background: var(--n-50);
-  border-radius: var(--r-lg);
   color: var(--accent-text);
-  display: flex;
+  display: inline-block;
   font-size: var(--fs-14);
   font-weight: var(--fw-medium);
-  justify-content: center;
   text-decoration: none;
 }
 
 .contact__map:hover {
-  background: var(--n-100);
   color: var(--accent-text-hover);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .contact__address {
@@ -6299,8 +6943,11 @@ a.goen-pager__step:hover {
    tone yet, so the fallback is the stone ground: oklch(97% 0.006 70). The
    photograph sits flush on the band, above the title at 375 and on the right
    half from 1024. */
+/* The head itself is the ground: it carries the campaign's tone and fills its
+   cell, and the band only rounds the corners. A ground on the band as well
+   would show as a second beige beside the head wherever the photograph is
+   missing. */
 .goen-campaign__band {
-  background: var(--tone-ground, #f8f4f1);
   border-radius: var(--r-lg);
   display: grid;
   gap: 0;
@@ -6316,6 +6963,7 @@ a.goen-pager__step:hover {
 }
 
 .goen-campaign__band .goen-pagehead {
+  border-radius: 0;
   gap: 0.5rem;
   padding: 1.5rem 1.25rem;
 }
@@ -6462,8 +7110,7 @@ a.goen-pager__step:hover {
     grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
   }
 
-  .goen-campaign__band {
-    align-items: center;
+  .goen-campaign__band:has(.goen-campaign__header) {
     grid-template-columns: 1fr 1fr;
   }
 
@@ -6476,6 +7123,7 @@ a.goen-pager__step:hover {
   .goen-campaign__band .goen-pagehead {
     grid-column: 1;
     grid-row: 1;
+    justify-content: center;
     padding: 3rem;
   }
 
@@ -6674,9 +7322,10 @@ a.goen-pager__step:hover {
 }
 
 /* A panel the page can shut. On a stockroom phone 23 links are a screen of
-   their own before the work starts; at the desk the summary is gone and the
-   panel is the rail, which is why the element renders open — there would be no
-   control left to reopen it with. */
+   their own before the work starts, so it renders closed; at the desk the
+   summary is gone and the panel is the rail, forced open through
+   ::details-content. The summary is only hidden where that forcing is
+   supported — otherwise there would be no control left to open it with. */
 .goen-disclosure {
   min-width: 0;
 }
@@ -6702,9 +7351,9 @@ a.goen-pager__step:hover {
 
 /* The back office is 23 screens. Listed flat they are 23 labels a staff member
    reads through to find one; grouped by the question each answers they are
-   five, and only the group holding the current screen is open. The disclosure
-   is a native <details>, so it survives the enhancement file being deleted, and
-   the server decides which one is open — nothing moves after the first byte. */
+   five, and the group holding the current screen is open. The disclosure is a
+   native <details>, so it survives the enhancement file being deleted, and the
+   server decides which one is open — nothing moves after the first byte. */
 .goen-admin__nav {
   background: var(--panel);
   border: 1px solid var(--border);
@@ -6841,6 +7490,14 @@ a.goen-pager__step:hover {
   font-size: var(--fs-ed-24);
 }
 
+/* A head holding three buttons has to let them wrap on a phone; the base rule
+   keeps the row at its full width and it would overflow. */
+.goen-admin .ui-page-head__actions {
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
 .goen-admin .ui-page-head__sub {
   color: var(--fg-muted);
   font-size: var(--fs-14);
@@ -6893,6 +7550,12 @@ a.goen-pager__step:hover {
   color: var(--fg-muted);
   font-size: var(--fs-12);
   font-weight: var(--fw-medium);
+  line-height: var(--lh-normal);
+}
+
+.goen-stat__note {
+  color: var(--fg-muted);
+  font-size: var(--fs-12);
   line-height: var(--lh-normal);
 }
 
@@ -6980,6 +7643,12 @@ a.goen-pager__step:hover {
   text-decoration: underline;
 }
 
+/* Beside a label: said once, quietly, in the label's own size. */
+.goen-admin__mark {
+  font-weight: var(--fw-regular);
+  margin-inline-start: 4px;
+}
+
 .goen-admin__hint {
   color: var(--fg-muted);
   font-size: var(--fs-13);
@@ -7011,7 +7680,17 @@ a.goen-pager__step:hover {
    grid/flex item that grows to its content, so overflow-x has nothing to clip
    against and the 640px table pushes the whole page to 743px at 375. */
 .goen-admin__tablewrap {
-  background: var(--panel);
+  /* The cue that there is more to the side: a shadow on each edge that has
+     content beyond it, which goes when the table is scrolled to that edge. The
+     covers scroll with the content and the shadows stay put, so only a hidden
+     edge shows one. Cells paint over it where they carry a background of their
+     own (the header, a low-stock row); the plain rows carry it. */
+  background:
+    linear-gradient(to right, var(--panel) 30%, transparent) left center / 2.5rem 100% no-repeat local,
+    linear-gradient(to left, var(--panel) 30%, transparent) right center / 2.5rem 100% no-repeat local,
+    radial-gradient(farthest-side at 0 50%, var(--border-strong), transparent) left center / 0.75rem 100% no-repeat scroll,
+    radial-gradient(farthest-side at 100% 50%, var(--border-strong), transparent) right center / 0.75rem 100% no-repeat scroll;
+  background-color: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--r-md);
   max-width: 100%;
@@ -7305,8 +7984,18 @@ a.goen-pager__step:hover {
     top: 24px;
   }
 
-  .goen-admin:has(.goen-admin__main) .goen-disclosure__summary {
-    display: none;
+  @supports selector(::details-content) {
+    .goen-admin:has(.goen-admin__main) .goen-disclosure__summary {
+      display: none;
+    }
+
+    .goen-admin:has(.goen-admin__main) .goen-admin__nav::details-content {
+      content-visibility: visible;
+    }
+
+    .goen-admin:has(.goen-admin__main) .goen-admin__nav:not([open]) > .goen-disclosure__panel {
+      display: block;
+    }
   }
 
   .goen-admin:has(.goen-admin__main) .goen-admin__navlist {
@@ -7624,6 +8313,10 @@ a.goen-pager__step:hover {
   max-width: 60ch;
 }
 
+.goen-pdp .goen-qa__form {
+  max-width: 40rem;
+}
+
 /* Worker health. One box per worker, marked at the edge when it needs
    attention — the page is opened to find out whether anything is wrong, so the
    answer has to be visible without reading. */
@@ -7719,9 +8412,55 @@ a.goen-pager__step:hover {
   margin-bottom: 16px;
 }
 
-.goen-admin__search .ui-input {
+.goen-admin__search .ui-input,
+.goen-admin__search .goen-input {
   flex: 1 1 260px;
   min-width: 0;
+}
+
+/* A product page is one long column of cards; this row jumps to each. On a wide
+   screen it stays at the top of the viewport so the jump is always one click
+   away; on a phone it scrolls sideways instead of wrapping into a block. */
+.goen-admin__sectionnav {
+  display: flex;
+  gap: 8px 20px;
+  overflow-x: auto;
+  padding: 12px 0;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.goen-admin__sectionnav a {
+  flex: none;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+
+@media (min-width: 1024px) {
+  .goen-admin__sectionnav {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+  }
+}
+
+/* The products a search found, each with the one button that adds it. */
+.goen-admin__matches {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.goen-admin__matches li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
 }
 
 
@@ -8190,6 +8929,8 @@ a.goen-pager__step:hover {
   flex-direction: column;
   gap: 16px;
   min-width: 0;
+  /* Clears the sticky section row when a link scrolls here. */
+  scroll-margin-top: 72px;
 }
 
 /* A product's options and its variants read the same way: one row per thing,
@@ -8497,6 +9238,16 @@ form[data-request-pending] [aria-disabled="true"] {
 
 [data-checkout-constraint]:user-invalid {
   border-color: var(--error);
+}
+
+/* A field the script marked refused looks as the server's 422 renders it. */
+[data-rule][aria-invalid="true"] {
+  border-color: var(--error);
+}
+
+/* The live message hides with the attribute, whatever display the class sets. */
+.ui-error-text[hidden] {
+  display: none;
 }
 
 .goen-compare__picker {

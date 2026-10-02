@@ -8,10 +8,12 @@ import (
 	"errors"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 var (
@@ -29,6 +31,10 @@ var (
 	ErrRefundIncomplete = errors.New("admin: the return is approved and the refund did not complete")
 	// ErrInvalid is a form goen itself rejected before the database saw it.
 	ErrInvalid = errors.New("admin: invalid input")
+	// ErrCarrier is a dispatch naming a carrier that cannot carry this order's
+	// parcel: a store order goes with its chain's carrier, a home delivery with a
+	// home carrier.
+	ErrCarrier = errors.New("admin: carrier cannot carry this order")
 	// ErrQuantity is a per-line count the order cannot honour: more than remains
 	// to ship, or more than it still holds.
 	ErrQuantity = errors.New("admin: quantity out of range")
@@ -94,6 +100,20 @@ const PageSize = 50
 // are half of one.
 const MinSearchRunes = 2
 
+// MaxSearchRunes bounds a search term; a longer one is cut, since no name or
+// SKU is that long and the term is repeated in every link of the list.
+const MaxSearchRunes = 100
+
+// SearchTerm is what a typed search term is searched as: trimmed and cut to
+// MaxSearchRunes.
+func SearchTerm(raw string) string {
+	term := strings.TrimSpace(raw)
+	if utf8.RuneCountInString(term) > MaxSearchRunes {
+		term = string([]rune(term)[:MaxSearchRunes])
+	}
+	return term
+}
+
 // statuses is the fulfilment lifecycle, in the order the queue shows it.
 // orders_check_transition decides which moves are legal; parsing and the queue
 // tabs consume this closed set.
@@ -113,26 +133,26 @@ var statuses = [...]struct {
 // them. Pending is two queues because FundedStatusLabel reads it as two: money
 // still owed, and funded and waiting to be picked.
 var queueTabs = [...]struct {
-	filter pages.QueueFilter
+	filter admin.QueueFilter
 	label  i18n.Key
 }{
-	{pages.QueueAwaitingPayment, i18n.KeyAdminStatusPending},
-	{pages.QueueReady, i18n.KeyAdminStatusReadyToPick},
-	{pages.QueuePicking, i18n.KeyAdminStatusPicking},
-	{pages.QueueShipped, i18n.KeyAdminStatusShipped},
-	{pages.QueueDelivered, i18n.KeyAdminStatusDelivered},
-	{pages.QueueCompleted, i18n.KeyAdminStatusCompleted},
-	{pages.QueueCancelled, i18n.KeyAdminStatusCancelled},
+	{admin.QueueAwaitingPayment, i18n.KeyAdminStatusPending},
+	{admin.QueueReady, i18n.KeyAdminStatusReadyToPick},
+	{admin.QueuePicking, i18n.KeyAdminStatusPicking},
+	{admin.QueueShipped, i18n.KeyAdminStatusShipped},
+	{admin.QueueDelivered, i18n.KeyAdminStatusDelivered},
+	{admin.QueueCompleted, i18n.KeyAdminStatusCompleted},
+	{admin.QueueCancelled, i18n.KeyAdminStatusCancelled},
 }
 
 // ParseQueueFilter maps a query value to a queue filter, or "" for all.
-func ParseQueueFilter(s string) pages.QueueFilter {
+func ParseQueueFilter(s string) admin.QueueFilter {
 	for _, tab := range queueTabs {
 		if string(tab.filter) == s {
 			return tab.filter
 		}
 	}
-	return pages.QueueAll
+	return admin.QueueAll
 }
 
 // ParseStatus maps a query value to a fulfilment state, or "" for all.
@@ -264,6 +284,16 @@ func ReturnStatusLabel(ctx context.Context, s returns.ReturnStatus) string {
 	default:
 		return string(s)
 	}
+}
+
+// returnStatusText is a return's status as the queue shows it. A refund before
+// shipment that has finished is a cancellation: nothing came back, so
+// "completed" would read as a return that did.
+func returnStatusText(ctx context.Context, s returns.ReturnStatus, beforeShipment bool) string {
+	if beforeShipment && s == returns.ReturnCompleted {
+		return i18n.T(ctx, i18n.KeyAdminReturnCancelledRefunded)
+	}
+	return ReturnStatusLabel(ctx, s)
 }
 
 // MaxCreditGrant bounds one posting, in cents: NT$100,000. Not a schema limit,

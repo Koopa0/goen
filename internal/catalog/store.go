@@ -46,7 +46,13 @@ func (s *Store) Listing(ctx context.Context, slug string, f Filters) (pages.List
 		return pages.ListingView{}, fmt.Errorf("read descendants of %q: %w", slug, err)
 	}
 
-	brands, err := s.q.CategoryBrands(ctx, ids)
+	brands, err := s.q.CategoryBrands(ctx, db.CategoryBrandsParams{
+		CategoryIds:    ids,
+		FilterVariants: f.VariantScoped(),
+		InStockOnly:    f.InStockOnly,
+		MinPrice:       f.MinPrice,
+		MaxPrice:       f.MaxPrice,
+	})
 	if err != nil {
 		return pages.ListingView{}, fmt.Errorf("read brands for %q: %w", slug, err)
 	}
@@ -71,11 +77,11 @@ func (s *Store) Listing(ctx context.Context, slug string, f Filters) (pages.List
 		Locale:         string(i18n.FromContext(ctx)),
 		CategoryIds:    ids,
 		BrandIds:       brandIDs,
-		FilterVariants: f.FiltersVariants(),
+		FilterVariants: f.VariantScoped(),
 		InStockOnly:    f.InStockOnly,
 		MinPrice:       f.MinPrice,
 		MaxPrice:       f.MaxPrice,
-		Sort:           string(f.Sort),
+		Sort:           f.Sort.Param(),
 		PageSize:       PageSize,
 		PageOffset:     f.Offset(),
 	})
@@ -86,7 +92,7 @@ func (s *Store) Listing(ctx context.Context, slug string, f Filters) (pages.List
 	total, err := s.q.CategoryListingCount(ctx, db.CategoryListingCountParams{
 		CategoryIds:    ids,
 		BrandIds:       brandIDs,
-		FilterVariants: f.FiltersVariants(),
+		FilterVariants: f.VariantScoped(),
 		InStockOnly:    f.InStockOnly,
 		MinPrice:       f.MinPrice,
 		MaxPrice:       f.MaxPrice,
@@ -109,6 +115,11 @@ func (s *Store) Listing(ctx context.Context, slug string, f Filters) (pages.List
 		return pages.ListingView{}, fmt.Errorf("read children of %q: %w", department, err)
 	}
 
+	offers, err := s.comparableCategories(ctx)
+	if err != nil {
+		return pages.ListingView{}, err
+	}
+
 	view := pages.ListingView{
 		Slug:   slug,
 		Name:   cat.Name,
@@ -122,29 +133,24 @@ func (s *Store) Listing(ctx context.Context, slug string, f Filters) (pages.List
 				Alt:    cat.ImageAlt,
 			},
 		},
-		Products: tiles(rows),
+		Products: tiles(rows, offers),
 		Total:    total,
 		Page:     int32(min(max(f.Page, 1), maxPage)),
 		PageSize: PageSize,
 	}
-	for _, b := range brands {
-		view.Brands = append(view.Brands, pages.FacetOption{
-			Value:    b.Slug,
-			Label:    b.Name,
-			Count:    b.ProductCount,
-			Selected: selected[b.Slug],
-		})
-	}
+	view.Brands = brandFacets(brands, selected)
 	return view, nil
 }
 
-// Search reads one page of search results. The pattern is SearchPattern's.
-func (s *Store) Search(ctx context.Context, pattern string, page int) (pages.SearchView, error) {
+// Search reads one page of search results. The pattern is SearchPattern's, and
+// sort is ParseSort's with SortRelevance as the unchosen order.
+func (s *Store) Search(ctx context.Context, pattern string, sort Sort, page int) (pages.SearchView, error) {
 	terms, exact := SearchTerms(pattern)
 	rows, err := s.q.SearchProducts(ctx, db.SearchProductsParams{
 		Locale:       string(i18n.FromContext(ctx)),
 		Patterns:     terms,
 		ExactPattern: exact,
+		Sort:         sort.Param(),
 		PageSize:     PageSize,
 		PageOffset:   offsetFor(page),
 	})
@@ -155,13 +161,39 @@ func (s *Store) Search(ctx context.Context, pattern string, page int) (pages.Sea
 	if err != nil {
 		return pages.SearchView{}, fmt.Errorf("count search: %w", err)
 	}
+	offers, err := s.comparableCategories(ctx)
+	if err != nil {
+		return pages.SearchView{}, err
+	}
 
 	return pages.SearchView{
-		Products: searchTiles(rows),
+		Products: searchTiles(rows, offers),
 		Total:    total,
 		Page:     max(page, 1),
 		PageSize: PageSize,
+		Sort:     sort.Param(),
 	}, nil
+}
+
+// NewestProducts reads the n most recently published active products.
+func (s *Store) NewestProducts(ctx context.Context, n int32) ([]pages.ProductTile, error) {
+	rows, err := s.q.NewestProducts(ctx, db.NewestProductsParams{
+		Locale:   string(i18n.FromContext(ctx)),
+		PageSize: n,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("read newest products: %w", err)
+	}
+	offers, err := s.comparableCategories(ctx)
+	if err != nil {
+		return nil, err
+	}
+	// Same columns in the same order as SearchProducts, so one tile builder serves both.
+	asSearch := make([]db.SearchProductsRow, len(rows))
+	for i := range rows {
+		asSearch[i] = db.SearchProductsRow(rows[i])
+	}
+	return searchTiles(asSearch, offers), nil
 }
 
 func childCrumbs(rows []db.CategoryChildrenRow) []pages.Crumb {
@@ -183,33 +215,35 @@ func crumbs(slugs, names []string) []pages.Crumb {
 	return out
 }
 
-func tiles(rows []db.CategoryListingRow) []pages.ProductTile {
-	out := make([]pages.ProductTile, 0, len(rows))
-	for i := range rows {
-		r := &rows[i]
-		out = append(out, pages.ProductTile{
-			Slug:         r.Slug,
-			Name:         r.Name,
-			Summary:      r.Summary,
-			Brand:        r.Brand,
-			PriceCents:   r.MinPriceCents,
-			PriceVaries:  r.PriceVaries,
-			CompareCents: r.CompareAtPriceCents.Int64,
-			Rating:       r.Rating,
-			RatingCount:  r.RatingCount,
-			InStock:      r.InStock,
-			ImageURL:     assets.ProductImageURL(r.ImageKey),
-			ImageSrcset:  assets.ProductImageSrcsetAt(r.ImageKey, int(r.ImageWidth)),
-			ImageAlt:     r.ImageAlt,
-			ImageWidth:   r.ImageWidth,
-			ImageHeight:  r.ImageHeight,
-			Comparable:   true,
+// brandFacets is the brand filter's options, the chosen ones marked.
+func brandFacets(brands []db.CategoryBrandsRow, selected map[string]bool) []pages.FacetOption {
+	out := make([]pages.FacetOption, 0, len(brands))
+	for _, b := range brands {
+		out = append(out, pages.FacetOption{
+			Value:    b.Slug,
+			Label:    b.Name,
+			Count:    b.ProductCount,
+			Selected: selected[b.Slug],
 		})
 	}
 	return out
 }
 
-func searchTiles(rows []db.SearchProductsRow) []pages.ProductTile {
+// comparableCategories is the set of categories that offer comparison, which a
+// listing and a search both read, so the two cannot disagree about a product.
+func (s *Store) comparableCategories(ctx context.Context) (map[uuid.UUID]bool, error) {
+	ids, err := s.q.ComparableCategoryIDs(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("read comparable categories: %w", err)
+	}
+	out := make(map[uuid.UUID]bool, len(ids))
+	for _, id := range ids {
+		out[id] = true
+	}
+	return out, nil
+}
+
+func tiles(rows []db.CategoryListingRow, offers map[uuid.UUID]bool) []pages.ProductTile {
 	out := make([]pages.ProductTile, 0, len(rows))
 	for i := range rows {
 		r := &rows[i]
@@ -229,7 +263,33 @@ func searchTiles(rows []db.SearchProductsRow) []pages.ProductTile {
 			ImageAlt:     r.ImageAlt,
 			ImageWidth:   r.ImageWidth,
 			ImageHeight:  r.ImageHeight,
-			Comparable:   true,
+			Comparable:   offers[r.CategoryID],
+		})
+	}
+	return out
+}
+
+func searchTiles(rows []db.SearchProductsRow, offers map[uuid.UUID]bool) []pages.ProductTile {
+	out := make([]pages.ProductTile, 0, len(rows))
+	for i := range rows {
+		r := &rows[i]
+		out = append(out, pages.ProductTile{
+			Slug:         r.Slug,
+			Name:         r.Name,
+			Summary:      r.Summary,
+			Brand:        r.Brand,
+			PriceCents:   r.MinPriceCents,
+			PriceVaries:  r.PriceVaries,
+			CompareCents: r.CompareAtPriceCents.Int64,
+			Rating:       r.Rating,
+			RatingCount:  r.RatingCount,
+			InStock:      r.InStock,
+			ImageURL:     assets.ProductImageURL(r.ImageKey),
+			ImageSrcset:  assets.ProductImageSrcsetAt(r.ImageKey, int(r.ImageWidth)),
+			ImageAlt:     r.ImageAlt,
+			ImageWidth:   r.ImageWidth,
+			ImageHeight:  r.ImageHeight,
+			Comparable:   offers[r.CategoryID],
 		})
 	}
 	return out

@@ -118,10 +118,10 @@ type Attempt struct {
 	Prior int32
 }
 
-// PaymentAttempt reports the order's provider state before another Checkout
+// Attempt reports the order's provider state before another Checkout
 // Session is considered. An old-amount session is returned rather than hidden:
 // it remains a place the customer can pay until Stripe confirms it expired.
-func (s *Store) PaymentAttempt(ctx context.Context, number string, owedCents int64) (*Attempt, error) {
+func (s *Store) Attempt(ctx context.Context, number string, owedCents int64) (*Attempt, error) {
 	row, err := s.q.PaymentAttemptForOrder(ctx, db.PaymentAttemptForOrderParams{
 		OrderNumber: number, OwedCents: owedCents,
 	})

@@ -1,0 +1,50 @@
+package pages
+
+import (
+	"github.com/koopa0/goen/assets"
+	"github.com/koopa0/goen/internal/i18n"
+)
+
+// PickupStart is the hop to the carrier's store map. The checkout form has just
+// been posted to goen, which kept what was typed, and this page is the one place
+// the browser is handed to the carrier: a form that posts to it and nothing else.
+//
+// Like PickupReturn it is not layouts.Base, so it runs no category query. The
+// form holds only parameters the map documents, never a field the shopper typed,
+// and a script submits it at once; with scripting off the button does. back is
+// the checkout with the draft restored, for a shopper who does not want the map
+// after all.
+templ PickupStart(f CheckoutMapForm, back string) {
+	<!DOCTYPE html>
+	<html lang={ i18n.FromContext(ctx).Tag() } class="theme-blue">
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<title>{ i18n.T(ctx, i18n.KeyPickupOpening) }</title>
+			<link rel="icon" type="image/svg+xml" href={ templ.URL(assets.URL(assets.MarkSVG)) }/>
+			<link rel="stylesheet" href={ templ.URL(assets.URL(assets.FontsCSS)) }/>
+			<link rel="stylesheet" href={ templ.URL(assets.URL(assets.BaseCSS)) }/>
+			<link rel="stylesheet" href={ templ.URL(assets.URL(assets.AppCSS)) }/>
+			<script src={ templ.URL(assets.URL(assets.AppJS)) } defer></script>
+		</head>
+		<body class="goen-shell">
+			<main class="goen-handoff" id="main">
+				<p class="goen-handoff__text">{ i18n.T(ctx, i18n.KeyPickupOpening) }</p>
+				<form id="pickup-map-form" method="post" action={ templ.URL(f.Action) } data-handoff>
+					<input type="hidden" name="MerchantID" value={ f.MerchantID }/>
+					<input type="hidden" name="MerchantTradeNo" value={ f.MerchantTradeNo }/>
+					<input type="hidden" name="LogisticsType" value={ f.LogisticsType }/>
+					<input type="hidden" name="LogisticsSubType" value={ f.LogisticsSubType }/>
+					<input type="hidden" name="IsCollection" value={ f.IsCollection }/>
+					<input type="hidden" name="ServerReplyURL" value={ f.ServerReplyURL }/>
+					<input type="hidden" name="ExtraData" value={ f.ExtraData }/>
+					if f.Device != "" {
+						<input type="hidden" name="Device" value={ f.Device }/>
+					}
+					<button class="goen-handoff__link" type="submit">{ i18n.T(ctx, i18n.KeyPickupOpenMap) }</button>
+				</form>
+				<a class="goen-handoff__link" href={ templ.URL(back) }>{ i18n.T(ctx, i18n.KeyPickupBackToCheckout) }</a>
+			</main>
+		</body>
+	</html>
+}

@@ -15,7 +15,7 @@ import (
 // departments sit in the bar from 1024 up, each one that has sub-categories
 // opening a full-width panel on hover or focus; below 1024 they sit behind a
 // native disclosure, and the search field wraps onto its own row. The language
-// control lives in the footer, once.
+// menu sits in the bar from 768 up and in the drawer below that.
 //
 // The ui-navitem and ui-btn spellings inside it are not leftovers: two
 // assertions in backoffice_test.go locate the back-office entrance by the whole
@@ -28,6 +28,12 @@ templ Header(p Page) {
 					@icons.Menu()
 				</summary>
 				<nav class="goen-header__drawer" aria-label={ i18n.T(ctx, i18n.KeyCategoryNav) }>
+					// A visible way out beside the hamburger, which sits under the
+					// drawer's edge on a phone. goen.js closes the menu and returns the
+					// focus to the hamburger, as Escape does.
+					<button class="goen-header__close goen-btn goen-btn--ghost goen-btn--icon" type="button" data-menu-close aria-label={ i18n.T(ctx, i18n.KeyCloseMenu) }>
+						@icons.Close()
+					</button>
 					for _, n := range TopNavFrom(ctx) {
 						<a class="ui-navitem" aria-current={ p.ariaCurrent(n) } href={ templ.URL(n.Href) }>{ n.Name }</a>
 						if len(n.Children) > 0 {
@@ -49,6 +55,14 @@ templ Header(p Page) {
 					if IsStaff(ctx) {
 						<a class="ui-navitem" href="/admin">{ i18n.T(ctx, i18n.KeyBackOffice) }</a>
 					}
+					// What the phone's bar has no room for: the wishlist, the account
+					// (which sends a visitor who is not signed in to the sign-in page)
+					// and the language, the same menu the bar carries from 768 up.
+					<div class="goen-header__drawertools">
+						<a class="ui-navitem" href="/account/wishlist">{ i18n.T(ctx, i18n.KeyWishlist) }</a>
+						<a class="ui-navitem" href="/account">{ i18n.T(ctx, i18n.KeyAccount) }</a>
+						@languageMenu("goen-header__drawerlang")
+					</div>
 				</nav>
 			</details>
 			<a class="goen-header__brand" href="/">
@@ -80,6 +94,7 @@ templ Header(p Page) {
 				})
 			</form>
 			<div class="goen-header__actions">
+				@languageMenu("goen-header__lang")
 				@components.ButtonLink(components.ButtonProps{
 					Variant: components.VariantGhost,
 					Icon:    true,
@@ -110,10 +125,13 @@ templ Header(p Page) {
 
 // department is a root category that has sub-categories: its link, and the
 // panel that opens under the header on hover or keyboard focus. The panel is
-// plain markup shown by CSS (:hover, :focus-within), so it needs no script to
-// open and its links are in the tab order right after the department's own.
-// The photograph is the category's embedded one, and a department without one
-// shows the caption link alone.
+// plain markup shown by CSS, so it needs no script to open: on hover, and under
+// :focus-within until goen.js is running, when ArrowDown on the department's
+// link opens it instead and its links are out of the tab order until then.
+// Three of the department's newest products sit between the sub-categories and
+// the department's photograph, so a department with two sub-categories still
+// fills its panel. A department without a photograph shows the caption alone.
+// Every image is lazy: a closed panel is display:none and fetches nothing.
 templ department(p Page, n NavItem) {
 	<div class="goen-dept">
 		<a class="ui-navitem" aria-current={ p.ariaCurrent(n) } href={ templ.URL(n.Href) }>{ n.Name }</a>
@@ -126,11 +144,32 @@ templ department(p Page, n NavItem) {
 						</li>
 					}
 				</ul>
+				if len(n.Picks) > 0 {
+					<ul class="goen-dept__picks" role="list">
+						for _, pick := range n.Picks {
+							<li>
+								// The name is the link's label, so the photograph is decoration.
+								<a class="goen-dept__pick" href={ templ.URL("/p/" + pick.Slug) }>
+									<span class="goen-dept__well">
+										if pick.ImageURL != "" {
+											<img src={ pick.ImageURL } srcset={ pick.ImageSrcset } sizes="144px" alt="" loading="lazy" decoding="async"/>
+										}
+									</span>
+									<span class="goen-dept__name">{ pick.Name }</span>
+									<span class="goen-dept__price">{ pick.Price }</span>
+								</a>
+							</li>
+						}
+					</ul>
+				}
 				<a class="goen-dept__browse" href={ templ.URL(n.Href) }>
 					if src, srcset, ok := assets.CategoryImage(n.Slug); ok {
-						<img class="goen-dept__photo" src={ src } srcset={ srcset } sizes="224px" alt="" loading="lazy" decoding="async"/>
+						<img class="goen-dept__photo" src={ src } srcset={ srcset } sizes="240px" alt="" loading="lazy" decoding="async"/>
 					}
-					<span class="goen-dept__caption">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyBrowseDepartment), n.Name) }</span>
+					<span class="goen-dept__caption">
+						{ fmt.Sprintf(i18n.T(ctx, i18n.KeyBrowseDepartment), n.Name) }
+						<span aria-hidden="true">&nbsp;→</span>
+					</span>
 				</a>
 			</div>
 		</div>
@@ -160,13 +199,50 @@ templ cartLink() {
 	}
 }
 
-// languageSwitch is the locale form, shared by the header bar, the drawer and
-// the footer. Which language is on is read from aria-pressed rather than from a
+// languageMenu is the compact language control of the header and the back
+// office's bar: a globe and the current language's short name, opening a small
+// menu with both choices, each in its own language. It is a native <details>,
+// so it opens without script; goen.js adds Escape and the outside click.
+//
+// The button's accessible name is "Language" plus the short name, which is
+// what the eye reads, and the choices post to the same /locale form the
+// footer's switch uses.
+templ languageMenu(class string) {
+	{{ current := i18n.FromContext(ctx) }}
+	<details class={ "goen-langmenu", templ.KV(class, class != "") } data-popover>
+		<summary class="goen-langmenu__button">
+			@icons.Globe()
+			<span class="goen-sr-only">{ i18n.T(ctx, i18n.KeyLanguage) }</span>
+			<span class="goen-langmenu__current" lang={ current.Tag() }>{ current.Short() }</span>
+		</summary>
+		<form class="goen-langmenu__panel" method="post" action="/locale">
+			<input type="hidden" name="return" value={ returnPath(ctx) }/>
+			<div role="group" aria-label={ i18n.T(ctx, i18n.KeyLanguage) }>
+				for _, l := range i18n.Locales() {
+					<button
+						class="goen-langmenu__item"
+						type="submit"
+						name="locale"
+						value={ l.Tag() }
+						lang={ l.Tag() }
+						aria-pressed={ pressed(l == current) }
+					>
+						<span>{ l.Label() }</span>
+						if l == current {
+							@icons.Check()
+						}
+					</button>
+				}
+			</div>
+		</form>
+	</details>
+}
+
+// languageSwitch is the locale form of the footer. Which language is on is read from aria-pressed rather than from a
 // second class the server renders: one fact, one source.
 //
 // class is where the caller needs to place the form, and is empty where it does
-// not: the header shows and hides its copies at three widths, the footer's sits
-// in a flex row that already puts it at the end.
+// not: the footer's sits in a flex row that already puts it at the end.
 templ languageSwitch(class, zh, en string) {
 	{{ current := i18n.FromContext(ctx) }}
 	<form class={ templ.KV(class, class != "") } method="post" action="/locale">

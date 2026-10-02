@@ -26,6 +26,20 @@ var ecpayMapFields = map[string]bool{
 	"Device": true,
 }
 
+// aMapForm is the carrier's form as PickupStart renders it.
+func aMapForm() CheckoutMapForm {
+	return CheckoutMapForm{
+		Action:          "https://logistics-stage.ecpay.com.tw/Express/map",
+		MerchantID:      "1000001",
+		MerchantTradeNo: "ABCDEFGHIJ1234567890",
+		LogisticsType:   "CVS", LogisticsSubType: "UNIMART",
+		IsCollection:   "N",
+		ServerReplyURL: "https://goen.test/checkout/pickup/return",
+		ExtraData:      "0123456789abcdef0123",
+		Device:         "1",
+	}
+}
+
 // aCheckoutWithAStore is the checkout as it renders after a shopper has come
 // back from the carrier's map.
 func aCheckoutWithAStore() *CheckoutView {
@@ -42,23 +56,13 @@ func aCheckoutWithAStore() *CheckoutView {
 		},
 		PickupStoreAddr: "台北市南港區三重路19-2號",
 		PickupNonce:     "0123456789abcdef0123",
-		Map: CheckoutMapForm{
-			Action:          "https://logistics-stage.ecpay.com.tw/Express/map",
-			MerchantID:      "1000001",
-			MerchantTradeNo: "ABCDEFGHIJ1234567890",
-			LogisticsType:   "CVS", LogisticsSubType: "UNIMART",
-			IsCollection:   "N",
-			ServerReplyURL: "https://goen.test/checkout/pickup/return",
-			ExtraData:      "0123456789abcdef0123",
-			Device:         "1",
-		},
+		MapOffered:      true,
 	}
 }
 
 var (
-	mapFormOpen  = regexp.MustCompile(`(?s)<form[^>]*id="pickup-map-form".*?</form>`)
-	inputName    = regexp.MustCompile(`<input[^>]*\bname="([^"]*)"`)
-	associatedEl = regexp.MustCompile(`<[^>]*\bform="pickup-map-form"[^>]*>`)
+	mapFormOpen = regexp.MustCompile(`(?s)<form[^>]*id="pickup-map-form".*?</form>`)
+	inputName   = regexp.MustCompile(`<input[^>]*\bname="([^"]*)"`)
 	// hxSelectAttr pulls the swap's own selector out of a chooser's attributes,
 	// rather than a test hardcoding the id it currently names — so a mutation
 	// of hx-select is what this file's own mutation test flips red.
@@ -111,12 +115,12 @@ func elementByID(t *testing.T, html, id string) string {
 	return ""
 }
 
-// TestTheSwapRegionCarriesBothForms is the mutation checkoutChoiceSwap exists
-// for: an in-place choice on the checkout page selects and replaces exactly
-// the element hx-select names, and if that element does not also carry the
-// map form and the button that submits it, 「選擇門市」 has nothing to submit
-// once the shopper has changed any chooser in place with scripting on.
-func TestTheSwapRegionCarriesBothForms(t *testing.T) {
+// TestTheSwapRegionCarriesTheStoreButton is the mutation checkoutChoiceSwap
+// exists for: an in-place choice on the checkout page selects and replaces
+// exactly the element hx-select names, and if that element does not also carry
+// the button that opens the map, 「選擇門市」 is gone once the shopper has
+// changed any chooser in place with scripting on.
+func TestTheSwapRegionCarriesTheStoreButton(t *testing.T) {
 	t.Parallel()
 
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
@@ -129,26 +133,22 @@ func TestTheSwapRegionCarriesBothForms(t *testing.T) {
 	}
 	region := elementByID(t, html, m[1])
 
-	if !strings.Contains(region, `id="pickup-map-form"`) {
-		t.Errorf("the region hx-select names (id=%q) does not carry the map form; "+
-			"an in-place choice swaps it away and 「選擇門市」 has nothing to submit", m[1])
-	}
-	if !strings.Contains(region, `form="pickup-map-form"`) {
+	if !strings.Contains(region, `formaction="`+PickupStartAction+`"`) {
 		t.Errorf("the region hx-select names (id=%q) does not carry the button that "+
-			"submits the map form", m[1])
+			"opens the map; an in-place choice swaps it away", m[1])
 	}
 }
 
-// TestTheMapFormCarriesNothingTheShopperTyped is the PII guard, and it is the
-// reason the map form is a sibling rather than a formaction. Submitting
-// #checkout-form to the carrier would hand a third party the shopper's name,
-// phone, e-mail and street address in one request.
+// TestTheMapFormCarriesNothingTheShopperTyped is the PII guard. The checkout
+// form is posted to goen's own start route, which keeps what was typed; the page
+// that route answers is where the browser is handed to the carrier, and its form
+// is the one that must hold nothing of the shopper's. Submitting the checkout
+// form to the carrier itself would hand a third party the shopper's name, phone,
+// e-mail and street address in one request.
 func TestTheMapFormCarriesNothingTheShopperTyped(t *testing.T) {
 	t.Parallel()
 
-	v := aCheckoutWithAStore()
-	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	html := renderToString(t, Checkout(CheckoutMeta(ctx), v))
+	html := renderToString(t, PickupStart(aMapForm(), "/checkout?draft=1"))
 
 	form := mapFormOpen.FindString(html)
 	if form == "" {
@@ -174,18 +174,23 @@ func TestTheMapFormCarriesNothingTheShopperTyped(t *testing.T) {
 			t.Errorf("the map form carries %q, which belongs to goen and to nobody else", typed)
 		}
 	}
-	// A shopper's own address must not reach the carrier even as a value.
+	// The hand-off page renders no page chrome, so a shopper's own address is
+	// nowhere on it: not as a field and not as a value.
 	for _, secret := range []string{"someone@goen.test", "王小明", "0912345678"} {
-		if strings.Contains(form, secret) {
-			t.Errorf("the map form carries %q", secret)
+		if strings.Contains(html, secret) {
+			t.Errorf("the hand-off page carries %q", secret)
 		}
+	}
+	if !strings.Contains(html, "data-handoff") {
+		t.Error("nothing marks the form for the script that submits it")
 	}
 }
 
-// TestTheMapFormIsNotInsideTheCheckoutForm holds the structure the HTML parser
-// requires: a <form> nested in a <form> is dropped outright, so "sibling" is
-// not a style preference.
-func TestTheMapFormIsNotInsideTheCheckoutForm(t *testing.T) {
+// TestTheStoreButtonSubmitsToGoenAndNeverToTheCarrier holds the structure that
+// replaced the sibling form. The button sits inside the checkout form, so what
+// was typed travels with it, and its formaction is goen's own route: the
+// carrier is only ever reached from the page that route answers.
+func TestTheStoreButtonSubmitsToGoenAndNeverToTheCarrier(t *testing.T) {
 	t.Parallel()
 
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
@@ -200,39 +205,18 @@ func TestTheMapFormIsNotInsideTheCheckoutForm(t *testing.T) {
 		t.Fatal("the checkout form is never closed")
 	}
 	inside := html[open : open+end]
-	if strings.Contains(inside, `id="pickup-map-form"`) {
-		t.Error("the map form is inside the checkout form; the parser drops the inner " +
-			"one and the button silently posts the whole checkout to goen instead")
-	}
-	if !strings.Contains(html, `id="pickup-map-form"`) {
-		t.Error("the map form is not on the page at all")
-	}
-	if !strings.Contains(inside, `form="pickup-map-form"`) {
-		t.Error("the button that opens the map is not in the pickup section")
-	}
-}
 
-// TestTheMapButtonContributesNoFieldOfItsOwn is the mechanic the security
-// review named: a form-associated submit button contributes its OWN name and
-// value to the form it submits, so one with a name is one more field on its way
-// to a third party.
-func TestTheMapButtonContributesNoFieldOfItsOwn(t *testing.T) {
-	t.Parallel()
-
-	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	html := renderToString(t, Checkout(CheckoutMeta(ctx), aCheckoutWithAStore()))
-
-	found := associatedEl.FindAllString(html, -1)
-	if len(found) == 0 {
-		t.Fatal("nothing is associated with the map form, so nothing submits it")
+	button := tagCarrying(t, inside, `formaction="`+PickupStartAction+`"`)
+	if !strings.Contains(button, `formmethod="post"`) || !strings.Contains(button, "formnovalidate") {
+		t.Errorf("%s must post, and without the browser's required-field check: nobody has finished", button)
 	}
-	for _, el := range found {
-		if strings.Contains(el, " name=") {
-			t.Errorf("%s carries a name, which rides along to the carrier", el)
-		}
-		if strings.Contains(el, "formaction") {
-			t.Errorf("%s carries formaction; the checkout form must never post to "+
-				"the carrier", el)
+	// A submit button contributes its OWN name and value to the form it submits.
+	if strings.Contains(button, " name=") || strings.Contains(button, " value=") {
+		t.Errorf("%s carries a name or value, which is one more field in the submit", button)
+	}
+	for _, carrier := range []string{"pickup-map-form", "logistics-stage.ecpay.com.tw", "MerchantTradeNo"} {
+		if strings.Contains(html, carrier) {
+			t.Errorf("the checkout page carries %q; the carrier's form belongs on the hand-off page", carrier)
 		}
 	}
 }
@@ -349,7 +333,7 @@ func TestNoMapNoButtonAndNoForm(t *testing.T) {
 	t.Parallel()
 
 	v := aCheckoutWithAStore()
-	v.Map = CheckoutMapForm{}
+	v.MapOffered = false
 	v.Address.PickupStoreCode, v.Address.PickupStoreName = "", ""
 	v.PickupStoreAddr = ""
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)

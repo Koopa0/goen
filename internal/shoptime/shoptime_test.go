@@ -95,18 +95,24 @@ func mustLoad(t *testing.T, name string) *time.Location {
 	return loc
 }
 
-// TestAProviderClockIsReadBackAsSent holds that ECPay's "2026-09-30 17:30:00",
-// stored as 17:30Z, renders as 17:30 in whatever zone the process carries; the
-// shop's clock would give 2026-10-01 01:30.
-func TestAProviderClockIsReadBackAsSent(t *testing.T) {
-	stored := time.Date(2026, 9, 30, 17, 30, 0, 0, time.UTC)
+// TestAProviderClockIsReadAsTheShopsOwn holds that ECPay's zoneless
+// "2026-09-30 17:30:00" is 17:30 in Taipei, which is 09:30Z, and renders as
+// 17:30 whatever zone the process carries.
+func TestAProviderClockIsReadAsTheShopsOwn(t *testing.T) {
+	t.Parallel()
+	got, err := shoptime.ParseSecond("2026-09-30 17:30:00")
+	if err != nil {
+		t.Fatalf("ParseSecond: %v", err)
+	}
+	if want := time.Date(2026, 9, 30, 9, 30, 0, 0, time.UTC); !got.Equal(want) {
+		t.Errorf("ParseSecond = %s, want the instant %s", got.UTC(), want)
+	}
 	for name, in := range map[string]time.Time{
-		"as stored":           stored,
-		"read in Taipei":      stored.In(mustLoad(t, "Asia/Taipei")),
-		"read somewhere else": stored.In(mustLoad(t, "America/New_York")),
+		"as stored":           got.UTC(),
+		"read somewhere else": got.In(mustLoad(t, "America/New_York")),
 	} {
-		if got, want := shoptime.ProviderMinute(in), "2026-09-30 17:30"; got != want {
-			t.Errorf("%s: ProviderMinute() = %q, want %q", name, got, want)
+		if got, want := shoptime.Minute(in), "2026-09-30 17:30"; got != want {
+			t.Errorf("%s: Minute() = %q, want %q", name, got, want)
 		}
 	}
 }
@@ -129,6 +135,47 @@ func TestDateOfIsTheShopDayAndKnowsTheShopYear(t *testing.T) {
 	for _, tt := range tests {
 		if got := shoptime.DateOf(tt.at, tt.now); got != tt.want {
 			t.Errorf("%s: DateOf = %+v, want %+v", tt.name, got, tt.want)
+		}
+	}
+}
+
+func TestDaysSinceCountsShopCalendarDays(t *testing.T) {
+	t.Parallel()
+	at := func(s string) time.Time {
+		ts, err := time.Parse(time.RFC3339, s)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return ts
+	}
+	for name, c := range map[string]struct {
+		filed, now string
+		want       int64
+	}{
+		"same shop day":         {"2026-10-01T00:10:00+08:00", "2026-10-01T23:50:00+08:00", 0},
+		"across midnight":       {"2026-10-01T23:50:00+08:00", "2026-10-02T00:10:00+08:00", 1},
+		"shop day, not UTC day": {"2026-10-01T20:00:00Z", "2026-10-02T01:00:00Z", 0},
+		"a week":                {"2026-09-25T12:00:00+08:00", "2026-10-02T12:00:00+08:00", 7},
+	} {
+		if got := shoptime.DaysSince(at(c.filed), at(c.now)); got != c.want {
+			t.Errorf("%s: DaysSince = %d, want %d", name, got, c.want)
+		}
+	}
+}
+
+func TestAFormMinuteIsReadAndWrittenOnTheShopsClock(t *testing.T) {
+	instant := time.Date(2026, 9, 3, 20, 30, 0, 0, time.UTC)
+	field := shoptime.InputMinute(instant)
+	if field != "2026-09-04T04:30" {
+		t.Fatalf("InputMinute = %q, want the Taipei minute", field)
+	}
+	back, ok := shoptime.ParseInputMinute(field)
+	if !ok || !back.Equal(instant) {
+		t.Errorf("ParseInputMinute(%q) = %v, %v, want %v", field, back, ok, instant)
+	}
+	for _, bad := range []string{"", "2026-09-04", "2026-09-04 04:30", "tomorrow"} {
+		if _, ok := shoptime.ParseInputMinute(bad); ok {
+			t.Errorf("ParseInputMinute(%q) accepted a value a datetime-local field does not post", bad)
 		}
 	}
 }

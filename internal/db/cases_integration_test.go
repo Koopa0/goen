@@ -891,19 +891,19 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 		accept:     `INSERT INTO order_shipment_lines (order_id, shipment_id, order_line_id, quantity) VALUES ('66666666-6666-4666-8666-666666666666', '66660002-0000-4000-8000-000000000000', '66660001-0000-4000-8000-000000000000', 1);`,
 	},
 	{
-		constraint: "order_shipments_carrier_present",
-		reject:     `INSERT INTO order_shipments (id, order_id, carrier, tracking_number) VALUES ('11110001-0000-4000-8000-000000000010', '66666666-6666-4666-8666-666666666666', E'\t', '903-2214-0001');`,
-		accept:     `INSERT INTO order_shipments (id, order_id, carrier, tracking_number) VALUES ('11110001-0000-4000-8000-000000000010', '66666666-6666-4666-8666-666666666666', '黑貓宅急便', '903-2214-0001');`,
+		constraint: "order_shipments_carrier_known",
+		reject:     `INSERT INTO order_shipments (id, order_id, carrier, tracking_number) VALUES ('11110001-0000-4000-8000-000000000010', '66666666-6666-4666-8666-666666666666', '黑貓', '903-2214-0001');`,
+		accept:     `INSERT INTO order_shipments (id, order_id, carrier, tracking_number) VALUES ('11110001-0000-4000-8000-000000000010', '66666666-6666-4666-8666-666666666666', 'black_cat', '903-2214-0001');`,
 	},
 	{
 		constraint: "order_shipments_delivered_after_shipped",
-		reject:     `INSERT INTO order_shipments (id, order_id, carrier, tracking_number, shipped_at, delivered_at) VALUES ('11110001-0000-4000-8000-000000000012', '66666666-6666-4666-8666-666666666666', '黑貓宅急便', '903-2214-0003', '2026-07-01 10:00:00+08', '2026-07-01 09:59:59+08');`,
-		accept:     `INSERT INTO order_shipments (id, order_id, carrier, tracking_number, shipped_at, delivered_at) VALUES ('11110001-0000-4000-8000-000000000012', '66666666-6666-4666-8666-666666666666', '黑貓宅急便', '903-2214-0003', '2026-07-01 10:00:00+08', '2026-07-01 10:00:00+08');`,
+		reject:     `INSERT INTO order_shipments (id, order_id, carrier, tracking_number, shipped_at, delivered_at) VALUES ('11110001-0000-4000-8000-000000000012', '66666666-6666-4666-8666-666666666666', 'black_cat', '903-2214-0003', '2026-07-01 10:00:00+08', '2026-07-01 09:59:59+08');`,
+		accept:     `INSERT INTO order_shipments (id, order_id, carrier, tracking_number, shipped_at, delivered_at) VALUES ('11110001-0000-4000-8000-000000000012', '66666666-6666-4666-8666-666666666666', 'black_cat', '903-2214-0003', '2026-07-01 10:00:00+08', '2026-07-01 10:00:00+08');`,
 	},
 	{
 		constraint: "order_shipments_tracking_present",
-		reject:     `INSERT INTO order_shipments (id, order_id, carrier, tracking_number) VALUES ('11110001-0000-4000-8000-000000000011', '66666666-6666-4666-8666-666666666666', '黑貓宅急便', E'\t');`,
-		accept:     `INSERT INTO order_shipments (id, order_id, carrier, tracking_number) VALUES ('11110001-0000-4000-8000-000000000011', '66666666-6666-4666-8666-666666666666', '黑貓宅急便', '903-2214-0002');`,
+		reject:     `INSERT INTO order_shipments (id, order_id, carrier, tracking_number) VALUES ('11110001-0000-4000-8000-000000000011', '66666666-6666-4666-8666-666666666666', 'black_cat', E'\t');`,
+		accept:     `INSERT INTO order_shipments (id, order_id, carrier, tracking_number) VALUES ('11110001-0000-4000-8000-000000000011', '66666666-6666-4666-8666-666666666666', 'black_cat', '903-2214-0002');`,
 	},
 	{
 		constraint: "orders_cancelled_after_placed",
@@ -925,8 +925,8 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 		// The fixture has already entered fulfilment. Every remaining line is
 		// dispatched first because orders_finished_when_shipped would otherwise
 		// refuse completion before this timestamp check gets a turn.
-		reject: `WITH s AS (INSERT INTO order_shipments (order_id, carrier, tracking_number) VALUES ('66666666-6666-4666-8666-666666666666', '黑貓', 'TRK-REJ') RETURNING id) INSERT INTO order_shipment_lines (order_id, shipment_id, order_line_id, quantity) SELECT ol.order_id, s.id, ol.id, ol.quantity - coalesce((SELECT sum(sl.quantity) FROM order_shipment_lines sl WHERE sl.order_line_id = ol.id), 0) FROM order_lines ol, s WHERE ol.order_id = '66666666-6666-4666-8666-666666666666' AND ol.quantity > coalesce((SELECT sum(sl.quantity) FROM order_shipment_lines sl WHERE sl.order_line_id = ol.id), 0); UPDATE orders SET fulfillment_status = 'completed' WHERE id = '66666666-6666-4666-8666-666666666666';`,
-		accept: `WITH s AS (INSERT INTO order_shipments (order_id, carrier, tracking_number) VALUES ('66666666-6666-4666-8666-666666666666', '黑貓', 'TRK-ACC') RETURNING id) INSERT INTO order_shipment_lines (order_id, shipment_id, order_line_id, quantity) SELECT ol.order_id, s.id, ol.id, ol.quantity - coalesce((SELECT sum(sl.quantity) FROM order_shipment_lines sl WHERE sl.order_line_id = ol.id), 0) FROM order_lines ol, s WHERE ol.order_id = '66666666-6666-4666-8666-666666666666' AND ol.quantity > coalesce((SELECT sum(sl.quantity) FROM order_shipment_lines sl WHERE sl.order_line_id = ol.id), 0); UPDATE orders SET fulfillment_status = 'completed', completed_at = now() WHERE id = '66666666-6666-4666-8666-666666666666';`,
+		reject: `WITH s AS (INSERT INTO order_shipments (order_id, carrier, tracking_number) VALUES ('66666666-6666-4666-8666-666666666666', 'black_cat', 'TRK-REJ') RETURNING id) INSERT INTO order_shipment_lines (order_id, shipment_id, order_line_id, quantity) SELECT ol.order_id, s.id, ol.id, ol.quantity - coalesce((SELECT sum(sl.quantity) FROM order_shipment_lines sl WHERE sl.order_line_id = ol.id), 0) FROM order_lines ol, s WHERE ol.order_id = '66666666-6666-4666-8666-666666666666' AND ol.quantity > coalesce((SELECT sum(sl.quantity) FROM order_shipment_lines sl WHERE sl.order_line_id = ol.id), 0); UPDATE orders SET fulfillment_status = 'completed' WHERE id = '66666666-6666-4666-8666-666666666666';`,
+		accept: `WITH s AS (INSERT INTO order_shipments (order_id, carrier, tracking_number) VALUES ('66666666-6666-4666-8666-666666666666', 'black_cat', 'TRK-ACC') RETURNING id) INSERT INTO order_shipment_lines (order_id, shipment_id, order_line_id, quantity) SELECT ol.order_id, s.id, ol.id, ol.quantity - coalesce((SELECT sum(sl.quantity) FROM order_shipment_lines sl WHERE sl.order_line_id = ol.id), 0) FROM order_lines ol, s WHERE ol.order_id = '66666666-6666-4666-8666-666666666666' AND ol.quantity > coalesce((SELECT sum(sl.quantity) FROM order_shipment_lines sl WHERE sl.order_line_id = ol.id), 0); UPDATE orders SET fulfillment_status = 'completed', completed_at = now() WHERE id = '66666666-6666-4666-8666-666666666666';`,
 	},
 	{
 		constraint: "orders_locale_known",
@@ -1047,6 +1047,16 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 		constraint: "payments_captured_non_negative",
 		reject:     `INSERT INTO payments (id, order_id, provider_ref, status, intended_amount_cents, captured_amount_cents) VALUES ('11110001-0000-4000-8000-000000000004','6666aaaa-6666-4666-8666-666666666666','pi_rej_captured','processing',6788000,-1);`,
 		accept:     `INSERT INTO payments (id, order_id, provider_ref, status, intended_amount_cents, captured_amount_cents) VALUES ('11110001-0000-4000-8000-000000000004','6666aaaa-6666-4666-8666-666666666666','pi_acc_captured','processing',6788000,NULL);`,
+	},
+	{
+		constraint: "carts_checkout_draft_paired",
+		reject:     `INSERT INTO carts (id, token_hash, checkout_draft) VALUES ('11115006-0000-4000-8000-000000000001', '\x0601', '{}'::jsonb);`,
+		accept:     `INSERT INTO carts (id, token_hash, checkout_draft, checkout_draft_at) VALUES ('11115006-0000-4000-8000-000000000001', '\x0602', '{}'::jsonb, now());`,
+	},
+	{
+		constraint: "carts_checkout_draft_bounded",
+		reject:     `INSERT INTO carts (id, token_hash, checkout_draft, checkout_draft_at) VALUES ('11115007-0000-4000-8000-000000000001', '\x0701', jsonb_build_object('note', repeat('x', 9000)), now());`,
+		accept:     `INSERT INTO carts (id, token_hash, checkout_draft, checkout_draft_at) VALUES ('11115007-0000-4000-8000-000000000001', '\x0702', jsonb_build_object('note', repeat('x', 100)), now());`,
 	},
 	{
 		constraint: "payments_currency_is_twd",
@@ -2359,8 +2369,8 @@ VALUES ('66666666-6666-4666-8666-666666666666', '4444aaaa-4444-4444-8444-4444444
 	},
 	{
 		index:  "order_shipments_tracking_key",
-		reject: `INSERT INTO order_shipments (id, order_id, carrier, tracking_number) VALUES ('11110001-0000-4000-8000-000000000013', '66666666-6666-4666-8666-666666666666', '黑貓宅急便', '903-2214-8871');`,
-		accept: `INSERT INTO order_shipments (id, order_id, carrier, tracking_number) VALUES ('11110001-0000-4000-8000-000000000013', '66666666-6666-4666-8666-666666666666', '黑貓宅急便', '903-2214-9999');`,
+		reject: `INSERT INTO order_shipments (id, order_id, carrier, tracking_number) VALUES ('11110001-0000-4000-8000-000000000013', '66666666-6666-4666-8666-666666666666', 'black_cat', '903-2214-8871');`,
+		accept: `INSERT INTO order_shipments (id, order_id, carrier, tracking_number) VALUES ('11110001-0000-4000-8000-000000000013', '66666666-6666-4666-8666-666666666666', 'black_cat', '903-2214-9999');`,
 	},
 	{
 		index:  "orders_number_key",

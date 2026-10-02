@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
@@ -159,12 +160,178 @@ func TestOneProductInTheComparisonInvitesTheNextNotTheDeadEnd(t *testing.T) {
 // the maximum, so the page has to say why.
 func TestTheProductPageSaysWhenTheComparisonIsFull(t *testing.T) {
 	t.Parallel()
-	v := &ProductView{Slug: "z"}
+	v := &ProductView{Slug: "z", Comparable: true}
 	for i := range MaxCompare {
 		v.Comparing = append(v.Comparing, string(rune('a'+i)))
 	}
 	html := renderToString(t, Product(ProductMeta(v), v))
 	if !strings.Contains(html, "比較已滿") {
 		t.Error("a full comparison hides the add control without saying why")
+	}
+}
+
+// TestTheProductPageOffersComparisonOnlyWhereTheDepartmentDoes: the control is
+// the department's to give. Where it is given it sits with the specs and not in
+// the buy box; where it is not, nothing on the page leads to /compare.
+func TestTheProductPageOffersComparisonOnlyWhereTheDepartmentDoes(t *testing.T) {
+	t.Parallel()
+	view := func(comparable bool) *ProductView {
+		return &ProductView{
+			Name: "Pixelight 9 Pro", Slug: "pixelight-9-pro", Comparable: comparable,
+			SelectionOK: true, Sellable: true, AnySellable: true, PriceCents: 100,
+			Specs: []ProductSpec{{Label: "重量", Value: "199 g"}},
+		}
+	}
+
+	on := renderToString(t, Product(ProductMeta(view(true)), view(true)))
+	link := `href="/compare?p=pixelight-9-pro"`
+	at := strings.Index(on, link)
+	if at < 0 {
+		t.Fatalf("a comparable department's product page has no %s", link)
+	}
+	if !strings.Contains(on, "與同類商品比較") {
+		t.Error("the control does not say what it compares with")
+	}
+	if buyEnd := strings.Index(on, `id="specs-heading"`); at < buyEnd {
+		t.Error("the control is before the specs, in the buy box")
+	}
+
+	off := renderToString(t, Product(ProductMeta(view(false)), view(false)))
+	for _, bad := range []string{"/compare", "goen-pdp__compare", "與同類商品比較"} {
+		if strings.Contains(off, bad) {
+			t.Errorf("a department that does not compare shows %q", bad)
+		}
+	}
+}
+
+// TestTheComparisonControlFallsBackWhenThereAreNoSpecs: it must not vanish with
+// the specs accordion it normally sits in.
+func TestTheComparisonControlFallsBackWhenThereAreNoSpecs(t *testing.T) {
+	t.Parallel()
+	v := &ProductView{Name: "N", Slug: "n", Comparable: true, SelectionOK: true}
+	if html := renderToString(t, Product(ProductMeta(v), v)); !strings.Contains(html, `href="/compare?p=n"`) {
+		t.Error("a comparable product with no specs has no way into a comparison")
+	}
+}
+
+// TestACompareBoxOnlyWhereTheTileIsComparable: the box and the "compare
+// selected" bar come and go together.
+func TestACompareBoxOnlyWhereTheTileIsComparable(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	tile := func(comparable bool) ProductTile {
+		return ProductTile{Slug: "a", Name: "A", Comparable: comparable}
+	}
+	if !AnyComparable([]ProductTile{tile(false), tile(true)}) || AnyComparable([]ProductTile{tile(false)}) || AnyComparable(nil) {
+		t.Error("AnyComparable does not report whether a tile carries the box")
+	}
+	for _, tt := range []struct {
+		comparable bool
+		wantBox    bool
+	}{{true, true}, {false, false}} {
+		html := renderComponent(t, ctx, compareForm(AnyComparable([]ProductTile{tile(tt.comparable)})))
+		if got := strings.Contains(html, `id="compare-pick"`); got != tt.wantBox {
+			t.Errorf("comparable=%v: the compare bar is present = %v, want %v", tt.comparable, got, tt.wantBox)
+		}
+		box := renderComponent(t, ctx, Tile(tile(tt.comparable)))
+		if got := strings.Contains(box, `form="compare-pick"`); got != tt.wantBox {
+			t.Errorf("comparable=%v: the tile's box is present = %v, want %v", tt.comparable, got, tt.wantBox)
+		}
+	}
+}
+
+// TestACompareRowDiffersWhenTheColumnsDisagree: a spec one product lacks counts
+// as a value of its own, and only a row every product states is marked.
+func TestACompareRowDiffersWhenTheColumnsDisagree(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		name          string
+		row           CompareRow
+		products      int
+		differs, mark bool
+	}{
+		{"all alike", CompareRow{Values: []string{"5G", "5G"}, SharedBy: 2}, 2, false, false},
+		{"values differ", CompareRow{Values: []string{"5G", "4G"}, SharedBy: 2}, 2, true, true},
+		{"one lacks it", CompareRow{Values: []string{"5G", ""}, SharedBy: 1}, 2, true, false},
+		{"three, one apart", CompareRow{Values: []string{"a", "a", "b"}, SharedBy: 3}, 3, true, true},
+		{"none stated", CompareRow{Values: []string{"", ""}}, 2, false, false},
+	} {
+		if got := tt.row.Differs(); got != tt.differs {
+			t.Errorf("%s: Differs = %v, want %v", tt.name, got, tt.differs)
+		}
+		if got := tt.row.Marked(tt.products); got != tt.mark {
+			t.Errorf("%s: Marked = %v, want %v", tt.name, got, tt.mark)
+		}
+	}
+}
+
+// TestADifferingRowIsMarkedAndSaysSoAloud: the weight is not the only signal.
+func TestADifferingRowIsMarkedAndSaysSoAloud(t *testing.T) {
+	t.Parallel()
+	v := compareOf("a", "b")
+	v.Rows = []CompareRow{
+		{Label: "螢幕", Values: []string{"6.1", "6.7"}, SharedBy: 2},
+		{Label: "重量", Values: []string{"199 g", "199 g"}, SharedBy: 2},
+	}
+	html := renderToString(t, Compare(layouts.Page{Title: "比較"}, v))
+	if strings.Count(html, "is-differs") != 1 {
+		t.Errorf("want exactly the differing row marked, got %d marks", strings.Count(html, "is-differs"))
+	}
+	if !strings.Contains(html, "規格不同") {
+		t.Error("the marked row does not say it differs to a screen reader")
+	}
+}
+
+// TestOneProductOffersWhatToCompareItWith: the lone product is a start, not a
+// dead end — the heading says what to do, each suggestion adds itself by a plain
+// link to the address that includes it, and the shelf is one link away.
+func TestOneProductOffersWhatToCompareItWith(t *testing.T) {
+	t.Parallel()
+	v := compareOf("a")
+	v.Products[0].Category, v.ShelfSlug = "手機", "phones"
+	v.Suggestions = []ProductTile{
+		{Slug: "b", Name: "Bee", Brand: "B", PriceCents: 1000},
+		{Slug: "c", Name: "Cee", Brand: "C", PriceCents: 2000},
+	}
+	html := renderToString(t, Compare(layouts.Page{Title: "比較"}, v))
+	for _, want := range []string{
+		"選擇要比較的商品",
+		`href="/compare?p=a&amp;p=b"`,
+		`href="/compare?p=a&amp;p=c"`,
+		`href="/c/phones"`,
+		"加入比較",
+		"Bee",
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("the one-product page is missing %q", want)
+		}
+	}
+	for _, bad := range []string{`type="checkbox"`, `action="/compare/`, `class="goen-compare__table"`} {
+		if strings.Contains(html, bad) {
+			t.Errorf("the one-product page contains %s", bad)
+		}
+	}
+
+	two := compareOf("a", "b")
+	two.Suggestions = v.Suggestions
+	if html := renderToString(t, Compare(layouts.Page{Title: "比較"}, two)); strings.Contains(html, "goen-compare__suggest") {
+		t.Error("a comparison of two still offers suggestions")
+	}
+}
+
+// TestTheEmptyComparisonLinksToWhereBoxesAreOffered: the empty state tells the
+// shopper to pick products on a list, so the link must be to one that has the
+// box to tick; the home page has none.
+func TestTheEmptyComparisonLinksToWhereBoxesAreOffered(t *testing.T) {
+	t.Parallel()
+
+	page := layouts.Page{Title: "比較"}
+	with := renderToString(t, Compare(page, CompareView{StartSlug: "tech"}))
+	if !strings.Contains(with, `<a href="/c/tech">`+i18n.T(i18n.WithLocale(t.Context(), i18n.ZhHant), i18n.KeyCompareTooFewLink)+`</a>`) {
+		t.Error("the empty comparison does not link to the department that offers comparison")
+	}
+	without := renderToString(t, Compare(page, CompareView{}))
+	if !strings.Contains(without, `<a href="/">`) {
+		t.Error("with no department offering comparison the link should fall back to the home page")
 	}
 }

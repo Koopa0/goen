@@ -1040,3 +1040,138 @@ func TestFullWidthDigitsAreFoldedBeforeTheCheckoutFieldsAreChecked(t *testing.T)
 		t.Errorf("tax ID = %q, want the ASCII digits", company.TaxID)
 	}
 }
+
+// TestFillFromBookLeavesTheFormToTheShopperForAnotherAddress: 「其他地址」 is none
+// of the saved ones, so the book fills nothing and the choice is remembered.
+func TestFillFromBookLeavesTheFormToTheShopperForAnotherAddress(t *testing.T) {
+	t.Parallel()
+	view := pages.CheckoutView{SavedAddresses: []pages.SavedAddress{
+		{ID: "first", Name: "王小明", Street: "和平東路 1 號", Default: true},
+	}}
+	addr := Address{Street: "typed by hand"}
+	fillFromBook(&view, &addr, pages.OtherAddress)
+	if addr.Street != "typed by hand" || addr.Name != "" {
+		t.Errorf("another address filled the form from the book: %+v", addr)
+	}
+	if view.ChosenAddress != pages.OtherAddress {
+		t.Errorf("the choice was %q, want %q", view.ChosenAddress, pages.OtherAddress)
+	}
+}
+
+// TestTheRecipientBoxIsAnExplicitRequestAndUntickingRestores holds the rule for
+// 「收件人同會員資料」: ticking puts the account's name and phone in the fields
+// even over other text, remembering what was there, and unticking puts that
+// back into a field that still holds the account's value.
+func TestTheRecipientBoxIsAnExplicitRequestAndUntickingRestores(t *testing.T) {
+	t.Parallel()
+	profile := pages.CheckoutProfile{Email: "me@example.com", Name: "王小明", Phone: "0912345678"}
+
+	type fields struct{ name, phone string }
+	for _, tt := range []struct {
+		name       string
+		checked    bool
+		in         Address
+		prev       fields
+		want       fields
+		wantPrev   fields
+		wantTicked bool
+	}{
+		{"ticking fills an empty form", true, Address{},
+			fields{}, fields{"王小明", "0912345678"}, fields{}, true},
+		{"ticking overwrites typed text and remembers it", true,
+			Address{Name: "林小美", Phone: "0987654321"}, fields{},
+			fields{"王小明", "0912345678"}, fields{"林小美", "0987654321"}, true},
+		{"ticking over the account's own values keeps what was remembered", true,
+			Address{Name: "王小明", Phone: "0912345678"}, fields{"林小美", "0987654321"},
+			fields{"王小明", "0912345678"}, fields{"林小美", "0987654321"}, true},
+		{"unticking restores what was there before the tick", false,
+			Address{Name: "王小明", Phone: "0912345678"}, fields{"林小美", "0987654321"},
+			fields{"林小美", "0987654321"}, fields{}, false},
+		{"unticking clears when nothing was there", false,
+			Address{Name: "王小明", Phone: "0912345678"}, fields{},
+			fields{}, fields{}, false},
+		{"unticking leaves what was typed since", false,
+			Address{Name: "林小美", Phone: "0987654321"}, fields{"陳大文", "0911111111"},
+			fields{"林小美", "0987654321"}, fields{"陳大文", "0911111111"}, false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			view := pages.CheckoutView{
+				Profile: profile, RecipientMe: tt.checked,
+				RecipientPrevName: tt.prev.name, RecipientPrevPhone: tt.prev.phone,
+			}
+			addr := tt.in
+			applyRecipient(&view, &addr)
+			if (fields{addr.Name, addr.Phone}) != tt.want {
+				t.Errorf("fields = %q/%q, want %q/%q", addr.Name, addr.Phone, tt.want.name, tt.want.phone)
+			}
+			if (fields{view.RecipientPrevName, view.RecipientPrevPhone}) != tt.wantPrev {
+				t.Errorf("remembered %q/%q, want %q/%q", view.RecipientPrevName, view.RecipientPrevPhone, tt.wantPrev.name, tt.wantPrev.phone)
+			}
+			if view.RecipientMe != tt.wantTicked {
+				t.Errorf("box ticked = %v, want %v", view.RecipientMe, tt.wantTicked)
+			}
+		})
+	}
+}
+
+// TestAProfileWithoutAPhoneNeverWipesOne: an account with a name and no phone
+// fills the name and leaves the phone alone, and still counts as the member.
+func TestAProfileWithoutAPhoneNeverWipesOne(t *testing.T) {
+	t.Parallel()
+	view := pages.CheckoutView{
+		Profile:     pages.CheckoutProfile{Email: "me@example.com", Name: "王小明"},
+		RecipientMe: true,
+	}
+	addr := Address{Name: "林小美", Phone: "0987654321"}
+	applyRecipient(&view, &addr)
+	if addr.Name != "王小明" || addr.Phone != "0987654321" || !view.RecipientMe {
+		t.Errorf("got %q/%q ticked=%v", addr.Name, addr.Phone, view.RecipientMe)
+	}
+}
+
+func TestPrefillRecipientNeverOverwritesAndReportsWhetherItIsTheMember(t *testing.T) {
+	t.Parallel()
+	profile := pages.CheckoutProfile{Email: "me@example.com", Name: "王小明", Phone: "0912345678"}
+
+	empty := Address{}
+	view := pages.CheckoutView{Profile: profile}
+	prefillRecipient(&view, &empty)
+	if empty.Name != "王小明" || empty.Phone != "0912345678" || !view.RecipientMe {
+		t.Errorf("an empty form was not filled from the account: %+v me=%v", empty, view.RecipientMe)
+	}
+
+	// A saved address for somebody else keeps its own recipient.
+	gift := Address{Name: "林小美", Phone: "0987654321"}
+	view = pages.CheckoutView{Profile: profile}
+	prefillRecipient(&view, &gift)
+	if gift.Name != "林小美" || gift.Phone != "0987654321" || view.RecipientMe {
+		t.Errorf("the account overwrote another recipient: %+v me=%v", gift, view.RecipientMe)
+	}
+
+	// A guest has no profile, so nothing is filled and no box is checked.
+	guest := Address{}
+	view = pages.CheckoutView{}
+	prefillRecipient(&view, &guest)
+	if guest.Name != "" || view.RecipientMe {
+		t.Errorf("a guest was prefilled: %+v me=%v", guest, view.RecipientMe)
+	}
+}
+
+// TestABlankCityIsAskedToBeFilledIn holds the wording of a free-text field: the
+// city and district are typed, so neither is asked to be chosen.
+func TestABlankCityIsAskedToBeFilledIn(t *testing.T) {
+	t.Parallel()
+
+	addr := Address{To: ToAddress, PostalCode: "110", District: "信義區", Street: "松高路 1 號"}
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	var got string
+	for _, e := range addr.Validate() {
+		if e.Field == "city" {
+			got = i18n.T(ctx, e.MessageKey)
+		}
+	}
+	if got != "請填寫縣市" {
+		t.Errorf("a blank city is refused with %q, want 請填寫縣市", got)
+	}
+}

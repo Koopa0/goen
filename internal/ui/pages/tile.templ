@@ -9,19 +9,25 @@ import (
 
 // compareForm submits the ticked slugs to /compare. A GET, because a
 // comparison writes nothing — the set is the URL and there is no state to keep.
-templ compareForm() {
-	<form class="goen-compare-pick" id="compare-pick" method="get" action="/compare">
+// It wraps the grid only when some tile carries a box: a "compare selected"
+// bar with nothing to tick is a control that does nothing.
+templ compareForm(offered bool) {
+	if offered {
+		<form class="goen-compare-pick" id="compare-pick" method="get" action="/compare">
+			{ children... }
+			<div class="goen-compare-pick__go">
+				@components.Button(components.ButtonProps{
+					Variant: components.VariantOutline,
+					Size:    components.SizeSmall,
+				}, "submit") {
+					{ i18n.T(ctx, i18n.KeyCompareSelected) }
+				}
+				<span class="goen-compare-pick__note">{ i18n.T(ctx, i18n.KeyCompareLimit) }</span>
+			</div>
+		</form>
+	} else {
 		{ children... }
-		<div class="goen-compare-pick__go">
-			@components.Button(components.ButtonProps{
-				Variant: components.VariantOutline,
-				Size:    components.SizeSmall,
-			}, "submit") {
-				{ i18n.T(ctx, i18n.KeyCompareSelected) }
-			}
-			<span class="goen-compare-pick__note">{ i18n.T(ctx, i18n.KeyCompareLimit) }</span>
-		</div>
-	</form>
+	}
 }
 
 // tileCard is the product card body. Tile wraps it in the grid cell; the

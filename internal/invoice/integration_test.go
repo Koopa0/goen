@@ -30,6 +30,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/db/dbtest"
+	"github.com/koopa0/goen/internal/shoptime"
 )
 
 var (
@@ -1454,7 +1455,7 @@ func TestStoreVoidSendsTheRecordedIssueDate(t *testing.T) {
 	if err := s.Void(filingTestContext(t, ctx), number, "資料錯誤"); err != nil {
 		t.Fatalf("Void: %v", err)
 	}
-	if want := "2026-08-24"; seen.InvoiceDate != want {
+	if want := "2026-08-25"; seen.InvoiceDate != want {
 		t.Errorf("InvoiceDate = %q, want recorded issue date %q", seen.InvoiceDate, want)
 	}
 }
@@ -1737,7 +1738,7 @@ func TestVoidReconcilerRetriesAfterMarkSentCrash(t *testing.T) {
 			result.Worked, result.OperationID, result.Category, operationID)
 	}
 	if invalidCalls != 1 || retried.InvoiceNo != invoiceNumber ||
-		retried.InvoiceDate != fixture.issuedAt.UTC().Format("2006-01-02") ||
+		retried.InvoiceDate != shoptime.Day(fixture.issuedAt) ||
 		retried.Reason != reason {
 		t.Fatalf("retried Invalid = calls %d invoice %q date %q reason %q",
 			invalidCalls, retried.InvoiceNo, retried.InvoiceDate, retried.Reason)
@@ -2555,7 +2556,7 @@ func insertAllowanceOperation(
 		SELECT $2,o.id,'allowance',d.id,d.number,$4::bigint,
 		       jsonb_build_object(
 		         'invoice_number',d.number,
-		         'invoice_date',to_char(d.issued_at AT TIME ZONE 'UTC','YYYY-MM-DD'),
+		         'invoice_date',to_char(shop_day(d.issued_at), 'YYYY-MM-DD'),
 		         'customer_name','王小明','email','allow@goen.invalid',
 		         'amount_cents',$4::bigint,
 		         'lines',jsonb_build_array(jsonb_build_object(
@@ -2745,7 +2746,7 @@ func insertKnownAllowance(
 	t *testing.T, orderNumber, allowanceNumber string, amountCents int64,
 ) (orderID, originalID, documentID uuid.UUID, issuedAt time.Time) {
 	t.Helper()
-	issuedAt = time.Date(2026, 8, 7, 15, 22, 0, 0, time.UTC)
+	issuedAt = time.Date(2026, 8, 7, 7, 22, 0, 0, time.UTC)
 	if err := pool.QueryRow(t.Context(), `
 		WITH subject AS (
 		  SELECT o.id AS order_id,d.id AS original_id

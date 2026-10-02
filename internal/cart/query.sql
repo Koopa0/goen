@@ -46,8 +46,34 @@ DELETE FROM cart_items WHERE cart_id = $1 AND variant_id = $2;
 -- name: CartLineQuantity :one
 SELECT quantity FROM cart_items WHERE cart_id = $1 AND variant_id = $2;
 
+-- The name and phone a signed-in customer keeps on their account, for the
+-- checkout's 「收件人同會員資料」. Blank is as good as none.
+-- name: CheckoutProfile :one
+SELECT coalesce(full_name, '')::text AS full_name, coalesce(phone, '')::text AS phone
+FROM users WHERE id = @user_id;
+
 -- name: ClearCart :exec
 DELETE FROM cart_items WHERE cart_id = $1;
+
+-- What the shopper had typed when they left for the carrier's store map. Written
+-- on the cart so it ends with the cart.
+-- name: SaveCheckoutDraft :exec
+UPDATE carts SET checkout_draft = @draft::jsonb, checkout_draft_at = now()
+WHERE id = @cart_id;
+
+-- Read inside the window only; an older draft is as good as none.
+-- name: ReadCheckoutDraft :one
+SELECT checkout_draft::jsonb AS draft FROM carts
+WHERE id = @cart_id AND checkout_draft IS NOT NULL
+  AND checkout_draft_at > now() - @ttl::interval;
+
+-- name: ClearCheckoutDraft :exec
+UPDATE carts SET checkout_draft = NULL, checkout_draft_at = NULL
+WHERE id = @cart_id AND checkout_draft IS NOT NULL;
+
+-- name: ClearStaleCheckoutDrafts :exec
+UPDATE carts SET checkout_draft = NULL, checkout_draft_at = NULL
+WHERE checkout_draft IS NOT NULL AND checkout_draft_at < now() - @ttl::interval;
 
 -- Everything in a cart, at CURRENT prices and availability. sellable_quantity is
 -- stock above safety_stock, the floor record_inventory_movement enforces.
@@ -87,7 +113,7 @@ SELECT
         ARRAY[]::text[]
     )::text[] AS option_values,
     coalesce(img.storage_key, '') AS image_key,
-    coalesce(img.alt_text, '') AS image_alt,
+    coalesce(localized_name(img.alt_text, img.alt_text_en, @locale::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width
 FROM cart_items ci
 JOIN product_variants pv ON pv.id = ci.variant_id
@@ -96,7 +122,7 @@ JOIN brands b ON b.id = p.brand_id
 LEFT JOIN LATERAL (
     -- The line's own photograph when one shows its option value, else the
     -- product's first.
-    SELECT i.storage_key, i.alt_text, i.width FROM product_images i
+    SELECT i.storage_key, i.alt_text, i.alt_text_en, i.width FROM product_images i
     WHERE i.product_id = p.id
     ORDER BY EXISTS (
                  SELECT 1 FROM variant_option_values vov
@@ -265,7 +291,10 @@ SELECT o.id, o.order_number, o.fulfillment_status,
        coalesce((SELECT c.code || ' · ' || c.description
                  FROM coupon_redemptions cr JOIN coupons c ON c.id = cr.coupon_id
                  WHERE cr.order_id = o.id), '')::text AS discount_reason,
-       o.shipping_method_name, o.placed_at,
+       -- The version the order was priced from, which is append-only, so an
+       -- English name is read without rewriting what the order chose.
+       localized_name(sv.name, sv.name_en, @locale::text) AS shipping_method_name,
+       o.placed_at,
        coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
                  WHERE ol.order_id = o.id), 0)::bigint AS subtotal_cents,
        -- What store credit paid, as the difference between the total and what is
@@ -291,8 +320,9 @@ SELECT o.id, o.order_number, o.fulfillment_status,
        -- payment row and stays 'pending' while the customer owes nothing.
        order_amount_owed(o.id)::bigint AS owed_cents
 FROM orders o
+JOIN shipping_method_versions sv ON sv.id = o.shipping_version_id
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
-WHERE o.order_number = $1;
+WHERE o.order_number = @number;
 
 -- An order's lines as a REORDER sees them. LEFT JOIN and not JOIN: variant_id is
 -- nullable so a line survives its variant being deleted, and dropping those rows
@@ -328,13 +358,30 @@ SELECT hold_inventory(
 INSERT INTO order_events (order_id, kind) VALUES ($1, 'placed');
 
 -- The customer sees WHAT happened, never WHO did it; the back office reads the
--- same table with the actor joined.
+-- same table with the actor joined. A refund's note is the provider's refund
+-- id, which the back office needs and the shopper has no use for.
 -- name: OrderTimeline :many
-SELECT kind, note, occurred_at
+SELECT kind,
+       (CASE WHEN kind = 'refunded' THEN '' ELSE coalesce(note, '') END)::text AS note,
+       occurred_at
 FROM order_events WHERE order_id = $1 ORDER BY occurred_at, id;
 
+-- What the customer may read of the order's filed invoice: nothing exists
+-- before issue, so an order with no rows shows no panel.
+-- name: OrderInvoiceDocuments :many
+SELECT kind, number, amount_cents, status,
+       coalesce(provider_ref, '')::text AS provider_ref, issued_at
+FROM invoice_documents WHERE order_id = $1 ORDER BY issued_at, id;
+
+-- name: OrderInvoicePreference :one
+SELECT invoice_type, coalesce(carrier_code, '')::text AS carrier_code,
+       coalesce(donation_code, '')::text AS donation_code,
+       coalesce(tax_id, '')::text AS tax_id
+FROM invoice_preferences WHERE order_id = $1;
+
 -- name: OrderTracking :many
-SELECT carrier, tracking_number, shipped_at, delivered_at
+SELECT carrier, tracking_number, shipped_at, delivered_at,
+       coalesce(to_char(return_window_ends(delivered_at), 'YYYY-MM-DD'), '')::text AS rescission_ends
 FROM order_shipments WHERE order_id = $1 ORDER BY shipped_at, id;
 
 -- Reservations whose hold has run out and whose order never got funded.

@@ -48,7 +48,14 @@ var (
 		En:     "Pick an option and we will tell you when it is back.",
 	})
 
+	KeyOptionChosen = key("pdp.option.chosen", Message{ZhHant: "%s：", En: "%s:"})
+
 	KeyRestockHeading = key("pdp.restock", Message{ZhHant: "到貨通知我", En: "Tell me when it is back"})
+
+	KeyRestockDoneTo = key("pdp.restock.doneto", Message{
+		ZhHant: "已經記下了,補貨時會寄信到 %s。",
+		En:     "Noted. We will email %s when it is back in stock.",
+	})
 
 	KeyRestockDone = key("pdp.restock.done", Message{
 		ZhHant: "已經記下了,補貨時會寄信給你。",
@@ -60,9 +67,18 @@ var (
 		En:     "Enter a valid email address.",
 	})
 
+	KeyRestockUnavailable = key("pdp.restock.unavailable", Message{
+		ZhHant: "這個規格目前不需要補貨通知(已經有貨,或已不存在)。請確認規格後再試。",
+		En:     "This option needs no restock notice (it is in stock, or it is gone). Check the option and try again.",
+	})
+
 	KeyRestockSubmit = key("pdp.restock.submit", Message{ZhHant: "補貨時通知我", En: "Notify me"})
 
 	KeyAddToCompare = key("pdp.compare.add", Message{ZhHant: "加入比較", En: "Add to compare"})
+
+	// KeyCompareSimilar is the product page's one way into a comparison, offered
+	// only where the department compares: it says what it compares WITH.
+	KeyCompareSimilar = key("pdp.compare.similar", Message{ZhHant: "與同類商品比較", En: "Compare with similar"})
 
 	KeyViewCompare = key("pdp.compare.view", Message{ZhHant: "查看比較", En: "View comparison"})
 
@@ -74,8 +90,8 @@ var (
 	KeyWishlistAdd = key("pdp.wishlist.add", Message{ZhHant: "加入願望清單", En: "Save for later"})
 
 	KeyGuaranteeWarranty = key("pdp.guarantee.warranty", Message{
-		ZhHant: "原廠保固 · 送修收件依配送方式",
-		En:     "Manufacturer's warranty · collection depends on how it was delivered",
+		ZhHant: "標示保固的商品享原廠保固 · 送修收件依配送方式",
+		En:     "Manufacturer's warranty on products that state one · collection depends on how it was delivered",
 	})
 
 	// %s is the threshold, interpolated from shipping_method_versions: a literal
@@ -263,6 +279,8 @@ var (
 		ZhHant: "還沒有規格表。",
 		En:     "No specification table yet.",
 	})
+
+	KeyAdminProdSectionNav = key("admin.prod.sectionnav", Message{ZhHant: "商品區段", En: "Product sections"})
 
 	KeyAdminProdPublishing = key("admin.prod.publishing", Message{
 		ZhHant: "上架狀態",

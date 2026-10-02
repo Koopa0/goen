@@ -14,7 +14,7 @@ import (
 
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 var slugFormat = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
@@ -95,18 +95,18 @@ func (f *ProductForm) Validate(ctx context.Context) map[string]string {
 }
 
 // Products reads the catalogue for the back office.
-func (s *Store) Products(ctx context.Context, after ...string) (pages.AdminProductsView, error) {
+func (s *Store) Products(ctx context.Context, after ...string) (admin.ProductsView, error) {
 	scope := "/admin/products"
 	cursor := readPageCursor(scope, after)
 	rows, err := s.q.AdminProducts(ctx, db.AdminProductsParams{HasCursor: cursor.Valid, AfterAt: cursor.At, AfterID: cursor.ID, RowLimit: PageLimit})
 	if err != nil {
-		return pages.AdminProductsView{}, fmt.Errorf("read products: %w", err)
+		return admin.ProductsView{}, fmt.Errorf("read products: %w", err)
 	}
 	rows, bound := pageBound(cursor, scope, rows, PageSize, func(r *db.AdminProductsRow) string { return r.PageCursor })
-	view := pages.AdminProductsView{ListBound: bound}
+	view := admin.ProductsView{ListBound: bound}
 	for i := range rows {
 		r := &rows[i]
-		view.Rows = append(view.Rows, pages.AdminProduct{
+		view.Rows = append(view.Rows, admin.Product{
 			Slug: r.Slug, Name: r.Name, Status: r.Status,
 			StatusText: ProductStatusLabel(ctx, r.Status),
 			Brand:      r.Brand, Category: r.Category,
@@ -118,12 +118,12 @@ func (s *Store) Products(ctx context.Context, after ...string) (pages.AdminProdu
 }
 
 // Product reads one product and everything its form needs.
-func (s *Store) Product(ctx context.Context, slug string) (pages.AdminProductView, error) {
+func (s *Store) Product(ctx context.Context, slug string) (admin.ProductView, error) {
 	p, err := s.q.AdminProduct(ctx, slug)
 	if err != nil {
-		return pages.AdminProductView{}, productReadError(slug, err)
+		return admin.ProductView{}, productReadError(slug, err)
 	}
-	view := pages.AdminProductView{
+	view := admin.ProductView{
 		Slug: p.Slug, Name: p.Name, Summary: p.Summary,
 		Description: p.Description, WarrantyNote: p.WarrantyNote,
 		NameEn: p.NameEn, SummaryEn: p.SummaryEn, DescriptionEn: p.DescriptionEn,
@@ -133,11 +133,11 @@ func (s *Store) Product(ctx context.Context, slug string) (pages.AdminProductVie
 	}
 	variants, err := s.q.AdminProductVariants(ctx, p.ID)
 	if err != nil {
-		return pages.AdminProductView{}, fmt.Errorf("read variants: %w", err)
+		return admin.ProductView{}, fmt.Errorf("read variants: %w", err)
 	}
 	for i := range variants {
 		v := &variants[i]
-		view.Variants = append(view.Variants, pages.AdminProductVariant{
+		view.Variants = append(view.Variants, admin.ProductVariant{
 			SKU: v.SKU, PriceCents: v.PriceCents,
 			CompareCents: v.CompareAtPriceCents.Int64,
 			Stock:        v.StockQuantity, SafetyStock: v.SafetyStock,
@@ -146,7 +146,7 @@ func (s *Store) Product(ctx context.Context, slug string) (pages.AdminProductVie
 	}
 	links, err := s.q.AdminVariantOptionValues(ctx, slug)
 	if err != nil {
-		return pages.AdminProductView{}, fmt.Errorf("read variant options: %w", err)
+		return admin.ProductView{}, fmt.Errorf("read variant options: %w", err)
 	}
 	bySKU := map[string][]string{}
 	for i := range links {
@@ -159,16 +159,16 @@ func (s *Store) Product(ctx context.Context, slug string) (pages.AdminProductVie
 
 	opts, err := s.q.AdminProductOptions(ctx, slug)
 	if err != nil {
-		return pages.AdminProductView{}, fmt.Errorf("read options: %w", err)
+		return admin.ProductView{}, fmt.Errorf("read options: %w", err)
 	}
 	for i := range opts {
 		o := &opts[i]
-		item := pages.AdminOption{
+		item := admin.Option{
 			ID: o.ID.String(), Name: o.Name, NameEn: o.NameEn,
 		}
 		for j := 0; j < len(o.Values) && j < len(o.ValueLabels) &&
 			j < len(o.ValueIds); j++ {
-			item.Values = append(item.Values, pages.AdminOptionValue{
+			item.Values = append(item.Values, admin.OptionValue{
 				ID: o.ValueIds[j], Value: o.Values[j],
 				Label: o.ValueLabels[j], Option: item.Name,
 			})
@@ -178,17 +178,17 @@ func (s *Store) Product(ctx context.Context, slug string) (pages.AdminProductVie
 
 	specs, err := s.q.AdminProductSpecs(ctx, slug)
 	if err != nil {
-		return pages.AdminProductView{}, fmt.Errorf("read specs: %w", err)
+		return admin.ProductView{}, fmt.Errorf("read specs: %w", err)
 	}
 	for i := range specs {
 		sp := &specs[i]
-		view.Specs = append(view.Specs, pages.AdminSpec{
+		view.Specs = append(view.Specs, admin.Spec{
 			ID: sp.ID.String(), Label: sp.Label, Value: sp.Value,
 			LabelEn: sp.LabelEn, ValueEn: sp.ValueEn,
 		})
 	}
 	if err := s.loadChoices(ctx, &view); err != nil {
-		return pages.AdminProductView{}, err
+		return admin.ProductView{}, err
 	}
 	return view, nil
 }
@@ -201,21 +201,21 @@ func productReadError(slug string, err error) error {
 }
 
 // NewProduct is an empty form with its choices filled in.
-func (s *Store) NewProduct(ctx context.Context) (pages.AdminProductView, error) {
-	view := pages.AdminProductView{IsNew: true}
+func (s *Store) NewProduct(ctx context.Context) (admin.ProductView, error) {
+	view := admin.ProductView{IsNew: true}
 	if err := s.loadChoices(ctx, &view); err != nil {
-		return pages.AdminProductView{}, err
+		return admin.ProductView{}, err
 	}
 	return view, nil
 }
 
-func (s *Store) loadChoices(ctx context.Context, view *pages.AdminProductView) error {
+func (s *Store) loadChoices(ctx context.Context, view *admin.ProductView) error {
 	brands, err := s.q.AdminBrands(ctx)
 	if err != nil {
 		return fmt.Errorf("read brands: %w", err)
 	}
 	for i := range brands {
-		view.Brands = append(view.Brands, pages.AdminChoice{
+		view.Brands = append(view.Brands, admin.Choice{
 			Value: brands[i].ID.String(), Label: brands[i].Name,
 		})
 	}
@@ -225,7 +225,7 @@ func (s *Store) loadChoices(ctx context.Context, view *pages.AdminProductView) e
 	}
 	for i := range cats {
 		c := &cats[i]
-		view.Categories = append(view.Categories, pages.AdminChoice{
+		view.Categories = append(view.Categories, admin.Choice{
 			Value: c.ID.String(),
 			Label: strings.Repeat("　", int(c.Depth)) + c.Name,
 		})

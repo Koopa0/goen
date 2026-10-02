@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/koopa0/goen/internal/fieldrule"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/icons"
@@ -47,6 +48,7 @@ templ Product(p layouts.Page, v *ProductView) {
 											</div>
 										}
 									</dl>
+									@productCompare(v)
 								</div>
 							</details>
 						}
@@ -78,6 +80,9 @@ templ Product(p layouts.Page, v *ProductView) {
 						</ul>
 					</div>
 				</details>
+				if !v.HasSpecs() {
+					@productCompare(v)
+				}
 			</div>
 			@productReviews(v)
 			@productQuestions(v)
@@ -238,9 +243,11 @@ templ productBuy(v *ProductView) {
 		for oi, o := range v.Options {
 			<fieldset class="goen-pdp__option">
 				<legend class="goen-pdp__optname">
-					{ o.Label }
 					if o.SelectedLabel() != "" {
+						{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOptionChosen), o.Label) }
 						<span class="goen-pdp__optchosen">{ o.SelectedLabel() }</span>
+					} else {
+						{ o.Label }
 					}
 				</legend>
 				<div class={ "goen-pdp__values", templ.KV("goen-pdp__values--swatches", o.HasSwatches()) }>
@@ -270,6 +277,9 @@ templ productBuy(v *ProductView) {
 								templ.KV("goen-swatch--on", val.Selected),
 								templ.KV("goen-swatch--out", !val.Available) }
 							href={ templ.URL(val.Href) }
+							if o.HasSwatches() {
+								title={ val.Label }
+							}
 							hx-get={ val.Href }
 							hx-select="#buybox"
 							hx-target="#buybox"
@@ -331,6 +341,11 @@ templ productBuy(v *ProductView) {
 				<span>{ i18n.T(ctx, i18n.KeyChooseBeforeAdding) }</span>
 			</p>
 		}
+		if v.NotifyUnavailable() {
+			@components.Notice(components.NoticeProps{Tone: components.ToneDanger, ID: "notify-unavailable"}) {
+				{ i18n.T(ctx, i18n.KeyRestockUnavailable) }
+			}
+		}
 		@productAddForm(v)
 		if v.SoldOut() {
 			@productNotifyForm(v)
@@ -357,9 +372,8 @@ templ productBuy(v *ProductView) {
 	</div>
 }
 
-// productLinks holds the two quiet actions under the buy row. The wishlist is
-// a form of its own because it posts somewhere else and a form cannot nest
-// inside the add form.
+// productLinks holds the wishlist under the buy row, a form of its own because
+// it posts somewhere else and a form cannot nest inside the add form.
 templ productLinks(v *ProductView) {
 	<div class="goen-pdp__links">
 		if v.SignedIn {
@@ -386,21 +400,6 @@ templ productLinks(v *ProductView) {
 				<span>{ i18n.T(ctx, i18n.KeyWishlistSignIn) }</span>
 			}
 		}
-		if !v.AlreadyComparing() && !v.ComparingFull() {
-			@components.ButtonLink(components.ButtonProps{
-				Variant: components.VariantGhost, Class: "goen-pdp__compare",
-			}, templ.SafeURL(v.CompareHref())) {
-				{ i18n.T(ctx, i18n.KeyAddToCompare) }
-			}
-		} else if v.AlreadyComparing() {
-			@components.ButtonLink(components.ButtonProps{
-				Variant: components.VariantGhost, Class: "goen-pdp__compare",
-			}, templ.SafeURL(v.CompareHref())) {
-				{ i18n.T(ctx, i18n.KeyViewCompare) }
-			}
-		} else {
-			<p class="goen-pdp__hint">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCompareFull), MaxCompare) }</p>
-		}
 	</div>
 }
 
@@ -420,7 +419,8 @@ templ productAddForm(v *ProductView) {
 		// and hx-select takes the buy column out of it. hx-select-oob names the
 		// header's cart link in that same response, so the count and the link's
 		// accessible name change from the document the server just rendered
-		// instead of from a number this page would have to keep.
+		// instead of from a number this page would have to keep. The address is
+		// not pushed: ?added= is not a page to come back to.
 		<form
 			class="goen-pdp__form"
 			method="post"
@@ -430,7 +430,7 @@ templ productAddForm(v *ProductView) {
 			hx-swap="outerHTML"
 			hx-select="#buybox"
 			hx-select-oob="#cart-link"
-			hx-push-url="true"
+			hx-push-url="false"
 		>
 			<input type="hidden" name="variant" value={ v.VariantID }/>
 			<input type="hidden" name="back" value={ v.Slug }/>
@@ -452,9 +452,7 @@ templ productAddForm(v *ProductView) {
 				}, "submit") {
 					@icons.Cart()
 					<span>
-						if v.AllSoldOut() {
-							{ i18n.T(ctx, i18n.KeyAllSoldOut) }
-						} else if v.SoldOut() {
+						if v.AllSoldOut() || v.SoldOut() {
 							{ i18n.T(ctx, i18n.KeySoldOut) }
 						} else if v.NeedsChoice() {
 							{ i18n.T(ctx, i18n.KeyChooseOptions) }
@@ -496,6 +494,31 @@ templ productAddForm(v *ProductView) {
 	</div>
 }
 
+// productCompare is the one way into a comparison, with the specs it compares
+// and only where the department offers one. It extends the comparison the
+// visitor arrived with, and is a plain link: the set is the address.
+templ productCompare(v *ProductView) {
+	if v.Comparable {
+		<div class="goen-pdp__similar">
+			if !v.AlreadyComparing() && !v.ComparingFull() {
+				@components.ButtonLink(components.ButtonProps{
+					Variant: components.VariantGhost, Class: "goen-pdp__compare",
+				}, templ.SafeURL(v.CompareHref())) {
+					{ i18n.T(ctx, i18n.KeyCompareSimilar) }
+				}
+			} else if v.AlreadyComparing() {
+				@components.ButtonLink(components.ButtonProps{
+					Variant: components.VariantGhost, Class: "goen-pdp__compare",
+				}, templ.SafeURL(v.CompareHref())) {
+					{ i18n.T(ctx, i18n.KeyViewCompare) }
+				}
+			} else {
+				<p class="goen-pdp__hint">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCompareFull), MaxCompare) }</p>
+			}
+		</div>
+	}
+}
+
 templ productNotifyForm(v *ProductView) {
 	<form class="goen-pdp__notify" method="post" action={ templ.SafeURL(v.NotifyAction()) }>
 		<input type="hidden" name="variant" value={ v.VariantID }/>
@@ -503,7 +526,7 @@ templ productNotifyForm(v *ProductView) {
 		<h2 class="goen-pdp__notifyhead">{ i18n.T(ctx, i18n.KeyRestockHeading) }</h2>
 		if v.NotifyTaken() {
 			@components.Notice(components.NoticeProps{Tone: components.ToneAccent}) {
-				{ i18n.T(ctx, i18n.KeyRestockDone) }
+				{ v.NotifyConfirmation(ctx) }
 			}
 		} else {
 			<div class="goen-pdp__notifyrow">
@@ -511,12 +534,12 @@ templ productNotifyForm(v *ProductView) {
 					{ i18n.T(ctx, i18n.KeyFieldEmail) }
 				}
 				@components.Input(components.FieldProps{
-					ID: "notify-email", Name: "email", Type: "email",
+					ID: "notify-email", Name: "email", Type: "email", Value: v.NotifyEmailValue(),
 					Invalid: v.NotifyRefused(), Describes: "notify-email-error",
-					Attrs: templ.Attributes{
+					Attrs: fieldrule.Email.Attrs(ctx, templ.Attributes{
 						"required": true, "maxlength": "254", "autocomplete": "email",
 						"placeholder": i18n.T(ctx, i18n.KeyFieldEmail),
-					},
+					}, fieldrule.Message(i18n.KeyRestockBadEmail), fieldrule.ErrorID("notify-email-error")),
 				})
 				@components.Button(components.ButtonProps{Variant: components.VariantOutline}, "submit") {
 					{ i18n.T(ctx, i18n.KeyRestockSubmit) }
@@ -524,6 +547,8 @@ templ productNotifyForm(v *ProductView) {
 			</div>
 			if v.NotifyRefused() {
 				<p class="ui-error-text" id="notify-email-error">{ i18n.T(ctx, i18n.KeyRestockBadEmail) }</p>
+			} else {
+				<p class="ui-error-text" id="notify-email-error" hidden></p>
 			}
 		}
 	</form>
@@ -580,6 +605,11 @@ templ productReviews(v *ProductView) {
 					}
 				</div>
 			</div>
+		}
+		if v.ReviewPosted {
+			@components.Notice(components.NoticeProps{Tone: components.ToneAccent}) {
+				{ i18n.T(ctx, i18n.KeyReviewThanks) }
+			}
 		}
 		@reviewForm(v)
 	</section>
@@ -662,34 +692,38 @@ templ askForm(v *ProductView) {
 }
 
 templ reviewForm(v *ProductView) {
-	if !v.SignedIn {
+	if v.ReviewStanding == ReviewSignedOut {
 		<p class="goen-pdp__reviewnote">
 			<a href={ templ.SafeURL("/signin?next=/p/" + v.Slug) }>{ i18n.T(ctx, i18n.KeySignInFirst) }</a>{ i18n.T(ctx, i18n.KeySignInToReview) }
 		</p>
-	} else if !v.CanReview {
+	} else if v.ReviewStanding == ReviewNotDelivered {
+		<p class="goen-pdp__reviewnote">{ i18n.T(ctx, i18n.KeyReviewAfterDelivery) }</p>
+	} else if v.ReviewStanding == ReviewAlreadyWritten {
 		<p class="goen-pdp__reviewnote">{ i18n.T(ctx, i18n.KeyAlreadyReviewed) }</p>
 	} else {
 		<div class="goen-pdp__reviewform">
 			<form id="write-review" method="post" action={ templ.SafeURL(v.ReviewAction()) }>
 				<h3 class="goen-pdp__reviewformhead">{ i18n.T(ctx, i18n.KeyWriteReview) }</h3>
-				if v.WouldVerify {
-					<p class="goen-pdp__reviewnote">{ i18n.T(ctx, i18n.KeyReviewWillBeVerified) }</p>
-				}
 				<fieldset class="goen-pdp__stars">
 					<legend class="goen-label">{ i18n.T(ctx, i18n.KeyFieldRating) }</legend>
-					for _, n := range []int{5, 4, 3, 2, 1} {
-						<label class="goen-pdp__star">
-							<input
-								class="goen-pdp__starinput"
-								type="radio"
-								name="rating"
-								value={ n }
-								required
-								checked?={ v.ReviewDraft.IsRating(n) }
-							/>
-							<span>{ i18n.Count(ctx, i18n.KeyStarsLabel, int64(n), strconv.Itoa(n)) }</span>
-						</label>
-					}
+					<div class="goen-pdp__starrow">
+						for _, n := range []int{1, 2, 3, 4, 5} {
+							<label class="goen-pdp__star">
+								<input
+									class="goen-pdp__starinput goen-sr-only"
+									type="radio"
+									name="rating"
+									value={ n }
+									required
+									checked?={ v.ReviewDraft.IsRating(n) }
+								/>
+								<span class="goen-pdp__starmark" aria-hidden="true">
+									@icons.Star()
+								</span>
+								<span class="goen-sr-only">{ i18n.Count(ctx, i18n.KeyStarsLabel, int64(n), strconv.Itoa(n)) }</span>
+							</label>
+						}
+					</div>
 				</fieldset>
 				if v.HasReviewErr("rating") {
 					<p class="ui-error-text">{ v.ReviewErr("rating") }</p>
@@ -709,11 +743,12 @@ templ reviewForm(v *ProductView) {
 					}
 					@components.Textarea(components.FieldProps{
 						ID: "review-body", Name: "body", Class: "goen-pdp__reviewbody",
-						Invalid: v.HasReviewErr("body"), Describes: "review-body-error",
-						Attrs: templ.Attributes{"rows": "5", "required": true, "minlength": strconv.Itoa(ReviewBodyMinRunes), "maxlength": "2000"},
+						Invalid: v.HasReviewErr("body"), Describes: "review-body-error review-body-hint",
+						Attrs: v.reviewBodyAttrs(),
 					}) {
 						{ v.ReviewDraft.Body }
 					}
+					<p class="goen-pdp__reviewnote" id="review-body-hint">{ v.ReviewBodyHint(ctx) }</p>
 					if v.HasReviewErr("body") {
 						<p class="ui-error-text" id="review-body-error">{ v.ReviewErr("body") }</p>
 					}

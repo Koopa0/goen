@@ -3,6 +3,7 @@ package pages
 import (
 	"fmt"
 
+	"github.com/koopa0/goen/internal/fieldrule"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -38,11 +39,11 @@ templ SignIn(p layouts.Page, v AuthView) {
 							Value:     v.Email,
 							Invalid:   v.HasErr("form"),
 							Describes: "signin-error",
-							Attrs: templ.Attributes{
+							Attrs: fieldrule.Email.Attrs(ctx, templ.Attributes{
 								"autocomplete": "email",
 								"autofocus":    true,
 								"required":     true,
-							},
+							}),
 						})
 					</div>
 					<div class="goen-field">
@@ -117,11 +118,11 @@ templ Register(p layouts.Page, v AuthView) {
 							Value:     v.Email,
 							Invalid:   v.HasErr("email"),
 							Describes: "email-error",
-							Attrs: templ.Attributes{
+							Attrs: fieldrule.Email.Attrs(ctx, templ.Attributes{
 								"autocomplete": "email",
 								"autofocus":    true,
 								"required":     true,
-							},
+							}),
 						})
 						if v.HasErr("email") {
 							<p class="ui-error-text" id="email-error" role="alert">{ v.Err("email") }</p>
@@ -386,7 +387,7 @@ templ Account(p layouts.Page, v *AccountView) {
 								<a href="/">{ i18n.T(ctx, i18n.KeyNoOrdersLink) }</a>
 							</p>
 						}
-						@listBound(v.OrdersBound)
+						@ListPager(v.OrdersBound)
 					</section>
 					<section class="goen-card goen-account__section" aria-labelledby="profile-heading">
 						<h2 class="goen-account__heading" id="profile-heading">{ i18n.T(ctx, i18n.KeyProfile) }</h2>
@@ -464,7 +465,7 @@ templ Account(p layouts.Page, v *AccountView) {
 						} else {
 							<p class="goen-account__empty">{ i18n.T(ctx, i18n.KeyNoAddresses) }</p>
 						}
-						<details class="goen-account__disclosure">
+						<details class="goen-account__disclosure" open?={ v.AddressOpen() }>
 							<summary class="goen-account__summary">{ i18n.T(ctx, i18n.KeyAddAddress) }</summary>
 							<form class="goen-account__form" method="post" action="/account/addresses">
 								<div class="goen-account__fields">
@@ -473,90 +474,131 @@ templ Account(p layouts.Page, v *AccountView) {
 											{ i18n.T(ctx, i18n.KeyFieldLabelOpt) }
 										}
 										@components.Input(components.FieldProps{
-											ID:   "addr-label",
-											Name: "label",
-											Type: "text",
+											ID:        "addr-label",
+											Value:     v.AddrValue("label"),
+											Invalid:   v.AddrInvalid("label"),
+											Describes: "addr-label-error",
+											Name:      "label",
+											Type:      "text",
 											Attrs: templ.Attributes{
 												"maxlength":    "30",
 												"autocomplete": "off",
 												"placeholder":  i18n.T(ctx, i18n.KeyLabelPlaceholder),
 											},
 										})
+										if v.AddrInvalid("label") {
+											<p class="ui-error-text" id="addr-label-error" role="alert">{ v.AddrErr("label") }</p>
+										}
 									</div>
 									<div class="goen-field">
 										@components.Label(components.LabelProps{For: "addr-name"}) {
 											{ i18n.T(ctx, i18n.KeyFieldRecipient) }
 										}
 										@components.Input(components.FieldProps{
-											ID:    "addr-name",
-											Name:  "name",
-											Type:  "text",
-											Attrs: templ.Attributes{"required": true, "maxlength": "60", "autocomplete": "name"},
+											ID:        "addr-name",
+											Value:     v.AddrValue("name"),
+											Invalid:   v.AddrInvalid("name"),
+											Describes: "addr-name-error",
+											Name:      "name",
+											Type:      "text",
+											Attrs:     templ.Attributes{"required": true, "maxlength": "60", "autocomplete": "name"},
 										})
+										if v.AddrInvalid("name") {
+											<p class="ui-error-text" id="addr-name-error" role="alert">{ v.AddrErr("name") }</p>
+										}
 									</div>
 									<div class="goen-field">
 										@components.Label(components.LabelProps{For: "addr-phone"}) {
 											{ i18n.T(ctx, i18n.KeyFieldPhoneShort) }
 										}
 										@components.Input(components.FieldProps{
-											ID:    "addr-phone",
-											Name:  "phone",
-											Type:  "tel",
-											Attrs: templ.Attributes{"required": true, "maxlength": "30", "autocomplete": "tel"},
+											ID:        "addr-phone",
+											Value:     v.AddrValue("phone"),
+											Invalid:   v.AddrInvalid("phone"),
+											Describes: "addr-phone-error",
+											Name:      "phone",
+											Type:      "tel",
+											Attrs:     fieldrule.Phone.Attrs(ctx, templ.Attributes{"required": true, "maxlength": "30", "autocomplete": "tel"}),
 										})
+										if v.AddrInvalid("phone") {
+											<p class="ui-error-text" id="addr-phone-error" role="alert">{ v.AddrErr("phone") }</p>
+										}
 									</div>
 									<div class="goen-field">
 										@components.Label(components.LabelProps{For: "addr-postal"}) {
 											{ i18n.T(ctx, i18n.KeyFieldPostalCode) }
 										}
 										@components.Input(components.FieldProps{
-											ID:   "addr-postal",
-											Name: "postal_code",
-											Type: "text",
-											Attrs: templ.Attributes{
+											ID:        "addr-postal",
+											Value:     v.AddrValue("postal_code"),
+											Invalid:   v.AddrInvalid("postal_code"),
+											Describes: "addr-postal-error",
+											Name:      "postal_code",
+											Type:      "text",
+											Attrs: fieldrule.PostalCode.Attrs(ctx, templ.Attributes{
 												"required":     true,
 												"maxlength":    "6",
-												"inputmode":    "numeric",
 												"autocomplete": "postal-code",
-											},
+											}),
 										})
+										if v.AddrInvalid("postal_code") {
+											<p class="ui-error-text" id="addr-postal-error" role="alert">{ v.AddrErr("postal_code") }</p>
+										}
 									</div>
 									<div class="goen-field">
 										@components.Label(components.LabelProps{For: "addr-city"}) {
 											{ i18n.T(ctx, i18n.KeyFieldCity) }
 										}
 										@components.Input(components.FieldProps{
-											ID:    "addr-city",
-											Name:  "city",
-											Type:  "text",
-											Attrs: templ.Attributes{"required": true, "maxlength": "20", "autocomplete": "address-level1"},
+											ID:        "addr-city",
+											Value:     v.AddrValue("city"),
+											Invalid:   v.AddrInvalid("city"),
+											Describes: "addr-city-error",
+											Name:      "city",
+											Type:      "text",
+											Attrs:     templ.Attributes{"required": true, "maxlength": "20", "autocomplete": "address-level1"},
 										})
+										if v.AddrInvalid("city") {
+											<p class="ui-error-text" id="addr-city-error" role="alert">{ v.AddrErr("city") }</p>
+										}
 									</div>
 									<div class="goen-field">
 										@components.Label(components.LabelProps{For: "addr-district"}) {
 											{ i18n.T(ctx, i18n.KeyFieldDistrict) }
 										}
 										@components.Input(components.FieldProps{
-											ID:    "addr-district",
-											Name:  "district",
-											Type:  "text",
-											Attrs: templ.Attributes{"required": true, "maxlength": "20", "autocomplete": "address-level2"},
+											ID:        "addr-district",
+											Value:     v.AddrValue("district"),
+											Invalid:   v.AddrInvalid("district"),
+											Describes: "addr-district-error",
+											Name:      "district",
+											Type:      "text",
+											Attrs:     templ.Attributes{"required": true, "maxlength": "20", "autocomplete": "address-level2"},
 										})
+										if v.AddrInvalid("district") {
+											<p class="ui-error-text" id="addr-district-error" role="alert">{ v.AddrErr("district") }</p>
+										}
 									</div>
 									<div class="goen-field goen-account__field--wide">
 										@components.Label(components.LabelProps{For: "addr-street"}) {
 											{ i18n.T(ctx, i18n.KeyFieldStreet) }
 										}
 										@components.Input(components.FieldProps{
-											ID:    "addr-street",
-											Name:  "street",
-											Type:  "text",
-											Attrs: templ.Attributes{"required": true, "maxlength": "200", "autocomplete": "street-address"},
+											ID:        "addr-street",
+											Value:     v.AddrValue("street"),
+											Invalid:   v.AddrInvalid("street"),
+											Describes: "addr-street-error",
+											Name:      "street",
+											Type:      "text",
+											Attrs:     templ.Attributes{"required": true, "maxlength": "200", "autocomplete": "street-address"},
 										})
+										if v.AddrInvalid("street") {
+											<p class="ui-error-text" id="addr-street-error" role="alert">{ v.AddrErr("street") }</p>
+										}
 									</div>
 								</div>
 								<label class="goen-check">
-									<input class="goen-check__box" type="checkbox" name="default" value="1"/>
+									<input class="goen-check__box" type="checkbox" name="default" value="1" checked?={ v.AddrDefault() }/>
 									<span>{ i18n.T(ctx, i18n.KeySetAsDefault) }</span>
 								</label>
 								<div class="goen-account__actions">
@@ -609,7 +651,7 @@ templ Account(p layouts.Page, v *AccountView) {
 											ID:    "new-email",
 											Name:  "email",
 											Type:  "email",
-											Attrs: templ.Attributes{"required": true, "autocomplete": "email"},
+											Attrs: fieldrule.Email.Attrs(ctx, templ.Attributes{"required": true, "autocomplete": "email"}),
 										})
 									</div>
 									<div class="goen-field">

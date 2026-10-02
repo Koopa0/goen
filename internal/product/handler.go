@@ -12,7 +12,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/koopa0/goen/internal/account"
+	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -73,9 +76,10 @@ func (h *Handler) Detail(w http.ResponseWriter, r *http.Request) {
 	if u, signedIn := account.FromContext(r.Context()); signedIn {
 		view.Saved = h.store.SavedByUser(r.Context(), u.ID, slug)
 	}
-	h.fillReviewForm(r, slug, &view)
-	view.NotifyOutcome = r.URL.Query().Get("notify")
+	h.fillForViewer(r, slug, &view)
+	view.NotifyOutcome = pages.NotifyOutcome(r.URL.Query().Get("notify"))
 	view.AskOutcome = r.URL.Query().Get("ask")
+	view.ReviewPosted = r.URL.Query().Get("reviewed") == "1"
 	view.AddedOutcome = r.URL.Query().Get("added")
 	view.Comparing = boundedSlugs(r.URL.Query()["p"])
 	meta := pages.ProductMeta(&view)
@@ -114,8 +118,8 @@ func (h *Handler) Review(w http.ResponseWriter, r *http.Request) {
 	errs, err := h.store.AddReview(r.Context(), slug, u.ID, review)
 	switch {
 	case err == nil && len(errs) == 0:
-		http.Redirect(w, r, "/p/"+url.PathEscape(slug)+"#reviews", http.StatusSeeOther)
-	case errors.Is(err, ErrAlreadyReviewed):
+		http.Redirect(w, r, "/p/"+url.PathEscape(slug)+"?reviewed=1#reviews", http.StatusSeeOther)
+	case errors.Is(err, ErrAlreadyReviewed), errors.Is(err, ErrNotDelivered):
 		h.rejectReview(w, r, slug, review, nil)
 	case errors.Is(err, ErrNotFound):
 		h.notFound(w, r)
@@ -144,21 +148,33 @@ func (h *Handler) Notify(w http.ResponseWriter, r *http.Request) {
 	addr := r.PostFormValue("email")
 	variantID := r.PostFormValue("variant")
 
-	var userID string
+	var userID, accountEmail string
 	if u, ok := account.FromContext(r.Context()); ok {
-		userID = u.ID
+		userID, accountEmail = u.ID, u.Email
+	}
+
+	// Not a value the form can send: nothing on a page to re-render for.
+	if _, parseErr := uuid.Parse(variantID); parseErr != nil {
+		h.redirectNotified(w, r, slug, pages.NotifyBadAddress)
+		return
 	}
 
 	err := h.store.RequestRestockNotice(r.Context(), slug, variantID, addr, userID)
 	switch {
+	case err == nil && accountEmail != "" && strings.EqualFold(email.Clean(addr), accountEmail):
+		// Never the typed address in the query string: anybody could put text
+		// on the confirmation that way.
+		h.redirectNotified(w, r, slug, pages.NotifyRecordedForAccount)
 	case err == nil:
-		//nolint:gosec // G710: slug is the route's own path value, escaped
-		http.Redirect(w, r, "/p/"+url.PathEscape(slug)+"?"+r.URL.RawQuery+"&notify=1",
-			http.StatusSeeOther)
+		h.redirectNotified(w, r, slug, pages.NotifyRecorded)
 	case errors.Is(err, ErrNotifyInvalid):
-		//nolint:gosec // G710: slug is the route's own path value, escaped
-		http.Redirect(w, r, "/p/"+url.PathEscape(slug)+"?"+r.URL.RawQuery+"&notify=bad",
-			http.StatusSeeOther)
+		// Two causes, two messages: an address goen will not mail, or a variant
+		// that no longer needs a notice (back in stock, or gone).
+		outcome := pages.NotifyVariantUnavailable
+		if !email.Valid(email.Clean(addr)) {
+			outcome = pages.NotifyBadAddress
+		}
+		h.rejectNotify(w, r, slug, addr, outcome)
 	default:
 		h.log.ErrorContext(r.Context(), "restock notice", "error", err, "slug", slug)
 		web.Render(w, r, h.log, http.StatusInternalServerError, pages.Notice(
@@ -166,6 +182,40 @@ func (h *Handler) Notify(w http.ResponseWriter, r *http.Request) {
 			i18n.T(r.Context(), i18n.KeyTryAgainTitle),
 			i18n.T(r.Context(), i18n.KeyTryAgainBody)))
 	}
+}
+
+// redirectNotified returns to the product at the selection the form was posted
+// from, with the outcome the page says aloud.
+func (h *Handler) redirectNotified(w http.ResponseWriter, r *http.Request, slug string, outcome pages.NotifyOutcome) {
+	q := url.Values{}
+	for k, v := range ParseSelection(r.URL.Query()) {
+		q.Set(k, v)
+	}
+	q.Set("notify", string(outcome))
+	http.Redirect(w, r, "/p/"+url.PathEscape(slug)+"?"+q.Encode(), http.StatusSeeOther)
+}
+
+// rejectNotify re-renders the product at 422 on the selection the form was
+// posted from, with the address as typed.
+func (h *Handler) rejectNotify(w http.ResponseWriter, r *http.Request, slug, addr string, outcome pages.NotifyOutcome) {
+	view, err := h.store.Load(r.Context(), slug, ParseSelection(r.URL.Query()))
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			h.notFound(w, r)
+			return
+		}
+		h.log.ErrorContext(r.Context(), "reload product", "error", err, "slug", slug)
+		web.Render(w, r, h.log, http.StatusInternalServerError, pages.Notice(
+			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyTryAgainTitle)}, "",
+			i18n.T(r.Context(), i18n.KeyTryAgainTitle),
+			i18n.T(r.Context(), i18n.KeyTryAgainBody)))
+		return
+	}
+	h.fillForViewer(r, slug, &view)
+	view.NotifyOutcome = outcome
+	view.NotifyEmail = addr
+	web.Render(w, r, h.log, http.StatusUnprocessableEntity,
+		pages.Product(pages.ProductMeta(&view), &view))
 }
 
 func (h *Handler) rejectReview(w http.ResponseWriter, r *http.Request, slug string, review *Review, errs map[string]i18n.Key) {
@@ -178,7 +228,7 @@ func (h *Handler) rejectReview(w http.ResponseWriter, r *http.Request, slug stri
 			i18n.T(r.Context(), i18n.KeyTryAgainBody)))
 		return
 	}
-	h.fillReviewForm(r, slug, &view)
+	h.fillForViewer(r, slug, &view)
 	view.ReviewErrors = make(map[string]string, len(errs))
 	for field, k := range errs {
 		view.ReviewErrors[field] = i18n.T(r.Context(), k)
@@ -190,18 +240,18 @@ func (h *Handler) rejectReview(w http.ResponseWriter, r *http.Request, slug stri
 		pages.Product(pages.ProductMeta(&view), &view))
 }
 
-func (h *Handler) fillReviewForm(r *http.Request, slug string, view *pages.ProductView) {
+func (h *Handler) fillForViewer(r *http.Request, slug string, view *pages.ProductView) {
 	u, signedIn := account.FromContext(r.Context())
-	view.SignedIn = signedIn
+	view.SignedIn, view.AccountEmail = signedIn, u.Email
 	if !signedIn {
 		return
 	}
-	allowed, verified, err := h.store.CanReview(r.Context(), slug, u.ID)
+	standing, err := h.store.ReviewStanding(r.Context(), slug, u.ID)
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "check review eligibility", "error", err)
 		return
 	}
-	view.CanReview, view.WouldVerify = allowed, verified
+	view.ReviewStanding = standing
 }
 
 // parseRating returns 0 outside 1..5, which Validate reports as a missing rating.
@@ -261,7 +311,7 @@ func (h *Handler) rejectAsk(w http.ResponseWriter, r *http.Request, slug, body s
 			i18n.T(r.Context(), i18n.KeyTryAgainBody)))
 		return
 	}
-	h.fillReviewForm(r, slug, &view)
+	h.fillForViewer(r, slug, &view)
 	view.AskOutcome = "bad"
 	view.AskDraft = body
 	web.Render(w, r, h.log, http.StatusUnprocessableEntity,

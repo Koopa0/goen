@@ -609,7 +609,7 @@ func TestAChangedCreditBalanceReRendersCheckoutWithTheFreshFigure(t *testing.T) 
 }
 
 // TestConcurrentSignedInFirstAddsShareOneOwnedCart holds an uncommitted owned
-// row so both HTTP first-adds miss CartForUser and wait on carts_one_per_user.
+// row so both HTTP first-adds miss ForUser and wait on carts_one_per_user.
 // Releasing that row lets one insert win; the loser must reread it, not 500.
 func TestConcurrentSignedInFirstAddsShareOneOwnedCart(t *testing.T) {
 	ctx := t.Context()
@@ -750,14 +750,14 @@ func TestCartIsFoundByTokenNotByID(t *testing.T) {
 		t.Fatalf("create: %v", err)
 	}
 
-	got, err := s.CartByToken(t.Context(), tok, uuid.NullUUID{})
+	got, err := s.ByToken(t.Context(), tok, uuid.NullUUID{})
 	if err != nil || got != id {
-		t.Fatalf("CartByToken(token) = %v/%v, want %v", got, err, id)
+		t.Fatalf("ByToken(token) = %v/%v, want %v", got, err, id)
 	}
-	if _, err := s.CartByToken(t.Context(), tok+"x", uuid.NullUUID{}); err == nil {
+	if _, err := s.ByToken(t.Context(), tok+"x", uuid.NullUUID{}); err == nil {
 		t.Error("a near-miss token found a cart")
 	}
-	if _, err := s.CartByToken(t.Context(), "", uuid.NullUUID{}); err == nil {
+	if _, err := s.ByToken(t.Context(), "", uuid.NullUUID{}); err == nil {
 		t.Error("an empty token found a cart")
 	}
 
@@ -1280,7 +1280,7 @@ func TestCartShowsCurrentPriceAndAvailability(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
 	id := newCart(t, s)
-	vid := variantOf(t, "pixelight-9-pro", true)
+	vid := freshVariant(t, "current-price")
 
 	if err := s.Add(ctx, id, vid, 2); err != nil {
 		t.Fatalf("add: %v", err)
@@ -3496,6 +3496,55 @@ func TestAPickupOrderIsPlacedWithTheChainAlone(t *testing.T) {
 	}
 }
 
+// TestTheOrderNamesItsShippingMethodInTheReadersLanguage: the method's name is
+// read from the version the order was priced from, so an English reader is not
+// shown the Chinese name the shop typed, and a Chinese reader still is.
+func TestTheOrderNamesItsShippingMethodInTheReadersLanguage(t *testing.T) {
+	ctx := t.Context()
+	s := cart.NewStore(pool)
+
+	var methodID uuid.UUID
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO shipping_methods (code, destination_kind)
+		VALUES ($1, 'pickup_point') RETURNING id`, "named"+uuid.NewString()[:6]).Scan(&methodID); err != nil {
+		t.Fatalf("create method: %v", err)
+	}
+	var versionID uuid.UUID
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO shipping_method_versions (method_id, name, name_en, fee_cents)
+		VALUES ($1, '測試超取', 'Test pickup', 6000) RETURNING id`, methodID).Scan(&versionID); err != nil {
+		t.Fatalf("create version: %v", err)
+	}
+
+	id := newCart(t, s)
+	if err := s.Add(ctx, id, variantOf(t, "pixelight-9-pro", true), 1); err != nil {
+		t.Fatalf("add: %v", err)
+	}
+	addr := &cart.Address{
+		To:    cart.ToPickupPoint,
+		Email: "named@example.com", Name: "林小美", Phone: "0955666777",
+		PickupBrand: "seven_eleven",
+	}
+	number, err := placeOrder(t, s, ctx, id, uuid.NullUUID{}, versionID, addr, "",
+		"named-"+uuid.NewString()[:8])
+	if err != nil {
+		t.Fatalf("place: %v", err)
+	}
+
+	for _, tt := range []struct {
+		locale i18n.Locale
+		want   string
+	}{{i18n.En, "Test pickup"}, {i18n.ZhHant, "測試超取"}} {
+		view, err := s.Order(i18n.WithLocale(ctx, tt.locale), number)
+		if err != nil {
+			t.Fatalf("read the order in %s: %v", tt.locale.Tag(), err)
+		}
+		if view.ShippingName != tt.want {
+			t.Errorf("shipping name in %s = %q, want %q", tt.locale.Tag(), view.ShippingName, tt.want)
+		}
+	}
+}
+
 func TestAnAddressOrderKeepsNoPickupPoint(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
@@ -4001,14 +4050,45 @@ func refundAndCancel(t *testing.T, orderID uuid.UUID) {
 		        r.resolution, 're_' || r.id, now()
 		 FROM return_requests r JOIN payments p ON p.order_id = r.order_id AND p.status = 'succeeded'
 		 WHERE r.id = $1`,
-		`INSERT INTO order_events (order_id, kind, return_request_id)
-		 SELECT order_id, 'refunded', id FROM return_requests WHERE id = $1`,
+		`INSERT INTO order_events (order_id, kind, note, return_request_id)
+		 SELECT order_id, 'refunded', 're_' || id, id FROM return_requests WHERE id = $1`,
 		`UPDATE orders SET fulfillment_status = 'cancelled', cancelled_at = now()
 		 WHERE id = (SELECT order_id FROM return_requests WHERE id = $1)`,
 	} {
 		if _, err := pool.Exec(ctx, stmt, returnID); err != nil {
 			t.Fatalf("settle the refund and cancel: %v", err)
 		}
+	}
+}
+
+func TestTheShoppersTimelineNeverShowsTheProvidersRefundID(t *testing.T) {
+	ctx := t.Context()
+	vid := freshVariant(t, "refundid-1")
+	orderID := heldOrderFor(t, uuid.NullUUID{}, vid, -time.Hour, true)
+	refundAndCancel(t, orderID)
+
+	var number, staffNote string
+	if err := pool.QueryRow(ctx, `
+		SELECT o.order_number, e.note FROM orders o
+		JOIN order_events e ON e.order_id = o.id AND e.kind = 'refunded'
+		WHERE o.id = $1`, orderID).Scan(&number, &staffNote); err != nil || !strings.HasPrefix(staffNote, "re_") {
+		t.Fatalf("the fixture must keep the refund id on the event: %q, %v", staffNote, err)
+	}
+	view, err := cart.NewStore(pool).Order(ctx, number)
+	if err != nil {
+		t.Fatalf("order: %v", err)
+	}
+	var sawRefund bool
+	for _, e := range view.Timeline {
+		if e.Kind == "refunded" {
+			sawRefund = true
+		}
+		if strings.Contains(e.Note, "re_") {
+			t.Errorf("%s event shows the provider refund id %q", e.Kind, e.Note)
+		}
+	}
+	if !sawRefund {
+		t.Error("the refunded event is missing from the shopper's timeline")
 	}
 }
 

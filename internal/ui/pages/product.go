@@ -3,9 +3,13 @@ package pages
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"slices"
 	"strconv"
 	"strings"
+	"unicode/utf8"
+
+	"github.com/a-h/templ"
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
@@ -109,6 +113,21 @@ func (b RatingBar) WidthClass() string {
 	return "goen-pdp__barfill--" + strconv.Itoa((b.Percent+5)/10*10)
 }
 
+// ReviewStanding is what the visitor may do about reviewing this product; the
+// zero value is the refusal.
+type ReviewStanding int
+
+const (
+	ReviewSignedOut ReviewStanding = iota
+	// ReviewNotDelivered covers a customer who never bought it and one whose
+	// order has not arrived.
+	ReviewNotDelivered
+	// ReviewAlreadyWritten counts a hidden review too: it still holds the
+	// unique index.
+	ReviewAlreadyWritten
+	ReviewOpen
+)
+
 // ProductReview is one published review.
 type ProductReview struct {
 	Rating   int
@@ -130,7 +149,20 @@ func (r ProductReview) DisplayAuthor(ctx context.Context) string {
 	if r.Author == "" {
 		return i18n.T(ctx, i18n.KeyAnonymousReviewer)
 	}
-	return r.Author
+	return maskedName(i18n.FromContext(ctx), r.Author)
+}
+
+// maskedName exists because reviews are public: a full name beside a purchase is
+// more than the shopper agreed to show.
+func maskedName(l i18n.Locale, name string) string {
+	first, _ := utf8.DecodeRuneInString(strings.TrimSpace(name))
+	if first == utf8.RuneError {
+		return name
+	}
+	if l == i18n.En {
+		return strings.ToUpper(string(first)) + "."
+	}
+	return string(first) + "○○"
 }
 
 // ProductView is everything the detail page renders.
@@ -167,19 +199,25 @@ type ProductView struct {
 	Sellable     bool
 	Available    int32
 
-	Rating        float64
-	RatingCount   int64
-	RatingBars    []RatingBar
-	Reviews       []ProductReview
-	SignedIn      bool
-	CanReview     bool
-	WouldVerify   bool
-	ReviewErrors  map[string]string
-	ReviewDraft   ReviewDraft
-	NotifyOutcome string
-	Comparing     []string
-	Questions     []Question
-	AskOutcome    string
+	Rating         float64
+	RatingCount    int64
+	RatingBars     []RatingBar
+	Reviews        []ProductReview
+	SignedIn       bool
+	ReviewStanding ReviewStanding
+	ReviewPosted   bool
+	ReviewErrors   map[string]string
+	ReviewDraft    ReviewDraft
+	NotifyOutcome  NotifyOutcome
+	// NotifyEmail is the address a refused restock request was posted with.
+	NotifyEmail  string
+	AccountEmail string
+	Comparing    []string
+	// Comparable is whether the product's department offers comparison; where
+	// it does not, the page shows no compare control.
+	Comparable bool
+	Questions  []Question
+	AskOutcome string
 	// AskDraft is a refused question, replayed into the textarea so a 422
 	// does not empty what the customer already typed.
 	AskDraft string
@@ -352,6 +390,10 @@ type ReviewDraft struct {
 // IsRating reports whether n is the chosen star count, for the radio group.
 func (d ReviewDraft) IsRating(n int) bool { return d.Rating == n }
 
+// ReviewBodyMaxRunes is the longest review the form lets through;
+// product.MaxReviewBodyRunes is the same number.
+const ReviewBodyMaxRunes = 2000
+
 // ReviewBodyMinRunes is the shortest review the form lets through before the
 // server would refuse it; product.MinReviewBodyRunes is the same number.
 const ReviewBodyMinRunes = 5
@@ -360,25 +402,82 @@ const ReviewBodyMinRunes = 5
 // page's address, so a refused review opens at the form, error in view.
 func (v *ProductView) ReviewAction() string { return "/p/" + v.Slug + "/reviews#write-review" }
 
+// ReviewBodyHint states the length bounds the form and the server share.
+func (v *ProductView) ReviewBodyHint(ctx context.Context) string {
+	return fmt.Sprintf(i18n.T(ctx, i18n.KeyReviewBodyHint), ReviewBodyMinRunes, ReviewBodyMaxRunes)
+}
+
+// reviewBodyAttrs sets aria-describedby only while the field is valid; the
+// Textarea sets it itself when the field is refused.
+func (v *ProductView) reviewBodyAttrs() templ.Attributes {
+	attrs := templ.Attributes{
+		"rows": "5", "required": true,
+		"minlength": strconv.Itoa(ReviewBodyMinRunes), "maxlength": strconv.Itoa(ReviewBodyMaxRunes),
+	}
+	if !v.HasReviewErr("body") {
+		attrs["aria-describedby"] = "review-body-hint"
+	}
+	return attrs
+}
+
 // HasReviewErr reports whether a review field was refused.
 func (v *ProductView) HasReviewErr(f string) bool { _, ok := v.ReviewErrors[f]; return ok }
 
 // ReviewErr is why a review field was refused.
 func (v *ProductView) ReviewErr(f string) string { return v.ReviewErrors[f] }
 
-func starsOf(n int) string {
-	n = max(0, min(n, 5))
-	return strings.Repeat("★", n) + strings.Repeat("☆", 5-n)
-}
+// NotifyOutcome is what a restock request came to, carried in ?notify=.
+type NotifyOutcome string
+
+const (
+	NotifyRecorded           NotifyOutcome = "1"
+	NotifyRecordedForAccount NotifyOutcome = "account"
+	NotifyBadAddress         NotifyOutcome = "bad"
+	NotifyVariantUnavailable NotifyOutcome = "unavailable"
+)
 
 // NotifyTaken reports whether a restock request was just recorded.
-func (v *ProductView) NotifyTaken() bool { return v.NotifyOutcome == "1" }
+func (v *ProductView) NotifyTaken() bool {
+	return v.NotifyOutcome == NotifyRecorded || v.NotifyOutcome == NotifyRecordedForAccount
+}
+
+func (v *ProductView) NotifyConfirmation(ctx context.Context) string {
+	if v.NotifyOutcome == NotifyRecordedForAccount && v.AccountEmail != "" {
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyRestockDoneTo), v.AccountEmail)
+	}
+	return i18n.T(ctx, i18n.KeyRestockDone)
+}
+
+func (v *ProductView) NotifyEmailValue() string {
+	if v.NotifyEmail != "" {
+		return v.NotifyEmail
+	}
+	return v.AccountEmail
+}
 
 // NotifyRefused reports whether the address was not usable.
-func (v *ProductView) NotifyRefused() bool { return v.NotifyOutcome == "bad" }
+func (v *ProductView) NotifyRefused() bool { return v.NotifyOutcome == NotifyBadAddress }
 
-// NotifyAction is where the restock form posts.
-func (v *ProductView) NotifyAction() string { return "/p/" + v.Slug + "/notify" }
+// NotifyUnavailable reports a request for a variant that no longer needs one.
+func (v *ProductView) NotifyUnavailable() bool { return v.NotifyOutcome == NotifyVariantUnavailable }
+
+// NotifyAction is where the restock form posts. It carries the chosen options,
+// because the redirect that follows must land on the same selection or the
+// answer is not on the page it returns to.
+func (v *ProductView) NotifyAction() string {
+	q := url.Values{}
+	for i := range v.Options {
+		for _, val := range v.Options[i].Values {
+			if val.Selected {
+				q.Set(v.Options[i].Name, val.Value)
+			}
+		}
+	}
+	if len(q) == 0 {
+		return "/p/" + v.Slug + "/notify"
+	}
+	return "/p/" + v.Slug + "/notify?" + q.Encode()
+}
 
 // HasRecommendations reports whether the strip has anything real to show.
 func (v *ProductView) HasRecommendations() bool { return len(v.AlsoBought) > 0 }

@@ -14,6 +14,12 @@ var (
 		En:     "Some fields need fixing — see the notes below.",
 	})
 
+	// %s is the reason the code was refused.
+	KeyCheckoutCouponRefused = key("checkout.errors.coupon", Message{
+		ZhHant: "折扣碼無法套用:%s",
+		En:     "The discount code was not applied: %s",
+	})
+
 	KeySectionShipping = key("checkout.section.shipping", Message{ZhHant: "配送方式", En: "Delivery method"})
 
 	KeySectionRecipient = key("checkout.section.recipient", Message{ZhHant: "收件資訊", En: "Delivery details"})
@@ -65,6 +71,21 @@ var (
 	KeyPickupReturning = key("pickup.returning", Message{
 		ZhHant: "正在返回結帳…",
 		En:     "Returning to the checkout…",
+	})
+
+	KeyPickupOpening = key("pickup.opening", Message{
+		ZhHant: "正在開啟門市地圖…",
+		En:     "Opening the store map…",
+	})
+
+	KeyPickupOpenMap = key("pickup.open.map", Message{
+		ZhHant: "前往選擇門市",
+		En:     "Go to the store map",
+	})
+
+	KeyPickupBackToCheckout = key("pickup.back.checkout", Message{
+		ZhHant: "回到結帳",
+		En:     "Back to the checkout",
 	})
 
 	KeyPickupReturnLink = key("pickup.return.link", Message{
@@ -167,6 +188,17 @@ var (
 		En:     "We could not work out the delivery charge. Please try again.",
 	})
 
+	// The checkbox above the recipient fields for a signed-in customer: ticking it
+	// puts the account's name and phone in them.
+	KeyRecipientIsMe = key("checkout.recipient.me", Message{ZhHant: "收件人同會員資料", En: "Recipient is me"})
+
+	// The label of the saved-address select.
+	KeyChooseSavedAddress = key("checkout.address.choose", Message{ZhHant: "選擇常用地址", En: "Choose a saved address"})
+
+	// The select's last option: none of the saved addresses, so the fields are
+	// the shopper's to type.
+	KeyOtherAddress = key("checkout.address.other", Message{ZhHant: "其他地址", En: "Another address"})
+
 	// The button beside each checkout chooser. It is formnovalidate: the customer
 	// is mid-form, so fields they have not reached yet are still empty.
 	KeyApplyChoice = key("checkout.apply", Message{
@@ -223,7 +255,7 @@ var (
 		En:     "Enter a postcode",
 	})
 
-	KeyCityRequired = key("valid.city.required", Message{ZhHant: "請選擇縣市", En: "Choose a city or county"})
+	KeyCityRequired = key("valid.city.required", Message{ZhHant: "請填寫縣市", En: "Enter a city or county"})
 
 	KeyDistrictRequired = key("valid.district.required", Message{ZhHant: "請填寫鄉鎮市區", En: "Enter a district"})
 

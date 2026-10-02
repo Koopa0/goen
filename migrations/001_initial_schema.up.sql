@@ -107,6 +107,10 @@ CREATE TABLE categories (
     -- nearest ancestor that sets one, and a root with NULL is 'stone'; the set
     -- is mirrored by pages.Tone.
     tone       text,
+    -- Whether the shop offers to compare products here. NULL inherits from the
+    -- nearest ancestor that sets one, and a root with NULL is false: a
+    -- comparison only means something where products share the same specs.
+    comparable boolean,
     -- The department's photograph, a key of the kind product_images.storage_key
     -- holds, so one resolver serves an uploaded digest and an embedded file.
     image_key    text,
@@ -1278,10 +1282,28 @@ CREATE TABLE carts (
     user_id    uuid REFERENCES users (id) ON DELETE CASCADE,
     token_hash bytea NOT NULL,
     created_at timestamptz NOT NULL DEFAULT now(),
-    updated_at timestamptz NOT NULL DEFAULT now()
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    -- What a shopper had typed into the checkout when they left it for the
+    -- carrier's store map: name, phone, address, email, note and the invoice
+    -- fields. PERSONAL DATA, kept only so the form can be filled in again on the
+    -- way back. It lives on the cart so it ends with the cart (a deleted
+    -- account deletes the cart), is read only inside a short window, is
+    -- swept after it, and is cleared when an order is placed. `reporting` has
+    -- no SELECT on carts at all, and `admin` cannot write it.
+    checkout_draft    jsonb,
+    checkout_draft_at timestamptz,
+    CONSTRAINT carts_checkout_draft_paired
+        CHECK ((checkout_draft IS NULL) = (checkout_draft_at IS NULL)),
+    CONSTRAINT carts_checkout_draft_bounded
+        CHECK (checkout_draft IS NULL OR (jsonb_typeof(checkout_draft) = 'object'
+                                          AND octet_length(checkout_draft::text) <= 8192))
 );
 
 CREATE UNIQUE INDEX carts_token_hash_key ON carts (token_hash);
+-- ClearStaleCheckoutDrafts filters on both columns, so it reads only the carts
+-- that hold a draft.
+CREATE INDEX carts_checkout_draft_at_idx ON carts (checkout_draft_at)
+    WHERE checkout_draft IS NOT NULL;
 -- One cart per account, or a merge that runs twice leaves two. Partial, but a
 -- lookup by user_id is always `WHERE user_id = $1`, so it serves the foreign key
 -- as well.
@@ -2238,7 +2260,13 @@ CREATE TABLE order_shipments (
     shipped_at            timestamptz NOT NULL DEFAULT now(),
     delivered_at          timestamptz,
     estimated_delivery_on date,
-    CONSTRAINT order_shipments_carrier_present CHECK (carrier ~ '[^[:space:]]'),
+    -- A closed set: (carrier, tracking_number) is the dedupe key, and one parcel
+    -- typed under two spellings of a carrier would be recorded twice. These are
+    -- the codes of internal/carrier, not display names.
+    CONSTRAINT order_shipments_carrier_known CHECK (carrier IN (
+        'black_cat', 'hct', 'chunghwa_post', 'kerry_tj',
+        'seven_eleven', 'family_mart', 'hi_life', 'ok_mart'
+    )),
     CONSTRAINT order_shipments_tracking_present CHECK (tracking_number ~ '[^[:space:]]'),
     CONSTRAINT order_shipments_delivered_after_shipped
         CHECK (delivered_at IS NULL OR delivered_at >= shipped_at)
@@ -5872,7 +5900,7 @@ BEGIN
 
     SELECT jsonb_build_object(
         'invoice_number', v_original.number,
-        'invoice_date', to_char(v_original.issued_at AT TIME ZONE 'UTC', 'YYYY-MM-DD'),
+        'invoice_date', to_char(shop_day(v_original.issued_at), 'YYYY-MM-DD'),
         'customer_name', ip.customer_name,
         'email', ip.customer_email,
         'amount_cents', v_amount,
@@ -5966,7 +5994,7 @@ BEGIN
          jsonb_build_object(
              'invoice_number', v_document.number,
              'relate_number', v_relate_number,
-             'invoice_date', to_char(v_document.issued_at AT TIME ZONE 'UTC', 'YYYY-MM-DD'),
+             'invoice_date', to_char(shop_day(v_document.issued_at), 'YYYY-MM-DD'),
              'random_number', coalesce(v_document.provider_ref, ''),
              'reason', left(btrim(p_reason), 20),
              'amount_cents', v_document.amount_cents,
@@ -8378,6 +8406,12 @@ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 DECLARE
     written integer;
 BEGIN
+    -- Two processes overlapping across a restart would each rebuild. The second
+    -- returns -1 at once and does no work; the lock ends with the transaction.
+    IF NOT pg_try_advisory_xact_lock(hashtextextended('refresh_copurchases', 0)) THEN
+        RETURN -1;
+    END IF;
+
     DELETE FROM product_copurchases;
 
     INSERT INTO product_copurchases (product_id, other_product_id, orders)
@@ -8400,8 +8434,9 @@ END;
 $$;
 
 COMMENT ON FUNCTION refresh_copurchases IS
-    'Rebuilds product_copurchases from every committed order. Owned by the '
-    'refresh worker in main; never called from a request.';
+    'Rebuilds product_copurchases from every committed order, or returns -1 at '
+    'once when another call holds the rebuild. Owned by the refresh worker in '
+    'main; never called from a request.';
 
 -- The role a BACKGROUND JOB runs as. A separate POOL and not SET ROLE on a
 -- borrowed connection, and it exists because granting refresh_copurchases to
@@ -9185,6 +9220,27 @@ REVOKE INSERT, UPDATE, DELETE ON contact_messages FROM admin;
 GRANT UPDATE (handled_at)
     ON contact_messages TO admin;
 
+-- The last day of the seven-day right of rescission (消保法 §19) for one
+-- parcel: the shop's day it was delivered, plus seven. The one place the
+-- seven is written; the customer's order page, the delivery mail and
+-- return_line_policy_window all read it, so none can drift from the others.
+CREATE FUNCTION return_window_ends(delivered_at timestamptz)
+RETURNS date
+LANGUAGE sql
+IMMUTABLE
+AS $$
+    SELECT shop_day(delivered_at) + 7;
+$$;
+
+COMMENT ON FUNCTION return_window_ends(timestamptz) IS
+    'Last statutory day to return a parcel delivered at this moment, counted '
+    'in the shop''s day. NULL until the parcel is delivered.';
+
+-- Granted wherever return_line_policy_window is, because that function calls
+-- it with the caller's privileges. store reads it to tell the customer the day.
+GRANT EXECUTE ON FUNCTION return_window_ends(timestamptz)
+    TO store, admin, reporting;
+
 -- Pre-decision eligibility, separate from receive/restock. Unknown is the
 -- default and is not "does not meet": an unobserved parcel cannot satisfy the
 -- advertised unused-and-complete offer.
@@ -9195,7 +9251,7 @@ STABLE
 AS $$
     SELECT CASE
         WHEN delivered_at IS NULL THEN 'undelivered'
-        WHEN shop_day(requested_at) <= shop_day(delivered_at) + 7 THEN 'within'
+        WHEN shop_day(requested_at) <= return_window_ends(delivered_at) THEN 'within'
         WHEN shop_day(requested_at) <= shop_day(delivered_at) + 14 THEN 'goodwill'
         ELSE 'after'
     END;

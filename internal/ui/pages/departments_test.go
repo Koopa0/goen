@@ -169,3 +169,37 @@ func TestATileSaysSaleByItsPriceAndNotByAChip(t *testing.T) {
 		t.Error("a sold-out tile lost its chip")
 	}
 }
+
+// Autoplay needs two or more slides, and the pause control that WCAG 2.2.2
+// asks for travels with it: hidden until goen.js starts the carousel, labelled
+// for both states in the reader's language.
+func TestHeroCarouselOffersAPauseControlOnlyWhenItMoves(t *testing.T) {
+	t.Parallel()
+	one := []HeroSlide{{Layout: SlideSplit, Tone: ToneMist, Title: "Tech"}}
+	two := []HeroSlide{one[0], {Layout: SlideSplit, Tone: ToneSage, Title: "Food"}}
+
+	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+		ctx := i18n.WithLocale(t.Context(), locale)
+
+		moving := renderComponent(t, ctx, Home(HomeMeta(ctx), HomeView{Slides: two}))
+		for _, want := range []string{
+			`data-autoplay`,
+			`class="goen-hero__pause" type="button" hidden`,
+			`data-label-pause="` + i18n.T(ctx, i18n.KeyHeroPause) + `"`,
+			`data-label-play="` + i18n.T(ctx, i18n.KeyHeroPlay) + `"`,
+		} {
+			if !strings.Contains(moving, want) {
+				t.Errorf("%s carousel of two omits %s", locale, want)
+			}
+		}
+
+		still := renderComponent(t, ctx, Home(HomeMeta(ctx), HomeView{Slides: one}))
+		if strings.Contains(still, "data-autoplay") || strings.Contains(still, "goen-hero__pause") {
+			t.Errorf("%s carousel of one offers autoplay or a pause control", locale)
+		}
+	}
+	if i18n.T(i18n.WithLocale(t.Context(), i18n.ZhHant), i18n.KeyHeroPause) ==
+		i18n.T(i18n.WithLocale(t.Context(), i18n.ZhHant), i18n.KeyHeroPlay) {
+		t.Error("the pause and play labels read the same")
+	}
+}

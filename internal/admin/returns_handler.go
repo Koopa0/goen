@@ -12,7 +12,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -28,12 +28,12 @@ func (h *Handler) Returns(w http.ResponseWriter, r *http.Request) {
 		h.log.ErrorContext(r.Context(), "return payout no longer fits its sources",
 			"return_id", issue.returnID, "error", issue.err)
 	}
-	view := pages.AdminReturnsView{
+	view := admin.ReturnsView{
 		ListBound: queue.Bound,
 		Rows:      queue.Rows,
 		Notice:    noticeFor(r),
 	}
-	web.Render(w, r, h.log, http.StatusOK, pages.AdminReturns(
+	web.Render(w, r, h.log, http.StatusOK, admin.Returns(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageReturns)}, view))
 }
 
@@ -180,7 +180,7 @@ func (h *Handler) renderReturnRefusal(w http.ResponseWriter, r *http.Request, er
 	if field == "basis" {
 		msg = i18n.T(r.Context(), i18n.KeyAdminRetErrBasis)
 	}
-	view := pages.AdminReturnsView{
+	view := admin.ReturnsView{
 		ListBound: queue.Bound,
 		Rows:      queue.Rows,
 		Errors:    map[string]string{r.PathValue("id") + "." + field: msg},
@@ -197,7 +197,7 @@ func (h *Handler) renderReturnRefusal(w http.ResponseWriter, r *http.Request, er
 		}
 		overlayDraftFacts(&view.Rows[i], r)
 	}
-	web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.AdminReturns(
+	web.Render(w, r, h.log, http.StatusUnprocessableEntity, admin.Returns(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageReturns)}, view))
 	return true
 }
@@ -212,7 +212,7 @@ func (h *Handler) renderInspection(w http.ResponseWriter, r *http.Request, key i
 		return
 	}
 	id := r.PathValue("id")
-	view := pages.AdminReturnsView{
+	view := admin.ReturnsView{
 		ListBound: queue.Bound,
 		Rows:      queue.Rows,
 		Errors:    map[string]string{id + ".inspect": i18n.T(r.Context(), key)},
@@ -228,11 +228,11 @@ func (h *Handler) renderInspection(w http.ResponseWriter, r *http.Request, key i
 			line.DraftNote = r.PostFormValue("note_" + line.OrderLineID)
 		}
 	}
-	web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.AdminReturns(
+	web.Render(w, r, h.log, http.StatusUnprocessableEntity, admin.Returns(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageReturns)}, view))
 }
 
-func overlayDraftFacts(row *pages.AdminReturn, r *http.Request) {
+func overlayDraftFacts(row *admin.Return, r *http.Request) {
 	for i := range row.Lines {
 		id := row.Lines[i].OrderLineID
 		if v := strings.TrimSpace(r.PostFormValue("unused_" + id)); v != "" {
@@ -382,7 +382,7 @@ func (h *Handler) confirmReturnDecision(w http.ResponseWriter, r *http.Request) 
 		}
 		return true
 	}
-	view := pages.AdminReturnConfirmation{ID: row.ID.String(), OrderNumber: row.OrderNumber, Decision: string(kind), Reason: row.Reason, AmountCents: row.RefundableCents, Resolution: resolution, AssessmentVersion: r.PostFormValue("assessment_version"), Required: required, Retry: retry}
-	web.Render(w, r, h.log, http.StatusOK, pages.ConfirmReturn(layouts.Page{Title: view.Title(r.Context())}, view))
+	view := admin.ReturnConfirmation{ID: row.ID.String(), OrderNumber: row.OrderNumber, Decision: string(kind), Reason: row.Reason, AmountCents: row.RefundableCents, Resolution: resolution, AssessmentVersion: r.PostFormValue("assessment_version"), Required: required, Retry: retry}
+	web.Render(w, r, h.log, http.StatusOK, admin.ConfirmReturn(layouts.Page{Title: view.Title(r.Context())}, view))
 	return true
 }

@@ -7,18 +7,16 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-// TestTheInvoicingNoteNamesEverySettingGoenNeeds: setting the merchant id alone
-// makes goen refuse to start, so a note that names only it sends the operator
-// into that failure.
-func TestTheInvoicingNoteNamesEverySettingGoenNeeds(t *testing.T) {
+// TestTheInvoicingNoteNamesNoSetting: the note is read by shop staff, who cannot
+// change the server's environment, so an environment variable name in it is
+// a puzzle with no one to ask. The settings are named where an operator reads:
+// the deployment notes.
+func TestTheInvoicingNoteNamesNoSetting(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), locale)
-		note := i18n.T(ctx, i18n.KeyAdminQueueNoInvoicing)
-		for _, name := range []string{"GOEN_ECPAY_MERCHANT_ID", "GOEN_ECPAY_HASH_KEY", "GOEN_ECPAY_HASH_IV"} {
-			if !strings.Contains(note, name) {
-				t.Errorf("%s note does not name %s: %q", locale, name, note)
-			}
+		if note := i18n.T(ctx, i18n.KeyAdminQueueNoInvoicing); strings.Contains(note, "GOEN_") {
+			t.Errorf("%s note shows staff an environment variable: %q", locale, note)
 		}
 	}
 }

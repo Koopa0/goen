@@ -27,7 +27,12 @@ func TestEveryAdminNavGroupOpensOnItsOwnScreens(t *testing.T) {
 	}
 
 	for _, g := range groups {
-		declared := slices.Clone(g.declared)
+		// A standalone screen may open a group it is not in: the dashboard opens
+		// the queues group, because that is where a shift starts. Everything else
+		// a group declares still has to be one of its own links.
+		declared := slices.DeleteFunc(slices.Clone(g.declared), func(screen string) bool {
+			return slices.Contains(standalone, screen)
+		})
 		linked := slices.Clone(g.linked)
 		slices.Sort(declared)
 		slices.Sort(linked)
@@ -141,25 +146,26 @@ func adminNavSource(t *testing.T) (groups []adminNavGroup, standalone []string) 
 func adminNavCallers(t *testing.T) []string {
 	t.Helper()
 
-	const pages = "../pages"
-	files, err := os.ReadDir(pages)
-	if err != nil {
-		t.Fatalf("list the pages package: %v", err)
-	}
 	call := regexp.MustCompile(`layouts\.Admin\(p, "([a-z]+)"\)`)
 
 	var out []string
-	for _, f := range files {
-		if f.IsDir() || !strings.HasSuffix(f.Name(), ".templ") {
-			continue
+	for _, dir := range []string{"../pages", "../pages/admin"} {
+		files, err := os.ReadDir(dir)
+		if err != nil {
+			t.Fatalf("list %s: %v", dir, err)
 		}
-		body, readErr := os.ReadFile(filepath.Join(pages, f.Name()))
-		if readErr != nil {
-			t.Fatalf("read %s: %v", f.Name(), readErr)
-		}
-		for _, m := range call.FindAllStringSubmatch(string(body), -1) {
-			if !slices.Contains(out, m[1]) {
-				out = append(out, m[1])
+		for _, f := range files {
+			if f.IsDir() || !strings.HasSuffix(f.Name(), ".templ") {
+				continue
+			}
+			body, readErr := os.ReadFile(filepath.Join(dir, f.Name())) //nolint:gosec // G304: dir is one of the two pages directories above
+			if readErr != nil {
+				t.Fatalf("read %s: %v", f.Name(), readErr)
+			}
+			for _, m := range call.FindAllStringSubmatch(string(body), -1) {
+				if !slices.Contains(out, m[1]) {
+					out = append(out, m[1])
+				}
 			}
 		}
 	}

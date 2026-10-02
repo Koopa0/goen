@@ -487,7 +487,7 @@ func TestASecondPaymentAttemptReusesTheOpenSession(t *testing.T) {
 	s := payment.NewStore(pool)
 	number, id := order(t, 149900)
 
-	first, err := s.PaymentAttempt(ctx, number, 149900)
+	first, err := s.Attempt(ctx, number, 149900)
 	if err != nil {
 		t.Fatalf("first attempt: %v", err)
 	}
@@ -506,7 +506,7 @@ func TestASecondPaymentAttemptReusesTheOpenSession(t *testing.T) {
 		t.Fatalf("open: %v", openErr)
 	}
 
-	second, err := s.PaymentAttempt(ctx, number, 149900)
+	second, err := s.Attempt(ctx, number, 149900)
 	if err != nil {
 		t.Fatalf("second attempt: %v", err)
 	}
@@ -526,7 +526,7 @@ func TestASecondPaymentAttemptReusesTheOpenSession(t *testing.T) {
 	// What the order owes can move. The stale session must be returned AS A
 	// BLOCKER rather than hidden: until Stripe expires it, its URL can still take
 	// the customer's money.
-	stale, err := s.PaymentAttempt(ctx, number, 119900)
+	stale, err := s.Attempt(ctx, number, 119900)
 	if err != nil {
 		t.Fatalf("attempt at a new figure: %v", err)
 	}
@@ -545,7 +545,7 @@ func TestASecondPaymentAttemptReusesTheOpenSession(t *testing.T) {
 	if _, cancelErr := pool.Exec(ctx, `SELECT cancel_payment($1)`, session); cancelErr != nil {
 		t.Fatalf("cancel the session: %v", cancelErr)
 	}
-	dead, err := s.PaymentAttempt(ctx, number, 149900)
+	dead, err := s.Attempt(ctx, number, 149900)
 	if err != nil {
 		t.Fatalf("attempt after cancellation: %v", err)
 	}
@@ -4372,9 +4372,9 @@ func TestTheWebhookPersistsCapturesLocalInvariantsRefuse(t *testing.T) {
 				t.Errorf("refused capture log = %q, want an actionable ERROR", output)
 			}
 
-			attempt, err := s.PaymentAttempt(ctx, number, 130000)
+			attempt, err := s.Attempt(ctx, number, 130000)
 			if err != nil {
-				t.Fatalf("PaymentAttempt after refused capture: %v", err)
+				t.Fatalf("Attempt after refused capture: %v", err)
 			}
 			if !attempt.NeedsReconciliation {
 				t.Fatal("verified money awaiting reconciliation did not block another checkout")

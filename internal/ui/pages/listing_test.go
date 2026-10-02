@@ -2,7 +2,6 @@ package pages
 
 import (
 	"fmt"
-	"slices"
 	"strings"
 	"testing"
 
@@ -269,7 +268,7 @@ func TestAProductWithNoReviewsCanReceiveItsFirst(t *testing.T) {
 	fresh := ProductView{
 		Name: "Newly Listed", Brand: "Meridian", Slug: "newly-listed",
 		SelectionOK: true, Exact: true, Sellable: true, AnySellable: true,
-		PriceCents: 100000, SignedIn: true, CanReview: true, RatingCount: 0,
+		PriceCents: 100000, SignedIn: true, ReviewStanding: ReviewOpen, RatingCount: 0,
 	}
 	html := renderToString(t, Product(ProductMeta(&fresh), &fresh))
 
@@ -347,56 +346,6 @@ func TestQAAskSurface(t *testing.T) {
 	}
 	if strings.Contains(rejected, signInHint) {
 		t.Error("rejected Q&A tells a signed-in customer to sign in")
-	}
-}
-
-// TestARefundedOrderCanFileAnAllowance holds the 折讓 form's door. Without it a
-// customer is refunded while the 統一發票 still records the whole sale.
-func TestARefundedOrderCanFileAnAllowance(t *testing.T) {
-	t.Parallel()
-
-	refunded := AdminOrderView{
-		Number: "GO-260721-000387", Status: "completed",
-		Committed: true, InvoicingEnabled: true, RefundedCents: 84900,
-		InvoiceDocuments: []AdminInvoiceDocument{
-			{Kind: "invoice", Number: "AA12345678", Status: "issued", AmountCents: 100000},
-		},
-	}
-	html := renderToString(t, AdminOrder(layouts.Page{Title: "x"}, &refunded))
-
-	if !strings.Contains(html, `action="/admin/orders/GO-260721-000387/invoice/allowance"`) {
-		t.Error("a refunded order offers no way to file a 折讓, so the tax document " +
-			"keeps recording a sale that partly did not happen")
-	}
-	// Displayed from what actually went back, but never posted: the database
-	// derives it again under lock, so neither an operator nor a forged form owns
-	// the tax amount.
-	if !strings.Contains(html, `NT$849`) {
-		t.Error("the allowance form does not show the authoritative refunded delta")
-	}
-	if strings.Contains(html, `name="amount"`) {
-		t.Error("the allowance form posts an operator-controlled money field")
-	}
-
-	// And it is not offered when nothing has been refunded — an allowance
-	// relieving nothing is refused downstream, and the form would be an
-	// invitation to invent a figure.
-	nothingBack := refunded
-	nothingBack.RefundedCents = 0
-	if strings.Contains(renderToString(t, AdminOrder(layouts.Page{Title: "x"}, &nothingBack)),
-		"/invoice/allowance") {
-		t.Error("an order with no refund is offered a 折讓 form")
-	}
-
-	partlyRelieved := refunded
-	partlyRelieved.InvoiceDocuments = append(
-		slices.Clone(refunded.InvoiceDocuments),
-		AdminInvoiceDocument{Kind: "allowance", Number: "2026080715227214",
-			Status: "issued", AmountCents: 30000},
-	)
-	partialHTML := renderToString(t, AdminOrder(layouts.Page{Title: "x"}, &partlyRelieved))
-	if !strings.Contains(partialHTML, `NT$549`) {
-		t.Error("the allowance form did not subtract the credit note already filed")
 	}
 }
 
@@ -559,5 +508,137 @@ func TestAnEmptySearchSuggestsTheDepartments(t *testing.T) {
 		if !strings.Contains(html, want) {
 			t.Errorf("the empty search lacks %q:\n%s", want, html)
 		}
+	}
+}
+
+// A changed filter fetches the page the button would have navigated to, and the
+// button stays in the markup for a browser without script.
+func TestFiltersApplyThemselvesAndKeepTheirButton(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	view := ListingView{Slug: "audio", Name: "Audio", Products: shelf(2), Total: 2, Filtered: true, InStockOnly: true}
+	html := renderToString(t, Listing(ListingMeta(ctx, view), view))
+
+	for _, want := range []string{
+		`hx-get="/c/audio"`, `hx-trigger="change delay:300ms"`, `hx-push-url="true"`,
+		`hx-target="#listing-results"`, `hx-select-oob="#filters-applied, #listing-status:innerHTML"`,
+		`id="listing-status" class="goen-sr-only" role="status" aria-live="polite"`,
+		`class="goen-btn goen-btn--primary goen-btn--block goen-filters__apply"`,
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("filters lack %q", want)
+		}
+	}
+	if !strings.Contains(html, `<div id="filters-applied">`) {
+		t.Error("the active-filter chips have no stable region to be swapped into")
+	}
+	unfiltered := renderToString(t, Listing(ListingMeta(ctx, ListingView{Slug: "audio", Name: "Audio"}), ListingView{Slug: "audio", Name: "Audio"}))
+	if !strings.Contains(unfiltered, `<div id="filters-applied">`) {
+		t.Error("an unfiltered page has no chips region, so removing the last filter could not clear it")
+	}
+}
+
+// htmx focuses any [autofocus] in swapped content, so a partial render that
+// carried it would pull focus off the control the shopper just changed. The
+// latest change wins, and a failed update has a place to say so.
+func TestAPartialListingNeverTakesFocusAndTheLatestChangeWins(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	view := ListingView{Slug: "audio", Name: "Audio", Products: shelf(2), Total: 2, Filtered: true, InStockOnly: true}
+
+	whole := renderComponent(t, ctx, Listing(layouts.Page{}, view))
+	if !strings.Contains(whole, `id="listing-results" tabindex="-1" autofocus`) {
+		t.Error("a whole filtered page no longer focuses its results")
+	}
+	partial := renderComponent(t, AsPartial(ctx), Listing(layouts.Page{}, view))
+	if strings.Contains(partial, "autofocus") {
+		t.Errorf("a partial render carries autofocus:\n%s", partial)
+	}
+	for _, want := range []string{`hx-sync="this:replace"`, `hx-status:5xx="swap:none"`, `class="goen-filters__error" role="alert" hidden`, `<div id="filters-applied"></div>`} {
+		if !strings.Contains(whole, want) && !strings.Contains(renderToString(t, Listing(layouts.Page{}, ListingView{Slug: "a", Name: "A"})), want) {
+			t.Errorf("missing %q", want)
+		}
+	}
+}
+
+// A search offers the listing's sort control, best match first, and a page of
+// results keeps the chosen order in every pager link.
+func TestSearchOffersTheListingSortAndKeepsItAcrossPages(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	view := SearchView{Query: "pro", Products: shelf(2), Total: 60, Page: 1, PageSize: 24, Sort: "price_asc"}
+	html := renderComponent(t, ctx, Search(SearchMeta(ctx, "pro"), view))
+	for _, want := range []string{
+		`hx-get="/search"`, `hx-target="#search-results"`, `<input type="hidden" name="q" value="pro">`,
+		`<select class="ui-select" id="sort" name="sort">`,
+		`<option value="">Best match</option>`, `<option value="price_asc" selected>Price, low to high</option>`,
+		`href="/search?q=pro&amp;sort=price_asc&amp;page=2"`,
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("the search lacks %q:\n%s", want, html)
+		}
+	}
+}
+
+// A search that found nothing offers the newest products besides the departments.
+func TestAnEmptySearchOffersTheNewestProducts(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	newest := shelf(2)
+	html := renderComponent(t, ctx, Search(SearchMeta(ctx, "zzqxv"), SearchView{Query: "zzqxv", Newest: newest}))
+	if !strings.Contains(html, `<h2 class="goen-listing__subhead">Newest products</h2>`) || !strings.Contains(html, newest[0].Name) {
+		t.Errorf("the empty search does not show the newest products:\n%s", html)
+	}
+	if strings.Contains(html, `name="sort"`) {
+		t.Error("an empty search offers a sort control with nothing to sort")
+	}
+}
+
+// Each applied filter links to the listing without that one filter and nothing
+// else, and names what it removes, because its glyph is only a cross.
+func TestEachAppliedFilterLinksToTheListingWithoutIt(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	view := ListingView{
+		Slug: "audio", Name: "Audio", Filtered: true, InStockOnly: true, MinPrice: 1000, MaxPrice: 5000,
+		Query: "brand=aurora&brand=nimbus&in_stock=1&max_price=50&min_price=10&sort=rating",
+		Brands: []FacetOption{
+			{Value: "aurora", Label: "Aurora", Selected: true},
+			{Value: "nimbus", Label: "Nimbus", Selected: true},
+		},
+	}
+	want := map[string]string{
+		"Remove “Aurora”":   "/c/audio?brand=nimbus&in_stock=1&max_price=50&min_price=10&sort=rating",
+		"Remove “Nimbus”":   "/c/audio?brand=aurora&in_stock=1&max_price=50&min_price=10&sort=rating",
+		"Remove “In stock”": "/c/audio?brand=aurora&brand=nimbus&max_price=50&min_price=10&sort=rating",
+		"Remove “10–50”":    "/c/audio?brand=aurora&brand=nimbus&in_stock=1&sort=rating",
+	}
+	chips := view.AppliedChips(ctx)
+	if len(chips) != len(want) {
+		t.Fatalf("%d chips, want %d: %+v", len(chips), len(want), chips)
+	}
+	for _, c := range chips {
+		if want[c.RemoveLabel] != c.Remove {
+			t.Errorf("%q links to %q, want %q", c.RemoveLabel, c.Remove, want[c.RemoveLabel])
+		}
+	}
+	html := renderComponent(t, ctx, Listing(ListingMeta(ctx, view), view))
+	if !strings.Contains(html, `aria-label="Remove “Aurora”"`) {
+		t.Error("the chip's remove link has no accessible name in the markup")
+	}
+}
+
+// The rail is not swapped, so a swapped response carries each brand's count on
+// its own; a whole-page response must not, or ids would repeat.
+func TestAPartialListingCarriesTheBrandCountsForTheRail(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	view := ListingView{Slug: "audio", Name: "Audio", Products: shelf(1), Total: 1, Brands: []FacetOption{{Value: "aurora", Label: "Aurora", Count: 3}}}
+	oob := `<span class="goen-filters__count" id="brand-count-aurora" hx-swap-oob="true">3</span>`
+	if html := renderComponent(t, AsPartial(ctx), Listing(ListingMeta(ctx, view), view)); !strings.Contains(html, oob) {
+		t.Errorf("a partial listing lacks the out-of-band count:\n%s", html)
+	}
+	if html := renderComponent(t, ctx, Listing(ListingMeta(ctx, view), view)); strings.Contains(html, "hx-swap-oob") {
+		t.Error("a whole-page listing carries out-of-band counts")
 	}
 }

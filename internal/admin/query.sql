@@ -93,7 +93,10 @@ SELECT
  coalesce(ip.donation_code, '') AS invoice_donation_code,
     coalesce(ip.tax_id, '') AS invoice_tax_id,
     order_is_committed(o.id) AS committed,
-    order_amount_owed(o.id) AS owed_cents
+    order_amount_owed(o.id) AS owed_cents,
+    (SELECT sm.destination_kind FROM shipping_method_versions v
+     JOIN shipping_methods sm ON sm.id = v.method_id
+     WHERE v.id = o.shipping_version_id)::text AS destination_kind
 FROM orders o
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
 LEFT JOIN invoice_preferences ip ON ip.order_id = o.id
@@ -139,11 +142,21 @@ SELECT json_build_object('Number', (pv.stock_quantity - pv.safety_stock), 'Name'
     p.slug,
     p.name AS product_name,
     p.status AS product_status,
-    b.name AS brand
+    b.name AS brand,
+    ARRAY(SELECT localized_name(v.value, v.value_en, @locale::text)
+          FROM variant_option_values vov
+          JOIN product_options o ON o.id = vov.option_id
+          JOIN product_option_values v ON v.id = vov.option_value_id
+          WHERE vov.variant_id = pv.id
+          ORDER BY o.position, o.id)::text[] AS option_values
 FROM product_variants pv
 JOIN products p ON p.id = pv.product_id
 JOIN brands b ON b.id = p.brand_id
 WHERE (@low_only::boolean = false OR pv.stock_quantity <= pv.safety_stock)
+AND (@escaped_term::text = ''
+       OR pv.sku ILIKE '%' || @escaped_term::text || '%'
+       OR p.name ILIKE '%' || @escaped_term::text || '%'
+       OR p.name_en ILIKE '%' || @escaped_term::text || '%')
 AND (NOT @has_cursor::boolean OR ((pv.stock_quantity - pv.safety_stock) > @after_number::integer)
        OR ((pv.stock_quantity - pv.safety_stock) = @after_number::integer AND p.name > @after_name::text)
        OR ((pv.stock_quantity - pv.safety_stock) = @after_number::integer AND p.name = @after_name::text AND pv.position > @after_position::integer)
@@ -210,7 +223,25 @@ SELECT
     (SELECT count(*) FROM product_variants
      WHERE is_active AND stock_quantity <= safety_stock)::bigint AS low_stock,
     (SELECT count(*) FROM products WHERE status = 'active')::bigint AS active_products,
-    (SELECT count(*) FROM contact_messages WHERE handled_at IS NULL)::bigint AS open_messages;
+    (SELECT count(*) FROM contact_messages WHERE handled_at IS NULL)::bigint AS open_messages,
+    (SELECT count(*) FROM return_requests WHERE status = 'requested')::bigint AS pending_returns,
+    -- The queue's own predicate (UnansweredQuestions, Question.Waiting): visible,
+    -- and no visible answer from the shop. A customer's reply does not answer it.
+    (SELECT count(*) FROM product_questions q
+     WHERE q.hidden_at IS NULL
+       AND NOT EXISTS (SELECT 1 FROM product_answers a
+                       WHERE a.question_id = q.id AND a.is_staff AND a.hidden_at IS NULL)
+    )::bigint AS unanswered_questions;
+
+-- When the oldest open return request was filed, which is how long a person has
+-- been waiting for a decision. Two columns, not one nullable timestamp: min()
+-- over no rows is NULL and sqlc infers the column non-nullable, so pgx cannot
+-- scan it.
+-- name: OldestPendingReturn :one
+SELECT coalesce(min(created_at), now())::timestamptz AS filed_at,
+       (count(*) > 0) AS any_open
+FROM return_requests
+WHERE status = 'requested';
 
 -- name: CreateShipment :one
 INSERT INTO order_shipments (order_id, carrier, tracking_number, estimated_delivery_on)
@@ -284,6 +315,16 @@ ON CONFLICT (return_request_id) WHERE return_request_id IS NOT NULL DO NOTHING;
 
 -- name: OrderIDByNumber :one
 SELECT id, fulfillment_status FROM orders WHERE order_number = $1;
+
+-- Where an order's parcel is going: whether its shipping method delivers to a
+-- store, and the chain the customer picked, which a store order can lack.
+-- name: OrderDispatchDestination :one
+SELECT sm.destination_kind, coalesce(pd.pickup_brand, '')::text AS pickup_brand
+FROM orders o
+JOIN shipping_method_versions v ON v.id = o.shipping_version_id
+JOIN shipping_methods sm ON sm.id = v.method_id
+LEFT JOIN order_private_data pd ON pd.order_id = o.id
+WHERE o.id = $1;
 
 -- Oldest first: occurred_at then id, because two events recorded in the same
 -- statement share a timestamp and the uuidv7 key is the tie-break.
@@ -931,6 +972,36 @@ FROM sale_campaigns c
 LEFT JOIN media_objects m ON m.digest = c.image_key
 WHERE c.slug = @slug::text;
 
+-- name: AdminCampaign :one
+SELECT c.title, c.starts_at, c.ends_at, c.is_active,
+       (c.is_active AND c.starts_at <= now() AND c.ends_at > now())::boolean AS is_running
+FROM sale_campaigns c
+WHERE c.slug = @slug::text;
+
+-- Locked so a concurrent edit cannot leave the audit row with a stale Before.
+-- name: AdminCampaignWindowForUpdate :one
+SELECT starts_at, ends_at FROM sale_campaigns WHERE slug = @slug::text FOR UPDATE;
+
+-- name: SetCampaignWindow :execrows
+UPDATE sale_campaigns
+SET starts_at = @starts_at::timestamptz, ends_at = @ends_at::timestamptz
+WHERE slug = @slug::text;
+
+-- Archived products are left out: a campaign on one shows nothing.
+-- name: AdminCampaignProductSearch :many
+SELECT p.slug, localized_name(p.name, p.name_en, @locale::text) AS name
+FROM products p
+WHERE p.status <> 'archived'
+  AND (p.name ILIKE '%' || @escaped_term::text || '%'
+       OR p.name_en ILIKE '%' || @escaped_term::text || '%'
+       OR p.slug ILIKE '%' || @escaped_term::text || '%')
+  AND NOT EXISTS (SELECT 1
+                  FROM sale_campaign_products cp
+                  JOIN sale_campaigns c ON c.id = cp.campaign_id
+                  WHERE c.slug = @campaign::text AND cp.product_id = p.id)
+ORDER BY p.name, p.id
+LIMIT @row_limit::integer;
+
 -- name: SetCampaignTone :execrows
 UPDATE sale_campaigns SET tone = @tone::text WHERE slug = @slug::text;
 
@@ -1160,17 +1231,18 @@ WHERE b.slug = @slug::text
 
 -- name: ManagedCategories :many
 WITH RECURSIVE tree AS (
-    SELECT c.id, c.parent_id, c.slug, c.name, c.name_en, c.icon_key, c.tone, c.position,
+    SELECT c.id, c.parent_id, c.slug, c.name, c.name_en, c.icon_key, c.tone, c.comparable, c.position,
            0 AS depth, array[c.position, 0] AS path
     FROM categories c WHERE c.parent_id IS NULL
     UNION ALL
-    SELECT c.id, c.parent_id, c.slug, c.name, c.name_en, c.icon_key, c.tone, c.position,
+    SELECT c.id, c.parent_id, c.slug, c.name, c.name_en, c.icon_key, c.tone, c.comparable, c.position,
            t.depth + 1, t.path || array[c.position, 0]
     FROM categories c JOIN tree t ON t.id = c.parent_id
 )
 SELECT t.id, t.slug, t.name, coalesce(t.name_en, '') AS name_en,
        coalesce(t.icon_key, '') AS icon_key,
        coalesce(t.tone, '') AS tone,
+       coalesce(t.comparable, false)::boolean AS comparable,
        t.depth::integer AS depth,
        coalesce(p.name, '') AS parent_name,
        (SELECT count(*) FROM products x WHERE x.category_id = t.id)::bigint AS products,
@@ -1183,9 +1255,11 @@ ORDER BY t.path, t.name;
 -- for a slug that does not exist, creating a ROOT category and reporting
 -- success. No rows is how the caller learns the parent was not found.
 -- name: CreateCategory :execrows
-INSERT INTO categories (slug, name, name_en, icon_key, tone, parent_id, position)
+INSERT INTO categories (slug, name, name_en, icon_key, tone, comparable, parent_id, position)
 SELECT @slug::text, @name::text, nullif(@name_en::text, ''),
-       nullif(@icon_key::text, ''), nullif(@tone::text, ''), parent.id,
+       nullif(@icon_key::text, ''), nullif(@tone::text, ''),
+       -- Only a department answers: a sub-category keeps NULL and takes its department's.
+       CASE WHEN parent.id IS NULL THEN @comparable::boolean END, parent.id,
        coalesce((SELECT max(c.position) + 1 FROM categories c
                  WHERE c.parent_id IS NOT DISTINCT FROM parent.id), 0)
 FROM (
@@ -1200,7 +1274,8 @@ FROM (
 -- name: RenameCategory :execrows
 UPDATE categories SET name = @name::text, name_en = nullif(@name_en::text, ''),
                      icon_key = nullif(@icon_key::text, ''),
-                     tone = nullif(@tone::text, '')
+                     tone = nullif(@tone::text, ''),
+                     comparable = CASE WHEN parent_id IS NULL THEN @comparable::boolean END
 WHERE slug = @slug::text;
 
 -- name: SetCategoryImage :execrows

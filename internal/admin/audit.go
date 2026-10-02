@@ -11,7 +11,7 @@ import (
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/shoptime"
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -59,6 +59,7 @@ const (
 	actionCreateCampaign           Action = "campaign.create"
 	actionToggleCampaign           Action = "campaign.toggle"
 	actionSetCampaignTone          Action = "campaign.tone.set"
+	actionSetCampaignWindow        Action = "campaign.window.set"
 	actionSetCategoryImage         Action = "category.image.set"
 	actionClearCategoryImage       Action = "category.image.clear"
 	actionSetCampaignImage         Action = "campaign.image.set"
@@ -200,21 +201,21 @@ func encodeState(v any) ([]byte, error) {
 }
 
 // Audit reads the trail.
-func (s *Store) Audit(ctx context.Context, after ...string) (pages.AuditView, error) {
+func (s *Store) Audit(ctx context.Context, after ...string) (admin.AuditView, error) {
 	scope := "/admin/audit"
 	cursor := readPageCursor(scope, after)
 	rows, err := s.q.AuditEvents(ctx, db.AuditEventsParams{HasCursor: cursor.Valid, AfterAt: cursor.At, AfterID: cursor.ID, RowLimit: MaxAuditRows + 1})
 	if err != nil {
-		return pages.AuditView{}, fmt.Errorf("read audit events: %w", err)
+		return admin.AuditView{}, fmt.Errorf("read audit events: %w", err)
 	}
 	// The trail has its own size, and this is the list where silence costs
 	// most: a page that shows 200 of fifty thousand without saying so is a
 	// record somebody may take for the whole record.
 	rows, bound := pageBound(cursor, scope, rows, MaxAuditRows, func(r *db.AuditEventsRow) string { return r.PageCursor })
-	view := pages.AuditView{ListBound: bound}
+	view := admin.AuditView{ListBound: bound}
 	for i := range rows {
 		e := &rows[i]
-		view.Rows = append(view.Rows, pages.AuditEntry{
+		view.Rows = append(view.Rows, admin.AuditEntry{
 			Action: e.Action, Entity: e.EntityTable, Actor: e.Actor,
 			Subject: e.Subject, Href: auditHref(e.Subject, e.ProductSlug),
 			At:        shoptime.Second(e.OccurredAt),

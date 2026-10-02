@@ -2,7 +2,6 @@ package pages
 
 import (
 	"os"
-	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -30,7 +29,7 @@ var fieldProps = regexp.MustCompile(`(?s)components\.FieldProps\{(.*?)\n\s*\}\)`
 func TestEveryRefusedFieldStillNamesItsError(t *testing.T) {
 	t.Parallel()
 
-	files, err := filepath.Glob("*.templ")
+	files, err := pageTemplates()
 	if err != nil || len(files) == 0 {
 		t.Fatalf("no templates to read: %v", err)
 	}

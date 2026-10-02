@@ -8,6 +8,8 @@ import (
 
 	"github.com/a-h/templ"
 
+	"github.com/koopa0/goen/internal/carrier"
+	"github.com/koopa0/goen/internal/fieldrule"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/pickup"
@@ -167,14 +169,20 @@ type CheckoutView struct {
 	CreditChanged string
 	ZoneName      string
 	// Destination is decided by the server; no field carries it back.
-	Destination          string
-	Address              CheckoutAddress
-	Errors               map[string]string
-	Invoice              CheckoutInvoice
-	InvoiceChoices       []InvoiceChoice
-	PickupBrands         []PickupBrandChoice
-	SavedAddresses       []SavedAddress
-	ChosenAddress        string
+	Destination    string
+	Address        CheckoutAddress
+	Errors         map[string]string
+	Invoice        CheckoutInvoice
+	InvoiceChoices []InvoiceChoice
+	PickupBrands   []PickupBrandChoice
+	SavedAddresses []SavedAddress
+	ChosenAddress  string
+	Profile        CheckoutProfile
+	RecipientMe    bool
+	// What the recipient fields held just before the box was ticked, which
+	// unticking puts back.
+	RecipientPrevName    string
+	RecipientPrevPhone   string
 	CouponCode           string
 	CouponApplied        string
 	CouponDiscountCents  int64
@@ -184,9 +192,10 @@ type CheckoutView struct {
 	// The cart package creates it; the page only carries it back unchanged.
 	QuoteID        string
 	IdempotencyKey string
-	// Map is the carrier's hosted store picker, or the zero value where no
-	// carrier is configured and the form asks for a chain alone.
-	Map CheckoutMapForm
+	// MapOffered is whether the carrier's store picker can be opened for the
+	// chain chosen: a carrier is configured and the chain is one it serves. The
+	// picker's own form is built only where it is opened, by PickupStart.
+	MapOffered bool
 	// PickupNonce is the browser-bound secret that decides whether the store
 	// above was honoured. It travels to the carrier in ExtraData and back in
 	// the URL, and it is checked against a cookie this browser alone holds.
@@ -200,17 +209,27 @@ type CheckoutView struct {
 	PickupRefused bool
 }
 
-// mapFormID names the sibling form the pickup section's button submits. It is
-// a constant because the button and the form must agree: a typo on either side
-// leaves a control that submits the checkout form to goen instead.
-const mapFormID = "pickup-map-form"
+// PickupStartAction is where 「選擇門市」 submits the checkout form. It is goen's
+// own route, so what the shopper typed reaches goen and only goen; the carrier's
+// map form is built on the page that route answers.
+const PickupStartAction = "/checkout/pickup/start"
 
-// checkoutStoreButtonAttrs is what the store button carries: the sibling form
-// it submits, and the refusal state of the store itself. The button is the
-// control a store refusal belongs to, because a store is chosen through the
+// PickupMapPath is the page the start route hands the browser to with a 303: a
+// GET that holds the carrier's form, so Back from the map lands on a page and
+// not on a POST.
+const PickupMapPath = "/checkout/pickup/map"
+
+// checkoutStoreButtonAttrs is what the store button carries: the route it
+// submits the checkout form to, and the refusal state of the store itself.
+// formnovalidate, because a shopper who has not typed an email yet must still be
+// able to go and choose a store; nothing is placed by this submit. The button is
+// the control a store refusal belongs to, because a store is chosen through the
 // picker this opens rather than typed into a field.
 func checkoutStoreButtonAttrs(invalid string, refused bool) templ.Attributes {
-	attrs := templ.Attributes{"form": mapFormID, "aria-invalid": invalid}
+	attrs := templ.Attributes{
+		"formaction": PickupStartAction, "formmethod": "post", "formnovalidate": true,
+		"aria-invalid": invalid,
+	}
 	if refused {
 		attrs["aria-describedby"] = "pickup_store-error"
 	}
@@ -236,12 +255,9 @@ type CheckoutMapForm struct {
 	Device string
 }
 
-// Offered reports whether there is a picker to send the shopper to.
-func (f CheckoutMapForm) Offered() bool { return f.Action != "" }
-
 // OffersTheStoreMap reports whether this render shows the picker's button.
 func (v *CheckoutView) OffersTheStoreMap() bool {
-	return v.ToPickupPoint() && v.Map.Offered()
+	return v.ToPickupPoint() && v.MapOffered
 }
 
 // HasPickupStore reports whether a store has been chosen and honoured. Both
@@ -260,6 +276,20 @@ type checkoutFieldHint struct {
 	SpellCheck        string
 	Pattern           string
 	ConstraintMessage i18n.Key
+	// Rule is the shared client-side contract of a field the server validates
+	// beyond its length; it supplies the pattern, message and script hooks.
+	Rule *fieldrule.Rule
+}
+
+// Constrained reports whether the control carries a message the browser may show.
+func (h checkoutFieldHint) Constrained() bool { return h.Pattern != "" || h.Rule != nil }
+
+// ConstraintText is that message.
+func (h checkoutFieldHint) ConstraintText(ctx context.Context) string {
+	if h.Rule != nil {
+		return i18n.T(ctx, h.Rule.Message)
+	}
+	return i18n.T(ctx, h.ConstraintMessage)
 }
 
 // checkoutFieldHints is keyed by the field's own form name. Every
@@ -271,10 +301,10 @@ type checkoutFieldHint struct {
 // surrounding space is not an error, and its bounds (maxPostalCodeRunes,
 // maxCityRunes) are the ones repeated here.
 var checkoutFieldHints = map[string]checkoutFieldHint{
-	"email":       {Autocomplete: "email"},
+	"email":       {Autocomplete: "email", Rule: &fieldrule.Email},
 	"name":        {Autocomplete: "name"},
-	"phone":       {Autocomplete: "tel"},
-	"postal_code": {Autocomplete: "postal-code", InputMode: "numeric", Pattern: `\s*[0-9]{3,6}\s*`, ConstraintMessage: i18n.KeyPostalCodeMalformed},
+	"phone":       {Autocomplete: "tel", Rule: &fieldrule.Phone},
+	"postal_code": {Autocomplete: "postal-code", Rule: &fieldrule.PostalCode},
 	"city":        {Autocomplete: "address-level1", Pattern: `\s*\S(?:.{0,18}\S)?\s*`, ConstraintMessage: i18n.KeyCheckoutRegionLength},
 	"district":    {Autocomplete: "address-level2", Pattern: `\s*\S(?:.{0,18}\S)?\s*`, ConstraintMessage: i18n.KeyCheckoutRegionLength},
 }
@@ -298,6 +328,30 @@ func checkoutChoiceSwap(which string) templ.Attributes {
 		"hx-target":  "#checkout-region",
 		"hx-trigger": "change",
 		"hx-vals":    `{"update":"` + which + `"}`,
+	}
+}
+
+// couponButtonAttrs makes 套用 a request of its own. With scripting it asks the
+// server what the code does and swaps only the code's field, the totals and the
+// quote the order button will be checked against; the rest of the form is
+// neither validated nor replaced. Without scripting the same submit comes back
+// at the coupon field.
+//
+// The hidden quote is among what is swapped: the code changes it, and a stale
+// one would make the next 送出訂單 answer "the checkout changed".
+func couponButtonAttrs(ctx context.Context) templ.Attributes {
+	return templ.Attributes{
+		"name":              "update",
+		"value":             "coupon",
+		"formaction":        "/checkout#coupon-field",
+		"hx-post":           "/checkout",
+		"hx-include":        "#checkout-form",
+		"hx-vals":           `{"update":"coupon"}`,
+		"hx-swap":           "none",
+		"hx-select-oob":     "#coupon,#coupon-message:innerHTML,#summary-totals,#checkout-quote",
+		"data-coupon-apply": true,
+		"data-busy":         i18n.T(ctx, i18n.KeyTooManyRequests),
+		"data-failed":       i18n.T(ctx, i18n.KeyCouponUnavailable),
 	}
 }
 
@@ -429,6 +483,19 @@ func (a SavedAddress) DisplayLabel(ctx context.Context) string {
 	return a.Label
 }
 
+// OtherAddress is the address chooser's value for none of the saved ones.
+const OtherAddress = "new"
+
+type CheckoutProfile struct {
+	Email string
+	Name  string
+	Phone string
+}
+
+func (v *CheckoutView) OffersTheProfile() bool {
+	return v.Profile.Email != "" && (v.Profile.Name != "" || v.Profile.Phone != "")
+}
+
 // OffersTheAddressBook reports whether the chooser is worth rendering.
 func (v *CheckoutView) OffersTheAddressBook() bool {
 	return !v.ToPickupPoint() && len(v.SavedAddresses) > 0
@@ -455,6 +522,13 @@ func (v *CheckoutView) Invalid(field string) string {
 
 // AnyErrors reports whether the form was rejected at all.
 func (v *CheckoutView) AnyErrors() bool { return len(v.Errors) > 0 }
+
+// OnlyCouponRefused reports a rejection that is the discount code and nothing
+// else, which the banner then names instead of sending the shopper through the
+// fields to find it.
+func (v *CheckoutView) OnlyCouponRefused() bool {
+	return len(v.Errors) == 1 && v.HasErr("coupon")
+}
 
 // HasSurcharge reports whether this address costs extra to reach.
 func (v *CheckoutView) HasSurcharge() bool { return v.SurchargeCents > 0 }
@@ -581,11 +655,17 @@ func (e OrderEvent) LabelKey() i18n.Key {
 
 // OrderShipment is a dispatch the customer can follow.
 type OrderShipment struct {
-	Carrier     string
+	Carrier     carrier.Carrier
 	Tracking    string
 	ShippedAt   string
 	DeliveredAt string
+	// RescissionEnds is the last day of the seven-day right to return the
+	// parcel, which the database computes. Empty until it is delivered.
+	RescissionEnds string
 }
+
+// TrackURL is the carrier's public tracking page, or "" when it publishes none.
+func (s OrderShipment) TrackURL() string { return s.Carrier.TrackingURL(s.Tracking) }
 
 // Delivered reports whether this shipment has arrived.
 func (s OrderShipment) Delivered() bool { return s.DeliveredAt != "" }
@@ -635,8 +715,10 @@ type OrderView struct {
 	TaxCents       int64
 	Timeline       []OrderEvent
 	Shipments      []OrderShipment
-	Cancelled      bool
-	Committed      bool
+	// Invoice is nil until a 統一發票 has been filed.
+	Invoice   *OrderInvoice
+	Cancelled bool
+	Committed bool
 	// OwedCents is what is left to pay: the total less the store credit spent on it.
 	OwedCents int64
 	// ShowWarrantyLink is set when a signed-in account owns the order. Guest-token
@@ -727,3 +809,67 @@ func (v *CheckoutView) CouponDiscount() string { return "-" + twd(v.CouponDiscou
 
 // NeedsDonationCode reports whether the donation code field belongs on the form.
 func (i CheckoutInvoice) NeedsDonationCode() bool { return i.Chosen() == invoice.PreferenceDonate }
+
+// OrderInvoice is the 統一發票 filed for an order, as the customer reads it.
+type OrderInvoice struct {
+	Documents    []OrderInvoiceDocument
+	Type         invoice.Preference
+	Carrier      string
+	DonationCode string
+	TaxID        string
+}
+
+// OrderInvoiceDocument is one invoice or credit note, oldest first.
+type OrderInvoiceDocument struct {
+	Allowance   bool
+	Number      string
+	RandomCode  string
+	AmountCents int64
+	Voided      bool
+	IssuedOn    string
+}
+
+// Label names the document.
+func (d OrderInvoiceDocument) Label(ctx context.Context) string {
+	if d.Allowance {
+		return i18n.T(ctx, i18n.KeyAdminDocAllowance)
+	}
+	return i18n.T(ctx, i18n.KeyAdminDocInvoice)
+}
+
+// Amount is shown on a credit note, whose figure is its point.
+func (d OrderInvoiceDocument) Amount() string { return twd(d.AmountCents) }
+
+// ChoiceText says how the invoice was asked for. A mobile carrier is masked: it
+// is a key to somebody's invoice archive and the page may be read from a link.
+func (i *OrderInvoice) ChoiceText(ctx context.Context) string {
+	switch i.Type {
+	case invoice.PreferenceMember:
+		return i18n.T(ctx, i18n.KeyAdminCarrierMember)
+	case invoice.PreferenceMobile:
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminCarrierMobile), maskCarrier(i.Carrier))
+	case invoice.PreferenceDonate:
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminInvoiceDonate), i.DonationCode)
+	case invoice.PreferenceCompany:
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminCarrierTaxID), i.TaxID)
+	default:
+		panic("pages: no label for invoice type " + string(i.Type))
+	}
+}
+
+// maskCarrier keeps the slash and the last two characters of a 手機條碼.
+func maskCarrier(code string) string {
+	if len(code) <= 3 {
+		return code
+	}
+	return code[:1] + strings.Repeat("*", len(code)-3) + code[len(code)-2:]
+}
+
+// cartLineSwap names what one quantity update changes: that line's text and
+// price, the summary, the item count, the notices and the header's cart link. The thumbnail,
+// the stepper the shopper is using and every other line are not among them, so
+// they are never replaced, repainted or asked for again.
+func cartLineSwap(variantID string) string {
+	return "#line-body-" + variantID + ",#line-money-" + variantID +
+		",#cart-summary,#cart-notices,#cart-link,#cart-count:innerHTML"
+}

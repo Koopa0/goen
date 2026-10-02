@@ -8,13 +8,16 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"regexp"
 	"strings"
 	"testing"
 
 	"github.com/google/uuid"
 
+	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 // mapMerchantID stands for whatever id the environment names; goen only ever
@@ -51,10 +54,10 @@ func aPickupCart(t *testing.T, s *cart.Store, label string) (token string, shipp
 	return tok, shipVersionFor(t, "store_pickup")
 }
 
-// cookieNamed picks one Set-Cookie out of a response.
-func cookieNamed(res *httptest.ResponseRecorder, name string) *http.Cookie {
+// pickupCookieOf picks the pickup cookie out of a response.
+func pickupCookieOf(res *httptest.ResponseRecorder) *http.Cookie {
 	for _, c := range res.Result().Cookies() {
-		if c.Name == name {
+		if c.Name == "goen_pickup" {
 			return c
 		}
 	}
@@ -120,14 +123,71 @@ func refreshTargetOf(body string) string {
 	return strings.NewReplacer("&amp;", "&", "&#34;", `"`, "&#39;", "'").Replace(rest[:end])
 }
 
+// startPickup is 「選擇門市」: the checkout form posted to the start route, which
+// keeps what was typed and answers 303 to the GET hand-off page holding the
+// carrier's form. It returns that page, as the browser follows it, and the
+// pickup cookie the start issued. A start that sends the shopper back to the
+// checkout instead returns that 303 and no body.
+func startPickup(
+	t *testing.T, h *cart.Handler, token string, fields url.Values, cookies ...*http.Cookie,
+) (body string, pickupCookie *http.Cookie, status int) {
+	t.Helper()
+	return startPickupAs(t, h, token, nil, fields, cookies...)
+}
+
+// startPickupAs is startPickup for a signed-in member: a member-owned cart is
+// only served to its owner, so the start and the hand-off page both carry who.
+func startPickupAs(
+	t *testing.T, h *cart.Handler, token string, who *account.User, fields url.Values, cookies ...*http.Cookie,
+) (body string, pickupCookie *http.Cookie, status int) {
+	t.Helper()
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, pages.PickupStartAction,
+		strings.NewReader(fields.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	//nolint:gosec // G124: the browser's own cart cookie
+	req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token})
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+	if who != nil {
+		req = req.WithContext(account.WithUser(req.Context(), *who))
+	}
+	res := httptest.NewRecorder()
+	h.PickupStart(res, req)
+	pickupCookie = pickupCookieOf(res)
+	if res.Code != http.StatusSeeOther || res.Header().Get("Location") != pages.PickupMapPath {
+		return res.Body.String(), pickupCookie, res.Code
+	}
+
+	next := httptest.NewRequestWithContext(t.Context(), http.MethodGet, pages.PickupMapPath, http.NoBody)
+	//nolint:gosec // G124: the browser's own cart cookie
+	next.AddCookie(&http.Cookie{Name: "goen_cart", Value: token})
+	if pickupCookie != nil {
+		next.AddCookie(pickupCookie)
+	}
+	if who != nil {
+		next = next.WithContext(account.WithUser(next.Context(), *who))
+	}
+	page := httptest.NewRecorder()
+	h.PickupMap(page, next)
+	return page.Body.String(), pickupCookie, page.Code
+}
+
+// aStart is the fields 「選擇門市」 carries when nothing but the choices has been
+// made: the method, the chain and the invoice type.
+func aStart(shipping uuid.UUID) url.Values {
+	return url.Values{
+		"shipping": {shipping.String()}, "pickup_brand": {"seven_eleven"},
+		"invoice_type": {"mobile_carrier"},
+	}
+}
+
 // openPickupCheckout renders the checkout the way the chain chooser does: a
 // POST that applies 7-ELEVEN and a mobile-carrier invoice and validates
-// nothing. The chain has to be applied before the map form exists, because that
-// form is built for one chain on the server and a sibling form cannot read a
-// radio nobody has applied yet.
+// nothing. It is the page the shopper reads; the nonce and the carrier's form
+// come from startPickup.
 func openPickupCheckout(
 	t *testing.T, h *cart.Handler, token string, shipping uuid.UUID,
-	cookies ...*http.Cookie,
 ) (body string, pickupCookie *http.Cookie, status int) {
 	t.Helper()
 	form := url.Values{
@@ -139,12 +199,9 @@ func openPickupCheckout(
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	//nolint:gosec // G124: the browser's own cart cookie
 	req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token})
-	for _, c := range cookies {
-		req.AddCookie(c)
-	}
 	res := httptest.NewRecorder()
 	h.PlaceOrder(res, req)
-	return res.Body.String(), cookieNamed(res, "goen_pickup"), res.Code
+	return res.Body.String(), pickupCookieOf(res), res.Code
 }
 
 // TestAStoreChosenOnTheMapSurvivesTheRoundTripAndReachesTheOrder is the happy
@@ -154,13 +211,13 @@ func TestAStoreChosenOnTheMapSurvivesTheRoundTripAndReachesTheOrder(t *testing.T
 	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, testLimiter(), nil, configuredMap(t))
 	token, shipping := aPickupCart(t, s, "map-roundtrip")
 
-	// 1. The checkout, with a chain chosen so the map form is built for it.
-	page, cookie, status := openPickupCheckout(t, h, token, shipping)
+	// 1. 「選擇門市」: the form is posted to goen, which opens the map for the chain.
+	page, cookie, status := startPickup(t, h, token, aStart(shipping))
 	if status != http.StatusOK {
-		t.Fatalf("checkout = %d, want 200", status)
+		t.Fatalf("the store-map start = %d, want 200", status)
 	}
 	if cookie == nil {
-		t.Fatal("the checkout issued no pickup cookie, so nothing can vouch for a store")
+		t.Fatal("the start issued no pickup cookie, so nothing can vouch for a store")
 	}
 	nonce, found := hiddenInputValue(page, "ExtraData")
 	if !found {
@@ -172,7 +229,7 @@ func TestAStoreChosenOnTheMapSurvivesTheRoundTripAndReachesTheOrder(t *testing.T
 	firstTradeNo, _ := hiddenInputValue(page, "MerchantTradeNo")
 
 	// A second render keeps the nonce and takes a fresh correlation number.
-	second, secondCookie, _ := openPickupCheckout(t, h, token, shipping, cookie)
+	second, secondCookie, _ := startPickup(t, h, token, aStart(shipping), cookie)
 	if secondNonce, _ := hiddenInputValue(second, "ExtraData"); secondNonce != nonce {
 		t.Errorf("the nonce changed between renders (%q then %q); reload and the "+
 			"back button would each lose the store", nonce, secondNonce)
@@ -272,7 +329,7 @@ func placeThisCheckout(
 	if res.Code != http.StatusSeeOther {
 		t.Fatalf("placing the order = %d, want 303; body=%s", res.Code, res.Body.String())
 	}
-	if cleared := cookieNamed(res, "goen_pickup"); cleared == nil || cleared.MaxAge >= 0 {
+	if cleared := pickupCookieOf(res); cleared == nil || cleared.MaxAge >= 0 {
 		t.Error("the pickup cookie outlived the order; its nonce would vouch for a " +
 			"store in the next checkout this browser starts")
 	}
@@ -523,10 +580,10 @@ func TestChangingTheChainDropsTheOtherChainsStore(t *testing.T) {
 	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, testLimiter(), nil, configuredMap(t))
 	token, shipping := aPickupCart(t, s, "map-chain-change")
 
-	page, cookie, _ := openPickupCheckout(t, h, token, shipping)
-	nonce, _ := hiddenInputValue(page, "ExtraData")
+	start, cookie, _ := startPickup(t, h, token, aStart(shipping))
+	nonce, _ := hiddenInputValue(start, "ExtraData")
 	target, _, _ := theMapAnswers(t, h, nonce, "131386", "南港園區", "台北市南港區三重路19-2號")
-	page, _ = openTheCheckout(t, h, token, target[len("/checkout"):], cookie)
+	page, _ := openTheCheckout(t, h, token, target[len("/checkout"):], cookie)
 	if !strings.Contains(page, "南港園區") {
 		t.Fatal("the store was never honoured, so this test proves nothing")
 	}
@@ -555,8 +612,12 @@ func TestChangingTheChainDropsTheOtherChainsStore(t *testing.T) {
 		t.Error("a 7-ELEVEN store survived a change to 全家; the parcel would wait " +
 			"at a store of the wrong chain")
 	}
-	if !strings.Contains(res.Body.String(), `value="FAMI"`) {
-		t.Error("the map form was not rebuilt for the chain the shopper just chose")
+	// The map is opened for the chain posted with the button, never for a stale one.
+	fields := aStart(shipping)
+	fields.Set("pickup_brand", "family_mart")
+	again, _, _ := startPickup(t, h, token, fields, cookie)
+	if !strings.Contains(again, `value="FAMI"`) || strings.Contains(again, `value="UNIMART"`) {
+		t.Error("the map was not opened for the chain the shopper just chose")
 	}
 }
 
@@ -564,14 +625,14 @@ func TestDuplicatePickupCookiesKeepTheReturnedStoreThroughPlacement(t *testing.T
 	s := cart.NewStore(pool)
 	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, testLimiter(), nil, configuredMap(t))
 	token, shipping := aPickupCart(t, s, "map-duplicate-cookie")
-	_, stale, _ := openPickupCheckout(t, h, token, shipping)
-	page, matching, status := openPickupCheckout(t, h, token, shipping)
+	_, stale, _ := startPickup(t, h, token, aStart(shipping))
+	start, matching, status := startPickup(t, h, token, aStart(shipping))
 	if status != http.StatusOK || stale == nil || matching == nil {
 		t.Fatal("could not prepare independent pickup selections")
 	}
-	nonce, _ := hiddenInputValue(page, "ExtraData")
+	nonce, _ := hiddenInputValue(start, "ExtraData")
 	target, _, _ := theMapAnswers(t, h, nonce, "131386", "南港園區", "台北市南港區三重路19-2號")
-	page, status = openTheCheckout(t, h, token, target[len("/checkout"):], stale, matching)
+	page, status := openTheCheckout(t, h, token, target[len("/checkout"):], stale, matching)
 	if status != http.StatusOK {
 		t.Fatalf("duplicate-cookie return = %d, want 200", status)
 	}
@@ -585,5 +646,147 @@ func TestDuplicatePickupCookiesKeepTheReturnedStoreThroughPlacement(t *testing.T
 	_, brand, code, name := destinationOf(t, number)
 	if brand != "seven_eleven" || code != "131386" || name != "南港園區" {
 		t.Fatalf("placed destination = %q/%q/%q", brand, code, name)
+	}
+}
+
+// inputValue is the value of the first input carrying name, which is what the
+// browser would show in that field.
+func inputValue(body, name string) (string, bool) {
+	tag := regexp.MustCompile(`<input[^>]*\bname="` + regexp.QuoteMeta(name) + `"[^>]*>`).FindString(body)
+	if tag == "" {
+		return "", false
+	}
+	m := regexp.MustCompile(`\bvalue="([^"]*)"`).FindStringSubmatch(tag)
+	if m == nil {
+		return "", false
+	}
+	return html.UnescapeString(m[1]), true
+}
+
+// aTypedStart is 「選擇門市」 pressed on a form the shopper has filled in.
+func aTypedStart(shipping uuid.UUID, couponCode string) url.Values {
+	fields := aStart(shipping)
+	fields.Set("email", "typed-before-the-map@example.com")
+	fields.Set("name", "王小明")
+	fields.Set("phone", "0912345678")
+	fields.Set("note", "請在下午送達")
+	fields.Set("invoice_carrier", "/ABC+123")
+	fields.Set("coupon", couponCode)
+	return fields
+}
+
+// TestWhatWasTypedSurvivesTheMapRoundTrip is the owner's bug: choose a store on
+// the carrier's map, come back, and the email, phone and everything else typed
+// are gone. The form is posted to the start route, the carrier's page posts the
+// store back, and the checkout it returns to carries the store AND every field.
+func TestWhatWasTypedSurvivesTheMapRoundTrip(t *testing.T) {
+	s := cart.NewStore(pool)
+	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, testLimiter(), nil, configuredMap(t))
+	token, shipping := aPickupCart(t, s, "map-typed")
+	code := coupon(t, "MAPTYPED", "amount", 5000, 0, 0, 0, 0)
+
+	start, cookie, status := startPickup(t, h, token, aTypedStart(shipping, code))
+	if status != http.StatusOK {
+		t.Fatalf("the start = %d, want 200", status)
+	}
+	// What was typed goes to goen's draft and never to the carrier's form.
+	for _, typed := range []string{"typed-before-the-map@example.com", "王小明", "0912345678", "請在下午送達"} {
+		if strings.Contains(start, typed) {
+			t.Errorf("the hand-off page carries %q, which belongs to the shopper and not the carrier", typed)
+		}
+	}
+	nonce, _ := hiddenInputValue(start, "ExtraData")
+
+	target, _, _ := theMapAnswers(t, h, nonce, "131386", "南港園區", "台北市南港區三重路19-2號")
+	page, status := openTheCheckout(t, h, token, target[len("/checkout"):], cookie)
+	if status != http.StatusOK {
+		t.Fatalf("the checkout after the return = %d, want 200", status)
+	}
+	for field, want := range map[string]string{
+		"email": "typed-before-the-map@example.com", "name": "王小明", "phone": "0912345678",
+		"invoice_carrier": "/ABC+123", "coupon": code,
+	} {
+		if got, ok := inputValue(page, field); !ok || got != want {
+			t.Errorf("after the map the %s field is %q (present %v), want %q", field, got, ok, want)
+		}
+	}
+	if !strings.Contains(page, "請在下午送達") {
+		t.Error("the note the shopper typed did not come back")
+	}
+	if !strings.Contains(page, "南港園區") || !strings.Contains(page, "131386") {
+		t.Error("the store chosen on the map is not on the returned checkout")
+	}
+	if !strings.Contains(page, `name="invoice_type" value="mobile_carrier" checked`) {
+		t.Error("the 發票 choice did not come back")
+	}
+	// Applied, not just restored as text: the order summary names the coupon by
+	// its description, which only a resolved coupon has.
+	if !strings.Contains(page, html.EscapeString("測試折扣")) {
+		t.Error("the coupon was restored as text but not applied to the quote")
+	}
+
+	// A plain visit restores nothing: the draft is for the way back from the map.
+	plain, _ := openTheCheckout(t, h, token, "")
+	if got, _ := inputValue(plain, "phone"); got != "" {
+		t.Errorf("a plain visit to the checkout restored the phone %q", got)
+	}
+}
+
+// TestAPlacedOrderClearsTheDraft: what was typed is kept for the trip to the map
+// and for nothing else, so the order it was typed for ends it.
+func TestAPlacedOrderClearsTheDraft(t *testing.T) {
+	s := cart.NewStore(pool)
+	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, testLimiter(), nil, configuredMap(t))
+	token, shipping := aPickupCart(t, s, "map-draft-cleared")
+	cartID, err := s.ByToken(t.Context(), token, uuid.NullUUID{})
+	if err != nil {
+		t.Fatalf("find the cart: %v", err)
+	}
+	draftHeld := func() bool {
+		var held bool
+		if err := pool.QueryRow(t.Context(),
+			`SELECT checkout_draft IS NOT NULL FROM carts WHERE id = $1`, cartID).Scan(&held); err != nil {
+			t.Fatalf("read the draft: %v", err)
+		}
+		return held
+	}
+
+	start, cookie, _ := startPickup(t, h, token, aTypedStart(shipping, ""))
+	if !draftHeld() {
+		t.Fatal("the start kept no draft, so this test proves nothing")
+	}
+	nonce, _ := hiddenInputValue(start, "ExtraData")
+	target, _, _ := theMapAnswers(t, h, nonce, "131386", "南港園區", "台北市南港區三重路19-2號")
+	page, _ := openTheCheckout(t, h, token, target[len("/checkout"):], cookie)
+
+	placeThisCheckout(t, h, token, cookie, page, shipping, "map-draft-cleared")
+	if draftHeld() {
+		t.Error("the order was placed and the draft, which holds the shopper's address, is still on the cart")
+	}
+}
+
+// TestADraftExpires: a draft older than its window is as good as none.
+func TestADraftExpires(t *testing.T) {
+	s := cart.NewStore(pool)
+	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, testLimiter(), nil, configuredMap(t))
+	token, shipping := aPickupCart(t, s, "map-draft-expired")
+	cartID, err := s.ByToken(t.Context(), token, uuid.NullUUID{})
+	if err != nil {
+		t.Fatalf("find the cart: %v", err)
+	}
+
+	start, cookie, _ := startPickup(t, h, token, aTypedStart(shipping, ""))
+	nonce, _ := hiddenInputValue(start, "ExtraData")
+	if _, err := pool.Exec(t.Context(),
+		`UPDATE carts SET checkout_draft_at = now() - interval '2 hours' WHERE id = $1`, cartID); err != nil {
+		t.Fatalf("age the draft: %v", err)
+	}
+	target, _, _ := theMapAnswers(t, h, nonce, "131386", "南港園區", "台北市南港區三重路19-2號")
+	page, _ := openTheCheckout(t, h, token, target[len("/checkout"):], cookie)
+	if got, _ := inputValue(page, "phone"); got != "" {
+		t.Errorf("an expired draft restored the phone %q", got)
+	}
+	if !strings.Contains(page, "南港園區") {
+		t.Error("the store should still come back; only the typed fields expire")
 	}
 }

@@ -36,7 +36,7 @@ endif
         sqlc sqlc-check squawk db-up db-down migrate-up migrate-down db-seed \
         db-repair-invoice-faq db-repair-refund-faq db-repair-payment-faq db-repair-shop-rules-faq \
         db-repair-hold-faq \
-        demo-restore-check cursor-scripts-check workflow-check verify verify-all check-layout check-layout-run db-reset clean
+        demo-restore-check workflow-check verify verify-all check-layout check-layout-run db-reset clean
 
 build: gen
 	go build -o bin/goen ./cmd/goen
@@ -330,7 +330,7 @@ check-layout-run:
 		curl -s -o /dev/null -b "goen_session=$$AT" -H 'Sec-Fetch-Site: same-origin' \
 			-d 'status=picking' $$U/admin/orders/$$RN/status; \
 		curl -s -o /dev/null -b "goen_session=$$AT" -H 'Sec-Fetch-Site: same-origin' \
-			--data-urlencode 'carrier=黑貓宅急便' --data-urlencode "tracking=LAYOUTCHECK$$$$" \
+			--data-urlencode 'carrier=black_cat' --data-urlencode "tracking=LAYOUTCHECK$$$$" \
 			--data-urlencode 'fee=80' $$U/admin/orders/$$RN/ship; \
 		LINE=$$(psql "$$GOEN_DATABASE_URL" -tAc "SELECT ol.id FROM order_lines ol JOIN orders o ON o.id = ol.order_id WHERE o.order_number = '$$RN' LIMIT 1"); \
 		curl -s -o /dev/null -b "goen_session=$$AT" -H 'Sec-Fetch-Site: same-origin' \
@@ -372,7 +372,7 @@ check-layout-run:
 		curl -s -o /dev/null -b "goen_session=$$AT" -H 'Sec-Fetch-Site: same-origin' \
 			-d 'status=picking' $$U/admin/orders/$$RETURN_FORM_ORDER/status; \
 		curl -s -o /dev/null -b "goen_session=$$AT" -H 'Sec-Fetch-Site: same-origin' \
-			--data-urlencode 'carrier=黑貓宅急便' --data-urlencode "tracking=LAYOUTCHECK2$$$$" \
+			--data-urlencode 'carrier=black_cat' --data-urlencode "tracking=LAYOUTCHECK2$$$$" \
 			--data-urlencode 'fee=80' $$U/admin/orders/$$RETURN_FORM_ORDER/ship; \
 		curl -s -o /dev/null -b "goen_session=$$AT" -H 'Sec-Fetch-Site: same-origin' \
 			-d 'status=delivered' $$U/admin/orders/$$RETURN_FORM_ORDER/status
@@ -471,7 +471,7 @@ check-layout-run:
 		test "$$(psql "$$GOEN_DATABASE_URL" -tAc "SELECT count(*) FROM wishlist_items w JOIN users u ON u.id = w.user_id JOIN products p ON p.id = w.product_id WHERE u.email = 'layout-cust@goen.invalid' AND p.slug = '$$PRODUCT_SLUG'")" -ge 1 \
 			|| { echo 'wishlist fixture wrote no row for layout-cust@goen.invalid' >&2; exit 2; }
 	@psql "$$GOEN_DATABASE_URL" -v ON_ERROR_STOP=1 -qtAc "INSERT INTO sale_campaigns (slug, title, title_en, starts_at, ends_at) VALUES ('layout-campaign', 'Layout campaign', 'Layout campaign', now() - interval '1 day', now() + interval '1 day') ON CONFLICT (slug) DO UPDATE SET starts_at = EXCLUDED.starts_at, ends_at = EXCLUDED.ends_at, is_active = true" >/dev/null
-	@psql "$$GOEN_DATABASE_URL" -v ON_ERROR_STOP=1 -qtAc "INSERT INTO sale_campaign_products (campaign_id, product_id, position) SELECT c.id, p.id, 0 FROM sale_campaigns c CROSS JOIN LATERAL (SELECT p.id FROM products p WHERE p.status = 'active' AND EXISTS (SELECT 1 FROM product_variants v WHERE v.product_id = p.id AND v.is_active AND v.compare_at_price_cents IS NOT NULL) ORDER BY p.slug LIMIT 1) p WHERE c.slug = 'layout-campaign' ON CONFLICT (campaign_id, product_id) DO NOTHING" >/dev/null
+	@psql "$$GOEN_DATABASE_URL" -v ON_ERROR_STOP=1 -qtAc "INSERT INTO sale_campaign_products (campaign_id, product_id, position) SELECT c.id, p.id, (row_number() OVER (ORDER BY p.discounted DESC, p.slug))::integer - 1 FROM sale_campaigns c CROSS JOIN LATERAL (SELECT p.id, p.slug, EXISTS (SELECT 1 FROM product_variants v WHERE v.product_id = p.id AND v.is_active AND v.compare_at_price_cents IS NOT NULL) AS discounted FROM products p WHERE p.status = 'active' ORDER BY 3 DESC, p.slug LIMIT 6) p WHERE c.slug = 'layout-campaign' ON CONFLICT DO NOTHING" >/dev/null
 	@PLACED_TOKEN=$$(awk '/goen_placed/ {print $$7}' .layout-chrome/cookies); \
 		INVOICE_ORDER=$$(psql "$$GOEN_DATABASE_URL" -tAc "SELECT o.order_number FROM orders o JOIN return_requests r ON r.order_id = o.id JOIN invoice_documents d ON d.order_id = o.id AND d.number = 'GD-LAYOUT1' WHERE r.status IN ('approved', 'completed') ORDER BY o.placed_at DESC LIMIT 1"); \
 		test -n "$$INVOICE_ORDER" || { echo 'invoice fixture wrote no refunded order — /admin/orders/ would measure the list and call the 折讓 form covered' >&2; exit 2; }; \
@@ -961,17 +961,6 @@ db-reset:
 	$(MAKE) db-seed
 	@echo 'database rebuilt from migrations/ and seeded'
 
-# Deterministic checks for the .cursor/ Cloud Agent environment scripts: a
-# syntax pass over every script, then the config-key parser test against
-# committed CLI-shaped fixtures and TEST-mode key-prefix guards. No network and
-# no live Stripe, so a regression — dropping double-quoted TOML support or
-# accepting a live key prefix — turns make verify red instead of merging green.
-cursor-scripts-check:
-	@for f in .cursor/*.sh .cursor/lib/*.sh; do bash -n "$$f" || exit 1; done
-	@bash .cursor/lib/stripe-config-key.test.sh
-	@bash .cursor/lib/stripe-sandbox-key.test.sh
-	@bash .cursor/lib/load-env.test.sh
-
 demo-restore-check:
 	bash -n deploy/demo/restore-demo-db.sh scripts/demo-restore-test.sh
 	scripts/demo-restore-test.sh
@@ -983,7 +972,7 @@ workflow-check:
 
 # The single gate. Stop at the first failure — a passing later stage must never
 # be able to bury an earlier red one.
-verify: demo-restore-check workflow-check cursor-scripts-check fmt-check templ-check squawk sqlc-check vet deadcode lint production-build-check integration-build-check test-race
+verify: demo-restore-check workflow-check fmt-check templ-check squawk sqlc-check vet deadcode lint production-build-check integration-build-check test-race
 	@echo 'verify: PASS (unit tests only — make verify-all adds the database suite)'
 
 # Everything verify runs plus the parts that need Docker and the network.

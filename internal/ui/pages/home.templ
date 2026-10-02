@@ -10,7 +10,7 @@ import (
 )
 
 // Home renders the storefront home page: a carousel of what is on now, the
-// departments, one product row, one department on its own ground, one
+// departments, one product row, one department beside its photograph, one
 // photograph, and what the shop guarantees.
 templ Home(p layouts.Page, v HomeView) {
 	@layouts.Base(p) {
@@ -138,7 +138,7 @@ templ heading(id, name, rest string) {
 	if rest == "" {
 		<h2 id={ id } class="goen-home__heading">{ name }</h2>
 	} else {
-		<h2 id={ id } class="goen-home__heading">{ name }<span class="goen-home__aside">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyHomeAside), rest) }</span></h2>
+		<h2 id={ id } class="goen-home__heading">{ name }<span class="goen-home__aside"><span class="goen-home__sep">{ i18n.T(ctx, i18n.KeyHomeAside) }</span>{ rest }</span></h2>
 	}
 }
 
@@ -152,7 +152,9 @@ templ seeAll(label, href string) {
 // heroCarousel is native scroll-snap with arrows and dots on top. With one
 // slide there is nothing to move between, so the controls are not drawn.
 templ heroCarousel(slides []HeroSlide) {
-	<section class="goen-hero" aria-roledescription="carousel" aria-label={ i18n.T(ctx, i18n.KeyHomeFeatured) }>
+	// data-autoplay is what goen.js looks for: a carousel of one slide has
+	// nothing to advance to, and the script then draws no pause control either.
+	<section class="goen-hero" aria-roledescription="carousel" aria-label={ i18n.T(ctx, i18n.KeyHomeFeatured) } data-autoplay?={ len(slides) > 1 }>
 		<div class="goen-hero__track">
 			for i, s := range slides {
 				<div
@@ -208,6 +210,23 @@ templ heroCarousel(slides []HeroSlide) {
 					}
 				</div>
 				<div class="goen-hero__arrows">
+					// Revealed by goen.js only while the carousel moves by itself.
+					<button
+						class="goen-hero__pause"
+						type="button"
+						hidden
+						data-state="playing"
+						aria-label={ i18n.T(ctx, i18n.KeyHeroPause) }
+						data-label-pause={ i18n.T(ctx, i18n.KeyHeroPause) }
+						data-label-play={ i18n.T(ctx, i18n.KeyHeroPlay) }
+					>
+						<span class="goen-hero__pause-pause">
+							@icons.Pause()
+						</span>
+						<span class="goen-hero__pause-play">
+							@icons.Play()
+						</span>
+					</button>
 					<button class="goen-hero__arrow" type="button" data-step="-1" aria-label={ i18n.T(ctx, i18n.KeyHeroPrevious) }>
 						@icons.ChevronLeft()
 					</button>

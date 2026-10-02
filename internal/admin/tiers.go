@@ -9,7 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/db"
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 // MembershipWindowDays mirrors loyalty.MembershipWindow, copied rather than imported.
@@ -19,15 +19,15 @@ const MembershipWindowDays int32 = 365
 const MaxTierMultiplierBP = 30000
 
 // Tiers reads the membership bands and how many customers are in each.
-func (s *Store) Tiers(ctx context.Context) (pages.AdminTiersView, error) {
+func (s *Store) Tiers(ctx context.Context) (admin.TiersView, error) {
 	rows, err := s.q.AdminMembershipTiers(ctx, MembershipWindowDays)
 	if err != nil {
-		return pages.AdminTiersView{}, fmt.Errorf("read membership tiers: %w", err)
+		return admin.TiersView{}, fmt.Errorf("read membership tiers: %w", err)
 	}
-	view := pages.AdminTiersView{Rows: make([]pages.AdminTier, 0, len(rows))}
+	view := admin.TiersView{Rows: make([]admin.Tier, 0, len(rows))}
 	for i := range rows {
 		t := &rows[i]
-		view.Rows = append(view.Rows, pages.AdminTier{
+		view.Rows = append(view.Rows, admin.Tier{
 			ID: t.ID.String(), Code: t.Code, Name: t.Name, NameEn: t.NameEn,
 			MinSpend: t.MinSpendCents, MultiplierBP: t.PointsMultiplierBp,
 			Members: t.Members,
