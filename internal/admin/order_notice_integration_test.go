@@ -15,17 +15,17 @@ import (
 	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/db"
-	"github.com/koopa0/goen/internal/ordernotice"
+	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/web"
 )
 
-func terminalNotice(t *testing.T, id uuid.UUID, want ordernotice.Kind) {
+func terminalNotice(t *testing.T, id uuid.UUID, want email.TerminalKind) {
 	t.Helper()
 	assertTerminalNotice(t, id, want, false)
 }
 
-func assertTerminalNotice(t *testing.T, id uuid.UUID, want ordernotice.Kind, wantRefunded bool) {
+func assertTerminalNotice(t *testing.T, id uuid.UUID, want email.TerminalKind, wantRefunded bool) {
 	t.Helper()
 	var payload []byte
 	if err := pool.QueryRow(t.Context(), `SELECT payload FROM outbox_messages WHERE topic=$1 AND dedupe_key=$2`, outbox.TopicOrderTerminal, id.String()+":"+string(want)).Scan(&payload); err != nil {
@@ -51,12 +51,12 @@ func TestTerminalCancellationNoticesFollowCommittedActor(t *testing.T) {
 	if _, err := admin.NewStore(pool, fakeRefunder{}, nil, nil).Advance(ctx, number, "cancelled", uuid.NullUUID{}); err != nil {
 		t.Fatal(err)
 	}
-	terminalNotice(t, id, ordernotice.CancelledByStaff)
+	terminalNotice(t, id, email.TerminalCancelledByStaff)
 	number, id, _ = pendingOrderHoldingStock(t)
 	if _, err := cart.NewStore(pool).CancelOrder(t.Context(), number); err != nil {
 		t.Fatal(err)
 	}
-	terminalNotice(t, id, ordernotice.CancelledByCustomer)
+	terminalNotice(t, id, email.TerminalCancelledByCustomer)
 	if _, err := cart.NewStore(pool).CancelOrder(t.Context(), number); !errors.Is(err, cart.ErrNotCancellable) {
 		t.Fatalf("repeat cancellation=%v", err)
 	}
@@ -72,8 +72,8 @@ func TestTerminalArrivalIsNotRequeuedAfterCompletionOrOutboxRetention(t *testing
 	if _, err := s.Advance(ctx, number, "delivered", uuid.NullUUID{}); err != nil {
 		t.Fatal(err)
 	}
-	terminalNotice(t, id, ordernotice.Delivered)
-	if _, err := pool.Exec(t.Context(), `DELETE FROM outbox_messages WHERE topic=$1 AND dedupe_key=$2`, outbox.TopicOrderTerminal, id.String()+":"+string(ordernotice.Delivered)); err != nil {
+	terminalNotice(t, id, email.TerminalDelivered)
+	if _, err := pool.Exec(t.Context(), `DELETE FROM outbox_messages WHERE topic=$1 AND dedupe_key=$2`, outbox.TopicOrderTerminal, id.String()+":"+string(email.TerminalDelivered)); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := s.Advance(ctx, number, "completed", uuid.NullUUID{}); err != nil {
@@ -164,7 +164,7 @@ func TestPickupCompletionQueuesCollectionWithoutADeliveryNotice(t *testing.T) {
 	if _, err := s.Advance(ctx, number, "completed", uuid.NullUUID{}); err != nil {
 		t.Fatal(err)
 	}
-	terminalNotice(t, id, ordernotice.Collected)
+	terminalNotice(t, id, email.TerminalCollected)
 	var count int
 	if err := pool.QueryRow(t.Context(), `SELECT count(*) FROM outbox_messages WHERE topic=$1 AND payload->>'order_id'=$2`, outbox.TopicOrderTerminal, id.String()).Scan(&count); err != nil {
 		t.Fatal(err)

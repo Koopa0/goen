@@ -19,6 +19,7 @@ import (
 	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/destination"
+	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/ordernotice"
@@ -488,7 +489,7 @@ func applyStatusEffects(ctx context.Context, q *db.Queries, e statusEffect) erro
 func enqueueStatusNotice(ctx context.Context, q *db.Queries, e statusEffect) error {
 	switch e.status {
 	case pages.FulfillmentCancelled:
-		return ordernotice.Enqueue(ctx, q, ordernotice.Message{OrderID: e.orderID, Kind: ordernotice.CancelledByStaff})
+		return ordernotice.Enqueue(ctx, q, &email.OrderTerminal{OrderID: e.orderID, Kind: email.TerminalCancelledByStaff})
 	case pages.FulfillmentDelivered, pages.FulfillmentCompleted:
 		row, err := q.OrderDestinationKind(ctx, e.number)
 		if err != nil {
@@ -499,17 +500,17 @@ func enqueueStatusNotice(ctx context.Context, q *db.Queries, e statusEffect) err
 			return fmt.Errorf("order %s ships by a method with an unknown destination %q",
 				e.number, row.DestinationKind)
 		}
-		kind := ordernotice.Delivered
+		kind := email.TerminalDelivered
 		if to == destination.PickupPoint {
 			if e.status != pages.FulfillmentCompleted {
 				return nil
 			}
-			kind = ordernotice.Collected
+			kind = email.TerminalCollected
 		} else if e.previous == pages.FulfillmentDelivered {
 			// Completion adds no new arrival, even after outbox retention.
 			return nil
 		}
-		return ordernotice.Enqueue(ctx, q, ordernotice.Message{OrderID: e.orderID, Kind: kind})
+		return ordernotice.Enqueue(ctx, q, &email.OrderTerminal{OrderID: e.orderID, Kind: kind})
 	default:
 		return nil
 	}
@@ -720,7 +721,7 @@ func (s *Store) Ship(ctx context.Context, number string, d Dispatch, actor uuid.
 	// One notice per PARCEL: the dedupe key is carrier and tracking together,
 	// which is what order_shipments is unique on, not the order. An order in two
 	// parcels is still two notices.
-	if err := enqueueOrderShipped(ctx, q, row.ID, &OrderShipped{
+	if err := enqueueOrderShipped(ctx, q, row.ID, &email.OrderShipped{
 		OrderNumber: number, Carrier: string(carrierCode), Tracking: tracking,
 	}); err != nil {
 		return err

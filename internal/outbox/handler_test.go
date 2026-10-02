@@ -19,7 +19,7 @@ func TestHandleJSONDecodesForTypedHandler(t *testing.T) {
 
 	store := &Store{handlers: map[string]Handler{}}
 	var got testPayload
-	store.HandleJSON[testPayload]("test.typed", func(_ context.Context, payload *testPayload) error {
+	store.HandleJSON(topic[testPayload]("test.typed"), func(_ context.Context, payload *testPayload) error {
 		got = *payload
 		return nil
 	})
@@ -36,7 +36,7 @@ func TestHandleJSONNamesDecodeFailure(t *testing.T) {
 	t.Parallel()
 
 	store := &Store{handlers: map[string]Handler{}}
-	store.HandleJSON[testPayload]("test.typed", func(context.Context, *testPayload) error { return nil })
+	store.HandleJSON(topic[testPayload]("test.typed"), func(context.Context, *testPayload) error { return nil })
 
 	err := store.handlers["test.typed"](t.Context(), []byte(`{"count":"not a number"}`))
 	if err == nil || !strings.Contains(err.Error(), "test.typed") {
@@ -66,7 +66,7 @@ func TestHandleRejectsInvalidRegistration(t *testing.T) {
 		{
 			name: "nil JSON handler",
 			register: func(store *Store) {
-				store.HandleJSON[testPayload]("test.typed", nil)
+				store.HandleJSON(topic[testPayload]("test.typed"), nil)
 			},
 		},
 		{

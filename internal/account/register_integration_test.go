@@ -60,7 +60,7 @@ func followUpRegistrations(
 		t.Fatalf("read the queued registrations: %v", err)
 	}
 	for _, payload := range payloads {
-		var r account.Registration
+		var r outbox.AccountRegistration
 		if err := json.Unmarshal(payload, &r); err != nil {
 			t.Fatalf("decode a queued registration: %v", err)
 		}

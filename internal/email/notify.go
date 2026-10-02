@@ -68,9 +68,7 @@ func (n Notifier) orderURL(number string) string {
 	return strings.TrimRight(n.baseURL, "/") + "/orders/" + number
 }
 
-// OrderPlaced is the payload of an order.placed message. Declared again here
-// rather than imported from internal/cart, because a consumer that imports the
-// producer's types cannot be deployed a version behind.
+// OrderPlaced is the payload of an order.placed message.
 type OrderPlaced struct {
 	Locale      string `json:"locale"`
 	OrderNumber string `json:"order_number"`

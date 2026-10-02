@@ -33,6 +33,7 @@ import (
 	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/db/dbtest"
+	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/home"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
@@ -3031,10 +3032,10 @@ func TestGrantIsBoundedAndPositive(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
 
-	var email string
+	var address string
 	if err := pool.QueryRow(ctx, `
 		INSERT INTO users (email, role) VALUES ('grant-'||gen_random_uuid()||'@example.com', 'customer')
-		RETURNING email`).Scan(&email); err != nil {
+		RETURNING email`).Scan(&address); err != nil {
 		t.Fatalf("create user: %v", err)
 	}
 
@@ -3045,13 +3046,13 @@ func TestGrantIsBoundedAndPositive(t *testing.T) {
 		reason  string
 		wantErr error
 	}{
-		{"over the ceiling", email, admin.MaxCreditGrant + 1, "手滑", admin.ErrInvalid},
-		{"exactly the ceiling", email, admin.MaxCreditGrant, "上限", nil},
-		{"zero", email, 0, "沒事", admin.ErrInvalid},
-		{"negative", email, -50000, "扣款", admin.ErrInvalid},
-		{"no reason", email, 50000, "", admin.ErrInvalid},
-		{"whitespace reason", email, 50000, "   ", admin.ErrInvalid},
-		{"reason beyond ledger bound", email, 50000, strings.Repeat("理", admin.MaxCreditReasonRunes+1), admin.ErrInvalid},
+		{"over the ceiling", address, admin.MaxCreditGrant + 1, "手滑", admin.ErrInvalid},
+		{"exactly the ceiling", address, admin.MaxCreditGrant, "上限", nil},
+		{"zero", address, 0, "沒事", admin.ErrInvalid},
+		{"negative", address, -50000, "扣款", admin.ErrInvalid},
+		{"no reason", address, 50000, "", admin.ErrInvalid},
+		{"whitespace reason", address, 50000, "   ", admin.ErrInvalid},
+		{"reason beyond ledger bound", address, 50000, strings.Repeat("理", admin.MaxCreditReasonRunes+1), admin.ErrInvalid},
 		{"no email", "", 50000, "補償", admin.ErrInvalid},
 		{"unknown customer", "nobody@example.invalid", 50000, "補償", admin.ErrRefused},
 	}
@@ -3074,7 +3075,7 @@ func TestGrantIsBoundedAndPositive(t *testing.T) {
 	if err := pool.QueryRow(ctx, `
 		SELECT coalesce(sum(e.amount_cents), 0) FROM store_credit_entries e
 		JOIN store_credit_accounts a ON a.id = e.account_id
-		JOIN users u ON u.id = a.user_id WHERE u.email = $1`, email).Scan(&balance); err != nil {
+		JOIN users u ON u.id = a.user_id WHERE u.email = $1`, address).Scan(&balance); err != nil {
 		t.Fatalf("read balance: %v", err)
 	}
 	if balance != admin.MaxCreditGrant {
@@ -3087,17 +3088,17 @@ func TestGrantOperationIsIdempotentAndIdenticalOperationsRemainDistinct(t *testi
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
 
-	var email string
+	var address string
 	if err := pool.QueryRow(ctx, `
 		INSERT INTO users (email, role) VALUES ('idem-'||gen_random_uuid()||'@example.com', 'customer')
-		RETURNING email`).Scan(&email); err != nil {
+		RETURNING email`).Scan(&address); err != nil {
 		t.Fatalf("create user: %v", err)
 	}
 
 	auditsBefore := auditRows(t, admin.ActionGrantCredit)
 	firstOperation := uuid.New()
 	for range 3 {
-		if _, err := s.GrantCredit(ctx, creditCustomerID(t, email), 50000, "退貨補償", firstOperation); err != nil {
+		if _, err := s.GrantCredit(ctx, creditCustomerID(t, address), 50000, "退貨補償", firstOperation); err != nil {
 			t.Fatalf("retry one grant operation: %v", err)
 		}
 	}
@@ -3109,7 +3110,7 @@ func TestGrantOperationIsIdempotentAndIdenticalOperationsRemainDistinct(t *testi
 		if err := pool.QueryRow(ctx, `
 			SELECT coalesce(sum(e.amount_cents), 0), count(*) FROM store_credit_entries e
 			JOIN store_credit_accounts a ON a.id = e.account_id
-			JOIN users u ON u.id = a.user_id WHERE u.email = $1`, email).Scan(&balance, &entries); err != nil {
+			JOIN users u ON u.id = a.user_id WHERE u.email = $1`, address).Scan(&balance, &entries); err != nil {
 			t.Fatalf("read: %v", err)
 		}
 	}
@@ -3125,10 +3126,10 @@ func TestGrantOperationIsIdempotentAndIdenticalOperationsRemainDistinct(t *testi
 	// Same customer, amount and reason can be a second legitimate compensation.
 	// Its durable request identity, not its business values, distinguishes it.
 	secondOperation := uuid.New()
-	if _, err := s.GrantCredit(ctx, creditCustomerID(t, email), 50000, "退貨補償", secondOperation); err != nil {
+	if _, err := s.GrantCredit(ctx, creditCustomerID(t, address), 50000, "退貨補償", secondOperation); err != nil {
 		t.Fatalf("second identical grant operation: %v", err)
 	}
-	if _, err := s.GrantCredit(ctx, creditCustomerID(t, email), 50000, "退貨補償", secondOperation); err != nil {
+	if _, err := s.GrantCredit(ctx, creditCustomerID(t, address), 50000, "退貨補償", secondOperation); err != nil {
 		t.Fatalf("retry second operation: %v", err)
 	}
 	read()
@@ -4708,11 +4709,11 @@ func TestShippingEnqueuesTheDispatchNotice(t *testing.T) {
 		"903-2214-0001").Scan(&payload); err != nil {
 		t.Fatalf("no dispatch notice was enqueued for %s: %v", number, err)
 	}
-	var got admin.OrderShipped
+	var got email.OrderShipped
 	if err := json.Unmarshal(payload, &got); err != nil {
 		t.Fatalf("decode notice: %v", err)
 	}
-	want := admin.OrderShipped{
+	want := email.OrderShipped{
 		OrderNumber: number, Email: "ship@example.com", Name: "收件人",
 		Carrier: "black_cat", Tracking: "903-2214-0001",
 		Locale: "en",
@@ -11745,13 +11746,13 @@ func TestABoundedListSaysSoAtTheBoundary(t *testing.T) {
 	}
 }
 
-func creditCustomerID(t *testing.T, email string) uuid.UUID {
+func creditCustomerID(t *testing.T, address string) uuid.UUID {
 	t.Helper()
-	if email == "" {
+	if address == "" {
 		return uuid.Nil
 	}
 	var id uuid.UUID
-	err := pool.QueryRow(t.Context(), "SELECT id FROM users WHERE email=$1", email).Scan(&id)
+	err := pool.QueryRow(t.Context(), "SELECT id FROM users WHERE email=$1", address).Scan(&id)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return uuid.New()
 	}

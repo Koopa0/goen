@@ -18,8 +18,8 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/admin"
+	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ordernotice"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
@@ -267,7 +267,7 @@ func TestRefundBeforeShipmentPaysEveryLegAndCancels(t *testing.T) {
 			t.Fatalf("press %d: %v", press+1, err)
 		}
 	}
-	assertTerminalNotice(t, orderID, ordernotice.CancelledByStaff, true)
+	assertTerminalNotice(t, orderID, email.TerminalCancelledByStaff, true)
 
 	var returnID uuid.UUID
 	var returnStatus string

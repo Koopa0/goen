@@ -31,6 +31,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/db/dbtest"
+	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/shoptime"
 )
 
@@ -1311,7 +1312,7 @@ func TestTheReconcilerIssuesTheSystemClaimOnce(t *testing.T) {
 	s := NewStore(pool, g)
 
 	number := orderToInvoice(t, 100000, 8000, 0)
-	due := Due{OrderNumber: number, Trigger: "evt_system_" + uuid.NewString()}
+	due := outbox.InvoiceDue{OrderNumber: number, Trigger: "evt_system_" + uuid.NewString()}
 	if err = s.ClaimDue(ctx, &due); err != nil {
 		t.Fatalf("ClaimDue: %v", err)
 	}
@@ -1389,7 +1390,7 @@ func TestARefusedSystemIssueWaitsForAPerson(t *testing.T) {
 	s := NewStore(pool, g)
 
 	number := orderToInvoice(t, 100000, 0, 0)
-	due := Due{OrderNumber: number, Trigger: "evt_refused_" + uuid.NewString()}
+	due := outbox.InvoiceDue{OrderNumber: number, Trigger: "evt_refused_" + uuid.NewString()}
 	if err := s.ClaimDue(ctx, &due); err != nil {
 		t.Fatalf("ClaimDue: %v", err)
 	}

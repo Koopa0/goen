@@ -500,7 +500,7 @@ func TestAnInvoiceDueReachesTheClaimWithoutAProvider(t *testing.T) {
 	t.Cleanup(idle.Close)
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
-	err = invoiceDueHandler(idle, unconfiguredInvoicing(t))(ctx, &invoice.Due{
+	err = invoiceDueHandler(idle, unconfiguredInvoicing(t))(ctx, &outbox.InvoiceDue{
 		OrderNumber: "GO-261002-000001", Trigger: "commit:GO-261002-000001",
 	})
 	if err == nil {
@@ -519,7 +519,7 @@ func unconfiguredInvoicing(t *testing.T) *invoice.Gateway {
 	return g
 }
 
-// declaredTopics is every outbox.Topic* constant, by name, with its value.
+// declaredTopics is every outbox.Topic* variable, by name, with its stored name.
 func declaredTopics(t *testing.T) map[string]string {
 	t.Helper()
 	files, err := filepath.Glob(filepath.Join("..", "..", "internal", "outbox", "*.go"))
@@ -538,7 +538,7 @@ func declaredTopics(t *testing.T) map[string]string {
 		}
 		for _, decl := range file.Decls {
 			gen, ok := decl.(*ast.GenDecl)
-			if !ok || gen.Tok != token.CONST {
+			if !ok || gen.Tok != token.VAR {
 				continue
 			}
 			for _, spec := range gen.Specs {
@@ -550,7 +550,11 @@ func declaredTopics(t *testing.T) map[string]string {
 					if !strings.HasPrefix(name.Name, "Topic") || i >= len(value.Values) {
 						continue
 					}
-					lit, ok := value.Values[i].(*ast.BasicLit)
+					call, ok := value.Values[i].(*ast.CallExpr)
+					if !ok || len(call.Args) != 1 {
+						t.Fatalf("outbox.%s is not a topic[...](\"name\") call; read it some other way", name.Name)
+					}
+					lit, ok := call.Args[0].(*ast.BasicLit)
 					if !ok || lit.Kind != token.STRING {
 						t.Fatalf("outbox.%s is not a string literal; read it some other way", name.Name)
 					}

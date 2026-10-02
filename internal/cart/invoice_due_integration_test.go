@@ -75,7 +75,7 @@ func TestCreditPayingTheWholeOrderQueuesItsInvoiceAtCheckout(t *testing.T) {
 	}
 }
 
-func queuedDues(t *testing.T, number string) []invoice.Due {
+func queuedDues(t *testing.T, number string) []outbox.InvoiceDue {
 	t.Helper()
 	rows, err := pool.Query(t.Context(),
 		`SELECT payload FROM outbox_messages WHERE topic = $1 AND dedupe_key = $2`,
@@ -87,7 +87,7 @@ func queuedDues(t *testing.T, number string) []invoice.Due {
 	if err != nil {
 		t.Fatalf("collect invoice.due for %s: %v", number, err)
 	}
-	out := make([]invoice.Due, len(payloads))
+	out := make([]outbox.InvoiceDue, len(payloads))
 	for i, p := range payloads {
 		if err := json.Unmarshal(p, &out[i]); err != nil {
 			t.Fatalf("decode invoice.due: %v", err)

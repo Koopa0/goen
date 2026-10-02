@@ -10,7 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"github.com/koopa0/goen/internal/ordernotice"
+	"github.com/koopa0/goen/internal/email"
 )
 
 // SweepInterval is how often abandoned holds are returned to the shelf.
@@ -92,7 +92,7 @@ func (s *Store) cancelLapsedOrder(ctx context.Context, number string) (bool, err
 	}
 	// No Checkout Session is left to close at Stripe: the predicate refused any
 	// order with a payment that could still take money.
-	if err := settleCancellation(ctx, q, number, ordernotice.CancelledByPaymentDeadline); err != nil {
+	if err := settleCancellation(ctx, q, number, email.TerminalCancelledByPaymentDeadline); err != nil {
 		return false, err
 	}
 	if err := tx.Commit(ctx); err != nil {
