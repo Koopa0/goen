@@ -56,11 +56,6 @@ const (
 	// its own. PNG because link-preview crawlers read it more reliably than
 	// WebP.
 	OGDefaultImage = "brand/og-default.png"
-	// AboutImage is the about page's photograph; its -400 and -800 renditions
-	// sit beside it under the product naming convention.
-	AboutImage    = "media/about/about-01.webp"
-	AboutImage400 = "media/about/about-01-400.webp"
-	AboutImage800 = "media/about/about-01-800.webp"
 	// The empty-state illustrations, each shown at 128x96.
 	EmptyCartImage     = "media/empty/cart.webp"
 	EmptySearchImage   = "media/empty/search.webp"
@@ -136,9 +131,6 @@ var required = []string{
 	HomeHeroImage720,
 	EmailHeader,
 	OGDefaultImage,
-	AboutImage,
-	AboutImage400,
-	AboutImage800,
 	EmptyCartImage,
 	EmptySearchImage,
 	EmptyCampaignImage,
@@ -228,11 +220,6 @@ func PromoDeskSrcset() string {
 // rendition is the name of a -400 or -800 sibling of a WebP asset.
 func rendition(name string, width int) string {
 	return strings.TrimSuffix(name, ".webp") + "-" + strconv.Itoa(width) + ".webp"
-}
-
-// AboutSrcset is the about photograph's candidates, 400 to its 1600 source.
-func AboutSrcset() string {
-	return URL(AboutImage400) + " 400w, " + URL(AboutImage800) + " 800w, " + URL(AboutImage) + " 1600w"
 }
 
 // CategoryImage is the photograph for a category slug and a srcset of its

@@ -6315,7 +6315,7 @@ a.goen-pager__step:hover {
 
 /* ----- About ----- */
 
-/* One 48rem column: the photograph, the title, a lead, a paragraph, three
+/* One 48rem column: the mark drawn large, the title, a lead, a paragraph, three
    short sections in the policy rhythm, and the lines a company has to print. */
 .about {
   box-sizing: border-box;
@@ -6328,14 +6328,32 @@ a.goen-pager__step:hover {
   width: 100%;
 }
 
-.about__photo {
+/* The paper tone's ground, the mark's two inks, and lines that stay fine at
+   every width: the rings carry non-scaling strokes. */
+.about__art {
   aspect-ratio: 16 / 9;
-  background: var(--photo);
+  background: var(--tone-ground);
   border-radius: var(--r-lg);
   display: block;
   height: auto;
-  object-fit: cover;
   width: 100%;
+}
+
+.about__ring {
+  fill: none;
+  stroke: var(--n-900);
+  stroke-width: 1.5;
+}
+
+.about__ring--accent {
+  stroke: var(--accent);
+}
+
+/* Where the two rings meet is lighter than the paper around it, not darker:
+   a tint of either ink there reads as a grey shadow on the warm ground. */
+.about__lens {
+  fill: var(--n-0);
+  fill-opacity: 0.6;
 }
 
 .about__title {

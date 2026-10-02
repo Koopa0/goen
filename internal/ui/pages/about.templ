@@ -3,7 +3,6 @@ package pages
 import (
 	"context"
 
-	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
@@ -20,16 +19,7 @@ func AboutMeta(ctx context.Context) layouts.Page {
 templ About(p layouts.Page) {
 	@layouts.Base(p) {
 		<article class="about">
-			<img
-				class="about__photo"
-				src={ assets.URL(assets.AboutImage) }
-				srcset={ assets.AboutSrcset() }
-				sizes="(min-width: 768px) 720px, calc(100vw - 32px)"
-				alt={ i18n.T(ctx, i18n.KeyAboutImageAlt) }
-				width="1600"
-				height="900"
-				decoding="async"
-			/>
+			@aboutArt()
 			<h1 class="about__title">{ i18n.T(ctx, i18n.KeyAboutTitle) }</h1>
 			<p class="about__lede">
 				{ i18n.T(ctx, i18n.KeyAboutName) }
@@ -62,4 +52,18 @@ templ About(p layouts.Page) {
 			</p>
 		</article>
 	}
+}
+
+// aboutArt is goen's mark drawn large: the two rings of the name, ご縁, the bond
+// between a person and a thing, with the lens where they overlap lightly
+// filled. Decoration, so hidden from assistive technology: the heading and the
+// lead under it say what it means. Strokes do not scale with the drawing, so
+// the lines stay fine at every width and density; colours come from app.css
+// classes, because the site's CSP refuses inline style.
+templ aboutArt() {
+	<svg class="about__art" data-tone="paper" viewBox="0 0 1600 900" aria-hidden="true" focusable="false">
+		<path class="about__lens" d="M 715.6 534.4 A 193 193 0 0 0 884.4 365.6 A 193 193 0 0 0 715.6 534.4 Z"></path>
+		<circle class="about__ring" cx="692.8" cy="342.8" r="193" vector-effect="non-scaling-stroke"></circle>
+		<circle class="about__ring about__ring--accent" cx="907.2" cy="557.2" r="193" vector-effect="non-scaling-stroke"></circle>
+	</svg>
 }

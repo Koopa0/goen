@@ -1,7 +1,7 @@
 package pages
 
 import (
-	"html"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -21,19 +21,30 @@ func renderIn(t *testing.T, locale i18n.Locale, c templ.Component) string {
 	return b.String()
 }
 
-func TestAboutShowsItsPhotographWithALocalizedAlt(t *testing.T) {
+// The about page draws goen's mark instead of a photograph: the two rings the
+// name is about, hidden from a screen reader because the heading and lead say
+// it, and no picture to fetch. Its colours come from classes, because the CSP
+// refuses an inline style attribute and the drawing would render black.
+func TestAboutDrawsTheMarkRatherThanAPhotograph(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), locale)
 		page := renderIn(t, locale, About(AboutMeta(ctx)))
-		for _, want := range []string{
-			`src="` + assets.URL(assets.AboutImage) + `"`,
-			`about-01-400.webp`,
-			`alt="` + html.EscapeString(i18n.T(ctx, i18n.KeyAboutImageAlt)) + `"`,
-		} {
-			if !strings.Contains(page, want) {
-				t.Errorf("%s about page omits %s", locale, want)
-			}
+		art := regexp.MustCompile(`(?s)<svg class="about__art".*?</svg>`).FindString(page)
+		if art == "" {
+			t.Fatalf("%s about page draws no mark", locale)
+		}
+		if !strings.Contains(art, `aria-hidden="true"`) {
+			t.Errorf("%s about drawing is announced; the heading already says what it means", locale)
+		}
+		if got := strings.Count(art, `class="about__ring`); got != 2 {
+			t.Errorf("%s about drawing has %d rings, want the mark's 2", locale, got)
+		}
+		if strings.Contains(art, "style=") {
+			t.Errorf("%s about drawing carries an inline style the CSP refuses", locale)
+		}
+		if strings.Contains(page, "<img") {
+			t.Errorf("%s about page still fetches a picture", locale)
 		}
 	}
 }
