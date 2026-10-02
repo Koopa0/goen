@@ -2,6 +2,8 @@ package pages
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -1247,5 +1249,106 @@ func TestQuestionsAndAnswersMaskNamesLikeReviews(t *testing.T) {
 	}
 	if got := (Answer{Author: "陳大文", IsStaff: true}).Who(ctx); got != "goen" {
 		t.Errorf("staff answer shown as %q, want goen", got)
+	}
+}
+
+func couponTestView() CheckoutView {
+	return CheckoutView{
+		Cart:     CartView{Lines: []CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
+		Shipping: []ShippingChoice{{VersionID: "s1", Code: "home", Name: "宅配到府"}},
+		Chosen:   "s1",
+	}
+}
+
+// TestApplyingACouponSwapsOnlyTheCodeTheTotalsAndTheQuote holds what a script
+// replaces when 套用 is pressed. Each named id must exist in the page, or the
+// swap silently drops it; the quote is among them because the code changes it
+// and a stale one fails the next 送出訂單. The whole summary is not named: it
+// holds the buttons, and replacing them drops the focus.
+func TestApplyingACouponSwapsOnlyTheCodeTheTotalsAndTheQuote(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	view := couponTestView()
+	html := renderToString(t, Checkout(CheckoutMeta(ctx), &view))
+
+	button := tagCarrying(t, html, `value="coupon"`)
+	for _, want := range []string{
+		`hx-post="/checkout"`,
+		`hx-swap="none"`,
+		`hx-select-oob="#coupon,#coupon-message:innerHTML,#summary-totals,#checkout-quote"`,
+		`formaction="/checkout#coupon-field"`,
+	} {
+		if !strings.Contains(button, want) {
+			t.Errorf("the coupon button omits %s:\n%s", want, button)
+		}
+	}
+	for _, id := range []string{"coupon", "coupon-message", "summary-totals", "checkout-quote", "coupon-field"} {
+		if !strings.Contains(html, `id="`+id+`"`) {
+			t.Errorf("the page has no element with id %q for the coupon swap", id)
+		}
+	}
+	for _, bad := range []string{`#summary,`, `#checkout-region`, `hx-target`} {
+		if strings.Contains(button, bad) {
+			t.Errorf("the coupon button names %s, which would replace more than the code and the totals", bad)
+		}
+	}
+	if !strings.Contains(html, `id="coupon-message" aria-live="polite"`) {
+		t.Error("the coupon's message is not in a live region, so a refusal is not announced")
+	}
+}
+
+// TestACouponRefusalNamesItselfInTheBanner holds that a form whose only problem
+// is the code does not send the shopper through the fields, while any other
+// refusal keeps the general banner.
+func TestACouponRefusalNamesItselfInTheBanner(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	general := i18n.T(ctx, i18n.KeyCheckoutHasErrors)
+
+	only := couponTestView()
+	only.Errors = map[string]string{"coupon": "找不到這組折扣碼。"}
+	html := renderToString(t, Checkout(CheckoutMeta(ctx), &only))
+	if !strings.Contains(html, "折扣碼無法套用:找不到這組折扣碼。") || strings.Contains(html, general) {
+		t.Error("the banner does not name the coupon refusal")
+	}
+
+	both := couponTestView()
+	both.Errors = map[string]string{"coupon": "找不到這組折扣碼。", "phone": "請填寫聯絡電話"}
+	html = renderToString(t, Checkout(CheckoutMeta(ctx), &both))
+	if !strings.Contains(html, general) {
+		t.Error("a form with other refusals lost the general banner")
+	}
+}
+
+// TestTheCheckoutFormIsCheckedByTheServerAndFocusesTheFirstRefusal holds that no
+// field is refused by the browser before the server has answered for all of
+// them, and that a refused page says so for the script that moves focus.
+func TestTheCheckoutFormIsCheckedByTheServerAndFocusesTheFirstRefusal(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+
+	fresh := couponTestView()
+	html := renderToString(t, Checkout(CheckoutMeta(ctx), &fresh))
+	form := tagCarrying(t, html, `id="checkout-form"`)
+	if !strings.Contains(form, "novalidate") {
+		t.Error("the browser can block a submit with its own bubble for one field and not the others")
+	}
+	if strings.Contains(form, "data-focus-refused") {
+		t.Error("a form nobody has submitted asks for focus on a refusal")
+	}
+
+	refused := couponTestView()
+	refused.Errors = map[string]string{"phone": "請填寫聯絡電話"}
+	html = renderToString(t, Checkout(CheckoutMeta(ctx), &refused))
+	if !strings.Contains(tagCarrying(t, html, `id="checkout-form"`), "data-focus-refused") {
+		t.Error("a refused form does not ask for focus on its first refusal")
+	}
+
+	src, err := os.ReadFile(filepath.Join("..", "..", "..", "assets", "js", "goen.js"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(src), `form[data-focus-refused] :is(input, select, textarea, button)[aria-invalid="true"]`) {
+		t.Error("the script does not focus the first refused control of a refused checkout")
 	}
 }

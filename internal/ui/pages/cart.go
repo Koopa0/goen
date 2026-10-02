@@ -331,6 +331,28 @@ func checkoutChoiceSwap(which string) templ.Attributes {
 	}
 }
 
+// couponButtonAttrs makes 套用 a request of its own. With scripting it asks the
+// server what the code does and swaps only the code's field, the totals and the
+// quote the order button will be checked against; the rest of the form is
+// neither validated nor replaced. Without scripting the same submit comes back
+// at the coupon field.
+//
+// The hidden quote is among what is swapped: the code changes it, and a stale
+// one would make the next 送出訂單 answer "the checkout changed".
+func couponButtonAttrs() templ.Attributes {
+	return templ.Attributes{
+		"name":           "update",
+		"value":          "coupon",
+		"formnovalidate": true,
+		"formaction":     "/checkout#coupon-field",
+		"hx-post":        "/checkout",
+		"hx-include":     "#checkout-form",
+		"hx-vals":        `{"update":"coupon"}`,
+		"hx-swap":        "none",
+		"hx-select-oob":  "#coupon,#coupon-message:innerHTML,#summary-totals,#checkout-quote",
+	}
+}
+
 // InvoiceChoice is one option in the invoice-type radio group.
 type InvoiceChoice struct {
 	Value invoice.Preference
@@ -498,6 +520,13 @@ func (v *CheckoutView) Invalid(field string) string {
 
 // AnyErrors reports whether the form was rejected at all.
 func (v *CheckoutView) AnyErrors() bool { return len(v.Errors) > 0 }
+
+// OnlyCouponRefused reports a rejection that is the discount code and nothing
+// else, which the banner then names instead of sending the shopper through the
+// fields to find it.
+func (v *CheckoutView) OnlyCouponRefused() bool {
+	return len(v.Errors) == 1 && v.HasErr("coupon")
+}
 
 // HasSurcharge reports whether this address costs extra to reach.
 func (v *CheckoutView) HasSurcharge() bool { return v.SurchargeCents > 0 }

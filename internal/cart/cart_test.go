@@ -1157,3 +1157,21 @@ func TestPrefillRecipientNeverOverwritesAndReportsWhetherItIsTheMember(t *testin
 		t.Errorf("a guest was prefilled: %+v me=%v", guest, view.RecipientMe)
 	}
 }
+
+// TestABlankCityIsAskedToBeFilledIn holds the wording of a free-text field: the
+// city and district are typed, so neither is asked to be chosen.
+func TestABlankCityIsAskedToBeFilledIn(t *testing.T) {
+	t.Parallel()
+
+	addr := Address{To: ToAddress, PostalCode: "110", District: "信義區", Street: "松高路 1 號"}
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	var got string
+	for _, e := range addr.Validate() {
+		if e.Field == "city" {
+			got = i18n.T(ctx, e.MessageKey)
+		}
+	}
+	if got != "請填寫縣市" {
+		t.Errorf("a blank city is refused with %q, want 請填寫縣市", got)
+	}
+}

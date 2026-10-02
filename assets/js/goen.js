@@ -606,6 +606,19 @@
   }
 
   fieldRules();
+
+  /*
+   * The checkout form carries no native validation: a submit always reaches the
+   * server, which answers every refused field with its own message, in the order
+   * of the form. The page it answers with takes the shopper to the first of them.
+   */
+  function focusRefused() {
+    document
+      .querySelector('form[data-focus-refused] :is(input, select, textarea, button)[aria-invalid="true"]')
+      ?.focus();
+  }
+
+  focusRefused();
   /*
    * 「收件人同會員資料」. Ticking it is an explicit request: it puts the account's
    * name and phone in the recipient fields, over whatever they held, after

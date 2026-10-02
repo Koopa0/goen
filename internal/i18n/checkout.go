@@ -14,6 +14,12 @@ var (
 		En:     "Some fields need fixing — see the notes below.",
 	})
 
+	// %s is the reason the code was refused.
+	KeyCheckoutCouponRefused = key("checkout.errors.coupon", Message{
+		ZhHant: "折扣碼無法套用:%s",
+		En:     "The discount code was not applied: %s",
+	})
+
 	KeySectionShipping = key("checkout.section.shipping", Message{ZhHant: "配送方式", En: "Delivery method"})
 
 	KeySectionRecipient = key("checkout.section.recipient", Message{ZhHant: "收件資訊", En: "Delivery details"})
@@ -249,7 +255,7 @@ var (
 		En:     "Enter a postcode",
 	})
 
-	KeyCityRequired = key("valid.city.required", Message{ZhHant: "請選擇縣市", En: "Choose a city or county"})
+	KeyCityRequired = key("valid.city.required", Message{ZhHant: "請填寫縣市", En: "Enter a city or county"})
 
 	KeyDistrictRequired = key("valid.district.required", Message{ZhHant: "請填寫鄉鎮市區", En: "Enter a district"})
 
