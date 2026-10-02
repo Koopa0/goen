@@ -11474,7 +11474,7 @@ func TestAStrandedInvoiceClaimIsOnTheHealthPage(t *testing.T) {
 		SELECT $1,'allowance',d.id,d.number,50000,
 		       jsonb_build_object(
 		           'invoice_number',d.number,
-		           'invoice_date',to_char(d.issued_at AT TIME ZONE 'UTC','YYYY-MM-DD'),
+		           'invoice_date',to_char(shop_day(d.issued_at), 'YYYY-MM-DD'),
 		           'customer_name','王小明','email','stranded@goen.invalid',
 		           'amount_cents',50000,
 		           'lines',jsonb_build_array(jsonb_build_object(

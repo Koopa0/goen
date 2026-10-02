@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/koopa0/goen/internal/email"
+	"github.com/koopa0/goen/internal/shoptime"
 )
 
 var (
@@ -197,9 +198,9 @@ func (g *Gateway) Void(ctx context.Context, number string, issuedAt time.Time, r
 		InvoiceNo:  number,
 		// Invalid validates this against the invoice's own issue date. A mismatch
 		// is 1600003 無發票號碼資料 — indistinguishable from a wrong number. The
-		// provider's timestamp is stored as its wall clock labelled UTC, so UTC is
-		// load-bearing after a timestamptz round trip in a non-UTC process.
-		InvoiceDate: issuedAt.UTC().Format("2006-01-02"),
+		// provider's date is the shop's calendar day, whatever zone the process
+		// holds after a timestamptz round trip.
+		InvoiceDate: shoptime.Day(issuedAt),
 		Reason:      truncate(reason, 20),
 	})
 	if err != nil {
@@ -543,7 +544,7 @@ func (g *Gateway) FetchAllowances(
 	res, err := g.call[getAllowanceListResult](ctx, "/B2CInvoice/GetAllowanceList",
 		getAllowanceListRequest{
 			MerchantID: g.merchantID, SearchType: "1", InvoiceNo: invoiceNumber,
-			Date: issuedAt.UTC().Format("2006-01-02"),
+			Date: shoptime.Day(issuedAt),
 		})
 	if err != nil {
 		if providerErr, ok := errors.AsType[*providerError](err); ok && providerErr.Code == 7 {
@@ -592,7 +593,7 @@ func parseECPayTime(s string) (time.Time, error) {
 	if !ecpayTimePattern.MatchString(s) {
 		return time.Time{}, errors.New("invalid ECPay timestamp format")
 	}
-	t, err := time.Parse("2006-01-02 15:04:05", s)
+	t, err := shoptime.ParseSecond(s)
 	if err != nil {
 		return time.Time{}, fmt.Errorf("parse ECPay timestamp: %w", err)
 	}

@@ -95,18 +95,24 @@ func mustLoad(t *testing.T, name string) *time.Location {
 	return loc
 }
 
-// TestAProviderClockIsReadBackAsSent holds that ECPay's "2026-09-30 17:30:00",
-// stored as 17:30Z, renders as 17:30 in whatever zone the process carries; the
-// shop's clock would give 2026-10-01 01:30.
-func TestAProviderClockIsReadBackAsSent(t *testing.T) {
-	stored := time.Date(2026, 9, 30, 17, 30, 0, 0, time.UTC)
+// TestAProviderClockIsReadAsTheShopsOwn holds that ECPay's zoneless
+// "2026-09-30 17:30:00" is 17:30 in Taipei, which is 09:30Z, and renders as
+// 17:30 whatever zone the process carries.
+func TestAProviderClockIsReadAsTheShopsOwn(t *testing.T) {
+	t.Parallel()
+	got, err := shoptime.ParseSecond("2026-09-30 17:30:00")
+	if err != nil {
+		t.Fatalf("ParseSecond: %v", err)
+	}
+	if want := time.Date(2026, 9, 30, 9, 30, 0, 0, time.UTC); !got.Equal(want) {
+		t.Errorf("ParseSecond = %s, want the instant %s", got.UTC(), want)
+	}
 	for name, in := range map[string]time.Time{
-		"as stored":           stored,
-		"read in Taipei":      stored.In(mustLoad(t, "Asia/Taipei")),
-		"read somewhere else": stored.In(mustLoad(t, "America/New_York")),
+		"as stored":           got.UTC(),
+		"read somewhere else": got.In(mustLoad(t, "America/New_York")),
 	} {
-		if got, want := shoptime.ProviderMinute(in), "2026-09-30 17:30"; got != want {
-			t.Errorf("%s: ProviderMinute() = %q, want %q", name, got, want)
+		if got, want := shoptime.Minute(in), "2026-09-30 17:30"; got != want {
+			t.Errorf("%s: Minute() = %q, want %q", name, got, want)
 		}
 	}
 }
