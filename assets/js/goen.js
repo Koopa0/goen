@@ -143,13 +143,13 @@
       menu.querySelector("summary")?.focus();
     });
 
-    // The drawer hangs from the header, which sits below the notice row, so a
-    // fixed offset from the viewport's bottom cannot say how much room it has.
+    // What sits above the drawer varies (a notice row, the header's height), so
+    // its room is measured from where it actually starts.
     const drawer = menu.querySelector(".goen-header__drawer");
     const fit = () => {
       if (!drawer || !menu.open) return;
-      const bottom = menu.closest("header")?.getBoundingClientRect().bottom ?? 0;
-      drawer.style.setProperty("--drawer-room", `${Math.max(0, window.innerHeight - bottom)}px`);
+      const top = drawer.getBoundingClientRect().top;
+      drawer.style.setProperty("--drawer-room", `${Math.max(0, window.innerHeight - top)}px`);
     };
     menu.addEventListener("toggle", fit);
     window.addEventListener("resize", fit);
