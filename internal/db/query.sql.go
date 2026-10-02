@@ -3514,14 +3514,32 @@ func (q *Queries) CategoryAncestors(ctx context.Context, arg CategoryAncestorsPa
 }
 
 const categoryBrands = `-- name: CategoryBrands :many
-SELECT b.id, b.slug, b.name, count(*)::bigint AS product_count
+SELECT b.id, b.slug, b.name,
+       (count(*) FILTER (
+           WHERE NOT $1::boolean
+              OR EXISTS (
+                  SELECT 1 FROM product_variants v
+                  WHERE v.product_id = p.id AND v.is_active
+                    AND (NOT $2::boolean OR v.stock_quantity > v.safety_stock)
+                    AND ($3::bigint = 0 OR v.price_cents >= $3::bigint)
+                    AND ($4::bigint = 0 OR v.price_cents <= $4::bigint)
+              )
+       ))::bigint AS product_count
 FROM products p
 JOIN brands b ON b.id = p.brand_id
 WHERE p.status = 'active'
-  AND p.category_id = ANY($1::uuid[])
+  AND p.category_id = ANY($5::uuid[])
 GROUP BY b.id, b.slug, b.name
 ORDER BY b.name
 `
+
+type CategoryBrandsParams struct {
+	FilterVariants bool
+	InStockOnly    bool
+	MinPrice       int64
+	MaxPrice       int64
+	CategoryIds    []uuid.UUID
+}
 
 type CategoryBrandsRow struct {
 	ID           uuid.UUID
@@ -3530,10 +3548,18 @@ type CategoryBrandsRow struct {
 	ProductCount int64
 }
 
-// Counted over products that would appear with no other filter applied, so a
-// brand offering nothing is not listed.
-func (q *Queries) CategoryBrands(ctx context.Context, categoryIds []uuid.UUID) ([]CategoryBrandsRow, error) {
-	rows, err := q.db.Query(ctx, categoryBrands, categoryIds)
+// Every brand with an active product in the category, counted over the products
+// the other filters leave: a brand's count is what choosing it would show, brand
+// filters aside. A brand the other filters empty stays listed at zero, so a
+// chosen one can always be unchosen.
+func (q *Queries) CategoryBrands(ctx context.Context, arg CategoryBrandsParams) ([]CategoryBrandsRow, error) {
+	rows, err := q.db.Query(ctx, categoryBrands,
+		arg.FilterVariants,
+		arg.InStockOnly,
+		arg.MinPrice,
+		arg.MaxPrice,
+		arg.CategoryIds,
+	)
 	if err != nil {
 		return nil, err
 	}

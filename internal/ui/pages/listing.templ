@@ -93,6 +93,13 @@ templ Listing(p layouts.Page, v ListingView) {
 					}
 				</div>
 			</div>
+			if isPartial(ctx) {
+				// The rail is not swapped, or the box the shopper just used would lose
+				// focus; its counts are, one by one, because they follow the filters.
+				for _, b := range v.Brands {
+					<span class="goen-filters__count" id={ "brand-count-" + b.Value } hx-swap-oob="true">{ b.CountText() }</span>
+				}
+			}
 		</div>
 	}
 }
@@ -138,7 +145,7 @@ templ listingFilters(v ListingView) {
 										checked?={ b.Selected }
 									/>
 									<span class="goen-filters__label">{ b.Label }</span>
-									<span class="goen-filters__count">{ b.CountText() }</span>
+									<span class="goen-filters__count" id={ "brand-count-" + b.Value }>{ b.CountText() }</span>
 								</label>
 							}
 						</div>
@@ -203,7 +210,10 @@ templ listingFilters(v ListingView) {
 					<span class="goen-filters__applied-label">{ i18n.T(ctx, i18n.KeyFiltersActive) }</span>
 					<ul class="goen-filters__chips" role="list">
 						for _, chip := range v.AppliedChips(ctx) {
-							<li class="goen-filters__chip">{ chip }</li>
+							<li class="goen-filters__chip">
+								<span>{ chip.Label }</span>
+								<a class="goen-filters__chip-remove" href={ templ.URL(chip.Remove) } aria-label={ chip.RemoveLabel }><span aria-hidden="true">×</span></a>
+							</li>
 						}
 					</ul>
 					<a class="ui-filterbar__clear" href={ templ.URL("/c/" + v.Slug) }>{ i18n.T(ctx, i18n.KeyClearFilters) }</a>

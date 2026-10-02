@@ -30,6 +30,9 @@ func NewHandler(store *Store, log *slog.Logger) *Handler {
 
 // Listing serves GET /c/{slug}.
 func (h *Handler) Listing(w http.ResponseWriter, r *http.Request) {
+	if web.DropEmptyParams(w, r) {
+		return
+	}
 	slug := r.PathValue("slug")
 	f := parseFilters(r.URL.Query())
 

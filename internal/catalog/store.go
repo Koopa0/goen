@@ -46,7 +46,13 @@ func (s *Store) Listing(ctx context.Context, slug string, f Filters) (pages.List
 		return pages.ListingView{}, fmt.Errorf("read descendants of %q: %w", slug, err)
 	}
 
-	brands, err := s.q.CategoryBrands(ctx, ids)
+	brands, err := s.q.CategoryBrands(ctx, db.CategoryBrandsParams{
+		CategoryIds:    ids,
+		FilterVariants: f.VariantScoped(),
+		InStockOnly:    f.InStockOnly,
+		MinPrice:       f.MinPrice,
+		MaxPrice:       f.MaxPrice,
+	})
 	if err != nil {
 		return pages.ListingView{}, fmt.Errorf("read brands for %q: %w", slug, err)
 	}

@@ -593,3 +593,52 @@ func TestAnEmptySearchOffersTheNewestProducts(t *testing.T) {
 		t.Error("an empty search offers a sort control with nothing to sort")
 	}
 }
+
+// Each applied filter links to the listing without that one filter and nothing
+// else, and names what it removes, because its glyph is only a cross.
+func TestEachAppliedFilterLinksToTheListingWithoutIt(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	view := ListingView{
+		Slug: "audio", Name: "Audio", Filtered: true, InStockOnly: true, MinPrice: 1000, MaxPrice: 5000,
+		Query: "brand=aurora&brand=nimbus&in_stock=1&max_price=50&min_price=10&sort=rating",
+		Brands: []FacetOption{
+			{Value: "aurora", Label: "Aurora", Selected: true},
+			{Value: "nimbus", Label: "Nimbus", Selected: true},
+		},
+	}
+	want := map[string]string{
+		"Remove “Aurora”":   "/c/audio?brand=nimbus&in_stock=1&max_price=50&min_price=10&sort=rating",
+		"Remove “Nimbus”":   "/c/audio?brand=aurora&in_stock=1&max_price=50&min_price=10&sort=rating",
+		"Remove “In stock”": "/c/audio?brand=aurora&brand=nimbus&max_price=50&min_price=10&sort=rating",
+		"Remove “10–50”":    "/c/audio?brand=aurora&brand=nimbus&in_stock=1&sort=rating",
+	}
+	chips := view.AppliedChips(ctx)
+	if len(chips) != len(want) {
+		t.Fatalf("%d chips, want %d: %+v", len(chips), len(want), chips)
+	}
+	for _, c := range chips {
+		if want[c.RemoveLabel] != c.Remove {
+			t.Errorf("%q links to %q, want %q", c.RemoveLabel, c.Remove, want[c.RemoveLabel])
+		}
+	}
+	html := renderComponent(t, ctx, Listing(ListingMeta(ctx, view), view))
+	if !strings.Contains(html, `aria-label="Remove “Aurora”"`) {
+		t.Error("the chip's remove link has no accessible name in the markup")
+	}
+}
+
+// The rail is not swapped, so a swapped response carries each brand's count on
+// its own; a whole-page response must not, or ids would repeat.
+func TestAPartialListingCarriesTheBrandCountsForTheRail(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	view := ListingView{Slug: "audio", Name: "Audio", Products: shelf(1), Total: 1, Brands: []FacetOption{{Value: "aurora", Label: "Aurora", Count: 3}}}
+	oob := `<span class="goen-filters__count" id="brand-count-aurora" hx-swap-oob="true">3</span>`
+	if html := renderComponent(t, AsPartial(ctx), Listing(ListingMeta(ctx, view), view)); !strings.Contains(html, oob) {
+		t.Errorf("a partial listing lacks the out-of-band count:\n%s", html)
+	}
+	if html := renderComponent(t, ctx, Listing(ListingMeta(ctx, view), view)); strings.Contains(html, "hx-swap-oob") {
+		t.Error("a whole-page listing carries out-of-band counts")
+	}
+}

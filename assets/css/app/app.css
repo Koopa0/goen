@@ -2649,10 +2649,20 @@ h3 {
   padding: 0 0 16px;
 }
 
+/* The heading keeps the outline unbroken at every width, but on a phone the
+   disclosure's own summary already says it, so it is read, not shown. */
 .goen-filters__title {
+  border: 0;
+  clip-path: inset(50%);
   font-size: var(--fs-16);
   font-weight: var(--fw-semibold);
-  margin: 0;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  padding: 0;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
 }
 
 .goen-filters__group {
@@ -3432,6 +3442,16 @@ a.goen-pager__step:hover {
      wishlist keep the four the shared rule gives them. */
   .goen-listing__results .goen-tiles__grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .goen-filters__title {
+    clip-path: none;
+    height: auto;
+    margin: 0;
+    overflow: visible;
+    position: static;
+    white-space: normal;
+    width: auto;
   }
 
   /* The rail is open at every desk width: the summary goes, and the slot the

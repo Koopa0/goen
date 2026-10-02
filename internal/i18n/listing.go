@@ -58,6 +58,8 @@ var (
 		En:     "Up to %s",
 	})
 
+	KeyRemoveFilter = key("listing.filters.remove", Message{ZhHant: "移除「%s」", En: "Remove “%s”"})
+
 	KeyClearFilters = key("listing.filters.clear", Message{ZhHant: "清除全部", En: "Clear all"})
 
 	KeyApplyFilters = key("listing.filters.apply", Message{ZhHant: "套用篩選", En: "Apply filters"})
