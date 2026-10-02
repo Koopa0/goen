@@ -92,7 +92,8 @@ func recommendationFixture(t *testing.T) (*pgxpool.Pool, pages.ProductView, uuid
 		t.Fatal(variantErr)
 	}
 	selection := product.Selection{}
-	for _, variant := range variants {
+	for i := range variants {
+		variant := &variants[i]
 		if !variant.Sellable {
 			continue
 		}
