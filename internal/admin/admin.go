@@ -271,7 +271,7 @@ func parseBoundedInt(s string, ceiling int32) (int32, bool) {
 
 // ReturnStatusLabel is a return request's state in the chrome language. The
 // states are the four return_requests_refund_snapshot_shape allows.
-func ReturnStatusLabel(ctx context.Context, s returns.ReturnStatus) string {
+func ReturnStatusLabel(ctx context.Context, s returns.Status) string {
 	switch s {
 	case returns.ReturnRequested:
 		return i18n.T(ctx, i18n.KeyAdminReturnRequested)
@@ -289,7 +289,7 @@ func ReturnStatusLabel(ctx context.Context, s returns.ReturnStatus) string {
 // returnStatusText is a return's status as the queue shows it. A refund before
 // shipment that has finished is a cancellation: nothing came back, so
 // "completed" would read as a return that did.
-func returnStatusText(ctx context.Context, s returns.ReturnStatus, beforeShipment bool) string {
+func returnStatusText(ctx context.Context, s returns.Status, beforeShipment bool) string {
 	if beforeShipment && s == returns.ReturnCompleted {
 		return i18n.T(ctx, i18n.KeyAdminReturnCancelledRefunded)
 	}

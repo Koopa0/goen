@@ -52,18 +52,18 @@ type Request struct {
 	Lines map[string]int32
 }
 
-// ReturnStatus is return_requests.status, as return_requests_refund_snapshot_shape spells it.
-type ReturnStatus string
+// Status is return_requests.status, as return_requests_refund_snapshot_shape spells it.
+type Status string
 
 // The four states return_requests_refund_snapshot_shape allows.
 const (
-	ReturnRequested ReturnStatus = "requested"
-	ReturnApproved  ReturnStatus = "approved"
-	ReturnRejected  ReturnStatus = "rejected"
-	ReturnCompleted ReturnStatus = "completed"
+	ReturnRequested Status = "requested"
+	ReturnApproved  Status = "approved"
+	ReturnRejected  Status = "rejected"
+	ReturnCompleted Status = "completed"
 )
 
-var knownReturnStatuses = [...]ReturnStatus{
+var knownStatuses = [...]Status{
 	ReturnRequested,
 	ReturnApproved,
 	ReturnRejected,
@@ -98,7 +98,7 @@ func (r *Request) Validate() error {
 }
 
 // StatusLabel is a return's state in the chrome language.
-func StatusLabel(ctx context.Context, s ReturnStatus) string {
+func StatusLabel(ctx context.Context, s Status) string {
 	switch s {
 	case ReturnRequested:
 		return i18n.T(ctx, i18n.KeyReturnStateOpen)

@@ -37,17 +37,17 @@ var (
 	errCaptureRefused = errors.New("payment: the verified capture needs reconciliation")
 )
 
-// PaymentStatus is payments.status, closed by payments_status_known.
-type PaymentStatus string
+// Status is payments.status, closed by payments_status_known.
+type Status string
 
 const (
-	PaymentRequiresPayment        PaymentStatus = "requires_payment"
-	PaymentRequiresAction         PaymentStatus = "requires_action"
-	PaymentProcessing             PaymentStatus = "processing"
-	PaymentRequiresReconciliation PaymentStatus = "requires_reconciliation"
-	PaymentSucceeded              PaymentStatus = "succeeded"
-	PaymentCancelled              PaymentStatus = "cancelled"
-	PaymentReconciled             PaymentStatus = "reconciled"
+	StatusRequiresPayment        Status = "requires_payment"
+	StatusRequiresAction         Status = "requires_action"
+	StatusProcessing             Status = "processing"
+	StatusRequiresReconciliation Status = "requires_reconciliation"
+	StatusSucceeded              Status = "succeeded"
+	StatusCancelled              Status = "cancelled"
+	StatusReconciled             Status = "reconciled"
 )
 
 // Currency is the only currency goen prices in. TWD is not a zero-decimal

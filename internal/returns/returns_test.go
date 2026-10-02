@@ -46,7 +46,7 @@ func TestEveryKnownReturnStatusHasACustomerLabel(t *testing.T) {
 
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), locale)
-		for _, status := range knownReturnStatuses {
+		for _, status := range knownStatuses {
 			label := StatusLabel(ctx, status)
 			if label == "" || label == string(status) {
 				t.Errorf("StatusLabel(%q) in %s = %q, want a catalogue label",
@@ -60,7 +60,7 @@ func TestUnknownReturnStatusRendersAsItself(t *testing.T) {
 	t.Parallel()
 
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
-	unknown := ReturnStatus("legacy_foo")
+	unknown := Status("legacy_foo")
 	if got := StatusLabel(ctx, unknown); got != "legacy_foo" {
 		t.Fatalf("StatusLabel(%q) = %q, want the raw status", unknown, got)
 	}

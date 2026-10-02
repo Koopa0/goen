@@ -16,7 +16,7 @@ type Return struct {
 	Lines       []ReturnLine
 	ID          string
 	OrderNumber string
-	Status      returns.ReturnStatus
+	Status      returns.Status
 	StatusText  string
 	Reason      string
 	Units       int32

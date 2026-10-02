@@ -184,13 +184,13 @@ func buildReturnQueue(
 		item := admin.Return{
 			ID:          r.ID.String(),
 			OrderNumber: r.OrderNumber,
-			Status:      returns.ReturnStatus(r.Status),
-			StatusText:  returnStatusText(ctx, returns.ReturnStatus(r.Status), r.BeforeShipment),
+			Status:      returns.Status(r.Status),
+			StatusText:  returnStatusText(ctx, returns.Status(r.Status), r.BeforeShipment),
 			Reason:      r.Reason,
 			Units:       r.Units,
 			AmountCents: r.RefundableCents,
 			CreatedAt:   shoptime.Minute(r.CreatedAt),
-			Decided:     returns.ReturnStatus(r.Status) != returns.ReturnRequested,
+			Decided:     returns.Status(r.Status) != returns.ReturnRequested,
 			Lines:       byRequest[r.ID],
 			Window:      r.RescissionWindow,
 
@@ -205,7 +205,7 @@ func buildReturnQueue(
 			item.CardRefundCents = facts.CardRefundCents
 			item.CreditRefundCents = facts.CreditRefundCents
 		}
-		if payoutErr := fillReturnPayoutState(returns.ReturnStatus(r.Status), payoutFacts[r.ID], &item); payoutErr != nil {
+		if payoutErr := fillReturnPayoutState(returns.Status(r.Status), payoutFacts[r.ID], &item); payoutErr != nil {
 			if !errors.Is(payoutErr, ErrRefused) {
 				return ReturnQueue{}, payoutErr
 			}
@@ -346,7 +346,7 @@ func (s *Store) returnPayoutFact(
 }
 
 func fillReturnPayoutState(
-	status returns.ReturnStatus, facts returnPayoutFacts, item *admin.Return,
+	status returns.Status, facts returnPayoutFacts, item *admin.Return,
 ) error {
 	if status != returns.ReturnApproved {
 		return nil
@@ -540,7 +540,7 @@ func (s *Store) returnUnderDecision(
 	if err != nil {
 		return db.ReturnForDecisionRow{}, false, fmt.Errorf("%w: %w", ErrRefused, err)
 	}
-	status := returns.ReturnStatus(row.Status)
+	status := returns.Status(row.Status)
 	retry := status == returns.ReturnApproved && kind == returns.DecisionApprove
 	if status != returns.ReturnRequested && !retry {
 		return db.ReturnForDecisionRow{}, false,
@@ -562,7 +562,7 @@ func parseAssessmentVersion(raw string) (int32, error) {
 }
 
 func returnDecisionAudit(
-	status returns.ReturnStatus, resolution string,
+	status returns.Status, resolution string,
 	window returns.PolicyWindow, entitlement returns.Entitlement,
 	assessmentVersion int32,
 ) map[string]any {
@@ -926,7 +926,7 @@ func (s *Store) Assess(ctx context.Context, id, basis string, facts []LineEligib
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrRefused, err)
 	}
-	if returns.ReturnStatus(row.Status) != returns.ReturnRequested {
+	if returns.Status(row.Status) != returns.ReturnRequested {
 		return fmt.Errorf("%w: return %s is already %s", ErrRefused, id, row.Status)
 	}
 	lines, err := q.ReturnLines(ctx, []uuid.UUID{requestID})
