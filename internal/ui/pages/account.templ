@@ -9,7 +9,6 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// SignIn renders the sign-in form; one message covers both refusals.
 templ SignIn(p layouts.Page, v AuthView) {
 	@layouts.Base(p) {
 		<div class="goen-auth">
@@ -21,9 +20,7 @@ templ SignIn(p layouts.Page, v AuthView) {
 					}
 				}
 				if v.HasErr("form") {
-					// Written here rather than through the notice component: a guard
-					// reads role="alert" out of this source to know the refusal is
-					// announced (internal/ui/pages/aria_test.go:122).
+					// Not the notice component: a guard reads role="alert" from this source (aria_test.go).
 					<p class="goen-notice goen-notice--danger" id="signin-error" role="alert">{ v.Err("form") }</p>
 				}
 				if v.OffersDemoAccount() {
@@ -92,9 +89,7 @@ templ SignIn(p layouts.Page, v AuthView) {
 	}
 }
 
-// demoAccountNote prints the shared account's credentials as text, which is
-// all a browser without scripting gets. goen.js reveals the button, which
-// fills the form from its data attributes and submits it.
+// Credentials as plain text for a browser without scripting; goen.js reveals the button that fills and submits the form.
 templ demoAccountNote(v AuthView) {
 	<section class="goen-auth__demo" aria-labelledby="demo-account-title">
 		<h2 class="goen-auth__demotitle" id="demo-account-title">{ i18n.T(ctx, i18n.KeyDemoAccount) }</h2>
@@ -125,7 +120,6 @@ templ demoAccountNote(v AuthView) {
 	</section>
 }
 
-// Register renders the registration form.
 templ Register(p layouts.Page, v AuthView) {
 	@layouts.Base(p) {
 		<div class="goen-auth">
@@ -267,8 +261,6 @@ templ Register(p layouts.Page, v AuthView) {
 	}
 }
 
-// RegisterComplete is where a registration link lands: the link came to the
-// mailbox, and the password proves this is who registered.
 templ RegisterComplete(p layouts.Page, v RegisterCompleteView) {
 	@layouts.Base(p) {
 		<div class="goen-auth">
@@ -312,7 +304,6 @@ templ RegisterComplete(p layouts.Page, v RegisterCompleteView) {
 	}
 }
 
-// CartRecovery is where sign-in lands when guest-cart adoption fails.
 templ CartRecovery(p layouts.Page, v CartRecoveryView) {
 	@layouts.Base(p) {
 		<div class="notice">
@@ -333,10 +324,7 @@ templ CartRecovery(p layouts.Page, v CartRecoveryView) {
 	}
 }
 
-// accountNavItem is one row of the account nav: an in-page anchor to a section
-// of this page, or a link to a page of its own. A hint is what the page behind
-// the link holds; a section of this page needs none, because the section is
-// directly below.
+// A section of this page needs no hint: it is directly below.
 templ accountNavItem(href, label, hint string) {
 	<a class="goen-account__navitem" href={ templ.SafeURL(href) }>
 		<span class="goen-account__navname">{ label }</span>
@@ -346,7 +334,6 @@ templ accountNavItem(href, label, hint string) {
 	</a>
 }
 
-// Account renders the account landing page.
 templ Account(p layouts.Page, v *AccountView) {
 	@layouts.Base(p) {
 		<div class="goen-account">

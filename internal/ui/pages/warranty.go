@@ -9,7 +9,6 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-// WarrantyLine is one order line as the registration form sees it.
 type WarrantyLine struct {
 	ID    string
 	Name  string
@@ -19,16 +18,14 @@ type WarrantyLine struct {
 	// Months is the term; HasTerm is separate because a missing term is NULL.
 	Months  int
 	HasTerm bool
-	// Delivered is how many units can still start cover: those that arrived, never
-	// those only dispatched, less those in an approved return.
+	// Delivered counts units that arrived, never those only dispatched, less those in
+	// an approved return.
 	Delivered int
-	// Returned is how many units are in an approved return: they arrived, so a
-	// line with none left is not "waiting on delivery".
+	// Returned units arrived, so a line with none left is not "waiting on delivery".
 	Returned   int
 	Registered int
 }
 
-// Remaining is how many units can still be registered.
 func (l WarrantyLine) Remaining() int {
 	left := l.Delivered - l.Registered
 	if left < 0 {
@@ -37,13 +34,10 @@ func (l WarrantyLine) Remaining() int {
 	return left
 }
 
-// Registrable reports whether the form should offer this line.
 func (l WarrantyLine) Registrable() bool { return l.HasTerm && l.Remaining() > 0 }
 
-// NextUnit is the unit number the form submits.
 func (l WarrantyLine) NextUnit() string { return strconv.Itoa(l.Registered + 1) }
 
-// TermText is the cover length in words.
 func (l WarrantyLine) TermText(ctx context.Context) string {
 	if !l.HasTerm {
 		return ""
@@ -54,7 +48,6 @@ func (l WarrantyLine) TermText(ctx context.Context) string {
 	return fmt.Sprintf(i18n.T(ctx, i18n.KeyWarrantyMonths), l.Months)
 }
 
-// Why explains, when a line cannot be registered, which of the reasons applies.
 func (l WarrantyLine) Why(ctx context.Context) string {
 	switch {
 	case l.Registrable():
@@ -70,14 +63,12 @@ func (l WarrantyLine) Why(ctx context.Context) string {
 	}
 }
 
-// WarrantyOrderView is one order's registration page.
 type WarrantyOrderView struct {
 	Number string
 	Lines  []WarrantyLine
 	Notice string
 }
 
-// AnyRegistrable reports whether the page has anything to offer.
 func (v WarrantyOrderView) AnyRegistrable() bool {
 	for _, l := range v.Lines {
 		if l.Registrable() {
@@ -87,9 +78,8 @@ func (v WarrantyOrderView) AnyRegistrable() bool {
 	return false
 }
 
-// EmptyHint is the empty-banner sentence. Delivery is only true when every
-// line is still waiting to arrive; any other mix would contradict the Why()
-// already under each line.
+// EmptyHint says delivery is pending only when every line is still waiting to arrive; any other
+// mix would contradict the Why() under each line.
 func (v WarrantyOrderView) EmptyHint(ctx context.Context) string {
 	if v.AnyRegistrable() {
 		return ""
@@ -118,10 +108,8 @@ func (v WarrantyOrderView) waitingOnDelivery() bool {
 	return true
 }
 
-// Action is where the form posts.
 func (v WarrantyOrderView) Action() string { return "/account/warranty/" + v.Number }
 
-// Warranty is one registered unit.
 type Warranty struct {
 	Name         string
 	Label        string
@@ -134,7 +122,6 @@ type Warranty struct {
 	InForce      bool
 }
 
-// State is the one word a customer scans for.
 func (w Warranty) State(ctx context.Context) string {
 	if w.InForce {
 		return i18n.T(ctx, i18n.KeyWarrantyActive)
@@ -142,7 +129,6 @@ func (w Warranty) State(ctx context.Context) string {
 	return i18n.T(ctx, i18n.KeyWarrantyExpired)
 }
 
-// Href is the product's page, or empty when the product is gone.
 func (w Warranty) Href() string {
 	if w.Slug == "" {
 		return ""
@@ -150,11 +136,9 @@ func (w Warranty) Href() string {
 	return "/p/" + w.Slug
 }
 
-// WarrantyListView is the customer's registered cover.
 type WarrantyListView struct {
 	Rows   []Warranty
 	Notice string
 }
 
-// Empty reports whether nothing is registered.
 func (v WarrantyListView) Empty() bool { return len(v.Rows) == 0 }

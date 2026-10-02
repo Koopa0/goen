@@ -9,10 +9,6 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// Listing renders a category page: a head on the department's ground with its
-// photograph, a lead row on a long shelf, the filter rail and the product grid.
-// The rail is a native <details> at every width; above 1024 the stylesheet
-// holds it open and hides its summary.
 templ Listing(p layouts.Page, v ListingView) {
 	@layouts.Base(p) {
 		<div class="goen-listing">
@@ -36,9 +32,8 @@ templ Listing(p layouts.Page, v ListingView) {
 					}
 				</div>
 				if v.Theme.Image().Shown() {
-					// Low priority because the stylesheet drops the photograph below
-					// 1024, where an eager image is still fetched: it must not
-					// compete with the tiles, which are the paint that matters.
+					// Low priority: the stylesheet drops the photograph below 1024, where an eager
+					// image is still fetched and must not compete with the tiles.
 					<img
 						class="goen-pagehead__photo"
 						src={ v.Theme.Image().URL }
@@ -53,8 +48,8 @@ templ Listing(p layouts.Page, v ListingView) {
 				}
 			</div>
 			if len(v.Featured()) > 0 {
-				// The lead row sits outside the layout the gate reads as rail and
-				// results, and its compare boxes join the grid's form by id.
+				// The lead row sits outside the layout the gate reads as rail and results; its
+				// compare boxes join the grid's form by id.
 				<section class="goen-featured" aria-labelledby="featured-heading">
 					<h2 class="goen-sr-only" id="featured-heading">{ i18n.T(ctx, i18n.KeyFeaturedHeading) }</h2>
 					<ul class="goen-featured__grid" role="list">
@@ -84,7 +79,6 @@ templ Listing(p layouts.Page, v ListingView) {
 								</p>
 							</div>
 						} else {
-							// The grid's heading, visually hidden: without it a tile's h3 skips a level.
 							<h2 class="goen-sr-only">{ i18n.T(ctx, i18n.KeyResultsHeading) }</h2>
 							<p class="goen-listing__count" aria-hidden="true">{ i18n.Count(ctx, i18n.KeyListingCount, v.Total, v.TotalText()) }</p>
 							@compareForm(AnyComparable(v.Grid()) || AnyComparable(v.Featured())) {
@@ -100,8 +94,8 @@ templ Listing(p layouts.Page, v ListingView) {
 				</div>
 			</div>
 			if isPartial(ctx) {
-				// The rail is not swapped, or the box the shopper just used would lose
-				// focus; its counts are, one by one, because they follow the filters.
+				// The rail is not swapped, or the box the shopper just used would lose focus;
+				// its counts are, because they follow the filters.
 				for _, b := range v.Brands {
 					<span class="goen-filters__count" id={ "brand-count-" + b.Value } hx-swap-oob="true">{ b.CountText() }</span>
 				}
@@ -114,10 +108,9 @@ templ listingFilters(v ListingView) {
 	<div class="goen-listing__filters">
 		<details class="goen-filters__shell">
 			<summary class="goen-filters__shell-summary">{ i18n.T(ctx, i18n.KeyFiltersAndSort) }</summary>
-			// With script, a changed control fetches the same URL the button would
-			// have navigated to and swaps the results, the active chips and the
-			// announced count; the button stays for a browser without script.
-			// Typing in a price box fires nothing until the box is left or Enter.
+			// With script, a changed control fetches the URL the button would have navigated
+			// to and swaps the results, chips and announced count; the button stays for a
+			// browser without script. A price box fires nothing until left or Enter.
 			<form
 				class="goen-filters"
 				method="get"
@@ -133,9 +126,8 @@ templ listingFilters(v ListingView) {
 				hx-status:4xx="swap:none"
 				hx-status:5xx="swap:none"
 			>
-				// The rail's own heading. It keeps the outline unbroken: without an h2
-				// between the page title and a tile's h3 the document skips a level,
-				// which `check-layout.mjs:370-378` reads as a defect.
+				// Keeps the outline unbroken: without an h2 between the page title and a tile's
+				// h3 the document skips a level (check-layout.mjs reads that as a defect).
 				<h2 class="goen-filters__title">{ i18n.T(ctx, i18n.KeyFilters) }</h2>
 				if len(v.Brands) > 0 {
 					<details class="goen-filters__group" open>
@@ -170,9 +162,8 @@ templ listingFilters(v ListingView) {
 					<summary class="goen-filters__summary">{ i18n.T(ctx, i18n.KeyFacetPrice) }</summary>
 					<div class="goen-filters__prices">
 						<label class="goen-sr-only" for="min-price">{ i18n.T(ctx, i18n.KeyPriceMin) }</label>
-						// ui-input is what `check-layout.mjs:668` looks for to decide the
-						// desktop rail rendered at all, and what its tap sweep at :805
-						// measures. The spelling is the hook; app.css writes the recipe.
+						// ui-input is what check-layout.mjs looks for to decide the desktop rail
+						// rendered and to measure its tap sweep; app.css writes the recipe.
 						<input
 							class="ui-input"
 							id="min-price"
@@ -207,17 +198,15 @@ templ listingFilters(v ListingView) {
 				}
 			</form>
 		</details>
-		// Shown by script when an update fails: the old results stay on the page
-		// and this says why they did not change.
+		// Shown by script when an update fails: the old results stay and this says why.
 		<p class="goen-filters__error" role="alert" hidden>{ i18n.T(ctx, i18n.KeyCannotLoadListing) }</p>
-		// The count is announced from here, a region that stays in the page while
-		// the results around it are replaced, and focus is left where it is.
+		// Announced from here, a region that stays while the results around it are
+		// replaced, so focus is left where it is.
 		<p id="listing-status" class="goen-sr-only" role="status" aria-live="polite">{ i18n.Count(ctx, i18n.KeyListingCount, v.Total, v.TotalText()) }</p>
 	</div>
 }
 
-// appliedFilters sits above the results, in the column they are in, and is its
-// own swap target: it is replaced by id beside the results.
+// Its own swap target: replaced by id beside the results.
 templ appliedFilters(v ListingView) {
 	<div id="filters-applied">
 		if v.Filtered {
@@ -237,8 +226,7 @@ templ appliedFilters(v ListingView) {
 	</div>
 }
 
-// sortField is shared by the listing and the search; each owns what its empty
-// value means.
+// Shared by the listing and the search; each owns what its empty value means.
 templ sortField(options []SortOption) {
 	<div class="goen-filters__field">
 		@components.Label(components.LabelProps{For: "sort"}) {
@@ -252,8 +240,7 @@ templ sortField(options []SortOption) {
 	</div>
 }
 
-// pager is two links and a sentence. The end of the run stays visible as a
-// disabled span rather than disappearing, so the control does not move.
+// The end of the run stays visible as a disabled span so the control does not move.
 templ pager(label string, hasPrev, hasNext bool, prev, next, page, pages string) {
 	if hasPrev || hasNext {
 		<nav class="goen-pager" aria-label={ label }>
@@ -272,9 +259,6 @@ templ pager(label string, hasPrev, hasNext bool, prev, next, page, pages string)
 	}
 }
 
-// numberedPager is the listing's pager: the pages as numbers with the current
-// one marked, and an arrow either side. The end of the run stays visible as a
-// disabled span rather than disappearing, so the control does not move.
 templ numberedPager(hasPrev, hasNext bool, prev, next string, links []PageLink) {
 	if len(links) > 1 {
 		<nav class="goen-pager goen-pager--numbered" aria-label={ i18n.T(ctx, i18n.KeyPagination) }>
@@ -301,8 +285,7 @@ templ numberedPager(hasPrev, hasNext bool, prev, next string, links []PageLink) 
 	}
 }
 
-// Search renders the search results page: a plain head, the sort control, then
-// the grid. The search has no facets of its own, so there is no filter rail.
+// The search has no facets, so there is no filter rail.
 templ Search(p layouts.Page, v SearchView) {
 	@layouts.Base(p) {
 		<div class="goen-listing goen-listing--search">
@@ -348,10 +331,9 @@ templ Search(p layouts.Page, v SearchView) {
 					}
 				}
 			} else {
-				// The grid's heading, visually hidden: without it a tile's h3 skips a level.
 				<h2 class="goen-sr-only">{ i18n.T(ctx, i18n.KeyResultsHeading) }</h2>
-				// With script, a changed sort fetches the URL the button would have
-				// navigated to and swaps the results.
+				// With script, a changed sort fetches the URL the button would have navigated to
+				// and swaps the results.
 				<form
 					class="goen-search-sort"
 					method="get"

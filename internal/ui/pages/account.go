@@ -11,7 +11,6 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// AccountOrder is one row of the order history.
 type AccountOrder struct {
 	Number     string
 	Status     FulfillmentStatus
@@ -22,26 +21,21 @@ type AccountOrder struct {
 	OwedCents  int64
 }
 
-// Total is what the order came to.
 func (o AccountOrder) Total() string { return twd(o.TotalCents) }
 
-// LineCountText is how many lines it holds.
 func (o AccountOrder) LineCountText() string { return strconv.FormatInt(o.LineCount, 10) }
 
 // awaitingPayment is the one definition of an order that still needs paying.
-// 'pending' alone cannot say it: an order funded wholly from store credit or
-// zeroed by a coupon has no payment row, so it sits at pending and uncommitted
-// while owing nothing.
+// 'pending' alone misses an order paid wholly from store credit or zeroed by a
+// coupon: it has no payment row and owes nothing.
 func awaitingPayment(status FulfillmentStatus, committed bool, owedCents int64) bool {
 	return status == FulfillmentPending && !committed && owedCents > 0
 }
 
-// AwaitingPayment reports whether the order still needs paying.
 func (o AccountOrder) AwaitingPayment() bool {
 	return awaitingPayment(o.Status, o.Committed, o.OwedCents)
 }
 
-// StatusText is the fulfilment state in the chrome language.
 func (o AccountOrder) StatusText(ctx context.Context) string {
 	switch o.Status {
 	case FulfillmentPending:
@@ -65,10 +59,8 @@ func (o AccountOrder) StatusText(ctx context.Context) string {
 	}
 }
 
-// BadgeIntent is how the order's state reads in the history table. Only two
-// states are coloured: one the shopper still has to act on, and one that ended
-// without a delivery. Everything in between is progress, and a row of coloured
-// badges would say each step is a thing to look at.
+// BadgeIntent colours only two states: one the shopper must act on and one that ended
+// without a delivery. The rest is progress, not something to look at.
 func (o AccountOrder) BadgeIntent() components.Intent {
 	switch {
 	case o.Status == FulfillmentCancelled:
@@ -80,7 +72,6 @@ func (o AccountOrder) BadgeIntent() components.Intent {
 	}
 }
 
-// AccountAddress is one saved delivery address.
 type AccountAddress struct {
 	ID         string
 	Label      string
@@ -93,12 +84,10 @@ type AccountAddress struct {
 	Default    bool
 }
 
-// Line is the address as one line.
 func (a AccountAddress) Line() string {
 	return a.PostalCode + " " + a.City + a.District + a.Street
 }
 
-// DisplayLabel is the address's own name, or a stand-in.
 func (a AccountAddress) DisplayLabel(ctx context.Context) string {
 	if a.Label == "" {
 		return i18n.T(ctx, i18n.KeyDeliveryToAddress)
@@ -106,7 +95,6 @@ func (a AccountAddress) DisplayLabel(ctx context.Context) string {
 	return a.Label
 }
 
-// AccountView is the account landing page.
 type AccountView struct {
 	EmailVerified   bool
 	PendingEmail    string
@@ -121,26 +109,20 @@ type AccountView struct {
 	Notice          string
 	GoogleLinked    bool
 	CanUnlinkGoogle bool
-	// PaymentsEnabled is whether a payment can be started here at all, which a
-	// 付款 link in the order list needs to be true.
 	PaymentsEnabled bool
-	// AddressDraft and AddressErrors are a refused new address: what was typed
-	// and why each control was refused. Both are nil on a plain visit.
+	// Both are nil on a plain visit.
 	AddressDraft  *AddressDraft
 	AddressErrors map[string]string
 }
 
-// AddressDraft is what the new-address form was submitted with.
 type AddressDraft struct {
 	Label, Name, Phone, PostalCode, City, District, Street string
 	Default                                                bool
 }
 
-// AddressOpen opens the disclosure on a refused address, so the form and its
-// messages are in view rather than behind a closed summary.
+// AddressOpen keeps the disclosure open on a refused address so its messages show.
 func (v *AccountView) AddressOpen() bool { return v.AddressDraft != nil }
 
-// AddrValue is what a field was submitted with.
 func (v *AccountView) AddrValue(field string) string {
 	d := v.AddressDraft
 	if d == nil {
@@ -165,21 +147,16 @@ func (v *AccountView) AddrValue(field string) string {
 	return ""
 }
 
-// AddrDefault is whether the default box was ticked.
 func (v *AccountView) AddrDefault() bool { return v.AddressDraft != nil && v.AddressDraft.Default }
 
-// AddrInvalid reports whether a field was refused.
 func (v *AccountView) AddrInvalid(field string) bool { return v.AddressErrors[field] != "" }
 
-// AddrErr is why a field was refused.
 func (v *AccountView) AddrErr(field string) string { return v.AddressErrors[field] }
 
-// AccountMeta is the chrome view model for the account pages.
 func AccountMeta(ctx context.Context) layouts.Page {
 	return layouts.Page{Title: i18n.T(ctx, i18n.KeyAccountTitle)}
 }
 
-// DisplayName is the customer's name, or their email when they have not given one.
 func (v *AccountView) DisplayName() string {
 	if v.Name == "" {
 		return v.Email
@@ -187,22 +164,16 @@ func (v *AccountView) DisplayName() string {
 	return v.Name
 }
 
-// Credit is the store-credit balance.
 func (v *AccountView) Credit() string { return twd(v.CreditCents) }
 
-// HasCredit reports whether there is any balance worth showing.
 func (v *AccountView) HasCredit() bool { return v.CreditCents > 0 }
 
-// HasOrders reports whether this account has ever ordered.
 func (v *AccountView) HasOrders() bool { return len(v.Orders) > 0 }
 
-// HasAddresses reports whether any address is saved.
 func (v *AccountView) HasAddresses() bool { return len(v.Addresses) > 0 }
 
-// HasNotice reports whether to show the confirmation banner.
 func (v *AccountView) HasNotice() bool { return v.Notice != "" }
 
-// AuthView is the sign-in and registration form.
 type AuthView struct {
 	Email        string
 	Name         string
@@ -210,34 +181,26 @@ type AuthView struct {
 	Errors       map[string]string
 	Notice       string
 	GoogleSignIn bool
-	// Sent is a registration whose link is on its way to Email: the page
-	// confirms the address and offers to send again, in place of the form.
-	Sent bool
-	// DemoEmail and DemoPassword are the account a public demonstration shares
-	// with every visitor, printed on the sign-in page; empty is none.
+	Sent         bool
+	// DemoEmail and DemoPassword are the account every visitor of a public demonstration shares; empty is none.
 	DemoEmail    string
 	DemoPassword string
 }
 
-// OffersDemoAccount reports whether the sign-in page shows the demo account.
 func (v AuthView) OffersDemoAccount() bool { return v.DemoEmail != "" }
 
-// RegisterCompleteView is the page a registration link lands on.
 type RegisterCompleteView struct {
 	Token string
 	Next  string
 	Error string
 }
 
-// HasError reports whether the password was refused.
 func (v RegisterCompleteView) HasError() bool { return v.Error != "" }
 
-// RegisterCompleteMeta is the chrome view model for that page.
 func RegisterCompleteMeta(ctx context.Context) layouts.Page {
 	return layouts.Page{Title: i18n.T(ctx, i18n.KeyRegisterCompleteTitle)}
 }
 
-// GoogleLink is where the button goes, carrying wherever the visitor was headed.
 func (v AuthView) GoogleLink() string {
 	if v.Next == "" {
 		return "/auth/google"
@@ -245,29 +208,22 @@ func (v AuthView) GoogleLink() string {
 	return "/auth/google?next=" + url.QueryEscape(v.Next)
 }
 
-// SignInMeta is the chrome view model for the sign-in page.
 func SignInMeta(ctx context.Context) layouts.Page {
 	return layouts.Page{Title: i18n.T(ctx, i18n.KeySignIn)}
 }
 
-// RegisterMeta is the chrome view model for the registration page.
 func RegisterMeta(ctx context.Context) layouts.Page {
 	return layouts.Page{Title: i18n.T(ctx, i18n.KeyRegister)}
 }
 
-// Err returns the message for a field, or "".
 func (v AuthView) Err(field string) string { return v.Errors[field] }
 
-// HasErr reports whether a field was rejected.
 func (v AuthView) HasErr(field string) bool { return v.Errors[field] != "" }
 
-// AnyErrors reports whether the form was rejected at all.
 func (v AuthView) AnyErrors() bool { return len(v.Errors) > 0 }
 
-// HasNotice reports whether to show the banner.
 func (v AuthView) HasNotice() bool { return v.Notice != "" }
 
-// MemberStanding is a customer's membership tier and what the next one asks for.
 type MemberStanding struct {
 	SpendCents     int64
 	TierName       string
@@ -276,13 +232,10 @@ type MemberStanding struct {
 	NextNeedsCents int64
 }
 
-// HasTier reports whether the customer has reached any band.
 func (m MemberStanding) HasTier() bool { return m.TierName != "" }
 
-// Spend is what they have spent in the window.
 func (m MemberStanding) Spend() string { return twd(m.SpendCents) }
 
-// Multiplier is what a point is worth here, in words.
 func (m MemberStanding) Multiplier(ctx context.Context) string {
 	whole := m.MultiplierBP / 10000
 	frac := (m.MultiplierBP % 10000) / 1000
@@ -293,20 +246,16 @@ func (m MemberStanding) Multiplier(ctx context.Context) string {
 	return fmt.Sprintf(i18n.T(ctx, i18n.KeyMultiplierTimes), n)
 }
 
-// HasNext reports whether there is a band above this one.
 func (m MemberStanding) HasNext() bool { return m.NextName != "" }
 
-// NextNeeds is how much more the next band asks for.
 func (m MemberStanding) NextNeeds() string { return twd(m.NextNeedsCents) }
 
-// CartRecoveryView is the cart-merge recovery landing after sign-in.
 type CartRecoveryView struct {
 	Next   string
 	Notice string
 	Retry  string
 }
 
-// CartRecoveryMeta is the chrome view model for the recovery page.
 func CartRecoveryMeta(ctx context.Context) layouts.Page {
 	return layouts.Page{Title: i18n.T(ctx, i18n.KeyCartMergeRecoveryTitle)}
 }
