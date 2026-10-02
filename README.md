@@ -18,8 +18,9 @@ any CVC. No real money moves.
 ## How it is built
 
 - **HTML from the server.** Pages are templ components, and every write is a
-  plain form that works with scripting off. htmx, one vendored file, changes what
-  comes back, never whether the write happens. There is no JavaScript or CSS build.
+  plain form that works with scripting off. The scripts are htmx, vendored as one
+  file, and one hand-written file; neither decides whether a write happens. There
+  is no JavaScript or CSS build.
 - **The standard library first.** Routing is `net/http`. Queries are hand-written
   SQL that sqlc compiles to Go over pgx. There is no web framework and no ORM.
   Static files are embedded in the binary, each URL carrying a digest of its file.
@@ -27,16 +28,17 @@ any CVC. No real money moves.
   run in separate pools, each as its own PostgreSQL role. Neither role may write
   payments, refunds, stock or ledgers directly; those change only inside
   `SECURITY DEFINER` functions that check their own rules.
-- **Paid means Stripe said so.** Checkout is Stripe's hosted page. An order is
-  paid on a signature-verified webhook, never on the browser coming back, because
-  anyone can request that URL. The session expires with the stock hold.
+- **Paid means Stripe said so.** Checkout is Stripe's hosted page. A
+  signature-verified webhook marks an order paid; the browser coming back marks
+  nothing, because anyone can request that URL. The session expires with the
+  stock hold.
 - **Side effects are recorded first.** Mail is written to an outbox in the same
   transaction as the fact it reports, and delivered at least once. An e-invoice
   request is stored before it leaves for the provider.
 - **Money and time each have one package.** Amounts are integer cents, printed by
   `internal/money` so a page and a letter cannot disagree. Times print on the
   shop's clock, Asia/Taipei, through `internal/shoptime`, because the shipped
-  image sets no time zone; a test rejects a time formatted anywhere else.
+  image sets no time zone; a test rejects a time formatted in an unstated zone.
 - **Two languages, one place.** Every sentence goen says is declared once in
   `internal/i18n`, Traditional Chinese and English together, and a string missing
   either stops the program at start-up. Product copy stays as the shop wrote it.
