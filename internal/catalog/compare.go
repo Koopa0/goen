@@ -14,8 +14,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
-// Compare reads the products a URL named and the specs that tell them apart. A
-// slug naming no active product is dropped rather than refused.
+// Compare drops a slug naming no active product rather than refusing it.
 func (s *Store) Compare(ctx context.Context, slugs []string) (pages.CompareView, error) {
 	slugs, dropped := normaliseSlugs(slugs)
 	if len(slugs) == 0 {
@@ -64,8 +63,8 @@ func (s *Store) Compare(ctx context.Context, slugs []string) (pages.CompareView,
 		return pages.CompareView{}, fmt.Errorf("read comparison specs: %w", err)
 	}
 
-	// Keyed on the untranslated label, which is the row's identity, and which is
-	// what the query counts shared_by on. Two labels can share a translation.
+	// Keyed on the untranslated label, which is the row's identity and what the
+	// query counts shared_by on; two labels can share a translation.
 	rowAt := make(map[string]int)
 	for i := range specs {
 		sp := &specs[i]
@@ -86,8 +85,6 @@ func (s *Store) Compare(ctx context.Context, slugs []string) (pages.CompareView,
 	return view, nil
 }
 
-// normaliseSlugs keeps the first pages.MaxCompare distinct slugs and reports
-// whether the link named more than that.
 func normaliseSlugs(raw []string) (out []string, dropped bool) {
 	out = make([]string, 0, pages.MaxCompare)
 	for _, s := range raw {
@@ -102,10 +99,8 @@ func normaliseSlugs(raw []string) (out []string, dropped bool) {
 	return out, false
 }
 
-// suggestionCount is how many products a one-product comparison offers.
 const suggestionCount = 6
 
-// withStart names where to begin choosing when nothing is chosen.
 func (s *Store) withStart(ctx context.Context, view pages.CompareView) (pages.CompareView, error) {
 	slug, err := s.q.FirstComparableCategorySlug(ctx)
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
@@ -115,8 +110,6 @@ func (s *Store) withStart(ctx context.Context, view pages.CompareView) (pages.Co
 	return view, nil
 }
 
-// compareSuggestions reads what to compare a lone product with, as the tiles
-// the rest of the shop draws a product with.
 func (s *Store) compareSuggestions(ctx context.Context, anchor *pages.CompareProduct, chosen []string) ([]pages.ProductTile, error) {
 	rows, err := s.q.CompareSuggestions(ctx, db.CompareSuggestionsParams{
 		Locale:       string(i18n.FromContext(ctx)),
