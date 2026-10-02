@@ -274,7 +274,10 @@ func (s *Store) Order(ctx context.Context, number string) (admin.OrderView, erro
 		InvoiceDonationCode: o.InvoiceDonationCode,
 		InvoiceTaxID:        o.InvoiceTaxID,
 		Committed:           o.Committed,
+		Funded:              funded(o.Committed, o.OwedCents, o.CreditCents),
 		Unpaid:              !o.Committed && o.OwedCents > 0,
+		OwedCents:           o.OwedCents,
+		CreditCents:         o.CreditCents,
 	}
 
 	carriers, implied := carrier.ForDelivery(pickup.Brand(o.PickupBrand), o.DestinationKind == "pickup_point")
@@ -290,7 +293,7 @@ func (s *Store) Order(ctx context.Context, number string) (admin.OrderView, erro
 	if refundErr := s.fillRefundBeforeShipment(ctx, &view, number); refundErr != nil {
 		return admin.OrderView{}, refundErr
 	}
-	if payErr := s.fillPayments(ctx, &view, o.ID, o.Committed); payErr != nil {
+	if payErr := s.fillPayments(ctx, &view, o.ID); payErr != nil {
 		return admin.OrderView{}, payErr
 	}
 	for _, l := range lines {
@@ -381,8 +384,10 @@ func (s *Store) Advance(ctx context.Context, number string, status pages.Fulfill
 		// The database admits cancelling a paid order once its refund before
 		// shipment has settled, but only RefundBeforeShipment closes that
 		// return; the effects below would reverse the refunded credit and
-		// points again.
-		if row.Committed {
+		// points again. A pending order store credit paid in full is not
+		// committed yet, and this branch would return its credit with no
+		// confirmation.
+		if funded(row.Committed, row.OwedCents, row.CreditCents) {
 			return nil, ErrPaidCancel
 		}
 		if held, err = q.HeldReservationsForOrder(ctx, number); err != nil {
@@ -564,7 +569,7 @@ func (s *Store) fillInvoices(ctx context.Context, view *admin.OrderView, number 
 }
 
 // fillPayments puts how the order was paid and every refund of it on the page.
-func (s *Store) fillPayments(ctx context.Context, view *admin.OrderView, orderID uuid.UUID, committed bool) error {
+func (s *Store) fillPayments(ctx context.Context, view *admin.OrderView, orderID uuid.UUID) error {
 	paid, err := s.q.OrderCapturedPayment(ctx, orderID)
 	switch {
 	case err == nil:
@@ -575,9 +580,7 @@ func (s *Store) fillPayments(ctx context.Context, view *admin.OrderView, orderID
 			PaidAt:   nullableStamp(paid.PaidAt),
 		}
 	case errors.Is(err, pgx.ErrNoRows):
-		if committed {
-			view.Payment = admin.Payment{Method: i18n.T(ctx, i18n.KeyAdminPayMethodCredit)}
-		}
+		view.Payment = paymentWithoutCard(ctx, view.OwedCents, view.CreditCents)
 	default:
 		return fmt.Errorf("read payment of order %s: %w", view.Number, err)
 	}
@@ -588,16 +591,30 @@ func (s *Store) fillPayments(ctx context.Context, view *admin.OrderView, orderID
 	}
 	for i := range refunds {
 		r := &refunds[i]
-		channel := i18n.KeyAdminPayRefundCard
+		channel, reason := i18n.KeyAdminPayRefundCard, r.Reason
 		if r.Channel == "credit" {
-			channel = i18n.KeyAdminPayRefundCredit
+			channel, reason = i18n.KeyAdminPayRefundCredit, admin.CreditReason(ctx, r.Reason)
 		}
 		view.Refunds = append(view.Refunds, admin.Refund{
 			Channel: i18n.T(ctx, channel), Amount: pages.TWD(r.AmountCents),
-			At: nullableStamp(r.At), Reason: r.Reason, Staff: r.Staff,
+			At: nullableStamp(r.At), Reason: reason, Staff: r.Staff,
 		})
 	}
 	return nil
+}
+
+// paymentWithoutCard is how an order with no card capture was paid, read from
+// what it still owes: store credit paid it, or nothing was due. An order that
+// still owes has no payment.
+func paymentWithoutCard(ctx context.Context, owedCents, creditCents int64) admin.Payment {
+	switch {
+	case owedCents > 0:
+		return admin.Payment{}
+	case creditCents > 0:
+		return admin.Payment{Method: i18n.T(ctx, i18n.KeyAdminPayMethodCredit)}
+	default:
+		return admin.Payment{Method: i18n.T(ctx, i18n.KeyAdminPayMethodFree)}
+	}
 }
 
 // fillShippable puts what an order still owes a dispatch on its page. CanShip

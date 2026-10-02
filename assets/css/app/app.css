@@ -1339,7 +1339,7 @@ h3 {
   flex-direction: column;
   gap: 2px;
   left: 0;
-  max-height: calc(100dvh - 4rem);
+  max-height: var(--drawer-room, calc(100dvh - 7rem));
   overflow-y: auto;
   padding: 12px;
   position: absolute;
@@ -2879,6 +2879,21 @@ input.goen-check {
   padding: 4px 10px;
 }
 
+.goen-filters__chip-remove {
+  position: relative;
+}
+
+/* A 44px target centred on the cross, which is nine pixels wide. */
+.goen-filters__chip-remove::after {
+  content: '';
+  height: 44px;
+  left: 50%;
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 44px;
+}
+
 .goen-filters__applied .ui-filterbar__clear {
   color: var(--fg-muted);
   font-family: inherit;
@@ -3774,7 +3789,6 @@ a.goen-pager__step:hover {
 /* A colour has no words on it, so the chosen one says its name here. */
 .goen-pdp__optchosen {
   color: var(--n-500);
-  margin-inline-start: 0.25em;
   font-weight: var(--fw-regular);
 }
 
@@ -3944,7 +3958,8 @@ a.goen-pager__step:hover {
 }
 
 /* visibility, not just transform, keeps it out of the tab order and away from
-   assistive technology until goen.js sets .is-visible. */
+   assistive technology until goen.js sets data-buybar on <html>; it lives there
+   so a swapped-in bar is born in the state the old one left and never slides. */
 .goen-buybar {
   display: none;
 }
@@ -3970,7 +3985,7 @@ a.goen-pager__step:hover {
     display: none;
   }
 
-  .goen-buybar.is-visible {
+  :root[data-buybar='out'] .goen-buybar {
     transform: none;
     visibility: visible;
   }
@@ -3998,12 +4013,12 @@ a.goen-pager__step:hover {
 
   /* The menu drawer belongs to the header, which this later fixed block would
      paint over; hidden, the bar also leaves the tab order. */
-  body:has(.goen-header__menu[open]) .goen-buybar.is-visible {
+  :root[data-buybar='out'] body:has(.goen-header__menu[open]) .goen-buybar {
     transform: translateY(100%);
     visibility: hidden;
   }
 
-  body:has(.goen-buybar.is-visible) {
+  :root[data-buybar='out'] body:has(.goen-buybar:not(:empty)) {
     padding-bottom: calc(4.5rem + env(safe-area-inset-bottom));
   }
 }
@@ -4459,8 +4474,8 @@ a.goen-pager__step:hover {
 }
 
 /* The radios stay real so the arrow keys set the rating; a star is lit when it
-   or any later star is checked. The hover reset must match the checked rules'
-   specificity and come after them, or hover cannot preview a lower rating. */
+   or any later star is checked, but only while the row is not hovered: while it
+   is, the pointer's star and the ones before it are the preview. */
 .goen-pdp__stars {
   border: 0;
   margin: 0;
@@ -4469,7 +4484,6 @@ a.goen-pager__step:hover {
 
 .goen-pdp__starrow {
   display: inline-flex;
-  gap: 0.25rem;
 }
 
 .goen-pdp__star {
@@ -4478,7 +4492,7 @@ a.goen-pager__step:hover {
   display: inline-flex;
   justify-content: center;
   min-height: 2.75rem;
-  min-width: 2.75rem;
+  min-width: 3rem;
   position: relative;
 }
 
@@ -4496,15 +4510,10 @@ a.goen-pager__step:hover {
   width: 1.75rem;
 }
 
-.goen-pdp__star:has(.goen-pdp__starinput:checked) .goen-pdp__starmark svg,
-.goen-pdp__star:has(~ .goen-pdp__star .goen-pdp__starinput:checked) .goen-pdp__starmark svg {
+.goen-pdp__starrow:not(:hover) .goen-pdp__star:has(.goen-pdp__starinput:checked) .goen-pdp__starmark svg,
+.goen-pdp__starrow:not(:hover) .goen-pdp__star:has(~ .goen-pdp__star .goen-pdp__starinput:checked) .goen-pdp__starmark svg {
   color: var(--star);
   fill: var(--star);
-}
-
-.goen-pdp__starrow:hover .goen-pdp__star .goen-pdp__starmark svg {
-  color: var(--n-300);
-  fill: none;
 }
 
 .goen-pdp__starrow:hover .goen-pdp__star:hover .goen-pdp__starmark svg,
@@ -6758,22 +6767,6 @@ a.goen-pager__step:hover {
   margin: 0;
 }
 
-.about__legal {
-  color: var(--n-500);
-  font-size: 0.8125rem;
-  line-height: 1.7;
-  margin: 0;
-}
-
-/* One hairline, drawn as an element because the page uses it to part two kinds
-   of content rather than to decorate a box. */
-.goen-separator {
-  background: var(--n-200);
-  border: 0;
-  height: 1px;
-  margin: 1.5rem 0 0;
-}
-
 /* ----- Contact ----- */
 
 /* The form beside the facts. The two banners inside the form are written in the
@@ -6919,27 +6912,6 @@ a.goen-pager__step:hover {
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
-}
-
-.contact__map {
-  color: var(--accent-text);
-  display: inline-block;
-  font-size: var(--fs-14);
-  font-weight: var(--fw-medium);
-  text-decoration: none;
-}
-
-.contact__map:hover {
-  color: var(--accent-text-hover);
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-
-.contact__address {
-  color: var(--n-700);
-  font-size: var(--fs-14);
-  line-height: 1.7;
-  margin: 0;
 }
 
 /* The refusal's sentence is read through the shared descendant pair, so the
@@ -7428,7 +7400,10 @@ a.goen-pager__step:hover {
   gap: 16px;
   grid-template-columns: minmax(0, 1fr);
   margin: 0 auto;
-  max-width: var(--container);
+  /* The bar above sizes itself the same way, so the mark and the rail start on
+     one edge. */
+  box-sizing: border-box;
+  max-width: var(--page-width);
   min-width: 0;
   padding: 16px 16px 40px;
 }
@@ -7634,6 +7609,23 @@ a.goen-pager__step:hover {
   display: grid;
   gap: 12px;
   grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+}
+
+/* A phone shows two tiles a row: the figure steps down so a seven-digit amount
+   stays inside a tile half the column wide. */
+@media (max-width: 479px) {
+  .goen-admin__stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .goen-admin__stats .goen-stat {
+    padding: 12px;
+  }
+
+  .goen-admin__stats .goen-stat__value {
+    font-size: var(--fs-ed-20);
+    overflow-wrap: anywhere;
+  }
 }
 
 .goen-stat {
@@ -8380,10 +8372,23 @@ a.goen-pager__step:hover {
   background: var(--elevated);
   border-radius: var(--r-sm);
   color: var(--fg-muted);
-  font-family: var(--font-mono);
-  font-size: var(--fs-11);
+  display: grid;
+  font-size: var(--fs-12);
+  gap: 4px 12px;
+  grid-template-columns: minmax(6rem, max-content) minmax(0, 1fr);
+  margin: 0;
   overflow-wrap: anywhere;
-  padding: 6px 8px;
+  padding: 8px 10px;
+}
+
+.goen-admin__auditdetail dt {
+  color: var(--fg-muted);
+  font-family: var(--font-mono);
+}
+
+.goen-admin__auditdetail dd {
+  color: var(--fg);
+  margin: 0;
 }
 
 /* The hero queue's thumbnail and its two buttons. */
@@ -8536,7 +8541,10 @@ a.goen-pager__step:hover {
 .goen-admin__sectionnav {
   display: flex;
   gap: 8px 20px;
+  max-width: 100%;
+  min-width: 0;
   overflow-x: auto;
+  overscroll-behavior-x: contain;
   padding: 12px 0;
   margin-bottom: 16px;
   border-bottom: 1px solid var(--border);

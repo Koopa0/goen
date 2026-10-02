@@ -14,13 +14,6 @@ var (
 			"For anything about an order, include the order number.",
 	})
 
-	KeyContactOnMap = key("contact.map", Message{ZhHant: "在 Google 地圖查看", En: "Open in Google Maps"})
-
-	KeyContactDirections = key("contact.directions", Message{
-		ZhHant: "捷運市政府站 2 號出口步行 5 分鐘",
-		En:     "Five minutes' walk from Taipei City Hall MRT, exit 2",
-	})
-
 	KeyContactSent = key("contact.sent", Message{ZhHant: "訊息已送出", En: "Message sent"})
 
 	KeyContactSentBody = key("contact.sent.body", Message{

@@ -66,7 +66,6 @@ var brandCopyJobs = []struct {
 	{name: "home description", key: KeyHomeDescription},
 	{name: "about description", key: KeyAboutDescription},
 	{name: "newsletter note", key: KeyNewsletterNote},
-	{name: "listing description", key: KeyListingDescription},
 }
 
 func TestBrandCopyJobsDoNotShareASentence(t *testing.T) {

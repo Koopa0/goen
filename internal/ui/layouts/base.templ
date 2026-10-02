@@ -40,12 +40,20 @@ templ documentHead(p Page) {
 		if p.Description != "" {
 			<meta name="description" content={ p.Description }/>
 		}
+		<meta property="og:title" content={ p.title(ctx) }/>
+		if p.Description != "" {
+			<meta property="og:description" content={ p.Description }/>
+		}
+		<meta property="og:type" content="website"/>
+		<meta property="og:site_name" content={ i18n.T(ctx, i18n.KeySiteName) }/>
+		<meta name="twitter:card" content="summary_large_image"/>
 		if p.StructuredData != "" {
 			@structuredData(p.StructuredData)
 		}
 		// Where no origin is configured the tags are left out rather than sent
 		// relative, which a crawler cannot use.
 		if origin := SiteOrigin(ctx); origin != "" {
+			<meta property="og:url" content={ origin + RequestPath(ctx) }/>
 			if p.Share.Path != "" {
 				<meta property="og:image" content={ origin + p.Share.Path }/>
 				if p.Share.Width > 0 && p.Share.Height > 0 {
@@ -60,7 +68,9 @@ templ documentHead(p Page) {
 				<meta property="og:image:alt" content={ i18n.T(ctx, i18n.KeyOGImageAlt) }/>
 			}
 		}
-		<link rel="icon" type="image/svg+xml" href={ templ.URL(assets.URL(assets.MarkSVG)) }/>
+		<link rel="icon" href="/favicon.ico" sizes="32x32"/>
+		<link rel="icon" type="image/svg+xml" href={ templ.URL(assets.URL(assets.FaviconSVG)) }/>
+		<link rel="apple-touch-icon" href={ templ.URL(assets.URL(assets.AppleTouchIcon)) }/>
 		// goen's own faces, from goen's own origin. There is no preconnect
 		// because there is no second origin to connect to: the stylesheet and
 		// every file it names arrive on the connection that fetched the page.

@@ -1,11 +1,6 @@
 package i18n
 
 var (
-	KeyListingDescription = key("listing.description", Message{
-		ZhHant: "goen 的%s。",
-		En:     "%s at goen.",
-	})
-
 	KeySearchTitle = key("search.title", Message{ZhHant: "搜尋", En: "Search"})
 
 	KeySearchFor = key("search.for", Message{ZhHant: "搜尋「%s」", En: "Search for “%s”"})

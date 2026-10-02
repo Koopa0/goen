@@ -993,7 +993,7 @@ func cartLine(l CartLine) templ.Component {
 			Class:   "goen-line__remove",
 			// Not dimmed while a quantity request is pending: the request
 			// is about the number, and Remove stays available beside it.
-			Attrs: templ.Attributes{"name": "remove", "value": "1", "data-feedback-skip": true},
+			Attrs: templ.Attributes{"name": "remove", "value": "1", "data-feedback-skip": true, "formnovalidate": true},
 		}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var57), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err

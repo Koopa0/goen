@@ -203,6 +203,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 
 	mux := http.NewServeMux()
 	mux.Handle("GET "+assets.Prefix, staticAssetHandler(assets.Handler(log)))
+	mux.HandleFunc("GET /favicon.ico", staticAssetHandler(assets.Alias(log, assets.FaviconICO)).ServeHTTP)
 
 	mux.HandleFunc("GET /healthz", probes.Live)
 	mux.HandleFunc("GET /readyz", probes.Ready)
@@ -805,7 +806,7 @@ func withLocale(next http.Handler, secure bool) http.Handler {
 var bannerFreePrefixes = []string{
 	"/checkout", "/cart", "/orders", "/account", "/admin",
 	"/signin", "/register", "/forgot", "/reset", "/webhooks", "/media", "/static",
-	"/healthz", "/readyz",
+	"/healthz", "/readyz", "/favicon.ico",
 }
 
 // withBanner attaches the promotional strip to storefront requests. Not cached,
@@ -840,7 +841,7 @@ func withBanner(next http.Handler, store *home.Store, log *slog.Logger, secure b
 // unauthenticated cross-site POST anybody can send, it renders no header at
 // all, and leaving it a nav path would spend a category query on every one.
 var navFreePrefixes = []string{
-	"/admin", "/webhooks", "/media", "/static", "/healthz", "/readyz",
+	"/admin", "/webhooks", "/media", "/static", "/healthz", "/readyz", "/favicon.ico",
 	cart.PickupReturnPath,
 }
 
@@ -858,7 +859,7 @@ var navFreePrefixes = []string{
 // deliberately absent because RequireStaff reads the user Authenticate puts
 // on the context.
 var statelessPrefixes = []string{
-	"/static", "/media", "/healthz", "/readyz", "/webhooks",
+	"/static", "/media", "/healthz", "/readyz", "/webhooks", "/favicon.ico",
 }
 
 func statelessPath(path string) bool {
@@ -1005,15 +1006,16 @@ func sessionCloser(g *payment.Gateway) cart.SessionCloser {
 	return g
 }
 
-// withSiteOrigin puts the configured origin on every request's context, for the
-// chrome's absolute URLs. A base URL that is not an origin adds nothing.
+// withSiteOrigin puts the configured origin and the request's path on every
+// request's context, for the chrome's absolute URLs. A base URL that is not an origin adds nothing.
 func withSiteOrigin(next http.Handler, baseURL string) http.Handler {
 	origin, _, ok := web.SiteOrigin(baseURL)
 	if !ok {
 		return next
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		next.ServeHTTP(w, r.WithContext(layouts.WithSiteOrigin(r.Context(), origin)))
+		ctx := layouts.WithRequestPath(layouts.WithSiteOrigin(r.Context(), origin), r.URL.EscapedPath())
+		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 

@@ -41,7 +41,7 @@ func (n Notifier) statutoryDisclosure(ctx context.Context) string {
 	if n.seller == "" || n.sellerContact == "" {
 		return ""
 	}
-	return "\n" + fmt.Sprintf(i18n.T(ctx, i18n.KeyMailStatutoryDisclosure),
+	return "\n\n" + fmt.Sprintf(i18n.T(ctx, i18n.KeyMailStatutoryDisclosure),
 		n.seller, n.sellerContact)
 }
 

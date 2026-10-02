@@ -94,6 +94,12 @@ SELECT
     coalesce(ip.tax_id, '') AS invoice_tax_id,
     order_is_committed(o.id) AS committed,
     order_amount_owed(o.id) AS owed_cents,
+    -- What store credit paid, read as total less what is still owed so
+    -- order_amount_owed stays the one definition of that arithmetic.
+    (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
+               WHERE ol.order_id = o.id), 0)
+     - o.discount_cents + o.shipping_cents + o.tax_cents
+     - order_amount_owed(o.id))::bigint AS credit_cents,
     (SELECT sm.destination_kind FROM shipping_method_versions v
      JOIN shipping_methods sm ON sm.id = v.method_id
      WHERE v.id = o.shipping_version_id)::text AS destination_kind
@@ -110,8 +116,13 @@ WHERE order_id = $1 AND delivered_at IS NULL;
 
 -- Lock before reading the prior state so concurrent completion cannot duplicate arrival mail.
 -- name: LockOrderForAdvance :one
-SELECT id, fulfillment_status, order_is_committed(id) AS committed
-FROM orders WHERE order_number = $1 FOR UPDATE;
+SELECT o.id, o.fulfillment_status, order_is_committed(o.id) AS committed,
+       order_amount_owed(o.id) AS owed_cents,
+       (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
+                  WHERE ol.order_id = o.id), 0)
+        - o.discount_cents + o.shipping_cents + o.tax_cents
+        - order_amount_owed(o.id))::bigint AS credit_cents
+FROM orders o WHERE o.order_number = $1 FOR UPDATE OF o;
 
 -- orders_check_transition validates the move, so this does not re-derive it.
 -- cancelled_at and completed_at are set here because the schema requires them

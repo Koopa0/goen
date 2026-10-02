@@ -1496,3 +1496,21 @@ func TestTheCartSaysAboutFreeDeliveryOnlyInsideTheSummary(t *testing.T) {
 		t.Error("a cart whose methods disagree says something about free delivery anyway")
 	}
 }
+
+// TestRemovingALineIsNotBlockedByAQuantityTheShelfCannotMeet: the remove button
+// shares a form with the quantity field, whose max is the stock, so a number
+// typed above it would stop the removal behind a native validation bubble.
+func TestRemovingALineIsNotBlockedByAQuantityTheShelfCannotMeet(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	line := CartLine{VariantID: "v1", Slug: "x", Name: "x", UnitCents: 100000, Quantity: 2, Available: 4}
+	html := renderToString(t, Cart(CartMeta(ctx), CartView{Lines: []CartLine{line}}))
+	i := strings.Index(html, `name="remove"`)
+	if i < 0 {
+		t.Fatal("the line has no remove button")
+	}
+	open := strings.LastIndex(html[:i], "<button")
+	if tag := html[open : i+strings.Index(html[i:], ">")]; !strings.Contains(tag, "formnovalidate") {
+		t.Errorf("the remove button does not skip the form's validation: %s", tag)
+	}
+}

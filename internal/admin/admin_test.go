@@ -546,3 +546,48 @@ func TestTheQueueFiltersAreTheirOwnClosedSet(t *testing.T) {
 		t.Errorf("ParseStatus(ready) = %q: a transition must not be able to name a queue filter", got)
 	}
 }
+
+func TestFundedMeansCommittedOrPaidWholeByCredit(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		name         string
+		committed    bool
+		owed, credit int64
+		want         bool
+	}{
+		{name: "card captured", committed: true, owed: 65000, want: true},
+		{name: "credit paid it all", owed: 0, credit: 65000, want: true},
+		{name: "credit paid part, card still owed", owed: 40000, credit: 25000, want: false},
+		{name: "nothing paid", owed: 65000, want: false},
+		{name: "free after a discount", want: false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := funded(tt.committed, tt.owed, tt.credit); got != tt.want {
+				t.Errorf("funded(%t, %d, %d) = %t, want %t", tt.committed, tt.owed, tt.credit, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestPaymentWithoutCardIsReadFromWhatIsOwed(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	for _, tt := range []struct {
+		name         string
+		owed, credit int64
+		want         string
+	}{
+		{name: "credit paid it all", credit: 65000, want: "購物金全額折抵"},
+		{name: "free after a discount", want: i18n.T(ctx, i18n.KeyAdminPayMethodFree)},
+		{name: "still owed", owed: 65000, want: ""},
+		{name: "credit reversed by a cancellation", owed: 65000, credit: 0, want: ""},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := paymentWithoutCard(ctx, tt.owed, tt.credit).Method; got != tt.want {
+				t.Errorf("Method = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}

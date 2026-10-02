@@ -114,9 +114,9 @@ func (v ListingView) Trail(ctx context.Context) []components.Crumb {
 // ListingMeta is the chrome view model for a category page.
 func ListingMeta(ctx context.Context, v ListingView) layouts.Page {
 	return layouts.Page{
-		Title:       v.Name,
-		Description: fmt.Sprintf(i18n.T(ctx, i18n.KeyListingDescription), v.Name),
-		Nav:         v.RootSlug(),
+		Title: v.Name,
+		Nav:   v.RootSlug(),
+		Share: v.Theme.Image().share(v.Name),
 	}
 }
 

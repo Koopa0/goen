@@ -371,11 +371,11 @@ func TestTheChosenOptionIsNamedNextToItsLabel(t *testing.T) {
 		}}},
 	}
 	got := renderProduct(t, &view, i18n.ZhHant)
-	if !strings.Contains(got, "顏色：") || !strings.Contains(got, `goen-pdp__optchosen">曜石黑`) {
-		t.Error("the chosen option's name is not shown next to its label")
+	if !strings.Contains(got, `顏色：<span class="goen-pdp__optchosen">曜石黑`) {
+		t.Error("the chosen option's name does not follow its label with the full-width colon and nothing between")
 	}
-	if en := renderProduct(t, &view, i18n.En); !strings.Contains(en, "顏色:") {
-		t.Error("the English separator is not used in English")
+	if en := renderProduct(t, &view, i18n.En); !strings.Contains(en, `顏色: <span class="goen-pdp__optchosen">曜石黑`) {
+		t.Error("the English separator is not a colon and a space before the chosen name")
 	}
 }
 

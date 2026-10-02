@@ -32,7 +32,7 @@ var (
 
 	// KeyMailShippedTrack points a shipped notice at the carrier's tracking page.
 	KeyMailShippedTrack = key("mail.shipped.track", Message{
-		ZhHant: "查詢物流:\n%s",
+		ZhHant: "查詢物流：\n%s",
 		En:     "Track the parcel:\n%s",
 	})
 )
