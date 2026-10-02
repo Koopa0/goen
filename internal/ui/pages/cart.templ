@@ -941,6 +941,31 @@ templ Order(p layouts.Page, v *OrderView) {
 							</div>
 						</section>
 					}
+					if v.Invoice != nil {
+						<section class="goen-order__invoice" aria-labelledby="invoice-heading">
+							<h2 id="invoice-heading" class="goen-order__subhead">{ i18n.T(ctx, i18n.KeySectionInvoice) }</h2>
+							<ul class="goen-order__shipments" role="list">
+								for _, d := range v.Invoice.Documents {
+									<li class="goen-order__shipment">
+										<span class="goen-order__carrier">{ d.Label(ctx) } { d.Number }</span>
+										if d.Allowance {
+											<span class="goen-order__meta">{ d.Amount() }</span>
+										}
+										if d.Voided {
+											@components.Badge(components.BadgeProps{Tone: components.ToneWarn}) {
+												{ i18n.T(ctx, i18n.KeyAdminQueueVoided) }
+											}
+										}
+										<span class="goen-order__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOrderInvoiceIssued), d.IssuedOn) }</span>
+										if d.RandomCode != "" {
+											<span class="goen-order__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQueueRandomCode), d.RandomCode) }</span>
+										}
+									</li>
+								}
+							</ul>
+							<p class="goen-order__meta">{ v.Invoice.ChoiceText(ctx) }</p>
+						</section>
+					}
 					<ul class="goen-order__lines" role="list">
 						for _, l := range v.Lines {
 							<li class="goen-line">
