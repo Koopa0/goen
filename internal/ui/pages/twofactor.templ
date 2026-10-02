@@ -6,23 +6,15 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// TwoFactor renders the step-up challenge and the enrolment flow.
+// One card inside the back office's own chrome: somebody who has not passed the
+// second factor still needs to see where they are and how to leave, but not the
+// rail's links.
 //
-// One card in the middle of the column, the shape the storefront gives a
-// sign-in, inside the back office's own chrome: there is one thing to do here
-// and the rail's 23 links are not it, but somebody who has not passed the
-// second factor yet still needs to see where they are and how to leave.
+// It borrows none of the storefront's auth classes and carries no page-head
+// eyebrow: the layout gives this branch the bar and nothing else.
 //
-// It borrows none of the storefront's auth classes, and it carries no page-head
-// eyebrow either. Those classes belong to surfaces this screen does not live
-// on — the layout gives this branch the bar and nothing else — and the bar is
-// already two centimetres away saying which site you are on.
-//
-// Nothing about the credential itself moved: the field is still named code,
-// still posts to the same three actions, and still carries the one-time-code
-// autofill token, the numeric keyboard and the pattern the handler validates
-// against. The secret is rendered exactly as it was, in the groups the view
-// model already cuts it into.
+// The code field keeps the one-time-code autofill token, the numeric keyboard
+// and the pattern the handler validates against.
 templ TwoFactor(p layouts.Page, v TwoFactorView) {
 	@layouts.Admin(p, "") {
 		<div class="goen-twofa">

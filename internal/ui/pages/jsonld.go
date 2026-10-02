@@ -6,7 +6,6 @@ import (
 	"strings"
 )
 
-// ProductJSONLD describes a product to a search engine.
 func ProductJSONLD(v *ProductView, baseURL string) string {
 	base := strings.TrimRight(baseURL, "/")
 	doc := map[string]any{
@@ -37,7 +36,6 @@ func ProductJSONLD(v *ProductView, baseURL string) string {
 	return encode(doc)
 }
 
-// BreadcrumbJSONLD describes where a page sits.
 func BreadcrumbJSONLD(crumbs []Crumb, name, baseURL string) string {
 	base := strings.TrimRight(baseURL, "/")
 	items := make([]any, 0, len(crumbs)+1)
@@ -82,7 +80,6 @@ func encode(doc map[string]any) string {
 	return string(b)
 }
 
-// JSONLDSet puts several documents in one top-level array.
 func JSONLDSet(docs ...string) string {
 	kept := make([]string, 0, len(docs))
 	for _, d := range docs {

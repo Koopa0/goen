@@ -7,15 +7,13 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// WishlistItem is a saved product. SoleVariantID is set when the product has one
-// variant and it is in stock: the only case where the row can add it to the cart
-// without asking which.
+// SoleVariantID is set only when the product has one variant and it is in stock:
+// the one case where the row can add it to the cart without asking which.
 type WishlistItem struct {
 	ProductTile
 	SoleVariantID string
 }
 
-// WishlistView is a customer's saved products.
 type WishlistView struct {
 	Products []WishlistItem
 	// Added is what the last add-to-cart from this page did, as the cart's
@@ -23,12 +21,8 @@ type WishlistView struct {
 	Added AddOutcome
 }
 
-// Empty reports whether nothing has been saved.
 func (v WishlistView) Empty() bool { return len(v.Products) == 0 }
 
-// Wishlist renders the saved products and the form that removes one. Each saved
-// product is ONE list item holding the card and its own remove form: a global
-// grid of cards with a separate list of forms is the topology #320 filed.
 templ Wishlist(p layouts.Page, v WishlistView) {
 	@layouts.Base(p) {
 		<div class="goen-listing">
@@ -109,9 +103,8 @@ templ Wishlist(p layouts.Page, v WishlistView) {
 									<input type="hidden" name="slug" value={ t.Slug }/>
 									<input type="hidden" name="action" value="remove"/>
 									<input type="hidden" name="return" value="/account/wishlist"/>
-									// ui-btn is the name `check-layout.mjs:1634` measures the
-									// remove control by; without it the wishlist rows report no
-									// control at all. app.css writes what it declares.
+									// ui-btn is the name check-layout.mjs measures the remove control by; app.css
+									// writes what it declares.
 									<button class="goen-btn goen-btn--outline goen-btn--sm goen-btn--block ui-btn" type="submit">
 										{ i18n.T(ctx, i18n.KeyRemove) }
 									</button>

@@ -5,15 +5,10 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-// PickupStart is the hop to the carrier's store map. The checkout form has just
-// been posted to goen, which kept what was typed, and this page is the one place
-// the browser is handed to the carrier: a form that posts to it and nothing else.
-//
-// Like PickupReturn it is not layouts.Base, so it runs no category query. The
-// form holds only parameters the map documents, never a field the shopper typed,
-// and a script submits it at once; with scripting off the button does. back is
-// the checkout with the draft restored, for a shopper who does not want the map
-// after all.
+// Not layouts.Base, like PickupReturn: no category query. The form holds only
+// parameters the map documents, never a field the shopper typed; a script submits
+// it at once, and with scripting off the button does. back is the checkout with
+// the draft restored.
 templ PickupStart(f CheckoutMapForm, back string) {
 	<!DOCTYPE html>
 	<html lang={ i18n.FromContext(ctx).Tag() } class="theme-blue">

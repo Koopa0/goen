@@ -14,23 +14,15 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// TwoFactor renders the step-up challenge and the enrolment flow.
+// One card inside the back office's own chrome: somebody who has not passed the
+// second factor still needs to see where they are and how to leave, but not the
+// rail's links.
 //
-// One card in the middle of the column, the shape the storefront gives a
-// sign-in, inside the back office's own chrome: there is one thing to do here
-// and the rail's 23 links are not it, but somebody who has not passed the
-// second factor yet still needs to see where they are and how to leave.
+// It borrows none of the storefront's auth classes and carries no page-head
+// eyebrow: the layout gives this branch the bar and nothing else.
 //
-// It borrows none of the storefront's auth classes, and it carries no page-head
-// eyebrow either. Those classes belong to surfaces this screen does not live
-// on — the layout gives this branch the bar and nothing else — and the bar is
-// already two centimetres away saying which site you are on.
-//
-// Nothing about the credential itself moved: the field is still named code,
-// still posts to the same three actions, and still carries the one-time-code
-// autofill token, the numeric keyboard and the pattern the handler validates
-// against. The secret is rendered exactly as it was, in the groups the view
-// model already cuts it into.
+// The code field keeps the one-time-code autofill token, the numeric keyboard
+// and the pattern the handler validates against.
 func TwoFactor(p layouts.Page, v TwoFactorView) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -87,7 +79,7 @@ func TwoFactor(p layouts.Page, v TwoFactorView) templ.Component {
 				var templ_7745c5c3_Var4 string
 				templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminPageTwoFactor))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/twofactor.templ`, Line: 30, Col: 75}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/twofactor.templ`, Line: 22, Col: 75}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 				if templ_7745c5c3_Err != nil {
@@ -100,7 +92,7 @@ func TwoFactor(p layouts.Page, v TwoFactorView) templ.Component {
 				var templ_7745c5c3_Var5 string
 				templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyTwoFALead))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/twofactor.templ`, Line: 32, Col: 37}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/twofactor.templ`, Line: 24, Col: 37}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 				if templ_7745c5c3_Err != nil {
@@ -126,7 +118,7 @@ func TwoFactor(p layouts.Page, v TwoFactorView) templ.Component {
 						var templ_7745c5c3_Var7 string
 						templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(v.Notice)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/twofactor.templ`, Line: 36, Col: 16}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/twofactor.templ`, Line: 28, Col: 16}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 						if templ_7745c5c3_Err != nil {
@@ -151,7 +143,7 @@ func TwoFactor(p layouts.Page, v TwoFactorView) templ.Component {
 					var templ_7745c5c3_Var8 string
 					templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyTwoFAOffHeading))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/twofactor.templ`, Line: 40, Col: 75}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/twofactor.templ`, Line: 32, Col: 75}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 					if templ_7745c5c3_Err != nil {
@@ -164,7 +156,7 @@ func TwoFactor(p layouts.Page, v TwoFactorView) templ.Component {
 					var templ_7745c5c3_Var9 string
 					templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyTwoFAOffBody))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/twofactor.templ`, Line: 42, Col: 41}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/twofactor.templ`, Line: 34, Col: 41}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 					if templ_7745c5c3_Err != nil {
@@ -182,7 +174,7 @@ func TwoFactor(p layouts.Page, v TwoFactorView) templ.Component {
 					var templ_7745c5c3_Var10 string
 					templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyTwoFAEnrolHeading))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/twofactor.templ`, Line: 45, Col: 77}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/twofactor.templ`, Line: 37, Col: 77}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 					if templ_7745c5c3_Err != nil {
@@ -195,7 +187,7 @@ func TwoFactor(p layouts.Page, v TwoFactorView) templ.Component {
 					var templ_7745c5c3_Var11 string
 					templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyTwoFAEnrolBody))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/twofactor.templ`, Line: 47, Col: 43}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/twofactor.templ`, Line: 39, Col: 43}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 					if templ_7745c5c3_Err != nil {
@@ -208,7 +200,7 @@ func TwoFactor(p layouts.Page, v TwoFactorView) templ.Component {
 					var templ_7745c5c3_Var12 string
 					templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyTwoFAEnrolOnce))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/twofactor.templ`, Line: 48, Col: 51}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/twofactor.templ`, Line: 40, Col: 51}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 					if templ_7745c5c3_Err != nil {
@@ -226,7 +218,7 @@ func TwoFactor(p layouts.Page, v TwoFactorView) templ.Component {
 						var templ_7745c5c3_Var13 string
 						templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.ResolveAttributeValue(templ.SafeURL(v.QRCode))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/twofactor.templ`, Line: 51, Col: 63}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/twofactor.templ`, Line: 43, Col: 63}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var13)
 						if templ_7745c5c3_Err != nil {
@@ -239,7 +231,7 @@ func TwoFactor(p layouts.Page, v TwoFactorView) templ.Component {
 						var templ_7745c5c3_Var14 string
 						templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.ResolveAttributeValue(i18n.T(ctx, i18n.KeyTwoFAQRCode))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/twofactor.templ`, Line: 51, Col: 104}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/twofactor.templ`, Line: 43, Col: 104}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var14)
 						if templ_7745c5c3_Err != nil {
@@ -262,7 +254,7 @@ func TwoFactor(p layouts.Page, v TwoFactorView) templ.Component {
 						var templ_7745c5c3_Var15 string
 						templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(group)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/twofactor.templ`, Line: 55, Col: 20}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/twofactor.templ`, Line: 47, Col: 20}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 						if templ_7745c5c3_Err != nil {
@@ -280,7 +272,7 @@ func TwoFactor(p layouts.Page, v TwoFactorView) templ.Component {
 					var templ_7745c5c3_Var16 string
 					templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyTwoFAEnrolURI))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/twofactor.templ`, Line: 59, Col: 84}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/twofactor.templ`, Line: 51, Col: 84}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 					if templ_7745c5c3_Err != nil {
@@ -293,7 +285,7 @@ func TwoFactor(p layouts.Page, v TwoFactorView) templ.Component {
 					var templ_7745c5c3_Var17 string
 					templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(v.URI)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/twofactor.templ`, Line: 61, Col: 44}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/twofactor.templ`, Line: 53, Col: 44}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 					if templ_7745c5c3_Err != nil {
@@ -318,7 +310,7 @@ func TwoFactor(p layouts.Page, v TwoFactorView) templ.Component {
 						var templ_7745c5c3_Var19 string
 						templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyTwoFAEnrolCode))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/twofactor.templ`, Line: 67, Col: 45}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/twofactor.templ`, Line: 59, Col: 45}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 						if templ_7745c5c3_Err != nil {
@@ -365,7 +357,7 @@ func TwoFactor(p layouts.Page, v TwoFactorView) templ.Component {
 						var templ_7745c5c3_Var21 string
 						templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyTwoFAEnrolSubmit))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/twofactor.templ`, Line: 87, Col: 46}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/twofactor.templ`, Line: 79, Col: 46}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
 						if templ_7745c5c3_Err != nil {
@@ -392,7 +384,7 @@ func TwoFactor(p layouts.Page, v TwoFactorView) templ.Component {
 					var templ_7745c5c3_Var22 string
 					templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyTwoFAStartHeading))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/twofactor.templ`, Line: 91, Col: 77}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/twofactor.templ`, Line: 83, Col: 77}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 					if templ_7745c5c3_Err != nil {
@@ -405,7 +397,7 @@ func TwoFactor(p layouts.Page, v TwoFactorView) templ.Component {
 					var templ_7745c5c3_Var23 string
 					templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyTwoFAStartBody))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/twofactor.templ`, Line: 92, Col: 70}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/twofactor.templ`, Line: 84, Col: 70}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 					if templ_7745c5c3_Err != nil {
@@ -430,7 +422,7 @@ func TwoFactor(p layouts.Page, v TwoFactorView) templ.Component {
 						var templ_7745c5c3_Var25 string
 						templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyTwoFAStartSubmit))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/twofactor.templ`, Line: 98, Col: 46}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/twofactor.templ`, Line: 90, Col: 46}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
 						if templ_7745c5c3_Err != nil {
@@ -457,7 +449,7 @@ func TwoFactor(p layouts.Page, v TwoFactorView) templ.Component {
 					var templ_7745c5c3_Var26 string
 					templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyTwoFAChallengeHeading))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/twofactor.templ`, Line: 102, Col: 81}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/twofactor.templ`, Line: 94, Col: 81}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var26))
 					if templ_7745c5c3_Err != nil {
@@ -482,7 +474,7 @@ func TwoFactor(p layouts.Page, v TwoFactorView) templ.Component {
 						var templ_7745c5c3_Var28 string
 						templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyTwoFAChallengeCode))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/twofactor.templ`, Line: 106, Col: 49}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/twofactor.templ`, Line: 98, Col: 49}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var28))
 						if templ_7745c5c3_Err != nil {
@@ -529,7 +521,7 @@ func TwoFactor(p layouts.Page, v TwoFactorView) templ.Component {
 						var templ_7745c5c3_Var30 string
 						templ_7745c5c3_Var30, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyTwoFAChallengeSubmit))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/twofactor.templ`, Line: 126, Col: 50}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/twofactor.templ`, Line: 118, Col: 50}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var30))
 						if templ_7745c5c3_Err != nil {
@@ -551,7 +543,7 @@ func TwoFactor(p layouts.Page, v TwoFactorView) templ.Component {
 					var templ_7745c5c3_Var31 string
 					templ_7745c5c3_Var31, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyTwoFALost))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/twofactor.templ`, Line: 130, Col: 38}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/twofactor.templ`, Line: 122, Col: 38}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var31))
 					if templ_7745c5c3_Err != nil {

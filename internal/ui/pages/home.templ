@@ -9,9 +9,6 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// Home renders the storefront home page: a carousel of what is on now, the
-// departments, one product row, one department beside its photograph, one
-// photograph, and what the shop guarantees.
 templ Home(p layouts.Page, v HomeView) {
 	@layouts.Base(p) {
 		<h1 class="goen-sr-only">{ i18n.T(ctx, i18n.KeyHomeHeading) }</h1>
@@ -29,7 +26,6 @@ templ Home(p layouts.Page, v HomeView) {
 							<a class="goen-cat" data-tone={ c.Tone.Attr() } href={ templ.URL("/c/" + c.Slug) }>
 								<span class="goen-cat__well">
 									if c.Photo.Shown() {
-										// The name below is the label, so the photograph is decoration.
 										<img
 											class="goen-cat__photo"
 											src={ c.Photo.URL }
@@ -96,7 +92,6 @@ templ Home(p layouts.Page, v HomeView) {
 		<section class="goen-container goen-home__section goen-promo-photo" aria-labelledby="promo-heading">
 			<a class="goen-promo-photo__link" href={ templ.URL(v.PromoHref()) }>
 				<div class="goen-promo-photo__media">
-					// The title below is the link's label, so the photograph is decoration.
 					<img
 						src={ assets.URL(assets.PromoDesk) }
 						srcset={ assets.PromoDeskSrcset() }
@@ -131,8 +126,6 @@ templ Home(p layouts.Page, v HomeView) {
 	}
 }
 
-// heading is a section name in ink, then a short grey continuation on the same
-// line; it may wrap on a narrow screen.
 templ heading(id, name, rest string) {
 	if rest == "" {
 		<h2 id={ id } class="goen-home__heading">{ name }</h2>
@@ -148,11 +141,9 @@ templ seeAll(label, href string) {
 	</a>
 }
 
-// heroCarousel is native scroll-snap with arrows and dots on top. With one
-// slide there is nothing to move between, so the controls are not drawn.
+// With one slide there is nothing to move between, so the controls are not drawn.
 templ heroCarousel(slides []HeroSlide) {
-	// data-autoplay is what goen.js looks for: a carousel of one slide has
-	// nothing to advance to, and the script then draws no pause control either.
+	// data-autoplay is what goen.js looks for; with one slide it draws no pause control either.
 	<section class="goen-hero" aria-roledescription="carousel" aria-label={ i18n.T(ctx, i18n.KeyHomeFeatured) } data-autoplay?={ len(slides) > 1 }>
 		<div class="goen-hero__track">
 			for i, s := range slides {
@@ -189,10 +180,8 @@ templ heroCarousel(slides []HeroSlide) {
 							}
 							if s.CTA.Shown() {
 								<div class="goen-hero__actions">
-									// ui-btn is kept beside the goen- recipe: the home page's
-									// tap sweep is `.goen-cat` plus `.goen-hero__actions .ui-btn`
-									// (check-layout.mjs), and dropping the name would stop the
-									// button being measured.
+									// ui-btn stays beside the goen- recipe: the home page's tap sweep (check-layout.mjs)
+									// measures `.goen-hero__actions .ui-btn`.
 									<a class="goen-btn goen-btn--primary goen-btn--lg ui-btn" href={ templ.SafeURL(s.CTA.Href) }>{ s.CTA.Label }</a>
 								</div>
 							}

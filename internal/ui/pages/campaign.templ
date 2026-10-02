@@ -8,7 +8,6 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// Campaign renders one running promotion.
 templ Campaign(p layouts.Page, v CampaignView) {
 	@layouts.Base(p) {
 		<div class="goen-listing">
@@ -55,9 +54,7 @@ templ Campaign(p layouts.Page, v CampaignView) {
 	}
 }
 
-// campaignStrip is the running promotions above the deals grid. A campaign is a
-// destination and a marked-down product is an item; they are drawn apart so
-// they do not read as the same kind of thing stacked together.
+// A campaign is a destination and a product an item; drawn apart so they do not read as one kind of thing.
 templ campaignStrip(campaigns []CampaignSummary) {
 	<section class="goen-campaigns" aria-labelledby="campaigns-heading">
 		<h2 id="campaigns-heading" class="goen-campaigns__heading">{ i18n.T(ctx, i18n.KeyCampaignEyebrow) }</h2>
