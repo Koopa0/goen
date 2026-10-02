@@ -19,6 +19,7 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
+	"github.com/koopa0/goen/internal/pgerr"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
@@ -217,7 +218,7 @@ func (s *Store) CreateCoupon(ctx context.Context, f *Form) (map[string]string, e
 		func(ctx context.Context, q *db.Queries) error {
 			return q.CreateCoupon(ctx, params)
 		}); err != nil {
-		if db.HasConstraint(err, "coupons_code_key") {
+		if pgerr.IsConstraint(err, "coupons_code_key") {
 			return map[string]string{"code": i18n.T(ctx, i18n.KeyFormCouponTaken)}, nil
 		}
 		return nil, fmt.Errorf("%w: %w", ErrRefused, err)

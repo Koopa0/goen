@@ -21,12 +21,12 @@ import (
 	"github.com/koopa0/goen/internal/admin/ordernumber"
 	"github.com/koopa0/goen/internal/carrier"
 	"github.com/koopa0/goen/internal/cart"
-	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/media"
 	"github.com/koopa0/goen/internal/newsletter"
 	"github.com/koopa0/goen/internal/outbox"
+	"github.com/koopa0/goen/internal/pgerr"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
@@ -153,11 +153,11 @@ func (h *Handler) AdvanceOrder(w http.ResponseWriter, r *http.Request) {
 	case err == nil:
 		h.closeSessions(r.Context(), number, sessions)
 		http.Redirect(w, r, "/admin/orders/"+number+"?ok=1", http.StatusSeeOther) //nolint:gosec // G710: validated by ordernumber.Valid
-	case errors.Is(err, ErrPaidCancel), db.HasConstraint(err, "orders_paid_cancel_needs_refund"):
+	case errors.Is(err, ErrPaidCancel), pgerr.IsConstraint(err, "orders_paid_cancel_needs_refund"):
 		http.Redirect(w, r, "/admin/orders/"+number+"?paidcancel=1", http.StatusSeeOther) //nolint:gosec // G710: validated by ordernumber.Valid
-	case db.HasConstraint(err, "orders_funded_to_leave_pending"):
+	case pgerr.IsConstraint(err, "orders_funded_to_leave_pending"):
 		http.Redirect(w, r, "/admin/orders/"+number+"?unfunded=1", http.StatusSeeOther) //nolint:gosec // G710: validated by ordernumber.Valid
-	case db.HasConstraint(err, "orders_finished_when_shipped"):
+	case pgerr.IsConstraint(err, "orders_finished_when_shipped"):
 		http.Redirect(w, r, "/admin/orders/"+number+"?owesparcel=1", http.StatusSeeOther) //nolint:gosec // G710: validated by ordernumber.Valid
 	case errors.Is(err, ErrRefused):
 		// Logged in full; the page names the rule only for the refusals a shop
@@ -198,7 +198,7 @@ func (h *Handler) Ship(w http.ResponseWriter, r *http.Request) {
 	case err == nil:
 		//nolint:gosec // G710: validated by ordernumber.Valid
 		http.Redirect(w, r, "/admin/orders/"+number+"?shipped=1", http.StatusSeeOther)
-	case db.HasConstraint(err, "order_shipments_tracking_key"):
+	case pgerr.IsConstraint(err, "order_shipments_tracking_key"):
 		h.rejectShip(w, r, &shipRefusal{tracking: i18n.KeyAdminTrackingTaken})
 	case errors.Is(err, ErrQuantity):
 		h.rejectShip(w, r, &shipRefusal{quantity: i18n.KeyAdminNoticeBadParcel})
@@ -509,7 +509,7 @@ func stockReturn(low, term, after, notice, sku string) string {
 func stockBack(r *http.Request, notice string) string {
 	var low, term, after string
 	if u, err := url.Parse(r.PostFormValue("return")); err == nil && u.Path == "/admin/stock" && u.Host == "" {
-		low, term, after = u.Query().Get("low"), SearchTerm(u.Query().Get("q")), u.Query().Get(web.KeysetParam)
+		low, term, after = u.Query().Get("low"), web.SearchTerm(u.Query().Get("q")), u.Query().Get(web.KeysetParam)
 	}
 	return stockReturn(low, term, after, notice, r.PostFormValue("sku"))
 }
@@ -666,7 +666,7 @@ func (h *Handler) renderCampaign(w http.ResponseWriter, r *http.Request, status 
 	if errs["window"] != "" {
 		detail.StartsAtInput, detail.EndsAtInput = r.PostFormValue("starts_at"), r.PostFormValue("ends_at")
 	}
-	term := SearchTerm(r.URL.Query().Get("find"))
+	term := web.SearchTerm(r.URL.Query().Get("find"))
 	matches, err := h.store.SearchCampaignProducts(r.Context(), slug, term)
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "search campaign products", "error", err)
@@ -1484,42 +1484,6 @@ func (h *Handler) newsletterView(r *http.Request) (admin.NewsletterView, error) 
 		})
 	}
 	return view, nil
-}
-
-func (h *Handler) Customers(w http.ResponseWriter, r *http.Request) {
-	view, err := h.store.Customers(r.Context(), r.URL.Query().Get("q"), r.URL.Query().Get(web.KeysetParam))
-	if err != nil {
-		h.log.ErrorContext(r.Context(), "search customers", "error", err)
-		access.ServerError(w, r, h.log)
-		return
-	}
-	web.Render(w, r, h.log, http.StatusOK, admin.Customers(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageCustomers)}, view))
-}
-
-func (h *Handler) Warranties(w http.ResponseWriter, r *http.Request) {
-	view, err := h.store.Warranties(r.Context(), r.URL.Query().Get("q"), r.URL.Query().Get(web.KeysetParam))
-	if err != nil {
-		h.log.ErrorContext(r.Context(), "search warranties", "error", err)
-		access.ServerError(w, r, h.log)
-		return
-	}
-	web.Render(w, r, h.log, http.StatusOK, admin.Warranties(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageWarranty)}, view))
-}
-
-func (h *Handler) Customer(w http.ResponseWriter, r *http.Request) {
-	view, err := h.store.Customer(r.Context(), r.PathValue("id"), staffID(r))
-	switch {
-	case err == nil:
-		web.Render(w, r, h.log, http.StatusOK, admin.Customer(
-			layouts.Page{Title: view.DisplayName()}, &view))
-	case errors.Is(err, ErrNotFound):
-		access.NotFound(w, r, h.log)
-	default:
-		h.log.ErrorContext(r.Context(), "read customer", "error", err)
-		access.ServerError(w, r, h.log)
-	}
 }
 
 func (h *Handler) IssueInvoice(w http.ResponseWriter, r *http.Request) {

@@ -13,6 +13,7 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/pgerr"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
@@ -97,7 +98,7 @@ func optionValueRef(raw string) (uuid.NullUUID, error) {
 // imageOptionRefusal names the one refusal a staff member can act on: the
 // composite key binding the value to the image's own product.
 func imageOptionRefusal(err error) error {
-	if db.HasConstraint(err, "product_images_option_value_fk") {
+	if pgerr.IsConstraint(err, "product_images_option_value_fk") {
 		return ErrNotThisProductsOption
 	}
 	return fmt.Errorf("%w: %w", ErrRefused, err)
