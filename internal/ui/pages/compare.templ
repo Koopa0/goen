@@ -132,7 +132,7 @@ templ Compare(p layouts.Page, v CompareView) {
 									<th scope="row">
 										{ row.Label }
 										if row.Marked(v.Count()) {
-											<span class="goen-sr-only"> · { i18n.T(ctx, i18n.KeyCompareDiffers) }</span>
+											<span class="goen-sr-only">{ " · " + i18n.T(ctx, i18n.KeyCompareDiffers) }</span>
 										}
 									</th>
 									for i := range v.Products {
@@ -209,7 +209,7 @@ templ compareSuggestions(v CompareView) {
 						<span class="goen-compare__price">{ t.Price() }</span>
 						@components.ButtonLink(components.ButtonProps{Variant: components.VariantOutline}, templ.SafeURL(v.AddHref(t.Slug))) {
 							{ i18n.T(ctx, i18n.KeyAddToCompare) }
-							<span class="goen-sr-only"> { t.Name }</span>
+							<span class="goen-sr-only">{ " " + t.Name }</span>
 						}
 					</li>
 				}
