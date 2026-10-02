@@ -133,6 +133,9 @@ func TestCreditConfirmationDoesNotFollowAReassignedEmail(t *testing.T) {
 			t.Fatalf("refused credit field missing %q", want)
 		}
 	}
+	if strings.Contains(w.Body.String(), i18n.T(ctx, i18n.KeyAdminNoticeNeeds)) {
+		t.Error("the credit form's refusal carries the dispatch form's banner above the field errors")
+	}
 }
 
 func TestDispatchWithARecordedTrackingNumberIsRefusedOnTheField(t *testing.T) {

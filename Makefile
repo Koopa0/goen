@@ -16,7 +16,7 @@ AXE_CORE_SHA256 := c24f097bd2f451d4f933e8bc7d8d539f8672a2ebcb5cc9f9f3eec8ca9470a
 
 # Tools that generate or inspect this module but are not part of it. `go run
 # pkg@version` pins each as firmly as a require line without joining the module
-# graph — see CLAUDE.md, "Build tools stay out of go.mod".
+# graph, so build tools stay out of go.mod.
 SQLC := go run github.com/sqlc-dev/sqlc/cmd/sqlc@$(SQLC_VERSION)
 MIGRATE := go run -tags='postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@$(MIGRATE_VERSION)
 GOVULNCHECK := go run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
@@ -149,7 +149,7 @@ check-layout-run:
 	@# to surface as the checkout fixture's "did not render its quote" further
 	@# down: a catalogue with nothing sellable, a GOEN_DATABASE_URL that is not the
 	@# database the server at GOEN_URL reads, and a genuinely broken add to cart all
-	@# arrived as that one sentence. Reporting three causes as one is CLAUDE.md #17.
+	@# arrived as that one sentence. Reporting three causes as one hides which to fix.
 	@VARIANT=$$(psql "$$GOEN_DATABASE_URL" -tAc "SELECT pv.id FROM product_variants pv JOIN products p ON p.id = pv.product_id WHERE p.status = 'active' AND pv.is_active AND pv.stock_quantity > pv.safety_stock LIMIT 1"); \
 		test -n "$$VARIANT" || { echo 'no sellable variant in GOEN_DATABASE_URL: run `make db-seed` against the database the server reads' >&2; exit 2; }; \
 		STATUS=$$(curl -s -o /dev/null -w '%{http_code}' -c .layout-chrome/cookies \
@@ -167,8 +167,8 @@ check-layout-run:
 	@# a missing user made the session INSERT ... SELECT write ZERO ROWS in silence
 	@# and all 48 admin rows then failed with one message — "the staff session is
 	@# not being accepted" — which names a rejected cookie and not an absent one.
-	@# A fixture that fails quietly is CLAUDE.md #26; a check reporting four causes
-	@# as one is #17. This target had both, on the same three lines.
+	@# A fixture that fails quietly, and a check that reports four causes as one,
+	@# are both what this target had, on the same three lines.
 	@psql "$$GOEN_DATABASE_URL" -qtAc "INSERT INTO users (email, role) VALUES ('layout-check@goen.invalid', 'admin') ON CONFLICT (lower(email)) DO NOTHING" >/dev/null
 	@psql "$$GOEN_DATABASE_URL" -qtAc "INSERT INTO users (email, role, full_name, phone) VALUES ('layout-cust@goen.invalid', 'customer', '版面顧客', '0912345678') ON CONFLICT (lower(email)) DO NOTHING" >/dev/null
 	@openssl rand -hex 32 > .layout-chrome/admin-token
@@ -222,8 +222,8 @@ check-layout-run:
 	@# /admin/messages, /admin/questions and /admin/returns each render an EMPTY
 	@# STATE that carries the back-office chrome and nothing else. Their rows in the
 	@# table measured 23 controls — the navigation — and reported a measured page.
-	@# That is the finding this fixture closes, and it is CLAUDE.md #26 for the
-	@# fourth time: a check over DATA needs that data seeded.
+	@# That is the finding this fixture closes: a check over DATA needs that data
+	@# seeded.
 	@#
 	@# All three go through the site's OWN forms. The point is not tidiness: if
 	@# writing to the shop breaks, this check has to break with it, which a psql
@@ -704,7 +704,7 @@ db-repair-hold-faq:
 
 # Rebuild the development database from scratch.
 #
-# 001 is still amended in place rather than superseded (see CLAUDE.md), so an
+# 001 is still amended in place rather than superseded (see CONTRIBUTING.md), so an
 # edit to it does NOT reach a database already at version 1 — `migrate up`
 # reports "no change" and the schema silently stays old. This is the documented
 # way to pick the edit up, and it exists as a target because the alternative is
@@ -851,7 +851,6 @@ schema-drift:
 #
 # Rows alone passes on a restore that lost an index, a CHECK or a GRANT. Schema
 # alone passes on a dump that lost every row — the mutation is `pg_dump -s`.
-# Each half is recorded red in CLAUDE.md.
 #
 # The counts are EXACT and are read inside the DUMP'S OWN exported snapshot,
 # so a write landing during the drill cannot make it red. A drill that goes red

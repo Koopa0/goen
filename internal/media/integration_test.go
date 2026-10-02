@@ -308,6 +308,46 @@ func TestACampaignsHeaderImageIsNotReclaimed(t *testing.T) {
 	}
 }
 
+// TestACategorysHeaderPhotographIsNotReclaimed covers the fourth referencing
+// column: a delete that missed it would blank a department page's photograph.
+func TestACategorysHeaderPhotographIsNotReclaimed(t *testing.T) {
+	ctx := t.Context()
+	s := media.NewStore(pool)
+
+	photo, err := s.Put(ctx, bytes.NewReader(samplePNG(t, 76, 56)))
+	if err != nil {
+		t.Fatalf("upload: %v", err)
+	}
+	if _, err = pool.Exec(ctx, `
+		INSERT INTO categories (slug, name, image_key, image_alt, position)
+		SELECT 'photo-sweep-check', '版面檢查', $1, '測試圖片',
+		       coalesce(max(position), 0) + 1 FROM categories WHERE parent_id IS NULL`,
+		photo.Digest); err != nil {
+		t.Fatalf("attach to a category: %v", err)
+	}
+	ageUploads(t, photo.Digest)
+
+	if _, err = s.Sweep(ctx, slog.New(slog.DiscardHandler)); err != nil {
+		t.Fatalf("sweep: %v", err)
+	}
+	if !exists(t, photo.Digest) {
+		t.Error("the department page's header photograph was reclaimed")
+	}
+
+	// The sweep passes if either of its two statements knows the column, so
+	// each is asked on its own.
+	candidates, err := s.Candidates(ctx, 200)
+	if err != nil {
+		t.Fatalf("read the candidate list: %v", err)
+	}
+	if slices.Contains(candidates, photo.Digest) {
+		t.Error("the candidate list offers a category's photograph for reclaiming")
+	}
+	if gone, reclaimErr := s.Reclaim(ctx, photo.Digest); reclaimErr != nil || gone || !exists(t, photo.Digest) {
+		t.Errorf("Reclaim(photograph) = %v, %v; want it refused and the upload kept", gone, reclaimErr)
+	}
+}
+
 func exists(t *testing.T, digest string) bool {
 	t.Helper()
 	var n int

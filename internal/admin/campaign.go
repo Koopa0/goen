@@ -28,6 +28,8 @@ type CampaignForm struct {
 	Title   string
 	TitleEn string
 	Days    int32
+	// Tone is stone when the form leaves it out.
+	Tone string
 }
 
 // Validate refuses what the schema would, and the window the shop should refuse.
@@ -48,6 +50,13 @@ func (f *CampaignForm) Validate(ctx context.Context) map[string]string {
 	}
 	if f.Days < 1 || f.Days > MaxCampaignDays {
 		errs["days"] = i18n.T(ctx, i18n.KeyFormCampaignDays)
+	}
+	f.Tone = strings.TrimSpace(f.Tone)
+	if f.Tone == "" {
+		f.Tone = string(pages.ToneStone)
+	}
+	if _, ok := pages.ParseTone(f.Tone); !ok {
+		errs["tone"] = i18n.T(ctx, i18n.KeyFormToneUnknown)
 	}
 	return errs
 }
@@ -77,18 +86,41 @@ func (s *Store) Campaigns(ctx context.Context, after ...string) (pages.AdminCamp
 // MaxCampaignAltRunes bounds the header's alternative text.
 const MaxCampaignAltRunes = 200
 
-// CampaignImage is the header a campaign shows, as the edit page reads it.
-func (s *Store) CampaignImage(ctx context.Context, slug string) (pages.AdminCampaignImage, error) {
+// CampaignImage is the header a campaign shows and its tone, as the edit page
+// reads them.
+func (s *Store) CampaignImage(ctx context.Context, slug string) (pages.AdminHeader, string, error) {
 	row, err := s.q.AdminCampaignImage(ctx, slug)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return pages.AdminCampaignImage{}, ErrNotFound
+			return pages.AdminHeader{}, "", ErrNotFound
 		}
-		return pages.AdminCampaignImage{}, fmt.Errorf("read campaign image: %w", err)
+		return pages.AdminHeader{}, "", fmt.Errorf("read campaign image: %w", err)
 	}
-	return pages.AdminCampaignImage{
+	return pages.AdminHeader{
 		Key: row.ImageKey, Alt: row.ImageAlt, AltEn: row.ImageAltEn, Width: row.ImageWidth,
-	}, nil
+	}, row.Tone, nil
+}
+
+// SetCampaignTone changes the ground temperature of the campaign's page.
+func (s *Store) SetCampaignTone(ctx context.Context, slug, tone string) error {
+	tone = strings.TrimSpace(tone)
+	if _, ok := pages.ParseTone(tone); !ok {
+		return fmt.Errorf("%w: unknown tone %q", ErrInvalid, tone)
+	}
+	return s.audited(ctx, Event{
+		Action: actionSetCampaignTone, Table: "sale_campaigns", ID: uuid.NullUUID{},
+		Before: map[string]any{"campaign": slug}, After: map[string]any{"tone": tone},
+	},
+		func(ctx context.Context, q *db.Queries) error {
+			n, err := q.SetCampaignTone(ctx, db.SetCampaignToneParams{Slug: strings.TrimSpace(slug), Tone: tone})
+			if err != nil {
+				return fmt.Errorf("%w: %w", ErrRefused, err)
+			}
+			if n == 0 {
+				return ErrNotFound
+			}
+			return nil
+		})
 }
 
 // SetCampaignImage makes a stored upload the campaign's header. The alt text is
@@ -142,11 +174,11 @@ func (s *Store) CreateCampaign(ctx context.Context, f *CampaignForm) (map[string
 	}
 	err := s.audited(ctx, Event{
 		Action: actionCreateCampaign, Table: "sale_campaigns", ID: uuid.NullUUID{},
-		Before: nil, After: map[string]any{"slug": f.Slug, "title": f.Title, "title_en": f.TitleEn, "days": f.Days},
+		Before: nil, After: map[string]any{"slug": f.Slug, "title": f.Title, "title_en": f.TitleEn, "days": f.Days, "tone": f.Tone},
 	},
 		func(ctx context.Context, q *db.Queries) error {
 			return q.CreateCampaign(ctx, db.CreateCampaignParams{
-				Slug: f.Slug, Title: f.Title, TitleEn: f.TitleEn, Days: f.Days,
+				Slug: f.Slug, Title: f.Title, TitleEn: f.TitleEn, Tone: f.Tone, Days: f.Days,
 			})
 		})
 	if err != nil {

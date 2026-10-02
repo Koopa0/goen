@@ -18,7 +18,11 @@ type AdminTaxon struct {
 	Depth    int
 	Children int64
 	Parent   string
+	Tone     string // "" inherits the department's
 }
+
+// HeaderHref is the page that holds the category's header photograph.
+func (t AdminTaxon) HeaderHref() string { return "/admin/categories/" + t.Slug }
 
 // Translated reports whether this category has an English name.
 func (t AdminTaxon) Translated() bool { return t.NameEn != "" }
@@ -75,6 +79,7 @@ type AdminTaxonDraft struct {
 	NameEn  string
 	Parent  string
 	IconKey string
+	Tone    string
 }
 
 // HasErr reports whether this form's field was refused.
@@ -110,6 +115,8 @@ func (v AdminTaxonomyView) DraftFor(which, field string) string {
 		return v.Draft.Parent
 	case "icon_key":
 		return v.Draft.IconKey
+	case "tone":
+		return v.Draft.Tone
 	default:
 		panic("pages: AdminTaxonomyView.DraftFor: unknown field " + field)
 	}

@@ -9,8 +9,12 @@ import (
 
 // AuditEntry is one recorded back-office action.
 type AuditEntry struct {
-	Action    string
-	Entity    string
+	Action string
+	Entity string
+	// Subject is the record's name (an order number, a SKU, a slug) and Href its
+	// page; both are empty when the record has neither.
+	Subject   string
+	Href      string
 	Actor     string
 	At        string
 	RequestID string
@@ -23,6 +27,52 @@ func (e AuditEntry) Label(ctx context.Context) string {
 		return i18n.T(ctx, k)
 	}
 	return e.Action
+}
+
+// entityLabels names the kind of record an entry was about. A table the map
+// does not know renders as itself: audit_events is append-only, so a row naming
+// a retired table must still show.
+var entityLabels = map[string]i18n.Key{
+	"orders":                   i18n.KeyAuditEntityOrders,
+	"order_private_data":       i18n.KeyAuditEntityOrderPrivateData,
+	"payments":                 i18n.KeyAuditEntityPayments,
+	"payment_webhook_events":   i18n.KeyAuditEntityPaymentWebhookEvents,
+	"refunds":                  i18n.KeyAuditEntityRefunds,
+	"return_requests":          i18n.KeyAuditEntityReturnRequests,
+	"store_credit_entries":     i18n.KeyAuditEntityStoreCreditEntries,
+	"users":                    i18n.KeyAuditEntityUsers,
+	"brands":                   i18n.KeyAuditEntityBrands,
+	"categories":               i18n.KeyAuditEntityCategories,
+	"contact_messages":         i18n.KeyAuditEntityContactMessages,
+	"coupons":                  i18n.KeyAuditEntityCoupons,
+	"faq_entries":              i18n.KeyAuditEntityFaqEntries,
+	"hero_slides":              i18n.KeyAuditEntityHeroSlides,
+	"membership_tiers":         i18n.KeyAuditEntityMembershipTiers,
+	"product_answers":          i18n.KeyAuditEntityProductAnswers,
+	"product_images":           i18n.KeyAuditEntityProductImages,
+	"product_option_values":    i18n.KeyAuditEntityProductOptionValues,
+	"product_options":          i18n.KeyAuditEntityProductOptions,
+	"product_questions":        i18n.KeyAuditEntityProductQuestions,
+	"product_reviews":          i18n.KeyAuditEntityProductReviews,
+	"product_specs":            i18n.KeyAuditEntityProductSpecs,
+	"product_variants":         i18n.KeyAuditEntityProductVariants,
+	"products":                 i18n.KeyAuditEntityProducts,
+	"promo_banners":            i18n.KeyAuditEntityPromoBanners,
+	"sale_campaign_products":   i18n.KeyAuditEntitySaleCampaignProducts,
+	"sale_campaigns":           i18n.KeyAuditEntitySaleCampaigns,
+	"shipping_method_versions": i18n.KeyAuditEntityShippingMethodVersions,
+	"shipping_methods":         i18n.KeyAuditEntityShippingMethods,
+	"shipping_version_zones":   i18n.KeyAuditEntityShippingVersionZones,
+	"shipping_zone_prefixes":   i18n.KeyAuditEntityShippingZonePrefixes,
+	"shipping_zones":           i18n.KeyAuditEntityShippingZones,
+}
+
+// EntityLabel is the record kind in the reader's language.
+func (e AuditEntry) EntityLabel(ctx context.Context) string {
+	if k, ok := entityLabels[e.Entity]; ok {
+		return i18n.T(ctx, k)
+	}
+	return e.Entity
 }
 
 var actionLabels = map[string]i18n.Key{
@@ -45,6 +95,9 @@ var actionLabels = map[string]i18n.Key{
 	"coupon.toggle":                       i18n.KeyAuditCouponToggle,
 	"campaign.create":                     i18n.KeyAuditCampaignCreate,
 	"campaign.toggle":                     i18n.KeyAuditCampaignToggle,
+	"campaign.tone.set":                   i18n.KeyAuditCampaignTone,
+	"category.image.set":                  i18n.KeyAuditCategoryImageSet,
+	"category.image.clear":                i18n.KeyAuditCategoryImageClear,
 	"campaign.image.set":                  i18n.KeyAuditCampaignImageSet,
 	"campaign.image.clear":                i18n.KeyAuditCampaignImageClear,
 	"campaign.feature":                    i18n.KeyAuditCampaignFeature,
