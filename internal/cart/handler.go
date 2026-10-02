@@ -312,6 +312,9 @@ func (h *Handler) Checkout(w http.ResponseWriter, r *http.Request) {
 
 	var prefill Address
 	fillFromBook(&view, &prefill, chosen.Address)
+	if !restored {
+		prefillRecipient(&view, &prefill)
+	}
 	view.Address = pages.CheckoutAddress{
 		Email: emailOf(r), Name: prefill.Name, Phone: prefill.Phone,
 		PostalCode: prefill.PostalCode, City: prefill.City,
@@ -319,6 +322,7 @@ func (h *Handler) Checkout(w http.ResponseWriter, r *http.Request) {
 	}
 	if restored {
 		h.applyDraft(r, &view, &prefill, &draft)
+		view.RecipientMe = view.OffersTheProfile() && matchesAccountRecipient(view.Profile, view.Address.Name, view.Address.Phone)
 	}
 	status := h.applyReturnedStore(r, &view)
 	shippingID, err := uuid.Parse(view.Chosen)
@@ -338,6 +342,58 @@ func (h *Handler) Checkout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.renderCheckout(w, r, status, &view)
+}
+
+// A field the account has no value for says nothing either way.
+func matchesAccountRecipient(p pages.CheckoutProfile, name, phone string) bool {
+	if p.Name == "" && p.Phone == "" {
+		return false
+	}
+	return (p.Name == "" || name == p.Name) && (p.Phone == "" || phone == p.Phone)
+}
+
+// A saved address brings its own recipient, which may be somebody else, and a
+// restored draft brings what was typed, so only empty fields are filled.
+func prefillRecipient(view *pages.CheckoutView, prefill *Address) {
+	if !view.OffersTheProfile() {
+		return
+	}
+	if prefill.Name == "" {
+		prefill.Name = view.Profile.Name
+	}
+	if prefill.Phone == "" {
+		prefill.Phone = view.Profile.Phone
+	}
+	view.RecipientMe = matchesAccountRecipient(view.Profile, prefill.Name, prefill.Phone)
+}
+
+// Ticking overwrites on purpose and remembers what was there; unticking restores
+// it only into a field still holding the account's value, so text typed since is
+// never wiped. This is the path without scripting; goen.js does the same.
+func applyRecipient(view *pages.CheckoutView, addr *Address) {
+	p := view.Profile
+	if view.RecipientMe {
+		if p.Name != "" {
+			if addr.Name != p.Name {
+				view.RecipientPrevName = addr.Name
+			}
+			addr.Name = p.Name
+		}
+		if p.Phone != "" {
+			if addr.Phone != p.Phone {
+				view.RecipientPrevPhone = addr.Phone
+			}
+			addr.Phone = p.Phone
+		}
+	} else {
+		if p.Name != "" && addr.Name == p.Name {
+			addr.Name, view.RecipientPrevName = view.RecipientPrevName, ""
+		}
+		if p.Phone != "" && addr.Phone == p.Phone {
+			addr.Phone, view.RecipientPrevPhone = view.RecipientPrevPhone, ""
+		}
+	}
+	view.RecipientMe = matchesAccountRecipient(p, addr.Name, addr.Phone)
 }
 
 // firstOf is the first of two values that says anything.
@@ -873,8 +929,21 @@ func (h *Handler) checkoutSubmission(
 	// Echo what was submitted, except when the address chooser itself asks to
 	// replace those fields with one saved address.
 	view.ChosenAddress = r.PostFormValue("address")
-	if r.PostFormValue("update") == "address" {
+	view.RecipientMe = r.PostFormValue("recipient_me") == "1"
+	view.RecipientPrevName = clip(r.PostFormValue("recipient_prev_name"))
+	view.RecipientPrevPhone = clip(r.PostFormValue("recipient_prev_phone"))
+	switch r.PostFormValue("update") {
+	case "address":
 		fillFromBook(&view, &addr, view.ChosenAddress)
+		if view.ChosenAddress == pages.OtherAddress {
+			addr.PostalCode, addr.City, addr.District, addr.Street = "", "", "", ""
+		}
+	case "recipient":
+		applyRecipient(&view, &addr)
+	}
+	// A ticked box posted back over someone else's name is unticked.
+	if view.OffersTheProfile() {
+		view.RecipientMe = matchesAccountRecipient(view.Profile, addr.Name, addr.Phone)
 	}
 	view.Address = pages.CheckoutAddress{
 		Email: addr.Email, Name: addr.Name, Phone: addr.Phone,
@@ -1372,6 +1441,10 @@ func fillFromBook(view *pages.CheckoutView, addr *Address, wanted string) {
 	if len(view.SavedAddresses) == 0 {
 		return
 	}
+	if wanted == pages.OtherAddress {
+		view.ChosenAddress = pages.OtherAddress
+		return
+	}
 	chosen := &view.SavedAddresses[0] // is_default first, then oldest
 	for i := range view.SavedAddresses {
 		if view.SavedAddresses[i].ID == wanted {
@@ -1560,6 +1633,10 @@ func (h *Handler) checkoutView(ctx context.Context, cartID uuid.UUID, owner uuid
 	if err != nil {
 		return pages.CheckoutView{}, err
 	}
+	name, phone, err := h.store.customerProfile(ctx, owner)
+	if err != nil {
+		return pages.CheckoutView{}, err
+	}
 	view := pages.CheckoutView{
 		Cart: cartView, Shipping: choices,
 		InvoiceChoices: invoiceChoices(ctx),
@@ -1572,6 +1649,9 @@ func (h *Handler) checkoutView(ctx context.Context, cartID uuid.UUID, owner uuid
 		return pages.CheckoutView{}, err
 	}
 	view.AvailableCreditCents = balance
+	if u, ok := account.FromContext(ctx); ok {
+		view.Profile = pages.CheckoutProfile{Email: u.Email, Name: name, Phone: phone}
+	}
 	if len(choices) > 0 {
 		view.Chosen = choices[0].VersionID
 		view.Destination = string(destinationOf(choices, view.Chosen))

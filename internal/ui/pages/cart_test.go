@@ -133,7 +133,7 @@ func TestChangingACheckoutChoiceAppliesIt(t *testing.T) {
 	// radio carries one.
 	for _, want := range []string{
 		`id="shipping-ship-1"`,
-		`id="address-addr-1"`,
+		`id="address-book"`,
 		`id="invoice_type-mobile_carrier"`,
 	} {
 		if !strings.Contains(html, want) {
@@ -1125,6 +1125,86 @@ func TestCartLineUpdateSwapsOnlyWhatChanges(t *testing.T) {
 	for _, bad := range []string{`hx-target`, `hx-select=`} {
 		if strings.Contains(html, bad) {
 			t.Errorf("the line form carries %s, which would replace a whole region:\n%s", bad, html)
+		}
+	}
+}
+
+// TestARecipientCanBeTheMemberAndAnAddressTheirSavedOne holds the two controls a
+// signed-in customer gets above the recipient fields, with the data each fills
+// from rendered beside it so choosing costs no request.
+func TestARecipientCanBeTheMemberAndAnAddressTheirSavedOne(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+
+	view := CheckoutView{
+		Cart:     CartView{Lines: []CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
+		Shipping: []ShippingChoice{{VersionID: "ship-1", Code: "home", Name: "宅配到府"}},
+		Chosen:   "ship-1",
+		SavedAddresses: []SavedAddress{{
+			ID: "addr-1", Label: "家", Name: "王小明", Phone: "0912345678",
+			PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 68 號",
+		}},
+		ChosenAddress: "addr-1",
+		Profile:       CheckoutProfile{Email: "me@example.com", Name: "王小明", Phone: "0912345678"},
+		RecipientMe:   true,
+	}
+	html := renderToString(t, Checkout(CheckoutMeta(ctx), &view))
+
+	box := tagCarrying(t, html, "data-recipient-me")
+	for _, want := range []string{
+		`name="recipient_me"`, "checked", `data-name="王小明"`,
+		`data-phone="0912345678"`, `data-email="me@example.com"`,
+	} {
+		if !strings.Contains(box, want) {
+			t.Errorf("the recipient box lacks %s:\n%s", want, box)
+		}
+	}
+	if !strings.Contains(html, i18n.T(ctx, i18n.KeyRecipientIsMe)) {
+		t.Error("the recipient box has no label")
+	}
+	if !strings.Contains(html, `name="update" value="recipient"`) {
+		t.Error("no button applies the recipient box without scripting")
+	}
+
+	option := tagCarrying(t, html, `value="addr-1"`)
+	if !strings.Contains(option, "selected") {
+		t.Errorf("the chosen saved address is not selected:\n%s", option)
+	}
+	// Choosing applies on the server, which re-quotes delivery for the postal code.
+	if !strings.Contains(tagCarrying(t, html, `name="address"`), `hx-post="/checkout"`) {
+		t.Error("choosing a saved address does not re-render the form, so delivery keeps the old price")
+	}
+	for _, want := range []string{`name="recipient_prev_name"`, `name="recipient_prev_phone"`} {
+		if !strings.Contains(html, want) {
+			t.Errorf("the form does not carry %s, so unticking cannot restore what was there", want)
+		}
+	}
+	if !strings.Contains(html, `value="`+OtherAddress+`"`) || !strings.Contains(html, i18n.T(ctx, i18n.KeyOtherAddress)) {
+		t.Error("there is no 「其他地址」 option for typing a new address")
+	}
+	if !strings.Contains(html, i18n.T(ctx, i18n.KeyChooseSavedAddress)) {
+		t.Error("the address select has no label")
+	}
+}
+
+// TestAGuestIsOfferedNeitherControl: with no account there is no profile and no
+// address book, so the form is the one a guest has always had.
+func TestAGuestIsOfferedNeitherControl(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+
+	view := CheckoutView{
+		Cart:     CartView{Lines: []CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
+		Shipping: []ShippingChoice{{VersionID: "ship-1", Code: "home", Name: "宅配到府"}},
+		Chosen:   "ship-1",
+	}
+	html := renderToString(t, Checkout(CheckoutMeta(ctx), &view))
+	for _, gone := range []string{
+		"data-recipient-me", "recipient_me", "recipient_prev", `name="address"`,
+		i18n.T(ctx, i18n.KeyRecipientIsMe), i18n.T(ctx, i18n.KeyChooseSavedAddress),
+	} {
+		if strings.Contains(html, gone) {
+			t.Errorf("a guest's checkout carries %q", gone)
 		}
 	}
 }

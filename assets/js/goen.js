@@ -606,6 +606,56 @@
   }
 
   fieldRules();
+  /*
+   * 「收件人同會員資料」. Ticking it is an explicit request: it puts the account's
+   * name and phone in the recipient fields, over whatever they held, after
+   * remembering that in the form's two hidden fields. Unticking puts it back, but
+   * only into a field that still holds the account's value, so nothing typed
+   * since is wiped. It fills from data the server rendered on the box, so it
+   * costs no request and puts nothing in a URL. The box is kept honest: it shows
+   * ticked only while the fields hold the account's values. Without this file
+   * the server applies the same rules through the box's 更新 button.
+   */
+  function recipientBox() {
+    const field = (name) => document.querySelector(`#checkout-form [name="${name}"]`);
+    const set = (name, value) => {
+      const input = field(name);
+      if (!input) return;
+      input.value = value;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    };
+    const syncBox = () => {
+      const me = document.querySelector("[data-recipient-me]");
+      if (!me) return;
+      const own = { name: me.dataset.name, phone: me.dataset.phone };
+      const holds = (n) => own[n] === "" || field(n)?.value === own[n];
+      me.checked = (own.name !== "" || own.phone !== "") && holds("name") && holds("phone");
+    };
+    document.addEventListener("change", (event) => {
+      const me = event.target;
+      if (!(me instanceof HTMLInputElement) || !me.matches("[data-recipient-me]")) return;
+      const own = { name: me.dataset.name, phone: me.dataset.phone };
+      for (const n of ["name", "phone"]) {
+        const input = field(n);
+        const prev = field(`recipient_prev_${n}`);
+        if (!input || own[n] === "") continue;
+        if (me.checked) {
+          if (input.value !== own[n] && prev) prev.value = input.value;
+          set(n, own[n]);
+        } else if (input.value === own[n]) {
+          set(n, prev?.value ?? "");
+          if (prev) prev.value = "";
+        }
+      }
+      if (me.checked && field("email")?.value === "") set("email", me.dataset.email ?? "");
+      syncBox();
+    });
+    document.addEventListener("input", (event) => {
+      if (event.target instanceof HTMLInputElement && ["name", "phone"].includes(event.target.name)) syncBox();
+    });
+  }
+
+  recipientBox();
   handoff();
   headerMenu();
   departmentPanels();

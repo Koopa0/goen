@@ -328,33 +328,57 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 							Attrs: templ.Attributes{"id": "address"},
 						}) {
 							<h2 class="goen-checkout__heading" id="recipient-heading">{ i18n.T(ctx, i18n.KeySectionRecipient) }</h2>
+							if v.OffersTheProfile() {
+								// Fills the name and phone from the account, which is
+								// all the account knows of a recipient. With scripting
+								// the page's script does it from the data below, with
+								// no request; without, the button applies it on the
+								// server. Neither overwrites what has been typed.
+								<label class="goen-check" id="recipient">
+									<input
+										class="goen-check__box"
+										type="checkbox"
+										name="recipient_me"
+										value="1"
+										checked?={ v.RecipientMe }
+										data-recipient-me
+										data-name={ v.Profile.Name }
+										data-phone={ v.Profile.Phone }
+										data-email={ v.Profile.Email }
+									/>
+									<span>{ i18n.T(ctx, i18n.KeyRecipientIsMe) }</span>
+								</label>
+								<input type="hidden" name="recipient_prev_name" value={ v.RecipientPrevName }/>
+								<input type="hidden" name="recipient_prev_phone" value={ v.RecipientPrevPhone }/>
+								@applyChoice("recipient")
+							}
 							if v.OffersTheAddressBook() {
-								<div
-									class="goen-checkout__choices"
-									{ checkoutChoiceSwap("address")... }
-									role="radiogroup"
-									aria-labelledby="recipient-heading"
-									aria-invalid={ v.Invalid("address") }
-									if v.HasErr("address") {
-										aria-describedby="address-error"
+								// Choosing applies the address on the server, which also
+								// re-quotes delivery for its postal code. 「其他地址」 is
+								// the way to type a new one.
+								<div class="goen-field">
+									@components.Label(components.LabelProps{For: "address-book"}) {
+										{ i18n.T(ctx, i18n.KeyChooseSavedAddress) }
 									}
-								>
-									for _, a := range v.SavedAddresses {
-										<label class="goen-checkout__ship">
-											<input
-												class="goen-sr-only"
-												id={ "address-" + a.ID }
-												type="radio"
-												name="address"
-												value={ a.ID }
-												checked?={ a.ID == v.ChosenAddress }
-											/>
-											<span class="goen-checkout__shipname">
-												{ a.DisplayLabel(ctx) }
-												<span class="goen-checkout__shipnote">{ a.Line() }</span>
-											</span>
-										</label>
-									}
+									<select
+										class="goen-checkout__select"
+										id="address-book"
+										name="address"
+										{ checkoutChoiceSwap("address")... }
+										aria-invalid={ v.Invalid("address") }
+										if v.HasErr("address") {
+											aria-describedby="address-error"
+										}
+									>
+										for _, a := range v.SavedAddresses {
+											<option value={ a.ID } selected?={ a.ID == v.ChosenAddress }>
+												{ a.DisplayLabel(ctx) } — { a.Line() }
+											</option>
+										}
+										<option value={ OtherAddress } selected?={ v.ChosenAddress == OtherAddress }>
+											{ i18n.T(ctx, i18n.KeyOtherAddress) }
+										</option>
+									</select>
 								</div>
 								@applyChoice("address")
 								if v.HasErr("address") {

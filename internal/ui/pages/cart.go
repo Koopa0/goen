@@ -169,14 +169,20 @@ type CheckoutView struct {
 	CreditChanged string
 	ZoneName      string
 	// Destination is decided by the server; no field carries it back.
-	Destination          string
-	Address              CheckoutAddress
-	Errors               map[string]string
-	Invoice              CheckoutInvoice
-	InvoiceChoices       []InvoiceChoice
-	PickupBrands         []PickupBrandChoice
-	SavedAddresses       []SavedAddress
-	ChosenAddress        string
+	Destination    string
+	Address        CheckoutAddress
+	Errors         map[string]string
+	Invoice        CheckoutInvoice
+	InvoiceChoices []InvoiceChoice
+	PickupBrands   []PickupBrandChoice
+	SavedAddresses []SavedAddress
+	ChosenAddress  string
+	Profile        CheckoutProfile
+	RecipientMe    bool
+	// What the recipient fields held just before the box was ticked, which
+	// unticking puts back.
+	RecipientPrevName    string
+	RecipientPrevPhone   string
 	CouponCode           string
 	CouponApplied        string
 	CouponDiscountCents  int64
@@ -451,6 +457,19 @@ func (a SavedAddress) DisplayLabel(ctx context.Context) string {
 		return i18n.T(ctx, i18n.KeyDeliveryToAddress)
 	}
 	return a.Label
+}
+
+// OtherAddress is the address chooser's value for none of the saved ones.
+const OtherAddress = "new"
+
+type CheckoutProfile struct {
+	Email string
+	Name  string
+	Phone string
+}
+
+func (v *CheckoutView) OffersTheProfile() bool {
+	return v.Profile.Email != "" && (v.Profile.Name != "" || v.Profile.Phone != "")
 }
 
 // OffersTheAddressBook reports whether the chooser is worth rendering.

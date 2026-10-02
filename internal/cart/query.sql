@@ -46,6 +46,12 @@ DELETE FROM cart_items WHERE cart_id = $1 AND variant_id = $2;
 -- name: CartLineQuantity :one
 SELECT quantity FROM cart_items WHERE cart_id = $1 AND variant_id = $2;
 
+-- The name and phone a signed-in customer keeps on their account, for the
+-- checkout's 「收件人同會員資料」. Blank is as good as none.
+-- name: CheckoutProfile :one
+SELECT coalesce(full_name, '')::text AS full_name, coalesce(phone, '')::text AS phone
+FROM users WHERE id = @user_id;
+
 -- name: ClearCart :exec
 DELETE FROM cart_items WHERE cart_id = $1;
 
