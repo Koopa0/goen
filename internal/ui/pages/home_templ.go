@@ -18,7 +18,7 @@ import (
 )
 
 // Home renders the storefront home page: a carousel of what is on now, the
-// departments, one product row, one department on its own ground, one
+// departments, one product row, one department beside its photograph, one
 // photograph, and what the shop guarantees.
 func Home(p layouts.Page, v HomeView) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {

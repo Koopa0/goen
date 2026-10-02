@@ -1514,19 +1514,11 @@ h3 {
 
 :root {
   --home-section: 4rem;
-  --home-band: 4rem;
 }
 
 @media (min-width: 40rem) {
   :root {
     --home-section: 6rem;
-    --home-band: 6rem;
-  }
-}
-
-@media (min-width: 64rem) {
-  :root {
-    --home-band: 8rem;
   }
 }
 
@@ -1783,12 +1775,13 @@ h3 {
   opacity: 0.9;
 }
 
-/* ----- One department on its own ground: photograph beside three products. ----- */
+/* ----- One department: its photograph beside three of its products. The
+   department's tone stays with the photograph, which is shot on it; the
+   products stay on the page's white like every other card, because their
+   neutral well on a tinted band reads as a grey square laid on beige. ----- */
 
 .goen-band {
-  background: var(--tone-ground);
-  margin-top: var(--home-section);
-  padding-block: var(--home-band);
+  padding-top: var(--home-section);
 }
 
 /* minmax(0, ...) because the sideways product scroller would otherwise set the
@@ -1801,6 +1794,7 @@ h3 {
 
 .goen-band__media {
   aspect-ratio: 4 / 3;
+  background: var(--tone-ground);
   border-radius: var(--r-lg);
   overflow: hidden;
 }
@@ -2124,8 +2118,11 @@ h3 {
 }
 
 /* The ground is the photographs' own, so the picture's edge disappears and
-   the product floats. The photographs keep their product inside the middle
-   three quarters of the width, so filling the square crops only ground. */
+   the product floats. Every product photograph is shot on exactly that ground,
+   so the picture can be held in from the well's edge without drawing one: the
+   larger the card, the more air, so a 300px card is not a product pressing on
+   its corners, and a phone's 170px card keeps its product at full size.
+   Contain, not cover, so a photo of another proportion is never cropped. */
 .goen-tile__media {
   aspect-ratio: 1;
   background: var(--photo);
@@ -2135,9 +2132,11 @@ h3 {
 }
 
 .goen-tile__img {
+  box-sizing: border-box;
   display: block;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
+  padding: max(0px, calc((100% - 12rem) * 0.22));
   width: 100%;
 }
 
@@ -2183,6 +2182,8 @@ h3 {
   line-height: var(--lh-normal);
   margin: 0;
   overflow: hidden;
+  /* A two-line name never leaves one Han character alone on the second. */
+  text-wrap: pretty;
 }
 
 .goen-tile__price {
@@ -3000,10 +3001,6 @@ a.goen-pager__step:hover {
 
   .goen-featured__grid > li {
     flex-basis: 14rem;
-  }
-
-  .goen-featured .goen-tile__media {
-    aspect-ratio: 3 / 4;
   }
 }
 
