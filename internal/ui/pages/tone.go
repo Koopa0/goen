@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
 // Tone is the ground temperature of a department or campaign page: a closed
@@ -59,6 +60,19 @@ type Photo struct {
 
 // Shown reports whether there is a photograph to draw.
 func (p Photo) Shown() bool { return p.URL != "" }
+
+// share is the photograph as a link preview's picture, none where there is no
+// photograph. The pixel size is not known here, so the tags leave it out.
+func (p Photo) share(fallbackAlt string) layouts.ShareImage {
+	if !p.Shown() {
+		return layouts.ShareImage{}
+	}
+	alt := p.Alt
+	if alt == "" {
+		alt = fallbackAlt
+	}
+	return layouts.ShareImage{Path: p.URL, Alt: alt}
+}
 
 // Attr is the value of the data-tone attribute app.css selects on: the tone
 // itself, or stone for a view that carries none.

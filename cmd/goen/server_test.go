@@ -924,13 +924,17 @@ func TestTheCatalogueStaysEligibleForSpeculation(t *testing.T) {
 
 func TestSiteOriginReachesTheChromeFromTheConfiguredBaseURL(t *testing.T) {
 	t.Parallel()
-	var got string
+	var got, path string
 	h := withSiteOrigin(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 		got = layouts.SiteOrigin(r.Context())
+		path = layouts.RequestPath(r.Context())
 	}), "https://shop.example/")
-	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequestWithContext(t.Context(), http.MethodGet, "http://evil.example/", http.NoBody))
+	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequestWithContext(t.Context(), http.MethodGet, "http://evil.example/c/books?page=2", http.NoBody))
 	if got != "https://shop.example" {
 		t.Errorf("origin = %q, want the configured one and never the request's Host", got)
+	}
+	if path != "/c/books" {
+		t.Errorf("path = %q, want the request's path without its query", path)
 	}
 }
 

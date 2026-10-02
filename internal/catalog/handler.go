@@ -217,7 +217,7 @@ func (h *Handler) Campaign(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	web.Render(w, r, h.log, http.StatusOK, pages.Campaign(
-		pages.CampaignMeta(r.Context(), view.Title), view))
+		pages.CampaignMeta(r.Context(), view.Title, view.Image), view))
 }
 
 // Compare serves GET /compare. The set lives in the URL and nowhere else.
