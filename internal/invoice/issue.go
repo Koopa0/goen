@@ -100,7 +100,6 @@ func (g *Gateway) Issue(ctx context.Context, in IssueRequest) (Document, error) 
 	}, nil
 }
 
-// IssueRequest is one order, as an invoice.
 type IssueRequest struct {
 	OrderNumber  string
 	CustomerName string
@@ -262,7 +261,6 @@ func (g *Gateway) FileAllowance(ctx context.Context, in AllowanceRequest) (Docum
 	}, nil
 }
 
-// AllowanceRequest is a credit note against one invoice.
 type AllowanceRequest struct {
 	InvoiceNumber string
 	InvoiceDate   time.Time
@@ -522,8 +520,6 @@ type getAllowanceListResult struct {
 	Allowances []allowanceLookupResult `json:"AllowanceInfo"`
 }
 
-// AllowanceLookup is one provider-side credit note returned by the original
-// invoice/date query.
 type AllowanceLookup struct {
 	InvoiceNumber string
 	Document      Document

@@ -52,12 +52,10 @@ type webhookOutcome struct {
 	refusedCapture      bool
 }
 
-// OrderAccess reports whether this browser holds a token for the order.
 type OrderAccess interface {
 	PlacedHere(ctx context.Context, r *http.Request, number string, secure bool) bool
 }
 
-// Handler serves the payment page and Stripe's webhook.
 type Handler struct {
 	access  OrderAccess
 	store   *Store
@@ -66,7 +64,6 @@ type Handler struct {
 	secure  bool
 }
 
-// NewHandler wires the payment routes.
 func NewHandler(s *Store, g *Gateway, access OrderAccess, log *slog.Logger, secureCookies bool) *Handler {
 	if s == nil || g == nil || access == nil || log == nil {
 		panic("payment: NewHandler requires a store, a gateway, an access check and a logger")
@@ -74,7 +71,6 @@ func NewHandler(s *Store, g *Gateway, access OrderAccess, log *slog.Logger, secu
 	return &Handler{store: s, gateway: g, access: access, log: log, secure: secureCookies}
 }
 
-// Page shows what is owed and the button that starts the payment.
 func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 	number := r.PathValue("number")
 	o, ok := h.payableOrder(w, r, number)
