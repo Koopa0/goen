@@ -46,7 +46,7 @@ func TestOptionFacetsRequireOneVariantForEverySelectedValueStockAndPrice(t *test
 		}
 		for i, value := range axis.values {
 			var valueID uuid.UUID
-			if err = tx.QueryRow(ctx, `INSERT INTO product_option_values(option_id,value,value_en,position) VALUES($1,$2,$3,$4) RETURNING id`, axisID, value, axis.labels[i], i).Scan(&valueID); err != nil {
+			if err = tx.QueryRow(ctx, `INSERT INTO product_option_values(product_id,option_id,value,value_en,position) VALUES($1,$2,$3,$4,$5) RETURNING id`, productID, axisID, value, axis.labels[i], i).Scan(&valueID); err != nil {
 				t.Fatal(err)
 			}
 			choices[axis.name+":"+value] = axisChoice{axis: axisID, value: valueID}
@@ -71,7 +71,7 @@ func TestOptionFacetsRequireOneVariantForEverySelectedValueStockAndPrice(t *test
 		}
 		for _, value := range v.values {
 			choice := choices[value]
-			if _, err = tx.Exec(ctx, `INSERT INTO variant_option_values(variant_id,option_id,option_value_id) VALUES($1,$2,$3)`, id, choice.axis, choice.value); err != nil {
+			if _, err = tx.Exec(ctx, `INSERT INTO variant_option_values(product_id,variant_id,option_id,option_value_id) VALUES($1,$2,$3,$4)`, productID, id, choice.axis, choice.value); err != nil {
 				t.Fatal(err)
 			}
 		}
