@@ -35,6 +35,7 @@ const PickupReturnPath = "/checkout/pickup/return"
 type LogisticsMode string
 
 const (
+	// ModeB2C is ECPay's 大宗寄倉 contract; ModeC2C is 店到店. A merchant holds one.
 	ModeB2C LogisticsMode = "b2c"
 	ModeC2C LogisticsMode = "c2c"
 )
