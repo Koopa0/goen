@@ -39,7 +39,7 @@ any CVC. No real money moves.
   `internal/money` so a page and a letter cannot disagree. Times print on the
   shop's clock, Asia/Taipei, through `internal/shoptime`, because the shipped
   image sets no time zone; a test rejects a time formatted in an unstated zone.
-- **Two languages, one place.** Every sentence goen says is declared once in
+- **Two languages, one place.** Every interface string is declared once in
   `internal/i18n`, Traditional Chinese and English together, and a string missing
   either stops the program at start-up. Product copy stays as the shop wrote it.
 - **Taiwan, as law and practice require.** Returns follow the seven-day right to
