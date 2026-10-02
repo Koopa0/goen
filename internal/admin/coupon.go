@@ -14,6 +14,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
@@ -65,7 +66,7 @@ func (f *CouponForm) Validate(ctx context.Context) map[string]string {
 
 	f.validateKind(ctx, errs)
 
-	if f.MinSpendDollars < 0 || f.MinSpendDollars > MaxPriceCents/100 {
+	if f.MinSpendDollars < 0 || f.MinSpendDollars > money.MaxCents/100 {
 		errs["min"] = i18n.T(ctx, i18n.KeyFormCouponMinSpend)
 	}
 	if f.MaxRedemptions < 0 {
@@ -95,7 +96,7 @@ func basisPoints(wholePercent int64) int32 {
 func (f *CouponForm) validateKind(ctx context.Context, errs map[string]string) {
 	switch f.Kind {
 	case "amount":
-		if f.Value <= 0 || f.Value > MaxPriceCents/100 {
+		if f.Value <= 0 || f.Value > money.MaxCents/100 {
 			errs["value"] = i18n.T(ctx, i18n.KeyFormCouponAmount)
 		}
 		if f.CapDollars != 0 {
@@ -105,7 +106,7 @@ func (f *CouponForm) validateKind(ctx context.Context, errs map[string]string) {
 		if f.Value <= 0 || f.Value > 100 {
 			errs["value"] = i18n.T(ctx, i18n.KeyFormCouponPercent)
 		}
-		if f.CapDollars < 0 || f.CapDollars > MaxPriceCents/100 {
+		if f.CapDollars < 0 || f.CapDollars > money.MaxCents/100 {
 			errs["cap"] = i18n.T(ctx, i18n.KeyFormCouponCapNegative)
 		}
 	case "free_shipping":

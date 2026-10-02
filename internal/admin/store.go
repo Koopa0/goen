@@ -396,7 +396,7 @@ func (s *Store) Advance(ctx context.Context, number string, status pages.Fulfill
 		return nil, fmt.Errorf("record order event: %w", err)
 	}
 	if err := audit.In(ctx, q, audit.Event{
-		Action: audit.ActionAdvanceOrder, Table: "orders", ID: nullableID(row.ID),
+		Action: audit.ActionAdvanceOrder, Table: "orders", ID: audit.EntityID(row.ID),
 		Before: nil, After: map[string]any{"number": number, "status": string(status)},
 	}); err != nil {
 		return nil, err
@@ -717,7 +717,7 @@ func (s *Store) Ship(ctx context.Context, number string, d Dispatch, actor uuid.
 		return fmt.Errorf("record order event: %w", err)
 	}
 	if err := audit.In(ctx, q, audit.Event{
-		Action: audit.ActionShipOrder, Table: "orders", ID: nullableID(row.ID),
+		Action: audit.ActionShipOrder, Table: "orders", ID: audit.EntityID(row.ID),
 		Before: nil, After: map[string]any{"carrier": string(carrierCode), "tracking": tracking},
 	}); err != nil {
 		return err
@@ -861,7 +861,7 @@ func (s *Store) SetStaffNote(ctx context.Context, number, note string) error {
 	}
 	// The append-only trail outlives erasure, so it records the operation and
 	// order number without retaining another copy of the note.
-	if err := audit.In(ctx, q, audit.Event{Action: action, Table: "orders", ID: nullableID(prior.ID), After: map[string]any{"number": number}}); err != nil {
+	if err := audit.In(ctx, q, audit.Event{Action: action, Table: "orders", ID: audit.EntityID(prior.ID), After: map[string]any{"number": number}}); err != nil {
 		return err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -906,7 +906,7 @@ func (s *Store) AdjustStock(ctx context.Context, sku string, delta int32, actorI
 		return fmt.Errorf("adjust stock: actor %q is not a user id: %w", actorID, err)
 	}
 	err = audit.Run(ctx, s.pool, audit.Event{
-		Action: audit.ActionAdjustStock, Table: "product_variants", ID: nullableID(v.ID),
+		Action: audit.ActionAdjustStock, Table: "product_variants", ID: audit.EntityID(v.ID),
 		Before: map[string]any{"sku": sku, "stock": v.StockQuantity},
 		After:  map[string]any{"delta": delta},
 	},
@@ -940,7 +940,7 @@ func (s *Store) ReceiveStock(ctx context.Context, sku string, quantity int32, ac
 		return fmt.Errorf("receive stock: actor %q is not a user id: %w", actorID, err)
 	}
 	err = audit.Run(ctx, s.pool, audit.Event{
-		Action: audit.ActionReceiveStock, Table: "product_variants", ID: nullableID(v.ID),
+		Action: audit.ActionReceiveStock, Table: "product_variants", ID: audit.EntityID(v.ID),
 		Before: map[string]any{"sku": sku, "stock": v.StockQuantity},
 		After:  map[string]any{"received": quantity},
 	},
@@ -987,7 +987,7 @@ func (s *Store) SetVariantActive(ctx context.Context, sku string, active bool) e
 		return fmt.Errorf("read variant: %w", err)
 	}
 	return audit.Run(ctx, s.pool, audit.Event{
-		Action: audit.ActionRetireVariant, Table: "product_variants", ID: nullableID(v.ID),
+		Action: audit.ActionRetireVariant, Table: "product_variants", ID: audit.EntityID(v.ID),
 		Before: map[string]any{"sku": sku, "active": v.IsActive},
 		After:  map[string]any{"active": active},
 	},
@@ -1016,7 +1016,7 @@ func (s *Store) SetVariantPrice(ctx context.Context, sku string, price, compareA
 		cmp = pgtype.Int8{Int64: compareAt, Valid: true}
 	}
 	return audit.Run(ctx, s.pool, audit.Event{
-		Action: audit.ActionRepriceVariant, Table: "product_variants", ID: nullableID(v.ID),
+		Action: audit.ActionRepriceVariant, Table: "product_variants", ID: audit.EntityID(v.ID),
 		Before: map[string]any{"sku": sku, "price_cents": v.PriceCents},
 		After:  map[string]any{"price_cents": price, "compare_at_cents": compareAt},
 	},
@@ -1048,91 +1048,6 @@ func text(s string) pgtype.Text {
 		return pgtype.Text{}
 	}
 	return pgtype.Text{String: s, Valid: true}
-}
-
-func nullableID(id uuid.UUID) uuid.NullUUID {
-	return uuid.NullUUID{UUID: id, Valid: id != uuid.UUID{}}
-}
-
-// GrantCredit puts store credit on a customer's account. The amount is in cents
-// and must be positive: a correction is its own posting with its own reason, so
-// the ledger reads as a history rather than a figure somebody edited.
-func (s *Store) GrantCredit(ctx context.Context, customerID uuid.UUID, amountCents int64, reason string, operationID uuid.UUID) (balanceCents int64, err error) {
-	reason = strings.TrimSpace(reason)
-	if customerID == uuid.Nil || reason == "" || utf8.RuneCountInString(reason) > MaxCreditReasonRunes || amountCents <= 0 || operationID == uuid.Nil {
-		return 0, ErrInvalid
-	}
-	if amountCents > MaxCreditGrant {
-		return 0, ErrInvalid
-	}
-	// The authenticated request context, not a parallel caller argument, owns
-	// ledger attribution. The database role is shared by all staff requests, so
-	// this is the last trustworthy per-person boundary before the role-specific
-	// posting function verifies that the durable user is still staff/admin.
-	actorID, ok := audit.Actor(ctx)
-	if !ok {
-		return 0, audit.ErrNoActor
-	}
-
-	event := audit.Event{
-		Action: audit.ActionGrantCredit, Table: "store_credit_entries", ID: nullableID(customerID),
-		// The customer is named by ID and never by address: audit_events is
-		// append-only and erase_user does not reach it, so an email written here
-		// would outlive the erasure meant to remove it.
-		Before: nil, After: map[string]any{"amount_cents": amountCents, "reason": reason},
-	}
-
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return 0, fmt.Errorf("begin %s: %w", event.Action, err)
-	}
-	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
-	q := s.q.WithTx(tx)
-	entryID, err := q.PostStoreCredit(ctx, db.PostStoreCreditParams{
-		UserID: customerID, AmountCents: amountCents, Reason: reason,
-		ActorUserID: actorID, OperationID: operationID,
-	})
-	if err != nil {
-		return 0, fmt.Errorf("%w: %w", ErrRefused, err)
-	}
-	// A retry of the same durable request observes the original posting and must
-	// not manufacture a second audit row claiming money moved again.
-	if entryID != uuid.Nil {
-		if auditErr := audit.In(ctx, q, event); auditErr != nil {
-			return 0, auditErr
-		}
-	}
-	// Read INSIDE the same transaction, so the number shown is the one this grant
-	// produced and not one a concurrent spend moved.
-	balanceCents, err = q.CreditBalance(ctx, uuid.NullUUID{UUID: customerID, Valid: true})
-	if err != nil {
-		return 0, fmt.Errorf("read credit balance: %w", err)
-	}
-	if commitErr := tx.Commit(ctx); commitErr != nil {
-		return 0, fmt.Errorf("commit %s: %w", event.Action, commitErr)
-	}
-	return balanceCents, nil
-}
-
-func (s *Store) Credit(ctx context.Context, after ...string) (admin.CreditView, error) {
-	scope := "/admin/credit"
-	cursor := readPageCursor(scope, after)
-	rows, err := s.q.RecentCredit(ctx, db.RecentCreditParams{HasCursor: cursor.Valid, AfterAt: cursor.At, AfterID: cursor.ID, RowLimit: PageLimit})
-	if err != nil {
-		return admin.CreditView{}, fmt.Errorf("read credit ledger: %w", err)
-	}
-	rows, bound := pageBound(cursor, scope, rows, PageSize, func(r *db.RecentCreditRow) string { return r.PageCursor })
-	view := admin.CreditView{ListBound: bound}
-	for i := range rows {
-		r := &rows[i]
-		view.Rows = append(view.Rows, admin.CreditEntry{
-			Email:       r.Email,
-			AmountCents: r.AmountCents,
-			Reason:      r.Reason,
-			At:          shoptime.Minute(r.CreatedAt),
-		})
-	}
-	return view, nil
 }
 
 func nullableStamp(t pgtype.Timestamptz) string {

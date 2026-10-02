@@ -9,6 +9,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/media"
+	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
@@ -194,7 +195,7 @@ func variantFormOf(r *http.Request) (*VariantForm, admin.VariantDraft, map[strin
 	}
 	if !compareOK {
 		errs["compare"] = fmt.Sprintf(
-			i18n.T(r.Context(), i18n.KeyFormCompareAmount), MaxPriceCents/100)
+			i18n.T(r.Context(), i18n.KeyFormCompareAmount), money.MaxCents/100)
 	}
 	return &VariantForm{
 		SKU:          r.PostFormValue("sku"),

@@ -16,6 +16,7 @@ import (
 	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/audit"
+	"github.com/koopa0/goen/internal/admin/loyalty"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
@@ -184,7 +185,7 @@ func TestEveryAdminQueueReachesBeyondItsFirstPage(t *testing.T) {
 			return r, e
 		}},
 		{"credit", "SELECT count(*) FROM store_credit_entries", func(after string) (result, error) {
-			v, e := s.Credit(ctx, after)
+			v, e := loyalty.NewStore(pool).Credit(ctx, after)
 			r := result{bound: v.ListBound}
 			for _, x := range v.Rows {
 				r.keys = append(r.keys, x.Reason)
@@ -209,7 +210,7 @@ func TestEveryAdminQueueReachesBeyondItsFirstPage(t *testing.T) {
 		}},
 	}
 	h := adminHandlerOver(p, s)
-	handlers := map[string]http.HandlerFunc{"orders": h.Orders, "order search": h.Orders, "customers": h.Customers, "products": h.Products, "stock": h.Variants, "movements": h.Movements, "returns": h.Returns, "coupons": h.Coupons, "campaigns": h.Campaigns, "reviews": h.Reviews, "messages": h.Messages, "credit": h.Credit, "audit": audit.NewHandler(trail, slog.New(slog.DiscardHandler)).Page, "warranty": h.Warranties}
+	handlers := map[string]http.HandlerFunc{"orders": h.Orders, "order search": h.Orders, "customers": h.Customers, "products": h.Products, "stock": h.Variants, "movements": h.Movements, "returns": h.Returns, "coupons": h.Coupons, "campaigns": h.Campaigns, "reviews": h.Reviews, "messages": h.Messages, "credit": loyalty.NewHandler(loyalty.NewStore(p), slog.New(slog.DiscardHandler)).Credit, "audit": audit.NewHandler(trail, slog.New(slog.DiscardHandler)).Page, "warranty": h.Warranties}
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
 			var want int

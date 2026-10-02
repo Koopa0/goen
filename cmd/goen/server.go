@@ -19,6 +19,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/admin/health"
+	"github.com/koopa0/goen/internal/admin/loyalty"
 	"github.com/koopa0/goen/internal/admin/reports"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/catalog"
@@ -27,7 +28,7 @@ import (
 	"github.com/koopa0/goen/internal/home"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
-	"github.com/koopa0/goen/internal/loyalty"
+	rewards "github.com/koopa0/goen/internal/loyalty"
 	"github.com/koopa0/goen/internal/media"
 	"github.com/koopa0/goen/internal/newsletter"
 	"github.com/koopa0/goen/internal/outbox"
@@ -154,7 +155,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	// so the back office gets its own store on the admin pool below.
 	signups := newsletter.NewHandler(newsletter.NewStore(pool), signupLimit, log)
 	cover := warranty.NewHandler(warranty.NewStore(pool), log)
-	points := loyalty.NewHandler(loyalty.NewStore(pool), log)
+	points := rewards.NewHandler(rewards.NewStore(pool), log)
 	items := product.NewHandler(productStore, log, baseURL)
 	// Half of the order-lookup credential is a guessable order number, so
 	// unlimited asking makes the endpoint an oracle for the other half.
@@ -203,6 +204,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	})
 	trail := audit.NewHandler(audit.NewStore(adminPool), log)
 	figures := reports.NewHandler(reports.NewStore(adminPool), log)
+	programme := loyalty.NewHandler(loyalty.NewStore(adminPool), log)
 	workers := health.NewHandler(health.NewStore(adminPool), outbox.NewStore(adminPool, log),
 		poolsOnHealthPage(pool, adminPool, cfg.MaintenancePool), log)
 	// basketStore answers the order-access question for all three packages.
@@ -349,6 +351,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	trail.Routes(mux, backOffice)
 	figures.Routes(mux, backOffice)
 	workers.Routes(mux, backOffice)
+	programme.Routes(mux, backOffice)
 	// RequireAdmin and not RequireStaff, which accepts `staff` as well: these
 	// four promote, revoke, and strip an admin's second factor, and the listing
 	// names who has none yet.

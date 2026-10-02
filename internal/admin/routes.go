@@ -45,9 +45,6 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 	mux.HandleFunc("POST /admin/products/{slug}/images/remove", ac.RequireStaff(h.RemoveImage))
 	mux.HandleFunc("POST /admin/products/{slug}/images/option", ac.RequireStaff(h.SetImageOption))
 	mux.HandleFunc("POST /admin/products/{slug}/images/move", ac.RequireStaff(h.MoveImage))
-	mux.HandleFunc("GET /admin/tiers", ac.RequireStaff(h.Tiers))
-	mux.HandleFunc("POST /admin/tiers", ac.RequireStaff(h.CreateTier))
-	mux.HandleFunc("POST /admin/tiers/delete", ac.RequireStaff(h.DeleteTier))
 	mux.HandleFunc("GET /admin/shipping", ac.RequireStaff(h.Shipping))
 	mux.HandleFunc("POST /admin/shipping/version", ac.RequireStaff(h.PublishShippingVersion))
 	mux.HandleFunc("POST /admin/shipping/surcharge", ac.RequireStaff(h.SetZoneSurcharge))
@@ -97,6 +94,4 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 	mux.HandleFunc("GET /admin/coupons", ac.RequireStaff(h.Coupons))
 	mux.HandleFunc("POST /admin/coupons", ac.RequireStaff(h.CreateCoupon))
 	mux.HandleFunc("POST /admin/coupons/{code}/active", ac.RequireStaff(h.SetCouponActive))
-	mux.HandleFunc("GET /admin/credit", ac.RequireStaff(h.Credit))
-	mux.HandleFunc("POST /admin/credit", ac.RequireStaff(h.GrantCredit))
 }
