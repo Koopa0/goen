@@ -11849,7 +11849,6 @@ func TestARefusedDispatchKeepsWhatWasTyped(t *testing.T) {
 	}
 }
 
-
 func TestTheDashboardAndTheQueueTabsSplitPendingTheSameWay(t *testing.T) {
 	ctx := t.Context()
 	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
