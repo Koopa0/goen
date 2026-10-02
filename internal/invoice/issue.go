@@ -24,7 +24,7 @@ var (
 	errProviderIdentity    = errors.New("invoice: provider success identity mismatch")
 )
 
-// Issue files a uniform invoice for one order, against the carrier preference
+// Issue files a uniform invoice for one order, against the invoice preference
 // the customer chose at checkout. goen never prints, so Print is always '0'.
 func (g *Gateway) Issue(ctx context.Context, in IssueRequest) (Document, error) {
 	if !g.Enabled() {
@@ -38,7 +38,7 @@ func (g *Gateway) Issue(ctx context.Context, in IssueRequest) (Document, error) 
 		MerchantID:   g.merchantID,
 		RelateNumber: in.OrderNumber,
 		CustomerName: truncate(in.CustomerName, 60),
-		// No address: a carrier invoice does not need one, and an invoice record
+		// No address: a barcode invoice does not need one, and an invoice record
 		// reaches erase_user through no path at all.
 		CustomerEmail: truncate(in.Email, 80),
 		Print:         "0",
@@ -51,25 +51,25 @@ func (g *Gateway) Issue(ctx context.Context, in IssueRequest) (Document, error) 
 		Vat:      "1",
 		InvType:  "07", // general tax
 		Items:    itemsFor(in.Lines),
-		CarrierT: CarrierNone,
+		CarrierT: HolderNone,
 	}
 
 	switch in.Preference {
 	case PreferenceCompany:
-		// A business-tax-number invoice STILL needs a carrier or a printed copy
-		// (ECPay RtnCode 5000028). The number says who it is FOR; the carrier
+		// A business-tax-number invoice STILL needs a holder or a printed copy
+		// (ECPay RtnCode 5000028). The number says who it is FOR; the holder
 		// says where it is held.
 		req.CustomerIdentifier = in.TaxID
-		req.CarrierT = CarrierMember
+		req.CarrierT = HolderMember
 	case PreferenceDonate:
 		req.Donation = "1"
 		req.LoveCode = in.DonationCode
 	case PreferenceMobile:
-		req.CarrierT = CarrierMobile
-		req.CarrierNum = in.CarrierCode
+		req.CarrierT = HolderMobileBarcode
+		req.CarrierNum = in.MobileBarcode
 	case PreferenceMember:
-		// Member carrier: ECPay holds it against the customer's email.
-		req.CarrierT = CarrierMember
+		// Member account: ECPay holds it against the customer's email.
+		req.CarrierT = HolderMember
 	default:
 		panic("invoice: validated unknown preference " + in.Preference)
 	}
@@ -106,10 +106,10 @@ type IssueRequest struct {
 	CustomerName string
 	Email        string
 	// Preference is invoice_preferences.invoice_type.
-	Preference   Preference
-	CarrierCode  string
-	DonationCode string
-	TaxID        string
+	Preference    Preference
+	MobileBarcode string
+	DonationCode  string
+	TaxID         string
 	// AmountCents is the order's total, tax included: what the customer was
 	// charged, which is what the invoice records.
 	AmountCents int64
@@ -137,7 +137,7 @@ func (r IssueRequest) validate() error {
 			ErrRejected)
 	}
 	if len(r.Email) > 80 || !email.Valid(r.Email) {
-		return fmt.Errorf("%w: a carrier invoice needs a bare valid email address of at most 80 bytes",
+		return fmt.Errorf("%w: a mobile barcode invoice needs a bare valid email address of at most 80 bytes",
 			ErrRejected)
 	}
 	return r.validatePreference()
@@ -158,18 +158,18 @@ func (r IssueRequest) validatePreference() error {
 				ErrRejected, r.TaxID)
 		}
 	case PreferenceMobile:
-		if !ValidMobileCarrier(r.CarrierCode) {
+		if !ValidMobileBarcode(r.MobileBarcode) {
 			// i18n-exempt: back office only, as above.
 			return fmt.Errorf("%w: a 手機條碼載具 is a slash and seven characters, got %q",
-				ErrRejected, r.CarrierCode)
+				ErrRejected, r.MobileBarcode)
 		}
 	case PreferenceDonate:
 		if !ValidDonationCode(r.DonationCode) {
 			return fmt.Errorf("%w: a donation code is three to seven digits, got %q",
 				ErrRejected, r.DonationCode)
 		}
-		if r.TaxID != "" || r.CarrierCode != "" {
-			return fmt.Errorf("%w: a donation invoice takes neither a tax ID nor a carrier",
+		if r.TaxID != "" || r.MobileBarcode != "" {
+			return fmt.Errorf("%w: a donation invoice takes neither a tax ID nor a mobile barcode",
 				ErrRejected)
 		}
 	case PreferenceMember:

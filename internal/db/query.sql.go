@@ -1126,7 +1126,7 @@ SELECT
     coalesce(pd.pickup_store_code, '') AS pickup_store_code,
     coalesce(pd.pickup_store_name, '') AS pickup_store_name,
     coalesce(ip.invoice_type, '') AS invoice_type,
-    coalesce(ip.carrier_code, '') AS invoice_carrier,
+    coalesce(ip.carrier_code, '') AS invoice_mobile_barcode,
  coalesce(ip.donation_code, '') AS invoice_donation_code,
     coalesce(ip.tax_id, '') AS invoice_tax_id,
     order_is_committed(o.id) AS committed,
@@ -1147,36 +1147,36 @@ WHERE o.order_number = $1
 `
 
 type AdminOrderByNumberRow struct {
-	ID                  uuid.UUID
-	OrderNumber         string
-	FulfillmentStatus   string
-	PlacedAt            time.Time
-	ShippingCents       int64
-	DiscountCents       int64
-	TaxCents            int64
-	ShippingMethodName  string
-	DiscountReason      string
-	CustomerNote        pgtype.Text
-	StaffNote           pgtype.Text
-	SubtotalCents       int64
-	Email               string
-	RecipientName       string
-	Phone               string
-	PostalCode          string
-	City                string
-	District            string
-	Street              string
-	PickupChain         string
-	PickupStoreCode     string
-	PickupStoreName     string
-	InvoiceType         string
-	InvoiceCarrier      string
-	InvoiceDonationCode string
-	InvoiceTaxID        string
-	Committed           bool
-	OwedCents           int64
-	CreditCents         int64
-	DestinationKind     string
+	ID                   uuid.UUID
+	OrderNumber          string
+	FulfillmentStatus    string
+	PlacedAt             time.Time
+	ShippingCents        int64
+	DiscountCents        int64
+	TaxCents             int64
+	ShippingMethodName   string
+	DiscountReason       string
+	CustomerNote         pgtype.Text
+	StaffNote            pgtype.Text
+	SubtotalCents        int64
+	Email                string
+	RecipientName        string
+	Phone                string
+	PostalCode           string
+	City                 string
+	District             string
+	Street               string
+	PickupChain          string
+	PickupStoreCode      string
+	PickupStoreName      string
+	InvoiceType          string
+	InvoiceMobileBarcode string
+	InvoiceDonationCode  string
+	InvoiceTaxID         string
+	Committed            bool
+	OwedCents            int64
+	CreditCents          int64
+	DestinationKind      string
 }
 
 // discount_reason is JOINED and not snapshotted: coupons.code is never updated
@@ -1208,7 +1208,7 @@ func (q *Queries) AdminOrderByNumber(ctx context.Context, orderNumber string) (A
 		&i.PickupStoreCode,
 		&i.PickupStoreName,
 		&i.InvoiceType,
-		&i.InvoiceCarrier,
+		&i.InvoiceMobileBarcode,
 		&i.InvoiceDonationCode,
 		&i.InvoiceTaxID,
 		&i.Committed,

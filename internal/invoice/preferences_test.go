@@ -11,9 +11,9 @@ import (
 
 func TestDonationPreferenceReachesTheProviderAsALoveCode(t *testing.T) {
 	for _, tt := range []struct {
-		name                                         string
-		preference                                   Preference
-		carrier, donation, wireCarrier, wireDonation string
+		name                                        string
+		preference                                  Preference
+		barcode, donation, wireHolder, wireDonation string
 	}{
 		{"donation", PreferenceDonate, "", "00123", "", "1"},
 	} {
@@ -50,12 +50,12 @@ func TestDonationPreferenceReachesTheProviderAsALoveCode(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			_, err = g.Issue(t.Context(), IssueRequest{OrderNumber: "GO260101000001", CustomerName: "Buyer", Email: "buyer@example.com", Preference: tt.preference, CarrierCode: tt.carrier, DonationCode: tt.donation, AmountCents: 10000, Lines: []Line{{Description: "Item", Quantity: 1, UnitPriceCents: 10000, AmountCents: 10000}}})
+			_, err = g.Issue(t.Context(), IssueRequest{OrderNumber: "GO260101000001", CustomerName: "Buyer", Email: "buyer@example.com", Preference: tt.preference, MobileBarcode: tt.barcode, DonationCode: tt.donation, AmountCents: 10000, Lines: []Line{{Description: "Item", Quantity: 1, UnitPriceCents: 10000, AmountCents: 10000}}})
 			if err != nil {
 				t.Fatalf("Issue: %v", err)
 			}
-			if seen.Donation != tt.wireDonation || seen.LoveCode != tt.donation || seen.CarrierT != tt.wireCarrier || seen.CarrierNum != tt.carrier || seen.Print != "0" || seen.CustomerIdentifier != "" {
-				t.Errorf("provider preference = donation %q/%q, carrier %q/%q, print %q, tax ID %q", seen.Donation, seen.LoveCode, seen.CarrierT, seen.CarrierNum, seen.Print, seen.CustomerIdentifier)
+			if seen.Donation != tt.wireDonation || seen.LoveCode != tt.donation || seen.CarrierT != tt.wireHolder || seen.CarrierNum != tt.barcode || seen.Print != "0" || seen.CustomerIdentifier != "" {
+				t.Errorf("provider preference = donation %q/%q, barcode %q/%q, print %q, tax ID %q", seen.Donation, seen.LoveCode, seen.CarrierT, seen.CarrierNum, seen.Print, seen.CustomerIdentifier)
 			}
 		})
 	}
@@ -65,17 +65,17 @@ func TestDonationPreferenceRefusesMalformedProviderRequests(t *testing.T) {
 	for _, tt := range []struct {
 		name                     string
 		preference               Preference
-		carrier, donation, taxID string
+		barcode, donation, taxID string
 	}{
 		{"missing donation", PreferenceDonate, "", "", ""},
 		{"short donation", PreferenceDonate, "", "12", ""},
 		{"long donation", PreferenceDonate, "", "12345678", ""},
 		{"non-digit donation", PreferenceDonate, "", "12A", ""},
-		{"donation with carrier", PreferenceDonate, "/ABC+123", "00123", ""},
+		{"donation with mobile barcode", PreferenceDonate, "/ABC+123", "00123", ""},
 		{"donation with tax ID", PreferenceDonate, "", "00123", "04595252"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			req := IssueRequest{OrderNumber: "GO260101000001", CustomerName: "Buyer", Email: "buyer@example.com", Preference: tt.preference, CarrierCode: tt.carrier, DonationCode: tt.donation, TaxID: tt.taxID, AmountCents: 10000, Lines: []Line{{Description: "Item", Quantity: 1, UnitPriceCents: 10000, AmountCents: 10000}}}
+			req := IssueRequest{OrderNumber: "GO260101000001", CustomerName: "Buyer", Email: "buyer@example.com", Preference: tt.preference, MobileBarcode: tt.barcode, DonationCode: tt.donation, TaxID: tt.taxID, AmountCents: 10000, Lines: []Line{{Description: "Item", Quantity: 1, UnitPriceCents: 10000, AmountCents: 10000}}}
 			if err := req.validate(); !errors.Is(err, ErrRejected) {
 				t.Fatalf("validation=%v, want ErrRejected", err)
 			}

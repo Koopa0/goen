@@ -381,11 +381,11 @@ func TestIssueRefusesWhatTheProviderWould(t *testing.T) {
 		{name: "a 統編 that is not eight digits", alter: func(r *IssueRequest) {
 			r.Preference, r.TaxID = "company", "1234"
 		}},
-		{name: "a carrier that is not a barcode", alter: func(r *IssueRequest) {
-			r.Preference, r.CarrierCode = "mobile_carrier", "ABC123"
+		{name: "a mobile barcode without the leading slash", alter: func(r *IssueRequest) {
+			r.Preference, r.MobileBarcode = "mobile_carrier", "ABC123"
 		}},
-		{name: "an eight-character carrier with an invalid symbol", alter: func(r *IssueRequest) {
-			r.Preference, r.CarrierCode = "mobile_carrier", "/ABC_123"
+		{name: "an eight-character barcode with an invalid symbol", alter: func(r *IssueRequest) {
+			r.Preference, r.MobileBarcode = "mobile_carrier", "/ABC_123"
 		}},
 		{name: "an invoice type this shop does not offer", alter: func(r *IssueRequest) {
 			r.Preference = "printed"
@@ -446,8 +446,8 @@ func TestEveryOfferedPreferenceCanBecomeAValidIssueRequest(t *testing.T) {
 					AmountCents:    10000,
 				}},
 			}
-			if preference.NeedsCarrier() {
-				req.CarrierCode = "/AB12345"
+			if preference.NeedsMobileBarcode() {
+				req.MobileBarcode = "/AB12345"
 			}
 			if preference == PreferenceDonate {
 				req.DonationCode = "00123"
@@ -514,7 +514,7 @@ func TestTheRequestCarriesWhatTheInvoiceNeeds(t *testing.T) {
 	}
 	doc, err := g.Issue(t.Context(), IssueRequest{
 		OrderNumber: "GO260101000001", CustomerName: "王小明",
-		Email: "a@example.com", Preference: "mobile_carrier", CarrierCode: "/ABC+123",
+		Email: "a@example.com", Preference: "mobile_carrier", MobileBarcode: "/ABC+123",
 		AmountCents: 67000,
 		Lines: []Line{
 			{Description: "保護殼", Quantity: 2, UnitPriceCents: 29500, AmountCents: 59000},
@@ -537,8 +537,8 @@ func TestTheRequestCarriesWhatTheInvoiceNeeds(t *testing.T) {
 	if seen.Print != "0" {
 		t.Errorf("Print = %q, want \"0\" — goen never prints", seen.Print)
 	}
-	if seen.CarrierT != CarrierMobile || seen.CarrierNum != "/ABC+123" {
-		t.Errorf("carrier = %q/%q, want the mobile barcode the customer gave",
+	if seen.CarrierT != HolderMobileBarcode || seen.CarrierNum != "/ABC+123" {
+		t.Errorf("barcode = %q/%q, want the mobile barcode the customer gave",
 			seen.CarrierT, seen.CarrierNum)
 	}
 
@@ -632,9 +632,9 @@ func openInvalid(t *testing.T, r *http.Request) invalidRequest {
 	return out
 }
 
-// TestACompanyInvoiceCarriesTheTaxIDAndNoCarrier holds a rule ECPay enforces
+// TestACompanyInvoiceCarriesTheTaxIDAndNoMobileBarcode holds a rule ECPay enforces
 // and a reader would not guess.
-func TestACompanyInvoiceCarriesTheTaxIDAndNoCarrier(t *testing.T) {
+func TestACompanyInvoiceCarriesTheTaxIDAndNoMobileBarcode(t *testing.T) {
 	var seen issueRequest
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		g, _ := NewGateway(testMerchantID, testHashKey, testHashIV, "")
@@ -665,11 +665,11 @@ func TestACompanyInvoiceCarriesTheTaxIDAndNoCarrier(t *testing.T) {
 		t.Errorf("CustomerName = %q, want the company registered for that 統編",
 			seen.CustomerName)
 	}
-	// A business-tax-number invoice STILL needs a carrier (ECPay RtnCode
+	// A business-tax-number invoice STILL needs a mobile barcode or member account (ECPay RtnCode
 	// 5000028), which is the opposite of what it looks like.
-	if seen.CarrierT != CarrierMember {
-		t.Errorf("CarrierType = %q on a 統編 invoice, want the member carrier: "+
-			"ECPay refuses a 統編 with no carrier and goen does not print",
+	if seen.CarrierT != HolderMember {
+		t.Errorf("CarrierType = %q on a 統編 invoice, want the member account: "+
+			"ECPay refuses a 統編 with no mobile barcode or member account and goen does not print",
 			seen.CarrierT)
 	}
 }

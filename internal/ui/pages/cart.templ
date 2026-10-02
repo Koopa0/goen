@@ -527,20 +527,20 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 							</div>
 							@applyChoice("invoice")
 							<div class="goen-checkout__fields">
-								if v.Invoice.NeedsCarrier() {
+								if v.Invoice.NeedsMobileBarcode() {
 									<div class="goen-field">
 										@components.Label(components.LabelProps{For: "invoice_carrier"}) {
-											{ i18n.T(ctx, i18n.KeyFieldCarrier) }
+											{ i18n.T(ctx, i18n.KeyFieldMobileBarcode) }
 										}
 										<input
 											class="goen-input"
-											{ fieldrule.MobileCarrier.Attrs(ctx, nil)... }
+											{ fieldrule.MobileBarcode.Attrs(ctx, nil)... }
 											id="invoice_carrier"
 											name="invoice_carrier"
 											maxlength="8"
 											autocomplete="off"
 											placeholder="/ABC+123"
-											value={ v.Invoice.Carrier }
+											value={ v.Invoice.MobileBarcode }
 											aria-invalid={ v.Invalid("invoice_carrier") }
 											if v.HasErr("invoice_carrier") {
 												aria-describedby="invoice_carrier-error"

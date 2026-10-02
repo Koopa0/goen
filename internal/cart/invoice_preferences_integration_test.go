@@ -19,7 +19,7 @@ import (
 )
 
 func TestCheckoutPersistsTheDonationPreference(t *testing.T) {
-	for _, tt := range []struct{ name, kind, carrier, donation string }{
+	for _, tt := range []struct{ name, kind, barcode, donation string }{
 		{"donation", "donation", "", "00123"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -32,18 +32,18 @@ func TestCheckoutPersistsTheDonationPreference(t *testing.T) {
 			shippingID := shipVersionFor(t, "home_delivery")
 			addr := &cart.Address{Email: "buyer@example.com", Name: "Buyer", Phone: "0912345678", PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號"}
 			// The type is the value the checkout radio group submits.
-			inv := &cart.Invoice{Type: invoicepkg.Preference(tt.kind), Carrier: tt.carrier, DonationCode: tt.donation}
+			inv := &cart.Invoice{Type: invoicepkg.Preference(tt.kind), MobileBarcode: tt.barcode, DonationCode: tt.donation}
 			shown := checkoutQuote(t, s, cartID, uuid.NullUUID{}, shippingID, addr, "")
 			number, err := s.PlaceOrder(ctx, cartID, uuid.NullUUID{}, shippingID, addr, inv, "", shown, checkoutAttemptKey("invoice-"+uuid.NewString()))
 			if err != nil {
 				t.Fatalf("PlaceOrder: %v", err)
 			}
-			var kind, carrier, donation, taxID string
-			if err := pool.QueryRow(ctx, `SELECT ip.invoice_type,coalesce(ip.carrier_code,''),coalesce(ip.donation_code,''),coalesce(ip.tax_id,'') FROM invoice_preferences ip JOIN orders o ON o.id=ip.order_id WHERE o.order_number=$1`, number).Scan(&kind, &carrier, &donation, &taxID); err != nil {
+			var kind, barcode, donation, taxID string
+			if err := pool.QueryRow(ctx, `SELECT ip.invoice_type,coalesce(ip.carrier_code,''),coalesce(ip.donation_code,''),coalesce(ip.tax_id,'') FROM invoice_preferences ip JOIN orders o ON o.id=ip.order_id WHERE o.order_number=$1`, number).Scan(&kind, &barcode, &donation, &taxID); err != nil {
 				t.Fatal(err)
 			}
-			if kind != tt.kind || carrier != tt.carrier || donation != tt.donation || taxID != "" {
-				t.Fatalf("stored preference %q/%q/%q/%q", kind, carrier, donation, taxID)
+			if kind != tt.kind || barcode != tt.barcode || donation != tt.donation || taxID != "" {
+				t.Fatalf("stored preference %q/%q/%q/%q", kind, barcode, donation, taxID)
 			}
 		})
 	}

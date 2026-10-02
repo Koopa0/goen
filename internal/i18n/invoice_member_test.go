@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestDefaultInvoiceCarrierExplainsEmailOwnership(t *testing.T) {
+func TestDefaultInvoiceMemberExplainsEmailOwnership(t *testing.T) {
 	for _, locale := range Locales() {
 		text := T(WithLocale(t.Context(), locale), KeyInvoiceMember)
 		words := []string{"綠界", "結帳 Email", "留存", "通知"}

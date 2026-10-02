@@ -76,7 +76,7 @@ var server = map[string]func(string) bool{
 		return checkout
 	},
 	"invoice_carrier": func(s string) bool {
-		i := cart.Invoice{Type: invoice.PreferenceMobile, Carrier: s}
+		i := cart.Invoice{Type: invoice.PreferenceMobile, MobileBarcode: s}
 		return !hasField(i.Validate(), "invoice_carrier")
 	},
 	"invoice_donation_code": func(s string) bool {

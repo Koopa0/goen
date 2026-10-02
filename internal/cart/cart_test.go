@@ -632,8 +632,8 @@ func TestInvoiceChoicesMatchCheckoutValidation(t *testing.T) {
 			t.Errorf("invoice choice %d = %+v, want value %q and a label", i, choice, preference)
 		}
 		candidate := Invoice{Type: preference}
-		if preference.NeedsCarrier() {
-			candidate.Carrier = "/AB12345"
+		if preference.NeedsMobileBarcode() {
+			candidate.MobileBarcode = "/AB12345"
 		}
 		if preference == invoice.PreferenceDonate {
 			candidate.DonationCode = "00123"
@@ -674,10 +674,10 @@ func TestInvoiceChoicesMatchCheckoutValidation(t *testing.T) {
 	}
 
 	member := Invoice{
-		Type: invoice.PreferenceMember, Carrier: "/AB12345",
+		Type: invoice.PreferenceMember, MobileBarcode: "/AB12345",
 		CompanyName: "不適用公司", TaxID: "04595252",
 	}
-	if errs := member.Validate(); len(errs) != 0 || member.Carrier != "" ||
+	if errs := member.Validate(); len(errs) != 0 || member.MobileBarcode != "" ||
 		member.CompanyName != "" || member.TaxID != "" {
 		t.Errorf("member invoice retained inapplicable company fields: %+v / %+v", member, errs)
 	}
@@ -1019,8 +1019,8 @@ func TestTheCheckoutRefusesWhatTheSenderWillRefuse(t *testing.T) {
 }
 
 func TestInvoicePreferenceNormalizesOnlyItsOwnFields(t *testing.T) {
-	donation := Invoice{Type: invoice.PreferenceDonate, DonationCode: " 00123 ", Carrier: "/ABC+123", TaxID: "04595252", CompanyName: "Company"}
-	if errs := donation.Validate(); len(errs) != 0 || donation.DonationCode != "00123" || donation.Carrier != "" || donation.TaxID != "" || donation.CompanyName != "" {
+	donation := Invoice{Type: invoice.PreferenceDonate, DonationCode: " 00123 ", MobileBarcode: "/ABC+123", TaxID: "04595252", CompanyName: "Company"}
+	if errs := donation.Validate(); len(errs) != 0 || donation.DonationCode != "00123" || donation.MobileBarcode != "" || donation.TaxID != "" || donation.CompanyName != "" {
 		t.Fatalf("donation normalization: %+v / %+v", donation, errs)
 	}
 	bad := Invoice{Type: invoice.PreferenceDonate, DonationCode: "12A"}
@@ -1059,9 +1059,9 @@ func TestFullWidthDigitsAreFoldedBeforeTheCheckoutFieldsAreChecked(t *testing.T)
 		}
 	}
 
-	inv := Invoice{Type: invoice.PreferenceMobile, Carrier: "／ＡＢＣ＋１２３"}
-	if errs := inv.Validate(); len(errs) != 0 || inv.Carrier != "/ABC+123" {
-		t.Errorf("carrier %q errors %v, want the folded carrier accepted", inv.Carrier, errs)
+	inv := Invoice{Type: invoice.PreferenceMobile, MobileBarcode: "／ＡＢＣ＋１２３"}
+	if errs := inv.Validate(); len(errs) != 0 || inv.MobileBarcode != "/ABC+123" {
+		t.Errorf("barcode %q errors %v, want the folded barcode accepted", inv.MobileBarcode, errs)
 	}
 	company := Invoice{Type: invoice.PreferenceCompany, TaxID: "１２３４５６７８", CompanyName: "公司"}
 	company.Validate()

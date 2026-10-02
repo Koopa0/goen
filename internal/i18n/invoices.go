@@ -104,7 +104,7 @@ var (
 	})
 
 	// The two refusals a 折讓 has of its own. invoicefailed talks about 統編 and
-	// carrier codes, which a 折讓 form does not collect.
+	// mobile barcodes, which a 折讓 form does not collect.
 	KeyAdminNoticeAllowTooMuch = key("admin.notice.allowtoomuch", Message{
 		ZhHant: "目前沒有尚未折讓的整數元退款；可能已由另一個請求完成。",
 		En:     "No whole-dollar refunded amount remains unrelieved; another request may have completed it.",
@@ -157,9 +157,9 @@ var (
 )
 
 var (
-	KeyAdminCarrierMember = key("admin.carrier.member", Message{ZhHant: "會員載具", En: "Member carrier"})
+	KeyAdminInvoiceMember = key("admin.carrier.member", Message{ZhHant: "會員載具", En: "Member carrier"})
 
-	KeyAdminCarrierMobile = key("admin.carrier.mobile", Message{
+	KeyAdminInvoiceMobileBarcode = key("admin.carrier.mobile", Message{
 		ZhHant: "手機條碼載具 %s",
 		En:     "Mobile barcode carrier %s",
 	})
@@ -169,7 +169,7 @@ var (
 		En:     "Donated invoice, donation code %s",
 	})
 
-	KeyAdminCarrierTaxID = key("admin.carrier.taxid", Message{
+	KeyAdminInvoiceTaxID = key("admin.carrier.taxid", Message{
 		ZhHant: "公司統編 %s",
 		En:     "Company tax number %s",
 	})

@@ -707,11 +707,11 @@ func (s OrderShipment) Delivered() bool { return s.DeliveredAt != "" }
 
 // CheckoutInvoice carries the invoice choice back into a refused form.
 type CheckoutInvoice struct {
-	Type         invoice.Preference
-	Carrier      string
-	DonationCode string
-	CompanyName  string
-	TaxID        string
+	Type          invoice.Preference
+	MobileBarcode string
+	DonationCode  string
+	CompanyName   string
+	TaxID         string
 }
 
 // Is reports whether this is the chosen type.
@@ -725,10 +725,10 @@ func (i CheckoutInvoice) Chosen() invoice.Preference {
 	return i.Type
 }
 
-// NeedsCarrier reports whether the 載具 field applies. It and NeedsTaxID decide
+// NeedsMobileBarcode reports whether the 載具 field applies. It and NeedsTaxID decide
 // which half of the form exists: rendering both would leave required promising
 // something the server will not demand.
-func (i CheckoutInvoice) NeedsCarrier() bool { return i.Chosen().NeedsCarrier() }
+func (i CheckoutInvoice) NeedsMobileBarcode() bool { return i.Chosen().NeedsMobileBarcode() }
 
 // NeedsTaxID reports whether the 統編 field applies.
 func (i CheckoutInvoice) NeedsTaxID() bool { return i.Chosen().NeedsTaxID() }
@@ -924,11 +924,11 @@ func (i CheckoutInvoice) NeedsDonationCode() bool { return i.Chosen() == invoice
 
 // OrderInvoice is the 統一發票 filed for an order, as the customer reads it.
 type OrderInvoice struct {
-	Documents    []OrderInvoiceDocument
-	Type         invoice.Preference
-	Carrier      string
-	DonationCode string
-	TaxID        string
+	Documents     []OrderInvoiceDocument
+	Type          invoice.Preference
+	MobileBarcode string
+	DonationCode  string
+	TaxID         string
 }
 
 // OrderInvoiceDocument is one invoice or credit note, oldest first.
@@ -957,20 +957,20 @@ func (d OrderInvoiceDocument) Amount() string { return twd(d.AmountCents) }
 func (i *OrderInvoice) ChoiceText(ctx context.Context) string {
 	switch i.Type {
 	case invoice.PreferenceMember:
-		return i18n.T(ctx, i18n.KeyAdminCarrierMember)
+		return i18n.T(ctx, i18n.KeyAdminInvoiceMember)
 	case invoice.PreferenceMobile:
-		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminCarrierMobile), maskCarrier(i.Carrier))
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminInvoiceMobileBarcode), maskMobileBarcode(i.MobileBarcode))
 	case invoice.PreferenceDonate:
 		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminInvoiceDonate), i.DonationCode)
 	case invoice.PreferenceCompany:
-		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminCarrierTaxID), i.TaxID)
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminInvoiceTaxID), i.TaxID)
 	default:
 		panic("pages: no label for invoice type " + string(i.Type))
 	}
 }
 
-// maskCarrier keeps the slash and the last two characters of a 手機條碼.
-func maskCarrier(code string) string {
+// maskMobileBarcode keeps the slash and the last two characters of a 手機條碼.
+func maskMobileBarcode(code string) string {
 	if len(code) <= 3 {
 		return code
 	}
