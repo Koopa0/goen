@@ -4039,11 +4039,14 @@ func TestTheReturnQueueUsesAConstantQueryCountForAnyNumberOfApprovedRows(t *test
 	queryNamesMu.Lock()
 	gotNames := slices.Clone(queryNames)
 	queryNamesMu.Unlock()
+	// Sorted, because the property is which queries run and how often, not their
+	// order; a query repeated per row is still an extra name.
+	slices.Sort(gotNames)
 	wantNames := []string{
-		"-- name: ReturnQueue :many",
+		"-- name: LatestEligibilityAssessments :many",
 		"-- name: ReturnLines :many",
 		"-- name: ReturnPayoutFacts :many",
-		"-- name: LatestEligibilityAssessments :many",
+		"-- name: ReturnQueue :many",
 	}
 	if diff := cmp.Diff(wantNames, gotNames); diff != "" {
 		t.Errorf("Returns() query names mismatch (-want +got):\n%s", diff)
