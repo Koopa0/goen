@@ -977,7 +977,9 @@ func (s *Store) OrderBelongsTo(ctx context.Context, number, userID string) (bool
 
 // Order reads a placed order for the confirmation page.
 func (s *Store) Order(ctx context.Context, number string) (pages.OrderView, error) {
-	o, err := s.q.OrderSummaryByNumber(ctx, number)
+	o, err := s.q.OrderSummaryByNumber(ctx, db.OrderSummaryByNumberParams{
+		Number: number, Locale: i18n.FromContext(ctx).Tag(),
+	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return pages.OrderView{}, ErrNotFound

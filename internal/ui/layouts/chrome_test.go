@@ -67,17 +67,17 @@ func TestNoFormCarriesARoleItMayNotHave(t *testing.T) {
 }
 
 // The header's language control is one menu button and, once opened, one
-// choice per language; the footer keeps its own pair of plain buttons. Neither
-// is a second copy of the other's markup, and the button says which language is
-// on.
+// choice per language, in the bar and again in the drawer, which CSS shows one
+// at a time; the footer keeps its own pair of plain buttons. Neither is a
+// second copy of the other's markup, and the button says which language is on.
 func TestTheLanguageControlIsAMenuInTheHeaderAndAPairInTheFooter(t *testing.T) {
 	t.Parallel()
 
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		header, footer := renderChrome(t, locale, chromeNav)
 		want := len(i18n.Locales())
-		if got := strings.Count(header, "goen-langmenu__item"); got != want {
-			t.Errorf("%s: the header menu has %d choices, want %d", locale, got, want)
+		if got := strings.Count(header, "goen-langmenu__item"); got != 2*want {
+			t.Errorf("%s: the bar and the drawer have %d choices, want %d", locale, got, 2*want)
 		}
 		if strings.Contains(header, "goen-lang__item") {
 			t.Errorf("%s: the header carries the footer's pair as well as its menu", locale)
@@ -88,8 +88,36 @@ func TestTheLanguageControlIsAMenuInTheHeaderAndAPairInTheFooter(t *testing.T) {
 		if !strings.Contains(header, `lang="`+locale.Tag()+`">`+locale.Short()+`</span>`) {
 			t.Errorf("%s: the menu button does not show %q", locale, locale.Short())
 		}
-		if got := strings.Count(header, `aria-pressed="true"`); got != 1 {
-			t.Errorf("%s: %d choices are marked current, want 1", locale, got)
+		if got := strings.Count(header, `aria-pressed="true"`); got != 2 {
+			t.Errorf("%s: %d choices are marked current, want one per menu", locale, got)
+		}
+	}
+}
+
+// A phone's bar has no room for the wishlist, the account or the language, so
+// the drawer carries them, and it carries a way out that has a name.
+func TestTheDrawerCarriesWhatThePhoneBarHasNoRoomFor(t *testing.T) {
+	t.Parallel()
+
+	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+		header, _ := renderChrome(t, locale, chromeNav)
+		start := strings.Index(header, `class="goen-header__drawer"`)
+		end := strings.Index(header, `class="goen-header__brand"`)
+		if start < 0 || end < start {
+			t.Fatalf("%s: the drawer is not in the header", locale)
+		}
+		drawer := header[start:end]
+		ctx := i18n.WithLocale(t.Context(), locale)
+		for _, want := range []string{
+			`href="/account/wishlist">` + i18n.T(ctx, i18n.KeyWishlist) + `</a>`,
+			`href="/account">` + i18n.T(ctx, i18n.KeyAccount) + `</a>`,
+			`aria-label="` + i18n.T(ctx, i18n.KeyCloseMenu) + `"`,
+			"data-menu-close",
+			"goen-langmenu__item",
+		} {
+			if !strings.Contains(drawer, want) {
+				t.Errorf("%s: the drawer does not contain %q", locale, want)
+			}
 		}
 	}
 }
