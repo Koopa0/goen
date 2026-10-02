@@ -3276,7 +3276,6 @@ const auditAccessibility = async () => {
           (injected.exceptionDetails.exception?.description || 'no exception detail'));
         continue;
       }
-      if (!reportedRules) await evalPage(AXE_TARGET_FIXTURE);
       const evaluated = await send(ws, 'Runtime.evaluate', {
         expression: AXE_RUN, awaitPromise: true, returnByValue: true,
       }, 120000);
