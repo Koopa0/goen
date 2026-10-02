@@ -163,7 +163,19 @@ store before anything else.
   reason, restore, and say so in the pull request.
 - Comments carry the reason a reader needs to not turn the line into a defect —
   a statute, a provider quirk, a lock ordering — and nothing else. No history.
-- Commits and pull requests carry no AI attribution trailer.
+- Commits carry no `Co-authored-by` trailer.
+
+## Changes that need the maintainer first
+
+Open an issue before touching any of these; each one is a place where a small
+edit becomes a payment, a privilege or a legal term:
+
+- a `SECURITY DEFINER` function's privilege, a role's grant, and the `DO` block
+  that ends `migrations/001`;
+- the Stripe session's `payment_method_types` pin, its `ExpiresAt` bound to the
+  stock hold, and webhook attribution from goen's own payment row;
+- the statutory terms in `internal/site/policies.go` (消保法 §19);
+- the shop's content: product names, descriptions, FAQ and policy prose.
 
 ## Report a security problem
 

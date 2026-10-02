@@ -18,12 +18,9 @@ stripe-*.txt
 # The compiled binary, if somebody runs `go build` without -o.
 /goen
 
-# Assistant tooling: it configures the tools used to build goen, not goen.
-# AGENTS.md is the exception and is tracked — it is the contract an agent
-# reads before opening a pull request.
+# Local tooling configuration.
 /.claude/
 /.agents/
-/CLAUDE.md
 /skills-lock.json
 
 # Notes, briefs, review transcripts and decision records. The code is the
