@@ -152,13 +152,9 @@ func (h *Handler) Notify(w http.ResponseWriter, r *http.Request) {
 	err := h.store.RequestRestockNotice(r.Context(), slug, variantID, addr, userID)
 	switch {
 	case err == nil:
-		//nolint:gosec // G710: slug is the route's own path value, escaped
-		http.Redirect(w, r, "/p/"+url.PathEscape(slug)+"?"+r.URL.RawQuery+"&notify=1",
-			http.StatusSeeOther)
+		h.redirectNotified(w, r, slug, "1")
 	case errors.Is(err, ErrNotifyInvalid):
-		//nolint:gosec // G710: slug is the route's own path value, escaped
-		http.Redirect(w, r, "/p/"+url.PathEscape(slug)+"?"+r.URL.RawQuery+"&notify=bad",
-			http.StatusSeeOther)
+		h.redirectNotified(w, r, slug, "bad")
 	default:
 		h.log.ErrorContext(r.Context(), "restock notice", "error", err, "slug", slug)
 		web.Render(w, r, h.log, http.StatusInternalServerError, pages.Notice(
@@ -166,6 +162,18 @@ func (h *Handler) Notify(w http.ResponseWriter, r *http.Request) {
 			i18n.T(r.Context(), i18n.KeyTryAgainTitle),
 			i18n.T(r.Context(), i18n.KeyTryAgainBody)))
 	}
+}
+
+// redirectNotified returns to the product at the selection the form was posted
+// from, with the outcome the page says aloud.
+func (h *Handler) redirectNotified(w http.ResponseWriter, r *http.Request, slug, outcome string) {
+	q := url.Values{}
+	for k, v := range ParseSelection(r.URL.Query()) {
+		q.Set(k, v)
+	}
+	q.Set("notify", outcome)
+	//nolint:gosec // G710: slug is the route's own path value, escaped
+	http.Redirect(w, r, "/p/"+url.PathEscape(slug)+"?"+q.Encode(), http.StatusSeeOther)
 }
 
 func (h *Handler) rejectReview(w http.ResponseWriter, r *http.Request, slug string, review *Review, errs map[string]i18n.Key) {

@@ -83,3 +83,29 @@ func TestNotifyBurstIsSharedByAWholeIPv6Slash64(t *testing.T) {
 		t.Errorf("another /64 status = %d, want 303; it shared a bucket", other.Code)
 	}
 }
+
+// The redirect after a refused request returns to the selection the form was
+// posted from; without it a product with options lands on its generic hint and
+// the refusal is never shown.
+func TestNotifyRedirectKeepsTheSelection(t *testing.T) {
+	t.Parallel()
+	h := NewHandler(&Store{}, slog.New(slog.DiscardHandler), "https://goen.example")
+	form := url.Values{"email": {"shopper@gmail"}, "variant": {"not-a-uuid"}}
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost,
+		"/p/meridian-book-14/notify?"+url.Values{"顏色": {"太空銀"}, "容量": {"16GB/512GB"}}.Encode(),
+		strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.RemoteAddr = "203.0.113.91:54321"
+	req.SetPathValue("slug", "meridian-book-14")
+	w := httptest.NewRecorder()
+	h.Notify(w, req)
+
+	loc, err := url.Parse(w.Header().Get("Location"))
+	if err != nil || w.Code != http.StatusSeeOther {
+		t.Fatalf("status %d, location %q: %v", w.Code, w.Header().Get("Location"), err)
+	}
+	q := loc.Query()
+	if q.Get("顏色") != "太空銀" || q.Get("容量") != "16GB/512GB" || q.Get("notify") != "bad" {
+		t.Errorf("redirect %q lost the selection or the outcome", loc.String())
+	}
+}
