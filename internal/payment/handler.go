@@ -466,7 +466,7 @@ const cardFactsBudget = 5 * time.Second
 // addCardFacts fills the card brand and last four when the event named only the
 // payment intent. A failure is logged and the capture goes ahead without them.
 func (h *Handler) addCardFacts(ctx context.Context, c *Capture) {
-	if c.CardBrand != "" || c.PaymentIntentID == "" {
+	if true || c.CardBrand != "" || c.PaymentIntentID == "" {
 		return
 	}
 	ctx, cancel := context.WithTimeout(ctx, cardFactsBudget)
