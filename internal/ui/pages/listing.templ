@@ -67,7 +67,7 @@ templ Listing(p layouts.Page, v ListingView) {
 					class="goen-listing__results"
 					id="listing-results"
 					tabindex="-1"
-					autofocus?={ v.Filtered }
+					autofocus?={ v.Filtered && !isPartial(ctx) }
 				>
 					if v.Empty() {
 						<div class="ui-empty">
@@ -81,7 +81,7 @@ templ Listing(p layouts.Page, v ListingView) {
 					} else {
 						// The grid's heading, visually hidden: without it a tile's h3 skips a level.
 						<h2 class="goen-sr-only">{ i18n.T(ctx, i18n.KeyResultsHeading) }</h2>
-						<p class="goen-listing__count">{ i18n.Count(ctx, i18n.KeyListingCount, v.Total, v.TotalText()) }</p>
+						<p class="goen-listing__count" aria-hidden="true">{ i18n.Count(ctx, i18n.KeyListingCount, v.Total, v.TotalText()) }</p>
 						@compareForm(AnyComparable(v.Grid()) || AnyComparable(v.Featured())) {
 							<ul class="goen-tiles__grid" role="list">
 								for _, t := range v.Grid() {
@@ -101,7 +101,23 @@ templ listingFilters(v ListingView) {
 	<div class="goen-listing__filters">
 		<details class="goen-filters__shell">
 			<summary class="goen-filters__shell-summary">{ i18n.T(ctx, i18n.KeyFiltersAndSort) }</summary>
-			<form class="goen-filters" method="get" action={ templ.SafeURL(v.FilterAction()) }>
+			// With script, a changed control fetches the same URL the button would
+			// have navigated to and swaps the results, the active chips and the
+			// announced count; the button stays for a browser without script.
+			// Typing in a price box fires nothing until the box is left or Enter.
+			<form
+				class="goen-filters"
+				method="get"
+				action={ templ.SafeURL(v.FilterAction()) }
+				hx-get={ "/c/" + v.Slug }
+				hx-trigger="change delay:300ms"
+				hx-target="#listing-results"
+				hx-select="#listing-results"
+				hx-select-oob="#filters-applied, #listing-status:innerHTML"
+				hx-swap="outerHTML"
+				hx-push-url="true"
+				hx-sync="this:replace"
+			>
 				// The rail's own heading. It keeps the outline unbroken: without an h2
 				// between the page title and a tile's h3 the document skips a level,
 				// which `check-layout.mjs:370-378` reads as a defect.
@@ -185,17 +201,23 @@ templ listingFilters(v ListingView) {
 				}
 			</form>
 		</details>
-		if v.Filtered {
-			<div class="goen-filters__applied" role="status">
-				<span class="goen-filters__applied-label">{ i18n.T(ctx, i18n.KeyFiltersActive) }</span>
-				<ul class="goen-filters__chips" role="list">
-					for _, chip := range v.AppliedChips(ctx) {
-						<li class="goen-filters__chip">{ chip }</li>
-					}
-				</ul>
-				<a class="ui-filterbar__clear" href={ templ.URL("/c/" + v.Slug) }>{ i18n.T(ctx, i18n.KeyClearFilters) }</a>
-			</div>
-		}
+		<div id="filters-applied">
+			if v.Filtered {
+				<div class="goen-filters__applied">
+					<span class="goen-filters__applied-label">{ i18n.T(ctx, i18n.KeyFiltersActive) }</span>
+					<ul class="goen-filters__chips" role="list">
+						for _, chip := range v.AppliedChips(ctx) {
+							<li class="goen-filters__chip">{ chip }</li>
+						}
+					</ul>
+					<a class="ui-filterbar__clear" href={ templ.URL("/c/" + v.Slug) }>{ i18n.T(ctx, i18n.KeyClearFilters) }</a>
+				</div>
+			}
+
+		</div>
+		// The count is announced from here, a region that stays in the page while
+		// the results around it are replaced, and focus is left where it is.
+		<p id="listing-status" class="goen-sr-only" role="status" aria-live="polite">{ i18n.Count(ctx, i18n.KeyListingCount, v.Total, v.TotalText()) }</p>
 	</div>
 }
 

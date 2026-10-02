@@ -510,3 +510,30 @@ func TestAnEmptySearchSuggestsTheDepartments(t *testing.T) {
 		}
 	}
 }
+
+// A changed filter fetches the page the button would have navigated to, and the
+// button stays in the markup for a browser without script.
+func TestFiltersApplyThemselvesAndKeepTheirButton(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	view := ListingView{Slug: "audio", Name: "Audio", Products: shelf(2), Total: 2, Filtered: true, InStockOnly: true}
+	html := renderToString(t, Listing(ListingMeta(ctx, view), view))
+
+	for _, want := range []string{
+		`hx-get="/c/audio"`, `hx-trigger="change delay:300ms"`, `hx-push-url="true"`,
+		`hx-target="#listing-results"`, `hx-select-oob="#filters-applied, #listing-status:innerHTML"`,
+		`id="listing-status" class="goen-sr-only" role="status" aria-live="polite"`,
+		`class="goen-btn goen-btn--primary goen-btn--block goen-filters__apply"`,
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("filters lack %q", want)
+		}
+	}
+	if !strings.Contains(html, `<div id="filters-applied">`) {
+		t.Error("the active-filter chips have no stable region to be swapped into")
+	}
+	unfiltered := renderToString(t, Listing(ListingMeta(ctx, ListingView{Slug: "audio", Name: "Audio"}), ListingView{Slug: "audio", Name: "Audio"}))
+	if !strings.Contains(unfiltered, `<div id="filters-applied">`) {
+		t.Error("an unfiltered page has no chips region, so removing the last filter could not clear it")
+	}
+}
