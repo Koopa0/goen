@@ -6,23 +6,40 @@ English | [繁體中文](README.zh-TW.md)
 [![Go](https://img.shields.io/github/go-mod/go-version/Koopa0/goen)](go.mod)
 [![Apache-2.0](https://img.shields.io/badge/Apache--2.0-blue)](LICENSE)
 
-goen is a complete e-commerce shop built with Go — a storefront and a back office.
+A complete e-commerce shop built with Go — from browsing to checkout, after-sales and the back office that runs it.
 
-Demo: [goen.koopa0.dev](https://goen.koopa0.dev)
+**Live demo: [goen.koopa0.dev](https://goen.koopa0.dev)**
 
 ![English storefront with product categories and recommended products](assets/readme/storefront.en.png)
 
-## Highlights
+## Features
 
-- Full-stack Go, built on the standard library with templ and htmx.
-- Payments through Stripe; e-invoices and convenience-store pickup through ECPay.
-- Traditional Chinese and English.
-- Taiwan's seven-day return right and e-invoice rules built in.
+**Shopping**
+- Departments and categories with filters, sorting and search
+- Product variants, reviews, questions and side-by-side comparison
+- Wishlist, and a store in Traditional Chinese and English
+
+**Checkout**
+- Guest or member checkout, home delivery or convenience-store pickup
+- Card payments through Stripe; coupons and store credit
+- E-invoices issued automatically through ECPay
+
+**After the order**
+- Order tracking, returns within the seven-day period, warranty registration
+- Reward points that turn into store credit
+
+**Back office**
+- Orders, fulfilment, returns and refunds
+- Products, stock, pricing, campaigns and the home page
+- Customers, reviews and questions; staff sign-in with two-factor codes and an audit log
+
+## Built with
+
+Go · templ · htmx · PostgreSQL · Stripe · ECPay
 
 ## Try the demo
 
-Sign in with the demo account shown on the sign-in page, and pay with Stripe's
-test card 4242 4242 4242 4242.
+Sign in with the demo account shown on the sign-in page, and pay with Stripe's test card 4242 4242 4242 4242.
 
 ## Run it locally
 
