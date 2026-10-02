@@ -63,8 +63,21 @@ func TestEveryViewModelFieldIsAssigned(t *testing.T) {
 	}
 }
 
-// viewModelDirs are the two packages whose exported structs are view models.
-var viewModelDirs = []string{".", filepath.Join("..", "layouts")}
+// viewModelDirs are the packages whose exported structs are view models. The
+// back office's types are keyed under an "Admin" prefix: pages and pages/admin
+// each declare a CampaignView or an OrderView, and on the bare name a field
+// assigned in one would excuse the same name unassigned in the other.
+var viewModelDirs = []string{".", filepath.Join("..", "layouts"), "admin"}
+
+// source is one parsed file and whether it belongs to the back-office package.
+type source struct {
+	file  *ast.File
+	admin bool
+}
+
+// adminPrefix keys a back-office type apart from the storefront type of the
+// same name.
+const adminPrefix = "Admin"
 
 // declaredFields is every exported field on every exported view model, as
 // Type.Field, with the view model each of those fields holds — which is what
@@ -78,19 +91,19 @@ func declaredFields(t *testing.T) (names []string, models map[string]bool, holds
 	// `func (v PointsView) Credit() string` contributes `string` as a rival
 	// result type and the ambiguity un-resolves every `view.Notice = …`.
 	models = map[string]bool{}
-	forEachStruct(files, func(spec *ast.TypeSpec, _ *ast.StructType) {
-		models[spec.Name.Name] = true
+	forEachStruct(files, func(src source, spec *ast.TypeSpec, _ *ast.StructType) {
+		models[prefixOf(src)+spec.Name.Name] = true
 	})
 
 	holds = map[string]string{}
-	w := writes{names: map[string]bool{"": true}, models: models}
-	forEachStruct(files, func(spec *ast.TypeSpec, structType *ast.StructType) {
+	forEachStruct(files, func(src source, spec *ast.TypeSpec, structType *ast.StructType) {
+		w := writes{names: map[string]string{"": prefixOf(src)}, models: models}
 		for _, field := range structType.Fields.List {
 			for _, name := range field.Names {
 				if !name.IsExported() {
 					continue
 				}
-				key := spec.Name.Name + "." + name.Name
+				key := prefixOf(src) + spec.Name.Name + "." + name.Name
 				names = append(names, key)
 				if held := w.typeName(field.Type); held != "" {
 					holds[key] = held
@@ -103,15 +116,15 @@ func declaredFields(t *testing.T) (names []string, models map[string]bool, holds
 }
 
 // forEachStruct visits every exported struct type declared in files.
-func forEachStruct(files []*ast.File, visit func(*ast.TypeSpec, *ast.StructType)) {
-	for _, file := range files {
-		ast.Inspect(file, func(n ast.Node) bool {
+func forEachStruct(files []source, visit func(source, *ast.TypeSpec, *ast.StructType)) {
+	for _, src := range files {
+		ast.Inspect(src.file, func(n ast.Node) bool {
 			spec, ok := n.(*ast.TypeSpec)
 			if !ok || !spec.Name.IsExported() {
 				return true
 			}
 			if structType, isStruct := spec.Type.(*ast.StructType); isStruct {
-				visit(spec, structType)
+				visit(src, spec, structType)
 			}
 			return true
 		})
@@ -119,10 +132,10 @@ func forEachStruct(files []*ast.File, visit func(*ast.TypeSpec, *ast.StructType)
 }
 
 // parseDirs parses the hand-written Go in each directory.
-func parseDirs(t *testing.T, dirs ...string) []*ast.File {
+func parseDirs(t *testing.T, dirs ...string) []source {
 	t.Helper()
 
-	var out []*ast.File
+	var out []source
 	for _, dir := range dirs {
 		entries, err := os.ReadDir(dir)
 		if err != nil {
@@ -138,10 +151,18 @@ func parseDirs(t *testing.T, dirs ...string) []*ast.File {
 			if parseErr != nil {
 				t.Fatalf("parse %s: %v", path, parseErr)
 			}
-			out = append(out, file)
+			out = append(out, source{file: file, admin: filepath.Base(dir) == "admin"})
 		}
 	}
 	return out
+}
+
+// prefixOf is what keys a source's own types.
+func prefixOf(src source) string {
+	if src.admin {
+		return adminPrefix
+	}
+	return ""
 }
 
 // isHandWrittenGo reports whether path is Go this repository wrote. Tests do not
@@ -160,21 +181,21 @@ func assignedFields(t *testing.T, models map[string]bool, holds map[string]strin
 	files := repositoryGo(t)
 	returns := resultTypes(files, models)
 	out := map[string]bool{}
-	for _, file := range files {
+	for _, src := range files {
 		w := writes{
-			names: viewModelPackages(file), models: models, pkg: file.Name.Name,
+			names: viewModelPackages(src), models: models, pkg: packageKey(src),
 			returns: returns, holds: holds, out: out,
 		}
-		w.file(file)
+		w.file(src.file)
 	}
 	return out
 }
 
 // repositoryGo parses every hand-written Go file in the repository.
-func repositoryGo(t *testing.T) []*ast.File {
+func repositoryGo(t *testing.T) []source {
 	t.Helper()
 
-	var out []*ast.File
+	var out []source
 	err := filepath.WalkDir(repoRoot(t), func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -192,7 +213,10 @@ func repositoryGo(t *testing.T) []*ast.File {
 		if parseErr != nil {
 			return parseErr
 		}
-		out = append(out, file)
+		out = append(out, source{
+			file:  file,
+			admin: strings.HasSuffix(filepath.ToSlash(filepath.Dir(path)), "internal/ui/pages/admin"),
+		})
 		return nil
 	})
 	if err != nil {
@@ -204,7 +228,7 @@ func repositoryGo(t *testing.T) []*ast.File {
 // resultTypes maps a function or method NAME to the view model each of its
 // results carries. The key is a bare name because typing `h.store` needs the type
 // checker; a name bound to two different view models is dropped, not guessed.
-func resultTypes(files []*ast.File, models map[string]bool) map[string][]string {
+func resultTypes(files []source, models map[string]bool) map[string][]string {
 	candidates := map[string]map[int]map[string]bool{}
 	note := func(key string, i int, name string) {
 		if candidates[key] == nil {
@@ -215,9 +239,9 @@ func resultTypes(files []*ast.File, models map[string]bool) map[string][]string 
 		}
 		candidates[key][i][name] = true
 	}
-	for _, file := range files {
-		w := writes{names: viewModelPackages(file), models: models}
-		for _, decl := range file.Decls {
+	for _, src := range files {
+		w := writes{names: viewModelPackages(src), models: models}
+		for _, decl := range src.file.Decls {
 			fn, ok := decl.(*ast.FuncDecl)
 			if !ok || fn.Type.Results == nil {
 				continue
@@ -228,7 +252,7 @@ func resultTypes(files []*ast.File, models map[string]bool) map[string][]string 
 					continue
 				}
 				note(fn.Name.Name, i, name)
-				note(file.Name.Name+"."+fn.Name.Name, i, name)
+				note(packageKey(src)+"."+fn.Name.Name, i, name)
 			}
 		}
 	}
@@ -269,31 +293,48 @@ func flatten(list *ast.FieldList) []ast.Expr {
 	return out
 }
 
-// viewModelPackages is the set of identifiers one file uses to name the two
-// view-model packages — the import alias where there is one, and "" inside them.
-func viewModelPackages(file *ast.File) map[string]bool {
-	out := map[string]bool{}
-	if file.Name.Name == "pages" || file.Name.Name == "layouts" {
-		out[""] = true
+// packageKey names a source's package for the function-result table; the two
+// packages called admin must not share a key.
+func packageKey(src source) string {
+	if src.admin {
+		return "pages/admin"
 	}
-	for _, spec := range file.Imports {
+	return src.file.Name.Name
+}
+
+// viewModelPackages maps each identifier one file uses to name a view-model
+// package — the import alias where there is one, and "" inside them — to the
+// prefix that package's types are keyed under.
+func viewModelPackages(src source) map[string]string {
+	out := map[string]string{}
+	switch {
+	case src.admin:
+		out[""] = adminPrefix
+	case src.file.Name.Name == "pages" || src.file.Name.Name == "layouts":
+		out[""] = ""
+	}
+	for _, spec := range src.file.Imports {
 		path := strings.Trim(spec.Path.Value, `"`)
-		if path != "github.com/koopa0/goen/internal/ui/pages" &&
-			path != "github.com/koopa0/goen/internal/ui/layouts" {
+		var prefix string
+		switch path {
+		case "github.com/koopa0/goen/internal/ui/pages", "github.com/koopa0/goen/internal/ui/layouts":
+		case "github.com/koopa0/goen/internal/ui/pages/admin":
+			prefix = adminPrefix
+		default:
 			continue
 		}
 		if spec.Name != nil {
-			out[spec.Name.Name] = true
+			out[spec.Name.Name] = prefix
 			continue
 		}
-		out[filepath.Base(path)] = true
+		out[filepath.Base(path)] = prefix
 	}
 	return out
 }
 
 // writes collects the Type.Field pairs one file assigns.
 type writes struct {
-	names   map[string]bool
+	names   map[string]string
 	models  map[string]bool
 	pkg     string
 	returns map[string][]string
@@ -346,6 +387,13 @@ func (w *writes) function(fn *ast.FuncDecl) {
 
 	ast.Inspect(fn, func(n ast.Node) bool {
 		switch node := n.(type) {
+		case *ast.FuncLit:
+			// A closure's parameter is how a refusal reaches the view it fills.
+			for _, param := range fields(node.Type.Params) {
+				for _, name := range param.Names {
+					bind(name, w.typeName(param.Type))
+				}
+			}
 		case *ast.ValueSpec:
 			for _, name := range node.Names {
 				bind(name, w.typeName(node.Type))
@@ -448,13 +496,16 @@ func (w *writes) typeName(typ ast.Expr) string {
 	case *ast.MapType:
 		return w.typeName(t.Value)
 	case *ast.Ident:
-		if w.names[""] && w.models[t.Name] {
-			return t.Name
+		if prefix, ok := w.names[""]; ok && w.models[prefix+t.Name] {
+			return prefix + t.Name
 		}
 	case *ast.SelectorExpr:
 		pkg, ok := t.X.(*ast.Ident)
-		if ok && w.names[pkg.Name] && w.models[t.Sel.Name] {
-			return t.Sel.Name
+		if !ok {
+			return ""
+		}
+		if prefix, named := w.names[pkg.Name]; named && w.models[prefix+t.Sel.Name] {
+			return prefix + t.Sel.Name
 		}
 	}
 	return ""

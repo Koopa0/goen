@@ -387,7 +387,7 @@ templ Account(p layouts.Page, v *AccountView) {
 								<a href="/">{ i18n.T(ctx, i18n.KeyNoOrdersLink) }</a>
 							</p>
 						}
-						@listBound(v.OrdersBound)
+						@ListPager(v.OrdersBound)
 					</section>
 					<section class="goen-card goen-account__section" aria-labelledby="profile-heading">
 						<h2 class="goen-account__heading" id="profile-heading">{ i18n.T(ctx, i18n.KeyProfile) }</h2>
@@ -474,12 +474,12 @@ templ Account(p layouts.Page, v *AccountView) {
 											{ i18n.T(ctx, i18n.KeyFieldLabelOpt) }
 										}
 										@components.Input(components.FieldProps{
-											ID:   "addr-label",
-											Value: v.AddrValue("label"),
-											Invalid: v.AddrInvalid("label"),
+											ID:        "addr-label",
+											Value:     v.AddrValue("label"),
+											Invalid:   v.AddrInvalid("label"),
 											Describes: "addr-label-error",
-											Name: "label",
-											Type: "text",
+											Name:      "label",
+											Type:      "text",
 											Attrs: templ.Attributes{
 												"maxlength":    "30",
 												"autocomplete": "off",
@@ -495,13 +495,13 @@ templ Account(p layouts.Page, v *AccountView) {
 											{ i18n.T(ctx, i18n.KeyFieldRecipient) }
 										}
 										@components.Input(components.FieldProps{
-											ID:    "addr-name",
-											Value: v.AddrValue("name"),
-											Invalid: v.AddrInvalid("name"),
+											ID:        "addr-name",
+											Value:     v.AddrValue("name"),
+											Invalid:   v.AddrInvalid("name"),
 											Describes: "addr-name-error",
-											Name:  "name",
-											Type:  "text",
-											Attrs: templ.Attributes{"required": true, "maxlength": "60", "autocomplete": "name"},
+											Name:      "name",
+											Type:      "text",
+											Attrs:     templ.Attributes{"required": true, "maxlength": "60", "autocomplete": "name"},
 										})
 										if v.AddrInvalid("name") {
 											<p class="ui-error-text" id="addr-name-error" role="alert">{ v.AddrErr("name") }</p>
@@ -512,9 +512,9 @@ templ Account(p layouts.Page, v *AccountView) {
 											{ i18n.T(ctx, i18n.KeyFieldPhoneShort) }
 										}
 										@components.Input(components.FieldProps{
-											ID:    "addr-phone",
-											Value: v.AddrValue("phone"),
-											Invalid: v.AddrInvalid("phone"),
+											ID:        "addr-phone",
+											Value:     v.AddrValue("phone"),
+											Invalid:   v.AddrInvalid("phone"),
 											Describes: "addr-phone-error",
 											Name:  "phone",
 											Type:  "tel",
@@ -529,9 +529,9 @@ templ Account(p layouts.Page, v *AccountView) {
 											{ i18n.T(ctx, i18n.KeyFieldPostalCode) }
 										}
 										@components.Input(components.FieldProps{
-											ID:   "addr-postal",
-											Value: v.AddrValue("postal_code"),
-											Invalid: v.AddrInvalid("postal_code"),
+											ID:        "addr-postal",
+											Value:     v.AddrValue("postal_code"),
+											Invalid:   v.AddrInvalid("postal_code"),
 											Describes: "addr-postal-error",
 											Name: "postal_code",
 											Type: "text",
@@ -550,13 +550,13 @@ templ Account(p layouts.Page, v *AccountView) {
 											{ i18n.T(ctx, i18n.KeyFieldCity) }
 										}
 										@components.Input(components.FieldProps{
-											ID:    "addr-city",
-											Value: v.AddrValue("city"),
-											Invalid: v.AddrInvalid("city"),
+											ID:        "addr-city",
+											Value:     v.AddrValue("city"),
+											Invalid:   v.AddrInvalid("city"),
 											Describes: "addr-city-error",
-											Name:  "city",
-											Type:  "text",
-											Attrs: templ.Attributes{"required": true, "maxlength": "20", "autocomplete": "address-level1"},
+											Name:      "city",
+											Type:      "text",
+											Attrs:     templ.Attributes{"required": true, "maxlength": "20", "autocomplete": "address-level1"},
 										})
 										if v.AddrInvalid("city") {
 											<p class="ui-error-text" id="addr-city-error" role="alert">{ v.AddrErr("city") }</p>
@@ -567,13 +567,13 @@ templ Account(p layouts.Page, v *AccountView) {
 											{ i18n.T(ctx, i18n.KeyFieldDistrict) }
 										}
 										@components.Input(components.FieldProps{
-											ID:    "addr-district",
-											Value: v.AddrValue("district"),
-											Invalid: v.AddrInvalid("district"),
+											ID:        "addr-district",
+											Value:     v.AddrValue("district"),
+											Invalid:   v.AddrInvalid("district"),
 											Describes: "addr-district-error",
-											Name:  "district",
-											Type:  "text",
-											Attrs: templ.Attributes{"required": true, "maxlength": "20", "autocomplete": "address-level2"},
+											Name:      "district",
+											Type:      "text",
+											Attrs:     templ.Attributes{"required": true, "maxlength": "20", "autocomplete": "address-level2"},
 										})
 										if v.AddrInvalid("district") {
 											<p class="ui-error-text" id="addr-district-error" role="alert">{ v.AddrErr("district") }</p>
@@ -584,13 +584,13 @@ templ Account(p layouts.Page, v *AccountView) {
 											{ i18n.T(ctx, i18n.KeyFieldStreet) }
 										}
 										@components.Input(components.FieldProps{
-											ID:    "addr-street",
-											Value: v.AddrValue("street"),
-											Invalid: v.AddrInvalid("street"),
+											ID:        "addr-street",
+											Value:     v.AddrValue("street"),
+											Invalid:   v.AddrInvalid("street"),
 											Describes: "addr-street-error",
-											Name:  "street",
-											Type:  "text",
-											Attrs: templ.Attributes{"required": true, "maxlength": "200", "autocomplete": "street-address"},
+											Name:      "street",
+											Type:      "text",
+											Attrs:     templ.Attributes{"required": true, "maxlength": "200", "autocomplete": "street-address"},
 										})
 										if v.AddrInvalid("street") {
 											<p class="ui-error-text" id="addr-street-error" role="alert">{ v.AddrErr("street") }</p>

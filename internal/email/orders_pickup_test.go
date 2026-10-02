@@ -39,6 +39,7 @@ func TestADispatchNoticeLinksTheCarriersTrackingPage(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			n, sink := notifier(t)
 			if err := n.SendOrderShipped(t.Context(), &OrderShipped{
 				Locale: "zh-TW", Email: "a@b.co", Name: "Alex", OrderNumber: "GO-1",

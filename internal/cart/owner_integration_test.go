@@ -52,9 +52,9 @@ func TestACartTokenReachesAnOwnedCartOnlyForItsOwner(t *testing.T) {
 		{"no such cart", ownedToken + "x", owner, uuid.Nil, cart.ErrNotFound},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := s.CartByToken(t.Context(), tt.token, tt.requester)
+			got, err := s.ByToken(t.Context(), tt.token, tt.requester)
 			if got != tt.want || !errors.Is(err, tt.wantErr) {
-				t.Errorf("CartByToken = %s/%v, want %s/%v", got, err, tt.want, tt.wantErr)
+				t.Errorf("ByToken = %s/%v, want %s/%v", got, err, tt.want, tt.wantErr)
 			}
 		})
 	}

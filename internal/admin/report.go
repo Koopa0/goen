@@ -6,7 +6,7 @@ import (
 	"slices"
 
 	"github.com/koopa0/goen/internal/db"
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 // reportWindows are the periods the report offers.
@@ -19,35 +19,35 @@ const DefaultWindow int32 = 30
 const MaxReportRows = 10
 
 // Report reads the numbers for one window.
-func (s *Store) Report(ctx context.Context, days int32) (pages.AdminReportView, error) {
+func (s *Store) Report(ctx context.Context, days int32) (admin.ReportView, error) {
 	if !validWindow(days) {
 		days = DefaultWindow
 	}
 
 	revenue, err := s.q.RevenueSince(ctx, days)
 	if err != nil {
-		return pages.AdminReportView{}, fmt.Errorf("read revenue: %w", err)
+		return admin.ReportView{}, fmt.Errorf("read revenue: %w", err)
 	}
 	completion, err := s.q.CheckoutCompletionSince(ctx, days)
 	if err != nil {
-		return pages.AdminReportView{}, fmt.Errorf("read completion: %w", err)
+		return admin.ReportView{}, fmt.Errorf("read completion: %w", err)
 	}
 	sellers, err := s.q.BestSellersSince(ctx, db.BestSellersSinceParams{
 		WindowDays: days, LimitTo: MaxReportRows,
 	})
 	if err != nil {
-		return pages.AdminReportView{}, fmt.Errorf("read best sellers: %w", err)
+		return admin.ReportView{}, fmt.Errorf("read best sellers: %w", err)
 	}
 	risk, err := s.q.StockAtRisk(ctx, db.StockAtRiskParams{
 		WindowDays: days, LimitTo: MaxReportRows,
 	})
 	if err != nil {
-		return pages.AdminReportView{}, fmt.Errorf("read stock at risk: %w", err)
+		return admin.ReportView{}, fmt.Errorf("read stock at risk: %w", err)
 	}
 
 	windows := make([]int32, len(reportWindows))
 	copy(windows, reportWindows[:])
-	view := pages.AdminReportView{
+	view := admin.ReportView{
 		Days:         int(days),
 		Orders:       revenue.Orders,
 		RevenueCents: revenue.RevenueCents, RefundedCents: revenue.RefundedCents,
@@ -58,14 +58,14 @@ func (s *Store) Report(ctx context.Context, days int32) (pages.AdminReportView, 
 	}
 	for i := range sellers {
 		r := &sellers[i]
-		view.Sellers = append(view.Sellers, pages.AdminSeller{
+		view.Sellers = append(view.Sellers, admin.Seller{
 			Slug: r.Slug, Name: r.Name, Brand: r.Brand,
 			Units: r.Units, RevenueCents: r.RevenueCents,
 		})
 	}
 	for i := range risk {
 		r := &risk[i]
-		view.AtRisk = append(view.AtRisk, pages.AdminStockRisk{
+		view.AtRisk = append(view.AtRisk, admin.StockRisk{
 			SKU: r.SKU, Name: r.ProductName, Slug: r.Slug,
 			Stock: r.StockQuantity, Safety: r.SafetyStock,
 			Sold: r.UnitsSold, DaysCover: int(r.DaysCover),

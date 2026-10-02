@@ -26,6 +26,9 @@ func (s *Store) Compare(ctx context.Context, slugs []string) (pages.CompareView,
 		return pages.CompareView{}, fmt.Errorf("read comparison: %w", err)
 	}
 	view := pages.CompareView{Dropped: dropped}
+	if len(rows) > 0 {
+		view.ShelfSlug = rows[0].CategorySlug
+	}
 	at := make(map[string]int, len(rows))
 	for i := range rows {
 		r := &rows[i]
@@ -42,6 +45,12 @@ func (s *Store) Compare(ctx context.Context, slugs []string) (pages.CompareView,
 		})
 	}
 	if len(view.Products) == 0 {
+		return view, nil
+	}
+	if len(view.Products) < pages.MinCompare {
+		if view.Suggestions, err = s.compareSuggestions(ctx, &view.Products[0], slugs); err != nil {
+			return pages.CompareView{}, err
+		}
 		return view, nil
 	}
 
@@ -88,4 +97,38 @@ func normaliseSlugs(raw []string) (out []string, dropped bool) {
 		out = append(out, s)
 	}
 	return out, false
+}
+
+// suggestionCount is how many products a one-product comparison offers.
+const suggestionCount = 6
+
+// compareSuggestions reads what to compare a lone product with, as the tiles
+// the rest of the shop draws a product with.
+func (s *Store) compareSuggestions(ctx context.Context, anchor *pages.CompareProduct, chosen []string) ([]pages.ProductTile, error) {
+	rows, err := s.q.CompareSuggestions(ctx, db.CompareSuggestionsParams{
+		Locale:       string(i18n.FromContext(ctx)),
+		ProductSlug:  anchor.Slug,
+		ExcludeSlugs: chosen,
+		AnchorCents:  anchor.PriceCents,
+		RowLimit:     suggestionCount,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("read comparison suggestions: %w", err)
+	}
+	return suggestionTiles(rows), nil
+}
+
+func suggestionTiles(rows []db.CompareSuggestionsRow) []pages.ProductTile {
+	out := make([]pages.ProductTile, 0, len(rows))
+	for i := range rows {
+		r := &rows[i]
+		out = append(out, pages.ProductTile{
+			Slug: r.Slug, Name: r.Name, Brand: r.Brand,
+			PriceCents: r.MinPriceCents, PriceVaries: r.PriceVaries,
+			ImageURL:    assets.ProductImageURL(r.ImageKey),
+			ImageSrcset: assets.ProductImageSrcsetAt(r.ImageKey, int(r.ImageWidth)),
+			ImageAlt:    r.ImageAlt, ImageWidth: r.ImageWidth, ImageHeight: r.ImageHeight,
+		})
+	}
+	return out
 }

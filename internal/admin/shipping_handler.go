@@ -12,7 +12,7 @@ import (
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -41,8 +41,8 @@ func (h *Handler) CreateShippingMethod(w http.ResponseWriter, r *http.Request) {
 }
 
 // methodFormOf parses reachability limits while retaining their exact text.
-func methodFormOf(r *http.Request) (*NewMethod, pages.AdminMethodDraft, map[string]string) {
-	draft := pages.AdminMethodDraft{
+func methodFormOf(r *http.Request) (*NewMethod, admin.MethodDraft, map[string]string) {
+	draft := admin.MethodDraft{
 		Code: r.PostFormValue("code"), Destination: r.PostFormValue("destination"),
 		Name: r.PostFormValue("name"), NameEn: r.PostFormValue("name_en"),
 		Carrier: r.PostFormValue("carrier"), CarrierEn: r.PostFormValue("carrier_en"),
@@ -118,7 +118,7 @@ func (h *Handler) CreateShippingZone(w http.ResponseWriter, r *http.Request) {
 		h.log.ErrorContext(r.Context(), "create shipping zone", "error", err)
 		h.serverError(w, r)
 	case len(errs) > 0:
-		h.rejectShippingForm(w, r, errs, &shippingDrafts{zone: pages.AdminZoneDraft{
+		h.rejectShippingForm(w, r, errs, &shippingDrafts{zone: admin.ZoneDraft{
 			Code: z.Code, Name: z.Name, NameEn: z.NameEn, Prefixes: z.Prefixes,
 		}})
 	default:
@@ -142,7 +142,7 @@ func (h *Handler) SetZonePrefixes(w http.ResponseWriter, r *http.Request) {
 		h.log.ErrorContext(r.Context(), "set zone prefixes", "error", err)
 		h.serverError(w, r)
 	case len(errs) > 0:
-		h.rejectShippingForm(w, r, errs, &shippingDrafts{prefixes: pages.AdminZonePrefixesDraft{
+		h.rejectShippingForm(w, r, errs, &shippingDrafts{prefixes: admin.ZonePrefixesDraft{
 			ZoneID: zoneID, Prefixes: prefixes,
 		}})
 	default:
@@ -169,9 +169,9 @@ func (h *Handler) DeleteShippingZone(w http.ResponseWriter, r *http.Request) {
 }
 
 type shippingDrafts struct {
-	method   pages.AdminMethodDraft
-	zone     pages.AdminZoneDraft
-	prefixes pages.AdminZonePrefixesDraft
+	method   admin.MethodDraft
+	zone     admin.ZoneDraft
+	prefixes admin.ZonePrefixesDraft
 }
 
 // rejectShippingForm re-renders /admin/shipping at 422 with what was typed in it.
@@ -185,7 +185,7 @@ func (h *Handler) rejectShippingForm(
 	}
 	view.Errors = errs
 	view.MethodDraft, view.ZoneDraft, view.PrefixDraft = drafts.method, drafts.zone, drafts.prefixes
-	web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.AdminShipping(
+	web.Render(w, r, h.log, http.StatusUnprocessableEntity, admin.Shipping(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageShipping)}, view))
 }
 
@@ -203,7 +203,7 @@ func dollars(v string, blankOK bool) (int64, bool) {
 // shippingView is the configuration with each pickup-point method marked as not
 // offered where checkout hides it: a method listed here with a disable button
 // reads as live, and the same condition as the checkout is what keeps it true.
-func (h *Handler) shippingView(ctx context.Context) (pages.AdminShippingView, error) {
+func (h *Handler) shippingView(ctx context.Context) (admin.ShippingView, error) {
 	view, err := h.store.Shipping(ctx)
 	if err != nil {
 		return view, err
@@ -225,7 +225,7 @@ func (h *Handler) Shipping(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	view.Notice = noticeFor(r)
-	web.Render(w, r, h.log, http.StatusOK, pages.AdminShipping(
+	web.Render(w, r, h.log, http.StatusOK, admin.Shipping(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageShipping)}, view))
 }
 

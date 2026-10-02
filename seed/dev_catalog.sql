@@ -47,6 +47,10 @@ INSERT INTO categories (id, parent_id, slug, name, name_en, icon_key, position) 
     ('0000000c-0000-4000-8000-00000000000c', '0000000b-0000-4000-8000-00000000000b', 'chargers', '充電與線材', 'Charging and cables', 'plug', 0),
     ('0000000d-0000-4000-8000-00000000000d', '0000000b-0000-4000-8000-00000000000b', 'cases', '保護殼與包', 'Cases and bags', 'shield', 1);
 
+-- Only technology is compared: its products state the same specifications, and a
+-- sub-category inherits the department's answer.
+UPDATE categories SET comparable = true WHERE slug = 'tech';
+
 -- Each department's ground tone and header photograph; its sub-categories inherit both.
 -- The key names a file in assets/media/products/, where image keys resolve.
 UPDATE categories c

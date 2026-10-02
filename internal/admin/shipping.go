@@ -14,16 +14,17 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 // MaxShippingFee bounds a fee a staff member can publish.
 const MaxShippingFee = 500000
 
 // Shipping reads what the back office may change about delivery.
-func (s *Store) Shipping(ctx context.Context) (pages.AdminShippingView, error) {
+func (s *Store) Shipping(ctx context.Context) (admin.ShippingView, error) {
 	rows, err := s.q.AdminShippingMethods(ctx)
 	if err != nil {
-		return pages.AdminShippingView{}, fmt.Errorf("read shipping methods: %w", err)
+		return admin.ShippingView{}, fmt.Errorf("read shipping methods: %w", err)
 	}
 
 	versionIDs := make([]uuid.UUID, 0, len(rows))
@@ -32,13 +33,13 @@ func (s *Store) Shipping(ctx context.Context) (pages.AdminShippingView, error) {
 	}
 	zoneRows, err := s.q.AdminVersionZones(ctx, versionIDs)
 	if err != nil {
-		return pages.AdminShippingView{}, fmt.Errorf("read version zones: %w", err)
+		return admin.ShippingView{}, fmt.Errorf("read version zones: %w", err)
 	}
 
-	view := pages.AdminShippingView{}
+	view := admin.ShippingView{}
 	for i := range rows {
 		m := &rows[i]
-		method := pages.AdminShippingMethod{
+		method := admin.ShippingMethod{
 			MethodID: m.MethodID.String(), VersionID: m.VersionID.String(),
 			Code: m.Code, Destination: m.DestinationKind, Name: m.Name,
 			Carrier: m.Carrier.String, FeeCents: m.FeeCents,
@@ -51,7 +52,7 @@ func (s *Store) Shipping(ctx context.Context) (pages.AdminShippingView, error) {
 		}
 		for j := range zoneRows {
 			z := &zoneRows[j]
-			method.Surcharges = append(method.Surcharges, pages.AdminZoneSurcharge{
+			method.Surcharges = append(method.Surcharges, admin.ZoneSurcharge{
 				ZoneID: z.ZoneID.String(), Code: z.Code, Name: z.Name,
 				Cents: z.SurchargeCents, Formatted: pages.TWD(z.SurchargeCents),
 			})
@@ -61,11 +62,11 @@ func (s *Store) Shipping(ctx context.Context) (pages.AdminShippingView, error) {
 
 	zones, err := s.q.AdminShippingZones(ctx)
 	if err != nil {
-		return pages.AdminShippingView{}, fmt.Errorf("read shipping zones: %w", err)
+		return admin.ShippingView{}, fmt.Errorf("read shipping zones: %w", err)
 	}
 	for i := range zones {
 		z := &zones[i]
-		view.Zones = append(view.Zones, pages.AdminShippingZone{
+		view.Zones = append(view.Zones, admin.ShippingZone{
 			ID: z.ID.String(), Code: z.Code, Name: z.Name, NameEn: z.NameEn,
 			Prefixes: z.Prefixes, PrefixCount: z.PrefixCount,
 		})

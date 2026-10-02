@@ -5,10 +5,8 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
-	"net/url"
 	"regexp"
 	"runtime/debug"
-	"slices"
 	"strings"
 	"time"
 
@@ -36,7 +34,6 @@ import (
 	"github.com/koopa0/goen/internal/site"
 	"github.com/koopa0/goen/internal/twofactor"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/warranty"
 	"github.com/koopa0/goen/internal/web"
 )
@@ -209,7 +206,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	mux.HandleFunc("GET /healthz", probes.Live)
 	mux.HandleFunc("GET /readyz", probes.Ready)
 
-	mux.HandleFunc("GET /{$}", storefront.Home)
+	mux.HandleFunc("GET /{$}", storefront.Index)
 	// The digest in the path is the only authorisation an image has, and it is
 	// unguessable by construction.
 	mux.HandleFunc("GET /media/{digest}", images.Serve)
@@ -770,36 +767,15 @@ func productFormSlug(path string) (string, bool) {
 	return "", false
 }
 
-// localeReturnPath computes the target path to send a visitor back to after a
-// language switch. RawQuery is dropped to avoid carrying a search term or
-// sensitive parameter into a redirect target; only /compare preserves a
-// bounded allowlist of public product slugs.
+// localeReturnPath is where a language switch sends the visitor back: the page
+// they are on, query string included, so a search term, a filter or a chosen
+// option survives the switch. The switch's handler still refuses anything but a
+// same-site path.
 func localeReturnPath(r *http.Request) string {
 	if slug, ok := productFormSlug(r.URL.Path); ok {
 		return "/p/" + slug
 	}
-	if r.URL.Path != "/compare" {
-		return r.URL.Path
-	}
-	raw := r.URL.Query()["p"]
-	if len(raw) == 0 {
-		return "/compare"
-	}
-	out := make([]string, 0, pages.MaxCompare)
-	for _, s := range raw {
-		if !slugFormat.MatchString(s) || slices.Contains(out, s) {
-			continue
-		}
-		out = append(out, s)
-		if len(out) == pages.MaxCompare {
-			break
-		}
-	}
-	if len(out) == 0 {
-		return "/compare"
-	}
-	q := url.Values{"p": out}
-	return "/compare?" + q.Encode()
+	return r.URL.RequestURI()
 }
 
 // withLocale attaches the request's language to its context.
@@ -810,9 +786,7 @@ func withLocale(next http.Handler, secure bool) http.Handler {
 		// a page somebody else asked for.
 		w.Header().Add("Vary", "Accept-Language, Cookie")
 		ctx := i18n.WithLocale(r.Context(), l)
-		// The path, so the language switch can send the visitor back. RawQuery
-		// is dropped: it would carry a search term into a redirect target.
-		// /compare preserves a bounded allowlist of public comparison slugs.
+		// The path and query, so the language switch can send the visitor back.
 		ctx = web.WithRequestPath(ctx, localeReturnPath(r))
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})

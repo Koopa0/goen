@@ -82,7 +82,7 @@ templ Listing(p layouts.Page, v ListingView) {
 						// The grid's heading, visually hidden: without it a tile's h3 skips a level.
 						<h2 class="goen-sr-only">{ i18n.T(ctx, i18n.KeyResultsHeading) }</h2>
 						<p class="goen-listing__count">{ i18n.Count(ctx, i18n.KeyListingCount, v.Total, v.TotalText()) }</p>
-						@compareForm() {
+						@compareForm(AnyComparable(v.Grid()) || AnyComparable(v.Featured())) {
 							<ul class="goen-tiles__grid" role="list">
 								for _, t := range v.Grid() {
 									@Tile(t)
@@ -287,7 +287,7 @@ templ Search(p layouts.Page, v SearchView) {
 			} else {
 				// The grid's heading, visually hidden: without it a tile's h3 skips a level.
 				<h2 class="goen-sr-only">{ i18n.T(ctx, i18n.KeyResultsHeading) }</h2>
-				@compareForm() {
+				@compareForm(AnyComparable(v.Products)) {
 					<ul class="goen-tiles__grid" role="list">
 						for _, t := range FirstRowEager(v.Products) {
 							@Tile(t)

@@ -14,7 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/db"
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 // Store is the database side of the second factor.
@@ -175,19 +175,19 @@ func (s *Store) load(ctx context.Context, userID string, requireConfirmed bool) 
 }
 
 // Staff reads who can reach the back office and who is protected.
-func (s *Store) Staff(ctx context.Context) (pages.AdminStaffView, error) {
+func (s *Store) Staff(ctx context.Context) (admin.StaffView, error) {
 	rows, err := s.q.StaffTOTPStatus(ctx)
 	if err != nil {
-		return pages.AdminStaffView{}, fmt.Errorf("read staff 2FA status: %w", err)
+		return admin.StaffView{}, fmt.Errorf("read staff 2FA status: %w", err)
 	}
-	view := pages.AdminStaffView{Rows: make([]pages.AdminStaffRow, 0, len(rows))}
+	view := admin.StaffView{Rows: make([]admin.StaffRow, 0, len(rows))}
 	// Cloned: a slice of the package-level array would let a caller write through it.
-	view.Roles = slices.Clone(pages.StaffRoles[:])
+	view.Roles = slices.Clone(admin.StaffRoles[:])
 	for i := range rows {
 		r := &rows[i]
-		view.Rows = append(view.Rows, pages.AdminStaffRow{
+		view.Rows = append(view.Rows, admin.StaffRow{
 			ID: r.ID.String(), Email: r.Email, Name: r.FullName,
-			Role: pages.StaffRole(r.Role), Enrolled: r.Enrolled,
+			Role: admin.StaffRole(r.Role), Enrolled: r.Enrolled,
 		})
 	}
 	return view, nil

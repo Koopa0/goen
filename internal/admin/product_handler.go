@@ -9,7 +9,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/media"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -22,7 +22,7 @@ func (h *Handler) Products(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	view.Notice = noticeFor(r)
-	web.Render(w, r, h.log, http.StatusOK, pages.AdminProducts(
+	web.Render(w, r, h.log, http.StatusOK, admin.Products(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageProducts)}, view))
 }
 
@@ -34,7 +34,7 @@ func (h *Handler) NewProduct(w http.ResponseWriter, r *http.Request) {
 		h.serverError(w, r)
 		return
 	}
-	web.Render(w, r, h.log, http.StatusOK, pages.AdminProductForm(
+	web.Render(w, r, h.log, http.StatusOK, admin.ProductForm(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageNewProduct)}, view))
 }
 
@@ -92,12 +92,12 @@ func (h *Handler) renderProduct(w http.ResponseWriter, r *http.Request, status i
 		h.log.ErrorContext(r.Context(), "read recent uploads", "error", recentErr)
 	} else {
 		for _, obj := range recent {
-			view.Library = append(view.Library, pages.AdminImage{
+			view.Library = append(view.Library, admin.Image{
 				Key: obj.Digest, Width: obj.Width, Height: obj.Height,
 			})
 		}
 	}
-	web.Render(w, r, h.log, status, pages.AdminProductForm(
+	web.Render(w, r, h.log, status, admin.ProductForm(
 		layouts.Page{Title: view.Name}, view))
 }
 
@@ -175,8 +175,8 @@ func (h *Handler) AddVariant(w http.ResponseWriter, r *http.Request) {
 }
 
 // variantFormOf parses the variant while retaining every submitted value.
-func variantFormOf(r *http.Request) (*VariantForm, pages.AdminVariantDraft, map[string]string) {
-	draft := pages.AdminVariantDraft{
+func variantFormOf(r *http.Request) (*VariantForm, admin.VariantDraft, map[string]string) {
+	draft := admin.VariantDraft{
 		SKU: r.PostFormValue("sku"), Price: r.PostFormValue("price"),
 		Compare: r.PostFormValue("compare"), Safety: r.PostFormValue("safety"),
 		ParcelLongest:  r.PostFormValue("parcel_longest"),
@@ -255,7 +255,7 @@ func productFormOf(r *http.Request) (form *ProductForm, errs map[string]string) 
 
 // rejectProduct re-renders the form at 422 with what was typed still in it.
 func (h *Handler) rejectProduct(w http.ResponseWriter, r *http.Request, f *ProductForm, errs map[string]string, isNew bool) {
-	var view pages.AdminProductView
+	var view admin.ProductView
 	var err error
 	if isNew {
 		view, err = h.store.NewProduct(r.Context())
@@ -275,7 +275,7 @@ func (h *Handler) rejectProduct(w http.ResponseWriter, r *http.Request, f *Produ
 	view.DescriptionEn = f.DescriptionEn
 	view.BrandID, view.CategoryID = f.BrandID, f.CategoryID
 	view.Errors = errs
-	web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.AdminProductForm(
+	web.Render(w, r, h.log, http.StatusUnprocessableEntity, admin.ProductForm(
 		layouts.Page{Title: view.Title(r.Context())}, view))
 }
 
@@ -427,7 +427,7 @@ func (h *Handler) optionWrite(
 		return
 	}
 	slug := r.PathValue("slug")
-	draft := pages.AdminVariantDraft{
+	draft := admin.VariantDraft{
 		OptionName: r.PostFormValue("name"), OptionNameEn: r.PostFormValue("name_en"),
 		ValueOption: r.PostFormValue("option"), Value: r.PostFormValue("value"),
 		ValueEn: r.PostFormValue("value_en"), Swatch: r.PostFormValue("swatch_hex"),
@@ -471,7 +471,7 @@ func (h *Handler) AddSpec(w http.ResponseWriter, r *http.Request) {
 		//nolint:gosec // G710: slug is the route's own path value
 		http.Redirect(w, r, "/admin/products/"+slug+"?specfailed=1", http.StatusSeeOther)
 	case len(errs) > 0:
-		h.editProductWithErrors(w, r, slug, errs, &pages.AdminVariantDraft{})
+		h.editProductWithErrors(w, r, slug, errs, &admin.VariantDraft{})
 	default:
 		//nolint:gosec // G710: slug is the route's own path value
 		http.Redirect(w, r, "/admin/products/"+slug+"?ok=1", http.StatusSeeOther)
@@ -494,7 +494,7 @@ func (h *Handler) RemoveSpec(w http.ResponseWriter, r *http.Request) {
 
 // editProductWithErrors re-renders the edit page at 422 with the refusals on it.
 func (h *Handler) editProductWithErrors(
-	w http.ResponseWriter, r *http.Request, slug string, errs map[string]string, draft *pages.AdminVariantDraft,
+	w http.ResponseWriter, r *http.Request, slug string, errs map[string]string, draft *admin.VariantDraft,
 ) {
 	view, err := h.store.Product(r.Context(), slug)
 	if err != nil {
@@ -508,7 +508,7 @@ func (h *Handler) editProductWithErrors(
 	}
 	view.Errors = errs
 	view.VariantDraft = *draft
-	web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.AdminProductForm(
+	web.Render(w, r, h.log, http.StatusUnprocessableEntity, admin.ProductForm(
 		layouts.Page{Title: view.Title(r.Context())}, view))
 }
 

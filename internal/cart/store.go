@@ -39,13 +39,13 @@ func NewStore(pool *pgxpool.Pool) *Store {
 	return &Store{pool: pool, q: db.New(pool)}
 }
 
-// CartByToken returns the cart a token names if requester, the signed-in
+// ByToken returns the cart a token names if requester, the signed-in
 // account or invalid for a signed-out visitor, may use it. A cart attached to
 // an account answers only to that account: adoption keeps the token the
 // browser already holds, so after sign-out, or for the next customer at a
 // shared computer, the token still names the account's cart. That is
 // ErrNotYourCart, and the token is stale.
-func (s *Store) CartByToken(ctx context.Context, token string, requester uuid.NullUUID) (uuid.UUID, error) {
+func (s *Store) ByToken(ctx context.Context, token string, requester uuid.NullUUID) (uuid.UUID, error) {
 	if token == "" {
 		return uuid.Nil, ErrNotFound
 	}
@@ -86,7 +86,7 @@ func (s *Store) ownedCartIfTaken(ctx context.Context, userID uuid.NullUUID, err 
 	if !ok || pgErr.ConstraintName != "carts_one_per_user" {
 		return uuid.Nil, false
 	}
-	existing, readErr := s.CartForUser(ctx, userID.UUID.String())
+	existing, readErr := s.ForUser(ctx, userID.UUID.String())
 	if readErr != nil {
 		return uuid.Nil, false
 	}
@@ -977,7 +977,9 @@ func (s *Store) OrderBelongsTo(ctx context.Context, number, userID string) (bool
 
 // Order reads a placed order for the confirmation page.
 func (s *Store) Order(ctx context.Context, number string) (pages.OrderView, error) {
-	o, err := s.q.OrderSummaryByNumber(ctx, number)
+	o, err := s.q.OrderSummaryByNumber(ctx, db.OrderSummaryByNumberParams{
+		Number: number, Locale: i18n.FromContext(ctx).Tag(),
+	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return pages.OrderView{}, ErrNotFound

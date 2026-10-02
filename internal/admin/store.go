@@ -24,6 +24,7 @@ import (
 	"github.com/koopa0/goen/internal/pickup"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -79,12 +80,12 @@ func NewStore(pool *pgxpool.Pool, refunder Refunder, reader InvoiceReader, write
 }
 
 // Dashboard reads the back office landing page.
-func (s *Store) Dashboard(ctx context.Context) (pages.AdminDashboardView, error) {
+func (s *Store) Dashboard(ctx context.Context) (admin.DashboardView, error) {
 	sum, err := s.q.AdminSummary(ctx)
 	if err != nil {
-		return pages.AdminDashboardView{}, fmt.Errorf("read summary: %w", err)
+		return admin.DashboardView{}, fmt.Errorf("read summary: %w", err)
 	}
-	view := pages.AdminDashboardView{
+	view := admin.DashboardView{
 		PendingOrders:  sum.PendingOrders,
 		ReadyOrders:    sum.ReadyOrders,
 		PickingOrders:  sum.PickingOrders,
@@ -98,7 +99,7 @@ func (s *Store) Dashboard(ctx context.Context) (pages.AdminDashboardView, error)
 	// hides the order somebody is standing at the counter asking about.
 	recent, err := s.q.AdminOrders(ctx, db.AdminOrdersParams{RowLimit: DashboardRows})
 	if err != nil {
-		return pages.AdminDashboardView{}, fmt.Errorf("read recent orders: %w", err)
+		return admin.DashboardView{}, fmt.Errorf("read recent orders: %w", err)
 	}
 	for i := range recent {
 		view.Recent = append(view.Recent, orderRow(ctx, &recent[i]))
@@ -106,7 +107,7 @@ func (s *Store) Dashboard(ctx context.Context) (pages.AdminDashboardView, error)
 
 	low, err := s.q.AdminVariants(ctx, db.AdminVariantsParams{LowOnly: true, RowLimit: 10})
 	if err != nil {
-		return pages.AdminDashboardView{}, fmt.Errorf("read low stock: %w", err)
+		return admin.DashboardView{}, fmt.Errorf("read low stock: %w", err)
 	}
 	for i := range low {
 		view.Low = append(view.Low, variantRow(&low[i]))
@@ -121,9 +122,9 @@ const DashboardRows = 8
 // orderRow is one order as both the queue and the landing page render it. The
 // total is assembled here rather than in the query because the storefront's
 // own order view computes it the same way from the same four columns.
-func orderRow(ctx context.Context, o *db.AdminOrdersRow) pages.AdminOrderRow {
+func orderRow(ctx context.Context, o *db.AdminOrdersRow) admin.OrderRow {
 	fulfillment := pages.FulfillmentStatus(o.FulfillmentStatus)
-	return pages.AdminOrderRow{
+	return admin.OrderRow{
 		Number:     o.OrderNumber,
 		Status:     fulfillment,
 		StatusText: FundedStatusLabel(ctx, fulfillment, o.Committed, o.OwedCents),
@@ -135,7 +136,7 @@ func orderRow(ctx context.Context, o *db.AdminOrdersRow) pages.AdminOrderRow {
 }
 
 // Orders reads the order queue.
-func (s *Store) Orders(ctx context.Context, status pages.QueueFilter, term string, after ...string) (pages.AdminOrdersView, error) {
+func (s *Store) Orders(ctx context.Context, status admin.QueueFilter, term string, after ...string) (admin.OrdersView, error) {
 	term = strings.TrimSpace(term)
 	scope := web.ScopeURL("/admin/orders", "q", term, "status", string(status))
 	cursor := readPageCursor(scope, after)
@@ -159,20 +160,20 @@ func (s *Store) Orders(ctx context.Context, status pages.QueueFilter, term strin
 	} else {
 		filter, funding := string(status), ""
 		switch status {
-		case pages.QueueAwaitingPayment:
+		case admin.QueueAwaitingPayment:
 			filter, funding = string(pages.FulfillmentPending), "unpaid"
-		case pages.QueueReady:
+		case admin.QueueReady:
 			filter, funding = string(pages.FulfillmentPending), "funded"
 		default: // a fulfilment status filters by itself
 		}
 		rows, err = s.q.AdminOrders(ctx, db.AdminOrdersParams{HasCursor: cursor.Valid, AfterAt: cursor.At, AfterID: cursor.ID, Status: filter, Funding: funding, RowLimit: PageLimit})
 	}
 	if err != nil {
-		return pages.AdminOrdersView{}, fmt.Errorf("read orders: %w", err)
+		return admin.OrdersView{}, fmt.Errorf("read orders: %w", err)
 	}
 	counts, err := s.q.AdminOrderCounts(ctx)
 	if err != nil {
-		return pages.AdminOrdersView{}, fmt.Errorf("read order counts: %w", err)
+		return admin.OrdersView{}, fmt.Errorf("read order counts: %w", err)
 	}
 
 	// Both branches asked for one row more than the page shows, so the drop is
@@ -180,29 +181,29 @@ func (s *Store) Orders(ctx context.Context, status pages.QueueFilter, term strin
 	// AdminOrderCounts and not from len(rows), so the extra row was never in
 	// them to begin with.
 	rows, bound := pageBound(cursor, scope, rows, PageSize, func(r *db.AdminOrdersRow) string { return r.PageCursor })
-	view := pages.AdminOrdersView{
+	view := admin.OrdersView{
 		ListBound: bound,
 		Status:    status, Term: term, Searched: searched,
 	}
-	countsByFilter := make(map[pages.QueueFilter]int64, len(counts))
+	countsByFilter := make(map[admin.QueueFilter]int64, len(counts))
 	var total int64
 	for _, c := range counts {
-		key := pages.QueueFilter(c.FulfillmentStatus)
+		key := admin.QueueFilter(c.FulfillmentStatus)
 		switch {
 		case c.FulfillmentStatus == string(pages.FulfillmentPending) && c.Funded:
-			key = pages.QueueReady
+			key = admin.QueueReady
 		case c.FulfillmentStatus == string(pages.FulfillmentPending):
-			key = pages.QueueAwaitingPayment
+			key = admin.QueueAwaitingPayment
 		}
 		countsByFilter[key] += c.N
 		total += c.N
 	}
-	view.Tabs = make([]pages.AdminStatusTab, 0, len(queueTabs)+1)
-	view.Tabs = append(view.Tabs, pages.AdminStatusTab{
-		Label: i18n.T(ctx, i18n.KeyAdminTabAll), Count: total, Selected: status == pages.QueueAll,
+	view.Tabs = make([]admin.StatusTab, 0, len(queueTabs)+1)
+	view.Tabs = append(view.Tabs, admin.StatusTab{
+		Label: i18n.T(ctx, i18n.KeyAdminTabAll), Count: total, Selected: status == admin.QueueAll,
 	})
 	for _, tab := range queueTabs {
-		view.Tabs = append(view.Tabs, pages.AdminStatusTab{
+		view.Tabs = append(view.Tabs, admin.StatusTab{
 			Value: tab.filter, Label: i18n.T(ctx, tab.label),
 			Count: countsByFilter[tab.filter], Selected: tab.filter == status,
 		})
@@ -215,21 +216,21 @@ func (s *Store) Orders(ctx context.Context, status pages.QueueFilter, term strin
 
 // Order reads one order for the back office, with the delivery details a
 // storefront confirmation does not show.
-func (s *Store) Order(ctx context.Context, number string) (pages.AdminOrderView, error) {
+func (s *Store) Order(ctx context.Context, number string) (admin.OrderView, error) {
 	o, err := s.q.AdminOrderByNumber(ctx, number)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return pages.AdminOrderView{}, ErrNotFound
+			return admin.OrderView{}, ErrNotFound
 		}
-		return pages.AdminOrderView{}, fmt.Errorf("read order: %w", err)
+		return admin.OrderView{}, fmt.Errorf("read order: %w", err)
 	}
 	lines, err := s.q.OrderLinesByOrder(ctx, o.ID)
 	if err != nil {
-		return pages.AdminOrderView{}, fmt.Errorf("read order lines: %w", err)
+		return admin.OrderView{}, fmt.Errorf("read order lines: %w", err)
 	}
 
 	fulfillment := pages.FulfillmentStatus(o.FulfillmentStatus)
-	view := pages.AdminOrderView{
+	view := admin.OrderView{
 		Number: o.OrderNumber, Status: fulfillment,
 		StatusText:    FundedStatusLabel(ctx, fulfillment, o.Committed, o.OwedCents),
 		PlacedAt:      shoptime.Minute(o.PlacedAt),
@@ -242,7 +243,7 @@ func (s *Store) Order(ctx context.Context, number string) (pages.AdminOrderView,
 			PickupBrand: pickup.Brand(o.PickupBrand), PickupStoreCode: o.PickupStoreCode,
 			PickupStoreName: o.PickupStoreName,
 		}.Line(),
-		Delivery: pages.AdminDelivery{
+		Delivery: admin.Delivery{
 			Email: o.Email, Recipient: o.RecipientName, Phone: o.Phone,
 			PostalCode: o.PostalCode, City: o.City,
 			District: o.District, Street: o.Street,
@@ -266,14 +267,14 @@ func (s *Store) Order(ctx context.Context, number string) (pages.AdminOrderView,
 	}
 
 	if shipErr := s.fillShippable(ctx, &view, o.ID, fulfillment); shipErr != nil {
-		return pages.AdminOrderView{}, shipErr
+		return admin.OrderView{}, shipErr
 	}
 
 	if invErr := s.fillInvoices(ctx, &view, number); invErr != nil {
-		return pages.AdminOrderView{}, invErr
+		return admin.OrderView{}, invErr
 	}
 	if refundErr := s.fillRefundBeforeShipment(ctx, &view, number); refundErr != nil {
-		return pages.AdminOrderView{}, refundErr
+		return admin.OrderView{}, refundErr
 	}
 	for _, l := range lines {
 		view.Lines = append(view.Lines, pages.OrderLine{
@@ -284,11 +285,11 @@ func (s *Store) Order(ctx context.Context, number string) (pages.AdminOrderView,
 
 	events, err := s.q.OrderEvents(ctx, o.ID)
 	if err != nil {
-		return pages.AdminOrderView{}, fmt.Errorf("read order events: %w", err)
+		return admin.OrderView{}, fmt.Errorf("read order events: %w", err)
 	}
 	for i := range events {
 		e := &events[i]
-		view.Timeline = append(view.Timeline, pages.AdminOrderEvent{
+		view.Timeline = append(view.Timeline, admin.OrderEvent{
 			Kind: e.Kind, Note: e.Note.String,
 			At: shoptime.Minute(e.OccurredAt), Actor: e.ActorName, System: e.BySystem,
 		})
@@ -296,11 +297,11 @@ func (s *Store) Order(ctx context.Context, number string) (pages.AdminOrderView,
 
 	shipments, err := s.q.OrderShipments(ctx, o.ID)
 	if err != nil {
-		return pages.AdminOrderView{}, fmt.Errorf("read order shipments: %w", err)
+		return admin.OrderView{}, fmt.Errorf("read order shipments: %w", err)
 	}
 	for i := range shipments {
 		sh := &shipments[i]
-		view.Shipments = append(view.Shipments, pages.AdminShipment{
+		view.Shipments = append(view.Shipments, admin.Shipment{
 			Carrier: carrier.Carrier(sh.Carrier), Tracking: sh.TrackingNumber,
 			ShippedAt:   shoptime.Minute(sh.ShippedAt),
 			DeliveredAt: nullableStamp(sh.DeliveredAt),
@@ -501,7 +502,7 @@ func eventKindFor(status pages.FulfillmentStatus) (string, error) {
 
 // fillInvoices puts what has actually been FILED on the order page, which is a
 // different question from the preference the customer asked for at checkout.
-func (s *Store) fillInvoices(ctx context.Context, view *pages.AdminOrderView, number string) error {
+func (s *Store) fillInvoices(ctx context.Context, view *admin.OrderView, number string) error {
 	if s.invoiceReader == nil {
 		return nil
 	}
@@ -512,13 +513,13 @@ func (s *Store) fillInvoices(ctx context.Context, view *pages.AdminOrderView, nu
 	}
 	for i := range docs {
 		d := &docs[i]
-		doc := pages.AdminInvoiceDocument{
+		doc := admin.InvoiceDocument{
 			Kind: d.Kind, Number: d.Number, ProviderRef: d.ProviderRef,
 			AmountCents: d.AmountCents, Status: d.Status,
 			IssuedAt: shoptime.ProviderMinute(d.IssuedAt),
 		}
 		for _, l := range d.Lines {
-			doc.Lines = append(doc.Lines, pages.AdminInvoiceLine{
+			doc.Lines = append(doc.Lines, admin.InvoiceLine{
 				Description: l.Description, Quantity: l.Quantity, AmountCents: l.AmountCents,
 			})
 		}
@@ -536,7 +537,7 @@ func (s *Store) fillInvoices(ctx context.Context, view *pages.AdminOrderView, nu
 // follows from what is OUTSTANDING and not from the status, which is what makes
 // a second parcel possible.
 func (s *Store) fillShippable(
-	ctx context.Context, view *pages.AdminOrderView, orderID uuid.UUID, status pages.FulfillmentStatus,
+	ctx context.Context, view *admin.OrderView, orderID uuid.UUID, status pages.FulfillmentStatus,
 ) error {
 	// DELIVERED must stay in this set. orders_legal_transition permits
 	// shipped -> delivered while a line is still outstanding, deliberately:
@@ -554,7 +555,7 @@ func (s *Store) fillShippable(
 	}
 	for i := range rows {
 		l := &rows[i]
-		view.Shippable = append(view.Shippable, pages.AdminShippableLine{
+		view.Shippable = append(view.Shippable, admin.ShippableLine{
 			OrderLineID: l.OrderLineID.String(),
 			SKU:         l.SKU,
 			Name:        l.ProductName,
@@ -786,7 +787,7 @@ func (s *Store) SetStaffNote(ctx context.Context, number, note string) error {
 }
 
 // Variants reads the stock list.
-func (s *Store) Variants(ctx context.Context, lowOnly bool, after ...string) (pages.AdminVariantsView, error) {
+func (s *Store) Variants(ctx context.Context, lowOnly bool, after ...string) (admin.VariantsView, error) {
 	scope := "/admin/stock"
 	if lowOnly {
 		scope = web.ScopeURL(scope, "low", "1")
@@ -794,10 +795,10 @@ func (s *Store) Variants(ctx context.Context, lowOnly bool, after ...string) (pa
 	cursor := readPageCursor(scope, after)
 	rows, err := s.q.AdminVariants(ctx, db.AdminVariantsParams{HasCursor: cursor.Valid, AfterNumber: cursor.Number, AfterName: cursor.Name, AfterPosition: cursor.Position, AfterID: cursor.ID, LowOnly: lowOnly, RowLimit: PageLimit})
 	if err != nil {
-		return pages.AdminVariantsView{}, fmt.Errorf("read variants: %w", err)
+		return admin.VariantsView{}, fmt.Errorf("read variants: %w", err)
 	}
 	rows, bound := pageBound(cursor, scope, rows, PageSize, func(r *db.AdminVariantsRow) string { return r.PageCursor })
-	view := pages.AdminVariantsView{ListBound: bound, LowOnly: lowOnly}
+	view := admin.VariantsView{ListBound: bound, LowOnly: lowOnly}
 	for i := range rows {
 		view.Variants = append(view.Variants, variantRow(&rows[i]))
 	}
@@ -946,8 +947,8 @@ func (s *Store) SetVariantPrice(ctx context.Context, sku string, price, compareA
 		})
 }
 
-func variantRow(r *db.AdminVariantsRow) pages.AdminVariant {
-	return pages.AdminVariant{
+func variantRow(r *db.AdminVariantsRow) admin.Variant {
+	return admin.Variant{
 		SKU: r.SKU, Slug: r.Slug, ProductName: r.ProductName, Brand: r.Brand,
 		PriceCents: r.PriceCents, CompareCents: r.CompareAtPriceCents.Int64,
 		Stock: r.StockQuantity, Safety: r.SafetyStock,
@@ -1026,18 +1027,18 @@ func (s *Store) GrantCredit(ctx context.Context, customerID uuid.UUID, amountCen
 }
 
 // Credit reads the recent ledger for the back office.
-func (s *Store) Credit(ctx context.Context, after ...string) (pages.AdminCreditView, error) {
+func (s *Store) Credit(ctx context.Context, after ...string) (admin.CreditView, error) {
 	scope := "/admin/credit"
 	cursor := readPageCursor(scope, after)
 	rows, err := s.q.RecentCredit(ctx, db.RecentCreditParams{HasCursor: cursor.Valid, AfterAt: cursor.At, AfterID: cursor.ID, RowLimit: PageLimit})
 	if err != nil {
-		return pages.AdminCreditView{}, fmt.Errorf("read credit ledger: %w", err)
+		return admin.CreditView{}, fmt.Errorf("read credit ledger: %w", err)
 	}
 	rows, bound := pageBound(cursor, scope, rows, PageSize, func(r *db.RecentCreditRow) string { return r.PageCursor })
-	view := pages.AdminCreditView{ListBound: bound}
+	view := admin.CreditView{ListBound: bound}
 	for i := range rows {
 		r := &rows[i]
-		view.Rows = append(view.Rows, pages.AdminCreditEntry{
+		view.Rows = append(view.Rows, admin.CreditEntry{
 			Email:       r.Email,
 			AmountCents: r.AmountCents,
 			Reason:      r.Reason,
@@ -1061,35 +1062,35 @@ const MovementPageSize = 50
 
 // Movements reads one variant's stock ledger: which sale, which return, which
 // hand adjustment, and by whom.
-func (s *Store) Movements(ctx context.Context, sku string, after ...string) (pages.AdminMovementsView, error) {
+func (s *Store) Movements(ctx context.Context, sku string, after ...string) (admin.MovementsView, error) {
 	scope := "/admin/stock/" + url.PathEscape(sku)
 	cursor := readPageCursor(scope, after)
 	v, err := s.q.AdminVariantBySKU(ctx, sku)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return pages.AdminMovementsView{}, ErrNotFound
+			return admin.MovementsView{}, ErrNotFound
 		}
-		return pages.AdminMovementsView{}, fmt.Errorf("read variant %s: %w", sku, err)
+		return admin.MovementsView{}, fmt.Errorf("read variant %s: %w", sku, err)
 	}
 	rows, err := s.q.VariantMovements(ctx, db.VariantMovementsParams{HasCursor: cursor.Valid, AfterID: cursor.ID,
 		SKU: sku, RowLimit: MovementPageSize + 1,
 	})
 	if err != nil {
-		return pages.AdminMovementsView{}, fmt.Errorf("read movements of %s: %w", sku, err)
+		return admin.MovementsView{}, fmt.Errorf("read movements of %s: %w", sku, err)
 	}
 
 	// This list has its own size, so it names its own rather than PageSize.
 	rows, bound := pageBound(cursor, scope, rows, MovementPageSize, func(r *db.VariantMovementsRow) string { return r.PageCursor })
-	view := pages.AdminMovementsView{
+	view := admin.MovementsView{
 		ListBound: bound,
 		SKU:       v.SKU, ProductName: v.ProductName, Slug: v.Slug,
 		Stock: v.StockQuantity, Safety: v.SafetyStock,
 		FormID: uuid.NewString(),
-		Rows:   make([]pages.AdminMovement, 0, len(rows)),
+		Rows:   make([]admin.Movement, 0, len(rows)),
 	}
 	for i := range rows {
 		m := &rows[i]
-		view.Rows = append(view.Rows, pages.AdminMovement{
+		view.Rows = append(view.Rows, admin.Movement{
 			At:          shoptime.Minute(m.CreatedAt),
 			Delta:       m.Delta,
 			Reason:      m.Reason,

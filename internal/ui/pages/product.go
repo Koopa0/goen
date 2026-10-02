@@ -181,8 +181,11 @@ type ProductView struct {
 	// NotifyEmail is the address a refused restock request was posted with.
 	NotifyEmail string
 	Comparing   []string
-	Questions   []Question
-	AskOutcome  string
+	// Comparable is whether the product's department offers comparison; where
+	// it does not, the page shows no compare control.
+	Comparable bool
+	Questions  []Question
+	AskOutcome string
 	// AskDraft is a refused question, replayed into the textarea so a 422
 	// does not empty what the customer already typed.
 	AskDraft string
@@ -368,11 +371,6 @@ func (v *ProductView) HasReviewErr(f string) bool { _, ok := v.ReviewErrors[f]; 
 
 // ReviewErr is why a review field was refused.
 func (v *ProductView) ReviewErr(f string) string { return v.ReviewErrors[f] }
-
-func starsOf(n int) string {
-	n = max(0, min(n, 5))
-	return strings.Repeat("★", n) + strings.Repeat("☆", 5-n)
-}
 
 // NotifyTaken reports whether a restock request was just recorded.
 func (v *ProductView) NotifyTaken() bool { return v.NotifyOutcome == "1" }

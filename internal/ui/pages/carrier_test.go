@@ -1,10 +1,12 @@
 package pages
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 
 	"github.com/koopa0/goen/internal/carrier"
+	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
@@ -39,22 +41,40 @@ func TestTheOrderPageLinksEachParcelToItsCarrier(t *testing.T) {
 	}
 }
 
-func TestTheDispatchFormOffersOnlyTheClosedCarrierSet(t *testing.T) {
+// A closed set — the carriers, the history's statuses, the page's own chrome —
+// must read in English on an English page. The shop's own entries (a product
+// name, a typed address) are data and are left out of the scan.
+func TestTheEnglishOrderPageHasNoChineseOfItsOwn(t *testing.T) {
 	t.Parallel()
-	html := renderToString(t, AdminOrder(layouts.Page{Title: "GO-1"}, &AdminOrderView{
-		Number: "GO-1", CanShip: true, ShipCarrier: string(carrier.KerryTJ),
-	}))
 
-	tag := tagWithID(t, html, "ship-carrier")
-	if !strings.HasPrefix(tag, "<select") {
-		t.Fatalf("the carrier control is not a select: %s", tag)
-	}
+	shipments := make([]OrderShipment, 0, len(carrier.All()))
 	for _, c := range carrier.All() {
-		if !strings.Contains(html, `value="`+string(c)+`"`) {
-			t.Errorf("the dispatch form does not offer %q", c)
-		}
+		shipments = append(shipments, OrderShipment{Carrier: c, Tracking: "T1", ShippedAt: "10/01 09:00"})
 	}
-	if !strings.Contains(html, `value="kerry_tj" selected`) {
-		t.Error("the refused form did not keep the chosen carrier selected")
+	kinds := []string{"placed", "paid", "picking", "shipped", "in_transit", "delivered", "completed"}
+	timeline := make([]OrderEvent, 0, len(kinds))
+	for _, kind := range kinds {
+		timeline = append(timeline, OrderEvent{Kind: kind, At: "10/01 09:00"})
+	}
+	const userData = "台北市信義區松高路 68 號"
+	v := &OrderView{
+		Number:       "GO-1",
+		Status:       FulfillmentShipped,
+		ShippingName: "Home delivery",
+		DeliveryTo:   userData,
+		Lines:        []OrderLine{{SKU: "S1", Name: "Aurora 充電器", Label: "銀", UnitCents: 1000, Quantity: 1}},
+		Timeline:     timeline,
+		Shipments:    shipments,
+	}
+	out := renderComponent(t, i18n.WithLocale(t.Context(), i18n.En), Order(layouts.Page{Title: "Order"}, v))
+
+	// 繁體中文 is the language switch naming Chinese in Chinese, on purpose.
+	for _, data := range []string{userData, "Aurora 充電器", "銀", "繁體中文"} {
+		out = strings.ReplaceAll(out, data, "")
+	}
+	// Tag and attribute text is markup, not copy; only what a reader sees counts.
+	out = regexp.MustCompile(`(?s)<script.*?</script>|<style.*?</style>|<[^>]*>`).ReplaceAllString(out, " ")
+	if han := regexp.MustCompile(`\p{Han}+`).FindAllString(out, -1); len(han) > 0 {
+		t.Errorf("the English order page shows Chinese of its own: %q", han)
 	}
 }

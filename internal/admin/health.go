@@ -11,7 +11,7 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/shoptime"
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -29,12 +29,12 @@ const (
 )
 
 // WorkerHealth reads what the background workers have and have not done.
-func (s *Store) WorkerHealth(ctx context.Context, messages *outbox.Store) (pages.WorkerHealthView, error) {
+func (s *Store) WorkerHealth(ctx context.Context, messages *outbox.Store) (admin.WorkerHealthView, error) {
 	row, err := s.q.WorkerHealth(ctx, outbox.MaxAttempts)
 	if err != nil {
-		return pages.WorkerHealthView{}, fmt.Errorf("read worker health: %w", err)
+		return admin.WorkerHealthView{}, fmt.Errorf("read worker health: %w", err)
 	}
-	view := pages.WorkerHealthView{
+	view := admin.WorkerHealthView{
 		OutboxPending:        row.OutboxPending,
 		OutboxOldest:         durationFromSeconds(row.OutboxOldestSeconds),
 		OutboxStuck:          row.OutboxStuck,
@@ -54,7 +54,7 @@ func (s *Store) WorkerHealth(ctx context.Context, messages *outbox.Store) (pages
 
 	stuck, err := messages.Stuck(ctx, StuckListLimit)
 	if err != nil {
-		return pages.WorkerHealthView{}, fmt.Errorf("read stuck messages: %w", err)
+		return admin.WorkerHealthView{}, fmt.Errorf("read stuck messages: %w", err)
 	}
 	view.Stuck = stuckMessages(stuck)
 
@@ -63,7 +63,7 @@ func (s *Store) WorkerHealth(ctx context.Context, messages *outbox.Store) (pages
 	// refund each one at Stripe.
 	unreconciled, err := s.q.UnreconciledPayments(ctx)
 	if err != nil {
-		return pages.WorkerHealthView{}, fmt.Errorf("read unreconciled payments: %w", err)
+		return admin.WorkerHealthView{}, fmt.Errorf("read unreconciled payments: %w", err)
 	}
 	view.UnreconciledEvents = unreconciledEvents(unreconciled)
 
@@ -73,7 +73,7 @@ func (s *Store) WorkerHealth(ctx context.Context, messages *outbox.Store) (pages
 	// resolution door; do not hide it merely because no event row is flaggable.
 	complete, err := s.q.UnreconciledCompletePayments(ctx)
 	if err != nil {
-		return pages.WorkerHealthView{}, fmt.Errorf("read complete payments awaiting reconciliation: %w", err)
+		return admin.WorkerHealthView{}, fmt.Errorf("read complete payments awaiting reconciliation: %w", err)
 	}
 	view.UnreconciledCompletePayments = unreconciledCompletePayments(complete)
 
@@ -81,7 +81,7 @@ func (s *Store) WorkerHealth(ctx context.Context, messages *outbox.Store) (pages
 	// from here, so the claim survives as a row only a person can settle.
 	stranded, err := s.q.StrandedInvoiceClaims(ctx)
 	if err != nil {
-		return pages.WorkerHealthView{}, fmt.Errorf("read stranded invoice claims: %w", err)
+		return admin.WorkerHealthView{}, fmt.Errorf("read stranded invoice claims: %w", err)
 	}
 	view.StrandedClaims = strandedClaims(stranded)
 
@@ -90,21 +90,21 @@ func (s *Store) WorkerHealth(ctx context.Context, messages *outbox.Store) (pages
 	// refunds are rendered as 20 merely because the table stops at 20 rows.
 	view.OpenRefundCount, err = s.q.OpenRefundCount(ctx)
 	if err != nil {
-		return pages.WorkerHealthView{}, fmt.Errorf("count open refunds: %w", err)
+		return admin.WorkerHealthView{}, fmt.Errorf("count open refunds: %w", err)
 	}
 	open, err := s.q.OpenRefunds(ctx, OpenRefundListLimit)
 	if err != nil {
-		return pages.WorkerHealthView{}, fmt.Errorf("read open refunds: %w", err)
+		return admin.WorkerHealthView{}, fmt.Errorf("read open refunds: %w", err)
 	}
 	view.OpenRefunds = openRefunds(open)
 	return view, nil
 }
 
-func stuckMessages(rows []outbox.StuckMessage) []pages.StuckMessage {
-	out := make([]pages.StuckMessage, len(rows))
+func stuckMessages(rows []outbox.StuckMessage) []admin.StuckMessage {
+	out := make([]admin.StuckMessage, len(rows))
 	for i := range rows {
 		m := &rows[i]
-		out[i] = pages.StuckMessage{
+		out[i] = admin.StuckMessage{
 			Topic: m.Topic, Key: m.DedupeKey, Attempts: m.Attempts,
 			LastError: m.LastError, Since: shoptime.Minute(m.Since),
 		}
@@ -112,11 +112,11 @@ func stuckMessages(rows []outbox.StuckMessage) []pages.StuckMessage {
 	return out
 }
 
-func unreconciledEvents(rows []db.UnreconciledPaymentsRow) []pages.UnreconciledEvent {
-	out := make([]pages.UnreconciledEvent, len(rows))
+func unreconciledEvents(rows []db.UnreconciledPaymentsRow) []admin.UnreconciledEvent {
+	out := make([]admin.UnreconciledEvent, len(rows))
 	for i := range rows {
 		u := &rows[i]
-		out[i] = pages.UnreconciledEvent{
+		out[i] = admin.UnreconciledEvent{
 			EventID: u.EventID, Type: u.Type, Ref: u.ObjectRef,
 			Reason: u.Reason, Since: shoptime.Minute(u.ReceivedAt),
 		}
@@ -126,11 +126,11 @@ func unreconciledEvents(rows []db.UnreconciledPaymentsRow) []pages.UnreconciledE
 
 func unreconciledCompletePayments(
 	rows []db.UnreconciledCompletePaymentsRow,
-) []pages.UnreconciledCompletePayment {
-	out := make([]pages.UnreconciledCompletePayment, len(rows))
+) []admin.UnreconciledCompletePayment {
+	out := make([]admin.UnreconciledCompletePayment, len(rows))
 	for i := range rows {
 		p := &rows[i]
-		out[i] = pages.UnreconciledCompletePayment{
+		out[i] = admin.UnreconciledCompletePayment{
 			OrderNumber: p.OrderNumber, ProviderRef: p.ProviderRef,
 			PaidAttributionAllowed: p.PaidAttributionAllowed,
 			Since:                  shoptime.Minute(p.CreatedAt),
@@ -139,11 +139,11 @@ func unreconciledCompletePayments(
 	return out
 }
 
-func strandedClaims(rows []db.StrandedInvoiceClaimsRow) []pages.StrandedClaim {
-	out := make([]pages.StrandedClaim, len(rows))
+func strandedClaims(rows []db.StrandedInvoiceClaimsRow) []admin.StrandedClaim {
+	out := make([]admin.StrandedClaim, len(rows))
 	for i := range rows {
 		c := &rows[i]
-		out[i] = pages.StrandedClaim{
+		out[i] = admin.StrandedClaim{
 			Operation: c.OperationID.String(), OrderNumber: c.OrderNumber,
 			Kind: c.Kind, Status: c.Status, AmountCents: c.AmountCents,
 			Attempts: c.ReconcileAttempts, Sends: c.SendAttempts,
@@ -154,11 +154,11 @@ func strandedClaims(rows []db.StrandedInvoiceClaimsRow) []pages.StrandedClaim {
 	return out
 }
 
-func openRefunds(rows []db.OpenRefundsRow) []pages.OpenRefund {
-	out := make([]pages.OpenRefund, len(rows))
+func openRefunds(rows []db.OpenRefundsRow) []admin.OpenRefund {
+	out := make([]admin.OpenRefund, len(rows))
 	for i := range rows {
 		r := &rows[i]
-		out[i] = pages.OpenRefund{
+		out[i] = admin.OpenRefund{
 			OrderNumber: r.OrderNumber,
 			Key:         r.RequestKey,
 			Status:      r.Status,

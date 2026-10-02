@@ -81,8 +81,8 @@ func TestSignedInCartLookupFallsBackToTheAccountCart(t *testing.T) {
 		t.Fatalf("read handler.go: %v", err)
 	}
 	body := string(src)
-	if !strings.Contains(body, "CartForUser") {
-		t.Error("signed-in cart lookup does not resolve CartForUser when the cookie misses")
+	if !strings.Contains(body, "store.ForUser(") {
+		t.Error("signed-in cart lookup does not resolve store.ForUser when the cookie misses")
 	}
 	if strings.Contains(body, "Create(r.Context(), token, uuid.NullUUID{})") {
 		t.Error("signed-in add still mints an unowned cart")

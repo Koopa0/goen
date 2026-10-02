@@ -47,8 +47,7 @@ templ Footer() {
 		</div>
 		<div class="goen-footer__bottom">
 			<div class="goen-footer__bottominner">
-				// i18n-exempt: a company registration line: a legal name and a tax number.
-				<span class="goen-footer__copyright">© 2026 goen Co., Ltd. 統編 90123456</span>
+				<span class="goen-footer__copyright">© 2026 goen Co., Ltd. { i18n.T(ctx, i18n.KeyCompanyRegistration) }</span>
 				if i18n.FromContext(ctx) != i18n.Default {
 					<p class="goen-footer__contentnote">{ i18n.T(ctx, i18n.KeyContentNotice) }</p>
 				}

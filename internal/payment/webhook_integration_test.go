@@ -146,9 +146,9 @@ func TestACaptureInAnotherCurrencyNeverMarksTheOrderPaid(t *testing.T) {
 				!strings.Contains(*reason, "not "+payment.Currency) {
 				t.Errorf("unreconciled = %v, want a refused_capture naming the currency", reason)
 			}
-			attempt, err := s.PaymentAttempt(ctx, number, 100000)
+			attempt, err := s.Attempt(ctx, number, 100000)
 			if err != nil {
-				t.Fatalf("PaymentAttempt: %v", err)
+				t.Fatalf("Attempt: %v", err)
 			}
 			if !attempt.NeedsReconciliation {
 				t.Error("money taken in another currency did not block a second checkout")

@@ -107,6 +107,10 @@ CREATE TABLE categories (
     -- nearest ancestor that sets one, and a root with NULL is 'stone'; the set
     -- is mirrored by pages.Tone.
     tone       text,
+    -- Whether the shop offers to compare products here. NULL inherits from the
+    -- nearest ancestor that sets one, and a root with NULL is false: a
+    -- comparison only means something where products share the same specs.
+    comparable boolean,
     -- The department's photograph, a key of the kind product_images.storage_key
     -- holds, so one resolver serves an uploaded digest and an embedded file.
     image_key    text,

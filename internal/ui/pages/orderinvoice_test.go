@@ -30,7 +30,7 @@ func TestTheOrderPageShowsTheInvoiceOnlyOnceFiled(t *testing.T) {
 			{Allowance: true, Number: "CD00000001", AmountCents: 30000, IssuedOn: "2026-10-05"},
 		},
 	})
-	for _, want := range []string{"AB12345678", "AB12345679", "2026-10-02", "8765", "CD00000001", "NT$300", "(已作廢)", "/****34"} {
+	for _, want := range []string{"AB12345678", "AB12345679", "2026-10-02", "8765", "CD00000001", "NT$300", "(已作廢)", "/*****34"} {
 		if !strings.Contains(html, want) {
 			t.Errorf("the invoice panel is missing %q", want)
 		}

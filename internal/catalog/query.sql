@@ -83,6 +83,7 @@ ORDER BY b.name;
 -- name: CategoryListing :many
 SELECT
     p.slug,
+    p.category_id,
     localized_name(p.name, p.name_en, @locale::text) AS name,
     coalesce(localized_name(p.summary, p.summary_en, @locale::text), '')::text AS summary,
     b.name AS brand,
@@ -186,6 +187,7 @@ WITH RECURSIVE category_match AS (
 )
 SELECT
     p.slug,
+    p.category_id,
     localized_name(p.name, p.name_en, @locale::text) AS name,
     coalesce(localized_name(p.summary, p.summary_en, @locale::text), '')::text AS summary,
     b.name AS brand,
@@ -543,6 +545,7 @@ SELECT
     coalesce(localized_name(p.summary, p.summary_en, @locale::text), '')::text AS summary,
     b.name AS brand,
     localized_name(c.name, c.name_en, @locale::text) AS category,
+    c.slug AS category_slug,
     mv.price_cents AS min_price_cents,
     -- Whether that price is the cheapest of several, so a card can say "from"
     -- rather than state one variant's price as the product's.
@@ -606,3 +609,52 @@ FROM product_specs s
 JOIN products p ON p.id = s.product_id
 WHERE p.slug = ANY(@slugs::text[])
 ORDER BY shared_by DESC, s.label, s.position;
+
+-- Every category that offers comparison. The value is the nearest one up the
+-- trail that sets it, and a root that sets none is false, so a sub-category
+-- takes its department's answer; read top-down, the same rule as the tone's
+-- upward walk. categories_acyclic is what guarantees it terminates.
+-- name: ComparableCategoryIDs :many
+WITH RECURSIVE eff AS (
+    SELECT c.id, c.comparable FROM categories c WHERE c.parent_id IS NULL
+    UNION ALL
+    SELECT c.id, coalesce(c.comparable, e.comparable)
+    FROM categories c JOIN eff e ON c.parent_id = e.id
+)
+SELECT eff.id FROM eff WHERE eff.comparable IS TRUE;
+
+-- What to compare a product with: the other active products on its own shelf,
+-- the ones priced closest first, with a stable order for equal distances.
+-- A product with no active variant has no price to show and is left out.
+-- name: CompareSuggestions :many
+SELECT
+    p.slug,
+    localized_name(p.name, p.name_en, @locale::text) AS name,
+    b.name AS brand,
+    mv.price_cents AS min_price_cents,
+    EXISTS (
+        SELECT 1 FROM product_variants dv
+        WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
+    ) AS price_varies,
+    coalesce(img.storage_key, '') AS image_key,
+    coalesce(localized_name(img.alt_text, img.alt_text_en, @locale::text), '')::text AS image_alt,
+    coalesce(img.width, 0)::integer AS image_width,
+    coalesce(img.height, 0)::integer AS image_height
+FROM products p
+JOIN brands b ON b.id = p.brand_id
+JOIN LATERAL (
+    SELECT price_cents
+    FROM product_variants
+    WHERE product_id = p.id AND is_active
+    ORDER BY (stock_quantity > safety_stock) DESC, price_cents
+    LIMIT 1
+) mv ON true
+LEFT JOIN LATERAL (
+    SELECT storage_key, alt_text, alt_text_en, width, height
+    FROM product_images WHERE product_id = p.id ORDER BY position LIMIT 1
+) img ON true
+WHERE p.status = 'active'
+  AND p.category_id = (SELECT x.category_id FROM products x WHERE x.slug = @product_slug::text)
+  AND NOT (p.slug = ANY(@exclude_slugs::text[]))
+ORDER BY abs(mv.price_cents - @anchor_cents::bigint), p.id
+LIMIT @row_limit::integer;

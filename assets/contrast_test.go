@@ -151,3 +151,30 @@ func TestEveryToneGroundHoldsItsText(t *testing.T) {
 		}
 	}
 }
+
+// A visitor who asked for less motion must get no autoplay: the progress fill
+// is what advances the carousel, so switching its animation off and hiding the
+// pause control is what keeps the slides still.
+func TestTheCarouselDoesNotAdvanceUnderReducedMotion(t *testing.T) {
+	t.Parallel()
+
+	sheet, err := fs.ReadFile(files, AppCSS)
+	if err != nil {
+		t.Fatalf("read %s: %v", AppCSS, err)
+	}
+	css := string(sheet)
+	start := strings.Index(css, "@media (prefers-reduced-motion: reduce) {\n  .goen-hero.is-playing")
+	if start < 0 {
+		t.Fatal("app.css has no reduced-motion block for the carousel's autoplay")
+	}
+	block := css[start : start+strings.Index(css[start:], "\n}\n\n")+3]
+	for _, want := range []string{
+		`.goen-hero.is-playing .goen-hero__dot[aria-current="true"]::after`,
+		"animation: none;",
+		".goen-hero__pause {\n    display: none;",
+	} {
+		if !strings.Contains(block, want) {
+			t.Errorf("the reduced-motion block does not contain %q:\n%s", want, block)
+		}
+	}
+}
