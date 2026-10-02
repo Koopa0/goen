@@ -181,7 +181,11 @@ type CheckoutView struct {
 	// 「收件人同會員資料」. Zero for a guest, who is offered nothing.
 	Profile CheckoutProfile
 	// RecipientMe says the recipient fields hold the profile's values.
-	RecipientMe          bool
+	RecipientMe bool
+	// RecipientPrevName and RecipientPrevPhone are what those fields held just
+	// before the box was ticked, which unticking puts back.
+	RecipientPrevName    string
+	RecipientPrevPhone   string
 	CouponCode           string
 	CouponApplied        string
 	CouponDiscountCents  int64

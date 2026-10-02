@@ -109,7 +109,7 @@ func TestChangingACheckoutChoiceAppliesIt(t *testing.T) {
 	if !strings.Contains(html, `id="checkout-form"`) {
 		t.Fatal("the checkout form has no id, so a swap has nothing to select or to replace")
 	}
-	for _, which := range []string{"shipping", "invoice"} {
+	for _, which := range []string{"shipping", "address", "invoice"} {
 		group := tagCarrying(t, html, `hx-vals="{&#34;update&#34;:&#34;`+which+`&#34;}"`)
 		for _, want := range []string{
 			`hx-post="/checkout"`,
@@ -129,18 +129,11 @@ func TestChangingACheckoutChoiceAppliesIt(t *testing.T) {
 			t.Errorf("a chooser sends update=%s, which no button sends", which)
 		}
 	}
-	// The saved-address select fills the fields from its own options, so it makes
-	// no request at all; the button below it is the path without scripting.
-	if strings.Contains(tagCarrying(t, html, `data-address-book`), "hx-post") {
-		t.Error("the address chooser asks the server for what its options already carry")
-	}
-	if !strings.Contains(html, `name="update" value="address"`) {
-		t.Error("no button applies the address choice without scripting")
-	}
 	// A swap restores the focus to the element whose id it finds again, so each
 	// radio carries one.
 	for _, want := range []string{
 		`id="shipping-ship-1"`,
+		`id="address-book"`,
 		`id="invoice_type-mobile_carrier"`,
 	} {
 		if !strings.Contains(html, want) {
@@ -1173,11 +1166,17 @@ func TestARecipientCanBeTheMemberAndAnAddressTheirSavedOne(t *testing.T) {
 		t.Error("no button applies the recipient box without scripting")
 	}
 
-	option := tagCarrying(t, html, `data-postal-code="110"`)
-	for _, want := range []string{`value="addr-1"`, "selected", `data-city="台北市"`,
-		`data-district="信義區"`, `data-street="松高路 68 號"`, `data-name="王小明"`} {
-		if !strings.Contains(option, want) {
-			t.Errorf("the saved-address option lacks %s:\n%s", want, option)
+	option := tagCarrying(t, html, `value="addr-1"`)
+	if !strings.Contains(option, "selected") {
+		t.Errorf("the chosen saved address is not selected:\n%s", option)
+	}
+	// Choosing applies on the server, which re-quotes delivery for the postal code.
+	if !strings.Contains(tagCarrying(t, html, `name="address"`), `hx-post="/checkout"`) {
+		t.Error("choosing a saved address does not re-render the form, so delivery keeps the old price")
+	}
+	for _, want := range []string{`name="recipient_prev_name"`, `name="recipient_prev_phone"`} {
+		if !strings.Contains(html, want) {
+			t.Errorf("the form does not carry %s, so unticking cannot restore what was there", want)
 		}
 	}
 	if !strings.Contains(html, `value="`+OtherAddress+`"`) || !strings.Contains(html, i18n.T(ctx, i18n.KeyOtherAddress)) {
@@ -1201,7 +1200,7 @@ func TestAGuestIsOfferedNeitherControl(t *testing.T) {
 	}
 	html := renderToString(t, Checkout(CheckoutMeta(ctx), &view))
 	for _, gone := range []string{
-		"data-recipient-me", "recipient_me", "data-address-book",
+		"data-recipient-me", "recipient_me", "recipient_prev", `name="address"`,
 		i18n.T(ctx, i18n.KeyRecipientIsMe), i18n.T(ctx, i18n.KeyChooseSavedAddress),
 	} {
 		if strings.Contains(html, gone) {

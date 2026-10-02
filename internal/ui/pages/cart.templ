@@ -348,12 +348,14 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 									/>
 									<span>{ i18n.T(ctx, i18n.KeyRecipientIsMe) }</span>
 								</label>
+								<input type="hidden" name="recipient_prev_name" value={ v.RecipientPrevName }/>
+								<input type="hidden" name="recipient_prev_phone" value={ v.RecipientPrevPhone }/>
 								@applyChoice("recipient")
 							}
 							if v.OffersTheAddressBook() {
-								// A select, not a request: each option carries its own
-								// address, so choosing one fills the fields at once.
-								// 「其他地址」 is the way to type a new one.
+								// Choosing applies the address on the server, which also
+								// re-quotes delivery for its postal code. 「其他地址」 is
+								// the way to type a new one.
 								<div class="goen-field">
 									@components.Label(components.LabelProps{For: "address-book"}) {
 										{ i18n.T(ctx, i18n.KeyChooseSavedAddress) }
@@ -362,23 +364,14 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 										class="goen-checkout__select"
 										id="address-book"
 										name="address"
-										data-address-book
+										{ checkoutChoiceSwap("address")... }
 										aria-invalid={ v.Invalid("address") }
 										if v.HasErr("address") {
 											aria-describedby="address-error"
 										}
 									>
 										for _, a := range v.SavedAddresses {
-											<option
-												value={ a.ID }
-												selected?={ a.ID == v.ChosenAddress }
-												data-name={ a.Name }
-												data-phone={ a.Phone }
-												data-postal-code={ a.PostalCode }
-												data-city={ a.City }
-												data-district={ a.District }
-												data-street={ a.Street }
-											>
+											<option value={ a.ID } selected?={ a.ID == v.ChosenAddress }>
 												{ a.DisplayLabel(ctx) } — { a.Line() }
 											</option>
 										}

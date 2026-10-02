@@ -182,14 +182,19 @@ var (
 		En:     "We could not work out the delivery charge. Please try again.",
 	})
 
-	// The button beside each checkout chooser. It is formnovalidate: the customer
-	// is mid-form, so fields they have not reached yet are still empty.
+	// The checkbox above the recipient fields for a signed-in customer: ticking it
+	// puts the account's name and phone in them.
 	KeyRecipientIsMe = key("checkout.recipient.me", Message{ZhHant: "收件人同會員資料", En: "Recipient is me"})
 
+	// The label of the saved-address select.
 	KeyChooseSavedAddress = key("checkout.address.choose", Message{ZhHant: "選擇常用地址", En: "Choose a saved address"})
 
+	// The select's last option: none of the saved addresses, so the fields are
+	// the shopper's to type.
 	KeyOtherAddress = key("checkout.address.other", Message{ZhHant: "其他地址", En: "Another address"})
 
+	// The button beside each checkout chooser. It is formnovalidate: the customer
+	// is mid-form, so fields they have not reached yet are still empty.
 	KeyApplyChoice = key("checkout.apply", Message{
 		ZhHant: "更新",
 		En:     "Update",

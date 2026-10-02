@@ -607,16 +607,16 @@
 
   fieldRules();
   /*
-   * 「收件人同會員資料」 and the saved-address select fill the recipient fields
-   * from data the server already rendered beside them, so choosing one costs no
-   * request and puts nothing in a URL. They never overwrite what was typed: the
-   * box fills only empty fields and clears only fields that still hold the
-   * account's own values. Choosing a saved address is the shopper naming that
-   * address, so it fills the address fields; 「其他地址」 empties them for typing.
-   * Without this file the same two choices are applied by the server through
-   * their 更新 buttons.
+   * 「收件人同會員資料」. Ticking it is an explicit request: it puts the account's
+   * name and phone in the recipient fields, over whatever they held, after
+   * remembering that in the form's two hidden fields. Unticking puts it back, but
+   * only into a field that still holds the account's value, so nothing typed
+   * since is wiped. It fills from data the server rendered on the box, so it
+   * costs no request and puts nothing in a URL. The box is kept honest: it shows
+   * ticked only while the fields hold the account's values. Without this file
+   * the server applies the same rules through the box's 更新 button.
    */
-  function recipientAndAddress() {
+  function recipientBox() {
     const field = (name) => document.querySelector(`#checkout-form [name="${name}"]`);
     const set = (name, value) => {
       const input = field(name);
@@ -625,37 +625,37 @@
       input.dispatchEvent(new Event("input", { bubbles: true }));
     };
     const syncBox = () => {
-      const box = document.querySelector("[data-recipient-me]");
-      if (!box) return;
-      box.checked = field("name")?.value === box.dataset.name &&
-        field("phone")?.value === box.dataset.phone;
+      const me = document.querySelector("[data-recipient-me]");
+      if (!me) return;
+      const own = { name: me.dataset.name, phone: me.dataset.phone };
+      const holds = (n) => own[n] === "" || field(n)?.value === own[n];
+      me.checked = (own.name !== "" || own.phone !== "") && holds("name") && holds("phone");
     };
     document.addEventListener("change", (event) => {
-      const target = event.target;
-      if (!(target instanceof HTMLInputElement || target instanceof HTMLSelectElement)) return;
-      if (target.matches("[data-recipient-me]")) {
-        for (const [name, own] of [["name", target.dataset.name], ["phone", target.dataset.phone], ["email", target.dataset.email]]) {
-          const input = field(name);
-          if (!input) continue;
-          if (target.checked && input.value === "") set(name, own);
-          if (!target.checked && name !== "email" && input.value === own) set(name, "");
+      const me = event.target;
+      if (!(me instanceof HTMLInputElement) || !me.matches("[data-recipient-me]")) return;
+      const own = { name: me.dataset.name, phone: me.dataset.phone };
+      for (const n of ["name", "phone"]) {
+        const input = field(n);
+        const prev = field(`recipient_prev_${n}`);
+        if (!input || own[n] === "") continue;
+        if (me.checked) {
+          if (input.value !== own[n] && prev) prev.value = input.value;
+          set(n, own[n]);
+        } else if (input.value === own[n]) {
+          set(n, prev?.value ?? "");
+          if (prev) prev.value = "";
         }
-      } else if (target.matches("select[data-address-book]")) {
-        const option = target.selectedOptions[0];
-        const other = !option || !option.hasAttribute("data-street");
-        for (const [name, key] of [["postal_code", "postalCode"], ["city", "city"], ["district", "district"], ["street", "street"]]) {
-          set(name, other ? "" : option.dataset[key] ?? "");
-        }
-        if (!other) {
-          set("name", option.dataset.name ?? "");
-          set("phone", option.dataset.phone ?? "");
-        }
-        syncBox();
       }
+      if (me.checked && field("email")?.value === "") set("email", me.dataset.email ?? "");
+      syncBox();
+    });
+    document.addEventListener("input", (event) => {
+      if (event.target instanceof HTMLInputElement && ["name", "phone"].includes(event.target.name)) syncBox();
     });
   }
 
-  recipientAndAddress();
+  recipientBox();
   handoff();
   headerMenu();
   departmentPanels();

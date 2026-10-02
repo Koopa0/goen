@@ -84,7 +84,18 @@ func TestAMemberCheckoutIsFilledFromTheAccount(t *testing.T) {
 func TestAGuestCheckoutHasNeitherControlAndNoPrefill(t *testing.T) {
 	s := cart.NewStore(pool)
 	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, testLimiter(), nil, nil)
-	token, _, _ := aMember(t, s, "recipient-guest") // a cart nobody is signed in to
+	// A cart nobody owns: a signed-out request for a member's cart is turned away.
+	token, err := cart.NewToken()
+	if err != nil {
+		t.Fatalf("token: %v", err)
+	}
+	cartID, err := s.Create(t.Context(), token, uuid.NullUUID{})
+	if err != nil {
+		t.Fatalf("create cart: %v", err)
+	}
+	if err := s.Add(t.Context(), cartID, freshVariant(t, "recipient-guest"), 1); err != nil {
+		t.Fatalf("add: %v", err)
+	}
 
 	page := checkoutAs(t, h, token, nil, "")
 	if strings.Contains(page, "data-recipient-me") || strings.Contains(page, "data-address-book") {
@@ -97,9 +108,10 @@ func TestAGuestCheckoutHasNeitherControlAndNoPrefill(t *testing.T) {
 	}
 }
 
-// TestTheRecipientBoxNeverOverwritesWhatWasTyped: the box applied by the server
-// (scripting off) fills only empty fields and clears only the account's values.
-func TestTheRecipientBoxNeverOverwritesWhatWasTyped(t *testing.T) {
+// TestTheRecipientBoxAppliedByTheServerTicksAndRestores: ticking the box without
+// scripting puts the account's name and phone over what was typed, and the form
+// carries what was there so unticking can put it back.
+func TestTheRecipientBoxAppliedByTheServerTicksAndRestores(t *testing.T) {
 	s := cart.NewStore(pool)
 	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, testLimiter(), nil, nil)
 	token, user, _ := aMember(t, s, "recipient-typed")
@@ -120,24 +132,30 @@ func TestTheRecipientBoxNeverOverwritesWhatWasTyped(t *testing.T) {
 		return res.Body.String()
 	}
 
-	typed := apply(url.Values{"recipient_me": {"1"}, "name": {"林小美"}, "phone": {""}})
-	if got, _ := inputValue(typed, "name"); got != "林小美" {
-		t.Errorf("checking the box overwrote the typed name with %q", got)
-	}
-	if got, _ := inputValue(typed, "phone"); got != "0912345678" {
-		t.Errorf("checking the box did not fill the empty phone, got %q", got)
-	}
-
-	cleared := apply(url.Values{"name": {"王小明"}, "phone": {"0912345678"}})
-	for _, field := range []string{"name", "phone"} {
-		if got, _ := inputValue(cleared, field); got != "" {
-			t.Errorf("unchecking the box left the account's %s %q", field, got)
+	ticked := apply(url.Values{"recipient_me": {"1"}, "name": {"林小美"}, "phone": {"0987654321"}})
+	for field, want := range map[string]string{
+		"name": "王小明", "phone": "0912345678",
+		"recipient_prev_name": "林小美", "recipient_prev_phone": "0987654321",
+	} {
+		if got, _ := inputValue(ticked, field); got != want {
+			t.Errorf("after ticking, %s is %q, want %q", field, got, want)
 		}
 	}
+	if box := regexpFirst(t, ticked, `<input[^>]*data-recipient-me[^>]*>`); !strings.Contains(box, "checked") {
+		t.Errorf("the box is not ticked over the account's own values: %s", box)
+	}
 
-	kept := apply(url.Values{"name": {"林小美"}, "phone": {"0987654321"}})
-	if got, _ := inputValue(kept, "name"); got != "林小美" {
-		t.Errorf("unchecking the box wiped a typed name: %q", got)
+	restored := apply(url.Values{
+		"name": {"王小明"}, "phone": {"0912345678"},
+		"recipient_prev_name": {"林小美"}, "recipient_prev_phone": {"0987654321"},
+	})
+	for field, want := range map[string]string{"name": "林小美", "phone": "0987654321"} {
+		if got, _ := inputValue(restored, field); got != want {
+			t.Errorf("after unticking, %s is %q, want %q", field, got, want)
+		}
+	}
+	if box := regexpFirst(t, restored, `<input[^>]*data-recipient-me[^>]*>`); strings.Contains(box, "checked") {
+		t.Errorf("the box is ticked over someone else's name: %s", box)
 	}
 }
 
