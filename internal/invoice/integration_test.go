@@ -1455,7 +1455,7 @@ func TestStoreVoidSendsTheRecordedIssueDate(t *testing.T) {
 	if err := s.Void(filingTestContext(t, ctx), number, "資料錯誤"); err != nil {
 		t.Fatalf("Void: %v", err)
 	}
-	if want := "2026-08-24"; seen.InvoiceDate != want {
+	if want := "2026-08-25"; seen.InvoiceDate != want {
 		t.Errorf("InvoiceDate = %q, want recorded issue date %q", seen.InvoiceDate, want)
 	}
 }
@@ -2746,7 +2746,7 @@ func insertKnownAllowance(
 	t *testing.T, orderNumber, allowanceNumber string, amountCents int64,
 ) (orderID, originalID, documentID uuid.UUID, issuedAt time.Time) {
 	t.Helper()
-	issuedAt = time.Date(2026, 8, 7, 15, 22, 0, 0, time.UTC)
+	issuedAt = time.Date(2026, 8, 7, 7, 22, 0, 0, time.UTC)
 	if err := pool.QueryRow(t.Context(), `
 		WITH subject AS (
 		  SELECT o.id AS order_id,d.id AS original_id

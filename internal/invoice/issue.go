@@ -196,10 +196,7 @@ func (g *Gateway) Void(ctx context.Context, number string, issuedAt time.Time, r
 	res, err := g.call[invalidResult](ctx, "/B2CInvoice/Invalid", invalidRequest{
 		MerchantID: g.merchantID,
 		InvoiceNo:  number,
-		// Invalid validates this against the invoice's own issue date. A mismatch
-		// is 1600003 無發票號碼資料 — indistinguishable from a wrong number. The
-		// provider's date is the shop's calendar day, whatever zone the process
-		// holds after a timestamptz round trip.
+		// A wrong date is 1600003 無發票號碼資料, indistinguishable from a wrong number.
 		InvoiceDate: shoptime.Day(issuedAt),
 		Reason:      truncate(reason, 20),
 	})
@@ -231,9 +228,8 @@ func (g *Gateway) Allowance(ctx context.Context, in AllowanceRequest) (Document,
 	res, err := g.call[allowanceResult](ctx, "/B2CInvoice/Allowance", allowanceRequest{
 		MerchantID: g.merchantID,
 		InvoiceNo:  in.InvoiceNumber,
-		// .UTC() for the reason Invalid's own InvoiceDate carries it: a date
-		// shifted by the process's zone returns 1600003, which names the invoice
-		// number rather than the date.
+		// A date-only value was parsed as midnight UTC, so UTC is what reads it back
+		// unshifted; a wrong date is 1600003, which names the number.
 		InvoiceDate:     in.InvoiceDate.UTC().Format("2006-01-02"),
 		AllowanceNotify: "E", // by email
 		CustomerName:    truncate(in.CustomerName, 60),

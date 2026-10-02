@@ -11719,7 +11719,7 @@ func (f fixedInvoices) Documents(context.Context, string) ([]invoice.Document, e
 func TestTheOrderPageShowsAnInvoiceAtTheTimeTheProviderIssuedIt(t *testing.T) {
 	ctx := t.Context()
 	number := placeUnpaidOrder(t)
-	issued := time.Date(2026, 9, 30, 17, 30, 0, 0, time.UTC) // ECPay said "2026-09-30 17:30:00"
+	issued := time.Date(2026, 9, 30, 9, 30, 0, 0, time.UTC) // ECPay said "2026-09-30 17:30:00" Taipei time
 	s := admin.NewStore(pool, fakeRefunder{}, fixedInvoices{{Kind: "invoice", Number: "AB12345678", IssuedAt: issued}}, disabledInvoiceWriter{})
 
 	view, err := s.Order(ctx, number)

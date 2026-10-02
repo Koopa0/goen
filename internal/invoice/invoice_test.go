@@ -578,7 +578,7 @@ func TestAVoidSendsTheInvoicesOwnIssueDate(t *testing.T) {
 		t.Fatalf("a void with no issue date reached ECPay %d times", calls)
 	}
 	// This instant is 25 August in Taipei and 24 August in UTC. ECPay's date is
-	// the Taipei one, so a format in the process's zone is a day early.
+	// the Taipei one, so formatting the UTC date would be a day early.
 	issuedAt := time.Date(2026, time.August, 24, 20, 0, 0, 0, time.UTC)
 	if err := g.Void(t.Context(), "LA25024809", issuedAt, "資料錯誤"); err != nil {
 		t.Fatalf("Void: %v", err)
