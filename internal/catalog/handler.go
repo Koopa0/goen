@@ -51,6 +51,9 @@ func (h *Handler) Listing(w http.ResponseWriter, r *http.Request) {
 	view.MaxPrice = f.MaxPrice
 	view.Sort = string(f.Sort)
 
+	if web.IsHTMX(r) {
+		r = r.WithContext(pages.AsPartial(r.Context()))
+	}
 	web.Render(w, r, h.log, http.StatusOK, pages.Listing(pages.ListingMeta(r.Context(), view), view))
 }
 

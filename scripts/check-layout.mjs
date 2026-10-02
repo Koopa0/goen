@@ -1143,20 +1143,36 @@ const proveListingFilterJourney = async (label, locale) => {
     const summary = document.querySelector('.goen-filters__shell-summary');
     if (!shell || !summary) return { ok: false, why: 'shell summary missing' };
     summary.click();
-    const apply = document.querySelector('.goen-filters__apply');
-    const applyRect = apply ? apply.getBoundingClientRect() : null;
-    return {
-      ok: true,
-      shellOpen: shell.open,
-      applyVisible: !!(applyRect && applyRect.height > 0 && applyRect.bottom > 0),
-    };
+    return { ok: true, shellOpen: shell.open };
   })()`);
   if (expanded.threw || !expanded.ok) {
     fail(label, expanded.why || 'expanded probe failed');
     return;
   }
   if (!expanded.shellOpen) fail(label, 'filter shell did not open after the summary was activated');
-  if (!expanded.applyVisible) fail(label, 'apply control is not visible after expanding the shell');
+
+  // With scripting on a changed filter applies itself and the stylesheet hides
+  // the button; with scripting off the button is the only way to apply, so it
+  // must show once the shell opens. The page is reloaded because the shell above
+  // was opened by script.
+  await send(ws, 'Emulation.setScriptExecutionDisabled', { value: true });
+  const noScriptTarget = `${ORIGIN}/c/audio`;
+  await send(ws, 'Page.navigate', { url: noScriptTarget });
+  await settled(ws, `${label} no script`, noScriptTarget);
+  const noScript = await evalPage(`(() => {
+    const summary = document.querySelector('.goen-filters__shell-summary');
+    if (!summary) return { ok: false, why: 'shell summary missing with scripting off' };
+    summary.click();
+    const apply = document.querySelector('.goen-filters__apply');
+    const rect = apply ? apply.getBoundingClientRect() : null;
+    return { ok: true, applyVisible: !!(rect && rect.height > 0 && rect.bottom > 0) };
+  })()`);
+  await send(ws, 'Emulation.setScriptExecutionDisabled', { value: false });
+  if (noScript.threw || !noScript.ok) {
+    fail(label, noScript.why || 'no-script apply probe failed');
+    return;
+  }
+  if (!noScript.applyVisible) fail(label, 'apply control is not visible with scripting off after expanding the shell');
 
   const filtered = `${ORIGIN}/c/audio?in_stock=1#listing-results`;
   await send(ws, 'Page.navigate', { url: filtered });
@@ -1247,6 +1263,46 @@ const proveListingDesktopResize = async (label, locale) => {
   };
 
   await loadDesktop(false);
+
+  // With scripting on, ticking a filter updates the results in place: the URL
+  // follows, the chips appear, the region is a new node, the box keeps focus,
+  // the page does not scroll and the announced count is the page's own.
+  const live = await evalPage(`(async () => {
+    const box = document.querySelector('.goen-filters input[name=in_stock]');
+    if (!box) return { ok: false, why: 'stock filter missing' };
+    const before = document.getElementById('listing-results');
+    const y = window.scrollY;
+    box.focus();
+    box.click();
+    const deadline = Date.now() + 3000;
+    while (Date.now() < deadline) {
+      if (location.search.includes('in_stock=1') && document.getElementById('listing-results') !== before
+        && document.querySelector('#filters-applied .goen-filters__chip')) break;
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    const count = document.querySelector('.goen-listing__count');
+    return {
+      ok: true,
+      search: location.search,
+      chip: !!document.querySelector('#filters-applied .goen-filters__chip'),
+      replaced: document.getElementById('listing-results') !== before,
+      focusKept: document.activeElement === box,
+      scrolled: window.scrollY !== y,
+      status: (document.getElementById('listing-status')?.textContent || '').trim(),
+      count: count ? count.textContent.trim() : null,
+    };
+  })()`);
+  if (live.threw || !live.ok) {
+    fail(label, live.why || 'live filter probe failed');
+  } else {
+    if (!live.search.includes('in_stock=1')) fail(label, `ticking the stock filter did not update the URL — ${JSON.stringify(live)}`);
+    if (!live.chip) fail(label, `no active-filter chip after the update — ${JSON.stringify(live)}`);
+    if (!live.replaced) fail(label, 'the results region was not replaced by the update');
+    if (!live.focusKept) fail(label, 'focus left the filter box after the update');
+    if (live.scrolled) fail(label, 'the page scrolled after the update');
+    if (!live.count || live.status !== live.count) fail(label, `the announced count "${live.status}" is not the page's "${live.count}"`);
+  }
+
   await loadDesktop(true);
   await send(ws, 'Emulation.setScriptExecutionDisabled', { value: false });
 

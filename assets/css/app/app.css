@@ -2617,6 +2617,34 @@ h3 {
   margin-top: 8px;
 }
 
+/* Where scripting is on, a changed filter or sort applies itself, so the button
+   goes. Hidden when the sheet is told scripting is on, so a browser that has
+   never heard of the query keeps the button that always works. */
+@media (scripting: enabled) {
+  .goen-filters__apply {
+    display: none;
+  }
+}
+
+/* Present even when nothing is filtered so a swap can fill or clear it; an
+   empty one must not add a flex gap. */
+#filters-applied:empty {
+  display: none;
+}
+
+.goen-filters__error {
+  color: var(--error);
+  font-size: var(--fs-14);
+  margin: 0;
+}
+
+/* The results region takes focus when a filtered page loads, so the next Tab
+   starts at the products. It is not a control and must not draw a ring. */
+#listing-results:focus,
+#listing-results:focus-visible {
+  outline: none;
+}
+
 .goen-filters__applied {
   align-items: center;
   display: flex;
