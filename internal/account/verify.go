@@ -3,7 +3,6 @@ package account
 import (
 	"context"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -104,17 +103,9 @@ func (s *Store) queueVerification(ctx context.Context, userID, addr string, link
 	}
 
 	link.Email, link.Token, link.Locale = addr, token, i18n.FromContext(ctx).Tag()
-	payload, marshalErr := json.Marshal(link)
-	if marshalErr != nil {
-		return fmt.Errorf("encode verification message: %w", marshalErr)
-	}
 	digest := HashToken(token)
-	if err := q.EnqueueMessage(ctx, db.EnqueueMessageParams{
-		Topic:     outbox.TopicEmailVerify,
-		DedupeKey: "verify:" + hex.EncodeToString(digest),
-		Payload:   payload,
-	}); err != nil {
-		return fmt.Errorf("enqueue verification message: %w", err)
+	if err := outbox.Enqueue(ctx, q, outbox.TopicEmailVerify, "verify:"+hex.EncodeToString(digest), &link); err != nil {
+		return err
 	}
 
 	if err := tx.Commit(ctx); err != nil {

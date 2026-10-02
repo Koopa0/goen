@@ -20,6 +20,7 @@ import (
 	"github.com/koopa0/goen/internal/destination"
 	"github.com/koopa0/goen/internal/i18n"
 	invoicepkg "github.com/koopa0/goen/internal/invoice"
+	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/pickup"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -771,14 +772,14 @@ func writeOrderParts(ctx context.Context, q *db.Queries, p *orderParts) error {
 	}
 
 	// The confirmation email's INTENT, in the order's own transaction.
-	if mailErr := enqueueOrderPlaced(ctx, q, p.orderID, p.orderNumber, p.address, p.totalCents); mailErr != nil {
+	if mailErr := enqueueOrderPlaced(ctx, q, p.orderNumber, p.address, p.totalCents); mailErr != nil {
 		return mailErr
 	}
 
 	// Store credit paying the whole order is money received now, and 營業稅法
 	// §32 invoices money received before dispatch; picking is too late.
 	if p.creditCents > 0 && p.creditCents == p.totalCents {
-		if dueErr := invoicepkg.EnqueueDue(ctx, q, invoicepkg.Due{
+		if dueErr := invoicepkg.EnqueueDue(ctx, q, &outbox.InvoiceDue{
 			OrderNumber: p.orderNumber, Trigger: "commit:" + p.orderNumber,
 		}); dueErr != nil {
 			return dueErr

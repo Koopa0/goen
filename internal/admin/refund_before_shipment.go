@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ordernotice"
 	"github.com/koopa0/goen/internal/returns"
@@ -230,8 +231,8 @@ func recordStaffCancellation(
 	if err != nil {
 		return fmt.Errorf("read settled refunds for %s: %w", number, err)
 	}
-	return ordernotice.Enqueue(ctx, q, ordernotice.Message{
-		OrderID: orderID, Kind: ordernotice.CancelledByStaff, Refunded: refundedCents > 0,
+	return ordernotice.Enqueue(ctx, q, &email.OrderTerminal{
+		OrderID: orderID, Kind: email.TerminalCancelledByStaff, Refunded: refundedCents > 0,
 	})
 }
 

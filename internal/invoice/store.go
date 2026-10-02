@@ -2,7 +2,6 @@ package invoice
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -97,36 +96,16 @@ func (s *Store) Issue(ctx context.Context, orderNumber string) (Document, error)
 	return s.processClaim(ctx, operationID)
 }
 
-// Due is an order whose sale became final, so its 統一發票 is owed now:
-// 營業稅法 §32's 時限表 invoices a prepaid sale when the money arrives, not at
-// dispatch.
-type Due struct {
-	OrderNumber string `json:"order_number"`
-	// Trigger is the provider event that captured the payment, the payment staff
-	// attributed, or the checkout that store credit paid in full. It is the
-	// system claim's request id.
-	Trigger string `json:"trigger"`
-}
-
 // EnqueueDue writes the invoice a sale owes in the transaction that took the
 // money, keyed on the order so the order is claimed once.
-func EnqueueDue(ctx context.Context, q *db.Queries, due Due) error {
-	payload, err := json.Marshal(due)
-	if err != nil {
-		return fmt.Errorf("encode invoice.due: %w", err)
-	}
-	if err := q.EnqueueMessage(ctx, db.EnqueueMessageParams{
-		Topic: outbox.TopicInvoiceDue, DedupeKey: due.OrderNumber, Payload: payload,
-	}); err != nil {
-		return fmt.Errorf("enqueue invoice.due for order %s: %w", due.OrderNumber, err)
-	}
-	return nil
+func EnqueueDue(ctx context.Context, q *db.Queries, due *outbox.InvoiceDue) error {
+	return outbox.Enqueue(ctx, q, outbox.TopicInvoiceDue, due.OrderNumber, due)
 }
 
 // ClaimDue records the system's issue for an order; the reconciler sends it.
 // It claims with or without a 加值中心, so one configured later still files
 // what was owed before it.
-func (s *Store) ClaimDue(ctx context.Context, due *Due) error {
+func (s *Store) ClaimDue(ctx context.Context, due *outbox.InvoiceDue) error {
 	_, err := s.q.ClaimSystemInvoiceIssue(ctx, db.ClaimSystemInvoiceIssueParams{
 		OrderNumber: due.OrderNumber, RequestID: due.Trigger,
 	})

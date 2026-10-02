@@ -17,9 +17,9 @@ import (
 func TestEveryTopicHasAProducerAndAHandler(t *testing.T) {
 	t.Parallel()
 
-	declared := topicConstants(t)
+	declared := topicVars(t)
 	if len(declared) < 3 {
-		t.Fatalf("found %d topic constants, want at least 3 — the parser stopped matching", len(declared))
+		t.Fatalf("found %d topic variables, want at least 3 — the parser stopped matching", len(declared))
 	}
 
 	main := readFile(t, filepath.Join("..", "..", "cmd", "goen", "main.go"))
@@ -41,8 +41,8 @@ func TestEveryTopicHasAProducerAndAHandler(t *testing.T) {
 	}
 }
 
-// topicConstants reads the Topic* names out of this package's own const block.
-func topicConstants(t *testing.T) map[string]struct{} {
+// topicVars reads the Topic* names out of this package's own var block.
+func topicVars(t *testing.T) map[string]struct{} {
 	t.Helper()
 	fset := token.NewFileSet()
 	file, err := parser.ParseFile(fset, "outbox.go", nil, 0)
@@ -53,7 +53,7 @@ func topicConstants(t *testing.T) map[string]struct{} {
 	out := map[string]struct{}{}
 	ast.Inspect(file, func(n ast.Node) bool {
 		decl, ok := n.(*ast.GenDecl)
-		if !ok || decl.Tok != token.CONST {
+		if !ok || decl.Tok != token.VAR {
 			return true
 		}
 		for _, spec := range decl.Specs {

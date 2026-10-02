@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -29,15 +28,6 @@ var ErrResetInvalid = errors.New("account: that reset link is not usable")
 // ErrInvalidPassword is a new password the rules refuse.
 var ErrInvalidPassword = errors.New("account: password refused")
 
-// ResetRequest is a queued forgotten-password request. It names the account by
-// id and never by address, and it names none when the address has no account:
-// the request is queued either way, so asking about an address costs the same
-// whether or not it belongs to somebody.
-type ResetRequest struct {
-	UserID string `json:"user_id"`
-	Locale string `json:"locale"`
-}
-
 // requestReset queues a forgotten-password request and nothing else. Every
 // address the rules accept is the same single statement, so the caller cannot
 // become an account-existence oracle through what it answers or how long it
@@ -52,7 +42,7 @@ func (s *Store) queueResetRequest(ctx context.Context, addr, dedupeKey string) e
 		return nil
 	}
 	if err := s.q.EnqueuePasswordResetRequest(ctx, db.EnqueuePasswordResetRequestParams{
-		Topic:     outbox.TopicPasswordResetRequest,
+		Topic:     outbox.TopicPasswordResetRequest.Name(),
 		DedupeKey: dedupeKey,
 		Locale:    i18n.FromContext(ctx).Tag(),
 		Email:     addr,
@@ -68,7 +58,7 @@ func (s *Store) queueResetRequest(ctx context.Context, addr, dedupeKey string) e
 // transaction, so a replacement link is the only one that can still spend. The
 // address is read here rather than carried in the request, so the link goes to
 // the account's current address.
-func (s *Store) IssueReset(ctx context.Context, req *ResetRequest) error {
+func (s *Store) IssueReset(ctx context.Context, req *outbox.PasswordResetRequest) error {
 	if req.UserID == "" {
 		return nil
 	}
@@ -97,13 +87,6 @@ func (s *Store) IssueReset(ctx context.Context, req *ResetRequest) error {
 		return err
 	}
 	digest := sha256.Sum256([]byte(token))
-	payload, err := json.Marshal(mailmsg.PasswordReset{
-		Email: row.Email, Token: token, Locale: req.Locale,
-	})
-	if err != nil {
-		return fmt.Errorf("encode reset message: %w", err)
-	}
-
 	if err := q.InvalidateResetTokens(ctx, row.ID); err != nil {
 		return fmt.Errorf("invalidate prior reset tokens: %w", err)
 	}
@@ -114,12 +97,9 @@ func (s *Store) IssueReset(ctx context.Context, req *ResetRequest) error {
 	}); err != nil {
 		return fmt.Errorf("create reset token: %w", err)
 	}
-	if err := q.EnqueueMessage(ctx, db.EnqueueMessageParams{
-		Topic:     outbox.TopicPasswordReset,
-		DedupeKey: "reset:" + hex.EncodeToString(digest[:]),
-		Payload:   payload,
-	}); err != nil {
-		return fmt.Errorf("enqueue reset message: %w", err)
+	if err := outbox.Enqueue(ctx, q, outbox.TopicPasswordReset, "reset:"+hex.EncodeToString(digest[:]),
+		&mailmsg.PasswordReset{Email: row.Email, Token: token, Locale: req.Locale}); err != nil {
+		return err
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("commit password reset: %w", err)
