@@ -1,0 +1,21 @@
+package i18n
+
+var (
+	KeyAuditProductLabel       = key("audit.product.label", Message{ZhHant: "修改商品標示", En: "Edit product label"})
+	KeyProductLabel            = key("product.label.title", Message{ZhHant: "商品標示", En: "Product label"})
+	KeyLabelOrigin             = key("product.label.origin", Message{ZhHant: "產地", En: "Origin"})
+	KeyLabelOriginEn           = key("product.label.origin.en", Message{ZhHant: "產地（英文）", En: "Origin (English)"})
+	KeyLabelResponsibleName    = key("product.label.responsible.name", Message{ZhHant: "製造商或進口商名稱", En: "Manufacturer or importer"})
+	KeyLabelResponsiblePhone   = key("product.label.responsible.phone", Message{ZhHant: "製造商或進口商電話", En: "Manufacturer or importer phone"})
+	KeyLabelResponsibleAddress = key("product.label.responsible.address", Message{ZhHant: "製造商或進口商地址", En: "Manufacturer or importer address"})
+	KeyLabelNetContent         = key("product.label.net", Message{ZhHant: "淨含量", En: "Net content"})
+	KeyLabelNetQuantity        = key("product.label.net.quantity", Message{ZhHant: "淨含量數值", En: "Net quantity"})
+	KeyLabelNetUnit            = key("product.label.net.unit", Message{ZhHant: "淨含量單位", En: "Net unit"})
+	KeyLabelMinAge             = key("product.label.age", Message{ZhHant: "最低適用月齡", En: "Minimum age in months"})
+	KeyLabelAgeMonths          = key("product.label.age.months", Message{ZhHant: "%d 個月以上", En: "%d months and over"})
+	KeyLabelPiece              = key("product.label.unit.piece", Message{ZhHant: "件", En: "piece"})
+	KeyLabelSave               = key("product.label.save", Message{ZhHant: "儲存商品標示", En: "Save product label"})
+	KeyLabelTextInvalid        = key("product.label.text.invalid", Message{ZhHant: "請填寫不含控制字元且不超過字數限制的內容。", En: "Use text within the length limit and without control characters."})
+	KeyLabelNetInvalid         = key("product.label.net.invalid", Message{ZhHant: "請同時填寫正數淨含量與單位，數值最多有兩位小數。", En: "Enter a positive quantity with its unit, using at most two decimal places."})
+	KeyLabelAgeInvalid         = key("product.label.age.invalid", Message{ZhHant: "請填寫 0 到 216 的整數月齡，或留白。", En: "Enter a whole number of months from 0 to 216, or leave it blank."})
+)

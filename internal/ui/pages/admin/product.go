@@ -9,6 +9,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
+	"github.com/koopa0/goen/internal/productlabel"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
@@ -78,6 +79,7 @@ func (v ProductVariant) StockText(ctx context.Context) string {
 }
 
 type ProductView struct {
+	LabelInput        *productlabel.Input
 	IsNew             bool
 	Slug              string
 	Name              string
@@ -246,3 +248,12 @@ const (
 	specLabelExample = "容量"              // i18n-exempt: as above
 	specValueExample = "350 ml"          // i18n-exempt: as above
 )
+
+func (v *ProductView) LabelAction() string { return "/admin/products/" + v.Slug + "/label" }
+
+func (v *ProductView) labelInput() *productlabel.Input {
+	if v.LabelInput == nil {
+		return &productlabel.Input{}
+	}
+	return v.LabelInput
+}
