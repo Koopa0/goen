@@ -1235,3 +1235,17 @@ func TestAGuestIsOfferedNeitherControl(t *testing.T) {
 		}
 	}
 }
+
+func TestQuestionsAndAnswersMaskNamesLikeReviews(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	if got := (Question{Asker: "王小明"}).Who(ctx); got != "王○○" {
+		t.Errorf("asker shown as %q, want 王○○", got)
+	}
+	if got := (Answer{Author: "陳大文"}).Who(ctx); got != "陳○○" {
+		t.Errorf("answerer shown as %q, want 陳○○", got)
+	}
+	if got := (Answer{Author: "陳大文", IsStaff: true}).Who(ctx); got != "goen" {
+		t.Errorf("staff answer shown as %q, want goen", got)
+	}
+}

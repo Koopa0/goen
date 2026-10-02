@@ -215,7 +215,7 @@ func TestControlsThatSwapTheirOwnRegionKeepAStableID(t *testing.T) {
 
 func TestTheReviewFormWarnsBeforeSubmittingAndRefusesToTheForm(t *testing.T) {
 	t.Parallel()
-	view := ProductView{Slug: "sample-product", Name: "Sample", SignedIn: true, CanReview: true}
+	view := ProductView{Slug: "sample-product", Name: "Sample", SignedIn: true, ReviewStanding: ReviewOpen}
 	var body strings.Builder
 	if err := Product(ProductMeta(&view), &view).Render(i18n.WithLocale(t.Context(), i18n.ZhHant), &body); err != nil {
 		t.Fatal(err)
@@ -234,7 +234,7 @@ func TestTheReviewFormWarnsBeforeSubmittingAndRefusesToTheForm(t *testing.T) {
 func TestTheReviewFormIsReplacedUntilTheProductArrives(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	view := ProductView{Slug: "sample-product", Name: "Sample", SignedIn: true, ReviewAwaitsDelivery: true}
+	view := ProductView{Slug: "sample-product", Name: "Sample", SignedIn: true, ReviewStanding: ReviewNotDelivered}
 	var body strings.Builder
 	if err := Product(ProductMeta(&view), &view).Render(ctx, &body); err != nil {
 		t.Fatal(err)
@@ -251,7 +251,7 @@ func TestTheReviewFormIsReplacedUntilTheProductArrives(t *testing.T) {
 func TestTheRatingIsAKeyboardOperableStarGroupAndTheHintStatesTheMinimum(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	view := ProductView{Slug: "sample-product", Name: "Sample", SignedIn: true, CanReview: true}
+	view := ProductView{Slug: "sample-product", Name: "Sample", SignedIn: true, ReviewStanding: ReviewOpen}
 	var body strings.Builder
 	if err := Product(ProductMeta(&view), &view).Render(ctx, &body); err != nil {
 		t.Fatal(err)
@@ -267,7 +267,7 @@ func TestTheRatingIsAKeyboardOperableStarGroupAndTheHintStatesTheMinimum(t *test
 		!strings.Contains(markup, `aria-describedby="review-body-hint"`) {
 		t.Error("the minimum length is not stated in a hint the field points at")
 	}
-	if !strings.Contains(markup, i18n.T(ctx, i18n.KeyReviewBodyHint)) {
+	if !strings.Contains(markup, view.ReviewBodyHint(ctx)) {
 		t.Error("the hint text is missing")
 	}
 }

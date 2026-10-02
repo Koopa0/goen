@@ -4308,10 +4308,9 @@ a.goen-pager__step:hover {
   margin: 0;
 }
 
-/* The rating is a radio group drawn as stars: the inputs stay real and
-   focusable, so arrow keys move the choice and a keyboard sets it. A star is lit
-   when it, or any star after it in the markup, is checked, which is the fill the
-   display above reads from. Hover previews the same fill. */
+/* The radios stay real so the arrow keys set the rating; a star is lit when it
+   or any later star is checked. The hover reset must match the checked rules'
+   specificity and come after them, or hover cannot preview a lower rating. */
 .goen-pdp__stars {
   border: 0;
   margin: 0;
@@ -4353,7 +4352,7 @@ a.goen-pager__step:hover {
   fill: var(--star);
 }
 
-.goen-pdp__starrow:hover .goen-pdp__starmark svg {
+.goen-pdp__starrow:hover .goen-pdp__star .goen-pdp__starmark svg {
   color: var(--n-300);
   fill: none;
 }
@@ -8257,6 +8256,10 @@ a.goen-pager__step:hover {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  max-width: 60ch;
+}
+
+.goen-pdp .goen-qa__form {
   max-width: 40rem;
 }
 

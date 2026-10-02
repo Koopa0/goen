@@ -6484,21 +6484,7 @@ func (q *Queries) HandleMessage(ctx context.Context, id uuid.UUID) (int64, error
 	return result.RowsAffected(), nil
 }
 
-const hasOpenReturn = `-- name: HasOpenReturn :one
-SELECT EXISTS (
-    SELECT 1 FROM return_requests WHERE order_id = $1 AND status = 'requested'
-)
-`
-
-// Whether this order already has a request nobody has decided yet.
-func (q *Queries) HasOpenReturn(ctx context.Context, orderID uuid.UUID) (bool, error) {
-	row := q.db.QueryRow(ctx, hasOpenReturn, orderID)
-	var exists bool
-	err := row.Scan(&exists)
-	return exists, err
-}
-
-const hasReceivedProduct = `-- name: HasReceivedProduct :one
+const hasDeliveredProduct = `-- name: HasDeliveredProduct :one
 SELECT EXISTS (
     SELECT 1
     FROM orders o
@@ -6509,7 +6495,7 @@ SELECT EXISTS (
 )
 `
 
-type HasReceivedProductParams struct {
+type HasDeliveredProductParams struct {
 	UserID    uuid.NullUUID
 	ProductID uuid.NullUUID
 }
@@ -6517,8 +6503,22 @@ type HasReceivedProductParams struct {
 // order_is_committed, never "EXISTS a succeeded payment": a store-credit-funded
 // order is committed with no payment row at all, and the verified-purchase
 // trigger asks the same question. product_id survives deletion of the variant.
-func (q *Queries) HasReceivedProduct(ctx context.Context, arg HasReceivedProductParams) (bool, error) {
-	row := q.db.QueryRow(ctx, hasReceivedProduct, arg.UserID, arg.ProductID)
+func (q *Queries) HasDeliveredProduct(ctx context.Context, arg HasDeliveredProductParams) (bool, error) {
+	row := q.db.QueryRow(ctx, hasDeliveredProduct, arg.UserID, arg.ProductID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const hasOpenReturn = `-- name: HasOpenReturn :one
+SELECT EXISTS (
+    SELECT 1 FROM return_requests WHERE order_id = $1 AND status = 'requested'
+)
+`
+
+// Whether this order already has a request nobody has decided yet.
+func (q *Queries) HasOpenReturn(ctx context.Context, orderID uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, hasOpenReturn, orderID)
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err

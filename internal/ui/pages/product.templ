@@ -688,13 +688,13 @@ templ askForm(v *ProductView) {
 }
 
 templ reviewForm(v *ProductView) {
-	if !v.SignedIn {
+	if v.ReviewStanding == ReviewSignedOut {
 		<p class="goen-pdp__reviewnote">
 			<a href={ templ.SafeURL("/signin?next=/p/" + v.Slug) }>{ i18n.T(ctx, i18n.KeySignInFirst) }</a>{ i18n.T(ctx, i18n.KeySignInToReview) }
 		</p>
-	} else if v.ReviewAwaitsDelivery {
+	} else if v.ReviewStanding == ReviewNotDelivered {
 		<p class="goen-pdp__reviewnote">{ i18n.T(ctx, i18n.KeyReviewAfterDelivery) }</p>
-	} else if !v.CanReview {
+	} else if v.ReviewStanding == ReviewAlreadyWritten {
 		<p class="goen-pdp__reviewnote">{ i18n.T(ctx, i18n.KeyAlreadyReviewed) }</p>
 	} else {
 		<div class="goen-pdp__reviewform">
@@ -744,7 +744,7 @@ templ reviewForm(v *ProductView) {
 					}) {
 						{ v.ReviewDraft.Body }
 					}
-					<p class="goen-pdp__reviewnote" id="review-body-hint">{ i18n.T(ctx, i18n.KeyReviewBodyHint) }</p>
+					<p class="goen-pdp__reviewnote" id="review-body-hint">{ v.ReviewBodyHint(ctx) }</p>
 					if v.HasReviewErr("body") {
 						<p class="ui-error-text" id="review-body-error">{ v.ReviewErr("body") }</p>
 					}

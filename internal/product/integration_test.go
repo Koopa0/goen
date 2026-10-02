@@ -451,9 +451,9 @@ func TestOnlyACustomerWhoReceivedTheProductMayReview(t *testing.T) {
 	browser := reviewer(t, "browser")
 
 	for name, who := range map[string]uuid.UUID{"never bought": browser, "paid, not delivered": paidOnly} {
-		right, err := s.CanReview(ctx, slug, who.String())
-		if err != nil || right != product.AwaitsDelivery {
-			t.Errorf("%s: CanReview = %v, %v; want AwaitsDelivery", name, right, err)
+		standing, err := s.ReviewStanding(ctx, slug, who.String())
+		if err != nil || standing != pages.ReviewNotDelivered {
+			t.Errorf("%s: ReviewStanding = %v, %v; want ReviewNotDelivered", name, standing, err)
 		}
 		if _, err := s.AddReview(ctx, slug, who.String(), &product.Review{
 			Rating: 5, Body: "還沒收到商品,不能留下評價。",
@@ -474,8 +474,8 @@ func TestOnlyACustomerWhoReceivedTheProductMayReview(t *testing.T) {
 		t.Errorf("a post without a delivered order returned %d, want 422", res.Code)
 	}
 
-	if right, err := s.CanReview(ctx, slug, received.String()); err != nil || right != product.MayReview {
-		t.Fatalf("a delivered order: CanReview = %v, %v; want MayReview", right, err)
+	if standing, err := s.ReviewStanding(ctx, slug, received.String()); err != nil || standing != pages.ReviewOpen {
+		t.Fatalf("a delivered order: ReviewStanding = %v, %v; want ReviewOpen", standing, err)
 	}
 	if errs, err := s.AddReview(ctx, slug, received.String(), &product.Review{
 		Rating: 4, Body: "實際用過兩週,續航符合官方說法。",
@@ -622,9 +622,9 @@ func TestRetiringAPurchasedVariantDoesNotEraseVerifiedPurchase(t *testing.T) {
 		}
 	}
 	s := product.NewStore(tx)
-	right, err := s.CanReview(ctx, slug, who.String())
-	if err != nil || right != product.MayReview {
-		t.Fatalf("CanReview after variant retirement = %v, %v; want MayReview, nil", right, err)
+	standing, err := s.ReviewStanding(ctx, slug, who.String())
+	if err != nil || standing != pages.ReviewOpen {
+		t.Fatalf("ReviewStanding after variant retirement = %v, %v; want ReviewOpen, nil", standing, err)
 	}
 	if errs, addErr := s.AddReview(ctx, slug, who.String(), &product.Review{
 		Rating: 5, Body: "買過的規格退役後仍然保留已購買證明。",
@@ -1911,11 +1911,11 @@ func TestAHiddenReviewStillBlocksASecondOne(t *testing.T) {
 		t.Fatalf("hide: %v", err)
 	}
 
-	right, err := s.CanReview(ctx, slug, userID.String())
+	standing, err := s.ReviewStanding(ctx, slug, userID.String())
 	if err != nil {
-		t.Fatalf("CanReview: %v", err)
+		t.Fatalf("ReviewStanding: %v", err)
 	}
-	if right == product.MayReview {
+	if standing == pages.ReviewOpen {
 		t.Error("a customer whose review is hidden was offered the form again — the " +
 			"insert would meet the unique index")
 	}
@@ -1941,12 +1941,12 @@ func reviewBy(t *testing.T, productID uuid.UUID, address string, rating int) (id
 }
 
 // TestASimultaneousSecondReviewIsRefusedByName reaches the INSERT's own refusal,
-// the mapping of product_reviews_author_key to ErrAlreadyReviewed: CanReview
+// the mapping of product_reviews_author_key to ErrAlreadyReviewed: ReviewStanding
 // answers first in every ordinary case, so only two racing submissions get there.
 //
 // The race is made deterministic rather than hoped for. T1 inserts the row and
 // holds its transaction OPEN: under read committed the row is invisible, so
-// CanReview passes, and the second INSERT then blocks on the unique index until
+// ReviewStanding passes, and the second INSERT then blocks on the unique index until
 // T1 commits. Two goroutines behind a start channel would finish microseconds
 // apart and never overlap.
 func TestASimultaneousSecondReviewIsRefusedByName(t *testing.T) {
@@ -1969,7 +1969,7 @@ func TestASimultaneousSecondReviewIsRefusedByName(t *testing.T) {
 		t.Fatalf("hold the first review open: %v", err)
 	}
 
-	// The second submission sees nothing yet, so it gets past CanReview and
+	// The second submission sees nothing yet, so it gets past ReviewStanding and
 	// then waits on the index.
 	refused := make(chan error, 1)
 	go func() {

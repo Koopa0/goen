@@ -15,6 +15,7 @@ import (
 	"github.com/koopa0/goen/internal/db"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 var (
@@ -71,49 +72,40 @@ func hasUnprintableReviewControl(s string) bool {
 	})
 }
 
-type ReviewRight int
-
-const (
-	MayReview ReviewRight = iota
-	// HasReviewed counts a hidden review too: it still holds the unique index.
-	HasReviewed
-	AwaitsDelivery
-)
-
-// CanReview answers for a signed-in customer; a visitor gets AwaitsDelivery.
-func (s *Store) CanReview(ctx context.Context, slug, userID string) (ReviewRight, error) {
+// ReviewStanding answers for a signed-in customer; a visitor is ReviewSignedOut.
+func (s *Store) ReviewStanding(ctx context.Context, slug, userID string) (pages.ReviewStanding, error) {
 	id, parseErr := uuid.Parse(userID)
 	if parseErr != nil {
-		return AwaitsDelivery, nil //nolint:nilerr // not signed in is not an error
+		return pages.ReviewSignedOut, nil //nolint:nilerr // not signed in is not an error
 	}
 	owner := uuid.NullUUID{UUID: id, Valid: true}
 
 	productID, err := s.q.ActiveProductForReview(ctx, slug)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return AwaitsDelivery, ErrNotFound
+			return pages.ReviewSignedOut, ErrNotFound
 		}
-		return AwaitsDelivery, fmt.Errorf("find review product: %w", err)
+		return pages.ReviewSignedOut, fmt.Errorf("find review product: %w", err)
 	}
 	reviewed, err := s.q.HasReviewed(ctx, db.HasReviewedParams{
 		UserID: owner, ProductID: productID,
 	})
 	if err != nil {
-		return AwaitsDelivery, fmt.Errorf("check existing review: %w", err)
+		return pages.ReviewSignedOut, fmt.Errorf("check existing review: %w", err)
 	}
 	if reviewed {
-		return HasReviewed, nil
+		return pages.ReviewAlreadyWritten, nil
 	}
-	received, err := s.q.HasReceivedProduct(ctx, db.HasReceivedProductParams{
+	delivered, err := s.q.HasDeliveredProduct(ctx, db.HasDeliveredProductParams{
 		UserID: owner, ProductID: uuid.NullUUID{UUID: productID, Valid: true},
 	})
 	if err != nil {
-		return AwaitsDelivery, fmt.Errorf("check delivery: %w", err)
+		return pages.ReviewSignedOut, fmt.Errorf("check delivery: %w", err)
 	}
-	if !received {
-		return AwaitsDelivery, nil
+	if !delivered {
+		return pages.ReviewNotDelivered, nil
 	}
-	return MayReview, nil
+	return pages.ReviewOpen, nil
 }
 
 // AddReview records a review.
@@ -127,16 +119,18 @@ func (s *Store) AddReview(ctx context.Context, slug, userID string, r *Review) (
 	}
 	owner := uuid.NullUUID{UUID: id, Valid: true}
 
-	right, err := s.CanReview(ctx, slug, userID)
+	standing, err := s.ReviewStanding(ctx, slug, userID)
 	if err != nil {
 		return nil, err
 	}
-	switch right {
-	case MayReview:
-	case HasReviewed:
+	switch standing {
+	case pages.ReviewOpen:
+	case pages.ReviewAlreadyWritten:
 		return nil, ErrAlreadyReviewed
-	case AwaitsDelivery:
+	case pages.ReviewNotDelivered:
 		return nil, ErrNotDelivered
+	case pages.ReviewSignedOut:
+		return nil, ErrReviewInvalid
 	}
 
 	n, err := s.q.CreateReview(ctx, db.CreateReviewParams{
@@ -147,7 +141,7 @@ func (s *Store) AddReview(ctx context.Context, slug, userID string, r *Review) (
 		// Bound to the CONSTRAINT name, never to the message text: PostgreSQL
 		// happens to name the index in a unique violation, but the message is
 		// prose that lc_messages localizes and releases reword, while the name
-		// is a field. CanReview answers first in the ordinary case, so only two
+		// is a field. ReviewStanding answers first in the ordinary case, so only two
 		// racing submissions reach this branch.
 		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok &&
 			pgErr.ConstraintName == "product_reviews_author_key" {

@@ -242,13 +242,12 @@ func (h *Handler) fillReviewForm(r *http.Request, slug string, view *pages.Produ
 	if !signedIn {
 		return
 	}
-	right, err := h.store.CanReview(r.Context(), slug, u.ID)
+	standing, err := h.store.ReviewStanding(r.Context(), slug, u.ID)
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "check review eligibility", "error", err)
 		return
 	}
-	view.CanReview = right == MayReview
-	view.ReviewAwaitsDelivery = right == AwaitsDelivery
+	view.ReviewStanding = standing
 }
 
 // parseRating returns 0 outside 1..5, which Validate reports as a missing rating.

@@ -50,8 +50,8 @@ var (
 	})
 
 	KeyReviewBodyHint = key("pdp.reviews.bodyhint", Message{
-		ZhHant: "至少 5 個字,最多 2000 字。",
-		En:     "At least 5 characters, at most 2000.",
+		ZhHant: "至少 %d 個字,最多 %d 字。",
+		En:     "At least %d characters, at most %d.",
 	})
 
 	KeyFieldRating = key("field.rating", Message{ZhHant: "評分", En: "Rating"})

@@ -178,7 +178,7 @@ WHERE slug = @slug::text AND status = 'active';
 -- order_is_committed, never "EXISTS a succeeded payment": a store-credit-funded
 -- order is committed with no payment row at all, and the verified-purchase
 -- trigger asks the same question. product_id survives deletion of the variant.
--- name: HasReceivedProduct :one
+-- name: HasDeliveredProduct :one
 SELECT EXISTS (
     SELECT 1
     FROM orders o
