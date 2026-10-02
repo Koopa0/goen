@@ -47,6 +47,20 @@ INSERT INTO categories (id, parent_id, slug, name, name_en, icon_key, position) 
     ('0000000c-0000-4000-8000-00000000000c', '0000000b-0000-4000-8000-00000000000b', 'chargers', '充電與線材', 'Charging and cables', 'plug', 0),
     ('0000000d-0000-4000-8000-00000000000d', '0000000b-0000-4000-8000-00000000000b', 'cases', '保護殼與包', 'Cases and bags', 'shield', 1);
 
+-- Each department's ground tone and header photograph; its sub-categories inherit both.
+-- The key names a file in assets/media/products/, where image keys resolve.
+UPDATE categories c
+SET tone = d.tone, image_key = d.image_key, image_alt = d.image_alt, image_alt_en = d.image_alt_en
+FROM (VALUES
+    ('books-stationery', 'paper', 'department-books-stationery.webp', '疊起的書、筆記本與一支筆', 'Stacked books, a notebook and a pen'),
+    ('home-living', 'stone', 'department-home-living.webp', '馬克杯、香氛蠟燭與亞麻布巾', 'Mugs, a scented candle and a linen cloth'),
+    ('beauty', 'blush', 'department-beauty.webp', '精華液、乳霜、軟管與毛巾', 'A serum, a cream, a tube and a towel'),
+    ('fashion', 'stone', 'department-fashion.webp', '帆布托特包、白 T 恤與漁夫帽', 'A canvas tote, a white t-shirt and a bucket hat'),
+    ('food-drink', 'sage', 'department-food-drink.webp', '茶罐、茶碗、掛耳咖啡與茶匙', 'A tea tin, a tea bowl, a drip coffee bag and a spoon'),
+    ('tech', 'mist', 'department-tech.webp', '筆電、耳罩式耳機、手機與充電線', 'A laptop, over-ear headphones, a phone and a cable')
+) AS d(slug, tone, image_key, image_alt, image_alt_en)
+WHERE c.slug = d.slug;
+
 INSERT INTO products (id, brand_id, category_id, slug, name, summary, status, published_at) VALUES
     ('0000000e-0000-4000-8000-00000000000e', '00000001-0000-4000-8000-000000000001', '00000006-0000-4000-8000-000000000006', 'pixelight-9-pro', 'Pixelight 9 Pro 5G', '旗艦影像旗艦，鈦金屬邊框與 LTPO 螢幕。', 'active', now()),
     ('00000020-0000-4000-8000-000000000020', '00000001-0000-4000-8000-000000000001', '00000006-0000-4000-8000-000000000006', 'pixelight-9', 'Pixelight 9 5G', '旗艦體驗，親民入手。', 'active', now()),
@@ -1220,6 +1234,9 @@ INSERT INTO membership_tiers (code, name, name_en, min_spend_cents,
 INSERT INTO sale_campaigns (id, slug, title, title_en, image_key, image_alt, image_alt_en, starts_at, ends_at) VALUES
     ('000002dc-0000-4000-8000-0000000002dc', 'autumn-picks', '秋日選物', 'Autumn picks', 'campaign-autumn.webp', '秋日色調的書與杯', 'Books and a mug in autumn colours', now() - interval '1 day', now() + interval '365 days'),
     ('000002dd-0000-4000-8000-0000000002dd', 'tea-coffee-week', '茶與咖啡週', 'Tea and coffee week', 'campaign-tea-week.webp', '茶具與茶葉', 'A tea set and tea leaves', now() - interval '1 day', now() + interval '365 days');
+
+UPDATE sale_campaigns SET tone = 'paper' WHERE slug = 'autumn-picks';
+UPDATE sale_campaigns SET tone = 'sage' WHERE slug = 'tea-coffee-week';
 
 INSERT INTO sale_campaign_products (campaign_id, product_id, position) VALUES
     ('000002dc-0000-4000-8000-0000000002dc', '00000216-0000-4000-8000-000000000216', 0),

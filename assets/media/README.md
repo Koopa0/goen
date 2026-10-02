@@ -11,7 +11,9 @@ versioned `/static/` asset handler.
 - `promo/` holds banner photographs (1600 and `-800`); `departments/` holds the
   department photographs (800px with a `-400` rendition), like `categories/`;
   `products/campaign-*.webp` are
-  campaign headers (1600x600).
+  campaign headers (1600x600). `products/department-<slug>.webp` is the same
+  photograph as `departments/<slug>.webp`, kept here because a department's
+  `image_key` is resolved like a product's storage key, which names no folder.
 - `*-400.webp`, `*-800.webp`, and the hero `*-720.webp` files are responsive
   derivatives; the unsuffixed storage-key files remain the source assets.
   `scripts/recolour-ground.py` only recolours a source's ground and rewrites

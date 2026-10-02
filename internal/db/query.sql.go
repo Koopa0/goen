@@ -353,6 +353,7 @@ const adminCampaignImage = `-- name: AdminCampaignImage :one
 SELECT coalesce(c.image_key, '')::text AS image_key,
        coalesce(c.image_alt, '')::text AS image_alt,
        coalesce(c.image_alt_en, '')::text AS image_alt_en,
+       c.tone,
        coalesce(m.width, 0)::integer AS image_width
 FROM sale_campaigns c
 LEFT JOIN media_objects m ON m.digest = c.image_key
@@ -363,6 +364,7 @@ type AdminCampaignImageRow struct {
 	ImageKey   string
 	ImageAlt   string
 	ImageAltEn string
+	Tone       string
 	ImageWidth int32
 }
 
@@ -375,6 +377,7 @@ func (q *Queries) AdminCampaignImage(ctx context.Context, slug string) (AdminCam
 		&i.ImageKey,
 		&i.ImageAlt,
 		&i.ImageAltEn,
+		&i.Tone,
 		&i.ImageWidth,
 	)
 	return i, err
@@ -526,6 +529,43 @@ func (q *Queries) AdminCategories(ctx context.Context) ([]AdminCategoriesRow, er
 		return nil, err
 	}
 	return items, nil
+}
+
+const adminCategoryImage = `-- name: AdminCategoryImage :one
+SELECT c.name,
+       coalesce(c.tone, '')::text AS tone,
+       coalesce(c.image_key, '')::text AS image_key,
+       coalesce(c.image_alt, '')::text AS image_alt,
+       coalesce(c.image_alt_en, '')::text AS image_alt_en,
+       coalesce(m.width, 0)::integer AS image_width
+FROM categories c
+LEFT JOIN media_objects m ON m.digest = c.image_key
+WHERE c.slug = $1::text
+`
+
+type AdminCategoryImageRow struct {
+	Name       string
+	Tone       string
+	ImageKey   string
+	ImageAlt   string
+	ImageAltEn string
+	ImageWidth int32
+}
+
+// The stored width comes from media_objects, and is 0 for a key that is not an
+// upload.
+func (q *Queries) AdminCategoryImage(ctx context.Context, slug string) (AdminCategoryImageRow, error) {
+	row := q.db.QueryRow(ctx, adminCategoryImage, slug)
+	var i AdminCategoryImageRow
+	err := row.Scan(
+		&i.Name,
+		&i.Tone,
+		&i.ImageKey,
+		&i.ImageAlt,
+		&i.ImageAltEn,
+		&i.ImageWidth,
+	)
+	return i, err
 }
 
 const adminCoupons = `-- name: AdminCoupons :many
@@ -3389,12 +3429,18 @@ func (q *Queries) CategoryBrands(ctx context.Context, categoryIds []uuid.UUID) (
 const categoryBySlug = `-- name: CategoryBySlug :one
 WITH RECURSIVE trail AS (
     SELECT c.id, c.parent_id, c.slug,
-           localized_name(c.name, c.name_en, $2::text) AS name, 0 AS depth
+           localized_name(c.name, c.name_en, $2::text) AS name,
+           c.tone, c.image_key,
+           localized_name(c.image_alt, c.image_alt_en, $2::text) AS image_alt,
+           0 AS depth
     FROM categories c
     WHERE c.slug = $1
     UNION ALL
     SELECT c.id, c.parent_id, c.slug,
-           localized_name(c.name, c.name_en, $2::text), t.depth + 1
+           localized_name(c.name, c.name_en, $2::text),
+           c.tone, c.image_key,
+           localized_name(c.image_alt, c.image_alt_en, $2::text),
+           t.depth + 1
     FROM categories c
     JOIN trail t ON c.id = t.parent_id
 )
@@ -3409,8 +3455,20 @@ SELECT
     coalesce(
         (SELECT array_agg(a.name ORDER BY a.depth DESC) FROM trail a WHERE a.depth > 0),
         ARRAY[]::text[]
-    )::text[] AS ancestor_names
+    )::text[] AS ancestor_names,
+    coalesce(
+        (SELECT a.tone FROM trail a WHERE a.tone IS NOT NULL ORDER BY a.depth LIMIT 1),
+        'stone'
+    )::text AS tone,
+    coalesce(photo.image_key, '')::text AS image_key,
+    coalesce(photo.image_alt, '')::text AS image_alt,
+    coalesce(m.width, 0)::integer AS image_width
 FROM trail self
+LEFT JOIN LATERAL (
+    SELECT a.image_key, a.image_alt FROM trail a
+    WHERE a.image_key IS NOT NULL ORDER BY a.depth LIMIT 1
+) photo ON true
+LEFT JOIN media_objects m ON m.digest = photo.image_key
 WHERE self.depth = 0
 `
 
@@ -3424,9 +3482,17 @@ type CategoryBySlugRow struct {
 	Name          string
 	AncestorSlugs []string
 	AncestorNames []string
+	Tone          string
+	ImageKey      string
+	ImageAlt      string
+	ImageWidth    int32
 }
 
 // categories_acyclic is what guarantees the upward walk terminates.
+// The tone and the photograph are the nearest ones up the trail: a
+// sub-category shows its department's. The photograph's key, alt text and width
+// come from ONE row, so a description never belongs to another category's
+// picture.
 func (q *Queries) CategoryBySlug(ctx context.Context, arg CategoryBySlugParams) (CategoryBySlugRow, error) {
 	row := q.db.QueryRow(ctx, categoryBySlug, arg.Slug, arg.Locale)
 	var i CategoryBySlugRow
@@ -3435,6 +3501,10 @@ func (q *Queries) CategoryBySlug(ctx context.Context, arg CategoryBySlugParams) 
 		&i.Name,
 		&i.AncestorSlugs,
 		&i.AncestorNames,
+		&i.Tone,
+		&i.ImageKey,
+		&i.ImageAlt,
+		&i.ImageWidth,
 	)
 	return i, err
 }
@@ -3919,6 +3989,20 @@ func (q *Queries) ClearCart(ctx context.Context, cartID uuid.UUID) error {
 	return err
 }
 
+const clearCategoryImage = `-- name: ClearCategoryImage :execrows
+UPDATE categories
+SET image_key = NULL, image_alt = NULL, image_alt_en = NULL
+WHERE slug = $1::text
+`
+
+func (q *Queries) ClearCategoryImage(ctx context.Context, slug string) (int64, error) {
+	result, err := q.db.Exec(ctx, clearCategoryImage, slug)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const clearDefaultAddress = `-- name: ClearDefaultAddress :exec
 UPDATE addresses SET is_default = false WHERE user_id = $1 AND is_default
 `
@@ -4357,15 +4441,16 @@ func (q *Queries) CreateBrand(ctx context.Context, arg CreateBrandParams) error 
 }
 
 const createCampaign = `-- name: CreateCampaign :exec
-INSERT INTO sale_campaigns (slug, title, title_en, ends_at)
-VALUES ($1::text, $2::text, nullif($3::text, ''),
-        now() + ($4::integer || ' days')::interval)
+INSERT INTO sale_campaigns (slug, title, title_en, tone, ends_at)
+VALUES ($1::text, $2::text, nullif($3::text, ''), $4::text,
+        now() + ($5::integer || ' days')::interval)
 `
 
 type CreateCampaignParams struct {
 	Slug    string
 	Title   string
 	TitleEn string
+	Tone    string
 	Days    int32
 }
 
@@ -4374,6 +4459,7 @@ func (q *Queries) CreateCampaign(ctx context.Context, arg CreateCampaignParams) 
 		arg.Slug,
 		arg.Title,
 		arg.TitleEn,
+		arg.Tone,
 		arg.Days,
 	)
 	return err
@@ -4396,15 +4482,15 @@ func (q *Queries) CreateCart(ctx context.Context, arg CreateCartParams) (uuid.UU
 }
 
 const createCategory = `-- name: CreateCategory :execrows
-INSERT INTO categories (slug, name, name_en, icon_key, parent_id, position)
+INSERT INTO categories (slug, name, name_en, icon_key, tone, parent_id, position)
 SELECT $1::text, $2::text, nullif($3::text, ''),
-       nullif($4::text, ''), parent.id,
+       nullif($4::text, ''), nullif($5::text, ''), parent.id,
        coalesce((SELECT max(c.position) + 1 FROM categories c
                  WHERE c.parent_id IS NOT DISTINCT FROM parent.id), 0)
 FROM (
-    SELECT c.id FROM categories c WHERE c.slug = $5::text
+    SELECT c.id FROM categories c WHERE c.slug = $6::text
     UNION ALL
-    SELECT NULL::uuid WHERE $5::text = ''
+    SELECT NULL::uuid WHERE $6::text = ''
 ) parent
 `
 
@@ -4413,6 +4499,7 @@ type CreateCategoryParams struct {
 	Name       string
 	NameEn     string
 	IconKey    string
+	Tone       string
 	ParentSlug string
 }
 
@@ -4425,6 +4512,7 @@ func (q *Queries) CreateCategory(ctx context.Context, arg CreateCategoryParams) 
 		arg.Name,
 		arg.NameEn,
 		arg.IconKey,
+		arg.Tone,
 		arg.ParentSlug,
 	)
 	if err != nil {
@@ -5604,6 +5692,7 @@ WHERE m.digest = $1::text
   AND NOT EXISTS (SELECT 1 FROM product_images p WHERE p.storage_key = m.digest)
   AND NOT EXISTS (SELECT 1 FROM hero_slides h WHERE h.image_key = m.digest)
   AND NOT EXISTS (SELECT 1 FROM sale_campaigns c WHERE c.image_key = m.digest)
+  AND NOT EXISTS (SELECT 1 FROM categories k WHERE k.image_key = m.digest)
 `
 
 // The reference predicate is REPEATED here, not assumed. Selecting candidates
@@ -7472,16 +7561,17 @@ func (q *Queries) ManagedBrands(ctx context.Context) ([]ManagedBrandsRow, error)
 
 const managedCategories = `-- name: ManagedCategories :many
 WITH RECURSIVE tree AS (
-    SELECT c.id, c.parent_id, c.slug, c.name, c.name_en, c.icon_key, c.position,
+    SELECT c.id, c.parent_id, c.slug, c.name, c.name_en, c.icon_key, c.tone, c.position,
            0 AS depth, array[c.position, 0] AS path
     FROM categories c WHERE c.parent_id IS NULL
     UNION ALL
-    SELECT c.id, c.parent_id, c.slug, c.name, c.name_en, c.icon_key, c.position,
+    SELECT c.id, c.parent_id, c.slug, c.name, c.name_en, c.icon_key, c.tone, c.position,
            t.depth + 1, t.path || array[c.position, 0]
     FROM categories c JOIN tree t ON t.id = c.parent_id
 )
 SELECT t.id, t.slug, t.name, coalesce(t.name_en, '') AS name_en,
        coalesce(t.icon_key, '') AS icon_key,
+       coalesce(t.tone, '') AS tone,
        t.depth::integer AS depth,
        coalesce(p.name, '') AS parent_name,
        (SELECT count(*) FROM products x WHERE x.category_id = t.id)::bigint AS products,
@@ -7497,6 +7587,7 @@ type ManagedCategoriesRow struct {
 	Name       string
 	NameEn     string
 	IconKey    string
+	Tone       string
 	Depth      int32
 	ParentName string
 	Products   int64
@@ -7518,6 +7609,7 @@ func (q *Queries) ManagedCategories(ctx context.Context) ([]ManagedCategoriesRow
 			&i.Name,
 			&i.NameEn,
 			&i.IconKey,
+			&i.Tone,
 			&i.Depth,
 			&i.ParentName,
 			&i.Products,
@@ -10786,24 +10878,28 @@ func (q *Queries) RenameBrand(ctx context.Context, arg RenameBrandParams) (int64
 
 const renameCategory = `-- name: RenameCategory :execrows
 UPDATE categories SET name = $1::text, name_en = nullif($2::text, ''),
-                     icon_key = nullif($3::text, '')
-WHERE slug = $4::text
+                     icon_key = nullif($3::text, ''),
+                     tone = nullif($4::text, '')
+WHERE slug = $5::text
 `
 
 type RenameCategoryParams struct {
 	Name    string
 	NameEn  string
 	IconKey string
+	Tone    string
 	Slug    string
 }
 
 // The DISPLAY names only: a slug is in every URL a search engine has indexed and
-// goen has no redirect table. nullif(”) is what lets name_en be cleared.
+// goen has no redirect table. nullif(”) is what lets name_en be cleared, and
+// an empty tone is what makes the category inherit its department's.
 func (q *Queries) RenameCategory(ctx context.Context, arg RenameCategoryParams) (int64, error) {
 	result, err := q.db.Exec(ctx, renameCategory,
 		arg.Name,
 		arg.NameEn,
 		arg.IconKey,
+		arg.Tone,
 		arg.Slug,
 	)
 	if err != nil {
@@ -11728,17 +11824,26 @@ func (q *Queries) RevokeStaff(ctx context.Context, pUserID uuid.UUID) (bool, err
 }
 
 const rootCategories = `-- name: RootCategories :many
-SELECT id, slug, localized_name(name, name_en, $1::text) AS name, icon_key
-FROM categories
-WHERE parent_id IS NULL
-ORDER BY position, name, id
+SELECT c.id, c.slug, localized_name(c.name, c.name_en, $1::text) AS name, c.icon_key,
+       coalesce(c.tone, 'stone')::text AS tone,
+       coalesce(c.image_key, '')::text AS image_key,
+       coalesce(localized_name(c.image_alt, c.image_alt_en, $1::text), '')::text AS image_alt,
+       coalesce(m.width, 0)::integer AS image_width
+FROM categories c
+LEFT JOIN media_objects m ON m.digest = c.image_key
+WHERE c.parent_id IS NULL
+ORDER BY c.position, c.name, c.id
 `
 
 type RootCategoriesRow struct {
-	ID      uuid.UUID
-	Slug    string
-	Name    string
-	IconKey pgtype.Text
+	ID         uuid.UUID
+	Slug       string
+	Name       string
+	IconKey    pgtype.Text
+	Tone       string
+	ImageKey   string
+	ImageAlt   string
+	ImageWidth int32
 }
 
 // A query rather than a list in Go: a category has one name and one place it is
@@ -11748,6 +11853,7 @@ type RootCategoriesRow struct {
 // two answers the moment CreateCategory's max(position)+1 handed out a
 // duplicate. Nothing stops it: there is no unique index on (parent_id,
 // position), so two staff creating a category at once both read the same max.
+// A root's tone is its own, or 'stone'. The photograph is the department's own.
 func (q *Queries) RootCategories(ctx context.Context, locale string) ([]RootCategoriesRow, error) {
 	rows, err := q.db.Query(ctx, rootCategories, locale)
 	if err != nil {
@@ -11762,6 +11868,10 @@ func (q *Queries) RootCategories(ctx context.Context, locale string) ([]RootCate
 			&i.Slug,
 			&i.Name,
 			&i.IconKey,
+			&i.Tone,
+			&i.ImageKey,
+			&i.ImageAlt,
+			&i.ImageWidth,
 		); err != nil {
 			return nil, err
 		}
@@ -11775,6 +11885,7 @@ func (q *Queries) RootCategories(ctx context.Context, locale string) ([]RootCate
 
 const runningCampaign = `-- name: RunningCampaign :one
 SELECT c.id, c.slug, localized_name(c.title, c.title_en, $1::text) AS title, c.ends_at,
+       c.tone,
        coalesce(c.image_key, '')::text AS image_key,
        coalesce(localized_name(c.image_alt, c.image_alt_en, $1::text), '')::text AS image_alt,
        coalesce(m.width, 0)::integer AS image_width
@@ -11794,6 +11905,7 @@ type RunningCampaignRow struct {
 	Slug       string
 	Title      string
 	EndsAt     time.Time
+	Tone       string
 	ImageKey   string
 	ImageAlt   string
 	ImageWidth int32
@@ -11808,6 +11920,7 @@ func (q *Queries) RunningCampaign(ctx context.Context, arg RunningCampaignParams
 		&i.Slug,
 		&i.Title,
 		&i.EndsAt,
+		&i.Tone,
 		&i.ImageKey,
 		&i.ImageAlt,
 		&i.ImageWidth,
@@ -12262,6 +12375,23 @@ func (q *Queries) SetCampaignImage(ctx context.Context, arg SetCampaignImagePara
 	return result.RowsAffected(), nil
 }
 
+const setCampaignTone = `-- name: SetCampaignTone :execrows
+UPDATE sale_campaigns SET tone = $1::text WHERE slug = $2::text
+`
+
+type SetCampaignToneParams struct {
+	Tone string
+	Slug string
+}
+
+func (q *Queries) SetCampaignTone(ctx context.Context, arg SetCampaignToneParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setCampaignTone, arg.Tone, arg.Slug)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const setCartItemQuantity = `-- name: SetCartItemQuantity :exec
 UPDATE cart_items SET quantity = $3
 WHERE cart_id = $1 AND variant_id = $2
@@ -12276,6 +12406,33 @@ type SetCartItemQuantityParams struct {
 func (q *Queries) SetCartItemQuantity(ctx context.Context, arg SetCartItemQuantityParams) error {
 	_, err := q.db.Exec(ctx, setCartItemQuantity, arg.CartID, arg.VariantID, arg.Quantity)
 	return err
+}
+
+const setCategoryImage = `-- name: SetCategoryImage :execrows
+UPDATE categories
+SET image_key = $1::text, image_alt = $2::text,
+    image_alt_en = nullif($3::text, '')
+WHERE slug = $4::text
+`
+
+type SetCategoryImageParams struct {
+	ImageKey   string
+	ImageAlt   string
+	ImageAltEn string
+	Slug       string
+}
+
+func (q *Queries) SetCategoryImage(ctx context.Context, arg SetCategoryImageParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setCategoryImage,
+		arg.ImageKey,
+		arg.ImageAlt,
+		arg.ImageAltEn,
+		arg.Slug,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const setCouponActive = `-- name: SetCouponActive :execrows
@@ -13752,6 +13909,7 @@ SELECT digest FROM media_objects m
 WHERE NOT EXISTS (SELECT 1 FROM product_images p WHERE p.storage_key = m.digest)
   AND NOT EXISTS (SELECT 1 FROM hero_slides h WHERE h.image_key = m.digest)
   AND NOT EXISTS (SELECT 1 FROM sale_campaigns c WHERE c.image_key = m.digest)
+  AND NOT EXISTS (SELECT 1 FROM categories k WHERE k.image_key = m.digest)
   AND m.created_at < now() - interval '24 hours'
 ORDER BY m.created_at
 LIMIT $1
@@ -14566,6 +14724,7 @@ SELECT
      WHERE NOT EXISTS (SELECT 1 FROM product_images p WHERE p.storage_key = m.digest)
        AND NOT EXISTS (SELECT 1 FROM hero_slides h WHERE h.image_key = m.digest)
        AND NOT EXISTS (SELECT 1 FROM sale_campaigns c WHERE c.image_key = m.digest)
+       AND NOT EXISTS (SELECT 1 FROM categories k WHERE k.image_key = m.digest)
        AND m.created_at < now() - interval '24 hours')::bigint AS unreferenced_media,
     -- Events accepted and NOT acted on: a known Stripe object this binary could
     -- not read, paid money with no local payment row, paid money for an order

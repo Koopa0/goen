@@ -54,6 +54,8 @@ type HomeCategory struct {
 	Slug    string
 	Name    string
 	IconKey string // "" when the category has no icon
+	Tone    Tone
+	Photo   Photo
 }
 
 // HomeView is everything the home page renders.
