@@ -22,59 +22,49 @@ import (
 )
 
 var (
-	// ErrNotFound is an account, order or token that does not exist.
-	ErrNotFound = errors.New("account: not found")
-	// ErrLastSignInMethod is unlinking the only way into an account.
+	ErrNotFound         = errors.New("account: not found")
 	ErrLastSignInMethod = errors.New("account: that is the only way to sign in")
-	// ErrBadCredentials is a wrong email or password: one error for both, or the form enumerates accounts.
+	// ErrBadCredentials is one error for a wrong email or a wrong password, or
+	// the form enumerates accounts.
 	ErrBadCredentials = errors.New("account: bad credentials")
-	// ErrEmailTaken is an address another account holds by the time a link
-	// would prove it for this one.
-	ErrEmailTaken = errors.New("account: email taken")
-	// ErrInvalidInput is profile or saved-address text outside the server bounds.
-	ErrInvalidInput = errors.New("account: invalid input")
-	// ErrOpenReturn means erasure would orphan an unresolved store-credit payout.
-	ErrOpenReturn = errors.New("account: finish the open return before erasure")
-	// ErrLastAdmin means erasure would leave the shop with no administrator.
-	ErrLastAdmin = errors.New("account: the last administrator cannot be erased")
-	// ErrQuantityAdjusted means adoption or merge succeeded but at least one line
-	// was capped to what the shelf can supply.
+	ErrEmailTaken     = errors.New("account: email taken")
+	ErrInvalidInput   = errors.New("account: invalid input")
+	ErrOpenReturn     = errors.New("account: finish the open return before erasure")
+	ErrLastAdmin      = errors.New("account: the last administrator cannot be erased")
+	// ErrQuantityAdjusted means adoption or merge succeeded but a line was
+	// capped to what the shelf can supply.
 	ErrQuantityAdjusted = errors.New("account: quantity adjusted to available stock")
-	// ErrCartMergeRefused means a guest line cannot be adopted or merged because
-	// the catalogue no longer honours it. The transaction rolls back with both
+	// ErrCartMergeRefused means a guest line cannot be adopted because the
+	// catalogue no longer honours it; the transaction rolls back with both
 	// carts unchanged.
 	ErrCartMergeRefused = errors.New("account: guest cart contains unavailable merchandise")
 )
 
-// SessionCookieName is the session cookie; __Host- refuses a subdomain's forgery.
+// SessionCookieName carries __Host-, which refuses a subdomain's forgery.
 const SessionCookieName = "__Host-goen_session"
 
-// EraseSignInWindow is how recently the customer must have signed in to erase
-// the account. Retyping the address shows intent, not identity, so a stolen or
-// unattended session must not be able to do something irreversible.
+// EraseSignInWindow exists because retyping the address shows intent, not
+// identity, so a stolen or unattended session must not do something
+// irreversible.
 const EraseSignInWindow = 15 * time.Minute
 
-// SessionTTL is how long a session lives.
 const SessionTTL = 14 * 24 * 60 * 60
 
-// sessionCookieMaxAge is how long a browser presents a session's cookie: past
-// the session itself, for as long as it can hold proof of an order placed
-// signed in, which cart keeps 30 days from the last order. The cookie of an
-// ended session grants nothing, and presenting it is the only way Authenticate
-// learns to take that proof away.
+// sessionCookieMaxAge outlives the session so the browser can still present
+// proof of an order placed signed in, which cart keeps 30 days from the last
+// order. The cookie of an ended session grants nothing, and presenting it is
+// the only way Authenticate learns to take that proof away.
 const sessionCookieMaxAge = SessionTTL + 30*24*60*60
 
-// ResetTTL is how long a password-reset link is good for.
 const ResetTTL = 60 * 60
 
-// Password bounds.
 const (
 	MinPasswordRunes = 10
 	MaxPasswordBytes = 512
 )
 
-// These mirror the account form's maxlength attributes. The server owns the
-// invariant because a raw HTTP client never sees those browser hints.
+// These mirror the account form's maxlength attributes; the server owns the
+// invariant because a raw HTTP client never sees those hints.
 const (
 	maxNameRunes         = 60
 	maxPhoneRunes        = 30
@@ -87,7 +77,8 @@ const (
 	maxUserAgentRunes    = 512
 )
 
-// argon2id parameters: OWASP's recommended second option (64 MiB, 3 passes, 4 lanes).
+// argon2id parameters: OWASP's recommended second option (64 MiB, 3 passes, 4
+// lanes).
 const (
 	argonTime    = 3
 	argonMemory  = 64 * 1024 // KiB
@@ -96,7 +87,6 @@ const (
 	argonSaltLen = 16
 )
 
-// HashPassword returns an encoded argon2id hash, salt and parameters included.
 func HashPassword(password string) (string, error) {
 	if len(password) > MaxPasswordBytes {
 		return "", errors.New("account: password too long to hash")
@@ -114,7 +104,6 @@ func HashPassword(password string) (string, error) {
 	), nil
 }
 
-// VerifyPassword reports whether password produced encoded.
 func VerifyPassword(encoded, password string) bool {
 	parts := strings.Split(encoded, "$")
 	if len(parts) != 6 || parts[1] != "argon2id" {
@@ -130,9 +119,9 @@ func VerifyPassword(encoded, password string) bool {
 	if _, err := fmt.Sscanf(parts[3], "m=%d,t=%d,p=%d", &memory, &timeCost, &threads); err != nil {
 		return false
 	}
-	// HashPassword is the only producer and uses the constants above. Keep some
+	// HashPassword is the only producer and uses the constants above. Leave
 	// room for parameter upgrades, but do not let a corrupt row panic Argon2 or
-	// make one sign-in allocate or compute at an attacker-chosen scale.
+	// make one sign-in compute at an attacker-chosen scale.
 	if timeCost < 1 || timeCost > 8*argonTime ||
 		threads < 1 || threads > 8*argonThreads ||
 		memory > 8*argonMemory {
@@ -156,7 +145,6 @@ func VerifyPassword(encoded, password string) bool {
 
 const tokenBytes = 32
 
-// NewToken returns a fresh opaque token.
 func NewToken() (string, error) {
 	b := make([]byte, tokenBytes)
 	if _, err := rand.Read(b); err != nil {
@@ -165,13 +153,11 @@ func NewToken() (string, error) {
 	return base64.RawURLEncoding.EncodeToString(b), nil
 }
 
-// HashToken digests a token for storage and lookup.
 func HashToken(token string) []byte {
 	sum := sha256.Sum256([]byte(token))
 	return sum[:]
 }
 
-// SetSessionCookie writes the session cookie.
 func SetSessionCookie(w http.ResponseWriter, token string, secure bool) {
 	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: dev-only opt-out, secure by default
 		Name:     sessionCookieName(secure),
@@ -184,7 +170,6 @@ func SetSessionCookie(w http.ResponseWriter, token string, secure bool) {
 	})
 }
 
-// ClearSessionCookie expires the session cookie.
 func ClearSessionCookie(w http.ResponseWriter, secure bool) {
 	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: dev-only opt-out, secure by default
 		Name:     sessionCookieName(secure),
@@ -197,7 +182,6 @@ func ClearSessionCookie(w http.ResponseWriter, secure bool) {
 	})
 }
 
-// ReadSessionCookie returns the token a request carries, or "".
 func ReadSessionCookie(r *http.Request, secure bool) string {
 	c, err := r.Cookie(sessionCookieName(secure))
 	if err != nil {
@@ -213,7 +197,6 @@ func sessionCookieName(secure bool) string {
 	return "goen_session"
 }
 
-// Role is users.role, closed by users_role_known.
 type Role string
 
 const (
@@ -222,7 +205,6 @@ const (
 	RoleAdmin    Role = "admin"
 )
 
-// User is a signed-in customer, as the rest of the application sees them.
 type User struct {
 	ID    string
 	Email string
@@ -230,20 +212,17 @@ type User struct {
 	Role  Role
 }
 
-// IsStaff reports whether this account may reach the back office.
 func (u User) IsStaff() bool { return u.Role == RoleStaff || u.Role == RoleAdmin }
 
-// IsAdmin reports whether this account may change who works here.
 func (u User) IsAdmin() bool { return u.Role == RoleAdmin }
 
-// FieldError names one rejected field and why.
 type FieldError struct {
 	Field      string
 	MessageKey i18n.Key
 }
 
-// FieldMessages translates rejected fields for a form, keeping the first
-// message per field so a control shows one reason rather than a pile.
+// FieldMessages keeps the first message per field so a control shows one reason
+// rather than a pile.
 func FieldMessages(ctx context.Context, errs []FieldError) map[string]string {
 	if len(errs) == 0 {
 		return nil
@@ -264,7 +243,6 @@ func FieldMessages(ctx context.Context, errs []FieldError) map[string]string {
 	return out
 }
 
-// Credentials is a sign-in or registration submission.
 type Credentials struct {
 	Email    string
 	Password string
@@ -272,14 +250,13 @@ type Credentials struct {
 	Name     string
 }
 
-// Trim normalises whitespace. The password is NOT trimmed: a leading space is a
-// character the visitor chose.
+// Trim leaves the password alone: a leading space is a character the visitor
+// chose.
 func (c *Credentials) Trim() {
 	c.Email = strings.TrimSpace(c.Email)
 	c.Name = strings.TrimSpace(c.Name)
 }
 
-// ValidateRegistration checks a new account's details.
 func (c *Credentials) ValidateRegistration() []FieldError {
 	var errs []FieldError
 	if k := EmailError(c.Email); k != "" {
@@ -302,7 +279,6 @@ func (c *Credentials) ValidateRegistration() []FieldError {
 	return errs
 }
 
-// EmailError returns why an address is unusable, or "".
 func EmailError(s string) i18n.Key {
 	switch {
 	case strings.TrimSpace(s) == "":
@@ -315,7 +291,6 @@ func EmailError(s string) i18n.Key {
 	return ""
 }
 
-// PasswordError returns why a password is unusable, or "".
 func PasswordError(s string) i18n.Key {
 	switch {
 	case s == "":
@@ -338,10 +313,10 @@ func profileInputValid(name, phone string) bool {
 		!hasControl(name) && !hasControl(phone)
 }
 
-// A user agent is optional session decoration. Refuse to persist an unbounded
-// or control-bearing value, but never refuse the sign-in it describes. HTTP
-// lets a header carry bytes that are not UTF-8, and PostgreSQL refuses the
-// whole session row over one of them.
+// A user agent is optional decoration: refuse to persist an unbounded or
+// control-bearing value, but never refuse the sign-in. HTTP lets a header carry
+// bytes that are not UTF-8, and PostgreSQL refuses the whole session row over
+// one of them.
 func normaliseUserAgent(s string) string {
 	s = strings.TrimSpace(s)
 	if !utf8.ValidString(s) || utf8.RuneCountInString(s) > maxUserAgentRunes || hasControl(s) {
@@ -350,5 +325,6 @@ func normaliseUserAgent(s string) string {
 	return s
 }
 
-// MembershipWindowDays mirrors loyalty.MembershipWindow; importing it would be a cycle.
+// MembershipWindowDays mirrors loyalty.MembershipWindow; importing it would be
+// a cycle.
 const MembershipWindowDays int32 = 365
