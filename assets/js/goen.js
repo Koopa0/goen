@@ -691,8 +691,33 @@
     });
   }
 
+  /*
+   * Swaps replace both the bar and its target, so every swap rebinds; the last
+   * answer is applied at once so a replaced bar does not slide in again.
+   */
+  function buyBar() {
+    let observer = null;
+    let out = false;
+    const bind = () => {
+      observer?.disconnect();
+      observer = null;
+      const bar = document.getElementById("buybar");
+      const target = bar ? document.getElementById(bar.dataset.follows ?? "") : null;
+      if (!bar || !target || !("IntersectionObserver" in window)) return;
+      bar.classList.toggle("is-visible", out);
+      observer = new IntersectionObserver((entries) => {
+        out = !entries[entries.length - 1].isIntersecting;
+        bar.classList.toggle("is-visible", out);
+      });
+      observer.observe(target);
+    };
+    bind();
+    document.addEventListener("htmx:after:swap", bind);
+  }
+
   recipientBox();
   handoff();
+  buyBar();
   headerMenu();
   departmentPanels();
   popovers();

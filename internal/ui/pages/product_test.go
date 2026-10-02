@@ -2,6 +2,8 @@ package pages
 
 import (
 	"net/url"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -124,9 +126,9 @@ func TestTheGalleryRidesTheSwapOnlyWhenAPhotographShowsAValue(t *testing.T) {
 	t.Parallel()
 	for _, tagged := range []bool{false, true} {
 		name := "untagged"
-		want := ""
+		want := "#buybar"
 		if tagged {
-			name, want = "tagged", "#gallery"
+			name, want = "tagged", "#gallery,#buybar"
 		}
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -374,5 +376,110 @@ func TestTheChosenOptionIsNamedNextToItsLabel(t *testing.T) {
 	}
 	if en := renderProduct(t, &view, i18n.En); !strings.Contains(en, "顏色:") {
 		t.Error("the English separator is not used in English")
+	}
+}
+
+func buyBarMarkup(t *testing.T, v *ProductView) string {
+	t.Helper()
+	got := renderProduct(t, v, i18n.ZhHant)
+	i := strings.Index(got, `id="buybar"`)
+	if i < 0 {
+		t.Fatal("the page has no #buybar for a swap to replace")
+	}
+	return got[i : i+strings.Index(got[i:], "</div>")]
+}
+
+func TestTheBottomBarSubmitsThePagesOwnAddForm(t *testing.T) {
+	t.Parallel()
+	view := ProductView{
+		Slug: "book", Name: "Book", SelectionOK: true, Exact: true, Sellable: true, AnySellable: true,
+		VariantID: "v1", Available: 5, PriceCents: 120000,
+	}
+	page := renderProduct(t, &view, i18n.ZhHant)
+	if strings.Count(page, `id="pdp-add"`) != 1 || !strings.Contains(page, `action="/cart/items"`) {
+		t.Fatal("the page's add form has no id for the bar to name")
+	}
+	bar := buyBarMarkup(t, &view)
+	if !strings.Contains(bar, `type="submit"`) || !strings.Contains(bar, `form="pdp-add"`) {
+		t.Errorf("the bar does not submit the page's own form: %s", bar)
+	}
+	if strings.Contains(bar, "<form") || strings.Contains(bar, "/cart/items") {
+		t.Errorf("the bar carries a cart path of its own: %s", bar)
+	}
+	if !strings.Contains(bar, `data-follows="add-to-cart"`) || !strings.Contains(page, `id="add-to-cart"`) {
+		t.Error("the bar does not follow the main add button")
+	}
+	if !strings.Contains(bar, "NT$") {
+		t.Errorf("the bar does not show the price: %s", bar)
+	}
+	if en := renderProduct(t, &view, i18n.En); !strings.Contains(en, `form="pdp-add"`) ||
+		!strings.Contains(en, "<span>"+i18n.T(i18n.WithLocale(t.Context(), i18n.En), i18n.KeyAddToCart)+"</span>") {
+		t.Error("the English bar does not offer the add button")
+	}
+}
+
+func TestTheBottomBarOffersRestockInsteadOfBuyingWhenSoldOut(t *testing.T) {
+	t.Parallel()
+	view := ProductView{Slug: "book", Name: "Book", SelectionOK: true, Exact: true, VariantID: "v1"}
+	bar := buyBarMarkup(t, &view)
+	if strings.Contains(bar, `type="submit"`) {
+		t.Errorf("a sold-out product's bar offers to buy: %s", bar)
+	}
+	if !strings.Contains(bar, `href="#restock"`) || !strings.Contains(bar, `data-follows="restock"`) {
+		t.Errorf("the bar does not offer the restock action: %s", bar)
+	}
+	if !strings.Contains(renderProduct(t, &view, i18n.ZhHant), `id="restock"`) {
+		t.Error("the restock link points at nothing")
+	}
+}
+
+func TestTheBottomBarIsEmptyUntilAnOptionIsChosen(t *testing.T) {
+	t.Parallel()
+	view := ProductView{
+		Slug: "book", Name: "Book", SelectionOK: true, AnySellable: true, VariantID: "v1",
+		Options: []ProductOption{{Name: "顏色", Label: "顏色", Values: []ProductOptionValue{{Value: "黑", Label: "黑", Available: true}}}},
+	}
+	if bar := buyBarMarkup(t, &view); strings.Contains(bar, "<button") || strings.Contains(bar, "<a ") {
+		t.Errorf("the bar offers an action before there is a variant: %s", bar)
+	}
+}
+
+func TestTheBottomBarSaysWhatAnAddDidWhereTheNoticeIsOutOfSight(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	view := ProductView{
+		Slug: "book", Name: "Book", SelectionOK: true, Exact: true, Sellable: true, AnySellable: true,
+		VariantID: "v1", Available: 5, AddedOutcome: "added",
+	}
+	bar := buyBarMarkup(t, &view)
+	if !strings.Contains(bar, i18n.T(ctx, i18n.KeyAddedToCart)) || !strings.Contains(bar, `href="/cart"`) {
+		t.Errorf("the bar does not confirm the add: %s", bar)
+	}
+}
+
+func TestEverySwapOfTheBuyBoxReplacesTheBottomBarToo(t *testing.T) {
+	t.Parallel()
+	view := ProductView{
+		Slug: "book", Name: "Book", SelectionOK: true, Exact: true, Sellable: true, AnySellable: true,
+		VariantID: "v1", Available: 5,
+	}
+	page := renderProduct(t, &view, i18n.ZhHant)
+	if !strings.Contains(page, `hx-select-oob="#cart-link,#buybar"`) {
+		t.Error("an add leaves the bar showing the page it replaced")
+	}
+}
+
+func TestTheBottomBarIsDrivenByAnIntersectionObserver(t *testing.T) {
+	t.Parallel()
+	src, err := os.ReadFile(filepath.Join("..", "..", "..", "assets", "js", "goen.js"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	js := string(src)
+	if !strings.Contains(js, "function buyBar()") || !strings.Contains(js, "new IntersectionObserver") {
+		t.Error("goen.js does not observe the add button's visibility")
+	}
+	if strings.Contains(js, `addEventListener("scroll"`) {
+		t.Error("goen.js listens to scroll")
 	}
 }

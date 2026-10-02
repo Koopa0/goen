@@ -107,6 +107,7 @@ templ Product(p layouts.Page, v *ProductView) {
 				</section>
 			}
 		</div>
+		@productBuyBar(v)
 	}
 }
 
@@ -283,9 +284,7 @@ templ productBuy(v *ProductView) {
 							hx-get={ val.Href }
 							hx-select="#buybox"
 							hx-target="#buybox"
-							if v.GalleryFollowsChoice() {
-								hx-select-oob="#gallery"
-							}
+							hx-select-oob={ v.ChoiceSwap() }
 							hx-swap="outerHTML"
 							hx-push-url="true"
 							if val.Selected {
@@ -422,6 +421,7 @@ templ productAddForm(v *ProductView) {
 		// instead of from a number this page would have to keep. The address is
 		// not pushed: ?added= is not a page to come back to.
 		<form
+			id="pdp-add"
 			class="goen-pdp__form"
 			method="post"
 			action="/cart/items"
@@ -429,7 +429,7 @@ templ productAddForm(v *ProductView) {
 			hx-target="#buybox"
 			hx-swap="outerHTML"
 			hx-select="#buybox"
-			hx-select-oob="#cart-link"
+			hx-select-oob="#cart-link,#buybar"
 			hx-push-url="false"
 		>
 			<input type="hidden" name="variant" value={ v.VariantID }/>
@@ -494,6 +494,38 @@ templ productAddForm(v *ProductView) {
 	</div>
 }
 
+// productBuyBar sits outside #buybox because a region with a
+// view-transition-name contains its fixed descendants, and rides every swap of
+// the buy box through hx-select-oob. The wrapper renders even when empty, or a
+// swap would leave the previous bar standing. The button submits the page's own
+// form so there is one way to add to the cart.
+templ productBuyBar(v *ProductView) {
+	<div id="buybar" class="goen-buybar" data-follows={ v.BuyBarFollows() }>
+		if msg := v.BuyBarOutcome(ctx); msg != "" {
+			<p class="goen-buybar__msg" role="status">{ msg }</p>
+			if v.JustAdded() || v.AddAdjusted() {
+				@components.ButtonLink(components.ButtonProps{Variant: components.VariantOutline, Class: "goen-buybar__btn"}, templ.SafeURL("/cart")) {
+					{ i18n.T(ctx, i18n.KeyViewCart) }
+				}
+			}
+		} else if v.CanBuy() {
+			<p class="goen-buybar__price">{ v.Price() }</p>
+			@components.Button(components.ButtonProps{
+				Variant: components.VariantPrimary,
+				Class:   "goen-buybar__btn",
+				Attrs:   templ.Attributes{"form": "pdp-add"},
+			}, "submit") {
+				@icons.Cart()
+				<span>{ i18n.T(ctx, i18n.KeyAddToCart) }</span>
+			}
+		} else if v.SoldOut() {
+			@components.ButtonLink(components.ButtonProps{Variant: components.VariantOutline, Class: "goen-buybar__btn"}, templ.SafeURL("#restock")) {
+				{ i18n.T(ctx, i18n.KeyRestockHeading) }
+			}
+		}
+	</div>
+}
+
 // productCompare is the one way into a comparison, with the specs it compares
 // and only where the department offers one. It extends the comparison the
 // visitor arrived with, and is a plain link: the set is the address.
@@ -520,7 +552,7 @@ templ productCompare(v *ProductView) {
 }
 
 templ productNotifyForm(v *ProductView) {
-	<form class="goen-pdp__notify" method="post" action={ templ.SafeURL(v.NotifyAction()) }>
+	<form id="restock" class="goen-pdp__notify" method="post" action={ templ.SafeURL(v.NotifyAction()) }>
 		<input type="hidden" name="variant" value={ v.VariantID }/>
 		// h2 and not h3: the nearest heading above is the product's own h1.
 		<h2 class="goen-pdp__notifyhead">{ i18n.T(ctx, i18n.KeyRestockHeading) }</h2>
