@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/koopa0/goen/internal/fieldrule"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/icons"
@@ -531,10 +532,10 @@ templ productNotifyForm(v *ProductView) {
 				@components.Input(components.FieldProps{
 					ID: "notify-email", Name: "email", Type: "email", Value: v.NotifyEmail,
 					Invalid: v.NotifyRefused(), Describes: "notify-email-error",
-					Attrs: templ.Attributes{
+					Attrs: fieldrule.Email.Attrs(ctx, templ.Attributes{
 						"required": true, "maxlength": "254", "autocomplete": "email",
 						"placeholder": i18n.T(ctx, i18n.KeyFieldEmail),
-					},
+					}, fieldrule.Message(i18n.KeyRestockBadEmail), fieldrule.ErrorID("notify-email-error")),
 				})
 				@components.Button(components.ButtonProps{Variant: components.VariantOutline}, "submit") {
 					{ i18n.T(ctx, i18n.KeyRestockSubmit) }
@@ -542,6 +543,8 @@ templ productNotifyForm(v *ProductView) {
 			</div>
 			if v.NotifyRefused() {
 				<p class="ui-error-text" id="notify-email-error">{ i18n.T(ctx, i18n.KeyRestockBadEmail) }</p>
+			} else {
+				<p class="ui-error-text" id="notify-email-error" hidden></p>
 			}
 		}
 	</form>

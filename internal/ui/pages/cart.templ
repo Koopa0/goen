@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/assets"
+	"github.com/koopa0/goen/internal/fieldrule"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -495,6 +496,7 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 										}
 										<input
 											class="goen-input"
+											{ fieldrule.MobileCarrier.Attrs(ctx, nil)... }
 											id="invoice_carrier"
 											name="invoice_carrier"
 											maxlength="8"
@@ -518,6 +520,7 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 										}
 										<input
 											class="goen-input"
+											{ fieldrule.DonationCode.Attrs(ctx, nil)... }
 											id="invoice_donation_code"
 											name="invoice_donation_code"
 											type="text"
@@ -565,6 +568,7 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 										}
 										<input
 											class="goen-input"
+											{ fieldrule.TaxID.Attrs(ctx, nil)... }
 											id="invoice_tax_id"
 											name="invoice_tax_id"
 											maxlength="8"
@@ -833,17 +837,23 @@ templ field(name, label, kind, value string, v *CheckoutView) {
 					data-checkout-constraint
 				}
 			}
+			if hints.Rule != nil {
+				{ hints.Rule.Attrs(ctx, nil)... }
+				if !v.HasErr(name) {
+					data-checkout-constraint
+				}
+			}
 			if v.HasErr(name) {
 				aria-invalid="true"
 			}
-			if v.HasErr(name) || hints.Pattern != "" {
+			if v.HasErr(name) || hints.Constrained() {
 				aria-describedby={ name + "-error" }
 			}
 		/>
 		if v.HasErr(name) {
 			<p class="ui-error-text" id={ name + "-error" }>{ v.Err(name) }</p>
-		} else if hints.Pattern != "" {
-			<p class="ui-error-text goen-field__constraint" id={ name + "-error" }>{ i18n.T(ctx, hints.ConstraintMessage) }</p>
+		} else if hints.Constrained() {
+			<p class="ui-error-text goen-field__constraint" id={ name + "-error" }>{ hints.ConstraintText(ctx) }</p>
 		}
 	</div>
 }
