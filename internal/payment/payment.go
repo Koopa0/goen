@@ -37,6 +37,19 @@ var (
 	errCaptureRefused = errors.New("payment: the verified capture needs reconciliation")
 )
 
+// PaymentStatus is payments.status, closed by payments_status_known.
+type PaymentStatus string
+
+const (
+	PaymentRequiresPayment        PaymentStatus = "requires_payment"
+	PaymentRequiresAction         PaymentStatus = "requires_action"
+	PaymentProcessing             PaymentStatus = "processing"
+	PaymentRequiresReconciliation PaymentStatus = "requires_reconciliation"
+	PaymentSucceeded              PaymentStatus = "succeeded"
+	PaymentCancelled              PaymentStatus = "cancelled"
+	PaymentReconciled             PaymentStatus = "reconciled"
+)
+
 // Currency is the only currency goen prices in. TWD is not a zero-decimal
 // currency for CHARGES, so _cents amounts go to Stripe unscaled.
 const Currency = "twd"

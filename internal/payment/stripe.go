@@ -294,8 +294,8 @@ func (g *Gateway) VerifyWebhook(body []byte, sigHeader string) (stripe.Event, er
 // captureEvents are the two events that can carry money. A delayed method's
 // money clears as async_payment_succeeded and as nothing else.
 var captureEvents = map[stripe.EventType]bool{
-	"checkout.session.completed":               true,
-	"checkout.session.async_payment_succeeded": true,
+	stripe.EventTypeCheckoutSessionCompleted:             true,
+	stripe.EventTypeCheckoutSessionAsyncPaymentSucceeded: true,
 }
 
 // CaptureFrom reads a paid-checkout event into a [Capture]. Only payment_status
@@ -366,8 +366,8 @@ func (g *Gateway) CardFacts(ctx context.Context, paymentIntentID string) (brand,
 
 // abandonedEvents are the two ways a Checkout Session ends with no money.
 var abandonedEvents = map[stripe.EventType]bool{
-	"checkout.session.expired":              true,
-	"checkout.session.async_payment_failed": true,
+	stripe.EventTypeCheckoutSessionExpired:            true,
+	stripe.EventTypeCheckoutSessionAsyncPaymentFailed: true,
 }
 
 // actionable reports whether goen has a branch for this event type. A type in
@@ -415,7 +415,7 @@ func AbandonedSessionFrom(ev *stripe.Event) (string, bool) {
 // finished while the money is still on its way: the one signal that a delayed
 // payment method is in play.
 func UnsettledSessionFrom(ev *stripe.Event) (string, bool) {
-	if ev == nil || ev.Data == nil || ev.Type != "checkout.session.completed" {
+	if ev == nil || ev.Data == nil || ev.Type != stripe.EventTypeCheckoutSessionCompleted {
 		return "", false
 	}
 	var sess stripe.CheckoutSession
