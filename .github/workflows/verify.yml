@@ -205,11 +205,12 @@ jobs:
       # shell: bash for pipefail — tee otherwise reports ITS exit status and a red
       # gate reads as green. Chrome is resolved by scripts/resolve-chrome.sh, which
       # finds the runner's google-chrome without this file naming a path.
+      - name: Accessibility gate policy
+        run: node --test scripts/axe-target.test.mjs
+
       - name: Layout and accessibility gate
         shell: bash
-        run: |
-          node --test scripts/axe-target.test.mjs
-          make check-layout 2>&1 | tee layout.log
+        run: make check-layout 2>&1 | tee layout.log
 
       - name: Keep the run's output
         if: always()
