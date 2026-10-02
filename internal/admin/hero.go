@@ -10,7 +10,7 @@ import (
 
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -91,15 +91,15 @@ func (f *HeroForm) Validate(ctx context.Context) map[string]string {
 }
 
 // HeroSlides reads the queue.
-func (s *Store) HeroSlides(ctx context.Context) (pages.AdminHeroView, error) {
+func (s *Store) HeroSlides(ctx context.Context) (admin.HeroView, error) {
 	rows, err := s.q.AdminHeroSlides(ctx, MaxSlides)
 	if err != nil {
-		return pages.AdminHeroView{}, fmt.Errorf("read hero slides: %w", err)
+		return admin.HeroView{}, fmt.Errorf("read hero slides: %w", err)
 	}
-	view := pages.AdminHeroView{}
+	view := admin.HeroView{}
 	for i := range rows {
 		r := &rows[i]
-		view.Rows = append(view.Rows, pages.AdminHeroSlide{
+		view.Rows = append(view.Rows, admin.HeroSlide{
 			ID: r.ID.String(), Eyebrow: r.Eyebrow.String, Headline: r.Headline,
 			CTALabel: r.PrimaryCtaLabel, CTAHref: r.PrimaryCtaHref,
 			ImageKey: r.ImageKey.String, Active: r.IsActive,

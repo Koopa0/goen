@@ -12,7 +12,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/koopa0/goen/internal/db"
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 // MaxAltRunes bounds the alternative text.
@@ -210,15 +210,15 @@ func placeImage[T any](items []T, at int, move ImageMove) ([]T, bool) {
 }
 
 // ProductImages is what a product shows, for its edit page.
-func (s *Store) ProductImages(ctx context.Context, slug string) ([]pages.AdminImage, error) {
+func (s *Store) ProductImages(ctx context.Context, slug string) ([]admin.Image, error) {
 	rows, err := s.q.AdminProductImages(ctx, slug)
 	if err != nil {
 		return nil, fmt.Errorf("read product images: %w", err)
 	}
-	out := make([]pages.AdminImage, 0, len(rows))
+	out := make([]admin.Image, 0, len(rows))
 	for i := range rows {
 		r := &rows[i]
-		img := pages.AdminImage{
+		img := admin.Image{
 			Key: r.StorageKey, Alt: r.AltText,
 			Width: r.Width.Int32, Height: r.Height.Int32,
 		}

@@ -20,7 +20,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/shoptime"
-	"github.com/koopa0/goen/internal/ui/pages"
+	adminpages "github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
@@ -848,7 +848,7 @@ func openReturnIDOn(t *testing.T, p *pgxpool.Pool, number string) uuid.UUID {
 	return id
 }
 
-func queueRow(t *testing.T, s *admin.Store, requestID uuid.UUID) pages.AdminReturn {
+func queueRow(t *testing.T, s *admin.Store, requestID uuid.UUID) adminpages.Return {
 	t.Helper()
 	view, err := s.Returns(t.Context())
 	if err != nil {
@@ -860,7 +860,7 @@ func queueRow(t *testing.T, s *admin.Store, requestID uuid.UUID) pages.AdminRetu
 		}
 	}
 	t.Fatalf("return %s is not in the queue", requestID)
-	return pages.AdminReturn{}
+	return adminpages.Return{}
 }
 
 func queueWindow(t *testing.T, s *admin.Store, requestID uuid.UUID) string {

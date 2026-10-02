@@ -14,7 +14,7 @@ import (
 
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/email"
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -53,7 +53,7 @@ const (
 // so its password was cleared and its sessions ended. The caller relays that.
 func (s *Store) AddStaff(ctx context.Context, address, name, role, actorID string) (bool, error) {
 	address, name = strings.TrimSpace(address), strings.TrimSpace(name)
-	if !email.Valid(address) || !slices.Contains(pages.StaffRoles[:], pages.StaffRole(role)) {
+	if !email.Valid(address) || !slices.Contains(admin.StaffRoles[:], admin.StaffRole(role)) {
 		return false, ErrInvalidStaff
 	}
 	actor, err := uuid.Parse(actorID)

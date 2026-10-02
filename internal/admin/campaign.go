@@ -14,6 +14,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 // MaxCampaignDays bounds how long one promotion may run.
@@ -62,18 +63,18 @@ func (f *CampaignForm) Validate(ctx context.Context) map[string]string {
 }
 
 // Campaigns reads the promotions for the back office.
-func (s *Store) Campaigns(ctx context.Context, after ...string) (pages.AdminCampaignsView, error) {
+func (s *Store) Campaigns(ctx context.Context, after ...string) (admin.CampaignsView, error) {
 	scope := "/admin/campaigns"
 	cursor := readPageCursor(scope, after)
 	rows, err := s.q.AdminCampaigns(ctx, db.AdminCampaignsParams{HasCursor: cursor.Valid, AfterRank: cursor.Rank, AfterAt: cursor.At, AfterID: cursor.ID, RowLimit: PageLimit})
 	if err != nil {
-		return pages.AdminCampaignsView{}, fmt.Errorf("read campaigns: %w", err)
+		return admin.CampaignsView{}, fmt.Errorf("read campaigns: %w", err)
 	}
 	rows, bound := pageBound(cursor, scope, rows, PageSize, func(r *db.AdminCampaignsRow) string { return r.PageCursor })
-	view := pages.AdminCampaignsView{ListBound: bound}
+	view := admin.CampaignsView{ListBound: bound}
 	for i := range rows {
 		c := &rows[i]
-		view.Rows = append(view.Rows, pages.AdminCampaign{
+		view.Rows = append(view.Rows, admin.Campaign{
 			Slug: c.Slug, Title: c.Title, Products: c.Products,
 			Active: c.IsActive, Running: c.IsRunning,
 			StartsAt: shoptime.Day(c.StartsAt),
@@ -88,15 +89,15 @@ const MaxCampaignAltRunes = 200
 
 // CampaignImage is the header a campaign shows and its tone, as the edit page
 // reads them.
-func (s *Store) CampaignImage(ctx context.Context, slug string) (pages.AdminHeader, string, error) {
+func (s *Store) CampaignImage(ctx context.Context, slug string) (admin.Header, string, error) {
 	row, err := s.q.AdminCampaignImage(ctx, slug)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return pages.AdminHeader{}, "", ErrNotFound
+			return admin.Header{}, "", ErrNotFound
 		}
-		return pages.AdminHeader{}, "", fmt.Errorf("read campaign image: %w", err)
+		return admin.Header{}, "", fmt.Errorf("read campaign image: %w", err)
 	}
-	return pages.AdminHeader{
+	return admin.Header{
 		Key: row.ImageKey, Alt: row.ImageAlt, AltEn: row.ImageAltEn, Width: row.ImageWidth,
 	}, row.Tone, nil
 }
@@ -250,14 +251,14 @@ func (s *Store) UnfeatureProduct(ctx context.Context, campaign, product string) 
 }
 
 // CampaignProducts is what one campaign features.
-func (s *Store) CampaignProducts(ctx context.Context, slug string) ([]pages.AdminCampaignProduct, error) {
+func (s *Store) CampaignProducts(ctx context.Context, slug string) ([]admin.CampaignProduct, error) {
 	rows, err := s.q.AdminCampaignProducts(ctx, slug)
 	if err != nil {
 		return nil, fmt.Errorf("read campaign products: %w", err)
 	}
-	out := make([]pages.AdminCampaignProduct, 0, len(rows))
+	out := make([]admin.CampaignProduct, 0, len(rows))
 	for i := range rows {
-		out = append(out, pages.AdminCampaignProduct{
+		out = append(out, admin.CampaignProduct{
 			Slug: rows[i].Slug, Name: rows[i].Name,
 		})
 	}

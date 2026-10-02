@@ -27,6 +27,7 @@ import (
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -189,7 +190,7 @@ func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
 		h.serverError(w, r)
 		return
 	}
-	web.Render(w, r, h.log, http.StatusOK, pages.AdminDashboard(pages.AdminMeta(r.Context()), view))
+	web.Render(w, r, h.log, http.StatusOK, admin.Dashboard(admin.Meta(r.Context()), view))
 }
 
 // Orders serves GET /admin/orders.
@@ -202,7 +203,7 @@ func (h *Handler) Orders(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	view.Notice = noticeFor(r)
-	web.Render(w, r, h.log, http.StatusOK, pages.AdminOrders(pages.AdminOrdersMeta(r.Context()), view))
+	web.Render(w, r, h.log, http.StatusOK, admin.Orders(admin.OrdersMeta(r.Context()), view))
 }
 
 // Order serves GET /admin/orders/{number}.
@@ -223,7 +224,7 @@ func (h *Handler) Order(w http.ResponseWriter, r *http.Request) {
 	view.Notice = noticeFor(r)
 	view.AllowanceOperationID = uuid.NewString()
 	web.Render(w, r, h.log, http.StatusOK,
-		pages.AdminOrder(layouts.Page{Title: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyAdminPageOrder), view.Number)}, &view))
+		admin.Order(layouts.Page{Title: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyAdminPageOrder), view.Number)}, &view))
 }
 
 // AdvanceOrder serves POST /admin/orders/{number}/status.
@@ -348,7 +349,7 @@ func (h *Handler) rejectShip(w http.ResponseWriter, r *http.Request, refusal *sh
 	}
 	view.AllowanceOperationID = uuid.NewString()
 	web.Render(w, r, h.log, http.StatusUnprocessableEntity,
-		pages.AdminOrder(layouts.Page{Title: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyAdminPageOrder), view.Number)}, &view))
+		admin.Order(layouts.Page{Title: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyAdminPageOrder), view.Number)}, &view))
 }
 
 // parcelLines reads the `qty_<order_line_id>` fields; a nil map means everything
@@ -430,7 +431,7 @@ func (h *Handler) Variants(w http.ResponseWriter, r *http.Request) {
 	}
 	view.Notice = noticeFor(r)
 	view.Return = stockReturn(r.URL.Query().Get("low"), r.URL.Query().Get(web.KeysetParam), "", "")
-	web.Render(w, r, h.log, http.StatusOK, pages.AdminVariants(pages.AdminVariantsMeta(r.Context()), view))
+	web.Render(w, r, h.log, http.StatusOK, admin.Variants(admin.VariantsMeta(r.Context()), view))
 }
 
 // AdjustStock serves POST /admin/stock/adjust.
@@ -491,7 +492,7 @@ func (h *Handler) rejectAdjustment(w http.ResponseWriter, r *http.Request, key i
 		// The row is not on this page, so the banner has to say it.
 		view.Notice = i18n.T(r.Context(), key)
 	}
-	web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.AdminVariants(pages.AdminVariantsMeta(r.Context()), view))
+	web.Render(w, r, h.log, http.StatusUnprocessableEntity, admin.Variants(admin.VariantsMeta(r.Context()), view))
 }
 
 // ReceiveStock serves POST /admin/stock/receive, redirecting to the ledger.
@@ -705,7 +706,7 @@ func (h *Handler) Credit(w http.ResponseWriter, r *http.Request) {
 	}
 	view.OperationID = uuid.NewString()
 	view.Notice = creditNotice(r)
-	web.Render(w, r, h.log, http.StatusOK, pages.AdminCredit(
+	web.Render(w, r, h.log, http.StatusOK, admin.Credit(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageCredit)}, view))
 }
 
@@ -729,7 +730,7 @@ func (h *Handler) GrantCredit(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
-	view := pages.AdminCreditView{Email: r.PostFormValue("email"), Amount: r.PostFormValue("amount"), Reason: r.PostFormValue("reason"), OperationID: r.PostFormValue("operation_id")}
+	view := admin.CreditView{Email: r.PostFormValue("email"), Amount: r.PostFormValue("amount"), Reason: r.PostFormValue("reason"), OperationID: r.PostFormValue("operation_id")}
 	operationID, valid := validateCreditGrant(&view)
 	if !valid {
 		// The field errors under the controls already say what is wrong.
@@ -794,7 +795,7 @@ func (h *Handler) Coupons(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	view.Notice = noticeFor(r)
-	web.Render(w, r, h.log, http.StatusOK, pages.AdminCoupons(
+	web.Render(w, r, h.log, http.StatusOK, admin.Coupons(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageCoupons)}, view))
 }
 
@@ -818,7 +819,7 @@ func (h *Handler) CreateCoupon(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		view.Errors = errs
-		view.Draft = pages.AdminCouponDraft{
+		view.Draft = admin.CouponDraft{
 			Code: f.Code, Description: f.Description, Kind: f.Kind,
 			Value:       r.PostFormValue("value"),
 			Cap:         r.PostFormValue("cap"),
@@ -827,7 +828,7 @@ func (h *Handler) CreateCoupon(w http.ResponseWriter, r *http.Request) {
 			PerCustomer: r.PostFormValue("percustomer"),
 			Days:        r.PostFormValue("days"),
 		}
-		web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.AdminCoupons(
+		web.Render(w, r, h.log, http.StatusUnprocessableEntity, admin.Coupons(
 			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageCoupons)}, view))
 	default:
 		http.Redirect(w, r, "/admin/coupons?ok=1", http.StatusSeeOther)
@@ -926,7 +927,7 @@ func (h *Handler) Campaigns(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	view.Notice = noticeFor(r)
-	web.Render(w, r, h.log, http.StatusOK, pages.AdminCampaigns(
+	web.Render(w, r, h.log, http.StatusOK, admin.Campaigns(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageCampaigns)}, view))
 }
 
@@ -955,10 +956,10 @@ func (h *Handler) CreateCampaign(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		view.Errors = errs
-		view.Draft = pages.AdminCampaignDraft{
+		view.Draft = admin.CampaignDraft{
 			Slug: f.Slug, Title: f.Title, TitleEn: f.TitleEn, Days: r.PostFormValue("days"), Tone: f.Tone,
 		}
-		web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.AdminCampaigns(
+		web.Render(w, r, h.log, http.StatusUnprocessableEntity, admin.Campaigns(
 			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageCampaigns)}, view))
 	default:
 		//nolint:gosec // G710: slug matched slugFormat in Validate
@@ -991,8 +992,8 @@ func (h *Handler) renderCampaign(w http.ResponseWriter, r *http.Request, status 
 		h.serverError(w, r)
 		return
 	}
-	web.Render(w, r, h.log, status, pages.AdminCampaignForm(
-		layouts.Page{Title: slug}, pages.AdminCampaignView{
+	web.Render(w, r, h.log, status, admin.CampaignForm(
+		layouts.Page{Title: slug}, admin.CampaignView{
 			Slug: slug, Products: products, Notice: notice, Image: image, Tone: tone, Errors: errs,
 		}))
 }
@@ -1126,7 +1127,7 @@ func (h *Handler) Audit(w http.ResponseWriter, r *http.Request) {
 		h.serverError(w, r)
 		return
 	}
-	web.Render(w, r, h.log, http.StatusOK, pages.AdminAudit(
+	web.Render(w, r, h.log, http.StatusOK, admin.Audit(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageAudit)}, view))
 }
 
@@ -1136,7 +1137,7 @@ func (h *Handler) Movements(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case err == nil:
 		view.Notice = noticeFor(r)
-		web.Render(w, r, h.log, http.StatusOK, pages.AdminMovements(
+		web.Render(w, r, h.log, http.StatusOK, admin.Movements(
 			layouts.Page{Title: view.SKU}, &view))
 	case errors.Is(err, ErrNotFound):
 		h.notFound(w, r)
@@ -1155,7 +1156,7 @@ func (h *Handler) FAQ(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	view.Notice = noticeFor(r)
-	web.Render(w, r, h.log, http.StatusOK, pages.AdminFAQ(
+	web.Render(w, r, h.log, http.StatusOK, admin.FAQ(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageFAQ)}, &view))
 }
 
@@ -1232,7 +1233,7 @@ func (h *Handler) rejectFAQ(
 		h.serverError(w, r)
 		return
 	}
-	typed := pages.AdminFAQEntry{
+	typed := admin.FAQEntry{
 		ID:       f.ID,
 		Category: f.Category, Question: f.Question, Answer: f.Answer,
 		CategoryEn: f.CategoryEn, QuestionEn: f.QuestionEn, AnswerEn: f.AnswerEn,
@@ -1245,7 +1246,7 @@ func (h *Handler) rejectFAQ(
 	} else {
 		view.Draft, view.Errors = typed, errs
 	}
-	web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.AdminFAQ(
+	web.Render(w, r, h.log, http.StatusUnprocessableEntity, admin.FAQ(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageFAQ)}, &view))
 }
 
@@ -1265,7 +1266,7 @@ func (h *Handler) HomeContent(w http.ResponseWriter, r *http.Request) {
 	}
 	view.Banners = banners
 	view.Notice = noticeFor(r)
-	web.Render(w, r, h.log, http.StatusOK, pages.AdminHome(
+	web.Render(w, r, h.log, http.StatusOK, admin.Home(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageHero)}, &view))
 }
 
@@ -1327,12 +1328,12 @@ func (h *Handler) rejectBanner(
 		view.Banners = banners
 	}
 	view.Errors = errs
-	view.BannerDraft = pages.AdminBannerDraft{
+	view.BannerDraft = admin.BannerDraft{
 		Message: f.Message, Short: f.Short, Code: f.Code,
 		CTALabel: f.CTALabel, CTAHref: f.CTAHref, Days: r.PostFormValue("days"),
 		MessageEn: f.MessageEn, ShortEn: f.ShortEn, CTALabelEn: f.CTALabelEn,
 	}
-	web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.AdminHome(
+	web.Render(w, r, h.log, http.StatusUnprocessableEntity, admin.Home(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageHero)}, &view))
 }
 
@@ -1404,7 +1405,7 @@ func (h *Handler) rejectHeroSlide(
 		return
 	}
 	view.Errors = errs
-	view.Draft = pages.AdminHeroDraft{
+	view.Draft = admin.HeroDraft{
 		Eyebrow: f.Eyebrow, Headline: f.Headline, Body: f.Body,
 		PrimaryLabel: f.PrimaryLabel, PrimaryHref: r.PostFormValue("primary_href"),
 		SecondLabel: f.SecondLabel, SecondHref: r.PostFormValue("second_href"),
@@ -1413,7 +1414,7 @@ func (h *Handler) rejectHeroSlide(
 		PrimaryLabelEn: f.PrimaryLabelEn, SecondLabelEn: f.SecondLabelEn,
 		ImageAltEn: f.ImageAltEn,
 	}
-	web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.AdminHome(
+	web.Render(w, r, h.log, http.StatusUnprocessableEntity, admin.Home(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageHero)}, &view))
 }
 
@@ -1455,7 +1456,7 @@ func (h *Handler) Taxonomy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	view.Notice = noticeFor(r)
-	web.Render(w, r, h.log, http.StatusOK, pages.AdminTaxonomy(
+	web.Render(w, r, h.log, http.StatusOK, admin.Taxonomy(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageTaxonomy)}, &view))
 }
 
@@ -1496,11 +1497,11 @@ func (h *Handler) CreateTaxon(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		view.Which, view.Errors = kind, errs
-		view.Draft = pages.AdminTaxonDraft{
+		view.Draft = admin.TaxonDraft{
 			Slug: f.Slug, Name: f.Name, NameEn: f.NameEn, Parent: f.Parent,
 			IconKey: f.IconKey, Tone: f.Tone, Comparable: f.Comparable,
 		}
-		web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.AdminTaxonomy(
+		web.Render(w, r, h.log, http.StatusUnprocessableEntity, admin.Taxonomy(
 			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageTaxonomy)}, &view))
 	default:
 		http.Redirect(w, r, "/admin/taxonomy?ok=1", http.StatusSeeOther)
@@ -1555,7 +1556,7 @@ func (h *Handler) Reports(w http.ResponseWriter, r *http.Request) {
 		h.serverError(w, r)
 		return
 	}
-	web.Render(w, r, h.log, http.StatusOK, pages.AdminReport(
+	web.Render(w, r, h.log, http.StatusOK, admin.Report(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageReports)}, &view))
 }
 
@@ -1568,7 +1569,7 @@ func (h *Handler) Questions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	view.Notice = noticeFor(r)
-	web.Render(w, r, h.log, http.StatusOK, pages.AdminQuestions(
+	web.Render(w, r, h.log, http.StatusOK, admin.Questions(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageQuestions)}, view))
 }
 
@@ -1621,7 +1622,7 @@ func (h *Handler) rejectAnswer(w http.ResponseWriter, r *http.Request, id string
 			view.Rows[i].Error = i18n.T(r.Context(), i18n.KeyAdminQuestionBodyError)
 		}
 	}
-	web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.AdminQuestions(
+	web.Render(w, r, h.log, http.StatusUnprocessableEntity, admin.Questions(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageQuestions)}, view))
 }
 
@@ -1747,16 +1748,16 @@ func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
 	}
 	view.Notice = noticeFor(r)
 	view.Pools = h.poolHealth()
-	web.Render(w, r, h.log, http.StatusOK, pages.AdminHealth(
+	web.Render(w, r, h.log, http.StatusOK, admin.Health(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageHealth)}, &view))
 }
 
 // poolHealth reads each pool's statistics as they stand now.
-func (h *Handler) poolHealth() []pages.PoolHealth {
-	out := make([]pages.PoolHealth, 0, len(h.pools))
+func (h *Handler) poolHealth() []admin.PoolHealth {
+	out := make([]admin.PoolHealth, 0, len(h.pools))
 	for _, p := range h.pools {
 		st := p.Pool.Stat()
-		out = append(out, pages.PoolHealth{
+		out = append(out, admin.PoolHealth{
 			Name: p.Name, Max: st.MaxConns(), Acquired: st.AcquiredConns(),
 			Idle: st.IdleConns(), Total: st.TotalConns(),
 			TotalAcquires: st.AcquireCount(), EmptyAcquires: st.EmptyAcquireCount(),
@@ -1775,7 +1776,7 @@ func (h *Handler) Tiers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	view.Notice = noticeFor(r)
-	web.Render(w, r, h.log, http.StatusOK, pages.AdminTiers(
+	web.Render(w, r, h.log, http.StatusOK, admin.Tiers(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageTiers)}, view))
 }
 
@@ -1865,11 +1866,11 @@ func (h *Handler) rejectDelivery(w http.ResponseWriter, r *http.Request, d *Deli
 		h.serverError(w, r)
 		return
 	}
-	view.Delivery = pages.AdminDelivery(*d)
+	view.Delivery = admin.Delivery(*d)
 	view.DeliveryError = message
 	view.AllowanceOperationID = uuid.NewString()
 	web.Render(w, r, h.log, http.StatusUnprocessableEntity,
-		pages.AdminOrder(layouts.Page{Title: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyAdminPageOrder), view.Number)}, &view))
+		admin.Order(layouts.Page{Title: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyAdminPageOrder), view.Number)}, &view))
 }
 
 // Reviews serves GET /admin/reviews.
@@ -1881,7 +1882,7 @@ func (h *Handler) Reviews(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	view.Notice = noticeFor(r)
-	web.Render(w, r, h.log, http.StatusOK, pages.AdminReviews(
+	web.Render(w, r, h.log, http.StatusOK, admin.Reviews(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageReviews)}, view))
 }
 
@@ -1920,7 +1921,7 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	view.Notice = noticeFor(r)
-	web.Render(w, r, h.log, http.StatusOK, pages.AdminMessages(
+	web.Render(w, r, h.log, http.StatusOK, admin.Messages(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageMessages)}, view))
 }
 
@@ -1962,7 +1963,7 @@ func (h *Handler) Newsletter(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	view.Notice = noticeFor(r)
-	web.Render(w, r, h.log, http.StatusOK, pages.AdminNewsletter(
+	web.Render(w, r, h.log, http.StatusOK, admin.Newsletter(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageNewsletter)}, view))
 }
 
@@ -1982,12 +1983,12 @@ func (h *Handler) ComposeNewsletter(w http.ResponseWriter, r *http.Request) {
 			h.serverError(w, r)
 			return
 		}
-		view.Draft = pages.AdminNewsletterDraft{Subject: subject, Body: body}
+		view.Draft = admin.NewsletterDraft{Subject: subject, Body: body}
 		view.Errors = make(map[string]string, len(keys))
 		for field, k := range keys {
 			view.Errors[field] = i18n.T(r.Context(), k)
 		}
-		web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.AdminNewsletter(
+		web.Render(w, r, h.log, http.StatusUnprocessableEntity, admin.Newsletter(
 			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageNewsletter)}, view))
 		return
 	}
@@ -2018,22 +2019,22 @@ func (h *Handler) SendNewsletter(w http.ResponseWriter, r *http.Request) {
 }
 
 // newsletterView reads the counts and the issues together.
-func (h *Handler) newsletterView(r *http.Request) (pages.AdminNewsletterView, error) {
+func (h *Handler) newsletterView(r *http.Request) (admin.NewsletterView, error) {
 	counts, err := h.letters.Counts(r.Context())
 	if err != nil {
-		return pages.AdminNewsletterView{}, err
+		return admin.NewsletterView{}, err
 	}
 	issues, err := h.letters.Issues(r.Context(), NewsletterIssueLimit)
 	if err != nil {
-		return pages.AdminNewsletterView{}, err
+		return admin.NewsletterView{}, err
 	}
-	view := pages.AdminNewsletterView{
+	view := admin.NewsletterView{
 		Active: counts.Active, Unsubscribed: counts.Unsubscribed, Awaiting: counts.Awaiting,
-		Issues: make([]pages.AdminNewsletterIssue, 0, len(issues)),
+		Issues: make([]admin.NewsletterIssue, 0, len(issues)),
 	}
 	for i := range issues {
 		it := &issues[i]
-		view.Issues = append(view.Issues, pages.AdminNewsletterIssue{
+		view.Issues = append(view.Issues, admin.NewsletterIssue{
 			ID: it.ID, Subject: it.Subject, Body: it.Body, Sent: it.Sent,
 			SentAt: it.SentAt, Recipients: it.Recipients, SentBy: it.SentBy,
 		})
@@ -2049,7 +2050,7 @@ func (h *Handler) Customers(w http.ResponseWriter, r *http.Request) {
 		h.serverError(w, r)
 		return
 	}
-	web.Render(w, r, h.log, http.StatusOK, pages.AdminCustomers(
+	web.Render(w, r, h.log, http.StatusOK, admin.Customers(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageCustomers)}, view))
 }
 
@@ -2061,7 +2062,7 @@ func (h *Handler) Warranties(w http.ResponseWriter, r *http.Request) {
 		h.serverError(w, r)
 		return
 	}
-	web.Render(w, r, h.log, http.StatusOK, pages.AdminWarranties(
+	web.Render(w, r, h.log, http.StatusOK, admin.Warranties(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageWarranty)}, view))
 }
 
@@ -2070,7 +2071,7 @@ func (h *Handler) Customer(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Customer(r.Context(), r.PathValue("id"), staffID(r))
 	switch {
 	case err == nil:
-		web.Render(w, r, h.log, http.StatusOK, pages.AdminCustomer(
+		web.Render(w, r, h.log, http.StatusOK, admin.Customer(
 			layouts.Page{Title: view.DisplayName()}, &view))
 	case errors.Is(err, ErrNotFound):
 		h.notFound(w, r)
@@ -2216,7 +2217,7 @@ func positiveDollarsToCents(raw string, maxCents int64) (int64, bool) {
 	return dollars * 100, true
 }
 
-func (h *Handler) renderCreditForm(w http.ResponseWriter, r *http.Request, view *pages.AdminCreditView, status int, notice i18n.Key) {
+func (h *Handler) renderCreditForm(w http.ResponseWriter, r *http.Request, view *admin.CreditView, status int, notice i18n.Key) {
 	ledger, err := h.store.Credit(r.Context())
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read credit ledger", "error", err)
@@ -2227,5 +2228,5 @@ func (h *Handler) renderCreditForm(w http.ResponseWriter, r *http.Request, view 
 	if notice != "" {
 		view.Notice = i18n.T(r.Context(), notice)
 	}
-	web.Render(w, r, h.log, status, pages.AdminCredit(layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageCredit)}, *view))
+	web.Render(w, r, h.log, status, admin.Credit(layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageCredit)}, *view))
 }

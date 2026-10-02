@@ -8,25 +8,25 @@ import (
 
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/shoptime"
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 // Messages reads the customer-service inbox, handled ones included.
-func (s *Store) Messages(ctx context.Context, after ...string) (pages.AdminMessagesView, error) {
+func (s *Store) Messages(ctx context.Context, after ...string) (admin.MessagesView, error) {
 	scope := "/admin/messages"
 	cursor := readPageCursor(scope, after)
 	rows, err := s.q.AdminMessages(ctx, db.AdminMessagesParams{HasCursor: cursor.Valid, AfterRank: cursor.Rank, AfterAt: cursor.At, AfterID: cursor.ID, RowLimit: PageLimit})
 	if err != nil {
-		return pages.AdminMessagesView{}, fmt.Errorf("read contact messages: %w", err)
+		return admin.MessagesView{}, fmt.Errorf("read contact messages: %w", err)
 	}
 	rows, bound := pageBound(cursor, scope, rows, PageSize, func(r *db.AdminMessagesRow) string { return r.PageCursor })
-	view := pages.AdminMessagesView{
+	view := admin.MessagesView{
 		ListBound: bound,
-		Rows:      make([]pages.AdminMessage, 0, len(rows)),
+		Rows:      make([]admin.Message, 0, len(rows)),
 	}
 	for i := range rows {
 		m := &rows[i]
-		view.Rows = append(view.Rows, pages.AdminMessage{
+		view.Rows = append(view.Rows, admin.Message{
 			ID: m.ID.String(), Name: m.Name, Email: m.Email, Subject: m.Subject,
 			OrderRef: m.OrderRef, Message: m.Message,
 			Handled: m.HandledAt.Valid,

@@ -17,6 +17,7 @@ import (
 	"github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -33,7 +34,7 @@ func refundBeforeShipment(r *db.BeforeShipmentRefundRow) (offered, open bool) {
 
 // fillRefundBeforeShipment offers the refund on the order page, and keeps the
 // status form from cancelling a paid order or picking one being refunded.
-func (s *Store) fillRefundBeforeShipment(ctx context.Context, view *pages.AdminOrderView, number string) error {
+func (s *Store) fillRefundBeforeShipment(ctx context.Context, view *admin.OrderView, number string) error {
 	refund, err := s.q.BeforeShipmentRefund(ctx, number)
 	if err != nil {
 		return fmt.Errorf("read refund before shipment of %s: %w", number, err)
@@ -50,27 +51,27 @@ func (s *Store) fillRefundBeforeShipment(ctx context.Context, view *pages.AdminO
 			(n == pages.FulfillmentCompleted && len(view.Shippable) > 0) {
 			continue
 		}
-		view.Next = append(view.Next, pages.AdminTransition{Value: n, Label: StatusLabel(ctx, n)})
+		view.Next = append(view.Next, admin.Transition{Value: n, Label: StatusLabel(ctx, n)})
 	}
 	return nil
 }
 
 // RefundPreview reads what a refund before shipment of this order pays: the
 // frozen split once one is open, otherwise the split its approval would freeze.
-func (s *Store) RefundPreview(ctx context.Context, number string) (pages.AdminRefundConfirmation, error) {
+func (s *Store) RefundPreview(ctx context.Context, number string) (admin.RefundConfirmation, error) {
 	row, err := s.q.BeforeShipmentRefund(ctx, number)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return pages.AdminRefundConfirmation{}, ErrNotFound
+		return admin.RefundConfirmation{}, ErrNotFound
 	}
 	if err != nil {
-		return pages.AdminRefundConfirmation{}, fmt.Errorf("read refund before shipment of %s: %w", number, err)
+		return admin.RefundConfirmation{}, fmt.Errorf("read refund before shipment of %s: %w", number, err)
 	}
 	offered, open := refundBeforeShipment(&row)
 	if !offered && !open {
-		return pages.AdminRefundConfirmation{}, fmt.Errorf(
+		return admin.RefundConfirmation{}, fmt.Errorf(
 			"%w: order %s has no refund before shipment to confirm", ErrRefused, number)
 	}
-	return pages.AdminRefundConfirmation{
+	return admin.RefundConfirmation{
 		OrderNumber: number, TotalCents: row.TotalCents,
 		CardCents: row.CardCents, CreditCents: row.CreditCents, Resume: open,
 	}, nil
@@ -294,6 +295,6 @@ func (h *Handler) confirmRefundBeforeShipment(w http.ResponseWriter, r *http.Req
 	default:
 		return false
 	}
-	web.Render(w, r, h.log, status, pages.ConfirmRefund(layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminRefundTitle)}, view))
+	web.Render(w, r, h.log, status, admin.ConfirmRefund(layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminRefundTitle)}, view))
 	return true
 }

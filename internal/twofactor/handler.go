@@ -14,6 +14,7 @@ import (
 	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -281,7 +282,7 @@ func (h *Handler) Staff(w http.ResponseWriter, r *http.Request) {
 	if n := staffNotice(r); n != "" {
 		view.Notice = n
 	}
-	web.Render(w, r, h.log, http.StatusOK, pages.AdminStaff(
+	web.Render(w, r, h.log, http.StatusOK, admin.Staff(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageStaff)}, view))
 }
 
@@ -304,12 +305,12 @@ func (h *Handler) AddStaff(w http.ResponseWriter, r *http.Request) {
 		view.Actor = actorID(r)
 		view.AddEmail = r.PostFormValue("email")
 		view.AddName = r.PostFormValue("name")
-		view.AddRole = pages.StaffRole(r.PostFormValue("role"))
+		view.AddRole = admin.StaffRole(r.PostFormValue("role"))
 		view.AddError = i18n.T(r.Context(), i18n.KeyStaffAlreadyExists)
 		if !h.store.Enabled() {
 			view.Notice = i18n.T(r.Context(), i18n.KeyTOTPNoKeyNotice)
 		}
-		web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.AdminStaff(
+		web.Render(w, r, h.log, http.StatusUnprocessableEntity, admin.Staff(
 			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageStaff)}, view))
 		return
 	}

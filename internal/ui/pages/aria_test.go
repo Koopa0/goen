@@ -16,7 +16,7 @@ import (
 func TestEveryRefusedFieldNamesItsError(t *testing.T) {
 	t.Parallel()
 
-	files, err := filepath.Glob("*.templ")
+	files, err := pageTemplates()
 	if err != nil || len(files) == 0 {
 		t.Fatalf("no templates to read: %v", err)
 	}
@@ -85,7 +85,7 @@ func TestEveryRefusedFieldNamesItsError(t *testing.T) {
 func TestEveryRefusableControlCanBeMarkedInvalid(t *testing.T) {
 	t.Parallel()
 
-	files, err := filepath.Glob("*.templ")
+	files, err := pageTemplates()
 	if err != nil || len(files) == 0 {
 		t.Fatalf("no templates to read: %v", err)
 	}
@@ -160,4 +160,18 @@ func guardedBlocks(src, field string) []string {
 		out = append(out, src[start:j])
 		i = j
 	}
+}
+
+// pageTemplates is every page template: the storefront's beside the back
+// office's, which lives one directory down.
+func pageTemplates() ([]string, error) {
+	var out []string
+	for _, pattern := range []string{"*.templ", filepath.Join("admin", "*.templ")} {
+		files, err := filepath.Glob(pattern)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, files...)
+	}
+	return out, nil
 }

@@ -386,7 +386,7 @@ templ Account(p layouts.Page, v *AccountView) {
 								<a href="/">{ i18n.T(ctx, i18n.KeyNoOrdersLink) }</a>
 							</p>
 						}
-						@listBound(v.OrdersBound)
+						@ListPager(v.OrdersBound)
 					</section>
 					<section class="goen-card goen-account__section" aria-labelledby="profile-heading">
 						<h2 class="goen-account__heading" id="profile-heading">{ i18n.T(ctx, i18n.KeyProfile) }</h2>
