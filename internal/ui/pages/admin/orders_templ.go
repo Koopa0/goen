@@ -114,7 +114,7 @@ func Dashboard(p layouts.Page, v DashboardView) templ.Component {
 			templ_7745c5c3_Err = components.StatTile(components.StatTileProps{
 				Label: i18n.T(ctx, i18n.KeyAdminQueueStatReturns),
 				Value: v.PendingReturnsText(),
-				Note:  v.ReturnsDeadlineNote(ctx),
+				Note:  v.ReturnsAgeNote(ctx),
 				Href:  "/admin/returns",
 			}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {

@@ -8403,6 +8403,29 @@ func (q *Queries) NextEligibilityVersion(ctx context.Context, returnRequestID uu
 	return version, err
 }
 
+const oldestPendingReturn = `-- name: OldestPendingReturn :one
+SELECT coalesce(min(created_at), now())::timestamptz AS filed_at,
+       (count(*) > 0) AS any_open
+FROM return_requests
+WHERE status = 'requested'
+`
+
+type OldestPendingReturnRow struct {
+	FiledAt time.Time
+	AnyOpen bool
+}
+
+// When the oldest open return request was filed, which is how long a person has
+// been waiting for a decision. Two columns, not one nullable timestamp: min()
+// over no rows is NULL and sqlc infers the column non-nullable, so pgx cannot
+// scan it.
+func (q *Queries) OldestPendingReturn(ctx context.Context) (OldestPendingReturnRow, error) {
+	row := q.db.QueryRow(ctx, oldestPendingReturn)
+	var i OldestPendingReturnRow
+	err := row.Scan(&i.FiledAt, &i.AnyOpen)
+	return i, err
+}
+
 const openPayment = `-- name: OpenPayment :one
 SELECT open_payment($1, $2::text, $3::bigint)
 `
@@ -9391,46 +9414,6 @@ func (q *Queries) PaymentAttemptForOrder(ctx context.Context, arg PaymentAttempt
 		&i.NeedsReconciliation,
 		&i.PriorAttempts,
 	)
-	return i, err
-}
-
-const pendingReturnDeadline = `-- name: PendingReturnDeadline :one
-SELECT coalesce(min(w.ends_on), shop_today())::date AS nearest_on,
-       (count(*) > 0) AS any_running
-FROM (
-    SELECT return_window_ends(sh.delivered_at) AS ends_on
-    FROM return_requests r
-    JOIN return_request_lines rl ON rl.return_request_id = r.id
-    JOIN LATERAL (
-        SELECT s.delivered_at
-        FROM order_shipment_lines osl
-        JOIN order_shipments s ON s.id = osl.shipment_id
-        WHERE osl.order_line_id = rl.order_line_id
-          AND s.order_id = r.order_id
-          AND s.delivered_at IS NOT NULL
-        ORDER BY s.delivered_at DESC
-        LIMIT 1
-    ) sh ON true
-    WHERE r.status = 'requested'
-) w
-`
-
-type PendingReturnDeadlineRow struct {
-	NearestOn  time.Time
-	AnyRunning bool
-}
-
-// The earliest last day of the seven-day right of rescission (消保法 §19) among
-// the parcels that open return requests are about. return_window_ends is the one
-// place the seven is written, and the parcel is the same latest delivery per
-// order line that ReturnQueue classifies the request against. Two columns, not
-// one nullable date: min() over no rows is NULL and sqlc infers the column
-// non-nullable, so pgx cannot scan it. A request on a parcel nobody has marked
-// delivered has no clock yet and contributes nothing.
-func (q *Queries) PendingReturnDeadline(ctx context.Context) (PendingReturnDeadlineRow, error) {
-	row := q.db.QueryRow(ctx, pendingReturnDeadline)
-	var i PendingReturnDeadlineRow
-	err := row.Scan(&i.NearestOn, &i.AnyRunning)
 	return i, err
 }
 

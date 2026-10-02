@@ -109,11 +109,12 @@ type DashboardView struct {
 	LowStock       int64
 	ActiveProducts int64
 	OpenMessages   int64
-	// PendingReturns is the requests nobody has decided. ReturnsDeadline is the
-	// first last day of the seven-day right of rescission among them, already on
-	// the shop's calendar, or empty when no open request is on a delivered parcel.
+	// PendingReturns is the requests nobody has decided, and OldestReturnDays how
+	// many shop days ago the oldest of them was filed. It is the operator's own
+	// wait, not the consumer's seven days: for a request already filed that window
+	// is no clock of theirs.
 	PendingReturns      int64
-	ReturnsDeadline     string
+	OldestReturnDays    int64
 	UnansweredQuestions int64
 	Recent              []OrderRow
 	Low                 []Variant
@@ -146,13 +147,17 @@ func (v DashboardView) PendingReturnsText() string {
 	return strconv.FormatInt(v.PendingReturns, 10)
 }
 
-// ReturnsDeadlineNote is the deadline line under the returns tile, empty when
-// there is no deadline to name.
-func (v DashboardView) ReturnsDeadlineNote(ctx context.Context) string {
-	if v.PendingReturns == 0 || v.ReturnsDeadline == "" {
+// ReturnsAgeNote is the line under the returns tile: how long the oldest open
+// request has waited. Empty when nothing is waiting.
+func (v DashboardView) ReturnsAgeNote(ctx context.Context) string {
+	switch {
+	case v.PendingReturns == 0:
 		return ""
+	case v.OldestReturnDays <= 0:
+		return i18n.T(ctx, i18n.KeyAdminQueueStatReturnsToday)
+	default:
+		return i18n.Count(ctx, i18n.KeyAdminQueueStatReturnsAge, v.OldestReturnDays, v.OldestReturnDays)
 	}
-	return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQueueStatReturnsBy), v.ReturnsDeadline)
 }
 
 // UnansweredQuestionsText is how many questions the shop still owes an answer.

@@ -11,11 +11,10 @@ import (
 	"github.com/koopa0/goen/internal/admin"
 )
 
-// The dashboard names the earliest last day of the statutory seven days among
-// the open return requests, taken from return_window_ends and not restated in
-// Go: a parcel delivered on 1 January ends on the 8th on the shop's calendar
-// however late in that day it arrived.
-func TestTheDashboardNamesTheNearestStatutoryDeadlineOfOpenReturns(t *testing.T) {
+// The dashboard shows how long the oldest open return request has waited, in
+// shop days from when it was filed. The consumer's own seven days are not shown:
+// for a request already filed that window is not the operator's clock.
+func TestTheDashboardShowsHowLongTheOldestOpenReturnHasWaited(t *testing.T) {
 	isolated := isolatedAdminSeedPool(t)
 	s := admin.NewStore(isolated, fakeRefunder{}, nil, nil)
 
@@ -23,16 +22,13 @@ func TestTheDashboardNamesTheNearestStatutoryDeadlineOfOpenReturns(t *testing.T)
 	if err != nil {
 		t.Fatalf("Dashboard: %v", err)
 	}
-	if none.PendingReturns != 0 || none.ReturnsDeadline != "" {
-		t.Fatalf("an empty shop shows %d returns with deadline %q, want 0 and none",
-			none.PendingReturns, none.ReturnsDeadline)
+	if none.PendingReturns != 0 || none.OldestReturnDays != 0 {
+		t.Fatalf("an empty shop shows %d returns, oldest %d days", none.PendingReturns, none.OldestReturnDays)
 	}
 
-	later := mustRFC3339(t, "2026-01-03T23:30:00+08:00")
-	earlier := mustRFC3339(t, "2026-01-01T07:00:00+08:00")
-	requested := mustRFC3339(t, "2026-01-06T12:00:00+08:00")
-	returnedOrderAtWithReasonOn(t, isolated, later, requested, "")
-	returnedOrderAtWithReasonOn(t, isolated, earlier, requested, "")
+	delivered := shopNoonDaysAgo(t, 12)
+	returnedOrderAtWithReasonOn(t, isolated, delivered, shopNoonDaysAgo(t, 3), "")
+	returnedOrderAtWithReasonOn(t, isolated, delivered, shopNoonDaysAgo(t, 9), "")
 
 	got, err := s.Dashboard(t.Context())
 	if err != nil {
@@ -41,8 +37,8 @@ func TestTheDashboardNamesTheNearestStatutoryDeadlineOfOpenReturns(t *testing.T)
 	if got.PendingReturns != 2 {
 		t.Errorf("pending returns = %d, want 2", got.PendingReturns)
 	}
-	if got.ReturnsDeadline != "2026-01-08" {
-		t.Errorf("nearest deadline = %q, want 2026-01-08 (the 1 January parcel's seventh day)", got.ReturnsDeadline)
+	if got.OldestReturnDays != 9 {
+		t.Errorf("oldest open return = %d days, want 9", got.OldestReturnDays)
 	}
 }
 

@@ -38,11 +38,14 @@ var (
 		En:     "Questions awaiting an answer",
 	})
 
-	// KeyAdminQueueStatReturnsBy is the line under the returns figure: the first
-	// last day of the seven-day right of rescission among the open requests.
-	KeyAdminQueueStatReturnsBy = key("admin.queue.stat.returnsby", Message{
-		ZhHant: "最近的七日期限:%s",
-		En:     "Earliest seven-day deadline: %s",
+	// KeyAdminQueueStatReturnsAge is the line under the returns figure: how long
+	// the oldest open request has waited for a decision.
+	KeyAdminQueueStatReturnsAge = countKey("admin.queue.stat.returnsage",
+		"最早一筆 %d 天前申請", "Oldest requested %d day ago", "Oldest requested %d days ago")
+
+	KeyAdminQueueStatReturnsToday = key("admin.queue.stat.returnstoday", Message{
+		ZhHant: "最早一筆今天申請",
+		En:     "Oldest requested today",
 	})
 
 	KeyAdminQueueRestockHead = key("admin.queue.restock", Message{

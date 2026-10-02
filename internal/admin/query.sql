@@ -220,32 +220,15 @@ SELECT
                        WHERE a.question_id = q.id AND a.is_staff AND a.hidden_at IS NULL)
     )::bigint AS unanswered_questions;
 
--- The earliest last day of the seven-day right of rescission (消保法 §19) among
--- the parcels that open return requests are about. return_window_ends is the one
--- place the seven is written, and the parcel is the same latest delivery per
--- order line that ReturnQueue classifies the request against. Two columns, not
--- one nullable date: min() over no rows is NULL and sqlc infers the column
--- non-nullable, so pgx cannot scan it. A request on a parcel nobody has marked
--- delivered has no clock yet and contributes nothing.
--- name: PendingReturnDeadline :one
-SELECT coalesce(min(w.ends_on), shop_today())::date AS nearest_on,
-       (count(*) > 0) AS any_running
-FROM (
-    SELECT return_window_ends(sh.delivered_at) AS ends_on
-    FROM return_requests r
-    JOIN return_request_lines rl ON rl.return_request_id = r.id
-    JOIN LATERAL (
-        SELECT s.delivered_at
-        FROM order_shipment_lines osl
-        JOIN order_shipments s ON s.id = osl.shipment_id
-        WHERE osl.order_line_id = rl.order_line_id
-          AND s.order_id = r.order_id
-          AND s.delivered_at IS NOT NULL
-        ORDER BY s.delivered_at DESC
-        LIMIT 1
-    ) sh ON true
-    WHERE r.status = 'requested'
-) w;
+-- When the oldest open return request was filed, which is how long a person has
+-- been waiting for a decision. Two columns, not one nullable timestamp: min()
+-- over no rows is NULL and sqlc infers the column non-nullable, so pgx cannot
+-- scan it.
+-- name: OldestPendingReturn :one
+SELECT coalesce(min(created_at), now())::timestamptz AS filed_at,
+       (count(*) > 0) AS any_open
+FROM return_requests
+WHERE status = 'requested';
 
 -- name: CreateShipment :one
 INSERT INTO order_shipments (order_id, carrier, tracking_number, estimated_delivery_on)

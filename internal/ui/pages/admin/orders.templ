@@ -43,7 +43,7 @@ templ Dashboard(p layouts.Page, v DashboardView) {
 			@components.StatTile(components.StatTileProps{
 				Label: i18n.T(ctx, i18n.KeyAdminQueueStatReturns),
 				Value: v.PendingReturnsText(),
-				Note:  v.ReturnsDeadlineNote(ctx),
+				Note:  v.ReturnsAgeNote(ctx),
 				Href:  "/admin/returns",
 			})
 			@components.StatTile(components.StatTileProps{
