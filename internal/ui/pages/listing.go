@@ -46,7 +46,7 @@ type ListingView struct {
 	Crumbs   []Crumb
 	Theme    *Theme
 	Products []ProductTile
-	Brands   []FacetOption
+	Facets   []FacetGroup
 	Total    int64
 	// Page and PageSize are int32 so they share a word: the view is passed by value
 	// and one more field would put it over the lint's size limit.
@@ -202,9 +202,16 @@ type AppliedChip struct {
 
 func (v ListingView) AppliedChips(ctx context.Context) []AppliedChip {
 	var chips []AppliedChip
-	for _, b := range v.Brands {
-		if b.Selected {
-			chips = append(chips, v.chip(ctx, b.Label, "brand", b.Value))
+	for i := range v.Facets {
+		group := &v.Facets[i]
+		for _, option := range group.Options {
+			if option.Selected {
+				label := option.Label
+				if group.Kind == FacetVariantOption {
+					label = fmt.Sprintf(i18n.T(ctx, i18n.KeyOptionFilterValue), group.Label, label)
+				}
+				chips = append(chips, v.chip(ctx, label, group.Param(), option.Value))
+			}
 		}
 	}
 	if v.InStockOnly {
