@@ -191,11 +191,10 @@ type ProductView struct {
 	Related []ProductTile
 }
 
-// Stars is the average rounded to whole stars, as punctuation. A screen reader
-// is given RatingLabel instead, which says the number.
-func (v *ProductView) Stars() string { return starsOf(int(v.Rating + 0.5)) }
+// StarCount is how many of the five stars the average fills.
+func (v *ProductView) StarCount() int { return max(0, min(int(v.Rating+0.5), 5)) }
 
-// WishlistLabel names the wishlist control, which carries a glyph and no text.
+// WishlistLabel names the wishlist control.
 func (v *ProductView) WishlistLabel(ctx context.Context) string {
 	if v.Saved {
 		return i18n.T(ctx, i18n.KeyWishlistRemove)
@@ -366,9 +365,6 @@ func (v *ProductView) HasReviewErr(f string) bool { _, ok := v.ReviewErrors[f]; 
 
 // ReviewErr is why a review field was refused.
 func (v *ProductView) ReviewErr(f string) string { return v.ReviewErrors[f] }
-
-// ReviewStars is the rating drawn as stars.
-func (r ProductReview) ReviewStars() string { return starsOf(r.Rating) }
 
 func starsOf(n int) string {
 	n = max(0, min(n, 5))
