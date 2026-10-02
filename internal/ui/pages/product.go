@@ -178,9 +178,11 @@ type ProductView struct {
 	ReviewErrors  map[string]string
 	ReviewDraft   ReviewDraft
 	NotifyOutcome string
-	Comparing     []string
-	Questions     []Question
-	AskOutcome    string
+	// NotifyEmail is the address a refused restock request was posted with.
+	NotifyEmail string
+	Comparing   []string
+	Questions   []Question
+	AskOutcome  string
 	// AskDraft is a refused question, replayed into the textarea so a 422
 	// does not empty what the customer already typed.
 	AskDraft string
@@ -377,6 +379,9 @@ func (v *ProductView) NotifyTaken() bool { return v.NotifyOutcome == "1" }
 
 // NotifyRefused reports whether the address was not usable.
 func (v *ProductView) NotifyRefused() bool { return v.NotifyOutcome == "bad" }
+
+// NotifyUnavailable reports a request for a variant that no longer needs one.
+func (v *ProductView) NotifyUnavailable() bool { return v.NotifyOutcome == "unavailable" }
 
 // NotifyAction is where the restock form posts. It carries the chosen options,
 // because the redirect that follows must land on the same selection or the
