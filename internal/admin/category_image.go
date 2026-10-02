@@ -19,11 +19,8 @@ import (
 	"github.com/koopa0/goen/internal/web"
 )
 
-// MaxCategoryAltRunes bounds the header photograph's alternative text.
 const MaxCategoryAltRunes = 200
 
-// CategoryHeader reads a category's own tone and photograph, as its edit page
-// shows them.
 func (s *Store) CategoryHeader(ctx context.Context, slug string) (admin.CategoryView, error) {
 	row, err := s.q.AdminCategoryImage(ctx, slug)
 	if err != nil {
@@ -82,13 +79,10 @@ func (s *Store) ClearCategoryImage(ctx context.Context, slug string) error {
 		})
 }
 
-// EditCategory serves GET /admin/categories/{slug}.
 func (h *Handler) EditCategory(w http.ResponseWriter, r *http.Request) {
 	h.renderCategory(w, r, http.StatusOK, noticeFor(r), nil)
 }
 
-// renderCategory draws a category's edit page. A refused image form draws it
-// again at 422 with the reason at the field.
 func (h *Handler) renderCategory(w http.ResponseWriter, r *http.Request, status int, notice string, errs map[string]string) {
 	slug := r.PathValue("slug")
 	view, err := h.store.CategoryHeader(r.Context(), slug)
@@ -105,8 +99,6 @@ func (h *Handler) renderCategory(w http.ResponseWriter, r *http.Request, status 
 	web.Render(w, r, h.log, status, admin.CategoryForm(layouts.Page{Title: view.Name}, view))
 }
 
-// SetCategoryImage serves POST /admin/categories/{slug}/image. Multipart: the
-// picture arrives with its alt text.
 func (h *Handler) SetCategoryImage(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
 	obj, err := h.images.StoreUpload(w, r, "image")
@@ -141,7 +133,6 @@ func (h *Handler) SetCategoryImage(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// RemoveCategoryImage serves POST /admin/categories/{slug}/image/remove.
 func (h *Handler) RemoveCategoryImage(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)

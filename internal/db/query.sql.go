@@ -2632,7 +2632,6 @@ SELECT json_build_object('At', a.occurred_at, 'ID', a.id)::text AS page_cursor, 
            WHEN 'products' THEN (SELECT pr.slug FROM products pr WHERE pr.id = a.entity_id)
            WHEN 'product_variants' THEN (SELECT pv.sku FROM product_variants pv WHERE pv.id = a.entity_id)
        END, '')::text AS subject,
-       -- The product page a product or a variant belongs on.
        coalesce(CASE a.entity_table
            WHEN 'products' THEN (SELECT pr.slug FROM products pr WHERE pr.id = a.entity_id)
            WHEN 'product_variants' THEN (SELECT pr.slug FROM product_variants pv
@@ -4870,7 +4869,6 @@ type CreateBannerParams struct {
 	Days           int32
 }
 
-// The CTA is both-or-neither, which promo_banners_cta_complete also says.
 func (q *Queries) CreateBanner(ctx context.Context, arg CreateBannerParams) error {
 	_, err := q.db.Exec(ctx, createBanner,
 		arg.Message,
@@ -9203,7 +9201,6 @@ type OrderCapturedPaymentRow struct {
 	PaidAt        pgtype.Timestamptz
 }
 
-// How an order was paid, for the back office: the captured card payment, if any.
 func (q *Queries) OrderCapturedPayment(ctx context.Context, orderID uuid.UUID) (OrderCapturedPaymentRow, error) {
 	row := q.db.QueryRow(ctx, orderCapturedPayment, orderID)
 	var i OrderCapturedPaymentRow
@@ -9251,8 +9248,6 @@ type OrderDispatchDestinationRow struct {
 	PickupChain     string
 }
 
-// Where an order's parcel is going: whether its shipping method delivers to a
-// store, and the chain the customer picked, which a store order can lack.
 func (q *Queries) OrderDispatchDestination(ctx context.Context, id uuid.UUID) (OrderDispatchDestinationRow, error) {
 	row := q.db.QueryRow(ctx, orderDispatchDestination, id)
 	var i OrderDispatchDestinationRow
@@ -12860,23 +12855,14 @@ SELECT
     count(*)::bigint AS orders,
     coalesce(sum(t.total), 0)::bigint AS revenue_cents,
     (coalesce(sum(t.total), 0) / greatest(count(*), 1))::bigint AS average_cents,
-    -- What went back, as its own figure rather than subtracted from the one
-    -- above. Consumer Protection Act §19 makes a seven-day rescission
-    -- unrefusable, so returns are certain rather than hypothetical, and an owner
-    -- needs the return rate as much as the net. Counted by when each source
-    -- moved: succeeded_at for a card refund (created_at can be days earlier
-    -- while Stripe still says pending), and created_at for the synchronous
-    -- credit post.
-    --
-    -- The positive-credit predicate deliberately matches order_refunds: an entry
-    -- counts only with an order_id and a positive amount, so a reversed checkout
-    -- spend, which carries none, is in neither figure. A change of that
-    -- definition belongs in order_refunds, so the 折讓 form and the invoice bound
-    -- move with it. An order refunded before shipment is left out of both
-    -- figures: its refund cancels it out of the committed revenue, and counting
-    -- the same money as refunded too would take it off the net twice. Neither
-    -- time column has an index yet; these are small ledgers, so a speculative
-    -- index is not warranted.
+    -- What went back, counted by when each source moved: succeeded_at for a card
+    -- refund (created_at can be days earlier while Stripe still says pending),
+    -- created_at for the synchronous credit post.
+    -- The positive-credit predicate matches order_refunds, where a change of that
+    -- definition belongs, so the 折讓 form and the invoice bound move with it. An
+    -- order refunded before shipment is left out of both figures: its refund
+    -- already cancels it out of committed revenue, and counting it again would
+    -- take it off the net twice.
     (coalesce((SELECT sum(r.amount_cents) FROM refunds r
                JOIN payments p ON p.id = r.payment_id
                WHERE r.status = 'succeeded'
@@ -12981,8 +12967,7 @@ SELECT revoke_staff($1)::boolean
 // The last admin cannot be revoked, and the count is taken INSIDE the statement
 // that revokes. Read separately it is a race two admins both pass: each sees
 // two, each writes, and the shop is left with none and no way back — the state
-// /admin/staff exists to make impossible. Reproduced against a scratch database
-// before this was one statement.
+// /admin/staff exists to make impossible.
 //
 // The function returns false for a missing/non-staff target and for the last
 // admin. On success it changes the role and ends every existing session in the

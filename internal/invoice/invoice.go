@@ -13,9 +13,7 @@ import (
 	"unicode/utf8"
 )
 
-// Errors a caller branches on.
 var (
-	// ErrDisabled is an issuer with no credentials; nothing was filed.
 	ErrDisabled = errors.New("invoice: no issuer configured")
 	// ErrRejected is the provider refusing the document, carrying their own
 	// reason.
@@ -23,8 +21,7 @@ var (
 	// ErrAlreadyIssued is the caller-facing form of
 	// invoice_documents_one_active_invoice_per_order.
 	ErrAlreadyIssued = errors.New("invoice: order already has an invoice")
-	// ErrNotFound is an order or a document that does not exist.
-	ErrNotFound = errors.New("invoice: not found")
+	ErrNotFound      = errors.New("invoice: not found")
 	// ErrTooMuch means no authoritative whole-dollar refunded room remains for
 	// another 折讓. It is a stable branch for a stale or concurrent form, not a
 	// provider rejection; the amount itself is always derived by PostgreSQL.
@@ -125,11 +122,9 @@ var offeredPreferences = [...]Preference{
 	PreferenceDonate,
 }
 
-// OfferedPreferences returns the checkout choices in display order. The result
-// owns its storage, so callers cannot mutate the canonical closed set.
+// OfferedPreferences returns a copy, so callers cannot mutate the canonical closed set.
 func OfferedPreferences() []Preference { return slices.Clone(offeredPreferences[:]) }
 
-// Known reports whether p is one of the preferences this shop can issue.
 func (p Preference) Known() bool {
 	for _, offered := range offeredPreferences {
 		if p == offered {
@@ -139,10 +134,8 @@ func (p Preference) Known() bool {
 	return false
 }
 
-// NeedsMobileBarcode reports whether checkout must collect a mobile barcode.
 func (p Preference) NeedsMobileBarcode() bool { return p == PreferenceMobile }
 
-// NeedsTaxID reports whether checkout must collect a business tax number.
 func (p Preference) NeedsTaxID() bool { return p == PreferenceCompany }
 
 // InvoiceCarrier is the 載具 an invoice is filed under, in ECPay's CarrierType
@@ -151,10 +144,8 @@ type InvoiceCarrier string
 
 const (
 	// InvoiceCarrierNone is a printed invoice or one held in the shop's own account.
-	InvoiceCarrierNone InvoiceCarrier = ""
-	// InvoiceCarrierMember is ECPay's own member carrier.
-	InvoiceCarrierMember InvoiceCarrier = "1"
-	// InvoiceCarrierMobileBarcode is the mobile barcode a customer carries.
+	InvoiceCarrierNone          InvoiceCarrier = ""
+	InvoiceCarrierMember        InvoiceCarrier = "1"
 	InvoiceCarrierMobileBarcode InvoiceCarrier = "3"
 )
 
@@ -172,7 +163,6 @@ const (
 	DocumentVoided DocumentStatus = "voided"
 )
 
-// Document is an issued uniform invoice or credit note, as goen records it.
 type Document struct {
 	ID     string
 	Kind   DocumentKind
@@ -187,10 +177,8 @@ type Document struct {
 	Lines       []Line
 }
 
-// Voided reports whether this document has been cancelled.
 func (d Document) Voided() bool { return d.Status == DocumentVoided }
 
-// Line is one item on an invoice.
 type Line struct {
 	Description string `json:"description"`
 	Quantity    int32  `json:"quantity"`

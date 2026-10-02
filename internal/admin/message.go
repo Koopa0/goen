@@ -11,7 +11,6 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
-// Messages reads the customer-service inbox, handled ones included.
 func (s *Store) Messages(ctx context.Context, after ...string) (admin.MessagesView, error) {
 	scope := "/admin/messages"
 	cursor := readPageCursor(scope, after)
@@ -39,7 +38,6 @@ func (s *Store) Messages(ctx context.Context, after ...string) (admin.MessagesVi
 	return view, nil
 }
 
-// SetMessageHandled marks a message dealt with, or puts it back in the queue.
 func (s *Store) SetMessageHandled(ctx context.Context, id string, handled bool) error {
 	messageID, err := uuid.Parse(id)
 	if err != nil {

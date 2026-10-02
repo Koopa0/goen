@@ -23,7 +23,6 @@ const (
 	safetyStockCeiling = 1_000_000
 )
 
-// VariantForm is a new variant.
 type VariantForm struct {
 	SKU          string
 	PriceCents   int64
@@ -36,7 +35,6 @@ type VariantForm struct {
 	OptionValues    []string
 }
 
-// Validate refuses what the schema would.
 func (f *VariantForm) Validate(ctx context.Context) map[string]string {
 	f.SKU = strings.ToUpper(strings.TrimSpace(f.SKU))
 
@@ -75,7 +73,6 @@ func (f *VariantForm) validateFulfilment(ctx context.Context, errs map[string]st
 	}
 }
 
-// AddVariant adds a variant at zero stock.
 func (s *Store) AddVariant(ctx context.Context, slug string, f *VariantForm) (map[string]string, error) {
 	if errs := f.Validate(ctx); len(errs) > 0 {
 		return errs, nil

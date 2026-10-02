@@ -9,16 +9,12 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
-// reportWindows are the periods the report offers.
 var reportWindows = [...]int32{7, 30, 90}
 
-// DefaultWindow is what the page opens on.
 const DefaultWindow int32 = 30
 
-// MaxReportRows bounds each list.
 const MaxReportRows = 10
 
-// Report reads the numbers for one window.
 func (s *Store) Report(ctx context.Context, days int32) (admin.ReportView, error) {
 	if !validWindow(days) {
 		days = DefaultWindow

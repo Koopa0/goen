@@ -1,6 +1,6 @@
-// Package web holds the HTTP concerns every goen feature shares: rendering a
-// templ component, recognising an htmx request, and reading the request's
-// cart count. It deliberately knows nothing about any single feature.
+// Package web holds the HTTP helpers every feature shares: rendering a templ
+// component, htmx detection, form-text limits, same-site paths, keyset paging
+// and gzip. It knows nothing about any single feature.
 package web
 
 import (
@@ -114,7 +114,6 @@ func WithRequestPath(ctx context.Context, path string) context.Context {
 	return context.WithValue(ctx, pathKey{}, path)
 }
 
-// RequestPath is that path, or "" outside a request.
 func RequestPath(ctx context.Context) string {
 	p, ok := ctx.Value(pathKey{}).(string)
 	if !ok {

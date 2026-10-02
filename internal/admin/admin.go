@@ -1,6 +1,5 @@
-// Package admin is goen's back office, served over a pool that does
-// SET ROLE admin — a wider privilege set than the storefront's, still without
-// direct write access to money, ledgers or stock_quantity.
+// Package admin is goen's back office, served over a pool that does SET ROLE admin,
+// which still has no direct write access to money, ledgers or stock_quantity.
 package admin
 
 import (
@@ -17,9 +16,7 @@ import (
 )
 
 var (
-	// ErrNotFound is an order, product or variant that does not exist.
-	ErrNotFound = errors.New("admin: not found")
-	// ErrForbidden is a signed-in customer who is not staff.
+	ErrNotFound  = errors.New("admin: not found")
 	ErrForbidden = errors.New("admin: forbidden")
 	// ErrRefused is a write the database declined; its message is the database's
 	// own, because that names the rule.
@@ -29,14 +26,11 @@ var (
 	// go: the decision stands and cannot be retaken, and the refund claim has
 	// already committed a `pending` row keyed on the return.
 	ErrRefundIncomplete = errors.New("admin: the return is approved and the refund did not complete")
-	// ErrInvalid is a form goen itself rejected before the database saw it.
-	ErrInvalid = errors.New("admin: invalid input")
+	ErrInvalid          = errors.New("admin: invalid input")
 	// ErrCarrier is a dispatch naming a carrier that cannot carry this order's
 	// parcel: a store order goes with its chain's carrier, a home delivery with a
 	// home carrier.
-	ErrCarrier = errors.New("admin: carrier cannot carry this order")
-	// ErrQuantity is a per-line count the order cannot honour: more than remains
-	// to ship, or more than it still holds.
+	ErrCarrier  = errors.New("admin: carrier cannot carry this order")
 	ErrQuantity = errors.New("admin: quantity out of range")
 	// ErrPaymentRequiresRefund means provider money cannot be attributed because
 	// the order's stock was already returned to sale. The reconciliation alarm
@@ -57,7 +51,6 @@ type completePaymentResolution uint8
 
 const (
 	completePaymentResolutionUnknown completePaymentResolution = iota
-	// completePaymentPaid attributes the immutable payment intent as captured.
 	completePaymentPaid
 	// completePaymentUnpaidOrRefunded releases the gate only after staff confirm
 	// that Stripe took no money or that every cent was returned.
@@ -86,13 +79,10 @@ func (r completePaymentResolution) auditValue() string {
 	}
 }
 
-// paymentEventSafeReleaseSubmitted recognizes the one conclusion that can
-// release an unapplied provider event.
 func paymentEventSafeReleaseSubmitted(s string) bool {
 	return strings.TrimSpace(s) == "fully_refunded_or_accounted"
 }
 
-// PageSize bounds every admin list.
 const PageSize = 50
 
 // MinSearchRunes is the shortest order search that is a search. Counted in
@@ -104,8 +94,6 @@ const MinSearchRunes = 2
 // SKU is that long and the term is repeated in every link of the list.
 const MaxSearchRunes = 100
 
-// SearchTerm is what a typed search term is searched as: trimmed and cut to
-// MaxSearchRunes.
 func SearchTerm(raw string) string {
 	term := strings.TrimSpace(raw)
 	if utf8.RuneCountInString(term) > MaxSearchRunes {
@@ -145,7 +133,6 @@ var queueTabs = [...]struct {
 	{admin.QueueCancelled, i18n.KeyAdminStatusCancelled},
 }
 
-// ParseQueueFilter maps a query value to a queue filter, or "" for all.
 func ParseQueueFilter(s string) admin.QueueFilter {
 	for _, tab := range queueTabs {
 		if string(tab.filter) == s {
@@ -155,7 +142,6 @@ func ParseQueueFilter(s string) admin.QueueFilter {
 	return admin.QueueAll
 }
 
-// ParseStatus maps a query value to a fulfilment state, or "" for all.
 func ParseStatus(s string) pages.FulfillmentStatus {
 	status := pages.FulfillmentStatus(s)
 	if status.Known() {
@@ -164,7 +150,6 @@ func ParseStatus(s string) pages.FulfillmentStatus {
 	return ""
 }
 
-// NextStatuses is what an order in this state may legally become.
 func NextStatuses(current pages.FulfillmentStatus) []pages.FulfillmentStatus {
 	switch current {
 	case pages.FulfillmentPending:
@@ -182,10 +167,8 @@ func NextStatuses(current pages.FulfillmentStatus) []pages.FulfillmentStatus {
 	}
 }
 
-// StatusLabel is a fulfilment state in the reader's language.
-//
-// It answers from the status alone, which is right everywhere but 'pending' —
-// see FundedStatusLabel, which the order surfaces use.
+// StatusLabel answers from the status alone, which is right everywhere but
+// 'pending'; the order surfaces use FundedStatusLabel.
 func StatusLabel(ctx context.Context, s pages.FulfillmentStatus) string {
 	for _, status := range statuses {
 		if status.value == s {
@@ -220,7 +203,6 @@ func IsOrderNumber(s string) bool {
 // small enough that a typo cannot invent a warehouse.
 const maxAdjustment = 10000
 
-// ParseAdjustment reads a stock delta. Zero is not an adjustment.
 func ParseAdjustment(s string) (int32, bool) {
 	n, err := strconv.ParseInt(strings.TrimSpace(s), 10, 32)
 	if err != nil || n == 0 || n > maxAdjustment || n < -maxAdjustment {
@@ -240,7 +222,6 @@ func ParseReceipt(s string) (int32, bool) {
 	return int32(n), true
 }
 
-// ParsePrice reads a price in whole New Taiwan dollars and returns minor units.
 func ParsePrice(s string) (int64, bool) {
 	s = strings.TrimSpace(s)
 	if s == "" {
@@ -269,8 +250,6 @@ func parseBoundedInt(s string, ceiling int32) (int32, bool) {
 	return int32(n), true
 }
 
-// ReturnStatusLabel is a return request's state in the chrome language. The
-// states are the four return_requests_refund_snapshot_shape allows.
 func ReturnStatusLabel(ctx context.Context, s returns.Status) string {
 	switch s {
 	case returns.StatusRequested:

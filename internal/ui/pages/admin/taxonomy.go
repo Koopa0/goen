@@ -8,7 +8,6 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-// Taxon is one brand or category as the back office sees it.
 type Taxon struct {
 	Slug     string
 	Name     string
@@ -24,19 +23,14 @@ type Taxon struct {
 	Comparable bool
 }
 
-// HeaderHref is the page that holds the category's header photograph.
 func (t Taxon) HeaderHref() string { return "/admin/categories/" + t.Slug }
 
-// Translated reports whether this category has an English name.
 func (t Taxon) Translated() bool { return t.NameEn != "" }
 
-// Removable reports whether nothing points at it.
 func (t Taxon) Removable() bool { return t.Products == 0 && t.Children == 0 }
 
-// ProductsText is how many products carry it.
 func (t Taxon) ProductsText() string { return strconv.FormatInt(t.Products, 10) }
 
-// Why explains a refusal, when there is one.
 func (t Taxon) Why(ctx context.Context) string {
 	switch {
 	case t.Removable():
@@ -65,7 +59,6 @@ func (t Taxon) DepthText() string {
 	return strconv.Itoa(t.Depth)
 }
 
-// TaxonomyView is the brands-and-categories page.
 type TaxonomyView struct {
 	Brands     []Taxon
 	Categories []Taxon
@@ -75,19 +68,16 @@ type TaxonomyView struct {
 	Draft      TaxonDraft
 }
 
-// TaxonDraft carries a refused form's values back.
 type TaxonDraft struct {
-	Slug    string
-	Name    string
-	NameEn  string
-	Parent  string
-	IconKey string
-	Tone    string
-	// Comparable is the box as it was posted.
+	Slug       string
+	Name       string
+	NameEn     string
+	Parent     string
+	IconKey    string
+	Tone       string
 	Comparable bool
 }
 
-// HasErr reports whether this form's field was refused.
 func (v *TaxonomyView) HasErr(which, field string) bool {
 	if v.Which != which {
 		return false
@@ -96,7 +86,6 @@ func (v *TaxonomyView) HasErr(which, field string) bool {
 	return ok
 }
 
-// Err is why.
 func (v *TaxonomyView) Err(which, field string) string {
 	if v.Which != which {
 		return ""
@@ -104,7 +93,6 @@ func (v *TaxonomyView) Err(which, field string) string {
 	return v.Errors[field]
 }
 
-// DraftFor is the value to put back in a field, empty for the other form.
 func (v *TaxonomyView) DraftFor(which, field string) string {
 	if v.Which != which {
 		return ""

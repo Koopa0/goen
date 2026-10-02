@@ -8,15 +8,9 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// Report renders the shop's numbers over one window: the figures as a row
-// of tiles, then the two lists.
-//
-// The lists are not tables. Each cell already carries its own label -- "%s
-// units", "%s left" -- because the sentence is what internal/i18n holds, and a
-// column header would be a second name for the same fact.
-//
-// The window switcher is a set of links, and which one is on is said once, by
-// aria-current.
+// The lists are not tables: each cell carries its own label ("%s units", "%s left")
+// because the sentence is what internal/i18n holds, and a column header would be a
+// second name for the same fact.
 templ Report(p layouts.Page, v *ReportView) {
 	@layouts.Admin(p, "reports") {
 		<div class="ui-page-head">

@@ -7,10 +7,9 @@ goen has one maintainer, who reviews every submission and merges it once CI is g
 goen is a full-stack e-commerce application in Go for a shop that sells in
 Taiwan under the 消保法. It is one binary that serves the storefront, the
 customer account and the back office, over PostgreSQL, paying at Stripe and
-filing 統一發票 through 綠界. It is a demonstration and reference project. A
-public demo runs at [goen.koopa0.dev](https://goen.koopa0.dev); its sanitized
-configuration, scheduled restore job, and verification record live in
-[deploy/demo/README.md](deploy/demo/README.md).
+filing 統一發票 through 綠界. A public demo runs at
+[goen.koopa0.dev](https://goen.koopa0.dev); [deploy/demo](deploy/demo/README.md)
+is a reference deployment with a nightly restore.
 
 Four boundaries hold, and each is enforced in the tree rather than by
 convention:
@@ -51,8 +50,8 @@ a change to it run `make db-reset`, which rebuilds and re-seeds. The symptom of
 not doing so is a back-office page answering 500 for a column that exists in
 the file and not in your database.
 
-`make run` checks this for you: it runs `make schema-drift` first and refuses to
-start against a database that no longer matches `migrations/`.
+`make run` runs `make schema-drift` first and refuses to start against a
+database that no longer matches `migrations/`.
 
 ## Run the tests
 
@@ -70,56 +69,28 @@ checks for unreachable code, builds under both build tags, and runs the race
 tests. `make verify-all` adds the database suite and the vulnerability scan.
 
 Two tools have to be on `PATH`, pinned at the top of the `Makefile`:
-`golangci-lint` and `squawk` (installed with `npm i -g squawk-cli@<pinned>`).
-Every other tool is fetched by `go run` at its pinned version.
-`make check-layout` additionally needs Node 22 or newer, `curl`, `openssl`,
-network access to fetch axe-core, a Chrome or Chromium binary and a running server; it drives every route in a real browser and asks
-the accessibility questions only a browser can answer. The Makefile probes common
-macOS app bundles and Linux package names; set `CHROME` when yours lives
-elsewhere.
+`golangci-lint` and `squawk` (`npm i -g squawk-cli@<pinned>`). Every other tool
+is fetched by `go run` at its pinned version.
 
-The `layout` job runs that same command on every pull request, against a fresh
-database, the seeded catalogue and the runner's Chrome, and keeps `layout.log`
-as an artifact. goen targets WCAG 2.2 level AA. The axe run selects `wcag2a`,
-`wcag2aa`, `wcag21a`, `wcag21aa` and `wcag22aa` once per route
-through the CDP session the check already holds, fetched at `AXE_CORE_VERSION`
-and verified against `AXE_CORE_SHA256` rather than loaded from a CDN; a finding
-under those WCAG tags at impact `serious` or `critical` fails the run unless
-`scripts/axe-baseline.json` already records that route and rule, and the run prints the exact replacement for
-that file whenever the set moves. Best-practice findings remain advisory. The log
-names the pinned rule set, rules actually executed and incomplete checks needing
-manual review. An automated pass is not full WCAG conformance, screen-reader
-acceptance or real Windows High Contrast evidence. The local recipe above is unchanged: `make run` in one
-shell, `make check-layout` in another.
+`make check-layout` drives every route in a real browser. It needs Node 22 or
+newer, `curl`, `openssl`, network access to fetch axe-core, Chrome or Chromium
+(set `CHROME` when it is not found) and a running server: `make run` in one
+shell, `make check-layout` in another. CI runs it as the `layout` job.
 
-Run the gate unpiped and report its exit status. A pipe reports the status of
+goen targets WCAG 2.2 level AA. The pinned axe rules select `wcag2a`, `wcag2aa`,
+`wcag21a`, `wcag21aa` and `wcag22aa`; serious or critical WCAG findings gate,
+while best-practice findings remain advisory. `scripts/axe-baseline.json`
+records accepted findings, and the run prints the replacement when they move.
+The log names the pinned rule set, executed rules and incomplete checks for
+manual review. Automated success does not establish complete conformance,
+screen-reader acceptance or real Windows High Contrast behavior.
+
+Run the gate unpiped and report its exit status: a pipe reports the status of
 its last command, which has read a red gate as green here before.
 
-This public repository has an active `main` ruleset (id `22740037`). It blocks
-deletion and force-push, requires resolved review threads and one approval,
-dismisses approvals on a new push, and requires the branch to be current with
-the base. `.github/branch-protection.json` is its reviewed import artifact, not
-the enforcement mechanism: verify current settings through the rulesets API.
-
-The import artifact requires `verify`, `schema`, `vulnerabilities`, `ci-policy`,
-`commit-attribution`, `layout`, `CodeQL (go)` and `CodeQL (actions)` from GitHub
-Actions.
-New contexts are applied to the live ruleset only after successful PR runs.
-The CodeQL rule also blocks error-level findings and high/critical security
-findings; apply it only after successful PR and merged-main analyses exist.
-`make workflow-check`, also part of `make verify`, validates workflow syntax and
-the committed gate contract. Commit messages are checked separately over the
-actual PR or main-push range. Secret scanning and push protection are enabled.
-
-The one maintainer is also the repository owner, and merges with the owner
-role's `always` bypass in GitHub after the required checks pass. The ruleset's
-one-approval requirement is therefore bypassed, not met: a maintainer-authored
-PR cannot satisfy its own native approval, and no second reviewer exists. Green
-presubmit jobs establish the gate's guarantees only; browser-gate promotion and
-provider acceptance are not established by them.
-
-goen publishes no releases, so there is no release provenance. The container image
-that `make image-push` builds carries an SPDX SBOM (`ko build --sbom=spdx`).
+`main` is protected by a GitHub ruleset; `.github/branch-protection.json` is its
+reviewed import artifact, and the live ruleset is the authority. The one
+maintainer merges once the required checks pass.
 
 ## What goen assumes
 
@@ -165,8 +136,8 @@ store before anything else.
 - A test that guards a guarantee is a lock, and a lock nobody has watched fail
   is a hope. Plant the defect it exists to catch, watch it go red for the stated
   reason, restore, and say so in the pull request.
-- Comments carry the reason a reader needs to not turn the line into a defect —
-  a statute, a provider quirk, a lock ordering — and nothing else. No history.
+- Comments carry the reason a reader needs to not break the line (a statute, a
+  provider quirk, a lock ordering) and nothing else. No history.
 - Commits carry no `Co-authored-by` trailer.
 
 ## Changes that need the maintainer first

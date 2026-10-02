@@ -10,18 +10,10 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
-// Messages renders the customer-service inbox.
-//
-// How long a message has waited is a badge and not a shade of the row. It was
-// both before — the row was dimmed when it had been handled and marked when it
-// was overdue — and the dimming said "handled" in a colour nobody had been told
-// to read, while the overdue mark had no rule behind it at all and painted
-// nothing. The sentence the view model already writes says both facts, so the
-// badge carries it and the row stays legible.
-//
+// How long a message has waited is a badge and not a shade of the row: the sentence
+// the view model writes says both facts, so the row stays legible.
 // The list keeps the class the layout gate finds the page by
-// (scripts/check-layout.mjs:285-286); that rule stacks the list and this file's
-// divided-list rules shape the rows inside it.
+// (scripts/check-layout.mjs); that rule stacks the list.
 templ Messages(p layouts.Page, v MessagesView) {
 	@layouts.Admin(p, "messages") {
 		<div class="ui-page-head">

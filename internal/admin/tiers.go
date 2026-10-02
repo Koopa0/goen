@@ -15,10 +15,8 @@ import (
 // MembershipWindowDays mirrors loyalty.MembershipWindow, copied rather than imported.
 const MembershipWindowDays int32 = 365
 
-// MaxTierMultiplierBP bounds what a band may earn, at three times the base rate.
 const MaxTierMultiplierBP = 30000
 
-// Tiers reads the membership bands and how many customers are in each.
 func (s *Store) Tiers(ctx context.Context) (admin.TiersView, error) {
 	rows, err := s.q.AdminMembershipTiers(ctx, MembershipWindowDays)
 	if err != nil {
@@ -76,7 +74,6 @@ func (s *Store) CreateTier(
 		})
 }
 
-// DeleteTier retires a band.
 func (s *Store) DeleteTier(ctx context.Context, id string) error {
 	tierID, err := uuid.Parse(id)
 	if err != nil {

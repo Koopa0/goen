@@ -6,13 +6,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// Tiers renders the membership bands: what each one asks for, what it is
-// worth, and how many customers stand in it.
-//
-// A table rather than a list, because every band carries the same four facts
-// and a column of thresholds is read down. The threshold, the rate and the
-// count are one column each so they line up; a band's own name identifies the
-// row and carries its code underneath.
+// A table rather than a list: every band carries the same four facts and a column of
+// thresholds is read down.
 templ Tiers(p layouts.Page, v TiersView) {
 	@layouts.Admin(p, "tiers") {
 		<div class="ui-page-head">

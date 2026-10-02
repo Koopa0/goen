@@ -15,16 +15,13 @@ import (
 	"github.com/koopa0/goen/internal/web"
 )
 
-// MaxSlides bounds the back office's list.
 const MaxSlides = 20
 
 // MaxHeadlineRunes bounds the largest text on the site.
 const MaxHeadlineRunes = 40
 
-// MaxHeroDays bounds how long a slide may be scheduled for.
 const MaxHeroDays = 365
 
-// HeroForm is what the back office submits.
 type HeroForm struct {
 	Eyebrow        string
 	Headline       string
@@ -49,7 +46,6 @@ type HeroForm struct {
 	ImageChosen bool
 }
 
-// Validate refuses what the schema would, and a CTA href that leaves this site.
 func (f *HeroForm) Validate(ctx context.Context) map[string]string {
 	f.Headline = strings.TrimSpace(f.Headline)
 	f.PrimaryLabel = strings.TrimSpace(f.PrimaryLabel)
@@ -91,7 +87,6 @@ func (f *HeroForm) Validate(ctx context.Context) map[string]string {
 	return errs
 }
 
-// HeroSlides reads the scheduled slides.
 func (s *Store) HeroSlides(ctx context.Context) (admin.HeroView, error) {
 	rows, err := s.q.AdminHeroSlides(ctx, MaxSlides)
 	if err != nil {
@@ -146,7 +141,6 @@ func (s *Store) CreateHeroSlide(ctx context.Context, f *HeroForm) (map[string]st
 	return nil, nil
 }
 
-// SetHeroSlideActive switches one on or off.
 func (s *Store) SetHeroSlideActive(ctx context.Context, id string, active bool) error {
 	slideID, err := uuid.Parse(id)
 	if err != nil {
@@ -171,7 +165,6 @@ func (s *Store) SetHeroSlideActive(ctx context.Context, id string, active bool) 
 		})
 }
 
-// PromoteHeroSlide makes one the slide that shows.
 func (s *Store) PromoteHeroSlide(ctx context.Context, id string) error {
 	slideID, err := uuid.Parse(id)
 	if err != nil {

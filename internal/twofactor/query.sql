@@ -78,8 +78,7 @@ SELECT upsert_staff(@email, @full_name, @role)::boolean AS credential_cleared;
 -- The last admin cannot be revoked, and the count is taken INSIDE the statement
 -- that revokes. Read separately it is a race two admins both pass: each sees
 -- two, each writes, and the shop is left with none and no way back — the state
--- /admin/staff exists to make impossible. Reproduced against a scratch database
--- before this was one statement.
+-- /admin/staff exists to make impossible.
 --
 -- The function returns false for a missing/non-staff target and for the last
 -- admin. On success it changes the role and ends every existing session in the

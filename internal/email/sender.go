@@ -19,7 +19,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// Message is one email.
 type Message struct {
 	To      string
 	Subject string
@@ -30,7 +29,6 @@ type Message struct {
 	HTML string
 }
 
-// Sender delivers a message.
 type Sender interface {
 	Send(ctx context.Context, m *Message) error
 }
@@ -45,7 +43,6 @@ type LogSender struct {
 	ShowBody bool
 }
 
-// Send records the message.
 func (s LogSender) Send(ctx context.Context, m *Message) error {
 	attrs := []any{"to", m.To, "subject", m.Subject, "body_bytes", len(m.Body)}
 	if s.ShowBody {
@@ -55,7 +52,6 @@ func (s LogSender) Send(ctx context.Context, m *Message) error {
 	return nil
 }
 
-// SMTPSender delivers over SMTP.
 type SMTPSender struct {
 	Addr string // host:port
 	From string
@@ -66,7 +62,6 @@ type SMTPSender struct {
 	TLSName string
 }
 
-// SendTimeout bounds one delivery.
 const SendTimeout = 30 * time.Second
 
 var (
@@ -272,7 +267,6 @@ func crlf(s string) string {
 	return strings.ReplaceAll(s, "\n", "\r\n")
 }
 
-// encodeHeader makes a header value safe for the wire.
 func encodeHeader(s string) string {
 	return mime.QEncoding.Encode("utf-8", s)
 }

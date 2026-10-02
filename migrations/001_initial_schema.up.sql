@@ -24,7 +24,6 @@
 SET lock_timeout = '3s';
 SET statement_timeout = '120s';
 
--- ============================================================================
 -- Roles
 --
 -- A trigger cannot stop `UPDATE product_variants SET stock_quantity = 999`, so
@@ -32,7 +31,6 @@ SET statement_timeout = '120s';
 -- as. goen owns the schema, store is what a customer-facing request may do,
 -- store_svc is the only LOGIN role, reporting is what a dashboard may read.
 -- `admin` and `maintenance` are created far below, beside their grants.
--- ============================================================================
 
 DO $$
 BEGIN
@@ -318,7 +316,6 @@ CREATE UNIQUE INDEX product_options_name_key ON product_options (product_id, nam
 -- of the same product.
 CREATE UNIQUE INDEX product_options_product_key ON product_options (product_id, id);
 
--- The values on one axis.
 CREATE TABLE product_option_values (
     id         uuid PRIMARY KEY DEFAULT uuidv7(),
     -- Carried so the composite foreign keys can bind a value to an option of the
@@ -760,13 +757,11 @@ CREATE TRIGGER addresses_set_updated_at
     BEFORE UPDATE ON addresses
     FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
--- ============================================================================
 -- Store credit
 --
 -- A ledger, so the balance is the sum of its explanations. The account row exists
 -- to be locked: without one row to take FOR UPDATE, two concurrent spends each
 -- read the same balance and both pass.
--- ============================================================================
 
 CREATE TABLE store_credit_accounts (
     id         uuid PRIMARY KEY DEFAULT uuidv7(),
@@ -908,13 +903,11 @@ CREATE TRIGGER store_credit_entries_append_only
     BEFORE UPDATE OR DELETE ON store_credit_entries
     FOR EACH ROW EXECUTE FUNCTION forbid_change('store_credit_entries_append_only');
 
--- ============================================================================
 -- Inventory
 --
 -- inventory_movements is the truth and product_variants.stock_quantity is a
 -- projection of it. Both are written by one function, which holds the variant
 -- row while it does: two sessions can each read 1 and each write 0.
--- ============================================================================
 
 CREATE TABLE inventory_movements (
     id              uuid PRIMARY KEY DEFAULT uuidv7(),
@@ -1494,12 +1487,10 @@ CREATE UNIQUE INDEX product_reviews_author_key ON product_reviews (product_id, u
 CREATE INDEX product_reviews_product_created_idx ON product_reviews (product_id, created_at DESC);
 CREATE INDEX product_reviews_user_id_idx ON product_reviews (user_id);
 
--- ============================================================================
 -- Coupons
 --
 -- A percentage is basis points — 2500 is 25% — because storing 0.25 as a float
 -- is how a discount comes out a cent short on some orders and over on others.
--- ============================================================================
 
 CREATE TABLE coupons (
     id                  uuid PRIMARY KEY DEFAULT uuidv7(),
@@ -1565,12 +1556,10 @@ COMMENT ON COLUMN coupons.percent_bp IS
 COMMENT ON COLUMN coupons.per_customer_limit IS
     'How many times ONE customer may redeem it. Guests are counted by order, so the limit binds per account only.';
 
--- ============================================================================
 -- Shipping
 --
 -- Methods are versioned because a fee is a promise made at a moment: changing it
 -- must not make last month's orders unexplainable.
--- ============================================================================
 
 CREATE TABLE shipping_methods (
     id         uuid PRIMARY KEY DEFAULT uuidv7(),
@@ -1687,16 +1676,13 @@ COMMENT ON COLUMN shipping_version_zones.surcharge_cents IS
     'base rate the shop advertises, never the 離島 surcharge a carrier charges '
     'on top of it.';
 
--- ============================================================================
 -- Orders
 --
 -- One column per lifecycle: payment state lives in `payments`, return state in
 -- `return_requests`, and what remains here is fulfilment. The money columns are
 -- the ones that are NOT derivable — a discount granted, a fee quoted, a tax
 -- assessed.
--- ============================================================================
 
--- ---------------------------------------------------------------------------
 -- The shop's calendar. Every deadline goen counts in DAYS is the same
 -- question — 消保法 §19's seven days, a warranty term, a point's validity,
 -- an order number's business date — and the session TimeZone is not an
@@ -3290,7 +3276,6 @@ CREATE TRIGGER warranty_unit_within_purchase
     BEFORE INSERT OR UPDATE ON warranty_registrations
     FOR EACH ROW EXECUTE FUNCTION warranty_within_purchase();
 
--- ============================================================================
 -- Invoices
 --
 -- TWO tables, because they are two things: the first is the immutable filing
@@ -3298,7 +3283,6 @@ CREATE TRIGGER warranty_unit_within_purchase
 -- the tax authority. Delivery PII may later be erased, but the minimum filing
 -- identity, carrier and tax number remain with the tax record so a committed
 -- sale can still be issued, voided/reissued and allowanced.
--- ============================================================================
 
 -- The Ministry of Finance changed the divisor from 10 to 5 for numbers issued
 -- from April 2023. When the seventh digit is 7, its 7*4 contribution may be 1
@@ -3441,7 +3425,7 @@ BEGIN
     -- request_key belongs in this list for the reason the others do: clearing it
     -- on an issued allowance takes the row out of invoice_documents_request_key
     -- and lets the SAME refund be filed a second time at the 財政部, which is
-    -- exactly what that index was added to stop.
+    -- exactly what that index stops.
     IF NEW.id <> OLD.id OR NEW.order_id <> OLD.order_id OR NEW.kind <> OLD.kind
        OR NEW.number <> OLD.number OR NEW.amount_cents <> OLD.amount_cents
        OR NEW.original_id IS DISTINCT FROM OLD.original_id
@@ -4224,13 +4208,11 @@ CREATE TRIGGER payment_webhook_events_evidence_only
     BEFORE INSERT OR UPDATE OF payload ON payment_webhook_events
     FOR EACH ROW EXECUTE FUNCTION payment_webhook_events_keep_evidence();
 
--- ============================================================================
 -- Outbox
 --
 -- Written in the same transaction as the change that causes it: sending first
 -- risks a mail about an order that never committed, committing first risks
 -- silence.
--- ============================================================================
 
 CREATE TABLE outbox_messages (
     id           uuid PRIMARY KEY DEFAULT uuidv7(),
@@ -4936,7 +4918,6 @@ BEGIN
 END;
 $$;
 
--- ============================================================================
 -- Promoting an existing account must not hand over whatever credential it holds.
 --
 -- goen does not verify an address at REGISTRATION, so anybody may register an
@@ -4944,7 +4925,7 @@ $$;
 -- session, and wait. UpsertStaff resolves ON CONFLICT (lower(email)) and sets
 -- only the role, so the promotion handed that person the back office: sessions
 -- read users.role live, and StaffOnly then let the same session enrol its own
--- second factor. Reproduced end to end before this existed.
+-- second factor.
 --
 -- The rule this restores is the one the INSERT beside it already states — a new
 -- colleague gets NO password and proves the mailbox through /forgot. An account
@@ -4960,7 +4941,6 @@ $$;
 -- — it elevates ONE narrow act for a role denied the general privilege, and is
 -- not a sole door to the column, which the app still writes for password
 -- changes and resets.
--- ============================================================================
 CREATE FUNCTION secure_promoted_account(p_user_id uuid) RETURNS boolean
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
@@ -5031,13 +5011,11 @@ END;
 $$;
 
 
--- ============================================================================
 -- Privileges
 --
 -- Applied last, once every table and function exists: store gets ordinary
 -- read/write, then the privileged tables have their direct writes revoked so the
 -- only way in is a SECURITY DEFINER function.
--- ============================================================================
 
 GRANT USAGE ON SCHEMA public TO store, reporting;
 
@@ -5443,13 +5421,11 @@ GRANT EXECUTE ON FUNCTION order_is_settled(uuid) TO store;
 GRANT EXECUTE ON FUNCTION member_spend(uuid, integer, uuid) TO store;
 GRANT EXECUTE ON FUNCTION member_tier(uuid, integer, uuid) TO store;
 
--- ============================================================================
 -- The back office
 --
 -- `admin` is a WIDER set than store and still writes no money or stock directly.
 -- The binary opens a SECOND pool for it: SET ROLE per request would leave the
 -- role set on a connection returned to the pool.
--- ============================================================================
 
 DO $$
 BEGIN
@@ -5498,14 +5474,12 @@ REVOKE DELETE ON users FROM admin;
 -- write this table could mark any address proved.
 REVOKE INSERT, UPDATE, DELETE ON email_verifications FROM admin;
 
--- ============================================================================
 -- The back office may not become a customer.
 --
 -- With INSERT on sessions and UPDATE on users.password_hash, a staff member could
 -- impersonate one silently, and admin holds no INSERT on audit_events. Roster
 -- writes go only through upsert_staff/revoke_staff: direct column grants could
 -- bypass credential neutralisation and would invert the roster/user lock order.
--- ============================================================================
 REVOKE INSERT, UPDATE ON users FROM admin;
 
 -- sessions: the back office ENDS them and stamps totp_verified_at. Creating one
@@ -5569,7 +5543,6 @@ BEGIN
 END
 $$;
 
--- ============================================================================
 -- Invoice persistence doors
 --
 -- The admin role may ask ECPay to file a document, but it may not write tax
@@ -5577,7 +5550,6 @@ $$;
 -- allowance claims can only follow their small pending -> issued/released state
 -- machine.  These doors constrain local authority; they do not pretend to prove
 -- the remote provider fact, which still requires provider lookup/reconciliation.
--- ============================================================================
 
 -- The exact itemisation filed at ECPay, reconstructed from the immutable order
 -- snapshot.  Keeping this beside the persistence door lets that door reject a
@@ -6616,13 +6588,11 @@ BEGIN
 END;
 $$;
 
--- ============================================================================
 -- Payment posting
 --
 -- store holds no INSERT on payments, so these are the door. A capture takes the
 -- amount the PROVIDER reports and lets payments_capture_matches_order refuse it
 -- if that disagrees with what the order is owed.
--- ============================================================================
 
 -- Stripe can deliver a lifecycle event before the request that persists the
 -- Checkout Session returns. Both paths take this transaction-scoped lock before
@@ -7944,7 +7914,6 @@ $$;
 GRANT EXECUTE ON FUNCTION redeem_coupon(uuid, uuid, uuid, bigint) TO store;
 
 
--- ---------------------------------------------------------------------------
 -- Loyalty points
 --
 -- A ledger, exactly like store_credit_entries. Points are not a second currency:
@@ -7957,7 +7926,6 @@ GRANT EXECUTE ON FUNCTION redeem_coupon(uuid, uuid, uuid, bigint) TO store;
 -- filled expires_on and made both columns mandatory. Any account whose old
 -- spends exceeded its awards would require manual reconciliation: no automatic
 -- rule can truthfully invent the historical lot those points consumed.
--- ---------------------------------------------------------------------------
 
 CREATE TABLE loyalty_entries (
     id              uuid PRIMARY KEY DEFAULT uuidv7(),
@@ -8048,9 +8016,8 @@ CREATE TRIGGER loyalty_entries_append_only
     FOR EACH ROW EXECUTE FUNCTION forbid_change('loyalty_entries_append_only');
 
 -- The spendable balance: every live award plus the spends and clawbacks paired
--- with it. The old escape clause counted a spend forever while its award
--- lapsed, so an account drifted negative merely by the passage of time. Every
--- child now carries the lot's expiry and all of them leave together. Expiry is
+-- with it. Every child carries the lot's expiry and all of them leave together,
+-- so an account cannot drift negative merely by the passage of time. Expiry is
 -- applied HERE rather than by a job that might not have run.
 CREATE VIEW loyalty_balances AS
     SELECT a.id AS account_id,
@@ -8377,14 +8344,12 @@ $$;
 
 GRANT EXECUTE ON FUNCTION open_refund_before_shipment(text, text, uuid, text) TO admin;
 
--- ---------------------------------------------------------------------------
 -- Co-purchase projection
 --
 -- Measured: computed per request this is 3 ms for a product nobody buys and
 -- 136 ms for the one everybody does, because the work is proportional to that
 -- product's ORDER HISTORY. An hour-old answer to "what goes with this" is the
 -- same answer, which is what makes a projection right here and wrong elsewhere.
--- ---------------------------------------------------------------------------
 
 CREATE TABLE product_copurchases (
     product_id       uuid NOT NULL REFERENCES products (id) ON DELETE CASCADE,
@@ -8491,14 +8456,12 @@ GRANT SELECT ON copurchase_refreshes TO admin;
 -- control.
 GRANT EXECUTE ON FUNCTION refresh_copurchases() TO maintenance;
 
--- ---------------------------------------------------------------------------
 -- Media
 --
 -- Images live in PostgreSQL: goen is one binary plus one PostgreSQL, a filesystem
 -- needs a volume the deployment does not have, and object storage needs a module
 -- graph this repository has already refused once. Content-addressed on the
 -- re-encoded bytes, so a URL is immutable and a one-year cache is safe.
--- ---------------------------------------------------------------------------
 
 CREATE TABLE media_objects (
     -- The lowercase hex sha256 of `bytes`: the identity of an image IS its
@@ -8545,13 +8508,11 @@ GRANT SELECT ON media_objects TO store;
 GRANT SELECT, INSERT, DELETE ON media_objects TO admin;
 GRANT SELECT ON media_objects TO reporting;
 
--- ---------------------------------------------------------------------------
 -- The audit trail
 --
 -- Per-entity history says what happened to a thing; this says WHO, which spans
 -- entities. Written through a function, in the CALLER's transaction: an audit row
 -- for work that rolled back is a lie, and work that commits without one is a gap.
--- ---------------------------------------------------------------------------
 
 CREATE FUNCTION record_audit_event(
     p_actor        uuid,
@@ -9117,7 +9078,6 @@ GRANT EXECUTE ON FUNCTION
     settle_invoice_void(uuid, uuid)
     TO admin;
 
--- ---------------------------------------------------------------------------
 -- The DECISION columns. store must not write the SHOP's statement about what a
 -- customer wrote — hidden_at, a return's resolution, an order's staff_note — and
 -- admin must not write the CUSTOMER's own words or the money the checkout
@@ -9134,7 +9094,6 @@ GRANT UPDATE (email, recipient_name, phone, postal_code, city, district, street,
     ON order_private_data TO admin;
 REVOKE INSERT, UPDATE, DELETE ON stock_notifications FROM admin;
 GRANT UPDATE (notified_at) ON stock_notifications TO admin;
--- ---------------------------------------------------------------------------
 REVOKE INSERT, UPDATE ON product_reviews FROM store;
 GRANT INSERT (id, product_id, user_id, rating, title, body, is_verified_purchase,
               created_at),
@@ -9399,7 +9358,6 @@ GRANT INSERT (assessment_id, order_id, return_request_id, order_line_id,
               requested_at, delivered_at, policy_window)
     ON return_eligibility_facts TO admin;
 
--- ---------------------------------------------------------------------------
 -- pg_temp is searched FIRST for relations even when it is not listed, so a role
 -- that may create temp tables could plant a decoy an unpinned trigger guard would
 -- read. Listing pg_temp LAST is what fixes it; omitting it does NOT.

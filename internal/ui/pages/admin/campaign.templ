@@ -7,11 +7,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
-// Campaigns renders the promotions and the form that starts one.
-//
-// The list leads with whether a campaign is running RIGHT NOW, because a
-// switched-on campaign whose window has closed is off to a shopper and on in
-// the list, which is how somebody spends an afternoon puzzled.
+// The list leads with whether a campaign is running RIGHT NOW: a switched-on
+// campaign whose window has closed is off to a shopper and on in the list.
 templ Campaigns(p layouts.Page, v CampaignsView) {
 	@layouts.Admin(p, "campaigns") {
 		<div class="ui-page-head">
@@ -200,7 +197,6 @@ templ Campaigns(p layouts.Page, v CampaignsView) {
 	}
 }
 
-// CampaignForm renders one campaign's product selection.
 templ CampaignForm(p layouts.Page, v CampaignView) {
 	@layouts.Admin(p, "campaigns") {
 		<div class="ui-page-head">

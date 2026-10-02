@@ -15,9 +15,8 @@ import (
 // prepareProviderPosture refuses a configuration that holds a live Stripe key
 // beside a staging or placeholder setting, which would take real orders through
 // a test provider. The posture follows the key alone, read by
-// [payment.ClassifyKey]. Only a test key or no key is sandbox, and sandbox is
-// as permissive as it was before this check existed. Any other key, including
-// one whose prefix is not recognised, gets the live checks: failing closed
+// [payment.ClassifyKey]. Only a test key or no key is sandbox. Any other key,
+// including one whose prefix is not recognised, gets the live checks: failing closed
 // costs an operator one startup error, failing open costs a real order on a
 // test provider. Secure cookies say nothing about it: an HTTPS demonstration
 // can run on test keys.

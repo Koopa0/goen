@@ -10,10 +10,8 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-// TerminalKind is the order fact an order.terminal message reports.
 type TerminalKind string
 
-// The terminal facts a message may carry.
 const (
 	TerminalCancelledByCustomer        TerminalKind = "cancelled_by_customer"
 	TerminalCancelledByStaff           TerminalKind = "cancelled_by_staff"

@@ -9,22 +9,11 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// Questions renders the customer questions waiting for the shop.
-//
-// A divided list rather than a column of cards: the queue is read down the
-// page looking for the rows that still owe an answer, and a border around
-// every row makes twenty things to look at where the list is one. The state a
-// reader is scanning for is a badge beside the product, so the answer to "what
-// is left" is on the row and not in its colour.
-//
-// Neither button is the primary one. A queue of seventeen questions is a queue
-// of seventeen answer boxes, and a filled button on every row is a screen of
-// filled buttons — the reply box is already where the eye goes, and the rule is
-// one primary to a screen.
-//
+// A divided list rather than a column of cards: the queue is read down the page for
+// the rows that still owe an answer, and the state is a badge, not a colour.
+// Neither button is primary: a filled button on every row is a screen of them.
 // The list keeps the class the layout gate finds the page by
-// (scripts/check-layout.mjs:262, :289); its old rules are gone and the divided
-// list paints it now.
+// (scripts/check-layout.mjs); the divided list paints it.
 templ Questions(p layouts.Page, v QuestionsView) {
 	@layouts.Admin(p, "questions") {
 		<div class="ui-page-head">
