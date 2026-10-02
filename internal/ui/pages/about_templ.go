@@ -192,20 +192,7 @@ func About(p layouts.Page) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "</div><hr class=\"goen-separator\"><p class=\"about__legal\">goen Co., Ltd. · ")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			var templ_7745c5c3_Var12 string
-			templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyCompanyRegistration))
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/about.templ`, Line: 48, Col: 64}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "<br>台北市信義區松高路 68 號 12F · est. 2026</p></article>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "</div></article>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -241,12 +228,12 @@ func aboutArt() templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var13 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var13 == nil {
-			templ_7745c5c3_Var13 = templ.NopComponent
+		templ_7745c5c3_Var12 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var12 == nil {
+			templ_7745c5c3_Var12 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "<svg class=\"about__art\" data-tone=\"paper\" viewBox=\"0 0 1600 900\" aria-hidden=\"true\" focusable=\"false\"><path class=\"about__lens\" d=\"M 715.6 534.4 A 193 193 0 0 0 884.4 365.6 A 193 193 0 0 0 715.6 534.4 Z\"></path> <circle class=\"about__ring\" cx=\"692.8\" cy=\"342.8\" r=\"193\" vector-effect=\"non-scaling-stroke\"></circle> <circle class=\"about__ring about__ring--accent\" cx=\"907.2\" cy=\"557.2\" r=\"193\" vector-effect=\"non-scaling-stroke\"></circle></svg>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "<svg class=\"about__art\" data-tone=\"paper\" viewBox=\"0 0 1600 900\" aria-hidden=\"true\" focusable=\"false\"><path class=\"about__lens\" d=\"M 715.6 534.4 A 193 193 0 0 0 884.4 365.6 A 193 193 0 0 0 715.6 534.4 Z\"></path> <circle class=\"about__ring\" cx=\"692.8\" cy=\"342.8\" r=\"193\" vector-effect=\"non-scaling-stroke\"></circle> <circle class=\"about__ring about__ring--accent\" cx=\"907.2\" cy=\"557.2\" r=\"193\" vector-effect=\"non-scaling-stroke\"></circle></svg>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

@@ -248,6 +248,13 @@ type OrderView struct {
 	// retries without collapsing a later, legitimate equal partial allowance.
 	AllowanceOperationID string
 	Committed            bool
+	// Funded is Committed, or a pending order store credit paid in full, which
+	// the database does not count as committed until it is picked. A funded order
+	// is cancelled only by refunding it.
+	Funded bool
+	// OwedCents is what is still payable and CreditCents what store credit took
+	// off the total.
+	OwedCents, CreditCents int64
 	// Payment is how the order was paid and Refunds every refund of it.
 	Payment Payment
 	Refunds []Refund
@@ -381,6 +388,15 @@ func (v *OrderView) Shipping() string { return money.TWD(v.ShippingCents) }
 func (v *OrderView) Total() string {
 	return money.TWD(v.SubtotalCents - v.DiscountCents + v.ShippingCents + v.TaxCents)
 }
+
+// UsedCredit reports whether store credit paid any of this order.
+func (v *OrderView) UsedCredit() bool { return v.CreditCents > 0 }
+
+// Credit is what store credit took off, as a negative figure.
+func (v *OrderView) Credit() string { return "-" + money.TWD(v.CreditCents) }
+
+// Owed is what is left to pay after store credit.
+func (v *OrderView) Owed() string { return money.TWD(v.OwedCents) }
 
 // Discounted reports whether anything came off this order.
 func (v *OrderView) Discounted() bool { return v.DiscountCents > 0 }

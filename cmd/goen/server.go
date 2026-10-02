@@ -1006,15 +1006,16 @@ func sessionCloser(g *payment.Gateway) cart.SessionCloser {
 	return g
 }
 
-// withSiteOrigin puts the configured origin on every request's context, for the
-// chrome's absolute URLs. A base URL that is not an origin adds nothing.
+// withSiteOrigin puts the configured origin and the request's path on every
+// request's context, for the chrome's absolute URLs. A base URL that is not an origin adds nothing.
 func withSiteOrigin(next http.Handler, baseURL string) http.Handler {
 	origin, _, ok := web.SiteOrigin(baseURL)
 	if !ok {
 		return next
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		next.ServeHTTP(w, r.WithContext(layouts.WithSiteOrigin(r.Context(), origin)))
+		ctx := layouts.WithRequestPath(layouts.WithSiteOrigin(r.Context(), origin), r.URL.EscapedPath())
+		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 

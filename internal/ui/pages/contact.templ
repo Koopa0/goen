@@ -24,19 +24,6 @@ templ Contact(p layouts.Page, f ContactForm) {
 							@icons.Mail()
 						}
 					</div>
-					<a
-						class="contact__map"
-						href="https://www.google.com/maps/search/?api=1&query=%E5%8F%B0%E5%8C%97%E5%B8%82%E4%BF%A1%E7%BE%A9%E5%8D%80%E6%9D%BE%E9%AB%98%E8%B7%AF68%E8%99%9F"
-						rel="noreferrer"
-					>{ i18n.T(ctx, i18n.KeyContactOnMap) }</a>
-					<p class="contact__address">
-						goen Co., Ltd.
-						<br/>
-						// i18n-exempt: a street address; a courier reads it.
-						台北市信義區松高路 68 號 12F
-						<br/>
-						{ i18n.T(ctx, i18n.KeyContactDirections) }
-					</p>
 				</aside>
 			</div>
 		</div>

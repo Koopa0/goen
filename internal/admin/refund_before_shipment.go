@@ -44,7 +44,7 @@ func (s *Store) fillRefundBeforeShipment(ctx context.Context, view *admin.OrderV
 		view.CanShip = false
 	}
 	for _, n := range NextStatuses(view.Status) {
-		if (n == pages.FulfillmentCancelled && view.Committed) ||
+		if (n == pages.FulfillmentCancelled && view.Funded) ||
 			(n == pages.FulfillmentPicking && (refund.ReturnRequestID.Valid || view.Unpaid)) ||
 			// orders_finished_when_shipped: an order that still owes a parcel is
 			// not finished, and Shippable is what is still outstanding.

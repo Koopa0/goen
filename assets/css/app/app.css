@@ -6735,22 +6735,6 @@ a.goen-pager__step:hover {
   margin: 0;
 }
 
-.about__legal {
-  color: var(--n-500);
-  font-size: 0.8125rem;
-  line-height: 1.7;
-  margin: 0;
-}
-
-/* One hairline, drawn as an element because the page uses it to part two kinds
-   of content rather than to decorate a box. */
-.goen-separator {
-  background: var(--n-200);
-  border: 0;
-  height: 1px;
-  margin: 1.5rem 0 0;
-}
-
 /* ----- Contact ----- */
 
 /* The form beside the facts. The two banners inside the form are written in the
@@ -6896,27 +6880,6 @@ a.goen-pager__step:hover {
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
-}
-
-.contact__map {
-  color: var(--accent-text);
-  display: inline-block;
-  font-size: var(--fs-14);
-  font-weight: var(--fw-medium);
-  text-decoration: none;
-}
-
-.contact__map:hover {
-  color: var(--accent-text-hover);
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-
-.contact__address {
-  color: var(--n-700);
-  font-size: var(--fs-14);
-  line-height: 1.7;
-  margin: 0;
 }
 
 /* The refusal's sentence is read through the shared descendant pair, so the
