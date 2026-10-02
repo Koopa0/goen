@@ -379,7 +379,7 @@ func TestRetiringTheLastDiscountedVariantIsRefused(t *testing.T) {
 			`DELETE FROM sale_campaigns WHERE id = $1`, campaignID)
 	})
 
-	if err := stock.NewStore(pool).SetActive(ctx, sku, false); !errors.Is(err, admin.ErrRefused) {
+	if err := stock.NewStore(pool).SetActive(ctx, sku, false); !errors.Is(err, stock.ErrRefused) {
 		t.Errorf("retiring the last discounted variant of a featured product gave %v, "+
 			"want ErrRefused — the campaign would point at nothing marked down", err)
 	}
