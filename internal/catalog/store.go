@@ -136,13 +136,15 @@ func (s *Store) Listing(ctx context.Context, slug string, f Filters) (pages.List
 	return view, nil
 }
 
-// Search reads one page of search results. The pattern is SearchPattern's.
-func (s *Store) Search(ctx context.Context, pattern string, page int) (pages.SearchView, error) {
+// Search reads one page of search results. The pattern is SearchPattern's, and
+// sort is ParseSort's: on a search the default is best match, not newest.
+func (s *Store) Search(ctx context.Context, pattern string, sort Sort, page int) (pages.SearchView, error) {
 	terms, exact := SearchTerms(pattern)
 	rows, err := s.q.SearchProducts(ctx, db.SearchProductsParams{
 		Locale:       string(i18n.FromContext(ctx)),
 		Patterns:     terms,
 		ExactPattern: exact,
+		Sort:         string(sort),
 		PageSize:     PageSize,
 		PageOffset:   offsetFor(page),
 	})
@@ -163,7 +165,26 @@ func (s *Store) Search(ctx context.Context, pattern string, page int) (pages.Sea
 		Total:    total,
 		Page:     max(page, 1),
 		PageSize: PageSize,
+		Sort:     string(sort),
 	}, nil
+}
+
+// NewestProducts reads through SearchProducts with no terms, which matches every
+// active product and leaves only the newest-first tiebreak.
+func (s *Store) NewestProducts(ctx context.Context, n int32) ([]pages.ProductTile, error) {
+	rows, err := s.q.SearchProducts(ctx, db.SearchProductsParams{
+		Locale:   string(i18n.FromContext(ctx)),
+		Patterns: []string{},
+		PageSize: n,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("read newest products: %w", err)
+	}
+	offers, err := s.comparableCategories(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return searchTiles(rows, offers), nil
 }
 
 func childCrumbs(rows []db.CategoryChildrenRow) []pages.Crumb {

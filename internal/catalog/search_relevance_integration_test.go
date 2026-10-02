@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/koopa0/goen/internal/catalog"
 )
@@ -54,7 +55,7 @@ func TestSearchOrdersExplicitFieldRelevanceBeforeRecency(t *testing.T) {
 			t.Fatal(fixtureErr)
 		}
 	}
-	view, err := catalog.NewStore(tx).Search(ctx, catalog.SearchPattern(strings.ToUpper(token)), 1)
+	view, err := catalog.NewStore(tx).Search(ctx, catalog.SearchPattern(strings.ToUpper(token)), catalog.SortDefault, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -99,7 +100,7 @@ func TestSearchRelevanceTiesUsePublicationThenIdentity(t *testing.T) {
 	if ids[1].String() < ids[2].String() {
 		want[0], want[1] = want[1], want[0]
 	}
-	view, err := catalog.NewStore(tx).Search(ctx, catalog.SearchPattern(token), 1)
+	view, err := catalog.NewStore(tx).Search(ctx, catalog.SearchPattern(token), catalog.SortDefault, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -157,7 +158,7 @@ func TestSearchRanksTheChineseNameAndEnglishSummaryArms(t *testing.T) {
 			t.Fatal(fixtureErr)
 		}
 	}
-	view, err := catalog.NewStore(tx).Search(ctx, catalog.SearchPattern(strings.ToUpper(token)), 1)
+	view, err := catalog.NewStore(tx).Search(ctx, catalog.SearchPattern(strings.ToUpper(token)), catalog.SortDefault, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -217,7 +218,7 @@ func TestSearchFindsAProductByItsCategoryNameAndRanksItAboveASummaryMention(t *t
 		}
 	}
 	for _, q := range []string{"類別" + token, strings.ToUpper("category " + token)} {
-		view, searchErr := catalog.NewStore(tx).Search(ctx, catalog.SearchPattern(q), 1)
+		view, searchErr := catalog.NewStore(tx).Search(ctx, catalog.SearchPattern(q), catalog.SortDefault, 1)
 		if searchErr != nil {
 			t.Fatal(searchErr)
 		}
@@ -225,7 +226,7 @@ func TestSearchFindsAProductByItsCategoryNameAndRanksItAboveASummaryMention(t *t
 			t.Errorf("q=%q total=%d products=%v, want only the category's product", q, view.Total, view.Products)
 		}
 	}
-	view, err := catalog.NewStore(tx).Search(ctx, catalog.SearchPattern(token), 1)
+	view, err := catalog.NewStore(tx).Search(ctx, catalog.SearchPattern(token), catalog.SortDefault, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -272,7 +273,7 @@ func TestSearchFindsAProductByAnAncestorCategoryName(t *testing.T) {
 		t.Fatal(fixtureErr)
 	}
 	for _, q := range []string{"部門" + token, strings.ToUpper("department " + token)} {
-		view, searchErr := catalog.NewStore(tx).Search(ctx, catalog.SearchPattern(q), 1)
+		view, searchErr := catalog.NewStore(tx).Search(ctx, catalog.SearchPattern(q), catalog.SortDefault, 1)
 		if searchErr != nil {
 			t.Fatal(searchErr)
 		}
@@ -323,7 +324,7 @@ func TestSearchRequiresEveryTermAcrossFieldsInAnyOrder(t *testing.T) {
 		}
 	}
 	for _, q := range []string{brandTok + " " + specTok, specTok + "　" + brandTok, strings.ToUpper(brandTok) + "  " + specTok} {
-		view, searchErr := catalog.NewStore(tx).Search(ctx, catalog.SearchPattern(q), 1)
+		view, searchErr := catalog.NewStore(tx).Search(ctx, catalog.SearchPattern(q), catalog.SortDefault, 1)
 		if searchErr != nil {
 			t.Fatal(searchErr)
 		}
@@ -333,6 +334,121 @@ func TestSearchRequiresEveryTermAcrossFieldsInAnyOrder(t *testing.T) {
 		}
 		if view.Products[0].Slug != slugs[0] || view.Products[1].Slug != slugs[2] {
 			t.Errorf("q=%q ranked %s, %s; want the name holding every term first", q, view.Products[0].Slug, view.Products[1].Slug)
+		}
+	}
+}
+
+// published is seconds past now, so a larger one is the newer product.
+func insertSearchFixture(t *testing.T, tx pgx.Tx, name, summary string, priceCents, published int) string {
+	t.Helper()
+	ctx := t.Context()
+	slug := "relevance-fix-" + uuid.NewString()
+	var brandID, productID uuid.UUID
+	if err := tx.QueryRow(ctx, `INSERT INTO brands (slug, name) VALUES ($1, 'Fixture brand') RETURNING id`, "brand-"+uuid.NewString()).Scan(&brandID); err != nil {
+		t.Fatal(err)
+	}
+	if err := tx.QueryRow(ctx, `INSERT INTO products (brand_id, category_id, slug, name, name_en, summary, status, published_at)
+   SELECT $1, category_id, $2, 'Original fixture', $3, $4, 'draft', now() + ($5 * interval '1 second') FROM products LIMIT 1 RETURNING id`,
+		brandID, slug, name, summary, published).Scan(&productID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tx.Exec(ctx, `INSERT INTO product_variants (product_id, sku, price_cents) VALUES ($1, $2, $3)`,
+		productID, "RANKFIX-"+strings.ToUpper(uuid.NewString()), priceCents); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tx.Exec(ctx, `UPDATE products SET status = 'active' WHERE id = $1`, productID); err != nil {
+		t.Fatal(err)
+	}
+	return slug
+}
+
+func TestSearchRanksTheWholeQueryInAnyNameAboveTheTermsInOrderApart(t *testing.T) {
+	ctx := t.Context()
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = tx.Rollback(context.WithoutCancel(ctx)) })
+	first, second := "alfa"+uuid.NewString()[:8], "beta"+uuid.NewString()[:8]
+	// Published in the reverse of the expected order, so recency alone would
+	// list the summary mention first.
+	slugs := []string{
+		insertSearchFixture(t, tx, first+" "+second, "Fixture summary", 10000, 0),                    // is the query
+		insertSearchFixture(t, tx, "Case for "+first+" "+second+" Pro", "Fixture summary", 10000, 1), // contains the query
+		insertSearchFixture(t, tx, second+" and "+first, "Fixture summary", 10000, 2),                // every term, apart
+		insertSearchFixture(t, tx, first+" only", second+" in the summary", 10000, 3),                // a term in the name
+		insertSearchFixture(t, tx, "Fixture name", first+" "+second, 10000, 4),                       // summary only
+	}
+	view, err := catalog.NewStore(tx).Search(ctx, catalog.SearchPattern(first+" "+second), catalog.SortDefault, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if view.Total != int64(len(slugs)) || len(view.Products) != len(slugs) {
+		t.Fatalf("total=%d rows=%d, want %d", view.Total, len(view.Products), len(slugs))
+	}
+	for i, slug := range slugs {
+		if view.Products[i].Slug != slug {
+			t.Errorf("rank %d = %s, want %s", i, view.Products[i].Slug, slug)
+		}
+	}
+}
+
+func TestSearchSortReordersAndNoTermsReadsTheNewest(t *testing.T) {
+	ctx := t.Context()
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = tx.Rollback(context.WithoutCancel(ctx)) })
+	token := "sorted" + uuid.NewString()[:8]
+	// Best match leads with the name that is the query; the price sorts by price.
+	exact := insertSearchFixture(t, tx, token, "Fixture summary", 30000, 0)
+	cheap := insertSearchFixture(t, tx, token+" cheap", "Fixture summary", 10000, 1)
+	mid := insertSearchFixture(t, tx, token+" mid", "Fixture summary", 20000, 2)
+	store := catalog.NewStore(tx)
+	for _, c := range []struct {
+		sort catalog.Sort
+		want []string
+	}{
+		{catalog.SortDefault, []string{exact, mid, cheap}},
+		{catalog.SortPriceAsc, []string{cheap, mid, exact}},
+		{catalog.SortPriceDesc, []string{exact, mid, cheap}},
+	} {
+		view, searchErr := store.Search(ctx, catalog.SearchPattern(token), c.sort, 1)
+		if searchErr != nil {
+			t.Fatal(searchErr)
+		}
+		if len(view.Products) != len(c.want) {
+			t.Fatalf("sort=%q rows=%d, want %d", c.sort, len(view.Products), len(c.want))
+		}
+		for i, slug := range c.want {
+			if view.Products[i].Slug != slug {
+				t.Errorf("sort=%q rank %d = %s, want %s", c.sort, i, view.Products[i].Slug, slug)
+			}
+		}
+	}
+	newest, err := store.NewestProducts(ctx, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(newest) != 2 || newest[0].Slug != mid || newest[1].Slug != cheap {
+		t.Errorf("newest = %v, want the two latest published", newest)
+	}
+}
+
+func TestSearchHeadphonesFindsTheOverEarAndBudsThroughTheirCategory(t *testing.T) {
+	ctx := t.Context()
+	view, err := catalog.NewStore(pool).Search(ctx, catalog.SearchPattern("headphones"), catalog.SortDefault, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := map[string]bool{}
+	for _, p := range view.Products {
+		found[p.Slug] = true
+	}
+	for _, slug := range []string{"koto-over-ear", "nimbus-buds-pro"} {
+		if !found[slug] {
+			t.Errorf("%q is not found by \"headphones\"; the audio category's English name should carry it", slug)
 		}
 	}
 }

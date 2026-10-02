@@ -2746,7 +2746,8 @@ h3 {
    at `check-layout.mjs:668` decides the desktop rail rendered at all by finding
    one of them, and the tap sweep at `:805` measures them. */
 .goen-filters .ui-input,
-.goen-filters .ui-select {
+.goen-filters .ui-select,
+.goen-search-sort .ui-select {
   background: var(--bg);
   border: 0;
   border-radius: var(--r-md);
@@ -2762,7 +2763,8 @@ h3 {
   width: 100%;
 }
 
-.goen-filters .ui-select {
+.goen-filters .ui-select,
+.goen-search-sort .ui-select {
   appearance: none;
   background: var(--n-0) var(--chevron) no-repeat right 0.75rem center;
   padding-right: 2.5rem;
@@ -2770,6 +2772,30 @@ h3 {
 
 .goen-filters__apply {
   margin-top: 8px;
+}
+
+/* The search's one control sits above the grid, on the right where a phone and
+   a desktop both find it. */
+.goen-search-sort {
+  align-items: flex-end;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  justify-content: flex-end;
+  margin-bottom: 16px;
+}
+
+.goen-search-sort .goen-filters__field {
+  min-width: min(100%, 16rem);
+}
+
+.goen-search-sort .goen-filters__apply {
+  margin-top: 0;
+}
+
+.goen-listing__subhead {
+  font-size: var(--fs-20);
+  margin: 32px 0 16px;
 }
 
 /* Where scripting is on, a changed filter or sort applies itself, so the button

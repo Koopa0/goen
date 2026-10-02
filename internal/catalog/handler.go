@@ -57,15 +57,22 @@ func (h *Handler) Listing(w http.ResponseWriter, r *http.Request) {
 	web.Render(w, r, h.log, http.StatusOK, pages.Listing(pages.ListingMeta(r.Context(), view), view))
 }
 
+const newestOnEmpty = 4
+
 // Search serves GET /search.
 func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
+	if web.DropEmptyParams(w, r, "q") {
+		return
+	}
 	q := r.URL.Query().Get("q")
 	pattern := SearchPattern(q)
 	page := ParsePage(r.URL.Query().Get("page"))
 
+	sort := ParseSort(r.URL.Query().Get("sort"))
+
 	view := pages.SearchView{Query: trimForDisplay(q), Page: page, PageSize: PageSize}
 	if pattern != "" {
-		loaded, err := h.store.Search(r.Context(), pattern, page)
+		loaded, err := h.store.Search(r.Context(), pattern, sort, page)
 		if err != nil {
 			h.log.ErrorContext(r.Context(), "search", "error", err)
 			h.serverError(w, r)
@@ -73,8 +80,20 @@ func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
 		}
 		loaded.Query = view.Query
 		view = loaded
+		if view.Empty() {
+			// Best effort: the page already says nothing matched, and the
+			// department chips below it still lead somewhere.
+			newest, newestErr := h.store.NewestProducts(r.Context(), newestOnEmpty)
+			if newestErr != nil {
+				h.log.ErrorContext(r.Context(), "newest products for an empty search", "error", newestErr)
+			}
+			view.Newest = newest
+		}
 	}
 
+	if web.IsHTMX(r) {
+		r = r.WithContext(pages.AsPartial(r.Context()))
+	}
 	web.Render(w, r, h.log, http.StatusOK, pages.Search(pages.SearchMeta(r.Context(), view.Query), view))
 }
 
@@ -140,7 +159,7 @@ func canonicalQuery(f Filters) string {
 	if f.MaxPrice > 0 {
 		q.Set("max_price", strconv.FormatInt(f.MaxPrice/100, 10))
 	}
-	if f.Sort != SortNewest {
+	if f.Sort != SortDefault {
 		q.Set("sort", string(f.Sort))
 	}
 	return q.Encode()
@@ -200,7 +219,7 @@ func (h *Handler) Compare(w http.ResponseWriter, r *http.Request) {
 	if q := r.URL.Query().Get("q"); !view.Full() {
 		view.Query = trimForDisplay(q)
 		if pattern := SearchPattern(q); pattern != "" {
-			found, searchErr := h.store.Search(r.Context(), pattern, 1)
+			found, searchErr := h.store.Search(r.Context(), pattern, SortDefault, 1)
 			if searchErr != nil {
 				h.log.ErrorContext(r.Context(), "compare search", "error", searchErr)
 				h.serverError(w, r)

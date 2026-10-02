@@ -261,6 +261,24 @@ type SearchView struct {
 	PageSize  int
 	Campaigns CampaignPage
 	Path      string
+	// Sort is the ordering asked for; empty is best match.
+	Sort   string
+	Newest []ProductTile
+}
+
+// SortOptions is the search's orderings, with the active one marked. Its default
+// is best match: newest-first would bury the name that holds the whole query.
+func (v SearchView) SortOptions(ctx context.Context) []SortOption {
+	opts := []SortOption{
+		{Value: "", Label: i18n.T(ctx, i18n.KeySortBestMatch)},
+		{Value: "price_asc", Label: i18n.T(ctx, i18n.KeySortPriceAsc)},
+		{Value: "price_desc", Label: i18n.T(ctx, i18n.KeySortPriceDesc)},
+		{Value: "rating", Label: i18n.T(ctx, i18n.KeySortRating)},
+	}
+	for i := range opts {
+		opts[i].Selected = opts[i].Value == v.Sort
+	}
+	return opts
 }
 
 // SearchMeta is the chrome view model for the search page.
@@ -319,6 +337,9 @@ func (v SearchView) PageHref(n int) string {
 		return v.Path
 	}
 	u := "/search?q=" + queryEscape(v.Query)
+	if v.Sort != "" {
+		u += "&sort=" + queryEscape(v.Sort)
+	}
 	if n > 1 {
 		u += "&page=" + strconv.Itoa(n)
 	}
