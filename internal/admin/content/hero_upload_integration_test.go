@@ -1,6 +1,6 @@
 //go:build integration
 
-package admin_test
+package content_test
 
 import (
 	"bytes"
@@ -14,7 +14,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/internal/admin"
+	"github.com/koopa0/goen/internal/admin/admintest"
+	"github.com/koopa0/goen/internal/admin/content"
 	"github.com/koopa0/goen/internal/media"
 )
 
@@ -24,8 +25,8 @@ import (
 // is the control: the same image under complete copy is stored, so the
 // absences before it are about the refusal and not about the probe.
 func TestARefusedHeroSlideStoresNoImage(t *testing.T) {
-	ctx, _ := staffContext(t)
-	h := adminHandlerOver(pool, admin.NewStore(pool, fakeRefunder{}, nil, nil))
+	ctx, _ := admintest.StaffContext(t, pool)
+	h := handlerOver(content.NewStore(pool))
 	headline := "主視覺" + uuid.NewString()[:8]
 	t.Cleanup(func() {
 		//nolint:usetesting // t.Context is already cancelled in Cleanup
@@ -79,7 +80,7 @@ func TestARefusedHeroSlideStoresNoImage(t *testing.T) {
 		req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/home", &body)
 		req.Header.Set("Content-Type", form.FormDataContentType())
 		res := httptest.NewRecorder()
-		h.CreateHeroSlide(res, req)
+		h.CreateHero(res, req)
 		return res
 	}
 

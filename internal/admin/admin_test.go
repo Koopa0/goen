@@ -16,11 +16,11 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/media"
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
-	"github.com/koopa0/goen/internal/web"
 )
 
 func TestDollarInputsAreBoundedBeforeMultiplication(t *testing.T) {
@@ -157,28 +157,6 @@ func FuzzParseBoundedInt(f *testing.F) {
 				raw, ceiling, got, ok, n, err)
 		}
 	})
-}
-
-func TestOptionalRunDaysDoNotTurnMalformedInputIntoNoExpiry(t *testing.T) {
-	t.Parallel()
-	ctx := i18n.WithLocale(t.Context(), i18n.En)
-	for _, raw := range []string{"forever", "1.5", "-1", "1000001"} {
-		days := web.ParseCountOrInvalid(raw)
-		if days >= 0 {
-			t.Fatalf("ParseCountOrInvalid(%q) = %d, want an invalid sentinel", raw, days)
-		}
-		if errs := (&BannerForm{Message: "Sale", Days: days}).Validate(ctx); errs["banner_days"] == "" {
-			t.Errorf("BannerForm accepted malformed days %q as an unbounded banner", raw)
-		}
-		if errs := (&HeroForm{
-			Headline: "Sale", PrimaryLabel: "Shop", PrimaryHref: "/deals", Days: days,
-		}).Validate(ctx); errs["days"] == "" {
-			t.Errorf("HeroForm accepted malformed days %q as an unbounded slide", raw)
-		}
-	}
-	if got := web.ParseCountOrInvalid(""); got != 0 {
-		t.Errorf("ParseCountOrInvalid(blank) = %d, want the documented no-expiry value 0", got)
-	}
 }
 
 func TestAParcelSumCoversItsLongestSideBeforeWriting(t *testing.T) {
@@ -337,6 +315,11 @@ func TestEveryRedirectNoticeHasAMessage(t *testing.T) {
 		for _, m := range param.FindAllStringSubmatch(string(src), -1) {
 			found[m[1]] = true
 		}
+	}
+	// The upload refusals are written by media.UploadQuery, not as literals.
+	for _, refusal := range []error{media.ErrTooLarge, media.ErrNotAnImage, media.ErrLosslessWebP, media.ErrBusy} {
+		name, _, _ := strings.Cut(media.UploadQuery(refusal), "=")
+		found[name] = true
 	}
 	if len(found) < 15 {
 		t.Fatalf("only %d redirect parameters found; the parser stopped matching", len(found))

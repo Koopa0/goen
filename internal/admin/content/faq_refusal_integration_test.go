@@ -1,6 +1,6 @@
 //go:build integration
 
-package admin_test
+package content_test
 
 import (
 	"net/http"
@@ -11,17 +11,18 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/internal/admin"
+	"github.com/koopa0/goen/internal/admin/admintest"
+	"github.com/koopa0/goen/internal/admin/content"
 )
 
 // A refused FAQ edit answers 422 on the entry that was edited. Its text used
 // to be re-rendered into the add form, where pressing 新增 published a second
 // copy and left the original unedited.
 func TestARefusedFAQEditAnswersOnTheEntryItself(t *testing.T) {
-	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	ctx, _ := admintest.StaffContext(t, pool)
+	s := content.NewStore(pool)
 	category := "編輯分類-" + uuid.NewString()[:8]
-	if errs, err := s.CreateFAQEntry(ctx, &admin.FAQForm{
+	if errs, err := s.CreateFAQEntry(ctx, &content.FAQForm{
 		Category: category, Question: "原本的問題", Answer: "原本的答案",
 	}); err != nil || len(errs) > 0 {
 		t.Fatalf("CreateFAQEntry: %v %v", err, errs)
@@ -48,7 +49,7 @@ func TestARefusedFAQEditAnswersOnTheEntryItself(t *testing.T) {
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.SetPathValue("id", id)
 	rec := httptest.NewRecorder()
-	adminHandlerOver(pool, s).EditFAQEntry(rec, req)
+	handlerOver(s).EditFAQ(rec, req)
 
 	if rec.Code != http.StatusUnprocessableEntity {
 		t.Fatalf("status = %d, want 422: %s", rec.Code, rec.Body.String())

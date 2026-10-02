@@ -17,6 +17,7 @@ import (
 
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/admin/access"
+	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/admin/ordernumber"
 	"github.com/koopa0/goen/internal/carrier"
 	"github.com/koopa0/goen/internal/cart"
@@ -147,7 +148,7 @@ func (h *Handler) AdvanceOrder(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	sessions, err := h.store.Advance(r.Context(), number, ParseStatus(r.PostFormValue("status")), staffID(r))
+	sessions, err := h.store.Advance(r.Context(), number, ParseStatus(r.PostFormValue("status")), audit.ActorID(r.Context()))
 	switch {
 	case err == nil:
 		h.closeSessions(r.Context(), number, sessions)
@@ -192,7 +193,7 @@ func (h *Handler) Ship(w http.ResponseWriter, r *http.Request) {
 		Carrier:  r.PostFormValue("carrier"),
 		Tracking: r.PostFormValue("tracking"),
 		Lines:    lines,
-	}, staffID(r))
+	}, audit.ActorID(r.Context()))
 	switch {
 	case err == nil:
 		//nolint:gosec // G710: validated by ordernumber.Valid
@@ -290,20 +291,6 @@ func parcelLines(r *http.Request) (map[uuid.UUID]int32, error) {
 		out[lineID] = int32(n)
 	}
 	return out, nil
-}
-
-// staffID is who is acting. An unparseable id records "nobody" rather than
-// failing a dispatch that has physically happened.
-func staffID(r *http.Request) uuid.NullUUID {
-	u, ok := account.FromContext(r.Context())
-	if !ok {
-		return uuid.NullUUID{}
-	}
-	id, err := uuid.Parse(u.ID)
-	if err != nil {
-		return uuid.NullUUID{}
-	}
-	return uuid.NullUUID{UUID: id, Valid: true}
 }
 
 func (h *Handler) StaffNote(w http.ResponseWriter, r *http.Request) {
@@ -555,9 +542,6 @@ var adminNotices = map[string]i18n.Key{
 	"voidreason":     i18n.KeyAdminNoticeVoidReason,
 	"voidfailed":     i18n.KeyAdminNoticeVoidFailed,
 	"allowfailed":    i18n.KeyAdminNoticeAllowFailed,
-	"saved":          i18n.KeyAdminNoticeSaved,
-	"sent":           i18n.KeyAdminNoticeSent,
-	"already":        i18n.KeyAdminNoticeAlready,
 	"specfailed":     i18n.KeyAdminNoticeSpecFailed,
 }
 
@@ -586,293 +570,6 @@ func (h *Handler) Movements(w http.ResponseWriter, r *http.Request) {
 		h.log.ErrorContext(r.Context(), "read movements", "error", err)
 		access.ServerError(w, r, h.log)
 	}
-}
-
-func (h *Handler) FAQ(w http.ResponseWriter, r *http.Request) {
-	view, err := h.store.FAQ(r.Context())
-	if err != nil {
-		h.log.ErrorContext(r.Context(), "read faq", "error", err)
-		access.ServerError(w, r, h.log)
-		return
-	}
-	view.Notice = noticeFor(r)
-	web.Render(w, r, h.log, http.StatusOK, admin.FAQ(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageFAQ)}, &view))
-}
-
-func (h *Handler) CreateFAQEntry(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
-		return
-	}
-	f := faqFormOf(r)
-	errs, err := h.store.CreateFAQEntry(r.Context(), f)
-	switch {
-	case err != nil:
-		h.log.ErrorContext(r.Context(), "create faq entry", "error", err)
-		access.ServerError(w, r, h.log)
-	case len(errs) > 0:
-		h.rejectFAQ(w, r, f, errs)
-	default:
-		http.Redirect(w, r, "/admin/faq?ok=1", http.StatusSeeOther)
-	}
-}
-
-func (h *Handler) EditFAQEntry(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
-		return
-	}
-	id := r.PathValue("id")
-	if r.PostFormValue("action") == "delete" {
-		if err := h.store.DeleteFAQEntry(r.Context(), id); err != nil {
-			h.log.WarnContext(r.Context(), "delete faq entry", "error", err)
-			access.NotFound(w, r, h.log)
-			return
-		}
-		http.Redirect(w, r, "/admin/faq?ok=1", http.StatusSeeOther)
-		return
-	}
-
-	f := faqFormOf(r)
-	f.ID = id
-	errs, err := h.store.UpdateFAQEntry(r.Context(), f)
-	switch {
-	case errors.Is(err, ErrNotFound):
-		access.NotFound(w, r, h.log)
-	case err != nil:
-		h.log.ErrorContext(r.Context(), "update faq entry", "error", err)
-		access.ServerError(w, r, h.log)
-	case len(errs) > 0:
-		h.rejectFAQ(w, r, f, errs)
-	default:
-		http.Redirect(w, r, "/admin/faq?ok=1", http.StatusSeeOther)
-	}
-}
-
-func faqFormOf(r *http.Request) *FAQForm {
-	return &FAQForm{
-		Category:   r.PostFormValue("category"),
-		Question:   r.PostFormValue("question"),
-		Answer:     r.PostFormValue("answer"),
-		CategoryEn: r.PostFormValue("category_en"),
-		QuestionEn: r.PostFormValue("question_en"),
-		AnswerEn:   r.PostFormValue("answer_en"),
-	}
-}
-
-func (h *Handler) rejectFAQ(
-	w http.ResponseWriter, r *http.Request, f *FAQForm, errs map[string]string,
-) {
-	view, err := h.store.FAQ(r.Context())
-	if err != nil {
-		access.ServerError(w, r, h.log)
-		return
-	}
-	typed := admin.FAQEntry{
-		ID:       f.ID,
-		Category: f.Category, Question: f.Question, Answer: f.Answer,
-		CategoryEn: f.CategoryEn, QuestionEn: f.QuestionEn, AnswerEn: f.AnswerEn,
-	}
-	// An edit goes back to the entry it was made on. The add form's draft is the
-	// wrong place: its error would send the operator to press 新增 and publish a
-	// second copy while the original stays unedited.
-	if f.ID != "" {
-		view.Edit, view.EditErrors = typed, errs
-	} else {
-		view.Draft, view.Errors = typed, errs
-	}
-	web.Render(w, r, h.log, http.StatusUnprocessableEntity, admin.FAQ(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageFAQ)}, &view))
-}
-
-func (h *Handler) HomeContent(w http.ResponseWriter, r *http.Request) {
-	view, err := h.store.HeroSlides(r.Context())
-	if err != nil {
-		h.log.ErrorContext(r.Context(), "read hero slides", "error", err)
-		access.ServerError(w, r, h.log)
-		return
-	}
-	banners, err := h.store.Banners(r.Context())
-	if err != nil {
-		h.log.ErrorContext(r.Context(), "read promo banners", "error", err)
-		access.ServerError(w, r, h.log)
-		return
-	}
-	view.Banners = banners
-	view.Notice = noticeFor(r)
-	web.Render(w, r, h.log, http.StatusOK, admin.Home(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageHero)}, &view))
-}
-
-func (h *Handler) CreateBanner(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
-		return
-	}
-	f := &BannerForm{
-		Message:    r.PostFormValue("message"),
-		Short:      r.PostFormValue("short"),
-		Code:       r.PostFormValue("code"),
-		CTALabel:   r.PostFormValue("cta_label"),
-		CTAHref:    r.PostFormValue("cta_href"),
-		MessageEn:  r.PostFormValue("message_en"),
-		ShortEn:    r.PostFormValue("short_en"),
-		CTALabelEn: r.PostFormValue("cta_label_en"),
-		Days:       web.ParseCountOrInvalid(r.PostFormValue("days")),
-	}
-	errs, err := h.store.CreateBanner(r.Context(), f)
-	switch {
-	case err != nil:
-		h.log.ErrorContext(r.Context(), "create promo banner", "error", err)
-		access.ServerError(w, r, h.log)
-	case len(errs) > 0:
-		h.rejectBanner(w, r, f, errs)
-	default:
-		http.Redirect(w, r, "/admin/home?ok=1", http.StatusSeeOther)
-	}
-}
-
-func (h *Handler) SetBannerActive(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
-		return
-	}
-	err := h.store.SetBannerActive(r.Context(), r.PathValue("id"),
-		r.PostFormValue("active") == "1")
-	if err != nil {
-		h.log.WarnContext(r.Context(), "toggle promo banner", "error", err)
-		access.NotFound(w, r, h.log)
-		return
-	}
-	http.Redirect(w, r, "/admin/home?ok=1", http.StatusSeeOther)
-}
-
-func (h *Handler) rejectBanner(
-	w http.ResponseWriter, r *http.Request, f *BannerForm, errs map[string]string,
-) {
-	view, err := h.store.HeroSlides(r.Context())
-	if err != nil {
-		access.ServerError(w, r, h.log)
-		return
-	}
-	if banners, bannerErr := h.store.Banners(r.Context()); bannerErr == nil {
-		view.Banners = banners
-	}
-	view.Errors = errs
-	view.BannerDraft = admin.BannerDraft{
-		Message: f.Message, Short: f.Short, Code: f.Code,
-		CTALabel: f.CTALabel, CTAHref: f.CTAHref, Days: r.PostFormValue("days"),
-		MessageEn: f.MessageEn, ShortEn: f.ShortEn, CTALabelEn: f.CTALabelEn,
-	}
-	web.Render(w, r, h.log, http.StatusUnprocessableEntity, admin.Home(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageHero)}, &view))
-}
-
-// CreateHeroSlide takes the artwork with the copy, multipart. The image is
-// optional and a slide with none falls back to the built-in artwork; the copy is
-// checked before the image is decoded, so a refused slide stores nothing.
-func (h *Handler) CreateHeroSlide(w http.ResponseWriter, r *http.Request) {
-	upload, err := h.images.OpenUpload(w, r, "image")
-	if err != nil {
-		h.log.WarnContext(r.Context(), "hero image", "error", err)
-		http.Redirect(w, r, "/admin/home?"+uploadReason(err), http.StatusSeeOther)
-		return
-	}
-	defer upload.Close()
-
-	f := &HeroForm{
-		Eyebrow:        r.PostFormValue("eyebrow"),
-		Headline:       r.PostFormValue("headline"),
-		Body:           r.PostFormValue("body"),
-		PrimaryLabel:   r.PostFormValue("primary_label"),
-		PrimaryHref:    r.PostFormValue("primary_href"),
-		SecondLabel:    r.PostFormValue("second_label"),
-		SecondHref:     r.PostFormValue("second_href"),
-		ImageChosen:    upload != nil,
-		ImageAlt:       r.PostFormValue("alt"),
-		EyebrowEn:      r.PostFormValue("eyebrow_en"),
-		HeadlineEn:     r.PostFormValue("headline_en"),
-		BodyEn:         r.PostFormValue("body_en"),
-		PrimaryLabelEn: r.PostFormValue("primary_label_en"),
-		SecondLabelEn:  r.PostFormValue("second_label_en"),
-		ImageAltEn:     r.PostFormValue("alt_en"),
-		Days:           web.ParseCountOrInvalid(r.PostFormValue("days")),
-	}
-	if errs := f.Validate(r.Context()); len(errs) > 0 {
-		h.rejectHeroSlide(w, r, f, errs)
-		return
-	}
-	if upload != nil {
-		obj, storeErr := upload.Store(r.Context())
-		// A file no decoder accepts leaves the slide on the built-in artwork.
-		if storeErr != nil && !errors.Is(storeErr, media.ErrNotAnImage) {
-			h.log.WarnContext(r.Context(), "hero image", "error", storeErr)
-			http.Redirect(w, r, "/admin/home?"+uploadReason(storeErr), http.StatusSeeOther)
-			return
-		}
-		f.ImageKey = obj.Digest
-	}
-
-	errs, err := h.store.CreateHeroSlide(r.Context(), f)
-	switch {
-	case err != nil:
-		h.log.ErrorContext(r.Context(), "create hero slide", "error", err)
-		access.ServerError(w, r, h.log)
-	case len(errs) > 0:
-		h.rejectHeroSlide(w, r, f, errs)
-	default:
-		http.Redirect(w, r, "/admin/home?ok=1", http.StatusSeeOther)
-	}
-}
-
-func (h *Handler) rejectHeroSlide(
-	w http.ResponseWriter, r *http.Request, f *HeroForm, errs map[string]string,
-) {
-	view, err := h.store.HeroSlides(r.Context())
-	if err != nil {
-		access.ServerError(w, r, h.log)
-		return
-	}
-	view.Errors = errs
-	view.Draft = admin.HeroDraft{
-		Eyebrow: f.Eyebrow, Headline: f.Headline, Body: f.Body,
-		PrimaryLabel: f.PrimaryLabel, PrimaryHref: r.PostFormValue("primary_href"),
-		SecondLabel: f.SecondLabel, SecondHref: r.PostFormValue("second_href"),
-		ImageKey: f.ImageKey, ImageAlt: f.ImageAlt, Days: r.PostFormValue("days"),
-		EyebrowEn: f.EyebrowEn, HeadlineEn: f.HeadlineEn, BodyEn: f.BodyEn,
-		PrimaryLabelEn: f.PrimaryLabelEn, SecondLabelEn: f.SecondLabelEn,
-		ImageAltEn: f.ImageAltEn,
-	}
-	web.Render(w, r, h.log, http.StatusUnprocessableEntity, admin.Home(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageHero)}, &view))
-}
-
-func (h *Handler) SetHeroSlideActive(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
-		return
-	}
-	if err := h.store.SetHeroSlideActive(r.Context(), r.PathValue("id"),
-		r.PostFormValue("active") == "true"); err != nil {
-		h.log.WarnContext(r.Context(), "toggle hero slide", "error", err)
-		http.Redirect(w, r, "/admin/home?refused=1", http.StatusSeeOther)
-		return
-	}
-	http.Redirect(w, r, "/admin/home?ok=1", http.StatusSeeOther)
-}
-
-func (h *Handler) PromoteHeroSlide(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
-		return
-	}
-	if err := h.store.PromoteHeroSlide(r.Context(), r.PathValue("id")); err != nil {
-		h.log.WarnContext(r.Context(), "promote hero slide", "error", err)
-		http.Redirect(w, r, "/admin/home?refused=1", http.StatusSeeOther)
-		return
-	}
-	http.Redirect(w, r, "/admin/home?ok=1", http.StatusSeeOther)
 }
 
 func (h *Handler) Taxonomy(w http.ResponseWriter, r *http.Request) {
@@ -1015,92 +712,6 @@ func (h *Handler) rejectDelivery(w http.ResponseWriter, r *http.Request, d *Deli
 	view.AllowanceOperationID = uuid.NewString()
 	web.Render(w, r, h.log, http.StatusUnprocessableEntity,
 		admin.Order(layouts.Page{Title: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyAdminPageOrder), view.Number)}, &view))
-}
-
-const NewsletterIssueLimit = 50
-
-func (h *Handler) Newsletter(w http.ResponseWriter, r *http.Request) {
-	view, err := h.newsletterView(r)
-	if err != nil {
-		h.log.ErrorContext(r.Context(), "read the newsletter", "error", err)
-		access.ServerError(w, r, h.log)
-		return
-	}
-	view.Notice = noticeFor(r)
-	web.Render(w, r, h.log, http.StatusOK, admin.Newsletter(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageNewsletter)}, view))
-}
-
-// ComposeNewsletter writes a DRAFT and sends nothing: the irreversible step gets its own button.
-func (h *Handler) ComposeNewsletter(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
-		return
-	}
-	subject, body := r.PostFormValue("subject"), r.PostFormValue("body")
-
-	if keys := newsletter.ValidateIssue(subject, body); len(keys) > 0 {
-		view, err := h.newsletterView(r)
-		if err != nil {
-			h.log.ErrorContext(r.Context(), "read the newsletter", "error", err)
-			access.ServerError(w, r, h.log)
-			return
-		}
-		view.Draft = admin.NewsletterDraft{Subject: subject, Body: body}
-		view.Errors = make(map[string]string, len(keys))
-		for field, k := range keys {
-			view.Errors[field] = i18n.T(r.Context(), k)
-		}
-		web.Render(w, r, h.log, http.StatusUnprocessableEntity, admin.Newsletter(
-			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageNewsletter)}, view))
-		return
-	}
-
-	if _, err := h.letters.Compose(r.Context(), subject, body, staffID(r)); err != nil {
-		h.log.ErrorContext(r.Context(), "compose a newsletter issue", "error", err)
-		access.ServerError(w, r, h.log)
-		return
-	}
-	http.Redirect(w, r, "/admin/newsletter?saved=1", http.StatusSeeOther)
-}
-
-// SendNewsletter relies on the store refusing a second send in the UPDATE's own
-// WHERE clause, because a reload is not the only way two of these arrive.
-func (h *Handler) SendNewsletter(w http.ResponseWriter, r *http.Request) {
-	switch _, err := h.letters.Send(r.Context(), r.PathValue("id"), staffID(r)); {
-	case err == nil:
-		http.Redirect(w, r, "/admin/newsletter?sent=1", http.StatusSeeOther)
-	case errors.Is(err, newsletter.ErrAlreadySent):
-		http.Redirect(w, r, "/admin/newsletter?already=1", http.StatusSeeOther)
-	case errors.Is(err, newsletter.ErrNoSuchIssue):
-		access.NotFound(w, r, h.log)
-	default:
-		h.log.ErrorContext(r.Context(), "send a newsletter issue", "error", err)
-		access.ServerError(w, r, h.log)
-	}
-}
-
-func (h *Handler) newsletterView(r *http.Request) (admin.NewsletterView, error) {
-	counts, err := h.letters.Counts(r.Context())
-	if err != nil {
-		return admin.NewsletterView{}, err
-	}
-	issues, err := h.letters.Issues(r.Context(), NewsletterIssueLimit)
-	if err != nil {
-		return admin.NewsletterView{}, err
-	}
-	view := admin.NewsletterView{
-		Active: counts.Active, Unsubscribed: counts.Unsubscribed, Awaiting: counts.Awaiting,
-		Issues: make([]admin.NewsletterIssue, 0, len(issues)),
-	}
-	for i := range issues {
-		it := &issues[i]
-		view.Issues = append(view.Issues, admin.NewsletterIssue{
-			ID: it.ID, Subject: it.Subject, Body: it.Body, Sent: it.Sent,
-			SentAt: it.SentAt, Recipients: it.Recipients, SentBy: it.SentBy,
-		})
-	}
-	return view, nil
 }
 
 func (h *Handler) IssueInvoice(w http.ResponseWriter, r *http.Request) {

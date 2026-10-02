@@ -1,21 +1,22 @@
 //go:build integration
 
-package admin_test
+package content_test
 
 import (
 	"testing"
 
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/internal/admin"
+	"github.com/koopa0/goen/internal/admin/admintest"
+	"github.com/koopa0/goen/internal/admin/content"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 // The back office shows the carousel the storefront builds, so a campaign that
 // feeds it appears there with its source named.
 func TestTheHomeQueuePageCarriesTheCampaignSlidesTheStorefrontShows(t *testing.T) {
-	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	ctx, _ := admintest.StaffContext(t, pool)
+	s := content.NewStore(pool)
 	// Queued slides come first in the carousel and there is room for three, so
 	// what other tests left behind would push the campaign out.
 	if _, err := pool.Exec(ctx, `DELETE FROM hero_slides`); err != nil {

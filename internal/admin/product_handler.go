@@ -277,7 +277,7 @@ func (h *Handler) UploadImage(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		h.log.WarnContext(r.Context(), "image upload", "error", err, "slug", slug)
 		//nolint:gosec // G710: slug is the route's own path value
-		http.Redirect(w, r, "/admin/products/"+slug+"?"+uploadReason(err), http.StatusSeeOther)
+		http.Redirect(w, r, "/admin/products/"+slug+"?"+media.UploadQuery(err), http.StatusSeeOther)
 		return
 	}
 
@@ -496,23 +496,6 @@ func attachReason(err error) string {
 		return "badoption=1"
 	case errors.Is(err, ErrRefused):
 		return "attachrefused=1"
-	default:
-		return "uploadfailed=1"
-	}
-}
-
-// uploadReason turns a rejection into the query the page reads. Naming WHICH
-// decoder refused a file would tell an attacker which decoders are wired up.
-func uploadReason(err error) string {
-	switch {
-	case errors.Is(err, media.ErrTooLarge):
-		return "toobig=1"
-	case errors.Is(err, media.ErrNotAnImage):
-		return "notimage=1"
-	case errors.Is(err, media.ErrLosslessWebP):
-		return "losslesswebp=1"
-	case errors.Is(err, media.ErrBusy):
-		return "uploadbusy=1"
 	default:
 		return "uploadfailed=1"
 	}

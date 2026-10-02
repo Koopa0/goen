@@ -10,8 +10,10 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/koopa0/goen/internal/admin/content"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/media"
+	"github.com/koopa0/goen/internal/newsletter"
 )
 
 // losslessWebP is a 64x48 lossless WebP: one VP8L frame whose five Huffman
@@ -37,7 +39,9 @@ func TestALosslessWebPUploadIsRefusedWithItsOwnNotice(t *testing.T) {
 	}
 	t.Cleanup(idle.Close)
 	log := slog.New(slog.DiscardHandler)
-	h := &Handler{images: media.NewHandler(media.NewStore(idle), log), log: log}
+	images := media.NewHandler(media.NewStore(idle), log)
+	h := &Handler{images: images, log: log}
+	home := content.NewHandler(&content.Store{}, images, &newsletter.Store{}, log)
 
 	for _, tt := range []struct {
 		name  string
@@ -54,7 +58,7 @@ func TestALosslessWebPUploadIsRefusedWithItsOwnNotice(t *testing.T) {
 		},
 		{
 			name: "a hero slide", path: "/admin/home",
-			serve: h.CreateHeroSlide, fields: map[string]string{
+			serve: home.CreateHero, fields: map[string]string{
 				"headline": "秋季新品", "primary_label": "去看看", "primary_href": "/deals",
 				"alt": "秋季新品主視覺",
 			},
