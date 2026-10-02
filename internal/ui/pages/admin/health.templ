@@ -27,18 +27,18 @@ templ Health(p layouts.Page, v *WorkerHealthView) {
 			</div>
 			<div class="ui-page-head__actions">
 				if v.AllHealthy() {
-					@components.Badge(components.BadgeProps{Tone: components.ToneAccent}) {
+					@components.Badge(components.BadgeProps{Intent: components.IntentAccent}) {
 						{ i18n.T(ctx, i18n.KeyAdminHPAllClear) }
 					}
 				} else {
-					@components.Badge(components.BadgeProps{Tone: components.ToneWarn}) {
+					@components.Badge(components.BadgeProps{Intent: components.IntentWarn}) {
 						{ i18n.T(ctx, i18n.KeyAdminHPNeedsLook) }
 					}
 				}
 			</div>
 		</div>
 		if v.Notice != "" {
-			@components.Notice(components.NoticeProps{Tone: components.ToneAccent}) {
+			@components.Notice(components.NoticeProps{Intent: components.IntentAccent}) {
 				{ v.Notice }
 			}
 		}
@@ -145,8 +145,8 @@ templ Health(p layouts.Page, v *WorkerHealthView) {
 											<input type="hidden" name="event" value={ u.EventID }/>
 											<input type="hidden" name="event_resolution" value="fully_refunded_or_accounted"/>
 											@components.Button(components.ButtonProps{
-												Variant: components.VariantOutline,
-												Size:    components.SizeSmall,
+												ButtonStyle: components.ButtonStyleOutline,
+												Size:        components.SizeSmall,
 											}, "submit") {
 												{ i18n.T(ctx, i18n.KeyAdminHPEventSafeRelease) }
 											}
@@ -191,8 +191,8 @@ templ Health(p layouts.Page, v *WorkerHealthView) {
 												<input type="hidden" name="payment" value={ p.ProviderRef }/>
 												<input type="hidden" name="resolution" value="paid"/>
 												@components.Button(components.ButtonProps{
-													Variant: components.VariantOutline,
-													Size:    components.SizeSmall,
+													ButtonStyle: components.ButtonStyleOutline,
+													Size:        components.SizeSmall,
 												}, "submit") {
 													{ i18n.T(ctx, i18n.KeyAdminHPCompletePaid) }
 												}
@@ -202,8 +202,8 @@ templ Health(p layouts.Page, v *WorkerHealthView) {
 											<input type="hidden" name="payment" value={ p.ProviderRef }/>
 											<input type="hidden" name="resolution" value="unpaid_or_refunded"/>
 											@components.Button(components.ButtonProps{
-												Variant: components.VariantOutline,
-												Size:    components.SizeSmall,
+												ButtonStyle: components.ButtonStyleOutline,
+												Size:        components.SizeSmall,
 											}, "submit") {
 												{ i18n.T(ctx, i18n.KeyAdminHPCompleteSafeToRetry) }
 											}
@@ -243,8 +243,8 @@ templ Health(p layouts.Page, v *WorkerHealthView) {
 									<td class="goen-admin__cellactions">
 										<form method="post" action={ templ.SafeURL("/admin/orders/" + o.OrderNumber + "/invoice") }>
 											@components.Button(components.ButtonProps{
-												Variant: components.VariantOutline,
-												Size:    components.SizeSmall,
+												ButtonStyle: components.ButtonStyleOutline,
+												Size:        components.SizeSmall,
 											}, "submit") {
 												{ i18n.T(ctx, i18n.KeyAdminQueueIssue) }
 											}
@@ -300,8 +300,8 @@ templ Health(p layouts.Page, v *WorkerHealthView) {
 													{ i18n.T(ctx, i18n.KeyAdminHPAllowanceAbsentConfirm) }
 												</label>
 												@components.Button(components.ButtonProps{
-													Variant: components.VariantOutline,
-													Size:    components.SizeSmall,
+													ButtonStyle: components.ButtonStyleOutline,
+													Size:        components.SizeSmall,
 												}, "submit") {
 													{ i18n.T(ctx, i18n.KeyAdminHPAllowanceResendAuthorize) }
 												}
@@ -359,11 +359,11 @@ templ healthItem(healthy bool, name, state, note string) {
 		<div class="goen-health__head">
 			<span class="goen-health__name">{ name }</span>
 			if healthy {
-				@components.Badge(components.BadgeProps{Tone: components.ToneAccent}) {
+				@components.Badge(components.BadgeProps{Intent: components.IntentAccent}) {
 					{ i18n.T(ctx, i18n.KeyAdminHPAllClear) }
 				}
 			} else {
-				@components.Badge(components.BadgeProps{Tone: components.ToneWarn}) {
+				@components.Badge(components.BadgeProps{Intent: components.IntentWarn}) {
 					{ i18n.T(ctx, i18n.KeyAdminHPNeedsLook) }
 				}
 			}

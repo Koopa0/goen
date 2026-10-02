@@ -196,9 +196,9 @@ templ listingFilters(v ListingView) {
 				</details>
 				@sortField(v.SortOptions(ctx))
 				@components.Button(components.ButtonProps{
-					Variant: components.VariantPrimary,
-					Block:   true,
-					Class:   "goen-filters__apply",
+					ButtonStyle: components.ButtonStylePrimary,
+					Block:       true,
+					Class:       "goen-filters__apply",
 				}, "submit") {
 					{ i18n.T(ctx, i18n.KeyApplyFilters) }
 				}
@@ -366,8 +366,8 @@ templ Search(p layouts.Page, v SearchView) {
 					<input type="hidden" name="q" value={ v.Query }/>
 					@sortField(v.SortOptions(ctx))
 					@components.Button(components.ButtonProps{
-						Variant: components.VariantOutline,
-						Class:   "goen-filters__apply",
+						ButtonStyle: components.ButtonStyleOutline,
+						Class:       "goen-filters__apply",
 					}, "submit") {
 						{ i18n.T(ctx, i18n.KeySearchSortApply) }
 					}

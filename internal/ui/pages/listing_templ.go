@@ -815,9 +815,9 @@ func listingFilters(v ListingView) templ.Component {
 			return nil
 		})
 		templ_7745c5c3_Err = components.Button(components.ButtonProps{
-			Variant: components.VariantPrimary,
-			Block:   true,
-			Class:   "goen-filters__apply",
+			ButtonStyle: components.ButtonStylePrimary,
+			Block:       true,
+			Class:       "goen-filters__apply",
 		}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var42), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
@@ -1815,8 +1815,8 @@ func Search(p layouts.Page, v SearchView) templ.Component {
 					return nil
 				})
 				templ_7745c5c3_Err = components.Button(components.ButtonProps{
-					Variant: components.VariantOutline,
-					Class:   "goen-filters__apply",
+					ButtonStyle: components.ButtonStyleOutline,
+					Class:       "goen-filters__apply",
 				}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var95), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err

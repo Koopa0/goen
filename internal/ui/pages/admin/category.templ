@@ -19,7 +19,7 @@ templ CategoryForm(p layouts.Page, v CategoryView) {
 			</div>
 		</div>
 		if v.Notice != "" {
-			@components.Notice(components.NoticeProps{Tone: components.ToneAccent}) {
+			@components.Notice(components.NoticeProps{Intent: components.IntentAccent}) {
 				{ v.Notice }
 			}
 		}
@@ -29,8 +29,8 @@ templ CategoryForm(p layouts.Page, v CategoryView) {
 				<img class="goen-admin__heroshot goen-admin__heroshot--category" src={ v.Image.URL() } srcset={ v.Image.Srcset() } sizes="160px" alt={ v.Image.Alt } loading="lazy" width="160" height="107"/>
 				<form method="post" action={ templ.SafeURL(v.ImageRemoveAction()) }>
 					@components.Button(components.ButtonProps{
-						Variant: components.VariantOutline,
-						Size:    components.SizeSmall,
+						ButtonStyle: components.ButtonStyleOutline,
+						Size:        components.SizeSmall,
 					}, "submit") {
 						{ i18n.T(ctx, i18n.KeyAdminRemove) }
 					}
@@ -98,8 +98,8 @@ templ CategoryForm(p layouts.Page, v CategoryView) {
 					}
 				</div>
 				@components.Button(components.ButtonProps{
-					Variant: components.VariantPrimary,
-					Class:   "goen-admin__submit",
+					ButtonStyle: components.ButtonStylePrimary,
+					Class:       "goen-admin__submit",
 				}, "submit") {
 					{ i18n.T(ctx, i18n.KeyAdminProdSave) }
 				}

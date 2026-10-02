@@ -7,24 +7,24 @@ package components
 
 import "github.com/a-h/templ"
 
-// Variant is a button's weight. One surface shows one primary; everything else
+// ButtonStyle is a button's weight. One surface shows one primary; everything else
 // is outline or ghost, which is what stops a page reading as a row of equals.
-type Variant string
+type ButtonStyle string
 
 const (
-	VariantPrimary   Variant = "primary"
-	VariantSecondary Variant = "secondary"
-	VariantOutline   Variant = "outline"
-	VariantGhost     Variant = "ghost"
+	ButtonStylePrimary   ButtonStyle = "primary"
+	ButtonStyleSecondary ButtonStyle = "secondary"
+	ButtonStyleOutline   ButtonStyle = "outline"
+	ButtonStyleGhost     ButtonStyle = "ghost"
 )
 
-func (v Variant) class() string {
+func (v ButtonStyle) class() string {
 	switch v {
-	case VariantSecondary:
+	case ButtonStyleSecondary:
 		return "goen-btn--secondary"
-	case VariantOutline:
+	case ButtonStyleOutline:
 		return "goen-btn--outline"
-	case VariantGhost:
+	case ButtonStyleGhost:
 		return "goen-btn--ghost"
 	default:
 		return "goen-btn--primary"
@@ -52,38 +52,38 @@ func (s Size) class() string {
 	}
 }
 
-// Tone is what a badge or a notice is saying. Neutral states the fact, accent
+// Intent is what a badge or a notice is saying. Neutral states the fact, accent
 // marks the shop's own offer, warn is a limit the visitor can still act inside,
 // and danger is a refusal or an absence.
-type Tone string
+type Intent string
 
 const (
-	ToneNeutral Tone = "neutral"
-	ToneAccent  Tone = "accent"
-	ToneWarn    Tone = "warn"
-	ToneDanger  Tone = "danger"
+	IntentNeutral Intent = "neutral"
+	IntentAccent  Intent = "accent"
+	IntentWarn    Intent = "warn"
+	IntentDanger  Intent = "danger"
 )
 
-func (t Tone) badgeClass() string {
+func (t Intent) badgeClass() string {
 	switch t {
-	case ToneAccent:
+	case IntentAccent:
 		return "goen-badge--accent"
-	case ToneWarn:
+	case IntentWarn:
 		return "goen-badge--warn"
-	case ToneDanger:
+	case IntentDanger:
 		return "goen-badge--danger"
 	default:
 		return ""
 	}
 }
 
-func (t Tone) noticeClass() string {
+func (t Intent) noticeClass() string {
 	switch t {
-	case ToneAccent:
+	case IntentAccent:
 		return "goen-notice--accent"
-	case ToneWarn:
+	case IntentWarn:
 		return "goen-notice--warn"
-	case ToneDanger:
+	case IntentDanger:
 		return "goen-notice--danger"
 	default:
 		return ""
@@ -92,8 +92,8 @@ func (t Tone) noticeClass() string {
 
 // role is what a notice asks a screen reader to do with it. A refusal
 // interrupts; everything else is announced when the reader reaches it.
-func (t Tone) role() string {
-	if t == ToneDanger {
+func (t Intent) role() string {
+	if t == IntentDanger {
 		return "alert"
 	}
 	return "status"
@@ -102,9 +102,9 @@ func (t Tone) role() string {
 // ButtonProps configures [Button] and [ButtonLink]. Block makes the control
 // fill its row, which a phone wants for the one action a page is about.
 type ButtonProps struct {
-	Variant Variant
-	Size    Size
-	Block   bool
+	ButtonStyle ButtonStyle
+	Size        Size
+	Block       bool
 	// Icon makes the control square, for a button whose only content is a
 	// glyph. Such a button carries its name in aria-label, so a caller that
 	// sets Icon without one has built a control a screen reader cannot name.
@@ -114,7 +114,7 @@ type ButtonProps struct {
 }
 
 func (p ButtonProps) class() string {
-	out := "goen-btn " + p.Variant.class()
+	out := "goen-btn " + p.ButtonStyle.class()
 	if s := p.Size.class(); s != "" {
 		out += " " + s
 	}
@@ -132,13 +132,13 @@ func (p ButtonProps) class() string {
 
 // BadgeProps configures [Badge].
 type BadgeProps struct {
-	Tone  Tone
-	Class string
+	Intent Intent
+	Class  string
 }
 
 func (p BadgeProps) class() string {
 	out := "goen-badge"
-	if t := p.Tone.badgeClass(); t != "" {
+	if t := p.Intent.badgeClass(); t != "" {
 		out += " " + t
 	}
 	if p.Class != "" {
@@ -190,14 +190,14 @@ func (p CardProps) class() string {
 // one sentence is a paragraph. ID is set when something has to scroll to it or
 // describe it.
 type NoticeProps struct {
-	Tone  Tone
-	ID    string
-	Class string
+	Intent Intent
+	ID     string
+	Class  string
 }
 
 func (p NoticeProps) class() string {
 	out := "goen-notice"
-	if t := p.Tone.noticeClass(); t != "" {
+	if t := p.Intent.noticeClass(); t != "" {
 		out += " " + t
 	}
 	if p.Class != "" {
