@@ -41,8 +41,7 @@ var (
 )
 
 var (
-	KeyAboutImageAlt = key("about.image_alt", Message{ZhHant: "goen 的工作台與商品", En: "goen's workbench and products"})
-	KeyOGImageAlt    = key("og.image_alt", Message{
+	KeyOGImageAlt = key("og.image_alt", Message{
 		ZhHant: "書、馬克杯、托特包、耳機與茶葉罐",
 		En:     "A book, a mug, a tote, headphones and a tea tin",
 	})
