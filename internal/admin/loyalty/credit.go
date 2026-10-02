@@ -124,14 +124,7 @@ type position struct {
 
 func (s *Store) Credit(ctx context.Context, after ...string) (admin.CreditView, error) {
 	const scope = "/admin/credit"
-	var from position
-	resumed := false
-	if len(after) > 0 {
-		p, ok := web.ReadKeyset[position](scope, after[0])
-		if ok && p.ID != uuid.Nil {
-			from, resumed = p, true
-		}
-	}
+	from, resumed := web.ResumeKeyset(scope, after, func(p position) bool { return p.ID != uuid.Nil })
 	rows, err := s.q.RecentCredit(ctx, db.RecentCreditParams{HasCursor: resumed, AfterAt: from.At, AfterID: from.ID, RowLimit: web.PageLimit})
 	if err != nil {
 		return admin.CreditView{}, fmt.Errorf("read credit ledger: %w", err)

@@ -18,6 +18,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/admin/coupons"
 	"github.com/koopa0/goen/internal/admin/customers"
+	"github.com/koopa0/goen/internal/admin/feedback"
 	"github.com/koopa0/goen/internal/admin/loyalty"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -86,6 +87,7 @@ func TestEveryAdminQueueReachesBeyondItsFirstPage(t *testing.T) {
 	s := admin.NewStore(p, fakeRefunder{}, nil, nil)
 	trail := audit.NewStore(p)
 	customerLookup := customers.NewStore(p)
+	inboxStore := feedback.NewStore(p)
 	var warrantyOrder string
 	if err := p.QueryRow(ctx, `SELECT o.order_number FROM orders o JOIN order_lines l ON l.order_id=o.id JOIN warranty_registrations w ON w.order_line_id=l.id LIMIT 1`).Scan(&warrantyOrder); err != nil {
 		t.Fatal(err)
@@ -172,7 +174,7 @@ func TestEveryAdminQueueReachesBeyondItsFirstPage(t *testing.T) {
 			return r, e
 		}},
 		{"reviews", "SELECT count(*) FROM product_reviews", func(after string) (result, error) {
-			v, e := s.Reviews(ctx, after)
+			v, e := inboxStore.Reviews(ctx, after)
 			r := result{bound: v.ListBound}
 			for _, x := range v.Rows {
 				r.keys = append(r.keys, x.ID)
@@ -180,7 +182,7 @@ func TestEveryAdminQueueReachesBeyondItsFirstPage(t *testing.T) {
 			return r, e
 		}},
 		{"messages", "SELECT count(*) FROM contact_messages", func(after string) (result, error) {
-			v, e := s.Messages(ctx, after)
+			v, e := inboxStore.Messages(ctx, after)
 			r := result{bound: v.ListBound}
 			for _, x := range v.Rows {
 				r.keys = append(r.keys, x.ID)
@@ -213,7 +215,8 @@ func TestEveryAdminQueueReachesBeyondItsFirstPage(t *testing.T) {
 		}},
 	}
 	h := adminHandlerOver(p, s)
-	handlers := map[string]http.HandlerFunc{"orders": h.Orders, "order search": h.Orders, "customers": customers.NewHandler(customerLookup, slog.New(slog.DiscardHandler)).Search, "products": h.Products, "stock": h.Variants, "movements": h.Movements, "returns": h.Returns, "coupons": coupons.NewHandler(coupons.NewStore(p), slog.New(slog.DiscardHandler)).Page, "campaigns": h.Campaigns, "reviews": h.Reviews, "messages": h.Messages, "credit": loyalty.NewHandler(loyalty.NewStore(p), slog.New(slog.DiscardHandler)).Credit, "audit": audit.NewHandler(trail, slog.New(slog.DiscardHandler)).Page, "warranty": customers.NewHandler(customerLookup, slog.New(slog.DiscardHandler)).Warranties}
+	inboxHandler := feedback.NewHandler(inboxStore, slog.New(slog.DiscardHandler))
+	handlers := map[string]http.HandlerFunc{"orders": h.Orders, "order search": h.Orders, "customers": customers.NewHandler(customerLookup, slog.New(slog.DiscardHandler)).Search, "products": h.Products, "stock": h.Variants, "movements": h.Movements, "returns": h.Returns, "coupons": coupons.NewHandler(coupons.NewStore(p), slog.New(slog.DiscardHandler)).Page, "campaigns": h.Campaigns, "reviews": inboxHandler.Reviews, "messages": inboxHandler.Messages, "credit": loyalty.NewHandler(loyalty.NewStore(p), slog.New(slog.DiscardHandler)).Credit, "audit": audit.NewHandler(trail, slog.New(slog.DiscardHandler)).Page, "warranty": customers.NewHandler(customerLookup, slog.New(slog.DiscardHandler)).Warranties}
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
 			var want int
@@ -303,11 +306,11 @@ func TestEveryAdminQueueReachesBeyondItsFirstPage(t *testing.T) {
 	// Follow a real rendered link with plain GETs, including the oldest-unhandled inbox order.
 	req := httptest.NewRequestWithContext(i18n.WithLocale(ctx, i18n.En), http.MethodGet, "/admin/messages", nil)
 	w := httptest.NewRecorder()
-	h.Messages(w, req)
+	inboxHandler.Messages(w, req)
 	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `rel="next"`) {
 		t.Fatalf("inbox has no plain next link: status %d", w.Code)
 	}
-	inbox, err := s.Messages(ctx)
+	inbox, err := inboxStore.Messages(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -315,7 +318,7 @@ func TestEveryAdminQueueReachesBeyondItsFirstPage(t *testing.T) {
 		t.Fatalf("oldest unhandled message was buried: %s", inbox.Rows[0].Message)
 	}
 	w = httptest.NewRecorder()
-	h.Messages(w, httptest.NewRequestWithContext(ctx, http.MethodGet, inbox.Next, nil))
+	inboxHandler.Messages(w, httptest.NewRequestWithContext(ctx, http.MethodGet, inbox.Next, nil))
 	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), "Paging message 51") {
 		t.Fatalf("row 51 is unreachable through GET: status %d", w.Code)
 	}

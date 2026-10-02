@@ -25,6 +25,7 @@ import (
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/admin"
+	"github.com/koopa0/goen/internal/admin/feedback"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/product"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -1611,7 +1612,7 @@ func payFor(t *testing.T, orderID uuid.UUID) {
 func TestAStaffAnswerStaysStaffWhenTheAuthorChangesRole(t *testing.T) {
 	ctx := t.Context()
 	s := product.NewStore(pool)
-	back := admin.NewStore(pool, admin.NewRefunder(""), nil, nil)
+	back := feedback.NewStore(pool)
 	slug := anyActiveProduct(t)
 	customer := newCustomer(t)
 	// Keep another administrator on the roster so changing the answer author's
@@ -1705,9 +1706,9 @@ func TestAHiddenQuestionDisappearsWithItsAnswers(t *testing.T) {
 
 	staff := newShopAuthor(t)
 	staffCtx := account.WithUser(ctx, account.User{ID: staff, Role: "admin"})
-	back := admin.NewStore(pool, admin.NewRefunder(""), nil, nil)
-	if err := back.AnswerQuestion(staffCtx, qID, staff, "太遲了"); !errors.Is(err, admin.ErrNotFound) {
-		t.Errorf("a hidden question's new answer = %v, want admin.ErrNotFound", err)
+	back := feedback.NewStore(pool)
+	if err := back.AnswerQuestion(staffCtx, qID, staff, "太遲了"); !errors.Is(err, feedback.ErrNotFound) {
+		t.Errorf("a hidden question's new answer = %v, want feedback.ErrNotFound", err)
 	}
 }
 

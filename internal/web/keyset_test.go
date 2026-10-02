@@ -130,3 +130,21 @@ func TestPageBoundKeepsARestartDoorOnAnEmptyLaterPage(t *testing.T) {
 		t.Fatal("an empty first page must keep its own empty state")
 	}
 }
+
+func TestResumeKeysetRefusesWhatTheListCannotAccept(t *testing.T) {
+	t.Parallel()
+	const scope = "/admin/x"
+	accept := func(p testPosition) bool { return p.ID != "" }
+	good, _ := NextKeysetURL(scope, `{"ID":"a"}`)
+	token := func(u string) []string { return []string{u[len(scope)+len("?after="):]} }
+	if p, ok := ResumeKeyset(scope, token(good), accept); !ok || p.ID != "a" {
+		t.Errorf("a minted position was refused: %v %v", p, ok)
+	}
+	empty, _ := NextKeysetURL(scope, `{"ID":""}`)
+	if _, ok := ResumeKeyset(scope, token(empty), accept); ok {
+		t.Error("a position the list refuses was accepted")
+	}
+	if _, ok := ResumeKeyset(scope, nil, accept); ok {
+		t.Error("no position resumed")
+	}
+}
