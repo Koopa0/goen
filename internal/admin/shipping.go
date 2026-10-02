@@ -9,8 +9,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/destination"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -41,7 +41,7 @@ func (s *Store) Shipping(ctx context.Context) (admin.ShippingView, error) {
 		m := &rows[i]
 		method := admin.ShippingMethod{
 			MethodID: m.MethodID.String(), VersionID: m.VersionID.String(),
-			Code: m.Code, Destination: m.DestinationKind, Name: m.Name,
+			Code: m.Code, Destination: destination.Kind(m.DestinationKind), Name: m.Name,
 			Carrier: m.Carrier.String, FeeCents: m.FeeCents,
 			// Publishing INSERTs a complete append-only version. Carry these
 			// values through the form or the next version loses them permanently.
@@ -204,7 +204,7 @@ func (m *NewMethod) Validate(ctx context.Context) map[string]string {
 	}
 	// Asked of the package that owns the set, so a third destination is not
 	// something the back office has to remember separately.
-	if _, ok := cart.DestinationFor(m.Destination); !ok {
+	if _, ok := destination.For(m.Destination); !ok {
 		errs["destination"] = i18n.T(ctx, i18n.KeyFormMethodDestination)
 	}
 	if m.FeeDollars < 0 || m.FeeDollars > MaxShippingFee/100 {

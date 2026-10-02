@@ -9,6 +9,7 @@ import (
 	"github.com/a-h/templ"
 
 	"github.com/koopa0/goen/internal/carrier"
+	"github.com/koopa0/goen/internal/destination"
 	"github.com/koopa0/goen/internal/fieldrule"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
@@ -205,7 +206,7 @@ type CheckoutView struct {
 	CreditChanged string
 	ZoneName      string
 	// Destination is decided by the server; no field carries it back.
-	Destination    string
+	Destination    destination.Kind
 	Address        CheckoutAddress
 	Errors         map[string]string
 	Invoice        CheckoutInvoice
@@ -415,7 +416,7 @@ type CheckoutAddress struct {
 }
 
 // ToPickupPoint reports whether the chosen method delivers to a convenience store.
-func (v *CheckoutView) ToPickupPoint() bool { return v.Destination == "pickup_point" }
+func (v *CheckoutView) ToPickupPoint() bool { return v.Destination == destination.PickupPoint }
 
 // PickupChainChoice is one convenience-store chain the form offers.
 type PickupChainChoice struct {

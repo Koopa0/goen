@@ -17,6 +17,7 @@ import (
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/carrier"
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/destination"
 	"github.com/koopa0/goen/internal/i18n"
 	invoicepkg "github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/pickup"
@@ -592,7 +593,7 @@ func lockCheckoutTerms(
 
 	// The destination is re-derived from the method just read and the address is
 	// trimmed to it, the way the shipping fee is recomputed rather than trusted.
-	to, ok := DestinationFor(ship.DestinationKind)
+	to, ok := destination.For(ship.DestinationKind)
 	if !ok {
 		return nil, fmt.Errorf("shipping method %s has an unknown destination %q",
 			ship.Code, ship.DestinationKind)

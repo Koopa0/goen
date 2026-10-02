@@ -16,9 +16,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/carrier"
-	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/destination"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/ordernotice"
@@ -280,7 +280,7 @@ func (s *Store) Order(ctx context.Context, number string) (admin.OrderView, erro
 		CreditCents:          o.CreditCents,
 	}
 
-	carriers, implied := carrier.ForDelivery(pickup.Chain(o.PickupChain), o.DestinationKind == "pickup_point")
+	carriers, implied := carrier.ForDelivery(pickup.Chain(o.PickupChain), destination.Kind(o.DestinationKind) == destination.PickupPoint)
 	view.ShipCarriers, view.ShipCarrier = carriers, string(implied)
 
 	if shipErr := s.fillShippable(ctx, &view, o.ID, fulfillment); shipErr != nil {
@@ -494,13 +494,13 @@ func enqueueStatusNotice(ctx context.Context, q *db.Queries, e statusEffect) err
 		if err != nil {
 			return fmt.Errorf("read terminal order destination: %w", err)
 		}
-		to, ok := cart.DestinationFor(row.DestinationKind)
+		to, ok := destination.For(row.DestinationKind)
 		if !ok {
 			return fmt.Errorf("order %s ships by a method with an unknown destination %q",
 				e.number, row.DestinationKind)
 		}
 		kind := ordernotice.Delivered
-		if to == cart.ToPickupPoint {
+		if to == destination.PickupPoint {
 			if e.status != pages.FulfillmentCompleted {
 				return nil
 			}
@@ -755,7 +755,7 @@ func requireCarrierFor(
 	if err != nil {
 		return fmt.Errorf("read destination of %s: %w", number, err)
 	}
-	valid, _ := carrier.ForDelivery(pickup.Chain(dest.PickupChain), dest.DestinationKind == "pickup_point")
+	valid, _ := carrier.ForDelivery(pickup.Chain(dest.PickupChain), destination.Kind(dest.DestinationKind) == destination.PickupPoint)
 	if !slices.Contains(valid, code) {
 		return fmt.Errorf("%w: %s cannot carry order %s", ErrCarrier, code, number)
 	}
