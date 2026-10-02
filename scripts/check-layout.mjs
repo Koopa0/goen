@@ -1479,15 +1479,22 @@ const DRAWER_PROBE = `(async () => {
   menu.open = true;
   await new Promise((done) => setTimeout(done, 1000));
   const links = [...menu.querySelectorAll('.goen-header__drawer a')];
-  const covered = links.filter((a) => {
+  // The drawer scrolls on its own (the account links sit below the departments),
+  // and a point outside the viewport hits nothing: bring each link in before it
+  // is tested, so what is measured is what is painted over it and not how far
+  // down it is.
+  const hitOf = (a) => {
+    a.scrollIntoView({ block: 'nearest' });
     const r = a.getBoundingClientRect();
-    const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
-    return !hit || !a.contains(hit);
-  }).map((a) => {
-    const r = a.getBoundingClientRect();
-    const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
-    return a.textContent.trim() + ' under ' + (hit ? hit.tagName + '.' + String(hit.className).split(' ')[0] : 'nothing');
-  });
+    return document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+  };
+  const covered = [];
+  for (const a of links) {
+    const hit = hitOf(a);
+    if (!hit || !a.contains(hit)) {
+      covered.push(a.textContent.trim() + ' under ' + (hit ? hit.tagName + '.' + String(hit.className).split(' ')[0] : 'nothing'));
+    }
+  }
   return { ok: true, links: links.length, covered };
 })()`;
 

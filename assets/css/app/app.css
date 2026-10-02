@@ -2523,7 +2523,9 @@ h3 {
   border-radius: var(--r-sm);
 }
 
-.goen-check {
+/* The bare checkbox; a label that carries the same name (the back office's)
+   must not inherit the 16px box, or its text overflows the row. */
+input.goen-check {
   accent-color: var(--accent);
   flex: none;
   height: 16px;
