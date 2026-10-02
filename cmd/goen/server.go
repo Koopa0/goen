@@ -18,11 +18,12 @@ import (
 	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/admin/audit"
+	"github.com/koopa0/goen/internal/admin/health"
 	"github.com/koopa0/goen/internal/admin/reports"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/contact"
-	"github.com/koopa0/goen/internal/health"
+	probe "github.com/koopa0/goen/internal/health"
 	"github.com/koopa0/goen/internal/home"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
@@ -129,9 +130,9 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	}
 	sitePages := site.NewHandler(log, baseURL, catalogue, siteStore, secureCookies)
 	homePage := home.NewHandler(homeStore, log, secureCookies)
-	probes := health.NewHandler(log,
-		health.Dependency{Name: "storefront", DB: pool},
-		health.Dependency{Name: "admin", DB: adminPool},
+	probes := probe.NewHandler(log,
+		probe.Dependency{Name: "storefront", DB: pool},
+		probe.Dependency{Name: "admin", DB: adminPool},
 	)
 	images := media.NewHandler(media.NewStore(pool), log)
 	contactLimit := ratelimit.New(ratelimit.Config{
@@ -199,10 +200,11 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 		Log:      log,
 		Sessions: sessionCloser(gateway),
 		StoreMap: cfg.StoreMap,
-		Pools:    poolsOnHealthPage(pool, adminPool, cfg.MaintenancePool),
 	})
 	trail := audit.NewHandler(audit.NewStore(adminPool), log)
 	figures := reports.NewHandler(reports.NewStore(adminPool), log)
+	workers := health.NewHandler(health.NewStore(adminPool), outbox.NewStore(adminPool, log),
+		poolsOnHealthPage(pool, adminPool, cfg.MaintenancePool), log)
 	// basketStore answers the order-access question for all three packages.
 	till := payment.NewHandler(payment.NewStore(pool), gateway, basketStore, log, secureCookies)
 	sendbacks := returns.NewHandler(returns.NewStore(pool), basketStore, log, secureCookies)
@@ -346,6 +348,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	back.Routes(mux, backOffice)
 	trail.Routes(mux, backOffice)
 	figures.Routes(mux, backOffice)
+	workers.Routes(mux, backOffice)
 	// RequireAdmin and not RequireStaff, which accepts `staff` as well: these
 	// four promote, revoke, and strip an admin's second factor, and the listing
 	// names who has none yet.
@@ -920,9 +923,9 @@ func withSiteOrigin(next http.Handler, baseURL string) http.Handler {
 
 // poolsOnHealthPage names the pools whose statistics /admin/health shows. A nil
 // pool is left off rather than shown as an empty row.
-func poolsOnHealthPage(store, adminPool, maintenance *pgxpool.Pool) []admin.NamedPool {
-	var out []admin.NamedPool
-	for _, p := range []admin.NamedPool{
+func poolsOnHealthPage(store, adminPool, maintenance *pgxpool.Pool) []health.NamedPool {
+	var out []health.NamedPool
+	for _, p := range []health.NamedPool{
 		{Name: "store", Pool: store}, {Name: "admin", Pool: adminPool}, {Name: "maintenance", Pool: maintenance},
 	} {
 		if p.Pool != nil {

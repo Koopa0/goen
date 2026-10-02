@@ -73,8 +73,6 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 	mux.HandleFunc("POST /admin/reviews/show", ac.RequireStaff(h.ShowReview))
 	mux.HandleFunc("GET /admin/questions", ac.RequireStaff(h.Questions))
 	mux.HandleFunc("POST /admin/questions/{id}", ac.RequireStaff(h.AnswerQuestion))
-	mux.HandleFunc("GET /admin/health", ac.RequireStaff(h.Health))
-	mux.HandleFunc("POST /admin/health/reconcile", ac.RequireStaff(h.ReconcilePayment))
 	mux.HandleFunc("GET /admin/taxonomy", ac.RequireStaff(h.Taxonomy))
 	mux.HandleFunc("POST /admin/taxonomy/{kind}", ac.RequireStaff(h.CreateTaxon))
 	mux.HandleFunc("POST /admin/taxonomy/{kind}/{slug}", ac.RequireStaff(h.EditTaxon))
