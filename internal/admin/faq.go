@@ -14,17 +14,14 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
-// MaxFAQEntries bounds the back office's list.
 const MaxFAQEntries = 200
 
-// FAQ field bounds, in RUNES.
 const (
 	MaxFAQCategoryRunes = 40
 	MaxFAQQuestionRunes = 200
 	MaxFAQAnswerRunes   = 2000
 )
 
-// FAQForm is one entry being written.
 type FAQForm struct {
 	ID         string
 	Category   string
@@ -35,7 +32,6 @@ type FAQForm struct {
 	AnswerEn   string
 }
 
-// Validate refuses what the schema would, with a message naming the field.
 func (f *FAQForm) Validate(ctx context.Context) map[string]string {
 	f.Category = strings.TrimSpace(f.Category)
 	f.Question = strings.TrimSpace(f.Question)
@@ -66,7 +62,6 @@ func (f *FAQForm) Validate(ctx context.Context) map[string]string {
 	return errs
 }
 
-// FAQ reads the entries, grouped the way /faq groups them.
 func (s *Store) FAQ(ctx context.Context) (admin.FAQView, error) {
 	rows, err := s.q.AdminFAQEntries(ctx, MaxFAQEntries)
 	if err != nil {
@@ -84,7 +79,6 @@ func (s *Store) FAQ(ctx context.Context) (admin.FAQView, error) {
 	return view, nil
 }
 
-// CreateFAQEntry adds one to the end of its category.
 func (s *Store) CreateFAQEntry(ctx context.Context, f *FAQForm) (map[string]string, error) {
 	if errs := f.Validate(ctx); len(errs) > 0 {
 		return errs, nil
@@ -106,7 +100,6 @@ func (s *Store) CreateFAQEntry(ctx context.Context, f *FAQForm) (map[string]stri
 	return nil, nil
 }
 
-// UpdateFAQEntry rewrites one.
 func (s *Store) UpdateFAQEntry(ctx context.Context, f *FAQForm) (map[string]string, error) {
 	entryID, err := uuid.Parse(f.ID)
 	if err != nil {
@@ -136,7 +129,6 @@ func (s *Store) UpdateFAQEntry(ctx context.Context, f *FAQForm) (map[string]stri
 	return nil, nil
 }
 
-// DeleteFAQEntry removes one.
 func (s *Store) DeleteFAQEntry(ctx context.Context, id string) error {
 	entryID, err := uuid.Parse(id)
 	if err != nil {

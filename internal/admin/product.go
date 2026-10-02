@@ -25,14 +25,12 @@ const (
 	maxNameRunes        = 200
 	maxSummaryRunes     = 500
 	maxDescriptionRunes = 20000
-	// MaxWarrantyMonths mirrors products_warranty_months_sane.
-	MaxWarrantyMonths = 120
+	MaxWarrantyMonths   = 120
 
 	// MaxPriceCents is the ceiling every money column carries.
 	MaxPriceCents = 10000000000
 )
 
-// ProductForm is what the back office submits to create or edit a product.
 type ProductForm struct {
 	Slug          string
 	Name          string
@@ -50,7 +48,6 @@ type ProductForm struct {
 	CategoryID     string
 }
 
-// Validate refuses what the schema would, in the chrome language.
 func (f *ProductForm) Validate(ctx context.Context) map[string]string {
 	f.Slug = strings.ToLower(strings.TrimSpace(f.Slug))
 	f.Name = strings.TrimSpace(f.Name)
@@ -95,7 +92,6 @@ func (f *ProductForm) Validate(ctx context.Context) map[string]string {
 	return errs
 }
 
-// Products reads the catalogue for the back office.
 func (s *Store) Products(ctx context.Context, after ...string) (admin.ProductsView, error) {
 	scope := "/admin/products"
 	cursor := readPageCursor(scope, after)
@@ -118,7 +114,6 @@ func (s *Store) Products(ctx context.Context, after ...string) (admin.ProductsVi
 	return view, nil
 }
 
-// Product reads one product and everything its form needs.
 func (s *Store) Product(ctx context.Context, slug string) (admin.ProductView, error) {
 	p, err := s.q.AdminProduct(ctx, slug)
 	if err != nil {
@@ -201,7 +196,6 @@ func productReadError(slug string, err error) error {
 	return fmt.Errorf("read product %s: %w", slug, err)
 }
 
-// NewProduct is an empty form with its choices filled in.
 func (s *Store) NewProduct(ctx context.Context) (admin.ProductView, error) {
 	view := admin.ProductView{IsNew: true}
 	if err := s.loadChoices(ctx, &view); err != nil {
@@ -321,7 +315,6 @@ var productStatuses = [...]struct {
 	{"archived", i18n.KeyAdminProductArchived},
 }
 
-// SetProductStatus publishes, unpublishes or archives.
 func (s *Store) SetProductStatus(ctx context.Context, slug, status string) error {
 	if !knownProductStatus(status) {
 		return ErrRefused
@@ -344,7 +337,6 @@ func (s *Store) SetProductStatus(ctx context.Context, slug, status string) error
 		})
 }
 
-// knownProductStatus reports whether s is a state the catalogue has.
 func knownProductStatus(s string) bool {
 	for _, status := range productStatuses {
 		if status.value == s {
@@ -354,7 +346,6 @@ func knownProductStatus(s string) bool {
 	return false
 }
 
-// ProductStatusLabel is a product's state in the reader's language.
 func ProductStatusLabel(ctx context.Context, s string) string {
 	for _, status := range productStatuses {
 		if status.value == s {
@@ -372,7 +363,6 @@ const (
 	SpecValueRunes = 200
 )
 
-// SpecDraft is one spec-table row being added, in both languages.
 type SpecDraft struct {
 	Label   string
 	Value   string
@@ -380,7 +370,6 @@ type SpecDraft struct {
 	ValueEn string
 }
 
-// AddSpec appends one spec row to a product.
 func (s *Store) AddSpec(ctx context.Context, slug string, d SpecDraft) (map[string]string, error) {
 	label, value := strings.TrimSpace(d.Label), strings.TrimSpace(d.Value)
 	labelEn, valueEn := strings.TrimSpace(d.LabelEn), strings.TrimSpace(d.ValueEn)
@@ -433,7 +422,6 @@ func (s *Store) AddSpec(ctx context.Context, slug string, d SpecDraft) (map[stri
 	return nil, nil
 }
 
-// RemoveSpec deletes one spec row.
 func (s *Store) RemoveSpec(ctx context.Context, slug, id string) error {
 	specID, err := uuid.Parse(id)
 	if err != nil {
@@ -456,10 +444,8 @@ func (s *Store) RemoveSpec(ctx context.Context, slug, id string) error {
 	})
 }
 
-// MaxOptionNameRunes bounds an option name or one of its values.
 const MaxOptionNameRunes = 40
 
-// OptionDraft is an option or one of its values, in both languages.
 type OptionDraft struct {
 	OptionID string
 	Name     string
@@ -469,7 +455,6 @@ type OptionDraft struct {
 	SwatchHex string
 }
 
-// AddOption appends an option — an axis such as colour — to a product.
 func (s *Store) AddOption(ctx context.Context, slug string, d OptionDraft) (map[string]string, error) {
 	name, nameEn := strings.TrimSpace(d.Name), strings.TrimSpace(d.NameEn)
 	if errs := optionErrors(ctx, name, nameEn, "option"); len(errs) > 0 {
@@ -508,7 +493,6 @@ func (s *Store) AddOption(ctx context.Context, slug string, d OptionDraft) (map[
 // comes back as a field error beside the field rather than as a refused write.
 var swatchHex = regexp.MustCompile(`^#[0-9a-f]{6}$`)
 
-// AddOptionValue appends a value to one of a product's options.
 func (s *Store) AddOptionValue(ctx context.Context, slug string, d OptionDraft) (map[string]string, error) {
 	optionID, err := uuid.Parse(d.OptionID)
 	if err != nil {
@@ -552,15 +536,11 @@ func (s *Store) AddOptionValue(ctx context.Context, slug string, d OptionDraft) 
 	return nil, nil
 }
 
-// optionConstraints names the form field each option constraint speaks for.
-// Bound to ConstraintName: a PgError's message never carries the name, so a
-// substring search on the text cannot find it.
-//
-// Every entry mirrors a CHECK the Go code above also applies, so today the
-// database is the second line and not the first. It is the line that answers
-// when a check here is removed or a column gains a rule this file has not
-// learned yet, and without it such a write reads as a product that does not
-// exist.
+// optionConstraints names the form field each option constraint speaks for,
+// keyed on ConstraintName: a PgError's message never carries it. Each entry
+// mirrors a CHECK the code above also applies; the database is the second line,
+// and answers when a check here is removed or a column gains a rule, which
+// would otherwise read as a product that does not exist.
 var optionConstraints = map[string]struct {
 	field   string
 	message i18n.Key

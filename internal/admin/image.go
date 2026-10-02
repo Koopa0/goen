@@ -15,11 +15,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
-// MaxAltRunes bounds the alternative text.
 const MaxAltRunes = 200
 
-// ErrNotThisProductsOption is an image tagged with an option value the product
-// does not have.
 var ErrNotThisProductsOption = errors.New("admin: that option value is not one of this product's")
 
 // AttachImage records an uploaded image, showing optionValue when that is an
@@ -61,8 +58,6 @@ func (s *Store) AttachImage(
 		})
 }
 
-// SetImageOption says which option value an attached image shows, or with an
-// empty optionValue that it shows the product whichever value is chosen.
 func (s *Store) SetImageOption(ctx context.Context, slug, key, optionValue string) error {
 	shows, err := optionValueRef(optionValue)
 	if err != nil {
@@ -86,8 +81,6 @@ func (s *Store) SetImageOption(ctx context.Context, slug, key, optionValue strin
 		})
 }
 
-// optionValueRef reads the form's option value: empty is none, anything else
-// must be an id.
 func optionValueRef(raw string) (uuid.NullUUID, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
@@ -134,7 +127,6 @@ func (s *Store) DetachImage(ctx context.Context, slug, digest string) error {
 // option value's photographs and then untagged ones, and the cart with the line's.
 type ImageMove string
 
-// The moves the image list offers.
 const (
 	MoveToCover ImageMove = "cover"
 	MoveUp      ImageMove = "up"
@@ -189,8 +181,6 @@ func (s *Store) MoveImage(ctx context.Context, slug, digest string, move ImageMo
 		})
 }
 
-// placeImage returns items with the one at index at moved as asked, and false
-// when it is not there or the move would change nothing.
 func placeImage[T any](items []T, at int, move ImageMove) ([]T, bool) {
 	to := at
 	switch move {
@@ -209,7 +199,6 @@ func placeImage[T any](items []T, at int, move ImageMove) ([]T, bool) {
 	return out, true
 }
 
-// ProductImages is what a product shows, for its edit page.
 func (s *Store) ProductImages(ctx context.Context, slug string) ([]admin.Image, error) {
 	rows, err := s.q.AdminProductImages(ctx, slug)
 	if err != nil {

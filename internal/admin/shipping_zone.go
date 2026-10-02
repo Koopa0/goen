@@ -15,10 +15,8 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-// maxZonePrefixes bounds one submission of postal prefixes.
 const maxZonePrefixes = 100
 
-// NewZone is a delivery zone being created, with the postal prefixes that reach it.
 type NewZone struct {
 	Code     string
 	Name     string
@@ -26,7 +24,6 @@ type NewZone struct {
 	Prefixes string
 }
 
-// CreateZone adds a zone and its prefixes together: an empty zone is unreachable.
 func (s *Store) CreateZone(ctx context.Context, z *NewZone) (map[string]string, error) {
 	z.Code = strings.ToLower(strings.TrimSpace(z.Code))
 	z.Name = strings.TrimSpace(z.Name)
@@ -123,7 +120,6 @@ func (s *Store) SetZonePrefixes(ctx context.Context, id, list string) (map[strin
 	return nil, nil
 }
 
-// DeleteZone removes a zone nothing points at.
 func (s *Store) DeleteZone(ctx context.Context, id string) error {
 	zoneID, err := uuid.Parse(id)
 	if err != nil {

@@ -13,7 +13,6 @@ import (
 	"github.com/koopa0/goen/internal/web"
 )
 
-// Warranties looks one unit's cover up, from a serial number or an order number.
 func (s *Store) Warranties(ctx context.Context, term string, after ...string) (admin.WarrantiesView, error) {
 	// Uppercased: a serial is typed off a label and a shift key is not a failed lookup.
 	term = strings.ToUpper(strings.TrimSpace(term))

@@ -33,8 +33,6 @@ func beforeShipmentRefundState(r *db.BeforeShipmentRefundRow) (offered, open boo
 	return offered, open
 }
 
-// fillRefundBeforeShipment offers the refund on the order page, and keeps the
-// status form from cancelling a paid order or picking one being refunded.
 func (s *Store) fillRefundBeforeShipment(ctx context.Context, view *admin.OrderView, number string) error {
 	refund, err := s.q.BeforeShipmentRefund(ctx, number)
 	if err != nil {
@@ -57,8 +55,6 @@ func (s *Store) fillRefundBeforeShipment(ctx context.Context, view *admin.OrderV
 	return nil
 }
 
-// RefundPreview reads what a refund before shipment of this order pays: the
-// frozen split once one is open, otherwise the split its approval would freeze.
 func (s *Store) RefundPreview(ctx context.Context, number string) (admin.RefundConfirmation, error) {
 	row, err := s.q.BeforeShipmentRefund(ctx, number)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -200,8 +196,6 @@ func cancelRefundedOrder(ctx context.Context, q *db.Queries, number string, retu
 	return nil
 }
 
-// recordStaffCancellation leaves what any back-office cancellation leaves: the
-// timeline entry, the audit row and the customer's notice.
 func recordStaffCancellation(
 	ctx context.Context, q *db.Queries, orderID uuid.UUID, number string, returnID uuid.UUID, actor uuid.NullUUID,
 ) error {
@@ -275,9 +269,6 @@ func (h *Handler) RefundBeforeShipment(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// confirmRefundBeforeShipment renders the refund before it moves money, and
-// again when the POST did not repeat the total it was shown. It reports false
-// once the caller may proceed.
 func (h *Handler) confirmRefundBeforeShipment(w http.ResponseWriter, r *http.Request, number string) bool {
 	view, err := h.store.RefundPreview(r.Context(), number)
 	switch {
