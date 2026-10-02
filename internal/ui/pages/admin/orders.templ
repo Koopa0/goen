@@ -515,6 +515,37 @@ templ Order(p layouts.Page, v *OrderView) {
 						<span class="goen-admin__totalval">{ v.Total() }</span>
 					</div>
 				}
+				@components.Card(components.CardProps{Class: "goen-admin__op", Attrs: templ.Attributes{"aria-labelledby": "payment-heading"}}) {
+					<h2 class="goen-admin__optitle" id="payment-heading">{ i18n.T(ctx, i18n.KeyAdminPayTitle) }</h2>
+					if v.Payment.Paid() {
+						<p class="goen-admin__meta">
+							{ v.Payment.Method }
+							if v.Payment.Card != "" {
+								· { v.Payment.Card }
+							}
+						</p>
+						if v.Payment.Captured != "" {
+							<p class="goen-admin__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminPayReceived), v.Payment.Captured, v.Payment.PaidAt) }</p>
+						}
+					} else {
+						<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminPayNone) }</p>
+					}
+					if len(v.Refunds) > 0 {
+						<ul class="goen-admin__refunds" role="list">
+							for _, r := range v.Refunds {
+								<li>
+									<span class="goen-admin__meta"><strong>{ r.Amount }</strong> · { r.Channel } · { r.At }</span>
+									if r.Reason != "" {
+										<span class="goen-admin__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminPayReason), r.Reason) }</span>
+									}
+									if r.Staff != "" {
+										<span class="goen-admin__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminPayBy), r.Staff) }</span>
+									}
+								</li>
+							}
+						</ul>
+					}
+				}
 				if v.CanShip {
 					@components.Card(components.CardProps{Class: "goen-admin__op"}) {
 						<h2 class="goen-admin__optitle">{ i18n.T(ctx, i18n.KeyAdminQueueDispatch) }</h2>

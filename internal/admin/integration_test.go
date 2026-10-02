@@ -12029,3 +12029,42 @@ func TestARefusedStockAdjustmentKeepsWhatWasTyped(t *testing.T) {
 		t.Error("the refused adjustment does not say why")
 	}
 }
+
+func TestTheOrderPageSaysHowItWasPaidAndWhatWasRefunded(t *testing.T) {
+	ctx, staff := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	number, orderID, _ := paidUnshippedOrder(t, 500000, 0, false)
+
+	if _, err := pool.Exec(ctx,
+		`UPDATE payments SET card_brand = 'visa', card_last4 = '4242' WHERE order_id = $1`, orderID); err != nil {
+		t.Fatalf("record the card: %v", err)
+	}
+	var refundID uuid.UUID
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO refunds (payment_id, request_key, amount_cents, reason, status, provider_ref, succeeded_at)
+		SELECT p.id, 'order-page:' || ($1::uuid)::text, 120000, '顧客改變心意', 'succeeded',
+		       're_order_page_' || ($1::uuid)::text, now()
+		FROM payments p WHERE p.order_id = $1 AND p.status = 'succeeded'
+		RETURNING id`, orderID).Scan(&refundID); err != nil {
+		t.Fatalf("record a refund: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `SELECT record_audit_event($1, 'refund.succeeded', 'refunds', $2)`,
+		staff, refundID); err != nil {
+		t.Fatalf("record who: %v", err)
+	}
+
+	view, err := s.Order(ctx, number)
+	if err != nil {
+		t.Fatalf("Order: %v", err)
+	}
+	if view.Payment.Card != "Visa •••• 4242" || view.Payment.Captured != pages.TWD(500000) || view.Payment.PaidAt == "" {
+		t.Errorf("payment = %+v, want the card, the captured amount and a time", view.Payment)
+	}
+	if len(view.Refunds) != 1 {
+		t.Fatalf("refunds = %+v, want one", view.Refunds)
+	}
+	r := view.Refunds[0]
+	if r.Amount != pages.TWD(120000) || r.Reason != "顧客改變心意" || r.Staff == "" || r.At == "" {
+		t.Errorf("refund = %+v, want its amount, time, reason and staff member", r)
+	}
+}

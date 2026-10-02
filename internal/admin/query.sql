@@ -1040,6 +1040,41 @@ JOIN sale_campaigns c ON c.id = cp.campaign_id
 WHERE c.slug = @campaign::text
 ORDER BY cp.position, p.id;
 
+-- How an order was paid, for the back office: the captured card payment, if any.
+-- name: OrderCapturedPayment :one
+SELECT p.provider, coalesce(p.card_brand, '')::text AS card_brand,
+       coalesce(p.card_last4, '')::text AS card_last4,
+       coalesce(p.captured_amount_cents, 0)::bigint AS captured_cents,
+       p.paid_at
+FROM payments p
+WHERE p.order_id = @order_id AND p.status = 'succeeded'
+ORDER BY p.paid_at DESC
+LIMIT 1;
+
+-- Every refund of one order, card and store credit together, oldest first.
+-- Credit refunds are the positive store-credit entries, the same definition
+-- order_refunds uses. Who: the staff member the audit trail names for a card
+-- refund, and the entry's own actor for a credit one; empty when none is known.
+-- name: OrderRefundRows :many
+SELECT * FROM (
+    SELECT 'card'::text AS channel, rf.amount_cents, rf.succeeded_at AS at,
+           coalesce(rf.reason, '')::text AS reason,
+           coalesce((SELECT coalesce(u.full_name, u.email)
+                     FROM audit_events a JOIN users u ON u.id = a.actor_user_id
+                     WHERE a.entity_table = 'refunds' AND a.entity_id = rf.id
+                     ORDER BY a.occurred_at LIMIT 1), '')::text AS staff
+    FROM refunds rf JOIN payments p ON p.id = rf.payment_id
+    WHERE p.order_id = @order_id AND rf.status = 'succeeded'
+    UNION ALL
+    SELECT 'credit'::text, e.amount_cents, e.created_at,
+           e.reason::text,
+           coalesce((SELECT coalesce(u.full_name, u.email) FROM users u
+                     WHERE u.id = e.actor_user_id), '')::text
+    FROM store_credit_entries e
+    WHERE e.order_id = @order_id AND e.amount_cents > 0
+) refunds_of_order
+ORDER BY at, channel;
+
 -- name: RecordAuditEvent :one
 SELECT record_audit_event(@actor, @action::text, @entity_table::text,
                           sqlc.narg('entity_id')::uuid,
