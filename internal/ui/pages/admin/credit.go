@@ -16,6 +16,36 @@ type CreditEntry struct {
 	At          string
 }
 
+// The reasons the database writes itself, in the words migrations/001 stores
+// them: spend_store_credit, the reversal of a spend, the return payout and a
+// points redemption. Any other reason is a grant's own text and is shown as typed.
+const (
+	reasonOrderSpend    = "訂單折抵" // i18n-exempt: the stored reason, matched exactly.
+	reasonOrderReversed = "order cancelled"
+	reasonReturnPayout  = "退貨退回購物金" // i18n-exempt: the stored reason, matched exactly.
+	reasonPoints        = "points"
+)
+
+// CreditReason is a store-credit reason in the reader's language where goen
+// wrote it, and as typed where staff did.
+func CreditReason(ctx context.Context, reason string) string {
+	switch reason {
+	case reasonOrderSpend:
+		return i18n.T(ctx, i18n.KeyAdminCreditReasonOrderSpend)
+	case reasonOrderReversed:
+		return i18n.T(ctx, i18n.KeyAdminCreditReasonOrderReversed)
+	case reasonReturnPayout:
+		return i18n.T(ctx, i18n.KeyAdminCreditReasonReturnPayout)
+	case reasonPoints:
+		return i18n.T(ctx, i18n.KeyAdminCreditReasonPoints)
+	default:
+		return reason
+	}
+}
+
+// ReasonText is the posting's reason, as CreditReason words it.
+func (e CreditEntry) ReasonText(ctx context.Context) string { return CreditReason(ctx, e.Reason) }
+
 // Amount is the posting, signed: a grant positive and a spend negative.
 func (e CreditEntry) Amount() string {
 	if e.AmountCents < 0 {

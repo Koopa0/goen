@@ -104,7 +104,7 @@ templ Credit(p layouts.Page, v CreditView) {
 					<li class="goen-admin__entry">
 						<span class={ "goen-admin__amount", templ.KV("is-spend", e.IsSpend()) }>{ e.Amount() }</span>
 						<span class="goen-admin__entrywho">{ e.Who(ctx) }</span>
-						<span class="goen-admin__meta">{ e.Reason }</span>
+						<span class="goen-admin__meta">{ e.ReasonText(ctx) }</span>
 						<span class="goen-admin__meta">{ e.At }</span>
 					</li>
 				}

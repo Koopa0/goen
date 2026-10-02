@@ -88,7 +88,7 @@ var (
 var (
 	KeyMailStaffInvitationSubject = key("mail.staff.invitation.subject", Message{ZhHant: "你已獲邀使用 goen 後台", En: "You have been invited to the goen back office"})
 	KeyMailStaffInvitationBody    = key("mail.staff.invitation.body", Message{
-		ZhHant: "管理員已為你開通 goen 後台權限。\n\n請用下面的連結,以這個信箱透過「忘記密碼」設定或重設密碼:\n%s\n\n登入後台時,系統會請你輸入兩階段驗證碼;如果你還沒有設定,畫面會引導你完成。",
+		ZhHant: "管理員已為你開通 goen 後台權限。\n\n請用下面的連結,以這個信箱透過「忘記密碼」設定或重設密碼：\n%s\n\n登入後台時,系統會請你輸入兩階段驗證碼;如果你還沒有設定,畫面會引導你完成。",
 		En: "An administrator has granted you back-office access.\n\nUse this link to set or reset your password with Forgot password, using this email address:\n%s\n\n" +
 			"When you sign in to the back office you will be asked for your two-factor code, or shown how to set one up if you do not have one yet.",
 	})

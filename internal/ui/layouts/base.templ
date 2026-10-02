@@ -60,7 +60,9 @@ templ documentHead(p Page) {
 				<meta property="og:image:alt" content={ i18n.T(ctx, i18n.KeyOGImageAlt) }/>
 			}
 		}
-		<link rel="icon" type="image/svg+xml" href={ templ.URL(assets.URL(assets.MarkSVG)) }/>
+		<link rel="icon" href="/favicon.ico" sizes="32x32"/>
+		<link rel="icon" type="image/svg+xml" href={ templ.URL(assets.URL(assets.FaviconSVG)) }/>
+		<link rel="apple-touch-icon" href={ templ.URL(assets.URL(assets.AppleTouchIcon)) }/>
 		// goen's own faces, from goen's own origin. There is no preconnect
 		// because there is no second origin to connect to: the stylesheet and
 		// every file it names arrive on the connection that fetched the page.

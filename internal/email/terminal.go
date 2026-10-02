@@ -47,7 +47,7 @@ func (n Notifier) SendOrderTerminal(ctx context.Context, m *OrderTerminal, to Te
 		return errors.New("terminal order notice has no usable recipient")
 	}
 	ctx = n.locale(ctx, to.Locale)
-	subject, body := i18n.KeyMailOrderArrivedSubject, i18n.KeyMailOrderDeliveredBody
+	subject, body := i18n.KeyMailOrderDeliveredSubject, i18n.KeyMailOrderDeliveredBody
 	switch m.Kind {
 	case TerminalCancelledByCustomer:
 		subject, body = i18n.KeyMailOrderCancelledSubject, i18n.KeyMailOrderCustomerCancelledBody
@@ -62,14 +62,14 @@ func (n Notifier) SendOrderTerminal(ctx context.Context, m *OrderTerminal, to Te
 			body = i18n.KeyMailOrderDeadlineCancelledRefundBody
 		}
 	case TerminalCollected:
-		body = i18n.KeyMailOrderCollectedBody
+		subject, body = i18n.KeyMailOrderCollectedSubject, i18n.KeyMailOrderCollectedBody
 	case TerminalDelivered:
 	default:
 		return fmt.Errorf("unknown terminal order notice %q", m.Kind)
 	}
 	text := fmt.Sprintf(i18n.T(ctx, body), to.OrderNumber, n.orderURL(to.OrderNumber))
 	if to.RescissionEnds != "" && (m.Kind == TerminalDelivered || m.Kind == TerminalCollected) {
-		text += "\n" + fmt.Sprintf(i18n.T(ctx, i18n.KeyMailRescissionEnds), to.RescissionEnds)
+		text += "\n\n" + fmt.Sprintf(i18n.T(ctx, i18n.KeyMailRescissionEnds), to.RescissionEnds)
 	}
 	return n.send(ctx, &Message{To: to.Address, Subject: fmt.Sprintf(i18n.T(ctx, subject), to.OrderNumber), Body: n.letter(ctx, to.Name, text)})
 }

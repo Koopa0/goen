@@ -30,11 +30,12 @@ func (n Notifier) SendOrderPaid(ctx context.Context, p *OrderPaid) error {
 	}
 
 	ctx = n.locale(ctx, p.Locale)
-	body := n.letter(ctx, p.Name, fmt.Sprintf(i18n.T(ctx, i18n.KeyMailPaidBody),
-		p.OrderNumber, twd(p.AmountCents), n.orderURL(p.OrderNumber)))
+	paid := twd(p.AmountCents)
 	if p.Card != "" {
-		body += "\n" + fmt.Sprintf(i18n.T(ctx, i18n.KeyMailPaidCard), p.Card)
+		paid += "\n" + fmt.Sprintf(i18n.T(ctx, i18n.KeyMailPaidCard), p.Card)
 	}
+	body := n.letter(ctx, p.Name, fmt.Sprintf(i18n.T(ctx, i18n.KeyMailPaidBody),
+		p.OrderNumber, paid, n.orderURL(p.OrderNumber)))
 
 	return n.send(ctx, &Message{
 		To:      p.Email,
