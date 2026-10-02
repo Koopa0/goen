@@ -895,6 +895,47 @@ func TestRestockNoticeIsIdempotent(t *testing.T) {
 	}
 }
 
+// The confirmation may name the address only when it can read it from the
+// signed-in account; a typed address never rides in the redirect.
+func TestTheRestockConfirmationNamesOnlyTheAccountsOwnAddress(t *testing.T) {
+	ctx := t.Context()
+	vid, slug := soldOutVariant(t)
+	h := product.NewHandler(product.NewStore(pool), slog.New(slog.DiscardHandler), "https://goen.example")
+	own := "own-" + waitingAddr(t)
+
+	post := func(signedIn bool, addr, remote string) string {
+		t.Helper()
+		reqCtx := ctx
+		if signedIn {
+			reqCtx = account.WithUser(ctx, account.User{ID: uuid.NewString(), Email: own})
+		}
+		form := url.Values{"email": {addr}, "variant": {vid.String()}}
+		req := httptest.NewRequestWithContext(reqCtx, http.MethodPost, "/p/"+slug+"/notify",
+			strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.RemoteAddr = remote
+		req.SetPathValue("slug", slug)
+		res := httptest.NewRecorder()
+		h.Notify(res, req)
+		if res.Code != http.StatusSeeOther {
+			t.Fatalf("status = %d, want 303", res.Code)
+		}
+		return res.Header().Get("Location")
+	}
+
+	if got := post(true, strings.ToUpper(own), "198.51.100.11:1"); !strings.Contains(got, "notify=account") {
+		t.Errorf("own address, signed in: redirect %q does not say it was the account's", got)
+	}
+	got := post(true, "other-"+waitingAddr(t), "198.51.100.12:1")
+	if !strings.Contains(got, "notify=1") || strings.Contains(got, "account") {
+		t.Errorf("another address, signed in: redirect %q, want the generic outcome", got)
+	}
+	got = post(false, own, "198.51.100.13:1")
+	if !strings.Contains(got, "notify=1") || strings.Contains(got, "account") {
+		t.Errorf("signed out: redirect %q, want the generic outcome", got)
+	}
+}
+
 func TestANotifiedRequestDoesNotBlockTheNextOne(t *testing.T) {
 	ctx := t.Context()
 	s := product.NewStore(pool)

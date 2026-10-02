@@ -48,7 +48,15 @@ var (
 		En:     "Pick an option and we will tell you when it is back.",
 	})
 
+	// KeyOptionChosen heads an option once a value is chosen; its value follows.
+	KeyOptionChosen = key("pdp.option.chosen", Message{ZhHant: "%s：", En: "%s:"})
+
 	KeyRestockHeading = key("pdp.restock", Message{ZhHant: "到貨通知我", En: "Tell me when it is back"})
+
+	KeyRestockDoneTo = key("pdp.restock.doneto", Message{
+		ZhHant: "已經記下了,補貨時會寄信到 %s。",
+		En:     "Noted. We will email %s when it is back in stock.",
+	})
 
 	KeyRestockDone = key("pdp.restock.done", Message{
 		ZhHant: "已經記下了,補貨時會寄信給你。",

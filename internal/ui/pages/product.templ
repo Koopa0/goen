@@ -243,9 +243,11 @@ templ productBuy(v *ProductView) {
 		for oi, o := range v.Options {
 			<fieldset class="goen-pdp__option">
 				<legend class="goen-pdp__optname">
-					{ o.Label }
 					if o.SelectedLabel() != "" {
+						{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOptionChosen), o.Label) }
 						<span class="goen-pdp__optchosen">{ o.SelectedLabel() }</span>
+					} else {
+						{ o.Label }
 					}
 				</legend>
 				<div class={ "goen-pdp__values", templ.KV("goen-pdp__values--swatches", o.HasSwatches()) }>
@@ -275,6 +277,9 @@ templ productBuy(v *ProductView) {
 								templ.KV("goen-swatch--on", val.Selected),
 								templ.KV("goen-swatch--out", !val.Available) }
 							href={ templ.URL(val.Href) }
+							if o.HasSwatches() {
+								title={ val.Label }
+							}
 							hx-get={ val.Href }
 							hx-select="#buybox"
 							hx-target="#buybox"
@@ -414,7 +419,9 @@ templ productAddForm(v *ProductView) {
 		// and hx-select takes the buy column out of it. hx-select-oob names the
 		// header's cart link in that same response, so the count and the link's
 		// accessible name change from the document the server just rendered
-		// instead of from a number this page would have to keep.
+		// instead of from a number this page would have to keep. The address is
+		// not pushed: the 303 lands on ?added=, which says what this one press
+		// did and is not a page to come back to.
 		<form
 			class="goen-pdp__form"
 			method="post"
@@ -424,7 +431,7 @@ templ productAddForm(v *ProductView) {
 			hx-swap="outerHTML"
 			hx-select="#buybox"
 			hx-select-oob="#cart-link"
-			hx-push-url="true"
+			hx-push-url="false"
 		>
 			<input type="hidden" name="variant" value={ v.VariantID }/>
 			<input type="hidden" name="back" value={ v.Slug }/>
@@ -447,7 +454,8 @@ templ productAddForm(v *ProductView) {
 					@icons.Cart()
 					<span>
 						if v.AllSoldOut() {
-							{ i18n.T(ctx, i18n.KeyAllSoldOut) }
+							// The badge beside the title has said it already.
+							{ i18n.T(ctx, i18n.KeySoldOut) }
 						} else if v.SoldOut() {
 							{ i18n.T(ctx, i18n.KeySoldOut) }
 						} else if v.NeedsChoice() {
@@ -522,7 +530,7 @@ templ productNotifyForm(v *ProductView) {
 		<h2 class="goen-pdp__notifyhead">{ i18n.T(ctx, i18n.KeyRestockHeading) }</h2>
 		if v.NotifyTaken() {
 			@components.Notice(components.NoticeProps{Tone: components.ToneAccent}) {
-				{ i18n.T(ctx, i18n.KeyRestockDone) }
+				{ v.NotifyDone(ctx) }
 			}
 		} else {
 			<div class="goen-pdp__notifyrow">
@@ -530,7 +538,7 @@ templ productNotifyForm(v *ProductView) {
 					{ i18n.T(ctx, i18n.KeyFieldEmail) }
 				}
 				@components.Input(components.FieldProps{
-					ID: "notify-email", Name: "email", Type: "email", Value: v.NotifyEmail,
+					ID: "notify-email", Name: "email", Type: "email", Value: v.NotifyEmailValue(),
 					Invalid: v.NotifyRefused(), Describes: "notify-email-error",
 					Attrs: fieldrule.Email.Attrs(ctx, templ.Attributes{
 						"required": true, "maxlength": "254", "autocomplete": "email",

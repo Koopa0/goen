@@ -286,3 +286,93 @@ func TestTheRestockFormPostsFromTheChosenOptions(t *testing.T) {
 		t.Errorf("a product without options posts to %q", got)
 	}
 }
+
+func renderProduct(t *testing.T, v *ProductView, locale i18n.Locale) string {
+	t.Helper()
+	var body strings.Builder
+	if err := Product(ProductMeta(v), v).Render(i18n.WithLocale(t.Context(), locale), &body); err != nil {
+		t.Fatal(err)
+	}
+	return body.String()
+}
+
+func TestTheRestockFormStartsWithTheSignedInAddressAndTheConfirmationNamesIt(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	soldOut := func() ProductView {
+		return ProductView{
+			Slug: "book", Name: "Book", SelectionOK: true, Exact: true, VariantID: "v1",
+			SignedIn: true, AccountEmail: "me@example.com",
+		}
+	}
+
+	view := soldOut()
+	if got := renderProduct(t, &view, i18n.ZhHant); !strings.Contains(got, `value="me@example.com"`) {
+		t.Error("a signed-in customer's restock form does not start with their address")
+	}
+
+	view = soldOut()
+	view.NotifyEmail = "typed@example.com"
+	got := renderProduct(t, &view, i18n.ZhHant)
+	if !strings.Contains(got, `value="typed@example.com"`) || strings.Contains(got, `value="me@example.com"`) {
+		t.Error("a refused address was replaced by the account's")
+	}
+
+	view = soldOut()
+	view.NotifyOutcome = NotifyToAccount
+	if got := renderProduct(t, &view, i18n.ZhHant); !strings.Contains(got, "me@example.com") ||
+		strings.Contains(got, i18n.T(ctx, i18n.KeyRestockDone)) {
+		t.Error("the confirmation does not name the account's address")
+	}
+
+	view = soldOut()
+	view.NotifyOutcome = "1"
+	if got := renderProduct(t, &view, i18n.ZhHant); !strings.Contains(got, i18n.T(ctx, i18n.KeyRestockDone)) ||
+		strings.Contains(got, "me@example.com") {
+		t.Error("a request for another address was confirmed as the account's")
+	}
+}
+
+func TestEverySoldOutIsSaidOnce(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	view := ProductView{
+		Slug: "book", Name: "Book", SelectionOK: true, VariantID: "v1",
+		Options: []ProductOption{{Name: "顏色", Label: "顏色", Values: []ProductOptionValue{{Value: "黑", Label: "黑"}}}},
+	}
+	got := renderProduct(t, &view, i18n.ZhHant)
+	if n := strings.Count(got, i18n.T(ctx, i18n.KeyAllSoldOut)); n != 1 {
+		t.Errorf("%q appears %d times, want once", i18n.T(ctx, i18n.KeyAllSoldOut), n)
+	}
+}
+
+func TestAddingToTheCartLeavesTheAddressBarAlone(t *testing.T) {
+	t.Parallel()
+	view := ProductView{Slug: "book", Name: "Book", SelectionOK: true, VariantID: "v1", Available: 5, AnySellable: true, Sellable: true}
+	got := renderProduct(t, &view, i18n.ZhHant)
+	i := strings.Index(got, `hx-post="/cart/items"`)
+	if i < 0 {
+		t.Fatal("the add form lost its htmx post")
+	}
+	form := got[i : i+strings.Index(got[i:], ">")]
+	if !strings.Contains(form, `hx-push-url="false"`) {
+		t.Errorf("the add form pushes the redirect's address, ?added=added included: %s", form)
+	}
+}
+
+func TestTheChosenOptionIsNamedNextToItsLabel(t *testing.T) {
+	t.Parallel()
+	view := ProductView{
+		Slug: "book", Name: "Book", SelectionOK: true, VariantID: "v1",
+		Options: []ProductOption{{Name: "顏色", Label: "顏色", Values: []ProductOptionValue{
+			{Value: "黑", Label: "曜石黑", Selected: true}, {Value: "白", Label: "雲母白"},
+		}}},
+	}
+	got := renderProduct(t, &view, i18n.ZhHant)
+	if !strings.Contains(got, "顏色：") || !strings.Contains(got, `goen-pdp__optchosen">曜石黑`) {
+		t.Error("the chosen option's name is not shown next to its label")
+	}
+	if en := renderProduct(t, &view, i18n.En); !strings.Contains(en, "顏色:") {
+		t.Error("the English separator is not used in English")
+	}
+}

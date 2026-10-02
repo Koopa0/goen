@@ -148,9 +148,9 @@ func (h *Handler) Notify(w http.ResponseWriter, r *http.Request) {
 	addr := r.PostFormValue("email")
 	variantID := r.PostFormValue("variant")
 
-	var userID string
+	var userID, accountEmail string
 	if u, ok := account.FromContext(r.Context()); ok {
-		userID = u.ID
+		userID, accountEmail = u.ID, u.Email
 	}
 
 	// Not a value the form can send: nothing on a page to re-render for.
@@ -161,6 +161,11 @@ func (h *Handler) Notify(w http.ResponseWriter, r *http.Request) {
 
 	err := h.store.RequestRestockNotice(r.Context(), slug, variantID, addr, userID)
 	switch {
+	case err == nil && accountEmail != "" && strings.EqualFold(email.Clean(addr), accountEmail):
+		// The page names the address only when it can read it from the signed-in
+		// account: an address in the query string would be text anybody could
+		// put on the confirmation.
+		h.redirectNotified(w, r, slug, pages.NotifyToAccount)
 	case err == nil:
 		h.redirectNotified(w, r, slug, "1")
 	case errors.Is(err, ErrNotifyInvalid):
@@ -238,7 +243,7 @@ func (h *Handler) rejectReview(w http.ResponseWriter, r *http.Request, slug stri
 
 func (h *Handler) fillReviewForm(r *http.Request, slug string, view *pages.ProductView) {
 	u, signedIn := account.FromContext(r.Context())
-	view.SignedIn = signedIn
+	view.SignedIn, view.AccountEmail = signedIn, u.Email
 	if !signedIn {
 		return
 	}
