@@ -1,6 +1,9 @@
 package admin
 
 import (
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"regexp"
 	"strings"
 	"testing"
@@ -72,7 +75,7 @@ func TestTheHomePageListsTheSlidesTheStorefrontShowsAndSaysWhereEachComesFrom(t 
 	}
 }
 
-func TestAQueuedSlideIsShowingOnlyWhenTheStorefrontCarriesIt(t *testing.T) {
+func TestAScheduledSlideIsShowingOnlyWhenTheStorefrontCarriesIt(t *testing.T) {
 	t.Parallel()
 	rows := []HeroSlide{
 		{ID: "a", Active: true, InWindow: true},
@@ -85,11 +88,11 @@ func TestAQueuedSlideIsShowingOnlyWhenTheStorefrontCarriesIt(t *testing.T) {
 	}
 	v.Carousel = []pages.HeroSlide{{Source: pages.SlideScheduled}, {Source: pages.SlideScheduled}}
 	if !v.IsShowing(rows[2]) {
-		t.Error("the second live queued slide is in the carousel but not marked")
+		t.Error("the second live scheduled slide is in the carousel but not marked")
 	}
 	v.Carousel = []pages.HeroSlide{{Source: pages.SlideCampaign}}
 	if v.IsShowing(rows[0]) {
-		t.Error("a queued slide is marked while the carousel has none")
+		t.Error("a scheduled slide is marked while the carousel has none")
 	}
 }
 
@@ -109,5 +112,32 @@ func TestEverySlideSourceHasItsOwnLabelAndAnUnknownOneIsNotAPanic(t *testing.T) 
 			}
 			seen[label] = src
 		}
+	}
+}
+
+// The label switch and SlideSources are both kept by hand; counting the
+// constants in the source is what makes a forgotten one fail.
+func TestSlideSourcesListsEveryDeclaredSource(t *testing.T) {
+	t.Parallel()
+	file, err := parser.ParseFile(token.NewFileSet(), "../hero.go", nil, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	declared := 0
+	for _, decl := range file.Decls {
+		gen, ok := decl.(*ast.GenDecl)
+		if !ok || gen.Tok != token.CONST {
+			continue
+		}
+		for _, spec := range gen.Specs {
+			if v, isValue := spec.(*ast.ValueSpec); isValue {
+				if id, isIdent := v.Type.(*ast.Ident); isIdent && id.Name == "SlideSource" {
+					declared += len(v.Names)
+				}
+			}
+		}
+	}
+	if got := len(pages.SlideSources()); got != declared {
+		t.Errorf("SlideSources lists %d sources, %d are declared", got, declared)
 	}
 }

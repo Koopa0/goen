@@ -37,8 +37,8 @@ var (
 	})
 
 	KeyAdminHomeLead = key("admin.home.lead", Message{
-		ZhHant: "首頁輪播最多三張:先是下方佇列中在檔期內的,再來是進行中的活動,最後是有照片的部門。",
-		En: "The home carousel shows up to three slides: the queued ones below that are inside " +
+		ZhHant: "首頁輪播最多三張:先是下方排程中在檔期內的,再來是進行中的活動,最後是有照片的部門。",
+		En: "The home carousel shows up to three slides: the scheduled ones below that are inside " +
 			"their window first, then campaigns running, then departments with a photograph.",
 	})
 
@@ -46,7 +46,7 @@ var (
 
 	KeyAdminHomeNoSlides = key("admin.home.noslides", Message{
 		ZhHant: "首頁目前沒有任何輪播:沒有在檔期內的主視覺、進行中的活動,也沒有附照片的部門。",
-		En: "The home page shows no carousel right now: no queued slide inside its window, " +
+		En: "The home page shows no carousel right now: no scheduled slide inside its window, " +
 			"no campaign running and no department with a photograph.",
 	})
 
@@ -137,9 +137,9 @@ var (
 		En:     "0 means no end date.",
 	})
 
-	KeyAdminHomeAdd = key("admin.home.add", Message{ZhHant: "加入佇列", En: "Add to the queue"})
+	KeyAdminHomeAdd = key("admin.home.add", Message{ZhHant: "加入排程", En: "Add to the schedule"})
 
-	KeyAdminHomeQueue = key("admin.home.queue", Message{ZhHant: "佇列", En: "Queue"})
+	KeyAdminHomeScheduled = key("admin.home.scheduled", Message{ZhHant: "排程", En: "Scheduled"})
 
 	KeyAdminHomeEmpty = key("admin.home.empty", Message{
 		ZhHant: "還沒有任何主視覺。",

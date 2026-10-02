@@ -499,6 +499,23 @@ func (q *Queries) AdminCampaignProducts(ctx context.Context, campaign string) ([
 	return items, nil
 }
 
+const adminCampaignWindowForUpdate = `-- name: AdminCampaignWindowForUpdate :one
+SELECT starts_at, ends_at FROM sale_campaigns WHERE slug = $1::text FOR UPDATE
+`
+
+type AdminCampaignWindowForUpdateRow struct {
+	StartsAt time.Time
+	EndsAt   time.Time
+}
+
+// Locked so a concurrent edit cannot leave the audit row with a stale Before.
+func (q *Queries) AdminCampaignWindowForUpdate(ctx context.Context, slug string) (AdminCampaignWindowForUpdateRow, error) {
+	row := q.db.QueryRow(ctx, adminCampaignWindowForUpdate, slug)
+	var i AdminCampaignWindowForUpdateRow
+	err := row.Scan(&i.StartsAt, &i.EndsAt)
+	return i, err
+}
+
 const adminCampaigns = `-- name: AdminCampaigns :many
 SELECT json_build_object('Rank', c.is_active, 'At', c.ends_at, 'ID', c.id)::text AS page_cursor, c.id, c.slug, c.title, c.starts_at, c.ends_at, c.is_active,
        (SELECT count(*) FROM sale_campaign_products p WHERE p.campaign_id = c.id)::bigint AS products,

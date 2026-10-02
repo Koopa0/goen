@@ -70,7 +70,7 @@ func (s HeroSlide) ToggleLabel() string {
 	return "啟用" // i18n-exempt: back office, /admin/home
 }
 
-// HeroView is the queue page; it carries the promotional strip too.
+// HeroView is the scheduled-slides page; it carries the promotional strip too.
 type HeroView struct {
 	Rows     []HeroSlide
 	Carousel []pages.HeroSlide
@@ -128,7 +128,7 @@ type HeroDraft struct {
 	ImageAltEn                    string
 }
 
-// Empty reports whether nothing is queued.
+// Empty reports whether no slide is scheduled.
 func (v *HeroView) Empty() bool { return len(v.Rows) == 0 }
 
 func (v *HeroView) scheduledShown() int {
@@ -141,8 +141,8 @@ func (v *HeroView) scheduledShown() int {
 	return n
 }
 
-// IsShowing reports whether this queued slide is in the storefront's carousel:
-// the carousel takes the first live ones in queue order, as many as it shows.
+// IsShowing reports whether this scheduled slide is in the storefront's carousel:
+// the carousel takes the first live ones in schedule order, as many as it shows.
 func (v *HeroView) IsShowing(s HeroSlide) bool {
 	n := v.scheduledShown()
 	for _, r := range v.Rows {

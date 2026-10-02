@@ -127,7 +127,7 @@ func (s *Store) SetCampaignWindow(ctx context.Context, slug, startsAt, endsAt st
 	if !okStart || !okEnd || !ends.After(starts) || ends.Sub(starts) > MaxCampaignDays*24*time.Hour {
 		return map[string]string{"window": i18n.T(ctx, i18n.KeyFormCampaignWindow)}, nil
 	}
-	// Filled by the write below, read when the audit row is encoded after it.
+	// Filled inside the transaction, which is before the audit row is encoded.
 	before := map[string]any{"slug": slug}
 	return nil, s.audited(ctx, Event{
 		Action: actionSetCampaignWindow, Table: "sale_campaigns", ID: uuid.NullUUID{},
@@ -135,7 +135,7 @@ func (s *Store) SetCampaignWindow(ctx context.Context, slug, startsAt, endsAt st
 		After:  map[string]any{"slug": slug, "starts_at": starts.UTC(), "ends_at": ends.UTC()},
 	},
 		func(ctx context.Context, q *db.Queries) error {
-			prior, err := q.AdminCampaign(ctx, strings.TrimSpace(slug))
+			prior, err := q.AdminCampaignWindowForUpdate(ctx, strings.TrimSpace(slug))
 			if errors.Is(err, pgx.ErrNoRows) {
 				return ErrNotFound
 			}

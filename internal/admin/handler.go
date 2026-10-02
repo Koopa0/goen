@@ -612,7 +612,7 @@ func stockReturn(low, term, after, notice, sku string) string {
 func stockBack(r *http.Request, notice string) string {
 	var low, term, after string
 	if u, err := url.Parse(r.PostFormValue("return")); err == nil && u.Path == "/admin/stock" && u.Host == "" {
-		low, term, after = u.Query().Get("low"), strings.TrimSpace(u.Query().Get("q")), u.Query().Get(web.KeysetParam)
+		low, term, after = u.Query().Get("low"), SearchTerm(u.Query().Get("q")), u.Query().Get(web.KeysetParam)
 	}
 	return stockReturn(low, term, after, notice, r.PostFormValue("sku"))
 }
