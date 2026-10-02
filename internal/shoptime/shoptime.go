@@ -65,8 +65,12 @@ func DaysSince(t, now time.Time) int64 {
 
 func InputMinute(t time.Time) string { return In(t).Format("2006-01-02T15:04") }
 
-// ParseInputMinute reads what a datetime-local field posts as a minute on the
-// shop's clock.
+func ParseInputDay(s string) (time.Time, bool) {
+	t, err := time.ParseInLocation("2006-01-02", s, location())
+	return t, err == nil && t.Year() > 0
+}
+
+// ParseInputMinute supplies the shop's zone to a zoneless datetime-local value.
 func ParseInputMinute(s string) (time.Time, bool) {
 	t, err := time.ParseInLocation("2006-01-02T15:04", s, location())
 	return t, err == nil

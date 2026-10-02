@@ -275,13 +275,12 @@ var columnNarrowed = map[string]bool{
 // columnExemptions is a column privilege a role holds that its queries never exercise, keyed
 // role.table.column, with the reason.
 var columnExemptions = map[string]string{
-	"store.users.id":                             "supplied by the default; naming no column grant for it would trap the next INSERT",
-	"store.users.created_at":                     "supplied by the default",
-	"store.users.updated_at":                     "maintained by set_updated_at",
-	"admin.users.id":                             "supplied by the default",
-	"admin.users.created_at":                     "supplied by the default",
-	"admin.users.updated_at":                     "maintained by set_updated_at",
-	"admin.product_variants.preorder_release_on": "the variant form does not collect it yet; the column is read and not yet written",
+	"store.users.id":         "supplied by the default; naming no column grant for it would trap the next INSERT",
+	"store.users.created_at": "supplied by the default",
+	"store.users.updated_at": "maintained by set_updated_at",
+	"admin.users.id":         "supplied by the default",
+	"admin.users.created_at": "supplied by the default",
+	"admin.users.updated_at": "maintained by set_updated_at",
 }
 
 func writableColumns(t *testing.T, role string) map[string]map[string]bool {

@@ -7,11 +7,13 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/a-h/templ"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
@@ -160,14 +162,15 @@ type ProductView struct {
 	SelectionOK bool
 	Exact       bool
 	// PriceVaries reports that dearer variants exist than the one priced here.
-	PriceVaries  bool
-	AnySellable  bool
-	VariantID    string
-	SKU          string
-	PriceCents   int64
-	CompareCents int64
-	Sellable     bool
-	Available    int32
+	PriceVaries     bool
+	AnySellable     bool
+	VariantID       string
+	SKU             string
+	PriceCents      int64
+	CompareCents    int64
+	Sellable        bool
+	ExpectedArrival time.Time
+	Available       int32
 
 	Rating         float64
 	RatingCount    int64
@@ -494,3 +497,18 @@ func (v *ProductView) AlreadyComparing() bool {
 func (v *ProductView) ComparingFull() bool { return len(v.Comparing) >= MaxCompare }
 
 func (v *ProductView) FreeDelivery() string { return FreeDeliveryText(v.FreeDeliveryCents) }
+
+func (v *ProductView) ArrivalDay() string { return shoptime.Day(v.ExpectedArrival) }
+
+func (v *ProductView) ArrivalText(ctx context.Context) string {
+	if !v.SoldOut() || v.ExpectedArrival.IsZero() {
+		return ""
+	}
+	d := shoptime.DateOf(v.ExpectedArrival, time.Now())
+	key := i18n.KeyShortDate
+	if d.OtherYear {
+		key = i18n.KeyShortDateYear
+	}
+	date := fmt.Sprintf(i18n.T(ctx, key), d.Month.String()[:3], int(d.Month), d.Day, d.Year)
+	return fmt.Sprintf(i18n.T(ctx, i18n.KeyExpectedArrival), date)
+}

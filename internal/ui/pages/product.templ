@@ -324,6 +324,9 @@ templ productBuy(v *ProductView) {
 		}
 		@productAddForm(v)
 		if v.SoldOut() {
+			if v.ArrivalText(ctx) != "" {
+				<p><time datetime={ v.ArrivalDay() }>{ v.ArrivalText(ctx) }</time></p>
+			}
 			@productNotifyForm(v)
 		}
 		@productLinks(v)
