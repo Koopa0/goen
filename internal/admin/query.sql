@@ -143,7 +143,7 @@ SELECT json_build_object('Number', (pv.stock_quantity - pv.safety_stock), 'Name'
     p.name AS product_name,
     p.status AS product_status,
     b.name AS brand,
-    ARRAY(SELECT v.value
+    ARRAY(SELECT localized_name(v.value, v.value_en, @locale::text)
           FROM variant_option_values vov
           JOIN product_options o ON o.id = vov.option_id
           JOIN product_option_values v ON v.id = vov.option_value_id
@@ -985,7 +985,7 @@ WHERE slug = @slug::text;
 
 -- Archived products are left out: a campaign on one shows nothing.
 -- name: AdminCampaignProductSearch :many
-SELECT p.slug, p.name
+SELECT p.slug, localized_name(p.name, p.name_en, @locale::text) AS name
 FROM products p
 WHERE p.status <> 'archived'
   AND (p.name ILIKE '%' || @escaped_term::text || '%'

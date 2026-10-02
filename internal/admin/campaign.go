@@ -154,7 +154,7 @@ func (s *Store) SearchCampaignProducts(ctx context.Context, slug, term string) (
 		return nil, nil
 	}
 	rows, err := s.q.AdminCampaignProductSearch(ctx, db.AdminCampaignProductSearchParams{
-		Campaign: slug, EscapedTerm: catalog.EscapeLike(term), RowLimit: campaignSearchLimit,
+		Locale: string(i18n.FromContext(ctx)), Campaign: slug, EscapedTerm: catalog.EscapeLike(term), RowLimit: campaignSearchLimit,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("search campaign products: %w", err)

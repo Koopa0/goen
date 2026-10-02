@@ -117,7 +117,7 @@ func (s *Store) Dashboard(ctx context.Context) (admin.DashboardView, error) {
 		view.Recent = append(view.Recent, orderRow(ctx, &recent[i]))
 	}
 
-	low, err := s.q.AdminVariants(ctx, db.AdminVariantsParams{LowOnly: true, RowLimit: 10})
+	low, err := s.q.AdminVariants(ctx, db.AdminVariantsParams{Locale: string(i18n.FromContext(ctx)), LowOnly: true, RowLimit: 10})
 	if err != nil {
 		return admin.DashboardView{}, fmt.Errorf("read low stock: %w", err)
 	}
@@ -842,7 +842,7 @@ func (s *Store) Variants(ctx context.Context, lowOnly bool, term string, after .
 	}
 	scope := web.ScopeURL("/admin/stock", "low", low, "q", term)
 	cursor := readPageCursor(scope, after)
-	rows, err := s.q.AdminVariants(ctx, db.AdminVariantsParams{HasCursor: cursor.Valid, AfterNumber: cursor.Number, AfterName: cursor.Name, AfterPosition: cursor.Position, AfterID: cursor.ID, LowOnly: lowOnly, EscapedTerm: catalog.EscapeLike(term), RowLimit: PageLimit})
+	rows, err := s.q.AdminVariants(ctx, db.AdminVariantsParams{Locale: string(i18n.FromContext(ctx)), HasCursor: cursor.Valid, AfterNumber: cursor.Number, AfterName: cursor.Name, AfterPosition: cursor.Position, AfterID: cursor.ID, LowOnly: lowOnly, EscapedTerm: catalog.EscapeLike(term), RowLimit: PageLimit})
 	if err != nil {
 		return admin.VariantsView{}, fmt.Errorf("read variants: %w", err)
 	}

@@ -338,6 +338,10 @@ func TestSearchRequiresEveryTermAcrossFieldsInAnyOrder(t *testing.T) {
 	}
 }
 
+// aDecadeAhead puts a fixture's published_at past any product another test
+// commits to the shared database, for a test that reads the newest rows.
+const aDecadeAhead = 10 * 365 * 24 * 3600
+
 // published is seconds past now, so a larger one is the newer product.
 func insertSearchFixture(t *testing.T, tx pgx.Tx, name, summary string, priceCents, published int) string {
 	t.Helper()
@@ -402,9 +406,9 @@ func TestSearchSortReordersAndNewestProductsReadsTheLatestPublished(t *testing.T
 	t.Cleanup(func() { _ = tx.Rollback(context.WithoutCancel(ctx)) })
 	token := "sorted" + uuid.NewString()[:8]
 	// Best match leads with the name that is the query; the price sorts by price.
-	exact := insertSearchFixture(t, tx, token, "Fixture summary", 30000, 0)
-	cheap := insertSearchFixture(t, tx, token+" cheap", "Fixture summary", 10000, 1)
-	mid := insertSearchFixture(t, tx, token+" mid", "Fixture summary", 20000, 2)
+	exact := insertSearchFixture(t, tx, token, "Fixture summary", 30000, aDecadeAhead)
+	cheap := insertSearchFixture(t, tx, token+" cheap", "Fixture summary", 10000, aDecadeAhead+1)
+	mid := insertSearchFixture(t, tx, token+" mid", "Fixture summary", 20000, aDecadeAhead+2)
 	store := catalog.NewStore(tx)
 	for _, c := range []struct {
 		sort catalog.Sort

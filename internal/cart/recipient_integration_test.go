@@ -171,7 +171,7 @@ func TestARestoredDraftIsNotOverwrittenByTheAccount(t *testing.T) {
 	fields.Set("name", "林小美")
 	fields.Set("phone", "0987654321")
 	fields.Set("email", user.Email)
-	body, cookie, status := startPickup(t, h, token, fields)
+	body, cookie, status := startPickupAs(t, h, token, &user, fields)
 	if status != http.StatusOK {
 		t.Fatalf("the hand-off page = %d, want 200", status)
 	}

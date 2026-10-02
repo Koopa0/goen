@@ -1280,7 +1280,7 @@ func TestCartShowsCurrentPriceAndAvailability(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
 	id := newCart(t, s)
-	vid := variantOf(t, "pixelight-9-pro", true)
+	vid := freshVariant(t, "current-price")
 
 	if err := s.Add(ctx, id, vid, 2); err != nil {
 		t.Fatalf("add: %v", err)

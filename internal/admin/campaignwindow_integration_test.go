@@ -70,8 +70,16 @@ func TestTheCampaignProductSearchOffersWhatIsNotFeaturedYet(t *testing.T) {
 	if byName, searchErr := s.SearchCampaignProducts(ctx, slug, "規格表測試 "+fresh); searchErr != nil || len(byName) != 1 {
 		t.Errorf("search by name = %v %v, want the one product", byName, searchErr)
 	}
-	if again, searchErr := s.SearchCampaignProducts(ctx, slug, featured); searchErr != nil || len(again) != 0 {
-		t.Errorf("a featured product is offered again: %v %v", again, searchErr)
+	// A slug is a substring of its siblings' (pixelight-9-pro, pixelight-9-pro-case),
+	// so the search may offer those; only the featured product itself is refused.
+	again, searchErr := s.SearchCampaignProducts(ctx, slug, featured)
+	if searchErr != nil {
+		t.Fatal(searchErr)
+	}
+	for _, offered := range again {
+		if offered.Slug == featured {
+			t.Errorf("the featured product %s is offered again: %v", featured, again)
+		}
 	}
 	if _, execErr := pool.Exec(ctx, `UPDATE products SET status = 'archived' WHERE slug = $1`, fresh); execErr != nil {
 		t.Fatal(execErr)
