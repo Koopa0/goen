@@ -71,7 +71,7 @@ func (s *Store) Listing(ctx context.Context, slug string, f Filters) (pages.List
 		Locale:         string(i18n.FromContext(ctx)),
 		CategoryIds:    ids,
 		BrandIds:       brandIDs,
-		FilterVariants: f.FiltersVariants(),
+		FilterVariants: f.VariantScoped(),
 		InStockOnly:    f.InStockOnly,
 		MinPrice:       f.MinPrice,
 		MaxPrice:       f.MaxPrice,
@@ -86,7 +86,7 @@ func (s *Store) Listing(ctx context.Context, slug string, f Filters) (pages.List
 	total, err := s.q.CategoryListingCount(ctx, db.CategoryListingCountParams{
 		CategoryIds:    ids,
 		BrandIds:       brandIDs,
-		FilterVariants: f.FiltersVariants(),
+		FilterVariants: f.VariantScoped(),
 		InStockOnly:    f.InStockOnly,
 		MinPrice:       f.MinPrice,
 		MaxPrice:       f.MaxPrice,

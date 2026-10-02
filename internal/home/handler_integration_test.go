@@ -59,7 +59,7 @@ func TestHomeShowsCategoriesAndProducts(t *testing.T) {
 	h := home.NewHandler(home.NewStore(pool), slog.New(slog.DiscardHandler), false)
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody)
 	res := httptest.NewRecorder()
-	h.Home(res, req)
+	h.Index(res, req)
 
 	if res.Code != http.StatusOK {
 		t.Fatalf("status = %d; want 200", res.Code)
@@ -696,7 +696,7 @@ func TestTheTrustBodyStatesTheLowestCurrentFee(t *testing.T) {
 	h := home.NewHandler(home.NewStore(pool), slog.New(slog.DiscardHandler), false)
 	req := httptest.NewRequestWithContext(i18n.WithLocale(ctx, i18n.ZhHant), http.MethodGet, "/", http.NoBody)
 	res := httptest.NewRecorder()
-	h.Home(res, req)
+	h.Index(res, req)
 	if res.Code != http.StatusOK {
 		t.Fatalf("status = %d; want 200", res.Code)
 	}
@@ -798,7 +798,7 @@ func TestTheTrustBodyDescribesOnlyTheMethodsCheckoutOffers(t *testing.T) {
 	render := func(s *home.Store) string {
 		h := home.NewHandler(s, slog.New(slog.DiscardHandler), false)
 		res := httptest.NewRecorder()
-		h.Home(res, httptest.NewRequestWithContext(ctx, http.MethodGet, "/", http.NoBody))
+		h.Index(res, httptest.NewRequestWithContext(ctx, http.MethodGet, "/", http.NoBody))
 		if res.Code != http.StatusOK {
 			t.Fatalf("status = %d; want 200", res.Code)
 		}

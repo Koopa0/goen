@@ -86,7 +86,7 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	attempt, err := h.store.PaymentAttempt(r.Context(), number, o.TotalCents)
+	attempt, err := h.store.Attempt(r.Context(), number, o.TotalCents)
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read payment attempt", "order", number, "error", err)
 		h.serverError(w, r)
@@ -151,7 +151,7 @@ func (h *Handler) Start(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	attempt, err := h.store.PaymentAttempt(r.Context(), number, o.TotalCents)
+	attempt, err := h.store.Attempt(r.Context(), number, o.TotalCents)
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read payment attempt", "order", number, "error", err)
 		h.serverError(w, r)
