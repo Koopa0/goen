@@ -79,7 +79,7 @@ func queuedDues(t *testing.T, number string) []outbox.InvoiceDue {
 	t.Helper()
 	rows, err := pool.Query(t.Context(),
 		`SELECT payload FROM outbox_messages WHERE topic = $1 AND dedupe_key = $2`,
-		outbox.TopicInvoiceDue, number)
+		outbox.TopicInvoiceDue.Name(), number)
 	if err != nil {
 		t.Fatalf("read invoice.due for %s: %v", number, err)
 	}

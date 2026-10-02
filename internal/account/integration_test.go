@@ -87,7 +87,7 @@ func register(t *testing.T, s *account.Store, email string) account.User {
 	if _, err := pool.Exec(t.Context(), `
 		UPDATE outbox_messages SET delivered_at = now()
 		WHERE topic = $1 AND payload->>'user_id' = $2 AND delivered_at IS NULL`,
-		outbox.TopicRegistration, u.ID); err != nil {
+		outbox.TopicRegistration.Name(), u.ID); err != nil {
 		t.Fatalf("settle the registration follow-up for %s: %v", email, err)
 	}
 	return u
@@ -116,7 +116,7 @@ func beginReset(t *testing.T, s *account.Store, email string) string {
 		FROM outbox_messages
 		WHERE topic = $1 AND lower(payload->>'email') = lower($2)
 		ORDER BY id DESC
-		LIMIT 1`, outbox.TopicPasswordReset, email).Scan(&token); err != nil {
+		LIMIT 1`, outbox.TopicPasswordReset.Name(), email).Scan(&token); err != nil {
 		t.Fatalf("read reset token from its queued message: %v", err)
 	}
 	if token == "" {
@@ -154,7 +154,7 @@ func requestVerification(t *testing.T, s *account.Store, userID, email string) s
 		FROM outbox_messages
 		WHERE topic = $1 AND lower(payload->>'email') = lower($2)
 		ORDER BY id DESC
-		LIMIT 1`, outbox.TopicEmailVerify, email).Scan(&token); err != nil {
+		LIMIT 1`, outbox.TopicEmailVerify.Name(), email).Scan(&token); err != nil {
 		t.Fatalf("read verification token from its queued message: %v", err)
 	}
 	if token == "" {
@@ -2322,7 +2322,7 @@ func TestUnverifiedAccountErasureDoesNotClaimTheMailbox(t *testing.T) {
 		"transactional mail": {
 			`INSERT INTO outbox_messages (topic, dedupe_key, payload)
 			 VALUES ($1, $2, jsonb_build_object('email', $3::text, 'order_number', 'G-VICTIM'))`,
-			[]any{outbox.TopicOrderPlaced, mailKey, victim},
+			[]any{outbox.TopicOrderPlaced.Name(), mailKey, victim},
 		},
 	} {
 		if _, err := pool.Exec(ctx, seed.query, seed.args...); err != nil {
@@ -2698,7 +2698,7 @@ func TestResetIssueAndErasureCannotSplitTokenFromMessage(t *testing.T) {
 	if err := pool.QueryRow(ctx, `
 		SELECT count(*) FROM outbox_messages
 		WHERE topic = $1 AND lower(payload->>'email') = lower($2)`,
-		outbox.TopicPasswordReset, email).Scan(&messages); err != nil {
+		outbox.TopicPasswordReset.Name(), email).Scan(&messages); err != nil {
 		t.Fatalf("count reset messages: %v", err)
 	}
 	if users != 0 || tokens != 0 || messages != 0 {
@@ -2983,7 +2983,7 @@ func TestConcurrentResetIssuanceLeavesOneLiveToken(t *testing.T) {
 		SELECT payload->>'token'
 		FROM outbox_messages
 		WHERE topic = $1 AND lower(payload->>'email') = lower($2)
-		ORDER BY id`, outbox.TopicPasswordReset, email)
+		ORDER BY id`, outbox.TopicPasswordReset.Name(), email)
 	if err != nil {
 		t.Fatalf("list issued reset tokens: %v", err)
 	}
@@ -3088,7 +3088,7 @@ func TestBeginResetSaysNothingAboutWhoHasAnAccount(t *testing.T) {
 		if err := pool.QueryRow(ctx, `
 			SELECT count(*) FROM outbox_messages
 			WHERE topic = $1 AND lower(payload->>'email') = lower($2)`,
-			outbox.TopicPasswordReset, address).Scan(&queued); err != nil {
+			outbox.TopicPasswordReset.Name(), address).Scan(&queued); err != nil {
 			t.Fatalf("count reset messages for %q: %v", address, err)
 		}
 		if queued != 0 {
@@ -3526,7 +3526,7 @@ func TestChangingEmailInvalidatesResetLinksSentToTheOldMailbox(t *testing.T) {
 		SELECT count(*) FROM outbox_messages
 		WHERE topic = $1
 		  AND lower(coalesce(payload ->> 'email', payload ->> 'Email', '')) = lower($2)`,
-		outbox.TopicPasswordReset, old).Scan(&oldMailboxMessages); err != nil {
+		outbox.TopicPasswordReset.Name(), old).Scan(&oldMailboxMessages); err != nil {
 		t.Fatalf("count old-mailbox reset messages: %v", err)
 	}
 	if oldMailboxMessages != 0 {
@@ -3569,7 +3569,7 @@ func TestErasurePurgesOnlyItsPendingVerificationMessage(t *testing.T) {
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO outbox_messages (topic, dedupe_key, payload)
 		VALUES ($1, $2, jsonb_build_object('email', $3::text, 'order_number', 'G-VICTIM'))`,
-		outbox.TopicOrderPlaced, transactionalDedupe, pending); err != nil {
+		outbox.TopicOrderPlaced.Name(), transactionalDedupe, pending); err != nil {
 		t.Fatalf("seed victim transactional mail: %v", err)
 	}
 	if err := s.Erase(ctx, u.ID); err != nil {
@@ -3790,7 +3790,7 @@ func TestAskingAgainLeavesOneLiveLink(t *testing.T) {
 	if err := pool.QueryRow(ctx, `
 		SELECT count(*) FROM outbox_messages
 		WHERE topic = $1 AND lower(payload->>'email') = lower($2)`,
-		outbox.TopicEmailVerify, u.Email).Scan(&messages); err != nil {
+		outbox.TopicEmailVerify.Name(), u.Email).Scan(&messages); err != nil {
 		t.Fatalf("count queued verification links: %v", err)
 	}
 	if messages != 1 {
