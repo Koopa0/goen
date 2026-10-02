@@ -22,10 +22,10 @@ import (
 
 func terminalNotice(t *testing.T, id uuid.UUID, want ordernotice.Kind) {
 	t.Helper()
-	terminalNoticeRefunded(t, id, want, false)
+	assertTerminalNotice(t, id, want, false)
 }
 
-func terminalNoticeRefunded(t *testing.T, id uuid.UUID, want ordernotice.Kind, wantRefunded bool) {
+func assertTerminalNotice(t *testing.T, id uuid.UUID, want ordernotice.Kind, wantRefunded bool) {
 	t.Helper()
 	var payload []byte
 	if err := pool.QueryRow(t.Context(), `SELECT payload FROM outbox_messages WHERE topic=$1 AND dedupe_key=$2`, outbox.TopicOrderTerminal, id.String()+":"+string(want)).Scan(&payload); err != nil {

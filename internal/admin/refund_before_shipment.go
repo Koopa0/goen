@@ -224,12 +224,12 @@ func recordStaffCancellation(
 	}
 	// The cancellation is admitted only once the refund settled, so what went
 	// back is read here rather than assumed.
-	refunded, err := q.SettledRefundsForOrder(ctx, number)
+	refundedCents, err := q.SettledRefundsForOrder(ctx, number)
 	if err != nil {
 		return fmt.Errorf("read settled refunds for %s: %w", number, err)
 	}
 	return ordernotice.Enqueue(ctx, q, ordernotice.Message{
-		OrderID: orderID, Kind: ordernotice.CancelledByStaff, Refunded: refunded > 0,
+		OrderID: orderID, Kind: ordernotice.CancelledByStaff, Refunded: refundedCents > 0,
 	})
 }
 

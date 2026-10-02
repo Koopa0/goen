@@ -28,9 +28,8 @@ const (
 type OrderTerminal struct {
 	OrderID uuid.UUID    `json:"order_id"`
 	Kind    TerminalKind `json:"kind"`
-	// Refunded says money may have reached the provider for this unpaid order
-	// and has been or will be returned. Absent from an older producer, it reads
-	// false.
+	// Refunded is ordernotice.Message.Refunded. Absent from an older producer,
+	// it reads false.
 	Refunded bool `json:"refunded"`
 }
 
