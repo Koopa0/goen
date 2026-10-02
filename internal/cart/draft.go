@@ -43,7 +43,7 @@ type checkoutDraft struct {
 	District     string       `json:"district,omitempty"`
 	Street       string       `json:"street,omitempty"`
 	Note         string       `json:"note,omitempty"`
-	Chain        pickup.Chain `json:"brand,omitempty"`
+	Chain        pickup.Chain `json:"chain,omitempty"`
 	Shipping     string       `json:"shipping,omitempty"`
 	SavedAddress string       `json:"saved_address,omitempty"`
 	InvoiceType  string       `json:"invoice_type,omitempty"`
