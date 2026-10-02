@@ -1976,9 +1976,11 @@ func TestRawAndDirectAccountWritesRespectRenderedBounds(t *testing.T) {
 		"street": {"松高路 1 號"},
 	}
 	address := post("/account/addresses", validAddress, h.AddAddress)
-	if address.Code != http.StatusSeeOther || address.Header().Get("Location") != "/account?address=invalid" {
-		t.Errorf("overlong raw address = %d Location %q, want 303 invalid",
-			address.Code, address.Header().Get("Location"))
+	if address.Code != http.StatusUnprocessableEntity ||
+		!strings.Contains(address.Body.String(), `value="王小明"`) ||
+		!strings.Contains(address.Body.String(), `aria-invalid="true"`) {
+		t.Errorf("overlong raw address = %d, want 422 keeping the typed name and marking the refused field",
+			address.Code)
 	}
 	directAddress := &account.Address{
 		Label: "家", Name: "王小明", Phone: "0912345678", PostalCode: "110",

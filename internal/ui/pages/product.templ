@@ -331,6 +331,11 @@ templ productBuy(v *ProductView) {
 				<span>{ i18n.T(ctx, i18n.KeyChooseBeforeAdding) }</span>
 			</p>
 		}
+		if v.NotifyUnavailable() {
+			@components.Notice(components.NoticeProps{Tone: components.ToneDanger, ID: "notify-unavailable"}) {
+				{ i18n.T(ctx, i18n.KeyRestockUnavailable) }
+			}
+		}
 		@productAddForm(v)
 		if v.SoldOut() {
 			@productNotifyForm(v)
@@ -511,7 +516,7 @@ templ productNotifyForm(v *ProductView) {
 					{ i18n.T(ctx, i18n.KeyFieldEmail) }
 				}
 				@components.Input(components.FieldProps{
-					ID: "notify-email", Name: "email", Type: "email",
+					ID: "notify-email", Name: "email", Type: "email", Value: v.NotifyEmail,
 					Invalid: v.NotifyRefused(), Describes: "notify-email-error",
 					Attrs: templ.Attributes{
 						"required": true, "maxlength": "254", "autocomplete": "email",
