@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
@@ -218,7 +219,7 @@ func whyRevokeMatchedNothing(ctx context.Context, q *db.Queries, target uuid.UUI
 		return fmt.Errorf("read staff: %w", err)
 	}
 	for i := range rows {
-		if rows[i].ID == target && rows[i].Role == "admin" {
+		if rows[i].ID == target && account.Role(rows[i].Role) == account.RoleAdmin {
 			return ErrLastAdmin
 		}
 	}

@@ -15,7 +15,7 @@ type knownAllowance struct {
 	ID          uuid.UUID
 	Number      string
 	AmountCents int64
-	Status      string
+	Status      DocumentStatus
 	IssuedAt    time.Time
 	Lines       []Line
 }
@@ -56,7 +56,7 @@ func allowanceKnownFactsMatch(
 	invoiceNumber string, local knownAllowance, remote AllowanceLookup,
 ) bool {
 	return remote.InvoiceNumber == invoiceNumber &&
-		remote.Document.Kind == "allowance" &&
+		remote.Document.Kind == DocumentAllowance &&
 		remote.Document.Number == local.Number &&
 		remote.Document.AmountCents == local.AmountCents &&
 		remote.Document.IssuedAt.Equal(local.IssuedAt) &&
@@ -68,7 +68,7 @@ func allowanceKnownFactsMatch(
 // active versus invalid into distinct atomic settlement doors.
 func allowanceRequestFactsMatch(expected AllowanceRequest, remote AllowanceLookup) bool {
 	return remote.InvoiceNumber == expected.InvoiceNumber &&
-		remote.Document.Kind == "allowance" &&
+		remote.Document.Kind == DocumentAllowance &&
 		remote.Document.AmountCents == expected.AmountCents &&
 		slices.Equal(remote.Document.Lines, expected.Lines)
 }

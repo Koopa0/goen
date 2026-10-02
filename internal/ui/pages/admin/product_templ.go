@@ -5351,13 +5351,13 @@ func productPublishing(v ProductView) templ.Component {
 				})
 				templ_7745c5c3_Err = components.Button(components.ButtonProps{
 					ButtonStyle: components.ButtonStyleOutline,
-					Attrs:       templ.Attributes{"name": "status", "value": "active"},
+					Attrs:       templ.Attributes{"name": "status", "value": string(pages.ProductActive)},
 				}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var292), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
-			if v.Status == "active" {
+			if v.Status == pages.ProductActive {
 				templ_7745c5c3_Var294 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 					templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 					templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
@@ -5383,13 +5383,13 @@ func productPublishing(v ProductView) templ.Component {
 				})
 				templ_7745c5c3_Err = components.Button(components.ButtonProps{
 					ButtonStyle: components.ButtonStyleOutline,
-					Attrs:       templ.Attributes{"name": "status", "value": "draft"},
+					Attrs:       templ.Attributes{"name": "status", "value": string(pages.ProductDraft)},
 				}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var294), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
-			if v.Status != "archived" {
+			if v.Status != pages.ProductArchived {
 				templ_7745c5c3_Var296 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 					templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 					templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
@@ -5415,7 +5415,7 @@ func productPublishing(v ProductView) templ.Component {
 				})
 				templ_7745c5c3_Err = components.Button(components.ButtonProps{
 					ButtonStyle: components.ButtonStyleGhost,
-					Attrs:       templ.Attributes{"name": "status", "value": "archived"},
+					Attrs:       templ.Attributes{"name": "status", "value": string(pages.ProductArchived)},
 				}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var296), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err

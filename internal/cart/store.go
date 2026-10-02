@@ -17,6 +17,7 @@ import (
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/carrier"
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/destination"
 	"github.com/koopa0/goen/internal/i18n"
 	invoicepkg "github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/pickup"
@@ -130,7 +131,7 @@ func addCartItem(
 		}
 		return false, fmt.Errorf("read variant: %w", err)
 	}
-	if !v.IsActive || v.Status != "active" || v.SellableQuantity <= 0 {
+	if !v.IsActive || pages.ProductStatus(v.Status) != pages.ProductActive || v.SellableQuantity <= 0 {
 		return false, ErrUnavailable
 	}
 	capacity, err := q.CartLineCapacity(ctx, db.CartLineCapacityParams{
@@ -190,7 +191,7 @@ func setCartLineQuantity(
 		}
 		return false, fmt.Errorf("read variant: %w", err)
 	}
-	if !v.IsActive || v.Status != "active" || v.SellableQuantity <= 0 {
+	if !v.IsActive || pages.ProductStatus(v.Status) != pages.ProductActive || v.SellableQuantity <= 0 {
 		return false, ErrUnavailable
 	}
 	requested := quantity
@@ -288,7 +289,7 @@ func (s *Store) View(ctx context.Context, cartID uuid.UUID) (pages.CartView, err
 			ImageSrcset:  assets.ProductImageSrcsetAt(r.ImageKey, int(r.ImageWidth)),
 			ImageAlt:     r.ImageAlt,
 			CompareCents: r.CompareAtPriceCents.Int64,
-			Unavailable:  r.ProductStatus != "active" || !r.IsActive || r.SellableQuantity <= 0,
+			Unavailable:  pages.ProductStatus(r.ProductStatus) != pages.ProductActive || !r.IsActive || r.SellableQuantity <= 0,
 		}
 		line.Short = !line.Unavailable && r.Quantity > r.SellableQuantity
 
@@ -592,7 +593,7 @@ func lockCheckoutTerms(
 
 	// The destination is re-derived from the method just read and the address is
 	// trimmed to it, the way the shipping fee is recomputed rather than trusted.
-	to, ok := DestinationFor(ship.DestinationKind)
+	to, ok := destination.For(ship.DestinationKind)
 	if !ok {
 		return nil, fmt.Errorf("shipping method %s has an unknown destination %q",
 			ship.Code, ship.DestinationKind)
@@ -1039,7 +1040,7 @@ func (s *Store) Order(ctx context.Context, number string) (pages.OrderView, erro
 	}
 	for _, e := range events {
 		view.Timeline = append(view.Timeline, pages.OrderEvent{
-			Kind: e.Kind, Note: e.Note,
+			Kind: pages.OrderEventKind(e.Kind), Note: e.Note,
 			At: shoptime.Minute(e.OccurredAt),
 		})
 	}
@@ -1083,8 +1084,8 @@ func (s *Store) orderInvoice(ctx context.Context, orderID uuid.UUID) (*pages.Ord
 	for i := range docs {
 		d := &docs[i]
 		out.Documents = append(out.Documents, pages.OrderInvoiceDocument{
-			Allowance: d.Kind == "allowance", Number: d.Number, RandomCode: d.ProviderRef,
-			AmountCents: d.AmountCents, Voided: d.Status == "voided",
+			Allowance: invoicepkg.DocumentKind(d.Kind) == invoicepkg.DocumentAllowance, Number: d.Number, RandomCode: d.ProviderRef,
+			AmountCents: d.AmountCents, Voided: invoicepkg.DocumentStatus(d.Status) == invoicepkg.DocumentVoided,
 			IssuedOn: shoptime.Day(d.IssuedAt),
 		})
 	}
@@ -1133,7 +1134,7 @@ func subtotalOf(lines []db.CartLinesRow) (int64, error) {
 	var subtotal int64
 	for i := range lines {
 		l := &lines[i]
-		if l.ProductStatus != "active" || !l.IsActive || l.Quantity > l.SellableQuantity {
+		if pages.ProductStatus(l.ProductStatus) != pages.ProductActive || !l.IsActive || l.Quantity > l.SellableQuantity {
 			return 0, ErrUnavailable
 		}
 		var err error

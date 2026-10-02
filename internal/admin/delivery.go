@@ -11,6 +11,7 @@ import (
 
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/destination"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/pickup"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -65,7 +66,7 @@ func (s *Store) CorrectDelivery(ctx context.Context, number string, d *Delivery)
 		case pages.FulfillmentPending, pages.FulfillmentPicking, pages.FulfillmentCancelled:
 			// Still correctable; UpdateOrderDelivery's WHERE clause is the authority.
 		}
-		to, ok := cart.DestinationFor(row.DestinationKind)
+		to, ok := destination.For(row.DestinationKind)
 		if !ok {
 			return fmt.Errorf("order %s ships by a method with an unknown destination %q",
 				number, row.DestinationKind)
@@ -96,7 +97,7 @@ func (s *Store) CorrectDelivery(ctx context.Context, number string, d *Delivery)
 	})
 }
 
-func validatedDelivery(d *Delivery, to cart.Destination) (*cart.Address, error) {
+func validatedDelivery(d *Delivery, to destination.Kind) (*cart.Address, error) {
 	addr := &cart.Address{
 		To: to, Email: d.Email, Name: d.Recipient, Phone: d.Phone,
 		PostalCode: d.PostalCode, City: d.City, District: d.District, Street: d.Street,
@@ -120,7 +121,7 @@ func validatedDelivery(d *Delivery, to cart.Destination) (*cart.Address, error) 
 // so a waiter compares against the correction before it and not an earlier
 // snapshot. A pickup order has no postcode and no zone to leave.
 func checkDeliveryZone(ctx context.Context, q *db.Queries, orderID uuid.UUID, addr *cart.Address) error {
-	if addr.To != cart.ToAddress {
+	if addr.To != destination.Address {
 		return nil
 	}
 	cmp, err := q.DeliveryZoneComparison(ctx, db.DeliveryZoneComparisonParams{

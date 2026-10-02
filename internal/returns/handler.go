@@ -202,7 +202,7 @@ func viewOf(ctx context.Context, o *Order, req *Request, errMsg string) pages.Re
 	for i := range o.Existing {
 		e := &o.Existing[i]
 		v.Existing = append(v.Existing, pages.ReturnsExisting{
-			StatusText: StatusLabel(ctx, ReturnStatus(e.Status)), Reason: e.Reason,
+			StatusText: StatusLabel(ctx, Status(e.Status)), Reason: e.Reason,
 			Resolution: e.Resolution, CreatedAt: e.CreatedAt, DecidedAt: e.DecidedAt,
 		})
 	}

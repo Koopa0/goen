@@ -14,6 +14,7 @@ import (
 
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
@@ -109,7 +110,7 @@ func (s *Store) Products(ctx context.Context, after ...string) (admin.ProductsVi
 	for i := range rows {
 		r := &rows[i]
 		view.Rows = append(view.Rows, admin.Product{
-			Slug: r.Slug, Name: r.Name, Status: r.Status,
+			Slug: r.Slug, Name: r.Name, Status: pages.ProductStatus(r.Status),
 			StatusText: ProductStatusLabel(ctx, r.Status),
 			Brand:      r.Brand, Category: r.Category,
 			Variants: r.Variants, FromCents: r.FromCents,
@@ -130,7 +131,7 @@ func (s *Store) Product(ctx context.Context, slug string) (admin.ProductView, er
 		Description: p.Description, WarrantyNote: p.WarrantyNote,
 		NameEn: p.NameEn, SummaryEn: p.SummaryEn, DescriptionEn: p.DescriptionEn,
 		WarrantyMonths: p.WarrantyMonths,
-		Status:         p.Status, StatusText: ProductStatusLabel(ctx, p.Status),
+		Status:         pages.ProductStatus(p.Status), StatusText: ProductStatusLabel(ctx, p.Status),
 		CategoryID: p.CategoryID.String(),
 	}
 	view.BrandID = productBrandValue(p.BrandID)
