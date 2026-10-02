@@ -42,6 +42,7 @@ const (
 	ActionPublishProduct           = actionPublishProduct
 	ActionReconcilePayment         = actionReconcilePayment
 	ActionRepriceVariant           = actionRepriceVariant
+	ActionSetCampaignWindow        = actionSetCampaignWindow
 	ActionUpdateProduct            = actionUpdateProduct
 )
 

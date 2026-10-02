@@ -909,7 +909,7 @@ func TestSearchFindsAProductByItsEnglishName(t *testing.T) {
 	s := catalog.NewStore(pool)
 	ctx := t.Context()
 
-	view, err := s.Search(ctx, "%case%", 1)
+	view, err := s.Search(ctx, "%case%", catalog.SortRelevance, 1)
 	if err != nil {
 		t.Fatalf("Search: %v", err)
 	}
@@ -1141,7 +1141,7 @@ func TestOnlyTheDepartmentsThatCompareCarryTheBox(t *testing.T) {
 		{"Pixelight 9 Pro", "pixelight-9-pro", true},
 		{"山茶十二月", "fernway-mountain-tea-seasons", false},
 	} {
-		view, err := s.Search(ctx, catalog.SearchPattern(c.query), 1)
+		view, err := s.Search(ctx, catalog.SearchPattern(c.query), catalog.SortRelevance, 1)
 		if err != nil {
 			t.Fatalf("search %q: %v", c.query, err)
 		}

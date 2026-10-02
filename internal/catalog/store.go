@@ -46,7 +46,13 @@ func (s *Store) Listing(ctx context.Context, slug string, f Filters) (pages.List
 		return pages.ListingView{}, fmt.Errorf("read descendants of %q: %w", slug, err)
 	}
 
-	brands, err := s.q.CategoryBrands(ctx, ids)
+	brands, err := s.q.CategoryBrands(ctx, db.CategoryBrandsParams{
+		CategoryIds:    ids,
+		FilterVariants: f.VariantScoped(),
+		InStockOnly:    f.InStockOnly,
+		MinPrice:       f.MinPrice,
+		MaxPrice:       f.MaxPrice,
+	})
 	if err != nil {
 		return pages.ListingView{}, fmt.Errorf("read brands for %q: %w", slug, err)
 	}
@@ -75,7 +81,7 @@ func (s *Store) Listing(ctx context.Context, slug string, f Filters) (pages.List
 		InStockOnly:    f.InStockOnly,
 		MinPrice:       f.MinPrice,
 		MaxPrice:       f.MaxPrice,
-		Sort:           string(f.Sort),
+		Sort:           f.Sort.Param(),
 		PageSize:       PageSize,
 		PageOffset:     f.Offset(),
 	})
@@ -136,13 +142,15 @@ func (s *Store) Listing(ctx context.Context, slug string, f Filters) (pages.List
 	return view, nil
 }
 
-// Search reads one page of search results. The pattern is SearchPattern's.
-func (s *Store) Search(ctx context.Context, pattern string, page int) (pages.SearchView, error) {
+// Search reads one page of search results. The pattern is SearchPattern's, and
+// sort is ParseSort's with SortRelevance as the unchosen order.
+func (s *Store) Search(ctx context.Context, pattern string, sort Sort, page int) (pages.SearchView, error) {
 	terms, exact := SearchTerms(pattern)
 	rows, err := s.q.SearchProducts(ctx, db.SearchProductsParams{
 		Locale:       string(i18n.FromContext(ctx)),
 		Patterns:     terms,
 		ExactPattern: exact,
+		Sort:         sort.Param(),
 		PageSize:     PageSize,
 		PageOffset:   offsetFor(page),
 	})
@@ -163,7 +171,29 @@ func (s *Store) Search(ctx context.Context, pattern string, page int) (pages.Sea
 		Total:    total,
 		Page:     max(page, 1),
 		PageSize: PageSize,
+		Sort:     sort.Param(),
 	}, nil
+}
+
+// NewestProducts reads the n most recently published active products.
+func (s *Store) NewestProducts(ctx context.Context, n int32) ([]pages.ProductTile, error) {
+	rows, err := s.q.NewestProducts(ctx, db.NewestProductsParams{
+		Locale:   string(i18n.FromContext(ctx)),
+		PageSize: n,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("read newest products: %w", err)
+	}
+	offers, err := s.comparableCategories(ctx)
+	if err != nil {
+		return nil, err
+	}
+	// Same columns in the same order as SearchProducts, so one tile builder serves both.
+	asSearch := make([]db.SearchProductsRow, len(rows))
+	for i := range rows {
+		asSearch[i] = db.SearchProductsRow(rows[i])
+	}
+	return searchTiles(asSearch, offers), nil
 }
 
 func childCrumbs(rows []db.CategoryChildrenRow) []pages.Crumb {

@@ -142,11 +142,21 @@ SELECT json_build_object('Number', (pv.stock_quantity - pv.safety_stock), 'Name'
     p.slug,
     p.name AS product_name,
     p.status AS product_status,
-    b.name AS brand
+    b.name AS brand,
+    ARRAY(SELECT localized_name(v.value, v.value_en, @locale::text)
+          FROM variant_option_values vov
+          JOIN product_options o ON o.id = vov.option_id
+          JOIN product_option_values v ON v.id = vov.option_value_id
+          WHERE vov.variant_id = pv.id
+          ORDER BY o.position, o.id)::text[] AS option_values
 FROM product_variants pv
 JOIN products p ON p.id = pv.product_id
 JOIN brands b ON b.id = p.brand_id
 WHERE (@low_only::boolean = false OR pv.stock_quantity <= pv.safety_stock)
+AND (@escaped_term::text = ''
+       OR pv.sku ILIKE '%' || @escaped_term::text || '%'
+       OR p.name ILIKE '%' || @escaped_term::text || '%'
+       OR p.name_en ILIKE '%' || @escaped_term::text || '%')
 AND (NOT @has_cursor::boolean OR ((pv.stock_quantity - pv.safety_stock) > @after_number::integer)
        OR ((pv.stock_quantity - pv.safety_stock) = @after_number::integer AND p.name > @after_name::text)
        OR ((pv.stock_quantity - pv.safety_stock) = @after_number::integer AND p.name = @after_name::text AND pv.position > @after_position::integer)
@@ -961,6 +971,36 @@ SELECT coalesce(c.image_key, '')::text AS image_key,
 FROM sale_campaigns c
 LEFT JOIN media_objects m ON m.digest = c.image_key
 WHERE c.slug = @slug::text;
+
+-- name: AdminCampaign :one
+SELECT c.title, c.starts_at, c.ends_at, c.is_active,
+       (c.is_active AND c.starts_at <= now() AND c.ends_at > now())::boolean AS is_running
+FROM sale_campaigns c
+WHERE c.slug = @slug::text;
+
+-- Locked so a concurrent edit cannot leave the audit row with a stale Before.
+-- name: AdminCampaignWindowForUpdate :one
+SELECT starts_at, ends_at FROM sale_campaigns WHERE slug = @slug::text FOR UPDATE;
+
+-- name: SetCampaignWindow :execrows
+UPDATE sale_campaigns
+SET starts_at = @starts_at::timestamptz, ends_at = @ends_at::timestamptz
+WHERE slug = @slug::text;
+
+-- Archived products are left out: a campaign on one shows nothing.
+-- name: AdminCampaignProductSearch :many
+SELECT p.slug, localized_name(p.name, p.name_en, @locale::text) AS name
+FROM products p
+WHERE p.status <> 'archived'
+  AND (p.name ILIKE '%' || @escaped_term::text || '%'
+       OR p.name_en ILIKE '%' || @escaped_term::text || '%'
+       OR p.slug ILIKE '%' || @escaped_term::text || '%')
+  AND NOT EXISTS (SELECT 1
+                  FROM sale_campaign_products cp
+                  JOIN sale_campaigns c ON c.id = cp.campaign_id
+                  WHERE c.slug = @campaign::text AND cp.product_id = p.id)
+ORDER BY p.name, p.id
+LIMIT @row_limit::integer;
 
 -- name: SetCampaignTone :execrows
 UPDATE sale_campaigns SET tone = @tone::text WHERE slug = @slug::text;

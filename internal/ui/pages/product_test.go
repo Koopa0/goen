@@ -215,7 +215,7 @@ func TestControlsThatSwapTheirOwnRegionKeepAStableID(t *testing.T) {
 
 func TestTheReviewFormWarnsBeforeSubmittingAndRefusesToTheForm(t *testing.T) {
 	t.Parallel()
-	view := ProductView{Slug: "sample-product", Name: "Sample", SignedIn: true, CanReview: true}
+	view := ProductView{Slug: "sample-product", Name: "Sample", SignedIn: true, ReviewStanding: ReviewOpen}
 	var body strings.Builder
 	if err := Product(ProductMeta(&view), &view).Render(i18n.WithLocale(t.Context(), i18n.ZhHant), &body); err != nil {
 		t.Fatal(err)
@@ -228,6 +228,47 @@ func TestTheReviewFormWarnsBeforeSubmittingAndRefusesToTheForm(t *testing.T) {
 		if !strings.Contains(markup, want) {
 			t.Errorf("the review form lacks %s", want)
 		}
+	}
+}
+
+func TestTheReviewFormIsReplacedUntilTheProductArrives(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	view := ProductView{Slug: "sample-product", Name: "Sample", SignedIn: true, ReviewStanding: ReviewNotDelivered}
+	var body strings.Builder
+	if err := Product(ProductMeta(&view), &view).Render(ctx, &body); err != nil {
+		t.Fatal(err)
+	}
+	markup := body.String()
+	if strings.Contains(markup, `id="write-review"`) {
+		t.Error("a customer who has not received the product is offered the review form")
+	}
+	if !strings.Contains(markup, i18n.T(ctx, i18n.KeyReviewAfterDelivery)) {
+		t.Error("the page does not say when they can review")
+	}
+}
+
+func TestTheRatingIsAKeyboardOperableStarGroupAndTheHintStatesTheMinimum(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	view := ProductView{Slug: "sample-product", Name: "Sample", SignedIn: true, ReviewStanding: ReviewOpen}
+	var body strings.Builder
+	if err := Product(ProductMeta(&view), &view).Render(ctx, &body); err != nil {
+		t.Fatal(err)
+	}
+	markup := body.String()
+	if got := strings.Count(markup, `name="rating"`); got != 5 {
+		t.Errorf("%d rating radios, want 5 sharing one name", got)
+	}
+	if strings.Count(markup, `type="radio"`) != 5 {
+		t.Error("the stars are not radio inputs, so the arrow keys would not move the choice")
+	}
+	if !strings.Contains(markup, `id="review-body-hint"`) ||
+		!strings.Contains(markup, `aria-describedby="review-body-hint"`) {
+		t.Error("the minimum length is not stated in a hint the field points at")
+	}
+	if !strings.Contains(markup, view.ReviewBodyHint(ctx)) {
+		t.Error("the hint text is missing")
 	}
 }
 

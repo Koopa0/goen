@@ -66,10 +66,22 @@ WITH RECURSIVE d AS (
 )
 SELECT d.id FROM d;
 
--- Counted over products that would appear with no other filter applied, so a
--- brand offering nothing is not listed.
+-- Every brand with an active product in the category, counted over the products
+-- the other filters leave: a brand's count is what choosing it would show, brand
+-- filters aside. A brand the other filters empty stays listed at zero, so a
+-- chosen one can always be unchosen.
 -- name: CategoryBrands :many
-SELECT b.id, b.slug, b.name, count(*)::bigint AS product_count
+SELECT b.id, b.slug, b.name,
+       (count(*) FILTER (
+           WHERE NOT @filter_variants::boolean
+              OR EXISTS (
+                  SELECT 1 FROM product_variants v
+                  WHERE v.product_id = p.id AND v.is_active
+                    AND (NOT @in_stock_only::boolean OR v.stock_quantity > v.safety_stock)
+                    AND (@min_price::bigint = 0 OR v.price_cents >= @min_price::bigint)
+                    AND (@max_price::bigint = 0 OR v.price_cents <= @max_price::bigint)
+              )
+       ))::bigint AS product_count
 FROM products p
 JOIN brands b ON b.id = p.brand_id
 WHERE p.status = 'active'
@@ -260,17 +272,24 @@ WHERE p.status = 'active'
       )
   )
 ORDER BY
+    -- A chosen sort leads and relevance breaks its ties; the default is
+    -- relevance alone, which is the zero value of @sort.
+    CASE WHEN @sort::text = 'price_asc'  THEN mv.price_cents END ASC,
+    CASE WHEN @sort::text = 'price_desc' THEN mv.price_cents END DESC,
+    CASE WHEN @sort::text = 'rating'     THEN coalesce(rv.rating, 0) END DESC,
     -- Field relevance is explicit; repeated words, sales and ratings do not change it.
-    -- The exact tiers compare the whole query; a name that holds every term
-    -- leads one that holds only some, then category, SKU, brand and summary
-    -- follow on any term.
+    -- The exact tiers compare the whole query; a name that holds the whole query
+    -- leads one that holds every term in another order, which leads one that
+    -- holds only some, then category, SKU, brand and summary follow on any term.
     CASE
         WHEN EXISTS (
             SELECT 1 FROM product_variants exact_sku
             WHERE exact_sku.product_id = p.id AND exact_sku.is_active
               AND exact_sku.sku ILIKE @exact_pattern::text
-        ) THEN 8
-        WHEN p.name ILIKE @exact_pattern::text OR coalesce(p.name_en, '') ILIKE @exact_pattern::text THEN 7
+        ) THEN 9
+        WHEN p.name ILIKE @exact_pattern::text OR coalesce(p.name_en, '') ILIKE @exact_pattern::text THEN 8
+        WHEN p.name ILIKE '%' || @exact_pattern::text || '%'
+             OR coalesce(p.name_en, '') ILIKE '%' || @exact_pattern::text || '%' THEN 7
         WHEN NOT EXISTS (
             SELECT 1 FROM unnest(@patterns::text[]) AS t(pattern)
             WHERE NOT (p.name ILIKE t.pattern OR coalesce(p.name_en, '') ILIKE t.pattern)
@@ -296,6 +315,54 @@ ORDER BY
     END DESC,
     p.published_at DESC, p.id DESC
 LIMIT @page_size::integer OFFSET @page_offset::integer;
+
+-- The newest active products with a buyable price, for a page with nothing else to show.
+-- name: NewestProducts :many
+SELECT
+    p.slug,
+    p.category_id,
+    localized_name(p.name, p.name_en, @locale::text) AS name,
+    coalesce(localized_name(p.summary, p.summary_en, @locale::text), '')::text AS summary,
+    b.name AS brand,
+    mv.price_cents AS min_price_cents,
+    -- Whether that price is the cheapest of several, so a card can say "from"
+    -- rather than state one variant's price as the product's.
+    EXISTS (
+        SELECT 1 FROM product_variants dv
+        WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
+    ) AS price_varies,
+    mv.compare_at_price_cents,
+    coalesce(rv.rating, 0)::float8 AS rating,
+    coalesce(rv.n, 0)::bigint AS rating_count,
+    EXISTS (
+        SELECT 1 FROM product_variants sv
+        WHERE sv.product_id = p.id AND sv.is_active
+          AND sv.stock_quantity > sv.safety_stock
+    ) AS in_stock,
+    coalesce(img.storage_key, '') AS image_key,
+    coalesce(localized_name(img.alt_text, img.alt_text_en, @locale::text), '')::text AS image_alt,
+    coalesce(img.width, 0)::integer AS image_width,
+    coalesce(img.height, 0)::integer AS image_height
+FROM products p
+JOIN brands b ON b.id = p.brand_id
+JOIN LATERAL (
+    SELECT price_cents, compare_at_price_cents
+    FROM product_variants
+    WHERE product_id = p.id AND is_active
+    ORDER BY (stock_quantity > safety_stock) DESC, price_cents
+    LIMIT 1
+) mv ON true
+LEFT JOIN LATERAL (
+    SELECT avg(rating)::float8 AS rating, count(*) AS n
+    FROM visible_reviews WHERE product_id = p.id
+) rv ON true
+LEFT JOIN LATERAL (
+    SELECT storage_key, alt_text, alt_text_en, width, height
+    FROM product_images WHERE product_id = p.id ORDER BY position LIMIT 1
+) img ON true
+WHERE p.status = 'active'
+ORDER BY p.published_at DESC, p.id DESC
+LIMIT @page_size::integer;
 
 -- The same predicate as SearchProducts, and it has to stay the same.
 -- name: SearchProductsCount :one

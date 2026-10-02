@@ -83,11 +83,11 @@ func TestSearchSKUsRankAndPaginateWithoutDuplicateProducts(t *testing.T) {
 	want = append(want, brandSlug, summarySlug, specSlug)
 
 	store := catalog.NewStore(tx)
-	first, err := store.Search(ctx, catalog.SearchPattern(token), 1)
+	first, err := store.Search(ctx, catalog.SearchPattern(token), catalog.SortRelevance, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := store.Search(ctx, catalog.SearchPattern(token), 2)
+	second, err := store.Search(ctx, catalog.SearchPattern(token), catalog.SortRelevance, 2)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -173,7 +173,7 @@ func TestRetiredVariantsNeverLiftARankedSKUMatch(t *testing.T) {
 	retiredExact := insertSKUFixture(ctx, t, tx, skuFixture{name: generic, summary: token, skus: []string{"CURRENT-" + strings.ToUpper(uuid.NewString())}, retiredSKUs: []string{token}}, 1, "active")
 	retiredPartial := insertSKUFixture(ctx, t, tx, skuFixture{name: generic, summary: token, skus: []string{"CURRENT-" + strings.ToUpper(uuid.NewString())}, retiredSKUs: []string{token + "-OLD"}}, 2, "active")
 	brand := insertSKUFixture(ctx, t, tx, skuFixture{name: generic, brand: token, skus: []string{"CURRENT-" + strings.ToUpper(uuid.NewString())}}, 3, "active")
-	view, err := catalog.NewStore(tx).Search(ctx, catalog.SearchPattern(token), 1)
+	view, err := catalog.NewStore(tx).Search(ctx, catalog.SearchPattern(token), catalog.SortRelevance, 1)
 	if err != nil {
 		t.Fatal(err)
 	}

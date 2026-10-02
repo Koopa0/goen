@@ -23,7 +23,7 @@ func (a Answer) Who(ctx context.Context) string {
 	if a.Author == "" {
 		return i18n.T(ctx, i18n.KeyErasedAccount)
 	}
-	return a.Author
+	return maskedName(i18n.FromContext(ctx), a.Author)
 }
 
 // Question is one question and everything said in reply.
@@ -39,7 +39,7 @@ func (q Question) Who(ctx context.Context) string {
 	if q.Asker == "" {
 		return i18n.T(ctx, i18n.KeyErasedAccount)
 	}
-	return q.Asker
+	return maskedName(i18n.FromContext(ctx), q.Asker)
 }
 
 // Answered reports whether anybody has replied.

@@ -176,14 +176,15 @@ SELECT id FROM products
 WHERE slug = @slug::text AND status = 'active';
 
 -- order_is_committed, never "EXISTS a succeeded payment": a store-credit-funded
--- order is committed with no payment row at all. product_id is the durable line
--- identity and survives deletion of the purchased variant.
--- name: HasBoughtProduct :one
+-- order is committed with no payment row at all, and the verified-purchase
+-- trigger asks the same question. product_id survives deletion of the variant.
+-- name: HasDeliveredProduct :one
 SELECT EXISTS (
     SELECT 1
     FROM orders o
     JOIN order_lines ol ON ol.order_id = o.id
     WHERE o.user_id = @user_id AND ol.product_id = @product_id
+      AND o.fulfillment_status IN ('delivered', 'completed')
       AND order_is_committed(o.id)
 );
 
@@ -195,10 +196,11 @@ SELECT EXISTS (
     WHERE r.user_id = @user_id AND r.product_id = @product_id
 );
 
--- product_reviews_verified_is_real refuses a false is_verified_purchase.
+-- true is safe because only a customer who received the product reaches this
+-- insert; product_reviews_verified_is_real refuses the claim otherwise.
 -- name: CreateReview :execrows
 INSERT INTO product_reviews (product_id, user_id, rating, title, body, is_verified_purchase)
-SELECT p.id, @user_id, @rating::smallint, nullif(@title::text, ''), @body::text, @verified::boolean
+SELECT p.id, @user_id, @rating::smallint, nullif(@title::text, ''), @body::text, true
 FROM products p WHERE p.slug = @slug::text AND p.status = 'active';
 
 -- Idempotent through the partial unique index stock_notifications_pending_key, so

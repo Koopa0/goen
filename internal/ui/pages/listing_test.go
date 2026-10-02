@@ -268,7 +268,7 @@ func TestAProductWithNoReviewsCanReceiveItsFirst(t *testing.T) {
 	fresh := ProductView{
 		Name: "Newly Listed", Brand: "Meridian", Slug: "newly-listed",
 		SelectionOK: true, Exact: true, Sellable: true, AnySellable: true,
-		PriceCents: 100000, SignedIn: true, CanReview: true, RatingCount: 0,
+		PriceCents: 100000, SignedIn: true, ReviewStanding: ReviewOpen, RatingCount: 0,
 	}
 	html := renderToString(t, Product(ProductMeta(&fresh), &fresh))
 
@@ -558,5 +558,87 @@ func TestAPartialListingNeverTakesFocusAndTheLatestChangeWins(t *testing.T) {
 		if !strings.Contains(whole, want) && !strings.Contains(renderToString(t, Listing(layouts.Page{}, ListingView{Slug: "a", Name: "A"})), want) {
 			t.Errorf("missing %q", want)
 		}
+	}
+}
+
+// A search offers the listing's sort control, best match first, and a page of
+// results keeps the chosen order in every pager link.
+func TestSearchOffersTheListingSortAndKeepsItAcrossPages(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	view := SearchView{Query: "pro", Products: shelf(2), Total: 60, Page: 1, PageSize: 24, Sort: "price_asc"}
+	html := renderComponent(t, ctx, Search(SearchMeta(ctx, "pro"), view))
+	for _, want := range []string{
+		`hx-get="/search"`, `hx-target="#search-results"`, `<input type="hidden" name="q" value="pro">`,
+		`<select class="ui-select" id="sort" name="sort">`,
+		`<option value="">Best match</option>`, `<option value="price_asc" selected>Price, low to high</option>`,
+		`href="/search?q=pro&amp;sort=price_asc&amp;page=2"`,
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("the search lacks %q:\n%s", want, html)
+		}
+	}
+}
+
+// A search that found nothing offers the newest products besides the departments.
+func TestAnEmptySearchOffersTheNewestProducts(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	newest := shelf(2)
+	html := renderComponent(t, ctx, Search(SearchMeta(ctx, "zzqxv"), SearchView{Query: "zzqxv", Newest: newest}))
+	if !strings.Contains(html, `<h2 class="goen-listing__subhead">Newest products</h2>`) || !strings.Contains(html, newest[0].Name) {
+		t.Errorf("the empty search does not show the newest products:\n%s", html)
+	}
+	if strings.Contains(html, `name="sort"`) {
+		t.Error("an empty search offers a sort control with nothing to sort")
+	}
+}
+
+// Each applied filter links to the listing without that one filter and nothing
+// else, and names what it removes, because its glyph is only a cross.
+func TestEachAppliedFilterLinksToTheListingWithoutIt(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	view := ListingView{
+		Slug: "audio", Name: "Audio", Filtered: true, InStockOnly: true, MinPrice: 1000, MaxPrice: 5000,
+		Query: "brand=aurora&brand=nimbus&in_stock=1&max_price=50&min_price=10&sort=rating",
+		Brands: []FacetOption{
+			{Value: "aurora", Label: "Aurora", Selected: true},
+			{Value: "nimbus", Label: "Nimbus", Selected: true},
+		},
+	}
+	want := map[string]string{
+		"Remove “Aurora”":   "/c/audio?brand=nimbus&in_stock=1&max_price=50&min_price=10&sort=rating",
+		"Remove “Nimbus”":   "/c/audio?brand=aurora&in_stock=1&max_price=50&min_price=10&sort=rating",
+		"Remove “In stock”": "/c/audio?brand=aurora&brand=nimbus&max_price=50&min_price=10&sort=rating",
+		"Remove “10–50”":    "/c/audio?brand=aurora&brand=nimbus&in_stock=1&sort=rating",
+	}
+	chips := view.AppliedChips(ctx)
+	if len(chips) != len(want) {
+		t.Fatalf("%d chips, want %d: %+v", len(chips), len(want), chips)
+	}
+	for _, c := range chips {
+		if want[c.RemoveLabel] != c.Remove {
+			t.Errorf("%q links to %q, want %q", c.RemoveLabel, c.Remove, want[c.RemoveLabel])
+		}
+	}
+	html := renderComponent(t, ctx, Listing(ListingMeta(ctx, view), view))
+	if !strings.Contains(html, `aria-label="Remove “Aurora”"`) {
+		t.Error("the chip's remove link has no accessible name in the markup")
+	}
+}
+
+// The rail is not swapped, so a swapped response carries each brand's count on
+// its own; a whole-page response must not, or ids would repeat.
+func TestAPartialListingCarriesTheBrandCountsForTheRail(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	view := ListingView{Slug: "audio", Name: "Audio", Products: shelf(1), Total: 1, Brands: []FacetOption{{Value: "aurora", Label: "Aurora", Count: 3}}}
+	oob := `<span class="goen-filters__count" id="brand-count-aurora" hx-swap-oob="true">3</span>`
+	if html := renderComponent(t, AsPartial(ctx), Listing(ListingMeta(ctx, view), view)); !strings.Contains(html, oob) {
+		t.Errorf("a partial listing lacks the out-of-band count:\n%s", html)
+	}
+	if html := renderComponent(t, ctx, Listing(ListingMeta(ctx, view), view)); strings.Contains(html, "hx-swap-oob") {
+		t.Error("a whole-page listing carries out-of-band counts")
 	}
 }

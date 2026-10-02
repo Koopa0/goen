@@ -93,6 +93,13 @@ templ Listing(p layouts.Page, v ListingView) {
 					}
 				</div>
 			</div>
+			if isPartial(ctx) {
+				// The rail is not swapped, or the box the shopper just used would lose
+				// focus; its counts are, one by one, because they follow the filters.
+				for _, b := range v.Brands {
+					<span class="goen-filters__count" id={ "brand-count-" + b.Value } hx-swap-oob="true">{ b.CountText() }</span>
+				}
+			}
 		</div>
 	}
 }
@@ -138,7 +145,7 @@ templ listingFilters(v ListingView) {
 										checked?={ b.Selected }
 									/>
 									<span class="goen-filters__label">{ b.Label }</span>
-									<span class="goen-filters__count">{ b.CountText() }</span>
+									<span class="goen-filters__count" id={ "brand-count-" + b.Value }>{ b.CountText() }</span>
 								</label>
 							}
 						</div>
@@ -184,16 +191,7 @@ templ listingFilters(v ListingView) {
 						/>
 					</div>
 				</details>
-				<div class="goen-filters__field">
-					@components.Label(components.LabelProps{For: "sort"}) {
-						{ i18n.T(ctx, i18n.KeySort) }
-					}
-					<select class="ui-select" id="sort" name="sort">
-						for _, o := range v.SortOptions(ctx) {
-							<option value={ o.Value } selected?={ o.Selected }>{ o.Label }</option>
-						}
-					</select>
-				</div>
+				@sortField(v.SortOptions(ctx))
 				@components.Button(components.ButtonProps{
 					Variant: components.VariantPrimary,
 					Block:   true,
@@ -212,7 +210,10 @@ templ listingFilters(v ListingView) {
 					<span class="goen-filters__applied-label">{ i18n.T(ctx, i18n.KeyFiltersActive) }</span>
 					<ul class="goen-filters__chips" role="list">
 						for _, chip := range v.AppliedChips(ctx) {
-							<li class="goen-filters__chip">{ chip }</li>
+							<li class="goen-filters__chip">
+								<span>{ chip.Label }</span>
+								<a class="goen-filters__chip-remove" href={ templ.URL(chip.Remove) } aria-label={ chip.RemoveLabel }><span aria-hidden="true">×</span></a>
+							</li>
 						}
 					</ul>
 					<a class="ui-filterbar__clear" href={ templ.URL("/c/" + v.Slug) }>{ i18n.T(ctx, i18n.KeyClearFilters) }</a>
@@ -222,6 +223,21 @@ templ listingFilters(v ListingView) {
 		// The count is announced from here, a region that stays in the page while
 		// the results around it are replaced, and focus is left where it is.
 		<p id="listing-status" class="goen-sr-only" role="status" aria-live="polite">{ i18n.Count(ctx, i18n.KeyListingCount, v.Total, v.TotalText()) }</p>
+	</div>
+}
+
+// sortField is shared by the listing and the search; each owns what its empty
+// value means.
+templ sortField(options []SortOption) {
+	<div class="goen-filters__field">
+		@components.Label(components.LabelProps{For: "sort"}) {
+			{ i18n.T(ctx, i18n.KeySort) }
+		}
+		<select class="ui-select" id="sort" name="sort">
+			for _, o := range options {
+				<option value={ o.Value } selected?={ o.Selected }>{ o.Label }</option>
+			}
+		</select>
 	</div>
 }
 
@@ -274,8 +290,8 @@ templ numberedPager(hasPrev, hasNext bool, prev, next string, links []PageLink) 
 	}
 }
 
-// Search renders the search results page: a plain head, then the grid. The
-// search has no facets of its own, so there is no filter rail.
+// Search renders the search results page: a plain head, the sort control, then
+// the grid. The search has no facets of its own, so there is no filter rail.
 templ Search(p layouts.Page, v SearchView) {
 	@layouts.Base(p) {
 		<div class="goen-listing goen-listing--search">
@@ -310,17 +326,54 @@ templ Search(p layouts.Page, v SearchView) {
 						</ul>
 					}
 				</div>
+				if len(v.Newest) > 0 {
+					<h2 class="goen-listing__subhead">{ i18n.T(ctx, i18n.KeySearchNewest) }</h2>
+					@compareForm(AnyComparable(v.Newest)) {
+						<ul class="goen-tiles__grid" role="list">
+							for _, t := range FirstRowEager(v.Newest) {
+								@Tile(t)
+							}
+						</ul>
+					}
+				}
 			} else {
 				// The grid's heading, visually hidden: without it a tile's h3 skips a level.
 				<h2 class="goen-sr-only">{ i18n.T(ctx, i18n.KeyResultsHeading) }</h2>
-				@compareForm(AnyComparable(v.Products)) {
-					<ul class="goen-tiles__grid" role="list">
-						for _, t := range FirstRowEager(v.Products) {
-							@Tile(t)
-						}
-					</ul>
-				}
-				@numberedPager(v.HasPrev(), v.HasNext(), v.PrevHref(), v.NextHref(), v.PageLinks())
+				// With script, a changed sort fetches the URL the button would have
+				// navigated to and swaps the results.
+				<form
+					class="goen-search-sort"
+					method="get"
+					action="/search"
+					hx-get="/search"
+					hx-trigger="change"
+					hx-target="#search-results"
+					hx-select="#search-results"
+					hx-swap="outerHTML"
+					hx-push-url="true"
+					hx-sync="this:replace"
+					hx-status:4xx="swap:none"
+					hx-status:5xx="swap:none"
+				>
+					<input type="hidden" name="q" value={ v.Query }/>
+					@sortField(v.SortOptions(ctx))
+					@components.Button(components.ButtonProps{
+						Variant: components.VariantOutline,
+						Class:   "goen-filters__apply",
+					}, "submit") {
+						{ i18n.T(ctx, i18n.KeySearchSortApply) }
+					}
+				</form>
+				<div id="search-results">
+					@compareForm(AnyComparable(v.Products)) {
+						<ul class="goen-tiles__grid" role="list">
+							for _, t := range FirstRowEager(v.Products) {
+								@Tile(t)
+							}
+						</ul>
+					}
+					@numberedPager(v.HasPrev(), v.HasNext(), v.PrevHref(), v.NextHref(), v.PageLinks())
+				</div>
 			}
 		</div>
 	}

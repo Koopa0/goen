@@ -14,6 +14,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -53,10 +54,10 @@ func aPickupCart(t *testing.T, s *cart.Store, label string) (token string, shipp
 	return tok, shipVersionFor(t, "store_pickup")
 }
 
-// cookieNamed picks one Set-Cookie out of a response.
-func cookieNamed(res *httptest.ResponseRecorder, name string) *http.Cookie {
+// pickupCookieOf picks the pickup cookie out of a response.
+func pickupCookieOf(res *httptest.ResponseRecorder) *http.Cookie {
 	for _, c := range res.Result().Cookies() {
-		if c.Name == name {
+		if c.Name == "goen_pickup" {
 			return c
 		}
 	}
@@ -131,6 +132,15 @@ func startPickup(
 	t *testing.T, h *cart.Handler, token string, fields url.Values, cookies ...*http.Cookie,
 ) (body string, pickupCookie *http.Cookie, status int) {
 	t.Helper()
+	return startPickupAs(t, h, token, nil, fields, cookies...)
+}
+
+// startPickupAs is startPickup for a signed-in member: a member-owned cart is
+// only served to its owner, so the start and the hand-off page both carry who.
+func startPickupAs(
+	t *testing.T, h *cart.Handler, token string, who *account.User, fields url.Values, cookies ...*http.Cookie,
+) (body string, pickupCookie *http.Cookie, status int) {
+	t.Helper()
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, pages.PickupStartAction,
 		strings.NewReader(fields.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -139,9 +149,12 @@ func startPickup(
 	for _, c := range cookies {
 		req.AddCookie(c)
 	}
+	if who != nil {
+		req = req.WithContext(account.WithUser(req.Context(), *who))
+	}
 	res := httptest.NewRecorder()
 	h.PickupStart(res, req)
-	pickupCookie = cookieNamed(res, "goen_pickup")
+	pickupCookie = pickupCookieOf(res)
 	if res.Code != http.StatusSeeOther || res.Header().Get("Location") != pages.PickupMapPath {
 		return res.Body.String(), pickupCookie, res.Code
 	}
@@ -151,6 +164,9 @@ func startPickup(
 	next.AddCookie(&http.Cookie{Name: "goen_cart", Value: token})
 	if pickupCookie != nil {
 		next.AddCookie(pickupCookie)
+	}
+	if who != nil {
+		next = next.WithContext(account.WithUser(next.Context(), *who))
 	}
 	page := httptest.NewRecorder()
 	h.PickupMap(page, next)
@@ -185,7 +201,7 @@ func openPickupCheckout(
 	req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token})
 	res := httptest.NewRecorder()
 	h.PlaceOrder(res, req)
-	return res.Body.String(), cookieNamed(res, "goen_pickup"), res.Code
+	return res.Body.String(), pickupCookieOf(res), res.Code
 }
 
 // TestAStoreChosenOnTheMapSurvivesTheRoundTripAndReachesTheOrder is the happy
@@ -313,7 +329,7 @@ func placeThisCheckout(
 	if res.Code != http.StatusSeeOther {
 		t.Fatalf("placing the order = %d, want 303; body=%s", res.Code, res.Body.String())
 	}
-	if cleared := cookieNamed(res, "goen_pickup"); cleared == nil || cleared.MaxAge >= 0 {
+	if cleared := pickupCookieOf(res); cleared == nil || cleared.MaxAge >= 0 {
 		t.Error("the pickup cookie outlived the order; its nonce would vouch for a " +
 			"store in the next checkout this browser starts")
 	}

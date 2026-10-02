@@ -51,7 +51,7 @@ templ Campaigns(p layouts.Page, v CampaignsView) {
 									<a href={ templ.SafeURL(c.Href()) }>{ c.Title }</a>
 									<span class="goen-admin__meta">/s/{ c.Slug }</span>
 									<span class="goen-admin__meta">
-										{ i18n.Count(ctx, i18n.KeyAdminCampMeta, c.Products, c.ProductsText(), c.EndsAt) }
+										{ i18n.Count(ctx, i18n.KeyAdminCampMeta, c.Products, c.ProductsText(), c.EndsAtText) }
 									</span>
 								</td>
 								<td>
@@ -208,13 +208,71 @@ templ CampaignForm(p layouts.Page, v CampaignView) {
 				<p class="ui-page-head__eyebrow">
 					<a href="/admin/campaigns">{ i18n.T(ctx, i18n.KeyAdminPageCampaigns) }</a>
 				</p>
-				<h1 class="ui-page-head__title">{ v.Slug }</h1>
+				<h1 class="ui-page-head__title">{ v.Title }</h1>
+				<p class="ui-page-head__sub">{ v.StateText(ctx) } · /s/{ v.Slug }</p>
 			</div>
+			<form class="ui-page-head__actions" method="post" action={ templ.SafeURL(v.ActiveAction()) }>
+				<input type="hidden" name="back" value="detail"/>
+				<input type="hidden" name="active" value={ v.NextActive() }/>
+				@components.Button(components.ButtonProps{Variant: components.VariantOutline}, "submit") {
+					{ v.ToggleLabel(ctx) }
+				}
+			</form>
 		</div>
 		if v.Notice != "" {
 			@components.Notice(components.NoticeProps{Tone: components.ToneAccent}) {
 				{ v.Notice }
 			}
+		}
+		@components.Card(components.CardProps{Class: "goen-admin__section"}) {
+			<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminCampWindow) }</h2>
+			<form class="goen-admin__form" method="post" action={ templ.SafeURL(v.WindowAction()) }>
+				<div class="goen-admin__fields">
+					<div class="goen-admin__field">
+						@components.Label(components.LabelProps{For: "c-starts"}) {
+							{ i18n.T(ctx, i18n.KeyAdminCampStarts) }
+						}
+						<input
+							class="goen-input"
+							id="c-starts"
+							name="starts_at"
+							type="datetime-local"
+							required
+							value={ v.StartsAtInput }
+							if v.HasErr("window") {
+								aria-invalid="true"
+								aria-describedby="c-window-error"
+							}
+						/>
+					</div>
+					<div class="goen-admin__field">
+						@components.Label(components.LabelProps{For: "c-ends"}) {
+							{ i18n.T(ctx, i18n.KeyAdminCampEnds) }
+						}
+						<input
+							class="goen-input"
+							id="c-ends"
+							name="ends_at"
+							type="datetime-local"
+							required
+							value={ v.EndsAtInput }
+							if v.HasErr("window") {
+								aria-invalid="true"
+								aria-describedby="c-window-error"
+							}
+						/>
+					</div>
+				</div>
+				if v.HasErr("window") {
+					<p class="ui-error-text" id="c-window-error" role="alert">{ v.Err("window") }</p>
+				}
+				@components.Button(components.ButtonProps{
+					Variant: components.VariantPrimary,
+					Class:   "goen-admin__submit",
+				}, "submit") {
+					{ i18n.T(ctx, i18n.KeyAdminProdSave) }
+				}
+			</form>
 		}
 		if v.Empty() {
 			<div class="goen-admin__empty">
@@ -372,21 +430,46 @@ templ CampaignForm(p layouts.Page, v CampaignView) {
 		}
 		@components.Card(components.CardProps{Class: "goen-admin__section"}) {
 			<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminCampAdd) }</h2>
-			<form class="goen-admin__form" method="post" action={ templ.SafeURL(v.FeatureAction()) }>
-				<div class="goen-admin__field">
-					@components.Label(components.LabelProps{For: "k-product"}) {
-						{ i18n.T(ctx, i18n.KeyAdminCampProductSlug) }
-					}
-					<input class="goen-input" id="k-product" name="product" required maxlength="120" placeholder="ceramic-mug" autocomplete="off"/>
-					<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminCampProductHint) }</p>
-				</div>
-				@components.Button(components.ButtonProps{
-					Variant: components.VariantPrimary,
-					Class:   "goen-admin__submit",
-				}, "submit") {
-					{ i18n.T(ctx, i18n.KeyAdminCampAdd) }
+			<form class="goen-admin__search" method="get" action={ templ.SafeURL("/admin/campaigns/" + v.Slug) }>
+				<label class="goen-sr-only" for="k-find">{ i18n.T(ctx, i18n.KeyAdminCampFind) }</label>
+				<input
+					class="goen-input"
+					id="k-find"
+					type="search"
+					name="find"
+					value={ v.Term }
+					placeholder={ i18n.T(ctx, i18n.KeyAdminCampFindPlaceholder) }
+					autocomplete="off"
+				/>
+				@components.Button(components.ButtonProps{Variant: components.VariantOutline}, "submit") {
+					{ i18n.T(ctx, i18n.KeyAdminSearch) }
 				}
 			</form>
+			<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminCampProductHint) }</p>
+			if v.Searching() && len(v.Matches) == 0 {
+				<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminCampFindNone) }</p>
+			}
+			if len(v.Matches) > 0 {
+				<ul class="goen-admin__matches" role="list">
+					for _, m := range v.Matches {
+						<li>
+							<span>
+								{ m.Name }
+								<span class="goen-admin__meta">/p/{ m.Slug }</span>
+							</span>
+							<form method="post" action={ templ.SafeURL(v.FeatureAction()) }>
+								<input type="hidden" name="product" value={ m.Slug }/>
+								@components.Button(components.ButtonProps{
+									Variant: components.VariantOutline,
+									Size:    components.SizeSmall,
+								}, "submit") {
+									{ i18n.T(ctx, i18n.KeyAdminCampAdd) }
+								}
+							</form>
+						</li>
+					}
+				</ul>
+			}
 		}
 	}
 }

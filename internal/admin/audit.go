@@ -59,6 +59,7 @@ const (
 	actionCreateCampaign           Action = "campaign.create"
 	actionToggleCampaign           Action = "campaign.toggle"
 	actionSetCampaignTone          Action = "campaign.tone.set"
+	actionSetCampaignWindow        Action = "campaign.window.set"
 	actionSetCategoryImage         Action = "category.image.set"
 	actionClearCategoryImage       Action = "category.image.clear"
 	actionSetCampaignImage         Action = "campaign.image.set"

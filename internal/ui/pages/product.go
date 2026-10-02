@@ -7,6 +7,9 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"unicode/utf8"
+
+	"github.com/a-h/templ"
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
@@ -110,6 +113,21 @@ func (b RatingBar) WidthClass() string {
 	return "goen-pdp__barfill--" + strconv.Itoa((b.Percent+5)/10*10)
 }
 
+// ReviewStanding is what the visitor may do about reviewing this product; the
+// zero value is the refusal.
+type ReviewStanding int
+
+const (
+	ReviewSignedOut ReviewStanding = iota
+	// ReviewNotDelivered covers a customer who never bought it and one whose
+	// order has not arrived.
+	ReviewNotDelivered
+	// ReviewAlreadyWritten counts a hidden review too: it still holds the
+	// unique index.
+	ReviewAlreadyWritten
+	ReviewOpen
+)
+
 // ProductReview is one published review.
 type ProductReview struct {
 	Rating   int
@@ -131,7 +149,20 @@ func (r ProductReview) DisplayAuthor(ctx context.Context) string {
 	if r.Author == "" {
 		return i18n.T(ctx, i18n.KeyAnonymousReviewer)
 	}
-	return r.Author
+	return maskedName(i18n.FromContext(ctx), r.Author)
+}
+
+// maskedName exists because reviews are public: a full name beside a purchase is
+// more than the shopper agreed to show.
+func maskedName(l i18n.Locale, name string) string {
+	first, _ := utf8.DecodeRuneInString(strings.TrimSpace(name))
+	if first == utf8.RuneError {
+		return name
+	}
+	if l == i18n.En {
+		return strings.ToUpper(string(first)) + "."
+	}
+	return string(first) + "○○"
 }
 
 // ProductView is everything the detail page renders.
@@ -168,16 +199,16 @@ type ProductView struct {
 	Sellable     bool
 	Available    int32
 
-	Rating        float64
-	RatingCount   int64
-	RatingBars    []RatingBar
-	Reviews       []ProductReview
-	SignedIn      bool
-	CanReview     bool
-	WouldVerify   bool
-	ReviewErrors  map[string]string
-	ReviewDraft   ReviewDraft
-	NotifyOutcome string
+	Rating         float64
+	RatingCount    int64
+	RatingBars     []RatingBar
+	Reviews        []ProductReview
+	SignedIn       bool
+	ReviewStanding ReviewStanding
+	ReviewPosted   bool
+	ReviewErrors   map[string]string
+	ReviewDraft    ReviewDraft
+	NotifyOutcome  string
 	// NotifyEmail is the address a refused restock request was posted with.
 	NotifyEmail string
 	Comparing   []string
@@ -358,6 +389,10 @@ type ReviewDraft struct {
 // IsRating reports whether n is the chosen star count, for the radio group.
 func (d ReviewDraft) IsRating(n int) bool { return d.Rating == n }
 
+// ReviewBodyMaxRunes is the longest review the form lets through;
+// product.MaxReviewBodyRunes is the same number.
+const ReviewBodyMaxRunes = 2000
+
 // ReviewBodyMinRunes is the shortest review the form lets through before the
 // server would refuse it; product.MinReviewBodyRunes is the same number.
 const ReviewBodyMinRunes = 5
@@ -365,6 +400,24 @@ const ReviewBodyMinRunes = 5
 // ReviewAction is where the review form posts. The fragment rides into the 422
 // page's address, so a refused review opens at the form, error in view.
 func (v *ProductView) ReviewAction() string { return "/p/" + v.Slug + "/reviews#write-review" }
+
+// ReviewBodyHint states the length bounds the form and the server share.
+func (v *ProductView) ReviewBodyHint(ctx context.Context) string {
+	return fmt.Sprintf(i18n.T(ctx, i18n.KeyReviewBodyHint), ReviewBodyMinRunes, ReviewBodyMaxRunes)
+}
+
+// reviewBodyAttrs sets aria-describedby only while the field is valid; the
+// Textarea sets it itself when the field is refused.
+func (v *ProductView) reviewBodyAttrs() templ.Attributes {
+	attrs := templ.Attributes{
+		"rows": "5", "required": true,
+		"minlength": strconv.Itoa(ReviewBodyMinRunes), "maxlength": strconv.Itoa(ReviewBodyMaxRunes),
+	}
+	if !v.HasReviewErr("body") {
+		attrs["aria-describedby"] = "review-body-hint"
+	}
+	return attrs
+}
 
 // HasReviewErr reports whether a review field was refused.
 func (v *ProductView) HasReviewErr(f string) bool { _, ok := v.ReviewErrors[f]; return ok }
