@@ -9,7 +9,8 @@ import (
 // ForgotView is the "email me a link" page.
 type ForgotView struct {
 	// Sent is true for any address, so accounts cannot be enumerated.
-	Sent bool
+	Sent   bool
+	Notice string
 }
 
 // ResetView is the "set a new password" page.

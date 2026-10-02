@@ -30,7 +30,9 @@ templ Campaign(p layouts.Page, v CampaignView) {
 				<div class="goen-pagehead" data-tone={ v.Tone.Attr() }>
 					<p class="goen-pagehead__eyebrow">{ i18n.T(ctx, i18n.KeyCampaignEyebrow) }</p>
 					<h1 class="goen-pagehead__title">{ v.Title }</h1>
-					<p class="goen-pagehead__sub">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCampaignEndsAt), v.EndsAt) }</p>
+					if v.EndsOn != "" {
+						<p class="goen-pagehead__sub">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCampaignEndsAt), v.EndsOn) }</p>
+					}
 				</div>
 			</header>
 			if v.Empty() {
@@ -66,8 +68,8 @@ templ campaignStrip(campaigns []CampaignSummary) {
 						<span class="goen-campaigns__title">{ c.Title }</span>
 						<span class="goen-campaigns__meta">
 							{ i18n.Count(ctx, i18n.KeyCampaignProducts, c.Products, c.ProductsText()) }
-							if c.EndsIn != "" {
-								· { c.EndsIn }
+							if c.EndsOn != "" {
+								· { fmt.Sprintf(i18n.T(ctx, i18n.KeyCampaignUntil), c.EndsOn) }
 							}
 						</span>
 					</a>

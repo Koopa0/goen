@@ -142,6 +142,26 @@
       menu.open = false;
       menu.querySelector("summary")?.focus();
     });
+
+    // The drawer hangs from the header, which sits below the notice row, so a
+    // fixed offset from the viewport's bottom cannot say how much room it has.
+    const drawer = menu.querySelector(".goen-header__drawer");
+    const fit = () => {
+      if (!drawer || !menu.open) return;
+      const bottom = menu.closest("header")?.getBoundingClientRect().bottom ?? 0;
+      drawer.style.setProperty("--drawer-room", `${Math.max(0, window.innerHeight - bottom)}px`);
+    };
+    menu.addEventListener("toggle", fit);
+    window.addEventListener("resize", fit);
+
+    // The language panel opens in the drawer's flow, below the fold of a
+    // drawer that scrolls: bring it into view when it opens.
+    menu.addEventListener("toggle", (event) => {
+      const lang = event.target;
+      if (lang instanceof HTMLDetailsElement && lang !== menu && lang.open) {
+        lang.scrollIntoView({ block: "nearest" });
+      }
+    }, true);
   }
 
   /*
@@ -261,6 +281,18 @@
    * arrives in a later swap needs no second initialisation.
    */
   function stepper() {
+    const quantity = (form) => form.querySelector("[data-stepper] input");
+
+    // Only the maximum is left to the server: a number above the stock is
+    // answered with the quantity it kept and the reason, which a native
+    // validation bubble would pre-empt.
+    const send = (form) => {
+      const v = quantity(form).validity;
+      if (v.badInput || v.valueMissing || v.rangeUnderflow || v.stepMismatch) return;
+      form.noValidate = true;
+      form.requestSubmit();
+    };
+
     const bound = (field, by) => {
       const min = Number(field.min || 0);
       const max = field.max === "" ? Infinity : Number(field.max);
@@ -316,7 +348,7 @@
       if (!form || !event.target.matches("[data-stepper] input")) return;
       clearTimeout(waiting.get(form));
       waiting.set(form, setTimeout(() => {
-        if (form.checkValidity()) form.requestSubmit();
+        send(form);
       }, 700));
     });
 
@@ -338,8 +370,6 @@
      * A response without the line (it was removed) or no usable response at
      * all is answered by loading the cart, which is always correct.
      */
-    const quantity = (form) => form.querySelector("[data-stepper] input");
-
     document.addEventListener("htmx:config:request", (event) => {
       const ctx = event.detail?.ctx;
       const form = ctx?.request?.form;
@@ -365,7 +395,7 @@
         // One follow-up with the latest value. The debounce timer a change made
         // during the request left behind would send the same value again.
         clearTimeout(waiting.get(form));
-        if (form.checkValidity()) form.requestSubmit();
+        send(form);
         return;
       }
       if (kept.value !== field.value) {
@@ -654,6 +684,9 @@
    */
   function recipientBox() {
     const field = (name) => document.querySelector(`#checkout-form [name="${name}"]`);
+    // The input events set() dispatches would otherwise untick the box between
+    // the name and the phone, while the phone still holds the old value.
+    let filling = false;
     const set = (name, value) => {
       const input = field(name);
       if (!input) return;
@@ -662,7 +695,7 @@
     };
     const syncBox = () => {
       const me = document.querySelector("[data-recipient-me]");
-      if (!me) return;
+      if (!me || filling) return;
       const own = { name: me.dataset.name, phone: me.dataset.phone };
       const holds = (n) => own[n] === "" || field(n)?.value === own[n];
       me.checked = (own.name !== "" || own.phone !== "") && holds("name") && holds("phone");
@@ -671,11 +704,13 @@
       const me = event.target;
       if (!(me instanceof HTMLInputElement) || !me.matches("[data-recipient-me]")) return;
       const own = { name: me.dataset.name, phone: me.dataset.phone };
+      const on = me.checked;
+      filling = true;
       for (const n of ["name", "phone"]) {
         const input = field(n);
         const prev = field(`recipient_prev_${n}`);
         if (!input || own[n] === "") continue;
-        if (me.checked) {
+        if (on) {
           if (input.value !== own[n] && prev) prev.value = input.value;
           set(n, own[n]);
         } else if (input.value === own[n]) {
@@ -683,7 +718,8 @@
           if (prev) prev.value = "";
         }
       }
-      if (me.checked && field("email")?.value === "") set("email", me.dataset.email ?? "");
+      if (on && field("email")?.value === "") set("email", me.dataset.email ?? "");
+      filling = false;
       syncBox();
     });
     document.addEventListener("input", (event) => {
@@ -692,22 +728,21 @@
   }
 
   /*
-   * Swaps replace both the bar and its target, so every swap rebinds; the last
-   * answer is applied at once so a replaced bar does not slide in again.
+   * Swaps replace both the bar and its target. Whether the bar shows is kept on
+   * <html>, which a swap does not replace, so a new bar is born in the state
+   * the old one left and never slides in again.
    */
   function buyBar() {
+    const root = document.documentElement;
     let observer = null;
-    let out = false;
     const bind = () => {
       observer?.disconnect();
       observer = null;
       const bar = document.getElementById("buybar");
       const target = bar ? document.getElementById(bar.dataset.follows ?? "") : null;
       if (!bar || !target || !("IntersectionObserver" in window)) return;
-      bar.classList.toggle("is-visible", out);
       observer = new IntersectionObserver((entries) => {
-        out = !entries[entries.length - 1].isIntersecting;
-        bar.classList.toggle("is-visible", out);
+        root.dataset.buybar = entries[entries.length - 1].isIntersecting ? "in" : "out";
       });
       observer.observe(target);
     };
@@ -715,7 +750,29 @@
     document.addEventListener("htmx:after:swap", bind);
   }
 
+  /*
+   * The sign-in page's demo account. Its credentials are printed as text for a
+   * browser without this file; here the button appears, puts them in the form
+   * and signs in with it, as its label says.
+   */
+  function demoAccount() {
+    const fill = document.querySelector("[data-demo-fill]");
+    const form = document.querySelector('form[action="/signin"]');
+    if (!(fill instanceof HTMLButtonElement) || !(form instanceof HTMLFormElement)) return;
+    fill.hidden = false;
+    fill.addEventListener("click", () => {
+      for (const name of ["email", "password"]) {
+        const input = form.elements.namedItem(name);
+        if (!(input instanceof HTMLInputElement)) continue;
+        input.value = fill.dataset[name] ?? "";
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      }
+      form.requestSubmit();
+    });
+  }
+
   recipientBox();
+  demoAccount();
   handoff();
   buyBar();
   headerMenu();

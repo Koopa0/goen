@@ -1131,6 +1131,12 @@ SELECT
     coalesce(ip.tax_id, '') AS invoice_tax_id,
     order_is_committed(o.id) AS committed,
     order_amount_owed(o.id) AS owed_cents,
+    -- What store credit paid, read as total less what is still owed so
+    -- order_amount_owed stays the one definition of that arithmetic.
+    (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
+               WHERE ol.order_id = o.id), 0)
+     - o.discount_cents + o.shipping_cents + o.tax_cents
+     - order_amount_owed(o.id))::bigint AS credit_cents,
     (SELECT sm.destination_kind FROM shipping_method_versions v
      JOIN shipping_methods sm ON sm.id = v.method_id
      WHERE v.id = o.shipping_version_id)::text AS destination_kind
@@ -1169,6 +1175,7 @@ type AdminOrderByNumberRow struct {
 	InvoiceTaxID        string
 	Committed           bool
 	OwedCents           int64
+	CreditCents         int64
 	DestinationKind     string
 }
 
@@ -1206,6 +1213,7 @@ func (q *Queries) AdminOrderByNumber(ctx context.Context, orderNumber string) (A
 		&i.InvoiceTaxID,
 		&i.Committed,
 		&i.OwedCents,
+		&i.CreditCents,
 		&i.DestinationKind,
 	)
 	return i, err
@@ -5732,6 +5740,23 @@ func (q *Queries) CreateVariant(ctx context.Context, arg CreateVariantParams) er
 	return err
 }
 
+const createVerifiedUser = `-- name: CreateVerifiedUser :exec
+INSERT INTO users (email, password_hash, email_verified_at)
+VALUES ($1::text, $2::text, now())
+`
+
+type CreateVerifiedUserParams struct {
+	Email        string
+	PasswordHash string
+}
+
+// Born proved: the address is the operator's, published beside the password,
+// so no link is mailed for it.
+func (q *Queries) CreateVerifiedUser(ctx context.Context, arg CreateVerifiedUserParams) error {
+	_, err := q.db.Exec(ctx, createVerifiedUser, arg.Email, arg.PasswordHash)
+	return err
+}
+
 const creditBalance = `-- name: CreditBalance :one
 SELECT coalesce((SELECT b.balance_cents FROM store_credit_balances b
                  WHERE b.user_id = $1), 0)::bigint
@@ -7957,21 +7982,34 @@ func (q *Queries) LockOrderDelivery(ctx context.Context, orderNumber string) (Lo
 }
 
 const lockOrderForAdvance = `-- name: LockOrderForAdvance :one
-SELECT id, fulfillment_status, order_is_committed(id) AS committed
-FROM orders WHERE order_number = $1 FOR UPDATE
+SELECT o.id, o.fulfillment_status, order_is_committed(o.id) AS committed,
+       order_amount_owed(o.id) AS owed_cents,
+       (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
+                  WHERE ol.order_id = o.id), 0)
+        - o.discount_cents + o.shipping_cents + o.tax_cents
+        - order_amount_owed(o.id))::bigint AS credit_cents
+FROM orders o WHERE o.order_number = $1 FOR UPDATE OF o
 `
 
 type LockOrderForAdvanceRow struct {
 	ID                uuid.UUID
 	FulfillmentStatus string
 	Committed         bool
+	OwedCents         int64
+	CreditCents       int64
 }
 
 // Lock before reading the prior state so concurrent completion cannot duplicate arrival mail.
 func (q *Queries) LockOrderForAdvance(ctx context.Context, orderNumber string) (LockOrderForAdvanceRow, error) {
 	row := q.db.QueryRow(ctx, lockOrderForAdvance, orderNumber)
 	var i LockOrderForAdvanceRow
-	err := row.Scan(&i.ID, &i.FulfillmentStatus, &i.Committed)
+	err := row.Scan(
+		&i.ID,
+		&i.FulfillmentStatus,
+		&i.Committed,
+		&i.OwedCents,
+		&i.CreditCents,
+	)
 	return i, err
 }
 
@@ -13064,7 +13102,6 @@ func (q *Queries) RunningCampaign(ctx context.Context, arg RunningCampaignParams
 const runningCampaigns = `-- name: RunningCampaigns :many
 SELECT c.id, c.slug, localized_name(c.title, c.title_en, $1::text) AS title,
        c.ends_at,
-       extract(epoch FROM (c.ends_at - now()))::bigint AS remaining_seconds,
        (SELECT count(*) FROM sale_campaign_products p WHERE p.campaign_id = c.id)::bigint AS products
 FROM sale_campaigns c
 WHERE c.is_active AND c.starts_at <= now() AND c.ends_at > now()
@@ -13079,12 +13116,11 @@ type RunningCampaignsParams struct {
 }
 
 type RunningCampaignsRow struct {
-	ID               uuid.UUID
-	Slug             string
-	Title            string
-	EndsAt           time.Time
-	RemainingSeconds int64
-	Products         int64
+	ID       uuid.UUID
+	Slug     string
+	Title    string
+	EndsAt   time.Time
+	Products int64
 }
 
 func (q *Queries) RunningCampaigns(ctx context.Context, arg RunningCampaignsParams) ([]RunningCampaignsRow, error) {
@@ -13101,7 +13137,6 @@ func (q *Queries) RunningCampaigns(ctx context.Context, arg RunningCampaignsPara
 			&i.Slug,
 			&i.Title,
 			&i.EndsAt,
-			&i.RemainingSeconds,
 			&i.Products,
 		); err != nil {
 			return nil, err

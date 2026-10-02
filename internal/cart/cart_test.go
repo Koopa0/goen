@@ -432,6 +432,35 @@ func TestAddressValidateRejects(t *testing.T) {
 	}
 }
 
+// A blank postcode is a missing answer, not a malformed one.
+func TestABlankPostcodeIsAskedForRatherThanCorrected(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		postal string
+		want   i18n.Key
+	}{
+		{"", i18n.KeyPostalCodeRequired},
+		{"   ", i18n.KeyPostalCodeRequired},
+		{"11", i18n.KeyPostalCodeMalformed},
+	} {
+		a := Address{
+			To:    ToAddress,
+			Email: "a@example.com", Name: "王小明", Phone: "0912345678",
+			PostalCode: tt.postal, City: "台北市", District: "信義區", Street: "松高路 1 號",
+		}
+		var got i18n.Key
+		for _, e := range a.Validate() {
+			if e.Field == "postal_code" {
+				got = e.MessageKey
+			}
+		}
+		if got != tt.want {
+			t.Errorf("postcode %q says %s, want %s", tt.postal, got, tt.want)
+		}
+	}
+}
+
 // TestSavedHomeAddressContractMatchesCheckout is the cross-package guard for
 // the address-book handoff. A signed-in shopper must never choose an address
 // the account package accepted only to have checkout refuse the same fields.

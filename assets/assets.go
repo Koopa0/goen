@@ -14,6 +14,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"regexp"
 	"slices"
 	"strconv"
@@ -47,6 +48,15 @@ const (
 	HTMXJS           = "js/vendor/htmx.min.js"
 	AppJS            = "js/goen.js"
 	MarkSVG          = "brand/goen-mark.svg"
+	// FaviconSVG is the mark for a browser tab. It carries a dark-scheme rule
+	// the page-level MarkSVG must not: the rule follows the operating system,
+	// not the page, so on a light page under a dark OS the ring would vanish.
+	FaviconSVG = "brand/favicon.svg"
+	// FaviconICO is served at /favicon.ico, where a browser that finds no
+	// <link rel="icon"> asks; AppleTouchIcon is the home-screen icon. Both are
+	// PNG on a white ground, because neither honours a dark-mode rule.
+	FaviconICO       = "brand/favicon.ico"
+	AppleTouchIcon   = "brand/apple-touch-icon.png"
 	HomeHeroImage    = "media/hero/home-hero-01.webp"
 	HomeHeroImage720 = "media/hero/home-hero-01-720.webp"
 	// EmailHeader heads every HTML letter. PNG, not WebP: a mail client
@@ -127,6 +137,9 @@ var required = []string{
 	HTMXJS,
 	AppJS,
 	MarkSVG,
+	FaviconSVG,
+	FaviconICO,
+	AppleTouchIcon,
 	HomeHeroImage,
 	HomeHeroImage720,
 	EmailHeader,
@@ -340,6 +353,17 @@ func Handler(log *slog.Logger) http.Handler {
 		w.Header().Set("Content-Type", contentType(name))
 		fileServer.ServeHTTP(w, r)
 	}))
+}
+
+// Alias serves one embedded asset at the path it is mounted on, for a file a
+// client asks for by a fixed name, as it does /favicon.ico.
+func Alias(log *slog.Logger, name string) http.Handler {
+	assetHandler := Handler(log)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		aliased := r.Clone(r.Context())
+		aliased.URL = &url.URL{Path: Prefix + name}
+		assetHandler.ServeHTTP(w, aliased)
+	})
 }
 
 // writeBody answers with bytes this package is holding rather than with a file,

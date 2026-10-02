@@ -151,7 +151,9 @@ func TestProductWarrantyRendersWithoutDescriptionOrSpecs(t *testing.T) {
 			}
 			// The assurance beside the buy button promises cover, so a product
 			// that states no term must not carry it; a note alone is not a term.
-			assurance := htmlpkg.EscapeString(i18n.T(ctx, i18n.KeyGuaranteeWarranty))
+			// Matched as its own element: the short title also reads inside a
+			// shop's warranty note.
+			assurance := "<span>" + htmlpkg.EscapeString(i18n.T(ctx, i18n.KeyGuaranteeWarranty)) + "</span>"
 			if got := strings.Contains(html, assurance); got != v.HasWarranty() {
 				t.Errorf("warranty assurance present = %v, want %v (months %d)",
 					got, v.HasWarranty(), v.WarrantyMonths)

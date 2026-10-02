@@ -95,6 +95,22 @@ func SiteOrigin(ctx context.Context) string {
 	return ""
 }
 
+type pathKey struct{}
+
+// WithRequestPath carries the path the visitor asked for, without its query, so
+// the head can name the page's own address in og:url.
+func WithRequestPath(ctx context.Context, escapedPath string) context.Context {
+	return context.WithValue(ctx, pathKey{}, escapedPath)
+}
+
+// RequestPath is the path WithRequestPath set, or "/" outside the middleware.
+func RequestPath(ctx context.Context) string {
+	if path, ok := ctx.Value(pathKey{}).(string); ok && path != "" {
+		return path
+	}
+	return "/"
+}
+
 type staffKey struct{}
 
 // WithStaff records that this request's visitor may reach the back office, so

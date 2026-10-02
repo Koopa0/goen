@@ -4,7 +4,7 @@ var (
 	KeyAdminPageTwoFactor = key("admin.page.twofactor", Message{ZhHant: "兩階段驗證", En: "Two-factor"})
 
 	KeyTOTPWrongCode = key("twofactor.wrongcode", Message{
-		ZhHant: "驗證碼不正確,或是已經用過了。請看驗證器上目前的那一組。",
+		ZhHant: "驗證碼不正確，或是已經用過了。請看驗證器上目前的那一組。",
 		En: "That code is wrong, or it has already been used. " +
 			"Use the one your authenticator is showing now.",
 	})
@@ -15,29 +15,29 @@ var (
 	})
 
 	KeyTOTPNoKey = key("twofactor.nokey", Message{
-		ZhHant: "這個環境沒有設定加密金鑰,無法啟用兩階段驗證。",
+		ZhHant: "這個環境沒有設定加密金鑰，無法啟用兩階段驗證。",
 		En:     "This deployment has no encryption key set, so two-factor cannot be enabled.",
 	})
 
 	KeyTOTPNoKeyNotice = key("twofactor.nokey.notice", Message{
-		ZhHant: "GOEN_TOTP_KEY 沒有設定,兩階段驗證目前無法啟用。",
+		ZhHant: "GOEN_TOTP_KEY 沒有設定，兩階段驗證目前無法啟用。",
 		En:     "GOEN_TOTP_KEY is not set, so two-factor cannot be enabled here.",
 	})
 
 	KeyTOTPAlreadyEnrolled = key("twofactor.enrolled", Message{
-		ZhHant: "這個帳號已經完成兩階段驗證設定。要換一支手機,請另一位管理者先在 /admin/staff 移除,再重新設定。",
+		ZhHant: "這個帳號已經完成兩階段驗證設定。要換一支手機，請另一位管理者先在 /admin/staff 移除，再重新設定。",
 		En: "This account already has two-factor set up. To move to a new phone, ask another " +
 			"administrator to remove it at /admin/staff first, then enrol again.",
 	})
 
 	KeyTOTPSecretUnreadable = key("admin.totp.secret_unreadable", Message{
-		ZhHant: "這組驗證器已無法讀取(加密金鑰已更換)。請另一位管理員在 /admin/staff 移除後重新設定。",
+		ZhHant: "這組驗證器已無法讀取（加密金鑰已更換）。請另一位管理員在 /admin/staff 移除後重新設定。",
 		En: "This authenticator can no longer be read (the encryption key changed). " +
 			"Ask another admin to remove it at /admin/staff, then enrol again.",
 	})
 
 	KeyTwoFALead = key("admin.2fa.lead", Message{
-		ZhHant: "後台可以退款、發放額度和調整庫存,所以進去之前要再確認一次是你本人。",
+		ZhHant: "後台可以退款、發放額度和調整庫存，所以進去之前要再確認一次是你本人。",
 		En: "The back office can refund money, grant store credit and adjust stock, so it checks once " +
 			"more that this is really you before letting you in.",
 	})
@@ -48,7 +48,7 @@ var (
 	})
 
 	KeyTwoFAOffBody = key("admin.2fa.off.body", Message{
-		ZhHant: "兩階段驗證需要設定加密金鑰(GOEN_TOTP_KEY)才能使用。祕密不會以明文存進資料庫。",
+		ZhHant: "兩階段驗證需要設定加密金鑰（GOEN_TOTP_KEY）才能使用。祕密不會以明文存進資料庫。",
 		En: "Two-factor needs an encryption key (GOEN_TOTP_KEY) before it can be used at all. Secrets " +
 			"are never stored in the database in the clear.",
 	})
@@ -59,12 +59,12 @@ var (
 	})
 
 	KeyTwoFAEnrolBody = key("admin.2fa.enrol.body", Message{
-		ZhHant: "用支援 TOTP 的驗證器掃描下方 QR code,或手動新增並輸入下面的字串。",
+		ZhHant: "用支援 TOTP 的驗證器掃描下方 QR code，或手動新增並輸入下面的字串。",
 		En:     "Scan the QR code with an authenticator that supports TOTP, or add an entry by hand using the secret below.",
 	})
 
 	KeyTwoFAQRCode = key("admin.2fa.enrol.qr", Message{
-		ZhHant: "驗證器設定 QR code;無法掃描時可輸入下方祕密字串。",
+		ZhHant: "驗證器設定 QR code；無法掃描時可輸入下方祕密字串。",
 		En:     "Authenticator setup QR code; if you cannot scan it, enter the secret below.",
 	})
 
@@ -96,7 +96,7 @@ var (
 	})
 
 	KeyTwoFAStartBody = key("admin.2fa.start.body", Message{
-		ZhHant: "你的帳號還沒有設定兩階段驗證,現在設定才能進入後台。",
+		ZhHant: "你的帳號還沒有設定兩階段驗證，現在設定才能進入後台。",
 		En: "Your account has no second factor yet, and setting one up now is what lets you into the " +
 			"back office.",
 	})
@@ -122,7 +122,7 @@ var (
 	})
 
 	KeyTwoFALost = key("admin.2fa.lost", Message{
-		ZhHant: "驗證器不見了?請另一位管理員在後台移除你的設定,然後重新設定一次。",
+		ZhHant: "驗證器不見了？請另一位管理員在後台移除你的設定，然後重新設定一次。",
 		En: "Lost your authenticator? Ask another admin to remove your credential in the back office, " +
 			"then set it up again.",
 	})

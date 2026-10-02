@@ -45,6 +45,7 @@ type Handler struct {
 	log        *slog.Logger
 	secure     bool
 	google     *Google
+	demo       DemoAccount
 
 	// mailLimit bounds, per address, the forms that mail an address whoever
 	// names it: registration and an address change. Each mails the address
@@ -70,6 +71,20 @@ func NewHandler(store *Store, carts CartFinder, log *slog.Logger, secure bool, g
 		resetLimit: ratelimit.New(addressMailPace),
 		mailLimit:  ratelimit.New(addressMailPace),
 	}
+}
+
+// OfferDemoAccount shows d on the sign-in page and keeps it the same account for
+// every visitor. Call it before the handler serves.
+func (h *Handler) OfferDemoAccount(d DemoAccount) { h.demo = d }
+
+// refuseDemoChange answers a change the demo account may not make, and reports
+// whether it did.
+func (h *Handler) refuseDemoChange(w http.ResponseWriter, r *http.Request, u User) bool {
+	if !h.demo.holds(u.Email) {
+		return false
+	}
+	http.Redirect(w, r, "/account?demo=fixed", http.StatusSeeOther)
+	return true
 }
 
 // addressMailPace is how often a form anybody can submit may make goen mail one
@@ -140,10 +155,10 @@ func (h *Handler) SignInPage(w http.ResponseWriter, r *http.Request) {
 	}
 	// next can be a live link back to /verify; never compress it.
 	web.NoCompress(w)
-	view := pages.AuthView{
+	view := h.signInView(pages.AuthView{
 		Next:         web.SitePathOr(r.URL.Query().Get("next"), "/account"),
 		GoogleSignIn: h.google.Enabled(),
-	}
+	})
 	switch {
 	case r.URL.Query().Get("registered") == "1":
 		view.Notice = i18n.T(r.Context(), i18n.KeyAccountCreated)
@@ -175,11 +190,16 @@ func (h *Handler) SignIn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Before Authenticate: argon2 at 64 MiB is the cost this limit protects.
-	if retryAfter, ok := h.signinLimit.Allow("account:" + normalised); !ok {
-		h.log.WarnContext(r.Context(), "sign-in throttled by account")
-		ratelimit.Refuse(r.Context(), w, retryAfter)
-		return
+	// Before Authenticate: argon2 at 64 MiB is the cost this limit protects. The
+	// demo account's password is printed on this page, so a bound per account
+	// guards nothing there and would let one visitor's mistakes shut out every
+	// other; the route's bound per client still holds the cost.
+	if !h.demo.holds(normalised) {
+		if retryAfter, ok := h.signinLimit.Allow("account:" + normalised); !ok {
+			h.log.WarnContext(r.Context(), "sign-in throttled by account")
+			ratelimit.Refuse(r.Context(), w, retryAfter)
+			return
+		}
 	}
 
 	u, err := h.store.Authenticate(r.Context(), addr, password)
@@ -208,10 +228,15 @@ func (h *Handler) signInFailed(w http.ResponseWriter, r *http.Request, addr, nex
 	// next can be a live link back to /verify, beside an address the visitor typed.
 	web.NoCompress(w)
 	web.Render(w, r, h.log, http.StatusUnprocessableEntity,
-		pages.SignIn(pages.SignInMeta(r.Context()), pages.AuthView{
+		pages.SignIn(pages.SignInMeta(r.Context()), h.signInView(pages.AuthView{
 			Email: addr, Next: next,
 			Errors: map[string]string{"form": i18n.T(r.Context(), i18n.KeyBadCredentials)},
-		}))
+		})))
+}
+
+func (h *Handler) signInView(v pages.AuthView) pages.AuthView {
+	v.DemoEmail, v.DemoPassword = h.demo.email, h.demo.password
+	return v
 }
 
 // RegisterPage serves GET /register.
@@ -424,6 +449,8 @@ func accountNotice(r *http.Request) string {
 		return i18n.T(ctx, i18n.KeyGoogleUnlinked)
 	case q.Get("lastmethod") == "1":
 		return i18n.T(ctx, i18n.KeyGoogleLastMethod)
+	case q.Get("demo") == "fixed":
+		return i18n.T(ctx, i18n.KeyDemoAccountFixed)
 	}
 	return ""
 }
@@ -695,6 +722,9 @@ func (h *Handler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/signin", http.StatusSeeOther)
 		return
 	}
+	if h.refuseDemoChange(w, r, u) {
+		return
+	}
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
 		return
@@ -726,6 +756,10 @@ func (h *Handler) Erase(w http.ResponseWriter, r *http.Request) {
 	u, ok := FromContext(r.Context())
 	if !ok {
 		http.Redirect(w, r, "/signin", http.StatusSeeOther)
+		return
+	}
+	// Before the recency check, which would end the session rather than refuse.
+	if h.refuseDemoChange(w, r, u) {
 		return
 	}
 	if err := web.ParseForm(w, r); err != nil {
@@ -783,7 +817,7 @@ func (h *Handler) Wishlist(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	web.Render(w, r, h.log, http.StatusOK, pages.Wishlist(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyWishlistTitle)}, pages.WishlistView{Products: tiles}))
+		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyWishlistTitle)}, pages.WishlistView{Products: tiles, Added: pages.AddOutcome(r.URL.Query().Get("added"))}))
 }
 
 // SaveWishlist serves POST /account/wishlist.
@@ -826,6 +860,9 @@ func (h *Handler) ChangeEmail(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/signin", http.StatusSeeOther)
 		return
 	}
+	if h.refuseDemoChange(w, r, u) {
+		return
+	}
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
 		return
@@ -863,6 +900,9 @@ func (h *Handler) ResendVerification(w http.ResponseWriter, r *http.Request) {
 	u, ok := FromContext(r.Context())
 	if !ok {
 		http.Redirect(w, r, "/signin", http.StatusSeeOther)
+		return
+	}
+	if h.refuseDemoChange(w, r, u) {
 		return
 	}
 	if err := h.store.requestVerification(r.Context(), u.ID, u.Email); err != nil {
@@ -1017,6 +1057,8 @@ func oauthOutcome(ctx context.Context, outcome string) map[string]string {
 		key = i18n.KeyOAuthUnverified
 	case "collision":
 		key = i18n.KeyOAuthCollision
+	case "demo":
+		key = i18n.KeyDemoAccountFixed
 	default:
 		return nil
 	}
@@ -1075,6 +1117,11 @@ func (h *Handler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "exchange the google code", "error", err)
 		http.Redirect(w, r, "/signin?oauth=failed", http.StatusSeeOther)
+		return
+	}
+	// A Google sign-in at an account's address links Google to it.
+	if h.demo.holds(identity.Email) {
+		http.Redirect(w, r, "/signin?oauth=demo", http.StatusSeeOther)
 		return
 	}
 

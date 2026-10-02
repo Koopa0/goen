@@ -40,17 +40,17 @@ var (
 	KeyAdminProdSpecValue = key("admin.prod.specvalue", Message{ZhHant: "內容", En: "Value"})
 
 	KeyAdminProdSpecLabelEn = key("admin.prod.speclabelen", Message{
-		ZhHant: "項目(英文)",
+		ZhHant: "項目（英文）",
 		En:     "Label (English)",
 	})
 
 	KeyAdminProdSpecValueEn = key("admin.prod.specvalueen", Message{
-		ZhHant: "內容(英文)",
+		ZhHant: "內容（英文）",
 		En:     "Value (English)",
 	})
 
 	KeyAdminProdSpecHint = key("admin.prod.spechint", Message{
-		ZhHant: "英文留空的話,英文網站會顯示中文 —— 數字型的內容(6.3 吋)通常不必翻。",
+		ZhHant: "英文留空的話，英文網站會顯示中文 —— 數字型的內容（6.3 吋）通常不必翻。",
 		En: "Leave the English blank and the English site shows the Chinese — a value that is " +
 			"mostly a number (6.3-inch) rarely needs translating.",
 	})

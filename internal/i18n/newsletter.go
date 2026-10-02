@@ -7,7 +7,7 @@ var (
 	})
 
 	KeyNewsletterSentBody = key("news.sent.body", Message{
-		ZhHant: "請到信箱點一下確認連結,訂閱才會生效。兩天內有效。沒有收到的話,看一下垃圾信件匣。",
+		ZhHant: "請到信箱點一下確認連結，訂閱才會生效。兩天內有效。沒有收到的話，看一下垃圾信件匣。",
 		En: "Follow the link we just sent to finish subscribing. It works for two days. " +
 			"If it has not arrived, check your spam folder.",
 	})
@@ -23,7 +23,7 @@ var (
 	})
 
 	KeyNewsletterConfirmBody = key("news.confirm.body", Message{
-		ZhHant: "按下按鈕就完成訂閱。不定期寄送,任何時候都可以退訂。",
+		ZhHant: "按下按鈕就完成訂閱。不定期寄送，任何時候都可以退訂。",
 		En:     "One button and you are subscribed. We send occasionally, and you can leave any time.",
 	})
 
@@ -38,7 +38,7 @@ var (
 	})
 
 	KeyNewsletterDoneBody = key("news.done.body", Message{
-		ZhHant: "%s 已經在名單上。不定期寄送;退訂連結在剛剛寄出的那封信裡。",
+		ZhHant: "%s 已經在名單上。不定期寄送；退訂連結在剛剛寄出的那封信裡。",
 		En: "%s is on the list. We send occasionally. The unsubscribe link is in the email " +
 			"we just sent.",
 	})
@@ -78,7 +78,7 @@ var (
 	})
 
 	KeyNewsletterLeaveDead = key("news.leave.dead", Message{
-		ZhHant: "連結可能不完整。如果還在收到電子報,寫信到 %s,我們幫你處理。",
+		ZhHant: "連結可能不完整。如果還在收到電子報，寫信到 %s，我們幫你處理。",
 		En: "The link may be incomplete. If the newsletter keeps arriving, write to " +
 			"%s and we will take care of it.",
 	})
@@ -86,7 +86,7 @@ var (
 	KeyNewsletterFailed = key("news.failed", Message{ZhHant: "訂閱未完成", En: "Not subscribed"})
 
 	KeyNewsletterRetry = key("news.retry", Message{
-		ZhHant: "系統暫時無法處理訂閱,請稍後再試。",
+		ZhHant: "系統暫時無法處理訂閱，請稍後再試。",
 		En:     "We cannot process that right now. Please try again shortly.",
 	})
 
@@ -113,21 +113,21 @@ var (
 	KeyNewsletter = key("site.newsletter", Message{ZhHant: "電子報", En: "Newsletter"})
 
 	KeyNewsletterNote = key("site.newsletter.note", Message{
-		ZhHant: "不定期寄送,每封都可退訂。訂閱前會先寄確認信。",
+		ZhHant: "不定期寄送，每封都可退訂。訂閱前會先寄確認信。",
 		En:     "Sent occasionally, with an unsubscribe link in every letter. A confirmation link comes first.",
 	})
 
 	KeyNewsletterSubmit = key("site.newsletter.submit", Message{ZhHant: "訂閱", En: "Subscribe"})
 
 	KeyNewsletterInlineDone = key("site.newsletter.done", Message{
-		ZhHant: "確認信已寄出,請到信箱點一下連結。",
+		ZhHant: "確認信已寄出，請到信箱點一下連結。",
 		En:     "Check your inbox and follow the link to finish.",
 	})
 )
 
 var (
 	KeyAdminNewsLead = key("admin.news.lead", Message{
-		ZhHant: "名單上只有自己確認過的信箱 —— 頁尾送出的只是「請求」,點過信裡的連結才會進名單。",
+		ZhHant: "名單上只有自己確認過的信箱 —— 頁尾送出的只是「請求」，點過信裡的連結才會進名單。",
 		En: "Only mailboxes that confirmed themselves are on this list — the footer form sends a " +
 			"request, and nothing joins the list until somebody follows the link in the email.",
 	})
@@ -148,7 +148,7 @@ var (
 	KeyAdminNewsBody = key("admin.news.body", Message{ZhHant: "內容", En: "Body"})
 
 	KeyAdminNewsDraftHint = key("admin.news.drafthint", Message{
-		ZhHant: "存成草稿,還不會寄出。退訂連結由系統加在每一封的最後,不用自己貼。",
+		ZhHant: "存成草稿，還不會寄出。退訂連結由系統加在每一封的最後，不用自己貼。",
 		En: "Saving keeps this as a draft; nothing goes out yet. The unsubscribe link is added to " +
 			"the foot of every letter automatically — there is no need to paste one in.",
 	})

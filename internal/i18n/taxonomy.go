@@ -75,7 +75,7 @@ var (
 	KeyAdminCatImage = key("admin.cat.image", Message{ZhHant: "分類頁首圖片", En: "Category header photograph"})
 
 	KeyAdminCatImageHint = key("admin.cat.imagehint", Message{
-		ZhHant: "顯示在館別頁標題旁,會從中央裁成 3:2。建議 1200×800。子分類沿用上層的圖片。",
+		ZhHant: "顯示在館別頁標題旁，會從中央裁成 3:2。建議 1200×800。子分類沿用上層的圖片。",
 		En: "Shown beside the department's heading, cropped from the centre to 3:2. " +
 			"1200×800 works best. A sub-category shows its department's photograph.",
 	})
@@ -87,12 +87,12 @@ var (
 	// moment read the same maximum and categories_position_key refuses the
 	// loser. A second attempt computes a fresh maximum.
 	KeyFormPositionTaken = key("admin.taxonomy.positiontaken", Message{
-		ZhHant: "剛剛有人同時新增了分類,請再送出一次。",
+		ZhHant: "剛剛有人同時新增了分類，請再送出一次。",
 		En:     "Someone added a category at the same moment. Please submit again.",
 	})
 
 	KeyAdminTaxLead = key("admin.tax.lead", Message{
-		ZhHant: "名稱可以改,網址代稱不行 —— 它在每個已經被索引和分享出去的連結裡。需要不同的代稱就建一個新的,再把商品移過去。",
+		ZhHant: "名稱可以改，網址代稱不行 —— 它在每個已經被索引和分享出去的連結裡。需要不同的代稱就建一個新的，再把商品移過去。",
 		En: "A name can be changed; a slug cannot — it is in every link that has been indexed and " +
 			"every link anybody has sent. If you need a different slug, create a new one and move " +
 			"the products across.",
@@ -113,7 +113,7 @@ var (
 	KeyAdminTaxNameEn = key("admin.tax.nameen", Message{ZhHant: "英文名稱", En: "English name"})
 
 	KeyAdminTaxNameEnHint = key("admin.tax.nameen.hint", Message{
-		ZhHant: "留空的話,英文網站會顯示中文名稱 —— 讀得懂,但看得出還沒翻。",
+		ZhHant: "留空的話，英文網站會顯示中文名稱 —— 讀得懂，但看得出還沒翻。",
 		En: "Leave it blank and the English site shows the Chinese name — readable, but visibly " +
 			"untranslated.",
 	})
@@ -123,7 +123,7 @@ var (
 		En:     "Cannot be changed once created.",
 	})
 
-	KeyAdminTaxParent = key("admin.tax.parent", Message{ZhHant: "上層分類(選填)", En: "Parent category (optional)"})
+	KeyAdminTaxParent = key("admin.tax.parent", Message{ZhHant: "上層分類（選填）", En: "Parent category (optional)"})
 
 	KeyAdminTaxParentHint = key("admin.tax.parent.hint", Message{
 		ZhHant: "留空就是最上層。",
@@ -152,7 +152,7 @@ var (
 
 var (
 	KeyAdminNoticeInUse = key("admin.notice.inuse", Message{
-		ZhHant: "還有商品或子分類在用它,先把那些移到別的地方再刪。",
+		ZhHant: "還有商品或子分類在用它，先把那些移到別的地方再刪。",
 		En:     "Products or child categories still point at it. Move those elsewhere first.",
 	})
 )

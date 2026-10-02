@@ -32,14 +32,8 @@ var (
 		En:     "Nothing is on sale at the moment. Have a look through the categories.",
 	})
 
-	KeyEndsWithinHour = key("campaign.ends.soon", Message{
-		ZhHant: "不到 1 小時",
-		En:     "under an hour left",
-	})
-
-	KeyEndsInHours = countKey("campaign.ends.hours", "剩 %d 小時", "%d hour left", "%d hours left")
-
-	KeyEndsInDays = countKey("campaign.ends.days", "剩 %d 天", "%d day left", "%d days left")
+	// %s is the last day, after the product count on the offers page.
+	KeyCampaignUntil = key("campaign.until", Message{ZhHant: "至 %s", En: "until %s"})
 
 	KeyCampaignNotFound = key("campaign.notfound", Message{ZhHant: "找不到這個活動", En: "Offer not found"})
 
@@ -62,7 +56,7 @@ var (
 	})
 
 	KeyAdminCampLead = key("admin.camp.lead", Message{
-		ZhHant: "活動只能收錄有標示原價的商品。新活動一開始是空的,建立後再挑選商品。",
+		ZhHant: "活動只能收錄有標示原價的商品。新活動一開始是空的，建立後再挑選商品。",
 		En: "A campaign can only feature products that state an original price. " +
 			"A new campaign starts empty; you choose its products after creating it.",
 	})
@@ -92,7 +86,7 @@ var (
 	})
 
 	KeyAdminCampFindNone = key("admin.camp.findnone", Message{
-		ZhHant: "找不到符合的商品,或它已經在這個活動裡。",
+		ZhHant: "找不到符合的商品，或它已經在這個活動裡。",
 		En:     "No product matches, or it is already in this campaign.",
 	})
 
@@ -103,19 +97,19 @@ var (
 	KeyAdminCampEnds = key("admin.camp.ends", Message{ZhHant: "結束時間", En: "Ends"})
 
 	KeyFormCampaignWindow = key("form.campaign.window", Message{
-		ZhHant: "請填入開始與結束時間,結束必須晚於開始。",
+		ZhHant: "請填入開始與結束時間，結束必須晚於開始。",
 		En:     "Give a start and an end, the end after the start.",
 	})
 
 	KeyAdminCampProductHint = key("admin.camp.product.hint", Message{
-		ZhHant: "商品必須已經標示原價,否則無法加入。",
+		ZhHant: "商品必須已經標示原價，否則無法加入。",
 		En:     "The product must already state an original price, or it cannot be added.",
 	})
 
 	KeyAdminCampImage = key("admin.camp.image", Message{ZhHant: "活動頁首圖片", En: "Campaign header image"})
 
 	KeyAdminCampImageHint = key("admin.camp.imagehint", Message{
-		ZhHant: "顯示在活動頁最上方,會從中央裁成 8:3。建議 1600×600。",
+		ZhHant: "顯示在活動頁最上方，會從中央裁成 8:3。建議 1600×600。",
 		En:     "Shown across the top of the campaign page, cropped from the centre to 8:3. 1600×600 works best.",
 	})
 
@@ -127,12 +121,12 @@ var (
 	})
 
 	KeyAdminCampNoProducts = key("admin.camp.noproducts", Message{
-		ZhHant: "這個活動還沒有收錄商品,顧客看到的會是空頁面。",
+		ZhHant: "這個活動還沒有收錄商品，顧客看到的會是空頁面。",
 		En:     "This campaign features nothing yet, so a customer would see an empty page.",
 	})
 
 	KeyFormCampaignTitle = key("form.campaign.title", Message{
-		ZhHant: "請填寫活動標題,不超過 60 個字。",
+		ZhHant: "請填寫活動標題，不超過 60 個字。",
 		En:     "A campaign title is required, 60 characters at most.",
 	})
 
@@ -148,7 +142,7 @@ var (
 	KeyAdminCampaignOutside = key("admin.campaign.outside", Message{ZhHant: "不在期間內", En: "Outside its window"})
 
 	KeyAdminCampaignEmpty = key("admin.campaign.empty", Message{
-		ZhHant: "進行中(沒有商品)",
+		ZhHant: "進行中（沒有商品）",
 		En:     "Running (nothing featured)",
 	})
 
@@ -157,7 +151,7 @@ var (
 
 var (
 	KeyAdminNoticeNoDiscount = key("admin.notice.nodiscount", Message{
-		ZhHant: "這個商品沒有標示原價,無法加入活動。先在商品頁設定原價再試一次。",
+		ZhHant: "這個商品沒有標示原價，無法加入活動。先在商品頁設定原價再試一次。",
 		En: "This product has no compare-at price, so nothing on it is marked down and a campaign " +
 			"cannot feature it. Set one on the product page and try again.",
 	})
@@ -167,6 +161,6 @@ var KeyCampaignPagination = key("campaign.pagination", Message{ZhHant: "活動�
 
 var (
 	KeyAdminCampaignTitleEnLength = key("admin.campaign.title_en_length", Message{ZhHant: "英文活動標題不得超過 60 字。", En: "Use at most 60 characters for the English campaign title."})
-	KeyAdminCampaignTitleEn       = key("admin.campaign.title_en", Message{ZhHant: "英文活動標題 (選填)", En: "English campaign title (optional)"})
-	KeyAdminCampaignTitleEnHint   = key("admin.campaign.title_en_hint", Message{ZhHant: "留白時,英文頁面會顯示原活動標題。", En: "Leave blank to show the original campaign title on English pages."})
+	KeyAdminCampaignTitleEn       = key("admin.campaign.title_en", Message{ZhHant: "英文活動標題（選填）", En: "English campaign title (optional)"})
+	KeyAdminCampaignTitleEnHint   = key("admin.campaign.title_en_hint", Message{ZhHant: "留白時，英文頁面會顯示原活動標題。", En: "Leave blank to show the original campaign title on English pages."})
 )

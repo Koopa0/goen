@@ -14,7 +14,6 @@ import (
 	"slices"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 
@@ -570,40 +569,25 @@ func TestACampaignOutsideItsWindowIsNotFound(t *testing.T) {
 	}
 }
 
-func TestRunningCampaignCountdownUsesTheDatabaseClock(t *testing.T) {
-	ctx := t.Context()
-	slug := campaign(t, "db-clock-"+uuid.NewString()[:8])
-
-	tx, err := pool.Begin(ctx)
-	if err != nil {
-		t.Fatalf("begin: %v", err)
-	}
-	cleanupCtx := context.WithoutCancel(t.Context())
-	t.Cleanup(func() { _ = tx.Rollback(cleanupCtx) })
-	if _, execErr := tx.Exec(ctx, `
-		UPDATE sale_campaigns
-		SET starts_at = now() - interval '1 day', ends_at = now() + interval '1 second'
-		WHERE slug = $1`, slug); execErr != nil {
-		t.Fatalf("shorten campaign: %v", execErr)
+// A year-long campaign names no last day; one ending within the month does.
+func TestARunningCampaignNamesOnlyANearLastDay(t *testing.T) {
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	near := campaign(t, "near-end-"+uuid.NewString()[:8])
+	far := campaign(t, "far-end-"+uuid.NewString()[:8])
+	if _, err := pool.Exec(ctx, `UPDATE sale_campaigns SET ends_at = now() + interval '1 year' WHERE slug = $1`, far); err != nil {
+		t.Fatalf("lengthen campaign: %v", err)
 	}
 
-	// PostgreSQL's now() is stable for the transaction. Once the process clock
-	// passes ends_at, only a countdown derived by the same database clock that
-	// admitted the row remains positive.
-	time.Sleep(1100 * time.Millisecond)
-	campaigns, err := catalog.NewStore(tx).RunningCampaigns(ctx, 1)
-	if err != nil {
-		t.Fatalf("running campaigns: %v", err)
-	}
-	for _, got := range campaigns.Rows {
-		if got.Slug == slug {
-			if got.EndsIn == "" {
-				t.Fatal("database still considers the campaign running, but its countdown is empty")
-			}
-			return
+	s := catalog.NewStore(pool)
+	for slug, wantDay := range map[string]bool{near: true, far: false} {
+		view, err := s.Campaign(ctx, slug)
+		if err != nil {
+			t.Fatalf("read campaign %s: %v", slug, err)
+		}
+		if got := view.EndsOn != ""; got != wantDay {
+			t.Errorf("%s names its last day = %v (%q), want %v", slug, got, view.EndsOn, wantDay)
 		}
 	}
-	t.Fatalf("running campaigns omitted %q", slug)
 }
 
 // sale_campaign_needs_discount takes a lock on the product before it reads the

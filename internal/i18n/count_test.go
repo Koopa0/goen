@@ -20,11 +20,6 @@ func TestCountReadsTheSingularOnlyForOne(t *testing.T) {
 		{En, "campaign.products", 1, "1", "1 product"},
 		{En, "campaign.products", 1000, "1,000", "1,000 products"},
 		{En, "deals.count", 1, "1", "1 product reduced"},
-		{En, "campaign.ends.hours", 1, int64(1), "1 hour left"},
-		{En, "campaign.ends.hours", 5, int64(5), "5 hours left"},
-		{En, "campaign.ends.days", 1, int64(1), "1 day left"},
-		{En, "campaign.ends.days", 2, int64(2), "2 days left"},
-		{ZhHant, "campaign.ends.days", 1, int64(1), "剩 1 天"},
 		{ZhHant, "pdp.reviews.stars", 1, "1", "1 星"},
 	}
 	for _, c := range cases {

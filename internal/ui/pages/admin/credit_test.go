@@ -36,3 +36,30 @@ func TestCreditConfirmationShowsWhatWillBeGranted(t *testing.T) {
 		}
 	}
 }
+
+func TestCreditLedgerTranslatesTheReasonsGoenWroteAndKeepsStaffText(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		locale i18n.Locale
+		reason string
+		want   string
+	}{
+		{i18n.En, "order cancelled", "Order cancelled, credit returned"},
+		{i18n.En, "訂單折抵", "Applied to an order"},
+		{i18n.En, "退貨退回購物金", "Credit for a return"},
+		{i18n.En, "points", "Points redeemed"},
+		{i18n.ZhHant, "order cancelled", "訂單取消，購物金退回"},
+		{i18n.ZhHant, "points", "點數兌換"},
+		{i18n.En, "goodwill for a late parcel", "goodwill for a late parcel"},
+	} {
+		ctx := i18n.WithLocale(t.Context(), tt.locale)
+		var body strings.Builder
+		v := CreditView{Rows: []CreditEntry{{Email: "a@example.test", AmountCents: -500, Reason: tt.reason}}}
+		if err := Credit(layouts.Page{Title: "credit"}, v).Render(ctx, &body); err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(body.String(), ">"+tt.want+"</span>") {
+			t.Errorf("%s %q: ledger does not show %q", tt.locale, tt.reason, tt.want)
+		}
+	}
+}

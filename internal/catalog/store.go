@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -17,6 +18,8 @@ import (
 // Store reads the catalogue for the listing and search pages.
 type Store struct {
 	q *db.Queries
+	// now decides whether a campaign's last day is near enough to name.
+	now func() time.Time
 }
 
 // NewStore returns a Store reading through dbtx.
@@ -24,7 +27,7 @@ func NewStore(dbtx db.DBTX) *Store {
 	if dbtx == nil {
 		panic("catalog: NewStore requires a database handle")
 	}
-	return &Store{q: db.New(dbtx)}
+	return &Store{q: db.New(dbtx), now: time.Now}
 }
 
 // Listing reads one page of a category listing, with its crumbs and facets. One

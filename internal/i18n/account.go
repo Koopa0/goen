@@ -52,7 +52,7 @@ var (
 	})
 
 	KeyCartMergeFailed = key("account.notice.cart.mergefailed", Message{
-		ZhHant: "登入後購物車未能合併。此瀏覽器目前顯示的是訪客購物車；您帳戶中的購物車仍保留原有品項。",
+		ZhHant: "登入後購物車未能合併。此瀏覽器目前顯示的是訪客購物車；你帳戶中的購物車仍保留原有品項。",
 		En: "Your carts could not be merged after sign-in. This browser is still showing your guest cart; " +
 			"your account cart still holds its existing items.",
 	})

@@ -6,14 +6,14 @@ var (
 	KeyAddedToCart = key("buy.added", Message{ZhHant: "已加入購物車。", En: "Added to your cart."})
 
 	KeyAddAdjusted = key("buy.add.adjusted", Message{
-		ZhHant: "已加入購物車,數量已依庫存調整。",
+		ZhHant: "已加入購物車，數量已依庫存調整。",
 		En:     "Added to your cart. The quantity was reduced to match available stock.",
 	})
 
 	KeyViewCart = key("buy.view_cart", Message{ZhHant: "查看購物車", En: "View cart"})
 
 	KeyAddRefused = key("buy.add.refused", Message{
-		ZhHant: "這個規格剛剛被買走了,沒有加入購物車。",
+		ZhHant: "這個規格剛剛被買走了，沒有加入購物車。",
 		En:     "That option has just sold out, so nothing was added.",
 	})
 
@@ -29,11 +29,6 @@ var (
 		En:     "Choose options",
 	})
 
-	KeyChooseBeforeAdding = key("buy.choose_first", Message{
-		ZhHant: "請選擇完整規格後加入購物車。",
-		En:     "Choose every option before adding to the cart.",
-	})
-
 	KeyCheckout = key("buy.checkout", Message{ZhHant: "前往結帳", En: "Checkout"})
 
 	KeyContinue = key("buy.continue", Message{ZhHant: "繼續選購", En: "Keep shopping"})
@@ -43,6 +38,10 @@ var (
 	KeyShippingFee = key("buy.shipping", Message{ZhHant: "運費", En: "Delivery"})
 
 	KeyDiscount = key("buy.discount", Message{ZhHant: "折扣", En: "Discount"})
+
+	// %s is what gave the discount: the code, and its description where the
+	// order records one.
+	KeyDiscountFor = key("buy.discount.for", Message{ZhHant: "折扣（%s）", En: "Discount (%s)"})
 
 	KeyTotal = key("buy.total", Message{ZhHant: "應付金額", En: "Total"})
 

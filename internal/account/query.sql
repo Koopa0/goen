@@ -51,6 +51,12 @@ FROM (VALUES (true)) AS attempt (made)
 LEFT JOIN created c ON true
 LEFT JOIN users u ON lower(u.email) = lower(@email::text);
 
+-- Born proved: the address is the operator's, published beside the password,
+-- so no link is mailed for it.
+-- name: CreateVerifiedUser :exec
+INSERT INTO users (email, password_hash, email_verified_at)
+VALUES (@email::text, @password_hash::text, now());
+
 -- Asking again for a registration link is this one INSERT whatever the
 -- address: the account is looked up inside it, and names nobody unless it is
 -- registered and still unproved, so an address with no account, or one already

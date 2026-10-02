@@ -129,7 +129,7 @@ var (
 	KeyAdminPageAudit = key("admin.page.audit", Message{ZhHant: "操作紀錄", En: "Activity log"})
 
 	KeyAdminAuditLead = key("admin.audit.lead", Message{
-		ZhHant: "誰在什麼時候做了什麼。這份紀錄只能新增,寫進去就改不了也刪不掉。",
+		ZhHant: "誰在什麼時候做了什麼。這份紀錄只能新增，寫進去就改不了也刪不掉。",
 		En: "Who did what, and when. This record is append-only: nothing written here " +
 			"can be changed or removed.",
 	})

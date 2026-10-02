@@ -7,7 +7,7 @@ var (
 	})
 
 	KeyVerifyBody = key("verify.body", Message{
-		ZhHant: "按下按鈕就完成確認。如果這是更換信箱,確認之後才會生效。",
+		ZhHant: "按下按鈕就完成確認。如果這是更換信箱，確認之後才會生效。",
 		En: "One button and it is confirmed. If this is a change of address, it takes " +
 			"effect only once you do.",
 	})
@@ -17,7 +17,7 @@ var (
 	KeyVerifyDone = key("verify.done", Message{ZhHant: "信箱已確認", En: "Address confirmed"})
 
 	KeyVerifyDoneBody = key("verify.done.body", Message{
-		ZhHant: "%s 已經確認完成,之後的通知信都會寄到這裡。",
+		ZhHant: "%s 已經確認完成，之後的通知信都會寄到這裡。",
 		En:     "%s is confirmed. Everything we send you goes there from now on.",
 	})
 
@@ -38,7 +38,7 @@ var (
 	})
 
 	KeyVerifyTakenBody = key("verify.taken.body", Message{
-		ZhHant: "在你確認之前,這個信箱已經被另一個帳號註冊了。你的帳號和原本的信箱沒有改變。",
+		ZhHant: "在你確認之前，這個信箱已經被另一個帳號註冊了。你的帳號和原本的信箱沒有改變。",
 		En: "Another account registered that address before you confirmed. Your account " +
 			"and its current address are unchanged.",
 	})
@@ -56,7 +56,7 @@ var (
 	})
 
 	KeyEmailUnverifiedHint = key("account.email.unverified.hint", Message{
-		ZhHant: "沒有確認過的信箱,我們無法確定通知信寄得到 —— 打錯一個字,你就什麼都收不到。",
+		ZhHant: "沒有確認過的信箱，我們無法確定通知信寄得到 —— 打錯一個字，你就什麼都收不到。",
 		En: "Without a confirmed address we cannot tell whether anything reaches you. One " +
 			"mistyped letter and nothing does.",
 	})
@@ -64,14 +64,14 @@ var (
 	KeyEmailResend = key("account.email.resend", Message{ZhHant: "重新寄確認信", En: "Send it again"})
 
 	KeyEmailPending = key("account.email.pending", Message{
-		ZhHant: "等待確認:%s",
+		ZhHant: "等待確認：%s",
 		En:     "Waiting to be confirmed: %s",
 	})
 
 	KeyEmailChange = key("account.email.change", Message{ZhHant: "更換信箱", En: "Change your address"})
 
 	KeyEmailChangeHint = key("account.email.change.hint", Message{
-		ZhHant: "確認信會寄到新信箱。點過連結才會生效,在那之前原本的信箱照常收信。",
+		ZhHant: "確認信會寄到新信箱。點過連結才會生效，在那之前原本的信箱照常收信。",
 		En: "We send a letter to the new address. It takes effect only when you follow the " +
 			"link — until then the old address keeps receiving.",
 	})
@@ -79,7 +79,7 @@ var (
 	KeyFieldNewEmail = key("field.email.new", Message{ZhHant: "新的電子郵件", En: "New email address"})
 
 	KeyEmailSent = key("account.notice.email.sent", Message{
-		ZhHant: "確認信已寄出,請到信箱點一下連結。",
+		ZhHant: "確認信已寄出，請到信箱點一下連結。",
 		En:     "Confirmation sent. Follow the link in it to finish.",
 	})
 

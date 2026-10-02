@@ -7,7 +7,7 @@ var (
 
 	KeySearchHint = key("nav.search.hint", Message{
 		ZhHant: "搜尋商品、品牌或規格",
-		En:     "Search products, brands or specifications",
+		En:     "Search products",
 	})
 
 	KeyMenu = key("nav.menu", Message{ZhHant: "選單", En: "Menu"})
@@ -22,11 +22,11 @@ var (
 	KeyCart = key("nav.cart", Message{ZhHant: "購物車", En: "Cart"})
 
 	KeyCartEmpty = key("nav.cart.empty", Message{
-		ZhHant: "購物車,目前是空的",
+		ZhHant: "購物車，目前是空的",
 		En:     "Cart, currently empty",
 	})
 
-	KeyCartCount = countKey("nav.cart.count", "購物車,%s 件商品", "Cart, %s item", "Cart, %s items")
+	KeyCartCount = countKey("nav.cart.count", "購物車，%s 件商品", "Cart, %s item", "Cart, %s items")
 
 	KeyDeals = key("nav.deals", Message{ZhHant: "限時優惠", En: "Deals"})
 

@@ -117,7 +117,7 @@ func TestAnExpiredRedemptionFormNoticeSpeaksBothLocales(t *testing.T) {
 		locale i18n.Locale
 		want   string
 	}{
-		{i18n.ZhHant, "這份兌換表單已過期,請重新送出。"},
+		{i18n.ZhHant, "這份兌換表單已過期，請重新送出。"},
 		{i18n.En, "That redemption form expired. Submit it again."},
 	}
 	for _, tt := range tests {

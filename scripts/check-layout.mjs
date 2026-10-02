@@ -316,9 +316,9 @@ const ADMIN = [
 // INVOICE_ORDER is the refunded order the return fixture decided.
 const ACCOUNT_BADFORM = [
   { label: 'points badform 375', width: 375, height: 812, locale: 'zh-Hant',
-    notice: '這份兌換表單已過期,請重新送出。' },
+    notice: '這份兌換表單已過期，請重新送出。' },
   { label: 'points badform 1440', width: 1440, height: 900, locale: 'zh-Hant',
-    notice: '這份兌換表單已過期,請重新送出。' },
+    notice: '這份兌換表單已過期，請重新送出。' },
   { label: 'points badform en 375', width: 375, height: 812, locale: 'en',
     notice: 'That redemption form expired. Submit it again.' },
   { label: 'points badform en 1440', width: 1440, height: 900, locale: 'en',
@@ -872,7 +872,9 @@ const LISTING_LAYOUT_PROBE = `(() => {
     return { ok: false, why: 'listing layout landmarks missing' };
   }
   const rail = (filters || filterForm).getBoundingClientRect();
-  const resultsRect = results.getBoundingClientRect();
+  // The column the results are in: it also holds the applied-filter chips
+  // above them, which would otherwise push the results below the rail's top.
+  const resultsRect = (document.querySelector('.goen-listing__main') || results).getBoundingClientRect();
   const cardRect = card ? card.getBoundingClientRect() : null;
   return {
     ok: true,
@@ -1290,13 +1292,31 @@ const proveListingDesktopResize = async (label, locale) => {
       await new Promise((r) => setTimeout(r, 50));
     }
     const count = document.querySelector('.goen-listing__count');
+    const replaced = document.getElementById('listing-results') !== before;
+    const focusKept = document.activeElement === box;
+    const scrolled = window.scrollY !== y;
+    // The cross is nine pixels wide; what is pressable is the 44px square around
+    // its centre, hit-tested at the square's four corners.
+    const remove = document.querySelector('#filters-applied .goen-filters__chip-remove');
+    const missed = [];
+    if (remove) {
+      remove.scrollIntoView({ block: 'center' });
+      const r = remove.getBoundingClientRect();
+      const cx = r.left + r.width / 2;
+      const cy = r.top + r.height / 2;
+      for (const [dx, dy] of [[-21, -21], [21, -21], [-21, 21], [21, 21]]) {
+        const hit = document.elementFromPoint(cx + dx, cy + dy);
+        if (!hit || !remove.contains(hit)) missed.push(dx + ',' + dy);
+      }
+    }
     return {
       ok: true,
       search: location.search,
       chip: !!document.querySelector('#filters-applied .goen-filters__chip'),
-      replaced: document.getElementById('listing-results') !== before,
-      focusKept: document.activeElement === box,
-      scrolled: window.scrollY !== y,
+      removeMissed: remove ? missed : null,
+      replaced,
+      focusKept,
+      scrolled,
       status: (document.getElementById('listing-status')?.textContent || '').trim(),
       count: count ? count.textContent.trim() : null,
     };
@@ -1306,10 +1326,26 @@ const proveListingDesktopResize = async (label, locale) => {
   } else {
     if (!live.search.includes('in_stock=1')) fail(label, `ticking the stock filter did not update the URL — ${JSON.stringify(live)}`);
     if (!live.chip) fail(label, `no active-filter chip after the update — ${JSON.stringify(live)}`);
+    if (live.removeMissed === null) fail(label, 'the active-filter chip has no remove link');
+    else if (live.removeMissed.length) fail(label, `the chip's remove link is not pressable across 44x44px; corners that miss it: ${live.removeMissed.join(' ')}`);
     if (!live.replaced) fail(label, 'the results region was not replaced by the update');
     if (!live.focusKept) fail(label, 'focus left the filter box after the update');
     if (live.scrolled) fail(label, 'the page scrolled after the update');
     if (!live.count || live.status !== live.count) fail(label, `the announced count "${live.status}" is not the page's "${live.count}"`);
+  }
+
+  // The applied chips are the results' own heading: above them, in their column.
+  const placed = await evalPage(`(() => {
+    const applied = document.querySelector('#filters-applied .goen-filters__applied');
+    const results = document.getElementById('listing-results');
+    if (!applied || !results) return { ok: false, why: 'applied chips or results missing after the filter' };
+    const a = applied.getBoundingClientRect();
+    const r = results.getBoundingClientRect();
+    return { ok: true, aBottom: a.bottom, aLeft: a.left, rTop: r.top, rLeft: r.left };
+  })()`);
+  if (placed.threw || !placed.ok) fail(label, placed.why || 'chip placement probe failed');
+  else if (placed.aBottom > placed.rTop + 1 || Math.abs(placed.aLeft - placed.rLeft) > 1) {
+    fail(label, `the applied chips are not above the results — ${JSON.stringify(placed)}`);
   }
 
   await loadDesktop(true);
@@ -1479,6 +1515,7 @@ const DRAWER_PROBE = `(async () => {
   menu.open = true;
   await new Promise((done) => setTimeout(done, 1000));
   const links = [...menu.querySelectorAll('.goen-header__drawer a')];
+  const drawerBottom = menu.querySelector('.goen-header__drawer').getBoundingClientRect().bottom;
   // The drawer scrolls on its own (the account links sit below the departments),
   // and a point outside the viewport hits nothing: bring each link in before it
   // is tested, so what is measured is what is painted over it and not how far
@@ -1495,7 +1532,7 @@ const DRAWER_PROBE = `(async () => {
       covered.push(a.textContent.trim() + ' under ' + (hit ? hit.tagName + '.' + String(hit.className).split(' ')[0] : 'nothing'));
     }
   }
-  return { ok: true, links: links.length, covered };
+  return { ok: true, links: links.length, covered, drawerBottom, viewport: window.innerHeight };
 })()`;
 
 for (const want of [
@@ -1518,6 +1555,9 @@ for (const want of [
   if (!got.links) fail(want.label, 'the open drawer lists no links — this check proved nothing');
   if (got.covered.length) {
     fail(want.label, `${got.covered.length} of ${got.links} drawer links are painted over: ${got.covered.join(', ')}`);
+  }
+  if (got.drawerBottom > got.viewport + 0.5) {
+    fail(want.label, `the open drawer ends at ${got.drawerBottom}px, below the ${got.viewport}px viewport, so what is under the fold cannot be reached`);
   }
   console.log(`${want.label.padEnd(24)} links=${got.links} covered=${got.covered.length}${got.covered.length ? '' : ' ok'}`);
 }
@@ -1795,6 +1835,55 @@ const STEPPER_FOCUS_PROBE = `(() => {
     if (!got.atBound) fail(label, `the + button never reached its bound (value ${got.value}, max ${got.max})`);
     if (!got.focused) fail(label, `focus left the + button at the bound and sits on ${got.active}`);
     console.log(`${label.padEnd(24)} value=${got.value}/${got.max} focused=${got.focused}${got.focused ? ' ok' : ''}`);
+  }
+}
+
+// A quantity typed above the stock is the server's to answer: the request goes
+// out, the field takes back the quantity the cart kept (the stock), and the
+// notice region says why. A native validation bubble would have swallowed it.
+const CART_OVERTYPE_PROBE = `(async () => {
+  const lineField = () => document.querySelector('.goen-line__controls .goen-stepper__value');
+  const notice = () => (document.getElementById('cart-notices')?.textContent || '').trim();
+  const until = async (done) => {
+    const deadline = Date.now() + 8000;
+    while (Date.now() < deadline && !done()) await new Promise((r) => setTimeout(r, 100));
+    return done();
+  };
+  const type = (field, value) => {
+    field.focus();
+    field.value = String(value);
+    field.dispatchEvent(new Event('input', { bubbles: true }));
+    field.dispatchEvent(new Event('change', { bubbles: true }));
+  };
+  const field = lineField();
+  if (!field) return { ok: false, why: 'the cart has no quantity field' };
+  const max = Number(field.max);
+  const original = Number(field.value);
+  if (!max || max >= 999) return { ok: true, skipped: true };
+  const noticeBefore = notice();
+  type(field, max + 5);
+  const settled = await until(() => lineField()?.value === String(max) && notice() !== '');
+  const result = { ok: true, skipped: false, max, settled, value: lineField()?.value, noticeBefore, notice: notice() };
+  // The cart is shared with the checks that follow: put the line back.
+  type(lineField(), original);
+  await until(() => lineField()?.value === String(original) && notice() === '');
+  return result;
+})()`;
+
+{
+  const label = 'cart overtype 375';
+  await send(ws, 'Emulation.setDeviceMetricsOverride', { width: 375, height: 812, deviceScaleFactor: 1, mobile: true });
+  const target = ORIGIN + '/cart';
+  await send(ws, 'Page.navigate', { url: target });
+  await settled(ws, label, target);
+  const got = await evalPage(CART_OVERTYPE_PROBE);
+  if (got.threw || !got.ok) fail(label, `the probe did not run — ${got.why}`);
+  else if (got.skipped) console.log(`${label.padEnd(24)} no line with a stock bound, skipped`);
+  else {
+    if (got.noticeBefore !== '') fail(label, 'the cart already carried a notice, so this check proved nothing');
+    if (got.value !== String(got.max)) fail(label, `typing ${got.max + 5} left the field at ${got.value}, want the stock ${got.max}`);
+    if (got.notice === '') fail(label, 'no notice said why the quantity changed');
+    console.log(`${label.padEnd(24)} value=${got.value}/${got.max} notice=${got.notice !== ''}`);
   }
 }
 
@@ -2290,6 +2379,51 @@ if (process.env.CUST_TOKEN) {
     console.log(`${at.padEnd(24)} scrollW=${got.scrollWidth}/${got.viewportWidth} ` +
       `controls=${got.controls} tap=${got.minTap || '-'}${extra}`);
   }
+
+  // Hovering the nth star of the rating row previews exactly n, whatever is
+  // already chosen. The row is offered to a customer whose order was delivered,
+  // so the product is the one on that order; a catalogue where the order page
+  // links no product, or the row is not offered, is said and skipped.
+  {
+    const label = 'review stars hover';
+    await send(ws, 'Network.setCookie', { name: 'goen_locale', value: 'zh-Hant', domain: '127.0.0.1', path: '/' });
+    await send(ws, 'Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
+    const order = ORIGIN + '/orders/' + (process.env.RETURN_FORM_ORDER || '');
+    await send(ws, 'Page.navigate', { url: order });
+    await settled(ws, label, order);
+    const href = await evalPage(`document.querySelector('a[href^="/p/"]')?.getAttribute('href') ?? null`);
+    if (href) {
+      await send(ws, 'Page.navigate', { url: ORIGIN + href });
+      await settled(ws, label, ORIGIN + href);
+    }
+    const centres = await evalPage(`(() => {
+      const row = document.querySelector('.goen-pdp__starrow');
+      if (!row) return null;
+      row.scrollIntoView({ block: 'center' });
+      const inputs = [...row.querySelectorAll('input')];
+      inputs[3].checked = true;
+      return [...row.querySelectorAll('.goen-pdp__star')].map((e) => {
+        const r = e.getBoundingClientRect();
+        return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+      });
+    })()`);
+    if (!centres || centres.threw || centres.length !== 5) {
+      console.log(`${label.padEnd(24)} no rating row offered to this customer here, skipped`);
+    } else {
+      const lit = () => evalPage(`[...document.querySelectorAll('.goen-pdp__starrow .goen-pdp__starmark svg')]
+        .filter((e) => getComputedStyle(e).fill !== 'none').length`);
+      const hover = (at) => send(ws, 'Input.dispatchMouseEvent', { type: 'mouseMoved', x: at.x, y: at.y });
+      for (const n of [1, 2, 3]) {
+        await hover(centres[n - 1]);
+        const got = await lit();
+        if (got !== n) fail(label, `hovering star ${n} with 4 chosen lights ${got}, want ${n}`);
+      }
+      await hover({ x: 5, y: 5 });
+      const rest = await lit();
+      if (rest !== 4) fail(label, `with the pointer off the row the chosen 4 light ${rest}`);
+      console.log(`${label.padEnd(24)} hover 1..3 lights 1..3, rest lights ${rest}`);
+    }
+  }
 } else {
   console.log('account pages    skipped (no CUST_TOKEN)');
 }
@@ -2450,7 +2584,7 @@ if (process.env.ADMIN_TOKEN) {
 // replaces the interactive surface with raw `429 …` and the visitor cannot
 // retry. A handler test can only see the fragment; these rows spend the live
 // limiter through the actual submit control and read the swapped DOM.
-const RETRY_ZH = '請求過於頻繁,請稍後再試。';
+const RETRY_ZH = '請求過於頻繁，請稍後再試。';
 const RETRY_EN = 'Too many requests. Please try again shortly.';
 const namesRetry = (text) => String(text || '').includes(RETRY_ZH) || String(text || '').includes(RETRY_EN);
 

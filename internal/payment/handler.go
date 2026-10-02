@@ -106,13 +106,24 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 // renderPay offers a payment only where Start could open or resume one. The
 // deadline is Start's own admission rule read backwards from the hold.
 func (h *Handler) renderPay(w http.ResponseWriter, r *http.Request, o *Order, hasSession bool, status int) {
+	b, err := h.store.Breakdown(r.Context(), o.Number)
+	if err != nil {
+		h.log.ErrorContext(r.Context(), "read order breakdown", "order", o.Number, "error", err)
+		h.serverError(w, r)
+		return
+	}
 	view := pages.PayView{
-		Number:     o.Number,
-		TotalCents: o.TotalCents,
-		Email:      o.Email,
-		Enabled:    h.gateway.Enabled(),
-		Sandbox:    h.gateway.Sandbox(),
-		Cancelled:  r.URL.Query().Get("cancelled") == "1",
+		Number:         o.Number,
+		TotalCents:     o.TotalCents,
+		Email:          o.Email,
+		Enabled:        h.gateway.Enabled(),
+		Sandbox:        h.gateway.Sandbox(),
+		Cancelled:      r.URL.Query().Get("cancelled") == "1",
+		ShippingName:   b.ShippingName,
+		ShippingCents:  b.ShippingCents,
+		DiscountCents:  b.DiscountCents,
+		DiscountReason: b.DiscountReason,
+		CreditCents:    b.CreditCents,
 	}
 	switch {
 	case pages.FulfillmentStatus(o.Fulfillment) == pages.FulfillmentCancelled:

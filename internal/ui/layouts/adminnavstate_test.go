@@ -81,3 +81,15 @@ func TestTheGroupHoldingTheCurrentScreenIsTheOneOpen(t *testing.T) {
 		}
 	}
 }
+
+func TestAdminFooterNamesOnlyTheShop(t *testing.T) {
+	t.Parallel()
+	ctx := templ.WithChildren(i18n.WithLocale(t.Context(), i18n.ZhHant), templ.NopComponent)
+	var b strings.Builder
+	if err := layouts.Admin(layouts.Page{Title: "t"}, "").Render(ctx, &b); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(b.String(), "© 2026 goen</span>") {
+		t.Error("the back office footer is not the bare name")
+	}
+}

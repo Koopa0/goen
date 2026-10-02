@@ -862,6 +862,15 @@ func (v *OrderView) Discounted() bool { return v.DiscountCents > 0 }
 // Discount is what came off, as a negative figure.
 func (v *OrderView) Discount() string { return "-" + twd(v.DiscountCents) }
 
+// DiscountLabel names a discount row by what gave it, the same way on every
+// page that lists one.
+func DiscountLabel(ctx context.Context, reason string) string {
+	if reason == "" {
+		return i18n.T(ctx, i18n.KeyDiscount)
+	}
+	return fmt.Sprintf(i18n.T(ctx, i18n.KeyDiscountFor), reason)
+}
+
 // Total is what the order came to.
 func (v *OrderView) Total() string {
 	return twd(v.SubtotalCents - v.DiscountCents + v.ShippingCents + v.TaxCents)

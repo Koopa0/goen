@@ -11,7 +11,7 @@ func TestTerminalNoticesDistinguishActorAndReceiptInBothLanguages(t *testing.T) 
 		kind   TerminalKind
 		en, zh string
 	}{
-		{TerminalCancelledByCustomer, "You cancelled", "您已取消"},
+		{TerminalCancelledByCustomer, "You cancelled", "你已取消"},
 		{TerminalCancelledByStaff, "The shop cancelled", "商店已取消"},
 		{TerminalCancelledByPaymentDeadline, "cancelled automatically", "已自動取消"},
 		{TerminalDelivered, "marked as delivered", "已標記為送達"},
@@ -90,6 +90,31 @@ func TestTheArrivalMailStatesTheLastDayToReturn(t *testing.T) {
 					t.Errorf("%s/%s day=%q: body names the day = %t:\n%s", kind, locale, day, got, sink.msg.Body)
 				}
 			}
+		}
+	}
+}
+
+// A delivered or collected order's subject says which, in both languages: the
+// words "receipt" and "update" read like a payment receipt.
+func TestTheArrivalSubjectSaysWhatHappened(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		kind   TerminalKind
+		locale string
+		want   string
+	}{
+		{TerminalDelivered, "en", "Order GO-260101-000001 has been delivered"},
+		{TerminalCollected, "en", "Order GO-260101-000001 has been collected"},
+		{TerminalDelivered, "zh-Hant", "訂單 GO-260101-000001 已送達"},
+		{TerminalCollected, "zh-Hant", "訂單 GO-260101-000001 已取貨"},
+	} {
+		n, sink := notifier(t)
+		to := TerminalRecipient{Address: "reader@example.com", Locale: tt.locale, OrderNumber: "GO-260101-000001"}
+		if err := n.SendOrderTerminal(t.Context(), &OrderTerminal{Kind: tt.kind}, to); err != nil {
+			t.Fatal(err)
+		}
+		if sink.msg.Subject != tt.want {
+			t.Errorf("%s/%s subject = %q, want %q", tt.kind, tt.locale, sink.msg.Subject, tt.want)
 		}
 	}
 }

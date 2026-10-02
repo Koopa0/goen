@@ -4,7 +4,7 @@ var (
 	KeyCartItemCount = countKey("cart.count", "%s 件商品", "%s item", "%s items")
 
 	KeyCartEmptyDesc = key("cart.empty.desc", Message{
-		ZhHant: "還沒有挑到東西?",
+		ZhHant: "還沒有挑到東西？",
 		En:     "Nothing caught your eye yet?",
 	})
 
@@ -33,7 +33,7 @@ var (
 	})
 
 	KeyCartStockShort = key("cart.stock.short", Message{
-		ZhHant: "有商品的庫存不足,請先調整數量再結帳。",
+		ZhHant: "有商品的庫存不足，請先調整數量再結帳。",
 		En:     "Some items are short of stock. Adjust the quantities before checking out.",
 	})
 
@@ -87,18 +87,18 @@ var (
 		"Put %d items from that order back in your cart.")
 
 	KeyReorderNone = key("cart.reorder.none", Message{
-		ZhHant: "上次訂單裡的商品都已經下架或缺貨,沒有東西可以放回購物車。",
+		ZhHant: "上次訂單裡的商品都已經下架或缺貨，沒有東西可以放回購物車。",
 		En: "Everything in that order is now discontinued or out of stock, so there was " +
 			"nothing to put back.",
 	})
 
 	KeyReorderPartial = key("cart.reorder.partial", Message{
-		ZhHant: "已放回 %d 項,%d 項已下架或缺貨。",
+		ZhHant: "已放回 %d 項，%d 項已下架或缺貨。",
 		En:     "Put %d items back. %d are discontinued or out of stock.",
 	})
 
 	KeyCartUnavailable = key("cart.unavailable", Message{
-		ZhHant: "購物車暫時無法使用,請稍後再試。",
+		ZhHant: "購物車暫時無法使用，請稍後再試。",
 		En:     "The cart is unavailable right now. Please try again shortly.",
 	})
 

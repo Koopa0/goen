@@ -1,7 +1,14 @@
 package i18n
 
 var (
+	// KeySiteTitle is the home page's title: the name, then one line that says
+	// what the shop is.
 	KeySiteTitle = key("site.title", Message{
+		ZhHant: "goen — 日常生活的線上商店",
+		En:     "goen — an online shop for everyday things",
+	})
+
+	KeySiteName = key("site.name", Message{
 		ZhHant: "goen",
 		En:     "goen",
 	})
@@ -9,13 +16,6 @@ var (
 	KeySupportHours = key("site.hours", Message{
 		ZhHant: "客服時間 週一至週五 09:00–18:00",
 		En:     "Support Monday to Friday, 09:00–18:00",
-	})
-
-	// KeyCompanyRegistration is the registration line under a company's name, in
-	// the footers and on the about page: the tax number belongs to the sentence.
-	KeyCompanyRegistration = key("site.company.registration", Message{
-		ZhHant: "統編 90123456",
-		En:     "Tax ID 90123456",
 	})
 
 	KeyCategoryNav = key("nav.categories", Message{ZhHant: "商品分類", En: "Categories"})

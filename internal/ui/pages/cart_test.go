@@ -688,7 +688,7 @@ func TestTheProductPageSaysWhetherItAddedAnything(t *testing.T) {
 		return &ProductView{
 			Slug: "pixelight-9-pro", Name: "Pixelight 9 Pro",
 			VariantID: "v1", PriceCents: 3690000, Available: 3,
-			AddedOutcome: outcome,
+			AddedOutcome: AddOutcome(outcome),
 		}
 	}
 
@@ -1309,7 +1309,7 @@ func TestACouponRefusalNamesItselfInTheBanner(t *testing.T) {
 	only := couponTestView()
 	only.Errors = map[string]string{"coupon": "找不到這組折扣碼。"}
 	html := renderToString(t, Checkout(CheckoutMeta(ctx), &only))
-	if !strings.Contains(html, "折扣碼無法套用:找不到這組折扣碼。") || strings.Contains(html, general) {
+	if !strings.Contains(html, "折扣碼無法套用：找不到這組折扣碼。") || strings.Contains(html, general) {
 		t.Error("the banner does not name the coupon refusal")
 	}
 
@@ -1494,5 +1494,23 @@ func TestTheCartSaysAboutFreeDeliveryOnlyInsideTheSummary(t *testing.T) {
 	silent := CartView{Lines: lines}
 	if strings.Contains(renderToString(t, Cart(CartMeta(ctx), silent)), "免運") {
 		t.Error("a cart whose methods disagree says something about free delivery anyway")
+	}
+}
+
+// TestRemovingALineIsNotBlockedByAQuantityTheShelfCannotMeet: the remove button
+// shares a form with the quantity field, whose max is the stock, so a number
+// typed above it would stop the removal behind a native validation bubble.
+func TestRemovingALineIsNotBlockedByAQuantityTheShelfCannotMeet(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	line := CartLine{VariantID: "v1", Slug: "x", Name: "x", UnitCents: 100000, Quantity: 2, Available: 4}
+	html := renderToString(t, Cart(CartMeta(ctx), CartView{Lines: []CartLine{line}}))
+	i := strings.Index(html, `name="remove"`)
+	if i < 0 {
+		t.Fatal("the line has no remove button")
+	}
+	open := strings.LastIndex(html[:i], "<button")
+	if tag := html[open : i+strings.Index(html[i:], ">")]; !strings.Contains(tag, "formnovalidate") {
+		t.Errorf("the remove button does not skip the form's validation: %s", tag)
 	}
 }

@@ -19,9 +19,12 @@ func (h *Handler) ForgotPage(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/account", http.StatusSeeOther)
 		return
 	}
+	view := pages.ForgotView{Sent: r.URL.Query().Get("sent") == "1"}
+	if r.URL.Query().Get("demo") == "fixed" {
+		view.Notice = i18n.T(r.Context(), i18n.KeyDemoAccountFixed)
+	}
 	web.Render(w, r, h.log, http.StatusOK, pages.Forgot(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyForgotTitle)},
-		pages.ForgotView{Sent: r.URL.Query().Get("sent") == "1"}))
+		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyForgotTitle)}, view))
 }
 
 // Forgot serves POST /forgot, identically whether or not the address is known.
@@ -32,6 +35,11 @@ func (h *Handler) Forgot(w http.ResponseWriter, r *http.Request) {
 	}
 	addr := r.PostFormValue("email")
 	normalised := email.Clean(addr)
+	// The demo account's address is public, so saying so tells nobody anything.
+	if h.demo.holds(normalised) {
+		http.Redirect(w, r, "/forgot?demo=fixed", http.StatusSeeOther)
+		return
+	}
 	// The success redirect is also the refusal: an address outside the
 	// application's policy cannot name an account, and must not become a key.
 	if len(normalised) > email.Max {

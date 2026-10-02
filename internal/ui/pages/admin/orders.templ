@@ -501,12 +501,7 @@ templ Order(p layouts.Page, v *OrderView) {
 					</div>
 					if v.Discounted() {
 						<div class="goen-admin__totalrow">
-							<span>
-								{ i18n.T(ctx, i18n.KeyDiscount) }
-								if v.DiscountReason != "" {
-									({ v.DiscountReason })
-								}
-							</span>
+							<span>{ pages.DiscountLabel(ctx, v.DiscountReason) }</span>
 							<span class="goen-admin__totalval">{ v.Discount() }</span>
 						</div>
 					}
@@ -514,6 +509,16 @@ templ Order(p layouts.Page, v *OrderView) {
 						<span>{ i18n.T(ctx, i18n.KeyOrderGrandTotal) }</span>
 						<span class="goen-admin__totalval">{ v.Total() }</span>
 					</div>
+					if v.UsedCredit() {
+						<div class="goen-admin__totalrow">
+							<span>{ i18n.T(ctx, i18n.KeyOrderCreditApplied) }</span>
+							<span class="goen-admin__totalval">{ v.Credit() }</span>
+						</div>
+						<div class="goen-admin__totalrow goen-admin__totalrow--grand">
+							<span>{ i18n.T(ctx, i18n.KeyOrderAmountDue) }</span>
+							<span class="goen-admin__totalval">{ v.Owed() }</span>
+						</div>
+					}
 				}
 				@components.Card(components.CardProps{Class: "goen-admin__op", Attrs: templ.Attributes{"aria-labelledby": "payment-heading"}}) {
 					<h2 class="goen-admin__optitle" id="payment-heading">{ i18n.T(ctx, i18n.KeyAdminPayTitle) }</h2>

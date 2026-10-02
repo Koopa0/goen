@@ -19,22 +19,22 @@ var (
 	// The endpoint goen calls is ECPay's paper-allowance one; goen records the
 	// allowance as filed and has no step that collects the buyer's agreement.
 	KeyAdminQueueAllowancePaper = key("admin.queue.allowance.paper", Message{
-		ZhHant: "這裡使用綠界的紙本折讓介面:店家必須取得買家簽回的折讓確認並自行保存;系統不會代為取得或保存。",
+		ZhHant: "這裡使用綠界的紙本折讓介面：店家必須取得買家簽回的折讓確認並自行保存；系統不會代為取得或保存。",
 		En: "This uses ECPay's paper-allowance API: the shop must obtain the buyer's signed " +
 			"allowance confirmation and keep it. goen neither collects nor stores it.",
 	})
 
 	KeyAdminQueueNoInvoicing = key("admin.queue.noinvoicing", Message{
-		ZhHant: "尚未啟用電子發票,這裡無法開立發票。",
+		ZhHant: "尚未啟用電子發票，這裡無法開立發票。",
 		En:     "E-invoicing is not set up for this shop, so no invoice can be issued from here.",
 	})
 
-	KeyAdminQueueVoided = key("admin.queue.voided", Message{ZhHant: "(已作廢)", En: "(voided)"})
+	KeyAdminQueueVoided = key("admin.queue.voided", Message{ZhHant: "（已作廢）", En: "(voided)"})
 
 	// A CLAIM, not a document: the provider was asked and did not answer, so
 	// nothing may be at the 加值中心 under it and somebody has to check.
 	KeyAdminQueuePending = key("admin.queue.pendingdoc", Message{
-		ZhHant: "(尚未開立，請到綠界確認)",
+		ZhHant: "（尚未開立，請到綠界確認）",
 		En:     "(not filed — check ECPay)",
 	})
 
@@ -49,7 +49,7 @@ var (
 	})
 
 	KeyAdminQueueIssueHint = key("admin.queue.issue.hint", Message{
-		ZhHant: "依結帳時選的 %s 開立,金額為訂單總計。",
+		ZhHant: "依結帳時選的 %s 開立，金額為訂單總計。",
 		En:     "Issued against the %s chosen at checkout, for the order total.",
 	})
 
@@ -64,7 +64,7 @@ var (
 	})
 
 	KeyAdminQueueVoidHint = key("admin.queue.void.hint", Message{
-		ZhHant: "發票不能修改,只能作廢後重開。原因會一併申報。",
+		ZhHant: "發票不能修改，只能作廢後重開。原因會一併申報。",
 		En: "A tax invoice cannot be edited — the only correction is to void it and issue a new " +
 			"one. The reason is filed along with it.",
 	})
@@ -83,7 +83,7 @@ var (
 	KeyAdminNoticeInvoiced = key("admin.notice.invoiced", Message{ZhHant: "發票已開立。", En: "Invoice issued."})
 
 	KeyAdminNoticeVoided = key("admin.notice.voided", Message{
-		ZhHant: "發票已作廢。要重開的話,現在可以再開一張。",
+		ZhHant: "發票已作廢。要重開的話，現在可以再開一張。",
 		En:     "Invoice voided. A replacement can be issued now.",
 	})
 
@@ -144,7 +144,7 @@ var (
 	})
 
 	KeyAdminNoticeInvoiceFailed = key("admin.notice.invoicefailed", Message{
-		ZhHant: "加值中心拒絕了這次操作,詳細原因在伺服器紀錄裡。常見的是統編格式或載具號碼不正確。",
+		ZhHant: "加值中心拒絕了這次操作，詳細原因在伺服器紀錄裡。常見的是統編格式或載具號碼不正確。",
 		En: "The e-invoice provider refused that operation; the reason is in the server log. " +
 			"Usually it is a malformed business tax number or carrier code.",
 	})
@@ -165,7 +165,7 @@ var (
 	})
 
 	KeyAdminInvoiceDonate = key("admin.invoice.donate", Message{
-		ZhHant: "捐贈發票,愛心碼 %s",
+		ZhHant: "捐贈發票，愛心碼 %s",
 		En:     "Donated invoice, donation code %s",
 	})
 

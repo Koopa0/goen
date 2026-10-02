@@ -175,8 +175,13 @@ func TestRegistrationAnswersTheSameWhetherOrNotTheAddressIsTaken(t *testing.T) {
 		t.Errorf("taken and free registrations answer different bodies: %q and %q",
 			takenRec.Body.String(), freeRec.Body.String())
 	}
-	if cookies := freeRec.Result().Cookies(); len(cookies) != 0 {
-		t.Errorf("a registration set %v; nobody is signed in before the link is followed", cookies)
+	// The only cookie a registration sets is the pending-registration one, and it
+	// is set whether or not the address is taken; no session before the link.
+	for name, rec := range map[string]*httptest.ResponseRecorder{"taken": takenRec, "free": freeRec} {
+		cookies := rec.Result().Cookies()
+		if len(cookies) != 1 || cookies[0].Name != "goen_register_sent" {
+			t.Errorf("a %s registration set %v, want only goen_register_sent; nobody is signed in before the link is followed", name, cookies)
+		}
 	}
 	if len(takenSQL) == 0 {
 		t.Fatal("the tracer recorded no statement for a registration; the comparison below measures nothing")
