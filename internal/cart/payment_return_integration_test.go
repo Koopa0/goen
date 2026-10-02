@@ -3,6 +3,7 @@
 package cart_test
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -13,12 +14,18 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
+// paymentsOn makes the handler a shop that takes payment, which is what shows
+// the pay link; it closes nothing.
+type paymentsOn struct{}
+
+func (paymentsOn) ExpireSession(context.Context, string) error { return nil }
+
 func TestPaymentReturnHintExpiresWithoutChangingTheOrder(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		t.Run(locale.Tag(), func(t *testing.T) {
 			ctx := i18n.WithLocale(t.Context(), locale)
 			s := cart.NewStore(pool)
-			h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, testLimiter(), nil, nil)
+			h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, testLimiter(), paymentsOn{}, nil)
 			number := placeUnpaidOrderFor(t, s, "return@example.com")
 			cookie := placedCookie(t, s, number)
 			path := "/orders/" + number
