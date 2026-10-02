@@ -15,7 +15,7 @@ import (
 // departments sit in the bar from 1024 up, each one that has sub-categories
 // opening a full-width panel on hover or focus; below 1024 they sit behind a
 // native disclosure, and the search field wraps onto its own row. The language
-// control lives in the footer, once.
+// menu sits in the bar from 768 up and in the drawer below that.
 //
 // The ui-navitem and ui-btn spellings inside it are not leftovers: two
 // assertions in backoffice_test.go locate the back-office entrance by the whole
@@ -28,6 +28,12 @@ templ Header(p Page) {
 					@icons.Menu()
 				</summary>
 				<nav class="goen-header__drawer" aria-label={ i18n.T(ctx, i18n.KeyCategoryNav) }>
+					// A visible way out beside the hamburger, which sits under the
+					// drawer's edge on a phone. goen.js closes the menu and returns the
+					// focus to the hamburger, as Escape does.
+					<button class="goen-header__close goen-btn goen-btn--ghost goen-btn--icon" type="button" data-menu-close aria-label={ i18n.T(ctx, i18n.KeyCloseMenu) }>
+						@icons.Close()
+					</button>
 					for _, n := range TopNavFrom(ctx) {
 						<a class="ui-navitem" aria-current={ p.ariaCurrent(n) } href={ templ.URL(n.Href) }>{ n.Name }</a>
 						if len(n.Children) > 0 {
@@ -49,6 +55,14 @@ templ Header(p Page) {
 					if IsStaff(ctx) {
 						<a class="ui-navitem" href="/admin">{ i18n.T(ctx, i18n.KeyBackOffice) }</a>
 					}
+					// What the phone's bar has no room for: the wishlist, the account
+					// (which sends a visitor who is not signed in to the sign-in page)
+					// and the language, the same menu the bar carries from 768 up.
+					<div class="goen-header__drawertools">
+						<a class="ui-navitem" href="/account/wishlist">{ i18n.T(ctx, i18n.KeyWishlist) }</a>
+						<a class="ui-navitem" href="/account">{ i18n.T(ctx, i18n.KeyAccount) }</a>
+						@languageMenu("goen-header__drawerlang")
+					</div>
 				</nav>
 			</details>
 			<a class="goen-header__brand" href="/">

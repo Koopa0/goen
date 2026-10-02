@@ -67,6 +67,11 @@
     document.addEventListener("click", (event) => {
       if (menu.open && !menu.contains(event.target)) menu.open = false;
     });
+
+    menu.querySelector("[data-menu-close]")?.addEventListener("click", () => {
+      menu.open = false;
+      menu.querySelector("summary")?.focus();
+    });
   }
 
   /*

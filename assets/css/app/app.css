@@ -1257,6 +1257,54 @@ h3 {
   color: var(--n-900);
 }
 
+/* The way out of the drawer, and what the phone's bar has no room for. The
+   language menu opens in the flow here: an absolutely placed panel would be
+   clipped by the drawer's own scroll. Below 768 the bar's copy of the menu is
+   dropped, so one language control shows at a time. */
+.goen-header__close {
+  align-self: flex-end;
+}
+
+.goen-header__drawertools {
+  border-top: 1px solid var(--n-200);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 8px;
+  padding-top: 8px;
+}
+
+.goen-header__drawerlang > summary {
+  justify-content: flex-start;
+  width: 100%;
+}
+
+.goen-header .goen-header__drawerlang .goen-langmenu__current {
+  clip-path: none;
+  height: auto;
+  margin: 0;
+  overflow: visible;
+  position: static;
+  width: auto;
+}
+
+.goen-header__drawerlang .goen-langmenu__panel {
+  box-shadow: none;
+  position: static;
+}
+
+@media (max-width: 767px) {
+  .goen-header__lang {
+    display: none;
+  }
+}
+
+@media (min-width: 768px) {
+  .goen-header__drawerlang {
+    display: none;
+  }
+}
+
 /* English department names out-measure the zh-Hant ones, so the desktop row
    gives up the wishlist icon below 1280 before it lets the search field fall
    under the width `check-layout.mjs` calls usable; the account page carries
