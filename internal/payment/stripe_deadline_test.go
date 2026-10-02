@@ -72,6 +72,8 @@ func stripeDeadlineGateway(t *testing.T, stallBody bool) (*Gateway, *stripeReque
 		case <-r.Context().Done():
 		case <-stop:
 		}
+		// Returning without headers would synthesize an empty 200 and race cancellation.
+		panic(http.ErrAbortHandler)
 	}))
 	t.Cleanup(func() { close(stop) })
 	client := srv.Client()
