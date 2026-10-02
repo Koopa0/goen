@@ -1,4 +1,4 @@
-# goen
+<h1><img src="assets/brand/favicon.svg" alt="" width="32" height="32"> goen</h1>
 
 [English](README.md) | 繁體中文
 
