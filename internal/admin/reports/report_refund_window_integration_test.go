@@ -1,8 +1,9 @@
 //go:build integration
 
-package admin_test
+package reports_test
 
 import (
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -11,8 +12,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/admin/admintest"
+	"github.com/koopa0/goen/internal/admin/reports"
 	"github.com/koopa0/goen/internal/i18n"
 )
 
@@ -68,8 +69,8 @@ func TestRefundOnlyReportWindow(t *testing.T) {
 		t.Fatalf("record older pending refund: %v", err)
 	}
 
-	s := admin.NewStore(p, fakeRefunder{}, nil, nil)
-	h := adminHandlerOver(p, s)
+	s := reports.NewStore(p)
+	h := reports.NewHandler(s, slog.New(slog.DiscardHandler))
 	for _, days := range []int32{7, 30, 90} {
 		view, err := s.Report(ctx, days)
 		if err != nil {
@@ -100,7 +101,7 @@ func TestRefundOnlyReportWindow(t *testing.T) {
 			r := httptest.NewRequestWithContext(localized, http.MethodGet,
 				"/admin/reports?days="+strconv.FormatInt(int64(days), 10), nil)
 			w := httptest.NewRecorder()
-			h.Reports(w, r)
+			h.Page(w, r)
 			body := w.Body.String()
 			if w.Code != http.StatusOK {
 				t.Fatalf("refund-only report HTTP status = %d", w.Code)
@@ -206,7 +207,7 @@ func TestRefundBeforeShipmentLeavesBothReportFigures(t *testing.T) {
 		t.Fatalf("post the credit half: %v", err)
 	}
 
-	s := admin.NewStore(p, fakeRefunder{}, nil, nil)
+	s := reports.NewStore(p)
 	onlyTheOtherOrder := func(state string) {
 		t.Helper()
 		for _, days := range []int32{7, 30, 90} {
@@ -234,12 +235,12 @@ func TestRefundBeforeShipmentLeavesBothReportFigures(t *testing.T) {
 	}
 	onlyTheOtherOrder("cancelled")
 
-	h := adminHandlerOver(p, s)
+	h := reports.NewHandler(s, slog.New(slog.DiscardHandler))
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		localized := i18n.WithLocale(ctx, locale)
 		r := httptest.NewRequestWithContext(localized, http.MethodGet, "/admin/reports?days=30", nil)
 		w := httptest.NewRecorder()
-		h.Reports(w, r)
+		h.Page(w, r)
 		if w.Code != http.StatusOK ||
 			!strings.Contains(w.Body.String(), i18n.T(localized, i18n.KeyAdminRepBeforeShipment)) {
 			t.Fatalf("%s report does not say what it leaves out: %d", locale, w.Code)
