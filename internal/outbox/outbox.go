@@ -209,7 +209,9 @@ func (s *Store) deliver(ctx context.Context, m *db.ClaimOutboxRow) bool {
 		s.reschedule(ctx, m, err)
 		return false
 	}
-	settle, cancel := context.WithTimeout(ctx, SettleBudget)
+	// Detached: a shutdown that lands after the send must still stamp it, or the
+	// next process sends the letter again once the lease expires.
+	settle, cancel := context.WithTimeout(context.WithoutCancel(ctx), SettleBudget)
 	defer cancel()
 	if err := s.q.MarkOutboxDelivered(settle, m.ID); err != nil {
 		// Delivered but not stamped: the retry sends it again, which is the
@@ -223,8 +225,9 @@ func (s *Store) deliver(ctx context.Context, m *db.ClaimOutboxRow) bool {
 
 // runHandler spends at most [HandlerBudget] of the claim's lease on the handler,
 // which is what [BatchSize] assumes. The budget is the handler's alone: the stamp
-// and the reschedule run on ctx, so a handler that runs out of time is recorded
-// rather than left claimed until the lease expires.
+// and the reschedule run on their own [SettleBudget], detached from ctx's
+// cancellation, so a handler that runs out of time or a shutdown that arrives
+// mid-send is recorded rather than left claimed until the lease expires.
 func runHandler(ctx context.Context, h Handler, payload []byte) error {
 	ctx, cancel := context.WithTimeout(ctx, HandlerBudget)
 	defer cancel()
@@ -240,7 +243,7 @@ func (s *Store) reschedule(ctx context.Context, m *db.ClaimOutboxRow, cause erro
 		s.log.ErrorContext(ctx, "outbox message is stuck",
 			"message", m.ID, "topic", m.Topic, "attempts", m.Attempts, "error", cause)
 	}
-	settle, cancel := context.WithTimeout(ctx, SettleBudget)
+	settle, cancel := context.WithTimeout(context.WithoutCancel(ctx), SettleBudget)
 	defer cancel()
 	if err := s.q.RescheduleOutbox(settle, db.RescheduleOutboxParams{
 		ID: m.ID,
@@ -365,4 +368,26 @@ func (s *Store) SweepForever(ctx context.Context, log *slog.Logger) {
 			}
 		}
 	}
+}
+
+// Enqueue writes every message of one topic in a single statement, in the
+// caller's transaction. keys and payloads pair by position; a key already
+// queued for the topic is left as it was.
+func Enqueue(ctx context.Context, q *db.Queries, topic string, priority int16, keys []string, payloads [][]byte) error {
+	if len(keys) != len(payloads) {
+		return errors.New("outbox: Enqueue needs one payload per key")
+	}
+	if len(keys) == 0 {
+		return nil
+	}
+	text := make([]string, len(payloads))
+	for i, p := range payloads {
+		text[i] = string(p)
+	}
+	if err := q.EnqueueMessages(ctx, db.EnqueueMessagesParams{
+		Topic: topic, Priority: priority, DedupeKeys: keys, Payloads: text,
+	}); err != nil {
+		return fmt.Errorf("enqueue %s messages: %w", topic, err)
+	}
+	return nil
 }

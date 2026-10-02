@@ -10,9 +10,9 @@ var (
 
 	KeySectionReviews = key("pdp.reviews", Message{ZhHant: "顧客評價", En: "Customer reviews"})
 
-	KeyReviewCount = key("pdp.reviews.count", Message{ZhHant: "%s 則評價", En: "%s reviews"})
+	KeyReviewCount = countKey("pdp.reviews.count", "%s 則評價", "%s review", "%s reviews")
 
-	KeyStarsLabel = key("pdp.reviews.stars", Message{ZhHant: "%s 星", En: "%s stars"})
+	KeyStarsLabel = countKey("pdp.reviews.stars", "%s 星", "%s star", "%s stars")
 
 	KeyVerifiedBuyer = key("pdp.reviews.verified", Message{ZhHant: "已購買", En: "Verified purchase"})
 
@@ -21,11 +21,6 @@ var (
 	KeyAnonymousReviewer = key("pdp.reviews.anonymous", Message{
 		ZhHant: "匿名顧客",
 		En:     "Anonymous",
-	})
-
-	KeyRatingOutOf = key("pdp.reviews.ratingof", Message{
-		ZhHant: "評分 %s 分,滿分 5 分",
-		En:     "Rated %s out of 5",
 	})
 
 	KeyRatingScore = key("pdp.reviews.score", Message{ZhHant: "評分 %s 分", En: "Rated %s"})

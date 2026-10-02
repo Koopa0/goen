@@ -15,6 +15,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 // Message is one email.
@@ -199,12 +201,18 @@ func deliver(c *smtp.Client, s SMTPSender, m *Message, host, envelope string) er
 // A message with HTML is multipart/alternative, text first: a client shows the
 // last part it can display, so one that cannot show HTML still has the letter.
 // Its Content-Transfer-Encoding is 7bit, which both base64 parts make true, so
-// the header block is the same six lines a text-only letter has.
+// the header block is the same eight lines a text-only letter has.
+//
+// Date and Message-ID are generated here and never from the message: RFC 5322
+// requires the first, and the order confirmation is a record the consumer keeps,
+// so it carries the time it was sent. Neither takes text from a caller.
 func render(from string, m *Message) []byte {
 	var b strings.Builder
 	b.WriteString("From: " + from + "\r\n")
 	b.WriteString("To: " + m.To + "\r\n")
 	b.WriteString("Subject: " + encodeHeader(m.Subject) + "\r\n")
+	b.WriteString("Date: " + time.Now().UTC().Format(time.RFC1123Z) + "\r\n")
+	b.WriteString("Message-ID: " + messageID(from) + "\r\n")
 	b.WriteString("MIME-Version: 1.0\r\n")
 	if m.HTML == "" {
 		b.WriteString("Content-Type: text/plain; charset=utf-8\r\n")
@@ -221,6 +229,19 @@ func render(from string, m *Message) []byte {
 	writePart(&b, boundary, "text/html", m.HTML)
 	b.WriteString("--" + boundary + "--\r\n")
 	return []byte(b.String())
+}
+
+// messageID is a unique id in the sender's own domain, so a receiver can thread
+// and de-duplicate by it. An unparsable From has already failed the send in
+// envelopeFrom; the fallback only keeps render total.
+func messageID(from string) string {
+	domain := "goen.invalid"
+	if addr, err := mail.ParseAddress(from); err == nil {
+		if _, host, ok := strings.Cut(addr.Address, "@"); ok && host != "" {
+			domain = host
+		}
+	}
+	return "<" + uuid.NewString() + "@" + domain + ">"
 }
 
 // writePart writes one base64 part. Base64 rather than quoted-printable: it

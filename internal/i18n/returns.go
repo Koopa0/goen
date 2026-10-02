@@ -145,10 +145,7 @@ var (
 		En:     "No return requests at the moment.",
 	})
 
-	KeyAdminRetUnitsAmount = key("admin.ret.unitsamount", Message{
-		ZhHant: "%s 件 · 可退 %s",
-		En:     "%s items · %s refundable",
-	})
+	KeyAdminRetUnitsAmount = countKey("admin.ret.unitsamount", "%s 件 · 可退 %s", "%s item · %s refundable", "%s items · %s refundable")
 
 	// The delivery fee goes back under Consumer Protection Act §19 I ("at no cost
 	// to the consumer"), not under §19-2, which allocates no costs at all.

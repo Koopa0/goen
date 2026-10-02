@@ -118,12 +118,30 @@ LIMIT 1;
 -- two answers the moment CreateCategory's max(position)+1 handed out a
 -- duplicate. Nothing stops it: there is no unique index on (parent_id,
 -- position), so two staff creating a category at once both read the same max.
+-- A root's tone is its own, or 'stone'. The photograph is the department's own.
 -- name: RootCategories :many
-SELECT id, slug, localized_name(name, name_en, @locale::text) AS name, icon_key
+SELECT c.id, c.slug, localized_name(c.name, c.name_en, @locale::text) AS name, c.icon_key,
+       coalesce(c.tone, 'stone')::text AS tone,
+       coalesce(c.image_key, '')::text AS image_key,
+       coalesce(localized_name(c.image_alt, c.image_alt_en, @locale::text), '')::text AS image_alt,
+       coalesce(m.width, 0)::integer AS image_width
+FROM categories c
+LEFT JOIN media_objects m ON m.digest = c.image_key
+WHERE c.parent_id IS NULL
+ORDER BY c.position, c.name, c.id;
+
+-- The sub-categories under every root, for the header's department panels. One
+-- read for all of them, in the order the catalogue lists them, so a header with
+-- seven departments is two queries and not eight.
+-- name: ChildCategories :many
+SELECT parent_id, slug, localized_name(name, name_en, @locale::text) AS name
 FROM categories
-WHERE parent_id IS NULL
+WHERE parent_id IS NOT NULL
 ORDER BY position, name, id;
 
+-- with_pickup is false where the store map is not configured: checkout offers no
+-- pickup there, so a floor or threshold that counted it would promise a price
+-- nobody can choose.
 -- MIN across methods: the strip makes one claim, and the most generous true one
 -- is the lowest threshold any active method honours. coalesce AND cast, because
 -- min() over an empty set is NULL and sqlc types the result as non-null.
@@ -132,12 +150,16 @@ SELECT coalesce(min(v.free_over_cents), 0)::bigint AS free_over_cents
 FROM shipping_methods sm
 JOIN shipping_method_versions v ON v.method_id = sm.id
 WHERE sm.is_active
+  AND (@with_pickup::boolean OR sm.destination_kind <> 'pickup_point')
   AND v.effective_at <= now()
   AND v.free_over_cents > 0
   AND v.id = (SELECT id FROM shipping_method_versions
               WHERE method_id = sm.id AND effective_at <= now()
               ORDER BY effective_at DESC LIMIT 1);
 
+-- with_pickup is false where the store map is not configured: checkout offers no
+-- pickup there, so a floor or threshold that counted it would promise a price
+-- nobody can choose.
 -- MIN across methods: the strip states one floor, and the honest one is the
 -- lowest fee any active method charges. coalesce AND cast, because min() over
 -- an empty set is NULL and sqlc types the result as non-null.
@@ -146,6 +168,7 @@ SELECT coalesce(min(v.fee_cents), 0)::bigint AS fee_cents
 FROM shipping_methods sm
 JOIN shipping_method_versions v ON v.method_id = sm.id
 WHERE sm.is_active
+  AND (@with_pickup::boolean OR sm.destination_kind <> 'pickup_point')
   AND v.effective_at <= now()
   AND v.id = (SELECT id FROM shipping_method_versions
               WHERE method_id = sm.id AND effective_at <= now()

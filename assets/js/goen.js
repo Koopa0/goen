@@ -38,6 +38,29 @@
   }
 
   /*
+   * A department's panel opens by hover or focus, in CSS. Content that appears
+   * that way has to be dismissible without moving the pointer or the focus, so
+   * Escape marks the open one dismissed until the pointer leaves or the focus
+   * moves out.
+   */
+  function departmentPanels() {
+    const depts = document.querySelectorAll(".goen-dept");
+    if (!depts.length) return;
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape") return;
+      for (const dept of depts) {
+        if (dept.matches(":hover, :focus-within")) dept.setAttribute("data-dismissed", "");
+      }
+    });
+    for (const dept of depts) {
+      const reset = () => dept.removeAttribute("data-dismissed");
+      dept.addEventListener("mouseleave", reset);
+      dept.addEventListener("focusout", reset);
+    }
+  }
+
+  /*
    * The quantity stepper. The field is a native number input that works on its
    * own; these two buttons are the enhancement, and the stylesheet keeps them
    * out of sight until it is told scripting is on.
@@ -58,16 +81,20 @@
       const value = Number(field.value || 0);
       box.querySelectorAll("[data-stepper-step]").forEach((step) => {
         const next = value + Number(step.dataset.stepperStep);
-        step.disabled = field.disabled ||
-          next < Number(field.min || 0) ||
+        const atBound = next < Number(field.min || 0) ||
           (field.max !== "" && next > Number(field.max));
+        // A bound is aria-disabled, not disabled: the button that reaches it
+        // has focus, and disabling a focused button sends focus to the body.
+        // The whole stepper being unavailable is the server's disabled.
+        if (atBound) step.setAttribute("aria-disabled", "true");
+        else step.removeAttribute("aria-disabled");
       });
     };
 
     document.addEventListener("click", (event) => {
       if (!(event.target instanceof Element)) return;
       const step = event.target.closest("[data-stepper-step]");
-      if (!step) return;
+      if (!step || step.getAttribute("aria-disabled") === "true") return;
       const box = step.closest("[data-stepper]");
       const field = box?.querySelector("input");
       if (!field) return;
@@ -83,6 +110,23 @@
     });
 
     document.querySelectorAll("[data-stepper]").forEach(atBounds);
+
+    /*
+     * A form marked data-autosubmit applies a changed quantity itself. The
+     * wait lets someone press + twice before the page answers once, and the
+     * form's own submit button stays in the markup for the browser that has
+     * no script.
+     */
+    const waiting = new WeakMap();
+    document.addEventListener("change", (event) => {
+      if (!(event.target instanceof Element)) return;
+      const form = event.target.closest("form[data-autosubmit]");
+      if (!form || !event.target.matches("[data-stepper] input")) return;
+      clearTimeout(waiting.get(form));
+      waiting.set(form, setTimeout(() => {
+        if (form.checkValidity()) form.requestSubmit();
+      }, 700));
+    });
   }
 
   // Request state is presentation only. Submitter names and values remain in
@@ -162,5 +206,6 @@
 
   checkoutConstraints();
   headerMenu();
+  departmentPanels();
   stepper();
 })();

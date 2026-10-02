@@ -1,19 +1,9 @@
 package i18n
 
 var (
-	KeyTagline = key("site.tagline", Message{
-		ZhHant: "台灣的 3C 店",
-		En:     "A 3C shop in Taiwan",
-	})
-
 	KeySiteTitle = key("site.title", Message{
 		ZhHant: "goen",
 		En:     "goen",
-	})
-
-	KeyFooterTagline = key("site.footer.tagline", Message{
-		ZhHant: "退換貨與保固說明在政策頁。",
-		En:     "Returns and warranty terms are on the policy pages.",
 	})
 
 	KeySupportHours = key("site.hours", Message{

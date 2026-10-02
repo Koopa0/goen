@@ -1,8 +1,6 @@
 package pages
 
 import (
-	"fmt"
-
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -52,7 +50,7 @@ templ AdminCampaigns(p layouts.Page, v AdminCampaignsView) {
 									<a href={ templ.SafeURL(c.Href()) }>{ c.Title }</a>
 									<span class="goen-admin__meta">/s/{ c.Slug }</span>
 									<span class="goen-admin__meta">
-										{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminCampMeta), c.ProductsText(), c.EndsAt) }
+										{ i18n.Count(ctx, i18n.KeyAdminCampMeta, c.Products, c.ProductsText(), c.EndsAt) }
 									</span>
 								</td>
 								<td>
@@ -129,6 +127,19 @@ templ AdminCampaigns(p layouts.Page, v AdminCampaignsView) {
 						<p class="ui-error-text" id="k-title-en-error">{ v.Err("title_en") }</p>
 					}
 				</div>
+				<div class="goen-admin__field">
+					@components.Label(components.LabelProps{For: "k-tone"}) {
+						{ i18n.T(ctx, i18n.KeyAdminColTone) }
+					}
+					<select class="goen-input" id="k-tone" name="tone">
+						for _, k := range Tones() {
+							<option value={ string(k) } selected?={ v.Draft.ToneOrStone() == k }>{ k.Label(ctx) }</option>
+						}
+					</select>
+					if v.HasErr("tone") {
+						<p class="ui-error-text">{ v.Err("tone") }</p>
+					}
+				</div>
 				<div class="goen-admin__fields">
 					<div class="goen-admin__field">
 						@components.Label(components.LabelProps{For: "k-slug"}) {
@@ -140,7 +151,7 @@ templ AdminCampaigns(p layouts.Page, v AdminCampaignsView) {
 							name="slug"
 							required
 							maxlength="120"
-							placeholder="summer-3c"
+							placeholder="summer-sale"
 							value={ v.Draft.Slug }
 							if v.HasErr("slug") {
 								aria-invalid="true"
@@ -245,6 +256,38 @@ templ AdminCampaignForm(p layouts.Page, v AdminCampaignView) {
 			</div>
 		}
 		@components.Card(components.CardProps{Class: "goen-admin__section"}) {
+			<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminColTone) }</h2>
+			<form class="goen-admin__form" method="post" action={ templ.SafeURL(v.ToneAction()) }>
+				<div class="goen-admin__field">
+					@components.Label(components.LabelProps{For: "c-tone"}) {
+						{ i18n.T(ctx, i18n.KeyAdminColTone) }
+					}
+					<select
+						class="goen-input"
+						id="c-tone"
+						name="tone"
+						if v.HasErr("tone") {
+							aria-invalid="true"
+							aria-describedby="c-tone-error"
+						}
+					>
+						for _, k := range Tones() {
+							<option value={ string(k) } selected?={ v.Tone == string(k) }>{ k.Label(ctx) }</option>
+						}
+					</select>
+					if v.HasErr("tone") {
+						<p class="ui-error-text" id="c-tone-error" role="alert">{ v.Err("tone") }</p>
+					}
+				</div>
+				@components.Button(components.ButtonProps{
+					Variant: components.VariantPrimary,
+					Class:   "goen-admin__submit",
+				}, "submit") {
+					{ i18n.T(ctx, i18n.KeyAdminProdSave) }
+				}
+			</form>
+		}
+		@components.Card(components.CardProps{Class: "goen-admin__section"}) {
 			<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminCampImage) }</h2>
 			if v.Image.Has() && v.Image.URL() != "" {
 				<img class="goen-admin__heroshot goen-admin__heroshot--campaign" src={ v.Image.URL() } srcset={ v.Image.Srcset() } sizes="160px" alt={ v.Image.Alt } loading="lazy" width="160" height="60"/>
@@ -333,7 +376,7 @@ templ AdminCampaignForm(p layouts.Page, v AdminCampaignView) {
 					@components.Label(components.LabelProps{For: "k-product"}) {
 						{ i18n.T(ctx, i18n.KeyAdminCampProductSlug) }
 					}
-					<input class="goen-input" id="k-product" name="product" required maxlength="120" placeholder="pixelight-9" autocomplete="off"/>
+					<input class="goen-input" id="k-product" name="product" required maxlength="120" placeholder="ceramic-mug" autocomplete="off"/>
 					<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminCampProductHint) }</p>
 				</div>
 				@components.Button(components.ButtonProps{

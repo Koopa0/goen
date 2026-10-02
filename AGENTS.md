@@ -27,8 +27,9 @@ says what goen is and how to build it; read it first.
    error is not a red test.
 4. Under the same heading, name the gate. `make verify` unpiped, exit status
    quoted. `make test-integration` if you touched a `.sql` file or
-   `migrations/`. A scoped `go test ./internal/cart/` is worth reporting as
-   what it is.
+   `migrations/`. `make check-layout` if you touched `internal/ui`, `assets/` or
+   a route; CONTRIBUTING.md lists what it needs. A scoped
+   `go test ./internal/cart/` is worth reporting as what it is.
 5. Commits and GitHub text carry no agent identity. See below.
 6. Opening the pull request ends your work. Never merge.
 
@@ -42,7 +43,9 @@ Do not put any of the following in commit messages, PR titles/bodies, or Issue/P
 ## The gate
 
 - `make verify` on the exact commit you push. CI runs it plus the integration
-  suite plus the vulnerability scan; `main` accepts nothing that fails any.
+  suite, the vulnerability scan, `ci-policy`, `commit-attribution`, the `layout`
+  browser and accessibility check, and CodeQL for Go and for the workflows;
+  `main` accepts nothing that fails any.
 - Never weaken a gate, a golden file or a test oracle to reach green. If a gate
   is wrong, leave it red and say so under "Needs a ruling".
 - `golangci-lint` and `squawk` on `PATH` at the Makefile's pins; everything
@@ -66,15 +69,22 @@ Stop if the change needs to cross one. If the ruling authorises it, do what it
 authorises and no more. Otherwise write `NEEDS-KOOPA` under "Needs a ruling",
 name the boundary, and open the pull request anyway.
 
-## House style, each enforced by a test named in `CLAUDE.md`
+## House style
 
-- Package by feature; no `services` / `models` / `util` directory.
+Each rule names the check that holds it in the tracked tree; "No check" means
+review is the only guard.
+
+- Package by feature; no `services` / `models` / `util` directory. No check.
 - An interface only where a second production implementation exists or a
-  consumer in another package needs a subset. Never for a test.
-- `PgError.ConstraintName` or `Code`, never the error's text.
-- A closed set is a type with constants.
-- Rollback with `context.WithoutCancel(ctx)`; render time through
-  `internal/shoptime`; render money through `internal/money`.
-- A sentence goen says lives in `internal/i18n`, both languages, one line.
+  consumer in another package needs a subset. Never for a test. The `iface`
+  linter in `.golangci.yml` holds part of it (identical, unused, opaque).
+- `PgError.ConstraintName` or `Code`, never the error's text. No check.
+- A closed set is a type with constants. No check.
+- Rollback with `context.WithoutCancel(ctx)`:
+  `TestEveryRollbackOutlivesItsRequest`. Render time through
+  `internal/shoptime`: `TestNoTimeIsRenderedInAnUnstatedZone`. Render money
+  through `internal/money`: no check.
+- A sentence goen says lives in `internal/i18n`, both languages, one line:
+  `TestNoChromeStringIsHardCoded`.
 - A comment carries the reason a reader needs to not break the line. No
-  history, no "used to be", no "proven by mutation".
+  history, no "used to be", no "proven by mutation". No check.

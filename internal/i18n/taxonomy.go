@@ -36,6 +36,40 @@ var (
 		En:     "Icon for %s",
 	})
 
+	KeyAdminColTone = key("admin.col.tone", Message{ZhHant: "色調", En: "Tone"})
+
+	// KeyAdminToneInherit is the empty choice: the category takes its department's.
+	KeyAdminTonePaper = key("admin.tone.paper", Message{ZhHant: "紙白", En: "Paper"})
+	KeyAdminToneStone = key("admin.tone.stone", Message{ZhHant: "石白", En: "Stone"})
+	KeyAdminToneMist  = key("admin.tone.mist", Message{ZhHant: "霧藍", En: "Mist"})
+	KeyAdminToneSage  = key("admin.tone.sage", Message{ZhHant: "淡綠", En: "Sage"})
+	KeyAdminToneBlush = key("admin.tone.blush", Message{ZhHant: "淡粉", En: "Blush"})
+	KeyAdminToneInk   = key("admin.tone.ink", Message{ZhHant: "墨黑", En: "Ink"})
+
+	KeyAdminToneInherit = key("admin.tone.inherit", Message{ZhHant: "沿用上層色調", En: "Inherit the department's tone"})
+
+	KeyFormToneUnknown = key("form.tone.unknown", Message{
+		ZhHant: "請從清單中選一個色調。",
+		En:     "Pick a tone from the list.",
+	})
+
+	// KeyAdminTaxToneOf labels the tone control on one category's row.
+	KeyAdminTaxToneOf = key("admin.tax.toneof", Message{
+		ZhHant: "%s 的色調",
+		En:     "Tone for %s",
+	})
+
+	// KeyAdminTaxHeader links a category's row to the page that holds its photograph.
+	KeyAdminTaxHeader = key("admin.tax.header", Message{ZhHant: "頁首圖片", En: "Header photo"})
+
+	KeyAdminCatImage = key("admin.cat.image", Message{ZhHant: "分類頁首圖片", En: "Category header photograph"})
+
+	KeyAdminCatImageHint = key("admin.cat.imagehint", Message{
+		ZhHant: "顯示在館別頁標題旁,會從中央裁成 3:2。建議 1200×800。子分類沿用上層的圖片。",
+		En: "Shown beside the department's heading, cropped from the centre to 3:2. " +
+			"1200×800 works best. A sub-category shows its department's photograph.",
+	})
+
 	KeyAdminPageTaxonomy = key("admin.page.taxonomy", Message{ZhHant: "品牌與分類", En: "Brands and categories"})
 
 	// KeyFormPositionTaken is a collision, not a mistake: CreateCategory computes
@@ -101,15 +135,9 @@ var (
 		En:     "%s products and %d sub-categories",
 	})
 
-	KeyAdminTaxonomyChildren = key("admin.taxonomy.children", Message{
-		ZhHant: "有 %d 個子分類",
-		En:     "%d sub-categories",
-	})
+	KeyAdminTaxonomyChildren = countKey("admin.taxonomy.children", "有 %d 個子分類", "%d sub-category", "%d sub-categories")
 
-	KeyAdminTaxonomyProducts = key("admin.taxonomy.products", Message{
-		ZhHant: "有 %s 個商品",
-		En:     "%s products",
-	})
+	KeyAdminTaxonomyProducts = countKey("admin.taxonomy.products", "有 %s 個商品", "%s product", "%s products")
 )
 
 var (

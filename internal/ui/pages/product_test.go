@@ -1,6 +1,7 @@
 package pages
 
 import (
+	"strconv"
 	"strings"
 	"testing"
 
@@ -174,5 +175,52 @@ func TestTheGalleryRidesTheSwapOnlyWhenAPhotographShowsAValue(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// htmx puts focus back after a swap only on an element it can find again by id,
+// so a control that swaps its own region has to carry one, or focus falls to the
+// body and the next Tab leaves the buy box.
+func TestControlsThatSwapTheirOwnRegionKeepAStableID(t *testing.T) {
+	t.Parallel()
+	view := ProductView{
+		Slug: "sample-product", Name: "Sample", VariantID: "v", SelectionOK: true, Exact: true,
+		Available: 5, Sellable: true, AnySellable: true,
+		Options: []ProductOption{{
+			Name: "colour", Label: "Colour",
+			Values: []ProductOptionValue{
+				{Value: "blue", Label: "Blue", Selected: true, Available: true, Href: "/p/sample-product?colour=blue"},
+				{Value: "red", Label: "Red", Available: true, Href: "/p/sample-product?colour=red"},
+			},
+		}},
+	}
+	markup := renderToString(t, Product(ProductMeta(&view), &view))
+	for _, id := range []string{"swatch-0-0", "swatch-0-1", "add-to-cart"} {
+		if !strings.Contains(markup, `id="`+id+`"`) {
+			t.Errorf("no element carries id=%q", id)
+		}
+	}
+
+	contact := renderToString(t, ContactPanel(ContactForm{}))
+	if !strings.Contains(contact, `id="contact-submit"`) {
+		t.Error("the contact form's submit button has no id, so a refused submit drops focus to the body")
+	}
+}
+
+func TestTheReviewFormWarnsBeforeSubmittingAndRefusesToTheForm(t *testing.T) {
+	t.Parallel()
+	view := ProductView{Slug: "sample-product", Name: "Sample", SignedIn: true, CanReview: true}
+	var body strings.Builder
+	if err := Product(ProductMeta(&view), &view).Render(i18n.WithLocale(t.Context(), i18n.ZhHant), &body); err != nil {
+		t.Fatal(err)
+	}
+	markup := body.String()
+	for _, want := range []string{
+		`<form id="write-review" method="post" action="/p/sample-product/reviews#write-review">`,
+		`minlength="` + strconv.Itoa(ReviewBodyMinRunes) + `"`,
+	} {
+		if !strings.Contains(markup, want) {
+			t.Errorf("the review form lacks %s", want)
+		}
 	}
 }

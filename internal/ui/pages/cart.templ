@@ -6,7 +6,6 @@ import (
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
-	"github.com/koopa0/goen/internal/ui/icons"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
@@ -17,7 +16,7 @@ templ Cart(p layouts.Page, v CartView) {
 			<div class="goen-pagehead">
 				<h1 class="goen-pagehead__title">{ i18n.T(ctx, i18n.KeyCart) }</h1>
 				if !v.Empty() {
-					<p class="goen-pagehead__sub">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCartItemCount), v.ItemCountText()) }</p>
+					<p class="goen-pagehead__sub">{ i18n.Count(ctx, i18n.KeyCartItemCount, v.ItemCount, v.ItemCountText()) }</p>
 				}
 			</div>
 			if v.HasNotice() {
@@ -71,16 +70,16 @@ templ Cart(p layouts.Page, v CartView) {
 						Attrs: templ.Attributes{"aria-labelledby": "summary-heading"},
 					}) {
 						<h2 id="summary-heading" class="goen-summary__title">{ i18n.T(ctx, i18n.KeyOrderSummary) }</h2>
-						<div class="goen-summary">
-							<div class="goen-summary__row">
-								<span>{ i18n.T(ctx, i18n.KeySubtotal) }</span>
-								<span class="goen-summary__value">{ v.Subtotal() }</span>
+						<dl class="goen-summary">
+							<div class="goen-summary__row goen-summary__row--total">
+								<dt>{ i18n.T(ctx, i18n.KeySubtotal) }</dt>
+								<dd class="goen-summary__value">{ v.Subtotal() }</dd>
 							</div>
 							<div class="goen-summary__row">
-								<span>{ i18n.T(ctx, i18n.KeyShippingFee) }</span>
-								<span class="goen-summary__value">{ i18n.T(ctx, i18n.KeyShippingLater) }</span>
+								<dt>{ i18n.T(ctx, i18n.KeyShippingFee) }</dt>
+								<dd class="goen-summary__value">{ i18n.T(ctx, i18n.KeyShippingLater) }</dd>
 							</div>
-						</div>
+						</dl>
 						if v.Blocked() {
 							@components.Notice(components.NoticeProps{Tone: components.ToneWarn}) {
 								{ i18n.T(ctx, i18n.KeyCartStockShort) }
@@ -119,7 +118,7 @@ templ Cart(p layouts.Page, v CartView) {
 }
 
 templ cartLine(l CartLine) {
-	<li class={ "goen-line", templ.KV("goen-line--out", l.Unavailable) }>
+	<li class={ "goen-line", "goen-line--cart", templ.KV("goen-line--out", l.Unavailable) }>
 		<a class="goen-line__thumb" href={ templ.URL("/p/" + l.Slug) }>
 			if l.HasImage() {
 				// Width and height on the element, not only in the sheet: the
@@ -158,32 +157,6 @@ templ cartLine(l CartLine) {
 					{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOnlyLeft), l.AvailableText()) }
 				}
 			}
-			<form class="goen-line__controls" method="post" action="/cart/items/update">
-				<input type="hidden" name="variant" value={ l.VariantID }/>
-				<label class="goen-sr-only" for={ "qty-" + l.VariantID }>{ i18n.T(ctx, i18n.KeyQuantity) }</label>
-				@components.Stepper(components.StepperProps{
-					ID: "qty-" + l.VariantID, Name: "quantity",
-					Value: l.QuantityText(),
-					// Zero is how a line is removed with no script, so the
-					// field's floor is zero here and one on the product page.
-					Min: "0", Max: l.MaxQuantity(),
-					DecreaseLabel: i18n.T(ctx, i18n.KeyQuantityDecrease),
-					IncreaseLabel: i18n.T(ctx, i18n.KeyQuantityIncrease),
-				})
-				@components.Button(components.ButtonProps{
-					Variant: components.VariantOutline,
-					Size:    components.SizeSmall,
-				}, "submit") {
-					{ i18n.T(ctx, i18n.KeyUpdate) }
-				}
-				@components.Button(components.ButtonProps{
-					Variant: components.VariantGhost,
-					Size:    components.SizeSmall,
-					Attrs:   templ.Attributes{"name": "remove", "value": "1"},
-				}, "submit") {
-					{ i18n.T(ctx, i18n.KeyRemove) }
-				}
-			</form>
 		</div>
 		<div class="goen-line__money">
 			<span class="goen-line__total">{ l.LineTotal() }</span>
@@ -193,6 +166,37 @@ templ cartLine(l CartLine) {
 				</span>
 			}
 		</div>
+		<form class="goen-line__controls" method="post" action="/cart/items/update" data-autosubmit>
+			<input type="hidden" name="variant" value={ l.VariantID }/>
+			<label class="goen-sr-only" for={ "qty-" + l.VariantID }>{ i18n.T(ctx, i18n.KeyQuantity) }</label>
+			@components.Stepper(components.StepperProps{
+				ID: "qty-" + l.VariantID, Name: "quantity",
+				Value: l.QuantityText(),
+				// Zero is how a line is removed with no script, so the
+				// field's floor is zero here and one on the product page.
+				Min: "0", Max: l.MaxQuantity(),
+				DecreaseLabel: i18n.T(ctx, i18n.KeyQuantityDecrease),
+				IncreaseLabel: i18n.T(ctx, i18n.KeyQuantityIncrease),
+			})
+			// Shown only where scripting is off. With it on, changing the
+			// quantity submits the form, and a button beside a control that
+			// already applies itself is one more thing to press.
+			@components.Button(components.ButtonProps{
+				Variant: components.VariantOutline,
+				Size:    components.SizeSmall,
+				Class:   "goen-line__update",
+			}, "submit") {
+				{ i18n.T(ctx, i18n.KeyUpdate) }
+			}
+			@components.Button(components.ButtonProps{
+				Variant: components.VariantGhost,
+				Size:    components.SizeSmall,
+				Class:   "goen-line__remove",
+				Attrs:   templ.Attributes{"name": "remove", "value": "1"},
+			}, "submit") {
+				{ i18n.T(ctx, i18n.KeyRemove) }
+			}
+		</form>
 	</li>
 }
 
@@ -587,44 +591,44 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 								</li>
 							}
 						</ul>
-						<div class="goen-summary">
+						<dl class="goen-summary">
 							<div class="goen-summary__row">
-								<span>{ i18n.T(ctx, i18n.KeySubtotal) }</span>
-								<span class="goen-summary__value">{ v.Cart.Subtotal() }</span>
+								<dt>{ i18n.T(ctx, i18n.KeySubtotal) }</dt>
+								<dd class="goen-summary__value">{ v.Cart.Subtotal() }</dd>
 							</div>
 							<div class="goen-summary__row">
-								<span>{ i18n.T(ctx, i18n.KeyShippingFee) }</span>
-								<span class="goen-summary__value">
+								<dt>{ i18n.T(ctx, i18n.KeyShippingFee) }</dt>
+								<dd class="goen-summary__value">
 									if v.ShipsFree() {
 										{ i18n.T(ctx, i18n.KeyFreeShipping) }
 									} else {
 										{ v.ShippingText() }
 									}
-								</span>
+								</dd>
 							</div>
 							if v.HasSurcharge() {
 								<div class="goen-summary__row">
-									<span>{ fmt.Sprintf(i18n.T(ctx, i18n.KeyZoneSurcharge), v.ZoneName) }</span>
-									<span class="goen-summary__value">{ v.Surcharge() }</span>
+									<dt>{ fmt.Sprintf(i18n.T(ctx, i18n.KeyZoneSurcharge), v.ZoneName) }</dt>
+									<dd class="goen-summary__value">{ v.Surcharge() }</dd>
 								</div>
 							}
 							if v.HasCoupon() && v.CouponDiscountCents > 0 {
 								<div class="goen-summary__row">
-									<span>{ i18n.T(ctx, i18n.KeyDiscount) }({ v.CouponApplied })</span>
-									<span class="goen-summary__value">{ v.CouponDiscount() }</span>
+									<dt>{ i18n.T(ctx, i18n.KeyDiscount) }({ v.CouponApplied })</dt>
+									<dd class="goen-summary__value">{ v.CouponDiscount() }</dd>
 								</div>
 							}
 							if v.UsesCredit() {
 								<div class="goen-summary__row">
-									<span>{ i18n.T(ctx, i18n.KeyStoreCredit) }</span>
-									<span class="goen-summary__value">{ v.Credit() }</span>
+									<dt>{ i18n.T(ctx, i18n.KeyStoreCredit) }</dt>
+									<dd class="goen-summary__value">{ v.Credit() }</dd>
 								</div>
 							}
 							<div class="goen-summary__row goen-summary__row--total">
-								<span>{ i18n.T(ctx, i18n.KeyTotal) }</span>
-								<span class="goen-summary__value">{ v.Total() }</span>
+								<dt>{ i18n.T(ctx, i18n.KeyTotal) }</dt>
+								<dd class="goen-summary__value">{ v.Total() }</dd>
 							</div>
-						</div>
+						</dl>
 						<div class="goen-field">
 							@components.Label(components.LabelProps{For: "coupon"}) {
 								{ i18n.T(ctx, i18n.KeyCouponCode) }
@@ -834,9 +838,6 @@ templ Order(p layouts.Page, v *OrderView) {
 	@layouts.Base(p) {
 		<div class="goen-order">
 			<div class="goen-order__placed">
-				<span class="goen-medallion goen-medallion--success" aria-hidden="true">
-					@icons.CheckCircle()
-				</span>
 				<div class="goen-pagehead">
 					<p class="goen-pagehead__eyebrow">{ i18n.T(ctx, i18n.KeyOrderPlaced) }</p>
 					<h1 class="goen-pagehead__title">{ v.Number }</h1>
@@ -955,40 +956,40 @@ templ Order(p layouts.Page, v *OrderView) {
 					</ul>
 				</div>
 				@components.Card(components.CardProps{Class: "goen-order__summary"}) {
-					<div class="goen-summary">
+					<dl class="goen-summary">
 						<div class="goen-summary__row">
-							<span>{ i18n.T(ctx, i18n.KeySubtotal) }</span>
-							<span class="goen-summary__value">{ v.Subtotal() }</span>
+							<dt>{ i18n.T(ctx, i18n.KeySubtotal) }</dt>
+							<dd class="goen-summary__value">{ v.Subtotal() }</dd>
 						</div>
 						<div class="goen-summary__row">
-							<span>{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOrderShippingFee), v.ShippingName) }</span>
-							<span class="goen-summary__value">{ v.Shipping(ctx) }</span>
+							<dt>{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOrderShippingFee), v.ShippingName) }</dt>
+							<dd class="goen-summary__value">{ v.Shipping(ctx) }</dd>
 						</div>
 						if v.Discounted() {
 							<div class="goen-summary__row">
-								<span>
+								<dt>
 									{ i18n.T(ctx, i18n.KeyDiscount) }
 									if v.DiscountReason != "" {
 										({ v.DiscountReason })
 									}
-								</span>
-								<span class="goen-summary__value">{ v.Discount() }</span>
+								</dt>
+								<dd class="goen-summary__value">{ v.Discount() }</dd>
 							</div>
 						}
 						<div class="goen-summary__row goen-summary__row--total">
-							<span>{ i18n.T(ctx, i18n.KeyOrderGrandTotal) }</span>
-							<span class="goen-summary__value">{ v.Total() }</span>
+							<dt>{ i18n.T(ctx, i18n.KeyOrderGrandTotal) }</dt>
+							<dd class="goen-summary__value">{ v.Total() }</dd>
 						</div>
 						// Below the total, because it is not a reduction of the
 						// price: the goods cost what they cost and this is part
 						// of how they were paid for.
 						if v.UsedCredit() {
 							<div class="goen-summary__row">
-								<span>{ i18n.T(ctx, i18n.KeyOrderCreditApplied) }</span>
-								<span class="goen-summary__value">{ v.Credit() }</span>
+								<dt>{ i18n.T(ctx, i18n.KeyOrderCreditApplied) }</dt>
+								<dd class="goen-summary__value">{ v.Credit() }</dd>
 							</div>
 						}
-					</div>
+					</dl>
 					<div class="goen-summary__actions">
 						<form class="goen-order__cancel" method="post" action={ templ.SafeURL("/orders/" + v.Number + "/reorder") }>
 							@components.Button(components.ButtonProps{Variant: components.VariantOutline}, "submit") {
