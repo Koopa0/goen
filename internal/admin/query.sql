@@ -148,6 +148,7 @@ SELECT json_build_object('Number', (pv.stock_quantity - pv.safety_stock), 'Name'
     pv.price_cents,
     pv.compare_at_price_cents,
     pv.stock_quantity,
+    pv.preorder_release_on,
     pv.safety_stock,
     pv.is_active,
     p.slug,
@@ -2218,3 +2219,11 @@ FROM order_private_data pd
 LEFT JOIN shipping_zone_prefixes old_zone ON old_zone.prefix = left(pd.postal_code, 3)
 LEFT JOIN shipping_zone_prefixes new_zone ON new_zone.prefix = left(@new_postal_code::text, 3)
 WHERE pd.order_id = @order_id;
+
+-- The prior date and its replacement must share the row lock and audit transaction.
+-- name: LockVariantArrival :one
+SELECT id, preorder_release_on FROM product_variants WHERE sku = $1 FOR UPDATE;
+
+-- name: SetVariantArrival :exec
+UPDATE product_variants SET preorder_release_on = sqlc.narg('arrival_on')::date
+WHERE id = $1;

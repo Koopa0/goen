@@ -2246,6 +2246,7 @@ SELECT json_build_object('Number', (pv.stock_quantity - pv.safety_stock), 'Name'
     pv.price_cents,
     pv.compare_at_price_cents,
     pv.stock_quantity,
+    pv.preorder_release_on,
     pv.safety_stock,
     pv.is_active,
     p.slug,
@@ -2293,6 +2294,7 @@ type AdminVariantsRow struct {
 	PriceCents          int64
 	CompareAtPriceCents pgtype.Int8
 	StockQuantity       int32
+	PreorderReleaseOn   pgtype.Date
 	SafetyStock         int32
 	IsActive            bool
 	Slug                string
@@ -2328,6 +2330,7 @@ func (q *Queries) AdminVariants(ctx context.Context, arg AdminVariantsParams) ([
 			&i.PriceCents,
 			&i.CompareAtPriceCents,
 			&i.StockQuantity,
+			&i.PreorderReleaseOn,
 			&i.SafetyStock,
 			&i.IsActive,
 			&i.Slug,
@@ -8147,6 +8150,23 @@ func (q *Queries) LockUserForPasswordReset(ctx context.Context, userID uuid.UUID
 	return id, err
 }
 
+const lockVariantArrival = `-- name: LockVariantArrival :one
+SELECT id, preorder_release_on FROM product_variants WHERE sku = $1 FOR UPDATE
+`
+
+type LockVariantArrivalRow struct {
+	ID                uuid.UUID
+	PreorderReleaseOn pgtype.Date
+}
+
+// The prior date and its replacement must share the row lock and audit transaction.
+func (q *Queries) LockVariantArrival(ctx context.Context, sku string) (LockVariantArrivalRow, error) {
+	row := q.db.QueryRow(ctx, lockVariantArrival, sku)
+	var i LockVariantArrivalRow
+	err := row.Scan(&i.ID, &i.PreorderReleaseOn)
+	return i, err
+}
+
 const lowestDeliveryFee = `-- name: LowestDeliveryFee :one
 SELECT coalesce(min(v.fee_cents), 0)::bigint AS fee_cents
 FROM shipping_methods sm
@@ -10638,6 +10658,7 @@ SELECT
     (pv.stock_quantity > pv.safety_stock) AS sellable,
     (pv.stock_quantity - pv.safety_stock)::integer AS sellable_quantity,
     pv.preorder_release_on,
+    coalesce(pv.preorder_release_on >= shop_today(), false)::boolean AS arrival_current,
     coalesce(
         (SELECT array_agg(o.name ORDER BY o.position, o.id)
          FROM variant_option_values vov
@@ -10666,6 +10687,7 @@ type ProductVariantsRow struct {
 	Sellable            bool
 	SellableQuantity    int32
 	PreorderReleaseOn   pgtype.Date
+	ArrivalCurrent      bool
 	OptionNames         []string
 	OptionValues        []string
 }
@@ -10689,6 +10711,7 @@ func (q *Queries) ProductVariants(ctx context.Context, productID uuid.UUID) ([]P
 			&i.Sellable,
 			&i.SellableQuantity,
 			&i.PreorderReleaseOn,
+			&i.ArrivalCurrent,
 			&i.OptionNames,
 			&i.OptionValues,
 		); err != nil {
@@ -13847,6 +13870,21 @@ type SetVariantActiveParams struct {
 
 func (q *Queries) SetVariantActive(ctx context.Context, arg SetVariantActiveParams) error {
 	_, err := q.db.Exec(ctx, setVariantActive, arg.ID, arg.IsActive)
+	return err
+}
+
+const setVariantArrival = `-- name: SetVariantArrival :exec
+UPDATE product_variants SET preorder_release_on = $2::date
+WHERE id = $1
+`
+
+type SetVariantArrivalParams struct {
+	ID        uuid.UUID
+	ArrivalOn pgtype.Date
+}
+
+func (q *Queries) SetVariantArrival(ctx context.Context, arg SetVariantArrivalParams) error {
+	_, err := q.db.Exec(ctx, setVariantArrival, arg.ID, arg.ArrivalOn)
 	return err
 }
 

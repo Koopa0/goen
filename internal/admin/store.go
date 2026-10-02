@@ -1035,7 +1035,8 @@ func variantRow(r *db.AdminVariantsRow) admin.Variant {
 		PriceCents: r.PriceCents, CompareCents: r.CompareAtPriceCents.Int64,
 		Stock: r.StockQuantity, Safety: r.SafetyStock,
 		Active: r.IsActive, ProductStatus: r.ProductStatus,
-		Options: r.OptionValues,
+		Options:      r.OptionValues,
+		ArrivalInput: arrivalInput(r.PreorderReleaseOn),
 		// One per rendered row, so the adjust form's key is spent by that form
 		// alone and not by whichever stock level the variant next returns to.
 		FormID: uuid.NewString(),

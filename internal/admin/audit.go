@@ -35,6 +35,7 @@ const (
 	actionGrantCredit              Action = "credit.grant"
 	actionAdjustStock              Action = "stock.adjust"
 	actionReceiveStock             Action = "stock.receive"
+	actionSetVariantArrival        Action = "variant.arrival.set"
 	actionPublishShipping          Action = "shipping.publish"
 	actionSetSurcharge             Action = "shipping.surcharge"
 	actionCreateTier               Action = "tier.create"

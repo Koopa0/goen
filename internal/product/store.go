@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -62,14 +63,16 @@ func (s *Store) Load(ctx context.Context, slug string, sel Selection) (pages.Pro
 		for j := 0; j < len(r.OptionNames) && j < len(r.OptionValues); j++ {
 			opts[r.OptionNames[j]] = r.OptionValues[j]
 		}
+		arrival := expectedArrivalOf(r)
 		variants = append(variants, Variant{
-			ID:           r.ID.String(),
-			SKU:          r.SKU,
-			PriceCents:   r.PriceCents,
-			CompareCents: r.CompareAtPriceCents.Int64,
-			Sellable:     r.Sellable,
-			Available:    r.SellableQuantity,
-			Options:      opts,
+			ID:              r.ID.String(),
+			SKU:             r.SKU,
+			PriceCents:      r.PriceCents,
+			CompareCents:    r.CompareAtPriceCents.Int64,
+			Sellable:        r.Sellable,
+			Available:       r.SellableQuantity,
+			ExpectedArrival: arrival,
+			Options:         opts,
 		})
 	}
 
@@ -126,6 +129,7 @@ func (s *Store) Load(ctx context.Context, slug string, sel Selection) (pages.Pro
 		view.CompareCents = chosen.CompareCents
 		view.Sellable = chosen.Sellable
 		view.Available = chosen.Available
+		view.ExpectedArrival = chosen.ExpectedArrival
 	}
 
 	for _, o := range BuildOptions(slug, groups, order, labels, variants, sel) {
@@ -338,4 +342,11 @@ func (s *Store) SavedByUser(ctx context.Context, userID, slug string) bool {
 // makes the price on the page a "from" rather than the product's price.
 func dearerThan(cents int64, variants []Variant) bool {
 	return slices.ContainsFunc(variants, func(v Variant) bool { return v.PriceCents > cents })
+}
+
+func expectedArrivalOf(r *db.ProductVariantsRow) time.Time {
+	if r.PreorderReleaseOn.Valid && r.ArrivalCurrent {
+		return r.PreorderReleaseOn.Time
+	}
+	return time.Time{}
 }
