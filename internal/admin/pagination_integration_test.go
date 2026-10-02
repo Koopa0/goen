@@ -17,6 +17,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/admin/coupons"
+	"github.com/koopa0/goen/internal/admin/customers"
 	"github.com/koopa0/goen/internal/admin/loyalty"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -84,6 +85,7 @@ func TestEveryAdminQueueReachesBeyondItsFirstPage(t *testing.T) {
  `)
 	s := admin.NewStore(p, fakeRefunder{}, nil, nil)
 	trail := audit.NewStore(p)
+	customerLookup := customers.NewStore(p)
 	var warrantyOrder string
 	if err := p.QueryRow(ctx, `SELECT o.order_number FROM orders o JOIN order_lines l ON l.order_id=o.id JOIN warranty_registrations w ON w.order_line_id=l.id LIMIT 1`).Scan(&warrantyOrder); err != nil {
 		t.Fatal(err)
@@ -114,7 +116,7 @@ func TestEveryAdminQueueReachesBeyondItsFirstPage(t *testing.T) {
 			return r, e
 		}},
 		{"customers", "SELECT count(*) FROM users WHERE email LIKE 'paging-%'", func(after string) (result, error) {
-			v, e := s.Customers(ctx, "paging-", after)
+			v, e := customerLookup.Search(ctx, "paging-", after)
 			r := result{bound: v.ListBound}
 			for _, x := range v.Rows {
 				r.keys = append(r.keys, x.ID)
@@ -202,7 +204,7 @@ func TestEveryAdminQueueReachesBeyondItsFirstPage(t *testing.T) {
 			return r, e
 		}},
 		{"warranty", "SELECT count(*) FROM warranty_registrations", func(after string) (result, error) {
-			v, e := s.Warranties(ctx, warrantyOrder, after)
+			v, e := customerLookup.Warranties(ctx, warrantyOrder, after)
 			r := result{bound: v.ListBound}
 			for _, x := range v.Rows {
 				r.keys = append(r.keys, x.Serial)
@@ -211,7 +213,7 @@ func TestEveryAdminQueueReachesBeyondItsFirstPage(t *testing.T) {
 		}},
 	}
 	h := adminHandlerOver(p, s)
-	handlers := map[string]http.HandlerFunc{"orders": h.Orders, "order search": h.Orders, "customers": h.Customers, "products": h.Products, "stock": h.Variants, "movements": h.Movements, "returns": h.Returns, "coupons": coupons.NewHandler(coupons.NewStore(p), slog.New(slog.DiscardHandler)).Page, "campaigns": h.Campaigns, "reviews": h.Reviews, "messages": h.Messages, "credit": loyalty.NewHandler(loyalty.NewStore(p), slog.New(slog.DiscardHandler)).Credit, "audit": audit.NewHandler(trail, slog.New(slog.DiscardHandler)).Page, "warranty": h.Warranties}
+	handlers := map[string]http.HandlerFunc{"orders": h.Orders, "order search": h.Orders, "customers": customers.NewHandler(customerLookup, slog.New(slog.DiscardHandler)).Search, "products": h.Products, "stock": h.Variants, "movements": h.Movements, "returns": h.Returns, "coupons": coupons.NewHandler(coupons.NewStore(p), slog.New(slog.DiscardHandler)).Page, "campaigns": h.Campaigns, "reviews": h.Reviews, "messages": h.Messages, "credit": loyalty.NewHandler(loyalty.NewStore(p), slog.New(slog.DiscardHandler)).Credit, "audit": audit.NewHandler(trail, slog.New(slog.DiscardHandler)).Page, "warranty": customers.NewHandler(customerLookup, slog.New(slog.DiscardHandler)).Warranties}
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
 			var want int
@@ -281,17 +283,17 @@ func TestEveryAdminQueueReachesBeyondItsFirstPage(t *testing.T) {
 		})
 	}
 	// An insertion ahead of the cursor must not shift the next customer page.
-	first, err := s.Customers(ctx, "paging-", "")
+	first, err := customerLookup.Search(ctx, "paging-", "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	next, _ := url.Parse(first.Next)
-	before, err := s.Customers(ctx, "paging-", next.Query().Get("after"))
+	before, err := customerLookup.Search(ctx, "paging-", next.Query().Get("after"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	exec(`INSERT INTO users (email) VALUES ('paging-new@example.invalid')`)
-	after, err := s.Customers(ctx, "paging-", next.Query().Get("after"))
+	after, err := customerLookup.Search(ctx, "paging-", next.Query().Get("after"))
 	if err != nil {
 		t.Fatal(err)
 	}

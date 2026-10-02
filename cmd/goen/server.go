@@ -19,6 +19,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/admin/coupons"
+	customerdesk "github.com/koopa0/goen/internal/admin/customers"
 	"github.com/koopa0/goen/internal/admin/health"
 	"github.com/koopa0/goen/internal/admin/loyalty"
 	"github.com/koopa0/goen/internal/admin/reports"
@@ -205,6 +206,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	})
 	trail := audit.NewHandler(audit.NewStore(adminPool), log)
 	figures := reports.NewHandler(reports.NewStore(adminPool), log)
+	lookup := customerdesk.NewHandler(customerdesk.NewStore(adminPool), log)
 	promotions := coupons.NewHandler(coupons.NewStore(adminPool), log)
 	programme := loyalty.NewHandler(loyalty.NewStore(adminPool), log)
 	workers := health.NewHandler(health.NewStore(adminPool), outbox.NewStore(adminPool, log),
@@ -355,6 +357,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	workers.Routes(mux, backOffice)
 	programme.Routes(mux, backOffice)
 	promotions.Routes(mux, backOffice)
+	lookup.Routes(mux, backOffice)
 	// RequireAdmin and not RequireStaff, which accepts `staff` as well: these
 	// four promote, revoke, and strip an admin's second factor, and the listing
 	// names who has none yet.

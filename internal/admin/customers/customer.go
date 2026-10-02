@@ -1,16 +1,22 @@
-package admin
+// Package customers is the back office's customer lookup: search by name or
+// address, one customer's page, and the warranty search that finds a customer by
+// serial number.
+package customers
 
 import (
 	"context"
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/admin/audit"
+	"github.com/koopa0/goen/internal/admin/orderstatus"
 	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/shoptime"
@@ -19,23 +25,57 @@ import (
 	"github.com/koopa0/goen/internal/web"
 )
 
-func (s *Store) Customers(ctx context.Context, term string, after ...string) (admin.CustomersView, error) {
+var ErrNotFound = errors.New("customers: not found")
+
+type Store struct {
+	pool *pgxpool.Pool
+	q    *db.Queries
+}
+
+func NewStore(pool *pgxpool.Pool) *Store {
+	if pool == nil {
+		panic("customers: NewStore requires a pool")
+	}
+	return &Store{pool: pool, q: db.New(pool)}
+}
+
+// position is a reader's place in a list. The queries build it as PageCursor,
+// so its fields are the ordering values and nothing else.
+type position struct {
+	ID uuid.UUID
+	At time.Time
+}
+
+// resume reads the position a list was asked to continue from; ok is false for
+// the first page and for a token this list did not mint.
+func resume(scope string, after []string) (from position, ok bool) {
+	if len(after) == 0 {
+		return position{}, false
+	}
+	p, valid := web.ReadKeyset[position](scope, after[0])
+	if !valid || p.ID == uuid.Nil {
+		return position{}, false
+	}
+	return p, true
+}
+
+func (s *Store) Search(ctx context.Context, term string, after ...string) (admin.CustomersView, error) {
 	term = strings.TrimSpace(term)
 	scope := web.ScopeURL("/admin/customers", "q", term)
-	cursor := readPageCursor(scope, after)
+	from, resumed := resume(scope, after)
 	view := admin.CustomersView{Term: term}
-	if utf8.RuneCountInString(term) < MinSearchRunes {
+	if utf8.RuneCountInString(term) < web.MinSearchRunes {
 		return view, nil
 	}
 	view.Searched = true
 
-	rows, err := s.q.AdminSearchCustomers(ctx, db.AdminSearchCustomersParams{HasCursor: cursor.Valid, AfterAt: cursor.At, AfterID: cursor.ID,
-		EscapedTerm: catalog.EscapeLike(term), RowLimit: PageLimit,
+	rows, err := s.q.AdminSearchCustomers(ctx, db.AdminSearchCustomersParams{HasCursor: resumed, AfterAt: from.At, AfterID: from.ID,
+		EscapedTerm: catalog.EscapeLike(term), RowLimit: web.PageLimit,
 	})
 	if err != nil {
 		return admin.CustomersView{}, fmt.Errorf("search customers: %w", err)
 	}
-	rows, bound := pageBound(cursor, scope, rows, PageSize, func(r *db.AdminSearchCustomersRow) string { return r.PageCursor })
+	rows, bound := web.PageBound(scope, resumed, rows, web.PageSize, func(r *db.AdminSearchCustomersRow) string { return r.PageCursor })
 	view.ListBound = bound
 	for i := range rows {
 		r := &rows[i]
@@ -48,10 +88,8 @@ func (s *Store) Customers(ctx context.Context, term string, after ...string) (ad
 	return view, nil
 }
 
-// Customer reads one customer, whole, and RECORDS that somebody looked.
-func (s *Store) Customer(ctx context.Context, id string, actor uuid.NullUUID) (
-	admin.CustomerView, error,
-) {
+// Profile reads one customer, whole, and RECORDS that somebody looked.
+func (s *Store) Profile(ctx context.Context, id string) (admin.CustomerView, error) {
 	uid, err := uuid.Parse(id)
 	if err != nil {
 		return admin.CustomerView{}, ErrNotFound
@@ -73,7 +111,7 @@ func (s *Store) Customer(ctx context.Context, id string, actor uuid.NullUUID) (
 	}
 
 	orders, err := q.AdminCustomerOrders(ctx, db.AdminCustomerOrdersParams{
-		UserID: uuid.NullUUID{UUID: uid, Valid: true}, Limit: PageSize,
+		UserID: uuid.NullUUID{UUID: uid, Valid: true}, Limit: web.PageSize,
 	})
 	if err != nil {
 		return admin.CustomerView{}, fmt.Errorf("read customer orders: %w", err)
@@ -101,7 +139,7 @@ func (s *Store) Customer(ctx context.Context, id string, actor uuid.NullUUID) (
 		fulfillment := pages.FulfillmentStatus(o.FulfillmentStatus)
 		view.Recent = append(view.Recent, admin.OrderRow{
 			Number: o.OrderNumber, Status: fulfillment,
-			StatusText: FundedStatusLabel(ctx, fulfillment, o.Committed, o.OwedCents),
+			StatusText: orderstatus.FundedLabel(ctx, fulfillment, o.Committed, o.OwedCents),
 			PlacedAt:   shoptime.Minute(o.PlacedAt),
 			TotalCents: o.SubtotalCents - o.DiscountCents + o.ShippingCents + o.TaxCents,
 		})

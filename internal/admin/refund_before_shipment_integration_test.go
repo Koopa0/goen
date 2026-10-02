@@ -18,6 +18,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/admin"
+	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -31,7 +32,7 @@ import (
 func paidUnshippedOrder(t *testing.T, cardCents, creditCents int64, picking bool) (number string, orderID, variantID uuid.UUID) {
 	t.Helper()
 	ctx := t.Context()
-	userID := creditedAccount(t, creditCents)
+	userID := admintest.CreditedAccount(t, pool, creditCents)
 	if err := pool.QueryRow(ctx, `
 		SELECT pv.id FROM product_variants pv JOIN products p ON p.id = pv.product_id
 		WHERE pv.is_active AND p.status = 'active' AND pv.stock_quantity - pv.safety_stock > 2
