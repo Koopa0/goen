@@ -21,8 +21,8 @@ func AsPartial(ctx context.Context) context.Context {
 }
 
 func isPartial(ctx context.Context) bool {
-	partial, _ := ctx.Value(partialKey{}).(bool)
-	return partial
+	partial, ok := ctx.Value(partialKey{}).(bool)
+	return ok && partial
 }
 
 func queryEscape(s string) string { return url.QueryEscape(s) }

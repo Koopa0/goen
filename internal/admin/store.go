@@ -635,12 +635,8 @@ func (s *Store) Ship(ctx context.Context, number string, d Dispatch, actor uuid.
 		return fmt.Errorf("%w: order %s is %s and has not been picked",
 			ErrRefused, number, row.FulfillmentStatus)
 	}
-	dest, destErr := q.OrderDispatchDestination(ctx, row.ID)
-	if destErr != nil {
-		return fmt.Errorf("read destination of %s: %w", number, destErr)
-	}
-	if valid, _ := carrier.ForDelivery(pickup.Brand(dest.PickupBrand), dest.DestinationKind == "pickup_point"); !slices.Contains(valid, carrierCode) {
-		return fmt.Errorf("%w: %s cannot carry order %s", ErrCarrier, carrierCode, number)
+	if carrierErr := requireCarrierFor(ctx, q, row.ID, number, carrierCode); carrierErr != nil {
+		return carrierErr
 	}
 	shipmentID, shipErr := q.CreateShipment(ctx, db.CreateShipmentParams{
 		OrderID: row.ID, Carrier: string(carrierCode), TrackingNumber: tracking,
@@ -688,6 +684,23 @@ func (s *Store) Ship(ctx context.Context, number string, d Dispatch, actor uuid.
 
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("commit ship: %w", err)
+	}
+	return nil
+}
+
+// requireCarrierFor refuses a carrier that cannot deliver to where this order
+// goes: a home courier for a pickup point, or a store brand's own logistics for
+// another brand.
+func requireCarrierFor(
+	ctx context.Context, q *db.Queries, orderID uuid.UUID, number string, code carrier.Carrier,
+) error {
+	dest, err := q.OrderDispatchDestination(ctx, orderID)
+	if err != nil {
+		return fmt.Errorf("read destination of %s: %w", number, err)
+	}
+	valid, _ := carrier.ForDelivery(pickup.Brand(dest.PickupBrand), dest.DestinationKind == "pickup_point")
+	if !slices.Contains(valid, code) {
+		return fmt.Errorf("%w: %s cannot carry order %s", ErrCarrier, code, number)
 	}
 	return nil
 }

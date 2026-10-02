@@ -53,10 +53,10 @@ func aPickupCart(t *testing.T, s *cart.Store, label string) (token string, shipp
 	return tok, shipVersionFor(t, "store_pickup")
 }
 
-// cookieNamed picks one Set-Cookie out of a response.
-func cookieNamed(res *httptest.ResponseRecorder, name string) *http.Cookie {
+// pickupCookieOf picks the pickup cookie out of a response.
+func pickupCookieOf(res *httptest.ResponseRecorder) *http.Cookie {
 	for _, c := range res.Result().Cookies() {
-		if c.Name == name {
+		if c.Name == "goen_pickup" {
 			return c
 		}
 	}
@@ -141,7 +141,7 @@ func startPickup(
 	}
 	res := httptest.NewRecorder()
 	h.PickupStart(res, req)
-	pickupCookie = cookieNamed(res, "goen_pickup")
+	pickupCookie = pickupCookieOf(res)
 	if res.Code != http.StatusSeeOther || res.Header().Get("Location") != pages.PickupMapPath {
 		return res.Body.String(), pickupCookie, res.Code
 	}
@@ -185,7 +185,7 @@ func openPickupCheckout(
 	req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token})
 	res := httptest.NewRecorder()
 	h.PlaceOrder(res, req)
-	return res.Body.String(), cookieNamed(res, "goen_pickup"), res.Code
+	return res.Body.String(), pickupCookieOf(res), res.Code
 }
 
 // TestAStoreChosenOnTheMapSurvivesTheRoundTripAndReachesTheOrder is the happy
@@ -313,7 +313,7 @@ func placeThisCheckout(
 	if res.Code != http.StatusSeeOther {
 		t.Fatalf("placing the order = %d, want 303; body=%s", res.Code, res.Body.String())
 	}
-	if cleared := cookieNamed(res, "goen_pickup"); cleared == nil || cleared.MaxAge >= 0 {
+	if cleared := pickupCookieOf(res); cleared == nil || cleared.MaxAge >= 0 {
 		t.Error("the pickup cookie outlived the order; its nonce would vouch for a " +
 			"store in the next checkout this browser starts")
 	}
