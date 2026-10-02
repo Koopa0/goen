@@ -439,44 +439,61 @@ func TestDetailShowsWhatThePageIsFor(t *testing.T) {
 	}
 }
 
-func TestOnlyACommittedPurchaseEarnsTheBadge(t *testing.T) {
+func TestOnlyACustomerWhoReceivedTheProductMayReview(t *testing.T) {
 	ctx := t.Context()
 	s := product.NewStore(pool)
-
-	buyer := reviewer(t, "buyer")
-	browser := reviewer(t, "browser")
 	slug := activeSlug(t)
-	buy(t, buyer, slug)
 
-	if _, err := s.AddReview(ctx, slug, browser.String(), &product.Review{
-		Rating: 5, Body: "看起來不錯,還沒買。",
-	}); err != nil {
-		t.Fatalf("a signed-in non-buyer could not review: %v", err)
+	received := reviewer(t, "received")
+	receive(t, received, slug)
+	paidOnly := reviewer(t, "paid-only")
+	buy(t, paidOnly, slug)
+	browser := reviewer(t, "browser")
+
+	for name, who := range map[string]uuid.UUID{"never bought": browser, "paid, not delivered": paidOnly} {
+		standing, err := s.ReviewStanding(ctx, slug, who.String())
+		if err != nil || standing != pages.ReviewNotDelivered {
+			t.Errorf("%s: ReviewStanding = %v, %v; want ReviewNotDelivered", name, standing, err)
+		}
+		if _, err := s.AddReview(ctx, slug, who.String(), &product.Review{
+			Rating: 5, Body: "還沒收到商品,不能留下評價。",
+		}); !errors.Is(err, product.ErrNotDelivered) {
+			t.Errorf("%s: AddReview gave %v, want ErrNotDelivered", name, err)
+		}
 	}
-	if _, err := s.AddReview(ctx, slug, buyer.String(), &product.Review{
+
+	form := url.Values{"rating": {"5"}, "body": {"沒有收到商品也想送出評價。"}}
+	req := httptest.NewRequestWithContext(
+		account.WithUser(ctx, account.User{ID: browser.String()}),
+		http.MethodPost, "/p/"+slug+"/reviews", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.SetPathValue("slug", slug)
+	res := httptest.NewRecorder()
+	product.NewHandler(s, slog.New(slog.DiscardHandler), "https://goen.example").Review(res, req)
+	if res.Code != http.StatusUnprocessableEntity {
+		t.Errorf("a post without a delivered order returned %d, want 422", res.Code)
+	}
+
+	if standing, err := s.ReviewStanding(ctx, slug, received.String()); err != nil || standing != pages.ReviewOpen {
+		t.Fatalf("a delivered order: ReviewStanding = %v, %v; want ReviewOpen", standing, err)
+	}
+	if errs, err := s.AddReview(ctx, slug, received.String(), &product.Review{
 		Rating: 4, Body: "實際用過兩週,續航符合官方說法。",
-	}); err != nil {
-		t.Fatalf("a buyer could not review: %v", err)
+	}); err != nil || len(errs) != 0 {
+		t.Fatalf("a customer who received it could not review: %v %v", errs, err)
 	}
 
-	var buyerVerified, browserVerified bool
+	var rows int
+	var verified bool
 	if err := pool.QueryRow(ctx, `
-		SELECT is_verified_purchase FROM product_reviews r
-		JOIN products p ON p.id = r.product_id
-		WHERE p.slug = $1 AND r.user_id = $2`, slug, buyer).Scan(&buyerVerified); err != nil {
-		t.Fatalf("read buyer review: %v", err)
+		SELECT count(*), coalesce(bool_and(is_verified_purchase), false)
+		FROM product_reviews r JOIN products p ON p.id = r.product_id
+		WHERE p.slug = $1 AND r.user_id = ANY($2)`,
+		slug, []uuid.UUID{received, paidOnly, browser}).Scan(&rows, &verified); err != nil {
+		t.Fatalf("read reviews: %v", err)
 	}
-	if err := pool.QueryRow(ctx, `
-		SELECT is_verified_purchase FROM product_reviews r
-		JOIN products p ON p.id = r.product_id
-		WHERE p.slug = $1 AND r.user_id = $2`, slug, browser).Scan(&browserVerified); err != nil {
-		t.Fatalf("read browser review: %v", err)
-	}
-	if !buyerVerified {
-		t.Error("a committed purchase did not earn the badge")
-	}
-	if browserVerified {
-		t.Error("somebody who never bought it is marked 已購買")
+	if rows != 1 || !verified {
+		t.Errorf("%d reviews written (verified %t), want only the received customer's, verified", rows, verified)
 	}
 }
 
@@ -598,11 +615,16 @@ func TestRetiringAPurchasedVariantDoesNotEraseVerifiedPurchase(t *testing.T) {
 			keptProduct, keptVariant, productID, boughtVariant)
 	}
 
+	for _, status := range []string{"picking", "shipped", "delivered"} {
+		if _, moveErr := tx.Exec(ctx,
+			`UPDATE orders SET fulfillment_status = $2 WHERE id = $1`, orderID, status); moveErr != nil {
+			t.Fatalf("move the order to %s: %v", status, moveErr)
+		}
+	}
 	s := product.NewStore(tx)
-	allowed, verified, err := s.CanReview(ctx, slug, who.String())
-	if err != nil || !allowed || !verified {
-		t.Fatalf("CanReview after variant retirement = %t, %t, %v; want true, true, nil",
-			allowed, verified, err)
+	standing, err := s.ReviewStanding(ctx, slug, who.String())
+	if err != nil || standing != pages.ReviewOpen {
+		t.Fatalf("ReviewStanding after variant retirement = %v, %v; want ReviewOpen, nil", standing, err)
 	}
 	if errs, addErr := s.AddReview(ctx, slug, who.String(), &product.Review{
 		Rating: 5, Body: "買過的規格退役後仍然保留已購買證明。",
@@ -625,6 +647,7 @@ func TestOneReviewPerPersonPerProduct(t *testing.T) {
 	s := product.NewStore(pool)
 	who := reviewer(t, "once")
 	slug := activeSlug(t)
+	receive(t, who, slug)
 
 	if _, err := s.AddReview(ctx, slug, who.String(), &product.Review{
 		Rating: 5, Body: "第一次評價的內容。",
@@ -682,6 +705,7 @@ func TestReviewValidation(t *testing.T) {
 
 	// The control: a review at the boundary IS accepted.
 	who := reviewer(t, "v-ok")
+	receive(t, who, slug)
 	atLimit := strings.Repeat("字", product.MaxReviewBodyRunes)
 	if errs, err := s.AddReview(ctx, slug, who.String(), &product.Review{
 		Rating: 3, Body: atLimit,
@@ -718,6 +742,7 @@ func TestFeedbackCannotTargetAMissingOrInactiveProduct(t *testing.T) {
 		defer func() { _ = tx.Rollback(ctx) }()
 
 		slug := activeSlug(t)
+		receive(t, who, slug)
 		store := product.NewStore(tx)
 		if errs, err := store.AddReview(ctx, slug, who.String(), &product.Review{
 			Rating: 4, Body: "商品下架之前已經留下這則評價。",
@@ -774,7 +799,17 @@ func activeSlug(t *testing.T) string {
 	return slug
 }
 
-// buy gives a customer a committed order, which is what earns the badge.
+func receive(t *testing.T, userID uuid.UUID, slug string) {
+	t.Helper()
+	buy(t, userID, slug)
+	for _, status := range []string{"picking", "shipped", "delivered"} {
+		if _, err := pool.Exec(t.Context(),
+			`UPDATE orders SET fulfillment_status = $2 WHERE user_id = $1`, userID, status); err != nil {
+			t.Fatalf("move the order to %s: %v", status, err)
+		}
+	}
+}
+
 func buy(t *testing.T, userID uuid.UUID, slug string) {
 	t.Helper()
 	ctx := t.Context()
@@ -1868,17 +1903,19 @@ func TestAHiddenReviewStillBlocksASecondOne(t *testing.T) {
 		`SELECT user_id FROM product_reviews WHERE id = $1`, reviewID).Scan(&userID); err != nil {
 		t.Fatalf("read author: %v", err)
 	}
+	// Delivered, so that only the hidden review stands between them and the form.
+	receive(t, userID, slug)
 
 	if _, err := pool.Exec(ctx,
 		`UPDATE product_reviews SET hidden_at = now() WHERE id = $1`, reviewID); err != nil {
 		t.Fatalf("hide: %v", err)
 	}
 
-	allowed, _, err := s.CanReview(ctx, slug, userID.String())
+	standing, err := s.ReviewStanding(ctx, slug, userID.String())
 	if err != nil {
-		t.Fatalf("CanReview: %v", err)
+		t.Fatalf("ReviewStanding: %v", err)
 	}
-	if allowed {
+	if standing == pages.ReviewOpen {
 		t.Error("a customer whose review is hidden was offered the form again — the " +
 			"insert would meet the unique index")
 	}
@@ -1904,12 +1941,12 @@ func reviewBy(t *testing.T, productID uuid.UUID, address string, rating int) (id
 }
 
 // TestASimultaneousSecondReviewIsRefusedByName reaches the INSERT's own refusal,
-// the mapping of product_reviews_author_key to ErrAlreadyReviewed: CanReview
+// the mapping of product_reviews_author_key to ErrAlreadyReviewed: ReviewStanding
 // answers first in every ordinary case, so only two racing submissions get there.
 //
 // The race is made deterministic rather than hoped for. T1 inserts the row and
 // holds its transaction OPEN: under read committed the row is invisible, so
-// CanReview passes, and the second INSERT then blocks on the unique index until
+// ReviewStanding passes, and the second INSERT then blocks on the unique index until
 // T1 commits. Two goroutines behind a start channel would finish microseconds
 // apart and never overlap.
 func TestASimultaneousSecondReviewIsRefusedByName(t *testing.T) {
@@ -1917,6 +1954,7 @@ func TestASimultaneousSecondReviewIsRefusedByName(t *testing.T) {
 	s := product.NewStore(pool)
 	who := reviewer(t, "race")
 	slug := activeSlug(t)
+	receive(t, who, slug)
 
 	tx, err := pool.Begin(ctx)
 	if err != nil {
@@ -1931,7 +1969,7 @@ func TestASimultaneousSecondReviewIsRefusedByName(t *testing.T) {
 		t.Fatalf("hold the first review open: %v", err)
 	}
 
-	// The second submission sees nothing yet, so it gets past CanReview and
+	// The second submission sees nothing yet, so it gets past ReviewStanding and
 	// then waits on the index.
 	refused := make(chan error, 1)
 	go func() {

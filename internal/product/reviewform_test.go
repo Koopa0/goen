@@ -13,4 +13,7 @@ func TestTheReviewFormWarnsAtTheSameLengthTheServerRefuses(t *testing.T) {
 	if pages.ReviewBodyMinRunes != MinReviewBodyRunes {
 		t.Errorf("form minlength %d, server minimum %d", pages.ReviewBodyMinRunes, MinReviewBodyRunes)
 	}
+	if pages.ReviewBodyMaxRunes != MaxReviewBodyRunes {
+		t.Errorf("form maxlength %d, server maximum %d", pages.ReviewBodyMaxRunes, MaxReviewBodyRunes)
+	}
 }

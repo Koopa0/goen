@@ -268,7 +268,7 @@ func TestAProductWithNoReviewsCanReceiveItsFirst(t *testing.T) {
 	fresh := ProductView{
 		Name: "Newly Listed", Brand: "Meridian", Slug: "newly-listed",
 		SelectionOK: true, Exact: true, Sellable: true, AnySellable: true,
-		PriceCents: 100000, SignedIn: true, CanReview: true, RatingCount: 0,
+		PriceCents: 100000, SignedIn: true, ReviewStanding: ReviewOpen, RatingCount: 0,
 	}
 	html := renderToString(t, Product(ProductMeta(&fresh), &fresh))
 

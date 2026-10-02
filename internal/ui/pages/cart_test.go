@@ -646,8 +646,35 @@ func TestANamelessReviewerIsNotBadgedAsABuyer(t *testing.T) {
 			"claim %q — the badge is what says somebody bought, and this review "+
 			"has not", got, bought)
 	}
-	if named := (ProductReview{Author: "王小明"}).DisplayAuthor(ctx); named != "王小明" {
-		t.Errorf("a named reviewer rendered as %q", named)
+}
+
+func TestAReviewerIsMaskedTheSameWayForEveryReview(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		locale i18n.Locale
+		author string
+		want   string
+	}{
+		{"zh full name", i18n.ZhHant, "王小明", "王○○"},
+		{"zh one character", i18n.ZhHant, "王", "王○○"},
+		{"zh latin name", i18n.ZhHant, "alice Chen", "a○○"},
+		{"en full name", i18n.En, "Alice Chen", "A."},
+		{"en lower case", i18n.En, "bob", "B."},
+		{"en han name", i18n.En, "王小明", "王."},
+		{"padded", i18n.ZhHant, "  陳大文", "陳○○"},
+		{"no name zh", i18n.ZhHant, "", "匿名顧客"},
+		{"no name en", i18n.En, "", "Anonymous"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := (ProductReview{Author: tt.author}).DisplayAuthor(i18n.WithLocale(t.Context(), tt.locale))
+			if got != tt.want {
+				t.Errorf("DisplayAuthor(%q) in %s = %q, want %q", tt.author, tt.locale, got, tt.want)
+			}
+		})
 	}
 }
 
@@ -1206,5 +1233,19 @@ func TestAGuestIsOfferedNeitherControl(t *testing.T) {
 		if strings.Contains(html, gone) {
 			t.Errorf("a guest's checkout carries %q", gone)
 		}
+	}
+}
+
+func TestQuestionsAndAnswersMaskNamesLikeReviews(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	if got := (Question{Asker: "王小明"}).Who(ctx); got != "王○○" {
+		t.Errorf("asker shown as %q, want 王○○", got)
+	}
+	if got := (Answer{Author: "陳大文"}).Who(ctx); got != "陳○○" {
+		t.Errorf("answerer shown as %q, want 陳○○", got)
+	}
+	if got := (Answer{Author: "陳大文", IsStaff: true}).Who(ctx); got != "goen" {
+		t.Errorf("staff answer shown as %q, want goen", got)
 	}
 }
