@@ -5825,6 +5825,64 @@ a.goen-pager__step:hover {
   text-underline-offset: 4px;
 }
 
+/* The shared demo account: quieter than the form it fills, and its credentials
+   in a face that tells 0 from O and l from 1. */
+.goen-auth__demo {
+  background: var(--elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  color: var(--fg-muted);
+  display: flex;
+  flex-direction: column;
+  font-size: var(--fs-14);
+  gap: 0.75rem;
+  padding: 1rem;
+}
+
+.goen-auth__demotitle {
+  color: var(--fg);
+  font-size: var(--fs-14);
+  font-weight: var(--fw-semibold);
+  margin: 0;
+}
+
+.goen-auth__democreds {
+  display: grid;
+  gap: 0.375rem;
+  margin: 0;
+}
+
+.goen-auth__democreds div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.goen-auth__democreds dt {
+  min-width: 4.5rem;
+}
+
+.goen-auth__democreds dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.goen-auth__democreds code {
+  color: var(--fg);
+  font-family: var(--font-mono);
+  user-select: all;
+}
+
+.goen-auth__demonote {
+  line-height: 1.5;
+  margin: 0;
+}
+
+.goen-auth__demofill[hidden] {
+  display: none;
+}
+
 /* ----- The account, and the pages that hang off it ----- */
 
 .goen-account {

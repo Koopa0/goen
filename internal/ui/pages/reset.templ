@@ -19,6 +19,11 @@ templ Forgot(p layouts.Page, v ForgotView) {
 						{ i18n.T(ctx, i18n.KeyForgotSent) }
 					}
 				}
+				if v.Notice != "" {
+					@components.Notice(components.NoticeProps{Tone: components.ToneWarn}) {
+						{ v.Notice }
+					}
+				}
 				<form class="goen-auth__form" method="post" action="/forgot">
 					<div class="goen-field">
 						@components.Label(components.LabelProps{For: "email"}) {

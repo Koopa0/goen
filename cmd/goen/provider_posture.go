@@ -28,6 +28,11 @@ func (cfg *config) prepareProviderPosture() error {
 	if !cfg.SecureCookies {
 		return errors.New("GOEN_STRIPE_API_KEY is not a test key, so it is treated as live, which requires secure cookies; remove GOEN_INSECURE_COOKIES")
 	}
+	// Either half is refused: a live shop has no account whose password it prints.
+	if cfg.DemoAccountEmail != "" || cfg.DemoAccountPassword != "" {
+		return errors.New("GOEN_DEMO_ACCOUNT_EMAIL and GOEN_DEMO_ACCOUNT_PASSWORD publish an account's " +
+			"password on the sign-in page; unset both beside a live GOEN_STRIPE_API_KEY")
+	}
 	if err := cfg.validateLiveInvoicing(); err != nil {
 		return err
 	}

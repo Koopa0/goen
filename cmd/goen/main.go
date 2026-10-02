@@ -73,6 +73,8 @@ type config struct {
 	ECPayLogisticsBaseURL string
 	GoogleClientID        string
 	GoogleClientSecret    string
+	DemoAccountEmail      string
+	DemoAccountPassword   string
 	SMTPAddr              string
 	SMTPFrom              string
 	SMTPUser              string
@@ -123,6 +125,8 @@ func loadConfig() (config, error) {
 		ECPayLogisticsBaseURL: os.Getenv("GOEN_ECPAY_LOGISTICS_BASE_URL"),
 		GoogleClientID:        os.Getenv("GOEN_GOOGLE_CLIENT_ID"),
 		GoogleClientSecret:    os.Getenv("GOEN_GOOGLE_CLIENT_SECRET"),
+		DemoAccountEmail:      os.Getenv("GOEN_DEMO_ACCOUNT_EMAIL"),
+		DemoAccountPassword:   os.Getenv("GOEN_DEMO_ACCOUNT_PASSWORD"),
 		StripeWebhookSecret:   os.Getenv("GOEN_STRIPE_WEBHOOK_SECRET"),
 		// The guess is a development convenience; prepareRuntimePosture refuses
 		// it wherever cookies are Secure.
@@ -283,6 +287,24 @@ func newServer(cfg *config, routes *RouterConfig, proxies *ratelimit.Proxies, lo
 	}
 }
 
+// servingPool opens the storefront pool, proves it answers, and puts the demo
+// account right before anything is served from it.
+func servingPool(ctx context.Context, url string, demo account.DemoAccount, log *slog.Logger) (*pgxpool.Pool, error) {
+	pool, err := openPool(ctx, url, log)
+	if err != nil {
+		return nil, fmt.Errorf("open database pool: %w", redactURL(err, url))
+	}
+	if err := reachDatabase(ctx, pool, url, log); err != nil {
+		pool.Close()
+		return nil, err
+	}
+	if err := account.NewStore(pool).EnsureDemoAccount(ctx, demo); err != nil {
+		pool.Close()
+		return nil, fmt.Errorf("GOEN_DEMO_ACCOUNT_EMAIL: %w", err)
+	}
+	return pool, nil
+}
+
 // reachDatabase proves the pool works before anything else is built, and warns
 // about a login role that could undo the privilege model.
 func reachDatabase(ctx context.Context, pool *pgxpool.Pool, url string, log *slog.Logger) error {
@@ -391,6 +413,20 @@ func warnSellerUnset(cfg *config, log *slog.Logger) {
 		"set", "GOEN_SELLER and GOEN_SELLER_CONTACT")
 }
 
+// demoAccount reads the account a public demonstration shares with every
+// visitor, and says when there is one: its password is on the sign-in page.
+func (cfg *config) demoAccount(log *slog.Logger) (account.DemoAccount, error) {
+	d, err := account.NewDemoAccount(cfg.DemoAccountEmail, cfg.DemoAccountPassword)
+	if err != nil {
+		return account.DemoAccount{}, fmt.Errorf("GOEN_DEMO_ACCOUNT_EMAIL and GOEN_DEMO_ACCOUNT_PASSWORD: %w", err)
+	}
+	if d.Enabled() {
+		log.Info("a shared demo account is offered on the sign-in page, with its password",
+			"unset", "GOEN_DEMO_ACCOUNT_EMAIL and GOEN_DEMO_ACCOUNT_PASSWORD")
+	}
+	return d, nil
+}
+
 // openGoogleSignIn builds the OAuth client and says when there is none.
 func openGoogleSignIn(cfg *config, log *slog.Logger) (*account.Google, error) {
 	g, err := account.NewGoogle(cfg.GoogleClientID, cfg.GoogleClientSecret, cfg.BaseURL)
@@ -426,20 +462,20 @@ func run() error {
 	if providerErr != nil {
 		return providerErr
 	}
+	demoAccount, demoErr := cfg.demoAccount(log)
+	if demoErr != nil {
+		return demoErr
+	}
 	refunder := admin.NewRefunder(cfg.StripeAPIKey)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	pool, poolErr := openPool(ctx, cfg.DatabaseURL, log)
+	pool, poolErr := servingPool(ctx, cfg.DatabaseURL, demoAccount, log)
 	if poolErr != nil {
-		return fmt.Errorf("open database pool: %w", redactURL(poolErr, cfg.DatabaseURL))
+		return poolErr
 	}
 	defer pool.Close()
-
-	if reachErr := reachDatabase(ctx, pool, cfg.DatabaseURL, log); reachErr != nil {
-		return reachErr
-	}
 
 	adminPool, adminErr := reachableAdminPool(ctx, cfg.AdminDatabaseURL, log)
 	if adminErr != nil {
@@ -459,7 +495,7 @@ func run() error {
 	srv := newServer(&cfg, &RouterConfig{
 		Pool: pool, AdminPool: adminPool, MaintenancePool: maintenancePool, Payments: gateway, Refunder: refunder,
 		BaseURL: cfg.BaseURL, SecureCookies: cfg.SecureCookies, TOTPKey: cfg.totpKey,
-		Invoices: invoices, Google: googleSignIn, StoreMap: storeMap,
+		Invoices: invoices, Google: googleSignIn, StoreMap: storeMap, DemoAccount: demoAccount,
 	}, proxies, log)
 
 	// Nothing above starts a goroutine: a return between a worker and the Wait

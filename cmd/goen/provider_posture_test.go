@@ -51,6 +51,10 @@ func TestProviderPostureFollowsTheStripeKeyNotSecureCookies(t *testing.T) {
 		{"placeholder sender", func(c *config) { c.SMTPFrom = "goen <no-reply@goen.example>" }, "GOEN_SMTP_FROM"},
 		{"unparsable sender", func(c *config) { c.SMTPFrom = "broken<>" }, "GOEN_SMTP_FROM"},
 		{"empty sender", func(c *config) { c.SMTPFrom = "" }, "GOEN_SMTP_FROM"},
+		{"demo account", func(c *config) {
+			c.DemoAccountEmail, c.DemoAccountPassword = "demo@shop.example", "a published password"
+		}, "GOEN_DEMO_ACCOUNT_EMAIL"},
+		{"half a demo account", func(c *config) { c.DemoAccountPassword = "a published password" }, "GOEN_DEMO_ACCOUNT_EMAIL"},
 	} {
 		// An unrecognised or whitespace-padded key is judged like a live one.
 		for _, key := range []string{liveKey, "sk_org_fixture", "  " + liveKey + "\n", "not-a-stripe-key"} {
@@ -61,6 +65,9 @@ func TestProviderPostureFollowsTheStripeKeyNotSecureCookies(t *testing.T) {
 				}
 				if strings.Contains(err.Error(), strings.TrimSpace(key)) {
 					t.Fatal("configuration error leaked the configured key")
+				}
+				if strings.Contains(err.Error(), "a published password") {
+					t.Fatal("configuration error leaked the demo password")
 				}
 			})
 		}

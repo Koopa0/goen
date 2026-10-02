@@ -5740,6 +5740,23 @@ func (q *Queries) CreateVariant(ctx context.Context, arg CreateVariantParams) er
 	return err
 }
 
+const createVerifiedUser = `-- name: CreateVerifiedUser :exec
+INSERT INTO users (email, password_hash, email_verified_at)
+VALUES ($1::text, $2::text, now())
+`
+
+type CreateVerifiedUserParams struct {
+	Email        string
+	PasswordHash string
+}
+
+// Born proved: the address is the operator's, published beside the password,
+// so no link is mailed for it.
+func (q *Queries) CreateVerifiedUser(ctx context.Context, arg CreateVerifiedUserParams) error {
+	_, err := q.db.Exec(ctx, createVerifiedUser, arg.Email, arg.PasswordHash)
+	return err
+}
+
 const creditBalance = `-- name: CreditBalance :one
 SELECT coalesce((SELECT b.balance_cents FROM store_credit_balances b
                  WHERE b.user_id = $1), 0)::bigint
