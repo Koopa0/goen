@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/koopa0/goen/internal/email"
+	"github.com/koopa0/goen/internal/shoptime"
 )
 
 var (
@@ -195,11 +196,8 @@ func (g *Gateway) Void(ctx context.Context, number string, issuedAt time.Time, r
 	res, err := g.call[invalidResult](ctx, "/B2CInvoice/Invalid", invalidRequest{
 		MerchantID: g.merchantID,
 		InvoiceNo:  number,
-		// Invalid validates this against the invoice's own issue date. A mismatch
-		// is 1600003 無發票號碼資料 — indistinguishable from a wrong number. The
-		// provider's timestamp is stored as its wall clock labelled UTC, so UTC is
-		// load-bearing after a timestamptz round trip in a non-UTC process.
-		InvoiceDate: issuedAt.UTC().Format("2006-01-02"),
+		// A wrong date is 1600003 無發票號碼資料, indistinguishable from a wrong number.
+		InvoiceDate: shoptime.Day(issuedAt),
 		Reason:      truncate(reason, 20),
 	})
 	if err != nil {
@@ -230,9 +228,8 @@ func (g *Gateway) Allowance(ctx context.Context, in AllowanceRequest) (Document,
 	res, err := g.call[allowanceResult](ctx, "/B2CInvoice/Allowance", allowanceRequest{
 		MerchantID: g.merchantID,
 		InvoiceNo:  in.InvoiceNumber,
-		// .UTC() for the reason Invalid's own InvoiceDate carries it: a date
-		// shifted by the process's zone returns 1600003, which names the invoice
-		// number rather than the date.
+		// A date-only value was parsed as midnight UTC, so UTC is what reads it back
+		// unshifted; a wrong date is 1600003, which names the number.
 		InvoiceDate:     in.InvoiceDate.UTC().Format("2006-01-02"),
 		AllowanceNotify: "E", // by email
 		CustomerName:    truncate(in.CustomerName, 60),
@@ -543,7 +540,7 @@ func (g *Gateway) FetchAllowances(
 	res, err := g.call[getAllowanceListResult](ctx, "/B2CInvoice/GetAllowanceList",
 		getAllowanceListRequest{
 			MerchantID: g.merchantID, SearchType: "1", InvoiceNo: invoiceNumber,
-			Date: issuedAt.UTC().Format("2006-01-02"),
+			Date: shoptime.Day(issuedAt),
 		})
 	if err != nil {
 		if providerErr, ok := errors.AsType[*providerError](err); ok && providerErr.Code == 7 {
@@ -592,7 +589,7 @@ func parseECPayTime(s string) (time.Time, error) {
 	if !ecpayTimePattern.MatchString(s) {
 		return time.Time{}, errors.New("invalid ECPay timestamp format")
 	}
-	t, err := time.Parse("2006-01-02 15:04:05", s)
+	t, err := shoptime.ParseSecond(s)
 	if err != nil {
 		return time.Time{}, fmt.Errorf("parse ECPay timestamp: %w", err)
 	}

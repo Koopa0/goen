@@ -5900,7 +5900,7 @@ BEGIN
 
     SELECT jsonb_build_object(
         'invoice_number', v_original.number,
-        'invoice_date', to_char(v_original.issued_at AT TIME ZONE 'UTC', 'YYYY-MM-DD'),
+        'invoice_date', to_char(shop_day(v_original.issued_at), 'YYYY-MM-DD'),
         'customer_name', ip.customer_name,
         'email', ip.customer_email,
         'amount_cents', v_amount,
@@ -5994,7 +5994,7 @@ BEGIN
          jsonb_build_object(
              'invoice_number', v_document.number,
              'relate_number', v_relate_number,
-             'invoice_date', to_char(v_document.issued_at AT TIME ZONE 'UTC', 'YYYY-MM-DD'),
+             'invoice_date', to_char(shop_day(v_document.issued_at), 'YYYY-MM-DD'),
              'random_number', coalesce(v_document.provider_ref, ''),
              'reason', left(btrim(p_reason), 20),
              'amount_cents', v_document.amount_cents,

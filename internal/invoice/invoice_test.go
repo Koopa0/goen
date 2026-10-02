@@ -577,15 +577,13 @@ func TestAVoidSendsTheInvoicesOwnIssueDate(t *testing.T) {
 	if calls != 0 {
 		t.Fatalf("a void with no issue date reached ECPay %d times", calls)
 	}
-	// This instant is 25 August in Taipei and 24 August in UTC. ECPay returned
-	// the latter calendar date, so a plain Format after the database round trip
-	// is one day late.
-	issuedAt := time.Date(2026, time.August, 25, 4, 0, 0, 0,
-		time.FixedZone("Asia/Taipei", 8*60*60))
+	// This instant is 25 August in Taipei and 24 August in UTC. ECPay's date is
+	// the Taipei one, so formatting the UTC date would be a day early.
+	issuedAt := time.Date(2026, time.August, 24, 20, 0, 0, 0, time.UTC)
 	if err := g.Void(t.Context(), "LA25024809", issuedAt, "資料錯誤"); err != nil {
 		t.Fatalf("Void: %v", err)
 	}
-	if want := "2026-08-24"; seen.InvoiceDate != want {
+	if want := "2026-08-25"; seen.InvoiceDate != want {
 		t.Errorf("InvoiceDate = %q, want the invoice's own date %q", seen.InvoiceDate, want)
 	}
 }
@@ -1340,5 +1338,17 @@ func TestEveryLineMultipliesOut(t *testing.T) {
 		[]Line{{Description: "A", Quantity: 2, UnitPriceCents: 50000, AmountCents: 100000}}, 100000)
 	if len(even) != 1 {
 		t.Errorf("%d lines for an evenly-divided invoice, want 1", len(even))
+	}
+}
+
+func TestECPayTimeIsTaipeiWallClock(t *testing.T) {
+	t.Parallel()
+
+	got, err := parseECPayTime("2026-10-02 12:42:39")
+	if err != nil {
+		t.Fatalf("parseECPayTime: %v", err)
+	}
+	if want := time.Date(2026, time.October, 2, 4, 42, 39, 0, time.UTC); !got.Equal(want) {
+		t.Errorf("parseECPayTime = %s, want the instant %s (Taipei 12:42:39)", got.UTC(), want)
 	}
 }
