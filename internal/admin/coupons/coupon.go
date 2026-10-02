@@ -153,14 +153,7 @@ type position struct {
 
 func (s *Store) Coupons(ctx context.Context, after ...string) (admin.CouponsView, error) {
 	const scope = "/admin/coupons"
-	var from position
-	resumed := false
-	if len(after) > 0 {
-		p, ok := web.ReadKeyset[position](scope, after[0])
-		if ok && p.ID != uuid.Nil {
-			from, resumed = p, true
-		}
-	}
+	from, resumed := web.ResumeKeyset(scope, after, func(p position) bool { return p.ID != uuid.Nil })
 	rows, err := s.q.AdminCoupons(ctx, db.AdminCouponsParams{HasCursor: resumed, AfterRank: from.Rank, AfterAt: from.At, AfterID: from.ID, RowLimit: web.PageLimit})
 	if err != nil {
 		return admin.CouponsView{}, fmt.Errorf("read coupons: %w", err)

@@ -87,6 +87,21 @@ func ReadKeyset[T any](scope, token string) (position T, ok bool) {
 	return position, true
 }
 
+// ResumeKeyset is ReadKeyset for the optional position argument of a list read.
+// ok is false for the first page, for a token this list did not mint, and for a
+// position the list's own check refuses: a zero identifier is no row.
+func ResumeKeyset[T any](scope string, after []string, acceptable func(T) bool) (from T, ok bool) {
+	var zero T
+	if len(after) == 0 {
+		return zero, false
+	}
+	p, valid := ReadKeyset[T](scope, after[0])
+	if !valid || !acceptable(p) {
+		return zero, false
+	}
+	return p, true
+}
+
 // Bound is where one page of a keyset list sits, for the navigation beside it.
 type Bound struct {
 	// PastEnd marks a later page that came back empty because its rows are gone; the

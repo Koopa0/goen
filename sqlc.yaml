@@ -24,6 +24,7 @@ sql:
       - "internal/admin/audit/query.sql"
       - "internal/admin/coupons/query.sql"
       - "internal/admin/customers/query.sql"
+      - "internal/admin/feedback/query.sql"
       - "internal/admin/health/query.sql"
       - "internal/admin/loyalty/query.sql"
       - "internal/admin/staff/query.sql"
