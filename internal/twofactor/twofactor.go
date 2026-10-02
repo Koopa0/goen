@@ -1,4 +1,6 @@
-// Package twofactor implements TOTP step-up authentication for the back office.
+// Package twofactor implements TOTP step-up authentication for the back office:
+// enrolment, verification and the session check. Who counts as staff is
+// internal/admin/staff.
 package twofactor
 
 import (

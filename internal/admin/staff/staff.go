@@ -1,45 +1,47 @@
-package twofactor
+// Package staff is the back office's roster: who is staff or admin, granting and
+// revoking that access, and removing a colleague's lost second factor.
+package staff
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/account"
+	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/email"
+	"github.com/koopa0/goen/internal/pgerr"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
-	"github.com/koopa0/goen/internal/web"
 )
 
 var (
-	ErrLastAdmin = errors.New("twofactor: that would leave no admin")
+	ErrLastAdmin = errors.New("staff: that would leave no admin")
 	// ErrSelf is an admin acting on their own account. The session doing it is
 	// already step-up verified, so self-service would turn a stolen session into
 	// permanent access.
-	ErrSelf         = errors.New("twofactor: an admin cannot do that to their own account")
-	ErrInvalidStaff = errors.New("twofactor: that is not a usable staff account")
-	ErrAlreadyStaff = errors.New("twofactor: that account is already staff")
+	ErrSelf         = errors.New("staff: an admin cannot do that to their own account")
+	ErrInvalidStaff = errors.New("staff: that is not a usable staff account")
+	ErrAlreadyStaff = errors.New("staff: that account is already staff")
+	ErrNotEnrolled  = errors.New("staff: that account has no second factor to remove")
 )
 
-// staffAuditAction is the closed set of staff writes the trail records.
-// An arbitrary string would invent an action /admin/audit has no phrase for.
-// A TOTP secret in after would live forever: audit_events is append-only
-// and erase_user does not reach it.
-type staffAuditAction string
+type Store struct {
+	pool *pgxpool.Pool
+	q    *db.Queries
+}
 
-const (
-	actionGrantStaff        staffAuditAction = "staff.grant"
-	actionRevokeStaff       staffAuditAction = "staff.revoke"
-	actionRemoveStaffFactor staffAuditAction = "staff.factor.remove"
-)
+func NewStore(pool *pgxpool.Pool) *Store {
+	if pool == nil {
+		panic("staff: NewStore requires a pool")
+	}
+	return &Store{pool: pool, q: db.New(pool)}
+}
 
 // AddStaff creates a colleague or promotes a customer. An existing colleague
 // must use the separate authorization operations so an add cannot change their
@@ -48,14 +50,14 @@ const (
 // The bool is an outcome and not an error: the promotion succeeded, and true
 // means the address already had an account which had never proved the mailbox,
 // so its password was cleared and its sessions ended. The caller relays that.
-func (s *Store) AddStaff(ctx context.Context, address, name, role, actorID string) (bool, error) {
+func (s *Store) AddStaff(ctx context.Context, address, name, role string) (bool, error) {
 	address, name = strings.TrimSpace(address), strings.TrimSpace(name)
 	if !email.Valid(address) || !slices.Contains(admin.StaffRoles[:], admin.StaffRole(role)) {
 		return false, ErrInvalidStaff
 	}
-	actor, err := uuid.Parse(actorID)
-	if err != nil {
-		return false, ErrInvalidStaff
+	actor, ok := audit.Actor(ctx)
+	if !ok {
+		return false, audit.ErrNoActor
 	}
 	// Before the write: afterwards there is nothing to compare but the row the
 	// upsert already changed.
@@ -68,18 +70,16 @@ func (s *Store) AddStaff(ctx context.Context, address, name, role, actorID strin
 	}
 
 	var cleared bool
-	err = s.withStaffAudit(ctx, actor, actionGrantStaff, func(ctx context.Context, q *db.Queries) (uuid.UUID, any, error) {
+	err = s.write(ctx, audit.ActionGrantStaff, func(ctx context.Context, q *db.Queries) (uuid.UUID, any, error) {
 		credentialCleared, upsertErr := q.UpsertStaff(ctx, db.UpsertStaffParams{
 			Email: address, FullName: name, Role: role,
 		})
 		if upsertErr != nil {
-			if pgErr, ok := errors.AsType[*pgconn.PgError](upsertErr); ok {
-				switch pgErr.ConstraintName {
-				case "users_keep_one_admin":
-					return uuid.UUID{}, nil, ErrLastAdmin
-				case "users_staff_already_exists":
-					return uuid.UUID{}, nil, ErrAlreadyStaff
-				}
+			switch {
+			case pgerr.IsConstraint(upsertErr, "users_keep_one_admin"):
+				return uuid.UUID{}, nil, ErrLastAdmin
+			case pgerr.IsConstraint(upsertErr, "users_staff_already_exists"):
+				return uuid.UUID{}, nil, ErrAlreadyStaff
 			}
 			return uuid.UUID{}, nil, fmt.Errorf("add staff %s: %w", address, upsertErr)
 		}
@@ -99,14 +99,14 @@ func (s *Store) AddStaff(ctx context.Context, address, name, role, actorID strin
 	return cleared, nil
 }
 
-func (s *Store) RevokeStaff(ctx context.Context, userID, actorID string) error {
+func (s *Store) RevokeStaff(ctx context.Context, userID string) error {
 	target, err := uuid.Parse(userID)
 	if err != nil {
 		return ErrInvalidStaff
 	}
-	actor, err := uuid.Parse(actorID)
-	if err != nil {
-		return ErrInvalidStaff
+	actor, ok := audit.Actor(ctx)
+	if !ok {
+		return audit.ErrNoActor
 	}
 	// Compared parsed: uuid.Parse also reads upper case, {braces} and urn:uuid:,
 	// so comparing the submitted text lets another spelling of oneself through.
@@ -114,7 +114,7 @@ func (s *Store) RevokeStaff(ctx context.Context, userID, actorID string) error {
 		return ErrSelf
 	}
 
-	return s.withStaffAudit(ctx, actor, actionRevokeStaff, func(ctx context.Context, q *db.Queries) (uuid.UUID, any, error) {
+	return s.write(ctx, audit.ActionRevokeStaff, func(ctx context.Context, q *db.Queries) (uuid.UUID, any, error) {
 		revoked, revokeErr := q.RevokeStaff(ctx, target)
 		if revokeErr != nil {
 			return uuid.UUID{}, nil, fmt.Errorf("revoke staff: %w", revokeErr)
@@ -135,21 +135,21 @@ func (s *Store) RevokeStaff(ctx context.Context, userID, actorID string) error {
 
 // RemoveFactor deletes somebody else's second factor, which is how a lost
 // authenticator is recovered.
-func (s *Store) RemoveFactor(ctx context.Context, userID, actorID string) error {
+func (s *Store) RemoveFactor(ctx context.Context, userID string) error {
 	target, err := uuid.Parse(userID)
 	if err != nil {
 		return ErrNotEnrolled
 	}
-	actor, err := uuid.Parse(actorID)
-	if err != nil {
-		return ErrInvalidStaff
+	actor, ok := audit.Actor(ctx)
+	if !ok {
+		return audit.ErrNoActor
 	}
 	// Compared parsed, for the reason RevokeStaff gives.
 	if target == actor {
 		return ErrSelf
 	}
 
-	return s.withStaffAudit(ctx, actor, actionRemoveStaffFactor, func(ctx context.Context, q *db.Queries) (uuid.UUID, any, error) {
+	return s.write(ctx, audit.ActionRemoveStaffFactor, func(ctx context.Context, q *db.Queries) (uuid.UUID, any, error) {
 		removed, removeErr := q.RemoveTOTPAndSessions(ctx, target)
 		if removeErr != nil {
 			return uuid.UUID{}, nil, fmt.Errorf("remove totp and end its sessions: %w", removeErr)
@@ -165,14 +165,15 @@ func (s *Store) RemoveFactor(ctx context.Context, userID, actorID string) error 
 	})
 }
 
-// withStaffAudit runs a staff write and records who did it in one transaction:
-// an audit row for a rolled-back grant is a lie, and a grant that commits
-// without one is a gap /admin/audit cannot close.
-func (s *Store) withStaffAudit(
+// write runs a staff write and records who did it in one transaction: an audit
+// row for a rolled-back grant is a lie, and a grant that commits without one is
+// a gap /admin/audit cannot close. work names the user it acted on, and what to
+// record about them; a TOTP secret there would live forever, because
+// audit_events is append-only and erase_user does not reach it.
+func (s *Store) write(
 	ctx context.Context,
-	actor uuid.UUID,
-	action staffAuditAction,
-	work func(context.Context, *db.Queries) (uuid.UUID, any, error),
+	action audit.Action,
+	work func(context.Context, *db.Queries) (target uuid.UUID, after any, err error),
 ) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -185,20 +186,10 @@ func (s *Store) withStaffAudit(
 	if err != nil {
 		return err
 	}
-	payload, err := json.Marshal(after)
-	if err != nil {
-		return fmt.Errorf("encode %s: %w", action, err)
-	}
-	requestID := web.RequestID(ctx)
-	if _, err := q.RecordAuditEvent(ctx, db.RecordAuditEventParams{
-		Actor:       actor,
-		Action:      string(action),
-		EntityTable: "users",
-		EntityID:    uuid.NullUUID{UUID: target, Valid: true},
-		After:       payload,
-		RequestID:   pgtype.Text{String: requestID, Valid: requestID != ""},
+	if err := audit.In(ctx, q, audit.Event{
+		Action: action, Table: "users", ID: audit.EntityID(target), After: after,
 	}); err != nil {
-		return fmt.Errorf("record %s: %w", action, err)
+		return err
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("commit %s: %w", action, err)
@@ -219,4 +210,22 @@ func whyRevokeMatchedNothing(ctx context.Context, q *db.Queries, target uuid.UUI
 		}
 	}
 	return ErrInvalidStaff
+}
+
+func (s *Store) Staff(ctx context.Context) (admin.StaffView, error) {
+	rows, err := s.q.StaffTOTPStatus(ctx)
+	if err != nil {
+		return admin.StaffView{}, fmt.Errorf("read staff 2FA status: %w", err)
+	}
+	view := admin.StaffView{Rows: make([]admin.StaffRow, 0, len(rows))}
+	// Cloned: a slice of the package-level array would let a caller write through it.
+	view.Roles = slices.Clone(admin.StaffRoles[:])
+	for i := range rows {
+		r := &rows[i]
+		view.Rows = append(view.Rows, admin.StaffRow{
+			ID: r.ID.String(), Email: r.Email, Name: r.FullName,
+			Role: admin.StaffRole(r.Role), Enrolled: r.Enrolled,
+		})
+	}
+	return view, nil
 }

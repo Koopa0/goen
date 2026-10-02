@@ -1,6 +1,6 @@
 //go:build integration
 
-package twofactor_test
+package staff_test
 
 import (
 	"errors"
@@ -15,12 +15,13 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/koopa0/goen/internal/account"
+	"github.com/koopa0/goen/internal/admin/admintest"
+	"github.com/koopa0/goen/internal/admin/staff"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/twofactor"
 )
 
 func TestExistingStaffDatabaseConstraint(t *testing.T) {
-	adminPool := twofactorRolePool(t, "duplicate-staff-constraint", "admin")
+	adminPool := rolePool(t, "duplicate-staff-constraint", "admin")
 	for _, existingRole := range []string{"staff", "admin"} {
 		for _, requestedRole := range []string{"staff", "admin"} {
 			t.Run(existingRole+"-as-"+requestedRole, func(t *testing.T) {
@@ -43,12 +44,12 @@ func TestExistingStaffDatabaseConstraint(t *testing.T) {
 }
 
 func TestAddingExistingStaffPreservesTheirAccount(t *testing.T) {
-	actor, _ := staff(t)
-	s := twofactor.NewStore(twofactorRolePool(t, "duplicate-staff", "admin"), testKey)
+	actor, _ := admintest.AdminUser(t, pool)
+	s := staff.NewStore(rolePool(t, "duplicate-staff", "admin"))
 	for _, existingRole := range []string{"staff", "admin"} {
 		for _, requestedRole := range []string{"staff", "admin"} {
 			t.Run(existingRole+"-as-"+requestedRole, func(t *testing.T) {
-				id, address := staff(t)
+				id, address := admintest.AdminUser(t, pool)
 				if _, err := pool.Exec(t.Context(), `
 					UPDATE users SET role = $2, full_name = 'Original colleague',
 					password_hash = 'unchanged-password' WHERE id = $1`, id, existingRole); err != nil {
@@ -61,8 +62,8 @@ func TestAddingExistingStaffPreservesTheirAccount(t *testing.T) {
 					t.Fatal(err)
 				}
 				before := staffAuditCount(t, "staff.grant")
-				cleared, err := s.AddStaff(t.Context(), strings.ToUpper(address), "Replacement", requestedRole, actor)
-				if !errors.Is(err, twofactor.ErrAlreadyStaff) || cleared {
+				cleared, err := s.AddStaff(asActor(t.Context(), actor), strings.ToUpper(address), "Replacement", requestedRole)
+				if !errors.Is(err, staff.ErrAlreadyStaff) || cleared {
 					t.Fatalf("re-add = cleared %v, %v; want false, ErrAlreadyStaff", cleared, err)
 				}
 				var role, name, password string
@@ -86,11 +87,11 @@ func TestAddingExistingStaffPreservesTheirAccount(t *testing.T) {
 }
 
 func TestConcurrentStaffAddsGrantOnce(t *testing.T) {
-	actor, _ := staff(t)
+	actor, _ := admintest.AdminUser(t, pool)
 	address := "concurrent-add-" + uuid.NewString() + "@goen.invalid"
-	stores := []*twofactor.Store{
-		twofactor.NewStore(twofactorRolePool(t, "add-first", "admin"), testKey),
-		twofactor.NewStore(twofactorRolePool(t, "add-second", "admin"), testKey),
+	stores := []*staff.Store{
+		staff.NewStore(rolePool(t, "add-first", "admin")),
+		staff.NewStore(rolePool(t, "add-second", "admin")),
 	}
 	before := staffAuditCount(t, "staff.grant")
 	start := make(chan struct{})
@@ -98,18 +99,18 @@ func TestConcurrentStaffAddsGrantOnce(t *testing.T) {
 	for _, s := range stores {
 		go func() {
 			<-start
-			_, err := s.AddStaff(t.Context(), address, "Colleague", "staff", actor)
+			_, err := s.AddStaff(asActor(t.Context(), actor), address, "Colleague", "staff")
 			results <- err
 		}()
 	}
 	close(start)
 	var added, refused int
 	for range stores {
-		err := twofactorOperationResult(t, results)
+		err := operationResult(t, results)
 		switch {
 		case err == nil:
 			added++
-		case errors.Is(err, twofactor.ErrAlreadyStaff):
+		case errors.Is(err, staff.ErrAlreadyStaff):
 			refused++
 		default:
 			t.Fatalf("concurrent add: %v", err)
@@ -124,9 +125,9 @@ func TestConcurrentStaffAddsGrantOnce(t *testing.T) {
 }
 
 func TestDuplicateStaffFormRetainsInputAndExplainsRefusal(t *testing.T) {
-	actor, actorEmail := staff(t)
-	_, address := staff(t)
-	h := twofactor.NewHandler(twofactor.NewStore(twofactorRolePool(t, "duplicate-staff-form", "admin"), testKey),
+	actor, actorEmail := admintest.AdminUser(t, pool)
+	_, address := admintest.AdminUser(t, pool)
+	h := staff.NewHandler(staff.NewStore(rolePool(t, "duplicate-staff-form", "admin")),
 		slog.New(slog.DiscardHandler), false)
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		t.Run(locale.Tag(), func(t *testing.T) {
@@ -137,7 +138,7 @@ func TestDuplicateStaffFormRetainsInputAndExplainsRefusal(t *testing.T) {
 			r := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/staff", strings.NewReader(form.Encode()))
 			r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			out := httptest.NewRecorder()
-			h.AddStaff(out, r)
+			h.Add(out, r)
 			if out.Code != http.StatusUnprocessableEntity {
 				t.Fatalf("duplicate POST = %d, want 422: %s", out.Code, out.Body.String())
 			}

@@ -94,6 +94,16 @@ func NotFound(w http.ResponseWriter, r *http.Request, log *slog.Logger) {
 		i18n.T(r.Context(), i18n.KeyAdminNotFoundBody)))
 }
 
+// Fault is the failure page of the two-factor and staff routes, which a staff
+// member reaches in a browser: a bare status code would show them an unstyled
+// "500" with no way back.
+func Fault(w http.ResponseWriter, r *http.Request, log *slog.Logger) {
+	web.Render(w, r, log, http.StatusInternalServerError, pages.Notice(
+		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminFaultTitle)}, "",
+		i18n.T(r.Context(), i18n.KeyAdminFaultHead),
+		i18n.T(r.Context(), i18n.KeyAdminFaultBody)))
+}
+
 func ServerError(w http.ResponseWriter, r *http.Request, log *slog.Logger) {
 	web.Render(w, r, log, http.StatusInternalServerError, pages.Notice(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminErrorTitle)}, "500",

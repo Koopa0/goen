@@ -37,6 +37,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/health"
 	"github.com/koopa0/goen/internal/admin/loyalty"
 	"github.com/koopa0/goen/internal/admin/reports"
+	roster "github.com/koopa0/goen/internal/admin/staff"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/email"
@@ -50,7 +51,6 @@ import (
 	"github.com/koopa0/goen/internal/product"
 	"github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/site"
-	"github.com/koopa0/goen/internal/twofactor"
 	"github.com/koopa0/goen/internal/ui/icons"
 	"github.com/koopa0/goen/internal/ui/pages"
 	adminpages "github.com/koopa0/goen/internal/ui/pages/admin"
@@ -3069,7 +3069,7 @@ func TestTheBackOfficeIsInvisibleToEveryoneButStaff(t *testing.T) {
 
 	// BOTH back-office roles, and 'staff' is the one that matters: a colleague
 	// hired as staff must not meet a 404 on the whole back office.
-	staffView, err := twofactor.NewStore(pool, nil).Staff(ctx)
+	staffView, err := roster.NewStore(pool).Staff(ctx)
 	if err != nil {
 		t.Fatalf("read roles offered by /admin/staff: %v", err)
 	}

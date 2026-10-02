@@ -23,6 +23,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/health"
 	"github.com/koopa0/goen/internal/admin/loyalty"
 	"github.com/koopa0/goen/internal/admin/reports"
+	"github.com/koopa0/goen/internal/admin/staff"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/contact"
@@ -206,6 +207,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	})
 	trail := audit.NewHandler(audit.NewStore(adminPool), log)
 	figures := reports.NewHandler(reports.NewStore(adminPool), log)
+	roster := staff.NewHandler(staff.NewStore(adminPool), log, factorStore.Enabled())
 	lookup := customerdesk.NewHandler(customerdesk.NewStore(adminPool), log)
 	promotions := coupons.NewHandler(coupons.NewStore(adminPool), log)
 	programme := loyalty.NewHandler(loyalty.NewStore(adminPool), log)
@@ -358,13 +360,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	programme.Routes(mux, backOffice)
 	promotions.Routes(mux, backOffice)
 	lookup.Routes(mux, backOffice)
-	// RequireAdmin and not RequireStaff, which accepts `staff` as well: these
-	// four promote, revoke, and strip an admin's second factor, and the listing
-	// names who has none yet.
-	mux.HandleFunc("GET /admin/staff", backOffice.RequireAdmin(factors.Staff))
-	mux.HandleFunc("POST /admin/staff", backOffice.RequireAdmin(factors.AddStaff))
-	mux.HandleFunc("POST /admin/staff/revoke", backOffice.RequireAdmin(factors.RevokeStaff))
-	mux.HandleFunc("POST /admin/staff/factor", backOffice.RequireAdmin(factors.RemoveFactor))
+	roster.Routes(mux, backOffice)
 	mux.HandleFunc("GET /admin/verify", backOffice.StaffOnly(factors.Challenge))
 	mux.HandleFunc("POST /admin/verify", backOffice.StaffOnly(factors.Verify))
 	mux.HandleFunc("POST /admin/verify/enrol", backOffice.StaffOnly(factors.Enrol))

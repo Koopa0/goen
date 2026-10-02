@@ -9,9 +9,10 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/koopa0/goen/internal/account"
+	"github.com/koopa0/goen/internal/admin/staff"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/outbox"
-	"github.com/koopa0/goen/internal/twofactor"
 )
 
 func TestStaffInvitationRegrantSurvivesRetainedDelivery(t *testing.T) {
@@ -36,9 +37,10 @@ func TestStaffInvitationRegrantSurvivesRetainedDelivery(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer storePool.Close()
-			staff := twofactor.NewStore(adminPool, nil)
+			roster := staff.NewStore(adminPool)
+			asActor := account.WithUser(ctx, account.User{ID: actor.String(), Role: "admin"})
 			address := "regrant-" + uuid.NewString() + "@example.com"
-			if _, err := staff.AddStaff(ctx, address, "Colleague", "staff", actor.String()); err != nil {
+			if _, err := roster.AddStaff(asActor, address, "Colleague", "staff"); err != nil {
 				t.Fatal(err)
 			}
 			var target uuid.UUID
@@ -47,13 +49,13 @@ func TestStaffInvitationRegrantSurvivesRetainedDelivery(t *testing.T) {
 			}
 			revoke := func() {
 				t.Helper()
-				if err := staff.RevokeStaff(ctx, target.String(), actor.String()); err != nil {
+				if err := roster.RevokeStaff(asActor, target.String()); err != nil {
 					t.Fatal(err)
 				}
 			}
 			sender := &countingSender{}
 			worker := outbox.NewStore(storePool, slog.Default())
-			worker.HandleJSON[email.StaffInvitation](outbox.TopicStaffInvitation, staffInvitationHandler(staff, email.New(sender, "https://goen.test", "", "")))
+			worker.HandleJSON[email.StaffInvitation](outbox.TopicStaffInvitation, staffInvitationHandler(roster, email.New(sender, "https://goen.test", "", "")))
 			drain := func() {
 				t.Helper()
 				if _, _, err := worker.DrainAll(ctx); err != nil {
@@ -81,10 +83,10 @@ func TestStaffInvitationRegrantSurvivesRetainedDelivery(t *testing.T) {
 			if !revokeBeforeDelivery {
 				revoke()
 			}
-			if _, err := staff.AddStaff(ctx, address, "Colleague", "staff", actor.String()); err != nil {
+			if _, err := roster.AddStaff(asActor, address, "Colleague", "staff"); err != nil {
 				t.Fatal(err)
 			}
-			if _, err := staff.AddStaff(ctx, address, "Duplicate", "staff", actor.String()); !errors.Is(err, twofactor.ErrAlreadyStaff) {
+			if _, err := roster.AddStaff(asActor, address, "Duplicate", "staff"); !errors.Is(err, staff.ErrAlreadyStaff) {
 				t.Fatalf("active staff duplicate=%v", err)
 			}
 			var total int

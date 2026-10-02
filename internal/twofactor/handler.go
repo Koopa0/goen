@@ -10,11 +10,11 @@ import (
 	"rsc.io/qr"
 
 	"github.com/koopa0/goen/internal/account"
+	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -40,15 +40,6 @@ func NewHandler(store *Store, log *slog.Logger, secure bool) *Handler {
 	}
 }
 
-// fault renders the styled failure page. These are browser routes: a bare
-// status code reaches a staff member as an unstyled "500" with no way back.
-func (h *Handler) fault(w http.ResponseWriter, r *http.Request) {
-	web.Render(w, r, h.log, http.StatusInternalServerError, pages.Notice(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminFaultTitle)}, "",
-		i18n.T(r.Context(), i18n.KeyAdminFaultHead),
-		i18n.T(r.Context(), i18n.KeyAdminFaultBody)))
-}
-
 func (h *Handler) Challenge(w http.ResponseWriter, r *http.Request) {
 	u, ok := account.FromContext(r.Context())
 	if !ok {
@@ -71,7 +62,7 @@ func (h *Handler) Challenge(w http.ResponseWriter, r *http.Request) {
 			enrolled = false
 		default:
 			h.log.ErrorContext(r.Context(), "read totp state", "error", err)
-			h.fault(w, r)
+			access.Fault(w, r, h.log)
 			return
 		}
 	}
@@ -119,7 +110,7 @@ func (h *Handler) Verify(w http.ResponseWriter, r *http.Request) {
 			return
 		default:
 			h.log.ErrorContext(r.Context(), "verify totp", "error", err)
-			h.fault(w, r)
+			access.Fault(w, r, h.log)
 			return
 		}
 	}
@@ -130,7 +121,7 @@ func (h *Handler) Verify(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := h.store.MarkVerified(r.Context(), token); err != nil {
 		h.log.ErrorContext(r.Context(), "mark session verified", "error", err)
-		h.fault(w, r)
+		access.Fault(w, r, h.log)
 		return
 	}
 	http.Redirect(w, r, "/admin", http.StatusSeeOther)
@@ -159,7 +150,7 @@ func (h *Handler) Enrol(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		h.log.ErrorContext(r.Context(), "begin enrolment", "error", err)
-		h.fault(w, r)
+		access.Fault(w, r, h.log)
 		return
 	}
 	// Rendered rather than redirected to: a redirect would have to carry the
@@ -167,7 +158,7 @@ func (h *Handler) Enrol(w http.ResponseWriter, r *http.Request) {
 	code, err := qr.Encode(uri, qr.M)
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "encode enrolment QR", "error", err)
-		h.fault(w, r)
+		access.Fault(w, r, h.log)
 		return
 	}
 	web.Render(w, r, h.log, http.StatusOK, pages.TwoFactor(
@@ -204,7 +195,7 @@ func (h *Handler) Confirm(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, "/admin/verify?badenrol=1", http.StatusSeeOther)
 		default:
 			h.log.ErrorContext(r.Context(), "confirm totp", "error", err)
-			h.fault(w, r)
+			access.Fault(w, r, h.log)
 		}
 		return
 	}
@@ -215,7 +206,7 @@ func (h *Handler) Confirm(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := h.store.MarkVerified(r.Context(), token); err != nil {
 		h.log.ErrorContext(r.Context(), "mark session verified", "error", err)
-		h.fault(w, r)
+		access.Fault(w, r, h.log)
 		return
 	}
 	http.Redirect(w, r, "/admin?enrolled=1", http.StatusSeeOther)
@@ -250,123 +241,4 @@ func (h *Handler) StepUp(r *http.Request) (bool, error) {
 		return false, nil
 	}
 	return h.store.SessionVerified(r.Context(), token)
-}
-
-func (h *Handler) Staff(w http.ResponseWriter, r *http.Request) {
-	view, err := h.store.Staff(r.Context())
-	if err != nil {
-		h.log.ErrorContext(r.Context(), "read staff 2FA status", "error", err)
-		h.fault(w, r)
-		return
-	}
-	if !h.store.Enabled() {
-		view.Notice = i18n.T(r.Context(), i18n.KeyTOTPNoKeyNotice)
-	}
-	if u, ok := account.FromContext(r.Context()); ok {
-		view.Actor = u.ID
-	}
-	// Only when there IS one: an unconditional assignment overwrites the
-	// no-key warning set above with an empty string on an ordinary visit.
-	if n := staffNotice(r); n != "" {
-		view.Notice = n
-	}
-	web.Render(w, r, h.log, http.StatusOK, admin.Staff(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageStaff)}, view))
-}
-
-func (h *Handler) AddStaff(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
-		return
-	}
-	cleared, err := h.store.AddStaff(r.Context(),
-		r.PostFormValue("email"), r.PostFormValue("name"), r.PostFormValue("role"),
-		actorID(r))
-	if errors.Is(err, ErrAlreadyStaff) {
-		view, readErr := h.store.Staff(r.Context())
-		if readErr != nil {
-			h.log.ErrorContext(r.Context(), "read staff after refused add", "error", readErr)
-			h.fault(w, r)
-			return
-		}
-		view.Actor = actorID(r)
-		view.AddEmail = r.PostFormValue("email")
-		view.AddName = r.PostFormValue("name")
-		view.AddRole = admin.StaffRole(r.PostFormValue("role"))
-		view.AddError = i18n.T(r.Context(), i18n.KeyStaffAlreadyExists)
-		if !h.store.Enabled() {
-			view.Notice = i18n.T(r.Context(), i18n.KeyTOTPNoKeyNotice)
-		}
-		web.Render(w, r, h.log, http.StatusUnprocessableEntity, admin.Staff(
-			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageStaff)}, view))
-		return
-	}
-	if err == nil && cleared {
-		// A success the admin has to relay: the new colleague cannot get in
-		// until they set a password through /forgot.
-		http.Redirect(w, r, "/admin/staff?cleared=1", http.StatusSeeOther)
-		return
-	}
-	h.redirectStaff(w, r, err)
-}
-
-func (h *Handler) RevokeStaff(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
-		return
-	}
-	h.redirectStaff(w, r, h.store.RevokeStaff(r.Context(),
-		r.PostFormValue("user"), actorID(r)))
-}
-
-func (h *Handler) RemoveFactor(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
-		return
-	}
-	h.redirectStaff(w, r, h.store.RemoveFactor(r.Context(),
-		r.PostFormValue("user"), actorID(r)))
-}
-
-func actorID(r *http.Request) string {
-	if u, ok := account.FromContext(r.Context()); ok {
-		return u.ID
-	}
-	return ""
-}
-
-func (h *Handler) redirectStaff(w http.ResponseWriter, r *http.Request, err error) {
-	switch {
-	case err == nil:
-		http.Redirect(w, r, "/admin/staff?ok=1", http.StatusSeeOther)
-	case errors.Is(err, ErrSelf):
-		http.Redirect(w, r, "/admin/staff?self=1", http.StatusSeeOther)
-	case errors.Is(err, ErrLastAdmin):
-		http.Redirect(w, r, "/admin/staff?last=1", http.StatusSeeOther)
-	case errors.Is(err, ErrInvalidStaff):
-		http.Redirect(w, r, "/admin/staff?needs=1", http.StatusSeeOther)
-	case errors.Is(err, ErrNotEnrolled):
-		http.Redirect(w, r, "/admin/staff?notenrolled=1", http.StatusSeeOther)
-	default:
-		h.log.ErrorContext(r.Context(), "change staff", "error", err)
-		h.fault(w, r)
-	}
-}
-
-func staffNotice(r *http.Request) string {
-	switch {
-	case r.URL.Query().Get("ok") == "1":
-		return i18n.T(r.Context(), i18n.KeyAdminNoticeOK)
-	case r.URL.Query().Get("cleared") == "1":
-		return i18n.T(r.Context(), i18n.KeyStaffCredentialCleared)
-	case r.URL.Query().Get("self") == "1":
-		return i18n.T(r.Context(), i18n.KeyStaffSelf)
-	case r.URL.Query().Get("last") == "1":
-		return i18n.T(r.Context(), i18n.KeyStaffLastAdmin)
-	case r.URL.Query().Get("needs") == "1":
-		return i18n.T(r.Context(), i18n.KeyStaffNeeds)
-	case r.URL.Query().Get("notenrolled") == "1":
-		return i18n.T(r.Context(), i18n.KeyStaffInvalid)
-	}
-	return ""
 }

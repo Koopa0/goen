@@ -26,6 +26,7 @@ sql:
       - "internal/admin/customers/query.sql"
       - "internal/admin/health/query.sql"
       - "internal/admin/loyalty/query.sql"
+      - "internal/admin/staff/query.sql"
       - "internal/admin/reports/query.sql"
       - "internal/invoice/query.sql"
     gen:
