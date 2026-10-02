@@ -40,6 +40,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/reports"
 	"github.com/koopa0/goen/internal/admin/shipping"
 	roster "github.com/koopa0/goen/internal/admin/staff"
+	"github.com/koopa0/goen/internal/admin/stock"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/email"
@@ -98,17 +99,6 @@ func TestMain(m *testing.M) {
 	code := m.Run()
 	stop()
 	os.Exit(code)
-}
-
-func staffID(t *testing.T) string {
-	t.Helper()
-	var id uuid.UUID
-	if err := pool.QueryRow(t.Context(), `
-		INSERT INTO users (email, role) VALUES ($1, 'admin') RETURNING id`,
-		"staff-"+uuid.NewString()+"@example.com").Scan(&id); err != nil {
-		t.Fatalf("create staff: %v", err)
-	}
-	return id.String()
 }
 
 var backOffice = admintest.BackOffice
@@ -252,88 +242,6 @@ func TestProductUpdateDistinguishesAbsenceFromSuccess(t *testing.T) {
 	}
 }
 
-func TestStockMovesOnlyThroughTheLedger(t *testing.T) {
-	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
-	actor := staffID(t)
-
-	var sku string
-	var before int32
-	if err := pool.QueryRow(ctx, `
-		SELECT sku, stock_quantity FROM product_variants
-		WHERE is_active ORDER BY position LIMIT 1`).Scan(&sku, &before); err != nil {
-		t.Fatalf("read variant: %v", err)
-	}
-
-	key := "test-" + uuid.NewString()
-	if err := s.AdjustStock(ctx, sku, 7, actor, key); err != nil {
-		t.Fatalf("adjust: %v", err)
-	}
-
-	var after int32
-	if err := pool.QueryRow(ctx,
-		`SELECT stock_quantity FROM product_variants WHERE sku = $1`, sku).Scan(&after); err != nil {
-		t.Fatalf("read stock: %v", err)
-	}
-	if after != before+7 {
-		t.Errorf("stock went %d -> %d, want %d", before, after, before+7)
-	}
-
-	var delta int32
-	var reason string
-	var hasActor bool
-	if err := pool.QueryRow(ctx, `
-		SELECT m.delta, m.reason, m.actor_user_id IS NOT NULL
-		FROM inventory_movements m WHERE m.idempotency_key = $1`, key).
-		Scan(&delta, &reason, &hasActor); err != nil {
-		t.Fatalf("the adjustment left no movement row: %v", err)
-	}
-	if delta != 7 || reason != "adjustment" || !hasActor {
-		t.Errorf("movement = %d/%q/actor:%v, want 7/adjustment/actor:true", delta, reason, hasActor)
-	}
-}
-
-func TestAdjustmentIsIdempotent(t *testing.T) {
-	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
-	actor := staffID(t)
-
-	var sku string
-	if err := pool.QueryRow(ctx, `
-		SELECT sku FROM product_variants WHERE is_active ORDER BY position DESC LIMIT 1`).
-		Scan(&sku); err != nil {
-		t.Fatalf("read variant: %v", err)
-	}
-
-	key := "dup-" + uuid.NewString()
-	if err := s.AdjustStock(ctx, sku, 5, actor, key); err != nil {
-		t.Fatalf("first adjust: %v", err)
-	}
-	var afterFirst int32
-	if err := pool.QueryRow(ctx,
-		`SELECT stock_quantity FROM product_variants WHERE sku = $1`, sku).Scan(&afterFirst); err != nil {
-		t.Fatalf("read stock: %v", err)
-	}
-
-	// A replay of the form that already booked it is that adjustment's success,
-	// not a refusal: the staff member who sees "refused" re-enters it.
-	if err := s.AdjustStock(ctx, sku, 5, actor, key); err != nil {
-		t.Errorf("replaying an applied adjustment = %v, want the earlier success", err)
-	}
-	// The key is spent by that movement alone.
-	if err := s.AdjustStock(ctx, sku, 6, actor, key); !errors.Is(err, admin.ErrRefused) {
-		t.Errorf("reusing the key for a different adjustment = %v, want ErrRefused", err)
-	}
-	var afterSecond int32
-	if err := pool.QueryRow(ctx,
-		`SELECT stock_quantity FROM product_variants WHERE sku = $1`, sku).Scan(&afterSecond); err != nil {
-		t.Fatalf("read stock: %v", err)
-	}
-	if afterSecond != afterFirst {
-		t.Errorf("stock moved again on the repeat: %d -> %d", afterFirst, afterSecond)
-	}
-}
-
 func TestAdvanceRefusesAnUnfundedOrder(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
@@ -430,7 +338,6 @@ func placeUnpaidOrderHolding(t *testing.T, holding bool) string {
 
 func TestRetiringTheLastDiscountedVariantIsRefused(t *testing.T) {
 	ctx := t.Context()
-	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
 
 	var sku string
 	if err := pool.QueryRow(ctx, `
@@ -472,7 +379,7 @@ func TestRetiringTheLastDiscountedVariantIsRefused(t *testing.T) {
 			`DELETE FROM sale_campaigns WHERE id = $1`, campaignID)
 	})
 
-	if err := s.SetVariantActive(ctx, sku, false); !errors.Is(err, admin.ErrRefused) {
+	if err := stock.NewStore(pool).SetActive(ctx, sku, false); !errors.Is(err, admin.ErrRefused) {
 		t.Errorf("retiring the last discounted variant of a featured product gave %v, "+
 			"want ErrRefused — the campaign would point at nothing marked down", err)
 	}
@@ -3074,10 +2981,10 @@ func TestEveryBackOfficeWriteLeavesATrail(t *testing.T) {
 		run    func() error
 	}{
 		{"adjust stock", audit.ActionAdjustStock, func() error {
-			return s.AdjustStock(ctx, sku, 3, actor.String(), uuid.NewString())
+			return stock.NewStore(pool).Adjust(ctx, sku, 3, actor.String(), uuid.NewString())
 		}},
 		{"reprice", audit.ActionRepriceVariant, func() error {
-			return s.SetVariantPrice(ctx, sku, 123400, 0)
+			return stock.NewStore(pool).SetPrice(ctx, sku, 123400, 0)
 		}},
 		{"publish", audit.ActionPublishProduct, func() error {
 			return s.SetProductStatus(ctx, slug, "draft")
@@ -3854,155 +3761,6 @@ func TestShippingEnqueuesTheDispatchNotice(t *testing.T) {
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("dispatch notice (-want +got):\n%s", diff)
-	}
-}
-
-func TestRestockingTellsEverybodyWhoAsked(t *testing.T) {
-	ctx := t.Context()
-	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
-
-	var vid uuid.UUID
-	var sku string
-	if err := pool.QueryRow(ctx, `
-		SELECT pv.id, pv.sku FROM product_variants pv JOIN products p ON p.id = pv.product_id
-		WHERE p.status = 'active' AND pv.is_active ORDER BY pv.id LIMIT 1`).Scan(&vid, &sku); err != nil {
-		t.Fatalf("find a variant: %v", err)
-	}
-	emptyTheShelf(t, vid, "restock-test-empty")
-	for _, address := range []string{"waiting1@example.com", "waiting2@example.com"} {
-		if _, err := pool.Exec(ctx,
-			`INSERT INTO stock_notifications (variant_id, email) VALUES ($1, $2)`,
-			vid, address); err != nil {
-			t.Fatalf("record interest from %s: %v", address, err)
-		}
-	}
-
-	var actor uuid.UUID
-	if err := pool.QueryRow(ctx, `
-		INSERT INTO users (email, role, full_name) VALUES ($1, 'admin', '補貨')
-		RETURNING id`, "restock-"+sku+"@goen.invalid").Scan(&actor); err != nil {
-		t.Fatalf("create staff: %v", err)
-	}
-	staffCtx := account.WithUser(ctx, account.User{ID: actor.String(), Role: "admin"})
-
-	if err := s.AdjustStock(staffCtx, sku, 10, actor.String(), "restock-test-1"); err != nil {
-		t.Fatalf("restock: %v", err)
-	}
-
-	var enqueued int
-	if err := pool.QueryRow(ctx, `
-		SELECT count(*) FROM outbox_messages m
-		JOIN stock_notifications sn ON sn.id::text = m.dedupe_key
-		WHERE m.topic = 'catalogue.restocked' AND sn.variant_id = $1`, vid).Scan(&enqueued); err != nil {
-		t.Fatalf("count notices: %v", err)
-	}
-	if enqueued != 2 {
-		t.Errorf("%d restock notices enqueued, want 2", enqueued)
-	}
-
-	var pending int
-	if err := pool.QueryRow(ctx,
-		`SELECT count(*) FROM stock_notifications WHERE variant_id = $1 AND notified_at IS NULL`,
-		vid).Scan(&pending); err != nil {
-		t.Fatalf("count pending: %v", err)
-	}
-	if pending != 0 {
-		t.Errorf("%d notices are still pending after the restock", pending)
-	}
-
-	if err := s.AdjustStock(staffCtx, sku, 5, actor.String(), "restock-test-2"); err != nil {
-		t.Fatalf("second restock: %v", err)
-	}
-	var after int
-	if err := pool.QueryRow(ctx, `
-		SELECT count(*) FROM outbox_messages m
-		JOIN stock_notifications sn ON sn.id::text = m.dedupe_key
-		WHERE m.topic = 'catalogue.restocked' AND sn.variant_id = $1`, vid).Scan(&after); err != nil {
-		t.Fatalf("count notices again: %v", err)
-	}
-	if after != enqueued {
-		t.Errorf("a second restock enqueued %d more notices", after-enqueued)
-	}
-}
-
-func TestAnAdjustmentBelowTheThresholdTellsNobody(t *testing.T) {
-	ctx := t.Context()
-	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
-
-	var vid uuid.UUID
-	var sku string
-	if err := pool.QueryRow(ctx, `
-		SELECT pv.id, pv.sku FROM product_variants pv JOIN products p ON p.id = pv.product_id
-		WHERE p.status = 'active' AND pv.is_active ORDER BY pv.id DESC LIMIT 1`).Scan(&vid, &sku); err != nil {
-		t.Fatalf("find a variant: %v", err)
-	}
-	emptyTheShelf(t, vid, "threshold-empty")
-	if _, err := pool.Exec(ctx,
-		`UPDATE product_variants SET safety_stock = 5 WHERE id = $1`, vid); err != nil {
-		t.Fatalf("set safety stock: %v", err)
-	}
-	if _, err := pool.Exec(ctx,
-		`INSERT INTO stock_notifications (variant_id, email) VALUES ($1, 'threshold@example.com')`,
-		vid); err != nil {
-		t.Fatalf("record interest: %v", err)
-	}
-
-	var actor uuid.UUID
-	if err := pool.QueryRow(ctx, `
-		INSERT INTO users (email, role, full_name) VALUES ($1, 'admin', '補貨')
-		RETURNING id`, "threshold-"+sku+"@goen.invalid").Scan(&actor); err != nil {
-		t.Fatalf("create staff: %v", err)
-	}
-	staffCtx := account.WithUser(ctx, account.User{ID: actor.String(), Role: "admin"})
-
-	if err := s.AdjustStock(staffCtx, sku, 3, actor.String(), "threshold-test-1"); err != nil {
-		t.Fatalf("adjust: %v", err)
-	}
-	var pending int
-	if err := pool.QueryRow(ctx,
-		`SELECT count(*) FROM stock_notifications WHERE variant_id = $1 AND notified_at IS NULL`,
-		vid).Scan(&pending); err != nil {
-		t.Fatalf("count pending: %v", err)
-	}
-	if pending != 1 {
-		t.Errorf("a notice was spent on stock nobody can buy (%d pending, want 1)", pending)
-	}
-
-	if err := s.AdjustStock(staffCtx, sku, 5, actor.String(), "threshold-test-2"); err != nil {
-		t.Fatalf("second adjust: %v", err)
-	}
-	if err := pool.QueryRow(ctx,
-		`SELECT count(*) FROM stock_notifications WHERE variant_id = $1 AND notified_at IS NULL`,
-		vid).Scan(&pending); err != nil {
-		t.Fatalf("count pending again: %v", err)
-	}
-	if pending != 0 {
-		t.Errorf("crossing the threshold told nobody (%d still pending)", pending)
-	}
-}
-
-// emptyTheShelf takes a variant down to zero. It reads the quantity first because
-// inventory_movements_delta_non_zero refuses a movement of nothing.
-func emptyTheShelf(t *testing.T, vid uuid.UUID, key string) {
-	t.Helper()
-	var stock int32
-	if err := pool.QueryRow(t.Context(),
-		`SELECT stock_quantity FROM product_variants WHERE id = $1`, vid).Scan(&stock); err != nil {
-		t.Fatalf("read stock: %v", err)
-	}
-	if stock > 0 {
-		if _, err := pool.Exec(t.Context(),
-			`SELECT record_inventory_movement($1, $2, 'adjustment', $3, 'admin', NULL, NULL)`,
-			vid, -stock, key); err != nil {
-			t.Fatalf("empty the shelf: %v", err)
-		}
-	}
-	if err := pool.QueryRow(t.Context(),
-		`SELECT stock_quantity FROM product_variants WHERE id = $1`, vid).Scan(&stock); err != nil {
-		t.Fatalf("re-read stock: %v", err)
-	}
-	if stock != 0 {
-		t.Fatalf("the shelf still holds %d — the fixture did not reach its precondition", stock)
 	}
 }
 
@@ -5886,78 +5644,6 @@ func TestTheOptionValueIsAddedToTheRightProduct(t *testing.T) {
 	}
 }
 
-func TestARestockNoticeNamesTheProductInTheReadersLanguage(t *testing.T) {
-	ctx := t.Context()
-	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
-
-	var vid uuid.UUID
-	var sku string
-	if err := pool.QueryRow(ctx, `
-		SELECT pv.id, pv.sku FROM product_variants pv
-		JOIN products p ON p.id = pv.product_id
-		WHERE p.status = 'active' AND pv.is_active AND p.name_en IS NOT NULL
-		  AND p.name_en <> p.name
-		ORDER BY pv.id LIMIT 1`).Scan(&vid, &sku); err != nil {
-		t.Fatalf("find a translated variant: %v", err)
-	}
-	emptyTheShelf(t, vid, "restock-locale-empty")
-
-	waiting := map[string]string{
-		"zh-Hant": "zh-waiting@example.com",
-		"en":      "en-waiting@example.com",
-	}
-	for locale, address := range waiting {
-		if _, err := pool.Exec(ctx, `
-			INSERT INTO stock_notifications (variant_id, email, locale)
-			VALUES ($1, $2, $3)`, vid, address, locale); err != nil {
-			t.Fatalf("record interest from %s: %v", address, err)
-		}
-	}
-
-	var actor uuid.UUID
-	if err := pool.QueryRow(ctx, `
-		INSERT INTO users (email, role, full_name) VALUES ($1, 'admin', '補貨')
-		RETURNING id`, "restock-locale-"+sku+"@goen.invalid").Scan(&actor); err != nil {
-		t.Fatalf("create staff: %v", err)
-	}
-	staffCtx := account.WithUser(ctx, account.User{ID: actor.String(), Role: "admin"})
-
-	if err := s.AdjustStock(staffCtx, sku, 10, actor.String(), "restock-locale-1"); err != nil {
-		t.Fatalf("restock: %v", err)
-	}
-
-	var zhName, enName string
-	if err := pool.QueryRow(ctx, `
-		SELECT p.name, p.name_en FROM products p
-		JOIN product_variants pv ON pv.product_id = p.id WHERE pv.id = $1`,
-		vid).Scan(&zhName, &enName); err != nil {
-		t.Fatalf("read both names: %v", err)
-	}
-
-	for locale, address := range waiting {
-		var payload string
-		if err := pool.QueryRow(ctx, `
-			SELECT m.payload::text FROM outbox_messages m
-			JOIN stock_notifications sn ON sn.id::text = m.dedupe_key
-			WHERE m.topic = 'catalogue.restocked' AND sn.email = $1`,
-			address).Scan(&payload); err != nil {
-			t.Fatalf("read the %s payload: %v", locale, err)
-		}
-		want, other := zhName, enName
-		if locale == "en" {
-			want, other = enName, zhName
-		}
-		if !strings.Contains(payload, want) {
-			t.Errorf("the %s letter does not name the product as %q: %s",
-				locale, want, payload)
-		}
-		if strings.Contains(payload, other) {
-			t.Errorf("the %s letter names the product as %q, the other language: %s",
-				locale, other, payload)
-		}
-	}
-}
-
 func TestAltTextFollowsThePagesLanguage(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
@@ -6494,75 +6180,10 @@ func postVariantForm(
 	return res
 }
 
-func TestTheStockLedgerCanBeRead(t *testing.T) {
-	ctx, staff := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
-
-	// A variant that ALREADY holds stock: at a prior balance of zero the running total
-	// and the movement's own delta are the same number and the assertion proves nothing.
-	var sku string
-	if err := pool.QueryRow(ctx, `
-		SELECT sku FROM product_variants WHERE stock_quantity > 0
-		ORDER BY stock_quantity DESC LIMIT 1`).Scan(&sku); err != nil {
-		t.Fatalf("find a stocked variant: %v", err)
-	}
-
-	before, err := s.Movements(ctx, sku)
-	if err != nil {
-		t.Fatalf("Movements: %v", err)
-	}
-	if before.Stock <= 0 {
-		t.Fatalf("the chosen variant holds %d — the running total would equal the "+
-			"delta and prove nothing", before.Stock)
-	}
-
-	// A key unique to this run, or the second run of this suite is a no-op.
-	key := "ledger-test-" + uuid.NewString()
-	if adjErr := s.AdjustStock(ctx, sku, 7, staff.String(), key); adjErr != nil {
-		t.Fatalf("AdjustStock: %v", adjErr)
-	}
-
-	after, err := s.Movements(ctx, sku)
-	if err != nil {
-		t.Fatalf("Movements: %v", err)
-	}
-	if len(after.Rows) != len(before.Rows)+1 {
-		t.Fatalf("%d rows after one adjustment, had %d", len(after.Rows), len(before.Rows))
-	}
-
-	newest := after.Rows[0]
-	if newest.Delta != 7 {
-		t.Errorf("the newest movement is %d, want +7", newest.Delta)
-	}
-	if newest.Reason != "adjustment" || newest.ReasonText(ctx) != "人工調整" {
-		t.Errorf("the movement reads as %q / %q", newest.Reason, newest.ReasonText(ctx))
-	}
-	if newest.By(ctx) == "系統" {
-		t.Error("a hand adjustment is attributed to the system")
-	}
-	if newest.DeltaText() != "+7" {
-		t.Errorf("the delta reads %q, want +7 — a bare 7 is half the story",
-			newest.DeltaText())
-	}
-	if newest.Running != before.Stock+7 {
-		t.Errorf("the newest running total is %d, want %d — the stock before plus "+
-			"this movement", newest.Running, before.Stock+7)
-	}
-	if newest.Running == newest.Delta {
-		t.Error("the running total equals this movement's own delta, so it is not " +
-			"running over the ledger at all")
-	}
-	if newest.Running != after.Stock {
-		t.Errorf("the newest running total is %d and the variant holds %d",
-			newest.Running, after.Stock)
-	}
-}
-
 // TestAReleaseInTheLedgerNamesItsOrder drives a RELEASE, the only movement that reaches
 // the order through the reservation: a HOLD stays green with that join deleted.
 func TestAReleaseInTheLedgerNamesItsOrder(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
 	basket := cart.NewStore(pool)
 
 	var vid uuid.UUID
@@ -6581,7 +6202,7 @@ func TestAReleaseInTheLedgerNamesItsOrder(t *testing.T) {
 		t.Fatalf("cancel: %v", err)
 	}
 
-	view, err := s.Movements(ctx, sku)
+	view, err := stock.NewStore(pool).Movements(ctx, sku)
 	if err != nil {
 		t.Fatalf("Movements: %v", err)
 	}
@@ -6724,7 +6345,7 @@ func TestParseProtectedWritesDoNotCallInfrastructureARefusal(t *testing.T) {
 			return s.AddVariant(ctx, "closed-product", &admin.VariantForm{SKU: "CLOSED", PriceCents: 100})
 		}},
 		{name: "create method", write: func() (map[string]string, error) {
-			return shipping.NewStore(pool).CreateMethod(ctx, &shipping.NewMethod{
+			return shipping.NewStore(p).CreateMethod(ctx, &shipping.NewMethod{
 				Code: "closed_method", Destination: "address", Name: "Closed",
 			})
 		}},
@@ -6847,7 +6468,7 @@ func TestAMistypedParcelDimensionDoesNotBecomeUnmeasured(t *testing.T) {
 		t.Fatalf("read %d parcel variants, want 2", len(variantIDs))
 	}
 	for _, sku := range []string{measuredSKU, unmeasuredSKU} {
-		if err := s.ReceiveStock(ctx, sku, 2, actor.String(), "parse-stock-"+uuid.NewString()); err != nil {
+		if err := stock.NewStore(pool).Receive(ctx, sku, 2, actor.String(), "parse-stock-"+uuid.NewString()); err != nil {
 			t.Fatalf("stock %s: %v", sku, err)
 		}
 	}
@@ -7557,116 +7178,6 @@ func TestEachParcelTellsTheCustomer(t *testing.T) {
 	}
 	if events != 2 {
 		t.Errorf("%d shipped events for two parcels, want 2", events)
-	}
-}
-
-func TestAReceiptIsFiledAsAReceiptAndNotAnAdjustment(t *testing.T) {
-	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
-	actor := staffID(t)
-
-	var sku string
-	var before int32
-	if err := pool.QueryRow(ctx, `
-		SELECT sku, stock_quantity FROM product_variants
-		WHERE is_active ORDER BY position LIMIT 1`).Scan(&sku, &before); err != nil {
-		t.Fatalf("read variant: %v", err)
-	}
-
-	key := "receipt-" + uuid.NewString()
-	if err := s.ReceiveStock(ctx, sku, 12, actor, key); err != nil {
-		t.Fatalf("receive: %v", err)
-	}
-
-	var delta int32
-	var reason, source string
-	var hasActor bool
-	if err := pool.QueryRow(ctx, `
-		SELECT m.delta, m.reason, coalesce(m.source_type, ''), m.actor_user_id IS NOT NULL
-		FROM inventory_movements m WHERE m.idempotency_key = $1`, key).
-		Scan(&delta, &reason, &source, &hasActor); err != nil {
-		t.Fatalf("the receipt left no movement row: %v", err)
-	}
-	if delta != 12 || reason != "receipt" || source != "admin" || !hasActor {
-		t.Errorf("movement = %d/%q/%q/actor:%v, want 12/receipt/admin/actor:true",
-			delta, reason, source, hasActor)
-	}
-
-	var after int32
-	if err := pool.QueryRow(ctx,
-		`SELECT stock_quantity FROM product_variants WHERE sku = $1`, sku).Scan(&after); err != nil {
-		t.Fatalf("read stock: %v", err)
-	}
-	if after != before+12 {
-		t.Errorf("stock went %d -> %d, want %d", before, after, before+12)
-	}
-}
-
-func TestAReceiptIsIdempotent(t *testing.T) {
-	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
-	actor := staffID(t)
-
-	var sku string
-	if err := pool.QueryRow(ctx, `
-		SELECT sku FROM product_variants WHERE is_active ORDER BY position DESC LIMIT 1`).
-		Scan(&sku); err != nil {
-		t.Fatalf("read variant: %v", err)
-	}
-
-	key := "receipt-dup-" + uuid.NewString()
-	if err := s.ReceiveStock(ctx, sku, 4, actor, key); err != nil {
-		t.Fatalf("first receipt: %v", err)
-	}
-	var afterFirst int32
-	if err := pool.QueryRow(ctx,
-		`SELECT stock_quantity FROM product_variants WHERE sku = $1`, sku).Scan(&afterFirst); err != nil {
-		t.Fatalf("read stock: %v", err)
-	}
-
-	// A replay of the form that booked it is that delivery's success, and
-	// books nothing; the same key for a different delivery stays refused.
-	if err := s.ReceiveStock(ctx, sku, 4, actor, key); err != nil {
-		t.Errorf("replaying an applied receipt = %v, want the earlier success", err)
-	}
-	if err := s.ReceiveStock(ctx, sku, 5, actor, key); !errors.Is(err, admin.ErrRefused) {
-		t.Errorf("reusing the key for a different delivery = %v, want ErrRefused", err)
-	}
-	var afterSecond int32
-	if err := pool.QueryRow(ctx,
-		`SELECT stock_quantity FROM product_variants WHERE sku = $1`, sku).Scan(&afterSecond); err != nil {
-		t.Fatalf("read stock: %v", err)
-	}
-	if afterSecond != afterFirst {
-		t.Errorf("stock moved again on the repeat: %d -> %d", afterFirst, afterSecond)
-	}
-}
-
-func TestAReceiptCannotTakeStockAway(t *testing.T) {
-	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
-	actor := staffID(t)
-
-	var sku string
-	var before int32
-	if err := pool.QueryRow(ctx, `
-		SELECT sku, stock_quantity FROM product_variants
-		WHERE is_active AND stock_quantity > 5 ORDER BY position LIMIT 1`).Scan(&sku, &before); err != nil {
-		t.Fatalf("read variant: %v", err)
-	}
-
-	key := "receipt-neg-" + uuid.NewString()
-	if err := s.ReceiveStock(ctx, sku, -3, actor, key); !errors.Is(err, admin.ErrRefused) {
-		t.Errorf("a negative receipt gave %v, want ErrRefused — a correction filed "+
-			"as a delivery is the distinction this door exists to draw", err)
-	}
-	var after int32
-	if err := pool.QueryRow(ctx,
-		`SELECT stock_quantity FROM product_variants WHERE sku = $1`, sku).Scan(&after); err != nil {
-		t.Fatalf("read stock: %v", err)
-	}
-	if after != before {
-		t.Errorf("the refused receipt moved stock %d -> %d", before, after)
 	}
 }
 
@@ -8952,29 +8463,6 @@ func TestTheDashboardAndTheQueueTabsSplitPendingTheSameWay(t *testing.T) {
 		if !sawIn || sawOut {
 			t.Errorf("tab %q lists the expected order = %t and the other = %t, want true and false", status, sawIn, sawOut)
 		}
-	}
-}
-
-func TestARefusedStockAdjustmentKeepsWhatWasTyped(t *testing.T) {
-	ctx, _ := staffContext(t)
-	h := adminHandlerOver(pool, admin.NewStore(pool, fakeRefunder{}, nil, nil))
-	var sku string
-	if err := pool.QueryRow(ctx, `SELECT sku FROM product_variants ORDER BY sku LIMIT 1`).Scan(&sku); err != nil {
-		t.Fatal(err)
-	}
-	form := url.Values{"sku": {sku}, "delta": {"12x"}, "return": {"/admin/stock"}}
-	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/stock/adjust", strings.NewReader(form.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	w := httptest.NewRecorder()
-	backOffice.RequireStaff(h.AdjustStock)(w, req)
-
-	if w.Code != http.StatusUnprocessableEntity {
-		t.Fatalf("an unreadable adjustment answered %d, want 422", w.Code)
-	}
-	// The row may be on a later page of a long list, in which case the banner
-	// carries the sentence; either way the refusal is said and the page is 422.
-	if !strings.Contains(w.Body.String(), i18n.T(ctx, i18n.KeyAdminStockDeltaError)) {
-		t.Error("the refused adjustment does not say why")
 	}
 }
 

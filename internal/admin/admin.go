@@ -5,8 +5,6 @@ package admin
 import (
 	"context"
 	"errors"
-	"strconv"
-	"strings"
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/returns"
@@ -90,42 +88,6 @@ func NextStatuses(current pages.FulfillmentStatus) []pages.FulfillmentStatus {
 	default:
 		return nil
 	}
-}
-
-// maxAdjustment bounds one stock correction: large enough for a delivery,
-// small enough that a typo cannot invent a warehouse.
-const maxAdjustment = 10000
-
-func ParseAdjustment(s string) (int32, bool) {
-	n, err := strconv.ParseInt(strings.TrimSpace(s), 10, 32)
-	if err != nil || n == 0 || n > maxAdjustment || n < -maxAdjustment {
-		return 0, false
-	}
-	return int32(n), true
-}
-
-// ParseReceipt reads a goods-receipt quantity, which is always POSITIVE.
-// inventory_movements_delta_direction stays the authority; this turns a mistyped
-// minus sign into a form the shop can correct rather than a constraint name.
-func ParseReceipt(s string) (int32, bool) {
-	n, err := strconv.ParseInt(strings.TrimSpace(s), 10, 32)
-	if err != nil || n <= 0 || n > maxAdjustment {
-		return 0, false
-	}
-	return int32(n), true
-}
-
-func ParsePrice(s string) (int64, bool) {
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return 0, true // an empty compare-at price means "not on sale"
-	}
-	n, err := strconv.ParseInt(s, 10, 64)
-	const maxTWD = 100_000_000 // the schema's own ceiling, in dollars
-	if err != nil || n < 0 || n > maxTWD {
-		return 0, false
-	}
-	return n * 100, true
 }
 
 func ReturnStatusLabel(ctx context.Context, s returns.Status) string {

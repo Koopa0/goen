@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/url"
 	"slices"
 	"strings"
 	"time"
@@ -17,6 +16,7 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/admin/orderstatus"
+	"github.com/koopa0/goen/internal/admin/stock"
 	"github.com/koopa0/goen/internal/carrier"
 	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/db"
@@ -26,7 +26,6 @@ import (
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/ordernotice"
 	"github.com/koopa0/goen/internal/payment"
-	"github.com/koopa0/goen/internal/pgerr"
 	"github.com/koopa0/goen/internal/pickup"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -118,12 +117,9 @@ func (s *Store) Dashboard(ctx context.Context) (admin.DashboardView, error) {
 		view.Recent = append(view.Recent, orderRow(ctx, &recent[i]))
 	}
 
-	low, err := s.q.AdminVariants(ctx, db.AdminVariantsParams{Locale: string(i18n.FromContext(ctx)), LowOnly: true, RowLimit: 10})
+	view.Low, err = stock.NewStore(s.pool).LowStock(ctx, 10)
 	if err != nil {
-		return admin.DashboardView{}, fmt.Errorf("read low stock: %w", err)
-	}
-	for i := range low {
-		view.Low = append(view.Low, variantRow(&low[i]))
+		return admin.DashboardView{}, err
 	}
 	return view, nil
 }
@@ -872,179 +868,6 @@ func (s *Store) SetStaffNote(ctx context.Context, number, note string) error {
 	return nil
 }
 
-func (s *Store) Variants(ctx context.Context, lowOnly bool, term string, after ...string) (admin.VariantsView, error) {
-	term = web.SearchTerm(term)
-	low := ""
-	if lowOnly {
-		low = "1"
-	}
-	scope := web.ScopeURL("/admin/stock", "low", low, "q", term)
-	cursor := readPageCursor(scope, after)
-	rows, err := s.q.AdminVariants(ctx, db.AdminVariantsParams{Locale: string(i18n.FromContext(ctx)), HasCursor: cursor.Valid, AfterNumber: cursor.Number, AfterName: cursor.Name, AfterPosition: cursor.Position, AfterID: cursor.ID, LowOnly: lowOnly, EscapedTerm: catalog.EscapeLike(term), RowLimit: PageLimit})
-	if err != nil {
-		return admin.VariantsView{}, fmt.Errorf("read variants: %w", err)
-	}
-	rows, bound := pageBound(cursor, scope, rows, PageSize, func(r *db.AdminVariantsRow) string { return r.PageCursor })
-	view := admin.VariantsView{ListBound: bound, LowOnly: lowOnly, Term: term}
-	for i := range rows {
-		view.Variants = append(view.Variants, variantRow(&rows[i]))
-	}
-	return view, nil
-}
-
-// AdjustStock moves stock through the ledger, which record_inventory_movement
-// is the only door to. The idempotency key is the caller's, so a resubmitted
-// form is one adjustment.
-func (s *Store) AdjustStock(ctx context.Context, sku string, delta int32, actorID, key string) error {
-	v, err := s.q.AdminVariantBySKU(ctx, sku)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return ErrNotFound
-		}
-		return fmt.Errorf("read variant: %w", err)
-	}
-	actor, err := uuid.Parse(actorID)
-	if err != nil {
-		return fmt.Errorf("adjust stock: actor %q is not a user id: %w", actorID, err)
-	}
-	err = audit.Run(ctx, s.pool, audit.Event{
-		Action: audit.ActionAdjustStock, Table: "product_variants", ID: audit.EntityID(v.ID),
-		Before: map[string]any{"sku": sku, "stock": v.StockQuantity},
-		After:  map[string]any{"delta": delta},
-	},
-		func(ctx context.Context, q *db.Queries) error {
-			if moveErr := q.AdjustStock(ctx, db.AdjustStockParams{
-				VariantID: v.ID, Delta: delta, IdempotencyKey: key, ActorUserID: actor,
-			}); moveErr != nil {
-				return fmt.Errorf("%w: %w", ErrRefused, moveErr)
-			}
-			// Called on EVERY adjustment: the claim's own EXISTS decides whether
-			// the variant is back above its threshold, so a movement that does
-			// not cross it claims nothing.
-			return enqueueRestockNotices(ctx, q, v.ID)
-		})
-	return s.settleReplay(ctx, err, v.ID, delta, "adjustment", key)
-}
-
-// ReceiveStock books a delivery in, through the ledger's own 'receipt' reason,
-// so that goods a shop bought are distinguishable in its own ledger from a
-// staff member correcting a miscount.
-func (s *Store) ReceiveStock(ctx context.Context, sku string, quantity int32, actorID, key string) error {
-	v, err := s.q.AdminVariantBySKU(ctx, sku)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return ErrNotFound
-		}
-		return fmt.Errorf("read variant: %w", err)
-	}
-	actor, err := uuid.Parse(actorID)
-	if err != nil {
-		return fmt.Errorf("receive stock: actor %q is not a user id: %w", actorID, err)
-	}
-	err = audit.Run(ctx, s.pool, audit.Event{
-		Action: audit.ActionReceiveStock, Table: "product_variants", ID: audit.EntityID(v.ID),
-		Before: map[string]any{"sku": sku, "stock": v.StockQuantity},
-		After:  map[string]any{"received": quantity},
-	},
-		func(ctx context.Context, q *db.Queries) error {
-			if moveErr := q.ReceiveStock(ctx, db.ReceiveStockParams{
-				VariantID: v.ID, Delta: quantity, IdempotencyKey: key, ActorUserID: actor,
-			}); moveErr != nil {
-				return fmt.Errorf("%w: %w", ErrRefused, moveErr)
-			}
-			return enqueueRestockNotices(ctx, q, v.ID)
-		})
-	return s.settleReplay(ctx, err, v.ID, quantity, "receipt", key)
-}
-
-// settleReplay turns the ledger's refusal of a key it already holds into the
-// success it earlier answered, when the held movement is this very one. The
-// refusal rolled back the whole statement, so stock moved once; reporting it
-// as refused sends a staff member to re-enter it from a fresh form, which
-// lands it twice. A key reused for a different movement stays refused.
-func (s *Store) settleReplay(
-	ctx context.Context, err error, variantID uuid.UUID, delta int32, reason, key string,
-) error {
-	if err == nil || !pgerr.IsConstraint(err, "inventory_movements_idempotency_key") {
-		return err
-	}
-	applied, checkErr := s.q.StockMovementApplied(ctx, db.StockMovementAppliedParams{
-		IdempotencyKey: key, VariantID: variantID, Delta: delta, Reason: reason,
-	})
-	if checkErr != nil || !applied {
-		return err
-	}
-	return nil
-}
-
-// SetVariantActive retires or restores a variant. A refusal here is usually
-// sale_campaign_variant_still_valid: the last discounted variant of a product
-// some campaign features.
-func (s *Store) SetVariantActive(ctx context.Context, sku string, active bool) error {
-	v, err := s.q.AdminVariantBySKU(ctx, sku)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return ErrNotFound
-		}
-		return fmt.Errorf("read variant: %w", err)
-	}
-	return audit.Run(ctx, s.pool, audit.Event{
-		Action: audit.ActionRetireVariant, Table: "product_variants", ID: audit.EntityID(v.ID),
-		Before: map[string]any{"sku": sku, "active": v.IsActive},
-		After:  map[string]any{"active": active},
-	},
-		func(ctx context.Context, q *db.Queries) error {
-			if err := q.SetVariantActive(ctx, db.SetVariantActiveParams{
-				ID: v.ID, IsActive: active,
-			}); err != nil {
-				return fmt.Errorf("%w: %w", ErrRefused, err)
-			}
-			return nil
-		})
-}
-
-// SetVariantPrice reprices a variant. product_variants_compare_at_is_higher
-// refuses a "sale" that is not a saving.
-func (s *Store) SetVariantPrice(ctx context.Context, sku string, price, compareAt int64) error {
-	v, err := s.q.AdminVariantBySKU(ctx, sku)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return ErrNotFound
-		}
-		return fmt.Errorf("read variant: %w", err)
-	}
-	var cmp pgtype.Int8
-	if compareAt > 0 {
-		cmp = pgtype.Int8{Int64: compareAt, Valid: true}
-	}
-	return audit.Run(ctx, s.pool, audit.Event{
-		Action: audit.ActionRepriceVariant, Table: "product_variants", ID: audit.EntityID(v.ID),
-		Before: map[string]any{"sku": sku, "price_cents": v.PriceCents},
-		After:  map[string]any{"price_cents": price, "compare_at_cents": compareAt},
-	},
-		func(ctx context.Context, q *db.Queries) error {
-			if err := q.SetVariantPrice(ctx, db.SetVariantPriceParams{
-				ID: v.ID, PriceCents: price, CompareAtPriceCents: cmp,
-			}); err != nil {
-				return fmt.Errorf("%w: %w", ErrRefused, err)
-			}
-			return nil
-		})
-}
-
-func variantRow(r *db.AdminVariantsRow) admin.Variant {
-	return admin.Variant{
-		SKU: r.SKU, Slug: r.Slug, ProductName: r.ProductName, Brand: r.Brand,
-		PriceCents: r.PriceCents, CompareCents: r.CompareAtPriceCents.Int64,
-		Stock: r.StockQuantity, Safety: r.SafetyStock,
-		Active: r.IsActive, ProductStatus: r.ProductStatus,
-		Options: r.OptionValues,
-		// One per rendered row, so the adjust form's key is spent by that form
-		// alone and not by whichever stock level the variant next returns to.
-		FormID: uuid.NewString(),
-	}
-}
-
 func text(s string) pgtype.Text {
 	if s == "" {
 		return pgtype.Text{}
@@ -1057,49 +880,6 @@ func nullableStamp(t pgtype.Timestamptz) string {
 		return ""
 	}
 	return shoptime.Minute(t.Time)
-}
-
-// MovementPageSize bounds one page of a variant's stock ledger. The running
-// total is computed over the WHOLE ledger, so a page is still truthful.
-const MovementPageSize = 50
-
-func (s *Store) Movements(ctx context.Context, sku string, after ...string) (admin.MovementsView, error) {
-	scope := "/admin/stock/" + url.PathEscape(sku)
-	cursor := readPageCursor(scope, after)
-	v, err := s.q.AdminVariantBySKU(ctx, sku)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return admin.MovementsView{}, ErrNotFound
-		}
-		return admin.MovementsView{}, fmt.Errorf("read variant %s: %w", sku, err)
-	}
-	rows, err := s.q.VariantMovements(ctx, db.VariantMovementsParams{HasCursor: cursor.Valid, AfterID: cursor.ID,
-		SKU: sku, RowLimit: MovementPageSize + 1,
-	})
-	if err != nil {
-		return admin.MovementsView{}, fmt.Errorf("read movements of %s: %w", sku, err)
-	}
-
-	rows, bound := pageBound(cursor, scope, rows, MovementPageSize, func(r *db.VariantMovementsRow) string { return r.PageCursor })
-	view := admin.MovementsView{
-		ListBound: bound,
-		SKU:       v.SKU, ProductName: v.ProductName, Slug: v.Slug,
-		Stock: v.StockQuantity, Safety: v.SafetyStock,
-		FormID: uuid.NewString(),
-		Rows:   make([]admin.Movement, 0, len(rows)),
-	}
-	for i := range rows {
-		m := &rows[i]
-		view.Rows = append(view.Rows, admin.Movement{
-			At:          shoptime.Minute(m.CreatedAt),
-			Delta:       m.Delta,
-			Reason:      m.Reason,
-			OrderNumber: m.OrderNumber,
-			Actor:       m.Actor,
-			Running:     m.RunningTotal,
-		})
-	}
-	return view, nil
 }
 
 // IssueInvoice files a uniform invoice for an order. The writer owns the local

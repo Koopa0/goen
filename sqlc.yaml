@@ -31,6 +31,7 @@ sql:
       - "internal/admin/loyalty/query.sql"
       - "internal/admin/shipping/query.sql"
       - "internal/admin/staff/query.sql"
+      - "internal/admin/stock/query.sql"
       - "internal/admin/taxonomy/query.sql"
       - "internal/admin/reports/query.sql"
       - "internal/invoice/query.sql"
