@@ -11824,6 +11824,31 @@ func TestAnAuditEntryNamesItsOrderAndLinksIt(t *testing.T) {
 	t.Errorf("no order.ship entry names %s among %d rows", number, len(view.Rows))
 }
 
+func TestARefusedDispatchKeepsWhatWasTyped(t *testing.T) {
+	ctx, _ := staffContext(t)
+	h := adminHandlerOver(pool, admin.NewStore(pool, fakeRefunder{}, nil, nil))
+	number, _, lines, _ := twoLineOrderWithStock(t, "retype")
+
+	form := url.Values{
+		"carrier": {"黑貓宅急便"}, "tracking": {"9001-2345"}, "qty_" + lines[0].String(): {"99"},
+	}
+	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/orders/"+number+"/ship", strings.NewReader(form.Encode()))
+	req.SetPathValue("number", number)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+	h.RequireStaff(h.Ship)(w, req)
+
+	if w.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("a quantity above what is outstanding answered %d, want 422", w.Code)
+	}
+	body := w.Body.String()
+	for _, want := range []string{`value="黑貓宅急便"`, `value="9001-2345"`, `value="99"`, `id="ship-qty-error"`, `aria-invalid="true"`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the refused dispatch is missing %q", want)
+		}
+	}
+}
+
 func TestTheDashboardAndTheQueueTabsSplitPendingTheSameWay(t *testing.T) {
 	ctx := t.Context()
 	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)

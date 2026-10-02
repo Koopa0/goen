@@ -229,6 +229,25 @@ type AdminReturnLine struct {
 	Unused      string
 	Packaging   string
 	Accessories string
+	// DraftReceived, DraftRestocked and DraftNote are what staff typed on an
+	// inspection that was refused; empty means the form's own defaults.
+	DraftReceived, DraftRestocked, DraftNote string
+}
+
+// ReceivedField is the received box's value: what was typed, else every unit claimed.
+func (l AdminReturnLine) ReceivedField() string {
+	if l.DraftReceived != "" {
+		return l.DraftReceived
+	}
+	return l.MaxQuantityText()
+}
+
+// RestockedField is the restock box's value: what was typed, else none.
+func (l AdminReturnLine) RestockedField() string {
+	if l.DraftRestocked != "" {
+		return l.DraftRestocked
+	}
+	return "0"
 }
 
 // FactValue is the radio this line currently holds. Unknown is the default

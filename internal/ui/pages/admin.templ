@@ -509,7 +509,22 @@ templ AdminOrder(p layouts.Page, v *AdminOrderView) {
 						<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/orders/" + v.Number + "/ship") }>
 							<div class="ui-field">
 								<label class="ui-label" for="ship-carrier">{ i18n.T(ctx, i18n.KeyAdminColCarrier) }</label>
-								<input class="ui-input" id="ship-carrier" name="carrier" value={ v.ShipCarrier } required maxlength="60" autocomplete="off"/>
+								<input
+									class="ui-input"
+									id="ship-carrier"
+									name="carrier"
+									value={ v.ShipCarrier }
+									required
+									maxlength="60"
+									autocomplete="off"
+									if v.ShipCarrierError != "" {
+										aria-invalid="true"
+										aria-describedby="ship-carrier-error"
+									}
+								/>
+								if v.ShipCarrierError != "" {
+									<p id="ship-carrier-error" class="ui-error-text" role="alert">{ v.ShipCarrierError }</p>
+								}
 							</div>
 							<div class="ui-field">
 								<label class="ui-label" for="ship-tracking">{ i18n.T(ctx, i18n.KeyAdminQueueTracking) }</label>
@@ -540,9 +555,13 @@ templ AdminOrder(p layouts.Page, v *AdminOrderView) {
 										id={ "qty-" + l.OrderLineID }
 										type="number"
 										name={ "qty_" + l.OrderLineID }
-										value={ l.RemainingText() }
+										value={ v.QtyValue(&l) }
 										min="0"
 										max={ l.RemainingText() }
+										if v.ShipQtyError != "" {
+											aria-invalid="true"
+											aria-describedby="ship-qty-error"
+										}
 									/>
 									// A line holding less than it owes cannot ship: no movement is posted.
 									if l.Short() {
@@ -551,6 +570,9 @@ templ AdminOrder(p layouts.Page, v *AdminOrderView) {
 										</p>
 									}
 								</div>
+							}
+							if v.ShipQtyError != "" {
+								<p id="ship-qty-error" class="ui-error-text" role="alert">{ v.ShipQtyError }</p>
 							}
 							@components.Button(components.ButtonProps{Variant: components.VariantPrimary, Block: true}, "submit") {
 								{ i18n.T(ctx, i18n.KeyAdminQueueDispatch) }

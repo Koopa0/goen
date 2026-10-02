@@ -210,10 +210,14 @@ templ AdminReturns(p layouts.Page, v AdminReturnsView) {
 												id={ "recv-" + l.OrderLineID }
 												type="number"
 												name={ "received_" + l.OrderLineID }
-												value={ l.MaxQuantityText() }
+												value={ l.ReceivedField() }
 												min="0"
 												max={ l.MaxQuantityText() }
 												required
+												if v.FieldInvalid(r.ID, "inspect") {
+													aria-invalid="true"
+													aria-describedby={ "inspect-error-" + r.ID }
+												}
 											/>
 										</div>
 										if l.Restockable {
@@ -224,9 +228,13 @@ templ AdminReturns(p layouts.Page, v AdminReturnsView) {
 													id={ "stock-" + l.OrderLineID }
 													type="number"
 													name={ "restocked_" + l.OrderLineID }
-													value="0"
+													value={ l.RestockedField() }
 													min="0"
 													max={ l.MaxQuantityText() }
+													if v.FieldInvalid(r.ID, "inspect") {
+														aria-invalid="true"
+														aria-describedby={ "inspect-error-" + r.ID }
+													}
 												/>
 											</div>
 										} else {
@@ -238,12 +246,16 @@ templ AdminReturns(p layouts.Page, v AdminReturnsView) {
 												class="ui-input"
 												id={ "note-" + l.OrderLineID }
 												name={ "note_" + l.OrderLineID }
+												value={ l.DraftNote }
 												maxlength="500"
 												autocomplete="off"
 												placeholder={ i18n.T(ctx, i18n.KeyAdminRetNotePlaceholder) }
 											/>
 										</div>
 									</fieldset>
+								}
+								if v.FieldInvalid(r.ID, "inspect") {
+									<p class="ui-error-text" id={ "inspect-error-" + r.ID } role="alert">{ v.FieldError(r.ID, "inspect") }</p>
 								}
 								<div class="goen-admin__decidebtns">
 									@components.Button(components.ButtonProps{Variant: components.VariantPrimary}, "submit") {
