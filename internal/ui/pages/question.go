@@ -6,7 +6,6 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-// Answer is one reply to a question.
 type Answer struct {
 	Author string
 	Body   string
@@ -15,7 +14,6 @@ type Answer struct {
 	At      string
 }
 
-// Who is the name to show beside an answer; a staff answer is the shop's.
 func (a Answer) Who(ctx context.Context) string {
 	if a.IsStaff {
 		return "goen"
@@ -26,7 +24,6 @@ func (a Answer) Who(ctx context.Context) string {
 	return maskedName(i18n.FromContext(ctx), a.Author)
 }
 
-// Question is one question and everything said in reply.
 type Question struct {
 	Asker   string
 	Body    string
@@ -34,7 +31,6 @@ type Question struct {
 	Answers []Answer
 }
 
-// Who is the name to show beside a question.
 func (q Question) Who(ctx context.Context) string {
 	if q.Asker == "" {
 		return i18n.T(ctx, i18n.KeyErasedAccount)
@@ -42,5 +38,4 @@ func (q Question) Who(ctx context.Context) string {
 	return maskedName(i18n.FromContext(ctx), q.Asker)
 }
 
-// Answered reports whether anybody has replied.
 func (q Question) Answered() bool { return len(q.Answers) > 0 }

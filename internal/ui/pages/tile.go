@@ -10,10 +10,9 @@ import (
 	"github.com/koopa0/goen/internal/money"
 )
 
-// ProductTile is one product card and the cheapest buyable variant's price.
 type ProductTile struct {
-	// Eager and Priority are set by FirstRowEager for the tiles a listing shows
-	// without scrolling, whose photograph is the page's largest paint.
+	// Eager and Priority are set by FirstRowEager for the tiles shown without
+	// scrolling, whose photograph is the page's largest paint.
 	Eager      bool
 	Priority   bool
 	Slug       string
@@ -21,8 +20,7 @@ type ProductTile struct {
 	Summary    string
 	Brand      string
 	PriceCents int64
-	// PriceVaries reports that PriceCents is the cheapest of several, which is
-	// what makes it a "from" rather than the product's price.
+	// PriceVaries marks PriceCents as the cheapest of several: a "from" price.
 	PriceVaries  bool
 	CompareCents int64 // 0 when the product is not on sale
 	Rating       float64
@@ -34,56 +32,41 @@ type ProductTile struct {
 	ImageAlt    string
 	ImageWidth  int32 // 0 when the stored media has no declared width
 	ImageHeight int32 // 0 when the stored media has no declared height
-	// Comparable renders the checkbox that builds a comparison. Set by the
-	// listing and by search, which are where somebody is choosing between
-	// candidates; a shop window, a promotional list and a wishlist are not.
+	// Set only where somebody is choosing between candidates (listing, search); not a
+	// shop window, a promotional list or a wishlist.
 	Comparable bool
 }
 
-// AnyComparable reports whether any tile carries the compare box.
 func AnyComparable(tiles []ProductTile) bool {
 	return slices.ContainsFunc(tiles, func(t ProductTile) bool { return t.Comparable })
 }
 
-// CompareLabel is the checkbox's accessible name, which names the product.
 func (t ProductTile) CompareLabel(ctx context.Context) string {
 	return fmt.Sprintf(i18n.T(ctx, i18n.KeyCompareAddNamed), t.Name)
 }
 
-// OnSale reports whether the tile shows a struck-through compare-at price.
 func (t ProductTile) OnSale() bool { return t.InStock && t.CompareCents > t.PriceCents }
 
-// SoldOut reports whether nothing on this product can be bought.
 func (t ProductTile) SoldOut() bool { return !t.InStock }
 
-// HasImage reports whether the tile has a product image to show.
 func (t ProductTile) HasImage() bool { return t.ImageURL != "" }
 
-// HasImageDimensions reports whether both are available; they emit together.
 func (t ProductTile) HasImageDimensions() bool { return t.ImageWidth > 0 && t.ImageHeight > 0 }
 
-// ImageWidthText and ImageHeightText are the intrinsic dimensions.
 func (t ProductTile) ImageWidthText() string { return strconv.FormatInt(int64(t.ImageWidth), 10) }
 
 func (t ProductTile) ImageHeightText() string { return strconv.FormatInt(int64(t.ImageHeight), 10) }
 
-// Price is the display price, e.g. "NT$33,980".
 func (t ProductTile) Price() string { return twd(t.PriceCents) }
 
-// Compare is the struck-through original price, shown only when OnSale.
 func (t ProductTile) Compare() string { return twd(t.CompareCents) }
 
-// RatingText is the average rating to one decimal, e.g. "4.7".
 func (t ProductTile) RatingText() string { return strconv.FormatFloat(t.Rating, 'f', 1, 64) }
 
-// TWD is twd for callers outside this package.
 func TWD(cents int64) string { return twd(cents) }
 
-// twd is the templates' short name for the one renderer, which lives in
-// internal/money so internal/email can print the same figures.
 func twd(cents int64) string { return money.TWD(cents) }
 
-// FreeDeliveryText is the threshold a guarantee strip states, empty for none.
 func FreeDeliveryText(cents int64) string {
 	if cents <= 0 {
 		return ""
@@ -91,22 +74,19 @@ func FreeDeliveryText(cents int64) string {
 	return twd(cents)
 }
 
-// eagerTiles is how many leading tiles load their photograph at once: the first
-// two rows at the widest grid, which is also the first four of a phone's. A
-// second row starts inside a 900px-tall window, and a lazy photograph there
-// appears after the page has already painted.
+// The first two rows at the widest grid, which is also the first four of a
+// phone's: a second row starts inside a 900px-tall window, and a lazy photograph
+// there appears after the page has painted.
 const eagerTiles = 8
 
-// FirstRowEager returns tiles with the leading ones marked to load eagerly, the
-// first at high priority. Every later tile stays lazy. The caller's slice is not
-// changed.
+// FirstRowEager marks the leading tiles eager, the first at high priority. The
+// caller's slice is not changed.
 func FirstRowEager(tiles []ProductTile) []ProductTile {
 	return eagerLeading(tiles, true)
 }
 
-// UnderLeadEager is FirstRowEager for tiles that sit under a hero photograph or
-// a lead row: that is the page's one high-priority image, and a second would
-// split the bandwidth it is meant to have.
+// UnderLeadEager is FirstRowEager for tiles under a hero photograph or lead row:
+// that is the page's one high-priority image, and a second would split bandwidth.
 func UnderLeadEager(tiles []ProductTile) []ProductTile {
 	return eagerLeading(tiles, false)
 }

@@ -6,7 +6,6 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// Notice is a centred message page.
 templ Notice(p layouts.Page, code, heading, body string) {
 	@layouts.Base(p) {
 		<div class="notice">
@@ -27,9 +26,8 @@ templ Notice(p layouts.Page, code, heading, body string) {
 	}
 }
 
-// departmentLinks lists the header's own category row, so a visitor who landed
-// on a missing page has somewhere to go that is known to exist. It renders
-// nothing outside the middleware that carries the row.
+// Reads the header's category row, so a visitor on a missing page has somewhere
+// known to go; renders nothing outside the middleware that carries the row.
 templ departmentLinks() {
 	if items := layouts.TopNavFrom(ctx); len(items) > 0 {
 		<nav class="notice__departments" aria-labelledby="notice-departments">
@@ -43,9 +41,6 @@ templ departmentLinks() {
 	}
 }
 
-// PlacementGrantFailed is the 500 after a committed checkout when the browser's
-// order-access proof could not be written. It names what happened and points to
-// verified find-order without leaking the order number.
 templ PlacementGrantFailed(p layouts.Page) {
 	@layouts.Base(p) {
 		<div class="notice">
@@ -61,9 +56,6 @@ templ PlacementGrantFailed(p layouts.Page) {
 	}
 }
 
-// FindOrderGrantFailed is the 500 after verified find-order when the browser's
-// order-access proof could not be written. It offers retry without claiming a
-// new placement occurred.
 templ FindOrderGrantFailed(p layouts.Page) {
 	@layouts.Base(p) {
 		<div class="notice">
@@ -79,7 +71,6 @@ templ FindOrderGrantFailed(p layouts.Page) {
 	}
 }
 
-// OrderNotFound is the 404 for an order this browser may not see.
 templ OrderNotFound(p layouts.Page) {
 	@layouts.Base(p) {
 		<div class="notice">

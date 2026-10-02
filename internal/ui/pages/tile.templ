@@ -7,10 +7,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/components"
 )
 
-// compareForm submits the ticked slugs to /compare. A GET, because a
-// comparison writes nothing — the set is the URL and there is no state to keep.
-// It wraps the grid only when some tile carries a box: a "compare selected"
-// bar with nothing to tick is a control that does nothing.
+// A GET, because the set is the URL and a comparison writes nothing. It wraps the
+// grid only when some tile carries a box: a bar with nothing to tick does nothing.
 templ compareForm(offered bool) {
 	if offered {
 		<form class="goen-compare-pick" id="compare-pick" method="get" action="/compare">
@@ -30,12 +28,10 @@ templ compareForm(offered bool) {
 	}
 }
 
-// tileCard is the product card body. Tile wraps it in the grid cell; the
-// wishlist wraps the same body in one list item with its remove form.
 templ tileCard(t ProductTile) {
 	if t.Comparable {
-		// Outside the card, never inside: the whole card is one link, and a
-		// control nested in an anchor is neither clickable nor valid.
+		// Outside the card, never inside: the whole card is one link, and a control
+		// nested in an anchor is neither clickable nor valid.
 		<label class="goen-tile__compare">
 			<input type="checkbox" name="p" value={ t.Slug } class="goen-check" aria-label={ t.CompareLabel(ctx) } form="compare-pick"/>
 			<span class="goen-sr-only">{ i18n.T(ctx, i18n.KeyCompareAdd) }</span>
@@ -93,7 +89,6 @@ templ tileCard(t ProductTile) {
 	</a>
 }
 
-// Tile is one product card; the whole card is a single link.
 templ Tile(t ProductTile) {
 	<li class="goen-tile__cell">
 		@tileCard(t)

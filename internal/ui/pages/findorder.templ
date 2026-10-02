@@ -7,10 +7,6 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// FindOrder is the lookup a guest who has lost their cookie uses. It wears the
-// same card as every other credential form: the reader is being asked for two
-// things they have to go and find, and a full-width page makes that look like
-// more work than it is.
 templ FindOrder(p layouts.Page, v FindOrderView) {
 	@layouts.Base(p) {
 		<div class="goen-findorder">
@@ -25,10 +21,8 @@ templ FindOrder(p layouts.Page, v FindOrderView) {
 						{ v.Error }
 					}
 				}
-				// goen-auth__form is the class the layout gate reads on every
-				// credential form, and its declarations are shared with sign in,
-				// register and reset — so this page carries the spelling and adds
-				// nothing that would repaint the three it shares it with.
+				// goen-auth__form is the class the layout gate reads on every credential form,
+				// shared with sign in, register and reset; adding styles here would repaint all four.
 				<form class="goen-auth__form" method="post" action="/orders/find">
 					<div class="goen-field">
 						@components.Label(components.LabelProps{For: "find-number"}) {

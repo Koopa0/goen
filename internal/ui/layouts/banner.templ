@@ -5,8 +5,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/icons"
 )
 
-// promoBanner is one row above the header. The whole strip is the form that
-// dismisses it, so there is one control and no script.
+// The whole strip is the form that dismisses it: one control, no script.
 templ promoBanner() {
 	{{ b := bannerFrom(ctx) }}
 	if b.Shown() {

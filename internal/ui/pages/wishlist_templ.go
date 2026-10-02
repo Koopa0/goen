@@ -15,15 +15,13 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// WishlistItem is a saved product. SoleVariantID is set when the product has one
-// variant and it is in stock: the only case where the row can add it to the cart
-// without asking which.
+// SoleVariantID is set only when the product has one variant and it is in stock:
+// the one case where the row can add it to the cart without asking which.
 type WishlistItem struct {
 	ProductTile
 	SoleVariantID string
 }
 
-// WishlistView is a customer's saved products.
 type WishlistView struct {
 	Products []WishlistItem
 	// Added is what the last add-to-cart from this page did, as the cart's
@@ -31,12 +29,8 @@ type WishlistView struct {
 	Added AddOutcome
 }
 
-// Empty reports whether nothing has been saved.
 func (v WishlistView) Empty() bool { return len(v.Products) == 0 }
 
-// Wishlist renders the saved products and the form that removes one. Each saved
-// product is ONE list item holding the card and its own remove form: a global
-// grid of cards with a separate list of forms is the topology #320 filed.
 func Wishlist(p layouts.Page, v WishlistView) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -77,7 +71,7 @@ func Wishlist(p layouts.Page, v WishlistView) templ.Component {
 			var templ_7745c5c3_Var3 string
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAccountTitle))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/wishlist.templ`, Line: 36, Col: 73}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/wishlist.templ`, Line: 30, Col: 73}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 			if templ_7745c5c3_Err != nil {
@@ -90,7 +84,7 @@ func Wishlist(p layouts.Page, v WishlistView) templ.Component {
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyWishlistTitle))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/wishlist.templ`, Line: 37, Col: 73}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/wishlist.templ`, Line: 31, Col: 73}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {
@@ -116,7 +110,7 @@ func Wishlist(p layouts.Page, v WishlistView) templ.Component {
 				var templ_7745c5c3_Var5 string
 				templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyWishlistEmpty))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/wishlist.templ`, Line: 45, Col: 71}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/wishlist.templ`, Line: 39, Col: 71}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 				if templ_7745c5c3_Err != nil {
@@ -129,7 +123,7 @@ func Wishlist(p layouts.Page, v WishlistView) templ.Component {
 				var templ_7745c5c3_Var6 string
 				templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyWishlistEmptyHint))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/wishlist.templ`, Line: 46, Col: 74}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/wishlist.templ`, Line: 40, Col: 74}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 				if templ_7745c5c3_Err != nil {
@@ -154,7 +148,7 @@ func Wishlist(p layouts.Page, v WishlistView) templ.Component {
 					var templ_7745c5c3_Var8 string
 					templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyWishlistEmptyLink))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/wishlist.templ`, Line: 50, Col: 47}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/wishlist.templ`, Line: 44, Col: 47}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 					if templ_7745c5c3_Err != nil {
@@ -190,7 +184,7 @@ func Wishlist(p layouts.Page, v WishlistView) templ.Component {
 						var templ_7745c5c3_Var10 string
 						templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAddedToCart))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/wishlist.templ`, Line: 57, Col: 42}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/wishlist.templ`, Line: 51, Col: 42}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 						if templ_7745c5c3_Err != nil {
@@ -203,7 +197,7 @@ func Wishlist(p layouts.Page, v WishlistView) templ.Component {
 						var templ_7745c5c3_Var11 string
 						templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyViewCart))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/wishlist.templ`, Line: 58, Col: 55}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/wishlist.templ`, Line: 52, Col: 55}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 						if templ_7745c5c3_Err != nil {
@@ -235,7 +229,7 @@ func Wishlist(p layouts.Page, v WishlistView) templ.Component {
 						var templ_7745c5c3_Var13 string
 						templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAddAdjusted))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/wishlist.templ`, Line: 62, Col: 42}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/wishlist.templ`, Line: 56, Col: 42}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 						if templ_7745c5c3_Err != nil {
@@ -248,7 +242,7 @@ func Wishlist(p layouts.Page, v WishlistView) templ.Component {
 						var templ_7745c5c3_Var14 string
 						templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyViewCart))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/wishlist.templ`, Line: 63, Col: 55}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/wishlist.templ`, Line: 57, Col: 55}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 						if templ_7745c5c3_Err != nil {
@@ -280,7 +274,7 @@ func Wishlist(p layouts.Page, v WishlistView) templ.Component {
 						var templ_7745c5c3_Var16 string
 						templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAddRefused))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/wishlist.templ`, Line: 67, Col: 41}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/wishlist.templ`, Line: 61, Col: 41}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 						if templ_7745c5c3_Err != nil {
@@ -308,7 +302,7 @@ func Wishlist(p layouts.Page, v WishlistView) templ.Component {
 						var templ_7745c5c3_Var18 string
 						templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyCartLineLimit))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/wishlist.templ`, Line: 71, Col: 44}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/wishlist.templ`, Line: 65, Col: 44}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 						if templ_7745c5c3_Err != nil {
@@ -328,7 +322,7 @@ func Wishlist(p layouts.Page, v WishlistView) templ.Component {
 				var templ_7745c5c3_Var19 string
 				templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyResultsHeading))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/wishlist.templ`, Line: 74, Col: 67}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/wishlist.templ`, Line: 68, Col: 67}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 				if templ_7745c5c3_Err != nil {
@@ -355,7 +349,7 @@ func Wishlist(p layouts.Page, v WishlistView) templ.Component {
 						var templ_7745c5c3_Var20 string
 						templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyInStock))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/wishlist.templ`, Line: 81, Col: 40}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/wishlist.templ`, Line: 75, Col: 40}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 						if templ_7745c5c3_Err != nil {
@@ -365,7 +359,7 @@ func Wishlist(p layouts.Page, v WishlistView) templ.Component {
 						var templ_7745c5c3_Var21 string
 						templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeySoldOut))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/wishlist.templ`, Line: 83, Col: 40}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/wishlist.templ`, Line: 77, Col: 40}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
 						if templ_7745c5c3_Err != nil {
@@ -384,7 +378,7 @@ func Wishlist(p layouts.Page, v WishlistView) templ.Component {
 						var templ_7745c5c3_Var22 string
 						templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.ResolveAttributeValue(t.SoleVariantID)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/wishlist.templ`, Line: 88, Col: 69}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/wishlist.templ`, Line: 82, Col: 69}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var22)
 						if templ_7745c5c3_Err != nil {
@@ -409,7 +403,7 @@ func Wishlist(p layouts.Page, v WishlistView) templ.Component {
 							var templ_7745c5c3_Var24 string
 							templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAddToCart))
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/wishlist.templ`, Line: 92, Col: 43}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/wishlist.templ`, Line: 86, Col: 43}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
 							if templ_7745c5c3_Err != nil {
@@ -441,7 +435,7 @@ func Wishlist(p layouts.Page, v WishlistView) templ.Component {
 							var templ_7745c5c3_Var26 string
 							templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyChooseOptions))
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/wishlist.templ`, Line: 97, Col: 46}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/wishlist.templ`, Line: 91, Col: 46}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var26))
 							if templ_7745c5c3_Err != nil {
@@ -461,7 +455,7 @@ func Wishlist(p layouts.Page, v WishlistView) templ.Component {
 					var templ_7745c5c3_Var27 string
 					templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.ResolveAttributeValue(t.Slug)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/wishlist.templ`, Line: 109, Col: 56}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/wishlist.templ`, Line: 103, Col: 56}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var27)
 					if templ_7745c5c3_Err != nil {
@@ -474,7 +468,7 @@ func Wishlist(p layouts.Page, v WishlistView) templ.Component {
 					var templ_7745c5c3_Var28 string
 					templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyRemove))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/wishlist.templ`, Line: 116, Col: 39}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/wishlist.templ`, Line: 109, Col: 39}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var28))
 					if templ_7745c5c3_Err != nil {

@@ -17,7 +17,6 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// CartLine is one line in the cart.
 type CartLine struct {
 	VariantID    string
 	Slug         string
@@ -30,8 +29,6 @@ type CartLine struct {
 	Quantity     int32
 	Available    int32
 
-	// Unavailable is a line the catalogue can no longer honour at all; Short is
-	// one where fewer remain than the cart asks for. Both block checkout.
 	Unavailable bool
 	Short       bool
 
@@ -40,10 +37,8 @@ type CartLine struct {
 	ImageAlt    string
 }
 
-// UnitPrice is what one of this line costs.
 func (l CartLine) UnitPrice() string { return twd(l.UnitCents) }
 
-// LineTotal is the unit price times the quantity that can actually be supplied.
 func (l CartLine) LineTotal() string { return twd(l.UnitCents * int64(l.effectiveQuantity())) }
 
 func (l CartLine) effectiveQuantity() int32 {
@@ -56,28 +51,21 @@ func (l CartLine) effectiveQuantity() int32 {
 	return l.Quantity
 }
 
-// PricedQuantityText is how many this line is priced for, which differs from
-// what the cart holds exactly when the shelf cannot meet it.
 func (l CartLine) PricedQuantityText() string {
 	return strconv.FormatInt(int64(l.effectiveQuantity()), 10)
 }
 
-// QuantityText is how many the cart holds.
 func (l CartLine) QuantityText() string { return strconv.FormatInt(int64(l.Quantity), 10) }
 
-// AvailableText is how many remain.
 func (l CartLine) AvailableText() string { return strconv.FormatInt(int64(l.Available), 10) }
 
-// MaxQuantity bounds the line's quantity input to what can be supplied.
 func (l CartLine) MaxQuantity() string {
 	n := max(min(l.Available, 999), 1)
 	return strconv.FormatInt(int64(n), 10)
 }
 
-// HasImage reports whether the thumbnail has an image.
 func (l CartLine) HasImage() bool { return l.ImageURL != "" }
 
-// CartView is the cart page.
 type CartView struct {
 	Lines         []CartLine
 	SubtotalCents int64
@@ -92,26 +80,20 @@ type CartView struct {
 	FreeDelivery FreeDelivery
 }
 
-// FreeDeliveryKind is what the cart can truthfully say about free delivery.
 type FreeDeliveryKind string
 
 const (
-	// FreeDeliveryUnstated is silence: the delivery methods on offer do not
-	// agree, so no single sentence is true for every destination.
+	// FreeDeliveryUnstated is silence: the methods on offer disagree, so no sentence is true for every destination.
 	FreeDeliveryUnstated FreeDeliveryKind = ""
-	// FreeDeliveryShort is a cart still below the amount at which every method is free.
-	FreeDeliveryShort FreeDeliveryKind = "short"
-	// FreeDeliveryReached is a cart for which every method is already free.
-	FreeDeliveryReached FreeDeliveryKind = "reached"
+	FreeDeliveryShort    FreeDeliveryKind = "short"
+	FreeDeliveryReached  FreeDeliveryKind = "reached"
 )
 
-// FreeDelivery is the cart's one line about free delivery.
 type FreeDelivery struct {
 	Kind           FreeDeliveryKind
 	ShortfallCents int64
 }
 
-// Text is the line, or "" when there is none to say.
 func (f FreeDelivery) Text(ctx context.Context) string {
 	switch f.Kind {
 	case FreeDeliveryShort:
@@ -123,13 +105,10 @@ func (f FreeDelivery) Text(ctx context.Context) string {
 	}
 }
 
-// HasNotice reports whether to show the notice banner.
 func (v CartView) HasNotice() bool { return v.Notice != "" }
 
-// FromReorder reports whether this page is showing the result of a reorder.
 func (v CartView) FromReorder() bool { return v.ReorderAdded > 0 || v.ReorderSkipped > 0 }
 
-// ReorderText is what the reorder came to, in a sentence.
 func (v CartView) ReorderText(ctx context.Context) string {
 	switch {
 	case v.ReorderAdjusted && v.ReorderSkipped > 0:
@@ -145,21 +124,16 @@ func (v CartView) ReorderText(ctx context.Context) string {
 	}
 }
 
-// CartMeta is the chrome view model for the cart.
 func CartMeta(ctx context.Context) layouts.Page {
 	return layouts.Page{Title: i18n.T(ctx, i18n.KeyCart)}
 }
 
-// Empty reports whether the cart holds nothing.
 func (v CartView) Empty() bool { return len(v.Lines) == 0 }
 
-// Subtotal is the money the lines add up to.
 func (v CartView) Subtotal() string { return twd(v.SubtotalCents) }
 
-// ItemCountText is how many units are in the cart.
 func (v CartView) ItemCountText() string { return strconv.FormatInt(v.ItemCount, 10) }
 
-// Blocked reports whether any line stops checkout.
 func (v CartView) Blocked() bool {
 	for i := range v.Lines {
 		if v.Lines[i].Unavailable || v.Lines[i].Short {
@@ -169,10 +143,8 @@ func (v CartView) Blocked() bool {
 	return false
 }
 
-// CanCheckout reports whether the checkout button is live.
 func (v CartView) CanCheckout() bool { return !v.Empty() && !v.Blocked() }
 
-// ShippingChoice is one delivery method at checkout.
 type ShippingChoice struct {
 	VersionID       string
 	Code            string
@@ -181,28 +153,22 @@ type ShippingChoice struct {
 	Carrier         string
 	FeeCents        int64
 	Free            bool
-	// FreeOverCents is the subtotal from which this method is free, zero for a
-	// method that never is.
+	// FreeOverCents is zero for a method that is never free.
 	FreeOverCents int64
 }
 
-// Fee is what this method costs for the current subtotal.
 func (c ShippingChoice) Fee() string { return twd(c.FeeCents) }
 
-// CheckoutView is the checkout form.
 type CheckoutView struct {
 	Cart                CartView
 	Shipping            []ShippingChoice
 	Chosen              string
 	QuotedShippingCents int64
 	SurchargeCents      int64
-	// Repriced is a cart/price/credit quote the customer has not seen yet. Not an
-	// Errors entry: nothing they typed was wrong. Rendered as a notice and still
-	// a 422 — nobody is charged for a quote they did not confirm.
+	// Repriced is a quote the customer has not seen yet, not an Errors entry: nothing
+	// they typed was wrong. Still a 422, so nobody is charged for an unconfirmed quote.
 	Repriced string
-	// CreditChanged is the refreshed store-credit balance after it moved during
-	// placement. Like Repriced, it is a notice rather than a field error: the
-	// customer must see the new figure before submitting again.
+	// CreditChanged is a notice like Repriced: the customer must see the new figure before submitting again.
 	CreditChanged string
 	ZoneName      string
 	// Destination is decided by the server; no field carries it back.
@@ -225,43 +191,33 @@ type CheckoutView struct {
 	CouponDiscountCents  int64
 	CouponFreeShipping   bool
 	AvailableCreditCents int64
-	// QuoteID is the opaque identity of every commercial fact rendered below.
-	// The cart package creates it; the page only carries it back unchanged.
+	// QuoteID is opaque to the page: the cart package creates it and the page carries it back unchanged.
 	QuoteID        string
 	IdempotencyKey string
-	// MapOffered is whether the carrier's store picker can be opened for the
-	// chain chosen: a carrier is configured and the chain is one it serves. The
-	// picker's own form is built only where it is opened, by PickupStart.
+	// MapOffered needs a configured carrier that serves the chosen chain. The picker's
+	// own form is built only where it is opened, by PickupStart.
 	MapOffered bool
-	// PickupNonce is the browser-bound secret that decides whether the store
-	// above was honoured. It travels to the carrier in ExtraData and back in
-	// the URL, and it is checked against a cookie this browser alone holds.
+	// PickupNonce decides whether the store was honoured: it travels to the carrier in
+	// ExtraData and back in the URL, and is checked against a cookie only this browser holds.
 	PickupNonce string
-	// PickupStoreAddr is DISPLAY ONLY. It is read from the URL for the summary
-	// the shopper reads before paying, is never a hidden field, is never
-	// posted, and is never stored: the schema keeps a code and a name.
+	// PickupStoreAddr is DISPLAY ONLY: read from the URL for the summary, never a
+	// hidden field, never posted, never stored (the schema keeps a code and a name).
 	PickupStoreAddr string
-	// PickupRefused says a store arrived that this browser cannot vouch for.
-	// The page says so and echoes none of what arrived.
+	// PickupRefused: a store arrived that this browser cannot vouch for; the page echoes none of it.
 	PickupRefused bool
 }
 
-// PickupStartAction is where 「選擇門市」 submits the checkout form. It is goen's
-// own route, so what the shopper typed reaches goen and only goen; the carrier's
-// map form is built on the page that route answers.
+// PickupStartAction is goen's own route, so what the shopper typed reaches only
+// goen; the carrier's map form is built on the page it answers.
 const PickupStartAction = "/checkout/pickup/start"
 
-// PickupMapPath is the page the start route hands the browser to with a 303: a
-// GET that holds the carrier's form, so Back from the map lands on a page and
-// not on a POST.
+// PickupMapPath is a GET holding the carrier's form, so Back from the map lands on
+// a page and not on a POST.
 const PickupMapPath = "/checkout/pickup/map"
 
-// checkoutStoreButtonAttrs is what the store button carries: the route it
-// submits the checkout form to, and the refusal state of the store itself.
-// formnovalidate, because a shopper who has not typed an email yet must still be
-// able to go and choose a store; nothing is placed by this submit. The button is
-// the control a store refusal belongs to, because a store is chosen through the
-// picker this opens rather than typed into a field.
+// formnovalidate: a shopper who has not typed an email yet must still be able to
+// choose a store; nothing is placed by this submit. The button carries the store
+// refusal because the store is chosen through the picker, not typed.
 func checkoutStoreButtonAttrs(invalid string, refused bool) templ.Attributes {
 	attrs := templ.Attributes{
 		"formaction": PickupStartAction, "formmethod": "post", "formnovalidate": true,
@@ -273,17 +229,15 @@ func checkoutStoreButtonAttrs(invalid string, refused bool) templ.Attributes {
 	return attrs
 }
 
-// CheckoutMapForm is the carrier's hosted store picker, as the one sibling form
-// that posts to it. Every field here is a parameter ECPay's map documents; the
-// struct exists so the template cannot invent an eighth one carrying something
-// the shopper typed.
+// CheckoutMapForm holds only parameters ECPay's map documents, so the
+// template cannot add one carrying something the shopper typed.
 type CheckoutMapForm struct {
 	Action          string
 	MerchantID      string
 	MerchantTradeNo string
 	LogisticsType   string
-	// LogisticsSubType is the chain, in the spelling the merchant's own
-	// contract uses. B2C and C2C spell the same chain differently.
+	// LogisticsSubType is the chain in the spelling the merchant's contract uses; B2C
+	// and C2C spell the same chain differently.
 	LogisticsSubType string
 	IsCollection     string
 	ServerReplyURL   string
@@ -292,20 +246,15 @@ type CheckoutMapForm struct {
 	Device string
 }
 
-// OffersTheStoreMap reports whether this render shows the picker's button.
 func (v *CheckoutView) OffersTheStoreMap() bool {
 	return v.ToPickupPoint() && v.MapOffered
 }
 
-// HasPickupStore reports whether a store has been chosen and honoured. Both
-// halves, because order_private_data refuses a row carrying one without the
-// other.
+// HasPickupStore needs both halves, because order_private_data refuses a row carrying one without the other.
 func (v *CheckoutView) HasPickupStore() bool {
 	return v.Address.PickupStoreCode != "" && v.Address.PickupStoreName != ""
 }
 
-// checkoutFieldHint tells a browser what one helper-rendered checkout control
-// contains and, where its type is not enough, which keyboard to open.
 type checkoutFieldHint struct {
 	Autocomplete      string
 	InputMode         string
@@ -313,15 +262,11 @@ type checkoutFieldHint struct {
 	SpellCheck        string
 	Pattern           string
 	ConstraintMessage i18n.Key
-	// Rule is the shared client-side contract of a field the server validates
-	// beyond its length; it supplies the pattern, message and script hooks.
-	Rule *fieldrule.Rule
+	Rule              *fieldrule.Rule
 }
 
-// Constrained reports whether the control carries a message the browser may show.
 func (h checkoutFieldHint) Constrained() bool { return h.Pattern != "" || h.Rule != nil }
 
-// ConstraintText is that message.
 func (h checkoutFieldHint) ConstraintText(ctx context.Context) string {
 	if h.Rule != nil {
 		return i18n.T(ctx, h.Rule.Message)
@@ -329,14 +274,12 @@ func (h checkoutFieldHint) ConstraintText(ctx context.Context) string {
 	return i18n.T(ctx, h.ConstraintMessage)
 }
 
-// checkoutFieldHints is keyed by the field's own form name. Every
-// helper-rendered control must make an explicit autofill decision.
+// Every helper-rendered control must make an explicit autofill decision.
 //
-// Do not add enterkeyhint here: Enter in any checkout field places the order,
-// so a "next" hint would label a key that charges the customer.
-// The patterns accept what cart.Trim() accepts: the server trims first, so a
-// surrounding space is not an error, and its bounds (maxPostalCodeRunes,
-// maxCityRunes) are the ones repeated here.
+// Do not add enterkeyhint: Enter in any checkout field places the order, so a
+// "next" hint would label a key that charges the customer.
+// The patterns accept what cart.Trim() accepts (the server trims first) and repeat
+// its bounds (maxPostalCodeRunes, maxCityRunes).
 var checkoutFieldHints = map[string]checkoutFieldHint{
 	"email":       {Autocomplete: "email", Rule: &fieldrule.Email},
 	"name":        {Autocomplete: "name"},
@@ -348,14 +291,10 @@ var checkoutFieldHints = map[string]checkoutFieldHint{
 
 func checkoutHintsFor(name string) checkoutFieldHint { return checkoutFieldHints[name] }
 
-// checkoutChoiceSwap is what turns a chooser into the choice itself where
-// scripting is on: changing it sends exactly what its 更新 button sends —
-// everything typed into the form, plus the name of the chooser — and puts the
-// re-rendered form back in place. The request is the same POST, so the write
-// face is unchanged and the button below remains the path with scripting off.
-//
+// The request is the same POST as the 更新 button's, so the write face is unchanged
+// and the button remains the path with scripting off.
 // show:none keeps the swap where the customer is looking: they pressed a radio
-// half way down the form to reveal a field beside it.
+// half way down the form.
 func checkoutChoiceSwap(which string) templ.Attributes {
 	return templ.Attributes{
 		"hx-include": "#checkout-form",
@@ -368,14 +307,10 @@ func checkoutChoiceSwap(which string) templ.Attributes {
 	}
 }
 
-// couponButtonAttrs makes 套用 a request of its own. With scripting it asks the
-// server what the code does and swaps only the code's field, the totals and the
-// quote the order button will be checked against; the rest of the form is
-// neither validated nor replaced. Without scripting the same submit comes back
-// at the coupon field.
-//
-// The hidden quote is among what is swapped: the code changes it, and a stale
-// one would make the next 送出訂單 answer "the checkout changed".
+// With scripting, 套用 swaps only the code's field, the totals and the quote; without
+// it the same submit comes back at the coupon field.
+// The hidden quote is swapped too: a stale one would make the next 送出訂單 answer
+// "the checkout changed".
 func couponButtonAttrs(ctx context.Context) templ.Attributes {
 	return templ.Attributes{
 		"name":              "update",
@@ -392,13 +327,11 @@ func couponButtonAttrs(ctx context.Context) templ.Attributes {
 	}
 }
 
-// InvoiceChoice is one option in the invoice-type radio group.
 type InvoiceChoice struct {
 	Value invoice.Preference
 	Label string
 }
 
-// CheckoutAddress is the form's own values, echoed back on rejection.
 type CheckoutAddress struct {
 	Email      string
 	Name       string
@@ -415,23 +348,21 @@ type CheckoutAddress struct {
 	Note string
 }
 
-// ToPickupPoint reports whether the chosen method delivers to a convenience store.
 func (v *CheckoutView) ToPickupPoint() bool { return v.Destination == destination.PickupPoint }
 
-// PickupChainChoice is one convenience-store chain the form offers.
 type PickupChainChoice struct {
 	Value pickup.Chain
 	Label string
 }
 
-// PickupChainChoices is every chain the shop can accept, which is what the back
-// office offers: an order already placed at one of them has to stay correctable.
+// PickupChainChoices is every chain the shop can accept, so an order placed at one
+// of them stays correctable in the back office.
 func PickupChainChoices() []PickupChainChoice {
 	return choicesFor(pickup.Offered())
 }
 
-// CheckoutPickupChainChoices is the part of that set a shopper may choose today:
-// the two chains whose own store picker the shop will integrate first.
+// CheckoutPickupChainChoices is the part shoppers may choose today: the two chains
+// whose store picker the shop integrates first.
 func CheckoutPickupChainChoices() []PickupChainChoice {
 	return choicesFor([]pickup.Chain{pickup.SevenEleven, pickup.FamilyMart})
 }
@@ -461,7 +392,6 @@ func pickupChainLabel(code pickup.Chain) string {
 	}
 }
 
-// Delivery is where one order goes, as read back from order_private_data.
 type Delivery struct {
 	PostalCode string
 	City       string
@@ -473,12 +403,10 @@ type Delivery struct {
 	PickupStoreName string
 }
 
-// IsPickup reports whether this order is collected from a convenience store.
-// The chain is the destination: the store behind it is filled in by the
-// carrier's picker, and is absent on an order placed before one exists.
+// IsPickup reads the chain as the destination: the store behind it comes from the
+// carrier's picker and is absent on an order placed before one existed.
 func (d Delivery) IsPickup() bool { return d.PickupChain != "" }
 
-// Line is the destination as one line a person can read.
 func (d Delivery) Line() string {
 	if d.IsPickup() {
 		line := pickupChainLabel(d.PickupChain)
@@ -493,7 +421,6 @@ func (d Delivery) Line() string {
 	return strings.TrimSpace(d.PostalCode + " " + d.City + d.District + d.Street)
 }
 
-// SavedAddress is one address from the customer's book, offered at checkout.
 type SavedAddress struct {
 	ID         string
 	Label      string
@@ -506,12 +433,10 @@ type SavedAddress struct {
 	Default    bool
 }
 
-// Line is the address as one line, for the chooser.
 func (a SavedAddress) Line() string {
 	return strings.TrimSpace(a.PostalCode + " " + a.City + a.District + a.Street)
 }
 
-// DisplayLabel is the address's own name, or a stand-in.
 func (a SavedAddress) DisplayLabel(ctx context.Context) string {
 	if a.Label == "" {
 		return i18n.T(ctx, i18n.KeyDeliveryToAddress)
@@ -519,7 +444,6 @@ func (a SavedAddress) DisplayLabel(ctx context.Context) string {
 	return a.Label
 }
 
-// OtherAddress is the address chooser's value for none of the saved ones.
 const OtherAddress = "new"
 
 type CheckoutProfile struct {
@@ -532,23 +456,18 @@ func (v *CheckoutView) OffersTheProfile() bool {
 	return v.Profile.Email != "" && (v.Profile.Name != "" || v.Profile.Phone != "")
 }
 
-// OffersTheAddressBook reports whether the chooser is worth rendering.
 func (v *CheckoutView) OffersTheAddressBook() bool {
 	return !v.ToPickupPoint() && len(v.SavedAddresses) > 0
 }
 
-// CheckoutMeta is the chrome view model for checkout.
 func CheckoutMeta(ctx context.Context) layouts.Page {
 	return layouts.Page{Title: i18n.T(ctx, i18n.KeyCheckoutTitle)}
 }
 
-// Err returns the message for a field, or "".
 func (v *CheckoutView) Err(field string) string { return v.Errors[field] }
 
-// HasErr reports whether a field was rejected, which drives aria-invalid.
 func (v *CheckoutView) HasErr(field string) bool { return v.Errors[field] != "" }
 
-// Invalid is the aria-invalid value for a field.
 func (v *CheckoutView) Invalid(field string) string {
 	if v.HasErr(field) {
 		return "true"
@@ -556,23 +475,18 @@ func (v *CheckoutView) Invalid(field string) string {
 	return "false"
 }
 
-// AnyErrors reports whether the form was rejected at all.
 func (v *CheckoutView) AnyErrors() bool { return len(v.Errors) > 0 }
 
-// OnlyCouponRefused reports a rejection that is the discount code and nothing
-// else, which the banner then names instead of sending the shopper through the
-// fields to find it.
+// OnlyCouponRefused lets the banner name the code instead of sending the shopper
+// through the fields to find it.
 func (v *CheckoutView) OnlyCouponRefused() bool {
 	return len(v.Errors) == 1 && v.HasErr("coupon")
 }
 
-// HasSurcharge reports whether this address costs extra to reach.
 func (v *CheckoutView) HasSurcharge() bool { return v.SurchargeCents > 0 }
 
-// Surcharge is the extra, for the summary line.
 func (v *CheckoutView) Surcharge() string { return twd(v.SurchargeCents) }
 
-// ShippingFeeCents is what the chosen method charges, for the total.
 func (v *CheckoutView) ShippingFeeCents() int64 {
 	if v.QuotedShippingCents > 0 {
 		return v.QuotedShippingCents
@@ -588,22 +502,18 @@ func (v *CheckoutView) ShippingFeeCents() int64 {
 	return 0
 }
 
-// BaseShippingCents is the delivery charge less the surcharge ShippingFeeCents carries.
 func (v *CheckoutView) BaseShippingCents() int64 {
 	return v.ShippingFeeCents() - v.SurchargeCents
 }
 
-// ShippingText is the chosen method's fee as money, after any free-delivery coupon.
 func (v *CheckoutView) ShippingText() string { return twd(v.BaseShippingCents()) }
 
-// ShipsFree reports whether delivery costs nothing.
 func (v *CheckoutView) ShipsFree() bool {
 	return v.CouponFreeShipping || v.BaseShippingCents() == 0
 }
 
-// ChargedShippingCents is the delivery amount PlaceOrder will store. A
-// free-shipping coupon removes the base rate but deliberately not a remote-zone
-// surcharge.
+// ChargedShippingCents is what PlaceOrder stores: a free-shipping coupon removes
+// the base rate but deliberately not a remote-zone surcharge.
 func (v *CheckoutView) ChargedShippingCents() int64 {
 	if v.CouponFreeShipping {
 		return v.SurchargeCents
@@ -611,33 +521,26 @@ func (v *CheckoutView) ChargedShippingCents() int64 {
 	return v.ShippingFeeCents()
 }
 
-// Total is what the visitor will owe.
 func (v *CheckoutView) Total() string {
 	return twd(v.TotalCents())
 }
 
-// GrossCents is the order total before store credit.
 func (v *CheckoutView) GrossCents() int64 {
 	return v.Cart.SubtotalCents + v.ChargedShippingCents() - v.CouponDiscountCents
 }
 
-// CreditCents is the store credit the displayed quote applies. An increase in
-// balance after rendering does not silently spend more; a decrease that cannot
-// fund this amount makes placement refresh the quote.
+// CreditCents is the credit the displayed quote applies: a rise in balance after
+// rendering never spends more; a fall that cannot fund it makes placement refresh the quote.
 func (v *CheckoutView) CreditCents() int64 {
 	return min(v.AvailableCreditCents, v.GrossCents())
 }
 
-// UsesCredit reports whether the checkout summary needs a credit line.
 func (v *CheckoutView) UsesCredit() bool { return v.CreditCents() > 0 }
 
-// Credit is the applied store credit as a negative money figure.
 func (v *CheckoutView) Credit() string { return "-" + twd(v.CreditCents()) }
 
-// TotalCents is what remains payable after the exact displayed credit spend.
 func (v *CheckoutView) TotalCents() int64 { return v.GrossCents() - v.CreditCents() }
 
-// OrderLine is one line on the confirmation page.
 type OrderLine struct {
 	SKU       string
 	Name      string
@@ -646,13 +549,10 @@ type OrderLine struct {
 	Quantity  int32
 }
 
-// UnitPrice is the price paid per unit.
 func (l OrderLine) UnitPrice() string { return twd(l.UnitCents) }
 
-// LineTotal is what the line came to.
 func (l OrderLine) LineTotal() string { return twd(l.UnitCents * int64(l.Quantity)) }
 
-// QuantityText is how many were ordered.
 func (l OrderLine) QuantityText() string { return strconv.FormatInt(int64(l.Quantity), 10) }
 
 // OrderEventKind is order_events.kind, closed by order_events_kind_known.
@@ -670,15 +570,13 @@ const (
 	EventRefunded  OrderEventKind = "refunded"
 )
 
-// OrderEvent is one entry in an order's history, as the customer sees it. It carries
-// no actor: anyone holding the order number can reach this page.
+// OrderEvent carries no actor: anyone holding the order number can reach this page.
 type OrderEvent struct {
 	Kind OrderEventKind
 	Note string
 	At   string
 }
 
-// LabelKey names the entry's message.
 func (e OrderEvent) LabelKey() i18n.Key {
 	switch e.Kind {
 	case EventPlaced:
@@ -704,24 +602,19 @@ func (e OrderEvent) LabelKey() i18n.Key {
 	}
 }
 
-// OrderShipment is a dispatch the customer can follow.
 type OrderShipment struct {
 	Carrier     carrier.Carrier
 	Tracking    string
 	ShippedAt   string
 	DeliveredAt string
-	// RescissionEnds is the last day of the seven-day right to return the
-	// parcel, which the database computes. Empty until it is delivered.
+	// RescissionEnds is computed by the database; empty until delivered.
 	RescissionEnds string
 }
 
-// TrackURL is the carrier's public tracking page, or "" when it publishes none.
 func (s OrderShipment) TrackURL() string { return s.Carrier.TrackingURL(s.Tracking) }
 
-// Delivered reports whether this shipment has arrived.
 func (s OrderShipment) Delivered() bool { return s.DeliveredAt != "" }
 
-// CheckoutInvoice carries the invoice choice back into a refused form.
 type CheckoutInvoice struct {
 	Type          invoice.Preference
 	MobileBarcode string
@@ -730,10 +623,8 @@ type CheckoutInvoice struct {
 	TaxID         string
 }
 
-// Is reports whether this is the chosen type.
 func (i CheckoutInvoice) Is(t invoice.Preference) bool { return i.Chosen() == t }
 
-// Chosen is the type in force, which is the default until somebody picks one.
 func (i CheckoutInvoice) Chosen() invoice.Preference {
 	if i.Type == "" {
 		return invoice.PreferenceMember
@@ -741,15 +632,12 @@ func (i CheckoutInvoice) Chosen() invoice.Preference {
 	return i.Type
 }
 
-// NeedsMobileBarcode reports whether the 載具 field applies. It and NeedsTaxID decide
-// which half of the form exists: rendering both would leave required promising
-// something the server will not demand.
+// NeedsMobileBarcode and NeedsTaxID decide which half of the form exists:
+// rendering both would leave required promising something the server will not demand.
 func (i CheckoutInvoice) NeedsMobileBarcode() bool { return i.Chosen().NeedsMobileBarcode() }
 
-// NeedsTaxID reports whether the 統編 field applies.
 func (i CheckoutInvoice) NeedsTaxID() bool { return i.Chosen().NeedsTaxID() }
 
-// OrderView is the confirmation page.
 type OrderView struct {
 	Number         string
 	Status         FulfillmentStatus
@@ -766,40 +654,32 @@ type OrderView struct {
 	TaxCents       int64
 	Timeline       []OrderEvent
 	Shipments      []OrderShipment
-	// Invoice is nil until a 統一發票 has been filed.
-	Invoice   *OrderInvoice
-	Cancelled bool
-	Committed bool
-	// OwedCents is what is left to pay: the total less the store credit spent on it.
-	OwedCents int64
-	// ShowWarrantyLink is set when a signed-in account owns the order. Guest-token
-	// viewers can read the page but must not see account-only registration.
+	Invoice        *OrderInvoice
+	Cancelled      bool
+	Committed      bool
+	OwedCents      int64
+	// ShowWarrantyLink is set only when a signed-in account owns the order: guest-token
+	// viewers must not see account-only registration.
 	ShowWarrantyLink bool
 	// PaymentRefreshURL is a bounded presentation hint, never evidence of payment.
 	PaymentRefreshURL string
-	// PaymentRefreshSeconds and PaymentRefreshChecks are the bounds behind that
-	// URL, quoted in the notice so the copy cannot drift from the handler.
+	// The bounds behind that URL, quoted in the notice so the copy cannot drift from the handler.
 	PaymentRefreshSeconds, PaymentRefreshChecks int
-	// PaymentsEnabled is whether this deployment can take a payment at all. Where
-	// it cannot, a link to the payment page leads to a page that sends the
-	// shopper back here.
+	// Where payments are off, a link to the payment page would lead to a page that sends the shopper back here.
 	PaymentsEnabled bool
 }
 
-// PaymentState is what the shopper is told about paying for an order.
 type PaymentState string
 
 const (
-	// PaymentNone is an order cancelled before anything was paid.
 	PaymentNone     PaymentState = ""
 	PaymentAwaiting PaymentState = "awaiting"
 	PaymentPaid     PaymentState = "paid"
 	PaymentRefunded PaymentState = "refunded"
 )
 
-// PaymentState reads the order's own facts. A cancelled order is refunded only
-// where a refund is on its timeline; a partial refund on a delivered order
-// leaves it paid, and the timeline shows the refund.
+// PaymentState reads the order's own facts: a cancelled order is refunded only where
+// a refund is on its timeline, and a partial refund on a delivered order leaves it paid.
 func (v *OrderView) PaymentState() PaymentState {
 	switch {
 	case v.Status == FulfillmentCancelled:
@@ -816,7 +696,6 @@ func (v *OrderView) PaymentState() PaymentState {
 	}
 }
 
-// Key is the words for the state.
 func (s PaymentState) Key() i18n.Key {
 	switch s {
 	case PaymentAwaiting:
@@ -828,8 +707,7 @@ func (s PaymentState) Key() i18n.Key {
 	}
 }
 
-// StateKey names the order's state in the page's eyebrow. Paying is a second
-// fact with its own row, so an order that is placed stays 訂單成立 until it moves.
+// StateKey leaves paying to its own row, so a placed order stays 訂單成立 until it moves.
 func (v *OrderView) StateKey() i18n.Key {
 	switch v.Status {
 	case FulfillmentPicking:
@@ -847,23 +725,18 @@ func (v *OrderView) StateKey() i18n.Key {
 	}
 }
 
-// Owed is what is left to pay after store credit.
 func (v *OrderView) Owed() string { return twd(v.OwedCents) }
 
-// CanCancel reports whether the customer may still call this order off.
 func (v *OrderView) CanCancel() bool {
 	return v.Status == FulfillmentPending && !v.Committed
 }
 
-// OrderMeta is the chrome view model for a placed order.
 func OrderMeta(ctx context.Context, number string) layouts.Page {
 	return layouts.Page{Title: fmt.Sprintf(i18n.T(ctx, i18n.KeyOrderMeta), number)}
 }
 
-// Subtotal is what the lines came to before shipping.
 func (v *OrderView) Subtotal() string { return twd(v.SubtotalCents) }
 
-// Shipping is what delivery cost.
 func (v *OrderView) Shipping(ctx context.Context) string {
 	if v.ShippingCents == 0 {
 		return i18n.T(ctx, i18n.KeyFreeShipping)
@@ -871,14 +744,10 @@ func (v *OrderView) Shipping(ctx context.Context) string {
 	return twd(v.ShippingCents)
 }
 
-// Discounted reports whether anything came off this order.
 func (v *OrderView) Discounted() bool { return v.DiscountCents > 0 }
 
-// Discount is what came off, as a negative figure.
 func (v *OrderView) Discount() string { return "-" + twd(v.DiscountCents) }
 
-// DiscountLabel names a discount row by what gave it, the same way on every
-// page that lists one.
 func DiscountLabel(ctx context.Context, reason string) string {
 	if reason == "" {
 		return i18n.T(ctx, i18n.KeyDiscount)
@@ -886,20 +755,16 @@ func DiscountLabel(ctx context.Context, reason string) string {
 	return fmt.Sprintf(i18n.T(ctx, i18n.KeyDiscountFor), reason)
 }
 
-// Total is what the order came to.
 func (v *OrderView) Total() string {
 	return twd(v.SubtotalCents - v.DiscountCents + v.ShippingCents + v.TaxCents)
 }
 
-// UsedCredit reports whether to show the store-credit row. Without it the
-// summary and the payment page state different figures, since the credit is
-// debited in the order's own transaction.
+// UsedCredit gates the credit row: without it the summary and the payment page
+// state different figures, since the credit is debited in the order's own transaction.
 func (v *OrderView) UsedCredit() bool { return v.CreditCents > 0 }
 
-// Credit is what the store credit took off, as a negative figure.
 func (v *OrderView) Credit() string { return "-" + twd(v.CreditCents) }
 
-// CanRequestReturn reports whether the goods have left the warehouse.
 func (v *OrderView) CanRequestReturn() bool {
 	switch v.Status {
 	case FulfillmentShipped, FulfillmentDelivered, FulfillmentCompleted:
@@ -909,7 +774,6 @@ func (v *OrderView) CanRequestReturn() bool {
 	}
 }
 
-// CanRegisterWarranty reports whether to offer the form: both statuses that end a delivery.
 func (v *OrderView) CanRegisterWarranty() bool {
 	switch v.Status {
 	case FulfillmentDelivered, FulfillmentCompleted:
@@ -919,26 +783,20 @@ func (v *OrderView) CanRegisterWarranty() bool {
 	}
 }
 
-// WarrantyLink is where that form lives.
 func (v *OrderView) WarrantyLink() string { return "/account/warranty/" + v.Number }
 
-// AwaitingPayment reports whether the order is waiting to be paid.
 func (v *OrderView) AwaitingPayment() bool {
 	return awaitingPayment(v.Status, v.Committed, v.OwedCents)
 }
 
-// HasCoupon reports whether a coupon is applied to this checkout.
 func (v *CheckoutView) HasCoupon() bool {
 	return v.CouponApplied != "" && (v.CouponDiscountCents > 0 || v.CouponFreeShipping)
 }
 
-// CouponDiscount is what it takes off, as a negative figure.
 func (v *CheckoutView) CouponDiscount() string { return "-" + twd(v.CouponDiscountCents) }
 
-// NeedsDonationCode reports whether the donation code field belongs on the form.
 func (i CheckoutInvoice) NeedsDonationCode() bool { return i.Chosen() == invoice.PreferenceDonate }
 
-// OrderInvoice is the 統一發票 filed for an order, as the customer reads it.
 type OrderInvoice struct {
 	Documents     []OrderInvoiceDocument
 	Type          invoice.Preference
@@ -947,7 +805,6 @@ type OrderInvoice struct {
 	TaxID         string
 }
 
-// OrderInvoiceDocument is one invoice or credit note, oldest first.
 type OrderInvoiceDocument struct {
 	Allowance   bool
 	Number      string
@@ -957,7 +814,6 @@ type OrderInvoiceDocument struct {
 	IssuedOn    string
 }
 
-// Label names the document.
 func (d OrderInvoiceDocument) Label(ctx context.Context) string {
 	if d.Allowance {
 		return i18n.T(ctx, i18n.KeyAdminDocAllowance)
@@ -965,11 +821,10 @@ func (d OrderInvoiceDocument) Label(ctx context.Context) string {
 	return i18n.T(ctx, i18n.KeyAdminDocInvoice)
 }
 
-// Amount is shown on a credit note, whose figure is its point.
 func (d OrderInvoiceDocument) Amount() string { return twd(d.AmountCents) }
 
-// ChoiceText says how the invoice was asked for. A mobile carrier is masked: it
-// is a key to somebody's invoice archive and the page may be read from a link.
+// ChoiceText masks a mobile carrier: it is a key to somebody's invoice archive and
+// the page may be read from a link.
 func (i *OrderInvoice) ChoiceText(ctx context.Context) string {
 	switch i.Type {
 	case invoice.PreferenceMember:
@@ -985,7 +840,6 @@ func (i *OrderInvoice) ChoiceText(ctx context.Context) string {
 	}
 }
 
-// maskMobileBarcode keeps the slash and the last two characters of a 手機條碼.
 func maskMobileBarcode(code string) string {
 	if len(code) <= 3 {
 		return code
@@ -993,10 +847,9 @@ func maskMobileBarcode(code string) string {
 	return code[:1] + strings.Repeat("*", len(code)-3) + code[len(code)-2:]
 }
 
-// cartLineSwap names what one quantity update changes: that line's text and
-// price, the summary, the item count, the notices and the header's cart link. The thumbnail,
-// the stepper the shopper is using and every other line are not among them, so
-// they are never replaced, repainted or asked for again.
+// cartLineSwap names what one quantity update changes: that line's text and price,
+// the summary, the item count, the notices and the header's cart link. The stepper
+// in use and the other lines are never replaced.
 func cartLineSwap(variantID string) string {
 	return "#line-body-" + variantID + ",#line-money-" + variantID +
 		",#cart-summary,#cart-notices,#cart-link,#cart-count:innerHTML"

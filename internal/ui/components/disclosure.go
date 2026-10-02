@@ -1,10 +1,7 @@
 package components
 
-// DisclosureProps configures [Disclosure].
-//
-// Summary is a Props string rather than a second child slot: a <summary> holds
-// one line, and templ gives a component one children block. The sentence still
-// comes from internal/i18n, because the page fills this field.
+// DisclosureProps takes Summary as a string, not a second child slot: a <summary> holds one line and
+// templ gives a component one children block.
 type DisclosureProps struct {
 	Summary string
 	Class   string

@@ -8,16 +8,11 @@ package components
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
-// Stepper is a quantity field with a step control on each side.
-//
-// The field is the control; the buttons are an enhancement on top of it. They
-// carry type="button" so they never submit, they are hidden until a stylesheet
-// is told scripting is on, and with scripting off the field is what it has
-// always been — a native number input the keyboard already steps.
+// The field is the control; the buttons are an enhancement. They carry type="button"
+// so they never submit and are hidden until a stylesheet is told scripting is on.
 //
 // data-stepper and data-stepper-step are what assets/js/goen.js listens for. It
-// delegates from the document rather than binding on load, so a region swapped
-// in later needs no second initialisation.
+// delegates from the document, so a region swapped in later needs no initialisation.
 func Stepper(p StepperProps) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -72,7 +67,7 @@ func Stepper(p StepperProps) templ.Component {
 		var templ_7745c5c3_Var4 string
 		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.ResolveAttributeValue(p.DecreaseLabel)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/stepper.templ`, Line: 19, Col: 31}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/stepper.templ`, Line: 14, Col: 31}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var4)
 		if templ_7745c5c3_Err != nil {
@@ -95,7 +90,7 @@ func Stepper(p StepperProps) templ.Component {
 		var templ_7745c5c3_Var5 string
 		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.ResolveAttributeValue(p.ID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/stepper.templ`, Line: 26, Col: 12}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/stepper.templ`, Line: 21, Col: 12}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var5)
 		if templ_7745c5c3_Err != nil {
@@ -108,7 +103,7 @@ func Stepper(p StepperProps) templ.Component {
 		var templ_7745c5c3_Var6 string
 		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.ResolveAttributeValue(p.Name)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/stepper.templ`, Line: 27, Col: 16}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/stepper.templ`, Line: 22, Col: 16}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var6)
 		if templ_7745c5c3_Err != nil {
@@ -121,7 +116,7 @@ func Stepper(p StepperProps) templ.Component {
 		var templ_7745c5c3_Var7 string
 		templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.ResolveAttributeValue(p.Value)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/stepper.templ`, Line: 30, Col: 18}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/stepper.templ`, Line: 25, Col: 18}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var7)
 		if templ_7745c5c3_Err != nil {
@@ -134,7 +129,7 @@ func Stepper(p StepperProps) templ.Component {
 		var templ_7745c5c3_Var8 string
 		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.ResolveAttributeValue(p.Min)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/stepper.templ`, Line: 31, Col: 14}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/stepper.templ`, Line: 26, Col: 14}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var8)
 		if templ_7745c5c3_Err != nil {
@@ -147,7 +142,7 @@ func Stepper(p StepperProps) templ.Component {
 		var templ_7745c5c3_Var9 string
 		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.ResolveAttributeValue(p.Max)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/stepper.templ`, Line: 32, Col: 14}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/stepper.templ`, Line: 27, Col: 14}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var9)
 		if templ_7745c5c3_Err != nil {
@@ -170,7 +165,7 @@ func Stepper(p StepperProps) templ.Component {
 		var templ_7745c5c3_Var10 string
 		templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.ResolveAttributeValue(p.IncreaseLabel)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/stepper.templ`, Line: 40, Col: 31}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/stepper.templ`, Line: 35, Col: 31}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var10)
 		if templ_7745c5c3_Err != nil {

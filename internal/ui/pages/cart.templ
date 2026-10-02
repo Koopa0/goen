@@ -10,7 +10,6 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// Cart renders the cart page.
 templ Cart(p layouts.Page, v CartView) {
 	@layouts.Base(p) {
 		<div class="goen-cart">
@@ -20,8 +19,7 @@ templ Cart(p layouts.Page, v CartView) {
 					<p id="cart-count" class="goen-pagehead__sub" role="status">{ i18n.Count(ctx, i18n.KeyCartItemCount, v.ItemCount, v.ItemCountText()) }</p>
 				}
 			</div>
-			// Always present, so an update that changes only the notice has
-			// somewhere to put it. It adds no box of its own.
+			// Always present, so an update that changes only the notice has somewhere to put it.
 			<div id="cart-notices" class="goen-cart__notices">
 				if v.HasNotice() {
 					if v.ContinueURL != "" {
@@ -103,10 +101,8 @@ templ Cart(p layouts.Page, v CartView) {
 									{ i18n.T(ctx, i18n.KeyCheckout) }
 								}
 							} else {
-								// Present and plainly unavailable, rather than
-								// absent: a shopper who cannot check out still
-								// needs to see the control and the sentence above
-								// it saying why.
+								// Present and plainly unavailable, not absent: a shopper who cannot check out
+								// still needs the control and the sentence above it saying why.
 								<span class="goen-btn goen-btn--primary goen-btn--lg goen-btn--block" aria-disabled="true">
 									{ i18n.T(ctx, i18n.KeyCheckout) }
 								</span>
@@ -129,9 +125,8 @@ templ cartLine(l CartLine) {
 	<li id={ "line-" + l.VariantID } class={ "goen-line", "goen-line--cart", templ.KV("goen-line--out", l.Unavailable) }>
 		<a class="goen-line__thumb" href={ templ.URL("/p/" + l.Slug) }>
 			if l.HasImage() {
-				// Width and height on the element, not only in the sheet: the
-				// row's height is reserved before the image arrives, so nothing
-				// below it jumps as the list loads.
+				// Width and height on the element, not only in the sheet: the row's height is
+				// reserved before the image arrives, so nothing below jumps.
 				<img
 					class="goen-line__img"
 					src={ l.ImageURL }
@@ -189,15 +184,12 @@ templ cartLine(l CartLine) {
 			@components.Stepper(components.StepperProps{
 				ID: "qty-" + l.VariantID, Name: "quantity",
 				Value: l.QuantityText(),
-				// Zero is how a line is removed with no script, so the
-				// field's floor is zero here and one on the product page.
+				// Zero removes a line with no script, so the floor is zero here and one on the product page.
 				Min: "0", Max: l.MaxQuantity(),
 				DecreaseLabel: i18n.T(ctx, i18n.KeyQuantityDecrease),
 				IncreaseLabel: i18n.T(ctx, i18n.KeyQuantityIncrease),
 			})
-			// Shown only where scripting is off. With it on, changing the
-			// quantity submits the form, and a button beside a control that
-			// already applies itself is one more thing to press.
+			// Shown only where scripting is off: with it on, changing the quantity submits the form.
 			@components.Button(components.ButtonProps{
 				ButtonStyle: components.ButtonStyleOutline,
 				Size:        components.SizeSmall,
@@ -209,8 +201,7 @@ templ cartLine(l CartLine) {
 				ButtonStyle: components.ButtonStyleGhost,
 				Size:        components.SizeSmall,
 				Class:       "goen-line__remove",
-				// Not dimmed while a quantity request is pending: the request
-				// is about the number, and Remove stays available beside it.
+				// Not dimmed while a quantity request is pending: the request is about the number.
 				Attrs: templ.Attributes{"name": "remove", "value": "1", "data-feedback-skip": true, "formnovalidate": true},
 			}, "submit") {
 				{ i18n.T(ctx, i18n.KeyRemove) }
@@ -219,7 +210,6 @@ templ cartLine(l CartLine) {
 	</li>
 }
 
-// Checkout renders the checkout form.
 templ Checkout(p layouts.Page, v *CheckoutView) {
 	@layouts.Base(p) {
 		<div class="goen-checkout">
@@ -236,13 +226,10 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 					novalidate
 					data-focus-refused?={ v.AnyErrors() }
 				>
-					// The form's DEFAULT button, and the reason it is first: HTML
-					// makes the first submit button in tree order the one Enter
-					// activates, and the chooser's 更新 buttons sit above the real
-					// one — so pressing Enter in any field re-rendered the form
-					// instead of placing the order. Inert to the keyboard and to a
-					// screen reader; the visible button below is the real control,
-					// and this carries the same words so the two cannot drift.
+					// The form's DEFAULT button: HTML makes the first submit button in tree order the
+					// one Enter activates, and the chooser's 更新 buttons sit above the real one. Inert
+					// to keyboard and screen reader; it carries the same words as the visible button
+					// so the two cannot drift.
 					<button
 						class="goen-sr-only"
 						type="submit"
@@ -250,14 +237,9 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 						aria-hidden="true"
 					>{ i18n.T(ctx, i18n.KeyPlaceOrder) }</button>
 					<input type="hidden" name="idempotency" value={ v.IdempotencyKey }/>
-					// One fixed-size identity covers the cart lines and prices, delivery,
-					// coupon and exact credit spend. The server rebuilds it while holding
-					// the corresponding database locks; it is a witness, not pricing input.
+					// One fixed-size identity for the lines, prices, delivery, coupon and credit spend.
+					// The server rebuilds it while holding the database locks; it is a witness, not pricing input.
 					<input type="hidden" id="checkout-quote" name="checkout_quote" value={ v.QuoteID }/>
-					// No hidden `address` here. It carried the same NAME as the radios
-					// below and came FIRST, so PostFormValue returned it every time and
-					// the customer's pick was discarded — the whole chooser was inert.
-					// It is a leftover from when picking an address was a link.
 					<div class="goen-checkout__main">
 						if v.AnyErrors() {
 							@components.Notice(components.NoticeProps{
@@ -276,13 +258,11 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 							Attrs: templ.Attributes{"id": "shipping"},
 						}) {
 							<h2 class="goen-checkout__heading" id="shipping-heading">{ i18n.T(ctx, i18n.KeySectionShipping) }</h2>
-							// A radio inside the form, not a link beside it. The choice
-							// decides which fields the form asks for, so changing it has
-							// to re-render — and a link carrying only the choice threw
-							// away everything already typed.
+							// A radio inside the form, not a link: the choice decides which fields the form
+							// asks for, so changing it re-renders, and a link would drop what was typed.
 							//
-							// The refusal is announced on the GROUP and not on an option:
-							// a form refuses the choice, not one of the things on offer.
+							// The refusal is announced on the GROUP, not an option: a form refuses the choice,
+							// not one of the things on offer.
 							<div
 								class="goen-checkout__choices"
 								{ checkoutChoiceSwap("shipping")... }
@@ -343,11 +323,9 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 						}) {
 							<h2 class="goen-checkout__heading" id="recipient-heading">{ i18n.T(ctx, i18n.KeySectionRecipient) }</h2>
 							if v.OffersTheProfile() {
-								// Fills the name and phone from the account, which is
-								// all the account knows of a recipient. With scripting
-								// the page's script does it from the data below, with
-								// no request; without, the button applies it on the
-								// server. Neither overwrites what has been typed.
+								// Fills the name and phone from the account, all it knows of a recipient. With
+								// scripting the page's script does it from the data below; without, the button
+								// applies it on the server. Neither overwrites what has been typed.
 								<label class="goen-check" id="recipient">
 									<input
 										class="goen-check__box"
@@ -367,9 +345,8 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 								@applyChoice("recipient")
 							}
 							if v.OffersTheAddressBook() {
-								// Choosing applies the address on the server, which also
-								// re-quotes delivery for its postal code. 「其他地址」 is
-								// the way to type a new one.
+								// Choosing applies the address on the server, which also re-quotes delivery for
+								// its postal code.
 								<div class="goen-field">
 									@components.Label(components.LabelProps{For: "address-book"}) {
 										{ i18n.T(ctx, i18n.KeyChooseSavedAddress) }
@@ -404,14 +381,11 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 								@field("name", i18n.T(ctx, i18n.KeyFieldName), "text", v.Address.Name, v)
 								@field("phone", i18n.T(ctx, i18n.KeyFieldPhone), "tel", v.Address.Phone, v)
 								if v.ToPickupPoint() {
-									// The chain is what the shopper chooses here. Which
-									// store the parcel waits at comes from the carrier's
-									// own picker; nobody types a store number, and asking
-									// for one only produced refusals.
+									// The chain is what the shopper chooses; the store comes from the carrier's own
+									// picker, because nobody types a store number correctly.
 									//
-									// The chooser re-renders the form, because the chain
-									// decides which map the button below opens and that
-									// form is built on the server.
+									// The chooser re-renders the form: the chain decides which map the button below
+									// opens, and that form is built on the server.
 									<div class="goen-field goen-checkout__wide" id="pickup_chain">
 										<p class="goen-label" id="pickup_chain-label">{ i18n.T(ctx, i18n.KeyFieldPickupChain) }</p>
 										<div
@@ -498,9 +472,6 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 							Attrs: templ.Attributes{"id": "invoice"},
 						}) {
 							<h2 class="goen-checkout__heading" id="invoice-heading">{ i18n.T(ctx, i18n.KeySectionInvoice) }</h2>
-							// This one sat BELOW the address fields, so choosing it through
-							// a link discarded a whole recipient the customer had just
-							// typed. It is the sharpest case of the three.
 							<div
 								class="goen-checkout__choices"
 								{ checkoutChoiceSwap("invoice")... }
@@ -737,20 +708,16 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 	}
 }
 
-// pickupStore is the store the parcel waits at, and the control that opens the
-// carrier's map to choose one.
-//
-// The summary is a SECURITY CONTROL, not decoration. The map's callback carries
-// no signature of any kind and the map itself is run by the convenience-store
-// chain rather than by the carrier, so a store reported back cannot be checked
-// by any means goen has. The shopper reading the name AND the address before
-// paying is the only check there is. Do not reduce it to the name.
+// The summary is a SECURITY CONTROL, not decoration. The map's callback carries no
+// signature and the map is run by the convenience-store chain, so a reported store
+// cannot be checked by any means goen has. The shopper reading the name AND the
+// address before paying is the only check. Do not reduce it to the name.
 templ pickupStore(v *CheckoutView) {
 	if v.OffersTheStoreMap() || v.HasPickupStore() || v.PickupRefused {
 		<div class="goen-pickup">
 			if v.PickupRefused {
-				// The message says a store could not be confirmed and repeats
-				// NONE of what arrived: that text came from a cross-site post.
+				// The message says a store could not be confirmed and repeats NONE of what
+				// arrived: that text came from a cross-site post.
 				@components.Notice(components.NoticeProps{
 					Intent: components.IntentDanger,
 					Class:  "ui-alert--error",
@@ -759,9 +726,8 @@ templ pickupStore(v *CheckoutView) {
 				}
 			}
 			if v.HasPickupStore() {
-				// Carried back so the order can be placed from this page. The
-				// ADDRESS is not among them: it is read from the URL for the
-				// summary above, and is never posted and never stored.
+				// Carried back so the order can be placed from this page. The ADDRESS is not among
+				// them: it is read from the URL for the summary above, never posted, never stored.
 				<input type="hidden" name="pickup_store_code" value={ v.Address.PickupStoreCode }/>
 				<input type="hidden" name="pickup_store_name" value={ v.Address.PickupStoreName }/>
 				<input type="hidden" name="pickup_store_chain" value={ string(v.Address.PickupChain) }/>
@@ -775,14 +741,11 @@ templ pickupStore(v *CheckoutView) {
 				<p class="ui-error-text" id="pickup_store-error">{ v.Err("pickup_store") }</p>
 			}
 			if v.OffersTheStoreMap() {
-				// A submit button of the checkout form, aimed at goen's own start
-				// route by formaction: the server keeps what was typed, then opens
-				// the carrier's map. It carries no name or value, so it adds no
-				// field of its own, and the route is local, so what was typed never
-				// goes to a third party.
+				// A submit button of the checkout form aimed at goen's own start route by
+				// formaction: the server keeps what was typed, then opens the carrier's map. It has
+				// no name or value, and the route is local, so what was typed never goes to a third party.
 				//
-				// It is also the control a refusal belongs to: nobody types a
-				// store, they choose one through the picker this opens.
+				// It is also the control a refusal belongs to: nobody types a store.
 				{{ storeAttrs := checkoutStoreButtonAttrs(v.Invalid("pickup_store"), v.HasErr("pickup_store")) }}
 				@components.Button(components.ButtonProps{
 					ButtonStyle: components.ButtonStyleOutline,
@@ -799,14 +762,10 @@ templ pickupStore(v *CheckoutView) {
 	}
 }
 
-// applyChoice re-renders the form with the choice above it applied. A submit
-// button rather than a link, because the form carries everything the customer
-// has typed and a link carries only the choice.
-//
-// It is the path a browser without scripting takes; the stylesheet hides it
-// where the change itself applies the choice. The fragment names the section
-// this button belongs to, so the answer opens at that heading instead of the
-// top of a form the customer had already scrolled past.
+// A submit button, not a link: the form carries everything typed and a link only
+// the choice. It is the path without scripting; the stylesheet hides it where the
+// change itself applies the choice. The fragment opens the answer at this section's
+// heading, not the top of a form the customer scrolled past.
 templ applyChoice(which string) {
 	<div class="goen-checkout__apply">
 		@components.Button(components.ButtonProps{
@@ -874,7 +833,6 @@ templ field(name, label, kind, value string, v *CheckoutView) {
 	</div>
 }
 
-// Order renders the confirmation page.
 templ Order(p layouts.Page, v *OrderView) {
 	@layouts.Base(p) {
 		<div class="goen-order">
@@ -955,10 +913,8 @@ templ Order(p layouts.Page, v *OrderView) {
 						</section>
 					}
 					if len(v.Timeline) > 0 {
-						// The history as a rail of dots, on the page rather than
-						// behind a tab: "where is my order" is the question this
-						// page is opened with, and a tab hides the answer from
-						// anyone who does not know to press it.
+						// On the page, not behind a tab: "where is my order" is the question this page is
+						// opened with, and a tab hides the answer from anyone who does not know to press it.
 						<section class="goen-order__history" aria-labelledby="history-heading">
 							<h2 id="history-heading" class="goen-order__subhead">{ i18n.T(ctx, i18n.KeyOrderHistory) }</h2>
 							<ol class="goen-order__steps">

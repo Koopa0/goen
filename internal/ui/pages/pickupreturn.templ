@@ -5,14 +5,12 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-// PickupReturn is where the carrier's own page posts the store the shopper
-// picked. It is deliberately NOT layouts.Base: the header would run a category
-// query for every anonymous cross-site POST this route receives, and there is
-// nothing on this page to navigate away from. The site stylesheet is linked so
-// the hop is goen's own ground colour rather than a white flash.
+// Deliberately not layouts.Base: the header would run a category query for every
+// anonymous cross-site POST this route receives. The site stylesheet is linked so
+// the hop is goen's own ground colour, not a white flash.
 //
-// target is built by the cart package from a fixed local path plus encoded
-// query values. Nothing posted can reach the scheme, the host or the path.
+// target is built by the cart package from a fixed local path plus encoded query
+// values: nothing posted can reach the scheme, the host or the path.
 templ PickupReturn(target string) {
 	<!DOCTYPE html>
 	<html lang={ i18n.FromContext(ctx).Tag() } class="theme-blue">
@@ -28,9 +26,7 @@ templ PickupReturn(target string) {
 		</head>
 		<body class="goen-shell">
 			<main class="goen-handoff" id="main">
-				// The words appear after a short delay in the stylesheet, so a fast
-				// return shows the page ground and not a flash of text nobody read.
-				// Reduced motion shows them at once.
+				// Shown after a short delay (stylesheet) so a fast return flashes no text; reduced motion shows it at once.
 				<p class="goen-handoff__text">{ i18n.T(ctx, i18n.KeyPickupReturning) }</p>
 				<a class="goen-handoff__link" href={ templ.URL(target) }>
 					{ i18n.T(ctx, i18n.KeyPickupReturnLink) }
