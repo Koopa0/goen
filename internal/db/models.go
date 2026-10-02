@@ -425,7 +425,7 @@ type OrderPrivateDatum struct {
 	City            pgtype.Text
 	District        pgtype.Text
 	Street          pgtype.Text
-	PickupBrand     pgtype.Text
+	PickupChain     pgtype.Text
 	PickupStoreCode pgtype.Text
 	PickupStoreName pgtype.Text
 	ErasedAt        pgtype.Timestamptz

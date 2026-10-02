@@ -48,10 +48,10 @@ func aCheckoutWithAStore() *CheckoutView {
 		Shipping:     []ShippingChoice{{VersionID: "ship-1", Code: "pickup", Name: "超商取貨"}},
 		Chosen:       "ship-1",
 		Destination:  "pickup_point",
-		PickupBrands: CheckoutPickupBrandChoices(),
+		PickupChains: CheckoutPickupChainChoices(),
 		Address: CheckoutAddress{
 			Email: "someone@goen.test", Name: "王小明", Phone: "0912345678",
-			PickupBrand: pickup.SevenEleven, PickupStoreCode: "131386",
+			PickupChain: pickup.SevenEleven, PickupStoreCode: "131386",
 			PickupStoreName: "南港園區",
 		},
 		PickupStoreAddr: "台北市南港區三重路19-2號",
@@ -347,7 +347,7 @@ func TestNoMapNoButtonAndNoForm(t *testing.T) {
 			t.Errorf("an unconfigured goen renders %q", gone)
 		}
 	}
-	if !strings.Contains(html, `name="pickup_brand"`) {
+	if !strings.Contains(html, `name="pickup_chain"`) {
 		t.Error("the chain chooser is gone too; unconfigured must mean unchanged")
 	}
 }

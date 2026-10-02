@@ -85,7 +85,7 @@ SELECT
     coalesce(pd.city, '') AS city,
     coalesce(pd.district, '') AS district,
     coalesce(pd.street, '') AS street,
-    coalesce(pd.pickup_brand, '') AS pickup_brand,
+    coalesce(pd.pickup_chain, '') AS pickup_chain,
     coalesce(pd.pickup_store_code, '') AS pickup_store_code,
     coalesce(pd.pickup_store_name, '') AS pickup_store_name,
     coalesce(ip.invoice_type, '') AS invoice_type,
@@ -330,7 +330,7 @@ SELECT id, fulfillment_status FROM orders WHERE order_number = $1;
 -- Where an order's parcel is going: whether its shipping method delivers to a
 -- store, and the chain the customer picked, which a store order can lack.
 -- name: OrderDispatchDestination :one
-SELECT sm.destination_kind, coalesce(pd.pickup_brand, '')::text AS pickup_brand
+SELECT sm.destination_kind, coalesce(pd.pickup_chain, '')::text AS pickup_chain
 FROM orders o
 JOIN shipping_method_versions v ON v.id = o.shipping_version_id
 JOIN shipping_methods sm ON sm.id = v.method_id
@@ -1754,7 +1754,7 @@ UPDATE order_private_data pd SET
     city = nullif(@city::text, ''),
     district = nullif(@district::text, ''),
     street = nullif(@street::text, ''),
-    pickup_brand = nullif(@pickup_brand::text, ''),
+    pickup_chain = nullif(@pickup_chain::text, ''),
     pickup_store_code = nullif(@pickup_store_code::text, ''),
     pickup_store_name = nullif(@pickup_store_name::text, '')
 FROM orders o

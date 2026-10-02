@@ -2163,7 +2163,7 @@ CREATE TABLE order_private_data (
     -- which store, and what a human reads on the label. Only the first is
     -- asked for at checkout; the carrier's own picker fills the other two, and
     -- until it is integrated they stay empty.
-    pickup_brand      text,
+    pickup_chain      text,
     pickup_store_code text,
     pickup_store_name text,
     erased_at      timestamptz,
@@ -2178,12 +2178,12 @@ CREATE TABLE order_private_data (
             AND email IS NULL AND recipient_name IS NULL AND phone IS NULL
             AND postal_code IS NULL AND city IS NULL AND district IS NULL
             AND street IS NULL
-            AND pickup_brand IS NULL AND pickup_store_code IS NULL
+            AND pickup_chain IS NULL AND pickup_store_code IS NULL
             AND pickup_store_name IS NULL)
     ),
     -- A live row carries EXACTLY ONE destination. The address half is written
     -- as an all-or-nothing group and an XOR rather than "street IS NOT NULL OR
-    -- pickup_brand IS NOT NULL", which a row carrying a city and no street
+    -- pickup_chain IS NOT NULL", which a row carrying a city and no street
     -- would satisfy. The pickup half is the chain alone: it names the counter
     -- the parcel is sent to, and a store behind it is an addition.
     CONSTRAINT order_private_data_one_destination CHECK (
@@ -2191,7 +2191,7 @@ CREATE TABLE order_private_data (
         OR (
             (postal_code IS NOT NULL AND city IS NOT NULL
                 AND district IS NOT NULL AND street IS NOT NULL)
-            <> (pickup_brand IS NOT NULL)
+            <> (pickup_chain IS NOT NULL)
         )
     ),
     CONSTRAINT order_private_data_address_complete CHECK (
@@ -2202,7 +2202,7 @@ CREATE TABLE order_private_data (
     -- writes; once the picker starts filling in the store, though, a code
     -- with no name or a name with no code is a half-written pickup point.
     CONSTRAINT order_private_data_pickup_complete CHECK (
-        (pickup_brand IS NOT NULL OR num_nonnulls(pickup_store_code, pickup_store_name) = 0)
+        (pickup_chain IS NOT NULL OR num_nonnulls(pickup_store_code, pickup_store_name) = 0)
         AND (pickup_store_code IS NULL) = (pickup_store_name IS NULL)
     ),
     -- Nullable because erased and pickup rows intentionally carry no HOME
@@ -2240,9 +2240,9 @@ CREATE TABLE order_private_data (
     ),
     -- An allowlist, because the brand decides which carrier's manifest the
     -- parcel joins and a typo there is a parcel that never leaves.
-    CONSTRAINT order_private_data_pickup_brand_known CHECK (
-        pickup_brand IS NULL
-        OR pickup_brand IN ('seven_eleven', 'family_mart', 'hi_life', 'ok_mart')
+    CONSTRAINT order_private_data_pickup_chain_known CHECK (
+        pickup_chain IS NULL
+        OR pickup_chain IN ('seven_eleven', 'family_mart', 'hi_life', 'ok_mart')
     ),
     -- Digits or uppercase letters, at the length ECPay publishes for the field.
     -- Measured against their GetStoreList on 2026-08-06: Hi-Life uses four
@@ -3793,7 +3793,7 @@ BEGIN
              AND phone ~ '[^[:space:]]'
              AND ((postal_code ~ '[^[:space:]]' AND city ~ '[^[:space:]]'
                    AND district ~ '[^[:space:]]' AND street ~ '[^[:space:]]')
-                  OR pickup_brand ~ '[^[:space:]]'))
+                  OR pickup_chain ~ '[^[:space:]]'))
        OR subtotal - o.discount_cents + o.shipping_cents + o.tax_cents < 0 THEN
         RAISE EXCEPTION 'order % is not complete enough to be paid', o.order_number
             USING ERRCODE = 'check_violation', CONSTRAINT = 'payments_require_complete_order';
@@ -4817,7 +4817,7 @@ BEGIN
     UPDATE order_private_data pd SET
         email = NULL, recipient_name = NULL, phone = NULL, postal_code = NULL,
         city = NULL, district = NULL, street = NULL,
-        pickup_brand = NULL, pickup_store_code = NULL, pickup_store_name = NULL,
+        pickup_chain = NULL, pickup_store_code = NULL, pickup_store_name = NULL,
         erased_at = now()
     WHERE pd.order_id = ANY (erased_orders) AND pd.erased_at IS NULL;
 
@@ -9130,7 +9130,7 @@ GRANT EXECUTE ON FUNCTION
 -- the fulfillment_status WHERE.
 REVOKE INSERT, UPDATE, DELETE ON order_private_data FROM admin;
 GRANT UPDATE (email, recipient_name, phone, postal_code, city, district, street,
-              pickup_brand, pickup_store_code, pickup_store_name)
+              pickup_chain, pickup_store_code, pickup_store_name)
     ON order_private_data TO admin;
 REVOKE INSERT, UPDATE, DELETE ON stock_notifications FROM admin;
 GRANT UPDATE (notified_at) ON stock_notifications TO admin;
@@ -9197,7 +9197,7 @@ GRANT INSERT (order_line_id, unit_no, user_id, serial_number, expires_on)
 
 REVOKE INSERT, UPDATE ON order_private_data FROM store;
 GRANT INSERT (order_id, email, recipient_name, phone, postal_code, city,
-              district, street, pickup_brand, pickup_store_code,
+              district, street, pickup_chain, pickup_store_code,
               pickup_store_name)
     ON order_private_data TO store;
 

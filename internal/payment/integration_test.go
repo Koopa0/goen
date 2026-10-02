@@ -1911,7 +1911,7 @@ func pickupOrder(t *testing.T, totalCents int64) (number string, id uuid.UUID) {
 	}
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO order_private_data (order_id, email, recipient_name, phone,
-		                                pickup_brand)
+		                                pickup_chain)
 		VALUES ($1, 'pickup@example.com', '收件', '0912345678', 'family_mart')`, id); err != nil {
 		t.Fatalf("create pickup private data: %v", err)
 	}

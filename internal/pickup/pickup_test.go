@@ -8,22 +8,22 @@ import (
 func TestOfferedIsTheKnownClosedSetAndReturnsFreshStorage(t *testing.T) {
 	t.Parallel()
 
-	want := []Brand{SevenEleven, FamilyMart, HiLife, OKMart}
+	want := []Chain{SevenEleven, FamilyMart, HiLife, OKMart}
 	got := Offered()
 	if !slices.Equal(got, want) {
 		t.Fatalf("Offered() = %v, want %v", got, want)
 	}
-	for _, brand := range got {
-		if !brand.Known() {
-			t.Errorf("Offered() contains unknown brand %q", brand)
+	for _, chain := range got {
+		if !chain.Known() {
+			t.Errorf("Offered() contains unknown chain %q", chain)
 		}
 	}
 
-	got[0] = Brand("mutated")
+	got[0] = Chain("mutated")
 	if !slices.Equal(Offered(), want) {
 		t.Error("mutating Offered() changed the canonical set")
 	}
-	if Brand("other_chain").Known() {
-		t.Error("an unoffered brand is Known")
+	if Chain("other_chain").Known() {
+		t.Error("an unoffered chain is Known")
 	}
 }

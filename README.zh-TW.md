@@ -6,18 +6,36 @@
 [![Go](https://img.shields.io/github/go-mod/go-version/Koopa0/goen)](go.mod)
 [![Apache-2.0](https://img.shields.io/badge/Apache--2.0-blue)](LICENSE)
 
-goen 是用 Go 打造的完整電商專案，包含前台與後台。
+用 Go 打造的完整電商專案：從瀏覽、結帳、售後服務，到經營商店的後台。
 
-示範站：[goen.koopa0.dev](https://goen.koopa0.dev)
+**示範站：[goen.koopa0.dev](https://goen.koopa0.dev)**
 
 ![繁體中文店面：商品分類與推薦商品](assets/readme/storefront.zh-TW.png)
 
-## 特色
+## 功能
 
-- 以 Go 標準函式庫為核心，搭配 templ 與 htmx 完成整個介面。
-- 金流串接 Stripe，電子發票與超商取貨串接綠界。
-- 繁體中文與英文雙語。
-- 內建台灣的七天鑑賞期與電子發票規範。
+**購物**
+- 館別與分類，支援篩選、排序與搜尋
+- 商品規格、評論、問答與並排比較
+- 收藏清單，介面提供繁體中文與英文
+
+**結帳**
+- 訪客或會員結帳，宅配或超商取貨
+- Stripe 信用卡付款，折扣碼與購物金
+- 綠界電子發票自動開立
+
+**售後**
+- 訂單查詢、七天鑑賞期內退貨、保固登錄
+- 會員點數可兌換購物金
+
+**後台**
+- 訂單、出貨、退貨與退款
+- 商品、庫存、價格、活動與首頁管理
+- 顧客、評論與問答；員工兩步驟驗證登入與操作紀錄
+
+## 技術
+
+Go · templ · htmx · PostgreSQL · Stripe · 綠界
 
 ## 試用示範站
 

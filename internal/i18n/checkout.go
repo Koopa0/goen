@@ -62,7 +62,7 @@ var (
 
 	KeyFieldNote = key("field.note", Message{ZhHant: "備註（選填）", En: "Note (optional)"})
 
-	KeyFieldPickupBrand = key("field.pickup.brand", Message{ZhHant: "超商", En: "Convenience store"})
+	KeyFieldPickupChain = key("field.pickup.brand", Message{ZhHant: "超商", En: "Convenience store"})
 
 	KeyPickupChooseStore = key("pickup.choose", Message{ZhHant: "選擇門市", En: "Choose a store"})
 
@@ -263,7 +263,7 @@ var (
 
 	KeyStreetTooLong = key("valid.street.toolong", Message{ZhHant: "地址過長", En: "That address is too long"})
 
-	KeyPickupBrandRequired = key("valid.pickup.brand", Message{
+	KeyPickupChainRequired = key("valid.pickup.brand", Message{
 		ZhHant: "請選擇超商",
 		En:     "Choose a convenience store chain",
 	})

@@ -44,9 +44,9 @@ const (
 )
 
 // mapSubtypes is every chain the checkout offers, in both contracts. ECPay's
-// own set is larger; these two are what CheckoutPickupBrandChoices offers, and
-// a brand outside it has no subtype rather than a guessed one.
-var mapSubtypes = map[LogisticsMode]map[pickup.Brand]string{
+// own set is larger; these two are what CheckoutPickupChainChoices offers, and
+// a chain outside it has no subtype rather than a guessed one.
+var mapSubtypes = map[LogisticsMode]map[pickup.Chain]string{
 	ModeB2C: {
 		pickup.SevenEleven: "UNIMART",
 		pickup.FamilyMart:  "FAMI",
@@ -128,24 +128,24 @@ func (m *Map) Origin() string {
 
 // Subtype is ECPay's LogisticsSubType for this chain under the configured
 // contract, and false for a chain the checkout does not offer.
-func (m *Map) Subtype(b pickup.Brand) (string, bool) {
+func (m *Map) Subtype(chain pickup.Chain) (string, bool) {
 	if !m.Enabled() {
 		return "", false
 	}
-	s, ok := mapSubtypes[m.mode][b]
+	s, ok := mapSubtypes[m.mode][chain]
 	return s, ok
 }
 
-// BrandFor is the reverse: the chain a returned LogisticsSubType names, under
+// ChainFor is the reverse: the chain a returned LogisticsSubType names, under
 // the configured contract only. A subtype from the other contract is refused,
 // because it cannot have come from a map call this deployment made.
-func (m *Map) BrandFor(subtype string) (pickup.Brand, bool) {
+func (m *Map) ChainFor(subtype string) (pickup.Chain, bool) {
 	if !m.Enabled() {
 		return "", false
 	}
-	for brand, s := range mapSubtypes[m.mode] {
+	for chain, s := range mapSubtypes[m.mode] {
 		if s == subtype {
-			return brand, true
+			return chain, true
 		}
 	}
 	return "", false
@@ -158,8 +158,8 @@ func (m *Map) BrandFor(subtype string) (pickup.Brand, bool) {
 //
 // tradeNo is fresh per render, and the nonce travels in ExtraData, which ECPay
 // echoes back unchanged.
-func (m *Map) Request(b pickup.Brand, tradeNo, nonce string, mobile bool) (pages.CheckoutMapForm, bool) {
-	subtype, ok := m.Subtype(b)
+func (m *Map) Request(chain pickup.Chain, tradeNo, nonce string, mobile bool) (pages.CheckoutMapForm, bool) {
+	subtype, ok := m.Subtype(chain)
 	if !ok {
 		return pages.CheckoutMapForm{}, false
 	}
@@ -340,7 +340,7 @@ func clearPickupCookie(w http.ResponseWriter, secure bool) {
 // Nothing about it is evidence: the map callback carries no signature, and the
 // map itself is run by the chain rather than by ECPay.
 type PostedStore struct {
-	Brand pickup.Brand
+	Chain pickup.Chain
 	Code  string
 	Name  string
 	// Nonce is what decides the whole question. It is the only field with
@@ -351,7 +351,7 @@ type PostedStore struct {
 // Empty reports whether nothing about a store was submitted at all, which is
 // the ordinary checkout and not a refusal.
 func (p PostedStore) Empty() bool {
-	return p.Brand == "" && p.Code == "" && p.Name == "" && p.Nonce == ""
+	return p.Chain == "" && p.Code == "" && p.Name == "" && p.Nonce == ""
 }
 
 // honourPickupStore is the ONE rule, in ONE place: a store is honoured only
@@ -370,14 +370,14 @@ func honourPickupStore(p PostedStore, state pickupState, known bool) bool {
 	if subtle.ConstantTimeCompare([]byte(p.Nonce), []byte(state.Nonce)) != 1 {
 		return false
 	}
-	return offeredAtCheckout(p.Brand)
+	return offeredAtCheckout(p.Chain)
 }
 
 // offeredAtCheckout reports whether a shopper may choose this chain today. The
 // back office offers more, because an order already placed at one of the others
 // has to stay correctable.
-func offeredAtCheckout(b pickup.Brand) bool {
-	return b == pickup.SevenEleven || b == pickup.FamilyMart
+func offeredAtCheckout(chain pickup.Chain) bool {
+	return chain == pickup.SevenEleven || chain == pickup.FamilyMart
 }
 
 // The caps ECPay publishes for the fields it posts back. A value over them did
@@ -390,7 +390,7 @@ const (
 
 // callback is one store as ECPay's own page posts it back.
 type callback struct {
-	Brand   pickup.Brand
+	Chain   pickup.Chain
 	Code    string
 	Name    string
 	Address string
@@ -407,7 +407,7 @@ func (m *Map) readCallback(r *http.Request) (callback, bool) {
 	if r.PostFormValue("MerchantID") != m.merchantID {
 		return callback{}, false
 	}
-	brand, ok := m.BrandFor(r.PostFormValue("LogisticsSubType"))
+	chain, ok := m.ChainFor(r.PostFormValue("LogisticsSubType"))
 	if !ok {
 		return callback{}, false
 	}
@@ -429,7 +429,7 @@ func (m *Map) readCallback(r *http.Request) (callback, bool) {
 	if !validNonce(nonce) {
 		return callback{}, false
 	}
-	return callback{Brand: brand, Code: code, Name: name, Address: address, Nonce: nonce}, true
+	return callback{Chain: chain, Code: code, Name: name, Address: address, Nonce: nonce}, true
 }
 
 // refreshTarget is where the interstitial sends the browser. The path is a
@@ -437,7 +437,7 @@ func (m *Map) readCallback(r *http.Request) (callback, bool) {
 // nothing the callback carries can influence the scheme, the host or the path.
 func (c callback) refreshTarget() string {
 	q := url.Values{
-		"pickup_brand":      {string(c.Brand)},
+		"pickup_chain":      {string(c.Chain)},
 		"pickup_store_code": {c.Code},
 		"pickup_store_name": {c.Name},
 		"pickup_store_addr": {c.Address},

@@ -163,8 +163,8 @@ const CART = [
   // Makefile reads from the database, and the marker insists the chain
   // chooser is there. Checkout offers 超商取貨 only where the store map is
   // configured, so the server under test must have GOEN_ECPAY_LOGISTICS set.
-  { label: 'pickup 375', width: 375, height: 812, path: '/checkout?ship=PICKUP_SHIP', marker: 'input[name=pickup_brand]' },
-  { label: 'pickup 1440', width: 1440, height: 900, path: '/checkout?ship=PICKUP_SHIP', marker: 'input[name=pickup_brand]' },
+  { label: 'pickup 375', width: 375, height: 812, path: '/checkout?ship=PICKUP_SHIP', marker: 'input[name=pickup_chain]' },
+  { label: 'pickup 1440', width: 1440, height: 900, path: '/checkout?ship=PICKUP_SHIP', marker: 'input[name=pickup_chain]' },
   // The payment page. PLACED_ORDER is the NUMBER of the order the Makefile just
   // placed; PLACED_TOKEN, set as a cookie above, is the browser's proof that it
   // placed it. Two facts, two variables — without either the page is the 404 a
@@ -1301,7 +1301,14 @@ const proveListingDesktopResize = async (label, locale) => {
     const missed = [];
     if (remove) {
       remove.scrollIntoView({ block: 'center' });
-      const r = remove.getBoundingClientRect();
+      // The update is a view transition, and while one runs the page itself is
+      // what a point hits: wait until the link's own centre is pressable.
+      let r = remove.getBoundingClientRect();
+      for (let waited = 0; waited < 3000; waited += 50) {
+        r = remove.getBoundingClientRect();
+        if (remove.contains(document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2))) break;
+        await new Promise((done) => setTimeout(done, 50));
+      }
       const cx = r.left + r.width / 2;
       const cy = r.top + r.height / 2;
       for (const [dx, dy] of [[-21, -21], [21, -21], [-21, 21], [21, 21]]) {

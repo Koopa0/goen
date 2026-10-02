@@ -17,30 +17,30 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-func TestPickupBrandChoicesMatchValidationAndReturnFreshStorage(t *testing.T) {
-	want := []PickupBrandChoice{
+func TestPickupChainChoicesMatchValidationAndReturnFreshStorage(t *testing.T) {
+	want := []PickupChainChoice{
 		{Value: "seven_eleven", Label: "7-ELEVEN"},
 		{Value: "family_mart", Label: "全家 FamilyMart"},
 		{Value: "hi_life", Label: "萊爾富 Hi-Life"},
 		{Value: "ok_mart", Label: "OK mart"},
 	}
-	got := PickupBrandChoices()
+	got := PickupChainChoices()
 	if diff := cmp.Diff(want, got); diff != "" {
-		t.Fatalf("PickupBrandChoices() mismatch (-want +got):\n%s", diff)
+		t.Fatalf("PickupChainChoices() mismatch (-want +got):\n%s", diff)
 	}
 	for _, choice := range got {
 		if !choice.Value.Known() {
-			t.Errorf("PickupBrandChoices() offers %q, but KnownPickupBrand rejects it", choice.Value)
+			t.Errorf("PickupChainChoices() offers %q, but KnownPickupChain rejects it", choice.Value)
 		}
 	}
 
 	got[0].Value = "other_chain"
 	got[0].Label = "Other"
-	if diff := cmp.Diff(want, PickupBrandChoices()); diff != "" {
-		t.Errorf("mutating PickupBrandChoices() changed the next result (-want +got):\n%s", diff)
+	if diff := cmp.Diff(want, PickupChainChoices()); diff != "" {
+		t.Errorf("mutating PickupChainChoices() changed the next result (-want +got):\n%s", diff)
 	}
-	if pickup.Brand("other_chain").Known() {
-		t.Error("mutating PickupBrandChoices() changed KnownPickupBrand")
+	if pickup.Chain("other_chain").Known() {
+		t.Error("mutating PickupChainChoices() changed KnownPickupChain")
 	}
 }
 
@@ -186,13 +186,13 @@ func TestThePickupFormAsksForTheChainAndNothingElse(t *testing.T) {
 		Shipping:     []ShippingChoice{{VersionID: "ship-1", Code: "pickup", Name: "超商取貨"}},
 		Chosen:       "ship-1",
 		Destination:  "pickup_point",
-		PickupBrands: CheckoutPickupBrandChoices(),
+		PickupChains: CheckoutPickupChainChoices(),
 	}
 	html := renderToString(t, Checkout(CheckoutMeta(ctx), &view))
 
 	for _, want := range []string{
-		`type="radio" name="pickup_brand" value="seven_eleven"`,
-		`type="radio" name="pickup_brand" value="family_mart"`,
+		`type="radio" name="pickup_chain" value="seven_eleven"`,
+		`type="radio" name="pickup_chain" value="family_mart"`,
 		"7-ELEVEN",
 		"全家",
 		// The selected look is the checked radio's, on the same card the
@@ -217,20 +217,20 @@ func TestThePickupFormAsksForTheChainAndNothingElse(t *testing.T) {
 func TestCheckoutOffersTheChainsTheShopShipsTo(t *testing.T) {
 	t.Parallel()
 
-	want := []PickupBrandChoice{
+	want := []PickupChainChoice{
 		{Value: pickup.SevenEleven, Label: "7-ELEVEN"},
 		{Value: pickup.FamilyMart, Label: "全家 FamilyMart"},
 	}
-	got := CheckoutPickupBrandChoices()
+	got := CheckoutPickupChainChoices()
 	if diff := cmp.Diff(want, got); diff != "" {
-		t.Errorf("CheckoutPickupBrandChoices() mismatch (-want +got):\n%s", diff)
+		t.Errorf("CheckoutPickupChainChoices() mismatch (-want +got):\n%s", diff)
 	}
 	for _, choice := range got {
 		if !choice.Value.Known() {
 			t.Errorf("checkout offers %q, which validation rejects", choice.Value)
 		}
 	}
-	if len(PickupBrandChoices()) != len(pickup.Offered()) {
+	if len(PickupChainChoices()) != len(pickup.Offered()) {
 		t.Error("the back office no longer offers every chain the shop can accept")
 	}
 }
@@ -249,13 +249,13 @@ func TestAPickupOrderIsNamedByItsChain(t *testing.T) {
 	}{
 		{
 			name: "the chain alone", pickup: true,
-			d:    Delivery{PickupBrand: pickup.SevenEleven},
+			d:    Delivery{PickupChain: pickup.SevenEleven},
 			want: "7-ELEVEN",
 		},
 		{
 			name: "a chain whose store is known", pickup: true,
 			d: Delivery{
-				PickupBrand: pickup.FamilyMart, PickupStoreCode: "012345",
+				PickupChain: pickup.FamilyMart, PickupStoreCode: "012345",
 				PickupStoreName: "台北車站門市",
 			},
 			want: "全家 FamilyMart 台北車站門市(012345)",

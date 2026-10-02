@@ -284,7 +284,7 @@ type OrderView struct {
 	Delivery          Delivery
 	Correctable       bool
 	PickupDestination bool
-	PickupBrands      []pages.PickupBrandChoice
+	PickupChains      []pages.PickupChainChoice
 
 	// RefundOffered is a paid order nothing has shipped from and no return
 	// exists for; RefundOpen is one whose refund before shipment Resume finishes.
@@ -303,7 +303,7 @@ type Delivery struct {
 	District   string
 	Street     string
 
-	PickupBrand     pickup.Brand
+	PickupChain     pickup.Chain
 	PickupStoreCode string
 	PickupStoreName string
 }
