@@ -38,10 +38,11 @@ type CampaignView struct {
 func (v CampaignView) Empty() bool { return len(v.Products) == 0 }
 
 // CampaignMeta is the chrome view model for a campaign page.
-func CampaignMeta(ctx context.Context, title string) layouts.Page {
+func CampaignMeta(ctx context.Context, title string, photo Photo) layouts.Page {
 	return layouts.Page{
 		Title:       title,
 		Description: fmt.Sprintf(i18n.T(ctx, i18n.KeyCampaignDescription), title),
+		Share:       photo.share(title),
 	}
 }
 
