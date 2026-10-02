@@ -319,14 +319,14 @@ func TestTheRestockFormStartsWithTheSignedInAddressAndTheConfirmationNamesIt(t *
 	}
 
 	view = soldOut()
-	view.NotifyOutcome = NotifyToAccount
+	view.NotifyOutcome = NotifyRecordedForAccount
 	if got := renderProduct(t, &view, i18n.ZhHant); !strings.Contains(got, "me@example.com") ||
 		strings.Contains(got, i18n.T(ctx, i18n.KeyRestockDone)) {
 		t.Error("the confirmation does not name the account's address")
 	}
 
 	view = soldOut()
-	view.NotifyOutcome = "1"
+	view.NotifyOutcome = NotifyRecorded
 	if got := renderProduct(t, &view, i18n.ZhHant); !strings.Contains(got, i18n.T(ctx, i18n.KeyRestockDone)) ||
 		strings.Contains(got, "me@example.com") {
 		t.Error("a request for another address was confirmed as the account's")

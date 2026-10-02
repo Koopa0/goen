@@ -905,7 +905,7 @@ func TestTheRestockConfirmationNamesOnlyTheAccountsOwnAddress(t *testing.T) {
 		t.Helper()
 		reqCtx := ctx
 		if signedIn {
-			reqCtx = account.WithUser(ctx, account.User{ID: uuid.NewString(), Email: own})
+			reqCtx = account.WithUser(ctx, account.User{ID: reviewer(t, "notify").String(), Email: own})
 		}
 		form := url.Values{"email": {addr}, "variant": {vid.String()}}
 		req := httptest.NewRequestWithContext(reqCtx, http.MethodPost, "/p/"+slug+"/notify",

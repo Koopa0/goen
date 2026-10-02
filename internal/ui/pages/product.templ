@@ -452,9 +452,7 @@ templ productAddForm(v *ProductView) {
 				}, "submit") {
 					@icons.Cart()
 					<span>
-						if v.AllSoldOut() {
-							{ i18n.T(ctx, i18n.KeySoldOut) }
-						} else if v.SoldOut() {
+						if v.AllSoldOut() || v.SoldOut() {
 							{ i18n.T(ctx, i18n.KeySoldOut) }
 						} else if v.NeedsChoice() {
 							{ i18n.T(ctx, i18n.KeyChooseOptions) }
@@ -528,7 +526,7 @@ templ productNotifyForm(v *ProductView) {
 		<h2 class="goen-pdp__notifyhead">{ i18n.T(ctx, i18n.KeyRestockHeading) }</h2>
 		if v.NotifyTaken() {
 			@components.Notice(components.NoticeProps{Tone: components.ToneAccent}) {
-				{ v.NotifyDone(ctx) }
+				{ v.NotifyConfirmation(ctx) }
 			}
 		} else {
 			<div class="goen-pdp__notifyrow">
