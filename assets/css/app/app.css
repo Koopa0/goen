@@ -4425,6 +4425,12 @@ a.goen-pager__step:hover {
   width: 100%;
 }
 
+/* The notice region is always in the document so an update can fill it; it
+   draws nothing when empty and lets a notice sit in the page's own flow. */
+.goen-cart__notices {
+  display: contents;
+}
+
 /* A line in the cart is a grid, so the money and the controls can sit under
    the name at 375 without the name being squeezed to a word a row. The
    thumbnail spans both rows. */
