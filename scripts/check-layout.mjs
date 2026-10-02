@@ -10,6 +10,7 @@
 // Usage: make check-layout   (needs Chrome and a server on GOEN_URL)
 
 import { readFileSync } from 'node:fs';
+import { measureFocus } from './focus-contrast.mjs';
 
 const CDP_PORT = Number(process.env.CDP_PORT || 9222);
 const ORIGIN = (process.env.GOEN_URL || 'http://127.0.0.1:9700/').replace(/\/$/, '');
@@ -2583,6 +2584,54 @@ const openAt = async (label, path) => {
   await send(ws, 'Page.navigate', { url: target });
   await settled(ws, label, target);
 };
+
+await send(ws, 'Network.deleteCookies', { name: 'goen_session', domain: '127.0.0.1', path: '/' });
+const focusAt = async (label, selector, card = '') => {
+  for (const type of ['keyDown', 'keyUp']) {
+    await send(ws, 'Input.dispatchKeyEvent', { type, key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
+  }
+  const got = await evalPage(`(${measureFocus.toString()})(${JSON.stringify(selector)}, ${JSON.stringify(card)})`);
+  console.log('focus contrast ' + JSON.stringify({ label, ...got }));
+  if (got.threw || got.error || !got.active || !got.focusVisible) {
+    fail(label, got.why || got.error || 'keyboard focus-visible state was not established');
+  } else {
+    if (got.width < 2 || got.outlineStyle !== 'solid' || got.contrast < 3) {
+      fail(label, 'focus outline is not at least 2px solid at 3:1 against its adjacent colour');
+    }
+    if (card && (!got.checked || JSON.stringify(got.before) !== JSON.stringify(got.after))) {
+      fail(label, 'focusing a chosen card weakened its selection border or shadow');
+    }
+  }
+};
+try {
+  for (const locale of ['zh-Hant', 'en']) {
+    await send(ws, 'Network.setCookie', { name: 'goen_locale', value: locale, domain: '127.0.0.1', path: '/' });
+    await openAt('focus sign-in', '/signin');
+    await focusAt('focus sign-in ' + locale, 'form[action="/signin"] button[type=submit]');
+    await openAt('focus contact', '/contact');
+    await focusAt('focus contact submit ' + locale, 'form#contact-form button[type=submit]');
+    await focusAt('focus newsletter ' + locale, 'form#newsletter-form button[type=submit]');
+    await focusAt('focus input ' + locale, '#contact-name');
+    await openAt('focus selected card', '/checkout');
+    for (const name of ['invoice_type', 'shipping']) {
+      await focusAt('focus chosen ' + name + ' ' + locale,
+        'input[name="' + name + '"]:checked', '.goen-checkout__ship');
+    }
+    await openAt('focus variant', '/p/' + process.env.COLOUR_SLUG);
+    const choice = await evalPage(`document.querySelector('.goen-swatch:not(.goen-swatch--dot)')?.href || null`);
+    if (!choice || choice.threw) {
+      fail('focus variant', 'text variant choice was not rendered');
+    } else {
+      await send(ws, 'Page.navigate', { url: choice });
+      await settled(ws, 'focus chosen variant', choice);
+      await focusAt('focus selected text swatch ' + locale, '.goen-swatch--on:not(.goen-swatch--dot)');
+      await focusAt('focus colour swatch ' + locale, '.goen-swatch--dot');
+    }
+  }
+} finally {
+  await send(ws, 'Network.setCookie', { name: 'goen_session', value: process.env.ADMIN_TOKEN, domain: '127.0.0.1', path: '/' });
+  await send(ws, 'Network.setCookie', { name: 'goen_locale', value: 'zh-Hant', domain: '127.0.0.1', path: '/' });
+}
 
 const proveUsable = async (at, fieldSel, formSel) => {
   const got = await evalPage(`(() => {
