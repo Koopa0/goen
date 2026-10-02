@@ -145,14 +145,17 @@ func (p Preference) NeedsMobileBarcode() bool { return p == PreferenceMobile }
 // NeedsTaxID reports whether checkout must collect a business tax number.
 func (p Preference) NeedsTaxID() bool { return p == PreferenceCompany }
 
-// Where ECPay keeps the invoice, as its CarrierType field says.
+// InvoiceCarrier is the 載具 an invoice is filed under, in ECPay's CarrierType
+// spelling. It is never the parcel company.
+type InvoiceCarrier string
+
 const (
-	// HolderNone is a printed invoice or one held in the shop's own account.
-	HolderNone = ""
-	// HolderMember is the invoice held in ECPay's member account.
-	HolderMember = "1"
-	// HolderMobileBarcode is the customer's mobile barcode.
-	HolderMobileBarcode = "3"
+	// InvoiceCarrierNone is a printed invoice or one held in the shop's own account.
+	InvoiceCarrierNone InvoiceCarrier = ""
+	// InvoiceCarrierMember is ECPay's own member carrier.
+	InvoiceCarrierMember InvoiceCarrier = "1"
+	// InvoiceCarrierMobileBarcode is the mobile barcode a customer carries.
+	InvoiceCarrierMobileBarcode InvoiceCarrier = "3"
 )
 
 // Document is an issued uniform invoice or credit note, as goen records it.

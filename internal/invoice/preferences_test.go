@@ -11,9 +11,11 @@ import (
 
 func TestDonationPreferenceReachesTheProviderAsALoveCode(t *testing.T) {
 	for _, tt := range []struct {
-		name                                        string
-		preference                                  Preference
-		barcode, donation, wireHolder, wireDonation string
+		name              string
+		preference        Preference
+		barcode, donation string
+		wireCarrier       InvoiceCarrier
+		wireDonation      string
 	}{
 		{"donation", PreferenceDonate, "", "00123", "", "1"},
 	} {
@@ -54,7 +56,7 @@ func TestDonationPreferenceReachesTheProviderAsALoveCode(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Issue: %v", err)
 			}
-			if seen.Donation != tt.wireDonation || seen.LoveCode != tt.donation || seen.CarrierT != tt.wireHolder || seen.CarrierNum != tt.barcode || seen.Print != "0" || seen.CustomerIdentifier != "" {
+			if seen.Donation != tt.wireDonation || seen.LoveCode != tt.donation || seen.CarrierT != tt.wireCarrier || seen.CarrierNum != tt.barcode || seen.Print != "0" || seen.CustomerIdentifier != "" {
 				t.Errorf("provider preference = donation %q/%q, barcode %q/%q, print %q, tax ID %q", seen.Donation, seen.LoveCode, seen.CarrierT, seen.CarrierNum, seen.Print, seen.CustomerIdentifier)
 			}
 		})

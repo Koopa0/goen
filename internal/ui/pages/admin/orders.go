@@ -455,9 +455,9 @@ func (v *OrderView) HasInvoice() bool { return v.InvoiceType != "" }
 func (v *OrderView) InvoiceText(ctx context.Context) string {
 	switch v.InvoiceType {
 	case invoice.PreferenceMember:
-		return i18n.T(ctx, i18n.KeyAdminInvoiceMember)
+		return i18n.T(ctx, i18n.KeyAdminInvoiceCarrierMember)
 	case invoice.PreferenceMobile:
-		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminInvoiceMobileBarcode), v.InvoiceMobileBarcode)
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminInvoiceCarrierMobileBarcode), v.InvoiceMobileBarcode)
 	case invoice.PreferenceDonate:
 		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminInvoiceDonate), v.InvoiceDonationCode)
 	case invoice.PreferenceCompany:

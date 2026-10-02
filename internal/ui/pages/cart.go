@@ -957,9 +957,9 @@ func (d OrderInvoiceDocument) Amount() string { return twd(d.AmountCents) }
 func (i *OrderInvoice) ChoiceText(ctx context.Context) string {
 	switch i.Type {
 	case invoice.PreferenceMember:
-		return i18n.T(ctx, i18n.KeyAdminInvoiceMember)
+		return i18n.T(ctx, i18n.KeyAdminInvoiceCarrierMember)
 	case invoice.PreferenceMobile:
-		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminInvoiceMobileBarcode), maskMobileBarcode(i.MobileBarcode))
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminInvoiceCarrierMobileBarcode), maskMobileBarcode(i.MobileBarcode))
 	case invoice.PreferenceDonate:
 		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminInvoiceDonate), i.DonationCode)
 	case invoice.PreferenceCompany:

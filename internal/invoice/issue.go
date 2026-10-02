@@ -51,25 +51,25 @@ func (g *Gateway) Issue(ctx context.Context, in IssueRequest) (Document, error) 
 		Vat:      "1",
 		InvType:  "07", // general tax
 		Items:    itemsFor(in.Lines),
-		CarrierT: HolderNone,
+		CarrierT: InvoiceCarrierNone,
 	}
 
 	switch in.Preference {
 	case PreferenceCompany:
-		// A business-tax-number invoice STILL needs a holder or a printed copy
-		// (ECPay RtnCode 5000028). The number says who it is FOR; the holder
+		// A business-tax-number invoice STILL needs an invoice carrier or a printed copy
+		// (ECPay RtnCode 5000028). The number says who it is FOR; the carrier
 		// says where it is held.
 		req.CustomerIdentifier = in.TaxID
-		req.CarrierT = HolderMember
+		req.CarrierT = InvoiceCarrierMember
 	case PreferenceDonate:
 		req.Donation = "1"
 		req.LoveCode = in.DonationCode
 	case PreferenceMobile:
-		req.CarrierT = HolderMobileBarcode
+		req.CarrierT = InvoiceCarrierMobileBarcode
 		req.CarrierNum = in.MobileBarcode
 	case PreferenceMember:
-		// Member account: ECPay holds it against the customer's email.
-		req.CarrierT = HolderMember
+		// Member carrier: ECPay holds it against the customer's email.
+		req.CarrierT = InvoiceCarrierMember
 	default:
 		panic("invoice: validated unknown preference " + in.Preference)
 	}
@@ -273,21 +273,21 @@ type AllowanceRequest struct {
 }
 
 type issueRequest struct {
-	MerchantID         string `json:"MerchantID"`
-	RelateNumber       string `json:"RelateNumber"`
-	CustomerIdentifier string `json:"CustomerIdentifier,omitempty"`
-	CustomerName       string `json:"CustomerName"`
-	CustomerEmail      string `json:"CustomerEmail"`
-	Print              string `json:"Print"`
-	Donation           string `json:"Donation"`
-	LoveCode           string `json:"LoveCode,omitempty"`
-	CarrierT           string `json:"CarrierType"`
-	CarrierNum         string `json:"CarrierNum,omitempty"`
-	TaxType            string `json:"TaxType"`
-	SalesAmount        int64  `json:"SalesAmount"`
-	InvType            string `json:"InvType"`
-	Vat                string `json:"vat"`
-	Items              []item `json:"Items"`
+	MerchantID         string         `json:"MerchantID"`
+	RelateNumber       string         `json:"RelateNumber"`
+	CustomerIdentifier string         `json:"CustomerIdentifier,omitempty"`
+	CustomerName       string         `json:"CustomerName"`
+	CustomerEmail      string         `json:"CustomerEmail"`
+	Print              string         `json:"Print"`
+	Donation           string         `json:"Donation"`
+	LoveCode           string         `json:"LoveCode,omitempty"`
+	CarrierT           InvoiceCarrier `json:"CarrierType"`
+	CarrierNum         string         `json:"CarrierNum,omitempty"`
+	TaxType            string         `json:"TaxType"`
+	SalesAmount        int64          `json:"SalesAmount"`
+	InvType            string         `json:"InvType"`
+	Vat                string         `json:"vat"`
+	Items              []item         `json:"Items"`
 }
 
 type invalidRequest struct {

@@ -129,8 +129,8 @@ var (
 	KeyFieldTaxID = key("field.invoice.taxid", Message{ZhHant: "統一編號", En: "Company tax ID"})
 
 	KeyInvoiceMember = key("invoice.member", Message{
-		ZhHant: memberInvoiceZhHant + "（依結帳 Email 留存與通知）",
-		En:     memberInvoiceEn + " (stored and notified using your checkout email)",
+		ZhHant: memberInvoiceCarrierZhHant + "（依結帳 Email 留存與通知）",
+		En:     memberInvoiceCarrierEn + " (stored and notified using your checkout email)",
 	})
 
 	KeyInvoiceMobile = key("invoice.mobile", Message{
@@ -143,11 +143,11 @@ var (
 		En:     "Company tax ID",
 	})
 
-	// Issue sends the company invoice with the member account (issue.go), which
+	// Issue sends the company invoice with the member carrier (issue.go), which
 	// ECPay holds against the checkout email.
 	KeyInvoiceCompanyStored = key("invoice.company.stored", Message{
-		ZhHant: "公司統編發票會存入" + memberInvoiceZhHant + "，依結帳 Email 留存與通知，可在綠界的載具中查詢。",
-		En:     "A company tax ID invoice is stored in the " + memberInvoiceEn + ", tied to your checkout email, and can be retrieved there.",
+		ZhHant: "公司統編發票會存入" + memberInvoiceCarrierZhHant + "，依結帳 Email 留存與通知，可在綠界的載具中查詢。",
+		En:     "A company tax ID invoice is stored in the " + memberInvoiceCarrierEn + ", tied to your checkout email, and can be retrieved there.",
 	})
 
 	KeyDeliveryToAddress = key("checkout.dest.address", Message{ZhHant: "收件地址", En: "Delivery address"})
@@ -329,11 +329,11 @@ var (
 	})
 )
 
-// The member-account option's name, shared so a refusal that points shoppers at
+// The member-carrier option's name, shared so a refusal that points shoppers at
 // it cannot drift from the label they see on the form.
 const (
-	memberInvoiceZhHant = "綠界電子發票載具"
-	memberInvoiceEn     = "ECPay e-invoice carrier"
+	memberInvoiceCarrierZhHant = "綠界電子發票載具"
+	memberInvoiceCarrierEn     = "ECPay e-invoice carrier"
 )
 
-var KeyMobileBarcodeMissing = key("checkout.carrier.missing", Message{ZhHant: "查無此手機條碼，請確認載具號碼，或改選「" + memberInvoiceZhHant + "」。", En: "This mobile barcode does not exist. Check it, or choose \"" + memberInvoiceEn + "\"."})
+var KeyMobileBarcodeMissing = key("checkout.carrier.missing", Message{ZhHant: "查無此手機條碼，請確認載具號碼，或改選「" + memberInvoiceCarrierZhHant + "」。", En: "This mobile barcode does not exist. Check it, or choose \"" + memberInvoiceCarrierEn + "\"."})

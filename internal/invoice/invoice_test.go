@@ -537,7 +537,7 @@ func TestTheRequestCarriesWhatTheInvoiceNeeds(t *testing.T) {
 	if seen.Print != "0" {
 		t.Errorf("Print = %q, want \"0\" — goen never prints", seen.Print)
 	}
-	if seen.CarrierT != HolderMobileBarcode || seen.CarrierNum != "/ABC+123" {
+	if seen.CarrierT != InvoiceCarrierMobileBarcode || seen.CarrierNum != "/ABC+123" {
 		t.Errorf("barcode = %q/%q, want the mobile barcode the customer gave",
 			seen.CarrierT, seen.CarrierNum)
 	}
@@ -665,11 +665,11 @@ func TestACompanyInvoiceCarriesTheTaxIDAndNoMobileBarcode(t *testing.T) {
 		t.Errorf("CustomerName = %q, want the company registered for that 統編",
 			seen.CustomerName)
 	}
-	// A business-tax-number invoice STILL needs a mobile barcode or member account (ECPay RtnCode
+	// A business-tax-number invoice STILL needs a invoice carrier (ECPay RtnCode
 	// 5000028), which is the opposite of what it looks like.
-	if seen.CarrierT != HolderMember {
-		t.Errorf("CarrierType = %q on a 統編 invoice, want the member account: "+
-			"ECPay refuses a 統編 with no mobile barcode or member account and goen does not print",
+	if seen.CarrierT != InvoiceCarrierMember {
+		t.Errorf("CarrierType = %q on a 統編 invoice, want the member carrier: "+
+			"ECPay refuses a 統編 with no invoice carrier and goen does not print",
 			seen.CarrierT)
 	}
 }

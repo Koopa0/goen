@@ -157,9 +157,9 @@ var (
 )
 
 var (
-	KeyAdminInvoiceMember = key("admin.carrier.member", Message{ZhHant: "會員載具", En: "Member carrier"})
+	KeyAdminInvoiceCarrierMember = key("admin.carrier.member", Message{ZhHant: "會員載具", En: "Member carrier"})
 
-	KeyAdminInvoiceMobileBarcode = key("admin.carrier.mobile", Message{
+	KeyAdminInvoiceCarrierMobileBarcode = key("admin.carrier.mobile", Message{
 		ZhHant: "手機條碼載具 %s",
 		En:     "Mobile barcode carrier %s",
 	})
