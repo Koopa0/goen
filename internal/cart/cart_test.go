@@ -1130,7 +1130,6 @@ func TestAProfileWithoutAPhoneNeverWipesOne(t *testing.T) {
 	}
 }
 
-// TestPrefillRecipientNeverOverwritesAndReportsWhetherItIsTheMember.
 func TestPrefillRecipientNeverOverwritesAndReportsWhetherItIsTheMember(t *testing.T) {
 	t.Parallel()
 	profile := pages.CheckoutProfile{Email: "me@example.com", Name: "王小明", Phone: "0912345678"}

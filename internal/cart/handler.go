@@ -371,29 +371,40 @@ func prefillRecipient(view *pages.CheckoutView, prefill *Address) {
 // it only into a field still holding the account's value, so text typed since is
 // never wiped. This is the path without scripting; goen.js does the same.
 func applyRecipient(view *pages.CheckoutView, addr *Address) {
-	p := view.Profile
 	if view.RecipientMe {
-		if p.Name != "" {
-			if addr.Name != p.Name {
-				view.RecipientPrevName = addr.Name
-			}
-			addr.Name = p.Name
-		}
-		if p.Phone != "" {
-			if addr.Phone != p.Phone {
-				view.RecipientPrevPhone = addr.Phone
-			}
-			addr.Phone = p.Phone
-		}
+		takeAccountRecipient(view, addr)
 	} else {
-		if p.Name != "" && addr.Name == p.Name {
-			addr.Name, view.RecipientPrevName = view.RecipientPrevName, ""
-		}
-		if p.Phone != "" && addr.Phone == p.Phone {
-			addr.Phone, view.RecipientPrevPhone = view.RecipientPrevPhone, ""
-		}
+		returnToTypedRecipient(view, addr)
 	}
-	view.RecipientMe = matchesAccountRecipient(p, addr.Name, addr.Phone)
+	view.RecipientMe = matchesAccountRecipient(view.Profile, addr.Name, addr.Phone)
+}
+
+// takeAccountRecipient overwrites the address with the account's name and
+// phone, keeping whatever was there so unticking can put it back.
+func takeAccountRecipient(view *pages.CheckoutView, addr *Address) {
+	p := view.Profile
+	if p.Name != "" {
+		if addr.Name != p.Name {
+			view.RecipientPrevName = addr.Name
+		}
+		addr.Name = p.Name
+	}
+	if p.Phone != "" {
+		if addr.Phone != p.Phone {
+			view.RecipientPrevPhone = addr.Phone
+		}
+		addr.Phone = p.Phone
+	}
+}
+
+func returnToTypedRecipient(view *pages.CheckoutView, addr *Address) {
+	p := view.Profile
+	if p.Name != "" && addr.Name == p.Name {
+		addr.Name, view.RecipientPrevName = view.RecipientPrevName, ""
+	}
+	if p.Phone != "" && addr.Phone == p.Phone {
+		addr.Phone, view.RecipientPrevPhone = view.RecipientPrevPhone, ""
+	}
 }
 
 // firstOf is the first of two values that says anything.
