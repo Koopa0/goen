@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/admin/access"
+	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -49,7 +50,7 @@ func (h *Handler) Decide(w http.ResponseWriter, r *http.Request) {
 	}
 	err := h.store.Decide(r.Context(), r.PathValue("id"),
 		r.PostFormValue("decision"), r.PostFormValue("resolution"),
-		r.PostFormValue("assessment_version"), staffID(r))
+		r.PostFormValue("assessment_version"), audit.ActorID(r.Context()))
 	switch {
 	case err == nil:
 		http.Redirect(w, r, "/admin/returns?ok=1", http.StatusSeeOther)
@@ -279,7 +280,7 @@ func (h *Handler) Inspect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := h.store.InspectReturn(r.Context(), r.PathValue("id"), lines, staffID(r))
+	err := h.store.InspectReturn(r.Context(), r.PathValue("id"), lines, audit.ActorID(r.Context()))
 	switch {
 	case err == nil:
 		http.Redirect(w, r, "/admin/returns?inspected=1", http.StatusSeeOther)
@@ -340,7 +341,7 @@ func (h *Handler) Complete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	err := h.store.CompleteReturn(r.Context(), r.PathValue("id"),
-		r.PostFormValue("resolution"), staffID(r))
+		r.PostFormValue("resolution"), audit.ActorID(r.Context()))
 	switch {
 	case err == nil:
 		http.Redirect(w, r, "/admin/returns?closed=1", http.StatusSeeOther)

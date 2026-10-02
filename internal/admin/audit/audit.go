@@ -87,6 +87,14 @@ func In(ctx context.Context, q *db.Queries, e Event) error {
 	return nil
 }
 
+// ActorID is Actor for a column that may be NULL. An unparseable id is nobody
+// and not a failure, so a dispatch that has physically happened is not refused
+// over who recorded it.
+func ActorID(ctx context.Context) uuid.NullUUID {
+	id, ok := Actor(ctx)
+	return uuid.NullUUID{UUID: id, Valid: ok}
+}
+
 func Actor(ctx context.Context) (uuid.UUID, bool) {
 	u, ok := account.FromContext(ctx)
 	if !ok {

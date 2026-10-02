@@ -196,3 +196,21 @@ func DiscountedProductSlug(t *testing.T, pool *pgxpool.Pool) string {
 	}
 	return slug
 }
+
+// NamedPool is a one-connection pool whose connections carry an application
+// name, so a test can tell which of two concurrent writers is blocked.
+func NamedPool(t *testing.T, pool *pgxpool.Pool, applicationName string) *pgxpool.Pool {
+	t.Helper()
+	cfg, err := pgxpool.ParseConfig(pool.Config().ConnString())
+	if err != nil {
+		t.Fatalf("parse admin pool config: %v", err)
+	}
+	cfg.MaxConns = 1
+	cfg.ConnConfig.RuntimeParams["application_name"] = applicationName
+	p, err := pgxpool.NewWithConfig(t.Context(), cfg)
+	if err != nil {
+		t.Fatalf("open traced admin pool: %v", err)
+	}
+	t.Cleanup(p.Close)
+	return p
+}

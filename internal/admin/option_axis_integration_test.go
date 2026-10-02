@@ -16,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/koopa0/goen/internal/admin"
+	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/i18n"
 )
 
@@ -104,7 +105,7 @@ func TestOptionAxisAndVariantCreationSerialize(t *testing.T) {
 				t.Fatal(err)
 			}
 			app := "axis-race-" + uuid.NewString()
-			other := namedAdminPool(t, app)
+			other := admintest.NamedPool(t, pool, app)
 			if _, err := other.Exec(ctx, `SET ROLE admin`); err != nil {
 				t.Fatal(err)
 			}
