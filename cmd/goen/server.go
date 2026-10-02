@@ -209,7 +209,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	mux.HandleFunc("GET /healthz", probes.Live)
 	mux.HandleFunc("GET /readyz", probes.Ready)
 
-	mux.HandleFunc("GET /{$}", storefront.Home)
+	mux.HandleFunc("GET /{$}", storefront.Index)
 	// The digest in the path is the only authorisation an image has, and it is
 	// unguessable by construction.
 	mux.HandleFunc("GET /media/{digest}", images.Serve)

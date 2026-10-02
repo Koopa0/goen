@@ -19,6 +19,9 @@ type Taxon struct {
 	Children int64
 	Parent   string
 	Tone     string // "" inherits the department's
+	// Comparable is a department's own answer; a sub-category takes its
+	// department's and shows no control.
+	Comparable bool
 }
 
 // HeaderHref is the page that holds the category's header photograph.
@@ -80,10 +83,12 @@ type TaxonDraft struct {
 	Parent  string
 	IconKey string
 	Tone    string
+	// Comparable is the box as it was posted.
+	Comparable bool
 }
 
 // HasErr reports whether this form's field was refused.
-func (v TaxonomyView) HasErr(which, field string) bool {
+func (v *TaxonomyView) HasErr(which, field string) bool {
 	if v.Which != which {
 		return false
 	}
@@ -92,7 +97,7 @@ func (v TaxonomyView) HasErr(which, field string) bool {
 }
 
 // Err is why.
-func (v TaxonomyView) Err(which, field string) string {
+func (v *TaxonomyView) Err(which, field string) string {
 	if v.Which != which {
 		return ""
 	}
@@ -100,7 +105,7 @@ func (v TaxonomyView) Err(which, field string) string {
 }
 
 // DraftFor is the value to put back in a field, empty for the other form.
-func (v TaxonomyView) DraftFor(which, field string) string {
+func (v *TaxonomyView) DraftFor(which, field string) string {
 	if v.Which != which {
 		return ""
 	}
@@ -117,6 +122,11 @@ func (v TaxonomyView) DraftFor(which, field string) string {
 		return v.Draft.IconKey
 	case "tone":
 		return v.Draft.Tone
+	case "comparable":
+		if v.Draft.Comparable {
+			return "1"
+		}
+		return ""
 	default:
 		panic("pages: TaxonomyView.DraftFor: unknown field " + field)
 	}

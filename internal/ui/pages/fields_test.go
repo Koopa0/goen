@@ -387,6 +387,13 @@ func (w *writes) function(fn *ast.FuncDecl) {
 
 	ast.Inspect(fn, func(n ast.Node) bool {
 		switch node := n.(type) {
+		case *ast.FuncLit:
+			// A closure's parameter is how a refusal reaches the view it fills.
+			for _, param := range fields(node.Type.Params) {
+				for _, name := range param.Names {
+					bind(name, w.typeName(param.Type))
+				}
+			}
 		case *ast.ValueSpec:
 			for _, name := range node.Names {
 				bind(name, w.typeName(node.Type))

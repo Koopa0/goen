@@ -1475,6 +1475,8 @@ func (h *Handler) CreateTaxon(w http.ResponseWriter, r *http.Request) {
 		Parent:  r.PostFormValue("parent"),
 		IconKey: r.PostFormValue("icon_key"),
 		Tone:    r.PostFormValue("tone"),
+		// An unticked box posts nothing, which is the answer "no".
+		Comparable: r.PostFormValue("comparable") != "",
 	}
 
 	var errs map[string]string
@@ -1497,7 +1499,7 @@ func (h *Handler) CreateTaxon(w http.ResponseWriter, r *http.Request) {
 		view.Which, view.Errors = kind, errs
 		view.Draft = admin.TaxonDraft{
 			Slug: f.Slug, Name: f.Name, NameEn: f.NameEn, Parent: f.Parent,
-			IconKey: f.IconKey, Tone: f.Tone,
+			IconKey: f.IconKey, Tone: f.Tone, Comparable: f.Comparable,
 		}
 		web.Render(w, r, h.log, http.StatusUnprocessableEntity, admin.Taxonomy(
 			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageTaxonomy)}, &view))
@@ -1524,7 +1526,8 @@ func (h *Handler) EditTaxon(w http.ResponseWriter, r *http.Request) {
 	} else {
 		err = h.store.Rename(r.Context(), kind, slug,
 			r.PostFormValue("name"), r.PostFormValue("name_en"),
-			r.PostFormValue("icon_key"), r.PostFormValue("tone"))
+			r.PostFormValue("icon_key"), r.PostFormValue("tone"),
+			r.PostFormValue("comparable") != "")
 	}
 	switch {
 	case err == nil:

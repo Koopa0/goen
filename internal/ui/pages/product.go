@@ -181,8 +181,11 @@ type ProductView struct {
 	// NotifyEmail is the address a refused restock request was posted with.
 	NotifyEmail string
 	Comparing   []string
-	Questions   []Question
-	AskOutcome  string
+	// Comparable is whether the product's department offers comparison; where
+	// it does not, the page shows no compare control.
+	Comparable bool
+	Questions  []Question
+	AskOutcome string
 	// AskDraft is a refused question, replayed into the textarea so a 422
 	// does not empty what the customer already typed.
 	AskDraft string

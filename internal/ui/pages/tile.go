@@ -3,6 +3,7 @@ package pages
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strconv"
 
 	"github.com/koopa0/goen/internal/i18n"
@@ -37,6 +38,11 @@ type ProductTile struct {
 	// listing and by search, which are where somebody is choosing between
 	// candidates; a shop window, a promotional list and a wishlist are not.
 	Comparable bool
+}
+
+// AnyComparable reports whether any tile carries the compare box.
+func AnyComparable(tiles []ProductTile) bool {
+	return slices.ContainsFunc(tiles, func(t ProductTile) bool { return t.Comparable })
 }
 
 // CompareLabel is the checkbox's accessible name, which names the product.

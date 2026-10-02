@@ -26,7 +26,7 @@ import (
 // the browser's orders when a session ends, so the browser keeps no reference
 // to the account's cart or to any order.
 type CartFinder interface {
-	CartIDForRequest(ctx context.Context, r *http.Request) (uuid.UUID, bool)
+	IDForRequest(ctx context.Context, r *http.Request) (uuid.UUID, bool)
 	ForgetCart(w http.ResponseWriter, r *http.Request)
 	ForgetOrders(w http.ResponseWriter, r *http.Request)
 }
@@ -436,7 +436,7 @@ func (h *Handler) adoptRequestCart(r *http.Request, userID string) cartAdoption 
 	if h.carts == nil {
 		return cartAdoptionUnchanged
 	}
-	cartID, ok := h.carts.CartIDForRequest(r.Context(), r)
+	cartID, ok := h.carts.IDForRequest(r.Context(), r)
 	if !ok {
 		return cartAdoptionUnchanged
 	}

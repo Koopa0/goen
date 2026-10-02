@@ -1125,17 +1125,18 @@ WHERE b.slug = @slug::text
 
 -- name: ManagedCategories :many
 WITH RECURSIVE tree AS (
-    SELECT c.id, c.parent_id, c.slug, c.name, c.name_en, c.icon_key, c.tone, c.position,
+    SELECT c.id, c.parent_id, c.slug, c.name, c.name_en, c.icon_key, c.tone, c.comparable, c.position,
            0 AS depth, array[c.position, 0] AS path
     FROM categories c WHERE c.parent_id IS NULL
     UNION ALL
-    SELECT c.id, c.parent_id, c.slug, c.name, c.name_en, c.icon_key, c.tone, c.position,
+    SELECT c.id, c.parent_id, c.slug, c.name, c.name_en, c.icon_key, c.tone, c.comparable, c.position,
            t.depth + 1, t.path || array[c.position, 0]
     FROM categories c JOIN tree t ON t.id = c.parent_id
 )
 SELECT t.id, t.slug, t.name, coalesce(t.name_en, '') AS name_en,
        coalesce(t.icon_key, '') AS icon_key,
        coalesce(t.tone, '') AS tone,
+       coalesce(t.comparable, false)::boolean AS comparable,
        t.depth::integer AS depth,
        coalesce(p.name, '') AS parent_name,
        (SELECT count(*) FROM products x WHERE x.category_id = t.id)::bigint AS products,
@@ -1148,9 +1149,11 @@ ORDER BY t.path, t.name;
 -- for a slug that does not exist, creating a ROOT category and reporting
 -- success. No rows is how the caller learns the parent was not found.
 -- name: CreateCategory :execrows
-INSERT INTO categories (slug, name, name_en, icon_key, tone, parent_id, position)
+INSERT INTO categories (slug, name, name_en, icon_key, tone, comparable, parent_id, position)
 SELECT @slug::text, @name::text, nullif(@name_en::text, ''),
-       nullif(@icon_key::text, ''), nullif(@tone::text, ''), parent.id,
+       nullif(@icon_key::text, ''), nullif(@tone::text, ''),
+       -- Only a department answers: a sub-category keeps NULL and takes its department's.
+       CASE WHEN parent.id IS NULL THEN @comparable::boolean END, parent.id,
        coalesce((SELECT max(c.position) + 1 FROM categories c
                  WHERE c.parent_id IS NOT DISTINCT FROM parent.id), 0)
 FROM (
@@ -1165,7 +1168,8 @@ FROM (
 -- name: RenameCategory :execrows
 UPDATE categories SET name = @name::text, name_en = nullif(@name_en::text, ''),
                      icon_key = nullif(@icon_key::text, ''),
-                     tone = nullif(@tone::text, '')
+                     tone = nullif(@tone::text, ''),
+                     comparable = CASE WHEN parent_id IS NULL THEN @comparable::boolean END
 WHERE slug = @slug::text;
 
 -- name: SetCategoryImage :execrows

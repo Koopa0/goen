@@ -31,6 +31,9 @@ type TaxonomyForm struct {
 	IconKey string
 	// Tone is "" for a category that takes its department's.
 	Tone string
+	// Comparable is the department's answer to "compare products here"; a
+	// sub-category's is not stored, it takes its department's.
+	Comparable bool
 }
 
 // Validate refuses what the schema would, with a message naming the field.
@@ -83,8 +86,8 @@ func (s *Store) Taxonomy(ctx context.Context) (admin.TaxonomyView, error) {
 		c := &cats[i]
 		view.Categories = append(view.Categories, admin.Taxon{
 			Slug: c.Slug, Name: c.Name, NameEn: c.NameEn, IconKey: c.IconKey, Tone: c.Tone,
-			Products: c.Products,
-			Depth:    int(c.Depth), Children: c.Children, Parent: c.ParentName,
+			Comparable: c.Comparable, Products: c.Products,
+			Depth: int(c.Depth), Children: c.Children, Parent: c.ParentName,
 		})
 	}
 	return view, nil
@@ -120,13 +123,13 @@ func (s *Store) CreateCategory(ctx context.Context, f *TaxonomyForm) (map[string
 		Action: actionCreateCategory, Table: "categories",
 		After: map[string]any{
 			"slug": f.Slug, "name": f.Name, "name_en": f.NameEn,
-			"icon_key": f.IconKey, "tone": f.Tone, "parent": f.Parent,
+			"icon_key": f.IconKey, "tone": f.Tone, "comparable": f.Comparable, "parent": f.Parent,
 		},
 	},
 		func(ctx context.Context, q *db.Queries) error {
 			n, createErr := q.CreateCategory(ctx, db.CreateCategoryParams{
 				Slug: f.Slug, Name: f.Name, NameEn: f.NameEn,
-				IconKey: f.IconKey, Tone: f.Tone, ParentSlug: f.Parent,
+				IconKey: f.IconKey, Tone: f.Tone, Comparable: f.Comparable, ParentSlug: f.Parent,
 			})
 			if createErr != nil {
 				return createErr
@@ -156,7 +159,7 @@ func (s *Store) CreateCategory(ctx context.Context, f *TaxonomyForm) (map[string
 }
 
 // Rename changes a display name, never a slug: goen has no redirect table.
-func (s *Store) Rename(ctx context.Context, kind, slug, name, nameEn, iconKey, tone string) error {
+func (s *Store) Rename(ctx context.Context, kind, slug, name, nameEn, iconKey, tone string, offersComparison bool) error {
 	name, nameEn = strings.TrimSpace(name), strings.TrimSpace(nameEn)
 	iconKey, tone = strings.TrimSpace(iconKey), strings.TrimSpace(tone)
 	if name == "" || utf8.RuneCountInString(name) > MaxTaxonomyNameRunes {
@@ -178,6 +181,7 @@ func (s *Store) Rename(ctx context.Context, kind, slug, name, nameEn, iconKey, t
 		after["name_en"] = nameEn
 		after["icon_key"] = iconKey
 		after["tone"] = tone
+		after["comparable"] = offersComparison
 	}
 	return s.audited(ctx, Event{
 		Action: action, Table: table,
@@ -191,7 +195,7 @@ func (s *Store) Rename(ctx context.Context, kind, slug, name, nameEn, iconKey, t
 				n, err = q.RenameBrand(ctx, db.RenameBrandParams{Slug: slug, Name: name})
 			} else {
 				n, err = q.RenameCategory(ctx, db.RenameCategoryParams{
-					Slug: slug, Name: name, NameEn: nameEn, IconKey: iconKey, Tone: tone,
+					Slug: slug, Name: name, NameEn: nameEn, IconKey: iconKey, Tone: tone, Comparable: offersComparison,
 				})
 			}
 			if err != nil {

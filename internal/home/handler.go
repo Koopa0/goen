@@ -26,8 +26,8 @@ func NewHandler(store *Store, log *slog.Logger, secure bool) *Handler {
 	return &Handler{store: store, log: log, secure: secure}
 }
 
-// Home renders the home page.
-func (h *Handler) Home(w http.ResponseWriter, r *http.Request) {
+// Index renders the home page.
+func (h *Handler) Index(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Load(r.Context())
 	if err != nil {
 		h.log.Error("load home page", "error", err)
