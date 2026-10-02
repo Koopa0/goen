@@ -587,7 +587,7 @@ type Address struct {
 	District   string
 	Street     string
 
-	PickupBrand     pickup.Brand
+	PickupChain     pickup.Chain
 	PickupStoreCode string
 	PickupStoreName string
 
@@ -692,8 +692,8 @@ func (a *Address) pickupPointErrors() []account.FieldError {
 	var errs []account.FieldError
 	add := func(f string, k i18n.Key) { errs = append(errs, account.FieldError{Field: f, MessageKey: k}) }
 
-	if !a.PickupBrand.Known() {
-		add("pickup_brand", i18n.KeyPickupBrandRequired)
+	if !a.PickupChain.Known() {
+		add("pickup_chain", i18n.KeyPickupChainRequired)
 	}
 	switch {
 	case a.PickupStoreCode == "" && a.PickupStoreName != "":
@@ -716,7 +716,7 @@ func (a *Address) pickupPointErrors() []account.FieldError {
 func (a *Address) ForDestination() {
 	switch a.To {
 	case ToAddress:
-		a.PickupBrand, a.PickupStoreCode, a.PickupStoreName = "", "", ""
+		a.PickupChain, a.PickupStoreCode, a.PickupStoreName = "", "", ""
 	case ToPickupPoint:
 		a.PostalCode, a.City, a.District, a.Street = "", "", "", ""
 	}
@@ -745,7 +745,7 @@ func (a *Address) controlCharErrors() []account.FieldError {
 		{"email", a.Email}, {"name", a.Name}, {"phone", a.Phone},
 		{"postal_code", a.PostalCode}, {"city", a.City},
 		{"district", a.District}, {"street", a.Street},
-		{"pickup_brand", string(a.PickupBrand)}, {"pickup_store_code", a.PickupStoreCode},
+		{"pickup_chain", string(a.PickupChain)}, {"pickup_store_code", a.PickupStoreCode},
 		{"pickup_store_name", a.PickupStoreName}, {"note", a.Note},
 	} {
 		if hasControl(f.value) {
@@ -815,7 +815,7 @@ func (a *Address) Trim() {
 	a.City = strings.TrimSpace(a.City)
 	a.District = strings.TrimSpace(a.District)
 	a.Street = strings.TrimSpace(a.Street)
-	a.PickupBrand = pickup.Brand(strings.TrimSpace(string(a.PickupBrand)))
+	a.PickupChain = pickup.Chain(strings.TrimSpace(string(a.PickupChain)))
 	a.PickupStoreCode = strings.ToUpper(strings.TrimSpace(a.PickupStoreCode))
 	a.PickupStoreName = strings.TrimSpace(a.PickupStoreName)
 	a.Note = strings.TrimSpace(a.Note)

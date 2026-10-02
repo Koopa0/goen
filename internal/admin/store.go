@@ -252,21 +252,21 @@ func (s *Store) Order(ctx context.Context, number string) (admin.OrderView, erro
 		Email: o.Email, Recipient: o.RecipientName, Phone: o.Phone,
 		Address: pages.Delivery{
 			PostalCode: o.PostalCode, City: o.City, District: o.District, Street: o.Street,
-			PickupBrand: pickup.Brand(o.PickupBrand), PickupStoreCode: o.PickupStoreCode,
+			PickupChain: pickup.Chain(o.PickupChain), PickupStoreCode: o.PickupStoreCode,
 			PickupStoreName: o.PickupStoreName,
 		}.Line(),
 		Delivery: admin.Delivery{
 			Email: o.Email, Recipient: o.RecipientName, Phone: o.Phone,
 			PostalCode: o.PostalCode, City: o.City,
 			District: o.District, Street: o.Street,
-			PickupBrand: pickup.Brand(o.PickupBrand), PickupStoreCode: o.PickupStoreCode,
+			PickupChain: pickup.Chain(o.PickupChain), PickupStoreCode: o.PickupStoreCode,
 			PickupStoreName: o.PickupStoreName,
 		},
 		// UpdateOrderDelivery's WHERE clause is the authority; this only decides
 		// whether to offer the form.
 		Correctable:         correctable(fulfillment),
-		PickupDestination:   o.PickupBrand != "",
-		PickupBrands:        pages.PickupBrandChoices(),
+		PickupDestination:   o.PickupChain != "",
+		PickupChains:        pages.PickupChainChoices(),
 		CustomerNote:        o.CustomerNote.String,
 		StaffNote:           o.StaffNote.String,
 		InvoiceType:         invoice.Preference(o.InvoiceType),
@@ -280,7 +280,7 @@ func (s *Store) Order(ctx context.Context, number string) (admin.OrderView, erro
 		CreditCents:         o.CreditCents,
 	}
 
-	carriers, implied := carrier.ForDelivery(pickup.Brand(o.PickupBrand), o.DestinationKind == "pickup_point")
+	carriers, implied := carrier.ForDelivery(pickup.Chain(o.PickupChain), o.DestinationKind == "pickup_point")
 	view.ShipCarriers, view.ShipCarrier = carriers, string(implied)
 
 	if shipErr := s.fillShippable(ctx, &view, o.ID, fulfillment); shipErr != nil {
@@ -746,8 +746,8 @@ func (s *Store) Ship(ctx context.Context, number string, d Dispatch, actor uuid.
 }
 
 // requireCarrierFor refuses a carrier that cannot deliver to where this order
-// goes: a home courier for a pickup point, or a store brand's own logistics for
-// another brand.
+// goes: a home courier for a pickup point, or a store chain's own logistics for
+// another chain.
 func requireCarrierFor(
 	ctx context.Context, q *db.Queries, orderID uuid.UUID, number string, code carrier.Carrier,
 ) error {
@@ -755,7 +755,7 @@ func requireCarrierFor(
 	if err != nil {
 		return fmt.Errorf("read destination of %s: %w", number, err)
 	}
-	valid, _ := carrier.ForDelivery(pickup.Brand(dest.PickupBrand), dest.DestinationKind == "pickup_point")
+	valid, _ := carrier.ForDelivery(pickup.Chain(dest.PickupChain), dest.DestinationKind == "pickup_point")
 	if !slices.Contains(valid, code) {
 		return fmt.Errorf("%w: %s cannot carry order %s", ErrCarrier, code, number)
 	}

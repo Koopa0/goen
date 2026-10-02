@@ -4,37 +4,32 @@ package pickup
 
 import "slices"
 
-// Brand is the value persisted in order_private_data.pickup_brand and carried
+// Chain is the value persisted in order_private_data.pickup_chain and carried
 // by checkout and back-office forms. It is not a display name.
-type Brand string
+type Chain string
 
 const (
-	// SevenEleven is 7-ELEVEN Taiwan.
-	SevenEleven Brand = "seven_eleven"
-	// FamilyMart is FamilyMart Taiwan.
-	FamilyMart Brand = "family_mart"
-	// HiLife is Hi-Life Taiwan.
-	HiLife Brand = "hi_life"
-	// OKMart is OK mart Taiwan.
-	OKMart Brand = "ok_mart"
+	SevenEleven Chain = "seven_eleven"
+	FamilyMart  Chain = "family_mart"
+	HiLife      Chain = "hi_life"
+	OKMart      Chain = "ok_mart"
 )
 
-var offered = [...]Brand{
+var offered = [...]Chain{
 	SevenEleven,
 	FamilyMart,
 	HiLife,
 	OKMart,
 }
 
-// Offered returns every brand an order can carry, in display order: the back
+// Offered returns every chain an order can carry, in display order: the back
 // office renders and corrects orders placed at chains checkout no longer takes. The result
 // owns its storage, so a caller cannot mutate the canonical closed set.
-func Offered() []Brand { return slices.Clone(offered[:]) }
+func Offered() []Chain { return slices.Clone(offered[:]) }
 
-// Known reports whether b is a brand this shop can accept for pickup.
-func (b Brand) Known() bool {
+func (c Chain) Known() bool {
 	for _, candidate := range offered {
-		if b == candidate {
+		if c == candidate {
 			return true
 		}
 	}

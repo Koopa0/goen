@@ -1773,12 +1773,12 @@ func Checkout(p layouts.Page, v *CheckoutView) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				if v.ToPickupPoint() {
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 127, "        <div class=\"goen-field goen-checkout__wide\" id=\"pickup_brand\"><p class=\"goen-label\" id=\"pickup_brand-label\">")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 127, "        <div class=\"goen-field goen-checkout__wide\" id=\"pickup_chain\"><p class=\"goen-label\" id=\"pickup_chain-label\">")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var100 string
-					templ_7745c5c3_Var100, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyFieldPickupBrand))
+					templ_7745c5c3_Var100, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyFieldPickupChain))
 					if templ_7745c5c3_Err != nil {
 						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/cart.templ`, Line: 416, Col: 95}
 					}
@@ -1790,16 +1790,16 @@ func Checkout(p layouts.Page, v *CheckoutView) templ.Component {
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templ.RenderAttributes(ctx, templ_7745c5c3_Buffer, checkoutChoiceSwap("pickup_brand"))
+					templ_7745c5c3_Err = templ.RenderAttributes(ctx, templ_7745c5c3_Buffer, checkoutChoiceSwap("pickup_chain"))
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 129, " role=\"radiogroup\" aria-labelledby=\"pickup_brand-label\" aria-invalid=\"")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 129, " role=\"radiogroup\" aria-labelledby=\"pickup_chain-label\" aria-invalid=\"")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var101 string
-					templ_7745c5c3_Var101, templ_7745c5c3_Err = templ.ResolveAttributeValue(v.Invalid("pickup_brand"))
+					templ_7745c5c3_Var101, templ_7745c5c3_Err = templ.ResolveAttributeValue(v.Invalid("pickup_chain"))
 					if templ_7745c5c3_Err != nil {
 						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/cart.templ`, Line: 422, Col: 51}
 					}
@@ -1811,8 +1811,8 @@ func Checkout(p layouts.Page, v *CheckoutView) templ.Component {
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					if v.HasErr("pickup_brand") {
-						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 131, " aria-describedby=\"pickup_brand-error\"")
+					if v.HasErr("pickup_chain") {
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 131, " aria-describedby=\"pickup_chain-error\"")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -1821,13 +1821,13 @@ func Checkout(p layouts.Page, v *CheckoutView) templ.Component {
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					for _, b := range v.PickupBrands {
+					for _, b := range v.PickupChains {
 						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 133, "<label class=\"goen-checkout__ship\"><input class=\"goen-sr-only\" id=\"")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
 						var templ_7745c5c3_Var102 string
-						templ_7745c5c3_Var102, templ_7745c5c3_Err = templ.ResolveAttributeValue("pickup_brand-" + string(b.Value))
+						templ_7745c5c3_Var102, templ_7745c5c3_Err = templ.ResolveAttributeValue("pickup_chain-" + string(b.Value))
 						if templ_7745c5c3_Err != nil {
 							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/cart.templ`, Line: 431, Col: 52}
 						}
@@ -1835,7 +1835,7 @@ func Checkout(p layouts.Page, v *CheckoutView) templ.Component {
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
-						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 134, "\" type=\"radio\" name=\"pickup_brand\" value=\"")
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 134, "\" type=\"radio\" name=\"pickup_chain\" value=\"")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -1852,7 +1852,7 @@ func Checkout(p layouts.Page, v *CheckoutView) templ.Component {
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
-						if b.Value == v.Address.PickupBrand {
+						if b.Value == v.Address.PickupChain {
 							templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 136, " checked")
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
@@ -1880,17 +1880,17 @@ func Checkout(p layouts.Page, v *CheckoutView) templ.Component {
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = applyChoice("pickup_brand").Render(ctx, templ_7745c5c3_Buffer)
+					templ_7745c5c3_Err = applyChoice("pickup_chain").Render(ctx, templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					if v.HasErr("pickup_brand") {
-						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 140, "<p class=\"ui-error-text\" id=\"pickup_brand-error\">")
+					if v.HasErr("pickup_chain") {
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 140, "<p class=\"ui-error-text\" id=\"pickup_chain-error\">")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
 						var templ_7745c5c3_Var105 string
-						templ_7745c5c3_Var105, templ_7745c5c3_Err = templ.JoinStringErrs(v.Err("pickup_brand"))
+						templ_7745c5c3_Var105, templ_7745c5c3_Err = templ.JoinStringErrs(v.Err("pickup_chain"))
 						if templ_7745c5c3_Err != nil {
 							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/cart.templ`, Line: 443, Col: 83}
 						}
@@ -3341,12 +3341,12 @@ func pickupStore(v *CheckoutView) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 267, "\"> <input type=\"hidden\" name=\"pickup_store_brand\" value=\"")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 267, "\"> <input type=\"hidden\" name=\"pickup_store_chain\" value=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var181 string
-				templ_7745c5c3_Var181, templ_7745c5c3_Err = templ.ResolveAttributeValue(string(v.Address.PickupBrand))
+				templ_7745c5c3_Var181, templ_7745c5c3_Err = templ.ResolveAttributeValue(string(v.Address.PickupChain))
 				if templ_7745c5c3_Err != nil {
 					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/cart.templ`, Line: 767, Col: 88}
 				}

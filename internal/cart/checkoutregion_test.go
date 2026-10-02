@@ -80,14 +80,14 @@ func TestSwitchingTheChainInPlaceKeepsTheStoreButton(t *testing.T) {
 		Shipping:     []pages.ShippingChoice{{VersionID: "ship-1", Code: "pickup", Name: "超商取貨"}},
 		Chosen:       "ship-1",
 		Destination:  "pickup_point",
-		PickupBrands: pages.CheckoutPickupBrandChoices(),
+		PickupChains: pages.CheckoutPickupChainChoices(),
 		Address: pages.CheckoutAddress{
 			Email: "someone@goen.test", Name: "王小明", Phone: "0912345678",
-			PickupBrand: pickup.FamilyMart,
+			PickupChain: pickup.FamilyMart,
 		},
 	}
 
-	form := url.Values{"update": {"pickup_brand"}, "pickup_brand": {"family_mart"}}
+	form := url.Values{"update": {"pickup_chain"}, "pickup_chain": {"family_mart"}}
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/checkout", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")

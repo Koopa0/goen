@@ -412,35 +412,35 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 									// The chooser re-renders the form, because the chain
 									// decides which map the button below opens and that
 									// form is built on the server.
-									<div class="goen-field goen-checkout__wide" id="pickup_brand">
-										<p class="goen-label" id="pickup_brand-label">{ i18n.T(ctx, i18n.KeyFieldPickupBrand) }</p>
+									<div class="goen-field goen-checkout__wide" id="pickup_chain">
+										<p class="goen-label" id="pickup_chain-label">{ i18n.T(ctx, i18n.KeyFieldPickupChain) }</p>
 										<div
 											class="goen-checkout__choices"
-											{ checkoutChoiceSwap("pickup_brand")... }
+											{ checkoutChoiceSwap("pickup_chain")... }
 											role="radiogroup"
-											aria-labelledby="pickup_brand-label"
-											aria-invalid={ v.Invalid("pickup_brand") }
-											if v.HasErr("pickup_brand") {
-												aria-describedby="pickup_brand-error"
+											aria-labelledby="pickup_chain-label"
+											aria-invalid={ v.Invalid("pickup_chain") }
+											if v.HasErr("pickup_chain") {
+												aria-describedby="pickup_chain-error"
 											}
 										>
-											for _, b := range v.PickupBrands {
+											for _, b := range v.PickupChains {
 												<label class="goen-checkout__ship">
 													<input
 														class="goen-sr-only"
-														id={ "pickup_brand-" + string(b.Value) }
+														id={ "pickup_chain-" + string(b.Value) }
 														type="radio"
-														name="pickup_brand"
+														name="pickup_chain"
 														value={ string(b.Value) }
-														checked?={ b.Value == v.Address.PickupBrand }
+														checked?={ b.Value == v.Address.PickupChain }
 													/>
 													<span class="goen-checkout__shipname">{ b.Label }</span>
 												</label>
 											}
 										</div>
-										@applyChoice("pickup_brand")
-										if v.HasErr("pickup_brand") {
-											<p class="ui-error-text" id="pickup_brand-error">{ v.Err("pickup_brand") }</p>
+										@applyChoice("pickup_chain")
+										if v.HasErr("pickup_chain") {
+											<p class="ui-error-text" id="pickup_chain-error">{ v.Err("pickup_chain") }</p>
 										}
 										@pickupStore(v)
 									</div>
@@ -764,7 +764,7 @@ templ pickupStore(v *CheckoutView) {
 				// summary above, and is never posted and never stored.
 				<input type="hidden" name="pickup_store_code" value={ v.Address.PickupStoreCode }/>
 				<input type="hidden" name="pickup_store_name" value={ v.Address.PickupStoreName }/>
-				<input type="hidden" name="pickup_store_brand" value={ string(v.Address.PickupBrand) }/>
+				<input type="hidden" name="pickup_store_chain" value={ string(v.Address.PickupChain) }/>
 				<input type="hidden" name="pickup_n" value={ v.PickupNonce }/>
 				<p class="goen-pickup__name">{ v.Address.PickupStoreName } ({ v.Address.PickupStoreCode })</p>
 				if v.PickupStoreAddr != "" {

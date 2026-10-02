@@ -153,27 +153,27 @@ func TestTheMapFormCarriesTheContractAndNothingElse(t *testing.T) {
 
 	tests := []struct {
 		mode    LogisticsMode
-		brand   pickup.Brand
+		chain   pickup.Chain
 		want    string
 		offered bool
 	}{
-		{mode: ModeB2C, brand: pickup.SevenEleven, want: "UNIMART", offered: true},
-		{mode: ModeB2C, brand: pickup.FamilyMart, want: "FAMI", offered: true},
-		{mode: ModeC2C, brand: pickup.SevenEleven, want: "UNIMARTC2C", offered: true},
-		{mode: ModeC2C, brand: pickup.FamilyMart, want: "FAMIC2C", offered: true},
+		{mode: ModeB2C, chain: pickup.SevenEleven, want: "UNIMART", offered: true},
+		{mode: ModeB2C, chain: pickup.FamilyMart, want: "FAMI", offered: true},
+		{mode: ModeC2C, chain: pickup.SevenEleven, want: "UNIMARTC2C", offered: true},
+		{mode: ModeC2C, chain: pickup.FamilyMart, want: "FAMIC2C", offered: true},
 		// ECPay's set has no OK mart at all, in either contract, so the checkout
 		// cannot open a map for one and must not pretend it can.
-		{mode: ModeB2C, brand: pickup.OKMart},
-		{mode: ModeC2C, brand: pickup.OKMart},
-		{mode: ModeB2C, brand: pickup.HiLife},
-		{mode: ModeB2C, brand: ""},
+		{mode: ModeB2C, chain: pickup.OKMart},
+		{mode: ModeC2C, chain: pickup.OKMart},
+		{mode: ModeB2C, chain: pickup.HiLife},
+		{mode: ModeB2C, chain: ""},
 	}
 
 	for _, tt := range tests {
-		t.Run(string(tt.mode)+"/"+string(tt.brand), func(t *testing.T) {
+		t.Run(string(tt.mode)+"/"+string(tt.chain), func(t *testing.T) {
 			t.Parallel()
 			m := testMap(t, tt.mode)
-			form, ok := m.Request(tt.brand, "TRADE", aNonce, false)
+			form, ok := m.Request(tt.chain, "TRADE", aNonce, false)
 			if ok != tt.offered {
 				t.Fatalf("Request offered = %v, want %v", ok, tt.offered)
 			}
@@ -286,35 +286,35 @@ func TestOnlyThisBrowsersOwnStoreIsHonoured(t *testing.T) {
 	}{
 		{
 			name:   "the store this browser went to fetch",
-			posted: PostedStore{Brand: pickup.SevenEleven, Code: "131386", Name: "南港園區", Nonce: aNonce},
+			posted: PostedStore{Chain: pickup.SevenEleven, Code: "131386", Name: "南港園區", Nonce: aNonce},
 			state:  held, known: true, want: true,
 		},
 		{
 			name:   "the other offered chain, also fine",
-			posted: PostedStore{Brand: pickup.FamilyMart, Code: "012345", Name: "松高店", Nonce: aNonce},
+			posted: PostedStore{Chain: pickup.FamilyMart, Code: "012345", Name: "松高店", Nonce: aNonce},
 			state:  held, known: true, want: true,
 		},
 		{
 			// T1: an attacker page auto-posts a forged store in the victim's
 			// browser. It cannot know the nonce, so the store is dropped.
 			name:   "a forged store carrying a nonce of the attacker's own",
-			posted: PostedStore{Brand: pickup.SevenEleven, Code: "999999", Name: "假門市", Nonce: otherNonce},
+			posted: PostedStore{Chain: pickup.SevenEleven, Code: "999999", Name: "假門市", Nonce: otherNonce},
 			state:  held, known: true,
 		},
 		{
 			// T2: a crafted /checkout?… link, which carries no nonce at all.
 			name:   "a crafted link with no nonce",
-			posted: PostedStore{Brand: pickup.SevenEleven, Code: "999999", Name: "假門市"},
+			posted: PostedStore{Chain: pickup.SevenEleven, Code: "999999", Name: "假門市"},
 			state:  held, known: true,
 		},
 		{
 			name:   "the right nonce but no cookie in this browser",
-			posted: PostedStore{Brand: pickup.SevenEleven, Code: "131386", Name: "南港園區", Nonce: aNonce},
+			posted: PostedStore{Chain: pickup.SevenEleven, Code: "131386", Name: "南港園區", Nonce: aNonce},
 			state:  pickupState{},
 		},
 		{
 			name:   "a chain the checkout does not offer",
-			posted: PostedStore{Brand: pickup.OKMart, Code: "131386", Name: "南港園區", Nonce: aNonce},
+			posted: PostedStore{Chain: pickup.OKMart, Code: "131386", Name: "南港園區", Nonce: aNonce},
 			state:  held, known: true,
 		},
 		{
@@ -324,7 +324,7 @@ func TestOnlyThisBrowsersOwnStoreIsHonoured(t *testing.T) {
 		},
 		{
 			name:   "an empty nonce on both sides is not a match",
-			posted: PostedStore{Brand: pickup.SevenEleven, Code: "131386", Name: "南港園區"},
+			posted: PostedStore{Chain: pickup.SevenEleven, Code: "131386", Name: "南港園區"},
 			state:  pickupState{}, known: true,
 		},
 	}
@@ -361,18 +361,18 @@ func TestTheCallbackIsCheckedForShapeAndNothingElse(t *testing.T) {
 		name  string
 		edit  func(url.Values)
 		want  bool
-		brand pickup.Brand
+		chain pickup.Chain
 	}{
-		{name: "as ECPay posts it", want: true, brand: pickup.SevenEleven},
+		{name: "as ECPay posts it", want: true, chain: pickup.SevenEleven},
 		{
 			name: "7-ELEVEN omits CVSTelephone, which goen never asked for",
 			edit: func(v url.Values) { v.Del("CVSTelephone") },
-			want: true, brand: pickup.SevenEleven,
+			want: true, chain: pickup.SevenEleven,
 		},
 		{
 			name: "the other chain under the same contract",
 			edit: func(v url.Values) { v.Set("LogisticsSubType", "FAMI") },
-			want: true, brand: pickup.FamilyMart,
+			want: true, chain: pickup.FamilyMart,
 		},
 		{
 			name: "another merchant's callback",
@@ -429,7 +429,7 @@ func TestTheCallbackIsCheckedForShapeAndNothingElse(t *testing.T) {
 		{
 			name: "no address, which is not a refusal",
 			edit: func(v url.Values) { v.Del("CVSAddress") },
-			want: true, brand: pickup.SevenEleven,
+			want: true, chain: pickup.SevenEleven,
 		},
 		{
 			name: "ExtraData that is not a nonce",
@@ -460,8 +460,8 @@ func TestTheCallbackIsCheckedForShapeAndNothingElse(t *testing.T) {
 			if !tt.want {
 				return
 			}
-			if store.Brand != tt.brand {
-				t.Errorf("brand = %q, want %q", store.Brand, tt.brand)
+			if store.Chain != tt.chain {
+				t.Errorf("chain = %q, want %q", store.Chain, tt.chain)
 			}
 			if store.Nonce != aNonce {
 				t.Errorf("nonce = %q, want the one goen sent", store.Nonce)
@@ -533,7 +533,7 @@ func TestNothingPostedReachesTheSchemeHostOrPathOfTheRefresh(t *testing.T) {
 
 	for _, s := range hostile {
 		got := callback{
-			Brand: pickup.SevenEleven, Code: "131386", Name: s, Address: s, Nonce: aNonce,
+			Chain: pickup.SevenEleven, Code: "131386", Name: s, Address: s, Nonce: aNonce,
 		}.refreshTarget()
 
 		if !strings.HasPrefix(got, "/checkout?") {
@@ -669,14 +669,14 @@ func TestPickupRefusalDiagnosticsDoNotExposeSelectionSecrets(t *testing.T) {
 	var logs bytes.Buffer
 	h := &Handler{storeMap: testMap(t, ModeB2C), log: slog.New(slog.NewJSONHandler(&logs, nil))}
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet,
-		"/checkout?pickup_n="+aNonce+"&pickup_brand=seven_eleven&pickup_store_code=131386&pickup_store_name=private-store", http.NoBody)
+		"/checkout?pickup_n="+aNonce+"&pickup_chain=seven_eleven&pickup_store_code=131386&pickup_store_name=private-store", http.NoBody)
 	//nolint:gosec // G124: stale local cookie used to exercise refusal diagnostics
 	req.AddCookie(&http.Cookie{Name: "goen_pickup", Value: encodeState("fedcba98765432100000|a|b|c")})
 	view := &pages.CheckoutView{}
 	if got := h.applyReturnedStore(req, view); got != http.StatusUnprocessableEntity || !view.PickupRefused {
 		t.Fatalf("unmatched selection = %d, refused=%v", got, view.PickupRefused)
 	}
-	for _, want := range []string{`"pickup_cookie_count":1`, `"nonce_valid":true`, `"nonce_matched":false`, `"brand_offered":true`} {
+	for _, want := range []string{`"pickup_cookie_count":1`, `"nonce_valid":true`, `"nonce_matched":false`, `"chain_offered":true`} {
 		if !strings.Contains(logs.String(), want) {
 			t.Errorf("diagnostics missing %s: %s", want, logs.String())
 		}
@@ -693,7 +693,7 @@ func TestMissingPickupNonceIsNotLoggedAsAMatch(t *testing.T) {
 	var logs bytes.Buffer
 	h := &Handler{storeMap: testMap(t, ModeB2C), log: slog.New(slog.NewJSONHandler(&logs, nil))}
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet,
-		"/checkout?pickup_brand=seven_eleven&pickup_store_code=131386", http.NoBody)
+		"/checkout?pickup_chain=seven_eleven&pickup_store_code=131386", http.NoBody)
 	//nolint:gosec // G124: local selection cookie without a matching return nonce
 	req.AddCookie(&http.Cookie{Name: "goen_pickup", Value: encodeState(aNonce + "|a|b|c")})
 	view := &pages.CheckoutView{}
@@ -721,7 +721,7 @@ func TestASingleCookieSurvivesAMismatchedNonce(t *testing.T) {
 	if !ok || state.Nonce != aNonce {
 		t.Errorf("the shopper's own nonce was replaced: %+v/%v", state, ok)
 	}
-	if honourPickupStore(PostedStore{Brand: "seven_eleven", Code: "131386", Nonce: other}, state, ok) {
+	if honourPickupStore(PostedStore{Chain: "seven_eleven", Code: "131386", Nonce: other}, state, ok) {
 		t.Error("a mismatched nonce was honoured")
 	}
 }

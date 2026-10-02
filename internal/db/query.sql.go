@@ -1122,7 +1122,7 @@ SELECT
     coalesce(pd.city, '') AS city,
     coalesce(pd.district, '') AS district,
     coalesce(pd.street, '') AS street,
-    coalesce(pd.pickup_brand, '') AS pickup_brand,
+    coalesce(pd.pickup_chain, '') AS pickup_chain,
     coalesce(pd.pickup_store_code, '') AS pickup_store_code,
     coalesce(pd.pickup_store_name, '') AS pickup_store_name,
     coalesce(ip.invoice_type, '') AS invoice_type,
@@ -1166,7 +1166,7 @@ type AdminOrderByNumberRow struct {
 	City                string
 	District            string
 	Street              string
-	PickupBrand         string
+	PickupChain         string
 	PickupStoreCode     string
 	PickupStoreName     string
 	InvoiceType         string
@@ -1204,7 +1204,7 @@ func (q *Queries) AdminOrderByNumber(ctx context.Context, orderNumber string) (A
 		&i.City,
 		&i.District,
 		&i.Street,
-		&i.PickupBrand,
+		&i.PickupChain,
 		&i.PickupStoreCode,
 		&i.PickupStoreName,
 		&i.InvoiceType,
@@ -5321,7 +5321,7 @@ func (q *Queries) CreateOrderLine(ctx context.Context, arg CreateOrderLineParams
 const createOrderPrivateData = `-- name: CreateOrderPrivateData :exec
 INSERT INTO order_private_data (
     order_id, email, recipient_name, phone, postal_code, city, district, street,
-    pickup_brand, pickup_store_code, pickup_store_name
+    pickup_chain, pickup_store_code, pickup_store_name
 ) VALUES (
     $1, $2, $3, $4,
     nullif($5::text, ''), nullif($6::text, ''),
@@ -5340,7 +5340,7 @@ type CreateOrderPrivateDataParams struct {
 	City            string
 	District        string
 	Street          string
-	PickupBrand     string
+	PickupChain     string
 	PickupStoreCode string
 	PickupStoreName string
 }
@@ -5357,7 +5357,7 @@ func (q *Queries) CreateOrderPrivateData(ctx context.Context, arg CreateOrderPri
 		arg.City,
 		arg.District,
 		arg.Street,
-		arg.PickupBrand,
+		arg.PickupChain,
 		arg.PickupStoreCode,
 		arg.PickupStoreName,
 	)
@@ -9238,7 +9238,7 @@ func (q *Queries) OrderDestinationKind(ctx context.Context, orderNumber string) 
 }
 
 const orderDispatchDestination = `-- name: OrderDispatchDestination :one
-SELECT sm.destination_kind, coalesce(pd.pickup_brand, '')::text AS pickup_brand
+SELECT sm.destination_kind, coalesce(pd.pickup_chain, '')::text AS pickup_chain
 FROM orders o
 JOIN shipping_method_versions v ON v.id = o.shipping_version_id
 JOIN shipping_methods sm ON sm.id = v.method_id
@@ -9248,7 +9248,7 @@ WHERE o.id = $1
 
 type OrderDispatchDestinationRow struct {
 	DestinationKind string
-	PickupBrand     string
+	PickupChain     string
 }
 
 // Where an order's parcel is going: whether its shipping method delivers to a
@@ -9256,7 +9256,7 @@ type OrderDispatchDestinationRow struct {
 func (q *Queries) OrderDispatchDestination(ctx context.Context, id uuid.UUID) (OrderDispatchDestinationRow, error) {
 	row := q.db.QueryRow(ctx, orderDispatchDestination, id)
 	var i OrderDispatchDestinationRow
-	err := row.Scan(&i.DestinationKind, &i.PickupBrand)
+	err := row.Scan(&i.DestinationKind, &i.PickupChain)
 	return i, err
 }
 
@@ -9751,7 +9751,7 @@ SELECT o.id, o.order_number, o.fulfillment_status,
        coalesce(pd.city, '') AS city,
        coalesce(pd.district, '') AS district,
        coalesce(pd.street, '') AS street,
-       coalesce(pd.pickup_brand, '') AS pickup_brand,
+       coalesce(pd.pickup_chain, '') AS pickup_chain,
        coalesce(pd.pickup_store_code, '') AS pickup_store_code,
        coalesce(pd.pickup_store_name, '') AS pickup_store_name,
        -- 'pending' does NOT mean unpaid: a webhook can capture minutes before
@@ -9788,7 +9788,7 @@ type OrderSummaryByNumberRow struct {
 	City               string
 	District           string
 	Street             string
-	PickupBrand        string
+	PickupChain        string
 	PickupStoreCode    string
 	PickupStoreName    string
 	Committed          bool
@@ -9815,7 +9815,7 @@ func (q *Queries) OrderSummaryByNumber(ctx context.Context, arg OrderSummaryByNu
 		&i.City,
 		&i.District,
 		&i.Street,
-		&i.PickupBrand,
+		&i.PickupChain,
 		&i.PickupStoreCode,
 		&i.PickupStoreName,
 		&i.Committed,
@@ -15336,7 +15336,7 @@ UPDATE order_private_data pd SET
     city = nullif($5::text, ''),
     district = nullif($6::text, ''),
     street = nullif($7::text, ''),
-    pickup_brand = nullif($8::text, ''),
+    pickup_chain = nullif($8::text, ''),
     pickup_store_code = nullif($9::text, ''),
     pickup_store_name = nullif($10::text, '')
 FROM orders o
@@ -15354,7 +15354,7 @@ type UpdateOrderDeliveryParams struct {
 	City            string
 	District        string
 	Street          string
-	PickupBrand     string
+	PickupChain     string
 	PickupStoreCode string
 	PickupStoreName string
 	OrderNumber     string
@@ -15373,7 +15373,7 @@ func (q *Queries) UpdateOrderDelivery(ctx context.Context, arg UpdateOrderDelive
 		arg.City,
 		arg.District,
 		arg.Street,
-		arg.PickupBrand,
+		arg.PickupChain,
 		arg.PickupStoreCode,
 		arg.PickupStoreName,
 		arg.OrderNumber,

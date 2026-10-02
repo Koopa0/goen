@@ -50,7 +50,7 @@ var all = [...]Carrier{
 // the four home carriers, and nothing on the order says which: the shipping
 // method names its carrier as display text, not as one of these codes, so no
 // carrier is implied.
-func ForDelivery(chain pickup.Brand, pickupPoint bool) (valid []Carrier, implied Carrier) {
+func ForDelivery(chain pickup.Chain, pickupPoint bool) (valid []Carrier, implied Carrier) {
 	stores := []Carrier{SevenEleven, FamilyMart, HiLife, OKMart}
 	switch chain {
 	case pickup.SevenEleven:

@@ -871,7 +871,7 @@ func finishOrder(
 		City:            addr.City,
 		District:        addr.District,
 		Street:          addr.Street,
-		PickupBrand:     string(addr.PickupBrand),
+		PickupChain:     string(addr.PickupChain),
 		PickupStoreCode: addr.PickupStoreCode,
 		PickupStoreName: addr.PickupStoreName,
 	}); err != nil {
@@ -1016,7 +1016,7 @@ func (s *Store) Order(ctx context.Context, number string) (pages.OrderView, erro
 		OwedCents:    o.OwedCents,
 		DeliveryTo: pages.Delivery{
 			PostalCode: o.PostalCode, City: o.City, District: o.District, Street: o.Street,
-			PickupBrand: pickup.Brand(o.PickupBrand), PickupStoreCode: o.PickupStoreCode,
+			PickupChain: pickup.Chain(o.PickupChain), PickupStoreCode: o.PickupStoreCode,
 			PickupStoreName: o.PickupStoreName,
 		}.Line(),
 		SubtotalCents: o.SubtotalCents,

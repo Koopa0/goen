@@ -217,7 +217,7 @@ func TestDeliveryCorrectionCannotPlaceAnAbsentOriginalPostcode(t *testing.T) {
 	ctx, _ := staffContext(t)
 	// Both destination groups are individually legal in storage. The method is
 	// still address delivery, so a missing original postcode is not the mainland.
-	if _, err := pool.Exec(ctx, `UPDATE order_private_data SET postal_code=NULL,city=NULL,district=NULL,street=NULL,pickup_brand='family_mart' WHERE order_id=$1`, f.id); err != nil {
+	if _, err := pool.Exec(ctx, `UPDATE order_private_data SET postal_code=NULL,city=NULL,district=NULL,street=NULL,pickup_chain='family_mart' WHERE order_id=$1`, f.id); err != nil {
 		t.Fatal(err)
 	}
 	err := admin.NewStore(pool, fakeRefunder{}, nil, nil).CorrectDelivery(ctx, f.number, proposedDelivery(f.newPostal))

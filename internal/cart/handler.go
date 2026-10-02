@@ -483,7 +483,7 @@ func (h *Handler) applyDraft(
 	view.Address = pages.CheckoutAddress{
 		Email: address, Name: d.Name, Phone: d.Phone,
 		PostalCode: d.PostalCode, City: d.City, District: d.District, Street: d.Street,
-		PickupBrand: d.Brand, Note: d.Note,
+		PickupChain: d.Chain, Note: d.Note,
 	}
 	if d.SavedAddress != "" {
 		view.ChosenAddress = d.SavedAddress
@@ -532,7 +532,7 @@ func (h *Handler) PickupStart(w http.ResponseWriter, r *http.Request) {
 	draft := checkoutDraft{
 		Email: addr.Email, Name: addr.Name, Phone: addr.Phone,
 		PostalCode: addr.PostalCode, City: addr.City, District: addr.District, Street: addr.Street,
-		Note: addr.Note, Brand: addr.PickupBrand,
+		Note: addr.Note, Chain: addr.PickupChain,
 		Shipping: view.Chosen, SavedAddress: view.ChosenAddress,
 		InvoiceType: string(inv.Type), Carrier: inv.Carrier, DonationCode: inv.DonationCode,
 		CompanyName: inv.CompanyName, TaxID: inv.TaxID,
@@ -551,7 +551,7 @@ func (h *Handler) PickupStart(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, back, http.StatusSeeOther)
 		return
 	}
-	if _, ok := h.storeMap.Subtype(addr.PickupBrand); !ok {
+	if _, ok := h.storeMap.Subtype(addr.PickupChain); !ok {
 		// No chain chosen yet: back to the form, with what was typed.
 		http.Redirect(w, r, back, http.StatusSeeOther)
 		return
@@ -587,7 +587,7 @@ func (h *Handler) PickupMap(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, back, http.StatusSeeOther)
 		return
 	}
-	form, ok := h.mapRequest(r, draft.Brand, state.Nonce)
+	form, ok := h.mapRequest(r, draft.Chain, state.Nonce)
 	if !ok {
 		http.Redirect(w, r, back, http.StatusSeeOther)
 		return
@@ -636,7 +636,7 @@ func (h *Handler) applyReturnedStore(r *http.Request, view *pages.CheckoutView) 
 	}
 	q := r.URL.Query()
 	posted := PostedStore{
-		Brand: pickup.Brand(q.Get("pickup_brand")),
+		Chain: pickup.Chain(q.Get("pickup_chain")),
 		Code:  q.Get("pickup_store_code"),
 		Name:  q.Get("pickup_store_name"),
 		Nonce: q.Get("pickup_n"),
@@ -650,7 +650,7 @@ func (h *Handler) applyReturnedStore(r *http.Request, view *pages.CheckoutView) 
 		view.PickupRefused = true
 		return http.StatusUnprocessableEntity
 	}
-	view.Address.PickupBrand = posted.Brand
+	view.Address.PickupChain = posted.Chain
 	view.Address.PickupStoreCode = posted.Code
 	view.Address.PickupStoreName = posted.Name
 	// Display only, and only here: the address is never posted back and never
@@ -692,7 +692,7 @@ func (h *Handler) PickupReturn(w http.ResponseWriter, r *http.Request) {
 // has to arrive with a nonce this browser's own cookie matches, or both halves
 // are blanked and the page says a store could not be confirmed.
 //
-// It also drops a store belonging to the OTHER chain. pickup_store_brand is the
+// It also drops a store belonging to the OTHER chain. pickup_store_chain is the
 // chain the store was chosen at, and the radio is the chain chosen now: a
 // shopper who changes chain has no store, because a parcel waiting at a
 // 7-ELEVEN is not waiting at a 全家. That comparison is consistency and not
@@ -708,13 +708,13 @@ func (h *Handler) dropUnvouchedStore(r *http.Request, addr *Address) bool {
 		return false
 	}
 	posted := PostedStore{
-		Brand: addr.PickupBrand,
+		Chain: addr.PickupChain,
 		Code:  addr.PickupStoreCode,
 		Name:  addr.PickupStoreName,
 		Nonce: r.PostFormValue("pickup_n"),
 	}
 	state, known := readPickupCookie(r, h.secure)
-	sameChain := r.PostFormValue("pickup_store_brand") == string(addr.PickupBrand)
+	sameChain := r.PostFormValue("pickup_store_chain") == string(addr.PickupChain)
 	if sameChain && honourPickupStore(posted, state, known) {
 		return false
 	}
@@ -734,7 +734,7 @@ func (h *Handler) logPickupRefusal(r *http.Request, posted PostedStore) {
 		"pickup_cookie_count", len(r.CookiesNamed(pickupCookieName(h.secure))),
 		"nonce_valid", validNonce(posted.Nonce),
 		"nonce_matched", pickupNonceMatched(r, h.secure, posted.Nonce),
-		"brand_offered", offeredAtCheckout(posted.Brand))
+		"chain_offered", offeredAtCheckout(posted.Chain))
 }
 
 // renderCheckout answers with the checkout form. Every render refreshes the
@@ -769,7 +769,7 @@ func (h *Handler) offerTheStoreMap(
 
 	// The chain decides which map opens. Until one is chosen there is nothing
 	// to open, and the button is not shown.
-	_, view.MapOffered = h.storeMap.Subtype(view.Address.PickupBrand)
+	_, view.MapOffered = h.storeMap.Subtype(view.Address.PickupChain)
 }
 
 // pickupSession keeps the browser's nonce, or opens one, and refreshes the
@@ -793,14 +793,14 @@ func (h *Handler) pickupSession(
 
 // mapRequest builds the carrier's map form for one chain.
 func (h *Handler) mapRequest(
-	r *http.Request, brand pickup.Brand, nonce string,
+	r *http.Request, chain pickup.Chain, nonce string,
 ) (pages.CheckoutMapForm, bool) {
 	tradeNo, err := NewMerchantTradeNo()
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "open a map correlation number", "error", err)
 		return pages.CheckoutMapForm{}, false
 	}
-	return h.storeMap.Request(brand, tradeNo, nonce, wantsTheMobileMap(r))
+	return h.storeMap.Request(chain, tradeNo, nonce, wantsTheMobileMap(r))
 }
 
 // wantsTheMobileMap reports whether the shopper is on a phone. 7-ELEVEN serves
@@ -948,7 +948,7 @@ func (h *Handler) checkoutSubmission(
 		City:            r.PostFormValue("city"),
 		District:        r.PostFormValue("district"),
 		Street:          r.PostFormValue("street"),
-		PickupBrand:     pickup.Brand(r.PostFormValue("pickup_brand")),
+		PickupChain:     pickup.Chain(r.PostFormValue("pickup_chain")),
 		PickupStoreCode: r.PostFormValue("pickup_store_code"),
 		PickupStoreName: r.PostFormValue("pickup_store_name"),
 		Note:            r.PostFormValue("note"),
@@ -996,7 +996,7 @@ func (h *Handler) checkoutSubmission(
 		Email: addr.Email, Name: addr.Name, Phone: addr.Phone,
 		PostalCode: addr.PostalCode, City: addr.City,
 		District: addr.District, Street: addr.Street,
-		PickupBrand: addr.PickupBrand, PickupStoreCode: addr.PickupStoreCode,
+		PickupChain: addr.PickupChain, PickupStoreCode: addr.PickupStoreCode,
 		PickupStoreName: addr.PickupStoreName, Note: addr.Note,
 	}
 	view.Chosen = r.PostFormValue("shipping")
@@ -1419,9 +1419,9 @@ func checkoutErrors(
 			account.FieldError{Field: "shipping", MessageKey: i18n.KeyChooseShipping})
 	}
 	if addr.To == ToPickupPoint {
-		if !offeredAtCheckout(addr.PickupBrand) {
+		if !offeredAtCheckout(addr.PickupChain) {
 			fieldErrs = append(fieldErrs,
-				account.FieldError{Field: "pickup_brand", MessageKey: i18n.KeyPickupBrandRequired})
+				account.FieldError{Field: "pickup_chain", MessageKey: i18n.KeyPickupChainRequired})
 		} else if addr.PickupStoreCode == "" || addr.PickupStoreName == "" {
 			fieldErrs = append(fieldErrs,
 				account.FieldError{Field: "pickup_store", MessageKey: i18n.KeyPickupStoreRequired})
@@ -1688,7 +1688,7 @@ func (h *Handler) checkoutView(ctx context.Context, cartID uuid.UUID, owner uuid
 	view := pages.CheckoutView{
 		Cart: cartView, Shipping: choices,
 		InvoiceChoices: invoiceChoices(ctx),
-		PickupBrands:   pages.CheckoutPickupBrandChoices(),
+		PickupChains:   pages.CheckoutPickupChainChoices(),
 		SavedAddresses: saved,
 		IdempotencyKey: attemptID.String(),
 	}

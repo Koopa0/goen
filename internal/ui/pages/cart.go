@@ -210,7 +210,7 @@ type CheckoutView struct {
 	Errors         map[string]string
 	Invoice        CheckoutInvoice
 	InvoiceChoices []InvoiceChoice
-	PickupBrands   []PickupBrandChoice
+	PickupChains   []PickupChainChoice
 	SavedAddresses []SavedAddress
 	ChosenAddress  string
 	Profile        CheckoutProfile
@@ -407,7 +407,7 @@ type CheckoutAddress struct {
 	District   string
 	Street     string
 
-	PickupBrand     pickup.Brand
+	PickupChain     pickup.Chain
 	PickupStoreCode string
 	PickupStoreName string
 
@@ -417,47 +417,46 @@ type CheckoutAddress struct {
 // ToPickupPoint reports whether the chosen method delivers to a convenience store.
 func (v *CheckoutView) ToPickupPoint() bool { return v.Destination == "pickup_point" }
 
-// PickupBrandChoice is one convenience-store chain the form offers.
-type PickupBrandChoice struct {
-	Value pickup.Brand
+// PickupChainChoice is one convenience-store chain the form offers.
+type PickupChainChoice struct {
+	Value pickup.Chain
 	Label string
 }
 
-// PickupBrandChoices is every chain the shop can accept, which is what the back
+// PickupChainChoices is every chain the shop can accept, which is what the back
 // office offers: an order already placed at one of them has to stay correctable.
-func PickupBrandChoices() []PickupBrandChoice {
+func PickupChainChoices() []PickupChainChoice {
 	return choicesFor(pickup.Offered())
 }
 
-// CheckoutPickupBrandChoices is the part of that set a shopper may choose today:
+// CheckoutPickupChainChoices is the part of that set a shopper may choose today:
 // the two chains whose own store picker the shop will integrate first.
-func CheckoutPickupBrandChoices() []PickupBrandChoice {
-	return choicesFor([]pickup.Brand{pickup.SevenEleven, pickup.FamilyMart})
+func CheckoutPickupChainChoices() []PickupChainChoice {
+	return choicesFor([]pickup.Chain{pickup.SevenEleven, pickup.FamilyMart})
 }
 
-func choicesFor(brands []pickup.Brand) []PickupBrandChoice {
-	out := make([]PickupBrandChoice, 0, len(brands))
-	for _, b := range brands {
-		out = append(out, PickupBrandChoice{Value: b, Label: pickupBrandLabel(b)})
+func choicesFor(chains []pickup.Chain) []PickupChainChoice {
+	out := make([]PickupChainChoice, 0, len(chains))
+	for _, c := range chains {
+		out = append(out, PickupChainChoice{Value: c, Label: pickupChainLabel(c)})
 	}
 	return out
 }
 
-// pickupBrandLabel is what a customer reads.
-func pickupBrandLabel(code pickup.Brand) string {
+func pickupChainLabel(code pickup.Chain) string {
 	switch code {
 	case "":
 		return ""
 	case pickup.SevenEleven:
 		return "7-ELEVEN"
 	case pickup.FamilyMart:
-		return "全家 FamilyMart" // i18n-exempt: a brand's own name, already bilingual
+		return "全家 FamilyMart" // i18n-exempt: a chain's own name, already bilingual
 	case pickup.HiLife:
-		return "萊爾富 Hi-Life" // i18n-exempt: a brand's own name, already bilingual
+		return "萊爾富 Hi-Life" // i18n-exempt: a chain's own name, already bilingual
 	case pickup.OKMart:
 		return "OK mart"
 	default:
-		panic("pages: unknown pickup brand: " + string(code))
+		panic("pages: unknown pickup chain: " + string(code))
 	}
 }
 
@@ -468,7 +467,7 @@ type Delivery struct {
 	District   string
 	Street     string
 
-	PickupBrand     pickup.Brand
+	PickupChain     pickup.Chain
 	PickupStoreCode string
 	PickupStoreName string
 }
@@ -476,12 +475,12 @@ type Delivery struct {
 // IsPickup reports whether this order is collected from a convenience store.
 // The chain is the destination: the store behind it is filled in by the
 // carrier's picker, and is absent on an order placed before one exists.
-func (d Delivery) IsPickup() bool { return d.PickupBrand != "" }
+func (d Delivery) IsPickup() bool { return d.PickupChain != "" }
 
 // Line is the destination as one line a person can read.
 func (d Delivery) Line() string {
 	if d.IsPickup() {
-		line := pickupBrandLabel(d.PickupBrand)
+		line := pickupChainLabel(d.PickupChain)
 		if d.PickupStoreName != "" {
 			line += " " + d.PickupStoreName
 		}

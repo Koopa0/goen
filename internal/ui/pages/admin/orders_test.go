@@ -63,9 +63,9 @@ func TestAPickupOrderCorrectsWithoutAStore(t *testing.T) {
 		Number:            "GO-PICKUP",
 		Correctable:       true,
 		PickupDestination: true,
-		PickupBrands:      pages.PickupBrandChoices(),
-		Address:           pages.Delivery{PickupBrand: pickup.FamilyMart}.Line(),
-		Delivery:          Delivery{PickupBrand: pickup.FamilyMart},
+		PickupChains:      pages.PickupChainChoices(),
+		Address:           pages.Delivery{PickupChain: pickup.FamilyMart}.Line(),
+		Delivery:          Delivery{PickupChain: pickup.FamilyMart},
 	}))
 
 	for _, id := range []string{"d-store-code", "d-store-name"} {
@@ -74,11 +74,11 @@ func TestAPickupOrderCorrectsWithoutAStore(t *testing.T) {
 			t.Errorf("the correction form still demands #%s: %s", id, tag)
 		}
 	}
-	if tag := tagWithID(t, html, "d-brand"); !strings.Contains(tag, "required") {
+	if tag := tagWithID(t, html, "d-chain"); !strings.Contains(tag, "required") {
 		t.Errorf("the chain stopped being required: %s", tag)
 	}
 
-	chain := pages.Delivery{PickupBrand: pickup.FamilyMart}.Line()
+	chain := pages.Delivery{PickupChain: pickup.FamilyMart}.Line()
 	if !strings.Contains(html, chain) {
 		t.Errorf("the order detail does not name the chain %q", chain)
 	}
