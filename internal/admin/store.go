@@ -15,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/admin/audit"
+	"github.com/koopa0/goen/internal/admin/invoicing"
 	"github.com/koopa0/goen/internal/admin/orderstatus"
 	"github.com/koopa0/goen/internal/admin/refunds"
 	"github.com/koopa0/goen/internal/admin/stock"
@@ -34,49 +35,22 @@ import (
 	"github.com/koopa0/goen/internal/web"
 )
 
-type InvoiceReader interface {
-	Documents(ctx context.Context, orderNumber string) ([]invoice.Document, error)
-}
-
-// InvoiceWriter files and changes uniform invoices for the back office. A
-// successful method has durably recorded its audit event in the same local
-// transaction as the invoice transition.
-type InvoiceWriter interface {
-	Issue(ctx context.Context, orderNumber string) (invoice.Document, error)
-	Void(ctx context.Context, orderNumber, reason string) error
-	// FileAllowance relieves the authoritative whole-dollar refunded delta of a live
-	// invoice. The provider boundary derives money under a database lock; this
-	// consumer supplies only the aggregate and operation identities.
-	FileAllowance(ctx context.Context, orderNumber string, operationID uuid.UUID) (invoice.Document, error)
-}
-
-var (
-	_ InvoiceReader = (*invoice.Store)(nil)
-	_ InvoiceWriter = (*invoice.Store)(nil)
-)
-
 type Store struct {
-	pool    *pgxpool.Pool
-	q       *db.Queries
-	refunds *refunds.Store
-	// Both invoice dependencies may be nil when no provider is configured.
-	invoiceReader InvoiceReader
-	invoiceWriter InvoiceWriter
+	pool      *pgxpool.Pool
+	q         *db.Queries
+	refunds   *refunds.Store
+	invoicing *invoicing.Store
 }
 
-func NewStore(pool *pgxpool.Pool, refunder refunds.Refunder, reader InvoiceReader, writer InvoiceWriter) *Store {
+func NewStore(pool *pgxpool.Pool, refunder refunds.Refunder, reader invoicing.Reader, writer invoicing.Writer) *Store {
 	if pool == nil || refunder == nil {
 		panic("admin: NewStore requires a pool and a refunder")
 	}
-	if (reader == nil) != (writer == nil) {
-		panic("admin: NewStore requires both invoice dependencies or neither")
-	}
 	return &Store{
-		pool:          pool,
-		q:             db.New(pool),
-		refunds:       refunds.NewStore(pool, refunder),
-		invoiceReader: reader,
-		invoiceWriter: writer,
+		pool:      pool,
+		q:         db.New(pool),
+		refunds:   refunds.NewStore(pool, refunder),
+		invoicing: invoicing.NewStore(pool, reader, writer),
 	}
 }
 
@@ -277,7 +251,7 @@ func (s *Store) Order(ctx context.Context, number string) (admin.OrderView, erro
 		return admin.OrderView{}, shipErr
 	}
 
-	if invErr := s.fillInvoices(ctx, &view, number); invErr != nil {
+	if invErr := s.invoicing.FillOrder(ctx, &view, number); invErr != nil {
 		return admin.OrderView{}, invErr
 	}
 	if refundErr := s.fillRefundBeforeShipment(ctx, &view, number); refundErr != nil {
@@ -535,39 +509,6 @@ func (s *Store) fillRefundBeforeShipment(ctx context.Context, view *admin.OrderV
 		}
 		view.Next = append(view.Next, admin.Transition{Value: n, Label: orderstatus.Label(ctx, n)})
 	}
-	return nil
-}
-
-// fillInvoices puts what has actually been FILED on the order page, which is a
-// different question from the preference the customer asked for at checkout.
-func (s *Store) fillInvoices(ctx context.Context, view *admin.OrderView, number string) error {
-	if s.invoiceReader == nil {
-		return nil
-	}
-	view.InvoicingEnabled = true
-	docs, err := s.invoiceReader.Documents(ctx, number)
-	if err != nil {
-		return err
-	}
-	for i := range docs {
-		d := &docs[i]
-		doc := admin.InvoiceDocument{
-			Kind: d.Kind, Number: d.Number, ProviderRef: d.ProviderRef,
-			AmountCents: d.AmountCents, Status: d.Status,
-			IssuedAt: shoptime.Minute(d.IssuedAt),
-		}
-		for _, l := range d.Lines {
-			doc.Lines = append(doc.Lines, admin.InvoiceLine{
-				Description: l.Description, Quantity: l.Quantity, AmountCents: l.AmountCents,
-			})
-		}
-		view.InvoiceDocuments = append(view.InvoiceDocuments, doc)
-	}
-	refunded, err := s.q.SettledRefundsForOrder(ctx, number)
-	if err != nil {
-		return fmt.Errorf("read settled refunds for %s: %w", number, err)
-	}
-	view.RefundedCents = refunded
 	return nil
 }
 
@@ -899,59 +840,4 @@ func nullableStamp(t pgtype.Timestamptz) string {
 		return ""
 	}
 	return shoptime.Minute(t.Time)
-}
-
-// IssueInvoice files a uniform invoice for an order. The writer owns the local
-// persistence transaction, including its audit row; a second no-op audited
-// transaction here would let either half commit without the other.
-func (s *Store) IssueInvoice(ctx context.Context, number string) error {
-	if s.invoiceWriter == nil {
-		return fmt.Errorf("%w: no e-invoice provider is configured", ErrRefused)
-	}
-	filingCtx, err := invoiceFilingContext(ctx)
-	if err != nil {
-		return err
-	}
-	_, err = s.invoiceWriter.Issue(filingCtx, number)
-	return err
-}
-
-// AllowInvoice files a 折讓 against an order's live invoice, relieving the part
-// of the sale that was refunded. A void is for an invoice that should not exist;
-// an allowance is for one that should exist for less.
-func (s *Store) AllowInvoice(
-	ctx context.Context, number string, operationID uuid.UUID,
-) error {
-	if s.invoiceWriter == nil {
-		return fmt.Errorf("%w: no e-invoice provider is configured", ErrRefused)
-	}
-	filingCtx, err := invoiceFilingContext(ctx)
-	if err != nil {
-		return err
-	}
-	_, err = s.invoiceWriter.FileAllowance(filingCtx, number, operationID)
-	return err
-}
-
-func (s *Store) VoidInvoice(ctx context.Context, number, reason string) error {
-	if s.invoiceWriter == nil {
-		return fmt.Errorf("%w: no e-invoice provider is configured", ErrRefused)
-	}
-	filingCtx, err := invoiceFilingContext(ctx)
-	if err != nil {
-		return err
-	}
-	return s.invoiceWriter.Void(filingCtx, number, reason)
-}
-
-func invoiceFilingContext(ctx context.Context) (context.Context, error) {
-	actorID, ok := audit.Actor(ctx)
-	if !ok {
-		return nil, audit.ErrNoActor
-	}
-	requestID := web.RequestID(ctx)
-	if requestID == "" {
-		return nil, audit.ErrNoActor
-	}
-	return invoice.WithFilingIdentity(ctx, actorID, requestID), nil
 }

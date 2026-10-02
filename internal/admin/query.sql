@@ -839,17 +839,6 @@ JOIN products p ON p.id = pv.product_id
 WHERE p.slug = $1
 ORDER BY pv.sku, o.position, o.id;
 
--- What has actually gone back to the customer on this order, so an allowance
--- form can default to it. A staff member typing a refund figure from memory is
--- how the wrong number reaches the 財政部.
--- What the 折讓 form offers, which must be what an allowance is allowed to
--- relieve: both sources, from the one view. Card-only defaulted the form to the
--- card half of a split refund, so the 統一發票 kept recording a reversed sale.
--- name: SettledRefundsForOrder :one
-SELECT (card_cents + credit_cents)::bigint AS refunded_cents
-FROM order_refunds
-WHERE order_number = @order_number::text;
-
 -- Staff have verified at Stripe that this provider-complete Session was paid.
 -- The SECURITY DEFINER function accepts no amount from the operator: it posts
 -- the payment row's immutable intent through capture_payment and returns the

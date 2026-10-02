@@ -24,6 +24,7 @@ import (
 	customerdesk "github.com/koopa0/goen/internal/admin/customers"
 	"github.com/koopa0/goen/internal/admin/feedback"
 	"github.com/koopa0/goen/internal/admin/health"
+	"github.com/koopa0/goen/internal/admin/invoicing"
 	"github.com/koopa0/goen/internal/admin/loyalty"
 	"github.com/koopa0/goen/internal/admin/refunds"
 	"github.com/koopa0/goen/internal/admin/reports"
@@ -196,8 +197,8 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	if factorStore.Enabled() {
 		stepUp = factors.StepUp
 	}
-	var invoiceReader admin.InvoiceReader
-	var invoiceWriter admin.InvoiceWriter
+	var invoiceReader invoicing.Reader
+	var invoiceWriter invoicing.Writer
 	if cfg.Invoices.Enabled() {
 		invoices := invoice.NewStore(adminPool, cfg.Invoices)
 		invoiceReader = invoices
@@ -216,6 +217,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	figures := reports.NewHandler(reports.NewStore(adminPool), log)
 	warehouse := stock.NewHandler(stock.NewStore(adminPool), log)
 	refundDesk := refunds.NewHandler(refunds.NewStore(adminPool, refunder), sessionCloser(gateway), log)
+	invoiceDesk := invoicing.NewHandler(invoicing.NewStore(adminPool, invoiceReader, invoiceWriter), log)
 	delivery := shipping.NewHandler(shipping.NewStore(adminPool), cfg.StoreMap, log)
 	brands := taxonomy.NewHandler(taxonomy.NewStore(adminPool), adminImages, log)
 	shopfront := content.NewHandler(content.NewStore(adminPool), adminImages, newsletter.NewStore(adminPool), log)
@@ -382,6 +384,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	delivery.Routes(mux, backOffice)
 	warehouse.Routes(mux, backOffice)
 	refundDesk.Routes(mux, backOffice)
+	invoiceDesk.Routes(mux, backOffice)
 	mux.HandleFunc("GET /admin/verify", backOffice.StaffOnly(factors.Challenge))
 	mux.HandleFunc("POST /admin/verify", backOffice.StaffOnly(factors.Verify))
 	mux.HandleFunc("POST /admin/verify/enrol", backOffice.StaffOnly(factors.Enrol))
