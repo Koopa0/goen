@@ -40,3 +40,20 @@ func TestHeadNamesAnAbsoluteShareImageOnlyWhereTheOriginIsKnown(t *testing.T) {
 		t.Error("a head with no configured origin sent a relative share image")
 	}
 }
+
+func TestHeadNamesTheFaviconAndTheHomeScreenIcon(t *testing.T) {
+	t.Parallel()
+	var b strings.Builder
+	if err := Base(Page{Title: "t"}).Render(i18n.WithLocale(t.Context(), i18n.En), &b); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		`<link rel="icon" href="/favicon.ico"`,
+		`<link rel="icon" type="image/svg+xml" href="` + assets.URL(assets.FaviconSVG) + `"`,
+		`<link rel="apple-touch-icon" href="` + assets.URL(assets.AppleTouchIcon) + `"`,
+	} {
+		if !strings.Contains(b.String(), want) {
+			t.Errorf("head omits %s", want)
+		}
+	}
+}

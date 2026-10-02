@@ -216,7 +216,7 @@ func TestAPlacedLetterNamesWhatIsStillOwed(t *testing.T) {
 		if strings.Contains(body, "應付金額") {
 			t.Errorf("a fully funded letter still names an amount due:\n%s", body)
 		}
-		if !strings.Contains(body, "查看訂單:") {
+		if !strings.Contains(body, "查看訂單：") {
 			t.Errorf("a fully funded letter dropped the order link:\n%s", body)
 		}
 		if !strings.Contains(body, "https://goen.test/orders/"+number) {
@@ -417,5 +417,42 @@ func TestNewRefusesAnUnusableNotifier(t *testing.T) {
 			}()
 			New(tt.sender, tt.baseURL, "", "")
 		})
+	}
+}
+
+// The payment line belongs to the letter, above the sign-off; a line after the
+// sign-off reads as a stray.
+func TestThePaidLetterNamesTheCardBeforeTheSignOff(t *testing.T) {
+	t.Parallel()
+	for locale, line := range map[string]string{"en": "Paid with: Visa •••• 4242", "zh-Hant": "付款方式：Visa •••• 4242"} {
+		n, sink := notifier(t)
+		if err := n.SendOrderPaid(t.Context(), &OrderPaid{
+			Locale: locale, Email: "a@b.co", Name: "Alex", OrderNumber: "GO-260101-000001",
+			AmountCents: 123400, Card: "Visa •••• 4242",
+		}); err != nil {
+			t.Fatal(err)
+		}
+		card, signOff := strings.Index(sink.msg.Body, line), strings.Index(sink.msg.Body, "— goen")
+		if card < 0 || signOff < 0 || card > signOff {
+			t.Errorf("%s: payment line at %d, sign-off at %d:\n%s", locale, card, signOff, sink.msg.Body)
+		}
+	}
+}
+
+// The statutory block opens with a divider, and a link above it keeps a blank
+// line between them.
+func TestTheDisclosureDividerIsNotGluedToTheLinkAboveIt(t *testing.T) {
+	t.Parallel()
+	for _, locale := range []string{"en", "zh-Hant"} {
+		sink := &captured{}
+		n := New(sink, "https://goen.test", "goen", "contact@goen.test")
+		if err := n.SendOrderPlaced(t.Context(), &OrderPlaced{
+			Locale: locale, Email: "a@b.co", OrderNumber: "GO-260101-000001", TotalCents: 100,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(sink.msg.Body, "/orders/GO-260101-000001\n\n───") {
+			t.Errorf("%s: the divider follows the link directly:\n%s", locale, sink.msg.Body)
+		}
 	}
 }

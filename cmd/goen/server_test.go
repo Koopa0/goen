@@ -194,7 +194,7 @@ func TestAnAssetRequestNeverReachesPerVisitorMiddleware(t *testing.T) {
 }
 
 func TestNothingStatelessRendersChrome(t *testing.T) {
-	want := []string{"/static", "/media", "/healthz", "/readyz", "/webhooks"}
+	want := []string{"/static", "/media", "/healthz", "/readyz", "/webhooks", "/favicon.ico"}
 	if !slices.Equal(statelessPrefixes, want) {
 		t.Fatalf("statelessPrefixes = %v, want exactly %v", statelessPrefixes, want)
 	}

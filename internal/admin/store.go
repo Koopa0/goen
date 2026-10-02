@@ -591,13 +591,13 @@ func (s *Store) fillPayments(ctx context.Context, view *admin.OrderView, orderID
 	}
 	for i := range refunds {
 		r := &refunds[i]
-		channel := i18n.KeyAdminPayRefundCard
+		channel, reason := i18n.KeyAdminPayRefundCard, r.Reason
 		if r.Channel == "credit" {
-			channel = i18n.KeyAdminPayRefundCredit
+			channel, reason = i18n.KeyAdminPayRefundCredit, admin.CreditReason(ctx, r.Reason)
 		}
 		view.Refunds = append(view.Refunds, admin.Refund{
 			Channel: i18n.T(ctx, channel), Amount: pages.TWD(r.AmountCents),
-			At: nullableStamp(r.At), Reason: r.Reason, Staff: r.Staff,
+			At: nullableStamp(r.At), Reason: reason, Staff: r.Staff,
 		})
 	}
 	return nil

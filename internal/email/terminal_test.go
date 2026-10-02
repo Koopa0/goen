@@ -93,3 +93,28 @@ func TestTheArrivalMailStatesTheLastDayToReturn(t *testing.T) {
 		}
 	}
 }
+
+// A delivered or collected order's subject says which, in both languages: the
+// words "receipt" and "update" read like a payment receipt.
+func TestTheArrivalSubjectSaysWhatHappened(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		kind   TerminalKind
+		locale string
+		want   string
+	}{
+		{TerminalDelivered, "en", "Order GO-260101-000001 has been delivered"},
+		{TerminalCollected, "en", "Order GO-260101-000001 has been collected"},
+		{TerminalDelivered, "zh-Hant", "訂單 GO-260101-000001 已送達"},
+		{TerminalCollected, "zh-Hant", "訂單 GO-260101-000001 已取貨"},
+	} {
+		n, sink := notifier(t)
+		to := TerminalRecipient{Address: "reader@example.com", Locale: tt.locale, OrderNumber: "GO-260101-000001"}
+		if err := n.SendOrderTerminal(t.Context(), &OrderTerminal{Kind: tt.kind}, to); err != nil {
+			t.Fatal(err)
+		}
+		if sink.msg.Subject != tt.want {
+			t.Errorf("%s/%s subject = %q, want %q", tt.kind, tt.locale, sink.msg.Subject, tt.want)
+		}
+	}
+}

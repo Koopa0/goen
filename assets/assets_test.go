@@ -577,3 +577,57 @@ func TestTheCataloguePhotographsAreEmbedded(t *testing.T) {
 		}
 	}
 }
+
+func TestTheFaviconIsServedAtItsFixedName(t *testing.T) {
+	t.Parallel()
+
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/favicon.ico", http.NoBody)
+	res := httptest.NewRecorder()
+	assets.Alias(testLog, assets.FaviconICO).ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("status = %d; want 200", res.Code)
+	}
+	if got := res.Header().Get("Content-Type"); got != "image/x-icon" {
+		t.Errorf("Content-Type = %q; want image/x-icon", got)
+	}
+	// An ICO directory opens with reserved 0, type 1.
+	if !bytes.HasPrefix(res.Body.Bytes(), []byte{0, 0, 1, 0}) {
+		t.Error("the body is not an icon file")
+	}
+}
+
+func TestTheTabIconShowsItsInkRingOnADarkTabBar(t *testing.T) {
+	t.Parallel()
+
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, assets.URL(assets.FaviconSVG), http.NoBody)
+	res := httptest.NewRecorder()
+	assets.Handler(testLog).ServeHTTP(res, req)
+
+	body := res.Body.String()
+	if res.Header().Get("Content-Encoding") == "gzip" {
+		zr, err := gzip.NewReader(res.Body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		raw, _ := io.ReadAll(zr)
+		body = string(raw)
+	}
+	if !strings.Contains(body, "prefers-color-scheme: dark") {
+		t.Errorf("the mark has no dark-scheme rule:\n%s", body)
+	}
+}
+
+func TestThePageMarkHasNoDarkSchemeRule(t *testing.T) {
+	t.Parallel()
+
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, assets.URL(assets.MarkSVG), http.NoBody)
+	res := httptest.NewRecorder()
+	assets.Handler(testLog).ServeHTTP(res, req)
+
+	// The operating system's scheme, not the page's, would turn the ring
+	// near-white on a light page.
+	if strings.Contains(res.Body.String(), "prefers-color-scheme") {
+		t.Error("the page-level mark follows the operating system's colour scheme")
+	}
+}

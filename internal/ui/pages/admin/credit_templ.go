@@ -748,9 +748,9 @@ func Credit(p layouts.Page, v CreditView) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var50 string
-					templ_7745c5c3_Var50, templ_7745c5c3_Err = templ.JoinStringErrs(e.Reason)
+					templ_7745c5c3_Var50, templ_7745c5c3_Err = templ.JoinStringErrs(e.ReasonText(ctx))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/credit.templ`, Line: 107, Col: 47}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/credit.templ`, Line: 107, Col: 56}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var50))
 					if templ_7745c5c3_Err != nil {

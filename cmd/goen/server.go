@@ -203,6 +203,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 
 	mux := http.NewServeMux()
 	mux.Handle("GET "+assets.Prefix, staticAssetHandler(assets.Handler(log)))
+	mux.HandleFunc("GET /favicon.ico", staticAssetHandler(assets.Alias(log, assets.FaviconICO)).ServeHTTP)
 
 	mux.HandleFunc("GET /healthz", probes.Live)
 	mux.HandleFunc("GET /readyz", probes.Ready)
@@ -805,7 +806,7 @@ func withLocale(next http.Handler, secure bool) http.Handler {
 var bannerFreePrefixes = []string{
 	"/checkout", "/cart", "/orders", "/account", "/admin",
 	"/signin", "/register", "/forgot", "/reset", "/webhooks", "/media", "/static",
-	"/healthz", "/readyz",
+	"/healthz", "/readyz", "/favicon.ico",
 }
 
 // withBanner attaches the promotional strip to storefront requests. Not cached,
@@ -840,7 +841,7 @@ func withBanner(next http.Handler, store *home.Store, log *slog.Logger, secure b
 // unauthenticated cross-site POST anybody can send, it renders no header at
 // all, and leaving it a nav path would spend a category query on every one.
 var navFreePrefixes = []string{
-	"/admin", "/webhooks", "/media", "/static", "/healthz", "/readyz",
+	"/admin", "/webhooks", "/media", "/static", "/healthz", "/readyz", "/favicon.ico",
 	cart.PickupReturnPath,
 }
 
@@ -858,7 +859,7 @@ var navFreePrefixes = []string{
 // deliberately absent because RequireStaff reads the user Authenticate puts
 // on the context.
 var statelessPrefixes = []string{
-	"/static", "/media", "/healthz", "/readyz", "/webhooks",
+	"/static", "/media", "/healthz", "/readyz", "/webhooks", "/favicon.ico",
 }
 
 func statelessPath(path string) bool {

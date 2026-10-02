@@ -56,6 +56,10 @@ func contentType(name string) string {
 	if name == SpeculationRules {
 		return "application/speculationrules+json"
 	}
+	// Not left to the host's mime table, which may not know .ico.
+	if name == FaviconICO {
+		return "image/x-icon"
+	}
 	if typ := mime.TypeByExtension(path.Ext(name)); typ != "" {
 		return typ
 	}
