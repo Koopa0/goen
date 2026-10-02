@@ -612,7 +612,7 @@ func stockReturn(low, term, after, notice, sku string) string {
 func stockBack(r *http.Request, notice string) string {
 	var low, term, after string
 	if u, err := url.Parse(r.PostFormValue("return")); err == nil && u.Path == "/admin/stock" && u.Host == "" {
-		low, term, after = u.Query().Get("low"), strings.TrimSpace(u.Query().Get("q")), u.Query().Get(web.KeysetParam)
+		low, term, after = u.Query().Get("low"), SearchTerm(u.Query().Get("q")), u.Query().Get(web.KeysetParam)
 	}
 	return stockReturn(low, term, after, notice, r.PostFormValue("sku"))
 }
@@ -997,16 +997,16 @@ func (h *Handler) renderCampaign(w http.ResponseWriter, r *http.Request, status 
 		h.serverError(w, r)
 		return
 	}
-	detail, err := h.store.Campaign(r.Context(), slug)
+	detail, err := h.store.CampaignDetail(r.Context(), slug)
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read campaign", "error", err)
 		h.serverError(w, r)
 		return
 	}
 	if errs["window"] != "" {
-		detail.StartsAt, detail.EndsAt = r.PostFormValue("starts_at"), r.PostFormValue("ends_at")
+		detail.StartsAtInput, detail.EndsAtInput = r.PostFormValue("starts_at"), r.PostFormValue("ends_at")
 	}
-	term := strings.TrimSpace(r.URL.Query().Get("find"))
+	term := SearchTerm(r.URL.Query().Get("find"))
 	matches, err := h.store.SearchCampaignProducts(r.Context(), slug, term)
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "search campaign products", "error", err)

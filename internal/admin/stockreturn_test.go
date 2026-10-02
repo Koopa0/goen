@@ -43,3 +43,14 @@ func TestAStockWriteReturnsToTheSearchItWasMadeUnder(t *testing.T) {
 		t.Errorf("stockBack = %q, want %q", got, want)
 	}
 }
+
+func TestASearchTermIsTrimmedAndCutToItsBound(t *testing.T) {
+	t.Parallel()
+	if got := SearchTerm("  koto  "); got != "koto" {
+		t.Errorf("SearchTerm = %q, want the trimmed term", got)
+	}
+	long := strings.Repeat("字", MaxSearchRunes+20)
+	if got := SearchTerm(long); got != strings.Repeat("字", MaxSearchRunes) {
+		t.Errorf("a term of %d runes is cut to %d, got %d", MaxSearchRunes+20, MaxSearchRunes, len([]rune(got)))
+	}
+}

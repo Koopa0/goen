@@ -8,6 +8,7 @@ import (
 	"errors"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/returns"
@@ -98,6 +99,20 @@ const PageSize = 50
 // RUNES because two Chinese characters are a meaningful surname and two bytes
 // are half of one.
 const MinSearchRunes = 2
+
+// MaxSearchRunes bounds a search term; a longer one is cut, since no name or
+// SKU is that long and the term is repeated in every link of the list.
+const MaxSearchRunes = 100
+
+// SearchTerm is what a typed search term is searched as: trimmed and cut to
+// MaxSearchRunes.
+func SearchTerm(raw string) string {
+	term := strings.TrimSpace(raw)
+	if utf8.RuneCountInString(term) > MaxSearchRunes {
+		term = string([]rune(term)[:MaxSearchRunes])
+	}
+	return term
+}
 
 // statuses is the fulfilment lifecycle, in the order the queue shows it.
 // orders_check_transition decides which moves are legal; parsing and the queue

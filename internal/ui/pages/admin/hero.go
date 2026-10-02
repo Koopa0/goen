@@ -70,7 +70,7 @@ func (s HeroSlide) ToggleLabel() string {
 	return "啟用" // i18n-exempt: back office, /admin/home
 }
 
-// HeroView is the queue page; it carries the promotional strip too.
+// HeroView is the scheduled-slides page; it carries the promotional strip too.
 type HeroView struct {
 	Rows     []HeroSlide
 	Carousel []pages.HeroSlide
@@ -128,21 +128,21 @@ type HeroDraft struct {
 	ImageAltEn                    string
 }
 
-// Empty reports whether nothing is queued.
+// Empty reports whether no slide is scheduled.
 func (v *HeroView) Empty() bool { return len(v.Rows) == 0 }
 
 func (v *HeroView) scheduledShown() int {
 	n := 0
-	for _, s := range v.Carousel {
-		if s.Source == pages.SlideScheduled {
+	for i := range v.Carousel {
+		if v.Carousel[i].Source == pages.SlideScheduled {
 			n++
 		}
 	}
 	return n
 }
 
-// IsShowing reports whether this queued slide is in the storefront's carousel:
-// the carousel takes the first live ones in queue order, as many as it shows.
+// IsShowing reports whether this scheduled slide is in the storefront's carousel:
+// the carousel takes the first live ones in schedule order, as many as it shows.
 func (v *HeroView) IsShowing(s HeroSlide) bool {
 	n := v.scheduledShown()
 	for _, r := range v.Rows {
@@ -171,7 +171,7 @@ func SourceLabel(ctx context.Context, src pages.SlideSource) string {
 	case pages.SlideDepartment:
 		return i18n.T(ctx, i18n.KeyAdminHomeSourceDepartment)
 	}
-	panic("admin: unknown slide source " + string(src))
+	return i18n.T(ctx, i18n.KeyAdminHomeSourceOther)
 }
 
 // HasErr reports whether a field was refused.

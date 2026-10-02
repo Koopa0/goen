@@ -15,7 +15,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// Home renders the hero queue and the form that adds to it.
+// Home renders the scheduled slides and the form that adds to it.
 func Home(p layouts.Page, v *HeroView) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -895,9 +895,9 @@ func Home(p layouts.Page, v *HeroView) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var55 string
-			templ_7745c5c3_Var55, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminHomeQueue))
+			templ_7745c5c3_Var55, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminHomeScheduled))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/home.templ`, Line: 217, Col: 73}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/home.templ`, Line: 217, Col: 77}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var55))
 			if templ_7745c5c3_Err != nil {

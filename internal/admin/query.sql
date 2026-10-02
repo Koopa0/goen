@@ -978,6 +978,10 @@ SELECT c.title, c.starts_at, c.ends_at, c.is_active,
 FROM sale_campaigns c
 WHERE c.slug = @slug::text;
 
+-- Locked so a concurrent edit cannot leave the audit row with a stale Before.
+-- name: AdminCampaignWindowForUpdate :one
+SELECT starts_at, ends_at FROM sale_campaigns WHERE slug = @slug::text FOR UPDATE;
+
 -- name: SetCampaignWindow :execrows
 UPDATE sale_campaigns
 SET starts_at = @starts_at::timestamptz, ends_at = @ends_at::timestamptz

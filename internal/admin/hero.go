@@ -91,7 +91,7 @@ func (f *HeroForm) Validate(ctx context.Context) map[string]string {
 	return errs
 }
 
-// HeroSlides reads the queue.
+// HeroSlides reads the scheduled slides.
 func (s *Store) HeroSlides(ctx context.Context) (admin.HeroView, error) {
 	rows, err := s.q.AdminHeroSlides(ctx, MaxSlides)
 	if err != nil {
@@ -116,7 +116,7 @@ func (s *Store) HeroSlides(ctx context.Context) (admin.HeroView, error) {
 	return view, nil
 }
 
-// CreateHeroSlide queues one at the BACK; Promote is what makes one live.
+// CreateHeroSlide schedules one at the BACK; Promote is what makes one live.
 func (s *Store) CreateHeroSlide(ctx context.Context, f *HeroForm) (map[string]string, error) {
 	if errs := f.Validate(ctx); len(errs) > 0 {
 		return errs, nil

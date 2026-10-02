@@ -9,58 +9,63 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
-// Campaign is one promotion as the back office sees it.
-type Campaign struct {
-	Slug     string
-	Title    string
-	Products int64
-	Active   bool
-	Running  bool
-	StartsAt string
-	EndsAt   string
+// CampaignRow is one promotion in the campaigns list.
+type CampaignRow struct {
+	Slug         string
+	Title        string
+	Products     int64
+	Active       bool
+	Running      bool
+	StartsAtText string
+	EndsAtText   string
 }
 
-// State is the word a staff member scans for; active and running differ.
-func (c Campaign) State(ctx context.Context) string {
+// State is the word a staff member scans for.
+func (c CampaignRow) State(ctx context.Context) string {
+	return campaignState(ctx, c.Active, c.Running, c.Products)
+}
+
+// campaignState says where a campaign stands; active and running differ.
+func campaignState(ctx context.Context, active, running bool, products int64) string {
 	switch {
-	case !c.Active:
+	case !active:
 		return i18n.T(ctx, i18n.KeyAdminCampaignOff)
-	case !c.Running:
+	case !running:
 		return i18n.T(ctx, i18n.KeyAdminCampaignOutside)
-	case c.Products == 0:
+	case products == 0:
 		return i18n.T(ctx, i18n.KeyAdminCampaignEmpty)
 	default:
 		return i18n.T(ctx, i18n.KeyAdminCampaignRunning)
 	}
 }
 
-// Live reports whether a shopper can see it with something on it.
-func (c Campaign) Live() bool { return c.Running && c.Products > 0 }
+// nextActive is what the on/off form sets, as a form value.
+func nextActive(active bool) string { return strconv.FormatBool(!active) }
 
-// ProductsText is how many it features.
-func (c Campaign) ProductsText() string { return strconv.FormatInt(c.Products, 10) }
-
-// Href is its edit page.
-func (c Campaign) Href() string { return "/admin/campaigns/" + c.Slug }
-
-// ToggleAction is where the on/off form posts.
-func (c Campaign) ToggleAction() string { return "/admin/campaigns/" + c.Slug + "/active" }
-
-// NextActive is what the toggle would set it to.
-func (c Campaign) NextActive() string {
-	if c.Active {
-		return "false"
-	}
-	return "true"
-}
-
-// ToggleLabel is what the button says.
-func (c Campaign) ToggleLabel(ctx context.Context) string {
-	if c.Active {
+func toggleLabel(ctx context.Context, active bool) string {
+	if active {
 		return i18n.T(ctx, i18n.KeyAdminToggleOff)
 	}
 	return i18n.T(ctx, i18n.KeyAdminToggleOn)
 }
+
+// Live reports whether a shopper can see it with something on it.
+func (c CampaignRow) Live() bool { return c.Running && c.Products > 0 }
+
+// ProductsText is how many it features.
+func (c CampaignRow) ProductsText() string { return strconv.FormatInt(c.Products, 10) }
+
+// Href is its edit page.
+func (c CampaignRow) Href() string { return "/admin/campaigns/" + c.Slug }
+
+// ToggleAction is where the on/off form posts.
+func (c CampaignRow) ToggleAction() string { return "/admin/campaigns/" + c.Slug + "/active" }
+
+// NextActive is what the on/off form sets.
+func (c CampaignRow) NextActive() string { return nextActive(c.Active) }
+
+// ToggleLabel is what the on/off button says.
+func (c CampaignRow) ToggleLabel(ctx context.Context) string { return toggleLabel(ctx, c.Active) }
 
 // CampaignProduct is one featured product.
 type CampaignProduct struct {
@@ -72,7 +77,7 @@ type CampaignProduct struct {
 type CampaignsView struct {
 	pages.ListBound
 
-	Rows   []Campaign
+	Rows   []CampaignRow
 	Notice string
 	Errors map[string]string
 	Draft  CampaignDraft
@@ -99,16 +104,19 @@ func (v CampaignsView) HasErr(f string) bool { _, ok := v.Errors[f]; return ok }
 // Err is why.
 func (v CampaignsView) Err(f string) string { return v.Errors[f] }
 
+// CampaignDetail is what the edit page reads of a campaign. The dates are
+// datetime-local field values, not display text.
 type CampaignDetail struct {
-	Title            string
-	StartsAt, EndsAt string
-	Active, Running  bool
+	Title                      string
+	StartsAtInput, EndsAtInput string
+	Active, Running            bool
 }
 
 // CampaignView is one campaign's edit page.
 type CampaignView struct {
-	Slug string
 	CampaignDetail
+
+	Slug     string
 	Term     string
 	Matches  []CampaignProduct
 	Products []CampaignProduct
@@ -137,44 +145,42 @@ func (i Header) URL() string { return assets.ProductImageURL(i.Key) }
 func (i Header) Srcset() string { return assets.ProductImageSrcsetAt(i.Key, int(i.Width)) }
 
 // HasErr reports whether a field of the image form was refused.
-func (v CampaignView) HasErr(f string) bool { _, ok := v.Errors[f]; return ok }
+func (v *CampaignView) HasErr(f string) bool { _, ok := v.Errors[f]; return ok }
 
 // Err is why.
-func (v CampaignView) Err(f string) string { return v.Errors[f] }
+func (v *CampaignView) Err(f string) string { return v.Errors[f] }
 
 // ToneAction is where the tone form posts.
-func (v CampaignView) ToneAction() string { return "/admin/campaigns/" + v.Slug + "/tone" }
+func (v *CampaignView) ToneAction() string { return "/admin/campaigns/" + v.Slug + "/tone" }
 
 // ImageAction is where the header upload form posts.
-func (v CampaignView) ImageAction() string { return "/admin/campaigns/" + v.Slug + "/image" }
+func (v *CampaignView) ImageAction() string { return "/admin/campaigns/" + v.Slug + "/image" }
 
 // ImageRemoveAction is where the remove form posts.
-func (v CampaignView) ImageRemoveAction() string {
+func (v *CampaignView) ImageRemoveAction() string {
 	return "/admin/campaigns/" + v.Slug + "/image/remove"
 }
 
-func (v CampaignView) WindowAction() string { return "/admin/campaigns/" + v.Slug + "/window" }
+func (v *CampaignView) WindowAction() string { return "/admin/campaigns/" + v.Slug + "/window" }
 
 // ActiveAction is where the on/off form posts.
-func (v CampaignView) ActiveAction() string { return "/admin/campaigns/" + v.Slug + "/active" }
+func (v *CampaignView) ActiveAction() string { return "/admin/campaigns/" + v.Slug + "/active" }
 
 // StateText is the word the list uses for where the campaign stands.
-func (v CampaignView) StateText(ctx context.Context) string {
-	return Campaign{Active: v.Active, Running: v.Running, Products: int64(len(v.Products))}.State(ctx)
+func (v *CampaignView) StateText(ctx context.Context) string {
+	return campaignState(ctx, v.Active, v.Running, int64(len(v.Products)))
 }
 
 // ToggleLabel is what the on/off button says.
-func (v CampaignView) ToggleLabel(ctx context.Context) string {
-	return Campaign{Active: v.Active}.ToggleLabel(ctx)
-}
+func (v *CampaignView) ToggleLabel(ctx context.Context) string { return toggleLabel(ctx, v.Active) }
 
-// NextActive is what the on/off button sets.
-func (v CampaignView) NextActive() string { return Campaign{Active: v.Active}.NextActive() }
+// NextActive is what the on/off form sets.
+func (v *CampaignView) NextActive() string { return nextActive(v.Active) }
 
-func (v CampaignView) Searching() bool { return v.Term != "" }
+func (v *CampaignView) Searching() bool { return v.Term != "" }
 
 // Empty reports whether it features nothing.
-func (v CampaignView) Empty() bool { return len(v.Products) == 0 }
+func (v *CampaignView) Empty() bool { return len(v.Products) == 0 }
 
 // FeatureAction is where the add-product form posts.
-func (v CampaignView) FeatureAction() string { return "/admin/campaigns/" + v.Slug + "/products" }
+func (v *CampaignView) FeatureAction() string { return "/admin/campaigns/" + v.Slug + "/products" }

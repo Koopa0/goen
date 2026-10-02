@@ -51,7 +51,7 @@ templ Campaigns(p layouts.Page, v CampaignsView) {
 									<a href={ templ.SafeURL(c.Href()) }>{ c.Title }</a>
 									<span class="goen-admin__meta">/s/{ c.Slug }</span>
 									<span class="goen-admin__meta">
-										{ i18n.Count(ctx, i18n.KeyAdminCampMeta, c.Products, c.ProductsText(), c.EndsAt) }
+										{ i18n.Count(ctx, i18n.KeyAdminCampMeta, c.Products, c.ProductsText(), c.EndsAtText) }
 									</span>
 								</td>
 								<td>
@@ -238,7 +238,7 @@ templ CampaignForm(p layouts.Page, v CampaignView) {
 							name="starts_at"
 							type="datetime-local"
 							required
-							value={ v.StartsAt }
+							value={ v.StartsAtInput }
 							if v.HasErr("window") {
 								aria-invalid="true"
 								aria-describedby="c-window-error"
@@ -255,7 +255,7 @@ templ CampaignForm(p layouts.Page, v CampaignView) {
 							name="ends_at"
 							type="datetime-local"
 							required
-							value={ v.EndsAt }
+							value={ v.EndsAtInput }
 							if v.HasErr("window") {
 								aria-invalid="true"
 								aria-describedby="c-window-error"

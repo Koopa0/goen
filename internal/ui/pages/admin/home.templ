@@ -7,7 +7,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// Home renders the hero queue and the form that adds to it.
+// Home renders the scheduled slides and the form that adds to it.
 templ Home(p layouts.Page, v *HeroView) {
 	@layouts.Admin(p, "home") {
 		<div class="ui-page-head">
@@ -214,7 +214,7 @@ templ Home(p layouts.Page, v *HeroView) {
 				<button class="ui-btn ui-btn--primary" type="submit">{ i18n.T(ctx, i18n.KeyAdminHomeAdd) }</button>
 			</form>
 			<aside class="goen-admin__side">
-				<h2 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminHomeQueue) }</h2>
+				<h2 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminHomeScheduled) }</h2>
 				if v.Empty() {
 					<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminHomeEmpty) }</p>
 				} else {
