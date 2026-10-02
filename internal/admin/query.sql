@@ -153,7 +153,7 @@ SELECT json_build_object('Number', (pv.stock_quantity - pv.safety_stock), 'Name'
     p.slug,
     p.name AS product_name,
     p.status AS product_status,
-    b.name AS brand,
+    coalesce(b.name, '') AS brand,
     ARRAY(SELECT localized_name(v.value, v.value_en, @locale::text)
           FROM variant_option_values vov
           JOIN product_options o ON o.id = vov.option_id
@@ -162,7 +162,7 @@ SELECT json_build_object('Number', (pv.stock_quantity - pv.safety_stock), 'Name'
           ORDER BY o.position, o.id)::text[] AS option_values
 FROM product_variants pv
 JOIN products p ON p.id = pv.product_id
-JOIN brands b ON b.id = p.brand_id
+LEFT JOIN brands b ON b.id = p.brand_id
 WHERE (@low_only::boolean = false OR pv.stock_quantity <= pv.safety_stock)
 AND (@escaped_term::text = ''
        OR pv.sku ILIKE '%' || @escaped_term::text || '%'
@@ -810,12 +810,12 @@ LIMIT @row_limit::integer;
 -- name: AdminProducts :many
 SELECT json_build_object('At', p.updated_at, 'ID', p.id)::text AS page_cursor, p.id, p.slug, p.name, p.status, p.published_at,
        (p.name_en IS NOT NULL)::boolean AS translated,
-       b.name AS brand, c.name AS category,
+       coalesce(b.name, '') AS brand, c.name AS category,
        (SELECT count(*) FROM product_variants pv WHERE pv.product_id = p.id)::integer AS variants,
        (SELECT coalesce(min(pv.price_cents), 0) FROM product_variants pv
         WHERE pv.product_id = p.id AND pv.is_active)::bigint AS from_cents
 FROM products p
-JOIN brands b ON b.id = p.brand_id
+LEFT JOIN brands b ON b.id = p.brand_id
 JOIN categories c ON c.id = p.category_id
 WHERE (NOT @has_cursor::boolean OR (p.updated_at < @after_at::timestamptz)
        OR (p.updated_at = @after_at::timestamptz AND p.id < @after_id::uuid))

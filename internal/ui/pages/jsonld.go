@@ -15,7 +15,6 @@ func ProductJSONLD(v *ProductView, baseURL string) string {
 		"name":        v.Name,
 		"description": v.Summary,
 		"sku":         v.SKU,
-		"brand":       map[string]any{"@type": "Brand", "name": v.Brand},
 		"offers": map[string]any{
 			"@type":         "Offer",
 			"url":           base + "/p/" + v.Slug,
@@ -23,6 +22,9 @@ func ProductJSONLD(v *ProductView, baseURL string) string {
 			"price":         dollars(v.PriceCents),
 			"availability":  availability(v.Sellable),
 		},
+	}
+	if v.Brand != "" {
+		doc["brand"] = map[string]any{"@type": "Brand", "name": v.Brand}
 	}
 	if v.HasImages() {
 		doc["image"] = base + v.Images[0].URL

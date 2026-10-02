@@ -86,8 +86,10 @@ func (f *ProductForm) Validate(ctx context.Context) map[string]string {
 	if f.WarrantyMonths < 0 || f.WarrantyMonths > MaxWarrantyMonths {
 		errs["warranty_months"] = i18n.T(ctx, i18n.KeyFormWarrantyMonths)
 	}
-	if _, err := uuid.Parse(f.BrandID); err != nil {
-		errs["brand"] = i18n.T(ctx, i18n.KeyFormBrandRequired)
+	if f.BrandID != "" {
+		if _, err := uuid.Parse(f.BrandID); err != nil {
+			errs["brand"] = i18n.T(ctx, i18n.KeyFormBrandInvalid)
+		}
 	}
 	if _, err := uuid.Parse(f.CategoryID); err != nil {
 		errs["category"] = i18n.T(ctx, i18n.KeyFormCategoryRequired)
@@ -130,8 +132,9 @@ func (s *Store) Product(ctx context.Context, slug string) (admin.ProductView, er
 		NameEn: p.NameEn, SummaryEn: p.SummaryEn, DescriptionEn: p.DescriptionEn,
 		WarrantyMonths: p.WarrantyMonths,
 		Status:         pages.ProductStatus(p.Status), StatusText: ProductStatusLabel(ctx, p.Status),
-		BrandID: p.BrandID.String(), CategoryID: p.CategoryID.String(),
+		CategoryID: p.CategoryID.String(),
 	}
+	view.BrandID = productBrandValue(p.BrandID)
 	variants, err := s.q.AdminProductVariants(ctx, p.ID)
 	if err != nil {
 		return admin.ProductView{}, fmt.Errorf("read variants: %w", err)
@@ -234,16 +237,30 @@ func (s *Store) loadChoices(ctx context.Context, view *admin.ProductView) error 
 	return nil
 }
 
+func productBrandValue(id uuid.NullUUID) string {
+	if !id.Valid {
+		return ""
+	}
+	return id.UUID.String()
+}
+
+func productBrandID(raw string) uuid.NullUUID {
+	if raw == "" {
+		return uuid.NullUUID{}
+	}
+	return uuid.NullUUID{UUID: uuid.MustParse(raw), Valid: true}
+}
+
 // CreateProduct adds a product as a DRAFT. Publishing is its own decision.
 func (s *Store) CreateProduct(ctx context.Context, f *ProductForm) (slug string, fieldErrs map[string]string, err error) {
 	if errs := f.Validate(ctx); len(errs) > 0 {
 		return "", errs, nil
 	}
-	brandID, categoryID := uuid.MustParse(f.BrandID), uuid.MustParse(f.CategoryID)
+	brandID, categoryID := productBrandID(f.BrandID), uuid.MustParse(f.CategoryID)
 
 	err = s.audited(ctx, Event{
 		Action: actionCreateProduct, Table: "products", ID: uuid.NullUUID{},
-		Before: nil, After: map[string]any{"name": f.Name, "slug": f.Slug},
+		Before: nil, After: map[string]any{"name": f.Name, "slug": f.Slug, "brand_id": brandID},
 	},
 		func(ctx context.Context, q *db.Queries) error {
 			var createErr error
@@ -277,12 +294,12 @@ func (s *Store) UpdateProduct(ctx context.Context, f *ProductForm) (map[string]s
 		Action: actionUpdateProduct, Table: "products", ID: uuid.NullUUID{},
 		After: map[string]any{
 			"slug": f.Slug, "name": f.Name,
-			"brand_id": f.BrandID, "category_id": f.CategoryID,
+			"brand_id": productBrandID(f.BrandID), "category_id": f.CategoryID,
 			"warranty_months": f.WarrantyMonths,
 		},
 	}, func(ctx context.Context, q *db.Queries) error {
 		n, updateErr := q.UpdateProduct(ctx, db.UpdateProductParams{
-			BrandID:    uuid.MustParse(f.BrandID),
+			BrandID:    productBrandID(f.BrandID),
 			CategoryID: uuid.MustParse(f.CategoryID),
 			Slug:       f.Slug, Name: f.Name, Summary: f.Summary,
 			Description: f.Description, WarrantyNote: f.WarrantyNote,

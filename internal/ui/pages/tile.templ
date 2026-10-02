@@ -74,7 +74,9 @@ templ tileCard(t ProductTile) {
 			}
 		</div>
 		<div class="goen-tile__body">
-			<span class="goen-tile__brand">{ t.Brand }</span>
+			if t.Brand != "" {
+				<span class="goen-tile__brand">{ t.Brand }</span>
+			}
 			<h3 class="goen-tile__name">{ t.Name }</h3>
 			<span class="goen-tile__price">
 				<span>
