@@ -24,8 +24,7 @@ const (
 
 const requestTimeout = 20 * time.Second
 
-// Gateway talks to ECPay. The zero value is DISABLED and answers ErrDisabled to
-// everything.
+// Gateway is DISABLED in its zero value and answers ErrDisabled to everything.
 type Gateway struct {
 	merchantID string
 	hashKey    []byte
@@ -70,7 +69,6 @@ func NewGateway(merchantID, hashKey, hashIV, baseURL string) (*Gateway, error) {
 	}, nil
 }
 
-// Enabled reports whether this deployment can issue anything.
 func (g *Gateway) Enabled() bool { return g != nil && g.merchantID != "" }
 
 // envelope is ECPay's outer request: everything meaningful is inside the
@@ -203,7 +201,6 @@ func (g *Gateway) seal(plaintext []byte) (string, error) {
 	return base64.StdEncoding.EncodeToString(out), nil
 }
 
-// open reverses seal.
 func (g *Gateway) open(sealed string) ([]byte, error) {
 	raw, err := base64.StdEncoding.DecodeString(sealed)
 	if err != nil {
@@ -230,7 +227,6 @@ func (g *Gateway) open(sealed string) ([]byte, error) {
 	return []byte(decoded), nil
 }
 
-// pkcs7Pad appends the padding AES-CBC needs.
 func pkcs7Pad(b []byte, size int) []byte {
 	n := size - len(b)%size
 	//nolint:gosec // G115: n is size - len(b)%size, so 1..size, and size is
@@ -238,8 +234,8 @@ func pkcs7Pad(b []byte, size int) []byte {
 	return append(b, bytes.Repeat([]byte{byte(n)}, n)...)
 }
 
-// pkcs7Unpad removes it. The last byte comes from a third party, so using it as
-// a length unverified is a slice bound an attacker picks.
+// pkcs7Unpad checks the last byte, which comes from a third party: unverified,
+// it is a slice bound an attacker picks.
 func pkcs7Unpad(b []byte, size int) ([]byte, error) {
 	if len(b) == 0 || len(b)%size != 0 {
 		return nil, fmt.Errorf("padded length %d is not a multiple of %d", len(b), size)
@@ -285,7 +281,6 @@ var dotNetLiterals = strings.NewReplacer(
 	"%2a", "*",
 )
 
-// itemsFor turns goen's lines into ECPay's Items array.
 func itemsFor(lines []Line) []item {
 	out := make([]item, 0, len(lines))
 	for i, l := range lines {

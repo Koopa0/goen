@@ -109,13 +109,10 @@ func newGateway(apiKey, webhookSecret, baseURL string, backend *stripe.BackendCo
 	}, nil
 }
 
-// Enabled reports whether goen can actually take money.
 func (g *Gateway) Enabled() bool { return g.client != nil }
 
-// Sandbox reports whether the configured key is explicitly a Stripe test key.
 func (g *Gateway) Sandbox() bool { return g.sandbox }
 
-// lineItem is one row on Stripe's page.
 func lineItem(name string, unitCents, quantity int64) *stripe.CheckoutSessionCreateLineItemParams {
 	return &stripe.CheckoutSessionCreateLineItemParams{
 		Quantity: new(quantity),
@@ -263,7 +260,6 @@ func (g *Gateway) ExpireSession(ctx context.Context, sessionID string) error {
 	return nil
 }
 
-// displayName is what Stripe's page calls a line.
 func displayName(l *Line) string {
 	if l.Label == "" {
 		return l.Name
@@ -395,8 +391,6 @@ func classifyWebhook(ev *stripe.Event, understood bool) webhookReadState {
 	return webhookReadUnreadable
 }
 
-// AbandonedSessionFrom reports the session id of a Checkout Session that ended
-// with no money.
 func AbandonedSessionFrom(ev *stripe.Event) (string, bool) {
 	if ev == nil || ev.Data == nil || !abandonedEvents[ev.Type] {
 		return "", false
@@ -439,7 +433,6 @@ func ObjectRef(ev *stripe.Event) string {
 	return ""
 }
 
-// EventAge is how old Stripe says the event is, for logging.
 func EventAge(ev *stripe.Event) string {
 	if ev.Created == 0 {
 		return "unknown"
