@@ -5,7 +5,6 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
-	"github.com/koopa0/goen/internal/ui/icons"
 )
 
 // compareForm submits the ticked slugs to /compare. A GET, because a
@@ -75,14 +74,6 @@ templ tileCard(t ProductTile) {
 		<div class="goen-tile__body">
 			<span class="goen-tile__brand">{ t.Brand }</span>
 			<h3 class="goen-tile__name">{ t.Name }</h3>
-			if t.HasReviews() {
-				<span class="goen-tile__rating">
-					@icons.Star()
-					<span aria-hidden="true">{ t.RatingText() }</span>
-					<span aria-hidden="true">({ t.ReviewCountText() })</span>
-					<span class="goen-sr-only">{ t.RatingLabel(ctx) }</span>
-				</span>
-			}
 			<span class="goen-tile__price">
 				<span>
 					if t.PriceVaries {

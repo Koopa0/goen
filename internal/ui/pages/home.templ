@@ -27,23 +27,23 @@ templ Home(p layouts.Page, v HomeView) {
 					for _, c := range v.Categories {
 						<li>
 							<a class="goen-cat" data-tone={ c.Tone.Attr() } href={ templ.URL("/c/" + c.Slug) }>
-								<span class="goen-cat__text">
-									<span class="goen-cat__name">{ c.Name }</span>
+								<span class="goen-cat__well">
+									if c.Photo.Shown() {
+										// The name below is the label, so the photograph is decoration.
+										<img
+											class="goen-cat__photo"
+											src={ c.Photo.URL }
+											srcset={ c.Photo.Srcset }
+											sizes="(min-width: 1024px) 200px, 33vw"
+											alt=""
+											width="800"
+											height="600"
+											loading="lazy"
+											decoding="async"
+										/>
+									}
 								</span>
-								if c.Photo.Shown() {
-									// The name above is the label, so the photograph is decoration.
-									<img
-										class="goen-cat__photo"
-										src={ c.Photo.URL }
-										srcset={ c.Photo.Srcset }
-										sizes="(min-width: 1024px) 200px, 33vw"
-										alt=""
-										width="800"
-										height="600"
-										loading="lazy"
-										decoding="async"
-									/>
-								}
+								<span class="goen-cat__name">{ c.Name }</span>
 							</a>
 						</li>
 					}
@@ -52,12 +52,7 @@ templ Home(p layouts.Page, v HomeView) {
 			if len(v.Row.Tiles) > 0 {
 				<section class="goen-home__section" aria-labelledby="row-heading">
 					<div class="goen-home__head">
-						<div>
-							<h2 id="row-heading" class="goen-home__heading">{ v.Row.Title }</h2>
-							if v.Row.Fact != "" {
-								<p class="goen-home__sub">{ v.Row.Fact }</p>
-							}
-						</div>
+						@heading("row-heading", v.Row.Title, v.Row.Fact)
 						@seeAll(i18n.T(ctx, i18n.KeyHomeSeeAll), v.Row.Href)
 					</div>
 					<ul class="goen-tiles__grid" role="list">
@@ -87,12 +82,7 @@ templ Home(p layouts.Page, v HomeView) {
 					</div>
 					<div class="goen-band__body">
 						<div class="goen-home__head">
-							<div>
-								<h2 id="band-heading" class="goen-home__heading">{ v.Band.Name }</h2>
-								if v.Band.Fact != "" {
-									<p class="goen-home__sub">{ v.Band.Fact }</p>
-								}
-							</div>
+							@heading("band-heading", v.Band.Name, v.Band.Fact)
 							@seeAll(fmt.Sprintf(i18n.T(ctx, i18n.KeyHomeDepartmentCTA), v.Band.Name), v.Band.Href)
 						</div>
 						<ul class="goen-band__tiles" role="list">
@@ -140,6 +130,17 @@ templ Home(p layouts.Page, v HomeView) {
 			</div>
 		</section>
 	}
+}
+
+// heading is a section name in ink, then a short grey continuation on the same
+// line; it may wrap on a narrow screen.
+templ heading(id, name, rest string) {
+	<h2 id={ id } class="goen-home__heading">
+		{ name }
+		if rest != "" {
+			<span class="goen-home__aside">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyHomeAside), rest) }</span>
+		}
+	</h2>
 }
 
 templ seeAll(label, href string) {

@@ -139,8 +139,8 @@ func TestAnEmptyHeroTableIsAWorkingHomePage(t *testing.T) {
 	stopCampaigns(t)
 
 	slides := slidesOf(t, ctx)
-	if len(slides) == 0 || len(slides) > 5 {
-		t.Fatalf("an empty table produced %d slides, want 1 to 5 departments", len(slides))
+	if len(slides) == 0 || len(slides) > 3 {
+		t.Fatalf("an empty table produced %d slides, want 1 to 3 departments", len(slides))
 	}
 	for _, slide := range slides {
 		if slide.Layout != pages.SlideSplit || !slide.Photo.Shown() || !slide.CTA.Shown() {
@@ -511,8 +511,8 @@ func TestRunningCampaignsFollowTheScheduledSlidesSoonestFirst(t *testing.T) {
 		if slides[0].CTA.Href != "/s/hero-sooner" {
 			t.Errorf("%s campaign button goes to %q, want /s/hero-sooner", locale, slides[0].CTA.Href)
 		}
-		if len(slides) != 5 {
-			t.Errorf("%s carousel has %d slides, want departments filling it to 5", locale, len(slides))
+		if len(slides) != 3 {
+			t.Errorf("%s carousel has %d slides, want one department filling it to 3", locale, len(slides))
 		}
 	}
 

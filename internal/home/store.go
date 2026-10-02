@@ -125,7 +125,7 @@ func (s *Store) productRow(ctx context.Context, camps []db.HomeCampaignsRow) (pa
 		if len(tiles) > 0 {
 			return pages.ProductRow{
 				Title: c.Title,
-				Fact:  campaignFact(ctx, c),
+				Fact:  i18n.Count(ctx, i18n.KeyHomeCampaignRowFact, c.Products, c.Products, shoptime.Day(c.EndsAt)),
 				Href:  "/s/" + c.Slug,
 				Tiles: tiles,
 			}, nil

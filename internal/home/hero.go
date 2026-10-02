@@ -15,8 +15,8 @@ import (
 	"github.com/koopa0/goen/internal/web"
 )
 
-// maxSlides is the carousel's length: more than five is a queue, not a hero.
-const maxSlides = 5
+// maxSlides is the carousel's length: more than three is a queue, not a hero.
+const maxSlides = 3
 
 // slides is the carousel, in the order the shop means it: the slides an editor
 // scheduled, the campaigns running (soonest-ending first), then departments

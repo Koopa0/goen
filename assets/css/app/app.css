@@ -1281,7 +1281,7 @@ h3 {
 }
 
 .goen-home__head {
-  align-items: flex-end;
+  align-items: baseline;
   display: flex;
   gap: 1rem;
   justify-content: space-between;
@@ -1295,10 +1295,10 @@ h3 {
   margin: 0;
 }
 
-.goen-home__sub {
+/* The continuation after a section's name: same line, same size, grey. */
+.goen-home__aside {
   color: var(--n-500);
-  font-size: var(--fs-14);
-  margin: 0.25rem 0 0;
+  font-weight: var(--fw-regular);
 }
 
 .goen-home__more {
@@ -1317,11 +1317,6 @@ h3 {
   color: var(--accent-text-hover);
   text-decoration: underline;
   text-underline-offset: 0.25em;
-}
-
-/* The link sits on the sub line's baseline rather than the box's bottom. */
-.goen-home__head .goen-home__more {
-  margin-bottom: -0.625rem;
 }
 
 /* ----- Carousel: native scroll-snap does the moving (swipe, trackpad,
@@ -1439,7 +1434,7 @@ h3 {
   background: rgb(24 24 27 / 0.2);
   border-radius: 1px;
   content: "";
-  height: 0.1875rem;
+  height: 0.125rem;
   width: 1.75rem;
 }
 
@@ -1486,35 +1481,34 @@ h3 {
 }
 
 .goen-cat {
-  background: var(--tone-ground);
-  border-radius: var(--r-lg);
   color: var(--n-900);
   display: flex;
   flex-direction: column;
-  height: 100%;
+  gap: 0.625rem;
   min-height: 44px;
-  overflow: hidden;
   text-decoration: none;
 }
 
-.goen-cat__text {
-  padding: 0.75rem 0.75rem 0;
-}
-
-.goen-cat__name {
+/* The tone ground is the photograph's well; the name sits under it. */
+.goen-cat__well {
+  aspect-ratio: 4 / 3;
+  background: var(--tone-ground);
+  border-radius: var(--r-lg);
   display: block;
-  font-size: var(--fs-14);
-  font-weight: var(--fw-semibold);
-  line-height: 1.4;
+  overflow: hidden;
 }
 
 .goen-cat__photo {
-  aspect-ratio: 4 / 3;
-  height: auto;
-  margin-top: auto;
-  mask-image: linear-gradient(to bottom, transparent, #000 30%);
+  display: block;
+  height: 100%;
   object-fit: cover;
   width: 100%;
+}
+
+.goen-cat__name {
+  font-size: var(--fs-14);
+  font-weight: var(--fw-medium);
+  line-height: 1.4;
 }
 
 .goen-cat:hover .goen-cat__name {
@@ -1683,14 +1677,6 @@ h3 {
     gap: 1rem;
   }
 
-  .goen-cat__text {
-    padding: 1.25rem 1.25rem 0;
-  }
-
-  .goen-cat__name {
-    font-size: var(--fs-16);
-  }
-
   .goen-band__media {
     aspect-ratio: 16 / 9;
   }
@@ -1783,10 +1769,6 @@ h3 {
 
   .goen-cats__grid {
     grid-template-columns: repeat(6, minmax(0, 1fr));
-  }
-
-  .goen-cat__photo {
-    margin-top: 2rem;
   }
 
   .goen-band__grid {
@@ -1937,22 +1919,6 @@ h3 {
   line-height: var(--lh-normal);
   margin: 0;
   overflow: hidden;
-}
-
-.goen-tile__rating {
-  align-items: center;
-  color: var(--n-500);
-  display: flex;
-  font-size: var(--fs-13);
-  font-variant-numeric: tabular-nums;
-  gap: 4px;
-}
-
-.goen-tile__rating svg {
-  color: var(--star);
-  fill: var(--star);
-  height: 14px;
-  width: 14px;
 }
 
 .goen-tile__price {

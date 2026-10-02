@@ -77,6 +77,14 @@ var (
 	KeyHomeCampaignFact = countKey("home.campaign.fact", "%d 件商品 · 至 %s",
 		"%d item · until %s", "%d items · until %s")
 
+	// The grey continuation of a section heading, on the same line as its name:
+	// %s is the rest of the sentence.
+	KeyHomeAside = key("home.heading.aside", Message{ZhHant: "。%s", En: ". %s"})
+
+	// The campaign row's continuation: %d is the product count, %s the last day.
+	KeyHomeCampaignRowFact = countKey("home.campaign.row_fact", "%d 件商品，至 %s",
+		"%d item, until %s", "%d items, until %s")
+
 	// %s is a department's name.
 	KeyHomeDepartmentCTA = key("home.department.cta", Message{ZhHant: "逛逛%s", En: "Browse %s"})
 
