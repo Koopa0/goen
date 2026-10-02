@@ -128,8 +128,10 @@ templ Header(p Page) {
 // plain markup shown by CSS, so it needs no script to open: on hover, and under
 // :focus-within until goen.js is running, when ArrowDown on the department's
 // link opens it instead and its links are out of the tab order until then.
-// The photograph is the category's embedded one, and a department without one
-// shows the caption link alone.
+// Three of the department's newest products sit between the sub-categories and
+// the department's photograph, so a department with two sub-categories still
+// fills its panel. A department without a photograph shows the caption alone.
+// Every image is lazy: a closed panel is display:none and fetches nothing.
 templ department(p Page, n NavItem) {
 	<div class="goen-dept">
 		<a class="ui-navitem" aria-current={ p.ariaCurrent(n) } href={ templ.URL(n.Href) }>{ n.Name }</a>
@@ -142,11 +144,32 @@ templ department(p Page, n NavItem) {
 						</li>
 					}
 				</ul>
+				if len(n.Picks) > 0 {
+					<ul class="goen-dept__picks" role="list">
+						for _, pick := range n.Picks {
+							<li>
+								// The name is the link's label, so the photograph is decoration.
+								<a class="goen-dept__pick" href={ templ.URL("/p/" + pick.Slug) }>
+									<span class="goen-dept__well">
+										if pick.ImageURL != "" {
+											<img src={ pick.ImageURL } srcset={ pick.ImageSrcset } sizes="144px" alt="" loading="lazy" decoding="async"/>
+										}
+									</span>
+									<span class="goen-dept__name">{ pick.Name }</span>
+									<span class="goen-dept__price">{ pick.Price }</span>
+								</a>
+							</li>
+						}
+					</ul>
+				}
 				<a class="goen-dept__browse" href={ templ.URL(n.Href) }>
 					if src, srcset, ok := assets.CategoryImage(n.Slug); ok {
-						<img class="goen-dept__photo" src={ src } srcset={ srcset } sizes="224px" alt="" loading="lazy" decoding="async"/>
+						<img class="goen-dept__photo" src={ src } srcset={ srcset } sizes="240px" alt="" loading="lazy" decoding="async"/>
 					}
-					<span class="goen-dept__caption">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyBrowseDepartment), n.Name) }</span>
+					<span class="goen-dept__caption">
+						{ fmt.Sprintf(i18n.T(ctx, i18n.KeyBrowseDepartment), n.Name) }
+						<span aria-hidden="true">&nbsp;→</span>
+					</span>
 				</a>
 			</div>
 		</div>

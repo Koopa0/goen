@@ -28,6 +28,9 @@ var chromeNav = []layouts.NavItem{
 	{Slug: "phones", Name: "手機", Href: "/c/phones"},
 	{Slug: "accessories", Name: "周邊配件", Href: "/c/accessories", Children: []layouts.NavItem{
 		{Slug: "chargers", Name: "充電與線材", Href: "/c/chargers"},
+	}, Picks: []layouts.NavPick{
+		{Slug: "aurora-charger-65", Name: "Aurora GaN 65W 充電器", Price: "NT$990", ImageURL: "/static/aurora-charger-65-01.webp"},
+		{Slug: "koto-cable-braided", Name: "Koto 編織 USB-C 線 2m", Price: "NT$490 起"},
 	}},
 }
 
@@ -181,5 +184,35 @@ func TestTheSkipLinkIsTheFirstTabStopAndNamesTheMainLandmark(t *testing.T) {
 	}
 	if !strings.Contains(body, `<main id="main">`) {
 		t.Error("nothing carries the id the skip link names")
+	}
+}
+
+// A department panel offers a few of its products as links of their own, each
+// with its price, so a department with two sub-categories is not an empty
+// sheet. Their pictures are lazy: the panel is display:none until it opens,
+// and an eager image there is a fetch on every page for a panel nobody opened.
+func TestADepartmentPanelOffersItsProducts(t *testing.T) {
+	t.Parallel()
+
+	header, _ := renderChrome(t, i18n.ZhHant, chromeNav)
+	for _, want := range []string{
+		`<a class="goen-dept__pick" href="/p/aurora-charger-65">`,
+		`<span class="goen-dept__name">Aurora GaN 65W 充電器</span>`,
+		`<span class="goen-dept__price">NT$990</span>`,
+		`<span class="goen-dept__price">NT$490 起</span>`,
+	} {
+		if !strings.Contains(header, want) {
+			t.Errorf("the panel does not contain %q", want)
+		}
+	}
+	picks := header[strings.Index(header, `class="goen-dept__picks"`):]
+	picks = picks[:strings.Index(picks, "</ul>")]
+	imgs := regexp.MustCompile(`<img[^>]*>`).FindAllString(picks, -1)
+	if len(imgs) != 1 {
+		t.Fatalf("the panel draws %d product pictures, want 1 — a product with no picture "+
+			"keeps its well empty rather than a broken image", len(imgs))
+	}
+	if !strings.Contains(imgs[0], `loading="lazy"`) {
+		t.Errorf("a panel picture is fetched before the panel opens: %s", imgs[0])
 	}
 }
