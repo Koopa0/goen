@@ -15,12 +15,12 @@ import (
 	"github.com/koopa0/goen/internal/web"
 )
 
-// maxSlides is the carousel's length: more than three is a queue, not a hero.
+// maxSlides: more than three is a queue, not a hero.
 const maxSlides = 3
 
-// slides is the carousel, in the order the shop means it: the slides an editor
-// scheduled, the campaigns running (soonest-ending first), then departments
-// with a photograph to fill what is left.
+// slides runs in the order the shop means it: slides an editor scheduled,
+// campaigns running (soonest-ending first), then departments with a photograph
+// to fill what is left.
 func (s *Store) slides(ctx context.Context, cats []db.RootCategoriesRow, subs map[uuid.UUID][]string, camps []db.HomeCampaignsRow) ([]pages.HeroSlide, error) {
 	locale := i18n.FromContext(ctx)
 	rows, err := s.q.HeroSlides(ctx, db.HeroSlidesParams{Locale: string(locale), MaxSlides: maxSlides})
@@ -105,8 +105,6 @@ func (s *Store) slides(ctx context.Context, cats []db.RootCategoriesRow, subs ma
 	return out, nil
 }
 
-// campaignFact is the campaign's product count and its last day, worded by
-// withDay, or the count alone while that day is too far off to name.
 func (s *Store) campaignFact(ctx context.Context, c *db.HomeCampaignsRow, withDay i18n.Key) string {
 	day := pages.CampaignEndsOn(ctx, c.EndsAt, s.now())
 	if day == "" {
@@ -115,7 +113,6 @@ func (s *Store) campaignFact(ctx context.Context, c *db.HomeCampaignsRow, withDa
 	return i18n.Count(ctx, withDay, c.Products, c.Products, day)
 }
 
-// departmentPhoto is a root category's own photograph, or none.
 func departmentPhoto(c *db.RootCategoriesRow) pages.Photo {
 	url := assets.ProductImageURL(c.ImageKey)
 	if url == "" {

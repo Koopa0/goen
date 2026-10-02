@@ -15,16 +15,15 @@ import (
 	"github.com/koopa0/goen/internal/web"
 )
 
-// Handler serves the footer's signup form and the two links it leads to.
 type Handler struct {
 	store *Store
 	limit *ratelimit.Limiter
 	log   *slog.Logger
 }
 
-// NewHandler returns a Handler writing through store. limit is Submit's: it
-// spends two disjoint keys — the client IP, and "newsletter:"+the address —
-// and neither sees the attack the other bounds.
+// NewHandler takes limit for Submit, which spends two disjoint keys, the client
+// IP and "newsletter:"+the address, since neither sees the attack the other
+// bounds.
 func NewHandler(store *Store, limit *ratelimit.Limiter, log *slog.Logger) *Handler {
 	if store == nil || limit == nil || log == nil {
 		panic("newsletter: NewHandler requires a store, a limiter and a logger")
@@ -32,8 +31,7 @@ func NewHandler(store *Store, limit *ratelimit.Limiter, log *slog.Logger) *Handl
 	return &Handler{store: store, limit: limit, log: log}
 }
 
-// Submit serves POST /newsletter. Nothing joins the list here, and every
-// outcome is answered identically.
+// Submit joins nobody to the list and answers every outcome identically.
 func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
 	// Per-IP lives here rather than in Guard so an HTMX refusal can still
 	// replace the footer form; Guard's plain 429 would swap over it.
@@ -64,7 +62,8 @@ func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Keyed on the address and BEFORE the write: unbounded, the form mails a
-	// confirmation to whoever is typed into it, as often as the button is pressed.
+	// confirmation to whoever is typed into it, as often as the button is
+	// pressed.
 	if retryAfter, ok := h.limit.Allow("newsletter:" + addr); !ok {
 		h.throttled(w, r, addr, retryAfter)
 		return
@@ -83,8 +82,7 @@ func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/newsletter/thanks", http.StatusSeeOther)
 }
 
-// Thanks serves GET /newsletter/thanks, the landing point of the plain form's
-// redirect. It says a letter is on its way, not that the subscription is done.
+// Thanks says a letter is on its way, not that the subscription is done.
 func (h *Handler) Thanks(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	meta := layouts.Page{
@@ -99,11 +97,9 @@ func (h *Handler) Thanks(w http.ResponseWriter, r *http.Request) {
 	))
 }
 
-// ConfirmPage serves GET /newsletter/confirm. The token is echoed into a form
-// rather than acted on: a confirmation a link scanner can complete confirms
-// nothing.
+// ConfirmPage echoes the token into a form rather than acting on it: a
+// confirmation a link scanner can complete confirms nothing.
 func (h *Handler) ConfirmPage(w http.ResponseWriter, r *http.Request) {
-	// The one-time consent token is echoed into the form; never compress it.
 	web.NoCompress(w)
 	ctx := r.Context()
 	web.Render(w, r, h.log, http.StatusOK, pages.NewsletterAction(
@@ -117,7 +113,6 @@ func (h *Handler) ConfirmPage(w http.ResponseWriter, r *http.Request) {
 		}))
 }
 
-// Confirm serves POST /newsletter/confirm.
 func (h *Handler) Confirm(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
@@ -145,10 +140,7 @@ func (h *Handler) Confirm(w http.ResponseWriter, r *http.Request) {
 		}))
 }
 
-// UnsubscribePage serves GET /newsletter/unsubscribe, for the same reason
-// ConfirmPage exists.
 func (h *Handler) UnsubscribePage(w http.ResponseWriter, r *http.Request) {
-	// The unsubscribe token never expires; keep its page out of BREACH's reach.
 	web.NoCompress(w)
 	ctx := r.Context()
 	web.Render(w, r, h.log, http.StatusOK, pages.NewsletterAction(
@@ -162,9 +154,9 @@ func (h *Handler) UnsubscribePage(w http.ResponseWriter, r *http.Request) {
 		}))
 }
 
-// Unsubscribe serves POST /newsletter/unsubscribe. A second click answers the
-// same success as the first; only a token matching nothing is worth showing as
-// a failure, because only there is the reader still on the list.
+// Unsubscribe answers a second click with the same success as the first; only a
+// token matching nothing is shown as a failure, because only there is the
+// reader still on the list.
 func (h *Handler) Unsubscribe(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
@@ -192,15 +184,14 @@ func (h *Handler) Unsubscribe(w http.ResponseWriter, r *http.Request) {
 		}))
 }
 
-// linkFailed answers a link that cannot be acted on.
 func (h *Handler) linkFailed(w http.ResponseWriter, r *http.Request, heading, body string) {
 	web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.NewsletterAction(
 		pages.NewsletterMeta(heading),
 		pages.NewsletterActionView{Heading: heading, Body: body}))
 }
 
-// throttled answers an over-budget submission. HTMX swaps the body into the
-// footer form, so it must stay a form; a plain request can stay text.
+// throttled: HTMX swaps the body into the footer form, so it must stay a form;
+// a plain request can stay text.
 func (h *Handler) throttled(w http.ResponseWriter, r *http.Request, addr string, retryAfter time.Duration) {
 	if web.IsHTMX(r) {
 		ratelimit.SetRetryAfter(w, retryAfter)
@@ -210,8 +201,6 @@ func (h *Handler) throttled(w http.ResponseWriter, r *http.Request, addr string,
 	ratelimit.Refuse(r.Context(), w, retryAfter)
 }
 
-// fail answers a rejected submission: the form itself for htmx, a standalone
-// page otherwise.
 func (h *Handler) fail(w http.ResponseWriter, r *http.Request, status int, addr, msg string) {
 	if web.IsHTMX(r) {
 		state := layouts.NewsletterState{Email: addr, Error: msg}

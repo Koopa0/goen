@@ -11,15 +11,14 @@ import (
 	"github.com/koopa0/goen/internal/db"
 )
 
-// errDuplicate stays package-private: no caller has a distinct duplicate branch.
+// errDuplicate stays package-private: no caller has a distinct duplicate
+// branch.
 var errDuplicate = errors.New("contact: message already recorded")
 
-// Store records contact messages in PostgreSQL.
 type Store struct {
 	q *db.Queries
 }
 
-// NewStore returns a Store reading and writing through dbtx.
 func NewStore(dbtx db.DBTX) *Store {
 	if dbtx == nil {
 		panic("contact: NewStore requires a database handle")
@@ -27,7 +26,6 @@ func NewStore(dbtx db.DBTX) *Store {
 	return &Store{q: db.New(dbtx)}
 }
 
-// Create stores a validated message.
 func (s *Store) Create(ctx context.Context, m Message) error {
 	_, err := s.q.CreateContactMessage(ctx, db.CreateContactMessageParams{
 		Name:     m.Name,
@@ -42,7 +40,6 @@ func (s *Store) Create(ctx context.Context, m Message) error {
 	return nil
 }
 
-// wrap turns a driver error into something this package's callers can act on.
 func wrap(op string, err error) error {
 	if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok {
 		switch pgErr.Code {

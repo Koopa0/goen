@@ -17,16 +17,13 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
-// Store reads the home page's data.
 type Store struct {
-	q *db.Queries
-	// noPickup leaves pickup out of every price and method the store describes.
+	q        *db.Queries
 	noPickup bool
-	// now is the shop's clock, which decides the department of the day.
+	// now decides the department of the day.
 	now func() time.Time
 }
 
-// NewStore returns a Store reading through dbtx.
 func NewStore(dbtx db.DBTX) *Store {
 	if dbtx == nil {
 		panic("home: NewStore requires a database handle")
@@ -34,16 +31,14 @@ func NewStore(dbtx db.DBTX) *Store {
 	return &Store{q: db.New(dbtx), now: time.Now}
 }
 
-// WithoutPickup is the store for a deployment whose store map is not configured:
-// checkout offers no pickup there, so what this store describes must not either.
+// WithoutPickup is for a deployment whose store map is not configured: checkout
+// offers no pickup there, so what this store describes must not either.
 func (s *Store) WithoutPickup() *Store {
 	c := *s
 	c.noPickup = true
 	return &c
 }
 
-// rowTiles and bandTiles are how many products the product row and the
-// department band show.
 const (
 	rowTiles  = 4
 	bandTiles = 3
@@ -70,8 +65,7 @@ func (s *Store) carouselSources(ctx context.Context) ([]db.RootCategoriesRow, ma
 	return cats, subs, camps, nil
 }
 
-// Carousel is the slides the home page shows, exported so the back office
-// lists the same ones.
+// Carousel is exported so the back office lists the same slides.
 func (s *Store) Carousel(ctx context.Context) ([]pages.HeroSlide, error) {
 	cats, subs, camps, err := s.carouselSources(ctx)
 	if err != nil {
@@ -80,7 +74,6 @@ func (s *Store) Carousel(ctx context.Context) ([]pages.HeroSlide, error) {
 	return s.slides(ctx, cats, subs, camps)
 }
 
-// Load reads everything the home page draws.
 func (s *Store) Load(ctx context.Context) (pages.HomeView, error) {
 	cats, subs, camps, err := s.carouselSources(ctx)
 	if err != nil {
@@ -100,7 +93,6 @@ func (s *Store) Load(ctx context.Context) (pages.HomeView, error) {
 		return pages.HomeView{}, err
 	}
 
-	// The shop edits this at /admin/shipping; a page restating it drifts from the till.
 	freeOver, err := s.q.FreeDeliveryThreshold(ctx, !s.noPickup)
 	if err != nil {
 		return pages.HomeView{}, fmt.Errorf("read free delivery threshold: %w", err)
@@ -131,8 +123,6 @@ func (s *Store) Load(ctx context.Context) (pages.HomeView, error) {
 	return view, nil
 }
 
-// productRow is the soonest-ending campaign's first products, or the newest of
-// the shop when no campaign runs or the one running holds none.
 func (s *Store) productRow(ctx context.Context, camps []db.HomeCampaignsRow) (pages.ProductRow, error) {
 	if len(camps) > 0 {
 		c := &camps[0]
@@ -156,9 +146,8 @@ func (s *Store) productRow(ctx context.Context, camps []db.HomeCampaignsRow) (pa
 	return pages.ProductRow{Title: i18n.T(ctx, i18n.KeyHomeNewIn), Href: "/search", Tiles: tiles}, nil
 }
 
-// departmentBand is the day's department: one, rotating by shop day through
-// the departments that have a photograph and enough products to fill the band.
-// It is nil when none qualifies.
+// departmentBand rotates by shop day through the departments that have a
+// photograph and enough products to fill the band; nil when none qualifies.
 func (s *Store) departmentBand(ctx context.Context, cats []db.RootCategoriesRow, subs map[uuid.UUID][]string) (*pages.DepartmentBand, error) {
 	stock, err := s.q.HomeDepartmentStock(ctx)
 	if err != nil {
@@ -193,9 +182,8 @@ func (s *Store) departmentBand(ctx context.Context, cats []db.RootCategoriesRow,
 	}, nil
 }
 
-// dayIndex picks which of n departments the shop day t belongs to: the days
-// since the epoch, so every visitor on one shop day sees the same one and the
-// next day moves on to the next.
+// dayIndex counts days since the epoch, so every visitor on one shop day sees
+// the same department and the next day moves on.
 func dayIndex(t time.Time, n int) int {
 	day, err := time.Parse(time.DateOnly, shoptime.Day(t))
 	if err != nil || n <= 0 {
@@ -204,7 +192,6 @@ func dayIndex(t time.Time, n int) int {
 	return int(day.Unix()/86400) % n
 }
 
-// tiles reads up to limit product tiles for a campaign, a department, or neither.
 func (s *Store) tiles(ctx context.Context, campaign, department uuid.NullUUID, limit int32) ([]pages.ProductTile, error) {
 	rows, err := s.q.HomeTiles(ctx, db.HomeTilesParams{
 		Locale: string(i18n.FromContext(ctx)), CampaignID: campaign, DepartmentID: department, MaxTiles: limit,
