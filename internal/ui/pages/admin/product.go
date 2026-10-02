@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
@@ -78,6 +79,7 @@ func (v ProductVariant) StockText(ctx context.Context) string {
 }
 
 type ProductView struct {
+	InvoiceFacts      *invoice.ProductFacts
 	IsNew             bool
 	Slug              string
 	Name              string
@@ -246,3 +248,12 @@ const (
 	specLabelExample = "容量"              // i18n-exempt: as above
 	specValueExample = "350 ml"          // i18n-exempt: as above
 )
+
+func (v *ProductView) InvoiceAction() string { return "/admin/products/" + v.Slug + "/invoice" }
+
+func (v *ProductView) invoiceFacts() invoice.ProductFacts {
+	if v.InvoiceFacts == nil {
+		return invoice.ProductFacts{TaxType: invoice.Taxable, Unit: invoice.IndividualUnit}
+	}
+	return *v.InvoiceFacts
+}

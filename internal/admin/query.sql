@@ -758,7 +758,7 @@ SELECT p.id, p.slug, p.name, coalesce(p.summary, '') AS summary, p.description,
        coalesce(p.summary_en, '') AS summary_en,
        coalesce(p.description_en, '') AS description_en,
        coalesce(p.warranty_note, '') AS warranty_note, p.status, p.published_at,
-       p.brand_id, p.category_id
+       p.brand_id, p.category_id, p.tax_type, p.invoice_unit
 FROM products p WHERE p.slug = $1;
 
 -- name: AdminProductVariants :many
@@ -1816,3 +1816,9 @@ FROM order_private_data pd
 LEFT JOIN shipping_zone_prefixes old_zone ON old_zone.prefix = left(pd.postal_code, 3)
 LEFT JOIN shipping_zone_prefixes new_zone ON new_zone.prefix = left(@new_postal_code::text, 3)
 WHERE pd.order_id = @order_id;
+
+-- name: LockProductInvoice :one
+SELECT id, tax_type, invoice_unit FROM products WHERE slug=$1 FOR UPDATE;
+
+-- name: SetProductInvoice :exec
+UPDATE products SET tax_type=$2, invoice_unit=$3 WHERE id=$1;

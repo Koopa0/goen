@@ -7,6 +7,26 @@ package db_test
 
 var checkCases = []checkCase{
 	{
+		constraint: "products_tax_type_known",
+		reject:     `INSERT INTO products (brand_id,category_id,slug,name,status,tax_type) VALUES ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','invoice-facts-case','Invoice fixture','draft','zero_rated');`,
+		accept:     `INSERT INTO products (brand_id,category_id,slug,name,status,tax_type) VALUES ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','invoice-facts-case','Invoice fixture','draft','exempt');`,
+	},
+	{
+		constraint: "products_invoice_unit_valid",
+		reject:     `INSERT INTO products (brand_id,category_id,slug,name,status,invoice_unit) VALUES ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','invoice-facts-case','Invoice fixture','draft',E'個\n');`,
+		accept:     `INSERT INTO products (brand_id,category_id,slug,name,status,invoice_unit) VALUES ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','invoice-facts-case','Invoice fixture','draft',repeat('箱',6));`,
+	},
+	{
+		constraint: "order_lines_tax_type_known",
+		reject:     `INSERT INTO order_lines (order_id,sku,product_name,unit_price_cents,quantity,position,tax_type) VALUES ('6666aaaa-6666-4666-8666-666666666666','SNAPSHOT','Snapshot',100,1,5,'mixed');`,
+		accept:     `INSERT INTO order_lines (order_id,sku,product_name,unit_price_cents,quantity,position,tax_type) VALUES ('6666aaaa-6666-4666-8666-666666666666','SNAPSHOT','Snapshot',100,1,5,'exempt');`,
+	},
+	{
+		constraint: "order_lines_invoice_unit_valid",
+		reject:     `INSERT INTO order_lines (order_id,sku,product_name,unit_price_cents,quantity,position,invoice_unit) VALUES ('6666aaaa-6666-4666-8666-666666666666','SNAPSHOT','Snapshot',100,1,5,repeat('箱',7));`,
+		accept:     `INSERT INTO order_lines (order_id,sku,product_name,unit_price_cents,quantity,position,invoice_unit) VALUES ('6666aaaa-6666-4666-8666-666666666666','SNAPSHOT','Snapshot',100,1,5,'包');`,
+	},
+	{
 		constraint: "coupons_code_format",
 		reject:     `INSERT INTO coupons (id, code, description, kind, amount_cents, percent_bp, max_discount_cents, min_subtotal_cents, max_redemptions, per_customer_limit, starts_at, ends_at) VALUES ('cccc0001-0000-4000-8000-000000000001', '!!', '測試', 'amount', 20000, NULL, NULL, 0, NULL, 1, now(), NULL);`,
 		accept:     `INSERT INTO coupons (id, code, description, kind, amount_cents, percent_bp, max_discount_cents, min_subtotal_cents, max_redemptions, per_customer_limit, starts_at, ends_at) VALUES ('cccc0001-0000-4000-8000-000000000001', 'TESTCODE', '測試', 'amount', 20000, NULL, NULL, 0, NULL, 1, now(), NULL);`,
