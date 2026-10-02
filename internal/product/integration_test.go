@@ -2002,3 +2002,47 @@ func insertHistoricalCustomerAnswer(ctx context.Context, questionID, userID, bod
 	_, err := pool.Exec(ctx, `INSERT INTO product_answers (question_id,user_id,body,is_staff) VALUES ($1,$2,$3,false)`, uuid.MustParse(questionID), uuid.MustParse(userID), body)
 	return err
 }
+
+// A refused restock request re-renders the product at 422 with the address as
+// typed, and says which of two causes it was.
+func TestARefusedRestockRequestKeepsTheAddressAndNamesItsCause(t *testing.T) {
+	ctx := t.Context()
+	h := product.NewHandler(product.NewStore(pool), slog.New(slog.DiscardHandler), "https://goen.example")
+	notify := func(slug string, variant uuid.UUID, addr, remote string) *httptest.ResponseRecorder {
+		t.Helper()
+		form := url.Values{"email": {addr}, "variant": {variant.String()}}
+		req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/p/"+slug+"/notify",
+			strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.RemoteAddr = remote
+		req.SetPathValue("slug", slug)
+		w := httptest.NewRecorder()
+		h.Notify(w, req)
+		return w
+	}
+
+	vid, slug := soldOutVariant(t)
+	bad := notify(slug, vid, "shopper@gmail", "203.0.113.141:1000")
+	if bad.Code != http.StatusUnprocessableEntity ||
+		!strings.Contains(bad.Body.String(), `value="shopper@gmail"`) ||
+		!strings.Contains(bad.Body.String(), `id="notify-email-error"`) {
+		t.Errorf("a mistyped address = %d; want 422 keeping the address with the email message", bad.Code)
+	}
+
+	var inStockID uuid.UUID
+	var inStockSlug string
+	if err := pool.QueryRow(ctx, `
+		SELECT pv.id, p.slug
+		FROM product_variants pv JOIN products p ON p.id = pv.product_id
+		WHERE p.status = 'active' AND pv.is_active
+		  AND pv.stock_quantity > pv.safety_stock
+		LIMIT 1`).Scan(&inStockID, &inStockSlug); err != nil {
+		t.Fatalf("find in-stock variant: %v", err)
+	}
+	back := notify(inStockSlug, inStockID, "shopper@gmail.com", "203.0.113.142:1000")
+	if back.Code != http.StatusUnprocessableEntity ||
+		!strings.Contains(back.Body.String(), `id="notify-unavailable"`) ||
+		strings.Contains(back.Body.String(), `id="notify-email-error"`) {
+		t.Errorf("a variant back in stock = %d; want 422 with the unavailable message and not the email one", back.Code)
+	}
+}

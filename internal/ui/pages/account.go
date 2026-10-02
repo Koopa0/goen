@@ -116,7 +116,55 @@ type AccountView struct {
 	Notice          string
 	GoogleLinked    bool
 	CanUnlinkGoogle bool
+	// AddressDraft and AddressErrors are a refused new address: what was typed
+	// and why each control was refused. Both are nil on a plain visit.
+	AddressDraft  *AddressDraft
+	AddressErrors map[string]string
 }
+
+// AddressDraft is what the new-address form was submitted with.
+type AddressDraft struct {
+	Label, Name, Phone, PostalCode, City, District, Street string
+	Default                                                bool
+}
+
+// AddressOpen opens the disclosure on a refused address, so the form and its
+// messages are in view rather than behind a closed summary.
+func (v *AccountView) AddressOpen() bool { return v.AddressDraft != nil }
+
+// AddrValue is what a field was submitted with.
+func (v *AccountView) AddrValue(field string) string {
+	d := v.AddressDraft
+	if d == nil {
+		return ""
+	}
+	switch field {
+	case "label":
+		return d.Label
+	case "name":
+		return d.Name
+	case "phone":
+		return d.Phone
+	case "postal_code":
+		return d.PostalCode
+	case "city":
+		return d.City
+	case "district":
+		return d.District
+	case "street":
+		return d.Street
+	}
+	return ""
+}
+
+// AddrDefault is whether the default box was ticked.
+func (v *AccountView) AddrDefault() bool { return v.AddressDraft != nil && v.AddressDraft.Default }
+
+// AddrInvalid reports whether a field was refused.
+func (v *AccountView) AddrInvalid(field string) bool { return v.AddressErrors[field] != "" }
+
+// AddrErr is why a field was refused.
+func (v *AccountView) AddrErr(field string) string { return v.AddressErrors[field] }
 
 // AccountMeta is the chrome view model for the account pages.
 func AccountMeta(ctx context.Context) layouts.Page {
