@@ -56,7 +56,7 @@ func (s *Store) SetProductLabel(ctx context.Context, slug string, input *product
 	if err = q.SetProductLabel(ctx, params); err != nil {
 		return fmt.Errorf("set product label: %w", err)
 	}
-	if err := audit.In(ctx, q, audit.Event{
+	if auditErr := audit.In(ctx, q, audit.Event{
 		Action: audit.ActionSetProductLabel, Table: "products", ID: uuid.NullUUID{UUID: before.ID, Valid: true},
 		Before: productLabelState{
 			Slug: slug, Origin: before.Origin, OriginEn: before.OriginEn,
@@ -68,8 +68,8 @@ func (s *Store) SetProductLabel(ctx context.Context, slug string, input *product
 			ResponsibleName: text(params.ResponsiblePartyName), ResponsiblePhone: text(params.ResponsiblePartyPhone), ResponsibleAddress: text(params.ResponsiblePartyAddress),
 			NetQuantity: params.NetQuantity, NetUnit: text(params.NetUnit), MinAgeMonths: params.MinAgeMonths,
 		},
-	}); err != nil {
-		return err
+	}); auditErr != nil {
+		return auditErr
 	}
 	if err = tx.Commit(ctx); err != nil {
 		return fmt.Errorf("commit product label: %w", err)
