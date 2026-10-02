@@ -16,7 +16,6 @@ import (
 	"github.com/koopa0/goen/internal/web"
 )
 
-// Returns serves GET /admin/returns.
 func (h *Handler) Returns(w http.ResponseWriter, r *http.Request) {
 	queue, err := h.store.Returns(r.Context(), r.URL.Query().Get(web.KeysetParam))
 	if err != nil {
@@ -37,8 +36,8 @@ func (h *Handler) Returns(w http.ResponseWriter, r *http.Request) {
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageReturns)}, view))
 }
 
-// Decide serves POST /admin/returns/{id}/decide. Approving pays money back, so
-// a refusal from the database or from Stripe is reported and never swallowed.
+// Decide approves or rejects a return. Approving pays money back, so a refusal
+// from the database or from Stripe is reported and never swallowed.
 func (h *Handler) Decide(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
@@ -76,8 +75,7 @@ func (h *Handler) Decide(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// Assess serves POST /admin/returns/{id}/assess. It records eligibility
-// facts and never pays or restocks.
+// Assess records eligibility facts and never pays or restocks.
 func (h *Handler) Assess(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
@@ -202,8 +200,6 @@ func (h *Handler) renderReturnRefusal(w http.ResponseWriter, r *http.Request, er
 	return true
 }
 
-// renderInspection re-renders the returns queue at 422 with the counts and
-// notes staff typed on the refused return, and its inspection marked invalid.
 func (h *Handler) renderInspection(w http.ResponseWriter, r *http.Request, key i18n.Key) {
 	queue, readErr := h.store.Returns(r.Context(), r.URL.Query().Get(web.KeysetParam))
 	if readErr != nil {
@@ -268,7 +264,6 @@ var refusalKeys = map[returns.RefusalKind]i18n.Key{
 	returns.RefuseRejectionReason: i18n.KeyAdminRetErrRejectionReason,
 }
 
-// Inspect serves POST /admin/returns/{id}/inspect, one form per parcel.
 func (h *Handler) Inspect(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
@@ -338,7 +333,6 @@ func inspectionLines(r *http.Request) ([]ReturnLineInspection, error) {
 	return out, nil
 }
 
-// Complete serves POST /admin/returns/{id}/complete.
 func (h *Handler) Complete(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)

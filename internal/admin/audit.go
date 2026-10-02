@@ -16,10 +16,8 @@ import (
 	"github.com/koopa0/goen/internal/web"
 )
 
-// Action is what a back-office write did.
 type Action string
 
-// The actions goen records. Money, stock, and anything a customer can see.
 const (
 	// actionViewCustomer is a READ, and the only one recorded here: that page's
 	// entire content is somebody else's personal data.
@@ -101,23 +99,16 @@ const (
 	actionRemoveStaffFactor        Action = "staff.factor.remove"
 )
 
-// ErrNoActor is a back-office write that reached the store without a signed-in
-// staff member.
 var ErrNoActor = errors.New("admin: a back-office write reached the store with no actor")
 
-// MaxAuditRows bounds the trail page.
 const MaxAuditRows = 200
 
-// Event is one thing to record. Action and Table are required.
 type Event struct {
 	Action Action
 	// Table is what it was done to. Not a foreign key: audit rows outlive the
 	// rows they describe.
-	Table string
-	// ID is the affected row, when there is one.
-	ID uuid.NullUUID
-	// Before and After are operation-local, JSON-marshalable state snapshots;
-	// auditIn encodes them before the transaction may commit. Either may be nil.
+	Table  string
+	ID     uuid.NullUUID
 	Before any
 	After  any
 }
@@ -174,7 +165,6 @@ func auditIn(ctx context.Context, q *db.Queries, e Event) error {
 	return nil
 }
 
-// actorFrom is the signed-in staff member.
 func actorFrom(ctx context.Context) (uuid.UUID, bool) {
 	u, ok := account.FromContext(ctx)
 	if !ok {
@@ -201,7 +191,6 @@ func encodeState(v any) ([]byte, error) {
 	return b, nil
 }
 
-// Audit reads the trail.
 func (s *Store) Audit(ctx context.Context, after ...string) (admin.AuditView, error) {
 	scope := "/admin/audit"
 	cursor := readPageCursor(scope, after)
@@ -227,8 +216,6 @@ func (s *Store) Audit(ctx context.Context, after ...string) (admin.AuditView, er
 	return view, nil
 }
 
-// auditHref is the record's own page, where one exists: orders and what hangs
-// off them open the order, products and variants open the product.
 func auditHref(subject, productSlug string) string {
 	switch {
 	case subject != "" && IsOrderNumber(subject):
@@ -239,9 +226,6 @@ func auditHref(subject, productSlug string) string {
 	return ""
 }
 
-// auditChanges reads a before/after pair into one row per field. A pair keeps
-// only the fields whose value differs; a snapshot that is not a JSON object is
-// one row holding its text.
 func auditChanges(before, after []byte) []admin.AuditChange {
 	b, bOK := decodeFields(before)
 	a, aOK := decodeFields(after)
@@ -277,8 +261,6 @@ func auditChanges(before, after []byte) []admin.AuditChange {
 	return changes
 }
 
-// decodeFields reads a snapshot as text per top-level field. An empty snapshot
-// has no fields and is fine; anything but an object is not.
 func decodeFields(raw []byte) (map[string]string, bool) {
 	if len(raw) == 0 {
 		return nil, true
@@ -294,8 +276,6 @@ func decodeFields(raw []byte) (map[string]string, bool) {
 	return fields, true
 }
 
-// fieldText is a JSON value as a person reads it: strings unquoted, null as a
-// dash, nested values left as their JSON.
 func fieldText(v json.RawMessage) string {
 	if string(v) == "null" {
 		return "—"

@@ -19,7 +19,6 @@ import (
 
 var couponCode = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9-]{1,31}$`)
 
-// MaxCouponDescriptionRunes bounds the label a customer sees on their cart.
 const MaxCouponDescriptionRunes = 60
 
 // CouponForm is what the back office submits, in DOLLARS and whole percent.
@@ -37,7 +36,6 @@ type CouponForm struct {
 	parseInvalid    map[string]bool
 }
 
-// Validate refuses what the schema would.
 func (f *CouponForm) Validate(ctx context.Context) map[string]string {
 	f.Code = strings.ToUpper(strings.TrimSpace(f.Code))
 	f.Description = strings.TrimSpace(f.Description)
@@ -118,7 +116,6 @@ func (f *CouponForm) validateKind(ctx context.Context, errs map[string]string) {
 	}
 }
 
-// Coupons reads the promotions for the back office.
 func (s *Store) Coupons(ctx context.Context, after ...string) (admin.CouponsView, error) {
 	scope := "/admin/coupons"
 	cursor := readPageCursor(scope, after)
@@ -149,7 +146,6 @@ func (s *Store) Coupons(ctx context.Context, after ...string) (admin.CouponsView
 	return view, nil
 }
 
-// CreateCoupon issues a promotion.
 func (s *Store) CreateCoupon(ctx context.Context, f *CouponForm) (map[string]string, error) {
 	if errs := f.Validate(ctx); len(errs) > 0 {
 		return errs, nil
@@ -188,7 +184,6 @@ func (s *Store) CreateCoupon(ctx context.Context, f *CouponForm) (map[string]str
 	return nil, nil
 }
 
-// SetCouponActive switches a promotion on or off.
 func (s *Store) SetCouponActive(ctx context.Context, code string, active bool) error {
 	if err := s.audited(ctx, Event{
 		Action: actionToggleCoupon, Table: "coupons", ID: uuid.NullUUID{},
@@ -211,7 +206,6 @@ func (s *Store) SetCouponActive(ctx context.Context, code string, active bool) e
 	return nil
 }
 
-// CouponKindLabel is a coupon kind in the reader's language.
 func CouponKindLabel(ctx context.Context, kind string) string {
 	switch kind {
 	case "amount":
