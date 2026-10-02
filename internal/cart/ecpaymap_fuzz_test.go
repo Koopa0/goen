@@ -22,7 +22,7 @@ func FuzzReadCallback(f *testing.F) {
 	f.Add(aMerchantID, "UNIMART", "1", strings.Repeat("店", 21), strings.Repeat("址", 81), aNonce)
 	f.Add(aMerchantID, "UNIMART", "1", "//evil.example", "https://evil.example", aNonce)
 
-	m, err := NewMap(aMerchantID, string(ModeB2C), "", "https://goen.test")
+	m, err := NewStoreMap(aMerchantID, string(ModeB2C), "", "https://goen.test")
 	if err != nil {
 		f.Fatalf("build the store map: %v", err)
 	}

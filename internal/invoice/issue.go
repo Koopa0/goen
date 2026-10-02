@@ -213,10 +213,10 @@ func (g *Gateway) Void(ctx context.Context, number string, issuedAt time.Time, r
 	return nil
 }
 
-// Allowance files a credit note against an issued invoice. A refund does NOT
+// FileAllowance files a credit note against an issued invoice. A refund does NOT
 // void the invoice: the sale happened and the tax was reported, and what
 // changed is that some of it came back.
-func (g *Gateway) Allowance(ctx context.Context, in AllowanceRequest) (Document, error) {
+func (g *Gateway) FileAllowance(ctx context.Context, in AllowanceRequest) (Document, error) {
 	if !g.Enabled() {
 		return Document{}, ErrDisabled
 	}

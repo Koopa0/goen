@@ -40,7 +40,7 @@ type Handler struct {
 	sessions SessionCloser
 	// storeMap is the carrier's hosted store picker. Nil or disabled on a
 	// deployment with no carrier, where the checkout asks for a chain alone.
-	storeMap       *Map
+	storeMap       *StoreMap
 	barcodeChecker MobileBarcodeChecker
 	// couponMisses bounds how many coupon codes one shopper may be told are
 	// wrong: a wrong code and a right one answer differently, so unbounded it
@@ -69,7 +69,7 @@ type MobileBarcodeChecker interface {
 // exactly as it did before one existed. An omitted checker keeps local
 // shape validation on deployments without an invoice gateway.
 func NewHandler(store *Store, log *slog.Logger, secure bool, findLimit *ratelimit.Limiter,
-	sessions SessionCloser, storeMap *Map, checkers ...MobileBarcodeChecker,
+	sessions SessionCloser, storeMap *StoreMap, checkers ...MobileBarcodeChecker,
 ) *Handler {
 	if store == nil || log == nil || findLimit == nil {
 		panic("cart: NewHandler requires a store, a logger and a lookup limiter")
@@ -1631,7 +1631,7 @@ func (h *Handler) CancelOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sessions, err := h.store.Cancel(r.Context(), number)
+	sessions, err := h.store.CancelOrder(r.Context(), number)
 	switch {
 	case err == nil:
 		h.closeSessions(r.Context(), number, sessions)

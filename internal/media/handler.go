@@ -115,9 +115,9 @@ func writeCacheHeaders(w http.ResponseWriter, etag string) {
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 }
 
-// ReadUpload takes one image out of a multipart form and stores it. A form
+// StoreUpload takes one image out of a multipart form and stores it. A form
 // with no file in field answers ErrNotAnImage.
-func (h *Handler) ReadUpload(w http.ResponseWriter, r *http.Request, field string) (Object, error) {
+func (h *Handler) StoreUpload(w http.ResponseWriter, r *http.Request, field string) (Object, error) {
 	upload, err := h.OpenUpload(w, r, field)
 	if err != nil {
 		return Object{}, err

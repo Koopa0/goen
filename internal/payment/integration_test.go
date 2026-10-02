@@ -1261,7 +1261,7 @@ func TestACancelledOrderLeavesNoSessionUnclosed(t *testing.T) {
 		done := make(chan cancelResult, 1)
 		go func() {
 			defer close(returned)
-			sessions, cancelErr := cart.NewStore(pool).Cancel(ctx, number)
+			sessions, cancelErr := cart.NewStore(pool).CancelOrder(ctx, number)
 			done <- cancelResult{sessions: sessions, err: cancelErr}
 		}()
 		waitForSQLLock(t, ctx, returned,

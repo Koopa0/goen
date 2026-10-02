@@ -42,7 +42,7 @@ type Handler struct {
 	// sessions closes a cancelled order's checkout at the payment provider. Nil
 	// on a deployment with no Stripe key, where no session was ever opened.
 	sessions SessionCloser
-	storeMap *cart.Map
+	storeMap *cart.StoreMap
 	store    *Store
 	log      *slog.Logger
 	pools    []NamedPool
@@ -71,7 +71,7 @@ type HandlerDeps struct {
 	Sessions SessionCloser
 	// StoreMap decides whether checkout offers pickup-point methods; nil is a
 	// deployment with no map.
-	StoreMap *cart.Map
+	StoreMap *cart.StoreMap
 	// Pools are the pools whose connection statistics /admin/health shows.
 	Pools []NamedPool
 }
@@ -1068,7 +1068,7 @@ func (h *Handler) SetCampaignTone(w http.ResponseWriter, r *http.Request) {
 // picture arrives with its alt text.
 func (h *Handler) SetCampaignImage(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
-	obj, err := h.images.ReadUpload(w, r, "image")
+	obj, err := h.images.StoreUpload(w, r, "image")
 	if err != nil {
 		h.log.WarnContext(r.Context(), "campaign image upload", "error", err, "slug", slug)
 		reason := i18n.KeyAdminNoticeUploadFailed

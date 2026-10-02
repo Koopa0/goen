@@ -46,7 +46,7 @@ func storeMapRouter(t *testing.T, configured bool) http.Handler {
 	if configured {
 		mode = string(cart.ModeB2C)
 	}
-	storeMap, err := cart.NewMap(testMerchantID, mode, "", "https://goen.test")
+	storeMap, err := cart.NewStoreMap(testMerchantID, mode, "", "https://goen.test")
 	if err != nil {
 		t.Fatalf("build the store map: %v", err)
 	}

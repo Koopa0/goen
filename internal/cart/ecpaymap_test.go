@@ -28,9 +28,9 @@ const aNonce = "0123456789abcdef0123"
 //nolint:gosec // G101: the shape under test, not a credential of anybody's
 const urlWithUserinfo = "https://user:pass@logistics.example"
 
-func testMap(t *testing.T, mode LogisticsMode) *Map {
+func testMap(t *testing.T, mode LogisticsMode) *StoreMap {
 	t.Helper()
-	m, err := NewMap(aMerchantID, string(mode), "", "https://goen.test")
+	m, err := NewStoreMap(aMerchantID, string(mode), "", "https://goen.test")
 	if err != nil {
 		t.Fatalf("build the store map: %v", err)
 	}
@@ -105,7 +105,7 @@ func TestTheStoreMapIsOffUntilAContractIsNamed(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			m, err := NewMap(tt.merchantID, tt.mode, tt.base, tt.site)
+			m, err := NewStoreMap(tt.merchantID, tt.mode, tt.base, tt.site)
 			if tt.wantErr {
 				if err == nil {
 					t.Fatal("started on half a configuration, which is the failure that " +
@@ -114,7 +114,7 @@ func TestTheStoreMapIsOffUntilAContractIsNamed(t *testing.T) {
 				return
 			}
 			if err != nil {
-				t.Fatalf("NewMap: %v", err)
+				t.Fatalf("NewStoreMap: %v", err)
 			}
 			if m.Enabled() != tt.wantOn {
 				t.Fatalf("Enabled() = %v, want %v", m.Enabled(), tt.wantOn)
@@ -475,9 +475,9 @@ func TestTheCallbackIsCheckedForShapeAndNothingElse(t *testing.T) {
 func TestADisabledMapReadsNoCallbackAtAll(t *testing.T) {
 	t.Parallel()
 
-	off, err := NewMap(aMerchantID, "", "", "https://goen.test")
+	off, err := NewStoreMap(aMerchantID, "", "", "https://goen.test")
 	if err != nil {
-		t.Fatalf("NewMap: %v", err)
+		t.Fatalf("NewStoreMap: %v", err)
 	}
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, PickupReturnPath,
 		strings.NewReader(url.Values{

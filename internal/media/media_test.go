@@ -428,7 +428,7 @@ func TestA1600RenditionIsRendered(t *testing.T) {
 // slide, so an upload form with no file still has its text fields stored, and
 // one that is not UTF-8 would reach PostgreSQL. The hero slide's handler calls
 // OpenUpload itself, so the refusal is held there as well as through
-// ReadUpload.
+// StoreUpload.
 func TestAnUploadFormWhoseTextCannotBeStoredIsRefused(t *testing.T) {
 	h := &Handler{}
 	for _, tt := range []struct {
@@ -440,8 +440,8 @@ func TestAnUploadFormWhoseTextCannotBeStoredIsRefused(t *testing.T) {
 			upload.Close()
 			return err
 		}},
-		{"ReadUpload", func(w http.ResponseWriter, r *http.Request) error {
-			_, err := h.ReadUpload(w, r, "image")
+		{"StoreUpload", func(w http.ResponseWriter, r *http.Request) error {
+			_, err := h.StoreUpload(w, r, "image")
 			return err
 		}},
 	} {

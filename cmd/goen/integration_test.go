@@ -399,7 +399,7 @@ func TestTheStoreMapReturnCostsNoDatabaseRoundTrip(t *testing.T) {
 		t.Fatalf("build disabled payment gateway: %v", err)
 	}
 	// Any id: goen compares it against what a callback repeats and nothing else.
-	storeMap, err := cart.NewMap("1000001", string(cart.ModeB2C), "", "https://goen.test")
+	storeMap, err := cart.NewStoreMap("1000001", string(cart.ModeB2C), "", "https://goen.test")
 	if err != nil {
 		t.Fatalf("build the store map: %v", err)
 	}
