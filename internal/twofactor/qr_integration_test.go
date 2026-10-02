@@ -17,6 +17,7 @@ import (
 	"rsc.io/qr"
 
 	"github.com/koopa0/goen/internal/account"
+	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/twofactor"
 	"github.com/koopa0/goen/internal/web"
@@ -26,7 +27,7 @@ func TestEnrolmentQRMatchesTheOneTimeURI(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		t.Run(locale.Tag(), func(t *testing.T) {
 			s := twofactor.NewStore(pool, testKey)
-			userID, email := staff(t)
+			userID, email := admintest.AdminUser(t, pool)
 			h := twofactor.NewHandler(s, slog.New(slog.DiscardHandler), false)
 			ctx := account.WithUser(i18n.WithLocale(t.Context(), locale), account.User{ID: userID, Email: email, Role: "admin"})
 			r := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/verify/enrol", strings.NewReader(""))

@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
-	"slices"
 	"time"
 
 	"github.com/google/uuid"
@@ -14,7 +13,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/db"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 type Store struct {
@@ -165,22 +163,4 @@ func (s *Store) load(ctx context.Context, userID string, requireConfirmed bool) 
 		return uuid.UUID{}, nil, 0, fmt.Errorf("%w: %w", ErrSecretUnreadable, err)
 	}
 	return id, secret, row.LastStep.Int64, nil
-}
-
-func (s *Store) Staff(ctx context.Context) (admin.StaffView, error) {
-	rows, err := s.q.StaffTOTPStatus(ctx)
-	if err != nil {
-		return admin.StaffView{}, fmt.Errorf("read staff 2FA status: %w", err)
-	}
-	view := admin.StaffView{Rows: make([]admin.StaffRow, 0, len(rows))}
-	// Cloned: a slice of the package-level array would let a caller write through it.
-	view.Roles = slices.Clone(admin.StaffRoles[:])
-	for i := range rows {
-		r := &rows[i]
-		view.Rows = append(view.Rows, admin.StaffRow{
-			ID: r.ID.String(), Email: r.Email, Name: r.FullName,
-			Role: admin.StaffRole(r.Role), Enrolled: r.Enrolled,
-		})
-	}
-	return view, nil
 }
