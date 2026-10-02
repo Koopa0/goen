@@ -35,10 +35,6 @@
       const next = (index + slides.length) % slides.length;
       track.scrollTo({ left: next * track.clientWidth });
     };
-    root.querySelectorAll("[data-step]").forEach((button) => {
-      button.addEventListener("click", () => go(current + Number(button.dataset.step)));
-    });
-    dots.forEach((dot, index) => dot.addEventListener("click", () => go(index)));
     const seen = new IntersectionObserver((entries) => {
       for (const entry of entries) {
         if (!entry.isIntersecting) continue;
@@ -47,6 +43,68 @@
       }
     }, { root: track, threshold: 0.6 });
     slides.forEach((slide) => seen.observe(slide));
+
+    /*
+     * Autoplay. The current line indicator's fill is a CSS animation over the
+     * interval and its end advances the slide, so the motion is drawn as it
+     * happens. It holds while the pointer is over the carousel or focus is in
+     * it, stops for good once the visitor steers it by arrow, indicator, swipe,
+     * wheel or key, can be paused by the button (WCAG 2.2.2), and never starts
+     * under prefers-reduced-motion.
+     */
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const pause = root.querySelector(".goen-hero__pause");
+    let running = root.hasAttribute("data-autoplay") && !reduced.matches;
+    let hovered = false;
+    let focused = false;
+    let paused = false;
+
+    const render = () => {
+      root.classList.toggle("is-playing", running);
+      root.classList.toggle("is-held", hovered || focused || paused);
+      if (!pause) return;
+      pause.hidden = !running;
+      pause.dataset.state = paused ? "paused" : "playing";
+      pause.setAttribute("aria-label", paused ? pause.dataset.labelPlay : pause.dataset.labelPause);
+    };
+    // Steering by hand ends autoplay for good: the visitor has taken over.
+    const stop = () => {
+      if (!running) return;
+      running = false;
+      render();
+    };
+
+    root.querySelectorAll("[data-step]").forEach((button) => {
+      button.addEventListener("click", () => {
+        stop();
+        go(current + Number(button.dataset.step));
+      });
+    });
+    dots.forEach((dot, index) => dot.addEventListener("click", () => {
+      stop();
+      go(index);
+    }));
+    for (const type of ["touchstart", "wheel"]) {
+      track.addEventListener(type, stop, { passive: true });
+    }
+    // Tab moves focus and is not steering; the keys that scroll the track are.
+    track.addEventListener("keydown", (event) => {
+      if (/^(Arrow|Page|Home$|End$)/.test(event.key)) stop();
+    });
+
+    if (!running) return;
+    root.addEventListener("animationend", (event) => {
+      if (event.animationName === "goen-hero-progress" && running) go(current + 1);
+    });
+    root.addEventListener("pointerenter", () => { hovered = true; render(); });
+    root.addEventListener("pointerleave", () => { hovered = false; render(); });
+    root.addEventListener("focusin", () => { focused = true; render(); });
+    root.addEventListener("focusout", (event) => {
+      if (!root.contains(event.relatedTarget)) { focused = false; render(); }
+    });
+    pause?.addEventListener("click", () => { paused = !paused; render(); });
+    reduced.addEventListener("change", () => { if (reduced.matches) stop(); });
+    render();
   }
 
   /*

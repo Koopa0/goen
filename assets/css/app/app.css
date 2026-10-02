@@ -1566,16 +1566,90 @@ h3 {
   width: 2.75rem;
 }
 
-.goen-hero__dot::before {
-  background: rgb(24 24 27 / 0.2);
+.goen-hero__dot::before,
+.goen-hero__dot::after {
   border-radius: 1px;
   content: "";
+  grid-area: 1 / 1;
   height: 0.125rem;
   width: 1.75rem;
 }
 
+.goen-hero__dot::before {
+  background: rgb(24 24 27 / 0.2);
+}
+
 .goen-hero__dot[aria-current="true"]::before {
   background: var(--n-900);
+}
+
+/* While the carousel advances by itself the current line is a track and a fill:
+   the fill grows over the interval, and its end is what moves to the next slide,
+   so what is drawn and when it moves cannot disagree. The 6s is the one place the
+   interval is stated. Held or paused stops the fill where it is. */
+.goen-hero.is-playing .goen-hero__dot[aria-current="true"]::before {
+  background: rgb(24 24 27 / 0.2);
+}
+
+.goen-hero.is-playing .goen-hero__dot[aria-current="true"]::after {
+  animation: goen-hero-progress 6s linear forwards;
+  background: var(--n-900);
+  transform-origin: left center;
+}
+
+.goen-hero.is-held .goen-hero__dot[aria-current="true"]::after {
+  animation-play-state: paused;
+}
+
+@keyframes goen-hero-progress {
+  from {
+    transform: scaleX(0);
+  }
+
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.goen-hero__pause {
+  background: var(--n-0);
+  border: 1px solid var(--n-300);
+  border-radius: var(--r-md);
+  color: var(--n-900);
+  cursor: pointer;
+  display: grid;
+  height: 2.75rem;
+  padding: 0;
+  place-items: center;
+  width: 2.75rem;
+}
+
+.goen-hero__pause[hidden] {
+  display: none;
+}
+
+.goen-hero__pause:hover {
+  background: var(--n-50);
+}
+
+.goen-hero__pause span {
+  display: grid;
+}
+
+.goen-hero__pause[data-state="playing"] .goen-hero__pause-play,
+.goen-hero__pause[data-state="paused"] .goen-hero__pause-pause {
+  display: none;
+}
+
+/* Nothing moves by itself for a visitor who asked for less motion. */
+@media (prefers-reduced-motion: reduce) {
+  .goen-hero.is-playing .goen-hero__dot[aria-current="true"]::after {
+    animation: none;
+  }
+
+  .goen-hero__pause {
+    display: none;
+  }
 }
 
 .goen-hero__arrows {
