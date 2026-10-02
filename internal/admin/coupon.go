@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/shoptime"
@@ -169,8 +170,8 @@ func (s *Store) CreateCoupon(ctx context.Context, f *CouponForm) (map[string]str
 	if f.MaxRedemptions > 0 {
 		params.MaxRedemptions = pgtype.Int4{Int32: f.MaxRedemptions, Valid: true}
 	}
-	if err := s.audited(ctx, Event{
-		Action: actionCreateCoupon, Table: "coupons", ID: uuid.NullUUID{},
+	if err := audit.Run(ctx, s.pool, audit.Event{
+		Action: audit.ActionCreateCoupon, Table: "coupons", ID: uuid.NullUUID{},
 		Before: nil, After: map[string]any{"code": f.Code, "kind": f.Kind, "value": f.Value},
 	},
 		func(ctx context.Context, q *db.Queries) error {
@@ -185,8 +186,8 @@ func (s *Store) CreateCoupon(ctx context.Context, f *CouponForm) (map[string]str
 }
 
 func (s *Store) SetCouponActive(ctx context.Context, code string, active bool) error {
-	if err := s.audited(ctx, Event{
-		Action: actionToggleCoupon, Table: "coupons", ID: uuid.NullUUID{},
+	if err := audit.Run(ctx, s.pool, audit.Event{
+		Action: audit.ActionToggleCoupon, Table: "coupons", ID: uuid.NullUUID{},
 		Before: map[string]any{"code": code}, After: map[string]any{"active": active},
 	},
 		func(ctx context.Context, q *db.Queries) error {

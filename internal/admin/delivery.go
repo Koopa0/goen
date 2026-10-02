@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/destination"
@@ -47,8 +48,8 @@ func (e *DeliveryPostalError) Error() string {
 // cancellation.
 func (s *Store) CorrectDelivery(ctx context.Context, number string, d *Delivery) error {
 	after := map[string]any{"order_number": number}
-	return s.audited(ctx, Event{
-		Action: actionCorrectDelivery, Table: "order_private_data",
+	return audit.Run(ctx, s.pool, audit.Event{
+		Action: audit.ActionCorrectDelivery, Table: "order_private_data",
 		Before: nil, After: after,
 	}, func(ctx context.Context, q *db.Queries) error {
 		row, err := q.LockOrderDelivery(ctx, number)

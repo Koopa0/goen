@@ -9,6 +9,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgconn"
 
+	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/icons"
@@ -92,8 +93,8 @@ func (s *Store) CreateBrand(ctx context.Context, f *TaxonomyForm) (map[string]st
 	if errs := f.Validate(ctx); len(errs) > 0 {
 		return errs, nil
 	}
-	err := s.audited(ctx, Event{
-		Action: actionCreateBrand, Table: "brands",
+	err := audit.Run(ctx, s.pool, audit.Event{
+		Action: audit.ActionCreateBrand, Table: "brands",
 		After: map[string]any{"slug": f.Slug, "name": f.Name},
 	},
 		func(ctx context.Context, q *db.Queries) error {
@@ -112,8 +113,8 @@ func (s *Store) CreateCategory(ctx context.Context, f *TaxonomyForm) (map[string
 	if errs := f.Validate(ctx); len(errs) > 0 {
 		return errs, nil
 	}
-	err := s.audited(ctx, Event{
-		Action: actionCreateCategory, Table: "categories",
+	err := audit.Run(ctx, s.pool, audit.Event{
+		Action: audit.ActionCreateCategory, Table: "categories",
 		After: map[string]any{
 			"slug": f.Slug, "name": f.Name, "name_en": f.NameEn,
 			"icon_key": f.IconKey, "tone": f.Tone, "comparable": f.Comparable, "parent": f.Parent,
@@ -167,16 +168,16 @@ func (s *Store) Rename(ctx context.Context, kind, slug, name, nameEn, iconKey, t
 	if _, ok := pages.ParseTone(tone); tone != "" && !ok {
 		return ErrInvalid
 	}
-	action, table := actionRenameBrand, "brands"
+	action, table := audit.ActionRenameBrand, "brands"
 	after := map[string]any{"name": name}
 	if kind == "category" {
-		action, table = actionRenameCategory, "categories"
+		action, table = audit.ActionRenameCategory, "categories"
 		after["name_en"] = nameEn
 		after["icon_key"] = iconKey
 		after["tone"] = tone
 		after["comparable"] = offersComparison
 	}
-	return s.audited(ctx, Event{
+	return audit.Run(ctx, s.pool, audit.Event{
 		Action: action, Table: table,
 		Before: map[string]any{"slug": slug},
 		After:  after,
@@ -202,11 +203,11 @@ func (s *Store) Rename(ctx context.Context, kind, slug, name, nameEn, iconKey, t
 }
 
 func (s *Store) Delete(ctx context.Context, kind, slug string) error {
-	action, table := actionDeleteBrand, "brands"
+	action, table := audit.ActionDeleteBrand, "brands"
 	if kind == "category" {
-		action, table = actionDeleteCategory, "categories"
+		action, table = audit.ActionDeleteCategory, "categories"
 	}
-	return s.audited(ctx, Event{
+	return audit.Run(ctx, s.pool, audit.Event{
 		Action: action, Table: table, Before: map[string]any{"slug": slug},
 	},
 		func(ctx context.Context, q *db.Queries) error {

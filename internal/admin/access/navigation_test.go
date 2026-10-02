@@ -1,4 +1,4 @@
-package admin
+package access_test
 
 import (
 	"log/slog"
@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/account"
+	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
@@ -18,7 +19,7 @@ func TestStaffNavigationOnlyOmitsTheAdminOnlyDestination(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		t.Run(locale.Tag(), func(t *testing.T) {
 			t.Parallel()
-			h := &Handler{log: slog.New(slog.DiscardHandler)}
+			c := access.New(slog.New(slog.DiscardHandler), nil)
 			links := map[string][]string{}
 			for _, role := range []string{"staff", "admin"} {
 				ctx := account.WithUser(i18n.WithLocale(t.Context(), locale), account.User{Role: account.Role(role)})
@@ -26,7 +27,7 @@ func TestStaffNavigationOnlyOmitsTheAdminOnlyDestination(t *testing.T) {
 				ctx = layouts.WithAdmin(ctx, true)
 				req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/admin/orders", http.NoBody)
 				res := httptest.NewRecorder()
-				h.RequireStaff(func(w http.ResponseWriter, r *http.Request) {
+				c.RequireStaff(func(w http.ResponseWriter, r *http.Request) {
 					if err := layouts.Admin(layouts.Page{}, "orders").Render(r.Context(), w); err != nil {
 						t.Error(err)
 					}

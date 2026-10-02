@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 )
@@ -44,8 +45,8 @@ func (s *Store) CreateZone(ctx context.Context, z *NewZone) (map[string]string, 
 		return errs, nil
 	}
 
-	if err := s.audited(ctx, Event{
-		Action: actionCreateShippingZone, Table: "shipping_zones",
+	if err := audit.Run(ctx, s.pool, audit.Event{
+		Action: audit.ActionCreateShippingZone, Table: "shipping_zones",
 		After: map[string]any{
 			"code": z.Code, "name": z.Name, "prefixes": len(prefixes),
 		},
@@ -87,8 +88,8 @@ func (s *Store) SetZonePrefixes(ctx context.Context, id, list string) (map[strin
 		return map[string]string{"zone_prefixes": prefixErr}, nil
 	}
 
-	if err := s.audited(ctx, Event{
-		Action: actionSetZonePrefixes, Table: "shipping_zone_prefixes",
+	if err := audit.Run(ctx, s.pool, audit.Event{
+		Action: audit.ActionSetZonePrefixes, Table: "shipping_zone_prefixes",
 		ID:    nullableID(zoneID),
 		After: map[string]any{"prefixes": len(prefixes)},
 	}, func(ctx context.Context, q *db.Queries) error {
@@ -125,8 +126,8 @@ func (s *Store) DeleteZone(ctx context.Context, id string) error {
 	if err != nil {
 		return ErrNotFound
 	}
-	return s.audited(ctx, Event{
-		Action: actionDeleteShippingZone, Table: "shipping_zones",
+	return audit.Run(ctx, s.pool, audit.Event{
+		Action: audit.ActionDeleteShippingZone, Table: "shipping_zones",
 		ID: nullableID(zoneID),
 	}, func(ctx context.Context, q *db.Queries) error {
 		n, execErr := q.DeleteShippingZone(ctx, zoneID)

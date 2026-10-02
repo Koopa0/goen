@@ -11,6 +11,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/koopa0/goen/internal/admin/access"
+	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/media"
@@ -43,8 +45,8 @@ func (s *Store) SetCategoryImage(ctx context.Context, slug, digest, alt, altEn s
 		utf8.RuneCountInString(altEn) > MaxCategoryAltRunes {
 		return fmt.Errorf("%w: header alt text is required and bounded at %d runes", ErrInvalid, MaxCategoryAltRunes)
 	}
-	return s.audited(ctx, Event{
-		Action: actionSetCategoryImage, Table: "categories", ID: uuid.NullUUID{},
+	return audit.Run(ctx, s.pool, audit.Event{
+		Action: audit.ActionSetCategoryImage, Table: "categories", ID: uuid.NullUUID{},
 		After: map[string]any{"category": slug, "digest": digest, "alt": alt},
 	},
 		func(ctx context.Context, q *db.Queries) error {
@@ -63,8 +65,8 @@ func (s *Store) SetCategoryImage(ctx context.Context, slug, digest, alt, altEn s
 
 // ClearCategoryImage removes the photograph; the media object itself stays.
 func (s *Store) ClearCategoryImage(ctx context.Context, slug string) error {
-	return s.audited(ctx, Event{
-		Action: actionClearCategoryImage, Table: "categories", ID: uuid.NullUUID{},
+	return audit.Run(ctx, s.pool, audit.Event{
+		Action: audit.ActionClearCategoryImage, Table: "categories", ID: uuid.NullUUID{},
 		Before: map[string]any{"category": slug},
 	},
 		func(ctx context.Context, q *db.Queries) error {
@@ -88,11 +90,11 @@ func (h *Handler) renderCategory(w http.ResponseWriter, r *http.Request, status 
 	view, err := h.store.CategoryHeader(r.Context(), slug)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
-			h.notFound(w, r)
+			access.NotFound(w, r, h.log)
 			return
 		}
 		h.log.ErrorContext(r.Context(), "read category header", "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 		return
 	}
 	view.Notice, view.Errors = notice, errs
@@ -120,7 +122,7 @@ func (h *Handler) SetCategoryImage(w http.ResponseWriter, r *http.Request) {
 		//nolint:gosec // G710: slug is the route's own path value
 		http.Redirect(w, r, "/admin/categories/"+slug+"?ok=1", http.StatusSeeOther)
 	case errors.Is(err, ErrNotFound):
-		h.notFound(w, r)
+		access.NotFound(w, r, h.log)
 	case errors.Is(err, ErrInvalid):
 		field, reason := "alt", i18n.KeyFormHeroAlt
 		if utf8.RuneCountInString(strings.TrimSpace(r.PostFormValue("alt_en"))) > MaxCategoryAltRunes {
@@ -129,7 +131,7 @@ func (h *Handler) SetCategoryImage(w http.ResponseWriter, r *http.Request) {
 		h.renderCategory(w, r, http.StatusUnprocessableEntity, "", map[string]string{field: i18n.T(r.Context(), reason)})
 	default:
 		h.log.ErrorContext(r.Context(), "set category image", "error", err, "slug", slug)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 	}
 }
 
@@ -144,9 +146,9 @@ func (h *Handler) RemoveCategoryImage(w http.ResponseWriter, r *http.Request) {
 		//nolint:gosec // G710: slug is the route's own path value
 		http.Redirect(w, r, "/admin/categories/"+slug+"?ok=1", http.StatusSeeOther)
 	case errors.Is(err, ErrNotFound):
-		h.notFound(w, r)
+		access.NotFound(w, r, h.log)
 	default:
 		h.log.ErrorContext(r.Context(), "remove category image", "error", err, "slug", slug)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 	}
 }

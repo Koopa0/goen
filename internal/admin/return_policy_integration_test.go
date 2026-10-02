@@ -17,6 +17,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/admin"
+	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/shoptime"
@@ -24,7 +25,7 @@ import (
 )
 
 func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
-	isolated := isolatedAdminSeedPool(t)
+	isolated := admintest.Pool(t)
 	ctx, _ := staffContextOn(t, isolated)
 	s := admin.NewStore(isolated, fakeRefunder{}, nil, nil)
 	customer := returns.NewStore(isolated)
@@ -742,7 +743,7 @@ func TestReviewClearedAssessmentBasisSurvivesRefusal(t *testing.T) {
 }
 
 func TestTwoStaffCannotBothRejectAStatutoryRequest(t *testing.T) {
-	isolated := isolatedAdminSeedPool(t)
+	isolated := admintest.Pool(t)
 	ctx, _ := staffContextOn(t, isolated)
 	s := admin.NewStore(isolated, fakeRefunder{}, nil, nil)
 	requestID := returnedOrderAtWithReasonOn(t, isolated,
@@ -770,7 +771,7 @@ func TestTwoStaffCannotBothRejectAStatutoryRequest(t *testing.T) {
 }
 
 func TestTwoStaffStillSerialiseALateException(t *testing.T) {
-	isolated := isolatedAdminSeedPool(t)
+	isolated := admintest.Pool(t)
 	ctx, _ := staffContextOn(t, isolated)
 	s := admin.NewStore(isolated, fakeRefunder{}, nil, nil)
 	requestID := returnedOrderAtWithReasonOn(t, isolated,

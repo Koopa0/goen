@@ -30,7 +30,7 @@ func TestCreditGrantRequiresRecipientReviewBeforePosting(t *testing.T) {
 		req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/credit", strings.NewReader(form.Encode()))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		w := httptest.NewRecorder()
-		h.RequireStaff(h.GrantCredit)(w, req)
+		backOffice.RequireStaff(h.GrantCredit)(w, req)
 		return w
 	}
 	count := func() int {
@@ -87,7 +87,7 @@ func TestCreditConfirmationDoesNotFollowAReassignedEmail(t *testing.T) {
 		req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/credit", strings.NewReader(form.Encode()))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		w := httptest.NewRecorder()
-		h.RequireStaff(h.GrantCredit)(w, req)
+		backOffice.RequireStaff(h.GrantCredit)(w, req)
 		return w
 	}
 	if w := post(); w.Code != http.StatusOK {
@@ -154,7 +154,7 @@ func TestDispatchWithARecordedTrackingNumberIsRefusedOnTheField(t *testing.T) {
 	req.SetPathValue("number", second)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	w := httptest.NewRecorder()
-	h.RequireStaff(h.Ship)(w, req)
+	backOffice.RequireStaff(h.Ship)(w, req)
 
 	if w.Code != http.StatusUnprocessableEntity {
 		t.Fatalf("a reused tracking number answered %d, want 422", w.Code)

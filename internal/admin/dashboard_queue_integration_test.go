@@ -9,13 +9,14 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/admin"
+	"github.com/koopa0/goen/internal/admin/admintest"
 )
 
 // The dashboard shows how long the oldest open return request has waited, in
 // shop days from when it was filed. The consumer's own seven days are not shown:
 // for a request already filed that window is not the operator's clock.
 func TestTheDashboardShowsHowLongTheOldestOpenReturnHasWaited(t *testing.T) {
-	isolated := isolatedAdminSeedPool(t)
+	isolated := admintest.Pool(t)
 	s := admin.NewStore(isolated, fakeRefunder{}, nil, nil)
 
 	none, err := s.Dashboard(t.Context())
@@ -46,7 +47,7 @@ func TestTheDashboardShowsHowLongTheOldestOpenReturnHasWaited(t *testing.T) {
 // not the shop's. It is the queue's own predicate: the tile and /admin/questions
 // must agree.
 func TestTheDashboardCountsQuestionsTheShopHasNotAnswered(t *testing.T) {
-	isolated := isolatedAdminSeedPool(t)
+	isolated := admintest.Pool(t)
 	s := admin.NewStore(isolated, fakeRefunder{}, nil, nil)
 	waiting := func() int64 {
 		t.Helper()

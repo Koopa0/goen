@@ -14,9 +14,9 @@ import (
 func TestEveryHardCodedLinkResolvesToARoute(t *testing.T) {
 	root := repoRoot(t)
 
-	routes := readRoutes(t, filepath.Join(root, "cmd", "goen", "server.go"))
+	routes := readRoutes(t, root)
 	if len(routes) < 20 {
-		t.Fatalf("only %d GET routes found; the parser is not reading server.go", len(routes))
+		t.Fatalf("only %d GET routes found; the parser is not reading the route table", len(routes))
 	}
 
 	links := readLinks(t, filepath.Join(root, "internal", "ui"))
@@ -42,21 +42,15 @@ func TestEveryHardCodedLinkResolvesToARoute(t *testing.T) {
 }
 
 // readRoutes is every GET path the server registers, as a matcher.
-func readRoutes(t *testing.T, serverGo string) []*regexp.Regexp {
+func readRoutes(t *testing.T, root string) []*regexp.Regexp {
 	t.Helper()
-	return routesFor(t, serverGo, "GET")
+	return routesFor(t, root, "GET")
 }
 
 // routesFor is every path the server registers under one method, as a matcher.
-func routesFor(t *testing.T, serverGo, method string) []*regexp.Regexp {
+func routesFor(t *testing.T, root, method string) []*regexp.Regexp {
 	t.Helper()
-	//nolint:gosec // G304: the path is this test's own constant, joined to the
-	// repository root it just located
-	src, err := os.ReadFile(serverGo)
-	if err != nil {
-		t.Fatalf("read routes: %v", err)
-	}
-	declared := regexp.MustCompile(`mux\.HandleFunc\("`+method+` (/[^"]*)"`).FindAllStringSubmatch(string(src), -1)
+	declared := regexp.MustCompile(`mux\.HandleFunc\("`+method+` (/[^"]*)"`).FindAllStringSubmatch(routeSources(t, root), -1)
 
 	out := make([]*regexp.Regexp, 0, len(declared))
 	for _, m := range declared {
@@ -68,6 +62,39 @@ func routesFor(t *testing.T, serverGo, method string) []*regexp.Regexp {
 		out = append(out, regexp.MustCompile("^"+pattern+"$"))
 	}
 	return out
+}
+
+// routeSources is the text of every file that registers a route: cmd/goen's
+// table, and each back-office package's Routes, which that table calls.
+func routeSources(t *testing.T, root string) string {
+	t.Helper()
+	files := []string{filepath.Join(root, "cmd", "goen", "server.go")}
+	err := filepath.WalkDir(filepath.Join(root, "internal", "admin"), func(path string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return err
+		}
+		files = append(files, path)
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk internal/admin: %v", err)
+	}
+	var all strings.Builder
+	registering := 0
+	for _, file := range files {
+		src, readErr := os.ReadFile(file) //nolint:gosec // G304: paths come from this repository's own tree
+		if readErr != nil {
+			t.Fatalf("read routes: %v", readErr)
+		}
+		if strings.Contains(string(src), "mux.HandleFunc(\"") {
+			registering++
+		}
+		all.Write(src)
+	}
+	if registering < 2 {
+		t.Fatalf("only %d file(s) register routes; the walk is not reaching internal/admin", registering)
+	}
+	return all.String()
 }
 
 // readLinks is every literal href in the templates.

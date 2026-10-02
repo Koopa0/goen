@@ -18,6 +18,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/account"
+	"github.com/koopa0/goen/internal/admin/access"
+	"github.com/koopa0/goen/internal/admin/ordernumber"
 	"github.com/koopa0/goen/internal/carrier"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/i18n"
@@ -32,11 +34,8 @@ import (
 )
 
 type Handler struct {
-	outbox *outbox.Store
-	images *media.Handler
-	// stepUp reports whether this session proved a second factor; nil is a
-	// deployment with no encryption key, where 2FA is off.
-	stepUp  func(*http.Request) (bool, error)
+	outbox  *outbox.Store
+	images  *media.Handler
 	letters *newsletter.Store
 	// sessions closes a cancelled order's checkout at the payment provider. Nil
 	// on a deployment with no Stripe key, where no session was ever opened.
@@ -62,7 +61,6 @@ type HandlerDeps struct {
 	Outbox   *outbox.Store
 	Letters  *newsletter.Store
 	Log      *slog.Logger
-	StepUp   func(*http.Request) (bool, error)
 	Sessions SessionCloser
 	// StoreMap decides whether checkout offers pickup-point methods; nil is a
 	// deployment with no map.
@@ -77,7 +75,7 @@ func NewHandler(d HandlerDeps) *Handler {
 	}
 	return &Handler{
 		store: d.Store, images: d.Images, outbox: d.Outbox, letters: d.Letters,
-		log: d.Log, stepUp: d.StepUp, sessions: d.Sessions, storeMap: d.StoreMap,
+		log: d.Log, sessions: d.Sessions, storeMap: d.StoreMap,
 		pools: d.Pools,
 	}
 }
@@ -106,80 +104,11 @@ func (h *Handler) closeSessions(ctx context.Context, number string, sessions []s
 	}
 }
 
-// RequireStaff wraps a back-office handler. Signed out and signed-in-but-not-
-// staff get the SAME answer, a 404: anything else — a 403, or a redirect to
-// /signin?next=/admin — confirms that /admin is a real place.
-func (h *Handler) RequireStaff(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		u, ok := account.FromContext(r.Context())
-		if !ok || !u.IsStaff() {
-			web.Render(w, r, h.log, http.StatusNotFound, pages.Notice(
-				layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminNotFoundTitle)}, "404",
-				i18n.T(r.Context(), i18n.KeyAdminNotFoundHead),
-				i18n.T(r.Context(), i18n.KeyAdminNotFoundBody)))
-			return
-		}
-
-		// The SECOND factor, checked here rather than at sign-in: gating the
-		// login would need a half-authenticated state to live somewhere, and a
-		// session that "does not count yet" eventually counts.
-		if h.stepUp != nil {
-			verified, err := h.stepUp(r)
-			if err != nil {
-				h.log.ErrorContext(r.Context(), "read second factor", "error", err)
-				h.serverError(w, r)
-				return
-			}
-			if !verified {
-				http.Redirect(w, r, "/admin/verify", http.StatusSeeOther)
-				return
-			}
-		}
-		next(w, r.WithContext(layouts.WithAdmin(r.Context(), u.IsAdmin())))
-	}
-}
-
-// StaffOnly answers 404 to anyone who does not work here, and runs no step-up.
-//
-// It is what the second-factor routes need: RequireStaff redirects an unverified
-// staff member TO /admin/verify, so guarding that page with it is a loop. Nothing
-// weaker will do — the enrolment page inserts into staff_totp_credentials over
-// the ADMIN pool.
-func (h *Handler) StaffOnly(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		u, ok := account.FromContext(r.Context())
-		if !ok || !u.IsStaff() {
-			web.Render(w, r, h.log, http.StatusNotFound, pages.Notice(
-				layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminNotFoundTitle)}, "404",
-				i18n.T(r.Context(), i18n.KeyAdminNotFoundHead),
-				i18n.T(r.Context(), i18n.KeyAdminNotFoundBody)))
-			return
-		}
-		next(w, r)
-	}
-}
-
-// RequireAdmin wraps a back-office handler that changes WHO WORKS HERE: gated
-// on the staff predicate, /admin/staff is a self-service promotion desk.
-func (h *Handler) RequireAdmin(next http.HandlerFunc) http.HandlerFunc {
-	return h.RequireStaff(func(w http.ResponseWriter, r *http.Request) {
-		u, ok := account.FromContext(r.Context())
-		if !ok || !u.IsAdmin() {
-			web.Render(w, r, h.log, http.StatusNotFound, pages.Notice(
-				layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminNotFoundTitle)}, "404",
-				i18n.T(r.Context(), i18n.KeyAdminNotFoundHead),
-				i18n.T(r.Context(), i18n.KeyAdminNotFoundBody)))
-			return
-		}
-		next(w, r)
-	})
-}
-
 func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Dashboard(r.Context())
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read dashboard", "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 		return
 	}
 	web.Render(w, r, h.log, http.StatusOK, admin.Dashboard(admin.Meta(r.Context()), view))
@@ -190,7 +119,7 @@ func (h *Handler) Orders(w http.ResponseWriter, r *http.Request) {
 		ParseQueueFilter(r.URL.Query().Get("status")), r.URL.Query().Get("q"), r.URL.Query().Get(web.KeysetParam))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read orders", "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 		return
 	}
 	view.Notice = noticeFor(r)
@@ -208,7 +137,7 @@ func (h *Handler) Order(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		h.log.ErrorContext(r.Context(), "read order", "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 		return
 	}
 	view.Notice = noticeFor(r)
@@ -223,7 +152,7 @@ func (h *Handler) AdvanceOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	number := r.PathValue("number")
-	if !IsOrderNumber(number) {
+	if !ordernumber.Valid(number) {
 		http.NotFound(w, r)
 		return
 	}
@@ -231,22 +160,22 @@ func (h *Handler) AdvanceOrder(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case err == nil:
 		h.closeSessions(r.Context(), number, sessions)
-		http.Redirect(w, r, "/admin/orders/"+number+"?ok=1", http.StatusSeeOther) //nolint:gosec // G710: validated by IsOrderNumber
+		http.Redirect(w, r, "/admin/orders/"+number+"?ok=1", http.StatusSeeOther) //nolint:gosec // G710: validated by ordernumber.Valid
 	case errors.Is(err, ErrPaidCancel), hasConstraint(err, "orders_paid_cancel_needs_refund"):
-		http.Redirect(w, r, "/admin/orders/"+number+"?paidcancel=1", http.StatusSeeOther) //nolint:gosec // G710: validated by IsOrderNumber
+		http.Redirect(w, r, "/admin/orders/"+number+"?paidcancel=1", http.StatusSeeOther) //nolint:gosec // G710: validated by ordernumber.Valid
 	case hasConstraint(err, "orders_funded_to_leave_pending"):
-		http.Redirect(w, r, "/admin/orders/"+number+"?unfunded=1", http.StatusSeeOther) //nolint:gosec // G710: validated by IsOrderNumber
+		http.Redirect(w, r, "/admin/orders/"+number+"?unfunded=1", http.StatusSeeOther) //nolint:gosec // G710: validated by ordernumber.Valid
 	case hasConstraint(err, "orders_finished_when_shipped"):
-		http.Redirect(w, r, "/admin/orders/"+number+"?owesparcel=1", http.StatusSeeOther) //nolint:gosec // G710: validated by IsOrderNumber
+		http.Redirect(w, r, "/admin/orders/"+number+"?owesparcel=1", http.StatusSeeOther) //nolint:gosec // G710: validated by ordernumber.Valid
 	case errors.Is(err, ErrRefused):
 		// Logged in full; the page names the rule only for the refusals a shop
 		// assistant can act on, because a constraint name is not one of them.
 		h.log.WarnContext(r.Context(), "order transition refused",
 			"order", number, "error", err)
-		http.Redirect(w, r, "/admin/orders/"+number+"?refused=1", http.StatusSeeOther) //nolint:gosec // G710: validated by IsOrderNumber
+		http.Redirect(w, r, "/admin/orders/"+number+"?refused=1", http.StatusSeeOther) //nolint:gosec // G710: validated by ordernumber.Valid
 	default:
 		h.log.ErrorContext(r.Context(), "advance order", "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 	}
 }
 
@@ -256,7 +185,7 @@ func (h *Handler) Ship(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	number := r.PathValue("number")
-	if !IsOrderNumber(number) {
+	if !ordernumber.Valid(number) {
 		http.NotFound(w, r)
 		return
 	}
@@ -275,7 +204,7 @@ func (h *Handler) Ship(w http.ResponseWriter, r *http.Request) {
 	}, staffID(r))
 	switch {
 	case err == nil:
-		//nolint:gosec // G710: validated by IsOrderNumber
+		//nolint:gosec // G710: validated by ordernumber.Valid
 		http.Redirect(w, r, "/admin/orders/"+number+"?shipped=1", http.StatusSeeOther)
 	case hasConstraint(err, "order_shipments_tracking_key"):
 		h.rejectShip(w, r, &shipRefusal{tracking: i18n.KeyAdminTrackingTaken})
@@ -297,7 +226,7 @@ func (h *Handler) Ship(w http.ResponseWriter, r *http.Request) {
 		h.rejectShip(w, r, &shipRefusal{notice: i18n.KeyAdminNoticeRefused})
 	default:
 		h.log.ErrorContext(r.Context(), "ship order", "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 	}
 }
 
@@ -313,7 +242,7 @@ func (h *Handler) rejectShip(w http.ResponseWriter, r *http.Request, refusal *sh
 	view, err := h.store.Order(r.Context(), r.PathValue("number"))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read order after refused dispatch", "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 		return
 	}
 	say := func(k i18n.Key) string {
@@ -392,7 +321,7 @@ func (h *Handler) StaffNote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	number := r.PathValue("number")
-	if !IsOrderNumber(number) {
+	if !ordernumber.Valid(number) {
 		http.NotFound(w, r)
 		return
 	}
@@ -402,17 +331,17 @@ func (h *Handler) StaffNote(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		h.log.ErrorContext(r.Context(), "set staff note", "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 		return
 	}
-	http.Redirect(w, r, "/admin/orders/"+number+"?ok=1", http.StatusSeeOther) //nolint:gosec // G710: validated by IsOrderNumber
+	http.Redirect(w, r, "/admin/orders/"+number+"?ok=1", http.StatusSeeOther) //nolint:gosec // G710: validated by ordernumber.Valid
 }
 
 func (h *Handler) Variants(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Variants(r.Context(), r.URL.Query().Get("low") == "1", r.URL.Query().Get("q"), r.URL.Query().Get(web.KeysetParam))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read variants", "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 		return
 	}
 	view.Notice = noticeFor(r)
@@ -446,7 +375,7 @@ func (h *Handler) AdjustStock(w http.ResponseWriter, r *http.Request) {
 		h.rejectAdjustment(w, r, i18n.KeyAdminStockAdjustRefused)
 	default:
 		h.log.ErrorContext(r.Context(), "adjust stock", "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 	}
 }
 
@@ -458,7 +387,7 @@ func (h *Handler) rejectAdjustment(w http.ResponseWriter, r *http.Request, key i
 	view, err := h.store.Variants(r.Context(), low == "1", term, after)
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read variants after refused adjustment", "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 		return
 	}
 	view.Return = stockReturn(low, view.Term, after, "", "")
@@ -507,7 +436,7 @@ func (h *Handler) ReceiveStock(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, back+"?refused=1", http.StatusSeeOther)
 	default:
 		h.log.ErrorContext(r.Context(), "receive stock", "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 	}
 }
 
@@ -527,7 +456,7 @@ func (h *Handler) SetVariantActive(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, stockBack(r, "refused"), http.StatusSeeOther) //nolint:gosec // G710: stockBack answers /admin/stock with only an encoded query
 	default:
 		h.log.ErrorContext(r.Context(), "set variant active", "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 	}
 }
 
@@ -553,7 +482,7 @@ func (h *Handler) SetVariantPrice(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, stockBack(r, "refused"), http.StatusSeeOther) //nolint:gosec // G710: stockBack answers /admin/stock with only an encoded query
 	default:
 		h.log.ErrorContext(r.Context(), "set variant price", "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 	}
 }
 
@@ -667,18 +596,11 @@ func newKey() string {
 	return base64.RawURLEncoding.EncodeToString(b)
 }
 
-func (h *Handler) serverError(w http.ResponseWriter, r *http.Request) {
-	web.Render(w, r, h.log, http.StatusInternalServerError, pages.Notice(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminErrorTitle)}, "500",
-		i18n.T(r.Context(), i18n.KeyAdminErrorTitle),
-		i18n.T(r.Context(), i18n.KeyAdminErrorBody)))
-}
-
 func (h *Handler) Credit(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Credit(r.Context(), r.URL.Query().Get(web.KeysetParam))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read credit ledger", "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 		return
 	}
 	view.OperationID = uuid.NewString()
@@ -719,7 +641,7 @@ func (h *Handler) GrantCredit(w http.ResponseWriter, r *http.Request) {
 			h.renderCreditForm(w, r, &view, http.StatusUnprocessableEntity, i18n.KeyAdminCreditUnknown)
 		} else {
 			h.log.ErrorContext(r.Context(), "read credit recipient", "error", err)
-			h.serverError(w, r)
+			access.ServerError(w, r, h.log)
 		}
 		return
 	}
@@ -734,7 +656,7 @@ func (h *Handler) GrantCredit(w http.ResponseWriter, r *http.Request) {
 	}
 	customerID, parseErr := uuid.Parse(view.CustomerID)
 	if parseErr != nil {
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 		return
 	}
 	balance, err := h.store.GrantCredit(r.Context(), customerID, view.GrantCents, view.Reason, operationID)
@@ -751,22 +673,15 @@ func (h *Handler) GrantCredit(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/admin/credit?refused=1", http.StatusSeeOther)
 	default:
 		h.log.ErrorContext(r.Context(), "grant credit", "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 	}
-}
-
-func (h *Handler) notFound(w http.ResponseWriter, r *http.Request) {
-	web.Render(w, r, h.log, http.StatusNotFound, pages.Notice(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminNotFoundTitle)}, "404",
-		i18n.T(r.Context(), i18n.KeyAdminNotFoundHead),
-		i18n.T(r.Context(), i18n.KeyAdminNotFoundBody)))
 }
 
 func (h *Handler) Coupons(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Coupons(r.Context(), r.URL.Query().Get(web.KeysetParam))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read coupons", "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 		return
 	}
 	view.Notice = noticeFor(r)
@@ -785,11 +700,11 @@ func (h *Handler) CreateCoupon(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case err != nil:
 		h.log.ErrorContext(r.Context(), "create coupon", "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 	case len(errs) > 0:
 		view, readErr := h.store.Coupons(r.Context(), r.URL.Query().Get(web.KeysetParam))
 		if readErr != nil {
-			h.serverError(w, r)
+			access.ServerError(w, r, h.log)
 			return
 		}
 		view.Errors = errs
@@ -893,7 +808,7 @@ func (h *Handler) Campaigns(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Campaigns(r.Context(), r.URL.Query().Get(web.KeysetParam))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read campaigns", "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 		return
 	}
 	view.Notice = noticeFor(r)
@@ -917,11 +832,11 @@ func (h *Handler) CreateCampaign(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case err != nil:
 		h.log.ErrorContext(r.Context(), "create campaign", "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 	case len(errs) > 0:
 		view, readErr := h.store.Campaigns(r.Context(), r.URL.Query().Get(web.KeysetParam))
 		if readErr != nil {
-			h.serverError(w, r)
+			access.ServerError(w, r, h.log)
 			return
 		}
 		view.Errors = errs
@@ -945,23 +860,23 @@ func (h *Handler) renderCampaign(w http.ResponseWriter, r *http.Request, status 
 	products, err := h.store.CampaignProducts(r.Context(), slug)
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read campaign products", "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 		return
 	}
 	image, tone, err := h.store.CampaignImage(r.Context(), slug)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
-			h.notFound(w, r)
+			access.NotFound(w, r, h.log)
 			return
 		}
 		h.log.ErrorContext(r.Context(), "read campaign image", "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 		return
 	}
 	detail, err := h.store.CampaignDetail(r.Context(), slug)
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read campaign", "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 		return
 	}
 	if errs["window"] != "" {
@@ -971,7 +886,7 @@ func (h *Handler) renderCampaign(w http.ResponseWriter, r *http.Request, status 
 	matches, err := h.store.SearchCampaignProducts(r.Context(), slug, term)
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "search campaign products", "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 		return
 	}
 	web.Render(w, r, h.log, status, admin.CampaignForm(
@@ -996,10 +911,10 @@ func (h *Handler) SetCampaignWindow(w http.ResponseWriter, r *http.Request) {
 		//nolint:gosec // G710: slug is the route's own path value
 		http.Redirect(w, r, "/admin/campaigns/"+slug+"?ok=1", http.StatusSeeOther)
 	case errors.Is(err, ErrNotFound):
-		h.notFound(w, r)
+		access.NotFound(w, r, h.log)
 	default:
 		h.log.ErrorContext(r.Context(), "set campaign window", "error", err, "slug", slug)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 	}
 }
 
@@ -1014,12 +929,12 @@ func (h *Handler) SetCampaignTone(w http.ResponseWriter, r *http.Request) {
 		//nolint:gosec // G710: slug is the route's own path value
 		http.Redirect(w, r, "/admin/campaigns/"+slug+"?ok=1", http.StatusSeeOther)
 	case errors.Is(err, ErrNotFound):
-		h.notFound(w, r)
+		access.NotFound(w, r, h.log)
 	case errors.Is(err, ErrInvalid):
 		h.renderCampaign(w, r, http.StatusUnprocessableEntity, "", map[string]string{"tone": i18n.T(r.Context(), i18n.KeyFormToneUnknown)})
 	default:
 		h.log.ErrorContext(r.Context(), "set campaign tone", "error", err, "slug", slug)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 	}
 }
 
@@ -1044,7 +959,7 @@ func (h *Handler) SetCampaignImage(w http.ResponseWriter, r *http.Request) {
 		//nolint:gosec // G710: slug is the route's own path value
 		http.Redirect(w, r, "/admin/campaigns/"+slug+"?ok=1", http.StatusSeeOther)
 	case errors.Is(err, ErrNotFound):
-		h.notFound(w, r)
+		access.NotFound(w, r, h.log)
 	case errors.Is(err, ErrInvalid):
 		field, reason := "alt", i18n.KeyFormHeroAlt
 		if utf8.RuneCountInString(strings.TrimSpace(r.PostFormValue("alt_en"))) > MaxCampaignAltRunes {
@@ -1053,7 +968,7 @@ func (h *Handler) SetCampaignImage(w http.ResponseWriter, r *http.Request) {
 		h.renderCampaign(w, r, http.StatusUnprocessableEntity, "", map[string]string{field: i18n.T(r.Context(), reason)})
 	default:
 		h.log.ErrorContext(r.Context(), "set campaign image", "error", err, "slug", slug)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 	}
 }
 
@@ -1068,10 +983,10 @@ func (h *Handler) RemoveCampaignImage(w http.ResponseWriter, r *http.Request) {
 		//nolint:gosec // G710: slug is the route's own path value
 		http.Redirect(w, r, "/admin/campaigns/"+slug+"?ok=1", http.StatusSeeOther)
 	case errors.Is(err, ErrNotFound):
-		h.notFound(w, r)
+		access.NotFound(w, r, h.log)
 	default:
 		h.log.ErrorContext(r.Context(), "remove campaign image", "error", err, "slug", slug)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 	}
 }
 
@@ -1123,17 +1038,6 @@ func (h *Handler) SetCampaignActive(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, back+"?ok=1", http.StatusSeeOther) //nolint:gosec // G710: slug is the route's own path value
 }
 
-func (h *Handler) Audit(w http.ResponseWriter, r *http.Request) {
-	view, err := h.store.Audit(r.Context(), r.URL.Query().Get(web.KeysetParam))
-	if err != nil {
-		h.log.ErrorContext(r.Context(), "read audit", "error", err)
-		h.serverError(w, r)
-		return
-	}
-	web.Render(w, r, h.log, http.StatusOK, admin.Audit(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageAudit)}, view))
-}
-
 func (h *Handler) Movements(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Movements(r.Context(), r.PathValue("sku"), r.URL.Query().Get(web.KeysetParam))
 	switch {
@@ -1142,10 +1046,10 @@ func (h *Handler) Movements(w http.ResponseWriter, r *http.Request) {
 		web.Render(w, r, h.log, http.StatusOK, admin.Movements(
 			layouts.Page{Title: view.SKU}, &view))
 	case errors.Is(err, ErrNotFound):
-		h.notFound(w, r)
+		access.NotFound(w, r, h.log)
 	default:
 		h.log.ErrorContext(r.Context(), "read movements", "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 	}
 }
 
@@ -1153,7 +1057,7 @@ func (h *Handler) FAQ(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.FAQ(r.Context())
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read faq", "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 		return
 	}
 	view.Notice = noticeFor(r)
@@ -1171,7 +1075,7 @@ func (h *Handler) CreateFAQEntry(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case err != nil:
 		h.log.ErrorContext(r.Context(), "create faq entry", "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 	case len(errs) > 0:
 		h.rejectFAQ(w, r, f, errs)
 	default:
@@ -1188,7 +1092,7 @@ func (h *Handler) EditFAQEntry(w http.ResponseWriter, r *http.Request) {
 	if r.PostFormValue("action") == "delete" {
 		if err := h.store.DeleteFAQEntry(r.Context(), id); err != nil {
 			h.log.WarnContext(r.Context(), "delete faq entry", "error", err)
-			h.notFound(w, r)
+			access.NotFound(w, r, h.log)
 			return
 		}
 		http.Redirect(w, r, "/admin/faq?ok=1", http.StatusSeeOther)
@@ -1200,10 +1104,10 @@ func (h *Handler) EditFAQEntry(w http.ResponseWriter, r *http.Request) {
 	errs, err := h.store.UpdateFAQEntry(r.Context(), f)
 	switch {
 	case errors.Is(err, ErrNotFound):
-		h.notFound(w, r)
+		access.NotFound(w, r, h.log)
 	case err != nil:
 		h.log.ErrorContext(r.Context(), "update faq entry", "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 	case len(errs) > 0:
 		h.rejectFAQ(w, r, f, errs)
 	default:
@@ -1227,7 +1131,7 @@ func (h *Handler) rejectFAQ(
 ) {
 	view, err := h.store.FAQ(r.Context())
 	if err != nil {
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 		return
 	}
 	typed := admin.FAQEntry{
@@ -1251,13 +1155,13 @@ func (h *Handler) HomeContent(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.HeroSlides(r.Context())
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read hero slides", "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 		return
 	}
 	banners, err := h.store.Banners(r.Context())
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read promo banners", "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 		return
 	}
 	view.Banners = banners
@@ -1286,7 +1190,7 @@ func (h *Handler) CreateBanner(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case err != nil:
 		h.log.ErrorContext(r.Context(), "create promo banner", "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 	case len(errs) > 0:
 		h.rejectBanner(w, r, f, errs)
 	default:
@@ -1303,7 +1207,7 @@ func (h *Handler) SetBannerActive(w http.ResponseWriter, r *http.Request) {
 		r.PostFormValue("active") == "1")
 	if err != nil {
 		h.log.WarnContext(r.Context(), "toggle promo banner", "error", err)
-		h.notFound(w, r)
+		access.NotFound(w, r, h.log)
 		return
 	}
 	http.Redirect(w, r, "/admin/home?ok=1", http.StatusSeeOther)
@@ -1314,7 +1218,7 @@ func (h *Handler) rejectBanner(
 ) {
 	view, err := h.store.HeroSlides(r.Context())
 	if err != nil {
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 		return
 	}
 	if banners, bannerErr := h.store.Banners(r.Context()); bannerErr == nil {
@@ -1379,7 +1283,7 @@ func (h *Handler) CreateHeroSlide(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case err != nil:
 		h.log.ErrorContext(r.Context(), "create hero slide", "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 	case len(errs) > 0:
 		h.rejectHeroSlide(w, r, f, errs)
 	default:
@@ -1392,7 +1296,7 @@ func (h *Handler) rejectHeroSlide(
 ) {
 	view, err := h.store.HeroSlides(r.Context())
 	if err != nil {
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 		return
 	}
 	view.Errors = errs
@@ -1440,7 +1344,7 @@ func (h *Handler) Taxonomy(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Taxonomy(r.Context())
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read taxonomy", "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 		return
 	}
 	view.Notice = noticeFor(r)
@@ -1476,11 +1380,11 @@ func (h *Handler) CreateTaxon(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case err != nil:
 		h.log.ErrorContext(r.Context(), "create taxon", "error", err, "kind", kind)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 	case len(errs) > 0:
 		view, readErr := h.store.Taxonomy(r.Context())
 		if readErr != nil {
-			h.serverError(w, r)
+			access.ServerError(w, r, h.log)
 			return
 		}
 		view.Which, view.Errors = kind, errs
@@ -1524,7 +1428,7 @@ func (h *Handler) EditTaxon(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/admin/taxonomy?refused=1", http.StatusSeeOther)
 	default:
 		h.log.ErrorContext(r.Context(), "edit taxon", "error", err, "kind", kind)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 	}
 }
 
@@ -1538,7 +1442,7 @@ func (h *Handler) Reports(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Report(r.Context(), int32(days))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read report", "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 		return
 	}
 	web.Render(w, r, h.log, http.StatusOK, admin.Report(
@@ -1549,7 +1453,7 @@ func (h *Handler) Questions(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Questions(r.Context())
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read questions", "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 		return
 	}
 	view.Notice = noticeFor(r)
@@ -1560,7 +1464,7 @@ func (h *Handler) Questions(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) AnswerQuestion(w http.ResponseWriter, r *http.Request) {
 	u, ok := account.FromContext(r.Context())
 	if !ok {
-		h.notFound(w, r)
+		access.NotFound(w, r, h.log)
 		return
 	}
 	if err := web.ParseForm(w, r); err != nil {
@@ -1586,7 +1490,7 @@ func (h *Handler) AnswerQuestion(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/admin/questions?refused=1", http.StatusSeeOther)
 	default:
 		h.log.ErrorContext(r.Context(), "answer question", "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 	}
 }
 
@@ -1594,7 +1498,7 @@ func (h *Handler) rejectAnswer(w http.ResponseWriter, r *http.Request, id string
 	view, err := h.store.Questions(r.Context())
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read questions after refused answer", "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 		return
 	}
 	for i := range view.Rows {
@@ -1633,7 +1537,7 @@ func (h *Handler) ReconcilePayment(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/admin/health?notflagged=1", http.StatusSeeOther)
 	default:
 		h.log.ErrorContext(r.Context(), "reconcile payment", "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 	}
 }
 
@@ -1721,7 +1625,7 @@ func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.WorkerHealth(r.Context(), h.outbox)
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read worker health", "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 		return
 	}
 	view.Notice = noticeFor(r)
@@ -1748,7 +1652,7 @@ func (h *Handler) Tiers(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Tiers(r.Context())
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read membership tiers", "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 		return
 	}
 	view.Notice = noticeFor(r)
@@ -1791,7 +1695,7 @@ func (h *Handler) redirectTiers(w http.ResponseWriter, r *http.Request, err erro
 		http.Redirect(w, r, "/admin/tiers?refused=1", http.StatusSeeOther)
 	default:
 		h.log.ErrorContext(r.Context(), "change membership tiers", "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 	}
 }
 
@@ -1825,7 +1729,7 @@ func (h *Handler) CorrectDelivery(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, target+"?refused=1", http.StatusSeeOther)
 	default:
 		h.log.ErrorContext(r.Context(), "correct delivery", "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 	}
 }
 
@@ -1835,7 +1739,7 @@ func (h *Handler) rejectDelivery(w http.ResponseWriter, r *http.Request, d *Deli
 	view, err := h.store.Order(r.Context(), r.PathValue("number"))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read refused delivery correction", "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 		return
 	}
 	view.Delivery = admin.Delivery(*d)
@@ -1849,7 +1753,7 @@ func (h *Handler) Reviews(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Reviews(r.Context(), r.URL.Query().Get(web.KeysetParam))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read reviews", "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 		return
 	}
 	view.Notice = noticeFor(r)
@@ -1877,7 +1781,7 @@ func (h *Handler) setReviewHidden(w http.ResponseWriter, r *http.Request, hidden
 		http.Redirect(w, r, "/admin/reviews?gone=1", http.StatusSeeOther)
 	default:
 		h.log.ErrorContext(r.Context(), "set review hidden", "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 	}
 }
 
@@ -1885,7 +1789,7 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Messages(r.Context(), r.URL.Query().Get(web.KeysetParam))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read contact messages", "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 		return
 	}
 	view.Notice = noticeFor(r)
@@ -1913,7 +1817,7 @@ func (h *Handler) setMessageHandled(w http.ResponseWriter, r *http.Request, hand
 		http.Redirect(w, r, "/admin/messages?gone=1", http.StatusSeeOther)
 	default:
 		h.log.ErrorContext(r.Context(), "set message handled", "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 	}
 }
 
@@ -1923,7 +1827,7 @@ func (h *Handler) Newsletter(w http.ResponseWriter, r *http.Request) {
 	view, err := h.newsletterView(r)
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read the newsletter", "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 		return
 	}
 	view.Notice = noticeFor(r)
@@ -1943,7 +1847,7 @@ func (h *Handler) ComposeNewsletter(w http.ResponseWriter, r *http.Request) {
 		view, err := h.newsletterView(r)
 		if err != nil {
 			h.log.ErrorContext(r.Context(), "read the newsletter", "error", err)
-			h.serverError(w, r)
+			access.ServerError(w, r, h.log)
 			return
 		}
 		view.Draft = admin.NewsletterDraft{Subject: subject, Body: body}
@@ -1958,7 +1862,7 @@ func (h *Handler) ComposeNewsletter(w http.ResponseWriter, r *http.Request) {
 
 	if _, err := h.letters.Compose(r.Context(), subject, body, staffID(r)); err != nil {
 		h.log.ErrorContext(r.Context(), "compose a newsletter issue", "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 		return
 	}
 	http.Redirect(w, r, "/admin/newsletter?saved=1", http.StatusSeeOther)
@@ -1973,10 +1877,10 @@ func (h *Handler) SendNewsletter(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, newsletter.ErrAlreadySent):
 		http.Redirect(w, r, "/admin/newsletter?already=1", http.StatusSeeOther)
 	case errors.Is(err, newsletter.ErrNoSuchIssue):
-		h.notFound(w, r)
+		access.NotFound(w, r, h.log)
 	default:
 		h.log.ErrorContext(r.Context(), "send a newsletter issue", "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 	}
 }
 
@@ -2007,7 +1911,7 @@ func (h *Handler) Customers(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Customers(r.Context(), r.URL.Query().Get("q"), r.URL.Query().Get(web.KeysetParam))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "search customers", "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 		return
 	}
 	web.Render(w, r, h.log, http.StatusOK, admin.Customers(
@@ -2018,7 +1922,7 @@ func (h *Handler) Warranties(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Warranties(r.Context(), r.URL.Query().Get("q"), r.URL.Query().Get(web.KeysetParam))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "search warranties", "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 		return
 	}
 	web.Render(w, r, h.log, http.StatusOK, admin.Warranties(
@@ -2032,44 +1936,44 @@ func (h *Handler) Customer(w http.ResponseWriter, r *http.Request) {
 		web.Render(w, r, h.log, http.StatusOK, admin.Customer(
 			layouts.Page{Title: view.DisplayName()}, &view))
 	case errors.Is(err, ErrNotFound):
-		h.notFound(w, r)
+		access.NotFound(w, r, h.log)
 	default:
 		h.log.ErrorContext(r.Context(), "read customer", "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 	}
 }
 
 func (h *Handler) IssueInvoice(w http.ResponseWriter, r *http.Request) {
 	number := r.PathValue("number")
-	if !IsOrderNumber(number) {
+	if !ordernumber.Valid(number) {
 		http.NotFound(w, r)
 		return
 	}
 	err := h.store.IssueInvoice(r.Context(), number)
 	switch {
 	case err == nil:
-		//nolint:gosec // G710: validated by IsOrderNumber
+		//nolint:gosec // G710: validated by ordernumber.Valid
 		http.Redirect(w, r, "/admin/orders/"+number+"?invoiced=1", http.StatusSeeOther)
 	case errors.Is(err, invoice.ErrAlreadyIssued):
-		//nolint:gosec // G710: validated by IsOrderNumber
+		//nolint:gosec // G710: validated by ordernumber.Valid
 		http.Redirect(w, r, "/admin/orders/"+number+"?hasinvoice=1", http.StatusSeeOther)
 	case errors.Is(err, invoice.ErrDisabled), errors.Is(err, ErrRefused):
 		h.log.WarnContext(r.Context(), "invoice refused", "order", number, "error", err)
-		//nolint:gosec // G710: validated by IsOrderNumber
+		//nolint:gosec // G710: validated by ordernumber.Valid
 		http.Redirect(w, r, "/admin/orders/"+number+"?refused=1", http.StatusSeeOther)
 	case errors.Is(err, invoice.ErrRejected):
 		// The provider's own reason, logged in full because it names the field to
 		// fix; the page says one thing, because nobody can act on an RtnCode.
 		h.log.ErrorContext(r.Context(), "the e-invoice provider refused the invoice",
 			"order", number, "error", err)
-		//nolint:gosec // G710: validated by IsOrderNumber
+		//nolint:gosec // G710: validated by ordernumber.Valid
 		http.Redirect(w, r, "/admin/orders/"+number+"?invoicefailed=1", http.StatusSeeOther)
 	case errors.Is(err, invoice.ErrPending):
-		//nolint:gosec // G710: validated by IsOrderNumber
+		//nolint:gosec // G710: validated by ordernumber.Valid
 		http.Redirect(w, r, "/admin/orders/"+number+"?invoicepending=1", http.StatusSeeOther)
 	default:
 		h.log.ErrorContext(r.Context(), "issue invoice", "order", number, "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 	}
 }
 
@@ -2081,34 +1985,35 @@ func (h *Handler) VoidInvoice(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	number := r.PathValue("number")
-	if !IsOrderNumber(number) {
+	if !ordernumber.Valid(number) {
 		http.NotFound(w, r)
 		return
 	}
+	orderPage := "/admin/orders/" + url.PathEscape(number)
 	err := h.store.VoidInvoice(r.Context(), number, r.PostFormValue("reason"))
 	switch {
 	case err == nil:
-		http.Redirect(w, r, "/admin/orders/"+number+"?voided=1", http.StatusSeeOther)
+		http.Redirect(w, r, orderPage+"?voided=1", http.StatusSeeOther)
 	case errors.Is(err, invoice.ErrReason):
-		http.Redirect(w, r, "/admin/orders/"+number+"?voidreason=1", http.StatusSeeOther)
+		http.Redirect(w, r, orderPage+"?voidreason=1", http.StatusSeeOther)
 	case errors.Is(err, invoice.ErrNotFound):
-		http.Redirect(w, r, "/admin/orders/"+number+"?noinvoice=1", http.StatusSeeOther)
+		http.Redirect(w, r, orderPage+"?noinvoice=1", http.StatusSeeOther)
 	case errors.Is(err, invoice.ErrPending):
-		http.Redirect(w, r, "/admin/orders/"+number+"?invoicepending=1", http.StatusSeeOther)
+		http.Redirect(w, r, orderPage+"?invoicepending=1", http.StatusSeeOther)
 	case errors.Is(err, invoice.ErrRejected):
 		// invoicefailed names 統編 and carrier codes. A void form collects a
 		// reason; the provider refusal belongs on 綠界, not checkout tax ids.
 		h.log.ErrorContext(r.Context(), "the e-invoice provider refused the void",
 			"order", number, "error", err)
-		http.Redirect(w, r, "/admin/orders/"+number+"?voidfailed=1", http.StatusSeeOther)
+		http.Redirect(w, r, orderPage+"?voidfailed=1", http.StatusSeeOther)
 	case errors.Is(err, invoice.ErrDisabled), errors.Is(err, ErrRefused):
 		// No issuer is configured. voidfailed would say ECPay refused a call
 		// that never happened.
 		h.log.WarnContext(r.Context(), "invoice void refused", "order", number, "error", err)
-		http.Redirect(w, r, "/admin/orders/"+number+"?refused=1", http.StatusSeeOther)
+		http.Redirect(w, r, orderPage+"?refused=1", http.StatusSeeOther)
 	default:
 		h.log.ErrorContext(r.Context(), "void invoice", "order", number, "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 	}
 }
 
@@ -2123,10 +2028,11 @@ func (h *Handler) AllowInvoice(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	number := r.PathValue("number")
-	if !IsOrderNumber(number) {
+	if !ordernumber.Valid(number) {
 		http.NotFound(w, r)
 		return
 	}
+	orderPage := "/admin/orders/" + url.PathEscape(number)
 	operationID, operationErr := uuid.Parse(r.PostFormValue("operation_id"))
 	if operationErr != nil || operationID == uuid.Nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
@@ -2136,29 +2042,29 @@ func (h *Handler) AllowInvoice(w http.ResponseWriter, r *http.Request) {
 	err := h.store.AllowInvoice(r.Context(), number, operationID)
 	switch {
 	case err == nil:
-		http.Redirect(w, r, "/admin/orders/"+number+"?allowed=1", http.StatusSeeOther)
+		http.Redirect(w, r, orderPage+"?allowed=1", http.StatusSeeOther)
 	case errors.Is(err, invoice.ErrNotFound):
-		http.Redirect(w, r, "/admin/orders/"+number+"?noinvoice=1", http.StatusSeeOther)
+		http.Redirect(w, r, orderPage+"?noinvoice=1", http.StatusSeeOther)
 	case errors.Is(err, invoice.ErrClaimed):
-		http.Redirect(w, r, "/admin/orders/"+number+"?allowclaimed=1", http.StatusSeeOther)
+		http.Redirect(w, r, orderPage+"?allowclaimed=1", http.StatusSeeOther)
 	case errors.Is(err, invoice.ErrPending):
-		http.Redirect(w, r, "/admin/orders/"+number+"?invoicepending=1", http.StatusSeeOther)
+		http.Redirect(w, r, orderPage+"?invoicepending=1", http.StatusSeeOther)
 	case errors.Is(err, invoice.ErrTooMuch):
-		http.Redirect(w, r, "/admin/orders/"+number+"?allowtoomuch=1", http.StatusSeeOther)
+		http.Redirect(w, r, orderPage+"?allowtoomuch=1", http.StatusSeeOther)
 	case errors.Is(err, invoice.ErrRejected):
 		// invoicefailed names 統編 and carrier codes, which is right for ISSUING.
 		// An allowance form does not collect those fields.
 		h.log.ErrorContext(r.Context(), "the e-invoice provider refused the allowance",
 			"order", number, "error", err)
-		http.Redirect(w, r, "/admin/orders/"+number+"?allowfailed=1", http.StatusSeeOther)
+		http.Redirect(w, r, orderPage+"?allowfailed=1", http.StatusSeeOther)
 	case errors.Is(err, invoice.ErrDisabled), errors.Is(err, ErrRefused):
 		// No issuer is configured. allowfailed would say ECPay refused a call
 		// that never happened.
 		h.log.WarnContext(r.Context(), "invoice allowance refused", "order", number, "error", err)
-		http.Redirect(w, r, "/admin/orders/"+number+"?refused=1", http.StatusSeeOther)
+		http.Redirect(w, r, orderPage+"?refused=1", http.StatusSeeOther)
 	default:
 		h.log.ErrorContext(r.Context(), "file invoice allowance", "order", number, "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 	}
 }
 
@@ -2174,7 +2080,7 @@ func (h *Handler) renderCreditForm(w http.ResponseWriter, r *http.Request, view 
 	ledger, err := h.store.Credit(r.Context())
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read credit ledger", "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 		return
 	}
 	view.Rows, view.ListBound = ledger.Rows, ledger.ListBound

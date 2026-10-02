@@ -64,10 +64,10 @@ func TestEveryFormActionResolvesToAPostRoute(t *testing.T) {
 	t.Parallel()
 
 	root := repoRoot(t)
-	posts := routesFor(t, filepath.Join(root, "cmd", "goen", "server.go"), "POST")
-	gets := routesFor(t, filepath.Join(root, "cmd", "goen", "server.go"), "GET")
+	posts := routesFor(t, root, "POST")
+	gets := routesFor(t, root, "GET")
 	if len(posts) < 20 {
-		t.Fatalf("only %d POST routes found; the parser is not reading server.go", len(posts))
+		t.Fatalf("only %d POST routes found; the parser is not reading the route table", len(posts))
 	}
 
 	checked := 0

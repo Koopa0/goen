@@ -22,12 +22,10 @@ import (
 // of the path and not about any particular id.
 func TestEveryConstructedLinkResolvesToARoute(t *testing.T) {
 	root := repoRoot(t)
-	server := filepath.Join(root, "cmd", "goen", "server.go")
-
 	// Both methods: these are hrefs AND form actions, and a form posts.
-	routes := append(routesFor(t, server, "GET"), routesFor(t, server, "POST")...)
+	routes := append(routesFor(t, root, "GET"), routesFor(t, root, "POST")...)
 	if len(routes) < 40 {
-		t.Fatalf("only %d routes found; the parser is not reading server.go", len(routes))
+		t.Fatalf("only %d routes found; the parser is not reading the route table", len(routes))
 	}
 
 	built := constructedPaths(t, filepath.Join(root, "internal", "ui"))

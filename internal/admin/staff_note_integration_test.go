@@ -18,10 +18,11 @@ import (
 
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/admin"
+	"github.com/koopa0/goen/internal/admin/audit"
 	pagesadmin "github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
-func staffNoteStore(t *testing.T) *admin.Store {
+func staffNotePool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 	cfg, err := pgxpool.ParseConfig(pool.Config().ConnString())
 	if err != nil {
@@ -33,14 +34,19 @@ func staffNoteStore(t *testing.T) *admin.Store {
 		t.Fatal(err)
 	}
 	t.Cleanup(p.Close)
-	return admin.NewStore(p, fakeRefunder{}, nil, nil)
+	return p
+}
+
+func staffNoteStore(t *testing.T) *admin.Store {
+	t.Helper()
+	return admin.NewStore(staffNotePool(t), fakeRefunder{}, nil, nil)
 }
 
 func TestStaffNoteHTTPRecordsOperationsWithoutContent(t *testing.T) {
 	ctx, actor := staffContext(t)
 	number, orderID, _ := pendingOrderHoldingStock(t)
-	s := staffNoteStore(t)
-	h := adminHandlerOver(pool, s)
+	p := staffNotePool(t)
+	h := adminHandlerOver(pool, admin.NewStore(p, fakeRefunder{}, nil, nil))
 	for _, step := range []struct{ note, action string }{
 		{"private first note", "order.note.create"},
 		{"private replacement", "order.note.replace"},
@@ -51,7 +57,7 @@ func TestStaffNoteHTTPRecordsOperationsWithoutContent(t *testing.T) {
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		req.SetPathValue("number", number)
 		w := httptest.NewRecorder()
-		h.RequireStaff(h.StaffNote)(w, req)
+		backOffice.RequireStaff(h.StaffNote)(w, req)
 		if w.Code != http.StatusSeeOther {
 			t.Fatalf("note POST = %d: %s", w.Code, w.Body.String())
 		}
@@ -86,7 +92,7 @@ func TestStaffNoteHTTPRecordsOperationsWithoutContent(t *testing.T) {
 		if note != step.note {
 			t.Fatalf("persisted note = %q, want %q", note, step.note)
 		}
-		view, err := s.Audit(ctx)
+		view, err := audit.NewStore(p).Events(ctx)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -116,7 +122,7 @@ func TestStaffNoteForUnknownOrderIs404WithoutAudit(t *testing.T) {
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.SetPathValue("number", number)
 	w := httptest.NewRecorder()
-	h.RequireStaff(h.StaffNote)(w, req)
+	backOffice.RequireStaff(h.StaffNote)(w, req)
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("note on unknown order = %d, want 404", w.Code)
 	}

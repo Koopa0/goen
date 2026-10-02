@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
@@ -36,8 +37,8 @@ func (s *Store) AttachImage(
 	if err != nil {
 		return err
 	}
-	return s.audited(ctx, Event{
-		Action: actionAttachImage, Table: "product_images", ID: uuid.NullUUID{},
+	return audit.Run(ctx, s.pool, audit.Event{
+		Action: audit.ActionAttachImage, Table: "product_images", ID: uuid.NullUUID{},
 		After: map[string]any{"product": slug, "digest": digest, "alt": alt, "option_value": shows},
 	},
 		func(ctx context.Context, q *db.Queries) error {
@@ -63,8 +64,8 @@ func (s *Store) SetImageOption(ctx context.Context, slug, key, optionValue strin
 	if err != nil {
 		return err
 	}
-	return s.audited(ctx, Event{
-		Action: actionSetImageOption, Table: "product_images", ID: uuid.NullUUID{},
+	return audit.Run(ctx, s.pool, audit.Event{
+		Action: audit.ActionSetImageOption, Table: "product_images", ID: uuid.NullUUID{},
 		After: map[string]any{"product": slug, "digest": key, "option_value": shows},
 	},
 		func(ctx context.Context, q *db.Queries) error {
@@ -104,8 +105,8 @@ func imageOptionRefusal(err error) error {
 
 // DetachImage removes one from a product; the shared media object is not deleted.
 func (s *Store) DetachImage(ctx context.Context, slug, digest string) error {
-	return s.audited(ctx, Event{
-		Action: actionDetachImage, Table: "product_images", ID: uuid.NullUUID{},
+	return audit.Run(ctx, s.pool, audit.Event{
+		Action: audit.ActionDetachImage, Table: "product_images", ID: uuid.NullUUID{},
 		Before: map[string]any{"product": slug, "digest": digest},
 	},
 		func(ctx context.Context, q *db.Queries) error {
@@ -138,8 +139,8 @@ const (
 // page the staff member acted on is out of date.
 func (s *Store) MoveImage(ctx context.Context, slug, digest string, move ImageMove) error {
 	order := []string{}
-	return s.audited(ctx, Event{
-		Action: actionMoveImage, Table: "product_images", ID: uuid.NullUUID{},
+	return audit.Run(ctx, s.pool, audit.Event{
+		Action: audit.ActionMoveImage, Table: "product_images", ID: uuid.NullUUID{},
 		After: map[string]any{"product": slug, "digest": digest, "move": string(move), "order": &order},
 	},
 		func(ctx context.Context, q *db.Queries) error {

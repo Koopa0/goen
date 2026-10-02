@@ -333,29 +333,30 @@ func queryColumnWrites(t *testing.T) map[string]map[string]map[string]bool {
 	return out
 }
 
+// calledQueries reads the package's whole tree: a feature package below it runs
+// on the same pool, and a flat read would drop its queries from the role's check.
 func calledQueries(t *testing.T, pkg string) []string {
 	t.Helper()
 	known := queryWrites(t)
 	dir := filepath.Join("..", "..", "internal", pkg)
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		t.Fatalf("read internal/%s: %v", pkg, err)
-	}
 	var out []string
-	for _, e := range entries {
-		name := e.Name()
-		if e.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
-			continue
+	err := filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return err
 		}
-		src, readErr := os.ReadFile(filepath.Join(dir, name)) //nolint:gosec // G304: a path built from this repository's own tree
+		src, readErr := os.ReadFile(path) //nolint:gosec // G304: a path built from this repository's own tree
 		if readErr != nil {
-			t.Fatalf("read %s: %v", name, readErr)
+			return readErr
 		}
 		for _, m := range methodCall.FindAllStringSubmatch(string(src), -1) {
 			if _, ok := known[m[1]]; ok {
 				out = append(out, m[1])
 			}
 		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("read internal/%s: %v", pkg, err)
 	}
 	return out
 }
@@ -520,8 +521,7 @@ func TestThePoolMapIsComplete(t *testing.T) {
 		if !e.IsDir() || e.Name() == "db" {
 			continue
 		}
-		if _, statErr := os.Stat(filepath.Join(
-			"..", "..", "internal", e.Name(), "query.sql")); statErr != nil {
+		if !shipsQueries(t, filepath.Join("..", "..", "internal", e.Name())) {
 			continue
 		}
 		if !named[e.Name()] {
@@ -530,6 +530,24 @@ func TestThePoolMapIsComplete(t *testing.T) {
 				"the pool cmd/goen constructs its store on.", e.Name())
 		}
 	}
+}
+
+// shipsQueries reports whether a query.sql lies anywhere in dir's tree, where
+// calledQueries also looks.
+func shipsQueries(t *testing.T, dir string) bool {
+	t.Helper()
+	found := false
+	err := filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
+		if err == nil && !d.IsDir() && d.Name() == "query.sql" {
+			found = true
+			return filepath.SkipAll
+		}
+		return err
+	})
+	if err != nil {
+		t.Fatalf("walk %s: %v", dir, err)
+	}
+	return found
 }
 
 // TestNoStaleWriteExemption refuses a writeExemptions entry whose privilege is no longer held.

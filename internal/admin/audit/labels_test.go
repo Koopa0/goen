@@ -1,4 +1,4 @@
-package admin_test
+package audit_test
 
 import (
 	"go/ast"
@@ -38,7 +38,7 @@ func TestEveryAuditActionHasALabel(t *testing.T) {
 	// Well under the 63 declared, so a parser that silently stops matching
 	// fails here rather than passing over an empty corpus.
 	if len(actions) < 50 {
-		t.Fatalf("found %d actions in audit.go; the parser is not reading the const block", len(actions))
+		t.Fatalf("found %d actions in action.go; the parser is not reading the const block", len(actions))
 	}
 
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
@@ -58,7 +58,7 @@ func TestEveryAuditActionHasALabel(t *testing.T) {
 }
 
 // TestNewsletterComposeRendersAPhrase locks the compose action that lives in
-// newsletter rather than admin's Action const block, so a missing label cannot
+// newsletter rather than audit's Action const block, so a missing label cannot
 // hide behind the raw identifier on /admin/audit.
 func TestNewsletterComposeRendersAPhrase(t *testing.T) {
 	t.Parallel()
@@ -78,7 +78,7 @@ var schemaWrittenAction = regexp.MustCompile(`'([a-z_]+\.[a-z0-9_.]+)',\s*'[a-z_
 func schemaActions(t *testing.T) []string {
 	t.Helper()
 
-	body, err := os.ReadFile(filepath.Join("..", "..", "migrations", "001_initial_schema.up.sql"))
+	body, err := os.ReadFile(filepath.Join("..", "..", "..", "migrations", "001_initial_schema.up.sql"))
 	if err != nil {
 		t.Fatalf("read the schema: %v", err)
 	}
@@ -101,13 +101,13 @@ func schemaActions(t *testing.T) []string {
 	return out
 }
 
-// declaredActions is every string constant of type Action in audit.go.
+// declaredActions is every string constant of type Action in action.go.
 func declaredActions(t *testing.T) []string {
 	t.Helper()
 
-	file, err := parser.ParseFile(token.NewFileSet(), "audit.go", nil, 0)
+	file, err := parser.ParseFile(token.NewFileSet(), "action.go", nil, 0)
 	if err != nil {
-		t.Fatalf("parse audit.go: %v", err)
+		t.Fatalf("parse action.go: %v", err)
 	}
 
 	var out []string
@@ -148,7 +148,7 @@ func TestEveryAuditedTableHasAnEntityLabel(t *testing.T) {
 
 	pattern := regexp.MustCompile(`(?:Table|EntityTable):\s*"([a-z_]+)"`)
 	tables := map[string]bool{"refunds": true} // written by a schema function
-	err := filepath.WalkDir(filepath.Join("..", "..", "internal"), func(path string, d os.DirEntry, err error) error {
+	err := filepath.WalkDir(filepath.Join("..", "..", "..", "internal"), func(path string, d os.DirEntry, err error) error {
 		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") ||
 			strings.HasSuffix(path, "_test.go") || strings.Contains(path, string(filepath.Separator)+"db"+string(filepath.Separator)) {
 			return err
