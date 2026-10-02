@@ -8335,7 +8335,6 @@ CREATE TABLE product_copurchases (
     other_product_id uuid NOT NULL REFERENCES products (id) ON DELETE CASCADE,
     -- How many committed orders contained both.
     orders           integer NOT NULL,
-    computed_at      timestamptz NOT NULL DEFAULT now(),
 
     PRIMARY KEY (product_id, other_product_id),
     CONSTRAINT product_copurchases_orders_positive CHECK (orders > 0),

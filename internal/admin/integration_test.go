@@ -7926,7 +7926,7 @@ func TestAPromotionsButtonMustStayOnThisSite(t *testing.T) {
 		if err != nil {
 			t.Fatalf("CreateBanner(%q): %v", href, err)
 		}
-		if errs["cta"] == "" {
+		if errs["banner_cta"] == "" {
 			t.Errorf("CreateBanner accepted the href %q: %v", href, errs)
 		}
 	}
@@ -7935,7 +7935,7 @@ func TestAPromotionsButtonMustStayOnThisSite(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateBanner: %v", err)
 	}
-	if errs["cta"] == "" {
+	if errs["banner_cta"] == "" {
 		t.Errorf("a label with no href was accepted: %v", errs)
 	}
 }

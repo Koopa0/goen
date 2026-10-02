@@ -395,7 +395,7 @@ func (h *Handler) AdjustStock(w http.ResponseWriter, r *http.Request) {
 	}
 	delta, ok := ParseAdjustment(r.PostFormValue("delta"))
 	if !ok {
-		http.Redirect(w, r, stockBack(r, "refused"), http.StatusSeeOther)
+		http.Redirect(w, r, stockBack(r, "refused"), http.StatusSeeOther) //nolint:gosec // G710: stockBack answers /admin/stock with only an encoded query
 		return
 	}
 	key := r.PostFormValue("idempotency")
@@ -406,11 +406,11 @@ func (h *Handler) AdjustStock(w http.ResponseWriter, r *http.Request) {
 	err := h.store.AdjustStock(r.Context(), r.PostFormValue("sku"), delta, u.ID, key)
 	switch {
 	case err == nil:
-		http.Redirect(w, r, stockBack(r, "ok"), http.StatusSeeOther)
+		http.Redirect(w, r, stockBack(r, "ok"), http.StatusSeeOther) //nolint:gosec // G710: stockBack answers /admin/stock with only an encoded query
 	case errors.Is(err, ErrRefused), errors.Is(err, ErrNotFound):
 		h.log.WarnContext(r.Context(), "stock adjustment refused",
 			"sku", r.PostFormValue("sku"), "delta", delta, "error", err)
-		http.Redirect(w, r, stockBack(r, "refused"), http.StatusSeeOther)
+		http.Redirect(w, r, stockBack(r, "refused"), http.StatusSeeOther) //nolint:gosec // G710: stockBack answers /admin/stock with only an encoded query
 	default:
 		h.log.ErrorContext(r.Context(), "adjust stock", "error", err)
 		h.serverError(w, r)
@@ -461,11 +461,11 @@ func (h *Handler) SetVariantActive(w http.ResponseWriter, r *http.Request) {
 		r.PostFormValue("sku"), r.PostFormValue("active") == "1")
 	switch {
 	case err == nil:
-		http.Redirect(w, r, stockBack(r, "ok"), http.StatusSeeOther)
+		http.Redirect(w, r, stockBack(r, "ok"), http.StatusSeeOther) //nolint:gosec // G710: stockBack answers /admin/stock with only an encoded query
 	case errors.Is(err, ErrRefused), errors.Is(err, ErrNotFound):
 		h.log.WarnContext(r.Context(), "variant activation refused",
 			"sku", r.PostFormValue("sku"), "error", err)
-		http.Redirect(w, r, stockBack(r, "refused"), http.StatusSeeOther)
+		http.Redirect(w, r, stockBack(r, "refused"), http.StatusSeeOther) //nolint:gosec // G710: stockBack answers /admin/stock with only an encoded query
 	default:
 		h.log.ErrorContext(r.Context(), "set variant active", "error", err)
 		h.serverError(w, r)
@@ -481,18 +481,18 @@ func (h *Handler) SetVariantPrice(w http.ResponseWriter, r *http.Request) {
 	price, okPrice := ParsePrice(r.PostFormValue("price"))
 	compare, okCompare := ParsePrice(r.PostFormValue("compare_at"))
 	if !okPrice || !okCompare || price <= 0 {
-		http.Redirect(w, r, stockBack(r, "refused"), http.StatusSeeOther)
+		http.Redirect(w, r, stockBack(r, "refused"), http.StatusSeeOther) //nolint:gosec // G710: stockBack answers /admin/stock with only an encoded query
 		return
 	}
 
 	err := h.store.SetVariantPrice(r.Context(), r.PostFormValue("sku"), price, compare)
 	switch {
 	case err == nil:
-		http.Redirect(w, r, stockBack(r, "ok"), http.StatusSeeOther)
+		http.Redirect(w, r, stockBack(r, "ok"), http.StatusSeeOther) //nolint:gosec // G710: stockBack answers /admin/stock with only an encoded query
 	case errors.Is(err, ErrRefused), errors.Is(err, ErrNotFound):
 		h.log.WarnContext(r.Context(), "reprice refused",
 			"sku", r.PostFormValue("sku"), "error", err)
-		http.Redirect(w, r, stockBack(r, "refused"), http.StatusSeeOther)
+		http.Redirect(w, r, stockBack(r, "refused"), http.StatusSeeOther) //nolint:gosec // G710: stockBack answers /admin/stock with only an encoded query
 	default:
 		h.log.ErrorContext(r.Context(), "set variant price", "error", err)
 		h.serverError(w, r)
