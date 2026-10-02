@@ -9,6 +9,7 @@ import (
 func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 	mux.HandleFunc("GET /admin", ac.RequireStaff(h.Dashboard))
 	mux.HandleFunc("GET /admin/orders", ac.RequireStaff(h.Orders))
+	mux.HandleFunc("GET /admin/orders/picking/slips", ac.RequireStaff(h.PickingSlips))
 	mux.HandleFunc("GET /admin/orders/{number}", ac.RequireStaff(h.Order))
 	mux.HandleFunc("POST /admin/orders/{number}/status", ac.RequireStaff(h.AdvanceOrder))
 	mux.HandleFunc("POST /admin/orders/{number}/refund", ac.RequireStaff(h.RefundBeforeShipment))
