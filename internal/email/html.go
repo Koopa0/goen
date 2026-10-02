@@ -34,17 +34,13 @@ func (n Notifier) html(ctx context.Context, text string) (string, error) {
 	return b.String(), nil
 }
 
-// segment is a run of a letter's text, or one link in it.
 type segment struct {
 	text string
 	link bool
 }
 
-// paragraph is one blank-line-separated block of a letter, line by line.
 type paragraph [][]segment
 
-// paragraphs splits a letter into its blocks, and each line into text and the
-// links goen wrote into it.
 func paragraphs(text, origin string) []paragraph {
 	var out []paragraph
 	var block paragraph

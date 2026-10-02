@@ -10,14 +10,12 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-// NewsletterConfirm is what a newsletter.confirm message carries.
 type NewsletterConfirm struct {
 	Locale string `json:"locale"`
 	Email  string `json:"email"`
 	Token  string `json:"token"`
 }
 
-// SendNewsletterConfirm asks a mailbox whether it wants the newsletter.
 func (n Notifier) SendNewsletterConfirm(ctx context.Context, p *NewsletterConfirm) error {
 	if !Valid(p.Email) {
 		return errors.New("a newsletter confirmation has no usable email address")
@@ -41,7 +39,6 @@ type NewsletterWelcome struct {
 	UnsubscribeToken string `json:"unsubscribe_token"`
 }
 
-// SendNewsletterWelcome confirms a subscription and says how to end it.
 func (n Notifier) SendNewsletterWelcome(ctx context.Context, p *NewsletterWelcome) error {
 	if !Valid(p.Email) {
 		return errors.New("a newsletter welcome has no usable email address")
@@ -106,8 +103,6 @@ type AddressVerify struct {
 	Next string `json:"next,omitempty"`
 }
 
-// SendAddressVerify asks somebody to prove an address is theirs, or, for a
-// registration, to finish it with the password they chose.
 func (n Notifier) SendAddressVerify(ctx context.Context, p *AddressVerify) error {
 	if !Valid(p.Email) {
 		return errors.New("an email verification has no usable address")

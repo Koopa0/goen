@@ -10,7 +10,6 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-// OrderPaid is what an order.paid message carries.
 type OrderPaid struct {
 	Locale      string `json:"locale"`
 	OrderNumber string `json:"order_number"`
@@ -23,7 +22,6 @@ type OrderPaid struct {
 	Card string `json:"card"`
 }
 
-// SendOrderPaid tells somebody their money arrived.
 func (n Notifier) SendOrderPaid(ctx context.Context, p *OrderPaid) error {
 	if !Valid(p.Email) {
 		return errors.New("an order.paid message has no usable email address")
@@ -44,7 +42,6 @@ func (n Notifier) SendOrderPaid(ctx context.Context, p *OrderPaid) error {
 	})
 }
 
-// OrderShipped is what an order.shipped message carries.
 type OrderShipped struct {
 	Locale      string `json:"locale"`
 	OrderNumber string `json:"order_number"`
@@ -56,7 +53,6 @@ type OrderShipped struct {
 	Pickup bool `json:"pickup"`
 }
 
-// SendOrderShipped tells somebody their parcel is on its way.
 func (n Notifier) SendOrderShipped(ctx context.Context, p *OrderShipped) error {
 	if !Valid(p.Email) {
 		return errors.New("an order.shipped message has no usable email address")
@@ -82,7 +78,6 @@ func (n Notifier) SendOrderShipped(ctx context.Context, p *OrderShipped) error {
 	})
 }
 
-// RestockNotice is what a catalogue.restocked message carries.
 type RestockNotice struct {
 	Locale      string `json:"locale"`
 	Email       string `json:"email"`
