@@ -3696,7 +3696,7 @@ func TestASlugIsNeverRenamed(t *testing.T) {
 	if errs, err := s.CreateBrand(ctx, &admin.TaxonomyForm{Slug: slug, Name: "原名"}); err != nil || len(errs) > 0 {
 		t.Fatalf("create: err=%v errs=%v", err, errs)
 	}
-	if err := s.Rename(ctx, "brand", slug, "新名字", "", ""); err != nil {
+	if err := s.Rename(ctx, "brand", slug, "新名字", "", "", ""); err != nil {
 		t.Fatalf("rename: %v", err)
 	}
 
@@ -3708,7 +3708,7 @@ func TestASlugIsNeverRenamed(t *testing.T) {
 	if name != "新名字" {
 		t.Errorf("name is %q, want 新名字", name)
 	}
-	if err := s.Rename(ctx, "brand", slug, "   ", "", ""); !errors.Is(err, admin.ErrInvalid) {
+	if err := s.Rename(ctx, "brand", slug, "   ", "", "", ""); !errors.Is(err, admin.ErrInvalid) {
 		t.Errorf("a blank name gave %v, want ErrInvalid", err)
 	}
 }
@@ -7449,7 +7449,7 @@ func TestACategoryCarriesItsEnglishName(t *testing.T) {
 			"Chinese name", fallback)
 	}
 
-	if err := s.Rename(ctx, "category", slug, "測試分類", "", ""); err != nil {
+	if err := s.Rename(ctx, "category", slug, "測試分類", "", "", ""); err != nil {
 		t.Fatalf("rename: %v", err)
 	}
 	var cleared *string
@@ -7926,7 +7926,7 @@ func TestAPromotionsButtonMustStayOnThisSite(t *testing.T) {
 		if err != nil {
 			t.Fatalf("CreateBanner(%q): %v", href, err)
 		}
-		if errs["cta"] == "" {
+		if errs["banner_cta"] == "" {
 			t.Errorf("CreateBanner accepted the href %q: %v", href, errs)
 		}
 	}
@@ -7935,7 +7935,7 @@ func TestAPromotionsButtonMustStayOnThisSite(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateBanner: %v", err)
 	}
-	if errs["cta"] == "" {
+	if errs["banner_cta"] == "" {
 		t.Errorf("a label with no href was accepted: %v", errs)
 	}
 }
@@ -10794,7 +10794,7 @@ func TestACategoryCreatedInTheBackOfficeCanCarryAnIcon(t *testing.T) {
 		t.Errorf("category creation audit icon_key = %q, want laptop", auditedIcon)
 	}
 
-	if renameErr := s.Rename(ctx, "category", slug, "改名分類", "", "laptop"); renameErr != nil {
+	if renameErr := s.Rename(ctx, "category", slug, "改名分類", "", "laptop", ""); renameErr != nil {
 		t.Fatalf("rename: %v", renameErr)
 	}
 	if readErr := pool.QueryRow(ctx,
@@ -11694,6 +11694,42 @@ func TestAPickupOrderDispatchNoticeIsMarkedAsPickup(t *testing.T) {
 	}
 }
 
+type fixedInvoices []invoice.Document
+
+func (f fixedInvoices) Documents(context.Context, string) ([]invoice.Document, error) { return f, nil }
+
+func TestTheOrderPageShowsAnInvoiceAtTheTimeTheProviderIssuedIt(t *testing.T) {
+	ctx := t.Context()
+	number := placeUnpaidOrder(t)
+	issued := time.Date(2026, 9, 30, 17, 30, 0, 0, time.UTC) // ECPay said "2026-09-30 17:30:00"
+	s := admin.NewStore(pool, fakeRefunder{}, fixedInvoices{{Kind: "invoice", Number: "AB12345678", IssuedAt: issued}}, nil)
+
+	view, err := s.Order(ctx, number)
+	if err != nil {
+		t.Fatalf("Order: %v", err)
+	}
+	if len(view.InvoiceDocuments) != 1 || view.InvoiceDocuments[0].IssuedAt != "2026-09-30 17:30" {
+		t.Errorf("invoice documents = %+v, want one issued at 2026-09-30 17:30", view.InvoiceDocuments)
+	}
+}
+
+func TestOrderSearchLabelsAnUnpaidOrderAsAwaitingPayment(t *testing.T) {
+	ctx := t.Context()
+	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	number := placeUnpaidOrder(t)
+
+	view, err := s.Orders(ctx, "", number)
+	if err != nil {
+		t.Fatalf("Orders: %v", err)
+	}
+	if len(view.Orders) != 1 || view.Orders[0].Number != number {
+		t.Fatalf("searching %s found %+v, want that order only", number, view.Orders)
+	}
+	if got, want := view.Orders[0].StatusText, i18n.T(ctx, i18n.KeyAdminStatusPending); got != want {
+		t.Errorf("a searched unpaid order reads %q, want %q", got, want)
+	}
+}
+
 func TestAdvanceRefusesTheStatusAnOrderAlreadyHas(t *testing.T) {
 	ctx, staff := staffContext(t)
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
@@ -11720,6 +11756,172 @@ func TestAdvanceRefusesTheStatusAnOrderAlreadyHas(t *testing.T) {
 	pending := placeUnpaidOrder(t)
 	if _, err := s.Advance(ctx, pending, pages.FulfillmentPending, actor); !errors.Is(err, admin.ErrRefused) {
 		t.Errorf("pending on a pending order gave %v, want ErrRefused", err)
+	}
+}
+
+func TestTheStatusMenuOffersOnlyWhatTheDatabaseWillAccept(t *testing.T) {
+	ctx, staff := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	actor := uuid.NullUUID{UUID: staff, Valid: true}
+	offers := func(v *pages.AdminOrderView, status pages.FulfillmentStatus) bool {
+		for _, n := range v.Next {
+			if n.Value == status {
+				return true
+			}
+		}
+		return false
+	}
+
+	unpaid, err := s.Order(ctx, placeUnpaidOrder(t))
+	if err != nil {
+		t.Fatalf("Order: %v", err)
+	}
+	if offers(&unpaid, pages.FulfillmentPicking) {
+		t.Error("an unpaid order is offered picking, which orders_funded_to_leave_pending refuses")
+	}
+	if !unpaid.NextIsDestructive() {
+		t.Error("an unpaid order's menu preselects cancelling")
+	}
+
+	number, _, lines, _ := twoLineOrderWithStock(t, "menu")
+	if err := s.Ship(ctx, number, admin.Dispatch{
+		Carrier: "黑貓宅急便", Tracking: "MENU-" + number, Lines: map[uuid.UUID]int32{lines[0]: 1},
+	}, actor); err != nil {
+		t.Fatalf("first parcel: %v", err)
+	}
+	partly, err := s.Order(ctx, number)
+	if err != nil {
+		t.Fatalf("Order: %v", err)
+	}
+	if offers(&partly, pages.FulfillmentCompleted) {
+		t.Error("an order still owing a parcel is offered completed, which orders_finished_when_shipped refuses")
+	}
+	if !offers(&partly, pages.FulfillmentDelivered) {
+		t.Error("delivered must stay offered: it is the only way to record that the first parcel arrived")
+	}
+}
+
+func TestARefusedStatusMoveNamesItsReason(t *testing.T) {
+	ctx, staff := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	h := adminHandlerOver(pool, s)
+	post := func(number, status string) string {
+		t.Helper()
+		form := url.Values{"status": {status}}
+		req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/orders/"+number+"/status", strings.NewReader(form.Encode()))
+		req.SetPathValue("number", number)
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		w := httptest.NewRecorder()
+		h.RequireStaff(h.AdvanceOrder)(w, req)
+		if w.Code != http.StatusSeeOther {
+			t.Fatalf("POST status=%s = %d, want 303", status, w.Code)
+		}
+		return w.Header().Get("Location")
+	}
+
+	unpaid := placeUnpaidOrder(t)
+	if got, want := post(unpaid, "picking"), "/admin/orders/"+unpaid+"?unfunded=1"; got != want {
+		t.Errorf("picking an unpaid order redirected to %q, want %q", got, want)
+	}
+
+	number, _, lines, _ := twoLineOrderWithStock(t, "reason")
+	if err := s.Ship(ctx, number, admin.Dispatch{
+		Carrier: "黑貓宅急便", Tracking: "RSN-" + number, Lines: map[uuid.UUID]int32{lines[0]: 1},
+	}, uuid.NullUUID{UUID: staff, Valid: true}); err != nil {
+		t.Fatalf("first parcel: %v", err)
+	}
+	if got, want := post(number, "completed"), "/admin/orders/"+number+"?owesparcel=1"; got != want {
+		t.Errorf("completing an order that owes a parcel redirected to %q, want %q", got, want)
+	}
+}
+
+func TestTheShippingPageSaysWhenCheckoutHidesPickup(t *testing.T) {
+	ctx, _ := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	log := slog.New(slog.DiscardHandler)
+	enabled, err := cart.NewMap("2000132", "C2C", "", "https://shop.example")
+	if err != nil {
+		t.Fatalf("NewMap: %v", err)
+	}
+	note := i18n.T(ctx, i18n.KeyAdminShipPickupOff)
+
+	// A pickup-point method of its own, so the test does not depend on the seed.
+	create := url.Values{
+		"code": {"pk_" + uuid.NewString()[:8]}, "destination": {"pickup_point"},
+		"max_parcel_longest": {"450"}, "max_parcel_sum": {"1050"}, "max_parcel_weight": {"10000"},
+		"name": {"超商取貨測試"}, "carrier": {"測試承運人"}, "fee": {"60"}, "free_over": {"3000"},
+	}
+	creating := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/shipping/method", strings.NewReader(create.Encode()))
+	creating.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	created := httptest.NewRecorder()
+	adminHandlerOver(pool, s).CreateShippingMethod(created, creating)
+	if created.Code != http.StatusSeeOther {
+		t.Fatalf("create pickup method = %d: %s", created.Code, created.Body.String())
+	}
+
+	for name, storeMap := range map[string]*cart.Map{"no map": nil, "a map": enabled} {
+		h := admin.NewHandler(admin.HandlerDeps{
+			Store: s, Images: media.NewHandler(media.NewStore(pool), log), Outbox: outbox.NewStore(pool, log),
+			Letters: newsletter.NewStore(pool), Log: log, StoreMap: storeMap,
+		})
+		req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/admin/shipping", http.NoBody)
+		w := httptest.NewRecorder()
+		h.RequireStaff(h.Shipping)(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("%s: GET /admin/shipping = %d", name, w.Code)
+		}
+		if got, want := strings.Contains(w.Body.String(), note), storeMap == nil; got != want {
+			t.Errorf("%s: pickup-off note present = %t, want %t", name, got, want)
+		}
+	}
+}
+
+func TestAnAuditEntryNamesItsOrderAndLinksIt(t *testing.T) {
+	ctx, staff := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	number := shippableOrder(t, "zh-Hant")
+	if err := s.Ship(ctx, number, admin.Dispatch{Carrier: "黑貓宅急便", Tracking: "AUD-" + number},
+		uuid.NullUUID{UUID: staff, Valid: true}); err != nil {
+		t.Fatalf("Ship: %v", err)
+	}
+
+	view, err := s.Audit(ctx)
+	if err != nil {
+		t.Fatalf("Audit: %v", err)
+	}
+	for _, e := range view.Rows {
+		if e.Action == "order.ship" && e.Subject == number {
+			if e.Href != "/admin/orders/"+number {
+				t.Errorf("the shipment entry links %q, want /admin/orders/%s", e.Href, number)
+			}
+			return
+		}
+	}
+	t.Errorf("no order.ship entry names %s among %d rows", number, len(view.Rows))
+}
+
+func TestARefusedDispatchKeepsWhatWasTyped(t *testing.T) {
+	ctx, _ := staffContext(t)
+	h := adminHandlerOver(pool, admin.NewStore(pool, fakeRefunder{}, nil, nil))
+	number, _, lines, _ := twoLineOrderWithStock(t, "retype")
+
+	form := url.Values{
+		"carrier": {"黑貓宅急便"}, "tracking": {"9001-2345"}, "qty_" + lines[0].String(): {"99"},
+	}
+	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/orders/"+number+"/ship", strings.NewReader(form.Encode()))
+	req.SetPathValue("number", number)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+	h.RequireStaff(h.Ship)(w, req)
+
+	if w.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("a quantity above what is outstanding answered %d, want 422", w.Code)
+	}
+	body := w.Body.String()
+	for _, want := range []string{`value="黑貓宅急便"`, `value="9001-2345"`, `value="99"`, `id="ship-qty-error"`, `aria-invalid="true"`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the refused dispatch is missing %q", want)
+		}
 	}
 }
 
@@ -11784,5 +11986,28 @@ func TestTheDashboardAndTheQueueTabsSplitPendingTheSameWay(t *testing.T) {
 		if !sawIn || sawOut {
 			t.Errorf("tab %q lists the expected order = %t and the other = %t, want true and false", status, sawIn, sawOut)
 		}
+	}
+}
+
+func TestARefusedStockAdjustmentKeepsWhatWasTyped(t *testing.T) {
+	ctx, _ := staffContext(t)
+	h := adminHandlerOver(pool, admin.NewStore(pool, fakeRefunder{}, nil, nil))
+	var sku string
+	if err := pool.QueryRow(ctx, `SELECT sku FROM product_variants ORDER BY sku LIMIT 1`).Scan(&sku); err != nil {
+		t.Fatal(err)
+	}
+	form := url.Values{"sku": {sku}, "delta": {"12x"}, "return": {"/admin/stock"}}
+	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/stock/adjust", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+	h.RequireStaff(h.AdjustStock)(w, req)
+
+	if w.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("an unreadable adjustment answered %d, want 422", w.Code)
+	}
+	// The row may be on a later page of a long list, in which case the banner
+	// carries the sentence; either way the refusal is said and the page is 422.
+	if !strings.Contains(w.Body.String(), i18n.T(ctx, i18n.KeyAdminStockDeltaError)) {
+		t.Error("the refused adjustment does not say why")
 	}
 }

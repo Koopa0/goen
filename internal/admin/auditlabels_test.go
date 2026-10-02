@@ -139,3 +139,46 @@ func declaredActions(t *testing.T) []string {
 	}
 	return out
 }
+
+// TestEveryAuditedTableHasAnEntityLabel reads the tables the application writes
+// into the trail, so one added next week is covered the day it is written.
+// Without a label the subject line shows the table name.
+func TestEveryAuditedTableHasAnEntityLabel(t *testing.T) {
+	t.Parallel()
+
+	pattern := regexp.MustCompile(`(?:Table|EntityTable):\s*"([a-z_]+)"`)
+	tables := map[string]bool{"refunds": true} // written by a schema function
+	err := filepath.WalkDir(filepath.Join("..", "..", "internal"), func(path string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") ||
+			strings.HasSuffix(path, "_test.go") || strings.Contains(path, string(filepath.Separator)+"db"+string(filepath.Separator)) {
+			return err
+		}
+		src, readErr := os.ReadFile(path) //nolint:gosec // G304: this repository's own files
+		if readErr != nil {
+			return readErr
+		}
+		for _, m := range pattern.FindAllStringSubmatch(string(src), -1) {
+			tables[m[1]] = true
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tables) < 20 {
+		t.Fatalf("found %d audited tables; the scan stopped matching", len(tables))
+	}
+
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	var missing []string
+	for table := range tables {
+		if (pages.AuditEntry{Entity: table}).EntityLabel(ctx) == table {
+			missing = append(missing, table)
+		}
+	}
+	if len(missing) > 0 {
+		sort.Strings(missing)
+		t.Errorf("table(s) shown by their database name on /admin/audit:\n  %s\nAdd a key to internal/i18n/audit_entity.go and an entry to pages.entityLabels.",
+			strings.Join(missing, "\n  "))
+	}
+}

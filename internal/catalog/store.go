@@ -96,12 +96,20 @@ func (s *Store) Listing(ctx context.Context, slug string, f Filters) (pages.List
 	}
 
 	view := pages.ListingView{
-		Slug:     slug,
-		Name:     cat.Name,
-		Crumbs:   crumbs(cat.AncestorSlugs, cat.AncestorNames),
+		Slug:   slug,
+		Name:   cat.Name,
+		Crumbs: crumbs(cat.AncestorSlugs, cat.AncestorNames),
+		Theme: &pages.Theme{
+			Tone: pages.ResolveTone(cat.Tone),
+			Photo: pages.Photo{
+				URL:    assets.ProductImageURL(cat.ImageKey),
+				Srcset: assets.ProductImageSrcsetAt(cat.ImageKey, int(cat.ImageWidth)),
+				Alt:    cat.ImageAlt,
+			},
+		},
 		Products: tiles(rows),
 		Total:    total,
-		Page:     max(f.Page, 1),
+		Page:     int32(min(max(f.Page, 1), maxPage)),
 		PageSize: PageSize,
 	}
 	for _, b := range brands {
