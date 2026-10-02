@@ -1,9 +1,14 @@
 package pages
 
 import (
+	"errors"
+	"fmt"
+	"maps"
 	"net/url"
 	"os"
 	"path/filepath"
+	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -16,50 +21,179 @@ import (
 func TestSoldOutGuidanceMatchesAvailableOptionPickers(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
-		for _, withOptions := range []bool{false, true} {
-			name := "no options"
-			if withOptions {
-				name = "with options"
-			}
-			t.Run(string(locale)+"/"+name, func(t *testing.T) {
+		for _, tc := range []struct {
+			name     string
+			selected url.Values
+		}{
+			{"no options", url.Values{}},
+			{"one option", url.Values{"colour": {"blue"}}},
+			{"multiple encoded options", url.Values{"colour": {"blue & white"}, "size": {"XL/2"}}},
+		} {
+			t.Run(string(locale)+"/"+tc.name, func(t *testing.T) {
 				t.Parallel()
 				ctx := i18n.WithLocale(t.Context(), locale)
-				view := ProductView{
-					Slug: "sold-out", Name: "Sold out product", VariantID: "only-variant",
-					SelectionOK: true, Exact: true,
-				}
-				if withOptions {
-					view.Options = []ProductOption{{
-						Name: "colour", Label: "Colour",
-						Values: []ProductOptionValue{{Value: "blue", Label: "Blue", Selected: true}},
-					}}
-				}
+				view := soldOutProduct(tc.selected)
 				var body strings.Builder
 				if err := Product(ProductMeta(&view), &view).Render(ctx, &body); err != nil {
 					t.Fatal(err)
 				}
 				markup := body.String()
-				if got := strings.Contains(markup, i18n.T(ctx, i18n.KeyAllSoldOutHint)); got != withOptions {
-					t.Errorf("variant-selection hint visible = %t, want %t", got, withOptions)
+				if got := strings.Contains(markup, i18n.T(ctx, i18n.KeyAllSoldOutHint)); got != (len(tc.selected) > 0) {
+					t.Errorf("variant-selection hint visible = %t, want %t", got, len(tc.selected) > 0)
 				}
-				// The request carries the selection so the answer lands on the same page.
-				notify := "/p/sold-out/notify"
-				if withOptions {
-					notify += "?colour=blue"
+				if !strings.Contains(markup, i18n.T(ctx, i18n.KeyAllSoldOut)) {
+					t.Error("sold-out guidance is missing")
 				}
-				for _, want := range []string{
-					i18n.T(ctx, i18n.KeyAllSoldOut),
-					`method="post" action="` + notify + `"`,
-					`name="variant" value="only-variant"`,
-					i18n.T(ctx, i18n.KeyRestockSubmit),
-				} {
-					if !strings.Contains(markup, want) {
-						t.Errorf("sold-out page is missing %q", want)
-					}
+				doc, err := html.Parse(strings.NewReader(markup))
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := restockFormProblem(doc, tc.selected, i18n.T(ctx, i18n.KeyRestockSubmit)); err != nil {
+					t.Error(err)
 				}
 			})
 		}
 	}
+}
+
+func soldOutProduct(selected url.Values) ProductView {
+	view := ProductView{Slug: "sold-out", Name: "Sold out product", VariantID: "only-variant", SelectionOK: true, Exact: true}
+	for _, name := range slices.Sorted(maps.Keys(selected)) {
+		view.Options = append(view.Options, ProductOption{Name: name, Label: name, Values: []ProductOptionValue{{Value: selected.Get(name), Label: selected.Get(name), Selected: true}}})
+	}
+	return view
+}
+
+func restockFormProblem(doc *html.Node, selected url.Values, label string) error {
+	form := findDescendant(doc, func(n *html.Node) bool {
+		return n.Type == html.ElementNode && n.Data == "form" && attrValue(n, "id") == "restock"
+	})
+	if form == nil {
+		return errors.New("restock form is missing")
+	}
+	if !strings.EqualFold(attrValue(form, "method"), "post") {
+		return fmt.Errorf("restock form method = %q, want POST", attrValue(form, "method"))
+	}
+	target, err := url.Parse(attrValue(form, "action"))
+	if err != nil {
+		return fmt.Errorf("parse restock action: %w", err)
+	}
+	if target.Scheme != "" || target.Host != "" || target.Path != "/p/sold-out/notify" || target.Fragment != "" {
+		return fmt.Errorf("restock action = %q, want the product's local notify path", target)
+	}
+	query, err := url.ParseQuery(target.RawQuery)
+	if err != nil {
+		return fmt.Errorf("parse selected options: %w", err)
+	}
+	if !reflect.DeepEqual(query, selected) {
+		return fmt.Errorf("restock options = %v, want %v", query, selected)
+	}
+	owned := func(n *html.Node) bool {
+		if owner := attrValue(n, "form"); owner != "" && owner != "restock" {
+			return false
+		}
+		for _, attr := range n.Attr {
+			if attr.Key == "disabled" {
+				return false
+			}
+		}
+		return true
+	}
+	variant := findDescendant(form, func(n *html.Node) bool {
+		return n.Type == html.ElementNode && n.Data == "input" && attrValue(n, "name") == "variant" && attrValue(n, "type") == "hidden" && attrValue(n, "value") == "only-variant" && owned(n)
+	})
+	if variant == nil {
+		return errors.New("restock form does not own the selected variant")
+	}
+	email := findDescendant(form, func(n *html.Node) bool {
+		return n.Type == html.ElementNode && n.Data == "input" && attrValue(n, "name") == "email" && attrValue(n, "type") == "email" && owned(n)
+	})
+	if email == nil {
+		return errors.New("restock form does not own an email control")
+	}
+	button := findDescendant(form, func(n *html.Node) bool {
+		if n.Type != html.ElementNode || n.Data != "button" || attrValue(n, "type") != "submit" || !owned(n) {
+			return false
+		}
+		return findDescendant(n, func(child *html.Node) bool {
+			return child.Type == html.TextNode && strings.TrimSpace(child.Data) == label
+		}) != nil
+	})
+	if button == nil {
+		return errors.New("restock form lacks its submit affordance")
+	}
+	return nil
+}
+
+func TestTheRestockOracleAcceptsEquivalentMarkupAndRejectsChangedBehavior(t *testing.T) {
+	t.Parallel()
+	selected := url.Values{"colour": {"blue & white"}, "size": {"XL/2"}}
+	for _, tc := range []struct {
+		name    string
+		change  func(*html.Node, *html.Node)
+		refused bool
+	}{
+		{"attribute and query order", func(_ *html.Node, form *html.Node) {
+			slices.Reverse(form.Attr)
+			setRestockAttribute(form, "action", "/p/sold-out/notify?size=XL%2F2&colour=blue%20%26%20white")
+			setRestockAttribute(form, "method", "POST")
+		}, false},
+		{"wrong method", func(_ *html.Node, form *html.Node) { setRestockAttribute(form, "method", "get") }, true},
+		{"wrong path", func(_ *html.Node, form *html.Node) {
+			setRestockAttribute(form, "action", "/p/other/notify?"+selected.Encode())
+		}, true},
+		{"missing option", func(_ *html.Node, form *html.Node) {
+			setRestockAttribute(form, "action", "/p/sold-out/notify?colour=blue+%26+white")
+		}, true},
+		{"changed option", func(_ *html.Node, form *html.Node) {
+			setRestockAttribute(form, "action", "/p/sold-out/notify?size=XL%2F3&colour=blue+%26+white")
+		}, true},
+		{"variant outside form", func(doc *html.Node, form *html.Node) {
+			input := findDescendant(form, func(n *html.Node) bool { return n.Type == html.ElementNode && attrValue(n, "name") == "variant" })
+			input.Parent.RemoveChild(input)
+			body := findDescendant(doc, func(n *html.Node) bool { return n.Type == html.ElementNode && n.Data == "body" })
+			body.AppendChild(input)
+		}, true},
+		{"email owned elsewhere", func(_ *html.Node, form *html.Node) {
+			input := findDescendant(form, func(n *html.Node) bool { return n.Type == html.ElementNode && attrValue(n, "name") == "email" })
+			setRestockAttribute(input, "form", "other")
+		}, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			view := soldOutProduct(selected)
+			ctx := i18n.WithLocale(t.Context(), i18n.En)
+			var body strings.Builder
+			if err := Product(ProductMeta(&view), &view).Render(ctx, &body); err != nil {
+				t.Fatal(err)
+			}
+			doc, err := html.Parse(strings.NewReader(body.String()))
+			if err != nil {
+				t.Fatal(err)
+			}
+			form := findDescendant(doc, func(n *html.Node) bool {
+				return n.Type == html.ElementNode && n.Data == "form" && attrValue(n, "id") == "restock"
+			})
+			if form == nil {
+				t.Fatal("rendered product has no restock form")
+			}
+			tc.change(doc, form)
+			err = restockFormProblem(doc, selected, i18n.T(ctx, i18n.KeyRestockSubmit))
+			if (err != nil) != tc.refused {
+				t.Errorf("oracle refusal = %v, want refused=%t", err, tc.refused)
+			}
+		})
+	}
+}
+
+func setRestockAttribute(n *html.Node, key, value string) {
+	for i, attr := range n.Attr {
+		if attr.Key == key {
+			n.Attr[i].Val = value
+			return
+		}
+	}
+	n.Attr = append(n.Attr, html.Attribute{Key: key, Val: value})
 }
 
 func TestWishlistUsesSignInNavigationUntilAuthenticated(t *testing.T) {
