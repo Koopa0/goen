@@ -15003,7 +15003,8 @@ CROSS JOIN LATERAL (
              - o.discount_cents + o.shipping_cents + o.tax_cents) / 100 * 100)::bigint
                AS amount_cents
 ) f
-WHERE order_is_committed(o.id)
+WHERE (order_is_committed(o.id)
+       OR (o.fulfillment_status = 'pending' AND order_amount_owed(o.id) = 0))
   AND f.amount_cents > 0
   AND f.funded_at < now() - $1::interval
   AND NOT EXISTS (SELECT 1 FROM invoice_operations op
@@ -15021,11 +15022,13 @@ type UninvoicedOrdersRow struct {
 	Total       int64
 }
 
-// Committed orders with money received and no invoice operation at all, read
-// without trusting the outbox message that should have claimed one: `store` can
-// delete or squat it. A sale with nothing to file, and one with a live invoice
-// filed before operations existed, owe no claim. Newest first, so the order that
-// just went wrong is on top; the total says how many more there are.
+// Orders with money received and no invoice operation at all, read without
+// trusting the outbox message that should have claimed one: `store` can delete
+// or squat it. Money received is a committed order, or a pending one store
+// credit paid in full at checkout, whose placed_at is then when it was paid. A
+// sale with nothing to file, and one with a live invoice filed before
+// operations existed, owe no claim. Newest first, so the order that just went
+// wrong is on top; the total says how many more there are.
 func (q *Queries) UninvoicedOrders(ctx context.Context, olderThan pgtype.Interval) ([]UninvoicedOrdersRow, error) {
 	rows, err := q.db.Query(ctx, uninvoicedOrders, olderThan)
 	if err != nil {

@@ -109,8 +109,8 @@ func (s *Store) WorkerHealth(ctx context.Context, messages *outbox.Store) (admin
 	return view, nil
 }
 
-// UninvoicedOrders is every committed order paid more than olderThan ago with
-// no invoice operation, newest first and bounded, and how many there are.
+// UninvoicedOrders is every order paid more than olderThan ago with no invoice
+// operation, newest first and bounded, and how many there are.
 func (s *Store) UninvoicedOrders(
 	ctx context.Context, olderThan time.Duration,
 ) ([]admin.UninvoicedOrder, int64, error) {

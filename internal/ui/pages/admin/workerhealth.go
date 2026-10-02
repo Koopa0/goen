@@ -37,8 +37,8 @@ type WorkerHealthView struct {
 	Notice          string
 	OpenRefundCount int64
 	OpenRefunds     []OpenRefund
-	// UninvoicedCount is every committed order paid a while ago with no invoice
-	// operation; Uninvoiced is a bounded sample of them.
+	// UninvoicedCount is every order paid a while ago with no invoice operation;
+	// Uninvoiced is a bounded sample of them.
 	UninvoicedCount int64
 	Uninvoiced      []UninvoicedOrder
 
