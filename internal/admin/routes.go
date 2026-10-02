@@ -71,13 +71,4 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 	mux.HandleFunc("POST /admin/home/banner/{id}/active", ac.RequireStaff(h.SetBannerActive))
 	mux.HandleFunc("POST /admin/home/{id}/active", ac.RequireStaff(h.SetHeroSlideActive))
 	mux.HandleFunc("POST /admin/home/{id}/promote", ac.RequireStaff(h.PromoteHeroSlide))
-	mux.HandleFunc("GET /admin/campaigns", ac.RequireStaff(h.Campaigns))
-	mux.HandleFunc("POST /admin/campaigns", ac.RequireStaff(h.CreateCampaign))
-	mux.HandleFunc("GET /admin/campaigns/{slug}", ac.RequireStaff(h.EditCampaign))
-	mux.HandleFunc("POST /admin/campaigns/{slug}/products", ac.RequireStaff(h.FeatureProduct))
-	mux.HandleFunc("POST /admin/campaigns/{slug}/tone", ac.RequireStaff(h.SetCampaignTone))
-	mux.HandleFunc("POST /admin/campaigns/{slug}/image", ac.RequireStaff(h.SetCampaignImage))
-	mux.HandleFunc("POST /admin/campaigns/{slug}/image/remove", ac.RequireStaff(h.RemoveCampaignImage))
-	mux.HandleFunc("POST /admin/campaigns/{slug}/active", ac.RequireStaff(h.SetCampaignActive))
-	mux.HandleFunc("POST /admin/campaigns/{slug}/window", ac.RequireStaff(h.SetCampaignWindow))
 }

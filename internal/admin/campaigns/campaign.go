@@ -1,4 +1,6 @@
-package admin
+// Package campaigns is the back office's sale campaigns: creating one, its
+// dates, tone and header image, and which products it features.
+package campaigns
 
 import (
 	"context"
@@ -10,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/catalog"
@@ -22,11 +25,39 @@ import (
 	"github.com/koopa0/goen/internal/web"
 )
 
-const MaxCampaignDays = 90
+var (
+	ErrNotFound = errors.New("campaigns: not found")
+	ErrInvalid  = errors.New("campaigns: invalid input")
+	// ErrRefused is a write the database declined; its message is the database's
+	// own, because that names the rule.
+	ErrRefused = errors.New("campaigns: refused")
+)
 
-const MaxCampaignTitleRunes = 60
+type Store struct {
+	pool *pgxpool.Pool
+	q    *db.Queries
+}
 
-type CampaignForm struct {
+func NewStore(pool *pgxpool.Pool) *Store {
+	if pool == nil {
+		panic("campaigns: NewStore requires a pool")
+	}
+	return &Store{pool: pool, q: db.New(pool)}
+}
+
+// position is a reader's place in the list. The query builds it as PageCursor,
+// so its fields are the ordering values and nothing else.
+type position struct {
+	Rank bool
+	ID   uuid.UUID
+	At   time.Time
+}
+
+const MaxDays = 90
+
+const MaxTitleRunes = 60
+
+type Form struct {
 	Slug    string
 	Title   string
 	TitleEn string
@@ -35,22 +66,22 @@ type CampaignForm struct {
 	Tone string
 }
 
-func (f *CampaignForm) Validate(ctx context.Context) map[string]string {
+func (f *Form) Validate(ctx context.Context) map[string]string {
 	f.Slug = strings.ToLower(strings.TrimSpace(f.Slug))
 	f.Title = strings.TrimSpace(f.Title)
 	f.TitleEn = strings.TrimSpace(f.TitleEn)
 
 	errs := map[string]string{}
-	if !slugFormat.MatchString(f.Slug) {
+	if !web.ValidSlug(f.Slug) {
 		errs["slug"] = i18n.T(ctx, i18n.KeyFormSlugFormat)
 	}
-	if f.Title == "" || utf8.RuneCountInString(f.Title) > MaxCampaignTitleRunes {
+	if f.Title == "" || utf8.RuneCountInString(f.Title) > MaxTitleRunes {
 		errs["title"] = i18n.T(ctx, i18n.KeyFormCampaignTitle)
 	}
-	if utf8.RuneCountInString(f.TitleEn) > MaxCampaignTitleRunes {
+	if utf8.RuneCountInString(f.TitleEn) > MaxTitleRunes {
 		errs["title_en"] = i18n.T(ctx, i18n.KeyAdminCampaignTitleEnLength)
 	}
-	if f.Days < 1 || f.Days > MaxCampaignDays {
+	if f.Days < 1 || f.Days > MaxDays {
 		errs["days"] = i18n.T(ctx, i18n.KeyFormCampaignDays)
 	}
 	f.Tone = strings.TrimSpace(f.Tone)
@@ -63,14 +94,14 @@ func (f *CampaignForm) Validate(ctx context.Context) map[string]string {
 	return errs
 }
 
-func (s *Store) Campaigns(ctx context.Context, after ...string) (admin.CampaignsView, error) {
-	scope := "/admin/campaigns"
-	cursor := readPageCursor(scope, after)
-	rows, err := s.q.AdminCampaigns(ctx, db.AdminCampaignsParams{HasCursor: cursor.Valid, AfterRank: cursor.Rank, AfterAt: cursor.At, AfterID: cursor.ID, RowLimit: PageLimit})
+func (s *Store) List(ctx context.Context, after ...string) (admin.CampaignsView, error) {
+	const scope = "/admin/campaigns"
+	from, resumed := web.ResumeKeyset(scope, after, func(p position) bool { return p.ID != uuid.Nil })
+	rows, err := s.q.AdminCampaigns(ctx, db.AdminCampaignsParams{HasCursor: resumed, AfterRank: from.Rank, AfterAt: from.At, AfterID: from.ID, RowLimit: web.PageLimit})
 	if err != nil {
 		return admin.CampaignsView{}, fmt.Errorf("read campaigns: %w", err)
 	}
-	rows, bound := pageBound(cursor, scope, rows, PageSize, func(r *db.AdminCampaignsRow) string { return r.PageCursor })
+	rows, bound := web.PageBound(scope, resumed, rows, web.PageSize, func(r *db.AdminCampaignsRow) string { return r.PageCursor })
 	view := admin.CampaignsView{ListBound: bound}
 	for i := range rows {
 		c := &rows[i]
@@ -84,9 +115,9 @@ func (s *Store) Campaigns(ctx context.Context, after ...string) (admin.Campaigns
 	return view, nil
 }
 
-const MaxCampaignAltRunes = 200
+const MaxAltRunes = 200
 
-func (s *Store) CampaignImage(ctx context.Context, slug string) (admin.Header, string, error) {
+func (s *Store) Image(ctx context.Context, slug string) (admin.Header, string, error) {
 	row, err := s.q.AdminCampaignImage(ctx, slug)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -99,7 +130,7 @@ func (s *Store) CampaignImage(ctx context.Context, slug string) (admin.Header, s
 	}, row.Tone, nil
 }
 
-func (s *Store) CampaignDetail(ctx context.Context, slug string) (admin.CampaignDetail, error) {
+func (s *Store) Detail(ctx context.Context, slug string) (admin.CampaignDetail, error) {
 	row, err := s.q.AdminCampaign(ctx, slug)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -114,12 +145,12 @@ func (s *Store) CampaignDetail(ctx context.Context, slug string) (admin.Campaign
 	}, nil
 }
 
-// SetCampaignWindow moves a campaign's dates, typed on the shop's clock. Create
-// bounds a campaign at MaxCampaignDays, so editing may not stretch it past that.
-func (s *Store) SetCampaignWindow(ctx context.Context, slug, startsAt, endsAt string) (map[string]string, error) {
+// SetWindow moves a campaign's dates, typed on the shop's clock. Create
+// bounds a campaign at MaxDays, so editing may not stretch it past that.
+func (s *Store) SetWindow(ctx context.Context, slug, startsAt, endsAt string) (map[string]string, error) {
 	starts, okStart := shoptime.ParseInputMinute(startsAt)
 	ends, okEnd := shoptime.ParseInputMinute(endsAt)
-	if !okStart || !okEnd || !ends.After(starts) || ends.Sub(starts) > MaxCampaignDays*24*time.Hour {
+	if !okStart || !okEnd || !ends.After(starts) || ends.Sub(starts) > MaxDays*24*time.Hour {
 		return map[string]string{"window": i18n.T(ctx, i18n.KeyFormCampaignWindow)}, nil
 	}
 	// Filled inside the transaction, which is before the audit row is encoded.
@@ -151,15 +182,15 @@ func (s *Store) SetCampaignWindow(ctx context.Context, slug, startsAt, endsAt st
 		})
 }
 
-const campaignSearchLimit = 10
+const searchLimit = 10
 
-func (s *Store) SearchCampaignProducts(ctx context.Context, slug, term string) ([]admin.CampaignProduct, error) {
+func (s *Store) SearchProducts(ctx context.Context, slug, term string) ([]admin.CampaignProduct, error) {
 	term = web.SearchTerm(term)
 	if term == "" {
 		return nil, nil
 	}
 	rows, err := s.q.AdminCampaignProductSearch(ctx, db.AdminCampaignProductSearchParams{
-		Locale: string(i18n.FromContext(ctx)), Campaign: slug, EscapedTerm: catalog.EscapeLike(term), RowLimit: campaignSearchLimit,
+		Locale: string(i18n.FromContext(ctx)), Campaign: slug, EscapedTerm: catalog.EscapeLike(term), RowLimit: searchLimit,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("search campaign products: %w", err)
@@ -171,7 +202,7 @@ func (s *Store) SearchCampaignProducts(ctx context.Context, slug, term string) (
 	return out, nil
 }
 
-func (s *Store) SetCampaignTone(ctx context.Context, slug, tone string) error {
+func (s *Store) SetTone(ctx context.Context, slug, tone string) error {
 	tone = strings.TrimSpace(tone)
 	if _, ok := pages.ParseTone(tone); !ok {
 		return fmt.Errorf("%w: unknown tone %q", ErrInvalid, tone)
@@ -192,13 +223,13 @@ func (s *Store) SetCampaignTone(ctx context.Context, slug, tone string) error {
 		})
 }
 
-// SetCampaignImage makes a stored upload the campaign's header. The alt text is
+// SetImage makes a stored upload the campaign's header. The alt text is
 // required: sale_campaigns_image_has_alt refuses an image without it.
-func (s *Store) SetCampaignImage(ctx context.Context, slug, digest, alt, altEn string) error {
+func (s *Store) SetImage(ctx context.Context, slug, digest, alt, altEn string) error {
 	alt, altEn = strings.TrimSpace(alt), strings.TrimSpace(altEn)
-	if alt == "" || utf8.RuneCountInString(alt) > MaxCampaignAltRunes ||
-		utf8.RuneCountInString(altEn) > MaxCampaignAltRunes {
-		return fmt.Errorf("%w: header alt text is required and bounded at %d runes", ErrInvalid, MaxCampaignAltRunes)
+	if alt == "" || utf8.RuneCountInString(alt) > MaxAltRunes ||
+		utf8.RuneCountInString(altEn) > MaxAltRunes {
+		return fmt.Errorf("%w: header alt text is required and bounded at %d runes", ErrInvalid, MaxAltRunes)
 	}
 	return audit.Run(ctx, s.pool, audit.Event{
 		Action: audit.ActionSetCampaignImage, Table: "sale_campaigns", ID: uuid.NullUUID{},
@@ -218,8 +249,8 @@ func (s *Store) SetCampaignImage(ctx context.Context, slug, digest, alt, altEn s
 		})
 }
 
-// ClearCampaignImage removes the header; the media object itself stays.
-func (s *Store) ClearCampaignImage(ctx context.Context, slug string) error {
+// ClearImage removes the header; the media object itself stays.
+func (s *Store) ClearImage(ctx context.Context, slug string) error {
 	return audit.Run(ctx, s.pool, audit.Event{
 		Action: audit.ActionClearCampaignImage, Table: "sale_campaigns", ID: uuid.NullUUID{},
 		Before: map[string]any{"campaign": slug},
@@ -236,7 +267,7 @@ func (s *Store) ClearCampaignImage(ctx context.Context, slug string) error {
 		})
 }
 
-func (s *Store) CreateCampaign(ctx context.Context, f *CampaignForm) (map[string]string, error) {
+func (s *Store) Create(ctx context.Context, f *Form) (map[string]string, error) {
 	if errs := f.Validate(ctx); len(errs) > 0 {
 		return errs, nil
 	}
@@ -258,7 +289,7 @@ func (s *Store) CreateCampaign(ctx context.Context, f *CampaignForm) (map[string
 	return nil, nil
 }
 
-func (s *Store) SetCampaignActive(ctx context.Context, slug string, active bool) error {
+func (s *Store) SetActive(ctx context.Context, slug string, active bool) error {
 	return audit.Run(ctx, s.pool, audit.Event{
 		Action: audit.ActionToggleCampaign, Table: "sale_campaigns", ID: uuid.NullUUID{},
 		Before: map[string]any{"slug": slug}, After: map[string]any{"active": active},
@@ -315,7 +346,7 @@ func (s *Store) UnfeatureProduct(ctx context.Context, campaign, product string) 
 		})
 }
 
-func (s *Store) CampaignProducts(ctx context.Context, slug string) ([]admin.CampaignProduct, error) {
+func (s *Store) Products(ctx context.Context, slug string) ([]admin.CampaignProduct, error) {
 	rows, err := s.q.AdminCampaignProducts(ctx, slug)
 	if err != nil {
 		return nil, fmt.Errorf("read campaign products: %w", err)

@@ -14,6 +14,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/icons"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
+	"github.com/koopa0/goen/internal/web"
 )
 
 const MaxTaxonomyNameRunes = 60
@@ -40,7 +41,7 @@ func (f *TaxonomyForm) Validate(ctx context.Context) map[string]string {
 	f.Parent = strings.ToLower(strings.TrimSpace(f.Parent))
 
 	errs := map[string]string{}
-	if !slugFormat.MatchString(f.Slug) {
+	if !web.ValidSlug(f.Slug) {
 		errs["slug"] = i18n.T(ctx, i18n.KeyFormSlugFormat)
 	}
 	if f.Name == "" || utf8.RuneCountInString(f.Name) > MaxTaxonomyNameRunes {

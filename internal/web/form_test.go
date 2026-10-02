@@ -33,3 +33,24 @@ func TestASearchTermIsTrimmedAndCutToItsBound(t *testing.T) {
 		t.Errorf("a term of %d runes is cut to %d, got %d", maxSearchRunes+20, maxSearchRunes, len([]rune(got)))
 	}
 }
+
+func TestAMalformedCountIsInvalidAndNotZero(t *testing.T) {
+	t.Parallel()
+	for in, want := range map[string]int32{"": 0, "5": 5, "12o": -1, "-3": -1, "1000001": -1} {
+		if got := ParseCountOrInvalid(in); got != want {
+			t.Errorf("ParseCountOrInvalid(%q) = %d, want %d", in, got, want)
+		}
+	}
+}
+
+func TestASlugIsLowerCaseWordsJoinedByHyphens(t *testing.T) {
+	t.Parallel()
+	for in, want := range map[string]bool{
+		"koto-cable": true, "a1": true, "": false, "Koto": false, "a--b": false,
+		"-a": false, "a-": false, "a b": false, "a/b": false,
+	} {
+		if got := ValidSlug(in); got != want {
+			t.Errorf("ValidSlug(%q) = %t, want %t", in, got, want)
+		}
+	}
+}

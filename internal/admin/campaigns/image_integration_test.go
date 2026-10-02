@@ -1,6 +1,6 @@
 //go:build integration
 
-package admin_test
+package campaigns_test
 
 import (
 	"bytes"
@@ -14,7 +14,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/internal/admin"
+	"github.com/koopa0/goen/internal/admin/admintest"
+	"github.com/koopa0/goen/internal/admin/campaigns"
 	"github.com/koopa0/goen/internal/catalog"
 )
 
@@ -42,17 +43,17 @@ func campaignImageRequest(t *testing.T, slug, alt string) *http.Request {
 }
 
 func TestACampaignHeaderIsUploadedShownAndRemoved(t *testing.T) {
-	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
-	h := adminHandlerOver(pool, s)
+	ctx, _ := admintest.StaffContext(t, pool)
+	s := campaigns.NewStore(pool)
+	h := handlerOver(s)
 	slug := "header-" + strings.ReplaceAll(uuid.NewString(), "-", "")[:10]
-	if errs, err := s.CreateCampaign(ctx, &admin.CampaignForm{Slug: slug, Title: "頁首測試", Days: 7}); err != nil || len(errs) > 0 {
+	if errs, err := s.Create(ctx, &campaigns.Form{Slug: slug, Title: "頁首測試", Days: 7}); err != nil || len(errs) > 0 {
 		t.Fatalf("create the campaign: %v %v", errs, err)
 	}
 
 	// Without alt text the picture is refused at that field and nothing is stored.
 	refused := httptest.NewRecorder()
-	h.SetCampaignImage(refused, campaignImageRequest(t, slug, "  ").WithContext(ctx))
+	h.SetImage(refused, campaignImageRequest(t, slug, "  ").WithContext(ctx))
 	if refused.Code != http.StatusUnprocessableEntity ||
 		!strings.Contains(refused.Body.String(), `aria-describedby="c-alt-error"`) {
 		t.Fatalf("no alt answered %d, want 422 with the alt field flagged", refused.Code)
@@ -63,7 +64,7 @@ func TestACampaignHeaderIsUploadedShownAndRemoved(t *testing.T) {
 	}
 
 	ok := httptest.NewRecorder()
-	h.SetCampaignImage(ok, campaignImageRequest(t, slug, "限時優惠商品").WithContext(ctx))
+	h.SetImage(ok, campaignImageRequest(t, slug, "限時優惠商品").WithContext(ctx))
 	if ok.Code != http.StatusSeeOther || ok.Header().Get("Location") != "/admin/campaigns/"+slug+"?ok=1" {
 		t.Fatalf("upload answered %d to %q, want 303 to ?ok=1", ok.Code, ok.Header().Get("Location"))
 	}
@@ -80,7 +81,7 @@ func TestACampaignHeaderIsUploadedShownAndRemoved(t *testing.T) {
 	remove.SetPathValue("slug", slug)
 	remove.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	gone := httptest.NewRecorder()
-	h.RemoveCampaignImage(gone, remove)
+	h.RemoveImage(gone, remove)
 	if gone.Code != http.StatusSeeOther {
 		t.Fatalf("remove answered %d, want 303", gone.Code)
 	}

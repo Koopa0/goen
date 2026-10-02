@@ -12,7 +12,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/google/uuid"
 
@@ -531,7 +530,6 @@ var adminNotices = map[string]i18n.Key{
 	"attachrefused":  i18n.KeyAdminNoticeAttachRefused,
 	"noalt":          i18n.KeyAdminNoticeNoAlt,
 	"badoption":      i18n.KeyAdminNoticeBadOption,
-	"nodiscount":     i18n.KeyAdminNoticeNoDiscount,
 	"refundfailed":   i18n.KeyAdminNoticeRefundFailed,
 	"paidcancel":     i18n.KeyAdminNoticePaidCancel,
 	"refunded":       i18n.KeyAdminNoticeRefunded,
@@ -573,252 +571,6 @@ func newKey() string {
 		return ""
 	}
 	return base64.RawURLEncoding.EncodeToString(b)
-}
-
-// small preserves malformed input as an invalid negative sentinel until the
-// form's Validate method can attribute the refusal. Banner and hero use zero to
-// mean "no end date", so silently collapsing unreadable input to zero would
-// turn a typo into an unbounded promotion.
-func small(s string) int32 {
-	n, ok := web.ParseCount(s)
-	if !ok {
-		return -1
-	}
-	return n
-}
-
-func (h *Handler) Campaigns(w http.ResponseWriter, r *http.Request) {
-	view, err := h.store.Campaigns(r.Context(), r.URL.Query().Get(web.KeysetParam))
-	if err != nil {
-		h.log.ErrorContext(r.Context(), "read campaigns", "error", err)
-		access.ServerError(w, r, h.log)
-		return
-	}
-	view.Notice = noticeFor(r)
-	web.Render(w, r, h.log, http.StatusOK, admin.Campaigns(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageCampaigns)}, view))
-}
-
-func (h *Handler) CreateCampaign(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
-		return
-	}
-	f := &CampaignForm{
-		Slug:    r.PostFormValue("slug"),
-		Title:   r.PostFormValue("title"),
-		TitleEn: r.PostFormValue("title_en"),
-		Days:    small(r.PostFormValue("days")),
-		Tone:    r.PostFormValue("tone"),
-	}
-	errs, err := h.store.CreateCampaign(r.Context(), f)
-	switch {
-	case err != nil:
-		h.log.ErrorContext(r.Context(), "create campaign", "error", err)
-		access.ServerError(w, r, h.log)
-	case len(errs) > 0:
-		view, readErr := h.store.Campaigns(r.Context(), r.URL.Query().Get(web.KeysetParam))
-		if readErr != nil {
-			access.ServerError(w, r, h.log)
-			return
-		}
-		view.Errors = errs
-		view.Draft = admin.CampaignDraft{
-			Slug: f.Slug, Title: f.Title, TitleEn: f.TitleEn, Days: r.PostFormValue("days"), Tone: f.Tone,
-		}
-		web.Render(w, r, h.log, http.StatusUnprocessableEntity, admin.Campaigns(
-			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageCampaigns)}, view))
-	default:
-		//nolint:gosec // G710: slug matched slugFormat in Validate
-		http.Redirect(w, r, "/admin/campaigns/"+f.Slug+"?ok=1", http.StatusSeeOther)
-	}
-}
-
-func (h *Handler) EditCampaign(w http.ResponseWriter, r *http.Request) {
-	h.renderCampaign(w, r, http.StatusOK, noticeFor(r), nil)
-}
-
-func (h *Handler) renderCampaign(w http.ResponseWriter, r *http.Request, status int, notice string, errs map[string]string) {
-	slug := r.PathValue("slug")
-	products, err := h.store.CampaignProducts(r.Context(), slug)
-	if err != nil {
-		h.log.ErrorContext(r.Context(), "read campaign products", "error", err)
-		access.ServerError(w, r, h.log)
-		return
-	}
-	image, tone, err := h.store.CampaignImage(r.Context(), slug)
-	if err != nil {
-		if errors.Is(err, ErrNotFound) {
-			access.NotFound(w, r, h.log)
-			return
-		}
-		h.log.ErrorContext(r.Context(), "read campaign image", "error", err)
-		access.ServerError(w, r, h.log)
-		return
-	}
-	detail, err := h.store.CampaignDetail(r.Context(), slug)
-	if err != nil {
-		h.log.ErrorContext(r.Context(), "read campaign", "error", err)
-		access.ServerError(w, r, h.log)
-		return
-	}
-	if errs["window"] != "" {
-		detail.StartsAtInput, detail.EndsAtInput = r.PostFormValue("starts_at"), r.PostFormValue("ends_at")
-	}
-	term := web.SearchTerm(r.URL.Query().Get("find"))
-	matches, err := h.store.SearchCampaignProducts(r.Context(), slug, term)
-	if err != nil {
-		h.log.ErrorContext(r.Context(), "search campaign products", "error", err)
-		access.ServerError(w, r, h.log)
-		return
-	}
-	web.Render(w, r, h.log, status, admin.CampaignForm(
-		layouts.Page{Title: detail.Title}, admin.CampaignView{
-			Slug: slug, CampaignDetail: detail, Term: term, Matches: matches,
-			Products: products, Notice: notice, Image: image, Tone: tone, Errors: errs,
-		}))
-}
-
-func (h *Handler) SetCampaignWindow(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
-		return
-	}
-	slug := r.PathValue("slug")
-	errs, err := h.store.SetCampaignWindow(r.Context(), slug,
-		r.PostFormValue("starts_at"), r.PostFormValue("ends_at"))
-	switch {
-	case err == nil && len(errs) > 0:
-		h.renderCampaign(w, r, http.StatusUnprocessableEntity, "", errs)
-	case err == nil:
-		//nolint:gosec // G710: slug is the route's own path value
-		http.Redirect(w, r, "/admin/campaigns/"+slug+"?ok=1", http.StatusSeeOther)
-	case errors.Is(err, ErrNotFound):
-		access.NotFound(w, r, h.log)
-	default:
-		h.log.ErrorContext(r.Context(), "set campaign window", "error", err, "slug", slug)
-		access.ServerError(w, r, h.log)
-	}
-}
-
-func (h *Handler) SetCampaignTone(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
-		return
-	}
-	slug := r.PathValue("slug")
-	switch err := h.store.SetCampaignTone(r.Context(), slug, r.PostFormValue("tone")); {
-	case err == nil:
-		//nolint:gosec // G710: slug is the route's own path value
-		http.Redirect(w, r, "/admin/campaigns/"+slug+"?ok=1", http.StatusSeeOther)
-	case errors.Is(err, ErrNotFound):
-		access.NotFound(w, r, h.log)
-	case errors.Is(err, ErrInvalid):
-		h.renderCampaign(w, r, http.StatusUnprocessableEntity, "", map[string]string{"tone": i18n.T(r.Context(), i18n.KeyFormToneUnknown)})
-	default:
-		h.log.ErrorContext(r.Context(), "set campaign tone", "error", err, "slug", slug)
-		access.ServerError(w, r, h.log)
-	}
-}
-
-func (h *Handler) SetCampaignImage(w http.ResponseWriter, r *http.Request) {
-	slug := r.PathValue("slug")
-	obj, err := h.images.StoreUpload(w, r, "image")
-	if err != nil {
-		h.log.WarnContext(r.Context(), "campaign image upload", "error", err, "slug", slug)
-		reason := i18n.KeyAdminNoticeUploadFailed
-		switch {
-		case errors.Is(err, media.ErrTooLarge):
-			reason = i18n.KeyAdminNoticeTooBig
-		case errors.Is(err, media.ErrNotAnImage):
-			reason = i18n.KeyAdminNoticeNotImage
-		}
-		h.renderCampaign(w, r, http.StatusUnprocessableEntity, "", map[string]string{"image": i18n.T(r.Context(), reason)})
-		return
-	}
-	err = h.store.SetCampaignImage(r.Context(), slug, obj.Digest, r.PostFormValue("alt"), r.PostFormValue("alt_en"))
-	switch {
-	case err == nil:
-		//nolint:gosec // G710: slug is the route's own path value
-		http.Redirect(w, r, "/admin/campaigns/"+slug+"?ok=1", http.StatusSeeOther)
-	case errors.Is(err, ErrNotFound):
-		access.NotFound(w, r, h.log)
-	case errors.Is(err, ErrInvalid):
-		field, reason := "alt", i18n.KeyFormHeroAlt
-		if utf8.RuneCountInString(strings.TrimSpace(r.PostFormValue("alt_en"))) > MaxCampaignAltRunes {
-			field, reason = "alt_en", i18n.KeyFormCampaignAltEnLong
-		}
-		h.renderCampaign(w, r, http.StatusUnprocessableEntity, "", map[string]string{field: i18n.T(r.Context(), reason)})
-	default:
-		h.log.ErrorContext(r.Context(), "set campaign image", "error", err, "slug", slug)
-		access.ServerError(w, r, h.log)
-	}
-}
-
-func (h *Handler) RemoveCampaignImage(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
-		return
-	}
-	slug := r.PathValue("slug")
-	switch err := h.store.ClearCampaignImage(r.Context(), slug); {
-	case err == nil:
-		//nolint:gosec // G710: slug is the route's own path value
-		http.Redirect(w, r, "/admin/campaigns/"+slug+"?ok=1", http.StatusSeeOther)
-	case errors.Is(err, ErrNotFound):
-		access.NotFound(w, r, h.log)
-	default:
-		h.log.ErrorContext(r.Context(), "remove campaign image", "error", err, "slug", slug)
-		access.ServerError(w, r, h.log)
-	}
-}
-
-func (h *Handler) FeatureProduct(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
-		return
-	}
-	slug := r.PathValue("slug")
-	var err error
-	if r.PostFormValue("action") == "remove" {
-		err = h.store.UnfeatureProduct(r.Context(), slug, r.PostFormValue("product"))
-	} else {
-		err = h.store.FeatureProduct(r.Context(), slug, r.PostFormValue("product"))
-	}
-	if err != nil {
-		h.log.WarnContext(r.Context(), "feature product", "campaign", slug, "error", err)
-		back := "/admin/campaigns/" + slug
-		if errors.Is(err, ErrNotFound) {
-			//nolint:gosec // G710: slug is the route's own path value
-			http.Redirect(w, r, back+"?refused=1", http.StatusSeeOther)
-			return
-		}
-		// sale_campaign_needs_discount: nothing is marked down.
-		//nolint:gosec // G710: slug is the route's own path value
-		http.Redirect(w, r, back+"?nodiscount=1", http.StatusSeeOther)
-		return
-	}
-	//nolint:gosec // G710: slug is the route's own path value
-	http.Redirect(w, r, "/admin/campaigns/"+slug+"?ok=1", http.StatusSeeOther)
-}
-
-func (h *Handler) SetCampaignActive(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
-		return
-	}
-	slug := r.PathValue("slug")
-	back := "/admin/campaigns"
-	if r.PostFormValue("back") == "detail" {
-		back += "/" + slug
-	}
-	if err := h.store.SetCampaignActive(r.Context(), slug,
-		r.PostFormValue("active") == "true"); err != nil {
-		h.log.WarnContext(r.Context(), "set campaign active", "error", err)
-		http.Redirect(w, r, back+"?refused=1", http.StatusSeeOther) //nolint:gosec // G710: slug is the route's own path value
-		return
-	}
-	http.Redirect(w, r, back+"?ok=1", http.StatusSeeOther) //nolint:gosec // G710: slug is the route's own path value
 }
 
 func (h *Handler) Movements(w http.ResponseWriter, r *http.Request) {
@@ -967,7 +719,7 @@ func (h *Handler) CreateBanner(w http.ResponseWriter, r *http.Request) {
 		MessageEn:  r.PostFormValue("message_en"),
 		ShortEn:    r.PostFormValue("short_en"),
 		CTALabelEn: r.PostFormValue("cta_label_en"),
-		Days:       small(r.PostFormValue("days")),
+		Days:       web.ParseCountOrInvalid(r.PostFormValue("days")),
 	}
 	errs, err := h.store.CreateBanner(r.Context(), f)
 	switch {
@@ -1045,7 +797,7 @@ func (h *Handler) CreateHeroSlide(w http.ResponseWriter, r *http.Request) {
 		PrimaryLabelEn: r.PostFormValue("primary_label_en"),
 		SecondLabelEn:  r.PostFormValue("second_label_en"),
 		ImageAltEn:     r.PostFormValue("alt_en"),
-		Days:           small(r.PostFormValue("days")),
+		Days:           web.ParseCountOrInvalid(r.PostFormValue("days")),
 	}
 	if errs := f.Validate(r.Context()); len(errs) > 0 {
 		h.rejectHeroSlide(w, r, f, errs)
