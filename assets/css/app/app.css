@@ -5331,6 +5331,7 @@ a.goen-pager__step:hover {
    card. Quiet, and deliberately present — a customer about to leave the site for
    a card form is being asked to trust the handover. */
 .goen-checkout__note,
+.goen-cart__freedelivery,
 .goen-pay__assurance {
   color: var(--fg-muted);
   font-size: var(--fs-12);
@@ -5580,6 +5581,7 @@ a.goen-pager__step:hover {
   }
 
   .goen-cart__summary .ui-alert,
+  .goen-cart__summary .goen-cart__freedelivery,
   .goen-cart__summary .goen-notice {
     flex: 1 1 100%;
     order: -1;
@@ -6026,6 +6028,12 @@ a.goen-pager__step:hover {
 
 .goen-account__ordercol {
   display: none;
+}
+
+.goen-account__orderpay {
+  font-size: var(--fs-14);
+  font-weight: var(--fw-medium);
+  margin-inline-start: 0.5rem;
 }
 
 .goen-account__ordermeta {

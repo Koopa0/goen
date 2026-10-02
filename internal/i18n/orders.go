@@ -91,6 +91,11 @@ var (
 		En:     "Paid with store credit",
 	})
 
+	KeyOrderPayment = key("order.payment", Message{ZhHant: "付款狀態", En: "Payment"})
+
+	// What is left to pay once store credit has taken its share.
+	KeyOrderAmountDue = key("order.due", Message{ZhHant: "應付", En: "Amount due"})
+
 	KeyOrderNotFound = key("order.notfound", Message{ZhHant: "找不到這筆訂單", En: "Order not found"})
 
 	KeyOrderNotYours = key("order.notyours", Message{

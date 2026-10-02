@@ -36,6 +36,11 @@ func awaitingPayment(status FulfillmentStatus, committed bool, owedCents int64) 
 	return status == FulfillmentPending && !committed && owedCents > 0
 }
 
+// AwaitingPayment reports whether the order still needs paying.
+func (o AccountOrder) AwaitingPayment() bool {
+	return awaitingPayment(o.Status, o.Committed, o.OwedCents)
+}
+
 // StatusText is the fulfilment state in the chrome language.
 func (o AccountOrder) StatusText(ctx context.Context) string {
 	switch o.Status {
@@ -116,6 +121,9 @@ type AccountView struct {
 	Notice          string
 	GoogleLinked    bool
 	CanUnlinkGoogle bool
+	// PaymentsEnabled is whether a payment can be started here at all, which a
+	// 付款 link in the order list needs to be true.
+	PaymentsEnabled bool
 	// AddressDraft and AddressErrors are a refused new address: what was typed
 	// and why each control was refused. Both are nil on a plain visit.
 	AddressDraft  *AddressDraft

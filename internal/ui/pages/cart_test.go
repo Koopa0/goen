@@ -473,7 +473,7 @@ func TestOnlyAnOrderThatOwesMoneyIsOfferedPayment(t *testing.T) {
 			v := &OrderView{
 				Number: "GO-260101-000009", Status: tt.status,
 				SubtotalCents: 100000, ShippingCents: 6000, ShippingName: "宅配",
-				Committed: tt.committed, OwedCents: tt.owed,
+				Committed: tt.committed, OwedCents: tt.owed, PaymentsEnabled: true,
 			}
 			html := renderToString(t, Order(layouts.Page{Title: "訂單"}, v))
 
@@ -1354,5 +1354,145 @@ func TestTheCheckoutFormIsCheckedByTheServerAndFocusesTheFirstRefusal(t *testing
 	}
 	if !strings.Contains(string(src), `form[data-focus-refused] :is(input, select, textarea, button)[aria-invalid="true"]`) {
 		t.Error("the script does not focus the first refused control of a refused checkout")
+	}
+}
+
+// TestWithoutPaymentsTheOrderPageLeadsNowhereNearThePayPage holds the other half
+// of a loop: the pay page of a shop that takes no payment links to the order, so
+// the order must not link back, and the pay page must still offer a way out.
+func TestWithoutPaymentsTheOrderPageLeadsNowhereNearThePayPage(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+
+	unpaid := &OrderView{
+		Number: "GO-260101-000009", Status: FulfillmentPending,
+		SubtotalCents: 100000, ShippingCents: 6000, ShippingName: "宅配", OwedCents: 106000,
+	}
+	html := renderToString(t, Order(layouts.Page{Title: "訂單"}, unpaid))
+	if strings.Contains(html, "/orders/GO-260101-000009/pay") {
+		t.Error("the order page links to a payment page the shop cannot serve")
+	}
+	if !strings.Contains(html, "尚未付款") {
+		t.Error("the order page no longer says the order is unpaid")
+	}
+
+	pay := renderToString(t, Pay(PayMeta(ctx, "GO-260101-000009"), PayView{Number: "GO-260101-000009"}))
+	if !strings.Contains(pay, `href="/orders/GO-260101-000009"`) || !strings.Contains(pay, `href="/contact"`) {
+		t.Errorf("the pay page of a shop with no payments offers no way out:\n%s", pay)
+	}
+}
+
+// TestTheOrderPageStatesItsOwnState holds the eyebrow, the payment row and the
+// amount due, each from the order's own facts.
+func TestTheOrderPageStatesItsOwnState(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	render := func(v *OrderView) string {
+		v.Number = "GO-260101-000020"
+		return renderToString(t, Order(layouts.Page{Title: "訂單"}, v))
+	}
+
+	delivered := render(&OrderView{Status: FulfillmentDelivered, Committed: true, SubtotalCents: 100000, OwedCents: 100000})
+	if !strings.Contains(delivered, `goen-pagehead__eyebrow">已送達<`) {
+		t.Error("a delivered order's eyebrow does not say it was delivered")
+	}
+	if !strings.Contains(delivered, "付款狀態") || !strings.Contains(delivered, "付款完成") {
+		t.Error("a delivered order does not say it is paid")
+	}
+
+	for _, tt := range []struct {
+		name string
+		view OrderView
+		want PaymentState
+	}{
+		{"unpaid", OrderView{Status: FulfillmentPending, OwedCents: 100}, PaymentAwaiting},
+		{"captured", OrderView{Status: FulfillmentPending, Committed: true, OwedCents: 100}, PaymentPaid},
+		{"funded by credit", OrderView{Status: FulfillmentPending}, PaymentPaid},
+		{"cancelled before paying", OrderView{Status: FulfillmentCancelled, OwedCents: 100}, PaymentNone},
+		{"cancelled and refunded", OrderView{
+			Status: FulfillmentCancelled, Timeline: []OrderEvent{{Kind: "cancelled"}, {Kind: "refunded"}},
+		}, PaymentRefunded},
+		{"delivered with a partial refund", OrderView{
+			Status: FulfillmentDelivered, Committed: true, Timeline: []OrderEvent{{Kind: "refunded"}},
+		}, PaymentPaid},
+	} {
+		if got := tt.view.PaymentState(); got != tt.want {
+			t.Errorf("%s: payment state = %q, want %q", tt.name, got, tt.want)
+		}
+	}
+
+	credited := render(&OrderView{
+		Status: FulfillmentPending, SubtotalCents: 100000, ShippingCents: 6000, CreditCents: 106000, OwedCents: 0,
+	})
+	credit := strings.Index(credited, i18n.T(ctx, i18n.KeyOrderCreditApplied))
+	due := strings.Index(credited, i18n.T(ctx, i18n.KeyOrderAmountDue))
+	if credit < 0 || due < 0 || credit > due {
+		t.Error("the store credit does not sit above the amount due")
+	}
+	if !strings.Contains(credited[due:], "NT$0") {
+		t.Error("a fully credited order does not say NT$0 is due")
+	}
+}
+
+// TestTheAccountListOffersToPayAnUnpaidOrderWhereThatCanBeDone holds the 付款
+// action: only for an order that owes, only where payment is possible.
+func TestTheAccountListOffersToPayAnUnpaidOrderWhereThatCanBeDone(t *testing.T) {
+	t.Parallel()
+	view := func(enabled bool) *AccountView {
+		return &AccountView{
+			PaymentsEnabled: enabled,
+			Orders: []AccountOrder{
+				{Number: "GO-260101-000011", Status: FulfillmentPending, OwedCents: 100},
+				{Number: "GO-260101-000010", Status: FulfillmentPending, Committed: true, OwedCents: 100},
+			},
+		}
+	}
+	on := renderToString(t, Account(AccountMeta(t.Context()), view(true)))
+	if !strings.Contains(on, `href="/orders/GO-260101-000011/pay"`) {
+		t.Error("an unpaid order has no 付款 action")
+	}
+	if strings.Contains(on, `href="/orders/GO-260101-000010/pay"`) {
+		t.Error("a paid order is offered payment")
+	}
+	if off := renderToString(t, Account(AccountMeta(t.Context()), view(false))); strings.Contains(off, "/orders/GO-260101-000011/pay") {
+		t.Error("an order is offered payment where the shop takes none")
+	}
+}
+
+// TestTheCartRecoveryPageGoesHome holds 回到商店 to its word: it was the page
+// the shopper was trying to reach, which is this page's own failure.
+func TestTheCartRecoveryPageGoesHome(t *testing.T) {
+	t.Parallel()
+	html := renderToString(t, CartRecovery(CartRecoveryMeta(t.Context()), CartRecoveryView{Next: "/account", Notice: "n", Retry: "r"}))
+	back := tagCarrying(t, html, "notice__back")
+	if !strings.Contains(back, `href="/"`) {
+		t.Errorf("回到商店 does not go to the home page: %s", back)
+	}
+}
+
+// TestTheCartSaysAboutFreeDeliveryOnlyInsideTheSummary holds that the line lives
+// in #cart-summary, the one region a quantity update replaces, so it cannot go
+// stale after a change.
+func TestTheCartSaysAboutFreeDeliveryOnlyInsideTheSummary(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	lines := []CartLine{{VariantID: "v", Slug: "s", Name: "x", Quantity: 1, UnitCents: 100}}
+
+	short := CartView{Lines: lines, SubtotalCents: 100,
+		FreeDelivery: FreeDelivery{Kind: FreeDeliveryShort, ShortfallCents: 290000}}
+	html := renderToString(t, Cart(CartMeta(ctx), short))
+	at := strings.Index(html, `id="cart-summary"`)
+	line := strings.Index(html, "再 NT$2,900 即享免運")
+	if at < 0 || line < at {
+		t.Error("the free-delivery line is not inside #cart-summary")
+	}
+
+	reached := CartView{Lines: lines, FreeDelivery: FreeDelivery{Kind: FreeDeliveryReached}}
+	if !strings.Contains(renderToString(t, Cart(CartMeta(ctx), reached)), "已享免運") {
+		t.Error("a cart that already has free delivery does not say so")
+	}
+	silent := CartView{Lines: lines}
+	if strings.Contains(renderToString(t, Cart(CartMeta(ctx), silent)), "免運") {
+		t.Error("a cart whose methods disagree says something about free delivery anyway")
 	}
 }

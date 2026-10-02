@@ -20,6 +20,18 @@ var (
 		En:     "Calculated at checkout",
 	})
 
+	// %s is how much more the cart needs. Said only where every delivery method
+	// the checkout offers turns free at one amount.
+	KeyCartFreeDeliveryShort = key("cart.freedelivery.short", Message{
+		ZhHant: "再 %s 即享免運",
+		En:     "Add %s more for free delivery",
+	})
+
+	KeyCartFreeDeliveryReached = key("cart.freedelivery.reached", Message{
+		ZhHant: "已享免運",
+		En:     "Free delivery applies",
+	})
+
 	KeyCartStockShort = key("cart.stock.short", Message{
 		ZhHant: "有商品的庫存不足,請先調整數量再結帳。",
 		En:     "Some items are short of stock. Adjust the quantities before checking out.",
