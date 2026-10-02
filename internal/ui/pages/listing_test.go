@@ -560,3 +560,36 @@ func TestAPartialListingNeverTakesFocusAndTheLatestChangeWins(t *testing.T) {
 		}
 	}
 }
+
+// A search offers the listing's sort control, best match first, and a page of
+// results keeps the chosen order in every pager link.
+func TestSearchOffersTheListingSortAndKeepsItAcrossPages(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	view := SearchView{Query: "pro", Products: shelf(2), Total: 60, Page: 1, PageSize: 24, Sort: "price_asc"}
+	html := renderComponent(t, ctx, Search(SearchMeta(ctx, "pro"), view))
+	for _, want := range []string{
+		`hx-get="/search"`, `hx-target="#search-results"`, `<input type="hidden" name="q" value="pro">`,
+		`<select class="ui-select" id="sort" name="sort">`,
+		`<option value="">Best match</option>`, `<option value="price_asc" selected>Price, low to high</option>`,
+		`href="/search?q=pro&amp;sort=price_asc&amp;page=2"`,
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("the search lacks %q:\n%s", want, html)
+		}
+	}
+}
+
+// A search that found nothing offers the newest products besides the departments.
+func TestAnEmptySearchOffersTheNewestProducts(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	newest := shelf(2)
+	html := renderComponent(t, ctx, Search(SearchMeta(ctx, "zzqxv"), SearchView{Query: "zzqxv", Newest: newest}))
+	if !strings.Contains(html, `<h2 class="goen-listing__subhead">Newest products</h2>`) || !strings.Contains(html, newest[0].Name) {
+		t.Errorf("the empty search does not show the newest products:\n%s", html)
+	}
+	if strings.Contains(html, `name="sort"`) {
+		t.Error("an empty search offers a sort control with nothing to sort")
+	}
+}

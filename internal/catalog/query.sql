@@ -176,7 +176,8 @@ WHERE p.status = 'active'
 -- A category matches by its own name or an ancestor's, so searching a
 -- department finds what is filed under its sub-categories.
 -- @patterns holds one pattern per term; the caller escapes %, _ and \ in each
--- before binding, and @exact_pattern is the whole query.
+-- before binding, and @exact_pattern is the whole query. No patterns matches
+-- every active product, which is how the newest are read.
 -- name: SearchProducts :many
 WITH RECURSIVE category_match AS (
     SELECT t.pattern, c.id
@@ -260,17 +261,24 @@ WHERE p.status = 'active'
       )
   )
 ORDER BY
+    -- A chosen sort leads and relevance breaks its ties; the default is
+    -- relevance alone, which is the zero value of @sort.
+    CASE WHEN @sort::text = 'price_asc'  THEN mv.price_cents END ASC,
+    CASE WHEN @sort::text = 'price_desc' THEN mv.price_cents END DESC,
+    CASE WHEN @sort::text = 'rating'     THEN coalesce(rv.rating, 0) END DESC,
     -- Field relevance is explicit; repeated words, sales and ratings do not change it.
-    -- The exact tiers compare the whole query; a name that holds every term
-    -- leads one that holds only some, then category, SKU, brand and summary
-    -- follow on any term.
+    -- The exact tiers compare the whole query; a name that holds the whole query
+    -- leads one that holds every term in another order, which leads one that
+    -- holds only some, then category, SKU, brand and summary follow on any term.
     CASE
         WHEN EXISTS (
             SELECT 1 FROM product_variants exact_sku
             WHERE exact_sku.product_id = p.id AND exact_sku.is_active
               AND exact_sku.sku ILIKE @exact_pattern::text
-        ) THEN 8
-        WHEN p.name ILIKE @exact_pattern::text OR coalesce(p.name_en, '') ILIKE @exact_pattern::text THEN 7
+        ) THEN 9
+        WHEN p.name ILIKE @exact_pattern::text OR coalesce(p.name_en, '') ILIKE @exact_pattern::text THEN 8
+        WHEN p.name ILIKE '%' || @exact_pattern::text || '%'
+             OR coalesce(p.name_en, '') ILIKE '%' || @exact_pattern::text || '%' THEN 7
         WHEN NOT EXISTS (
             SELECT 1 FROM unnest(@patterns::text[]) AS t(pattern)
             WHERE NOT (p.name ILIKE t.pattern OR coalesce(p.name_en, '') ILIKE t.pattern)

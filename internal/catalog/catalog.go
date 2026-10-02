@@ -21,12 +21,13 @@ const PageSize = 24
 // MaxQueryRunes bounds a search term.
 const MaxQueryRunes = 100
 
-// Sort is a listing's ordering. The zero value is the default, newest first.
+// Sort is an ordering of a listing or a search. The zero value is the default:
+// newest first on a listing, best match on a search.
 type Sort string
 
 // The orderings a listing offers.
 const (
-	SortNewest    Sort = ""
+	SortDefault   Sort = ""
 	SortPriceAsc  Sort = "price_asc"
 	SortPriceDesc Sort = "price_desc"
 	SortRating    Sort = "rating"
@@ -42,7 +43,7 @@ func ParseSort(s string) Sort {
 	case SortRating:
 		return SortRating
 	default:
-		return SortNewest
+		return SortDefault
 	}
 }
 
