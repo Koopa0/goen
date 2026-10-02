@@ -5,8 +5,7 @@ import (
 	"fmt"
 )
 
-// ErrPolicy is a decision the advertised return policy refuses. The request
-// stays open; nothing is paid.
+// ErrPolicy leaves the request open; nothing is paid.
 var ErrPolicy = errors.New("returns: advertised policy refuses this decision")
 
 // PolicyWindow is the advertised return window a request — or one of its
@@ -47,7 +46,6 @@ func ParsePolicyWindow(s string) (PolicyWindow, bool) {
 	}
 }
 
-// Entitlement is what an approval may claim. It is a closed set.
 type Entitlement string
 
 // The three claims an approval can make. Goodwill is recorded only when every
@@ -102,7 +100,6 @@ func ParseDecisionKind(s string) (DecisionKind, bool) {
 	}
 }
 
-// Status is the return_requests.status this kind writes.
 func (k DecisionKind) Status() Status {
 	if k == DecisionReject {
 		return StatusRejected
@@ -152,7 +149,6 @@ func RequestWindow(lines []LineAssessment) PolicyWindow {
 	return w
 }
 
-// Claim is what a permitted decision may persist.
 type Claim struct {
 	Window      PolicyWindow
 	Entitlement Entitlement
@@ -175,7 +171,6 @@ const (
 	RefuseRejectionReason RefusalKind = "rejection_reason"
 )
 
-// RefusalError is a policy refusal with a stable kind.
 type RefusalError struct {
 	Kind RefusalKind
 }

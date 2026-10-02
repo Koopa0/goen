@@ -18,7 +18,6 @@ import (
 // database is touched.
 var digestPath = regexp.MustCompile(`^[0-9a-f]{64}$`)
 
-// Handler serves stored images.
 type Handler struct {
 	store      *Store
 	log        *slog.Logger
@@ -26,7 +25,6 @@ type Handler struct {
 	uploads    *uploader
 }
 
-// NewHandler returns a Handler over store.
 func NewHandler(store *Store, log *slog.Logger) *Handler {
 	if store == nil || log == nil {
 		panic("media: NewHandler requires a store and a logger")
@@ -39,7 +37,6 @@ func NewHandler(store *Store, log *slog.Logger) *Handler {
 	}
 }
 
-// Serve answers GET /media/{digest}.
 func (h *Handler) Serve(w http.ResponseWriter, r *http.Request) {
 	digest := r.PathValue("digest")
 	if !digestPath.MatchString(digest) {
@@ -107,7 +104,6 @@ func (h *Handler) Serve(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(data)
 }
 
-// writeCacheHeaders sets what both the 200 and the 304 need.
 func writeCacheHeaders(w http.ResponseWriter, etag string) {
 	w.Header().Set("ETag", etag)
 	w.Header().Set("Cache-Control", "public, max-age="+
@@ -115,8 +111,6 @@ func writeCacheHeaders(w http.ResponseWriter, etag string) {
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 }
 
-// StoreUpload takes one image out of a multipart form and stores it. A form
-// with no file in field answers ErrNotAnImage.
 func (h *Handler) StoreUpload(w http.ResponseWriter, r *http.Request, field string) (Object, error) {
 	upload, err := h.OpenUpload(w, r, field)
 	if err != nil {
@@ -153,21 +147,16 @@ func (h *Handler) OpenUpload(w http.ResponseWriter, r *http.Request, field strin
 	return &Upload{file: file, form: r.MultipartForm, uploads: h.uploads}, nil
 }
 
-// Upload is one file a parsed multipart form carried, not yet decoded.
 type Upload struct {
 	file    multipart.File
 	form    *multipart.Form
 	uploads *uploader
 }
 
-// Store decodes, re-encodes and stores the upload, or answers ErrBusy when
-// every upload slot is decoding.
 func (u *Upload) Store(ctx context.Context) (Object, error) {
 	return u.uploads.store(ctx, u.file)
 }
 
-// Close releases the file and the form's temporary files. A nil Upload holds
-// nothing.
 func (u *Upload) Close() {
 	if u == nil {
 		return
@@ -184,9 +173,7 @@ func (u *Upload) Close() {
 // reason to decode more than a couple of images at the same moment.
 const uploadSlots = 2
 
-// uploader normalises and stores uploads, at most uploadSlots at a time.
 type uploader struct {
-	// put is [Store.Put] in every wiring goen has.
 	put   func(ctx context.Context, r io.Reader) (Object, error)
 	slots chan struct{}
 }
@@ -211,7 +198,6 @@ func (u *uploader) store(ctx context.Context, r io.Reader) (Object, error) {
 	return u.put(ctx, r)
 }
 
-// renditionTag distinguishes a rendition's validator from the original's.
 func renditionTag(width int) string {
 	if width == 0 {
 		return ""
@@ -219,12 +205,10 @@ func renditionTag(width int) string {
 	return "-" + strconv.Itoa(width)
 }
 
-// Object reads a stored image's metadata, for a caller attaching it somewhere.
 func (h *Handler) Object(ctx context.Context, digest string) (Object, error) {
 	return h.store.Object(ctx, digest)
 }
 
-// Recent is the back office picker's list.
 func (h *Handler) Recent(ctx context.Context) ([]Object, error) {
 	return h.store.Recent(ctx)
 }

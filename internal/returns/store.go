@@ -15,13 +15,11 @@ import (
 	"github.com/koopa0/goen/internal/shoptime"
 )
 
-// Store is the database side of a customer's return request.
 type Store struct {
 	pool *pgxpool.Pool
 	q    *db.Queries
 }
 
-// NewStore returns a Store over pool.
 func NewStore(pool *pgxpool.Pool) *Store {
 	if pool == nil {
 		panic("returns: NewStore requires a pool")
@@ -29,7 +27,6 @@ func NewStore(pool *pgxpool.Pool) *Store {
 	return &Store{pool: pool, q: db.New(pool)}
 }
 
-// Order is an order as the return form sees it.
 type Order struct {
 	ID          uuid.UUID
 	Number      string
@@ -39,7 +36,6 @@ type Order struct {
 	Existing    []Existing
 }
 
-// Existing is a request already on this order.
 type Existing struct {
 	Status     string
 	Reason     string
@@ -48,7 +44,6 @@ type Existing struct {
 	DecidedAt  string
 }
 
-// Returnable reports whether any line still has units that can be sent back.
 func (o *Order) Returnable() bool {
 	for i := range o.Lines {
 		if o.Lines[i].Returnable > 0 {
@@ -58,7 +53,6 @@ func (o *Order) Returnable() bool {
 	return false
 }
 
-// Order reads what an order offers a return form.
 func (s *Store) Order(ctx context.Context, number string) (*Order, error) {
 	row, err := s.q.OrderForReturn(ctx, number)
 	if err != nil {
@@ -105,9 +99,8 @@ func (s *Store) Order(ctx context.Context, number string) (*Order, error) {
 	return o, nil
 }
 
-// Open files a return request. The header and its lines are one transaction:
-// every quantity guard lives on the lines, so a header committed alone has
-// passed no check at all.
+// Open files the header and its lines in one transaction: every quantity guard
+// lives on the lines, so a header committed alone has passed no check at all.
 func (s *Store) Open(ctx context.Context, number string, userID uuid.NullUUID, req *Request) error {
 	if err := req.Validate(); err != nil {
 		return err
@@ -201,8 +194,7 @@ func nullableTime(t pgtype.Timestamptz) string {
 	return shoptime.Minute(t.Time)
 }
 
-// parseWanted turns one submitted line into a validated id, or refuses it. The
-// database makes the same check; here it becomes a message on the form.
+// parseWanted repeats the database's check so it becomes a message on the form.
 func parseWanted(id string, qty int32, allowed map[string]int32) (uuid.UUID, error) {
 	ceiling, ok := allowed[id]
 	if !ok {
@@ -218,7 +210,6 @@ func parseWanted(id string, qty int32, allowed map[string]int32) (uuid.UUID, err
 	return lineID, nil
 }
 
-// OrderBelongsTo reports whether userID owns the named order.
 func (s *Store) OrderBelongsTo(ctx context.Context, number, userID string) (bool, error) {
 	id, err := uuid.Parse(userID)
 	if err != nil {

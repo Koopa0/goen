@@ -9,8 +9,8 @@ import (
 	"github.com/koopa0/goen/internal/shoptime"
 )
 
-// MaxSitemapURLs bounds the single sitemap document this service emits. The
-// protocol permits more, but this endpoint intentionally caps database work.
+// MaxSitemapURLs caps the single sitemap document; the protocol permits more,
+// but this endpoint intentionally caps database work.
 const MaxSitemapURLs = 5000
 
 type urlEntry struct {
@@ -26,7 +26,6 @@ type urlSet struct {
 	URLs    []urlEntry `xml:"url"`
 }
 
-// Sitemap serves GET /sitemap.xml.
 func (h *Handler) Sitemap(w http.ResponseWriter, r *http.Request) {
 	base := strings.TrimRight(h.baseURL, "/")
 	set := urlSet{NS: "http://www.sitemaps.org/schemas/sitemap/0.9"}
@@ -102,7 +101,6 @@ func (h *Handler) Sitemap(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// Robots serves GET /robots.txt.
 func (h *Handler) Robots(w http.ResponseWriter, r *http.Request) {
 	base := strings.TrimRight(h.baseURL, "/")
 	body := strings.Join([]string{
@@ -130,5 +128,4 @@ func (h *Handler) Robots(w http.ResponseWriter, r *http.Request) {
 	_ = r
 }
 
-// day formats a timestamp as the date part only, which is all lastmod means.
 func day(t time.Time) string { return shoptime.Day(t) }

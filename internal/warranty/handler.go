@@ -15,13 +15,11 @@ import (
 	"github.com/koopa0/goen/internal/web"
 )
 
-// Handler serves warranty registration.
 type Handler struct {
 	store *Store
 	log   *slog.Logger
 }
 
-// NewHandler returns a Handler over store.
 func NewHandler(store *Store, log *slog.Logger) *Handler {
 	if store == nil || log == nil {
 		panic("warranty: NewHandler requires a store and a logger")
@@ -29,7 +27,6 @@ func NewHandler(store *Store, log *slog.Logger) *Handler {
 	return &Handler{store: store, log: log}
 }
 
-// List serves GET /account/warranty.
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	u, ok := account.FromContext(r.Context())
 	if !ok {
@@ -47,7 +44,6 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 		pages.WarrantyListView{Rows: rows, Notice: noticeFor(r)}))
 }
 
-// Order serves GET /account/warranty/{number}.
 func (h *Handler) Order(w http.ResponseWriter, r *http.Request) {
 	u, ok := account.FromContext(r.Context())
 	if !ok {
@@ -73,7 +69,6 @@ func (h *Handler) Order(w http.ResponseWriter, r *http.Request) {
 		layouts.Page{Title: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyWarrantyRegisterMeta), number)}, view))
 }
 
-// Register serves POST /account/warranty/{number}.
 func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	u, ok := account.FromContext(r.Context())
 	if !ok {
@@ -106,7 +101,6 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// serverError renders the 500 page.
 func (h *Handler) serverError(w http.ResponseWriter, r *http.Request) {
 	web.Render(w, r, h.log, http.StatusInternalServerError, pages.Notice(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyTryAgainTitle)}, "",
@@ -114,7 +108,6 @@ func (h *Handler) serverError(w http.ResponseWriter, r *http.Request) {
 		i18n.T(r.Context(), i18n.KeyTryAgainBody)))
 }
 
-// noticeFor turns a query flag into a sentence.
 func noticeFor(r *http.Request) string {
 	ctx := r.Context()
 	switch {

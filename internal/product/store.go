@@ -17,15 +17,12 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
-// Store reads a product detail page.
 type Store struct {
-	q      *db.Queries
-	logger *slog.Logger
-	// noPickup leaves pickup out of every price and method the store describes.
+	q        *db.Queries
+	logger   *slog.Logger
 	noPickup bool
 }
 
-// NewStore returns a Store reading through dbtx.
 func NewStore(dbtx db.DBTX) *Store {
 	if dbtx == nil {
 		panic("product: NewStore requires a database handle")
@@ -33,15 +30,14 @@ func NewStore(dbtx db.DBTX) *Store {
 	return &Store{q: db.New(dbtx), logger: slog.Default()}
 }
 
-// WithoutPickup is the store for a deployment whose store map is not configured:
-// checkout offers no pickup there, so what this store describes must not either.
+// WithoutPickup is for a deployment whose store map is not configured: checkout
+// offers no pickup there, so what this store describes must not either.
 func (s *Store) WithoutPickup() *Store {
 	c := *s
 	c.noPickup = true
 	return &c
 }
 
-// Load reads everything the detail page renders, resolving sel to a variant.
 func (s *Store) Load(ctx context.Context, slug string, sel Selection) (pages.ProductView, error) {
 	p, err := s.q.ProductBySlug(ctx, db.ProductBySlugParams{
 		Slug: slug, Locale: string(i18n.FromContext(ctx)),
@@ -93,10 +89,10 @@ func (s *Store) Load(ctx context.Context, slug string, sel Selection) (pages.Pro
 			OptionChoice{Value: o.Value, Label: o.ValueLabel, SwatchHex: o.SwatchHex})
 	}
 
-	// A query key is a variant option only if some variant actually carries it.
+	// A query key is a variant option only if some variant carries it.
 	// reservedParam is a DENYLIST, and the page's own ?ask=, ?notify= and the
-	// /compare set's ?p= outran it. Derived from the variants rather than listed,
-	// because the next parameter somebody adds will not be added to a list.
+	// /compare set's ?p= outran it; derived from the variants because the next
+	// parameter somebody adds will not be added to a list.
 	sel = sel.OnlyOptionsOf(variants)
 
 	chosen, exact := Resolve(variants, sel)
@@ -185,8 +181,6 @@ func (s *Store) loadPresentation(ctx context.Context, p *db.ProductBySlugRow, vi
 		}
 	}
 
-	// The variant the page shows, chosen or defaulted, decides whose photographs
-	// lead; with none resolved, the photographs that show no value lead.
 	var shown uuid.NullUUID
 	if id, parseErr := uuid.Parse(view.VariantID); parseErr == nil {
 		shown = uuid.NullUUID{UUID: id, Valid: true}
@@ -283,10 +277,10 @@ func (s *Store) loadOpinion(ctx context.Context, p *db.ProductBySlugRow, view *p
 	return nil
 }
 
-// MinCoPurchases is how many shared orders make a pattern rather than an accident.
+// MinCoPurchases is how many shared orders make a pattern rather than an
+// accident.
 const MinCoPurchases = 2
 
-// MaxRecommendations bounds the strip.
 const MaxRecommendations = 4
 
 func (s *Store) boughtTogether(ctx context.Context, productID uuid.UUID) ([]pages.ProductTile, error) {
@@ -325,7 +319,6 @@ func (s *Store) boughtTogether(ctx context.Context, productID uuid.UUID) ([]page
 	return out, nil
 }
 
-// SavedByUser reports whether this customer has the product on their wishlist.
 func (s *Store) SavedByUser(ctx context.Context, userID, slug string) bool {
 	id, err := uuid.Parse(userID)
 	if err != nil {
@@ -340,8 +333,8 @@ func (s *Store) SavedByUser(ctx context.Context, userID, slug string) bool {
 	return saved
 }
 
-// dearerThan reports whether any variant costs more than cents, which is what
-// makes the price on the page a "from" rather than the product's price.
+// dearerThan decides whether the page price reads as "from" rather than the
+// product's price.
 func dearerThan(cents int64, variants []Variant) bool {
 	return slices.ContainsFunc(variants, func(v Variant) bool { return v.PriceCents > cents })
 }
