@@ -70,11 +70,18 @@ func (s *Store) Load(ctx context.Context, recommended int32) (pages.HomeView, er
 		LowestFeeCents:    lowestFee,
 		PickupOffered:     !s.noPickup,
 	}
-	for _, c := range cats {
+	for i := range cats {
+		c := &cats[i]
 		view.Categories = append(view.Categories, pages.HomeCategory{
 			Slug:    c.Slug,
 			Name:    c.Name,
 			IconKey: c.IconKey.String,
+			Tone:    pages.ResolveTone(c.Tone),
+			Photo: pages.Photo{
+				URL:    assets.ProductImageURL(c.ImageKey),
+				Srcset: assets.ProductImageSrcsetAt(c.ImageKey, int(c.ImageWidth)),
+				Alt:    c.ImageAlt,
+			},
 		})
 	}
 	for i := range tiles {

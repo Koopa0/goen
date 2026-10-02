@@ -61,7 +61,7 @@ func TestALosslessWebPIsRefusedBeforeItIsDecoded(t *testing.T) {
 		{"a lossy file", webpFile(riffChunk{"VP8 ", vp8Frame(64, 48)}), nil},
 		{"an extended lossy file with raw alpha", webpFile(
 			riffChunk{"VP8X", vp8xHeader(64, 48, true)},
-			riffChunk{"ALPH", append([]byte{0}, make([]byte, 64*48)...)},
+			riffChunk{"ALPH", append([]byte{0}, bytes.Repeat([]byte{0xff}, 64*48)...)},
 			riffChunk{"VP8 ", vp8Frame(64, 48)},
 		), nil},
 	} {

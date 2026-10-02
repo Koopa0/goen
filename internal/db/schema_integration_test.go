@@ -125,7 +125,6 @@ var expectedForeignKeys = map[string]bool{
 	"refunds_return_request_id_fkey":              true,
 	"return_request_lines_line_fk":                true,
 	"return_request_lines_request_fk":             true,
-	"return_request_lines_return_request_id_fkey": true,
 	"return_requests_order_id_fkey":               true,
 	"return_requests_requested_by_user_id_fkey":   true,
 	"return_eligibility_assessments_request_fk":   true,

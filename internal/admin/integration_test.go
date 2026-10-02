@@ -3696,7 +3696,7 @@ func TestASlugIsNeverRenamed(t *testing.T) {
 	if errs, err := s.CreateBrand(ctx, &admin.TaxonomyForm{Slug: slug, Name: "原名"}); err != nil || len(errs) > 0 {
 		t.Fatalf("create: err=%v errs=%v", err, errs)
 	}
-	if err := s.Rename(ctx, "brand", slug, "新名字", "", ""); err != nil {
+	if err := s.Rename(ctx, "brand", slug, "新名字", "", "", ""); err != nil {
 		t.Fatalf("rename: %v", err)
 	}
 
@@ -3708,7 +3708,7 @@ func TestASlugIsNeverRenamed(t *testing.T) {
 	if name != "新名字" {
 		t.Errorf("name is %q, want 新名字", name)
 	}
-	if err := s.Rename(ctx, "brand", slug, "   ", "", ""); !errors.Is(err, admin.ErrInvalid) {
+	if err := s.Rename(ctx, "brand", slug, "   ", "", "", ""); !errors.Is(err, admin.ErrInvalid) {
 		t.Errorf("a blank name gave %v, want ErrInvalid", err)
 	}
 }
@@ -7449,7 +7449,7 @@ func TestACategoryCarriesItsEnglishName(t *testing.T) {
 			"Chinese name", fallback)
 	}
 
-	if err := s.Rename(ctx, "category", slug, "測試分類", "", ""); err != nil {
+	if err := s.Rename(ctx, "category", slug, "測試分類", "", "", ""); err != nil {
 		t.Fatalf("rename: %v", err)
 	}
 	var cleared *string
@@ -7926,7 +7926,7 @@ func TestAPromotionsButtonMustStayOnThisSite(t *testing.T) {
 		if err != nil {
 			t.Fatalf("CreateBanner(%q): %v", href, err)
 		}
-		if errs["cta"] == "" {
+		if errs["banner_cta"] == "" {
 			t.Errorf("CreateBanner accepted the href %q: %v", href, errs)
 		}
 	}
@@ -7935,7 +7935,7 @@ func TestAPromotionsButtonMustStayOnThisSite(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateBanner: %v", err)
 	}
-	if errs["cta"] == "" {
+	if errs["banner_cta"] == "" {
 		t.Errorf("a label with no href was accepted: %v", errs)
 	}
 }
@@ -10794,7 +10794,7 @@ func TestACategoryCreatedInTheBackOfficeCanCarryAnIcon(t *testing.T) {
 		t.Errorf("category creation audit icon_key = %q, want laptop", auditedIcon)
 	}
 
-	if renameErr := s.Rename(ctx, "category", slug, "改名分類", "", "laptop"); renameErr != nil {
+	if renameErr := s.Rename(ctx, "category", slug, "改名分類", "", "laptop", ""); renameErr != nil {
 		t.Fatalf("rename: %v", renameErr)
 	}
 	if readErr := pool.QueryRow(ctx,
@@ -11694,6 +11694,23 @@ func TestAPickupOrderDispatchNoticeIsMarkedAsPickup(t *testing.T) {
 	}
 }
 
+func TestOrderSearchLabelsAnUnpaidOrderAsAwaitingPayment(t *testing.T) {
+	ctx := t.Context()
+	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	number := placeUnpaidOrder(t)
+
+	view, err := s.Orders(ctx, "", number)
+	if err != nil {
+		t.Fatalf("Orders: %v", err)
+	}
+	if len(view.Orders) != 1 || view.Orders[0].Number != number {
+		t.Fatalf("searching %s found %+v, want that order only", number, view.Orders)
+	}
+	if got, want := view.Orders[0].StatusText, i18n.T(ctx, i18n.KeyAdminStatusPending); got != want {
+		t.Errorf("a searched unpaid order reads %q, want %q", got, want)
+	}
+}
+
 func TestAdvanceRefusesTheStatusAnOrderAlreadyHas(t *testing.T) {
 	ctx, staff := staffContext(t)
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
@@ -11721,6 +11738,30 @@ func TestAdvanceRefusesTheStatusAnOrderAlreadyHas(t *testing.T) {
 	if _, err := s.Advance(ctx, pending, pages.FulfillmentPending, actor); !errors.Is(err, admin.ErrRefused) {
 		t.Errorf("pending on a pending order gave %v, want ErrRefused", err)
 	}
+}
+
+func TestAnAuditEntryNamesItsOrderAndLinksIt(t *testing.T) {
+	ctx, staff := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	number := shippableOrder(t, "zh-Hant")
+	if err := s.Ship(ctx, number, admin.Dispatch{Carrier: "黑貓宅急便", Tracking: "AUD-" + number},
+		uuid.NullUUID{UUID: staff, Valid: true}); err != nil {
+		t.Fatalf("Ship: %v", err)
+	}
+
+	view, err := s.Audit(ctx)
+	if err != nil {
+		t.Fatalf("Audit: %v", err)
+	}
+	for _, e := range view.Rows {
+		if e.Action == "order.ship" && e.Subject == number {
+			if e.Href != "/admin/orders/"+number {
+				t.Errorf("the shipment entry links %q, want /admin/orders/%s", e.Href, number)
+			}
+			return
+		}
+	}
+	t.Errorf("no order.ship entry names %s among %d rows", number, len(view.Rows))
 }
 
 func TestTheDashboardAndTheQueueTabsSplitPendingTheSameWay(t *testing.T) {
