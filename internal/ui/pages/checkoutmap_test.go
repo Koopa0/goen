@@ -26,6 +26,20 @@ var ecpayMapFields = map[string]bool{
 	"Device": true,
 }
 
+// aMapForm is the carrier's form as PickupStart renders it.
+func aMapForm() CheckoutMapForm {
+	return CheckoutMapForm{
+		Action:          "https://logistics-stage.ecpay.com.tw/Express/map",
+		MerchantID:      "1000001",
+		MerchantTradeNo: "ABCDEFGHIJ1234567890",
+		LogisticsType:   "CVS", LogisticsSubType: "UNIMART",
+		IsCollection:   "N",
+		ServerReplyURL: "https://goen.test/checkout/pickup/return",
+		ExtraData:      "0123456789abcdef0123",
+		Device:         "1",
+	}
+}
+
 // aCheckoutWithAStore is the checkout as it renders after a shopper has come
 // back from the carrier's map.
 func aCheckoutWithAStore() *CheckoutView {
@@ -42,16 +56,7 @@ func aCheckoutWithAStore() *CheckoutView {
 		},
 		PickupStoreAddr: "台北市南港區三重路19-2號",
 		PickupNonce:     "0123456789abcdef0123",
-		Map: CheckoutMapForm{
-			Action:          "https://logistics-stage.ecpay.com.tw/Express/map",
-			MerchantID:      "1000001",
-			MerchantTradeNo: "ABCDEFGHIJ1234567890",
-			LogisticsType:   "CVS", LogisticsSubType: "UNIMART",
-			IsCollection:   "N",
-			ServerReplyURL: "https://goen.test/checkout/pickup/return",
-			ExtraData:      "0123456789abcdef0123",
-			Device:         "1",
-		},
+		MapOffered:      true,
 	}
 }
 
@@ -143,8 +148,7 @@ func TestTheSwapRegionCarriesTheStoreButton(t *testing.T) {
 func TestTheMapFormCarriesNothingTheShopperTyped(t *testing.T) {
 	t.Parallel()
 
-	v := aCheckoutWithAStore()
-	html := renderToString(t, PickupStart(v.Map, "/checkout?draft=1"))
+	html := renderToString(t, PickupStart(aMapForm(), "/checkout?draft=1"))
 
 	form := mapFormOpen.FindString(html)
 	if form == "" {
@@ -329,7 +333,7 @@ func TestNoMapNoButtonAndNoForm(t *testing.T) {
 	t.Parallel()
 
 	v := aCheckoutWithAStore()
-	v.Map = CheckoutMapForm{}
+	v.MapOffered = false
 	v.Address.PickupStoreCode, v.Address.PickupStoreName = "", ""
 	v.PickupStoreAddr = ""
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)

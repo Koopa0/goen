@@ -20,9 +20,15 @@ import (
 // for a slow phone, and nothing typed is kept longer than that.
 const DraftTTL = time.Hour
 
-// maxDraftField bounds each saved field so the whole draft stays under the
-// carts_checkout_draft_bounded CHECK however much a form was sent.
+// maxDraftField cuts each saved field. It does not by itself keep the draft under
+// the carts_checkout_draft_bounded CHECK (sixteen fields of this length can pass
+// 8 KB); maxDraftBytes does, on the encoded draft.
 const maxDraftField = 500
+
+// maxDraftBytes is the largest encoded draft that is saved, with room under the
+// CHECK's 8192 bytes for the spaces jsonb's text form adds. A larger one is a
+// crafted form: it is not saved, and the request goes on without it.
+const maxDraftBytes = 7000
 
 // checkoutDraft is what the checkout form had in it when the shopper left it
 // for the carrier's map, and nothing else. It is personal data, so it holds the
@@ -52,15 +58,21 @@ type checkoutDraft struct {
 
 // clipped cuts every field to maxDraftField runes.
 func (d *checkoutDraft) clipped() {
+	d.Brand = pickup.Brand(clip(string(d.Brand)))
 	for _, p := range []*string{
 		&d.Email, &d.Name, &d.Phone, &d.PostalCode, &d.City, &d.District, &d.Street,
 		&d.Note, &d.Shipping, &d.SavedAddress, &d.InvoiceType, &d.Carrier,
 		&d.DonationCode, &d.CompanyName, &d.TaxID, &d.Coupon,
 	} {
-		if r := []rune(*p); len(r) > maxDraftField {
-			*p = string(r[:maxDraftField])
-		}
+		*p = clip(*p)
 	}
+}
+
+func clip(s string) string {
+	if r := []rune(s); len(r) > maxDraftField {
+		return string(r[:maxDraftField])
+	}
+	return s
 }
 
 // saveCheckoutDraft keeps what was typed on the cart, replacing any earlier draft.
@@ -69,6 +81,14 @@ func (s *Store) saveCheckoutDraft(ctx context.Context, cartID uuid.UUID, d check
 	raw, err := json.Marshal(d)
 	if err != nil {
 		return fmt.Errorf("encode checkout draft: %w", err)
+	}
+	if len(raw) > maxDraftBytes {
+		// Too large to be a form a person filled in. An older draft would restore
+		// values the shopper has since changed, so none is kept.
+		if err := s.q.ClearCheckoutDraft(ctx, cartID); err != nil {
+			return fmt.Errorf("clear checkout draft: %w", err)
+		}
+		return nil
 	}
 	if err := s.q.SaveCheckoutDraft(ctx, db.SaveCheckoutDraftParams{Draft: raw, CartID: cartID}); err != nil {
 		return fmt.Errorf("save checkout draft: %w", err)

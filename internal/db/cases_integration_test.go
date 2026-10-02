@@ -1049,6 +1049,16 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 		accept:     `INSERT INTO payments (id, order_id, provider_ref, status, intended_amount_cents, captured_amount_cents) VALUES ('11110001-0000-4000-8000-000000000004','6666aaaa-6666-4666-8666-666666666666','pi_acc_captured','processing',6788000,NULL);`,
 	},
 	{
+		constraint: "carts_checkout_draft_paired",
+		reject:     `INSERT INTO carts (id, token_hash, checkout_draft) VALUES ('11115006-0000-4000-8000-000000000001', '\x0601', '{}'::jsonb);`,
+		accept:     `INSERT INTO carts (id, token_hash, checkout_draft, checkout_draft_at) VALUES ('11115006-0000-4000-8000-000000000001', '\x0602', '{}'::jsonb, now());`,
+	},
+	{
+		constraint: "carts_checkout_draft_bounded",
+		reject:     `INSERT INTO carts (id, token_hash, checkout_draft, checkout_draft_at) VALUES ('11115007-0000-4000-8000-000000000001', '\x0701', jsonb_build_object('note', repeat('x', 9000)), now());`,
+		accept:     `INSERT INTO carts (id, token_hash, checkout_draft, checkout_draft_at) VALUES ('11115007-0000-4000-8000-000000000001', '\x0702', jsonb_build_object('note', repeat('x', 100)), now());`,
+	},
+	{
 		constraint: "payments_currency_is_twd",
 		reject:     `INSERT INTO payments (id, order_id, provider_ref, status, intended_amount_cents, currency) VALUES ('11110001-0000-4000-8000-000000000005','6666aaaa-6666-4666-8666-666666666666','pi_rej_currency','requires_payment',6788000,'USD');`,
 		accept:     `INSERT INTO payments (id, order_id, provider_ref, status, intended_amount_cents, currency) VALUES ('11110001-0000-4000-8000-000000000005','6666aaaa-6666-4666-8666-666666666666','pi_acc_currency','requires_payment',6788000,'TWD');`,

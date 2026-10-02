@@ -123,7 +123,10 @@ func refreshTargetOf(body string) string {
 }
 
 // startPickup is 「選擇門市」: the checkout form posted to the start route, which
-// keeps what was typed and answers the hand-off page holding the carrier's form.
+// keeps what was typed and answers 303 to the GET hand-off page holding the
+// carrier's form. It returns that page, as the browser follows it, and the
+// pickup cookie the start issued. A start that sends the shopper back to the
+// checkout instead returns that 303 and no body.
 func startPickup(
 	t *testing.T, h *cart.Handler, token string, fields url.Values, cookies ...*http.Cookie,
 ) (body string, pickupCookie *http.Cookie, status int) {
@@ -138,7 +141,20 @@ func startPickup(
 	}
 	res := httptest.NewRecorder()
 	h.PickupStart(res, req)
-	return res.Body.String(), cookieNamed(res, "goen_pickup"), res.Code
+	pickupCookie = cookieNamed(res, "goen_pickup")
+	if res.Code != http.StatusSeeOther || res.Header().Get("Location") != pages.PickupMapPath {
+		return res.Body.String(), pickupCookie, res.Code
+	}
+
+	next := httptest.NewRequestWithContext(t.Context(), http.MethodGet, pages.PickupMapPath, http.NoBody)
+	//nolint:gosec // G124: the browser's own cart cookie
+	next.AddCookie(&http.Cookie{Name: "goen_cart", Value: token})
+	if pickupCookie != nil {
+		next.AddCookie(pickupCookie)
+	}
+	page := httptest.NewRecorder()
+	h.PickupMap(page, next)
+	return page.Body.String(), pickupCookie, page.Code
 }
 
 // aStart is the fields 「選擇門市」 carries when nothing but the choices has been
@@ -691,7 +707,9 @@ func TestWhatWasTypedSurvivesTheMapRoundTrip(t *testing.T) {
 	if !strings.Contains(page, `name="invoice_type" value="mobile_carrier" checked`) {
 		t.Error("the 發票 choice did not come back")
 	}
-	if !strings.Contains(page, "MAPTYPED") && !strings.Contains(page, html.EscapeString("測試折扣")) {
+	// Applied, not just restored as text: the order summary names the coupon by
+	// its description, which only a resolved coupon has.
+	if !strings.Contains(page, html.EscapeString("測試折扣")) {
 		t.Error("the coupon was restored as text but not applied to the quote")
 	}
 
@@ -708,7 +726,7 @@ func TestAPlacedOrderClearsTheDraft(t *testing.T) {
 	s := cart.NewStore(pool)
 	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, testLimiter(), nil, configuredMap(t))
 	token, shipping := aPickupCart(t, s, "map-draft-cleared")
-	cartID, err := s.CartByToken(t.Context(), token, uuid.NullUUID{})
+	cartID, err := s.ByToken(t.Context(), token, uuid.NullUUID{})
 	if err != nil {
 		t.Fatalf("find the cart: %v", err)
 	}
@@ -740,7 +758,7 @@ func TestADraftExpires(t *testing.T) {
 	s := cart.NewStore(pool)
 	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, testLimiter(), nil, configuredMap(t))
 	token, shipping := aPickupCart(t, s, "map-draft-expired")
-	cartID, err := s.CartByToken(t.Context(), token, uuid.NullUUID{})
+	cartID, err := s.ByToken(t.Context(), token, uuid.NullUUID{})
 	if err != nil {
 		t.Fatalf("find the cart: %v", err)
 	}

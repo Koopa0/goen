@@ -603,9 +603,6 @@
     if (!form) return;
     const back = performance.getEntriesByType("navigation")[0]?.type === "back_forward";
     if (!back) form.requestSubmit();
-    window.addEventListener("pageshow", (event) => {
-      if (event.persisted) form.removeAttribute("data-request-pending");
-    });
   }
 
   fieldRules();

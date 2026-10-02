@@ -448,18 +448,47 @@ func (h *Handler) PickupStart(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, back, http.StatusSeeOther)
 		return
 	}
-	nonce, ok := h.pickupSession(w, r, view.Chosen, string(inv.Type), view.ChosenAddress)
-	if !ok {
-		h.serverError(w, r)
-		return
-	}
-	form, ok := h.mapRequest(r, addr.PickupBrand, nonce)
-	if !ok {
+	if _, ok := h.storeMap.Subtype(addr.PickupBrand); !ok {
 		// No chain chosen yet: back to the form, with what was typed.
 		http.Redirect(w, r, back, http.StatusSeeOther)
 		return
 	}
-	// Nothing here may be cached, and the page carries no field of the shopper's.
+	if _, ok := h.pickupSession(w, r, view.Chosen, string(inv.Type), view.ChosenAddress); !ok {
+		h.serverError(w, r)
+		return
+	}
+	// A GET hand-off, not the answer to this POST: the browser's Back button from
+	// the carrier's map then lands on an ordinary page, with no "confirm form
+	// resubmission" and nothing to repost.
+	http.Redirect(w, r, pages.PickupMapPath, http.StatusSeeOther)
+}
+
+// PickupMap serves GET /checkout/pickup/map, the hand-off to the carrier's map
+// for the chain the saved draft names. Nothing the shopper typed is on it or in
+// its URL.
+func (h *Handler) PickupMap(w http.ResponseWriter, r *http.Request) {
+	const back = "/checkout?draft=1"
+	cartID, ok := h.existingCart(r)
+	if !ok {
+		http.Redirect(w, r, "/cart", http.StatusSeeOther)
+		return
+	}
+	draft, found, err := h.store.checkoutDraft(r.Context(), cartID)
+	if err != nil {
+		h.log.ErrorContext(r.Context(), "read checkout draft", "error", err)
+		h.serverError(w, r)
+		return
+	}
+	state, known := readPickupCookie(r, h.secure)
+	if !found || !known {
+		http.Redirect(w, r, back, http.StatusSeeOther)
+		return
+	}
+	form, ok := h.mapRequest(r, draft.Brand, state.Nonce)
+	if !ok {
+		http.Redirect(w, r, back, http.StatusSeeOther)
+		return
+	}
 	w.Header().Set("Cache-Control", "no-store")
 	web.Render(w, r, h.log, http.StatusOK, pages.PickupStart(form, back))
 }
@@ -636,8 +665,8 @@ func (h *Handler) offerTheStoreMap(
 	view.PickupNonce = nonce
 
 	// The chain decides which map opens. Until one is chosen there is nothing
-	// to open.
-	view.Map, _ = h.mapRequest(r, view.Address.PickupBrand, nonce)
+	// to open, and the button is not shown.
+	_, view.MapOffered = h.storeMap.Subtype(view.Address.PickupBrand)
 }
 
 // pickupSession keeps the browser's nonce, or opens one, and refreshes the

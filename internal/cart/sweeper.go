@@ -170,11 +170,6 @@ func (s *Store) SweepAttempts(ctx context.Context) error {
 	}); err != nil {
 		return fmt.Errorf("delete old checkout attempts: %w", err)
 	}
-	if err := s.q.ClearStaleCheckoutDrafts(ctx, pgtype.Interval{
-		Microseconds: int64(DraftTTL / time.Microsecond), Valid: true,
-	}); err != nil {
-		return fmt.Errorf("clear stale checkout drafts: %w", err)
-	}
 	if err := s.q.DeleteOldOrderAccessGrants(ctx, pgtype.Interval{
 		Microseconds: int64(GrantRetain / time.Microsecond), Valid: true,
 	}); err != nil {
@@ -195,6 +190,40 @@ func (s *Store) SweepAttemptsForever(ctx context.Context, log *slog.Logger) {
 			if err := s.SweepAttempts(ctx); err != nil && ctx.Err() == nil {
 				log.ErrorContext(ctx, "sweep old checkout attempts", "error", err)
 			}
+		}
+	}
+}
+
+// DraftSweepInterval is how often stale checkout drafts are cleared. A fraction
+// of [DraftTTL], so one that has outlived its window is gone within minutes: a
+// guest's cart is never deleted, so nothing else would ever clear what a guest
+// typed.
+const DraftSweepInterval = DraftTTL / 4
+
+// SweepDrafts clears every checkout draft older than [DraftTTL], once.
+func (s *Store) SweepDrafts(ctx context.Context) error {
+	if err := s.q.ClearStaleCheckoutDrafts(ctx, pgtype.Interval{
+		Microseconds: int64(DraftTTL / time.Microsecond), Valid: true,
+	}); err != nil {
+		return fmt.Errorf("clear stale checkout drafts: %w", err)
+	}
+	return nil
+}
+
+// SweepDraftsForever runs SweepDrafts once at startup, so a host redeployed more
+// often than the interval still clears drafts, and then on a ticker until ctx is
+// cancelled.
+func (s *Store) SweepDraftsForever(ctx context.Context, log *slog.Logger) {
+	t := time.NewTicker(DraftSweepInterval)
+	defer t.Stop()
+	for {
+		if err := s.SweepDrafts(ctx); err != nil && ctx.Err() == nil {
+			log.ErrorContext(ctx, "sweep stale checkout drafts", "error", err)
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
 		}
 	}
 }

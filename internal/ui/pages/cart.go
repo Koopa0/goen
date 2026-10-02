@@ -186,9 +186,10 @@ type CheckoutView struct {
 	// The cart package creates it; the page only carries it back unchanged.
 	QuoteID        string
 	IdempotencyKey string
-	// Map is the carrier's hosted store picker, or the zero value where no
-	// carrier is configured and the form asks for a chain alone.
-	Map CheckoutMapForm
+	// MapOffered is whether the carrier's store picker can be opened for the
+	// chain chosen: a carrier is configured and the chain is one it serves. The
+	// picker's own form is built only where it is opened, by PickupStart.
+	MapOffered bool
 	// PickupNonce is the browser-bound secret that decides whether the store
 	// above was honoured. It travels to the carrier in ExtraData and back in
 	// the URL, and it is checked against a cookie this browser alone holds.
@@ -206,6 +207,11 @@ type CheckoutView struct {
 // own route, so what the shopper typed reaches goen and only goen; the carrier's
 // map form is built on the page that route answers.
 const PickupStartAction = "/checkout/pickup/start"
+
+// PickupMapPath is the page the start route hands the browser to with a 303: a
+// GET that holds the carrier's form, so Back from the map lands on a page and
+// not on a POST.
+const PickupMapPath = "/checkout/pickup/map"
 
 // checkoutStoreButtonAttrs is what the store button carries: the route it
 // submits the checkout form to, and the refusal state of the store itself.
@@ -243,12 +249,9 @@ type CheckoutMapForm struct {
 	Device string
 }
 
-// Offered reports whether there is a picker to send the shopper to.
-func (f CheckoutMapForm) Offered() bool { return f.Action != "" }
-
 // OffersTheStoreMap reports whether this render shows the picker's button.
 func (v *CheckoutView) OffersTheStoreMap() bool {
-	return v.ToPickupPoint() && v.Map.Offered()
+	return v.ToPickupPoint() && v.MapOffered
 }
 
 // HasPickupStore reports whether a store has been chosen and honoured. Both
