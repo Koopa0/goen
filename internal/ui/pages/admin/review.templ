@@ -10,17 +10,9 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
-// Reviews renders the review queue.
-//
-// The badge carries the rating, because the rating is what this queue is
-// scanned for: nothing here waits for approval — a review is published as it is
-// written — so the row somebody is looking for is the angry one, not the next
-// one in line. Hiding is the exception the lead paragraph describes, and the
-// row says so in its own words beside the button that reverses it.
-//
-// The row is no longer dimmed when it is hidden. Fading a row to 55% says
-// "hidden" in a shade a reader has not been told to read, and it takes the
-// review's own text down with it.
+// The badge carries the rating, because nothing here waits for approval: a review is
+// published as it is written, so the row somebody is looking for is the angry one.
+// A hidden row is not dimmed: fading says "hidden" in a shade nobody has been told to read.
 templ Reviews(p layouts.Page, v ReviewsView) {
 	@layouts.Admin(p, "reviews") {
 		<div class="ui-page-head">

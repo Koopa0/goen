@@ -9,7 +9,6 @@ import (
 	"github.com/koopa0/goen/internal/money"
 )
 
-// ShippingView is the shipping configuration the back office can change.
 type ShippingView struct {
 	Methods     []ShippingMethod
 	Zones       []ShippingZone
@@ -20,7 +19,6 @@ type ShippingView struct {
 	PrefixDraft ZonePrefixesDraft
 }
 
-// MethodDraft carries a refused method form's values back.
 type MethodDraft struct {
 	Code, Destination             string
 	Name, NameEn                  string
@@ -29,24 +27,19 @@ type MethodDraft struct {
 	MaxLongest, MaxSum, MaxWeight string
 }
 
-// ZoneDraft carries a refused zone form's values back.
 type ZoneDraft struct {
 	Code, Name, NameEn, Prefixes string
 }
 
-// ZonePrefixesDraft carries one refused replace form back to its own row.
 type ZonePrefixesDraft struct {
 	ZoneID   string
 	Prefixes string
 }
 
-// HasErr reports whether a field was refused.
 func (v *ShippingView) HasErr(f string) bool { _, ok := v.Errors[f]; return ok }
 
-// Err is why.
 func (v *ShippingView) Err(f string) string { return v.Errors[f] }
 
-// ZonePrefixesValue preserves the rejected text on the row that submitted it.
 func (v *ShippingView) ZonePrefixesValue(z ShippingZone) string {
 	if v.PrefixDraft.ZoneID == z.ID {
 		return v.PrefixDraft.Prefixes
@@ -54,12 +47,10 @@ func (v *ShippingView) ZonePrefixesValue(z ShippingZone) string {
 	return z.Prefixes
 }
 
-// PickupSelected reports whether the method form's draft chose a pickup point.
 func (v *ShippingView) PickupSelected() bool {
 	return destination.Kind(v.MethodDraft.Destination) == destination.PickupPoint
 }
 
-// ShippingMethod is one method and the version currently in force.
 type ShippingMethod struct {
 	MethodID      string
 	VersionID     string
@@ -80,7 +71,6 @@ type ShippingMethod struct {
 	Surcharges        []ZoneSurcharge
 }
 
-// ZoneSurcharge is what one version charges extra for one zone.
 type ZoneSurcharge struct {
 	ZoneID    string
 	Code      string
@@ -89,7 +79,6 @@ type ZoneSurcharge struct {
 	Formatted string
 }
 
-// ShippingZone is a region with its postal-code prefixes.
 type ShippingZone struct {
 	ID          string
 	Code        string
@@ -99,15 +88,12 @@ type ShippingZone struct {
 	PrefixCount int64
 }
 
-// Fee is what the method charges.
 func (m *ShippingMethod) Fee() string { return money.TWD(m.FeeCents) }
 
-// FeeDollars is the fee as the form's number field wants it: whole dollars.
 func (m *ShippingMethod) FeeDollars() string {
 	return strconv.FormatInt(m.FeeCents/100, 10)
 }
 
-// FreeOverDollars is the threshold in dollars, or "" when there is none.
 func (m *ShippingMethod) FreeOverDollars() string {
 	if m.FreeOverCents == 0 {
 		return ""
@@ -115,7 +101,6 @@ func (m *ShippingMethod) FreeOverDollars() string {
 	return strconv.FormatInt(m.FreeOverCents/100, 10)
 }
 
-// FreeOver is the threshold in words.
 func (m *ShippingMethod) FreeOver(ctx context.Context) string {
 	if m.FreeOverCents == 0 {
 		return i18n.T(ctx, i18n.KeyAdminNone)
@@ -123,7 +108,6 @@ func (m *ShippingMethod) FreeOver(ctx context.Context) string {
 	return money.TWD(m.FreeOverCents)
 }
 
-// DestinationText is what the method collects: an address or a store.
 func (m *ShippingMethod) DestinationText(ctx context.Context) string {
 	switch m.Destination {
 	case destination.Address:
@@ -135,7 +119,6 @@ func (m *ShippingMethod) DestinationText(ctx context.Context) string {
 	}
 }
 
-// VersionCountText is how many versions this method has had.
 func (m *ShippingMethod) VersionCountText() string {
 	return strconv.FormatInt(m.VersionCount, 10)
 }
@@ -143,7 +126,6 @@ func (m *ShippingMethod) VersionCountText() string {
 // Zoned is false for pickup, which has no postal code to match a zone on.
 func (m *ShippingMethod) Zoned() bool { return m.Destination == destination.Address }
 
-// SurchargeDollars is the zone's surcharge, blank when there is none.
 func (m *ShippingMethod) SurchargeDollars(zoneID string) string {
 	for _, s := range m.Surcharges {
 		if s.ZoneID == zoneID {
@@ -153,7 +135,6 @@ func (m *ShippingMethod) SurchargeDollars(zoneID string) string {
 	return ""
 }
 
-// PrefixCountText is how many postal-code prefixes a zone covers.
 func (z ShippingZone) PrefixCountText() string {
 	return strconv.FormatInt(z.PrefixCount, 10)
 }

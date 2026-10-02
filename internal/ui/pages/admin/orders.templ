@@ -9,12 +9,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
-// Dashboard renders the back office landing page: the figures the
-// shop is run by, then the two queues somebody actually works from.
-//
-// Every figure is a link. A count on its own tells a staff member that there is
-// work and not where it is, and the screen holding it is one they would
-// otherwise find in the navigation.
+// Every figure is a link: a count on its own says there is work and not where it is.
 templ Dashboard(p layouts.Page, v DashboardView) {
 	@layouts.Admin(p, "dashboard") {
 		<div class="ui-page-head">
@@ -159,12 +154,8 @@ templ Dashboard(p layouts.Page, v DashboardView) {
 	}
 }
 
-// Orders renders the order queue: the status tabs, then one table whose
-// first column is the way into each order.
-//
-// The tabs are links and the selected one is marked with aria-current alone.
-// A second class saying the same thing is a second source of truth for which
-// tab is on, and the two disagree the moment one of them is forgotten.
+// The tabs are links and the selected one is marked with aria-current alone: a second
+// class saying the same thing is a second source of truth for which tab is on.
 templ Orders(p layouts.Page, v OrdersView) {
 	@layouts.Admin(p, "orders") {
 		<div class="ui-page-head">
@@ -269,12 +260,9 @@ templ Orders(p layouts.Page, v OrdersView) {
 	}
 }
 
-// Order renders one order: what was bought and what has happened to it on
-// the left, what the shop can do about it on the right.
-//
-// Each operation is one card with one form and one button. A column of forms
-// sharing a panel reads as one long form, and the staff member who means to
-// dispatch presses whatever button is nearest.
+// Each operation is one card with one form and one button: a column of forms sharing
+// a panel reads as one long form, and the staff member who means to dispatch presses
+// whatever button is nearest.
 templ Order(p layouts.Page, v *OrderView) {
 	@layouts.Admin(p, "orders") {
 		@components.Breadcrumb(components.BreadcrumbProps{
@@ -613,7 +601,6 @@ templ Order(p layouts.Page, v *OrderView) {
 											aria-describedby="ship-qty-error"
 										}
 									/>
-									// A line holding less than it owes cannot ship: no movement is posted.
 									if l.Short() {
 										<p class="goen-admin__hint">
 											{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQueueShortHold), l.HeldText()) }
@@ -754,10 +741,6 @@ templ Order(p layouts.Page, v *OrderView) {
 							</form>
 						}
 						if v.CanAllowInvoice() {
-							// The door 折讓 never had. internal/invoice has filed
-							// them since the feature shipped; nothing could reach
-							// it, so a refunded customer left the 統一發票 still
-							// recording the whole sale.
 							<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/orders/" + v.Number + "/invoice/allowance") }>
 								<input type="hidden" name="operation_id" value={ v.AllowanceOperationID }/>
 								@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline, Block: true}, "submit") {
@@ -779,7 +762,6 @@ templ Order(p layouts.Page, v *OrderView) {
 	}
 }
 
-// Variants renders the stock list and its editing forms.
 templ Variants(p layouts.Page, v VariantsView) {
 	@layouts.Admin(p, "stock") {
 		<div class="ui-page-head">

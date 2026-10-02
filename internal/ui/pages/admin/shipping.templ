@@ -9,16 +9,9 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// Shipping renders the delivery configuration.
-//
-// One card per method, then the card that adds a method, then the zones. A fee
-// is never edited in place: the form publishes a new VERSION, and the card says
-// which version is live and since when, so a reader can see what an order
-// placed yesterday was quoted.
-//
-// The one filled button is the method create. Publishing a version is the more
-// frequent job but there is one of those per method, and a primary that repeats
-// down the page is not a primary.
+// A fee is never edited in place: the form publishes a new VERSION, and the card says
+// which version is live and since when, so a reader can see what an order placed
+// yesterday was quoted. The one filled button is the method create.
 templ Shipping(p layouts.Page, v ShippingView) {
 	@layouts.Admin(p, "shipping") {
 		<div class="ui-page-head">
