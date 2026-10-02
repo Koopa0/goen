@@ -49,6 +49,26 @@ SELECT quantity FROM cart_items WHERE cart_id = $1 AND variant_id = $2;
 -- name: ClearCart :exec
 DELETE FROM cart_items WHERE cart_id = $1;
 
+-- What the shopper had typed when they left for the carrier's store map. Written
+-- on the cart so it ends with the cart.
+-- name: SaveCheckoutDraft :exec
+UPDATE carts SET checkout_draft = @draft::jsonb, checkout_draft_at = now()
+WHERE id = @cart_id;
+
+-- Read inside the window only; an older draft is as good as none.
+-- name: ReadCheckoutDraft :one
+SELECT checkout_draft::jsonb AS draft FROM carts
+WHERE id = @cart_id AND checkout_draft IS NOT NULL
+  AND checkout_draft_at > now() - @ttl::interval;
+
+-- name: ClearCheckoutDraft :exec
+UPDATE carts SET checkout_draft = NULL, checkout_draft_at = NULL
+WHERE id = @cart_id AND checkout_draft IS NOT NULL;
+
+-- name: ClearStaleCheckoutDrafts :exec
+UPDATE carts SET checkout_draft = NULL, checkout_draft_at = NULL
+WHERE checkout_draft_at < now() - @ttl::interval;
+
 -- Everything in a cart, at CURRENT prices and availability. sellable_quantity is
 -- stock above safety_stock, the floor record_inventory_movement enforces.
 -- name: CartLines :many

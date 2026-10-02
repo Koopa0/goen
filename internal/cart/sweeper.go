@@ -170,6 +170,11 @@ func (s *Store) SweepAttempts(ctx context.Context) error {
 	}); err != nil {
 		return fmt.Errorf("delete old checkout attempts: %w", err)
 	}
+	if err := s.q.ClearStaleCheckoutDrafts(ctx, pgtype.Interval{
+		Microseconds: int64(DraftTTL / time.Microsecond), Valid: true,
+	}); err != nil {
+		return fmt.Errorf("clear stale checkout drafts: %w", err)
+	}
 	if err := s.q.DeleteOldOrderAccessGrants(ctx, pgtype.Interval{
 		Microseconds: int64(GrantRetain / time.Microsecond), Valid: true,
 	}); err != nil {

@@ -49,11 +49,13 @@ type Brand struct {
 }
 
 type Cart struct {
-	ID        uuid.UUID
-	UserID    uuid.NullUUID
-	TokenHash []byte
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID              uuid.UUID
+	UserID          uuid.NullUUID
+	TokenHash       []byte
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+	CheckoutDraft   []byte
+	CheckoutDraftAt pgtype.Timestamptz
 }
 
 type CartItem struct {

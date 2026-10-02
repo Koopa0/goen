@@ -202,17 +202,22 @@ type CheckoutView struct {
 	PickupRefused bool
 }
 
-// mapFormID names the sibling form the pickup section's button submits. It is
-// a constant because the button and the form must agree: a typo on either side
-// leaves a control that submits the checkout form to goen instead.
-const mapFormID = "pickup-map-form"
+// PickupStartAction is where 「選擇門市」 submits the checkout form. It is goen's
+// own route, so what the shopper typed reaches goen and only goen; the carrier's
+// map form is built on the page that route answers.
+const PickupStartAction = "/checkout/pickup/start"
 
-// checkoutStoreButtonAttrs is what the store button carries: the sibling form
-// it submits, and the refusal state of the store itself. The button is the
-// control a store refusal belongs to, because a store is chosen through the
+// checkoutStoreButtonAttrs is what the store button carries: the route it
+// submits the checkout form to, and the refusal state of the store itself.
+// formnovalidate, because a shopper who has not typed an email yet must still be
+// able to go and choose a store; nothing is placed by this submit. The button is
+// the control a store refusal belongs to, because a store is chosen through the
 // picker this opens rather than typed into a field.
 func checkoutStoreButtonAttrs(invalid string, refused bool) templ.Attributes {
-	attrs := templ.Attributes{"form": mapFormID, "aria-invalid": invalid}
+	attrs := templ.Attributes{
+		"formaction": PickupStartAction, "formmethod": "post", "formnovalidate": true,
+		"aria-invalid": invalid,
+	}
 	if refused {
 		attrs["aria-describedby"] = "pickup_store-error"
 	}
