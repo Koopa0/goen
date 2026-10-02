@@ -33,6 +33,7 @@ import (
 	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/audit"
+	"github.com/koopa0/goen/internal/admin/customers"
 	"github.com/koopa0/goen/internal/admin/health"
 	"github.com/koopa0/goen/internal/admin/loyalty"
 	"github.com/koopa0/goen/internal/admin/reports"
@@ -6214,300 +6215,6 @@ func searchableOrder(t *testing.T) (number, recipient, addr string) {
 	return number, recipient, addr
 }
 
-func TestTheBackOfficeCanSeeOneCustomerWhole(t *testing.T) {
-	ctx, staff := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
-	userID := creditedAccount(t, 50000)
-
-	view, err := s.Customer(ctx, userID.String(), uuid.NullUUID{UUID: staff, Valid: true})
-	if err != nil {
-		t.Fatalf("Customer: %v", err)
-	}
-	if view.CreditCents != 50000 {
-		t.Errorf("credit balance is %d, want 50000", view.CreditCents)
-	}
-	if view.Verified {
-		t.Error("a customer nobody has verified reads as verified")
-	}
-	if view.Since == "" {
-		t.Error("the page does not say when they registered")
-	}
-}
-
-func TestLookingAtACustomerIsRecorded(t *testing.T) {
-	ctx, staff := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
-	userID := creditedAccount(t, 1000)
-
-	if _, err := s.Customer(ctx, userID.String(), uuid.NullUUID{UUID: staff, Valid: true}); err != nil {
-		t.Fatalf("Customer: %v", err)
-	}
-
-	var rows int
-	if err := pool.QueryRow(ctx, `
-		SELECT count(*) FROM audit_events
-		WHERE action = 'customer.view' AND entity_id = $1 AND actor_user_id = $2`,
-		userID, staff).Scan(&rows); err != nil {
-		t.Fatalf("read the trail: %v", err)
-	}
-	if rows != 1 {
-		t.Errorf("%d audit rows for one lookup, want 1", rows)
-	}
-
-	var after string
-	if err := pool.QueryRow(ctx, `
-		SELECT coalesce("after"::text, '') FROM audit_events
-		WHERE action = 'customer.view' AND entity_id = $1`, userID).Scan(&after); err != nil {
-		t.Fatalf("read the row: %v", err)
-	}
-	var addr string
-	if err := pool.QueryRow(ctx, `SELECT email FROM users WHERE id = $1`, userID).
-		Scan(&addr); err != nil {
-		t.Fatalf("read the address: %v", err)
-	}
-	if strings.Contains(after, addr) {
-		t.Errorf("the trail copied the customer's address into itself: %s", after)
-	}
-}
-
-func TestACustomerSearchNeedsATerm(t *testing.T) {
-	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
-
-	for _, term := range []string{"", " ", "王"} {
-		view, err := s.Customers(ctx, term)
-		if err != nil {
-			t.Fatalf("Customers(%q): %v", term, err)
-		}
-		if view.Searching() {
-			t.Errorf("%q reads as a search", term)
-		}
-		if len(view.Rows) != 0 {
-			t.Errorf("%q listed %d customers without searching", term, len(view.Rows))
-		}
-	}
-}
-
-func TestACustomerIsFoundByTheStartOfTheirAddress(t *testing.T) {
-	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
-	userID := creditedAccount(t, 0)
-
-	var addr string
-	if err := pool.QueryRow(ctx, `SELECT email FROM users WHERE id = $1`, userID).
-		Scan(&addr); err != nil {
-		t.Fatalf("read the address: %v", err)
-	}
-
-	for _, term := range []string{
-		string([]rune(addr)[:10]),
-		strings.ToUpper(string([]rune(addr)[:10])),
-	} {
-		view, err := s.Customers(ctx, term)
-		if err != nil {
-			t.Fatalf("Customers(%q): %v", term, err)
-		}
-		found := false
-		for i := range view.Rows {
-			if view.Rows[i].ID == userID.String() {
-				found = true
-			}
-		}
-		if !found {
-			t.Errorf("searching %q did not find the customer", term)
-		}
-	}
-}
-
-// TestACustomerSearchTakesWildcardsLiterally holds the stance that the customer
-// list is searched, never browsed: "%%" passes the two-rune floor and must not
-// list every account, and a typed _ matches only an underscore.
-func TestACustomerSearchTakesWildcardsLiterally(t *testing.T) {
-	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
-	stem := strings.ReplaceAll(uuid.NewString(), "-", "")
-	ids := map[string]uuid.UUID{}
-	for _, addr := range []string{"lk_" + stem + "@goen.invalid", "lkx" + stem + "@goen.invalid"} {
-		var id uuid.UUID
-		if err := pool.QueryRow(ctx, `
-			INSERT INTO users (email, role, full_name) VALUES ($1, 'customer', 'wildcard')
-			RETURNING id`, addr).Scan(&id); err != nil {
-			t.Fatalf("create %s: %v", addr, err)
-		}
-		ids[addr] = id
-	}
-
-	view, err := s.Customers(ctx, "%%")
-	if err != nil {
-		t.Fatalf("Customers(%%%%): %v", err)
-	}
-	if len(view.Rows) != 0 {
-		t.Errorf(`searching "%%%%" listed %d customers; no address or name starts with it`, len(view.Rows))
-	}
-
-	view, err = s.Customers(ctx, "lk_"+stem)
-	if err != nil {
-		t.Fatalf("Customers: %v", err)
-	}
-	found := map[string]bool{}
-	for i := range view.Rows {
-		found[view.Rows[i].ID] = true
-	}
-	if !found[ids["lk_"+stem+"@goen.invalid"].String()] {
-		t.Error("searching the underscored address did not find its customer")
-	}
-	if found[ids["lkx"+stem+"@goen.invalid"].String()] {
-		t.Error("a typed _ matched a customer whose address has an x there")
-	}
-}
-
-func creditedAccount(t *testing.T, cents int64) uuid.UUID {
-	t.Helper()
-	ctx := t.Context()
-	var userID uuid.UUID
-	if err := pool.QueryRow(ctx, `
-		INSERT INTO users (email, role, full_name)
-		VALUES ('cust-'||gen_random_uuid()||'@goen.invalid', 'customer', '顧客測試')
-		RETURNING id`).Scan(&userID); err != nil {
-		t.Fatalf("create customer: %v", err)
-	}
-	// A zero grant would meet store_credit_entries_amount_non_zero, so an empty account is made directly.
-	if cents > 0 {
-		if _, err := pool.Exec(ctx,
-			`SELECT post_store_credit($1, $2, '測試發放', NULL, $3, NULL)`,
-			userID, cents, "grant:"+userID.String()); err != nil {
-			t.Fatalf("grant credit: %v", err)
-		}
-	} else {
-		if _, err := pool.Exec(ctx,
-			`INSERT INTO store_credit_accounts (user_id) VALUES ($1)`, userID); err != nil {
-			t.Fatalf("create credit account: %v", err)
-		}
-	}
-	return userID
-}
-
-func TestACustomersSpendCountsOnlyCommittedOrders(t *testing.T) {
-	ctx, staff := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
-	userID := creditedAccount(t, 0)
-	actor := uuid.NullUUID{UUID: staff, Valid: true}
-
-	paid := orderForCustomer(t, userID, 120000, true)
-	if _, err := pool.Exec(ctx,
-		`SELECT post_store_credit($1, 20000, '退貨', $2, $3, NULL)`,
-		userID, paid, "customer-refund:"+paid.String()); err != nil {
-		t.Fatalf("return part of the committed order: %v", err)
-	}
-	cancelled := orderForCustomer(t, userID, 990000, false)
-	if _, err := pool.Exec(ctx,
-		`UPDATE orders SET fulfillment_status = 'cancelled', cancelled_at = now()
-		 WHERE id = $1`,
-		cancelled); err != nil {
-		t.Fatalf("cancel the order: %v", err)
-	}
-
-	view, err := s.Customer(ctx, userID.String(), actor)
-	if err != nil {
-		t.Fatalf("Customer: %v", err)
-	}
-	if view.SpentCents != 100000 {
-		t.Errorf("spend is %d, want 100000 — the cancelled order or its refund is being counted",
-			view.SpentCents)
-	}
-	if view.Orders != 2 {
-		t.Errorf("order count is %d, want 2", view.Orders)
-	}
-}
-
-func TestAPromotedCustomerIsStillFindable(t *testing.T) {
-	ctx, staff := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
-	userID := creditedAccount(t, 0)
-	orderForCustomer(t, userID, 50000, true)
-
-	if _, err := pool.Exec(ctx, `UPDATE users SET role = 'admin' WHERE id = $1`,
-		userID); err != nil {
-		t.Fatalf("promote: %v", err)
-	}
-
-	var addr string
-	if err := pool.QueryRow(ctx, `SELECT email FROM users WHERE id = $1`, userID).
-		Scan(&addr); err != nil {
-		t.Fatalf("read the address: %v", err)
-	}
-	view, err := s.Customers(ctx, string([]rune(addr)[:10]))
-	if err != nil {
-		t.Fatalf("Customers: %v", err)
-	}
-	found := false
-	for i := range view.Rows {
-		if view.Rows[i].ID == userID.String() {
-			found = true
-		}
-	}
-	if !found {
-		t.Error("a promoted customer cannot be found by the search")
-	}
-
-	one, err := s.Customer(ctx, userID.String(), uuid.NullUUID{UUID: staff, Valid: true})
-	if err != nil {
-		t.Fatalf("Customer of a promoted customer: %v", err)
-	}
-	if one.SpentCents != 50000 {
-		t.Errorf("spend is %d, want 50000", one.SpentCents)
-	}
-}
-
-func orderForCustomer(t *testing.T, userID uuid.UUID, cents int64, paid bool) uuid.UUID {
-	t.Helper()
-	ctx := t.Context()
-
-	tx, err := pool.Begin(ctx)
-	if err != nil {
-		t.Fatalf("begin: %v", err)
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
-
-	var orderID uuid.UUID
-	if err := tx.QueryRow(ctx, `
-		INSERT INTO orders (order_number, user_id, shipping_version_id,
-		                    shipping_method_code, shipping_method_name, shipping_cents)
-		SELECT next_order_number(), $1, v.id, sm.code, v.name, 0
-		FROM shipping_method_versions v JOIN shipping_methods sm ON sm.id = v.method_id
-		ORDER BY v.effective_at LIMIT 1 RETURNING id`, userID).Scan(&orderID); err != nil {
-		t.Fatalf("create order: %v", err)
-	}
-	if _, err := tx.Exec(ctx, `
-		INSERT INTO order_private_data (order_id, email, recipient_name, phone,
-		                                postal_code, city, district, street)
-		VALUES ($1, 'cust@example.com', '收件', '0912345678', '110', '台北市', '信義區', '路 1 號')`,
-		orderID); err != nil {
-		t.Fatalf("delivery details: %v", err)
-	}
-	if _, err := tx.Exec(ctx, `
-		INSERT INTO order_lines (order_id, sku, product_name, unit_price_cents, quantity)
-		VALUES ($1, 'CUST-SKU', '顧客頁測試', $2, 1)`, orderID, cents); err != nil {
-		t.Fatalf("create line: %v", err)
-	}
-	if err := tx.Commit(ctx); err != nil {
-		t.Fatalf("commit: %v", err)
-	}
-
-	if paid {
-		ref := "cust_" + orderID.String()
-		if _, err := pool.Exec(ctx, `SELECT open_payment($1, $2, $3::bigint)`,
-			orderID, ref, cents); err != nil {
-			t.Fatalf("open payment: %v", err)
-		}
-		if _, err := pool.Exec(ctx, `SELECT capture_payment($1, $2::bigint, NULL, NULL)`,
-			ref, cents); err != nil {
-			t.Fatalf("capture: %v", err)
-		}
-	}
-	return orderID
-}
-
 // TestTheBackOfficeSeesTheSystemCancelAtThePaymentDeadline: the sweeper's
 // cancellation is the system's, in both languages, and never the customer's.
 func TestTheBackOfficeSeesTheSystemCancelAtThePaymentDeadline(t *testing.T) {
@@ -10067,7 +9774,6 @@ func TestAReceiptCannotTakeStockAway(t *testing.T) {
 
 func TestTheShopCanFindAWarrantyTheCustomerRegistered(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
 	serial, number := registeredWarranty(t, "SN-"+strings.ToUpper(uuid.NewString()[:8]))
 
 	for _, term := range []struct {
@@ -10078,7 +9784,7 @@ func TestTheShopCanFindAWarrantyTheCustomerRegistered(t *testing.T) {
 		{name: "by the order number off the confirmation mail", q: number},
 	} {
 		t.Run(term.name, func(t *testing.T) {
-			view, err := s.Warranties(ctx, term.q)
+			view, err := customers.NewStore(pool).Warranties(ctx, term.q)
 			if err != nil {
 				t.Fatalf("search warranties: %v", err)
 			}
@@ -10099,7 +9805,7 @@ func TestTheShopCanFindAWarrantyTheCustomerRegistered(t *testing.T) {
 		})
 	}
 
-	view, err := s.Warranties(ctx, "SN-NOSUCHTHING")
+	view, err := customers.NewStore(pool).Warranties(ctx, "SN-NOSUCHTHING")
 	if err != nil {
 		t.Fatalf("search warranties: %v", err)
 	}
@@ -10110,11 +9816,10 @@ func TestTheShopCanFindAWarrantyTheCustomerRegistered(t *testing.T) {
 
 func TestTheWarrantyLookupRefusesToListEverything(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
 	registeredWarranty(t, "SN-"+strings.ToUpper(uuid.NewString()[:8]))
 
 	for _, term := range []string{"", " ", "A"} {
-		view, err := s.Warranties(ctx, term)
+		view, err := customers.NewStore(pool).Warranties(ctx, term)
 		if err != nil {
 			t.Fatalf("search warranties %q: %v", term, err)
 		}

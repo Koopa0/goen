@@ -19,6 +19,7 @@ import (
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
+	"github.com/koopa0/goen/internal/web"
 )
 
 const MaxCampaignDays = 90
@@ -153,7 +154,7 @@ func (s *Store) SetCampaignWindow(ctx context.Context, slug, startsAt, endsAt st
 const campaignSearchLimit = 10
 
 func (s *Store) SearchCampaignProducts(ctx context.Context, slug, term string) ([]admin.CampaignProduct, error) {
-	term = SearchTerm(term)
+	term = web.SearchTerm(term)
 	if term == "" {
 		return nil, nil
 	}

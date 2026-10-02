@@ -14,6 +14,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/admin/ordernumber"
+	"github.com/koopa0/goen/internal/admin/orderstatus"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
@@ -54,7 +55,7 @@ func (s *Store) fillRefundBeforeShipment(ctx context.Context, view *admin.OrderV
 			(n == pages.FulfillmentCompleted && len(view.Shippable) > 0) {
 			continue
 		}
-		view.Next = append(view.Next, admin.Transition{Value: n, Label: StatusLabel(ctx, n)})
+		view.Next = append(view.Next, admin.Transition{Value: n, Label: orderstatus.Label(ctx, n)})
 	}
 	return nil
 }

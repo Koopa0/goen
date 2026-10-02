@@ -7,7 +7,6 @@ import (
 	"errors"
 	"strconv"
 	"strings"
-	"unicode/utf8"
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/returns"
@@ -42,38 +41,6 @@ var (
 )
 
 const PageSize = web.PageSize
-
-// MinSearchRunes is the shortest order search that is a search. Counted in
-// RUNES because two Chinese characters are a meaningful surname and two bytes
-// are half of one.
-const MinSearchRunes = 2
-
-// MaxSearchRunes bounds a search term; a longer one is cut, since no name or
-// SKU is that long and the term is repeated in every link of the list.
-const MaxSearchRunes = 100
-
-func SearchTerm(raw string) string {
-	term := strings.TrimSpace(raw)
-	if utf8.RuneCountInString(term) > MaxSearchRunes {
-		term = string([]rune(term)[:MaxSearchRunes])
-	}
-	return term
-}
-
-// statuses is the fulfilment lifecycle, in the order the queue shows it.
-// orders_check_transition decides which moves are legal; parsing and the queue
-// tabs consume this closed set.
-var statuses = [...]struct {
-	value pages.FulfillmentStatus
-	label i18n.Key
-}{
-	{pages.FulfillmentPending, i18n.KeyAdminStatusPending},
-	{pages.FulfillmentPicking, i18n.KeyAdminStatusPicking},
-	{pages.FulfillmentShipped, i18n.KeyAdminStatusShipped},
-	{pages.FulfillmentDelivered, i18n.KeyAdminStatusDelivered},
-	{pages.FulfillmentCompleted, i18n.KeyAdminStatusCompleted},
-	{pages.FulfillmentCancelled, i18n.KeyAdminStatusCancelled},
-}
 
 // queueTabs is the orders queue's closed set of filters, in the order it shows
 // them. Pending is two queues because FundedStatusLabel reads it as two: money
@@ -123,20 +90,6 @@ func NextStatuses(current pages.FulfillmentStatus) []pages.FulfillmentStatus {
 	default:
 		return nil
 	}
-}
-
-// StatusLabel answers from the status alone, which is right everywhere but
-// 'pending'; the order surfaces use FundedStatusLabel.
-func StatusLabel(ctx context.Context, s pages.FulfillmentStatus) string {
-	for _, status := range statuses {
-		if status.value == s {
-			return i18n.T(ctx, status.label)
-		}
-	}
-	// Not a panic, unlike ReturnStatusLabel: a queue opening with one
-	// untranslated word beats one that will not load. audit_events is
-	// append-only, so a row naming a retired status must still render.
-	return string(s)
 }
 
 // maxAdjustment bounds one stock correction: large enough for a delivery,
@@ -220,19 +173,4 @@ func returnStatusText(ctx context.Context, s returns.Status, beforeShipment bool
 // pending, which the database does not count as committed until it is picked.
 func funded(committed bool, owedCents, creditCents int64) bool {
 	return committed || (creditCents > 0 && owedCents <= 0)
-}
-
-// FundedStatusLabel is a fulfilment state read together with what the order
-// owes, which is the only way to tell the two halves of 'pending' apart: an
-// order stays pending from the moment the money arrives until a human picks it,
-// and one paid entirely from store credit has no payment row at all.
-//
-// committed means the shop has taken the order on; owed == 0 means nothing is
-// due. Either is enough here: a card capture sets the first, and store credit or
-// a full discount sets the second.
-func FundedStatusLabel(ctx context.Context, status pages.FulfillmentStatus, committed bool, owedCents int64) string {
-	if status == pages.FulfillmentPending && (committed || owedCents <= 0) {
-		return i18n.T(ctx, i18n.KeyAdminStatusReadyToPick)
-	}
-	return StatusLabel(ctx, status)
 }
