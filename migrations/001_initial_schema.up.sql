@@ -6789,7 +6789,7 @@ BEGIN
                     THEN (payload ->> 'created')::numeric END AS created
         FROM payment_webhook_events
         WHERE provider = 'stripe' AND object_ref = p_provider_ref
-          AND type IN ('checkout.session.completed', 'checkout.session.async_payment_succeeded')
+          AND type IN ('checkout.session.async_payment_succeeded')
           AND payload #>> '{data,object,payment_status}' = 'paid'
     ) e
     WHERE e.created > 0;
