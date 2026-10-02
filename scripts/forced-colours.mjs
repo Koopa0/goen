@@ -22,8 +22,10 @@ export async function measureChooserStates(name) {
     await settle();
     const checked = signature(card);
     const rect = input.getBoundingClientRect();
+    const radioStyle = getComputedStyle(input);
     results.push({ value: input.value, checked, unchecked,
-      radioVisible: rect.width >= 8 && rect.height >= 8,
+      radioVisible: rect.width >= 8 && rect.height >= 8 && radioStyle.clipPath === 'none' &&
+        radioStyle.visibility === 'visible' && Number(radioStyle.opacity) === 1,
       distinct: JSON.stringify(checked) !== JSON.stringify(unchecked) });
   }
   for (const input of inputs) input.checked = input === previous;
