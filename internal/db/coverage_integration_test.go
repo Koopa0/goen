@@ -204,10 +204,13 @@ func TestPickupBrandChoicesMatchDatabaseContract(t *testing.T) {
 // the allowlist order_shipments_carrier_known: a carrier the form offers and the
 // CHECK refuses fails the dispatch that chose it.
 func TestCarriersMatchDatabaseContract(t *testing.T) {
-	if len(carrier.All()) == 0 {
-		t.Fatal("carrier.All() is empty; this test would prove nothing")
+	home, _ := carrier.ForDelivery("", false)
+	stores, _ := carrier.ForDelivery("", true)
+	every := slices.Concat(home, stores)
+	if len(every) == 0 {
+		t.Fatal("no carrier on offer; this test would prove nothing")
 	}
-	for _, c := range carrier.All() {
+	for _, c := range every {
 		t.Run(string(c), func(t *testing.T) {
 			ctx := t.Context()
 			tx, err := schemaPool(t).Begin(ctx)

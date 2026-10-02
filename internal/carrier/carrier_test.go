@@ -7,21 +7,19 @@ import (
 	"github.com/koopa0/goen/internal/pickup"
 )
 
-func TestAllIsTheKnownClosedSetAndReturnsFreshStorage(t *testing.T) {
+func TestTheDeliveryChoicesAreTheKnownClosedSet(t *testing.T) {
 	t.Parallel()
 
-	got := All()
+	home, _ := ForDelivery("", false)
+	stores, _ := ForDelivery("", true)
+	got := slices.Concat(home, stores)
 	if len(got) != 8 {
-		t.Fatalf("All() has %d carriers, want 8: %v", len(got), got)
+		t.Fatalf("a home and a store order offer %d carriers between them, want 8: %v", len(got), got)
 	}
 	for _, c := range got {
 		if !c.Known() {
-			t.Errorf("All() contains unknown carrier %q", c)
+			t.Errorf("a delivery offers unknown carrier %q", c)
 		}
-	}
-	got[0] = Carrier("mutated")
-	if slices.Contains(All(), Carrier("mutated")) {
-		t.Error("mutating All() changed the canonical set")
 	}
 	for _, typed := range []Carrier{"", "黑貓", "黑貓宅急便", "T-cat"} {
 		if typed.Known() {

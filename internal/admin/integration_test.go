@@ -4873,6 +4873,13 @@ func emptyTheShelf(t *testing.T, vid uuid.UUID, key string) {
 
 func shippableOrder(t *testing.T, locale string) string {
 	t.Helper()
+	return shippableOrderFor(t, locale, false)
+}
+
+// shippableOrderFor is shippableOrder for a home delivery, or, when pickup, for
+// a store pickup chosen before the order settles, as checkout places one.
+func shippableOrderFor(t *testing.T, locale string, pickup bool) string {
+	t.Helper()
 	ctx := t.Context()
 
 	var variantID uuid.UUID
@@ -4896,8 +4903,9 @@ func shippableOrder(t *testing.T, locale string) string {
 		                    shipping_method_name, shipping_cents, locale)
 		SELECT next_order_number(), v.id, sm.code, v.name, 0, $1
 		FROM shipping_method_versions v JOIN shipping_methods sm ON sm.id = v.method_id
+		WHERE NOT $2 OR sm.destination_kind = 'pickup_point'
 		ORDER BY v.effective_at LIMIT 1
-		RETURNING id, order_number`, locale).Scan(&orderID, &number); err != nil {
+		RETURNING id, order_number`, locale, pickup).Scan(&orderID, &number); err != nil {
 		t.Fatalf("create order: %v", err)
 	}
 	if _, err := tx.Exec(ctx, `
@@ -4910,11 +4918,18 @@ func shippableOrder(t *testing.T, locale string) string {
 		orderID, variantID, "ship-fixture:"+number); err != nil {
 		t.Fatalf("hold: %v", err)
 	}
-	if _, err := tx.Exec(ctx, `
+	private := `
 		INSERT INTO order_private_data (order_id, email, recipient_name, phone,
 		                                postal_code, city, district, street)
-		VALUES ($1, 'ship@example.com', '收件人', '0912345678', '110', '台北市', '信義區', '路 1 號')`,
-		orderID); err != nil {
+		VALUES ($1, 'ship@example.com', '收件人', '0912345678', '110', '台北市', '信義區', '路 1 號')`
+	if pickup {
+		private = `
+		INSERT INTO order_private_data (order_id, email, recipient_name, phone,
+		                                pickup_brand, pickup_store_code, pickup_store_name)
+		VALUES ($1, 'ship@example.com', '收件人', '0912345678',
+		        'family_mart', '012345', '台北車站門市')`
+	}
+	if _, err := tx.Exec(ctx, private, orderID); err != nil {
 		t.Fatalf("create private data: %v", err)
 	}
 	if _, err := tx.Exec(ctx, `SELECT open_payment($1, $2, 100000)`,
