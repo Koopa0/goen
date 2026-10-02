@@ -1301,7 +1301,14 @@ const proveListingDesktopResize = async (label, locale) => {
     const missed = [];
     if (remove) {
       remove.scrollIntoView({ block: 'center' });
-      const r = remove.getBoundingClientRect();
+      // The update is a view transition, and while one runs the page itself is
+      // what a point hits: wait until the link's own centre is pressable.
+      let r = remove.getBoundingClientRect();
+      for (let waited = 0; waited < 3000; waited += 50) {
+        r = remove.getBoundingClientRect();
+        if (remove.contains(document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2))) break;
+        await new Promise((done) => setTimeout(done, 50));
+      }
       const cx = r.left + r.width / 2;
       const cy = r.top + r.height / 2;
       for (const [dx, dy] of [[-21, -21], [21, -21], [-21, 21], [21, 21]]) {

@@ -1332,6 +1332,7 @@ h3 {
    where it was and closes it. */
 .goen-header__drawer {
   background: var(--n-0);
+  box-sizing: border-box;
   border-bottom: 1px solid var(--n-200);
   border-right: 1px solid var(--n-200);
   box-shadow: var(--sh-xl);
@@ -2880,16 +2881,20 @@ input.goen-check {
   padding: 4px 10px;
 }
 
-/* The cross is nine pixels wide; the link is a 44px square whose negative
-   margins give back the room it takes, so the chip is the size it was. */
+/* The cross is nine pixels wide: a 44px target centred on it, which takes no
+   room, so the chip is the size it was. */
 .goen-filters__chip-remove {
-  align-items: center;
-  display: inline-flex;
-  justify-content: center;
-  margin: -14px -17px;
-  min-height: 44px;
-  min-width: 44px;
-  vertical-align: middle;
+  position: relative;
+}
+
+.goen-filters__chip-remove::after {
+  content: '';
+  height: 44px;
+  left: 50%;
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 44px;
 }
 
 .goen-filters__applied .ui-filterbar__clear {
