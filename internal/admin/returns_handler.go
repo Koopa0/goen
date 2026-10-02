@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -20,7 +21,7 @@ func (h *Handler) Returns(w http.ResponseWriter, r *http.Request) {
 	queue, err := h.store.Returns(r.Context(), r.URL.Query().Get(web.KeysetParam))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read return queue", "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 		return
 	}
 	for _, issue := range queue.payoutIssues {
@@ -105,7 +106,7 @@ func (h *Handler) Assess(w http.ResponseWriter, r *http.Request) {
 	default:
 		h.log.ErrorContext(r.Context(), "assess return",
 			"return", r.PathValue("id"), "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 	}
 }
 
@@ -167,7 +168,7 @@ func (h *Handler) renderReturnRefusal(w http.ResponseWriter, r *http.Request, er
 	queue, readErr := h.store.Returns(r.Context(), r.URL.Query().Get(web.KeysetParam))
 	if readErr != nil {
 		h.log.ErrorContext(r.Context(), "read return queue after refusal", "error", readErr)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 		return true
 	}
 	field := refused.Field
@@ -204,7 +205,7 @@ func (h *Handler) renderInspection(w http.ResponseWriter, r *http.Request, key i
 	queue, readErr := h.store.Returns(r.Context(), r.URL.Query().Get(web.KeysetParam))
 	if readErr != nil {
 		h.log.ErrorContext(r.Context(), "read return queue after refused inspection", "error", readErr)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 		return
 	}
 	id := r.PathValue("id")
@@ -291,7 +292,7 @@ func (h *Handler) Inspect(w http.ResponseWriter, r *http.Request) {
 	default:
 		h.log.ErrorContext(r.Context(), "inspect return",
 			"return", r.PathValue("id"), "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 	}
 }
 
@@ -350,7 +351,7 @@ func (h *Handler) Complete(w http.ResponseWriter, r *http.Request) {
 	default:
 		h.log.ErrorContext(r.Context(), "complete return",
 			"return", r.PathValue("id"), "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 	}
 }
 
@@ -372,7 +373,7 @@ func (h *Handler) confirmReturnDecision(w http.ResponseWriter, r *http.Request) 
 		if errors.Is(err, ErrRefused) {
 			http.Redirect(w, r, "/admin/returns?refused=1", http.StatusSeeOther)
 		} else {
-			h.serverError(w, r)
+			access.ServerError(w, r, h.log)
 		}
 		return true
 	}

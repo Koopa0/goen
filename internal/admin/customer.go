@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/shoptime"
@@ -79,8 +80,8 @@ func (s *Store) Customer(ctx context.Context, id string, actor uuid.NullUUID) (
 	}
 
 	// WHO was looked at, never what was read: audit_events outlives an erasure.
-	if auditErr := auditIn(ctx, q, Event{
-		Action: actionViewCustomer, Table: "users", ID: nullableID(uid),
+	if auditErr := audit.In(ctx, q, audit.Event{
+		Action: audit.ActionViewCustomer, Table: "users", ID: nullableID(uid),
 		Before: nil, After: map[string]any{"user_id": id},
 	}); auditErr != nil {
 		return admin.CustomerView{}, auditErr

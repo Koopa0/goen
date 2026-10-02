@@ -5,6 +5,7 @@ package admin_test
 import (
 	"fmt"
 	"html"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -13,12 +14,14 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/admin"
+	"github.com/koopa0/goen/internal/admin/admintest"
+	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 func TestEveryAdminQueueReachesBeyondItsFirstPage(t *testing.T) {
-	p := isolatedAdminSeedPool(t)
+	p := admintest.Pool(t)
 	ctx := t.Context()
 	exec := func(sql string) {
 		t.Helper()
@@ -78,6 +81,7 @@ func TestEveryAdminQueueReachesBeyondItsFirstPage(t *testing.T) {
  NULL, NULL, jsonb_build_object('n', n), 'paging-' || n) FROM generate_series(1,401) n;
  `)
 	s := admin.NewStore(p, fakeRefunder{}, nil, nil)
+	trail := audit.NewStore(p)
 	var warrantyOrder string
 	if err := p.QueryRow(ctx, `SELECT o.order_number FROM orders o JOIN order_lines l ON l.order_id=o.id JOIN warranty_registrations w ON w.order_line_id=l.id LIMIT 1`).Scan(&warrantyOrder); err != nil {
 		t.Fatal(err)
@@ -188,7 +192,7 @@ func TestEveryAdminQueueReachesBeyondItsFirstPage(t *testing.T) {
 			return r, e
 		}},
 		{"audit", "SELECT count(*) FROM audit_events", func(after string) (result, error) {
-			v, e := s.Audit(ctx, after)
+			v, e := trail.Events(ctx, after)
 			r := result{bound: v.ListBound}
 			for _, x := range v.Rows {
 				r.keys = append(r.keys, x.RequestID)
@@ -205,7 +209,7 @@ func TestEveryAdminQueueReachesBeyondItsFirstPage(t *testing.T) {
 		}},
 	}
 	h := adminHandlerOver(p, s)
-	handlers := map[string]http.HandlerFunc{"orders": h.Orders, "order search": h.Orders, "customers": h.Customers, "products": h.Products, "stock": h.Variants, "movements": h.Movements, "returns": h.Returns, "coupons": h.Coupons, "campaigns": h.Campaigns, "reviews": h.Reviews, "messages": h.Messages, "credit": h.Credit, "audit": h.Audit, "warranty": h.Warranties}
+	handlers := map[string]http.HandlerFunc{"orders": h.Orders, "order search": h.Orders, "customers": h.Customers, "products": h.Products, "stock": h.Variants, "movements": h.Movements, "returns": h.Returns, "coupons": h.Coupons, "campaigns": h.Campaigns, "reviews": h.Reviews, "messages": h.Messages, "credit": h.Credit, "audit": audit.NewHandler(trail, slog.New(slog.DiscardHandler)).Page, "warranty": h.Warranties}
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
 			var want int

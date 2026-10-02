@@ -181,24 +181,6 @@ func StatusLabel(ctx context.Context, s pages.FulfillmentStatus) string {
 	return string(s)
 }
 
-// IsOrderNumber reports whether s has the shape next_order_number() produces:
-// GO-YYMMDD-NNNNNN, matching the schema's orders_number_format CHECK. Callers
-// concatenate it into a redirect, so the whole shape is validated.
-func IsOrderNumber(s string) bool {
-	if len(s) != 16 || s[:3] != "GO-" || s[9] != '-' {
-		return false
-	}
-	for i, r := range s {
-		if i == 0 || i == 1 || i == 2 || i == 9 {
-			continue
-		}
-		if r < '0' || r > '9' {
-			return false
-		}
-	}
-	return true
-}
-
 // maxAdjustment bounds one stock correction: large enough for a delivery,
 // small enough that a typo cannot invent a warehouse.
 const maxAdjustment = 10000

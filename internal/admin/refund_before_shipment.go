@@ -11,6 +11,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/koopa0/goen/internal/admin/access"
+	"github.com/koopa0/goen/internal/admin/audit"
+	"github.com/koopa0/goen/internal/admin/ordernumber"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
@@ -84,9 +87,9 @@ func (s *Store) RefundBeforeShipment(ctx context.Context, number, reason string)
 		return nil, fmt.Errorf("%w: refund reason exceeds %d characters",
 			ErrInvalid, maxReturnResolutionRunes)
 	}
-	actorID, ok := actorFrom(ctx)
+	actorID, ok := audit.Actor(ctx)
 	if !ok {
-		return nil, fmt.Errorf("%w: refund before shipment", ErrNoActor)
+		return nil, fmt.Errorf("%w: refund before shipment", audit.ErrNoActor)
 	}
 	actor := uuid.NullUUID{UUID: actorID, Valid: true}
 
@@ -209,8 +212,8 @@ func recordStaffCancellation(
 	if err != nil {
 		return fmt.Errorf("record order event: %w", err)
 	}
-	err = auditIn(ctx, q, Event{
-		Action: actionAdvanceOrder, Table: "orders", ID: nullableID(orderID),
+	err = audit.In(ctx, q, audit.Event{
+		Action: audit.ActionAdvanceOrder, Table: "orders", ID: nullableID(orderID),
 		After: map[string]any{
 			"number": number, "status": string(pages.FulfillmentCancelled),
 			"return_request_id": returnID.String(),
@@ -238,7 +241,7 @@ func (h *Handler) RefundBeforeShipment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	number := r.PathValue("number")
-	if !IsOrderNumber(number) {
+	if !ordernumber.Valid(number) {
 		http.NotFound(w, r)
 		return
 	}
@@ -250,22 +253,22 @@ func (h *Handler) RefundBeforeShipment(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case err == nil:
 		h.closeSessions(r.Context(), number, sessions)
-		http.Redirect(w, r, back+"?refunded=1", http.StatusSeeOther) //nolint:gosec // G710: validated by IsOrderNumber
+		http.Redirect(w, r, back+"?refunded=1", http.StatusSeeOther) //nolint:gosec // G710: validated by ordernumber.Valid
 	case errors.Is(err, ErrRefundUnsettled):
-		http.Redirect(w, r, back+"?refundpending=1", http.StatusSeeOther) //nolint:gosec // G710: validated by IsOrderNumber
+		http.Redirect(w, r, back+"?refundpending=1", http.StatusSeeOther) //nolint:gosec // G710: validated by ordernumber.Valid
 	case hasConstraint(err, "orders_cancel_invoice_resolved"):
-		http.Redirect(w, r, back+"?cancelinvoice=1", http.StatusSeeOther) //nolint:gosec // G710: validated by IsOrderNumber
+		http.Redirect(w, r, back+"?cancelinvoice=1", http.StatusSeeOther) //nolint:gosec // G710: validated by ordernumber.Valid
 	case errors.Is(err, ErrRefundIncomplete):
 		// Tested before ErrRefused: a payout may carry a database refusal as its
 		// cause, but the refund is open and Resume is what the staff member needs.
 		h.log.ErrorContext(r.Context(), "refund before shipment", "order", number, "error", err)
-		http.Redirect(w, r, back+"?refundretry=1", http.StatusSeeOther) //nolint:gosec // G710: validated by IsOrderNumber
+		http.Redirect(w, r, back+"?refundretry=1", http.StatusSeeOther) //nolint:gosec // G710: validated by ordernumber.Valid
 	case errors.Is(err, ErrRefused), errors.Is(err, ErrInvalid):
 		h.log.WarnContext(r.Context(), "refund before shipment refused", "order", number, "error", err)
-		http.Redirect(w, r, back+"?refused=1", http.StatusSeeOther) //nolint:gosec // G710: validated by IsOrderNumber
+		http.Redirect(w, r, back+"?refused=1", http.StatusSeeOther) //nolint:gosec // G710: validated by ordernumber.Valid
 	default:
 		h.log.ErrorContext(r.Context(), "refund before shipment", "order", number, "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 	}
 }
 
@@ -273,15 +276,15 @@ func (h *Handler) confirmRefundBeforeShipment(w http.ResponseWriter, r *http.Req
 	view, err := h.store.RefundPreview(r.Context(), number)
 	switch {
 	case errors.Is(err, ErrNotFound):
-		h.notFound(w, r)
+		access.NotFound(w, r, h.log)
 		return true
 	case errors.Is(err, ErrRefused):
 		h.log.WarnContext(r.Context(), "refund before shipment not offered", "order", number, "error", err)
-		http.Redirect(w, r, "/admin/orders/"+number+"?refused=1", http.StatusSeeOther) //nolint:gosec // G710: validated by IsOrderNumber
+		http.Redirect(w, r, "/admin/orders/"+number+"?refused=1", http.StatusSeeOther) //nolint:gosec // G710: validated by ordernumber.Valid
 		return true
 	case err != nil:
 		h.log.ErrorContext(r.Context(), "read refund before shipment", "order", number, "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 		return true
 	}
 	view.Reason = r.PostFormValue("reason")

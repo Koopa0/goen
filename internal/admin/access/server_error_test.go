@@ -1,4 +1,4 @@
-package admin
+package access_test
 
 import (
 	"log/slog"
@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/i18n"
 )
 
@@ -18,8 +19,7 @@ func TestServerErrorNamesItsHTTPStatus(t *testing.T) {
 			ctx := i18n.WithLocale(t.Context(), locale)
 			req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/", http.NoBody)
 			res := httptest.NewRecorder()
-			h := Handler{log: slog.New(slog.DiscardHandler)}
-			h.serverError(res, req)
+			access.ServerError(res, req, slog.New(slog.DiscardHandler))
 			if res.Code != http.StatusInternalServerError {
 				t.Fatalf("status = %d, want 500", res.Code)
 			}

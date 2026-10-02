@@ -77,7 +77,7 @@ func TestADispatchWithACarrierTheOrderCannotUseIsRefused(t *testing.T) {
 	req.SetPathValue("number", home)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	w := httptest.NewRecorder()
-	h.RequireStaff(h.Ship)(w, req)
+	backOffice.RequireStaff(h.Ship)(w, req)
 	if w.Code != http.StatusUnprocessableEntity {
 		t.Fatalf("the refused dispatch answered %d, want 422", w.Code)
 	}

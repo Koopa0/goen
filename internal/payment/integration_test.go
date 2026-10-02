@@ -27,6 +27,7 @@ import (
 
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/admin"
+	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/db/dbtest"
@@ -2751,7 +2752,7 @@ func TestPaidCompleteResolutionCannotOpenSecondSession(t *testing.T) {
 	backOffice := admin.NewStore(pool, admin.NewRefunder(""), nil, nil)
 	if err := backOffice.ReconcileCompletePayment(
 		ctx, providerRef, admin.CompletePaymentPaid,
-	); !errors.Is(err, admin.ErrNoActor) {
+	); !errors.Is(err, audit.ErrNoActor) {
 		t.Fatalf("paid attribution without an auditable actor = %v, want ErrNoActor", err)
 	}
 	var rolledBackStatus string

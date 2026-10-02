@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
@@ -41,12 +42,12 @@ func (s *Store) SetReviewHidden(ctx context.Context, id string, hidden bool) err
 	if err != nil {
 		return ErrNotFound
 	}
-	action := actionShowReview
+	action := audit.ActionShowReview
 	if hidden {
-		action = actionHideReview
+		action = audit.ActionHideReview
 	}
 
-	return s.audited(ctx, Event{
+	return audit.Run(ctx, s.pool, audit.Event{
 		Action: action, Table: "product_reviews", ID: nullableID(reviewID),
 		Before: nil,
 		After:  map[string]any{"review_id": id, "hidden": hidden},

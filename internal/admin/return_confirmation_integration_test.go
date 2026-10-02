@@ -39,7 +39,7 @@ func TestReturnDecisionHTTPRequiresConfirmation(t *testing.T) {
 				req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 				req.SetPathValue("id", id.String())
 				w := httptest.NewRecorder()
-				h.RequireStaff(h.Decide)(w, req)
+				backOffice.RequireStaff(h.Decide)(w, req)
 				return w
 			}
 			w := post()
@@ -94,7 +94,7 @@ func TestReturnRejectionWithoutAReasonIsRefusedAtTheHandler(t *testing.T) {
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			req.SetPathValue("id", id.String())
 			w := httptest.NewRecorder()
-			h.RequireStaff(h.Decide)(w, req)
+			backOffice.RequireStaff(h.Decide)(w, req)
 			if w.Code != http.StatusUnprocessableEntity {
 				t.Fatalf("blank rejection = %d, want 422: %s", w.Code, w.Body.String())
 			}

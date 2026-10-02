@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/shoptime"
@@ -83,8 +84,8 @@ func (s *Store) CreateFAQEntry(ctx context.Context, f *FAQForm) (map[string]stri
 	if errs := f.Validate(ctx); len(errs) > 0 {
 		return errs, nil
 	}
-	if err := s.audited(ctx, Event{
-		Action: actionCreateFAQ, Table: "faq_entries",
+	if err := audit.Run(ctx, s.pool, audit.Event{
+		Action: audit.ActionCreateFAQ, Table: "faq_entries",
 		After: map[string]any{"category": f.Category, "question": f.Question},
 	}, func(ctx context.Context, q *db.Queries) error {
 		if err := q.LockFAQAppendPosition(ctx, f.Category); err != nil {
@@ -108,8 +109,8 @@ func (s *Store) UpdateFAQEntry(ctx context.Context, f *FAQForm) (map[string]stri
 	if errs := f.Validate(ctx); len(errs) > 0 {
 		return errs, nil
 	}
-	if err := s.audited(ctx, Event{
-		Action: actionUpdateFAQ, Table: "faq_entries", ID: nullableID(entryID),
+	if err := audit.Run(ctx, s.pool, audit.Event{
+		Action: audit.ActionUpdateFAQ, Table: "faq_entries", ID: nullableID(entryID),
 		After: map[string]any{"category": f.Category},
 	}, func(ctx context.Context, q *db.Queries) error {
 		n, execErr := q.UpdateFAQEntry(ctx, db.UpdateFAQEntryParams{
@@ -134,8 +135,8 @@ func (s *Store) DeleteFAQEntry(ctx context.Context, id string) error {
 	if err != nil {
 		return ErrNotFound
 	}
-	return s.audited(ctx, Event{
-		Action: actionDeleteFAQ, Table: "faq_entries", ID: nullableID(entryID),
+	return audit.Run(ctx, s.pool, audit.Event{
+		Action: audit.ActionDeleteFAQ, Table: "faq_entries", ID: nullableID(entryID),
 		Before: map[string]any{"id": id},
 	}, func(ctx context.Context, q *db.Queries) error {
 		n, execErr := q.DeleteFAQEntry(ctx, entryID)

@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
@@ -93,8 +94,8 @@ func (s *Store) CreateBanner(ctx context.Context, f *BannerForm) (map[string]str
 	if errs := f.Validate(ctx); len(errs) > 0 {
 		return errs, nil
 	}
-	if err := s.audited(ctx, Event{
-		Action: actionCreateBanner, Table: "promo_banners",
+	if err := audit.Run(ctx, s.pool, audit.Event{
+		Action: audit.ActionCreateBanner, Table: "promo_banners",
 		After: map[string]any{"message": f.Message, "cta": f.CTAHref},
 	}, func(ctx context.Context, q *db.Queries) error {
 		return q.CreateBanner(ctx, db.CreateBannerParams{
@@ -115,8 +116,8 @@ func (s *Store) SetBannerActive(ctx context.Context, id string, active bool) err
 	if err != nil {
 		return ErrNotFound
 	}
-	return s.audited(ctx, Event{
-		Action: actionToggleBanner, Table: "promo_banners", ID: nullableID(bannerID),
+	return audit.Run(ctx, s.pool, audit.Event{
+		Action: audit.ActionToggleBanner, Table: "promo_banners", ID: nullableID(bannerID),
 		After: map[string]any{"active": active},
 	}, func(ctx context.Context, q *db.Queries) error {
 		n, execErr := q.SetBannerActive(ctx, db.SetBannerActiveParams{

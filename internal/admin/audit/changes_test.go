@@ -1,4 +1,4 @@
-package admin
+package audit
 
 import (
 	"slices"
@@ -33,9 +33,9 @@ func TestAuditChangesReadsFieldsNotJSON(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := auditChanges([]byte(tt.before), []byte(tt.after))
+			got := changes([]byte(tt.before), []byte(tt.after))
 			if !slices.Equal(got, tt.want) {
-				t.Errorf("auditChanges = %+v, want %+v", got, tt.want)
+				t.Errorf("changes = %+v, want %+v", got, tt.want)
 			}
 		})
 	}

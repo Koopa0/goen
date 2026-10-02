@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/shoptime"
@@ -379,9 +380,9 @@ func (s *Store) Decide(
 		return fmt.Errorf("%w: return resolution exceeds %d characters",
 			ErrInvalid, maxReturnResolutionRunes)
 	}
-	actorID, ok := actorFrom(ctx)
+	actorID, ok := audit.Actor(ctx)
 	if !ok {
-		return fmt.Errorf("%w: decide return", ErrNoActor)
+		return fmt.Errorf("%w: decide return", audit.ErrNoActor)
 	}
 	// The signed-in context is the authority for every side effect of this
 	// decision. Trusting the caller-supplied parameter instead could attribute
@@ -695,9 +696,9 @@ func (s *Store) reverseReturnPoints(ctx context.Context, row *db.ReturnForDecisi
 func (s *Store) refundCard(
 	ctx context.Context, returnID uuid.UUID,
 ) (string, RefundState, error) {
-	actorID, ok := actorFrom(ctx)
+	actorID, ok := audit.Actor(ctx)
 	if !ok {
-		return "", "", fmt.Errorf("%w: refund provider attempt", ErrNoActor)
+		return "", "", fmt.Errorf("%w: refund provider attempt", audit.ErrNoActor)
 	}
 	requestID := web.RequestID(ctx)
 	if requestID == "" {
@@ -892,9 +893,9 @@ func (s *Store) Assess(ctx context.Context, id, basis string, facts []LineEligib
 	if !validAssessmentBasis(basis) {
 		return formRefuse("basis", returns.RefuseIncomplete)
 	}
-	actorID, ok := actorFrom(ctx)
+	actorID, ok := audit.Actor(ctx)
 	if !ok {
-		return fmt.Errorf("%w: assess return", ErrNoActor)
+		return fmt.Errorf("%w: assess return", audit.ErrNoActor)
 	}
 	requestID, err := uuid.Parse(id)
 	if err != nil {
@@ -997,8 +998,8 @@ func (s *Store) closeReturn(
 		return fmt.Errorf("%w: return %s was decided by somebody else first",
 			ErrRefused, requestID)
 	}
-	if err := auditIn(ctx, q, Event{
-		Action: actionDecideReturn, Table: "return_requests", ID: nullableID(requestID),
+	if err := audit.In(ctx, q, audit.Event{
+		Action: audit.ActionDecideReturn, Table: "return_requests", ID: nullableID(requestID),
 		After: returnDecisionAudit(kind.Status(), resolution, claim.Window, claim.Entitlement, assessmentVersion),
 	}); err != nil {
 		return err
@@ -1182,8 +1183,8 @@ func (s *Store) InspectReturn(
 		}
 	}
 
-	if err := auditIn(ctx, q, Event{
-		Action: actionInspectReturn, Table: "return_requests", ID: nullableID(requestID),
+	if err := audit.In(ctx, q, audit.Event{
+		Action: audit.ActionInspectReturn, Table: "return_requests", ID: nullableID(requestID),
 		// Counts, never the note: audit_events is append-only and erase_user does
 		// not reach it.
 		After: map[string]any{"lines": len(lines), "restocked": len(restock)},
@@ -1232,8 +1233,8 @@ func (s *Store) CompleteReturn(ctx context.Context, id, resolution string, actor
 		return fmt.Errorf("%w: return %s is not open for completion", ErrRefused, requestID)
 	}
 
-	if err := auditIn(ctx, q, Event{
-		Action: actionCompleteReturn, Table: "return_requests", ID: nullableID(requestID),
+	if err := audit.In(ctx, q, audit.Event{
+		Action: audit.ActionCompleteReturn, Table: "return_requests", ID: nullableID(requestID),
 		After: map[string]any{"resolution": resolution},
 	}); err != nil {
 		return err

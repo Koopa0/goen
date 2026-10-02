@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/destination"
 	"github.com/koopa0/goen/internal/i18n"
@@ -97,8 +98,8 @@ func (s *Store) PublishShippingVersion(ctx context.Context, v ShippingVersion) e
 		return ErrInvalid
 	}
 
-	return s.audited(ctx, Event{
-		Action: actionPublishShipping, Table: "shipping_method_versions",
+	return audit.Run(ctx, s.pool, audit.Event{
+		Action: audit.ActionPublishShipping, Table: "shipping_method_versions",
 		ID:     nullableID(id),
 		Before: nil,
 		After: map[string]any{
@@ -140,8 +141,8 @@ func (s *Store) SetZoneSurcharge(ctx context.Context, versionID, zoneID string, 
 		return ErrInvalid
 	}
 
-	return s.audited(ctx, Event{
-		Action: actionSetSurcharge, Table: "shipping_version_zones",
+	return audit.Run(ctx, s.pool, audit.Event{
+		Action: audit.ActionSetSurcharge, Table: "shipping_version_zones",
 		ID:     nullableID(vid),
 		Before: nil,
 		After: map[string]any{
@@ -241,8 +242,8 @@ func (s *Store) CreateMethod(ctx context.Context, m *NewMethod) (map[string]stri
 }
 
 func (s *Store) insertMethod(ctx context.Context, m *NewMethod) error {
-	return s.audited(ctx, Event{
-		Action: actionCreateShippingMethod, Table: "shipping_methods",
+	return audit.Run(ctx, s.pool, audit.Event{
+		Action: audit.ActionCreateShippingMethod, Table: "shipping_methods",
 		After: map[string]any{
 			"code": m.Code, "destination_kind": m.Destination,
 			"name": m.Name, "fee_cents": m.FeeDollars * 100,
@@ -293,8 +294,8 @@ func (s *Store) SetMethodActive(ctx context.Context, id string, active bool) err
 	if err != nil {
 		return ErrNotFound
 	}
-	return s.audited(ctx, Event{
-		Action: actionToggleShippingMethod, Table: "shipping_methods",
+	return audit.Run(ctx, s.pool, audit.Event{
+		Action: audit.ActionToggleShippingMethod, Table: "shipping_methods",
 		ID:    nullableID(methodID),
 		After: map[string]any{"active": active},
 	}, func(ctx context.Context, q *db.Queries) error {

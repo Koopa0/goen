@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
@@ -121,8 +122,8 @@ func (s *Store) SetCampaignWindow(ctx context.Context, slug, startsAt, endsAt st
 	}
 	// Filled inside the transaction, which is before the audit row is encoded.
 	before := map[string]any{"slug": slug}
-	return nil, s.audited(ctx, Event{
-		Action: actionSetCampaignWindow, Table: "sale_campaigns", ID: uuid.NullUUID{},
+	return nil, audit.Run(ctx, s.pool, audit.Event{
+		Action: audit.ActionSetCampaignWindow, Table: "sale_campaigns", ID: uuid.NullUUID{},
 		Before: before,
 		After:  map[string]any{"slug": slug, "starts_at": starts.UTC(), "ends_at": ends.UTC()},
 	},
@@ -173,8 +174,8 @@ func (s *Store) SetCampaignTone(ctx context.Context, slug, tone string) error {
 	if _, ok := pages.ParseTone(tone); !ok {
 		return fmt.Errorf("%w: unknown tone %q", ErrInvalid, tone)
 	}
-	return s.audited(ctx, Event{
-		Action: actionSetCampaignTone, Table: "sale_campaigns", ID: uuid.NullUUID{},
+	return audit.Run(ctx, s.pool, audit.Event{
+		Action: audit.ActionSetCampaignTone, Table: "sale_campaigns", ID: uuid.NullUUID{},
 		Before: map[string]any{"campaign": slug}, After: map[string]any{"tone": tone},
 	},
 		func(ctx context.Context, q *db.Queries) error {
@@ -197,8 +198,8 @@ func (s *Store) SetCampaignImage(ctx context.Context, slug, digest, alt, altEn s
 		utf8.RuneCountInString(altEn) > MaxCampaignAltRunes {
 		return fmt.Errorf("%w: header alt text is required and bounded at %d runes", ErrInvalid, MaxCampaignAltRunes)
 	}
-	return s.audited(ctx, Event{
-		Action: actionSetCampaignImage, Table: "sale_campaigns", ID: uuid.NullUUID{},
+	return audit.Run(ctx, s.pool, audit.Event{
+		Action: audit.ActionSetCampaignImage, Table: "sale_campaigns", ID: uuid.NullUUID{},
 		After: map[string]any{"campaign": slug, "digest": digest, "alt": alt},
 	},
 		func(ctx context.Context, q *db.Queries) error {
@@ -217,8 +218,8 @@ func (s *Store) SetCampaignImage(ctx context.Context, slug, digest, alt, altEn s
 
 // ClearCampaignImage removes the header; the media object itself stays.
 func (s *Store) ClearCampaignImage(ctx context.Context, slug string) error {
-	return s.audited(ctx, Event{
-		Action: actionClearCampaignImage, Table: "sale_campaigns", ID: uuid.NullUUID{},
+	return audit.Run(ctx, s.pool, audit.Event{
+		Action: audit.ActionClearCampaignImage, Table: "sale_campaigns", ID: uuid.NullUUID{},
 		Before: map[string]any{"campaign": slug},
 	},
 		func(ctx context.Context, q *db.Queries) error {
@@ -237,8 +238,8 @@ func (s *Store) CreateCampaign(ctx context.Context, f *CampaignForm) (map[string
 	if errs := f.Validate(ctx); len(errs) > 0 {
 		return errs, nil
 	}
-	err := s.audited(ctx, Event{
-		Action: actionCreateCampaign, Table: "sale_campaigns", ID: uuid.NullUUID{},
+	err := audit.Run(ctx, s.pool, audit.Event{
+		Action: audit.ActionCreateCampaign, Table: "sale_campaigns", ID: uuid.NullUUID{},
 		Before: nil, After: map[string]any{"slug": f.Slug, "title": f.Title, "title_en": f.TitleEn, "days": f.Days, "tone": f.Tone},
 	},
 		func(ctx context.Context, q *db.Queries) error {
@@ -256,8 +257,8 @@ func (s *Store) CreateCampaign(ctx context.Context, f *CampaignForm) (map[string
 }
 
 func (s *Store) SetCampaignActive(ctx context.Context, slug string, active bool) error {
-	return s.audited(ctx, Event{
-		Action: actionToggleCampaign, Table: "sale_campaigns", ID: uuid.NullUUID{},
+	return audit.Run(ctx, s.pool, audit.Event{
+		Action: audit.ActionToggleCampaign, Table: "sale_campaigns", ID: uuid.NullUUID{},
 		Before: map[string]any{"slug": slug}, After: map[string]any{"active": active},
 	},
 		func(ctx context.Context, q *db.Queries) error {
@@ -276,8 +277,8 @@ func (s *Store) SetCampaignActive(ctx context.Context, slug string, active bool)
 
 // FeatureProduct adds a product; sale_campaign_needs_discount decides eligibility.
 func (s *Store) FeatureProduct(ctx context.Context, campaign, product string) error {
-	return s.audited(ctx, Event{
-		Action: actionFeatureProduct, Table: "sale_campaign_products", ID: uuid.NullUUID{},
+	return audit.Run(ctx, s.pool, audit.Event{
+		Action: audit.ActionFeatureProduct, Table: "sale_campaign_products", ID: uuid.NullUUID{},
 		Before: nil, After: map[string]any{"campaign": campaign, "product": product},
 	},
 		func(ctx context.Context, q *db.Queries) error {
@@ -298,8 +299,8 @@ func (s *Store) FeatureProduct(ctx context.Context, campaign, product string) er
 }
 
 func (s *Store) UnfeatureProduct(ctx context.Context, campaign, product string) error {
-	return s.audited(ctx, Event{
-		Action: actionUnfeatureProduct, Table: "sale_campaign_products",
+	return audit.Run(ctx, s.pool, audit.Event{
+		Action: audit.ActionUnfeatureProduct, Table: "sale_campaign_products",
 		Before: map[string]any{"campaign": campaign, "product": product},
 	},
 		func(ctx context.Context, q *db.Queries) error {
