@@ -483,3 +483,58 @@ func TestTheBottomBarIsDrivenByAnIntersectionObserver(t *testing.T) {
 		t.Error("goen.js listens to scroll")
 	}
 }
+
+func TestAHalfStarIsShownAsAHalf(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		rating  float64
+		halves  int
+		full    int
+		hasHalf bool
+	}{
+		{0, 0, 0, false},
+		{4, 8, 4, false},
+		{4.5, 9, 4, true},
+		{4.7, 9, 4, true},
+		{4.8, 10, 5, false},
+		{5, 10, 5, false},
+		{7, 10, 5, false},
+	} {
+		v := ProductView{Rating: tc.rating}
+		if got := v.StarHalves(); got != tc.halves {
+			t.Errorf("rating %v: StarHalves() = %d, want %d", tc.rating, got, tc.halves)
+		}
+		drawn := renderToString(t, ratingStars(tc.halves))
+		if got := strings.Count(drawn, `class="goen-pdp__rate--on"`); got != tc.full {
+			t.Errorf("rating %v: %d full stars, want %d", tc.rating, got, tc.full)
+		}
+		if got := strings.Count(drawn, `class="goen-pdp__rate--half"`) == 1; got != tc.hasHalf {
+			t.Errorf("rating %v: half star shown = %v, want %v", tc.rating, got, tc.hasHalf)
+		}
+	}
+}
+
+func TestASingleSimilarProductDoesNotMakeARow(t *testing.T) {
+	t.Parallel()
+	tile := ProductTile{Slug: "a", Name: "A", PriceCents: 100}
+	one := ProductView{Slug: "x", Name: "X", SelectionOK: true, Related: []ProductTile{tile}}
+	if strings.Contains(renderProduct(t, &one, i18n.En), i18n.T(i18n.WithLocale(t.Context(), i18n.En), i18n.KeySectionRelated)) {
+		t.Error("a similar-products row with one card is rendered")
+	}
+	two := ProductView{Slug: "x", Name: "X", SelectionOK: true, Related: []ProductTile{tile, tile}}
+	if !strings.Contains(renderProduct(t, &two, i18n.En), i18n.T(i18n.WithLocale(t.Context(), i18n.En), i18n.KeySectionRelated)) {
+		t.Error("a similar-products row with two cards is not rendered")
+	}
+}
+
+func TestChoosingOptionsIsSaidOnce(t *testing.T) {
+	t.Parallel()
+	view := ProductView{
+		Slug: "tee", Name: "Tee", SelectionOK: true, AnySellable: true,
+		Options: []ProductOption{{Name: "color", Label: "Color", Values: []ProductOptionValue{{Value: "b", Label: "Black"}, {Value: "w", Label: "White"}}}},
+	}
+	got := renderProduct(t, &view, i18n.En)
+	if n := strings.Count(strings.ToLower(got), "choose"); n != 1 {
+		t.Errorf("the page asks the visitor to choose %d times, want once", n)
+	}
+}

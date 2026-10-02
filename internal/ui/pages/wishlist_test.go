@@ -218,8 +218,11 @@ func TestAWishlistRowBuysOrSendsToTheProductAndSaysWhatIsInStock(t *testing.T) {
 	if got := hiddenInputValue(form, "variant"); got != variant {
 		t.Errorf("add form variant = %q, want %q", got, variant)
 	}
-	if got := hiddenInputValue(form, "back"); got != "one-variant" {
-		t.Errorf("add form back = %q, want the product slug", got)
+	if got := hiddenInputValue(form, "return"); got != "/account/wishlist" {
+		t.Errorf("add form return = %q, want the wishlist", got)
+	}
+	if got := hiddenInputValue(form, "back"); got != "" {
+		t.Errorf("add form back = %q, want none: it would send the shopper to the product", got)
 	}
 	if add(items[1]) != nil || !choose(items[1]) {
 		t.Error("a product with a choice of variants must link to its page, not add one")
@@ -270,4 +273,31 @@ func nodeText(n *html.Node) string {
 		b.WriteString(nodeText(c))
 	}
 	return b.String()
+}
+
+func TestAddingFromTheWishlistStaysOnItAndSaysWhatHappened(t *testing.T) {
+	t.Parallel()
+	item := WishlistItem{ProductTile: ProductTile{Slug: "mug", Name: "Mug", PriceCents: 100, InStock: true}, SoleVariantID: "v1"}
+	for _, tc := range []struct {
+		outcome AddOutcome
+		want    i18n.Key
+	}{
+		{AddOutcomeAdded, i18n.KeyAddedToCart},
+		{AddOutcomeAdjusted, i18n.KeyAddAdjusted},
+		{AddOutcomeUnavailable, i18n.KeyAddRefused},
+		{AddOutcomeFull, i18n.KeyCartLineLimit},
+	} {
+		ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+		got := renderToString(t, Wishlist(layouts.Page{}, WishlistView{Products: []WishlistItem{item}, Added: tc.outcome}))
+		if !strings.Contains(got, i18n.T(ctx, tc.want)) {
+			t.Errorf("outcome %q renders no %q", tc.outcome, tc.want)
+		}
+	}
+	plain := renderToString(t, Wishlist(layouts.Page{}, WishlistView{Products: []WishlistItem{item}}))
+	if strings.Contains(plain, `id="added"`) {
+		t.Error("a plain visit shows an add-to-cart notice")
+	}
+	if !strings.Contains(plain, `name="return" value="/account/wishlist"`) || strings.Contains(plain, `name="back"`) {
+		t.Error("the add form does not ask to come back to the wishlist")
+	}
 }

@@ -63,34 +63,37 @@ templ Listing(p layouts.Page, v ListingView) {
 			}
 			<div class="goen-listing__layout">
 				@listingFilters(v)
-				<div
-					class="goen-listing__results"
-					id="listing-results"
-					tabindex="-1"
-					autofocus?={ v.Filtered && !isPartial(ctx) }
-				>
-					if v.Empty() {
-						<div class="ui-empty">
-							@emptyArt(assets.EmptySearchImage)
-							<p class="goen-empty__title">{ i18n.T(ctx, i18n.KeyListingEmpty) }</p>
-							<p class="goen-empty__text">
-								{ i18n.T(ctx, i18n.KeyListingEmptyHint) }
-								<a href={ templ.URL("/c/" + v.Slug) }>{ i18n.T(ctx, i18n.KeyListingEmptyLink) }</a>
-							</p>
-						</div>
-					} else {
-						// The grid's heading, visually hidden: without it a tile's h3 skips a level.
-						<h2 class="goen-sr-only">{ i18n.T(ctx, i18n.KeyResultsHeading) }</h2>
-						<p class="goen-listing__count" aria-hidden="true">{ i18n.Count(ctx, i18n.KeyListingCount, v.Total, v.TotalText()) }</p>
-						@compareForm(AnyComparable(v.Grid()) || AnyComparable(v.Featured())) {
-							<ul class="goen-tiles__grid" role="list">
-								for _, t := range v.Grid() {
-									@Tile(t)
-								}
-							</ul>
+				<div class="goen-listing__main">
+					@appliedFilters(v)
+					<div
+						class="goen-listing__results"
+						id="listing-results"
+						tabindex="-1"
+						autofocus?={ v.Filtered && !isPartial(ctx) }
+					>
+						if v.Empty() {
+							<div class="ui-empty">
+								@emptyArt(assets.EmptySearchImage)
+								<p class="goen-empty__title">{ i18n.T(ctx, i18n.KeyListingEmpty) }</p>
+								<p class="goen-empty__text">
+									{ i18n.T(ctx, i18n.KeyListingEmptyHint) }
+									<a href={ templ.URL("/c/" + v.Slug) }>{ i18n.T(ctx, i18n.KeyListingEmptyLink) }</a>
+								</p>
+							</div>
+						} else {
+							// The grid's heading, visually hidden: without it a tile's h3 skips a level.
+							<h2 class="goen-sr-only">{ i18n.T(ctx, i18n.KeyResultsHeading) }</h2>
+							<p class="goen-listing__count" aria-hidden="true">{ i18n.Count(ctx, i18n.KeyListingCount, v.Total, v.TotalText()) }</p>
+							@compareForm(AnyComparable(v.Grid()) || AnyComparable(v.Featured())) {
+								<ul class="goen-tiles__grid" role="list">
+									for _, t := range v.Grid() {
+										@Tile(t)
+									}
+								</ul>
+							}
+							@numberedPager(v.HasPrev(), v.HasNext(), v.PrevHref(), v.NextHref(), v.PageLinks())
 						}
-						@numberedPager(v.HasPrev(), v.HasNext(), v.PrevHref(), v.NextHref(), v.PageLinks())
-					}
+					</div>
 				</div>
 			</div>
 			if isPartial(ctx) {
@@ -204,25 +207,30 @@ templ listingFilters(v ListingView) {
 		// Shown by script when an update fails: the old results stay on the page
 		// and this says why they did not change.
 		<p class="goen-filters__error" role="alert" hidden>{ i18n.T(ctx, i18n.KeyCannotLoadListing) }</p>
-		<div id="filters-applied">
-			if v.Filtered {
-				<div class="goen-filters__applied">
-					<span class="goen-filters__applied-label">{ i18n.T(ctx, i18n.KeyFiltersActive) }</span>
-					<ul class="goen-filters__chips" role="list">
-						for _, chip := range v.AppliedChips(ctx) {
-							<li class="goen-filters__chip">
-								<span>{ chip.Label }</span>
-								<a class="goen-filters__chip-remove" href={ templ.URL(chip.Remove) } aria-label={ chip.RemoveLabel }><span aria-hidden="true">×</span></a>
-							</li>
-						}
-					</ul>
-					<a class="ui-filterbar__clear" href={ templ.URL("/c/" + v.Slug) }>{ i18n.T(ctx, i18n.KeyClearFilters) }</a>
-				</div>
-			}
-		</div>
 		// The count is announced from here, a region that stays in the page while
 		// the results around it are replaced, and focus is left where it is.
 		<p id="listing-status" class="goen-sr-only" role="status" aria-live="polite">{ i18n.Count(ctx, i18n.KeyListingCount, v.Total, v.TotalText()) }</p>
+	</div>
+}
+
+// appliedFilters sits above the results, in the column they are in, and is its
+// own swap target: it is replaced by id beside the results.
+templ appliedFilters(v ListingView) {
+	<div id="filters-applied">
+		if v.Filtered {
+			<div class="goen-filters__applied">
+				<span class="goen-filters__applied-label">{ i18n.T(ctx, i18n.KeyFiltersActive) }</span>
+				<ul class="goen-filters__chips" role="list">
+					for _, chip := range v.AppliedChips(ctx) {
+						<li class="goen-filters__chip">
+							<span>{ chip.Label }</span>
+							<a class="goen-filters__chip-remove" href={ templ.URL(chip.Remove) } aria-label={ chip.RemoveLabel }><span aria-hidden="true">×</span></a>
+						</li>
+					}
+				</ul>
+				<a class="ui-filterbar__clear" href={ templ.URL("/c/" + v.Slug) }>{ i18n.T(ctx, i18n.KeyClearFilters) }</a>
+			</div>
+		}
 	</div>
 }
 

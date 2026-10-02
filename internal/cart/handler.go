@@ -220,7 +220,7 @@ func (h *Handler) AddItem(w http.ResponseWriter, r *http.Request) {
 
 	variantID, err := uuid.Parse(r.PostFormValue("variant"))
 	if err != nil {
-		h.backToProduct(w, r, uuid.Nil, "unknown")
+		h.backToProduct(w, r, uuid.Nil, pages.AddOutcomeUnknown)
 		return
 	}
 	quantity := ParseQuantity(r.PostFormValue("quantity"))
@@ -234,13 +234,13 @@ func (h *Handler) AddItem(w http.ResponseWriter, r *http.Request) {
 
 	switch err := h.store.Add(r.Context(), cartID, variantID, quantity); {
 	case err == nil:
-		h.backToProduct(w, r, variantID, "added")
+		h.backToProduct(w, r, variantID, pages.AddOutcomeAdded)
 	case errors.Is(err, ErrQuantityAdjusted):
-		h.backToProduct(w, r, variantID, "adjusted")
+		h.backToProduct(w, r, variantID, pages.AddOutcomeAdjusted)
 	case errors.Is(err, ErrTooManyItems):
-		h.backToProduct(w, r, variantID, "full")
+		h.backToProduct(w, r, variantID, pages.AddOutcomeFull)
 	case errors.Is(err, ErrUnavailable), errors.Is(err, ErrNotFound):
-		h.backToProduct(w, r, variantID, "unavailable")
+		h.backToProduct(w, r, variantID, pages.AddOutcomeUnavailable)
 	default:
 		h.log.ErrorContext(r.Context(), "add to cart", "error", err)
 		h.serverError(w, r)
@@ -1826,17 +1826,27 @@ func (h *Handler) lookupCart(ctx context.Context, r *http.Request) (id uuid.UUID
 	return accountCart, true, stale
 }
 
+// wishlistPath is the one page other than a product that an add-to-cart form
+// may send the shopper back to, named by an exact match and never by a value
+// the request supplies.
+const wishlistPath = "/account/wishlist"
+
 // backToProduct answers 303 to the product the form came from, carrying an
-// outcome the page can show. The slug comes from the form's own field rather
-// than the Referer, which a request controls; the selection query is rebuilt
-// from the variant the server just accepted, not from anything the form named.
-func (h *Handler) backToProduct(w http.ResponseWriter, r *http.Request, variantID uuid.UUID, outcome string) {
+// outcome the page can show, or to the wishlist when the form says it came from
+// there. The slug comes from the form's own field rather than the Referer,
+// which a request controls; the selection query is rebuilt from the variant the
+// server just accepted, not from anything the form named.
+func (h *Handler) backToProduct(w http.ResponseWriter, r *http.Request, variantID uuid.UUID, outcome pages.AddOutcome) {
+	if r.PostFormValue("return") == wishlistPath {
+		http.Redirect(w, r, wishlistPath+"?added="+url.QueryEscape(string(outcome)), http.StatusSeeOther)
+		return
+	}
 	slug := r.PostFormValue("back")
 	if !isSlug(slug) {
 		http.Redirect(w, r, "/cart", http.StatusSeeOther)
 		return
 	}
-	target, err := h.store.productReturnURL(r.Context(), slug, variantID, outcome)
+	target, err := h.store.productReturnURL(r.Context(), slug, variantID, string(outcome))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "build product return url", "error", err)
 		http.Redirect(w, r, "/cart", http.StatusSeeOther)

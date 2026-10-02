@@ -872,7 +872,9 @@ const LISTING_LAYOUT_PROBE = `(() => {
     return { ok: false, why: 'listing layout landmarks missing' };
   }
   const rail = (filters || filterForm).getBoundingClientRect();
-  const resultsRect = results.getBoundingClientRect();
+  // The column the results are in: it also holds the applied-filter chips
+  // above them, which would otherwise push the results below the rail's top.
+  const resultsRect = (document.querySelector('.goen-listing__main') || results).getBoundingClientRect();
   const cardRect = card ? card.getBoundingClientRect() : null;
   return {
     ok: true,
@@ -1310,6 +1312,20 @@ const proveListingDesktopResize = async (label, locale) => {
     if (!live.focusKept) fail(label, 'focus left the filter box after the update');
     if (live.scrolled) fail(label, 'the page scrolled after the update');
     if (!live.count || live.status !== live.count) fail(label, `the announced count "${live.status}" is not the page's "${live.count}"`);
+  }
+
+  // The applied chips are the results' own heading: above them, in their column.
+  const placed = await evalPage(`(() => {
+    const applied = document.querySelector('#filters-applied .goen-filters__applied');
+    const results = document.getElementById('listing-results');
+    if (!applied || !results) return { ok: false, why: 'applied chips or results missing after the filter' };
+    const a = applied.getBoundingClientRect();
+    const r = results.getBoundingClientRect();
+    return { ok: true, aBottom: a.bottom, aLeft: a.left, rTop: r.top, rLeft: r.left };
+  })()`);
+  if (placed.threw || !placed.ok) fail(label, placed.why || 'chip placement probe failed');
+  else if (placed.aBottom > placed.rTop + 1 || Math.abs(placed.aLeft - placed.rLeft) > 1) {
+    fail(label, `the applied chips are not above the results — ${JSON.stringify(placed)}`);
   }
 
   await loadDesktop(true);

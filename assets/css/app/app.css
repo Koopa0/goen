@@ -2596,6 +2596,17 @@ input.goen-check {
   min-width: 0;
 }
 
+.goen-listing__main {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+#filters-applied:empty {
+  display: none;
+}
+
 .goen-listing__results {
   display: flex;
   flex-direction: column;
@@ -3705,9 +3716,21 @@ a.goen-pager__step:hover {
   width: 1rem;
 }
 
-.goen-pdp__rate--on svg {
+.goen-pdp__rate--on svg,
+.goen-pdp__ratehalf svg {
   color: var(--star);
   fill: var(--star);
+}
+
+/* A half star is the grey star with the amber one laid over its left half. */
+.goen-pdp__rate--half {
+  position: relative;
+}
+
+.goen-pdp__ratehalf {
+  inset: 0 50% 0 0;
+  overflow: hidden;
+  position: absolute;
 }
 
 .goen-pdp__pricebox {
