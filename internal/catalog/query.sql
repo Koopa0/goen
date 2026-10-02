@@ -66,10 +66,22 @@ WITH RECURSIVE d AS (
 )
 SELECT d.id FROM d;
 
--- Counted over products that would appear with no other filter applied, so a
--- brand offering nothing is not listed.
+-- Every brand with an active product in the category, counted over the products
+-- the other filters leave: a brand's count is what choosing it would show, brand
+-- filters aside. A brand the other filters empty stays listed at zero, so a
+-- chosen one can always be unchosen.
 -- name: CategoryBrands :many
-SELECT b.id, b.slug, b.name, count(*)::bigint AS product_count
+SELECT b.id, b.slug, b.name,
+       (count(*) FILTER (
+           WHERE NOT @filter_variants::boolean
+              OR EXISTS (
+                  SELECT 1 FROM product_variants v
+                  WHERE v.product_id = p.id AND v.is_active
+                    AND (NOT @in_stock_only::boolean OR v.stock_quantity > v.safety_stock)
+                    AND (@min_price::bigint = 0 OR v.price_cents >= @min_price::bigint)
+                    AND (@max_price::bigint = 0 OR v.price_cents <= @max_price::bigint)
+              )
+       ))::bigint AS product_count
 FROM products p
 JOIN brands b ON b.id = p.brand_id
 WHERE p.status = 'active'
