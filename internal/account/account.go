@@ -213,19 +213,28 @@ func sessionCookieName(secure bool) string {
 	return "goen_session"
 }
 
+// Role is users.role, closed by users_role_known.
+type Role string
+
+const (
+	RoleCustomer Role = "customer"
+	RoleStaff    Role = "staff"
+	RoleAdmin    Role = "admin"
+)
+
 // User is a signed-in customer, as the rest of the application sees them.
 type User struct {
 	ID    string
 	Email string
 	Name  string
-	Role  string
+	Role  Role
 }
 
 // IsStaff reports whether this account may reach the back office.
-func (u User) IsStaff() bool { return u.Role == "staff" || u.Role == "admin" }
+func (u User) IsStaff() bool { return u.Role == RoleStaff || u.Role == RoleAdmin }
 
 // IsAdmin reports whether this account may change who works here.
-func (u User) IsAdmin() bool { return u.Role == "admin" }
+func (u User) IsAdmin() bool { return u.Role == RoleAdmin }
 
 // FieldError names one rejected field and why.
 type FieldError struct {

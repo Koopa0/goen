@@ -310,7 +310,7 @@ type Delivery struct {
 
 // OrderEvent is one step in an order's history, as the shop sees it.
 type OrderEvent struct {
-	Kind  string
+	Kind  pages.OrderEventKind
 	Note  string
 	At    string
 	Actor string
@@ -328,7 +328,7 @@ func (e OrderEvent) By(ctx context.Context) string {
 		return e.Actor
 	case e.System:
 		return i18n.T(ctx, i18n.KeyAdminActorSystem)
-	case e.Kind == "cancelled":
+	case e.Kind == pages.EventCancelled:
 		return i18n.T(ctx, i18n.KeyAdminActorCustomer)
 	default:
 		return i18n.T(ctx, i18n.KeyAdminActorSystem)
@@ -469,12 +469,12 @@ func (v *OrderView) InvoiceText(ctx context.Context) string {
 
 // InvoiceDocument is one uniform invoice or credit note filed against an order.
 type InvoiceDocument struct {
-	Kind   string
+	Kind   invoice.DocumentKind
 	Number string
 	// ProviderRef is the four-digit random code a void needs alongside the number.
 	ProviderRef string
 	AmountCents int64
-	Status      string
+	Status      invoice.DocumentStatus
 	IssuedAt    string
 	Lines       []InvoiceLine
 }
@@ -493,7 +493,7 @@ func (l InvoiceLine) Line() string {
 
 // KindText names the document.
 func (d InvoiceDocument) KindText(ctx context.Context) string {
-	if d.Kind == "allowance" {
+	if d.Kind == invoice.DocumentAllowance {
 		return i18n.T(ctx, i18n.KeyAdminDocAllowance)
 	}
 	return i18n.T(ctx, i18n.KeyAdminDocInvoice)
@@ -503,7 +503,7 @@ func (d InvoiceDocument) KindText(ctx context.Context) string {
 func (d InvoiceDocument) Amount() string { return money.TWD(d.AmountCents) }
 
 // Voided reports whether it has been cancelled.
-func (d InvoiceDocument) Voided() bool { return d.Status == "voided" }
+func (d InvoiceDocument) Voided() bool { return d.Status == invoice.DocumentVoided }
 
 // Pending reports a CLAIM: a row holding its request key while the provider is
 // asked, with no number yet because allocating one is the 加值中心's job. It
@@ -520,7 +520,7 @@ func (v *OrderView) CanIssueInvoice() bool {
 		return false
 	}
 	for _, d := range v.InvoiceDocuments {
-		if d.Kind == "invoice" && !d.Voided() {
+		if d.Kind == invoice.DocumentInvoice && !d.Voided() {
 			return false
 		}
 	}
@@ -530,7 +530,7 @@ func (v *OrderView) CanIssueInvoice() bool {
 // LiveInvoice is the invoice standing against this order, if any.
 func (v *OrderView) LiveInvoice() (InvoiceDocument, bool) {
 	for _, d := range v.InvoiceDocuments {
-		if d.Kind == "invoice" && !d.Voided() {
+		if d.Kind == invoice.DocumentInvoice && !d.Voided() {
 			return d, true
 		}
 	}
@@ -553,7 +553,7 @@ func (v *OrderView) allowanceOutstandingCents() int64 {
 	}
 	outstanding := min((v.RefundedCents/100)*100, live.AmountCents)
 	for _, d := range v.InvoiceDocuments {
-		if d.Kind == "allowance" && !d.Voided() {
+		if d.Kind == invoice.DocumentAllowance && !d.Voided() {
 			outstanding -= d.AmountCents
 		}
 	}

@@ -55,14 +55,14 @@ func TestAFinishedRefundBeforeShipmentIsNotCalledCompleted(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), locale)
-		cancelled := returnStatusText(ctx, returns.ReturnCompleted, true)
+		cancelled := returnStatusText(ctx, returns.StatusCompleted, true)
 		if cancelled != i18n.T(ctx, i18n.KeyAdminReturnCancelledRefunded) {
 			t.Errorf("%s: a finished refund before shipment reads %q", locale, cancelled)
 		}
-		if returned := returnStatusText(ctx, returns.ReturnCompleted, false); returned != i18n.T(ctx, i18n.KeyAdminReturnCompleted) {
+		if returned := returnStatusText(ctx, returns.StatusCompleted, false); returned != i18n.T(ctx, i18n.KeyAdminReturnCompleted) {
 			t.Errorf("%s: a completed return reads %q", locale, returned)
 		}
-		if open := returnStatusText(ctx, returns.ReturnApproved, true); open != i18n.T(ctx, i18n.KeyAdminReturnApproved) {
+		if open := returnStatusText(ctx, returns.StatusApproved, true); open != i18n.T(ctx, i18n.KeyAdminReturnApproved) {
 			t.Errorf("%s: a refund still being paid reads %q, want its own status", locale, open)
 		}
 	}

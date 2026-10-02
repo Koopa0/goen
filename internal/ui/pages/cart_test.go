@@ -11,6 +11,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/koopa0/goen/assets"
+	"github.com/koopa0/goen/internal/destination"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/pickup"
@@ -304,7 +305,7 @@ func TestTheAddressBookIsOnlyOfferedForAnAddress(t *testing.T) {
 	book := []SavedAddress{{ID: "a"}}
 	for _, tt := range []struct {
 		name        string
-		destination string
+		destination destination.Kind
 		book        []SavedAddress
 		want        bool
 	}{

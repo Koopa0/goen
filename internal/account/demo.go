@@ -77,7 +77,7 @@ func (s *Store) EnsureDemoAccount(ctx context.Context, d DemoAccount) error {
 	if err != nil {
 		return fmt.Errorf("read the demo account: %w", err)
 	}
-	if (User{Role: row.Role}).IsStaff() {
+	if (User{Role: Role(row.Role)}).IsStaff() {
 		return ErrDemoAccountIsStaff
 	}
 	if !passwordMatches(row.PasswordHash, d.password) {

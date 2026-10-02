@@ -8,6 +8,7 @@ import (
 
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/cart"
+	"github.com/koopa0/goen/internal/destination"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/fieldrule"
 	"github.com/koopa0/goen/internal/invoice"
@@ -36,7 +37,7 @@ func hasField(errs []account.FieldError, field string) bool {
 // checkoutAddress is an address that is valid but for what a test sets.
 func checkoutAddress() cart.Address {
 	return cart.Address{
-		To: cart.ToAddress, Email: "a@b.co", Name: "王小明", Phone: "0912345678",
+		To: destination.Address, Email: "a@b.co", Name: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
 }

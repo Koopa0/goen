@@ -104,11 +104,11 @@ func TestEveryKnownReturnStatusHasAnAdminLabel(t *testing.T) {
 
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), locale)
-		for _, status := range []returns.ReturnStatus{
-			returns.ReturnRequested,
-			returns.ReturnApproved,
-			returns.ReturnRejected,
-			returns.ReturnCompleted,
+		for _, status := range []returns.Status{
+			returns.StatusRequested,
+			returns.StatusApproved,
+			returns.StatusRejected,
+			returns.StatusCompleted,
 		} {
 			label := ReturnStatusLabel(ctx, status)
 			if label == "" || label == string(status) {
@@ -123,7 +123,7 @@ func TestUnknownReturnStatusLabelRendersAsItself(t *testing.T) {
 	t.Parallel()
 
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
-	unknown := returns.ReturnStatus("legacy_foo")
+	unknown := returns.Status("legacy_foo")
 	if got := ReturnStatusLabel(ctx, unknown); got != "legacy_foo" {
 		t.Fatalf("ReturnStatusLabel(%q) = %q, want the raw status", unknown, got)
 	}
