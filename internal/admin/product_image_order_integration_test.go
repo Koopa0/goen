@@ -84,7 +84,7 @@ func TestSettingTheCoverAndReorderingChangesTheFirstImageEverywhere(t *testing.T
 		if err != nil || len(view.Images) == 0 || !strings.Contains(view.Images[0].URL, want) {
 			t.Fatalf("product page first image = %+v (err %v), want %s", view.Images, err, want)
 		}
-		found, err := catalog.NewStore(pool).Search(ctx, catalog.SearchPattern(token), catalog.SortDefault, 1)
+		found, err := catalog.NewStore(pool).Search(ctx, catalog.SearchPattern(token), catalog.SortRelevance, 1)
 		if err != nil || len(found.Products) != 1 || !strings.Contains(found.Products[0].ImageURL, want) {
 			t.Fatalf("card image = %+v (err %v), want %s", found.Products, err, want)
 		}

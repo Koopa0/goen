@@ -55,7 +55,7 @@ func TestSearchOrdersExplicitFieldRelevanceBeforeRecency(t *testing.T) {
 			t.Fatal(fixtureErr)
 		}
 	}
-	view, err := catalog.NewStore(tx).Search(ctx, catalog.SearchPattern(strings.ToUpper(token)), catalog.SortDefault, 1)
+	view, err := catalog.NewStore(tx).Search(ctx, catalog.SearchPattern(strings.ToUpper(token)), catalog.SortRelevance, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,7 +100,7 @@ func TestSearchRelevanceTiesUsePublicationThenIdentity(t *testing.T) {
 	if ids[1].String() < ids[2].String() {
 		want[0], want[1] = want[1], want[0]
 	}
-	view, err := catalog.NewStore(tx).Search(ctx, catalog.SearchPattern(token), catalog.SortDefault, 1)
+	view, err := catalog.NewStore(tx).Search(ctx, catalog.SearchPattern(token), catalog.SortRelevance, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -158,7 +158,7 @@ func TestSearchRanksTheChineseNameAndEnglishSummaryArms(t *testing.T) {
 			t.Fatal(fixtureErr)
 		}
 	}
-	view, err := catalog.NewStore(tx).Search(ctx, catalog.SearchPattern(strings.ToUpper(token)), catalog.SortDefault, 1)
+	view, err := catalog.NewStore(tx).Search(ctx, catalog.SearchPattern(strings.ToUpper(token)), catalog.SortRelevance, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -218,7 +218,7 @@ func TestSearchFindsAProductByItsCategoryNameAndRanksItAboveASummaryMention(t *t
 		}
 	}
 	for _, q := range []string{"類別" + token, strings.ToUpper("category " + token)} {
-		view, searchErr := catalog.NewStore(tx).Search(ctx, catalog.SearchPattern(q), catalog.SortDefault, 1)
+		view, searchErr := catalog.NewStore(tx).Search(ctx, catalog.SearchPattern(q), catalog.SortRelevance, 1)
 		if searchErr != nil {
 			t.Fatal(searchErr)
 		}
@@ -226,7 +226,7 @@ func TestSearchFindsAProductByItsCategoryNameAndRanksItAboveASummaryMention(t *t
 			t.Errorf("q=%q total=%d products=%v, want only the category's product", q, view.Total, view.Products)
 		}
 	}
-	view, err := catalog.NewStore(tx).Search(ctx, catalog.SearchPattern(token), catalog.SortDefault, 1)
+	view, err := catalog.NewStore(tx).Search(ctx, catalog.SearchPattern(token), catalog.SortRelevance, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -273,7 +273,7 @@ func TestSearchFindsAProductByAnAncestorCategoryName(t *testing.T) {
 		t.Fatal(fixtureErr)
 	}
 	for _, q := range []string{"部門" + token, strings.ToUpper("department " + token)} {
-		view, searchErr := catalog.NewStore(tx).Search(ctx, catalog.SearchPattern(q), catalog.SortDefault, 1)
+		view, searchErr := catalog.NewStore(tx).Search(ctx, catalog.SearchPattern(q), catalog.SortRelevance, 1)
 		if searchErr != nil {
 			t.Fatal(searchErr)
 		}
@@ -324,7 +324,7 @@ func TestSearchRequiresEveryTermAcrossFieldsInAnyOrder(t *testing.T) {
 		}
 	}
 	for _, q := range []string{brandTok + " " + specTok, specTok + "　" + brandTok, strings.ToUpper(brandTok) + "  " + specTok} {
-		view, searchErr := catalog.NewStore(tx).Search(ctx, catalog.SearchPattern(q), catalog.SortDefault, 1)
+		view, searchErr := catalog.NewStore(tx).Search(ctx, catalog.SearchPattern(q), catalog.SortRelevance, 1)
 		if searchErr != nil {
 			t.Fatal(searchErr)
 		}
@@ -379,7 +379,7 @@ func TestSearchRanksTheWholeQueryInAnyNameAboveTheTermsInOrderApart(t *testing.T
 		insertSearchFixture(t, tx, first+" only", second+" in the summary", 10000, 3),                // a term in the name
 		insertSearchFixture(t, tx, "Fixture name", first+" "+second, 10000, 4),                       // summary only
 	}
-	view, err := catalog.NewStore(tx).Search(ctx, catalog.SearchPattern(first+" "+second), catalog.SortDefault, 1)
+	view, err := catalog.NewStore(tx).Search(ctx, catalog.SearchPattern(first+" "+second), catalog.SortRelevance, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -393,7 +393,7 @@ func TestSearchRanksTheWholeQueryInAnyNameAboveTheTermsInOrderApart(t *testing.T
 	}
 }
 
-func TestSearchSortReordersAndNoTermsReadsTheNewest(t *testing.T) {
+func TestSearchSortReordersAndNewestProductsReadsTheLatestPublished(t *testing.T) {
 	ctx := t.Context()
 	tx, err := pool.Begin(ctx)
 	if err != nil {
@@ -410,7 +410,7 @@ func TestSearchSortReordersAndNoTermsReadsTheNewest(t *testing.T) {
 		sort catalog.Sort
 		want []string
 	}{
-		{catalog.SortDefault, []string{exact, mid, cheap}},
+		{catalog.SortRelevance, []string{exact, mid, cheap}},
 		{catalog.SortPriceAsc, []string{cheap, mid, exact}},
 		{catalog.SortPriceDesc, []string{exact, mid, cheap}},
 	} {
@@ -438,7 +438,7 @@ func TestSearchSortReordersAndNoTermsReadsTheNewest(t *testing.T) {
 
 func TestSearchHeadphonesFindsTheOverEarAndBudsThroughTheirCategory(t *testing.T) {
 	ctx := t.Context()
-	view, err := catalog.NewStore(pool).Search(ctx, catalog.SearchPattern("headphones"), catalog.SortDefault, 1)
+	view, err := catalog.NewStore(pool).Search(ctx, catalog.SearchPattern("headphones"), catalog.SortRelevance, 1)
 	if err != nil {
 		t.Fatal(err)
 	}

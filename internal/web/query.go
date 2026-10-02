@@ -34,6 +34,7 @@ func DropEmptyParams(w http.ResponseWriter, r *http.Request, keep ...string) (re
 		w.Header().Set("HX-Push-Url", target.RequestURI())
 		return false
 	}
-	http.Redirect(w, r, target.RequestURI(), http.StatusSeeOther)
+	// The target keeps this request's own path; only its query changes.
+	http.Redirect(w, r, target.RequestURI(), http.StatusSeeOther) //nolint:gosec // G710: relative to this request, same origin
 	return true
 }

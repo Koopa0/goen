@@ -21,20 +21,24 @@ const PageSize = 24
 // MaxQueryRunes bounds a search term.
 const MaxQueryRunes = 100
 
-// Sort is an ordering of a listing or a search. The zero value is the default:
-// newest first on a listing, best match on a search.
+// Sort is an ordering of a listing or a search. A price or rating sort leads and
+// the page's own order breaks its ties: newest first on a listing, best match on
+// a search.
 type Sort string
 
-// The orderings a listing offers.
+// The orderings. SortNewest and SortRelevance are what a page shows when the
+// shopper chose none, so neither appears in an address.
 const (
-	SortDefault   Sort = ""
+	SortNewest    Sort = "newest"
+	SortRelevance Sort = "relevance"
 	SortPriceAsc  Sort = "price_asc"
 	SortPriceDesc Sort = "price_desc"
 	SortRating    Sort = "rating"
 )
 
-// ParseSort maps a query-string value to a Sort, falling back to the default.
-func ParseSort(s string) Sort {
+// ParseSort maps a query-string value to a Sort, and anything else to unchosen,
+// the page's own order.
+func ParseSort(s string, unchosen Sort) Sort {
 	switch Sort(s) {
 	case SortPriceAsc:
 		return SortPriceAsc
@@ -43,8 +47,16 @@ func ParseSort(s string) Sort {
 	case SortRating:
 		return SortRating
 	default:
-		return SortDefault
+		return unchosen
 	}
+}
+
+// Param is the sort's query-string value, empty for the page's own order.
+func (s Sort) Param() string {
+	if s == SortNewest || s == SortRelevance {
+		return ""
+	}
+	return string(s)
 }
 
 // Filters is everything a listing URL can narrow by. MinPrice and MaxPrice are
