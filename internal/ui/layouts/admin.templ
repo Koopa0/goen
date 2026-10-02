@@ -69,8 +69,7 @@ templ adminBar() {
 			</a>
 			<div class="goen-adminbar__actions">
 				<a class="goen-adminbar__link" href="/">{ i18n.T(ctx, i18n.KeyBackToShop) }</a>
-				// i18n-exempt: a language's own name, shown in both locales on purpose.
-				@languageSwitch("goen-adminbar__lang", "繁中", "EN")
+				@languageMenu("goen-adminbar__lang")
 				<form method="post" action="/signout">
 					@components.Button(components.ButtonProps{Variant: components.VariantOutline}, "submit") {
 						{ i18n.T(ctx, i18n.KeySignOut) }

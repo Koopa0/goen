@@ -80,6 +80,7 @@ templ Header(p Page) {
 				})
 			</form>
 			<div class="goen-header__actions">
+				@languageMenu("goen-header__lang")
 				@components.ButtonLink(components.ButtonProps{
 					Variant: components.VariantGhost,
 					Icon:    true,
@@ -160,13 +161,50 @@ templ cartLink() {
 	}
 }
 
-// languageSwitch is the locale form, shared by the header bar, the drawer and
-// the footer. Which language is on is read from aria-pressed rather than from a
+// languageMenu is the compact language control of the header and the back
+// office's bar: a globe and the current language's short name, opening a small
+// menu with both choices, each in its own language. It is a native <details>,
+// so it opens without script; goen.js adds Escape and the outside click.
+//
+// The button's accessible name is "Language" plus the short name, which is
+// what the eye reads, and the choices post to the same /locale form the
+// footer's switch uses.
+templ languageMenu(class string) {
+	{{ current := i18n.FromContext(ctx) }}
+	<details class={ "goen-langmenu", templ.KV(class, class != "") } data-popover>
+		<summary class="goen-langmenu__button">
+			@icons.Globe()
+			<span class="goen-sr-only">{ i18n.T(ctx, i18n.KeyLanguage) }</span>
+			<span class="goen-langmenu__current" lang={ current.Tag() }>{ current.Short() }</span>
+		</summary>
+		<form class="goen-langmenu__panel" method="post" action="/locale">
+			<input type="hidden" name="return" value={ returnPath(ctx) }/>
+			<div role="group" aria-label={ i18n.T(ctx, i18n.KeyLanguage) }>
+				for _, l := range i18n.Locales() {
+					<button
+						class="goen-langmenu__item"
+						type="submit"
+						name="locale"
+						value={ l.Tag() }
+						lang={ l.Tag() }
+						aria-pressed={ pressed(l == current) }
+					>
+						<span>{ l.Label() }</span>
+						if l == current {
+							@icons.Check()
+						}
+					</button>
+				}
+			</div>
+		</form>
+	</details>
+}
+
+// languageSwitch is the locale form of the footer. Which language is on is read from aria-pressed rather than from a
 // second class the server renders: one fact, one source.
 //
 // class is where the caller needs to place the form, and is empty where it does
-// not: the header shows and hides its copies at three widths, the footer's sits
-// in a flex row that already puts it at the end.
+// not: the footer's sits in a flex row that already puts it at the end.
 templ languageSwitch(class, zh, en string) {
 	{{ current := i18n.FromContext(ctx) }}
 	<form class={ templ.KV(class, class != "") } method="post" action="/locale">
