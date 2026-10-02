@@ -16,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
 )
 
@@ -99,6 +100,34 @@ func (s *Store) Order(ctx context.Context, number string) (*Order, error) {
 		})
 	}
 	return o, nil
+}
+
+// Breakdown is how an order's figure was reached, for the payment page to list
+// between the lines and what is owed. Stripe is never sent it.
+type Breakdown struct {
+	ShippingName   string
+	ShippingCents  int64
+	DiscountCents  int64
+	DiscountReason string
+	CreditCents    int64
+}
+
+// Breakdown reads through the order page's own query, so the two pages cannot
+// list different rows for one order.
+func (s *Store) Breakdown(ctx context.Context, number string) (Breakdown, error) {
+	o, err := s.q.OrderSummaryByNumber(ctx, db.OrderSummaryByNumberParams{
+		Number: number, Locale: i18n.FromContext(ctx).Tag(),
+	})
+	if err != nil {
+		return Breakdown{}, fmt.Errorf("read breakdown of order %s: %w", number, err)
+	}
+	return Breakdown{
+		ShippingName:   o.ShippingMethodName,
+		ShippingCents:  o.ShippingCents,
+		DiscountCents:  o.DiscountCents,
+		DiscountReason: o.DiscountReason,
+		CreditCents:    o.CreditCents,
+	}, nil
 }
 
 // Attempt is what a POST to the pay route needs to know about the payments this

@@ -7,7 +7,7 @@ var (
 
 	KeySearchHint = key("nav.search.hint", Message{
 		ZhHant: "搜尋商品、品牌或規格",
-		En:     "Search products, brands or specifications",
+		En:     "Search products",
 	})
 
 	KeyMenu = key("nav.menu", Message{ZhHant: "選單", En: "Menu"})

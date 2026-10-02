@@ -89,10 +89,7 @@ var (
 
 	KeyWishlistAdd = key("pdp.wishlist.add", Message{ZhHant: "加入願望清單", En: "Save for later"})
 
-	KeyGuaranteeWarranty = key("pdp.guarantee.warranty", Message{
-		ZhHant: "標示保固的商品享原廠保固 · 送修收件依配送方式",
-		En:     "Manufacturer's warranty on products that state one · collection depends on how it was delivered",
-	})
+	KeyGuaranteeWarranty = key("pdp.guarantee.warranty", Message{ZhHant: "原廠保固", En: "Manufacturer's warranty"})
 
 	// %s is the threshold, interpolated from shipping_method_versions: a literal
 	// here is a promise that stops agreeing with what checkout charges.
@@ -101,10 +98,7 @@ var (
 		En:     "Free delivery over %s",
 	})
 
-	KeyGuaranteeReturns = key("pdp.guarantee.returns", Message{
-		ZhHant: "7 天鑑賞期退換貨",
-		En:     "7-day return window",
-	})
+	KeyGuaranteeReturns = key("pdp.guarantee.returns", Message{ZhHant: "7 天鑑賞期", En: "7 days to return"})
 
 	KeyProductNotFound = key("pdp.notfound", Message{ZhHant: "找不到這個商品", En: "Product not found"})
 

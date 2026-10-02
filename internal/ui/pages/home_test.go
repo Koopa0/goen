@@ -34,7 +34,7 @@ func TestTheShippingStripNamesPickupOnlyWhereItIsOffered(t *testing.T) {
 // languages.
 func TestASectionHeadingKeepsItsSeparatorForAScreenReader(t *testing.T) {
 	t.Parallel()
-	for locale, sep := range map[i18n.Locale]string{i18n.ZhHant: "。", i18n.En: ". "} {
+	for locale, sep := range map[i18n.Locale]string{i18n.ZhHant: " · ", i18n.En: ". "} {
 		page := renderIn(t, locale, Home(layouts.Page{}, HomeView{Row: ProductRow{
 			Title: "秋季選物", Fact: "8 件商品", Href: "/s/autumn",
 			Tiles: []ProductTile{{Slug: "a", Name: "A", PriceCents: 100, InStock: true}},
