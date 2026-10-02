@@ -6780,8 +6780,8 @@ BEGIN
     -- Event types and paid status must stay aligned with captureEvents and
     -- CaptureFrom in internal/payment/stripe.go. The database cannot verify
     -- signatures; the handler verifies before RecordWebhookEvent in this transaction.
-    -- No paid event (such as attribute_complete_payment_paid) falls back to now();
-    -- future times are capped there because paid_at is frozen once settled.
+    -- Calls without a paid event, including attribute_complete_payment_paid, use now().
+    -- Future times are capped at now() because paid_at is frozen once settled.
     SELECT min(to_timestamp(least(e.created, extract(epoch FROM now()))::double precision))
     INTO provider_event_at
     FROM (
