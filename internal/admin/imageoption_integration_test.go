@@ -19,6 +19,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/admin"
+	"github.com/koopa0/goen/internal/admin/admintest"
 )
 
 // TestAnUploadedImageCanShowOneOfItsProductsOptionValues walks the two forms
@@ -26,7 +27,7 @@ import (
 // afterwards, including back to showing the product whichever value is chosen.
 func TestAnUploadedImageCanShowOneOfItsProductsOptionValues(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	s := admin.NewStore(pool, admintest.Refunder{}, nil, nil)
 	h := adminHandlerOver(pool, s)
 	slug, values := productWithColours(t, ctx, s, "星霧藍", "曜石黑")
 	blue, black := values[0], values[1]
@@ -84,7 +85,7 @@ func TestAnUploadedImageCanShowOneOfItsProductsOptionValues(t *testing.T) {
 // then lead the gallery of a product it does not show.
 func TestAnImageCannotShowAnotherProductsOptionValue(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	s := admin.NewStore(pool, admintest.Refunder{}, nil, nil)
 	h := adminHandlerOver(pool, s)
 	first, _ := productWithColours(t, ctx, s, "星霧藍")
 	_, others := productWithColours(t, ctx, s, "曜石黑")

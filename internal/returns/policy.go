@@ -3,10 +3,19 @@ package returns
 import (
 	"errors"
 	"fmt"
+	"unicode/utf8"
 )
 
 // ErrPolicy leaves the request open; nothing is paid.
 var ErrPolicy = errors.New("returns: advertised policy refuses this decision")
+
+// MaxResolutionRunes is return_requests_resolution_bounded: the staff member's
+// words on a decision, a completion or a refund before shipment.
+const MaxResolutionRunes = 300
+
+func ValidResolution(s string) bool {
+	return utf8.ValidString(s) && utf8.RuneCountInString(s) <= MaxResolutionRunes
+}
 
 // PolicyWindow is the advertised return window a request — or one of its
 // lines — fell in when it was filed. It is counted from the request clock

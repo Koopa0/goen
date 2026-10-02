@@ -7,6 +7,7 @@ package admintest
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"html"
@@ -15,6 +16,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"sync/atomic"
 	"testing"
 
 	"github.com/google/uuid"
@@ -24,7 +26,10 @@ import (
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/admin/audit"
+	"github.com/koopa0/goen/internal/admin/refundstate"
 	"github.com/koopa0/goen/internal/db/dbtest"
+	"github.com/koopa0/goen/internal/email"
+	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -167,16 +172,16 @@ func OrderForCustomer(t *testing.T, pool *pgxpool.Pool, userID uuid.UUID, cents 
 }
 
 // AdminUser creates an admin and returns their id and address.
-func AdminUser(t *testing.T, p *pgxpool.Pool) (userID, email string) {
+func AdminUser(t *testing.T, p *pgxpool.Pool) (userID, address string) {
 	t.Helper()
 	var id uuid.UUID
 	if err := p.QueryRow(t.Context(), `
 		INSERT INTO users (email, role, full_name)
 		VALUES ('totp-' || gen_random_uuid() || '@goen.invalid', 'admin', '測試')
-		RETURNING id, email`).Scan(&id, &email); err != nil {
+		RETURNING id, email`).Scan(&id, &address); err != nil {
 		t.Fatalf("create staff: %v", err)
 	}
-	return id.String(), email
+	return id.String(), address
 }
 
 // CampaignSlug is a slug no other test's campaign has.
@@ -295,6 +300,153 @@ func WaitForBlockedApplication(
 		}
 		if ctx.Err() != nil {
 			t.Fatalf("writer %q never blocked behind pid %d: %v", applicationName, blockerPID, ctx.Err())
+		}
+	}
+}
+
+// Refunder stands in for Stripe's refund API: State is what a refund comes back
+// as, succeeded when empty.
+type Refunder struct {
+	FailIntent bool
+	RefundErr  error
+	State      refundstate.State
+	// Sent counts calls to Refund. Local rows prove durable outcomes, but only
+	// this provider-side counter can prove a retry did not execute twice.
+	Sent *atomic.Int64
+}
+
+func (f Refunder) PaymentIntentFor(_ context.Context, sessionID string) (string, error) {
+	if f.FailIntent {
+		return "", errors.New("stripe is unreachable")
+	}
+	return "pi_for_" + sessionID, nil
+}
+
+func (f Refunder) Refund(_ context.Context, intentID, requestKey string, _ int64) (string, refundstate.State, error) {
+	if f.Sent != nil {
+		f.Sent.Add(1)
+	}
+	if f.RefundErr != nil {
+		return "", "", f.RefundErr
+	}
+	state := f.State
+	if state == "" {
+		state = refundstate.Succeeded
+	}
+	return "re_" + requestKey + "_" + intentID[:6], state, nil
+}
+
+// PaidUnshippedOrder is a customer's order for one unit, paid with card and
+// store credit, holding its stock. picking moves it on; otherwise it is paid
+// and still pending, which commits it once the card is captured. A committed
+// order is awarded its points; one credit alone paid stays uncommitted, and
+// earns them only when picked.
+func PaidUnshippedOrder(t *testing.T, pool *pgxpool.Pool, cardCents, creditCents int64, picking bool) (number string, orderID, variantID uuid.UUID) {
+	t.Helper()
+	ctx := t.Context()
+	userID := CreditedAccount(t, pool, creditCents)
+	if err := pool.QueryRow(ctx, `
+		SELECT pv.id FROM product_variants pv JOIN products p ON p.id = pv.product_id
+		WHERE pv.is_active AND p.status = 'active' AND pv.stock_quantity - pv.safety_stock > 2
+		LIMIT 1`).Scan(&variantID); err != nil {
+		t.Fatalf("find variant: %v", err)
+	}
+
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO orders (order_number, user_id, shipping_version_id,
+		                    shipping_method_code, shipping_method_name, shipping_cents)
+		SELECT next_order_number(), $1, v.id, sm.code, v.name, 6000
+		FROM shipping_method_versions v JOIN shipping_methods sm ON sm.id = v.method_id
+		ORDER BY v.effective_at LIMIT 1
+		RETURNING id, order_number`, userID).Scan(&orderID, &number); err != nil {
+		t.Fatalf("create order: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO order_lines (order_id, variant_id, sku, product_name, unit_price_cents, quantity)
+		SELECT $1, pv.id, pv.sku, p.name, $3, 1
+		FROM product_variants pv JOIN products p ON p.id = pv.product_id WHERE pv.id = $2`,
+		orderID, variantID, cardCents+creditCents-6000); err != nil {
+		t.Fatalf("create line: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO order_private_data (order_id, email, recipient_name, phone,
+		                                postal_code, city, district, street)
+		VALUES ($1, 'before-shipment@example.com', '收件人', '0912345678',
+		        '110', '台北市', '信義區', '路 1 號')`, orderID); err != nil {
+		t.Fatalf("create private data: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `SELECT hold_inventory($1, $2, 1, interval '30 minutes', $3)`,
+		orderID, variantID, "before-shipment:"+number); err != nil {
+		t.Fatalf("hold: %v", err)
+	}
+	payUnshippedOrder(t, tx, orderID, number, cardCents, creditCents)
+	if picking {
+		if _, err := tx.Exec(ctx,
+			`UPDATE orders SET fulfillment_status = 'picking' WHERE id = $1`, orderID); err != nil {
+			t.Fatalf("to picking: %v", err)
+		}
+	}
+	if cardCents > 0 || picking {
+		if _, err := tx.Exec(ctx, `SELECT award_loyalty_points($1)`, orderID); err != nil {
+			t.Fatalf("award: %v", err)
+		}
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatalf("commit: %v", err)
+	}
+	return number, orderID, variantID
+}
+
+func FulfillmentOf(t *testing.T, pool *pgxpool.Pool, orderID uuid.UUID) string {
+	t.Helper()
+	var status string
+	if err := pool.QueryRow(t.Context(),
+		`SELECT fulfillment_status FROM orders WHERE id = $1`, orderID).Scan(&status); err != nil {
+		t.Fatalf("read status: %v", err)
+	}
+	return status
+}
+
+func AssertTerminalNotice(t *testing.T, pool *pgxpool.Pool, id uuid.UUID, want email.TerminalKind, wantRefunded bool) {
+	t.Helper()
+	var payload []byte
+	if err := pool.QueryRow(t.Context(), `SELECT payload FROM outbox_messages WHERE topic=$1 AND dedupe_key=$2`, outbox.TopicOrderTerminal.Name(), id.String()+":"+string(want)).Scan(&payload); err != nil {
+		t.Fatalf("missing terminal notice: %v", err)
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(payload, &fields); err != nil {
+		t.Fatal(err)
+	}
+	var orderID, kind string
+	var refunded bool
+	if len(fields) != 3 ||
+		json.Unmarshal(fields["order_id"], &orderID) != nil || orderID != id.String() ||
+		json.Unmarshal(fields["kind"], &kind) != nil || kind != string(want) ||
+		json.Unmarshal(fields["refunded"], &refunded) != nil || refunded != wantRefunded {
+		t.Fatalf("notice contains wrong event or private data: %s", payload)
+	}
+}
+
+func payUnshippedOrder(t *testing.T, tx pgx.Tx, orderID uuid.UUID, number string, cardCents, creditCents int64) {
+	t.Helper()
+	ctx := t.Context()
+	if creditCents > 0 {
+		if _, err := tx.Exec(ctx, `SELECT spend_store_credit($1, $2)`, orderID, -creditCents); err != nil {
+			t.Fatalf("spend credit: %v", err)
+		}
+	}
+	if cardCents > 0 {
+		session := "cs_before_shipment_" + number
+		if _, err := tx.Exec(ctx, `SELECT open_payment($1, $2, $3)`, orderID, session, cardCents); err != nil {
+			t.Fatalf("open payment: %v", err)
+		}
+		if _, err := tx.Exec(ctx, `SELECT capture_payment($1, $2, NULL, NULL)`, session, cardCents); err != nil {
+			t.Fatalf("capture: %v", err)
 		}
 	}
 }

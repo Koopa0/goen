@@ -1,4 +1,4 @@
-package admin
+package refunds
 
 // The HTTP interface to Stripe: what goen puts on the wire, and what it makes
 // of the answers. White-box so the SDK's backend can point at an httptest.Server.
@@ -15,6 +15,8 @@ import (
 	"time"
 
 	stripe "github.com/stripe/stripe-go/v86"
+
+	"github.com/koopa0/goen/internal/admin/refundstate"
 )
 
 type refundStripeCall struct {
@@ -209,7 +211,7 @@ func TestStripeRefunderFindsAnExistingRequestAcrossRefundPages(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Refund() error = %v", err)
 	}
-	if id != "re_original_request_9" || state != RefundPending {
+	if id != "re_original_request_9" || state != refundstate.Pending {
 		t.Errorf("Refund() = (%q, %q), want (re_original_request_9, pending)", id, state)
 	}
 	if len(*log) != 2 {
@@ -260,7 +262,7 @@ func TestStripeRefunderRefusesMultipleProviderRefundsForOneRequestKey(t *testing
 		t.Errorf("Refund() = (%q, %q, %v), want no arbitrarily selected provider fact",
 			id, state, err)
 	}
-	if errors.Is(err, ErrRefundCreateRejected) {
+	if errors.Is(err, ErrCreateRejected) {
 		t.Errorf("duplicate lookup = %v, must remain ambiguous rather than free the claim", err)
 	}
 	if len(*log) != 1 {
@@ -312,7 +314,7 @@ func TestStripeRefunderRejectsMismatchedListedRefundFacts(t *testing.T) {
 			if id != "" || state != "" {
 				t.Errorf("Refund() = (%q, %q, %v), want no provider values", id, state, err)
 			}
-			if errors.Is(err, ErrRefundCreateRejected) {
+			if errors.Is(err, ErrCreateRejected) {
 				t.Errorf("listed refund mismatch = %v, must remain ambiguous", err)
 			}
 			if len(*log) != 1 {
@@ -374,7 +376,7 @@ func TestStripeRefunderCreatesTheRequestedRefundIdempotently(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Refund() error = %v", err)
 	}
-	if id != "re_created_12" || state != RefundSucceeded {
+	if id != "re_created_12" || state != refundstate.Succeeded {
 		t.Errorf("Refund() = (%q, %q), want (re_created_12, succeeded)", id, state)
 	}
 	if len(*log) != 2 {
@@ -466,7 +468,7 @@ func TestStripeRefunderRejectsMismatchedCreatedRefundFacts(t *testing.T) {
 			if id != "" || state != "" {
 				t.Errorf("Refund() = (%q, %q, %v), want no provider values", id, state, err)
 			}
-			if errors.Is(err, ErrRefundCreateRejected) {
+			if errors.Is(err, ErrCreateRejected) {
 				t.Errorf("created refund mismatch = %v, must remain ambiguous", err)
 			}
 			if len(*log) != 2 {
@@ -488,7 +490,7 @@ func TestOnlyARefundCreateRejectionGetsTheStableRejectionSentinel(t *testing.T) 
 		if err == nil {
 			t.Fatal("Refund() accepted a failed provider lookup")
 		}
-		if errors.Is(err, ErrRefundCreateRejected) {
+		if errors.Is(err, ErrCreateRejected) {
 			t.Errorf("list error = %v, must not mean the refund CREATE was rejected", err)
 		}
 		if len(*log) != 1 {
@@ -507,8 +509,8 @@ func TestOnlyARefundCreateRejectionGetsTheStableRejectionSentinel(t *testing.T) 
 			return http.StatusBadRequest, rejection
 		})
 		_, _, err := r.Refund(t.Context(), "pi_paid", "return:create-rejected", 100)
-		if !errors.Is(err, ErrRefundCreateRejected) {
-			t.Errorf("create error = %v, want ErrRefundCreateRejected", err)
+		if !errors.Is(err, ErrCreateRejected) {
+			t.Errorf("create error = %v, want ErrCreateRejected", err)
 		}
 		if _, ok := errors.AsType[*stripe.Error](err); !ok {
 			t.Errorf("create error = %v, lost Stripe's provider cause", err)

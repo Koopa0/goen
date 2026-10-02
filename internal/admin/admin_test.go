@@ -228,11 +228,17 @@ func TestEveryRedirectNoticeHasAMessage(t *testing.T) {
 	t.Parallel()
 
 	// Every file in the package, not handler.go alone: the image and hero
-	// handlers redirect too.
+	// handlers redirect too. The refund before shipment answers on the order
+	// page, so its redirects are this table's as well.
 	names, err := filepath.Glob("*.go")
 	if err != nil {
 		t.Fatalf("list the package: %v", err)
 	}
+	refundNames, err := filepath.Glob(filepath.Join("refunds", "*.go"))
+	if err != nil || len(refundNames) == 0 {
+		t.Fatalf("list the refunds package: %d files, %v", len(refundNames), err)
+	}
+	names = append(names, refundNames...)
 	// "?name=1", "&name=1", and a bare "name=1" returned by a helper, which is
 	// how the image handlers write theirs.
 	param := regexp.MustCompile(`[?&"]([a-z]+)=1`)
@@ -241,7 +247,7 @@ func TestEveryRedirectNoticeHasAMessage(t *testing.T) {
 		if strings.HasSuffix(name, "_test.go") {
 			continue
 		}
-		src, readErr := os.ReadFile(name) //nolint:gosec // G304: this package's own files
+		src, readErr := os.ReadFile(name) //nolint:gosec // G304: this package's and refunds' own source files
 		if readErr != nil {
 			t.Fatalf("read %s: %v", name, readErr)
 		}

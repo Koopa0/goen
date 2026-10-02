@@ -12,7 +12,7 @@ import (
 
 func TestTheCampaignProductSearchOffersWhatIsNotFeaturedYet(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	s := admin.NewStore(pool, admintest.Refunder{}, nil, nil)
 	slug := admintest.CampaignSlug(t)
 	if _, err := campaigns.NewStore(pool).Create(ctx, &campaigns.Form{Slug: slug, Title: "測試活動", Days: 7}); err != nil {
 		t.Fatal(err)

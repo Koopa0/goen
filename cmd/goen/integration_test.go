@@ -23,7 +23,7 @@ import (
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/account"
-	"github.com/koopa0/goen/internal/admin"
+	"github.com/koopa0/goen/internal/admin/refunds"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/email"
@@ -162,7 +162,7 @@ func TestTheRouterKeepsAssetsStatelessAndCompressesPages(t *testing.T) {
 	}
 	router := newRouter(&RouterConfig{
 		Pool: counted, AdminPool: counted, Payments: gateway,
-		Refunder: admin.NewRefunder(""), BaseURL: "http://127.0.0.1",
+		Refunder: refunds.NewRefunder(""), BaseURL: "http://127.0.0.1",
 	}, slog.New(slog.DiscardHandler))
 
 	serve := func(path string) *httptest.ResponseRecorder {
@@ -240,7 +240,7 @@ func TestTheRouterKeepsNoSignedInPageInAnyCache(t *testing.T) {
 	}
 	router := newRouter(&RouterConfig{
 		Pool: pool, AdminPool: pool, Payments: gateway,
-		Refunder: admin.NewRefunder(""), BaseURL: "http://127.0.0.1",
+		Refunder: refunds.NewRefunder(""), BaseURL: "http://127.0.0.1",
 		TOTPKey: bytes.Repeat([]byte{7}, 32),
 	}, slog.New(slog.DiscardHandler))
 
@@ -405,7 +405,7 @@ func TestTheStoreMapReturnCostsNoDatabaseRoundTrip(t *testing.T) {
 	}
 	router := newRouter(&RouterConfig{
 		Pool: counted, AdminPool: counted, Payments: gateway,
-		Refunder: admin.NewRefunder(""), BaseURL: "https://goen.test",
+		Refunder: refunds.NewRefunder(""), BaseURL: "https://goen.test",
 		StoreMap: storeMap,
 	}, slog.New(slog.DiscardHandler))
 

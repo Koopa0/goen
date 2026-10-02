@@ -16,12 +16,13 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/admin"
+	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/returns"
 )
 
 func TestReturnDecisionHTTPRequiresConfirmation(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	s := admin.NewStore(pool, admintest.Refunder{}, nil, nil)
 	h := adminHandlerOver(pool, s)
 	for _, decision := range []string{"approved", "rejected"} {
 		t.Run(decision, func(t *testing.T) {
@@ -67,7 +68,7 @@ func TestReturnDecisionHTTPRequiresConfirmation(t *testing.T) {
 
 func TestReturnRejectionRequiresAReasonAtTheStoreBoundary(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	s := admin.NewStore(pool, admintest.Refunder{}, nil, nil)
 	id, _ := returnedOrder(t, 1)
 	err := s.Decide(ctx, id.String(), "rejected", " \t ", "", uuid.NullUUID{})
 	refused, ok := errors.AsType[*admin.FormRefusalError](err)
@@ -84,7 +85,7 @@ func TestReturnRejectionRequiresAReasonAtTheStoreBoundary(t *testing.T) {
 // holding what was typed, and the return untouched.
 func TestReturnRejectionWithoutAReasonIsRefusedAtTheHandler(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	s := admin.NewStore(pool, admintest.Refunder{}, nil, nil)
 	h := adminHandlerOver(pool, s)
 	for name, blank := range map[string]string{"empty": "", "whitespace": " \t "} {
 		t.Run(name, func(t *testing.T) {

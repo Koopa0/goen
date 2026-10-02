@@ -16,6 +16,7 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/admin/orderstatus"
+	"github.com/koopa0/goen/internal/admin/refunds"
 	"github.com/koopa0/goen/internal/admin/stock"
 	"github.com/koopa0/goen/internal/carrier"
 	"github.com/koopa0/goen/internal/catalog"
@@ -55,18 +56,15 @@ var (
 )
 
 type Store struct {
-	pool     *pgxpool.Pool
-	q        *db.Queries
-	refunder Refunder
+	pool    *pgxpool.Pool
+	q       *db.Queries
+	refunds *refunds.Store
 	// Both invoice dependencies may be nil when no provider is configured.
 	invoiceReader InvoiceReader
 	invoiceWriter InvoiceWriter
 }
 
-// NewStore returns a Store over the admin pool. refunder may be one that
-// refuses: a back office without Stripe credentials can still decide returns,
-// and a refund it cannot pay must fail loudly.
-func NewStore(pool *pgxpool.Pool, refunder Refunder, reader InvoiceReader, writer InvoiceWriter) *Store {
+func NewStore(pool *pgxpool.Pool, refunder refunds.Refunder, reader InvoiceReader, writer InvoiceWriter) *Store {
 	if pool == nil || refunder == nil {
 		panic("admin: NewStore requires a pool and a refunder")
 	}
@@ -76,7 +74,7 @@ func NewStore(pool *pgxpool.Pool, refunder Refunder, reader InvoiceReader, write
 	return &Store{
 		pool:          pool,
 		q:             db.New(pool),
-		refunder:      refunder,
+		refunds:       refunds.NewStore(pool, refunder),
 		invoiceReader: reader,
 		invoiceWriter: writer,
 	}
@@ -519,6 +517,27 @@ func eventKindFor(status pages.FulfillmentStatus) (string, error) {
 	}
 }
 
+func (s *Store) fillRefundBeforeShipment(ctx context.Context, view *admin.OrderView, number string) error {
+	opened, err := s.refunds.FillOrder(ctx, view, number)
+	if err != nil {
+		return err
+	}
+	if opened {
+		view.CanShip = false
+	}
+	for _, n := range NextStatuses(view.Status) {
+		if (n == pages.FulfillmentCancelled && view.Funded) ||
+			(n == pages.FulfillmentPicking && (opened || view.Unpaid)) ||
+			// orders_finished_when_shipped: an order that still owes a parcel is
+			// not finished, and Shippable is what is still outstanding.
+			(n == pages.FulfillmentCompleted && len(view.Shippable) > 0) {
+			continue
+		}
+		view.Next = append(view.Next, admin.Transition{Value: n, Label: orderstatus.Label(ctx, n)})
+	}
+	return nil
+}
+
 // fillInvoices puts what has actually been FILED on the order page, which is a
 // different question from the preference the customer asked for at checkout.
 func (s *Store) fillInvoices(ctx context.Context, view *admin.OrderView, number string) error {
@@ -568,12 +587,12 @@ func (s *Store) fillPayments(ctx context.Context, view *admin.OrderView, orderID
 		return fmt.Errorf("read payment of order %s: %w", view.Number, err)
 	}
 
-	refunds, err := s.q.OrderRefundRows(ctx, orderID)
+	refundRows, err := s.q.OrderRefundRows(ctx, orderID)
 	if err != nil {
 		return fmt.Errorf("read refunds of order %s: %w", view.Number, err)
 	}
-	for i := range refunds {
-		r := &refunds[i]
+	for i := range refundRows {
+		r := &refundRows[i]
 		channel, reason := i18n.KeyAdminPayRefundCard, r.Reason
 		if r.Channel == "credit" {
 			channel, reason = i18n.KeyAdminPayRefundCredit, admin.CreditReason(ctx, r.Reason)

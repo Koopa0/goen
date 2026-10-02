@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/admin"
+	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/stock"
 )
 
@@ -18,7 +19,7 @@ import (
 // exactly them, wildcards in the term being plain characters.
 func TestTheStockListSearchesBySKUOrNameAndShowsOptionValues(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	s := admin.NewStore(pool, admintest.Refunder{}, nil, nil)
 	slug := draftProduct(t, ctx, s)
 	if errs, err := s.AddOption(ctx, slug, admin.OptionDraft{Name: "顏色"}); err != nil || len(errs) > 0 {
 		t.Fatalf("AddOption: %v %v", err, errs)

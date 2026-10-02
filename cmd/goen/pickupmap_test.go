@@ -10,7 +10,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/koopa0/goen/internal/admin"
+	"github.com/koopa0/goen/internal/admin/refunds"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/payment"
 )
@@ -52,7 +52,7 @@ func storeMapRouter(t *testing.T, configured bool) http.Handler {
 	}
 	return newRouter(&RouterConfig{
 		Pool: idle, AdminPool: idle, Payments: gateway,
-		Refunder: admin.NewRefunder(""), BaseURL: "https://goen.test",
+		Refunder: refunds.NewRefunder(""), BaseURL: "https://goen.test",
 		StoreMap: storeMap,
 	}, slog.New(slog.DiscardHandler))
 }
