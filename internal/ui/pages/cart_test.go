@@ -1017,9 +1017,7 @@ func TestTheChosenOptionIsMarkedOnTheRadioAlone(t *testing.T) {
 // place the order and read the total afterwards.
 //
 // It is an `update` submit like the three chooser buttons, because it wants the
-// same thing: re-render this form with one more decision applied. formnovalidate
-// travels with it for the same reason they carry it — the customer is mid-form
-// and the fields below are still empty.
+// same thing: re-render this form with one more decision applied.
 func TestACouponCanBeAppliedWithoutPlacingTheOrder(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
@@ -1045,7 +1043,7 @@ func TestACouponCanBeAppliedWithoutPlacingTheOrder(t *testing.T) {
 	if !ok {
 		t.Fatal("no control follows the coupon field, so a code can only be tried by buying")
 	}
-	for _, want := range []string{`name="update"`, `value="coupon"`, "formnovalidate"} {
+	for _, want := range []string{`name="update"`, `value="coupon"`} {
 		if !strings.Contains(button, want) {
 			t.Errorf("the control beside the coupon field is missing %s:\n%s", want, button)
 		}
@@ -1277,6 +1275,9 @@ func TestApplyingACouponSwapsOnlyTheCodeTheTotalsAndTheQuote(t *testing.T) {
 		`hx-swap="none"`,
 		`hx-select-oob="#coupon,#coupon-message:innerHTML,#summary-totals,#checkout-quote"`,
 		`formaction="/checkout#coupon-field"`,
+		`data-coupon-apply`,
+		`data-busy="` + i18n.T(ctx, i18n.KeyTooManyRequests) + `"`,
+		`data-failed="` + i18n.T(ctx, i18n.KeyCouponUnavailable) + `"`,
 	} {
 		if !strings.Contains(button, want) {
 			t.Errorf("the coupon button omits %s:\n%s", want, button)
@@ -1347,6 +1348,9 @@ func TestTheCheckoutFormIsCheckedByTheServerAndFocusesTheFirstRefusal(t *testing
 	src, err := os.ReadFile(filepath.Join("..", "..", "..", "assets", "js", "goen.js"))
 	if err != nil {
 		t.Fatal(err)
+	}
+	if !strings.Contains(string(src), `button.dataset.busy`) || !strings.Contains(string(src), `[data-coupon-apply]`) {
+		t.Error("the script does not show a refused or failed coupon request in the coupon's message region")
 	}
 	if !strings.Contains(string(src), `form[data-focus-refused] :is(input, select, textarea, button)[aria-invalid="true"]`) {
 		t.Error("the script does not focus the first refused control of a refused checkout")

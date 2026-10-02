@@ -454,9 +454,9 @@
    * being typed; once it has been marked invalid it is re-checked on every
    * keystroke, so the message goes the moment the value is right. The message
    * lands in the element the 422 page uses (<id>-error, or data-rule-error), so
-   * both paths read alike. The browser's own validation still blocks a submit;
-   * for a refused ruled field the script shows the message in place of the
-   * bubble. The server stays authoritative.
+   * both paths read alike. In a form that keeps the browser's validation, a
+   * refused ruled field shows the message in place of the bubble; the checkout
+   * opts out of it and is answered by the server, which stays authoritative.
    *
    * Delegated from the document, so a form that arrives in a swap needs no
    * second initialisation. Without this file every form behaves as the server
@@ -551,8 +551,8 @@
       }
     };
 
-    // Submit stays blocked by the browser's own validation. For a ruled field
-    // holding a value the rule refuses, the script gives the message instead of
+    // In a form that keeps the browser's validation, a submit is blocked by it.
+    // For a ruled field holding a value the rule refuses, the script gives the message instead of
     // the bubble and moves focus to the first such field. Everything else (an
     // empty required field, a constraint the rule does not state) keeps the
     // browser's report. invalid does not bubble, hence the capture phase.
@@ -619,6 +619,29 @@
   }
 
   focusRefused();
+
+  /*
+   * A coupon request the server refused (the limiter's 429) or that never
+   * arrived swaps nothing, so the reason is written into the coupon's live
+   * region from the sentences the button carries. The typed code stays.
+   */
+  function couponFailure() {
+    document.addEventListener("htmx:finally:request", (event) => {
+      const ctx = event.detail?.ctx;
+      const button = ctx?.sourceElement;
+      if (!button?.matches?.("[data-coupon-apply]")) return;
+      const status = ctx.response?.status ?? 0;
+      if (status > 0 && status < 400) return;
+      const region = document.getElementById("coupon-message");
+      if (!region) return;
+      const note = document.createElement("p");
+      note.className = "ui-error-text";
+      note.textContent = status === 429 ? button.dataset.busy : button.dataset.failed;
+      region.replaceChildren(note);
+    });
+  }
+
+  couponFailure();
   /*
    * 「收件人同會員資料」. Ticking it is an explicit request: it puts the account's
    * name and phone in the recipient fields, over whatever they held, after

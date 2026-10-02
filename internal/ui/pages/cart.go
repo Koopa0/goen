@@ -339,17 +339,19 @@ func checkoutChoiceSwap(which string) templ.Attributes {
 //
 // The hidden quote is among what is swapped: the code changes it, and a stale
 // one would make the next 送出訂單 answer "the checkout changed".
-func couponButtonAttrs() templ.Attributes {
+func couponButtonAttrs(ctx context.Context) templ.Attributes {
 	return templ.Attributes{
-		"name":           "update",
-		"value":          "coupon",
-		"formnovalidate": true,
-		"formaction":     "/checkout#coupon-field",
-		"hx-post":        "/checkout",
-		"hx-include":     "#checkout-form",
-		"hx-vals":        `{"update":"coupon"}`,
-		"hx-swap":        "none",
-		"hx-select-oob":  "#coupon,#coupon-message:innerHTML,#summary-totals,#checkout-quote",
+		"name":              "update",
+		"value":             "coupon",
+		"formaction":        "/checkout#coupon-field",
+		"hx-post":           "/checkout",
+		"hx-include":        "#checkout-form",
+		"hx-vals":           `{"update":"coupon"}`,
+		"hx-swap":           "none",
+		"hx-select-oob":     "#coupon,#coupon-message:innerHTML,#summary-totals,#checkout-quote",
+		"data-coupon-apply": true,
+		"data-busy":         i18n.T(ctx, i18n.KeyTooManyRequests),
+		"data-failed":       i18n.T(ctx, i18n.KeyCouponUnavailable),
 	}
 }
 

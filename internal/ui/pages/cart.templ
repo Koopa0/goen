@@ -703,7 +703,7 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 								/>
 								@components.Button(components.ButtonProps{
 									Variant: components.VariantOutline,
-									Attrs:   couponButtonAttrs(),
+									Attrs:   couponButtonAttrs(ctx),
 								}, "submit") {
 									{ i18n.T(ctx, i18n.KeyApplyCoupon) }
 								}
