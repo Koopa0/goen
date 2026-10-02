@@ -740,7 +740,7 @@ func TestTwoSpecsThatShareATranslationStayTwoRows(t *testing.T) {
 		{name: "English", locale: i18n.En},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			view, err := store.Compare(i18n.WithLocale(ctx, tt.locale), []string{"collide-spec"})
+			view, err := store.Compare(i18n.WithLocale(ctx, tt.locale), []string{"collide-spec", "pixelight-9-pro"})
 			if err != nil {
 				t.Fatalf("compare: %v", err)
 			}
@@ -1260,7 +1260,8 @@ func TestAComparisonOfOneSuggestsItsShelfNearestPriceFirst(t *testing.T) {
 		t.Fatal("a laptop has no suggestions, though another laptop is on its shelf")
 	}
 	for _, sg := range laptop.Suggestions {
-		if sg.Slug != "meridian-book-16-pro" {
+		// The laptops shelf in the seed besides the one chosen.
+		if sg.Slug != "meridian-book-16-pro" && sg.Slug != "meridian-book-13" {
 			t.Errorf("%s is suggested for a laptop, off its shelf", sg.Slug)
 		}
 	}
