@@ -65,18 +65,18 @@ func (o AccountOrder) StatusText(ctx context.Context) string {
 	}
 }
 
-// BadgeTone is how the order's state reads in the history table. Only two
+// BadgeIntent is how the order's state reads in the history table. Only two
 // states are coloured: one the shopper still has to act on, and one that ended
 // without a delivery. Everything in between is progress, and a row of coloured
 // badges would say each step is a thing to look at.
-func (o AccountOrder) BadgeTone() components.Tone {
+func (o AccountOrder) BadgeIntent() components.Intent {
 	switch {
 	case o.Status == FulfillmentCancelled:
-		return components.ToneDanger
+		return components.IntentDanger
 	case awaitingPayment(o.Status, o.Committed, o.OwedCents):
-		return components.ToneWarn
+		return components.IntentWarn
 	default:
-		return components.ToneNeutral
+		return components.IntentNeutral
 	}
 }
 

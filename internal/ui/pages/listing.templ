@@ -36,15 +36,18 @@ templ Listing(p layouts.Page, v ListingView) {
 					}
 				</div>
 				if v.Theme.Image().Shown() {
-					// Lazy because the stylesheet drops the photograph below 1024: a
-					// hidden lazy image is never fetched, an eager one always is.
+					// Low priority because the stylesheet drops the photograph below
+					// 1024, where an eager image is still fetched: it must not
+					// compete with the tiles, which are the paint that matters.
 					<img
 						class="goen-pagehead__photo"
 						src={ v.Theme.Image().URL }
 						srcset={ v.Theme.Image().Srcset }
 						sizes="(min-width: 1344px) 36rem, 45vw"
 						alt={ v.Theme.Image().Alt }
-						loading="lazy"
+						width="800"
+						height="600"
+						fetchpriority="low"
 						decoding="async"
 					/>
 				}
@@ -196,9 +199,9 @@ templ listingFilters(v ListingView) {
 				</details>
 				@sortField(v.SortOptions(ctx))
 				@components.Button(components.ButtonProps{
-					Variant: components.VariantPrimary,
-					Block:   true,
-					Class:   "goen-filters__apply",
+					ButtonStyle: components.ButtonStylePrimary,
+					Block:       true,
+					Class:       "goen-filters__apply",
 				}, "submit") {
 					{ i18n.T(ctx, i18n.KeyApplyFilters) }
 				}
@@ -366,8 +369,8 @@ templ Search(p layouts.Page, v SearchView) {
 					<input type="hidden" name="q" value={ v.Query }/>
 					@sortField(v.SortOptions(ctx))
 					@components.Button(components.ButtonProps{
-						Variant: components.VariantOutline,
-						Class:   "goen-filters__apply",
+						ButtonStyle: components.ButtonStyleOutline,
+						Class:       "goen-filters__apply",
 					}, "submit") {
 						{ i18n.T(ctx, i18n.KeySearchSortApply) }
 					}

@@ -11,24 +11,24 @@ import (
 	"time"
 )
 
-func TestCarrierCheckRequiresAnExistenceVerdict(t *testing.T) {
+func TestBarcodeCheckRequiresAnExistenceVerdict(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
 		code    int
 		exists  string
-		want    CarrierStatus
+		want    BarcodeStatus
 		wantErr bool
 	}{
-		{"exists", 1, "Y", CarrierExists, false},
-		{"missing", 1, "N", CarrierMissing, false},
-		{"successful operation without verdict", 1, "", CarrierUnknown, true},
-		{"unexpected verdict", 1, "yes", CarrierUnknown, true},
-		{"maintenance is not missing", 9000001, "N", CarrierUnknown, true},
+		{"exists", 1, "Y", BarcodeExists, false},
+		{"missing", 1, "N", BarcodeMissing, false},
+		{"successful operation without verdict", 1, "", BarcodeUnknown, true},
+		{"unexpected verdict", 1, "yes", BarcodeUnknown, true},
+		{"maintenance is not missing", 9000001, "N", BarcodeUnknown, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if r.Method != http.MethodPost || r.URL.Path != "/B2CInvoice/CheckBarcode" {
-					t.Errorf("carrier request = %s %s", r.Method, r.URL.Path)
+					t.Errorf("barcode request = %s %s", r.Method, r.URL.Path)
 				}
 				g, err := NewGateway(testMerchantID, testHashKey, testHashIV, "")
 				if err != nil {
@@ -51,7 +51,7 @@ func TestCarrierCheckRequiresAnExistenceVerdict(t *testing.T) {
 					return
 				}
 				if len(request) != 2 || request["MerchantID"] != testMerchantID || request["BarCode"] != "/ABC+123" {
-					t.Errorf("unexpected carrier payload: %v", request)
+					t.Errorf("unexpected barcode payload: %v", request)
 				}
 				reply(t, w, map[string]any{"RtnCode": tc.code, "IsExist": tc.exists})
 			}))
@@ -68,35 +68,35 @@ func TestCarrierCheckRequiresAnExistenceVerdict(t *testing.T) {
 	}
 }
 
-func TestCarrierCheckDoesNotCallForBadShape(t *testing.T) {
+func TestBarcodeCheckDoesNotCallForBadShape(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { t.Error("bad shape reached provider") }))
 	defer server.Close()
 	g, err := NewGateway(testMerchantID, testHashKey, testHashIV, server.URL)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if status, err := g.CheckBarcode(t.Context(), "bad"); status != CarrierUnknown || err == nil {
+	if status, err := g.CheckBarcode(t.Context(), "bad"); status != BarcodeUnknown || err == nil {
 		t.Fatalf("malformed = %v, %v", status, err)
 	}
 	var disabled *Gateway
-	if status, err := disabled.CheckBarcode(t.Context(), "/ABC+123"); status != CarrierUnknown || !errors.Is(err, ErrDisabled) {
+	if status, err := disabled.CheckBarcode(t.Context(), "/ABC+123"); status != BarcodeUnknown || !errors.Is(err, ErrDisabled) {
 		t.Fatalf("disabled = %v, %v", status, err)
 	}
 }
 
-func TestCarrierCheckTransportFailureIsUnknown(t *testing.T) {
+func TestBarcodeCheckTransportFailureIsUnknown(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusServiceUnavailable) }))
 	defer server.Close()
 	g, err := NewGateway(testMerchantID, testHashKey, testHashIV, server.URL)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if status, err := g.CheckBarcode(t.Context(), "/ABC+123"); status != CarrierUnknown || err == nil {
+	if status, err := g.CheckBarcode(t.Context(), "/ABC+123"); status != BarcodeUnknown || err == nil {
 		t.Fatalf("unavailable = %v, %v", status, err)
 	}
 }
 
-func TestCarrierCheckHasAShortDeadline(t *testing.T) {
+func TestBarcodeCheckHasAShortDeadline(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 		if _, err := io.Copy(io.Discard, r.Body); err != nil {
 			return
@@ -110,10 +110,10 @@ func TestCarrierCheckHasAShortDeadline(t *testing.T) {
 	}
 	started := time.Now()
 	status, err := g.CheckBarcode(t.Context(), "/ABC+123")
-	if status != CarrierUnknown || !errors.Is(err, context.DeadlineExceeded) {
+	if status != BarcodeUnknown || !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("timeout = %v, %v", status, err)
 	}
 	if time.Since(started) > 5*time.Second {
-		t.Fatal("carrier lookup exceeded checkout's short budget")
+		t.Fatal("barcode lookup exceeded checkout's short budget")
 	}
 }

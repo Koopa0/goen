@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+
+	"github.com/koopa0/goen/internal/web"
 )
 
 // slowQueryThreshold is the duration at which a statement is worth a line in
@@ -58,7 +60,14 @@ func (t *slowQueryTracer) TraceQueryEnd(ctx context.Context, _ *pgx.Conn, _ pgx.
 		return
 	}
 	if elapsed := t.now().Sub(start.at); elapsed >= t.threshold {
-		t.log.WarnContext(ctx, "slow query",
-			"statement", start.name, "duration", elapsed, "pool", t.pool)
+		attrs := []slog.Attr{
+			slog.String("statement", start.name),
+			slog.Duration("duration", elapsed),
+			slog.String("pool", t.pool),
+		}
+		if id := web.RequestID(ctx); id != "" {
+			attrs = append(attrs, slog.String("request_id", id))
+		}
+		t.log.LogAttrs(ctx, slog.LevelWarn, "slow query", attrs...)
 	}
 }

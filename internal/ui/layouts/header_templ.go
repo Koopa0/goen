@@ -444,9 +444,9 @@ func Header(p Page) templ.Component {
 			return nil
 		})
 		templ_7745c5c3_Err = components.ButtonLink(components.ButtonProps{
-			Variant: components.VariantGhost,
-			Icon:    true,
-			Attrs:   templ.Attributes{"aria-label": i18n.T(ctx, i18n.KeyAccount)},
+			ButtonStyle: components.ButtonStyleGhost,
+			Icon:        true,
+			Attrs:       templ.Attributes{"aria-label": i18n.T(ctx, i18n.KeyAccount)},
 		}, templ.SafeURL("/account")).Render(templ.WithChildren(ctx, templ_7745c5c3_Var22), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
@@ -855,9 +855,9 @@ func cartLink() templ.Component {
 			return nil
 		})
 		templ_7745c5c3_Err = components.ButtonLink(components.ButtonProps{
-			Variant: components.VariantGhost,
-			Icon:    true,
-			Class:   "goen-header__cart",
+			ButtonStyle: components.ButtonStyleGhost,
+			Icon:        true,
+			Class:       "goen-header__cart",
 			Attrs: templ.Attributes{
 				"aria-label": cartLabel(ctx, count),
 				"id":         "cart-link",

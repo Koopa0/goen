@@ -32,7 +32,7 @@ templ TwoFactor(p layouts.Page, v TwoFactorView) {
 					{ i18n.T(ctx, i18n.KeyTwoFALead) }
 				</p>
 				if v.Notice != "" {
-					@components.Notice(components.NoticeProps{Tone: components.ToneAccent}) {
+					@components.Notice(components.NoticeProps{Intent: components.IntentAccent}) {
 						{ v.Notice }
 					}
 				}
@@ -81,8 +81,8 @@ templ TwoFactor(p layouts.Page, v TwoFactorView) {
 							})
 						</div>
 						@components.Button(components.ButtonProps{
-							Variant: components.VariantPrimary,
-							Block:   true,
+							ButtonStyle: components.ButtonStylePrimary,
+							Block:       true,
 						}, "submit") {
 							{ i18n.T(ctx, i18n.KeyTwoFAEnrolSubmit) }
 						}
@@ -92,8 +92,8 @@ templ TwoFactor(p layouts.Page, v TwoFactorView) {
 					<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyTwoFAStartBody) }</p>
 					<form method="post" action="/admin/verify/enrol">
 						@components.Button(components.ButtonProps{
-							Variant: components.VariantPrimary,
-							Block:   true,
+							ButtonStyle: components.ButtonStylePrimary,
+							Block:       true,
 						}, "submit") {
 							{ i18n.T(ctx, i18n.KeyTwoFAStartSubmit) }
 						}
@@ -120,8 +120,8 @@ templ TwoFactor(p layouts.Page, v TwoFactorView) {
 							})
 						</div>
 						@components.Button(components.ButtonProps{
-							Variant: components.VariantPrimary,
-							Block:   true,
+							ButtonStyle: components.ButtonStylePrimary,
+							Block:       true,
 						}, "submit") {
 							{ i18n.T(ctx, i18n.KeyTwoFAChallengeSubmit) }
 						}

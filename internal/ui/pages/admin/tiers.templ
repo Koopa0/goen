@@ -25,7 +25,7 @@ templ Tiers(p layouts.Page, v TiersView) {
 			</div>
 		</div>
 		if v.Notice != "" {
-			@components.Notice(components.NoticeProps{Tone: components.ToneAccent}) {
+			@components.Notice(components.NoticeProps{Intent: components.IntentAccent}) {
 				{ v.Notice }
 			}
 		}
@@ -61,8 +61,8 @@ templ Tiers(p layouts.Page, v TiersView) {
 									<form method="post" action="/admin/tiers/delete">
 										<input type="hidden" name="tier" value={ t.ID }/>
 										@components.Button(components.ButtonProps{
-											Variant: components.VariantOutline,
-											Size:    components.SizeSmall,
+											ButtonStyle: components.ButtonStyleOutline,
+											Size:        components.SizeSmall,
 										}, "submit") {
 											{ i18n.T(ctx, i18n.KeyAdminRemove) }
 										}
@@ -113,8 +113,8 @@ templ Tiers(p layouts.Page, v TiersView) {
 					</div>
 				</div>
 				@components.Button(components.ButtonProps{
-					Variant: components.VariantPrimary,
-					Class:   "goen-admin__submit",
+					ButtonStyle: components.ButtonStylePrimary,
+					Class:       "goen-admin__submit",
 				}, "submit") {
 					{ i18n.T(ctx, i18n.KeyAdminAddButton) }
 				}

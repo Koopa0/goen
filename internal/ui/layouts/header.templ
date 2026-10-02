@@ -96,9 +96,9 @@ templ Header(p Page) {
 			<div class="goen-header__actions">
 				@languageMenu("goen-header__lang")
 				@components.ButtonLink(components.ButtonProps{
-					Variant: components.VariantGhost,
-					Icon:    true,
-					Attrs:   templ.Attributes{"aria-label": i18n.T(ctx, i18n.KeyAccount)},
+					ButtonStyle: components.ButtonStyleGhost,
+					Icon:        true,
+					Attrs:       templ.Attributes{"aria-label": i18n.T(ctx, i18n.KeyAccount)},
 				}, templ.SafeURL("/account")) {
 					@icons.User()
 				}
@@ -184,9 +184,9 @@ templ department(p Page, n NavItem) {
 templ cartLink() {
 	{{ count := web.CartCount(ctx) }}
 	@components.ButtonLink(components.ButtonProps{
-		Variant: components.VariantGhost,
-		Icon:    true,
-		Class:   "goen-header__cart",
+		ButtonStyle: components.ButtonStyleGhost,
+		Icon:        true,
+		Class:       "goen-header__cart",
 		Attrs: templ.Attributes{
 			"aria-label": cartLabel(ctx, count),
 			"id":         "cart-link",

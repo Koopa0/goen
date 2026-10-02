@@ -31,7 +31,7 @@ templ Newsletter(p layouts.Page, v NewsletterView) {
 			</div>
 		</div>
 		if v.Notice != "" {
-			@components.Notice(components.NoticeProps{Tone: components.ToneAccent}) {
+			@components.Notice(components.NoticeProps{Intent: components.IntentAccent}) {
 				{ v.Notice }
 			}
 		}
@@ -96,8 +96,8 @@ templ Newsletter(p layouts.Page, v NewsletterView) {
 					{ i18n.T(ctx, i18n.KeyAdminNewsDraftHint) }
 				</p>
 				@components.Button(components.ButtonProps{
-					Variant: components.VariantOutline,
-					Class:   "goen-admin__submit",
+					ButtonStyle: components.ButtonStyleOutline,
+					Class:       "goen-admin__submit",
 				}, "submit") {
 					{ i18n.T(ctx, i18n.KeyAdminNewsSaveDraft) }
 				}
@@ -140,8 +140,8 @@ templ Newsletter(p layouts.Page, v NewsletterView) {
 									if v.CanSend() {
 										<form method="post" action={ templ.SafeURL(issue.SendAction()) }>
 											@components.Button(components.ButtonProps{
-												Variant: components.VariantPrimary,
-												Size:    components.SizeSmall,
+												ButtonStyle: components.ButtonStylePrimary,
+												Size:        components.SizeSmall,
 											}, "submit") {
 												{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminNewsSend), v.ActiveText()) }
 											}

@@ -161,7 +161,7 @@ func Cart(p layouts.Page, v CartView) templ.Component {
 						}
 						return nil
 					})
-					templ_7745c5c3_Err = components.Notice(components.NoticeProps{Tone: components.ToneAccent, ID: "cart-adjustment"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var8), templ_7745c5c3_Buffer)
+					templ_7745c5c3_Err = components.Notice(components.NoticeProps{Intent: components.IntentAccent, ID: "cart-adjustment"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var8), templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -191,7 +191,7 @@ func Cart(p layouts.Page, v CartView) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = components.Notice(components.NoticeProps{Tone: components.ToneAccent}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var10), templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = components.Notice(components.NoticeProps{Intent: components.IntentAccent}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var10), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -263,8 +263,8 @@ func Cart(p layouts.Page, v CartView) templ.Component {
 					return nil
 				})
 				templ_7745c5c3_Err = components.ButtonLink(components.ButtonProps{
-					Variant: components.VariantPrimary,
-					Size:    components.SizeLarge,
+					ButtonStyle: components.ButtonStylePrimary,
+					Size:        components.SizeLarge,
 				}, "/").Render(templ.WithChildren(ctx, templ_7745c5c3_Var14), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
@@ -416,7 +416,7 @@ func Cart(p layouts.Page, v CartView) templ.Component {
 							}
 							return nil
 						})
-						templ_7745c5c3_Err = components.Notice(components.NoticeProps{Tone: components.ToneWarn}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var23), templ_7745c5c3_Buffer)
+						templ_7745c5c3_Err = components.Notice(components.NoticeProps{Intent: components.IntentWarn}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var23), templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -450,9 +450,9 @@ func Cart(p layouts.Page, v CartView) templ.Component {
 							return nil
 						})
 						templ_7745c5c3_Err = components.ButtonLink(components.ButtonProps{
-							Variant: components.VariantPrimary,
-							Size:    components.SizeLarge,
-							Block:   true,
+							ButtonStyle: components.ButtonStylePrimary,
+							Size:        components.SizeLarge,
+							Block:       true,
 						}, "/checkout").Render(templ.WithChildren(ctx, templ_7745c5c3_Var25), templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
@@ -500,8 +500,8 @@ func Cart(p layouts.Page, v CartView) templ.Component {
 						return nil
 					})
 					templ_7745c5c3_Err = components.ButtonLink(components.ButtonProps{
-						Variant: components.VariantGhost,
-						Block:   true,
+						ButtonStyle: components.ButtonStyleGhost,
+						Block:       true,
 					}, "/").Render(templ.WithChildren(ctx, templ_7745c5c3_Var28), templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
@@ -783,7 +783,7 @@ func cartLine(l CartLine) templ.Component {
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = components.Badge(components.BadgeProps{Tone: components.ToneDanger}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var44), templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = components.Badge(components.BadgeProps{Intent: components.IntentDanger}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var44), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -811,7 +811,7 @@ func cartLine(l CartLine) templ.Component {
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = components.Badge(components.BadgeProps{Tone: components.ToneWarn}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var46), templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = components.Badge(components.BadgeProps{Intent: components.IntentWarn}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var46), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -957,9 +957,9 @@ func cartLine(l CartLine) templ.Component {
 			return nil
 		})
 		templ_7745c5c3_Err = components.Button(components.ButtonProps{
-			Variant: components.VariantOutline,
-			Size:    components.SizeSmall,
-			Class:   "goen-line__update",
+			ButtonStyle: components.ButtonStyleOutline,
+			Size:        components.SizeSmall,
+			Class:       "goen-line__update",
 		}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var55), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
@@ -988,9 +988,9 @@ func cartLine(l CartLine) templ.Component {
 			return nil
 		})
 		templ_7745c5c3_Err = components.Button(components.ButtonProps{
-			Variant: components.VariantGhost,
-			Size:    components.SizeSmall,
-			Class:   "goen-line__remove",
+			ButtonStyle: components.ButtonStyleGhost,
+			Size:        components.SizeSmall,
+			Class:       "goen-line__remove",
 			// Not dimmed while a quantity request is pending: the request
 			// is about the number, and Remove stays available beside it.
 			Attrs: templ.Attributes{"name": "remove", "value": "1", "data-feedback-skip": true, "formnovalidate": true},
@@ -1156,8 +1156,8 @@ func Checkout(p layouts.Page, v *CheckoutView) templ.Component {
 					return nil
 				})
 				templ_7745c5c3_Err = components.Notice(components.NoticeProps{
-					Tone:  components.ToneDanger,
-					Class: "ui-alert--error",
+					Intent: components.IntentDanger,
+					Class:  "ui-alert--error",
 				}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var66), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
@@ -1385,7 +1385,7 @@ func Checkout(p layouts.Page, v *CheckoutView) templ.Component {
 						}
 						return nil
 					})
-					templ_7745c5c3_Err = components.Notice(components.NoticeProps{Tone: components.ToneAccent}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var79), templ_7745c5c3_Buffer)
+					templ_7745c5c3_Err = components.Notice(components.NoticeProps{Intent: components.IntentAccent}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var79), templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -1419,8 +1419,8 @@ func Checkout(p layouts.Page, v *CheckoutView) templ.Component {
 						return nil
 					})
 					templ_7745c5c3_Err = components.Notice(components.NoticeProps{
-						Tone:  components.ToneAccent,
-						Class: "ui-alert--info",
+						Intent: components.IntentAccent,
+						Class:  "ui-alert--info",
 					}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var81), templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
@@ -2257,7 +2257,7 @@ func Checkout(p layouts.Page, v *CheckoutView) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				if v.Invoice.NeedsCarrier() {
+				if v.Invoice.NeedsMobileBarcode() {
 					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 177, "<div class=\"goen-field\">")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
@@ -2275,9 +2275,9 @@ func Checkout(p layouts.Page, v *CheckoutView) templ.Component {
 						}
 						ctx = templ.InitializeContext(ctx)
 						var templ_7745c5c3_Var123 string
-						templ_7745c5c3_Var123, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyFieldCarrier))
+						templ_7745c5c3_Var123, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyFieldMobileBarcode))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/cart.templ`, Line: 533, Col: 46}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/cart.templ`, Line: 533, Col: 52}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var123))
 						if templ_7745c5c3_Err != nil {
@@ -2293,7 +2293,7 @@ func Checkout(p layouts.Page, v *CheckoutView) templ.Component {
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templ.RenderAttributes(ctx, templ_7745c5c3_Buffer, fieldrule.MobileCarrier.Attrs(ctx, nil))
+					templ_7745c5c3_Err = templ.RenderAttributes(ctx, templ_7745c5c3_Buffer, fieldrule.MobileBarcode.Attrs(ctx, nil))
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -2302,9 +2302,9 @@ func Checkout(p layouts.Page, v *CheckoutView) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var124 string
-					templ_7745c5c3_Var124, templ_7745c5c3_Err = templ.ResolveAttributeValue(v.Invoice.Carrier)
+					templ_7745c5c3_Var124, templ_7745c5c3_Err = templ.ResolveAttributeValue(v.Invoice.MobileBarcode)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/cart.templ`, Line: 543, Col: 36}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/cart.templ`, Line: 543, Col: 42}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var124)
 					if templ_7745c5c3_Err != nil {
@@ -3121,8 +3121,8 @@ func Checkout(p layouts.Page, v *CheckoutView) templ.Component {
 					return nil
 				})
 				templ_7745c5c3_Err = components.Button(components.ButtonProps{
-					Variant: components.VariantOutline,
-					Attrs:   couponButtonAttrs(ctx),
+					ButtonStyle: components.ButtonStyleOutline,
+					Attrs:       couponButtonAttrs(ctx),
 				}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var169), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
@@ -3197,9 +3197,9 @@ func Checkout(p layouts.Page, v *CheckoutView) templ.Component {
 					return nil
 				})
 				templ_7745c5c3_Err = components.Button(components.ButtonProps{
-					Variant: components.VariantPrimary,
-					Size:    components.SizeLarge,
-					Block:   true,
+					ButtonStyle: components.ButtonStylePrimary,
+					Size:        components.SizeLarge,
+					Block:       true,
 				}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var173), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
@@ -3307,8 +3307,8 @@ func pickupStore(v *CheckoutView) templ.Component {
 					return nil
 				})
 				templ_7745c5c3_Err = components.Notice(components.NoticeProps{
-					Tone:  components.ToneDanger,
-					Class: "ui-alert--error",
+					Intent: components.IntentDanger,
+					Class:  "ui-alert--error",
 				}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var177), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
@@ -3478,8 +3478,8 @@ func pickupStore(v *CheckoutView) templ.Component {
 					return nil
 				})
 				templ_7745c5c3_Err = components.Button(components.ButtonProps{
-					Variant: components.VariantOutline,
-					Attrs:   storeAttrs,
+					ButtonStyle: components.ButtonStyleOutline,
+					Attrs:       storeAttrs,
 				}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var187), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
@@ -3551,8 +3551,8 @@ func applyChoice(which string) templ.Component {
 			return nil
 		})
 		templ_7745c5c3_Err = components.Button(components.ButtonProps{
-			Variant: components.VariantOutline,
-			Size:    components.SizeSmall,
+			ButtonStyle: components.ButtonStyleOutline,
+			Size:        components.SizeSmall,
 			Attrs: templ.Attributes{
 				"formaction":     "/checkout#" + which,
 				"name":           "update",
@@ -4008,8 +4008,8 @@ func Order(p layouts.Page, v *OrderView) templ.Component {
 					return nil
 				})
 				templ_7745c5c3_Err = components.Notice(components.NoticeProps{
-					Tone: components.ToneNeutral,
-					ID:   "order-cancelled",
+					Intent: components.IntentNeutral,
+					ID:     "order-cancelled",
 				}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var216), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
@@ -4069,7 +4069,7 @@ func Order(p layouts.Page, v *OrderView) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = components.ButtonLink(components.ButtonProps{Variant: components.VariantOutline}, templ.SafeURL(v.PaymentRefreshURL)).Render(templ.WithChildren(ctx, templ_7745c5c3_Var220), templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, templ.SafeURL(v.PaymentRefreshURL)).Render(templ.WithChildren(ctx, templ_7745c5c3_Var220), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -4096,7 +4096,7 @@ func Order(p layouts.Page, v *OrderView) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = components.ButtonLink(components.ButtonProps{Variant: components.VariantGhost}, templ.SafeURL("/orders/"+v.Number)).Render(templ.WithChildren(ctx, templ_7745c5c3_Var222), templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleGhost}, templ.SafeURL("/orders/"+v.Number)).Render(templ.WithChildren(ctx, templ_7745c5c3_Var222), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -4165,8 +4165,8 @@ func Order(p layouts.Page, v *OrderView) templ.Component {
 					return nil
 				})
 				templ_7745c5c3_Err = components.Notice(components.NoticeProps{
-					Tone: components.ToneAccent,
-					ID:   "order-unpaid",
+					Intent: components.IntentAccent,
+					ID:     "order-unpaid",
 				}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var224), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
@@ -4318,7 +4318,7 @@ func Order(p layouts.Page, v *OrderView) templ.Component {
 							}
 							return nil
 						})
-						templ_7745c5c3_Err = components.Badge(components.BadgeProps{Tone: components.ToneNeutral}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var235), templ_7745c5c3_Buffer)
+						templ_7745c5c3_Err = components.Badge(components.BadgeProps{Intent: components.IntentNeutral}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var235), templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -4599,7 +4599,7 @@ func Order(p layouts.Page, v *OrderView) templ.Component {
 							}
 							return nil
 						})
-						templ_7745c5c3_Err = components.Badge(components.BadgeProps{Tone: components.ToneWarn}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var250), templ_7745c5c3_Buffer)
+						templ_7745c5c3_Err = components.Badge(components.BadgeProps{Intent: components.IntentWarn}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var250), templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -5026,7 +5026,7 @@ func Order(p layouts.Page, v *OrderView) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = components.Button(components.ButtonProps{Variant: components.VariantOutline}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var277), templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var277), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -5088,7 +5088,7 @@ func Order(p layouts.Page, v *OrderView) templ.Component {
 						}
 						return nil
 					})
-					templ_7745c5c3_Err = components.Button(components.ButtonProps{Variant: components.VariantGhost}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var281), templ_7745c5c3_Buffer)
+					templ_7745c5c3_Err = components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleGhost}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var281), templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -5135,8 +5135,8 @@ func Order(p layouts.Page, v *OrderView) templ.Component {
 						return nil
 					})
 					templ_7745c5c3_Err = components.ButtonLink(components.ButtonProps{
-						Variant: components.VariantOutline,
-						Block:   true,
+						ButtonStyle: components.ButtonStyleOutline,
+						Block:       true,
 					}, templ.SafeURL(v.WarrantyLink())).Render(templ.WithChildren(ctx, templ_7745c5c3_Var284), templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
@@ -5167,8 +5167,8 @@ func Order(p layouts.Page, v *OrderView) templ.Component {
 						return nil
 					})
 					templ_7745c5c3_Err = components.ButtonLink(components.ButtonProps{
-						Variant: components.VariantOutline,
-						Block:   true,
+						ButtonStyle: components.ButtonStyleOutline,
+						Block:       true,
 					}, templ.SafeURL("/orders/"+v.Number+"/return")).Render(templ.WithChildren(ctx, templ_7745c5c3_Var286), templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
@@ -5198,8 +5198,8 @@ func Order(p layouts.Page, v *OrderView) templ.Component {
 					return nil
 				})
 				templ_7745c5c3_Err = components.ButtonLink(components.ButtonProps{
-					Variant: components.VariantGhost,
-					Block:   true,
+					ButtonStyle: components.ButtonStyleGhost,
+					Block:       true,
 				}, "/").Render(templ.WithChildren(ctx, templ_7745c5c3_Var288), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err

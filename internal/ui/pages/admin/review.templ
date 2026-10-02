@@ -33,7 +33,7 @@ templ Reviews(p layouts.Page, v ReviewsView) {
 			</div>
 		</div>
 		if v.Notice != "" {
-			@components.Notice(components.NoticeProps{Tone: components.ToneAccent}) {
+			@components.Notice(components.NoticeProps{Intent: components.IntentAccent}) {
 				{ v.Notice }
 			}
 		}
@@ -76,8 +76,8 @@ templ Reviews(p layouts.Page, v ReviewsView) {
 							<form method="post" action={ templ.SafeURL(r.Action()) }>
 								<input type="hidden" name="review" value={ r.ID }/>
 								@components.Button(components.ButtonProps{
-									Variant: components.VariantOutline,
-									Size:    components.SizeSmall,
+									ButtonStyle: components.ButtonStyleOutline,
+									Size:        components.SizeSmall,
 								}, "submit") {
 									{ r.ActionLabel(ctx) }
 								}

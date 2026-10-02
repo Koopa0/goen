@@ -40,13 +40,13 @@ templ Cart(p layouts.Page, v CartView) {
 							</div>
 						</div>
 					} else {
-						@components.Notice(components.NoticeProps{Tone: components.ToneAccent, ID: "cart-adjustment"}) {
+						@components.Notice(components.NoticeProps{Intent: components.IntentAccent, ID: "cart-adjustment"}) {
 							{ v.Notice }
 						}
 					}
 				}
 				if v.FromReorder() {
-					@components.Notice(components.NoticeProps{Tone: components.ToneAccent}) {
+					@components.Notice(components.NoticeProps{Intent: components.IntentAccent}) {
 						{ v.ReorderText(ctx) }
 					}
 				}
@@ -57,8 +57,8 @@ templ Cart(p layouts.Page, v CartView) {
 					<p class="goen-empty__title">{ i18n.T(ctx, i18n.KeyEmptyCart) }</p>
 					<p class="goen-empty__text">{ i18n.T(ctx, i18n.KeyCartEmptyDesc) }</p>
 					@components.ButtonLink(components.ButtonProps{
-						Variant: components.VariantPrimary,
-						Size:    components.SizeLarge,
+						ButtonStyle: components.ButtonStylePrimary,
+						Size:        components.SizeLarge,
 					}, "/") {
 						{ i18n.T(ctx, i18n.KeyCartEmptyLink) }
 					}
@@ -89,16 +89,16 @@ templ Cart(p layouts.Page, v CartView) {
 							<p class="goen-cart__freedelivery">{ v.FreeDelivery.Text(ctx) }</p>
 						}
 						if v.Blocked() {
-							@components.Notice(components.NoticeProps{Tone: components.ToneWarn}) {
+							@components.Notice(components.NoticeProps{Intent: components.IntentWarn}) {
 								{ i18n.T(ctx, i18n.KeyCartStockShort) }
 							}
 						}
 						<div class="goen-summary__actions">
 							if v.CanCheckout() {
 								@components.ButtonLink(components.ButtonProps{
-									Variant: components.VariantPrimary,
-									Size:    components.SizeLarge,
-									Block:   true,
+									ButtonStyle: components.ButtonStylePrimary,
+									Size:        components.SizeLarge,
+									Block:       true,
 								}, "/checkout") {
 									{ i18n.T(ctx, i18n.KeyCheckout) }
 								}
@@ -112,8 +112,8 @@ templ Cart(p layouts.Page, v CartView) {
 								</span>
 							}
 							@components.ButtonLink(components.ButtonProps{
-								Variant: components.VariantGhost,
-								Block:   true,
+								ButtonStyle: components.ButtonStyleGhost,
+								Block:       true,
 							}, "/") {
 								{ i18n.T(ctx, i18n.KeyContinue) }
 							}
@@ -157,11 +157,11 @@ templ cartLine(l CartLine) {
 			}
 			<span class="goen-line__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyUnitPrice), l.UnitPrice()) }</span>
 			if l.Unavailable {
-				@components.Badge(components.BadgeProps{Tone: components.ToneDanger}) {
+				@components.Badge(components.BadgeProps{Intent: components.IntentDanger}) {
 					{ i18n.T(ctx, i18n.KeyNoStock) }
 				}
 			} else if l.Short {
-				@components.Badge(components.BadgeProps{Tone: components.ToneWarn}) {
+				@components.Badge(components.BadgeProps{Intent: components.IntentWarn}) {
 					{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOnlyLeft), l.AvailableText()) }
 				}
 			}
@@ -199,16 +199,16 @@ templ cartLine(l CartLine) {
 			// quantity submits the form, and a button beside a control that
 			// already applies itself is one more thing to press.
 			@components.Button(components.ButtonProps{
-				Variant: components.VariantOutline,
-				Size:    components.SizeSmall,
-				Class:   "goen-line__update",
+				ButtonStyle: components.ButtonStyleOutline,
+				Size:        components.SizeSmall,
+				Class:       "goen-line__update",
 			}, "submit") {
 				{ i18n.T(ctx, i18n.KeyUpdate) }
 			}
 			@components.Button(components.ButtonProps{
-				Variant: components.VariantGhost,
-				Size:    components.SizeSmall,
-				Class:   "goen-line__remove",
+				ButtonStyle: components.ButtonStyleGhost,
+				Size:        components.SizeSmall,
+				Class:       "goen-line__remove",
 				// Not dimmed while a quantity request is pending: the request
 				// is about the number, and Remove stays available beside it.
 				Attrs: templ.Attributes{"name": "remove", "value": "1", "data-feedback-skip": true, "formnovalidate": true},
@@ -261,8 +261,8 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 					<div class="goen-checkout__main">
 						if v.AnyErrors() {
 							@components.Notice(components.NoticeProps{
-								Tone:  components.ToneDanger,
-								Class: "ui-alert--error",
+								Intent: components.IntentDanger,
+								Class:  "ui-alert--error",
 							}) {
 								if v.OnlyCouponRefused() {
 									{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCheckoutCouponRefused), v.Err("coupon")) }
@@ -324,14 +324,14 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 								<p class="ui-error-text" id="shipping-error">{ v.Err("shipping") }</p>
 							}
 							if v.Repriced != "" {
-								@components.Notice(components.NoticeProps{Tone: components.ToneAccent}) {
+								@components.Notice(components.NoticeProps{Intent: components.IntentAccent}) {
 									{ v.Repriced }
 								}
 							}
 							if v.CreditChanged != "" {
 								@components.Notice(components.NoticeProps{
-									Tone:  components.ToneAccent,
-									Class: "ui-alert--info",
+									Intent: components.IntentAccent,
+									Class:  "ui-alert--info",
 								}) {
 									{ v.CreditChanged }
 								}
@@ -527,20 +527,20 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 							</div>
 							@applyChoice("invoice")
 							<div class="goen-checkout__fields">
-								if v.Invoice.NeedsCarrier() {
+								if v.Invoice.NeedsMobileBarcode() {
 									<div class="goen-field">
 										@components.Label(components.LabelProps{For: "invoice_carrier"}) {
-											{ i18n.T(ctx, i18n.KeyFieldCarrier) }
+											{ i18n.T(ctx, i18n.KeyFieldMobileBarcode) }
 										}
 										<input
 											class="goen-input"
-											{ fieldrule.MobileCarrier.Attrs(ctx, nil)... }
+											{ fieldrule.MobileBarcode.Attrs(ctx, nil)... }
 											id="invoice_carrier"
 											name="invoice_carrier"
 											maxlength="8"
 											autocomplete="off"
 											placeholder="/ABC+123"
-											value={ v.Invoice.Carrier }
+											value={ v.Invoice.MobileBarcode }
 											aria-invalid={ v.Invalid("invoice_carrier") }
 											if v.HasErr("invoice_carrier") {
 												aria-describedby="invoice_carrier-error"
@@ -705,8 +705,8 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 									}
 								/>
 								@components.Button(components.ButtonProps{
-									Variant: components.VariantOutline,
-									Attrs:   couponButtonAttrs(ctx),
+									ButtonStyle: components.ButtonStyleOutline,
+									Attrs:       couponButtonAttrs(ctx),
 								}, "submit") {
 									{ i18n.T(ctx, i18n.KeyApplyCoupon) }
 								}
@@ -721,9 +721,9 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 							</div>
 						</div>
 						@components.Button(components.ButtonProps{
-							Variant: components.VariantPrimary,
-							Size:    components.SizeLarge,
-							Block:   true,
+							ButtonStyle: components.ButtonStylePrimary,
+							Size:        components.SizeLarge,
+							Block:       true,
 						}, "submit") {
 							{ i18n.T(ctx, i18n.KeyPlaceOrder) }
 						}
@@ -752,8 +752,8 @@ templ pickupStore(v *CheckoutView) {
 				// The message says a store could not be confirmed and repeats
 				// NONE of what arrived: that text came from a cross-site post.
 				@components.Notice(components.NoticeProps{
-					Tone:  components.ToneDanger,
-					Class: "ui-alert--error",
+					Intent: components.IntentDanger,
+					Class:  "ui-alert--error",
 				}) {
 					{ i18n.T(ctx, i18n.KeyPickupStoreUnconfirmed) }
 				}
@@ -785,8 +785,8 @@ templ pickupStore(v *CheckoutView) {
 				// store, they choose one through the picker this opens.
 				{{ storeAttrs := checkoutStoreButtonAttrs(v.Invalid("pickup_store"), v.HasErr("pickup_store")) }}
 				@components.Button(components.ButtonProps{
-					Variant: components.VariantOutline,
-					Attrs:   storeAttrs,
+					ButtonStyle: components.ButtonStyleOutline,
+					Attrs:       storeAttrs,
 				}, "submit") {
 					if v.HasPickupStore() {
 						{ i18n.T(ctx, i18n.KeyPickupChangeStore) }
@@ -810,8 +810,8 @@ templ pickupStore(v *CheckoutView) {
 templ applyChoice(which string) {
 	<div class="goen-checkout__apply">
 		@components.Button(components.ButtonProps{
-			Variant: components.VariantOutline,
-			Size:    components.SizeSmall,
+			ButtonStyle: components.ButtonStyleOutline,
+			Size:        components.SizeSmall,
 			Attrs: templ.Attributes{
 				"formaction":     "/checkout#" + which,
 				"name":           "update",
@@ -892,8 +892,8 @@ templ Order(p layouts.Page, v *OrderView) {
 			</div>
 			if v.Cancelled {
 				@components.Notice(components.NoticeProps{
-					Tone: components.ToneNeutral,
-					ID:   "order-cancelled",
+					Intent: components.IntentNeutral,
+					ID:     "order-cancelled",
 				}) {
 					{ i18n.T(ctx, i18n.KeyOrderCancelled) }
 				}
@@ -903,18 +903,18 @@ templ Order(p layouts.Page, v *OrderView) {
 					<h2 class="goen-order__subhead">{ i18n.T(ctx, i18n.KeyPayProcessingTitle) }</h2>
 					<p>{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOrderPaymentChecking), v.PaymentRefreshSeconds, v.PaymentRefreshChecks) }</p>
 					<div class="goen-order__actions">
-						@components.ButtonLink(components.ButtonProps{Variant: components.VariantOutline}, templ.SafeURL(v.PaymentRefreshURL)) {
+						@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, templ.SafeURL(v.PaymentRefreshURL)) {
 							{ i18n.T(ctx, i18n.KeyOrderCheckPayment) }
 						}
-						@components.ButtonLink(components.ButtonProps{Variant: components.VariantGhost}, templ.SafeURL("/orders/"+v.Number)) {
+						@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleGhost}, templ.SafeURL("/orders/"+v.Number)) {
 							{ i18n.T(ctx, i18n.KeyOrderStopChecking) }
 						}
 					</div>
 				</div>
 			} else if v.AwaitingPayment() {
 				@components.Notice(components.NoticeProps{
-					Tone: components.ToneAccent,
-					ID:   "order-unpaid",
+					Intent: components.IntentAccent,
+					ID:     "order-unpaid",
 				}) {
 					{ i18n.T(ctx, i18n.KeyOrderUnpaid) }
 					if v.PaymentsEnabled {
@@ -940,7 +940,7 @@ templ Order(p layouts.Page, v *OrderView) {
 											}
 										}
 										if sh.Delivered() {
-											@components.Badge(components.BadgeProps{Tone: components.ToneNeutral}) {
+											@components.Badge(components.BadgeProps{Intent: components.IntentNeutral}) {
 												{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOrderDeliveredAt), sh.DeliveredAt) }
 											}
 											if sh.RescissionEnds != "" {
@@ -1002,7 +1002,7 @@ templ Order(p layouts.Page, v *OrderView) {
 											<span class="goen-order__meta">{ d.Amount() }</span>
 										}
 										if d.Voided {
-											@components.Badge(components.BadgeProps{Tone: components.ToneWarn}) {
+											@components.Badge(components.BadgeProps{Intent: components.IntentWarn}) {
 												{ i18n.T(ctx, i18n.KeyAdminQueueVoided) }
 											}
 										}
@@ -1073,14 +1073,14 @@ templ Order(p layouts.Page, v *OrderView) {
 					</dl>
 					<div class="goen-summary__actions">
 						<form class="goen-order__cancel" method="post" action={ templ.SafeURL("/orders/" + v.Number + "/reorder") }>
-							@components.Button(components.ButtonProps{Variant: components.VariantOutline}, "submit") {
+							@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, "submit") {
 								{ i18n.T(ctx, i18n.KeyOrderReorder) }
 							}
 							<span class="goen-order__meta">{ i18n.T(ctx, i18n.KeyOrderReorderNote) }</span>
 						</form>
 						if v.CanCancel() && v.PaymentRefreshURL == "" {
 							<form class="goen-order__cancel" method="post" action={ templ.SafeURL("/orders/" + v.Number + "/cancel") }>
-								@components.Button(components.ButtonProps{Variant: components.VariantGhost}, "submit") {
+								@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleGhost}, "submit") {
 									{ i18n.T(ctx, i18n.KeyOrderCancel) }
 								}
 								<span class="goen-order__meta">{ i18n.T(ctx, i18n.KeyOrderCancelNote) }</span>
@@ -1088,23 +1088,23 @@ templ Order(p layouts.Page, v *OrderView) {
 						}
 						if v.ShowWarrantyLink && v.CanRegisterWarranty() {
 							@components.ButtonLink(components.ButtonProps{
-								Variant: components.VariantOutline,
-								Block:   true,
+								ButtonStyle: components.ButtonStyleOutline,
+								Block:       true,
 							}, templ.SafeURL(v.WarrantyLink())) {
 								{ i18n.T(ctx, i18n.KeyWarrantyTitle) }
 							}
 						}
 						if v.CanRequestReturn() {
 							@components.ButtonLink(components.ButtonProps{
-								Variant: components.VariantOutline,
-								Block:   true,
+								ButtonStyle: components.ButtonStyleOutline,
+								Block:       true,
 							}, templ.SafeURL("/orders/"+v.Number+"/return")) {
 								{ i18n.T(ctx, i18n.KeyOrderReturn) }
 							}
 						}
 						@components.ButtonLink(components.ButtonProps{
-							Variant: components.VariantGhost,
-							Block:   true,
+							ButtonStyle: components.ButtonStyleGhost,
+							Block:       true,
 						}, "/") {
 							{ i18n.T(ctx, i18n.KeyContinue) }
 						}

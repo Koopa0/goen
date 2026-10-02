@@ -16,7 +16,7 @@ templ SignIn(p layouts.Page, v AuthView) {
 			<div class="goen-auth__panel">
 				<h1 class="goen-auth__title">{ i18n.T(ctx, i18n.KeySignIn) }</h1>
 				if v.HasNotice() {
-					@components.Notice(components.NoticeProps{Tone: components.ToneAccent}) {
+					@components.Notice(components.NoticeProps{Intent: components.IntentAccent}) {
 						{ v.Notice }
 					}
 				}
@@ -68,17 +68,17 @@ templ SignIn(p layouts.Page, v AuthView) {
 							},
 						})
 					</div>
-					@components.Button(components.ButtonProps{Variant: components.VariantPrimary, Size: components.SizeLarge, Block: true}, "submit") {
+					@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Size: components.SizeLarge, Block: true}, "submit") {
 						{ i18n.T(ctx, i18n.KeySignIn) }
 					}
 				</form>
 				if v.GoogleSignIn {
 					<hr class="goen-auth__divider"/>
 					@components.ButtonLink(components.ButtonProps{
-						Variant: components.VariantOutline,
-						Size:    components.SizeLarge,
-						Block:   true,
-						Class:   "goen-auth__oauth",
+						ButtonStyle: components.ButtonStyleOutline,
+						Size:        components.SizeLarge,
+						Block:       true,
+						Class:       "goen-auth__oauth",
 					}, templ.SafeURL(v.GoogleLink())) {
 						{ i18n.T(ctx, i18n.KeySignInWithGoogle) }
 					}
@@ -110,9 +110,9 @@ templ demoAccountNote(v AuthView) {
 		</dl>
 		<p class="goen-auth__demonote">{ i18n.T(ctx, i18n.KeyDemoAccountShared) }</p>
 		@components.Button(components.ButtonProps{
-			Variant: components.VariantOutline,
-			Block:   true,
-			Class:   "goen-auth__demofill",
+			ButtonStyle: components.ButtonStyleOutline,
+			Block:       true,
+			Class:       "goen-auth__demofill",
 			Attrs: templ.Attributes{
 				"hidden":         true,
 				"data-demo-fill": true,
@@ -132,12 +132,12 @@ templ Register(p layouts.Page, v AuthView) {
 			<div class="goen-auth__panel goen-auth__panel--wide">
 				<h1 class="goen-auth__title">{ i18n.T(ctx, i18n.KeyCreateAccount) }</h1>
 				if v.HasNotice() {
-					@components.Notice(components.NoticeProps{Tone: components.ToneAccent, ID: "register-sent"}) {
+					@components.Notice(components.NoticeProps{Intent: components.IntentAccent, ID: "register-sent"}) {
 						{ v.Notice }
 					}
 				}
 				if v.AnyErrors() {
-					@components.Notice(components.NoticeProps{Tone: components.ToneDanger}) {
+					@components.Notice(components.NoticeProps{Intent: components.IntentDanger}) {
 						{ i18n.T(ctx, i18n.KeyFormHasErrors) }
 					}
 				}
@@ -162,7 +162,7 @@ templ Register(p layouts.Page, v AuthView) {
 								})
 							</div>
 						}
-						@components.Button(components.ButtonProps{Variant: components.VariantOutline, Size: components.SizeLarge, Block: true}, "submit") {
+						@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline, Size: components.SizeLarge, Block: true}, "submit") {
 							{ i18n.T(ctx, i18n.KeyRegisterResend) }
 						}
 					</form>
@@ -253,7 +253,7 @@ templ Register(p layouts.Page, v AuthView) {
 								<p class="ui-error-text" id="confirm-error" role="alert">{ v.Err("confirm") }</p>
 							}
 						</div>
-						@components.Button(components.ButtonProps{Variant: components.VariantPrimary, Size: components.SizeLarge, Block: true}, "submit") {
+						@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Size: components.SizeLarge, Block: true}, "submit") {
 							{ i18n.T(ctx, i18n.KeyCreateAccount) }
 						}
 					</form>
@@ -299,7 +299,7 @@ templ RegisterComplete(p layouts.Page, v RegisterCompleteView) {
 							<p class="ui-error-text" id="complete-error" role="alert">{ v.Error }</p>
 						}
 					</div>
-					@components.Button(components.ButtonProps{Variant: components.VariantPrimary, Size: components.SizeLarge, Block: true}, "submit") {
+					@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Size: components.SizeLarge, Block: true}, "submit") {
 						{ i18n.T(ctx, i18n.KeyRegisterCompleteSubmit) }
 					}
 				</form>
@@ -317,16 +317,16 @@ templ CartRecovery(p layouts.Page, v CartRecoveryView) {
 	@layouts.Base(p) {
 		<div class="notice">
 			<h1 class="notice__title">{ i18n.T(ctx, i18n.KeyCartMergeRecoveryTitle) }</h1>
-			@components.Notice(components.NoticeProps{Tone: components.ToneAccent, ID: "cart-recovery", Class: "ui-alert--info notice__body"}) {
+			@components.Notice(components.NoticeProps{Intent: components.IntentAccent, ID: "cart-recovery", Class: "ui-alert--info notice__body"}) {
 				{ v.Notice }
 			}
 			<form class="notice__form" method="post" action="/account/cart/retry">
 				<input type="hidden" name="next" value={ v.Next }/>
-				@components.Button(components.ButtonProps{Variant: components.VariantPrimary, Size: components.SizeLarge, Block: true}, "submit") {
+				@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Size: components.SizeLarge, Block: true}, "submit") {
 					{ v.Retry }
 				}
 			</form>
-			@components.ButtonLink(components.ButtonProps{Variant: components.VariantGhost, Class: "notice__back"}, "/") {
+			@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleGhost, Class: "notice__back"}, "/") {
 				{ i18n.T(ctx, i18n.KeyBackToShop) }
 			}
 		</div>
@@ -356,13 +356,13 @@ templ Account(p layouts.Page, v *AccountView) {
 					<p class="goen-pagehead__sub">{ v.DisplayName() }</p>
 				</div>
 				<form class="goen-account__headactions" method="post" action="/signout">
-					@components.Button(components.ButtonProps{Variant: components.VariantOutline, Class: "ui-btn"}, "submit") {
+					@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline, Class: "ui-btn"}, "submit") {
 						{ i18n.T(ctx, i18n.KeySignOut) }
 					}
 				</form>
 			</div>
 			if v.HasNotice() {
-				@components.Notice(components.NoticeProps{Tone: components.ToneAccent, ID: "account-notice"}) {
+				@components.Notice(components.NoticeProps{Intent: components.IntentAccent, ID: "account-notice"}) {
 					{ v.Notice }
 				}
 			}
@@ -439,7 +439,7 @@ templ Account(p layouts.Page, v *AccountView) {
 												</span>
 											</td>
 											<td>
-												@components.Badge(components.BadgeProps{Tone: o.BadgeTone()}) {
+												@components.Badge(components.BadgeProps{Intent: o.BadgeIntent()}) {
 													{ o.StatusText(ctx) }
 												}
 												if v.PaymentsEnabled && o.AwaitingPayment() {
@@ -489,7 +489,7 @@ templ Account(p layouts.Page, v *AccountView) {
 								</div>
 							</div>
 							<div class="goen-account__actions">
-								@components.Button(components.ButtonProps{Variant: components.VariantPrimary}, "submit") {
+								@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary}, "submit") {
 									{ i18n.T(ctx, i18n.KeySave) }
 								}
 							</div>
@@ -517,14 +517,14 @@ templ Account(p layouts.Page, v *AccountView) {
 											if !a.Default {
 												<form method="post" action="/account/addresses/default">
 													<input type="hidden" name="address" value={ a.ID }/>
-													@components.Button(components.ButtonProps{Variant: components.VariantGhost, Size: components.SizeSmall}, "submit") {
+													@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleGhost, Size: components.SizeSmall}, "submit") {
 														{ i18n.T(ctx, i18n.KeyMakeDefault) }
 													}
 												</form>
 											}
 											<form method="post" action="/account/addresses/delete">
 												<input type="hidden" name="address" value={ a.ID }/>
-												@components.Button(components.ButtonProps{Variant: components.VariantGhost, Size: components.SizeSmall}, "submit") {
+												@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleGhost, Size: components.SizeSmall}, "submit") {
 													{ i18n.T(ctx, i18n.KeyDelete) }
 												}
 											</form>
@@ -672,7 +672,7 @@ templ Account(p layouts.Page, v *AccountView) {
 									<span>{ i18n.T(ctx, i18n.KeySetAsDefault) }</span>
 								</label>
 								<div class="goen-account__actions">
-									@components.Button(components.ButtonProps{Variant: components.VariantPrimary}, "submit") {
+									@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary}, "submit") {
 										{ i18n.T(ctx, i18n.KeySaveAddress) }
 									}
 								</div>
@@ -688,7 +688,7 @@ templ Account(p layouts.Page, v *AccountView) {
 									{ i18n.T(ctx, i18n.KeyEmailVerified) }
 								}
 							} else {
-								@components.Badge(components.BadgeProps{Tone: components.ToneWarn}) {
+								@components.Badge(components.BadgeProps{Intent: components.IntentWarn}) {
 									{ i18n.T(ctx, i18n.KeyEmailUnverified) }
 								}
 							}
@@ -697,7 +697,7 @@ templ Account(p layouts.Page, v *AccountView) {
 							<p class="goen-account__meta">{ i18n.T(ctx, i18n.KeyEmailUnverifiedHint) }</p>
 							<form class="goen-account__form" method="post" action="/account/email/resend">
 								<div class="goen-account__actions">
-									@components.Button(components.ButtonProps{Variant: components.VariantOutline}, "submit") {
+									@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, "submit") {
 										{ i18n.T(ctx, i18n.KeyEmailResend) }
 									}
 								</div>
@@ -737,7 +737,7 @@ templ Account(p layouts.Page, v *AccountView) {
 									</div>
 								</div>
 								<div class="goen-account__actions">
-									@components.Button(components.ButtonProps{Variant: components.VariantPrimary}, "submit") {
+									@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary}, "submit") {
 										{ i18n.T(ctx, i18n.KeyEmailChange) }
 									}
 								</div>
@@ -791,7 +791,7 @@ templ Account(p layouts.Page, v *AccountView) {
 									</div>
 								</div>
 								<div class="goen-account__actions">
-									@components.Button(components.ButtonProps{Variant: components.VariantPrimary}, "submit") {
+									@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary}, "submit") {
 										{ i18n.T(ctx, i18n.KeyChangePassword) }
 									}
 								</div>
@@ -805,7 +805,7 @@ templ Account(p layouts.Page, v *AccountView) {
 							if v.CanUnlinkGoogle {
 								<form class="goen-account__form" method="post" action="/account/google/unlink">
 									<div class="goen-account__actions">
-										@components.Button(components.ButtonProps{Variant: components.VariantOutline}, "submit") {
+										@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, "submit") {
 											{ i18n.T(ctx, i18n.KeyUnlinkGoogle) }
 										}
 									</div>
@@ -833,7 +833,7 @@ templ Account(p layouts.Page, v *AccountView) {
 									})
 								</div>
 								<div class="goen-account__actions">
-									@components.Button(components.ButtonProps{Variant: components.VariantOutline, Class: "goen-account__erase"}, "submit") {
+									@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline, Class: "goen-account__erase"}, "submit") {
 										{ i18n.T(ctx, i18n.KeyEraseSubmit) }
 									}
 								</div>

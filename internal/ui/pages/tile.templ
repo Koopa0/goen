@@ -17,8 +17,8 @@ templ compareForm(offered bool) {
 			{ children... }
 			<div class="goen-compare-pick__go">
 				@components.Button(components.ButtonProps{
-					Variant: components.VariantOutline,
-					Size:    components.SizeSmall,
+					ButtonStyle: components.ButtonStyleOutline,
+					Size:        components.SizeSmall,
 				}, "submit") {
 					{ i18n.T(ctx, i18n.KeyCompareSelected) }
 				}
@@ -68,7 +68,7 @@ templ tileCard(t ProductTile) {
 				<span class="goen-tile__ph" aria-hidden="true"></span>
 			}
 			if t.SoldOut() {
-				@components.Badge(components.BadgeProps{Tone: components.ToneDanger, Class: "goen-tile__flag"}) {
+				@components.Badge(components.BadgeProps{Intent: components.IntentDanger, Class: "goen-tile__flag"}) {
 					{ i18n.T(ctx, i18n.KeySoldOut) }
 				}
 			}

@@ -15,12 +15,12 @@ templ Forgot(p layouts.Page, v ForgotView) {
 				<h1 class="goen-auth__title">{ i18n.T(ctx, i18n.KeyForgotTitle) }</h1>
 				<p class="goen-auth__lede">{ i18n.T(ctx, i18n.KeyForgotSub) }</p>
 				if v.Sent {
-					@components.Notice(components.NoticeProps{Tone: components.ToneAccent, ID: "forgot-sent"}) {
+					@components.Notice(components.NoticeProps{Intent: components.IntentAccent, ID: "forgot-sent"}) {
 						{ i18n.T(ctx, i18n.KeyForgotSent) }
 					}
 				}
 				if v.Notice != "" {
-					@components.Notice(components.NoticeProps{Tone: components.ToneWarn}) {
+					@components.Notice(components.NoticeProps{Intent: components.IntentWarn}) {
 						{ v.Notice }
 					}
 				}
@@ -41,7 +41,7 @@ templ Forgot(p layouts.Page, v ForgotView) {
 							}),
 						})
 					</div>
-					@components.Button(components.ButtonProps{Variant: components.VariantPrimary, Size: components.SizeLarge, Block: true}, "submit") {
+					@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Size: components.SizeLarge, Block: true}, "submit") {
 						{ i18n.T(ctx, i18n.KeyForgotSubmit) }
 					}
 				</form>
@@ -102,16 +102,16 @@ templ Reset(p layouts.Page, v ResetView) {
 							})
 						</div>
 						<p class="goen-auth__hint">{ i18n.T(ctx, i18n.KeyResetEndsSessions) }</p>
-						@components.Button(components.ButtonProps{Variant: components.VariantPrimary, Size: components.SizeLarge, Block: true}, "submit") {
+						@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Size: components.SizeLarge, Block: true}, "submit") {
 							{ i18n.T(ctx, i18n.KeyResetTitle) }
 						}
 					</form>
 				} else {
-					@components.Notice(components.NoticeProps{Tone: components.ToneDanger, ID: "reset-refused"}) {
+					@components.Notice(components.NoticeProps{Intent: components.IntentDanger, ID: "reset-refused"}) {
 						{ v.Refusal(ctx) }
 					}
 					<form class="goen-auth__form" method="get" action="/forgot">
-						@components.Button(components.ButtonProps{Variant: components.VariantPrimary, Size: components.SizeLarge, Block: true}, "submit") {
+						@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Size: components.SizeLarge, Block: true}, "submit") {
 							{ i18n.T(ctx, i18n.KeyResetAgain) }
 						}
 					</form>

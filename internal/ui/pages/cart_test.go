@@ -59,7 +59,7 @@ func TestEveryCheckoutChoiceSurvivesChangingAnother(t *testing.T) {
 			Name: "王小明", Phone: "0912345678", Street: "松高路 99 號", Note: "放管理室",
 		},
 		CouponCode:     "SAVE10",
-		Invoice:        CheckoutInvoice{Type: "mobile_carrier", Carrier: "/ABC+123"},
+		Invoice:        CheckoutInvoice{Type: "mobile_carrier", MobileBarcode: "/ABC+123"},
 		InvoiceChoices: []InvoiceChoice{{Value: "mobile_carrier", Label: "手機條碼載具"}},
 	}
 	html := renderToString(t, Checkout(CheckoutMeta(ctx), &typed))
@@ -765,13 +765,13 @@ func TestTheInvoiceFormAsksForOneThing(t *testing.T) {
 	tests := []struct {
 		name            string
 		kind            invoice.Preference
-		wantCarrier     bool
+		wantBarcode     bool
 		wantDonation    bool
 		wantCompanyName bool
 		wantTaxID       bool
 	}{
-		{name: "the default keeps neither", kind: "", wantCarrier: false, wantTaxID: false},
-		{name: "a mobile barcode needs the carrier", kind: "mobile_carrier", wantCarrier: true},
+		{name: "the default keeps neither", kind: "", wantBarcode: false, wantTaxID: false},
+		{name: "a mobile barcode needs its field", kind: "mobile_carrier", wantBarcode: true},
 		{name: "a donation needs the donation code and nothing else", kind: "donation", wantDonation: true},
 		{name: "a company invoice needs its registered buyer", kind: "company", wantCompanyName: true, wantTaxID: true},
 	}
@@ -785,8 +785,8 @@ func TestTheInvoiceFormAsksForOneThing(t *testing.T) {
 				InvoiceChoices: []InvoiceChoice{{Value: "member_carrier", Label: "會員載具"}},
 			}
 			html := renderToString(t, Checkout(CheckoutMeta(ctx), &view))
-			if got := strings.Contains(html, `id="invoice_carrier"`); got != tt.wantCarrier {
-				t.Errorf("invoice=%q renders the carrier field = %v, want %v", tt.kind, got, tt.wantCarrier)
+			if got := strings.Contains(html, `id="invoice_carrier"`); got != tt.wantBarcode {
+				t.Errorf("invoice=%q renders the mobile barcode field = %v, want %v", tt.kind, got, tt.wantBarcode)
 			}
 			if got := strings.Contains(html, `id="invoice_donation_code"`); got != tt.wantDonation {
 				t.Errorf("invoice=%q renders the donation code field = %v, want %v", tt.kind, got, tt.wantDonation)

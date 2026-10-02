@@ -112,7 +112,7 @@ var (
 
 	KeyFieldStoreName = key("field.pickup.name", Message{ZhHant: "門市名稱", En: "Store name"})
 
-	KeyFieldCarrier = key("field.invoice.carrier", Message{ZhHant: "手機條碼載具", En: "Mobile barcode carrier"})
+	KeyFieldMobileBarcode = key("field.invoice.carrier", Message{ZhHant: "手機條碼載具", En: "Mobile barcode carrier"})
 
 	KeyFieldDonationCode = key("field.invoice.donation", Message{ZhHant: "愛心碼", En: "Donation code"})
 
@@ -129,8 +129,8 @@ var (
 	KeyFieldTaxID = key("field.invoice.taxid", Message{ZhHant: "統一編號", En: "Company tax ID"})
 
 	KeyInvoiceMember = key("invoice.member", Message{
-		ZhHant: memberCarrierZhHant + "（依結帳 Email 留存與通知）",
-		En:     memberCarrierEn + " (stored and notified using your checkout email)",
+		ZhHant: memberInvoiceCarrierZhHant + "（依結帳 Email 留存與通知）",
+		En:     memberInvoiceCarrierEn + " (stored and notified using your checkout email)",
 	})
 
 	KeyInvoiceMobile = key("invoice.mobile", Message{
@@ -146,8 +146,8 @@ var (
 	// Issue sends the company invoice with the member carrier (issue.go), which
 	// ECPay holds against the checkout email.
 	KeyInvoiceCompanyStored = key("invoice.company.stored", Message{
-		ZhHant: "公司統編發票會存入" + memberCarrierZhHant + "，依結帳 Email 留存與通知，可在綠界的載具中查詢。",
-		En:     "A company tax ID invoice is stored in the " + memberCarrierEn + ", tied to your checkout email, and can be retrieved there.",
+		ZhHant: "公司統編發票會存入" + memberInvoiceCarrierZhHant + "，依結帳 Email 留存與通知，可在綠界的載具中查詢。",
+		En:     "A company tax ID invoice is stored in the " + memberInvoiceCarrierEn + ", tied to your checkout email, and can be retrieved there.",
 	})
 
 	KeyDeliveryToAddress = key("checkout.dest.address", Message{ZhHant: "收件地址", En: "Delivery address"})
@@ -308,7 +308,7 @@ var (
 		En:     "Choose an invoice type.",
 	})
 
-	KeyCarrierMalformed = key("valid.invoice.carrier", Message{
+	KeyMobileBarcodeMalformed = key("valid.invoice.carrier", Message{
 		ZhHant: "手機條碼格式不正確，應為斜線加上七碼（例如 /ABC+123）。",
 		En:     "A mobile barcode is a slash and seven characters, such as /ABC+123.",
 	})
@@ -332,8 +332,8 @@ var (
 // The member-carrier option's name, shared so a refusal that points shoppers at
 // it cannot drift from the label they see on the form.
 const (
-	memberCarrierZhHant = "綠界電子發票載具"
-	memberCarrierEn     = "ECPay e-invoice carrier"
+	memberInvoiceCarrierZhHant = "綠界電子發票載具"
+	memberInvoiceCarrierEn     = "ECPay e-invoice carrier"
 )
 
-var KeyCarrierMissing = key("checkout.carrier.missing", Message{ZhHant: "查無此手機條碼，請確認載具號碼，或改選「" + memberCarrierZhHant + "」。", En: "This mobile barcode does not exist. Check it, or choose \"" + memberCarrierEn + "\"."})
+var KeyMobileBarcodeMissing = key("checkout.carrier.missing", Message{ZhHant: "查無此手機條碼，請確認載具號碼，或改選「" + memberInvoiceCarrierZhHant + "」。", En: "This mobile barcode does not exist. Check it, or choose \"" + memberInvoiceCarrierEn + "\"."})

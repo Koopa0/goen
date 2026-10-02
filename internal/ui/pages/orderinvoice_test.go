@@ -9,7 +9,7 @@ import (
 )
 
 // The order page shows the invoice once it is filed and nothing before, and
-// never prints a mobile carrier in full.
+// never prints a mobile barcode in full.
 func TestTheOrderPageShowsTheInvoiceOnlyOnceFiled(t *testing.T) {
 	t.Parallel()
 	render := func(inv *OrderInvoice) string {
@@ -23,7 +23,7 @@ func TestTheOrderPageShowsTheInvoiceOnlyOnceFiled(t *testing.T) {
 	}
 
 	html := render(&OrderInvoice{
-		Type: invoice.PreferenceMobile, Carrier: "/ABC1234",
+		Type: invoice.PreferenceMobile, MobileBarcode: "/ABC1234",
 		Documents: []OrderInvoiceDocument{
 			{Number: "AB12345678", RandomCode: "4321", IssuedOn: "2026-10-01", Voided: true},
 			{Number: "AB12345679", RandomCode: "8765", IssuedOn: "2026-10-02"},
@@ -36,6 +36,6 @@ func TestTheOrderPageShowsTheInvoiceOnlyOnceFiled(t *testing.T) {
 		}
 	}
 	if strings.Contains(html, "/ABC1234") {
-		t.Error("the mobile carrier is printed in full")
+		t.Error("the mobile barcode is printed in full")
 	}
 }
