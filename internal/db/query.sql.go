@@ -412,21 +412,22 @@ func (q *Queries) AdminCampaignImage(ctx context.Context, slug string) (AdminCam
 }
 
 const adminCampaignProductSearch = `-- name: AdminCampaignProductSearch :many
-SELECT p.slug, p.name
+SELECT p.slug, localized_name(p.name, p.name_en, $1::text) AS name
 FROM products p
 WHERE p.status <> 'archived'
-  AND (p.name ILIKE '%' || $1::text || '%'
-       OR p.name_en ILIKE '%' || $1::text || '%'
-       OR p.slug ILIKE '%' || $1::text || '%')
+  AND (p.name ILIKE '%' || $2::text || '%'
+       OR p.name_en ILIKE '%' || $2::text || '%'
+       OR p.slug ILIKE '%' || $2::text || '%')
   AND NOT EXISTS (SELECT 1
                   FROM sale_campaign_products cp
                   JOIN sale_campaigns c ON c.id = cp.campaign_id
-                  WHERE c.slug = $2::text AND cp.product_id = p.id)
+                  WHERE c.slug = $3::text AND cp.product_id = p.id)
 ORDER BY p.name, p.id
-LIMIT $3::integer
+LIMIT $4::integer
 `
 
 type AdminCampaignProductSearchParams struct {
+	Locale      string
 	EscapedTerm string
 	Campaign    string
 	RowLimit    int32
@@ -439,7 +440,12 @@ type AdminCampaignProductSearchRow struct {
 
 // Archived products are left out: a campaign on one shows nothing.
 func (q *Queries) AdminCampaignProductSearch(ctx context.Context, arg AdminCampaignProductSearchParams) ([]AdminCampaignProductSearchRow, error) {
-	rows, err := q.db.Query(ctx, adminCampaignProductSearch, arg.EscapedTerm, arg.Campaign, arg.RowLimit)
+	rows, err := q.db.Query(ctx, adminCampaignProductSearch,
+		arg.Locale,
+		arg.EscapedTerm,
+		arg.Campaign,
+		arg.RowLimit,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -2221,7 +2227,7 @@ SELECT json_build_object('Number', (pv.stock_quantity - pv.safety_stock), 'Name'
     p.name AS product_name,
     p.status AS product_status,
     b.name AS brand,
-    ARRAY(SELECT v.value
+    ARRAY(SELECT localized_name(v.value, v.value_en, $1::text)
           FROM variant_option_values vov
           JOIN product_options o ON o.id = vov.option_id
           JOIN product_option_values v ON v.id = vov.option_value_id
@@ -2230,20 +2236,21 @@ SELECT json_build_object('Number', (pv.stock_quantity - pv.safety_stock), 'Name'
 FROM product_variants pv
 JOIN products p ON p.id = pv.product_id
 JOIN brands b ON b.id = p.brand_id
-WHERE ($1::boolean = false OR pv.stock_quantity <= pv.safety_stock)
-AND ($2::text = ''
-       OR pv.sku ILIKE '%' || $2::text || '%'
-       OR p.name ILIKE '%' || $2::text || '%'
-       OR p.name_en ILIKE '%' || $2::text || '%')
-AND (NOT $3::boolean OR ((pv.stock_quantity - pv.safety_stock) > $4::integer)
-       OR ((pv.stock_quantity - pv.safety_stock) = $4::integer AND p.name > $5::text)
-       OR ((pv.stock_quantity - pv.safety_stock) = $4::integer AND p.name = $5::text AND pv.position > $6::integer)
-       OR ((pv.stock_quantity - pv.safety_stock) = $4::integer AND p.name = $5::text AND pv.position = $6::integer AND pv.id > $7::uuid))
+WHERE ($2::boolean = false OR pv.stock_quantity <= pv.safety_stock)
+AND ($3::text = ''
+       OR pv.sku ILIKE '%' || $3::text || '%'
+       OR p.name ILIKE '%' || $3::text || '%'
+       OR p.name_en ILIKE '%' || $3::text || '%')
+AND (NOT $4::boolean OR ((pv.stock_quantity - pv.safety_stock) > $5::integer)
+       OR ((pv.stock_quantity - pv.safety_stock) = $5::integer AND p.name > $6::text)
+       OR ((pv.stock_quantity - pv.safety_stock) = $5::integer AND p.name = $6::text AND pv.position > $7::integer)
+       OR ((pv.stock_quantity - pv.safety_stock) = $5::integer AND p.name = $6::text AND pv.position = $7::integer AND pv.id > $8::uuid))
 ORDER BY (pv.stock_quantity - pv.safety_stock) ASC, p.name ASC, pv.position ASC, pv.id ASC
-LIMIT $8::integer
+LIMIT $9::integer
 `
 
 type AdminVariantsParams struct {
+	Locale        string
 	LowOnly       bool
 	EscapedTerm   string
 	HasCursor     bool
@@ -2272,6 +2279,7 @@ type AdminVariantsRow struct {
 
 func (q *Queries) AdminVariants(ctx context.Context, arg AdminVariantsParams) ([]AdminVariantsRow, error) {
 	rows, err := q.db.Query(ctx, adminVariants,
+		arg.Locale,
 		arg.LowOnly,
 		arg.EscapedTerm,
 		arg.HasCursor,

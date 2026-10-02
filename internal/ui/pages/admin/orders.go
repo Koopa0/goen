@@ -563,8 +563,6 @@ type VariantsView struct {
 	Return string
 }
 
-func (v VariantsView) Searching() bool { return v.Term != "" }
-
 func (v VariantsView) AllHref() string { return web.ScopeURL("/admin/stock", "q", v.Term) }
 
 func (v VariantsView) LowHref() string { return web.ScopeURL("/admin/stock", "low", "1", "q", v.Term) }
