@@ -37,7 +37,7 @@ func restockAdminPool(t *testing.T, owner *pgxpool.Pool) *pgxpool.Pool {
 	return p
 }
 
-func waitForRestock(t *testing.T, variant uuid.UUID) {
+func waitForRestock(t *testing.T, variant uuid.UUID) []uuid.UUID {
 	t.Helper()
 	var safety int32
 	if err := pool.QueryRow(t.Context(), `
@@ -54,16 +54,20 @@ func waitForRestock(t *testing.T, variant uuid.UUID) {
 		UPDATE product_variants SET safety_stock = stock_quantity WHERE id = $1`, variant); err != nil {
 		t.Fatal(err)
 	}
+	subscriptions := make([]uuid.UUID, 0, len(i18n.Locales()))
 	for _, locale := range i18n.Locales() {
-		if _, err := pool.Exec(t.Context(), `
+		var id uuid.UUID
+		if err := pool.QueryRow(t.Context(), `
 			INSERT INTO stock_notifications (variant_id, email, locale)
-			VALUES ($1, $2, $3)`, variant, locale.Tag()+"-"+variant.String()+"@example.com", locale.Tag()); err != nil {
+			VALUES ($1, $2, $3) RETURNING id`, variant, locale.Tag()+"-"+uuid.NewString()+"@example.com", locale.Tag()).Scan(&id); err != nil {
 			t.Fatal(err)
 		}
+		subscriptions = append(subscriptions, id)
 	}
+	return subscriptions
 }
 
-func assertRestockQueued(t *testing.T, p *pgxpool.Pool, variant uuid.UUID) {
+func assertRestockQueued(t *testing.T, p *pgxpool.Pool, subscriptions []uuid.UUID) {
 	t.Helper()
 	rows, err := p.Query(t.Context(), `
 		SELECT m.payload, n.email, n.locale, localized_name(p.name, p.name_en, n.locale), p.slug, v.sku
@@ -71,8 +75,7 @@ func assertRestockQueued(t *testing.T, p *pgxpool.Pool, variant uuid.UUID) {
 		JOIN outbox_messages m ON m.dedupe_key = n.id::text AND m.topic = $2
 		JOIN product_variants v ON v.id = n.variant_id
 		JOIN products p ON p.id = v.product_id
-		WHERE n.variant_id = $1 AND n.notified_at IS NOT NULL
-		  AND n.email = n.locale || '-' || $1::text || '@example.com'`, variant, outbox.TopicRestocked.Name())
+		WHERE n.id = ANY($1::uuid[]) AND n.notified_at IS NOT NULL`, subscriptions, outbox.TopicRestocked.Name())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,8 +103,8 @@ func assertRestockQueued(t *testing.T, p *pgxpool.Pool, variant uuid.UUID) {
 	}
 	var pending int
 	if err := p.QueryRow(t.Context(), `
-		SELECT count(*) FROM stock_notifications WHERE variant_id = $1 AND notified_at IS NULL`,
-		variant).Scan(&pending); err != nil || pending != 0 {
+		SELECT count(*) FROM stock_notifications WHERE id = ANY($1::uuid[]) AND notified_at IS NULL`,
+		subscriptions).Scan(&pending); err != nil || pending != 0 {
 		t.Fatalf("pending restock notices = %d, %v", pending, err)
 	}
 }
@@ -120,11 +123,14 @@ func TestRestockClaimAndOutboxRollBackWithStock(t *testing.T) {
 	if _, err := owner.Exec(ctx, `UPDATE product_variants SET safety_stock = $2 WHERE id = $1`, variant, stock); err != nil {
 		t.Fatal(err)
 	}
+	subscriptions := make([]uuid.UUID, 0, len(i18n.Locales()))
 	for _, locale := range i18n.Locales() {
-		if _, err := owner.Exec(ctx, `INSERT INTO stock_notifications (variant_id, email, locale)
-			VALUES ($1, $2, $3)`, variant, locale.Tag()+"-"+variant.String()+"@example.com", locale.Tag()); err != nil {
+		var id uuid.UUID
+		if err := owner.QueryRow(ctx, `INSERT INTO stock_notifications (variant_id, email, locale)
+			VALUES ($1, $2, $3) RETURNING id`, variant, locale.Tag()+"-rollback@example.com", locale.Tag()).Scan(&id); err != nil {
 			t.Fatal(err)
 		}
+		subscriptions = append(subscriptions, id)
 	}
 	tx, err := writer.Begin(ctx)
 	if err != nil {
@@ -153,9 +159,9 @@ func TestRestockClaimAndOutboxRollBackWithStock(t *testing.T) {
 	if _, err := writer.Exec(ctx, `UPDATE product_variants SET safety_stock = $2 WHERE id = $1`, variant, stock-1); err != nil {
 		t.Fatal(err)
 	}
-	assertRestockQueued(t, owner, variant)
+	assertRestockQueued(t, owner, subscriptions)
 	if _, err := writer.Exec(ctx, `UPDATE product_variants SET safety_stock = $2 WHERE id = $1`, variant, stock-1); err != nil {
 		t.Fatal(err)
 	}
-	assertRestockQueued(t, owner, variant)
+	assertRestockQueued(t, owner, subscriptions)
 }

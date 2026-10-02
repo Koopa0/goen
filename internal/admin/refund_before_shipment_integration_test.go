@@ -263,13 +263,13 @@ func TestRefundBeforeShipmentPaysEveryLegAndCancels(t *testing.T) {
 		t.Fatalf("read award = %d, %v; the fixture must carry points to claw back", awarded, err)
 	}
 
-	waitForRestock(t, variantID)
+	subscriptions := waitForRestock(t, variantID)
 	for press := range 2 {
 		if _, err := s.RefundBeforeShipment(ctx, number, "顧客取消"); err != nil {
 			t.Fatalf("press %d: %v", press+1, err)
 		}
 	}
-	assertRestockQueued(t, pool, variantID)
+	assertRestockQueued(t, pool, subscriptions)
 	assertTerminalNotice(t, orderID, email.TerminalCancelledByStaff, true)
 
 	var returnID uuid.UUID
