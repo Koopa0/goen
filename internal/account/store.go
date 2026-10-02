@@ -2,7 +2,6 @@ package account
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -42,16 +41,6 @@ func NewStore(pool *pgxpool.Pool) *Store {
 	return &Store{pool: pool, q: db.New(pool)}
 }
 
-// Registration is a queued registration. It names the account by id and never
-// by address: the new one, or the one that already held the address. Next is
-// the same-site path the registrant was headed for, carried to the link.
-type Registration struct {
-	UserID  string `json:"user_id"`
-	Created bool   `json:"created"`
-	Locale  string `json:"locale"`
-	Next    string `json:"next"`
-}
-
 // Register records a registration and queues its follow-up, and does the same
 // work whether or not the address already has an account: the password is
 // hashed either way, and one statement both creates the account when the
@@ -79,20 +68,12 @@ func (s *Store) Register(ctx context.Context, c *Credentials, next string) error
 	if err != nil {
 		return fmt.Errorf("record registration: %w", err)
 	}
-	registration := Registration{Created: row.Created, Locale: i18n.FromContext(ctx).Tag(), Next: next}
+	registration := outbox.AccountRegistration{Created: row.Created, Locale: i18n.FromContext(ctx).Tag(), Next: next}
 	if row.UserID != uuid.Nil {
 		registration.UserID = row.UserID.String()
 	}
-	payload, err := json.Marshal(registration)
-	if err != nil {
-		return fmt.Errorf("encode registration: %w", err)
-	}
-	if err := q.EnqueueMessage(ctx, db.EnqueueMessageParams{
-		Topic:     outbox.TopicRegistration,
-		DedupeKey: "registration:" + uuid.NewString(),
-		Payload:   payload,
-	}); err != nil {
-		return fmt.Errorf("queue registration: %w", err)
+	if err := outbox.Enqueue(ctx, q, outbox.TopicRegistration, "registration:"+uuid.NewString(), &registration); err != nil {
+		return err
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("commit registration: %w", err)
@@ -104,7 +85,7 @@ func (s *Store) Register(ctx context.Context, c *Credentials, next string) error
 // account; only such an account's mailbox is sent a link.
 func (s *Store) ResendRegistration(ctx context.Context, addr, next string) error {
 	if err := s.q.EnqueueRegistrationResend(ctx, db.EnqueueRegistrationResendParams{
-		Topic:     outbox.TopicRegistration,
+		Topic:     outbox.TopicRegistration.Name(),
 		DedupeKey: "registration:" + uuid.NewString(),
 		Locale:    i18n.FromContext(ctx).Tag(),
 		Next:      next,
@@ -122,7 +103,7 @@ func (s *Store) ResendRegistration(ctx context.Context, addr, next string) error
 // completed some other way, is nothing to do.
 func (s *Store) FollowUpRegistration(
 	ctx context.Context,
-	r *Registration,
+	r *outbox.AccountRegistration,
 	tell func(context.Context, *mailmsg.AccountExists) error,
 ) error {
 	if r.UserID == "" {

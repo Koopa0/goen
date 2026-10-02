@@ -8,6 +8,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/ordernotice"
 )
 
@@ -42,7 +43,7 @@ func (s *Store) CancelOrder(ctx context.Context, number string) ([]string, error
 	if cancelled == 0 {
 		return nil, ErrNotCancellable
 	}
-	if err := settleCancellation(ctx, q, number, ordernotice.CancelledByCustomer); err != nil {
+	if err := settleCancellation(ctx, q, number, email.TerminalCancelledByCustomer); err != nil {
 		return nil, err
 	}
 
@@ -59,7 +60,7 @@ func (s *Store) CancelOrder(ctx context.Context, number string) ([]string, error
 
 // settleCancellation does what an unpaid order's cancellation means, in the
 // transaction whose status UPDATE already holds the order lock.
-func settleCancellation(ctx context.Context, q *db.Queries, number string, kind ordernotice.Kind) error {
+func settleCancellation(ctx context.Context, q *db.Queries, number string, kind email.TerminalKind) error {
 	held, err := q.HeldReservationsForOrder(ctx, number)
 	if err != nil {
 		return fmt.Errorf("read holds of %s: %w", number, err)
@@ -83,7 +84,7 @@ func settleCancellation(ctx context.Context, q *db.Queries, number string, kind 
 
 	// The notice kind names who initiated it; the timeline records the same.
 	if err := q.RecordCancellation(ctx, db.RecordCancellationParams{
-		OrderNumber: number, BySystem: kind == ordernotice.CancelledByPaymentDeadline,
+		OrderNumber: number, BySystem: kind == email.TerminalCancelledByPaymentDeadline,
 	}); err != nil {
 		return fmt.Errorf("record cancellation of %s: %w", number, err)
 	}
@@ -92,7 +93,7 @@ func settleCancellation(ctx context.Context, q *db.Queries, number string, kind 
 	if factsErr != nil {
 		return fmt.Errorf("read payments of %s: %w", number, factsErr)
 	}
-	return ordernotice.Enqueue(ctx, q, ordernotice.Message{
+	return ordernotice.Enqueue(ctx, q, &email.OrderTerminal{
 		OrderID: order.ID, Kind: kind, Refunded: mayHaveTakenMoney(facts.Statuses, facts.ProviderFlagged),
 	})
 }

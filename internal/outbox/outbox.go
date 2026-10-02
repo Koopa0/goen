@@ -20,34 +20,45 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/email"
 )
+
+// Topic names one kind of message and the payload type every message on it
+// carries. Only this package makes one, so a producer cannot enqueue a type its
+// consumer does not decode.
+type Topic[T any] struct{ name string }
+
+func topic[T any](name string) Topic[T] { return Topic[T]{name: name} }
+
+// Name is the value stored in outbox_messages.topic.
+func (t Topic[T]) Name() string { return t.name }
 
 // Topics goen publishes. A topic that fans out carries one message per
 // RECIPIENT, so a send that fails for one mailbox is retried for that alone.
-const (
-	TopicOrderPlaced       = "order.placed"
-	TopicPasswordReset     = "account.password_reset"
-	TopicOrderPaid         = "order.paid"
-	TopicOrderShipped      = "order.shipped"
-	TopicOrderTerminal     = "order.terminal"
-	TopicRestocked         = "catalogue.restocked"
-	TopicNewsletterConfirm = "newsletter.confirm"
-	TopicNewsletterWelcome = "newsletter.welcome"
+var (
+	TopicOrderPlaced       = topic[email.OrderPlaced]("order.placed")
+	TopicPasswordReset     = topic[email.PasswordReset]("account.password_reset")
+	TopicOrderPaid         = topic[email.OrderPaid]("order.paid")
+	TopicOrderShipped      = topic[email.OrderShipped]("order.shipped")
+	TopicOrderTerminal     = topic[email.OrderTerminal]("order.terminal")
+	TopicRestocked         = topic[email.RestockNotice]("catalogue.restocked")
+	TopicNewsletterConfirm = topic[email.NewsletterConfirm]("newsletter.confirm")
+	TopicNewsletterWelcome = topic[email.NewsletterWelcome]("newsletter.welcome")
 	// TopicNewsletterIssue is enqueued at [BulkPriority].
-	TopicNewsletterIssue = "newsletter.issue"
-	TopicEmailVerify     = "account.email_verify"
-	TopicStaffInvitation = "staff.invitation"
+	TopicNewsletterIssue = topic[email.NewsletterIssue]("newsletter.issue")
+	TopicEmailVerify     = topic[email.AddressVerify]("account.email_verify")
+	TopicStaffInvitation = topic[email.StaffInvitation]("staff.invitation")
 	// TopicPasswordResetRequest is a forgotten-password request, queued the
 	// same way whether or not the address has an account. Its handler issues
 	// the token and queues the TopicPasswordReset message.
-	TopicPasswordResetRequest = "account.password_reset_request"
+	TopicPasswordResetRequest = topic[PasswordResetRequest]("account.password_reset_request")
 	// TopicRegistration is a registration, queued the same way whether or not
 	// the address already had an account. Its handler sends the link that
 	// completes a new account, or tells an existing one's owner of the attempt.
-	TopicRegistration = "account.registration"
+	TopicRegistration = topic[AccountRegistration]("account.registration")
 	// TopicInvoiceDue is a sale that became final. Its handler claims the
 	// 統一發票 on the admin pool; the invoice reconciler issues it.
-	TopicInvoiceDue = "invoice.due"
+	TopicInvoiceDue = topic[InvoiceDue]("invoice.due")
 )
 
 // BulkPriority is where a send that can wait goes in the queue. Transactional
@@ -145,14 +156,14 @@ func (s *Store) Handle(topic string, h Handler) {
 // HandleJSON registers a typed JSON handler. Each delivery decodes a fresh T.
 // Unknown object fields remain accepted so an older consumer can read a payload
 // written by a newer producer.
-func (s *Store) HandleJSON[T any](topic string, h func(context.Context, *T) error) {
+func (s *Store) HandleJSON[T any](t Topic[T], h func(context.Context, *T) error) {
 	if h == nil {
-		panic("outbox: nil JSON handler for " + topic)
+		panic("outbox: nil JSON handler for " + t.name)
 	}
-	s.Handle(topic, func(ctx context.Context, payload []byte) error {
+	s.Handle(t.name, func(ctx context.Context, payload []byte) error {
 		var message T
 		if err := json.Unmarshal(payload, &message); err != nil {
-			return fmt.Errorf("decode outbox payload for %s: %w", topic, err)
+			return fmt.Errorf("decode outbox payload for %s: %w", t.name, err)
 		}
 		return h(ctx, &message)
 	})
@@ -373,24 +384,44 @@ func (s *Store) SweepForever(ctx context.Context, log *slog.Logger) {
 	}
 }
 
-// Enqueue writes every message of one topic in a single statement, in the
+// Enqueue writes one message in the caller's transaction, so it exists exactly
+// when the fact it is about does. A key already queued for the topic is left as
+// it was.
+func Enqueue[T any](ctx context.Context, q *db.Queries, t Topic[T], dedupeKey string, payload *T) error {
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("encode %s message: %w", t.name, err)
+	}
+	if err := q.EnqueueMessage(ctx, db.EnqueueMessageParams{
+		Topic: t.name, DedupeKey: dedupeKey, Payload: encoded,
+	}); err != nil {
+		return fmt.Errorf("enqueue %s message: %w", t.name, err)
+	}
+	return nil
+}
+
+// EnqueueAll writes every message of one topic in a single statement, in the
 // caller's transaction. keys and payloads pair by position; a key already
 // queued for the topic is left as it was.
-func Enqueue(ctx context.Context, q *db.Queries, topic string, priority int16, keys []string, payloads [][]byte) error {
+func EnqueueAll[T any](ctx context.Context, q *db.Queries, t Topic[T], priority int16, keys []string, payloads []T) error {
 	if len(keys) != len(payloads) {
-		return errors.New("outbox: Enqueue needs one payload per key")
+		return errors.New("outbox: EnqueueAll needs one payload per key")
 	}
 	if len(keys) == 0 {
 		return nil
 	}
 	text := make([]string, len(payloads))
-	for i, p := range payloads {
-		text[i] = string(p)
+	for i := range payloads {
+		encoded, err := json.Marshal(&payloads[i])
+		if err != nil {
+			return fmt.Errorf("encode %s message: %w", t.name, err)
+		}
+		text[i] = string(encoded)
 	}
 	if err := q.EnqueueMessages(ctx, db.EnqueueMessagesParams{
-		Topic: topic, Priority: priority, DedupeKeys: keys, Payloads: text,
+		Topic: t.name, Priority: priority, DedupeKeys: keys, Payloads: text,
 	}); err != nil {
-		return fmt.Errorf("enqueue %s messages: %w", topic, err)
+		return fmt.Errorf("enqueue %s messages: %w", t.name, err)
 	}
 	return nil
 }

@@ -595,9 +595,9 @@ func TestABulkSendWaitsBehindTransactionalMail(t *testing.T) {
 	}
 	q := outbox.NewStore(pool, slog.New(slog.DiscardHandler))
 	q.Handle("order.paid", record("order.paid"))
-	q.Handle(outbox.TopicNewsletterIssue, record(outbox.TopicNewsletterIssue))
-	q.Handle(outbox.TopicNewsletterConfirm, record("other"))
-	q.Handle(outbox.TopicNewsletterWelcome, record("other"))
+	q.Handle(outbox.TopicNewsletterIssue.Name(), record(outbox.TopicNewsletterIssue.Name()))
+	q.Handle(outbox.TopicNewsletterConfirm.Name(), record("other"))
+	q.Handle(outbox.TopicNewsletterWelcome.Name(), record("other"))
 	// DrainAll, not one Drain: the assertion is about ORDER, and one batch
 	// reaches both kinds only while BatchSize happens to exceed whatever else
 	// the suite has left queued. Priority is applied per claim, so the ordering
@@ -608,7 +608,7 @@ func TestABulkSendWaitsBehindTransactionalMail(t *testing.T) {
 
 	firstIssue, lastUrgent := -1, -1
 	for i, topic := range order {
-		if topic == outbox.TopicNewsletterIssue && firstIssue < 0 {
+		if topic == outbox.TopicNewsletterIssue.Name() && firstIssue < 0 {
 			firstIssue = i
 		}
 		if topic == "order.paid" {

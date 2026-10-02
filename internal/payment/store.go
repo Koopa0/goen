@@ -16,8 +16,10 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
+	"github.com/koopa0/goen/internal/outbox"
 )
 
 // Store is the database side of taking money. It holds the pool rather than a
@@ -278,7 +280,7 @@ func AttributeCompleteCapture(
 	if err := CompleteFunding(ctx, q, row.OrderID, row.OrderNumber, capture); err != nil {
 		return false, err
 	}
-	if err := invoice.EnqueueDue(ctx, q, invoice.Due{
+	if err := invoice.EnqueueDue(ctx, q, &outbox.InvoiceDue{
 		OrderNumber: row.OrderNumber, Trigger: providerRef,
 	}); err != nil {
 		return false, err
@@ -439,7 +441,7 @@ func (w *webhookTx) Capture(ctx context.Context, c Capture) (orderNumber string,
 	if err := CompleteFunding(ctx, w.q, row.ID, row.OrderNumber, c); err != nil {
 		return "", err
 	}
-	if err := invoice.EnqueueDue(ctx, w.q, invoice.Due{
+	if err := invoice.EnqueueDue(ctx, w.q, &outbox.InvoiceDue{
 		OrderNumber: row.OrderNumber, Trigger: w.eventID,
 	}); err != nil {
 		return "", err
@@ -476,7 +478,7 @@ func CompleteFunding(
 	if err != nil {
 		return fmt.Errorf("read receipt amount of order %s: %w", orderNumber, err)
 	}
-	return enqueueOrderPaid(ctx, q, orderID, &OrderPaid{
+	return enqueueOrderPaid(ctx, q, orderID, &email.OrderPaid{
 		OrderNumber: orderNumber, AmountCents: amount, Card: cardLabel(c),
 	})
 }

@@ -738,27 +738,27 @@ func startWorkers(ctx context.Context, d workerDeps) {
 // so a missing line here is mail that silently never leaves.
 func newOutboxStore(d workerDeps) *outbox.Store {
 	outboxStore := outbox.NewStore(d.pool, d.log)
-	outboxStore.HandleJSON[email.OrderPlaced](outbox.TopicOrderPlaced, d.notifier.SendOrderPlaced)
-	outboxStore.HandleJSON[email.PasswordReset](outbox.TopicPasswordReset, d.notifier.SendPasswordReset)
-	outboxStore.HandleJSON[account.ResetRequest](outbox.TopicPasswordResetRequest, account.NewStore(d.pool).IssueReset)
-	outboxStore.HandleJSON[account.Registration](outbox.TopicRegistration, registrationHandler(account.NewStore(d.pool), d.notifier))
-	outboxStore.HandleJSON[email.OrderPaid](outbox.TopicOrderPaid, d.notifier.SendOrderPaid)
-	outboxStore.HandleJSON[email.OrderShipped](outbox.TopicOrderShipped, d.notifier.SendOrderShipped)
-	outboxStore.HandleJSON[email.OrderTerminal](outbox.TopicOrderTerminal, terminalOrderHandler(ordernotice.NewRecipients(d.pool), d.notifier))
-	outboxStore.HandleJSON[email.NewsletterConfirm](outbox.TopicNewsletterConfirm, d.notifier.SendNewsletterConfirm)
-	outboxStore.HandleJSON[email.NewsletterWelcome](outbox.TopicNewsletterWelcome, d.notifier.SendNewsletterWelcome)
-	outboxStore.HandleJSON[email.AddressVerify](outbox.TopicEmailVerify, addressVerifyHandler(account.NewStore(d.pool), d.notifier))
-	outboxStore.HandleJSON[email.StaffInvitation](outbox.TopicStaffInvitation, staffInvitationHandler(twofactor.NewStore(d.pool, nil), d.notifier))
-	outboxStore.HandleJSON[email.NewsletterIssue](outbox.TopicNewsletterIssue,
+	outboxStore.HandleJSON(outbox.TopicOrderPlaced, d.notifier.SendOrderPlaced)
+	outboxStore.HandleJSON(outbox.TopicPasswordReset, d.notifier.SendPasswordReset)
+	outboxStore.HandleJSON(outbox.TopicPasswordResetRequest, account.NewStore(d.pool).IssueReset)
+	outboxStore.HandleJSON(outbox.TopicRegistration, registrationHandler(account.NewStore(d.pool), d.notifier))
+	outboxStore.HandleJSON(outbox.TopicOrderPaid, d.notifier.SendOrderPaid)
+	outboxStore.HandleJSON(outbox.TopicOrderShipped, d.notifier.SendOrderShipped)
+	outboxStore.HandleJSON(outbox.TopicOrderTerminal, terminalOrderHandler(ordernotice.NewRecipients(d.pool), d.notifier))
+	outboxStore.HandleJSON(outbox.TopicNewsletterConfirm, d.notifier.SendNewsletterConfirm)
+	outboxStore.HandleJSON(outbox.TopicNewsletterWelcome, d.notifier.SendNewsletterWelcome)
+	outboxStore.HandleJSON(outbox.TopicEmailVerify, addressVerifyHandler(account.NewStore(d.pool), d.notifier))
+	outboxStore.HandleJSON(outbox.TopicStaffInvitation, staffInvitationHandler(twofactor.NewStore(d.pool, nil), d.notifier))
+	outboxStore.HandleJSON(outbox.TopicNewsletterIssue,
 		newsletterIssueHandler(newsletter.NewStore(d.pool), d.notifier))
-	outboxStore.HandleJSON[email.RestockNotice](outbox.TopicRestocked, d.notifier.SendRestockNotice)
-	outboxStore.HandleJSON[invoice.Due](outbox.TopicInvoiceDue, invoiceDueHandler(d.admin, d.invoices))
+	outboxStore.HandleJSON(outbox.TopicRestocked, d.notifier.SendRestockNotice)
+	outboxStore.HandleJSON(outbox.TopicInvoiceDue, invoiceDueHandler(d.admin, d.invoices))
 	return outboxStore
 }
 
 // invoiceDueHandler claims on the ADMIN pool: `store` holds no EXECUTE on the
 // invoice doors.
-func invoiceDueHandler(adminPool *pgxpool.Pool, gateway *invoice.Gateway) func(context.Context, *invoice.Due) error {
+func invoiceDueHandler(adminPool *pgxpool.Pool, gateway *invoice.Gateway) func(context.Context, *outbox.InvoiceDue) error {
 	return invoice.NewStore(adminPool, gateway).ClaimDue
 }
 
@@ -788,8 +788,8 @@ func newsletterIssueHandler(
 // registrationHandler follows a registration up on the store pool, which is the
 // one that wrote it: a new account's link is queued there, and an address that
 // already had an account is told so by mail.
-func registrationHandler(accounts *account.Store, notifier email.Notifier) func(context.Context, *account.Registration) error {
-	return func(ctx context.Context, r *account.Registration) error {
+func registrationHandler(accounts *account.Store, notifier email.Notifier) func(context.Context, *outbox.AccountRegistration) error {
+	return func(ctx context.Context, r *outbox.AccountRegistration) error {
 		return accounts.FollowUpRegistration(ctx, r, notifier.SendAccountExists)
 	}
 }

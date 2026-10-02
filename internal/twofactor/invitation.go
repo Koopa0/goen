@@ -2,7 +2,6 @@ package twofactor
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -16,18 +15,11 @@ import (
 )
 
 func enqueueStaffInvitation(ctx context.Context, q *db.Queries, userID uuid.UUID) error {
-	payload, err := json.Marshal(email.StaffInvitation{
+	// A retained delivery belongs to one grant; a later re-grant needs its own notice.
+	return outbox.Enqueue(ctx, q, outbox.TopicStaffInvitation, "staff-invite:"+uuid.NewString(), &email.StaffInvitation{
 		// The admin's locale, because users stores none for the invitee.
 		UserID: userID.String(), Locale: i18n.FromContext(ctx).Tag(),
 	})
-	if err != nil {
-		return fmt.Errorf("encode staff invitation: %w", err)
-	}
-	// A retained delivery belongs to one grant; a later re-grant needs its own notice.
-	if err := q.EnqueueMessage(ctx, db.EnqueueMessageParams{Topic: outbox.TopicStaffInvitation, DedupeKey: "staff-invite:" + uuid.NewString(), Payload: payload}); err != nil {
-		return fmt.Errorf("enqueue staff invitation: %w", err)
-	}
-	return nil
 }
 
 // InvitationRecipient resolves only an account that still has staff access.
