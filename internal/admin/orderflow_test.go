@@ -35,14 +35,14 @@ func TestTheRefundBeforeShipmentIsOfferedFromPaidAndPicking(t *testing.T) {
 		pages.FulfillmentShipped:   false,
 		pages.FulfillmentCancelled: false,
 	} {
-		offered, open := refundBeforeShipment(&db.BeforeShipmentRefundRow{
+		offered, open := beforeShipmentRefundState(&db.BeforeShipmentRefundRow{
 			FulfillmentStatus: string(status), Committed: true,
 		})
 		if offered != want || open {
 			t.Errorf("committed %s: offered=%t open=%t, want offered=%t open=false", status, offered, open, want)
 		}
 	}
-	if offered, _ := refundBeforeShipment(&db.BeforeShipmentRefundRow{
+	if offered, _ := beforeShipmentRefundState(&db.BeforeShipmentRefundRow{
 		FulfillmentStatus: string(pages.FulfillmentPending), Committed: false,
 	}); offered {
 		t.Error("an unpaid order is offered a refund")

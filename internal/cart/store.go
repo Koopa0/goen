@@ -598,7 +598,7 @@ func lockCheckoutTerms(
 			ship.Code, ship.DestinationKind)
 	}
 	addr.To = to
-	addr.ForDestination()
+	addr.DropOtherDestination()
 
 	subtotal, err := subtotalOf(lines)
 	if err != nil {

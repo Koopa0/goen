@@ -41,10 +41,10 @@ type InvoiceReader interface {
 type InvoiceWriter interface {
 	Issue(ctx context.Context, orderNumber string) (invoice.Document, error)
 	Void(ctx context.Context, orderNumber, reason string) error
-	// Allowance relieves the authoritative whole-dollar refunded delta of a live
+	// FileAllowance relieves the authoritative whole-dollar refunded delta of a live
 	// invoice. The provider boundary derives money under a database lock; this
 	// consumer supplies only the aggregate and operation identities.
-	Allowance(ctx context.Context, orderNumber string, operationID uuid.UUID) (invoice.Document, error)
+	FileAllowance(ctx context.Context, orderNumber string, operationID uuid.UUID) (invoice.Document, error)
 }
 
 var (
@@ -1334,7 +1334,7 @@ func (s *Store) AllowInvoice(
 	if err != nil {
 		return err
 	}
-	_, err = s.invoiceWriter.Allowance(filingCtx, number, operationID)
+	_, err = s.invoiceWriter.FileAllowance(filingCtx, number, operationID)
 	return err
 }
 

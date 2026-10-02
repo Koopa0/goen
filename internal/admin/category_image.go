@@ -109,7 +109,7 @@ func (h *Handler) renderCategory(w http.ResponseWriter, r *http.Request, status 
 // picture arrives with its alt text.
 func (h *Handler) SetCategoryImage(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
-	obj, err := h.images.ReadUpload(w, r, "image")
+	obj, err := h.images.StoreUpload(w, r, "image")
 	if err != nil {
 		h.log.WarnContext(r.Context(), "category image upload", "error", err, "slug", slug)
 		reason := i18n.KeyAdminNoticeUploadFailed

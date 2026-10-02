@@ -57,9 +57,9 @@ var mapSubtypes = map[LogisticsMode]map[pickup.Chain]string{
 	},
 }
 
-// Map is ECPay's hosted store picker. The zero value is DISABLED: the checkout
+// StoreMap is ECPay's hosted store picker. The zero value is DISABLED: the checkout
 // then asks for a chain alone, exactly as it did before this existed.
-type Map struct {
+type StoreMap struct {
 	merchantID string
 	mode       LogisticsMode
 	// action is the full URL the map form posts to, and origin is the scheme
@@ -71,12 +71,12 @@ type Map struct {
 	returnURL string
 }
 
-// NewMap returns the store picker for these credentials, or a disabled one when
+// NewStoreMap returns the store picker for these credentials, or a disabled one when
 // no logistics mode is configured. It follows the 加值中心 posture beside it:
 // half a configuration refuses to start rather than failing at the first use.
-func NewMap(merchantID, mode, baseURL, siteBaseURL string) (*Map, error) {
+func NewStoreMap(merchantID, mode, baseURL, siteBaseURL string) (*StoreMap, error) {
 	if mode == "" {
-		return &Map{}, nil
+		return &StoreMap{}, nil
 	}
 	m := LogisticsMode(mode)
 	if _, ok := mapSubtypes[m]; !ok {
@@ -105,7 +105,7 @@ func NewMap(merchantID, mode, baseURL, siteBaseURL string) (*Map, error) {
 			"chosen store to that origin, and a URL guessed from the request's Host header " +
 			"is a URL the client chose")
 	}
-	return &Map{
+	return &StoreMap{
 		merchantID: merchantID,
 		mode:       m,
 		action:     strings.TrimSuffix(baseURL, "/") + mapPath,
@@ -115,11 +115,11 @@ func NewMap(merchantID, mode, baseURL, siteBaseURL string) (*Map, error) {
 }
 
 // Enabled reports whether this deployment offers the store picker.
-func (m *Map) Enabled() bool { return m != nil && m.merchantID != "" }
+func (m *StoreMap) Enabled() bool { return m != nil && m.merchantID != "" }
 
 // Origin is the one third-party origin form-action has to name, or "" when the
 // picker is off and the policy stays exactly what it was.
-func (m *Map) Origin() string {
+func (m *StoreMap) Origin() string {
 	if !m.Enabled() {
 		return ""
 	}
@@ -128,7 +128,7 @@ func (m *Map) Origin() string {
 
 // Subtype is ECPay's LogisticsSubType for this chain under the configured
 // contract, and false for a chain the checkout does not offer.
-func (m *Map) Subtype(chain pickup.Chain) (string, bool) {
+func (m *StoreMap) Subtype(chain pickup.Chain) (string, bool) {
 	if !m.Enabled() {
 		return "", false
 	}
@@ -139,7 +139,7 @@ func (m *Map) Subtype(chain pickup.Chain) (string, bool) {
 // ChainFor is the reverse: the chain a returned LogisticsSubType names, under
 // the configured contract only. A subtype from the other contract is refused,
 // because it cannot have come from a map call this deployment made.
-func (m *Map) ChainFor(subtype string) (pickup.Chain, bool) {
+func (m *StoreMap) ChainFor(subtype string) (pickup.Chain, bool) {
 	if !m.Enabled() {
 		return "", false
 	}
@@ -158,7 +158,7 @@ func (m *Map) ChainFor(subtype string) (pickup.Chain, bool) {
 //
 // tradeNo is fresh per render, and the nonce travels in ExtraData, which ECPay
 // echoes back unchanged.
-func (m *Map) Request(chain pickup.Chain, tradeNo, nonce string, mobile bool) (pages.CheckoutMapForm, bool) {
+func (m *StoreMap) Request(chain pickup.Chain, tradeNo, nonce string, mobile bool) (pages.CheckoutMapForm, bool) {
 	subtype, ok := m.Subtype(chain)
 	if !ok {
 		return pages.CheckoutMapForm{}, false
@@ -185,7 +185,7 @@ func (m *Map) Request(chain pickup.Chain, tradeNo, nonce string, mobile bool) (p
 
 // MerchantID is the configured id, which the map form prints and the return
 // handler requires the callback to repeat. It is public information.
-func (m *Map) MerchantID() string { return m.merchantID }
+func (m *StoreMap) MerchantID() string { return m.merchantID }
 
 // NewMerchantTradeNo is a fresh per-render correlation value. ECPay wants it
 // unique per call and never reuses it for anything; it is deliberately NOT the
@@ -400,7 +400,7 @@ type callback struct {
 // readCallback validates the SHAPE of a map callback and nothing else. It reads
 // no cookie, touches no database, and answers false for anything it does not
 // recognise rather than repeating what it was sent.
-func (m *Map) readCallback(r *http.Request) (callback, bool) {
+func (m *StoreMap) readCallback(r *http.Request) (callback, bool) {
 	if !m.Enabled() {
 		return callback{}, false
 	}

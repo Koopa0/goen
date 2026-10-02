@@ -199,7 +199,7 @@ func TestAnAllowanceIsFiledOncePerPress(t *testing.T) {
 	number := invoicedOrderWithRefund(t, 50000)
 
 	operationID := uuid.New()
-	if _, err := s.Allowance(filingTestContext(t, ctx), number, operationID); err != nil {
+	if _, err := s.FileAllowance(filingTestContext(t, ctx), number, operationID); err != nil {
 		t.Fatalf("the first allowance was refused: %v", err)
 	}
 	if filings != 1 {
@@ -209,7 +209,7 @@ func TestAnAllowanceIsFiledOncePerPress(t *testing.T) {
 	// The same press again — a double-click, or a retry after a timeout. There is
 	// no refunded room left, so only the durable operation identity can make this
 	// an exact replay rather than a second filing.
-	if _, err := s.Allowance(filingTestContext(t, ctx), number, operationID); err != nil {
+	if _, err := s.FileAllowance(filingTestContext(t, ctx), number, operationID); err != nil {
 		t.Errorf("an exact replay did not return the original filed allowance: %v", err)
 	}
 	if filings != 1 {
@@ -251,7 +251,7 @@ func TestAllowanceCandidateWithoutSendEvidenceIsAlarmed(t *testing.T) {
 	}
 	number := invoicedOrderWithRefund(t, 50000)
 	operationID := uuid.New()
-	_, err = NewStore(pool, g).Allowance(
+	_, err = NewStore(pool, g).FileAllowance(
 		filingTestContext(t, ctx), number, operationID,
 	)
 	if !errors.Is(err, ErrPending) {
@@ -1130,7 +1130,7 @@ func TestErasedCustomerRefundStillAllowancesFromFilingSnapshot(t *testing.T) {
 		t.Fatalf("gateway: %v", err)
 	}
 	operationID := uuid.New()
-	doc, err := NewStore(pool, g).Allowance(
+	doc, err := NewStore(pool, g).FileAllowance(
 		filingTestContext(t, ctx), number, operationID,
 	)
 	if err != nil {
@@ -2101,7 +2101,7 @@ func TestStoreAllowanceFreezesTheAuthoritativeRefund(t *testing.T) {
 
 	number := invoicedOrderWithRefund(t, 50000)
 	operationID := uuid.New()
-	doc, err := s.Allowance(filingTestContext(t, ctx), number, operationID)
+	doc, err := s.FileAllowance(filingTestContext(t, ctx), number, operationID)
 	if err != nil {
 		t.Fatalf("Allowance: %v", err)
 	}
@@ -2200,7 +2200,7 @@ func TestProviderInvalidAllowanceIsVoidedAndReplacementIsRefrozen(t *testing.T) 
 	}
 	store := NewStore(pool, gateway)
 	number := invoicedOrderWithRefund(t, 50000)
-	if _, err := store.Allowance(filingTestContext(t, ctx), number, uuid.New()); err != nil {
+	if _, err := store.FileAllowance(filingTestContext(t, ctx), number, uuid.New()); err != nil {
 		t.Fatalf("file original Allowance: %v", err)
 	}
 	addCardRefund(t, number, 20000)
@@ -2211,7 +2211,7 @@ func TestProviderInvalidAllowanceIsVoidedAndReplacementIsRefrozen(t *testing.T) 
 	operationID := uuid.New()
 	requestID := "provider-invalid:" + uuid.NewString()
 	filingCtx := WithFilingIdentity(ctx, filingActor, requestID)
-	if _, err := store.Allowance(filingCtx, number, operationID); !errors.Is(err, ErrPending) {
+	if _, err := store.FileAllowance(filingCtx, number, operationID); !errors.Is(err, ErrPending) {
 		t.Fatalf("provider-invalid reconciliation = %v, want ErrPending", err)
 	}
 	provider.mu.Lock()
@@ -2249,7 +2249,7 @@ func TestProviderInvalidAllowanceIsVoidedAndReplacementIsRefrozen(t *testing.T) 
 			auditAmount, auditActor, auditRequest, sendAttempts)
 	}
 
-	doc, err := store.Allowance(filingCtx, number, operationID)
+	doc, err := store.FileAllowance(filingCtx, number, operationID)
 	if err != nil {
 		t.Fatalf("file the refrozen replacement on its next pass: %v", err)
 	}
@@ -2346,14 +2346,14 @@ func TestMismatchedKnownProviderInvalidationIsAlarmed(t *testing.T) {
 	}
 	store := NewStore(pool, gateway)
 	number := invoicedOrderWithRefund(t, 50000)
-	if _, err := store.Allowance(filingTestContext(t, ctx), number, uuid.New()); err != nil {
+	if _, err := store.FileAllowance(filingTestContext(t, ctx), number, uuid.New()); err != nil {
 		t.Fatalf("file original Allowance: %v", err)
 	}
 	addCardRefund(t, number, 20000)
 	provider.invalid = true
 	provider.mismatch = true
 	operationID := uuid.New()
-	if _, err := store.Allowance(
+	if _, err := store.FileAllowance(
 		filingTestContext(t, ctx), number, operationID,
 	); !errors.Is(err, ErrPending) {
 		t.Fatalf("mismatched invalidation = %v, want ErrPending", err)
@@ -2563,7 +2563,7 @@ func TestInvalidUnknownAllowanceAfterLostSettlementIsRecordedThenReissued(t *tes
 	operationID := uuid.New()
 	requestID := "invalid-before-settle:" + uuid.NewString()
 	filingCtx := WithFilingIdentity(ctx, filingActor, requestID)
-	if _, err := store.Allowance(filingCtx, number, operationID); !errors.Is(err, ErrPending) {
+	if _, err := store.FileAllowance(filingCtx, number, operationID); !errors.Is(err, ErrPending) {
 		t.Fatalf("lost Allowance settlement = %v, want ErrPending", err)
 	}
 	if _, err := pool.Exec(ctx,
@@ -2571,7 +2571,7 @@ func TestInvalidUnknownAllowanceAfterLostSettlementIsRecordedThenReissued(t *tes
 		operationID); err != nil {
 		t.Fatalf("make invalid provider effect due: %v", err)
 	}
-	if _, err := store.Allowance(filingCtx, number, operationID); !errors.Is(err, ErrRejected) {
+	if _, err := store.FileAllowance(filingCtx, number, operationID); !errors.Is(err, ErrRejected) {
 		t.Fatalf("authoritative invalid provider effect = %v, want ErrRejected", err)
 	}
 
@@ -2609,7 +2609,7 @@ func TestInvalidUnknownAllowanceAfterLostSettlementIsRecordedThenReissued(t *tes
 		t.Fatalf("recording an invalid remote effect resent it; provider sends=%d", sends)
 	}
 
-	replacement, err := store.Allowance(
+	replacement, err := store.FileAllowance(
 		filingTestContext(t, ctx), number, uuid.New(),
 	)
 	if err != nil {
@@ -3218,13 +3218,13 @@ func TestARefusedAllowanceLeavesEveryOtherOrderFilable(t *testing.T) {
 	second := invoicedOrderWithRefund(t, 100000)
 
 	refuse = true
-	if _, err := s.Allowance(filingTestContext(t, ctx), first, uuid.New()); !errors.Is(err, ErrRejected) {
+	if _, err := s.FileAllowance(filingTestContext(t, ctx), first, uuid.New()); !errors.Is(err, ErrRejected) {
 		t.Fatalf("the provider refused and Allowance returned %v, want ErrRejected", err)
 	}
 
 	// An UNRELATED order, whose provider call works.
 	refuse = false
-	if _, err := s.Allowance(filingTestContext(t, ctx), second, uuid.New()); err != nil {
+	if _, err := s.FileAllowance(filingTestContext(t, ctx), second, uuid.New()); err != nil {
 		t.Fatalf("a 折讓 on an unrelated order was refused after a different order's "+
 			"claim failed: %v\nOne provider failure has taken the feature away from "+
 			"the whole shop", err)
@@ -3232,7 +3232,7 @@ func TestARefusedAllowanceLeavesEveryOtherOrderFilable(t *testing.T) {
 
 	// And the refused one is filable again: ECPay ANSWERED, so nothing is at the
 	// 加值中心 under that claim and holding its key relieves nothing for ever.
-	if _, err := s.Allowance(filingTestContext(t, ctx), first, uuid.New()); err != nil {
+	if _, err := s.FileAllowance(filingTestContext(t, ctx), first, uuid.New()); err != nil {
 		t.Errorf("the order whose 折讓 the provider refused cannot be filed again: %v\n"+
 			"A claim for a document that was never filed has no door out", err)
 	}
@@ -3308,7 +3308,7 @@ func TestAllowanceTransportAmbiguitySettlesAfterPropagationLag(t *testing.T) {
 	store := NewStore(pool, g)
 	number := invoicedOrderWithRefund(t, 50000)
 	operationID := uuid.New()
-	if _, err := store.Allowance(
+	if _, err := store.FileAllowance(
 		filingTestContext(t, ctx), number, operationID,
 	); !errors.Is(err, ErrPending) {
 		t.Fatalf("ambiguous Allowance = %v, want ErrPending", err)
@@ -3597,7 +3597,7 @@ func TestAnUnansweredAllowanceKeepsItsClaim(t *testing.T) {
 
 	down = true
 	operationID := uuid.New()
-	if _, err := s.Allowance(filingTestContext(t, ctx), number, operationID); err == nil {
+	if _, err := s.FileAllowance(filingTestContext(t, ctx), number, operationID); err == nil {
 		t.Fatal("a gateway error was reported as a filed 折讓")
 	} else if errors.Is(err, ErrRejected) {
 		t.Fatalf("an unanswered call was read as the provider refusing: %v\n"+
@@ -3605,7 +3605,7 @@ func TestAnUnansweredAllowanceKeepsItsClaim(t *testing.T) {
 	}
 
 	down = false
-	if _, err := s.Allowance(filingTestContext(t, ctx), number, operationID); !errors.Is(err, ErrPending) {
+	if _, err := s.FileAllowance(filingTestContext(t, ctx), number, operationID); !errors.Is(err, ErrPending) {
 		t.Errorf("pressing again after an unanswered 折讓 = %v, want ErrPending: "+
 			"whether ECPay filed is not knowable from here, and two 折讓 for one "+
 			"refund is what reaches the 財政部", err)
@@ -3647,7 +3647,7 @@ func TestAnAllowanceRelievesACreditRefundToo(t *testing.T) {
 	number := invoicedOrderWithRefundFor(t, owner, 0)
 	creditRefund(t, owner.UUID, number, 40000)
 
-	doc, err := s.Allowance(filingTestContext(t, ctx), number, uuid.New())
+	doc, err := s.FileAllowance(filingTestContext(t, ctx), number, uuid.New())
 	if err != nil {
 		t.Fatalf("a 折讓 for a refund paid entirely in store credit was refused: %v\n"+
 			"Read card-only, that order can never be relieved and its 統一發票 "+

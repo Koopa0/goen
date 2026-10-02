@@ -21,10 +21,10 @@ import (
 	"github.com/koopa0/goen/internal/web"
 )
 
-// refundBeforeShipment reports whether the order page offers a refund before
+// beforeShipmentRefundState reports whether the order page offers a refund before
 // shipment, and whether one is open for Resume. open_refund_before_shipment
 // re-derives both under the order lock.
-func refundBeforeShipment(r *db.BeforeShipmentRefundRow) (offered, open bool) {
+func beforeShipmentRefundState(r *db.BeforeShipmentRefundRow) (offered, open bool) {
 	status := pages.FulfillmentStatus(r.FulfillmentStatus)
 	open = r.ReturnRequestID.Valid && returns.ReturnStatus(r.ReturnStatus) == returns.ReturnApproved
 	offered = r.Committed && !r.Shipped && !r.HasReturn &&
@@ -39,7 +39,7 @@ func (s *Store) fillRefundBeforeShipment(ctx context.Context, view *admin.OrderV
 	if err != nil {
 		return fmt.Errorf("read refund before shipment of %s: %w", number, err)
 	}
-	view.RefundOffered, view.RefundOpen = refundBeforeShipment(&refund)
+	view.RefundOffered, view.RefundOpen = beforeShipmentRefundState(&refund)
 	if refund.ReturnRequestID.Valid {
 		view.CanShip = false
 	}
@@ -66,7 +66,7 @@ func (s *Store) RefundPreview(ctx context.Context, number string) (admin.RefundC
 	if err != nil {
 		return admin.RefundConfirmation{}, fmt.Errorf("read refund before shipment of %s: %w", number, err)
 	}
-	offered, open := refundBeforeShipment(&row)
+	offered, open := beforeShipmentRefundState(&row)
 	if !offered && !open {
 		return admin.RefundConfirmation{}, fmt.Errorf(
 			"%w: order %s has no refund before shipment to confirm", ErrRefused, number)

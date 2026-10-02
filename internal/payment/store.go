@@ -522,12 +522,13 @@ func isDurableCaptureRefusal(constraint string) bool {
 	return slices.Contains(durableCaptureRefusals[:], constraint)
 }
 
-// CancelSession marks this webhook object's abandoned checkout cancelled. The
+// CancelPaymentRow marks goen's own payment row for this webhook object
+// cancelled; the Stripe session is not touched. The
 // provider reference belongs to the transaction capability: accepting another
 // one here would let a callback mutate an identity whose advisory lock it does
 // not hold. cancel_payment refuses a succeeded row, so expiry racing capture
 // changes nothing.
-func (w *webhookTx) CancelSession(ctx context.Context) error {
+func (w *webhookTx) CancelPaymentRow(ctx context.Context) error {
 	if w.objectRef == "" {
 		return errors.New("cancel payment for webhook without a provider object")
 	}

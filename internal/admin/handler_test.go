@@ -33,7 +33,7 @@ func (s stubInvoiceWriter) Void(context.Context, string, string) error {
 	return s.voidErr
 }
 
-func (s stubInvoiceWriter) Allowance(
+func (s stubInvoiceWriter) FileAllowance(
 	context.Context, string, uuid.UUID,
 ) (invoice.Document, error) {
 	if s.allowanceErr != nil {
