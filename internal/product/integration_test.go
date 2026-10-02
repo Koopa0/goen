@@ -895,8 +895,6 @@ func TestRestockNoticeIsIdempotent(t *testing.T) {
 	}
 }
 
-// The confirmation may name the address only when it can read it from the
-// signed-in account; a typed address never rides in the redirect.
 func TestTheRestockConfirmationNamesOnlyTheAccountsOwnAddress(t *testing.T) {
 	ctx := t.Context()
 	vid, slug := soldOutVariant(t)

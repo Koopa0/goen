@@ -420,8 +420,7 @@ templ productAddForm(v *ProductView) {
 		// header's cart link in that same response, so the count and the link's
 		// accessible name change from the document the server just rendered
 		// instead of from a number this page would have to keep. The address is
-		// not pushed: the 303 lands on ?added=, which says what this one press
-		// did and is not a page to come back to.
+		// not pushed: ?added= is not a page to come back to.
 		<form
 			class="goen-pdp__form"
 			method="post"
@@ -454,7 +453,6 @@ templ productAddForm(v *ProductView) {
 					@icons.Cart()
 					<span>
 						if v.AllSoldOut() {
-							// The badge beside the title has said it already.
 							{ i18n.T(ctx, i18n.KeySoldOut) }
 						} else if v.SoldOut() {
 							{ i18n.T(ctx, i18n.KeySoldOut) }

@@ -162,9 +162,8 @@ func (h *Handler) Notify(w http.ResponseWriter, r *http.Request) {
 	err := h.store.RequestRestockNotice(r.Context(), slug, variantID, addr, userID)
 	switch {
 	case err == nil && accountEmail != "" && strings.EqualFold(email.Clean(addr), accountEmail):
-		// The page names the address only when it can read it from the signed-in
-		// account: an address in the query string would be text anybody could
-		// put on the confirmation.
+		// Never the typed address in the query string: anybody could put text
+		// on the confirmation that way.
 		h.redirectNotified(w, r, slug, pages.NotifyToAccount)
 	case err == nil:
 		h.redirectNotified(w, r, slug, "1")

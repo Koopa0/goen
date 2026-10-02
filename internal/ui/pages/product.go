@@ -210,9 +210,7 @@ type ProductView struct {
 	ReviewDraft    ReviewDraft
 	NotifyOutcome  string
 	// NotifyEmail is the address a refused restock request was posted with.
-	NotifyEmail string
-	// AccountEmail is the signed-in customer's own address, which the restock
-	// form offers until they type another.
+	NotifyEmail  string
 	AccountEmail string
 	Comparing    []string
 	// Comparable is whether the product's department offers comparison; where
@@ -428,8 +426,6 @@ func (v *ProductView) HasReviewErr(f string) bool { _, ok := v.ReviewErrors[f]; 
 // ReviewErr is why a review field was refused.
 func (v *ProductView) ReviewErr(f string) string { return v.ReviewErrors[f] }
 
-// NotifyToAccount is the notify outcome of a request made for the signed-in
-// customer's own address, which the confirmation can then name.
 const NotifyToAccount = "account"
 
 // NotifyTaken reports whether a restock request was just recorded.
@@ -437,7 +433,6 @@ func (v *ProductView) NotifyTaken() bool {
 	return v.NotifyOutcome == "1" || v.NotifyOutcome == NotifyToAccount
 }
 
-// NotifyDone is the confirmation, naming the address when the page can read it.
 func (v *ProductView) NotifyDone(ctx context.Context) string {
 	if v.NotifyOutcome == NotifyToAccount && v.AccountEmail != "" {
 		return fmt.Sprintf(i18n.T(ctx, i18n.KeyRestockDoneTo), v.AccountEmail)
@@ -445,8 +440,6 @@ func (v *ProductView) NotifyDone(ctx context.Context) string {
 	return i18n.T(ctx, i18n.KeyRestockDone)
 }
 
-// NotifyEmailValue is what the restock field starts with: the address a refused
-// request was posted with, else the signed-in customer's own.
 func (v *ProductView) NotifyEmailValue() string {
 	if v.NotifyEmail != "" {
 		return v.NotifyEmail
