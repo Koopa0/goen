@@ -435,3 +435,20 @@ func TestSearchSortReordersAndNoTermsReadsTheNewest(t *testing.T) {
 		t.Errorf("newest = %v, want the two latest published", newest)
 	}
 }
+
+func TestSearchHeadphonesFindsTheOverEarAndBudsThroughTheirCategory(t *testing.T) {
+	ctx := t.Context()
+	view, err := catalog.NewStore(pool).Search(ctx, catalog.SearchPattern("headphones"), catalog.SortDefault, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := map[string]bool{}
+	for _, p := range view.Products {
+		found[p.Slug] = true
+	}
+	for _, slug := range []string{"koto-over-ear", "nimbus-buds-pro"} {
+		if !found[slug] {
+			t.Errorf("%q is not found by \"headphones\"; the audio category's English name should carry it", slug)
+		}
+	}
+}
