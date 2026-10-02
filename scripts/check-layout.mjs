@@ -2586,6 +2586,9 @@ const openAt = async (label, path) => {
 };
 
 // These fields use their boundary or contrasting fill to identify the editable region.
+for (const locale of ['zh-Hant', 'en']) {
+  await send(ws, 'Network.setCookie', { name: 'goen_locale', value: locale, domain: '127.0.0.1', path: '/' });
+  console.log('control boundary locale ' + locale);
 await openAt('control boundary', '/contact');
 const boundarySelectors = ['#contact-name', '#contact-subject', '#contact-message', '#site-search', '#newsletter-email'];
 const boundaries = await evalPage(`(${measureControlBoundary.toString()})(${JSON.stringify(boundarySelectors)}, ${contrastRatio.toString()})`);
@@ -2601,6 +2604,8 @@ if (boundaries.threw || !Array.isArray(boundaries)) {
     }
   }
 }
+}
+await send(ws, 'Network.setCookie', { name: 'goen_locale', value: 'zh-Hant', domain: '127.0.0.1', path: '/' });
 
 const proveUsable = async (at, fieldSel, formSel) => {
   const got = await evalPage(`(() => {
