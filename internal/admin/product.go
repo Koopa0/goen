@@ -15,6 +15,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/pgerr"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
@@ -249,10 +250,10 @@ func (s *Store) CreateProduct(ctx context.Context, f *ProductForm) (slug string,
 			return createErr
 		})
 	if err != nil {
-		if db.HasConstraint(err, "products_slug_key") {
+		if pgerr.IsConstraint(err, "products_slug_key") {
 			return "", map[string]string{"slug": i18n.T(ctx, i18n.KeyFormSlugTakenProduct)}, nil
 		}
-		if db.HasConstraint(err, "products_warranty_months_sane") {
+		if pgerr.IsConstraint(err, "products_warranty_months_sane") {
 			return "", map[string]string{"warranty_months": i18n.T(ctx, i18n.KeyFormWarrantyMonths)}, nil
 		}
 		return "", nil, fmt.Errorf("create product: %w", err)
@@ -290,7 +291,7 @@ func (s *Store) UpdateProduct(ctx context.Context, f *ProductForm) (map[string]s
 		return nil
 	})
 	if err != nil {
-		if db.HasConstraint(err, "products_warranty_months_sane") {
+		if pgerr.IsConstraint(err, "products_warranty_months_sane") {
 			return map[string]string{"warranty_months": i18n.T(ctx, i18n.KeyFormWarrantyMonths)}, nil
 		}
 		if errors.Is(err, ErrNotFound) {
@@ -409,7 +410,7 @@ func (s *Store) AddSpec(ctx context.Context, slug string, d SpecDraft) (map[stri
 		}
 		return nil
 	})
-	if db.HasConstraint(err, "product_specs_label_key") {
+	if pgerr.IsConstraint(err, "product_specs_label_key") {
 		return map[string]string{
 			"spec_label": i18n.T(ctx, i18n.KeyFormSpecLabelDuplicate),
 		}, nil
@@ -473,10 +474,10 @@ func (s *Store) AddOption(ctx context.Context, slug string, d OptionDraft) (map[
 		}
 		return nil
 	}); err != nil {
-		if db.HasConstraint(err, "product_options_before_variants") {
+		if pgerr.IsConstraint(err, "product_options_before_variants") {
 			return map[string]string{"option": i18n.T(ctx, i18n.KeyFormOptionBeforeVariants)}, nil
 		}
-		if db.HasConstraint(err, "product_options_name_key") {
+		if pgerr.IsConstraint(err, "product_options_name_key") {
 			return map[string]string{"option": i18n.T(ctx, i18n.KeyFormOptionNameTaken)}, nil
 		}
 		if errors.Is(err, ErrNotFound) {
@@ -523,7 +524,7 @@ func (s *Store) AddOptionValue(ctx context.Context, slug string, d OptionDraft) 
 		}
 		return nil
 	}); err != nil {
-		if db.HasConstraint(err, "product_option_values_value_key") {
+		if pgerr.IsConstraint(err, "product_option_values_value_key") {
 			return map[string]string{"value": i18n.T(ctx, i18n.KeyFormOptionValueTaken)}, nil
 		}
 		if errors.Is(err, ErrNotFound) {

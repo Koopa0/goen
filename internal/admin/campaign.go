@@ -15,9 +15,11 @@ import (
 	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/pgerr"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
+	"github.com/koopa0/goen/internal/web"
 )
 
 const MaxCampaignDays = 90
@@ -152,7 +154,7 @@ func (s *Store) SetCampaignWindow(ctx context.Context, slug, startsAt, endsAt st
 const campaignSearchLimit = 10
 
 func (s *Store) SearchCampaignProducts(ctx context.Context, slug, term string) ([]admin.CampaignProduct, error) {
-	term = SearchTerm(term)
+	term = web.SearchTerm(term)
 	if term == "" {
 		return nil, nil
 	}
@@ -248,7 +250,7 @@ func (s *Store) CreateCampaign(ctx context.Context, f *CampaignForm) (map[string
 			})
 		})
 	if err != nil {
-		if db.HasConstraint(err, "sale_campaigns_slug_key") {
+		if pgerr.IsConstraint(err, "sale_campaigns_slug_key") {
 			return map[string]string{"slug": i18n.T(ctx, i18n.KeyFormSlugTakenCampaign)}, nil
 		}
 		return nil, fmt.Errorf("%w: %w", ErrRefused, err)

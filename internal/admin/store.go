@@ -16,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/admin/audit"
+	"github.com/koopa0/goen/internal/admin/orderstatus"
 	"github.com/koopa0/goen/internal/carrier"
 	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/db"
@@ -25,6 +26,7 @@ import (
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/ordernotice"
 	"github.com/koopa0/goen/internal/payment"
+	"github.com/koopa0/goen/internal/pgerr"
 	"github.com/koopa0/goen/internal/pickup"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -136,7 +138,7 @@ func orderRow(ctx context.Context, o *db.AdminOrdersRow) admin.OrderRow {
 	return admin.OrderRow{
 		Number:     o.OrderNumber,
 		Status:     fulfillment,
-		StatusText: FundedStatusLabel(ctx, fulfillment, o.Committed, o.OwedCents),
+		StatusText: orderstatus.FundedLabel(ctx, fulfillment, o.Committed, o.OwedCents),
 		PlacedAt:   shoptime.Minute(o.PlacedAt),
 		Recipient:  o.Recipient,
 		TotalCents: o.SubtotalCents - o.DiscountCents + o.ShippingCents + o.TaxCents,
@@ -148,7 +150,7 @@ func (s *Store) Orders(ctx context.Context, status admin.QueueFilter, term strin
 	term = strings.TrimSpace(term)
 	scope := web.ScopeURL("/admin/orders", "q", term, "status", string(status))
 	cursor := readPageCursor(scope, after)
-	searched := utf8.RuneCountInString(term) >= MinSearchRunes
+	searched := utf8.RuneCountInString(term) >= web.MinSearchRunes
 	var rows []db.AdminOrdersRow
 	var err error
 	if searched {
@@ -238,7 +240,7 @@ func (s *Store) Order(ctx context.Context, number string) (admin.OrderView, erro
 	fulfillment := pages.FulfillmentStatus(o.FulfillmentStatus)
 	view := admin.OrderView{
 		Number: o.OrderNumber, Status: fulfillment,
-		StatusText:    FundedStatusLabel(ctx, fulfillment, o.Committed, o.OwedCents),
+		StatusText:    orderstatus.FundedLabel(ctx, fulfillment, o.Committed, o.OwedCents),
 		PlacedAt:      shoptime.Minute(o.PlacedAt),
 		ShippingName:  o.ShippingMethodName,
 		SubtotalCents: o.SubtotalCents, ShippingCents: o.ShippingCents,
@@ -871,7 +873,7 @@ func (s *Store) SetStaffNote(ctx context.Context, number, note string) error {
 }
 
 func (s *Store) Variants(ctx context.Context, lowOnly bool, term string, after ...string) (admin.VariantsView, error) {
-	term = SearchTerm(term)
+	term = web.SearchTerm(term)
 	low := ""
 	if lowOnly {
 		low = "1"
@@ -963,7 +965,7 @@ func (s *Store) ReceiveStock(ctx context.Context, sku string, quantity int32, ac
 func (s *Store) settleReplay(
 	ctx context.Context, err error, variantID uuid.UUID, delta int32, reason, key string,
 ) error {
-	if err == nil || !db.HasConstraint(err, "inventory_movements_idempotency_key") {
+	if err == nil || !pgerr.IsConstraint(err, "inventory_movements_idempotency_key") {
 		return err
 	}
 	applied, checkErr := s.q.StockMovementApplied(ctx, db.StockMovementAppliedParams{

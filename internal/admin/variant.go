@@ -13,6 +13,7 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
+	"github.com/koopa0/goen/internal/pgerr"
 )
 
 const (
@@ -147,25 +148,25 @@ func variantWriteError(ctx context.Context, slug string, err error) (map[string]
 	if errors.Is(err, errVariantCombinationTaken) {
 		return map[string]string{"options": i18n.T(ctx, i18n.KeyFormVariantCombinationTaken)}, nil
 	}
-	if db.HasConstraint(err, "product_variants_sku_key") {
+	if pgerr.IsConstraint(err, "product_variants_sku_key") {
 		return map[string]string{"sku": i18n.T(ctx, i18n.KeyFormSKUTaken)}, nil
 	}
-	if db.HasConstraint(err, "product_variants_safety_stock_non_negative") {
+	if pgerr.IsConstraint(err, "product_variants_safety_stock_non_negative") {
 		return map[string]string{"safety": i18n.T(ctx, i18n.KeyFormSafetyStock)}, nil
 	}
-	if db.HasConstraint(err, "product_variants_parcel_longest_sane") {
+	if pgerr.IsConstraint(err, "product_variants_parcel_longest_sane") {
 		return map[string]string{"parcel_longest": fmt.Sprintf(
 			i18n.T(ctx, i18n.KeyFormParcelMeasurement), parcelLongestCeilingMM)}, nil
 	}
-	if db.HasConstraint(err, "product_variants_parcel_sum_sane") {
+	if pgerr.IsConstraint(err, "product_variants_parcel_sum_sane") {
 		return map[string]string{"parcel_sum": fmt.Sprintf(
 			i18n.T(ctx, i18n.KeyFormParcelMeasurement), parcelSumCeilingMM)}, nil
 	}
-	if db.HasConstraint(err, "product_variants_parcel_weight_sane") {
+	if pgerr.IsConstraint(err, "product_variants_parcel_weight_sane") {
 		return map[string]string{"parcel_weight": fmt.Sprintf(
 			i18n.T(ctx, i18n.KeyFormParcelMeasurement), parcelWeightCeilingG)}, nil
 	}
-	if db.HasConstraint(err, "product_variants_parcel_sum_covers_longest") {
+	if pgerr.IsConstraint(err, "product_variants_parcel_sum_covers_longest") {
 		return map[string]string{"parcel_sum": i18n.T(ctx, i18n.KeyFormParcelSumShort)}, nil
 	}
 	if errors.Is(err, ErrNotFound) {

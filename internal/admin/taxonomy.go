@@ -10,6 +10,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/pgerr"
 	"github.com/koopa0/goen/internal/ui/icons"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
@@ -99,7 +100,7 @@ func (s *Store) CreateBrand(ctx context.Context, f *TaxonomyForm) (map[string]st
 			return q.CreateBrand(ctx, db.CreateBrandParams{Slug: f.Slug, Name: f.Name})
 		})
 	if err != nil {
-		if db.HasConstraint(err, "brands_slug_key") {
+		if pgerr.IsConstraint(err, "brands_slug_key") {
 			return map[string]string{"slug": i18n.T(ctx, i18n.KeyFormSlugTakenBrand)}, nil
 		}
 		return nil, fmt.Errorf("%w: %w", ErrRefused, err)
@@ -133,13 +134,13 @@ func (s *Store) CreateCategory(ctx context.Context, f *TaxonomyForm) (map[string
 		})
 	if err != nil {
 		switch {
-		case db.HasConstraint(err, "categories_slug_key"):
+		case pgerr.IsConstraint(err, "categories_slug_key"):
 			return map[string]string{"slug": i18n.T(ctx, i18n.KeyFormSlugTakenCategory)}, nil
 		case errors.Is(err, ErrNotFound),
-			db.HasConstraint(err, "categories_parent_id_fkey"),
-			db.HasConstraint(err, "categories_not_own_parent"):
+			pgerr.IsConstraint(err, "categories_parent_id_fkey"),
+			pgerr.IsConstraint(err, "categories_not_own_parent"):
 			return map[string]string{"parent": i18n.T(ctx, i18n.KeyFormParentMissing)}, nil
-		case db.HasConstraint(err, "categories_position_key"):
+		case pgerr.IsConstraint(err, "categories_position_key"):
 			// Not a field: position is computed inside the INSERT and never
 			// typed, so there is nothing on the form to point at. The second
 			// attempt reads a fresh maximum and goes through.
