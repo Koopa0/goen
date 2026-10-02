@@ -537,3 +537,26 @@ func TestFiltersApplyThemselvesAndKeepTheirButton(t *testing.T) {
 		t.Error("an unfiltered page has no chips region, so removing the last filter could not clear it")
 	}
 }
+
+// htmx focuses any [autofocus] in swapped content, so a partial render that
+// carried it would pull focus off the control the shopper just changed. The
+// latest change wins, and a failed update has a place to say so.
+func TestAPartialListingNeverTakesFocusAndTheLatestChangeWins(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	view := ListingView{Slug: "audio", Name: "Audio", Products: shelf(2), Total: 2, Filtered: true, InStockOnly: true}
+
+	whole := renderComponent(t, ctx, Listing(layouts.Page{}, view))
+	if !strings.Contains(whole, `id="listing-results" tabindex="-1" autofocus`) {
+		t.Error("a whole filtered page no longer focuses its results")
+	}
+	partial := renderComponent(t, AsPartial(ctx), Listing(layouts.Page{}, view))
+	if strings.Contains(partial, "autofocus") {
+		t.Errorf("a partial render carries autofocus:\n%s", partial)
+	}
+	for _, want := range []string{`hx-sync="this:replace"`, `hx-status:5xx="swap:none"`, `class="goen-filters__error" role="alert" hidden`, `<div id="filters-applied"></div>`} {
+		if !strings.Contains(whole, want) && !strings.Contains(renderToString(t, Listing(layouts.Page{}, ListingView{Slug: "a", Name: "A"})), want) {
+			t.Errorf("missing %q", want)
+		}
+	}
+}

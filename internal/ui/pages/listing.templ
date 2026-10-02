@@ -117,6 +117,8 @@ templ listingFilters(v ListingView) {
 				hx-swap="outerHTML"
 				hx-push-url="true"
 				hx-sync="this:replace"
+				hx-status:4xx="swap:none"
+				hx-status:5xx="swap:none"
 			>
 				// The rail's own heading. It keeps the outline unbroken: without an h2
 				// between the page title and a tile's h3 the document skips a level,
@@ -201,6 +203,9 @@ templ listingFilters(v ListingView) {
 				}
 			</form>
 		</details>
+		// Shown by script when an update fails: the old results stay on the page
+		// and this says why they did not change.
+		<p class="goen-filters__error" role="alert" hidden>{ i18n.T(ctx, i18n.KeyCannotLoadListing) }</p>
 		<div id="filters-applied">
 			if v.Filtered {
 				<div class="goen-filters__applied">

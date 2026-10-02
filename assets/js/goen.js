@@ -302,6 +302,9 @@
       const ctx = event.detail?.ctx;
       const form = ctx?.request?.form;
       if (!(form instanceof HTMLFormElement)) return;
+      // The filter form lets the latest change replace the one in flight
+      // (hx-sync), which this guard would cancel as a repeated press.
+      if (form.matches(".goen-filters")) return;
       // Do not delete the isConnected clause: a second press queues behind the
       // first, whose response swaps the form out of the page, and htmx then
       // issues the queued request from that detached form, where nothing is
@@ -315,6 +318,13 @@
     // before this fires and an event on a detached node never reaches us.
     document.addEventListener("htmx:finally:request", (event) => {
       const ctx = event.detail?.ctx;
+      // A failed filter update swaps nothing, so say so beside the filters. One
+      // replaced by a newer change has no response and is not a failure.
+      if (ctx?.sourceElement?.matches?.(".goen-filters")) {
+        const note = document.querySelector(".goen-filters__error");
+        const raw = ctx.response?.raw;
+        if (note && raw) note.hidden = raw.ok;
+      }
       const form = requests.get(ctx);
       if (!form) return;
       requests.delete(ctx);
