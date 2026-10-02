@@ -169,7 +169,7 @@ func recommendationText(n *htmlnode.Node) string {
 func assertRecommendationCommerce(t *testing.T, res *httptest.ResponseRecorder, want *pages.ProductView) *htmlnode.Node {
 	t.Helper()
 	if res.Code != http.StatusOK {
-		t.Fatalf("optional failure returned %d, want 200: %s", res.Code, res.Body.String())
+		t.Fatalf("optional failure returned %d, want 200", res.Code)
 	}
 	doc, err := htmlnode.Parse(strings.NewReader(res.Body.String()))
 	if err != nil {
