@@ -493,6 +493,11 @@ func TestACartQuantityAppliesItselfWhereScriptRuns(t *testing.T) {
 	t.Parallel()
 
 	script := requestAsset(t, assets.AppJS, "", "").Body.String()
+	for _, want := range []string{"ctx.transition = false", "htmx:finally:request", `window.location.assign("/cart")`} {
+		if !strings.Contains(script, want) {
+			t.Errorf("served %s does not contain %q, so a cart update could cross-fade the page or strand a refused quantity", assets.AppJS, want)
+		}
+	}
 	if !strings.Contains(script, "form[data-autosubmit]") || !strings.Contains(script, "requestSubmit") {
 		t.Errorf("served %s does not submit a data-autosubmit form on change", assets.AppJS)
 	}

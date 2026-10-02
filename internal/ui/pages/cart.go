@@ -9,6 +9,7 @@ import (
 	"github.com/a-h/templ"
 
 	"github.com/koopa0/goen/internal/carrier"
+	"github.com/koopa0/goen/internal/fieldrule"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/pickup"
@@ -261,6 +262,20 @@ type checkoutFieldHint struct {
 	SpellCheck        string
 	Pattern           string
 	ConstraintMessage i18n.Key
+	// Rule is the shared client-side contract of a field the server validates
+	// beyond its length; it supplies the pattern, message and script hooks.
+	Rule *fieldrule.Rule
+}
+
+// Constrained reports whether the control carries a message the browser may show.
+func (h checkoutFieldHint) Constrained() bool { return h.Pattern != "" || h.Rule != nil }
+
+// ConstraintText is that message.
+func (h checkoutFieldHint) ConstraintText(ctx context.Context) string {
+	if h.Rule != nil {
+		return i18n.T(ctx, h.Rule.Message)
+	}
+	return i18n.T(ctx, h.ConstraintMessage)
 }
 
 // checkoutFieldHints is keyed by the field's own form name. Every
@@ -272,10 +287,10 @@ type checkoutFieldHint struct {
 // surrounding space is not an error, and its bounds (maxPostalCodeRunes,
 // maxCityRunes) are the ones repeated here.
 var checkoutFieldHints = map[string]checkoutFieldHint{
-	"email":       {Autocomplete: "email"},
+	"email":       {Autocomplete: "email", Rule: &fieldrule.Email},
 	"name":        {Autocomplete: "name"},
-	"phone":       {Autocomplete: "tel"},
-	"postal_code": {Autocomplete: "postal-code", InputMode: "numeric", Pattern: `\s*[0-9]{3,6}\s*`, ConstraintMessage: i18n.KeyPostalCodeMalformed},
+	"phone":       {Autocomplete: "tel", Rule: &fieldrule.Phone},
+	"postal_code": {Autocomplete: "postal-code", Rule: &fieldrule.PostalCode},
 	"city":        {Autocomplete: "address-level1", Pattern: `\s*\S(?:.{0,18}\S)?\s*`, ConstraintMessage: i18n.KeyCheckoutRegionLength},
 	"district":    {Autocomplete: "address-level2", Pattern: `\s*\S(?:.{0,18}\S)?\s*`, ConstraintMessage: i18n.KeyCheckoutRegionLength},
 }
@@ -790,4 +805,13 @@ func maskCarrier(code string) string {
 		return code
 	}
 	return code[:1] + strings.Repeat("*", len(code)-3) + code[len(code)-2:]
+}
+
+// cartLineSwap names what one quantity update changes: that line's text and
+// price, the summary, the item count, the notices and the header's cart link. The thumbnail,
+// the stepper the shopper is using and every other line are not among them, so
+// they are never replaced, repainted or asked for again.
+func cartLineSwap(variantID string) string {
+	return "#line-body-" + variantID + ",#line-money-" + variantID +
+		",#cart-summary,#cart-notices,#cart-link,#cart-count:innerHTML"
 }

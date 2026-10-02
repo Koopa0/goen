@@ -1,6 +1,7 @@
 package pages
 
 import (
+	"github.com/koopa0/goen/internal/fieldrule"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -54,10 +55,10 @@ templ FindOrder(p layouts.Page, v FindOrderView) {
 							Name:  "email",
 							Type:  "email",
 							Value: v.Email,
-							Attrs: templ.Attributes{
+							Attrs: fieldrule.Email.Attrs(ctx, templ.Attributes{
 								"autocomplete": "email",
 								"required":     true,
-							},
+							}),
 						})
 					</div>
 					@components.Button(components.ButtonProps{

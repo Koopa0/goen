@@ -66,8 +66,8 @@ type ProductRow struct {
 	Tiles []ProductTile
 }
 
-// DepartmentBand is the one department the home page features on its own
-// ground: its photograph large beside three of its products.
+// DepartmentBand is the one department the home page features: its
+// photograph large beside three of its products.
 type DepartmentBand struct {
 	Name  string
 	Fact  string

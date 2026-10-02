@@ -11,6 +11,20 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
+type partialKey struct{}
+
+// AsPartial marks a render as one whose results htmx will swap into a page that
+// is already showing: it must not take focus, because the control the shopper
+// just changed still has it.
+func AsPartial(ctx context.Context) context.Context {
+	return context.WithValue(ctx, partialKey{}, true)
+}
+
+func isPartial(ctx context.Context) bool {
+	partial, _ := ctx.Value(partialKey{}).(bool)
+	return partial
+}
+
 func queryEscape(s string) string { return url.QueryEscape(s) }
 
 // Crumb is one ancestor in a category's breadcrumb trail.
