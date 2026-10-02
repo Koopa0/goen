@@ -11,7 +11,6 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
-// Return is one row in the back-office return queue.
 type Return struct {
 	Lines       []ReturnLine
 	ID          string
@@ -64,7 +63,6 @@ func (r *Return) PayoutStranded() bool {
 	return r.Decided && r.PayoutOutstanding && r.PayoutBlocked
 }
 
-// AwaitingGoods reports whether an approved parcel is still unaccounted for.
 func (r *Return) AwaitingGoods() bool {
 	if r.Status != returns.StatusApproved || r.BeforeShipment {
 		return false
@@ -77,7 +75,6 @@ func (r *Return) AwaitingGoods() bool {
 	return false
 }
 
-// CanComplete reports whether every line has been inspected.
 func (r *Return) CanComplete() bool {
 	if r.Status != returns.StatusApproved || len(r.Lines) == 0 || r.BeforeShipment {
 		return false
@@ -90,7 +87,6 @@ func (r *Return) CanComplete() bool {
 	return true
 }
 
-// RestockedUnitsText is how many units this return put back on the shelf.
 func (r *Return) RestockedUnitsText() string {
 	var n int32
 	for i := range r.Lines {
@@ -99,25 +95,20 @@ func (r *Return) RestockedUnitsText() string {
 	return strconv.FormatInt(int64(n), 10)
 }
 
-// ReturnLineWindowText names one line's window without copying a queue row.
 func ReturnLineWindowText(ctx context.Context, window string) string {
 	return (&Return{Window: window}).WindowText(ctx)
 }
 
-// Rescission reports whether this request is inside the statutory seven days.
 func (r *Return) Rescission() bool { return r.Window == "within" }
 
 // Goodwill reports whether this request is inside the shop's advertised
 // days 8–14. Entitlement still depends on unused-and-complete facts.
 func (r *Return) Goodwill() bool { return r.Window == "goodwill" }
 
-// Late reports whether this request was filed after the advertised 14 days.
 func (r *Return) Late() bool { return r.Window == "after" }
 
-// Mixed reports whether the returned lines fall in more than one window.
 func (r *Return) Mixed() bool { return r.Window == "mixed" }
 
-// WindowText names the window in the reader's language.
 func (r *Return) WindowText(ctx context.Context) string {
 	switch r.Window {
 	case "within":
@@ -135,13 +126,10 @@ func (r *Return) WindowText(ctx context.Context) string {
 	}
 }
 
-// AssessmentVersionText is the hidden input the decide form freezes.
 func (r *Return) AssessmentVersionText() string {
 	return strconv.FormatInt(int64(r.AssessmentVersion), 10)
 }
 
-// AssessmentStamp is the version and when it was written, for the staff
-// member who is about to freeze it.
 func (r *Return) AssessmentStamp(ctx context.Context) string {
 	if r.AssessmentVersion == 0 {
 		return ""
@@ -150,7 +138,6 @@ func (r *Return) AssessmentStamp(ctx context.Context) string {
 		r.AssessmentVersionText(), r.AssessedAt)
 }
 
-// Amount is what approving it would refund.
 func (r *Return) Amount() string { return money.TWD(r.AmountCents) }
 
 // PayoutChannel names the frozen refund sources. Empty until approval, because
@@ -169,26 +156,20 @@ func (r *Return) PayoutChannel(ctx context.Context) string {
 	}
 }
 
-// UnitsText is how many items are being sent back.
 func (r *Return) UnitsText() string { return strconv.FormatInt(int64(r.Units), 10) }
 
-// Action is where a decision on this return posts.
 func (r *Return) Action() string { return "/admin/returns/" + r.ID + "/decide" }
 
 // OrderAction is the order page: where a refund before shipment resumes, and
 // where the shipment and delivery date of any return are read.
 func (r *Return) OrderAction() string { return "/admin/orders/" + r.OrderNumber }
 
-// AssessAction is where a pre-decision eligibility assessment posts.
 func (r *Return) AssessAction() string { return "/admin/returns/" + r.ID + "/assess" }
 
-// InspectAction and CompleteAction are the tail's two forms.
 func (r *Return) InspectAction() string { return "/admin/returns/" + r.ID + "/inspect" }
 
-// CompleteAction closes an inspected return.
 func (r *Return) CompleteAction() string { return "/admin/returns/" + r.ID + "/complete" }
 
-// ReturnsView is the return queue.
 type ReturnsView struct {
 	pages.ListBound
 
@@ -199,7 +180,6 @@ type ReturnsView struct {
 	Errors map[string]string
 }
 
-// FieldError is the sentence under one control on one request, if any.
 func (v ReturnsView) FieldError(returnID, field string) string {
 	if v.Errors == nil {
 		return ""
@@ -207,15 +187,12 @@ func (v ReturnsView) FieldError(returnID, field string) string {
 	return v.Errors[returnID+"."+field]
 }
 
-// FieldInvalid reports whether that control should carry aria-invalid.
 func (v ReturnsView) FieldInvalid(returnID, field string) bool {
 	return v.FieldError(returnID, field) != ""
 }
 
-// Empty reports whether there is nothing to show.
 func (v ReturnsView) Empty() bool { return len(v.Rows) == 0 }
 
-// ReturnLine is one item in a return request.
 type ReturnLine struct {
 	SKU         string
 	Name        string
@@ -237,7 +214,6 @@ type ReturnLine struct {
 	DraftReceived, DraftRestocked, DraftNote string
 }
 
-// ReceivedField is the received box's value: what was typed, else every unit claimed.
 func (l *ReturnLine) ReceivedField() string {
 	if l.DraftReceived != "" {
 		return l.DraftReceived
@@ -245,7 +221,6 @@ func (l *ReturnLine) ReceivedField() string {
 	return l.MaxQuantityText()
 }
 
-// RestockedField is the restock box's value: what was typed, else none.
 func (l *ReturnLine) RestockedField() string {
 	if l.DraftRestocked != "" {
 		return l.DraftRestocked
@@ -271,33 +246,26 @@ func (l *ReturnLine) FactValue(name string) string {
 	return got
 }
 
-// FactChecked is whether this radio is the current observation.
 func (l *ReturnLine) FactChecked(name, value string) bool {
 	return l.FactValue(name) == value
 }
 
-// ReceivedText and RestockedText are the figures as the form's default values.
 func (l *ReturnLine) ReceivedText() string {
 	return strconv.FormatInt(int64(l.Received), 10)
 }
 
-// RestockedText is how many went back on the shelf.
 func (l *ReturnLine) RestockedText() string {
 	return strconv.FormatInt(int64(l.Restocked), 10)
 }
 
-// MaxQuantityText bounds the received input to what was claimed.
 func (l *ReturnLine) MaxQuantityText() string {
 	return strconv.FormatInt(int64(l.Quantity), 10)
 }
 
-// Shortfall reports whether fewer units arrived than were claimed.
 func (l *ReturnLine) Shortfall() bool { return l.Inspected && l.Received < l.Quantity }
 
-// Scrapped reports whether something came back that could not be resold.
 func (l *ReturnLine) Scrapped() bool { return l.Inspected && l.Restocked < l.Received }
 
-// Line is the item as one row of text.
 func (l *ReturnLine) Line() string {
 	name := l.Name
 	if l.Label != "" {
@@ -306,10 +274,8 @@ func (l *ReturnLine) Line() string {
 	return name + " × " + strconv.FormatInt(int64(l.Quantity), 10)
 }
 
-// UnitPrice is what one of them cost.
 func (l *ReturnLine) UnitPrice() string { return money.TWD(l.UnitCents) }
 
-// ReturnConfirmation is one selected decision, before it has side effects.
 type ReturnConfirmation struct {
 	ID                string
 	OrderNumber       string
@@ -322,7 +288,6 @@ type ReturnConfirmation struct {
 	Retry             bool
 }
 
-// Title names the single operation the operator is confirming.
 func (v ReturnConfirmation) Title(ctx context.Context) string {
 	switch v.Decision {
 	case "rejected":
@@ -337,10 +302,8 @@ func (v ReturnConfirmation) Title(ctx context.Context) string {
 	}
 }
 
-// Amount formats the amount currently eligible for this return.
 func (v ReturnConfirmation) Amount() string { return money.TWD(v.AmountCents) }
 
-// Action returns to the same decision handler for final validation.
 func (v ReturnConfirmation) Action() string { return "/admin/returns/" + v.ID + "/decide" }
 
 // RefundConfirmation is a refund before shipment, before it moves money.
@@ -356,20 +319,16 @@ type RefundConfirmation struct {
 	ReasonInvalid bool
 }
 
-// Amount is what the refund pays back in all.
 func (v RefundConfirmation) Amount() string { return money.TWD(v.TotalCents) }
 
 // Total is the amount the confirming POST repeats; a different figure is a
 // refund the staff member was not shown.
 func (v RefundConfirmation) Total() string { return strconv.FormatInt(v.TotalCents, 10) }
 
-// Channel names the card and store-credit halves.
 func (v RefundConfirmation) Channel(ctx context.Context) string {
 	return (&Return{CardRefundCents: v.CardCents, CreditRefundCents: v.CreditCents}).PayoutChannel(ctx)
 }
 
-// Action is the refund handler, which confirms before it pays.
 func (v RefundConfirmation) Action() string { return "/admin/orders/" + v.OrderNumber + "/refund" }
 
-// Back is the order the refund belongs to.
 func (v RefundConfirmation) Back() string { return "/admin/orders/" + v.OrderNumber }

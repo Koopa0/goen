@@ -17,22 +17,11 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// Questions renders the customer questions waiting for the shop.
-//
-// A divided list rather than a column of cards: the queue is read down the
-// page looking for the rows that still owe an answer, and a border around
-// every row makes twenty things to look at where the list is one. The state a
-// reader is scanning for is a badge beside the product, so the answer to "what
-// is left" is on the row and not in its colour.
-//
-// Neither button is the primary one. A queue of seventeen questions is a queue
-// of seventeen answer boxes, and a filled button on every row is a screen of
-// filled buttons — the reply box is already where the eye goes, and the rule is
-// one primary to a screen.
-//
+// A divided list rather than a column of cards: the queue is read down the page for
+// the rows that still owe an answer, and the state is a badge, not a colour.
+// Neither button is primary: a filled button on every row is a screen of them.
 // The list keeps the class the layout gate finds the page by
-// (scripts/check-layout.mjs:262, :289); its old rules are gone and the divided
-// list paints it now.
+// (scripts/check-layout.mjs); the divided list paints it.
 func Questions(p layouts.Page, v QuestionsView) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -73,7 +62,7 @@ func Questions(p layouts.Page, v QuestionsView) templ.Component {
 			var templ_7745c5c3_Var3 string
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminEyebrow))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/question.templ`, Line: 32, Col: 72}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/question.templ`, Line: 21, Col: 72}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 			if templ_7745c5c3_Err != nil {
@@ -86,7 +75,7 @@ func Questions(p layouts.Page, v QuestionsView) templ.Component {
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminPageQuestions))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/question.templ`, Line: 33, Col: 77}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/question.templ`, Line: 22, Col: 77}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {
@@ -99,7 +88,7 @@ func Questions(p layouts.Page, v QuestionsView) templ.Component {
 			var templ_7745c5c3_Var5 string
 			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminQuestionsLead))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/question.templ`, Line: 35, Col: 46}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/question.templ`, Line: 24, Col: 46}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {
@@ -125,7 +114,7 @@ func Questions(p layouts.Page, v QuestionsView) templ.Component {
 					var templ_7745c5c3_Var7 string
 					templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQuestionsWaiting), v.WaitingText()))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/question.templ`, Line: 40, Col: 79}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/question.templ`, Line: 29, Col: 79}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 					if templ_7745c5c3_Err != nil {
@@ -158,7 +147,7 @@ func Questions(p layouts.Page, v QuestionsView) templ.Component {
 					var templ_7745c5c3_Var9 string
 					templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(v.Notice)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/question.templ`, Line: 46, Col: 14}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/question.templ`, Line: 35, Col: 14}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 					if templ_7745c5c3_Err != nil {
@@ -191,7 +180,7 @@ func Questions(p layouts.Page, v QuestionsView) templ.Component {
 				var templ_7745c5c3_Var10 string
 				templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminQuestionsEmpty))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/question.templ`, Line: 54, Col: 80}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/question.templ`, Line: 43, Col: 80}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 				if templ_7745c5c3_Err != nil {
@@ -214,7 +203,7 @@ func Questions(p layouts.Page, v QuestionsView) templ.Component {
 					var templ_7745c5c3_Var11 templ.SafeURL
 					templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(q.ProductHref()))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/question.templ`, Line: 63, Col: 49}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/question.templ`, Line: 52, Col: 49}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 					if templ_7745c5c3_Err != nil {
@@ -227,7 +216,7 @@ func Questions(p layouts.Page, v QuestionsView) templ.Component {
 					var templ_7745c5c3_Var12 string
 					templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(q.ProductName)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/question.templ`, Line: 63, Col: 67}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/question.templ`, Line: 52, Col: 67}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 					if templ_7745c5c3_Err != nil {
@@ -253,7 +242,7 @@ func Questions(p layouts.Page, v QuestionsView) templ.Component {
 							var templ_7745c5c3_Var14 string
 							templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(q.State(ctx))
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/question.templ`, Line: 67, Col: 24}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/question.templ`, Line: 56, Col: 24}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 							if templ_7745c5c3_Err != nil {
@@ -281,7 +270,7 @@ func Questions(p layouts.Page, v QuestionsView) templ.Component {
 							var templ_7745c5c3_Var16 string
 							templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(q.State(ctx))
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/question.templ`, Line: 71, Col: 24}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/question.templ`, Line: 60, Col: 24}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 							if templ_7745c5c3_Err != nil {
@@ -301,7 +290,7 @@ func Questions(p layouts.Page, v QuestionsView) templ.Component {
 					var templ_7745c5c3_Var17 string
 					templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(q.Body)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/question.templ`, Line: 75, Col: 43}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/question.templ`, Line: 64, Col: 43}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 					if templ_7745c5c3_Err != nil {
@@ -314,7 +303,7 @@ func Questions(p layouts.Page, v QuestionsView) templ.Component {
 					var templ_7745c5c3_Var18 string
 					templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(q.Who(ctx))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/question.templ`, Line: 77, Col: 20}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/question.templ`, Line: 66, Col: 20}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 					if templ_7745c5c3_Err != nil {
@@ -327,7 +316,7 @@ func Questions(p layouts.Page, v QuestionsView) templ.Component {
 					var templ_7745c5c3_Var19 string
 					templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(q.Asked)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/question.templ`, Line: 77, Col: 35}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/question.templ`, Line: 66, Col: 35}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 					if templ_7745c5c3_Err != nil {
@@ -340,7 +329,7 @@ func Questions(p layouts.Page, v QuestionsView) templ.Component {
 					var templ_7745c5c3_Var20 string
 					templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQuestionAnswers), q.AnswersText()))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/question.templ`, Line: 77, Col: 114}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/question.templ`, Line: 66, Col: 114}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 					if templ_7745c5c3_Err != nil {
@@ -353,7 +342,7 @@ func Questions(p layouts.Page, v QuestionsView) templ.Component {
 					var templ_7745c5c3_Var21 templ.SafeURL
 					templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(q.AnswerAction()))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/question.templ`, Line: 80, Col: 91}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/question.templ`, Line: 69, Col: 91}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
 					if templ_7745c5c3_Err != nil {
@@ -378,7 +367,7 @@ func Questions(p layouts.Page, v QuestionsView) templ.Component {
 						var templ_7745c5c3_Var23 string
 						templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminQuestionReply))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/question.templ`, Line: 83, Col: 50}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/question.templ`, Line: 72, Col: 50}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 						if templ_7745c5c3_Err != nil {
@@ -405,7 +394,7 @@ func Questions(p layouts.Page, v QuestionsView) templ.Component {
 						var templ_7745c5c3_Var25 string
 						templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(q.Draft)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/question.templ`, Line: 96, Col: 18}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/question.templ`, Line: 85, Col: 18}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
 						if templ_7745c5c3_Err != nil {
@@ -435,7 +424,7 @@ func Questions(p layouts.Page, v QuestionsView) templ.Component {
 						var templ_7745c5c3_Var26 string
 						templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.ResolveAttributeValue("answer-error-" + q.ID)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/question.templ`, Line: 99, Col: 61}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/question.templ`, Line: 88, Col: 61}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var26)
 						if templ_7745c5c3_Err != nil {
@@ -448,7 +437,7 @@ func Questions(p layouts.Page, v QuestionsView) templ.Component {
 						var templ_7745c5c3_Var27 string
 						templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.JoinStringErrs(q.Error)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/question.templ`, Line: 99, Col: 86}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/question.templ`, Line: 88, Col: 86}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var27))
 						if templ_7745c5c3_Err != nil {
@@ -478,7 +467,7 @@ func Questions(p layouts.Page, v QuestionsView) templ.Component {
 						var templ_7745c5c3_Var29 string
 						templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminQuestionSend))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/question.templ`, Line: 108, Col: 49}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/question.templ`, Line: 97, Col: 49}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var29))
 						if templ_7745c5c3_Err != nil {
@@ -509,7 +498,7 @@ func Questions(p layouts.Page, v QuestionsView) templ.Component {
 						var templ_7745c5c3_Var31 string
 						templ_7745c5c3_Var31, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminQuestionHide))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/question.templ`, Line: 115, Col: 49}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/question.templ`, Line: 104, Col: 49}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var31))
 						if templ_7745c5c3_Err != nil {

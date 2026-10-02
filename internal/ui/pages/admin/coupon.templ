@@ -9,11 +9,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
-// Coupons renders the coupons and the form that issues one.
-//
-// Each row leads with its code and whether it works RIGHT NOW: switched on and
-// inside its window are different facts, and a live-looking coupon whose window
-// has passed is refused at the till while the list says it is fine.
+// Each row leads with its code and whether it works RIGHT NOW: a coupon switched on
+// but past its window is refused at the till while the list says it is fine.
 templ Coupons(p layouts.Page, v CouponsView) {
 	@layouts.Admin(p, "coupons") {
 		<div class="ui-page-head">

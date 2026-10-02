@@ -18,15 +18,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
-// Taxonomy renders the brands and the category tree with their forms.
-//
-// Two cards, each holding what it lists and the form that adds to it, because
-// a brand and a category are separate jobs and the list is what a reader checks
-// before typing into the form under it.
-//
-// The one filled button on the page is the category create. The tree is what
-// the storefront's navigation is built from, and a row of equally weighted
-// buttons makes a reader choose before they act.
+// Two cards, each holding what it lists and the form that adds to it, because a brand
+// and a category are separate jobs. The one filled button is the category create.
 func Taxonomy(p layouts.Page, v *TaxonomyView) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -67,7 +60,7 @@ func Taxonomy(p layouts.Page, v *TaxonomyView) templ.Component {
 			var templ_7745c5c3_Var3 string
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminEyebrow))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 26, Col: 72}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 19, Col: 72}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 			if templ_7745c5c3_Err != nil {
@@ -80,7 +73,7 @@ func Taxonomy(p layouts.Page, v *TaxonomyView) templ.Component {
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminPageTaxonomy))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 27, Col: 76}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 20, Col: 76}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {
@@ -93,7 +86,7 @@ func Taxonomy(p layouts.Page, v *TaxonomyView) templ.Component {
 			var templ_7745c5c3_Var5 string
 			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminTaxLead))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 29, Col: 40}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 22, Col: 40}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {
@@ -119,7 +112,7 @@ func Taxonomy(p layouts.Page, v *TaxonomyView) templ.Component {
 					var templ_7745c5c3_Var7 string
 					templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(v.Notice)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 35, Col: 14}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 28, Col: 14}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 					if templ_7745c5c3_Err != nil {
@@ -155,7 +148,7 @@ func Taxonomy(p layouts.Page, v *TaxonomyView) templ.Component {
 				var templ_7745c5c3_Var9 string
 				templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminTaxBrands))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 39, Col: 72}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 32, Col: 72}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 				if templ_7745c5c3_Err != nil {
@@ -206,7 +199,7 @@ func Taxonomy(p layouts.Page, v *TaxonomyView) templ.Component {
 				var templ_7745c5c3_Var11 string
 				templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminTaxCategories))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 44, Col: 76}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 37, Col: 76}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 				if templ_7745c5c3_Err != nil {
@@ -244,8 +237,7 @@ func Taxonomy(p layouts.Page, v *TaxonomyView) templ.Component {
 	})
 }
 
-// taxonForm adds a brand or a category. Its fields keep the ids and names the
-// handler and its tests read; only the boxes around them are new.
+// taxonForm's fields keep the ids and names the handler and its tests read.
 func taxonForm(kind string, title i18n.Key, style components.ButtonStyle, v *TaxonomyView) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -274,7 +266,7 @@ func taxonForm(kind string, title i18n.Key, style components.ButtonStyle, v *Tax
 		var templ_7745c5c3_Var13 templ.SafeURL
 		templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL("/admin/taxonomy/" + kind))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 54, Col: 95}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 46, Col: 95}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 		if templ_7745c5c3_Err != nil {
@@ -287,7 +279,7 @@ func taxonForm(kind string, title i18n.Key, style components.ButtonStyle, v *Tax
 		var templ_7745c5c3_Var14 string
 		templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, title))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 55, Col: 54}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 47, Col: 54}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 		if templ_7745c5c3_Err != nil {
@@ -305,7 +297,7 @@ func taxonForm(kind string, title i18n.Key, style components.ButtonStyle, v *Tax
 			var templ_7745c5c3_Var15 string
 			templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(v.Err(kind, "form"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 57, Col: 62}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 49, Col: 62}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 			if templ_7745c5c3_Err != nil {
@@ -335,7 +327,7 @@ func taxonForm(kind string, title i18n.Key, style components.ButtonStyle, v *Tax
 			var templ_7745c5c3_Var17 string
 			templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminColName))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 62, Col: 40}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 54, Col: 40}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 			if templ_7745c5c3_Err != nil {
@@ -354,7 +346,7 @@ func taxonForm(kind string, title i18n.Key, style components.ButtonStyle, v *Tax
 		var templ_7745c5c3_Var18 string
 		templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.ResolveAttributeValue(kind + "-name")
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 66, Col: 24}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 58, Col: 24}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var18)
 		if templ_7745c5c3_Err != nil {
@@ -367,7 +359,7 @@ func taxonForm(kind string, title i18n.Key, style components.ButtonStyle, v *Tax
 		var templ_7745c5c3_Var19 string
 		templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.ResolveAttributeValue(v.DraftFor(kind, "name"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 70, Col: 37}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 62, Col: 37}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var19)
 		if templ_7745c5c3_Err != nil {
@@ -385,7 +377,7 @@ func taxonForm(kind string, title i18n.Key, style components.ButtonStyle, v *Tax
 			var templ_7745c5c3_Var20 string
 			templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.ResolveAttributeValue(kind + "-name" + "-error")
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 73, Col: 50}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 65, Col: 50}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var20)
 			if templ_7745c5c3_Err != nil {
@@ -408,7 +400,7 @@ func taxonForm(kind string, title i18n.Key, style components.ButtonStyle, v *Tax
 			var templ_7745c5c3_Var21 string
 			templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.ResolveAttributeValue(kind + "-name" + "-error")
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 77, Col: 60}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 69, Col: 60}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var21)
 			if templ_7745c5c3_Err != nil {
@@ -421,7 +413,7 @@ func taxonForm(kind string, title i18n.Key, style components.ButtonStyle, v *Tax
 			var templ_7745c5c3_Var22 string
 			templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(v.Err(kind, "name"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 77, Col: 84}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 69, Col: 84}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 			if templ_7745c5c3_Err != nil {
@@ -456,7 +448,7 @@ func taxonForm(kind string, title i18n.Key, style components.ButtonStyle, v *Tax
 				var templ_7745c5c3_Var24 string
 				templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminTaxNameEn))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 83, Col: 43}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 75, Col: 43}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
 				if templ_7745c5c3_Err != nil {
@@ -475,7 +467,7 @@ func taxonForm(kind string, title i18n.Key, style components.ButtonStyle, v *Tax
 			var templ_7745c5c3_Var25 string
 			templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.ResolveAttributeValue(kind + "-name-en")
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 87, Col: 28}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 79, Col: 28}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var25)
 			if templ_7745c5c3_Err != nil {
@@ -488,7 +480,7 @@ func taxonForm(kind string, title i18n.Key, style components.ButtonStyle, v *Tax
 			var templ_7745c5c3_Var26 string
 			templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.ResolveAttributeValue(v.DraftFor(kind, "name_en"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 90, Col: 41}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 82, Col: 41}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var26)
 			if templ_7745c5c3_Err != nil {
@@ -506,7 +498,7 @@ func taxonForm(kind string, title i18n.Key, style components.ButtonStyle, v *Tax
 				var templ_7745c5c3_Var27 string
 				templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.ResolveAttributeValue(kind + "-name-en" + "-error")
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 93, Col: 54}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 85, Col: 54}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var27)
 				if templ_7745c5c3_Err != nil {
@@ -529,7 +521,7 @@ func taxonForm(kind string, title i18n.Key, style components.ButtonStyle, v *Tax
 				var templ_7745c5c3_Var28 string
 				templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.ResolveAttributeValue(kind + "-name-en" + "-error")
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 97, Col: 64}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 89, Col: 64}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var28)
 				if templ_7745c5c3_Err != nil {
@@ -542,7 +534,7 @@ func taxonForm(kind string, title i18n.Key, style components.ButtonStyle, v *Tax
 				var templ_7745c5c3_Var29 string
 				templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.JoinStringErrs(v.Err(kind, "name_en"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 97, Col: 91}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 89, Col: 91}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var29))
 				if templ_7745c5c3_Err != nil {
@@ -560,7 +552,7 @@ func taxonForm(kind string, title i18n.Key, style components.ButtonStyle, v *Tax
 			var templ_7745c5c3_Var30 string
 			templ_7745c5c3_Var30, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminTaxNameEnHint))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 100, Col: 47}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 92, Col: 47}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var30))
 			if templ_7745c5c3_Err != nil {
@@ -590,7 +582,7 @@ func taxonForm(kind string, title i18n.Key, style components.ButtonStyle, v *Tax
 			var templ_7745c5c3_Var32 string
 			templ_7745c5c3_Var32, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminColSlug))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 106, Col: 40}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 98, Col: 40}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var32))
 			if templ_7745c5c3_Err != nil {
@@ -609,7 +601,7 @@ func taxonForm(kind string, title i18n.Key, style components.ButtonStyle, v *Tax
 		var templ_7745c5c3_Var33 string
 		templ_7745c5c3_Var33, templ_7745c5c3_Err = templ.ResolveAttributeValue(kind + "-slug")
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 110, Col: 24}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 102, Col: 24}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var33)
 		if templ_7745c5c3_Err != nil {
@@ -622,7 +614,7 @@ func taxonForm(kind string, title i18n.Key, style components.ButtonStyle, v *Tax
 		var templ_7745c5c3_Var34 string
 		templ_7745c5c3_Var34, templ_7745c5c3_Err = templ.ResolveAttributeValue(v.DraftFor(kind, "slug"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 115, Col: 37}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 107, Col: 37}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var34)
 		if templ_7745c5c3_Err != nil {
@@ -640,7 +632,7 @@ func taxonForm(kind string, title i18n.Key, style components.ButtonStyle, v *Tax
 			var templ_7745c5c3_Var35 string
 			templ_7745c5c3_Var35, templ_7745c5c3_Err = templ.ResolveAttributeValue(kind + "-slug" + "-error")
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 118, Col: 50}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 110, Col: 50}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var35)
 			if templ_7745c5c3_Err != nil {
@@ -663,7 +655,7 @@ func taxonForm(kind string, title i18n.Key, style components.ButtonStyle, v *Tax
 			var templ_7745c5c3_Var36 string
 			templ_7745c5c3_Var36, templ_7745c5c3_Err = templ.ResolveAttributeValue(kind + "-slug" + "-error")
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 122, Col: 60}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 114, Col: 60}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var36)
 			if templ_7745c5c3_Err != nil {
@@ -676,7 +668,7 @@ func taxonForm(kind string, title i18n.Key, style components.ButtonStyle, v *Tax
 			var templ_7745c5c3_Var37 string
 			templ_7745c5c3_Var37, templ_7745c5c3_Err = templ.JoinStringErrs(v.Err(kind, "slug"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 122, Col: 84}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 114, Col: 84}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var37))
 			if templ_7745c5c3_Err != nil {
@@ -694,7 +686,7 @@ func taxonForm(kind string, title i18n.Key, style components.ButtonStyle, v *Tax
 		var templ_7745c5c3_Var38 string
 		templ_7745c5c3_Var38, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminTaxSlugFixed))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 124, Col: 72}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 116, Col: 72}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var38))
 		if templ_7745c5c3_Err != nil {
@@ -724,7 +716,7 @@ func taxonForm(kind string, title i18n.Key, style components.ButtonStyle, v *Tax
 				var templ_7745c5c3_Var40 string
 				templ_7745c5c3_Var40, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminColIcon))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 129, Col: 41}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 121, Col: 41}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var40))
 				if templ_7745c5c3_Err != nil {
@@ -743,7 +735,7 @@ func taxonForm(kind string, title i18n.Key, style components.ButtonStyle, v *Tax
 			var templ_7745c5c3_Var41 string
 			templ_7745c5c3_Var41, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminIconNone))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 132, Col: 59}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 124, Col: 59}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var41))
 			if templ_7745c5c3_Err != nil {
@@ -761,7 +753,7 @@ func taxonForm(kind string, title i18n.Key, style components.ButtonStyle, v *Tax
 				var templ_7745c5c3_Var42 string
 				templ_7745c5c3_Var42, templ_7745c5c3_Err = templ.ResolveAttributeValue(k)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 134, Col: 24}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 126, Col: 24}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var42)
 				if templ_7745c5c3_Err != nil {
@@ -784,7 +776,7 @@ func taxonForm(kind string, title i18n.Key, style components.ButtonStyle, v *Tax
 				var templ_7745c5c3_Var43 string
 				templ_7745c5c3_Var43, templ_7745c5c3_Err = templ.JoinStringErrs(k)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 134, Col: 78}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 126, Col: 78}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var43))
 				if templ_7745c5c3_Err != nil {
@@ -807,7 +799,7 @@ func taxonForm(kind string, title i18n.Key, style components.ButtonStyle, v *Tax
 				var templ_7745c5c3_Var44 string
 				templ_7745c5c3_Var44, templ_7745c5c3_Err = templ.JoinStringErrs(v.Err(kind, "icon_key"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 138, Col: 56}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 130, Col: 56}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var44))
 				if templ_7745c5c3_Err != nil {
@@ -837,7 +829,7 @@ func taxonForm(kind string, title i18n.Key, style components.ButtonStyle, v *Tax
 				var templ_7745c5c3_Var46 string
 				templ_7745c5c3_Var46, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminColTone))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 143, Col: 41}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 135, Col: 41}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var46))
 				if templ_7745c5c3_Err != nil {
@@ -856,7 +848,7 @@ func taxonForm(kind string, title i18n.Key, style components.ButtonStyle, v *Tax
 			var templ_7745c5c3_Var47 string
 			templ_7745c5c3_Var47, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminToneInherit))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 146, Col: 62}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 138, Col: 62}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var47))
 			if templ_7745c5c3_Err != nil {
@@ -874,7 +866,7 @@ func taxonForm(kind string, title i18n.Key, style components.ButtonStyle, v *Tax
 				var templ_7745c5c3_Var48 string
 				templ_7745c5c3_Var48, templ_7745c5c3_Err = templ.ResolveAttributeValue(string(k))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 148, Col: 32}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 140, Col: 32}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var48)
 				if templ_7745c5c3_Err != nil {
@@ -897,7 +889,7 @@ func taxonForm(kind string, title i18n.Key, style components.ButtonStyle, v *Tax
 				var templ_7745c5c3_Var49 string
 				templ_7745c5c3_Var49, templ_7745c5c3_Err = templ.JoinStringErrs(k.Label(ctx))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 148, Col: 101}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 140, Col: 101}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var49))
 				if templ_7745c5c3_Err != nil {
@@ -920,7 +912,7 @@ func taxonForm(kind string, title i18n.Key, style components.ButtonStyle, v *Tax
 				var templ_7745c5c3_Var50 string
 				templ_7745c5c3_Var50, templ_7745c5c3_Err = templ.JoinStringErrs(v.Err(kind, "tone"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 152, Col: 52}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 144, Col: 52}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var50))
 				if templ_7745c5c3_Err != nil {
@@ -948,7 +940,7 @@ func taxonForm(kind string, title i18n.Key, style components.ButtonStyle, v *Tax
 			var templ_7745c5c3_Var51 string
 			templ_7745c5c3_Var51, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminColComparable))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 157, Col: 52}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 149, Col: 52}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var51))
 			if templ_7745c5c3_Err != nil {
@@ -973,7 +965,7 @@ func taxonForm(kind string, title i18n.Key, style components.ButtonStyle, v *Tax
 				var templ_7745c5c3_Var53 string
 				templ_7745c5c3_Var53, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminTaxParent))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 161, Col: 43}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 153, Col: 43}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var53))
 				if templ_7745c5c3_Err != nil {
@@ -992,7 +984,7 @@ func taxonForm(kind string, title i18n.Key, style components.ButtonStyle, v *Tax
 			var templ_7745c5c3_Var54 string
 			templ_7745c5c3_Var54, templ_7745c5c3_Err = templ.ResolveAttributeValue(v.DraftFor(kind, "parent"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 170, Col: 40}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 162, Col: 40}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var54)
 			if templ_7745c5c3_Err != nil {
@@ -1020,7 +1012,7 @@ func taxonForm(kind string, title i18n.Key, style components.ButtonStyle, v *Tax
 				var templ_7745c5c3_Var55 string
 				templ_7745c5c3_Var55, templ_7745c5c3_Err = templ.ResolveAttributeValue(c.Slug)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 178, Col: 29}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 170, Col: 29}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var55)
 				if templ_7745c5c3_Err != nil {
@@ -1033,7 +1025,7 @@ func taxonForm(kind string, title i18n.Key, style components.ButtonStyle, v *Tax
 				var templ_7745c5c3_Var56 string
 				templ_7745c5c3_Var56, templ_7745c5c3_Err = templ.JoinStringErrs(c.Name)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 178, Col: 40}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 170, Col: 40}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var56))
 				if templ_7745c5c3_Err != nil {
@@ -1056,7 +1048,7 @@ func taxonForm(kind string, title i18n.Key, style components.ButtonStyle, v *Tax
 				var templ_7745c5c3_Var57 string
 				templ_7745c5c3_Var57, templ_7745c5c3_Err = templ.JoinStringErrs(v.Err(kind, "parent"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 182, Col: 83}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 174, Col: 83}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var57))
 				if templ_7745c5c3_Err != nil {
@@ -1074,7 +1066,7 @@ func taxonForm(kind string, title i18n.Key, style components.ButtonStyle, v *Tax
 			var templ_7745c5c3_Var58 string
 			templ_7745c5c3_Var58, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminTaxParentHint))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 184, Col: 74}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 176, Col: 74}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var58))
 			if templ_7745c5c3_Err != nil {
@@ -1104,7 +1096,7 @@ func taxonForm(kind string, title i18n.Key, style components.ButtonStyle, v *Tax
 			var templ_7745c5c3_Var60 string
 			templ_7745c5c3_Var60, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminTaxCreate))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 189, Col: 40}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 181, Col: 40}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var60))
 			if templ_7745c5c3_Err != nil {
@@ -1156,7 +1148,7 @@ func taxonList(kind string, empty i18n.Key, rows []Taxon) templ.Component {
 			var templ_7745c5c3_Var62 string
 			templ_7745c5c3_Var62, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, empty))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 200, Col: 57}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 192, Col: 57}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var62))
 			if templ_7745c5c3_Err != nil {
@@ -1179,7 +1171,7 @@ func taxonList(kind string, empty i18n.Key, rows []Taxon) templ.Component {
 				var templ_7745c5c3_Var63 string
 				templ_7745c5c3_Var63, templ_7745c5c3_Err = templ.ResolveAttributeValue(t.DepthText())
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 205, Col: 60}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 197, Col: 60}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var63)
 				if templ_7745c5c3_Err != nil {
@@ -1192,7 +1184,7 @@ func taxonList(kind string, empty i18n.Key, rows []Taxon) templ.Component {
 				var templ_7745c5c3_Var64 templ.SafeURL
 				templ_7745c5c3_Var64, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL("/admin/taxonomy/" + kind + "/" + t.Slug))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 206, Col: 119}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 198, Col: 119}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var64))
 				if templ_7745c5c3_Err != nil {
@@ -1205,7 +1197,7 @@ func taxonList(kind string, empty i18n.Key, rows []Taxon) templ.Component {
 				var templ_7745c5c3_Var65 string
 				templ_7745c5c3_Var65, templ_7745c5c3_Err = templ.ResolveAttributeValue(t.Name)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 210, Col: 21}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 202, Col: 21}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var65)
 				if templ_7745c5c3_Err != nil {
@@ -1218,7 +1210,7 @@ func taxonList(kind string, empty i18n.Key, rows []Taxon) templ.Component {
 				var templ_7745c5c3_Var66 string
 				templ_7745c5c3_Var66, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminTaxNameOf), t.Name))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 213, Col: 76}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 205, Col: 76}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var66)
 				if templ_7745c5c3_Err != nil {
@@ -1236,7 +1228,7 @@ func taxonList(kind string, empty i18n.Key, rows []Taxon) templ.Component {
 					var templ_7745c5c3_Var67 string
 					templ_7745c5c3_Var67, templ_7745c5c3_Err = templ.ResolveAttributeValue(t.NameEn)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 220, Col: 24}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 212, Col: 24}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var67)
 					if templ_7745c5c3_Err != nil {
@@ -1249,7 +1241,7 @@ func taxonList(kind string, empty i18n.Key, rows []Taxon) templ.Component {
 					var templ_7745c5c3_Var68 string
 					templ_7745c5c3_Var68, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminTaxNameEnOf), t.Name))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 223, Col: 79}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 215, Col: 79}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var68)
 					if templ_7745c5c3_Err != nil {
@@ -1262,7 +1254,7 @@ func taxonList(kind string, empty i18n.Key, rows []Taxon) templ.Component {
 					var templ_7745c5c3_Var69 string
 					templ_7745c5c3_Var69, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminTaxIconOf), t.Name))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 228, Col: 77}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 220, Col: 77}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var69)
 					if templ_7745c5c3_Err != nil {
@@ -1275,7 +1267,7 @@ func taxonList(kind string, empty i18n.Key, rows []Taxon) templ.Component {
 					var templ_7745c5c3_Var70 string
 					templ_7745c5c3_Var70, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminIconNone))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 230, Col: 61}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 222, Col: 61}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var70))
 					if templ_7745c5c3_Err != nil {
@@ -1293,7 +1285,7 @@ func taxonList(kind string, empty i18n.Key, rows []Taxon) templ.Component {
 						var templ_7745c5c3_Var71 string
 						templ_7745c5c3_Var71, templ_7745c5c3_Err = templ.ResolveAttributeValue(k)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 232, Col: 26}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 224, Col: 26}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var71)
 						if templ_7745c5c3_Err != nil {
@@ -1316,7 +1308,7 @@ func taxonList(kind string, empty i18n.Key, rows []Taxon) templ.Component {
 						var templ_7745c5c3_Var72 string
 						templ_7745c5c3_Var72, templ_7745c5c3_Err = templ.JoinStringErrs(k)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 232, Col: 61}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 224, Col: 61}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var72))
 						if templ_7745c5c3_Err != nil {
@@ -1334,7 +1326,7 @@ func taxonList(kind string, empty i18n.Key, rows []Taxon) templ.Component {
 					var templ_7745c5c3_Var73 string
 					templ_7745c5c3_Var73, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminTaxToneOf), t.Name))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 239, Col: 77}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 230, Col: 77}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var73)
 					if templ_7745c5c3_Err != nil {
@@ -1347,7 +1339,7 @@ func taxonList(kind string, empty i18n.Key, rows []Taxon) templ.Component {
 					var templ_7745c5c3_Var74 string
 					templ_7745c5c3_Var74, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminToneInherit))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 241, Col: 64}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 232, Col: 64}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var74))
 					if templ_7745c5c3_Err != nil {
@@ -1365,7 +1357,7 @@ func taxonList(kind string, empty i18n.Key, rows []Taxon) templ.Component {
 						var templ_7745c5c3_Var75 string
 						templ_7745c5c3_Var75, templ_7745c5c3_Err = templ.ResolveAttributeValue(string(k))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 243, Col: 34}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 234, Col: 34}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var75)
 						if templ_7745c5c3_Err != nil {
@@ -1388,7 +1380,7 @@ func taxonList(kind string, empty i18n.Key, rows []Taxon) templ.Component {
 						var templ_7745c5c3_Var76 string
 						templ_7745c5c3_Var76, templ_7745c5c3_Err = templ.JoinStringErrs(k.Label(ctx))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 243, Col: 85}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 234, Col: 85}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var76))
 						if templ_7745c5c3_Err != nil {
@@ -1421,7 +1413,7 @@ func taxonList(kind string, empty i18n.Key, rows []Taxon) templ.Component {
 						var templ_7745c5c3_Var77 string
 						templ_7745c5c3_Var77, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminTaxComparableOf), t.Name))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 255, Col: 85}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 245, Col: 85}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var77)
 						if templ_7745c5c3_Err != nil {
@@ -1434,7 +1426,7 @@ func taxonList(kind string, empty i18n.Key, rows []Taxon) templ.Component {
 						var templ_7745c5c3_Var78 string
 						templ_7745c5c3_Var78, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminColComparable))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 257, Col: 56}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 247, Col: 56}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var78))
 						if templ_7745c5c3_Err != nil {
@@ -1461,7 +1453,7 @@ func taxonList(kind string, empty i18n.Key, rows []Taxon) templ.Component {
 					var templ_7745c5c3_Var80 string
 					templ_7745c5c3_Var80, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminTaxRename))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 266, Col: 44}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 256, Col: 44}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var80))
 					if templ_7745c5c3_Err != nil {
@@ -1493,7 +1485,7 @@ func taxonList(kind string, empty i18n.Key, rows []Taxon) templ.Component {
 						var templ_7745c5c3_Var82 string
 						templ_7745c5c3_Var82, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminDelete))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 274, Col: 42}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 264, Col: 42}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var82))
 						if templ_7745c5c3_Err != nil {
@@ -1517,7 +1509,7 @@ func taxonList(kind string, empty i18n.Key, rows []Taxon) templ.Component {
 				var templ_7745c5c3_Var83 string
 				templ_7745c5c3_Var83, templ_7745c5c3_Err = templ.JoinStringErrs(t.Slug)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 279, Col: 14}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 269, Col: 14}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var83))
 				if templ_7745c5c3_Err != nil {
@@ -1543,7 +1535,7 @@ func taxonList(kind string, empty i18n.Key, rows []Taxon) templ.Component {
 						var templ_7745c5c3_Var85 string
 						templ_7745c5c3_Var85, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminUntranslated))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 282, Col: 48}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 272, Col: 48}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var85))
 						if templ_7745c5c3_Err != nil {
@@ -1560,7 +1552,7 @@ func taxonList(kind string, empty i18n.Key, rows []Taxon) templ.Component {
 					var templ_7745c5c3_Var86 string
 					templ_7745c5c3_Var86, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminTaxUnder), t.Parent))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 286, Col: 66}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 276, Col: 66}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var86))
 					if templ_7745c5c3_Err != nil {
@@ -1579,7 +1571,7 @@ func taxonList(kind string, empty i18n.Key, rows []Taxon) templ.Component {
 					var templ_7745c5c3_Var87 string
 					templ_7745c5c3_Var87, templ_7745c5c3_Err = templ.JoinStringErrs(t.Why(ctx))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 289, Col: 22}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 279, Col: 22}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var87))
 					if templ_7745c5c3_Err != nil {
@@ -1598,7 +1590,7 @@ func taxonList(kind string, empty i18n.Key, rows []Taxon) templ.Component {
 					var templ_7745c5c3_Var88 templ.SafeURL
 					templ_7745c5c3_Var88, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(t.HeaderHref()))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 292, Col: 46}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 282, Col: 46}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var88))
 					if templ_7745c5c3_Err != nil {
@@ -1611,7 +1603,7 @@ func taxonList(kind string, empty i18n.Key, rows []Taxon) templ.Component {
 					var templ_7745c5c3_Var89 string
 					templ_7745c5c3_Var89, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminTaxHeader))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 292, Col: 86}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/taxonomy.templ`, Line: 282, Col: 86}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var89))
 					if templ_7745c5c3_Err != nil {

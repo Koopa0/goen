@@ -8,7 +8,6 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
-// CreditEntry is one posting in the ledger.
 type CreditEntry struct {
 	Email       string
 	AmountCents int64
@@ -43,10 +42,8 @@ func CreditReason(ctx context.Context, reason string) string {
 	}
 }
 
-// ReasonText is the posting's reason, as CreditReason words it.
 func (e CreditEntry) ReasonText(ctx context.Context) string { return CreditReason(ctx, e.Reason) }
 
-// Amount is the posting, signed: a grant positive and a spend negative.
 func (e CreditEntry) Amount() string {
 	if e.AmountCents < 0 {
 		return "-" + money.TWD(-e.AmountCents)
@@ -54,10 +51,8 @@ func (e CreditEntry) Amount() string {
 	return "+" + money.TWD(e.AmountCents)
 }
 
-// IsSpend reports whether this posting took credit away.
 func (e CreditEntry) IsSpend() bool { return e.AmountCents < 0 }
 
-// CreditView is the store-credit page.
 type CreditView struct {
 	pages.ListBound
 
@@ -79,10 +74,8 @@ type CreditView struct {
 	BalanceCents  int64
 }
 
-// Empty reports whether the ledger has nothing in it yet.
 func (v *CreditView) Empty() bool { return len(v.Rows) == 0 }
 
-// Who is the account the posting went to, or a note that it has been erased.
 func (e CreditEntry) Who(ctx context.Context) string {
 	if e.Email == "" {
 		return i18n.T(ctx, i18n.KeyAdminErasedShort)
@@ -90,8 +83,6 @@ func (e CreditEntry) Who(ctx context.Context) string {
 	return e.Email
 }
 
-// Balance is the balance read for the confirmation page.
 func (v *CreditView) Balance() string { return money.TWD(v.BalanceCents) }
 
-// GrantAmount formats the reviewed amount in the shop currency.
 func (v *CreditView) GrantAmount() string { return money.TWD(v.GrantCents) }
