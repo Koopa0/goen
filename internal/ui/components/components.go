@@ -1,14 +1,12 @@
-// Package components holds goen's own presentation components: the small,
-// repeated shapes a page composes from. A component owns its classes and its
-// element; it never owns a sentence. Text arrives as children or as a Props
-// string a page has already taken from internal/i18n, so the chrome-string
-// guards see the page and not a literal buried here.
+// Package components holds goen's presentation components. A component owns its
+// classes and its element, never a sentence: text arrives as children or as a Props
+// string already taken from internal/i18n, so the chrome-string guards see the page.
 package components
 
 import "github.com/a-h/templ"
 
-// ButtonStyle is a button's weight. One surface shows one primary; everything else
-// is outline or ghost, which is what stops a page reading as a row of equals.
+// ButtonStyle is a button's weight: one surface shows one primary; the rest are outline or ghost, which
+// stops a page reading as a row of equals.
 type ButtonStyle string
 
 const (
@@ -31,8 +29,7 @@ func (v ButtonStyle) class() string {
 	}
 }
 
-// Size is a button's height step. Small is still a comfortable touch target:
-// the difference is padding and type, never the 44px minimum.
+// Size steps only padding and type, never the 44px touch-target minimum.
 type Size string
 
 const (
@@ -52,9 +49,8 @@ func (s Size) class() string {
 	}
 }
 
-// Intent is what a badge or a notice is saying. Neutral states the fact, accent
-// marks the shop's own offer, warn is a limit the visitor can still act inside,
-// and danger is a refusal or an absence.
+// Intent is what a badge or notice says. Neutral states the fact, accent marks the shop's own offer, warn is a limit the
+// visitor can still act inside, and danger is a refusal or an absence.
 type Intent string
 
 const (
@@ -90,8 +86,7 @@ func (t Intent) noticeClass() string {
 	}
 }
 
-// role is what a notice asks a screen reader to do with it. A refusal
-// interrupts; everything else is announced when the reader reaches it.
+// A refusal interrupts; everything else is announced when the reader reaches it.
 func (t Intent) role() string {
 	if t == IntentDanger {
 		return "alert"
@@ -99,15 +94,13 @@ func (t Intent) role() string {
 	return "status"
 }
 
-// ButtonProps configures [Button] and [ButtonLink]. Block makes the control
-// fill its row, which a phone wants for the one action a page is about.
+// ButtonProps makes Block fill the row, which a phone wants for the one action a page is about.
 type ButtonProps struct {
 	ButtonStyle ButtonStyle
 	Size        Size
 	Block       bool
-	// Icon makes the control square, for a button whose only content is a
-	// glyph. Such a button carries its name in aria-label, so a caller that
-	// sets Icon without one has built a control a screen reader cannot name.
+	// Icon makes the control square. Such a button carries its name in aria-label, so
+	// a caller that sets Icon without one has built a control a screen reader cannot name.
 	Icon  bool
 	Class string
 	Attrs templ.Attributes
@@ -130,7 +123,6 @@ func (p ButtonProps) class() string {
 	return out
 }
 
-// BadgeProps configures [Badge].
 type BadgeProps struct {
 	Intent Intent
 	Class  string
@@ -147,8 +139,7 @@ func (p BadgeProps) class() string {
 	return out
 }
 
-// LabelProps configures [Label]. For is required rather than optional: a label
-// that names nothing is the failure this component exists to prevent.
+// LabelProps requires For: a label that names nothing is the failure this component prevents.
 type LabelProps struct {
 	For   string
 	Class string
@@ -161,16 +152,12 @@ func (p LabelProps) class() string {
 	return "goen-label " + p.Class
 }
 
-// BreadcrumbProps configures [Breadcrumb]. Label is the trail's own name for a
-// screen reader; the sentence belongs to internal/i18n, so the page passes it.
+// BreadcrumbProps carries Label as the trail's own name for a screen reader; the sentence belongs to internal/i18n.
 type BreadcrumbProps struct {
 	Label  string
 	Crumbs []Crumb
 }
 
-// CardProps configures [Card]. A card is a bordered panel; it carries no
-// heading of its own, because the heading belongs to the section around it and
-// the page decides its level.
 type CardProps struct {
 	Class string
 	Attrs templ.Attributes
@@ -183,12 +170,8 @@ func (p CardProps) class() string {
 	return "goen-card " + p.Class
 }
 
-// NoticeProps configures [Notice]: one sentence about what just happened.
-//
-// It renders a paragraph rather than a division because a handler test locates
-// the checkout's re-quote notice by the element that carries it, and because
-// one sentence is a paragraph. ID is set when something has to scroll to it or
-// describe it.
+// NoticeProps renders a paragraph, not a division: a handler test locates the
+// checkout's re-quote notice by its element.
 type NoticeProps struct {
 	Intent Intent
 	ID     string
@@ -206,12 +189,8 @@ func (p NoticeProps) class() string {
 	return out
 }
 
-// FieldProps configures [Input] and [Textarea].
-//
-// Invalid drives aria-invalid and the refused look together, and Describes
-// names the element carrying the reason. They travel as one Props because a
-// field marked invalid without a reason a reader can reach announces only that
-// something is wrong, which is the half a screen reader cannot work with.
+// FieldProps keeps Invalid and Describes together: a field marked invalid without a
+// reachable reason announces only that something is wrong.
 type FieldProps struct {
 	ID        string
 	Name      string
@@ -234,9 +213,8 @@ func (p FieldProps) class() string {
 	return out
 }
 
-// areaClass is the same field over several lines. It carries its own modifier
-// rather than letting the stylesheet name the element: a rule that qualifies a
-// class with a tag is one the class can no longer be moved out of.
+// areaClass carries its own modifier so the stylesheet never qualifies a class with
+// a tag, which would stop the class being moved out of it.
 func (p FieldProps) areaClass() string {
 	out := "goen-input goen-input--area"
 	if p.Invalid {
