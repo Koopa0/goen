@@ -32,10 +32,6 @@ var (
 	// home carrier.
 	ErrCarrier  = errors.New("admin: carrier cannot carry this order")
 	ErrQuantity = errors.New("admin: quantity out of range")
-	// ErrPaymentRequiresRefund means provider money cannot be attributed because
-	// the order's stock was already returned to sale. The reconciliation alarm
-	// stays open until staff refund at Stripe and choose the safe-release outcome.
-	ErrPaymentRequiresRefund = errors.New("admin: payment must be refunded before reconciliation")
 	// ErrPaidCancel is the status form asked to cancel a paid order. A paid
 	// order is cancelled only by refunding it before shipment.
 	ErrPaidCancel = errors.New("admin: a paid order is cancelled by refunding it before shipment")
@@ -43,45 +39,6 @@ var (
 	// accepted and has not settled; the order stays open until a resume sees it land.
 	ErrRefundUnsettled = errors.New("admin: the refund is recorded and has not settled")
 )
-
-// completePaymentResolution is the operator's explicit conclusion after a
-// provider-complete Checkout Session had no capture outcome goen could apply.
-// Paid and safe-to-retry are financially opposite facts.
-type completePaymentResolution uint8
-
-const (
-	completePaymentResolutionUnknown completePaymentResolution = iota
-	completePaymentPaid
-	// completePaymentUnpaidOrRefunded releases the gate only after staff confirm
-	// that Stripe took no money or that every cent was returned.
-	completePaymentUnpaidOrRefunded
-)
-
-func parseCompletePaymentResolution(s string) (completePaymentResolution, bool) {
-	switch strings.TrimSpace(s) {
-	case "paid":
-		return completePaymentPaid, true
-	case "unpaid_or_refunded":
-		return completePaymentUnpaidOrRefunded, true
-	default:
-		return completePaymentResolutionUnknown, false
-	}
-}
-
-func (r completePaymentResolution) auditValue() string {
-	switch r {
-	case completePaymentPaid:
-		return "paid_attributed"
-	case completePaymentUnpaidOrRefunded:
-		return "unpaid_or_fully_refunded"
-	default:
-		return "invalid"
-	}
-}
-
-func paymentEventSafeReleaseSubmitted(s string) bool {
-	return strings.TrimSpace(s) == "fully_refunded_or_accounted"
-}
 
 const PageSize = 50
 

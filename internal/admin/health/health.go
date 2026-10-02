@@ -1,13 +1,17 @@
-package admin
+// Package health is the back office's worker and payment health page and the
+// reconciliation doors it offers: what is stuck, what money needs a person.
+package health
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
@@ -16,6 +20,27 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
 )
+
+var (
+	ErrNotFound = errors.New("health: not found")
+	ErrInvalid  = errors.New("health: invalid input")
+	// ErrPaymentRequiresRefund means provider money cannot be attributed because
+	// the order's stock was already returned to sale. The reconciliation alarm
+	// stays open until staff refund at Stripe and choose the safe-release outcome.
+	ErrPaymentRequiresRefund = errors.New("health: payment must be refunded before reconciliation")
+)
+
+type Store struct {
+	pool *pgxpool.Pool
+	q    *db.Queries
+}
+
+func NewStore(pool *pgxpool.Pool) *Store {
+	if pool == nil {
+		panic("health: NewStore requires a pool")
+	}
+	return &Store{pool: pool, q: db.New(pool)}
+}
 
 // Each threshold is a MULTIPLE of its worker's interval, so a healthy gap cannot alarm.
 const (

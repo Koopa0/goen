@@ -28,6 +28,7 @@ import (
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/admin/audit"
+	"github.com/koopa0/goen/internal/admin/health"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/db/dbtest"
@@ -1743,7 +1744,7 @@ func TestAPaidOrderWhoseInvoiceDueWasLostIsOnTheHealthPage(t *testing.T) {
 	spendCreditOnOrder(t, creditPaidID, -credit)
 	owing, _ := order(t, 70000)
 
-	backOffice := admin.NewStore(adminRolePool(t), admin.NewRefunder(""), nil, nil)
+	backOffice := health.NewStore(adminRolePool(t))
 	listed := func(number string) bool {
 		t.Helper()
 		orders, total, err := backOffice.UninvoicedOrders(ctx, 0)
@@ -2749,9 +2750,9 @@ func TestPaidCompleteResolutionCannotOpenSecondSession(t *testing.T) {
 		`SELECT record_complete_payment($1, $2, $3)`, orderID, providerRef, amount); err != nil {
 		t.Fatalf("record complete payment: %v", err)
 	}
-	backOffice := admin.NewStore(pool, admin.NewRefunder(""), nil, nil)
+	backOffice := health.NewStore(pool)
 	if err := backOffice.ReconcileCompletePayment(
-		ctx, providerRef, admin.CompletePaymentPaid,
+		ctx, providerRef, health.CompletePaymentPaid,
 	); !errors.Is(err, audit.ErrNoActor) {
 		t.Fatalf("paid attribution without an auditable actor = %v, want ErrNoActor", err)
 	}
@@ -2779,7 +2780,7 @@ func TestPaidCompleteResolutionCannotOpenSecondSession(t *testing.T) {
 	}
 	adminCtx := account.WithUser(ctx, account.User{ID: actorID.String(), Role: "admin"})
 	if err := backOffice.ReconcileCompletePayment(
-		adminCtx, providerRef, admin.CompletePaymentPaid,
+		adminCtx, providerRef, health.CompletePaymentPaid,
 	); err != nil {
 		t.Fatalf("attribute complete payment as paid: %v", err)
 	}
@@ -2959,15 +2960,15 @@ func TestAdmittedCompleteSessionsBecomeVisibleAndResolvable(t *testing.T) {
 					oldStatus, oldIntent, originalAmount)
 			}
 
-			backOffice := admin.NewStore(pool, admin.NewRefunder(""), nil, nil)
-			health, err := backOffice.WorkerHealth(
+			backOffice := health.NewStore(pool)
+			page, err := backOffice.WorkerHealth(
 				ctx, outbox.NewStore(pool, slog.New(slog.DiscardHandler)),
 			)
 			if err != nil {
 				t.Fatalf("read health: %v", err)
 			}
 			visible := false
-			for _, issue := range health.UnreconciledCompletePayments {
+			for _, issue := range page.UnreconciledCompletePayments {
 				if issue.ProviderRef == oldSession && issue.OrderNumber == number {
 					visible = true
 				}
@@ -2985,7 +2986,7 @@ func TestAdmittedCompleteSessionsBecomeVisibleAndResolvable(t *testing.T) {
 			}
 			adminCtx := account.WithUser(ctx, account.User{ID: actorID.String(), Role: "admin"})
 			if err := backOffice.ReconcileCompletePayment(
-				adminCtx, oldSession, admin.CompletePaymentUnpaidOrRefunded,
+				adminCtx, oldSession, health.CompletePaymentUnpaidOrRefunded,
 			); err != nil {
 				t.Fatalf("release complete attempt: %v", err)
 			}
@@ -3026,18 +3027,18 @@ func TestPaymentReconciliationPinsExpiredStock(t *testing.T) {
 	}
 	for _, tt := range []struct {
 		name             string
-		resolution       admin.CompletePaymentResolution
+		resolution       health.CompletePaymentResolution
 		wantPayment      string
 		wantReservation  string
 		secondConstraint string
 	}{
 		{
-			name: "paid attribution keeps stock for fulfilment", resolution: admin.CompletePaymentPaid,
+			name: "paid attribution keeps stock for fulfilment", resolution: health.CompletePaymentPaid,
 			wantPayment: "succeeded", wantReservation: "held",
 			secondConstraint: "inventory_reservation_committed_no_release",
 		},
 		{
-			name: "unpaid or refunded releases stock", resolution: admin.CompletePaymentUnpaidOrRefunded,
+			name: "unpaid or refunded releases stock", resolution: health.CompletePaymentUnpaidOrRefunded,
 			wantPayment: "reconciled", wantReservation: "released",
 		},
 	} {
@@ -3083,7 +3084,7 @@ func TestPaymentReconciliationPinsExpiredStock(t *testing.T) {
 				t.Fatalf("create operator: %v", err)
 			}
 			adminCtx := account.WithUser(ctx, account.User{ID: actorID.String(), Role: "admin"})
-			if err := admin.NewStore(pool, admin.NewRefunder(""), nil, nil).
+			if err := health.NewStore(pool).
 				ReconcileCompletePayment(adminCtx, providerRef, tt.resolution); err != nil {
 				t.Fatalf("resolve complete payment: %v", err)
 			}
@@ -3232,12 +3233,12 @@ func TestReleasedStockMakesLateMoneyARefundCase(t *testing.T) {
 			t.Fatalf("create operator: %v", err)
 		}
 		adminCtx := account.WithUser(ctx, account.User{ID: actorID.String(), Role: "admin"})
-		backOffice := admin.NewStore(pool, admin.NewRefunder(""), nil, nil)
+		backOffice := health.NewStore(pool)
 		paidErr := backOffice.ReconcileCompletePayment(
-			adminCtx, providerRef, admin.CompletePaymentPaid,
+			adminCtx, providerRef, health.CompletePaymentPaid,
 		)
 		pgErr, ok := errors.AsType[*pgconn.PgError](paidErr)
-		if !errors.Is(paidErr, admin.ErrPaymentRequiresRefund) || !ok ||
+		if !errors.Is(paidErr, health.ErrPaymentRequiresRefund) || !ok ||
 			pgErr.ConstraintName != "payments_capture_refuses_released_stock" {
 			t.Fatalf("paid attribution after stock release = %v, want released-stock refusal", paidErr)
 		}
@@ -3257,14 +3258,14 @@ func TestReleasedStockMakesLateMoneyARefundCase(t *testing.T) {
 			t.Fatalf("refused admin attribution = %q/committed %v/effects %d, "+
 				"want requires_reconciliation/false/0", status, committed, effects)
 		}
-		health, err := backOffice.WorkerHealth(
+		page, err := backOffice.WorkerHealth(
 			adminCtx, outbox.NewStore(pool, slog.New(slog.DiscardHandler)),
 		)
 		if err != nil {
 			t.Fatalf("read health after refused attribution: %v", err)
 		}
 		visibleAsRefundOnly := false
-		for _, issue := range health.UnreconciledCompletePayments {
+		for _, issue := range page.UnreconciledCompletePayments {
 			if issue.ProviderRef == providerRef && !issue.PaidAttributionAllowed {
 				visibleAsRefundOnly = true
 			}
@@ -3275,7 +3276,7 @@ func TestReleasedStockMakesLateMoneyARefundCase(t *testing.T) {
 
 		// After an actual provider refund, this is the only permitted conclusion.
 		if err := backOffice.ReconcileCompletePayment(
-			adminCtx, providerRef, admin.CompletePaymentUnpaidOrRefunded,
+			adminCtx, providerRef, health.CompletePaymentUnpaidOrRefunded,
 		); err != nil {
 			t.Fatalf("release after confirmed refund: %v", err)
 		}
@@ -4136,15 +4137,15 @@ func TestAnUnsettledCompletedSessionIsRecordedForAPerson(t *testing.T) {
 		t.Errorf("object_ref = %q, want the known session %q", objectRef, session)
 	}
 
-	backOffice := admin.NewStore(pool, admin.NewRefunder(""), nil, nil)
-	health, err := backOffice.WorkerHealth(
+	backOffice := health.NewStore(pool)
+	page, err := backOffice.WorkerHealth(
 		ctx, outbox.NewStore(pool, slog.New(slog.DiscardHandler)),
 	)
 	if err != nil {
 		t.Fatalf("read health: %v", err)
 	}
 	var listed bool
-	for _, event := range health.UnreconciledEvents {
+	for _, event := range page.UnreconciledEvents {
 		if event.EventID == eventID && event.Ref == session {
 			listed = true
 			break
@@ -5061,9 +5062,9 @@ func TestCompleteSessionShowsProcessingNotPayAgain(t *testing.T) {
 			t.Fatalf("create operator: %v", err)
 		}
 		adminCtx := account.WithUser(ctx, account.User{ID: actorID.String(), Role: "admin"})
-		backOffice := admin.NewStore(pool, admin.NewRefunder(""), nil, nil)
+		backOffice := health.NewStore(pool)
 		if err := backOffice.ReconcileCompletePayment(
-			adminCtx, sessionID, admin.CompletePaymentUnpaidOrRefunded,
+			adminCtx, sessionID, health.CompletePaymentUnpaidOrRefunded,
 		); err != nil {
 			t.Fatalf("reconcile complete payment: %v", err)
 		}
