@@ -3,6 +3,7 @@
 package account_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -50,7 +51,7 @@ func TestAWishlistRowOffersTheCartOnlyForAProductWithOneVariant(t *testing.T) {
 	if err := pool.QueryRow(ctx, `
 		INSERT INTO product_variants (product_id, sku, price_cents, is_active, position)
 		VALUES ($1, $2, 199900, true, 1) RETURNING id`,
-		productID, "WISH2-"+uuid.NewString()[:8]).Scan(&second); err != nil {
+		productID, "WISH2-"+strings.ToUpper(uuid.NewString()[:8])).Scan(&second); err != nil {
 		t.Fatalf("add a second variant: %v", err)
 	}
 	if _, err := pool.Exec(ctx,
