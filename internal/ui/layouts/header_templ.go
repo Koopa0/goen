@@ -518,8 +518,9 @@ func Header(p Page) templ.Component {
 
 // department is a root category that has sub-categories: its link, and the
 // panel that opens under the header on hover or keyboard focus. The panel is
-// plain markup shown by CSS (:hover, :focus-within), so it needs no script to
-// open and its links are in the tab order right after the department's own.
+// plain markup shown by CSS, so it needs no script to open: on hover, and under
+// :focus-within until goen.js is running, when ArrowDown on the department's
+// link opens it instead and its links are out of the tab order until then.
 // The photograph is the category's embedded one, and a department without one
 // shows the caption link alone.
 func department(p Page, n NavItem) templ.Component {
@@ -550,7 +551,7 @@ func department(p Page, n NavItem) templ.Component {
 		var templ_7745c5c3_Var26 string
 		templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.ResolveAttributeValue(p.ariaCurrent(n))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/header.templ`, Line: 134, Col: 55}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/header.templ`, Line: 135, Col: 55}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var26)
 		if templ_7745c5c3_Err != nil {
@@ -563,7 +564,7 @@ func department(p Page, n NavItem) templ.Component {
 		var templ_7745c5c3_Var27 templ.SafeURL
 		templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(n.Href))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/header.templ`, Line: 134, Col: 82}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/header.templ`, Line: 135, Col: 82}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var27))
 		if templ_7745c5c3_Err != nil {
@@ -576,7 +577,7 @@ func department(p Page, n NavItem) templ.Component {
 		var templ_7745c5c3_Var28 string
 		templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.JoinStringErrs(n.Name)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/header.templ`, Line: 134, Col: 93}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/header.templ`, Line: 135, Col: 93}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var28))
 		if templ_7745c5c3_Err != nil {
@@ -594,7 +595,7 @@ func department(p Page, n NavItem) templ.Component {
 			var templ_7745c5c3_Var29 templ.SafeURL
 			templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(c.Href))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/header.templ`, Line: 140, Col: 58}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/header.templ`, Line: 141, Col: 58}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var29))
 			if templ_7745c5c3_Err != nil {
@@ -607,7 +608,7 @@ func department(p Page, n NavItem) templ.Component {
 			var templ_7745c5c3_Var30 string
 			templ_7745c5c3_Var30, templ_7745c5c3_Err = templ.JoinStringErrs(c.Name)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/header.templ`, Line: 140, Col: 69}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/header.templ`, Line: 141, Col: 69}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var30))
 			if templ_7745c5c3_Err != nil {
@@ -625,7 +626,7 @@ func department(p Page, n NavItem) templ.Component {
 		var templ_7745c5c3_Var31 templ.SafeURL
 		templ_7745c5c3_Var31, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(n.Href))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/header.templ`, Line: 144, Col: 57}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/header.templ`, Line: 145, Col: 57}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var31))
 		if templ_7745c5c3_Err != nil {
@@ -643,7 +644,7 @@ func department(p Page, n NavItem) templ.Component {
 			var templ_7745c5c3_Var32 string
 			templ_7745c5c3_Var32, templ_7745c5c3_Err = templ.ResolveAttributeValue(src)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/header.templ`, Line: 146, Col: 45}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/header.templ`, Line: 147, Col: 45}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var32)
 			if templ_7745c5c3_Err != nil {
@@ -656,7 +657,7 @@ func department(p Page, n NavItem) templ.Component {
 			var templ_7745c5c3_Var33 string
 			templ_7745c5c3_Var33, templ_7745c5c3_Err = templ.ResolveAttributeValue(srcset)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/header.templ`, Line: 146, Col: 63}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/header.templ`, Line: 147, Col: 63}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var33)
 			if templ_7745c5c3_Err != nil {
@@ -674,7 +675,7 @@ func department(p Page, n NavItem) templ.Component {
 		var templ_7745c5c3_Var34 string
 		templ_7745c5c3_Var34, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf(i18n.T(ctx, i18n.KeyBrowseDepartment), n.Name))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/header.templ`, Line: 148, Col: 98}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/header.templ`, Line: 149, Col: 98}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var34))
 		if templ_7745c5c3_Err != nil {
@@ -743,7 +744,7 @@ func cartLink() templ.Component {
 				var templ_7745c5c3_Var37 string
 				templ_7745c5c3_Var37, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.Itoa(count))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/header.templ`, Line: 173, Col: 73}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/header.templ`, Line: 174, Col: 73}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var37))
 				if templ_7745c5c3_Err != nil {
@@ -835,7 +836,7 @@ func languageMenu(class string) templ.Component {
 		var templ_7745c5c3_Var41 string
 		templ_7745c5c3_Var41, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyLanguage))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/header.templ`, Line: 191, Col: 61}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/header.templ`, Line: 192, Col: 61}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var41))
 		if templ_7745c5c3_Err != nil {
@@ -848,7 +849,7 @@ func languageMenu(class string) templ.Component {
 		var templ_7745c5c3_Var42 string
 		templ_7745c5c3_Var42, templ_7745c5c3_Err = templ.ResolveAttributeValue(current.Tag())
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/header.templ`, Line: 192, Col: 60}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/header.templ`, Line: 193, Col: 60}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var42)
 		if templ_7745c5c3_Err != nil {
@@ -861,7 +862,7 @@ func languageMenu(class string) templ.Component {
 		var templ_7745c5c3_Var43 string
 		templ_7745c5c3_Var43, templ_7745c5c3_Err = templ.JoinStringErrs(current.Short())
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/header.templ`, Line: 192, Col: 80}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/header.templ`, Line: 193, Col: 80}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var43))
 		if templ_7745c5c3_Err != nil {
@@ -874,7 +875,7 @@ func languageMenu(class string) templ.Component {
 		var templ_7745c5c3_Var44 string
 		templ_7745c5c3_Var44, templ_7745c5c3_Err = templ.ResolveAttributeValue(returnPath(ctx))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/header.templ`, Line: 195, Col: 61}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/header.templ`, Line: 196, Col: 61}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var44)
 		if templ_7745c5c3_Err != nil {
@@ -887,7 +888,7 @@ func languageMenu(class string) templ.Component {
 		var templ_7745c5c3_Var45 string
 		templ_7745c5c3_Var45, templ_7745c5c3_Err = templ.ResolveAttributeValue(i18n.T(ctx, i18n.KeyLanguage))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/header.templ`, Line: 196, Col: 63}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/header.templ`, Line: 197, Col: 63}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var45)
 		if templ_7745c5c3_Err != nil {
@@ -905,7 +906,7 @@ func languageMenu(class string) templ.Component {
 			var templ_7745c5c3_Var46 string
 			templ_7745c5c3_Var46, templ_7745c5c3_Err = templ.ResolveAttributeValue(l.Tag())
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/header.templ`, Line: 202, Col: 21}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/header.templ`, Line: 203, Col: 21}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var46)
 			if templ_7745c5c3_Err != nil {
@@ -918,7 +919,7 @@ func languageMenu(class string) templ.Component {
 			var templ_7745c5c3_Var47 string
 			templ_7745c5c3_Var47, templ_7745c5c3_Err = templ.ResolveAttributeValue(l.Tag())
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/header.templ`, Line: 203, Col: 20}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/header.templ`, Line: 204, Col: 20}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var47)
 			if templ_7745c5c3_Err != nil {
@@ -931,7 +932,7 @@ func languageMenu(class string) templ.Component {
 			var templ_7745c5c3_Var48 string
 			templ_7745c5c3_Var48, templ_7745c5c3_Err = templ.ResolveAttributeValue(pressed(l == current))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/header.templ`, Line: 204, Col: 42}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/header.templ`, Line: 205, Col: 42}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var48)
 			if templ_7745c5c3_Err != nil {
@@ -944,7 +945,7 @@ func languageMenu(class string) templ.Component {
 			var templ_7745c5c3_Var49 string
 			templ_7745c5c3_Var49, templ_7745c5c3_Err = templ.JoinStringErrs(l.Label())
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/header.templ`, Line: 206, Col: 23}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/header.templ`, Line: 207, Col: 23}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var49))
 			if templ_7745c5c3_Err != nil {
@@ -1025,7 +1026,7 @@ func languageSwitch(class, zh, en string) templ.Component {
 		var templ_7745c5c3_Var53 string
 		templ_7745c5c3_Var53, templ_7745c5c3_Err = templ.ResolveAttributeValue(returnPath(ctx))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/header.templ`, Line: 225, Col: 60}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/header.templ`, Line: 226, Col: 60}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var53)
 		if templ_7745c5c3_Err != nil {
@@ -1038,7 +1039,7 @@ func languageSwitch(class, zh, en string) templ.Component {
 		var templ_7745c5c3_Var54 string
 		templ_7745c5c3_Var54, templ_7745c5c3_Err = templ.ResolveAttributeValue(i18n.T(ctx, i18n.KeyLanguage))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/header.templ`, Line: 229, Col: 80}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/header.templ`, Line: 230, Col: 80}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var54)
 		if templ_7745c5c3_Err != nil {
@@ -1056,7 +1057,7 @@ func languageSwitch(class, zh, en string) templ.Component {
 			var templ_7745c5c3_Var55 string
 			templ_7745c5c3_Var55, templ_7745c5c3_Err = templ.ResolveAttributeValue(l.Tag())
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/header.templ`, Line: 235, Col: 20}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/header.templ`, Line: 236, Col: 20}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var55)
 			if templ_7745c5c3_Err != nil {
@@ -1069,7 +1070,7 @@ func languageSwitch(class, zh, en string) templ.Component {
 			var templ_7745c5c3_Var56 string
 			templ_7745c5c3_Var56, templ_7745c5c3_Err = templ.ResolveAttributeValue(l.Tag())
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/header.templ`, Line: 236, Col: 19}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/header.templ`, Line: 237, Col: 19}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var56)
 			if templ_7745c5c3_Err != nil {
@@ -1082,7 +1083,7 @@ func languageSwitch(class, zh, en string) templ.Component {
 			var templ_7745c5c3_Var57 string
 			templ_7745c5c3_Var57, templ_7745c5c3_Err = templ.ResolveAttributeValue(pressed(l == current))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/header.templ`, Line: 237, Col: 41}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/header.templ`, Line: 238, Col: 41}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var57)
 			if templ_7745c5c3_Err != nil {
@@ -1096,7 +1097,7 @@ func languageSwitch(class, zh, en string) templ.Component {
 				var templ_7745c5c3_Var58 string
 				templ_7745c5c3_Var58, templ_7745c5c3_Err = templ.JoinStringErrs(en)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/header.templ`, Line: 240, Col: 10}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/header.templ`, Line: 241, Col: 10}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var58))
 				if templ_7745c5c3_Err != nil {
@@ -1106,7 +1107,7 @@ func languageSwitch(class, zh, en string) templ.Component {
 				var templ_7745c5c3_Var59 string
 				templ_7745c5c3_Var59, templ_7745c5c3_Err = templ.JoinStringErrs(zh)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/header.templ`, Line: 242, Col: 10}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/header.templ`, Line: 243, Col: 10}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var59))
 				if templ_7745c5c3_Err != nil {

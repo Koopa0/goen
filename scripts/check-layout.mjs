@@ -1791,6 +1791,49 @@ const STEPPER_FOCUS_PROBE = `(() => {
   }
 }
 
+// A department's panel is not part of the tab order until it is opened: with
+// focus on the department's link its sub-links are not rendered, ArrowDown opens
+// the panel and moves into it, and Escape closes it and returns to the link.
+{
+  const label = 'department panel 1440';
+  await send(ws, 'Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
+  const target = ORIGIN + '/';
+  await send(ws, 'Page.navigate', { url: target });
+  await settled(ws, label, target);
+  const key = async (name, code) => {
+    for (const type of ['keyDown', 'keyUp']) {
+      await send(ws, 'Input.dispatchKeyEvent', { type, key: name, code: name, windowsVirtualKeyCode: code });
+    }
+  };
+  const state = () => evalPage(`(() => {
+    const dept = document.querySelector('.goen-dept');
+    const link = dept && dept.querySelector(':scope > a');
+    const panel = dept && dept.querySelector('.goen-dept__panel');
+    if (!link || !panel) return { skipped: true };
+    return {
+      skipped: false,
+      shown: [...panel.querySelectorAll('a')].filter(a => a.getClientRects().length > 0).length,
+      expanded: link.getAttribute('aria-expanded'),
+      inPanel: panel.contains(document.activeElement),
+      onLink: document.activeElement === link,
+    };
+  })()`);
+  await evalPage(`(() => { const a = document.querySelector('.goen-dept > a'); if (a) a.focus(); })()`);
+  const resting = await state();
+  if (resting.skipped) console.log(`${label.padEnd(24)} no department panel on this catalogue, skipped`);
+  else {
+    if (!resting.onLink) fail(label, 'the department link did not take focus');
+    if (resting.shown !== 0) fail(label, `${resting.shown} sub-links are rendered, so tab stops, with focus only on the department link`);
+    await key('ArrowDown', 40);
+    const opened = await state();
+    if (!opened.inPanel || opened.expanded !== 'true' || opened.shown === 0) fail(label, 'ArrowDown did not open the panel and move into it: ' + JSON.stringify(opened));
+    await key('Escape', 27);
+    const closed = await state();
+    if (!closed.onLink || closed.shown !== 0 || closed.expanded !== 'false') fail(label, 'Escape did not close the panel and return to the link: ' + JSON.stringify(closed));
+    console.log(`${label.padEnd(24)} panel closed on focus, opens with ArrowDown, Escape returns ok`);
+  }
+}
+
 // The served transition rules must honor reduced motion, including pseudo-
 // elements and native details content that the global element override misses.
 for (const motion of ['no-preference', 'reduce']) {

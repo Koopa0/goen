@@ -318,3 +318,20 @@ func TestOneProductOffersWhatToCompareItWith(t *testing.T) {
 		t.Error("a comparison of two still offers suggestions")
 	}
 }
+
+// TestTheEmptyComparisonLinksToWhereBoxesAreOffered: the empty state tells the
+// shopper to pick products on a list, so the link must be to one that has the
+// box to tick; the home page has none.
+func TestTheEmptyComparisonLinksToWhereBoxesAreOffered(t *testing.T) {
+	t.Parallel()
+
+	page := layouts.Page{Title: "比較"}
+	with := renderToString(t, Compare(page, CompareView{StartSlug: "tech"}))
+	if !strings.Contains(with, `<a href="/c/tech">`+i18n.T(i18n.WithLocale(t.Context(), i18n.ZhHant), i18n.KeyCompareTooFewLink)+`</a>`) {
+		t.Error("the empty comparison does not link to the department that offers comparison")
+	}
+	without := renderToString(t, Compare(page, CompareView{}))
+	if !strings.Contains(without, `<a href="/">`) {
+		t.Error("with no department offering comparison the link should fall back to the home page")
+	}
+}

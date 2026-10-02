@@ -125,8 +125,9 @@ templ Header(p Page) {
 
 // department is a root category that has sub-categories: its link, and the
 // panel that opens under the header on hover or keyboard focus. The panel is
-// plain markup shown by CSS (:hover, :focus-within), so it needs no script to
-// open and its links are in the tab order right after the department's own.
+// plain markup shown by CSS, so it needs no script to open: on hover, and under
+// :focus-within until goen.js is running, when ArrowDown on the department's
+// link opens it instead and its links are out of the tab order until then.
 // The photograph is the category's embedded one, and a department without one
 // shows the caption link alone.
 templ department(p Page, n NavItem) {
