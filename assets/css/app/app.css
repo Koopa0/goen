@@ -1526,6 +1526,7 @@ h3 {
   flex-direction: column;
   gap: 8px;
   min-width: 0;
+  position: relative;
 }
 
 .goen-tile {
@@ -1649,15 +1650,24 @@ h3 {
 }
 
 /* Outside the card, never inside: the whole card is one link, and a control
-   nested in an anchor is neither clickable nor valid. */
+   nested in an anchor is neither clickable nor valid. It sits on the
+   photograph's corner rather than in a row of its own above every card. */
 .goen-tile__compare {
   align-items: center;
-  color: var(--fg-muted);
+  background: var(--n-0);
+  border: 1px solid var(--n-200);
+  border-radius: var(--r-md);
+  color: var(--n-700);
   cursor: pointer;
   display: flex;
   font-size: var(--fs-12);
   gap: 8px;
   min-height: 44px;
+  padding: 0 0.625rem;
+  position: absolute;
+  right: 0.5rem;
+  top: 0.5rem;
+  z-index: 1;
 }
 
 .goen-check {
@@ -1739,8 +1749,8 @@ h3 {
 }
 
 .goen-filters__shell {
-  border: 1px solid var(--border);
-  border-radius: var(--r-lg);
+  border-bottom: 1px solid var(--n-200);
+  border-top: 1px solid var(--n-200);
 }
 
 .goen-filters__shell-summary {
@@ -1752,7 +1762,6 @@ h3 {
   justify-content: space-between;
   list-style: none;
   min-height: 44px;
-  padding: 0 16px;
 }
 
 .goen-filters__shell-summary::-webkit-details-marker {
@@ -1784,7 +1793,7 @@ h3 {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  padding: 16px;
+  padding: 0 0 16px;
 }
 
 .goen-filters__title {
@@ -1933,10 +1942,11 @@ h3 {
 }
 
 .goen-filters__chip {
-  border: 1px solid var(--border);
+  background: var(--n-100);
   border-radius: var(--r-md);
-  font-size: var(--fs-12);
-  padding: 2px 8px;
+  color: var(--n-900);
+  font-size: var(--fs-13);
+  padding: 4px 10px;
 }
 
 .goen-filters__applied .ui-filterbar__clear {
@@ -1970,6 +1980,166 @@ h3 {
   color: var(--fg-muted);
   font-size: var(--fs-14);
   font-variant-numeric: tabular-nums;
+}
+
+/* The numbered pager: a row of squares that wraps rather than scrolls, the
+   current one inked. */
+.goen-pager--numbered {
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: center;
+}
+
+.goen-pager__page,
+.goen-pager__step {
+  align-items: center;
+  background: var(--n-0);
+  border: 1px solid var(--n-300);
+  border-radius: var(--r-md);
+  color: var(--n-700);
+  display: inline-flex;
+  font-size: var(--fs-14);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--fw-medium);
+  height: 2.75rem;
+  justify-content: center;
+  min-width: 2.75rem;
+  padding: 0 0.5rem;
+  text-decoration: none;
+}
+
+a.goen-pager__page:hover,
+a.goen-pager__step:hover {
+  background: var(--n-50);
+  color: var(--n-900);
+}
+
+.goen-pager__page[aria-current='page'] {
+  background: var(--n-900);
+  border-color: var(--n-900);
+  color: var(--n-0);
+}
+
+.goen-pager__step[aria-disabled='true'] {
+  opacity: 0.5;
+}
+
+.goen-pager__gap {
+  color: var(--n-500);
+  padding: 0 0.25rem;
+}
+
+/* The department head: the breadcrumb, the title and the sub-category chips on
+   the tone's ground, and from 1024 the department's photograph on the right
+   half. Below 1024 the photograph is dropped so the first product still starts
+   inside a phone's first screen. */
+.goen-pagehead__text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.goen-pagehead__photo {
+  display: none;
+}
+
+.goen-pagehead[data-tone] .ui-crumbs,
+.goen-pagehead[data-tone] .ui-crumbs__link,
+.goen-pagehead[data-tone] .ui-crumbs__sep {
+  color: var(--tone-muted);
+}
+
+.goen-pagehead[data-tone] .ui-crumbs__current {
+  color: var(--tone-text);
+}
+
+.goen-pagehead__chips,
+.goen-empty__links {
+  display: flex;
+  gap: 0.5rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* A phone's chips scroll sideways in one row; a wrapped second row would push
+   the first product down. */
+.goen-pagehead__chips {
+  margin-inline: -1rem;
+  overflow-x: auto;
+  padding-inline: 1rem;
+  scrollbar-width: none;
+}
+
+.goen-pagehead__chip {
+  align-items: center;
+  background: var(--n-0);
+  border: 1px solid var(--tone-rule, var(--n-200));
+  border-radius: var(--r-md);
+  color: var(--n-900);
+  display: inline-flex;
+  flex: none;
+  font-size: var(--fs-14);
+  font-weight: var(--fw-medium);
+  min-height: 2.75rem;
+  padding: 0 1rem;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.goen-pagehead__chip:hover {
+  background: var(--n-100);
+  color: var(--n-900);
+}
+
+.goen-pagehead__chip[aria-current='page'] {
+  background: var(--n-900);
+  border-color: var(--n-900);
+  color: var(--n-0);
+}
+
+[data-tone='ink'] .goen-pagehead__chip {
+  background: var(--tone-rule);
+  border-color: var(--tone-rule);
+  color: var(--tone-text);
+}
+
+[data-tone='ink'] .goen-pagehead__chip[aria-current='page'] {
+  background: var(--tone-text);
+  color: var(--n-900);
+}
+
+.goen-empty__links {
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.goen-listing__count {
+  color: var(--n-500);
+  font-size: var(--fs-14);
+  font-variant-numeric: tabular-nums;
+  margin: 0;
+}
+
+/* The lead row: four larger cards before the grid. A phone scrolls them
+   sideways and the 1024 grid lays them four across. */
+.goen-featured__grid {
+  display: flex;
+  gap: 1rem;
+  list-style: none;
+  margin: 0 calc(-1 * var(--page-gutter));
+  overflow-x: auto;
+  padding: 0 var(--page-gutter);
+  scroll-padding-inline: var(--page-gutter);
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+}
+
+.goen-featured__grid > li {
+  flex: 0 0 10rem;
+  scroll-snap-align: start;
 }
 
 /* The running-promotions strip above the deals grid. A campaign is a
@@ -2151,6 +2321,23 @@ h3 {
     flex-direction: row;
     justify-content: space-between;
   }
+
+  .goen-pager--numbered {
+    justify-content: center;
+  }
+
+  .goen-pagehead__chips {
+    margin-inline: -1.5rem;
+    padding-inline: 1.5rem;
+  }
+
+  .goen-featured__grid > li {
+    flex-basis: 14rem;
+  }
+
+  .goen-featured .goen-tile__media {
+    aspect-ratio: 3 / 4;
+  }
 }
 
 @media (min-width: 1024px) {
@@ -2161,6 +2348,39 @@ h3 {
 
   .goen-pagehead__title {
     font-size: var(--fs-ed-38);
+  }
+
+  .goen-pagehead:has(.goen-pagehead__photo) {
+    align-items: center;
+    display: grid;
+    gap: 2rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding-block: 2rem;
+  }
+
+  .goen-pagehead__chips {
+    flex-wrap: wrap;
+    margin-inline: 0;
+    overflow: visible;
+    padding-inline: 0;
+  }
+
+  .goen-pagehead__photo {
+    aspect-ratio: 3 / 2;
+    border-radius: var(--r-lg);
+    display: block;
+    max-height: 22rem;
+    object-fit: cover;
+    width: 100%;
+  }
+
+  .goen-featured__grid {
+    display: grid;
+    gap: 1.5rem;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    margin: 0;
+    overflow: visible;
+    padding: 0;
   }
 
   .goen-listing__layout {
@@ -3239,9 +3459,14 @@ h3 {
 
 .goen-pagehead[data-tone] {
   background: var(--tone-ground);
-  border-bottom: 1px solid var(--tone-rule);
   border-radius: var(--r-lg);
-  padding: 16px 20px;
+  padding: 1.25rem 1rem;
+}
+
+@media (min-width: 768px) {
+  .goen-pagehead[data-tone] {
+    padding: 2rem 1.5rem;
+  }
 }
 
 .goen-pagehead[data-tone] .goen-pagehead__title {

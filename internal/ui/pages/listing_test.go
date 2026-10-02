@@ -423,3 +423,141 @@ func TestTheFirstRowOfAListingLoadsItsPhotographsEagerly(t *testing.T) {
 		t.Error("FirstRowEager changed the caller's slice")
 	}
 }
+
+func shelf(n int) []ProductTile {
+	tiles := make([]ProductTile, 0, n)
+	for i := range n {
+		slug := fmt.Sprintf("p%d", i)
+		tiles = append(tiles, ProductTile{Slug: slug, Name: slug, PriceCents: 1000, Comparable: true, ImageURL: "/img/" + slug + ".webp", ImageAlt: slug})
+	}
+	return tiles
+}
+
+// A long shelf leads with four larger cards, and those four are not drawn a
+// second time in the grid below.
+func TestALongShelfLeadsWithFourCardsThatTheGridDoesNotRepeat(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	view := ListingView{Slug: "audio", Name: "Audio", Products: shelf(12), Total: 30, Page: 1, PageSize: 24}
+	html := renderToString(t, Listing(ListingMeta(ctx, view), view))
+
+	lead, grid, ok := strings.Cut(html, `class="goen-listing__layout"`)
+	if !ok || strings.Count(lead, `class="goen-featured__grid"`) != 1 {
+		t.Fatalf("no lead row before the layout:\n%s", html)
+	}
+	if got := strings.Count(lead, `class="goen-tile__cell"`); got != 4 {
+		t.Errorf("the lead row holds %d cards, want 4", got)
+	}
+	if got := strings.Count(grid, `class="goen-tile__cell"`); got != 8 {
+		t.Errorf("the grid holds %d cards, want the other 8", got)
+	}
+	if strings.Contains(grid, `value="p0"`) || !strings.Contains(grid, `value="p4"`) {
+		t.Error("the grid repeats a lead card or drops the first one after them")
+	}
+	if got := strings.Count(html, `fetchpriority="high"`); got != 1 {
+		t.Errorf("%d high-priority photographs, want 1 (the first lead card)", got)
+	}
+	if got := strings.Count(html, `form="compare-pick"`); got != 12 {
+		t.Errorf("%d compare boxes joined to the form, want all 12", got)
+	}
+}
+
+// Short shelves, filtered shelves and later pages have no lead row.
+func TestOnlyTheUnfilteredFirstPageOfALongShelfHasALeadRow(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	for name, view := range map[string]ListingView{
+		"eight products":  {Slug: "a", Name: "A", Products: shelf(8), Total: 8, Page: 1},
+		"filtered":        {Slug: "a", Name: "A", Products: shelf(12), Total: 30, Page: 1, Filtered: true},
+		"the second page": {Slug: "a", Name: "A", Products: shelf(12), Total: 30, Page: 2},
+	} {
+		html := renderToString(t, Listing(ListingMeta(ctx, view), view))
+		if strings.Contains(html, "goen-featured") {
+			t.Errorf("%s: has a lead row", name)
+		}
+		if got := strings.Count(html, `class="goen-tile__cell"`); got != len(view.Products) {
+			t.Errorf("%s: the grid holds %d cards, want all %d", name, got, len(view.Products))
+		}
+	}
+}
+
+// The head offers the department's sub-categories, marks the one the shopper is
+// in, and draws the department's photograph only when it has one.
+func TestTheHeadOffersItsSubcategoriesAndPhotograph(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	view := ListingView{
+		Slug: "cases", Name: "Cases", Crumbs: []Crumb{{Slug: "accessories", Name: "Accessories"}},
+		Theme: &Theme{
+			Tone:     ToneMist,
+			Photo:    Photo{URL: "/img/d.webp", Alt: "a desk"},
+			Children: []Crumb{{Slug: "chargers", Name: "Chargers"}, {Slug: "cases", Name: "Cases"}},
+		},
+	}
+	html := renderToString(t, Listing(ListingMeta(ctx, view), view))
+	if !strings.Contains(html, `<a class="goen-pagehead__chip" href="/c/chargers">Chargers</a>`) {
+		t.Error("a sibling sub-category is not a chip")
+	}
+	if !strings.Contains(html, `<a class="goen-pagehead__chip" href="/c/cases" aria-current="page">Cases</a>`) {
+		t.Error("the current sub-category is not marked")
+	}
+	if !strings.Contains(html, `class="goen-pagehead__photo" src="/img/d.webp"`) || !strings.Contains(html, `alt="a desk"`) {
+		t.Error("the department photograph is not drawn with its alt text")
+	}
+
+	bare := ListingView{Slug: "audio", Name: "Audio"}
+	if h := renderToString(t, Listing(ListingMeta(ctx, bare), bare)); strings.Contains(h, "goen-pagehead__photo") || strings.Contains(h, "goen-pagehead__chips") {
+		t.Error("a head with no photograph or children draws them anyway")
+	}
+}
+
+// A run of pages stays one row: both ends, the neighbours of the current page,
+// and a gap wherever pages are left out.
+func TestThePagerKeepsBothEndsAndTheNeighboursOfTheCurrentPage(t *testing.T) {
+	t.Parallel()
+	href := func(n int) string { return fmt.Sprintf("?page=%d", n) }
+	label := func(links []PageLink) string {
+		var parts []string
+		for _, l := range links {
+			switch {
+			case l.Gap:
+				parts = append(parts, "…")
+			case l.Current:
+				parts = append(parts, "["+l.Label+"]")
+			default:
+				parts = append(parts, l.Label)
+			}
+		}
+		return strings.Join(parts, " ")
+	}
+	for _, c := range []struct {
+		current, pages int
+		want           string
+	}{
+		{1, 1, "[1]"},
+		{2, 3, "1 [2] 3"},
+		{1, 9, "[1] 2 … 9"},
+		{5, 9, "1 … 4 [5] 6 … 9"},
+		{9, 9, "1 … 8 [9]"},
+	} {
+		if got := label(pageWindow(c.current, c.pages, href)); got != c.want {
+			t.Errorf("page %d of %d: %q, want %q", c.current, c.pages, got, c.want)
+		}
+	}
+}
+
+// A search that finds nothing sends the shopper to the departments, which the
+// header already lists.
+func TestAnEmptySearchSuggestsTheDepartments(t *testing.T) {
+	t.Parallel()
+	ctx := layouts.WithTopNav(i18n.WithLocale(t.Context(), i18n.ZhHant), []layouts.NavItem{
+		{Slug: "tech", Name: "3C", Href: "/c/tech"}, {Slug: "fashion", Name: "服飾", Href: "/c/fashion"},
+	})
+	view := SearchView{Query: "zzqxv"}
+	html := renderComponent(t, ctx, Search(layouts.Page{}, view))
+	for _, want := range []string{`<a class="goen-pagehead__chip" href="/c/tech">3C</a>`, `href="/c/fashion">服飾</a>`, "搜尋「zzqxv」"} {
+		if !strings.Contains(html, want) {
+			t.Errorf("the empty search lacks %q:\n%s", want, html)
+		}
+	}
+}

@@ -48,6 +48,15 @@ LEFT JOIN LATERAL (
 LEFT JOIN media_objects m ON m.digest = photo.image_key
 WHERE self.depth = 0;
 
+-- The direct children of the category with slug $1, in shelf order: the chips
+-- under a department's title.
+-- name: CategoryChildren :many
+SELECT c.slug, localized_name(c.name, c.name_en, @locale::text) AS name
+FROM categories c
+JOIN categories p ON p.id = c.parent_id
+WHERE p.slug = $1
+ORDER BY c.position, c.name, c.id;
+
 -- Every category in the subtree rooted at $1, including $1 itself.
 -- name: CategoryDescendants :many
 WITH RECURSIVE d AS (

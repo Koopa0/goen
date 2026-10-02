@@ -11,7 +11,7 @@ import (
 // compareForm submits the ticked slugs to /compare. A GET, because a
 // comparison writes nothing — the set is the URL and there is no state to keep.
 templ compareForm() {
-	<form class="goen-compare-pick" method="get" action="/compare">
+	<form class="goen-compare-pick" id="compare-pick" method="get" action="/compare">
 		{ children... }
 		<div class="goen-compare-pick__go">
 			@components.Button(components.ButtonProps{
@@ -32,7 +32,7 @@ templ tileCard(t ProductTile) {
 		// Outside the card, never inside: the whole card is one link, and a
 		// control nested in an anchor is neither clickable nor valid.
 		<label class="goen-tile__compare">
-			<input type="checkbox" name="p" value={ t.Slug } class="goen-check" aria-label={ t.CompareLabel(ctx) }/>
+			<input type="checkbox" name="p" value={ t.Slug } class="goen-check" aria-label={ t.CompareLabel(ctx) } form="compare-pick"/>
 			<span aria-hidden="true">{ i18n.T(ctx, i18n.KeyCompareAdd) }</span>
 		</label>
 	}
