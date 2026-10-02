@@ -81,7 +81,7 @@ func (s *Store) Customer(ctx context.Context, id string, actor uuid.NullUUID) (
 
 	// WHO was looked at, never what was read: audit_events outlives an erasure.
 	if auditErr := audit.In(ctx, q, audit.Event{
-		Action: audit.ActionViewCustomer, Table: "users", ID: nullableID(uid),
+		Action: audit.ActionViewCustomer, Table: "users", ID: audit.EntityID(uid),
 		Before: nil, After: map[string]any{"user_id": id},
 	}); auditErr != nil {
 		return admin.CustomerView{}, auditErr

@@ -59,18 +59,9 @@ func (s *Store) Events(ctx context.Context, after ...string) (admin.AuditView, e
 	// The trail has its own size, and this is the list where silence costs
 	// most: a page that shows 200 of fifty thousand without saying so is a
 	// record somebody may take for the whole record.
-	rows, more := web.PageOf(rows, maxRows)
-	view := admin.AuditView{}
-	if resumed {
-		view.First = scope
-	}
-	if len(rows) == 0 {
-		view.PastEnd = resumed
-		return view, nil
-	}
-	if more {
-		view.Next, _ = web.NextKeysetURL(scope, rows[len(rows)-1].PageCursor)
-	}
+	rows, bound := web.PageBound(scope, resumed, rows, maxRows,
+		func(r *db.AuditEventsRow) string { return r.PageCursor })
+	view := admin.AuditView{ListBound: bound}
 	for i := range rows {
 		e := &rows[i]
 		view.Rows = append(view.Rows, admin.AuditEntry{

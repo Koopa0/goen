@@ -80,3 +80,18 @@ func TestTWDNeverEmitsAStraySeparator(t *testing.T) {
 		}
 	}
 }
+
+func TestParsePositiveDollarsBoundsBeforeMultiplying(t *testing.T) {
+	t.Parallel()
+	if _, ok := money.ParsePositiveDollars("9223372036854775807", money.MaxCents); ok {
+		t.Fatal("MaxInt64 dollars was multiplied into an apparently valid amount")
+	}
+	if got, ok := money.ParsePositiveDollars("100000000", money.MaxCents); !ok || got != money.MaxCents {
+		t.Fatalf("exact money ceiling = %d/%t, want %d/true", got, ok, money.MaxCents)
+	}
+	for _, raw := range []string{"", "0", "-5", "1.5", "abc"} {
+		if _, ok := money.ParsePositiveDollars(raw, money.MaxCents); ok {
+			t.Errorf("money.ParsePositiveDollars(%q) accepted", raw)
+		}
+	}
+}

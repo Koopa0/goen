@@ -48,7 +48,7 @@ func (s *Store) SetReviewHidden(ctx context.Context, id string, hidden bool) err
 	}
 
 	return audit.Run(ctx, s.pool, audit.Event{
-		Action: action, Table: "product_reviews", ID: nullableID(reviewID),
+		Action: action, Table: "product_reviews", ID: audit.EntityID(reviewID),
 		Before: nil,
 		After:  map[string]any{"review_id": id, "hidden": hidden},
 	},

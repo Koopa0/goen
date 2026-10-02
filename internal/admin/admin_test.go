@@ -2,7 +2,6 @@ package admin
 
 import (
 	"cmp"
-	"errors"
 	"maps"
 	"math"
 	"net/http"
@@ -17,6 +16,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
@@ -40,17 +40,6 @@ func TestDollarInputsAreBoundedBeforeMultiplication(t *testing.T) {
 	}).Validate(ctx)
 	if coupon["cap"] == "" || coupon["min"] == "" {
 		t.Fatalf("coupon overflow fields were accepted: %v", coupon)
-	}
-
-	if err := (&Store{}).CreateTier(ctx, "overflow", "Overflow", "",
-		math.MaxInt64, math.MaxInt64); !errors.Is(err, ErrInvalid) {
-		t.Fatalf("tier dollar/percent overflow = %v, want ErrInvalid", err)
-	}
-	if _, ok := positiveDollarsToCents("9223372036854775807", MaxPriceCents); ok {
-		t.Fatal("MaxInt64 dollars was multiplied into an apparently valid allowance")
-	}
-	if got, ok := positiveDollarsToCents("100000000", MaxPriceCents); !ok || got != MaxPriceCents {
-		t.Fatalf("exact money ceiling = %d/%t, want %d/true", got, ok, MaxPriceCents)
 	}
 }
 
@@ -472,7 +461,7 @@ func TestAMistypedPriceIsRefusedByEveryFormThatWritesOne(t *testing.T) {
 		{name: "unreadable price", price: "12o", compare: "", wantField: "price"},
 		{name: "negative compare-at", price: "1000", compare: "-1", wantField: "compare"},
 		{name: "compare-at above the money ceiling", price: "1000",
-			compare: strconv.FormatInt(MaxPriceCents/100+1, 10), wantField: "compare"},
+			compare: strconv.FormatInt(money.MaxCents/100+1, 10), wantField: "compare"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()

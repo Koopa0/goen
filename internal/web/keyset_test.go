@@ -105,3 +105,28 @@ func TestScopeURLOmitsEmptyFilters(t *testing.T) {
 		t.Fatal(got)
 	}
 }
+
+const testPageSize = 50
+
+// A query asks for one more row than it shows; a limit equal to the size could
+// never report that anything was left behind.
+func TestPageLimitAsksForOneMoreThanItShows(t *testing.T) {
+	t.Parallel()
+	if PageLimit != PageSize+1 {
+		t.Errorf("PageLimit = %d and PageSize = %d", PageLimit, PageSize)
+	}
+}
+
+func TestPageBoundKeepsARestartDoorOnAnEmptyLaterPage(t *testing.T) {
+	t.Parallel()
+	scope := "/admin/orders"
+	key := func(*int) string { return "" }
+	_, empty := PageBound(scope, true, []int{}, testPageSize, key)
+	if empty.First != scope || !empty.PastEnd || empty.Next != "" {
+		t.Fatal("empty later page lost its restart door")
+	}
+	_, first := PageBound(scope, false, []int{}, testPageSize, key)
+	if first.PastEnd || first.First != "" {
+		t.Fatal("an empty first page must keep its own empty state")
+	}
+}

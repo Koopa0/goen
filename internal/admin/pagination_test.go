@@ -5,7 +5,6 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -46,20 +45,5 @@ func TestReadPageCursorAcceptsOnlyUsablePositions(t *testing.T) {
 	}
 	if readPageCursor(scope, []string{base64.RawURLEncoding.EncodeToString([]byte("junk"))}).Valid || readPageCursor(scope, nil).Valid {
 		t.Fatal("garbage accepted")
-	}
-}
-
-func TestPageBoundKeepsARestartDoorOnAnEmptyLaterPage(t *testing.T) {
-	t.Parallel()
-	scope := "/admin/orders"
-	key := func(r *db.Order) string { return "" }
-	later := pageCursor{Valid: true}
-	_, empty := pageBound(later, scope, []db.Order{}, PageSize, key)
-	if empty.First != scope || !empty.PastEnd || empty.Next != "" {
-		t.Fatal("empty later page lost its restart door")
-	}
-	_, first := pageBound(pageCursor{}, scope, []db.Order{}, PageSize, key)
-	if first.PastEnd || first.First != "" {
-		t.Fatal("an empty first page must keep its own empty state")
 	}
 }

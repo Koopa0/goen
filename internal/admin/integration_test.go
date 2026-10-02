@@ -31,10 +31,10 @@ import (
 
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/admin"
-	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/admin/health"
+	"github.com/koopa0/goen/internal/admin/loyalty"
 	"github.com/koopa0/goen/internal/admin/reports"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/db/dbtest"
@@ -42,7 +42,6 @@ import (
 	"github.com/koopa0/goen/internal/home"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
-	"github.com/koopa0/goen/internal/loyalty"
 	"github.com/koopa0/goen/internal/media"
 	"github.com/koopa0/goen/internal/newsletter"
 	"github.com/koopa0/goen/internal/outbox"
@@ -111,8 +110,7 @@ func staffID(t *testing.T) string {
 	return id.String()
 }
 
-// backOffice wraps a handler as its route in cmd/goen does, with 2FA off.
-var backOffice = access.New(slog.New(slog.DiscardHandler), nil)
+var backOffice = admintest.BackOffice
 
 func healthHandler(p *pgxpool.Pool) *health.Handler {
 	log := slog.New(slog.DiscardHandler)
@@ -1442,7 +1440,7 @@ func TestAReturnTakesBackItsPointsAndSpend(t *testing.T) {
 		}
 		var tier uuid.NullUUID
 		if err := pool.QueryRow(ctx,
-			`SELECT member_tier($1, $2, NULL)`, userID, admin.MembershipWindowDays).Scan(&tier); err != nil {
+			`SELECT member_tier($1, $2, NULL)`, userID, loyalty.MembershipWindowDays).Scan(&tier); err != nil {
 			t.Fatalf("read tier: %v", err)
 		}
 		if tier.Valid {
@@ -1461,7 +1459,7 @@ func TestAReturnTakesBackItsPointsAndSpend(t *testing.T) {
 			SELECT t.points_multiplier_bp
 			FROM membership_tiers t
 			WHERE t.id = member_tier($1, $2, $3)`,
-			userID, admin.MembershipWindowDays, orderID).Scan(&multiplier); err != nil {
+			userID, loyalty.MembershipWindowDays, orderID).Scan(&multiplier); err != nil {
 			t.Fatalf("read changed return-time tier: %v", err)
 		}
 		if multiplier != 13000 {
@@ -1863,7 +1861,7 @@ func assertReturnedLoyalty(t *testing.T, requestID, orderID, userID uuid.UUID, w
 	ctx := t.Context()
 	var spend int64
 	if err := pool.QueryRow(ctx,
-		`SELECT member_spend($1, $2, NULL)`, userID, admin.MembershipWindowDays).Scan(&spend); err != nil {
+		`SELECT member_spend($1, $2, NULL)`, userID, loyalty.MembershipWindowDays).Scan(&spend); err != nil {
 		t.Fatalf("read member spend: %v", err)
 	}
 	if spend != wantSpend {
@@ -3021,120 +3019,6 @@ func TestARefundCannotExceedWhatWasCaptured(t *testing.T) {
 	}
 }
 
-func TestGrantIsBoundedAndPositive(t *testing.T) {
-	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
-
-	var address string
-	if err := pool.QueryRow(ctx, `
-		INSERT INTO users (email, role) VALUES ('grant-'||gen_random_uuid()||'@example.com', 'customer')
-		RETURNING email`).Scan(&address); err != nil {
-		t.Fatalf("create user: %v", err)
-	}
-
-	tests := []struct {
-		name    string
-		email   string
-		cents   int64
-		reason  string
-		wantErr error
-	}{
-		{"over the ceiling", address, admin.MaxCreditGrant + 1, "手滑", admin.ErrInvalid},
-		{"exactly the ceiling", address, admin.MaxCreditGrant, "上限", nil},
-		{"zero", address, 0, "沒事", admin.ErrInvalid},
-		{"negative", address, -50000, "扣款", admin.ErrInvalid},
-		{"no reason", address, 50000, "", admin.ErrInvalid},
-		{"whitespace reason", address, 50000, "   ", admin.ErrInvalid},
-		{"reason beyond ledger bound", address, 50000, strings.Repeat("理", admin.MaxCreditReasonRunes+1), admin.ErrInvalid},
-		{"no email", "", 50000, "補償", admin.ErrInvalid},
-		{"unknown customer", "nobody@example.invalid", 50000, "補償", admin.ErrRefused},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			_, err := s.GrantCredit(ctx, creditCustomerID(t, tt.email), tt.cents, tt.reason, uuid.New())
-			if tt.wantErr == nil {
-				if err != nil {
-					t.Fatalf("a legal grant was refused: %v", err)
-				}
-				return
-			}
-			if !errors.Is(err, tt.wantErr) {
-				t.Errorf("got %v, want %v", err, tt.wantErr)
-			}
-		})
-	}
-
-	var balance int64
-	if err := pool.QueryRow(ctx, `
-		SELECT coalesce(sum(e.amount_cents), 0) FROM store_credit_entries e
-		JOIN store_credit_accounts a ON a.id = e.account_id
-		JOIN users u ON u.id = a.user_id WHERE u.email = $1`, address).Scan(&balance); err != nil {
-		t.Fatalf("read balance: %v", err)
-	}
-	if balance != admin.MaxCreditGrant {
-		t.Errorf("balance is %d, want %d — a refused grant still posted",
-			balance, admin.MaxCreditGrant)
-	}
-}
-
-func TestGrantOperationIsIdempotentAndIdenticalOperationsRemainDistinct(t *testing.T) {
-	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
-
-	var address string
-	if err := pool.QueryRow(ctx, `
-		INSERT INTO users (email, role) VALUES ('idem-'||gen_random_uuid()||'@example.com', 'customer')
-		RETURNING email`).Scan(&address); err != nil {
-		t.Fatalf("create user: %v", err)
-	}
-
-	auditsBefore := auditRows(t, audit.ActionGrantCredit)
-	firstOperation := uuid.New()
-	for range 3 {
-		if _, err := s.GrantCredit(ctx, creditCustomerID(t, address), 50000, "退貨補償", firstOperation); err != nil {
-			t.Fatalf("retry one grant operation: %v", err)
-		}
-	}
-
-	var balance int64
-	var entries int
-	read := func() {
-		t.Helper()
-		if err := pool.QueryRow(ctx, `
-			SELECT coalesce(sum(e.amount_cents), 0), count(*) FROM store_credit_entries e
-			JOIN store_credit_accounts a ON a.id = e.account_id
-			JOIN users u ON u.id = a.user_id WHERE u.email = $1`, address).Scan(&balance, &entries); err != nil {
-			t.Fatalf("read: %v", err)
-		}
-	}
-	read()
-	if entries != 1 || balance != 50000 {
-		t.Errorf("%d entries totalling %d after retrying one operation three times, want 1 of 50000",
-			entries, balance)
-	}
-	if got := auditRows(t, audit.ActionGrantCredit) - auditsBefore; got != 1 {
-		t.Fatalf("one retried grant operation wrote %d audit rows, want 1", got)
-	}
-
-	// Same customer, amount and reason can be a second legitimate compensation.
-	// Its durable request identity, not its business values, distinguishes it.
-	secondOperation := uuid.New()
-	if _, err := s.GrantCredit(ctx, creditCustomerID(t, address), 50000, "退貨補償", secondOperation); err != nil {
-		t.Fatalf("second identical grant operation: %v", err)
-	}
-	if _, err := s.GrantCredit(ctx, creditCustomerID(t, address), 50000, "退貨補償", secondOperation); err != nil {
-		t.Fatalf("retry second operation: %v", err)
-	}
-	read()
-	if entries != 2 || balance != 100000 {
-		t.Errorf("%d entries totalling %d after two identical but distinct operations, want 2 of 100000",
-			entries, balance)
-	}
-	if got := auditRows(t, audit.ActionGrantCredit) - auditsBefore; got != 2 {
-		t.Fatalf("two durable grant operations wrote %d audit rows, want 2", got)
-	}
-}
-
 func TestTheBackOfficeIsInvisibleToEveryoneButStaff(t *testing.T) {
 	ctx := t.Context()
 
@@ -3267,25 +3151,12 @@ func staffContext(t *testing.T) (context.Context, uuid.UUID) {
 
 func staffContextOn(t *testing.T, p *pgxpool.Pool) (context.Context, uuid.UUID) {
 	t.Helper()
-	var id uuid.UUID
-	if err := p.QueryRow(t.Context(), `
-		INSERT INTO users (email, role, full_name)
-		VALUES ('audit-' || gen_random_uuid() || '@goen.invalid', 'admin', '稽核測試')
-		RETURNING id`).Scan(&id); err != nil {
-		t.Fatalf("create staff: %v", err)
-	}
-	ctx := account.WithUser(t.Context(), account.User{ID: id.String(), Role: "admin"})
-	return web.WithRequestID(ctx, "req-"+id.String()[:8]), id
+	return admintest.StaffContext(t, p)
 }
 
 func auditRows(t *testing.T, action audit.Action) int {
 	t.Helper()
-	var n int
-	if err := pool.QueryRow(t.Context(),
-		`SELECT count(*) FROM audit_events WHERE action = $1`, string(action)).Scan(&n); err != nil {
-		t.Fatalf("count audit rows: %v", err)
-	}
-	return n
+	return admintest.AuditRows(t, pool, action)
 }
 
 func TestEveryBackOfficeWriteLeavesATrail(t *testing.T) {
@@ -3310,7 +3181,7 @@ func TestEveryBackOfficeWriteLeavesATrail(t *testing.T) {
 			return s.SetProductStatus(ctx, slug, "draft")
 		}},
 		{"grant credit", audit.ActionGrantCredit, func() error {
-			_, grantErr := s.GrantCredit(ctx, actor, 500,
+			_, grantErr := loyalty.NewStore(pool).GrantCredit(ctx, actor, 500,
 				"測試", uuid.New())
 			return grantErr
 		}},
@@ -5126,37 +4997,6 @@ func surchargeRows(t *testing.T, versionID uuid.UUID) int {
 		t.Fatalf("count surcharges: %v", err)
 	}
 	return n
-}
-
-func TestTheTierWindowMatchesTheProgramme(t *testing.T) {
-	if got, want := admin.MembershipWindowDays, int32(loyalty.MembershipWindow/(24*time.Hour)); got != want {
-		t.Errorf("the back office reads a %d-day window and the programme says %d", got, want)
-	}
-}
-
-func TestTwoTiersCannotShareAThreshold(t *testing.T) {
-	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
-
-	if err := s.CreateTier(ctx, "band_a", "甲", "Band A", 90000, 120); err != nil {
-		t.Fatalf("create the first band: %v", err)
-	}
-	err := s.CreateTier(ctx, "band_b", "乙", "", 90000, 130)
-	if !errors.Is(err, admin.ErrRefused) {
-		t.Errorf("a second band at the same threshold answered %v, want ErrRefused", err)
-	}
-}
-
-func TestATierCannotEarnLessThanNoTier(t *testing.T) {
-	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
-
-	if err := s.CreateTier(ctx, "worse", "倒扣", "", 80000, 90); !errors.Is(err, admin.ErrInvalid) {
-		t.Errorf("a band below the base rate answered %v, want ErrInvalid", err)
-	}
-	if err := s.CreateTier(ctx, "worse", "基本", "Base", 80000, 100); err != nil {
-		t.Errorf("a band at the base rate was refused: %v", err)
-	}
 }
 
 func TestOneUploadCanBeAttachedToTwoProducts(t *testing.T) {
@@ -11343,22 +11183,6 @@ func TestABoundedListSaysSoAtTheBoundary(t *testing.T) {
 		t.Error("a list with more than a page offers no next page; a staff member " +
 			"cannot tell fifty messages from fifty of nine hundred")
 	}
-}
-
-func creditCustomerID(t *testing.T, address string) uuid.UUID {
-	t.Helper()
-	if address == "" {
-		return uuid.Nil
-	}
-	var id uuid.UUID
-	err := pool.QueryRow(t.Context(), "SELECT id FROM users WHERE email=$1", address).Scan(&id)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return uuid.New()
-	}
-	if err != nil {
-		t.Fatal(err)
-	}
-	return id
 }
 
 func TestAPickupOrderDispatchNoticeIsMarkedAsPickup(t *testing.T) {

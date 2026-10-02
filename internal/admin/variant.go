@@ -12,6 +12,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/money"
 )
 
 const (
@@ -43,7 +44,7 @@ func (f *VariantForm) Validate(ctx context.Context) map[string]string {
 	if f.SKU == "" || utf8.RuneCountInString(f.SKU) > maxSKURunes {
 		errs["sku"] = i18n.T(ctx, i18n.KeyFormSKURequired)
 	}
-	if f.PriceCents <= 0 || f.PriceCents > MaxPriceCents {
+	if f.PriceCents <= 0 || f.PriceCents > money.MaxCents {
 		errs["price"] = i18n.T(ctx, i18n.KeyFormPricePositive)
 	}
 	if f.CompareCents != 0 && f.CompareCents <= f.PriceCents {

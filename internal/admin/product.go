@@ -28,9 +28,6 @@ const (
 	maxSummaryRunes     = 500
 	maxDescriptionRunes = 20000
 	MaxWarrantyMonths   = 120
-
-	// MaxPriceCents is the ceiling every money column carries.
-	MaxPriceCents = 10000000000
 )
 
 type ProductForm struct {
@@ -431,7 +428,7 @@ func (s *Store) RemoveSpec(ctx context.Context, slug, id string) error {
 		return ErrNotFound
 	}
 	return audit.Run(ctx, s.pool, audit.Event{
-		Action: audit.ActionRemoveSpec, Table: "product_specs", ID: nullableID(specID),
+		Action: audit.ActionRemoveSpec, Table: "product_specs", ID: audit.EntityID(specID),
 		Before: map[string]any{"slug": slug}, After: nil,
 	}, func(ctx context.Context, q *db.Queries) error {
 		rows, err := q.RemoveProductSpec(ctx, db.RemoveProductSpecParams{
@@ -514,7 +511,7 @@ func (s *Store) AddOptionValue(ctx context.Context, slug string, d OptionDraft) 
 	}
 
 	if err := audit.Run(ctx, s.pool, audit.Event{
-		Action: audit.ActionAddOptionValue, Table: "product_option_values", ID: nullableID(optionID),
+		Action: audit.ActionAddOptionValue, Table: "product_option_values", ID: audit.EntityID(optionID),
 		Before: nil, After: map[string]any{"slug": slug, "value": name},
 	}, func(ctx context.Context, q *db.Queries) error {
 		if _, err := q.AddProductOptionValue(ctx, db.AddProductOptionValueParams{
