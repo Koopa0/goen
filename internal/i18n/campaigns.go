@@ -32,14 +32,8 @@ var (
 		En:     "Nothing is on sale at the moment. Have a look through the categories.",
 	})
 
-	KeyEndsWithinHour = key("campaign.ends.soon", Message{
-		ZhHant: "不到 1 小時",
-		En:     "under an hour left",
-	})
-
-	KeyEndsInHours = countKey("campaign.ends.hours", "剩 %d 小時", "%d hour left", "%d hours left")
-
-	KeyEndsInDays = countKey("campaign.ends.days", "剩 %d 天", "%d day left", "%d days left")
+	// %s is the last day, after the product count on the offers page.
+	KeyCampaignUntil = key("campaign.until", Message{ZhHant: "至 %s", En: "until %s"})
 
 	KeyCampaignNotFound = key("campaign.notfound", Message{ZhHant: "找不到這個活動", En: "Offer not found"})
 

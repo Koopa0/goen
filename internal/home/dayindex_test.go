@@ -3,8 +3,6 @@ package home
 import (
 	"testing"
 	"time"
-
-	"github.com/koopa0/goen/internal/i18n"
 )
 
 // The department of the day follows the shop's calendar, not the server's: one
@@ -36,27 +34,5 @@ func TestDayIndexOfNothingIsZero(t *testing.T) {
 	t.Parallel()
 	if got := dayIndex(time.Now(), 0); got != 0 {
 		t.Errorf("dayIndex with no departments = %d, want 0", got)
-	}
-}
-
-func TestShortDateIsSaidInTheReadersLanguage(t *testing.T) {
-	t.Parallel()
-
-	now := time.Date(2026, 6, 1, 4, 0, 0, 0, time.UTC)
-	this := time.Date(2026, 10, 2, 4, 0, 0, 0, time.UTC)
-	next := time.Date(2027, 10, 2, 4, 0, 0, 0, time.UTC)
-	for _, tt := range []struct {
-		locale i18n.Locale
-		at     time.Time
-		want   string
-	}{
-		{i18n.ZhHant, this, "10 月 2 日"},
-		{i18n.ZhHant, next, "2027 年 10 月 2 日"},
-		{i18n.En, this, "Oct 2"},
-		{i18n.En, next, "Oct 2, 2027"},
-	} {
-		if got := shortDate(i18n.WithLocale(t.Context(), tt.locale), tt.at, now); got != tt.want {
-			t.Errorf("%s %v = %q, want %q", tt.locale, tt.at, got, tt.want)
-		}
 	}
 }

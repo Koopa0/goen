@@ -1617,6 +1617,7 @@ h3 {
   font-size: var(--fs-14);
   line-height: var(--lh-normal);
   margin: 0.5rem 0 0;
+  text-wrap: pretty;
 }
 
 .goen-footer__signup {

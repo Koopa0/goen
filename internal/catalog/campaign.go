@@ -11,7 +11,6 @@ import (
 
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
@@ -40,7 +39,7 @@ func (s *Store) Campaign(ctx context.Context, slug string) (pages.CampaignView, 
 	return pages.CampaignView{
 		Slug:     c.Slug,
 		Title:    c.Title,
-		EndsAt:   shoptime.Minute(c.EndsAt),
+		EndsOn:   pages.CampaignEndsOn(ctx, c.EndsAt, s.now()),
 		Products: campaignTiles(rows),
 		Image: pages.Photo{
 			URL:    assets.ProductImageURL(c.ImageKey),
@@ -69,25 +68,10 @@ func (s *Store) RunningCampaigns(ctx context.Context, page int) (pages.CampaignP
 		c := &rows[i]
 		view.Rows = append(view.Rows, pages.CampaignSummary{
 			Slug: c.Slug, Title: c.Title, Products: c.Products,
-			EndsAt: shoptime.Minute(c.EndsAt), EndsIn: humanRemaining(ctx, c.RemainingSeconds),
+			EndsOn: pages.CampaignEndsOn(ctx, c.EndsAt, s.now()),
 		})
 	}
 	return view, nil
-}
-
-// humanRemaining keeps the database result as an integer: a schema-valid
-// campaign ending centuries away overflows time.Duration.
-func humanRemaining(ctx context.Context, seconds int64) string {
-	switch {
-	case seconds <= 0:
-		return ""
-	case seconds < 60*60:
-		return i18n.T(ctx, i18n.KeyEndsWithinHour)
-	case seconds < 24*60*60:
-		return i18n.Count(ctx, i18n.KeyEndsInHours, seconds/(60*60), seconds/(60*60))
-	default:
-		return i18n.Count(ctx, i18n.KeyEndsInDays, seconds/(24*60*60), seconds/(24*60*60))
-	}
 }
 
 func campaignTiles(rows []db.CampaignProductsRow) []pages.ProductTile {

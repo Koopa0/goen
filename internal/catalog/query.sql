@@ -537,7 +537,6 @@ WHERE c.slug = @slug::text AND c.is_active
 -- name: RunningCampaigns :many
 SELECT c.id, c.slug, localized_name(c.title, c.title_en, @locale::text) AS title,
        c.ends_at,
-       extract(epoch FROM (c.ends_at - now()))::bigint AS remaining_seconds,
        (SELECT count(*) FROM sale_campaign_products p WHERE p.campaign_id = c.id)::bigint AS products
 FROM sale_campaigns c
 WHERE c.is_active AND c.starts_at <= now() AND c.ends_at > now()
