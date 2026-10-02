@@ -818,7 +818,22 @@ templ adminVariantTable(variants []AdminVariant, back string) {
 							<input type="hidden" name="sku" value={ x.SKU }/>
 							<input type="hidden" name="idempotency" value={ x.AdjustKey() }/>
 							<label class="goen-sr-only" for={ "adj-" + x.SKU }>{ i18n.T(ctx, i18n.KeyAdminQueueAdjustQty) }</label>
-							<input class="ui-input ui-input--sm goen-admin__num" id={ "adj-" + x.SKU } type="number" name="delta" placeholder="+10" step="1"/>
+							<input
+								class="ui-input ui-input--sm goen-admin__num"
+								id={ "adj-" + x.SKU }
+								type="number"
+								name="delta"
+								value={ x.DraftDelta }
+								placeholder="+10"
+								step="1"
+								if x.DeltaError != "" {
+									aria-invalid="true"
+									aria-describedby={ "adj-error-" + x.SKU }
+								}
+							/>
+							if x.DeltaError != "" {
+								<p class="ui-error-text" id={ "adj-error-" + x.SKU } role="alert">{ x.DeltaError }</p>
+							}
 							<button class="ui-btn ui-btn--secondary ui-btn--sm" type="submit">{ i18n.T(ctx, i18n.KeyAdminQueueAdjust) }</button>
 						</form>
 						<form class="goen-admin__inline" method="post" action="/admin/stock/active">

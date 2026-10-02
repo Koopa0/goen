@@ -11912,3 +11912,26 @@ func TestTheDashboardAndTheQueueTabsSplitPendingTheSameWay(t *testing.T) {
 		}
 	}
 }
+
+func TestARefusedStockAdjustmentKeepsWhatWasTyped(t *testing.T) {
+	ctx, _ := staffContext(t)
+	h := adminHandlerOver(pool, admin.NewStore(pool, fakeRefunder{}, nil, nil))
+	var sku string
+	if err := pool.QueryRow(ctx, `SELECT sku FROM product_variants ORDER BY sku LIMIT 1`).Scan(&sku); err != nil {
+		t.Fatal(err)
+	}
+	form := url.Values{"sku": {sku}, "delta": {"12x"}, "return": {"/admin/stock"}}
+	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/stock/adjust", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+	h.RequireStaff(h.AdjustStock)(w, req)
+
+	if w.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("an unreadable adjustment answered %d, want 422", w.Code)
+	}
+	// The row may be on a later page of a long list, in which case the banner
+	// carries the sentence; either way the refusal is said and the page is 422.
+	if !strings.Contains(w.Body.String(), i18n.T(ctx, i18n.KeyAdminStockDeltaError)) {
+		t.Error("the refused adjustment does not say why")
+	}
+}

@@ -25,6 +25,9 @@ type AdminVariant struct {
 	ProductStatus string
 	// FormID is unique to one rendering of this row's adjust form.
 	FormID string
+	// DraftDelta is what staff typed in a refused adjustment and DeltaError the
+	// sentence under it.
+	DraftDelta, DeltaError string
 }
 
 // StockText is the stock on hand, as text.
