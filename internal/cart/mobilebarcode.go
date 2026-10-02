@@ -8,14 +8,11 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
-// checkMobileBarcode refuses a barcode the provider says does not exist, and
-// nothing else. The check is auxiliary: a provider outage, a refusal to answer
-// or a timeout places the order on shape validation alone, as before the check
-// existed, so an external failure never costs a shopper their checkout. Only a
-// definite "does not exist" is a reason to stop.
-//
-// Local fields and the quote have already passed, and a prior successful
-// attempt is answered before this point, so an idempotent retry never asks.
+// checkMobileBarcode refuses only a barcode the provider says does not exist. A
+// provider outage, refusal or timeout falls back to shape validation, so an
+// external failure never costs a shopper their checkout.
+// Local fields, the quote and a prior successful attempt are handled before
+// this point, so an idempotent retry never asks.
 func (h *Handler) checkMobileBarcode(w http.ResponseWriter, r *http.Request, inv *Invoice, view *pages.CheckoutView) bool {
 	if !inv.Type.NeedsMobileBarcode() || h.barcodeChecker == nil {
 		return true

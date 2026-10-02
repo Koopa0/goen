@@ -12,12 +12,12 @@ import (
 	"github.com/koopa0/goen/internal/ordernotice"
 )
 
-// ErrNotCancellable is an order the customer may no longer call off. One error
-// for every reason, so a guessable order number cannot be probed for its state.
+// ErrNotCancellable covers every reason, so a guessable order number cannot be
+// probed for its state.
 var ErrNotCancellable = errors.New("cart: this order cannot be cancelled")
 
-// CancelOrder calls off an order the customer has not paid for, and returns the
-// Checkout Sessions the caller must close at Stripe once this has committed.
+// CancelOrder returns the Checkout Sessions the caller must close at Stripe
+// once this has committed.
 func (s *Store) CancelOrder(ctx context.Context, number string) ([]string, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -26,9 +26,9 @@ func (s *Store) CancelOrder(ctx context.Context, number string) ([]string, error
 	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
 	q := s.q.WithTx(tx)
 
-	// The lock is the aggregate gate: it is taken before either cancellation or
-	// the expiry sweeper can inspect/release its live holds, and before the
-	// payment test, which must see every capture committed ahead of the lock.
+	// The lock is taken before cancellation or the expiry sweeper can touch the
+	// live holds, and before the payment test, which must see every capture
+	// committed ahead of it.
 	orderID, err := q.LockOrderByNumber(ctx, number)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotCancellable
@@ -58,8 +58,8 @@ func (s *Store) CancelOrder(ctx context.Context, number string) ([]string, error
 	return sessions, nil
 }
 
-// settleCancellation does what an unpaid order's cancellation means, in the
-// transaction whose status UPDATE already holds the order lock.
+// settleCancellation must run in the transaction whose status UPDATE holds the
+// order lock.
 func settleCancellation(ctx context.Context, q *db.Queries, number string, kind email.TerminalKind) error {
 	held, err := q.HeldReservationsForOrder(ctx, number)
 	if err != nil {
@@ -82,7 +82,6 @@ func settleCancellation(ctx context.Context, q *db.Queries, number string, kind 
 		return fmt.Errorf("return store credit spent on %s: %w", number, err)
 	}
 
-	// The notice kind names who initiated it; the timeline records the same.
 	if err := q.RecordCancellation(ctx, db.RecordCancellationParams{
 		OrderNumber: number, BySystem: kind == email.TerminalCancelledByPaymentDeadline,
 	}); err != nil {
@@ -102,9 +101,8 @@ func settleCancellation(ctx context.Context, q *db.Queries, number string, kind 
 // Stripe confirmed it expired, or it ended with no money.
 const paymentExpired = "cancelled"
 
-// mayHaveTakenMoney reports whether a cancellation notice must allow for money
-// having reached Stripe, and so must not say nothing was charged. Any status but
-// an expired one may: a session still open when its order is cancelled can be
+// mayHaveTakenMoney reports whether the notice must not say nothing was
+// charged. Any status but an expired one may: a session still open can be
 // completed in another tab before the cancellation closes it.
 func mayHaveTakenMoney(statuses []string, providerFlagged bool) bool {
 	if providerFlagged {

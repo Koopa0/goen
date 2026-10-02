@@ -7,33 +7,26 @@ import (
 	"github.com/google/uuid"
 )
 
-// Reorder is the outcome of putting a past order back in the cart, reporting
-// what was skipped as well as what was added.
 type Reorder struct {
 	Added    int
 	Adjusted bool
 	Skipped  []SkippedLine
 }
 
-// SkippedLine is one thing the reorder could not put back, and why.
 type SkippedLine struct {
 	Name   string
 	Label  string
 	Reason SkipReason
 }
 
-// SkipReason is why a line could not be reordered.
 type SkipReason string
 
 const (
-	// SkipGone is a variant that no longer exists or is no longer for sale.
-	SkipGone SkipReason = "gone"
-	// SkipSoldOut is a variant that exists and has nothing on the shelf.
+	SkipGone    SkipReason = "gone"
 	SkipSoldOut SkipReason = "sold_out"
 )
 
-// Reorder puts every still-sellable line of a past order back in the cart, at
-// today's prices rather than the order's.
+// Reorder prices lines at today's prices, not the order's.
 func (s *Store) Reorder(ctx context.Context, cartID uuid.UUID, number string) (Reorder, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -68,8 +61,8 @@ func (s *Store) Reorder(ctx context.Context, cartID uuid.UUID, number string) (R
 
 		adjusted, addErr := addCartItem(ctx, q, cartID, l.VariantID.UUID, l.Quantity)
 		if addErr != nil {
-			// The known skip cases continued above. Any revalidation or write
-			// failure for a selected line aborts the whole reorder.
+			// Any revalidation or write failure for a selected line aborts the
+			// whole reorder.
 			return Reorder{}, fmt.Errorf("add %s to cart: %w", l.ProductName, addErr)
 		}
 		out.Adjusted = out.Adjusted || adjusted

@@ -34,52 +34,44 @@ import (
 )
 
 var (
-	// ErrNotFound is a cart, order or variant that does not exist.
 	ErrNotFound = errors.New("cart: not found")
-	// ErrNotYourCart is a cart token naming a cart that belongs to an account
-	// other than the requester's, or to any account when nobody is signed in.
+	// ErrNotYourCart is a token naming another account's cart, or any account's
+	// when nobody is signed in.
 	ErrNotYourCart = errors.New("cart: the cart belongs to an account the requester is not signed in as")
-	// ErrUnavailable is a variant that cannot be added or ordered.
 	ErrUnavailable = errors.New("cart: variant unavailable")
-	// ErrCreditChanged means the customer's available store credit moved while
-	// checkout was being placed. The form must show the fresh figure before a
-	// second submission.
+	// ErrCreditChanged means available store credit moved during checkout; the
+	// form must show the fresh figure before a second submission.
 	ErrCreditChanged = errors.New("cart: available store credit changed")
-	// ErrBusy is a write the database ended before it finished, which for
-	// checkout means a lock wait that outlived statement_timeout. Nothing the
-	// customer typed is wrong, so it is a 422 asking them to submit again.
-	ErrBusy = errors.New("cart: the database ended the statement before it finished")
-	// ErrEmpty is a checkout with nothing in the cart.
+	// ErrBusy is a write the database ended early, for checkout a lock wait
+	// that outlived statement_timeout. Nothing the customer typed is wrong, so
+	// it is a 422 asking them to submit again.
+	ErrBusy  = errors.New("cart: the database ended the statement before it finished")
 	ErrEmpty = errors.New("cart: empty")
-	// ErrTooManyItems means the cart has no room for another distinct product
-	// while keeping every resulting invoice within ECPay's Items limit.
+	// ErrTooManyItems means no room for another distinct product within ECPay's
+	// Items limit per invoice.
 	ErrTooManyItems = errors.New("cart: too many invoice items")
-	// ErrQuantityAdjusted means the write succeeded but less than requested was
-	// kept because the shelf could not supply the full quantity.
+	// ErrQuantityAdjusted means the write succeeded but kept less than
+	// requested, because stock fell short.
 	ErrQuantityAdjusted = errors.New("cart: quantity adjusted to available stock")
-	// errCheckoutChanged means the commercial facts no longer match the quote the
-	// customer confirmed. The refreshed quote must be shown before retrying.
+	// errCheckoutChanged means the facts no longer match the quote the customer
+	// confirmed; show the refreshed quote before retrying.
 	errCheckoutChanged = errors.New("cart: checkout quote changed")
-	// errCheckoutKeyConflict is an idempotency key already owned by another
-	// cart. It stays private: Handler replaces it rather than exposing whether a
-	// guessed key exists.
+	// errCheckoutKeyConflict stays private: Handler replaces it rather than
+	// expose whether a guessed key exists.
 	errCheckoutKeyConflict = errors.New("cart: checkout key belongs to another cart")
-	// errCheckoutMoney is an impossible commercial total. Browser input never
-	// supplies money, so reaching it means server-owned state cannot be represented
-	// safely as the int64 cents an order stores.
+	// errCheckoutMoney means server-owned state cannot be represented as the
+	// int64 cents an order stores; browser input never supplies money.
 	errCheckoutMoney = errors.New("cart: checkout money is out of range")
 )
 
-// checkoutQuoteLine is one exact item-and-price fact in a checkout quote.
 type checkoutQuoteLine struct {
 	VariantID uuid.UUID
 	Quantity  int32
 	UnitCents int64
 }
 
-// checkoutQuote represents the exact commercial facts a customer confirmed.
-// It is not persisted and its ID is not an authorization credential: checkout
-// rebuilds the same facts from locked database rows and accepts only equality.
+// checkoutQuote is not persisted and its ID is no credential: checkout rebuilds
+// the facts from locked rows and accepts only equality.
 type checkoutQuote struct {
 	CartID uuid.UUID
 	Lines  []checkoutQuoteLine
@@ -92,18 +84,16 @@ type checkoutQuote struct {
 	CreditCents   int64
 }
 
-// checkoutQuoteID is the fixed-size identity of one canonical checkoutQuote.
-// A named array prevents arbitrary strings from reaching Store.placeOrder.
+// checkoutQuoteID is an array so arbitrary strings cannot reach
+// Store.placeOrder.
 type checkoutQuoteID [sha256.Size]byte
 
 const checkoutAttemptIDBytes = 16
 
-// checkoutAttemptID is the server-issued identity of one checkout attempt. A
-// fixed array keeps arbitrary form text out of the store and database writer;
-// only the HTTP boundary and test-only facades parse its canonical wire form.
+// checkoutAttemptID is an array so arbitrary form text stays out of the store;
+// only the HTTP boundary and test facades parse its wire form.
 type checkoutAttemptID [checkoutAttemptIDBytes]byte
 
-// newCheckoutAttemptID returns a fresh non-zero checkout identity.
 func newCheckoutAttemptID() (checkoutAttemptID, error) {
 	var id checkoutAttemptID
 	if _, err := rand.Read(id[:]); err != nil {
@@ -115,8 +105,6 @@ func newCheckoutAttemptID() (checkoutAttemptID, error) {
 	return id, nil
 }
 
-// parseCheckoutAttemptID accepts only the canonical 22-character RawURL form
-// emitted by checkoutAttemptID.String.
 func parseCheckoutAttemptID(value string) (checkoutAttemptID, error) {
 	decoded, err := base64.RawURLEncoding.DecodeString(value)
 	if err != nil || len(decoded) != checkoutAttemptIDBytes {
@@ -130,13 +118,11 @@ func parseCheckoutAttemptID(value string) (checkoutAttemptID, error) {
 	return id, nil
 }
 
-// String is the checkout attempt identity's unpadded URL-safe form.
 func (id checkoutAttemptID) String() string {
 	return base64.RawURLEncoding.EncodeToString(id[:])
 }
 
-// ID validates q and returns its order-independent canonical identity. Lines
-// are copied before sorting, so calculating an ID never mutates caller state.
+// ID copies the lines before sorting, so it never mutates the caller's state.
 func (q checkoutQuote) ID() (checkoutQuoteID, error) {
 	lines, code, err := q.identityFacts()
 	if err != nil {
@@ -146,30 +132,24 @@ func (q checkoutQuote) ID() (checkoutQuoteID, error) {
 	encoded := make([]byte, 0, 128+len(lines)*28+len(code))
 	encoded = append(encoded, "goen-checkout-quote\x00v1\x00"...)
 	encoded = append(encoded, q.CartID[:]...)
-	// identityFacts bounds the slice length to the wire format's uint32 field.
 	encoded = binary.BigEndian.AppendUint32(encoded, uint32(len(lines))) //nolint:gosec // proven bounded
 	for i := range lines {
 		line := &lines[i]
 		encoded = append(encoded, line.VariantID[:]...)
-		// identityFacts accepts only positive int32 quantities and non-negative
-		// int64 prices, both exactly representable by the unsigned wire fields.
 		encoded = binary.BigEndian.AppendUint32(encoded, uint32(line.Quantity))  //nolint:gosec // proven non-negative
 		encoded = binary.BigEndian.AppendUint64(encoded, uint64(line.UnitCents)) //nolint:gosec // proven non-negative
 	}
 	encoded = append(encoded, q.ShippingVersionID[:]...)
-	// identityFacts rejects every negative money field before encoding.
 	encoded = binary.BigEndian.AppendUint64(encoded, uint64(q.ShippingCents)) //nolint:gosec // proven non-negative
-	// couponCode admits at most 32 ASCII bytes, so this conversion cannot truncate.
-	encoded = binary.BigEndian.AppendUint32(encoded, uint32(len(code))) //nolint:gosec // regex-bounded to 32
+	encoded = binary.BigEndian.AppendUint32(encoded, uint32(len(code)))       //nolint:gosec // regex-bounded to 32
 	encoded = append(encoded, code...)
 	encoded = binary.BigEndian.AppendUint64(encoded, uint64(q.DiscountCents)) //nolint:gosec // proven non-negative
 	encoded = binary.BigEndian.AppendUint64(encoded, uint64(q.CreditCents))   //nolint:gosec // proven non-negative
 	return sha256.Sum256(encoded), nil
 }
 
-// identityFacts validates the quote's domain constraints and returns the two
-// canonical variable-width fields used by ID. Keeping validation separate from
-// encoding makes the proof for each unsigned wire conversion explicit.
+// identityFacts validates the domain constraints that make each unsigned wire
+// conversion in ID safe.
 func (q checkoutQuote) identityFacts() (lines []checkoutQuoteLine, code string, err error) {
 	code, err = q.validateIdentityHeader()
 	if err != nil {
@@ -241,8 +221,8 @@ func checkoutQuoteSubtotal(lines []checkoutQuoteLine) (int64, error) {
 	return subtotal, nil
 }
 
-// addCheckoutLine adds one non-negative unit-price/quantity product without
-// allowing multiplication or accumulation to wrap.
+// addCheckoutLine and addCheckoutMoney return an error rather than wrap on
+// overflow.
 func addCheckoutLine(subtotal, unitCents int64, quantity int32) (int64, error) {
 	if subtotal < 0 || unitCents < 0 || quantity <= 0 {
 		return 0, errCheckoutMoney
@@ -254,7 +234,6 @@ func addCheckoutLine(subtotal, unitCents int64, quantity int32) (int64, error) {
 	return addCheckoutMoney(subtotal, unitCents*count)
 }
 
-// addCheckoutMoney adds two non-negative cent amounts without wrapping int64.
 func addCheckoutMoney(a, b int64) (int64, error) {
 	if a < 0 || b < 0 || a > math.MaxInt64-b {
 		return 0, errCheckoutMoney
@@ -262,8 +241,8 @@ func addCheckoutMoney(a, b int64) (int64, error) {
 	return a + b, nil
 }
 
-// checkoutGross is the one checked definition of subtotal + shipping -
-// discount used by both the rendered quote identity and locked placement.
+// checkoutGross is the one definition of subtotal + shipping - discount, shared
+// by the quote identity and locked placement.
 func checkoutGross(subtotal, shipping, discount int64) (int64, error) {
 	beforeDiscount, err := addCheckoutMoney(subtotal, shipping)
 	if err != nil || discount < 0 || discount > beforeDiscount {
@@ -272,12 +251,10 @@ func checkoutGross(subtotal, shipping, discount int64) (int64, error) {
 	return beforeDiscount - discount, nil
 }
 
-// String is the unpadded URL-safe representation carried by the checkout form.
 func (id checkoutQuoteID) String() string {
 	return base64.RawURLEncoding.EncodeToString(id[:])
 }
 
-// parseCheckoutQuoteID accepts only the canonical fixed-length form encoding.
 func parseCheckoutQuoteID(value string) (checkoutQuoteID, error) {
 	decoded, err := base64.RawURLEncoding.DecodeString(value)
 	if err != nil || len(decoded) != sha256.Size {
@@ -291,15 +268,14 @@ func parseCheckoutQuoteID(value string) (checkoutQuoteID, error) {
 	return id, nil
 }
 
-// PlacedCookieName carries the browser's proof that it placed an order. It holds
-// high-entropy tokens and never order numbers, which are guessable.
+// PlacedCookieName holds high-entropy tokens and never order numbers, which are
+// guessable.
 const PlacedCookieName = "__Host-goen_placed"
 
 const maxRememberedOrders = 10
 
-// RememberOrder issues a token for an order and adds it to the browser's list.
-// The grant is written first: a cookie naming a token this database does not
-// know locks the customer out of their own order.
+// RememberOrder writes the grant first: a cookie naming a token this database
+// does not know locks the customer out of their own order.
 func (s *Store) RememberOrder(
 	ctx context.Context, w http.ResponseWriter, r *http.Request, number string, secure bool,
 ) error {
@@ -321,12 +297,13 @@ func (s *Store) RememberOrder(
 		return fmt.Errorf("grant access to order %s: %w", number, err)
 	}
 	if n == 0 {
-		// The INSERT ... SELECT matched no order, which SQL does not call an error.
+		// The INSERT ... SELECT matched no order, which SQL does not call an
+		// error.
 		return fmt.Errorf("grant access to order %s: %w", number, ErrNotFound)
 	}
 
-	// The cookie below carries older tokens forward with a fresh MaxAge, so their
-	// grants need the same retention clock restarted.
+	// Carried tokens get a fresh MaxAge, so their grants need the retention
+	// clock restarted.
 	if carried := placedTokens(r, secure); len(carried) > 0 {
 		digests := make([][]byte, 0, len(carried))
 		for _, t := range carried {
@@ -388,7 +365,6 @@ func placedTokens(r *http.Request, secure bool) []string {
 	return parts
 }
 
-// PlacedHere reports whether this browser holds a token for the named order.
 func (s *Store) PlacedHere(ctx context.Context, r *http.Request, number string, secure bool) bool {
 	tokens := placedTokens(r, secure)
 	if len(tokens) == 0 || number == "" {
@@ -410,8 +386,6 @@ func (s *Store) PlacedHere(ctx context.Context, r *http.Request, number string, 
 	return ok
 }
 
-// ForgetOrders ends the access a browser's placed cookie grants to every order
-// it names.
 func (s *Store) ForgetOrders(ctx context.Context, r *http.Request, secure bool) error {
 	tokens := placedTokens(r, secure)
 	if len(tokens) == 0 {
@@ -434,37 +408,33 @@ func placedCookieName(secure bool) string {
 	return "goen_placed"
 }
 
-// CookieName is the cart cookie. The __Host- prefix binds it to this exact
-// origin, so a sibling subdomain cannot write a cart cookie goen would trust.
+// CookieName carries the __Host- prefix, which binds it to this origin, so a
+// sibling subdomain cannot write a cart cookie goen would trust.
 const CookieName = "__Host-goen_cart"
 
 const cookieMaxAge = 30 * 24 * 60 * 60 // 30 days
 
 const tokenBytes = 32
 
-// MaxLineQuantity is the most of one variant a cart may hold, matching the
-// schema's own CHECK.
+// MaxLineQuantity matches the schema's CHECK.
 const MaxLineQuantity = 999
 
-// payWindow is how long after placing an order a customer may still start a new
-// Checkout Session. It leaves the public 60-minute stock hold room for Stripe's
-// 30-minute floor plus the creation margin below.
+// payWindow leaves the public 60-minute stock hold room for Stripe's 30-minute
+// floor plus the creation margin.
 const payWindow = 29 * time.Minute
 
 // stripeSessionFloor is Stripe's minimum for a Checkout Session's expires_at.
 const stripeSessionFloor = 30 * time.Minute
 
-// stripeSessionStartMargin absorbs Unix
-// second truncation, clock skew and the request trip to Stripe; without it the
-// advertised end of payWindow is already too late to create a session.
+// stripeSessionStartMargin absorbs Unix second truncation, clock skew and the
+// trip to Stripe; without it the end of payWindow is already too late to create
+// a session.
 const stripeSessionStartMargin = time.Minute
 
-// holdTTL is how long an order's stock is reserved while payment is attempted.
-// The floor and creation margin are inventory time, not extra customer pay time:
-// they let a session started at payWindow expire with the same stock hold.
+// holdTTL: the floor and margin are inventory time, not extra pay time; they
+// let a session started at payWindow expire with the same hold.
 const holdTTL = payWindow + stripeSessionFloor + stripeSessionStartMargin
 
-// NewToken returns a fresh cart token.
 func NewToken() (string, error) {
 	b := make([]byte, tokenBytes)
 	if _, err := rand.Read(b); err != nil {
@@ -473,14 +443,13 @@ func NewToken() (string, error) {
 	return base64.RawURLEncoding.EncodeToString(b), nil
 }
 
-// HashToken digests a token for storage and lookup.
 func HashToken(token string) []byte {
 	sum := sha256.Sum256([]byte(token))
 	return sum[:]
 }
 
-// SetCookie writes the cart cookie. A cookie claiming __Host- without Secure is
-// rejected by the browser, so the development path uses a different name.
+// SetCookie writes the cart cookie; a __Host- cookie without Secure is rejected by the browser, so
+// development uses a different name.
 func SetCookie(w http.ResponseWriter, token string, secure bool) {
 	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: dev-only opt-out, secure by default
 		Name:     cookieName(secure),
@@ -493,9 +462,9 @@ func SetCookie(w http.ResponseWriter, token string, secure bool) {
 	})
 }
 
-// expireCookie expires the cart or placed cookie named name. It carries the
-// attributes both are set with: a browser replaces a cookie only with one of
-// the same name and path, and refuses a __Host- name without Secure.
+// A browser replaces a cookie only with one of the same name and path, and
+// refuses a __Host- name without Secure; expireCookie sends both set-time
+// attributes.
 func expireCookie(w http.ResponseWriter, name string, secure bool) {
 	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: dev-only opt-out, secure by default
 		Name:     name,
@@ -508,7 +477,6 @@ func expireCookie(w http.ResponseWriter, name string, secure bool) {
 	})
 }
 
-// ReadCookie returns the token a request carries, or "".
 func ReadCookie(r *http.Request, secure bool) string {
 	c, err := r.Cookie(cookieName(secure))
 	if err != nil {
@@ -524,8 +492,8 @@ func cookieName(secure bool) string {
 	return "goen_cart"
 }
 
-// ParseQuantity reads a quantity from a form, clamped to what a line may hold.
-// Anything unparseable is one item, because the button means "add this".
+// ParseQuantity clamps to what a line may hold; unparseable is one item,
+// because the button means "add this".
 func ParseQuantity(s string) int32 {
 	n, err := strconv.ParseInt(strings.TrimSpace(s), 10, 32)
 	switch {
@@ -537,8 +505,8 @@ func ParseQuantity(s string) int32 {
 	return int32(n)
 }
 
-// ParseQuantityAllowingZero is the cart page's version, where zero means remove
-// the line.
+// ParseQuantityAllowingZero is the cart page's version, where zero removes the
+// line.
 func ParseQuantityAllowingZero(s string) (int32, bool) {
 	n, err := strconv.ParseInt(strings.TrimSpace(s), 10, 32)
 	switch {
@@ -550,10 +518,9 @@ func ParseQuantityAllowingZero(s string) (int32, bool) {
 	return int32(n), true
 }
 
-// Address is the delivery detail a checkout collects, for either destination.
 type Address struct {
-	// To decides which half of this struct is real, and is set from the chosen
-	// shipping method and never from the form.
+	// To picks which half is real; it comes from the shipping method, never the
+	// form.
 	To destination.Kind
 
 	Email string
@@ -585,12 +552,11 @@ const (
 	// at most 80 bytes for CustomerEmail; accepting a longer delivery address and
 	// truncating it later can turn a valid address into an invalid provider value.
 	maxInvoiceEmailBytes = 80
-	// The length ECPay publishes for a pickup-point store code, rather than any
-	// one chain's own width.
+	// ECPay's published pickup-point store code length, not any one chain's
+	// width.
 	maxStoreCodeLen = 10
 )
 
-// Validate checks an address completely, and before anything is written.
 func (a *Address) Validate() []account.FieldError {
 	var errs []account.FieldError
 	add := func(f string, k i18n.Key) { errs = append(errs, account.FieldError{Field: f, MessageKey: k}) }
@@ -621,7 +587,6 @@ func (a *Address) Validate() []account.FieldError {
 	return append(errs, a.controlCharErrors()...)
 }
 
-// destinationErrors validates the half of the struct that applies.
 func (a *Address) destinationErrors() []account.FieldError {
 	var errs []account.FieldError
 	add := func(f string, k i18n.Key) { errs = append(errs, account.FieldError{Field: f, MessageKey: k}) }
@@ -660,12 +625,10 @@ func (a *Address) destinationErrors() []account.FieldError {
 	return errs
 }
 
-// pickupPointErrors validates the chain, store code and store name. The chain
-// is all a shopper is asked for. A store number and name reach this only from
-// the back office, so they are checked when they carry a value and never
-// demanded: the carrier's picker will supply them. Once either half is
-// written, though, order_private_data_pickup_complete refuses a row that does
-// not also carry the other.
+// pickupPointErrors asks a shopper only for the chain. A store number and name
+// come from the back office and are checked only when present, since the
+// carrier's picker supplies them; once either is written,
+// order_private_data_pickup_complete refuses a row without the other.
 func (a *Address) pickupPointErrors() []account.FieldError {
 	var errs []account.FieldError
 	add := func(f string, k i18n.Key) { errs = append(errs, account.FieldError{Field: f, MessageKey: k}) }
@@ -715,8 +678,8 @@ func isStoreCode(s string) bool {
 	return true
 }
 
-// controlCharErrors reports any field carrying a control character: a newline in
-// a name is how a shipping label gets a line it was never given.
+// controlCharErrors: a newline in a name is how a shipping label gets a line it
+// was never given.
 func (a *Address) controlCharErrors() []account.FieldError {
 	var errs []account.FieldError
 	for _, f := range []struct{ name, value string }{
@@ -733,7 +696,6 @@ func (a *Address) controlCharErrors() []account.FieldError {
 	return errs
 }
 
-// emailError returns why an address is unusable, or "".
 func emailError(s string) i18n.Key {
 	switch {
 	case strings.TrimSpace(s) == "":
@@ -782,9 +744,8 @@ func hasControl(s string) bool {
 	return strings.ContainsFunc(s, unicode.IsControl)
 }
 
-// Trim strips the whitespace around every field, folds full-width digits in the
-// phone and postal code, and uppercases the store code, which isStoreCode will
-// not fold.
+// Trim folds full-width digits in the phone and postal code and uppercases the
+// store code, which isStoreCode will not fold.
 func (a *Address) Trim() {
 	a.Email = strings.TrimSpace(a.Email)
 	a.Name = strings.TrimSpace(a.Name)
@@ -799,8 +760,7 @@ func (a *Address) Trim() {
 	a.Note = strings.TrimSpace(a.Note)
 }
 
-// ShippingFee is what a shipping version charges for an order of this subtotal.
-// A free-over threshold of zero means the method is never free.
+// ShippingFee treats a free-over threshold of zero as never free.
 func ShippingFee(feeCents, freeOverCents, subtotalCents int64) int64 {
 	if freeOverCents > 0 && subtotalCents >= freeOverCents {
 		return 0
@@ -808,40 +768,32 @@ func ShippingFee(feeCents, freeOverCents, subtotalCents int64) int64 {
 	return feeCents
 }
 
-// Quote is what an order actually pays to be delivered. The surcharge is added
-// AFTER the free-over threshold: the carrier still charges to cross the water.
+// Quote adds the surcharge AFTER the free-over threshold: the carrier still
+// charges to cross the water.
 type Quote struct {
 	FeeCents  int64
 	Surcharge int64
 	ZoneName  string
 }
 
-// Total is what the order is charged for delivery. An error means the two
-// non-negative database amounts cannot be represented safely as int64 cents.
+// Total fails when the two database amounts cannot be represented as int64
+// cents.
 func (q Quote) Total() (int64, error) {
 	return addCheckoutMoney(q.FeeCents, q.Surcharge)
 }
 
-// HasSurcharge reports whether this address costs extra to reach.
 func (q Quote) HasSurcharge() bool { return q.Surcharge > 0 }
 
-// Invoice is what a customer wants on their uniform invoice.
 type Invoice struct {
-	// Type is the stable wire preference matching
-	// invoice_preferences_type_known.
-	Type invoicepkg.Preference
-	// MobileBarcode is for mobile_carrier only.
+	Type          invoicepkg.Preference
 	MobileBarcode string
-	// DonationCode is the recipient's 愛心碼, for donation only.
-	DonationCode string
-	// CompanyName is the registered buyer name corresponding to TaxID. It is
-	// deliberately separate from the delivery recipient.
+	DonationCode  string
+	// CompanyName is the buyer name for TaxID, kept apart from the delivery
+	// recipient.
 	CompanyName string
-	// TaxID is the eight-digit business tax number, for company only.
-	TaxID string
+	TaxID       string
 }
 
-// Validate refuses what the schema would refuse, in the customer's language.
 func (i *Invoice) Validate() []account.FieldError {
 	i.Type = invoicepkg.Preference(strings.TrimSpace(string(i.Type)))
 	i.MobileBarcode = strings.ToUpper(strings.TrimSpace(web.FoldWidth(i.MobileBarcode)))
@@ -894,7 +846,6 @@ func (i *Invoice) Validate() []account.FieldError {
 	return errs
 }
 
-// invoiceTypeLabelKey names the message for one choice.
 func invoiceTypeLabelKey(t invoicepkg.Preference) i18n.Key {
 	switch t {
 	case invoicepkg.PreferenceMember:

@@ -8,20 +8,16 @@ import (
 	"github.com/google/uuid"
 )
 
-// CheckoutQuoteLine exposes a quote line only to integration fixtures.
 type CheckoutQuoteLine = checkoutQuoteLine
 
-// CheckoutQuote exposes a canonical quote only to integration fixtures.
 type CheckoutQuote = checkoutQuote
 
-// CheckoutQuoteID exposes a quote identity only to integration fixtures.
 type CheckoutQuoteID = checkoutQuoteID
 
-// ErrCheckoutChanged exposes the private sentinel only to integration fixtures.
 var ErrCheckoutChanged = errCheckoutChanged
 
-// PlaceOrder exposes the HTTP handler's transaction only in integration builds.
-// The ordinary production build keeps form parsing and placement package-owned.
+// PlaceOrder exposes the HTTP handler's transaction only in integration builds;
+// production keeps form parsing and placement package-owned.
 func (s *Store) PlaceOrder(
 	ctx context.Context,
 	cartID uuid.UUID,
