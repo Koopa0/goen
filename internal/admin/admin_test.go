@@ -3,7 +3,6 @@ package admin
 import (
 	"cmp"
 	"maps"
-	"math"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -15,26 +14,15 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/koopa0/goen/internal/carrier"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/media"
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
+	"github.com/koopa0/goen/internal/web"
 )
-
-func TestDollarInputsAreBoundedBeforeMultiplication(t *testing.T) {
-	t.Parallel()
-	ctx := i18n.WithLocale(t.Context(), i18n.En)
-
-	method := (&NewMethod{
-		Code: "overflow", Destination: "address", Name: "Overflow",
-		FeeDollars: math.MaxInt64, FreeOverDollars: math.MaxInt64,
-	}).Validate(ctx)
-	if method["fee"] == "" || method["free_over"] == "" {
-		t.Fatalf("shipping overflow fields were accepted: %v", method)
-	}
-}
 
 func TestParseStatusAcceptsOnlyTheFulfilmentLifecycle(t *testing.T) {
 	t.Parallel()
@@ -113,19 +101,19 @@ func TestAFormNumberKeepsInvalidDistinctFromZero(t *testing.T) {
 		{name: "negative", raw: "-3", max: MaxWarrantyMonths},
 		{name: "inner space", raw: "2 4", max: MaxWarrantyMonths},
 		{name: "non ASCII digits", raw: "١٢", max: MaxWarrantyMonths},
-		{name: "longest ceiling", raw: "5000", max: parcelLongestCeilingMM, want: 5000, ok: true},
-		{name: "longest over ceiling", raw: "6000", max: parcelLongestCeilingMM},
-		{name: "sum ceiling", raw: "15000", max: parcelSumCeilingMM, want: 15000, ok: true},
-		{name: "weight ceiling", raw: "200000", max: parcelWeightCeilingG, want: 200000, ok: true},
-		{name: "comma", raw: "10,000", max: parcelWeightCeilingG},
+		{name: "longest ceiling", raw: "5000", max: carrier.MaxParcelLongestMM, want: 5000, ok: true},
+		{name: "longest over ceiling", raw: "6000", max: carrier.MaxParcelLongestMM},
+		{name: "sum ceiling", raw: "15000", max: carrier.MaxParcelSumMM, want: 15000, ok: true},
+		{name: "weight ceiling", raw: "200000", max: carrier.MaxParcelWeightG, want: 200000, ok: true},
+		{name: "comma", raw: "10,000", max: carrier.MaxParcelWeightG},
 		{name: "safety ceiling", raw: "1000000", max: safetyStockCeiling, want: 1000000, ok: true},
 		{name: "safety over ceiling", raw: "1000001", max: safetyStockCeiling},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got, ok := parseBoundedInt(tt.raw, tt.max)
+			got, ok := web.ParseBounded(tt.raw, tt.max)
 			if got != tt.want || ok != tt.ok {
-				t.Errorf("parseBoundedInt(%q, %d) = (%d, %v), want (%d, %v)",
+				t.Errorf("web.ParseBounded(%q, %d) = (%d, %v), want (%d, %v)",
 					tt.raw, tt.max, got, ok, tt.want, tt.ok)
 			}
 		})
@@ -138,22 +126,22 @@ func FuzzParseBoundedInt(f *testing.F) {
 	}
 	f.Fuzz(func(t *testing.T, raw string, choice uint8) {
 		maxima := [...]int32{
-			MaxWarrantyMonths, parcelLongestCeilingMM, parcelSumCeilingMM,
-			parcelWeightCeilingG, safetyStockCeiling,
+			MaxWarrantyMonths, carrier.MaxParcelLongestMM, carrier.MaxParcelSumMM,
+			carrier.MaxParcelWeightG, safetyStockCeiling,
 		}
 		ceiling := maxima[int(choice)%len(maxima)]
-		got, ok := parseBoundedInt(raw, ceiling)
+		got, ok := web.ParseBounded(raw, ceiling)
 		trimmed := strings.TrimSpace(raw)
 		if trimmed == "" {
 			if got != 0 || !ok {
-				t.Fatalf("parseBoundedInt(%q, %d) = (%d, %v), want (0, true)", raw, ceiling, got, ok)
+				t.Fatalf("web.ParseBounded(%q, %d) = (%d, %v), want (0, true)", raw, ceiling, got, ok)
 			}
 			return
 		}
 		n, err := strconv.ParseInt(trimmed, 10, 32)
 		wantOK := err == nil && n >= 0 && n <= int64(ceiling)
 		if ok != wantOK || ok && int64(got) != n || !ok && got != 0 {
-			t.Fatalf("parseBoundedInt(%q, %d) = (%d, %v), parsed=(%d, %v)",
+			t.Fatalf("web.ParseBounded(%q, %d) = (%d, %v), parsed=(%d, %v)",
 				raw, ceiling, got, ok, n, err)
 		}
 	})
@@ -199,27 +187,15 @@ func TestParcelAndSafetyBoundsGuardStoreCallers(t *testing.T) {
 		}},
 		{name: "variant longest", field: "parcel_longest", errs: func() map[string]string {
 			return (&VariantForm{SKU: "BOUND", PriceCents: 100,
-				ParcelLongestMM: parcelLongestCeilingMM + 1}).Validate(ctx)
+				ParcelLongestMM: carrier.MaxParcelLongestMM + 1}).Validate(ctx)
 		}},
 		{name: "variant sum", field: "parcel_sum", errs: func() map[string]string {
 			return (&VariantForm{SKU: "BOUND", PriceCents: 100,
-				ParcelSumMM: parcelSumCeilingMM + 1}).Validate(ctx)
+				ParcelSumMM: carrier.MaxParcelSumMM + 1}).Validate(ctx)
 		}},
 		{name: "variant weight", field: "parcel_weight", errs: func() map[string]string {
 			return (&VariantForm{SKU: "BOUND", PriceCents: 100,
-				ParcelWeightG: parcelWeightCeilingG + 1}).Validate(ctx)
-		}},
-		{name: "method longest", field: "max_parcel_longest", errs: func() map[string]string {
-			return (&NewMethod{Code: "bound", Destination: "address", Name: "Bound",
-				MaxParcelLongestMM: parcelLongestCeilingMM + 1}).Validate(ctx)
-		}},
-		{name: "method sum", field: "max_parcel_sum", errs: func() map[string]string {
-			return (&NewMethod{Code: "bound", Destination: "address", Name: "Bound",
-				MaxParcelSumMM: parcelSumCeilingMM + 1}).Validate(ctx)
-		}},
-		{name: "method weight", field: "max_parcel_weight", errs: func() map[string]string {
-			return (&NewMethod{Code: "bound", Destination: "address", Name: "Bound",
-				MaxParcelWeightG: parcelWeightCeilingG + 1}).Validate(ctx)
+				ParcelWeightG: carrier.MaxParcelWeightG + 1}).Validate(ctx)
 		}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -232,26 +208,14 @@ func TestParcelAndSafetyBoundsGuardStoreCallers(t *testing.T) {
 
 	variantAtCeilings := (&VariantForm{
 		SKU: "BOUND", PriceCents: 100, SafetyStock: safetyStockCeiling,
-		ParcelLongestMM: parcelLongestCeilingMM, ParcelSumMM: parcelSumCeilingMM,
-		ParcelWeightG: parcelWeightCeilingG,
-	}).Validate(ctx)
-	methodAtCeilings := (&NewMethod{
-		Code: "bound", Destination: "address", Name: "Bound",
-		MaxParcelLongestMM: parcelLongestCeilingMM, MaxParcelSumMM: parcelSumCeilingMM,
-		MaxParcelWeightG: parcelWeightCeilingG,
+		ParcelLongestMM: carrier.MaxParcelLongestMM, ParcelSumMM: carrier.MaxParcelSumMM,
+		ParcelWeightG: carrier.MaxParcelWeightG,
 	}).Validate(ctx)
 	for _, field := range []string{
 		"safety", "parcel_longest", "parcel_sum", "parcel_weight",
 	} {
 		if variantAtCeilings[field] != "" {
 			t.Errorf("variant ceiling %q refused: %v", field, variantAtCeilings)
-		}
-	}
-	for _, field := range []string{
-		"max_parcel_longest", "max_parcel_sum", "max_parcel_weight",
-	} {
-		if methodAtCeilings[field] != "" {
-			t.Errorf("method ceiling %q refused: %v", field, methodAtCeilings)
 		}
 	}
 }

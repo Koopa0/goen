@@ -45,12 +45,4 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 	mux.HandleFunc("POST /admin/products/{slug}/images/remove", ac.RequireStaff(h.RemoveImage))
 	mux.HandleFunc("POST /admin/products/{slug}/images/option", ac.RequireStaff(h.SetImageOption))
 	mux.HandleFunc("POST /admin/products/{slug}/images/move", ac.RequireStaff(h.MoveImage))
-	mux.HandleFunc("GET /admin/shipping", ac.RequireStaff(h.Shipping))
-	mux.HandleFunc("POST /admin/shipping/version", ac.RequireStaff(h.PublishShippingVersion))
-	mux.HandleFunc("POST /admin/shipping/surcharge", ac.RequireStaff(h.SetZoneSurcharge))
-	mux.HandleFunc("POST /admin/shipping/method", ac.RequireStaff(h.CreateShippingMethod))
-	mux.HandleFunc("POST /admin/shipping/method/{id}/active", ac.RequireStaff(h.SetShippingMethodActive))
-	mux.HandleFunc("POST /admin/shipping/zone", ac.RequireStaff(h.CreateShippingZone))
-	mux.HandleFunc("POST /admin/shipping/zone/{id}/prefixes", ac.RequireStaff(h.SetZonePrefixes))
-	mux.HandleFunc("POST /admin/shipping/zone/{id}/delete", ac.RequireStaff(h.DeleteShippingZone))
 }

@@ -650,12 +650,12 @@ func TestReviewClearedAssessmentBasisSurvivesRefusal(t *testing.T) {
 	assertRefusedBasis := func(t *testing.T, body string, requestID uuid.UUID, want string) {
 		t.Helper()
 		id := "basis-" + requestID.String()
-		input := inputElementByID(t, body, id)
-		if got := inputAttribute(t, input, "value"); got != want {
+		input := admintest.InputElementByID(t, body, id)
+		if got := admintest.InputAttribute(t, input, "value"); got != want {
 			t.Fatalf("refused assessment draft basis=%q invalid=%q; want submitted %q and invalid=true",
-				got, inputAttribute(t, input, "aria-invalid"), want)
+				got, admintest.InputAttribute(t, input, "aria-invalid"), want)
 		}
-		if inputAttribute(t, input, "aria-invalid") != "true" {
+		if admintest.InputAttribute(t, input, "aria-invalid") != "true" {
 			t.Fatalf("basis %q was not marked aria-invalid", id)
 		}
 	}
@@ -732,11 +732,11 @@ func TestReviewClearedAssessmentBasisSurvivesRefusal(t *testing.T) {
 		}
 		body := res.Body.String()
 		id := "basis-" + requestID.String()
-		input := inputElementByID(t, body, id)
-		if got := inputAttribute(t, input, "value"); got != storedBasis {
+		input := admintest.InputElementByID(t, body, id)
+		if got := admintest.InputAttribute(t, input, "value"); got != storedBasis {
 			t.Fatalf("decision-only refusal basis = %q, want saved %q", got, storedBasis)
 		}
-		if inputAttribute(t, input, "aria-invalid") == "true" {
+		if admintest.InputAttribute(t, input, "aria-invalid") == "true" {
 			t.Fatalf("decision-only refusal marked basis %q invalid", id)
 		}
 	})

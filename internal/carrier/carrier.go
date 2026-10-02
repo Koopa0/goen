@@ -11,6 +11,14 @@ import (
 	"github.com/koopa0/goen/internal/pickup"
 )
 
+// The largest parcel the schema accepts, mirroring the parcel CHECKs on
+// product_variants and the limits a shipping method states.
+const (
+	MaxParcelLongestMM = 5000
+	MaxParcelSumMM     = 15000
+	MaxParcelWeightG   = 200000
+)
+
 // Carrier is the value persisted in order_shipments.carrier and carried by the
 // back-office dispatch form. It is not a display name.
 type Carrier string

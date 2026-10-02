@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/koopa0/goen/internal/admin/access"
+	"github.com/koopa0/goen/internal/carrier"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/media"
 	"github.com/koopa0/goen/internal/money"
@@ -179,12 +180,12 @@ func variantFormOf(r *http.Request) (*VariantForm, admin.VariantDraft, map[strin
 	errs := map[string]string{}
 	safety := parseVariantCount(draft.Safety, safetyStockCeiling,
 		"safety", i18n.T(r.Context(), i18n.KeyFormSafetyStock), errs)
-	longest := parseVariantCount(draft.ParcelLongest, parcelLongestCeilingMM,
-		"parcel_longest", fmt.Sprintf(i18n.T(r.Context(), i18n.KeyFormParcelMeasurement), parcelLongestCeilingMM), errs)
-	sum := parseVariantCount(draft.ParcelSum, parcelSumCeilingMM,
-		"parcel_sum", fmt.Sprintf(i18n.T(r.Context(), i18n.KeyFormParcelMeasurement), parcelSumCeilingMM), errs)
-	weight := parseVariantCount(draft.ParcelWeight, parcelWeightCeilingG,
-		"parcel_weight", fmt.Sprintf(i18n.T(r.Context(), i18n.KeyFormParcelMeasurement), parcelWeightCeilingG), errs)
+	longest := parseVariantCount(draft.ParcelLongest, carrier.MaxParcelLongestMM,
+		"parcel_longest", fmt.Sprintf(i18n.T(r.Context(), i18n.KeyFormParcelMeasurement), carrier.MaxParcelLongestMM), errs)
+	sum := parseVariantCount(draft.ParcelSum, carrier.MaxParcelSumMM,
+		"parcel_sum", fmt.Sprintf(i18n.T(r.Context(), i18n.KeyFormParcelMeasurement), carrier.MaxParcelSumMM), errs)
+	weight := parseVariantCount(draft.ParcelWeight, carrier.MaxParcelWeightG,
+		"parcel_weight", fmt.Sprintf(i18n.T(r.Context(), i18n.KeyFormParcelMeasurement), carrier.MaxParcelWeightG), errs)
 	// ParsePrice, not a parser returning the figure alone: blank is a legitimate
 	// compare-at price and it stores zero, so a collapsed unreadable figure is
 	// indistinguishable from "no discount". /admin/stock prices through this too.
@@ -214,7 +215,7 @@ func variantFormOf(r *http.Request) (*VariantForm, admin.VariantDraft, map[strin
 }
 
 func parseVariantCount(raw string, ceiling int32, field, message string, errs map[string]string) int32 {
-	value, ok := parseBoundedInt(raw, ceiling)
+	value, ok := web.ParseBounded(raw, ceiling)
 	if !ok {
 		errs[field] = message
 	}
@@ -223,7 +224,7 @@ func parseVariantCount(raw string, ceiling int32, field, message string, errs ma
 
 func productFormOf(r *http.Request) (form *ProductForm, errs map[string]string) {
 	raw := r.PostFormValue("warranty_months")
-	warranty, ok := parseBoundedInt(raw, MaxWarrantyMonths)
+	warranty, ok := web.ParseBounded(raw, MaxWarrantyMonths)
 	errs = map[string]string{}
 	if !ok {
 		errs["warranty_months"] = i18n.T(r.Context(), i18n.KeyFormWarrantyMonths)

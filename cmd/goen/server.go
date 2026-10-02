@@ -26,6 +26,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/health"
 	"github.com/koopa0/goen/internal/admin/loyalty"
 	"github.com/koopa0/goen/internal/admin/reports"
+	"github.com/koopa0/goen/internal/admin/shipping"
 	"github.com/koopa0/goen/internal/admin/staff"
 	"github.com/koopa0/goen/internal/admin/taxonomy"
 	"github.com/koopa0/goen/internal/cart"
@@ -208,10 +209,10 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 		Letters:  newsletter.NewStore(adminPool),
 		Log:      log,
 		Sessions: sessionCloser(gateway),
-		StoreMap: cfg.StoreMap,
 	})
 	trail := audit.NewHandler(audit.NewStore(adminPool), log)
 	figures := reports.NewHandler(reports.NewStore(adminPool), log)
+	delivery := shipping.NewHandler(shipping.NewStore(adminPool), cfg.StoreMap, log)
 	brands := taxonomy.NewHandler(taxonomy.NewStore(adminPool), adminImages, log)
 	shopfront := content.NewHandler(content.NewStore(adminPool), adminImages, newsletter.NewStore(adminPool), log)
 	sales := campaigns.NewHandler(campaigns.NewStore(adminPool), adminImages, log)
@@ -374,6 +375,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	sales.Routes(mux, backOffice)
 	shopfront.Routes(mux, backOffice)
 	brands.Routes(mux, backOffice)
+	delivery.Routes(mux, backOffice)
 	mux.HandleFunc("GET /admin/verify", backOffice.StaffOnly(factors.Challenge))
 	mux.HandleFunc("POST /admin/verify", backOffice.StaffOnly(factors.Verify))
 	mux.HandleFunc("POST /admin/verify/enrol", backOffice.StaffOnly(factors.Enrol))
