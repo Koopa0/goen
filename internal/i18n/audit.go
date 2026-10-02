@@ -141,6 +141,8 @@ var (
 
 	KeyAdminActorCustomer = key("admin.actor.customer", Message{ZhHant: "顧客", En: "Customer"})
 
+	KeyAdminActorInvoiceSystem = key("admin.actor.invoice_system", Message{ZhHant: "系統自動開立", En: "Issued automatically"})
+
 	KeyAdminActorSystem   = key("admin.actor.system", Message{ZhHant: "系統", En: "System"})
 	KeyAuditReturnInspect = key("audit.return.inspect", Message{ZhHant: "退貨驗收", En: "Inspect return"})
 

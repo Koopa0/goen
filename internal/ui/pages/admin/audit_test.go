@@ -35,3 +35,28 @@ func TestProductUpdateAuditLabelIsLocalized(t *testing.T) {
 		})
 	}
 }
+
+// TestASystemIssueIsNotReadAsAnErasedAccount: a system row has no user, which
+// is also what an erased staff account leaves, and the two must read apart.
+func TestASystemIssueIsNotReadAsAnErasedAccount(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		name   string
+		locale i18n.Locale
+		entry  AuditEntry
+		want   string
+	}{
+		{name: "system", locale: i18n.ZhHant, entry: AuditEntry{System: true}, want: "系統自動開立"},
+		{name: "system in English", locale: i18n.En, entry: AuditEntry{System: true}, want: "Issued automatically"},
+		{name: "erased staff", locale: i18n.ZhHant, entry: AuditEntry{}, want: "已刪除的帳號"},
+		{name: "staff", locale: i18n.ZhHant, entry: AuditEntry{Actor: "王店長"}, want: "王店長"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := i18n.WithLocale(t.Context(), tt.locale)
+			if got := tt.entry.ActorText(ctx); got != tt.want {
+				t.Errorf("ActorText = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}

@@ -8050,8 +8050,8 @@ func TestSupportCanAnswerAQuestionWithoutADeploy(t *testing.T) {
 
 const (
 	invoiceFAQQuestion = "發票怎麼開立?"
-	invoiceFAQZh       = "結帳時可以選擇會員載具、手機條碼載具或公司統編,系統會記錄您的選擇。這份部署若已設定綠界加值中心,後台會依該選擇開立電子發票;尚未設定時不會開立,後台會說明原因。"
-	invoiceFAQEn       = "At checkout you can choose a member carrier, a mobile barcode carrier, or a company tax ID, and we record your choice. When this deployment has ECPay credentials the back office issues the electronic invoice against that choice; without them nothing is filed, and the back office says so."
+	invoiceFAQZh       = "結帳時可以選擇會員載具、手機條碼載具或公司統編,付款完成時系統會依您的選擇自動開立電子發票。這份部署若尚未設定綠界加值中心則不會開立,後台會說明原因。"
+	invoiceFAQEn       = "At checkout you can choose a member carrier, a mobile barcode carrier, or a company tax ID, and the electronic invoice is issued automatically against that choice when your payment completes. Without ECPay credentials this deployment files nothing, and the back office says so."
 	staleInvoiceFAQZh  = "結帳時可以選擇會員載具、手機條碼載具或公司統編,系統會記錄您的選擇。電子發票的實際開立需要串接加值中心,這部分尚未完成。"
 	staleInvoiceFAQEn  = "At checkout you can choose a member carrier, a mobile barcode carrier, or a company tax ID, and we record your choice. Actually issuing the electronic invoice needs an integration with a certified provider, which is not built yet."
 )
@@ -11440,6 +11440,71 @@ func TestATerminalCardRetrySurvivesErasureAfterCreditLanded(t *testing.T) {
 	}
 }
 
+// TestARefusedSystemIssueIsOnTheHealthPage: nobody watches an automatic issue,
+// so ECPay refusing it stays in front of a person until a later issue exists. A
+// staff claim's refusal was shown to the person who pressed the button and is
+// not listed.
+func TestARefusedSystemIssueIsOnTheHealthPage(t *testing.T) {
+	ctx, actor := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	worker := outbox.NewStore(pool, slog.New(slog.DiscardHandler))
+
+	refuse := func(number string, orderID uuid.UUID, kind string) {
+		t.Helper()
+		staffActor := uuid.NullUUID{UUID: actor, Valid: kind == "staff"}
+		if _, err := pool.Exec(ctx, `
+			INSERT INTO invoice_operations
+			    (order_id, kind, provider_key, amount_cents, request_payload,
+			     actor_user_id, actor_id_snapshot, actor_kind, request_id,
+			     status, last_error, created_at)
+			VALUES ($1, 'issue', replace($2, '-', ''), 100000, '{}', $3, $3, $4,
+			        'refused:' || $2, 'rejected', 'issue_provider_rejected_2000006',
+			        now() - interval '1 minute')`,
+			orderID, number, staffActor, kind); err != nil {
+			t.Fatalf("record a refused %s issue for %s: %v", kind, number, err)
+		}
+	}
+	listed := func(number string) bool {
+		t.Helper()
+		view, err := s.WorkerHealth(ctx, worker)
+		if err != nil {
+			t.Fatalf("health: %v", err)
+		}
+		for _, c := range view.StrandedClaims {
+			if c.OrderNumber == number {
+				return true
+			}
+		}
+		return false
+	}
+
+	systemNumber, systemOrder := paidPickingOrderForUser(t, cancelPointsCustomer(t), 100000)
+	refuse(systemNumber, systemOrder, "system")
+	staffNumber, staffOrder := paidPickingOrderForUser(t, cancelPointsCustomer(t), 100000)
+	refuse(staffNumber, staffOrder, "staff")
+
+	if !listed(systemNumber) {
+		t.Error("a refused automatic issue is not on /admin/health; the paid order " +
+			"goes uninvoiced with nothing to say so")
+	}
+	if listed(staffNumber) {
+		t.Error("a staff claim's refusal is on /admin/health; the person who pressed " +
+			"the button already saw it")
+	}
+
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO invoice_operations
+		    (order_id, kind, provider_key, amount_cents, request_payload,
+		     actor_user_id, actor_id_snapshot, request_id)
+		VALUES ($1, 'issue', replace($2, '-', '') || 'R1', 100000, '{}', $3, $3,
+		        'retry:' || $2)`, systemOrder, systemNumber, actor); err != nil {
+		t.Fatalf("issue %s again: %v", systemNumber, err)
+	}
+	if listed(systemNumber) {
+		t.Error("the refused automatic issue is still listed after staff issued the order again")
+	}
+}
+
 // TestAStrandedInvoiceClaimIsOnTheHealthPage holds the alarm and the only
 // auditable recovery door for an aged ambiguous Allowance.
 //
@@ -11916,6 +11981,33 @@ func TestAnAuditEntryNamesItsOrderAndLinksIt(t *testing.T) {
 		}
 	}
 	t.Errorf("no order.ship entry names %s among %d rows", number, len(view.Rows))
+}
+
+// TestASystemAuditRowIsReadAsTheSystem: a system row carries no user and no
+// snapshot, which must neither break the trail nor read as an erased account.
+func TestASystemAuditRowIsReadAsTheSystem(t *testing.T) {
+	ctx, _ := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	trigger := "evt_audit_" + uuid.NewString()
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO audit_events (actor_kind, action, entity_table, request_id)
+		VALUES ('system', 'invoice.issue', 'invoice_documents', $1)`, trigger); err != nil {
+		t.Fatalf("record a system audit row: %v", err)
+	}
+
+	view, err := s.Audit(ctx)
+	if err != nil {
+		t.Fatalf("Audit with a system row: %v", err)
+	}
+	for _, e := range view.Rows {
+		if e.RequestID == trigger {
+			if !e.System {
+				t.Errorf("the system row reads as person %q", e.Actor)
+			}
+			return
+		}
+	}
+	t.Errorf("no audit row carries %s among %d rows", trigger, len(view.Rows))
 }
 
 func TestARefusedDispatchKeepsWhatWasTyped(t *testing.T) {

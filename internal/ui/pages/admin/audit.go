@@ -20,6 +20,8 @@ type AuditEntry struct {
 	At        string
 	RequestID string
 	Detail    string
+	// System is goen settling the 統一發票 a final sale owes; no person acted.
+	System bool
 }
 
 // Label is what the action is called on the page, in the reader's language.
@@ -161,7 +163,10 @@ var actionLabels = map[string]i18n.Key{
 
 // ActorText is who did it, or a stand-in for an account that is gone.
 func (e AuditEntry) ActorText(ctx context.Context) string {
-	if e.Actor == "" {
+	switch {
+	case e.System:
+		return i18n.T(ctx, i18n.KeyAdminActorInvoiceSystem)
+	case e.Actor == "":
 		return i18n.T(ctx, i18n.KeyAdminErasedAccountPlain)
 	}
 	return e.Actor

@@ -216,7 +216,7 @@ func (s *Store) Audit(ctx context.Context, after ...string) (admin.AuditView, er
 	for i := range rows {
 		e := &rows[i]
 		view.Rows = append(view.Rows, admin.AuditEntry{
-			Action: e.Action, Entity: e.EntityTable, Actor: e.Actor,
+			Action: e.Action, Entity: e.EntityTable, Actor: e.Actor, System: e.BySystem,
 			Subject: e.Subject, Href: auditHref(e.Subject, e.ProductSlug),
 			At:        shoptime.Second(e.OccurredAt),
 			RequestID: e.RequestID.String,

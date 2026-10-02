@@ -147,6 +147,11 @@ var checkCases = []checkCase{
 		accept:     `INSERT INTO audit_events (actor_user_id, actor_id_snapshot, action, entity_table) VALUES ('55555555-5555-4555-8555-555555555555', '55555555-5555-4555-8555-555555555555', 'order.cancel', 'orders');`,
 	},
 	{
+		constraint: "audit_events_actor_kind_shape",
+		reject:     `INSERT INTO audit_events (actor_id_snapshot, actor_kind, action, entity_table) VALUES ('55555555-5555-4555-8555-555555555555', 'system', 'invoice.issue', 'invoice_documents');`,
+		accept:     `INSERT INTO audit_events (actor_kind, action, entity_table) VALUES ('system', 'invoice.issue', 'invoice_documents');`,
+	},
+	{
 		constraint: "brands_name_present",
 		reject:     `INSERT INTO brands (id, slug, name) VALUES ('11110001-0000-4000-8000-000000000001', 'acme', E'	');`,
 		accept:     `INSERT INTO brands (id, slug, name) VALUES ('11110001-0000-4000-8000-000000000001', 'acme', '宏碁');`,
@@ -2031,6 +2036,11 @@ VALUES ('a0000001-0000-4000-8000-000000000000', 1, repeat('購', 200), 'sc-reaso
 		constraint: "invoice_operations_actor_snapshot_matches",
 		reject:     `INSERT INTO invoice_operations (id, order_id, kind, provider_key, amount_cents, request_payload, actor_user_id, actor_id_snapshot, request_id) VALUES ('11110006-0000-4000-8000-00000000000b', '6666aaaa-6666-4666-8666-666666666666', 'issue', 'opactor', 100, '{}', '55555555-5555-4555-8555-555555555555', '5555aaaa-5555-4555-8555-555555555555', 'opactor');`,
 		accept:     `INSERT INTO invoice_operations (id, order_id, kind, provider_key, amount_cents, request_payload, actor_user_id, actor_id_snapshot, request_id) VALUES ('11110006-0000-4000-8000-00000000000b', '6666aaaa-6666-4666-8666-666666666666', 'issue', 'opactor', 100, '{}', '55555555-5555-4555-8555-555555555555', '55555555-5555-4555-8555-555555555555', 'opactor');`,
+	},
+	{
+		constraint: "invoice_operations_actor_kind_shape",
+		reject:     `INSERT INTO invoice_operations (id, order_id, kind, provider_key, amount_cents, request_payload, actor_user_id, actor_id_snapshot, actor_kind, request_id) VALUES ('11110006-0000-4000-8000-0000000000a1', '6666aaaa-6666-4666-8666-666666666666', 'issue', 'opsystem', 100, '{}', '55555555-5555-4555-8555-555555555555', '55555555-5555-4555-8555-555555555555', 'system', 'evt_opsystem');`,
+		accept:     `INSERT INTO invoice_operations (id, order_id, kind, provider_key, amount_cents, request_payload, actor_kind, request_id) VALUES ('11110006-0000-4000-8000-0000000000a1', '6666aaaa-6666-4666-8666-666666666666', 'issue', 'opsystem', 100, '{}', 'system', 'evt_opsystem');`,
 	},
 	{
 		constraint: "invoice_operations_attempts_non_negative",

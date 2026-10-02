@@ -45,6 +45,9 @@ const (
 	// the address already had an account. Its handler sends the link that
 	// completes a new account, or tells an existing one's owner of the attempt.
 	TopicRegistration = "account.registration"
+	// TopicInvoiceDue is a sale that became final. Its handler claims the
+	// 統一發票 on the admin pool; the invoice reconciler issues it.
+	TopicInvoiceDue = "invoice.due"
 )
 
 // BulkPriority is where a send that can wait goes in the queue. Transactional

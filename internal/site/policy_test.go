@@ -306,6 +306,13 @@ func TestActiveInvoiceFAQDoesNotCallTheIssuerUnbuilt(t *testing.T) {
 	if !strings.Contains(rewrite.en, "ECPay") || !strings.Contains(rewrite.en, "credentials") {
 		t.Errorf("English invoice FAQ does not describe ECPay as a deployment: %q", rewrite.en)
 	}
+	// Capture queues the issue: the copy must not have a buyer wait on staff.
+	if !strings.Contains(rewrite.zh, "付款完成") || !strings.Contains(rewrite.zh, "自動開立") {
+		t.Errorf("Chinese invoice FAQ does not say payment issues the invoice: %q", rewrite.zh)
+	}
+	if !strings.Contains(rewrite.en, "automatically") || !strings.Contains(rewrite.en, "payment completes") {
+		t.Errorf("English invoice FAQ does not say payment issues the invoice: %q", rewrite.en)
+	}
 
 	// The statutory return row is a different authority. Editing it here
 	// would reopen 消保法 §19.

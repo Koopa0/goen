@@ -5,6 +5,12 @@ SELECT claim_invoice_issue(
     @order_number::text, @actor_user_id::uuid, @request_id::text
 )::uuid AS operation_id;
 
+-- The system's claim: no actor, and what made the sale final as the request id.
+-- name: ClaimSystemInvoiceIssue :one
+SELECT claim_invoice_issue(
+    @order_number::text, NULL::uuid, @request_id::text
+)::uuid AS operation_id;
+
 -- Every document filed against one order, newest first.
 -- name: InvoiceDocuments :many
 SELECT d.id, d.kind, d.number, d.amount_cents, d.status,

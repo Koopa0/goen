@@ -95,6 +95,42 @@ func (s *Store) Issue(ctx context.Context, orderNumber string) (Document, error)
 	return s.processClaim(ctx, operationID)
 }
 
+// Due is an order whose sale became final, so its 統一發票 is owed now:
+// 營業稅法 §32's 時限表 invoices a prepaid sale when the money arrives, not at
+// dispatch.
+type Due struct {
+	OrderNumber string `json:"order_number"`
+	// Trigger is the provider event that captured the payment, the payment staff
+	// attributed, or the order's commit. It is the system claim's request id.
+	Trigger string `json:"trigger"`
+}
+
+// ClaimDue records the system's issue for an order. The reconciler sends it,
+// so a provider failure lands where a staff claim's would.
+func (s *Store) ClaimDue(ctx context.Context, due *Due) error {
+	_, err := s.q.ClaimSystemInvoiceIssue(ctx, db.ClaimSystemInvoiceIssueParams{
+		OrderNumber: due.OrderNumber, RequestID: due.Trigger,
+	})
+	return dueClaimOutcome(due.OrderNumber, err)
+}
+
+// dueClaimOutcome is nil for a claim made and for one with nothing left to
+// claim. Any other refusal is returned, so the message stays queued and
+// /admin/health shows it rather than the sale going uninvoiced unseen.
+func dueClaimOutcome(orderNumber string, err error) error {
+	switch constraintName(err) {
+	case "invoice_documents_one_active_invoice_per_order":
+		return nil
+	case "invoice_issue_itemisation":
+		// A sale discounted to nothing has no amount to file.
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("claim the invoice order %s owes: %w", orderNumber, err)
+	}
+	return nil
+}
+
 func filingContext(ctx context.Context) (context.Context, context.CancelFunc) {
 	return context.WithTimeout(context.WithoutCancel(ctx), filingTimeout)
 }

@@ -716,7 +716,18 @@ func newMessageStore(d workerDeps) *outbox.Store {
 	messages.HandleJSON[email.NewsletterIssue](outbox.TopicNewsletterIssue,
 		newsletterIssueHandler(newsletter.NewStore(d.pool), d.notifier))
 	messages.HandleJSON[email.RestockNotice](outbox.TopicRestocked, d.notifier.SendRestockNotice)
+	messages.HandleJSON[invoice.Due](outbox.TopicInvoiceDue, invoiceDueHandler(d.admin, d.invoices))
 	return messages
+}
+
+// invoiceDueHandler claims on the ADMIN pool: `store` holds no EXECUTE on the
+// invoice doors. A deployment with no 加值中心 issues nothing, as its startup
+// log already said.
+func invoiceDueHandler(adminPool *pgxpool.Pool, gateway *invoice.Gateway) func(context.Context, *invoice.Due) error {
+	if !gateway.Enabled() {
+		return func(context.Context, *invoice.Due) error { return nil }
+	}
+	return invoice.NewStore(adminPool, gateway).ClaimDue
 }
 
 // newsletterIssueHandler delivers one copy of an issue, and asks at DELIVERY
