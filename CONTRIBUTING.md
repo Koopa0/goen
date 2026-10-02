@@ -121,7 +121,7 @@ that `make image-push` builds carries an SPDX SBOM (`ko build --sbom=spdx`).
 
 - Package by feature under `internal/<feature>/`: types, handlers, store,
   queries and tests together. There is no `services`, `repositories`, `handlers`
-  or `models` directory, and a hook refuses to create one.
+  or `models` directory.
 - `internal/db` and every `*_templ.go` are generated. Edit the `.sql` or
   `.templ` source and run `make sqlc` or `make gen`; the gate compares the
   output against a fresh generation.

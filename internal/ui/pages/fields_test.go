@@ -418,7 +418,7 @@ func (w *writes) valueType(expr ast.Expr, local map[string]string) string {
 
 // callResult is the view model a call's i-th result carries.
 func (w *writes) callResult(call *ast.CallExpr, i int) string {
-	if fn, ok := call.Fun.(*ast.Ident); ok && fn.Name == "new" && len(call.Args) == 1 {
+	if fn, ok := call.Fun.(*ast.Ident); ok && (fn.Name == "new" || fn.Name == "make") && len(call.Args) >= 1 {
 		return w.typeName(call.Args[0])
 	}
 	name := calleeName(call.Fun)

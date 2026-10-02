@@ -10,7 +10,7 @@ import (
 )
 
 // TestEveryNamedTestExists refuses a claim of enforcement with nothing behind it:
-// every Go test name mentioned outside a test file — in CLAUDE.md, a migration,
+// every Go test name mentioned outside a test file — in a markdown file, a migration,
 // docs/ or any .go or .sql file — must resolve to a func that exists.
 func TestEveryNamedTestExists(t *testing.T) {
 	t.Parallel()

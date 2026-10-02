@@ -1,13 +1,23 @@
 -- categories_acyclic is what guarantees the upward walk terminates.
+-- The tone and the photograph are the nearest ones up the trail: a
+-- sub-category shows its department's. The photograph's key, alt text and width
+-- come from ONE row, so a description never belongs to another category's
+-- picture.
 -- name: CategoryBySlug :one
 WITH RECURSIVE trail AS (
     SELECT c.id, c.parent_id, c.slug,
-           localized_name(c.name, c.name_en, @locale::text) AS name, 0 AS depth
+           localized_name(c.name, c.name_en, @locale::text) AS name,
+           c.tone, c.image_key,
+           localized_name(c.image_alt, c.image_alt_en, @locale::text) AS image_alt,
+           0 AS depth
     FROM categories c
     WHERE c.slug = $1
     UNION ALL
     SELECT c.id, c.parent_id, c.slug,
-           localized_name(c.name, c.name_en, @locale::text), t.depth + 1
+           localized_name(c.name, c.name_en, @locale::text),
+           c.tone, c.image_key,
+           localized_name(c.image_alt, c.image_alt_en, @locale::text),
+           t.depth + 1
     FROM categories c
     JOIN trail t ON c.id = t.parent_id
 )
@@ -22,8 +32,20 @@ SELECT
     coalesce(
         (SELECT array_agg(a.name ORDER BY a.depth DESC) FROM trail a WHERE a.depth > 0),
         ARRAY[]::text[]
-    )::text[] AS ancestor_names
+    )::text[] AS ancestor_names,
+    coalesce(
+        (SELECT a.tone FROM trail a WHERE a.tone IS NOT NULL ORDER BY a.depth LIMIT 1),
+        'stone'
+    )::text AS tone,
+    coalesce(photo.image_key, '')::text AS image_key,
+    coalesce(photo.image_alt, '')::text AS image_alt,
+    coalesce(m.width, 0)::integer AS image_width
 FROM trail self
+LEFT JOIN LATERAL (
+    SELECT a.image_key, a.image_alt FROM trail a
+    WHERE a.image_key IS NOT NULL ORDER BY a.depth LIMIT 1
+) photo ON true
+LEFT JOIN media_objects m ON m.digest = photo.image_key
 WHERE self.depth = 0;
 
 -- Every category in the subtree rooted at $1, including $1 itself.
@@ -139,13 +161,17 @@ WHERE p.status = 'active'
   );
 
 -- The trigram GIN index serves Latin queries; short Chinese ones fall back to a
--- sequential scan. The caller escapes %, _ and \ before binding.
+-- sequential scan. A category matches by its own name or an ancestor's, so
+-- searching a department finds what is filed under its sub-categories.
+-- @patterns holds one pattern per term; the caller escapes %, _ and \ in each
+-- before binding, and @exact_pattern is the whole query.
 -- name: SearchProducts :many
 WITH RECURSIVE category_match AS (
-    SELECT id FROM categories
-    WHERE name ILIKE @pattern::text OR coalesce(name_en, '') ILIKE @pattern::text
+    SELECT t.pattern, c.id
+    FROM unnest(@patterns::text[]) AS t(pattern)
+    JOIN categories c ON c.name ILIKE t.pattern OR coalesce(c.name_en, '') ILIKE t.pattern
     UNION
-    SELECT c.id FROM categories c JOIN category_match m ON c.parent_id = m.id
+    SELECT m.pattern, c.id FROM categories c JOIN category_match m ON c.parent_id = m.id
 )
 SELECT
     p.slug,
@@ -190,46 +216,69 @@ LEFT JOIN LATERAL (
 ) img ON true
 WHERE p.status = 'active'
   -- Both names: matching only the localized column would make the catalogue
-  -- searchable in one language at a time.
-  AND (p.name ILIKE @pattern::text
-       OR coalesce(p.name_en, '') ILIKE @pattern::text
-       OR coalesce(p.summary, '') ILIKE @pattern::text
-       OR coalesce(p.summary_en, '') ILIKE @pattern::text
-       OR b.name ILIKE @pattern::text
-       OR p.category_id IN (SELECT id FROM category_match)
-       OR EXISTS (
-           SELECT 1 FROM product_variants sku_match
-           WHERE sku_match.product_id = p.id AND sku_match.is_active
-             AND sku_match.sku ILIKE @pattern::text
-       )
-       OR EXISTS (
-           SELECT 1 FROM product_specs ps
-           WHERE ps.product_id = p.id
-             AND (ps.label ILIKE @pattern::text
-                  OR coalesce(ps.label_en, '') ILIKE @pattern::text
-                  OR ps.value ILIKE @pattern::text
-                  OR coalesce(ps.value_en, '') ILIKE @pattern::text)
-       ))
+  -- searchable in one language at a time. Every term must match some field, and
+  -- a term may match a different field from its neighbour: "aurora 65w" is a
+  -- brand and a spec.
+  AND NOT EXISTS (
+      SELECT 1 FROM unnest(@patterns::text[]) AS t(pattern)
+      WHERE NOT (
+          p.name ILIKE t.pattern
+          OR coalesce(p.name_en, '') ILIKE t.pattern
+          OR coalesce(p.summary, '') ILIKE t.pattern
+          OR coalesce(p.summary_en, '') ILIKE t.pattern
+          OR b.name ILIKE t.pattern
+          OR EXISTS (
+              SELECT 1 FROM category_match m
+              WHERE m.pattern = t.pattern AND m.id = p.category_id
+          )
+          OR EXISTS (
+              SELECT 1 FROM product_variants sku_match
+              WHERE sku_match.product_id = p.id AND sku_match.is_active
+                AND sku_match.sku ILIKE t.pattern
+          )
+          OR EXISTS (
+              SELECT 1 FROM product_specs ps
+              WHERE ps.product_id = p.id
+                AND (ps.label ILIKE t.pattern
+                     OR coalesce(ps.label_en, '') ILIKE t.pattern
+                     OR ps.value ILIKE t.pattern
+                     OR coalesce(ps.value_en, '') ILIKE t.pattern)
+          )
+      )
+  )
 ORDER BY
     -- Field relevance is explicit; repeated words, sales and ratings do not change it.
-    -- A complete variant SKU leads; the category follows a partial name match and
-    -- a partial SKU follows the category.
+    -- The exact tiers compare the whole query; a name that holds every term
+    -- leads one that holds only some, then category, SKU, brand and summary
+    -- follow on any term.
     CASE
         WHEN EXISTS (
             SELECT 1 FROM product_variants exact_sku
             WHERE exact_sku.product_id = p.id AND exact_sku.is_active
               AND exact_sku.sku ILIKE @exact_pattern::text
-        ) THEN 7
-        WHEN p.name ILIKE @exact_pattern::text OR coalesce(p.name_en, '') ILIKE @exact_pattern::text THEN 6
-        WHEN p.name ILIKE @pattern::text OR coalesce(p.name_en, '') ILIKE @pattern::text THEN 5
-        WHEN p.category_id IN (SELECT id FROM category_match) THEN 4
+        ) THEN 8
+        WHEN p.name ILIKE @exact_pattern::text OR coalesce(p.name_en, '') ILIKE @exact_pattern::text THEN 7
+        WHEN NOT EXISTS (
+            SELECT 1 FROM unnest(@patterns::text[]) AS t(pattern)
+            WHERE NOT (p.name ILIKE t.pattern OR coalesce(p.name_en, '') ILIKE t.pattern)
+        ) THEN 6
         WHEN EXISTS (
-            SELECT 1 FROM product_variants partial_sku
+            SELECT 1 FROM unnest(@patterns::text[]) AS t(pattern)
+            WHERE p.name ILIKE t.pattern OR coalesce(p.name_en, '') ILIKE t.pattern
+        ) THEN 5
+        WHEN EXISTS (SELECT 1 FROM category_match m WHERE m.id = p.category_id) THEN 4
+        WHEN EXISTS (
+            SELECT 1 FROM product_variants partial_sku, unnest(@patterns::text[]) AS t(pattern)
             WHERE partial_sku.product_id = p.id AND partial_sku.is_active
-              AND partial_sku.sku ILIKE @pattern::text
+              AND partial_sku.sku ILIKE t.pattern
         ) THEN 3
-        WHEN b.name ILIKE @pattern::text THEN 2
-        WHEN coalesce(p.summary, '') ILIKE @pattern::text OR coalesce(p.summary_en, '') ILIKE @pattern::text THEN 1
+        WHEN EXISTS (
+            SELECT 1 FROM unnest(@patterns::text[]) AS t(pattern) WHERE b.name ILIKE t.pattern
+        ) THEN 2
+        WHEN EXISTS (
+            SELECT 1 FROM unnest(@patterns::text[]) AS t(pattern)
+            WHERE coalesce(p.summary, '') ILIKE t.pattern OR coalesce(p.summary_en, '') ILIKE t.pattern
+        ) THEN 1
         ELSE 0
     END DESC,
     p.published_at DESC, p.id DESC
@@ -238,34 +287,45 @@ LIMIT @page_size::integer OFFSET @page_offset::integer;
 -- The same predicate as SearchProducts, and it has to stay the same.
 -- name: SearchProductsCount :one
 WITH RECURSIVE category_match AS (
-    SELECT id FROM categories
-    WHERE name ILIKE @pattern::text OR coalesce(name_en, '') ILIKE @pattern::text
+    SELECT t.pattern, c.id
+    FROM unnest(@patterns::text[]) AS t(pattern)
+    JOIN categories c ON c.name ILIKE t.pattern OR coalesce(c.name_en, '') ILIKE t.pattern
     UNION
-    SELECT c.id FROM categories c JOIN category_match m ON c.parent_id = m.id
+    SELECT m.pattern, c.id FROM categories c JOIN category_match m ON c.parent_id = m.id
 )
 SELECT count(*)::bigint
 FROM products p
 JOIN brands b ON b.id = p.brand_id
 WHERE p.status = 'active'
-  AND (p.name ILIKE @pattern::text
-       OR coalesce(p.name_en, '') ILIKE @pattern::text
-       OR coalesce(p.summary, '') ILIKE @pattern::text
-       OR coalesce(p.summary_en, '') ILIKE @pattern::text
-       OR b.name ILIKE @pattern::text
-       OR p.category_id IN (SELECT id FROM category_match)
-       OR EXISTS (
-           SELECT 1 FROM product_variants sku_match
-           WHERE sku_match.product_id = p.id AND sku_match.is_active
-             AND sku_match.sku ILIKE @pattern::text
-       )
-       OR EXISTS (
-           SELECT 1 FROM product_specs ps
-           WHERE ps.product_id = p.id
-             AND (ps.label ILIKE @pattern::text
-                  OR coalesce(ps.label_en, '') ILIKE @pattern::text
-                  OR ps.value ILIKE @pattern::text
-                  OR coalesce(ps.value_en, '') ILIKE @pattern::text)
-       ));
+  -- Every term must match some field, and a term may match a different field
+  -- from its neighbour.
+  AND NOT EXISTS (
+      SELECT 1 FROM unnest(@patterns::text[]) AS t(pattern)
+      WHERE NOT (
+          p.name ILIKE t.pattern
+          OR coalesce(p.name_en, '') ILIKE t.pattern
+          OR coalesce(p.summary, '') ILIKE t.pattern
+          OR coalesce(p.summary_en, '') ILIKE t.pattern
+          OR b.name ILIKE t.pattern
+          OR EXISTS (
+              SELECT 1 FROM category_match m
+              WHERE m.pattern = t.pattern AND m.id = p.category_id
+          )
+          OR EXISTS (
+              SELECT 1 FROM product_variants sku_match
+              WHERE sku_match.product_id = p.id AND sku_match.is_active
+                AND sku_match.sku ILIKE t.pattern
+          )
+          OR EXISTS (
+              SELECT 1 FROM product_specs ps
+              WHERE ps.product_id = p.id
+                AND (ps.label ILIKE t.pattern
+                     OR coalesce(ps.label_en, '') ILIKE t.pattern
+                     OR ps.value ILIKE t.pattern
+                     OR coalesce(ps.value_en, '') ILIKE t.pattern)
+          )
+      )
+  );
 
 -- "On sale" is a variant fact, and a product qualifies when any active variant
 -- carries one.
@@ -385,6 +445,7 @@ LIMIT $1;
 -- The window is judged against the database's clock, which wrote the timestamps.
 -- name: RunningCampaign :one
 SELECT c.id, c.slug, localized_name(c.title, c.title_en, @locale::text) AS title, c.ends_at,
+       c.tone,
        coalesce(c.image_key, '')::text AS image_key,
        coalesce(localized_name(c.image_alt, c.image_alt_en, @locale::text), '')::text AS image_alt,
        coalesce(m.width, 0)::integer AS image_width

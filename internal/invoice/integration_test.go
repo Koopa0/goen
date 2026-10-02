@@ -3848,7 +3848,8 @@ func TestTaxIDChecksumAgreesWithTheSchema(t *testing.T) {
 		"", "00000000", "10458575", "04595257", "10458570", "1045857", "104585750",
 		"1045857a", "２０４５８５７５", "04595252", "04595253", "00000007", "00000070",
 	}
-	rng := rand.New(rand.NewPCG(555, 555))
+	rng := rand.New(rand.NewPCG(555, 555)) //nolint:gosec // G404: a reproducible test sample, not a secret
+	corpus = slices.Grow(corpus, 5000)
 	for range 5000 {
 		v := fmt.Sprintf("%08d", rng.IntN(100_000_000))
 		if rng.IntN(4) == 0 {

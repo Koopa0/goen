@@ -6,7 +6,8 @@
 // what shop_day is in SQL, where ambient current_date is already forbidden.
 //
 // Not for a timestamp that belongs to somebody else. ECPay's invoice dates are
-// a wall clock labelled UTC and are formatted with .UTC() at that boundary.
+// a wall clock labelled UTC and are formatted with .UTC() at that boundary;
+// [ProviderMinute] is that rendering for a page.
 package shoptime
 
 import (
@@ -43,3 +44,9 @@ func Minute(t time.Time) string { return In(t).Format("2006-01-02 15:04") }
 
 // Second is a moment to the second, for the audit trail.
 func Second(t time.Time) string { return In(t).Format("2006-01-02 15:04:05") }
+
+// ProviderMinute renders a provider's own wall clock, which ECPay's invoice
+// timestamps are: stored as the digits it sent, labelled UTC. Moving one to the
+// shop's clock adds eight hours and can push an invoice into the next day and
+// filing period, so this reads the digits back as they were sent.
+func ProviderMinute(t time.Time) string { return t.UTC().Format("2006-01-02 15:04") }
