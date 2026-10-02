@@ -2008,10 +2008,38 @@ func insertHistoricalCustomerAnswer(ctx context.Context, questionID, userID, bod
 func TestARefusedRestockRequestKeepsTheAddressAndNamesItsCause(t *testing.T) {
 	ctx := t.Context()
 	h := product.NewHandler(product.NewStore(pool), slog.New(slog.DiscardHandler), "https://goen.example")
+	// The page's form posts to an action that carries the visitor's selection, so
+	// the 422 lands on the variant the request named; a product with options
+	// resolves no variant without it.
+	selectionOf := func(variant uuid.UUID) string {
+		t.Helper()
+		rows, err := pool.Query(ctx, `
+			SELECT o.name, v.value
+			FROM variant_option_values vo
+			JOIN product_options o ON o.id = vo.option_id
+			JOIN product_option_values v ON v.id = vo.option_value_id
+			WHERE vo.variant_id = $1`, variant)
+		if err != nil {
+			t.Fatalf("read the selection of %s: %v", variant, err)
+		}
+		defer rows.Close()
+		q := url.Values{}
+		for rows.Next() {
+			var name, value string
+			if err := rows.Scan(&name, &value); err != nil {
+				t.Fatalf("scan selection: %v", err)
+			}
+			q.Set(name, value)
+		}
+		if err := rows.Err(); err != nil {
+			t.Fatalf("read selection: %v", err)
+		}
+		return q.Encode()
+	}
 	notify := func(slug string, variant uuid.UUID, addr, remote string) *httptest.ResponseRecorder {
 		t.Helper()
 		form := url.Values{"email": {addr}, "variant": {variant.String()}}
-		req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/p/"+slug+"/notify",
+		req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/p/"+slug+"/notify?"+selectionOf(variant),
 			strings.NewReader(form.Encode()))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		req.RemoteAddr = remote
