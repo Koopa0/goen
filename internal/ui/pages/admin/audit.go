@@ -20,7 +20,8 @@ type AuditEntry struct {
 	At        string
 	RequestID string
 	Detail    string
-	// System is goen settling the 統一發票 a final sale owes; no person acted.
+	// System is goen acting on a fact, such as the 統一發票 a sale owes; no
+	// person acted, and Label says what was done.
 	System bool
 }
 
@@ -165,7 +166,7 @@ var actionLabels = map[string]i18n.Key{
 func (e AuditEntry) ActorText(ctx context.Context) string {
 	switch {
 	case e.System:
-		return i18n.T(ctx, i18n.KeyAdminActorInvoiceSystem)
+		return i18n.T(ctx, i18n.KeyAdminActorSystem)
 	case e.Actor == "":
 		return i18n.T(ctx, i18n.KeyAdminErasedAccountPlain)
 	}

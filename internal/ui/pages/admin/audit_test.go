@@ -46,8 +46,8 @@ func TestASystemIssueIsNotReadAsAnErasedAccount(t *testing.T) {
 		entry  AuditEntry
 		want   string
 	}{
-		{name: "system", locale: i18n.ZhHant, entry: AuditEntry{System: true}, want: "系統自動開立"},
-		{name: "system in English", locale: i18n.En, entry: AuditEntry{System: true}, want: "Issued automatically"},
+		{name: "system", locale: i18n.ZhHant, entry: AuditEntry{System: true}, want: "系統"},
+		{name: "system in English", locale: i18n.En, entry: AuditEntry{System: true}, want: "System"},
 		{name: "erased staff", locale: i18n.ZhHant, entry: AuditEntry{}, want: "已刪除的帳號"},
 		{name: "staff", locale: i18n.ZhHant, entry: AuditEntry{Actor: "王店長"}, want: "王店長"},
 	} {

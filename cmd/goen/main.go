@@ -721,12 +721,8 @@ func newMessageStore(d workerDeps) *outbox.Store {
 }
 
 // invoiceDueHandler claims on the ADMIN pool: `store` holds no EXECUTE on the
-// invoice doors. A deployment with no 加值中心 issues nothing, as its startup
-// log already said.
+// invoice doors.
 func invoiceDueHandler(adminPool *pgxpool.Pool, gateway *invoice.Gateway) func(context.Context, *invoice.Due) error {
-	if !gateway.Enabled() {
-		return func(context.Context, *invoice.Due) error { return nil }
-	}
 	return invoice.NewStore(adminPool, gateway).ClaimDue
 }
 

@@ -11482,10 +11482,16 @@ func TestARefusedSystemIssueIsOnTheHealthPage(t *testing.T) {
 	refuse(systemNumber, systemOrder, "system")
 	staffNumber, staffOrder := paidPickingOrderForUser(t, cancelPointsCustomer(t), 100000)
 	refuse(staffNumber, staffOrder, "staff")
+	creditNumber, creditOrder, _ := paidUnshippedOrder(t, 0, 100000, false)
+	refuse(creditNumber, creditOrder, "system")
 
 	if !listed(systemNumber) {
 		t.Error("a refused automatic issue is not on /admin/health; the paid order " +
 			"goes uninvoiced with nothing to say so")
+	}
+	if !listed(creditNumber) {
+		t.Error("a refused automatic issue on an order store credit paid in full is not " +
+			"on /admin/health; the order is pending, and owes its invoice all the same")
 	}
 	if listed(staffNumber) {
 		t.Error("a staff claim's refusal is on /admin/health; the person who pressed " +

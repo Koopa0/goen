@@ -495,9 +495,12 @@ func (d InvoiceDocument) Voided() bool { return d.Status == "voided" }
 // 加值中心 under it yet.
 func (d InvoiceDocument) Pending() bool { return d.Status == "pending" }
 
-// CanIssueInvoice reports whether to offer the issue button.
+// CanIssueInvoice reports whether to offer the issue button. A pending order
+// store credit paid in full is not committed until it is picked, and its
+// invoice is owed all the same.
 func (v *OrderView) CanIssueInvoice() bool {
-	if !v.InvoicingEnabled || !v.Committed {
+	funded := v.Committed || (v.Status == pages.FulfillmentPending && !v.Unpaid)
+	if !v.InvoicingEnabled || !funded {
 		return false
 	}
 	for _, d := range v.InvoiceDocuments {

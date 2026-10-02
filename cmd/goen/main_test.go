@@ -12,10 +12,12 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/email"
+	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/outbox"
 )
 
@@ -460,7 +462,9 @@ func TestEveryTopicGoenEnqueuesHasAHandler(t *testing.T) {
 	}
 	t.Cleanup(idle.Close)
 	log := slog.New(slog.DiscardHandler)
-	messages := newMessageStore(workerDeps{pool: idle, admin: idle, maintenance: idle, log: log})
+	messages := newMessageStore(workerDeps{
+		pool: idle, admin: idle, maintenance: idle, log: log, invoices: unconfiguredInvoicing(t),
+	})
 
 	topics := declaredTopics(t)
 	if len(topics) < 13 {
@@ -473,6 +477,38 @@ func TestEveryTopicGoenEnqueuesHasAHandler(t *testing.T) {
 				"rescheduled for ever", name, topic)
 		}
 	}
+}
+
+// TestAnInvoiceDueReachesTheClaimWithoutAProvider: with no 加值中心 the
+// handler still claims, so the operation waits for one to be configured instead
+// of the message being stamped delivered with nothing filed.
+func TestAnInvoiceDueReachesTheClaimWithoutAProvider(t *testing.T) {
+	t.Parallel()
+
+	idle, err := pgxpool.New(t.Context(), "postgres://unused:unused@127.0.0.1:1/unused?sslmode=disable")
+	if err != nil {
+		t.Fatalf("open an unused pool: %v", err)
+	}
+	t.Cleanup(idle.Close)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	err = invoiceDueHandler(idle, unconfiguredInvoicing(t))(ctx, &invoice.Due{
+		OrderNumber: "GO-261002-000001", Trigger: "commit:GO-261002-000001",
+	})
+	if err == nil {
+		t.Fatal("invoice.due was reported done without reaching the database; with no " +
+			"加值中心 the sale's invoice is dropped and a provider configured later files nothing")
+	}
+}
+
+// unconfiguredInvoicing is the gateway a deployment with no 加值中心 runs with.
+func unconfiguredInvoicing(t *testing.T) *invoice.Gateway {
+	t.Helper()
+	g, err := invoice.NewGateway("", "", "", "")
+	if err != nil || g.Enabled() {
+		t.Fatalf("an empty 加值中心 configuration = %v, enabled %t; want legal and off", err, g.Enabled())
+	}
+	return g
 }
 
 // declaredTopics is every outbox.Topic* constant, by name, with its value.

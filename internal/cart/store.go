@@ -726,8 +726,9 @@ type orderParts struct {
 }
 
 // writeOrderParts writes the lines, the stock hold, the first history entry, the
-// store-credit spend, the invoice choice, the redemption and the mail intent —
-// all in the caller's transaction, because each is part of what the order IS.
+// store-credit spend, the invoice choice, the redemption, the mail intent and,
+// when credit pays it all, the invoice due — all in the caller's transaction,
+// because each is part of what the order IS.
 func writeOrderParts(ctx context.Context, q *db.Queries, p *orderParts) error {
 	if err := writeOrderLines(ctx, q, p.orderID, p.lines); err != nil {
 		return err
@@ -771,6 +772,16 @@ func writeOrderParts(ctx context.Context, q *db.Queries, p *orderParts) error {
 	// The confirmation email's INTENT, in the order's own transaction.
 	if mailErr := enqueueOrderPlaced(ctx, q, p.orderID, p.orderNumber, p.address, p.totalCents); mailErr != nil {
 		return mailErr
+	}
+
+	// Store credit paying the whole order is money received now, and 營業稅法
+	// §32 invoices money received before dispatch; picking is too late.
+	if p.creditCents > 0 && p.creditCents == p.totalCents {
+		if dueErr := invoicepkg.EnqueueDue(ctx, q, invoicepkg.Due{
+			OrderNumber: p.orderNumber, Trigger: "commit:" + p.orderNumber,
+		}); dueErr != nil {
+			return dueErr
+		}
 	}
 
 	return nil

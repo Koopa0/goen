@@ -5767,8 +5767,12 @@ BEGIN
       AND (p_actor_user_id IS NULL OR status IN ('pending', 'attention'))
     ORDER BY created_at, id LIMIT 1;
     IF FOUND THEN RETURN v_existing; END IF;
-    IF NOT order_is_committed(v_order.id) THEN
-        RAISE EXCEPTION 'only a committed order can be invoiced'
+    -- Store credit paying the whole order was received at checkout; the order
+    -- stays pending, uncommitted, until it is picked.
+    IF NOT order_is_committed(v_order.id)
+       AND NOT (v_order.fulfillment_status = 'pending'
+                AND order_amount_owed(v_order.id) = 0) THEN
+        RAISE EXCEPTION 'only a committed or fully funded order can be invoiced'
             USING ERRCODE = 'check_violation', CONSTRAINT = 'invoice_issue_committed';
     END IF;
     IF EXISTS (SELECT 1 FROM invoice_documents

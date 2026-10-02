@@ -16,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/invoice"
 )
 
 // Store is the database side of taking money. It holds the pool rather than a
@@ -245,7 +246,12 @@ func AttributeCompleteCapture(
 		return false, fmt.Errorf("attribute complete payment %s: %w", providerRef, err)
 	}
 	capture := Capture{SessionID: providerRef, AmountRecv: row.AmountCents}
-	if err := CompleteFunding(ctx, q, row.OrderID, row.OrderNumber, capture, providerRef); err != nil {
+	if err := CompleteFunding(ctx, q, row.OrderID, row.OrderNumber, capture); err != nil {
+		return false, err
+	}
+	if err := invoice.EnqueueDue(ctx, q, invoice.Due{
+		OrderNumber: row.OrderNumber, Trigger: providerRef,
+	}); err != nil {
 		return false, err
 	}
 	return true, nil
@@ -401,19 +407,22 @@ func (w *webhookTx) Capture(ctx context.Context, c Capture) (orderNumber string,
 	if err := w.postCapture(ctx, c); err != nil {
 		return capturePostingError(row.OrderNumber, c.SessionID, err)
 	}
-	if err := CompleteFunding(ctx, w.q, row.ID, row.OrderNumber, c, w.eventID); err != nil {
+	if err := CompleteFunding(ctx, w.q, row.ID, row.OrderNumber, c); err != nil {
+		return "", err
+	}
+	if err := invoice.EnqueueDue(ctx, w.q, invoice.Due{
+		OrderNumber: row.OrderNumber, Trigger: w.eventID,
+	}); err != nil {
 		return "", err
 	}
 	return row.OrderNumber, nil
 }
 
-// CompleteFunding appends the paid timeline event, loyalty award, the
-// 統一發票 now due and the receipt once an order's funding has closed. A card
-// capture passes the provider facts; a zero-owed picking transition passes
-// none. trigger names what closed it, for the invoice's system attribution.
+// CompleteFunding appends the paid timeline event, loyalty award and receipt
+// once an order's funding has closed. A card capture passes the provider facts;
+// a zero-owed picking transition passes none.
 func CompleteFunding(
 	ctx context.Context, q *db.Queries, orderID uuid.UUID, orderNumber string, c Capture,
-	trigger string,
 ) (err error) {
 	has, err := q.OrderHasPaidEvent(ctx, orderID)
 	if err != nil {
@@ -431,10 +440,6 @@ func CompleteFunding(
 
 	if _, err = q.AwardOrderPoints(ctx, orderID); err != nil {
 		return fmt.Errorf("award points for order %s: %w", orderNumber, err)
-	}
-
-	if dueErr := enqueueInvoiceDue(ctx, q, orderNumber, trigger); dueErr != nil {
-		return dueErr
 	}
 
 	var amount int64

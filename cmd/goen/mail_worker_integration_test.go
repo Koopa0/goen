@@ -74,6 +74,7 @@ func TestTheWorkerMailsWhatEachAccountMessageMeans(t *testing.T) {
 	messages := newMessageStore(workerDeps{
 		pool: storePool, admin: storePool, maintenance: storePool, log: log,
 		notifier: email.New(sender, "https://goen.test", "", ""),
+		invoices: unconfiguredInvoicing(t),
 	})
 	drain := func() {
 		t.Helper()

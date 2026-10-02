@@ -14712,7 +14712,8 @@ JOIN orders o ON o.id = op.order_id
 WHERE op.status = 'attention'
    OR (op.status = 'pending' AND op.created_at < now() - interval '15 minutes')
    OR (op.status = 'rejected' AND op.actor_kind = 'system'
-       AND order_is_committed(op.order_id)
+       AND (order_is_committed(op.order_id)
+            OR (o.fulfillment_status = 'pending' AND order_amount_owed(op.order_id) = 0))
        AND NOT EXISTS (SELECT 1 FROM invoice_operations later
                        WHERE later.order_id = op.order_id AND later.kind = 'issue'
                          AND later.created_at > op.created_at))
