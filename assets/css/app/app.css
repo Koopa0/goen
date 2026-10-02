@@ -1650,24 +1650,43 @@ h3 {
 }
 
 /* Outside the card, never inside: the whole card is one link, and a control
-   nested in an anchor is neither clickable nor valid. It sits on the
-   photograph's corner rather than in a row of its own above every card. */
+   nested in an anchor is neither clickable nor valid. It is a bare checkbox on
+   the photograph's corner, shown while the card is hovered or focused and
+   whenever it is ticked; the label is only the 44px hit area around it. */
 .goen-tile__compare {
   align-items: center;
-  background: var(--n-0);
-  border: 1px solid var(--n-200);
-  border-radius: var(--r-md);
-  color: var(--n-700);
   cursor: pointer;
   display: flex;
-  font-size: var(--fs-12);
-  gap: 8px;
-  min-height: 44px;
-  padding: 0 0.625rem;
+  height: 44px;
+  justify-content: center;
+  opacity: 0;
   position: absolute;
-  right: 0.5rem;
-  top: 0.5rem;
+  right: 0;
+  top: 0;
+  transition: opacity var(--dur-base) var(--ease-standard);
+  width: 44px;
   z-index: 1;
+}
+
+.goen-tile__cell:hover .goen-tile__compare,
+.goen-tile__cell:focus-within .goen-tile__compare,
+.goen-tile__compare:has(:checked) {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .goen-tile__compare {
+    opacity: 0.7;
+  }
+
+  .goen-tile__compare:has(:checked) {
+    opacity: 1;
+  }
+}
+
+.goen-tile__compare .goen-check {
+  background: var(--n-0);
+  border-radius: var(--r-sm);
 }
 
 .goen-check {

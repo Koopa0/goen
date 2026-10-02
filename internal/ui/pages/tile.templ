@@ -33,7 +33,7 @@ templ tileCard(t ProductTile) {
 		// control nested in an anchor is neither clickable nor valid.
 		<label class="goen-tile__compare">
 			<input type="checkbox" name="p" value={ t.Slug } class="goen-check" aria-label={ t.CompareLabel(ctx) } form="compare-pick"/>
-			<span aria-hidden="true">{ i18n.T(ctx, i18n.KeyCompareAdd) }</span>
+			<span class="goen-sr-only">{ i18n.T(ctx, i18n.KeyCompareAdd) }</span>
 		</label>
 	}
 	<a class="goen-tile" href={ templ.URL("/p/" + t.Slug) }>
