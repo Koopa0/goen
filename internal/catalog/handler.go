@@ -1,6 +1,7 @@
 package catalog
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -49,7 +50,7 @@ func (h *Handler) Listing(w http.ResponseWriter, r *http.Request) {
 	view.InStockOnly = f.InStockOnly
 	view.MinPrice = f.MinPrice
 	view.MaxPrice = f.MaxPrice
-	view.Sort = string(f.Sort)
+	view.Sort = f.Sort.Param()
 
 	if web.IsHTMX(r) {
 		r = r.WithContext(pages.AsPartial(r.Context()))
@@ -68,26 +69,15 @@ func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
 	pattern := SearchPattern(q)
 	page := ParsePage(r.URL.Query().Get("page"))
 
-	sort := ParseSort(r.URL.Query().Get("sort"))
+	sort := ParseSort(r.URL.Query().Get("sort"), SortRelevance)
 
 	view := pages.SearchView{Query: trimForDisplay(q), Page: page, PageSize: PageSize}
 	if pattern != "" {
-		loaded, err := h.store.Search(r.Context(), pattern, sort, page)
-		if err != nil {
+		var err error
+		if view, err = h.searched(r.Context(), pattern, view.Query, sort, page); err != nil {
 			h.log.ErrorContext(r.Context(), "search", "error", err)
 			h.serverError(w, r)
 			return
-		}
-		loaded.Query = view.Query
-		view = loaded
-		if view.Empty() {
-			// Best effort: the page already says nothing matched, and the
-			// department chips below it still lead somewhere.
-			newest, newestErr := h.store.NewestProducts(r.Context(), newestOnEmpty)
-			if newestErr != nil {
-				h.log.ErrorContext(r.Context(), "newest products for an empty search", "error", newestErr)
-			}
-			view.Newest = newest
 		}
 	}
 
@@ -95,6 +85,25 @@ func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
 		r = r.WithContext(pages.AsPartial(r.Context()))
 	}
 	web.Render(w, r, h.log, http.StatusOK, pages.Search(pages.SearchMeta(r.Context(), view.Query), view))
+}
+
+// searched runs a search and, when it finds nothing, adds the newest products.
+func (h *Handler) searched(ctx context.Context, pattern, query string, sort Sort, page int) (pages.SearchView, error) {
+	view, err := h.store.Search(ctx, pattern, sort, page)
+	if err != nil {
+		return pages.SearchView{}, err
+	}
+	view.Query = query
+	if view.Empty() {
+		// Best effort: the page already says nothing matched, and the
+		// department chips below it still lead somewhere.
+		newest, newestErr := h.store.NewestProducts(ctx, newestOnEmpty)
+		if newestErr != nil {
+			h.log.ErrorContext(ctx, "newest products for an empty search", "error", newestErr)
+		}
+		view.Newest = newest
+	}
+	return view, nil
 }
 
 func (h *Handler) notFound(w http.ResponseWriter, r *http.Request) {
@@ -119,7 +128,7 @@ func parseFilters(q url.Values) Filters {
 		InStockOnly: q.Get("in_stock") == "1",
 		MinPrice:    ParsePrice(q.Get("min_price")),
 		MaxPrice:    ParsePrice(q.Get("max_price")),
-		Sort:        ParseSort(q.Get("sort")),
+		Sort:        ParseSort(q.Get("sort"), SortNewest),
 		Page:        ParsePage(q.Get("page")),
 	}
 }
@@ -159,8 +168,8 @@ func canonicalQuery(f Filters) string {
 	if f.MaxPrice > 0 {
 		q.Set("max_price", strconv.FormatInt(f.MaxPrice/100, 10))
 	}
-	if f.Sort != SortDefault {
-		q.Set("sort", string(f.Sort))
+	if sort := f.Sort.Param(); sort != "" {
+		q.Set("sort", sort)
 	}
 	return q.Encode()
 }
@@ -219,7 +228,7 @@ func (h *Handler) Compare(w http.ResponseWriter, r *http.Request) {
 	if q := r.URL.Query().Get("q"); !view.Full() {
 		view.Query = trimForDisplay(q)
 		if pattern := SearchPattern(q); pattern != "" {
-			found, searchErr := h.store.Search(r.Context(), pattern, SortDefault, 1)
+			found, searchErr := h.store.Search(r.Context(), pattern, SortRelevance, 1)
 			if searchErr != nil {
 				h.log.ErrorContext(r.Context(), "compare search", "error", searchErr)
 				h.serverError(w, r)

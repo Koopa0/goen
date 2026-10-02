@@ -75,7 +75,7 @@ func (s *Store) Listing(ctx context.Context, slug string, f Filters) (pages.List
 		InStockOnly:    f.InStockOnly,
 		MinPrice:       f.MinPrice,
 		MaxPrice:       f.MaxPrice,
-		Sort:           string(f.Sort),
+		Sort:           f.Sort.Param(),
 		PageSize:       PageSize,
 		PageOffset:     f.Offset(),
 	})
@@ -137,14 +137,14 @@ func (s *Store) Listing(ctx context.Context, slug string, f Filters) (pages.List
 }
 
 // Search reads one page of search results. The pattern is SearchPattern's, and
-// sort is ParseSort's: on a search the default is best match, not newest.
+// sort is ParseSort's with SortRelevance as the unchosen order.
 func (s *Store) Search(ctx context.Context, pattern string, sort Sort, page int) (pages.SearchView, error) {
 	terms, exact := SearchTerms(pattern)
 	rows, err := s.q.SearchProducts(ctx, db.SearchProductsParams{
 		Locale:       string(i18n.FromContext(ctx)),
 		Patterns:     terms,
 		ExactPattern: exact,
-		Sort:         string(sort),
+		Sort:         sort.Param(),
 		PageSize:     PageSize,
 		PageOffset:   offsetFor(page),
 	})
@@ -165,16 +165,14 @@ func (s *Store) Search(ctx context.Context, pattern string, sort Sort, page int)
 		Total:    total,
 		Page:     max(page, 1),
 		PageSize: PageSize,
-		Sort:     string(sort),
+		Sort:     sort.Param(),
 	}, nil
 }
 
-// NewestProducts reads through SearchProducts with no terms, which matches every
-// active product and leaves only the newest-first tiebreak.
+// NewestProducts reads the n most recently published active products.
 func (s *Store) NewestProducts(ctx context.Context, n int32) ([]pages.ProductTile, error) {
-	rows, err := s.q.SearchProducts(ctx, db.SearchProductsParams{
+	rows, err := s.q.NewestProducts(ctx, db.NewestProductsParams{
 		Locale:   string(i18n.FromContext(ctx)),
-		Patterns: []string{},
 		PageSize: n,
 	})
 	if err != nil {
@@ -184,7 +182,12 @@ func (s *Store) NewestProducts(ctx context.Context, n int32) ([]pages.ProductTil
 	if err != nil {
 		return nil, err
 	}
-	return searchTiles(rows, offers), nil
+	// Same columns in the same order as SearchProducts, so one tile builder serves both.
+	asSearch := make([]db.SearchProductsRow, len(rows))
+	for i := range rows {
+		asSearch[i] = db.SearchProductsRow(rows[i])
+	}
+	return searchTiles(asSearch, offers), nil
 }
 
 func childCrumbs(rows []db.CategoryChildrenRow) []pages.Crumb {
