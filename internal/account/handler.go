@@ -210,7 +210,8 @@ func (h *Handler) signInFailed(w http.ResponseWriter, r *http.Request, addr, nex
 	web.Render(w, r, h.log, http.StatusUnprocessableEntity,
 		pages.SignIn(pages.SignInMeta(r.Context()), pages.AuthView{
 			Email: addr, Next: next,
-			Errors: map[string]string{"form": i18n.T(r.Context(), i18n.KeyBadCredentials)},
+			GoogleSignIn: h.google.Enabled(),
+			Errors:       map[string]string{"form": i18n.T(r.Context(), i18n.KeyBadCredentials)},
 		}))
 }
 
