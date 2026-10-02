@@ -22,7 +22,7 @@ type Choice struct {
 type Product struct {
 	Slug       string
 	Name       string
-	Status     string
+	Status     pages.ProductStatus
 	StatusText string
 	Brand      string
 	Category   string
@@ -46,7 +46,7 @@ func (p Product) VariantsText() string { return strconv.FormatInt(int64(p.Varian
 func (p Product) Href() string { return "/admin/products/" + p.Slug }
 
 // Sellable reports whether this product can actually be bought.
-func (p Product) Sellable() bool { return p.Status == "active" && p.Variants > 0 }
+func (p Product) Sellable() bool { return p.Status == pages.ProductActive && p.Variants > 0 }
 
 // ProductsView is the back-office catalogue.
 type ProductsView struct {
@@ -103,7 +103,7 @@ type ProductView struct {
 	WarrantyNote      string
 	WarrantyMonthsRaw string
 	WarrantyMonths    int32
-	Status            string
+	Status            pages.ProductStatus
 	StatusText        string
 	BrandID           string
 	CategoryID        string
@@ -218,7 +218,7 @@ func (v *ProductView) Selected(kind, value string) bool {
 
 // CanPublish reports whether publishing is a legal next step.
 func (v *ProductView) CanPublish() bool {
-	return !v.IsNew && v.Status != "active" && len(v.Variants) > 0
+	return !v.IsNew && v.Status != pages.ProductActive && len(v.Variants) > 0
 }
 
 // NeedsVariant reports whether it cannot be published because it has nothing to sell.

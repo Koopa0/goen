@@ -449,7 +449,7 @@ func sellableForMerge(ctx context.Context, q *db.Queries, variantID uuid.UUID) (
 		}
 		return 0, fmt.Errorf("read variant for merge: %w", err)
 	}
-	if !v.IsActive || v.Status != "active" || v.SellableQuantity <= 0 {
+	if !v.IsActive || pages.ProductStatus(v.Status) != pages.ProductActive || v.SellableQuantity <= 0 {
 		return 0, ErrCartMergeRefused
 	}
 	return v.SellableQuantity, nil
