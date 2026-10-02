@@ -33,6 +33,10 @@ func (s *Store) Refresh(ctx context.Context) (int32, error) {
 	if err != nil {
 		return 0, fmt.Errorf("refresh co-purchases: %w", err)
 	}
+	if pairs < 0 {
+		s.log.InfoContext(ctx, "co-purchase rebuild skipped: another process is running it")
+		return 0, nil
+	}
 	s.log.InfoContext(ctx, "co-purchase projection rebuilt",
 		"pairs", pairs, "took_ms", time.Since(started).Milliseconds())
 	return pairs, nil

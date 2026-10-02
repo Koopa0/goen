@@ -117,6 +117,39 @@ provider acceptance are not established by them.
 goen publishes no releases, so there is no release provenance. The container image
 that `make image-push` builds carries an SPDX SBOM (`ko build --sbom=spdx`).
 
+## What goen assumes
+
+**One instance.** goen is built to run as a single process against one
+PostgreSQL. With more than one:
+
+- The rate limiters are in memory, so each instance counts on its own and a
+  client's allowance is multiplied by the number of instances.
+- The background loops (retention sweeps, invoice reconciliation, the outbox
+  worker) run in every process. The outbox claims with `SKIP LOCKED` and the
+  co-purchase rebuild takes an advisory lock, so neither does its work twice;
+  the sweeps only repeat idempotent deletes.
+- The pools are constants sized for one process (25 + 10 + 2 connections, inside
+  PostgreSQL's default `max_connections` of 100). Each extra instance adds that
+  many again.
+
+If a shop needed more than one, the first change would be a shared rate limiter,
+then pool sizes read from the environment. Neither is built while goen runs as
+one.
+
+**Migration 001 is amended in place only while no real shop's data exists.**
+The demo restores a snapshot nightly, so editing `001` costs nothing there. From
+the first production deploy `001` is frozen: every change becomes a new numbered
+migration, and a function it changes is re-created in that migration with
+`CREATE OR REPLACE`. Until then, run `make db-reset` after pulling a change.
+
+**Uploads live in PostgreSQL.** Product images are stored in `media_objects`,
+re-encoded and capped at 8 MB each and 2400 px on the longest side. That keeps
+one thing to back up and no object store to run, and it suits a small
+catalogue. It does not suit a large one: every image adds to the database's size,
+backups and restore time, and a page's images are read through the same pool as
+its orders. A shop with thousands of photographs would move them to an object
+store before anything else.
+
 ## Change it
 
 - Package by feature under `internal/<feature>/`: types, handlers, store,

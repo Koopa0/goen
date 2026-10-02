@@ -8378,6 +8378,12 @@ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 DECLARE
     written integer;
 BEGIN
+    -- Two processes overlapping across a restart would each rebuild. The second
+    -- returns -1 at once and does no work; the lock ends with the transaction.
+    IF NOT pg_try_advisory_xact_lock(hashtextextended('refresh_copurchases', 0)) THEN
+        RETURN -1;
+    END IF;
+
     DELETE FROM product_copurchases;
 
     INSERT INTO product_copurchases (product_id, other_product_id, orders)
@@ -8400,8 +8406,9 @@ END;
 $$;
 
 COMMENT ON FUNCTION refresh_copurchases IS
-    'Rebuilds product_copurchases from every committed order. Owned by the '
-    'refresh worker in main; never called from a request.';
+    'Rebuilds product_copurchases from every committed order, or returns -1 at '
+    'once when another call holds the rebuild. Owned by the refresh worker in '
+    'main; never called from a request.';
 
 -- The role a BACKGROUND JOB runs as. A separate POOL and not SET ROLE on a
 -- borrowed connection, and it exists because granting refresh_copurchases to
