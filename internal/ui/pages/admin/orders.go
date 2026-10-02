@@ -219,29 +219,29 @@ func (o OrderRow) RecipientText(ctx context.Context) string {
 
 // OrderView is one order in the back office.
 type OrderView struct {
-	Number              string
-	Status              pages.FulfillmentStatus
-	StatusText          string
-	PlacedAt            string
-	ShippingName        string
-	Lines               []pages.OrderLine
-	SubtotalCents       int64
-	ShippingCents       int64
-	DiscountCents       int64
-	DiscountReason      string
-	TaxCents            int64
-	Email               string
-	Recipient           string
-	Phone               string
-	Address             string
-	CustomerNote        string
-	StaffNote           string
-	InvoiceType         invoice.Preference
-	InvoiceCarrier      string
-	InvoiceDonationCode string
-	InvoiceTaxID        string
-	InvoiceDocuments    []InvoiceDocument
-	InvoicingEnabled    bool
+	Number               string
+	Status               pages.FulfillmentStatus
+	StatusText           string
+	PlacedAt             string
+	ShippingName         string
+	Lines                []pages.OrderLine
+	SubtotalCents        int64
+	ShippingCents        int64
+	DiscountCents        int64
+	DiscountReason       string
+	TaxCents             int64
+	Email                string
+	Recipient            string
+	Phone                string
+	Address              string
+	CustomerNote         string
+	StaffNote            string
+	InvoiceType          invoice.Preference
+	InvoiceMobileBarcode string
+	InvoiceDonationCode  string
+	InvoiceTaxID         string
+	InvoiceDocuments     []InvoiceDocument
+	InvoicingEnabled     bool
 	// RefundedCents is what has actually gone back, and what a 折讓 relieves.
 	RefundedCents int64
 	// AllowanceOperationID identifies one rendered allowance form across HTTP
@@ -455,13 +455,13 @@ func (v *OrderView) HasInvoice() bool { return v.InvoiceType != "" }
 func (v *OrderView) InvoiceText(ctx context.Context) string {
 	switch v.InvoiceType {
 	case invoice.PreferenceMember:
-		return i18n.T(ctx, i18n.KeyAdminCarrierMember)
+		return i18n.T(ctx, i18n.KeyAdminInvoiceCarrierMember)
 	case invoice.PreferenceMobile:
-		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminCarrierMobile), v.InvoiceCarrier)
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminInvoiceCarrierMobileBarcode), v.InvoiceMobileBarcode)
 	case invoice.PreferenceDonate:
 		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminInvoiceDonate), v.InvoiceDonationCode)
 	case invoice.PreferenceCompany:
-		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminCarrierTaxID), v.InvoiceTaxID)
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminInvoiceTaxID), v.InvoiceTaxID)
 	default:
 		panic("pages: no label for invoice type " + string(v.InvoiceType))
 	}

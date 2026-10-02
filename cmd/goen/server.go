@@ -165,13 +165,13 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	checkoutLimit := ratelimit.New(ratelimit.Config{
 		Every: 2 * time.Second, Burst: 30, TTL: time.Hour, MaxKeys: 65_536,
 	})
-	var carrierChecker cart.CarrierChecker
+	var barcodeChecker cart.MobileBarcodeChecker
 	if cfg.Invoices.Enabled() {
-		carrierChecker = cfg.Invoices
+		barcodeChecker = cfg.Invoices
 	}
 	basketStore := cart.NewStore(pool)
 	basket := cart.NewHandler(basketStore, log, secureCookies, findLimit,
-		sessionCloser(gateway), cfg.StoreMap, carrierChecker)
+		sessionCloser(gateway), cfg.StoreMap, barcodeChecker)
 	customers := account.NewHandler(account.NewStore(pool), basket, log, secureCookies, cfg.Google)
 	customers.OfferDemoAccount(cfg.DemoAccount)
 	// The second factor runs on the ADMIN pool. On the storefront pool `store`

@@ -1532,10 +1532,10 @@ func TestOfferedPreferencesMatchTheDatabaseClosedSet(t *testing.T) {
 
 	for _, preference := range OfferedPreferences() {
 		t.Run(string(preference), func(t *testing.T) {
-			var carrierCode, taxID, donationCode *string
-			if preference.NeedsCarrier() {
+			var barcode, taxID, donationCode *string
+			if preference.NeedsMobileBarcode() {
 				value := "/AB12345"
-				carrierCode = &value
+				barcode = &value
 			}
 			if preference == PreferenceDonate {
 				value := "00123"
@@ -1551,7 +1551,7 @@ func TestOfferedPreferencesMatchTheDatabaseClosedSet(t *testing.T) {
 				    (order_id, invoice_type, carrier_code, tax_id, donation_code,
 				     customer_name, customer_email)
 				VALUES ($1, $2, $3, $4, $5, '王小明', 'closed-set@goen.invalid')`,
-				newOrder(t), string(preference), carrierCode, taxID, donationCode)
+				newOrder(t), string(preference), barcode, taxID, donationCode)
 			if err != nil {
 				t.Fatalf("database refused offered preference %q: %v", preference, err)
 			}

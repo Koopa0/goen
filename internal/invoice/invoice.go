@@ -85,11 +85,11 @@ func ValidTaxID(value string) bool {
 	return sum%5 == 0 || (seventhIsSeven && (sum-1)%5 == 0)
 }
 
-var mobileCarrierPattern = regexp.MustCompile(`^/[0-9A-Z+\-.]{7}$`)
+var mobileBarcodePattern = regexp.MustCompile(`^/[0-9A-Z+\-.]{7}$`)
 
-// ValidMobileCarrier reports whether value has the exact barcode shape ECPay
+// ValidMobileBarcode reports whether value has the exact barcode shape ECPay
 // accepts: a slash and seven upper-case letters, digits, +, - or dot.
-func ValidMobileCarrier(value string) bool { return mobileCarrierPattern.MatchString(value) }
+func ValidMobileBarcode(value string) bool { return mobileBarcodePattern.MatchString(value) }
 
 var donationCodePattern = regexp.MustCompile(`^\d{3,7}$`)
 
@@ -139,20 +139,23 @@ func (p Preference) Known() bool {
 	return false
 }
 
-// NeedsCarrier reports whether checkout must collect a mobile barcode.
-func (p Preference) NeedsCarrier() bool { return p == PreferenceMobile }
+// NeedsMobileBarcode reports whether checkout must collect a mobile barcode.
+func (p Preference) NeedsMobileBarcode() bool { return p == PreferenceMobile }
 
 // NeedsTaxID reports whether checkout must collect a business tax number.
 func (p Preference) NeedsTaxID() bool { return p == PreferenceCompany }
 
-// Carrier types, as ECPay names them.
+// InvoiceCarrier is the 載具 an invoice is filed under, in ECPay's CarrierType
+// spelling. It is never the parcel company.
+type InvoiceCarrier string
+
 const (
-	// CarrierNone is a printed invoice or one held in the shop's own account.
-	CarrierNone = ""
-	// CarrierMember is ECPay's own member carrier.
-	CarrierMember = "1"
-	// CarrierMobile is the mobile barcode carrier a customer carries.
-	CarrierMobile = "3"
+	// InvoiceCarrierNone is a printed invoice or one held in the shop's own account.
+	InvoiceCarrierNone InvoiceCarrier = ""
+	// InvoiceCarrierMember is ECPay's own member carrier.
+	InvoiceCarrierMember InvoiceCarrier = "1"
+	// InvoiceCarrierMobileBarcode is the mobile barcode a customer carries.
+	InvoiceCarrierMobileBarcode InvoiceCarrier = "3"
 )
 
 // Document is an issued uniform invoice or credit note, as goen records it.

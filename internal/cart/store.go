@@ -807,7 +807,7 @@ func writeInvoicePreference(
 	if err := q.CreateInvoicePreference(ctx, db.CreateInvoicePreferenceParams{
 		OrderID:       orderID,
 		InvoiceType:   string(inv.Type),
-		CarrierCode:   inv.Carrier,
+		CarrierCode:   inv.MobileBarcode,
 		DonationCode:  inv.DonationCode,
 		TaxID:         inv.TaxID,
 		CustomerName:  buyerName,
@@ -1077,7 +1077,7 @@ func (s *Store) orderInvoice(ctx context.Context, orderID uuid.UUID) (*pages.Ord
 		return nil, fmt.Errorf("read order invoice preference: %w", err)
 	}
 	out := &pages.OrderInvoice{
-		Type: invoicepkg.Preference(pref.InvoiceType), Carrier: pref.CarrierCode,
+		Type: invoicepkg.Preference(pref.InvoiceType), MobileBarcode: pref.CarrierCode,
 		DonationCode: pref.DonationCode, TaxID: pref.TaxID,
 	}
 	for i := range docs {

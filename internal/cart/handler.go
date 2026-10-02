@@ -40,8 +40,8 @@ type Handler struct {
 	sessions SessionCloser
 	// storeMap is the carrier's hosted store picker. Nil or disabled on a
 	// deployment with no carrier, where the checkout asks for a chain alone.
-	storeMap *Map
-	carriers CarrierChecker
+	storeMap       *Map
+	barcodeChecker MobileBarcodeChecker
 	// couponMisses bounds how many coupon codes one shopper may be told are
 	// wrong: a wrong code and a right one answer differently, so unbounded it
 	// is a way to find codes that were never handed out.
@@ -59,32 +59,31 @@ type SessionCloser interface {
 	ExpireSession(ctx context.Context, sessionID string) error
 }
 
-// CarrierChecker is the read-only subset of the invoice gateway checkout needs.
-type CarrierChecker interface {
-	CheckBarcode(context.Context, string) (invoicepkg.CarrierStatus, error)
+type MobileBarcodeChecker interface {
+	CheckBarcode(context.Context, string) (invoicepkg.BarcodeStatus, error)
 }
 
 // NewHandler returns a Handler writing through store. A nil sessions means no
 // provider is configured, so no session was ever opened to close; a nil or
 // disabled storeMap means no carrier picker, and the checkout asks for a chain
-// exactly as it did before one existed. An omitted carrier checker keeps local
+// exactly as it did before one existed. An omitted checker keeps local
 // shape validation on deployments without an invoice gateway.
 func NewHandler(store *Store, log *slog.Logger, secure bool, findLimit *ratelimit.Limiter,
-	sessions SessionCloser, storeMap *Map, carriers ...CarrierChecker,
+	sessions SessionCloser, storeMap *Map, checkers ...MobileBarcodeChecker,
 ) *Handler {
 	if store == nil || log == nil || findLimit == nil {
 		panic("cart: NewHandler requires a store, a logger and a lookup limiter")
 	}
-	if len(carriers) > 1 {
-		panic("cart: NewHandler accepts one carrier checker")
+	if len(checkers) > 1 {
+		panic("cart: NewHandler accepts one mobile barcode checker")
 	}
-	var checker CarrierChecker
-	if len(carriers) == 1 {
-		checker = carriers[0]
+	var checker MobileBarcodeChecker
+	if len(checkers) == 1 {
+		checker = checkers[0]
 	}
 	return &Handler{
-		carriers: checker,
-		store:    store, log: log, secure: secure, findLimit: findLimit,
+		barcodeChecker: checker,
+		store:          store, log: log, secure: secure, findLimit: findLimit,
 		sessions: sessions, storeMap: storeMap,
 		// Twenty wrong codes before the first refusal, then one every two
 		// minutes: more than a shopper retyping a code from a flyer ever needs.
@@ -489,7 +488,7 @@ func (h *Handler) applyDraft(
 		view.ChosenAddress = d.SavedAddress
 	}
 	view.Invoice = pages.CheckoutInvoice{
-		Type: invoicepkg.Preference(d.InvoiceType), Carrier: d.Carrier,
+		Type: invoicepkg.Preference(d.InvoiceType), MobileBarcode: d.MobileBarcode,
 		DonationCode: d.DonationCode, CompanyName: d.CompanyName, TaxID: d.TaxID,
 	}
 	if d.Coupon != "" {
@@ -534,7 +533,7 @@ func (h *Handler) PickupStart(w http.ResponseWriter, r *http.Request) {
 		PostalCode: addr.PostalCode, City: addr.City, District: addr.District, Street: addr.Street,
 		Note: addr.Note, Chain: addr.PickupChain,
 		Shipping: view.Chosen, SavedAddress: view.ChosenAddress,
-		InvoiceType: string(inv.Type), Carrier: inv.Carrier, DonationCode: inv.DonationCode,
+		InvoiceType: string(inv.Type), MobileBarcode: inv.MobileBarcode, DonationCode: inv.DonationCode,
 		CompanyName: inv.CompanyName, TaxID: inv.TaxID,
 	}
 	if submission.couponErr == "" {
@@ -881,7 +880,7 @@ func (h *Handler) PlaceOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !h.checkMobileCarrier(w, r, &submission.invoice, &submission.view) {
+	if !h.checkMobileBarcode(w, r, &submission.invoice, &submission.view) {
 		return
 	}
 
@@ -1012,14 +1011,14 @@ func (h *Handler) checkoutSubmission(
 	}
 
 	inv := Invoice{
-		Type:         invoicepkg.Preference(r.PostFormValue("invoice_type")),
-		Carrier:      r.PostFormValue("invoice_carrier"),
-		DonationCode: r.PostFormValue("invoice_donation_code"),
-		CompanyName:  r.PostFormValue("invoice_company_name"),
-		TaxID:        r.PostFormValue("invoice_tax_id"),
+		Type:          invoicepkg.Preference(r.PostFormValue("invoice_type")),
+		MobileBarcode: r.PostFormValue("invoice_carrier"),
+		DonationCode:  r.PostFormValue("invoice_donation_code"),
+		CompanyName:   r.PostFormValue("invoice_company_name"),
+		TaxID:         r.PostFormValue("invoice_tax_id"),
 	}
 	view.Invoice = pages.CheckoutInvoice{
-		Type: inv.Type, Carrier: inv.Carrier, DonationCode: inv.DonationCode,
+		Type: inv.Type, MobileBarcode: inv.MobileBarcode, DonationCode: inv.DonationCode,
 		CompanyName: inv.CompanyName, TaxID: inv.TaxID,
 	}
 

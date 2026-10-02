@@ -603,7 +603,7 @@ const (
 	maxStreetRunes     = 200
 	maxStoreNameRunes  = 40
 	maxNoteRunes       = 500
-	// Every checkout produces a carrier invoice. ECPay's Issue contract accepts
+	// Every checkout produces an invoice preference. ECPay's Issue contract accepts
 	// at most 80 bytes for CustomerEmail; accepting a longer delivery address and
 	// truncating it later can turn a valid address into an invalid provider value.
 	maxInvoiceEmailBytes = 80
@@ -852,8 +852,8 @@ type Invoice struct {
 	// Type is the stable wire preference matching
 	// invoice_preferences_type_known.
 	Type invoicepkg.Preference
-	// Carrier is the mobile-barcode invoice carrier, for mobile_carrier only.
-	Carrier string
+	// MobileBarcode is for mobile_carrier only.
+	MobileBarcode string
 	// DonationCode is the recipient's 愛心碼, for donation only.
 	DonationCode string
 	// CompanyName is the registered buyer name corresponding to TaxID. It is
@@ -866,7 +866,7 @@ type Invoice struct {
 // Validate refuses what the schema would refuse, in the customer's language.
 func (i *Invoice) Validate() []account.FieldError {
 	i.Type = invoicepkg.Preference(strings.TrimSpace(string(i.Type)))
-	i.Carrier = strings.ToUpper(strings.TrimSpace(web.FoldWidth(i.Carrier)))
+	i.MobileBarcode = strings.ToUpper(strings.TrimSpace(web.FoldWidth(i.MobileBarcode)))
 	i.DonationCode = strings.TrimSpace(i.DonationCode)
 	i.CompanyName = strings.TrimSpace(i.CompanyName)
 	i.TaxID = strings.TrimSpace(web.FoldWidth(i.TaxID))
@@ -884,10 +884,10 @@ func (i *Invoice) Validate() []account.FieldError {
 	}
 	switch i.Type {
 	case invoicepkg.PreferenceMobile:
-		if !invoicepkg.ValidMobileCarrier(i.Carrier) {
+		if !invoicepkg.ValidMobileBarcode(i.MobileBarcode) {
 			errs = append(errs, account.FieldError{
 				Field:      "invoice_carrier",
-				MessageKey: i18n.KeyCarrierMalformed,
+				MessageKey: i18n.KeyMobileBarcodeMalformed,
 			})
 		}
 		i.CompanyName, i.TaxID = "", ""
@@ -895,7 +895,7 @@ func (i *Invoice) Validate() []account.FieldError {
 		if !invoicepkg.ValidDonationCode(i.DonationCode) {
 			errs = append(errs, account.FieldError{Field: "invoice_donation_code", MessageKey: i18n.KeyDonationCodeMalformed})
 		}
-		i.Carrier, i.CompanyName, i.TaxID = "", "", ""
+		i.MobileBarcode, i.CompanyName, i.TaxID = "", "", ""
 	case invoicepkg.PreferenceCompany:
 		if !invoicepkg.ValidBuyerName(i.CompanyName) {
 			errs = append(errs, account.FieldError{
@@ -909,9 +909,9 @@ func (i *Invoice) Validate() []account.FieldError {
 				MessageKey: i18n.KeyTaxIDMalformed,
 			})
 		}
-		i.Carrier = ""
+		i.MobileBarcode = ""
 	case invoicepkg.PreferenceMember:
-		i.Carrier, i.CompanyName, i.TaxID = "", "", ""
+		i.MobileBarcode, i.CompanyName, i.TaxID = "", "", ""
 	}
 	return errs
 }

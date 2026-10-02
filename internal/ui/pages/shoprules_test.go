@@ -33,7 +33,7 @@ func TestCompanyInvoiceChoiceSaysWhereTheInvoiceIsStored(t *testing.T) {
 			t.Errorf("%v: the company invoice choice does not say where the invoice is stored", loc)
 		}
 		if strings.Contains(view("mobile_carrier"), want) {
-			t.Errorf("%v: the mobile-carrier choice shows the company-invoice storage note", loc)
+			t.Errorf("%v: the mobile-barcode choice shows the company-invoice storage note", loc)
 		}
 	}
 }

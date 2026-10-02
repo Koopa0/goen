@@ -28,7 +28,7 @@ type frozenRequest struct {
 	CustomerName  string     `json:"customer_name"`
 	Email         string     `json:"email"`
 	Preference    Preference `json:"preference"`
-	CarrierCode   string     `json:"carrier_code"`
+	MobileBarcode string     `json:"carrier_code"`
 	DonationCode  string     `json:"donation_code"`
 	TaxID         string     `json:"tax_id"`
 	AmountCents   int64      `json:"amount_cents"`
@@ -125,7 +125,7 @@ func (s *Store) processIssue(ctx context.Context, op *operation, owner uuid.UUID
 	in := IssueRequest{
 		OrderNumber: op.Request.RelateNumber, CustomerName: op.Request.CustomerName,
 		Email: op.Request.Email, Preference: op.Request.Preference,
-		CarrierCode: op.Request.CarrierCode, TaxID: op.Request.TaxID, DonationCode: op.Request.DonationCode,
+		MobileBarcode: op.Request.MobileBarcode, TaxID: op.Request.TaxID, DonationCode: op.Request.DonationCode,
 		AmountCents: op.Request.AmountCents, Lines: op.Request.Lines,
 	}
 	if err := in.validate(); err != nil || op.ProviderKey != in.OrderNumber ||

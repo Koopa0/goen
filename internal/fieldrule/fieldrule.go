@@ -96,13 +96,13 @@ var (
 		Message:   i18n.KeyPostalCodeMalformed,
 	}
 
-	// MobileCarrier is a 手機條碼: a slash and seven characters. The server folds
+	// MobileBarcode is a 手機條碼: a slash and seven characters. The server folds
 	// width and upper-cases before it looks, so lower case and full-width pass.
 	// ı and ſ are there because strings.ToUpper turns them into I and S.
-	MobileCarrier = Rule{
+	MobileBarcode = Rule{
 		Name:    "invoice_carrier",
 		Pattern: ws + "[\\/／][0-9A-Za-zıſ０-９Ａ-Ｚａ-ｚ\\+＋\\-－\\.．]{7}" + ws,
-		Message: i18n.KeyCarrierMalformed,
+		Message: i18n.KeyMobileBarcodeMalformed,
 	}
 
 	// DonationCode is three to seven ASCII digits. The server does not fold
@@ -127,7 +127,7 @@ var (
 )
 
 // All is every rule, for the tests that hold each to its server validator.
-var All = []Rule{Email, Phone, PostalCode, MobileCarrier, DonationCode, TaxID}
+var All = []Rule{Email, Phone, PostalCode, MobileBarcode, DonationCode, TaxID}
 
 // Attrs are the attributes that make an input carry this rule: the pattern the
 // browser enforces natively, the keyboard, and what the script needs to say the
