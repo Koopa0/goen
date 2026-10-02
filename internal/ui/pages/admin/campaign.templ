@@ -24,7 +24,7 @@ templ Campaigns(p layouts.Page, v CampaignsView) {
 			</div>
 		</div>
 		if v.Notice != "" {
-			@components.Notice(components.NoticeProps{Tone: components.ToneAccent}) {
+			@components.Notice(components.NoticeProps{Intent: components.IntentAccent}) {
 				{ v.Notice }
 			}
 		}
@@ -56,11 +56,11 @@ templ Campaigns(p layouts.Page, v CampaignsView) {
 								</td>
 								<td>
 									if c.Live() {
-										@components.Badge(components.BadgeProps{Tone: components.ToneAccent}) {
+										@components.Badge(components.BadgeProps{Intent: components.IntentAccent}) {
 											{ c.State(ctx) }
 										}
 									} else {
-										@components.Badge(components.BadgeProps{Tone: components.ToneNeutral}) {
+										@components.Badge(components.BadgeProps{Intent: components.IntentNeutral}) {
 											{ c.State(ctx) }
 										}
 									}
@@ -69,8 +69,8 @@ templ Campaigns(p layouts.Page, v CampaignsView) {
 									<form method="post" action={ templ.SafeURL(c.ToggleAction()) }>
 										<input type="hidden" name="active" value={ c.NextActive() }/>
 										@components.Button(components.ButtonProps{
-											Variant: components.VariantOutline,
-											Size:    components.SizeSmall,
+											ButtonStyle: components.ButtonStyleOutline,
+											Size:        components.SizeSmall,
 										}, "submit") {
 											{ c.ToggleLabel(ctx) }
 										}
@@ -189,8 +189,8 @@ templ Campaigns(p layouts.Page, v CampaignsView) {
 					</div>
 				</div>
 				@components.Button(components.ButtonProps{
-					Variant: components.VariantPrimary,
-					Class:   "goen-admin__submit",
+					ButtonStyle: components.ButtonStylePrimary,
+					Class:       "goen-admin__submit",
 				}, "submit") {
 					{ i18n.T(ctx, i18n.KeyAdminCampCreate) }
 				}
@@ -214,13 +214,13 @@ templ CampaignForm(p layouts.Page, v CampaignView) {
 			<form class="ui-page-head__actions" method="post" action={ templ.SafeURL(v.ActiveAction()) }>
 				<input type="hidden" name="back" value="detail"/>
 				<input type="hidden" name="active" value={ v.NextActive() }/>
-				@components.Button(components.ButtonProps{Variant: components.VariantOutline}, "submit") {
+				@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, "submit") {
 					{ v.ToggleLabel(ctx) }
 				}
 			</form>
 		</div>
 		if v.Notice != "" {
-			@components.Notice(components.NoticeProps{Tone: components.ToneAccent}) {
+			@components.Notice(components.NoticeProps{Intent: components.IntentAccent}) {
 				{ v.Notice }
 			}
 		}
@@ -267,8 +267,8 @@ templ CampaignForm(p layouts.Page, v CampaignView) {
 					<p class="ui-error-text" id="c-window-error" role="alert">{ v.Err("window") }</p>
 				}
 				@components.Button(components.ButtonProps{
-					Variant: components.VariantPrimary,
-					Class:   "goen-admin__submit",
+					ButtonStyle: components.ButtonStylePrimary,
+					Class:       "goen-admin__submit",
 				}, "submit") {
 					{ i18n.T(ctx, i18n.KeyAdminProdSave) }
 				}
@@ -301,8 +301,8 @@ templ CampaignForm(p layouts.Page, v CampaignView) {
 										<input type="hidden" name="product" value={ item.Slug }/>
 										<input type="hidden" name="action" value="remove"/>
 										@components.Button(components.ButtonProps{
-											Variant: components.VariantOutline,
-											Size:    components.SizeSmall,
+											ButtonStyle: components.ButtonStyleOutline,
+											Size:        components.SizeSmall,
 										}, "submit") {
 											{ i18n.T(ctx, i18n.KeyAdminRemove) }
 										}
@@ -339,8 +339,8 @@ templ CampaignForm(p layouts.Page, v CampaignView) {
 					}
 				</div>
 				@components.Button(components.ButtonProps{
-					Variant: components.VariantPrimary,
-					Class:   "goen-admin__submit",
+					ButtonStyle: components.ButtonStylePrimary,
+					Class:       "goen-admin__submit",
 				}, "submit") {
 					{ i18n.T(ctx, i18n.KeyAdminProdSave) }
 				}
@@ -352,8 +352,8 @@ templ CampaignForm(p layouts.Page, v CampaignView) {
 				<img class="goen-admin__heroshot goen-admin__heroshot--campaign" src={ v.Image.URL() } srcset={ v.Image.Srcset() } sizes="160px" alt={ v.Image.Alt } loading="lazy" width="160" height="60"/>
 				<form method="post" action={ templ.SafeURL(v.ImageRemoveAction()) }>
 					@components.Button(components.ButtonProps{
-						Variant: components.VariantOutline,
-						Size:    components.SizeSmall,
+						ButtonStyle: components.ButtonStyleOutline,
+						Size:        components.SizeSmall,
 					}, "submit") {
 						{ i18n.T(ctx, i18n.KeyAdminRemove) }
 					}
@@ -421,8 +421,8 @@ templ CampaignForm(p layouts.Page, v CampaignView) {
 					}
 				</div>
 				@components.Button(components.ButtonProps{
-					Variant: components.VariantPrimary,
-					Class:   "goen-admin__submit",
+					ButtonStyle: components.ButtonStylePrimary,
+					Class:       "goen-admin__submit",
 				}, "submit") {
 					{ i18n.T(ctx, i18n.KeyAdminProdSave) }
 				}
@@ -441,7 +441,7 @@ templ CampaignForm(p layouts.Page, v CampaignView) {
 					placeholder={ i18n.T(ctx, i18n.KeyAdminCampFindPlaceholder) }
 					autocomplete="off"
 				/>
-				@components.Button(components.ButtonProps{Variant: components.VariantOutline}, "submit") {
+				@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, "submit") {
 					{ i18n.T(ctx, i18n.KeyAdminSearch) }
 				}
 			</form>
@@ -460,8 +460,8 @@ templ CampaignForm(p layouts.Page, v CampaignView) {
 							<form method="post" action={ templ.SafeURL(v.FeatureAction()) }>
 								<input type="hidden" name="product" value={ m.Slug }/>
 								@components.Button(components.ButtonProps{
-									Variant: components.VariantOutline,
-									Size:    components.SizeSmall,
+									ButtonStyle: components.ButtonStyleOutline,
+									Size:        components.SizeSmall,
 								}, "submit") {
 									{ i18n.T(ctx, i18n.KeyAdminCampAdd) }
 								}

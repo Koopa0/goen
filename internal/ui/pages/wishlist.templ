@@ -45,7 +45,7 @@ templ Wishlist(p layouts.Page, v WishlistView) {
 						<p class="goen-empty__title">{ i18n.T(ctx, i18n.KeyWishlistEmpty) }</p>
 						<p class="goen-empty__text">{ i18n.T(ctx, i18n.KeyWishlistEmptyHint) }</p>
 						@components.ButtonLink(components.ButtonProps{
-							Variant: components.VariantPrimary,
+							ButtonStyle: components.ButtonStylePrimary,
 						}, templ.SafeURL("/")) {
 							{ i18n.T(ctx, i18n.KeyWishlistEmptyLink) }
 						}
@@ -53,21 +53,21 @@ templ Wishlist(p layouts.Page, v WishlistView) {
 				} else {
 					switch v.Added {
 						case AddOutcomeAdded:
-							@components.Notice(components.NoticeProps{Tone: components.ToneAccent, ID: "added", Class: "goen-wish__added"}) {
+							@components.Notice(components.NoticeProps{Intent: components.IntentAccent, ID: "added", Class: "goen-wish__added"}) {
 								{ i18n.T(ctx, i18n.KeyAddedToCart) }
 								<a href="/cart">{ i18n.T(ctx, i18n.KeyViewCart) }</a>
 							}
 						case AddOutcomeAdjusted:
-							@components.Notice(components.NoticeProps{Tone: components.ToneAccent, ID: "added", Class: "goen-wish__added"}) {
+							@components.Notice(components.NoticeProps{Intent: components.IntentAccent, ID: "added", Class: "goen-wish__added"}) {
 								{ i18n.T(ctx, i18n.KeyAddAdjusted) }
 								<a href="/cart">{ i18n.T(ctx, i18n.KeyViewCart) }</a>
 							}
 						case AddOutcomeUnavailable, AddOutcomeUnknown:
-							@components.Notice(components.NoticeProps{Tone: components.ToneDanger, ID: "added", Class: "goen-wish__added"}) {
+							@components.Notice(components.NoticeProps{Intent: components.IntentDanger, ID: "added", Class: "goen-wish__added"}) {
 								{ i18n.T(ctx, i18n.KeyAddRefused) }
 							}
 						case AddOutcomeFull:
-							@components.Notice(components.NoticeProps{Tone: components.ToneDanger, ID: "added", Class: "goen-wish__added"}) {
+							@components.Notice(components.NoticeProps{Intent: components.IntentDanger, ID: "added", Class: "goen-wish__added"}) {
 								{ i18n.T(ctx, i18n.KeyCartLineLimit) }
 							}
 					}
@@ -88,12 +88,12 @@ templ Wishlist(p layouts.Page, v WishlistView) {
 										<input type="hidden" name="variant" value={ t.SoleVariantID }/>
 										<input type="hidden" name="return" value="/account/wishlist"/>
 										<input type="hidden" name="quantity" value="1"/>
-										@components.Button(components.ButtonProps{Variant: components.VariantPrimary, Size: components.SizeSmall, Block: true}, "submit") {
+										@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Size: components.SizeSmall, Block: true}, "submit") {
 											{ i18n.T(ctx, i18n.KeyAddToCart) }
 										}
 									</form>
 								} else if t.InStock {
-									@components.ButtonLink(components.ButtonProps{Variant: components.VariantPrimary, Size: components.SizeSmall, Block: true}, templ.SafeURL("/p/"+t.Slug)) {
+									@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Size: components.SizeSmall, Block: true}, templ.SafeURL("/p/"+t.Slug)) {
 										{ i18n.T(ctx, i18n.KeyChooseOptions) }
 									}
 								}

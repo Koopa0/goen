@@ -19,13 +19,13 @@ templ NewsletterAction(p layouts.Page, v NewsletterActionView) {
 			if v.Token != "" {
 				<form class="notice__form" method="post" action={ templ.SafeURL(v.Action) }>
 					<input type="hidden" name="token" value={ v.Token }/>
-					@components.Button(components.ButtonProps{Variant: components.VariantPrimary, Size: components.SizeLarge, Block: true}, "submit") {
+					@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Size: components.SizeLarge, Block: true}, "submit") {
 						{ v.Submit }
 					}
 				</form>
 			}
 			<div class="notice__actions">
-				@components.ButtonLink(components.ButtonProps{Variant: components.VariantOutline, Size: components.SizeLarge, Class: "notice__back"}, "/") {
+				@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline, Size: components.SizeLarge, Class: "notice__back"}, "/") {
 					{ i18n.T(ctx, i18n.KeyBackToShop) }
 				}
 			</div>

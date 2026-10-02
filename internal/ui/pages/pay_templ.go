@@ -131,8 +131,8 @@ func Pay(p layouts.Page, v PayView) templ.Component {
 					return nil
 				})
 				templ_7745c5c3_Err = components.Notice(components.NoticeProps{
-					Tone: components.ToneAccent,
-					ID:   "pay-cancelled",
+					Intent: components.IntentAccent,
+					ID:     "pay-cancelled",
 				}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var7), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
@@ -414,8 +414,8 @@ func Pay(p layouts.Page, v PayView) templ.Component {
 						return nil
 					})
 					templ_7745c5c3_Err = components.Notice(components.NoticeProps{
-						Tone: components.ToneAccent,
-						ID:   "pay-closed",
+						Intent: components.IntentAccent,
+						ID:     "pay-closed",
 					}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var25), templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
@@ -461,9 +461,9 @@ func Pay(p layouts.Page, v PayView) templ.Component {
 						return nil
 					})
 					templ_7745c5c3_Err = components.Button(components.ButtonProps{
-						Variant: components.VariantPrimary,
-						Size:    components.SizeLarge,
-						Block:   true,
+						ButtonStyle: components.ButtonStylePrimary,
+						Size:        components.SizeLarge,
+						Block:       true,
 					}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var28), templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
@@ -511,8 +511,8 @@ func Pay(p layouts.Page, v PayView) templ.Component {
 							return nil
 						})
 						templ_7745c5c3_Err = components.Notice(components.NoticeProps{
-							Tone: components.ToneAccent,
-							ID:   "pay-sandbox",
+							Intent: components.IntentAccent,
+							ID:     "pay-sandbox",
 						}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var31), templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
@@ -582,9 +582,9 @@ func Pay(p layouts.Page, v PayView) templ.Component {
 						return nil
 					})
 					templ_7745c5c3_Err = components.Button(components.ButtonProps{
-						Variant: components.VariantPrimary,
-						Size:    components.SizeLarge,
-						Block:   true,
+						ButtonStyle: components.ButtonStylePrimary,
+						Size:        components.SizeLarge,
+						Block:       true,
 					}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var35), templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
@@ -631,8 +631,8 @@ func Pay(p layouts.Page, v PayView) templ.Component {
 						return nil
 					})
 					templ_7745c5c3_Err = components.Notice(components.NoticeProps{
-						Tone: components.ToneAccent,
-						ID:   "pay-disabled",
+						Intent: components.IntentAccent,
+						ID:     "pay-disabled",
 					}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var38), templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
@@ -665,8 +665,8 @@ func Pay(p layouts.Page, v PayView) templ.Component {
 						return nil
 					})
 					templ_7745c5c3_Err = components.ButtonLink(components.ButtonProps{
-						Variant: components.VariantGhost,
-						Block:   true,
+						ButtonStyle: components.ButtonStyleGhost,
+						Block:       true,
 					}, "/contact").Render(templ.WithChildren(ctx, templ_7745c5c3_Var40), templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
@@ -700,8 +700,8 @@ func Pay(p layouts.Page, v PayView) templ.Component {
 					return nil
 				})
 				templ_7745c5c3_Err = components.ButtonLink(components.ButtonProps{
-					Variant: components.VariantOutline,
-					Block:   true,
+					ButtonStyle: components.ButtonStyleOutline,
+					Block:       true,
 				}, templ.SafeURL("/orders/"+v.Number)).Render(templ.WithChildren(ctx, templ_7745c5c3_Var42), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err

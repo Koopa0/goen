@@ -332,16 +332,16 @@ templ productBuy(v *ProductView) {
 			</fieldset>
 		}
 		if !v.SelectionOK {
-			@components.Notice(components.NoticeProps{Tone: components.ToneWarn, Class: "goen-pdp__note"}) {
+			@components.Notice(components.NoticeProps{Intent: components.IntentWarn, Class: "goen-pdp__note"}) {
 				{ i18n.T(ctx, i18n.KeyVariantNotFound) }
 			}
 		} else if v.AllSoldOut() && len(v.Options) > 0 {
-			@components.Notice(components.NoticeProps{Tone: components.ToneWarn, Class: "goen-pdp__note"}) {
+			@components.Notice(components.NoticeProps{Intent: components.IntentWarn, Class: "goen-pdp__note"}) {
 				{ i18n.T(ctx, i18n.KeyAllSoldOutHint) }
 			}
 		}
 		if v.NotifyUnavailable() {
-			@components.Notice(components.NoticeProps{Tone: components.ToneDanger, ID: "notify-unavailable"}) {
+			@components.Notice(components.NoticeProps{Intent: components.IntentDanger, ID: "notify-unavailable"}) {
 				{ i18n.T(ctx, i18n.KeyRestockUnavailable) }
 			}
 		}
@@ -393,7 +393,7 @@ templ productLinks(v *ProductView) {
 					<input type="hidden" name="action" value="remove"/>
 				}
 				@components.Button(components.ButtonProps{
-					Variant: components.VariantGhost,
+					ButtonStyle: components.ButtonStyleGhost,
 					Attrs: templ.Attributes{
 						"aria-label":   v.WishlistLabel(ctx),
 						"aria-pressed": v.SavedText(),
@@ -404,7 +404,7 @@ templ productLinks(v *ProductView) {
 				}
 			</form>
 		} else {
-			@components.ButtonLink(components.ButtonProps{Variant: components.VariantGhost}, templ.SafeURL("/signin?next=/p/"+v.Slug)) {
+			@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleGhost}, templ.SafeURL("/signin?next=/p/"+v.Slug)) {
 				@icons.Heart()
 				<span>{ i18n.T(ctx, i18n.KeyWishlistSignIn) }</span>
 			}
@@ -456,9 +456,9 @@ templ productAddForm(v *ProductView) {
 					Class:         "goen-pdp__qty",
 				})
 				@components.Button(components.ButtonProps{
-					Variant: components.VariantPrimary,
-					Class:   "goen-pdp__add",
-					Attrs:   templ.Attributes{"id": "add-to-cart", "disabled": !v.CanBuy()},
+					ButtonStyle: components.ButtonStylePrimary,
+					Class:       "goen-pdp__add",
+					Attrs:       templ.Attributes{"id": "add-to-cart", "disabled": !v.CanBuy()},
 				}, "submit") {
 					@icons.Cart()
 					<span>
@@ -474,28 +474,28 @@ templ productAddForm(v *ProductView) {
 			</div>
 			if v.JustAdded() {
 				@components.Notice(components.NoticeProps{
-					Tone: components.ToneAccent, ID: "added", Class: "goen-pdp__added",
+					Intent: components.IntentAccent, ID: "added", Class: "goen-pdp__added",
 				}) {
 					{ i18n.T(ctx, i18n.KeyAddedToCart) }
 					<a class="goen-pdp__addedlink" href="/cart">{ i18n.T(ctx, i18n.KeyViewCart) }</a>
 				}
 			}
 			if v.AddAdjusted() {
-				@components.Notice(components.NoticeProps{Tone: components.ToneAccent, ID: "added", Class: "goen-pdp__added"}) {
+				@components.Notice(components.NoticeProps{Intent: components.IntentAccent, ID: "added", Class: "goen-pdp__added"}) {
 					{ i18n.T(ctx, i18n.KeyAddAdjusted) }
 					<a class="goen-pdp__addedlink" href="/cart">{ i18n.T(ctx, i18n.KeyViewCart) }</a>
 				}
 			}
 			if v.AddRefused() {
 				@components.Notice(components.NoticeProps{
-					Tone: components.ToneDanger, ID: "added", Class: "goen-pdp__added",
+					Intent: components.IntentDanger, ID: "added", Class: "goen-pdp__added",
 				}) {
 					{ i18n.T(ctx, i18n.KeyAddRefused) }
 				}
 			}
 			if v.CartFull() {
 				@components.Notice(components.NoticeProps{
-					Tone: components.ToneDanger, ID: "added", Class: "goen-pdp__added",
+					Intent: components.IntentDanger, ID: "added", Class: "goen-pdp__added",
 				}) {
 					{ i18n.T(ctx, i18n.KeyCartLineLimit) }
 				}
@@ -514,22 +514,22 @@ templ productBuyBar(v *ProductView) {
 		if msg := v.BuyBarOutcome(ctx); msg != "" {
 			<p class="goen-buybar__msg" role="status">{ msg }</p>
 			if v.JustAdded() || v.AddAdjusted() {
-				@components.ButtonLink(components.ButtonProps{Variant: components.VariantOutline, Class: "goen-buybar__btn"}, templ.SafeURL("/cart")) {
+				@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline, Class: "goen-buybar__btn"}, templ.SafeURL("/cart")) {
 					{ i18n.T(ctx, i18n.KeyViewCart) }
 				}
 			}
 		} else if v.CanBuy() {
 			<p class="goen-buybar__price">{ v.Price() }</p>
 			@components.Button(components.ButtonProps{
-				Variant: components.VariantPrimary,
-				Class:   "goen-buybar__btn",
-				Attrs:   templ.Attributes{"form": "pdp-add"},
+				ButtonStyle: components.ButtonStylePrimary,
+				Class:       "goen-buybar__btn",
+				Attrs:       templ.Attributes{"form": "pdp-add"},
 			}, "submit") {
 				@icons.Cart()
 				<span>{ i18n.T(ctx, i18n.KeyAddToCart) }</span>
 			}
 		} else if v.SoldOut() {
-			@components.ButtonLink(components.ButtonProps{Variant: components.VariantOutline, Class: "goen-buybar__btn"}, templ.SafeURL("#restock")) {
+			@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline, Class: "goen-buybar__btn"}, templ.SafeURL("#restock")) {
 				{ i18n.T(ctx, i18n.KeyRestockHeading) }
 			}
 		}
@@ -544,13 +544,13 @@ templ productCompare(v *ProductView) {
 		<div class="goen-pdp__similar">
 			if !v.AlreadyComparing() && !v.ComparingFull() {
 				@components.ButtonLink(components.ButtonProps{
-					Variant: components.VariantGhost, Class: "goen-pdp__compare",
+					ButtonStyle: components.ButtonStyleGhost, Class: "goen-pdp__compare",
 				}, templ.SafeURL(v.CompareHref())) {
 					{ i18n.T(ctx, i18n.KeyCompareSimilar) }
 				}
 			} else if v.AlreadyComparing() {
 				@components.ButtonLink(components.ButtonProps{
-					Variant: components.VariantGhost, Class: "goen-pdp__compare",
+					ButtonStyle: components.ButtonStyleGhost, Class: "goen-pdp__compare",
 				}, templ.SafeURL(v.CompareHref())) {
 					{ i18n.T(ctx, i18n.KeyViewCompare) }
 				}
@@ -567,7 +567,7 @@ templ productNotifyForm(v *ProductView) {
 		// h2 and not h3: the nearest heading above is the product's own h1.
 		<h2 class="goen-pdp__notifyhead">{ i18n.T(ctx, i18n.KeyRestockHeading) }</h2>
 		if v.NotifyTaken() {
-			@components.Notice(components.NoticeProps{Tone: components.ToneAccent}) {
+			@components.Notice(components.NoticeProps{Intent: components.IntentAccent}) {
 				{ v.NotifyConfirmation(ctx) }
 			}
 		} else {
@@ -583,7 +583,7 @@ templ productNotifyForm(v *ProductView) {
 						"placeholder": i18n.T(ctx, i18n.KeyFieldEmail),
 					}, fieldrule.Message(i18n.KeyRestockBadEmail), fieldrule.ErrorID("notify-email-error")),
 				})
-				@components.Button(components.ButtonProps{Variant: components.VariantOutline}, "submit") {
+				@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, "submit") {
 					{ i18n.T(ctx, i18n.KeyRestockSubmit) }
 				}
 			</div>
@@ -649,7 +649,7 @@ templ productReviews(v *ProductView) {
 			</div>
 		}
 		if v.ReviewPosted {
-			@components.Notice(components.NoticeProps{Tone: components.ToneAccent}) {
+			@components.Notice(components.NoticeProps{Intent: components.IntentAccent}) {
 				{ i18n.T(ctx, i18n.KeyReviewThanks) }
 			}
 		}
@@ -661,7 +661,7 @@ templ productQuestions(v *ProductView) {
 	<section class="goen-pdp__qa" id="questions" aria-labelledby="qa-heading">
 		<h2 id="qa-heading" class="goen-pdp__sectiontitle">{ i18n.T(ctx, i18n.KeySectionQA) }</h2>
 		if v.AskTaken() {
-			@components.Notice(components.NoticeProps{Tone: components.ToneAccent}) {
+			@components.Notice(components.NoticeProps{Intent: components.IntentAccent}) {
 				{ i18n.T(ctx, i18n.KeyQuestionPosted) }
 			}
 		}
@@ -726,7 +726,7 @@ templ askForm(v *ProductView) {
 					<p class="ui-error-text" id="ask-body-error">{ i18n.T(ctx, i18n.KeyQuestionRefused) }</p>
 				}
 			</div>
-			@components.Button(components.ButtonProps{Variant: components.VariantOutline}, "submit") {
+			@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, "submit") {
 				{ i18n.T(ctx, i18n.KeyAskSubmit) }
 			}
 		</form>
@@ -795,7 +795,7 @@ templ reviewForm(v *ProductView) {
 						<p class="ui-error-text" id="review-body-error">{ v.ReviewErr("body") }</p>
 					}
 				</div>
-				@components.Button(components.ButtonProps{Variant: components.VariantPrimary}, "submit") {
+				@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary}, "submit") {
 					{ i18n.T(ctx, i18n.KeyReviewSubmit) }
 				}
 			</form>

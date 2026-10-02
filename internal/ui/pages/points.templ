@@ -27,7 +27,7 @@ templ Points(p layouts.Page, v PointsView) {
 				<p class="goen-pagehead__sub">{ i18n.T(ctx, i18n.KeyPointsExpiryTerms) }</p>
 			</div>
 			if v.Notice != "" {
-				@components.Notice(components.NoticeProps{Tone: components.ToneAccent, ID: "points-notice", Class: "ui-alert--info"}) {
+				@components.Notice(components.NoticeProps{Intent: components.IntentAccent, ID: "points-notice", Class: "ui-alert--info"}) {
 					{ v.Notice }
 				}
 			}
@@ -43,7 +43,7 @@ templ Points(p layouts.Page, v PointsView) {
 				</li>
 			</ul>
 			if v.Expiring() {
-				@components.Notice(components.NoticeProps{Tone: components.ToneWarn, ID: "points-expiring"}) {
+				@components.Notice(components.NoticeProps{Intent: components.IntentWarn, ID: "points-expiring"}) {
 					{ v.ExpiringText(ctx) }
 				}
 			}
@@ -73,7 +73,7 @@ templ Points(p layouts.Page, v PointsView) {
 							{ fmt.Sprintf(i18n.T(ctx, i18n.KeyPointsRule), v.MinimumText(), v.RateText(ctx)) }
 						</p>
 					</div>
-					@components.Button(components.ButtonProps{Variant: components.VariantPrimary, Class: "ui-btn goen-points__submit"}, "submit") {
+					@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Class: "ui-btn goen-points__submit"}, "submit") {
 						{ i18n.T(ctx, i18n.KeyPointsRedeem) }
 					}
 				</form>

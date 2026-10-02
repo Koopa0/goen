@@ -37,12 +37,12 @@ templ FAQ(p layouts.Page, v *FAQView) {
 			</div>
 		</div>
 		if v.HasNotice() {
-			@components.Notice(components.NoticeProps{Tone: components.ToneAccent}) {
+			@components.Notice(components.NoticeProps{Intent: components.IntentAccent}) {
 				{ v.Notice }
 			}
 		}
 		if v.Untranslated() > 0 {
-			@components.Notice(components.NoticeProps{Tone: components.ToneWarn}) {
+			@components.Notice(components.NoticeProps{Intent: components.IntentWarn}) {
 				{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminFaqpNoEnglish), untranslatedText(v)) }
 			}
 		}
@@ -148,8 +148,8 @@ templ FAQ(p layouts.Page, v *FAQView) {
 					<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminFaqpEnHint) }</p>
 				</div>
 				@components.Button(components.ButtonProps{
-					Variant: components.VariantPrimary,
-					Class:   "goen-admin__submit",
+					ButtonStyle: components.ButtonStylePrimary,
+					Class:       "goen-admin__submit",
 				}, "submit") {
 					{ i18n.T(ctx, i18n.KeyAdminAddButton) }
 				}
@@ -173,7 +173,7 @@ templ FAQ(p layouts.Page, v *FAQView) {
 							<div class="goen-modqueue__head">
 								<p class="goen-modqueue__title">{ e.Category }</p>
 								if !e.Translated() {
-									@components.Badge(components.BadgeProps{Tone: components.ToneWarn}) {
+									@components.Badge(components.BadgeProps{Intent: components.IntentWarn}) {
 										{ i18n.T(ctx, i18n.KeyAdminUntranslated) }
 									}
 								}
@@ -237,16 +237,16 @@ templ FAQ(p layouts.Page, v *FAQView) {
 								<input type="hidden" name="category_en" value={ e.CategoryEn }/>
 								<div class="goen-modqueue__actions">
 									@components.Button(components.ButtonProps{
-										Variant: components.VariantOutline,
-										Size:    components.SizeSmall,
-										Attrs:   templ.Attributes{"name": "action", "value": "save"},
+										ButtonStyle: components.ButtonStyleOutline,
+										Size:        components.SizeSmall,
+										Attrs:       templ.Attributes{"name": "action", "value": "save"},
 									}, "submit") {
 										{ i18n.T(ctx, i18n.KeyAdminFaqpSave) }
 									}
 									@components.Button(components.ButtonProps{
-										Variant: components.VariantGhost,
-										Size:    components.SizeSmall,
-										Attrs:   templ.Attributes{"name": "action", "value": "delete"},
+										ButtonStyle: components.ButtonStyleGhost,
+										Size:        components.SizeSmall,
+										Attrs:       templ.Attributes{"name": "action", "value": "delete"},
 									}, "submit") {
 										{ i18n.T(ctx, i18n.KeyAdminDelete) }
 									}

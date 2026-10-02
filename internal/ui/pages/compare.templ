@@ -51,7 +51,7 @@ templ Compare(p layouts.Page, v CompareView) {
 						for _, item := range v.Products {
 							<li>
 								<a href={ templ.SafeURL(v.ProductHref(item.Slug)) }>{ item.Name }</a>
-								@components.ButtonLink(components.ButtonProps{Variant: components.VariantOutline}, templ.SafeURL(v.RemoveHref(item.Slug))) {
+								@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, templ.SafeURL(v.RemoveHref(item.Slug))) {
 									{ i18n.T(ctx, i18n.KeyRemove) }
 								}
 							</li>
@@ -160,7 +160,7 @@ templ comparePicker(v CompareView) {
 			}
 			<label class="goen-sr-only" for="compare-q">{ i18n.T(ctx, i18n.KeyCompareSearchLabel) }</label>
 			<input class="ui-input" id="compare-q" type="search" name="q" value={ v.Query } maxlength="100"/>
-			@components.Button(components.ButtonProps{Variant: components.VariantOutline}, "submit") {
+			@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, "submit") {
 				{ i18n.T(ctx, i18n.KeySearch) }
 			}
 		</form>
@@ -172,7 +172,7 @@ templ comparePicker(v CompareView) {
 				for _, c := range v.Candidates {
 					<li>
 						{ c.Name } · { c.Brand }
-						@components.ButtonLink(components.ButtonProps{Variant: components.VariantOutline}, templ.SafeURL(v.AddHref(c.Slug))) {
+						@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, templ.SafeURL(v.AddHref(c.Slug))) {
 							{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCompareAddNamed), c.Name) }
 						}
 					</li>
@@ -207,7 +207,7 @@ templ compareSuggestions(v CompareView) {
 						<a class="goen-compare__name" href={ templ.SafeURL(v.ProductHref(t.Slug)) }>{ t.Name }</a>
 						<span class="goen-compare__brand">{ t.Brand }</span>
 						<span class="goen-compare__price">{ t.Price() }</span>
-						@components.ButtonLink(components.ButtonProps{Variant: components.VariantOutline}, templ.SafeURL(v.AddHref(t.Slug))) {
+						@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, templ.SafeURL(v.AddHref(t.Slug))) {
 							{ i18n.T(ctx, i18n.KeyAddToCompare) }
 							<span class="goen-sr-only">{ " " + t.Name }</span>
 						}

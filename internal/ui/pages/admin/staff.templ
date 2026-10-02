@@ -26,12 +26,12 @@ templ Staff(p layouts.Page, v StaffView) {
 			</div>
 		</div>
 		if v.Notice != "" {
-			@components.Notice(components.NoticeProps{Tone: components.ToneAccent}) {
+			@components.Notice(components.NoticeProps{Intent: components.IntentAccent}) {
 				{ v.Notice }
 			}
 		}
 		if !v.AllProtected() {
-			@components.Notice(components.NoticeProps{Tone: components.ToneDanger}) {
+			@components.Notice(components.NoticeProps{Intent: components.IntentDanger}) {
 				{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminStaffUnprotected), v.UnprotectedText()) }
 			}
 		}
@@ -57,11 +57,11 @@ templ Staff(p layouts.Page, v StaffView) {
 							<td>{ r.Role.Label(ctx) }</td>
 							<td>
 								if r.Enrolled {
-									@components.Badge(components.BadgeProps{Tone: components.ToneAccent}) {
+									@components.Badge(components.BadgeProps{Intent: components.IntentAccent}) {
 										{ r.State(ctx) }
 									}
 								} else {
-									@components.Badge(components.BadgeProps{Tone: components.ToneWarn}) {
+									@components.Badge(components.BadgeProps{Intent: components.IntentWarn}) {
 										{ r.State(ctx) }
 									}
 								}
@@ -74,8 +74,8 @@ templ Staff(p layouts.Page, v StaffView) {
 										<form method="post" action="/admin/staff/factor">
 											<input type="hidden" name="user" value={ r.ID }/>
 											@components.Button(components.ButtonProps{
-												Variant: components.VariantOutline,
-												Size:    components.SizeSmall,
+												ButtonStyle: components.ButtonStyleOutline,
+												Size:        components.SizeSmall,
 											}, "submit") {
 												{ i18n.T(ctx, i18n.KeyAdminStaffDropFa) }
 											}
@@ -84,8 +84,8 @@ templ Staff(p layouts.Page, v StaffView) {
 									<form method="post" action="/admin/staff/revoke">
 										<input type="hidden" name="user" value={ r.ID }/>
 										@components.Button(components.ButtonProps{
-											Variant: components.VariantOutline,
-											Size:    components.SizeSmall,
+											ButtonStyle: components.ButtonStyleOutline,
+											Size:        components.SizeSmall,
 										}, "submit") {
 											{ i18n.T(ctx, i18n.KeyAdminStaffRevoke) }
 										}
@@ -142,7 +142,7 @@ templ Staff(p layouts.Page, v StaffView) {
 						</select>
 					</div>
 				</div>
-				@components.Button(components.ButtonProps{Variant: components.VariantPrimary, Class: "goen-admin__submit"}, "submit") {
+				@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Class: "goen-admin__submit"}, "submit") {
 					{ i18n.T(ctx, i18n.KeyAdminAddButton) }
 				}
 			</form>

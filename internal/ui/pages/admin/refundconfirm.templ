@@ -38,14 +38,14 @@ templ ConfirmRefund(p layouts.Page, v RefundConfirmation) {
 					</div>
 				}
 				<div class="goen-admin__decidebtns">
-					@components.Button(components.ButtonProps{Variant: components.VariantPrimary, Attrs: templ.Attributes{"name": "confirm", "value": "refund"}}, "submit") {
+					@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Attrs: templ.Attributes{"name": "confirm", "value": "refund"}}, "submit") {
 						if v.Resume {
 							{ i18n.T(ctx, i18n.KeyAdminRefundResume) }
 						} else {
 							{ i18n.T(ctx, i18n.KeyAdminRefundTitle) }
 						}
 					}
-					@components.ButtonLink(components.ButtonProps{Variant: components.VariantOutline}, templ.SafeURL(v.Back())) {
+					@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, templ.SafeURL(v.Back())) {
 						{ i18n.T(ctx, i18n.KeyBackToOrder) }
 					}
 				</div>

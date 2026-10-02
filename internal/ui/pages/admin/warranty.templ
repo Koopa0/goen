@@ -32,12 +32,12 @@ templ Warranties(p layouts.Page, v WarrantiesView) {
 				placeholder={ i18n.T(ctx, i18n.KeyAdminWarrantyPlaceholder) }
 				autocomplete="off"
 			/>
-			@components.Button(components.ButtonProps{Variant: components.VariantOutline}, "submit") {
+			@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, "submit") {
 				{ i18n.T(ctx, i18n.KeyAdminSearchButton) }
 			}
 		</form>
 		if v.TermTooShort() {
-			@components.Notice(components.NoticeProps{Tone: components.ToneWarn}) {
+			@components.Notice(components.NoticeProps{Intent: components.IntentWarn}) {
 				{ i18n.T(ctx, i18n.KeyAdminSearchShort) }
 			}
 		}
