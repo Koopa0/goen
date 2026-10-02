@@ -757,17 +757,33 @@ templ Variants(p layouts.Page, v VariantsView) {
 		if v.HasNotice() {
 			<p class="ui-alert ui-alert--info" role="status">{ v.Notice }</p>
 		}
+		<form class="goen-admin__search" method="get" action="/admin/stock">
+			if v.LowOnly {
+				<input type="hidden" name="low" value="1"/>
+			}
+			<label class="goen-sr-only" for="stock-search">{ i18n.T(ctx, i18n.KeyAdminStockSearch) }</label>
+			<input
+				class="ui-input"
+				id="stock-search"
+				type="search"
+				name="q"
+				value={ v.Term }
+				placeholder={ i18n.T(ctx, i18n.KeyAdminStockSearchPlaceholder) }
+				autocomplete="off"
+			/>
+			<button class="ui-btn ui-btn--secondary" type="submit">{ i18n.T(ctx, i18n.KeyAdminSearch) }</button>
+		</form>
 		<div class="ui-filterbar goen-admin__tabs">
 			<a
 				class="ui-filter"
-				href="/admin/stock"
+				href={ templ.SafeURL(v.AllHref()) }
 				if !v.LowOnly {
 					aria-current="page"
 				}
 			>{ i18n.T(ctx, i18n.KeyAdminTabAll) }</a>
 			<a
 				class="ui-filter"
-				href="/admin/stock?low=1"
+				href={ templ.SafeURL(v.LowHref()) }
 				if v.LowOnly {
 					aria-current="page"
 				}
@@ -811,6 +827,9 @@ templ variantTable(variants []Variant, back string) {
 					</td>
 					<td>
 						{ x.ProductName }
+						if x.OptionText() != "" {
+							<span class="ui-cart-line__meta">{ x.OptionText() }</span>
+						}
 						<span class="ui-cart-line__meta">{ x.Brand }</span>
 					</td>
 					<td>

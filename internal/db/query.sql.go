@@ -2145,21 +2145,32 @@ SELECT json_build_object('Number', (pv.stock_quantity - pv.safety_stock), 'Name'
     p.slug,
     p.name AS product_name,
     p.status AS product_status,
-    b.name AS brand
+    b.name AS brand,
+    ARRAY(SELECT v.value
+          FROM variant_option_values vov
+          JOIN product_options o ON o.id = vov.option_id
+          JOIN product_option_values v ON v.id = vov.option_value_id
+          WHERE vov.variant_id = pv.id
+          ORDER BY o.position, o.id)::text[] AS option_values
 FROM product_variants pv
 JOIN products p ON p.id = pv.product_id
 JOIN brands b ON b.id = p.brand_id
 WHERE ($1::boolean = false OR pv.stock_quantity <= pv.safety_stock)
-AND (NOT $2::boolean OR ((pv.stock_quantity - pv.safety_stock) > $3::integer)
-       OR ((pv.stock_quantity - pv.safety_stock) = $3::integer AND p.name > $4::text)
-       OR ((pv.stock_quantity - pv.safety_stock) = $3::integer AND p.name = $4::text AND pv.position > $5::integer)
-       OR ((pv.stock_quantity - pv.safety_stock) = $3::integer AND p.name = $4::text AND pv.position = $5::integer AND pv.id > $6::uuid))
+AND ($2::text = ''
+       OR pv.sku ILIKE '%' || $2::text || '%'
+       OR p.name ILIKE '%' || $2::text || '%'
+       OR p.name_en ILIKE '%' || $2::text || '%')
+AND (NOT $3::boolean OR ((pv.stock_quantity - pv.safety_stock) > $4::integer)
+       OR ((pv.stock_quantity - pv.safety_stock) = $4::integer AND p.name > $5::text)
+       OR ((pv.stock_quantity - pv.safety_stock) = $4::integer AND p.name = $5::text AND pv.position > $6::integer)
+       OR ((pv.stock_quantity - pv.safety_stock) = $4::integer AND p.name = $5::text AND pv.position = $6::integer AND pv.id > $7::uuid))
 ORDER BY (pv.stock_quantity - pv.safety_stock) ASC, p.name ASC, pv.position ASC, pv.id ASC
-LIMIT $7::integer
+LIMIT $8::integer
 `
 
 type AdminVariantsParams struct {
 	LowOnly       bool
+	EscapedTerm   string
 	HasCursor     bool
 	AfterNumber   int32
 	AfterName     string
@@ -2181,11 +2192,13 @@ type AdminVariantsRow struct {
 	ProductName         string
 	ProductStatus       string
 	Brand               string
+	OptionValues        []string
 }
 
 func (q *Queries) AdminVariants(ctx context.Context, arg AdminVariantsParams) ([]AdminVariantsRow, error) {
 	rows, err := q.db.Query(ctx, adminVariants,
 		arg.LowOnly,
+		arg.EscapedTerm,
 		arg.HasCursor,
 		arg.AfterNumber,
 		arg.AfterName,
@@ -2213,6 +2226,7 @@ func (q *Queries) AdminVariants(ctx context.Context, arg AdminVariantsParams) ([
 			&i.ProductName,
 			&i.ProductStatus,
 			&i.Brand,
+			&i.OptionValues,
 		); err != nil {
 			return nil, err
 		}

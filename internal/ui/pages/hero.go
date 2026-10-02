@@ -25,8 +25,18 @@ const (
 	SlideSplit SlideLayout = "split"
 )
 
+type SlideSource string
+
+// The sources, in the order the carousel takes them.
+const (
+	SlideScheduled  SlideSource = "scheduled"
+	SlideCampaign   SlideSource = "campaign"
+	SlideDepartment SlideSource = "department"
+)
+
 // HeroSlide is one slide of the home page's carousel.
 type HeroSlide struct {
+	Source SlideSource
 	Layout SlideLayout
 	Tone   Tone
 	Photo  Photo

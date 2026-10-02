@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/koopa0/goen/internal/carrier"
 	"github.com/koopa0/goen/internal/i18n"
@@ -12,6 +13,7 @@ import (
 	"github.com/koopa0/goen/internal/pickup"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/web"
 )
 
 // Variant is one row of the stock list.
@@ -26,12 +28,16 @@ type Variant struct {
 	Safety        int32
 	Active        bool
 	ProductStatus string
+	// Options is the value on each option axis, in axis order.
+	Options []string
 	// FormID is unique to one rendering of this row's adjust form.
 	FormID string
 	// DraftDelta is what staff typed in a refused adjustment and DeltaError the
 	// sentence under it.
 	DraftDelta, DeltaError string
 }
+
+func (v Variant) OptionText() string { return strings.Join(v.Options, " · ") }
 
 // StockText is the stock on hand, as text.
 func (v Variant) StockText() string { return strconv.FormatInt(int64(v.Stock), 10) }
@@ -550,11 +556,18 @@ type VariantsView struct {
 
 	Variants []Variant
 	LowOnly  bool
+	Term     string
 	Notice   string
 	// Return is this page's own address, filter and position, which each form
 	// posts back so a write returns to the page it was made on.
 	Return string
 }
+
+func (v VariantsView) Searching() bool { return v.Term != "" }
+
+func (v VariantsView) AllHref() string { return web.ScopeURL("/admin/stock", "q", v.Term) }
+
+func (v VariantsView) LowHref() string { return web.ScopeURL("/admin/stock", "low", "1", "q", v.Term) }
 
 // Empty reports whether the list has nothing in it.
 func (v VariantsView) Empty() bool { return len(v.Variants) == 0 }
