@@ -39,6 +39,21 @@ func In(t time.Time) time.Time { return t.In(location()) }
 // Day is the shop's calendar day, as shop_day answers it in SQL.
 func Day(t time.Time) string { return In(t).Format("2006-01-02") }
 
+// Date is a calendar day on the shop's clock, with whether its year differs
+// from the shop's current one, so a caller can say the year only when it helps.
+type Date struct {
+	Year      int
+	Month     time.Month
+	Day       int
+	OtherYear bool
+}
+
+// DateOf is t's shop day; now decides which year is the current one.
+func DateOf(t, now time.Time) Date {
+	t = In(t)
+	return Date{Year: t.Year(), Month: t.Month(), Day: t.Day(), OtherYear: t.Year() != In(now).Year()}
+}
+
 // Minute is a moment to the minute, which is what queues and timelines show.
 func Minute(t time.Time) string { return In(t).Format("2006-01-02 15:04") }
 

@@ -1,11 +1,14 @@
 -- The root categories only; children hang off these.
 
--- Bayesian-averaged rating (prior weight 5, global mean), so a lone 5-star does
--- not outrank a well-reviewed 4.6. status = 'active' is a literal, not a
--- parameter, so the partial index stays usable.
--- name: HomeRecommendedTiles :many
-WITH global AS (
-    SELECT coalesce(avg(rating), 0)::float8 AS m FROM visible_reviews
+-- One tile query for the three rows the home page draws: a campaign's products
+-- in the position the back office set, a department's products, or the newest
+-- of the shop. A NULL filter is no filter. status = 'active' is a literal, not
+-- a parameter, so the partial index stays usable.
+-- name: HomeTiles :many
+WITH RECURSIVE d AS (
+    SELECT c.id FROM categories c WHERE c.id = sqlc.narg(department_id)::uuid
+    UNION ALL
+    SELECT c.id FROM categories c JOIN d ON c.parent_id = d.id
 )
 SELECT
     p.slug,
@@ -58,15 +61,35 @@ LEFT JOIN LATERAL (
     ORDER BY position
     LIMIT 1
 ) img ON true
-CROSS JOIN global
 WHERE p.status = 'active'
-ORDER BY (5 * global.m + coalesce(rv.s, 0)) / (5 + coalesce(rv.n, 0)) DESC,
-         p.published_at DESC
-LIMIT $1;
+  AND (sqlc.narg(campaign_id)::uuid IS NULL OR EXISTS (
+      SELECT 1 FROM sale_campaign_products cp
+      WHERE cp.campaign_id = sqlc.narg(campaign_id)::uuid AND cp.product_id = p.id
+  ))
+  AND (sqlc.narg(department_id)::uuid IS NULL OR p.category_id IN (SELECT d.id FROM d))
+ORDER BY (SELECT cp.position FROM sale_campaign_products cp
+          WHERE cp.campaign_id = sqlc.narg(campaign_id)::uuid AND cp.product_id = p.id) NULLS LAST,
+         p.published_at DESC, p.id
+LIMIT @max_tiles::integer;
 
--- One slide, not a carousel: `position` is how an editor queues the next one.
--- The window is judged against the database's clock, which wrote the timestamps.
--- name: CurrentHeroSlide :one
+-- The running campaigns, soonest-ending first. The window is judged against the
+-- database's clock, which wrote the timestamps.
+-- name: HomeCampaigns :many
+SELECT c.id, c.slug, localized_name(c.title, c.title_en, @locale::text) AS title,
+       c.ends_at, c.tone,
+       coalesce(c.image_key, '')::text AS image_key,
+       coalesce(localized_name(c.image_alt, c.image_alt_en, @locale::text), '')::text AS image_alt,
+       coalesce(m.width, 0)::integer AS image_width,
+       (SELECT count(*) FROM sale_campaign_products p WHERE p.campaign_id = c.id)::bigint AS products
+FROM sale_campaigns c
+LEFT JOIN media_objects m ON m.digest = c.image_key
+WHERE c.is_active AND c.starts_at <= now() AND c.ends_at > now()
+ORDER BY c.ends_at, c.id
+LIMIT @max_campaigns::integer;
+
+-- The scheduled slides in the order an editor queued them by `position`. The
+-- window is judged against the database's clock, which wrote the timestamps.
+-- name: HeroSlides :many
 -- Every word follows the visitor; the HREFs do not, because a link goes to one
 -- page. The nullable fields are coalesced as well as wrapped: localized_name(NULL,
 -- NULL, ...) is NULL and sqlc types the result as non-null.
@@ -92,7 +115,7 @@ WHERE h.is_active
   AND (h.starts_at IS NULL OR h.starts_at <= now())
   AND (h.ends_at IS NULL OR h.ends_at > now())
 ORDER BY h.position, h.id
-LIMIT 1;
+LIMIT @max_slides::integer;
 
 -- The window is judged against the database's clock, which wrote the timestamps.
 -- name: CurrentPromoBanner :one
@@ -129,6 +152,27 @@ FROM categories c
 LEFT JOIN media_objects m ON m.digest = c.image_key
 WHERE c.parent_id IS NULL
 ORDER BY c.position, c.name, c.id;
+
+-- The direct children of every root, in the order the department's own page
+-- lists them.
+-- name: HomeSubcategories :many
+SELECT c.parent_id, localized_name(c.name, c.name_en, @locale::text) AS name
+FROM categories c
+JOIN categories r ON r.id = c.parent_id AND r.parent_id IS NULL
+ORDER BY c.position, c.name, c.id;
+
+-- How many active products each root holds across its whole subtree: a
+-- department with fewer than three has no band to show.
+-- name: HomeDepartmentStock :many
+WITH RECURSIVE tree AS (
+    SELECT id, id AS root FROM categories WHERE parent_id IS NULL
+    UNION ALL
+    SELECT k.id, t.root FROM categories k JOIN tree t ON k.parent_id = t.id
+)
+SELECT t.root AS id, count(p.id)::bigint AS products
+FROM tree t
+JOIN products p ON p.category_id = t.id AND p.status = 'active'
+GROUP BY t.root;
 
 -- The sub-categories under every root, for the header's department panels. One
 -- read for all of them, in the order the catalogue lists them, so a header with

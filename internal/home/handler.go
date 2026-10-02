@@ -10,8 +10,6 @@ import (
 	"github.com/koopa0/goen/internal/web"
 )
 
-const recommendedCount = 8
-
 // Handler serves the storefront home page.
 type Handler struct {
 	store *Store
@@ -30,7 +28,7 @@ func NewHandler(store *Store, log *slog.Logger, secure bool) *Handler {
 
 // Home renders the home page.
 func (h *Handler) Home(w http.ResponseWriter, r *http.Request) {
-	view, err := h.store.Load(r.Context(), recommendedCount)
+	view, err := h.store.Load(r.Context())
 	if err != nil {
 		h.log.Error("load home page", "error", err)
 		web.Render(w, r, h.log, http.StatusInternalServerError, pages.Notice(

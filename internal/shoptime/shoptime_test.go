@@ -110,3 +110,25 @@ func TestAProviderClockIsReadBackAsSent(t *testing.T) {
 		}
 	}
 }
+
+func TestDateOfIsTheShopDayAndKnowsTheShopYear(t *testing.T) {
+	t.Parallel()
+
+	utc := func(y int, m time.Month, d, h int) time.Time { return time.Date(y, m, d, h, 0, 0, 0, time.UTC) }
+	tests := []struct {
+		name    string
+		at, now time.Time
+		want    shoptime.Date
+	}{
+		{"this year", utc(2026, 10, 2, 4), utc(2026, 6, 1, 4), shoptime.Date{Year: 2026, Month: time.October, Day: 2}},
+		{"another year", utc(2027, 10, 2, 4), utc(2026, 6, 1, 4), shoptime.Date{Year: 2027, Month: time.October, Day: 2, OtherYear: true}},
+		{"shop midnight is the next day", utc(2026, 10, 1, 16), utc(2026, 6, 1, 4), shoptime.Date{Year: 2026, Month: time.October, Day: 2}},
+		{"the shop's new year comes before the server's", utc(2026, 12, 31, 20), utc(2026, 6, 1, 4), shoptime.Date{Year: 2027, Month: time.January, Day: 1, OtherYear: true}},
+		{"now already on the shop's next year", utc(2027, 3, 5, 4), utc(2026, 12, 31, 20), shoptime.Date{Year: 2027, Month: time.March, Day: 5}},
+	}
+	for _, tt := range tests {
+		if got := shoptime.DateOf(tt.at, tt.now); got != tt.want {
+			t.Errorf("%s: DateOf = %+v, want %+v", tt.name, got, tt.want)
+		}
+	}
+}

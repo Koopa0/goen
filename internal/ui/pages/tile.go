@@ -70,17 +70,6 @@ func (t ProductTile) Compare() string { return twd(t.CompareCents) }
 // RatingText is the average rating to one decimal, e.g. "4.7".
 func (t ProductTile) RatingText() string { return strconv.FormatFloat(t.Rating, 'f', 1, 64) }
 
-// HasReviews reports whether the tile has any ratings to show.
-func (t ProductTile) HasReviews() bool { return t.RatingCount > 0 }
-
-// ReviewCountText is the number of ratings as text, e.g. "3".
-func (t ProductTile) ReviewCountText() string { return strconv.FormatInt(t.RatingCount, 10) }
-
-// RatingLabel is the rating as one sentence for assistive technology.
-func (t ProductTile) RatingLabel(ctx context.Context) string {
-	return i18n.Count(ctx, i18n.KeyRatingSummary, t.RatingCount, t.RatingText(), t.ReviewCountText())
-}
-
 // TWD is twd for callers outside this package.
 func TWD(cents int64) string { return twd(cents) }
 

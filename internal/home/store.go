@@ -1,14 +1,19 @@
-// Package home renders goen's storefront home page: the top-level category
-// tiles and the recommended products, read live.
+// Package home renders goen's storefront home page: the carousel, the
+// department cards and the product rows, read live.
 package home
 
 import (
 	"context"
 	"fmt"
+	"strings"
+	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
@@ -17,6 +22,8 @@ type Store struct {
 	q *db.Queries
 	// noPickup leaves pickup out of every price and method the store describes.
 	noPickup bool
+	// now is the shop's clock, which decides the department of the day.
+	now func() time.Time
 }
 
 // NewStore returns a Store reading through dbtx.
@@ -24,7 +31,7 @@ func NewStore(dbtx db.DBTX) *Store {
 	if dbtx == nil {
 		panic("home: NewStore requires a database handle")
 	}
-	return &Store{q: db.New(dbtx)}
+	return &Store{q: db.New(dbtx), now: time.Now}
 }
 
 // WithoutPickup is the store for a deployment whose store map is not configured:
@@ -35,21 +42,44 @@ func (s *Store) WithoutPickup() *Store {
 	return &c
 }
 
-// Load reads the category tiles and the top recommended product tiles.
-func (s *Store) Load(ctx context.Context, recommended int32) (pages.HomeView, error) {
-	hero, err := s.Hero(ctx)
-	if err != nil {
-		return pages.HomeView{}, err
-	}
-	cats, err := s.q.RootCategories(ctx, string(i18n.FromContext(ctx)))
+// rowTiles and bandTiles are how many products the product row and the
+// department band show.
+const (
+	rowTiles  = 4
+	bandTiles = 3
+)
+
+// Load reads everything the home page draws.
+func (s *Store) Load(ctx context.Context) (pages.HomeView, error) {
+	locale := string(i18n.FromContext(ctx))
+	cats, err := s.q.RootCategories(ctx, locale)
 	if err != nil {
 		return pages.HomeView{}, fmt.Errorf("read home categories: %w", err)
 	}
-	tiles, err := s.q.HomeRecommendedTiles(ctx, db.HomeRecommendedTilesParams{
-		Limit: recommended, Locale: string(i18n.FromContext(ctx)),
-	})
+	subRows, err := s.q.HomeSubcategories(ctx, locale)
 	if err != nil {
-		return pages.HomeView{}, fmt.Errorf("read home tiles: %w", err)
+		return pages.HomeView{}, fmt.Errorf("read home subcategories: %w", err)
+	}
+	subs := make(map[uuid.UUID][]string)
+	for _, r := range subRows {
+		subs[r.ParentID.UUID] = append(subs[r.ParentID.UUID], r.Name)
+	}
+	camps, err := s.q.HomeCampaigns(ctx, db.HomeCampaignsParams{Locale: locale, MaxCampaigns: maxSlides})
+	if err != nil {
+		return pages.HomeView{}, fmt.Errorf("read home campaigns: %w", err)
+	}
+
+	slides, err := s.slides(ctx, cats, subs, camps)
+	if err != nil {
+		return pages.HomeView{}, err
+	}
+	row, err := s.productRow(ctx, camps)
+	if err != nil {
+		return pages.HomeView{}, err
+	}
+	band, err := s.departmentBand(ctx, cats, subs)
+	if err != nil {
+		return pages.HomeView{}, err
 	}
 
 	// The shop edits this at /admin/shipping; a page restating it drifts from the till.
@@ -63,9 +93,10 @@ func (s *Store) Load(ctx context.Context, recommended int32) (pages.HomeView, er
 	}
 
 	view := pages.HomeView{
-		Hero:              hero,
+		Slides:            slides,
 		Categories:        make([]pages.HomeCategory, 0, len(cats)),
-		Recommended:       make([]pages.ProductTile, 0, len(tiles)),
+		Row:               row,
+		Band:              band,
 		FreeDeliveryCents: freeOver,
 		LowestFeeCents:    lowestFee,
 		PickupOffered:     !s.noPickup,
@@ -73,20 +104,100 @@ func (s *Store) Load(ctx context.Context, recommended int32) (pages.HomeView, er
 	for i := range cats {
 		c := &cats[i]
 		view.Categories = append(view.Categories, pages.HomeCategory{
-			Slug:    c.Slug,
-			Name:    c.Name,
-			IconKey: c.IconKey.String,
-			Tone:    pages.ResolveTone(c.Tone),
-			Photo: pages.Photo{
-				URL:    assets.ProductImageURL(c.ImageKey),
-				Srcset: assets.ProductImageSrcsetAt(c.ImageKey, int(c.ImageWidth)),
-				Alt:    c.ImageAlt,
-			},
+			Slug:  c.Slug,
+			Name:  c.Name,
+			Tone:  pages.ResolveTone(c.Tone),
+			Photo: departmentPhoto(c),
 		})
 	}
-	for i := range tiles {
-		t := &tiles[i]
-		view.Recommended = append(view.Recommended, pages.ProductTile{
+	return view, nil
+}
+
+// productRow is the soonest-ending campaign's first products, or the newest of
+// the shop when no campaign runs or the one running holds none.
+func (s *Store) productRow(ctx context.Context, camps []db.HomeCampaignsRow) (pages.ProductRow, error) {
+	if len(camps) > 0 {
+		c := &camps[0]
+		tiles, err := s.tiles(ctx, uuid.NullUUID{UUID: c.ID, Valid: true}, uuid.NullUUID{}, rowTiles)
+		if err != nil {
+			return pages.ProductRow{}, err
+		}
+		if len(tiles) > 0 {
+			return pages.ProductRow{
+				Title: c.Title,
+				Fact:  i18n.Count(ctx, i18n.KeyHomeCampaignRowFact, c.Products, c.Products, s.endDay(ctx, c)),
+				Href:  "/s/" + c.Slug,
+				Tiles: tiles,
+			}, nil
+		}
+	}
+	tiles, err := s.tiles(ctx, uuid.NullUUID{}, uuid.NullUUID{}, rowTiles)
+	if err != nil {
+		return pages.ProductRow{}, err
+	}
+	return pages.ProductRow{Title: i18n.T(ctx, i18n.KeyHomeNewIn), Href: "/search", Tiles: tiles}, nil
+}
+
+// departmentBand is the day's department: one, rotating by shop day through
+// the departments that have a photograph and enough products to fill the band.
+// It is nil when none qualifies.
+func (s *Store) departmentBand(ctx context.Context, cats []db.RootCategoriesRow, subs map[uuid.UUID][]string) (*pages.DepartmentBand, error) {
+	stock, err := s.q.HomeDepartmentStock(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("read department stock: %w", err)
+	}
+	held := make(map[uuid.UUID]int64, len(stock))
+	for _, r := range stock {
+		held[r.ID] = r.Products
+	}
+	var eligible []*db.RootCategoriesRow
+	for i := range cats {
+		if departmentPhoto(&cats[i]).Shown() && held[cats[i].ID] >= bandTiles {
+			eligible = append(eligible, &cats[i])
+		}
+	}
+	if len(eligible) == 0 {
+		return nil, nil
+	}
+
+	c := eligible[dayIndex(s.now(), len(eligible))]
+	tiles, err := s.tiles(ctx, uuid.NullUUID{}, uuid.NullUUID{UUID: c.ID, Valid: true}, bandTiles)
+	if err != nil {
+		return nil, err
+	}
+	return &pages.DepartmentBand{
+		Name:  c.Name,
+		Fact:  strings.Join(subs[c.ID], " · "),
+		Href:  "/c/" + c.Slug,
+		Tone:  pages.ResolveTone(c.Tone),
+		Photo: departmentPhoto(c),
+		Tiles: tiles,
+	}, nil
+}
+
+// dayIndex picks which of n departments the shop day t belongs to: the days
+// since the epoch, so every visitor on one shop day sees the same one and the
+// next day moves on to the next.
+func dayIndex(t time.Time, n int) int {
+	day, err := time.Parse(time.DateOnly, shoptime.Day(t))
+	if err != nil || n <= 0 {
+		return 0
+	}
+	return int(day.Unix()/86400) % n
+}
+
+// tiles reads up to limit product tiles for a campaign, a department, or neither.
+func (s *Store) tiles(ctx context.Context, campaign, department uuid.NullUUID, limit int32) ([]pages.ProductTile, error) {
+	rows, err := s.q.HomeTiles(ctx, db.HomeTilesParams{
+		Locale: string(i18n.FromContext(ctx)), CampaignID: campaign, DepartmentID: department, MaxTiles: limit,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("read home tiles: %w", err)
+	}
+	out := make([]pages.ProductTile, 0, len(rows))
+	for i := range rows {
+		t := &rows[i]
+		out = append(out, pages.ProductTile{
 			Slug:         t.Slug,
 			Name:         t.Name,
 			Summary:      t.Summary,
@@ -104,5 +215,5 @@ func (s *Store) Load(ctx context.Context, recommended int32) (pages.HomeView, er
 			ImageHeight:  t.ImageHeight,
 		})
 	}
-	return view, nil
+	return out, nil
 }

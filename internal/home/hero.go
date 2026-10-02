@@ -2,52 +2,138 @@ package home
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"strings"
+	"time"
 
-	"github.com/jackc/pgx/v5"
+	"github.com/google/uuid"
 
+	"github.com/koopa0/goen/assets"
+	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/web"
 )
 
-// Hero reads the slide the home page should show, or the built-in one. A missing
-// row is not an error; a read failure is.
-func (s *Store) Hero(ctx context.Context) (pages.Hero, error) {
-	row, err := s.q.CurrentHeroSlide(ctx, string(i18n.FromContext(ctx)))
+// maxSlides is the carousel's length: more than three is a queue, not a hero.
+const maxSlides = 3
+
+// slides is the carousel, in the order the shop means it: the slides an editor
+// scheduled, the campaigns running (soonest-ending first), then departments
+// with a photograph to fill what is left.
+func (s *Store) slides(ctx context.Context, cats []db.RootCategoriesRow, subs map[uuid.UUID][]string, camps []db.HomeCampaignsRow) ([]pages.HeroSlide, error) {
+	locale := i18n.FromContext(ctx)
+	rows, err := s.q.HeroSlides(ctx, db.HeroSlidesParams{Locale: string(locale), MaxSlides: maxSlides})
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return pages.DefaultHero(ctx), nil
-		}
-		return pages.Hero{}, fmt.Errorf("read hero slide: %w", err)
+		return nil, fmt.Errorf("read hero slides: %w", err)
 	}
 
-	// Typed by a person and rendered into an href at the top of the home page.
-	primaryHref, primaryOK := web.SitePath(row.PrimaryCtaHref)
-	primary := pages.CTA{Label: row.PrimaryCtaLabel, Href: primaryHref}
-	secondary := pages.CTA{}
-	if !primaryOK {
-		// A primary CTA is required as a pair, and direct SQL bypasses the write
-		// gate: keep the slide's copy rather than render a dead primary button.
-		defaults := pages.DefaultHero(ctx)
-		primary, secondary = defaults.PrimaryCTA, defaults.SecondaryCTA
-	} else {
-		secondaryHref, secondaryOK := web.SitePath(row.SecondaryCtaHref.String)
-		if secondaryOK {
-			secondary = pages.CTA{Label: row.SecondaryCtaLabel, Href: secondaryHref}
+	out := make([]pages.HeroSlide, 0, maxSlides)
+	for i := range rows {
+		r := &rows[i]
+		slide := pages.HeroSlide{
+			Layout: pages.SlidePhoto,
+			Tone:   pages.ToneStone,
+			Title:  r.Headline,
+			Fact:   r.Body,
 		}
+		// Typed by a person and rendered into an href at the top of the home
+		// page; direct SQL bypasses the write gate, so a bad link is a slide
+		// with no button rather than a dead one.
+		if href, ok := web.SitePath(r.PrimaryCtaHref); ok {
+			slide.CTA = pages.CTA{Label: r.PrimaryCtaLabel, Href: href}
+		}
+		if key := r.ImageKey.String; key != "" {
+			slide.Photo = pages.Photo{
+				URL:    assets.MediaURL(key),
+				Srcset: assets.ProductImageSrcsetAt(key, int(r.ImageWidth)),
+				Alt:    r.ImageAlt,
+			}
+			slide.PhotoWidth, slide.PhotoHeight = int(r.ImageWidth), int(r.ImageHeight)
+		}
+		out = append(out, slide)
 	}
 
-	return pages.Hero{
-		Eyebrow:      row.Eyebrow,
-		Headline:     row.Headline,
-		Body:         row.Body,
-		PrimaryCTA:   primary,
-		SecondaryCTA: secondary,
-		ImageKey:     row.ImageKey.String,
-		ImageAlt:     row.ImageAlt,
-		ImageWidth:   int(row.ImageWidth),
-		ImageHeight:  int(row.ImageHeight),
-	}, nil
+	for i := range camps {
+		if len(out) == maxSlides {
+			return out, nil
+		}
+		c := &camps[i]
+		slide := pages.HeroSlide{
+			Layout: pages.SlidePhoto,
+			Tone:   pages.ResolveTone(c.Tone),
+			Title:  c.Title,
+			Fact:   s.campaignFact(ctx, c),
+			CTA:    pages.CTA{Label: i18n.T(ctx, i18n.KeyHeroCampaignCTA), Href: "/s/" + c.Slug},
+		}
+		if c.ImageKey != "" {
+			slide.Photo = pages.Photo{
+				URL:    assets.ProductImageURL(c.ImageKey),
+				Srcset: assets.ProductImageSrcsetAt(c.ImageKey, int(c.ImageWidth)),
+				Alt:    c.ImageAlt,
+			}
+			slide.PhotoWidth, slide.PhotoHeight = 1600, 600
+		}
+		out = append(out, slide)
+	}
+
+	for i := range cats {
+		if len(out) == maxSlides {
+			break
+		}
+		c := &cats[i]
+		photo := departmentPhoto(c)
+		if !photo.Shown() {
+			continue
+		}
+		out = append(out, pages.HeroSlide{
+			Layout:     pages.SlideSplit,
+			Tone:       pages.ResolveTone(c.Tone),
+			Photo:      photo,
+			PhotoWidth: 1600, PhotoHeight: 1200,
+			Title: c.Name,
+			Fact:  strings.Join(subs[c.ID], " · "),
+			CTA: pages.CTA{
+				Label: fmt.Sprintf(i18n.T(ctx, i18n.KeyHomeDepartmentCTA), c.Name),
+				Href:  "/c/" + c.Slug,
+			},
+		})
+	}
+	return out, nil
+}
+
+// campaignFact is "{n} items · until {day}", the day said the short way on the
+// shop's own calendar.
+func (s *Store) campaignFact(ctx context.Context, c *db.HomeCampaignsRow) string {
+	return i18n.Count(ctx, i18n.KeyHomeCampaignFact, c.Products, c.Products, s.endDay(ctx, c))
+}
+
+// endDay is the campaign's last day as a short date.
+func (s *Store) endDay(ctx context.Context, c *db.HomeCampaignsRow) string {
+	return shortDate(ctx, c.EndsAt, s.now())
+}
+
+// shortDate says a day in the reader's language, with its year only when it is
+// not the shop's current one.
+func shortDate(ctx context.Context, t, now time.Time) string {
+	d := shoptime.DateOf(t, now)
+	key := i18n.KeyShortDate
+	if d.OtherYear {
+		key = i18n.KeyShortDateYear
+	}
+	return fmt.Sprintf(i18n.T(ctx, key), d.Month.String()[:3], int(d.Month), d.Day, d.Year)
+}
+
+// departmentPhoto is a root category's own photograph, or none.
+func departmentPhoto(c *db.RootCategoriesRow) pages.Photo {
+	url := assets.ProductImageURL(c.ImageKey)
+	if url == "" {
+		return pages.Photo{}
+	}
+	return pages.Photo{
+		URL:    url,
+		Srcset: assets.ProductImageSrcsetAt(c.ImageKey, int(c.ImageWidth)),
+		Alt:    c.ImageAlt,
+	}
 }

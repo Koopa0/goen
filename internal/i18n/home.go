@@ -13,17 +13,7 @@ var (
 		En:     "We cannot show the home page right now. Please try again shortly.",
 	})
 
-	KeyHeroPlaceholder = key("home.hero.placeholder", Message{
-		ZhHant: "主視覺待實拍素材",
-		En:     "Hero photography pending",
-	})
-
-	KeySectionCategories = key("home.categories", Message{ZhHant: "分類選購", En: "Shop by category"})
-
-	KeySectionRecommended = key("home.recommended", Message{
-		ZhHant: "綜合推薦",
-		En:     "Recommended",
-	})
+	KeySectionCategories = key("home.categories", Message{ZhHant: "依館別選購", En: "Shop by department"})
 
 	KeySectionTrust = key("home.trust", Message{ZhHant: "購物保障", En: "Shopping with goen"})
 
@@ -67,18 +57,46 @@ var (
 		En:     "What goen sells",
 	})
 
-	KeyHeroImageAlt = key("home.hero.image_alt", Message{
-		ZhHant: "早晨的木桌與日常用品",
-		En:     "A wooden table in morning light with everyday things",
-	})
+	KeyHomeSeeAll = key("home.see_all", Message{ZhHant: "看全部", En: "See all"})
 
-	KeyHeroPrimaryCTA = key("home.hero.cta.primary", Message{
-		ZhHant: "看本週優惠",
-		En:     "This week's offers",
-	})
+	KeyHomePromoTitle = key("home.promo.title", Message{ZhHant: "書桌上的日常", En: "Everyday things for the desk"})
 
-	KeyHeroSecondaryCTA = key("home.hero.cta.secondary", Message{
-		ZhHant: "關於 goen",
-		En:     "About goen",
+	KeyHomePromoLink = key("home.promo.link", Message{ZhHant: "去看看", En: "Take a look"})
+
+	KeyHomeFeatured = key("home.featured", Message{ZhHant: "精選", En: "Featured"})
+
+	KeyHomeHeading = key("home.heading", Message{ZhHant: "goen 商店首頁", En: "goen shop home"})
+
+	KeyHomeNewIn = key("home.new_in", Message{ZhHant: "新到貨", En: "New in"})
+
+	KeyHeroPrevious = key("home.hero.previous", Message{ZhHant: "上一張", En: "Previous"})
+
+	KeyHeroNext = key("home.hero.next", Message{ZhHant: "下一張", En: "Next"})
+
+	// %d is the campaign's product count, %s the day it ends.
+	KeyHomeCampaignFact = countKey("home.campaign.fact", "%d 件商品 · 至 %s",
+		"%d item · until %s", "%d items · until %s")
+
+	// The grey continuation of a section heading, on the same line as its name:
+	// %s is the rest of the sentence.
+	KeyHomeAside = key("home.heading.aside", Message{ZhHant: "。%s", En: ". %s"})
+
+	// The campaign row's continuation: %d is the product count, %s the last day.
+	KeyHomeCampaignRowFact = countKey("home.campaign.row_fact", "%d 件商品，至 %s",
+		"%d item, until %s", "%d items, until %s")
+
+	// A day said the short way. The arguments are the English month name, the
+	// month number, the day and the year, picked by index; the year forms are
+	// for a day outside the shop's current year.
+	KeyShortDate = key("date.short", Message{ZhHant: "%[2]d 月 %[3]d 日", En: "%[1]s %[3]d"})
+
+	KeyShortDateYear = key("date.short.year", Message{ZhHant: "%[4]d 年 %[2]d 月 %[3]d 日", En: "%[1]s %[3]d, %[4]d"})
+
+	// %s is a department's name.
+	KeyHomeDepartmentCTA = key("home.department.cta", Message{ZhHant: "逛逛%s", En: "Browse %s"})
+
+	KeyHeroCampaignCTA = key("home.hero.cta.campaign", Message{
+		ZhHant: "逛逛活動",
+		En:     "See the campaign",
 	})
 )

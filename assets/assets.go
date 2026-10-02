@@ -92,16 +92,16 @@ var categoryImages = map[string]string{
 
 const productMediaPrefix = "media/products/"
 
-// requiredMedia is the photography the storefront names by file but no
-// template reads yet: promotional banners, the six department photographs
-// (800px, each with a -400 rendition) and the campaign headers. The
+// requiredMedia is the photography the storefront names by file: the promotional
+// banners, the six department photographs (1600px, each with a -800 and a -400
+// rendition) and the campaign headers. The
 // headers sit under media/products/ because a campaign's image_key is resolved
 // by the product-image function.
 var requiredMedia = append(departmentMedia(
 	"books-stationery", "home-living", "beauty", "fashion", "food-drink", "tech",
 ),
-	"media/promo/promo-desk.webp",
-	"media/promo/promo-desk-800.webp",
+	PromoDesk,
+	PromoDesk800,
 	"media/promo/promo-morning-table.webp",
 	"media/promo/promo-morning-table-800.webp",
 	"media/products/campaign-autumn.webp",
@@ -112,13 +112,13 @@ var requiredMedia = append(departmentMedia(
 	"media/products/campaign-tea-week-800.webp",
 )
 
-// departmentMedia lists a department photograph's two files: the 800px source
-// and its -400 rendition, the pair CategoryImage serves.
+// departmentMedia lists a department photograph's three files: the 1600px
+// source and its -800 and -400 renditions.
 func departmentMedia(slugs ...string) []string {
 	names := make([]string, 0, 3*len(slugs))
 	for _, slug := range slugs {
 		base := "media/products/department-" + slug
-		names = append(names, base+".webp", base+"-400.webp")
+		names = append(names, base+".webp", base+"-800.webp", base+"-400.webp")
 	}
 	return names
 }
@@ -213,6 +213,18 @@ func Has(name string) bool {
 	return ok
 }
 
+// PromoDesk is the home page's promotional band photograph; its -800 rendition
+// sits beside it.
+const (
+	PromoDesk    = "media/promo/promo-desk.webp"
+	PromoDesk800 = "media/promo/promo-desk-800.webp"
+)
+
+// PromoDeskSrcset is the promotional photograph's two candidates.
+func PromoDeskSrcset() string {
+	return URL(PromoDesk800) + " 800w, " + URL(PromoDesk) + " 1600w"
+}
+
 // HomeHeroSrcset returns the responsive hero candidates, from the compact
 // mobile/tablet rendition through the full desktop source.
 func HomeHeroSrcset() string {
@@ -229,12 +241,15 @@ func AboutSrcset() string {
 	return URL(AboutImage400) + " 400w, " + URL(AboutImage800) + " 800w, " + URL(AboutImage) + " 1600w"
 }
 
-// CategoryImage is the photograph for a category slug, its 800px source and a
-// srcset with the 400px rendition. ok is false for a slug with no photograph.
+// CategoryImage is the photograph for a category slug and a srcset of its
+// renditions. ok is false for a slug with no photograph.
 func CategoryImage(slug string) (src, srcset string, ok bool) {
 	name, ok := categoryImages[slug]
 	if !ok || !Has(name) {
 		return "", "", false
+	}
+	if strings.HasPrefix(name, productMediaPrefix) {
+		return URL(name), ProductImageSrcset(strings.TrimPrefix(name, productMediaPrefix)), true
 	}
 	return URL(name), URL(rendition(name, 400)) + " 400w, " + URL(name) + " 800w", true
 }
