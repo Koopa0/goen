@@ -229,6 +229,7 @@ func TestRefundBeforeShipmentPaysEveryLegAndCancels(t *testing.T) {
 			t.Fatalf("press %d: %v", press+1, err)
 		}
 	}
+	terminalNoticeRefunded(t, orderID, ordernotice.CancelledByStaff, true)
 
 	var returnID uuid.UUID
 	var returnStatus string

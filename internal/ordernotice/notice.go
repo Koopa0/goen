@@ -29,9 +29,10 @@ const (
 type Message struct {
 	OrderID uuid.UUID `json:"order_id"`
 	Kind    Kind      `json:"kind"`
-	// Refunded says money may have reached the provider for this unpaid order
-	// and has been or will be returned, so the mail must not say nothing was
-	// charged. Read in the transaction that cancels the order.
+	// Refunded says money may have reached the provider for an unpaid order, or
+	// went back on a paid one (card or store credit), and has been or will be
+	// returned, so the mail must not say nothing was charged. Read in the
+	// transaction that cancels the order.
 	Refunded bool `json:"refunded"`
 }
 

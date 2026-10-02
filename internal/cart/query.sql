@@ -358,9 +358,12 @@ SELECT hold_inventory(
 INSERT INTO order_events (order_id, kind) VALUES ($1, 'placed');
 
 -- The customer sees WHAT happened, never WHO did it; the back office reads the
--- same table with the actor joined.
+-- same table with the actor joined. A refund's note is the provider's refund
+-- id, which the back office needs and the shopper has no use for.
 -- name: OrderTimeline :many
-SELECT kind, note, occurred_at
+SELECT kind,
+       (CASE WHEN kind = 'refunded' THEN '' ELSE coalesce(note, '') END)::text AS note,
+       occurred_at
 FROM order_events WHERE order_id = $1 ORDER BY occurred_at, id;
 
 -- What the customer may read of the order's filed invoice: nothing exists
