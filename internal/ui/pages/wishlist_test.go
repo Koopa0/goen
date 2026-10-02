@@ -6,6 +6,7 @@ import (
 
 	"golang.org/x/net/html"
 
+	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
@@ -182,4 +183,91 @@ func attrValue(n *html.Node, key string) string {
 		}
 	}
 	return ""
+}
+
+// TestAWishlistRowBuysOrSendsToTheProductAndSaysWhatIsInStock: the page that
+// holds what somebody means to buy must let them, and say whether they can.
+func TestAWishlistRowBuysOrSendsToTheProductAndSaysWhatIsInStock(t *testing.T) {
+	t.Parallel()
+
+	const variant = "7f0b6a3e-2c1d-4e5f-8a9b-0c1d2e3f4a5b"
+	view := WishlistView{Products: []ProductTile{
+		{Slug: "one-variant", Name: "One", InStock: true, SoleVariantID: variant},
+		{Slug: "many-variants", Name: "Many", InStock: true},
+		{Slug: "sold-out", Name: "Gone"},
+	}}
+	items := wishlistGrid(t, parseWishlistHTML(t, view))
+	if len(items) != 3 {
+		t.Fatalf("%d rows, want 3", len(items))
+	}
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+
+	add := func(n *html.Node) *html.Node {
+		return findDescendant(n, func(n *html.Node) bool { return n.Data == "form" && hasClass(n, "goen-wish__add") })
+	}
+	choose := func(n *html.Node) bool {
+		return findDescendant(n, func(n *html.Node) bool {
+			return n.Data == "a" && attrValue(n, "href") == "/p/many-variants" && hasClass(n, "goen-btn")
+		}) != nil
+	}
+
+	form := add(items[0])
+	if form == nil {
+		t.Fatal("a product with one variant in stock has no add-to-cart form")
+	}
+	if got := hiddenInputValue(form, "variant"); got != variant {
+		t.Errorf("add form variant = %q, want %q", got, variant)
+	}
+	if got := hiddenInputValue(form, "back"); got != "one-variant" {
+		t.Errorf("add form back = %q, want the product slug", got)
+	}
+	if add(items[1]) != nil || !choose(items[1]) {
+		t.Error("a product with a choice of variants must link to its page, not add one")
+	}
+	if add(items[2]) != nil || choose(items[2]) {
+		t.Error("a sold-out product offers a way to buy")
+	}
+
+	text := func(n *html.Node) string {
+		stock := findDescendant(n, func(n *html.Node) bool { return n.Data == "p" && hasClass(n, "goen-wish__stock") })
+		if stock == nil {
+			t.Fatal("a row has no stock note")
+		}
+		return nodeText(stock)
+	}
+	if got := text(items[0]); !strings.Contains(got, i18n.T(ctx, i18n.KeyInStock)) {
+		t.Errorf("in-stock note = %q", got)
+	}
+	if got := text(items[2]); !strings.Contains(got, i18n.T(ctx, i18n.KeySoldOut)) {
+		t.Errorf("sold-out note = %q", got)
+	}
+}
+
+// TestRemovingFromTheWishlistSwapsThePageInPlaceAndStillPosts: script keeps the
+// page where it is; without it the same form posts and redirects.
+func TestRemovingFromTheWishlistSwapsThePageInPlaceAndStillPosts(t *testing.T) {
+	t.Parallel()
+
+	items := wishlistGrid(t, parseWishlistHTML(t, WishlistView{Products: []ProductTile{{Slug: "a", Name: "A", InStock: true}}}))
+	form := findDescendant(items[0], func(n *html.Node) bool { return n.Data == "form" && hasClass(n, "goen-wish__remove") })
+	if form == nil {
+		t.Fatal("no remove form")
+	}
+	if attrValue(form, "action") != "/account/wishlist" || attrValue(form, "method") != "post" {
+		t.Error("the remove form does not post without script")
+	}
+	if attrValue(form, "hx-post") != "/account/wishlist" || attrValue(form, "hx-select") != "#wishlist" {
+		t.Error("the remove form does not swap the list in place")
+	}
+}
+
+func nodeText(n *html.Node) string {
+	if n.Type == html.TextNode {
+		return n.Data
+	}
+	var b strings.Builder
+	for c := n.FirstChild; c != nil; c = c.NextSibling {
+		b.WriteString(nodeText(c))
+	}
+	return b.String()
 }

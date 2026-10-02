@@ -38,6 +38,9 @@ type ProductTile struct {
 	// listing and by search, which are where somebody is choosing between
 	// candidates; a shop window, a promotional list and a wishlist are not.
 	Comparable bool
+	// SoleVariantID is set by the wishlist when the product has one variant and
+	// it is in stock, so the row can add it to the cart without asking which.
+	SoleVariantID string
 }
 
 // AnyComparable reports whether any tile carries the compare box.

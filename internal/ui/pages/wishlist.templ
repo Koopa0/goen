@@ -25,40 +25,71 @@ templ Wishlist(p layouts.Page, v WishlistView) {
 				<p class="goen-pagehead__eyebrow">{ i18n.T(ctx, i18n.KeyAccountTitle) }</p>
 				<h1 class="goen-pagehead__title">{ i18n.T(ctx, i18n.KeyWishlistTitle) }</h1>
 			</div>
-			if v.Empty() {
-				<div class="ui-empty">
-					<span class="goen-medallion" aria-hidden="true">
-						@icons.Heart()
-					</span>
-					<p class="goen-empty__title">{ i18n.T(ctx, i18n.KeyWishlistEmpty) }</p>
-					<p class="goen-empty__text">{ i18n.T(ctx, i18n.KeyWishlistEmptyHint) }</p>
-					@components.ButtonLink(components.ButtonProps{
-						Variant: components.VariantPrimary,
-					}, templ.SafeURL("/")) {
-						{ i18n.T(ctx, i18n.KeyWishlistEmptyLink) }
-					}
-				</div>
-			} else {
-				<h2 class="goen-sr-only">{ i18n.T(ctx, i18n.KeyResultsHeading) }</h2>
-				<ul class="goen-tiles__grid" role="list">
-					for _, t := range v.Products {
-						<li class="goen-wish goen-tile__cell">
-							@tileCard(t)
-							<form method="post" action="/account/wishlist" class="goen-wish__remove">
-								<input type="hidden" name="slug" value={ t.Slug }/>
-								<input type="hidden" name="action" value="remove"/>
-								<input type="hidden" name="return" value="/account/wishlist"/>
-								// ui-btn is the name `check-layout.mjs:1634` measures the
-								// remove control by; without it the wishlist rows report no
-								// control at all. app.css writes what it declares.
-								<button class="goen-btn goen-btn--outline goen-btn--sm goen-btn--block ui-btn" type="submit">
-									{ i18n.T(ctx, i18n.KeyRemove) }
-								</button>
-							</form>
-						</li>
-					}
-				</ul>
-			}
+			<div id="wishlist">
+				if v.Empty() {
+					<div class="ui-empty">
+						<span class="goen-medallion" aria-hidden="true">
+							@icons.Heart()
+						</span>
+						<p class="goen-empty__title">{ i18n.T(ctx, i18n.KeyWishlistEmpty) }</p>
+						<p class="goen-empty__text">{ i18n.T(ctx, i18n.KeyWishlistEmptyHint) }</p>
+						@components.ButtonLink(components.ButtonProps{
+							Variant: components.VariantPrimary,
+						}, templ.SafeURL("/")) {
+							{ i18n.T(ctx, i18n.KeyWishlistEmptyLink) }
+						}
+					</div>
+				} else {
+					<h2 class="goen-sr-only">{ i18n.T(ctx, i18n.KeyResultsHeading) }</h2>
+					<ul class="goen-tiles__grid" role="list">
+						for _, t := range v.Products {
+							<li class="goen-wish goen-tile__cell">
+								@tileCard(t)
+								<p class="goen-wish__stock">
+									if t.InStock {
+										{ i18n.T(ctx, i18n.KeyInStock) }
+									} else {
+										{ i18n.T(ctx, i18n.KeySoldOut) }
+									}
+								</p>
+								if t.SoleVariantID != "" {
+									<form method="post" action="/cart/items" class="goen-wish__add">
+										<input type="hidden" name="variant" value={ t.SoleVariantID }/>
+										<input type="hidden" name="back" value={ t.Slug }/>
+										<input type="hidden" name="quantity" value="1"/>
+										@components.Button(components.ButtonProps{Variant: components.VariantPrimary, Size: components.SizeSmall, Block: true}, "submit") {
+											{ i18n.T(ctx, i18n.KeyAddToCart) }
+										}
+									</form>
+								} else if t.InStock {
+									@components.ButtonLink(components.ButtonProps{Variant: components.VariantPrimary, Size: components.SizeSmall, Block: true}, templ.SafeURL("/p/"+t.Slug)) {
+										{ i18n.T(ctx, i18n.KeyChooseOptions) }
+									}
+								}
+								<form
+									method="post"
+									action="/account/wishlist"
+									class="goen-wish__remove"
+									hx-post="/account/wishlist"
+									hx-target="#wishlist"
+									hx-select="#wishlist"
+									hx-swap="outerHTML"
+								>
+									<input type="hidden" name="slug" value={ t.Slug }/>
+									<input type="hidden" name="action" value="remove"/>
+									<input type="hidden" name="return" value="/account/wishlist"/>
+									// ui-btn is the name `check-layout.mjs:1634` measures the
+									// remove control by; without it the wishlist rows report no
+									// control at all. app.css writes what it declares.
+									<button class="goen-btn goen-btn--outline goen-btn--sm goen-btn--block ui-btn" type="submit">
+										{ i18n.T(ctx, i18n.KeyRemove) }
+									</button>
+								</form>
+							</li>
+						}
+					</ul>
+				}
+			</div>
 		</div>
 	}
 }

@@ -300,6 +300,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	mux.HandleFunc("POST /verify", ratelimit.Guard(authLimit, log, customers.Verify))
 	mux.HandleFunc("GET /register", customers.RegisterPage)
 	mux.HandleFunc("POST /register", clearSpeculations(ratelimit.Guard(authLimit, log, customers.Register)))
+	mux.HandleFunc("POST /register/resend", ratelimit.Guard(authLimit, log, customers.ResendRegistration))
 	// Open to a signed-out visitor: the link and the password chosen at
 	// registration are the proof. Under authLimit because it runs
 	// argon2, and it signs in, so it clears speculations.

@@ -220,11 +220,88 @@ func (h *Handler) RegisterPage(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/account", http.StatusSeeOther)
 		return
 	}
-	view := pages.AuthView{Next: web.SitePathOr(r.URL.Query().Get("next"), "/account")}
-	if r.URL.Query().Get("sent") == "1" {
+	q := r.URL.Query()
+	view := pages.AuthView{Next: web.SitePathOr(q.Get("next"), "/account")}
+	if q.Get("sent") == "1" {
+		view.Sent = true
 		view.Notice = i18n.T(r.Context(), i18n.KeyRegisterSent)
+		// Not in the URL: history and proxy logs keep URLs.
+		if addr, next, ok := readPendingRegistration(r); ok {
+			view.Email, view.Next = addr, next
+			view.Notice = fmt.Sprintf(i18n.T(r.Context(), i18n.KeyRegisterSentTo), addr)
+		}
+		if q.Get("again") == "1" {
+			view.Notice = i18n.T(r.Context(), i18n.KeyRegisterResent)
+		}
 	}
 	web.Render(w, r, h.log, http.StatusOK, pages.Register(pages.RegisterMeta(r.Context()), view))
+}
+
+// ResendRegistration serves POST /register/resend. Every usable address gets the
+// same answer, so the form cannot be asked who has an account.
+func (h *Handler) ResendRegistration(w http.ResponseWriter, r *http.Request) {
+	if err := web.ParseForm(w, r); err != nil {
+		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
+		return
+	}
+	addr := email.Clean(r.PostFormValue("email"))
+	next := web.SitePathOr(r.PostFormValue("next"), "/account")
+	if EmailError(addr) != "" {
+		http.Redirect(w, r, "/register?"+url.Values{"next": {next}}.Encode(), http.StatusSeeOther)
+		return
+	}
+	if retryAfter, ok := h.mailLimit.Allow("mail:" + addr); !ok {
+		clearPendingRegistration(w, h.secure)
+		ratelimit.Refuse(r.Context(), w, retryAfter)
+		return
+	}
+	if err := h.store.ResendRegistration(r.Context(), addr, next); err != nil {
+		h.log.ErrorContext(r.Context(), "resend registration", "error", err)
+		h.serverError(w, r)
+		return
+	}
+	writePendingRegistration(w, addr, next, h.secure)
+	http.Redirect(w, r, "/register?sent=1&again=1", http.StatusSeeOther)
+}
+
+// The address is personal data on a page nobody signs in to, so it expires with
+// the visit.
+const pendingRegistrationTTL = 10 * time.Minute
+
+const pendingRegistrationCookie = "goen_register_sent"
+
+func writePendingRegistration(w http.ResponseWriter, addr, next string, secure bool) {
+	raw := base64.RawURLEncoding.EncodeToString([]byte(addr + "|" + next))
+	//nolint:gosec // G124: Secure follows the deployment's own flag, as every cookie here does
+	http.SetCookie(w, &http.Cookie{
+		Name: pendingRegistrationCookie, Value: raw, Path: "/register",
+		MaxAge:   int(pendingRegistrationTTL.Seconds()),
+		HttpOnly: true, Secure: secure, SameSite: http.SameSiteLaxMode,
+	})
+}
+
+func readPendingRegistration(r *http.Request) (addr, next string, ok bool) {
+	c, err := r.Cookie(pendingRegistrationCookie)
+	if err != nil {
+		return "", "", false
+	}
+	raw, err := base64.RawURLEncoding.DecodeString(c.Value)
+	if err != nil {
+		return "", "", false
+	}
+	addr, next, found := strings.Cut(string(raw), "|")
+	if !found || EmailError(email.Clean(addr)) != "" {
+		return "", "", false
+	}
+	return email.Clean(addr), web.SitePathOr(next, "/account"), true
+}
+
+func clearPendingRegistration(w http.ResponseWriter, secure bool) {
+	//nolint:gosec // G124: as above
+	http.SetCookie(w, &http.Cookie{
+		Name: pendingRegistrationCookie, Value: "", Path: "/register", MaxAge: -1,
+		HttpOnly: true, Secure: secure, SameSite: http.SameSiteLaxMode,
+	})
 }
 
 // Register serves POST /register. It answers every usable submission the same
@@ -263,6 +340,7 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 		h.serverError(w, r)
 		return
 	}
+	writePendingRegistration(w, email.Clean(c.Email), next, h.secure)
 	http.Redirect(w, r, "/register?sent=1", http.StatusSeeOther)
 }
 
@@ -905,6 +983,7 @@ func (h *Handler) CompleteRegistration(w http.ResponseWriter, r *http.Request) {
 		if !started {
 			return
 		}
+		clearPendingRegistration(w, h.secure)
 		http.Redirect(w, r, cartAdoptionLanding(next, adoption), http.StatusSeeOther) //nolint:gosec // G710: bounded by web.SitePathOr
 	case errors.Is(err, ErrBadCredentials):
 		web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.RegisterComplete(

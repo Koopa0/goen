@@ -105,93 +105,123 @@ templ Register(p layouts.Page, v AuthView) {
 						{ i18n.T(ctx, i18n.KeyFormHasErrors) }
 					}
 				}
-				<form class="goen-auth__form" method="post" action="/register">
-					<input type="hidden" name="next" value={ v.Next }/>
-					<div class="goen-field">
-						@components.Label(components.LabelProps{For: "email"}) {
-							{ i18n.T(ctx, i18n.KeyFieldEmail) }
+				if v.Sent {
+					<form class="goen-auth__form" method="post" action="/register/resend">
+						<input type="hidden" name="next" value={ v.Next }/>
+						if v.Email != "" {
+							<input type="hidden" name="email" value={ v.Email }/>
+						} else {
+							<div class="goen-field">
+								@components.Label(components.LabelProps{For: "email"}) {
+									{ i18n.T(ctx, i18n.KeyFieldEmail) }
+								}
+								@components.Input(components.FieldProps{
+									ID:   "email",
+									Name: "email",
+									Type: "email",
+									Attrs: fieldrule.Email.Attrs(ctx, templ.Attributes{
+										"autocomplete": "email",
+										"required":     true,
+									}),
+								})
+							</div>
 						}
-						@components.Input(components.FieldProps{
-							ID:        "email",
-							Name:      "email",
-							Type:      "email",
-							Value:     v.Email,
-							Invalid:   v.HasErr("email"),
-							Describes: "email-error",
-							Attrs: fieldrule.Email.Attrs(ctx, templ.Attributes{
-								"autocomplete": "email",
-								"autofocus":    true,
-								"required":     true,
-							}),
-						})
-						if v.HasErr("email") {
-							<p class="ui-error-text" id="email-error" role="alert">{ v.Err("email") }</p>
+						@components.Button(components.ButtonProps{Variant: components.VariantOutline, Size: components.SizeLarge, Block: true}, "submit") {
+							{ i18n.T(ctx, i18n.KeyRegisterResend) }
 						}
-					</div>
-					<div class="goen-field">
-						@components.Label(components.LabelProps{For: "name"}) {
-							{ i18n.T(ctx, i18n.KeyFieldNameOpt) }
+					</form>
+					<p class="goen-auth__alt">
+						<a href="/register">{ i18n.T(ctx, i18n.KeyRegisterOtherAddress) }</a>
+					</p>
+				} else {
+					<form class="goen-auth__form" method="post" action="/register">
+						<input type="hidden" name="next" value={ v.Next }/>
+						<div class="goen-field">
+							@components.Label(components.LabelProps{For: "email"}) {
+								{ i18n.T(ctx, i18n.KeyFieldEmail) }
+							}
+							@components.Input(components.FieldProps{
+								ID:        "email",
+								Name:      "email",
+								Type:      "email",
+								Value:     v.Email,
+								Invalid:   v.HasErr("email"),
+								Describes: "email-error",
+								Attrs: fieldrule.Email.Attrs(ctx, templ.Attributes{
+									"autocomplete": "email",
+									"autofocus":    true,
+									"required":     true,
+								}),
+							})
+							if v.HasErr("email") {
+								<p class="ui-error-text" id="email-error" role="alert">{ v.Err("email") }</p>
+							}
+						</div>
+						<div class="goen-field">
+							@components.Label(components.LabelProps{For: "name"}) {
+								{ i18n.T(ctx, i18n.KeyFieldNameOpt) }
+							}
+							@components.Input(components.FieldProps{
+								ID:        "name",
+								Name:      "name",
+								Type:      "text",
+								Value:     v.Name,
+								Invalid:   v.HasErr("name"),
+								Describes: "name-error",
+								Attrs: templ.Attributes{
+									"autocomplete": "name",
+									"maxlength":    "60",
+								},
+							})
+							if v.HasErr("name") {
+								<p class="ui-error-text" id="name-error" role="alert">{ v.Err("name") }</p>
+							}
+						</div>
+						<div class="goen-field">
+							@components.Label(components.LabelProps{For: "password"}) {
+								{ i18n.T(ctx, i18n.KeyFieldPassword) }
+							}
+							@components.Input(components.FieldProps{
+								ID:        "password",
+								Name:      "password",
+								Type:      "password",
+								Invalid:   v.HasErr("password"),
+								Describes: "password-error password-hint",
+								Attrs: templ.Attributes{
+									"autocomplete": "new-password",
+									"minlength":    "10",
+									"required":     true,
+								},
+							})
+							<p class="goen-auth__hint" id="password-hint">{ i18n.T(ctx, i18n.KeyPasswordHint) }</p>
+							if v.HasErr("password") {
+								<p class="ui-error-text" id="password-error" role="alert">{ v.Err("password") }</p>
+							}
+						</div>
+						<div class="goen-field">
+							@components.Label(components.LabelProps{For: "confirm"}) {
+								{ i18n.T(ctx, i18n.KeyFieldConfirmPassword) }
+							}
+							@components.Input(components.FieldProps{
+								ID:        "confirm",
+								Name:      "confirm",
+								Type:      "password",
+								Invalid:   v.HasErr("confirm"),
+								Describes: "confirm-error",
+								Attrs: templ.Attributes{
+									"autocomplete": "new-password",
+									"required":     true,
+								},
+							})
+							if v.HasErr("confirm") {
+								<p class="ui-error-text" id="confirm-error" role="alert">{ v.Err("confirm") }</p>
+							}
+						</div>
+						@components.Button(components.ButtonProps{Variant: components.VariantPrimary, Size: components.SizeLarge, Block: true}, "submit") {
+							{ i18n.T(ctx, i18n.KeyCreateAccount) }
 						}
-						@components.Input(components.FieldProps{
-							ID:        "name",
-							Name:      "name",
-							Type:      "text",
-							Value:     v.Name,
-							Invalid:   v.HasErr("name"),
-							Describes: "name-error",
-							Attrs: templ.Attributes{
-								"autocomplete": "name",
-								"maxlength":    "60",
-							},
-						})
-						if v.HasErr("name") {
-							<p class="ui-error-text" id="name-error" role="alert">{ v.Err("name") }</p>
-						}
-					</div>
-					<div class="goen-field">
-						@components.Label(components.LabelProps{For: "password"}) {
-							{ i18n.T(ctx, i18n.KeyFieldPassword) }
-						}
-						@components.Input(components.FieldProps{
-							ID:        "password",
-							Name:      "password",
-							Type:      "password",
-							Invalid:   v.HasErr("password"),
-							Describes: "password-error password-hint",
-							Attrs: templ.Attributes{
-								"autocomplete": "new-password",
-								"minlength":    "10",
-								"required":     true,
-							},
-						})
-						<p class="goen-auth__hint" id="password-hint">{ i18n.T(ctx, i18n.KeyPasswordHint) }</p>
-						if v.HasErr("password") {
-							<p class="ui-error-text" id="password-error" role="alert">{ v.Err("password") }</p>
-						}
-					</div>
-					<div class="goen-field">
-						@components.Label(components.LabelProps{For: "confirm"}) {
-							{ i18n.T(ctx, i18n.KeyFieldConfirmPassword) }
-						}
-						@components.Input(components.FieldProps{
-							ID:        "confirm",
-							Name:      "confirm",
-							Type:      "password",
-							Invalid:   v.HasErr("confirm"),
-							Describes: "confirm-error",
-							Attrs: templ.Attributes{
-								"autocomplete": "new-password",
-								"required":     true,
-							},
-						})
-						if v.HasErr("confirm") {
-							<p class="ui-error-text" id="confirm-error" role="alert">{ v.Err("confirm") }</p>
-						}
-					</div>
-					@components.Button(components.ButtonProps{Variant: components.VariantPrimary, Size: components.SizeLarge, Block: true}, "submit") {
-						{ i18n.T(ctx, i18n.KeyCreateAccount) }
-					}
-				</form>
+					</form>
+				}
 				<p class="goen-auth__alt">
 					{ i18n.T(ctx, i18n.KeyHaveAccount) }
 					<a href="/signin">{ i18n.T(ctx, i18n.KeySignIn) }</a>
@@ -209,6 +239,7 @@ templ RegisterComplete(p layouts.Page, v RegisterCompleteView) {
 			<div class="goen-auth__panel">
 				<h1 class="goen-auth__title">{ i18n.T(ctx, i18n.KeyRegisterCompleteTitle) }</h1>
 				<p class="goen-auth__lede">{ i18n.T(ctx, i18n.KeyRegisterCompleteLede) }</p>
+				<p class="goen-auth__hint">{ i18n.T(ctx, i18n.KeyRegisterCompleteWhy) }</p>
 				<form class="goen-auth__form" method="post" action="/register/complete">
 					<input type="hidden" name="token" value={ v.Token }/>
 					<input type="hidden" name="next" value={ v.Next }/>
