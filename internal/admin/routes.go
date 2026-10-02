@@ -53,10 +53,4 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 	mux.HandleFunc("POST /admin/shipping/zone", ac.RequireStaff(h.CreateShippingZone))
 	mux.HandleFunc("POST /admin/shipping/zone/{id}/prefixes", ac.RequireStaff(h.SetZonePrefixes))
 	mux.HandleFunc("POST /admin/shipping/zone/{id}/delete", ac.RequireStaff(h.DeleteShippingZone))
-	mux.HandleFunc("GET /admin/taxonomy", ac.RequireStaff(h.Taxonomy))
-	mux.HandleFunc("POST /admin/taxonomy/{kind}", ac.RequireStaff(h.CreateTaxon))
-	mux.HandleFunc("POST /admin/taxonomy/{kind}/{slug}", ac.RequireStaff(h.EditTaxon))
-	mux.HandleFunc("GET /admin/categories/{slug}", ac.RequireStaff(h.EditCategory))
-	mux.HandleFunc("POST /admin/categories/{slug}/image", ac.RequireStaff(h.SetCategoryImage))
-	mux.HandleFunc("POST /admin/categories/{slug}/image/remove", ac.RequireStaff(h.RemoveCategoryImage))
 }

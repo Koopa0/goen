@@ -27,6 +27,8 @@ var (
 	// already committed a `pending` row keyed on the return.
 	ErrRefundIncomplete = errors.New("admin: the return is approved and the refund did not complete")
 	ErrInvalid          = errors.New("admin: invalid input")
+	// ErrInUse is a delete the schema refuses because something still points at the row.
+	ErrInUse = errors.New("admin: something still uses this")
 	// ErrCarrier is a dispatch naming a carrier that cannot carry this order's
 	// parcel: a store order goes with its chain's carrier, a home delivery with a
 	// home carrier.

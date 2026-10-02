@@ -22,6 +22,9 @@ import (
 
 const MaxShippingFee = 500000
 
+// MaxShippingNameRunes bounds a method or zone name.
+const MaxShippingNameRunes = 60
+
 func (s *Store) Shipping(ctx context.Context) (admin.ShippingView, error) {
 	rows, err := s.q.AdminShippingMethods(ctx)
 	if err != nil {
@@ -196,7 +199,7 @@ func (m *NewMethod) Validate(ctx context.Context) map[string]string {
 	if !methodCodeFormat.MatchString(m.Code) {
 		errs["code"] = i18n.T(ctx, i18n.KeyFormMethodCode)
 	}
-	if m.Name == "" || utf8.RuneCountInString(m.Name) > MaxTaxonomyNameRunes {
+	if m.Name == "" || utf8.RuneCountInString(m.Name) > MaxShippingNameRunes {
 		errs["name"] = i18n.T(ctx, i18n.KeyFormNameRequired)
 	}
 	// Asked of the package that owns the set, so a third destination is not
