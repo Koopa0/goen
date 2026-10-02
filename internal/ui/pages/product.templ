@@ -198,7 +198,9 @@ templ ratingStars(halves int) {
 templ productBuy(v *ProductView) {
 	<div class="goen-pdp__buy" id="buybox">
 		<div class="goen-pdp__head">
-			<p class="goen-pdp__brand">{ v.Brand }</p>
+			if v.Brand != "" {
+				<p class="goen-pdp__brand">{ v.Brand }</p>
+			}
 			<div class="goen-pdp__titlerow">
 				<h1 class="goen-pdp__title">{ v.Name }</h1>
 				if v.SelectionOK {
