@@ -15,6 +15,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/cart"
@@ -42,6 +43,13 @@ type Handler struct {
 	storeMap *cart.Map
 	store    *Store
 	log      *slog.Logger
+	pools    []NamedPool
+}
+
+// NamedPool is a connection pool the health page reports on.
+type NamedPool struct {
+	Name string
+	Pool *pgxpool.Pool
 }
 
 // SessionCloser closes a checkout still open at the payment provider.
@@ -62,6 +70,8 @@ type HandlerDeps struct {
 	// StoreMap decides whether checkout offers pickup-point methods; nil is a
 	// deployment with no map.
 	StoreMap *cart.Map
+	// Pools are the pools whose connection statistics /admin/health shows.
+	Pools []NamedPool
 }
 
 // NewHandler returns a Handler over the admin store.
@@ -73,6 +83,7 @@ func NewHandler(d HandlerDeps) *Handler {
 	return &Handler{
 		store: d.Store, images: d.Images, outbox: d.Outbox, letters: d.Letters,
 		log: d.Log, stepUp: d.StepUp, sessions: d.Sessions, storeMap: d.StoreMap,
+		pools: d.Pools,
 	}
 }
 
@@ -1731,8 +1742,24 @@ func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	view.Notice = noticeFor(r)
+	view.Pools = h.poolHealth()
 	web.Render(w, r, h.log, http.StatusOK, pages.AdminHealth(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageHealth)}, &view))
+}
+
+// poolHealth reads each pool's statistics as they stand now.
+func (h *Handler) poolHealth() []pages.PoolHealth {
+	out := make([]pages.PoolHealth, 0, len(h.pools))
+	for _, p := range h.pools {
+		st := p.Pool.Stat()
+		out = append(out, pages.PoolHealth{
+			Name: p.Name, Max: st.MaxConns(), Acquired: st.AcquiredConns(),
+			Idle: st.IdleConns(), Total: st.TotalConns(),
+			TotalAcquires: st.AcquireCount(), EmptyAcquires: st.EmptyAcquireCount(),
+			AcquireWait: st.AcquireDuration(),
+		})
+	}
+	return out
 }
 
 // Tiers serves GET /admin/tiers.
