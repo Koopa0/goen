@@ -7409,6 +7409,14 @@ a.goen-pager__step:hover {
   font-size: var(--fs-ed-24);
 }
 
+/* A head holding three buttons has to let them wrap on a phone; the base rule
+   keeps the row at its full width and it would overflow. */
+.goen-admin .ui-page-head__actions {
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
 .goen-admin .ui-page-head__sub {
   color: var(--fg-muted);
   font-size: var(--fs-14);
@@ -8319,9 +8327,55 @@ a.goen-pager__step:hover {
   margin-bottom: 16px;
 }
 
-.goen-admin__search .ui-input {
+.goen-admin__search .ui-input,
+.goen-admin__search .goen-input {
   flex: 1 1 260px;
   min-width: 0;
+}
+
+/* A product page is one long column of cards; this row jumps to each. On a wide
+   screen it stays at the top of the viewport so the jump is always one click
+   away; on a phone it scrolls sideways instead of wrapping into a block. */
+.goen-admin__sectionnav {
+  display: flex;
+  gap: 8px 20px;
+  overflow-x: auto;
+  padding: 12px 0;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.goen-admin__sectionnav a {
+  flex: none;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+
+@media (min-width: 1024px) {
+  .goen-admin__sectionnav {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+  }
+}
+
+/* The products a search found, each with the one button that adds it. */
+.goen-admin__matches {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.goen-admin__matches li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
 }
 
 
@@ -8790,6 +8844,8 @@ a.goen-pager__step:hover {
   flex-direction: column;
   gap: 16px;
   min-width: 0;
+  /* Clears the sticky section row when a link scrolls here. */
+  scroll-margin-top: 72px;
 }
 
 /* A product's options and its variants read the same way: one row per thing,

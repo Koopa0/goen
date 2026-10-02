@@ -65,6 +65,16 @@ func DaysSince(t, now time.Time) int64 {
 	return int64(to.Sub(from).Hours() / 24)
 }
 
+// InputMinute is t on the shop's clock as a datetime-local field carries it.
+func InputMinute(t time.Time) string { return In(t).Format("2006-01-02T15:04") }
+
+// ParseInputMinute reads what a datetime-local field posts as a minute on the
+// shop's clock.
+func ParseInputMinute(s string) (time.Time, bool) {
+	t, err := time.ParseInLocation("2006-01-02T15:04", s, location())
+	return t, err == nil
+}
+
 // Minute is a moment to the minute, which is what queues and timelines show.
 func Minute(t time.Time) string { return In(t).Format("2006-01-02 15:04") }
 

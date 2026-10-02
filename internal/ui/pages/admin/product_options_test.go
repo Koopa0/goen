@@ -4,10 +4,12 @@ import (
 	"context"
 	"html"
 	"io"
+	"regexp"
 	"strings"
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
 func TestOptionFormIsReplacedByTheNoteOnceAProductHasVariants(t *testing.T) {
@@ -97,6 +99,45 @@ func TestARefusedOptionOrVariantFormKeepsTheChoicesMade(t *testing.T) {
 	for _, unwanted := range []string{`<option value="val-white" selected>`, `<option value="val-pro" selected>`} {
 		if strings.Contains(variants, unwanted) {
 			t.Errorf("variant selects chose %s", unwanted)
+		}
+	}
+}
+
+func TestTheProductPageJumpsToItsSectionsAndKeepsItsStatusMovesAtTheTop(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	var b strings.Builder
+	view := ProductView{Slug: "p", Status: "active", Variants: []ProductVariant{{SKU: "A"}}}
+	if err := ProductForm(layouts.Page{Title: "p"}, view).Render(ctx, &b); err != nil {
+		t.Fatal(err)
+	}
+	page := b.String()
+
+	_, nav, found := strings.Cut(page, `class="goen-admin__sectionnav"`)
+	if !found {
+		t.Fatal("the product page has no section navigation")
+	}
+	nav, _, _ = strings.Cut(nav, "</nav>")
+	links := regexp.MustCompile(`href="#([a-z-]+)"`).FindAllStringSubmatch(nav, -1)
+	if len(links) != 5 {
+		t.Fatalf("%d section links, want 5", len(links))
+	}
+	for _, m := range links {
+		if !strings.Contains(page, `id="`+m[1]+`"`) {
+			t.Errorf("the link to #%s lands nowhere", m[1])
+		}
+	}
+
+	action := `action="/admin/products/p/status"`
+	if strings.Count(page, action) != 1 {
+		t.Fatalf("the status form appears %d times, want once", strings.Count(page, action))
+	}
+	if strings.Index(page, action) > strings.Index(page, `id="sec-details"`) {
+		t.Error("the status moves sit below the first section, not in the top action area")
+	}
+	for _, want := range []string{`name="status" value="draft"`, `name="status" value="archived"`} {
+		if !strings.Contains(page, want) {
+			t.Errorf("the top action area lacks %q", want)
 		}
 	}
 }

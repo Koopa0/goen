@@ -5,11 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/shoptime"
@@ -100,6 +102,68 @@ func (s *Store) CampaignImage(ctx context.Context, slug string) (admin.Header, s
 	return admin.Header{
 		Key: row.ImageKey, Alt: row.ImageAlt, AltEn: row.ImageAltEn, Width: row.ImageWidth,
 	}, row.Tone, nil
+}
+
+func (s *Store) Campaign(ctx context.Context, slug string) (admin.CampaignDetail, error) {
+	row, err := s.q.AdminCampaign(ctx, slug)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return admin.CampaignDetail{}, ErrNotFound
+		}
+		return admin.CampaignDetail{}, fmt.Errorf("read campaign: %w", err)
+	}
+	return admin.CampaignDetail{
+		Title:    row.Title,
+		StartsAt: shoptime.InputMinute(row.StartsAt), EndsAt: shoptime.InputMinute(row.EndsAt),
+		Active: row.IsActive, Running: row.IsRunning,
+	}, nil
+}
+
+// SetCampaignWindow moves a campaign's dates, typed on the shop's clock. Create
+// bounds a campaign at MaxCampaignDays, so editing may not stretch it past that.
+func (s *Store) SetCampaignWindow(ctx context.Context, slug, startsAt, endsAt string) (map[string]string, error) {
+	starts, okStart := shoptime.ParseInputMinute(startsAt)
+	ends, okEnd := shoptime.ParseInputMinute(endsAt)
+	if !okStart || !okEnd || !ends.After(starts) || ends.Sub(starts) > MaxCampaignDays*24*time.Hour {
+		return map[string]string{"window": i18n.T(ctx, i18n.KeyFormCampaignWindow)}, nil
+	}
+	return nil, s.audited(ctx, Event{
+		Action: actionSetCampaignWindow, Table: "sale_campaigns", ID: uuid.NullUUID{},
+		Before: map[string]any{"slug": slug},
+		After:  map[string]any{"starts_at": startsAt, "ends_at": endsAt},
+	},
+		func(ctx context.Context, q *db.Queries) error {
+			n, err := q.SetCampaignWindow(ctx, db.SetCampaignWindowParams{
+				Slug: strings.TrimSpace(slug), StartsAt: starts, EndsAt: ends,
+			})
+			if err != nil {
+				return fmt.Errorf("%w: %w", ErrRefused, err)
+			}
+			if n == 0 {
+				return ErrNotFound
+			}
+			return nil
+		})
+}
+
+const campaignSearchLimit = 10
+
+func (s *Store) SearchCampaignProducts(ctx context.Context, slug, term string) ([]admin.CampaignProduct, error) {
+	term = strings.TrimSpace(term)
+	if term == "" {
+		return nil, nil
+	}
+	rows, err := s.q.AdminCampaignProductSearch(ctx, db.AdminCampaignProductSearchParams{
+		Campaign: slug, EscapedTerm: catalog.EscapeLike(term), RowLimit: campaignSearchLimit,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("search campaign products: %w", err)
+	}
+	out := make([]admin.CampaignProduct, 0, len(rows))
+	for i := range rows {
+		out = append(out, admin.CampaignProduct{Slug: rows[i].Slug, Name: rows[i].Name})
+	}
+	return out, nil
 }
 
 // SetCampaignTone changes the ground temperature of the campaign's page.

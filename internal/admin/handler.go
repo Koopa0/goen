@@ -994,10 +994,50 @@ func (h *Handler) renderCampaign(w http.ResponseWriter, r *http.Request, status 
 		h.serverError(w, r)
 		return
 	}
+	detail, err := h.store.Campaign(r.Context(), slug)
+	if err != nil {
+		h.log.ErrorContext(r.Context(), "read campaign", "error", err)
+		h.serverError(w, r)
+		return
+	}
+	if errs["window"] != "" {
+		detail.StartsAt, detail.EndsAt = r.PostFormValue("starts_at"), r.PostFormValue("ends_at")
+	}
+	term := strings.TrimSpace(r.URL.Query().Get("find"))
+	matches, err := h.store.SearchCampaignProducts(r.Context(), slug, term)
+	if err != nil {
+		h.log.ErrorContext(r.Context(), "search campaign products", "error", err)
+		h.serverError(w, r)
+		return
+	}
 	web.Render(w, r, h.log, status, admin.CampaignForm(
-		layouts.Page{Title: slug}, admin.CampaignView{
-			Slug: slug, Products: products, Notice: notice, Image: image, Tone: tone, Errors: errs,
+		layouts.Page{Title: detail.Title}, admin.CampaignView{
+			Slug: slug, CampaignDetail: detail, Term: term, Matches: matches,
+			Products: products, Notice: notice, Image: image, Tone: tone, Errors: errs,
 		}))
+}
+
+// SetCampaignWindow serves POST /admin/campaigns/{slug}/window.
+func (h *Handler) SetCampaignWindow(w http.ResponseWriter, r *http.Request) {
+	if err := web.ParseForm(w, r); err != nil {
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
+		return
+	}
+	slug := r.PathValue("slug")
+	errs, err := h.store.SetCampaignWindow(r.Context(), slug,
+		r.PostFormValue("starts_at"), r.PostFormValue("ends_at"))
+	switch {
+	case err == nil && len(errs) > 0:
+		h.renderCampaign(w, r, http.StatusUnprocessableEntity, "", errs)
+	case err == nil:
+		//nolint:gosec // G710: slug is the route's own path value
+		http.Redirect(w, r, "/admin/campaigns/"+slug+"?ok=1", http.StatusSeeOther)
+	case errors.Is(err, ErrNotFound):
+		h.notFound(w, r)
+	default:
+		h.log.ErrorContext(r.Context(), "set campaign window", "error", err, "slug", slug)
+		h.serverError(w, r)
+	}
 }
 
 // SetCampaignTone serves POST /admin/campaigns/{slug}/tone.
@@ -1112,13 +1152,18 @@ func (h *Handler) SetCampaignActive(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
-	if err := h.store.SetCampaignActive(r.Context(), r.PathValue("slug"),
+	slug := r.PathValue("slug")
+	back := "/admin/campaigns"
+	if r.PostFormValue("back") == "detail" {
+		back += "/" + slug
+	}
+	if err := h.store.SetCampaignActive(r.Context(), slug,
 		r.PostFormValue("active") == "true"); err != nil {
 		h.log.WarnContext(r.Context(), "set campaign active", "error", err)
-		http.Redirect(w, r, "/admin/campaigns?refused=1", http.StatusSeeOther)
+		http.Redirect(w, r, back+"?refused=1", http.StatusSeeOther) //nolint:gosec // G710: slug is the route's own path value
 		return
 	}
-	http.Redirect(w, r, "/admin/campaigns?ok=1", http.StatusSeeOther)
+	http.Redirect(w, r, back+"?ok=1", http.StatusSeeOther) //nolint:gosec // G710: slug is the route's own path value
 }
 
 // Audit serves GET /admin/audit.
