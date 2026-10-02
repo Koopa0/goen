@@ -1,7 +1,7 @@
 package i18n
 
 var (
-	KeyAdminErasedRecipient = key("admin.erased.recipient", Message{ZhHant: "(已抹除)", En: "(erased)"})
+	KeyAdminErasedRecipient = key("admin.erased.recipient", Message{ZhHant: "（已抹除）", En: "(erased)"})
 
 	KeyAdminTabAll = key("admin.tab.all", Message{ZhHant: "全部", En: "All"})
 
@@ -48,13 +48,13 @@ var (
 	KeyAdminQueueClear = key("admin.queue.clear", Message{ZhHant: "清除", En: "Clear"})
 
 	KeyAdminQueueSearchNote = key("admin.queue.search.note", Message{
-		ZhHant: "搜尋「%s」 —— 編號是完整比對,姓名和 Email 從開頭比對。搜尋時不套用上面的狀態篩選。",
+		ZhHant: "搜尋「%s」 —— 編號是完整比對，姓名和 Email 從開頭比對。搜尋時不套用上面的狀態篩選。",
 		En: "Searching for %q — an order number matches exactly, a name or email address from " +
 			"the start. A search does not apply the status filter above.",
 	})
 
 	KeyAdminQueueSearchShort = key("admin.queue.search.short", Message{
-		ZhHant: "搜尋字串太短,至少要兩個字。下面是一般的訂單列表。",
+		ZhHant: "搜尋字串太短，至少要兩個字。下面是一般的訂單列表。",
 		En: "That search is too short — two characters at least. What follows is the ordinary " +
 			"order queue.",
 	})
@@ -86,8 +86,8 @@ var (
 	KeyAdminQueueAddress = key("admin.queue.address", Message{ZhHant: "地址", En: "Address"})
 
 	KeyAdminQueueDeliveryHint = key("admin.queue.delivery.hint", Message{
-		ZhHant: "出貨之後就改不了 —— 那時候包裹已經寄出,改紀錄只會讓紀錄和事實對不上。" +
-			"操作紀錄只會記下「改了收件資訊」,不會記下地址本身:顧客刪除帳號時清不到操作紀錄。",
+		ZhHant: "出貨之後就改不了 —— 那時候包裹已經寄出，改紀錄只會讓紀錄和事實對不上。" +
+			"操作紀錄只會記下「改了收件資訊」，不會記下地址本身：顧客刪除帳號時清不到操作紀錄。",
 		En: "This can no longer be changed once the parcel has gone — it is already on its way, " +
 			"and editing the record would only make the record disagree with where it went. " +
 			"The activity log records that the delivery details changed and never the address " +
@@ -124,7 +124,7 @@ var (
 	})
 
 	KeyAdminQueueStaffNoteHint = key("admin.queue.staffnote.hint", Message{
-		ZhHant: "只有後台看得到。顧客刪除帳號時不會被清除,所以不要放顧客寫的內容。",
+		ZhHant: "只有後台看得到。顧客刪除帳號時不會被清除，所以不要放顧客寫的內容。",
 		En: "Only the back office sees this. It is not cleared when a customer erases their " +
 			"account, so do not put anything the customer wrote in it.",
 	})
@@ -140,18 +140,18 @@ var (
 	})
 
 	KeyAdminQueueRemaining = key("admin.queue.remaining", Message{
-		ZhHant: "%s(剩 %s)",
+		ZhHant: "%s（剩 %s）",
 		En:     "%s (%s left)",
 	})
 
 	KeyAdminQueueShortHold = key("admin.queue.shorthold", Message{
-		ZhHant: "這一項只保留了 %s 件,超過的部分無法出貨。",
+		ZhHant: "這一項只保留了 %s 件，超過的部分無法出貨。",
 		En: "Only %s of this line are still held in stock, and anything beyond that cannot be " +
 			"dispatched.",
 	})
 
 	KeyAdminQueueDispatchHint = key("admin.queue.dispatch.hint", Message{
-		ZhHant: "出貨會同時記錄配送資訊、扣除保留的庫存,並寫入訂單紀錄。數量可以少於剩餘,剩下的之後再出一次。",
+		ZhHant: "出貨會同時記錄配送資訊、扣除保留的庫存，並寫入訂單紀錄。數量可以少於剩餘，剩下的之後再出一次。",
 		En: "Dispatching records the delivery details, consumes the stock this order is holding " +
 			"and writes to the order history, all in one go. A quantity may be lower than what " +
 			"is left, and the rest goes out as another parcel later.",
@@ -177,7 +177,7 @@ var (
 	})
 
 	KeyAdminQueuePickupCompleteHint = key("admin.queue.pickup.complete.hint", Message{
-		ZhHant: "超商取貨的訂單:顧客到門市實際取貨後,才按「已完成」。這個時間點起算七天鑑賞期。",
+		ZhHant: "超商取貨的訂單：顧客到門市實際取貨後，才按「已完成」。這個時間點起算七天鑑賞期。",
 		En: "Store-pickup order: mark it Completed only after the customer has collected it at " +
 			"the store. That moment starts the seven-day period.",
 	})
@@ -215,19 +215,19 @@ var (
 	})
 
 	KeyAdminNoticeTooLate = key("admin.notice.toolate", Message{
-		ZhHant: "這筆訂單已經出貨,收件資訊改不了了。包裹已經寄出,改紀錄只會讓紀錄和事實對不上。",
+		ZhHant: "這筆訂單已經出貨，收件資訊改不了了。包裹已經寄出，改紀錄只會讓紀錄和事實對不上。",
 		En: "This order has shipped, so the delivery details can no longer be changed. " +
 			"The parcel is already on its way; editing the record would only make it disagree with where it went.",
 	})
 
 	KeyDeliveryZoneChanged = key("admin.delivery.zone_changed", Message{
-		ZhHant: "新郵遞區號屬於不同的配送區域,運費加價可能不同。地址尚未儲存,也尚未加收或退款。",
+		ZhHant: "新郵遞區號屬於不同的配送區域，運費加價可能不同。地址尚未儲存，也尚未加收或退款。",
 		En: "That postcode is in a different delivery zone, so the surcharge may differ. " +
 			"The address was not saved and nothing was charged or refunded.",
 	})
 
 	KeyDeliveryZoneUnknown = key("admin.delivery.zone_unknown", Message{
-		ZhHant: "無法確認這筆訂單原郵遞區號的配送區域,因此不能更正地址。地址尚未儲存。",
+		ZhHant: "無法確認這筆訂單原郵遞區號的配送區域，因此不能更正地址。地址尚未儲存。",
 		En: "The zone of this order's saved postcode cannot be determined, so the address cannot be corrected. " +
 			"The address was not saved.",
 	})
@@ -238,12 +238,12 @@ var (
 	})
 
 	KeyAdminNoticeUnfunded = key("admin.notice.unfunded", Message{
-		ZhHant: "這筆訂單還沒收到款項,不能進入備貨。",
+		ZhHant: "這筆訂單還沒收到款項，不能進入備貨。",
 		En:     "This order has not been paid, so it cannot move into picking.",
 	})
 
 	KeyAdminNoticeOwesParcel = key("admin.notice.owesparcel", Message{
-		ZhHant: "這筆訂單還有包裹沒出貨,不能標為已完成。請先出貨剩下的包裹。",
+		ZhHant: "這筆訂單還有包裹沒出貨，不能標為已完成。請先出貨剩下的包裹。",
 		En:     "This order still owes a parcel, so it cannot be marked completed. Ship the rest first.",
 	})
 
@@ -253,12 +253,12 @@ var (
 	})
 
 	KeyAdminNoticeCreditNeeds = key("admin.notice.creditneeds", Message{
-		ZhHant: "額度的金額或原因有誤,請重新確認後再送出。",
+		ZhHant: "額度的金額或原因有誤，請重新確認後再送出。",
 		En:     "The credit amount or reason is not right. Check them and send again.",
 	})
 
 	KeyAdminNoticeTiersNeeds = key("admin.notice.tiersneeds", Message{
-		ZhHant: "會員等級的資料有誤,或找不到這個等級。門檻與折扣須為整數。",
+		ZhHant: "會員等級的資料有誤，或找不到這個等級。門檻與折扣須為整數。",
 		En:     "The tier is not right, or it no longer exists. The threshold and discount must be whole numbers.",
 	})
 
@@ -268,12 +268,12 @@ var (
 	})
 
 	KeyAdminNoticeDeliveryNeeds = key("admin.notice.deliveryneeds", Message{
-		ZhHant: "收件資料有誤,或找不到這筆訂單。請檢查後再送出。",
+		ZhHant: "收件資料有誤，或找不到這筆訂單。請檢查後再送出。",
 		En:     "The delivery details are not right, or the order no longer exists. Check them and send again.",
 	})
 
 	KeyAdminNoticeImageNeeds = key("admin.notice.imageneeds", Message{
-		ZhHant: "找不到要重用的圖片,請從已上傳的圖片中選擇。",
+		ZhHant: "找不到要重用的圖片，請從已上傳的圖片中選擇。",
 		En:     "That image could not be found. Choose one that has already been uploaded.",
 	})
 
@@ -283,23 +283,23 @@ var (
 	})
 
 	KeyAdminStockDeltaError = key("admin.stock.deltaerror", Message{
-		ZhHant: "請輸入不為 0 的整數,例如 +10 或 -3。",
+		ZhHant: "請輸入不為 0 的整數，例如 +10 或 -3。",
 		En:     "Enter a whole number other than 0, such as +10 or -3.",
 	})
 
 	KeyAdminStockAdjustRefused = key("admin.stock.adjustrefused", Message{
-		ZhHant: "這個調整沒有被接受:庫存不能低於 0,或找不到這個品項。",
+		ZhHant: "這個調整沒有被接受：庫存不能低於 0，或找不到這個品項。",
 		En:     "That adjustment was not accepted: stock cannot go below 0, or the variant no longer exists.",
 	})
 
 	KeyAdminShipPickupOff = key("admin.ship.pickupoff", Message{
-		ZhHant: "尚未設定超商地圖,結帳不會提供這個方式。設定 GOEN_ECPAY_LOGISTICS 後才會開放。",
+		ZhHant: "尚未設定超商地圖，結帳不會提供這個方式。設定 GOEN_ECPAY_LOGISTICS 後才會開放。",
 		En: "No store map is configured, so checkout does not offer this method. Setting " +
 			"GOEN_ECPAY_LOGISTICS is what turns it on.",
 	})
 
 	KeyAdminNoticeBadParcel = key("admin.notice.badparcel", Message{
-		ZhHant: "出貨數量填寫有問題:每一項不能超過還沒出貨的數量,也不能超過這筆訂單保留的庫存。",
+		ZhHant: "出貨數量填寫有問題：每一項不能超過還沒出貨的數量，也不能超過這筆訂單保留的庫存。",
 		En: "Those quantities do not work: no line can exceed what is still outstanding, or what this " +
 			"order is holding in stock.",
 	})

@@ -2,7 +2,7 @@ package i18n
 
 var (
 	KeyFormBannerMessage = key("form.banner.message", Message{
-		ZhHant: "請填寫訊息,不超過 60 個字。",
+		ZhHant: "請填寫訊息，不超過 60 個字。",
 		En:     "A message is required, 60 characters at most.",
 	})
 
@@ -12,19 +12,19 @@ var (
 	})
 
 	KeyFormBannerCTAPair = key("form.banner.cta.pair", Message{
-		ZhHant: "按鈕文字和連結要一起填,或都留空。",
+		ZhHant: "按鈕文字和連結要一起填，或都留空。",
 		En:     "The button needs both a label and a link, or neither.",
 	})
 
 	KeyFormBannerCTAHref = key("form.banner.cta.href", Message{
-		ZhHant: "連結必須是本站路徑,例如 /deals。",
+		ZhHant: "連結必須是本站路徑，例如 /deals。",
 		En:     "The link has to be a path on this site — /deals, for example.",
 	})
 
 	KeyAdminHomeBanner = key("admin.home.banner", Message{ZhHant: "促銷條", En: "Promotional strip"})
 
 	KeyAdminHomeBannerLead = key("admin.home.banner.lead", Message{
-		ZhHant: "顯示在頁首上方,只在商店頁面。訪客關掉的是「這一條」,下一條會再出現 —— 新的促銷是他們還沒讀過的資訊。",
+		ZhHant: "顯示在頁首上方，只在商店頁面。訪客關掉的是「這一條」，下一條會再出現 —— 新的促銷是他們還沒讀過的資訊。",
 		En: "It sits above the header, on the storefront only. What a visitor closes is THIS " +
 			"strip — the next one appears again, because a new promotion is information they " +
 			"have not read.",
@@ -48,18 +48,18 @@ var (
 	})
 
 	KeyAdminHomeBannerShortHint = key("admin.home.banner.short.hint", Message{
-		ZhHant: "手機上顯示的另一種寫法,不是截斷。留空就用上面那句。",
+		ZhHant: "手機上顯示的另一種寫法，不是截斷。留空就用上面那句。",
 		En: "A different way of putting it for a phone, not a truncation. Leave it blank to " +
 			"use the sentence above.",
 	})
 
 	KeyAdminHomeBannerMessageEn = key("admin.home.banner.message.en", Message{
-		ZhHant: "訊息(英文)",
+		ZhHant: "訊息（英文）",
 		En:     "Message (English)",
 	})
 
 	KeyAdminHomeBannerShortEn = key("admin.home.banner.short.en", Message{
-		ZhHant: "窄螢幕版本(英文)",
+		ZhHant: "窄螢幕版本（英文）",
 		En:     "Narrow-screen version (English)",
 	})
 
@@ -81,7 +81,7 @@ var (
 	})
 
 	KeyAdminHomeBannerCTALabelEn = key("admin.home.banner.cta.label.en", Message{
-		ZhHant: "按鈕文字(英文)",
+		ZhHant: "按鈕文字（英文）",
 		En:     "Button label (English)",
 	})
 

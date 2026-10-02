@@ -5059,7 +5059,7 @@ func TestTheReturnQueueNamesTheRefundChannels(t *testing.T) {
 			},
 			card:   140000,
 			credit: 60000,
-			want:   "卡款 NT$1,400 走 Stripe,店儲 NT$600 退回額度",
+			want:   "卡款 NT$1,400 走 Stripe，店儲 NT$600 退回額度",
 		},
 		{
 			name: "card-only",

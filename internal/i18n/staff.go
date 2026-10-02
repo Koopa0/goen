@@ -23,15 +23,15 @@ var (
 	// carried is gone — otherwise promoting it would hand the back office to
 	// whoever registered the address first.
 	KeyStaffCredentialCleared = key("staff.cleared", Message{
-		ZhHant: "已加入。這個地址原本就有一個尚未驗證的帳號,舊密碼與登入狀態都已清除 —— " +
-			"請對方用「忘記密碼」設定新密碼,那是唯一能證明信箱是他的路徑。",
+		ZhHant: "已加入。這個地址原本就有一個尚未驗證的帳號，舊密碼與登入狀態都已清除 —— " +
+			"請對方用「忘記密碼」設定新密碼，那是唯一能證明信箱是他的路徑。",
 		En: "Added. That address already had an account which had never proved the mailbox, " +
 			"so its old password and sign-ins were cleared — ask them to set a password through " +
 			"“Forgot password”, which is the one path that proves the mailbox is theirs.",
 	})
 
 	KeyStaffSelf = key("staff.self", Message{
-		ZhHant: "不能對自己的帳號做這件事 —— 解除自己的兩階段驗證等於沒有第二因素," +
+		ZhHant: "不能對自己的帳號做這件事 —— 解除自己的兩階段驗證等於沒有第二因素，" +
 			"移除自己的權限會把商店鎖在門外。請另一位管理員操作。",
 		En: "You cannot do this to your own account — dropping your own second factor leaves you " +
 			"without one, and revoking your own access locks the shop out. Ask another administrator.",
@@ -48,12 +48,12 @@ var (
 	})
 
 	KeyStaffNeeds = key("staff.needs", Message{
-		ZhHant: "資料不完整,或這不是可用的員工帳號。請填寫有效的 Email 與姓名。",
+		ZhHant: "資料不完整，或這不是可用的員工帳號。請填寫有效的 Email 與姓名。",
 		En:     "Something is missing, or that is not a usable staff account. Enter a valid email and a name.",
 	})
 
 	KeyAdminStaffLead = key("admin.staff.lead", Message{
-		ZhHant: "兩階段驗證擋的是 /admin,不是登入。沒有啟用的人只用密碼就能進來。",
+		ZhHant: "兩階段驗證擋的是 /admin，不是登入。沒有啟用的人只用密碼就能進來。",
 		En: "Two-factor guards /admin, not signing in. Anybody who has not enrolled reaches the back " +
 			"office with a password alone.",
 	})
@@ -72,7 +72,7 @@ var (
 	KeyAdminStaffAdd = key("admin.staff.add", Message{ZhHant: "新增人員", En: "Add a colleague"})
 
 	KeyAdminStaffAddLead = key("admin.staff.addlead", Message{
-		ZhHant: "不會設定密碼 —— 對方用「忘記密碼」自己設,那是唯一能證明信箱是他的路徑。帳號在他設定之前無法登入。已經是顧客的信箱會直接升級,不會另開一個。",
+		ZhHant: "不會設定密碼 —— 對方用「忘記密碼」自己設，那是唯一能證明信箱是他的路徑。帳號在他設定之前無法登入。已經是顧客的信箱會直接升級，不會另開一個。",
 		En: "No password is set here — they set their own through Forgot password, which is the one " +
 			"path that proves they own the mailbox. The account cannot sign in until they do. An " +
 			"address that already belongs to a customer is promoted rather than duplicated.",
@@ -80,7 +80,7 @@ var (
 
 	KeyAdminStaffEmail = key("admin.staff.email", Message{ZhHant: "電子郵件", En: "Email"})
 
-	KeyAdminStaffName = key("admin.staff.name", Message{ZhHant: "姓名(選填)", En: "Name (optional)"})
+	KeyAdminStaffName = key("admin.staff.name", Message{ZhHant: "姓名（選填）", En: "Name (optional)"})
 
 	KeyAdminAddButton = key("admin.add.button", Message{ZhHant: "新增", En: "Add"})
 )
@@ -88,7 +88,7 @@ var (
 var (
 	KeyMailStaffInvitationSubject = key("mail.staff.invitation.subject", Message{ZhHant: "你已獲邀使用 goen 後台", En: "You have been invited to the goen back office"})
 	KeyMailStaffInvitationBody    = key("mail.staff.invitation.body", Message{
-		ZhHant: "管理員已為你開通 goen 後台權限。\n\n請用下面的連結,以這個信箱透過「忘記密碼」設定或重設密碼：\n%s\n\n登入後台時,系統會請你輸入兩階段驗證碼;如果你還沒有設定,畫面會引導你完成。",
+		ZhHant: "管理員已為你開通 goen 後台權限。\n\n請用下面的連結，以這個信箱透過「忘記密碼」設定或重設密碼：\n%s\n\n登入後台時，系統會請你輸入兩階段驗證碼；如果你還沒有設定，畫面會引導你完成。",
 		En: "An administrator has granted you back-office access.\n\nUse this link to set or reset your password with Forgot password, using this email address:\n%s\n\n" +
 			"When you sign in to the back office you will be asked for your two-factor code, or shown how to set one up if you do not have one yet.",
 	})

@@ -15,7 +15,7 @@ var (
 	KeyAddAddress = key("account.addresses.add", Message{ZhHant: "新增地址", En: "Add an address"})
 
 	KeyFieldLabelOpt = key("field.label.optional", Message{
-		ZhHant: "標籤(選填)",
+		ZhHant: "標籤（選填）",
 		En:     "Label (optional)",
 	})
 
@@ -33,7 +33,7 @@ var (
 	KeySaveAddress = key("account.address.save", Message{ZhHant: "儲存地址", En: "Save address"})
 
 	KeyAddressIncomplete = key("account.notice.address", Message{
-		ZhHant: "地址資料不完整,請確認每個欄位都填寫了。",
+		ZhHant: "地址資料不完整，請確認每個欄位都填寫了。",
 		En:     "That address is incomplete — check every field is filled in.",
 	})
 )

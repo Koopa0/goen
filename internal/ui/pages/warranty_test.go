@@ -23,8 +23,8 @@ func TestWarrantyCopyWaitsForDelivery(t *testing.T) {
 	}{
 		{
 			name: "Traditional Chinese", locale: i18n.ZhHant,
-			want: []string{"送達之後,到", "送達之後就可以登錄。", "可能還沒送達"},
-			old:  []string{"出貨之後,到", "出貨之後就可以登錄。", "可能還沒出貨"},
+			want: []string{"送達之後，到", "送達之後就可以登錄。", "可能還沒送達"},
+			old:  []string{"出貨之後，到", "出貨之後就可以登錄。", "可能還沒出貨"},
 		},
 		{
 			name: "English", locale: i18n.En,

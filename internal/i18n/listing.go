@@ -17,7 +17,7 @@ var (
 	})
 
 	KeyListingEmptyHint = key("listing.empty.hint", Message{
-		ZhHant: "試著放寬篩選條件,或",
+		ZhHant: "試著放寬篩選條件，或",
 		En:     "Try loosening a filter, or",
 	})
 
@@ -107,7 +107,7 @@ var (
 
 	KeyResultsHeading = key("search.results.heading", Message{ZhHant: "搜尋結果", En: "Results"})
 
-	KeySearchPrompt = key("search.prompt", Message{ZhHant: "想找什麼?", En: "What are you looking for?"})
+	KeySearchPrompt = key("search.prompt", Message{ZhHant: "想找什麼？", En: "What are you looking for?"})
 
 	KeySearchPromptHint = key("search.prompt.hint", Message{
 		ZhHant: "用上方的搜尋框輸入商品名稱、品牌或規格。",
@@ -120,7 +120,7 @@ var (
 	})
 
 	KeySearchNoResultsHint = key("search.none.hint", Message{
-		ZhHant: "試試更短的關鍵字,或從下面的館別開始逛。",
+		ZhHant: "試試更短的關鍵字，或從下面的館別開始逛。",
 		En:     "Try a shorter term, or start from one of these departments.",
 	})
 
@@ -133,19 +133,19 @@ var (
 	KeyWasPrice = key("card.wasprice", Message{ZhHant: "原價", En: "Was"})
 
 	KeyRatingSummary = countKey("card.rating",
-		"評分 %s 分,共 %s 則評價",
+		"評分 %s 分，共 %s 則評價",
 		"Rated %s out of 5, from %s review",
 		"Rated %s out of 5, from %s reviews")
 
 	KeyCategoryNotFound = key("listing.notfound", Message{ZhHant: "找不到這個分類", En: "Category not found"})
 
 	KeyCategoryNotFoundBody = key("listing.notfound.body", Message{
-		ZhHant: "這個分類目前不存在,可能已經調整過。回首頁看看其他分類。",
+		ZhHant: "這個分類目前不存在，可能已經調整過。回首頁看看其他分類。",
 		En:     "That category does not exist — it may have been reorganised. Try the home page.",
 	})
 
 	KeyCannotLoadListing = key("error.cannotload.listing", Message{
-		ZhHant: "商品列表暫時無法顯示,請稍後再試。",
+		ZhHant: "商品列表暫時無法顯示，請稍後再試。",
 		En:     "We cannot show the product list right now. Please try again shortly.",
 	})
 

@@ -20,8 +20,8 @@ var policies = map[string]pages.PolicyDoc{
 				Heading:   "可以退什麼",
 				HeadingEn: "What can be returned",
 				Body: []string{
-					"只有「已出貨」的商品可以申請退貨,而且數量以實際出貨的數量為上限。這不是政策上的選擇,是系統本身的規則:尚未離開倉庫的商品沒有東西可以退。",
-					"還沒出貨的訂單請直接聯絡我們取消,不需要走退貨流程。",
+					"只有「已出貨」的商品可以申請退貨，而且數量以實際出貨的數量為上限。這不是政策上的選擇，是系統本身的規則：尚未離開倉庫的商品沒有東西可以退。",
+					"還沒出貨的訂單請直接聯絡我們取消，不需要走退貨流程。",
 				},
 				BodyEn: []string{
 					"Only goods that have SHIPPED can be returned, and never more than actually left the warehouse. That is not a policy choice: there is nothing to send back from a parcel that has not gone out.",
@@ -36,8 +36,8 @@ var policies = map[string]pages.PolicyDoc{
 					// and return_requests_reason_bounded allow a blank. Chinese
 					// that treats filling one as a step before submit tells
 					// that reader a blank is refused.
-					"在訂單頁點「申請退貨」,選擇要退回的商品與數量後送出。原因選填。同一筆訂單一次只能有一件處理中的申請。",
-					"我們收到申請後會審核並回覆結果,同意或不同意都會說明原因。",
+					"在訂單頁點「申請退貨」，選擇要退回的商品與數量後送出。原因選填。同一筆訂單一次只能有一件處理中的申請。",
+					"我們收到申請後會審核並回覆結果，同意或不同意都會說明原因。",
 				},
 				BodyEn: []string{
 					"On your order page choose \u0022Request a return\u0022, pick the items and quantities, and send it. A reason is optional. One order can have one open request at a time.",
@@ -50,8 +50,8 @@ var policies = map[string]pages.PolicyDoc{
 				// compensate_return_with_credit pays the store-credit half of a
 				// return; naming only Stripe here would describe a different shop.
 				Body: []string{
-					"退貨經同意後,系統依原付款組成退回:卡款立刻向 Stripe 發出退款,店儲退回購物金餘額。金額依訂單本身的單價計算。卡款入帳時間由發卡銀行決定,通常是數個工作天;額度退回後可立刻再用於結帳。",
-					"退款依原路退回,不會改用其他管道。",
+					"退貨經同意後，系統依原付款組成退回：卡款立刻向 Stripe 發出退款，店儲退回購物金餘額。金額依訂單本身的單價計算。卡款入帳時間由發卡銀行決定，通常是數個工作天；額度退回後可立刻再用於結帳。",
+					"退款依原路退回，不會改用其他管道。",
 				},
 				BodyEn: []string{
 					"Once a return is approved we pay it back the way you paid: the card share is refunded through Stripe immediately, and store credit returns to your balance. The amount comes from the order's own prices, less the share of any discount those goods carried. When a card refund lands is your card issuer's decision, usually a few working days; credit is available again at once.",
@@ -65,9 +65,9 @@ var policies = map[string]pages.PolicyDoc{
 				Heading:   "鑑賞期",
 				HeadingEn: "Your seven-day right to cancel",
 				Body: []string{
-					"您有七天的鑑賞期。這七天從收到商品的「隔天」開始算,期間內要解除契約不需要說明理由,也不需要負擔任何費用。",
-					"只要在期限內把商品交寄出去、或把書面通知發出,契約就算解除 —— 我們哪一天收到不影響這件事。",
-					"鑑賞期是讓您檢查商品的期間,和在店裡把商品拿起來看是同一回事。因為檢查的必要而造成的毀損或變更,不會讓這個權利消失。",
+					"您有七天的鑑賞期。這七天從收到商品的「隔天」開始算，期間內要解除契約不需要說明理由，也不需要負擔任何費用。",
+					"只要在期限內把商品交寄出去、或把書面通知發出，契約就算解除 —— 我們哪一天收到不影響這件事。",
+					"鑑賞期是讓您檢查商品的期間，和在店裡把商品拿起來看是同一回事。因為檢查的必要而造成的毀損或變更，不會讓這個權利消失。",
 				},
 				BodyEn: []string{
 					"You have seven days to cancel. They start the day AFTER the goods reach you, you need give no reason, and it costs you nothing. This is Article 19 of Taiwan's Consumer Protection Act, and no agreement can shorten or waive it.",
@@ -81,7 +81,7 @@ var policies = map[string]pages.PolicyDoc{
 				Heading:   "退貨運費",
 				HeadingEn: "Who pays return postage",
 				Body: []string{
-					"鑑賞期內解除契約,您不需要負擔任何費用,退貨運費由 goen 負擔。",
+					"鑑賞期內解除契約，您不需要負擔任何費用，退貨運費由 goen 負擔。",
 				},
 				BodyEn: []string{
 					"We do. Cancelling inside the seven days costs you nothing at all, return postage included, and the delivery fee you originally paid comes back with the goods.",
@@ -94,8 +94,8 @@ var policies = map[string]pages.PolicyDoc{
 				Heading:   "拆封之後還能退嗎",
 				HeadingEn: "Can I still return it once it is opened?",
 				Body: []string{
-					"可以。無論是哪一項商品,拆開包裹檢查商品都不會讓七天的解除權結束 —— 鑑賞期本來就包含拆開來檢查。",
-					"法律允許少數幾類商品排除鑑賞期,而且必須在購買前就明確告知才算數。goen 目前沒有任何商品排除鑑賞期,所以本店所有商品都適用完整的七天。",
+					"可以。無論是哪一項商品，拆開包裹檢查商品都不會讓七天的解除權結束 —— 鑑賞期本來就包含拆開來檢查。",
+					"法律允許少數幾類商品排除鑑賞期，而且必須在購買前就明確告知才算數。goen 目前沒有任何商品排除鑑賞期，所以本店所有商品都適用完整的七天。",
 				},
 				BodyEn: []string{
 					"Yes. For every product, opening the parcel to inspect the goods does not end your seven days, because inspecting them is what the seven days are for.",
@@ -106,8 +106,8 @@ var policies = map[string]pages.PolicyDoc{
 				Heading:   "七天之外",
 				HeadingEn: "Beyond the seven days",
 				Body: []string{
-					"鑑賞期之外,商品未使用、包裝與配件齊全的話,我們願意在送達後 14 天內受理退貨,運費由您負擔。",
-					"這是 goen 自己的額外服務,不是法律規定的鑑賞期。前面七天的權利不受這一條影響,也不會因為這一條變短。",
+					"鑑賞期之外，商品未使用、包裝與配件齊全的話，我們願意在送達後 14 天內受理退貨，運費由您負擔。",
+					"這是 goen 自己的額外服務，不是法律規定的鑑賞期。前面七天的權利不受這一條影響，也不會因為這一條變短。",
 				},
 				BodyEn: []string{
 					"After the seven days, we will still take something back within 14 days of delivery if it is unused and complete with its box and accessories. You pay the postage.",
@@ -126,8 +126,8 @@ var policies = map[string]pages.PolicyDoc{
 				Heading:   "信用卡",
 				HeadingEn: "Credit cards",
 				Body: []string{
-					"目前接受信用卡付款,由 Stripe 處理。付款頁面在 Stripe 的網域上,goen 的伺服器不會接觸、也不會儲存您的卡片資料。",
-					"我們只會保留卡別與末四碼,用於在訂單頁辨識是哪一張卡付的款。",
+					"目前接受信用卡付款，由 Stripe 處理。付款頁面在 Stripe 的網域上，goen 的伺服器不會接觸、也不會儲存您的卡片資料。",
+					"我們只會保留卡別與末四碼，用於在訂單頁辨識是哪一張卡付的款。",
 				},
 				BodyEn: []string{
 					"Cards, handled by Stripe. The payment form is on Stripe's own domain — goen's servers never see your card details and never store them.",
@@ -137,13 +137,13 @@ var policies = map[string]pages.PolicyDoc{
 			{
 				Heading:   "購物金",
 				HeadingEn: "Store credit",
-				Body:      []string{"登入後,帳號內可用的購物金會在結帳時自動折抵,不足的金額再以信用卡付款。"},
+				Body:      []string{"登入後，帳號內可用的購物金會在結帳時自動折抵，不足的金額再以信用卡付款。"},
 				BodyEn:    []string{"When you are signed in, your available store credit comes off the order automatically at checkout; any remaining amount is paid by card."},
 			},
 			{
 				Heading:   "折扣碼",
 				HeadingEn: "Discount codes",
-				Body:      []string{"折扣碼是價格折抵,不是付款方式。在結帳頁輸入有效的折扣碼,購物金會從折抵後的金額再扣除,剩餘款項以信用卡付款。", "百分比折扣碼是照購物車內商品目前的售價小計計算,已在特價的商品也一併折抵,特價與折扣碼可以疊加。"},
+				Body:      []string{"折扣碼是價格折抵，不是付款方式。在結帳頁輸入有效的折扣碼，購物金會從折抵後的金額再扣除，剩餘款項以信用卡付款。", "百分比折扣碼是照購物車內商品目前的售價小計計算，已在特價的商品也一併折抵，特價與折扣碼可以疊加。"},
 				BodyEn: []string{
 					"A discount code reduces the price; it is not a payment method. Enter a valid code at checkout; store credit then comes off the discounted total, and any remaining amount is paid by card.",
 					"A percentage code is worked out on the cart subtotal at the items' current prices, so items already on sale are discounted too: a sale and a code stack.",
@@ -153,7 +153,7 @@ var policies = map[string]pages.PolicyDoc{
 				Heading:   "什麼時候扣款",
 				HeadingEn: "When you are charged",
 				Body: []string{
-					"在 Stripe 頁面完成付款時就會扣款。goen 只在收到 Stripe 經過簽章驗證的通知後,才把訂單標記為已付款 —— 回到網站看到的頁面本身不代表付款成功。",
+					"在 Stripe 頁面完成付款時就會扣款。goen 只在收到 Stripe 經過簽章驗證的通知後，才把訂單標記為已付款 —— 回到網站看到的頁面本身不代表付款成功。",
 				},
 				BodyEn: []string{
 					"At the moment you finish on Stripe's page. goen marks an order paid only on a signature-verified notice from Stripe — the page you land back on is not itself proof that the money arrived.",
@@ -165,8 +165,8 @@ var policies = map[string]pages.PolicyDoc{
 				Body: []string{
 					// Interpolated, never typed: a literal here is a second copy
 					// of an enforced duration that no test binds.
-					fmt.Sprintf("送出訂單時系統會保留庫存 %s 分鐘,請在下單後 %s 分鐘內開始付款。"+
-						"保留時間結束仍未付款的訂單會自動取消:商品回到架上,不會收取任何款項,使用的購物金也會退回。",
+					fmt.Sprintf("送出訂單時系統會保留庫存 %s 分鐘，請在下單後 %s 分鐘內開始付款。"+
+						"保留時間結束仍未付款的訂單會自動取消：商品回到架上，不會收取任何款項，使用的購物金也會退回。",
 						pages.HoldMinutesText(), pages.PayStartMinutesText()),
 				},
 				BodyEn: []string{
@@ -188,7 +188,7 @@ var policies = map[string]pages.PolicyDoc{
 				Heading:   "保固範圍",
 				HeadingEn: "What is covered",
 				Body: []string{
-					"商品頁面標示了保固的商品,由原廠依標示的期限提供保固;沒有標示保固的商品,除法律另有規定外,goen 不另外提供保固。各商品的保固內容寫在該商品頁面上,以商品頁的說明為準。",
+					"商品頁面標示了保固的商品，由原廠依標示的期限提供保固；沒有標示保固的商品，除法律另有規定外，goen 不另外提供保固。各商品的保固內容寫在該商品頁面上，以商品頁的說明為準。",
 				},
 				BodyEn: []string{
 					"A product whose page states a warranty is covered by the manufacturer's warranty for the term stated there. A product that states none carries no warranty from goen beyond what the law gives you. Each product page states its own term, and that page is what governs.",
@@ -198,8 +198,8 @@ var policies = map[string]pages.PolicyDoc{
 				Heading:   "保固期限",
 				HeadingEn: "How long you are covered",
 				Body: []string{
-					"保固期限依商品而不同,長度寫在該商品的頁面上。期限從商品送達當日起算。",
-					"沒有標示保固期限的商品,表示原廠沒有提供保固,這類商品無法登錄。",
+					"保固期限依商品而不同，長度寫在該商品的頁面上。期限從商品送達當日起算。",
+					"沒有標示保固期限的商品，表示原廠沒有提供保固，這類商品無法登錄。",
 				},
 				BodyEn: []string{
 					"The term depends on the product, and its length is stated on that product's own page. It runs from the day the goods reach you.",
@@ -210,8 +210,8 @@ var policies = map[string]pages.PolicyDoc{
 				Heading:   "怎麼送修",
 				HeadingEn: "Sending something in",
 				Body: []string{
-					"先在會員中心登錄該商品,登錄後送修時不需要再找收據。登錄的入口在訂單頁。",
-					"需要送修時請聯絡客服。宅配訂單由我們安排到府收件,超商取貨的訂單請由超商寄回;兩種訂單的收送費用都由 goen 負擔。",
+					"先在會員中心登錄該商品，登錄後送修時不需要再找收據。登錄的入口在訂單頁。",
+					"需要送修時請聯絡客服。宅配訂單由我們安排到府收件，超商取貨的訂單請由超商寄回；兩種訂單的收送費用都由 goen 負擔。",
 					"維修期間不提供替代機。",
 				},
 				BodyEn: []string{
@@ -225,20 +225,20 @@ var policies = map[string]pages.PolicyDoc{
 	"privacy": {
 		Title:     "隱私權政策",
 		TitleEn:   "Privacy",
-		Summary:   "goen 蒐集哪些資料、為什麼蒐集,以及您可以怎麼處理它。",
+		Summary:   "goen 蒐集哪些資料、為什麼蒐集，以及您可以怎麼處理它。",
 		SummaryEn: "What we collect, why, and what you can do about it.",
 		Sections: []pages.PolicySection{
 			{
 				Heading:   "我們蒐集什麼",
 				HeadingEn: "What we collect",
 				Body: []string{
-					"下單時:收件人姓名、電話、地址與 Email,用於出貨與聯絡。",
-					"註冊時:Email 與密碼。密碼以 argon2id 雜湊儲存,任何人都無法從資料庫還原它,包含我們。",
-					"付款時:卡片資料由 Stripe 處理,不經過 goen。我們只收到卡別與末四碼。",
-					"訂閱電子報時:保存您的 Email、語言、確認與退訂狀態,用於寄送及停止電子報。",
-					"登入時:工作階段保存 IP 位址及 User-Agent 瀏覽器資訊,登入狀態結束或帳號刪除後一併移除。",
-					"開立發票時:保存顧客姓名、Email,以及您選擇提供的公司統一編號、手機條碼或捐贈碼(愛心碼),用於開立發票與後續折讓。",
-					"登錄保固時:保存商品序號與保固登錄資料,用於識別送修商品及保固期限。",
+					"下單時：收件人姓名、電話、地址與 Email，用於出貨與聯絡。",
+					"註冊時：Email 與密碼。密碼以 argon2id 雜湊儲存，任何人都無法從資料庫還原它，包含我們。",
+					"付款時：卡片資料由 Stripe 處理，不經過 goen。我們只收到卡別與末四碼。",
+					"訂閱電子報時：保存您的 Email、語言、確認與退訂狀態，用於寄送及停止電子報。",
+					"登入時：工作階段保存 IP 位址及 User-Agent 瀏覽器資訊，登入狀態結束或帳號刪除後一併移除。",
+					"開立發票時：保存顧客姓名、Email，以及您選擇提供的公司統一編號、手機條碼或捐贈碼（愛心碼），用於開立發票與後續折讓。",
+					"登錄保固時：保存商品序號與保固登錄資料，用於識別送修商品及保固期限。",
 				},
 				BodyEn: []string{
 					"When you order: the recipient's name, phone, address and email — to ship to you and to reach you.",
@@ -254,8 +254,8 @@ var policies = map[string]pages.PolicyDoc{
 				Heading:   "第三方處理",
 				HeadingEn: "Third-party processing",
 				Body: []string{
-					"付款由 Stripe 處理;開立發票與折讓所需的資料會提供給綠界電子發票平台。",
-					"網站字型由 goen 本站提供,載入字型不會向 fonts.googleapis.com 或 fonts.gstatic.com 發出請求。",
+					"付款由 Stripe 處理；開立發票與折讓所需的資料會提供給綠界電子發票平台。",
+					"網站字型由 goen 本站提供，載入字型不會向 fonts.googleapis.com 或 fonts.gstatic.com 發出請求。",
 				},
 				BodyEn: []string{
 					"Stripe processes payments; information needed for invoices and allowances is sent to ECPay's e-invoice platform.",
@@ -268,7 +268,7 @@ var policies = map[string]pages.PolicyDoc{
 				Body: []string{
 					"不將您的個人資料出售或提供給第三方作行銷用途。",
 					// The cookie list claims completeness, in both locales.
-					"不在網站上使用第三方追蹤或廣告 cookie。goen 使用的 cookie 只有這幾種:購物車、登入狀態、訂單瀏覽權限、您選擇的語言、您關閉過的網站公告、挑選超商取貨門市時暫存的選擇,以及用 Google 登入時暫存幾分鐘的驗證資料。",
+					"不在網站上使用第三方追蹤或廣告 cookie。goen 使用的 cookie 只有這幾種：購物車、登入狀態、訂單瀏覽權限、您選擇的語言、您關閉過的網站公告、挑選超商取貨門市時暫存的選擇，以及用 Google 登入時暫存幾分鐘的驗證資料。",
 				},
 				BodyEn: []string{
 					"We do not sell your personal data, or hand it to anybody else for marketing.",
@@ -279,10 +279,10 @@ var policies = map[string]pages.PolicyDoc{
 				Heading:   "刪除您的資料",
 				HeadingEn: "Deleting your data",
 				Body: []string{
-					"在會員中心可以要求刪除帳號。系統會清除帳號中的姓名、Email、電話、地址與訂單上的收件資訊;下列保留資料不在清除範圍內。",
-					"訂單財務紀錄及不可變更的發票快照會保留,包括顧客姓名、Email、公司統一編號、手機條碼與捐贈碼。尚待處理或確認結果的發票作業也會保留所需資料,直到完成確認。",
-					"保固登錄與商品序號會保留,但不再連結到已刪除的帳號。已公開的商品評價也會保留,但不再與您的帳號關聯。",
-					"只有已驗證帳號目前 Email 的所有權,刪帳才會移除同信箱的電子報訂閱。未驗證信箱的訂閱不會隨刪帳移除;請使用電子報中的退訂連結停止寄送。",
+					"在會員中心可以要求刪除帳號。系統會清除帳號中的姓名、Email、電話、地址與訂單上的收件資訊；下列保留資料不在清除範圍內。",
+					"訂單財務紀錄及不可變更的發票快照會保留，包括顧客姓名、Email、公司統一編號、手機條碼與捐贈碼。尚待處理或確認結果的發票作業也會保留所需資料，直到完成確認。",
+					"保固登錄與商品序號會保留，但不再連結到已刪除的帳號。已公開的商品評價也會保留，但不再與您的帳號關聯。",
+					"只有已驗證帳號目前 Email 的所有權，刪帳才會移除同信箱的電子報訂閱。未驗證信箱的訂閱不會隨刪帳移除；請使用電子報中的退訂連結停止寄送。",
 				},
 				BodyEn: []string{
 					"You can ask for your account to be deleted from your account pages. That erases the name, email, phone and address in your account and the delivery details on your orders, except for the retained data described below.",
@@ -303,7 +303,7 @@ var policies = map[string]pages.PolicyDoc{
 				Heading:   "訂單成立",
 				HeadingEn: "When an order is formed",
 				Body: []string{
-					"送出訂單即表示要約,我們確認庫存與付款後訂單成立。若商品在您付款前售罄,我們會取消訂單並全額退款。",
+					"送出訂單即表示要約，我們確認庫存與付款後訂單成立。若商品在您付款前售罄，我們會取消訂單並全額退款。",
 				},
 				BodyEn: []string{
 					"Placing an order is an offer; the contract forms when we have confirmed the stock and the payment. If something sells out before you pay, we cancel the order and refund it in full.",
@@ -313,7 +313,7 @@ var policies = map[string]pages.PolicyDoc{
 				Heading:   "價格與標示",
 				HeadingEn: "Prices",
 				Body: []string{
-					"網站上顯示的價格為新台幣含稅價。若因系統錯誤導致標價明顯有誤,我們保留取消該筆訂單並退款的權利,並會主動聯絡您說明。",
+					"網站上顯示的價格為新台幣含稅價。若因系統錯誤導致標價明顯有誤，我們保留取消該筆訂單並退款的權利，並會主動聯絡您說明。",
 				},
 				BodyEn: []string{
 					"Prices are in New Taiwan dollars and include tax. Where a system fault makes a price obviously wrong, we reserve the right to cancel that order and refund it, and we will contact you to explain rather than leave you to notice.",
@@ -347,7 +347,7 @@ var policies = map[string]pages.PolicyDoc{
 				HeadingEn: "Governing law",
 				Body: []string{
 					"本條款以中華民國法律為準據法。",
-					"有爭議時請先聯絡我們,大多數問題不需要走到法院。若確實需要訴訟,以臺灣臺北地方法院為第一審管轄法院 —— 但這不影響消費者依消費者保護法向自己住所地法院起訴的權利。",
+					"有爭議時請先聯絡我們，大多數問題不需要走到法院。若確實需要訴訟，以臺灣臺北地方法院為第一審管轄法院 —— 但這不影響消費者依消費者保護法向自己住所地法院起訴的權利。",
 				},
 				BodyEn: []string{
 					"These terms are governed by the law of the Republic of China (Taiwan).",

@@ -9,7 +9,7 @@ var (
 	})
 
 	KeyOAuthFailed = key("auth.google.failed", Message{
-		ZhHant: "Google 登入沒有完成,請再試一次,或用密碼登入。",
+		ZhHant: "Google 登入沒有完成，請再試一次，或用密碼登入。",
 		En:     "That Google sign-in did not complete. Try again, or sign in with your password.",
 	})
 
@@ -19,14 +19,14 @@ var (
 	})
 
 	KeyOAuthUnverified = key("auth.google.unverified", Message{
-		ZhHant: "Google 沒有驗證這個帳號的信箱,所以我們無法用它來登入。請用密碼註冊或登入。",
+		ZhHant: "Google 沒有驗證這個帳號的信箱，所以我們無法用它來登入。請用密碼註冊或登入。",
 		En: "Google has not verified that account's email address, so we cannot sign you in with it. " +
 			"Register or sign in with a password instead.",
 	})
 
 	KeyOAuthCollision = key("auth.google.collision", Message{
-		ZhHant: "這個信箱已經有一個 goen 帳號,而且還沒完成信箱驗證,所以不能直接綁定 Google。" +
-			"請用「忘記密碼」收信重設,設定完成後就可以再綁定。",
+		ZhHant: "這個信箱已經有一個 goen 帳號，而且還沒完成信箱驗證，所以不能直接綁定 Google。" +
+			"請用「忘記密碼」收信重設，設定完成後就可以再綁定。",
 		En: "That address already has a goen account which has not been verified, so we cannot link " +
 			"Google to it yet. Use \u0022forgot password\u0022 — the mail goes to the address you just " +
 			"proved you read — and link Google afterwards.",
@@ -57,7 +57,7 @@ var (
 
 	KeyFieldAgain = key("field.again", Message{ZhHant: "再輸入一次", En: "Type it again"})
 
-	KeyFieldNameOpt = key("field.name.optional", Message{ZhHant: "姓名(選填)", En: "Name (optional)"})
+	KeyFieldNameOpt = key("field.name.optional", Message{ZhHant: "姓名（選填）", En: "Name (optional)"})
 
 	KeyFieldFullName = key("field.name.full", Message{ZhHant: "姓名", En: "Name"})
 
@@ -71,37 +71,37 @@ var (
 		En:     "At least 10 characters. Changing it signs you out everywhere.",
 	})
 
-	KeyNoAccountYet = key("auth.noaccount", Message{ZhHant: "還沒有帳號?", En: "No account yet?"})
+	KeyNoAccountYet = key("auth.noaccount", Message{ZhHant: "還沒有帳號？", En: "No account yet?"})
 
 	KeyNoAccountLink = key("auth.noaccount.link", Message{ZhHant: "建立一個", En: "Create one"})
 
-	KeyHaveAccount = key("auth.haveaccount", Message{ZhHant: "已經有帳號了?", En: "Already registered?"})
+	KeyHaveAccount = key("auth.haveaccount", Message{ZhHant: "已經有帳號了？", En: "Already registered?"})
 
-	KeyForgotPassword = key("auth.forgot", Message{ZhHant: "忘記密碼?", En: "Forgotten your password?"})
+	KeyForgotPassword = key("auth.forgot", Message{ZhHant: "忘記密碼？", En: "Forgotten your password?"})
 
 	KeyForgotTitle = key("auth.forgot.title", Message{ZhHant: "忘記密碼", En: "Forgotten password"})
 
 	KeyForgotSub = key("auth.forgot.sub", Message{
-		ZhHant: "我們寄一個連結給你,一小時內有效。",
+		ZhHant: "我們寄一個連結給你，一小時內有效。",
 		En:     "We will send you a link. It works for one hour.",
 	})
 
 	KeyForgotSent = key("auth.forgot.sent", Message{
-		ZhHant: "如果這個信箱有註冊過,重設連結已經寄出了。沒收到請看看垃圾郵件。",
+		ZhHant: "如果這個信箱有註冊過，重設連結已經寄出了。沒收到請看看垃圾郵件。",
 		En: "If that address has an account, the reset link is on its way. If it has not " +
 			"arrived, check your spam folder.",
 	})
 
 	KeyForgotSubmit = key("auth.forgot.submit", Message{ZhHant: "寄送重設連結", En: "Send the reset link"})
 
-	KeyRemembered = key("auth.remembered", Message{ZhHant: "想起來了?", En: "Remembered it?"})
+	KeyRemembered = key("auth.remembered", Message{ZhHant: "想起來了？", En: "Remembered it?"})
 
 	KeyBackToSignIn = key("auth.backtosignin", Message{ZhHant: "回去登入", En: "Back to sign in"})
 
 	KeyResetTitle = key("auth.reset.title", Message{ZhHant: "設定新密碼", En: "Set a new password"})
 
 	KeyResetEndsSessions = key("auth.reset.sessions", Message{
-		ZhHant: "設定之後,所有裝置上的登入都會結束。",
+		ZhHant: "設定之後，所有裝置上的登入都會結束。",
 		En:     "Setting it signs you out on every device, including this one.",
 	})
 
@@ -139,13 +139,13 @@ var (
 	// The second sentence is for everybody, because an account whose link has
 	// not been followed yet is refused exactly as a wrong password is.
 	KeyBadCredentials = key("auth.badcredentials", Message{
-		ZhHant: "電子郵件或密碼不正確。剛註冊的話,請先點我們寄給你的信裡的連結。",
+		ZhHant: "電子郵件或密碼不正確。剛註冊的話，請先點我們寄給你的信裡的連結。",
 		En: "That email address or password is not right. If you have just registered, " +
 			"follow the link in the message we sent you first.",
 	})
 
 	KeyRegisterSent = key("auth.register.sent", Message{
-		ZhHant: "我們寄了一封信到這個信箱,照信裡的說明完成註冊。沒收到請看看垃圾郵件。",
+		ZhHant: "我們寄了一封信到這個信箱，照信裡的說明完成註冊。沒收到請看看垃圾郵件。",
 		En: "We have sent a message to that address. Follow it to finish — if it has not " +
 			"arrived, check your spam folder.",
 	})
@@ -156,29 +156,29 @@ var (
 	})
 
 	KeyRegisterCompleteLede = key("auth.register.complete.lede", Message{
-		ZhHant: "輸入你註冊時設定的密碼,就完成註冊並登入。",
+		ZhHant: "輸入你註冊時設定的密碼，就完成註冊並登入。",
 		En:     "Enter the password you chose when you registered to finish and sign in.",
 	})
 
 	KeyRegisterCompleteWhy = key("auth.register.complete.why", Message{
-		ZhHant: "信裡的連結證明這個信箱是你的,密碼證明註冊的人是你,兩者都對才會啟用帳號。",
+		ZhHant: "信裡的連結證明這個信箱是你的，密碼證明註冊的人是你，兩者都對才會啟用帳號。",
 		En:     "The link proves the mailbox is yours and the password proves you are the one who registered; the account opens only with both.",
 	})
 
 	KeyRegisterSentTo = key("auth.register.sentto", Message{
-		ZhHant: "確認信已寄到 %s。照信裡的說明完成註冊;沒收到請看看垃圾郵件。",
+		ZhHant: "確認信已寄到 %s。照信裡的說明完成註冊；沒收到請看看垃圾郵件。",
 		En:     "The message is on its way to %s. Follow it to finish; if it has not arrived, check your spam folder.",
 	})
 
 	KeyRegisterResent = key("auth.register.resent", Message{
-		ZhHant: "已再寄一封。如果這個信箱有等著完成的註冊,新的連結很快就會到。",
+		ZhHant: "已再寄一封。如果這個信箱有等著完成的註冊，新的連結很快就會到。",
 		En:     "Sent again. If this address has a registration waiting to be finished, a new link will arrive shortly.",
 	})
 
 	KeyRegisterResend = key("auth.register.resend", Message{ZhHant: "再寄一次", En: "Send it again"})
 
 	KeyRegisterOtherAddress = key("auth.register.otheraddress", Message{
-		ZhHant: "信箱打錯了?換一個重新註冊",
+		ZhHant: "信箱打錯了？換一個重新註冊",
 		En:     "Wrong address? Register again",
 	})
 
@@ -188,17 +188,17 @@ var (
 	})
 
 	KeyRegisterCompleteNotYou = key("auth.register.complete.notyou", Message{
-		ZhHant: "沒有在這裡註冊過?用「忘記密碼」重新設定一組,這個信箱的帳號就是你的。",
+		ZhHant: "沒有在這裡註冊過？用「忘記密碼」重新設定一組，這個信箱的帳號就是你的。",
 		En:     "Did not register here? Choose a new password instead, and the account at this address is yours.",
 	})
 
 	KeyAccountCreated = key("auth.created", Message{
-		ZhHant: "帳號已建立,請登入。",
+		ZhHant: "帳號已建立，請登入。",
 		En:     "Your account is created. Sign in to continue.",
 	})
 
 	KeyPasswordReset = key("auth.reset.done", Message{
-		ZhHant: "密碼已重設,請用新密碼登入。",
+		ZhHant: "密碼已重設，請用新密碼登入。",
 		En:     "Your password is reset. Sign in with the new one.",
 	})
 
@@ -215,7 +215,7 @@ var (
 	})
 
 	KeyEraseNeedsRecentSignIn = key("auth.erase.reauth", Message{
-		ZhHant: "為了保護您的帳號,刪除帳號前請重新登入。",
+		ZhHant: "為了保護你的帳號，刪除帳號前請重新登入。",
 		En:     "To protect your account, sign in again before deleting it.",
 	})
 )

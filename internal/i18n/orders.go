@@ -14,19 +14,19 @@ var (
 	})
 
 	KeyOrderCancelled = key("order.cancelled.notice", Message{
-		ZhHant: "訂單已取消,保留的商品已經放回。",
+		ZhHant: "訂單已取消，保留的商品已經放回。",
 		En:     "This order is cancelled. The reserved stock has gone back on the shelf.",
 	})
 
 	KeyOrderUnpaid = key("order.unpaid", Message{
-		ZhHant: "這筆訂單尚未付款,商品已為您保留。",
+		ZhHant: "這筆訂單尚未付款，商品已為你保留。",
 		En:     "This order is not paid for yet. The stock is being held for you.",
 	})
 
 	KeyOrderReorder = key("order.reorder", Message{ZhHant: "再買一次", En: "Order again"})
 
 	KeyOrderReorderNote = key("order.reorder.note", Message{
-		ZhHant: "用今天的價格,把還買得到的商品放回購物車。",
+		ZhHant: "用今天的價格，把還買得到的商品放回購物車。",
 		En:     "Puts whatever is still available back in your cart, at today's prices.",
 	})
 
@@ -50,7 +50,7 @@ var (
 
 	// The statutory right, stated plainly; the day is the database's.
 	KeyOrderRescissionEnds = key("order.rescissionends", Message{
-		ZhHant: "依消費者保護法,您可在收到商品後七日內退貨,最後一日為 %s。",
+		ZhHant: "依消費者保護法，你可在收到商品後七日內退貨，最後一日為 %s。",
 		En:     "Under Taiwan's Consumer Protection Act you may return the goods within seven days of receiving them; the last day is %s.",
 	})
 
@@ -60,7 +60,7 @@ var (
 
 	KeyOrderDeliveryTo = key("order.deliveryto", Message{ZhHant: "配送到", En: "Delivering to"})
 
-	KeyOrderShippingFee = key("order.shippingfee", Message{ZhHant: "運費(%s)", En: "Delivery (%s)"})
+	KeyOrderShippingFee = key("order.shippingfee", Message{ZhHant: "運費（%s）", En: "Delivery (%s)"})
 
 	KeyOrderGrandTotal = key("order.grandtotal", Message{ZhHant: "總計", En: "Total"})
 
@@ -99,18 +99,18 @@ var (
 	KeyOrderNotFound = key("order.notfound", Message{ZhHant: "找不到這筆訂單", En: "Order not found"})
 
 	KeyOrderNotYours = key("order.notyours", Message{
-		ZhHant: "訂單編號可能不正確,或這筆訂單不屬於這個瀏覽器。登入後可以在會員中心查看。",
+		ZhHant: "訂單編號可能不正確，或這筆訂單不屬於這個瀏覽器。登入後可以在會員中心查看。",
 		En: "The number may be wrong, or this order was not placed from this browser. " +
 			"Sign in to see it in your account.",
 	})
 
 	KeyOrderGone = key("order.gone", Message{
-		ZhHant: "訂單編號可能不正確,或這筆訂單已經不存在。",
+		ZhHant: "訂單編號可能不正確，或這筆訂單已經不存在。",
 		En:     "The number may be wrong, or the order no longer exists.",
 	})
 
 	KeyOrderNotYoursShort = key("order.notyours.short", Message{
-		ZhHant: "訂單編號可能不正確,或這筆訂單不屬於這個瀏覽器。",
+		ZhHant: "訂單編號可能不正確，或這筆訂單不屬於這個瀏覽器。",
 		En:     "The number may be wrong, or this order was not placed from this browser.",
 	})
 
@@ -141,7 +141,7 @@ var (
 	KeyFindOrderSubmit = key("order.find.submit", Message{ZhHant: "查詢", En: "Find it"})
 
 	KeyFindOrderSignIn = key("order.find.signin", Message{
-		ZhHant: "有帳號的話,",
+		ZhHant: "有帳號的話，",
 		En:     "If you have an account, ",
 	})
 
@@ -152,12 +152,12 @@ var (
 	})
 
 	KeyPlacementGrantFailedTitle = key("order.placement.grantfailed.title", Message{
-		ZhHant: "訂單已成立,但尚未完成存取",
+		ZhHant: "訂單已成立，但尚未完成存取",
 		En:     "Your order was received, but access could not be set up",
 	})
 
 	KeyPlacementGrantFailedBody = key("order.placement.grantfailed.body", Message{
-		ZhHant: "我們已收到這筆訂單,但無法在這個瀏覽器上完成存取。請勿再次下單。用確認信裡的訂單編號與 Email 到「查詢訂單」完成存取。",
+		ZhHant: "我們已收到這筆訂單，但無法在這個瀏覽器上完成存取。請勿再次下單。用確認信裡的訂單編號與 Email 到「查詢訂單」完成存取。",
 		En: "We received your order, but could not set up access in this browser. Do not place " +
 			"another order. Use the order number and email from your confirmation to find it.",
 	})
@@ -168,7 +168,7 @@ var (
 	})
 
 	KeyFindOrderGrantFailedBody = key("order.find.grantfailed.body", Message{
-		ZhHant: "訂單資料相符,但無法在這個瀏覽器上完成存取。請稍後再試一次查詢。",
+		ZhHant: "訂單資料相符，但無法在這個瀏覽器上完成存取。請稍後再試一次查詢。",
 		En: "Those details matched an order, but access could not be set up in this browser. " +
 			"Try finding your order again.",
 	})

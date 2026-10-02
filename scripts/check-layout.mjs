@@ -316,9 +316,9 @@ const ADMIN = [
 // INVOICE_ORDER is the refunded order the return fixture decided.
 const ACCOUNT_BADFORM = [
   { label: 'points badform 375', width: 375, height: 812, locale: 'zh-Hant',
-    notice: '這份兌換表單已過期,請重新送出。' },
+    notice: '這份兌換表單已過期，請重新送出。' },
   { label: 'points badform 1440', width: 1440, height: 900, locale: 'zh-Hant',
-    notice: '這份兌換表單已過期,請重新送出。' },
+    notice: '這份兌換表單已過期，請重新送出。' },
   { label: 'points badform en 375', width: 375, height: 812, locale: 'en',
     notice: 'That redemption form expired. Submit it again.' },
   { label: 'points badform en 1440', width: 1440, height: 900, locale: 'en',
@@ -2584,7 +2584,7 @@ if (process.env.ADMIN_TOKEN) {
 // replaces the interactive surface with raw `429 …` and the visitor cannot
 // retry. A handler test can only see the fragment; these rows spend the live
 // limiter through the actual submit control and read the swapped DOM.
-const RETRY_ZH = '請求過於頻繁,請稍後再試。';
+const RETRY_ZH = '請求過於頻繁，請稍後再試。';
 const RETRY_EN = 'Too many requests. Please try again shortly.';
 const namesRetry = (text) => String(text || '').includes(RETRY_ZH) || String(text || '').includes(RETRY_EN);
 

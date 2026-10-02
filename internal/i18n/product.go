@@ -27,12 +27,12 @@ var (
 	})
 
 	KeyVariantUnavailable = key("pdp.variant.unavailable", Message{
-		ZhHant: "(此組合無現貨)",
+		ZhHant: "（此組合無現貨）",
 		En:     "(this combination is out of stock)",
 	})
 
 	KeyVariantNotFound = key("pdp.variant.notfound", Message{
-		ZhHant: "找不到這個組合,請重新選擇。",
+		ZhHant: "找不到這個組合，請重新選擇。",
 		En:     "That combination does not exist. Please choose again.",
 	})
 
@@ -44,7 +44,7 @@ var (
 	})
 
 	KeyAllSoldOutHint = key("pdp.allsoldout.hint", Message{
-		ZhHant: "選一個規格,補貨時通知你。",
+		ZhHant: "選一個規格，補貨時通知你。",
 		En:     "Pick an option and we will tell you when it is back.",
 	})
 
@@ -53,12 +53,12 @@ var (
 	KeyRestockHeading = key("pdp.restock", Message{ZhHant: "到貨通知我", En: "Tell me when it is back"})
 
 	KeyRestockDoneTo = key("pdp.restock.doneto", Message{
-		ZhHant: "已經記下了,補貨時會寄信到 %s。",
+		ZhHant: "已經記下了，補貨時會寄信到 %s。",
 		En:     "Noted. We will email %s when it is back in stock.",
 	})
 
 	KeyRestockDone = key("pdp.restock.done", Message{
-		ZhHant: "已經記下了,補貨時會寄信給你。",
+		ZhHant: "已經記下了，補貨時會寄信給你。",
 		En:     "Noted. We will email you when it is back in stock.",
 	})
 
@@ -68,7 +68,7 @@ var (
 	})
 
 	KeyRestockUnavailable = key("pdp.restock.unavailable", Message{
-		ZhHant: "這個規格目前不需要補貨通知(已經有貨,或已不存在)。請確認規格後再試。",
+		ZhHant: "這個規格目前不需要補貨通知（已經有貨，或已不存在）。請確認規格後再試。",
 		En:     "This option needs no restock notice (it is in stock, or it is gone). Check the option and try again.",
 	})
 
@@ -109,7 +109,7 @@ var (
 	KeyProductNotFound = key("pdp.notfound", Message{ZhHant: "找不到這個商品", En: "Product not found"})
 
 	KeyProductNotFoundBody = key("pdp.notfound.body", Message{
-		ZhHant: "這個商品目前沒有販售,可能已經下架。回首頁看看其他選擇。",
+		ZhHant: "這個商品目前沒有販售，可能已經下架。回首頁看看其他選擇。",
 		En: "This product is not on sale — it may have been discontinued. " +
 			"Have a look at what else there is.",
 	})
@@ -117,14 +117,14 @@ var (
 	KeyCannotLoad = key("error.cannotload", Message{ZhHant: "暫時無法載入", En: "Cannot load this right now"})
 
 	KeyCannotLoadProduct = key("error.cannotload.product", Message{
-		ZhHant: "商品資訊暫時無法顯示,請稍後再試。",
+		ZhHant: "商品資訊暫時無法顯示，請稍後再試。",
 		En:     "We cannot show this product right now. Please try again shortly.",
 	})
 )
 
 var (
 	KeyFormSlugFormatExample = key("form.slug.format.example", Message{
-		ZhHant: "網址代稱只能用小寫英數與連字號,例如 pixelight-9-pro。",
+		ZhHant: "網址代稱只能用小寫英數與連字號，例如 pixelight-9-pro。",
 		En:     "A slug takes lower-case letters, digits and hyphens only — pixelight-9-pro, for example.",
 	})
 
@@ -170,7 +170,7 @@ var (
 	})
 
 	KeyFormWarrantyMonths = key("form.warranty.months", Message{
-		ZhHant: "保固月數請填 1 到 120,或留空表示未提供保固。",
+		ZhHant: "保固月數請填 1 到 120，或留空表示未提供保固。",
 		En:     "A warranty term is 1 to 120 months, or blank for no stated cover.",
 	})
 
@@ -186,7 +186,7 @@ var (
 	})
 
 	KeyAdminProdLead = key("admin.prod.lead", Message{
-		ZhHant: "新商品是草稿,加了變體、確認資料之後再上架。",
+		ZhHant: "新商品是草稿，加了變體、確認資料之後再上架。",
 		En: "A new product is a draft. Add its variants, check the details, and publish it " +
 			"after that.",
 	})
@@ -199,7 +199,7 @@ var (
 	KeyAdminProdName = key("admin.prod.name", Message{ZhHant: "商品名稱", En: "Product name"})
 
 	KeyAdminProdSlugHint = key("admin.prod.slughint", Message{
-		ZhHant: "上架後不能更改,商品網址會是 /p/ 加上這串。",
+		ZhHant: "上架後不能更改，商品網址會是 /p/ 加上這串。",
 		En:     "It cannot be changed once the product is published; the product's address is /p/ followed by it.",
 	})
 
@@ -218,17 +218,17 @@ var (
 	})
 
 	KeyAdminProdNameEn = key("admin.prod.nameen", Message{
-		ZhHant: "商品名稱(英文)",
+		ZhHant: "商品名稱（英文）",
 		En:     "Product name (English)",
 	})
 
 	KeyAdminProdSummaryEn = key("admin.prod.summaryen", Message{
-		ZhHant: "一句話簡介(英文)",
+		ZhHant: "一句話簡介（英文）",
 		En:     "One-line summary (English)",
 	})
 
 	KeyAdminProdDescriptionEn = key("admin.prod.descriptionen", Message{
-		ZhHant: "商品說明(英文)",
+		ZhHant: "商品說明（英文）",
 		En:     "Description (English)",
 	})
 
@@ -238,7 +238,7 @@ var (
 	})
 
 	KeyAdminProdWarrantyHint = key("admin.prod.warrantyhint", Message{
-		ZhHant: "每個商品可以不一樣 —— 電熱水壺和毛巾本來就不該是同一個數字。留空表示沒有提供保固,顧客就無法登錄保固(而不是給他一個系統自己編出來的期限)。",
+		ZhHant: "每個商品可以不一樣 —— 電熱水壺和毛巾本來就不該是同一個數字。留空表示沒有提供保固，顧客就無法登錄保固（而不是給他一個系統自己編出來的期限）。",
 		En: "It is per product — a kettle and a towel were never going to carry the same " +
 			"number. Left blank it states no cover, and the customer then cannot register a " +
 			"warranty at all, rather than being given a term the system invented for them.",
@@ -269,7 +269,7 @@ var (
 	})
 
 	KeyAdminProdNoVariants = key("admin.prod.novariants", Message{
-		ZhHant: "還沒有規格。沒有規格的商品沒有價格,無法上架。",
+		ZhHant: "還沒有規格。沒有規格的商品沒有價格，無法上架。",
 		En:     "No variants yet. A product with no variant has no price and cannot be published.",
 	})
 
@@ -288,7 +288,7 @@ var (
 	})
 
 	KeyAdminProdNeedsVariant = key("admin.prod.needsvariant", Message{
-		ZhHant: "先新增至少一個規格,才能上架。",
+		ZhHant: "先新增至少一個規格，才能上架。",
 		En:     "Add at least one variant before this can be published.",
 	})
 

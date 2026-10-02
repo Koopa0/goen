@@ -5,18 +5,18 @@ var (
 	KeyCheckoutTitle        = key("checkout.title", Message{ZhHant: "結帳", En: "Checkout"})
 
 	KeyCheckoutSub = key("checkout.sub", Message{
-		ZhHant: "填寫收件資訊,確認後送出訂單。",
+		ZhHant: "填寫收件資訊，確認後送出訂單。",
 		En:     "Fill in the delivery details, then place the order.",
 	})
 
 	KeyCheckoutHasErrors = key("checkout.errors", Message{
-		ZhHant: "有欄位需要修正,請看下方標示。",
+		ZhHant: "有欄位需要修正，請看下方標示。",
 		En:     "Some fields need fixing — see the notes below.",
 	})
 
 	// %s is the reason the code was refused.
 	KeyCheckoutCouponRefused = key("checkout.errors.coupon", Message{
-		ZhHant: "折扣碼無法套用:%s",
+		ZhHant: "折扣碼無法套用：%s",
 		En:     "The discount code was not applied: %s",
 	})
 
@@ -27,22 +27,22 @@ var (
 	KeySectionInvoice = key("checkout.section.invoice", Message{ZhHant: "發票", En: "Invoice"})
 
 	KeyCheckoutSubmitNote = key("checkout.submit.note", Message{
-		ZhHant: "送出後將產生訂單並保留庫存,接著進行付款。",
+		ZhHant: "送出後將產生訂單並保留庫存，接著進行付款。",
 		En:     "Placing the order reserves the stock. Payment comes next.",
 	})
 
 	KeyZoneSurcharge = key("checkout.zone.surcharge", Message{
-		ZhHant: "%s加價(已含)",
+		ZhHant: "%s加價（已含）",
 		En:     "%s surcharge (included)",
 	})
 
 	KeyCouponPlaceholder = key("checkout.coupon.placeholder", Message{
-		ZhHant: "有折扣碼嗎?",
+		ZhHant: "有折扣碼嗎？",
 		En:     "Have a discount code?",
 	})
 
 	KeyCouponApplied = key("checkout.coupon.applied", Message{
-		ZhHant: "已套用:%s",
+		ZhHant: "已套用：%s",
 		En:     "Applied: %s",
 	})
 
@@ -60,7 +60,7 @@ var (
 
 	KeyFieldStreet = key("field.street", Message{ZhHant: "地址", En: "Street address"})
 
-	KeyFieldNote = key("field.note", Message{ZhHant: "備註(選填)", En: "Note (optional)"})
+	KeyFieldNote = key("field.note", Message{ZhHant: "備註（選填）", En: "Note (optional)"})
 
 	KeyFieldPickupBrand = key("field.pickup.brand", Message{ZhHant: "超商", En: "Convenience store"})
 
@@ -94,7 +94,7 @@ var (
 	})
 
 	KeyPickupStoreUnconfirmed = key("pickup.unconfirmed", Message{
-		ZhHant: "無法確認這家門市是不是你剛才挑的,請再選一次。",
+		ZhHant: "無法確認這家門市是不是你剛才挑的，請再選一次。",
 		En:     "That store could not be confirmed as the one you picked. Choose it again.",
 	})
 
@@ -117,7 +117,7 @@ var (
 	KeyFieldDonationCode = key("field.invoice.donation", Message{ZhHant: "愛心碼", En: "Donation code"})
 
 	KeyDonationCodeHelp = key("invoice.donation.help", Message{
-		ZhHant: "請向受贈單位確認愛心碼(3 至 7 碼數字)。本店的捐贈發票不能同時使用載具或統一編號。",
+		ZhHant: "請向受贈單位確認愛心碼（3 至 7 碼數字）。本店的捐贈發票不能同時使用載具或統一編號。",
 		En:     "Confirm the code (3 to 7 digits) with the recipient organisation. This shop cannot combine a donated invoice with a carrier or a company tax ID.",
 	})
 
@@ -129,7 +129,7 @@ var (
 	KeyFieldTaxID = key("field.invoice.taxid", Message{ZhHant: "統一編號", En: "Company tax ID"})
 
 	KeyInvoiceMember = key("invoice.member", Message{
-		ZhHant: memberCarrierZhHant + "(依結帳 Email 留存與通知)",
+		ZhHant: memberCarrierZhHant + "（依結帳 Email 留存與通知）",
 		En:     memberCarrierEn + " (stored and notified using your checkout email)",
 	})
 
@@ -146,7 +146,7 @@ var (
 	// Issue sends the company invoice with the member carrier (issue.go), which
 	// ECPay holds against the checkout email.
 	KeyInvoiceCompanyStored = key("invoice.company.stored", Message{
-		ZhHant: "公司統編發票會存入" + memberCarrierZhHant + ",依結帳 Email 留存與通知,可在綠界的載具中查詢。",
+		ZhHant: "公司統編發票會存入" + memberCarrierZhHant + "，依結帳 Email 留存與通知，可在綠界的載具中查詢。",
 		En:     "A company tax ID invoice is stored in the " + memberCarrierEn + ", tied to your checkout email, and can be retrieved there.",
 	})
 
@@ -173,7 +173,7 @@ var (
 	})
 
 	KeyCouponUsedUp = key("coupon.usedup", Message{
-		ZhHant: "這組折扣碼的使用次數已經用完了。訂單沒有送出,拿掉折扣碼就可以繼續結帳。",
+		ZhHant: "這組折扣碼的使用次數已經用完了。訂單沒有送出，拿掉折扣碼就可以繼續結帳。",
 		En: "That discount code has been fully used. Your order was not placed — " +
 			"clear the code to carry on.",
 	})
@@ -184,7 +184,7 @@ var (
 	})
 
 	KeyShippingUnpriceable = key("checkout.shipping.unpriceable", Message{
-		ZhHant: "運費暫時無法計算,請再試一次。",
+		ZhHant: "運費暫時無法計算，請再試一次。",
 		En:     "We could not work out the delivery charge. Please try again.",
 	})
 
@@ -223,7 +223,7 @@ var (
 	// request hold a pooled connection indefinitely, and what the customer has
 	// typed is still good: the answer is to submit again, not a 500.
 	KeyCheckoutBusy = key("checkout.busy", Message{
-		ZhHant: "系統正忙,您填寫的資料都還在。請再送出一次。",
+		ZhHant: "系統正忙，你填寫的資料都還在。請再送出一次。",
 		En:     "The shop is busy right now. Everything you typed is still here — please submit again.",
 	})
 
@@ -299,7 +299,7 @@ var (
 	})
 
 	KeyInvoiceDonate = key("invoice.donate", Message{
-		ZhHant: "捐贈發票(愛心碼)",
+		ZhHant: "捐贈發票（愛心碼）",
 		En:     "Donate the invoice (donation code)",
 	})
 
@@ -309,7 +309,7 @@ var (
 	})
 
 	KeyCarrierMalformed = key("valid.invoice.carrier", Message{
-		ZhHant: "手機條碼格式不正確,應為斜線加上七碼(例如 /ABC+123)。",
+		ZhHant: "手機條碼格式不正確，應為斜線加上七碼（例如 /ABC+123）。",
 		En:     "A mobile barcode is a slash and seven characters, such as /ABC+123.",
 	})
 

@@ -9,7 +9,7 @@ var (
 	})
 
 	KeyQuestionRefused = key("pdp.qa.refused", Message{
-		ZhHant: "問題沒有送出 —— 請確認內容不是空的,而且在 300 字以內。",
+		ZhHant: "問題沒有送出 —— 請確認內容不是空的，而且在 300 字以內。",
 		En:     "That question was not posted — check it is not empty and under 300 characters.",
 	})
 
@@ -25,10 +25,10 @@ var (
 		En:     "Nobody has asked about this yet.",
 	})
 
-	KeyAskLabel = key("field.question", Message{ZhHant: "想問什麼?", En: "What would you like to know?"})
+	KeyAskLabel = key("field.question", Message{ZhHant: "想問什麼？", En: "What would you like to know?"})
 
 	KeyAskPlaceholder = key("field.question.placeholder", Message{
-		ZhHant: "例如:這個型號支援哪些快充協定?",
+		ZhHant: "例如：這個型號支援哪些快充協定？",
 		En:     "For example: which fast-charge standards does this model support?",
 	})
 
@@ -46,7 +46,7 @@ var (
 	KeyAdminPageQuestions = key("admin.page.questions", Message{ZhHant: "顧客提問", En: "Customer questions"})
 
 	KeyAdminQuestionsLead = key("admin.questions.lead", Message{
-		ZhHant: "等最久的排在最前面 —— 問了三天沒人回的比今天早上剛問的更急。回覆會標示「官方回覆」,並排在該問題的最上面。",
+		ZhHant: "等最久的排在最前面 —— 問了三天沒人回的比今天早上剛問的更急。回覆會標示「官方回覆」，並排在該問題的最上面。",
 		En: "The longest wait comes first — a question nobody answered for three days is more urgent " +
 			"than one asked this morning. Your reply is marked as the shop's and sorts above the rest.",
 	})
@@ -68,7 +68,7 @@ var (
 	})
 
 	KeyAdminQuestionBodyError = key("admin.question.bodyerror", Message{
-		ZhHant: "回覆不能留白,最多 1000 字。",
+		ZhHant: "回覆不能留白，最多 1000 字。",
 		En:     "A reply cannot be empty and may be at most 1,000 characters.",
 	})
 

@@ -9,7 +9,7 @@ var (
 	})
 
 	KeyWarrantySub = key("warranty.sub", Message{
-		ZhHant: "登錄之後,送修時不用再找收據。從訂單頁進去登錄。",
+		ZhHant: "登錄之後，送修時不用再找收據。從訂單頁進去登錄。",
 		En: "Register a unit and you will never need the receipt to claim. Start from " +
 			"an order.",
 	})
@@ -20,7 +20,7 @@ var (
 	})
 
 	KeyWarrantyNoneHint = key("warranty.none.hint", Message{
-		ZhHant: "送達之後,到",
+		ZhHant: "送達之後，到",
 		En:     "Once an order has been delivered, open it from ",
 	})
 
@@ -53,7 +53,7 @@ var (
 	KeyWarrantyTerm = key("warranty.term", Message{ZhHant: "保固 %s", En: "%s warranty"})
 
 	KeyFieldSerialOpt = key("field.serial.optional", Message{
-		ZhHant: "機身序號(選填)",
+		ZhHant: "機身序號（選填）",
 		En:     "Serial number (optional)",
 	})
 
@@ -63,7 +63,7 @@ var (
 	})
 
 	KeySerialHint = key("field.serial.hint", Message{
-		ZhHant: "填了以後送修時更好對,不填也能登錄。",
+		ZhHant: "填了以後送修時更好對，不填也能登錄。",
 		En:     "It makes a claim easier to match, but registration works without it.",
 	})
 
@@ -80,12 +80,12 @@ var (
 	})
 
 	KeyWarrantyNotDelivered = key("warranty.notdelivered", Message{
-		ZhHant: "這項商品還沒送達,送達後就可以登錄 —— 保固是從送達那天起算的。",
+		ZhHant: "這項商品還沒送達，送達後就可以登錄 —— 保固是從送達那天起算的。",
 		En:     "This has not arrived yet. Registration opens on delivery, which is when the cover starts.",
 	})
 
 	KeyWarrantyReturned = key("warranty.returned", Message{
-		ZhHant: "這項商品已辦理退貨,沒有可登錄的保固。",
+		ZhHant: "這項商品已辦理退貨，沒有可登錄的保固。",
 		En:     "This was returned, so there is no cover to register.",
 	})
 
@@ -109,12 +109,12 @@ var (
 	})
 
 	KeyWarrantyRefused = key("warranty.notice.refused", Message{
-		ZhHant: "這個項目目前無法登錄 —— 可能還沒送達,或已經登錄過了。",
+		ZhHant: "這個項目目前無法登錄 —— 可能還沒送達，或已經登錄過了。",
 		En:     "That cannot be registered — it may not have been delivered, or it is registered already.",
 	})
 
 	KeyWarrantyOrderNotFound = key("warranty.order.notfound", Message{
-		ZhHant: "這個訂單編號沒有對應的訂單,或不屬於你的帳號。",
+		ZhHant: "這個訂單編號沒有對應的訂單，或不屬於你的帳號。",
 		En:     "No order matches that number, or it is not on your account.",
 	})
 )
@@ -123,7 +123,7 @@ var (
 	KeyAdminSearchButton = key("admin.search.button", Message{ZhHant: "查詢", En: "Search"})
 
 	KeyAdminSearchShort = key("admin.search.short", Message{
-		ZhHant: "查詢字串太短,至少要兩個字。",
+		ZhHant: "查詢字串太短，至少要兩個字。",
 		En:     "That search is too short — two characters at least.",
 	})
 
@@ -149,7 +149,7 @@ var (
 	KeyAdminPageWarranty = key("admin.page.warranty", Message{ZhHant: "保固查詢", En: "Warranty lookup"})
 
 	KeyAdminWarrantyLead = key("admin.warranty.lead", Message{
-		ZhHant: "用序號或訂單編號查一件的保固。兩個都要完全相符 —— 序號是從機身上唸出來的,訂單編號是從確認信上唸出來的,而登錄名單不是拿來瀏覽的。",
+		ZhHant: "用序號或訂單編號查一件的保固。兩個都要完全相符 —— 序號是從機身上唸出來的，訂單編號是從確認信上唸出來的，而登錄名單不是拿來瀏覽的。",
 		En: "Look a unit's cover up by serial number or order number. Both match exactly — a serial is " +
 			"read off the machine and an order number off a confirmation email, and a list of " +
 			"registrations is not something to browse.",
@@ -163,7 +163,7 @@ var (
 	})
 
 	KeyAdminWarrantyNoneFound = key("admin.warranty.nonefound", Message{
-		ZhHant: "找不到「%s」的登錄紀錄。序號和訂單編號都是完全比對,如果是客人唸錯一碼就會查不到 —— 也可能是這一件根本沒登錄過。",
+		ZhHant: "找不到「%s」的登錄紀錄。序號和訂單編號都是完全比對，如果是客人唸錯一碼就會查不到 —— 也可能是這一件根本沒登錄過。",
 		En: "No registration matches %q. Both fields match exactly, so one wrong character finds " +
 			"nothing — and it may simply never have been registered.",
 	})
@@ -171,7 +171,7 @@ var (
 	KeyAdminUnitNo = key("admin.unit.no", Message{ZhHant: "第 %s 件", En: "unit %s"})
 
 	KeyAdminWarrantyClock = key("admin.warranty.clock", Message{
-		ZhHant: "保固從送達那天起算,不是從出貨那天 —— 到期日是登錄當下用該筆包裹的送達時間和商品保固月數算出來的,存下來就不再變動。",
+		ZhHant: "保固從送達那天起算，不是從出貨那天 —— 到期日是登錄當下用該筆包裹的送達時間和商品保固月數算出來的，存下來就不再變動。",
 		En: "Cover runs from the day the parcel ARRIVED, not the day it was dispatched. The end date is " +
 			"computed at registration from that parcel's delivery time and the product's term, and does " +
 			"not move afterwards.",

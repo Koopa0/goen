@@ -6,7 +6,7 @@ var (
 	KeyEraseAccount = key("account.erase", Message{ZhHant: "刪除帳號", En: "Delete your account"})
 
 	KeyEraseWarning = key("account.erase.warning", Message{
-		ZhHant: "刪除後將移除你的個人資料與收件資訊。已完成的訂單會以無個資的形式保留,作為交易與稅務紀錄。有尚未完成的購物金退貨時,需先處理完畢。此操作無法復原。",
+		ZhHant: "刪除後將移除你的個人資料與收件資訊。已完成的訂單會以無個資的形式保留，作為交易與稅務紀錄。有尚未完成的購物金退貨時，需先處理完畢。此操作無法復原。",
 		En: "Deleting removes your personal details and delivery information. Completed " +
 			"orders are kept without them, as a financial and tax record. An open return " +
 			"involving store credit must finish first. This cannot be undone.",
@@ -40,7 +40,7 @@ var (
 	})
 
 	KeyGoogleOnlyMethod = key("account.linked.only", Message{
-		ZhHant: "Google 是目前唯一的登入方式,所以不能取消連結。先用「忘記密碼」設定一組密碼就可以。",
+		ZhHant: "Google 是目前唯一的登入方式，所以不能取消連結。先用「忘記密碼」設定一組密碼就可以。",
 		En: "Google is currently the only way in, so it cannot be unlinked. Set a password " +
 			"first with \u0022forgot password\u0022.",
 	})
@@ -61,7 +61,7 @@ var (
 	})
 
 	KeyNewPasswordRefused = key("account.notice.password.new", Message{
-		ZhHant: "新密碼不符合規則,或兩次輸入不一致。",
+		ZhHant: "新密碼不符合規則，或兩次輸入不一致。",
 		En:     "The new password does not meet the rules, or the two entries differ.",
 	})
 
@@ -81,7 +81,7 @@ var (
 	})
 
 	KeyEraseLastAdmin = key("account.notice.erase.admin", Message{
-		ZhHant: "你是最後一位管理員,這個帳號不能刪除。請先讓另一位同事成為管理員。",
+		ZhHant: "你是最後一位管理員，這個帳號不能刪除。請先讓另一位同事成為管理員。",
 		En:     "You are the last administrator, so this account cannot be deleted. Make a colleague an administrator first.",
 	})
 )

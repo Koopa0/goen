@@ -18,7 +18,7 @@ func TestCancelledRefundHealthStatusIsLocalized(t *testing.T) {
 		locale i18n.Locale
 		want   string
 	}{
-		{name: "Traditional Chinese", locale: i18n.ZhHant, want: "金流端取消了這筆退款,錢沒有退出去,請從退貨清單重新退款"},
+		{name: "Traditional Chinese", locale: i18n.ZhHant, want: "金流端取消了這筆退款，錢沒有退出去，請從退貨清單重新退款"},
 		{name: "English", locale: i18n.En, want: "The provider cancelled it: no money moved; retry it from the returns queue"},
 	}
 	for _, tt := range tests {
