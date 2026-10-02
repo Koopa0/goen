@@ -151,6 +151,10 @@ templ taxonForm(kind string, title i18n.Key, weight components.Variant, v *Admin
 						<p class="ui-error-text">{ v.Err(kind, "tone") }</p>
 					}
 				</div>
+				<label class="goen-check">
+					<input class="goen-check__box" type="checkbox" name="comparable" value="1" checked?={ v.DraftFor(kind, "comparable") != "" }/>
+					<span>{ i18n.T(ctx, i18n.KeyAdminColComparable) }</span>
+				</label>
 				<div class="goen-admin__field">
 					@components.Label(components.LabelProps{For: "categories-parent"}) {
 						{ i18n.T(ctx, i18n.KeyAdminTaxParent) }
@@ -238,6 +242,20 @@ templ taxonList(kind string, empty i18n.Key, rows []AdminTaxon) {
 									<option value={ string(k) } selected?={ t.Tone == string(k) }>{ k.Label(ctx) }</option>
 								}
 							</select>
+							// Only a department answers; a sub-category takes its department's.
+							if t.Depth == 0 {
+								<label class="goen-check">
+									<input
+										class="goen-check__box"
+										type="checkbox"
+										name="comparable"
+										value="1"
+										checked?={ t.Comparable }
+										aria-label={ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminTaxComparableOf), t.Name) }
+									/>
+									<span>{ i18n.T(ctx, i18n.KeyAdminColComparable) }</span>
+								</label>
+							}
 						}
 						@components.Button(components.ButtonProps{
 							Variant: components.VariantOutline,

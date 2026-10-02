@@ -3,6 +3,24 @@ package i18n
 var (
 	KeyCompareTitle = key("compare.title", Message{ZhHant: "比較", En: "Compare"})
 
+	// KeyCompareChoose heads the page while there is nothing yet to put side by
+	// side: it says what the reader is here to do.
+	KeyCompareChoose = key("compare.choose", Message{
+		ZhHant: "選擇要比較的商品",
+		En:     "Choose products to compare",
+	})
+
+	// KeyCompareBrowse is the link to the whole shelf the chosen product is on;
+	// %s is that shelf's name.
+	KeyCompareBrowse = key("compare.browse", Message{
+		ZhHant: "瀏覽「%s」的全部商品",
+		En:     "Browse everything in %s",
+	})
+
+	// KeyCompareDiffers is said to a screen reader on a row where the products
+	// disagree, which the page otherwise shows by weight alone.
+	KeyCompareDiffers = key("compare.differs", Message{ZhHant: "規格不同", En: "Differs"})
+
 	KeyCompareDescription = key("compare.description", Message{
 		ZhHant: "把規格擺在一起看,而不是在兩個分頁之間來回。",
 		En:     "Put the specifications side by side instead of flipping between two tabs.",

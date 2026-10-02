@@ -3607,6 +3607,7 @@ func (q *Queries) CategoryDescendants(ctx context.Context, id uuid.UUID) ([]uuid
 const categoryListing = `-- name: CategoryListing :many
 SELECT
     p.slug,
+    p.category_id,
     localized_name(p.name, p.name_en, $1::text) AS name,
     coalesce(localized_name(p.summary, p.summary_en, $1::text), '')::text AS summary,
     b.name AS brand,
@@ -3691,6 +3692,7 @@ type CategoryListingParams struct {
 
 type CategoryListingRow struct {
 	Slug                string
+	CategoryID          uuid.UUID
 	Name                string
 	Summary             string
 	Brand               string
@@ -3731,6 +3733,7 @@ func (q *Queries) CategoryListing(ctx context.Context, arg CategoryListingParams
 		var i CategoryListingRow
 		if err := rows.Scan(
 			&i.Slug,
+			&i.CategoryID,
 			&i.Name,
 			&i.Summary,
 			&i.Brand,
@@ -4150,6 +4153,40 @@ func (q *Queries) CloseUnshippedReturnLines(ctx context.Context, returnRequestID
 	return result.RowsAffected(), nil
 }
 
+const comparableCategoryIDs = `-- name: ComparableCategoryIDs :many
+WITH RECURSIVE eff AS (
+    SELECT c.id, c.comparable FROM categories c WHERE c.parent_id IS NULL
+    UNION ALL
+    SELECT c.id, coalesce(c.comparable, e.comparable)
+    FROM categories c JOIN eff e ON c.parent_id = e.id
+)
+SELECT eff.id FROM eff WHERE eff.comparable IS TRUE
+`
+
+// Every category that offers comparison. The value is the nearest one up the
+// trail that sets it, and a root that sets none is false, so a sub-category
+// takes its department's answer; read top-down, the same rule as the tone's
+// upward walk. categories_acyclic is what guarantees it terminates.
+func (q *Queries) ComparableCategoryIDs(ctx context.Context) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, comparableCategoryIDs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const compareProducts = `-- name: CompareProducts :many
 SELECT
     p.slug,
@@ -4157,6 +4194,7 @@ SELECT
     coalesce(localized_name(p.summary, p.summary_en, $1::text), '')::text AS summary,
     b.name AS brand,
     localized_name(c.name, c.name_en, $1::text) AS category,
+    c.slug AS category_slug,
     mv.price_cents AS min_price_cents,
     -- Whether that price is the cheapest of several, so a card can say "from"
     -- rather than state one variant's price as the product's.
@@ -4211,6 +4249,7 @@ type CompareProductsRow struct {
 	Summary             string
 	Brand               string
 	Category            string
+	CategorySlug        string
 	MinPriceCents       int64
 	PriceVaries         bool
 	CompareAtPriceCents pgtype.Int8
@@ -4241,6 +4280,7 @@ func (q *Queries) CompareProducts(ctx context.Context, arg CompareProductsParams
 			&i.Summary,
 			&i.Brand,
 			&i.Category,
+			&i.CategorySlug,
 			&i.MinPriceCents,
 			&i.PriceVaries,
 			&i.CompareAtPriceCents,
@@ -4317,6 +4357,99 @@ func (q *Queries) CompareSpecs(ctx context.Context, arg CompareSpecsParams) ([]C
 			&i.Value,
 			&i.SharedBy,
 			&i.Position,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const compareSuggestions = `-- name: CompareSuggestions :many
+SELECT
+    p.slug,
+    localized_name(p.name, p.name_en, $1::text) AS name,
+    b.name AS brand,
+    mv.price_cents AS min_price_cents,
+    EXISTS (
+        SELECT 1 FROM product_variants dv
+        WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
+    ) AS price_varies,
+    coalesce(img.storage_key, '') AS image_key,
+    coalesce(localized_name(img.alt_text, img.alt_text_en, $1::text), '')::text AS image_alt,
+    coalesce(img.width, 0)::integer AS image_width,
+    coalesce(img.height, 0)::integer AS image_height
+FROM products p
+JOIN brands b ON b.id = p.brand_id
+JOIN LATERAL (
+    SELECT price_cents
+    FROM product_variants
+    WHERE product_id = p.id AND is_active
+    ORDER BY (stock_quantity > safety_stock) DESC, price_cents
+    LIMIT 1
+) mv ON true
+LEFT JOIN LATERAL (
+    SELECT storage_key, alt_text, alt_text_en, width, height
+    FROM product_images WHERE product_id = p.id ORDER BY position LIMIT 1
+) img ON true
+WHERE p.status = 'active'
+  AND p.category_id = (SELECT x.category_id FROM products x WHERE x.slug = $2::text)
+  AND NOT (p.slug = ANY($3::text[]))
+ORDER BY abs(mv.price_cents - $4::bigint), p.id
+LIMIT $5::integer
+`
+
+type CompareSuggestionsParams struct {
+	Locale       string
+	ProductSlug  string
+	ExcludeSlugs []string
+	AnchorCents  int64
+	RowLimit     int32
+}
+
+type CompareSuggestionsRow struct {
+	Slug          string
+	Name          string
+	Brand         string
+	MinPriceCents int64
+	PriceVaries   bool
+	ImageKey      string
+	ImageAlt      string
+	ImageWidth    int32
+	ImageHeight   int32
+}
+
+// What to compare a product with: the other active products on its own shelf,
+// the ones priced closest first, with a stable order for equal distances.
+// A product with no active variant has no price to show and is left out.
+func (q *Queries) CompareSuggestions(ctx context.Context, arg CompareSuggestionsParams) ([]CompareSuggestionsRow, error) {
+	rows, err := q.db.Query(ctx, compareSuggestions,
+		arg.Locale,
+		arg.ProductSlug,
+		arg.ExcludeSlugs,
+		arg.AnchorCents,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CompareSuggestionsRow{}
+	for rows.Next() {
+		var i CompareSuggestionsRow
+		if err := rows.Scan(
+			&i.Slug,
+			&i.Name,
+			&i.Brand,
+			&i.MinPriceCents,
+			&i.PriceVaries,
+			&i.ImageKey,
+			&i.ImageAlt,
+			&i.ImageWidth,
+			&i.ImageHeight,
 		); err != nil {
 			return nil, err
 		}
@@ -4583,15 +4716,17 @@ func (q *Queries) CreateCart(ctx context.Context, arg CreateCartParams) (uuid.UU
 }
 
 const createCategory = `-- name: CreateCategory :execrows
-INSERT INTO categories (slug, name, name_en, icon_key, tone, parent_id, position)
+INSERT INTO categories (slug, name, name_en, icon_key, tone, comparable, parent_id, position)
 SELECT $1::text, $2::text, nullif($3::text, ''),
-       nullif($4::text, ''), nullif($5::text, ''), parent.id,
+       nullif($4::text, ''), nullif($5::text, ''),
+       -- Only a department answers: a sub-category keeps NULL and takes its department's.
+       CASE WHEN parent.id IS NULL THEN $6::boolean END, parent.id,
        coalesce((SELECT max(c.position) + 1 FROM categories c
                  WHERE c.parent_id IS NOT DISTINCT FROM parent.id), 0)
 FROM (
-    SELECT c.id FROM categories c WHERE c.slug = $6::text
+    SELECT c.id FROM categories c WHERE c.slug = $7::text
     UNION ALL
-    SELECT NULL::uuid WHERE $6::text = ''
+    SELECT NULL::uuid WHERE $7::text = ''
 ) parent
 `
 
@@ -4601,6 +4736,7 @@ type CreateCategoryParams struct {
 	NameEn     string
 	IconKey    string
 	Tone       string
+	Comparable bool
 	ParentSlug string
 }
 
@@ -4614,6 +4750,7 @@ func (q *Queries) CreateCategory(ctx context.Context, arg CreateCategoryParams) 
 		arg.NameEn,
 		arg.IconKey,
 		arg.Tone,
+		arg.Comparable,
 		arg.ParentSlug,
 	)
 	if err != nil {
@@ -7831,17 +7968,18 @@ func (q *Queries) ManagedBrands(ctx context.Context) ([]ManagedBrandsRow, error)
 
 const managedCategories = `-- name: ManagedCategories :many
 WITH RECURSIVE tree AS (
-    SELECT c.id, c.parent_id, c.slug, c.name, c.name_en, c.icon_key, c.tone, c.position,
+    SELECT c.id, c.parent_id, c.slug, c.name, c.name_en, c.icon_key, c.tone, c.comparable, c.position,
            0 AS depth, array[c.position, 0] AS path
     FROM categories c WHERE c.parent_id IS NULL
     UNION ALL
-    SELECT c.id, c.parent_id, c.slug, c.name, c.name_en, c.icon_key, c.tone, c.position,
+    SELECT c.id, c.parent_id, c.slug, c.name, c.name_en, c.icon_key, c.tone, c.comparable, c.position,
            t.depth + 1, t.path || array[c.position, 0]
     FROM categories c JOIN tree t ON t.id = c.parent_id
 )
 SELECT t.id, t.slug, t.name, coalesce(t.name_en, '') AS name_en,
        coalesce(t.icon_key, '') AS icon_key,
        coalesce(t.tone, '') AS tone,
+       coalesce(t.comparable, false)::boolean AS comparable,
        t.depth::integer AS depth,
        coalesce(p.name, '') AS parent_name,
        (SELECT count(*) FROM products x WHERE x.category_id = t.id)::bigint AS products,
@@ -7858,6 +7996,7 @@ type ManagedCategoriesRow struct {
 	NameEn     string
 	IconKey    string
 	Tone       string
+	Comparable bool
 	Depth      int32
 	ParentName string
 	Products   int64
@@ -7880,6 +8019,7 @@ func (q *Queries) ManagedCategories(ctx context.Context) ([]ManagedCategoriesRow
 			&i.NameEn,
 			&i.IconKey,
 			&i.Tone,
+			&i.Comparable,
 			&i.Depth,
 			&i.ParentName,
 			&i.Products,
@@ -11222,16 +11362,18 @@ func (q *Queries) RenameBrand(ctx context.Context, arg RenameBrandParams) (int64
 const renameCategory = `-- name: RenameCategory :execrows
 UPDATE categories SET name = $1::text, name_en = nullif($2::text, ''),
                      icon_key = nullif($3::text, ''),
-                     tone = nullif($4::text, '')
-WHERE slug = $5::text
+                     tone = nullif($4::text, ''),
+                     comparable = CASE WHEN parent_id IS NULL THEN $5::boolean END
+WHERE slug = $6::text
 `
 
 type RenameCategoryParams struct {
-	Name    string
-	NameEn  string
-	IconKey string
-	Tone    string
-	Slug    string
+	Name       string
+	NameEn     string
+	IconKey    string
+	Tone       string
+	Comparable bool
+	Slug       string
 }
 
 // The DISPLAY names only: a slug is in every URL a search engine has indexed and
@@ -11243,6 +11385,7 @@ func (q *Queries) RenameCategory(ctx context.Context, arg RenameCategoryParams) 
 		arg.NameEn,
 		arg.IconKey,
 		arg.Tone,
+		arg.Comparable,
 		arg.Slug,
 	)
 	if err != nil {
@@ -12396,6 +12539,7 @@ WITH RECURSIVE category_match AS (
 )
 SELECT
     p.slug,
+    p.category_id,
     localized_name(p.name, p.name_en, $1::text) AS name,
     coalesce(localized_name(p.summary, p.summary_en, $1::text), '')::text AS summary,
     b.name AS brand,
@@ -12516,6 +12660,7 @@ type SearchProductsParams struct {
 
 type SearchProductsRow struct {
 	Slug                string
+	CategoryID          uuid.UUID
 	Name                string
 	Summary             string
 	Brand               string
@@ -12555,6 +12700,7 @@ func (q *Queries) SearchProducts(ctx context.Context, arg SearchProductsParams) 
 		var i SearchProductsRow
 		if err := rows.Scan(
 			&i.Slug,
+			&i.CategoryID,
 			&i.Name,
 			&i.Summary,
 			&i.Brand,

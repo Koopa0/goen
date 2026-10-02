@@ -109,6 +109,11 @@ func (s *Store) Listing(ctx context.Context, slug string, f Filters) (pages.List
 		return pages.ListingView{}, fmt.Errorf("read children of %q: %w", department, err)
 	}
 
+	offers, err := s.comparableCategories(ctx)
+	if err != nil {
+		return pages.ListingView{}, err
+	}
+
 	view := pages.ListingView{
 		Slug:   slug,
 		Name:   cat.Name,
@@ -122,19 +127,12 @@ func (s *Store) Listing(ctx context.Context, slug string, f Filters) (pages.List
 				Alt:    cat.ImageAlt,
 			},
 		},
-		Products: tiles(rows),
+		Products: tiles(rows, offers),
 		Total:    total,
 		Page:     int32(min(max(f.Page, 1), maxPage)),
 		PageSize: PageSize,
 	}
-	for _, b := range brands {
-		view.Brands = append(view.Brands, pages.FacetOption{
-			Value:    b.Slug,
-			Label:    b.Name,
-			Count:    b.ProductCount,
-			Selected: selected[b.Slug],
-		})
-	}
+	view.Brands = brandFacets(brands, selected)
 	return view, nil
 }
 
@@ -155,9 +153,13 @@ func (s *Store) Search(ctx context.Context, pattern string, page int) (pages.Sea
 	if err != nil {
 		return pages.SearchView{}, fmt.Errorf("count search: %w", err)
 	}
+	offers, err := s.comparableCategories(ctx)
+	if err != nil {
+		return pages.SearchView{}, err
+	}
 
 	return pages.SearchView{
-		Products: searchTiles(rows),
+		Products: searchTiles(rows, offers),
 		Total:    total,
 		Page:     max(page, 1),
 		PageSize: PageSize,
@@ -183,33 +185,35 @@ func crumbs(slugs, names []string) []pages.Crumb {
 	return out
 }
 
-func tiles(rows []db.CategoryListingRow) []pages.ProductTile {
-	out := make([]pages.ProductTile, 0, len(rows))
-	for i := range rows {
-		r := &rows[i]
-		out = append(out, pages.ProductTile{
-			Slug:         r.Slug,
-			Name:         r.Name,
-			Summary:      r.Summary,
-			Brand:        r.Brand,
-			PriceCents:   r.MinPriceCents,
-			PriceVaries:  r.PriceVaries,
-			CompareCents: r.CompareAtPriceCents.Int64,
-			Rating:       r.Rating,
-			RatingCount:  r.RatingCount,
-			InStock:      r.InStock,
-			ImageURL:     assets.ProductImageURL(r.ImageKey),
-			ImageSrcset:  assets.ProductImageSrcsetAt(r.ImageKey, int(r.ImageWidth)),
-			ImageAlt:     r.ImageAlt,
-			ImageWidth:   r.ImageWidth,
-			ImageHeight:  r.ImageHeight,
-			Comparable:   true,
+// brandFacets is the brand filter's options, the chosen ones marked.
+func brandFacets(brands []db.CategoryBrandsRow, selected map[string]bool) []pages.FacetOption {
+	out := make([]pages.FacetOption, 0, len(brands))
+	for _, b := range brands {
+		out = append(out, pages.FacetOption{
+			Value:    b.Slug,
+			Label:    b.Name,
+			Count:    b.ProductCount,
+			Selected: selected[b.Slug],
 		})
 	}
 	return out
 }
 
-func searchTiles(rows []db.SearchProductsRow) []pages.ProductTile {
+// comparableCategories is the set of categories that offer comparison, which a
+// listing and a search both read, so the two cannot disagree about a product.
+func (s *Store) comparableCategories(ctx context.Context) (map[uuid.UUID]bool, error) {
+	ids, err := s.q.ComparableCategoryIDs(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("read comparable categories: %w", err)
+	}
+	out := make(map[uuid.UUID]bool, len(ids))
+	for _, id := range ids {
+		out[id] = true
+	}
+	return out, nil
+}
+
+func tiles(rows []db.CategoryListingRow, offers map[uuid.UUID]bool) []pages.ProductTile {
 	out := make([]pages.ProductTile, 0, len(rows))
 	for i := range rows {
 		r := &rows[i]
@@ -229,7 +233,33 @@ func searchTiles(rows []db.SearchProductsRow) []pages.ProductTile {
 			ImageAlt:     r.ImageAlt,
 			ImageWidth:   r.ImageWidth,
 			ImageHeight:  r.ImageHeight,
-			Comparable:   true,
+			Comparable:   offers[r.CategoryID],
+		})
+	}
+	return out
+}
+
+func searchTiles(rows []db.SearchProductsRow, offers map[uuid.UUID]bool) []pages.ProductTile {
+	out := make([]pages.ProductTile, 0, len(rows))
+	for i := range rows {
+		r := &rows[i]
+		out = append(out, pages.ProductTile{
+			Slug:         r.Slug,
+			Name:         r.Name,
+			Summary:      r.Summary,
+			Brand:        r.Brand,
+			PriceCents:   r.MinPriceCents,
+			PriceVaries:  r.PriceVaries,
+			CompareCents: r.CompareAtPriceCents.Int64,
+			Rating:       r.Rating,
+			RatingCount:  r.RatingCount,
+			InStock:      r.InStock,
+			ImageURL:     assets.ProductImageURL(r.ImageKey),
+			ImageSrcset:  assets.ProductImageSrcsetAt(r.ImageKey, int(r.ImageWidth)),
+			ImageAlt:     r.ImageAlt,
+			ImageWidth:   r.ImageWidth,
+			ImageHeight:  r.ImageHeight,
+			Comparable:   offers[r.CategoryID],
 		})
 	}
 	return out

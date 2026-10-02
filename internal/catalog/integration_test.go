@@ -1112,3 +1112,156 @@ func TestListingTileShowsAVariantThePriceFiltersAccept(t *testing.T) {
 		})
 	}
 }
+
+// Only the tech department compares in the seed. Phones sit one level down and
+// inherit it; books sit one level down under a department that does not.
+func TestOnlyTheDepartmentsThatCompareCarryTheBox(t *testing.T) {
+	ctx := t.Context()
+	s := catalog.NewStore(pool)
+	for slug, want := range map[string]bool{"phones": true, "accessories": true, "books-stationery": false, "books": false} {
+		view, err := s.Listing(ctx, slug, catalog.Filters{Page: 1})
+		if err != nil {
+			t.Fatalf("listing %s: %v", slug, err)
+		}
+		if len(view.Products) == 0 {
+			t.Fatalf("%s lists nothing, so this proves nothing", slug)
+		}
+		for _, p := range view.Products {
+			if p.Comparable != want {
+				t.Errorf("%s: %s has Comparable = %v, want %v", slug, p.Slug, p.Comparable, want)
+			}
+		}
+	}
+
+	// A search crosses departments, so the box is decided per product.
+	for _, c := range []struct {
+		query, slug string
+		want        bool
+	}{
+		{"Pixelight 9 Pro", "pixelight-9-pro", true},
+		{"山茶十二月", "fernway-mountain-tea-seasons", false},
+	} {
+		view, err := s.Search(ctx, catalog.SearchPattern(c.query), 1)
+		if err != nil {
+			t.Fatalf("search %q: %v", c.query, err)
+		}
+		var found bool
+		for _, p := range view.Products {
+			if p.Slug == c.slug {
+				found = true
+				if p.Comparable != c.want {
+					t.Errorf("search %q: %s has Comparable = %v, want %v", c.query, p.Slug, p.Comparable, c.want)
+				}
+			}
+		}
+		if !found {
+			t.Errorf("search %q does not find %s", c.query, c.slug)
+		}
+	}
+}
+
+// The answer is the nearest one up the trail, so turning a department off turns
+// its shelves off with it, and turning another on reaches its sub-categories.
+func TestComparisonFollowsTheDepartmentDownItsTrail(t *testing.T) {
+	ctx := t.Context()
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
+	if _, err = tx.Exec(ctx, `
+		UPDATE categories SET comparable = false WHERE slug = 'tech';
+		UPDATE categories SET comparable = true WHERE slug = 'books-stationery';`); err != nil {
+		t.Fatalf("fixture: %v", err)
+	}
+	s := catalog.NewStore(tx)
+	for slug, want := range map[string]bool{"phones": false, "chargers": false, "books": true, "stationery": true} {
+		view, listErr := s.Listing(ctx, slug, catalog.Filters{Page: 1})
+		if listErr != nil {
+			t.Fatalf("listing %s: %v", slug, listErr)
+		}
+		if len(view.Products) == 0 {
+			t.Fatalf("%s lists nothing", slug)
+		}
+		for _, p := range view.Products {
+			if p.Comparable != want {
+				t.Errorf("%s: %s has Comparable = %v, want %v", slug, p.Slug, p.Comparable, want)
+			}
+		}
+	}
+}
+
+// A comparison of one offers the others on its own shelf, nearest in price
+// first, at most six, never itself and never a product from another shelf.
+func TestAComparisonOfOneSuggestsItsShelfNearestPriceFirst(t *testing.T) {
+	ctx := t.Context()
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
+
+	// Eight more phones at known prices around the chosen one, a draft one that
+	// must not be offered, and one with no active variant.
+	if _, err = tx.Exec(ctx, `
+		INSERT INTO products (id, brand_id, category_id, slug, name, status, published_at)
+		SELECT ('eeee0070-0000-4000-8000-0000000000' || lpad(n::text, 2, '0'))::uuid, b.id, c.id,
+		       'near-' || n, '相近 ' || n, CASE WHEN n = 8 THEN 'draft' ELSE 'active' END, now()
+		FROM generate_series(1, 9) n, brands b, categories c
+		WHERE b.slug = 'pixelight' AND c.slug = 'phones';
+		INSERT INTO product_variants (product_id, sku, price_cents, stock_quantity, position)
+		SELECT p.id, 'NEAR-' || substr(p.slug, 6), 3390000 + (substr(p.slug, 6)::int * 1000), 5, 70
+		FROM products p WHERE p.slug LIKE 'near-%' AND p.slug <> 'near-9';`); err != nil {
+		t.Fatalf("fixture: %v", err)
+	}
+	s := catalog.NewStore(tx)
+
+	view, err := s.Compare(ctx, []string{"pixelight-9-pro"})
+	if err != nil {
+		t.Fatalf("compare: %v", err)
+	}
+	if len(view.Products) != 1 || view.ShelfSlug != "phones" {
+		t.Fatalf("products = %+v, want the one chosen, on the phones shelf", view.Products)
+	}
+	if n := len(view.Suggestions); n != 6 {
+		t.Fatalf("%d suggestions, want 6 of the nine others on the shelf", n)
+	}
+	anchor := view.Products[0].PriceCents
+	var last int64 = -1
+	for _, sg := range view.Suggestions {
+		if sg.Slug == "pixelight-9-pro" || sg.Slug == "near-8" || sg.Slug == "near-9" {
+			t.Errorf("%s is offered, and must not be", sg.Slug)
+		}
+		d := sg.PriceCents - anchor
+		if d < 0 {
+			d = -d
+		}
+		if d < last {
+			t.Errorf("%s is %d from the anchor after one %d away: not nearest first", sg.Slug, d, last)
+		}
+		last = d
+	}
+
+	// Naming the nearest already leaves it out, and two products offer nothing.
+	again, err := s.Compare(ctx, []string{"pixelight-9-pro", view.Suggestions[0].Slug})
+	if err != nil {
+		t.Fatalf("compare two: %v", err)
+	}
+	if len(again.Suggestions) != 0 {
+		t.Errorf("a comparison of two offers %d suggestions", len(again.Suggestions))
+	}
+
+	// Another shelf offers its own: a laptop is never suggested for a phone.
+	laptop, err := s.Compare(ctx, []string{"meridian-book-14"})
+	if err != nil {
+		t.Fatalf("compare laptop: %v", err)
+	}
+	if len(laptop.Suggestions) == 0 {
+		t.Fatal("a laptop has no suggestions, though another laptop is on its shelf")
+	}
+	for _, sg := range laptop.Suggestions {
+		if sg.Slug != "meridian-book-16-pro" {
+			t.Errorf("%s is suggested for a laptop, off its shelf", sg.Slug)
+		}
+	}
+}

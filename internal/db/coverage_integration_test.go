@@ -600,7 +600,7 @@ func TestReportingCannotReadCredentialsOrPII(t *testing.T) {
 		"audit_events": {[]string{"action", "after", "before", "entity_table", "request_id"},
 			"the back-office trail, which records WHO acted and never what a customer wrote"},
 		"brands":     {[]string{"name", "slug"}, published},
-		"categories": {[]string{"icon_key", "image_alt", "image_alt_en", "image_key", "name", "name_en", "slug", "tone"}, published},
+		"categories": {[]string{"comparable", "icon_key", "image_alt", "image_alt_en", "image_key", "name", "name_en", "slug", "tone"}, published},
 		"checkout_attempts": {[]string{"idempotency_key"},
 			"a server-issued replay key, which opens nothing without the cart cookie it is bound to"},
 		"coupons": {[]string{"code", "description", "kind"}, published},

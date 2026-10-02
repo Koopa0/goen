@@ -38,6 +38,16 @@ var (
 
 	KeyAdminColTone = key("admin.col.tone", Message{ZhHant: "色調", En: "Tone"})
 
+	// KeyAdminColComparable labels the department's answer to "compare products
+	// here"; a sub-category shows no control, it takes its department's.
+	KeyAdminColComparable = key("admin.col.comparable", Message{ZhHant: "開放商品比較", En: "Offer comparison"})
+
+	// KeyAdminTaxComparableOf labels the comparison control on one department's row.
+	KeyAdminTaxComparableOf = key("admin.tax.comparableof", Message{
+		ZhHant: "%s 開放商品比較",
+		En:     "Offer comparison in %s",
+	})
+
 	// KeyAdminToneInherit is the empty choice: the category takes its department's.
 	KeyAdminTonePaper = key("admin.tone.paper", Message{ZhHant: "紙白", En: "Paper"})
 	KeyAdminToneStone = key("admin.tone.stone", Message{ZhHant: "石白", En: "Stone"})
