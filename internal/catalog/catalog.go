@@ -57,9 +57,9 @@ type Filters struct {
 	Page        int // 1-based; 0 and below are treated as 1
 }
 
-// FiltersVariants reports whether any filter has to be satisfied by a single
+// VariantScoped reports whether any filter has to be satisfied by a single
 // variant. When none is set the listing skips the EXISTS entirely.
-func (f Filters) FiltersVariants() bool {
+func (f Filters) VariantScoped() bool {
 	return f.InStockOnly || f.MinPrice > 0 || f.MaxPrice > 0
 }
 
@@ -81,7 +81,7 @@ func offsetFor(page int) int32 {
 // Active reports whether anything narrows the listing, which decides whether
 // the page offers a "clear all" control.
 func (f Filters) Active() bool {
-	return len(f.BrandSlugs) > 0 || f.FiltersVariants()
+	return len(f.BrandSlugs) > 0 || f.VariantScoped()
 }
 
 // maxPage bounds the page number so a URL cannot make the database count its

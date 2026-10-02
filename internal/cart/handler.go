@@ -1491,7 +1491,7 @@ func (h *Handler) cartForWrite(w http.ResponseWriter, r *http.Request) (uuid.UUI
 func (h *Handler) lookupCart(ctx context.Context, r *http.Request) (id uuid.UUID, ok, stale bool) {
 	owner := ownerOf(r)
 	if token := ReadCookie(r, h.secure); token != "" {
-		tokenCart, err := h.store.CartByToken(ctx, token, owner)
+		tokenCart, err := h.store.ByToken(ctx, token, owner)
 		if err == nil {
 			return tokenCart, true, false
 		}
@@ -1500,7 +1500,7 @@ func (h *Handler) lookupCart(ctx context.Context, r *http.Request) (id uuid.UUID
 	if !owner.Valid {
 		return uuid.Nil, false, stale
 	}
-	accountCart, err := h.store.CartForUser(ctx, owner.UUID.String())
+	accountCart, err := h.store.ForUser(ctx, owner.UUID.String())
 	if err != nil {
 		return uuid.Nil, false, stale
 	}
@@ -1564,8 +1564,8 @@ func (h *Handler) notFoundPage(r *http.Request) layouts.Page {
 	return layouts.Page{Title: i18n.T(r.Context(), i18n.KeyOrderNotFound)}
 }
 
-// CartIDForRequest returns the cart a request should see, without creating one.
-func (h *Handler) CartIDForRequest(ctx context.Context, r *http.Request) (uuid.UUID, bool) {
+// IDForRequest returns the cart a request should see, without creating one.
+func (h *Handler) IDForRequest(ctx context.Context, r *http.Request) (uuid.UUID, bool) {
 	id, ok, _ := h.lookupCart(ctx, r)
 	return id, ok
 }
@@ -1582,7 +1582,7 @@ func (h *Handler) ForgetCart(w http.ResponseWriter, r *http.Request) {
 	}
 	// Asked on behalf of nobody, the lookup answers only for a cart no account
 	// owns. Anything else, a failed read included, forgets the cookie.
-	_, err := h.store.CartByToken(r.Context(), token, uuid.NullUUID{})
+	_, err := h.store.ByToken(r.Context(), token, uuid.NullUUID{})
 	if err == nil {
 		return
 	}

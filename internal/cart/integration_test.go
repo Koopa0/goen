@@ -609,7 +609,7 @@ func TestAChangedCreditBalanceReRendersCheckoutWithTheFreshFigure(t *testing.T) 
 }
 
 // TestConcurrentSignedInFirstAddsShareOneOwnedCart holds an uncommitted owned
-// row so both HTTP first-adds miss CartForUser and wait on carts_one_per_user.
+// row so both HTTP first-adds miss ForUser and wait on carts_one_per_user.
 // Releasing that row lets one insert win; the loser must reread it, not 500.
 func TestConcurrentSignedInFirstAddsShareOneOwnedCart(t *testing.T) {
 	ctx := t.Context()
@@ -750,14 +750,14 @@ func TestCartIsFoundByTokenNotByID(t *testing.T) {
 		t.Fatalf("create: %v", err)
 	}
 
-	got, err := s.CartByToken(t.Context(), tok, uuid.NullUUID{})
+	got, err := s.ByToken(t.Context(), tok, uuid.NullUUID{})
 	if err != nil || got != id {
-		t.Fatalf("CartByToken(token) = %v/%v, want %v", got, err, id)
+		t.Fatalf("ByToken(token) = %v/%v, want %v", got, err, id)
 	}
-	if _, err := s.CartByToken(t.Context(), tok+"x", uuid.NullUUID{}); err == nil {
+	if _, err := s.ByToken(t.Context(), tok+"x", uuid.NullUUID{}); err == nil {
 		t.Error("a near-miss token found a cart")
 	}
-	if _, err := s.CartByToken(t.Context(), "", uuid.NullUUID{}); err == nil {
+	if _, err := s.ByToken(t.Context(), "", uuid.NullUUID{}); err == nil {
 		t.Error("an empty token found a cart")
 	}
 
