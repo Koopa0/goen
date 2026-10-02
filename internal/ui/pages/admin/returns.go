@@ -7,6 +7,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
+	"github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
@@ -15,7 +16,7 @@ type Return struct {
 	Lines       []ReturnLine
 	ID          string
 	OrderNumber string
-	Status      string
+	Status      returns.ReturnStatus
 	StatusText  string
 	Reason      string
 	Units       int32
@@ -65,7 +66,7 @@ func (r *Return) PayoutStranded() bool {
 
 // AwaitingGoods reports whether an approved parcel is still unaccounted for.
 func (r *Return) AwaitingGoods() bool {
-	if r.Status != "approved" || r.BeforeShipment {
+	if r.Status != returns.ReturnApproved || r.BeforeShipment {
 		return false
 	}
 	for i := range r.Lines {
@@ -78,7 +79,7 @@ func (r *Return) AwaitingGoods() bool {
 
 // CanComplete reports whether every line has been inspected.
 func (r *Return) CanComplete() bool {
-	if r.Status != "approved" || len(r.Lines) == 0 || r.BeforeShipment {
+	if r.Status != returns.ReturnApproved || len(r.Lines) == 0 || r.BeforeShipment {
 		return false
 	}
 	for i := range r.Lines {

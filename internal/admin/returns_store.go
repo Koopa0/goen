@@ -184,7 +184,7 @@ func buildReturnQueue(
 		item := admin.Return{
 			ID:          r.ID.String(),
 			OrderNumber: r.OrderNumber,
-			Status:      r.Status,
+			Status:      returns.ReturnStatus(r.Status),
 			StatusText:  returnStatusText(ctx, returns.ReturnStatus(r.Status), r.BeforeShipment),
 			Reason:      r.Reason,
 			Units:       r.Units,
