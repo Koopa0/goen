@@ -48,7 +48,7 @@ func TestEveryAdminQueueReachesBeyondItsFirstPage(t *testing.T) {
  UPDATE orders SET fulfillment_status='picking';
  UPDATE orders SET fulfillment_status='shipped';
  INSERT INTO order_shipments (order_id, carrier, tracking_number)
- SELECT id, 'Paging carrier', order_number FROM orders;
+ SELECT id, 'black_cat', order_number FROM orders;
  INSERT INTO order_shipment_lines (order_id, shipment_id, order_line_id, quantity)
  SELECT o.id, s.id, l.id, l.quantity FROM orders o JOIN order_shipments s ON s.order_id=o.id JOIN order_lines l ON l.order_id=o.id;
  INSERT INTO return_requests (order_id, reason) SELECT id, order_number FROM orders;

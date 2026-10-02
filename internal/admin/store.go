@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/koopa0/goen/internal/carrier"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/db"
@@ -300,7 +301,7 @@ func (s *Store) Order(ctx context.Context, number string) (pages.AdminOrderView,
 	for i := range shipments {
 		sh := &shipments[i]
 		view.Shipments = append(view.Shipments, pages.AdminShipment{
-			Carrier: sh.Carrier, Tracking: sh.TrackingNumber,
+			Carrier: carrier.Carrier(sh.Carrier), Tracking: sh.TrackingNumber,
 			ShippedAt:   shoptime.Minute(sh.ShippedAt),
 			DeliveredAt: nullableStamp(sh.DeliveredAt),
 		})
@@ -579,8 +580,9 @@ type Dispatch struct {
 // it settles and the history entry — in ONE transaction, because every pair of
 // those is wrong on its own.
 func (s *Store) Ship(ctx context.Context, number string, d Dispatch, actor uuid.NullUUID) error {
-	carrier, tracking := strings.TrimSpace(d.Carrier), strings.TrimSpace(d.Tracking)
-	if carrier == "" || tracking == "" {
+	// The carrier is one of the closed set; its display name is not stored.
+	carrierCode, tracking := carrier.Carrier(strings.TrimSpace(d.Carrier)), strings.TrimSpace(d.Tracking)
+	if !carrierCode.Known() || tracking == "" {
 		return ErrInvalid
 	}
 
@@ -606,7 +608,7 @@ func (s *Store) Ship(ctx context.Context, number string, d Dispatch, actor uuid.
 			ErrRefused, number, row.FulfillmentStatus)
 	}
 	shipmentID, shipErr := q.CreateShipment(ctx, db.CreateShipmentParams{
-		OrderID: row.ID, Carrier: carrier, TrackingNumber: tracking,
+		OrderID: row.ID, Carrier: string(carrierCode), TrackingNumber: tracking,
 	})
 	if shipErr != nil {
 		return fmt.Errorf("record shipment: %w", shipErr)
@@ -631,20 +633,20 @@ func (s *Store) Ship(ctx context.Context, number string, d Dispatch, actor uuid.
 	// which is what order_shipments is unique on, not the order. An order in two
 	// parcels is still two notices.
 	if err := enqueueOrderShipped(ctx, q, row.ID, &OrderShipped{
-		OrderNumber: number, Carrier: carrier, Tracking: tracking,
+		OrderNumber: number, Carrier: string(carrierCode), Tracking: tracking,
 	}); err != nil {
 		return err
 	}
 
 	if err := q.RecordOrderEvent(ctx, db.RecordOrderEventParams{
 		OrderID: row.ID, Kind: "shipped", ActorUserID: actor,
-		Note: text(carrier + " " + tracking),
+		Note: text(i18n.CarrierName(i18n.WithLocale(ctx, i18n.ZhHant), carrierCode) + " " + tracking),
 	}); err != nil {
 		return fmt.Errorf("record order event: %w", err)
 	}
 	if err := auditIn(ctx, q, Event{
 		Action: actionShipOrder, Table: "orders", ID: nullableID(row.ID),
-		Before: nil, After: map[string]any{"carrier": carrier, "tracking": tracking},
+		Before: nil, After: map[string]any{"carrier": string(carrierCode), "tracking": tracking},
 	}); err != nil {
 		return err
 	}

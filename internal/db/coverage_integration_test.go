@@ -15,6 +15,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgconn"
 
+	"github.com/koopa0/goen/internal/carrier"
 	"github.com/koopa0/goen/internal/pickup"
 	"github.com/koopa0/goen/internal/ui/icons"
 )
@@ -195,6 +196,45 @@ func TestPickupBrandChoicesMatchDatabaseContract(t *testing.T) {
 	code, name := constraintViolation(err)
 	if code != "23514" || name != "order_private_data_pickup_brand_known" {
 		t.Fatalf("unknown pickup brand refused by SQLSTATE %s constraint %q, want 23514/order_private_data_pickup_brand_known: %v",
+			code, name, err)
+	}
+}
+
+// TestCarriersMatchDatabaseContract binds the carriers a dispatch can name to
+// the allowlist order_shipments_carrier_known: a carrier the form offers and the
+// CHECK refuses fails the dispatch that chose it.
+func TestCarriersMatchDatabaseContract(t *testing.T) {
+	if len(carrier.All()) == 0 {
+		t.Fatal("carrier.All() is empty; this test would prove nothing")
+	}
+	for _, c := range carrier.All() {
+		t.Run(string(c), func(t *testing.T) {
+			ctx := t.Context()
+			tx, err := schemaPool(t).Begin(ctx)
+			if err != nil {
+				t.Fatalf("begin: %v", err)
+			}
+			defer func() { _ = tx.Rollback(ctx) }()
+
+			if _, err := tx.Exec(ctx, fixtures); err != nil {
+				t.Fatalf("load fixtures: %v", err)
+			}
+			if _, err := tx.Exec(ctx, `
+				INSERT INTO order_shipments (order_id, carrier, tracking_number)
+				VALUES ('66666666-6666-4666-8666-666666666666', $1, 'CONTRACT-1')`, string(c)); err != nil {
+				t.Fatalf("schema refused carrier %q: %v", c, err)
+			}
+		})
+	}
+
+	err := run(t, `
+		INSERT INTO order_shipments (order_id, carrier, tracking_number)
+		VALUES ('66666666-6666-4666-8666-666666666666', 'T-cat', 'CONTRACT-2')`)
+	if err == nil {
+		t.Fatal("database accepted a carrier outside the closed set")
+	}
+	if code, name := constraintViolation(err); code != "23514" || name != "order_shipments_carrier_known" {
+		t.Fatalf("unknown carrier refused by SQLSTATE %s constraint %q, want 23514/order_shipments_carrier_known: %v",
 			code, name, err)
 	}
 }

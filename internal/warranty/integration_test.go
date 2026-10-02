@@ -185,7 +185,7 @@ func addWarrantyShipment(
 	var shipmentID uuid.UUID
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO order_shipments (order_id, carrier, tracking_number, shipped_at, delivered_at)
-		VALUES ($1, '黑貓', 'TW-'||$2, $3, $4)
+		VALUES ($1, 'black_cat', 'TW-'||$2, $3, $4)
 		RETURNING id`,
 		orderID, number, shippedAt, deliveredAt).Scan(&shipmentID); err != nil {
 		t.Fatalf("create shipment: %v", err)
@@ -543,7 +543,7 @@ func TestEachUnitsCoverStartsWhenItsOwnParcelArrived(t *testing.T) {
 	var shipmentID uuid.UUID
 	if err := pool.QueryRow(ctx, `
 		INSERT INTO order_shipments (order_id, carrier, tracking_number, shipped_at, delivered_at)
-		VALUES ($1, '黑貓', 'TW2-'||$2, $3, $4) RETURNING id`,
+		VALUES ($1, 'black_cat', 'TW2-'||$2, $3, $4) RETURNING id`,
 		orderID, f.number, second.Add(-48*time.Hour), second).Scan(&shipmentID); err != nil {
 		t.Fatalf("second shipment: %v", err)
 	}

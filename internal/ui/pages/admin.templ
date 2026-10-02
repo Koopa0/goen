@@ -3,6 +3,7 @@ package pages
 import (
 	"fmt"
 
+	"github.com/koopa0/goen/internal/carrier"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -432,7 +433,7 @@ templ AdminOrder(p layouts.Page, v *AdminOrderView) {
 						<ul class="goen-admin__timeline" role="list">
 							for _, sh := range v.Shipments {
 								<li class="goen-admin__event">
-									<span class="goen-admin__eventhead">{ sh.Carrier } · { sh.Tracking }</span>
+									<span class="goen-admin__eventhead">{ i18n.CarrierName(ctx, sh.Carrier) } · { sh.Tracking }</span>
 									if sh.Delivered() {
 										<span class="goen-admin__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQueueDelivered), sh.DeliveredAt) }</span>
 									} else {
@@ -509,19 +510,21 @@ templ AdminOrder(p layouts.Page, v *AdminOrderView) {
 						<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/orders/" + v.Number + "/ship") }>
 							<div class="ui-field">
 								<label class="ui-label" for="ship-carrier">{ i18n.T(ctx, i18n.KeyAdminColCarrier) }</label>
-								<input
-									class="ui-input"
+								<select
+									class="ui-select"
 									id="ship-carrier"
 									name="carrier"
-									value={ v.ShipCarrier }
 									required
-									maxlength="60"
-									autocomplete="off"
 									if v.ShipCarrierError != "" {
 										aria-invalid="true"
 										aria-describedby="ship-carrier-error"
 									}
-								/>
+								>
+									<option value="" selected?={ v.ShipCarrier == "" } disabled>{ i18n.T(ctx, i18n.KeyAdminCarrierChoose) }</option>
+									for _, c := range carrier.All() {
+										<option value={ string(c) } selected?={ string(c) == v.ShipCarrier }>{ i18n.CarrierName(ctx, c) }</option>
+									}
+								</select>
 								if v.ShipCarrierError != "" {
 									<p id="ship-carrier-error" class="ui-error-text" role="alert">{ v.ShipCarrierError }</p>
 								}

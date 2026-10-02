@@ -2238,7 +2238,13 @@ CREATE TABLE order_shipments (
     shipped_at            timestamptz NOT NULL DEFAULT now(),
     delivered_at          timestamptz,
     estimated_delivery_on date,
-    CONSTRAINT order_shipments_carrier_present CHECK (carrier ~ '[^[:space:]]'),
+    -- A closed set: (carrier, tracking_number) is the dedupe key, and one parcel
+    -- typed under two spellings of a carrier would be recorded twice. These are
+    -- the codes of internal/carrier, not display names.
+    CONSTRAINT order_shipments_carrier_known CHECK (carrier IN (
+        'black_cat', 'hct', 'chunghwa_post', 'kerry_tj',
+        'seven_eleven', 'family_mart', 'hi_life', 'ok_mart'
+    )),
     CONSTRAINT order_shipments_tracking_present CHECK (tracking_number ~ '[^[:space:]]'),
     CONSTRAINT order_shipments_delivered_after_shipped
         CHECK (delivered_at IS NULL OR delivered_at >= shipped_at)
