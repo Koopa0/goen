@@ -73,6 +73,23 @@ const (
 	OGDefaultHeight = 630
 )
 
+// categoryImages is the closed set of category photographs, keyed by category
+// slug. A category outside it keeps its icon.
+var categoryImages = map[string]string{
+	"books-stationery": "media/products/department-books-stationery.webp",
+	"home-living":      "media/products/department-home-living.webp",
+	"beauty":           "media/products/department-beauty.webp",
+	"fashion":          "media/products/department-fashion.webp",
+	"food-drink":       "media/products/department-food-drink.webp",
+	"tech":             "media/products/department-tech.webp",
+	"phones":           "media/categories/phones.webp",
+	"laptops":          "media/categories/laptops.webp",
+	"tablets":          "media/categories/tablets.webp",
+	"audio":            "media/categories/audio.webp",
+	"wearables":        "media/categories/wearables.webp",
+	"accessories":      "media/categories/accessories.webp",
+}
+
 const productMediaPrefix = "media/products/"
 
 // requiredMedia is the photography the storefront names by file: the promotional
@@ -214,9 +231,27 @@ func HomeHeroSrcset() string {
 	return URL(HomeHeroImage720) + " 720w, " + URL(HomeHeroImage) + " 1440w"
 }
 
+// rendition is the name of a -400 or -800 sibling of a WebP asset.
+func rendition(name string, width int) string {
+	return strings.TrimSuffix(name, ".webp") + "-" + strconv.Itoa(width) + ".webp"
+}
+
 // AboutSrcset is the about photograph's candidates, 400 to its 1600 source.
 func AboutSrcset() string {
 	return URL(AboutImage400) + " 400w, " + URL(AboutImage800) + " 800w, " + URL(AboutImage) + " 1600w"
+}
+
+// CategoryImage is the photograph for a category slug and a srcset of its
+// renditions. ok is false for a slug with no photograph.
+func CategoryImage(slug string) (src, srcset string, ok bool) {
+	name, ok := categoryImages[slug]
+	if !ok || !Has(name) {
+		return "", "", false
+	}
+	if strings.HasPrefix(name, productMediaPrefix) {
+		return URL(name), ProductImageSrcset(strings.TrimPrefix(name, productMediaPrefix)), true
+	}
+	return URL(name), URL(rendition(name, 400)) + " 400w, " + URL(name) + " 800w", true
 }
 
 // ProductImageURL maps a product_images.storage_key to its public embedded
