@@ -717,8 +717,8 @@
 
   /*
    * The sign-in page's demo account. Its credentials are printed as text for a
-   * browser without this file; here the button appears and puts them in the
-   * form, leaving the visitor to press 登入.
+   * browser without this file; here the button appears, puts them in the form
+   * and signs in with it, as its label says.
    */
   function demoAccount() {
     const fill = document.querySelector("[data-demo-fill]");
@@ -732,7 +732,7 @@
         input.value = fill.dataset[name] ?? "";
         input.dispatchEvent(new Event("input", { bubbles: true }));
       }
-      form.querySelector('[type="submit"]')?.focus();
+      form.requestSubmit();
     });
   }
 

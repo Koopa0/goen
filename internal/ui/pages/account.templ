@@ -93,8 +93,8 @@ templ SignIn(p layouts.Page, v AuthView) {
 }
 
 // demoAccountNote prints the shared account's credentials as text, which is
-// all a browser without scripting gets. goen.js reveals the button and fills
-// the form from its data attributes.
+// all a browser without scripting gets. goen.js reveals the button, which
+// fills the form from its data attributes and submits it.
 templ demoAccountNote(v AuthView) {
 	<section class="goen-auth__demo" aria-labelledby="demo-account-title">
 		<h2 class="goen-auth__demotitle" id="demo-account-title">{ i18n.T(ctx, i18n.KeyDemoAccount) }</h2>

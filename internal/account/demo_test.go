@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -76,10 +77,14 @@ func TestTheSignInPageShowsTheDemoAccountOnlyWhenOffered(t *testing.T) {
 	offered.signInFailed(refused, httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signin", http.NoBody),
 		"someone@goen.example", "/account")
 	for page, body := range map[string]string{"the sign-in page": signInPage(offered), "a refused sign-in": refused.Body.String()} {
-		for _, want := range []string{demoAddress, demoPassword, shared, `data-demo-fill`} {
+		for _, want := range []string{demoAddress, demoPassword, shared} {
 			if !strings.Contains(body, want) {
 				t.Errorf("%s with a demo account lacks %q", page, want)
 			}
+		}
+		// goen.js reveals the button; without it the button would sign in nobody.
+		if button := regexp.MustCompile(`<button[^>]*data-demo-fill[^>]*>`).FindString(body); !strings.Contains(button, " hidden") {
+			t.Errorf("%s carries the demo button %q, want it hidden until script reveals it", page, button)
 		}
 	}
 

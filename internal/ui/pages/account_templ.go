@@ -358,8 +358,8 @@ func SignIn(p layouts.Page, v AuthView) templ.Component {
 }
 
 // demoAccountNote prints the shared account's credentials as text, which is
-// all a browser without scripting gets. goen.js reveals the button and fills
-// the form from its data attributes.
+// all a browser without scripting gets. goen.js reveals the button, which
+// fills the form from its data attributes and submits it.
 func demoAccountNote(v AuthView) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
