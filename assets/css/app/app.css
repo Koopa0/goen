@@ -9476,6 +9476,7 @@ form[data-request-pending] [aria-disabled="true"] {
 }
 
 @media print {
+  .goen-admin__batchcontrols,
   .goen-skip,
   .goen-adminbar,
   .goen-admin__nav,
@@ -9502,6 +9503,23 @@ form[data-request-pending] [aria-disabled="true"] {
   .goen-admin__ordersummary {
     break-inside: avoid;
     margin-bottom: 12px;
+  }
+
+  .goen-admin__picklist,
+  .goen-admin__slip {
+    break-after: page;
+  }
+
+  .goen-admin__slip {
+    break-inside: avoid;
+  }
+
+  .goen-admin__slip:last-child {
+    break-after: auto;
+  }
+
+  .goen-admin__picklist .goen-admin__tablewrap {
+    overflow: visible;
   }
 
   body {

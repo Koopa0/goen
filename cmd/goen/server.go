@@ -340,6 +340,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	// would confirm that /admin is a real place.
 	mux.HandleFunc("GET /admin", back.RequireStaff(back.Dashboard))
 	mux.HandleFunc("GET /admin/orders", back.RequireStaff(back.Orders))
+	mux.HandleFunc("GET /admin/orders/picking/slips", back.RequireStaff(back.PickingSlips))
 	mux.HandleFunc("GET /admin/orders/{number}", back.RequireStaff(back.Order))
 	mux.HandleFunc("POST /admin/orders/{number}/status", back.RequireStaff(back.AdvanceOrder))
 	mux.HandleFunc("POST /admin/orders/{number}/refund", back.RequireStaff(back.RefundBeforeShipment))
