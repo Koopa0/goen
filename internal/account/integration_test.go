@@ -2224,7 +2224,7 @@ func creditFundedOpenReturnForErasure(
 	var shipmentID uuid.UUID
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO order_shipments (order_id, carrier, tracking_number)
-		VALUES ($1, '黑貓', 'ERASE-RETURN-' || $2)
+		VALUES ($1, 'black_cat', 'ERASE-RETURN-' || $2)
 		RETURNING id`, orderID, number).Scan(&shipmentID); err != nil {
 		t.Fatalf("create return fixture shipment: %v", err)
 	}

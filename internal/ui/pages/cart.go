@@ -8,6 +8,7 @@ import (
 
 	"github.com/a-h/templ"
 
+	"github.com/koopa0/goen/internal/carrier"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/pickup"
@@ -581,7 +582,7 @@ func (e OrderEvent) LabelKey() i18n.Key {
 
 // OrderShipment is a dispatch the customer can follow.
 type OrderShipment struct {
-	Carrier     string
+	Carrier     carrier.Carrier
 	Tracking    string
 	ShippedAt   string
 	DeliveredAt string
@@ -589,6 +590,9 @@ type OrderShipment struct {
 	// parcel, which the database computes. Empty until it is delivered.
 	RescissionEnds string
 }
+
+// TrackURL is the carrier's public tracking page, or "" when it publishes none.
+func (s OrderShipment) TrackURL() string { return s.Carrier.TrackingURL(s.Tracking) }
 
 // Delivered reports whether this shipment has arrived.
 func (s OrderShipment) Delivered() bool { return s.DeliveredAt != "" }

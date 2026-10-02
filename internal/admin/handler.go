@@ -18,6 +18,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/account"
+	"github.com/koopa0/goen/internal/carrier"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
@@ -293,7 +294,7 @@ func (h *Handler) Ship(w http.ResponseWriter, r *http.Request) {
 		h.rejectShip(w, r, &shipRefusal{quantity: i18n.KeyAdminNoticeBadParcel})
 	case errors.Is(err, ErrInvalid):
 		refusal := shipRefusal{}
-		if strings.TrimSpace(r.PostFormValue("carrier")) == "" {
+		if !carrier.Carrier(strings.TrimSpace(r.PostFormValue("carrier"))).Known() {
 			refusal.carrier = i18n.KeyAdminNoticeNeeds
 		}
 		if strings.TrimSpace(r.PostFormValue("tracking")) == "" {

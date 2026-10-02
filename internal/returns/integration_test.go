@@ -121,7 +121,7 @@ func shipReturnFixture(
 	var shipmentID uuid.UUID
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO order_shipments (order_id, carrier, tracking_number)
-		VALUES ($1, '黑貓', 'TW-'||$2) RETURNING id`, orderID, number).Scan(&shipmentID); err != nil {
+		VALUES ($1, 'black_cat', 'TW-'||$2) RETURNING id`, orderID, number).Scan(&shipmentID); err != nil {
 		t.Fatalf("create shipment: %v", err)
 	}
 	if _, err := tx.Exec(ctx, `
@@ -186,7 +186,7 @@ func shippedTwoLineOrder(
 	var shipmentID uuid.UUID
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO order_shipments (order_id, carrier, tracking_number)
-		VALUES ($1, '黑貓', 'RETURN-RACE-' || $2) RETURNING id`, orderID, number).
+		VALUES ($1, 'black_cat', 'RETURN-RACE-' || $2) RETURNING id`, orderID, number).
 		Scan(&shipmentID); err != nil {
 		t.Fatalf("create shipment: %v", err)
 	}
@@ -355,7 +355,7 @@ func fundedShippedOrderForReturnErasure(
 	var shipmentID uuid.UUID
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO order_shipments (order_id, carrier, tracking_number)
-		VALUES ($1, '黑貓', 'RETURN-ERASURE-' || $2)
+		VALUES ($1, 'black_cat', 'RETURN-ERASURE-' || $2)
 		RETURNING id`, fixture.orderID, fixture.number).Scan(&shipmentID); err != nil {
 		t.Fatalf("create return-erasure shipment: %v", err)
 	}

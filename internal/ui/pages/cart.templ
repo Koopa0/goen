@@ -887,8 +887,15 @@ templ Order(p layouts.Page, v *OrderView) {
 							<ul class="goen-order__shipments" role="list">
 								for _, sh := range v.Shipments {
 									<li class="goen-order__shipment">
-										<span class="goen-order__carrier">{ sh.Carrier }</span>
-										<span class="goen-order__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOrderTrackingNo), sh.Tracking) }</span>
+										<span class="goen-order__carrier">{ i18n.CarrierName(ctx, sh.Carrier) }</span>
+										if sh.Carrier.DeepLinks() {
+											<a class="goen-order__meta" href={ templ.SafeURL(sh.TrackURL()) } rel="noopener noreferrer" target="_blank">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOrderTrackingNo), sh.Tracking) }</a>
+										} else {
+											<span class="goen-order__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOrderTrackingNo), sh.Tracking) }</span>
+											if sh.TrackURL() != "" {
+												<a class="goen-order__meta" href={ templ.SafeURL(sh.TrackURL()) } rel="noopener noreferrer" target="_blank">{ i18n.T(ctx, i18n.KeyOrderTrackLink) }</a>
+											}
+										}
 										if sh.Delivered() {
 											@components.Badge(components.BadgeProps{Tone: components.ToneNeutral}) {
 												{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOrderDeliveredAt), sh.DeliveredAt) }

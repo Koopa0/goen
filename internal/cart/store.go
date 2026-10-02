@@ -15,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/assets"
+	"github.com/koopa0/goen/internal/carrier"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	invoicepkg "github.com/koopa0/goen/internal/invoice"
@@ -1035,7 +1036,7 @@ func (s *Store) Order(ctx context.Context, number string) (pages.OrderView, erro
 	}
 	for _, sh := range shipments {
 		view.Shipments = append(view.Shipments, pages.OrderShipment{
-			Carrier: sh.Carrier, Tracking: sh.TrackingNumber,
+			Carrier: carrier.Carrier(sh.Carrier), Tracking: sh.TrackingNumber,
 			ShippedAt:      shoptime.Minute(sh.ShippedAt),
 			DeliveredAt:    nullableTime(sh.DeliveredAt),
 			RescissionEnds: sh.RescissionEnds,
