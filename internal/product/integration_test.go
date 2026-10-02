@@ -24,8 +24,8 @@ import (
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/account"
-	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/admin/feedback"
+	"github.com/koopa0/goen/internal/admin/stock"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/product"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -1101,11 +1101,11 @@ func TestRestockNoticeAndRestockLinearizeOnVariant(t *testing.T) {
 
 		applicationName := "stock-race-request-first-" + uuid.NewString()[:8]
 		restockPool := stockRacePool(t, applicationName)
-		restockStore := admin.NewStore(restockPool, admin.NewRefunder(""), nil, nil)
+		restockStore := stock.NewStore(restockPool)
 		staffCtx := account.WithUser(ctx, account.User{ID: actorID.String(), Role: "admin"})
 		restocked := make(chan error, 1)
 		go func() {
-			restocked <- restockStore.AdjustStock(
+			restocked <- restockStore.Adjust(
 				staffCtx, sku, 1, actorID.String(), "stock-race-"+uuid.NewString(),
 			)
 		}()
@@ -1187,11 +1187,11 @@ func TestRestockNoticeAndRestockLinearizeOnVariant(t *testing.T) {
 		}
 
 		restockPool := stockRacePool(t, applicationName)
-		restockStore := admin.NewStore(restockPool, admin.NewRefunder(""), nil, nil)
+		restockStore := stock.NewStore(restockPool)
 		staffCtx := account.WithUser(ctx, account.User{ID: actorID.String(), Role: "admin"})
 		restocked := make(chan error, 1)
 		go func() {
-			restocked <- restockStore.AdjustStock(
+			restocked <- restockStore.Adjust(
 				staffCtx, sku, 1, actorID.String(), "stock-race-"+uuid.NewString(),
 			)
 		}()

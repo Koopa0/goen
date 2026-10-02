@@ -52,3 +52,18 @@ func TWD(cents int64) string {
 	}
 	return b.String()
 }
+
+// ParseDollars reads a whole-dollar price typed in a form and returns cents. A
+// blank field is zero, which a compare-at price reads as "not on sale"; anything
+// unreadable, negative or past the schema's ceiling is not ok.
+func ParseDollars(s string) (int64, bool) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return 0, true
+	}
+	n, err := strconv.ParseInt(s, 10, 64)
+	if err != nil || n < 0 || n > MaxCents/100 {
+		return 0, false
+	}
+	return n * 100, true
+}

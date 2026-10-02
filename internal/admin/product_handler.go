@@ -189,8 +189,8 @@ func variantFormOf(r *http.Request) (*VariantForm, admin.VariantDraft, map[strin
 	// ParsePrice, not a parser returning the figure alone: blank is a legitimate
 	// compare-at price and it stores zero, so a collapsed unreadable figure is
 	// indistinguishable from "no discount". /admin/stock prices through this too.
-	price, priceOK := ParsePrice(r.PostFormValue("price"))
-	compare, compareOK := ParsePrice(r.PostFormValue("compare"))
+	price, priceOK := money.ParseDollars(r.PostFormValue("price"))
+	compare, compareOK := money.ParseDollars(r.PostFormValue("compare"))
 	if !priceOK {
 		errs["price"] = i18n.T(r.Context(), i18n.KeyFormPricePositive)
 	}

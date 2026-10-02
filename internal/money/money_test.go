@@ -95,3 +95,20 @@ func TestParsePositiveDollarsBoundsBeforeMultiplying(t *testing.T) {
 		}
 	}
 }
+
+func TestParseDollarsTakesBlankAsZeroAndBoundsTheRest(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		in   string
+		want int64
+		ok   bool
+	}{
+		{"", 0, true}, {" 12 ", 1200, true}, {"0", 0, true}, {"100000000", 10000000000, true},
+		{"100000001", 0, false}, {"-1", 0, false}, {"12o", 0, false}, {"1.5", 0, false},
+	} {
+		got, ok := money.ParseDollars(tt.in)
+		if ok != tt.ok || (ok && got != tt.want) {
+			t.Errorf("ParseDollars(%q) = %d, %t; want %d, %t", tt.in, got, ok, tt.want, tt.ok)
+		}
+	}
+}
