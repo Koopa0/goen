@@ -4050,14 +4050,45 @@ func refundAndCancel(t *testing.T, orderID uuid.UUID) {
 		        r.resolution, 're_' || r.id, now()
 		 FROM return_requests r JOIN payments p ON p.order_id = r.order_id AND p.status = 'succeeded'
 		 WHERE r.id = $1`,
-		`INSERT INTO order_events (order_id, kind, return_request_id)
-		 SELECT order_id, 'refunded', id FROM return_requests WHERE id = $1`,
+		`INSERT INTO order_events (order_id, kind, note, return_request_id)
+		 SELECT order_id, 'refunded', 're_' || id, id FROM return_requests WHERE id = $1`,
 		`UPDATE orders SET fulfillment_status = 'cancelled', cancelled_at = now()
 		 WHERE id = (SELECT order_id FROM return_requests WHERE id = $1)`,
 	} {
 		if _, err := pool.Exec(ctx, stmt, returnID); err != nil {
 			t.Fatalf("settle the refund and cancel: %v", err)
 		}
+	}
+}
+
+func TestTheShoppersTimelineNeverShowsTheProvidersRefundID(t *testing.T) {
+	ctx := t.Context()
+	vid := freshVariant(t, "refundid-1")
+	orderID := heldOrderFor(t, uuid.NullUUID{}, vid, -time.Hour, true)
+	refundAndCancel(t, orderID)
+
+	var number, staffNote string
+	if err := pool.QueryRow(ctx, `
+		SELECT o.order_number, e.note FROM orders o
+		JOIN order_events e ON e.order_id = o.id AND e.kind = 'refunded'
+		WHERE o.id = $1`, orderID).Scan(&number, &staffNote); err != nil || !strings.HasPrefix(staffNote, "re_") {
+		t.Fatalf("the fixture must keep the refund id on the event: %q, %v", staffNote, err)
+	}
+	view, err := cart.NewStore(pool).Order(ctx, number)
+	if err != nil {
+		t.Fatalf("order: %v", err)
+	}
+	var sawRefund bool
+	for _, e := range view.Timeline {
+		if e.Kind == "refunded" {
+			sawRefund = true
+		}
+		if strings.Contains(e.Note, "re_") {
+			t.Errorf("%s event shows the provider refund id %q", e.Kind, e.Note)
+		}
+	}
+	if !sawRefund {
+		t.Error("the refunded event is missing from the shopper's timeline")
 	}
 }
 

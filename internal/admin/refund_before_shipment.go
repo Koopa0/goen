@@ -208,21 +208,31 @@ func recordStaffCancellation(
 	if err != nil {
 		return err
 	}
-	if err := q.RecordOrderEvent(ctx, db.RecordOrderEventParams{
+	err = q.RecordOrderEvent(ctx, db.RecordOrderEventParams{
 		OrderID: orderID, Kind: kind, ActorUserID: actor,
-	}); err != nil {
+	})
+	if err != nil {
 		return fmt.Errorf("record order event: %w", err)
 	}
-	if err := auditIn(ctx, q, Event{
+	err = auditIn(ctx, q, Event{
 		Action: actionAdvanceOrder, Table: "orders", ID: nullableID(orderID),
 		After: map[string]any{
 			"number": number, "status": string(pages.FulfillmentCancelled),
 			"return_request_id": returnID.String(),
 		},
-	}); err != nil {
+	})
+	if err != nil {
 		return err
 	}
-	return ordernotice.Enqueue(ctx, q, ordernotice.Message{OrderID: orderID, Kind: ordernotice.CancelledByStaff})
+	// The cancellation is admitted only once the refund settled, so what went
+	// back is read here rather than assumed.
+	refundedCents, err := q.SettledRefundsForOrder(ctx, number)
+	if err != nil {
+		return fmt.Errorf("read settled refunds for %s: %w", number, err)
+	}
+	return ordernotice.Enqueue(ctx, q, ordernotice.Message{
+		OrderID: orderID, Kind: ordernotice.CancelledByStaff, Refunded: refundedCents > 0,
+	})
 }
 
 // RefundBeforeShipment serves POST /admin/orders/{number}/refund. The first

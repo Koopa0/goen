@@ -229,6 +229,7 @@ func TestRefundBeforeShipmentPaysEveryLegAndCancels(t *testing.T) {
 			t.Fatalf("press %d: %v", press+1, err)
 		}
 	}
+	assertTerminalNotice(t, orderID, ordernotice.CancelledByStaff, true)
 
 	var returnID uuid.UUID
 	var returnStatus string
@@ -296,7 +297,6 @@ func TestRefundBeforeShipmentPaysEveryLegAndCancels(t *testing.T) {
 		t.Errorf("stock held/released/moves/restocks = %d/%d/%d/%d, %d -> %d; want the hold released once",
 			held, released, releaseMoves, restocks, stockHeld, stockAfter)
 	}
-	terminalNotice(t, orderID, ordernotice.CancelledByStaff)
 }
 
 func TestRefundBeforeShipmentStaysOpenUntilRefundSettles(t *testing.T) {

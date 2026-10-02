@@ -9642,18 +9642,21 @@ func (q *Queries) OrderSummaryByNumber(ctx context.Context, arg OrderSummaryByNu
 }
 
 const orderTimeline = `-- name: OrderTimeline :many
-SELECT kind, note, occurred_at
+SELECT kind,
+       (CASE WHEN kind = 'refunded' THEN '' ELSE coalesce(note, '') END)::text AS note,
+       occurred_at
 FROM order_events WHERE order_id = $1 ORDER BY occurred_at, id
 `
 
 type OrderTimelineRow struct {
 	Kind       string
-	Note       pgtype.Text
+	Note       string
 	OccurredAt time.Time
 }
 
 // The customer sees WHAT happened, never WHO did it; the back office reads the
-// same table with the actor joined.
+// same table with the actor joined. A refund's note is the provider's refund
+// id, which the back office needs and the shopper has no use for.
 func (q *Queries) OrderTimeline(ctx context.Context, orderID uuid.UUID) ([]OrderTimelineRow, error) {
 	rows, err := q.db.Query(ctx, orderTimeline, orderID)
 	if err != nil {
