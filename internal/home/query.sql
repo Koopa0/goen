@@ -130,6 +130,15 @@ LEFT JOIN media_objects m ON m.digest = c.image_key
 WHERE c.parent_id IS NULL
 ORDER BY c.position, c.name, c.id;
 
+-- The sub-categories under every root, for the header's department panels. One
+-- read for all of them, in the order the catalogue lists them, so a header with
+-- seven departments is two queries and not eight.
+-- name: ChildCategories :many
+SELECT parent_id, slug, localized_name(name, name_en, @locale::text) AS name
+FROM categories
+WHERE parent_id IS NOT NULL
+ORDER BY position, name, id;
+
 -- with_pickup is false where the store map is not configured: checkout offers no
 -- pickup there, so a floor or threshold that counted it would promise a price
 -- nobody can choose.

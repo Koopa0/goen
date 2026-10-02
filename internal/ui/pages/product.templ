@@ -498,7 +498,7 @@ templ productReviews(v *ProductView) {
 						<article class="goen-pdp__review">
 							<div class="goen-pdp__reviewhead">
 								<span class="goen-pdp__reviewname">{ r.DisplayAuthor(ctx) }</span>
-								<span class="goen-pdp__reviewstars" aria-label={ r.RatingLabel(ctx) }>{ r.ReviewStars() }</span>
+								<span class="goen-pdp__reviewstars" aria-hidden="true">{ r.ReviewStars() }</span>
 								if r.Verified {
 									@components.Badge(components.BadgeProps{}) {
 										{ i18n.T(ctx, i18n.KeyVerifiedBuyer) }

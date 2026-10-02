@@ -23,11 +23,6 @@ var (
 		En:     "Anonymous",
 	})
 
-	KeyRatingOutOf = key("pdp.reviews.ratingof", Message{
-		ZhHant: "評分 %s 分,滿分 5 分",
-		En:     "Rated %s out of 5",
-	})
-
 	KeyRatingScore = key("pdp.reviews.score", Message{ZhHant: "評分 %s 分", En: "Rated %s"})
 
 	KeySignInFirst = key("pdp.reviews.signin", Message{ZhHant: "登入", En: "Sign in"})
