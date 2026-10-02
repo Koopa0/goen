@@ -213,7 +213,7 @@ func recordStaffCancellation(
 		return fmt.Errorf("record order event: %w", err)
 	}
 	err = audit.In(ctx, q, audit.Event{
-		Action: audit.ActionAdvanceOrder, Table: "orders", ID: nullableID(orderID),
+		Action: audit.ActionAdvanceOrder, Table: "orders", ID: audit.EntityID(orderID),
 		After: map[string]any{
 			"number": number, "status": string(pages.FulfillmentCancelled),
 			"return_request_id": returnID.String(),

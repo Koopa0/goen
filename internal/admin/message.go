@@ -50,7 +50,7 @@ func (s *Store) SetMessageHandled(ctx context.Context, id string, handled bool) 
 	}
 
 	return audit.Run(ctx, s.pool, audit.Event{
-		Action: action, Table: "contact_messages", ID: nullableID(messageID),
+		Action: action, Table: "contact_messages", ID: audit.EntityID(messageID),
 		Before: nil,
 		After:  map[string]any{"message_id": id, "handled": handled},
 	},

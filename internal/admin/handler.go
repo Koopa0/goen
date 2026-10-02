@@ -24,6 +24,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/media"
+	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/newsletter"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -518,8 +519,6 @@ var adminNotices = map[string]i18n.Key{
 	"refused":        i18n.KeyAdminNoticeRefused,
 	"shipped":        i18n.KeyAdminNoticeShipped,
 	"toolate":        i18n.KeyAdminNoticeTooLate,
-	"creditneeds":    i18n.KeyAdminNoticeCreditNeeds,
-	"tiersneeds":     i18n.KeyAdminNoticeTiersNeeds,
 	"shippingneeds":  i18n.KeyAdminNoticeShippingNeeds,
 	"deliveryneeds":  i18n.KeyAdminNoticeDeliveryNeeds,
 	"imageneeds":     i18n.KeyAdminNoticeImageNeeds,
@@ -566,13 +565,7 @@ var adminNotices = map[string]i18n.Key{
 }
 
 func noticeFor(r *http.Request) string {
-	q := r.URL.Query()
-	for name, k := range adminNotices {
-		if q.Get(name) == "1" {
-			return i18n.T(r.Context(), k)
-		}
-	}
-	return ""
+	return web.Notice(r, adminNotices)
 }
 
 func newKey() string {
@@ -581,87 +574,6 @@ func newKey() string {
 		return ""
 	}
 	return base64.RawURLEncoding.EncodeToString(b)
-}
-
-func (h *Handler) Credit(w http.ResponseWriter, r *http.Request) {
-	view, err := h.store.Credit(r.Context(), r.URL.Query().Get(web.KeysetParam))
-	if err != nil {
-		h.log.ErrorContext(r.Context(), "read credit ledger", "error", err)
-		access.ServerError(w, r, h.log)
-		return
-	}
-	view.OperationID = uuid.NewString()
-	view.Notice = creditNotice(r)
-	web.Render(w, r, h.log, http.StatusOK, admin.Credit(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageCredit)}, view))
-}
-
-// creditNotice is noticeFor plus the BALANCE a grant produced: the form is a
-// blank box, so a grant nothing confirms is one somebody makes twice.
-func creditNotice(r *http.Request) string {
-	if r.URL.Query().Get("ok") != "1" {
-		return noticeFor(r)
-	}
-	balance, err := strconv.ParseInt(r.URL.Query().Get("balance"), 10, 64)
-	if err != nil {
-		return noticeFor(r)
-	}
-	return fmt.Sprintf(i18n.T(r.Context(), i18n.KeyAdminNoticeCreditGranted), pages.TWD(balance))
-}
-
-// GrantCredit serves POST /admin/credit. The amount is typed in DOLLARS and
-// stored in cents.
-func (h *Handler) GrantCredit(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
-		return
-	}
-	view := admin.CreditView{Email: r.PostFormValue("email"), Amount: r.PostFormValue("amount"), Reason: r.PostFormValue("reason"), OperationID: r.PostFormValue("operation_id")}
-	operationID, valid := validateCreditGrant(&view)
-	if !valid {
-		h.renderCreditForm(w, r, &view, http.StatusUnprocessableEntity, "")
-		return
-	}
-	if err := h.store.creditRecipient(r.Context(), &view); err != nil {
-		if errors.Is(err, ErrNotFound) {
-			view.EmailInvalid = true
-			h.renderCreditForm(w, r, &view, http.StatusUnprocessableEntity, i18n.KeyAdminCreditUnknown)
-		} else {
-			h.log.ErrorContext(r.Context(), "read credit recipient", "error", err)
-			access.ServerError(w, r, h.log)
-		}
-		return
-	}
-	if r.PostFormValue("edit") == "1" {
-		h.renderCreditForm(w, r, &view, http.StatusOK, "")
-		return
-	}
-	if r.PostFormValue("confirm") != "grant" || r.PostFormValue("customer_id") != view.CustomerID {
-		view.Confirm = true
-		h.renderCreditForm(w, r, &view, http.StatusOK, "")
-		return
-	}
-	customerID, parseErr := uuid.Parse(view.CustomerID)
-	if parseErr != nil {
-		access.ServerError(w, r, h.log)
-		return
-	}
-	balance, err := h.store.GrantCredit(r.Context(), customerID, view.GrantCents, view.Reason, operationID)
-	switch {
-	case err == nil:
-		// The balance travels as a number and never the address it belongs to,
-		// because a query string is logged.
-		http.Redirect(w, r, "/admin/credit?ok=1&balance="+
-			strconv.FormatInt(balance, 10), http.StatusSeeOther)
-	case errors.Is(err, ErrInvalid):
-		http.Redirect(w, r, "/admin/credit?creditneeds=1", http.StatusSeeOther)
-	case errors.Is(err, ErrRefused):
-		h.log.WarnContext(r.Context(), "credit grant refused", "error", err)
-		http.Redirect(w, r, "/admin/credit?refused=1", http.StatusSeeOther)
-	default:
-		h.log.ErrorContext(r.Context(), "grant credit", "error", err)
-		access.ServerError(w, r, h.log)
-	}
 }
 
 func (h *Handler) Coupons(w http.ResponseWriter, r *http.Request) {
@@ -767,7 +679,7 @@ func whole(s string) (int64, bool) {
 		return 0, true
 	}
 	n, err := strconv.ParseInt(s, 10, 64)
-	return n, err == nil && n >= 0 && n <= MaxPriceCents/100
+	return n, err == nil && n >= 0 && n <= money.MaxCents/100
 }
 
 func smallChecked(s string) (int32, bool) {
@@ -1481,57 +1393,6 @@ func (h *Handler) rejectAnswer(w http.ResponseWriter, r *http.Request, id string
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageQuestions)}, view))
 }
 
-func (h *Handler) Tiers(w http.ResponseWriter, r *http.Request) {
-	view, err := h.store.Tiers(r.Context())
-	if err != nil {
-		h.log.ErrorContext(r.Context(), "read membership tiers", "error", err)
-		access.ServerError(w, r, h.log)
-		return
-	}
-	view.Notice = noticeFor(r)
-	web.Render(w, r, h.log, http.StatusOK, admin.Tiers(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageTiers)}, view))
-}
-
-func (h *Handler) CreateTier(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
-		return
-	}
-	threshold, tErr := strconv.ParseInt(strings.TrimSpace(r.PostFormValue("threshold")), 10, 64)
-	percent, pErr := strconv.ParseInt(strings.TrimSpace(r.PostFormValue("percent")), 10, 64)
-	if tErr != nil || pErr != nil {
-		http.Redirect(w, r, "/admin/tiers?tiersneeds=1", http.StatusSeeOther)
-		return
-	}
-	err := h.store.CreateTier(r.Context(), r.PostFormValue("code"),
-		r.PostFormValue("name"), r.PostFormValue("name_en"), threshold, percent)
-	h.redirectTiers(w, r, err)
-}
-
-func (h *Handler) DeleteTier(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
-		return
-	}
-	h.redirectTiers(w, r, h.store.DeleteTier(r.Context(), r.PostFormValue("tier")))
-}
-
-func (h *Handler) redirectTiers(w http.ResponseWriter, r *http.Request, err error) {
-	switch {
-	case err == nil:
-		http.Redirect(w, r, "/admin/tiers?ok=1", http.StatusSeeOther)
-	case errors.Is(err, ErrInvalid), errors.Is(err, ErrNotFound):
-		http.Redirect(w, r, "/admin/tiers?tiersneeds=1", http.StatusSeeOther)
-	case errors.Is(err, ErrRefused):
-		h.log.WarnContext(r.Context(), "tier change refused", "error", err)
-		http.Redirect(w, r, "/admin/tiers?refused=1", http.StatusSeeOther)
-	default:
-		h.log.ErrorContext(r.Context(), "change membership tiers", "error", err)
-		access.ServerError(w, r, h.log)
-	}
-}
-
 func (h *Handler) CorrectDelivery(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
@@ -1899,26 +1760,4 @@ func (h *Handler) AllowInvoice(w http.ResponseWriter, r *http.Request) {
 		h.log.ErrorContext(r.Context(), "file invoice allowance", "order", number, "error", err)
 		access.ServerError(w, r, h.log)
 	}
-}
-
-func positiveDollarsToCents(raw string, maxCents int64) (int64, bool) {
-	dollars, err := strconv.ParseInt(strings.TrimSpace(raw), 10, 64)
-	if err != nil || dollars <= 0 || dollars > maxCents/100 {
-		return 0, false
-	}
-	return dollars * 100, true
-}
-
-func (h *Handler) renderCreditForm(w http.ResponseWriter, r *http.Request, view *admin.CreditView, status int, notice i18n.Key) {
-	ledger, err := h.store.Credit(r.Context())
-	if err != nil {
-		h.log.ErrorContext(r.Context(), "read credit ledger", "error", err)
-		access.ServerError(w, r, h.log)
-		return
-	}
-	view.Rows, view.ListBound = ledger.Rows, ledger.ListBound
-	if notice != "" {
-		view.Notice = i18n.T(r.Context(), notice)
-	}
-	web.Render(w, r, h.log, status, admin.Credit(layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageCredit)}, *view))
 }

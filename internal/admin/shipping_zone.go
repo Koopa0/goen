@@ -90,7 +90,7 @@ func (s *Store) SetZonePrefixes(ctx context.Context, id, list string) (map[strin
 
 	if err := audit.Run(ctx, s.pool, audit.Event{
 		Action: audit.ActionSetZonePrefixes, Table: "shipping_zone_prefixes",
-		ID:    nullableID(zoneID),
+		ID:    audit.EntityID(zoneID),
 		After: map[string]any{"prefixes": len(prefixes)},
 	}, func(ctx context.Context, q *db.Queries) error {
 		if _, lockErr := q.LockShippingZone(ctx, zoneID); lockErr != nil {
@@ -128,7 +128,7 @@ func (s *Store) DeleteZone(ctx context.Context, id string) error {
 	}
 	return audit.Run(ctx, s.pool, audit.Event{
 		Action: audit.ActionDeleteShippingZone, Table: "shipping_zones",
-		ID: nullableID(zoneID),
+		ID: audit.EntityID(zoneID),
 	}, func(ctx context.Context, q *db.Queries) error {
 		n, execErr := q.DeleteShippingZone(ctx, zoneID)
 		if execErr != nil {

@@ -49,16 +49,6 @@ var notices = map[string]i18n.Key{
 	"mustrefund":    i18n.KeyAdminNoticePaymentMustRefund,
 }
 
-func notice(r *http.Request) string {
-	q := r.URL.Query()
-	for name, k := range notices {
-		if q.Get(name) == "1" {
-			return i18n.T(r.Context(), k)
-		}
-	}
-	return ""
-}
-
 // Reconcile records an explicit money outcome: an event is released only after full
 // refund/already-succeeded accounting, while a provider-complete payment chooses
 // paid attribution or confirmed-unpaid/refunded. It also grants one Allowance
@@ -176,7 +166,7 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 		access.ServerError(w, r, h.log)
 		return
 	}
-	view.Notice = notice(r)
+	view.Notice = web.Notice(r, notices)
 	view.Pools = h.poolHealth()
 	web.Render(w, r, h.log, http.StatusOK, admin.Health(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageHealth)}, &view))

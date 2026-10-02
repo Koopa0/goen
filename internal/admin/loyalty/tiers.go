@@ -1,20 +1,47 @@
-package admin
+// Package loyalty is the back office's loyalty programme: the membership tiers
+// and the store-credit ledger with its grant form.
+package loyalty
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
+	rewards "github.com/koopa0/goen/internal/loyalty"
+	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
-// MembershipWindowDays mirrors loyalty.MembershipWindow, copied rather than imported.
-const MembershipWindowDays int32 = 365
+var (
+	ErrNotFound = errors.New("loyalty: not found")
+	ErrInvalid  = errors.New("loyalty: invalid input")
+	// ErrRefused is a write the database declined; its message is the database's
+	// own, because that names the rule.
+	ErrRefused = errors.New("loyalty: refused")
+)
+
+type Store struct {
+	pool *pgxpool.Pool
+	q    *db.Queries
+}
+
+func NewStore(pool *pgxpool.Pool) *Store {
+	if pool == nil {
+		panic("loyalty: NewStore requires a pool")
+	}
+	return &Store{pool: pool, q: db.New(pool)}
+}
+
+// MembershipWindowDays is the programme's rolling year, in the days the tier queries take.
+const MembershipWindowDays = int32(rewards.MembershipWindow / (24 * time.Hour))
 
 const MaxTierMultiplierBP = 30000
 
@@ -43,7 +70,7 @@ func (s *Store) CreateTier(
 	code, name = strings.TrimSpace(code), strings.TrimSpace(name)
 	nameEn = strings.TrimSpace(nameEn)
 	if code == "" || name == "" || thresholdDollars < 0 ||
-		thresholdDollars > MaxPriceCents/100 || percent < 100 ||
+		thresholdDollars > money.MaxCents/100 || percent < 100 ||
 		percent > MaxTierMultiplierBP/100 {
 		return ErrInvalid
 	}
@@ -81,7 +108,7 @@ func (s *Store) DeleteTier(ctx context.Context, id string) error {
 		return ErrNotFound
 	}
 	return audit.Run(ctx, s.pool, audit.Event{
-		Action: audit.ActionDeleteTier, Table: "membership_tiers", ID: nullableID(tierID),
+		Action: audit.ActionDeleteTier, Table: "membership_tiers", ID: audit.EntityID(tierID),
 		Before: map[string]any{"id": id}, After: nil,
 	},
 		func(ctx context.Context, q *db.Queries) error {
