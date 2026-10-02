@@ -210,6 +210,40 @@ func TestPaidOrderCannotBeCancelledDirectly(t *testing.T) {
 	})
 }
 
+// A pending order store credit paid in full is not committed in the database,
+// yet cancelling it by status would return the credit with no confirmation.
+func TestAPendingOrderPaidWholeWithCreditIsNotCancelledByStatus(t *testing.T) {
+	ctx, _ := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	number, orderID, _ := paidUnshippedOrder(t, 0, 500000, false)
+
+	view, err := s.Order(ctx, number)
+	if err != nil {
+		t.Fatalf("read order: %v", err)
+	}
+	if !view.Funded || view.Committed {
+		t.Fatalf("Funded=%t Committed=%t, want a funded order the database has not committed", view.Funded, view.Committed)
+	}
+	if view.CreditCents != 500000 || view.OwedCents != 0 {
+		t.Errorf("credit %d owed %d, want 500000 and 0", view.CreditCents, view.OwedCents)
+	}
+	if want := i18n.T(ctx, i18n.KeyAdminPayMethodCredit); view.Payment.Method != want {
+		t.Errorf("payment = %q, want %q", view.Payment.Method, want)
+	}
+	for _, n := range view.Next {
+		if n.Value == pages.FulfillmentCancelled {
+			t.Error("the status menu offers to cancel a funded order")
+		}
+	}
+
+	if _, err := s.Advance(ctx, number, pages.FulfillmentCancelled, uuid.NullUUID{}); !errors.Is(err, admin.ErrPaidCancel) {
+		t.Fatalf("status cancel of a credit-funded order = %v, want ErrPaidCancel", err)
+	}
+	if got := fulfillmentOf(t, orderID); got != "pending" {
+		t.Errorf("order is %s, want pending", got)
+	}
+}
+
 func TestRefundBeforeShipmentPaysEveryLegAndCancels(t *testing.T) {
 	ctx, _ := staffContext(t)
 	var sent atomic.Int64
