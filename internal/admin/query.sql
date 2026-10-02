@@ -327,8 +327,6 @@ ON CONFLICT (return_request_id) WHERE return_request_id IS NOT NULL DO NOTHING;
 -- name: OrderIDByNumber :one
 SELECT id, fulfillment_status FROM orders WHERE order_number = $1;
 
--- Where an order's parcel is going: whether its shipping method delivers to a
--- store, and the chain the customer picked, which a store order can lack.
 -- name: OrderDispatchDestination :one
 SELECT sm.destination_kind, coalesce(pd.pickup_chain, '')::text AS pickup_chain
 FROM orders o
@@ -1051,7 +1049,6 @@ JOIN sale_campaigns c ON c.id = cp.campaign_id
 WHERE c.slug = @campaign::text
 ORDER BY cp.position, p.id;
 
--- How an order was paid, for the back office: the captured card payment, if any.
 -- name: OrderCapturedPayment :one
 SELECT p.provider, coalesce(p.card_brand, '')::text AS card_brand,
        coalesce(p.card_last4, '')::text AS card_last4,
@@ -1111,7 +1108,6 @@ SELECT json_build_object('At', a.occurred_at, 'ID', a.id)::text AS page_cursor, 
            WHEN 'products' THEN (SELECT pr.slug FROM products pr WHERE pr.id = a.entity_id)
            WHEN 'product_variants' THEN (SELECT pv.sku FROM product_variants pv WHERE pv.id = a.entity_id)
        END, '')::text AS subject,
-       -- The product page a product or a variant belongs on.
        coalesce(CASE a.entity_table
            WHEN 'products' THEN (SELECT pr.slug FROM products pr WHERE pr.id = a.entity_id)
            WHEN 'product_variants' THEN (SELECT pr.slug FROM product_variants pv
@@ -1328,23 +1324,14 @@ SELECT
     count(*)::bigint AS orders,
     coalesce(sum(t.total), 0)::bigint AS revenue_cents,
     (coalesce(sum(t.total), 0) / greatest(count(*), 1))::bigint AS average_cents,
-    -- What went back, as its own figure rather than subtracted from the one
-    -- above. Consumer Protection Act §19 makes a seven-day rescission
-    -- unrefusable, so returns are certain rather than hypothetical, and an owner
-    -- needs the return rate as much as the net. Counted by when each source
-    -- moved: succeeded_at for a card refund (created_at can be days earlier
-    -- while Stripe still says pending), and created_at for the synchronous
-    -- credit post.
-    --
-    -- The positive-credit predicate deliberately matches order_refunds: an entry
-    -- counts only with an order_id and a positive amount, so a reversed checkout
-    -- spend, which carries none, is in neither figure. A change of that
-    -- definition belongs in order_refunds, so the 折讓 form and the invoice bound
-    -- move with it. An order refunded before shipment is left out of both
-    -- figures: its refund cancels it out of the committed revenue, and counting
-    -- the same money as refunded too would take it off the net twice. Neither
-    -- time column has an index yet; these are small ledgers, so a speculative
-    -- index is not warranted.
+    -- What went back, counted by when each source moved: succeeded_at for a card
+    -- refund (created_at can be days earlier while Stripe still says pending),
+    -- created_at for the synchronous credit post.
+    -- The positive-credit predicate matches order_refunds, where a change of that
+    -- definition belongs, so the 折讓 form and the invoice bound move with it. An
+    -- order refunded before shipment is left out of both figures: its refund
+    -- already cancels it out of committed revenue, and counting it again would
+    -- take it off the net twice.
     (coalesce((SELECT sum(r.amount_cents) FROM refunds r
                JOIN payments p ON p.id = r.payment_id
                WHERE r.status = 'succeeded'
@@ -2014,7 +2001,6 @@ FROM promo_banners
 ORDER BY is_active DESC, created_at DESC
 LIMIT $1;
 
--- The CTA is both-or-neither, which promo_banners_cta_complete also says.
 -- name: CreateBanner :exec
 INSERT INTO promo_banners (
     message, message_short, code, cta_label, cta_href,

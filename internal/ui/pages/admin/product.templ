@@ -9,12 +9,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
-// Products renders the back-office catalogue.
-//
-// A table rather than a list of blocks: every product carries the same four
-// facts, and what a staff member opens this page to do is find one row among a
-// hundred. The one filled control is the create, at the right of the heading
-// where the reference puts a screen's single action.
+// A table rather than a list of blocks: what a staff member opens this page to do is
+// find one row among a hundred.
 templ Products(p layouts.Page, v ProductsView) {
 	@layouts.Admin(p, "products") {
 		<div class="ui-page-head">
@@ -94,12 +90,8 @@ templ Products(p layouts.Page, v ProductsView) {
 	}
 }
 
-// ProductForm renders the create-or-edit form and everything hung off it.
-//
-// One card per job — what the product says, what it looks like, what can be
-// bought, what it is made of, whether it is on sale — because they are done at
-// different times and a single column of forty fields hides which one you are
-// in. Each card's own save stays at the end of its form.
+// One card per job, because they are done at different times and a single column of
+// forty fields hides which one you are in.
 templ ProductForm(p layouts.Page, v ProductView) {
 	@layouts.Admin(p, "products") {
 		<div class="ui-page-head">
@@ -142,7 +134,6 @@ templ ProductForm(p layouts.Page, v ProductView) {
 	}
 }
 
-// productDetails is what the product says, in both languages.
 templ productDetails(v ProductView) {
 	@components.Card(components.CardProps{Class: "goen-admin__section", Attrs: templ.Attributes{"id": "sec-details"}}) {
 		<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminProdName) }</h2>
@@ -367,8 +358,6 @@ templ imageMoveForm(v ProductView, digest, move string, label i18n.Key) {
 	</form>
 }
 
-// productImages is what the product looks like: what is attached, the
-// upload, and the pictures already in the library that can be attached again.
 templ productImages(v ProductView) {
 	@components.Card(components.CardProps{Class: "goen-admin__section", Attrs: templ.Attributes{"id": "sec-images"}}) {
 		<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminProdImages) }</h2>
@@ -498,9 +487,8 @@ templ productImages(v ProductView) {
 	}
 }
 
-// imageOptionChoices is every option value of the product, grouped by
-// axis, after the choice that ties the image to none of them. Every axis and not
-// only a colour: the schema has no colour axis, only the shop's own names.
+// imageOptionChoices lists every option value, not only a colour: the schema has no
+// colour axis, only the shop's own names.
 templ imageOptionChoices(v ProductView, chosen string) {
 	<option value="" selected?={ chosen == "" }>{ i18n.T(ctx, i18n.KeyAdminProdImageAnyOption) }</option>
 	for _, o := range v.Options {
@@ -514,7 +502,6 @@ templ imageOptionChoices(v ProductView, chosen string) {
 	}
 }
 
-// productOptions is the axes a variant is chosen on, and their values.
 templ productOptions(v ProductView) {
 	@components.Card(components.CardProps{Class: "goen-admin__section", Attrs: templ.Attributes{"id": "sec-options"}}) {
 		<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminProdOptions) }</h2>
@@ -709,8 +696,6 @@ templ productOptions(v ProductView) {
 	}
 }
 
-// productVariants is what can actually be bought: the sellable units, and
-// the form that adds one.
 templ productVariants(v ProductView) {
 	@components.Card(components.CardProps{Class: "goen-admin__section", Attrs: templ.Attributes{"id": "sec-variants"}}) {
 		<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminProdVariants) }</h2>
@@ -851,7 +836,6 @@ templ productVariants(v ProductView) {
 					@components.Label(components.LabelProps{For: "v-longest"}) {
 						{ i18n.T(ctx, i18n.KeyAdminProdLongest) }
 					}
-					// The parcel, which decides which methods are offered; blank is unmeasured.
 					<input
 						class="goen-input"
 						id="v-longest"
@@ -925,8 +909,7 @@ templ productVariants(v ProductView) {
 	}
 }
 
-// productSpecs is the 規格表 the product page prints. A table, because it
-// IS one on the storefront and a staff member is checking it row for row.
+// productSpecs is the 規格表 the product page prints, a table because it is one there.
 templ productSpecs(v ProductView) {
 	@components.Card(components.CardProps{Class: "goen-admin__section", Attrs: templ.Attributes{"id": "sec-specs"}}) {
 		<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminProdSpecs) }</h2>
@@ -1083,9 +1066,6 @@ templ productSpecs(v ProductView) {
 	}
 }
 
-// productPublishing is whether the shop sells it, in the page head where the
-// state it changes is named. One form, three buttons, each only where the
-// move is legal.
 templ productPublishing(v ProductView) {
 	if v.NeedsVariant() {
 		<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminProdNeedsVariant) }</p>

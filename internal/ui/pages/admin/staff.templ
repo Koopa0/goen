@@ -8,12 +8,9 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// Staff renders who can reach the back office, and who is protected.
-//
-// Each row's two writes are two forms of one field each, so revoking somebody
-// carries their id and nothing else: a single form with a name attribute per
-// button would let a browser that submits the wrong one act on the wrong
-// person.
+// Each row's two writes are two forms of one field each, so revoking somebody carries
+// their id and nothing else: one form with a name attribute per button would let a
+// browser that submits the wrong one act on the wrong person.
 templ Staff(p layouts.Page, v StaffView) {
 	@layouts.Admin(p, "staff") {
 		<div class="ui-page-head">

@@ -13,10 +13,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
-// MaxQuestionRows bounds the queue.
 const MaxQuestionRows = 50
 
-// Questions reads what customers have asked, unanswered first.
 func (s *Store) Questions(ctx context.Context) (admin.QuestionsView, error) {
 	rows, err := s.q.UnansweredQuestions(ctx, MaxQuestionRows)
 	if err != nil {
@@ -35,7 +33,6 @@ func (s *Store) Questions(ctx context.Context) (admin.QuestionsView, error) {
 	return view, nil
 }
 
-// HideQuestion takes a question off the product page. Its answers go with it.
 func (s *Store) HideQuestion(ctx context.Context, id string) error {
 	qID, err := uuid.Parse(id)
 	if err != nil {
@@ -93,5 +90,4 @@ func (s *Store) AnswerQuestion(ctx context.Context, id, userID, body string) err
 		})
 }
 
-// MaxStaffAnswerRunes bounds the shop's reply, in RUNES.
 const MaxStaffAnswerRunes = 1000

@@ -21,8 +21,6 @@ import (
 
 const maxAssessmentBasisRunes = 500
 
-// FormRefusalError is a decision or assessment the advertised policy (or the
-// form) refused, naming the control the queue should mark.
 type FormRefusalError struct {
 	Field string
 	Kind  returns.RefusalKind
@@ -64,8 +62,6 @@ func requireExceptionReason(kind returns.DecisionKind, resolution string) error 
 // Diagnostics stay out of the rendered page but cross the Store boundary so
 // the handler can record quantitative source inconsistencies.
 type ReturnQueue struct {
-	// Bound is what the page says about its own edge: the queue reads one row
-	// more than it shows and drops it here.
 	Bound        pages.ListBound
 	Rows         []admin.Return
 	payoutIssues []returnPayoutIssue
@@ -76,7 +72,6 @@ type returnPayoutIssue struct {
 	err      error
 }
 
-// Returns reads the back-office queue.
 func (s *Store) Returns(ctx context.Context, after ...string) (ReturnQueue, error) {
 	scope := "/admin/returns"
 	cursor := readPageCursor(scope, after)
@@ -585,8 +580,7 @@ func returnDecisionAudit(
 type refundSplit struct {
 	// Card is refunded through the provider. Zero means there is no provider
 	// call to make, which is the wholly-credit-funded case.
-	Card int64
-	// Credit is posted to the ledger as a new positive entry.
+	Card   int64
 	Credit int64
 }
 
@@ -662,7 +656,6 @@ func (s *Store) payReturnCreditSource(
 	}); err != nil {
 		return false, fmt.Errorf("compensate return %s with credit: %w", returnID, err)
 	}
-	// The ledger post is synchronous and committed, even without a provider ref.
 	return true, nil
 }
 
@@ -829,7 +822,6 @@ func refundProviderResult(providerRef string, state RefundState) (string, Refund
 	}
 }
 
-// LineEligibility is one line's three observed facts from the assess form.
 type LineEligibility struct {
 	OrderLineID uuid.UUID
 	Unused      string
@@ -959,7 +951,6 @@ func (s *Store) Assess(ctx context.Context, id, basis string, facts []LineEligib
 	return nil
 }
 
-// closeReturn stamps the decision and appends to the order's history, together.
 func (s *Store) closeReturn(
 	ctx context.Context,
 	requestID uuid.UUID,
@@ -1114,16 +1105,11 @@ func overlayEligibilityFacts(
 	return lines
 }
 
-// ReturnLineInspection is what a staff member found in one line of a parcel.
 type ReturnLineInspection struct {
 	OrderLineID uuid.UUID
-	// Received is how many units actually arrived, which may be fewer than the
-	// customer said they were sending.
-	Received int32
-	// Restocked is how many of them went back on the shelf; Note says why the
-	// rest did not.
-	Restocked int32
-	Note      string
+	Received    int32
+	Restocked   int32
+	Note        string
 }
 
 // checkInspection refuses counts return_request_lines_restocked_bounded would
