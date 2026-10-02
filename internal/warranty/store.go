@@ -16,12 +16,10 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
-// Store is the database side of warranty registration.
 type Store struct {
 	q *db.Queries
 }
 
-// NewStore returns a Store over pool.
 func NewStore(pool *pgxpool.Pool) *Store {
 	if pool == nil {
 		panic("warranty: NewStore requires a pool")
@@ -29,7 +27,6 @@ func NewStore(pool *pgxpool.Pool) *Store {
 	return &Store{q: db.New(pool)}
 }
 
-// Registrable is what a customer may still register on one order.
 func (s *Store) Registrable(ctx context.Context, orderNumber, userID string) (pages.WarrantyOrderView, error) {
 	owner, err := uuid.Parse(userID)
 	if err != nil {
@@ -60,9 +57,8 @@ func (s *Store) Registrable(ctx context.Context, orderNumber, userID string) (pa
 	return view, nil
 }
 
-// Register records cover for one unit. Ownership, delivery and the term are all
-// in the statement's WHERE clause, so they are decided under the same read the
-// insert uses.
+// Register decides ownership, delivery and the term in the statement's WHERE
+// clause, under the same read the insert uses.
 func (s *Store) Register(ctx context.Context, lineID, userID, serial string, unit int) error {
 	owner, err := uuid.Parse(userID)
 	if err != nil {
@@ -100,13 +96,11 @@ func (s *Store) Register(ctx context.Context, lineID, userID, serial string, uni
 		return fmt.Errorf("register warranty: %w", err)
 	}
 	if n == 0 {
-		// The WHERE clause refused: not owned, not delivered, or no term set.
 		return ErrNotRegistrable
 	}
 	return nil
 }
 
-// Mine is what this customer has registered.
 func (s *Store) Mine(ctx context.Context, userID string) ([]pages.Warranty, error) {
 	owner, err := uuid.Parse(userID)
 	if err != nil {

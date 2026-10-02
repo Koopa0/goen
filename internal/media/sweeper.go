@@ -7,10 +7,8 @@ import (
 	"time"
 )
 
-// SweepInterval is how often abandoned uploads are reclaimed.
 const SweepInterval = time.Hour
 
-// SweepBatch bounds one pass.
 const SweepBatch = 100
 
 // SweepGrace is how long an upload is left alone before it counts as abandoned.
@@ -36,7 +34,6 @@ func (s *Store) Reclaim(ctx context.Context, digest string) (bool, error) {
 	return gone > 0, nil
 }
 
-// Sweep reclaims uploads nothing points at, once.
 func (s *Store) Sweep(ctx context.Context, log *slog.Logger) (reclaimed int, err error) {
 	digests, err := s.Candidates(ctx, SweepBatch)
 	if err != nil {
@@ -64,7 +61,6 @@ func (s *Store) Sweep(ctx context.Context, log *slog.Logger) (reclaimed int, err
 	return reclaimed, nil
 }
 
-// SweepForever runs Sweep on a ticker until ctx is cancelled.
 func (s *Store) SweepForever(ctx context.Context, log *slog.Logger) {
 	ticker := time.NewTicker(SweepInterval)
 	defer ticker.Stop()
