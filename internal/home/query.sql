@@ -184,52 +184,63 @@ WHERE parent_id IS NOT NULL
 ORDER BY position, name, id;
 
 -- Each department's three newest products that can be bought, for its header
--- panel. One read for all of them, like ChildCategories. A product sits on a
--- sub-category, so the tree maps every category to its root first. The price
--- is the cheapest buyable variant's, the one a tile would state.
+-- panel. One read for all of them, like ChildCategories, on every page with a
+-- header, so its cost is bounded by the number of categories and never by the
+-- catalogue: each category reads newest-first off
+-- products_category_published_idx and stops at its third buyable product, and
+-- a department's three newest are among its categories' three newest. Only
+-- those few rows are ranked per department, and only the three kept are priced
+-- and given a picture. The price is the cheapest buyable variant's, the one a
+-- tile would state.
 -- name: NavPicks :many
 WITH RECURSIVE tree AS (
     SELECT id, id AS root FROM categories WHERE parent_id IS NULL
     UNION ALL
     SELECT k.id, t.root FROM categories k JOIN tree t ON k.parent_id = t.id
-)
-SELECT r.id AS root_id, pick.slug, pick.name, pick.price_cents, pick.price_varies,
-       pick.image_key, pick.image_width
-FROM categories r
-CROSS JOIN LATERAL (
-    SELECT p.slug,
-           localized_name(p.name, p.name_en, @locale::text) AS name,
-           p.published_at,
-           p.id,
-           mv.price_cents,
-           EXISTS (
-               SELECT 1 FROM product_variants dv
-               WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
-           ) AS price_varies,
-           coalesce(img.storage_key, '') AS image_key,
-           coalesce(img.width, 0)::integer AS image_width
+),
+recent AS (
+    SELECT t.root, p.id, p.slug, p.name, p.name_en, p.published_at,
+           row_number() OVER (PARTITION BY t.root ORDER BY p.published_at DESC, p.id DESC) AS nth
     FROM tree t
-    JOIN products p ON p.category_id = t.id AND p.status = 'active'
-    JOIN LATERAL (
-        SELECT price_cents
-        FROM product_variants
-        WHERE product_id = p.id AND is_active AND stock_quantity > safety_stock
-        ORDER BY price_cents
-        LIMIT 1
-    ) mv ON true
-    LEFT JOIN LATERAL (
-        SELECT storage_key, width
-        FROM product_images
-        WHERE product_id = p.id
-        ORDER BY position
-        LIMIT 1
-    ) img ON true
-    WHERE t.root = r.id
-    ORDER BY p.published_at DESC, p.id DESC
-    LIMIT 3
-) pick
-WHERE r.parent_id IS NULL
-ORDER BY r.id, pick.published_at DESC, pick.id DESC;
+    CROSS JOIN LATERAL (
+        SELECT p.id, p.slug, p.name, p.name_en, p.published_at
+        FROM products p
+        WHERE p.category_id = t.id AND p.status = 'active'
+          AND EXISTS (
+              SELECT 1 FROM product_variants v
+              WHERE v.product_id = p.id AND v.is_active AND v.stock_quantity > v.safety_stock
+          )
+        ORDER BY p.published_at DESC, p.id DESC
+        LIMIT 3
+    ) p
+)
+SELECT r.root AS root_id,
+       r.slug,
+       localized_name(r.name, r.name_en, @locale::text) AS name,
+       mv.price_cents,
+       EXISTS (
+           SELECT 1 FROM product_variants dv
+           WHERE dv.product_id = r.id AND dv.is_active AND dv.price_cents > mv.price_cents
+       ) AS price_varies,
+       coalesce(img.storage_key, '') AS image_key,
+       coalesce(img.width, 0)::integer AS image_width
+FROM recent r
+JOIN LATERAL (
+    SELECT price_cents
+    FROM product_variants
+    WHERE product_id = r.id AND is_active AND stock_quantity > safety_stock
+    ORDER BY price_cents
+    LIMIT 1
+) mv ON true
+LEFT JOIN LATERAL (
+    SELECT storage_key, width
+    FROM product_images
+    WHERE product_id = r.id
+    ORDER BY position
+    LIMIT 1
+) img ON true
+WHERE r.nth <= 3
+ORDER BY r.root, r.published_at DESC, r.id DESC;
 
 -- with_pickup is false where the store map is not configured: checkout offers no
 -- pickup there, so a floor or threshold that counted it would promise a price
