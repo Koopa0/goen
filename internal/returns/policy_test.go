@@ -2,6 +2,7 @@ package returns
 
 import (
 	"errors"
+	"strings"
 	"testing"
 )
 
@@ -269,5 +270,27 @@ func TestRequestWindowKeepsMixedLinesMixed(t *testing.T) {
 		{Window: WindowStatutory},
 	}); got != WindowStatutory {
 		t.Errorf("RequestWindow(two statutory) = %q, want within", got)
+	}
+}
+
+func TestReturnResolutionUsesTheDurableCharacterBound(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		text string
+		want bool
+	}{
+		{name: "empty is optional", want: true},
+		{name: "three hundred multibyte characters", text: strings.Repeat("界", 300), want: true},
+		{name: "three hundred and one characters", text: strings.Repeat("界", 301)},
+		{name: "invalid UTF-8 is not PostgreSQL text", text: string([]byte{0xff})},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := ValidResolution(tt.text); got != tt.want {
+				t.Errorf("ValidResolution() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }

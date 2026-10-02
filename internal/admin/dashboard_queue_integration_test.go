@@ -17,7 +17,7 @@ import (
 // for a request already filed that window is not the operator's clock.
 func TestTheDashboardShowsHowLongTheOldestOpenReturnHasWaited(t *testing.T) {
 	isolated := admintest.Pool(t)
-	s := admin.NewStore(isolated, fakeRefunder{}, nil, nil)
+	s := admin.NewStore(isolated, admintest.Refunder{}, nil, nil)
 
 	none, err := s.Dashboard(t.Context())
 	if err != nil {
@@ -48,7 +48,7 @@ func TestTheDashboardShowsHowLongTheOldestOpenReturnHasWaited(t *testing.T) {
 // must agree.
 func TestTheDashboardCountsQuestionsTheShopHasNotAnswered(t *testing.T) {
 	isolated := admintest.Pool(t)
-	s := admin.NewStore(isolated, fakeRefunder{}, nil, nil)
+	s := admin.NewStore(isolated, admintest.Refunder{}, nil, nil)
 	waiting := func() int64 {
 		t.Helper()
 		v, err := s.Dashboard(t.Context())

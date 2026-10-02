@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/koopa0/goen/internal/admin/refundstate"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
 )
@@ -203,7 +204,7 @@ func (m StuckMessage) Reason(ctx context.Context) string {
 type OpenRefund struct {
 	OrderNumber string
 	Key         string
-	Status      string
+	Status      refundstate.State
 	AmountCents int64
 	ProviderRef string
 	Since       string
@@ -213,16 +214,16 @@ func (r OpenRefund) Amount() string { return money.TWD(r.AmountCents) }
 
 func (r OpenRefund) StatusText(ctx context.Context) string {
 	switch r.Status {
-	case "pending":
+	case refundstate.Pending:
 		return i18n.T(ctx, i18n.KeyHealthRefundPending)
-	case "requires_action":
+	case refundstate.RequiresAction:
 		return i18n.T(ctx, i18n.KeyHealthRefundAction)
-	case "failed":
+	case refundstate.Failed:
 		return i18n.T(ctx, i18n.KeyHealthRefundFailed)
-	case "cancelled":
+	case refundstate.Cancelled:
 		return i18n.T(ctx, i18n.KeyHealthRefundCancelled)
 	default:
-		return r.Status
+		return string(r.Status)
 	}
 }
 

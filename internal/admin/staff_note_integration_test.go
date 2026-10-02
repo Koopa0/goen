@@ -18,6 +18,7 @@ import (
 
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/admin"
+	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/audit"
 	pagesadmin "github.com/koopa0/goen/internal/ui/pages/admin"
 )
@@ -39,14 +40,14 @@ func staffNotePool(t *testing.T) *pgxpool.Pool {
 
 func staffNoteStore(t *testing.T) *admin.Store {
 	t.Helper()
-	return admin.NewStore(staffNotePool(t), fakeRefunder{}, nil, nil)
+	return admin.NewStore(staffNotePool(t), admintest.Refunder{}, nil, nil)
 }
 
 func TestStaffNoteHTTPRecordsOperationsWithoutContent(t *testing.T) {
 	ctx, actor := staffContext(t)
 	number, orderID, _ := pendingOrderHoldingStock(t)
 	p := staffNotePool(t)
-	h := adminHandlerOver(pool, admin.NewStore(p, fakeRefunder{}, nil, nil))
+	h := adminHandlerOver(pool, admin.NewStore(p, admintest.Refunder{}, nil, nil))
 	for _, step := range []struct{ note, action string }{
 		{"private first note", "order.note.create"},
 		{"private replacement", "order.note.replace"},

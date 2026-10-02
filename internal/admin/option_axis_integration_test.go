@@ -22,7 +22,7 @@ import (
 
 func TestOptionAxesMustPrecedeVariants(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	s := admin.NewStore(pool, admintest.Refunder{}, nil, nil)
 	slug := draftProduct(t, ctx, s)
 	if errs, err := s.AddVariant(ctx, slug, &admin.VariantForm{SKU: "AXIS-" + strings.ToUpper(uuid.NewString()[:8]), PriceCents: 10000}); err != nil || len(errs) != 0 {
 		t.Fatalf("create optionless SKU: %v %v", err, errs)
@@ -82,7 +82,7 @@ func TestOptionAxisAndVariantCreationSerialize(t *testing.T) {
 			ctx, _ := staffContext(t)
 			ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 			defer cancel()
-			s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+			s := admin.NewStore(pool, admintest.Refunder{}, nil, nil)
 			slug := draftProduct(t, ctx, s)
 			first, err := pool.Begin(ctx)
 			if err != nil {
@@ -109,7 +109,7 @@ func TestOptionAxisAndVariantCreationSerialize(t *testing.T) {
 			if _, err := other.Exec(ctx, `SET ROLE admin`); err != nil {
 				t.Fatal(err)
 			}
-			writer := admin.NewStore(other, fakeRefunder{}, nil, nil)
+			writer := admin.NewStore(other, admintest.Refunder{}, nil, nil)
 			type outcome struct {
 				fields map[string]string
 				err    error
@@ -143,7 +143,7 @@ func TestOptionAxisAndVariantCreationSerialize(t *testing.T) {
 
 func TestTwoVariantsCannotShareAnOptionCombination(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	s := admin.NewStore(pool, admintest.Refunder{}, nil, nil)
 	slug := draftProduct(t, ctx, s)
 
 	for _, axis := range []string{"Colour", "Edition"} {

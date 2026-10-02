@@ -22,7 +22,7 @@ import (
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/account"
-	"github.com/koopa0/goen/internal/admin"
+	"github.com/koopa0/goen/internal/admin/refunds"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/web"
@@ -1035,7 +1035,7 @@ func TestOnlyTheSecurePosturePinsHTTPS(t *testing.T) {
 	} {
 		router := newRouter(&RouterConfig{
 			Pool: idle, AdminPool: idle, Payments: gateway,
-			Refunder: admin.NewRefunder(""), BaseURL: "https://goen.test",
+			Refunder: refunds.NewRefunder(""), BaseURL: "https://goen.test",
 			SecureCookies: tt.secure,
 		}, slog.New(slog.DiscardHandler))
 		// A probe reaches no database, so the idle pool answers for nothing.
@@ -1067,7 +1067,7 @@ func TestSharePreviewNamesTheConfiguredOriginNotTheRequestHost(t *testing.T) {
 	}
 	router := newRouter(&RouterConfig{
 		Pool: idle, AdminPool: idle, Payments: gateway,
-		Refunder: admin.NewRefunder(""), BaseURL: "https://goen.test",
+		Refunder: refunds.NewRefunder(""), BaseURL: "https://goen.test",
 	}, slog.New(slog.DiscardHandler))
 
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/about", http.NoBody)

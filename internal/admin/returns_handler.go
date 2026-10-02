@@ -11,6 +11,7 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/admin/audit"
+	"github.com/koopa0/goen/internal/admin/refunds"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -54,14 +55,14 @@ func (h *Handler) Decide(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case err == nil:
 		http.Redirect(w, r, "/admin/returns?ok=1", http.StatusSeeOther)
-	case errors.Is(err, ErrRefundIncomplete):
+	case errors.Is(err, refunds.ErrIncomplete):
 		// A payout may preserve a database refusal as its cause, but once approval
 		// committed the operator needs the recovery notice, not the generic
 		// "decision refused" notice. Test this before ErrRefused.
 		h.log.ErrorContext(r.Context(), "decide return",
 			"return", r.PathValue("id"), "error", err)
 		http.Redirect(w, r, "/admin/returns?refundfailed=1", http.StatusSeeOther)
-	case errors.Is(err, ErrInvalid), errors.Is(err, ErrRefused):
+	case errors.Is(err, ErrInvalid), errors.Is(err, ErrRefused), errors.Is(err, refunds.ErrRefused):
 		h.log.WarnContext(r.Context(), "return decision refused",
 			"return", r.PathValue("id"), "error", err)
 		if h.renderReturnRefusal(w, r, err) {

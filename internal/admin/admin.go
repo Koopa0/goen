@@ -20,11 +20,7 @@ var (
 	// own, because that names the rule.
 	ErrRefused = errors.New("admin: refused")
 
-	// ErrRefundIncomplete is a return that WAS approved and whose money did not
-	// go: the decision stands and cannot be retaken, and the refund claim has
-	// already committed a `pending` row keyed on the return.
-	ErrRefundIncomplete = errors.New("admin: the return is approved and the refund did not complete")
-	ErrInvalid          = errors.New("admin: invalid input")
+	ErrInvalid = errors.New("admin: invalid input")
 	// ErrCarrier is a dispatch naming a carrier that cannot carry this order's
 	// parcel: a store order goes with its chain's carrier, a home delivery with a
 	// home carrier.
@@ -33,9 +29,6 @@ var (
 	// ErrPaidCancel is the status form asked to cancel a paid order. A paid
 	// order is cancelled only by refunding it before shipment.
 	ErrPaidCancel = errors.New("admin: a paid order is cancelled by refunding it before shipment")
-	// ErrRefundUnsettled is a refund before shipment whose card refund Stripe
-	// accepted and has not settled; the order stays open until a resume sees it land.
-	ErrRefundUnsettled = errors.New("admin: the refund is recorded and has not settled")
 )
 
 const PageSize = web.PageSize

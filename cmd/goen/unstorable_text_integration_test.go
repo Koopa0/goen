@@ -11,7 +11,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/account"
-	"github.com/koopa0/goen/internal/admin"
+	"github.com/koopa0/goen/internal/admin/refunds"
 	"github.com/koopa0/goen/internal/payment"
 )
 
@@ -28,7 +28,7 @@ func TestUnstorableTextNeverReachesTheDatabase(t *testing.T) {
 	}
 	router := newRouter(&RouterConfig{
 		Pool: pool, AdminPool: pool, Payments: gateway,
-		Refunder: admin.NewRefunder(""), BaseURL: "http://127.0.0.1",
+		Refunder: refunds.NewRefunder(""), BaseURL: "http://127.0.0.1",
 	}, slog.New(slog.DiscardHandler))
 
 	staffEmail := "unstorable-" + uuid.NewString() + "@goen.invalid"

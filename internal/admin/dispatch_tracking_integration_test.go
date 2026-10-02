@@ -12,12 +12,13 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/admin"
+	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/i18n"
 )
 
 func TestDispatchWithARecordedTrackingNumberIsRefusedOnTheField(t *testing.T) {
 	ctx, staff := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	s := admin.NewStore(pool, admintest.Refunder{}, nil, nil)
 	h := adminHandlerOver(pool, s)
 	first, second := shippableOrder(t, "zh-Hant"), shippableOrder(t, "zh-Hant")
 	tracking := "DUP-" + uuid.NewString()[:8]

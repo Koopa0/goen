@@ -17,6 +17,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/admin"
+	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/i18n"
 )
 
@@ -147,7 +148,7 @@ func TestDeliveryCorrectionRefusesEveryCrossZoneMove(t *testing.T) {
 				t.Fatal(err)
 			}
 			before := deliveryMoneySnapshot(t, f.id)
-			err := admin.NewStore(pool, fakeRefunder{}, nil, nil).CorrectDelivery(ctx, f.number, proposedDelivery(f.newPostal))
+			err := admin.NewStore(pool, admintest.Refunder{}, nil, nil).CorrectDelivery(ctx, f.number, proposedDelivery(f.newPostal))
 			zoneRefusal(t, err, i18n.KeyDeliveryZoneChanged)
 			if got := streetOf(t, f.number); got != "Saved street" {
 				t.Fatalf("refusal saved %q", got)
@@ -173,7 +174,7 @@ func TestEditingASurchargeAfterTheOrderNeverOpensACrossZoneCorrection(t *testing
 		if _, err := pool.Exec(ctx, `DELETE FROM shipping_version_zones WHERE version_id=$1`, f.version); err != nil {
 			t.Fatal(err)
 		}
-		err := admin.NewStore(pool, fakeRefunder{}, nil, nil).CorrectDelivery(ctx, f.number, proposedDelivery(f.newPostal))
+		err := admin.NewStore(pool, admintest.Refunder{}, nil, nil).CorrectDelivery(ctx, f.number, proposedDelivery(f.newPostal))
 		zoneRefusal(t, err, i18n.KeyDeliveryZoneChanged)
 		if got := streetOf(t, f.number); got != "Saved street" {
 			t.Fatalf("refusal saved %q", got)
@@ -185,7 +186,7 @@ func TestEditingASurchargeAfterTheOrderNeverOpensACrossZoneCorrection(t *testing
 		if _, err := pool.Exec(ctx, `INSERT INTO shipping_version_zones(version_id,zone_id,surcharge_cents) VALUES($1,$2,15000)`, f.version, f.oldZone); err != nil {
 			t.Fatal(err)
 		}
-		if err := admin.NewStore(pool, fakeRefunder{}, nil, nil).CorrectDelivery(ctx, f.number, proposedDelivery(f.siblingP)); err != nil {
+		if err := admin.NewStore(pool, admintest.Refunder{}, nil, nil).CorrectDelivery(ctx, f.number, proposedDelivery(f.siblingP)); err != nil {
 			t.Fatalf("same-zone correction refused after a rate edit: %v", err)
 		}
 	})
@@ -198,7 +199,7 @@ func TestSameZoneCorrectionRetainsFrozenPriceAfterMethodRetires(t *testing.T) {
 		t.Fatal(err)
 	}
 	before := deliveryMoneySnapshot(t, f.id)
-	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	s := admin.NewStore(pool, admintest.Refunder{}, nil, nil)
 	for _, postal := range []string{f.oldPostal, f.siblingP, f.siblingP + "123"} {
 		if err := s.CorrectDelivery(ctx, f.number, proposedDelivery(postal)); err != nil {
 			t.Fatal(err)
@@ -220,7 +221,7 @@ func TestDeliveryCorrectionCannotPlaceAnAbsentOriginalPostcode(t *testing.T) {
 	if _, err := pool.Exec(ctx, `UPDATE order_private_data SET postal_code=NULL,city=NULL,district=NULL,street=NULL,pickup_chain='family_mart' WHERE order_id=$1`, f.id); err != nil {
 		t.Fatal(err)
 	}
-	err := admin.NewStore(pool, fakeRefunder{}, nil, nil).CorrectDelivery(ctx, f.number, proposedDelivery(f.newPostal))
+	err := admin.NewStore(pool, admintest.Refunder{}, nil, nil).CorrectDelivery(ctx, f.number, proposedDelivery(f.newPostal))
 	zoneRefusal(t, err, i18n.KeyDeliveryZoneUnknown)
 }
 
@@ -231,7 +232,7 @@ func postDeliveryCorrection(ctx context.Context, t *testing.T, number, postal st
 	r.SetPathValue("number", number)
 	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	w := httptest.NewRecorder()
-	adminHandlerOver(pool, admin.NewStore(pool, fakeRefunder{}, nil, nil)).CorrectDelivery(w, r)
+	adminHandlerOver(pool, admin.NewStore(pool, admintest.Refunder{}, nil, nil)).CorrectDelivery(w, r)
 	return w
 }
 
@@ -292,7 +293,7 @@ func TestDeliveryCorrectionRechecksTerminalStateAfterLock(t *testing.T) {
 			defer cancel()
 			done := make(chan error, 1)
 			go func() {
-				done <- admin.NewStore(pool, fakeRefunder{}, nil, nil).CorrectDelivery(workerCtx, f.number, proposedDelivery(f.newPostal))
+				done <- admin.NewStore(pool, admintest.Refunder{}, nil, nil).CorrectDelivery(workerCtx, f.number, proposedDelivery(f.newPostal))
 			}()
 			waitForDeliveryLock(t, blocker.Conn().PgConn().PID())
 			if _, err = blocker.Exec(ctx, `UPDATE orders SET fulfillment_status=$2 WHERE id=$1`, f.id, state); err != nil {
@@ -327,7 +328,7 @@ func TestDeliveryCorrectionReadsPostalAfterWaitingForPriorCorrection(t *testing.
 	defer cancel()
 	done := make(chan error, 1)
 	go func() {
-		done <- admin.NewStore(pool, fakeRefunder{}, nil, nil).CorrectDelivery(workerCtx, f.number, proposedDelivery(f.newPostal+"123"))
+		done <- admin.NewStore(pool, admintest.Refunder{}, nil, nil).CorrectDelivery(workerCtx, f.number, proposedDelivery(f.newPostal+"123"))
 	}()
 	waitForDeliveryLock(t, blocker.Conn().PgConn().PID())
 	if _, err = blocker.Exec(ctx, `UPDATE order_private_data SET postal_code=$2 WHERE order_id=$1`, f.id, f.newPostal); err != nil {

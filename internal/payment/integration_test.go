@@ -29,6 +29,7 @@ import (
 	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/admin/health"
+	"github.com/koopa0/goen/internal/admin/refunds"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/db/dbtest"
@@ -1698,7 +1699,7 @@ func TestPickingACreditFundedOrderQueuesNoInvoice(t *testing.T) {
 	spendCreditOnOrder(t, orderID, -cents)
 
 	staff, actor := staffContext(t)
-	backOffice := admin.NewStore(adminRolePool(t), admin.NewRefunder(""), nil, nil)
+	backOffice := admin.NewStore(adminRolePool(t), refunds.NewRefunder(""), nil, nil)
 	if _, err := backOffice.Advance(staff, number, "picking", uuid.NullUUID{UUID: actor, Valid: true}); err != nil {
 		t.Fatalf("admin-role advance to picking: %v", err)
 	}
@@ -2367,7 +2368,7 @@ func TestAdminRoleCompletesCreditFundingOnPicking(t *testing.T) {
 	}
 
 	ctx, actor := staffContext(t)
-	backOffice := admin.NewStore(adminPool, admin.NewRefunder(""), nil, nil)
+	backOffice := admin.NewStore(adminPool, refunds.NewRefunder(""), nil, nil)
 	if _, err := backOffice.Advance(ctx, number, "picking", uuid.NullUUID{UUID: actor, Valid: true}); err != nil {
 		t.Fatalf("admin-role advance to picking: %v", err)
 	}
@@ -2521,7 +2522,7 @@ func staffContext(t *testing.T) (context.Context, uuid.UUID) {
 func advanceToPicking(t *testing.T, number string) {
 	t.Helper()
 	ctx, actor := staffContext(t)
-	backOffice := admin.NewStore(pool, admin.NewRefunder(""), nil, nil)
+	backOffice := admin.NewStore(pool, refunds.NewRefunder(""), nil, nil)
 	if _, err := backOffice.Advance(ctx, number, "picking", uuid.NullUUID{UUID: actor, Valid: true}); err != nil {
 		t.Fatalf("advance to picking: %v", err)
 	}

@@ -27,7 +27,7 @@ import (
 func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 	isolated := admintest.Pool(t)
 	ctx, _ := staffContextOn(t, isolated)
-	s := admin.NewStore(isolated, fakeRefunder{}, nil, nil)
+	s := admin.NewStore(isolated, admintest.Refunder{}, nil, nil)
 	customer := returns.NewStore(isolated)
 
 	t.Run("statutory blank reason cannot be rejected", func(t *testing.T) {
@@ -413,8 +413,8 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 			t.Fatalf("open day-15 return: %v", err)
 		}
 		requestID := openReturnIDOn(t, isolated, number)
-		stalled := admin.NewStore(isolated, fakeRefunder{
-			refundErr: errors.New("read tcp 1.2.3.4:443: i/o timeout"),
+		stalled := admin.NewStore(isolated, admintest.Refunder{
+			RefundErr: errors.New("read tcp 1.2.3.4:443: i/o timeout"),
 		}, nil, nil)
 		if err := stalled.Decide(ctx, requestID.String(), "exception", "beyond 14 days", "", uuid.NullUUID{}); err == nil {
 			t.Fatal("a timed-out exception payout was reported as complete")
@@ -423,7 +423,7 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 		if status != "approved" || refunds != 1 {
 			t.Fatalf("stalled exception is %q/%d, want approved/1", status, refunds)
 		}
-		healthy := admin.NewStore(isolated, fakeRefunder{}, nil, nil)
+		healthy := admin.NewStore(isolated, admintest.Refunder{}, nil, nil)
 		if err := healthy.Decide(ctx, requestID.String(), "approved", "", "", uuid.NullUUID{}); err != nil {
 			t.Fatalf("retry approved exception payout without a new reason: %v", err)
 		}
@@ -608,7 +608,7 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 
 func TestReviewClearedAssessmentBasisSurvivesRefusal(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	s := admin.NewStore(pool, admintest.Refunder{}, nil, nil)
 	customer := returns.NewStore(pool)
 
 	const storedBasis = "old evidence withdrawn by staff"
@@ -745,7 +745,7 @@ func TestReviewClearedAssessmentBasisSurvivesRefusal(t *testing.T) {
 func TestTwoStaffCannotBothRejectAStatutoryRequest(t *testing.T) {
 	isolated := admintest.Pool(t)
 	ctx, _ := staffContextOn(t, isolated)
-	s := admin.NewStore(isolated, fakeRefunder{}, nil, nil)
+	s := admin.NewStore(isolated, admintest.Refunder{}, nil, nil)
 	requestID := returnedOrderAtWithReasonOn(t, isolated,
 		mustRFC3339(t, "2026-01-01T07:00:00+08:00"),
 		mustRFC3339(t, "2026-01-06T12:00:00+08:00"),
@@ -773,7 +773,7 @@ func TestTwoStaffCannotBothRejectAStatutoryRequest(t *testing.T) {
 func TestTwoStaffStillSerialiseALateException(t *testing.T) {
 	isolated := admintest.Pool(t)
 	ctx, _ := staffContextOn(t, isolated)
-	s := admin.NewStore(isolated, fakeRefunder{}, nil, nil)
+	s := admin.NewStore(isolated, admintest.Refunder{}, nil, nil)
 	requestID := returnedOrderAtWithReasonOn(t, isolated,
 		mustRFC3339(t, "2026-01-01T12:00:00+08:00"),
 		mustRFC3339(t, "2026-01-16T12:00:00+08:00"),

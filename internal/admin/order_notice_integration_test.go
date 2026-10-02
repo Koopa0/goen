@@ -4,7 +4,6 @@ package admin_test
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"testing"
 
@@ -13,6 +12,7 @@ import (
 
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/admin"
+	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/email"
@@ -22,33 +22,13 @@ import (
 
 func terminalNotice(t *testing.T, id uuid.UUID, want email.TerminalKind) {
 	t.Helper()
-	assertTerminalNotice(t, id, want, false)
-}
-
-func assertTerminalNotice(t *testing.T, id uuid.UUID, want email.TerminalKind, wantRefunded bool) {
-	t.Helper()
-	var payload []byte
-	if err := pool.QueryRow(t.Context(), `SELECT payload FROM outbox_messages WHERE topic=$1 AND dedupe_key=$2`, outbox.TopicOrderTerminal.Name(), id.String()+":"+string(want)).Scan(&payload); err != nil {
-		t.Fatalf("missing terminal notice: %v", err)
-	}
-	var fields map[string]json.RawMessage
-	if err := json.Unmarshal(payload, &fields); err != nil {
-		t.Fatal(err)
-	}
-	var orderID, kind string
-	var refunded bool
-	if len(fields) != 3 ||
-		json.Unmarshal(fields["order_id"], &orderID) != nil || orderID != id.String() ||
-		json.Unmarshal(fields["kind"], &kind) != nil || kind != string(want) ||
-		json.Unmarshal(fields["refunded"], &refunded) != nil || refunded != wantRefunded {
-		t.Fatalf("notice contains wrong event or private data: %s", payload)
-	}
+	admintest.AssertTerminalNotice(t, pool, id, want, false)
 }
 
 func TestTerminalCancellationNoticesFollowCommittedActor(t *testing.T) {
 	ctx, _ := staffContext(t)
 	number, id, _ := pendingOrderHoldingStock(t)
-	if _, err := admin.NewStore(pool, fakeRefunder{}, nil, nil).Advance(ctx, number, "cancelled", uuid.NullUUID{}); err != nil {
+	if _, err := admin.NewStore(pool, admintest.Refunder{}, nil, nil).Advance(ctx, number, "cancelled", uuid.NullUUID{}); err != nil {
 		t.Fatal(err)
 	}
 	terminalNotice(t, id, email.TerminalCancelledByStaff)
@@ -65,7 +45,7 @@ func TestTerminalCancellationNoticesFollowCommittedActor(t *testing.T) {
 func TestTerminalArrivalIsNotRequeuedAfterCompletionOrOutboxRetention(t *testing.T) {
 	ctx, _ := staffContext(t)
 	number, id := pickingOrderHoldingStock(t)
-	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	s := admin.NewStore(pool, admintest.Refunder{}, nil, nil)
 	if err := s.Ship(ctx, number, admin.Dispatch{Carrier: "black_cat", Tracking: uuid.NewString()}, uuid.NullUUID{}); err != nil {
 		t.Fatal(err)
 	}
@@ -91,7 +71,7 @@ func TestTerminalArrivalIsNotRequeuedAfterCompletionOrOutboxRetention(t *testing
 func TestFailedAdvanceRollsBackItsTerminalNotice(t *testing.T) {
 	number, id, _ := pendingOrderHoldingStock(t)
 	ctx := web.WithRequestID(account.WithUser(t.Context(), account.User{ID: uuid.NewString(), Role: "admin"}), "missing-audit-actor")
-	if _, err := admin.NewStore(pool, fakeRefunder{}, nil, nil).Advance(ctx, number, "cancelled", uuid.NullUUID{}); err == nil {
+	if _, err := admin.NewStore(pool, admintest.Refunder{}, nil, nil).Advance(ctx, number, "cancelled", uuid.NullUUID{}); err == nil {
 		t.Fatal("advance accepted missing audit actor")
 	}
 	var status string
@@ -147,7 +127,7 @@ func TestPickupCompletionQueuesCollectionWithoutADeliveryNotice(t *testing.T) {
 	if err := tx.Commit(t.Context()); err != nil {
 		t.Fatal(err)
 	}
-	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	s := admin.NewStore(pool, admintest.Refunder{}, nil, nil)
 	if err := s.Ship(ctx, number, admin.Dispatch{Carrier: "seven_eleven", Tracking: uuid.NewString()}, uuid.NullUUID{}); err != nil {
 		t.Fatal(err)
 	}

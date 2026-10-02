@@ -1,7 +1,6 @@
 package admin
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -9,7 +8,6 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/google/uuid"
 
@@ -22,6 +20,7 @@ import (
 	"github.com/koopa0/goen/internal/media"
 	"github.com/koopa0/goen/internal/newsletter"
 	"github.com/koopa0/goen/internal/outbox"
+	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/pgerr"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -35,13 +34,9 @@ type Handler struct {
 	letters *newsletter.Store
 	// sessions closes a cancelled order's checkout at the payment provider. Nil
 	// on a deployment with no Stripe key, where no session was ever opened.
-	sessions SessionCloser
+	sessions payment.SessionCloser
 	store    *Store
 	log      *slog.Logger
-}
-
-type SessionCloser interface {
-	ExpireSession(ctx context.Context, sessionID string) error
 }
 
 type HandlerDeps struct {
@@ -50,7 +45,7 @@ type HandlerDeps struct {
 	Outbox   *outbox.Store
 	Letters  *newsletter.Store
 	Log      *slog.Logger
-	Sessions SessionCloser
+	Sessions payment.SessionCloser
 }
 
 func NewHandler(d HandlerDeps) *Handler {
@@ -61,30 +56,6 @@ func NewHandler(d HandlerDeps) *Handler {
 	return &Handler{
 		store: d.Store, images: d.Images, outbox: d.Outbox, letters: d.Letters,
 		log: d.Log, sessions: d.Sessions,
-	}
-}
-
-// closeSessions expires the checkouts a cancelled order left open at Stripe,
-// post-commit and best effort — the stock and the credit are already back.
-func (h *Handler) closeSessions(ctx context.Context, number string, sessions []string) {
-	if h.sessions == nil {
-		return
-	}
-
-	// The database cancellation has already committed. Keep request values for
-	// tracing, but do not let a client disconnect turn the provider cleanup into
-	// a no-op. One short budget bounds the whole best-effort batch.
-	const timeout = 5 * time.Second
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), timeout)
-	defer cancel()
-
-	for _, id := range sessions {
-		if err := h.sessions.ExpireSession(ctx, id); err != nil {
-			// Warn, not Error: Stripe refuses to expire anything but an OPEN
-			// session, so a checkout completed a moment ago lands here.
-			h.log.WarnContext(ctx, "expire checkout session of a cancelled order",
-				"order_number", number, "session_id", id, "error", err)
-		}
 	}
 }
 
@@ -143,7 +114,7 @@ func (h *Handler) AdvanceOrder(w http.ResponseWriter, r *http.Request) {
 	sessions, err := h.store.Advance(r.Context(), number, ParseStatus(r.PostFormValue("status")), audit.ActorID(r.Context()))
 	switch {
 	case err == nil:
-		h.closeSessions(r.Context(), number, sessions)
+		payment.CloseSessions(r.Context(), h.sessions, h.log, number, sessions)
 		http.Redirect(w, r, "/admin/orders/"+number+"?ok=1", http.StatusSeeOther) //nolint:gosec // G710: validated by ordernumber.Valid
 	case errors.Is(err, ErrPaidCancel), pgerr.IsConstraint(err, "orders_paid_cancel_needs_refund"):
 		http.Redirect(w, r, "/admin/orders/"+number+"?paidcancel=1", http.StatusSeeOther) //nolint:gosec // G710: validated by ordernumber.Valid

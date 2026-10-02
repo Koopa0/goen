@@ -23,7 +23,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/account"
-	"github.com/koopa0/goen/internal/admin"
+	"github.com/koopa0/goen/internal/admin/refunds"
 	"github.com/koopa0/goen/internal/admin/staff"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/email"
@@ -462,7 +462,7 @@ func run() error {
 	if demoErr != nil {
 		return demoErr
 	}
-	refunder := admin.NewRefunder(cfg.StripeAPIKey)
+	refunder := refunds.NewRefunder(cfg.StripeAPIKey)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

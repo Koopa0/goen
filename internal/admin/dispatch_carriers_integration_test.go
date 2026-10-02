@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/admin"
+	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/carrier"
 	"github.com/koopa0/goen/internal/i18n"
 )
@@ -22,7 +23,7 @@ import (
 // a store order's chain carries it, and a home delivery names no carrier code.
 func TestTheOrderPageCarriesTheCarriersTheDispatchFormOffers(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	s := admin.NewStore(pool, admintest.Refunder{}, nil, nil)
 
 	store, err := s.Order(ctx, pickupOrderForCorrection(t))
 	if err != nil {
@@ -59,7 +60,7 @@ func shipmentCount(t *testing.T, number string) int {
 // a crafted post names.
 func TestADispatchWithACarrierTheOrderCannotUseIsRefused(t *testing.T) {
 	ctx, staff := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	s := admin.NewStore(pool, admintest.Refunder{}, nil, nil)
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
 
 	home := shippableOrder(t, "zh-Hant")

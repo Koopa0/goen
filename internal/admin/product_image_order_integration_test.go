@@ -16,6 +16,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/admin"
+	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/product"
@@ -76,7 +77,7 @@ func imageOrder(t *testing.T, slug string) []string {
 // on every card.
 func TestSettingTheCoverAndReorderingChangesTheFirstImageEverywhere(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	s := admin.NewStore(pool, admintest.Refunder{}, nil, nil)
 	slug, token, keys := imageOrderProduct(t, 3)
 	firstEverywhere := func(want string) {
 		t.Helper()
@@ -139,7 +140,7 @@ func TestAStaleImageMoveIsRefusedWith422AndChangesNothing(t *testing.T) {
 	ctx, _ := staffContext(t)
 	ctx = i18n.WithLocale(ctx, i18n.En)
 	slug, _, keys := imageOrderProduct(t, 2)
-	h := adminHandlerOver(pool, admin.NewStore(pool, fakeRefunder{}, nil, nil))
+	h := adminHandlerOver(pool, admin.NewStore(pool, admintest.Refunder{}, nil, nil))
 	post := func(digest, move string) *httptest.ResponseRecorder {
 		values := url.Values{"digest": {digest}, "move": {move}}
 		r := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/products/"+slug+"/images/move", strings.NewReader(values.Encode()))
@@ -174,7 +175,7 @@ func TestAStaleImageMoveIsRefusedWith422AndChangesNothing(t *testing.T) {
 // order the other is about to replace, and no position is ever duplicated.
 func TestConcurrentImageReordersNeverDuplicateAPosition(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	s := admin.NewStore(pool, admintest.Refunder{}, nil, nil)
 	slug, _, keys := imageOrderProduct(t, 4)
 	var wg sync.WaitGroup
 	errs := make(chan error, 16)
@@ -206,7 +207,7 @@ func TestConcurrentImageReordersNeverDuplicateAPosition(t *testing.T) {
 // take the product's lock first, so neither can collide with the other.
 func TestConcurrentAttachAndReorderNeverCollideOnPosition(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	s := admin.NewStore(pool, admintest.Refunder{}, nil, nil)
 	slug, _, keys := imageOrderProduct(t, 3)
 	var wg sync.WaitGroup
 	errs := make(chan error, 32)
@@ -245,7 +246,7 @@ func TestConcurrentAttachAndReorderNeverCollideOnPosition(t *testing.T) {
 // order and the moves overwrite each other.
 func TestConcurrentMovesUpLoseNoUpdate(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	s := admin.NewStore(pool, admintest.Refunder{}, nil, nil)
 	slug, _, keys := imageOrderProduct(t, 4)
 	var wg sync.WaitGroup
 	errs := make(chan error, 3)

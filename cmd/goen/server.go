@@ -25,6 +25,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/feedback"
 	"github.com/koopa0/goen/internal/admin/health"
 	"github.com/koopa0/goen/internal/admin/loyalty"
+	"github.com/koopa0/goen/internal/admin/refunds"
 	"github.com/koopa0/goen/internal/admin/reports"
 	"github.com/koopa0/goen/internal/admin/shipping"
 	"github.com/koopa0/goen/internal/admin/staff"
@@ -98,7 +99,7 @@ type RouterConfig struct {
 	MaintenancePool *pgxpool.Pool
 	// Payments is Stripe, or is disabled and the payment page says so.
 	Payments *payment.Gateway
-	Refunder admin.Refunder
+	Refunder refunds.Refunder
 	BaseURL  string
 	// SecureCookies selects the __Host- cookie prefix.
 	SecureCookies bool
@@ -214,6 +215,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	trail := audit.NewHandler(audit.NewStore(adminPool), log)
 	figures := reports.NewHandler(reports.NewStore(adminPool), log)
 	warehouse := stock.NewHandler(stock.NewStore(adminPool), log)
+	refundDesk := refunds.NewHandler(refunds.NewStore(adminPool, refunder), sessionCloser(gateway), log)
 	delivery := shipping.NewHandler(shipping.NewStore(adminPool), cfg.StoreMap, log)
 	brands := taxonomy.NewHandler(taxonomy.NewStore(adminPool), adminImages, log)
 	shopfront := content.NewHandler(content.NewStore(adminPool), adminImages, newsletter.NewStore(adminPool), log)
@@ -379,6 +381,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	brands.Routes(mux, backOffice)
 	delivery.Routes(mux, backOffice)
 	warehouse.Routes(mux, backOffice)
+	refundDesk.Routes(mux, backOffice)
 	mux.HandleFunc("GET /admin/verify", backOffice.StaffOnly(factors.Challenge))
 	mux.HandleFunc("POST /admin/verify", backOffice.StaffOnly(factors.Verify))
 	mux.HandleFunc("POST /admin/verify/enrol", backOffice.StaffOnly(factors.Enrol))
@@ -921,7 +924,7 @@ func storefrontPath(path string) bool {
 	return true
 }
 
-// sessionCloser hands the gateway to the two cancel doors, or nothing at all.
+// sessionCloser hands the gateway to the cancel doors, or nothing at all.
 // It returns an explicitly nil interface rather than a nil *Gateway, because a
 // typed nil in an interface is non-nil and each handler's nil check would miss.
 func sessionCloser(g *payment.Gateway) cart.SessionCloser {

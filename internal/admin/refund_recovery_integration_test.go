@@ -16,6 +16,9 @@ import (
 
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/admin"
+	"github.com/koopa0/goen/internal/admin/admintest"
+	"github.com/koopa0/goen/internal/admin/refunds"
+	"github.com/koopa0/goen/internal/admin/refundstate"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -25,9 +28,9 @@ func TestRefundRecoveryAttributesEveryProviderAttempt(t *testing.T) {
 	returnID, _ := returnedOrder(t, 2)
 	calls := &atomic.Int64{}
 
-	stalled := admin.NewStore(pool, fakeRefunder{
-		refundErr: errors.New("read tcp 1.2.3.4:443: i/o timeout"),
-		sent:      calls,
+	stalled := admin.NewStore(pool, admintest.Refunder{
+		RefundErr: errors.New("read tcp 1.2.3.4:443: i/o timeout"),
+		Sent:      calls,
 	}, nil, nil)
 	if err := stalled.Decide(ctxA, returnID.String(), "approved", "refund recovery", "", uuid.NullUUID{
 		UUID: actorA, Valid: true,
@@ -35,7 +38,7 @@ func TestRefundRecoveryAttributesEveryProviderAttempt(t *testing.T) {
 		t.Fatal("a timed-out refund was reported as complete")
 	}
 
-	healthy := admin.NewStore(pool, fakeRefunder{sent: calls}, nil, nil)
+	healthy := admin.NewStore(pool, admintest.Refunder{Sent: calls}, nil, nil)
 	if err := healthy.Decide(ctxB, returnID.String(), "approved", "refund recovery", "", uuid.NullUUID{
 		UUID: actorB, Valid: true,
 	}); err != nil {
@@ -107,22 +110,22 @@ func TestRefundRecoveryAttributesEveryProviderAttempt(t *testing.T) {
 func TestEveryKnownTerminalRefundOutcomeGetsOneSuccessor(t *testing.T) {
 	tests := []struct {
 		name       string
-		refunder   fakeRefunder
+		refunder   admintest.Refunder
 		firstState string
 		firstRef   bool
 	}{
 		{
-			name: "failed provider object", refunder: fakeRefunder{state: admin.RefundFailed},
+			name: "failed provider object", refunder: admintest.Refunder{State: refundstate.Failed},
 			firstState: "failed", firstRef: true,
 		},
 		{
-			name: "cancelled provider object", refunder: fakeRefunder{state: admin.RefundCancelled},
+			name: "cancelled provider object", refunder: admintest.Refunder{State: refundstate.Cancelled},
 			firstState: "cancelled", firstRef: true,
 		},
 		{
 			name: "create API rejection",
-			refunder: fakeRefunder{refundErr: fmt.Errorf(
-				"%w: provider rejected create", admin.ErrRefundCreateRejected)},
+			refunder: admintest.Refunder{RefundErr: fmt.Errorf(
+				"%w: provider rejected create", refunds.ErrCreateRejected)},
 			firstState: "failed",
 		},
 	}
@@ -136,7 +139,7 @@ func TestEveryKnownTerminalRefundOutcomeGetsOneSuccessor(t *testing.T) {
 			); err == nil {
 				t.Fatal("terminal provider outcome was reported as a settled refund")
 			}
-			if err := admin.NewStore(pool, fakeRefunder{}, nil, nil).Decide(
+			if err := admin.NewStore(pool, admintest.Refunder{}, nil, nil).Decide(
 				ctx, returnID.String(), "approved", "terminal recovery", "", uuid.NullUUID{},
 			); err != nil {
 				t.Fatalf("retry terminal provider outcome: %v", err)
@@ -419,7 +422,7 @@ func TestRefundRecoveryRequiresActorAndRequestIDBeforeProviderCall(t *testing.T)
 			ctx, actor := tt.context(t)
 			returnID := preapprovedRefundRecoveryReturn(t)
 			calls := &atomic.Int64{}
-			s := admin.NewStore(pool, fakeRefunder{sent: calls}, nil, nil)
+			s := admin.NewStore(pool, admintest.Refunder{Sent: calls}, nil, nil)
 
 			if err := s.Decide(ctx, returnID.String(), "approved", "retry", "", actor); err == nil {
 				t.Fatal("refund execution without its durable request identity succeeded")
@@ -428,10 +431,10 @@ func TestRefundRecoveryRequiresActorAndRequestIDBeforeProviderCall(t *testing.T)
 				t.Errorf("provider Refund calls = %d, want zero", got)
 			}
 
-			var refunds, attempts int
+			var refundRows, attempts int
 			if err := pool.QueryRow(t.Context(),
 				`SELECT count(*) FROM refunds WHERE return_request_id = $1`, returnID).
-				Scan(&refunds); err != nil {
+				Scan(&refundRows); err != nil {
 				t.Fatalf("count refunds: %v", err)
 			}
 			if err := pool.QueryRow(t.Context(), `
@@ -441,9 +444,9 @@ func TestRefundRecoveryRequiresActorAndRequestIDBeforeProviderCall(t *testing.T)
 				Scan(&attempts); err != nil {
 				t.Fatalf("count attempt audits: %v", err)
 			}
-			if refunds != 0 || attempts != 0 {
+			if refundRows != 0 || attempts != 0 {
 				t.Errorf("missing identity left refunds/audits = %d/%d, want 0/0",
-					refunds, attempts)
+					refundRows, attempts)
 			}
 		})
 	}
@@ -454,7 +457,7 @@ func TestRefundAttemptAuditFailureRollsBackClaim(t *testing.T) {
 	returnID, _ := returnedOrder(t, 1)
 	installRefundAuditRejector(t, "refund.provider_attempt")
 	calls := &atomic.Int64{}
-	s := admin.NewStore(pool, fakeRefunder{sent: calls}, nil, nil)
+	s := admin.NewStore(pool, admintest.Refunder{Sent: calls}, nil, nil)
 
 	if err := s.Decide(ctx, returnID.String(), "approved", "audit rollback", "", uuid.NullUUID{
 		UUID: actor, Valid: true,
@@ -465,10 +468,10 @@ func TestRefundAttemptAuditFailureRollsBackClaim(t *testing.T) {
 		t.Errorf("provider Refund calls = %d, want zero before a durable attempt audit", got)
 	}
 
-	var refunds, attempts int
+	var refundRows, attempts int
 	if err := pool.QueryRow(t.Context(),
 		`SELECT count(*) FROM refunds WHERE return_request_id = $1`, returnID).
-		Scan(&refunds); err != nil {
+		Scan(&refundRows); err != nil {
 		t.Fatalf("count refunds: %v", err)
 	}
 	if err := pool.QueryRow(t.Context(), `
@@ -477,8 +480,8 @@ func TestRefundAttemptAuditFailureRollsBackClaim(t *testing.T) {
 		Scan(&attempts); err != nil {
 		t.Fatalf("count attempt audits: %v", err)
 	}
-	if refunds != 0 || attempts != 0 {
-		t.Errorf("failed claim left refunds/audits = %d/%d, want 0/0", refunds, attempts)
+	if refundRows != 0 || attempts != 0 {
+		t.Errorf("failed claim left refunds/audits = %d/%d, want 0/0", refundRows, attempts)
 	}
 }
 
@@ -487,7 +490,7 @@ func TestRefundSucceededAuditFailureRollsBackOutcome(t *testing.T) {
 	returnID, _ := returnedOrder(t, 1)
 	installRefundAuditRejector(t, "refund.provider_succeeded")
 	calls := &atomic.Int64{}
-	s := admin.NewStore(pool, fakeRefunder{sent: calls}, nil, nil)
+	s := admin.NewStore(pool, admintest.Refunder{Sent: calls}, nil, nil)
 
 	if err := s.Decide(ctx, returnID.String(), "approved", "audit rollback", "", uuid.NullUUID{
 		UUID: actor, Valid: true,

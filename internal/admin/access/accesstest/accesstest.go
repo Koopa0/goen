@@ -15,12 +15,13 @@ import (
 
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/admin/access"
+	"github.com/koopa0/goen/internal/i18n"
 )
 
 // RefuseOutsiders registers a feature's routes and asks each as somebody signed
-// out and as a signed-in customer. Both must get the 404 every outsider gets: a
+// out and as a signed-in customer. Both must get the page the guard answers: a
 // route registered without its guard would run the handler, which here has no
-// database behind it.
+// database behind it, or which may 404 by itself on a path value it refuses.
 func RefuseOutsiders(t *testing.T, register func(*http.ServeMux, *access.Control), routes ...string) {
 	t.Helper()
 	mux := http.NewServeMux()
@@ -40,9 +41,11 @@ func RefuseOutsiders(t *testing.T, register func(*http.ServeMux, *access.Control
 		} {
 			t.Run(route+" "+name, func(t *testing.T) {
 				w := httptest.NewRecorder()
-				mux.ServeHTTP(w, httptest.NewRequestWithContext(as(t.Context()), method, path, nil))
-				if w.Code != http.StatusNotFound {
-					t.Errorf("%s answered %d to %s, want the 404 an outsider gets", route, w.Code, name)
+				req := httptest.NewRequestWithContext(as(t.Context()), method, path, nil)
+				mux.ServeHTTP(w, req)
+				if w.Code != http.StatusNotFound ||
+					!strings.Contains(w.Body.String(), i18n.T(req.Context(), i18n.KeyAdminNotFoundHead)) {
+					t.Errorf("%s answered %d to %s, want the guard's 404 page", route, w.Code, name)
 				}
 			})
 		}

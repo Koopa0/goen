@@ -1,27 +1,19 @@
-package admin
+package refunds
 
 import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
-	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
-	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/admin/audit"
-	"github.com/koopa0/goen/internal/admin/ordernumber"
-	"github.com/koopa0/goen/internal/admin/orderstatus"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/email"
-	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ordernotice"
-	"github.com/koopa0/goen/internal/pgerr"
 	"github.com/koopa0/goen/internal/returns"
-	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
@@ -38,26 +30,16 @@ func beforeShipmentRefundState(r *db.BeforeShipmentRefundRow) (offered, open boo
 	return offered, open
 }
 
-func (s *Store) fillRefundBeforeShipment(ctx context.Context, view *admin.OrderView, number string) error {
+// FillOrder puts the refund before shipment on the order page, offered or open
+// for Resume, and reports whether one was ever opened: an order being refunded
+// is neither picked nor shipped.
+func (s *Store) FillOrder(ctx context.Context, view *admin.OrderView, number string) (bool, error) {
 	refund, err := s.q.BeforeShipmentRefund(ctx, number)
 	if err != nil {
-		return fmt.Errorf("read refund before shipment of %s: %w", number, err)
+		return false, fmt.Errorf("read refund before shipment of %s: %w", number, err)
 	}
 	view.RefundOffered, view.RefundOpen = beforeShipmentRefundState(&refund)
-	if refund.ReturnRequestID.Valid {
-		view.CanShip = false
-	}
-	for _, n := range NextStatuses(view.Status) {
-		if (n == pages.FulfillmentCancelled && view.Funded) ||
-			(n == pages.FulfillmentPicking && (refund.ReturnRequestID.Valid || view.Unpaid)) ||
-			// orders_finished_when_shipped: an order that still owes a parcel is
-			// not finished, and Shippable is what is still outstanding.
-			(n == pages.FulfillmentCompleted && len(view.Shippable) > 0) {
-			continue
-		}
-		view.Next = append(view.Next, admin.Transition{Value: n, Label: orderstatus.Label(ctx, n)})
-	}
-	return nil
+	return refund.ReturnRequestID.Valid, nil
 }
 
 func (s *Store) RefundPreview(ctx context.Context, number string) (admin.RefundConfirmation, error) {
@@ -85,9 +67,9 @@ func (s *Store) RefundPreview(ctx context.Context, number string) (admin.RefundC
 // that did not finish. The Checkout Sessions returned are the cancelled order's,
 // for the caller to close at Stripe.
 func (s *Store) RefundBeforeShipment(ctx context.Context, number, reason string) ([]string, error) {
-	if !validReturnResolution(reason) {
+	if !returns.ValidResolution(reason) {
 		return nil, fmt.Errorf("%w: refund reason exceeds %d characters",
-			ErrInvalid, maxReturnResolutionRunes)
+			ErrInvalid, returns.MaxResolutionRunes)
 	}
 	actorID, ok := audit.Actor(ctx)
 	if !ok {
@@ -120,17 +102,9 @@ func (s *Store) RefundBeforeShipment(ctx context.Context, number, reason string)
 		return nil, err
 	}
 	if !position.MoneySettled || position.EventOutstanding || position.PointsOutstanding {
-		return nil, ErrRefundUnsettled
+		return nil, ErrUnsettled
 	}
 	return s.finishRefundBeforeShipment(ctx, number, returnID, actor)
-}
-
-func (s *Store) refundPosition(ctx context.Context, returnID uuid.UUID) (returnPayoutPosition, error) {
-	facts, err := s.returnPayoutFact(ctx, returnID)
-	if err != nil {
-		return returnPayoutPosition{}, err
-	}
-	return facts.position()
 }
 
 // finishRefundBeforeShipment cancels the order, returns its held stock and
@@ -204,12 +178,8 @@ func cancelRefundedOrder(ctx context.Context, q *db.Queries, number string, retu
 func recordStaffCancellation(
 	ctx context.Context, q *db.Queries, orderID uuid.UUID, number string, returnID uuid.UUID, actor uuid.NullUUID,
 ) error {
-	kind, err := eventKindFor(pages.FulfillmentCancelled)
-	if err != nil {
-		return err
-	}
-	err = q.RecordOrderEvent(ctx, db.RecordOrderEventParams{
-		OrderID: orderID, Kind: kind, ActorUserID: actor,
+	err := q.RecordOrderEvent(ctx, db.RecordOrderEventParams{
+		OrderID: orderID, Kind: string(pages.EventCancelled), ActorUserID: actor,
 	})
 	if err != nil {
 		return fmt.Errorf("record order event: %w", err)
@@ -233,75 +203,4 @@ func recordStaffCancellation(
 	return ordernotice.Enqueue(ctx, q, &email.OrderTerminal{
 		OrderID: orderID, Kind: email.TerminalCancelledByStaff, Refunded: refundedCents > 0,
 	})
-}
-
-// RefundBeforeShipment serves POST /admin/orders/{number}/refund. The first
-// POST only renders what the refund pays; the confirmed one moves money.
-func (h *Handler) RefundBeforeShipment(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
-		return
-	}
-	number := r.PathValue("number")
-	if !ordernumber.Valid(number) {
-		http.NotFound(w, r)
-		return
-	}
-	if h.confirmRefundBeforeShipment(w, r, number) {
-		return
-	}
-	back := "/admin/orders/" + number
-	sessions, err := h.store.RefundBeforeShipment(r.Context(), number, r.PostFormValue("reason"))
-	switch {
-	case err == nil:
-		h.closeSessions(r.Context(), number, sessions)
-		http.Redirect(w, r, back+"?refunded=1", http.StatusSeeOther) //nolint:gosec // G710: validated by ordernumber.Valid
-	case errors.Is(err, ErrRefundUnsettled):
-		http.Redirect(w, r, back+"?refundpending=1", http.StatusSeeOther) //nolint:gosec // G710: validated by ordernumber.Valid
-	case pgerr.IsConstraint(err, "orders_cancel_invoice_resolved"):
-		http.Redirect(w, r, back+"?cancelinvoice=1", http.StatusSeeOther) //nolint:gosec // G710: validated by ordernumber.Valid
-	case errors.Is(err, ErrRefundIncomplete):
-		// Tested before ErrRefused: a payout may carry a database refusal as its
-		// cause, but the refund is open and Resume is what the staff member needs.
-		h.log.ErrorContext(r.Context(), "refund before shipment", "order", number, "error", err)
-		http.Redirect(w, r, back+"?refundretry=1", http.StatusSeeOther) //nolint:gosec // G710: validated by ordernumber.Valid
-	case errors.Is(err, ErrRefused), errors.Is(err, ErrInvalid):
-		h.log.WarnContext(r.Context(), "refund before shipment refused", "order", number, "error", err)
-		http.Redirect(w, r, back+"?refused=1", http.StatusSeeOther) //nolint:gosec // G710: validated by ordernumber.Valid
-	default:
-		h.log.ErrorContext(r.Context(), "refund before shipment", "order", number, "error", err)
-		access.ServerError(w, r, h.log)
-	}
-}
-
-func (h *Handler) confirmRefundBeforeShipment(w http.ResponseWriter, r *http.Request, number string) bool {
-	view, err := h.store.RefundPreview(r.Context(), number)
-	switch {
-	case errors.Is(err, ErrNotFound):
-		access.NotFound(w, r, h.log)
-		return true
-	case errors.Is(err, ErrRefused):
-		h.log.WarnContext(r.Context(), "refund before shipment not offered", "order", number, "error", err)
-		http.Redirect(w, r, "/admin/orders/"+number+"?refused=1", http.StatusSeeOther) //nolint:gosec // G710: validated by ordernumber.Valid
-		return true
-	case err != nil:
-		h.log.ErrorContext(r.Context(), "read refund before shipment", "order", number, "error", err)
-		access.ServerError(w, r, h.log)
-		return true
-	}
-	view.Reason = r.PostFormValue("reason")
-	status := http.StatusOK
-	switch {
-	case r.PostFormValue("confirm") != "refund" ||
-		r.PostFormValue("total") != strconv.FormatInt(view.TotalCents, 10):
-	case !view.Resume && (strings.TrimSpace(view.Reason) == "" || !validReturnResolution(view.Reason)):
-		// The reason becomes the provider refund's and the audit's; a resume
-		// reuses the one already recorded.
-		view.ReasonInvalid = true
-		status = http.StatusUnprocessableEntity
-	default:
-		return false
-	}
-	web.Render(w, r, h.log, status, admin.ConfirmRefund(layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminRefundTitle)}, view))
-	return true
 }
