@@ -9,7 +9,9 @@ import (
 func TestEveryCarrierHasANameInBothLanguages(t *testing.T) {
 	for _, loc := range Locales() {
 		ctx := WithLocale(t.Context(), loc)
-		for _, c := range carrier.All() {
+		home, _ := carrier.ForDelivery("", false)
+		stores, _ := carrier.ForDelivery("", true)
+		for _, c := range append(home, stores...) {
 			if name := CarrierName(ctx, c); name == "" || name == string(c) {
 				t.Errorf("%s: carrier %q has no name", loc, c)
 			}
