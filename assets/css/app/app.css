@@ -1533,9 +1533,12 @@ h3 {
   padding-block: var(--home-band);
 }
 
+/* minmax(0, ...) because the sideways product scroller would otherwise set the
+   track's minimum width and push the page wider than the viewport. */
 .goen-band__grid {
   display: grid;
   gap: 2rem;
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .goen-band__media {
@@ -1788,7 +1791,7 @@ h3 {
   .goen-band__grid {
     align-items: stretch;
     gap: 4rem;
-    grid-template-columns: 5fr 7fr;
+    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
   }
 
   .goen-band__media {
