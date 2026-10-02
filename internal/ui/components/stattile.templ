@@ -11,5 +11,8 @@ templ StatTile(p StatTileProps) {
 	<a class={ p.class() } href={ templ.SafeURL(p.Href) }>
 		<span class="goen-stat__label">{ p.Label }</span>
 		<span class="goen-stat__value">{ p.Value }</span>
+		if p.Note != "" {
+			<span class="goen-stat__note">{ p.Note }</span>
+		}
 	</a>
 }

@@ -44,3 +44,47 @@ func TestTheDashboardOpensEveryOrderItLists(t *testing.T) {
 		}
 	})
 }
+
+// TestTheDashboardCountsWhatHasAClockOrAPersonWaiting holds the tiles a shift
+// starts from. A return request runs against the seven-day right of rescission,
+// and a question is a customer waiting; both used to be reachable only from the
+// navigation, so a count on this page was the one place nobody would look.
+func TestTheDashboardCountsWhatHasAClockOrAPersonWaiting(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+
+	html := renderToString(t, Dashboard(Meta(ctx), DashboardView{
+		PendingReturns: 3, OldestReturnDays: 4, UnansweredQuestions: 7,
+	}))
+	for _, want := range []string{
+		`href="/admin/returns"`, i18n.T(ctx, i18n.KeyAdminQueueStatReturns),
+		`href="/admin/questions"`, i18n.T(ctx, i18n.KeyAdminQueueStatQuestions),
+		i18n.Count(ctx, i18n.KeyAdminQueueStatReturnsAge, 4, 4), `<span class="goen-stat__value">3</span>`, `<span class="goen-stat__value">7</span>`,
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("the dashboard does not carry %q", want)
+		}
+	}
+
+	t.Run("nothing waiting names no age", func(t *testing.T) {
+		t.Parallel()
+		v := DashboardView{OldestReturnDays: 9}
+		if note := v.ReturnsAgeNote(ctx); note != "" {
+			t.Errorf("the returns tile names an age with nothing waiting: %q", note)
+		}
+		if strings.Contains(renderToString(t, Dashboard(Meta(ctx), v)), "goen-stat__note") {
+			t.Error("the dashboard renders an empty age line")
+		}
+	})
+
+	t.Run("a request filed today says today, and one day reads singular in English", func(t *testing.T) {
+		t.Parallel()
+		en := i18n.WithLocale(t.Context(), i18n.En)
+		if got := (DashboardView{PendingReturns: 1}).ReturnsAgeNote(en); got != "Oldest requested today" {
+			t.Errorf("filed today reads %q", got)
+		}
+		if got := (DashboardView{PendingReturns: 1, OldestReturnDays: 1}).ReturnsAgeNote(en); got != "Oldest requested 1 day ago" {
+			t.Errorf("filed yesterday reads %q", got)
+		}
+	})
+}

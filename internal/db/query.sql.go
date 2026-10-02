@@ -2016,16 +2016,26 @@ SELECT
     (SELECT count(*) FROM product_variants
      WHERE is_active AND stock_quantity <= safety_stock)::bigint AS low_stock,
     (SELECT count(*) FROM products WHERE status = 'active')::bigint AS active_products,
-    (SELECT count(*) FROM contact_messages WHERE handled_at IS NULL)::bigint AS open_messages
+    (SELECT count(*) FROM contact_messages WHERE handled_at IS NULL)::bigint AS open_messages,
+    (SELECT count(*) FROM return_requests WHERE status = 'requested')::bigint AS pending_returns,
+    -- The queue's own predicate (UnansweredQuestions, Question.Waiting): visible,
+    -- and no visible answer from the shop. A customer's reply does not answer it.
+    (SELECT count(*) FROM product_questions q
+     WHERE q.hidden_at IS NULL
+       AND NOT EXISTS (SELECT 1 FROM product_answers a
+                       WHERE a.question_id = q.id AND a.is_staff AND a.hidden_at IS NULL)
+    )::bigint AS unanswered_questions
 `
 
 type AdminSummaryRow struct {
-	PendingOrders  int64
-	ReadyOrders    int64
-	PickingOrders  int64
-	LowStock       int64
-	ActiveProducts int64
-	OpenMessages   int64
+	PendingOrders       int64
+	ReadyOrders         int64
+	PickingOrders       int64
+	LowStock            int64
+	ActiveProducts      int64
+	OpenMessages        int64
+	PendingReturns      int64
+	UnansweredQuestions int64
 }
 
 func (q *Queries) AdminSummary(ctx context.Context) (AdminSummaryRow, error) {
@@ -2038,6 +2048,8 @@ func (q *Queries) AdminSummary(ctx context.Context) (AdminSummaryRow, error) {
 		&i.LowStock,
 		&i.ActiveProducts,
 		&i.OpenMessages,
+		&i.PendingReturns,
+		&i.UnansweredQuestions,
 	)
 	return i, err
 }
@@ -8389,6 +8401,29 @@ func (q *Queries) NextEligibilityVersion(ctx context.Context, returnRequestID uu
 	var version int32
 	err := row.Scan(&version)
 	return version, err
+}
+
+const oldestPendingReturn = `-- name: OldestPendingReturn :one
+SELECT coalesce(min(created_at), now())::timestamptz AS filed_at,
+       (count(*) > 0) AS any_open
+FROM return_requests
+WHERE status = 'requested'
+`
+
+type OldestPendingReturnRow struct {
+	FiledAt time.Time
+	AnyOpen bool
+}
+
+// When the oldest open return request was filed, which is how long a person has
+// been waiting for a decision. Two columns, not one nullable timestamp: min()
+// over no rows is NULL and sqlc infers the column non-nullable, so pgx cannot
+// scan it.
+func (q *Queries) OldestPendingReturn(ctx context.Context) (OldestPendingReturnRow, error) {
+	row := q.db.QueryRow(ctx, oldestPendingReturn)
+	var i OldestPendingReturnRow
+	err := row.Scan(&i.FiledAt, &i.AnyOpen)
+	return i, err
 }
 
 const openPayment = `-- name: OpenPayment :one

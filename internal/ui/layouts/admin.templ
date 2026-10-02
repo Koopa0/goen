@@ -93,10 +93,15 @@ templ adminBar() {
 // moves after the first byte. A closed group costs a keyboard user one key:
 // its <summary> is in the tab order and opens on Enter.
 //
-// They share a `name`, which is what makes them exclusive: opening one closes
-// the rest, so the nav is one band however much a staff member explores. A
-// browser that does not know the attribute opens several and the nav grows a
-// row, which is the whole of the degradation.
+// The groups are independent: opening one leaves the others as they were, so a
+// staff member working between two of them is not closing one to read the
+// other. The dashboard is nobody's group and holds the queues group open, because
+// the screens a shift starts from are orders and returns and the dashboard is
+// where it starts.
+//
+// The whole nav is itself closed behind its summary until the desk width, where
+// the stylesheet shows it as the rail. On a phone it would otherwise be a screen
+// of links above every page's first line of work.
 templ adminNav(current string) {
 	@components.Disclosure(components.DisclosureProps{
 		Class:   "goen-admin__nav",
@@ -112,8 +117,7 @@ templ adminNav(current string) {
 			>{ i18n.T(ctx, i18n.KeyAdminQueueOverview) }</a>
 			<details
 				class="goen-admin__navgroup"
-				name="goen-admin-nav"
-				open?={ adminNavHolds(current, "orders", "returns", "questions", "messages", "reviews") }
+				open?={ adminNavHolds(current, "dashboard", "orders", "returns", "questions", "messages", "reviews") }
 			>
 				<summary class="ui-navitem goen-admin__navlabel">{ i18n.T(ctx, i18n.KeyAdminNavQueues) }</summary>
 				<div class="goen-admin__navitems">
@@ -156,7 +160,6 @@ templ adminNav(current string) {
 			</details>
 			<details
 				class="goen-admin__navgroup"
-				name="goen-admin-nav"
 				open?={ adminNavHolds(current, "products", "stock", "taxonomy", "campaigns", "coupons") }
 			>
 				<summary class="ui-navitem goen-admin__navlabel">{ i18n.T(ctx, i18n.KeyAdminNavCatalogue) }</summary>
@@ -200,7 +203,6 @@ templ adminNav(current string) {
 			</details>
 			<details
 				class="goen-admin__navgroup"
-				name="goen-admin-nav"
 				open?={ adminNavHolds(current, "customers", "credit", "tiers", "warranty", "newsletter") }
 			>
 				<summary class="ui-navitem goen-admin__navlabel">{ i18n.T(ctx, i18n.KeyAdminNavCustomers) }</summary>
@@ -244,7 +246,6 @@ templ adminNav(current string) {
 			</details>
 			<details
 				class="goen-admin__navgroup"
-				name="goen-admin-nav"
 				open?={ adminNavHolds(current, "shipping", "home", "faq", "staff") }
 			>
 				<summary class="ui-navitem goen-admin__navlabel">{ i18n.T(ctx, i18n.KeyAdminNavShop) }</summary>
@@ -283,7 +284,6 @@ templ adminNav(current string) {
 			</details>
 			<details
 				class="goen-admin__navgroup"
-				name="goen-admin-nav"
 				open?={ adminNavHolds(current, "reports", "audit", "health") }
 			>
 				<summary class="ui-navitem goen-admin__navlabel">{ i18n.T(ctx, i18n.KeyAdminNavRecords) }</summary>

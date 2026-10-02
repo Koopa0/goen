@@ -28,6 +28,26 @@ var (
 		En:     "Messages awaiting a reply",
 	})
 
+	KeyAdminQueueStatReturns = key("admin.queue.stat.returns", Message{
+		ZhHant: "待處理退貨申請",
+		En:     "Return requests to decide",
+	})
+
+	KeyAdminQueueStatQuestions = key("admin.queue.stat.questions", Message{
+		ZhHant: "待回覆提問",
+		En:     "Questions awaiting an answer",
+	})
+
+	// KeyAdminQueueStatReturnsAge is the line under the returns figure: how long
+	// the oldest open request has waited for a decision.
+	KeyAdminQueueStatReturnsAge = countKey("admin.queue.stat.returnsage",
+		"最早一筆 %d 天前申請", "Oldest requested %d day ago", "Oldest requested %d days ago")
+
+	KeyAdminQueueStatReturnsToday = key("admin.queue.stat.returnstoday", Message{
+		ZhHant: "最早一筆今天申請",
+		En:     "Oldest requested today",
+	})
+
 	KeyAdminQueueRestockHead = key("admin.queue.restock", Message{
 		ZhHant: "需要補貨",
 		En:     "Needs restocking",

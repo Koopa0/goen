@@ -210,7 +210,25 @@ SELECT
     (SELECT count(*) FROM product_variants
      WHERE is_active AND stock_quantity <= safety_stock)::bigint AS low_stock,
     (SELECT count(*) FROM products WHERE status = 'active')::bigint AS active_products,
-    (SELECT count(*) FROM contact_messages WHERE handled_at IS NULL)::bigint AS open_messages;
+    (SELECT count(*) FROM contact_messages WHERE handled_at IS NULL)::bigint AS open_messages,
+    (SELECT count(*) FROM return_requests WHERE status = 'requested')::bigint AS pending_returns,
+    -- The queue's own predicate (UnansweredQuestions, Question.Waiting): visible,
+    -- and no visible answer from the shop. A customer's reply does not answer it.
+    (SELECT count(*) FROM product_questions q
+     WHERE q.hidden_at IS NULL
+       AND NOT EXISTS (SELECT 1 FROM product_answers a
+                       WHERE a.question_id = q.id AND a.is_staff AND a.hidden_at IS NULL)
+    )::bigint AS unanswered_questions;
+
+-- When the oldest open return request was filed, which is how long a person has
+-- been waiting for a decision. Two columns, not one nullable timestamp: min()
+-- over no rows is NULL and sqlc infers the column non-nullable, so pgx cannot
+-- scan it.
+-- name: OldestPendingReturn :one
+SELECT coalesce(min(created_at), now())::timestamptz AS filed_at,
+       (count(*) > 0) AS any_open
+FROM return_requests
+WHERE status = 'requested';
 
 -- name: CreateShipment :one
 INSERT INTO order_shipments (order_id, carrier, tracking_number, estimated_delivery_on)

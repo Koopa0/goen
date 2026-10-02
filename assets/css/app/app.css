@@ -7068,9 +7068,10 @@ a.goen-pager__step:hover {
 }
 
 /* A panel the page can shut. On a stockroom phone 23 links are a screen of
-   their own before the work starts; at the desk the summary is gone and the
-   panel is the rail, which is why the element renders open — there would be no
-   control left to reopen it with. */
+   their own before the work starts, so it renders closed; at the desk the
+   summary is gone and the panel is the rail, forced open through
+   ::details-content. The summary is only hidden where that forcing is
+   supported — otherwise there would be no control left to open it with. */
 .goen-disclosure {
   min-width: 0;
 }
@@ -7096,9 +7097,9 @@ a.goen-pager__step:hover {
 
 /* The back office is 23 screens. Listed flat they are 23 labels a staff member
    reads through to find one; grouped by the question each answers they are
-   five, and only the group holding the current screen is open. The disclosure
-   is a native <details>, so it survives the enhancement file being deleted, and
-   the server decides which one is open — nothing moves after the first byte. */
+   five, and the group holding the current screen is open. The disclosure is a
+   native <details>, so it survives the enhancement file being deleted, and the
+   server decides which one is open — nothing moves after the first byte. */
 .goen-admin__nav {
   background: var(--panel);
   border: 1px solid var(--border);
@@ -7290,6 +7291,12 @@ a.goen-pager__step:hover {
   line-height: var(--lh-normal);
 }
 
+.goen-stat__note {
+  color: var(--fg-muted);
+  font-size: var(--fs-12);
+  line-height: var(--lh-normal);
+}
+
 .goen-stat__value {
   color: var(--fg);
   font-size: var(--fs-ed-30);
@@ -7405,7 +7412,17 @@ a.goen-pager__step:hover {
    grid/flex item that grows to its content, so overflow-x has nothing to clip
    against and the 640px table pushes the whole page to 743px at 375. */
 .goen-admin__tablewrap {
-  background: var(--panel);
+  /* The cue that there is more to the side: a shadow on each edge that has
+     content beyond it, which goes when the table is scrolled to that edge. The
+     covers scroll with the content and the shadows stay put, so only a hidden
+     edge shows one. Cells paint over it where they carry a background of their
+     own (the header, a low-stock row); the plain rows carry it. */
+  background:
+    linear-gradient(to right, var(--panel) 30%, transparent) left center / 2.5rem 100% no-repeat local,
+    linear-gradient(to left, var(--panel) 30%, transparent) right center / 2.5rem 100% no-repeat local,
+    radial-gradient(farthest-side at 0 50%, var(--border-strong), transparent) left center / 0.75rem 100% no-repeat scroll,
+    radial-gradient(farthest-side at 100% 50%, var(--border-strong), transparent) right center / 0.75rem 100% no-repeat scroll;
+  background-color: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--r-md);
   max-width: 100%;
@@ -7699,8 +7716,18 @@ a.goen-pager__step:hover {
     top: 24px;
   }
 
-  .goen-admin:has(.goen-admin__main) .goen-disclosure__summary {
-    display: none;
+  @supports selector(::details-content) {
+    .goen-admin:has(.goen-admin__main) .goen-disclosure__summary {
+      display: none;
+    }
+
+    .goen-admin:has(.goen-admin__main) .goen-admin__nav::details-content {
+      content-visibility: visible;
+    }
+
+    .goen-admin:has(.goen-admin__main) .goen-admin__nav:not([open]) > .goen-disclosure__panel {
+      display: block;
+    }
   }
 
   .goen-admin:has(.goen-admin__main) .goen-admin__navlist {

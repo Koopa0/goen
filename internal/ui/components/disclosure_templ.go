@@ -12,11 +12,13 @@ import templruntime "github.com/a-h/templ/runtime"
 // content it holds. No script, and a browser that has never heard of the
 // element still shows both halves.
 //
-// It renders open. The one shape that needs it — a navigation rail that is a
-// column beside the page on a desk and a band above it on a phone — hides the
-// summary at the wide breakpoint, and a panel that could be shut with no
-// control left to reopen it is a page with no navigation at all. A caller that
-// wants a closed panel writes the element itself until a second one exists.
+// It renders closed. The one shape that uses it — a navigation rail that is a
+// column beside the page on a desk and a band above it on a phone — shows the
+// panel at the wide breakpoint through ::details-content and hides the summary
+// there, so the stylesheet that closes it for a phone is the same one that
+// forces it open for a desk. A browser without ::details-content keeps the
+// summary at every width, which is a nav that is one tap further, not one that
+// is gone.
 func Disclosure(p DisclosureProps) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -56,14 +58,14 @@ func Disclosure(p DisclosureProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "\" open><summary class=\"goen-disclosure__summary\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "\"><summary class=\"goen-disclosure__summary\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var4 string
 		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(p.Summary)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/disclosure.templ`, Line: 14, Col: 55}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/disclosure.templ`, Line: 16, Col: 55}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 		if templ_7745c5c3_Err != nil {
