@@ -14,6 +14,7 @@ import (
 	"github.com/koopa0/goen/internal/destination"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
+	"github.com/koopa0/goen/internal/pgerr"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
@@ -272,18 +273,18 @@ func (s *Store) insertMethod(ctx context.Context, m *NewMethod) error {
 }
 
 func methodWriteError(ctx context.Context, err error) (map[string]string, error) {
-	if db.HasConstraint(err, "shipping_methods_code_key") {
+	if pgerr.IsConstraint(err, "shipping_methods_code_key") {
 		return map[string]string{"code": i18n.T(ctx, i18n.KeyFormMethodCodeTaken)}, nil
 	}
-	if db.HasConstraint(err, "shipping_methods_max_longest_positive") {
+	if pgerr.IsConstraint(err, "shipping_methods_max_longest_positive") {
 		return map[string]string{"max_parcel_longest": fmt.Sprintf(
 			i18n.T(ctx, i18n.KeyFormMethodParcelLimit), parcelLongestCeilingMM)}, nil
 	}
-	if db.HasConstraint(err, "shipping_methods_max_sum_positive") {
+	if pgerr.IsConstraint(err, "shipping_methods_max_sum_positive") {
 		return map[string]string{"max_parcel_sum": fmt.Sprintf(
 			i18n.T(ctx, i18n.KeyFormMethodParcelLimit), parcelSumCeilingMM)}, nil
 	}
-	if db.HasConstraint(err, "shipping_methods_max_weight_positive") {
+	if pgerr.IsConstraint(err, "shipping_methods_max_weight_positive") {
 		return map[string]string{"max_parcel_weight": fmt.Sprintf(
 			i18n.T(ctx, i18n.KeyFormMethodParcelLimit), parcelWeightCeilingG)}, nil
 	}

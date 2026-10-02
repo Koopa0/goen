@@ -14,6 +14,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/pgerr"
 )
 
 const maxZonePrefixes = 100
@@ -66,7 +67,7 @@ func (s *Store) CreateZone(ctx context.Context, z *NewZone) (map[string]string, 
 		}
 		return nil
 	}); err != nil {
-		if db.HasConstraint(err, "shipping_zones_code_key") {
+		if pgerr.IsConstraint(err, "shipping_zones_code_key") {
 			return map[string]string{"zone_code": i18n.T(ctx, i18n.KeyFormZoneCodeTaken)}, nil
 		}
 		return nil, fmt.Errorf("%w: %w", ErrRefused, err)

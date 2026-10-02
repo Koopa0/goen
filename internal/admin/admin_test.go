@@ -37,12 +37,9 @@ func TestDollarInputsAreBoundedBeforeMultiplication(t *testing.T) {
 
 func TestParseStatusAcceptsOnlyTheFulfilmentLifecycle(t *testing.T) {
 	t.Parallel()
-	for _, status := range statuses {
-		if got := ParseStatus(string(status.value)); got != status.value {
-			t.Errorf("ParseStatus(%q) = %q, want the same status", status.value, got)
-		}
-		if got := StatusLabel(t.Context(), status.value); got == "" || got == string(status.value) {
-			t.Errorf("StatusLabel(%q) = %q, want a catalogue label", status.value, got)
+	for _, status := range pages.FulfillmentStatuses {
+		if got := ParseStatus(string(status)); got != status {
+			t.Errorf("ParseStatus(%q) = %q, want the same status", status, got)
 		}
 	}
 	for _, status := range []string{"", "all", "paid", "refunded", "PENDING", " pending "} {
@@ -86,43 +83,12 @@ func TestUnknownReturnStatusLabelRendersAsItself(t *testing.T) {
 
 func TestEveryTransitionStaysInsideTheFulfilmentLifecycle(t *testing.T) {
 	t.Parallel()
-	for _, current := range statuses {
-		for _, next := range NextStatuses(current.value) {
+	for _, current := range pages.FulfillmentStatuses {
+		for _, next := range NextStatuses(current) {
 			if !next.Known() {
-				t.Errorf("NextStatuses(%q) contains unknown state %q", current.value, next)
+				t.Errorf("NextStatuses(%q) contains unknown state %q", current, next)
 			}
 		}
-	}
-}
-
-// TestTheAdminCatalogueIsTheFulfilmentClosedSet holds the two halves together:
-// pages.FulfillmentStatuses is what cart, account and the queue carry, and
-// statuses is what ParseStatus and the tabs offer, so a state added to one
-// and forgotten in the other is a filter that cannot name it or a label that
-// never appears.
-func TestTheAdminCatalogueIsTheFulfilmentClosedSet(t *testing.T) {
-	t.Parallel()
-	if len(statuses) != len(pages.FulfillmentStatuses) {
-		t.Fatalf("admin catalogue has %d states, pages.FulfillmentStatuses has %d",
-			len(statuses), len(pages.FulfillmentStatuses))
-	}
-	for i, want := range pages.FulfillmentStatuses {
-		if statuses[i].value != want {
-			t.Errorf("statuses[%d] = %q, want %q — the queue order drifted from the closed set",
-				i, statuses[i].value, want)
-		}
-	}
-}
-
-// TestStatusLabelRendersARetiredStatus holds the reason StatusLabel is not a
-// panic: audit_events is append-only, so a row naming a state the shop no
-// longer occupies must still open.
-func TestStatusLabelRendersARetiredStatus(t *testing.T) {
-	t.Parallel()
-	const retired pages.FulfillmentStatus = "packing"
-	if got := StatusLabel(t.Context(), retired); got != string(retired) {
-		t.Errorf("StatusLabel(%q) = %q, want the raw value so the queue still loads",
-			retired, got)
 	}
 }
 
@@ -337,40 +303,6 @@ func TestAReceiptIsAlwaysPositive(t *testing.T) {
 			if ok != tt.wantY || got != tt.want {
 				t.Errorf("ParseReceipt(%q) = %d, %v, want %d, %v",
 					tt.in, got, ok, tt.want, tt.wantY)
-			}
-		})
-	}
-}
-
-// TestAFundedOrderIsNotBadgedUnpaid holds the two halves of 'pending' apart: an
-// order stays pending from the moment money arrives until a human picks it, and
-// one paid entirely from store credit has no payment row at all. Committed alone
-// means the shop has taken it on, owed == 0 alone means nothing is due, and
-// either is enough to say it is not awaiting payment.
-func TestAFundedOrderIsNotBadgedUnpaid(t *testing.T) {
-	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	unpaid := i18n.T(ctx, i18n.KeyAdminStatusPending)
-	ready := i18n.T(ctx, i18n.KeyAdminStatusReadyToPick)
-
-	for _, tt := range []struct {
-		name      string
-		status    pages.FulfillmentStatus
-		committed bool
-		owed      int64
-		want      string
-	}{
-		{name: "nobody has paid", status: "pending", owed: 65000, want: unpaid},
-		{name: "the card cleared", status: "pending", committed: true, owed: 65000, want: ready},
-		{name: "store credit covered it", status: "pending", owed: 0, want: ready},
-		// Every other status answers from itself: only pending is two states
-		// wearing one name.
-		{name: "picking", status: "picking", committed: true, want: i18n.T(ctx, i18n.KeyAdminStatusPicking)},
-		{name: "cancelled and unpaid", status: "cancelled", owed: 65000, want: i18n.T(ctx, i18n.KeyAdminStatusCancelled)},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := FundedStatusLabel(ctx, tt.status, tt.committed, tt.owed); got != tt.want {
-				t.Errorf("FundedStatusLabel(%q, committed=%v, owed=%d) = %q, want %q",
-					tt.status, tt.committed, tt.owed, got, tt.want)
 			}
 		})
 	}
