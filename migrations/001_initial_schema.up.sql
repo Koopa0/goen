@@ -6797,7 +6797,7 @@ BEGIN
     UPDATE payments
     SET status = 'succeeded',
         captured_amount_cents = p_captured_amount_cents,
-        paid_at = now(),
+        paid_at = coalesce(provider_event_at, now()),
         card_brand = p_card_brand,
         card_last4 = p_card_last4
     WHERE id = payment_id;
