@@ -256,7 +256,7 @@ func (h *Handler) RefundBeforeShipment(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, back+"?refunded=1", http.StatusSeeOther) //nolint:gosec // G710: validated by ordernumber.Valid
 	case errors.Is(err, ErrRefundUnsettled):
 		http.Redirect(w, r, back+"?refundpending=1", http.StatusSeeOther) //nolint:gosec // G710: validated by ordernumber.Valid
-	case hasConstraint(err, "orders_cancel_invoice_resolved"):
+	case db.HasConstraint(err, "orders_cancel_invoice_resolved"):
 		http.Redirect(w, r, back+"?cancelinvoice=1", http.StatusSeeOther) //nolint:gosec // G710: validated by ordernumber.Valid
 	case errors.Is(err, ErrRefundIncomplete):
 		// Tested before ErrRefused: a payout may carry a database refusal as its

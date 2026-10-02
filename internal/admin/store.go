@@ -963,7 +963,7 @@ func (s *Store) ReceiveStock(ctx context.Context, sku string, quantity int32, ac
 func (s *Store) settleReplay(
 	ctx context.Context, err error, variantID uuid.UUID, delta int32, reason, key string,
 ) error {
-	if err == nil || !hasConstraint(err, "inventory_movements_idempotency_key") {
+	if err == nil || !db.HasConstraint(err, "inventory_movements_idempotency_key") {
 		return err
 	}
 	applied, checkErr := s.q.StockMovementApplied(ctx, db.StockMovementAppliedParams{

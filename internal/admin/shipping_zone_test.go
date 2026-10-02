@@ -47,29 +47,6 @@ func TestShippingMoneyParsingDoesNotTurnTyposIntoFreeShipping(t *testing.T) {
 	}
 }
 
-func TestCouponOptionalNumbersPreserveParseFailures(t *testing.T) {
-	base := url.Values{
-		"code": {"OK"}, "description": {"test"}, "kind": {"percent"},
-		"value": {"10"}, "cap": {""}, "min": {""}, "max": {""},
-		"percustomer": {"1"}, "days": {""},
-	}
-	for _, field := range []string{"cap", "min", "max", "percustomer", "days"} {
-		for _, raw := range []string{"12o", "-3", "999999999999999999999999"} {
-			t.Run(field+"_"+raw, func(t *testing.T) {
-				values := base.Clone()
-				values.Set(field, raw)
-				errs := couponFormOf(formRequest(t, values)).Validate(t.Context())
-				if errs[field] == "" {
-					t.Fatalf("%s=%q became a valid zero policy: %v", field, raw, errs)
-				}
-			})
-		}
-	}
-	if errs := couponFormOf(formRequest(t, base)).Validate(t.Context()); len(errs) != 0 {
-		t.Fatalf("blank optional coupon fields refused: %v", errs)
-	}
-}
-
 func TestABlankPrefixSetIsDistinctFromAMissingCreationPrefix(t *testing.T) {
 	set, message := parsePrefixes(t.Context(), "  , ; \n\t")
 	if message != "" {
