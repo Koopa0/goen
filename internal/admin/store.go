@@ -149,15 +149,10 @@ func (s *Store) Orders(ctx context.Context, status pages.QueueFilter, term strin
 			Term: term, EscapedTerm: catalog.EscapeLike(term), RowLimit: PageLimit,
 		}); err == nil {
 			rows = make([]db.AdminOrdersRow, 0, len(found))
+			// A conversion, not a field copy: it stops compiling when the two
+			// queries' columns drift, so a new column cannot be dropped silently.
 			for i := range found {
-				f := &found[i]
-				rows = append(rows, db.AdminOrdersRow{
-					PageCursor: f.PageCursor, ID: f.ID, OrderNumber: f.OrderNumber,
-					FulfillmentStatus: f.FulfillmentStatus, PlacedAt: f.PlacedAt,
-					ShippingCents: f.ShippingCents, DiscountCents: f.DiscountCents,
-					TaxCents: f.TaxCents, Recipient: f.Recipient,
-					SubtotalCents: f.SubtotalCents, Committed: f.Committed,
-				})
+				rows = append(rows, db.AdminOrdersRow(found[i]))
 			}
 		}
 	} else {

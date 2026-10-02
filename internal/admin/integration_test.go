@@ -11694,6 +11694,23 @@ func TestAPickupOrderDispatchNoticeIsMarkedAsPickup(t *testing.T) {
 	}
 }
 
+func TestOrderSearchLabelsAnUnpaidOrderAsAwaitingPayment(t *testing.T) {
+	ctx := t.Context()
+	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	number := placeUnpaidOrder(t)
+
+	view, err := s.Orders(ctx, "", number)
+	if err != nil {
+		t.Fatalf("Orders: %v", err)
+	}
+	if len(view.Orders) != 1 || view.Orders[0].Number != number {
+		t.Fatalf("searching %s found %+v, want that order only", number, view.Orders)
+	}
+	if got, want := view.Orders[0].StatusText, i18n.T(ctx, i18n.KeyAdminStatusPending); got != want {
+		t.Errorf("a searched unpaid order reads %q, want %q", got, want)
+	}
+}
+
 func TestAdvanceRefusesTheStatusAnOrderAlreadyHas(t *testing.T) {
 	ctx, staff := staffContext(t)
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
