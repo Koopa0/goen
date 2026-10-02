@@ -83,15 +83,17 @@ func TestShopRulesFAQSeedAndRepairAgree(t *testing.T) {
 	}
 	type row struct{ question, enQuestion, zhWord, enWord string }
 	for _, r := range []row{
-		{"折扣碼要怎麼使用?", "How do I use a discount code?", "特價與折扣碼可以疊加", "a sale and a code stack"},
-		{"一定要註冊才能購買嗎?", "Do I have to register to buy?", "購物金不會到期", "does not expire"},
-		{"可以開公司統編嗎?", "Can you invoice a company tax ID?", "綠界電子發票載具", "ECPay e-invoice carrier"},
+		{"折扣碼要怎麼使用？", "How do I use a discount code?", "特價與折扣碼可以疊加", "a sale and a code stack"},
+		{"一定要註冊才能購買嗎？", "Do I have to register to buy?", "購物金不會到期", "does not expire"},
+		{"可以開公司統編嗎？", "Can you invoice a company tax ID?", "綠界電子發票載具", "ECPay e-invoice carrier"},
 	} {
 		zh := sqlStringAfter(t, string(seed), "'"+r.question+"',")
 		en := sqlStringAfter(t, string(seed), "'"+r.enQuestion+"',")
 		var repairZh, repairEn string
 		for _, block := range strings.Split(string(repair), "\n\n") {
-			if !strings.Contains(block, "WHERE question = '"+r.question+"'") {
+			_, where, ok := strings.Cut(block, "WHERE question ")
+			where, _, _ = strings.Cut(where, "\n")
+			if !ok || !strings.Contains(where, "'"+r.question+"'") {
 				continue
 			}
 			if strings.HasPrefix(strings.TrimSpace(block), "UPDATE") && strings.Contains(block, "SET answer_en =") {

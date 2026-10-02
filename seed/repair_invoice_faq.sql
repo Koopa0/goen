@@ -7,7 +7,7 @@ SET answer = CASE
         WHEN answer IN (
             '結帳時可以選擇會員載具、手機條碼載具或公司統編,系統會記錄您的選擇。電子發票的實際開立需要串接加值中心,這部分尚未完成。',
             '結帳時可以選擇會員載具、手機條碼載具或公司統編,系統會記錄您的選擇。這份部署若已設定綠界加值中心,後台會依該選擇開立電子發票;尚未設定時不會開立,後台會說明原因。')
-        THEN '結帳時可以選擇會員載具、手機條碼載具或公司統編,付款完成時系統會依您的選擇自動開立電子發票。這份部署若尚未設定綠界加值中心則不會開立,後台會說明原因。'
+        THEN '結帳時可以選擇會員載具、手機條碼載具或公司統編，付款完成時系統會依你的選擇自動開立電子發票。這份部署若尚未設定綠界加值中心則不會開立，後台會說明原因。'
         ELSE answer
     END,
     answer_en = CASE
@@ -17,4 +17,4 @@ SET answer = CASE
         THEN 'At checkout you can choose a member carrier, a mobile barcode carrier, or a company tax ID, and the electronic invoice is issued automatically against that choice when your payment completes. Without ECPay credentials this deployment files nothing, and the back office says so.'
         ELSE answer_en
     END
-WHERE question = '發票怎麼開立?';
+WHERE question IN ('發票怎麼開立?', '發票怎麼開立？');
