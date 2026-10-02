@@ -77,6 +77,16 @@ SELECT b.id, b.slug, b.name,
               OR EXISTS (
                   SELECT 1 FROM product_variants v
                   WHERE v.product_id = p.id AND v.is_active
+            AND NOT EXISTS (
+              SELECT 1 FROM unnest(@option_names::text[]) WITH ORDINALITY chosen(name, position)
+              WHERE NOT EXISTS (
+                  SELECT 1 FROM variant_option_values selected
+                  JOIN product_options axis ON axis.id = selected.option_id
+                  JOIN product_option_values choice ON choice.id = selected.option_value_id
+                  WHERE selected.variant_id = v.id
+                    AND axis.name = chosen.name AND choice.value = (@option_values::text[])[chosen.position]
+              )
+          )
                     AND (NOT @in_stock_only::boolean OR v.stock_quantity > v.safety_stock)
                     AND (@min_price::bigint = 0 OR v.price_cents >= @min_price::bigint)
                     AND (@max_price::bigint = 0 OR v.price_cents <= @max_price::bigint)
@@ -105,6 +115,16 @@ SELECT
     EXISTS (
         SELECT 1 FROM product_variants dv
         WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
+          AND NOT EXISTS (
+              SELECT 1 FROM unnest(@option_names::text[]) WITH ORDINALITY chosen(name, position)
+              WHERE NOT EXISTS (
+                  SELECT 1 FROM variant_option_values selected
+                  JOIN product_options axis ON axis.id = selected.option_id
+                  JOIN product_option_values choice ON choice.id = selected.option_value_id
+                  WHERE selected.variant_id = dv.id
+                    AND axis.name = chosen.name AND choice.value = (@option_values::text[])[chosen.position]
+              )
+          )
           AND (NOT @in_stock_only::boolean OR dv.stock_quantity > dv.safety_stock)
           AND (@max_price::bigint = 0 OR dv.price_cents <= @max_price::bigint)
     ) AS price_varies,
@@ -114,6 +134,16 @@ SELECT
     EXISTS (
         SELECT 1 FROM product_variants sv
         WHERE sv.product_id = p.id AND sv.is_active
+          AND NOT EXISTS (
+              SELECT 1 FROM unnest(@option_names::text[]) WITH ORDINALITY chosen(name, position)
+              WHERE NOT EXISTS (
+                  SELECT 1 FROM variant_option_values selected
+                  JOIN product_options axis ON axis.id = selected.option_id
+                  JOIN product_option_values choice ON choice.id = selected.option_value_id
+                  WHERE selected.variant_id = sv.id
+                    AND axis.name = chosen.name AND choice.value = (@option_values::text[])[chosen.position]
+              )
+          )
           AND sv.stock_quantity > sv.safety_stock
     ) AS in_stock,
     coalesce(img.storage_key, '') AS image_key,
@@ -124,8 +154,18 @@ FROM products p
 JOIN brands b ON b.id = p.brand_id
 JOIN LATERAL (
     SELECT price_cents, compare_at_price_cents
-    FROM product_variants
+    FROM product_variants candidate
     WHERE product_id = p.id AND is_active
+      AND NOT EXISTS (
+              SELECT 1 FROM unnest(@option_names::text[]) WITH ORDINALITY chosen(name, position)
+              WHERE NOT EXISTS (
+                  SELECT 1 FROM variant_option_values selected
+                  JOIN product_options axis ON axis.id = selected.option_id
+                  JOIN product_option_values choice ON choice.id = selected.option_value_id
+                  WHERE selected.variant_id = candidate.id
+                    AND axis.name = chosen.name AND choice.value = (@option_values::text[])[chosen.position]
+              )
+          )
       -- The card shows a variant the filters accepted, or it states a price the
       -- shopper excluded; these are the predicates of the EXISTS below.
       AND (NOT @in_stock_only::boolean OR stock_quantity > safety_stock)
@@ -152,6 +192,16 @@ WHERE p.status = 'active'
       OR EXISTS (
           SELECT 1 FROM product_variants v
           WHERE v.product_id = p.id AND v.is_active
+            AND NOT EXISTS (
+              SELECT 1 FROM unnest(@option_names::text[]) WITH ORDINALITY chosen(name, position)
+              WHERE NOT EXISTS (
+                  SELECT 1 FROM variant_option_values selected
+                  JOIN product_options axis ON axis.id = selected.option_id
+                  JOIN product_option_values choice ON choice.id = selected.option_value_id
+                  WHERE selected.variant_id = v.id
+                    AND axis.name = chosen.name AND choice.value = (@option_values::text[])[chosen.position]
+              )
+          )
             AND (NOT @in_stock_only::boolean OR v.stock_quantity > v.safety_stock)
             AND (@min_price::bigint = 0 OR v.price_cents >= @min_price::bigint)
             AND (@max_price::bigint = 0 OR v.price_cents <= @max_price::bigint)
@@ -176,6 +226,16 @@ WHERE p.status = 'active'
       OR EXISTS (
           SELECT 1 FROM product_variants v
           WHERE v.product_id = p.id AND v.is_active
+            AND NOT EXISTS (
+              SELECT 1 FROM unnest(@option_names::text[]) WITH ORDINALITY chosen(name, position)
+              WHERE NOT EXISTS (
+                  SELECT 1 FROM variant_option_values selected
+                  JOIN product_options axis ON axis.id = selected.option_id
+                  JOIN product_option_values choice ON choice.id = selected.option_value_id
+                  WHERE selected.variant_id = v.id
+                    AND axis.name = chosen.name AND choice.value = (@option_values::text[])[chosen.position]
+              )
+          )
             AND (NOT @in_stock_only::boolean OR v.stock_quantity > v.safety_stock)
             AND (@min_price::bigint = 0 OR v.price_cents >= @min_price::bigint)
             AND (@max_price::bigint = 0 OR v.price_cents <= @max_price::bigint)
@@ -739,3 +799,38 @@ WHERE p.status = 'active'
   AND NOT (p.slug = ANY(@exclude_slugs::text[]))
 ORDER BY abs(mv.price_cents - @anchor_cents::bigint), p.id
 LIMIT @row_limit::integer;
+
+-- A facet keeps its own zero-count choices so the checked value can still be removed.
+-- name: CategoryOptionValues :many
+SELECT axis.name AS option_name,
+       min(localized_name(axis.name, axis.name_en, @locale::text))::text AS option_label,
+       choice.value,
+       min(localized_name(choice.value, choice.value_en, @locale::text))::text AS value_label,
+       (count(DISTINCT p.id) FILTER (WHERE
+          (@brand_ids::uuid[] = ARRAY[]::uuid[] OR p.brand_id = ANY(@brand_ids::uuid[]))
+          AND EXISTS (
+             SELECT 1 FROM product_variants candidate
+             JOIN variant_option_values selected ON selected.variant_id = candidate.id
+             WHERE candidate.product_id = p.id AND candidate.is_active
+               AND selected.option_id = axis.id AND selected.option_value_id = choice.id
+               AND (NOT @in_stock_only::boolean OR candidate.stock_quantity > candidate.safety_stock)
+               AND (@min_price::bigint = 0 OR candidate.price_cents >= @min_price::bigint)
+               AND (@max_price::bigint = 0 OR candidate.price_cents <= @max_price::bigint)
+               AND NOT EXISTS (
+                  SELECT 1 FROM unnest(@option_names::text[]) WITH ORDINALITY chosen(name, position)
+                  WHERE chosen.name <> axis.name AND NOT EXISTS (
+                    SELECT 1 FROM variant_option_values other_selected
+                    JOIN product_options other_axis ON other_axis.id = other_selected.option_id
+                    JOIN product_option_values other_choice ON other_choice.id = other_selected.option_value_id
+                    WHERE other_selected.variant_id = candidate.id
+                      AND other_axis.name = chosen.name AND other_choice.value = (@option_values::text[])[chosen.position]
+                  )
+               )
+          )
+       ))::bigint AS product_count
+FROM products p
+JOIN product_options axis ON axis.product_id = p.id
+JOIN product_option_values choice ON choice.option_id = axis.id
+WHERE p.status = 'active' AND p.category_id = ANY(@category_ids::uuid[])
+GROUP BY axis.name, choice.value
+ORDER BY min(axis.position), axis.name, min(choice.position), choice.value;
