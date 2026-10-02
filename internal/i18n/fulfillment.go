@@ -235,6 +235,16 @@ var (
 		En:     "That carrier and tracking number are already on record. Check the number.",
 	})
 
+	KeyAdminStockDeltaError = key("admin.stock.deltaerror", Message{
+		ZhHant: "請輸入不為 0 的整數,例如 +10 或 -3。",
+		En:     "Enter a whole number other than 0, such as +10 or -3.",
+	})
+
+	KeyAdminStockAdjustRefused = key("admin.stock.adjustrefused", Message{
+		ZhHant: "這個調整沒有被接受:庫存不能低於 0,或找不到這個品項。",
+		En:     "That adjustment was not accepted: stock cannot go below 0, or the variant no longer exists.",
+	})
+
 	KeyAdminNoticeBadParcel = key("admin.notice.badparcel", Message{
 		ZhHant: "出貨數量填寫有問題:每一項不能超過還沒出貨的數量,也不能超過這筆訂單保留的庫存。",
 		En: "Those quantities do not work: no line can exceed what is still outstanding, or what this " +

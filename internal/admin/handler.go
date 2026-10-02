@@ -395,7 +395,7 @@ func (h *Handler) AdjustStock(w http.ResponseWriter, r *http.Request) {
 	}
 	delta, ok := ParseAdjustment(r.PostFormValue("delta"))
 	if !ok {
-		http.Redirect(w, r, stockBack(r, "refused"), http.StatusSeeOther)
+		h.rejectAdjustment(w, r, i18n.KeyAdminStockDeltaError)
 		return
 	}
 	key := r.PostFormValue("idempotency")
@@ -410,11 +410,41 @@ func (h *Handler) AdjustStock(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, ErrRefused), errors.Is(err, ErrNotFound):
 		h.log.WarnContext(r.Context(), "stock adjustment refused",
 			"sku", r.PostFormValue("sku"), "delta", delta, "error", err)
-		http.Redirect(w, r, stockBack(r, "refused"), http.StatusSeeOther)
+		h.rejectAdjustment(w, r, i18n.KeyAdminStockAdjustRefused)
 	default:
 		h.log.ErrorContext(r.Context(), "adjust stock", "error", err)
 		h.serverError(w, r)
 	}
+}
+
+// rejectAdjustment re-renders the stock list the form was posted from, at 422,
+// with what was typed kept in its row and marked invalid.
+func (h *Handler) rejectAdjustment(w http.ResponseWriter, r *http.Request, key i18n.Key) {
+	var low, after string
+	if u, err := url.Parse(r.PostFormValue("return")); err == nil && u.Path == "/admin/stock" && u.Host == "" {
+		low, after = u.Query().Get("low"), u.Query().Get(web.KeysetParam)
+	}
+	view, err := h.store.Variants(r.Context(), low == "1", after)
+	if err != nil {
+		h.log.ErrorContext(r.Context(), "read variants after refused adjustment", "error", err)
+		h.serverError(w, r)
+		return
+	}
+	view.Return = stockReturn(low, after, "", "")
+	sku := r.PostFormValue("sku")
+	shown := false
+	for i := range view.Variants {
+		if view.Variants[i].SKU == sku {
+			view.Variants[i].DraftDelta = r.PostFormValue("delta")
+			view.Variants[i].DeltaError = i18n.T(r.Context(), key)
+			shown = true
+		}
+	}
+	if !shown {
+		// The row is not on this page, so the banner has to say it.
+		view.Notice = i18n.T(r.Context(), key)
+	}
+	web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.AdminVariants(pages.AdminVariantsMeta(r.Context()), view))
 }
 
 // ReceiveStock serves POST /admin/stock/receive, redirecting to the ledger.

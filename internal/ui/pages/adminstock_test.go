@@ -30,3 +30,22 @@ func TestTheStockListMarksItsFilterAndCarriesItsPlaceInEachForm(t *testing.T) {
 		t.Errorf("%d forms post their place back, want price, adjust and active", got)
 	}
 }
+
+func TestARefusedAdjustmentKeepsWhatWasTypedAndMarksIt(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	view := AdminVariantsView{Variants: []AdminVariant{
+		{SKU: "A-1", ProductName: "x", DraftDelta: "12x", DeltaError: "請輸入不為 0 的整數"},
+		{SKU: "B-2", ProductName: "y"},
+	}}
+	html := renderComponent(t, ctx, AdminVariants(layouts.Page{}, view))
+
+	for _, want := range []string{`name="delta" value="12x"`, `aria-describedby="adj-error-A-1"`, `id="adj-error-A-1"`} {
+		if !strings.Contains(html, want) {
+			t.Errorf("the refused adjustment row is missing %q", want)
+		}
+	}
+	if strings.Contains(html, "adj-error-B-2") {
+		t.Error("an untouched row is marked invalid")
+	}
+}
