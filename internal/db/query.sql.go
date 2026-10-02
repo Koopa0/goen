@@ -11217,11 +11217,8 @@ func (q *Queries) RecordOrderEvent(ctx context.Context, arg RecordOrderEventPara
 }
 
 const recordPaidEvent = `-- name: RecordPaidEvent :exec
-INSERT INTO order_events (order_id, kind, note, occurred_at)
-VALUES ($1, 'paid', $2, coalesce((
-    SELECT max(paid_at) FROM payments
-    WHERE order_id = $1 AND status = 'succeeded'
-), now()))
+INSERT INTO order_events (order_id, kind, note)
+VALUES ($1, 'paid', $2)
 `
 
 type RecordPaidEventParams struct {
