@@ -1267,12 +1267,13 @@ h3 {
   }
 }
 
+/* Content-box, like the header bar and the footer grid: the width is the
+   content's, so all three put their text on one left edge. */
 .goen-container,
 .goen-home {
   margin-inline: auto;
   max-width: var(--page-width);
   padding-inline: var(--page-gutter);
-  width: 100%;
 }
 
 .goen-home__section {
