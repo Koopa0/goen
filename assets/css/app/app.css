@@ -3965,6 +3965,13 @@ a.goen-pager__step:hover {
     height: 3rem;
   }
 
+  /* The menu drawer belongs to the header, which this later fixed block would
+     paint over; hidden, the bar also leaves the tab order. */
+  body:has(.goen-header__menu[open]) .goen-buybar.is-visible {
+    transform: translateY(100%);
+    visibility: hidden;
+  }
+
   body:has(.goen-buybar.is-visible) {
     padding-bottom: calc(4.5rem + env(safe-area-inset-bottom));
   }

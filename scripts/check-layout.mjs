@@ -2708,16 +2708,35 @@ const provePdpAdd = async (label, scriptingOff) => {
     return;
   }
 
-  // The address says the same thing either way — this product, added=added,
-  // the selection that was bought — but the fragment belongs to the navigation
-  // and not to the outcome. With no script the browser navigates and #buybox is
-  // what aims the landing; with script nothing navigates, nothing needs aiming,
-  // and a fragment in the pushed URL would claim a jump that did not happen.
-  const landed = await waitForHref(
-    (href) => href.includes(`/p/${slug}`) && href.includes('added=added')
-      && href.includes('?') && href.includes('#buybox') === scriptingOff,
-    label,
-  );
+  // Without script the browser navigates: the address becomes this product with
+  // added=added and #buybox aiming the landing. With script nothing navigates and
+  // the address stays the product's own, with no outcome in it and no fragment:
+  // ?added= says what one press did and is not a page to come back to.
+  let landed;
+  if (scriptingOff) {
+    landed = await waitForHref(
+      (href) => href.includes(`/p/${slug}`) && href.includes('added=added')
+        && href.includes('?') && href.includes('#buybox'),
+      label,
+    );
+  } else {
+    let noticed = false;
+    for (let i = 0; i < 50 && !noticed; i++) {
+      const seen = await evalPage(`!!document.querySelector('.goen-pdp__added[role="status"]')`);
+      noticed = seen === true;
+      if (!noticed) await new Promise((r) => setTimeout(r, 100));
+    }
+    if (!noticed) {
+      fail(label, 'the success notice never appeared after add-to-cart');
+      return;
+    }
+    landed = await evalPage('location.href');
+    if (typeof landed !== 'string' || !landed.includes(`/p/${slug}`)
+      || landed.includes('added') || landed.includes('#')) {
+      fail(label, `with script the address after add-to-cart is ${landed}, want the product's own address with no added and no fragment`);
+      return;
+    }
+  }
   if (!landed) return;
 
   const got = await evalPage(`(() => {
@@ -2815,8 +2834,11 @@ const provePdpAdd = async (label, scriptingOff) => {
   if (after.addDisabled) {
     fail(label, 'refresh left add-to-cart disabled');
   }
-  if (after.notices < before.notices) {
+  if (scriptingOff && after.notices < before.notices) {
     fail(label, 'refresh dropped the add-to-cart notice');
+  }
+  if (!scriptingOff && after.notices !== 0) {
+    fail(label, 'refreshing the product address showed an add-to-cart notice that the address does not carry');
   }
   if (after.cartUnits !== before.cartUnits) {
     fail(label, `refresh changed the cart unit count from ${before.cartUnits} to ${after.cartUnits}`);
