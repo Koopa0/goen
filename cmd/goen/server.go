@@ -192,6 +192,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 		Log:      log,
 		StepUp:   stepUp,
 		Sessions: sessionCloser(gateway),
+		StoreMap: cfg.StoreMap,
 	})
 	// basketStore answers the order-access question for all three packages.
 	till := payment.NewHandler(payment.NewStore(pool), gateway, basketStore, log, secureCookies)

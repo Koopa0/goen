@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"maps"
@@ -8,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -176,7 +178,7 @@ type shippingDrafts struct {
 func (h *Handler) rejectShippingForm(
 	w http.ResponseWriter, r *http.Request, errs map[string]string, drafts *shippingDrafts,
 ) {
-	view, err := h.store.Shipping(r.Context())
+	view, err := h.shippingView(r.Context())
 	if err != nil {
 		h.serverError(w, r)
 		return
@@ -198,9 +200,25 @@ func dollars(v string, blankOK bool) (int64, bool) {
 	return n, err == nil && n >= 0
 }
 
+// shippingView is the configuration with each pickup-point method marked as not
+// offered where checkout hides it: a method listed here with a disable button
+// reads as live, and the same condition as the checkout is what keeps it true.
+func (h *Handler) shippingView(ctx context.Context) (pages.AdminShippingView, error) {
+	view, err := h.store.Shipping(ctx)
+	if err != nil {
+		return view, err
+	}
+	for i := range view.Methods {
+		m := &view.Methods[i]
+		to, ok := cart.DestinationFor(m.Destination)
+		m.PickupUnavailable = ok && to == cart.ToPickupPoint && !h.storeMap.Enabled()
+	}
+	return view, nil
+}
+
 // Shipping serves GET /admin/shipping.
 func (h *Handler) Shipping(w http.ResponseWriter, r *http.Request) {
-	view, err := h.store.Shipping(r.Context())
+	view, err := h.shippingView(r.Context())
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read shipping configuration", "error", err)
 		h.serverError(w, r)

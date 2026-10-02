@@ -72,7 +72,10 @@ type AdminShippingMethod struct {
 	EffectiveAt   string
 	VersionCount  int64
 	Active        bool
-	Surcharges    []AdminZoneSurcharge
+	// PickupUnavailable is a pickup-point method checkout is not offering
+	// because the store map is not configured.
+	PickupUnavailable bool
+	Surcharges        []AdminZoneSurcharge
 }
 
 // AdminZoneSurcharge is what one version charges extra for one zone.
