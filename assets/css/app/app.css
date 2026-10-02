@@ -7405,7 +7405,10 @@ a.goen-pager__step:hover {
   gap: 16px;
   grid-template-columns: minmax(0, 1fr);
   margin: 0 auto;
-  max-width: var(--container);
+  /* The bar above sizes itself the same way, so the mark and the rail start on
+     one edge. */
+  box-sizing: border-box;
+  max-width: var(--page-width);
   min-width: 0;
   padding: 16px 16px 40px;
 }
@@ -7611,6 +7614,23 @@ a.goen-pager__step:hover {
   display: grid;
   gap: 12px;
   grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+}
+
+/* A phone shows two tiles a row: the figure steps down so a seven-digit amount
+   stays inside a tile half the column wide. */
+@media (max-width: 479px) {
+  .goen-admin__stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .goen-admin__stats .goen-stat {
+    padding: 12px;
+  }
+
+  .goen-admin__stats .goen-stat__value {
+    font-size: var(--fs-ed-20);
+    overflow-wrap: anywhere;
+  }
 }
 
 .goen-stat {
@@ -8357,10 +8377,23 @@ a.goen-pager__step:hover {
   background: var(--elevated);
   border-radius: var(--r-sm);
   color: var(--fg-muted);
-  font-family: var(--font-mono);
-  font-size: var(--fs-11);
+  display: grid;
+  font-size: var(--fs-12);
+  gap: 4px 12px;
+  grid-template-columns: minmax(6rem, max-content) minmax(0, 1fr);
+  margin: 0;
   overflow-wrap: anywhere;
-  padding: 6px 8px;
+  padding: 8px 10px;
+}
+
+.goen-admin__auditdetail dt {
+  color: var(--fg-muted);
+  font-family: var(--font-mono);
+}
+
+.goen-admin__auditdetail dd {
+  color: var(--fg);
+  margin: 0;
 }
 
 /* The hero queue's thumbnail and its two buttons. */
@@ -8513,7 +8546,10 @@ a.goen-pager__step:hover {
 .goen-admin__sectionnav {
   display: flex;
   gap: 8px 20px;
+  max-width: 100%;
+  min-width: 0;
   overflow-x: auto;
+  overscroll-behavior-x: contain;
   padding: 12px 0;
   margin-bottom: 16px;
   border-bottom: 1px solid var(--border);

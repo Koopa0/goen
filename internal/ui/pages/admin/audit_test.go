@@ -1,9 +1,11 @@
 package admin
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
 func TestStaffAuditActionsRenderAPhrase(t *testing.T) {
@@ -58,5 +60,22 @@ func TestASystemIssueIsNotReadAsAnErasedAccount(t *testing.T) {
 				t.Errorf("ActorText = %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestTheAuditTrailShowsChangesAsRowsNotJSON(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	html := renderComponent(t, ctx, Audit(layouts.Page{}, AuditView{Rows: []AuditEntry{{
+		Action: "order.advance", Entity: "orders", Actor: "staff", At: "2026-10-02 10:00",
+		Changes: []AuditChange{{Field: "status", Before: "pending", After: "picking"}},
+	}}}))
+	for _, want := range []string{"<dt>status</dt>", "<dd>pending → picking</dd>"} {
+		if !strings.Contains(html, want) {
+			t.Errorf("audit row is missing %s", want)
+		}
+	}
+	if strings.Contains(html, `{"status"`) || strings.Contains(html, "{&#34;status") {
+		t.Error("the audit row prints raw JSON")
 	}
 }

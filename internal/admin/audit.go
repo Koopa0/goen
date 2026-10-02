@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/google/uuid"
 
@@ -220,7 +221,7 @@ func (s *Store) Audit(ctx context.Context, after ...string) (admin.AuditView, er
 			Subject: e.Subject, Href: auditHref(e.Subject, e.ProductSlug),
 			At:        shoptime.Second(e.OccurredAt),
 			RequestID: e.RequestID.String,
-			Detail:    summarise(e.Before, e.After),
+			Changes:   auditChanges(e.Before, e.After),
 		})
 	}
 	return view, nil
@@ -238,18 +239,72 @@ func auditHref(subject, productSlug string) string {
 	return ""
 }
 
-// summarise renders a before/after pair as one line a person can scan.
-func summarise(before, after []byte) string {
-	switch {
-	case len(after) > 0 && len(before) > 0:
-		return string(before) + " → " + string(after)
-	case len(after) > 0:
-		return string(after)
-	case len(before) > 0:
-		return string(before)
-	default:
-		return ""
+// auditChanges reads a before/after pair into one row per field. A pair keeps
+// only the fields whose value differs; a snapshot that is not a JSON object is
+// one row holding its text.
+func auditChanges(before, after []byte) []admin.AuditChange {
+	b, bOK := decodeFields(before)
+	a, aOK := decodeFields(after)
+	if !bOK || !aOK {
+		raw := string(after)
+		if len(after) == 0 {
+			raw = string(before)
+		}
+		if raw == "" {
+			return nil
+		}
+		return []admin.AuditChange{{Field: "", After: raw}}
 	}
+	both := len(before) > 0 && len(after) > 0
+	fields := make([]string, 0, len(a)+len(b))
+	for k := range b {
+		fields = append(fields, k)
+	}
+	for k := range a {
+		if _, seen := b[k]; !seen {
+			fields = append(fields, k)
+		}
+	}
+	slices.Sort(fields)
+	var changes []admin.AuditChange
+	for _, k := range fields {
+		bv, av := b[k], a[k]
+		if both && bv == av {
+			continue
+		}
+		changes = append(changes, admin.AuditChange{Field: k, Before: bv, After: av})
+	}
+	return changes
+}
+
+// decodeFields reads a snapshot as text per top-level field. An empty snapshot
+// has no fields and is fine; anything but an object is not.
+func decodeFields(raw []byte) (map[string]string, bool) {
+	if len(raw) == 0 {
+		return nil, true
+	}
+	var obj map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &obj); err != nil || obj == nil {
+		return nil, false
+	}
+	fields := make(map[string]string, len(obj))
+	for k, v := range obj {
+		fields[k] = fieldText(v)
+	}
+	return fields, true
+}
+
+// fieldText is a JSON value as a person reads it: strings unquoted, null as a
+// dash, nested values left as their JSON.
+func fieldText(v json.RawMessage) string {
+	if string(v) == "null" {
+		return "—"
+	}
+	var s string
+	if err := json.Unmarshal(v, &s); err == nil {
+		return s
+	}
+	return string(v)
 }
 
 func nullableID(id uuid.UUID) uuid.NullUUID {

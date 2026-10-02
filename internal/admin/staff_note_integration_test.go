@@ -18,6 +18,7 @@ import (
 
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/admin"
+	pagesadmin "github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 func staffNoteStore(t *testing.T) *admin.Store {
@@ -93,11 +94,11 @@ func TestStaffNoteHTTPRecordsOperationsWithoutContent(t *testing.T) {
 		// whose detail carries its number.
 		shown := 0
 		for _, e := range view.Rows {
-			if e.Action != step.action || !strings.Contains(e.Detail, number) {
+			if e.Action != step.action || !strings.Contains(changesText(e.Changes), number) {
 				continue
 			}
 			shown++
-			if e.Actor == "" || e.At == "" || e.Label(ctx) == step.action || (step.note != "" && strings.Contains(e.Detail, step.note)) {
+			if e.Actor == "" || e.At == "" || e.Label(ctx) == step.action || (step.note != "" && strings.Contains(changesText(e.Changes), step.note)) {
 				t.Errorf("audit row must be attributed, translated and hold no note text: %+v", e)
 			}
 		}
@@ -166,4 +167,12 @@ func TestUnchangedStaffNoteDoesNotInventAnOperation(t *testing.T) {
 	if count != 1 {
 		t.Fatalf("unchanged note audit count = %d, want 1", count)
 	}
+}
+
+func changesText(changes []pagesadmin.AuditChange) string {
+	var b strings.Builder
+	for _, c := range changes {
+		b.WriteString(c.Field + " " + c.Text() + "\n")
+	}
+	return b.String()
 }
