@@ -723,10 +723,10 @@ func TestStatutoryTermsAreNotPending(t *testing.T) {
 		},
 		{
 			term:   "whether opening the box forfeits the right",
-			cite:   "通訊交易解除權合理例外情事適用準則 §2 — a closed list of seven, and opened 3C hardware is on none of them",
+			cite:   "通訊交易解除權合理例外情事適用準則 §2 — a closed list of seven, and opening the parcel to inspect the goods is on none of them",
 			doc:    "returns",
-			want:   []string{"拆封後仍在鑑賞期內"},
-			wantEn: []string{"opening 3C hardware keeps you inside the seven days"},
+			want:   []string{"拆開包裹檢查商品都不會讓七天的解除權結束"},
+			wantEn: []string{"opening the parcel to inspect the goods does not end your seven days"},
 		},
 	}
 
