@@ -7,11 +7,6 @@
 // Emulation.setDeviceMetricsOverride sets the layout viewport for real, and
 // every assertion below reads a box off the live layout.
 //
-// It found its first defect before it was committed: at 375 the page scrolled
-// horizontally to 410px, because .ui-price is a nowrap row whose sale pair
-// exceeds the column and a bare 1fr grid track will not shrink below its
-// content. That is the class of bug this guards.
-//
 // Usage: make check-layout   (needs Chrome and a server on GOEN_URL)
 
 import { readFileSync } from 'node:fs';
@@ -82,11 +77,9 @@ const EXPECTED = [
 // add-to-cart breaks, this check fails too, which is correct.
 // Every page that renders a document, at a phone width and at the artboard.
 //
-// Ten of the site's fifty-three page routes had a row here; the rest had never
-// been measured in a browser at all, which is the only way an overflow or a
-// 30px tap target is found. The back-office ones matter most: their tables are
-// deliberately wider than a phone and scroll inside their own box, and nothing
-// but this says whether the PAGE stayed put.
+// A browser measurement is the only way an overflow or a 30px tap target is
+// found. Back-office tables are deliberately wider than a phone and scroll
+// inside their own box; only this says whether the PAGE stayed put.
 const PAGES = [
   { label: 'campaign 375', width: 375, height: 812, path: '/s/layout-campaign', marker: '.goen-tiles__grid .goen-tile' },
   { label: 'campaign 1440', width: 1440, height: 900, path: '/s/layout-campaign', marker: '.goen-tiles__grid .goen-tile' },
@@ -216,15 +209,12 @@ const ADMIN = [
   { label: 'admin 1440', width: 1440, height: 900, path: '/admin' },
   { label: 'admin stock 375', width: 375, height: 812, path: '/admin/stock' },
   { label: 'admin orders 375', width: 375, height: 812, path: '/admin/orders' },
-  // The rest of the back office. Four of its fifteen pages were measured; the
-  // others are the ones with the widest tables.
+  // The back-office pages with the widest tables.
   { label: 'admin products 375', width: 375, height: 812, path: '/admin/products', marker: '.goen-admin' },
   { label: 'admin products 1440', width: 1440, height: 900, path: '/admin/products', marker: '.goen-admin' },
-  // The product EDIT page, which had never been rendered in a browser at any
-  // width — the busiest form in the back office, and now the one carrying the
-  // 規格表 table. The marker is that table: PRODUCT_SLUG comes from the seed and
-  // has three specs, so a row that measured the page without it would be
-  // measuring the empty state of the thing it was added for.
+  // The product EDIT page, the busiest form in the back office. The marker is
+  // its 規格表 table: PRODUCT_SLUG comes from the seed and has three specs, so a
+  // row without it would measure the empty state.
   { label: 'admin product 375', width: 375, height: 812, path: '/admin/products/PRODUCT_SLUG', marker: '.ui-table' },
   { label: 'admin product 1440', width: 1440, height: 900, path: '/admin/products/PRODUCT_SLUG', marker: '.ui-table' },
   { label: 'admin reports 375', width: 375, height: 812, path: '/admin/reports', marker: '.goen-admin' },
@@ -267,16 +257,15 @@ const ADMIN = [
   { label: 'admin reviews 1440', width: 1440, height: 900, path: '/admin/reviews', marker: '.goen-admin' },
   // The customer pages. Both need a fixture and neither is measured without one:
   // /admin/customers lists NOTHING until somebody searches, so a row against the
-  // bare path would measure a search box and call the page covered — the promo
-  // strip's lesson. CUSTOMER_ID is the customer the Makefile
-  // seeded and places the return fixture's orders for, signed in, so the detail
+  // bare path would measure a search box and call the page covered. CUSTOMER_ID
+  // is the customer the Makefile seeded and places the return fixture's orders for, signed in, so the detail
   // page has its stats and its order table on screen rather than the empty state.
   // The FAQ page. Its marker is the LIST rather than .goen-admin, because the seed
   // populates faq_entries and the page's two halves are a form and that list — a row
   // that passed on the chrome alone would measure the form and call the page covered.
   // One variant's stock ledger. Markered on the TABLE: a variant whose ledger is
-  // empty renders a hint instead, and the seed now posts its stock through
-  // record_inventory_movement precisely so this page has something to measure.
+  // empty renders a hint instead, so the seed posts its stock through
+  // record_inventory_movement.
   { label: 'admin movements 375', width: 375, height: 812, path: '/admin/stock/PXL-9P-1-1', marker: '.ui-table' },
   { label: 'admin movements 1440', width: 1440, height: 900, path: '/admin/stock/PXL-9P-1-1', marker: '.ui-table' },
   { label: 'admin faq 375', width: 375, height: 812, path: '/admin/faq', marker: '.goen-admin__coupons' },
@@ -332,7 +321,7 @@ const ACCOUNT_PAGES = [
     marker: '.goen-account__orders' },
   { label: 'account orders 1440', width: 1440, height: 900, path: '/account',
     marker: '.goen-account__orders' },
-  // Canonical order detail (#295). INVOICE_ORDER is delivered, refunded and
+  // Canonical order detail. INVOICE_ORDER is delivered, refunded and
   // owned by the signed-in customer — not the guest PLACED_ORDER cookie.
   { label: 'order detail 375', width: 375, height: 812,
     path: '/orders/INVOICE_ORDER', marker: '.goen-order__lines' },
@@ -350,7 +339,7 @@ const ACCOUNT_PAGES = [
     marker: '#points', points: true },
   // Each saved product must be one direct grid list item with its card and
   // remove form inside it and matching slugs. A global tile plus a global form
-  // is the #320 topology and must not pass (#321 fixes the product).
+  // is the wrong topology and must not pass.
   { label: 'wishlist 375', width: 375, height: 812, path: '/account/wishlist',
     marker: '.goen-tiles__grid > li.goen-wish', wishlist: true },
   { label: 'wishlist 1440', width: 1440, height: 900, path: '/account/wishlist',
@@ -567,13 +556,10 @@ const PROBE = `(() => {
 
 // settled waits for the document to finish loading, rather than guessing.
 //
-// Every navigation here used to be followed by a fixed 1200ms sleep, which is a race
-// the check loses on a cold server: the probe then runs against about:blank or a
-// half-built document, reads null off a querySelector, and throws — reported as a
-// TypeError in the checker rather than as the page not being ready.
-//
-// Polls readyState instead, with a ceiling. A page that never completes is a real
-// failure and says so.
+// A fixed sleep is a race the check loses on a cold server: the probe runs
+// against about:blank or a half-built document and throws a TypeError instead
+// of reporting the page as not ready. Polls readyState with a ceiling; a page
+// that never completes is a real failure and says so.
 // Every route this run actually visited, in the order it first saw them, as
 // route -> the URL that reached it. The axe pass at the end reads this rather
 // than a second list of paths: a list would drift from the tables above, and
@@ -631,8 +617,6 @@ const fail = (where, msg) => failures.push(`${where}: ${msg}`);
 // "Not yet" and "not served" are different facts and naturalWidth tells them
 // apart only once the fetch has settled. readyState complete does not wait for
 // images, so on a cold cache the first page of a run is measured mid-download:
-// CI reported two product images as missing at the 375 artboard — the run's
-// first navigation — that loaded correctly at 768, 1024 and 1440 seconds later.
 //
 // This is a correction to the probe, not a weaker assertion. `complete` is true
 // the moment the fetch settles WHETHER OR NOT it succeeded, so an image the
@@ -651,10 +635,7 @@ const fail = (where, msg) => failures.push(`${where}: ${msg}`);
 // phone should not pay for eight images to read a hero. A driven viewport never
 // scrolls, so the deepest row stays outside the distance Chrome starts a lazy
 // fetch at, sits at complete=false for the whole ceiling, and is then reported
-// as an image the server does not serve. The run that sent this here says so
-// exactly: the two tiles named in its failure never appear in the server's log
-// during the fifteen seconds, and are requested the instant the viewport widens
-// for the next artboard.
+// as an image the server does not serve.
 //
 // So walk the document through in viewport-height steps first, which is what a
 // shopper's thumb does, and come back to the top before anything is measured —
@@ -759,10 +740,9 @@ if (process.env.CART_TOKEN) {
 // order number is a guessable per-day counter. Without this cookie every pay
 // check would measure the 404 page and pass.
 //
-// The cookie carries a TOKEN and the URL carries the NUMBER, and they are two
-// variables for that reason: they used to be one, from the days when the number
-// was the proof, and reading the token into the URL is what made the pay rows
-// name an order that does not exist.
+// The cookie carries a TOKEN and the URL carries the NUMBER; the number alone
+// is not proof, and reading the token into the URL would name an order that
+// does not exist.
 if (process.env.PLACED_TOKEN) {
   await send(ws, 'Network.enable');
   await send(ws, 'Network.setCookie', {
@@ -2187,7 +2167,7 @@ const POINTS_PAGE_PROBE = `(() => {
 // Wishlist rows need each saved product as one direct grid list item: the card
 // link and its native remove form live in the same li, with matching slugs.
 // Tile already emits li.goen-tile__cell; wrapping @Tile in li.goen-wish leaves
-// an empty outer item and parks the form as a direct ul child (#320).
+// an empty outer item and parks the form as a direct ul child.
 const WISHLIST_PAGE_PROBE = `(() => {
   const de = document.documentElement;
   const clipped = (e) => {
@@ -2448,7 +2428,7 @@ if (process.env.ADMIN_TOKEN) {
   // staff session is not being accepted". That sentence describes ONE cause and
   // there are at least four, three of which are not a rejected cookie at all:
   //
-  //   - the fixture wrote no session row (the Makefile used to swallow that);
+  //   - the fixture wrote no session row;
   //   - the cookie is fine and GOEN_TOTP_KEY is set, so /admin redirects to the
   //     step-up challenge that this target cannot answer — it has no authenticator;
   //   - the session expired, or the server is running with secure cookies and is

@@ -31,9 +31,9 @@ func SitePath(raw string) (string, bool) {
 	}
 	clean := u.String()
 	// URL.String canonicalises raw characters. When a valid escaped slash sits
-	// beside a raw space, net/url cannot retain RawPath and used to turn
-	// "/%2f " into "//%20". Reapply the browser rule to what the caller will
-	// actually put in a Location header.
+	// beside a raw space, net/url cannot retain RawPath and turns "/%2f " into
+	// "//%20". Reapply the browser rule to what the caller will actually put in
+	// a Location header.
 	if !hasSitePathShape(clean) {
 		return "", false
 	}
@@ -91,8 +91,6 @@ func hasControl(s string) bool {
 	return strings.ContainsFunc(s, unicode.IsControl)
 }
 
-// SitePathOr is SitePath with a fallback, for a caller that must redirect
-// somewhere whatever the input was.
 func SitePathOr(raw, fallback string) string {
 	if p, ok := SitePath(raw); ok {
 		return p

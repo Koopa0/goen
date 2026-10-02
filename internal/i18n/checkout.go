@@ -192,7 +192,6 @@ var (
 	// puts the account's name and phone in them.
 	KeyRecipientIsMe = key("checkout.recipient.me", Message{ZhHant: "收件人同會員資料", En: "Recipient is me"})
 
-	// The label of the saved-address select.
 	KeyChooseSavedAddress = key("checkout.address.choose", Message{ZhHant: "選擇常用地址", En: "Choose a saved address"})
 
 	// The select's last option: none of the saved addresses, so the fields are

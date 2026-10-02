@@ -26,10 +26,8 @@ type Recipient struct {
 	RescissionEnds string
 }
 
-// Recipients reads them.
 type Recipients struct{ q *db.Queries }
 
-// NewRecipients reads through the given connection.
 func NewRecipients(conn db.DBTX) Recipients { return Recipients{q: db.New(conn)} }
 
 // Of returns the order's current recipient, and false when there is none: the
