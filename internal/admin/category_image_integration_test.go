@@ -18,6 +18,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/admin"
+	"github.com/koopa0/goen/internal/admin/health"
 	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -159,11 +160,11 @@ func TestAUploadHeldByACategoryIsNotCountedUnreferenced(t *testing.T) {
 	messages := outbox.NewStore(pool, slog.New(slog.DiscardHandler))
 	count := func() int64 {
 		t.Helper()
-		health, err := s.WorkerHealth(ctx, messages)
+		page, err := health.NewStore(pool).WorkerHealth(ctx, messages)
 		if err != nil {
 			t.Fatalf("read health: %v", err)
 		}
-		return health.UnreferencedMedia
+		return page.UnreferencedMedia
 	}
 
 	before := count()

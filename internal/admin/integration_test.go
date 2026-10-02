@@ -34,6 +34,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/audit"
+	"github.com/koopa0/goen/internal/admin/health"
 	"github.com/koopa0/goen/internal/admin/reports"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/db/dbtest"
@@ -112,6 +113,11 @@ func staffID(t *testing.T) string {
 
 // backOffice wraps a handler as its route in cmd/goen does, with 2FA off.
 var backOffice = access.New(slog.New(slog.DiscardHandler), nil)
+
+func healthHandler(p *pgxpool.Pool) *health.Handler {
+	log := slog.New(slog.DiscardHandler)
+	return health.NewHandler(health.NewStore(p), outbox.NewStore(p, log), nil, log)
+}
 
 func adminHandlerOver(p *pgxpool.Pool, s *admin.Store) *admin.Handler {
 	log := slog.New(slog.DiscardHandler)
@@ -2742,14 +2748,14 @@ func TestAProviderRefusalGetsANewDurableAttempt(t *testing.T) {
 		t.Errorf("second provider attempt = %#v, want succeeded generation 2 linked to %s",
 			attempts[1], attempts[0].id)
 	}
-	health, err := healthy.WorkerHealth(ctx, outbox.NewStore(pool, slog.New(slog.DiscardHandler)))
+	page, err := health.NewStore(pool).WorkerHealth(ctx, outbox.NewStore(pool, slog.New(slog.DiscardHandler)))
 	if err != nil {
 		t.Fatalf("read health after successful successor: %v", err)
 	}
-	for i := range health.OpenRefunds {
-		if strings.HasPrefix(health.OpenRefunds[i].Key, base) {
+	for i := range page.OpenRefunds {
+		if strings.HasPrefix(page.OpenRefunds[i].Key, base) {
 			t.Errorf("historical failed attempt still appears as current health work: %#v",
-				health.OpenRefunds[i])
+				page.OpenRefunds[i])
 		}
 	}
 }
@@ -2766,7 +2772,7 @@ func TestTheHealthPageNamesARefundThatDidNotLand(t *testing.T) {
 		t.Fatal("a refund that timed out was reported as success")
 	}
 
-	view, err := s.WorkerHealth(ctx, outbox.NewStore(pool, slog.New(slog.DiscardHandler)))
+	view, err := health.NewStore(pool).WorkerHealth(ctx, outbox.NewStore(pool, slog.New(slog.DiscardHandler)))
 	if err != nil {
 		t.Fatalf("health: %v", err)
 	}
@@ -2801,9 +2807,8 @@ func TestTheHealthPageNamesARefundThatDidNotLand(t *testing.T) {
 
 func TestRefundHealthCountExceedsItsBoundedDiagnosticSample(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
 	worker := outbox.NewStore(pool, slog.New(slog.DiscardHandler))
-	before, err := s.WorkerHealth(ctx, worker)
+	before, err := health.NewStore(pool).WorkerHealth(ctx, worker)
 	if err != nil {
 		t.Fatalf("read refund count before sample crowd: %v", err)
 	}
@@ -2827,7 +2832,7 @@ func TestRefundHealthCountExceedsItsBoundedDiagnosticSample(t *testing.T) {
 		}
 	})
 
-	after, err := s.WorkerHealth(ctx, worker)
+	after, err := health.NewStore(pool).WorkerHealth(ctx, worker)
 	if err != nil {
 		t.Fatalf("read refund count after sample crowd: %v", err)
 	}
@@ -2835,9 +2840,9 @@ func TestRefundHealthCountExceedsItsBoundedDiagnosticSample(t *testing.T) {
 		t.Errorf("exact open refund count moved %d -> %d, want +25",
 			before.OpenRefundCount, after.OpenRefundCount)
 	}
-	if len(after.OpenRefunds) != admin.OpenRefundListLimit {
+	if len(after.OpenRefunds) != health.OpenRefundListLimit {
 		t.Errorf("diagnostic sample has %d rows, want bounded %d",
-			len(after.OpenRefunds), admin.OpenRefundListLimit)
+			len(after.OpenRefunds), health.OpenRefundListLimit)
 	}
 	enCtx := i18n.WithLocale(ctx, i18n.En)
 	wantText := fmt.Sprintf(i18n.T(enCtx, i18n.KeyHealthRefundsStuck), after.OpenRefundCount)
@@ -3806,47 +3811,14 @@ func anyActiveProductSlug(t *testing.T) string {
 	return slug
 }
 
-func TestHealthIsDerivedFromTheWorkNotFromAHeartbeat(t *testing.T) {
-	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
-
-	if _, err := pool.Exec(ctx, `DELETE FROM outbox_messages`); err != nil {
-		t.Fatalf("clear outbox: %v", err)
-	}
-	clean, err := s.WorkerHealth(ctx, outbox.NewStore(pool, slog.New(slog.DiscardHandler)))
-	if err != nil {
-		t.Fatalf("health: %v", err)
-	}
-	if !clean.OutboxHealthy() {
-		t.Errorf("an empty outbox reads as unhealthy: %s", clean.OutboxText(ctx))
-	}
-
-	if _, err := pool.Exec(ctx, `
-		INSERT INTO outbox_messages (topic, dedupe_key, payload, attempts, available_at)
-		VALUES ('test.health', 'health-stuck', '{}'::jsonb, 99, now())`); err != nil {
-		t.Fatalf("insert stuck: %v", err)
-	}
-	stuck, stuckErr := s.WorkerHealth(ctx, outbox.NewStore(pool, slog.New(slog.DiscardHandler)))
-	if stuckErr != nil {
-		t.Fatalf("health: %v", stuckErr)
-	}
-	if stuck.OutboxHealthy() {
-		t.Error("a message that has run out of attempts reads as healthy")
-	}
-	if stuck.OutboxStuck != 1 {
-		t.Errorf("%d stuck messages, want 1", stuck.OutboxStuck)
-	}
-}
-
 // TestAnAcknowledgedPaymentLeavesTheAlarm is the other half of flagging one.
 // The refund is at Stripe and nothing here can see it land, so the alarm has an
 // off switch or /admin/health is unhealthy forever after the first arrival —
 // and an alarm that is always on is one nobody reads.
 func TestAnAcknowledgedPaymentLeavesTheAlarm(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
 	worker := outbox.NewStore(pool, slog.New(slog.DiscardHandler))
-	baseline, healthErr := s.WorkerHealth(ctx, worker)
+	baseline, healthErr := health.NewStore(pool).WorkerHealth(ctx, worker)
 	if healthErr != nil {
 		t.Fatalf("health before fixture: %v", healthErr)
 	}
@@ -3874,7 +3846,7 @@ func TestAnAcknowledgedPaymentLeavesTheAlarm(t *testing.T) {
 		t.Fatalf("flag the event: %v", err)
 	}
 
-	flagged, err := s.WorkerHealth(ctx, worker)
+	flagged, err := health.NewStore(pool).WorkerHealth(ctx, worker)
 	if err != nil {
 		t.Fatalf("health: %v", err)
 	}
@@ -3901,7 +3873,7 @@ func TestAnAcknowledgedPaymentLeavesTheAlarm(t *testing.T) {
 		"/admin/health/reconcile", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	res := httptest.NewRecorder()
-	adminHandlerOver(pool, s).ReconcilePayment(res, req)
+	healthHandler(pool).Reconcile(res, req)
 	if res.Code != http.StatusSeeOther || res.Header().Get("Location") != "/admin/health?notflagged=1" {
 		t.Fatalf("event-only HTTP resolution = %d %q, want refusal redirect",
 			res.Code, res.Header().Get("Location"))
@@ -3920,7 +3892,7 @@ func TestAnAcknowledgedPaymentLeavesTheAlarm(t *testing.T) {
 	}
 
 	beforeAudit := auditRows(t, audit.ActionReconcilePayment)
-	if err := s.ReleasePaymentEventAfterRefundOrAccounting(ctx, eventID); err != nil {
+	if err := health.NewStore(pool).ReleasePaymentEventAfterRefundOrAccounting(ctx, eventID); err != nil {
 		t.Fatalf("reconcile: %v", err)
 	}
 	var paymentStatus string
@@ -3933,7 +3905,7 @@ func TestAnAcknowledgedPaymentLeavesTheAlarm(t *testing.T) {
 			paymentStatus)
 	}
 
-	settled, settledErr := s.WorkerHealth(ctx, worker)
+	settled, settledErr := health.NewStore(pool).WorkerHealth(ctx, worker)
 	if settledErr != nil {
 		t.Fatalf("health: %v", settledErr)
 	}
@@ -3953,7 +3925,7 @@ func TestAnAcknowledgedPaymentLeavesTheAlarm(t *testing.T) {
 
 	// A second press changes nothing: the row count is where the question is
 	// asked, so there is no read-then-write for two staff members to both pass.
-	if err := s.ReleasePaymentEventAfterRefundOrAccounting(
+	if err := health.NewStore(pool).ReleasePaymentEventAfterRefundOrAccounting(
 		ctx, eventID,
 	); !errors.Is(err, admin.ErrNotFound) {
 		t.Errorf("acknowledging it twice = %v, want ErrNotFound", err)
@@ -3965,7 +3937,7 @@ func TestAnAcknowledgedPaymentLeavesTheAlarm(t *testing.T) {
 		VALUES ('stripe', $1, 'payment_intent.processing', '{}'::jsonb)`, unflagged); err != nil {
 		t.Fatalf("insert: %v", err)
 	}
-	if err := s.ReleasePaymentEventAfterRefundOrAccounting(
+	if err := health.NewStore(pool).ReleasePaymentEventAfterRefundOrAccounting(
 		ctx, unflagged,
 	); !errors.Is(err, admin.ErrNotFound) {
 		t.Errorf("acknowledging an event that was never flagged = %v, want ErrNotFound", err)
@@ -3978,7 +3950,6 @@ func TestAnAcknowledgedPaymentLeavesTheAlarm(t *testing.T) {
 // health unhealthy and give staff an audited, typed way to resolve it.
 func TestACompletePaymentWithoutAFlaggedEventHasAResolutionDoor(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
 	worker := outbox.NewStore(pool, slog.New(slog.DiscardHandler))
 
 	number := placeUnpaidOrder(t)
@@ -4003,7 +3974,7 @@ func TestACompletePaymentWithoutAFlaggedEventHasAResolutionDoor(t *testing.T) {
 		t.Fatalf("record understood complete event: %v", err)
 	}
 
-	flagged, err := s.WorkerHealth(ctx, worker)
+	flagged, err := health.NewStore(pool).WorkerHealth(ctx, worker)
 	if err != nil {
 		t.Fatalf("health before resolution: %v", err)
 	}
@@ -4022,8 +3993,8 @@ func TestACompletePaymentWithoutAFlaggedEventHasAResolutionDoor(t *testing.T) {
 	}
 
 	beforeAudit := auditRows(t, audit.ActionReconcilePayment)
-	if reconcileErr := s.ReconcileCompletePayment(ctx, providerRef,
-		admin.CompletePaymentUnpaidOrRefunded); reconcileErr != nil {
+	if reconcileErr := health.NewStore(pool).ReconcileCompletePayment(ctx, providerRef,
+		health.CompletePaymentUnpaidOrRefunded); reconcileErr != nil {
 		t.Fatalf("reconcile complete payment: %v", reconcileErr)
 	}
 	var status string
@@ -4035,7 +4006,7 @@ func TestACompletePaymentWithoutAFlaggedEventHasAResolutionDoor(t *testing.T) {
 		t.Errorf("resolved complete payment status = %q, want reconciled", status)
 	}
 
-	settled, err := s.WorkerHealth(ctx, worker)
+	settled, err := health.NewStore(pool).WorkerHealth(ctx, worker)
 	if err != nil {
 		t.Fatalf("health after resolution: %v", err)
 	}
@@ -4047,8 +4018,8 @@ func TestACompletePaymentWithoutAFlaggedEventHasAResolutionDoor(t *testing.T) {
 	if got := auditRows(t, audit.ActionReconcilePayment); got != beforeAudit+1 {
 		t.Errorf("reconciling complete payment added %d audit rows, want 1", got-beforeAudit)
 	}
-	if err := s.ReconcileCompletePayment(ctx, providerRef,
-		admin.CompletePaymentUnpaidOrRefunded); !errors.Is(err, admin.ErrNotFound) {
+	if err := health.NewStore(pool).ReconcileCompletePayment(ctx, providerRef,
+		health.CompletePaymentUnpaidOrRefunded); !errors.Is(err, admin.ErrNotFound) {
 		t.Errorf("reconciling complete payment twice = %v, want ErrNotFound", err)
 	}
 }
@@ -4082,8 +4053,7 @@ func TestReleasedStockPaidAttributionReturnsARefundInstruction(t *testing.T) {
 		t.Fatalf("record delayed complete session: %v", err)
 	}
 
-	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
-	view, err := s.WorkerHealth(ctx, outbox.NewStore(pool, slog.New(slog.DiscardHandler)))
+	view, err := health.NewStore(pool).WorkerHealth(ctx, outbox.NewStore(pool, slog.New(slog.DiscardHandler)))
 	if err != nil {
 		t.Fatalf("health: %v", err)
 	}
@@ -4106,7 +4076,7 @@ func TestReleasedStockPaidAttributionReturnsARefundInstruction(t *testing.T) {
 		"/admin/health/reconcile", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	res := httptest.NewRecorder()
-	adminHandlerOver(pool, s).ReconcilePayment(res, req)
+	healthHandler(pool).Reconcile(res, req)
 	if res.Code != http.StatusSeeOther ||
 		res.Header().Get("Location") != "/admin/health?mustrefund=1" {
 		t.Fatalf("stale paid form = %d %q, want actionable refund redirect",
@@ -4119,69 +4089,6 @@ func TestReleasedStockPaidAttributionReturnsARefundInstruction(t *testing.T) {
 	}
 	if status != "requires_reconciliation" {
 		t.Fatalf("refused paid form changed payment to %q, want requires_reconciliation", status)
-	}
-}
-
-func TestAMessageWaitingOnItsBackoffIsNotLate(t *testing.T) {
-	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
-
-	if _, err := pool.Exec(ctx, `DELETE FROM outbox_messages`); err != nil {
-		t.Fatalf("clear: %v", err)
-	}
-	if _, err := pool.Exec(ctx, `
-		INSERT INTO outbox_messages (topic, dedupe_key, payload, attempts, available_at)
-		VALUES ('test.health', 'health-backoff', '{}'::jsonb, 1, now() + interval '1 hour')`); err != nil {
-		t.Fatalf("insert: %v", err)
-	}
-
-	view, err := s.WorkerHealth(ctx, outbox.NewStore(pool, slog.New(slog.DiscardHandler)))
-	if err != nil {
-		t.Fatalf("health: %v", err)
-	}
-	if view.OutboxPending != 1 {
-		t.Errorf("%d pending, want 1", view.OutboxPending)
-	}
-	if view.OutboxOldest != 0 {
-		t.Errorf("a message not yet due reads as %v overdue", view.OutboxOldest)
-	}
-	if !view.OutboxHealthy() {
-		t.Errorf("a message waiting on its backoff reads as unhealthy: %s", view.OutboxText(ctx))
-	}
-}
-
-func TestNeverRebuiltIsNotTheSameAsJustRebuilt(t *testing.T) {
-	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
-
-	if _, err := pool.Exec(ctx, `DELETE FROM copurchase_refreshes`); err != nil {
-		t.Fatalf("clear: %v", err)
-	}
-	never, err := s.WorkerHealth(ctx, outbox.NewStore(pool, slog.New(slog.DiscardHandler)))
-	if err != nil {
-		t.Fatalf("health: %v", err)
-	}
-	if never.CopurchaseEverBuilt {
-		t.Error("a projection that never rebuilt reports itself as built")
-	}
-	if never.RecommendHealthy() {
-		t.Error("a projection that has never been rebuilt reads as healthy")
-	}
-
-	// A rebuild that found no pair of products leaves the projection empty and
-	// is still a rebuild.
-	if _, err := pool.Exec(ctx, `SELECT refresh_copurchases()`); err != nil {
-		t.Fatalf("refresh: %v", err)
-	}
-	if _, err := pool.Exec(ctx, `DELETE FROM product_copurchases`); err != nil {
-		t.Fatalf("empty the projection: %v", err)
-	}
-	fresh, freshErr := s.WorkerHealth(ctx, outbox.NewStore(pool, slog.New(slog.DiscardHandler)))
-	if freshErr != nil {
-		t.Fatalf("health: %v", freshErr)
-	}
-	if !fresh.CopurchaseEverBuilt || !fresh.RecommendHealthy() {
-		t.Errorf("a just-rebuilt projection reads as %s", fresh.RecommendText(ctx))
 	}
 }
 
@@ -11141,7 +11048,6 @@ func TestATerminalCardRetrySurvivesErasureAfterCreditLanded(t *testing.T) {
 // not listed.
 func TestARefusedSystemIssueIsOnTheHealthPage(t *testing.T) {
 	ctx, actor := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
 	worker := outbox.NewStore(pool, slog.New(slog.DiscardHandler))
 
 	refuse := func(number string, orderID uuid.UUID, kind string) {
@@ -11161,7 +11067,7 @@ func TestARefusedSystemIssueIsOnTheHealthPage(t *testing.T) {
 	}
 	listed := func(number string) bool {
 		t.Helper()
-		view, err := s.WorkerHealth(ctx, worker)
+		view, err := health.NewStore(pool).WorkerHealth(ctx, worker)
 		if err != nil {
 			t.Fatalf("health: %v", err)
 		}
@@ -11216,7 +11122,6 @@ func TestARefusedSystemIssueIsOnTheHealthPage(t *testing.T) {
 // payment_webhook_events.unreconciled already has.
 func TestAStrandedInvoiceClaimIsOnTheHealthPage(t *testing.T) {
 	ctx, actor := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
 	worker := outbox.NewStore(pool, slog.New(slog.DiscardHandler))
 
 	number, orderID, _, _ := twoLineOrderWithStock(t, "stranded")
@@ -11253,7 +11158,7 @@ func TestAStrandedInvoiceClaimIsOnTheHealthPage(t *testing.T) {
 		t.Fatalf("strand a claim: %v", err)
 	}
 
-	view, err := s.WorkerHealth(ctx, worker)
+	view, err := health.NewStore(pool).WorkerHealth(ctx, worker)
 	if err != nil {
 		t.Fatalf("health: %v", err)
 	}
@@ -11290,7 +11195,7 @@ func TestAStrandedInvoiceClaimIsOnTheHealthPage(t *testing.T) {
 			"/admin/health/reconcile", strings.NewReader(values.Encode()))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		res := httptest.NewRecorder()
-		adminHandlerOver(pool, s).ReconcilePayment(res, req)
+		healthHandler(pool).Reconcile(res, req)
 		return res
 	}
 	omitted := post(url.Values{"invoice_operation": {operation}})
