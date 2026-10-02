@@ -106,13 +106,7 @@ func (h *Handler) SetCategoryImage(w http.ResponseWriter, r *http.Request) {
 	obj, err := h.images.StoreUpload(w, r, "image")
 	if err != nil {
 		h.log.WarnContext(r.Context(), "category image upload", "error", err, "slug", slug)
-		reason := i18n.KeyAdminNoticeUploadFailed
-		switch {
-		case errors.Is(err, media.ErrTooLarge):
-			reason = i18n.KeyAdminNoticeTooBig
-		case errors.Is(err, media.ErrNotAnImage):
-			reason = i18n.KeyAdminNoticeNotImage
-		}
+		reason := media.UploadNotice(err)
 		h.renderCategory(w, r, http.StatusUnprocessableEntity, "", map[string]string{"image": i18n.T(r.Context(), reason)})
 		return
 	}

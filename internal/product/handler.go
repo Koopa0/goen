@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -313,7 +312,7 @@ func (h *Handler) rejectAsk(w http.ResponseWriter, r *http.Request, slug, body s
 func boundedSlugs(raw []string) []string {
 	out := make([]string, 0, pages.MaxCompare)
 	for _, s := range raw {
-		if !slugFormat.MatchString(s) || slices.Contains(out, s) {
+		if !web.ValidSlug(s) || slices.Contains(out, s) {
 			continue
 		}
 		out = append(out, s)
@@ -323,5 +322,3 @@ func boundedSlugs(raw []string) []string {
 	}
 	return out
 }
-
-var slugFormat = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)

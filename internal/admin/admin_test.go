@@ -20,6 +20,7 @@ import (
 	"github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
+	"github.com/koopa0/goen/internal/web"
 )
 
 func TestDollarInputsAreBoundedBeforeMultiplication(t *testing.T) {
@@ -162,9 +163,9 @@ func TestOptionalRunDaysDoNotTurnMalformedInputIntoNoExpiry(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	for _, raw := range []string{"forever", "1.5", "-1", "1000001"} {
-		days := small(raw)
+		days := web.ParseCountOrInvalid(raw)
 		if days >= 0 {
-			t.Fatalf("small(%q) = %d, want an invalid sentinel", raw, days)
+			t.Fatalf("ParseCountOrInvalid(%q) = %d, want an invalid sentinel", raw, days)
 		}
 		if errs := (&BannerForm{Message: "Sale", Days: days}).Validate(ctx); errs["banner_days"] == "" {
 			t.Errorf("BannerForm accepted malformed days %q as an unbounded banner", raw)
@@ -175,8 +176,8 @@ func TestOptionalRunDaysDoNotTurnMalformedInputIntoNoExpiry(t *testing.T) {
 			t.Errorf("HeroForm accepted malformed days %q as an unbounded slide", raw)
 		}
 	}
-	if got := small(""); got != 0 {
-		t.Errorf("small(blank) = %d, want the documented no-expiry value 0", got)
+	if got := web.ParseCountOrInvalid(""); got != 0 {
+		t.Errorf("ParseCountOrInvalid(blank) = %d, want the documented no-expiry value 0", got)
 	}
 }
 

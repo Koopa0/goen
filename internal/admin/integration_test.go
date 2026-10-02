@@ -33,6 +33,7 @@ import (
 	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/audit"
+	"github.com/koopa0/goen/internal/admin/campaigns"
 	"github.com/koopa0/goen/internal/admin/customers"
 	"github.com/koopa0/goen/internal/admin/health"
 	"github.com/koopa0/goen/internal/admin/loyalty"
@@ -474,105 +475,6 @@ func TestRetiringTheLastDiscountedVariantIsRefused(t *testing.T) {
 	if err := s.SetVariantActive(ctx, sku, false); !errors.Is(err, admin.ErrRefused) {
 		t.Errorf("retiring the last discounted variant of a featured product gave %v, "+
 			"want ErrRefused — the campaign would point at nothing marked down", err)
-	}
-}
-
-func testCampaignSlug(t *testing.T) string {
-	t.Helper()
-	return "admin-camp-" + uuid.NewString()[:8]
-}
-
-func discountedProductSlug(t *testing.T) string {
-	t.Helper()
-	var slug string
-	if err := pool.QueryRow(t.Context(), `
-		SELECT p.slug FROM products p JOIN product_variants pv ON pv.product_id = p.id
-		WHERE p.status = 'active' AND pv.is_active
-		  AND pv.compare_at_price_cents > pv.price_cents
-		LIMIT 1`).Scan(&slug); err != nil {
-		t.Fatalf("find discounted product: %v", err)
-	}
-	return slug
-}
-
-func TestFeatureProductUnknownProductReturnsNotFound(t *testing.T) {
-	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
-	slug := testCampaignSlug(t)
-	if _, err := s.CreateCampaign(ctx, &admin.CampaignForm{
-		Slug: slug, Title: "測試活動", Days: 7,
-	}); err != nil {
-		t.Fatalf("create campaign: %v", err)
-	}
-
-	missing := "no-such-product-" + uuid.NewString()
-	before := auditRows(t, audit.ActionFeatureProduct)
-	if err := s.FeatureProduct(ctx, slug, missing); !errors.Is(err, admin.ErrNotFound) {
-		t.Fatalf("unknown product = %v, want ErrNotFound", err)
-	}
-	if after := auditRows(t, audit.ActionFeatureProduct); after != before {
-		t.Errorf("%d audit rows after a zero-row feature, want %d", after, before)
-	}
-}
-
-func TestFeatureProductAlreadyFeaturedReturnsNotFound(t *testing.T) {
-	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
-	slug := testCampaignSlug(t)
-	productSlug := discountedProductSlug(t)
-	if _, err := s.CreateCampaign(ctx, &admin.CampaignForm{
-		Slug: slug, Title: "測試活動", Days: 7,
-	}); err != nil {
-		t.Fatalf("create campaign: %v", err)
-	}
-	if err := s.FeatureProduct(ctx, slug, productSlug); err != nil {
-		t.Fatalf("first feature: %v", err)
-	}
-	if err := s.FeatureProduct(ctx, slug, productSlug); !errors.Is(err, admin.ErrNotFound) {
-		t.Fatalf("already featured = %v, want ErrNotFound", err)
-	}
-}
-
-func TestFeatureProductHandlerNeverOKOnMiss(t *testing.T) {
-	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
-	h := adminHandlerOver(pool, s)
-	slug := testCampaignSlug(t)
-	if _, err := s.CreateCampaign(ctx, &admin.CampaignForm{
-		Slug: slug, Title: "測試活動", Days: 7,
-	}); err != nil {
-		t.Fatalf("create campaign: %v", err)
-	}
-
-	post := func(product string) *httptest.ResponseRecorder {
-		body := url.Values{"product": {product}}
-		req := httptest.NewRequestWithContext(ctx, http.MethodPost,
-			"/admin/campaigns/"+slug+"/products", strings.NewReader(body.Encode()))
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		req.SetPathValue("slug", slug)
-		res := httptest.NewRecorder()
-		h.FeatureProduct(res, req)
-		return res
-	}
-
-	missing := "no-such-product-" + uuid.NewString()
-	if res := post(missing); res.Code != http.StatusSeeOther ||
-		!strings.Contains(res.Header().Get("Location"), "?refused=1") ||
-		strings.Contains(res.Header().Get("Location"), "?ok=1") {
-		t.Fatalf("unknown product redirect = %d %q, want refused without ok",
-			res.Code, res.Header().Get("Location"))
-	}
-
-	productSlug := discountedProductSlug(t)
-	if ok := post(productSlug); ok.Code != http.StatusSeeOther ||
-		!strings.Contains(ok.Header().Get("Location"), "?ok=1") {
-		t.Fatalf("first feature redirect = %d %q, want ok=1", ok.Code, ok.Header().Get("Location"))
-	}
-	if again := post(productSlug); again.Code != http.StatusSeeOther ||
-		!strings.Contains(again.Header().Get("Location"), "?refused=1") ||
-		strings.Contains(again.Header().Get("Location"), "?ok=1") {
-		t.Fatalf("already featured redirect = %d %q, want refused without ok",
-			again.Code, again.Header().Get("Location"))
 	}
 }
 
@@ -3186,7 +3088,7 @@ func TestEveryBackOfficeWriteLeavesATrail(t *testing.T) {
 			return grantErr
 		}},
 		{"create campaign", audit.ActionCreateCampaign, func() error {
-			_, err := s.CreateCampaign(ctx, &admin.CampaignForm{
+			_, err := campaigns.NewStore(pool).Create(ctx, &campaigns.Form{
 				Slug: "trail-" + uuid.NewString()[:8], Title: "紀錄", Days: 7,
 			})
 			return err
@@ -7303,9 +7205,8 @@ func discountedProductSlugs(t *testing.T, n int) []string {
 // the same max(position) and sale_campaign_products_position_key refuses one.
 func TestTwoConcurrentCampaignFeaturesTakeDistinctPositions(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
-	slug := testCampaignSlug(t)
-	if _, err := s.CreateCampaign(ctx, &admin.CampaignForm{
+	slug := admintest.CampaignSlug(t)
+	if _, err := campaigns.NewStore(pool).Create(ctx, &campaigns.Form{
 		Slug: slug, Title: "併發活動", Days: 7,
 	}); err != nil {
 		t.Fatalf("create campaign: %v", err)
@@ -7319,8 +7220,8 @@ func TestTwoConcurrentCampaignFeaturesTakeDistinctPositions(t *testing.T) {
 
 	poolA := namedAdminPool(t, "campaign-append-a-"+uuid.NewString()[:8])
 	poolB := namedAdminPool(t, "campaign-append-b-"+uuid.NewString()[:8])
-	storeA := admin.NewStore(poolA, fakeRefunder{}, nil, nil)
-	storeB := admin.NewStore(poolB, fakeRefunder{}, nil, nil)
+	storeA := campaigns.NewStore(poolA)
+	storeB := campaigns.NewStore(poolB)
 
 	start := make(chan struct{})
 	type result struct {

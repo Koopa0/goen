@@ -175,3 +175,24 @@ func AdminUser(t *testing.T, p *pgxpool.Pool) (userID, email string) {
 	}
 	return id.String(), email
 }
+
+// CampaignSlug is a slug no other test's campaign has.
+func CampaignSlug(t *testing.T) string {
+	t.Helper()
+	return "admin-camp-" + uuid.NewString()[:8]
+}
+
+// DiscountedProductSlug is an active product with a marked-down variant, which
+// is what a campaign may feature.
+func DiscountedProductSlug(t *testing.T, pool *pgxpool.Pool) string {
+	t.Helper()
+	var slug string
+	if err := pool.QueryRow(t.Context(), `
+		SELECT p.slug FROM products p JOIN product_variants pv ON pv.product_id = p.id
+		WHERE p.status = 'active' AND pv.is_active
+		  AND pv.compare_at_price_cents > pv.price_cents
+		LIMIT 1`).Scan(&slug); err != nil {
+		t.Fatalf("find discounted product: %v", err)
+	}
+	return slug
+}

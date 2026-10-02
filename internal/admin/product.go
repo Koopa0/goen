@@ -18,9 +18,8 @@ import (
 	"github.com/koopa0/goen/internal/pgerr"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
+	"github.com/koopa0/goen/internal/web"
 )
-
-var slugFormat = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
 
 const (
 	maxSlugRunes        = 120
@@ -58,7 +57,7 @@ func (f *ProductForm) Validate(ctx context.Context) map[string]string {
 	f.WarrantyNote = strings.TrimSpace(f.WarrantyNote)
 
 	errs := map[string]string{}
-	if !slugFormat.MatchString(f.Slug) || utf8.RuneCountInString(f.Slug) > maxSlugRunes {
+	if !web.ValidSlug(f.Slug) || utf8.RuneCountInString(f.Slug) > maxSlugRunes {
 		errs["slug"] = i18n.T(ctx, i18n.KeyFormSlugFormatExample)
 	}
 	if f.Name == "" || utf8.RuneCountInString(f.Name) > maxNameRunes {

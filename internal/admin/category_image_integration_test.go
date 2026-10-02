@@ -18,6 +18,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/admin"
+	"github.com/koopa0/goen/internal/admin/campaigns"
 	"github.com/koopa0/goen/internal/admin/health"
 	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/outbox"
@@ -116,42 +117,6 @@ func TestACategoryTakesItsDepartmentsToneAndPhotographUntilItSetsItsOwn(t *testi
 	}
 }
 
-// A root with no tone of its own is stone, and a campaign takes any tone of the
-// closed set: the Go set and the schema's CHECK name the same six.
-func TestEveryToneOfTheClosedSetIsStorable(t *testing.T) {
-	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
-	slug := "tone-" + strings.ReplaceAll(uuid.NewString(), "-", "")[:10]
-	if errs, err := s.CreateCategory(ctx, &admin.TaxonomyForm{Slug: slug, Name: "無色調"}); err != nil || len(errs) > 0 {
-		t.Fatalf("create: %v %v", errs, err)
-	}
-	view, err := catalog.NewStore(pool).Listing(ctx, slug, catalog.Filters{})
-	if err != nil || view.Theme.ToneAttr() != "stone" {
-		t.Fatalf("a root with no tone = %q (err %v), want stone", view.Theme.ToneAttr(), err)
-	}
-
-	camp := "tone-" + strings.ReplaceAll(uuid.NewString(), "-", "")[:10]
-	errs, err := s.CreateCampaign(ctx, &admin.CampaignForm{Slug: camp, Title: "色調測試", Days: 7})
-	if err != nil || len(errs) > 0 {
-		t.Fatalf("create the campaign: %v %v", errs, err)
-	}
-	for _, tone := range pages.Tones() {
-		if err = s.SetCampaignTone(ctx, camp, string(tone)); err != nil {
-			t.Errorf("SetCampaignTone(%q): %v", tone, err)
-		}
-		if err = s.Rename(ctx, "category", slug, "無色調", "", "", string(tone), false); err != nil {
-			t.Errorf("Rename with tone %q: %v", tone, err)
-		}
-	}
-	if err = s.SetCampaignTone(ctx, camp, "neon"); err == nil {
-		t.Error("a campaign accepted a tone outside the set")
-	}
-	cv, err := catalog.NewStore(pool).Campaign(ctx, camp)
-	if err != nil || cv.Tone != pages.ToneInk {
-		t.Fatalf("campaign tone = %q (err %v), want the last one set, ink", cv.Tone, err)
-	}
-}
-
 // The health page counts uploads nothing references; a category's photograph
 // is a reference.
 func TestAUploadHeldByACategoryIsNotCountedUnreferenced(t *testing.T) {
@@ -191,5 +156,41 @@ func TestAUploadHeldByACategoryIsNotCountedUnreferenced(t *testing.T) {
 	}
 	if got := count(); got != before {
 		t.Errorf("a category's photograph counts %d unreferenced, want %d", got, before)
+	}
+}
+
+// A root with no tone of its own is stone, and a campaign takes any tone of the
+// closed set: the Go set and the schema's CHECK name the same six.
+func TestEveryToneOfTheClosedSetIsStorable(t *testing.T) {
+	ctx, _ := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	slug := "tone-" + strings.ReplaceAll(uuid.NewString(), "-", "")[:10]
+	if errs, err := s.CreateCategory(ctx, &admin.TaxonomyForm{Slug: slug, Name: "無色調"}); err != nil || len(errs) > 0 {
+		t.Fatalf("create: %v %v", errs, err)
+	}
+	view, err := catalog.NewStore(pool).Listing(ctx, slug, catalog.Filters{})
+	if err != nil || view.Theme.ToneAttr() != "stone" {
+		t.Fatalf("a root with no tone = %q (err %v), want stone", view.Theme.ToneAttr(), err)
+	}
+
+	camp := "tone-" + strings.ReplaceAll(uuid.NewString(), "-", "")[:10]
+	errs, err := campaigns.NewStore(pool).Create(ctx, &campaigns.Form{Slug: camp, Title: "色調測試", Days: 7})
+	if err != nil || len(errs) > 0 {
+		t.Fatalf("create the campaign: %v %v", errs, err)
+	}
+	for _, tone := range pages.Tones() {
+		if err = campaigns.NewStore(pool).SetTone(ctx, camp, string(tone)); err != nil {
+			t.Errorf("SetTone(%q): %v", tone, err)
+		}
+		if err = s.Rename(ctx, "category", slug, "無色調", "", "", string(tone), false); err != nil {
+			t.Errorf("Rename with tone %q: %v", tone, err)
+		}
+	}
+	if err = campaigns.NewStore(pool).SetTone(ctx, camp, "neon"); err == nil {
+		t.Error("a campaign accepted a tone outside the set")
+	}
+	cv, err := catalog.NewStore(pool).Campaign(ctx, camp)
+	if err != nil || cv.Tone != pages.ToneInk {
+		t.Fatalf("campaign tone = %q (err %v), want the last one set, ink", cv.Tone, err)
 	}
 }

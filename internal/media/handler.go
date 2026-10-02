@@ -11,6 +11,7 @@ import (
 	"strconv"
 
 	"github.com/koopa0/goen/assets"
+	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -211,4 +212,18 @@ func (h *Handler) Object(ctx context.Context, digest string) (Object, error) {
 
 func (h *Handler) Recent(ctx context.Context) ([]Object, error) {
 	return h.store.Recent(ctx)
+}
+
+// UploadNotice is the back-office notice for a refused upload. It names the
+// size and the kind and nothing more: saying which decoder refused a file would
+// tell an attacker which decoders are wired up.
+func UploadNotice(err error) i18n.Key {
+	switch {
+	case errors.Is(err, ErrTooLarge):
+		return i18n.KeyAdminNoticeTooBig
+	case errors.Is(err, ErrNotAnImage):
+		return i18n.KeyAdminNoticeNotImage
+	default:
+		return i18n.KeyAdminNoticeUploadFailed
+	}
 }
