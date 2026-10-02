@@ -266,7 +266,7 @@ func (s *Store) loadOpinion(ctx context.Context, p *db.ProductBySlugRow, view *p
 		RowLimit:   RelatedCount,
 	})
 	if err != nil {
-		return errors.Join(err, s.recommendationError(ctx, readRelatedProducts, p.ID, err))
+		return s.recommendationError(ctx, readRelatedProducts, p.ID, err)
 	}
 	for i := range related {
 		r := &related[i]
@@ -299,7 +299,7 @@ func (s *Store) boughtTogether(ctx context.Context, productID uuid.UUID) ([]page
 		LimitTo:   MaxRecommendations,
 	})
 	if err != nil {
-		return nil, errors.Join(err, s.recommendationError(ctx, readBoughtTogether, productID, err))
+		return nil, s.recommendationError(ctx, readBoughtTogether, productID, err)
 	}
 	out := make([]pages.ProductTile, 0, len(rows))
 	for i := range rows {
