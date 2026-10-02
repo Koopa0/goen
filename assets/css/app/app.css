@@ -5082,14 +5082,6 @@ a.goen-pager__step:hover {
   margin: 0;
 }
 
-/* The form that posts to the carrier holds nothing but hidden inputs, and the
-   button that submits it lives in the section above through form=. It is out
-   of the flow so it cannot open a gap between the checkout form and the page
-   below it. */
-.goen-pickup__map {
-  display: none;
-}
-
 /* The hop back from the carrier's page. No header, no footer: it exists for
    the fraction of a second before the refresh lands, and a category query for
    a header nobody reads is a database round trip per cross-site post. */

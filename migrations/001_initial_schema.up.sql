@@ -1282,10 +1282,28 @@ CREATE TABLE carts (
     user_id    uuid REFERENCES users (id) ON DELETE CASCADE,
     token_hash bytea NOT NULL,
     created_at timestamptz NOT NULL DEFAULT now(),
-    updated_at timestamptz NOT NULL DEFAULT now()
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    -- What a shopper had typed into the checkout when they left it for the
+    -- carrier's store map: name, phone, address, email, note and the invoice
+    -- fields. PERSONAL DATA, kept only so the form can be filled in again on the
+    -- way back. It lives on the cart so it ends with the cart (a deleted
+    -- account deletes the cart), is read only inside a short window, is
+    -- swept after it, and is cleared when an order is placed. `reporting` has
+    -- no SELECT on carts at all, and `admin` cannot write it.
+    checkout_draft    jsonb,
+    checkout_draft_at timestamptz,
+    CONSTRAINT carts_checkout_draft_paired
+        CHECK ((checkout_draft IS NULL) = (checkout_draft_at IS NULL)),
+    CONSTRAINT carts_checkout_draft_bounded
+        CHECK (checkout_draft IS NULL OR (jsonb_typeof(checkout_draft) = 'object'
+                                          AND octet_length(checkout_draft::text) <= 8192))
 );
 
 CREATE UNIQUE INDEX carts_token_hash_key ON carts (token_hash);
+-- ClearStaleCheckoutDrafts filters on both columns, so it reads only the carts
+-- that hold a draft.
+CREATE INDEX carts_checkout_draft_at_idx ON carts (checkout_draft_at)
+    WHERE checkout_draft IS NOT NULL;
 -- One cart per account, or a merge that runs twice leaves two. Partial, but a
 -- lookup by user_id is always `WHERE user_id = $1`, so it serves the foreign key
 -- as well.

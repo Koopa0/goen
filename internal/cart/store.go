@@ -877,6 +877,10 @@ func finishOrder(
 	if err := q.ClearCart(ctx, cartID); err != nil {
 		return fmt.Errorf("clear cart: %w", err)
 	}
+	// The draft held what this order was typed from; it ends with the order.
+	if err := q.ClearCheckoutDraft(ctx, cartID); err != nil {
+		return fmt.Errorf("clear checkout draft: %w", err)
+	}
 	return nil
 }
 

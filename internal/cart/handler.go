@@ -283,6 +283,16 @@ func (h *Handler) Checkout(w http.ResponseWriter, r *http.Request) {
 	// by the same code that validates the query.
 	chosen := h.checkoutChoices(r)
 
+	// On the way back from the carrier's map (or from a start that could not open
+	// it) what was typed before leaving comes back with the store. A plain visit
+	// to /checkout restores nothing.
+	draft, restored := h.restoredDraft(r, cartID)
+	if restored {
+		chosen.Ship = firstOf(chosen.Ship, draft.Shipping)
+		chosen.Invoice = firstOf(chosen.Invoice, draft.InvoiceType)
+		chosen.Address = firstOf(chosen.Address, draft.SavedAddress)
+	}
+
 	// The chosen method lives in the URL and nowhere else, so it is a link and
 	// the choice works with scripting off.
 	if ship := chosen.Ship; ship != "" {
@@ -307,6 +317,9 @@ func (h *Handler) Checkout(w http.ResponseWriter, r *http.Request) {
 		PostalCode: prefill.PostalCode, City: prefill.City,
 		District: prefill.District, Street: prefill.Street,
 	}
+	if restored {
+		h.applyDraft(r, &view, &prefill, &draft)
+	}
 	status := h.applyReturnedStore(r, &view)
 	shippingID, err := uuid.Parse(view.Chosen)
 	if err != nil {
@@ -325,6 +338,159 @@ func (h *Handler) Checkout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.renderCheckout(w, r, status, &view)
+}
+
+// firstOf is the first of two values that says anything.
+func firstOf(a, b string) string {
+	if a != "" {
+		return a
+	}
+	return b
+}
+
+// restoredDraft is the draft saved when this shopper left for the carrier's
+// map, only on the hop that comes back from it.
+func (h *Handler) restoredDraft(r *http.Request, cartID uuid.UUID) (checkoutDraft, bool) {
+	q := r.URL.Query()
+	if q.Get("pickup_n") == "" && q.Get("draft") != "1" {
+		return checkoutDraft{}, false
+	}
+	d, ok, err := h.store.checkoutDraft(r.Context(), cartID)
+	if err != nil {
+		// Not fatal: the shopper types again.
+		h.log.ErrorContext(r.Context(), "read checkout draft", "error", err)
+		return checkoutDraft{}, false
+	}
+	return d, ok
+}
+
+// applyDraft puts back what was typed. The draft is the whole form as it stood,
+// so it replaces the account's and the address book's prefill; the signed-in
+// customer's address stays the account's.
+func (h *Handler) applyDraft(
+	r *http.Request, view *pages.CheckoutView, prefill *Address, d *checkoutDraft,
+) {
+	address := d.Email
+	if signedIn := emailOf(r); signedIn != "" {
+		address = signedIn
+	}
+	prefill.Name, prefill.Phone = d.Name, d.Phone
+	prefill.PostalCode, prefill.City = d.PostalCode, d.City
+	prefill.District, prefill.Street = d.District, d.Street
+	view.Address = pages.CheckoutAddress{
+		Email: address, Name: d.Name, Phone: d.Phone,
+		PostalCode: d.PostalCode, City: d.City, District: d.District, Street: d.Street,
+		PickupBrand: d.Brand, Note: d.Note,
+	}
+	if d.SavedAddress != "" {
+		view.ChosenAddress = d.SavedAddress
+	}
+	view.Invoice = pages.CheckoutInvoice{
+		Type: invoicepkg.Preference(d.InvoiceType), Carrier: d.Carrier,
+		DonationCode: d.DonationCode, CompanyName: d.CompanyName, TaxID: d.TaxID,
+	}
+	if d.Coupon != "" {
+		if msg, _ := h.applyCoupon(r, view, d.Coupon); msg != "" {
+			view.Errors = map[string]string{"coupon": msg}
+		}
+	}
+}
+
+// PickupStart serves POST /checkout/pickup/start, the 「選擇門市」 button. The
+// button submits the checkout form here, to goen, so what the shopper typed is
+// saved before they leave; the carrier gets only the map form on the page this
+// answers, which holds none of it.
+func (h *Handler) PickupStart(w http.ResponseWriter, r *http.Request) {
+	if err := web.ParseForm(w, r); err != nil {
+		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
+		return
+	}
+	cartID, ok := h.existingCart(r)
+	if !ok {
+		http.Redirect(w, r, "/cart", http.StatusSeeOther)
+		return
+	}
+	guess, ok := h.reserveCouponGuess(w, r, cartID)
+	if !ok {
+		return
+	}
+	defer guess.settle(false)
+
+	// The same reading of the form as an order's, so a draft holds what a
+	// submission would have: the store is dropped unless this browser vouches
+	// for it, the coupon is checked behind the same limiter.
+	submission, ok := h.checkoutSubmission(w, r, cartID, ownerOf(r), checkoutAttemptID{}, false)
+	if !ok {
+		return
+	}
+	guess.settle(submission.couponMissed)
+	view, addr, inv := &submission.view, &submission.address, &submission.invoice
+
+	draft := checkoutDraft{
+		Email: addr.Email, Name: addr.Name, Phone: addr.Phone,
+		PostalCode: addr.PostalCode, City: addr.City, District: addr.District, Street: addr.Street,
+		Note: addr.Note, Brand: addr.PickupBrand,
+		Shipping: view.Chosen, SavedAddress: view.ChosenAddress,
+		InvoiceType: string(inv.Type), Carrier: inv.Carrier, DonationCode: inv.DonationCode,
+		CompanyName: inv.CompanyName, TaxID: inv.TaxID,
+	}
+	if submission.couponErr == "" {
+		draft.Coupon = view.CouponCode
+	}
+	if err := h.store.saveCheckoutDraft(r.Context(), cartID, &draft); err != nil {
+		h.log.ErrorContext(r.Context(), "keep the checkout draft", "error", err)
+		h.serverError(w, r)
+		return
+	}
+
+	back := "/checkout?draft=1"
+	if !h.storeMap.Enabled() || destinationOf(view.Shipping, view.Chosen) != ToPickupPoint {
+		http.Redirect(w, r, back, http.StatusSeeOther)
+		return
+	}
+	if _, ok := h.storeMap.Subtype(addr.PickupBrand); !ok {
+		// No chain chosen yet: back to the form, with what was typed.
+		http.Redirect(w, r, back, http.StatusSeeOther)
+		return
+	}
+	if _, ok := h.pickupSession(w, r, view.Chosen, string(inv.Type), view.ChosenAddress); !ok {
+		h.serverError(w, r)
+		return
+	}
+	// A GET hand-off, not the answer to this POST: the browser's Back button from
+	// the carrier's map then lands on an ordinary page, with no "confirm form
+	// resubmission" and nothing to repost.
+	http.Redirect(w, r, pages.PickupMapPath, http.StatusSeeOther)
+}
+
+// PickupMap serves GET /checkout/pickup/map, the hand-off to the carrier's map
+// for the chain the saved draft names. Nothing the shopper typed is on it or in
+// its URL.
+func (h *Handler) PickupMap(w http.ResponseWriter, r *http.Request) {
+	const back = "/checkout?draft=1"
+	cartID, ok := h.existingCart(r)
+	if !ok {
+		http.Redirect(w, r, "/cart", http.StatusSeeOther)
+		return
+	}
+	draft, found, err := h.store.checkoutDraft(r.Context(), cartID)
+	if err != nil {
+		h.log.ErrorContext(r.Context(), "read checkout draft", "error", err)
+		h.serverError(w, r)
+		return
+	}
+	state, known := readPickupCookie(r, h.secure)
+	if !found || !known {
+		http.Redirect(w, r, back, http.StatusSeeOther)
+		return
+	}
+	form, ok := h.mapRequest(r, draft.Brand, state.Nonce)
+	if !ok {
+		http.Redirect(w, r, back, http.StatusSeeOther)
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	web.Render(w, r, h.log, http.StatusOK, pages.PickupStart(form, back))
 }
 
 // checkoutChoices is the three keys Checkout reads, taken from the URL and, on
@@ -478,42 +644,60 @@ func (h *Handler) renderCheckout(
 	web.Render(w, r, h.log, status, pages.Checkout(pages.CheckoutMeta(r.Context()), view))
 }
 
-// offerTheStoreMap refreshes the pickup cookie and builds the one sibling form
-// that posts to the carrier. The nonce is kept across renders — reload and the
-// back button both have to keep working — while everything else is rebuilt from
-// this request, so an invoice or address choice never comes back stale.
+// offerTheStoreMap refreshes the pickup cookie and says whether the picker can
+// open. The nonce is kept across renders — reload and the back button both have
+// to keep working — while everything else is rebuilt from this request, so an
+// invoice or address choice never comes back stale.
+//
+// The button this enables submits the checkout form to PickupStart, which keeps
+// what was typed and then opens the map; the carrier's own form is built there,
+// on a page that holds nothing the shopper typed.
 func (h *Handler) offerTheStoreMap(
 	w http.ResponseWriter, r *http.Request, view *pages.CheckoutView,
 ) {
 	if !h.storeMap.Enabled() || !view.ToPickupPoint() {
 		return
 	}
+	nonce, ok := h.pickupSession(w, r, view.Chosen, string(view.Invoice.Type), view.ChosenAddress)
+	if !ok {
+		return
+	}
+	view.PickupNonce = nonce
+
+	// The chain decides which map opens. Until one is chosen there is nothing
+	// to open, and the button is not shown.
+	_, view.MapOffered = h.storeMap.Subtype(view.Address.PickupBrand)
+}
+
+// pickupSession keeps the browser's nonce, or opens one, and refreshes the
+// pickup cookie with the three choices a trip to the map must bring back.
+func (h *Handler) pickupSession(
+	w http.ResponseWriter, r *http.Request, ship, invoice, address string,
+) (nonce string, ok bool) {
 	state, ok := readPickupCookie(r, h.secure)
 	if !ok {
-		nonce, err := newPickupNonce()
+		n, err := newPickupNonce()
 		if err != nil {
 			h.log.ErrorContext(r.Context(), "open a pickup nonce", "error", err)
-			return
+			return "", false
 		}
-		state = pickupState{Nonce: nonce}
+		state = pickupState{Nonce: n}
 	}
-	state.Ship = view.Chosen
-	state.Invoice = string(view.Invoice.Type)
-	state.Address = view.ChosenAddress
+	state.Ship, state.Invoice, state.Address = ship, invoice, address
 	writePickupCookie(w, state, h.secure)
-	view.PickupNonce = state.Nonce
+	return state.Nonce, true
+}
 
-	// The chain decides which map opens, and the map form is a sibling of the
-	// checkout form rather than a button inside it, so it cannot read a radio
-	// nobody has applied yet. Until a chain is chosen there is nothing to open.
+// mapRequest builds the carrier's map form for one chain.
+func (h *Handler) mapRequest(
+	r *http.Request, brand pickup.Brand, nonce string,
+) (pages.CheckoutMapForm, bool) {
 	tradeNo, err := NewMerchantTradeNo()
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "open a map correlation number", "error", err)
-		return
+		return pages.CheckoutMapForm{}, false
 	}
-	view.Map, _ = h.storeMap.Request(
-		view.Address.PickupBrand, tradeNo, state.Nonce, wantsTheMobileMap(r),
-	)
+	return h.storeMap.Request(brand, tradeNo, nonce, wantsTheMobileMap(r))
 }
 
 // wantsTheMobileMap reports whether the shopper is on a phone. 7-ELEVEN serves
@@ -1017,7 +1201,14 @@ func (h *Handler) refreshCheckoutState(
 // why it cannot. missed is a code that was looked up and refused, which is what
 // couponMisses charges; a lookup that failed is the shop's fault, not a guess.
 func (h *Handler) resolveCoupon(r *http.Request, view *pages.CheckoutView) (message string, missed bool) {
-	raw := r.PostFormValue("coupon")
+	return h.applyCoupon(r, view, r.PostFormValue("coupon"))
+}
+
+// applyCoupon looks a code up and applies it to the view. The posted form
+// reaches it through resolveCoupon, behind the guess limiter; a draft restored
+// after the map reaches it directly, which is safe because a draft only ever
+// holds a code that was accepted when it was saved.
+func (h *Handler) applyCoupon(r *http.Request, view *pages.CheckoutView, raw string) (message string, missed bool) {
 	view.CouponCode = NormaliseCode(raw)
 	if view.CouponCode == "" {
 		return "", false

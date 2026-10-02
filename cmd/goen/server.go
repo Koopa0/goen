@@ -34,6 +34,7 @@ import (
 	"github.com/koopa0/goen/internal/site"
 	"github.com/koopa0/goen/internal/twofactor"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/warranty"
 	"github.com/koopa0/goen/internal/web"
 )
@@ -256,6 +257,11 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 		// exists only where a carrier is configured: an unconfigured goen
 		// answers 404 here and its cross-origin defence keeps no bypass.
 		mux.HandleFunc("POST "+cart.PickupReturnPath, basket.PickupReturn)
+		// The checkout form is posted here by 「選擇門市」: same-origin, so under
+		// the cross-origin defence like every other form, and it keeps what was
+		// typed before the browser is handed to the carrier.
+		mux.HandleFunc("POST "+pages.PickupStartAction, ratelimit.Guard(checkoutLimit, log, basket.PickupStart))
+		mux.HandleFunc("GET "+pages.PickupMapPath, basket.PickupMap)
 	}
 	mux.HandleFunc("GET /orders/find", basket.FindOrderPage)
 	mux.HandleFunc("POST /orders/find", ratelimit.Guard(findLimit, log, basket.FindOrder))

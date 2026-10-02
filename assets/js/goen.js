@@ -592,7 +592,21 @@
     });
   }
 
+  /*
+   * The hop to the carrier's store map is a form that posts to the carrier. A
+   * browser with scripting submits it at once; one without shows its button.
+   * Not on a return by the back button: the shopper came back from the map to
+   * leave it, and sending them forward again would trap them.
+   */
+  function handoff() {
+    const form = document.querySelector("form[data-handoff]");
+    if (!form) return;
+    const back = performance.getEntriesByType("navigation")[0]?.type === "back_forward";
+    if (!back) form.requestSubmit();
+  }
+
   fieldRules();
+  handoff();
   headerMenu();
   departmentPanels();
   popovers();

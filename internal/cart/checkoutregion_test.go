@@ -57,15 +57,14 @@ func checkoutRegionElement(t *testing.T, html string) string {
 	return ""
 }
 
-// TestSwitchingTheChainInPlaceRefreshesTheMapForm holds the update path
+// TestSwitchingTheChainInPlaceKeepsTheStoreButton holds the update path
 // PlaceOrder takes when a chooser fires: r.PostFormValue("update") is set, so
 // renderCheckout answers with the fresh render rather than placing an order.
-// The shopper has switched the pickup radio from 7-ELEVEN to 全家; the
-// response renderCheckout produces is exactly what #checkout-region selects
-// and replaces, and it must carry 全家's own LogisticsSubType (FAMI, under the
-// b2c contract) rather than a stale UNIMART left over from the chain just
-// changed away from.
-func TestSwitchingTheChainInPlaceRefreshesTheMapForm(t *testing.T) {
+// That response is exactly what #checkout-region selects and replaces, so it
+// must carry the 「選擇門市」 button, which submits the checkout form to goen's
+// own start route; the chain the shopper has just chosen travels in that form,
+// and the carrier's form is built there, so none is left here to go stale.
+func TestSwitchingTheChainInPlaceKeepsTheStoreButton(t *testing.T) {
 	t.Parallel()
 
 	h := &Handler{
@@ -97,16 +96,11 @@ func TestSwitchingTheChainInPlaceRefreshesTheMapForm(t *testing.T) {
 	h.renderCheckout(rec, req, http.StatusOK, &view)
 
 	region := checkoutRegionElement(t, rec.Body.String())
-	if !strings.Contains(region, `id="pickup-map-form"`) {
-		t.Fatal("the swap region carries no map form; the store button has nothing to submit")
+	if !strings.Contains(region, `formaction="`+pages.PickupStartAction+`"`) {
+		t.Fatal("the swap region carries no button that submits the form to the store-map start route")
 	}
-	if !strings.Contains(region, `form="pickup-map-form"`) {
-		t.Error("the swap region carries no button naming the map form")
-	}
-	if !strings.Contains(region, `name="LogisticsSubType" value="FAMI"`) {
-		t.Errorf("the map form does not carry 全家's own subtype (FAMI):\n%s", region)
-	}
-	if strings.Contains(region, `value="UNIMART"`) {
-		t.Error("the map form still carries 7-ELEVEN's subtype after switching to 全家")
+	if strings.Contains(region, `id="pickup-map-form"`) || strings.Contains(region, "ecpay") {
+		t.Error("the checkout carries the carrier's form; it belongs on the start route's page, " +
+			"where nothing the shopper typed is on it")
 	}
 }

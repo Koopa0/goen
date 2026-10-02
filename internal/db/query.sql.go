@@ -4124,6 +4124,16 @@ func (q *Queries) ClearCategoryImage(ctx context.Context, slug string) (int64, e
 	return result.RowsAffected(), nil
 }
 
+const clearCheckoutDraft = `-- name: ClearCheckoutDraft :exec
+UPDATE carts SET checkout_draft = NULL, checkout_draft_at = NULL
+WHERE id = $1 AND checkout_draft IS NOT NULL
+`
+
+func (q *Queries) ClearCheckoutDraft(ctx context.Context, cartID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, clearCheckoutDraft, cartID)
+	return err
+}
+
 const clearDefaultAddress = `-- name: ClearDefaultAddress :exec
 UPDATE addresses SET is_default = false WHERE user_id = $1 AND is_default
 `
@@ -4131,6 +4141,16 @@ UPDATE addresses SET is_default = false WHERE user_id = $1 AND is_default
 // Run in the same transaction as the set: addresses_one_default_per_user is unique.
 func (q *Queries) ClearDefaultAddress(ctx context.Context, userID uuid.UUID) error {
 	_, err := q.db.Exec(ctx, clearDefaultAddress, userID)
+	return err
+}
+
+const clearStaleCheckoutDrafts = `-- name: ClearStaleCheckoutDrafts :exec
+UPDATE carts SET checkout_draft = NULL, checkout_draft_at = NULL
+WHERE checkout_draft IS NOT NULL AND checkout_draft_at < now() - $1::interval
+`
+
+func (q *Queries) ClearStaleCheckoutDrafts(ctx context.Context, ttl pgtype.Interval) error {
+	_, err := q.db.Exec(ctx, clearStaleCheckoutDrafts, ttl)
 	return err
 }
 
@@ -10329,6 +10349,25 @@ func (q *Queries) PutMedia(ctx context.Context, arg PutMediaParams) error {
 	return err
 }
 
+const readCheckoutDraft = `-- name: ReadCheckoutDraft :one
+SELECT checkout_draft::jsonb AS draft FROM carts
+WHERE id = $1 AND checkout_draft IS NOT NULL
+  AND checkout_draft_at > now() - $2::interval
+`
+
+type ReadCheckoutDraftParams struct {
+	CartID uuid.UUID
+	Ttl    pgtype.Interval
+}
+
+// Read inside the window only; an older draft is as good as none.
+func (q *Queries) ReadCheckoutDraft(ctx context.Context, arg ReadCheckoutDraftParams) ([]byte, error) {
+	row := q.db.QueryRow(ctx, readCheckoutDraft, arg.CartID, arg.Ttl)
+	var draft []byte
+	err := row.Scan(&draft)
+	return draft, err
+}
+
 const receiveStock = `-- name: ReceiveStock :exec
 SELECT record_inventory_movement(
     $1, $2::integer, 'receipt',
@@ -12670,6 +12709,23 @@ func (q *Queries) RunningCampaignsCount(ctx context.Context) (int64, error) {
 	var column_1 int64
 	err := row.Scan(&column_1)
 	return column_1, err
+}
+
+const saveCheckoutDraft = `-- name: SaveCheckoutDraft :exec
+UPDATE carts SET checkout_draft = $1::jsonb, checkout_draft_at = now()
+WHERE id = $2
+`
+
+type SaveCheckoutDraftParams struct {
+	Draft  []byte
+	CartID uuid.UUID
+}
+
+// What the shopper had typed when they left for the carrier's store map. Written
+// on the cart so it ends with the cart.
+func (q *Queries) SaveCheckoutDraft(ctx context.Context, arg SaveCheckoutDraftParams) error {
+	_, err := q.db.Exec(ctx, saveCheckoutDraft, arg.Draft, arg.CartID)
+	return err
 }
 
 const savedAddresses = `-- name: SavedAddresses :many

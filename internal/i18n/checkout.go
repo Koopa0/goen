@@ -67,6 +67,21 @@ var (
 		En:     "Returning to the checkout…",
 	})
 
+	KeyPickupOpening = key("pickup.opening", Message{
+		ZhHant: "正在開啟門市地圖…",
+		En:     "Opening the store map…",
+	})
+
+	KeyPickupOpenMap = key("pickup.open.map", Message{
+		ZhHant: "前往選擇門市",
+		En:     "Go to the store map",
+	})
+
+	KeyPickupBackToCheckout = key("pickup.back.checkout", Message{
+		ZhHant: "回到結帳",
+		En:     "Back to the checkout",
+	})
+
 	KeyPickupReturnLink = key("pickup.return.link", Message{
 		ZhHant: "繼續結帳",
 		En:     "Continue to the checkout",
