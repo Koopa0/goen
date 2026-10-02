@@ -91,10 +91,10 @@ func (g *Gateway) Issue(ctx context.Context, in IssueRequest) (Document, error) 
 			res.InvoiceNo, res.InvoiceDate, res.RandomNumber)
 	}
 	return Document{
-		Kind:        "invoice",
+		Kind:        DocumentInvoice,
 		Number:      res.InvoiceNo,
 		AmountCents: in.AmountCents,
-		Status:      "issued",
+		Status:      DocumentIssued,
 		IssuedAt:    issuedAt,
 		ProviderRef: res.RandomNumber,
 	}, nil
@@ -253,10 +253,10 @@ func (g *Gateway) FileAllowance(ctx context.Context, in AllowanceRequest) (Docum
 			res.AllowanceNo, res.InvoiceNo, res.AllowanceDate)
 	}
 	return Document{
-		Kind:        "allowance",
+		Kind:        DocumentAllowance,
 		Number:      res.AllowanceNo,
 		AmountCents: in.AmountCents,
-		Status:      "issued",
+		Status:      DocumentIssued,
 		IssuedAt:    issuedAt,
 		Lines:       in.Lines,
 	}, nil
@@ -494,8 +494,8 @@ func issueLookupFrom(res getIssueResult) (IssueLookup, error) {
 		RelateNumber: res.RelateNumber,
 		Issued:       issued, Invalid: invalid,
 		Document: Document{
-			Kind: "invoice", Number: res.InvoiceNo, AmountCents: amount,
-			Status: "issued", IssuedAt: issuedAt,
+			Kind: DocumentInvoice, Number: res.InvoiceNo, AmountCents: amount,
+			Status: DocumentIssued, IssuedAt: issuedAt,
 			ProviderRef: res.RandomNumber, Lines: lines,
 		},
 	}, nil
@@ -574,8 +574,8 @@ func (g *Gateway) FetchAllowances(
 		out[i] = AllowanceLookup{
 			InvoiceNumber: row.InvoiceNo, Invalid: invalid == 1,
 			Document: Document{
-				Kind: "allowance", Number: row.AllowanceNo,
-				AmountCents: amount, Status: "issued", IssuedAt: issuedAt, Lines: lines,
+				Kind: DocumentAllowance, Number: row.AllowanceNo,
+				AmountCents: amount, Status: DocumentIssued, IssuedAt: issuedAt, Lines: lines,
 			},
 		}
 	}

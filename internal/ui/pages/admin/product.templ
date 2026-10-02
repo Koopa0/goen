@@ -1095,23 +1095,23 @@ templ productPublishing(v ProductView) {
 				if v.CanPublish() {
 					@components.Button(components.ButtonProps{
 						ButtonStyle: components.ButtonStyleOutline,
-						Attrs:       templ.Attributes{"name": "status", "value": "active"},
+						Attrs:       templ.Attributes{"name": "status", "value": string(pages.ProductActive)},
 					}, "submit") {
 						{ i18n.T(ctx, i18n.KeyAdminProdPublish) }
 					}
 				}
-				if v.Status == "active" {
+				if v.Status == pages.ProductActive {
 					@components.Button(components.ButtonProps{
 						ButtonStyle: components.ButtonStyleOutline,
-						Attrs:       templ.Attributes{"name": "status", "value": "draft"},
+						Attrs:       templ.Attributes{"name": "status", "value": string(pages.ProductDraft)},
 					}, "submit") {
 						{ i18n.T(ctx, i18n.KeyAdminProdUnpublish) }
 					}
 				}
-				if v.Status != "archived" {
+				if v.Status != pages.ProductArchived {
 					@components.Button(components.ButtonProps{
 						ButtonStyle: components.ButtonStyleGhost,
-						Attrs:       templ.Attributes{"name": "status", "value": "archived"},
+						Attrs:       templ.Attributes{"name": "status", "value": string(pages.ProductArchived)},
 					}, "submit") {
 						{ i18n.T(ctx, i18n.KeyAdminProdArchive) }
 					}

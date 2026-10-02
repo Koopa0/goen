@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/koopa0/goen/internal/cart"
+	"github.com/koopa0/goen/internal/destination"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
@@ -210,8 +210,7 @@ func (h *Handler) shippingView(ctx context.Context) (admin.ShippingView, error) 
 	}
 	for i := range view.Methods {
 		m := &view.Methods[i]
-		to, ok := cart.DestinationFor(m.Destination)
-		m.PickupUnavailable = ok && to == cart.ToPickupPoint && !h.storeMap.Enabled()
+		m.PickupUnavailable = m.Destination == destination.PickupPoint && !h.storeMap.Enabled()
 	}
 	return view, nil
 }

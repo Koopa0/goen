@@ -9,6 +9,7 @@ import (
 	"github.com/a-h/templ"
 
 	"github.com/koopa0/goen/internal/carrier"
+	"github.com/koopa0/goen/internal/destination"
 	"github.com/koopa0/goen/internal/fieldrule"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
@@ -205,7 +206,7 @@ type CheckoutView struct {
 	CreditChanged string
 	ZoneName      string
 	// Destination is decided by the server; no field carries it back.
-	Destination    string
+	Destination    destination.Kind
 	Address        CheckoutAddress
 	Errors         map[string]string
 	Invoice        CheckoutInvoice
@@ -415,7 +416,7 @@ type CheckoutAddress struct {
 }
 
 // ToPickupPoint reports whether the chosen method delivers to a convenience store.
-func (v *CheckoutView) ToPickupPoint() bool { return v.Destination == "pickup_point" }
+func (v *CheckoutView) ToPickupPoint() bool { return v.Destination == destination.PickupPoint }
 
 // PickupChainChoice is one convenience-store chain the form offers.
 type PickupChainChoice struct {
@@ -654,10 +655,25 @@ func (l OrderLine) LineTotal() string { return twd(l.UnitCents * int64(l.Quantit
 // QuantityText is how many were ordered.
 func (l OrderLine) QuantityText() string { return strconv.FormatInt(int64(l.Quantity), 10) }
 
+// OrderEventKind is order_events.kind, closed by order_events_kind_known.
+type OrderEventKind string
+
+const (
+	EventPlaced    OrderEventKind = "placed"
+	EventPaid      OrderEventKind = "paid"
+	EventPicking   OrderEventKind = "picking"
+	EventShipped   OrderEventKind = "shipped"
+	EventInTransit OrderEventKind = "in_transit"
+	EventDelivered OrderEventKind = "delivered"
+	EventCompleted OrderEventKind = "completed"
+	EventCancelled OrderEventKind = "cancelled"
+	EventRefunded  OrderEventKind = "refunded"
+)
+
 // OrderEvent is one entry in an order's history, as the customer sees it. It carries
 // no actor: anyone holding the order number can reach this page.
 type OrderEvent struct {
-	Kind string
+	Kind OrderEventKind
 	Note string
 	At   string
 }
@@ -665,26 +681,26 @@ type OrderEvent struct {
 // LabelKey names the entry's message.
 func (e OrderEvent) LabelKey() i18n.Key {
 	switch e.Kind {
-	case "placed":
+	case EventPlaced:
 		return i18n.KeyStatusPlaced
-	case "paid":
+	case EventPaid:
 		return i18n.KeyStatusPaid
-	case "picking":
+	case EventPicking:
 		return i18n.KeyStatusPicking
-	case "shipped":
+	case EventShipped:
 		return i18n.KeyStatusShipped
-	case "in_transit":
+	case EventInTransit:
 		return i18n.KeyStatusInTransit
-	case "delivered":
+	case EventDelivered:
 		return i18n.KeyStatusDelivered
-	case "completed":
+	case EventCompleted:
 		return i18n.KeyStatusCompleted
-	case "cancelled":
+	case EventCancelled:
 		return i18n.KeyStatusCancelled
-	case "refunded":
+	case EventRefunded:
 		return i18n.KeyStatusRefunded
 	default:
-		panic("pages: no label for order event kind " + e.Kind)
+		panic("pages: no label for order event kind " + string(e.Kind))
 	}
 }
 
@@ -788,7 +804,7 @@ func (v *OrderView) PaymentState() PaymentState {
 	switch {
 	case v.Status == FulfillmentCancelled:
 		for _, e := range v.Timeline {
-			if e.Kind == "refunded" {
+			if e.Kind == EventRefunded {
 				return PaymentRefunded
 			}
 		}

@@ -238,7 +238,7 @@ func indexKnownAllowances(
 		}
 		known[row.Number] = knownAllowance{
 			ID: row.ID, Number: row.Number, AmountCents: row.AmountCents,
-			Status: row.Status, IssuedAt: row.IssuedAt, Lines: lines,
+			Status: DocumentStatus(row.Status), IssuedAt: row.IssuedAt, Lines: lines,
 		}
 	}
 	return known, ""
@@ -279,7 +279,7 @@ func (s *Store) reconcileKnownAllowance(
 	remote AllowanceLookup,
 ) error {
 	switch local.Status {
-	case "issued":
+	case DocumentIssued:
 		if !remote.Invalid {
 			return nil
 		}
@@ -289,7 +289,7 @@ func (s *Store) reconcileKnownAllowance(
 			return s.alarm(ctx, op, owner, "allowance_invalid_after_current_send", cause)
 		}
 		return s.reconcileKnownInvalidAllowance(ctx, op, owner, local, remote)
-	case "voided":
+	case DocumentVoided:
 		if remote.Invalid {
 			return nil
 		}
@@ -517,8 +517,8 @@ func (s *Store) operationDocument(ctx context.Context, operationID uuid.UUID) (D
 		return Document{}, err
 	}
 	return Document{
-		ID: row.ID.String(), Kind: row.Kind, Number: row.Number,
-		AmountCents: row.AmountCents, Status: row.Status,
+		ID: row.ID.String(), Kind: DocumentKind(row.Kind), Number: row.Number,
+		AmountCents: row.AmountCents, Status: DocumentStatus(row.Status),
 		ProviderRef: row.ProviderRef, IssuedAt: row.IssuedAt,
 	}, nil
 }

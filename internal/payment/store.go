@@ -429,7 +429,7 @@ func (w *webhookTx) Capture(ctx context.Context, c Capture) (orderNumber string,
 	// Manual paid attribution can win the provider-reference lock before a late
 	// signed webhook. The money and its side effects already committed together;
 	// the event is still marked processed, but must not append them twice.
-	if row.Status == "succeeded" {
+	if Status(row.Status) == StatusSucceeded {
 		return row.OrderNumber, nil
 	}
 

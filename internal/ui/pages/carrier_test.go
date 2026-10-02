@@ -55,7 +55,7 @@ func TestTheEnglishOrderPageHasNoChineseOfItsOwn(t *testing.T) {
 	for _, c := range every {
 		shipments = append(shipments, OrderShipment{Carrier: c, Tracking: "T1", ShippedAt: "10/01 09:00"})
 	}
-	kinds := []string{"placed", "paid", "picking", "shipped", "in_transit", "delivered", "completed"}
+	kinds := []OrderEventKind{EventPlaced, EventPaid, EventPicking, EventShipped, EventInTransit, EventDelivered, EventCompleted}
 	timeline := make([]OrderEvent, 0, len(kinds))
 	for _, kind := range kinds {
 		timeline = append(timeline, OrderEvent{Kind: kind, At: "10/01 09:00"})

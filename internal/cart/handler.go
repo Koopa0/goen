@@ -15,6 +15,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/account"
+	"github.com/koopa0/goen/internal/destination"
 	"github.com/koopa0/goen/internal/email"
 
 	"github.com/koopa0/goen/internal/i18n"
@@ -337,7 +338,7 @@ func (h *Handler) Checkout(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	view.Destination = string(destinationOf(view.Shipping, view.Chosen))
+	view.Destination = destinationOf(view.Shipping, view.Chosen)
 	// The 發票 choice travels the same way, and for the same reason: it decides
 	// which field the form asks for, so a chooser that only a script could act
 	// on would leave the two disagreeing.
@@ -546,7 +547,7 @@ func (h *Handler) PickupStart(w http.ResponseWriter, r *http.Request) {
 	}
 
 	back := "/checkout?draft=1"
-	if !h.storeMap.Enabled() || destinationOf(view.Shipping, view.Chosen) != ToPickupPoint {
+	if !h.storeMap.Enabled() || destinationOf(view.Shipping, view.Chosen) != destination.PickupPoint {
 		http.Redirect(w, r, back, http.StatusSeeOther)
 		return
 	}
@@ -999,11 +1000,9 @@ func (h *Handler) checkoutSubmission(
 		PickupStoreName: addr.PickupStoreName, Note: addr.Note,
 	}
 	view.Chosen = r.PostFormValue("shipping")
-	// Resolved once: a round trip through string would be an unchecked
-	// conversion of a value DestinationFor has already vouched for.
-	destination := destinationOf(view.Shipping, view.Chosen)
-	view.Destination = string(destination)
-	addr.To = destination
+	to := destinationOf(view.Shipping, view.Chosen)
+	view.Destination = to
+	addr.To = to
 	// Invalid form text never survives as internal state. checkoutView already
 	// owns a fresh identity for that case; a valid retry keeps its exact identity.
 	if attemptOK {
@@ -1292,8 +1291,8 @@ func (h *Handler) refreshCheckoutState(
 	}) {
 		view.Chosen = choices[0].VersionID
 	}
-	view.Destination = string(destinationOf(choices, view.Chosen))
-	addr.To = Destination(view.Destination)
+	view.Destination = destinationOf(choices, view.Chosen)
+	addr.To = view.Destination
 	shippingID, err := uuid.Parse(view.Chosen)
 	if err != nil {
 		return fmt.Errorf("parse current shipping choice: %w", err)
@@ -1417,7 +1416,7 @@ func checkoutErrors(
 		fieldErrs = append(fieldErrs,
 			account.FieldError{Field: "shipping", MessageKey: i18n.KeyChooseShipping})
 	}
-	if addr.To == ToPickupPoint {
+	if addr.To == destination.PickupPoint {
 		if !offeredAtCheckout(addr.PickupChain) {
 			fieldErrs = append(fieldErrs,
 				account.FieldError{Field: "pickup_chain", MessageKey: i18n.KeyPickupChainRequired})
@@ -1463,8 +1462,8 @@ func (h *Handler) offeredShipping(
 		return choices, err
 	}
 	return slices.DeleteFunc(choices, func(c pages.ShippingChoice) bool {
-		to, ok := DestinationFor(c.DestinationKind)
-		return ok && to == ToPickupPoint
+		to, ok := destination.For(c.DestinationKind)
+		return ok && to == destination.PickupPoint
 	}), nil
 }
 
@@ -1505,10 +1504,10 @@ func fillFromBook(view *pages.CheckoutView, addr *Address, wanted string) {
 
 // destinationOf is the destination of the chosen method, or "" if the form named
 // one that is not on offer. It reads the choices the server built, not the form.
-func destinationOf(choices []pages.ShippingChoice, versionID string) Destination {
+func destinationOf(choices []pages.ShippingChoice, versionID string) destination.Kind {
 	for i := range choices {
 		if choices[i].VersionID == versionID {
-			if d, ok := DestinationFor(choices[i].DestinationKind); ok {
+			if d, ok := destination.For(choices[i].DestinationKind); ok {
 				return d
 			}
 			return ""
@@ -1701,7 +1700,7 @@ func (h *Handler) checkoutView(ctx context.Context, cartID uuid.UUID, owner uuid
 	}
 	if len(choices) > 0 {
 		view.Chosen = choices[0].VersionID
-		view.Destination = string(destinationOf(choices, view.Chosen))
+		view.Destination = destinationOf(choices, view.Chosen)
 	}
 	return view, nil
 }

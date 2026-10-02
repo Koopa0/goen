@@ -25,6 +25,7 @@ import (
 
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/destination"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	invoicepkg "github.com/koopa0/goen/internal/invoice"
@@ -549,34 +550,11 @@ func ParseQuantityAllowingZero(s string) (int32, bool) {
 	return int32(n), true
 }
 
-// Destination is where a shipping method delivers to, from
-// shipping_methods.destination_kind.
-type Destination string
-
-const (
-	// ToAddress wants a street address (home delivery).
-	ToAddress Destination = "address"
-	// ToPickupPoint wants a convenience-store pickup point.
-	ToPickupPoint Destination = "pickup_point"
-)
-
-// DestinationFor turns the column's value into a Destination, refusing an
-// unknown kind rather than defaulting to an address nobody can deliver to.
-func DestinationFor(kind string) (Destination, bool) {
-	switch Destination(kind) {
-	case ToAddress:
-		return ToAddress, true
-	case ToPickupPoint:
-		return ToPickupPoint, true
-	}
-	return "", false
-}
-
 // Address is the delivery detail a checkout collects, for either destination.
 type Address struct {
 	// To decides which half of this struct is real, and is set from the chosen
 	// shipping method and never from the form.
-	To Destination
+	To destination.Kind
 
 	Email string
 	Name  string
@@ -649,7 +627,7 @@ func (a *Address) destinationErrors() []account.FieldError {
 	add := func(f string, k i18n.Key) { errs = append(errs, account.FieldError{Field: f, MessageKey: k}) }
 
 	switch a.To {
-	case ToAddress:
+	case destination.Address:
 		switch {
 		case strings.TrimSpace(a.PostalCode) == "":
 			add("postal_code", i18n.KeyPostalCodeRequired)
@@ -674,7 +652,7 @@ func (a *Address) destinationErrors() []account.FieldError {
 		case utf8.RuneCountInString(a.Street) > maxStreetRunes:
 			add("street", i18n.KeyStreetTooLong)
 		}
-	case ToPickupPoint:
+	case destination.PickupPoint:
 		errs = append(errs, a.pickupPointErrors()...)
 	default:
 		add("shipping", i18n.KeyChooseShipping)
@@ -715,9 +693,9 @@ func (a *Address) pickupPointErrors() []account.FieldError {
 // order_private_data_one_destination refuses a row carrying both.
 func (a *Address) DropOtherDestination() {
 	switch a.To {
-	case ToAddress:
+	case destination.Address:
 		a.PickupChain, a.PickupStoreCode, a.PickupStoreName = "", "", ""
-	case ToPickupPoint:
+	case destination.PickupPoint:
 		a.PostalCode, a.City, a.District, a.Street = "", "", "", ""
 	}
 }

@@ -21,7 +21,7 @@ func TestStaffNavigationOnlyOmitsTheAdminOnlyDestination(t *testing.T) {
 			h := &Handler{log: slog.New(slog.DiscardHandler)}
 			links := map[string][]string{}
 			for _, role := range []string{"staff", "admin"} {
-				ctx := account.WithUser(i18n.WithLocale(t.Context(), locale), account.User{Role: role})
+				ctx := account.WithUser(i18n.WithLocale(t.Context(), locale), account.User{Role: account.Role(role)})
 				// A stale presentation hint must not override the authenticated role.
 				ctx = layouts.WithAdmin(ctx, true)
 				req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/admin/orders", http.NoBody)
