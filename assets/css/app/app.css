@@ -3034,12 +3034,22 @@ a.goen-pager__step:hover {
   font-size: var(--fs-14);
 }
 
+  /* The photograph is the head's right half, bled to its top, right and
+     bottom edges and faded into the tone on its left, so the head is one
+     surface: the photographs are shot on a vignetted ground a few levels off
+     the flat tone, and a frame inside the head would turn that difference into
+     an edge. */
   .goen-pagehead:has(.goen-pagehead__photo) {
-    align-items: center;
-    display: grid;
-    gap: 2rem;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    padding-block: 2rem;
+    box-sizing: border-box;
+    justify-content: center;
+    min-height: 20rem;
+    overflow: hidden;
+    padding: 2rem 2.5rem;
+    position: relative;
+  }
+
+  .goen-pagehead:has(.goen-pagehead__photo) .goen-pagehead__text {
+    max-width: calc(50% - 2.5rem);
   }
 
   .goen-pagehead__chips {
@@ -3050,12 +3060,13 @@ a.goen-pager__step:hover {
   }
 
   .goen-pagehead__photo {
-    aspect-ratio: 3 / 2;
-    border-radius: var(--r-lg);
     display: block;
-    max-height: 22rem;
+    height: 100%;
+    inset: 0 0 0 auto;
+    mask-image: linear-gradient(to right, transparent, #000 35%);
     object-fit: cover;
-    width: 100%;
+    position: absolute;
+    width: 55%;
   }
 
   .goen-featured__grid {
@@ -6525,8 +6536,11 @@ a.goen-pager__step:hover {
    tone yet, so the fallback is the stone ground: oklch(97% 0.006 70). The
    photograph sits flush on the band, above the title at 375 and on the right
    half from 1024. */
+/* The head itself is the ground: it carries the campaign's tone and fills its
+   cell, and the band only rounds the corners. A ground on the band as well
+   would show as a second beige beside the head wherever the photograph is
+   missing. */
 .goen-campaign__band {
-  background: var(--tone-ground, #f8f4f1);
   border-radius: var(--r-lg);
   display: grid;
   gap: 0;
@@ -6542,6 +6556,7 @@ a.goen-pager__step:hover {
 }
 
 .goen-campaign__band .goen-pagehead {
+  border-radius: 0;
   gap: 0.5rem;
   padding: 1.5rem 1.25rem;
 }
@@ -6688,8 +6703,7 @@ a.goen-pager__step:hover {
     grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
   }
 
-  .goen-campaign__band {
-    align-items: center;
+  .goen-campaign__band:has(.goen-campaign__header) {
     grid-template-columns: 1fr 1fr;
   }
 
@@ -6702,6 +6716,7 @@ a.goen-pager__step:hover {
   .goen-campaign__band .goen-pagehead {
     grid-column: 1;
     grid-row: 1;
+    justify-content: center;
     padding: 3rem;
   }
 
