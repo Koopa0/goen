@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
@@ -101,7 +102,7 @@ func (h *Handler) PickingSlips(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Picking(r.Context(), r.URL.Query().Get(web.KeysetParam))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read picking slips", "error", err)
-		h.serverError(w, r)
+		access.ServerError(w, r, h.log)
 		return
 	}
 	web.Render(w, r, h.log, http.StatusOK, adminpages.Picking(

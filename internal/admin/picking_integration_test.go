@@ -19,13 +19,14 @@ import (
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/admin/access"
+	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/web"
 )
 
 func TestPickingTotalsSpanEveryPageAndSubtractRecordedShipments(t *testing.T) {
-	owner := isolatedAdminSeedPool(t)
+	owner := admintest.Pool(t)
 	ctx, _ := staffContextOn(t, owner)
 	firstOrder, firstLine := uuid.Nil, uuid.Nil
 	for i := range 53 {
