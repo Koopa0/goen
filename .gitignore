@@ -8,6 +8,7 @@ bin/
 
 # The throwaway Chrome profile `make check-layout` drives.
 /.layout-chrome/
+/chrome.log
 
 # Provider credentials. .env covers the normal path; these catch the
 # copy-paste-from-the-dashboard file that arrives beside it.

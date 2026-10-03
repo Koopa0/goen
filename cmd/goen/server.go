@@ -934,7 +934,7 @@ func storefrontPath(path string) bool {
 // sessionCloser hands the gateway to the cancel doors, or nothing at all.
 // It returns an explicitly nil interface rather than a nil *Gateway, because a
 // typed nil in an interface is non-nil and each handler's nil check would miss.
-func sessionCloser(g *payment.Gateway) cart.SessionCloser {
+func sessionCloser(g *payment.Gateway) payment.SessionCloser {
 	if g == nil || !g.Enabled() {
 		return nil
 	}

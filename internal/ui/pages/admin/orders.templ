@@ -700,11 +700,6 @@ templ Order(p layouts.Page, v *OrderView) {
 												{ i18n.T(ctx, i18n.KeyAdminQueueVoided) }
 											}
 										}
-										if d.Pending() {
-											@components.Badge(components.BadgeProps{Intent: components.IntentWarn}) {
-												{ i18n.T(ctx, i18n.KeyAdminQueuePending) }
-											}
-										}
 										<span class="goen-admin__meta">{ d.IssuedAt }</span>
 										if d.ProviderRef != "" {
 											<span class="goen-admin__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQueueRandomCode), d.ProviderRef) }</span>
