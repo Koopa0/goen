@@ -20,6 +20,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	invoicepkg "github.com/koopa0/goen/internal/invoice"
+	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/pickup"
 	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -36,7 +37,7 @@ type Handler struct {
 	findLimit *ratelimit.Limiter
 	// sessions is nil on a deployment with no Stripe key, where there is no
 	// session to close.
-	sessions SessionCloser
+	sessions payment.SessionCloser
 	// storeMap is nil or disabled on a deployment with no carrier, where the
 	// checkout asks for a chain alone.
 	storeMap       *StoreMap
@@ -51,10 +52,6 @@ type Handler struct {
 	findPerAddress *ratelimit.Limiter
 }
 
-type SessionCloser interface {
-	ExpireSession(ctx context.Context, sessionID string) error
-}
-
 type MobileBarcodeChecker interface {
 	CheckBarcode(context.Context, string) (invoicepkg.BarcodeStatus, error)
 }
@@ -63,7 +60,7 @@ type MobileBarcodeChecker interface {
 // disabled storeMap as no carrier, so the checkout asks for a chain alone; an
 // omitted checker keeps local shape validation where there is no invoice gateway.
 func NewHandler(store *Store, log *slog.Logger, secure bool, findLimit *ratelimit.Limiter,
-	sessions SessionCloser, storeMap *StoreMap, checkers ...MobileBarcodeChecker,
+	sessions payment.SessionCloser, storeMap *StoreMap, checkers ...MobileBarcodeChecker,
 ) *Handler {
 	if store == nil || log == nil || findLimit == nil {
 		panic("cart: NewHandler requires a store, a logger and a lookup limiter")
@@ -120,30 +117,6 @@ func freeDeliveryFor(choices []pages.ShippingChoice, subtotalCents int64) pages.
 
 // TakesPayment holds because a session closer exists exactly where a payment key does.
 func (h *Handler) TakesPayment() bool { return h.sessions != nil }
-
-// closeSessions is post-commit and best effort: the cancellation has committed,
-// and money that beats this to Stripe arrives as payment.ErrOrderCancelled.
-func (h *Handler) closeSessions(ctx context.Context, number string, sessions []string) {
-	if h.sessions == nil {
-		return
-	}
-
-	// The cancellation has committed. Keep request values for tracing but do
-	// not let a client disconnect turn provider cleanup into a no-op; one short
-	// budget bounds the batch.
-	const timeout = 5 * time.Second
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), timeout)
-	defer cancel()
-
-	for _, id := range sessions {
-		if err := h.sessions.ExpireSession(ctx, id); err != nil {
-			// Warn, not Error: Stripe refuses to expire a session that is not
-			// open, which a customer who paid in the other tab produces.
-			h.log.WarnContext(ctx, "expire checkout session of a cancelled order",
-				"order_number", number, "session_id", id, "error", err)
-		}
-	}
-}
 
 func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 	cartID, ok := h.existingCart(r)
@@ -1551,7 +1524,7 @@ func (h *Handler) CancelOrder(w http.ResponseWriter, r *http.Request) {
 	sessions, err := h.store.CancelOrder(r.Context(), number)
 	switch {
 	case err == nil:
-		h.closeSessions(r.Context(), number, sessions)
+		payment.CloseSessions(r.Context(), h.sessions, h.log, number, sessions)
 		http.Redirect(w, r, "/orders/"+url.PathEscape(number)+"?cancelled=1", http.StatusSeeOther)
 	case errors.Is(err, ErrNotCancellable):
 		// 422, not a redirect: nothing was written.
