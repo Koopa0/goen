@@ -21,6 +21,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/customers"
 	"github.com/koopa0/goen/internal/admin/feedback"
 	"github.com/koopa0/goen/internal/admin/loyalty"
+	returndesk "github.com/koopa0/goen/internal/admin/returns"
 	"github.com/koopa0/goen/internal/admin/stock"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/media"
@@ -88,6 +89,7 @@ func TestEveryAdminQueueReachesBeyondItsFirstPage(t *testing.T) {
  NULL, NULL, jsonb_build_object('n', n), 'paging-' || n) FROM generate_series(1,401) n;
  `)
 	s := admin.NewStore(p, admintest.Refunder{}, nil, nil)
+	returnDesk := returnDeskOver(p, admintest.Refunder{})
 	trail := audit.NewStore(p)
 	customerLookup := customers.NewStore(p)
 	inboxStore := feedback.NewStore(p)
@@ -156,7 +158,7 @@ func TestEveryAdminQueueReachesBeyondItsFirstPage(t *testing.T) {
 			return r, e
 		}},
 		{"returns", "SELECT count(*) FROM return_requests", func(after string) (result, error) {
-			v, e := s.Returns(ctx, after)
+			v, e := returnDesk.Queue(ctx, after)
 			r := result{bound: v.Bound}
 			for _, x := range v.Rows {
 				r.keys = append(r.keys, x.ID)
@@ -222,7 +224,7 @@ func TestEveryAdminQueueReachesBeyondItsFirstPage(t *testing.T) {
 	}
 	h := adminHandlerOver(p, s)
 	inboxHandler := feedback.NewHandler(inboxStore, slog.New(slog.DiscardHandler))
-	handlers := map[string]http.HandlerFunc{"orders": h.Orders, "order search": h.Orders, "customers": customers.NewHandler(customerLookup, slog.New(slog.DiscardHandler)).Search, "products": h.Products, "stock": stockHandler.Variants, "movements": stockHandler.Movements, "returns": h.Returns, "coupons": coupons.NewHandler(coupons.NewStore(p), slog.New(slog.DiscardHandler)).Page, "campaigns": campaigns.NewHandler(salesStore, media.NewHandler(media.NewStore(p), slog.New(slog.DiscardHandler)), slog.New(slog.DiscardHandler)).Page, "reviews": inboxHandler.Reviews, "messages": inboxHandler.Messages, "credit": loyalty.NewHandler(loyalty.NewStore(p), slog.New(slog.DiscardHandler)).Credit, "audit": audit.NewHandler(trail, slog.New(slog.DiscardHandler)).Page, "warranty": customers.NewHandler(customerLookup, slog.New(slog.DiscardHandler)).Warranties}
+	handlers := map[string]http.HandlerFunc{"orders": h.Orders, "order search": h.Orders, "customers": customers.NewHandler(customerLookup, slog.New(slog.DiscardHandler)).Search, "products": h.Products, "stock": stockHandler.Variants, "movements": stockHandler.Movements, "returns": returndesk.NewHandler(returnDesk, slog.New(slog.DiscardHandler)).Queue, "coupons": coupons.NewHandler(coupons.NewStore(p), slog.New(slog.DiscardHandler)).Page, "campaigns": campaigns.NewHandler(salesStore, media.NewHandler(media.NewStore(p), slog.New(slog.DiscardHandler)), slog.New(slog.DiscardHandler)).Page, "reviews": inboxHandler.Reviews, "messages": inboxHandler.Messages, "credit": loyalty.NewHandler(loyalty.NewStore(p), slog.New(slog.DiscardHandler)).Credit, "audit": audit.NewHandler(trail, slog.New(slog.DiscardHandler)).Page, "warranty": customers.NewHandler(customerLookup, slog.New(slog.DiscardHandler)).Warranties}
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
 			var want int

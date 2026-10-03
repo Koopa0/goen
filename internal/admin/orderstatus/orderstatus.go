@@ -31,9 +31,9 @@ func Label(ctx context.Context, s pages.FulfillmentStatus) string {
 			return i18n.T(ctx, status.label)
 		}
 	}
-	// Not a panic, unlike ReturnStatusLabel: a queue opening with one
-	// untranslated word beats one that will not load. audit_events is
-	// append-only, so a row naming a retired status must still render.
+	// Not a panic: a queue opening with one untranslated word beats one that
+	// will not load. audit_events is append-only, so a row naming a retired
+	// status must still render.
 	return string(s)
 }
 

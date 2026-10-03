@@ -27,9 +27,9 @@ func TestTheDashboardShowsHowLongTheOldestOpenReturnHasWaited(t *testing.T) {
 		t.Fatalf("an empty shop shows %d returns, oldest %d days", none.PendingReturns, none.OldestReturnDays)
 	}
 
-	delivered := shopNoonDaysAgo(t, 12)
-	returnedOrderAtWithReasonOn(t, isolated, delivered, shopNoonDaysAgo(t, 3), "")
-	returnedOrderAtWithReasonOn(t, isolated, delivered, shopNoonDaysAgo(t, 9), "")
+	delivered := admintest.ShopNoonDaysAgo(t, 12)
+	admintest.ReturnedOrderAtWithReason(t, isolated, delivered, admintest.ShopNoonDaysAgo(t, 3), "")
+	admintest.ReturnedOrderAtWithReason(t, isolated, delivered, admintest.ShopNoonDaysAgo(t, 9), "")
 
 	got, err := s.Dashboard(t.Context())
 	if err != nil {

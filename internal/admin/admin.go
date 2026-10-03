@@ -3,11 +3,9 @@
 package admin
 
 import (
-	"context"
 	"errors"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
@@ -81,31 +79,6 @@ func NextStatuses(current pages.FulfillmentStatus) []pages.FulfillmentStatus {
 	default:
 		return nil
 	}
-}
-
-func ReturnStatusLabel(ctx context.Context, s returns.Status) string {
-	switch s {
-	case returns.StatusRequested:
-		return i18n.T(ctx, i18n.KeyAdminReturnRequested)
-	case returns.StatusApproved:
-		return i18n.T(ctx, i18n.KeyAdminReturnApproved)
-	case returns.StatusRejected:
-		return i18n.T(ctx, i18n.KeyAdminReturnRejected)
-	case returns.StatusCompleted:
-		return i18n.T(ctx, i18n.KeyAdminReturnCompleted)
-	default:
-		return string(s)
-	}
-}
-
-// returnStatusText is a return's status as the queue shows it. A refund before
-// shipment that has finished is a cancellation: nothing came back, so
-// "completed" would read as a return that did.
-func returnStatusText(ctx context.Context, s returns.Status, beforeShipment bool) string {
-	if beforeShipment && s == returns.StatusCompleted {
-		return i18n.T(ctx, i18n.KeyAdminReturnCancelledRefunded)
-	}
-	return ReturnStatusLabel(ctx, s)
 }
 
 // funded reports that money is behind the order: a card capture or its fulfilment

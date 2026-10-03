@@ -1,8 +1,9 @@
-package admin
+package returns
 
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -13,14 +14,43 @@ import (
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/admin/refundstate"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/returns"
+	returnrules "github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
 )
 
-func (h *Handler) Returns(w http.ResponseWriter, r *http.Request) {
-	queue, err := h.store.Returns(r.Context(), r.URL.Query().Get(web.KeysetParam))
+type Handler struct {
+	store *Store
+	log   *slog.Logger
+}
+
+func NewHandler(store *Store, log *slog.Logger) *Handler {
+	if store == nil || log == nil {
+		panic("returns: NewHandler requires a store and a logger")
+	}
+	return &Handler{store: store, log: log}
+}
+
+func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
+	mux.HandleFunc("GET /admin/returns", ac.RequireStaff(h.Queue))
+	mux.HandleFunc("POST /admin/returns/{id}/decide", ac.RequireStaff(h.Decide))
+	mux.HandleFunc("POST /admin/returns/{id}/assess", ac.RequireStaff(h.Assess))
+	mux.HandleFunc("POST /admin/returns/{id}/inspect", ac.RequireStaff(h.Inspect))
+	mux.HandleFunc("POST /admin/returns/{id}/complete", ac.RequireStaff(h.Complete))
+}
+
+var notices = map[string]i18n.Key{
+	"ok":           i18n.KeyAdminNoticeOK,
+	"refused":      i18n.KeyAdminNoticeRefused,
+	"refundfailed": i18n.KeyAdminNoticeRefundFailed,
+	"assessed":     i18n.KeyAdminNoticeAssessed,
+	"inspected":    i18n.KeyAdminNoticeInspected,
+	"closed":       i18n.KeyAdminNoticeClosed,
+}
+
+func (h *Handler) Queue(w http.ResponseWriter, r *http.Request) {
+	queue, err := h.store.Queue(r.Context(), r.URL.Query().Get(web.KeysetParam))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read return queue", "error", err)
 		access.ServerError(w, r, h.log)
@@ -33,7 +63,7 @@ func (h *Handler) Returns(w http.ResponseWriter, r *http.Request) {
 	view := admin.ReturnsView{
 		ListBound: queue.Bound,
 		Rows:      queue.Rows,
-		Notice:    noticeFor(r),
+		Notice:    web.Notice(r, notices),
 	}
 	web.Render(w, r, h.log, http.StatusOK, admin.Returns(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageReturns)}, view))
@@ -88,7 +118,7 @@ func (h *Handler) Assess(w http.ResponseWriter, r *http.Request) {
 	if parseErr != nil {
 		h.log.WarnContext(r.Context(), "return assessment rejected",
 			"return", r.PathValue("id"), "error", parseErr)
-		if h.renderReturnRefusal(w, r, formRefuse("decision", returns.RefuseIncomplete)) {
+		if h.renderReturnRefusal(w, r, formRefuse("decision", returnrules.RefuseIncomplete)) {
 			return
 		}
 		http.Redirect(w, r, "/admin/returns?refused=1", http.StatusSeeOther)
@@ -129,7 +159,7 @@ func assessmentLines(r *http.Request) ([]LineEligibility, error) {
 		if err != nil {
 			return nil, fmt.Errorf("field %q does not name an order line: %w", name, err)
 		}
-		fact, ok := returns.ParseFact(strings.TrimSpace(values[0]))
+		fact, ok := returnrules.ParseFact(strings.TrimSpace(values[0]))
 		if !ok {
 			return nil, fmt.Errorf("field %q is not a known fact", name)
 		}
@@ -149,13 +179,13 @@ func assessmentLines(r *http.Request) ([]LineEligibility, error) {
 	out := make([]LineEligibility, 0, len(seen))
 	for _, row := range seen {
 		if row.Unused == "" {
-			row.Unused = string(returns.FactUnknown)
+			row.Unused = string(returnrules.FactUnknown)
 		}
 		if row.Packaging == "" {
-			row.Packaging = string(returns.FactUnknown)
+			row.Packaging = string(returnrules.FactUnknown)
 		}
 		if row.Accessories == "" {
-			row.Accessories = string(returns.FactUnknown)
+			row.Accessories = string(returnrules.FactUnknown)
 		}
 		out = append(out, row)
 	}
@@ -167,7 +197,7 @@ func (h *Handler) renderReturnRefusal(w http.ResponseWriter, r *http.Request, er
 	if !ok {
 		return false
 	}
-	queue, readErr := h.store.Returns(r.Context(), r.URL.Query().Get(web.KeysetParam))
+	queue, readErr := h.store.Queue(r.Context(), r.URL.Query().Get(web.KeysetParam))
 	if readErr != nil {
 		h.log.ErrorContext(r.Context(), "read return queue after refusal", "error", readErr)
 		access.ServerError(w, r, h.log)
@@ -204,7 +234,7 @@ func (h *Handler) renderReturnRefusal(w http.ResponseWriter, r *http.Request, er
 }
 
 func (h *Handler) renderInspection(w http.ResponseWriter, r *http.Request, key i18n.Key) {
-	queue, readErr := h.store.Returns(r.Context(), r.URL.Query().Get(web.KeysetParam))
+	queue, readErr := h.store.Queue(r.Context(), r.URL.Query().Get(web.KeysetParam))
 	if readErr != nil {
 		h.log.ErrorContext(r.Context(), "read return queue after refused inspection", "error", readErr)
 		access.ServerError(w, r, h.log)
@@ -246,7 +276,7 @@ func overlayDraftFacts(row *admin.Return, r *http.Request) {
 	}
 }
 
-func refusalMessage(r *http.Request, kind returns.RefusalKind) string {
+func refusalMessage(r *http.Request, kind returnrules.RefusalKind) string {
 	key, ok := refusalKeys[kind]
 	if !ok {
 		return i18n.T(r.Context(), i18n.KeyAdminNoticeRefused)
@@ -254,17 +284,17 @@ func refusalMessage(r *http.Request, kind returns.RefusalKind) string {
 	return i18n.T(r.Context(), key)
 }
 
-var refusalKeys = map[returns.RefusalKind]i18n.Key{
-	returns.RefuseStatutoryReject: i18n.KeyAdminRetErrStatutoryReject,
-	returns.RefuseIncomplete:      i18n.KeyAdminRetErrIncomplete,
-	returns.RefuseNeedException:   i18n.KeyAdminRetErrNeedException,
-	returns.RefuseUnmetApprove:    i18n.KeyAdminRetErrUnmetApprove,
-	returns.RefuseNoUnmet:         i18n.KeyAdminRetErrNoUnmet,
-	returns.RefuseUseApprove:      i18n.KeyAdminRetErrUseApprove,
-	returns.RefuseStale:           i18n.KeyAdminRetErrStale,
-	returns.RefuseEmpty:           i18n.KeyAdminRetErrIncomplete,
-	returns.RefuseExceptionReason: i18n.KeyAdminRetErrExceptionReason,
-	returns.RefuseRejectionReason: i18n.KeyAdminRetErrRejectionReason,
+var refusalKeys = map[returnrules.RefusalKind]i18n.Key{
+	returnrules.RefuseStatutoryReject: i18n.KeyAdminRetErrStatutoryReject,
+	returnrules.RefuseIncomplete:      i18n.KeyAdminRetErrIncomplete,
+	returnrules.RefuseNeedException:   i18n.KeyAdminRetErrNeedException,
+	returnrules.RefuseUnmetApprove:    i18n.KeyAdminRetErrUnmetApprove,
+	returnrules.RefuseNoUnmet:         i18n.KeyAdminRetErrNoUnmet,
+	returnrules.RefuseUseApprove:      i18n.KeyAdminRetErrUseApprove,
+	returnrules.RefuseStale:           i18n.KeyAdminRetErrStale,
+	returnrules.RefuseEmpty:           i18n.KeyAdminRetErrIncomplete,
+	returnrules.RefuseExceptionReason: i18n.KeyAdminRetErrExceptionReason,
+	returnrules.RefuseRejectionReason: i18n.KeyAdminRetErrRejectionReason,
 }
 
 func (h *Handler) Inspect(w http.ResponseWriter, r *http.Request) {
@@ -281,7 +311,7 @@ func (h *Handler) Inspect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := h.store.InspectReturn(r.Context(), r.PathValue("id"), lines, audit.ActorID(r.Context()))
+	err := h.store.Inspect(r.Context(), r.PathValue("id"), lines, audit.ActorID(r.Context()))
 	switch {
 	case err == nil:
 		http.Redirect(w, r, "/admin/returns?inspected=1", http.StatusSeeOther)
@@ -300,8 +330,8 @@ func (h *Handler) Inspect(w http.ResponseWriter, r *http.Request) {
 
 // inspectionLines reads the per-line counts off the form, keyed by line id for
 // parcelLines' reason: two drifted lists would restock the wrong variant.
-func inspectionLines(r *http.Request) ([]ReturnLineInspection, error) {
-	var out []ReturnLineInspection
+func inspectionLines(r *http.Request) ([]LineInspection, error) {
+	var out []LineInspection
 	for name, values := range r.PostForm {
 		rest, ok := strings.CutPrefix(name, "received_")
 		if !ok || len(values) == 0 {
@@ -323,7 +353,7 @@ func inspectionLines(r *http.Request) ([]ReturnLineInspection, error) {
 				return nil, fmt.Errorf("restocked count on %s: %w", rest, err)
 			}
 		}
-		out = append(out, ReturnLineInspection{
+		out = append(out, LineInspection{
 			OrderLineID: lineID,
 			Received:    int32(received),
 			Restocked:   int32(restocked),
@@ -341,7 +371,7 @@ func (h *Handler) Complete(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
-	err := h.store.CompleteReturn(r.Context(), r.PathValue("id"),
+	err := h.store.Complete(r.Context(), r.PathValue("id"),
 		r.PostFormValue("resolution"), audit.ActorID(r.Context()))
 	switch {
 	case err == nil:
@@ -360,12 +390,12 @@ func (h *Handler) Complete(w http.ResponseWriter, r *http.Request) {
 // confirmReturnDecision renders the selected operation before Decide can move
 // money. The final POST still revalidates current eligibility and assessment.
 func (h *Handler) confirmReturnDecision(w http.ResponseWriter, r *http.Request) bool {
-	kind, ok := returns.ParseDecisionKind(r.PostFormValue("decision"))
+	kind, ok := returnrules.ParseDecisionKind(r.PostFormValue("decision"))
 	if !ok {
 		return false
 	}
 	resolution := r.PostFormValue("resolution")
-	required := kind == returns.DecisionReject || kind == returns.DecisionException
+	required := kind == returnrules.DecisionReject || kind == returnrules.DecisionException
 	confirmed := r.PostFormValue("confirm") == string(kind)
 	if confirmed {
 		return false

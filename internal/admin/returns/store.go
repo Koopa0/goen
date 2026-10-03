@@ -1,4 +1,8 @@
-package admin
+// Package returns is the back office's returns desk: the queue, the decision
+// that approves or rejects a return and has it paid back, the eligibility facts
+// staff record before deciding, and the inspection and completion of what came
+// back.
+package returns
 
 import (
 	"context"
@@ -6,24 +10,57 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
-	"github.com/koopa0/goen/internal/returns"
+	returnrules "github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
+	"github.com/koopa0/goen/internal/web"
 )
+
+var (
+	// ErrRefused is a write the database declined; its message is the database's
+	// own, because that names the rule.
+	ErrRefused = errors.New("returns: refused")
+	ErrInvalid = errors.New("returns: invalid input")
+)
+
+// Payouts pays an approved return back and says where each payout stands. A
+// payout that did not finish wraps refundstate.ErrIncomplete; one the database
+// refused wraps refundstate.ErrRefused.
+type Payouts interface {
+	FillPayouts(ctx context.Context, ids []uuid.UUID, rows []admin.Return) (map[uuid.UUID]error, error)
+	PayApproved(ctx context.Context, returnID uuid.UUID, actor uuid.NullUUID) error
+	Resume(ctx context.Context, row *db.ReturnForDecisionRow, actor uuid.NullUUID) (bool, error)
+}
+
+type Store struct {
+	pool    *pgxpool.Pool
+	q       *db.Queries
+	payouts Payouts
+}
+
+func NewStore(pool *pgxpool.Pool, payouts Payouts) *Store {
+	if pool == nil || payouts == nil {
+		panic("returns: NewStore requires a pool and payouts")
+	}
+	return &Store{pool: pool, q: db.New(pool), payouts: payouts}
+}
 
 const maxAssessmentBasisRunes = 500
 
 type FormRefusalError struct {
 	Field string
-	Kind  returns.RefusalKind
+	Kind  returnrules.RefusalKind
 }
 
 func (e *FormRefusalError) Error() string {
@@ -35,27 +72,27 @@ func (e *FormRefusalError) Error() string {
 
 func (e *FormRefusalError) Unwrap() error { return ErrRefused }
 
-func formRefuse(field string, kind returns.RefusalKind) error {
+func formRefuse(field string, kind returnrules.RefusalKind) error {
 	return &FormRefusalError{Field: field, Kind: kind}
 }
 
 // A first exception is the shop paying outside an advertised right.
 // Without a recorded reason the audit cannot say why the money moved.
 // Retries never call this: they resume an already-decided claim.
-func requireExceptionReason(kind returns.DecisionKind, resolution string) error {
-	if kind != returns.DecisionException {
+func requireExceptionReason(kind returnrules.DecisionKind, resolution string) error {
+	if kind != returnrules.DecisionException {
 		return nil
 	}
 	if strings.TrimSpace(resolution) != "" {
 		return nil
 	}
-	return formRefuse("resolution", returns.RefuseExceptionReason)
+	return formRefuse("resolution", returnrules.RefuseExceptionReason)
 }
 
-// ReturnQueue is the back-office return view plus operator-only diagnostics.
+// Queue is the back-office return view plus operator-only diagnostics.
 // Diagnostics stay out of the rendered page but cross the Store boundary so
 // the handler can record quantitative source inconsistencies.
-type ReturnQueue struct {
+type Queue struct {
 	Bound        pages.ListBound
 	Rows         []admin.Return
 	payoutIssues []returnPayoutIssue
@@ -66,24 +103,33 @@ type returnPayoutIssue struct {
 	err      error
 }
 
-func (s *Store) Returns(ctx context.Context, after ...string) (ReturnQueue, error) {
+// queuePosition is a reader's place in the queue. The query builds it as
+// PageCursor, so its fields are the ordering values and nothing else.
+type queuePosition struct {
+	Rank     bool
+	Priority bool
+	At       time.Time
+	ID       uuid.UUID
+}
+
+func (s *Store) Queue(ctx context.Context, after ...string) (Queue, error) {
 	scope := "/admin/returns"
-	cursor := readPageCursor(scope, after)
-	rows, err := s.q.ReturnQueue(ctx, db.ReturnQueueParams{HasCursor: cursor.Valid, AfterRank: cursor.Rank, AfterPriority: cursor.Priority, AfterAt: cursor.At, AfterID: cursor.ID, RowLimit: PageLimit})
+	from, resumed := web.ResumeKeyset(scope, after, func(p queuePosition) bool { return p.ID != uuid.Nil })
+	rows, err := s.q.ReturnQueue(ctx, db.ReturnQueueParams{HasCursor: resumed, AfterRank: from.Rank, AfterPriority: from.Priority, AfterAt: from.At, AfterID: from.ID, RowLimit: web.PageLimit})
 	if err != nil {
-		return ReturnQueue{}, fmt.Errorf("read return queue: %w", err)
+		return Queue{}, fmt.Errorf("read return queue: %w", err)
 	}
 	// Dropped before ids is built, not after: the extra row exists to be
 	// counted, and reading its lines and payout facts would be work done for a
 	// return nobody is shown.
-	rows, bound := pageBound(cursor, scope, rows, PageSize, func(r *db.ReturnQueueRow) string { return r.PageCursor })
+	rows, bound := web.PageBound(scope, resumed, rows, web.PageSize, func(r *db.ReturnQueueRow) string { return r.PageCursor })
 	ids := make([]uuid.UUID, 0, len(rows))
 	for i := range rows {
 		ids = append(ids, rows[i].ID)
 	}
 	lines, err := s.q.ReturnLines(ctx, ids)
 	if err != nil {
-		return ReturnQueue{}, fmt.Errorf("read return lines: %w", err)
+		return Queue{}, fmt.Errorf("read return lines: %w", err)
 	}
 	byRequest := make(map[uuid.UUID][]admin.ReturnLine, len(rows))
 	for i := range lines {
@@ -104,7 +150,7 @@ func (s *Store) Returns(ctx context.Context, after ...string) (ReturnQueue, erro
 	}
 	assessments, err := s.q.LatestEligibilityAssessments(ctx, ids)
 	if err != nil {
-		return ReturnQueue{}, fmt.Errorf("read return assessments: %w", err)
+		return Queue{}, fmt.Errorf("read return assessments: %w", err)
 	}
 	assessmentIDs := make([]uuid.UUID, 0, len(assessments))
 	assessmentByRequest := make(map[uuid.UUID]db.ReturnEligibilityAssessment, len(assessments))
@@ -113,13 +159,13 @@ func (s *Store) Returns(ctx context.Context, after ...string) (ReturnQueue, erro
 		assessmentByRequest[assessments[i].ReturnRequestID] = assessments[i]
 	}
 	if overlayErr := overlayReturnAssessmentFacts(ctx, s.q, byRequest, assessmentIDs); overlayErr != nil {
-		return ReturnQueue{}, overlayErr
+		return Queue{}, overlayErr
 	}
 
 	view := buildReturnQueue(ctx, rows, byRequest, assessmentByRequest)
-	blocked, err := s.refunds.FillPayouts(ctx, ids, view.Rows)
+	blocked, err := s.payouts.FillPayouts(ctx, ids, view.Rows)
 	if err != nil {
-		return ReturnQueue{}, err
+		return Queue{}, err
 	}
 	for _, id := range ids {
 		if payoutErr, ok := blocked[id]; ok {
@@ -167,20 +213,20 @@ func buildReturnQueue(
 	rows []db.ReturnQueueRow,
 	byRequest map[uuid.UUID][]admin.ReturnLine,
 	assessmentByRequest map[uuid.UUID]db.ReturnEligibilityAssessment,
-) ReturnQueue {
-	view := ReturnQueue{}
+) Queue {
+	view := Queue{}
 	for i := range rows {
 		r := &rows[i]
 		item := admin.Return{
 			ID:          r.ID.String(),
 			OrderNumber: r.OrderNumber,
-			Status:      returns.Status(r.Status),
-			StatusText:  returnStatusText(ctx, returns.Status(r.Status), r.BeforeShipment),
+			Status:      returnrules.Status(r.Status),
+			StatusText:  statusText(ctx, returnrules.Status(r.Status), r.BeforeShipment),
 			Reason:      r.Reason,
 			Units:       r.Units,
 			AmountCents: r.RefundableCents,
 			CreatedAt:   shoptime.Minute(r.CreatedAt),
-			Decided:     returns.Status(r.Status) != returns.StatusRequested,
+			Decided:     returnrules.Status(r.Status) != returnrules.StatusRequested,
 			Lines:       byRequest[r.ID],
 			Window:      r.RescissionWindow,
 
@@ -204,9 +250,9 @@ func buildReturnQueue(
 func (s *Store) Decide(
 	ctx context.Context, id, decision, resolution, assessmentVersion string, _ uuid.NullUUID,
 ) error {
-	if !returns.ValidResolution(resolution) {
+	if !returnrules.ValidResolution(resolution) {
 		return fmt.Errorf("%w: return resolution exceeds %d characters",
-			ErrInvalid, returns.MaxResolutionRunes)
+			ErrInvalid, returnrules.MaxResolutionRunes)
 	}
 	actorID, ok := audit.Actor(ctx)
 	if !ok {
@@ -218,7 +264,7 @@ func (s *Store) Decide(
 	// different people.
 	actor := uuid.NullUUID{UUID: actorID, Valid: true}
 
-	kind, ok := returns.ParseDecisionKind(decision)
+	kind, ok := returnrules.ParseDecisionKind(decision)
 	if !ok {
 		return ErrRefused
 	}
@@ -240,7 +286,7 @@ func (s *Store) Decide(
 func (s *Store) retryDecideReturn(
 	ctx context.Context, row *db.ReturnForDecisionRow, actor uuid.NullUUID,
 ) error {
-	worked, err := s.refunds.Resume(ctx, row, actor)
+	worked, err := s.payouts.Resume(ctx, row, actor)
 	if err != nil || worked {
 		return err
 	}
@@ -253,7 +299,7 @@ func (s *Store) retryDecideReturn(
 func (s *Store) decideReturnFirst(
 	ctx context.Context,
 	row *db.ReturnForDecisionRow,
-	kind returns.DecisionKind,
+	kind returnrules.DecisionKind,
 	resolution string,
 	version int32,
 	actor uuid.NullUUID,
@@ -268,10 +314,10 @@ func (s *Store) decideReturnFirst(
 	if closeErr := s.closeReturn(ctx, row.ID, kind, resolution, version); closeErr != nil {
 		return closeErr
 	}
-	if kind == returns.DecisionReject {
+	if kind == returnrules.DecisionReject {
 		return nil
 	}
-	return s.refunds.PayApproved(ctx, row.ID, actor)
+	return s.payouts.PayApproved(ctx, row.ID, actor)
 }
 
 // returnUnderDecision reads the return this decision is about and says whether
@@ -284,7 +330,7 @@ func (s *Store) decideReturnFirst(
 // reuses its durable key; a known failed/cancelled attempt gets a DB-derived
 // successor generation so Stripe may execute new work without losing lineage.
 func (s *Store) returnUnderDecision(
-	ctx context.Context, id string, kind returns.DecisionKind,
+	ctx context.Context, id string, kind returnrules.DecisionKind,
 ) (db.ReturnForDecisionRow, bool, error) {
 	requestID, err := uuid.Parse(id)
 	if err != nil {
@@ -294,9 +340,9 @@ func (s *Store) returnUnderDecision(
 	if err != nil {
 		return db.ReturnForDecisionRow{}, false, fmt.Errorf("%w: %w", ErrRefused, err)
 	}
-	status := returns.Status(row.Status)
-	retry := status == returns.StatusApproved && kind == returns.DecisionApprove
-	if status != returns.StatusRequested && !retry {
+	status := returnrules.Status(row.Status)
+	retry := status == returnrules.StatusApproved && kind == returnrules.DecisionApprove
+	if status != returnrules.StatusRequested && !retry {
 		return db.ReturnForDecisionRow{}, false,
 			fmt.Errorf("%w: return %s is already %s", ErrRefused, id, row.Status)
 	}
@@ -310,14 +356,14 @@ func parseAssessmentVersion(raw string) (int32, error) {
 	}
 	n, err := strconv.ParseInt(raw, 10, 32)
 	if err != nil || n < 0 {
-		return 0, formRefuse("decision", returns.RefuseIncomplete)
+		return 0, formRefuse("decision", returnrules.RefuseIncomplete)
 	}
 	return int32(n), nil
 }
 
 func returnDecisionAudit(
-	status returns.Status, resolution string,
-	window returns.PolicyWindow, entitlement returns.Entitlement,
+	status returnrules.Status, resolution string,
+	window returnrules.PolicyWindow, entitlement returnrules.Entitlement,
 	assessmentVersion int32,
 ) map[string]any {
 	after := map[string]any{
@@ -350,14 +396,14 @@ func validAssessmentBasis(s string) bool {
 func lineEligibilityByID(facts []LineEligibility) (map[uuid.UUID]LineEligibility, error) {
 	byLine := make(map[uuid.UUID]LineEligibility, len(facts))
 	for _, fact := range facts {
-		if _, ok := returns.ParseFact(fact.Unused); !ok {
-			return nil, formRefuse("unused-"+fact.OrderLineID.String(), returns.RefuseIncomplete)
+		if _, ok := returnrules.ParseFact(fact.Unused); !ok {
+			return nil, formRefuse("unused-"+fact.OrderLineID.String(), returnrules.RefuseIncomplete)
 		}
-		if _, ok := returns.ParseFact(fact.Packaging); !ok {
-			return nil, formRefuse("packaging-"+fact.OrderLineID.String(), returns.RefuseIncomplete)
+		if _, ok := returnrules.ParseFact(fact.Packaging); !ok {
+			return nil, formRefuse("packaging-"+fact.OrderLineID.String(), returnrules.RefuseIncomplete)
 		}
-		if _, ok := returns.ParseFact(fact.Accessories); !ok {
-			return nil, formRefuse("accessories-"+fact.OrderLineID.String(), returns.RefuseIncomplete)
+		if _, ok := returnrules.ParseFact(fact.Accessories); !ok {
+			return nil, formRefuse("accessories-"+fact.OrderLineID.String(), returnrules.RefuseIncomplete)
 		}
 		byLine[fact.OrderLineID] = fact
 	}
@@ -402,7 +448,7 @@ func insertEligibilityFacts(
 func (s *Store) Assess(ctx context.Context, id, basis string, facts []LineEligibility) error {
 	basis = strings.TrimSpace(basis)
 	if !validAssessmentBasis(basis) {
-		return formRefuse("basis", returns.RefuseIncomplete)
+		return formRefuse("basis", returnrules.RefuseIncomplete)
 	}
 	actorID, ok := audit.Actor(ctx)
 	if !ok {
@@ -430,7 +476,7 @@ func (s *Store) Assess(ctx context.Context, id, basis string, facts []LineEligib
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrRefused, err)
 	}
-	if returns.Status(row.Status) != returns.StatusRequested {
+	if returnrules.Status(row.Status) != returnrules.StatusRequested {
 		return fmt.Errorf("%w: return %s is already %s", ErrRefused, id, row.Status)
 	}
 	lines, err := q.ReturnLines(ctx, []uuid.UUID{requestID})
@@ -466,12 +512,12 @@ func (s *Store) Assess(ctx context.Context, id, basis string, facts []LineEligib
 func (s *Store) closeReturn(
 	ctx context.Context,
 	requestID uuid.UUID,
-	kind returns.DecisionKind,
+	kind returnrules.DecisionKind,
 	resolution string,
 	assessmentVersion int32,
 ) error {
-	if kind == returns.DecisionReject && strings.TrimSpace(resolution) == "" {
-		return formRefuse("resolution", returns.RefuseRejectionReason)
+	if kind == returnrules.DecisionReject && strings.TrimSpace(resolution) == "" {
+		return formRefuse("resolution", returnrules.RefuseRejectionReason)
 	}
 	if err := requireExceptionReason(kind, resolution); err != nil {
 		return err
@@ -500,7 +546,7 @@ func (s *Store) closeReturn(
 	// settles which of two staff members deciding at once wins — and it runs
 	// BEFORE any money moves.
 	decided, decideErr := q.DecideReturn(ctx, db.DecideReturnParams{
-		ID: requestID, Status: string(kind.Status()), Resolution: text(resolution),
+		ID: requestID, Status: string(kind.Status()), Resolution: pgtype.Text{String: resolution, Valid: resolution != ""},
 	})
 	if decideErr != nil {
 		return fmt.Errorf("%w: %w", ErrRefused, decideErr)
@@ -527,20 +573,20 @@ func assessedLinesAtVersion(
 	requestID uuid.UUID,
 	lines []db.ReturnLinesRow,
 	assessmentVersion int32,
-) ([]returns.LineAssessment, error) {
+) ([]returnrules.LineAssessment, error) {
 	assessed := lineAssessmentsFromRows(lines)
 	if assessmentVersion == 0 {
 		return assessed, nil
 	}
 	latest, err := q.LatestEligibilityAssessment(ctx, requestID)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, formRefuse("decision", returns.RefuseStale)
+		return nil, formRefuse("decision", returnrules.RefuseStale)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("lock eligibility assessment: %w", err)
 	}
 	if latest.Version != assessmentVersion {
-		return nil, formRefuse("decision", returns.RefuseStale)
+		return nil, formRefuse("decision", returnrules.RefuseStale)
 	}
 	facts, factErr := q.EligibilityFacts(ctx, latest.ID)
 	if factErr != nil {
@@ -554,44 +600,44 @@ func decisionClaim(
 	q *db.Queries,
 	requestID uuid.UUID,
 	lines []db.ReturnLinesRow,
-	kind returns.DecisionKind,
+	kind returnrules.DecisionKind,
 	assessmentVersion int32,
-) ([]returns.LineAssessment, returns.Claim, error) {
+) ([]returnrules.LineAssessment, returnrules.Claim, error) {
 	assessed, err := assessedLinesAtVersion(ctx, q, requestID, lines, assessmentVersion)
 	if err != nil {
-		return nil, returns.Claim{}, err
+		return nil, returnrules.Claim{}, err
 	}
-	claim, err := returns.Evaluate(assessed, kind)
+	claim, err := returnrules.Evaluate(assessed, kind)
 	if err != nil {
-		if refused, ok := errors.AsType[*returns.RefusalError](err); ok {
-			return nil, returns.Claim{}, formRefuse("decision", refused.Kind)
+		if refused, ok := errors.AsType[*returnrules.RefusalError](err); ok {
+			return nil, returnrules.Claim{}, formRefuse("decision", refused.Kind)
 		}
-		return nil, returns.Claim{}, fmt.Errorf("%w: %w", ErrRefused, err)
+		return nil, returnrules.Claim{}, fmt.Errorf("%w: %w", ErrRefused, err)
 	}
 	return assessed, claim, nil
 }
 
-func lineAssessmentsFromRows(lines []db.ReturnLinesRow) []returns.LineAssessment {
-	out := make([]returns.LineAssessment, 0, len(lines))
+func lineAssessmentsFromRows(lines []db.ReturnLinesRow) []returnrules.LineAssessment {
+	out := make([]returnrules.LineAssessment, 0, len(lines))
 	for i := range lines {
-		window, ok := returns.ParsePolicyWindow(lines[i].PolicyWindow)
-		if !ok || window == returns.WindowMixed {
-			window = returns.WindowUndelivered
+		window, ok := returnrules.ParsePolicyWindow(lines[i].PolicyWindow)
+		if !ok || window == returnrules.WindowMixed {
+			window = returnrules.WindowUndelivered
 		}
-		out = append(out, returns.LineAssessment{
+		out = append(out, returnrules.LineAssessment{
 			OrderLineID: lines[i].OrderLineID.String(),
 			Window:      window,
-			Unused:      returns.FactUnknown,
-			Packaging:   returns.FactUnknown,
-			Accessories: returns.FactUnknown,
+			Unused:      returnrules.FactUnknown,
+			Packaging:   returnrules.FactUnknown,
+			Accessories: returnrules.FactUnknown,
 		})
 	}
 	return out
 }
 
 func overlayEligibilityFacts(
-	lines []returns.LineAssessment, facts []db.ReturnEligibilityFact,
-) []returns.LineAssessment {
+	lines []returnrules.LineAssessment, facts []db.ReturnEligibilityFact,
+) []returnrules.LineAssessment {
 	byLine := make(map[string]db.ReturnEligibilityFact, len(facts))
 	for i := range facts {
 		byLine[facts[i].OrderLineID.String()] = facts[i]
@@ -601,23 +647,23 @@ func overlayEligibilityFacts(
 		if !ok {
 			continue
 		}
-		if window, ok := returns.ParsePolicyWindow(f.PolicyWindow); ok && window != returns.WindowMixed {
+		if window, ok := returnrules.ParsePolicyWindow(f.PolicyWindow); ok && window != returnrules.WindowMixed {
 			lines[i].Window = window
 		}
-		if unused, ok := returns.ParseFact(f.Unused); ok {
+		if unused, ok := returnrules.ParseFact(f.Unused); ok {
 			lines[i].Unused = unused
 		}
-		if packaging, ok := returns.ParseFact(f.PackagingComplete); ok {
+		if packaging, ok := returnrules.ParseFact(f.PackagingComplete); ok {
 			lines[i].Packaging = packaging
 		}
-		if accessories, ok := returns.ParseFact(f.AccessoriesComplete); ok {
+		if accessories, ok := returnrules.ParseFact(f.AccessoriesComplete); ok {
 			lines[i].Accessories = accessories
 		}
 	}
 	return lines
 }
 
-type ReturnLineInspection struct {
+type LineInspection struct {
 	OrderLineID uuid.UUID
 	Received    int32
 	Restocked   int32
@@ -626,7 +672,7 @@ type ReturnLineInspection struct {
 
 // checkInspection refuses counts return_request_lines_restocked_bounded would
 // refuse anyway, so a staff member gets a sentence instead of a constraint name.
-func checkInspection(lines []ReturnLineInspection) error {
+func checkInspection(lines []LineInspection) error {
 	if len(lines) == 0 {
 		return ErrInvalid
 	}
@@ -639,12 +685,12 @@ func checkInspection(lines []ReturnLineInspection) error {
 	return nil
 }
 
-// InspectReturn records what came back and puts the sellable units on the
+// Inspect records what came back and puts the sellable units on the
 // shelf, the whole parcel in ONE transaction. The restock is read back from
 // what this transaction WROTE, so the set acted on is the one the database
 // agreed to.
-func (s *Store) InspectReturn(
-	ctx context.Context, id string, lines []ReturnLineInspection, actor uuid.NullUUID,
+func (s *Store) Inspect(
+	ctx context.Context, id string, lines []LineInspection, actor uuid.NullUUID,
 ) error {
 	requestID, err := uuid.Parse(id)
 	if err != nil {
@@ -708,13 +754,13 @@ func (s *Store) InspectReturn(
 	return nil
 }
 
-// CompleteReturn closes an inspected return. It writes no stock: the movement
+// Complete closes an inspected return. It writes no stock: the movement
 // was posted with the INSPECTION, which is when the goods went back on the
 // shelf.
-func (s *Store) CompleteReturn(ctx context.Context, id, resolution string, actor uuid.NullUUID) error {
-	if !returns.ValidResolution(resolution) {
+func (s *Store) Complete(ctx context.Context, id, resolution string, actor uuid.NullUUID) error {
+	if !returnrules.ValidResolution(resolution) {
 		return fmt.Errorf("%w: return resolution exceeds %d characters",
-			ErrInvalid, returns.MaxResolutionRunes)
+			ErrInvalid, returnrules.MaxResolutionRunes)
 	}
 	requestID, err := uuid.Parse(id)
 	if err != nil {
