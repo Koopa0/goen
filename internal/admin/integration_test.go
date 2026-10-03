@@ -2234,8 +2234,8 @@ func TestAnOldRecoverySurvivesTheBoundedReturnQueue(t *testing.T) {
 	requestID, _ := returnedOrder(t, 1)
 	s := admin.NewStore(pool, admintest.Refunder{State: refundstate.Failed}, nil, nil)
 	decideErr := s.Decide(ctx, requestID.String(), "approved", "terminal retry", "", uuid.NullUUID{})
-	if !errors.Is(decideErr, refunds.ErrIncomplete) || errors.Is(decideErr, admin.ErrRefused) || errors.Is(decideErr, refunds.ErrRefused) {
-		t.Fatalf("terminal decision = %v, want only refunds.ErrIncomplete", decideErr)
+	if !errors.Is(decideErr, refundstate.ErrIncomplete) || errors.Is(decideErr, admin.ErrRefused) || errors.Is(decideErr, refundstate.ErrRefused) {
+		t.Fatalf("terminal decision = %v, want only refundstate.ErrIncomplete", decideErr)
 	}
 
 	rows, err := pool.Query(ctx, `
@@ -4571,8 +4571,8 @@ func TestASplitReturnStillPostsCreditWhenTheCardAttemptTerminates(t *testing.T) 
 			s := admin.NewStore(pool, tt.refunder, nil, nil)
 
 			err := s.Decide(ctx, requestID.String(), "approved", "split terminal", "", uuid.NullUUID{})
-			if !errors.Is(err, refunds.ErrIncomplete) || errors.Is(err, admin.ErrRefused) || errors.Is(err, refunds.ErrRefused) {
-				t.Fatalf("split terminal decision = %v, want only refunds.ErrIncomplete", err)
+			if !errors.Is(err, refundstate.ErrIncomplete) || errors.Is(err, admin.ErrRefused) || errors.Is(err, refundstate.ErrRefused) {
+				t.Fatalf("split terminal decision = %v, want only refundstate.ErrIncomplete", err)
 			}
 			if got := creditBalanceOf(t, accountID); got != 60000 {
 				t.Errorf("credit after terminal card outcome = %d, want frozen 60000", got)

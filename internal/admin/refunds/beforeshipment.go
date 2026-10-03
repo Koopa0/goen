@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/koopa0/goen/internal/admin/audit"
+	"github.com/koopa0/goen/internal/admin/refundstate"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/ordernotice"
@@ -53,7 +54,7 @@ func (s *Store) RefundPreview(ctx context.Context, number string) (admin.RefundC
 	offered, open := beforeShipmentRefundState(&row)
 	if !offered && !open {
 		return admin.RefundConfirmation{}, fmt.Errorf(
-			"%w: order %s has no refund before shipment to confirm", ErrRefused, number)
+			"%w: order %s has no refund before shipment to confirm", refundstate.ErrRefused, number)
 	}
 	return admin.RefundConfirmation{
 		OrderNumber: number, TotalCents: row.TotalCents,
@@ -82,7 +83,7 @@ func (s *Store) RefundBeforeShipment(ctx context.Context, number, reason string)
 		ActorUserID: actorID, RequestID: web.RequestID(ctx),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("%w: open refund before shipment of %s: %w", ErrRefused, number, err)
+		return nil, fmt.Errorf("%w: open refund before shipment of %s: %w", refundstate.ErrRefused, number, err)
 	}
 
 	row, err := s.q.ReturnForDecision(ctx, returnID)
@@ -124,7 +125,7 @@ func (s *Store) finishRefundBeforeShipment(
 
 	row, err := q.LockOrderForAdvance(ctx, number)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %w", ErrRefused, err)
+		return nil, fmt.Errorf("%w: %w", refundstate.ErrRefused, err)
 	}
 	// Cancelled is terminal and this transaction is the only one that cancels
 	// a refunded order, so an earlier press already finished everything below.
@@ -151,7 +152,7 @@ func cancelRefundedOrder(ctx context.Context, q *db.Queries, number string, retu
 	if err := q.AdvanceOrder(ctx, db.AdvanceOrderParams{
 		OrderNumber: number, Status: string(pages.FulfillmentCancelled),
 	}); err != nil {
-		return fmt.Errorf("%w: %w", ErrRefused, err)
+		return fmt.Errorf("%w: %w", refundstate.ErrRefused, err)
 	}
 	held, err := q.HeldReservationsForOrder(ctx, number)
 	if err != nil {
@@ -163,14 +164,14 @@ func cancelRefundedOrder(ctx context.Context, q *db.Queries, number string, retu
 		}
 	}
 	if _, closeErr := q.CloseUnshippedReturnLines(ctx, returnID); closeErr != nil {
-		return fmt.Errorf("%w: close the lines of refund %s: %w", ErrRefused, returnID, closeErr)
+		return fmt.Errorf("%w: close the lines of refund %s: %w", refundstate.ErrRefused, returnID, closeErr)
 	}
 	closed, err := q.CompleteReturn(ctx, db.CompleteReturnParams{ID: returnID})
 	if err != nil {
-		return fmt.Errorf("%w: complete refund %s: %w", ErrRefused, returnID, err)
+		return fmt.Errorf("%w: complete refund %s: %w", refundstate.ErrRefused, returnID, err)
 	}
 	if closed == 0 {
-		return fmt.Errorf("%w: refund %s is not open for completion", ErrRefused, returnID)
+		return fmt.Errorf("%w: refund %s is not open for completion", refundstate.ErrRefused, returnID)
 	}
 	return nil
 }
