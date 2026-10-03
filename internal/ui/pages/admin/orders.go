@@ -432,12 +432,6 @@ func (d InvoiceDocument) Amount() string { return money.TWD(d.AmountCents) }
 
 func (d InvoiceDocument) Voided() bool { return d.Status == invoice.DocumentVoided }
 
-// Pending reports a CLAIM: a row holding its request key while the provider is
-// asked, with no number yet because allocating one is the 加值中心's job. It
-// must render as a claim and not as a filed document — nothing is at the
-// 加值中心 under it yet.
-func (d InvoiceDocument) Pending() bool { return d.Status == "pending" }
-
 // CanIssueInvoice reports whether to offer the issue button. A pending order
 // store credit paid in full is not committed until it is picked, and its
 // invoice is owed all the same.
