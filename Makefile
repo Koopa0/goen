@@ -124,7 +124,7 @@ check-layout-run:
 	@rm -rf .layout-chrome && mkdir -p .layout-chrome
 	@"$(LAYOUT_CHROME)" --headless --disable-gpu --no-first-run \
 		--remote-debugging-port=$${CDP_PORT:-9222} \
-		--user-data-dir=$(CURDIR)/.layout-chrome about:blank >/dev/null 2>&1 & echo $$! > .layout-chrome/pid
+		--user-data-dir=$(CURDIR)/.layout-chrome about:blank >chrome.log 2>&1 & echo $$! > .layout-chrome/pid
 	@sleep 3
 	@# axe-core, fetched at the pin above and checked against it. Downloaded
 	@# AFTER the browser is launched so the wait for Chrome pays for the fetch,

@@ -392,7 +392,27 @@ async function pageSocket() {
     }
     await new Promise((r) => setTimeout(r, 200));
   }
-  throw new Error(`no Chrome page target on port ${CDP_PORT}`);
+  throw new Error(`no Chrome page target on port ${CDP_PORT}\n${chromeStartupReport()}`);
+}
+
+// The browser is started by the Makefile with its output in a file, so a start
+// that never opens a page can be told from a slow one.
+function chromeStartupReport() {
+  const lines = [];
+  try {
+    const pid = Number(readFileSync('.layout-chrome/pid', 'utf8'));
+    try {
+      process.kill(pid, 0);
+      lines.push(`Chrome (pid ${pid}) is still running`);
+    } catch {
+      lines.push(`Chrome (pid ${pid}) has exited`);
+    }
+    const output = readFileSync('chrome.log', 'utf8').trimEnd().split('\n');
+    lines.push(`Chrome output, last ${Math.min(output.length, 40)} lines:`, ...output.slice(-40));
+  } catch {
+    lines.push('no Chrome pid or chrome.log');
+  }
+  return lines.join('\n');
 }
 
 // Runs in the page and returns plain data only.
