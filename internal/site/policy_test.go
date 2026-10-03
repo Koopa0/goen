@@ -131,7 +131,7 @@ func TestRefundCopyNamesBothPayoutChannels(t *testing.T) {
 		t.Fatalf("read the seed: %v", err)
 	}
 	src := string(seed)
-	const faqQuestion = "退款什麼時候會收到?"
+	const faqQuestion = "退款什麼時候會收到？"
 	insertAt := strings.Index(src, "('退換貨', '"+faqQuestion+"'")
 	if insertAt < 0 {
 		t.Fatal("seed has no refund FAQ INSERT")
@@ -278,7 +278,7 @@ func TestActiveInvoiceFAQDoesNotCallTheIssuerUnbuilt(t *testing.T) {
 	src := string(seed)
 	fix := string(repair)
 
-	zhInsert := sqlStringAfter(t, src, "('發票', '發票怎麼開立?',")
+	zhInsert := sqlStringAfter(t, src, "('發票', '發票怎麼開立？',")
 	enValues := sqlStringAfter(t, src, "'How is my invoice issued?',")
 	rewrite := rewriteInvoiceFAQ(t, fix)
 	if zhInsert != rewrite.zh || enValues != rewrite.en {
@@ -326,10 +326,10 @@ type invoiceFAQCopy struct{ zh, en string }
 
 func rewriteInvoiceFAQ(t *testing.T, src string) invoiceFAQCopy {
 	t.Helper()
-	const where = "WHERE question = '發票怎麼開立?';"
+	const where = "WHERE question IN ('發票怎麼開立?', '發票怎麼開立？');"
 	i := strings.LastIndex(src, where)
 	if i < 0 {
-		t.Fatal("the shipped repair has no UPDATE of 發票怎麼開立?")
+		t.Fatal("the shipped repair has no UPDATE of 發票怎麼開立？")
 	}
 	block := src[:i]
 	start := strings.LastIndex(block, "UPDATE faq_entries")

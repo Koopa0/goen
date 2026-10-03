@@ -1178,47 +1178,47 @@ COMMIT;
 -- ---------------------------------------------------------------------------
 
 INSERT INTO faq_entries (category, question, answer, position) VALUES
-    ('訂購與付款', '可以用哪些方式付款?',
-     '目前接受信用卡付款,由 Stripe 處理,goen 不會接觸到您的卡片資料。付款頁面在 Stripe 網域上,完成後會自動回到訂單頁。登入後,帳號內可用的購物金會在結帳時自動折抵,剩餘金額再以信用卡付款。折扣碼是價格折抵,不是付款方式。', 10),
-    ('訂購與付款', '下單之後商品會保留嗎?',
-     '會。送出訂單的同時系統就會保留庫存 60 分鐘,請在下單後 29 分鐘內開始付款。保留時間結束仍未付款的訂單會自動取消,商品回到架上供其他人購買,使用的購物金也會退回。', 20),
-    ('訂購與付款', '訂單送出後可以改嗎?',
-     '訂單一旦成立,品項與金額就不能修改,這是為了讓每一筆收款都對得上明細。如需調整請聯絡我們取消後重新下單。', 30),
-    ('訂購與付款', '折扣碼要怎麼使用?',
-     '在結帳頁的「折扣碼」欄位輸入即可,大小寫不拘。每筆訂單限用一組折扣碼,折抵金額不會超過商品小計。百分比折扣碼是照購物車內商品目前的售價小計計算,已在特價的商品也一併折抵,特價與折扣碼可以疊加。', 40),
+    ('訂購與付款', '可以用哪些方式付款？',
+     '目前接受信用卡付款，由 Stripe 處理，goen 不會接觸到你的卡片資料。付款頁面在 Stripe 網域上，完成後會自動回到訂單頁。登入後，帳號內可用的購物金會在結帳時自動折抵，剩餘金額再以信用卡付款。折扣碼是價格折抵，不是付款方式。', 10),
+    ('訂購與付款', '下單之後商品會保留嗎？',
+     '會。送出訂單的同時系統就會保留庫存 60 分鐘，請在下單後 29 分鐘內開始付款。保留時間結束仍未付款的訂單會自動取消，商品回到架上供其他人購買，使用的購物金也會退回。', 20),
+    ('訂購與付款', '訂單送出後可以改嗎？',
+     '訂單一旦成立，品項與金額就不能修改，這是為了讓每一筆收款都對得上明細。如需調整請聯絡我們取消後重新下單。', 30),
+    ('訂購與付款', '折扣碼要怎麼使用？',
+     '在結帳頁的「折扣碼」欄位輸入即可，大小寫不拘。每筆訂單限用一組折扣碼，折抵金額不會超過商品小計。百分比折扣碼是照購物車內商品目前的售價小計計算，已在特價的商品也一併折抵，特價與折扣碼可以疊加。', 40),
 
-    ('配送', '運費怎麼算?免運門檻是多少?',
-     '運費依配送方式而定,詳見「配送說明」頁面,上面的金額直接來自系統實際計費的設定。訂單金額達到免運門檻時自動免運。', 10),
-    ('配送', '多久會出貨?',
-     '付款完成後我們會開始備貨。出貨時會記錄物流商與查詢編號,您可以在訂單頁看到,系統也會寄信通知。', 20),
-    ('配送', '可以指定到貨時間嗎?',
+    ('配送', '運費怎麼算？免運門檻是多少？',
+     '運費依配送方式而定，詳見「配送說明」頁面，上面的金額直接來自系統實際計費的設定。訂單金額達到免運門檻時自動免運。', 10),
+    ('配送', '多久會出貨？',
+     '付款完成後我們會開始備貨。出貨時會記錄物流商與查詢編號，你可以在訂單頁看到，系統也會寄信通知。', 20),
+    ('配送', '可以指定到貨時間嗎？',
      '目前無法指定。出貨後可用訂單頁上的查詢編號到物流商網站追蹤。', 30),
 
-    ('退換貨', '哪些商品可以退貨?',
-     '只有「已出貨」的商品可以申請退貨,而且數量以實際出貨數為上限。尚未出貨的訂單請聯絡我們取消,不需要走退貨流程。', 10),
-    ('退換貨', '退款什麼時候會收到?',
-     '退貨經審核同意後,系統依原付款組成退回:卡款立刻向 Stripe 發出退款,店儲退回購物金。卡款入帳時間依發卡銀行而定,通常是數個工作天;額度退回後可立刻使用。', 20),
+    ('退換貨', '哪些商品可以退貨？',
+     '只有「已出貨」的商品可以申請退貨，而且數量以實際出貨數為上限。尚未出貨的訂單請聯絡我們取消，不需要走退貨流程。', 10),
+    ('退換貨', '退款什麼時候會收到？',
+     '退貨經審核同意後，系統依原付款組成退回：卡款立刻向 Stripe 發出退款，店儲退回購物金。卡款入帳時間依發卡銀行而定，通常是數個工作天；額度退回後可立刻使用。', 20),
     -- Not 「尚未確定」. 消保法 §19 I gives the customer seven days from receipt
     -- with 不負擔任何費用, and §19 V voids any agreement otherwise — so this was
     -- never the shop's to leave open, and the row contradicted /returns, which
     -- states it as a rule. Two authorities answering one customer question.
-    ('退換貨', '退貨要付運費嗎?',
-     '收到商品後七天內解除契約,您不需要負擔任何費用,退貨運費由 goen 負擔。詳見「退換貨政策」頁面。', 30),
+    ('退換貨', '退貨要付運費嗎？',
+     '收到商品後七天內解除契約，你不需要負擔任何費用，退貨運費由 goen 負擔。詳見「退換貨政策」頁面。', 30),
 
     -- Not 「尚未完成」. Capture queues the issue; a missing merchant id is a
     -- deployment, not an unfinished product, and the back office already
     -- says so. Two authorities answering one customer question.
-    ('發票', '發票怎麼開立?',
-     '結帳時可以選擇會員載具、手機條碼載具或公司統編,付款完成時系統會依您的選擇自動開立電子發票。這份部署若尚未設定綠界加值中心則不會開立,後台會說明原因。', 10),
-    ('發票', '可以開公司統編嗎?',
-     '可以。結帳時選擇「公司統編」並填入八位數字的統一編號即可。公司統編發票會存入綠界電子發票載具,依結帳 Email 留存與通知,可在綠界的載具中查詢。', 20),
+    ('發票', '發票怎麼開立？',
+     '結帳時可以選擇會員載具、手機條碼載具或公司統編，付款完成時系統會依你的選擇自動開立電子發票。這份部署若尚未設定綠界加值中心則不會開立，後台會說明原因。', 10),
+    ('發票', '可以開公司統編嗎？',
+     '可以。結帳時選擇「公司統編」並填入八位數字的統一編號即可。公司統編發票會存入綠界電子發票載具，依結帳 Email 留存與通知，可在綠界的載具中查詢。', 20),
 
-    ('會員', '一定要註冊才能購買嗎?',
-     '不用。goen 支援訪客結帳,只需要填寫收件資訊。註冊後可以查看訂單紀錄、使用願望清單,以及累積點數、使用購物金。點數自取得起一年到期;用點數兌換成的購物金不會到期。', 10),
-    ('會員', '誰可以留下商品評價?',
-     '登入後就可以評價。曾經完成購買的訂單會讓評價標示「已購買」,每個商品每人限評一次。', 20),
-    ('會員', '可以刪除我的帳號嗎?',
-     '可以。在會員中心可以要求刪除帳號,系統會清除您的個人資料與收件資訊,但保留訂單的財務紀錄以符合會計要求。', 30);
+    ('會員', '一定要註冊才能購買嗎？',
+     '不用。goen 支援訪客結帳，只需要填寫收件資訊。註冊後可以查看訂單紀錄、使用願望清單，以及累積點數、使用購物金。點數自取得起一年到期；用點數兌換成的購物金不會到期。', 10),
+    ('會員', '誰可以留下商品評價？',
+     '登入後就可以評價。曾經完成購買的訂單會讓評價標示「已購買」，每個商品每人限評一次。', 20),
+    ('會員', '可以刪除我的帳號嗎？',
+     '可以。在會員中心可以要求刪除帳號，系統會清除你的個人資料與收件資訊，但保留訂單的財務紀錄以符合會計要求。', 30);
 
 -- English for the seed's FAQ.
 --
@@ -1231,35 +1231,35 @@ UPDATE faq_entries f SET category_en = m.category_en,
                          question_en = m.question_en,
                          answer_en = m.answer_en
 FROM (VALUES
-    ('一定要註冊才能購買嗎?', 'Membership', 'Do I have to register to buy?',
+    ('一定要註冊才能購買嗎？', 'Membership', 'Do I have to register to buy?',
      'No. goen supports guest checkout — you only need delivery details. Registering lets you see your order history, keep a wishlist, and earn points and spend store credit. Points expire one year after you earn them; store credit you redeem from points does not expire.'),
-    ('誰可以留下商品評價?', 'Membership', 'Who can leave a review?',
+    ('誰可以留下商品評價？', 'Membership', 'Who can leave a review?',
      'Anyone signed in. A review from an order you completed is marked as a verified purchase, and each person may review a product once.'),
-    ('可以刪除我的帳號嗎?', 'Membership', 'Can I delete my account?',
+    ('可以刪除我的帳號嗎？', 'Membership', 'Can I delete my account?',
      'Yes. You can ask for deletion from your account page. Your personal and delivery details are erased; the financial record of your orders is kept, because accounting requires it.'),
-    ('發票怎麼開立?', 'Invoices', 'How is my invoice issued?',
+    ('發票怎麼開立？', 'Invoices', 'How is my invoice issued?',
      'At checkout you can choose a member carrier, a mobile barcode carrier, or a company tax ID, and the electronic invoice is issued automatically against that choice when your payment completes. Without ECPay credentials this deployment files nothing, and the back office says so.'),
-    ('可以開公司統編嗎?', 'Invoices', 'Can you invoice a company tax ID?',
+    ('可以開公司統編嗎？', 'Invoices', 'Can you invoice a company tax ID?',
      'Yes. Choose "company tax ID" at checkout and enter the eight digits. A company tax ID invoice is stored in the ECPay e-invoice carrier, tied to your checkout email, and can be retrieved there.'),
-    ('可以用哪些方式付款?', 'Ordering and payment', 'How can I pay?',
+    ('可以用哪些方式付款？', 'Ordering and payment', 'How can I pay?',
      'Credit card, handled by Stripe. goen never sees your card details: the payment page is on Stripe''s own domain and you return to your order afterwards. When you are signed in, your available store credit comes off the order automatically at checkout, and any remaining amount is paid by card. A discount code reduces the price; it is not a payment method.'),
-    ('下單之後商品會保留嗎?', 'Ordering and payment', 'Is the stock held after I order?',
+    ('下單之後商品會保留嗎？', 'Ordering and payment', 'Is the stock held after I order?',
      'Yes. Placing the order holds the stock for 60 minutes; start the payment within 29 minutes of ordering. An order still unpaid when the hold ends is cancelled automatically: the item goes back on the shelf for other people, and any store credit you applied is returned.'),
-    ('訂單送出後可以改嗎?', 'Ordering and payment', 'Can I change an order after placing it?',
+    ('訂單送出後可以改嗎？', 'Ordering and payment', 'Can I change an order after placing it?',
      'Once an order exists, its items and amounts cannot be edited — that is what keeps every payment matched to a line. Contact us to cancel and order again.'),
-    ('折扣碼要怎麼使用?', 'Ordering and payment', 'How do I use a discount code?',
+    ('折扣碼要怎麼使用？', 'Ordering and payment', 'How do I use a discount code?',
      'Type it into the discount field at checkout; case does not matter. One code per order, and the discount never exceeds the item subtotal. A percentage code is worked out on the cart subtotal at the items'' current prices, so items already on sale are discounted too: a sale and a code stack.'),
-    ('哪些商品可以退貨?', 'Returns', 'What can I return?',
+    ('哪些商品可以退貨？', 'Returns', 'What can I return?',
      'Only items that have SHIPPED, and only up to the quantity actually shipped. For an order that has not shipped, contact us to cancel instead — there is no need for a return.'),
-    ('退款什麼時候會收到?', 'Returns', 'When will I get my refund?',
+    ('退款什麼時候會收到？', 'Returns', 'When will I get my refund?',
      'As soon as a return is approved we pay it back the way you paid: the card share through Stripe, store credit back to your balance. When a card refund lands depends on your card issuer, usually a few working days; credit is available again at once.'),
-    ('退貨要付運費嗎?', 'Returns', 'Who pays return postage?',
+    ('退貨要付運費嗎？', 'Returns', 'Who pays return postage?',
      'We do. Rescinding within seven days of delivery costs you nothing — see the returns policy page.'),
-    ('運費怎麼算?免運門檻是多少?', 'Delivery', 'How much is delivery, and when is it free?',
+    ('運費怎麼算？免運門檻是多少？', 'Delivery', 'How much is delivery, and when is it free?',
      'It depends on the method — see the delivery page, where the figures come straight from what the till actually charges. Delivery is free once your order reaches the threshold shown there.'),
-    ('多久會出貨?', 'Delivery', 'How soon do you ship?',
+    ('多久會出貨？', 'Delivery', 'How soon do you ship?',
      'We start picking once payment completes. When it ships we record the carrier and tracking number on your order page, and email you.'),
-    ('可以指定到貨時間嗎?', 'Delivery', 'Can I choose a delivery time?',
+    ('可以指定到貨時間嗎？', 'Delivery', 'Can I choose a delivery time?',
      'Not at the moment. Once it ships you can track it with the tracking number on your order page.')
 ) AS m(question, category_en, question_en, answer_en)
 WHERE f.question = m.question;

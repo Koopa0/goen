@@ -5682,8 +5682,8 @@ func storeMedia(t *testing.T) string {
 }
 
 const (
-	invoiceFAQQuestion = "發票怎麼開立?"
-	invoiceFAQZh       = "結帳時可以選擇會員載具、手機條碼載具或公司統編,付款完成時系統會依您的選擇自動開立電子發票。這份部署若尚未設定綠界加值中心則不會開立,後台會說明原因。"
+	invoiceFAQQuestion = "發票怎麼開立？"
+	invoiceFAQZh       = "結帳時可以選擇會員載具、手機條碼載具或公司統編，付款完成時系統會依你的選擇自動開立電子發票。這份部署若尚未設定綠界加值中心則不會開立，後台會說明原因。"
 	invoiceFAQEn       = "At checkout you can choose a member carrier, a mobile barcode carrier, or a company tax ID, and the electronic invoice is issued automatically against that choice when your payment completes. Without ECPay credentials this deployment files nothing, and the back office says so."
 	staleInvoiceFAQZh  = "結帳時可以選擇會員載具、手機條碼載具或公司統編,系統會記錄您的選擇。電子發票的實際開立需要串接加值中心,這部分尚未完成。"
 	staleInvoiceFAQEn  = "At checkout you can choose a member carrier, a mobile barcode carrier, or a company tax ID, and we record your choice. Actually issuing the electronic invoice needs an integration with a certified provider, which is not built yet."
@@ -5923,7 +5923,7 @@ func assertInvoiceFAQLocales(t *testing.T, content *site.Store, ctx context.Cont
 
 func assertStatutoryReturnFAQUntouched(t *testing.T, content *site.Store, ctx context.Context) {
 	t.Helper()
-	zh := faqAnswer(t, content, ctx, i18n.ZhHant, "退貨要付運費嗎?")
+	zh := faqAnswer(t, content, ctx, i18n.ZhHant, "退貨要付運費嗎？")
 	en := faqAnswer(t, content, ctx, i18n.En, "Who pays return postage?")
 	if !strings.Contains(zh, "退貨運費由 goen 負擔") {
 		t.Errorf("statutory return FAQ was edited: %q", zh)
@@ -5934,8 +5934,8 @@ func assertStatutoryReturnFAQUntouched(t *testing.T, content *site.Store, ctx co
 }
 
 const (
-	refundFAQQuestion = "退款什麼時候會收到?"
-	refundFAQZh       = "退貨經審核同意後,系統依原付款組成退回:卡款立刻向 Stripe 發出退款,店儲退回購物金。卡款入帳時間依發卡銀行而定,通常是數個工作天;額度退回後可立刻使用。"
+	refundFAQQuestion = "退款什麼時候會收到？"
+	refundFAQZh       = "退貨經審核同意後，系統依原付款組成退回：卡款立刻向 Stripe 發出退款，店儲退回購物金。卡款入帳時間依發卡銀行而定，通常是數個工作天；額度退回後可立刻使用。"
 	refundFAQEn       = "As soon as a return is approved we pay it back the way you paid: the card share through Stripe, store credit back to your balance. When a card refund lands depends on your card issuer, usually a few working days; credit is available again at once."
 	staleRefundFAQZh  = "退貨經審核同意後,系統會立即向 Stripe 發出退款。實際入帳時間依發卡銀行而定,通常是數個工作天。"
 	staleRefundFAQEn  = "As soon as a return is approved we ask Stripe to refund. When it lands depends on your card issuer, usually a few working days."

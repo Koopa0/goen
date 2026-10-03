@@ -24,7 +24,7 @@ func TestPaymentFAQRepairPreservesShopEditedLocales(t *testing.T) {
 	if _, err := isolated.Exec(ctx, string(seed)); err != nil {
 		t.Fatal(err)
 	}
-	const question = "可以用哪些方式付款?"
+	const question = "可以用哪些方式付款？"
 	const oldZh = "目前接受信用卡付款,由 Stripe 處理,goen 不會接觸到您的卡片資料。付款頁面在 Stripe 網域上,完成後會自動回到訂單頁。"
 	const oldEn = "Credit card, handled by Stripe. goen never sees your card details: the payment page is on Stripe's own domain and you return to your order afterwards."
 	var freshZh, freshEn string
