@@ -407,10 +407,10 @@ function chromeStartupReport() {
     } catch {
       lines.push(`Chrome (pid ${pid}) has exited`);
     }
-    const output = readFileSync('.layout-chrome/chrome.log', 'utf8').trimEnd().split('\n');
+    const output = readFileSync('chrome.log', 'utf8').trimEnd().split('\n');
     lines.push(`Chrome output, last ${Math.min(output.length, 40)} lines:`, ...output.slice(-40));
   } catch {
-    lines.push('no Chrome pid or output file under .layout-chrome');
+    lines.push('no Chrome pid or chrome.log');
   }
   return lines.join('\n');
 }
