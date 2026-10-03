@@ -6302,24 +6302,25 @@ func TestParseProtectedWritesDoNotCallInfrastructureARefusal(t *testing.T) {
 	s := admin.NewStore(p, admintest.Refunder{}, nil, nil)
 
 	writes := []struct {
-		name  string
-		write func() (map[string]string, error)
+		name              string
+		write             func() (map[string]string, error)
+		refused, notFound error
 	}{
-		{name: "create product", write: func() (map[string]string, error) {
+		{name: "create product", refused: admin.ErrRefused, notFound: admin.ErrNotFound, write: func() (map[string]string, error) {
 			_, errs, err := s.CreateProduct(ctx, &admin.ProductForm{
 				Slug: "closed-product", Name: "Closed", BrandID: uuid.NewString(), CategoryID: uuid.NewString(),
 			})
 			return errs, err
 		}},
-		{name: "update product", write: func() (map[string]string, error) {
+		{name: "update product", refused: admin.ErrRefused, notFound: admin.ErrNotFound, write: func() (map[string]string, error) {
 			return s.UpdateProduct(ctx, &admin.ProductForm{
 				Slug: "closed-product", Name: "Closed", BrandID: uuid.NewString(), CategoryID: uuid.NewString(),
 			})
 		}},
-		{name: "add variant", write: func() (map[string]string, error) {
+		{name: "add variant", refused: admin.ErrRefused, notFound: admin.ErrNotFound, write: func() (map[string]string, error) {
 			return s.AddVariant(ctx, "closed-product", &admin.VariantForm{SKU: "CLOSED", PriceCents: 100})
 		}},
-		{name: "create method", write: func() (map[string]string, error) {
+		{name: "create method", refused: shipping.ErrRefused, notFound: shipping.ErrNotFound, write: func() (map[string]string, error) {
 			return shipping.NewStore(p).CreateMethod(ctx, &shipping.NewMethod{
 				Code: "closed_method", Destination: "address", Name: "Closed",
 			})
@@ -6328,7 +6329,7 @@ func TestParseProtectedWritesDoNotCallInfrastructureARefusal(t *testing.T) {
 	for _, tt := range writes {
 		t.Run(tt.name, func(t *testing.T) {
 			errs, err := tt.write()
-			if err == nil || errors.Is(err, admin.ErrRefused) || errors.Is(err, admin.ErrNotFound) {
+			if err == nil || errors.Is(err, tt.refused) || errors.Is(err, tt.notFound) {
 				t.Errorf("write error category = %v, want infrastructure only", err)
 			}
 			if len(errs) != 0 {
