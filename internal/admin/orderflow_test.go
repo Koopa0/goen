@@ -3,8 +3,6 @@ package admin
 import (
 	"testing"
 
-	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
@@ -20,25 +18,6 @@ func TestOnlyAnOrderStillGoingSomewhereCanHaveItsDeliveryCorrected(t *testing.T)
 	} {
 		if got := correctable(status); got != want {
 			t.Errorf("correctable(%s) = %t, want %t", status, got, want)
-		}
-	}
-}
-
-// A refund before shipment that has finished is a cancellation. The queue must
-// not call it completed, which is what a return that came back is called.
-func TestAFinishedRefundBeforeShipmentIsNotCalledCompleted(t *testing.T) {
-	t.Parallel()
-	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
-		ctx := i18n.WithLocale(t.Context(), locale)
-		cancelled := returnStatusText(ctx, returns.StatusCompleted, true)
-		if cancelled != i18n.T(ctx, i18n.KeyAdminReturnCancelledRefunded) {
-			t.Errorf("%s: a finished refund before shipment reads %q", locale, cancelled)
-		}
-		if returned := returnStatusText(ctx, returns.StatusCompleted, false); returned != i18n.T(ctx, i18n.KeyAdminReturnCompleted) {
-			t.Errorf("%s: a completed return reads %q", locale, returned)
-		}
-		if open := returnStatusText(ctx, returns.StatusApproved, true); open != i18n.T(ctx, i18n.KeyAdminReturnApproved) {
-			t.Errorf("%s: a refund still being paid reads %q, want its own status", locale, open)
 		}
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 
+	"github.com/koopa0/goen/internal/admin/refundstate"
 	"github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
@@ -121,8 +122,8 @@ func TestReturnPayoutDiagnosticRouting(t *testing.T) {
 			t.Parallel()
 			item := admin.Return{}
 			err := fillReturnPayoutState(returns.StatusApproved, tt.facts, &item)
-			if got := errors.Is(err, ErrRefused); got != tt.wantErr {
-				t.Fatalf("fillReturnPayoutState() ErrRefused = %t, want %t; error = %v",
+			if got := errors.Is(err, refundstate.ErrRefused); got != tt.wantErr {
+				t.Fatalf("fillReturnPayoutState() refundstate.ErrRefused = %t, want %t; error = %v",
 					got, tt.wantErr, err)
 			}
 			wantItem := admin.Return{

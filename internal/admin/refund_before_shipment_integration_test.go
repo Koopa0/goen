@@ -170,7 +170,7 @@ func TestRefundBeforeShipmentStaysOpenUntilRefundSettles(t *testing.T) {
 		want    error
 	}{
 		{name: "pending at Stripe", first: admintest.Refunder{State: refundstate.Pending}, want: refunds.ErrUnsettled},
-		{name: "refused by Stripe", picking: true, first: admintest.Refunder{State: refundstate.Failed}, want: refunds.ErrIncomplete},
+		{name: "refused by Stripe", picking: true, first: admintest.Refunder{State: refundstate.Failed}, want: refundstate.ErrIncomplete},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			number, orderID, _ := admintest.PaidUnshippedOrder(t, pool, 500000, 0, tc.picking)

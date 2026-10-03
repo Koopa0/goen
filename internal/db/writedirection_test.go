@@ -341,6 +341,10 @@ func calledQueries(t *testing.T, pkg string) []string {
 	dir := filepath.Join("..", "..", "internal", pkg)
 	var out []string
 	err := filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
+		// A test-helper package (admintest, accesstest) is test code, as *_test.go is.
+		if err == nil && d.IsDir() && path != dir && strings.HasSuffix(d.Name(), "test") {
+			return filepath.SkipDir
+		}
 		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 			return err
 		}

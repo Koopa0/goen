@@ -50,7 +50,7 @@ func (f returnPayoutFacts) position() (returnPayoutPosition, error) {
 	if outstanding.Credit > 0 && !f.HasAccount {
 		return returnPayoutPosition{}, fmt.Errorf(
 			"%w: return %s still owes %d in store credit but the order has no account",
-			ErrRefused, f.ID, outstanding.Credit)
+			refundstate.ErrRefused, f.ID, outstanding.Credit)
 	}
 	moneySettled := outstanding.Card == 0 && outstanding.Credit == 0
 	return returnPayoutPosition{
@@ -71,17 +71,17 @@ func (f returnPayoutFacts) frozenSplit() (refundSplit, error) {
 	if full.Card < 0 || full.Credit < 0 || full.Card+full.Credit != f.RefundableCents {
 		return refundSplit{}, fmt.Errorf(
 			"%w: return %s froze card/credit %d/%d for a %d refund",
-			ErrRefused, f.ID, full.Card, full.Credit, f.RefundableCents)
+			refundstate.ErrRefused, f.ID, full.Card, full.Credit, f.RefundableCents)
 	}
 	if f.CardPaidCents != 0 && f.CardPaidCents != full.Card {
 		return refundSplit{}, fmt.Errorf(
 			"%w: return %s has %d settled on card against a frozen %d",
-			ErrRefused, f.ID, f.CardPaidCents, full.Card)
+			refundstate.ErrRefused, f.ID, f.CardPaidCents, full.Card)
 	}
 	if f.CreditPaidCents != 0 && f.CreditPaidCents != full.Credit {
 		return refundSplit{}, fmt.Errorf(
 			"%w: return %s has %d posted as credit against a frozen %d",
-			ErrRefused, f.ID, f.CreditPaidCents, full.Credit)
+			refundstate.ErrRefused, f.ID, f.CreditPaidCents, full.Credit)
 	}
 	return full, nil
 }
@@ -163,7 +163,7 @@ func (s *Store) FillPayouts(
 			item.CreditRefundCents = facts.CreditRefundCents
 		}
 		if payoutErr := fillReturnPayoutState(item.Status, payoutFacts[id], item); payoutErr != nil {
-			if !errors.Is(payoutErr, ErrRefused) {
+			if !errors.Is(payoutErr, refundstate.ErrRefused) {
 				return nil, payoutErr
 			}
 			if blocked == nil {
@@ -182,7 +182,7 @@ func fillReturnPayoutState(
 		return nil
 	}
 	position, err := facts.position()
-	if errors.Is(err, ErrRefused) {
+	if errors.Is(err, refundstate.ErrRefused) {
 		// A payout that no longer fits its sources is not a reason to hide
 		// the queue. It is exactly the row a person must investigate.
 		item.PayoutOutstanding = true
@@ -312,7 +312,7 @@ func (s *Store) payApprovedReturn(ctx context.Context, row *db.ReturnForDecision
 		}
 	}
 	if payoutErr != nil {
-		return fmt.Errorf("%w: %w", ErrIncomplete, payoutErr)
+		return fmt.Errorf("%w: %w", refundstate.ErrIncomplete, payoutErr)
 	}
 	// The retry path passes only the outstanding half. Therefore zero here also
 	// means that source settled on an earlier attempt; if this attempt returned
@@ -324,7 +324,7 @@ func (s *Store) payApprovedReturn(ctx context.Context, row *db.ReturnForDecision
 	// without duplicating the customer timeline.
 	if payoutDone {
 		if err := s.recordReturnRefundedEvent(ctx, row.ID, actor); err != nil {
-			return fmt.Errorf("%w: %w", ErrIncomplete, err)
+			return fmt.Errorf("%w: %w", refundstate.ErrIncomplete, err)
 		}
 		if err := s.reverseReturnPoints(ctx, row); err != nil {
 			return err
@@ -386,7 +386,7 @@ func (s *Store) reverseReturnPoints(ctx context.Context, row *db.ReturnForDecisi
 	}
 	if _, err := s.q.ReverseReturnPoints(ctx, row.ID); err != nil {
 		return fmt.Errorf("%w: reverse points for return %s: %w",
-			ErrIncomplete, row.ID, err)
+			refundstate.ErrIncomplete, row.ID, err)
 	}
 	return nil
 }
@@ -403,7 +403,7 @@ func (s *Store) refundCard(
 	}
 	requestID := web.RequestID(ctx)
 	if requestID == "" {
-		return "", "", fmt.Errorf("%w: refund provider attempt has no request id", ErrRefused)
+		return "", "", fmt.Errorf("%w: refund provider attempt has no request id", refundstate.ErrRefused)
 	}
 
 	claim, err := s.claimReturnRefundExecution(ctx, returnID, actorID, requestID)
@@ -444,12 +444,12 @@ func (s *Store) claimReturnRefundExecution(
 	})
 	if err != nil {
 		return db.RefundExecutionRow{}, fmt.Errorf(
-			"%w: claim refund execution for return %s: %w", ErrRefused, returnID, err)
+			"%w: claim refund execution for return %s: %w", refundstate.ErrRefused, returnID, err)
 	}
 	claim, err := s.q.RefundExecution(ctx, refundID)
 	if err != nil {
 		return db.RefundExecutionRow{}, fmt.Errorf(
-			"%w: read refund execution %s: %w", ErrRefused, refundID, err)
+			"%w: read refund execution %s: %w", refundstate.ErrRefused, refundID, err)
 	}
 	return claim, nil
 }

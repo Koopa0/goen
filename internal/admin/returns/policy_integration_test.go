@@ -1,6 +1,6 @@
 //go:build integration
 
-package admin_test
+package returns_test
 
 import (
 	"context"
@@ -12,33 +12,34 @@ import (
 	"testing"
 	"time"
 
+	adminpages "github.com/koopa0/goen/internal/ui/pages/admin"
+
+	"github.com/koopa0/goen/internal/admin/admintest"
+
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/koopa0/goen/internal/admin"
-	"github.com/koopa0/goen/internal/admin/admintest"
+	"github.com/koopa0/goen/internal/admin/returns"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/returns"
-	"github.com/koopa0/goen/internal/shoptime"
-	adminpages "github.com/koopa0/goen/internal/ui/pages/admin"
+	returnrules "github.com/koopa0/goen/internal/returns"
 )
 
 func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 	isolated := admintest.Pool(t)
-	ctx, _ := staffContextOn(t, isolated)
-	s := admin.NewStore(isolated, admintest.Refunder{}, nil, nil)
-	customer := returns.NewStore(isolated)
+	ctx, _ := admintest.StaffContext(t, isolated)
+	s := storeOver(isolated, admintest.Refunder{})
+	customer := returnrules.NewStore(isolated)
 
 	t.Run("statutory blank reason cannot be rejected", func(t *testing.T) {
 		delivered := mustRFC3339(t, "2026-01-01T07:00:00+08:00")
 		requested := mustRFC3339(t, "2026-01-06T12:00:00+08:00")
-		requestID := returnedOrderAtWithReasonOn(t, isolated, delivered, requested, "")
+		requestID := admintest.ReturnedOrderAtWithReason(t, isolated, delivered, requested, "")
 
 		if window := queueWindow(t, s, requestID); window != "within" {
 			t.Fatalf("window = %q, want within — shop_today would have aged this January filing", window)
 		}
-		if err := s.Decide(ctx, requestID.String(), "rejected", "原因未填", "", uuid.NullUUID{}); !errors.Is(err, admin.ErrRefused) {
+		if err := s.Decide(ctx, requestID.String(), "rejected", "原因未填", "", uuid.NullUUID{}); !errors.Is(err, returns.ErrRefused) {
 			t.Fatalf("statutory rejection = %v, want ErrRefused", err)
 		}
 		status, refunds := returnPayoutOn(t, isolated, requestID)
@@ -49,8 +50,8 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 	})
 
 	t.Run("statutory blank reason may be approved and paid", func(t *testing.T) {
-		number, lineID := deliveredOrderAtOn(t, isolated, shopNoonDaysAgo(t, 3))
-		if err := customer.Open(ctx, number, uuid.NullUUID{}, &returns.Request{
+		number, lineID := deliveredOrderAtOn(t, isolated, admintest.ShopNoonDaysAgo(t, 3))
+		if err := customer.Open(ctx, number, uuid.NullUUID{}, &returnrules.Request{
 			Reason: "", Lines: map[string]int32{lineID.String(): 1},
 		}); err != nil {
 			t.Fatalf("open statutory blank-reason return: %v", err)
@@ -74,8 +75,8 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 	t.Run("handler missing_reason and ineligible posts cannot close a statutory request", func(t *testing.T) {
 		delivered := mustRFC3339(t, "2026-01-01T07:00:00+08:00")
 		requested := mustRFC3339(t, "2026-01-06T12:00:00+08:00")
-		requestID := returnedOrderAtWithReasonOn(t, isolated, delivered, requested, "")
-		h := adminHandlerOver(isolated, s)
+		requestID := admintest.ReturnedOrderAtWithReason(t, isolated, delivered, requested, "")
+		h := handlerOver(s)
 
 		for _, ground := range []string{"missing_reason", "ineligible"} {
 			form := url.Values{
@@ -109,9 +110,9 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 
 	t.Run("day 8 10 and 14 unknown cannot pay", func(t *testing.T) {
 		for _, days := range []int{8, 10, 14} {
-			delivered := shopNoonDaysAgo(t, days)
+			delivered := admintest.ShopNoonDaysAgo(t, days)
 			number, lineID := deliveredOrderAtOn(t, isolated, delivered)
-			if err := customer.Open(ctx, number, uuid.NullUUID{}, &returns.Request{
+			if err := customer.Open(ctx, number, uuid.NullUUID{}, &returnrules.Request{
 				Reason: "box opened", Lines: map[string]int32{lineID.String(): 1},
 			}); err != nil {
 				t.Fatalf("open day-%d return: %v", days, err)
@@ -120,13 +121,13 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 			if window := queueWindow(t, s, requestID); window != "goodwill" {
 				t.Fatalf("day-%d window = %q, want goodwill", days, window)
 			}
-			if err := s.Decide(ctx, requestID.String(), "approved", "", "", uuid.NullUUID{}); !errors.Is(err, admin.ErrRefused) {
+			if err := s.Decide(ctx, requestID.String(), "approved", "", "", uuid.NullUUID{}); !errors.Is(err, returns.ErrRefused) {
 				t.Fatalf("approve day-%d without assessment = %v, want ErrRefused", days, err)
 			}
-			if err := s.Decide(ctx, requestID.String(), "rejected", "rejection reason", "", uuid.NullUUID{}); !errors.Is(err, admin.ErrRefused) {
+			if err := s.Decide(ctx, requestID.String(), "rejected", "rejection reason", "", uuid.NullUUID{}); !errors.Is(err, returns.ErrRefused) {
 				t.Fatalf("reject day-%d without assessment = %v, want ErrRefused", days, err)
 			}
-			if err := s.Decide(ctx, requestID.String(), "exception", "", "", uuid.NullUUID{}); !errors.Is(err, admin.ErrRefused) {
+			if err := s.Decide(ctx, requestID.String(), "exception", "", "", uuid.NullUUID{}); !errors.Is(err, returns.ErrRefused) {
 				t.Fatalf("exception day-%d without assessment = %v, want ErrRefused", days, err)
 			}
 			status, refunds := returnPayoutOn(t, isolated, requestID)
@@ -137,15 +138,15 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 	})
 
 	t.Run("day 10 partial assessment cannot except until every fact is known", func(t *testing.T) {
-		delivered := shopNoonDaysAgo(t, 10)
+		delivered := admintest.ShopNoonDaysAgo(t, 10)
 		number, lineID := deliveredOrderAtOn(t, isolated, delivered)
-		if err := customer.Open(ctx, number, uuid.NullUUID{}, &returns.Request{
+		if err := customer.Open(ctx, number, uuid.NullUUID{}, &returnrules.Request{
 			Reason: "used", Lines: map[string]int32{lineID.String(): 1},
 		}); err != nil {
 			t.Fatalf("open day-10 return: %v", err)
 		}
 		requestID := openReturnIDOn(t, isolated, number)
-		if err := s.Assess(ctx, requestID.String(), "opened but packaging unchecked", []admin.LineEligibility{{
+		if err := s.Assess(ctx, requestID.String(), "opened but packaging unchecked", []returns.LineEligibility{{
 			OrderLineID: lineID,
 			Unused:      "unmet",
 			Packaging:   "unknown",
@@ -153,7 +154,7 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 		}}); err != nil {
 			t.Fatalf("assess partial unmet: %v", err)
 		}
-		if err := s.Decide(ctx, requestID.String(), "exception", "goodwill exception", "1", uuid.NullUUID{}); !errors.Is(err, admin.ErrRefused) {
+		if err := s.Decide(ctx, requestID.String(), "exception", "goodwill exception", "1", uuid.NullUUID{}); !errors.Is(err, returns.ErrRefused) {
 			t.Fatalf("exception partial goodwill = %v, want ErrRefused", err)
 		}
 		status, refunds := returnPayoutOn(t, isolated, requestID)
@@ -167,14 +168,14 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 
 	t.Run("mixed unknown goodwill and late cannot be excepted", func(t *testing.T) {
 		requestID, goodwillLine, _ := mixedWindowReturnOn(t, isolated,
-			shopNoonDaysAgo(t, 10),
-			shopNoonDaysAgo(t, 20),
+			admintest.ShopNoonDaysAgo(t, 10),
+			admintest.ShopNoonDaysAgo(t, 20),
 			time.Now(),
 		)
 		if window := queueWindow(t, s, requestID); window != "mixed" {
 			t.Fatalf("window = %q, want mixed", window)
 		}
-		if err := s.Assess(ctx, requestID.String(), "photos pending", []admin.LineEligibility{{
+		if err := s.Assess(ctx, requestID.String(), "photos pending", []returns.LineEligibility{{
 			OrderLineID: goodwillLine,
 			Unused:      "unknown",
 			Packaging:   "unknown",
@@ -182,7 +183,7 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 		}}); err != nil {
 			t.Fatalf("assess unknown goodwill line: %v", err)
 		}
-		if err := s.Decide(ctx, requestID.String(), "exception", "late line goodwill", "1", uuid.NullUUID{}); !errors.Is(err, admin.ErrRefused) {
+		if err := s.Decide(ctx, requestID.String(), "exception", "late line goodwill", "1", uuid.NullUUID{}); !errors.Is(err, returns.ErrRefused) {
 			t.Fatalf("exception mixed unknown goodwill + late = %v, want ErrRefused", err)
 		}
 		status, refunds := returnPayoutOn(t, isolated, requestID)
@@ -195,15 +196,15 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 	})
 
 	t.Run("day 10 fully assessed unmet may except and pay", func(t *testing.T) {
-		delivered := shopNoonDaysAgo(t, 10)
+		delivered := admintest.ShopNoonDaysAgo(t, 10)
 		number, lineID := deliveredOrderAtOn(t, isolated, delivered)
-		if err := customer.Open(ctx, number, uuid.NullUUID{}, &returns.Request{
+		if err := customer.Open(ctx, number, uuid.NullUUID{}, &returnrules.Request{
 			Reason: "used", Lines: map[string]int32{lineID.String(): 1},
 		}); err != nil {
 			t.Fatalf("open day-10 return: %v", err)
 		}
 		requestID := openReturnIDOn(t, isolated, number)
-		if err := s.Assess(ctx, requestID.String(), "opened the parcel", []admin.LineEligibility{{
+		if err := s.Assess(ctx, requestID.String(), "opened the parcel", []returns.LineEligibility{{
 			OrderLineID: lineID,
 			Unused:      "unmet",
 			Packaging:   "met",
@@ -224,15 +225,15 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 	})
 
 	t.Run("day 10 unmet cannot record goodwill and may be rejected or excepted", func(t *testing.T) {
-		delivered := shopNoonDaysAgo(t, 10)
+		delivered := admintest.ShopNoonDaysAgo(t, 10)
 		number, lineID := deliveredOrderAtOn(t, isolated, delivered)
-		if err := customer.Open(ctx, number, uuid.NullUUID{}, &returns.Request{
+		if err := customer.Open(ctx, number, uuid.NullUUID{}, &returnrules.Request{
 			Reason: "used", Lines: map[string]int32{lineID.String(): 1},
 		}); err != nil {
 			t.Fatalf("open day-10 return: %v", err)
 		}
 		requestID := openReturnIDOn(t, isolated, number)
-		if err := s.Assess(ctx, requestID.String(), "opened the parcel", []admin.LineEligibility{{
+		if err := s.Assess(ctx, requestID.String(), "opened the parcel", []returns.LineEligibility{{
 			OrderLineID: lineID,
 			Unused:      "unmet",
 			Packaging:   "met",
@@ -240,7 +241,7 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 		}}); err != nil {
 			t.Fatalf("assess unmet: %v", err)
 		}
-		if err := s.Decide(ctx, requestID.String(), "approved", "", "1", uuid.NullUUID{}); !errors.Is(err, admin.ErrRefused) {
+		if err := s.Decide(ctx, requestID.String(), "approved", "", "1", uuid.NullUUID{}); !errors.Is(err, returns.ErrRefused) {
 			t.Fatalf("approve unmet goodwill = %v, want ErrRefused", err)
 		}
 		if err := s.Decide(ctx, requestID.String(), "rejected", "used", "1", uuid.NullUUID{}); err != nil {
@@ -253,15 +254,15 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 	})
 
 	t.Run("day 10 unmet exception pays without goodwill", func(t *testing.T) {
-		delivered := shopNoonDaysAgo(t, 10)
+		delivered := admintest.ShopNoonDaysAgo(t, 10)
 		number, lineID := deliveredOrderAtOn(t, isolated, delivered)
-		if err := customer.Open(ctx, number, uuid.NullUUID{}, &returns.Request{
+		if err := customer.Open(ctx, number, uuid.NullUUID{}, &returnrules.Request{
 			Reason: "used", Lines: map[string]int32{lineID.String(): 1},
 		}); err != nil {
 			t.Fatalf("open day-10 return: %v", err)
 		}
 		requestID := openReturnIDOn(t, isolated, number)
-		if err := s.Assess(ctx, requestID.String(), "opened the parcel", []admin.LineEligibility{{
+		if err := s.Assess(ctx, requestID.String(), "opened the parcel", []returns.LineEligibility{{
 			OrderLineID: lineID,
 			Unused:      "unmet",
 			Packaging:   "met",
@@ -289,15 +290,15 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 	})
 
 	t.Run("day 10 all met records goodwill and pays", func(t *testing.T) {
-		delivered := shopNoonDaysAgo(t, 10)
+		delivered := admintest.ShopNoonDaysAgo(t, 10)
 		number, lineID := deliveredOrderAtOn(t, isolated, delivered)
-		if err := customer.Open(ctx, number, uuid.NullUUID{}, &returns.Request{
+		if err := customer.Open(ctx, number, uuid.NullUUID{}, &returnrules.Request{
 			Reason: "box opened", Lines: map[string]int32{lineID.String(): 1},
 		}); err != nil {
 			t.Fatalf("open day-10 return: %v", err)
 		}
 		requestID := openReturnIDOn(t, isolated, number)
-		if err := s.Assess(ctx, requestID.String(), "photos of unused unit", []admin.LineEligibility{{
+		if err := s.Assess(ctx, requestID.String(), "photos of unused unit", []returns.LineEligibility{{
 			OrderLineID: lineID,
 			Unused:      "met",
 			Packaging:   "met",
@@ -318,9 +319,9 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 	})
 
 	t.Run("day 15 approval must be an explicit exception", func(t *testing.T) {
-		delivered := shopNoonDaysAgo(t, 15)
+		delivered := admintest.ShopNoonDaysAgo(t, 15)
 		number, lineID := deliveredOrderAtOn(t, isolated, delivered)
-		if err := customer.Open(ctx, number, uuid.NullUUID{}, &returns.Request{
+		if err := customer.Open(ctx, number, uuid.NullUUID{}, &returnrules.Request{
 			Reason: "", Lines: map[string]int32{lineID.String(): 1},
 		}); err != nil {
 			t.Fatalf("open day-15 return: %v", err)
@@ -333,7 +334,7 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 		if found.Rescission() {
 			t.Error("a day-15 request still reads as statutory entitlement")
 		}
-		if err := s.Decide(ctx, requestID.String(), "approved", "goodwill exception", "", uuid.NullUUID{}); !errors.Is(err, admin.ErrRefused) {
+		if err := s.Decide(ctx, requestID.String(), "approved", "goodwill exception", "", uuid.NullUUID{}); !errors.Is(err, returns.ErrRefused) {
 			t.Fatalf("policy-approve day-15 = %v, want ErrRefused", err)
 		}
 		if err := s.Decide(ctx, requestID.String(), "exception", "goodwill exception", "", uuid.NullUUID{}); err != nil {
@@ -350,15 +351,15 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 
 	t.Run("unexplained exception stays open", func(t *testing.T) {
 		for _, resolution := range []string{"", "   "} {
-			delivered := shopNoonDaysAgo(t, 15)
+			delivered := admintest.ShopNoonDaysAgo(t, 15)
 			number, lineID := deliveredOrderAtOn(t, isolated, delivered)
-			if err := customer.Open(ctx, number, uuid.NullUUID{}, &returns.Request{
+			if err := customer.Open(ctx, number, uuid.NullUUID{}, &returnrules.Request{
 				Reason: "", Lines: map[string]int32{lineID.String(): 1},
 			}); err != nil {
 				t.Fatalf("open day-15 return: %v", err)
 			}
 			requestID := openReturnIDOn(t, isolated, number)
-			if err := s.Decide(ctx, requestID.String(), "exception", resolution, "", uuid.NullUUID{}); !errors.Is(err, admin.ErrRefused) {
+			if err := s.Decide(ctx, requestID.String(), "exception", resolution, "", uuid.NullUUID{}); !errors.Is(err, returns.ErrRefused) {
 				t.Fatalf("unexplained exception %q = %v, want ErrRefused", resolution, err)
 			}
 			status, refunds := returnPayoutOn(t, isolated, requestID)
@@ -372,15 +373,15 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 	})
 
 	t.Run("handler unexplained exception is 422 and keeps the draft", func(t *testing.T) {
-		delivered := shopNoonDaysAgo(t, 15)
+		delivered := admintest.ShopNoonDaysAgo(t, 15)
 		number, lineID := deliveredOrderAtOn(t, isolated, delivered)
-		if err := customer.Open(ctx, number, uuid.NullUUID{}, &returns.Request{
+		if err := customer.Open(ctx, number, uuid.NullUUID{}, &returnrules.Request{
 			Reason: "", Lines: map[string]int32{lineID.String(): 1},
 		}); err != nil {
 			t.Fatalf("open day-15 return: %v", err)
 		}
 		requestID := openReturnIDOn(t, isolated, number)
-		h := adminHandlerOver(isolated, s)
+		h := handlerOver(s)
 		form := url.Values{"decision": {"exception"}, "confirm": {"exception"}, "resolution": {"   "}}
 		req := httptest.NewRequestWithContext(ctx, http.MethodPost,
 			"/admin/returns/"+requestID.String()+"/decide", strings.NewReader(form.Encode()))
@@ -405,17 +406,17 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 	})
 
 	t.Run("approved exception retry does not demand a new reason", func(t *testing.T) {
-		delivered := shopNoonDaysAgo(t, 15)
+		delivered := admintest.ShopNoonDaysAgo(t, 15)
 		number, lineID := deliveredOrderAtOn(t, isolated, delivered)
-		if err := customer.Open(ctx, number, uuid.NullUUID{}, &returns.Request{
+		if err := customer.Open(ctx, number, uuid.NullUUID{}, &returnrules.Request{
 			Reason: "", Lines: map[string]int32{lineID.String(): 1},
 		}); err != nil {
 			t.Fatalf("open day-15 return: %v", err)
 		}
 		requestID := openReturnIDOn(t, isolated, number)
-		stalled := admin.NewStore(isolated, admintest.Refunder{
+		stalled := storeOver(isolated, admintest.Refunder{
 			RefundErr: errors.New("read tcp 1.2.3.4:443: i/o timeout"),
-		}, nil, nil)
+		})
 		if err := stalled.Decide(ctx, requestID.String(), "exception", "beyond 14 days", "", uuid.NullUUID{}); err == nil {
 			t.Fatal("a timed-out exception payout was reported as complete")
 		}
@@ -423,7 +424,7 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 		if status != "approved" || refunds != 1 {
 			t.Fatalf("stalled exception is %q/%d, want approved/1", status, refunds)
 		}
-		healthy := admin.NewStore(isolated, admintest.Refunder{}, nil, nil)
+		healthy := storeOver(isolated, admintest.Refunder{})
 		if err := healthy.Decide(ctx, requestID.String(), "approved", "", "", uuid.NullUUID{}); err != nil {
 			t.Fatalf("retry approved exception payout without a new reason: %v", err)
 		}
@@ -437,7 +438,7 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 	})
 
 	t.Run("undelivered keeps the existing decide path", func(t *testing.T) {
-		requestID, _ := returnedOrderOn(t, isolated, 1)
+		requestID, _ := admintest.ReturnedOrder(t, isolated, 1)
 		if window := queueWindow(t, s, requestID); window != "undelivered" {
 			t.Fatalf("window = %q, want undelivered", window)
 		}
@@ -472,20 +473,20 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 
 	t.Run("mixed statutory and goodwill unknown stays open", func(t *testing.T) {
 		requestID, statutoryLine, goodwillLine := mixedWindowReturnOn(t, isolated,
-			shopNoonDaysAgo(t, 3),
-			shopNoonDaysAgo(t, 10),
+			admintest.ShopNoonDaysAgo(t, 3),
+			admintest.ShopNoonDaysAgo(t, 10),
 			time.Now(),
 		)
 		if window := queueWindow(t, s, requestID); window != "mixed" {
 			t.Fatalf("mixed window = %q, want mixed", window)
 		}
-		if err := s.Decide(ctx, requestID.String(), "approved", "", "", uuid.NullUUID{}); !errors.Is(err, admin.ErrRefused) {
+		if err := s.Decide(ctx, requestID.String(), "approved", "", "", uuid.NullUUID{}); !errors.Is(err, returns.ErrRefused) {
 			t.Fatalf("approve mixed unknown = %v, want ErrRefused", err)
 		}
-		if err := s.Decide(ctx, requestID.String(), "rejected", "rejection reason", "", uuid.NullUUID{}); !errors.Is(err, admin.ErrRefused) {
+		if err := s.Decide(ctx, requestID.String(), "rejected", "rejection reason", "", uuid.NullUUID{}); !errors.Is(err, returns.ErrRefused) {
 			t.Fatalf("reject mixed statutory = %v, want ErrRefused", err)
 		}
-		if err := s.Assess(ctx, requestID.String(), "photos of both parcels", []admin.LineEligibility{
+		if err := s.Assess(ctx, requestID.String(), "photos of both parcels", []returns.LineEligibility{
 			{OrderLineID: statutoryLine, Unused: "met", Packaging: "met", Accessories: "met"},
 			{OrderLineID: goodwillLine, Unused: "met", Packaging: "met", Accessories: "met"},
 		}); err != nil {
@@ -521,15 +522,15 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 	})
 
 	t.Run("assessment then a newer version refuses the stale decide", func(t *testing.T) {
-		delivered := shopNoonDaysAgo(t, 10)
+		delivered := admintest.ShopNoonDaysAgo(t, 10)
 		number, lineID := deliveredOrderAtOn(t, isolated, delivered)
-		if err := customer.Open(ctx, number, uuid.NullUUID{}, &returns.Request{
+		if err := customer.Open(ctx, number, uuid.NullUUID{}, &returnrules.Request{
 			Reason: "box opened", Lines: map[string]int32{lineID.String(): 1},
 		}); err != nil {
 			t.Fatalf("open day-10 return: %v", err)
 		}
 		requestID := openReturnIDOn(t, isolated, number)
-		met := []admin.LineEligibility{{
+		met := []returns.LineEligibility{{
 			OrderLineID: lineID, Unused: "met", Packaging: "met", Accessories: "met",
 		}}
 		if err := s.Assess(ctx, requestID.String(), "first look", met); err != nil {
@@ -538,7 +539,7 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 		if err := s.Assess(ctx, requestID.String(), "second look", met); err != nil {
 			t.Fatalf("assess v2: %v", err)
 		}
-		if err := s.Decide(ctx, requestID.String(), "approved", "", "1", uuid.NullUUID{}); !errors.Is(err, admin.ErrRefused) {
+		if err := s.Decide(ctx, requestID.String(), "approved", "", "1", uuid.NullUUID{}); !errors.Is(err, returns.ErrRefused) {
 			t.Fatalf("stale version decide = %v, want ErrRefused", err)
 		}
 		if err := s.Decide(ctx, requestID.String(), "approved", "", "2", uuid.NullUUID{}); err != nil {
@@ -550,15 +551,15 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 	})
 
 	t.Run("handler assess then decide pays and keeps the draft on 422", func(t *testing.T) {
-		delivered := shopNoonDaysAgo(t, 10)
+		delivered := admintest.ShopNoonDaysAgo(t, 10)
 		number, lineID := deliveredOrderAtOn(t, isolated, delivered)
-		if err := customer.Open(ctx, number, uuid.NullUUID{}, &returns.Request{
+		if err := customer.Open(ctx, number, uuid.NullUUID{}, &returnrules.Request{
 			Reason: "box opened", Lines: map[string]int32{lineID.String(): 1},
 		}); err != nil {
 			t.Fatalf("open day-10 return: %v", err)
 		}
 		requestID := openReturnIDOn(t, isolated, number)
-		h := adminHandlerOver(isolated, s)
+		h := handlerOver(s)
 
 		assess := url.Values{
 			"basis":                          {"photos on the ticket"},
@@ -607,22 +608,22 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 }
 
 func TestReviewClearedAssessmentBasisSurvivesRefusal(t *testing.T) {
-	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, admintest.Refunder{}, nil, nil)
-	customer := returns.NewStore(pool)
+	ctx, _ := admintest.StaffContext(t, pool)
+	s := storeOver(pool, admintest.Refunder{})
+	customer := returnrules.NewStore(pool)
 
 	const storedBasis = "old evidence withdrawn by staff"
 	openDay10 := func(t *testing.T) (uuid.UUID, uuid.UUID) {
 		t.Helper()
-		delivered := shopNoonDaysAgo(t, 10)
+		delivered := admintest.ShopNoonDaysAgo(t, 10)
 		number, lineID := deliveredOrderAt(t, delivered)
-		if err := customer.Open(ctx, number, uuid.NullUUID{}, &returns.Request{
+		if err := customer.Open(ctx, number, uuid.NullUUID{}, &returnrules.Request{
 			Reason: "box opened", Lines: map[string]int32{lineID.String(): 1},
 		}); err != nil {
 			t.Fatalf("open day-10 return: %v", err)
 		}
 		requestID := openReturnID(t, number)
-		if err := s.Assess(ctx, requestID.String(), storedBasis, []admin.LineEligibility{{
+		if err := s.Assess(ctx, requestID.String(), storedBasis, []returns.LineEligibility{{
 			OrderLineID: lineID, Unused: "met", Packaging: "met", Accessories: "met",
 		}}); err != nil {
 			t.Fatalf("seed assessment: %v", err)
@@ -630,7 +631,7 @@ func TestReviewClearedAssessmentBasisSurvivesRefusal(t *testing.T) {
 		return requestID, lineID
 	}
 
-	postAssess := func(t *testing.T, h *admin.Handler, requestID, lineID uuid.UUID, basis string, unused string) *httptest.ResponseRecorder {
+	postAssess := func(t *testing.T, h *returns.Handler, requestID, lineID uuid.UUID, basis string, unused string) *httptest.ResponseRecorder {
 		t.Helper()
 		form := url.Values{
 			"basis":                          {basis},
@@ -676,7 +677,7 @@ func TestReviewClearedAssessmentBasisSurvivesRefusal(t *testing.T) {
 
 	t.Run("blank basis clearing", func(t *testing.T) {
 		requestID, lineID := openDay10(t)
-		h := adminHandlerOver(pool, s)
+		h := handlerOver(s)
 		res := postAssess(t, h, requestID, lineID, "", "unmet")
 		if res.Code != http.StatusUnprocessableEntity {
 			t.Fatalf("cleared basis assess = %d, want 422", res.Code)
@@ -687,7 +688,7 @@ func TestReviewClearedAssessmentBasisSurvivesRefusal(t *testing.T) {
 
 	t.Run("whitespace basis clearing", func(t *testing.T) {
 		requestID, lineID := openDay10(t)
-		h := adminHandlerOver(pool, s)
+		h := handlerOver(s)
 		res := postAssess(t, h, requestID, lineID, "   ", "unmet")
 		if res.Code != http.StatusUnprocessableEntity {
 			t.Fatalf("whitespace basis assess = %d, want 422", res.Code)
@@ -698,7 +699,7 @@ func TestReviewClearedAssessmentBasisSurvivesRefusal(t *testing.T) {
 
 	t.Run("nonempty basis edit", func(t *testing.T) {
 		requestID, lineID := openDay10(t)
-		h := adminHandlerOver(pool, s)
+		h := handlerOver(s)
 		edited := strings.Repeat("x", 501)
 		res := postAssess(t, h, requestID, lineID, edited, "unmet")
 		if res.Code != http.StatusUnprocessableEntity {
@@ -710,12 +711,12 @@ func TestReviewClearedAssessmentBasisSurvivesRefusal(t *testing.T) {
 
 	t.Run("decision-only refusal keeps saved assessment", func(t *testing.T) {
 		requestID, lineID := openDay10(t)
-		if err := s.Assess(ctx, requestID.String(), storedBasis, []admin.LineEligibility{{
+		if err := s.Assess(ctx, requestID.String(), storedBasis, []returns.LineEligibility{{
 			OrderLineID: lineID, Unused: "unknown", Packaging: "unknown", Accessories: "unknown",
 		}}); err != nil {
 			t.Fatalf("reassess unknown: %v", err)
 		}
-		h := adminHandlerOver(pool, s)
+		h := handlerOver(s)
 		decide := url.Values{
 			"decision":           {"approved"},
 			"confirm":            {"approved"},
@@ -744,9 +745,9 @@ func TestReviewClearedAssessmentBasisSurvivesRefusal(t *testing.T) {
 
 func TestTwoStaffCannotBothRejectAStatutoryRequest(t *testing.T) {
 	isolated := admintest.Pool(t)
-	ctx, _ := staffContextOn(t, isolated)
-	s := admin.NewStore(isolated, admintest.Refunder{}, nil, nil)
-	requestID := returnedOrderAtWithReasonOn(t, isolated,
+	ctx, _ := admintest.StaffContext(t, isolated)
+	s := storeOver(isolated, admintest.Refunder{})
+	requestID := admintest.ReturnedOrderAtWithReason(t, isolated,
 		mustRFC3339(t, "2026-01-01T07:00:00+08:00"),
 		mustRFC3339(t, "2026-01-06T12:00:00+08:00"),
 		"",
@@ -759,7 +760,7 @@ func TestTwoStaffCannotBothRejectAStatutoryRequest(t *testing.T) {
 		}()
 	}
 	for range 2 {
-		if err := <-errc; !errors.Is(err, admin.ErrRefused) {
+		if err := <-errc; !errors.Is(err, returns.ErrRefused) {
 			t.Errorf("concurrent statutory rejection = %v, want ErrRefused", err)
 		}
 	}
@@ -772,9 +773,9 @@ func TestTwoStaffCannotBothRejectAStatutoryRequest(t *testing.T) {
 
 func TestTwoStaffStillSerialiseALateException(t *testing.T) {
 	isolated := admintest.Pool(t)
-	ctx, _ := staffContextOn(t, isolated)
-	s := admin.NewStore(isolated, admintest.Refunder{}, nil, nil)
-	requestID := returnedOrderAtWithReasonOn(t, isolated,
+	ctx, _ := admintest.StaffContext(t, isolated)
+	s := storeOver(isolated, admintest.Refunder{})
+	requestID := admintest.ReturnedOrderAtWithReason(t, isolated,
 		mustRFC3339(t, "2026-01-01T12:00:00+08:00"),
 		mustRFC3339(t, "2026-01-16T12:00:00+08:00"),
 		"",
@@ -795,7 +796,7 @@ func TestTwoStaffStillSerialiseALateException(t *testing.T) {
 		switch {
 		case err == nil:
 			won++
-		case errors.Is(err, admin.ErrRefused):
+		case errors.Is(err, returns.ErrRefused):
 			lost++
 		default:
 			t.Errorf("late concurrent exception = %v, want nil or ErrRefused", err)
@@ -822,16 +823,6 @@ func mustRFC3339(t *testing.T, value string) time.Time {
 	return ts
 }
 
-func shopNoonDaysAgo(t *testing.T, days int) time.Time {
-	t.Helper()
-	loc, err := time.LoadLocation(shoptime.Zone)
-	if err != nil {
-		t.Fatalf("load %s: %v", shoptime.Zone, err)
-	}
-	now := time.Now().In(loc)
-	return time.Date(now.Year(), now.Month(), now.Day(), 12, 0, 0, 0, loc).AddDate(0, 0, -days)
-}
-
 func openReturnID(t *testing.T, number string) uuid.UUID {
 	t.Helper()
 	return openReturnIDOn(t, pool, number)
@@ -849,9 +840,9 @@ func openReturnIDOn(t *testing.T, p *pgxpool.Pool, number string) uuid.UUID {
 	return id
 }
 
-func queueRow(t *testing.T, s *admin.Store, requestID uuid.UUID) adminpages.Return {
+func queueRow(t *testing.T, s *returns.Store, requestID uuid.UUID) adminpages.Return {
 	t.Helper()
-	view, err := s.Returns(t.Context())
+	view, err := s.Queue(t.Context())
 	if err != nil {
 		t.Fatalf("read the queue: %v", err)
 	}
@@ -864,7 +855,7 @@ func queueRow(t *testing.T, s *admin.Store, requestID uuid.UUID) adminpages.Retu
 	return adminpages.Return{}
 }
 
-func queueWindow(t *testing.T, s *admin.Store, requestID uuid.UUID) string {
+func queueWindow(t *testing.T, s *returns.Store, requestID uuid.UUID) string {
 	t.Helper()
 	return queueRow(t, s, requestID).Window
 }
@@ -943,7 +934,7 @@ func mixedWindowReturnOn(t *testing.T, p *pgxpool.Pool, statutoryDelivered, good
 	if _, err := tx.Exec(ctx, `SELECT capture_payment($1, 100000, NULL, NULL)`, sessionID); err != nil {
 		t.Fatalf("capture payment: %v", err)
 	}
-	moveOrderToShipped(t, tx, orderID)
+	admintest.MoveOrderToShipped(t, tx, orderID)
 
 	var firstShipment, secondShipment uuid.UUID
 	if err := tx.QueryRow(ctx, `
@@ -1096,7 +1087,7 @@ func twoLineReturnOn(t *testing.T, p *pgxpool.Pool, delivered, extra, requested 
 	if _, err := tx.Exec(ctx, `SELECT capture_payment($1, 200000, NULL, NULL)`, sessionID); err != nil {
 		t.Fatalf("capture payment: %v", err)
 	}
-	moveOrderToShipped(t, tx, orderID)
+	admintest.MoveOrderToShipped(t, tx, orderID)
 
 	var firstShipment uuid.UUID
 	if err := tx.QueryRow(ctx, `

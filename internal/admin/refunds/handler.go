@@ -9,6 +9,7 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/admin/ordernumber"
+	"github.com/koopa0/goen/internal/admin/refundstate"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/pgerr"
@@ -62,12 +63,12 @@ func (h *Handler) RefundBeforeShipment(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, back+"?refundpending=1", http.StatusSeeOther) //nolint:gosec // G710: validated by ordernumber.Valid
 	case pgerr.IsConstraint(err, "orders_cancel_invoice_resolved"):
 		http.Redirect(w, r, back+"?cancelinvoice=1", http.StatusSeeOther) //nolint:gosec // G710: validated by ordernumber.Valid
-	case errors.Is(err, ErrIncomplete):
+	case errors.Is(err, refundstate.ErrIncomplete):
 		// Tested before ErrRefused: a payout may carry a database refusal as its
 		// cause, but the refund is open and Resume is what the staff member needs.
 		h.log.ErrorContext(r.Context(), "refund before shipment", "order", number, "error", err)
 		http.Redirect(w, r, back+"?refundretry=1", http.StatusSeeOther) //nolint:gosec // G710: validated by ordernumber.Valid
-	case errors.Is(err, ErrRefused), errors.Is(err, ErrInvalid):
+	case errors.Is(err, refundstate.ErrRefused), errors.Is(err, ErrInvalid):
 		h.log.WarnContext(r.Context(), "refund before shipment refused", "order", number, "error", err)
 		http.Redirect(w, r, back+"?refused=1", http.StatusSeeOther) //nolint:gosec // G710: validated by ordernumber.Valid
 	default:
@@ -82,7 +83,7 @@ func (h *Handler) confirmRefundBeforeShipment(w http.ResponseWriter, r *http.Req
 	case errors.Is(err, ErrNotFound):
 		access.NotFound(w, r, h.log)
 		return true
-	case errors.Is(err, ErrRefused):
+	case errors.Is(err, refundstate.ErrRefused):
 		h.log.WarnContext(r.Context(), "refund before shipment not offered", "order", number, "error", err)
 		http.Redirect(w, r, "/admin/orders/"+number+"?refused=1", http.StatusSeeOther) //nolint:gosec // G710: validated by ordernumber.Valid
 		return true

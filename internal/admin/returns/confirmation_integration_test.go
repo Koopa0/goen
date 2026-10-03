@@ -1,6 +1,6 @@
 //go:build integration
 
-package admin_test
+package returns_test
 
 import (
 	"errors"
@@ -13,17 +13,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/koopa0/goen/internal/admin/admintest"
+
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/internal/admin"
-	"github.com/koopa0/goen/internal/admin/admintest"
-	"github.com/koopa0/goen/internal/returns"
+	"github.com/koopa0/goen/internal/admin/returns"
+	returnrules "github.com/koopa0/goen/internal/returns"
 )
 
 func TestReturnDecisionHTTPRequiresConfirmation(t *testing.T) {
-	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, admintest.Refunder{}, nil, nil)
-	h := adminHandlerOver(pool, s)
+	ctx, _ := admintest.StaffContext(t, pool)
+	s := storeOver(pool, admintest.Refunder{})
+	h := handlerOver(s)
 	for _, decision := range []string{"approved", "rejected"} {
 		t.Run(decision, func(t *testing.T) {
 			var id uuid.UUID
@@ -31,7 +32,7 @@ func TestReturnDecisionHTTPRequiresConfirmation(t *testing.T) {
 				now := time.Now()
 				id = returnedOrderAtOn(t, pool, now.Add(-24*time.Hour), now)
 			} else {
-				id, _ = returnedOrder(t, 1)
+				id, _ = admintest.ReturnedOrder(t, pool, 1)
 			}
 			form := url.Values{"decision": {decision}, "resolution": {"Recorded decision"}}
 			post := func() *httptest.ResponseRecorder {
@@ -40,7 +41,7 @@ func TestReturnDecisionHTTPRequiresConfirmation(t *testing.T) {
 				req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 				req.SetPathValue("id", id.String())
 				w := httptest.NewRecorder()
-				backOffice.RequireStaff(h.Decide)(w, req)
+				admintest.BackOffice.RequireStaff(h.Decide)(w, req)
 				return w
 			}
 			w := post()
@@ -67,12 +68,12 @@ func TestReturnDecisionHTTPRequiresConfirmation(t *testing.T) {
 }
 
 func TestReturnRejectionRequiresAReasonAtTheStoreBoundary(t *testing.T) {
-	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, admintest.Refunder{}, nil, nil)
-	id, _ := returnedOrder(t, 1)
+	ctx, _ := admintest.StaffContext(t, pool)
+	s := storeOver(pool, admintest.Refunder{})
+	id, _ := admintest.ReturnedOrder(t, pool, 1)
 	err := s.Decide(ctx, id.String(), "rejected", " \t ", "", uuid.NullUUID{})
-	refused, ok := errors.AsType[*admin.FormRefusalError](err)
-	if !ok || refused.Kind != returns.RefuseRejectionReason || refused.Field != "resolution" {
+	refused, ok := errors.AsType[*returns.FormRefusalError](err)
+	if !ok || refused.Kind != returnrules.RefuseRejectionReason || refused.Field != "resolution" {
 		t.Fatalf("blank rejection = %v, want resolution/rejection_reason", err)
 	}
 	if status, n := returnPayoutOn(t, pool, id); status != "requested" || n != 0 {
@@ -84,18 +85,18 @@ func TestReturnRejectionRequiresAReasonAtTheStoreBoundary(t *testing.T) {
 // looking: 422 on the queue page, the reason field marked invalid and still
 // holding what was typed, and the return untouched.
 func TestReturnRejectionWithoutAReasonIsRefusedAtTheHandler(t *testing.T) {
-	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, admintest.Refunder{}, nil, nil)
-	h := adminHandlerOver(pool, s)
+	ctx, _ := admintest.StaffContext(t, pool)
+	s := storeOver(pool, admintest.Refunder{})
+	h := handlerOver(s)
 	for name, blank := range map[string]string{"empty": "", "whitespace": " \t "} {
 		t.Run(name, func(t *testing.T) {
-			id, _ := returnedOrder(t, 1)
+			id, _ := admintest.ReturnedOrder(t, pool, 1)
 			form := url.Values{"decision": {"rejected"}, "confirm": {"rejected"}, "resolution": {blank}}
 			req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/returns/"+id.String()+"/decide", strings.NewReader(form.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			req.SetPathValue("id", id.String())
 			w := httptest.NewRecorder()
-			backOffice.RequireStaff(h.Decide)(w, req)
+			admintest.BackOffice.RequireStaff(h.Decide)(w, req)
 			if w.Code != http.StatusUnprocessableEntity {
 				t.Fatalf("blank rejection = %d, want 422: %s", w.Code, w.Body.String())
 			}
