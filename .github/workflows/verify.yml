@@ -217,6 +217,7 @@ jobs:
           path: |
             layout.log
             server.log
+            chrome.log
           if-no-files-found: warn
 
   vulnerabilities:

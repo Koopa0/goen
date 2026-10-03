@@ -113,7 +113,7 @@ check-layout-run: COLOUR_KEY := pixelight-9-pro-02.webp
 # out, success, a failed fixture, Ctrl-C and SIGTERM. The pid file is the only
 # handle on a browser that outlives its shell.
 check-layout:
-	@trap 'if [ -f .layout-chrome/pid ]; then kill $$(cat .layout-chrome/pid) 2>/dev/null; fi; rm -rf .layout-chrome' EXIT; \
+	@trap 'if [ -f .layout-chrome/pid ]; then kill $$(cat .layout-chrome/pid) 2>/dev/null; fi; cp .layout-chrome/chrome.log chrome.log 2>/dev/null; rm -rf .layout-chrome' EXIT; \
 		trap 'exit 130' INT; trap 'exit 143' TERM; \
 		$(MAKE) --no-print-directory check-layout-run
 
@@ -124,7 +124,7 @@ check-layout-run:
 	@rm -rf .layout-chrome && mkdir -p .layout-chrome
 	@"$(LAYOUT_CHROME)" --headless --disable-gpu --no-first-run \
 		--remote-debugging-port=$${CDP_PORT:-9222} \
-		--user-data-dir=$(CURDIR)/.layout-chrome about:blank >/dev/null 2>&1 & echo $$! > .layout-chrome/pid
+		--user-data-dir=$(CURDIR)/.layout-chrome about:blank >.layout-chrome/chrome.log 2>&1 & echo $$! > .layout-chrome/pid
 	@sleep 3
 	@# axe-core, fetched at the pin above and checked against it. Downloaded
 	@# AFTER the browser is launched so the wait for Chrome pays for the fetch,
@@ -493,7 +493,7 @@ check-layout-run:
 		ADMIN_TOKEN=$$(cat .layout-chrome/admin-token) \
 		COLOUR_SLUG='$(COLOUR_SLUG)' COLOUR_VALUE='$(COLOUR_VALUE)' COLOUR_KEY='$(COLOUR_KEY)' \
 		CUST_TOKEN=$$(cat .layout-chrome/cust-token) node scripts/check-layout.mjs; status=$$?; \
-		kill $$(cat .layout-chrome/pid) 2>/dev/null; sleep 1; rm -rf .layout-chrome 2>/dev/null; \
+		kill $$(cat .layout-chrome/pid) 2>/dev/null; sleep 1; cp .layout-chrome/chrome.log chrome.log 2>/dev/null; rm -rf .layout-chrome 2>/dev/null; \
 		exit $$status
 
 # Type-check the integration tests on every ordinary run without executing
