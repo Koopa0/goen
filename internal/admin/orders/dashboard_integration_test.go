@@ -42,14 +42,14 @@ func TestTheDashboardListsAnUninspectedReturnAndAStrandedClaim(t *testing.T) {
 
 	admintest.PreapprovedReturn(t, isolated)
 	number, orderID := admintest.PaidPickingOrderForUser(t, isolated, admintest.Customer(t, isolated), 100000)
-	if _, err := isolated.Exec(t.Context(), `
+	if _, execErr := isolated.Exec(t.Context(), `
 		INSERT INTO invoice_operations
 		    (order_id, kind, provider_key, amount_cents, request_payload,
 		     actor_kind, request_id, status, last_error, created_at)
 		VALUES ($1, 'issue', replace($2, '-', ''), 100000, '{}', 'system',
 		        'refused:' || $2, 'rejected', 'issue_provider_rejected_2000006',
-		        now() - interval '1 minute')`, orderID, number); err != nil {
-		t.Fatalf("record a refused automatic issue: %v", err)
+		        now() - interval '1 minute')`, orderID, number); execErr != nil {
+		t.Fatalf("record a refused automatic issue: %v", execErr)
 	}
 
 	view, err = s.Dashboard(t.Context())

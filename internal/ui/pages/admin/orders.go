@@ -120,7 +120,7 @@ type Task struct {
 
 // DeskTasks lists what the order desk itself counts, leaving out each kind with
 // nothing waiting.
-func (v *DashboardView) DeskTasks() []Task {
+func (v DashboardView) DeskTasks() []Task {
 	all := []Task{
 		{Label: i18n.KeyAdminStatusReadyToPick, Count: v.ReadyOrders, Href: "/admin/orders?status=ready"},
 		{Label: i18n.KeyAdminQueueStatReturns, Count: v.PendingReturns, Href: "/admin/returns"},
