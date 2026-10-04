@@ -27,7 +27,7 @@ import (
 func TestTheQueuePutsWhatTheShopOwesFirst(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := feedback.NewStore(pool)
-	ps := product.NewStore(pool)
+	ps := product.NewStore(pool, slog.New(slog.DiscardHandler))
 	asker := newAskingCustomer(t)
 	slug := anyActiveProductSlug(t)
 
@@ -66,7 +66,7 @@ func TestTheQueuePutsWhatTheShopOwesFirst(t *testing.T) {
 func TestHidingAQuestionIsRecordedAndCannotBeRepeated(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := feedback.NewStore(pool)
-	ps := product.NewStore(pool)
+	ps := product.NewStore(pool, slog.New(slog.DiscardHandler))
 	asker := newAskingCustomer(t)
 	id := ask(t, ps, anyActiveProductSlug(t), asker, "會被隱藏的", 0)
 
@@ -88,7 +88,7 @@ func TestHidingAQuestionIsRecordedAndCannotBeRepeated(t *testing.T) {
 func TestAnEmptyOfficialAnswerIsRefused(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := feedback.NewStore(pool)
-	ps := product.NewStore(pool)
+	ps := product.NewStore(pool, slog.New(slog.DiscardHandler))
 	asker := newAskingCustomer(t)
 	id := ask(t, ps, anyActiveProductSlug(t), asker, "等一個回答", 0)
 
