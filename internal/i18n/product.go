@@ -168,7 +168,7 @@ var (
 		En:     "A warranty term is 1 to 120 months, or blank for no stated cover.",
 	})
 
-	KeyFormBrandRequired = key("form.brand.required", Message{ZhHant: "請選擇品牌。", En: "Pick a brand."})
+	KeyFormBrandInvalid = key("form.brand.invalid", Message{ZhHant: "請選擇有效的品牌。", En: "Pick a valid brand."})
 
 	KeyFormCategoryRequired = key("form.category.required", Message{ZhHant: "請選擇分類。", En: "Pick a category."})
 
@@ -197,7 +197,8 @@ var (
 		En:     "It cannot be changed once the product is published; the product's address is /p/ followed by it.",
 	})
 
-	KeyAdminProdBrand = key("admin.prod.brand", Message{ZhHant: "品牌", En: "Brand"})
+	KeyAdminProdBrand   = key("admin.prod.brand", Message{ZhHant: "品牌", En: "Brand"})
+	KeyAdminProdNoBrand = key("admin.prod.no-brand", Message{ZhHant: "無品牌", En: "No brand"})
 
 	KeyAdminProdChoose = key("admin.prod.choose", Message{ZhHant: "請選擇", En: "Choose one"})
 

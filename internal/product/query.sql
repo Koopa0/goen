@@ -7,14 +7,14 @@ SELECT
     localized_name(p.description, p.description_en, @locale::text) AS description,
     p.warranty_note,
     coalesce(p.warranty_months, 0)::integer AS warranty_months,
-    b.name AS brand,
-    b.slug AS brand_slug,
+    coalesce(b.name, '') AS brand,
+    coalesce(b.slug, '') AS brand_slug,
     p.category_id,
     c.slug AS category_slug,
     localized_name(c.name, c.name_en, @locale::text) AS category_name,
     c.parent_id AS category_parent_id
 FROM products p
-JOIN brands b ON b.id = p.brand_id
+LEFT JOIN brands b ON b.id = p.brand_id
 JOIN categories c ON c.id = p.category_id
 WHERE p.slug = $1 AND p.status = 'active';
 
@@ -127,7 +127,7 @@ FROM visible_reviews WHERE product_id = $1;
 
 -- name: RelatedProducts :many
 SELECT
-    p.slug, localized_name(p.name, p.name_en, @locale::text) AS name, b.name AS brand,
+    p.slug, localized_name(p.name, p.name_en, @locale::text) AS name, coalesce(b.name, '') AS brand,
     mv.price_cents AS min_price_cents,
     -- Whether that price is the cheapest of several, so a card can say "from"
     -- rather than state one variant's price as the product's.
@@ -148,7 +148,7 @@ SELECT
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height
 FROM products p
-JOIN brands b ON b.id = p.brand_id
+LEFT JOIN brands b ON b.id = p.brand_id
 JOIN LATERAL (
     SELECT price_cents, compare_at_price_cents FROM product_variants
     WHERE product_id = p.id AND is_active
@@ -224,7 +224,7 @@ SELECT
     p.slug,
     localized_name(p.name, p.name_en, @locale::text) AS name,
     coalesce(localized_name(p.summary, p.summary_en, @locale::text), '')::text AS summary,
-    b.name AS brand,
+    coalesce(b.name, '') AS brand,
     mv.price_cents AS min_price_cents,
     -- Whether that price is the cheapest of several, so a card can say "from"
     -- rather than state one variant's price as the product's.
@@ -247,7 +247,7 @@ SELECT
     cp.orders::bigint AS bought_together
 FROM product_copurchases cp
 JOIN products p ON p.id = cp.other_product_id
-JOIN brands b ON b.id = p.brand_id
+LEFT JOIN brands b ON b.id = p.brand_id
 JOIN LATERAL (
     SELECT price_cents, compare_at_price_cents
     FROM product_variants

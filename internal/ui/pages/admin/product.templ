@@ -191,13 +191,12 @@ templ productDetails(v ProductView) {
 						class="goen-input"
 						id="p-brand"
 						name="brand"
-						required
 						if v.HasErr("brand") {
 							aria-invalid="true"
 							aria-describedby="p-brand-error"
 						}
 					>
-						<option value="">{ i18n.T(ctx, i18n.KeyAdminProdChoose) }</option>
+						<option value="" selected?={ v.Selected("brand", "") }>{ i18n.T(ctx, i18n.KeyAdminProdNoBrand) }</option>
 						for _, c := range v.Brands {
 							<option value={ c.Value } selected?={ v.Selected("brand", c.Value) }>{ c.Label }</option>
 						}
