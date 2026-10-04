@@ -72,9 +72,6 @@ const EXPECTED = [
   { label: '1440 (artboard)', width: 1440, height: 900, cats: 6, tiles: 4, hero: 'side-by-side' },
 ];
 
-// Cart and checkout. They need a cart to exist, so the Makefile adds one
-// through the site's own POST rather than reaching into the database — if
-// add-to-cart breaks, this check fails too, which is correct.
 // Every page that renders a document, at a phone width and at the artboard.
 //
 // A browser measurement is the only way an overflow or a 30px tap target is
@@ -152,15 +149,16 @@ const CART = [
   { label: 'checkout 1440', width: 1440, height: 900, path: '/checkout' },
   // The checkout with 超商取貨 chosen. It is a different form — a chain to
   // choose rather than a street address — so a layout row for the default
-  // method measures only half the page. PICKUP_SHIP is the version id the
-  // Makefile reads from the database, and the marker insists the chain
-  // chooser is there. Checkout offers 超商取貨 only where the store map is
-  // configured, so the server under test must have GOEN_ECPAY_LOGISTICS set.
+  // method measures only half the page. PICKUP_SHIP is the version id
+  // scripts/check-layout.sql reads from the database, and the marker insists
+  // the chain chooser is there. Checkout offers 超商取貨 only where the store
+  // map is configured, so the server under test must have GOEN_ECPAY_LOGISTICS
+  // set.
   { label: 'pickup 375', width: 375, height: 812, path: '/checkout?ship=PICKUP_SHIP', marker: 'input[name=pickup_chain]' },
   { label: 'pickup 1440', width: 1440, height: 900, path: '/checkout?ship=PICKUP_SHIP', marker: 'input[name=pickup_chain]' },
-  // The payment page. PLACED_ORDER is the NUMBER of the order the Makefile just
-  // placed; PLACED_TOKEN, set as a cookie above, is the browser's proof that it
-  // placed it. Two facts, two variables — without either the page is the 404 a
+  // The payment page. PLACED_ORDER is the NUMBER of the order
+  // scripts/check-layout.sql places; PLACED_TOKEN, set as a cookie above, is
+  // the browser's proof that it placed it. Two facts, two variables — without either the page is the 404 a
   // stranger gets and the check measures nothing, which is why the probe below
   // insists the heading is there.
   // The promotional strip. It sits above the header IN FLOW, so what is
@@ -201,9 +199,9 @@ const HEADER_EN = [
   { label: 'listing header en 1440', width: 1440, height: 900, path: '/c/phones' },
 ];
 
-// The back office. Needs a staff session, which the Makefile provides through
-// ADMIN_TOKEN; without one these are skipped rather than silently measuring a
-// sign-in page.
+// The back office. Needs a staff session, which scripts/check-layout.sql
+// provides through ADMIN_TOKEN; without one these are skipped rather than
+// silently measuring a sign-in page.
 const ADMIN = [
   { label: 'admin 375', width: 375, height: 812, path: '/admin' },
   { label: 'admin 1440', width: 1440, height: 900, path: '/admin' },
@@ -219,22 +217,23 @@ const ADMIN = [
   { label: 'admin product 1440', width: 1440, height: 900, path: '/admin/products/PRODUCT_SLUG', marker: '.ui-table' },
   { label: 'admin reports 375', width: 375, height: 812, path: '/admin/reports', marker: '.goen-admin' },
   { label: 'admin reports 1440', width: 1440, height: 900, path: '/admin/reports', marker: '.goen-admin' },
-  { label: 'admin audit 375', width: 375, height: 812, path: '/admin/audit', marker: '.goen-admin' },
-  { label: 'admin audit 1440', width: 1440, height: 900, path: '/admin/audit', marker: '.goen-admin' },
+  { label: 'admin audit 375', width: 375, height: 812, path: '/admin/audit', marker: '.goen-admin__auditrow' },
+  { label: 'admin audit 1440', width: 1440, height: 900, path: '/admin/audit', marker: '.goen-admin__auditrow' },
   { label: 'admin coupons 375', width: 375, height: 812, path: '/admin/coupons', marker: '.goen-admin' },
   { label: 'admin coupons 1440', width: 1440, height: 900, path: '/admin/coupons', marker: '.goen-admin' },
   { label: 'admin credit 375', width: 375, height: 812, path: '/admin/credit', marker: '.goen-admin' },
   { label: 'admin credit 1440', width: 1440, height: 900, path: '/admin/credit', marker: '.goen-admin' },
   // .ui-table and not .goen-health: the status list is always present, so a
   // marker on it measures the HEALTHY page — chrome and nothing else — while
-  // the alarm tables an operator has to act on go unrendered. The Makefile
-  // seeds an unreconciled payment and a stranded 折讓 claim for exactly this.
+  // the alarm tables an operator has to act on go unrendered.
+  // scripts/check-layout.sql seeds an unreconciled payment and an alarmed 折讓
+  // claim for exactly this.
   { label: 'admin health 375', width: 375, height: 812, path: '/admin/health', marker: '.ui-table' },
   { label: 'admin health 1440', width: 1440, height: 900, path: '/admin/health', marker: '.ui-table' },
   // ONE order in full, which is where every invoice control lives: issue, void
   // and the 折讓 form. The list had rows and the detail page had none, so no
   // browser had ever rendered a form on the page that files a tax document.
-  // INVOICE_ORDER is the return-fixture order the Makefile refunds and then
+  // INVOICE_ORDER is the order scripts/check-layout.sql refunds and then
   // files against — the unpaid guest order PLACED_ORDER cannot carry a
   // compensation, so a 折讓 on that page would violate invoice_allowance_valid.
   // The stranded claim is an invoice_operations row, which is what puts the
@@ -258,8 +257,9 @@ const ADMIN = [
   // The customer pages. Both need a fixture and neither is measured without one:
   // /admin/customers lists NOTHING until somebody searches, so a row against the
   // bare path would measure a search box and call the page covered. CUSTOMER_ID
-  // is the customer the Makefile seeded and places the return fixture's orders for, signed in, so the detail
-  // page has its stats and its order table on screen rather than the empty state.
+  // is the customer scripts/check-layout.sql seeds and places the return
+  // fixture's orders for, so the detail page has its stats and its order table
+  // on screen rather than the empty state.
   // The FAQ page. Its marker is the LIST rather than .goen-admin, because the seed
   // populates faq_entries and the page's two halves are a form and that list — a row
   // that passed on the chrome alone would measure the form and call the page covered.
@@ -281,7 +281,7 @@ const ADMIN = [
   { label: 'admin questions 1440', width: 1440, height: 900, path: '/admin/questions', marker: '.goen-admin__questions' },
   // /admin/warranty lists NOTHING until somebody searches — the /admin/customers
   // rule, because these rows carry a customer's name beside what they own. So the
-  // row searches for the serial the Makefile's fixture registered, and the marker
+  // row searches for the serial scripts/check-layout.sql registered, and the marker
   // is the table that exists only when the search found it. A row against the bare
   // path would measure a search box and report a checked page.
   { label: 'admin warranty 375', width: 375, height: 812, path: '/admin/warranty?q=LAYOUT_SERIAL', marker: '.goen-admin__warranties' },
@@ -300,9 +300,10 @@ const ADMIN = [
   { label: 'admin staff 1440', width: 1440, height: 900, path: '/admin/staff', marker: '.goen-admin' },
 ];
 
-// Signed-in customer surfaces. CUST_TOKEN is the session the Makefile mints;
-// RETURN_FORM_ORDER is a delivered order with no return filed yet;
-// INVOICE_ORDER is the refunded order the return fixture decided.
+// Signed-in customer surfaces. CUST_TOKEN is the session
+// scripts/check-layout.sql mints; RETURN_FORM_ORDER is a delivered order with
+// no return filed yet; INVOICE_ORDER is the refunded order the return fixture
+// decided.
 const ACCOUNT_BADFORM = [
   { label: 'points badform 375', width: 375, height: 812, locale: 'zh-Hant',
     notice: '這份兌換表單已過期，請重新送出。' },
@@ -590,7 +591,7 @@ const visited = new Map();
 
 // A route key has to mean the same thing next week. The fixtures mint a
 // customer id, an order number carrying today's date and a warranty serial from
-// the shell's pid on every run, so a key taken verbatim would name a page that
+// that number on every run, so a key taken verbatim would name a page that
 // does not exist tomorrow and the baseline would be stale on the run after the
 // one that wrote it.
 const PER_RUN = [
@@ -750,8 +751,9 @@ ws.onmessage = (ev) => {
 
 await send(ws, 'Page.enable');
 
-// The cart pages need the browser to carry the cart cookie the Makefile just
-// obtained. Without it /cart is empty and its check would measure nothing.
+// The cart pages need the browser to carry the cart cookie
+// scripts/check-layout.sql minted. Without it /cart is empty and its check
+// would measure nothing.
 if (process.env.CART_TOKEN) {
   await send(ws, 'Network.enable');
   await send(ws, 'Network.setCookie', {
