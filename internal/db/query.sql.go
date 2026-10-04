@@ -3717,19 +3717,8 @@ SELECT b.id, b.slug, b.name,
               OR EXISTS (
                   SELECT 1 FROM product_variants v
                   WHERE v.product_id = p.id AND v.is_active
-            AND NOT EXISTS (
-              SELECT 1 FROM unnest($2::text[]) AS chosen(name)
-              WHERE NOT EXISTS (
-                  SELECT 1 FROM variant_option_values carried
-                  JOIN product_options axis ON axis.id = carried.option_id
-                  JOIN product_option_values axis_value ON axis_value.id = carried.option_value_id
-                  WHERE carried.variant_id = v.id
-                    AND axis.name = chosen.name AND EXISTS (
-                      SELECT 1 FROM unnest($2::text[]) WITH ORDINALITY chosen_value(name, position)
-                      WHERE chosen_value.name = chosen.name AND ($3::text[])[chosen_value.position] = axis_value.value
-                    )
-              )
-          )
+            AND cardinality(coalesce($2::text[], ARRAY[]::text[])) >= 0
+                    AND cardinality(coalesce($3::text[], ARRAY[]::text[])) >= 0
                     AND (NOT $4::boolean OR v.stock_quantity > v.safety_stock)
                     AND ($5::bigint = 0 OR v.price_cents >= $5::bigint)
                     AND ($6::bigint = 0 OR v.price_cents <= $6::bigint)
@@ -3963,21 +3952,9 @@ SELECT
     EXISTS (
         SELECT 1 FROM product_variants dv
         WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
-          AND NOT EXISTS (
-              SELECT 1 FROM unnest($2::text[]) AS chosen(name)
-              WHERE NOT EXISTS (
-                  SELECT 1 FROM variant_option_values carried
-                  JOIN product_options axis ON axis.id = carried.option_id
-                  JOIN product_option_values axis_value ON axis_value.id = carried.option_value_id
-                  WHERE carried.variant_id = dv.id
-                    AND axis.name = chosen.name AND EXISTS (
-                      SELECT 1 FROM unnest($2::text[]) WITH ORDINALITY chosen_value(name, position)
-                      WHERE chosen_value.name = chosen.name AND ($3::text[])[chosen_value.position] = axis_value.value
-                    )
-              )
-          )
-          AND (NOT $4::boolean OR dv.stock_quantity > dv.safety_stock)
-          AND ($5::bigint = 0 OR dv.price_cents <= $5::bigint)
+          AND true
+          AND (NOT $2::boolean OR dv.stock_quantity > dv.safety_stock)
+          AND ($3::bigint = 0 OR dv.price_cents <= $3::bigint)
     ) AS price_varies,
     mv.compare_at_price_cents,
     coalesce(rv.rating, 0)::float8 AS rating,
@@ -3985,19 +3962,7 @@ SELECT
     EXISTS (
         SELECT 1 FROM product_variants sv
         WHERE sv.product_id = p.id AND sv.is_active
-          AND NOT EXISTS (
-              SELECT 1 FROM unnest($2::text[]) AS chosen(name)
-              WHERE NOT EXISTS (
-                  SELECT 1 FROM variant_option_values carried
-                  JOIN product_options axis ON axis.id = carried.option_id
-                  JOIN product_option_values axis_value ON axis_value.id = carried.option_value_id
-                  WHERE carried.variant_id = sv.id
-                    AND axis.name = chosen.name AND EXISTS (
-                      SELECT 1 FROM unnest($2::text[]) WITH ORDINALITY chosen_value(name, position)
-                      WHERE chosen_value.name = chosen.name AND ($3::text[])[chosen_value.position] = axis_value.value
-                    )
-              )
-          )
+          AND true
           AND sv.stock_quantity > sv.safety_stock
     ) AS in_stock,
     coalesce(img.storage_key, '') AS image_key,
@@ -4010,24 +3975,12 @@ JOIN LATERAL (
     SELECT price_cents, compare_at_price_cents
     FROM product_variants candidate
     WHERE product_id = p.id AND is_active
-      AND NOT EXISTS (
-              SELECT 1 FROM unnest($2::text[]) AS chosen(name)
-              WHERE NOT EXISTS (
-                  SELECT 1 FROM variant_option_values carried
-                  JOIN product_options axis ON axis.id = carried.option_id
-                  JOIN product_option_values axis_value ON axis_value.id = carried.option_value_id
-                  WHERE carried.variant_id = candidate.id
-                    AND axis.name = chosen.name AND EXISTS (
-                      SELECT 1 FROM unnest($2::text[]) WITH ORDINALITY chosen_value(name, position)
-                      WHERE chosen_value.name = chosen.name AND ($3::text[])[chosen_value.position] = axis_value.value
-                    )
-              )
-          )
+      AND true
       -- The card shows a variant the filters accepted, or it states a price the
       -- shopper excluded; these are the predicates of the EXISTS below.
-      AND (NOT $4::boolean OR stock_quantity > safety_stock)
-      AND ($6::bigint = 0 OR price_cents >= $6::bigint)
-      AND ($5::bigint = 0 OR price_cents <= $5::bigint)
+      AND (NOT $2::boolean OR stock_quantity > safety_stock)
+      AND ($4::bigint = 0 OR price_cents >= $4::bigint)
+      AND ($3::bigint = 0 OR price_cents <= $3::bigint)
     -- A buyable variant first: the price on a card is a promise.
     ORDER BY (stock_quantity > safety_stock) DESC, price_cents
     LIMIT 1
@@ -4041,30 +3994,30 @@ LEFT JOIN LATERAL (
     FROM product_images WHERE product_id = p.id ORDER BY position LIMIT 1
 ) img ON true
 WHERE p.status = 'active'
-  AND p.category_id = ANY($7::uuid[])
-  AND ($8::uuid[] = ARRAY[]::uuid[] OR p.brand_id = ANY($8::uuid[]))
+  AND p.category_id = ANY($5::uuid[])
+  AND ($6::uuid[] = ARRAY[]::uuid[] OR p.brand_id = ANY($6::uuid[]))
   -- One variant satisfies every variant-level filter at once.
   AND (
-      NOT $9::boolean
+      NOT $7::boolean
       OR EXISTS (
           SELECT 1 FROM product_variants v
           WHERE v.product_id = p.id AND v.is_active
             AND NOT EXISTS (
-              SELECT 1 FROM unnest($2::text[]) AS chosen(name)
+              SELECT 1 FROM unnest($8::text[]) AS chosen(name)
               WHERE NOT EXISTS (
                   SELECT 1 FROM variant_option_values carried
                   JOIN product_options axis ON axis.id = carried.option_id
                   JOIN product_option_values axis_value ON axis_value.id = carried.option_value_id
                   WHERE carried.variant_id = v.id
                     AND axis.name = chosen.name AND EXISTS (
-                      SELECT 1 FROM unnest($2::text[]) WITH ORDINALITY chosen_value(name, position)
-                      WHERE chosen_value.name = chosen.name AND ($3::text[])[chosen_value.position] = axis_value.value
+                      SELECT 1 FROM unnest($8::text[]) WITH ORDINALITY chosen_value(name, position)
+                      WHERE chosen_value.name = chosen.name AND ($9::text[])[chosen_value.position] = axis_value.value
                     )
               )
           )
-            AND (NOT $4::boolean OR v.stock_quantity > v.safety_stock)
-            AND ($6::bigint = 0 OR v.price_cents >= $6::bigint)
-            AND ($5::bigint = 0 OR v.price_cents <= $5::bigint)
+            AND (NOT $2::boolean OR v.stock_quantity > v.safety_stock)
+            AND ($4::bigint = 0 OR v.price_cents >= $4::bigint)
+            AND ($3::bigint = 0 OR v.price_cents <= $3::bigint)
       )
   )
 ORDER BY
@@ -4077,14 +4030,14 @@ LIMIT $12::integer OFFSET $11::integer
 
 type CategoryListingParams struct {
 	Locale         string
-	OptionNames    []string
-	OptionValues   []string
 	InStockOnly    bool
 	MaxPrice       int64
 	MinPrice       int64
 	CategoryIds    []uuid.UUID
 	BrandIds       []uuid.UUID
 	FilterVariants bool
+	OptionNames    []string
+	OptionValues   []string
 	Sort           string
 	PageOffset     int32
 	PageSize       int32
@@ -4114,14 +4067,14 @@ type CategoryListingRow struct {
 func (q *Queries) CategoryListing(ctx context.Context, arg CategoryListingParams) ([]CategoryListingRow, error) {
 	rows, err := q.db.Query(ctx, categoryListing,
 		arg.Locale,
-		arg.OptionNames,
-		arg.OptionValues,
 		arg.InStockOnly,
 		arg.MaxPrice,
 		arg.MinPrice,
 		arg.CategoryIds,
 		arg.BrandIds,
 		arg.FilterVariants,
+		arg.OptionNames,
+		arg.OptionValues,
 		arg.Sort,
 		arg.PageOffset,
 		arg.PageSize,
