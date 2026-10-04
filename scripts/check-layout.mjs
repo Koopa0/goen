@@ -11,6 +11,7 @@
 
 import { readFileSync } from 'node:fs';
 import { AXE_OPTIONS, WCAG_TAGS, WCAG_LEVEL, gatesAccessibility, wcagRuleExclusion } from './wcag-gate.mjs';
+import { contrastRatio, measureControlBoundary } from './control-boundary.mjs';
 
 const CDP_PORT = Number(process.env.CDP_PORT || 9222);
 const ORIGIN = (process.env.GOEN_URL || 'http://127.0.0.1:9700/').replace(/\/$/, '');
@@ -2604,6 +2605,34 @@ const openAt = async (label, path) => {
   await send(ws, 'Page.navigate', { url: target });
   await settled(ws, label, target);
 };
+
+// axe has no WCAG 1.4.11 rule, so measure the boundary or fill identifying each editable region.
+for (const locale of ['zh-Hant', 'en']) {
+  await send(ws, 'Network.setCookie', { name: 'goen_locale', value: locale, domain: '127.0.0.1', path: '/' });
+  console.log('control boundary locale ' + locale);
+  for (const { path, selectors } of [
+    { path: '/contact', selectors: ['#contact-name', '#contact-subject', '#contact-message', '#site-search', '#newsletter-email'] },
+    { path: '/compare?p=' + encodeURIComponent(process.env.PRODUCT_SLUG || ''), selectors: ['#compare-q'] },
+    { path: '/c/phones', selectors: ['#sort'] },
+  ]) {
+    await openAt('control boundary', path);
+    await send(ws, 'Input.dispatchMouseEvent', { type: 'mouseMoved', x: 0, y: 0 });
+    const boundaries = await evalPage(`(${measureControlBoundary.toString()})(${JSON.stringify(selectors)}, ${contrastRatio.toString()})`);
+    if (boundaries.threw || !Array.isArray(boundaries)) {
+      fail('control boundary', boundaries.why || 'boundary probe returned no measurements');
+    } else {
+      for (const boundary of boundaries) {
+        console.log('control boundary ' + JSON.stringify(boundary));
+        if (boundary.error) {
+          fail('control boundary', boundary.selector + ': ' + boundary.error);
+        } else if (Math.max(boundary.outlineContrast, boundary.borderContrast, boundary.fillContrast) < 3) {
+          fail('control boundary', boundary.selector + ': boundary and fill both below 3:1');
+        }
+      }
+    }
+  }
+}
+await send(ws, 'Network.setCookie', { name: 'goen_locale', value: 'zh-Hant', domain: '127.0.0.1', path: '/' });
 
 const proveUsable = async (at, fieldSel, formSel) => {
   const got = await evalPage(`(() => {

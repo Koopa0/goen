@@ -178,3 +178,26 @@ func TestTheCarouselDoesNotAdvanceUnderReducedMotion(t *testing.T) {
 		}
 	}
 }
+
+func TestControlBoundariesReadOnTheirGrounds(t *testing.T) {
+	t.Parallel()
+	sheet, err := fs.ReadFile(files, AppCSS)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tokens := make(map[string]string)
+	for _, m := range tokenHex.FindAllStringSubmatch(string(sheet), -1) {
+		if _, seen := tokens[m[1]]; !seen {
+			tokens[m[1]] = m[2]
+		}
+	}
+	if tokens["--control-boundary"] == "" {
+		t.Fatal("controls need a boundary colour")
+	}
+	for _, ground := range []string{"--n-0", "--n-50", "--n-100"} {
+		got := contrast(tokens["--control-boundary"], tokens[ground])
+		if math.IsNaN(got) || got < 3 {
+			t.Errorf("control boundary on %s = %.2f:1, want at least 3:1", ground, got)
+		}
+	}
+}
