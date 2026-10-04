@@ -577,7 +577,7 @@ func TestUserAgentDecorationIsBoundedWithoutRejectingTheSession(t *testing.T) {
 func TestNoFieldMessageLeaksAFormatVerb(t *testing.T) {
 	t.Parallel()
 
-	every := []web.FieldError{
+	every := []web.FieldRefusal{
 		{Field: "email", MessageKey: i18n.KeyCheckoutEmailRequired},
 		{Field: "email2", MessageKey: i18n.KeyCheckoutEmailMalformed},
 		{Field: "email3", MessageKey: i18n.KeyCheckoutEmailTooLong},
@@ -600,7 +600,7 @@ func TestNoFieldMessageLeaksAFormatVerb(t *testing.T) {
 
 	// The one message that does carry a verb still gets its number.
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	short := FieldMessages(ctx, []web.FieldError{
+	short := FieldMessages(ctx, []web.FieldRefusal{
 		{Field: "password", MessageKey: i18n.KeyPasswordTooShort},
 	})["password"]
 	if !strings.Contains(short, strconv.Itoa(MinPasswordRunes)) {

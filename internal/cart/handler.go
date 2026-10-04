@@ -1316,22 +1316,22 @@ func couponKeys(r *http.Request, cartID uuid.UUID) [2]string {
 func checkoutErrors(
 	ctx context.Context, addr *Address, shipErr error, inv *Invoice,
 ) map[string]string {
-	fieldErrs := addr.Validate()
+	refusals := addr.Validate()
 	if shipErr != nil {
-		fieldErrs = append(fieldErrs,
-			web.FieldError{Field: "shipping", MessageKey: i18n.KeyChooseShipping})
+		refusals = append(refusals,
+			web.FieldRefusal{Field: "shipping", MessageKey: i18n.KeyChooseShipping})
 	}
 	if addr.To == destination.PickupPoint {
 		if !offeredAtCheckout(addr.PickupChain) {
-			fieldErrs = append(fieldErrs,
-				web.FieldError{Field: "pickup_chain", MessageKey: i18n.KeyPickupChainRequired})
+			refusals = append(refusals,
+				web.FieldRefusal{Field: "pickup_chain", MessageKey: i18n.KeyPickupChainRequired})
 		} else if addr.PickupStoreCode == "" || addr.PickupStoreName == "" {
-			fieldErrs = append(fieldErrs,
-				web.FieldError{Field: "pickup_store", MessageKey: i18n.KeyPickupStoreRequired})
+			refusals = append(refusals,
+				web.FieldRefusal{Field: "pickup_store", MessageKey: i18n.KeyPickupStoreRequired})
 		}
 	}
-	fieldErrs = append(fieldErrs, inv.Validate()...)
-	return account.FieldMessages(ctx, fieldErrs)
+	refusals = append(refusals, inv.Validate()...)
+	return account.FieldMessages(ctx, refusals)
 }
 
 func (h *Handler) quoteCheckoutShipping(

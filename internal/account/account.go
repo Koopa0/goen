@@ -200,7 +200,7 @@ func sessionCookieName(secure bool) string {
 
 // FieldMessages keeps the first message per field so a control shows one reason
 // rather than a pile.
-func FieldMessages(ctx context.Context, errs []web.FieldError) map[string]string {
+func FieldMessages(ctx context.Context, errs []web.FieldRefusal) map[string]string {
 	if len(errs) == 0 {
 		return nil
 	}
@@ -234,24 +234,24 @@ func (c *Credentials) Trim() {
 	c.Name = strings.TrimSpace(c.Name)
 }
 
-func (c *Credentials) ValidateRegistration() []web.FieldError {
-	var errs []web.FieldError
+func (c *Credentials) ValidateRegistration() []web.FieldRefusal {
+	var errs []web.FieldRefusal
 	if k := EmailError(c.Email); k != "" {
-		errs = append(errs, web.FieldError{Field: "email", MessageKey: k})
+		errs = append(errs, web.FieldRefusal{Field: "email", MessageKey: k})
 	}
 	if k := PasswordError(c.Password); k != "" {
-		errs = append(errs, web.FieldError{Field: "password", MessageKey: k})
+		errs = append(errs, web.FieldRefusal{Field: "password", MessageKey: k})
 	} else if c.Confirm != c.Password {
-		errs = append(errs, web.FieldError{Field: "confirm", MessageKey: i18n.KeyPasswordsDiffer})
+		errs = append(errs, web.FieldRefusal{Field: "confirm", MessageKey: i18n.KeyPasswordsDiffer})
 	}
 	if utf8.RuneCountInString(c.Name) > maxNameRunes {
-		errs = append(errs, web.FieldError{Field: "name", MessageKey: i18n.KeyNameTooLong})
+		errs = append(errs, web.FieldRefusal{Field: "name", MessageKey: i18n.KeyNameTooLong})
 	}
 	if hasControl(c.Name) {
-		errs = append(errs, web.FieldError{Field: "name", MessageKey: i18n.KeyFieldHasControlChars})
+		errs = append(errs, web.FieldRefusal{Field: "name", MessageKey: i18n.KeyFieldHasControlChars})
 	}
 	if hasControl(c.Email) {
-		errs = append(errs, web.FieldError{Field: "email", MessageKey: i18n.KeyFieldHasControlChars})
+		errs = append(errs, web.FieldRefusal{Field: "email", MessageKey: i18n.KeyFieldHasControlChars})
 	}
 	return errs
 }

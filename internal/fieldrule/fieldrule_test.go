@@ -26,7 +26,7 @@ func matches(rule fieldrule.Rule, value string) bool {
 }
 
 // hasField reports whether a validator named field among its refusals.
-func hasField(errs []web.FieldError, field string) bool {
+func hasField(errs []web.FieldRefusal, field string) bool {
 	for _, e := range errs {
 		if e.Field == field {
 			return true
