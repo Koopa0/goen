@@ -65,7 +65,7 @@ func TestProductLabelRoundTripUsesAdminRoleAndAuditsAtomically(t *testing.T) {
 		t.Fatal(err)
 	}
 	if view.LabelInput.Origin != "台灣" || view.LabelInput.NetQuantity != "1.2" || view.LabelInput.MinAgeMonths != "0" {
-		t.Fatalf("stored facts=%+v", view.LabelInput)
+		t.Errorf("stored facts=%+v, want trimmed origin, quantity 1.2 and age 0", view.LabelInput)
 	}
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		pdp, readErr := product.NewStore(reader).Load(i18n.WithLocale(ctx, locale), slug, product.Selection{})
@@ -76,8 +76,8 @@ func TestProductLabelRoundTripUsesAdminRoleAndAuditsAtomically(t *testing.T) {
 		if locale == i18n.En {
 			want = "Taiwan"
 		}
-		if pdp.LabelFacts.Origin != want || len(pdp.LabelRows(ctx)) != 6 {
-			t.Fatalf("%s public facts=%+v", locale, pdp.LabelFacts)
+		if pdp.LabelFacts.Origin != want || pdp.LabelFacts.NetQuantity != "1.2" || len(pdp.LabelRows(ctx)) != 6 {
+			t.Errorf("%s public facts=%+v, want origin %q, quantity 1.2 and six facts", locale, pdp.LabelFacts, want)
 		}
 	}
 	var audits int
