@@ -69,8 +69,10 @@ func TestExpectedArrivalIsAuditedAndShownOnlyForTheSelectedSoldOutVariant(t *tes
 		raw   string
 		shown bool
 	}{
-		{shoptime.Day(today), true}, {shoptime.Day(today.AddDate(0, 0, 1)), true},
-		{shoptime.Day(today.AddDate(0, 0, -1)), false}, {"", false},
+		{raw: shoptime.Day(today), shown: true},
+		{raw: shoptime.Day(today.AddDate(0, 0, 1)), shown: true},
+		{raw: shoptime.Day(today.AddDate(0, 0, -1))},
+		{raw: ""},
 	} {
 		if err = s.SetVariantArrival(ctx, sku, tc.raw); err != nil {
 			t.Fatal(err)

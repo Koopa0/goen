@@ -54,15 +54,21 @@ func TestExpectedArrivalPrecedesNotificationWithoutOfferingAStocklessPurchase(t 
 			if !disabled || v.CanBuy() {
 				t.Error("arrival date enabled a stockless purchase")
 			}
-			for _, modify := range []func(){
-				func() { v.Sellable = true },
-				func() { v.Sellable = false; v.Exact = false },
-				func() { v.Exact = true; v.ExpectedArrival = time.Time{} },
+			for _, tc := range []struct {
+				name   string
+				modify func(*ProductView)
+			}{
+				{name: "in stock", modify: func(view *ProductView) { view.Sellable = true }},
+				{name: "unresolved", modify: func(view *ProductView) { view.Exact = false }},
+				{name: "undated", modify: func(view *ProductView) { view.ExpectedArrival = time.Time{} }},
 			} {
-				modify()
-				if v.ArrivalText() != "" {
-					t.Error("arrival shown for an in-stock, unresolved or undated variant")
-				}
+				t.Run(tc.name, func(t *testing.T) {
+					view := v
+					tc.modify(&view)
+					if got := view.ArrivalText(); got != "" {
+						t.Errorf("ArrivalText() = %q, want empty", got)
+					}
+				})
 			}
 		})
 	}
