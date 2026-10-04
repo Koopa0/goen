@@ -99,7 +99,7 @@ func TestOptionFacetsRequireOneVariantForEverySelectedAxisStockAndPrice(t *testi
 		t.Fatal(err)
 	}
 	if offer.Total != 1 || len(offer.Products) != 1 || offer.Products[0].PriceCents != 90000 || offer.Products[0].InStock || offer.Products[0].PriceVaries {
-		t.Fatalf("out-of-stock option match borrowed another SKU's offer: %#v", offer.Products)
+		t.Errorf("out-of-stock option match borrowed another SKU's offer: %#v", offer.Products)
 	}
 	facetCounts := map[string]int64{}
 	selected := 0
@@ -141,7 +141,7 @@ func TestOptionFacetsRequireOneVariantForEverySelectedAxisStockAndPrice(t *testi
 		t.Fatal(err)
 	}
 	if view.Total != 1 || len(view.Products) != 1 || view.Products[0].Slug != slug || view.Products[0].PriceCents != 10000 || !view.Products[0].InStock || view.Products[0].PriceVaries {
-		t.Fatalf("one matching SKU did not supply the listing offer: %#v", view.Products)
+		t.Errorf("one matching SKU did not supply the listing offer: %#v", view.Products)
 	}
 	assertFacetBrandCount(t, view, brandSlug, 1)
 	alternatives := f
@@ -173,7 +173,7 @@ func assertFacetBrandCount(t *testing.T, view pages.ListingView, slug string, wa
 		for _, option := range group.Options {
 			if option.Value == slug {
 				if option.Count != want {
-					t.Fatalf("brand count = %d, want %d", option.Count, want)
+					t.Errorf("brand count = %d, want %d", option.Count, want)
 				}
 				return
 			}
