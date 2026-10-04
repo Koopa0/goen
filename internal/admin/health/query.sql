@@ -153,7 +153,8 @@ SELECT op.id AS operation_id, o.order_number, op.kind, op.status,
         AND op.last_send_at IS NOT NULL
         AND op.last_send_at <= now() - interval '15 minutes'
         AND (op.lease_until IS NULL OR op.lease_until <= now()))::boolean
-           AS can_authorize_resend
+           AS can_authorize_resend,
+       count(*) OVER () AS total
 FROM invoice_operations op
 JOIN orders o ON o.id = op.order_id
 WHERE op.status = 'attention'

@@ -2228,6 +2228,13 @@ SELECT
     (SELECT count(*) FROM products WHERE status = 'active')::bigint AS active_products,
     (SELECT count(*) FROM contact_messages WHERE handled_at IS NULL)::bigint AS open_messages,
     (SELECT count(*) FROM return_requests WHERE status = 'requested')::bigint AS pending_returns,
+    -- Approved, with a parcel to open: a refund before shipment closes its own
+    -- lines and never has one.
+    (SELECT count(*) FROM return_requests r
+     WHERE r.status = 'approved' AND NOT r.before_shipment
+       AND EXISTS (SELECT 1 FROM return_request_lines rl
+                   WHERE rl.return_request_id = r.id AND rl.received_quantity IS NULL)
+    )::bigint AS uninspected_returns,
     -- The queue's own predicate (UnansweredQuestions, Question.Waiting): visible,
     -- and no visible answer from the shop. A customer's reply does not answer it.
     (SELECT count(*) FROM product_questions q
@@ -2245,6 +2252,7 @@ type AdminSummaryRow struct {
 	ActiveProducts      int64
 	OpenMessages        int64
 	PendingReturns      int64
+	UninspectedReturns  int64
 	UnansweredQuestions int64
 }
 
@@ -2259,6 +2267,7 @@ func (q *Queries) AdminSummary(ctx context.Context) (AdminSummaryRow, error) {
 		&i.ActiveProducts,
 		&i.OpenMessages,
 		&i.PendingReturns,
+		&i.UninspectedReturns,
 		&i.UnansweredQuestions,
 	)
 	return i, err
@@ -9104,29 +9113,6 @@ func (q *Queries) NextEligibilityVersion(ctx context.Context, returnRequestID uu
 	return version, err
 }
 
-const oldestPendingReturn = `-- name: OldestPendingReturn :one
-SELECT coalesce(min(created_at), now())::timestamptz AS filed_at,
-       (count(*) > 0) AS any_open
-FROM return_requests
-WHERE status = 'requested'
-`
-
-type OldestPendingReturnRow struct {
-	FiledAt time.Time
-	AnyOpen bool
-}
-
-// When the oldest open return request was filed, which is how long a person has
-// been waiting for a decision. Two columns, not one nullable timestamp: min()
-// over no rows is NULL and sqlc infers the column non-nullable, so pgx cannot
-// scan it.
-func (q *Queries) OldestPendingReturn(ctx context.Context) (OldestPendingReturnRow, error) {
-	row := q.db.QueryRow(ctx, oldestPendingReturn)
-	var i OldestPendingReturnRow
-	err := row.Scan(&i.FiledAt, &i.AnyOpen)
-	return i, err
-}
-
 const openAllowance = `-- name: OpenAllowance :one
 SELECT op.status, coalesce(op.last_error, '')::text AS last_error,
        coalesce(op.last_send_at, op.created_at)::timestamptz AS last_send_at
@@ -15176,7 +15162,8 @@ SELECT op.id AS operation_id, o.order_number, op.kind, op.status,
         AND op.last_send_at IS NOT NULL
         AND op.last_send_at <= now() - interval '15 minutes'
         AND (op.lease_until IS NULL OR op.lease_until <= now()))::boolean
-           AS can_authorize_resend
+           AS can_authorize_resend,
+       count(*) OVER () AS total
 FROM invoice_operations op
 JOIN orders o ON o.id = op.order_id
 WHERE op.status = 'attention'
@@ -15202,6 +15189,7 @@ type StrandedInvoiceClaimsRow struct {
 	LastError          string
 	CreatedAt          time.Time
 	CanAuthorizeResend bool
+	Total              int64
 }
 
 // Durable e-invoice operations which either explicitly alarmed or have remained
@@ -15229,6 +15217,7 @@ func (q *Queries) StrandedInvoiceClaims(ctx context.Context) ([]StrandedInvoiceC
 			&i.LastError,
 			&i.CreatedAt,
 			&i.CanAuthorizeResend,
+			&i.Total,
 		); err != nil {
 			return nil, err
 		}

@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -45,46 +46,76 @@ func TestTheDashboardOpensEveryOrderItLists(t *testing.T) {
 	})
 }
 
-// TestTheDashboardCountsWhatHasAClockOrAPersonWaiting holds the tiles a shift
-// starts from. A return request runs against the seven-day right of rescission,
-// and a question is a customer waiting; both used to be reachable only from the
-// navigation, so a count on this page was the one place nobody would look.
-func TestTheDashboardCountsWhatHasAClockOrAPersonWaiting(t *testing.T) {
+// TestTheDashboardListsOnlyWhatWaitsForAPerson holds the list the five work
+// tiles gave way to: nothing is drawn when nothing waits, and each kind that
+// does is a link to where it is done.
+func TestTheDashboardListsOnlyWhatWaitsForAPerson(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 
-	html := renderToString(t, Dashboard(Meta(ctx), DashboardView{
-		PendingReturns: 3, OldestReturnDays: 4, UnansweredQuestions: 7,
-	}))
-	for _, want := range []string{
-		`href="/admin/returns"`, i18n.T(ctx, i18n.KeyAdminQueueStatReturns),
-		`href="/admin/questions"`, i18n.T(ctx, i18n.KeyAdminQueueStatQuestions),
-		i18n.Count(ctx, i18n.KeyAdminQueueStatReturnsAge, 4, 4), `<span class="goen-stat__value">3</span>`, `<span class="goen-stat__value">7</span>`,
-	} {
-		if !strings.Contains(html, want) {
-			t.Errorf("the dashboard does not carry %q", want)
+	t.Run("nothing waiting draws no list", func(t *testing.T) {
+		t.Parallel()
+		html := renderToString(t, Dashboard(Meta(ctx), DashboardView{}))
+		if strings.Contains(html, i18n.T(ctx, i18n.KeyAdminQueueTasksHeading)) || strings.Contains(html, "goen-admin__task") {
+			t.Error("an idle dashboard draws a task list")
 		}
+	})
+
+	t.Run("each task is a link with its count", func(t *testing.T) {
+		t.Parallel()
+		html := renderToString(t, Dashboard(Meta(ctx), DashboardView{Tasks: []Task{
+			{Label: i18n.KeyAdminHPClaimsHeading, Count: 52, Href: "/admin/health"},
+			{Label: i18n.KeyAdminQueueStatQuestions, Count: 7, Href: "/admin/questions"},
+		}}))
+		for _, want := range []string{
+			i18n.T(ctx, i18n.KeyAdminQueueTasksHeading),
+			`href="/admin/health"`, i18n.T(ctx, i18n.KeyAdminHPClaimsHeading), ">52<",
+			`href="/admin/questions"`, i18n.T(ctx, i18n.KeyAdminQueueStatQuestions), ">7<",
+		} {
+			if !strings.Contains(html, want) {
+				t.Errorf("the task list does not carry %q", want)
+			}
+		}
+	})
+}
+
+func TestDeskTasksLeaveOutWhatIsNotWaiting(t *testing.T) {
+	t.Parallel()
+	if got := (&DashboardView{PendingOrders: 4, PickingOrders: 2, ActiveProducts: 9}).DeskTasks(); len(got) != 0 {
+		t.Errorf("DeskTasks() with only figures = %v, want none", got)
 	}
+	v := &DashboardView{UninspectedReturns: 2, UnansweredQuestions: 1}
+	want := []Task{
+		{Label: i18n.KeyAdminQueueTaskUninspected, Count: 2, Href: "/admin/returns"},
+		{Label: i18n.KeyAdminQueueStatQuestions, Count: 1, Href: "/admin/questions"},
+	}
+	if got := v.DeskTasks(); !slices.Equal(got, want) {
+		t.Errorf("DeskTasks() = %v, want %v", got, want)
+	}
+}
 
-	t.Run("nothing waiting names no age", func(t *testing.T) {
-		t.Parallel()
-		v := DashboardView{OldestReturnDays: 9}
-		if note := v.ReturnsAgeNote(ctx); note != "" {
-			t.Errorf("the returns tile names an age with nothing waiting: %q", note)
-		}
-		if strings.Contains(renderToString(t, Dashboard(Meta(ctx), v)), "goen-stat__note") {
-			t.Error("the dashboard renders an empty age line")
-		}
-	})
-
-	t.Run("a request filed today says today, and one day reads singular in English", func(t *testing.T) {
-		t.Parallel()
-		en := i18n.WithLocale(t.Context(), i18n.En)
-		if got := (DashboardView{PendingReturns: 1}).ReturnsAgeNote(en); got != "Oldest requested today" {
-			t.Errorf("filed today reads %q", got)
-		}
-		if got := (DashboardView{PendingReturns: 1, OldestReturnDays: 1}).ReturnsAgeNote(en); got != "Oldest requested 1 day ago" {
-			t.Errorf("filed yesterday reads %q", got)
-		}
-	})
+func TestWorkerHealthTasksFollowTheHealthPredicates(t *testing.T) {
+	t.Parallel()
+	if got := (&WorkerHealthView{}).Tasks(); len(got) != 0 {
+		t.Errorf("Tasks() of a healthy view = %v, want none", got)
+	}
+	v := &WorkerHealthView{
+		UnreconciledPayments: 1, StrandedClaimCount: 73, UninvoicedCount: 2,
+		CancelledOrderInvoiceCount: 3, OpenRefundCount: 4,
+		ExpiredHolds: 51, MaxExpiredHolds: 50,
+	}
+	want := []Task{
+		{Label: i18n.KeyAdminHPUnreconciledHeading, Count: 1, Href: "/admin/health"},
+		{Label: i18n.KeyAdminHPClaimsHeading, Count: 73, Href: "/admin/health"},
+		{Label: i18n.KeyAdminHPUninvoicedHeading, Count: 2, Href: "/admin/health"},
+		{Label: i18n.KeyAdminHPCancelledOrderInvoicesHeading, Count: 3, Href: "/admin/health"},
+		{Label: i18n.KeyAdminHPOpenRefundsHeading, Count: 4, Href: "/admin/health"},
+		{Label: i18n.KeyAdminQueueTaskHolds, Count: 51, Href: "/admin/health"},
+	}
+	if got := v.Tasks(); !slices.Equal(got, want) {
+		t.Errorf("Tasks() = %v, want %v", got, want)
+	}
+	if got := (&WorkerHealthView{ExpiredHolds: 50, MaxExpiredHolds: 50}).Tasks(); len(got) != 0 {
+		t.Errorf("Tasks() with holds at the threshold = %v, want none: the health page calls that healthy", got)
+	}
 }

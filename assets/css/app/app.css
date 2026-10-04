@@ -8535,6 +8535,25 @@ a.goen-pager__step:hover {
   max-width: 40rem;
 }
 
+.goen-admin__tasks {
+  display: grid;
+  gap: 8px;
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+}
+
+.goen-admin__task {
+  align-items: baseline;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 12px 16px;
+}
+
 /* Worker health. One box per worker, marked at the edge when it needs
    attention — the page is opened to find out whether anything is wrong, so the
    answer has to be visible without reading. */
