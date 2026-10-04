@@ -53,8 +53,7 @@ var mapSubtypes = map[LogisticsMode]map[pickup.Chain]string{
 	},
 }
 
-// StoreMap is DISABLED at its zero value: the checkout then asks for a chain
-// alone.
+// StoreMap is DISABLED at its zero value: the checkout then offers no pickup.
 type StoreMap struct {
 	merchantID string
 	mode       LogisticsMode

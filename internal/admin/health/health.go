@@ -115,6 +115,9 @@ func (s *Store) WorkerHealth(ctx context.Context, messages *outbox.Store) (admin
 		return admin.WorkerHealthView{}, fmt.Errorf("read stranded invoice claims: %w", err)
 	}
 	view.StrandedClaims = strandedClaims(stranded)
+	if len(stranded) > 0 {
+		view.StrandedClaimCount = stranded[0].Total
+	}
 
 	// goen consumes no refund webhook: this is the only unpaid-customer alarm.
 	// Count independently of the bounded diagnostic sample below, or 37 open
@@ -138,6 +141,37 @@ func (s *Store) WorkerHealth(ctx context.Context, messages *outbox.Store) (admin
 		return admin.WorkerHealthView{}, err
 	}
 	return view, nil
+}
+
+// Tasks is what /admin/health judges to need a person, read through the same
+// queries and thresholds as the page and none of the lists it names them in.
+func (s *Store) Tasks(ctx context.Context) ([]admin.Task, error) {
+	row, err := s.q.WorkerHealth(ctx, outbox.MaxAttempts)
+	if err != nil {
+		return nil, fmt.Errorf("read worker health: %w", err)
+	}
+	view := admin.WorkerHealthView{
+		ExpiredHolds:         row.ExpiredHolds,
+		UnreconciledPayments: row.UnreconciledPayments,
+		MaxExpiredHolds:      MaxExpiredHolds,
+	}
+	stranded, err := s.q.StrandedInvoiceClaims(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("read stranded invoice claims: %w", err)
+	}
+	if len(stranded) > 0 {
+		view.StrandedClaimCount = stranded[0].Total
+	}
+	if view.OpenRefundCount, err = s.q.OpenRefundCount(ctx); err != nil {
+		return nil, fmt.Errorf("count open refunds: %w", err)
+	}
+	if _, view.UninvoicedCount, err = s.UninvoicedOrders(ctx, UninvoicedAfter); err != nil {
+		return nil, err
+	}
+	if _, view.CancelledOrderInvoiceCount, err = s.CancelledOrderInvoices(ctx, UnvoidedAfter); err != nil {
+		return nil, err
+	}
+	return view.Tasks(), nil
 }
 
 func (s *Store) CancelledOrderInvoices(

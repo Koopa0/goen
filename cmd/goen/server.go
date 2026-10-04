@@ -105,7 +105,7 @@ type StorefrontConfig struct {
 	// Google signs customers in, or is disabled and 404s its two routes.
 	Google *account.Google
 	// StoreMap is the carrier's convenience-store picker, or is disabled and
-	// the checkout asks for a chain alone, the route is not registered, the
+	// the checkout offers no pickup, the route is not registered, the
 	// cross-origin defence gains no bypass, and the policy is unchanged.
 	StoreMap *cart.StoreMap
 	// DemoAccount is the account a public demonstration shares, or the zero
@@ -410,9 +410,11 @@ func backOfficeRoutes(mux *http.ServeMux, cfg *BackOfficeConfig, log *slog.Logge
 	}
 	adminImages := media.NewHandler(media.NewStore(adminPool), log)
 	stockroom := stock.NewStore(adminPool)
+	checkup := health.NewStore(adminPool)
 	payouts := refunds.NewStore(adminPool, refunder, invoices)
 	invoicingStore := invoicing.NewStore(adminPool, invoiceReader, invoiceWriter)
-	orderDesk := orders.NewHandler(orders.NewStore(adminPool, payouts, invoicingStore, stockroom), sessionCloser(gateway), log)
+	// A method value, not *health.Store: converting the store to an interface makes deadcode (x/tools v0.49.0) panic on outbox.Store's generic method.
+	orderDesk := orders.NewHandler(orders.NewStore(adminPool, payouts, invoicingStore, stockroom, orders.HealthFunc(checkup.Tasks)), sessionCloser(gateway), log)
 	trail := audit.NewHandler(audit.NewStore(adminPool), log)
 	figures := reports.NewHandler(reports.NewStore(adminPool), log)
 	warehouse := stock.NewHandler(stockroom, log)
@@ -429,7 +431,7 @@ func backOfficeRoutes(mux *http.ServeMux, cfg *BackOfficeConfig, log *slog.Logge
 	lookup := customerdesk.NewHandler(customerdesk.NewStore(adminPool), log)
 	promotions := coupons.NewHandler(coupons.NewStore(adminPool), log)
 	programme := loyalty.NewHandler(loyalty.NewStore(adminPool), log)
-	workers := health.NewHandler(health.NewStore(adminPool), outbox.NewStore(adminPool, log),
+	workers := health.NewHandler(checkup, outbox.NewStore(adminPool, log),
 		healthPools, log)
 
 	// The back office. A signed-in customer gets a 404 rather than a 403, which
