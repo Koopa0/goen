@@ -1465,7 +1465,7 @@ type AdminProductRow struct {
 	WarrantyNote   string
 	Status         string
 	PublishedAt    pgtype.Timestamptz
-	BrandID        uuid.UUID
+	BrandID        uuid.NullUUID
 	CategoryID     uuid.UUID
 	TaxType        string
 	InvoiceUnit    string
@@ -1700,12 +1700,12 @@ func (q *Queries) AdminProductVariants(ctx context.Context, productID uuid.UUID)
 const adminProducts = `-- name: AdminProducts :many
 SELECT json_build_object('At', p.updated_at, 'ID', p.id)::text AS page_cursor, p.id, p.slug, p.name, p.status, p.published_at,
        (p.name_en IS NOT NULL)::boolean AS translated,
-       b.name AS brand, c.name AS category,
+       coalesce(b.name, '') AS brand, c.name AS category,
        (SELECT count(*) FROM product_variants pv WHERE pv.product_id = p.id)::integer AS variants,
        (SELECT coalesce(min(pv.price_cents), 0) FROM product_variants pv
         WHERE pv.product_id = p.id AND pv.is_active)::bigint AS from_cents
 FROM products p
-JOIN brands b ON b.id = p.brand_id
+LEFT JOIN brands b ON b.id = p.brand_id
 JOIN categories c ON c.id = p.category_id
 WHERE (NOT $1::boolean OR (p.updated_at < $2::timestamptz)
        OR (p.updated_at = $2::timestamptz AND p.id < $3::uuid))
@@ -2363,7 +2363,7 @@ SELECT json_build_object('Number', (pv.stock_quantity - pv.safety_stock), 'Name'
     p.slug,
     p.name AS product_name,
     p.status AS product_status,
-    b.name AS brand,
+    coalesce(b.name, '') AS brand,
     ARRAY(SELECT localized_name(v.value, v.value_en, $1::text)
           FROM variant_option_values vov
           JOIN product_options o ON o.id = vov.option_id
@@ -2372,7 +2372,7 @@ SELECT json_build_object('Number', (pv.stock_quantity - pv.safety_stock), 'Name'
           ORDER BY o.position, o.id)::text[] AS option_values
 FROM product_variants pv
 JOIN products p ON p.id = pv.product_id
-JOIN brands b ON b.id = p.brand_id
+LEFT JOIN brands b ON b.id = p.brand_id
 WHERE ($2::boolean = false OR pv.stock_quantity <= pv.safety_stock)
 AND ($3::text = ''
        OR pv.sku ILIKE '%' || $3::text || '%'
@@ -3013,7 +3013,7 @@ SELECT
     p.slug,
     localized_name(p.name, p.name_en, $1::text) AS name,
     coalesce(localized_name(p.summary, p.summary_en, $1::text), '')::text AS summary,
-    b.name AS brand,
+    coalesce(b.name, '') AS brand,
     mv.price_cents AS min_price_cents,
     -- Whether that price is the cheapest of several, so a card can say "from"
     -- rather than state one variant's price as the product's.
@@ -3036,7 +3036,7 @@ SELECT
     cp.orders::bigint AS bought_together
 FROM product_copurchases cp
 JOIN products p ON p.id = cp.other_product_id
-JOIN brands b ON b.id = p.brand_id
+LEFT JOIN brands b ON b.id = p.brand_id
 JOIN LATERAL (
     SELECT price_cents, compare_at_price_cents
     FROM product_variants
@@ -3131,7 +3131,7 @@ SELECT
     p.slug,
     localized_name(p.name, p.name_en, $2::text) AS name,
     coalesce(localized_name(p.summary, p.summary_en, $2::text), '')::text AS summary,
-    b.name AS brand,
+    coalesce(b.name, '') AS brand,
     mv.price_cents AS min_price_cents,
     -- Whether that price is the cheapest of several, so a card can say "from"
     -- rather than state one variant's price as the product's.
@@ -3156,7 +3156,7 @@ SELECT
     coalesce(img.height, 0)::integer AS image_height
 FROM sale_campaign_products cp
 JOIN products p ON p.id = cp.product_id
-JOIN brands b ON b.id = p.brand_id
+LEFT JOIN brands b ON b.id = p.brand_id
 JOIN LATERAL (
     SELECT price_cents, compare_at_price_cents
     FROM product_variants
@@ -3545,7 +3545,7 @@ SELECT
     localized_name(p.name, p.name_en, $2::text) AS name,
     p.warranty_note,
     p.warranty_months,
-    b.name AS brand,
+    coalesce(b.name, '') AS brand,
     -- Localized because the cart line SHOWS the selection; the PDP's variant
     -- query matches on it and is exempt for exactly that reason.
     coalesce(
@@ -3571,7 +3571,7 @@ SELECT
 FROM cart_items ci
 JOIN product_variants pv ON pv.id = ci.variant_id
 JOIN products p ON p.id = pv.product_id
-JOIN brands b ON b.id = p.brand_id
+LEFT JOIN brands b ON b.id = p.brand_id
 LEFT JOIN LATERAL (
     -- The line's own photograph when one shows its option value, else the
     -- product's first.
@@ -3946,7 +3946,7 @@ SELECT
     p.category_id,
     localized_name(p.name, p.name_en, $1::text) AS name,
     coalesce(localized_name(p.summary, p.summary_en, $1::text), '')::text AS summary,
-    b.name AS brand,
+    coalesce(b.name, '') AS brand,
     mv.price_cents AS min_price_cents,
     -- Whether that price is the cheapest of several within the filters, so a card
     -- can say "from" rather than state one variant's price as the product's.
@@ -3969,7 +3969,7 @@ SELECT
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height
 FROM products p
-JOIN brands b ON b.id = p.brand_id
+LEFT JOIN brands b ON b.id = p.brand_id
 JOIN LATERAL (
     SELECT price_cents, compare_at_price_cents
     FROM product_variants
@@ -4363,46 +4363,6 @@ func (q *Queries) ClaimOutbox(ctx context.Context, arg ClaimOutboxParams) ([]Cla
 	return items, nil
 }
 
-const claimRestockNotices = `-- name: ClaimRestockNotices :many
-UPDATE stock_notifications sn SET notified_at = now()
-WHERE sn.variant_id = $1
-  AND sn.notified_at IS NULL
-  AND EXISTS (SELECT 1 FROM product_variants pv
-              WHERE pv.id = sn.variant_id
-                AND pv.is_active
-                AND pv.stock_quantity > pv.safety_stock)
-RETURNING sn.id, sn.email, sn.locale
-`
-
-type ClaimRestockNoticesRow struct {
-	ID     uuid.UUID
-	Email  string
-	Locale string
-}
-
-// The claim and the enqueue are ONE transaction, so notified_at means "the
-// outbox has this": claiming without enqueuing tells nobody and never retries.
-// The threshold is the one the listing calls in stock, stock > safety_stock.
-func (q *Queries) ClaimRestockNotices(ctx context.Context, variantID uuid.UUID) ([]ClaimRestockNoticesRow, error) {
-	rows, err := q.db.Query(ctx, claimRestockNotices, variantID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ClaimRestockNoticesRow{}
-	for rows.Next() {
-		var i ClaimRestockNoticesRow
-		if err := rows.Scan(&i.ID, &i.Email, &i.Locale); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const claimReturnRefundExecution = `-- name: ClaimReturnRefundExecution :one
 SELECT claim_return_refund_execution(
     $1::uuid, $2::uuid, $3::text
@@ -4607,7 +4567,7 @@ SELECT
     p.slug,
     localized_name(p.name, p.name_en, $1::text) AS name,
     coalesce(localized_name(p.summary, p.summary_en, $1::text), '')::text AS summary,
-    b.name AS brand,
+    coalesce(b.name, '') AS brand,
     localized_name(c.name, c.name_en, $1::text) AS category,
     c.slug AS category_slug,
     mv.price_cents AS min_price_cents,
@@ -4633,7 +4593,7 @@ SELECT
     asked.ord::integer AS position
 FROM unnest($2::text[]) WITH ORDINALITY AS asked(slug, ord)
 JOIN products p ON p.slug = asked.slug AND p.status = 'active'
-JOIN brands b ON b.id = p.brand_id
+LEFT JOIN brands b ON b.id = p.brand_id
 JOIN categories c ON c.id = p.category_id
 JOIN LATERAL (
     SELECT price_cents, compare_at_price_cents
@@ -4787,7 +4747,7 @@ const compareSuggestions = `-- name: CompareSuggestions :many
 SELECT
     p.slug,
     localized_name(p.name, p.name_en, $1::text) AS name,
-    b.name AS brand,
+    coalesce(b.name, '') AS brand,
     mv.price_cents AS min_price_cents,
     EXISTS (
         SELECT 1 FROM product_variants dv
@@ -4798,7 +4758,7 @@ SELECT
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height
 FROM products p
-JOIN brands b ON b.id = p.brand_id
+LEFT JOIN brands b ON b.id = p.brand_id
 JOIN LATERAL (
     SELECT price_cents
     FROM product_variants
@@ -5585,7 +5545,7 @@ RETURNING slug
 `
 
 type CreateProductParams struct {
-	BrandID        uuid.UUID
+	BrandID        uuid.NullUUID
 	CategoryID     uuid.UUID
 	Slug           string
 	Name           string
@@ -6029,7 +5989,7 @@ SELECT
     p.slug,
     localized_name(p.name, p.name_en, $1::text) AS name,
     coalesce(localized_name(p.summary, p.summary_en, $1::text), '')::text AS summary,
-    b.name AS brand,
+    coalesce(b.name, '') AS brand,
     -- Named for what it IS: the price this tile shows, which on THIS page is the
     -- discounted variant rather than the cheapest one. Calling it
     -- min_price_cents here would be a claim the LATERAL below does not make.
@@ -6059,7 +6019,7 @@ SELECT
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height
 FROM products p
-JOIN brands b ON b.id = p.brand_id
+LEFT JOIN brands b ON b.id = p.brand_id
 JOIN LATERAL (
     SELECT price_cents, compare_at_price_cents
     FROM product_variants
@@ -7265,7 +7225,7 @@ SELECT
     p.slug,
     localized_name(p.name, p.name_en, $1::text) AS name,
     coalesce(localized_name(p.summary, p.summary_en, $1::text), '')::text AS summary,
-    b.name AS brand,
+    coalesce(b.name, '') AS brand,
     mv.price_cents AS min_price_cents,
     -- Whether that price is the cheapest of several, so a card can say "from"
     -- rather than state one variant's price as the product's.
@@ -7290,7 +7250,7 @@ SELECT
           AND stock_quantity > safety_stock
     ) AS in_stock
 FROM products p
-JOIN brands b ON b.id = p.brand_id
+LEFT JOIN brands b ON b.id = p.brand_id
 JOIN LATERAL (
     SELECT price_cents, compare_at_price_cents
     FROM product_variants
@@ -8942,7 +8902,7 @@ SELECT
     p.category_id,
     localized_name(p.name, p.name_en, $1::text) AS name,
     coalesce(localized_name(p.summary, p.summary_en, $1::text), '')::text AS summary,
-    b.name AS brand,
+    coalesce(b.name, '') AS brand,
     mv.price_cents AS min_price_cents,
     -- Whether that price is the cheapest of several, so a card can say "from"
     -- rather than state one variant's price as the product's.
@@ -8963,7 +8923,7 @@ SELECT
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height
 FROM products p
-JOIN brands b ON b.id = p.brand_id
+LEFT JOIN brands b ON b.id = p.brand_id
 JOIN LATERAL (
     SELECT price_cents, compare_at_price_cents
     FROM product_variants
@@ -10455,14 +10415,14 @@ SELECT
     localized_name(p.description, p.description_en, $2::text) AS description,
     p.warranty_note,
     coalesce(p.warranty_months, 0)::integer AS warranty_months,
-    b.name AS brand,
-    b.slug AS brand_slug,
+    coalesce(b.name, '') AS brand,
+    coalesce(b.slug, '') AS brand_slug,
     p.category_id,
     c.slug AS category_slug,
     localized_name(c.name, c.name_en, $2::text) AS category_name,
     c.parent_id AS category_parent_id
 FROM products p
-JOIN brands b ON b.id = p.brand_id
+LEFT JOIN brands b ON b.id = p.brand_id
 JOIN categories c ON c.id = p.category_id
 WHERE p.slug = $1 AND p.status = 'active'
 `
@@ -12007,7 +11967,7 @@ func (q *Queries) RejectInvoiceOperation(ctx context.Context, arg RejectInvoiceO
 
 const relatedProducts = `-- name: RelatedProducts :many
 SELECT
-    p.slug, localized_name(p.name, p.name_en, $1::text) AS name, b.name AS brand,
+    p.slug, localized_name(p.name, p.name_en, $1::text) AS name, coalesce(b.name, '') AS brand,
     mv.price_cents AS min_price_cents,
     -- Whether that price is the cheapest of several, so a card can say "from"
     -- rather than state one variant's price as the product's.
@@ -12028,7 +11988,7 @@ SELECT
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height
 FROM products p
-JOIN brands b ON b.id = p.brand_id
+LEFT JOIN brands b ON b.id = p.brand_id
 JOIN LATERAL (
     SELECT price_cents, compare_at_price_cents FROM product_variants
     WHERE product_id = p.id AND is_active
@@ -12544,35 +12504,6 @@ func (q *Queries) RestockReturnedUnits(ctx context.Context, arg RestockReturnedU
 		arg.ActorUserID,
 	)
 	return err
-}
-
-const restockSubject = `-- name: RestockSubject :one
-SELECT p.slug,
-       localized_name(p.name, p.name_en, $1::text) AS product_name,
-       pv.sku
-FROM product_variants pv
-JOIN products p ON p.id = pv.product_id
-WHERE pv.id = $2
-`
-
-type RestockSubjectParams struct {
-	Locale    string
-	VariantID uuid.UUID
-}
-
-type RestockSubjectRow struct {
-	Slug        string
-	ProductName string
-	SKU         string
-}
-
-// Called once per distinct LOCALE in the claimed set, not once per recipient:
-// the product name has to follow the reader as the letter's words do.
-func (q *Queries) RestockSubject(ctx context.Context, arg RestockSubjectParams) (RestockSubjectRow, error) {
-	row := q.db.QueryRow(ctx, restockSubject, arg.Locale, arg.VariantID)
-	var i RestockSubjectRow
-	err := row.Scan(&i.Slug, &i.ProductName, &i.SKU)
-	return i, err
 }
 
 const returnForDecision = `-- name: ReturnForDecision :one
@@ -13463,7 +13394,7 @@ SELECT
     p.category_id,
     localized_name(p.name, p.name_en, $1::text) AS name,
     coalesce(localized_name(p.summary, p.summary_en, $1::text), '')::text AS summary,
-    b.name AS brand,
+    coalesce(b.name, '') AS brand,
     mv.price_cents AS min_price_cents,
     -- Whether that price is the cheapest of several, so a card can say "from"
     -- rather than state one variant's price as the product's.
@@ -13484,7 +13415,7 @@ SELECT
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height
 FROM products p
-JOIN brands b ON b.id = p.brand_id
+LEFT JOIN brands b ON b.id = p.brand_id
 JOIN LATERAL (
     SELECT price_cents, compare_at_price_cents
     FROM product_variants
@@ -13512,7 +13443,7 @@ WHERE p.status = 'active'
           OR coalesce(p.name_en, '') ILIKE t.pattern
           OR coalesce(p.summary, '') ILIKE t.pattern
           OR coalesce(p.summary_en, '') ILIKE t.pattern
-          OR b.name ILIKE t.pattern
+          OR coalesce(b.name, '') ILIKE t.pattern
           OR EXISTS (
               SELECT 1 FROM category_match m
               WHERE m.pattern = t.pattern AND m.id = p.category_id
@@ -13566,7 +13497,7 @@ ORDER BY
               AND partial_sku.sku ILIKE t.pattern
         ) THEN 3
         WHEN EXISTS (
-            SELECT 1 FROM unnest($2::text[]) AS t(pattern) WHERE b.name ILIKE t.pattern
+            SELECT 1 FROM unnest($2::text[]) AS t(pattern) WHERE coalesce(b.name, '') ILIKE t.pattern
         ) THEN 2
         WHEN EXISTS (
             SELECT 1 FROM unnest($2::text[]) AS t(pattern)
@@ -13665,7 +13596,7 @@ WITH RECURSIVE category_match AS (
 )
 SELECT count(*)::bigint
 FROM products p
-JOIN brands b ON b.id = p.brand_id
+LEFT JOIN brands b ON b.id = p.brand_id
 WHERE p.status = 'active'
   -- Every term must match some field, and a term may match a different field
   -- from its neighbour.
@@ -13676,7 +13607,7 @@ WHERE p.status = 'active'
           OR coalesce(p.name_en, '') ILIKE t.pattern
           OR coalesce(p.summary, '') ILIKE t.pattern
           OR coalesce(p.summary_en, '') ILIKE t.pattern
-          OR b.name ILIKE t.pattern
+          OR coalesce(b.name, '') ILIKE t.pattern
           OR EXISTS (
               SELECT 1 FROM category_match m
               WHERE m.pattern = t.pattern AND m.id = p.category_id
@@ -15640,7 +15571,7 @@ WHERE slug = $11::text
 `
 
 type UpdateProductParams struct {
-	BrandID        uuid.UUID
+	BrandID        uuid.NullUUID
 	CategoryID     uuid.UUID
 	Name           string
 	Summary        string
@@ -16159,7 +16090,7 @@ SELECT
     p.slug,
     localized_name(p.name, p.name_en, $2::text) AS name,
     p.summary,
-    b.name AS brand,
+    coalesce(b.name, '') AS brand,
     mv.price_cents AS min_price_cents,
     -- Whether that price is the cheapest of several, so a card can say "from"
     -- rather than state one variant's price as the product's.
@@ -16190,7 +16121,7 @@ SELECT
     coalesce(img.height, 0)::integer AS image_height
 FROM wishlist_items w
 JOIN products p ON p.id = w.product_id
-JOIN brands b ON b.id = p.brand_id
+LEFT JOIN brands b ON b.id = p.brand_id
 JOIN LATERAL (
     SELECT price_cents, compare_at_price_cents
     FROM product_variants

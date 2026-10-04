@@ -93,7 +93,7 @@ SELECT
     localized_name(p.name, p.name_en, @locale::text) AS name,
     p.warranty_note,
     p.warranty_months,
-    b.name AS brand,
+    coalesce(b.name, '') AS brand,
     -- Localized because the cart line SHOWS the selection; the PDP's variant
     -- query matches on it and is exempt for exactly that reason.
     coalesce(
@@ -119,7 +119,7 @@ SELECT
 FROM cart_items ci
 JOIN product_variants pv ON pv.id = ci.variant_id
 JOIN products p ON p.id = pv.product_id
-JOIN brands b ON b.id = p.brand_id
+LEFT JOIN brands b ON b.id = p.brand_id
 LEFT JOIN LATERAL (
     -- The line's own photograph when one shows its option value, else the
     -- product's first.

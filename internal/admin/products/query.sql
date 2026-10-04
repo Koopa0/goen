@@ -1,12 +1,12 @@
 -- name: AdminProducts :many
 SELECT json_build_object('At', p.updated_at, 'ID', p.id)::text AS page_cursor, p.id, p.slug, p.name, p.status, p.published_at,
        (p.name_en IS NOT NULL)::boolean AS translated,
-       b.name AS brand, c.name AS category,
+       coalesce(b.name, '') AS brand, c.name AS category,
        (SELECT count(*) FROM product_variants pv WHERE pv.product_id = p.id)::integer AS variants,
        (SELECT coalesce(min(pv.price_cents), 0) FROM product_variants pv
         WHERE pv.product_id = p.id AND pv.is_active)::bigint AS from_cents
 FROM products p
-JOIN brands b ON b.id = p.brand_id
+LEFT JOIN brands b ON b.id = p.brand_id
 JOIN categories c ON c.id = p.category_id
 WHERE (NOT @has_cursor::boolean OR (p.updated_at < @after_at::timestamptz)
        OR (p.updated_at = @after_at::timestamptz AND p.id < @after_id::uuid))
