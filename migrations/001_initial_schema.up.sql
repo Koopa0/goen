@@ -5963,6 +5963,12 @@ BEGIN
         RAISE EXCEPTION 'void target is not an invoice'
             USING ERRCODE = 'check_violation', CONSTRAINT = 'invoice_void_target';
     END IF;
+    IF p_actor_user_id IS NULL
+       AND NOT EXISTS (SELECT 1 FROM orders
+                       WHERE id = v_document.order_id AND fulfillment_status = 'cancelled') THEN
+        RAISE EXCEPTION 'the system voids only a cancelled order''s invoice'
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'invoice_audit_actor';
+    END IF;
     SELECT id INTO v_existing FROM invoice_operations
     WHERE target_document_id = p_document_id AND kind = 'void'
       AND status IN ('pending', 'attention')

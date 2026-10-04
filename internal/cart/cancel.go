@@ -52,7 +52,7 @@ func (s *Store) CancelOrder(ctx context.Context, number string) ([]string, error
 	if err := settleCancellation(ctx, q, number, email.TerminalCancelledByCustomer); err != nil {
 		return nil, err
 	}
-	if paidByCredit || cancelled > 0 {
+	if paidByCredit {
 		if err := invoicepkg.EnqueueVoidDue(ctx, q, &outbox.InvoiceVoidDue{
 			OrderNumber: number, Trigger: "cancel:" + number,
 		}); err != nil {

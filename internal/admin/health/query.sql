@@ -208,7 +208,7 @@ LIMIT 50;
 SELECT o.order_number, d.number, d.amount_cents, d.issued_at, count(*) OVER () AS total
 FROM invoice_documents d
 JOIN orders o ON o.id = d.order_id
-WHERE o.fulfillment_status = 'pending'
+WHERE o.fulfillment_status = 'cancelled'
   AND o.cancelled_at < now() - @older_than::interval
   AND d.kind = 'invoice' AND d.status = 'issued'
   AND d.amount_cents > coalesce((
