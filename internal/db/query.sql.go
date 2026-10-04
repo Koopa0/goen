@@ -1767,6 +1767,142 @@ func (q *Queries) AdminProducts(ctx context.Context, arg AdminProductsParams) ([
 	return items, nil
 }
 
+const adminQuestionAnswers = `-- name: AdminQuestionAnswers :many
+SELECT a.id, a.question_id, a.body, a.is_staff, a.hidden_at, a.created_at,
+       coalesce(u.full_name, '')::text AS author
+FROM product_answers a
+LEFT JOIN users u ON u.id = a.user_id
+WHERE a.question_id = ANY($1::uuid[])
+ORDER BY a.question_id, a.created_at, a.id
+`
+
+type AdminQuestionAnswersRow struct {
+	ID         uuid.UUID
+	QuestionID uuid.UUID
+	Body       string
+	IsStaff    bool
+	HiddenAt   pgtype.Timestamptz
+	CreatedAt  time.Time
+	Author     string
+}
+
+func (q *Queries) AdminQuestionAnswers(ctx context.Context, questionIds []uuid.UUID) ([]AdminQuestionAnswersRow, error) {
+	rows, err := q.db.Query(ctx, adminQuestionAnswers, questionIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AdminQuestionAnswersRow{}
+	for rows.Next() {
+		var i AdminQuestionAnswersRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.QuestionID,
+			&i.Body,
+			&i.IsStaff,
+			&i.HiddenAt,
+			&i.CreatedAt,
+			&i.Author,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const adminQuestions = `-- name: AdminQuestions :many
+WITH queued AS (
+ SELECT q.id, q.body, q.created_at, q.hidden_at,
+        p.slug AS product_slug, p.name AS product_name,
+        coalesce(u.full_name, '') AS asker,
+        (SELECT count(*) FROM product_answers a WHERE a.question_id = q.id AND a.hidden_at IS NULL)::bigint AS answers,
+        EXISTS (SELECT 1 FROM product_answers a WHERE a.question_id = q.id AND a.is_staff AND a.hidden_at IS NULL) AS answered_by_shop
+ FROM product_questions q
+ JOIN products p ON p.id = q.product_id
+ LEFT JOIN users u ON u.id = q.user_id
+ WHERE (q.hidden_at IS NOT NULL) = $1::boolean
+)
+SELECT json_build_object('Rank', CASE WHEN $1::boolean THEN false ELSE q.answered_by_shop END,
+                         'At', coalesce(q.hidden_at, q.created_at), 'ID', q.id)::text AS page_cursor,
+       q.id, q.body, q.created_at, q.hidden_at, q.product_slug, q.product_name, q.asker, q.answers, q.answered_by_shop
+FROM queued q
+WHERE NOT $2::boolean
+ OR ($1::boolean AND (q.hidden_at < $3::timestamptz OR (q.hidden_at = $3::timestamptz AND q.id < $4::uuid)))
+ OR (NOT $1::boolean AND (q.answered_by_shop > $5::boolean
+     OR (q.answered_by_shop = $5::boolean AND q.created_at > $3::timestamptz)
+     OR (q.answered_by_shop = $5::boolean AND q.created_at = $3::timestamptz AND q.id > $4::uuid)))
+ORDER BY CASE WHEN NOT $1::boolean THEN q.answered_by_shop END,
+         CASE WHEN $1::boolean THEN q.hidden_at END DESC,
+         CASE WHEN NOT $1::boolean THEN q.created_at END,
+         CASE WHEN $1::boolean THEN q.id END DESC,
+         CASE WHEN NOT $1::boolean THEN q.id END
+LIMIT $6::integer
+`
+
+type AdminQuestionsParams struct {
+	Hidden    bool
+	HasCursor bool
+	AfterAt   time.Time
+	AfterID   uuid.UUID
+	AfterRank bool
+	RowLimit  int32
+}
+
+type AdminQuestionsRow struct {
+	PageCursor     string
+	ID             uuid.UUID
+	Body           string
+	CreatedAt      time.Time
+	HiddenAt       pgtype.Timestamptz
+	ProductSlug    string
+	ProductName    string
+	Asker          string
+	Answers        int64
+	AnsweredByShop bool
+}
+
+func (q *Queries) AdminQuestions(ctx context.Context, arg AdminQuestionsParams) ([]AdminQuestionsRow, error) {
+	rows, err := q.db.Query(ctx, adminQuestions,
+		arg.Hidden,
+		arg.HasCursor,
+		arg.AfterAt,
+		arg.AfterID,
+		arg.AfterRank,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AdminQuestionsRow{}
+	for rows.Next() {
+		var i AdminQuestionsRow
+		if err := rows.Scan(
+			&i.PageCursor,
+			&i.ID,
+			&i.Body,
+			&i.CreatedAt,
+			&i.HiddenAt,
+			&i.ProductSlug,
+			&i.ProductName,
+			&i.Asker,
+			&i.Answers,
+			&i.AnsweredByShop,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const adminReviews = `-- name: AdminReviews :many
 SELECT json_build_object('At', r.created_at, 'ID', r.id)::text AS page_cursor, r.id, r.rating, coalesce(r.title, '') AS title, r.body,
        r.is_verified_purchase, r.hidden_at, r.created_at,
@@ -7025,6 +7161,24 @@ WHERE id = $1 AND hidden_at IS NULL
 
 func (q *Queries) HideQuestion(ctx context.Context, questionID uuid.UUID) (int64, error) {
 	result, err := q.db.Exec(ctx, hideQuestion, questionID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const hideQuestionAnswer = `-- name: HideQuestionAnswer :execrows
+UPDATE product_answers SET hidden_at = now()
+WHERE id = $1 AND question_id = $2 AND hidden_at IS NULL
+`
+
+type HideQuestionAnswerParams struct {
+	AnswerID   uuid.UUID
+	QuestionID uuid.UUID
+}
+
+func (q *Queries) HideQuestionAnswer(ctx context.Context, arg HideQuestionAnswerParams) (int64, error) {
+	result, err := q.db.Exec(ctx, hideQuestionAnswer, arg.AnswerID, arg.QuestionID)
 	if err != nil {
 		return 0, err
 	}
@@ -14531,6 +14685,19 @@ func (q *Queries) ShippingZoneFor(ctx context.Context, arg ShippingZoneForParams
 	return i, err
 }
 
+const showQuestion = `-- name: ShowQuestion :execrows
+UPDATE product_questions SET hidden_at = NULL
+WHERE id = $1 AND hidden_at IS NOT NULL
+`
+
+func (q *Queries) ShowQuestion(ctx context.Context, questionID uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, showQuestion, questionID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const showReview = `-- name: ShowReview :execrows
 UPDATE product_reviews SET hidden_at = NULL
 WHERE id = $1 AND hidden_at IS NOT NULL
@@ -15125,62 +15292,6 @@ type TouchOrderAccessGrantsParams struct {
 func (q *Queries) TouchOrderAccessGrants(ctx context.Context, arg TouchOrderAccessGrantsParams) error {
 	_, err := q.db.Exec(ctx, touchOrderAccessGrants, arg.Digests, arg.Retain)
 	return err
-}
-
-const unansweredQuestions = `-- name: UnansweredQuestions :many
-SELECT q.id, q.body, q.created_at,
-       p.slug AS product_slug, p.name AS product_name,
-       coalesce(u.full_name, '') AS asker,
-       (SELECT count(*) FROM product_answers a
-        WHERE a.question_id = q.id AND a.hidden_at IS NULL)::bigint AS answers,
-       EXISTS (SELECT 1 FROM product_answers a
-               WHERE a.question_id = q.id AND a.is_staff AND a.hidden_at IS NULL) AS answered_by_shop
-FROM product_questions q
-JOIN products p ON p.id = q.product_id
-LEFT JOIN users u ON u.id = q.user_id
-WHERE q.hidden_at IS NULL
-ORDER BY answered_by_shop, q.created_at
-LIMIT $1
-`
-
-type UnansweredQuestionsRow struct {
-	ID             uuid.UUID
-	Body           string
-	CreatedAt      time.Time
-	ProductSlug    string
-	ProductName    string
-	Asker          string
-	Answers        int64
-	AnsweredByShop bool
-}
-
-func (q *Queries) UnansweredQuestions(ctx context.Context, limit int32) ([]UnansweredQuestionsRow, error) {
-	rows, err := q.db.Query(ctx, unansweredQuestions, limit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []UnansweredQuestionsRow{}
-	for rows.Next() {
-		var i UnansweredQuestionsRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.Body,
-			&i.CreatedAt,
-			&i.ProductSlug,
-			&i.ProductName,
-			&i.Asker,
-			&i.Answers,
-			&i.AnsweredByShop,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const uninvoicedOrders = `-- name: UninvoicedOrders :many

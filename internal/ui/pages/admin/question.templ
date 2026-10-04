@@ -7,6 +7,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/icons"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 // A divided list rather than a column of cards: the queue is read down the page for
@@ -24,6 +25,9 @@ templ Questions(p layouts.Page, v QuestionsView) {
 					{ i18n.T(ctx, i18n.KeyAdminQuestionsLead) }
 				</p>
 			</div>
+			@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleGhost}, templ.SafeURL(v.OtherQueueHref())) {
+				{ v.OtherQueueLabel(ctx) }
+			}
 			if v.Waiting() > 0 {
 				@components.Badge(components.BadgeProps{Intent: components.IntentAccent}) {
 					{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQuestionsWaiting), v.WaitingText()) }
@@ -40,7 +44,7 @@ templ Questions(p layouts.Page, v QuestionsView) {
 				<span class="goen-modqueue__emptyicon">
 					@icons.Chat()
 				</span>
-				<p class="goen-admin__emptytitle">{ i18n.T(ctx, i18n.KeyAdminQuestionsEmpty) }</p>
+				<p class="goen-admin__emptytitle">{ v.EmptyLabel(ctx) }</p>
 			</div>
 		} else {
 			<ul class="goen-admin__questions goen-modqueue" role="list">
@@ -65,43 +69,75 @@ templ Questions(p layouts.Page, v QuestionsView) {
 							<span class="goen-admin__meta">
 								{ q.Who(ctx) } · { q.Asked } · { fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQuestionAnswers), q.AnswersText()) }
 							</span>
+							if len(q.Answers) > 0 {
+								<ul role="list">
+									for _, answer := range q.Answers {
+										<li>
+											if answer.IsStaff {
+												@components.Badge(components.BadgeProps{}) {
+													{ i18n.T(ctx, i18n.KeyStaffAnswer) }
+												}
+											}
+											if answer.Hidden {
+												@components.Badge(components.BadgeProps{}) {
+													{ i18n.T(ctx, i18n.KeyAdminQHidden) }
+												}
+											}
+											<p class="goen-admin__note">{ answer.Body }</p>
+											<span class="goen-admin__meta">{ answer.Author } · { answer.At }</span>
+											if !answer.Hidden {
+												<form method="post" action={ templ.SafeURL(q.AnswerAction()) }>
+													<input type="hidden" name="answer_id" value={ answer.ID }/>
+													@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleGhost, Size: components.SizeSmall, Attrs: templ.Attributes{"name": "action", "value": string(QuestionHideAnswerAction)}}, "submit") {
+														{ i18n.T(ctx, i18n.KeyAdminAnswerHide) }
+													}
+												</form>
+											}
+										</li>
+									}
+								</ul>
+							}
 						</div>
 						<form class="goen-admin__form" method="post" action={ templ.SafeURL(q.AnswerAction()) }>
-							<div class="goen-admin__field">
-								@components.Label(components.LabelProps{For: "answer-" + q.ID}) {
-									{ i18n.T(ctx, i18n.KeyAdminQuestionReply) }
-								}
-								@components.Textarea(components.FieldProps{
-									ID:        "answer-" + q.ID,
-									Name:      "body",
-									Invalid:   q.Error != "",
-									Describes: "answer-error-" + q.ID,
-									Attrs: templ.Attributes{
-										"maxlength":   "1000",
-										"placeholder": i18n.T(ctx, i18n.KeyAdminQuestionHint),
-										"rows":        "3",
-									},
-								}) {
-									{ q.Draft }
-								}
-								if q.Error != "" {
-									<p class="ui-error-text" id={ "answer-error-" + q.ID } role="alert">{ q.Error }</p>
-								}
-							</div>
+							if !q.Hidden {
+								<div class="goen-admin__field">
+									@components.Label(components.LabelProps{For: "answer-" + q.ID}) {
+										{ i18n.T(ctx, i18n.KeyAdminQuestionReply) }
+									}
+									@components.Textarea(components.FieldProps{
+										ID:        "answer-" + q.ID,
+										Name:      "body",
+										Invalid:   q.Error != "",
+										Describes: "answer-error-" + q.ID,
+										Attrs: templ.Attributes{
+											"maxlength":   "1000",
+											"placeholder": i18n.T(ctx, i18n.KeyAdminQuestionHint),
+											"rows":        "3",
+										},
+									}) {
+										{ q.Draft }
+									}
+									if q.Error != "" {
+										<p class="ui-error-text" id={ "answer-error-" + q.ID } role="alert">{ q.Error }</p>
+									}
+								</div>
+							}
 							<div class="goen-modqueue__actions">
-								@components.Button(components.ButtonProps{
-									ButtonStyle: components.ButtonStyleOutline,
-									Size:        components.SizeSmall,
-									Attrs:       templ.Attributes{"name": "action", "value": "answer"},
-								}, "submit") {
-									{ i18n.T(ctx, i18n.KeyAdminQuestionSend) }
+								if !q.Hidden {
+									@components.Button(components.ButtonProps{
+										ButtonStyle: components.ButtonStyleOutline,
+										Size:        components.SizeSmall,
+										Attrs:       templ.Attributes{"name": "action", "value": string(QuestionAnswerAction)},
+									}, "submit") {
+										{ i18n.T(ctx, i18n.KeyAdminQuestionSend) }
+									}
 								}
 								@components.Button(components.ButtonProps{
 									ButtonStyle: components.ButtonStyleGhost,
 									Size:        components.SizeSmall,
-									Attrs:       templ.Attributes{"name": "action", "value": "hide"},
+									Attrs:       templ.Attributes{"name": "action", "value": string(q.VisibilityAction())},
 								}, "submit") {
-									{ i18n.T(ctx, i18n.KeyAdminQuestionHide) }
+									{ q.VisibilityLabel(ctx) }
 								}
 							</div>
 						</form>
@@ -109,5 +145,6 @@ templ Questions(p layouts.Page, v QuestionsView) {
 				}
 			</ul>
 		}
+		@pages.ListPager(v.Bound)
 	}
 }

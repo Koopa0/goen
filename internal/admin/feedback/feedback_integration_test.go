@@ -42,7 +42,7 @@ func TestTheQueuePutsWhatTheShopOwesFirst(t *testing.T) {
 	}
 	newest := ask(t, ps, slug, asker, "最新的,沒人回", -1)
 
-	view, err := s.Questions(ctx)
+	view, err := s.Questions(ctx, feedback.VisibleQuestions)
 	if err != nil {
 		t.Fatalf("questions: %v", err)
 	}
