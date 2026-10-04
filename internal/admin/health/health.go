@@ -54,8 +54,10 @@ const (
 	MaxExpiredSessions   = 500
 	MaxUnreferencedMedia = 200
 	// UninvoicedAfter is how long a paid order may go without an invoice
-	// operation: many passes of the outbox and of the invoice reconciler.
+	// operation, and UnvoidedAfter how long a cancelled order's invoice may stay
+	// live: many passes of the outbox and of the invoice reconciler.
 	UninvoicedAfter = 15 * time.Minute
+	UnvoidedAfter   = 15 * time.Minute
 )
 
 func (s *Store) WorkerHealth(ctx context.Context, messages *outbox.Store) (admin.WorkerHealthView, error) {
@@ -131,7 +133,33 @@ func (s *Store) WorkerHealth(ctx context.Context, messages *outbox.Store) (admin
 	if err != nil {
 		return admin.WorkerHealthView{}, err
 	}
+	view.CancelledInvoices, view.CancelledInvoiceCount, err = s.CancelledOrderInvoices(ctx, UnvoidedAfter)
+	if err != nil {
+		return admin.WorkerHealthView{}, err
+	}
 	return view, nil
+}
+
+func (s *Store) CancelledOrderInvoices(
+	ctx context.Context, olderThan time.Duration,
+) ([]admin.CancelledOrderInvoice, int64, error) {
+	rows, err := s.q.CancelledOrderInvoices(ctx, pgtype.Interval{
+		Microseconds: olderThan.Microseconds(), Valid: true,
+	})
+	if err != nil {
+		return nil, 0, fmt.Errorf("read live invoices of cancelled orders: %w", err)
+	}
+	out := make([]admin.CancelledOrderInvoice, len(rows))
+	var total int64
+	for i := range rows {
+		r := &rows[i]
+		total = r.Total
+		out[i] = admin.CancelledOrderInvoice{
+			OrderNumber: r.OrderNumber, Number: r.Number, AmountCents: r.AmountCents,
+			IssuedOn: shoptime.Day(r.IssuedAt),
+		}
+	}
+	return out, total, nil
 }
 
 func (s *Store) UninvoicedOrders(

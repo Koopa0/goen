@@ -453,6 +453,34 @@ func TestTheOrderPageShowsTheDiscountAndWhy(t *testing.T) {
 	}
 }
 
+// TestACreditPaidOrdersCancelSaysItVoidsTheInvoice: the customer's own press is
+// the consent to voiding the 統一發票, so the form says so in both languages,
+// and only where an invoice was owed.
+func TestACreditPaidOrdersCancelSaysItVoidsTheInvoice(t *testing.T) {
+	t.Parallel()
+	order := func(creditCents, owedCents int64) *OrderView {
+		return &OrderView{
+			Number: "GO-260101-000003", Status: "pending", ShippingName: "宅配",
+			SubtotalCents: 100000, ShippingCents: 6000,
+			CreditCents: creditCents, OwedCents: owedCents,
+		}
+	}
+	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+		ctx := i18n.WithLocale(t.Context(), locale)
+		voids := templ.EscapeString(i18n.T(ctx, i18n.KeyOrderCancelVoidsInvoice))
+		if got := renderIn(t, locale, Order(layouts.Page{Title: "order"}, order(106000, 0))); !strings.Contains(got, voids) {
+			t.Errorf("%s: the cancel form of a credit-paid order does not say the invoice is voided", locale)
+		}
+		// Unpaid, part paid by credit, and free: none was owed an invoice.
+		for _, uninvoiced := range []*OrderView{order(0, 106000), order(6000, 100000), order(0, 0)} {
+			if got := renderIn(t, locale, Order(layouts.Page{Title: "order"}, uninvoiced)); strings.Contains(got, voids) {
+				t.Errorf("%s: an order with %d credit owing %d says cancelling voids an invoice it never had",
+					locale, uninvoiced.CreditCents, uninvoiced.OwedCents)
+			}
+		}
+	}
+}
+
 // TestOnlyAnOrderThatOwesMoneyIsOfferedPayment holds the two funded cases apart:
 // a captured card leaves the order committed and still owing, and a wholly
 // store-credited one owes nothing and is not committed until it leaves pending.

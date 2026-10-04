@@ -64,6 +64,13 @@ SELECT claim_invoice_void(
     @document_id::uuid, @reason::text, @actor_user_id::uuid, @request_id::text
 )::uuid AS operation_id;
 
+-- The system's void of a cancelled order's invoice: no actor, and the
+-- cancellation as the request id.
+-- name: ClaimSystemInvoiceVoid :one
+SELECT claim_invoice_void(
+    @document_id::uuid, @reason::text, NULL::uuid, @request_id::text
+)::uuid AS operation_id;
+
 -- One durable operation and its frozen request. Nil target/result UUIDs avoid a
 -- nullable UUID at the Go state-machine boundary; kind/status say which applies.
 -- name: InvoiceOperation :one

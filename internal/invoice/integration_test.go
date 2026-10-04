@@ -769,6 +769,8 @@ func TestInvoiceDoorRuleBranchesFailByTheirExactNames(t *testing.T) {
 		`SELECT claim_invoice_void($1,'reason',$2,'named-rule')`, uuid.New(), filingActor)
 	assertRule("invoice_void_issue_operation",
 		`SELECT claim_invoice_void($1,'reason',$2,'named-rule')`, invoiceID, filingActor)
+	assertRule("invoice_audit_actor",
+		`SELECT claim_invoice_void($1,'reason',NULL::uuid,'named-rule')`, invoiceID)
 
 	issueOrder := orderToInvoice(t, 100000, 0, 0)
 	var issueOperation uuid.UUID

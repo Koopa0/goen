@@ -456,6 +456,19 @@ ORDER BY r.variant_id, r.id;
 -- LockOrderByNumber: a capture holds the order lock without updating the row,
 -- so an UPDATE that waited for it would judge payment by the snapshot taken
 -- before the wait and reach the transition trigger, which store may not run.
+-- Whether store credit alone paid the order, read before the cancellation
+-- returns the credit: checkout queued its 統一發票 then. A customer cancels only
+-- an uncommitted order, which no card has paid, so owing nothing on a positive
+-- total means credit paid it.
+-- name: PaidByCreditAlone :one
+SELECT coalesce(order_amount_owed(o.id) = 0
+                AND coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
+                              WHERE ol.order_id = o.id), 0)
+                    - o.discount_cents + o.shipping_cents + o.tax_cents > 0,
+                false)::boolean AS paid_by_credit
+FROM orders o
+WHERE o.id = $1;
+
 -- name: CancelOrderByCustomer :execrows
 UPDATE orders SET fulfillment_status = 'cancelled', cancelled_at = now()
 WHERE id = $1

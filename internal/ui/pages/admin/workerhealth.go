@@ -36,6 +36,8 @@ type WorkerHealthView struct {
 	OpenRefunds                  []OpenRefund
 	UninvoicedCount              int64
 	Uninvoiced                   []UninvoicedOrder
+	CancelledInvoiceCount        int64
+	CancelledInvoices            []CancelledOrderInvoice
 
 	OutboxStaleAfter     time.Duration
 	MaxExpiredHolds      int64
@@ -90,7 +92,8 @@ func (v *WorkerHealthView) PaymentsReconciled() bool { return v.UnreconciledPaym
 func (v *WorkerHealthView) AllHealthy() bool {
 	return v.OutboxHealthy() && v.SweeperHealthy() &&
 		v.RecommendHealthy() && v.HousekeepingHealthy() && v.RefundsHealthy() &&
-		v.PaymentsReconciled() && v.ClaimsSettled() && v.PaidOrdersInvoiced()
+		v.PaymentsReconciled() && v.ClaimsSettled() && v.PaidOrdersInvoiced() &&
+		v.CancelledOrdersInvoicesRelieved()
 }
 
 func (v *WorkerHealthView) PaidOrdersInvoiced() bool { return v.UninvoicedCount == 0 }
@@ -106,6 +109,24 @@ type UninvoicedOrder struct {
 }
 
 func (o UninvoicedOrder) Amount() string { return money.TWD(o.AmountCents) }
+
+func (v *WorkerHealthView) CancelledOrdersInvoicesRelieved() bool {
+	return v.CancelledInvoiceCount == 0
+}
+
+func (v *WorkerHealthView) CancelledInvoicesText(ctx context.Context) string {
+	return i18n.Count(ctx, i18n.KeyAdminHPCancelledInvoicesHint, v.CancelledInvoiceCount, v.CancelledInvoiceCount)
+}
+
+// CancelledOrderInvoice is an issued 統一發票 its order's cancellation left live.
+type CancelledOrderInvoice struct {
+	OrderNumber string
+	Number      string
+	AmountCents int64
+	IssuedOn    string
+}
+
+func (i CancelledOrderInvoice) Amount() string { return money.TWD(i.AmountCents) }
 
 func (v *WorkerHealthView) OutboxText(ctx context.Context) string {
 	switch {

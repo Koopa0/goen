@@ -3,6 +3,8 @@ package invoice
 import (
 	"testing"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 func TestVoidDeadlineIsTheThirteenthAfterThePeriod(t *testing.T) {
@@ -57,5 +59,20 @@ func TestAVoidIsOfferedUntilTheDeadlineAndNotAfterAnAllowance(t *testing.T) {
 				t.Errorf("voidable(%s, allowed=%v) = %v, want %v", tt.now, tt.allowed, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestAVoidDueEndsWhereNoVoidCanReachTheInvoice(t *testing.T) {
+	t.Parallel()
+
+	for constraint, wantDone := range map[string]bool{
+		"invoice_void_target":          true,
+		"invoice_void_issue_operation": true,
+		"invoice_audit_actor":          false,
+	} {
+		err := voidDueClaimOutcome("AB12345678", &pgconn.PgError{Code: "23514", ConstraintName: constraint})
+		if done := err == nil; done != wantDone {
+			t.Errorf("a claim refused by %s: done = %v (%v), want %v", constraint, done, err, wantDone)
+		}
 	}
 }
