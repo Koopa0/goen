@@ -8592,7 +8592,7 @@ func (q *Queries) LockReturnOrder(ctx context.Context, id uuid.UUID) (uuid.UUID,
 }
 
 const lockShippingMethod = `-- name: LockShippingMethod :one
-SELECT id FROM shipping_methods WHERE id = $1 FOR NO KEY UPDATE
+SELECT id FROM shipping_methods WHERE id = $1
 `
 
 // Fee publication and surcharge edits share this root; version rows are append-only.
@@ -8608,7 +8608,6 @@ SELECT sm.id
 FROM shipping_methods sm
 JOIN shipping_method_versions v ON v.method_id = sm.id
 WHERE v.id = $1
-FOR NO KEY UPDATE OF sm
 `
 
 func (q *Queries) LockShippingMethodForVersion(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
