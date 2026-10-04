@@ -2,6 +2,7 @@ package admin
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
@@ -10,7 +11,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
-// Every figure is a link: a count on its own says there is work and not where it is.
+// Every figure and every task is a link: a count on its own says there is work and not where it is.
 templ Dashboard(p layouts.Page, v DashboardView) {
 	@layouts.Admin(p, "dashboard") {
 		<div class="ui-page-head">
@@ -19,6 +20,19 @@ templ Dashboard(p layouts.Page, v DashboardView) {
 				<h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyAdminQueueDashboardTitle) }</h1>
 			</div>
 		</div>
+		if len(v.Tasks) > 0 {
+			<section class="goen-admin__queue" aria-labelledby="tasks-heading">
+				<h2 class="goen-admin__heading" id="tasks-heading">{ i18n.T(ctx, i18n.KeyAdminQueueTasksHeading) }</h2>
+				<ul class="goen-admin__tasks" role="list">
+					for _, t := range v.Tasks {
+						<li class="goen-admin__task">
+							<a href={ templ.URL(t.Href) }>{ i18n.T(ctx, t.Label) }</a>
+							<span class="goen-admin__cellnum">{ strconv.FormatInt(t.Count, 10) }</span>
+						</li>
+					}
+				</ul>
+			</section>
+		}
 		<div class="goen-admin__stats">
 			@components.StatTile(components.StatTileProps{
 				Label: i18n.T(ctx, i18n.KeyAdminQueueStatPending),
@@ -26,40 +40,14 @@ templ Dashboard(p layouts.Page, v DashboardView) {
 				Href:  "/admin/orders?status=pending",
 			})
 			@components.StatTile(components.StatTileProps{
-				Label: i18n.T(ctx, i18n.KeyAdminStatusReadyToPick),
-				Value: v.ReadyText(),
-				Href:  "/admin/orders?status=ready",
-			})
-			@components.StatTile(components.StatTileProps{
 				Label: i18n.T(ctx, i18n.KeyAdminStatusPicking),
 				Value: v.PickingText(),
 				Href:  "/admin/orders?status=picking",
 			})
 			@components.StatTile(components.StatTileProps{
-				Label: i18n.T(ctx, i18n.KeyAdminQueueStatReturns),
-				Value: v.PendingReturnsText(),
-				Note:  v.ReturnsAgeNote(ctx),
-				Href:  "/admin/returns",
-			})
-			@components.StatTile(components.StatTileProps{
-				Label: i18n.T(ctx, i18n.KeyAdminQueueStatQuestions),
-				Value: v.UnansweredQuestionsText(),
-				Href:  "/admin/questions",
-			})
-			@components.StatTile(components.StatTileProps{
-				Label: i18n.T(ctx, i18n.KeyAdminQueueStatLowStock),
-				Value: v.LowStockText(),
-				Href:  "/admin/stock?low=1",
-			})
-			@components.StatTile(components.StatTileProps{
 				Label: i18n.T(ctx, i18n.KeyAdminQueueStatActive),
 				Value: v.ActiveProductsText(),
 				Href:  "/admin/products",
-			})
-			@components.StatTile(components.StatTileProps{
-				Label: i18n.T(ctx, i18n.KeyAdminQueueStatMessages),
-				Value: v.OpenMessagesText(),
-				Href:  "/admin/messages",
 			})
 		</div>
 		<section class="goen-admin__queue" aria-labelledby="orders-heading">

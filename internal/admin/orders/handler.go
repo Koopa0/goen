@@ -55,6 +55,11 @@ func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
 		access.ServerError(w, r, h.log)
 		return
 	}
+	if health, err := h.store.HealthTasks(r.Context()); err != nil {
+		h.log.ErrorContext(r.Context(), "read health tasks for the dashboard", "error", err)
+	} else {
+		view.Tasks = append(health, view.Tasks...)
+	}
 	web.Render(w, r, h.log, http.StatusOK, admin.Dashboard(admin.Meta(r.Context()), view))
 }
 

@@ -696,6 +696,9 @@ func TestAReviewerIsMaskedTheSameWayForEveryReview(t *testing.T) {
 		{"en lower case", i18n.En, "bob", "B."},
 		{"en han name", i18n.En, "王小明", "王."},
 		{"padded", i18n.ZhHant, "  陳大文", "陳○○"},
+		{"leading replacement character zh", i18n.ZhHant, "\uFFFD Example Person", "\uFFFD○○"},
+		{"leading replacement character en", i18n.En, "\uFFFD Example Person", "\uFFFD."},
+		{"blank", i18n.ZhHant, "   ", "○○"},
 		{"no name zh", i18n.ZhHant, "", "匿名顧客"},
 		{"no name en", i18n.En, "", "Anonymous"},
 	}
@@ -1274,6 +1277,12 @@ func TestQuestionsAndAnswersMaskNamesLikeReviews(t *testing.T) {
 	}
 	if got := (Answer{Author: "陳大文"}).Who(ctx); got != "陳○○" {
 		t.Errorf("answerer shown as %q, want 陳○○", got)
+	}
+	if got := (Question{Asker: "\uFFFD Example Person"}).Who(ctx); strings.Contains(got, "Example") {
+		t.Errorf("asker shown as %q, which carries the rest of the name", got)
+	}
+	if got := (Answer{Author: "\uFFFD Example Person"}).Who(ctx); strings.Contains(got, "Example") {
+		t.Errorf("answerer shown as %q, which carries the rest of the name", got)
 	}
 	if got := (Answer{Author: "陳大文", IsStaff: true}).Who(ctx); got != "goen" {
 		t.Errorf("staff answer shown as %q, want goen", got)
