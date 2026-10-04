@@ -38,7 +38,7 @@ func (s FulfillmentStatus) Next() []FulfillmentStatus {
 	case FulfillmentPending:
 		return []FulfillmentStatus{FulfillmentPicking, FulfillmentCancelled}
 	case FulfillmentPicking:
-		return []FulfillmentStatus{FulfillmentCancelled}
+		return []FulfillmentStatus{FulfillmentShipped, FulfillmentCancelled}
 	case FulfillmentShipped:
 		return []FulfillmentStatus{FulfillmentDelivered, FulfillmentCompleted}
 	case FulfillmentDelivered:
