@@ -6114,8 +6114,7 @@ BEGIN
     WHERE id = p_operation_id
       AND kind = 'allowance'
       AND send_attempts > resend_authorizations
-      AND ((status = 'pending' AND last_error = 'allowance_not_yet_visible')
-           OR (status = 'attention' AND last_error = 'allowance_buyer_unconfirmed'))
+      AND status = 'pending' AND last_error = 'allowance_not_yet_visible'
       AND last_send_at IS NOT NULL
       AND last_send_at <= now() - interval '15 minutes'
       AND (lease_until IS NULL OR lease_until <= now())
