@@ -38,15 +38,15 @@ Runtime libraries and the templ tool are pinned in [go.mod](go.mod); sqlc, migra
 | Go `net/http` | Routing, middleware, request contexts, HTTP lifecycle | One mux composes feature handlers; built-in [`CrossOriginProtection`](cmd/goen/middleware.go) protects browser writes without per-form CSRF tokens. |
 | `github.com/a-h/templ` | Typed page/component rendering | [Templates](internal/ui/pages) compile with their Go view types; [`templ-check`](Makefile) catches source/output drift. |
 | htmx | HTML fragment enhancement | [`ContactPanel`](internal/ui/pages/contact.templ) retains a plain form action/method while adding fragment replacement; the server owns the operation in both modes. |
-| `github.com/jackc/pgx/v5` | PostgreSQL connections, pools, transactions | Separate fixed-role pools keep reused connections within their intended authority; [`openAdminPool`](cmd/goen/main.go) explains why a shared pool cannot switch roles safely. |
+| `github.com/jackc/pgx/v5` | PostgreSQL connections, pools, transactions | Separate fixed-role pools prevent `SET ROLE` on a reused connection from running the next storefront request as admin ([`openAdminPool`](cmd/goen/main.go)). |
 | sqlc | SQL-to-Go query generation | [sqlc.yaml](sqlc.yaml) compiles feature-owned SQL into typed `db.Queries`, keeping the executed SQL reviewable beside its feature. |
-| `github.com/golang-migrate/migrate/v4` | Numbered SQL migration execution | Explicit SQL changes and an up/down/up [CI check](.github/workflows/verify.yml) exercise schema reversibility independently of application startup. |
+| `github.com/golang-migrate/migrate/v4` | Numbered SQL migration execution | Applies the plain SQL migration files as the schema owner, outside binary startup ([migration commands](Makefile)). |
 | PostgreSQL roles + `SECURITY DEFINER` | Restricted business mutations | [Schema grants and functions](migrations/001_initial_schema.up.sql) make payment, refund, invoice, and ledger rules apply across all callers. |
 | `github.com/stripe/stripe-go/v86` / Checkout | Hosted card entry, payment events, refunds | Stripe hosts card entry; [`StartSession`](internal/payment/stripe.go) binds the remote session to local stock expiry, and local payment rows anchor attribution. |
 | ECPay clients in `invoice` and `cart` | E-invoices, mobile barcodes, store selection | The shop files Taiwan uniform invoices ([shop scope](CONTRIBUTING.md#what-goen-is)); the [store map](internal/cart/ecpaymap.go) supplies convenience-store selection under its logistics contract. |
 | `golang.org/x/crypto/argon2` | Customer and staff password hashing | Salted Argon2id makes password guessing memory- and work-intensive; [`HashPassword`](internal/account/account.go) fixes those costs for customer and staff credentials. |
 | Go HMAC-SHA1 / AES-GCM; `rsc.io/qr` | Staff TOTP, encrypted secrets, enrollment QR | Authenticator-compatible codes add staff step-up; [`twofactor`](internal/twofactor) rejects replay, encrypts stored secrets, and renders `ProvisioningURI` as a QR code. |
-| Go `log/slog` | Request, worker, and query diagnostics | Request identity connects HTTP and query diagnostics; [`slowQueryTracer`](cmd/goen/slowquery.go) keeps customer-valued SQL arguments out of logs. |
+| Go `log/slog` | Request, worker, and query diagnostics | Request identity connects HTTP and query diagnostics; [`slowQueryTracer`](cmd/goen/slowquery.go) omits SQL arguments, which carry customers' personal data. |
 | `testcontainers-go` + `modules/postgres` | PostgreSQL integration fixtures | [`dbtest.Start`](internal/db/dbtest/dbtest.go) applies real migrations so constraints, role grants, and concurrent writes are exercised by PostgreSQL itself. |
 | Chrome/Chromium + axe-core | Browser layout/accessibility gate | [Browser probes](scripts/check-layout.mjs) test rendered dimensions, keyboard behaviour, and accessibility that template structure alone cannot establish. |
 
@@ -69,6 +69,8 @@ flowchart TB
     listen --> stop["Signal cancellation → HTTP drain → workers finish → pools close"]
 ```
 
+[`servingPool`](cmd/goen/main.go) wraps `openPool`, and `reachableAdminPool` wraps `openAdminPool`, adding startup reachability checks.
+
 | Pool constructor / role | Maximum connections | SQL statement budget | Users |
 | --- | --- | --- | --- |
 | `openPool` / `store` | 25 | 15 seconds | Storefront, account authentication, outbox, customer-data sweeps. |
@@ -89,13 +91,13 @@ Each pool assigns its role when connecting. [`StorefrontConfig` and `BackOfficeC
 6. `securityHeaders` applies CSP, nosniff, referrer policy, and secure-mode HSTS.
 7. `web.RefuseUnstorableText` rejects invalid UTF-8 and NUL in paths and queries.
 8. `crossOriginProtection` rejects cross-site writes, with a configured store-map return exception.
-9. `withStorefrontRequestBudget` bounds nonstateless request work, including `/admin`.
+9. `withStorefrontRequestBudget` bounds request work, including `/admin`, except static assets, media, probes, webhooks, and the favicon.
 10. `onlyVisitorPaths(customers.Authenticate)` loads the session identity.
 11. `onlyVisitorPaths(basket.WithCount)` populates the cart count.
 12. `onlyVisitorPaths(withLocale)` chooses the language and locale-switch return path.
 13. `withNoStore` prevents caching signed-in, private/token, and write responses.
 14. `withSiteOrigin` supplies the canonical origin/path for document URLs.
-15. `withStaffEntrance` exposes the staff entrance where appropriate.
+15. `withStaffEntrance` tells storefront pages a signed-in staff member may reach the back office.
 16. `withTopNav` loads localized storefront categories.
 17. `withBanner` loads the eligible promotional banner.
 18. `http.ServeMux` dispatches through route-specific access/rate-limit guards to the feature handler.
@@ -154,22 +156,21 @@ sequenceDiagram
 
 [CONTRIBUTING.md](CONTRIBUTING.md#change-it) establishes feature packaging: handlers, stores, SQL, and tests live together. Handlers call stores; stores use `db.Queries` and may return `ui/pages` view models directly. `cmd/goen` wires the dependencies. [`sqlc.yaml`](sqlc.yaml) maps each feature's `query.sql` into `internal/db`; [`make gen`](Makefile) turns UI and email `.templ` sources into `*_templ.go`.
 
-Features currently import other features: [`cart`](internal/cart) uses `account`, `payment`, and `invoice`; [`admin/orders`](internal/admin/orders) uses `cart`, `payment`, and `invoice`. Both [storefront pages](internal/ui/pages/cart.go) and [admin pages](internal/ui/pages/admin/orders.go) import invoice types; [admin return pages](internal/ui/pages/admin/returns.go) also import `returns`. These groups organise responsibilities without imposing strict import layers. [#1020](../../issues/1020) governs conventions and staged moves.
+Features import other features: [`cart`](internal/cart) uses `account`, `payment`, and `invoice`; [`admin/orders`](internal/admin/orders) uses `cart`, `payment`, and `invoice`. Across the [admin desks](internal/admin), imports also reach `catalog`, `home`, `newsletter`, and `loyalty`. Both [storefront pages](internal/ui/pages/cart.go) and [admin pages](internal/ui/pages/admin/orders.go) import invoice types; [admin return pages](internal/ui/pages/admin/returns.go) also import `returns`. [#1020](../../issues/1020) governs conventions and staged moves. The arrows show selected production imports between responsibility groups.
 
 ```mermaid
 flowchart TB
-    composition["cmd/goen"] --> storefront["Storefront features<br/>home, catalog, product, cart, account, payment"]
-    composition --> desks["Admin desks<br/>internal/admin/orders, refunds, products, staff, ..."]
-    composition --> background["Deferred work<br/>outbox, email, recommend, media"]
-    storefront --> ui["Presentation<br/>ui/pages, pages/admin, layouts, components, icons"]
-    desks --> ui
-    desks -->|orders imports cart/payment| storefront
+    composition["cmd/goen"] --> storefront["Storefront features<br/>account, cart, catalog, payment, home, ..."]
+    composition --> desks["Admin desks<br/>internal/admin/*"]
+    composition --> infra["Shared infrastructure<br/>db, web, probe, ratelimit, i18n, assets<br/>outbox, email, media, recommend"]
+    storefront & desks --> ui["Presentation<br/>ui/pages, pages/admin, layouts, components, icons"]
+    desks --> storefront
     storefront & desks --> invoice["invoice"]
     desks --> returns["returns"]
-    ui -->|invoice view types| invoice
-    ui -->|admin return view types| returns
-    storefront & desks & ui --> vocabulary["Shared vocabulary<br/>order, money, shoptime, carrier, pickup, destination"]
-    storefront & desks & ui & background --> infra["Infrastructure<br/>db, web, ratelimit, i18n, assets"]
+    ui -->|invoice types| invoice
+    ui -->|return types| returns
+    storefront & desks & ui & invoice & returns --> infra
+    storefront & desks & ui & infra & invoice & returns --> vocabulary["Shared vocabulary<br/>order, money, shoptime, carrier<br/>pickup, destination, coupon, admin/refundstate"]
 ```
 
 | Package | Responsibility |
@@ -204,12 +205,12 @@ flowchart TB
 | [`internal/cart`](internal/cart) | Baskets, checkout, holds, order access/cancellation/reorder, pickup flow. |
 | [`internal/catalog`](internal/catalog) | Listings, search, comparisons, deals, campaign browsing. |
 | [`internal/contact`](internal/contact) | Contact-form validation and stored messages. |
+| [`internal/coupon`](internal/coupon) | Closed coupon kinds shared by checkout, administration, and presentation. |
 | [`internal/db`](internal/db) | Generated queries/types, schema-conformance and CI-policy tests (`workflow-check`). |
 | [`internal/db/dbtest`](internal/db/dbtest) | PostgreSQL testcontainers and migration fixtures. |
 | [`internal/destination`](internal/destination) | Closed shipping-destination vocabulary. |
 | [`internal/email`](internal/email) | Mail content, templ rendering, SMTP/log transports. |
 | [`internal/fieldrule`](internal/fieldrule) | Browser field constraints aligned with server validation. |
-| [`internal/health`](internal/health) | Public liveness and database-readiness probes. |
 | [`internal/home`](internal/home) | Homepage and shared navigation/banner reads. |
 | [`internal/i18n`](internal/i18n) | Application wording, locale detection, translated labels. |
 | [`internal/invoice`](internal/invoice) | ECPay clients, durable invoice operations, recovery, documents. |
@@ -224,6 +225,7 @@ flowchart TB
 | [`internal/payment`](internal/payment) | Stripe attempts, Checkout, signed webhook settlement. |
 | [`internal/pgerr`](internal/pgerr) | PostgreSQL error classification by code/constraint. |
 | [`internal/pickup`](internal/pickup) | Convenience-store chain identities. |
+| [`internal/probe`](internal/probe) | Public liveness and database-readiness probes. |
 | [`internal/product`](internal/product) | Product detail, reviews, questions, restock subscriptions. |
 | [`internal/ratelimit`](internal/ratelimit) | In-memory limits and trusted-proxy client addresses. |
 | [`internal/recommend`](internal/recommend) | Co-purchase projection refresh. |
@@ -241,7 +243,9 @@ flowchart TB
 
 ## Data authority
 
-[Schema grants](migrations/001_initial_schema.up.sql) forbid direct writes by `store` and `admin` to six tables: `payments`, `refunds`, `invoice_operations`, `invoice_documents`, `invoice_document_lines`, and `audit_events`. Granted `SECURITY DEFINER` functions control these writes. Other tables retain explicit grants: `store` can insert webhook evidence into `payment_webhook_events` and checkout preferences into `invoice_preferences`.
+[Schema grants](migrations/001_initial_schema.up.sql) reserve ledger mutations for granted `SECURITY DEFINER` functions. Tables that neither `store` nor `admin` may directly insert, update, or delete include `payments`, `refunds`, `invoice_operations`, `invoice_documents`, `invoice_document_lines`, `audit_events`, `inventory_movements`, `inventory_reservations`, `store_credit_entries`, `order_number_counters`, and `loyalty_redemption_operations`.
+
+[`TestEveryDefinerWrittenTableIsRevoked`](internal/db/coverage_integration_test.go) checks table-level privileges for every statically detected definer-written table, including explicit exceptions for first-use `store_credit_accounts` insertion and shared cleanup. Catalogue-column grants permit product edits while protecting stock quantities. The storefront also inserts webhook evidence into `payment_webhook_events` and checkout preferences into `invoice_preferences`.
 
 ```mermaid
 flowchart TB
@@ -414,7 +418,7 @@ stateDiagram-v2
 
 ## Failure handling and operating limits
 
-| Failure/boundary | Implemented response and evidence |
+| Failure/boundary | Application response and recovery |
 | --- | --- |
 | Duplicate checkout or webhook | `claimCheckoutKey` resolves the prior order; `processWebhook` claims event/effect atomically ([cart store](internal/cart/store.go), [payment store](internal/payment/store.go)). |
 | Database failure during webhook | Return `500` so Stripe retries; safely identified but unappliable events become durable alarms and receive `200` ([Webhook](internal/payment/handler.go)). |
@@ -452,4 +456,4 @@ Amounts are integer cents bounded by the schema; [`money`](internal/money/money.
 | `vulnerabilities` | Reachable Go dependency vulnerabilities through `govulncheck`. |
 | CodeQL `analyze` | Go and Actions analysis in [codeql.yml](.github/workflows/codeql.yml). |
 
-`TestEveryCheckConstraintIsExercised` and `TestEveryDefinerWrittenTableIsRevoked` derive database obligations from the catalogue ([coverage tests](internal/db/coverage_integration_test.go)). `TestTwoOrdersCannotTakeTheSameLastUnit` and `TestRefundsCannotRacePastCapture` exercise concurrency ([cart tests](internal/cart/integration_test.go), [rule tests](internal/db/rules_integration_test.go)). `TestEveryFormWorksWithScriptingOff` checks form structure ([writeface_test.go](internal/ui/pages/writeface_test.go)); browser execution is separate evidence.
+`TestEveryCheckConstraintIsExercised` and `TestEveryDefinerWrittenTableIsRevoked` derive database obligations from the catalogue ([coverage tests](internal/db/coverage_integration_test.go)). `TestTwoOrdersCannotTakeTheSameLastUnit` and `TestRefundsCannotRacePastCapture` exercise concurrency ([cart tests](internal/cart/integration_test.go), [rule tests](internal/db/rules_integration_test.go)). `TestEveryFormWorksWithScriptingOff` checks form structure ([writeface_test.go](internal/ui/pages/writeface_test.go)); the browser gate tests rendered pages and interactions.
