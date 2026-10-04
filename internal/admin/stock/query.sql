@@ -10,7 +10,7 @@ SELECT json_build_object('Number', (pv.stock_quantity - pv.safety_stock), 'Name'
     p.slug,
     p.name AS product_name,
     p.status AS product_status,
-    b.name AS brand,
+    coalesce(b.name, '') AS brand,
     ARRAY(SELECT localized_name(v.value, v.value_en, @locale::text)
           FROM variant_option_values vov
           JOIN product_options o ON o.id = vov.option_id
@@ -19,7 +19,7 @@ SELECT json_build_object('Number', (pv.stock_quantity - pv.safety_stock), 'Name'
           ORDER BY o.position, o.id)::text[] AS option_values
 FROM product_variants pv
 JOIN products p ON p.id = pv.product_id
-JOIN brands b ON b.id = p.brand_id
+LEFT JOIN brands b ON b.id = p.brand_id
 WHERE (@low_only::boolean = false OR pv.stock_quantity <= pv.safety_stock)
 AND (@escaped_term::text = ''
        OR pv.sku ILIKE '%' || @escaped_term::text || '%'

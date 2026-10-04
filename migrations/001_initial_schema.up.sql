@@ -210,7 +210,7 @@ CREATE TRIGGER categories_acyclic
 
 CREATE TABLE products (
     id            uuid PRIMARY KEY DEFAULT uuidv7(),
-    brand_id      uuid NOT NULL REFERENCES brands (id) ON DELETE RESTRICT,
+    brand_id      uuid REFERENCES brands (id) ON DELETE RESTRICT,
     category_id   uuid NOT NULL REFERENCES categories (id) ON DELETE RESTRICT,
     slug          text NOT NULL,
     name          text NOT NULL,

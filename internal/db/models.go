@@ -509,7 +509,7 @@ type PaymentWebhookEvent struct {
 
 type Product struct {
 	ID             uuid.UUID
-	BrandID        uuid.UUID
+	BrandID        uuid.NullUUID
 	CategoryID     uuid.UUID
 	Slug           string
 	Name           string
