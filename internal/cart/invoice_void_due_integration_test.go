@@ -152,6 +152,9 @@ func TestACustomersCancelVoidsTheInvoiceTheirCreditPaidFor(t *testing.T) {
 			if err := invoices.ClaimVoidDue(ctx, &due); err != nil {
 				t.Fatalf("claim the void due: %v", err)
 			}
+			if listed(t, number) {
+				t.Errorf("cancelled %s is on the health page while its void is still being sent", number)
+			}
 			void := invoiceOperation(t, number, "void")
 			if err := invoices.ProcessOperation(ctx, void); err != nil {
 				t.Fatalf("send the void: %v", err)
@@ -211,9 +214,9 @@ func TestACustomersCancelWithdrawsAnIssueNoProviderWillSend(t *testing.T) {
 	}
 }
 
-// TestACancelledInvoiceWaitsForAProviderToVoidIt: a void claimed with no
+// TestACancelledOrdersInvoiceWaitsForAProviderToVoidIt: a void claimed with no
 // 加值中心 would sit unsent; the health page names the live invoice instead.
-func TestACancelledInvoiceWaitsForAProviderToVoidIt(t *testing.T) {
+func TestACancelledOrdersInvoiceWaitsForAProviderToVoidIt(t *testing.T) {
 	ctx := t.Context()
 	_, invoices := fakeECPay(t, time.Now())
 	number := creditPaidOrder(t, invoices, "void-due-unset")
@@ -265,16 +268,25 @@ func TestACustomersCancelPastTheVoidWindowLeavesTheInvoiceForStaff(t *testing.T)
 		t.Errorf("%d voids claimed and %d Invalid calls past the window, want none",
 			voids, fake.Calls("/B2CInvoice/Invalid"))
 	}
-	listed, _, err := health.NewStore(adminRole(t)).CancelledOrderInvoices(ctx, 0)
+	if !listed(t, number) {
+		t.Errorf("the live invoice of cancelled %s is not on the health page", number)
+	}
+}
+
+// listed reports whether the health page names the live invoice of the
+// cancelled order number, however recently it was cancelled.
+func listed(t *testing.T, number string) bool {
+	t.Helper()
+	invoices, _, err := health.NewStore(adminRole(t)).CancelledOrderInvoices(t.Context(), 0)
 	if err != nil {
 		t.Fatalf("read the health page's list: %v", err)
 	}
-	for _, inv := range listed {
+	for _, inv := range invoices {
 		if inv.OrderNumber == number {
-			return
+			return true
 		}
 	}
-	t.Errorf("the live invoice of cancelled %s is not on the health page", number)
+	return false
 }
 
 // TestOnlyACreditPaidOrdersCancelQueuesAVoid: an order nobody paid has no
