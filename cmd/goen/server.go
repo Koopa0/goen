@@ -135,7 +135,27 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	mux.HandleFunc("GET /healthz", probes.Live)
 	mux.HandleFunc("GET /readyz", probes.Ready)
 
-	basket, customers, sitePages := storefrontRoutes(mux, cfg, log)
+	catalogue := catalog.NewStore(pool)
+	siteStore := site.NewStore(pool)
+	if !cfg.StoreMap.Enabled() {
+		siteStore = siteStore.WithoutPickup()
+	}
+	sitePages := site.NewHandler(log, baseURL, catalogue, siteStore, secureCookies)
+	// Half of the order-lookup credential is a guessable order number, so
+	// unlimited asking makes the endpoint an oracle for the other half.
+	findLimit := ratelimit.New(ratelimit.Config{
+		Every: 6 * time.Minute, Burst: 10, TTL: time.Hour, MaxKeys: 65_536,
+	})
+	var barcodeChecker cart.MobileBarcodeChecker
+	if cfg.Invoices.Enabled() {
+		barcodeChecker = cfg.Invoices
+	}
+	basketStore := cart.NewStore(pool)
+	basket := cart.NewHandler(basketStore, log, secureCookies, findLimit,
+		sessionCloser(cfg.Payments), cfg.StoreMap, barcodeChecker)
+	customers := account.NewHandler(account.NewStore(pool), basket, log, secureCookies, cfg.Google)
+	customers.OfferDemoAccount(cfg.DemoAccount)
+	storefrontRoutes(mux, cfg, log, catalogue, sitePages, basket, customers, basketStore, findLimit)
 	backOfficeRoutes(mux, cfg, log, poolsOnHealthPage(pool, adminPool, cfg.MaintenancePool))
 	mux.HandleFunc("GET /", sitePages.NotFound)
 
@@ -164,24 +184,23 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 }
 
 // storefrontRoutes registers the shop and the customer account, every handler
-// on the `store` pool. It returns the cart and account handlers the middleware
-// chain reads, and the site pages the catch-all answers from.
-func storefrontRoutes(mux *http.ServeMux, cfg *RouterConfig, log *slog.Logger) (
-	basket *cart.Handler, customers *account.Handler, sitePages *site.Handler) {
+// on the `store` pool. The rest are built by the caller because the middleware
+// chain and the catch-all read them too.
+func storefrontRoutes(mux *http.ServeMux, cfg *RouterConfig, log *slog.Logger,
+	catalogue *catalog.Store, sitePages *site.Handler, basket *cart.Handler,
+	customers *account.Handler, basketStore *cart.Store, findLimit *ratelimit.Limiter) {
 	pool, gateway := cfg.Pool, cfg.Payments
 	baseURL, secureCookies := cfg.BaseURL, cfg.SecureCookies
 	authLimit := ratelimit.New(ratelimit.Config{
 		Every: 3 * time.Second, Burst: 20, TTL: time.Hour, MaxKeys: 65_536,
 	})
-	catalogue := catalog.NewStore(pool)
-	browse := catalog.NewHandler(catalogue, log)
 	// Everything that describes shipping reads what checkout offers: pickup needs
 	// the store map, so without it nothing may promise pickup or its price.
-	siteStore, homeStore, productStore := site.NewStore(pool), home.NewStore(pool), product.NewStore(pool)
+	homeStore, productStore := home.NewStore(pool), product.NewStore(pool)
 	if !cfg.StoreMap.Enabled() {
-		siteStore, homeStore, productStore = siteStore.WithoutPickup(), homeStore.WithoutPickup(), productStore.WithoutPickup()
+		homeStore, productStore = homeStore.WithoutPickup(), productStore.WithoutPickup()
 	}
-	sitePages = site.NewHandler(log, baseURL, catalogue, siteStore, secureCookies)
+	browse := catalog.NewHandler(catalogue, log)
 	homePage := home.NewHandler(homeStore, log, secureCookies)
 	images := media.NewHandler(media.NewStore(pool), log)
 	contactLimit := ratelimit.New(ratelimit.Config{
@@ -205,26 +224,12 @@ func storefrontRoutes(mux *http.ServeMux, cfg *RouterConfig, log *slog.Logger) (
 	cover := warranty.NewHandler(warranty.NewStore(pool), log)
 	points := rewards.NewHandler(rewards.NewStore(pool), log)
 	items := product.NewHandler(productStore, log, baseURL)
-	// Half of the order-lookup credential is a guessable order number, so
-	// unlimited asking makes the endpoint an oracle for the other half.
-	findLimit := ratelimit.New(ratelimit.Config{
-		Every: 6 * time.Minute, Burst: 10, TTL: time.Hour, MaxKeys: 65_536,
-	})
 	// Every checkout submission looks up the coupon it carries, and a chooser
 	// change is a submission too, so a whole checkout is a dozen posts at most.
 	// cart.Handler bounds the wrong codes themselves; this bounds the rest.
 	checkoutLimit := ratelimit.New(ratelimit.Config{
 		Every: 2 * time.Second, Burst: 30, TTL: time.Hour, MaxKeys: 65_536,
 	})
-	var barcodeChecker cart.MobileBarcodeChecker
-	if cfg.Invoices.Enabled() {
-		barcodeChecker = cfg.Invoices
-	}
-	basketStore := cart.NewStore(pool)
-	basket = cart.NewHandler(basketStore, log, secureCookies, findLimit,
-		sessionCloser(gateway), cfg.StoreMap, barcodeChecker)
-	customers = account.NewHandler(account.NewStore(pool), basket, log, secureCookies, cfg.Google)
-	customers.OfferDemoAccount(cfg.DemoAccount)
 	// basketStore answers the order-access question for all three packages.
 	till := payment.NewHandler(payment.NewStore(pool), gateway, basketStore, log, secureCookies)
 	sendbacks := returns.NewHandler(returns.NewStore(pool), basketStore, log, secureCookies)
@@ -354,7 +359,6 @@ func storefrontRoutes(mux *http.ServeMux, cfg *RouterConfig, log *slog.Logger) (
 		ratelimit.Guard(authLimit, log, customers.RequireUser(customers.ChangePassword)))
 	mux.HandleFunc("POST /account/erase", customers.RequireUser(customers.Erase))
 	mux.HandleFunc("POST /account/google/unlink", customers.RequireUser(customers.UnlinkGoogle))
-	return basket, customers, sitePages
 }
 
 // backOfficeRoutes registers /admin, every desk on the `admin` pool. The store
