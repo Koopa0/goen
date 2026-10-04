@@ -20,7 +20,7 @@ WHERE NOT @has_cursor::boolean
      OR (q.answered_by_shop = @after_rank::boolean AND q.created_at > @after_at::timestamptz)
      OR (q.answered_by_shop = @after_rank::boolean AND q.created_at = @after_at::timestamptz AND q.id > @after_id::uuid)))
 ORDER BY CASE WHEN NOT @hidden::boolean THEN q.answered_by_shop END,
-         CASE WHEN @hidden::boolean THEN q.hidden_at END ASC,
+         CASE WHEN @hidden::boolean THEN q.hidden_at END DESC,
          CASE WHEN NOT @hidden::boolean THEN q.created_at END,
          CASE WHEN @hidden::boolean THEN q.id END DESC,
          CASE WHEN NOT @hidden::boolean THEN q.id END
@@ -89,5 +89,5 @@ ORDER BY a.question_id, a.created_at, a.id;
 
 
 -- name: HideQuestionAnswer :execrows
-UPDATE product_answers SET hidden_at = NULL
+UPDATE product_answers SET hidden_at = now()
 WHERE id = @answer_id AND question_id = @question_id AND hidden_at IS NULL;
