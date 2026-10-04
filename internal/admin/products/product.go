@@ -127,6 +127,7 @@ func (s *Store) Product(ctx context.Context, slug string) (admin.ProductView, er
 	}
 	view := admin.ProductView{
 		Slug: p.Slug, Name: p.Name, Summary: p.Summary,
+		LabelInput:  productLabelInput(&p),
 		Description: p.Description, WarrantyNote: p.WarrantyNote,
 		NameEn: p.NameEn, SummaryEn: p.SummaryEn, DescriptionEn: p.DescriptionEn,
 		WarrantyMonths: p.WarrantyMonths,

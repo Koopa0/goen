@@ -1,0 +1,100 @@
+package admin
+
+import (
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/productlabel"
+	"github.com/koopa0/goen/internal/ui/components"
+)
+
+templ productLabel(v ProductView) {
+	@components.Card(components.CardProps{Class: "goen-admin__section", Attrs: templ.Attributes{"id": "sec-label"}}) {
+		<h2 class="goen-admin__heading">{ i18n.T(ctx,i18n.KeyProductLabel) }</h2>
+		<form class="goen-admin__form" method="post" action={ templ.URL(v.LabelAction()) }>
+			for _, field := range v.labelInput().TextFields() {
+				<div class="goen-admin__field">
+					<label class="ui-label" for={ "label-" + field.Name }>{ i18n.T(ctx,field.Caption) }</label>
+					<input
+						class="ui-input"
+						id={ "label-" + field.Name }
+						name={ field.Name }
+						value={ field.Value }
+						maxlength={ field.LimitText() }
+						if v.HasErr(field.Name) {
+							aria-invalid="true"
+							aria-describedby={ "label-" + field.Name + "-error" }
+						}
+					/>
+					if v.HasErr(field.Name) {
+						<p class="ui-error-text" id={ "label-" + field.Name + "-error" }>{ v.Err(field.Name) }</p>
+					}
+				</div>
+			}
+			<div class="goen-admin__field">
+				<label class="ui-label" for="label-quantity">{ i18n.T(ctx,i18n.KeyProductLabelNetQuantity) }</label>
+				<input
+					class="ui-input"
+					id="label-quantity"
+					name="net_quantity"
+					type="number"
+					min="0.01"
+					max="99999999.99"
+					step="0.01"
+					value={ v.labelInput().NetQuantity }
+					if v.HasErr("net_quantity") {
+						aria-invalid="true"
+						aria-describedby="label-quantity-error"
+					}
+				/>
+				if v.HasErr("net_quantity") {
+					<p class="ui-error-text" id="label-quantity-error">{ v.Err("net_quantity") }</p>
+				}
+			</div>
+			<div class="goen-admin__field">
+				<label class="ui-label" for="label-unit">{ i18n.T(ctx,i18n.KeyProductLabelNetUnit) }</label>
+				<select
+					class="ui-select"
+					id="label-unit"
+					name="net_unit"
+					if v.HasErr("net_unit") {
+						aria-invalid="true"
+						aria-describedby="label-unit-error"
+					}
+				>
+					<option value="" selected?={ v.labelInput().NetUnit=="" }>—</option>
+					if v.labelInput().NetUnit!="" && !v.labelInput().NetUnit.Known() {
+						<option value={ string(v.labelInput().NetUnit) } selected>{ string(v.labelInput().NetUnit) }</option>
+					}
+					for _, unit := range productlabel.Units() {
+						<option value={ string(unit) } selected?={ unit==v.labelInput().NetUnit }>{ unit.Symbol(ctx) }</option>
+					}
+				</select>
+				if v.HasErr("net_unit") {
+					<p class="ui-error-text" id="label-unit-error">{ v.Err("net_unit") }</p>
+				}
+			</div>
+			<div class="goen-admin__field">
+				<label class="ui-label" for="label-age">{ i18n.T(ctx,i18n.KeyProductLabelMinAge) }</label>
+				<input
+					class="ui-input"
+					id="label-age"
+					name="min_age_months"
+					type="number"
+					min="0"
+					max="216"
+					step="1"
+					value={ v.labelInput().MinAgeMonths }
+					if v.HasErr("min_age_months") {
+						aria-invalid="true"
+						aria-describedby="label-age-error"
+					}
+				/>
+				if v.HasErr("min_age_months") {
+					<p class="ui-error-text" id="label-age-error">{ v.Err("min_age_months") }</p>
+				}
+			</div>
+			@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, "submit") {
+				{ i18n.T(ctx,i18n.KeyProductLabelSave) }
+			}
+		</form>
+	}
+}

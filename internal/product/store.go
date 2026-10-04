@@ -12,6 +12,7 @@ import (
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/productlabel"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
@@ -161,6 +162,15 @@ func (s *Store) loadDetail(ctx context.Context, p *db.ProductBySlugRow, view *pa
 }
 
 func (s *Store) loadPresentation(ctx context.Context, p *db.ProductBySlugRow, view *pages.ProductView) error {
+	view.LabelFacts = &productlabel.Facts{
+		Origin: p.Origin, ResponsiblePartyName: p.ResponsiblePartyName, ResponsiblePartyPhone: p.ResponsiblePartyPhone, ResponsiblePartyAddress: p.ResponsiblePartyAddress,
+		NetQuantity: p.NetQuantity, NetUnit: productlabel.NetUnit(p.NetUnit),
+	}
+	if p.MinAgeMonths.Valid {
+		age := p.MinAgeMonths.Int16
+		view.LabelFacts.MinAgeMonths = &age
+	}
+
 	offers, offersErr := s.q.ComparableCategoryIDs(ctx)
 	if offersErr != nil {
 		return fmt.Errorf("read comparable categories for %q: %w", p.Slug, offersErr)
