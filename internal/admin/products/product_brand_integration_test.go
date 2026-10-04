@@ -283,17 +283,20 @@ func assertUnbrandedCatalogueReads(t *testing.T, ctx context.Context, p *pgxpool
 	q := db.New(p)
 	newest, err := q.NewestProducts(ctx, db.NewestProductsParams{Locale: "en", PageSize: rowLimit})
 	check("NewestProducts", err)
-	for _, row := range newest {
+	for i := range newest {
+		row := &newest[i]
 		observe("NewestProducts", row.Slug, row.Brand)
 	}
 	deals, err := q.DealProducts(ctx, db.DealProductsParams{Locale: "en", PageSize: rowLimit})
 	check("DealProducts", err)
-	for _, row := range deals {
+	for i := range deals {
+		row := &deals[i]
 		observe("DealProducts", row.Slug, row.Brand)
 	}
 	campaign, err := q.CampaignProducts(ctx, db.CampaignProductsParams{Locale: "en", CampaignID: campaignID})
 	check("CampaignProducts", err)
-	for _, row := range campaign {
+	for i := range campaign {
+		row := &campaign[i]
 		observe("CampaignProducts", row.Slug, row.Brand)
 	}
 	suggestions, err := q.CompareSuggestions(ctx, db.CompareSuggestionsParams{Locale: "en", ProductSlug: anchorSlug, ExcludeSlugs: []string{anchorSlug}, AnchorCents: 10000, RowLimit: rowLimit})
@@ -303,27 +306,32 @@ func assertUnbrandedCatalogueReads(t *testing.T, ctx context.Context, p *pgxpool
 	}
 	related, err := q.RelatedProducts(ctx, db.RelatedProductsParams{Locale: "en", CategoryID: categoryID, ExcludeID: anchorID, RowLimit: rowLimit})
 	check("RelatedProducts", err)
-	for _, row := range related {
+	for i := range related {
+		row := &related[i]
 		observe("RelatedProducts", row.Slug, row.Brand)
 	}
 	also, err := q.BoughtTogether(ctx, db.BoughtTogetherParams{Locale: "en", ProductID: anchorID, MinOrders: product.MinCoPurchases, LimitTo: rowLimit})
 	check("BoughtTogether", err)
-	for _, row := range also {
+	for i := range also {
+		row := &also[i]
 		observe("BoughtTogether", row.Slug, row.Brand)
 	}
 	home, err := q.HomeTiles(ctx, db.HomeTilesParams{Locale: "en", MaxTiles: rowLimit})
 	check("HomeTiles", err)
-	for _, row := range home {
+	for i := range home {
+		row := &home[i]
 		observe("HomeTiles", row.Slug, row.Brand)
 	}
 	adminProducts, err := q.AdminProducts(ctx, db.AdminProductsParams{RowLimit: rowLimit})
 	check("AdminProducts", err)
-	for _, row := range adminProducts {
+	for i := range adminProducts {
+		row := &adminProducts[i]
 		observe("AdminProducts", row.Slug, row.Brand)
 	}
 	variants, err := stock.NewStore(p).Variants(ctx, false, sku)
 	check("AdminVariants", err)
-	for _, row := range variants.Variants {
+	for i := range variants.Variants {
+		row := &variants.Variants[i]
 		observe("AdminVariants", row.Slug, row.Brand)
 	}
 	for _, read := range []string{"NewestProducts", "DealProducts", "CampaignProducts", "CompareSuggestions", "RelatedProducts", "BoughtTogether", "HomeTiles", "AdminProducts", "AdminVariants"} {
