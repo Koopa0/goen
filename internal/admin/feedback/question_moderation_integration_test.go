@@ -177,7 +177,7 @@ func TestHiddenQuestionQueuePagesEveryQuestionNewestFirst(t *testing.T) {
 	s := feedback.NewStore(feedbackAdminPool(t, p))
 	seen := map[string]bool{}
 	after := ""
-	for page := 0; page < 2; page++ {
+	for page := range 2 {
 		view, err := s.Questions(ctx, feedback.HiddenQuestions, after)
 		if err != nil {
 			t.Fatal(err)

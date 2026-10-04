@@ -54,6 +54,7 @@ func (q Question) AnswerAction() string { return "/admin/questions/" + q.ID }
 
 type QuestionsView struct {
 	web.Bound
+
 	Hidden bool
 	Rows   []Question
 	Notice string
