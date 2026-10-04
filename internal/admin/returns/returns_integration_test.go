@@ -22,7 +22,7 @@ import (
 
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/invoice"
-	adminpages "github.com/koopa0/goen/internal/ui/pages/admin"
+	"github.com/koopa0/goen/internal/ui/pages/admin"
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/health"
@@ -960,7 +960,7 @@ func TestAStalledRefundOffersItsRetryInTheQueue(t *testing.T) {
 			if err != nil {
 				t.Fatalf("read queue: %v", err)
 			}
-			var found *adminpages.Return
+			var found *admin.Return
 			for i := range view.Rows {
 				if view.Rows[i].ID == requestID.String() {
 					found = &view.Rows[i]
@@ -1467,7 +1467,7 @@ func TestTheReturnQueueShowsWhatIsComingBack(t *testing.T) {
 		t.Fatalf("read the queue: %v", err)
 	}
 
-	var found *adminpages.Return
+	var found *admin.Return
 	for i := range view.Rows {
 		if view.Rows[i].ID == requestID.String() {
 			found = &view.Rows[i]
@@ -1541,7 +1541,7 @@ func TestTheReturnQueueNamesTheRefundChannels(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Returns: %v", err)
 			}
-			var found *adminpages.Return
+			var found *admin.Return
 			for i := range view.Rows {
 				if view.Rows[i].ID == requestID.String() {
 					found = &view.Rows[i]
@@ -1716,7 +1716,7 @@ func TestTheRescissionWindowIsCountedOnTheShopsCalendar(t *testing.T) {
 			if err != nil {
 				t.Fatalf("read the queue: %v", err)
 			}
-			var found *adminpages.Return
+			var found *admin.Return
 			for i := range view.Rows {
 				if view.Rows[i].ID == requestID.String() {
 					found = &view.Rows[i]
@@ -1726,7 +1726,7 @@ func TestTheRescissionWindowIsCountedOnTheShopsCalendar(t *testing.T) {
 			if found == nil {
 				t.Fatalf("the return %s is not in the queue", requestID)
 			}
-			if found.Window != tc.wantWindow {
+			if string(found.Window) != tc.wantWindow {
 				t.Errorf("window is %q, want %q", found.Window, tc.wantWindow)
 			}
 			if got := found.Rescission(); got != tc.wantRescission {

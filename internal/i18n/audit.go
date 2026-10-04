@@ -13,7 +13,7 @@ var (
 
 	KeyAuditReturnDecide = key("audit.return.decide", Message{ZhHant: "退貨決定", En: "Decide return"})
 
-	KeyAuditCreditGrant = key("audit.credit.grant", Message{ZhHant: "發放商店額度", En: "Grant store credit"})
+	KeyAuditCreditGrant = key("audit.credit.grant", Message{ZhHant: "發放購物金", En: "Grant store credit"})
 
 	KeyAuditStockAdjust = key("audit.stock.adjust", Message{ZhHant: "調整庫存", En: "Adjust stock"})
 

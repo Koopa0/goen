@@ -1,7 +1,7 @@
-// Package health answers the two questions an orchestrator asks: is this
+// Package probe answers the two questions an orchestrator asks: is this
 // process alive, and should it be sent traffic. Liveness failing means "restart
 // me"; readiness failing means "route around me for now".
-package health
+package probe
 
 import (
 	"context"
@@ -31,11 +31,11 @@ type Handler struct {
 
 func NewHandler(log *slog.Logger, deps ...Dependency) *Handler {
 	if log == nil || len(deps) == 0 {
-		panic("health: NewHandler requires a logger and at least one dependency")
+		panic("probe: NewHandler requires a logger and at least one dependency")
 	}
 	for _, d := range deps {
 		if d.DB == nil || d.Name == "" {
-			panic("health: every readiness dependency needs a name and a pool")
+			panic("probe: every readiness dependency needs a name and a pool")
 		}
 	}
 	return &Handler{deps: slices.Clone(deps), log: log}

@@ -24,7 +24,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/shipping"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/i18n"
-	adminpages "github.com/koopa0/goen/internal/ui/pages/admin"
+	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -110,7 +110,7 @@ func TestPublishingAVersionKeepsItsEnglishName(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read shipping methods: %v", err)
 	}
-	var method *adminpages.ShippingMethod
+	var method *admin.ShippingMethod
 	for i := range view.Methods {
 		if view.Methods[i].Code == code {
 			method = &view.Methods[i]
@@ -861,7 +861,7 @@ func TestTheShippingPageSaysWhenCheckoutHidesPickup(t *testing.T) {
 	}
 
 	for name, storeMap := range map[string]*cart.StoreMap{"no map": nil, "a map": enabled} {
-		h := shipping.NewHandler(s, storeMap, log)
+		h := shipping.NewHandler(s, storeMap.Enabled(), log)
 		req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/admin/shipping", http.NoBody)
 		w := httptest.NewRecorder()
 		admintest.BackOffice.RequireStaff(h.Page)(w, req)

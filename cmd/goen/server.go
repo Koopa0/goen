@@ -32,7 +32,6 @@ import (
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/contact"
-	probe "github.com/koopa0/goen/internal/health"
 	"github.com/koopa0/goen/internal/home"
 	"github.com/koopa0/goen/internal/invoice"
 	rewards "github.com/koopa0/goen/internal/loyalty"
@@ -40,6 +39,7 @@ import (
 	"github.com/koopa0/goen/internal/newsletter"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/payment"
+	"github.com/koopa0/goen/internal/probe"
 	"github.com/koopa0/goen/internal/product"
 	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/returns"
@@ -422,7 +422,7 @@ func backOfficeRoutes(mux *http.ServeMux, cfg *BackOfficeConfig, log *slog.Logge
 	refundDesk := refunds.NewHandler(payouts, sessionCloser(gateway), log)
 	returnDesk := returndesk.NewHandler(returndesk.NewStore(adminPool, payouts), log)
 	invoiceDesk := invoicing.NewHandler(invoicingStore, log)
-	delivery := shipping.NewHandler(shipping.NewStore(adminPool), cfg.StoreMap, log)
+	delivery := shipping.NewHandler(shipping.NewStore(adminPool), cfg.StoreMap.Enabled(), log)
 	brands := taxonomy.NewHandler(taxonomy.NewStore(adminPool), adminImages, log)
 	shopfront := content.NewHandler(content.NewStore(adminPool), adminImages, newsletter.NewStore(adminPool), log)
 	sales := campaigns.NewHandler(campaigns.NewStore(adminPool), adminImages, log)
