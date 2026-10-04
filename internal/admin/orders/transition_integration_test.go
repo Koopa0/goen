@@ -1,6 +1,6 @@
 //go:build integration
 
-package admin_test
+package orders_test
 
 import (
 	"context"
@@ -9,8 +9,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/admin/admintest"
+	"github.com/koopa0/goen/internal/admin/orders"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
@@ -30,7 +30,7 @@ func TestTheTriggerAcceptsTheTransitionsTheDeskOffers(t *testing.T) {
 			if from == to {
 				continue
 			}
-			want := slices.Contains(admin.NextStatuses(from), to) || [2]pages.FulfillmentStatus{from, to} == dispatch
+			want := slices.Contains(orders.NextStatuses(from), to) || [2]pages.FulfillmentStatus{from, to} == dispatch
 			if got := triggerAllows(t, orderID, from, to); got != want {
 				t.Errorf("%s to %s: trigger allows %t, the desk offers %t", from, to, got, want)
 			}
@@ -70,8 +70,8 @@ func triggerAllows(t *testing.T, orderID uuid.UUID, from, to pages.FulfillmentSt
 	if err == nil {
 		return true
 	}
-	if constraintFrom(err) == "" {
+	if admintest.ConstraintName(err) == "" {
 		t.Fatalf("%s to %s: %v", from, to, err)
 	}
-	return constraintFrom(err) != "orders_legal_transition"
+	return admintest.ConstraintName(err) != "orders_legal_transition"
 }

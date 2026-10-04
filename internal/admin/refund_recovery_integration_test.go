@@ -198,7 +198,7 @@ func TestProviderOutcomeAndRetrySharePaymentBeforeRefund(t *testing.T) {
 		if result.err == nil {
 			t.Fatalf("retry returned refund %s after the provider outcome settled", result.id)
 		}
-		if constraint := constraintFrom(result.err); constraint != "refunds_execution_settled" {
+		if constraint := admintest.ConstraintName(result.err); constraint != "refunds_execution_settled" {
 			t.Fatalf("concurrent retry = %v (constraint %q), want settled refusal without deadlock",
 				result.err, constraint)
 		}
@@ -381,7 +381,7 @@ func TestRefundOutcomeExactReplayPreservesHistoryAndContradictionsFailClosed(t *
 		refundID, "re_conflict_"+uuid.NewString(), actor, replayRequest).
 		Scan(&changed); err == nil {
 		t.Fatal("terminal refund accepted a conflicting provider identity")
-	} else if constraint := constraintFrom(err); constraint != "refunds_provider_ref_immutable" {
+	} else if constraint := admintest.ConstraintName(err); constraint != "refunds_provider_ref_immutable" {
 		t.Errorf("provider identity conflict hit %q, want refunds_provider_ref_immutable: %v",
 			constraint, err)
 	}
@@ -389,7 +389,7 @@ func TestRefundOutcomeExactReplayPreservesHistoryAndContradictionsFailClosed(t *
 		`SELECT record_refund_pending($1, $2, $3, $4)`,
 		refundID, providerRef, actor, replayRequest).Scan(&changed); err == nil {
 		t.Fatal("terminal refund regressed to pending")
-	} else if constraint := constraintFrom(err); constraint != "refunds_no_regression" {
+	} else if constraint := admintest.ConstraintName(err); constraint != "refunds_no_regression" {
 		t.Errorf("terminal regression hit %q, want refunds_no_regression: %v",
 			constraint, err)
 	}
