@@ -452,7 +452,7 @@ Amounts are integer cents bounded by the schema; [`money`](internal/money/money.
 | `commit-attribution` | Commit metadata against the repository attribution policy. |
 | `verify` | Formatting, templ/sqlc drift, migration lint, vet, dead code, lint, production build, `go vet -tags=integration`, shuffled race-enabled unit/handler tests. |
 | `schema` | Real PostgreSQL integration via [dbtest](internal/db/dbtest), schema conformance, concurrent-write behaviour, migration up/down/up. |
-| `layout` | Chrome route probes at 375/1440 px; extra homepage/listing checks at 768/1024 and targeted interaction widths; axe-core at 1440 px against the accepted baseline ([probes](scripts/check-layout.mjs)). |
+| `layout` | Chrome route probes at 375/1440 px; extra homepage/listing checks at 768/1024 and targeted interaction widths; axe-core (WCAG 2.2 level AA) at 1440 px, failing on new serious or critical WCAG violations against the accepted baseline ([probes](scripts/check-layout.mjs)). |
 | `vulnerabilities` | Reachable Go dependency vulnerabilities through `govulncheck`. |
 | CodeQL `analyze` | Go and Actions analysis in [codeql.yml](.github/workflows/codeql.yml). |
 
