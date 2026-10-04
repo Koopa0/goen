@@ -1903,7 +1903,7 @@ BEGIN
         -- agrees is theirs to decide, and staff follow it on the order page.
         IF EXISTS (SELECT 1 FROM invoice_operations
                    WHERE order_id = NEW.id AND status IN ('pending', 'attention')
-                     AND NOT (kind = 'allowance' AND send_attempts > 0))
+                     AND NOT (kind = 'allowance' AND send_attempts > 0 AND status = 'pending'))
            OR EXISTS (
                SELECT 1 FROM invoice_documents d
                WHERE d.order_id = NEW.id AND d.kind = 'invoice' AND d.status = 'issued'
@@ -6577,7 +6577,7 @@ BEGIN
     UPDATE invoice_operations
     SET status = 'succeeded', result_document_id = v_document_id,
         request_payload = request_payload - 'customer_name' - 'email',
-        buyer_consent = p_buyer_consent,
+        buyer_consent = NULL,
         completed_at = now(), last_error = NULL,
         lease_owner = NULL, lease_until = NULL, updated_at = now()
     WHERE id = v_operation.id;
