@@ -325,7 +325,7 @@ func TestRestockingTellsEverybodyWhoAsked(t *testing.T) {
 		RETURNING id`, "restock-"+sku+"@goen.invalid").Scan(&actor); err != nil {
 		t.Fatalf("create staff: %v", err)
 	}
-	staffCtx := account.WithUser(ctx, account.User{ID: actor.String(), Role: "admin"})
+	staffCtx := account.WithUser(ctx, account.User{ID: actor.String(), Role: account.RoleAdmin})
 
 	if err := s.Adjust(staffCtx, sku, 10, actor.String(), "restock-test-1"); err != nil {
 		t.Fatalf("restock: %v", err)
@@ -395,7 +395,7 @@ func TestAnAdjustmentBelowTheThresholdTellsNobody(t *testing.T) {
 		RETURNING id`, "threshold-"+sku+"@goen.invalid").Scan(&actor); err != nil {
 		t.Fatalf("create staff: %v", err)
 	}
-	staffCtx := account.WithUser(ctx, account.User{ID: actor.String(), Role: "admin"})
+	staffCtx := account.WithUser(ctx, account.User{ID: actor.String(), Role: account.RoleAdmin})
 
 	if err := s.Adjust(staffCtx, sku, 3, actor.String(), "threshold-test-1"); err != nil {
 		t.Fatalf("adjust: %v", err)
@@ -457,7 +457,7 @@ func TestARestockNoticeNamesTheProductInTheReadersLanguage(t *testing.T) {
 		RETURNING id`, "restock-locale-"+sku+"@goen.invalid").Scan(&actor); err != nil {
 		t.Fatalf("create staff: %v", err)
 	}
-	staffCtx := account.WithUser(ctx, account.User{ID: actor.String(), Role: "admin"})
+	staffCtx := account.WithUser(ctx, account.User{ID: actor.String(), Role: account.RoleAdmin})
 
 	if err := s.Adjust(staffCtx, sku, 10, actor.String(), "restock-locale-1"); err != nil {
 		t.Fatalf("restock: %v", err)

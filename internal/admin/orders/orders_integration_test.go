@@ -344,7 +344,7 @@ func TestCancellingAnOrderInTheBackOfficeReturnsItsStock(t *testing.T) {
 		t.Fatalf("create staff: %v", err)
 	}
 	// record_audit_event reads the actor from the CONTEXT, not from the parameter.
-	staffCtx := account.WithUser(ctx, account.User{ID: staff.String(), Role: "admin"})
+	staffCtx := account.WithUser(ctx, account.User{ID: staff.String(), Role: account.RoleAdmin})
 	if _, err := s.Advance(staffCtx, number, "cancelled", uuid.NullUUID{UUID: staff, Valid: true}); err != nil {
 		t.Fatalf("cancel: %v", err)
 	}
@@ -422,7 +422,7 @@ func TestBackOfficeCancellationReadsHoldsAfterWinningTheOrderLock(t *testing.T) 
 		RETURNING id`, "cancel-race-"+uuid.NewString()+"@goen.invalid").Scan(&staff); err != nil {
 		t.Fatalf("create staff: %v", err)
 	}
-	staffCtx := account.WithUser(ctx, account.User{ID: staff.String(), Role: "admin"})
+	staffCtx := account.WithUser(ctx, account.User{ID: staff.String(), Role: account.RoleAdmin})
 	cancelPool := admintest.NamedPool(t, pool, "admin-cancel-behind-sweep")
 	cancelDone := make(chan error, 1)
 	go func() {
@@ -475,7 +475,7 @@ func TestShippingEnqueuesTheDispatchNotice(t *testing.T) {
 		RETURNING id`, "dispatch-"+number+"@goen.invalid").Scan(&staff); err != nil {
 		t.Fatalf("create staff: %v", err)
 	}
-	staffCtx := account.WithUser(ctx, account.User{ID: staff.String(), Role: "admin"})
+	staffCtx := account.WithUser(ctx, account.User{ID: staff.String(), Role: account.RoleAdmin})
 
 	if err := s.Ship(staffCtx, number, orders.Dispatch{Carrier: "black_cat", Tracking: "903-2214-0001"},
 		uuid.NullUUID{UUID: staff, Valid: true}); err != nil {
