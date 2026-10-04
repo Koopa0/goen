@@ -127,9 +127,7 @@ func (s *Store) Load(ctx context.Context, slug string, sel Selection) (pages.Pro
 		view.Sellable = chosen.Sellable
 		view.Available = chosen.Available
 		view.ExpectedArrival = chosen.ExpectedArrival
-		if view.SoldOut() && !view.ExpectedArrival.IsZero() {
-			view.ExpectedArrivalText = fmt.Sprintf(i18n.T(ctx, i18n.KeyExpectedArrival), pages.ShortDate(ctx, view.ExpectedArrival, s.now()))
-		}
+		view.ExpectedArrivalText = s.arrivalText(ctx, &view)
 	}
 
 	for _, o := range BuildOptions(slug, groups, order, labels, variants, sel) {
@@ -346,4 +344,11 @@ func expectedArrivalOf(r *db.ProductVariantsRow) time.Time {
 		return r.PreorderReleaseOn.Time
 	}
 	return time.Time{}
+}
+
+func (s *Store) arrivalText(ctx context.Context, v *pages.ProductView) string {
+	if !v.SoldOut() || v.ExpectedArrival.IsZero() {
+		return ""
+	}
+	return fmt.Sprintf(i18n.T(ctx, i18n.KeyExpectedArrival), pages.ShortDate(ctx, v.ExpectedArrival, s.now()))
 }

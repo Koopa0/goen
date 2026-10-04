@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/jackc/pgx/v5/pgtype"
+
 	"github.com/koopa0/goen/internal/shoptime"
 )
 
