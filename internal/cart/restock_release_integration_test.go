@@ -50,7 +50,7 @@ func TestReleasingTheLastHoldQueuesRestockNotices(t *testing.T) {
 				t.Fatalf("application role = %q, %v", role, err)
 			}
 			log := slog.New(slog.DiscardHandler)
-			notices := product.NewHandler(product.NewStore(appPool), log, "https://goen.example")
+			notices := product.NewHandler(product.NewStore(appPool, slog.New(slog.DiscardHandler)), log, "https://goen.example")
 			for _, locale := range i18n.Locales() {
 				form := url.Values{"variant": {variant.String()}, "email": {locale.Tag() + "-waiting@example.com"}}
 				req := httptest.NewRequestWithContext(i18n.WithLocale(ctx, locale), http.MethodPost,

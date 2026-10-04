@@ -229,7 +229,7 @@ func assertRecommendationQueriesDrained(t *testing.T, p *pgxpool.Pool) {
 	for {
 		var active int
 		if err := p.QueryRow(ctx, `SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND state = 'active' AND query LIKE 'SELECT pg_sleep%'`).Scan(&active); err != nil {
-			t.Fatalf("read recommendation cleanup state: %v", err)
+			t.Fatalf("optional cleanup: acquired connections = %d, want 0 within 2s; sleeping queries unread: %v", p.Stat().AcquiredConns(), err)
 		}
 		acquired := p.Stat().AcquiredConns()
 		if acquired == 0 && active == 0 {
