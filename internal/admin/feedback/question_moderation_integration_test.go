@@ -143,10 +143,18 @@ func TestAnswerWithdrawalIsQuestionBoundAndAuditedUnderTheAdminRole(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
+	found := false
 	for _, row := range view.Rows {
-		if row.ID == question.String() && (row.AnsweredByShop || row.AnswerCount != 0 || len(row.Answers) != 1 || !row.Answers[0].Hidden) {
+		if row.ID != question.String() {
+			continue
+		}
+		found = true
+		if row.AnsweredByShop || row.AnswerCount != 0 || len(row.Answers) != 1 || !row.Answers[0].Hidden {
 			t.Errorf("withdrawn answer queue row = %+v", row)
 		}
+	}
+	if !found {
+		t.Error("withdrawing the answer removed its question from the queue")
 	}
 	if err := s.HideAnswer(ctx, question.String(), answer.String()); !errors.Is(err, feedback.ErrNotFound) {
 		t.Errorf("HideAnswer(already hidden) = %v, want ErrNotFound", err)
