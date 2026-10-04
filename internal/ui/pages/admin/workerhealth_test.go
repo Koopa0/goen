@@ -83,8 +83,8 @@ func TestALiveInvoiceOnACancelledOrderIsWork(t *testing.T) {
 	if !view.AllHealthy() {
 		t.Fatal("the fixture is unhealthy before any invoice is listed; the check below would prove nothing")
 	}
-	view.CancelledInvoiceCount = 3
-	view.CancelledInvoices = []CancelledOrderInvoice{{
+	view.CancelledOrderInvoiceCount = 3
+	view.CancelledOrderInvoices = []CancelledOrderInvoice{{
 		OrderNumber: "GO-261002-000002", Number: "AB12345678", AmountCents: 106000, IssuedOn: "2026-06-30",
 	}}
 	if view.AllHealthy() {
@@ -94,7 +94,7 @@ func TestALiveInvoiceOnACancelledOrderIsWork(t *testing.T) {
 	for _, want := range []string{
 		`href="/admin/orders/GO-261002-000002"`,
 		"AB12345678",
-		i18n.Count(i18n.WithLocale(t.Context(), i18n.ZhHant), i18n.KeyAdminHPCancelledInvoicesHint, 3, int64(3)),
+		i18n.Count(i18n.WithLocale(t.Context(), i18n.ZhHant), i18n.KeyAdminHPCancelledOrderInvoicesHint, 3, int64(3)),
 	} {
 		if !strings.Contains(html, want) {
 			t.Errorf("the health page does not carry %s", want)

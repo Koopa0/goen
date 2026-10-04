@@ -3173,6 +3173,11 @@ WHERE id = $1
   AND NOT order_is_committed(id)
 `
 
+// Both predicates are load-bearing: `pending` refuses a second cancellation,
+// `not committed` refuses one somebody has paid for. Run it after
+// LockOrderByNumber: a capture holds the order lock without updating the row,
+// so an UPDATE that waited for it would judge payment by the snapshot taken
+// before the wait and reach the transition trigger, which store may not run.
 func (q *Queries) CancelOrderByCustomer(ctx context.Context, id uuid.UUID) (int64, error) {
 	result, err := q.db.Exec(ctx, cancelOrderByCustomer, id)
 	if err != nil {
@@ -10050,23 +10055,17 @@ func (q *Queries) OtherAccountAtAddress(ctx context.Context, arg OtherAccountAtA
 
 const paidByCreditAlone = `-- name: PaidByCreditAlone :one
 SELECT coalesce(order_amount_owed(o.id) = 0
-                AND coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
-                              WHERE ol.order_id = o.id), 0)
-                    - o.discount_cents + o.shipping_cents + o.tax_cents > 0,
+                AND EXISTS (SELECT 1 FROM store_credit_entries s
+                            WHERE s.order_id = o.id AND s.amount_cents < 0),
                 false)::boolean AS paid_by_credit
 FROM orders o
 WHERE o.id = $1
 `
 
-// Both predicates are load-bearing: `pending` refuses a second cancellation,
-// `not committed` refuses one somebody has paid for. Run it after
-// LockOrderByNumber: a capture holds the order lock without updating the row,
-// so an UPDATE that waited for it would judge payment by the snapshot taken
-// before the wait and reach the transition trigger, which store may not run.
 // Whether store credit alone paid the order, read before the cancellation
 // returns the credit: checkout queued its 統一發票 then. A customer cancels only
-// an uncommitted order, which no card has paid, so owing nothing on a positive
-// total means credit paid it.
+// an uncommitted order, which no card has paid, so owing nothing after a credit
+// spend means credit paid it.
 func (q *Queries) PaidByCreditAlone(ctx context.Context, id uuid.UUID) (bool, error) {
 	row := q.db.QueryRow(ctx, paidByCreditAlone, id)
 	var paid_by_credit bool

@@ -1343,15 +1343,15 @@ func Health(p layouts.Page, v *WorkerHealthView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			if v.CancelledInvoiceCount > 0 {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 102, "<section class=\"goen-admin__queue\" aria-labelledby=\"cancelled-invoices-heading\"><h2 class=\"goen-admin__heading\" id=\"cancelled-invoices-heading\">")
+			if v.CancelledOrderInvoiceCount > 0 {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 102, "<section class=\"goen-admin__queue\" aria-labelledby=\"cancelled-order-invoices-heading\"><h2 class=\"goen-admin__heading\" id=\"cancelled-order-invoices-heading\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var88 string
-				templ_7745c5c3_Var88, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminHPCancelledInvoicesHeading))
+				templ_7745c5c3_Var88, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminHPCancelledOrderInvoicesHeading))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/health.templ`, Line: 258, Col: 122}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/health.templ`, Line: 258, Col: 133}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var88))
 				if templ_7745c5c3_Err != nil {
@@ -1362,9 +1362,9 @@ func Health(p layouts.Page, v *WorkerHealthView) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var89 string
-				templ_7745c5c3_Var89, templ_7745c5c3_Err = templ.JoinStringErrs(v.CancelledInvoicesText(ctx))
+				templ_7745c5c3_Var89, templ_7745c5c3_Err = templ.JoinStringErrs(v.CancelledOrderInvoicesText(ctx))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/health.templ`, Line: 259, Col: 62}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/health.templ`, Line: 259, Col: 67}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var89))
 				if templ_7745c5c3_Err != nil {
@@ -1426,7 +1426,7 @@ func Health(p layouts.Page, v *WorkerHealthView) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				for _, inv := range v.CancelledInvoices {
+				for _, inv := range v.CancelledOrderInvoices {
 					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 109, "<tr><td class=\"goen-admin__cellkey\"><a href=\"")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err

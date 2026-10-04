@@ -253,10 +253,10 @@ templ Health(p layouts.Page, v *WorkerHealthView) {
 				</div>
 			</section>
 		}
-		if v.CancelledInvoiceCount > 0 {
-			<section class="goen-admin__queue" aria-labelledby="cancelled-invoices-heading">
-				<h2 class="goen-admin__heading" id="cancelled-invoices-heading">{ i18n.T(ctx, i18n.KeyAdminHPCancelledInvoicesHeading) }</h2>
-				<p class="goen-admin__hint">{ v.CancelledInvoicesText(ctx) }</p>
+		if v.CancelledOrderInvoiceCount > 0 {
+			<section class="goen-admin__queue" aria-labelledby="cancelled-order-invoices-heading">
+				<h2 class="goen-admin__heading" id="cancelled-order-invoices-heading">{ i18n.T(ctx, i18n.KeyAdminHPCancelledOrderInvoicesHeading) }</h2>
+				<p class="goen-admin__hint">{ v.CancelledOrderInvoicesText(ctx) }</p>
 				<div class="goen-admin__tablewrap">
 					<table class="ui-table goen-admin__table">
 						<thead>
@@ -268,7 +268,7 @@ templ Health(p layouts.Page, v *WorkerHealthView) {
 							</tr>
 						</thead>
 						<tbody>
-							for _, inv := range v.CancelledInvoices {
+							for _, inv := range v.CancelledOrderInvoices {
 								<tr>
 									<td class="goen-admin__cellkey">
 										<a href={ templ.SafeURL("/admin/orders/" + inv.OrderNumber) }>{ inv.OrderNumber }</a>

@@ -133,7 +133,7 @@ func (s *Store) WorkerHealth(ctx context.Context, messages *outbox.Store) (admin
 	if err != nil {
 		return admin.WorkerHealthView{}, err
 	}
-	view.CancelledInvoices, view.CancelledInvoiceCount, err = s.CancelledOrderInvoices(ctx, UnvoidedAfter)
+	view.CancelledOrderInvoices, view.CancelledOrderInvoiceCount, err = s.CancelledOrderInvoices(ctx, UnvoidedAfter)
 	if err != nil {
 		return admin.WorkerHealthView{}, err
 	}
