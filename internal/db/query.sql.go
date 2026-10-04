@@ -3526,7 +3526,7 @@ FROM shipping_version_zones vz
 WHERE vz.version_id = (
     SELECT v.id FROM shipping_method_versions v
     WHERE v.method_id = $2 AND v.id <> $1
-      AND v.effective_at <= now()
+      AND v.effective_at <= statement_timestamp()
     ORDER BY v.effective_at DESC, v.id DESC
     LIMIT 1
 )
@@ -6277,7 +6277,7 @@ func (q *Queries) CurrentPromoBanner(ctx context.Context, locale string) (Curren
 
 const currentShippingVersion = `-- name: CurrentShippingVersion :one
 SELECT id FROM shipping_method_versions
-WHERE method_id = $1 AND effective_at <= now()
+WHERE method_id = $1 AND effective_at <= statement_timestamp()
 ORDER BY effective_at DESC, id DESC
 LIMIT 1
 `
@@ -11264,7 +11264,7 @@ INSERT INTO shipping_method_versions (method_id, name, carrier, name_en, carrier
                                       fee_cents, free_over_cents, effective_at)
 VALUES ($1, $2, nullif($3::text, ''),
         nullif($4::text, ''), nullif($5::text, ''),
-        $6, nullif($7::bigint, 0), now())
+        $6, nullif($7::bigint, 0), statement_timestamp())
 RETURNING id
 `
 
