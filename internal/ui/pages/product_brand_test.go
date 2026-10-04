@@ -39,12 +39,12 @@ func TestProductViewsOmitAnAbsentBrand(t *testing.T) {
 				component templ.Component
 				class     string
 			}{
-				"product": {Product(layouts.Page{Title: "Generic"}, &view), "goen-pdp__brand"},
-				"tile":    {Tile(ProductTile{Slug: "generic", Name: "Generic", Brand: brand}), "goen-tile__brand"},
-				"compare": {Compare(layouts.Page{Title: "Compare"}, CompareView{Products: []CompareProduct{
+				"product": {component: Product(layouts.Page{Title: "Generic"}, &view), class: "goen-pdp__brand"},
+				"tile":    {component: Tile(ProductTile{Slug: "generic", Name: "Generic", Brand: brand}), class: "goen-tile__brand"},
+				"compare": {component: Compare(layouts.Page{Title: "Compare"}, CompareView{Products: []CompareProduct{
 					{Slug: "a", Name: "A", Brand: brand}, {Slug: "b", Name: "B", Brand: brand},
-				}}), "goen-compare__brand"},
-				"suggestions": {compareSuggestions(CompareView{Suggestions: []ProductTile{{Slug: "generic", Name: "Generic", Brand: brand}}}), "goen-compare__brand"},
+				}}), class: "goen-compare__brand"},
+				"suggestions": {component: compareSuggestions(CompareView{Suggestions: []ProductTile{{Slug: "generic", Name: "Generic", Brand: brand}}}), class: "goen-compare__brand"},
 			} {
 				t.Run(string(locale)+"/"+name+"/"+brand, func(t *testing.T) {
 					var body strings.Builder

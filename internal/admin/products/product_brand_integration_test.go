@@ -51,7 +51,7 @@ func TestTheShopCanPublishAnUnbrandedProduct(t *testing.T) {
 		SELECT p.brand_id IS NULL, EXISTS (
 			SELECT 1 FROM audit_events WHERE action = $2 AND after->>'slug' = p.slug
 			AND after ? 'brand_id' AND after->'brand_id' = 'null'::jsonb)
-		FROM products p WHERE slug = $1`, slug, "product.create").Scan(&absent, &audited); stateErr != nil {
+		FROM products p WHERE slug = $1`, slug, string(audit.ActionCreateProduct)).Scan(&absent, &audited); stateErr != nil {
 		t.Fatal(stateErr)
 	}
 	if !absent || !audited {

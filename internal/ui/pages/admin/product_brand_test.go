@@ -14,7 +14,7 @@ func TestARefusedProductFormKeepsTheNoBrandChoice(t *testing.T) {
 	for _, tc := range []struct {
 		locale i18n.Locale
 		label  string
-	}{{i18n.ZhHant, "無品牌"}, {i18n.En, "No brand"}} {
+	}{{locale: i18n.ZhHant, label: "無品牌"}, {locale: i18n.En, label: "No brand"}} {
 		ctx := i18n.WithLocale(t.Context(), tc.locale)
 		view := ProductView{Slug: "generic", Name: "Generic", Brands: []Choice{{Value: "maker-id", Label: "Maker"}}, Errors: map[string]string{"name": "refused"}}
 		body := renderComponent(t, ctx, ProductForm(layouts.Page{Title: "Product"}, view))
