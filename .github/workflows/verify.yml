@@ -169,6 +169,9 @@ jobs:
           make migrate-up
           make db-seed
 
+      - name: Accessibility gate policy
+        run: node --test scripts/wcag-gate.test.mjs
+
       # Backgrounded with its output redirected: a step that leaves the server on
       # the step's own pipe does not return until the server exits.
       #

@@ -2257,7 +2257,7 @@ func returnLineID(t *testing.T, requestID uuid.UUID) uuid.UUID {
 
 func TestAnInspectedReturnPutsTheSellableUnitsBack(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
-	s := storeOver(pool, admintest.Refunder{})
+	s := storeOver(admintest.AdminRolePool(t, pool), admintest.Refunder{})
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
 	requestID, variantID := returnedOrderWithStock(t, "restock", 2)
 	lineID := returnLineID(t, requestID)
@@ -2271,12 +2271,14 @@ func TestAnInspectedReturnPutsTheSellableUnitsBack(t *testing.T) {
 			before, got)
 	}
 
+	subscriptions := admintest.SubscribeAtSafetyStock(t, pool, variantID)
 	if err := s.Inspect(ctx, requestID.String(), []returns.LineInspection{{
 		OrderLineID: lineID, Received: 2, Restocked: 1, Note: "一件外盒破損",
 	}}, actor); err != nil {
 		t.Fatalf("inspect: %v", err)
 	}
 
+	admintest.AssertRestockQueued(t, pool, subscriptions)
 	if got, want := stockOf(t, variantID), before+1; got != want {
 		t.Errorf("stock is %d after restocking one of two returned units, want %d", got, want)
 	}

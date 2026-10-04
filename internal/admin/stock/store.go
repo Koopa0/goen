@@ -19,9 +19,8 @@ import (
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/db"
-	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/outbox"
+	"github.com/koopa0/goen/internal/inventory"
 	"github.com/koopa0/goen/internal/pgerr"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
@@ -112,12 +111,9 @@ func (s *Store) Adjust(ctx context.Context, sku string, delta int32, actorID, ke
 			}); moveErr != nil {
 				return fmt.Errorf("%w: %w", ErrRefused, moveErr)
 			}
-			// Called on EVERY adjustment: the claim's own EXISTS decides whether
-			// the variant is back above its threshold, so a movement that does
-			// not cross it claims nothing.
-			return enqueueRestockNotices(ctx, q, v.ID)
+			return nil
 		})
-	return s.settleReplay(ctx, err, v.ID, delta, "adjustment", key)
+	return s.settleReplay(ctx, err, v.ID, delta, inventory.ReasonAdjustment, key)
 }
 
 // Receive books a delivery in, through the ledger's own 'receipt' reason,
@@ -146,9 +142,9 @@ func (s *Store) Receive(ctx context.Context, sku string, quantity int32, actorID
 			}); moveErr != nil {
 				return fmt.Errorf("%w: %w", ErrRefused, moveErr)
 			}
-			return enqueueRestockNotices(ctx, q, v.ID)
+			return nil
 		})
-	return s.settleReplay(ctx, err, v.ID, quantity, "receipt", key)
+	return s.settleReplay(ctx, err, v.ID, quantity, inventory.ReasonReceipt, key)
 }
 
 // settleReplay turns the ledger's refusal of a key it already holds into the
@@ -157,13 +153,13 @@ func (s *Store) Receive(ctx context.Context, sku string, quantity int32, actorID
 // as refused sends a staff member to re-enter it from a fresh form, which
 // lands it twice. A key reused for a different movement stays refused.
 func (s *Store) settleReplay(
-	ctx context.Context, err error, variantID uuid.UUID, delta int32, reason, key string,
+	ctx context.Context, err error, variantID uuid.UUID, delta int32, reason inventory.MovementReason, key string,
 ) error {
 	if err == nil || !pgerr.IsConstraint(err, "inventory_movements_idempotency_key") {
 		return err
 	}
 	applied, checkErr := s.q.StockMovementApplied(ctx, db.StockMovementAppliedParams{
-		IdempotencyKey: key, VariantID: variantID, Delta: delta, Reason: reason,
+		IdempotencyKey: key, VariantID: variantID, Delta: delta, Reason: string(reason),
 	})
 	if checkErr != nil || !applied {
 		return err
@@ -289,52 +285,11 @@ func (s *Store) Movements(ctx context.Context, sku string, after ...string) (adm
 		view.Rows = append(view.Rows, admin.Movement{
 			At:          shoptime.Minute(m.CreatedAt),
 			Delta:       m.Delta,
-			Reason:      m.Reason,
+			Reason:      inventory.MovementReason(m.Reason),
 			OrderNumber: m.OrderNumber,
 			Actor:       m.Actor,
 			Running:     m.RunningTotal,
 		})
 	}
 	return view, nil
-}
-
-// The claim and the enqueue must commit together, or somebody is marked told and
-// the partial index stops them asking again.
-func enqueueRestockNotices(ctx context.Context, q *db.Queries, variantID uuid.UUID) error {
-	claimed, err := q.ClaimRestockNotices(ctx, variantID)
-	if err != nil {
-		return fmt.Errorf("claim restock notices: %w", err)
-	}
-	if len(claimed) == 0 {
-		return nil
-	}
-
-	subjects := make(map[string]db.RestockSubjectRow, 2)
-	for _, c := range claimed {
-		if _, ok := subjects[c.Locale]; ok {
-			continue
-		}
-		subject, subErr := q.RestockSubject(ctx, db.RestockSubjectParams{
-			VariantID: variantID, Locale: c.Locale,
-		})
-		if subErr != nil {
-			return fmt.Errorf("read restock subject in %s: %w", c.Locale, subErr)
-		}
-		subjects[c.Locale] = subject
-	}
-
-	keys := make([]string, 0, len(claimed))
-	payloads := make([]email.RestockNotice, 0, len(claimed))
-	for _, c := range claimed {
-		subject := subjects[c.Locale]
-		keys = append(keys, c.ID.String())
-		payloads = append(payloads, email.RestockNotice{
-			Email: c.Email, ProductName: subject.ProductName,
-			Slug: subject.Slug, SKU: subject.SKU,
-			Locale: c.Locale,
-		})
-	}
-	// One statement, because this runs while the variant row is locked and every
-	// checkout of it waits for the loop to end.
-	return outbox.EnqueueAll(ctx, q, outbox.TopicRestocked, 0, keys, payloads)
 }
