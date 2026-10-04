@@ -16,6 +16,7 @@ import (
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/ratelimit"
+	"github.com/koopa0/goen/internal/user"
 )
 
 // TestSigningOutEndsTheBrowsersAccessToItsOrders is the shared computer again:
@@ -140,7 +141,7 @@ type placedOrders struct {
 	h        *account.Handler
 	carts    *cart.Handler
 	accounts *account.Store
-	u        account.User
+	u        user.User
 	orders   []string
 	placed   *http.Cookie
 }

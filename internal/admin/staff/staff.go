@@ -12,12 +12,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/pgerr"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
+	"github.com/koopa0/goen/internal/user"
 )
 
 var (
@@ -52,7 +52,7 @@ func NewStore(pool *pgxpool.Pool) *Store {
 // so its password was cleared and its sessions ended. The caller relays that.
 func (s *Store) AddStaff(ctx context.Context, address, name, role string) (bool, error) {
 	address, name = strings.TrimSpace(address), strings.TrimSpace(name)
-	if !email.Valid(address) || !slices.Contains(admin.StaffRoles[:], admin.StaffRole(role)) {
+	if !email.Valid(address) || !slices.Contains(user.StaffRoles[:], user.Role(role)) {
 		return false, ErrInvalidStaff
 	}
 	actor, ok := audit.Actor(ctx)
@@ -205,7 +205,7 @@ func whyRevokeMatchedNothing(ctx context.Context, q *db.Queries, target uuid.UUI
 		return fmt.Errorf("read staff: %w", err)
 	}
 	for i := range rows {
-		if rows[i].ID == target && account.Role(rows[i].Role) == account.RoleAdmin {
+		if rows[i].ID == target && user.Role(rows[i].Role) == user.RoleAdmin {
 			return ErrLastAdmin
 		}
 	}
@@ -219,12 +219,12 @@ func (s *Store) Staff(ctx context.Context) (admin.StaffView, error) {
 	}
 	view := admin.StaffView{Rows: make([]admin.StaffRow, 0, len(rows))}
 	// Cloned: a slice of the package-level array would let a caller write through it.
-	view.Roles = slices.Clone(admin.StaffRoles[:])
+	view.Roles = slices.Clone(user.StaffRoles[:])
 	for i := range rows {
 		r := &rows[i]
 		view.Rows = append(view.Rows, admin.StaffRow{
 			ID: r.ID.String(), Email: r.Email, Name: r.FullName,
-			Role: admin.StaffRole(r.Role), Enrolled: r.Enrolled,
+			Role: user.Role(r.Role), Enrolled: r.Enrolled,
 		})
 	}
 	return view, nil

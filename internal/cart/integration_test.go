@@ -26,7 +26,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/assets"
-	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/db/dbtest"
@@ -36,6 +35,7 @@ import (
 	"github.com/koopa0/goen/internal/product"
 	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/user"
 )
 
 var pool *pgxpool.Pool
@@ -548,8 +548,8 @@ func TestAChangedCreditBalanceReRendersCheckoutWithTheFreshFigure(t *testing.T) 
 			strings.NewReader(form.Encode()))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token}) //nolint:gosec // G124: dev cart cookie under test
-		return req.WithContext(account.WithUser(req.Context(), account.User{
-			ID: userID.String(), Email: "credit-race@example.com", Role: account.RoleCustomer,
+		return req.WithContext(user.NewContext(req.Context(), user.User{
+			ID: userID.String(), Email: "credit-race@example.com", Role: user.RoleCustomer,
 		}))
 	}
 
@@ -653,8 +653,8 @@ func TestConcurrentSignedInFirstAddsShareOneOwnedCart(t *testing.T) {
 		req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/cart/items",
 			strings.NewReader(form.Encode()))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		req = req.WithContext(account.WithUser(req.Context(), account.User{
-			ID: userID.String(), Role: account.RoleCustomer,
+		req = req.WithContext(user.NewContext(req.Context(), user.User{
+			ID: userID.String(), Role: user.RoleCustomer,
 		}))
 		res := httptest.NewRecorder()
 		h.AddItem(res, req)
@@ -6230,7 +6230,7 @@ func TestPickingASavedAddressFillsTheForm(t *testing.T) {
 		strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token}) //nolint:gosec // G124: dev cart cookie under test
-	req = req.WithContext(account.WithUser(ctx, account.User{ID: userID.String(), Role: account.RoleCustomer}))
+	req = req.WithContext(user.NewContext(ctx, user.User{ID: userID.String(), Role: user.RoleCustomer}))
 
 	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
 
@@ -6313,7 +6313,7 @@ func TestChangingAnotherChoiceKeepsATypedAddress(t *testing.T) {
 		strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token}) //nolint:gosec // G124: dev cart cookie under test
-	req = req.WithContext(account.WithUser(ctx, account.User{ID: userID.String(), Role: account.RoleCustomer}))
+	req = req.WithContext(user.NewContext(ctx, user.User{ID: userID.String(), Role: user.RoleCustomer}))
 
 	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
 

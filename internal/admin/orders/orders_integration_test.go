@@ -21,7 +21,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 
-	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/admin/orders"
@@ -30,6 +29,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/user"
 )
 
 func TestAdvanceRefusesAnUnfundedOrder(t *testing.T) {
@@ -346,7 +346,7 @@ func TestCancellingAnOrderInTheBackOfficeReturnsItsStock(t *testing.T) {
 		t.Fatalf("create staff: %v", err)
 	}
 	// record_audit_event reads the actor from the CONTEXT, not from the parameter.
-	staffCtx := account.WithUser(ctx, account.User{ID: staff.String(), Role: account.RoleAdmin})
+	staffCtx := user.NewContext(ctx, user.User{ID: staff.String(), Role: user.RoleAdmin})
 	if _, err := s.Advance(staffCtx, number, "cancelled", uuid.NullUUID{UUID: staff, Valid: true}); err != nil {
 		t.Fatalf("cancel: %v", err)
 	}
@@ -425,7 +425,7 @@ func TestBackOfficeCancellationReadsHoldsAfterWinningTheOrderLock(t *testing.T) 
 		RETURNING id`, "cancel-race-"+uuid.NewString()+"@goen.invalid").Scan(&staff); err != nil {
 		t.Fatalf("create staff: %v", err)
 	}
-	staffCtx := account.WithUser(ctx, account.User{ID: staff.String(), Role: account.RoleAdmin})
+	staffCtx := user.NewContext(ctx, user.User{ID: staff.String(), Role: user.RoleAdmin})
 	cancelPool := admintest.NamedPool(t, pool, "admin-cancel-behind-sweep")
 	cancelDone := make(chan error, 1)
 	go func() {
@@ -478,7 +478,7 @@ func TestShippingEnqueuesTheDispatchNotice(t *testing.T) {
 		RETURNING id`, "dispatch-"+number+"@goen.invalid").Scan(&staff); err != nil {
 		t.Fatalf("create staff: %v", err)
 	}
-	staffCtx := account.WithUser(ctx, account.User{ID: staff.String(), Role: account.RoleAdmin})
+	staffCtx := user.NewContext(ctx, user.User{ID: staff.String(), Role: user.RoleAdmin})
 
 	if err := s.Ship(staffCtx, number, orders.Dispatch{Carrier: "black_cat", Tracking: "903-2214-0001"},
 		uuid.NullUUID{UUID: staff, Valid: true}); err != nil {

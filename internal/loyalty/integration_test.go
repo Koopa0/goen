@@ -23,12 +23,12 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/loyalty"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/user"
 )
 
 var pool *pgxpool.Pool
@@ -247,7 +247,7 @@ func TestAnOversizedRedemptionPOSTRedirectsWithoutDatabaseEffects(t *testing.T) 
 		"operation_id": {operationID.String()},
 	}
 	req := httptest.NewRequestWithContext(
-		account.WithUser(ctx, account.User{ID: userID, Role: account.RoleCustomer}),
+		user.NewContext(ctx, user.User{ID: userID, Role: user.RoleCustomer}),
 		http.MethodPost, "/account/points", strings.NewReader(form.Encode()),
 	)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -1483,7 +1483,7 @@ func TestPointsAreHeldWhileAnApprovedReturnIsUnpaid(t *testing.T) {
 
 	form := url.Values{"points": {"200"}, "operation_id": {redemptionOperation(t, userID).String()}}
 	req := httptest.NewRequestWithContext(
-		i18n.WithLocale(account.WithUser(ctx, account.User{ID: userID, Role: account.RoleCustomer}), i18n.En),
+		i18n.WithLocale(user.NewContext(ctx, user.User{ID: userID, Role: user.RoleCustomer}), i18n.En),
 		http.MethodPost, "/account/points", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	res := httptest.NewRecorder()

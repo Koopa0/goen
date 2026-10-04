@@ -13,9 +13,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
+	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -45,8 +45,8 @@ const invoiceNoticeOrder = "GO-260901-000001"
 
 func invoiceNoticeContext(t *testing.T) context.Context {
 	t.Helper()
-	ctx := account.WithUser(t.Context(), account.User{
-		ID: uuid.NewString(), Role: account.RoleAdmin,
+	ctx := user.NewContext(t.Context(), user.User{
+		ID: uuid.NewString(), Role: user.RoleAdmin,
 	})
 	ctx = web.WithRequestID(ctx, "req-void-notice")
 	return i18n.WithLocale(ctx, i18n.ZhHant)

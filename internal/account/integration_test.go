@@ -32,6 +32,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/ratelimit"
+	"github.com/koopa0/goen/internal/user"
 )
 
 var pool *pgxpool.Pool
@@ -68,7 +69,7 @@ func TestMain(m *testing.M) {
 // mailed link: the account exists and holds the password, and its address is
 // unproved. The queued follow-up is marked delivered, because a fixture has no
 // worker to send it.
-func register(t *testing.T, s *account.Store, email string) account.User {
+func register(t *testing.T, s *account.Store, email string) user.User {
 	t.Helper()
 	if err := s.Register(t.Context(), &account.Credentials{
 		Email: email, Password: "a sufficiently long password", Name: "測試",
@@ -76,7 +77,7 @@ func register(t *testing.T, s *account.Store, email string) account.User {
 		t.Fatalf("register %s: %v", email, err)
 	}
 	var id uuid.UUID
-	var u account.User
+	var u user.User
 	if err := pool.QueryRow(t.Context(), `
 		SELECT id, email, coalesce(full_name, ''), role
 		FROM users WHERE lower(email) = lower($1)`, email).
@@ -95,7 +96,7 @@ func register(t *testing.T, s *account.Store, email string) account.User {
 
 // registerProved is a completed registration: register, then what following
 // the mailed link does to the account. A password signs into nothing less.
-func registerProved(t *testing.T, s *account.Store, email string) account.User {
+func registerProved(t *testing.T, s *account.Store, email string) user.User {
 	t.Helper()
 	u := register(t, s, email)
 	if _, err := pool.Exec(t.Context(),
@@ -510,7 +511,7 @@ func TestOrdersAreScopedToTheirOwner(t *testing.T) {
 	cartStore := cart.NewStore(pool)
 	h := cart.NewHandler(cartStore, slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
 
-	owner := httptest.NewRequestWithContext(account.WithUser(ctx, theirs), http.MethodGet,
+	owner := httptest.NewRequestWithContext(user.NewContext(ctx, theirs), http.MethodGet,
 		"/orders/"+number, http.NoBody)
 	owner.SetPathValue("number", number)
 	ownerOK := httptest.NewRecorder()
@@ -519,7 +520,7 @@ func TestOrdersAreScopedToTheirOwner(t *testing.T) {
 		t.Fatalf("the owner cannot see their own order: status %d, want 200", ownerOK.Code)
 	}
 
-	stranger := httptest.NewRequestWithContext(account.WithUser(ctx, mine), http.MethodGet,
+	stranger := httptest.NewRequestWithContext(user.NewContext(ctx, mine), http.MethodGet,
 		"/orders/"+number, http.NoBody)
 	stranger.SetPathValue("number", number)
 	strangerRes := httptest.NewRecorder()
@@ -528,7 +529,7 @@ func TestOrdersAreScopedToTheirOwner(t *testing.T) {
 		t.Errorf("another customer's order gave status %d, want 404", strangerRes.Code)
 	}
 
-	missing := httptest.NewRequestWithContext(account.WithUser(ctx, mine), http.MethodGet,
+	missing := httptest.NewRequestWithContext(user.NewContext(ctx, mine), http.MethodGet,
 		"/orders/GO-000000-999999", http.NoBody)
 	missing.SetPathValue("number", "GO-000000-999999")
 	missingRes := httptest.NewRecorder()
@@ -1942,7 +1943,7 @@ func TestRawAndDirectAccountWritesRespectRenderedBounds(t *testing.T) {
 
 	post := func(target string, values url.Values, handle http.HandlerFunc) *httptest.ResponseRecorder {
 		t.Helper()
-		req := httptest.NewRequestWithContext(account.WithUser(ctx, u), http.MethodPost,
+		req := httptest.NewRequestWithContext(user.NewContext(ctx, u), http.MethodPost,
 			target, strings.NewReader(values.Encode()))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		out := httptest.NewRecorder()
@@ -2118,7 +2119,7 @@ func TestErasureWaitsForAStoreCreditFundedReturn(t *testing.T) {
 	if err != nil {
 		t.Fatalf("start session: %v", err)
 	}
-	req := httptest.NewRequestWithContext(account.WithUser(ctx, u), http.MethodPost,
+	req := httptest.NewRequestWithContext(user.NewContext(ctx, u), http.MethodPost,
 		"/account/erase", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.AddCookie(&http.Cookie{Name: "goen_session", Value: token}) //nolint:gosec // G124: a request cookie, not a response
@@ -2187,7 +2188,7 @@ func TestErasureWaitsForAStoreCreditFundedReturn(t *testing.T) {
 
 func creditFundedOpenReturnForErasure(
 	t *testing.T,
-	u account.User,
+	u user.User,
 ) (requestID, orderID, creditAccountID uuid.UUID) {
 	t.Helper()
 	ctx := t.Context()
@@ -2597,7 +2598,7 @@ func TestTheLastAdminIsToldWhyErasureWasRefused(t *testing.T) {
 		t.Fatalf("start session: %v", err)
 	}
 	form := url.Values{"confirm": {u.Email}}
-	req := httptest.NewRequestWithContext(account.WithUser(ctx, u), http.MethodPost,
+	req := httptest.NewRequestWithContext(user.NewContext(ctx, u), http.MethodPost,
 		"/account/erase", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.AddCookie(&http.Cookie{Name: "goen_session", Value: token}) //nolint:gosec // G124: a request cookie, not a response
@@ -3881,7 +3882,7 @@ func TestTheMembershipBandReadsInTheVisitorsLanguage(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			view, err := s.Overview(i18n.WithLocale(ctx, tt.locale),
-				account.User{ID: id, Role: account.RoleCustomer})
+				user.User{ID: id, Role: user.RoleCustomer})
 			if err != nil {
 				t.Fatalf("Overview: %v", err)
 			}
@@ -3993,7 +3994,7 @@ func TestConcurrentGoogleLinkingReturnsTheDurableExistingOwner(t *testing.T) {
 	firstName, secondName := "google-existing-a-"+suffix, "google-existing-b-"+suffix
 	firstStore := account.NewStore(accountStorePool(t, firstName))
 	secondStore := account.NewStore(accountStorePool(t, secondName))
-	var first, second account.User
+	var first, second user.User
 	firstDone, secondDone := make(chan error, 1), make(chan error, 1)
 	go func() {
 		var signInErr error
@@ -4060,7 +4061,7 @@ func TestConcurrentGoogleSignUpCreatesOnlyTheSubjectOwner(t *testing.T) {
 	firstName, secondName := "google-new-a-"+suffix, "google-new-b-"+suffix
 	firstStore := account.NewStore(accountStorePool(t, firstName))
 	secondStore := account.NewStore(accountStorePool(t, secondName))
-	var first, second account.User
+	var first, second user.User
 	firstDone, secondDone := make(chan error, 1), make(chan error, 1)
 	go func() {
 		var signInErr error
@@ -4276,8 +4277,8 @@ func TestErasureNeedsARecentSignIn(t *testing.T) {
 	ctx := t.Context()
 	s := account.NewStore(pool)
 	h := account.NewHandler(s, nil, slog.New(slog.DiscardHandler), false, nil)
-	erase := func(u account.User, token string) *httptest.ResponseRecorder {
-		req := httptest.NewRequestWithContext(account.WithUser(ctx, u), http.MethodPost,
+	erase := func(u user.User, token string) *httptest.ResponseRecorder {
+		req := httptest.NewRequestWithContext(user.NewContext(ctx, u), http.MethodPost,
 			"/account/erase", strings.NewReader(url.Values{"confirm": {u.Email}}.Encode()))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		req.AddCookie(&http.Cookie{Name: "goen_session", Value: token}) //nolint:gosec // G124: a request cookie, not a response
@@ -4285,7 +4286,7 @@ func TestErasureNeedsARecentSignIn(t *testing.T) {
 		h.Erase(out, req)
 		return out
 	}
-	exists := func(u account.User) bool {
+	exists := func(u user.User) bool {
 		var n int
 		if err := pool.QueryRow(ctx, `SELECT count(*) FROM users WHERE id = $1`, u.ID).Scan(&n); err != nil {
 			t.Fatalf("count user: %v", err)

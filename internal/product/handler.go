@@ -13,12 +13,12 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -70,7 +70,7 @@ func (h *Handler) Detail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if u, signedIn := account.FromContext(r.Context()); signedIn {
+	if u, signedIn := user.FromContext(r.Context()); signedIn {
 		view.Saved = h.store.SavedByUser(r.Context(), u.ID, slug)
 	}
 	h.fillForViewer(r, slug, &view)
@@ -95,7 +95,7 @@ func (h *Handler) notFound(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Review(w http.ResponseWriter, r *http.Request) {
-	u, signedIn := account.FromContext(r.Context())
+	u, signedIn := user.FromContext(r.Context())
 	slug := r.PathValue("slug")
 	if !signedIn {
 		http.Redirect(w, r, "/signin?next=/p/"+url.PathEscape(slug), http.StatusSeeOther)
@@ -144,7 +144,7 @@ func (h *Handler) Notify(w http.ResponseWriter, r *http.Request) {
 	variantID := r.PostFormValue("variant")
 
 	var userID, accountEmail string
-	if u, ok := account.FromContext(r.Context()); ok {
+	if u, ok := user.FromContext(r.Context()); ok {
 		userID, accountEmail = u.ID, u.Email
 	}
 
@@ -232,7 +232,7 @@ func (h *Handler) rejectReview(w http.ResponseWriter, r *http.Request, slug stri
 }
 
 func (h *Handler) fillForViewer(r *http.Request, slug string, view *pages.ProductView) {
-	u, signedIn := account.FromContext(r.Context())
+	u, signedIn := user.FromContext(r.Context())
 	view.SignedIn, view.AccountEmail = signedIn, u.Email
 	if !signedIn {
 		return
@@ -256,7 +256,7 @@ func parseRating(s string) int16 {
 }
 
 func (h *Handler) Ask(w http.ResponseWriter, r *http.Request) {
-	u, ok := account.FromContext(r.Context())
+	u, ok := user.FromContext(r.Context())
 	if !ok {
 		http.Redirect(w, r, "/signin?next=/p/"+url.PathEscape(r.PathValue("slug")),
 			http.StatusSeeOther)

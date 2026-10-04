@@ -5,26 +5,14 @@ import (
 	"strconv"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/user"
 )
 
-// StaffRole is the back-office access one account holds, closed by
-// users_role_known. Declared here rather than in internal/twofactor because
-// twofactor builds these view models, so a type it owned could not be named
-// below without closing a cycle.
-type StaffRole string
-
-const (
-	StaffMember StaffRole = "staff"
-	StaffAdmin  StaffRole = "admin"
-)
-
-var StaffRoles = [...]StaffRole{StaffMember, StaffAdmin}
-
-func (r StaffRole) Label(ctx context.Context) string {
+func RoleLabel(ctx context.Context, r user.Role) string {
 	switch r {
-	case StaffMember:
+	case user.RoleStaff:
 		return i18n.T(ctx, i18n.KeyAdminRoleStaff)
-	case StaffAdmin:
+	case user.RoleAdmin:
 		return i18n.T(ctx, i18n.KeyAdminRoleAdmin)
 	default:
 		panic("pages: no label for staff role " + string(r))
@@ -33,12 +21,12 @@ func (r StaffRole) Label(ctx context.Context) string {
 
 type StaffView struct {
 	Rows     []StaffRow
-	Roles    []StaffRole
+	Roles    []user.Role
 	Notice   string
 	Actor    string
 	AddEmail string
 	AddName  string
-	AddRole  StaffRole
+	AddRole  user.Role
 	AddError string
 }
 
@@ -46,7 +34,7 @@ type StaffRow struct {
 	ID       string
 	Email    string
 	Name     string
-	Role     StaffRole
+	Role     user.Role
 	Enrolled bool
 }
 

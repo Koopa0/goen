@@ -16,10 +16,10 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ratelimit"
+	"github.com/koopa0/goen/internal/user"
 )
 
 // TestWrongCouponCodesAreBoundedWithoutSayingWhichCodeWasRight: a wrong code and
@@ -163,7 +163,7 @@ func (g *couponGuesses) guestCart() string {
 // ask posts a chooser change carrying code from remote with the cart token,
 // signed in as who when who is not nil. A chooser change looks the code up and
 // re-renders, and places nothing.
-func (g *couponGuesses) ask(token, remote, code string, who *account.User) *httptest.ResponseRecorder {
+func (g *couponGuesses) ask(token, remote, code string, who *user.User) *httptest.ResponseRecorder {
 	form := url.Values{"coupon": {code}, "update": {"shipping"}, "shipping": {g.ship.String()}}
 	req := httptest.NewRequestWithContext(g.t.Context(), http.MethodPost, "/checkout",
 		strings.NewReader(form.Encode()))
@@ -171,7 +171,7 @@ func (g *couponGuesses) ask(token, remote, code string, who *account.User) *http
 	req.RemoteAddr = remote
 	req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token}) //nolint:gosec // G124: dev cart cookie under test
 	if who != nil {
-		req = req.WithContext(account.WithUser(req.Context(), *who))
+		req = req.WithContext(user.NewContext(req.Context(), *who))
 	}
 	res := httptest.NewRecorder()
 	g.h.PlaceOrder(res, req)
@@ -180,7 +180,7 @@ func (g *couponGuesses) ask(token, remote, code string, who *account.User) *http
 
 // spendFromManyClients is told a code is wrong couponMissBudget times, each
 // time from another client, so no client's own key comes near its limit.
-func (g *couponGuesses) spendFromManyClients(cartFor func() string, who *account.User) {
+func (g *couponGuesses) spendFromManyClients(cartFor func() string, who *user.User) {
 	g.t.Helper()
 	unknown := i18n.T(g.t.Context(), i18n.KeyCouponUnknown)
 	for i := range couponMissBudget {
@@ -295,7 +295,7 @@ func TestAnAccountsWrongCouponCodesAreBoundedFromEveryClientAndCart(t *testing.T
 		"coupon-guesser-"+uuid.NewString()+"@example.com").Scan(&userID); err != nil {
 		t.Fatalf("create account: %v", err)
 	}
-	who := &account.User{ID: userID.String(), Role: account.RoleCustomer}
+	who := &user.User{ID: userID.String(), Role: user.RoleCustomer}
 	g.spendFromManyClients(g.guestCart, who)
 
 	if res := g.ask(g.guestCart(), "203.0.113.200:5000", "SPREADMORE", who); res.Code != http.StatusTooManyRequests {

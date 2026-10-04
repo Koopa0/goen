@@ -11,12 +11,12 @@ import (
 
 	stripe "github.com/stripe/stripe-go/v86"
 
-	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -622,7 +622,7 @@ func (h *Handler) payableOrder(w http.ResponseWriter, r *http.Request, number st
 }
 
 func (h *Handler) ownedBySignedInUser(r *http.Request, number string) bool {
-	u, ok := account.FromContext(r.Context())
+	u, ok := user.FromContext(r.Context())
 	if !ok {
 		return false
 	}

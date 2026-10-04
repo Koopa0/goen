@@ -15,6 +15,7 @@ import (
 	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -41,7 +42,7 @@ func NewHandler(store *Store, log *slog.Logger, secure bool) *Handler {
 }
 
 func (h *Handler) Challenge(w http.ResponseWriter, r *http.Request) {
-	u, ok := account.FromContext(r.Context())
+	u, ok := user.FromContext(r.Context())
 	if !ok {
 		http.NotFound(w, r)
 		return
@@ -80,7 +81,7 @@ func (h *Handler) Challenge(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Verify(w http.ResponseWriter, r *http.Request) {
-	u, ok := account.FromContext(r.Context())
+	u, ok := user.FromContext(r.Context())
 	if !ok {
 		http.NotFound(w, r)
 		return
@@ -130,7 +131,7 @@ func (h *Handler) Verify(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) Enrol(w http.ResponseWriter, r *http.Request) {
 	// The one-time TOTP seed is password-equivalent; keep its page out of BREACH's reach.
 	web.NoCompress(w)
-	u, ok := account.FromContext(r.Context())
+	u, ok := user.FromContext(r.Context())
 	if !ok {
 		http.NotFound(w, r)
 		return
@@ -170,7 +171,7 @@ func (h *Handler) Enrol(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Confirm(w http.ResponseWriter, r *http.Request) {
-	u, ok := account.FromContext(r.Context())
+	u, ok := user.FromContext(r.Context())
 	if !ok {
 		http.NotFound(w, r)
 		return

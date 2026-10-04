@@ -16,9 +16,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
-	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/admin/refunds"
 	"github.com/koopa0/goen/internal/admin/refundstate"
+	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -206,8 +206,8 @@ func TestRefundRecoveryRequiresActorAndRequestIDBeforeProviderCall(t *testing.T)
 			context: func(t *testing.T) (context.Context, uuid.NullUUID) {
 				t.Helper()
 				_, actor := admintest.StaffContext(t, pool)
-				ctx := account.WithUser(t.Context(), account.User{
-					ID: actor.String(), Role: account.RoleAdmin,
+				ctx := user.NewContext(t.Context(), user.User{
+					ID: actor.String(), Role: user.RoleAdmin,
 				})
 				return ctx, uuid.NullUUID{UUID: actor, Valid: true}
 			},

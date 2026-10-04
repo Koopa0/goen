@@ -51,7 +51,7 @@ templ Staff(p layouts.Page, v StaffView) {
 								{ r.DisplayName() }
 								<span class="goen-admin__meta">{ r.Email }</span>
 							</td>
-							<td>{ r.Role.Label(ctx) }</td>
+							<td>{ RoleLabel(ctx, r.Role) }</td>
 							<td>
 								if r.Enrolled {
 									@components.Badge(components.BadgeProps{Intent: components.IntentAccent}) {
@@ -134,7 +134,7 @@ templ Staff(p layouts.Page, v StaffView) {
 						}
 						<select class="goen-input" id="staff-role" name="role" required>
 							for _, role := range v.Roles {
-								<option value={ string(role) } selected?={ v.AddRole == role }>{ role.Label(ctx) }</option>
+								<option value={ string(role) } selected?={ v.AddRole == role }>{ RoleLabel(ctx, role) }</option>
 							}
 						</select>
 					</div>

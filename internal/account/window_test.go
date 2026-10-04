@@ -10,8 +10,8 @@ import (
 	"github.com/koopa0/goen/internal/loyalty"
 )
 
-// internal/loyalty imports internal/account, so the constant is copied rather
-// than imported, and nothing else makes the two agree.
+// MembershipWindowDays is a copy of loyalty.MembershipWindow, and nothing else
+// makes the two agree.
 func TestTheMembershipWindowMatchesTheProgramme(t *testing.T) {
 	if got, want := account.MembershipWindowDays, int32(loyalty.MembershipWindow/(24*time.Hour)); got != want {
 		t.Errorf("the account page reads a %d-day window and the programme says %d",
