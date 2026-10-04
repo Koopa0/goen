@@ -30,7 +30,7 @@ func TestPaidOrderCannotBeCancelledDirectly(t *testing.T) {
 	refunder := admintest.Refunder{}
 	s := admin.NewStore(pool, refunder, nil, nil)
 	refund := refunds.NewStore(pool, refunder)
-	h := adminHandlerOver(pool, s)
+	h := adminHandlerOver(s)
 
 	for _, picking := range []bool{false, true} {
 		t.Run(fmt.Sprintf("picking=%t", picking), func(t *testing.T) {
@@ -319,7 +319,7 @@ func TestRefundBeforeShipmentAndDispatchSerialize(t *testing.T) {
 func TestRefundBeforeShipmentNoticesNameTheNextStep(t *testing.T) {
 	ctx, _ := staffContext(t)
 	refunder := admintest.Refunder{}
-	h := adminHandlerOver(pool, admin.NewStore(pool, refunder, nil, nil))
+	h := adminHandlerOver(admin.NewStore(pool, refunder, nil, nil))
 	door := refunds.NewHandler(refunds.NewStore(pool, refunder), nil, slog.New(slog.DiscardHandler))
 	number, orderID, _ := admintest.PaidUnshippedOrder(t, pool, 300000, 0, true)
 	if _, err := pool.Exec(ctx, `

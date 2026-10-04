@@ -1,6 +1,6 @@
 //go:build integration
 
-package admin_test
+package products_test
 
 import (
 	"context"
@@ -15,16 +15,16 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 
-	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/admin/admintest"
+	"github.com/koopa0/goen/internal/admin/products"
 	"github.com/koopa0/goen/internal/i18n"
 )
 
 func TestOptionAxesMustPrecedeVariants(t *testing.T) {
-	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, admintest.Refunder{}, nil, nil)
-	slug := draftProduct(t, ctx, s)
-	if errs, err := s.AddVariant(ctx, slug, &admin.VariantForm{SKU: "AXIS-" + strings.ToUpper(uuid.NewString()[:8]), PriceCents: 10000}); err != nil || len(errs) != 0 {
+	ctx, _ := admintest.StaffContext(t, pool)
+	s := products.NewStore(pool)
+	slug := admintest.DraftProduct(t, ctx, pool, s)
+	if errs, err := s.AddVariant(ctx, slug, &products.VariantForm{SKU: "AXIS-" + strings.ToUpper(uuid.NewString()[:8]), PriceCents: 10000}); err != nil || len(errs) != 0 {
 		t.Fatalf("create optionless SKU: %v %v", err, errs)
 	}
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
@@ -34,7 +34,7 @@ func TestOptionAxesMustPrecedeVariants(t *testing.T) {
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		req.SetPathValue("slug", slug)
 		rec := httptest.NewRecorder()
-		adminHandlerOver(pool, s).AddOption(rec, req)
+		admintest.ProductDesk(pool, s).AddOption(rec, req)
 		if rec.Code != http.StatusUnprocessableEntity {
 			t.Fatalf("%s response = %d: %s", locale, rec.Code, rec.Body.String())
 		}
@@ -51,7 +51,7 @@ func TestOptionAxesMustPrecedeVariants(t *testing.T) {
 	if _, err := pool.Exec(ctx, `UPDATE product_variants SET is_active = false WHERE product_id = (SELECT id FROM products WHERE slug = $1)`, slug); err != nil {
 		t.Fatal(err)
 	}
-	errs, err := s.AddOption(ctx, slug, admin.OptionDraft{Name: "Size"})
+	errs, err := s.AddOption(ctx, slug, products.OptionDraft{Name: "Size"})
 	if err != nil || errs["option"] != i18n.T(ctx, i18n.KeyFormOptionBeforeVariants) {
 		t.Fatalf("inactive SKU did not freeze axes: %v %v", err, errs)
 	}
@@ -62,8 +62,8 @@ func TestOptionAxesMustPrecedeVariants(t *testing.T) {
 	if axes != 0 || variants != 1 {
 		t.Fatalf("refusal changed catalogue: axes=%d variants=%d", axes, variants)
 	}
-	empty := draftProduct(t, ctx, s)
-	if optionErrors, addErr := s.AddOption(ctx, empty, admin.OptionDraft{Name: "Size"}); addErr != nil || len(optionErrors) != 0 {
+	empty := admintest.DraftProduct(t, ctx, pool, s)
+	if optionErrors, addErr := s.AddOption(ctx, empty, products.OptionDraft{Name: "Size"}); addErr != nil || len(optionErrors) != 0 {
 		t.Fatalf("axis before SKU refused: %v %v", addErr, optionErrors)
 	}
 	_, err = pool.Exec(ctx, `UPDATE product_options SET product_id = (SELECT id FROM products WHERE slug = $1) WHERE product_id = (SELECT id FROM products WHERE slug = $2)`, slug, empty)
@@ -79,11 +79,11 @@ func TestOptionAxisAndVariantCreationSerialize(t *testing.T) {
 			name = "variant-first"
 		}
 		t.Run(name, func(t *testing.T) {
-			ctx, _ := staffContext(t)
+			ctx, _ := admintest.StaffContext(t, pool)
 			ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 			defer cancel()
-			s := admin.NewStore(pool, admintest.Refunder{}, nil, nil)
-			slug := draftProduct(t, ctx, s)
+			s := products.NewStore(pool)
+			slug := admintest.DraftProduct(t, ctx, pool, s)
 			first, err := pool.Begin(ctx)
 			if err != nil {
 				t.Fatal(err)
@@ -109,7 +109,7 @@ func TestOptionAxisAndVariantCreationSerialize(t *testing.T) {
 			if _, err := other.Exec(ctx, `SET ROLE admin`); err != nil {
 				t.Fatal(err)
 			}
-			writer := admin.NewStore(other, admintest.Refunder{}, nil, nil)
+			writer := products.NewStore(other)
 			type outcome struct {
 				fields map[string]string
 				err    error
@@ -119,9 +119,9 @@ func TestOptionAxisAndVariantCreationSerialize(t *testing.T) {
 				var fields map[string]string
 				var err error
 				if variantFirst {
-					fields, err = writer.AddOption(ctx, slug, admin.OptionDraft{Name: "Size"})
+					fields, err = writer.AddOption(ctx, slug, products.OptionDraft{Name: "Size"})
 				} else {
-					fields, err = writer.AddVariant(ctx, slug, &admin.VariantForm{SKU: "RACE-" + strings.ToUpper(uuid.NewString()[:8]), PriceCents: 10000})
+					fields, err = writer.AddVariant(ctx, slug, &products.VariantForm{SKU: "RACE-" + strings.ToUpper(uuid.NewString()[:8]), PriceCents: 10000})
 				}
 				done <- outcome{fields, err}
 			}()
@@ -142,12 +142,12 @@ func TestOptionAxisAndVariantCreationSerialize(t *testing.T) {
 }
 
 func TestTwoVariantsCannotShareAnOptionCombination(t *testing.T) {
-	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, admintest.Refunder{}, nil, nil)
-	slug := draftProduct(t, ctx, s)
+	ctx, _ := admintest.StaffContext(t, pool)
+	s := products.NewStore(pool)
+	slug := admintest.DraftProduct(t, ctx, pool, s)
 
 	for _, axis := range []string{"Colour", "Edition"} {
-		if errs, err := s.AddOption(ctx, slug, admin.OptionDraft{Name: axis}); err != nil || len(errs) > 0 {
+		if errs, err := s.AddOption(ctx, slug, products.OptionDraft{Name: axis}); err != nil || len(errs) > 0 {
 			t.Fatalf("AddOption(%s): %v %v", axis, err, errs)
 		}
 	}
@@ -157,7 +157,7 @@ func TestTwoVariantsCannotShareAnOptionCombination(t *testing.T) {
 	}
 	for _, o := range view.Options {
 		for _, v := range []string{"A", "B"} {
-			if errs, addErr := s.AddOptionValue(ctx, slug, admin.OptionDraft{OptionID: o.ID, Name: v}); addErr != nil || len(errs) > 0 {
+			if errs, addErr := s.AddOptionValue(ctx, slug, products.OptionDraft{OptionID: o.ID, Name: v}); addErr != nil || len(errs) > 0 {
 				t.Fatalf("AddOptionValue(%s): %v %v", v, addErr, errs)
 			}
 		}
@@ -170,7 +170,7 @@ func TestTwoVariantsCannotShareAnOptionCombination(t *testing.T) {
 		return []string{view.Options[0].Values[first].ID, view.Options[1].Values[second].ID}
 	}
 	add := func(combination []string) (map[string]string, error) {
-		return s.AddVariant(ctx, slug, &admin.VariantForm{
+		return s.AddVariant(ctx, slug, &products.VariantForm{
 			SKU: "COMBO-" + strings.ToUpper(uuid.NewString()[:8]), PriceCents: 10000,
 			OptionValues: combination,
 		})
