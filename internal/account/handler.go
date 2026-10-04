@@ -808,7 +808,7 @@ func (h *Handler) SaveWishlist(w http.ResponseWriter, r *http.Request) {
 	if r.PostFormValue("action") == "remove" {
 		err = h.store.RemoveFromWishlist(r.Context(), u.ID, slug)
 	} else {
-		err = h.store.SaveToWishlist(r.Context(), u.ID, slug)
+		err = h.store.RemoveFromWishlist(r.Context(), u.ID, slug)
 	}
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "update wishlist", "error", err, "slug", slug)

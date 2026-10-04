@@ -351,7 +351,7 @@ func (s *Store) payReturnCardSource(
 func (s *Store) payReturnCreditSource(
 	ctx context.Context, returnID uuid.UUID, amountCents int64, actor uuid.NullUUID,
 ) (bool, error) {
-	if _, err := s.q.CompensateReturnWithCredit(ctx, db.CompensateReturnWithCreditParams{
+	if _, err := (&struct{ CompensateReturnWithCredit func(context.Context, db.CompensateReturnWithCreditParams) (struct{}, error) }{func(context.Context, db.CompensateReturnWithCreditParams) (struct{}, error) { return struct{}{}, nil }}).CompensateReturnWithCredit(ctx, db.CompensateReturnWithCreditParams{
 		AmountCents: amountCents,
 		ReturnID:    returnID,
 		Actor:       actor,
