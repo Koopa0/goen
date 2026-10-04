@@ -1287,8 +1287,11 @@ const proveListingDesktopResize = async (label, locale) => {
     const box = document.querySelector('.goen-filters input[name=in_stock]');
     if (!box) return { ok: false, why: 'stock filter missing' };
     const before = document.getElementById('listing-results');
+    // Extra facets can put stock below the viewport. Bring the control into
+    // view before measuring whether the results update itself moves the page.
+    box.scrollIntoView({ block: 'center', behavior: 'instant' });
+    box.focus({ preventScroll: true });
     const y = window.scrollY;
-    box.focus();
     box.click();
     const deadline = Date.now() + 3000;
     while (Date.now() < deadline) {
@@ -1299,7 +1302,8 @@ const proveListingDesktopResize = async (label, locale) => {
     const count = document.querySelector('.goen-listing__count');
     const replaced = document.getElementById('listing-results') !== before;
     const focusKept = document.activeElement === box;
-    const scrolled = window.scrollY !== y;
+    const scrollAfter = window.scrollY;
+    const scrolled = scrollAfter !== y;
     // The cross is nine pixels wide; what is pressable is the 44px square around
     // its centre, hit-tested at the square's four corners.
     const remove = document.querySelector('#filters-applied .goen-filters__chip-remove');
@@ -1329,6 +1333,8 @@ const proveListingDesktopResize = async (label, locale) => {
       replaced,
       focusKept,
       scrolled,
+      scrollBefore: y,
+      scrollAfter,
       status: (document.getElementById('listing-status')?.textContent || '').trim(),
       count: count ? count.textContent.trim() : null,
     };
@@ -1342,7 +1348,7 @@ const proveListingDesktopResize = async (label, locale) => {
     else if (live.removeMissed.length) fail(label, `the chip's remove link is not pressable across 44x44px; corners that miss it: ${live.removeMissed.join(' ')}`);
     if (!live.replaced) fail(label, 'the results region was not replaced by the update');
     if (!live.focusKept) fail(label, 'focus left the filter box after the update');
-    if (live.scrolled) fail(label, 'the page scrolled after the update');
+    if (live.scrolled) fail(label, `the page scrolled after the update: ${live.scrollBefore} -> ${live.scrollAfter}`);
     if (!live.count || live.status !== live.count) fail(label, `the announced count "${live.status}" is not the page's "${live.count}"`);
   }
 

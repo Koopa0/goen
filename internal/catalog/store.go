@@ -45,7 +45,9 @@ func (s *Store) Listing(ctx context.Context, slug string, f Filters) (pages.List
 		return pages.ListingView{}, fmt.Errorf("read descendants of %q: %w", slug, err)
 	}
 
+	names, values := optionFilterColumns(f.OptionValues)
 	brands, err := s.q.CategoryBrands(ctx, db.CategoryBrandsParams{
+		OptionNames: names, OptionValues: values,
 		CategoryIds:    ids,
 		FilterVariants: f.VariantScoped(),
 		InStockOnly:    f.InStockOnly,
@@ -56,23 +58,10 @@ func (s *Store) Listing(ctx context.Context, slug string, f Filters) (pages.List
 		return pages.ListingView{}, fmt.Errorf("read brands for %q: %w", slug, err)
 	}
 
-	brandIDs := make([]uuid.UUID, 0, len(f.BrandSlugs))
-	selected := make(map[string]bool, len(f.BrandSlugs))
-	for _, want := range f.BrandSlugs {
-		selected[want] = true
-	}
-	for _, b := range brands {
-		if selected[b.Slug] {
-			brandIDs = append(brandIDs, b.ID)
-		}
-	}
-	if len(f.BrandSlugs) > 0 && len(brandIDs) == 0 {
-		// Every named brand was unknown here, and uuid.Nil matches no product:
-		// an unfiltered page under a filtered URL would be the wrong answer.
-		brandIDs = append(brandIDs, uuid.Nil)
-	}
+	brandIDs, selected := selectedListingBrands(brands, f.BrandSlugs)
 
 	rows, err := s.q.CategoryListing(ctx, db.CategoryListingParams{
+		OptionNames: names, OptionValues: values,
 		Locale:         string(i18n.FromContext(ctx)),
 		CategoryIds:    ids,
 		BrandIds:       brandIDs,
@@ -89,6 +78,7 @@ func (s *Store) Listing(ctx context.Context, slug string, f Filters) (pages.List
 	}
 
 	total, err := s.q.CategoryListingCount(ctx, db.CategoryListingCountParams{
+		OptionNames: names, OptionValues: values,
 		CategoryIds:    ids,
 		BrandIds:       brandIDs,
 		FilterVariants: f.VariantScoped(),
@@ -135,7 +125,19 @@ func (s *Store) Listing(ctx context.Context, slug string, f Filters) (pages.List
 		Page:     int32(min(max(f.Page, 1), maxPage)),
 		PageSize: PageSize,
 	}
-	view.Brands = brandFacets(brands, selected)
+
+	if len(brands) > 0 {
+		view.Facets = append(view.Facets, pages.FacetGroup{Kind: pages.FacetBrand, Label: i18n.T(ctx, i18n.KeyFacetBrand), Options: brandFacets(brands, selected)})
+	}
+	optionRows, err := s.q.CategoryOptionValues(ctx, db.CategoryOptionValuesParams{
+		Locale: string(i18n.FromContext(ctx)), CategoryIds: ids, BrandIds: brandIDs,
+		InStockOnly: f.InStockOnly, MinPrice: f.MinPrice, MaxPrice: f.MaxPrice,
+		OptionNames: names, OptionValues: values,
+	})
+	if err != nil {
+		return pages.ListingView{}, fmt.Errorf("read option facets for %q: %w", slug, err)
+	}
+	view.Facets = append(view.Facets, optionFacets(optionRows, f.OptionValues)...)
 	return view, nil
 }
 
@@ -352,4 +354,47 @@ func (s *Store) SitemapCategories(ctx context.Context, limit int32) ([]db.Sitema
 		return nil, fmt.Errorf("read sitemap categories: %w", err)
 	}
 	return rows, nil
+}
+
+func optionFacets(rows []db.CategoryOptionValuesRow, selected []OptionFilter) []pages.FacetGroup {
+	groups := make([]pages.FacetGroup, 0)
+	positions := make(map[string]int)
+	chosen := make(map[OptionFilter]bool, len(selected))
+	for _, pair := range selected {
+		chosen[pair] = true
+	}
+	for i := range rows {
+		row := &rows[i]
+		position, found := positions[row.OptionName]
+		if !found {
+			position = len(groups)
+			positions[row.OptionName] = position
+			groups = append(groups, pages.FacetGroup{Kind: pages.FacetVariantOption, Name: row.OptionName, Label: row.OptionLabel})
+		}
+		groups[position].Options = append(groups[position].Options, pages.FacetOption{
+			Value: row.OptionName + ":" + row.Value, Label: row.ValueLabel, Count: row.ProductCount,
+			Selected: chosen[OptionFilter{Name: row.OptionName, Value: row.Value}],
+		})
+	}
+	return groups
+}
+
+func selectedListingBrands(brands []db.CategoryBrandsRow, slugs []string) (brandIDs []uuid.UUID, selected map[string]bool) {
+	brandIDs = make([]uuid.UUID, 0, len(slugs))
+	selected = make(map[string]bool, len(slugs))
+	for _, want := range slugs {
+		selected[want] = true
+	}
+	for _, b := range brands {
+		if selected[b.Slug] {
+			brandIDs = append(brandIDs, b.ID)
+		}
+	}
+	if len(slugs) > 0 && len(brandIDs) == 0 {
+		// Every named brand was unknown here, and uuid.Nil matches no product:
+		// an unfiltered page under a filtered URL would be the wrong answer.
+		brandIDs = append(brandIDs, uuid.Nil)
+	}
+
+	return brandIDs, selected
 }
