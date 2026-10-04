@@ -10847,7 +10847,7 @@ SELECT
     (pv.stock_quantity > pv.safety_stock) AS sellable,
     (pv.stock_quantity - pv.safety_stock)::integer AS sellable_quantity,
     pv.preorder_release_on,
-    coalesce(pv.preorder_release_on > shop_today(), false)::boolean AS arrival_upcoming,
+    coalesce(pv.preorder_release_on >= shop_today(), false)::boolean AS arrival_upcoming,
     coalesce(
         (SELECT array_agg(o.name ORDER BY o.position, o.id)
          FROM variant_option_values vov
