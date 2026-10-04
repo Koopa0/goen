@@ -10236,8 +10236,6 @@ SELECT ol.order_id, ol.sku, ol.product_name, ol.variant_label, ol.unit_price_cen
                                 WHERE sl.order_line_id = ol.id), 0))::integer AS remaining
 FROM order_lines ol
 WHERE ol.order_id = ANY($1::uuid[])
-  AND ol.quantity > coalesce((SELECT sum(sl.quantity) FROM order_shipment_lines sl
-                              WHERE sl.order_line_id = ol.id), 0)
 ORDER BY ol.order_id, ol.position, ol.id
 `
 
@@ -10388,8 +10386,6 @@ SELECT ol.sku,
                                   WHERE sl.order_line_id = ol.id), 0))::bigint AS remaining
 FROM orders o JOIN order_lines ol ON ol.order_id = o.id
 WHERE o.fulfillment_status = 'picking'
-  AND ol.quantity > coalesce((SELECT sum(sl.quantity) FROM order_shipment_lines sl
-                              WHERE sl.order_line_id = ol.id), 0)
 GROUP BY ol.sku
 ORDER BY ol.sku
 `
