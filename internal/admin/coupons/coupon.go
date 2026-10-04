@@ -16,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/admin/audit"
+	"github.com/koopa0/goen/internal/coupon"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
@@ -52,7 +53,7 @@ const maxDescriptionRunes = 60
 type Form struct {
 	Code        string
 	Description string
-	Kind        string
+	Kind        coupon.Kind
 	// Value is dollars for `amount` and whole percent for `percent`.
 	Value           int64
 	CapDollars      int64
@@ -120,21 +121,21 @@ func basisPoints(wholePercent int64) int32 {
 
 func (f *Form) validateKind(ctx context.Context, errs map[string]string) {
 	switch f.Kind {
-	case "amount":
+	case coupon.Amount:
 		if f.Value <= 0 || f.Value > money.MaxCents/100 {
 			errs["value"] = i18n.T(ctx, i18n.KeyFormCouponAmount)
 		}
 		if f.CapDollars != 0 {
 			errs["cap"] = i18n.T(ctx, i18n.KeyFormCouponCapOnAmount)
 		}
-	case "percent":
+	case coupon.Percent:
 		if f.Value <= 0 || f.Value > 100 {
 			errs["value"] = i18n.T(ctx, i18n.KeyFormCouponPercent)
 		}
 		if f.CapDollars < 0 || f.CapDollars > money.MaxCents/100 {
 			errs["cap"] = i18n.T(ctx, i18n.KeyFormCouponCapNegative)
 		}
-	case "free_shipping":
+	case coupon.FreeShipping:
 		if f.CapDollars != 0 {
 			errs["cap"] = i18n.T(ctx, i18n.KeyFormCouponCapOnShipping)
 		}
@@ -162,9 +163,13 @@ func (s *Store) Coupons(ctx context.Context, after ...string) (admin.CouponsView
 	view := admin.CouponsView{Bound: bound}
 	for i := range rows {
 		r := &rows[i]
+		kind, ok := coupon.Parse(r.Kind)
+		if !ok {
+			return admin.CouponsView{}, fmt.Errorf("read coupons: coupon %s has unknown kind %q", r.Code, r.Kind)
+		}
 		view.Rows = append(view.Rows, admin.Coupon{
-			Code: r.Code, Description: r.Description, Kind: r.Kind,
-			KindText:    kindLabel(ctx, r.Kind),
+			Code: r.Code, Description: r.Description, Kind: kind,
+			KindText:    kindLabel(ctx, kind),
 			AmountCents: r.AmountCents.Int64,
 			PercentBP:   r.PercentBp.Int32,
 			CapCents:    r.MaxDiscountCents.Int64,
@@ -187,19 +192,20 @@ func (s *Store) CreateCoupon(ctx context.Context, f *Form) (map[string]string, e
 	}
 
 	params := db.CreateCouponParams{
-		Code: f.Code, Description: f.Description, Kind: f.Kind,
+		Code: f.Code, Description: f.Description, Kind: string(f.Kind),
 		MinSubtotalCents: f.MinSpendDollars * 100,
 		PerCustomerLimit: f.PerCustomer,
 		Days:             f.Days,
 	}
 	switch f.Kind {
-	case "amount":
+	case coupon.Amount:
 		params.AmountCents = pgtype.Int8{Int64: f.Value * 100, Valid: true}
-	case "percent":
+	case coupon.Percent:
 		params.PercentBp = pgtype.Int4{Int32: basisPoints(f.Value), Valid: true}
 		if f.CapDollars > 0 {
 			params.MaxDiscountCents = pgtype.Int8{Int64: f.CapDollars * 100, Valid: true}
 		}
+	case coupon.FreeShipping:
 	}
 	if f.MaxRedemptions > 0 {
 		params.MaxRedemptions = pgtype.Int4{Int32: f.MaxRedemptions, Valid: true}
@@ -241,15 +247,14 @@ func (s *Store) SetCouponActive(ctx context.Context, code string, active bool) e
 	return nil
 }
 
-func kindLabel(ctx context.Context, kind string) string {
+func kindLabel(ctx context.Context, kind coupon.Kind) string {
 	switch kind {
-	case "amount":
+	case coupon.Amount:
 		return i18n.T(ctx, i18n.KeyCouponKindAmount)
-	case "percent":
+	case coupon.Percent:
 		return i18n.T(ctx, i18n.KeyCouponKindPercent)
-	case "free_shipping":
+	case coupon.FreeShipping:
 		return i18n.T(ctx, i18n.KeyCouponKindShipping)
-	default:
-		panic("coupons: no label for coupon kind " + kind)
 	}
+	return ""
 }
