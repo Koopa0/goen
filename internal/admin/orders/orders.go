@@ -1,6 +1,7 @@
-// Package admin is goen's back office, served over a pool that does SET ROLE admin,
-// which still has no direct write access to money, ledgers or stock_quantity.
-package admin
+// Package orders is the back office's order desk: the dashboard, the orders
+// queue, one order's page, and what staff do to an order from there: move its
+// status, ship its parcels, note it, correct its delivery.
+package orders
 
 import (
 	"errors"
@@ -8,28 +9,24 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
-	"github.com/koopa0/goen/internal/web"
 )
 
 var (
-	ErrNotFound  = errors.New("admin: not found")
-	ErrForbidden = errors.New("admin: forbidden")
+	ErrNotFound = errors.New("orders: not found")
 	// ErrRefused is a write the database declined; its message is the database's
 	// own, because that names the rule.
-	ErrRefused = errors.New("admin: refused")
+	ErrRefused = errors.New("orders: refused")
 
-	ErrInvalid = errors.New("admin: invalid input")
+	ErrInvalid = errors.New("orders: invalid input")
 	// ErrCarrier is a dispatch naming a carrier that cannot carry this order's
 	// parcel: a store order goes with its chain's carrier, a home delivery with a
 	// home carrier.
-	ErrCarrier  = errors.New("admin: carrier cannot carry this order")
-	ErrQuantity = errors.New("admin: quantity out of range")
+	ErrCarrier  = errors.New("orders: carrier cannot carry this order")
+	ErrQuantity = errors.New("orders: quantity out of range")
 	// ErrPaidCancel is the status form asked to cancel a paid order. A paid
 	// order is cancelled only by refunding it before shipment.
-	ErrPaidCancel = errors.New("admin: a paid order is cancelled by refunding it before shipment")
+	ErrPaidCancel = errors.New("orders: a paid order is cancelled by refunding it before shipment")
 )
-
-const PageSize = web.PageSize
 
 // queueTabs is the orders queue's closed set of filters, in the order it shows
 // them. Pending is two queues because FundedStatusLabel reads it as two: money

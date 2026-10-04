@@ -1,4 +1,4 @@
-package admin
+package orders
 
 import (
 	"context"
@@ -15,10 +15,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/admin/audit"
-	"github.com/koopa0/goen/internal/admin/invoicing"
 	"github.com/koopa0/goen/internal/admin/orderstatus"
-	"github.com/koopa0/goen/internal/admin/refunds"
-	"github.com/koopa0/goen/internal/admin/stock"
 	"github.com/koopa0/goen/internal/carrier"
 	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/db"
@@ -35,23 +32,37 @@ import (
 	"github.com/koopa0/goen/internal/web"
 )
 
-type Store struct {
-	pool      *pgxpool.Pool
-	q         *db.Queries
-	refunds   *refunds.Store
-	invoicing *invoicing.Store
+// Refunds offers the refund before shipment on the order page and reports
+// whether one was ever opened; the refunds desk implements it.
+type Refunds interface {
+	FillOrder(ctx context.Context, view *admin.OrderView, number string) (bool, error)
 }
 
-func NewStore(pool *pgxpool.Pool, refunder refunds.Refunder, reader invoicing.Reader, writer invoicing.Writer) *Store {
-	if pool == nil || refunder == nil {
-		panic("admin: NewStore requires a pool and a refunder")
+// Invoices puts what has been filed on the order page; the invoicing desk
+// implements it.
+type Invoices interface {
+	FillOrder(ctx context.Context, view *admin.OrderView, number string) error
+}
+
+// Stock names the variants running low, for the dashboard; the stock desk
+// implements it.
+type Stock interface {
+	LowStock(ctx context.Context, limit int32) ([]admin.Variant, error)
+}
+
+type Store struct {
+	pool     *pgxpool.Pool
+	q        *db.Queries
+	refunds  Refunds
+	invoices Invoices
+	stock    Stock
+}
+
+func NewStore(pool *pgxpool.Pool, refunds Refunds, invoices Invoices, stock Stock) *Store {
+	if pool == nil || refunds == nil || invoices == nil || stock == nil {
+		panic("orders: NewStore requires a pool, refunds, invoices and stock")
 	}
-	return &Store{
-		pool:      pool,
-		q:         db.New(pool),
-		refunds:   refunds.NewStore(pool, refunder, nil),
-		invoicing: invoicing.NewStore(pool, reader, writer),
-	}
+	return &Store{pool: pool, q: db.New(pool), refunds: refunds, invoices: invoices, stock: stock}
 }
 
 func (s *Store) Dashboard(ctx context.Context) (admin.DashboardView, error) {
@@ -89,7 +100,7 @@ func (s *Store) Dashboard(ctx context.Context) (admin.DashboardView, error) {
 		view.Recent = append(view.Recent, orderRow(ctx, &recent[i]))
 	}
 
-	view.Low, err = stock.NewStore(s.pool).LowStock(ctx, 10)
+	view.Low, err = s.stock.LowStock(ctx, 10)
 	if err != nil {
 		return admin.DashboardView{}, err
 	}
@@ -114,10 +125,17 @@ func orderRow(ctx context.Context, o *db.AdminOrdersRow) admin.OrderRow {
 	}
 }
 
-func (s *Store) Orders(ctx context.Context, status admin.QueueFilter, term string, after ...string) (admin.OrdersView, error) {
+// listPosition is a reader's place in the orders queue. The query builds it as
+// PageCursor, so its fields are the ordering values and nothing else.
+type listPosition struct {
+	At time.Time
+	ID uuid.UUID
+}
+
+func (s *Store) List(ctx context.Context, status admin.QueueFilter, term string, after ...string) (admin.OrdersView, error) {
 	term = strings.TrimSpace(term)
 	scope := web.ScopeURL("/admin/orders", "q", term, "status", string(status))
-	cursor := readPageCursor(scope, after)
+	from, resumed := web.ResumeKeyset(scope, after, func(p listPosition) bool { return p.ID != uuid.Nil })
 	searched := utf8.RuneCountInString(term) >= web.MinSearchRunes
 	var rows []db.AdminOrdersRow
 	var err error
@@ -125,8 +143,8 @@ func (s *Store) Orders(ctx context.Context, status admin.QueueFilter, term strin
 		// A search ignores the status filter: somebody on the phone wants that
 		// order, not that order if it is in the tab they had open.
 		var found []db.AdminSearchOrdersRow
-		if found, err = s.q.AdminSearchOrders(ctx, db.AdminSearchOrdersParams{HasCursor: cursor.Valid, AfterAt: cursor.At, AfterID: cursor.ID,
-			Term: term, EscapedTerm: catalog.EscapeLike(term), RowLimit: PageLimit,
+		if found, err = s.q.AdminSearchOrders(ctx, db.AdminSearchOrdersParams{HasCursor: resumed, AfterAt: from.At, AfterID: from.ID,
+			Term: term, EscapedTerm: catalog.EscapeLike(term), RowLimit: web.PageLimit,
 		}); err == nil {
 			rows = make([]db.AdminOrdersRow, 0, len(found))
 			// A conversion, not a field copy: it stops compiling when the two
@@ -144,7 +162,7 @@ func (s *Store) Orders(ctx context.Context, status admin.QueueFilter, term strin
 			filter, funding = string(pages.FulfillmentPending), "funded"
 		default: // a fulfilment status filters by itself
 		}
-		rows, err = s.q.AdminOrders(ctx, db.AdminOrdersParams{HasCursor: cursor.Valid, AfterAt: cursor.At, AfterID: cursor.ID, Status: filter, Funding: funding, RowLimit: PageLimit})
+		rows, err = s.q.AdminOrders(ctx, db.AdminOrdersParams{HasCursor: resumed, AfterAt: from.At, AfterID: from.ID, Status: filter, Funding: funding, RowLimit: web.PageLimit})
 	}
 	if err != nil {
 		return admin.OrdersView{}, fmt.Errorf("read orders: %w", err)
@@ -158,7 +176,7 @@ func (s *Store) Orders(ctx context.Context, status admin.QueueFilter, term strin
 	// here rather than in each of them. The tab counts above come from
 	// AdminOrderCounts and not from len(rows), so the extra row was never in
 	// them to begin with.
-	rows, bound := pageBound(cursor, scope, rows, PageSize, func(r *db.AdminOrdersRow) string { return r.PageCursor })
+	rows, bound := web.PageBound(scope, resumed, rows, web.PageSize, func(r *db.AdminOrdersRow) string { return r.PageCursor })
 	view := admin.OrdersView{
 		ListBound: bound,
 		Status:    status, Term: term, Searched: searched,
@@ -251,7 +269,7 @@ func (s *Store) Order(ctx context.Context, number string) (admin.OrderView, erro
 		return admin.OrderView{}, shipErr
 	}
 
-	if invErr := s.invoicing.FillOrder(ctx, &view, number); invErr != nil {
+	if invErr := s.invoices.FillOrder(ctx, &view, number); invErr != nil {
 		return admin.OrderView{}, invErr
 	}
 	if refundErr := s.fillRefundBeforeShipment(ctx, &view, number); refundErr != nil {

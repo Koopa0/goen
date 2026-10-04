@@ -13,20 +13,20 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
+	"github.com/koopa0/goen/internal/web"
 )
 
 // firstPageBound is the ListBound the stores build for the first page of a
 // queue that has no rows, exactly as production builds it.
 func firstPageBound(scope string) pages.ListBound {
-	_, b := pageBound(readPageCursor(scope, []string{""}), scope, []db.Order{}, PageSize, func(*db.Order) string { return "" })
+	_, b := web.PageBound(scope, false, []db.Order{}, web.PageSize, func(*db.Order) string { return "" })
 	return b
 }
 
 // fullPageBound is the first page of a queue with more rows behind it.
 func fullPageBound(scope string) pages.ListBound {
-	rows := make([]db.Order, PageLimit)
-	_, b := pageBound(readPageCursor(scope, []string{""}), scope, rows, PageSize,
+	rows := make([]db.Order, web.PageLimit)
+	_, b := web.PageBound(scope, false, rows, web.PageSize,
 		func(*db.Order) string { return `{"ID":"12345678-1234-1234-1234-123456789abc"}` })
 	return b
 }
@@ -52,21 +52,21 @@ func queuePages(b pages.ListBound, ctx func(k i18n.Key) string) map[string]struc
 	}
 	term := "ZZ99"
 	return map[string]c{
-		"orders, no filter":  {admin.Orders(p, admin.OrdersView{ListBound: b}), ctx(i18n.KeyAdminQueueNoneYet)},
-		"orders, status tab": {admin.Orders(p, admin.OrdersView{ListBound: b, Status: "pending"}), ctx(i18n.KeyAdminQueueEmpty)},
-		"orders, search":     {admin.Orders(p, admin.OrdersView{ListBound: b, Searched: true, Term: term}), fmt.Sprintf(ctx(i18n.KeyAdminQueueNoneFound), term)},
-		"customers":          {admin.Customers(p, admin.CustomersView{ListBound: b, Searched: true, Term: term}), fmt.Sprintf(ctx(i18n.KeyAdminCustNoneFound), term)},
-		"warranty":           {admin.Warranties(p, admin.WarrantiesView{ListBound: b, Searched: true, Term: term}), fmt.Sprintf(ctx(i18n.KeyAdminWarrantyNoneFound), term)},
-		"products":           {admin.Products(p, admin.ProductsView{ListBound: b}), ctx(i18n.KeyAdminProdEmpty)},
-		"stock":              {admin.Variants(p, admin.VariantsView{ListBound: b}), ctx(i18n.KeyAdminQueueNoVariants)},
-		"movements":          {admin.Movements(p, &admin.MovementsView{ListBound: b}), ctx(i18n.KeyAdminLedgerEmpty)},
-		"returns":            {admin.Returns(p, admin.ReturnsView{ListBound: b}), ctx(i18n.KeyAdminRetEmpty)},
-		"coupons":            {admin.Coupons(p, admin.CouponsView{ListBound: b}), ctx(i18n.KeyAdminCoupEmpty)},
-		"campaigns":          {admin.Campaigns(p, admin.CampaignsView{ListBound: b}), ctx(i18n.KeyAdminCampEmpty)},
-		"reviews":            {admin.Reviews(p, admin.ReviewsView{ListBound: b}), ctx(i18n.KeyAdminReviewsEmpty)},
-		"messages":           {admin.Messages(p, admin.MessagesView{ListBound: b}), ctx(i18n.KeyAdminMessagesEmpty)},
-		"credit":             {admin.Credit(p, admin.CreditView{ListBound: b}), ctx(i18n.KeyAdminCreditEmpty)},
-		"audit":              {admin.Audit(p, admin.AuditView{ListBound: b}), ctx(i18n.KeyAdminAuditEmpty)},
+		"orders, no filter":  {Orders(p, OrdersView{ListBound: b}), ctx(i18n.KeyAdminQueueNoneYet)},
+		"orders, status tab": {Orders(p, OrdersView{ListBound: b, Status: "pending"}), ctx(i18n.KeyAdminQueueEmpty)},
+		"orders, search":     {Orders(p, OrdersView{ListBound: b, Searched: true, Term: term}), fmt.Sprintf(ctx(i18n.KeyAdminQueueNoneFound), term)},
+		"customers":          {Customers(p, CustomersView{ListBound: b, Searched: true, Term: term}), fmt.Sprintf(ctx(i18n.KeyAdminCustNoneFound), term)},
+		"warranty":           {Warranties(p, WarrantiesView{ListBound: b, Searched: true, Term: term}), fmt.Sprintf(ctx(i18n.KeyAdminWarrantyNoneFound), term)},
+		"products":           {Products(p, ProductsView{ListBound: b}), ctx(i18n.KeyAdminProdEmpty)},
+		"stock":              {Variants(p, VariantsView{ListBound: b}), ctx(i18n.KeyAdminQueueNoVariants)},
+		"movements":          {Movements(p, &MovementsView{ListBound: b}), ctx(i18n.KeyAdminLedgerEmpty)},
+		"returns":            {Returns(p, ReturnsView{ListBound: b}), ctx(i18n.KeyAdminRetEmpty)},
+		"coupons":            {Coupons(p, CouponsView{ListBound: b}), ctx(i18n.KeyAdminCoupEmpty)},
+		"campaigns":          {Campaigns(p, CampaignsView{ListBound: b}), ctx(i18n.KeyAdminCampEmpty)},
+		"reviews":            {Reviews(p, ReviewsView{ListBound: b}), ctx(i18n.KeyAdminReviewsEmpty)},
+		"messages":           {Messages(p, MessagesView{ListBound: b}), ctx(i18n.KeyAdminMessagesEmpty)},
+		"credit":             {Credit(p, CreditView{ListBound: b}), ctx(i18n.KeyAdminCreditEmpty)},
+		"audit":              {Audit(p, AuditView{ListBound: b}), ctx(i18n.KeyAdminAuditEmpty)},
 	}
 }
 

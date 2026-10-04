@@ -1,4 +1,4 @@
-package admin
+package orders
 
 import (
 	"context"
@@ -18,7 +18,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
-var ErrTooLateToCorrect = errors.New("admin: this order has already shipped")
+var ErrTooLateToCorrect = errors.New("orders: this order has already shipped")
 
 // Delivery is the correction a staff member typed; which half applies follows
 // from the ORDER's shipping method, never from the form.

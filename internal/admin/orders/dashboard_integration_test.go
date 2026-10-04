@@ -1,6 +1,6 @@
 //go:build integration
 
-package admin_test
+package orders_test
 
 import (
 	"testing"
@@ -8,7 +8,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/admin/admintest"
 )
 
@@ -17,7 +16,7 @@ import (
 // for a request already filed that window is not the operator's clock.
 func TestTheDashboardShowsHowLongTheOldestOpenReturnHasWaited(t *testing.T) {
 	isolated := admintest.Pool(t)
-	s := admin.NewStore(isolated, admintest.Refunder{}, nil, nil)
+	s := admintest.OrderStore(isolated, admintest.Refunder{}, nil, nil)
 
 	none, err := s.Dashboard(t.Context())
 	if err != nil {
@@ -48,7 +47,7 @@ func TestTheDashboardShowsHowLongTheOldestOpenReturnHasWaited(t *testing.T) {
 // must agree.
 func TestTheDashboardCountsQuestionsTheShopHasNotAnswered(t *testing.T) {
 	isolated := admintest.Pool(t)
-	s := admin.NewStore(isolated, admintest.Refunder{}, nil, nil)
+	s := admintest.OrderStore(isolated, admintest.Refunder{}, nil, nil)
 	waiting := func() int64 {
 		t.Helper()
 		v, err := s.Dashboard(t.Context())

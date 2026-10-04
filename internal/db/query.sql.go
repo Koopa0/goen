@@ -7876,7 +7876,7 @@ SELECT d.id, d.number, d.amount_cents, coalesce(d.provider_ref, '')::text AS pro
        d.issued_at,
        EXISTS (SELECT 1 FROM invoice_documents a
                WHERE a.original_id = d.id AND a.kind = 'allowance'
-                 AND a.status = 'issued') AS allowed
+                 AND a.status = 'issued') AS has_allowance
 FROM invoice_documents d
 JOIN orders o ON o.id = d.order_id
 WHERE o.order_number = $1::text
@@ -7884,12 +7884,12 @@ WHERE o.order_number = $1::text
 `
 
 type LiveInvoiceRow struct {
-	ID          uuid.UUID
-	Number      string
-	AmountCents int64
-	ProviderRef string
-	IssuedAt    time.Time
-	Allowed     bool
+	ID           uuid.UUID
+	Number       string
+	AmountCents  int64
+	ProviderRef  string
+	IssuedAt     time.Time
+	HasAllowance bool
 }
 
 // The live invoice of an order, if it has one. `status <> 'voided'` matches
@@ -7903,7 +7903,7 @@ func (q *Queries) LiveInvoice(ctx context.Context, orderNumber string) (LiveInvo
 		&i.AmountCents,
 		&i.ProviderRef,
 		&i.IssuedAt,
-		&i.Allowed,
+		&i.HasAllowance,
 	)
 	return i, err
 }

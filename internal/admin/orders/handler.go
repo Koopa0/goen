@@ -1,4 +1,4 @@
-package admin
+package orders
 
 import (
 	"errors"
@@ -31,17 +31,21 @@ type Handler struct {
 	log      *slog.Logger
 }
 
-type HandlerDeps struct {
-	Store    *Store
-	Log      *slog.Logger
-	Sessions payment.SessionCloser
+func NewHandler(store *Store, sessions payment.SessionCloser, log *slog.Logger) *Handler {
+	if store == nil || log == nil {
+		panic("orders: NewHandler requires a store and a logger")
+	}
+	return &Handler{store: store, sessions: sessions, log: log}
 }
 
-func NewHandler(d HandlerDeps) *Handler {
-	if d.Store == nil || d.Log == nil {
-		panic("admin: NewHandler requires a store and a logger")
-	}
-	return &Handler{store: d.Store, log: d.Log, sessions: d.Sessions}
+func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
+	mux.HandleFunc("GET /admin", ac.RequireStaff(h.Dashboard))
+	mux.HandleFunc("GET /admin/orders", ac.RequireStaff(h.List))
+	mux.HandleFunc("GET /admin/orders/{number}", ac.RequireStaff(h.Order))
+	mux.HandleFunc("POST /admin/orders/{number}/status", ac.RequireStaff(h.Advance))
+	mux.HandleFunc("POST /admin/orders/{number}/ship", ac.RequireStaff(h.Ship))
+	mux.HandleFunc("POST /admin/orders/{number}/note", ac.RequireStaff(h.StaffNote))
+	mux.HandleFunc("POST /admin/orders/{number}/delivery", ac.RequireStaff(h.CorrectDelivery))
 }
 
 func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
@@ -54,15 +58,15 @@ func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
 	web.Render(w, r, h.log, http.StatusOK, admin.Dashboard(admin.Meta(r.Context()), view))
 }
 
-func (h *Handler) Orders(w http.ResponseWriter, r *http.Request) {
-	view, err := h.store.Orders(r.Context(),
+func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
+	view, err := h.store.List(r.Context(),
 		ParseQueueFilter(r.URL.Query().Get("status")), r.URL.Query().Get("q"), r.URL.Query().Get(web.KeysetParam))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read orders", "error", err)
 		access.ServerError(w, r, h.log)
 		return
 	}
-	view.Notice = noticeFor(r)
+	view.Notice = web.Notice(r, notices)
 	web.Render(w, r, h.log, http.StatusOK, admin.Orders(admin.OrdersMeta(r.Context()), view))
 }
 
@@ -80,13 +84,13 @@ func (h *Handler) Order(w http.ResponseWriter, r *http.Request) {
 		access.ServerError(w, r, h.log)
 		return
 	}
-	view.Notice = noticeFor(r)
+	view.Notice = web.Notice(r, notices)
 	view.AllowanceOperationID = uuid.NewString()
 	web.Render(w, r, h.log, http.StatusOK,
 		admin.Order(layouts.Page{Title: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyAdminPageOrder), view.Number)}, &view))
 }
 
-func (h *Handler) AdvanceOrder(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) Advance(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
@@ -263,7 +267,7 @@ func (h *Handler) StaffNote(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/admin/orders/"+number+"?ok=1", http.StatusSeeOther) //nolint:gosec // G710: validated by ordernumber.Valid
 }
 
-var adminNotices = map[string]i18n.Key{
+var notices = map[string]i18n.Key{
 	"ok":             i18n.KeyAdminNoticeOK,
 	"refused":        i18n.KeyAdminNoticeRefused,
 	"shipped":        i18n.KeyAdminNoticeShipped,
@@ -288,10 +292,6 @@ var adminNotices = map[string]i18n.Key{
 	"voidreason":     i18n.KeyAdminNoticeVoidReason,
 	"voidfailed":     i18n.KeyAdminNoticeVoidFailed,
 	"allowfailed":    i18n.KeyAdminNoticeAllowFailed,
-}
-
-func noticeFor(r *http.Request) string {
-	return web.Notice(r, adminNotices)
 }
 
 func (h *Handler) CorrectDelivery(w http.ResponseWriter, r *http.Request) {
