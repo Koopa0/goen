@@ -214,8 +214,6 @@ WHERE o.fulfillment_status = 'cancelled'
   AND d.amount_cents > coalesce((
       SELECT sum(a.amount_cents) FROM invoice_documents a
       WHERE a.original_id = d.id AND a.kind = 'allowance' AND a.status = 'issued'), 0)
-  AND NOT EXISTS (SELECT 1 FROM invoice_operations op
-                  WHERE op.order_id = o.id AND op.status IN ('pending', 'attention'))
 ORDER BY o.cancelled_at DESC, d.id DESC
 LIMIT 50;
 
