@@ -367,7 +367,7 @@ const maxNewsletterFormBytes = web.MaxFormBytes + (newsletter.MaxIssueSubjectRun
 
 // ComposeNewsletter writes a DRAFT and sends nothing: the irreversible step gets its own button.
 func (h *Handler) ComposeNewsletter(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseFormWithLimit(w, r, min(maxNewsletterFormBytes, web.MaxFormBytes)); err != nil {
+	if err := web.ParseFormWithLimit(w, r, maxNewsletterFormBytes); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
