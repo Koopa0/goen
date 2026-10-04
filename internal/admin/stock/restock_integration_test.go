@@ -10,7 +10,6 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/stock"
-	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/outbox"
 )
 
@@ -25,18 +24,7 @@ func TestRestockClaimAndOutboxRollBackWithStock(t *testing.T) {
 		WHERE is_active AND stock_quantity > safety_stock ORDER BY id LIMIT 1`).Scan(&variant, &quantity); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := owner.Exec(ctx, `UPDATE product_variants SET safety_stock = $2 WHERE id = $1`, variant, quantity); err != nil {
-		t.Fatal(err)
-	}
-	subscriptions := make([]uuid.UUID, 0, len(i18n.Locales()))
-	for _, locale := range i18n.Locales() {
-		var id uuid.UUID
-		if err := owner.QueryRow(ctx, `INSERT INTO stock_notifications (variant_id, email, locale)
-			VALUES ($1, $2, $3) RETURNING id`, variant, locale.Tag()+"-rollback@example.com", locale.Tag()).Scan(&id); err != nil {
-			t.Fatal(err)
-		}
-		subscriptions = append(subscriptions, id)
-	}
+	subscriptions := admintest.SubscribeAtSafetyStock(t, owner, variant)
 	tx, err := writer.Begin(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -48,8 +36,8 @@ func TestRestockClaimAndOutboxRollBackWithStock(t *testing.T) {
 	var claimed, queued int
 	if err := tx.QueryRow(ctx, `SELECT
 		(SELECT count(*) FROM stock_notifications WHERE variant_id = $1 AND notified_at IS NOT NULL),
-		(SELECT count(*) FROM outbox_messages WHERE topic = $2)`, variant, outbox.TopicRestocked.Name()).Scan(&claimed, &queued); err != nil || claimed != 2 || queued != 2 {
-		t.Fatalf("inside stock transaction claimed/queued = %d/%d, %v", claimed, queued, err)
+		(SELECT count(*) FROM outbox_messages WHERE topic = $2)`, variant, outbox.TopicRestocked.Name()).Scan(&claimed, &queued); err != nil || claimed != len(subscriptions) || queued != len(subscriptions) {
+		t.Fatalf("claimed/queued inside the stock transaction = %d/%d, want %d/%d: %v", claimed, queued, len(subscriptions), len(subscriptions), err)
 	}
 	if err := tx.Rollback(context.WithoutCancel(ctx)); err != nil {
 		t.Fatal(err)
@@ -59,7 +47,7 @@ func TestRestockClaimAndOutboxRollBackWithStock(t *testing.T) {
 		(SELECT count(*) FROM stock_notifications WHERE variant_id = $1 AND notified_at IS NOT NULL),
 		(SELECT count(*) FROM outbox_messages WHERE topic = $2)
 		FROM product_variants WHERE id = $1`, variant, outbox.TopicRestocked.Name()).Scan(&safety, &claimed, &queued); err != nil || safety != quantity || claimed != 0 || queued != 0 {
-		t.Fatalf("after rollback safety/claimed/queued = %d/%d/%d, %v", safety, claimed, queued, err)
+		t.Fatalf("after rollback safety/claimed/queued = %d/%d/%d, want %d/0/0: %v", safety, claimed, queued, quantity, err)
 	}
 	if _, err := writer.Exec(ctx, `UPDATE product_variants SET safety_stock = $2 WHERE id = $1`, variant, quantity-1); err != nil {
 		t.Fatal(err)

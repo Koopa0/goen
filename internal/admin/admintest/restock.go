@@ -31,7 +31,7 @@ func AdminRolePool(t *testing.T, owner *pgxpool.Pool) *pgxpool.Pool {
 	t.Cleanup(p.Close)
 	var role string
 	if err := p.QueryRow(t.Context(), `SELECT current_user`).Scan(&role); err != nil || role != "admin" {
-		t.Fatalf("admin writer role = %q, %v", role, err)
+		t.Fatalf("current_user = %q, want admin: %v", role, err)
 	}
 	return p
 }
@@ -104,6 +104,6 @@ func AssertRestockQueued(t *testing.T, p *pgxpool.Pool, subscriptions []uuid.UUI
 	if err := p.QueryRow(t.Context(), `
 		SELECT count(*) FROM stock_notifications WHERE id = ANY($1::uuid[]) AND notified_at IS NULL`,
 		subscriptions).Scan(&pending); err != nil || pending != 0 {
-		t.Fatalf("pending restock notices = %d, %v", pending, err)
+		t.Fatalf("pending restock notices = %d, want 0: %v", pending, err)
 	}
 }
