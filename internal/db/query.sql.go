@@ -1771,6 +1771,142 @@ func (q *Queries) AdminProducts(ctx context.Context, arg AdminProductsParams) ([
 	return items, nil
 }
 
+const adminQuestionAnswers = `-- name: AdminQuestionAnswers :many
+SELECT a.id, a.question_id, a.body, a.is_staff, a.hidden_at, a.created_at,
+       coalesce(u.full_name, '')::text AS author
+FROM product_answers a
+LEFT JOIN users u ON u.id = a.user_id
+WHERE a.question_id = ANY($1::uuid[])
+ORDER BY a.question_id, a.created_at, a.id
+`
+
+type AdminQuestionAnswersRow struct {
+	ID         uuid.UUID
+	QuestionID uuid.UUID
+	Body       string
+	IsStaff    bool
+	HiddenAt   pgtype.Timestamptz
+	CreatedAt  time.Time
+	Author     string
+}
+
+func (q *Queries) AdminQuestionAnswers(ctx context.Context, questionIds []uuid.UUID) ([]AdminQuestionAnswersRow, error) {
+	rows, err := q.db.Query(ctx, adminQuestionAnswers, questionIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AdminQuestionAnswersRow{}
+	for rows.Next() {
+		var i AdminQuestionAnswersRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.QuestionID,
+			&i.Body,
+			&i.IsStaff,
+			&i.HiddenAt,
+			&i.CreatedAt,
+			&i.Author,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const adminQuestions = `-- name: AdminQuestions :many
+WITH queued AS (
+ SELECT q.id, q.body, q.created_at, q.hidden_at,
+        p.slug AS product_slug, p.name AS product_name,
+        coalesce(u.full_name, '') AS asker,
+        (SELECT count(*) FROM product_answers a WHERE a.question_id = q.id AND a.hidden_at IS NULL)::bigint AS answers,
+        EXISTS (SELECT 1 FROM product_answers a WHERE a.question_id = q.id AND a.is_staff AND a.hidden_at IS NULL) AS answered_by_shop
+ FROM product_questions q
+ JOIN products p ON p.id = q.product_id
+ LEFT JOIN users u ON u.id = q.user_id
+ WHERE (q.hidden_at IS NOT NULL) = $1::boolean
+)
+SELECT json_build_object('Rank', CASE WHEN $1::boolean THEN false ELSE q.answered_by_shop END,
+                         'At', coalesce(q.hidden_at, q.created_at), 'ID', q.id)::text AS page_cursor,
+       q.id, q.body, q.created_at, q.hidden_at, q.product_slug, q.product_name, q.asker, q.answers, q.answered_by_shop
+FROM queued q
+WHERE NOT $2::boolean
+ OR ($1::boolean AND (q.hidden_at < $3::timestamptz OR (q.hidden_at = $3::timestamptz AND q.id < $4::uuid)))
+ OR (NOT $1::boolean AND (q.answered_by_shop > $5::boolean
+     OR (q.answered_by_shop = $5::boolean AND q.created_at > $3::timestamptz)
+     OR (q.answered_by_shop = $5::boolean AND q.created_at = $3::timestamptz AND q.id > $4::uuid)))
+ORDER BY CASE WHEN NOT $1::boolean THEN q.answered_by_shop END,
+         CASE WHEN $1::boolean THEN q.hidden_at END DESC,
+         CASE WHEN NOT $1::boolean THEN q.created_at END,
+         CASE WHEN $1::boolean THEN q.id END DESC,
+         CASE WHEN NOT $1::boolean THEN q.id END
+LIMIT $6::integer
+`
+
+type AdminQuestionsParams struct {
+	Hidden    bool
+	HasCursor bool
+	AfterAt   time.Time
+	AfterID   uuid.UUID
+	AfterRank bool
+	RowLimit  int32
+}
+
+type AdminQuestionsRow struct {
+	PageCursor     string
+	ID             uuid.UUID
+	Body           string
+	CreatedAt      time.Time
+	HiddenAt       pgtype.Timestamptz
+	ProductSlug    string
+	ProductName    string
+	Asker          string
+	Answers        int64
+	AnsweredByShop bool
+}
+
+func (q *Queries) AdminQuestions(ctx context.Context, arg AdminQuestionsParams) ([]AdminQuestionsRow, error) {
+	rows, err := q.db.Query(ctx, adminQuestions,
+		arg.Hidden,
+		arg.HasCursor,
+		arg.AfterAt,
+		arg.AfterID,
+		arg.AfterRank,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AdminQuestionsRow{}
+	for rows.Next() {
+		var i AdminQuestionsRow
+		if err := rows.Scan(
+			&i.PageCursor,
+			&i.ID,
+			&i.Body,
+			&i.CreatedAt,
+			&i.HiddenAt,
+			&i.ProductSlug,
+			&i.ProductName,
+			&i.Asker,
+			&i.Answers,
+			&i.AnsweredByShop,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const adminReviews = `-- name: AdminReviews :many
 SELECT json_build_object('At', r.created_at, 'ID', r.id)::text AS page_cursor, r.id, r.rating, coalesce(r.title, '') AS title, r.body,
        r.is_verified_purchase, r.hidden_at, r.created_at,
@@ -3724,21 +3860,36 @@ SELECT b.id, b.slug, b.name,
               OR EXISTS (
                   SELECT 1 FROM product_variants v
                   WHERE v.product_id = p.id AND v.is_active
-                    AND (NOT $2::boolean OR v.stock_quantity > v.safety_stock)
-                    AND ($3::bigint = 0 OR v.price_cents >= $3::bigint)
-                    AND ($4::bigint = 0 OR v.price_cents <= $4::bigint)
+            AND NOT EXISTS (
+              SELECT 1 FROM unnest($2::text[]) AS chosen(name)
+              WHERE NOT EXISTS (
+                  SELECT 1 FROM variant_option_values carried
+                  JOIN product_options axis ON axis.id = carried.option_id
+                  JOIN product_option_values axis_value ON axis_value.id = carried.option_value_id
+                  WHERE carried.variant_id = v.id
+                    AND axis.name = chosen.name AND EXISTS (
+                      SELECT 1 FROM unnest($2::text[]) WITH ORDINALITY chosen_value(name, position)
+                      WHERE chosen_value.name = chosen.name AND ($3::text[])[chosen_value.position] = axis_value.value
+                    )
+              )
+          )
+                    AND (NOT $4::boolean OR v.stock_quantity > v.safety_stock)
+                    AND ($5::bigint = 0 OR v.price_cents >= $5::bigint)
+                    AND ($6::bigint = 0 OR v.price_cents <= $6::bigint)
               )
        ))::bigint AS product_count
 FROM products p
 JOIN brands b ON b.id = p.brand_id
 WHERE p.status = 'active'
-  AND p.category_id = ANY($5::uuid[])
+  AND p.category_id = ANY($7::uuid[])
 GROUP BY b.id, b.slug, b.name
 ORDER BY b.name
 `
 
 type CategoryBrandsParams struct {
 	FilterVariants bool
+	OptionNames    []string
+	OptionValues   []string
 	InStockOnly    bool
 	MinPrice       int64
 	MaxPrice       int64
@@ -3759,6 +3910,8 @@ type CategoryBrandsRow struct {
 func (q *Queries) CategoryBrands(ctx context.Context, arg CategoryBrandsParams) ([]CategoryBrandsRow, error) {
 	rows, err := q.db.Query(ctx, categoryBrands,
 		arg.FilterVariants,
+		arg.OptionNames,
+		arg.OptionValues,
 		arg.InStockOnly,
 		arg.MinPrice,
 		arg.MaxPrice,
@@ -3953,8 +4106,21 @@ SELECT
     EXISTS (
         SELECT 1 FROM product_variants dv
         WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
-          AND (NOT $2::boolean OR dv.stock_quantity > dv.safety_stock)
-          AND ($3::bigint = 0 OR dv.price_cents <= $3::bigint)
+          AND NOT EXISTS (
+              SELECT 1 FROM unnest($2::text[]) AS chosen(name)
+              WHERE NOT EXISTS (
+                  SELECT 1 FROM variant_option_values carried
+                  JOIN product_options axis ON axis.id = carried.option_id
+                  JOIN product_option_values axis_value ON axis_value.id = carried.option_value_id
+                  WHERE carried.variant_id = dv.id
+                    AND axis.name = chosen.name AND EXISTS (
+                      SELECT 1 FROM unnest($2::text[]) WITH ORDINALITY chosen_value(name, position)
+                      WHERE chosen_value.name = chosen.name AND ($3::text[])[chosen_value.position] = axis_value.value
+                    )
+              )
+          )
+          AND (NOT $4::boolean OR dv.stock_quantity > dv.safety_stock)
+          AND ($5::bigint = 0 OR dv.price_cents <= $5::bigint)
     ) AS price_varies,
     mv.compare_at_price_cents,
     coalesce(rv.rating, 0)::float8 AS rating,
@@ -3962,6 +4128,19 @@ SELECT
     EXISTS (
         SELECT 1 FROM product_variants sv
         WHERE sv.product_id = p.id AND sv.is_active
+          AND NOT EXISTS (
+              SELECT 1 FROM unnest($2::text[]) AS chosen(name)
+              WHERE NOT EXISTS (
+                  SELECT 1 FROM variant_option_values carried
+                  JOIN product_options axis ON axis.id = carried.option_id
+                  JOIN product_option_values axis_value ON axis_value.id = carried.option_value_id
+                  WHERE carried.variant_id = sv.id
+                    AND axis.name = chosen.name AND EXISTS (
+                      SELECT 1 FROM unnest($2::text[]) WITH ORDINALITY chosen_value(name, position)
+                      WHERE chosen_value.name = chosen.name AND ($3::text[])[chosen_value.position] = axis_value.value
+                    )
+              )
+          )
           AND sv.stock_quantity > sv.safety_stock
     ) AS in_stock,
     coalesce(img.storage_key, '') AS image_key,
@@ -3972,13 +4151,26 @@ FROM products p
 LEFT JOIN brands b ON b.id = p.brand_id
 JOIN LATERAL (
     SELECT price_cents, compare_at_price_cents
-    FROM product_variants
+    FROM product_variants candidate
     WHERE product_id = p.id AND is_active
+      AND NOT EXISTS (
+              SELECT 1 FROM unnest($2::text[]) AS chosen(name)
+              WHERE NOT EXISTS (
+                  SELECT 1 FROM variant_option_values carried
+                  JOIN product_options axis ON axis.id = carried.option_id
+                  JOIN product_option_values axis_value ON axis_value.id = carried.option_value_id
+                  WHERE carried.variant_id = candidate.id
+                    AND axis.name = chosen.name AND EXISTS (
+                      SELECT 1 FROM unnest($2::text[]) WITH ORDINALITY chosen_value(name, position)
+                      WHERE chosen_value.name = chosen.name AND ($3::text[])[chosen_value.position] = axis_value.value
+                    )
+              )
+          )
       -- The card shows a variant the filters accepted, or it states a price the
       -- shopper excluded; these are the predicates of the EXISTS below.
-      AND (NOT $2::boolean OR stock_quantity > safety_stock)
-      AND ($4::bigint = 0 OR price_cents >= $4::bigint)
-      AND ($3::bigint = 0 OR price_cents <= $3::bigint)
+      AND (NOT $4::boolean OR stock_quantity > safety_stock)
+      AND ($6::bigint = 0 OR price_cents >= $6::bigint)
+      AND ($5::bigint = 0 OR price_cents <= $5::bigint)
     -- A buyable variant first: the price on a card is a promise.
     ORDER BY (stock_quantity > safety_stock) DESC, price_cents
     LIMIT 1
@@ -3992,29 +4184,44 @@ LEFT JOIN LATERAL (
     FROM product_images WHERE product_id = p.id ORDER BY position LIMIT 1
 ) img ON true
 WHERE p.status = 'active'
-  AND p.category_id = ANY($5::uuid[])
-  AND ($6::uuid[] = ARRAY[]::uuid[] OR p.brand_id = ANY($6::uuid[]))
+  AND p.category_id = ANY($7::uuid[])
+  AND ($8::uuid[] = ARRAY[]::uuid[] OR p.brand_id = ANY($8::uuid[]))
   -- One variant satisfies every variant-level filter at once.
   AND (
-      NOT $7::boolean
+      NOT $9::boolean
       OR EXISTS (
           SELECT 1 FROM product_variants v
           WHERE v.product_id = p.id AND v.is_active
-            AND (NOT $2::boolean OR v.stock_quantity > v.safety_stock)
-            AND ($4::bigint = 0 OR v.price_cents >= $4::bigint)
-            AND ($3::bigint = 0 OR v.price_cents <= $3::bigint)
+            AND NOT EXISTS (
+              SELECT 1 FROM unnest($2::text[]) AS chosen(name)
+              WHERE NOT EXISTS (
+                  SELECT 1 FROM variant_option_values carried
+                  JOIN product_options axis ON axis.id = carried.option_id
+                  JOIN product_option_values axis_value ON axis_value.id = carried.option_value_id
+                  WHERE carried.variant_id = v.id
+                    AND axis.name = chosen.name AND EXISTS (
+                      SELECT 1 FROM unnest($2::text[]) WITH ORDINALITY chosen_value(name, position)
+                      WHERE chosen_value.name = chosen.name AND ($3::text[])[chosen_value.position] = axis_value.value
+                    )
+              )
+          )
+            AND (NOT $4::boolean OR v.stock_quantity > v.safety_stock)
+            AND ($6::bigint = 0 OR v.price_cents >= $6::bigint)
+            AND ($5::bigint = 0 OR v.price_cents <= $5::bigint)
       )
   )
 ORDER BY
-    CASE WHEN $8::text = 'price_asc'  THEN mv.price_cents END ASC,
-    CASE WHEN $8::text = 'price_desc' THEN mv.price_cents END DESC,
-    CASE WHEN $8::text = 'rating'     THEN coalesce(rv.rating, 0) END DESC,
+    CASE WHEN $10::text = 'price_asc'  THEN mv.price_cents END ASC,
+    CASE WHEN $10::text = 'price_desc' THEN mv.price_cents END DESC,
+    CASE WHEN $10::text = 'rating'     THEN coalesce(rv.rating, 0) END DESC,
     p.published_at DESC, p.id DESC
-LIMIT $10::integer OFFSET $9::integer
+LIMIT $12::integer OFFSET $11::integer
 `
 
 type CategoryListingParams struct {
 	Locale         string
+	OptionNames    []string
+	OptionValues   []string
 	InStockOnly    bool
 	MaxPrice       int64
 	MinPrice       int64
@@ -4050,6 +4257,8 @@ type CategoryListingRow struct {
 func (q *Queries) CategoryListing(ctx context.Context, arg CategoryListingParams) ([]CategoryListingRow, error) {
 	rows, err := q.db.Query(ctx, categoryListing,
 		arg.Locale,
+		arg.OptionNames,
+		arg.OptionValues,
 		arg.InStockOnly,
 		arg.MaxPrice,
 		arg.MinPrice,
@@ -4105,9 +4314,22 @@ WHERE p.status = 'active'
       OR EXISTS (
           SELECT 1 FROM product_variants v
           WHERE v.product_id = p.id AND v.is_active
-            AND (NOT $4::boolean OR v.stock_quantity > v.safety_stock)
-            AND ($5::bigint = 0 OR v.price_cents >= $5::bigint)
-            AND ($6::bigint = 0 OR v.price_cents <= $6::bigint)
+            AND NOT EXISTS (
+              SELECT 1 FROM unnest($4::text[]) AS chosen(name)
+              WHERE NOT EXISTS (
+                  SELECT 1 FROM variant_option_values carried
+                  JOIN product_options axis ON axis.id = carried.option_id
+                  JOIN product_option_values axis_value ON axis_value.id = carried.option_value_id
+                  WHERE carried.variant_id = v.id
+                    AND axis.name = chosen.name AND EXISTS (
+                      SELECT 1 FROM unnest($4::text[]) WITH ORDINALITY chosen_value(name, position)
+                      WHERE chosen_value.name = chosen.name AND ($5::text[])[chosen_value.position] = axis_value.value
+                    )
+              )
+          )
+            AND (NOT $6::boolean OR v.stock_quantity > v.safety_stock)
+            AND ($7::bigint = 0 OR v.price_cents >= $7::bigint)
+            AND ($8::bigint = 0 OR v.price_cents <= $8::bigint)
       )
   )
 `
@@ -4116,6 +4338,8 @@ type CategoryListingCountParams struct {
 	CategoryIds    []uuid.UUID
 	BrandIds       []uuid.UUID
 	FilterVariants bool
+	OptionNames    []string
+	OptionValues   []string
 	InStockOnly    bool
 	MinPrice       int64
 	MaxPrice       int64
@@ -4127,6 +4351,8 @@ func (q *Queries) CategoryListingCount(ctx context.Context, arg CategoryListingC
 		arg.CategoryIds,
 		arg.BrandIds,
 		arg.FilterVariants,
+		arg.OptionNames,
+		arg.OptionValues,
 		arg.InStockOnly,
 		arg.MinPrice,
 		arg.MaxPrice,
@@ -4134,6 +4360,99 @@ func (q *Queries) CategoryListingCount(ctx context.Context, arg CategoryListingC
 	var column_1 int64
 	err := row.Scan(&column_1)
 	return column_1, err
+}
+
+const categoryOptionValues = `-- name: CategoryOptionValues :many
+SELECT axis.name AS option_name,
+       min(localized_name(axis.name, axis.name_en, $1::text))::text AS option_label,
+       axis_value.value,
+       min(localized_name(axis_value.value, axis_value.value_en, $1::text))::text AS value_label,
+       (count(DISTINCT p.id) FILTER (WHERE
+          ($2::uuid[] = ARRAY[]::uuid[] OR p.brand_id = ANY($2::uuid[]))
+          AND EXISTS (
+             SELECT 1 FROM product_variants candidate
+             JOIN variant_option_values carried ON carried.variant_id = candidate.id
+             WHERE candidate.product_id = p.id AND candidate.is_active
+               AND carried.option_id = axis.id AND carried.option_value_id = axis_value.id
+               AND (NOT $3::boolean OR candidate.stock_quantity > candidate.safety_stock)
+               AND ($4::bigint = 0 OR candidate.price_cents >= $4::bigint)
+               AND ($5::bigint = 0 OR candidate.price_cents <= $5::bigint)
+               AND NOT EXISTS (
+                  SELECT 1 FROM unnest($6::text[]) AS chosen(name)
+                  WHERE chosen.name <> axis.name AND NOT EXISTS (
+                    SELECT 1 FROM variant_option_values other_carried
+                    JOIN product_options other_axis ON other_axis.id = other_carried.option_id
+                    JOIN product_option_values other_axis_value ON other_axis_value.id = other_carried.option_value_id
+                    WHERE other_carried.variant_id = candidate.id
+                      AND other_axis.name = chosen.name AND EXISTS (
+                      SELECT 1 FROM unnest($6::text[]) WITH ORDINALITY chosen_value(name, position)
+                      WHERE chosen_value.name = chosen.name AND ($7::text[])[chosen_value.position] = other_axis_value.value
+                    )
+                  )
+               )
+          )
+       ))::bigint AS product_count
+FROM products p
+JOIN product_options axis ON axis.product_id = p.id
+JOIN product_option_values axis_value ON axis_value.option_id = axis.id
+WHERE p.status = 'active' AND p.category_id = ANY($8::uuid[])
+GROUP BY axis.name, axis_value.value
+ORDER BY min(axis.position), axis.name, min(axis_value.position), axis_value.value
+`
+
+type CategoryOptionValuesParams struct {
+	Locale       string
+	BrandIds     []uuid.UUID
+	InStockOnly  bool
+	MinPrice     int64
+	MaxPrice     int64
+	OptionNames  []string
+	OptionValues []string
+	CategoryIds  []uuid.UUID
+}
+
+type CategoryOptionValuesRow struct {
+	OptionName   string
+	OptionLabel  string
+	Value        string
+	ValueLabel   string
+	ProductCount int64
+}
+
+// A facet keeps its own zero-count choices so the checked value can still be removed.
+func (q *Queries) CategoryOptionValues(ctx context.Context, arg CategoryOptionValuesParams) ([]CategoryOptionValuesRow, error) {
+	rows, err := q.db.Query(ctx, categoryOptionValues,
+		arg.Locale,
+		arg.BrandIds,
+		arg.InStockOnly,
+		arg.MinPrice,
+		arg.MaxPrice,
+		arg.OptionNames,
+		arg.OptionValues,
+		arg.CategoryIds,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CategoryOptionValuesRow{}
+	for rows.Next() {
+		var i CategoryOptionValuesRow
+		if err := rows.Scan(
+			&i.OptionName,
+			&i.OptionLabel,
+			&i.Value,
+			&i.ValueLabel,
+			&i.ProductCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const checkoutAttempt = `-- name: CheckoutAttempt :one
@@ -7032,6 +7351,24 @@ WHERE id = $1 AND hidden_at IS NULL
 
 func (q *Queries) HideQuestion(ctx context.Context, questionID uuid.UUID) (int64, error) {
 	result, err := q.db.Exec(ctx, hideQuestion, questionID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const hideQuestionAnswer = `-- name: HideQuestionAnswer :execrows
+UPDATE product_answers SET hidden_at = now()
+WHERE id = $1 AND question_id = $2 AND hidden_at IS NULL
+`
+
+type HideQuestionAnswerParams struct {
+	AnswerID   uuid.UUID
+	QuestionID uuid.UUID
+}
+
+func (q *Queries) HideQuestionAnswer(ctx context.Context, arg HideQuestionAnswerParams) (int64, error) {
+	result, err := q.db.Exec(ctx, hideQuestionAnswer, arg.AnswerID, arg.QuestionID)
 	if err != nil {
 		return 0, err
 	}
@@ -14576,6 +14913,19 @@ func (q *Queries) ShippingZoneFor(ctx context.Context, arg ShippingZoneForParams
 	return i, err
 }
 
+const showQuestion = `-- name: ShowQuestion :execrows
+UPDATE product_questions SET hidden_at = NULL
+WHERE id = $1 AND hidden_at IS NOT NULL
+`
+
+func (q *Queries) ShowQuestion(ctx context.Context, questionID uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, showQuestion, questionID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const showReview = `-- name: ShowReview :execrows
 UPDATE product_reviews SET hidden_at = NULL
 WHERE id = $1 AND hidden_at IS NOT NULL
@@ -15170,62 +15520,6 @@ type TouchOrderAccessGrantsParams struct {
 func (q *Queries) TouchOrderAccessGrants(ctx context.Context, arg TouchOrderAccessGrantsParams) error {
 	_, err := q.db.Exec(ctx, touchOrderAccessGrants, arg.Digests, arg.Retain)
 	return err
-}
-
-const unansweredQuestions = `-- name: UnansweredQuestions :many
-SELECT q.id, q.body, q.created_at,
-       p.slug AS product_slug, p.name AS product_name,
-       coalesce(u.full_name, '') AS asker,
-       (SELECT count(*) FROM product_answers a
-        WHERE a.question_id = q.id AND a.hidden_at IS NULL)::bigint AS answers,
-       EXISTS (SELECT 1 FROM product_answers a
-               WHERE a.question_id = q.id AND a.is_staff AND a.hidden_at IS NULL) AS answered_by_shop
-FROM product_questions q
-JOIN products p ON p.id = q.product_id
-LEFT JOIN users u ON u.id = q.user_id
-WHERE q.hidden_at IS NULL
-ORDER BY answered_by_shop, q.created_at
-LIMIT $1
-`
-
-type UnansweredQuestionsRow struct {
-	ID             uuid.UUID
-	Body           string
-	CreatedAt      time.Time
-	ProductSlug    string
-	ProductName    string
-	Asker          string
-	Answers        int64
-	AnsweredByShop bool
-}
-
-func (q *Queries) UnansweredQuestions(ctx context.Context, limit int32) ([]UnansweredQuestionsRow, error) {
-	rows, err := q.db.Query(ctx, unansweredQuestions, limit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []UnansweredQuestionsRow{}
-	for rows.Next() {
-		var i UnansweredQuestionsRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.Body,
-			&i.CreatedAt,
-			&i.ProductSlug,
-			&i.ProductName,
-			&i.Asker,
-			&i.Answers,
-			&i.AnsweredByShop,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const uninvoicedOrders = `-- name: UninvoicedOrders :many

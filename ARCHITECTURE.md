@@ -213,6 +213,7 @@ flowchart TB
 | [`internal/fieldrule`](internal/fieldrule) | Browser field constraints aligned with server validation. |
 | [`internal/home`](internal/home) | Homepage and shared navigation/banner reads. |
 | [`internal/i18n`](internal/i18n) | Application wording, locale detection, translated labels. |
+| [`internal/inventory`](internal/inventory) | The closed set of reasons a variant's stock moves. |
 | [`internal/invoice`](internal/invoice) | ECPay clients, durable invoice operations, recovery, documents. |
 | [`internal/layoutcheck`](internal/layoutcheck) | Tests protecting browser-gate configuration. |
 | [`internal/loyalty`](internal/loyalty) | Customer points balance and redemption. |
@@ -238,6 +239,7 @@ flowchart TB
 | [`internal/ui/layouts`](internal/ui/layouts) | Shared document head, page chrome, layout context. |
 | [`internal/ui/pages`](internal/ui/pages) | Storefront/account templates and view models. |
 | [`internal/ui/pages/admin`](internal/ui/pages/admin) | Back-office templates and view models. |
+| [`internal/user`](internal/user) | The signed-in user, `users.role`, and the context that carries them. |
 | [`internal/warranty`](internal/warranty) | Warranty registration for purchased units. |
 | [`internal/web`](internal/web) | Rendering, forms, pagination, compression, text/HTTP helpers. |
 

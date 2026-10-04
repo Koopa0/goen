@@ -14,11 +14,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/stock"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/inventory"
+	"github.com/koopa0/goen/internal/user"
 )
 
 func TestStockMovesOnlyThroughTheLedger(t *testing.T) {
@@ -143,7 +144,7 @@ func TestTheStockLedgerCanBeRead(t *testing.T) {
 	if newest.Delta != 7 {
 		t.Errorf("the newest movement is %d, want +7", newest.Delta)
 	}
-	if newest.Reason != "adjustment" || newest.ReasonText(ctx) != "人工調整" {
+	if newest.Reason != inventory.ReasonAdjustment || newest.ReasonText(ctx) != "人工調整" {
 		t.Errorf("the movement reads as %q / %q", newest.Reason, newest.ReasonText(ctx))
 	}
 	if newest.By(ctx) == "系統" {
@@ -327,7 +328,7 @@ func TestRestockingTellsEverybodyWhoAsked(t *testing.T) {
 		RETURNING id`, "restock-"+sku+"@goen.invalid").Scan(&actor); err != nil {
 		t.Fatalf("create staff: %v", err)
 	}
-	staffCtx := account.WithUser(ctx, account.User{ID: actor.String(), Role: account.RoleAdmin})
+	staffCtx := user.NewContext(ctx, user.User{ID: actor.String(), Role: user.RoleAdmin})
 
 	if err := s.Adjust(staffCtx, sku, 10, actor.String(), "restock-test-1"); err != nil {
 		t.Fatalf("restock: %v", err)
@@ -398,7 +399,7 @@ func TestAnAdjustmentBelowTheThresholdTellsNobody(t *testing.T) {
 		RETURNING id`, "threshold-"+sku+"@goen.invalid").Scan(&actor); err != nil {
 		t.Fatalf("create staff: %v", err)
 	}
-	staffCtx := account.WithUser(ctx, account.User{ID: actor.String(), Role: account.RoleAdmin})
+	staffCtx := user.NewContext(ctx, user.User{ID: actor.String(), Role: user.RoleAdmin})
 
 	if err := s.Adjust(staffCtx, sku, 3, actor.String(), "threshold-test-1"); err != nil {
 		t.Fatalf("adjust: %v", err)
@@ -461,7 +462,7 @@ func TestARestockNoticeNamesTheProductInTheReadersLanguage(t *testing.T) {
 		RETURNING id`, "restock-locale-"+sku+"@goen.invalid").Scan(&actor); err != nil {
 		t.Fatalf("create staff: %v", err)
 	}
-	staffCtx := account.WithUser(ctx, account.User{ID: actor.String(), Role: account.RoleAdmin})
+	staffCtx := user.NewContext(ctx, user.User{ID: actor.String(), Role: user.RoleAdmin})
 
 	if err := s.Adjust(staffCtx, sku, 10, actor.String(), "restock-locale-1"); err != nil {
 		t.Fatalf("restock: %v", err)
@@ -605,17 +606,13 @@ func TestAReleaseInTheLedgerNamesItsOrder(t *testing.T) {
 		if m.OrderNumber != number {
 			continue
 		}
-		switch m.Reason {
-		case "release":
-			release = true
-		case "hold":
-			hold = true
-		}
+		release = release || m.Reason == inventory.ReasonRelease
+		hold = hold || m.Reason == inventory.ReasonHold
 	}
 	if !release {
 		seen := make([]string, 0, len(view.Rows))
 		for i := range view.Rows {
-			seen = append(seen, view.Rows[i].Reason+"/"+view.Rows[i].OrderNumber)
+			seen = append(seen, string(view.Rows[i].Reason)+"/"+view.Rows[i].OrderNumber)
 		}
 		t.Errorf("no release naming %s in the ledger: %v", number, seen)
 	}

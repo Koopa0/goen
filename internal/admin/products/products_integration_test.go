@@ -20,10 +20,10 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/admin/products"
+	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -224,8 +224,8 @@ func TestProductUpdateAndAuditCommitTogether(t *testing.T) {
 	// transaction, so observing the old name proves the audit failure rolled it
 	// back instead of leaving an unattributed customer-visible change.
 	missingActor := uuid.New()
-	failingCtx := web.WithRequestID(account.WithUser(t.Context(), account.User{
-		ID: missingActor.String(), Role: account.RoleAdmin,
+	failingCtx := web.WithRequestID(user.NewContext(t.Context(), user.User{
+		ID: missingActor.String(), Role: user.RoleAdmin,
 	}), "req-missing-actor")
 	failing := *form
 	failing.Name = "不得落地 " + uuid.NewString()[:8]

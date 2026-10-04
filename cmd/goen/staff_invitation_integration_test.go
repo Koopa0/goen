@@ -9,10 +9,10 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/admin/staff"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/outbox"
+	"github.com/koopa0/goen/internal/user"
 )
 
 func TestStaffInvitationRegrantSurvivesRetainedDelivery(t *testing.T) {
@@ -38,7 +38,7 @@ func TestStaffInvitationRegrantSurvivesRetainedDelivery(t *testing.T) {
 			}
 			defer storePool.Close()
 			roster := staff.NewStore(adminPool)
-			asActor := account.WithUser(ctx, account.User{ID: actor.String(), Role: account.RoleAdmin})
+			asActor := user.NewContext(ctx, user.User{ID: actor.String(), Role: user.RoleAdmin})
 			address := "regrant-" + uuid.NewString() + "@example.com"
 			if _, err := roster.AddStaff(asActor, address, "Colleague", "staff"); err != nil {
 				t.Fatal(err)

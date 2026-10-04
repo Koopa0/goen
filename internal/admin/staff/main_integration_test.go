@@ -13,8 +13,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/db/dbtest"
+	"github.com/koopa0/goen/internal/user"
 )
 
 var pool *pgxpool.Pool
@@ -33,7 +33,7 @@ func TestMain(m *testing.M) {
 
 // asActor is the context the access wrapper leaves for a signed-in admin.
 func asActor(ctx context.Context, id string) context.Context {
-	return account.WithUser(ctx, account.User{ID: id, Role: account.RoleAdmin})
+	return user.NewContext(ctx, user.User{ID: id, Role: user.RoleAdmin})
 }
 
 // enrolFactor gives a user a confirmed second factor; these tests are about who

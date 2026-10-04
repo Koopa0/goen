@@ -21,10 +21,10 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/assets"
-	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/admin/refunds"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -536,17 +536,17 @@ func TestOnlyAStaffMemberGetsTheBackOfficeEntrance(t *testing.T) {
 
 	for _, tt := range []struct {
 		name string
-		role account.Role // "" is a signed-out visitor
+		role user.Role // "" is a signed-out visitor
 		path string
 		want bool
 	}{
 		{name: "signed out", path: "/", want: false},
-		{name: "customer", role: account.RoleCustomer, path: "/", want: false},
-		{name: "staff on the storefront", role: account.RoleStaff, path: "/", want: true},
-		{name: "staff on a product page", role: account.RoleStaff, path: "/p/aurora-slate-11", want: true},
-		{name: "admin on the account page", role: account.RoleAdmin, path: "/account", want: true},
-		{name: "staff inside the back office", role: account.RoleStaff, path: "/admin/orders", want: false},
-		{name: "staff on an asset", role: account.RoleStaff, path: "/static/js/goen.js", want: false},
+		{name: "customer", role: user.RoleCustomer, path: "/", want: false},
+		{name: "staff on the storefront", role: user.RoleStaff, path: "/", want: true},
+		{name: "staff on a product page", role: user.RoleStaff, path: "/p/aurora-slate-11", want: true},
+		{name: "admin on the account page", role: user.RoleAdmin, path: "/account", want: true},
+		{name: "staff inside the back office", role: user.RoleStaff, path: "/admin/orders", want: false},
+		{name: "staff on an asset", role: user.RoleStaff, path: "/static/js/goen.js", want: false},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -558,7 +558,7 @@ func TestOnlyAStaffMemberGetsTheBackOfficeEntrance(t *testing.T) {
 
 			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, tt.path, http.NoBody)
 			if tt.role != "" {
-				req = req.WithContext(account.WithUser(req.Context(), account.User{
+				req = req.WithContext(user.NewContext(req.Context(), user.User{
 					ID: "user-1", Email: "somebody@example.com", Role: tt.role,
 				}))
 			}
@@ -989,8 +989,8 @@ func TestNoPageForOneVisitorIsKeptByTheBrowser(t *testing.T) {
 			}))
 			req := httptest.NewRequestWithContext(t.Context(), tt.method, tt.path, http.NoBody)
 			if tt.signedIn {
-				req = req.WithContext(account.WithUser(req.Context(), account.User{
-					ID: "user-1", Email: "somebody@example.com", Role: account.RoleAdmin,
+				req = req.WithContext(user.NewContext(req.Context(), user.User{
+					ID: "user-1", Email: "somebody@example.com", Role: user.RoleAdmin,
 				}))
 			}
 			res := httptest.NewRecorder()

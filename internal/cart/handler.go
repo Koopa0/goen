@@ -25,6 +25,7 @@ import (
 	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -735,7 +736,7 @@ func wantsTheMobileMap(r *http.Request) bool {
 }
 
 func emailOf(r *http.Request) string {
-	if u, ok := account.FromContext(r.Context()); ok {
+	if u, ok := user.FromContext(r.Context()); ok {
 		return u.Email
 	}
 	return ""
@@ -1371,7 +1372,7 @@ func (h *Handler) offeredShipping(
 }
 
 func ownerOf(r *http.Request) uuid.NullUUID {
-	u, ok := account.FromContext(r.Context())
+	u, ok := user.FromContext(r.Context())
 	if !ok {
 		return uuid.NullUUID{}
 	}
@@ -1542,7 +1543,7 @@ func (h *Handler) CancelOrder(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) ownedBySignedInUser(r *http.Request, number string) bool {
-	u, ok := account.FromContext(r.Context())
+	u, ok := user.FromContext(r.Context())
 	if !ok {
 		return false
 	}
@@ -1587,7 +1588,7 @@ func (h *Handler) checkoutView(ctx context.Context, cartID uuid.UUID, owner uuid
 		return pages.CheckoutView{}, err
 	}
 	view.AvailableCreditCents = balance
-	if u, ok := account.FromContext(ctx); ok {
+	if u, ok := user.FromContext(ctx); ok {
 		view.Profile = pages.CheckoutProfile{Email: u.Email, Name: name, Phone: phone}
 	}
 	if len(choices) > 0 {

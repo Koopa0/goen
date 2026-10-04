@@ -23,13 +23,13 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/admin/refundstate"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/outbox"
+	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -77,7 +77,7 @@ func StaffContext(t *testing.T, p *pgxpool.Pool) (context.Context, uuid.UUID) {
 		RETURNING id`).Scan(&id); err != nil {
 		t.Fatalf("create staff: %v", err)
 	}
-	ctx := account.WithUser(t.Context(), account.User{ID: id.String(), Role: account.RoleAdmin})
+	ctx := user.NewContext(t.Context(), user.User{ID: id.String(), Role: user.RoleAdmin})
 	return web.WithRequestID(ctx, "req-"+id.String()[:8]), id
 }
 

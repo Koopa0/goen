@@ -16,10 +16,10 @@ import (
 
 	"rsc.io/qr"
 
-	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/twofactor"
+	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -29,7 +29,7 @@ func TestEnrolmentQRMatchesTheOneTimeURI(t *testing.T) {
 			s := twofactor.NewStore(pool, testKey)
 			userID, email := admintest.AdminUser(t, pool)
 			h := twofactor.NewHandler(s, slog.New(slog.DiscardHandler), false)
-			ctx := account.WithUser(i18n.WithLocale(t.Context(), locale), account.User{ID: userID, Email: email, Role: account.RoleAdmin})
+			ctx := user.NewContext(i18n.WithLocale(t.Context(), locale), user.User{ID: userID, Email: email, Role: user.RoleAdmin})
 			r := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/verify/enrol", strings.NewReader(""))
 			r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			r.Header.Set("Accept-Encoding", "gzip")

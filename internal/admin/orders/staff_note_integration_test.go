@@ -18,10 +18,10 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/admin/orders"
+	"github.com/koopa0/goen/internal/user"
 )
 
 func staffNotePool(t *testing.T) *pgxpool.Pool {
@@ -144,7 +144,7 @@ func TestStaffNoteAuditFailureRollsBackTheNote(t *testing.T) {
 	if err := s.SetStaffNote(ctx, number, "keep this note"); err != nil {
 		t.Fatal(err)
 	}
-	badCtx := account.WithUser(t.Context(), account.User{ID: uuid.NewString(), Role: account.RoleAdmin})
+	badCtx := user.NewContext(t.Context(), user.User{ID: uuid.NewString(), Role: user.RoleAdmin})
 	err := s.SetStaffNote(badCtx, number, "unrecordable replacement")
 	pgErr, ok := errors.AsType[*pgconn.PgError](err)
 	if !ok || pgErr.ConstraintName != "audit_events_actor_user_id_fkey" {

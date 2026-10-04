@@ -13,13 +13,13 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/cart"
+	"github.com/koopa0/goen/internal/user"
 )
 
 // aMember is a signed-in customer with a name and phone on file, a cart holding
 // one thing, and the request context that says who they are.
-func aMember(t *testing.T, s *cart.Store, label string) (token string, user account.User) {
+func aMember(t *testing.T, s *cart.Store, label string) (token string, u user.User) {
 	t.Helper()
 	email := label + "-" + uuid.NewString() + "@example.com"
 	var userID uuid.UUID
@@ -39,18 +39,18 @@ func aMember(t *testing.T, s *cart.Store, label string) (token string, user acco
 	if err := s.Add(t.Context(), cartID, freshVariant(t, label), 1); err != nil {
 		t.Fatalf("add: %v", err)
 	}
-	return tok, account.User{ID: userID.String(), Email: email, Name: "王小明", Role: account.RoleCustomer}
+	return tok, user.User{ID: userID.String(), Email: email, Name: "王小明", Role: user.RoleCustomer}
 }
 
 func checkoutAs(
-	t *testing.T, h *cart.Handler, token string, who *account.User, query string,
+	t *testing.T, h *cart.Handler, token string, who *user.User, query string,
 ) string {
 	t.Helper()
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/checkout"+query, http.NoBody)
 	//nolint:gosec // G124: the browser's own cart cookie
 	req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token})
 	if who != nil {
-		req = req.WithContext(account.WithUser(req.Context(), *who))
+		req = req.WithContext(user.NewContext(req.Context(), *who))
 	}
 	res := httptest.NewRecorder()
 	h.Checkout(res, req)
@@ -65,11 +65,11 @@ func checkoutAs(
 func TestAMemberCheckoutIsFilledFromTheAccount(t *testing.T) {
 	s := cart.NewStore(pool)
 	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, testLimiter(), nil, nil)
-	token, user := aMember(t, s, "recipient-member")
+	token, u := aMember(t, s, "recipient-member")
 
-	page := checkoutAs(t, h, token, &user, "")
+	page := checkoutAs(t, h, token, &u, "")
 	for field, want := range map[string]string{
-		"name": "王小明", "phone": "0912345678", "email": user.Email,
+		"name": "王小明", "phone": "0912345678", "email": u.Email,
 	} {
 		if got, ok := inputValue(page, field); !ok || got != want {
 			t.Errorf("the %s field is %q (present %v), want %q", field, got, ok, want)
@@ -114,7 +114,7 @@ func TestAGuestCheckoutHasNeitherControlAndNoPrefill(t *testing.T) {
 func TestTheRecipientBoxAppliedByTheServerTicksAndRestores(t *testing.T) {
 	s := cart.NewStore(pool)
 	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, testLimiter(), nil, nil)
-	token, user := aMember(t, s, "recipient-typed")
+	token, u := aMember(t, s, "recipient-typed")
 
 	apply := func(fields url.Values) string {
 		fields.Set("update", "recipient")
@@ -123,7 +123,7 @@ func TestTheRecipientBoxAppliedByTheServerTicksAndRestores(t *testing.T) {
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		//nolint:gosec // G124: the browser's own cart cookie
 		req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token})
-		req = req.WithContext(account.WithUser(req.Context(), user))
+		req = req.WithContext(user.NewContext(req.Context(), u))
 		res := httptest.NewRecorder()
 		h.PlaceOrder(res, req)
 		if res.Code != http.StatusOK {
@@ -164,14 +164,14 @@ func TestTheRecipientBoxAppliedByTheServerTicksAndRestores(t *testing.T) {
 func TestARestoredDraftIsNotOverwrittenByTheAccount(t *testing.T) {
 	s := cart.NewStore(pool)
 	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, testLimiter(), nil, configuredMap(t))
-	token, user := aMember(t, s, "recipient-draft")
+	token, u := aMember(t, s, "recipient-draft")
 
 	shipping := shipVersionFor(t, "store_pickup")
 	fields := aStart(shipping)
 	fields.Set("name", "林小美")
 	fields.Set("phone", "0987654321")
-	fields.Set("email", user.Email)
-	body, cookie, status := startPickupAs(t, h, token, &user, fields)
+	fields.Set("email", u.Email)
+	body, cookie, status := startPickupAs(t, h, token, &u, fields)
 	if status != http.StatusOK {
 		t.Fatalf("the hand-off page = %d, want 200", status)
 	}
@@ -182,7 +182,7 @@ func TestARestoredDraftIsNotOverwrittenByTheAccount(t *testing.T) {
 	//nolint:gosec // G124: the browser's own cart cookie
 	back.AddCookie(&http.Cookie{Name: "goen_cart", Value: token})
 	back.AddCookie(cookie)
-	back = back.WithContext(account.WithUser(back.Context(), user))
+	back = back.WithContext(user.NewContext(back.Context(), u))
 	res := httptest.NewRecorder()
 	h.Checkout(res, back)
 

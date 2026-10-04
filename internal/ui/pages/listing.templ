@@ -96,8 +96,10 @@ templ Listing(p layouts.Page, v ListingView) {
 			if isPartial(ctx) {
 				// The rail is not swapped, or the box the shopper just used would lose focus;
 				// its counts are, because they follow the filters.
-				for _, b := range v.Brands {
-					<span class="goen-filters__count" id={ "brand-count-" + b.Value } hx-swap-oob="true">{ b.CountText() }</span>
+				for _, group := range v.Facets {
+					for position, option := range group.Options {
+						<span class="goen-filters__count" id={ group.CountID(position) } hx-swap-oob="true">{ option.CountText() }</span>
+					}
 				}
 			}
 		</div>
@@ -129,21 +131,15 @@ templ listingFilters(v ListingView) {
 				// Keeps the outline unbroken: without an h2 between the page title and a tile's
 				// h3 the document skips a level (check-layout.mjs reads that as a defect).
 				<h2 class="goen-filters__title">{ i18n.T(ctx, i18n.KeyFilters) }</h2>
-				if len(v.Brands) > 0 {
+				for _, group := range v.Facets {
 					<details class="goen-filters__group" open>
-						<summary class="goen-filters__summary">{ i18n.T(ctx, i18n.KeyFacetBrand) }</summary>
+						<summary class="goen-filters__summary">{ group.Label }</summary>
 						<div class="goen-filters__options">
-							for _, b := range v.Brands {
+							for position, option := range group.Options {
 								<label class="goen-filters__option">
-									<input
-										type="checkbox"
-										name="brand"
-										value={ b.Value }
-										class="goen-check"
-										checked?={ b.Selected }
-									/>
-									<span class="goen-filters__label">{ b.Label }</span>
-									<span class="goen-filters__count" id={ "brand-count-" + b.Value }>{ b.CountText() }</span>
+									<input type="checkbox" name={ group.Param() } value={ option.Value } class="goen-check" checked?={ option.Selected }/>
+									<span class="goen-filters__label">{ option.Label }</span>
+									<span class="goen-filters__count" id={ group.CountID(position) }>{ option.CountText() }</span>
 								</label>
 							}
 						</div>

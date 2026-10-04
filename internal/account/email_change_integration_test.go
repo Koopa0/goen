@@ -25,6 +25,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/ratelimit"
+	"github.com/koopa0/goen/internal/user"
 )
 
 // changeBrowser drives the account handlers the way the router does, through
@@ -502,18 +503,18 @@ func TestRegistrationAndAnAddressChangeShareOneBudgetPerAddress(t *testing.T) {
 // left to expire. Mailed, it would only be a letter that fails when followed, so
 // nothing is sent and nobody is told.
 func TestALinkThatCanNoLongerBeFollowedIsNeverMailed(t *testing.T) {
-	for name, kill := range map[string]func(t *testing.T, s *account.Store, asker account.User, p *email.AddressVerify){
-		"replaced by a later request": func(t *testing.T, s *account.Store, asker account.User, _ *email.AddressVerify) {
+	for name, kill := range map[string]func(t *testing.T, s *account.Store, asker user.User, p *email.AddressVerify){
+		"replaced by a later request": func(t *testing.T, s *account.Store, asker user.User, _ *email.AddressVerify) {
 			t.Helper()
 			requestVerification(t, s, asker.ID, "dead-link-later-"+uuid.NewString()+"@example.com")
 		},
-		"spent": func(t *testing.T, s *account.Store, asker account.User, p *email.AddressVerify) {
+		"spent": func(t *testing.T, s *account.Store, asker user.User, p *email.AddressVerify) {
 			t.Helper()
 			if _, err := s.ConfirmVerification(t.Context(), p.Token, asker.ID); err != nil {
 				t.Fatalf("spend the link: %v", err)
 			}
 		},
-		"expired": func(t *testing.T, _ *account.Store, asker account.User, _ *email.AddressVerify) {
+		"expired": func(t *testing.T, _ *account.Store, asker user.User, _ *email.AddressVerify) {
 			t.Helper()
 			if _, err := pool.Exec(t.Context(), `
 				UPDATE email_verifications

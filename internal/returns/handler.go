@@ -10,10 +10,10 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -81,11 +81,11 @@ func returnRequestFromForm(r *http.Request, o *Order) (*Request, error) {
 }
 
 func returnRequester(ctx context.Context) uuid.NullUUID {
-	user, signedIn := account.FromContext(ctx)
+	u, signedIn := user.FromContext(ctx)
 	if !signedIn {
 		return uuid.NullUUID{}
 	}
-	id, err := uuid.Parse(user.ID)
+	id, err := uuid.Parse(u.ID)
 	return uuid.NullUUID{UUID: id, Valid: err == nil}
 }
 
@@ -153,7 +153,7 @@ func (h *Handler) ownOrder(w http.ResponseWriter, r *http.Request) (*Order, bool
 }
 
 func (h *Handler) ownedBySignedInUser(r *http.Request, number string) bool {
-	u, ok := account.FromContext(r.Context())
+	u, ok := user.FromContext(r.Context())
 	if !ok {
 		return false
 	}
