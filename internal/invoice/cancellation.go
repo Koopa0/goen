@@ -19,7 +19,7 @@ const cancellationVoidReason = "訂單取消"
 // VoidDeadline is the last moment ECPay voids an invoice issued at issuedAt:
 // 23:59:59 on the 13th of the month that opens the next bimonthly period. By
 // then the period has been filed with the 財政部, and only an allowance
-// corrects the invoice (developers.ecpay.com.tw/7906).
+// corrects the invoice.
 func VoidDeadline(issuedAt time.Time) time.Time {
 	local := shoptime.In(issuedAt)
 	// Periods open in odd months; time.Date carries month 13 into January.
@@ -28,10 +28,9 @@ func VoidDeadline(issuedAt time.Time) time.Time {
 }
 
 // voidable reports whether a void can still correct the invoice at now. ECPay
-// refuses one once an allowance has relieved part of the invoice
-// (support.ecpay.com.tw/6897).
-func voidable(issuedAt, now time.Time, allowed bool) bool {
-	return !allowed && !now.After(VoidDeadline(issuedAt))
+// refuses one once an allowance has relieved part of the invoice.
+func voidable(issuedAt, now time.Time, hasAllowance bool) bool {
+	return !hasAllowance && !now.After(VoidDeadline(issuedAt))
 }
 
 // CorrectForCancellation voids the invoice of an order being cancelled, under
@@ -54,7 +53,7 @@ func (s *Store) CorrectForCancellation(ctx context.Context, orderNumber string) 
 	if err != nil {
 		return fmt.Errorf("read the invoice of %s: %w", orderNumber, err)
 	}
-	if !voidable(live.IssuedAt, time.Now(), live.Allowed) {
+	if !voidable(live.IssuedAt, time.Now(), live.HasAllowance) {
 		return nil
 	}
 	actorID, requestID, err := filingAuditIdentity(ctx)
@@ -108,17 +107,5 @@ func (s *Store) withdrawIssue(ctx context.Context, operationID uuid.UUID) error 
 	if op.Sends > 0 {
 		return s.retry(ctx, &op, owner, "issue_sent_before_cancellation", ErrDisabled)
 	}
-	ctx, cancel := filingContext(ctx)
-	defer cancel()
-	rejected, err := s.q.RejectInvoiceOperation(ctx, db.RejectInvoiceOperationParams{
-		OperationID: op.ID, LeaseOwner: owner, LastError: "issue_withdrawn_order_cancelled",
-	})
-	if err != nil {
-		return fmt.Errorf("withdraw invoice operation %s: %w", op.ID, err)
-	}
-	if !rejected {
-		return fmt.Errorf("%w: lease for invoice operation %s was lost while withdrawing",
-			ErrPending, op.ID)
-	}
-	return nil
+	return s.reject(ctx, &op, owner, "issue_withdrawn_order_cancelled", nil)
 }

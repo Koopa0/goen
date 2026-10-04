@@ -36,7 +36,7 @@ SELECT d.id, d.number, d.amount_cents, coalesce(d.provider_ref, '')::text AS pro
        d.issued_at,
        EXISTS (SELECT 1 FROM invoice_documents a
                WHERE a.original_id = d.id AND a.kind = 'allowance'
-                 AND a.status = 'issued') AS allowed
+                 AND a.status = 'issued') AS has_allowance
 FROM invoice_documents d
 JOIN orders o ON o.id = d.order_id
 WHERE o.order_number = @order_number::text

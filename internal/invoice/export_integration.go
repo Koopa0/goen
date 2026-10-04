@@ -33,9 +33,10 @@ type FakeECPay struct {
 	server  *httptest.Server
 	gateway *Gateway
 
-	mu       sync.Mutex
-	byRelate map[string]*fakeInvoice
-	calls    map[string]int
+	mu          sync.Mutex
+	byRelate    map[string]*fakeInvoice
+	calls       map[string]int
+	holdInvalid bool
 }
 
 type fakeInvoice struct {
@@ -64,6 +65,14 @@ func NewFakeECPay(issuedAt time.Time) (*FakeECPay, error) {
 func (f *FakeECPay) Gateway() *Gateway { return f.gateway }
 
 func (f *FakeECPay) Close() { f.server.Close() }
+
+// HoldInvalid makes every later Invalid wait until its caller gives up, as a
+// 加值中心 that has stopped answering does.
+func (f *FakeECPay) HoldInvalid() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.holdInvalid = true
+}
 
 // Calls is how many requests reached path, such as "/B2CInvoice/Invalid".
 func (f *FakeECPay) Calls(path string) int {
@@ -94,8 +103,15 @@ func (f *FakeECPay) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	f.mu.Lock()
-	defer f.mu.Unlock()
 	f.calls[r.URL.Path]++
+	hold := f.holdInvalid && r.URL.Path == "/B2CInvoice/Invalid"
+	f.mu.Unlock()
+	if hold {
+		<-r.Context().Done()
+		return
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	reply, ok := f.answer(r.URL.Path, req.RelateNumber, req.InvoiceNo, req.SalesAmount, req.Items)
 	if !ok {
 		http.NotFound(w, r)
