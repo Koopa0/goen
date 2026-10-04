@@ -1,6 +1,6 @@
 //go:build integration
 
-package admin_test
+package products_test
 
 import (
 	"bytes"
@@ -18,17 +18,17 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/admin/admintest"
+	"github.com/koopa0/goen/internal/admin/products"
 )
 
 // TestAnUploadedImageCanShowOneOfItsProductsOptionValues walks the two forms
 // that tag a photograph: the upload, and the per-image choice that changes it
 // afterwards, including back to showing the product whichever value is chosen.
 func TestAnUploadedImageCanShowOneOfItsProductsOptionValues(t *testing.T) {
-	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, admintest.Refunder{}, nil, nil)
-	h := adminHandlerOver(pool, s)
+	ctx, _ := admintest.StaffContext(t, pool)
+	s := products.NewStore(pool)
+	h := admintest.ProductDesk(pool, s)
 	slug, values := productWithColours(t, ctx, s, "星霧藍", "曜石黑")
 	blue, black := values[0], values[1]
 
@@ -84,16 +84,16 @@ func TestAnUploadedImageCanShowOneOfItsProductsOptionValues(t *testing.T) {
 // value's id alone would satisfy a plain foreign key, and the photograph would
 // then lead the gallery of a product it does not show.
 func TestAnImageCannotShowAnotherProductsOptionValue(t *testing.T) {
-	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, admintest.Refunder{}, nil, nil)
-	h := adminHandlerOver(pool, s)
+	ctx, _ := admintest.StaffContext(t, pool)
+	s := products.NewStore(pool)
+	h := admintest.ProductDesk(pool, s)
 	first, _ := productWithColours(t, ctx, s, "星霧藍")
 	_, others := productWithColours(t, ctx, s, "曜石黑")
 	borrowed := others[0]
 	digest := storeMedia(t)
 
 	err := s.AttachImage(ctx, first, digest, "借來的顏色", "", borrowed, 800, 600)
-	if !errors.Is(err, admin.ErrNotThisProductsOption) {
+	if !errors.Is(err, products.ErrNotThisProductsOption) {
 		t.Fatalf("attaching with another product's value answered %v, want ErrNotThisProductsOption", err)
 	}
 	var n int
@@ -121,11 +121,11 @@ func TestAnImageCannotShowAnotherProductsOptionValue(t *testing.T) {
 
 // productWithColours is a draft product with one axis holding values, in order.
 func productWithColours(
-	t *testing.T, ctx context.Context, s *admin.Store, values ...string,
+	t *testing.T, ctx context.Context, s *products.Store, values ...string,
 ) (slug string, ids []string) {
 	t.Helper()
-	slug = draftProduct(t, ctx, s)
-	if errs, err := s.AddOption(ctx, slug, admin.OptionDraft{Name: "顏色"}); err != nil || len(errs) > 0 {
+	slug = admintest.DraftProduct(t, ctx, pool, s)
+	if errs, err := s.AddOption(ctx, slug, products.OptionDraft{Name: "顏色"}); err != nil || len(errs) > 0 {
 		t.Fatalf("AddOption: %v %v", err, errs)
 	}
 	view, err := s.Product(ctx, slug)
@@ -133,7 +133,7 @@ func productWithColours(
 		t.Fatalf("Product: %v", err)
 	}
 	for _, v := range values {
-		if errs, addErr := s.AddOptionValue(ctx, slug, admin.OptionDraft{
+		if errs, addErr := s.AddOptionValue(ctx, slug, products.OptionDraft{
 			OptionID: view.Options[0].ID, Name: v,
 		}); addErr != nil || len(errs) > 0 {
 			t.Fatalf("AddOptionValue(%s): %v %v", v, addErr, errs)
@@ -169,7 +169,7 @@ func theOnlyImageOf(t *testing.T, slug string) (key, shows string) {
 }
 
 func postImageOption(
-	t *testing.T, h *admin.Handler, ctx context.Context, slug string, form url.Values,
+	t *testing.T, h *products.Handler, ctx context.Context, slug string, form url.Values,
 ) *httptest.ResponseRecorder {
 	t.Helper()
 	req := httptest.NewRequestWithContext(ctx, http.MethodPost,

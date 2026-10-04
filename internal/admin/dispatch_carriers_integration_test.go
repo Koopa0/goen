@@ -72,7 +72,7 @@ func TestADispatchWithACarrierTheOrderCannotUseIsRefused(t *testing.T) {
 		t.Fatalf("the refused dispatch left %d shipments", n)
 	}
 
-	h := adminHandlerOver(pool, s)
+	h := adminHandlerOver(s)
 	form := url.Values{"carrier": {"seven_eleven"}, "tracking": {"WRONG-" + home}}
 	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/orders/"+home+"/ship", strings.NewReader(form.Encode()))
 	req.SetPathValue("number", home)

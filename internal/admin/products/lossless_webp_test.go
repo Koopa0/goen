@@ -1,4 +1,4 @@
-package admin
+package products
 
 import (
 	"bytes"
@@ -14,6 +14,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/media"
 	"github.com/koopa0/goen/internal/newsletter"
+	"github.com/koopa0/goen/internal/web"
 )
 
 // losslessWebP is a 64x48 lossless WebP: one VP8L frame whose five Huffman
@@ -97,7 +98,7 @@ func TestALosslessWebPUploadIsRefusedWithItsOwnNotice(t *testing.T) {
 			for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 				ctx := i18n.WithLocale(t.Context(), locale)
 				landing := httptest.NewRequestWithContext(ctx, http.MethodGet, tt.want, http.NoBody)
-				if got, want := noticeFor(landing), i18n.T(ctx, i18n.KeyAdminNoticeLosslessWebP); got != want {
+				if got, want := web.Notice(landing, notices), i18n.T(ctx, i18n.KeyAdminNoticeLosslessWebP); got != want {
 					t.Errorf("%s: the page shows %q, want %q", locale, got, want)
 				}
 			}

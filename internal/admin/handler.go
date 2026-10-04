@@ -15,9 +15,6 @@ import (
 	"github.com/koopa0/goen/internal/admin/ordernumber"
 	"github.com/koopa0/goen/internal/carrier"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/media"
-	"github.com/koopa0/goen/internal/newsletter"
-	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/pgerr"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -27,9 +24,6 @@ import (
 )
 
 type Handler struct {
-	outbox  *outbox.Store
-	images  *media.Handler
-	letters *newsletter.Store
 	// sessions closes a cancelled order's checkout at the payment provider. Nil
 	// on a deployment with no Stripe key, where no session was ever opened.
 	sessions payment.SessionCloser
@@ -39,22 +33,15 @@ type Handler struct {
 
 type HandlerDeps struct {
 	Store    *Store
-	Images   *media.Handler
-	Outbox   *outbox.Store
-	Letters  *newsletter.Store
 	Log      *slog.Logger
 	Sessions payment.SessionCloser
 }
 
 func NewHandler(d HandlerDeps) *Handler {
-	if d.Store == nil || d.Images == nil || d.Outbox == nil || d.Letters == nil || d.Log == nil {
-		panic("admin: NewHandler requires a store, a media handler, an outbox, " +
-			"a newsletter store and a logger")
+	if d.Store == nil || d.Log == nil {
+		panic("admin: NewHandler requires a store and a logger")
 	}
-	return &Handler{
-		store: d.Store, images: d.Images, outbox: d.Outbox, letters: d.Letters,
-		log: d.Log, sessions: d.Sessions,
-	}
+	return &Handler{store: d.Store, log: d.Log, sessions: d.Sessions}
 }
 
 func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
@@ -282,15 +269,6 @@ var adminNotices = map[string]i18n.Key{
 	"shipped":        i18n.KeyAdminNoticeShipped,
 	"toolate":        i18n.KeyAdminNoticeTooLate,
 	"deliveryneeds":  i18n.KeyAdminNoticeDeliveryNeeds,
-	"imageneeds":     i18n.KeyAdminNoticeImageNeeds,
-	"toobig":         i18n.KeyAdminNoticeTooBig,
-	"notimage":       i18n.KeyAdminNoticeNotImage,
-	"losslesswebp":   i18n.KeyAdminNoticeLosslessWebP,
-	"uploadfailed":   i18n.KeyAdminNoticeUploadFailed,
-	"uploadbusy":     i18n.KeyAdminNoticeUploadBusy,
-	"attachrefused":  i18n.KeyAdminNoticeAttachRefused,
-	"noalt":          i18n.KeyAdminNoticeNoAlt,
-	"badoption":      i18n.KeyAdminNoticeBadOption,
 	"paidcancel":     i18n.KeyAdminNoticePaidCancel,
 	"refunded":       i18n.KeyAdminNoticeRefunded,
 	"refundpending":  i18n.KeyAdminNoticeRefundPending,
@@ -310,7 +288,6 @@ var adminNotices = map[string]i18n.Key{
 	"voidreason":     i18n.KeyAdminNoticeVoidReason,
 	"voidfailed":     i18n.KeyAdminNoticeVoidFailed,
 	"allowfailed":    i18n.KeyAdminNoticeAllowFailed,
-	"specfailed":     i18n.KeyAdminNoticeSpecFailed,
 }
 
 func noticeFor(r *http.Request) string {

@@ -232,7 +232,7 @@ func postDeliveryCorrection(ctx context.Context, t *testing.T, number, postal st
 	r.SetPathValue("number", number)
 	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	w := httptest.NewRecorder()
-	adminHandlerOver(pool, admin.NewStore(pool, admintest.Refunder{}, nil, nil)).CorrectDelivery(w, r)
+	adminHandlerOver(admin.NewStore(pool, admintest.Refunder{}, nil, nil)).CorrectDelivery(w, r)
 	return w
 }
 
