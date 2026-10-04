@@ -344,7 +344,7 @@ SELECT
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height
 FROM products p
-LEFT JOIN brands b ON b.id = p.brand_id
+JOIN brands b ON b.id = p.brand_id
 JOIN LATERAL (
     SELECT price_cents, compare_at_price_cents
     FROM product_variants
@@ -375,7 +375,7 @@ WITH RECURSIVE category_match AS (
 )
 SELECT count(*)::bigint
 FROM products p
-LEFT JOIN brands b ON b.id = p.brand_id
+JOIN brands b ON b.id = p.brand_id
 WHERE p.status = 'active'
   -- Every term must match some field, and a term may match a different field
   -- from its neighbour.
@@ -444,7 +444,7 @@ SELECT
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height
 FROM products p
-LEFT JOIN brands b ON b.id = p.brand_id
+JOIN brands b ON b.id = p.brand_id
 -- A DISCOUNTED variant first, which is what puts the product on this page at
 -- all. The listing's LATERAL takes the cheapest buyable one, and a product
 -- qualifies here when ANY variant carries a discount — two different variants
@@ -578,7 +578,7 @@ SELECT
     coalesce(img.height, 0)::integer AS image_height
 FROM sale_campaign_products cp
 JOIN products p ON p.id = cp.product_id
-LEFT JOIN brands b ON b.id = p.brand_id
+JOIN brands b ON b.id = p.brand_id
 JOIN LATERAL (
     SELECT price_cents, compare_at_price_cents
     FROM product_variants
@@ -722,7 +722,7 @@ SELECT
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height
 FROM products p
-LEFT JOIN brands b ON b.id = p.brand_id
+JOIN brands b ON b.id = p.brand_id
 JOIN LATERAL (
     SELECT price_cents
     FROM product_variants

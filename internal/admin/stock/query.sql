@@ -19,7 +19,7 @@ SELECT json_build_object('Number', (pv.stock_quantity - pv.safety_stock), 'Name'
           ORDER BY o.position, o.id)::text[] AS option_values
 FROM product_variants pv
 JOIN products p ON p.id = pv.product_id
-LEFT JOIN brands b ON b.id = p.brand_id
+JOIN brands b ON b.id = p.brand_id
 WHERE (@low_only::boolean = false OR pv.stock_quantity <= pv.safety_stock)
 AND (@escaped_term::text = ''
        OR pv.sku ILIKE '%' || @escaped_term::text || '%'
