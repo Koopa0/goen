@@ -73,7 +73,7 @@ func NextStatuses(current pages.FulfillmentStatus) []pages.FulfillmentStatus {
 		// must also settle the stock the order holds.
 		return []pages.FulfillmentStatus{pages.FulfillmentCancelled}
 	case pages.FulfillmentShipped:
-		return []pages.FulfillmentStatus{pages.FulfillmentCompleted}
+		return []pages.FulfillmentStatus{pages.FulfillmentDelivered, pages.FulfillmentCompleted}
 	case pages.FulfillmentDelivered:
 		return []pages.FulfillmentStatus{pages.FulfillmentCompleted}
 	default:
