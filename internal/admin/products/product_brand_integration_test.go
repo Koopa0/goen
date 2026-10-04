@@ -79,7 +79,7 @@ func TestTheShopCanPublishAnUnbrandedProduct(t *testing.T) {
 	}
 	search, err := catalog.NewStore(p).Search(ctx, catalog.SearchPattern(form.Name), catalog.SortRelevance, 1)
 	if err != nil || search.Total != 1 || len(search.Products) != 1 || search.Products[0].Slug != slug || search.Products[0].Brand != "" {
-		t.Errorf("unbranded search = %+v, %v", search.Products, err)
+		t.Errorf("unbranded search: total = %d, products = %+v, error = %v; want total 1, one product %q with no brand and nil error", search.Total, search.Products, err, slug)
 	}
 	pdp, err := product.NewStore(p).Load(ctx, slug, nil)
 	if err != nil || pdp.Brand != "" || pdp.Slug != slug {
