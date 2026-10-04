@@ -125,7 +125,7 @@ func TestPickingTotalsSpanEveryPageAndSubtractRecordedShipments(t *testing.T) {
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
 		if w.Code != http.StatusNotFound {
-			t.Fatalf("role=%q GET=%d, want 404", user.Role, w.Code)
+			t.Fatalf("role=%q GET=%d, want 404", current.Role, w.Code)
 		}
 	}
 	var picking, audited, moved int
