@@ -111,6 +111,8 @@ SELECT pv.id AS variant_id FROM product_variants pv
 JOIN products p ON p.id = pv.product_id
 WHERE pv.sku = 'PXL-9-1-1' AND p.status = 'active' AND pv.is_active
   AND pv.stock_quantity > pv.safety_stock \gset
+SELECT p.slug AS review_slug FROM product_variants pv
+JOIN products p ON p.id = pv.product_id WHERE pv.id = :'variant_id' \gset
 SELECT v.id AS ship_version, sm.code AS ship_code, v.name AS ship_name,
        CASE WHEN pv.price_cents >= v.free_over_cents THEN 0 ELSE v.fee_cents END AS ship_cents
 FROM shipping_method_versions v
@@ -309,6 +311,7 @@ COMMIT;
 \qecho CUSTOMER_ID=:customer_id
 \qecho LAYOUT_SERIAL=:layout_serial
 \qecho PRODUCT_SLUG=:product_slug
+\qecho REVIEW_SLUG=:review_slug
 \qecho COMPARE_SLUG_B=:compare_slug_b
 \qecho PICKUP_SHIP=:pickup_ship
 \o

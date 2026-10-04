@@ -2391,20 +2391,14 @@ if (process.env.CUST_TOKEN) {
 
   // Hovering the nth star of the rating row previews exactly n, whatever is
   // already chosen. The row is offered to a customer whose order was delivered,
-  // so the product is the one on that order; a catalogue where the order page
-  // links no product, or the row is not offered, is said and skipped.
+  // so the product is the one on the customer's delivered order.
   {
     const label = 'review stars hover';
     await send(ws, 'Network.setCookie', { name: 'goen_locale', value: 'zh-Hant', domain: '127.0.0.1', path: '/' });
     await send(ws, 'Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
-    const order = ORIGIN + '/orders/' + (process.env.RETURN_FORM_ORDER || '');
-    await send(ws, 'Page.navigate', { url: order });
-    await settled(ws, label, order);
-    const href = await evalPage(`document.querySelector('a[href^="/p/"]')?.getAttribute('href') ?? null`);
-    if (href) {
-      await send(ws, 'Page.navigate', { url: ORIGIN + href });
-      await settled(ws, label, ORIGIN + href);
-    }
+    const product = ORIGIN + '/p/' + (process.env.REVIEW_SLUG || '');
+    await send(ws, 'Page.navigate', { url: product });
+    await settled(ws, label, product);
     const centres = await evalPage(`(() => {
       const row = document.querySelector('.goen-pdp__starrow');
       if (!row) return null;
@@ -2417,7 +2411,7 @@ if (process.env.CUST_TOKEN) {
       });
     })()`);
     if (!centres || centres.threw || centres.length !== 5) {
-      console.log(`${label.padEnd(24)} no rating row offered to this customer here, skipped`);
+      fail(label, 'no rating row is offered to the customer on the product of the delivered order');
     } else {
       const lit = () => evalPage(`[...document.querySelectorAll('.goen-pdp__starrow .goen-pdp__starmark svg')]
         .filter((e) => getComputedStyle(e).fill !== 'none').length`);
