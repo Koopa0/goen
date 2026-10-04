@@ -213,6 +213,7 @@ flowchart TB
 | [`internal/fieldrule`](internal/fieldrule) | Browser field constraints aligned with server validation. |
 | [`internal/home`](internal/home) | Homepage and shared navigation/banner reads. |
 | [`internal/i18n`](internal/i18n) | Application wording, locale detection, translated labels. |
+| [`internal/inventory`](internal/inventory) | The closed set of reasons a variant's stock moves. |
 | [`internal/invoice`](internal/invoice) | ECPay clients, durable invoice operations, recovery, documents. |
 | [`internal/layoutcheck`](internal/layoutcheck) | Tests protecting browser-gate configuration. |
 | [`internal/loyalty`](internal/loyalty) | Customer points balance and redemption. |
