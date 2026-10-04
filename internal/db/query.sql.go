@@ -1836,7 +1836,7 @@ WHERE NOT $2::boolean
      OR (q.answered_by_shop = $5::boolean AND q.created_at > $3::timestamptz)
      OR (q.answered_by_shop = $5::boolean AND q.created_at = $3::timestamptz AND q.id > $4::uuid)))
 ORDER BY CASE WHEN NOT $1::boolean THEN q.answered_by_shop END,
-         CASE WHEN $1::boolean THEN q.hidden_at END DESC,
+         CASE WHEN $1::boolean THEN q.hidden_at END ASC,
          CASE WHEN NOT $1::boolean THEN q.created_at END,
          CASE WHEN $1::boolean THEN q.id END DESC,
          CASE WHEN NOT $1::boolean THEN q.id END
@@ -7208,7 +7208,7 @@ func (q *Queries) HideQuestion(ctx context.Context, questionID uuid.UUID) (int64
 }
 
 const hideQuestionAnswer = `-- name: HideQuestionAnswer :execrows
-UPDATE product_answers SET hidden_at = now()
+UPDATE product_answers SET hidden_at = NULL
 WHERE id = $1 AND question_id = $2 AND hidden_at IS NULL
 `
 
