@@ -1747,6 +1747,42 @@ func TestARejectedQuestionKeepsTheDraft(t *testing.T) {
 	}
 }
 
+// TestAnAskedQuestionIsStoredAndTheReaderReturnsToTheQuestions holds the
+// success arm of the Q&A handler: a signed-in POST stores the question under
+// the product and redirects to its questions.
+func TestAnAskedQuestionIsStoredAndTheReaderReturnsToTheQuestions(t *testing.T) {
+	slug := anyActiveProduct(t)
+	customer := newCustomer(t)
+	const question = "這個有附保固卡嗎？"
+
+	form := url.Values{"body": {question}}
+	req := httptest.NewRequestWithContext(
+		account.WithUser(t.Context(), account.User{ID: customer}),
+		http.MethodPost, "/p/"+slug+"/questions", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.SetPathValue("slug", slug)
+	res := httptest.NewRecorder()
+	product.NewHandler(product.NewStore(pool), slog.New(slog.DiscardHandler), "https://goen.example").
+		Ask(res, req)
+
+	if res.Code != http.StatusSeeOther {
+		t.Fatalf("Ask answered %d, want 303; body=%s", res.Code, res.Body.String())
+	}
+	if got, want := res.Header().Get("Location"), "/p/"+slug+"?ask=1#questions"; got != want {
+		t.Errorf("Ask redirects to %q, want %q", got, want)
+	}
+	var stored int
+	if err := pool.QueryRow(t.Context(), `
+		SELECT count(*) FROM product_questions q JOIN products p ON p.id = q.product_id
+		WHERE p.slug = $1 AND q.user_id = $2 AND q.body = $3`,
+		slug, customer, question).Scan(&stored); err != nil {
+		t.Fatalf("count stored questions: %v", err)
+	}
+	if stored != 1 {
+		t.Errorf("%d stored questions from this customer on %s, want 1", stored, slug)
+	}
+}
+
 func TestAQuestionIsBoundedInRunesNotBytes(t *testing.T) {
 	ctx := t.Context()
 	s := product.NewStore(pool)
