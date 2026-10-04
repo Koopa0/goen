@@ -361,6 +361,8 @@ func (s *Store) handleAllowanceSendError(
 		return s.alarm(ctx, op, owner, CategoryAmountStillHeld, cause)
 	case answered:
 		return s.reject(ctx, op, owner, "allowance_provider_rejected_"+strconv.Itoa(providerErr.Code), cause)
+	case errors.Is(cause, errProviderIdentity):
+		return s.alarm(ctx, op, owner, "allowance_success_mismatch", cause)
 	}
 	return s.retry(ctx, op, owner, "allowance_send_ambiguous", cause)
 }
