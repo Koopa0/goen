@@ -20,6 +20,7 @@ import (
 	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/inventory"
 	"github.com/koopa0/goen/internal/pgerr"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
@@ -112,7 +113,7 @@ func (s *Store) Adjust(ctx context.Context, sku string, delta int32, actorID, ke
 			}
 			return nil
 		})
-	return s.settleReplay(ctx, err, v.ID, delta, "adjustment", key)
+	return s.settleReplay(ctx, err, v.ID, delta, inventory.ReasonAdjustment, key)
 }
 
 // Receive books a delivery in, through the ledger's own 'receipt' reason,
@@ -143,7 +144,7 @@ func (s *Store) Receive(ctx context.Context, sku string, quantity int32, actorID
 			}
 			return nil
 		})
-	return s.settleReplay(ctx, err, v.ID, quantity, "receipt", key)
+	return s.settleReplay(ctx, err, v.ID, quantity, inventory.ReasonReceipt, key)
 }
 
 // settleReplay turns the ledger's refusal of a key it already holds into the
@@ -152,13 +153,13 @@ func (s *Store) Receive(ctx context.Context, sku string, quantity int32, actorID
 // as refused sends a staff member to re-enter it from a fresh form, which
 // lands it twice. A key reused for a different movement stays refused.
 func (s *Store) settleReplay(
-	ctx context.Context, err error, variantID uuid.UUID, delta int32, reason, key string,
+	ctx context.Context, err error, variantID uuid.UUID, delta int32, reason inventory.MovementReason, key string,
 ) error {
 	if err == nil || !pgerr.IsConstraint(err, "inventory_movements_idempotency_key") {
 		return err
 	}
 	applied, checkErr := s.q.StockMovementApplied(ctx, db.StockMovementAppliedParams{
-		IdempotencyKey: key, VariantID: variantID, Delta: delta, Reason: reason,
+		IdempotencyKey: key, VariantID: variantID, Delta: delta, Reason: string(reason),
 	})
 	if checkErr != nil || !applied {
 		return err
@@ -284,7 +285,7 @@ func (s *Store) Movements(ctx context.Context, sku string, after ...string) (adm
 		view.Rows = append(view.Rows, admin.Movement{
 			At:          shoptime.Minute(m.CreatedAt),
 			Delta:       m.Delta,
-			Reason:      m.Reason,
+			Reason:      inventory.MovementReason(m.Reason),
 			OrderNumber: m.OrderNumber,
 			Actor:       m.Actor,
 			Running:     m.RunningTotal,
