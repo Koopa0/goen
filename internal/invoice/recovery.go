@@ -362,7 +362,7 @@ func (s *Store) handleAllowanceSendError(
 	case answered:
 		return s.reject(ctx, op, owner, "allowance_provider_rejected_"+strconv.Itoa(providerErr.Code), cause)
 	case errors.Is(cause, errProviderIdentity):
-		return s.alarm(ctx, op, owner, "allowance_success_mismatch", cause)
+		return s.alarm(ctx, op, owner, CategorySuccessMismatch, cause)
 	}
 	return s.retry(ctx, op, owner, "allowance_send_ambiguous", cause)
 }
@@ -390,6 +390,10 @@ const ecpayAmountHeld = 2000034
 
 // CategoryAmountStillHeld is the attention an allowance enters on that answer.
 const CategoryAmountStillHeld = "allowance_amount_still_held"
+
+// CategorySuccessMismatch is the attention an allowance enters when ECPay's
+// success reply names another document.
+const CategorySuccessMismatch = "allowance_success_mismatch"
 
 // BuyerConsentWindow is how long ECPay's consent link lives.
 const BuyerConsentWindow = 72 * time.Hour

@@ -33,9 +33,19 @@ var (
 	})
 
 	KeyAdminQueueAllowanceAmountHeld = key("admin.queue.allowance.amountheld", Message{
-		ZhHant: "綠界表示先前未確認的折讓仍保留這筆金額，這次重寄沒有開立任何折讓。",
-		En: "ECPay says an earlier credit note the customer never agreed to still holds this amount, " +
-			"so the resend filed nothing.",
+		ZhHant: "綠界表示這張發票可折讓的金額仍被先前未確認的折讓保留，這次沒有開立任何折讓。",
+		En: "ECPay says an earlier credit note the customer never agreed to still holds this invoice's " +
+			"amount, so nothing was filed this time.",
+	})
+
+	KeyAdminQueueAllowanceMismatch = key("admin.queue.allowance.mismatch", Message{
+		ZhHant: "綠界的回覆指向另一張發票，無法確認這筆折讓是否已寄出給顧客。",
+		En:     "ECPay's reply named another invoice, so whether this credit note reached the customer is unknown.",
+	})
+
+	KeyAdminQueueAllowanceAttention = key("admin.queue.allowance.attention", Message{
+		ZhHant: "這筆折讓需要人工確認（%s）。",
+		En:     "This credit note needs a person (%s).",
 	})
 
 	KeyAdminQueueNoInvoicing = key("admin.queue.noinvoicing", Message{

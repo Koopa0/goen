@@ -750,11 +750,8 @@ templ Order(p layouts.Page, v *OrderView) {
 						if v.AllowanceAwaitingUntil != "" {
 							<p class="goen-admin__hint">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQueueAllowanceAwaiting), v.AllowanceAwaitingUntil) }</p>
 						}
-						if v.AllowanceUnconfirmed {
-							<p class="ui-alert ui-alert--error" role="status">{ i18n.T(ctx, i18n.KeyAdminQueueAllowanceUnconfirmed) }</p>
-						}
-						if v.AllowanceAmountHeld {
-							<p class="ui-alert ui-alert--error" role="status">{ i18n.T(ctx, i18n.KeyAdminQueueAllowanceAmountHeld) }</p>
+						if v.AllowanceAttention != "" {
+							<p class="ui-alert ui-alert--error" role="status">{ v.AllowanceAttentionText(ctx) }</p>
 						}
 						if !v.CanIssueInvoice() && !v.CanVoidInvoice() && len(v.InvoiceDocuments) == 0 {
 							<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminQueueNotCommitted) }</p>

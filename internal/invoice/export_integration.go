@@ -34,12 +34,28 @@ type FakeECPay struct {
 	server  *httptest.Server
 	gateway *Gateway
 
-	mu          sync.Mutex
-	byRelate    map[string]*fakeInvoice
-	allowances  []*fakeAllowance
-	calls       map[string]int
-	holdInvalid bool
+	mu              sync.Mutex
+	byRelate        map[string]*fakeInvoice
+	allowances      []*fakeAllowance
+	calls           map[string]int
+	holdInvalid     bool
+	allowanceAnswer FakeAllowanceAnswer
 }
+
+// FakeAllowanceAnswer is how FakeECPay answers AllowanceByCollegiate.
+type FakeAllowanceAnswer int
+
+const (
+	// FakeAllowanceAccepted e-mails the buyer, as ECPay does on RtnCode 1.
+	FakeAllowanceAccepted FakeAllowanceAnswer = iota
+	// FakeAllowanceNoReply fails at the gateway, so the sender cannot know
+	// whether the request arrived.
+	FakeAllowanceNoReply
+	// FakeAllowanceOtherInvoice answers RtnCode 1 naming another invoice.
+	FakeAllowanceOtherInvoice
+	// FakeAllowanceAmountHeld answers 2000034: an earlier request holds the amount.
+	FakeAllowanceAmountHeld
+)
 
 type fakeAllowance struct {
 	number, invoiceNumber, notifyMail, agreedAt string
@@ -97,6 +113,13 @@ func (f *FakeECPay) BuyerAgrees() {
 	}
 }
 
+// AnswerAllowances sets how every later AllowanceByCollegiate is answered.
+func (f *FakeECPay) AnswerAllowances(answer FakeAllowanceAnswer) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.allowanceAnswer = answer
+}
+
 // Calls is how many requests reached path, such as "/B2CInvoice/Invalid".
 func (f *FakeECPay) Calls(path string) int {
 	f.mu.Lock()
@@ -123,9 +146,14 @@ func (f *FakeECPay) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	f.mu.Lock()
 	f.calls[r.URL.Path]++
 	hold := f.holdInvalid && r.URL.Path == "/B2CInvoice/Invalid"
+	dropped := f.allowanceAnswer == FakeAllowanceNoReply && r.URL.Path == "/B2CInvoice/AllowanceByCollegiate"
 	f.mu.Unlock()
 	if hold {
 		<-r.Context().Done()
+		return
+	}
+	if dropped {
+		http.Error(w, "bad gateway", http.StatusBadGateway)
 		return
 	}
 	f.mu.Lock()
@@ -193,31 +221,47 @@ func (f *FakeECPay) answer(path string, req *fakeRequest) (map[string]any, bool)
 		}
 		return map[string]any{"RtnCode": 1, "RtnMsg": "ok", "InvoiceNo": invoiceNumber}, true
 	case "/B2CInvoice/AllowanceByCollegiate":
-		a := &fakeAllowance{
-			number:        fmt.Sprintf("26%014d", fakeAllowanceNumbers.Add(1)),
-			invoiceNumber: invoiceNumber, notifyMail: req.NotifyMail,
-			amount: req.AllowanceAmount, items: items,
-		}
-		f.allowances = append(f.allowances, a)
-		now := time.Now()
-		return map[string]any{"RtnCode": 1, "RtnMsg": "ok", "IA_Allow_No": a.number,
-			"IA_Invoice_No": invoiceNumber, "IA_TempDate": shoptime.Second(now),
-			"IA_TempExpireDate": shoptime.Second(now.Add(BuyerConsentWindow))}, true
+		return f.answerAllowanceRequest(req), true
 	case "/B2CInvoice/GetAllowanceList":
-		var listed []map[string]any
-		for _, a := range f.allowances {
-			if a.invoiceNumber != invoiceNumber || a.agreedAt == "" {
-				continue
-			}
-			listed = append(listed, map[string]any{"IA_Allow_No": a.number, "IA_Date": a.agreedAt,
-				"IA_Invoice_No": a.invoiceNumber, "IA_Invalid_Status": 0,
-				"IA_Total_Tax_Amount": a.amount, "IA_IP": FakeBuyerIP,
-				"IA_Send_Mail": a.notifyMail, "Items": a.items})
-		}
-		if len(listed) == 0 {
-			return map[string]any{"RtnCode": 7, "RtnMsg": "no data"}, true
-		}
-		return map[string]any{"RtnCode": 1, "RtnMsg": "ok", "AllowanceInfo": listed}, true
+		return f.answerAllowanceList(invoiceNumber), true
 	}
 	return nil, false
+}
+
+func (f *FakeECPay) answerAllowanceRequest(req *fakeRequest) map[string]any {
+	invoiceNumber := req.InvoiceNo
+	switch f.allowanceAnswer {
+	case FakeAllowanceAmountHeld:
+		return map[string]any{"RtnCode": 2000034, "RtnMsg": "insufficient amount"}
+	case FakeAllowanceOtherInvoice:
+		invoiceNumber = "ZZ00000000"
+	case FakeAllowanceAccepted, FakeAllowanceNoReply:
+	}
+	a := &fakeAllowance{
+		number:        fmt.Sprintf("26%014d", fakeAllowanceNumbers.Add(1)),
+		invoiceNumber: invoiceNumber, notifyMail: req.NotifyMail,
+		amount: req.AllowanceAmount, items: req.Items,
+	}
+	f.allowances = append(f.allowances, a)
+	now := time.Now()
+	return map[string]any{"RtnCode": 1, "RtnMsg": "ok", "IA_Allow_No": a.number,
+		"IA_Invoice_No": invoiceNumber, "IA_TempDate": shoptime.Second(now),
+		"IA_TempExpireDate": shoptime.Second(now.Add(BuyerConsentWindow))}
+}
+
+func (f *FakeECPay) answerAllowanceList(invoiceNumber string) map[string]any {
+	var listed []map[string]any
+	for _, a := range f.allowances {
+		if a.invoiceNumber != invoiceNumber || a.agreedAt == "" {
+			continue
+		}
+		listed = append(listed, map[string]any{"IA_Allow_No": a.number, "IA_Date": a.agreedAt,
+			"IA_Invoice_No": a.invoiceNumber, "IA_Invalid_Status": 0,
+			"IA_Total_Tax_Amount": a.amount, "IA_IP": FakeBuyerIP,
+			"IA_Send_Mail": a.notifyMail, "Items": a.items})
+	}
+	if len(listed) == 0 {
+		return map[string]any{"RtnCode": 7, "RtnMsg": "no data"}
+	}
+	return map[string]any{"RtnCode": 1, "RtnMsg": "ok", "AllowanceInfo": listed}
 }

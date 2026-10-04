@@ -210,13 +210,11 @@ type OrderView struct {
 	// AllowanceOperationID identifies one rendered allowance form across HTTP
 	// retries without collapsing a later, legitimate equal partial allowance.
 	AllowanceOperationID string
-	// AllowanceAwaitingUntil is when the consent link of an allowance e-mailed
-	// to the buyer lapses; AllowanceUnconfirmed is one whose link lapsed, and
-	// AllowanceAmountHeld one whose resend ECPay refused because an earlier
-	// request still holds the amount.
+	// AllowanceAwaitingUntil is when the consent link of an allowance sent to
+	// ECPay lapses, while it is pending; AllowanceAttention is the reason one
+	// that was sent now needs a person.
 	AllowanceAwaitingUntil string
-	AllowanceUnconfirmed   bool
-	AllowanceAmountHeld    bool
+	AllowanceAttention     string
 	Committed              bool
 	// Funded is Committed, or a pending order store credit paid in full, which
 	// the database does not count as committed until it is picked. A funded order
@@ -495,7 +493,20 @@ func (v *OrderView) CanAllowInvoice() bool {
 // AllowanceOpen reports an allowance sent to ECPay and not yet settled, which
 // holds the invoice's one claim.
 func (v *OrderView) AllowanceOpen() bool {
-	return v.AllowanceAwaitingUntil != "" || v.AllowanceUnconfirmed || v.AllowanceAmountHeld
+	return v.AllowanceAwaitingUntil != "" || v.AllowanceAttention != ""
+}
+
+// AllowanceAttentionText says why a sent allowance needs a person.
+func (v *OrderView) AllowanceAttentionText(ctx context.Context) string {
+	switch v.AllowanceAttention {
+	case invoice.CategoryBuyerUnconfirmed:
+		return i18n.T(ctx, i18n.KeyAdminQueueAllowanceUnconfirmed)
+	case invoice.CategoryAmountStillHeld:
+		return i18n.T(ctx, i18n.KeyAdminQueueAllowanceAmountHeld)
+	case invoice.CategorySuccessMismatch:
+		return i18n.T(ctx, i18n.KeyAdminQueueAllowanceMismatch)
+	}
+	return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQueueAllowanceAttention), v.AllowanceAttention)
 }
 
 // AllowanceAmount is display only; no amount is posted back to the server.

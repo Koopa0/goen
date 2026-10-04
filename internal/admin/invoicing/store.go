@@ -102,14 +102,11 @@ func (s *Store) fillOpenAllowance(ctx context.Context, view *admin.OrderView, nu
 	if err != nil {
 		return fmt.Errorf("read the open allowance of %s: %w", number, err)
 	}
-	switch {
-	case open.Status == "pending":
+	if open.Status == "pending" {
 		view.AllowanceAwaitingUntil = shoptime.Minute(open.LastSendAt.Add(invoice.BuyerConsentWindow))
-	case open.LastError == invoice.CategoryBuyerUnconfirmed:
-		view.AllowanceUnconfirmed = true
-	case open.LastError == invoice.CategoryAmountStillHeld:
-		view.AllowanceAmountHeld = true
+		return nil
 	}
+	view.AllowanceAttention = open.LastError
 	return nil
 }
 

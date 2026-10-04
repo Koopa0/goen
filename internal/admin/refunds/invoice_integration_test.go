@@ -16,6 +16,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/admin/admintest"
+	"github.com/koopa0/goen/internal/admin/health"
 	"github.com/koopa0/goen/internal/admin/invoicing"
 	"github.com/koopa0/goen/internal/admin/refunds"
 	"github.com/koopa0/goen/internal/invoice"
@@ -221,8 +222,9 @@ func TestAnAllowanceTheBuyerIgnoresNeedsAPerson(t *testing.T) {
 	if err := invoicing.NewStore(pool, invoices, invoices).FillOrder(ctx, &view, number); err != nil {
 		t.Fatalf("fill the order page: %v", err)
 	}
-	if !view.AllowanceUnconfirmed {
-		t.Error("the order page does not say the customer never agreed to the allowance")
+	if view.AllowanceAttention != invoice.CategoryBuyerUnconfirmed || view.AllowanceAwaitingUntil != "" {
+		t.Errorf("order page shows attention %q, awaiting %q; want only that the customer never agreed",
+			view.AllowanceAttention, view.AllowanceAwaitingUntil)
 	}
 }
 
@@ -442,6 +444,85 @@ func TestTheCancellationCountsAnAllowanceSentToTheBuyer(t *testing.T) {
 			_, err := s.RefundBeforeShipment(ctx, number, "")
 			if cancelled := admintest.FulfillmentOf(t, pool, orderID) == "cancelled"; cancelled != tt.cancel {
 				t.Errorf("order cancelled = %v (%v), want %v", cancelled, err, tt.cancel)
+			}
+		})
+	}
+}
+
+// TestASentAllowanceECPayDidNotAcceptStillCancelsAndIsListed: the cancellation
+// counts an allowance once it is sent, whatever ECPay answered. What makes that
+// safe is that the operation is on /admin/health with its reason and the order
+// page says why, rather than that it was e-mailed to the customer.
+func TestASentAllowanceECPayDidNotAcceptStillCancelsAndIsListed(t *testing.T) {
+	for _, tt := range []struct {
+		name   string
+		answer invoice.FakeAllowanceAnswer
+		status string
+		reason string
+	}{
+		{name: "no reply", answer: invoice.FakeAllowanceNoReply,
+			status: "pending", reason: "allowance_send_ambiguous"},
+		{name: "reply naming another invoice", answer: invoice.FakeAllowanceOtherInvoice,
+			status: "attention", reason: invoice.CategorySuccessMismatch},
+		{name: "amount still held", answer: invoice.FakeAllowanceAmountHeld,
+			status: "attention", reason: invoice.CategoryAmountStillHeld},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx, _ := admintest.StaffContext(t, pool)
+			fake, invoices := fakeECPay(t, time.Now().AddDate(0, -4, 0))
+			var sent atomic.Int64
+			s := refunds.NewStore(pool, admintest.Refunder{Sent: &sent}, invoices)
+			number, orderID := capturedOrderOwingAnInvoice(t, ctx, invoices)
+			issueNow(t, ctx, invoices, orderID)
+			fake.AnswerAllowances(tt.answer)
+
+			if got := pressRefund(t, ctx, s, number); got != "/admin/orders/"+number+"?refunded=1" {
+				t.Fatalf("press redirected to %s, want the order cancelled with its allowance sent", got)
+			}
+			if got := admintest.FulfillmentOf(t, pool, orderID); got != "cancelled" || sent.Load() != 1 {
+				t.Errorf("order %s after %d card refunds, want cancelled after one", got, sent.Load())
+			}
+			allowance := allowanceOf(t, ctx, orderID)
+			var reason string
+			if err := pool.QueryRow(ctx, `
+				SELECT coalesce(last_error, '') FROM invoice_operations WHERE id = $1`,
+				allowance.id).Scan(&reason); err != nil {
+				t.Fatalf("read the allowance: %v", err)
+			}
+			if allowance.status != tt.status || reason != tt.reason || allowance.sends != 1 {
+				t.Errorf("allowance %s/%s after %d sends, want %s/%s after one",
+					allowance.status, reason, allowance.sends, tt.status, tt.reason)
+			}
+
+			// Health lists a pending operation once it is old enough to be stuck.
+			if _, err := pool.Exec(ctx, `
+				UPDATE invoice_operations SET created_at = now() - interval '16 minutes'
+				WHERE id = $1`, allowance.id); err != nil {
+				t.Fatalf("age the allowance: %v", err)
+			}
+			workers, err := health.NewStore(pool).WorkerHealth(ctx,
+				outbox.NewStore(pool, slog.New(slog.DiscardHandler)))
+			if err != nil {
+				t.Fatalf("health: %v", err)
+			}
+			listed := ""
+			for _, c := range workers.StrandedClaims {
+				if c.Operation == allowance.id.String() {
+					listed = c.LastError
+				}
+			}
+			if listed != tt.reason {
+				t.Errorf("health lists the allowance with reason %q, want %q", listed, tt.reason)
+			}
+
+			var view admin.OrderView
+			if err := invoicing.NewStore(pool, invoices, invoices).FillOrder(ctx, &view, number); err != nil {
+				t.Fatalf("fill the order page: %v", err)
+			}
+			if tt.status == "pending" && view.AllowanceAwaitingUntil == "" ||
+				tt.status == "attention" && (view.AllowanceAttention != tt.reason || view.AllowanceAwaitingUntil != "") {
+				t.Errorf("order page shows awaiting %q, attention %q; want %s with reason %s",
+					view.AllowanceAwaitingUntil, view.AllowanceAttention, tt.status, tt.reason)
 			}
 		})
 	}

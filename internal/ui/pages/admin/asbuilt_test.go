@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
@@ -84,20 +85,29 @@ func TestTheAllowanceActionSaysTheCustomerAgreesOnline(t *testing.T) {
 			t.Errorf("%v: a second allowance is offered while one waits for the customer", loc)
 		}
 
-		lapsed := refunded()
-		lapsed.AllowanceUnconfirmed = true
-		if !strings.Contains(render(lapsed), html.EscapeString(i18n.T(ctx, i18n.KeyAdminQueueAllowanceUnconfirmed))) {
-			t.Errorf("%v: an allowance the customer never agreed to is not flagged", loc)
-		}
-
-		held := refunded()
-		held.AllowanceAmountHeld = true
-		got = render(held)
-		if !strings.Contains(got, html.EscapeString(i18n.T(ctx, i18n.KeyAdminQueueAllowanceAmountHeld))) {
-			t.Errorf("%v: a resend ECPay refused for a held amount does not say why", loc)
-		}
-		if strings.Contains(got, "/invoice/allowance") {
-			t.Errorf("%v: a second allowance is offered while the held one needs a person", loc)
+		for _, tt := range []struct {
+			category string
+			want     string
+		}{
+			{category: invoice.CategoryBuyerUnconfirmed, want: i18n.T(ctx, i18n.KeyAdminQueueAllowanceUnconfirmed)},
+			{category: invoice.CategoryAmountStillHeld, want: i18n.T(ctx, i18n.KeyAdminQueueAllowanceAmountHeld)},
+			{category: invoice.CategorySuccessMismatch, want: i18n.T(ctx, i18n.KeyAdminQueueAllowanceMismatch)},
+			{category: "allowance_lookup_mismatch",
+				want: fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQueueAllowanceAttention), "allowance_lookup_mismatch")},
+		} {
+			attention := refunded()
+			attention.AllowanceAttention = tt.category
+			got := render(attention)
+			if !strings.Contains(got, html.EscapeString(tt.want)) {
+				t.Errorf("%v: an allowance in attention as %s does not say %q", loc, tt.category, tt.want)
+			}
+			sent, _, _ := strings.Cut(i18n.T(ctx, i18n.KeyAdminQueueAllowanceAwaiting), "%s")
+			if strings.Contains(got, html.EscapeString(sent)) {
+				t.Errorf("%v: an allowance in attention as %s says it was sent to the customer", loc, tt.category)
+			}
+			if strings.Contains(got, "/invoice/allowance") {
+				t.Errorf("%v: a second allowance is offered while %s needs a person", loc, tt.category)
+			}
 		}
 	}
 }
