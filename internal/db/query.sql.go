@@ -1252,6 +1252,105 @@ func (q *Queries) AdminOrderCounts(ctx context.Context) ([]AdminOrderCountsRow, 
 	return items, nil
 }
 
+const adminOrderTimeline = `-- name: AdminOrderTimeline :many
+SELECT at, source, kind, status, note, actor_kind, actor_name
+FROM (
+    SELECT e.occurred_at AS at, 1 AS precedence, e.id::text AS tie,
+           'order'::text AS source, e.kind::text AS kind, ''::text AS status,
+           coalesce(e.note, '')::text AS note,
+           (CASE WHEN e.actor_user_id IS NOT NULL THEN 'staff'
+                 WHEN e.by_system THEN 'system'
+                 WHEN e.kind IN ('placed', 'cancelled') THEN 'customer'
+                 WHEN e.kind = 'paid' AND EXISTS (
+                     SELECT 1 FROM payments p
+                     WHERE p.order_id = e.order_id AND p.status = 'succeeded'
+                 ) THEN 'provider'
+                 ELSE 'system' END)::text AS actor_kind,
+           coalesce(u.full_name, u.email, '')::text AS actor_name
+    FROM order_events e
+    LEFT JOIN users u ON u.id = e.actor_user_id
+    WHERE e.order_id = $1
+    UNION ALL
+    -- awaiting_buyer is a sent online allowance, which waits on the buyer's
+    -- consent rather than on goen.
+    SELECT op.created_at, 2, op.id::text, 'invoice', op.kind,
+           CASE WHEN op.kind = 'allowance' AND op.status = 'pending' AND op.send_attempts > 0
+                THEN 'awaiting_buyer' ELSE op.status END,
+           '', op.actor_kind, coalesce(u.full_name, u.email, '')
+    FROM invoice_operations op
+    LEFT JOIN users u ON u.id = op.actor_user_id
+    WHERE op.order_id = $1
+    UNION ALL
+    SELECT w.received_at, 0, w.event_id, 'provider', '', '',
+           w.type || coalesce(' · ' || w.unreconciled, ''), 'provider', ''
+    FROM payment_webhook_events w
+    JOIN payments p ON p.provider = w.provider AND p.provider_ref = w.object_ref
+    WHERE p.order_id = $1
+    UNION ALL
+    SELECT m.created_at, 3, m.id::text, 'mail', m.topic,
+           CASE WHEN m.delivered_at IS NULL THEN 'queued' ELSE 'sent' END,
+           '', 'system', ''
+    FROM outbox_messages m
+    JOIN orders o ON o.id = $1
+    WHERE m.topic = ANY($2::text[])
+      AND (m.payload->>'order_number' = o.order_number
+           OR m.payload->>'order_id' = o.id::text)
+) timeline
+ORDER BY at, precedence, tie
+`
+
+type AdminOrderTimelineParams struct {
+	OrderID    uuid.UUID
+	MailTopics []string
+}
+
+type AdminOrderTimelineRow struct {
+	At        time.Time
+	Source    string
+	Kind      string
+	Status    string
+	Note      string
+	ActorKind string
+	ActorName string
+}
+
+// Everything that happened to one order, oldest first, in one statement so the
+// sources share one snapshot and one sort. A provider's event is the order's
+// when its object is one of the order's Checkout Sessions; a mail when its
+// payload names the order, since the shipped mail's dedupe key is the parcel's.
+// A transaction writes a fact and its mail at one now(), so within an instant
+// the provider's notice comes first and the mail last.
+// An order event with no actor: 'placed' and 'cancelled' are the customer's (the
+// sweeper's cancel is by_system); 'paid' is the provider's when a payment
+// succeeded, and otherwise store credit or a discount closing the funding.
+func (q *Queries) AdminOrderTimeline(ctx context.Context, arg AdminOrderTimelineParams) ([]AdminOrderTimelineRow, error) {
+	rows, err := q.db.Query(ctx, adminOrderTimeline, arg.OrderID, arg.MailTopics)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AdminOrderTimelineRow{}
+	for rows.Next() {
+		var i AdminOrderTimelineRow
+		if err := rows.Scan(
+			&i.At,
+			&i.Source,
+			&i.Kind,
+			&i.Status,
+			&i.Note,
+			&i.ActorKind,
+			&i.ActorName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const adminOrders = `-- name: AdminOrders :many
 SELECT json_build_object('At', o.placed_at, 'ID', o.id)::text AS page_cursor,
     o.id,
@@ -9379,50 +9478,6 @@ func (q *Queries) OrderDispatchDestination(ctx context.Context, id uuid.UUID) (O
 	var i OrderDispatchDestinationRow
 	err := row.Scan(&i.DestinationKind, &i.PickupChain)
 	return i, err
-}
-
-const orderEvents = `-- name: OrderEvents :many
-SELECT e.kind, e.note, e.occurred_at, coalesce(u.full_name, '') AS actor_name, e.by_system
-FROM order_events e
-LEFT JOIN users u ON u.id = e.actor_user_id
-WHERE e.order_id = $1
-ORDER BY e.occurred_at, e.id
-`
-
-type OrderEventsRow struct {
-	Kind       string
-	Note       pgtype.Text
-	OccurredAt time.Time
-	ActorName  string
-	BySystem   bool
-}
-
-// Oldest first: occurred_at then id, because two events recorded in the same
-// statement share a timestamp and the uuidv7 key is the tie-break.
-func (q *Queries) OrderEvents(ctx context.Context, orderID uuid.UUID) ([]OrderEventsRow, error) {
-	rows, err := q.db.Query(ctx, orderEvents, orderID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []OrderEventsRow{}
-	for rows.Next() {
-		var i OrderEventsRow
-		if err := rows.Scan(
-			&i.Kind,
-			&i.Note,
-			&i.OccurredAt,
-			&i.ActorName,
-			&i.BySystem,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const orderForReturn = `-- name: OrderForReturn :one
