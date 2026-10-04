@@ -13,15 +13,16 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/admin/products"
 	"github.com/koopa0/goen/internal/invoice"
+	"github.com/koopa0/goen/internal/user"
 )
 
 func TestProductInvoiceLineFactsUseAdminRoleAndSnapshotOnOrderLines(t *testing.T) {
@@ -123,10 +124,10 @@ func TestProductInvoiceLineRouteRefusesCustomersAndKeepsInvalidForm(t *testing.T
 	mux := http.NewServeMux()
 	admintest.ProductDesk(p, products.NewStore(p)).Routes(mux, access.New(slog.New(slog.DiscardHandler), nil))
 	path := "/admin/products/" + slug + "/invoice-line"
-	for _, role := range []account.Role{"", "customer"} {
+	for _, role := range []user.Role{"", "customer"} {
 		requestCtx := t.Context()
 		if role != "" {
-			requestCtx = account.WithUser(requestCtx, account.User{ID: uuid.NewString(), Role: role})
+			requestCtx = user.NewContext(requestCtx, user.User{ID: uuid.NewString(), Role: role})
 		}
 		req := httptest.NewRequestWithContext(requestCtx, http.MethodPost, path, strings.NewReader("tax_type=exempt&invoice_unit=x"))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -148,4 +149,53 @@ func TestProductInvoiceLineRouteRefusesCustomersAndKeepsInvalidForm(t *testing.T
 	if err := p.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE action='product.invoice_line.set'`).Scan(&n); err != nil || n != 0 {
 		t.Fatalf("refused form audit rows=%d: %v", n, err)
 	}
+}
+
+func TestProductInvoiceLineRedirectSurvivesAProductReadFailure(t *testing.T) {
+	p := admintest.Pool(t)
+	ctx, _ := admintest.StaffContext(t, p)
+	var slug string
+	if err := p.QueryRow(ctx, `SELECT slug FROM products ORDER BY slug LIMIT 1`).Scan(&slug); err != nil {
+		t.Fatal(err)
+	}
+	config := p.Config().Copy()
+	config.ConnConfig.RuntimeParams["role"] = "admin"
+	config.ConnConfig.Tracer = refuseInvoiceFormProductRead{}
+	writer, err := pgxpool.NewWithConfig(ctx, config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(writer.Close)
+	var role string
+	if err = writer.QueryRow(ctx, `SELECT current_user`).Scan(&role); err != nil || role != "admin" {
+		t.Fatalf("invoice writer role=%q: %v", role, err)
+	}
+	handler := admintest.ProductDesk(p, products.NewStore(writer))
+	mux := http.NewServeMux()
+	handler.Routes(mux, access.New(slog.New(slog.DiscardHandler), nil))
+	request := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/products/"+slug+"/invoice-line", strings.NewReader("tax_type=exempt&invoice_unit=%E5%8C%85"))
+	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	response := httptest.NewRecorder()
+	mux.ServeHTTP(response, request)
+	if response.Code != http.StatusSeeOther || response.Header().Get("Location") != "/admin/products/"+slug+"?ok=1#sec-invoice" {
+		t.Fatalf("committed invoice redirect=%d %q, want 303 to the invoice section", response.Code, response.Header().Get("Location"))
+	}
+	var taxType, unit string
+	if err = p.QueryRow(ctx, `SELECT tax_type, invoice_unit FROM products WHERE slug=$1`, slug).Scan(&taxType, &unit); err != nil || taxType != "exempt" || unit != "包" {
+		t.Fatalf("committed invoice terms=%q/%q: %v", taxType, unit, err)
+	}
+}
+
+type refuseInvoiceFormProductRead struct{}
+
+func (refuseInvoiceFormProductRead) TraceQueryStart(ctx context.Context, _ *pgx.Conn, query pgx.TraceQueryStartData) context.Context {
+	if strings.HasPrefix(query.SQL, "-- name: AdminProduct :one") {
+		canceled, cancel := context.WithCancel(ctx)
+		cancel()
+		return canceled
+	}
+	return ctx
+}
+
+func (refuseInvoiceFormProductRead) TraceQueryEnd(context.Context, *pgx.Conn, pgx.TraceQueryEndData) {
 }

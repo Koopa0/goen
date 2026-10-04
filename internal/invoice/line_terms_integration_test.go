@@ -297,3 +297,53 @@ func TestInvalidationRefreezesTheLocalExemptAllowance(t *testing.T) {
 		t.Fatalf("refrozen allowance amount/tax/unit, old status=%d/%q/%q/%q", amount, taxType, unit, status)
 	}
 }
+
+func TestAllowanceSettlementKeepsItsFrozenTaxTypeAndUnit(t *testing.T) {
+	for _, tc := range []struct {
+		name            string
+		invoiceNumber   string
+		allowanceNumber string
+		invalid         bool
+	}{
+		{name: "buyer agreed", invoiceNumber: "ZX62500004", allowanceNumber: "2026100515227105"},
+		{name: "provider invalid", invoiceNumber: "ZX62500005", allowanceNumber: "2026100515227106", invalid: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := filingTestContext(t, t.Context())
+			number := ownedOrderToInvoiceWithLineTerms(t, uuid.NullUUID{}, 10000, 0, 0, PreferenceMember, "王小明", "", LineTerms{TaxType: Exempt, Unit: "包"})
+			addCardRefund(t, number, 5000)
+			if _, err := pool.Exec(ctx, `
+                WITH document AS (
+                    INSERT INTO invoice_documents (order_id,kind,number,amount_cents,issued_at)
+                    SELECT id,'invoice',$2,10000,'2026-08-21 10:00:00+08' FROM orders WHERE order_number=$1 RETURNING id
+                ) INSERT INTO invoice_document_lines (document_id,description,quantity,unit_price_cents,amount_cents,tax_type,unit,position)
+                SELECT id,'免稅測試商品',1,10000,10000,'exempt','包',0 FROM document`, number, tc.invoiceNumber); err != nil {
+				t.Fatal(err)
+			}
+			operation := insertAllowanceOperationWithUnit(t, number, 5000, 1, "次")
+			writer := invoiceAdminPool(t)
+			owner := uuid.New()
+			var leased uuid.UUID
+			if err := writer.QueryRow(ctx, `SELECT lease_invoice_operation($1,$2,interval '1 minute')`, operation, owner).Scan(&leased); err != nil || leased != operation {
+				t.Fatalf("lease=%s: %v", leased, err)
+			}
+			var document uuid.UUID
+			status := "issued"
+			if tc.invalid {
+				status = "voided"
+				if err := writer.QueryRow(ctx, `SELECT record_invalid_invoice_allowance($1,$2,$3,$4,now(),5000,ARRAY['退貨折讓'],ARRAY[1],ARRAY[5000]::bigint[],ARRAY[5000]::bigint[])`, operation, owner, tc.invoiceNumber, tc.allowanceNumber).Scan(&document); err != nil {
+					t.Fatalf("record invalid allowance: %v", err)
+				}
+			} else if err := writer.QueryRow(ctx, `SELECT settle_invoice_allowance($1,$2,$3,now(),ARRAY['退貨折讓'],ARRAY[1],ARRAY[5000]::bigint[],ARRAY[5000]::bigint[],'{"agreed_at":"2026-08-21 11:00:00","ip":"203.0.113.7","email":"allow@goen.invalid"}')`, operation, owner, tc.allowanceNumber).Scan(&document); err != nil {
+				t.Fatalf("settle allowance: %v", err)
+			}
+			var taxType, unit, storedStatus string
+			if err := pool.QueryRow(ctx, `SELECT l.tax_type,l.unit,d.status FROM invoice_document_lines l JOIN invoice_documents d ON d.id=l.document_id WHERE d.id=$1`, document).Scan(&taxType, &unit, &storedStatus); err != nil {
+				t.Fatal(err)
+			}
+			if taxType != "exempt" || unit != "次" || storedStatus != status {
+				t.Fatalf("allowance tax/unit/status=%q/%q/%q, want exempt/次/%s", taxType, unit, storedStatus, status)
+			}
+		})
+	}
+}

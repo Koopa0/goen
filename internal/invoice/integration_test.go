@@ -2779,6 +2779,13 @@ func insertAllowanceOperation(
 	t *testing.T, orderNumber string, amountCents int64, sendAttempts int,
 ) uuid.UUID {
 	t.Helper()
+	return insertAllowanceOperationWithUnit(t, orderNumber, amountCents, sendAttempts, DefaultUnit)
+}
+
+func insertAllowanceOperationWithUnit(
+	t *testing.T, orderNumber string, amountCents int64, sendAttempts int, unit ItemUnit,
+) uuid.UUID {
+	t.Helper()
 	operationID := uuid.New()
 	if _, err := pool.Exec(t.Context(), `
 		INSERT INTO invoice_operations
@@ -2794,13 +2801,13 @@ func insertAllowanceOperation(
 		         'lines',jsonb_build_array(jsonb_build_object(
 		           'description','退貨折讓','quantity',1,
 		           'unit_price_cents',$4::bigint,'amount_cents',$4::bigint,
-           'tax_type',(SELECT l.tax_type FROM invoice_document_lines l WHERE l.document_id=d.id ORDER BY l.position LIMIT 1),'unit','個'))),
+           'tax_type',(SELECT l.tax_type FROM invoice_document_lines l WHERE l.document_id=d.id ORDER BY l.position LIMIT 1),'unit',$6::text))),
 		       $3,$3,'allowance-test-operation',$5,
 		       CASE WHEN $5 > 0 THEN now() END,
 		       CASE WHEN $5 > 0 THEN 'allowance_send_ambiguous' END
 		FROM orders o JOIN invoice_documents d ON d.order_id=o.id AND d.kind='invoice'
 		WHERE o.order_number=$1`, orderNumber, operationID, filingActor,
-		amountCents, sendAttempts); err != nil {
+		amountCents, sendAttempts, string(unit)); err != nil {
 		t.Fatalf("insert sent Allowance operation: %v", err)
 	}
 	return operationID
