@@ -245,7 +245,7 @@ FROM (
                  WHEN e.kind = 'paid' AND EXISTS (
                      SELECT 1 FROM payments p
                      WHERE p.order_id = e.order_id AND p.status = 'succeeded'
-                 ) THEN 'provider'
+                 ) THEN 'system'
                  ELSE 'system' END)::text AS actor_kind,
            coalesce(u.full_name, u.email, '')::text AS actor_name
     FROM order_events e
