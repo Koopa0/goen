@@ -426,6 +426,27 @@ func placedBy(t *testing.T, req *http.Request, number string) {
 	}
 }
 
+func TestAReturnFormRefusesABrowserWithoutAGrant(t *testing.T) {
+	ctx := t.Context()
+	number, _ := shippedOrder(t, 2, 2)
+	h := returnpage.NewHandler(returnpage.NewStore(pool), orderaccess.NewStore(pool, false),
+		slog.New(slog.DiscardHandler))
+	for _, method := range []string{http.MethodGet, http.MethodPost} {
+		req := httptest.NewRequestWithContext(ctx, method, "/orders/"+number+"/return", http.NoBody)
+		req.SetPathValue("number", number)
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		res := httptest.NewRecorder()
+		if method == http.MethodGet {
+			h.Page(res, req)
+		} else {
+			h.Submit(res, req)
+		}
+		if res.Code != http.StatusNotFound {
+			t.Errorf("%s without a grant = %d, want 404", method, res.Code)
+		}
+	}
+}
+
 func TestReturnableIsWhatShippedNotWhatWasOrdered(t *testing.T) {
 	s := returnpage.NewStore(pool)
 
@@ -598,6 +619,19 @@ func TestAConcurrentReturnRendersTheFreshQuantity(t *testing.T) {
 		t.Fatalf("read order id: %v", err)
 	}
 
+	// The grant needs a key-share lock on the order row, which the competing
+	// transaction's return_lines_within_purchase check holds, so it is placed
+	// first.
+	form := url.Values{
+		"qty_" + lineID.String(): {"2"},
+		"reason":                 {"尺寸不合"},
+	}
+	req := httptest.NewRequestWithContext(ctx, http.MethodPost,
+		"/orders/"+number+"/return", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.SetPathValue("number", number)
+	placedBy(t, req, number)
+
 	competitor, err := pool.Begin(ctx)
 	if err != nil {
 		t.Fatalf("begin competing return: %v", err)
@@ -630,15 +664,6 @@ func TestAConcurrentReturnRendersTheFreshQuantity(t *testing.T) {
 	}
 	s := returnpage.NewStore(appPool)
 	h := returnpage.NewHandler(s, orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler))
-	form := url.Values{
-		"qty_" + lineID.String(): {"2"},
-		"reason":                 {"尺寸不合"},
-	}
-	req := httptest.NewRequestWithContext(ctx, http.MethodPost,
-		"/orders/"+number+"/return", strings.NewReader(form.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.SetPathValue("number", number)
-	placedBy(t, req, number)
 	res := httptest.NewRecorder()
 	done := make(chan struct{})
 	go func() {

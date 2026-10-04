@@ -116,8 +116,8 @@ func (s *Store) Revoke(w http.ResponseWriter, r *http.Request) error {
 }
 
 // Allows is true for a browser holding a grant for the order and for the
-// signed-in account that owns it. A lookup that fails reads as no, and the
-// error says why.
+// signed-in account that owns it. The bool is the decision even when err is
+// not nil: a lookup that failed counts as no, and the error says why.
 func (s *Store) Allows(r *http.Request, number string) (bool, error) {
 	granted, grantErr := s.granted(r, number)
 	if granted {
