@@ -98,7 +98,7 @@ SELECT
     p.category_id,
     localized_name(p.name, p.name_en, @locale::text) AS name,
     coalesce(localized_name(p.summary, p.summary_en, @locale::text), '')::text AS summary,
-    b.name AS brand,
+    coalesce(b.name, '') AS brand,
     mv.price_cents AS min_price_cents,
     -- Whether that price is the cheapest of several within the filters, so a card
     -- can say "from" rather than state one variant's price as the product's.
@@ -121,7 +121,7 @@ SELECT
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height
 FROM products p
-JOIN brands b ON b.id = p.brand_id
+LEFT JOIN brands b ON b.id = p.brand_id
 JOIN LATERAL (
     SELECT price_cents, compare_at_price_cents
     FROM product_variants
@@ -202,7 +202,7 @@ SELECT
     p.category_id,
     localized_name(p.name, p.name_en, @locale::text) AS name,
     coalesce(localized_name(p.summary, p.summary_en, @locale::text), '')::text AS summary,
-    b.name AS brand,
+    coalesce(b.name, '') AS brand,
     mv.price_cents AS min_price_cents,
     -- Whether that price is the cheapest of several, so a card can say "from"
     -- rather than state one variant's price as the product's.
@@ -223,7 +223,7 @@ SELECT
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height
 FROM products p
-JOIN brands b ON b.id = p.brand_id
+LEFT JOIN brands b ON b.id = p.brand_id
 JOIN LATERAL (
     SELECT price_cents, compare_at_price_cents
     FROM product_variants
@@ -251,7 +251,7 @@ WHERE p.status = 'active'
           OR coalesce(p.name_en, '') ILIKE t.pattern
           OR coalesce(p.summary, '') ILIKE t.pattern
           OR coalesce(p.summary_en, '') ILIKE t.pattern
-          OR b.name ILIKE t.pattern
+          OR coalesce(b.name, '') ILIKE t.pattern
           OR EXISTS (
               SELECT 1 FROM category_match m
               WHERE m.pattern = t.pattern AND m.id = p.category_id
@@ -305,7 +305,7 @@ ORDER BY
               AND partial_sku.sku ILIKE t.pattern
         ) THEN 3
         WHEN EXISTS (
-            SELECT 1 FROM unnest(@patterns::text[]) AS t(pattern) WHERE b.name ILIKE t.pattern
+            SELECT 1 FROM unnest(@patterns::text[]) AS t(pattern) WHERE coalesce(b.name, '') ILIKE t.pattern
         ) THEN 2
         WHEN EXISTS (
             SELECT 1 FROM unnest(@patterns::text[]) AS t(pattern)
@@ -323,7 +323,7 @@ SELECT
     p.category_id,
     localized_name(p.name, p.name_en, @locale::text) AS name,
     coalesce(localized_name(p.summary, p.summary_en, @locale::text), '')::text AS summary,
-    b.name AS brand,
+    coalesce(b.name, '') AS brand,
     mv.price_cents AS min_price_cents,
     -- Whether that price is the cheapest of several, so a card can say "from"
     -- rather than state one variant's price as the product's.
@@ -344,7 +344,7 @@ SELECT
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height
 FROM products p
-JOIN brands b ON b.id = p.brand_id
+LEFT JOIN brands b ON b.id = p.brand_id
 JOIN LATERAL (
     SELECT price_cents, compare_at_price_cents
     FROM product_variants
@@ -375,7 +375,7 @@ WITH RECURSIVE category_match AS (
 )
 SELECT count(*)::bigint
 FROM products p
-JOIN brands b ON b.id = p.brand_id
+LEFT JOIN brands b ON b.id = p.brand_id
 WHERE p.status = 'active'
   -- Every term must match some field, and a term may match a different field
   -- from its neighbour.
@@ -386,7 +386,7 @@ WHERE p.status = 'active'
           OR coalesce(p.name_en, '') ILIKE t.pattern
           OR coalesce(p.summary, '') ILIKE t.pattern
           OR coalesce(p.summary_en, '') ILIKE t.pattern
-          OR b.name ILIKE t.pattern
+          OR coalesce(b.name, '') ILIKE t.pattern
           OR EXISTS (
               SELECT 1 FROM category_match m
               WHERE m.pattern = t.pattern AND m.id = p.category_id
@@ -414,7 +414,7 @@ SELECT
     p.slug,
     localized_name(p.name, p.name_en, @locale::text) AS name,
     coalesce(localized_name(p.summary, p.summary_en, @locale::text), '')::text AS summary,
-    b.name AS brand,
+    coalesce(b.name, '') AS brand,
     -- Named for what it IS: the price this tile shows, which on THIS page is the
     -- discounted variant rather than the cheapest one. Calling it
     -- min_price_cents here would be a claim the LATERAL below does not make.
@@ -444,7 +444,7 @@ SELECT
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height
 FROM products p
-JOIN brands b ON b.id = p.brand_id
+LEFT JOIN brands b ON b.id = p.brand_id
 -- A DISCOUNTED variant first, which is what puts the product on this page at
 -- all. The listing's LATERAL takes the cheapest buyable one, and a product
 -- qualifies here when ANY variant carries a discount — two different variants
@@ -553,7 +553,7 @@ SELECT
     p.slug,
     localized_name(p.name, p.name_en, @locale::text) AS name,
     coalesce(localized_name(p.summary, p.summary_en, @locale::text), '')::text AS summary,
-    b.name AS brand,
+    coalesce(b.name, '') AS brand,
     mv.price_cents AS min_price_cents,
     -- Whether that price is the cheapest of several, so a card can say "from"
     -- rather than state one variant's price as the product's.
@@ -578,7 +578,7 @@ SELECT
     coalesce(img.height, 0)::integer AS image_height
 FROM sale_campaign_products cp
 JOIN products p ON p.id = cp.product_id
-JOIN brands b ON b.id = p.brand_id
+LEFT JOIN brands b ON b.id = p.brand_id
 JOIN LATERAL (
     SELECT price_cents, compare_at_price_cents
     FROM product_variants
@@ -609,7 +609,7 @@ SELECT
     p.slug,
     localized_name(p.name, p.name_en, @locale::text) AS name,
     coalesce(localized_name(p.summary, p.summary_en, @locale::text), '')::text AS summary,
-    b.name AS brand,
+    coalesce(b.name, '') AS brand,
     localized_name(c.name, c.name_en, @locale::text) AS category,
     c.slug AS category_slug,
     mv.price_cents AS min_price_cents,
@@ -635,7 +635,7 @@ SELECT
     asked.ord::integer AS position
 FROM unnest(@slugs::text[]) WITH ORDINALITY AS asked(slug, ord)
 JOIN products p ON p.slug = asked.slug AND p.status = 'active'
-JOIN brands b ON b.id = p.brand_id
+LEFT JOIN brands b ON b.id = p.brand_id
 JOIN categories c ON c.id = p.category_id
 JOIN LATERAL (
     SELECT price_cents, compare_at_price_cents
@@ -711,7 +711,7 @@ LIMIT 1;
 SELECT
     p.slug,
     localized_name(p.name, p.name_en, @locale::text) AS name,
-    b.name AS brand,
+    coalesce(b.name, '') AS brand,
     mv.price_cents AS min_price_cents,
     EXISTS (
         SELECT 1 FROM product_variants dv
@@ -722,7 +722,7 @@ SELECT
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height
 FROM products p
-JOIN brands b ON b.id = p.brand_id
+LEFT JOIN brands b ON b.id = p.brand_id
 JOIN LATERAL (
     SELECT price_cents
     FROM product_variants

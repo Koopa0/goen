@@ -255,7 +255,7 @@ SELECT
     p.slug,
     localized_name(p.name, p.name_en, @locale::text) AS name,
     p.summary,
-    b.name AS brand,
+    coalesce(b.name, '') AS brand,
     mv.price_cents AS min_price_cents,
     -- Whether that price is the cheapest of several, so a card can say "from"
     -- rather than state one variant's price as the product's.
@@ -286,7 +286,7 @@ SELECT
     coalesce(img.height, 0)::integer AS image_height
 FROM wishlist_items w
 JOIN products p ON p.id = w.product_id
-JOIN brands b ON b.id = p.brand_id
+LEFT JOIN brands b ON b.id = p.brand_id
 JOIN LATERAL (
     SELECT price_cents, compare_at_price_cents
     FROM product_variants
