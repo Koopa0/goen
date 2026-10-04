@@ -39,7 +39,7 @@ func aMember(t *testing.T, s *cart.Store, label string) (token string, user acco
 	if err := s.Add(t.Context(), cartID, freshVariant(t, label), 1); err != nil {
 		t.Fatalf("add: %v", err)
 	}
-	return tok, account.User{ID: userID.String(), Email: email, Name: "王小明", Role: "customer"}
+	return tok, account.User{ID: userID.String(), Email: email, Name: "王小明", Role: account.RoleCustomer}
 }
 
 func checkoutAs(

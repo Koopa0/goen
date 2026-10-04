@@ -247,7 +247,7 @@ func TestAnOversizedRedemptionPOSTRedirectsWithoutDatabaseEffects(t *testing.T) 
 		"operation_id": {operationID.String()},
 	}
 	req := httptest.NewRequestWithContext(
-		account.WithUser(ctx, account.User{ID: userID, Role: "customer"}),
+		account.WithUser(ctx, account.User{ID: userID, Role: account.RoleCustomer}),
 		http.MethodPost, "/account/points", strings.NewReader(form.Encode()),
 	)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -1483,7 +1483,7 @@ func TestPointsAreHeldWhileAnApprovedReturnIsUnpaid(t *testing.T) {
 
 	form := url.Values{"points": {"200"}, "operation_id": {redemptionOperation(t, userID).String()}}
 	req := httptest.NewRequestWithContext(
-		i18n.WithLocale(account.WithUser(ctx, account.User{ID: userID, Role: "customer"}), i18n.En),
+		i18n.WithLocale(account.WithUser(ctx, account.User{ID: userID, Role: account.RoleCustomer}), i18n.En),
 		http.MethodPost, "/account/points", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	res := httptest.NewRecorder()

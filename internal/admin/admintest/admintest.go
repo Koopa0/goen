@@ -77,7 +77,7 @@ func StaffContext(t *testing.T, p *pgxpool.Pool) (context.Context, uuid.UUID) {
 		RETURNING id`).Scan(&id); err != nil {
 		t.Fatalf("create staff: %v", err)
 	}
-	ctx := account.WithUser(t.Context(), account.User{ID: id.String(), Role: "admin"})
+	ctx := account.WithUser(t.Context(), account.User{ID: id.String(), Role: account.RoleAdmin})
 	return web.WithRequestID(ctx, "req-"+id.String()[:8]), id
 }
 
