@@ -14,7 +14,7 @@ import (
 	"github.com/koopa0/goen/internal/home"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/site"
-	adminpages "github.com/koopa0/goen/internal/ui/pages/admin"
+	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 func TestTheShopCanRunAPromotion(t *testing.T) {
@@ -33,7 +33,7 @@ func TestTheShopCanRunAPromotion(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Banners: %v", err)
 	}
-	var made *adminpages.Banner
+	var made *admin.Banner
 	for i := range banners {
 		if banners[i].Message == "全站滿 NT$3,000 免運" {
 			made = &banners[i]
@@ -126,7 +126,7 @@ func TestSupportCanAnswerAQuestionWithoutADeploy(t *testing.T) {
 	if err != nil {
 		t.Fatalf("FAQ: %v", err)
 	}
-	var made *adminpages.FAQEntry
+	var made *admin.FAQEntry
 	for i := range view.Rows {
 		if view.Rows[i].Category == category {
 			made = &view.Rows[i]
