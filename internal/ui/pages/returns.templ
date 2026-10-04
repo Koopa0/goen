@@ -45,11 +45,11 @@ templ Returns(p layouts.Page, v ReturnsView) {
 								</span>
 								if e.Resolution != "" {
 									@components.Badge(components.BadgeProps{Intent: components.IntentNeutral}) {
-										{ e.StatusText }
+										{ e.StatusText(ctx) }
 									}
 								} else {
 									@components.Badge(components.BadgeProps{Intent: components.IntentWarn}) {
-										{ e.StatusText }
+										{ e.StatusText(ctx) }
 									}
 								}
 							</li>
