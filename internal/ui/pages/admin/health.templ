@@ -323,7 +323,11 @@ templ Health(p layouts.Page, v *WorkerHealthView) {
 												<input type="hidden" name="invoice_operation" value={ c.Operation }/>
 												<label class="goen-admin__confirm">
 													<input type="checkbox" name="invoice_resolution" value="confirmed_absent" required/>
-													{ i18n.T(ctx, i18n.KeyAdminHPAllowanceAbsentConfirm) }
+													if c.BuyerNeverAgreed() {
+														{ i18n.T(ctx, i18n.KeyAdminHPAllowanceLapsedConfirm) }
+													} else {
+														{ i18n.T(ctx, i18n.KeyAdminHPAllowanceAbsentConfirm) }
+													}
 												</label>
 												@components.Button(components.ButtonProps{
 													ButtonStyle: components.ButtonStyleOutline,

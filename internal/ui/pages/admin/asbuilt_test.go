@@ -89,5 +89,15 @@ func TestTheAllowanceActionSaysTheCustomerAgreesOnline(t *testing.T) {
 		if !strings.Contains(render(lapsed), html.EscapeString(i18n.T(ctx, i18n.KeyAdminQueueAllowanceUnconfirmed))) {
 			t.Errorf("%v: an allowance the customer never agreed to is not flagged", loc)
 		}
+
+		held := refunded()
+		held.AllowanceAmountHeld = true
+		got = render(held)
+		if !strings.Contains(got, html.EscapeString(i18n.T(ctx, i18n.KeyAdminQueueAllowanceAmountHeld))) {
+			t.Errorf("%v: a resend ECPay refused for a held amount does not say why", loc)
+		}
+		if strings.Contains(got, "/invoice/allowance") {
+			t.Errorf("%v: a second allowance is offered while the held one needs a person", loc)
+		}
 	}
 }

@@ -107,6 +107,8 @@ func (s *Store) fillOpenAllowance(ctx context.Context, view *admin.OrderView, nu
 		view.AllowanceAwaitingUntil = shoptime.Minute(open.LastSendAt.Add(invoice.BuyerConsentWindow))
 	case open.LastError == invoice.CategoryBuyerUnconfirmed:
 		view.AllowanceUnconfirmed = true
+	case open.LastError == invoice.CategoryAmountStillHeld:
+		view.AllowanceAmountHeld = true
 	}
 	return nil
 }

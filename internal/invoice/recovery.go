@@ -344,16 +344,27 @@ func (s *Store) sendAllowance(
 		return Document{}, markErr
 	}
 	if sendErr := s.gateway.RequestAllowance(ctx, in); sendErr != nil {
-		if providerErr, ok := errors.AsType[*providerError](sendErr); ok {
-			category := "allowance_provider_rejected_" + strconv.Itoa(providerErr.Code)
-			return Document{}, s.reject(ctx, op, owner, category, sendErr)
-		}
-		if errors.Is(sendErr, errProviderIdentity) {
-			return Document{}, s.alarm(ctx, op, owner, "allowance_success_mismatch", sendErr)
-		}
-		return Document{}, s.retry(ctx, op, owner, "allowance_send_ambiguous", sendErr)
+		return Document{}, s.handleAllowanceSendError(ctx, op, owner, sendErr)
 	}
 	return Document{}, s.retry(ctx, op, owner, "allowance_awaiting_buyer", ErrAwaitingBuyer)
+}
+
+// handleAllowanceSendError ends the operation on ECPay's answer, except a held
+// amount, which needs a person; a reply naming another document alarms; any
+// other failure may have reached ECPay, so the operation is polled.
+func (s *Store) handleAllowanceSendError(
+	ctx context.Context, op *operation, owner uuid.UUID, cause error,
+) error {
+	providerErr, answered := errors.AsType[*providerError](cause)
+	switch {
+	case answered && providerErr.Code == ecpayAmountHeld:
+		return s.alarm(ctx, op, owner, CategoryAmountStillHeld, cause)
+	case answered:
+		return s.reject(ctx, op, owner, "allowance_provider_rejected_"+strconv.Itoa(providerErr.Code), cause)
+	case errors.Is(cause, errProviderIdentity):
+		return s.alarm(ctx, op, owner, "allowance_success_mismatch", cause)
+	}
+	return s.retry(ctx, op, owner, "allowance_send_ambiguous", cause)
 }
 
 // awaitBuyer keeps polling an allowance ECPay may have e-mailed. The list shows
@@ -371,6 +382,14 @@ func (s *Store) awaitBuyer(ctx context.Context, op *operation, owner uuid.UUID, 
 // CategoryBuyerUnconfirmed is the attention an allowance enters once its
 // consent link lapsed with no agreement.
 const CategoryBuyerUnconfirmed = "allowance_buyer_unconfirmed"
+
+// ecpayAmountHeld is ECPay's answer when an earlier request, such as a lapsed
+// online allowance, still holds the invoice's remaining amount. Nothing was
+// filed, and the earlier request is not goen's to cancel, so a person decides.
+const ecpayAmountHeld = 2000034
+
+// CategoryAmountStillHeld is the attention an allowance enters on that answer.
+const CategoryAmountStillHeld = "allowance_amount_still_held"
 
 // BuyerConsentWindow is how long ECPay's consent link lives.
 const BuyerConsentWindow = 72 * time.Hour

@@ -3564,6 +3564,106 @@ func TestAMarkedAllowanceIsNeverResentWhileItsLinkMayLive(t *testing.T) {
 	}
 }
 
+// TestALapsedOnlineAllowanceIsResentOnce: staff may ask a buyer who let the
+// consent link lapse once more, through the same audited door, and only once.
+// ECPay refusing the resend because the lapsed request still holds the amount
+// leaves the operation with a person rather than releasing its claim.
+func TestALapsedOnlineAllowanceIsResentOnce(t *testing.T) {
+	for _, tt := range []struct {
+		name       string
+		held       bool
+		wantStatus string
+		wantError  string
+	}{
+		{name: "the buyer is asked again", wantStatus: "pending", wantError: "allowance_awaiting_buyer"},
+		{name: "the lapsed request still holds the amount", held: true,
+			wantStatus: "attention", wantError: CategoryAmountStillHeld},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := t.Context()
+			var mu sync.Mutex
+			sends := 0
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/B2CInvoice/GetAllowanceList":
+					replyNoAllowances(t, w)
+				case "/B2CInvoice/AllowanceByCollegiate":
+					request := openAllowanceRequest(t, r)
+					mu.Lock()
+					sends++
+					n := sends
+					mu.Unlock()
+					if n > 1 && tt.held {
+						reply(t, w, result{RtnCode: 2000034, RtnMsg: "無足夠金額可以折讓，請確認"})
+						return
+					}
+					replyAllowanceRequested(t, w, request.InvoiceNo, fmt.Sprintf("20261004090000%02d", n))
+				default:
+					t.Errorf("unexpected provider path %s", r.URL.Path)
+					w.WriteHeader(http.StatusInternalServerError)
+				}
+			}))
+			defer srv.Close()
+			g, err := NewGateway(testMerchantID, testHashKey, testHashIV, srv.URL)
+			if err != nil {
+				t.Fatalf("gateway: %v", err)
+			}
+			store := NewStore(pool, g)
+			number := invoicedOrderWithRefund(t, 50000)
+			operationID := uuid.New()
+			if _, err := store.FileAllowance(filingTestContext(t, ctx), number, operationID); !errors.Is(err, ErrAwaitingBuyer) {
+				t.Fatalf("Allowance = %v, want it e-mailed to the buyer", err)
+			}
+			if _, err := pool.Exec(ctx, `
+				UPDATE invoice_operations SET last_send_at = now() - interval '73 hours'
+				WHERE id = $1`, operationID); err != nil {
+				t.Fatalf("let the link lapse: %v", err)
+			}
+			if _, err := passAgain(t, store, ctx, operationID); !errors.Is(err, ErrPending) {
+				t.Fatalf("poll after the link lapsed = %v, want ErrPending", err)
+			}
+
+			authorize := func(request string) bool {
+				t.Helper()
+				var authorized bool
+				if err := pool.QueryRow(ctx,
+					`SELECT authorize_invoice_allowance_resend($1,$2,$3)`,
+					operationID, filingActor, request).Scan(&authorized); err != nil {
+					t.Fatalf("authorize %s: %v", request, err)
+				}
+				return authorized
+			}
+			if !authorize("invoice-test:ask-again") {
+				t.Fatal("a lapsed online allowance could not be authorised for one resend")
+			}
+			if authorize("invoice-test:ask-again-twice") {
+				t.Fatal("a lapsed online allowance received a second resend authorisation")
+			}
+			_, _ = passAgain(t, store, ctx, operationID)
+
+			var status, category string
+			var sent, authorised, audits int
+			if err := pool.QueryRow(ctx, `
+				SELECT status, coalesce(last_error, ''), send_attempts, resend_authorizations,
+				       (SELECT count(*) FROM audit_events
+				        WHERE action = 'invoice.allowance_resend_authorized' AND entity_id = op.id)
+				FROM invoice_operations op WHERE id = $1`, operationID).Scan(
+				&status, &category, &sent, &authorised, &audits); err != nil {
+				t.Fatalf("read the resent allowance: %v", err)
+			}
+			mu.Lock()
+			providerSends := sends
+			mu.Unlock()
+			if status != tt.wantStatus || category != tt.wantError || sent != 2 || authorised != 1 ||
+				audits != 1 || providerSends != 2 {
+				t.Errorf("resent allowance = %s/%s, %d sends (%d at ECPay), %d authorisations, %d audits; "+
+					"want %s/%s after exactly one audited resend",
+					status, category, sent, providerSends, authorised, audits, tt.wantStatus, tt.wantError)
+			}
+		})
+	}
+}
+
 // TestAnUnansweredAllowanceKeepsItsClaim is the other half, and the reason the
 // release above is bound to ErrRejected rather than to any error. A transport
 // failure says nothing about whether ECPay filed, so the claim must hold: a

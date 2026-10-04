@@ -753,6 +753,9 @@ templ Order(p layouts.Page, v *OrderView) {
 						if v.AllowanceUnconfirmed {
 							<p class="ui-alert ui-alert--error" role="status">{ i18n.T(ctx, i18n.KeyAdminQueueAllowanceUnconfirmed) }</p>
 						}
+						if v.AllowanceAmountHeld {
+							<p class="ui-alert ui-alert--error" role="status">{ i18n.T(ctx, i18n.KeyAdminQueueAllowanceAmountHeld) }</p>
+						}
 						if !v.CanIssueInvoice() && !v.CanVoidInvoice() && len(v.InvoiceDocuments) == 0 {
 							<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminQueueNotCommitted) }</p>
 						}

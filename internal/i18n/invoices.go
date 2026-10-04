@@ -34,6 +34,12 @@ var (
 		En:     "The customer did not agree to the credit note within 72 hours.",
 	})
 
+	KeyAdminQueueAllowanceAmountHeld = key("admin.queue.allowance.amountheld", Message{
+		ZhHant: "綠界表示先前未確認的折讓仍保留這筆金額，這次重寄沒有開立任何折讓。",
+		En: "ECPay says an earlier credit note the customer never agreed to still holds this amount, " +
+			"so the resend filed nothing.",
+	})
+
 	KeyAdminQueueNoInvoicing = key("admin.queue.noinvoicing", Message{
 		ZhHant: "尚未啟用電子發票，這裡無法開立發票。",
 		En:     "E-invoicing is not set up for this shop, so no invoice can be issued from here.",

@@ -211,9 +211,12 @@ type OrderView struct {
 	// retries without collapsing a later, legitimate equal partial allowance.
 	AllowanceOperationID string
 	// AllowanceAwaitingUntil is when the consent link of an allowance e-mailed
-	// to the buyer lapses; AllowanceUnconfirmed is one whose link lapsed.
+	// to the buyer lapses; AllowanceUnconfirmed is one whose link lapsed, and
+	// AllowanceAmountHeld one whose resend ECPay refused because an earlier
+	// request still holds the amount.
 	AllowanceAwaitingUntil string
 	AllowanceUnconfirmed   bool
+	AllowanceAmountHeld    bool
 	Committed              bool
 	// Funded is Committed, or a pending order store credit paid in full, which
 	// the database does not count as committed until it is picked. A funded order
@@ -492,7 +495,7 @@ func (v *OrderView) CanAllowInvoice() bool {
 // AllowanceOpen reports an allowance sent to ECPay and not yet settled, which
 // holds the invoice's one claim.
 func (v *OrderView) AllowanceOpen() bool {
-	return v.AllowanceAwaitingUntil != "" || v.AllowanceUnconfirmed
+	return v.AllowanceAwaitingUntil != "" || v.AllowanceUnconfirmed || v.AllowanceAmountHeld
 }
 
 // AllowanceAmount is display only; no amount is posted back to the server.

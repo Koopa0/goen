@@ -6107,13 +6107,15 @@ BEGIN
                   CONSTRAINT = 'invoice_allowance_resend_request';
     END IF;
 
+    -- An online allowance whose consent link lapsed unagreed is the other case:
+    -- ECPay opened nothing, and one more request asks the buyer again.
     SELECT resend_authorizations INTO v_before
     FROM invoice_operations
     WHERE id = p_operation_id
       AND kind = 'allowance'
-      AND status = 'pending'
       AND send_attempts > resend_authorizations
-      AND last_error = 'allowance_not_yet_visible'
+      AND ((status = 'pending' AND last_error = 'allowance_not_yet_visible')
+           OR (status = 'attention' AND last_error = 'allowance_buyer_unconfirmed'))
       AND last_send_at IS NOT NULL
       AND last_send_at <= now() - interval '15 minutes'
       AND (lease_until IS NULL OR lease_until <= now())
@@ -6123,6 +6125,7 @@ BEGIN
     v_after := v_before + 1;
     UPDATE invoice_operations
     SET resend_authorizations = v_after,
+        status = 'pending',
         last_error = 'allowance_resend_authorized',
         available_at = now(),
         lease_owner = NULL,

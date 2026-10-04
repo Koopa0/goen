@@ -675,3 +675,40 @@ func TestAUploadHeldByACategoryIsNotCountedUnreferenced(t *testing.T) {
 		t.Errorf("a category's photograph counts %d unreferenced, want %d", got, before)
 	}
 }
+
+// TestALapsedOnlineAllowanceOffersOneResend: an allowance the buyer never
+// agreed to within 72 hours is on the page with the audited resend, worded as
+// asking the buyer again rather than as a request ECPay never received.
+func TestALapsedOnlineAllowanceOffersOneResend(t *testing.T) {
+	ctx, actor := admintest.StaffContext(t, pool)
+	worker := outbox.NewStore(pool, slog.New(slog.DiscardHandler))
+	number, orderID, _, _ := admintest.TwoLineOrderWithStock(t, pool, "lapsed")
+	if _, err := pool.Exec(ctx, `
+		WITH invoice AS (
+			INSERT INTO invoice_documents (order_id, kind, number, amount_cents)
+			VALUES ($1, 'invoice', 'GD-' || substr(replace(gen_random_uuid()::text,'-',''),1,8), 100000)
+			RETURNING id, order_id, number)
+		INSERT INTO invoice_operations
+		    (order_id, kind, target_document_id, provider_key, amount_cents, request_payload,
+		     actor_user_id, actor_id_snapshot, request_id, status, send_attempts, last_send_at, last_error)
+		SELECT order_id, 'allowance', id, number, 50000, '{}', $2, $2, $3,
+		       'attention', 1, now() - interval '73 hours', 'allowance_buyer_unconfirmed'
+		FROM invoice`, orderID, actor, "invoice-lapsed:"+number); err != nil {
+		t.Fatalf("record a lapsed allowance: %v", err)
+	}
+
+	view, err := health.NewStore(pool).WorkerHealth(ctx, worker)
+	if err != nil {
+		t.Fatalf("health: %v", err)
+	}
+	for _, c := range view.StrandedClaims {
+		if c.OrderNumber == number {
+			if !c.CanAuthorizeResend || !c.BuyerNeverAgreed() {
+				t.Errorf("lapsed allowance offers resend %v, worded as never agreed %v; want both",
+					c.CanAuthorizeResend, c.BuyerNeverAgreed())
+			}
+			return
+		}
+	}
+	t.Errorf("the lapsed allowance of %s is not on the health page", number)
+}
