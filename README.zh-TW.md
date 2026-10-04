@@ -37,6 +37,8 @@
 
 Go · templ · htmx · PostgreSQL · Stripe · 綠界
 
+系統怎麼分工、資料庫守住哪些規則、背後有哪些檢查：[ARCHITECTURE.md](ARCHITECTURE.md)（英文）
+
 ## 試用示範站
 
 用登入頁上的示範帳號登入，付款時使用 Stripe 測試卡 4242 4242 4242 4242。
