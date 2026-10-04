@@ -45,7 +45,7 @@ func (b *stripeActiveBody) Close() error {
 	return err
 }
 
-func stripeDeadlineGateway(t *testing.T, stallBody bool) (*Gateway, *stripeRequestActivity, *atomic.Int32) {
+func stripeDeadlineGateway(t *testing.T, partialBody bool) (*Gateway, *stripeRequestActivity, *atomic.Int32) {
 	t.Helper()
 	var requests atomic.Int32
 	var operation atomic.Value
@@ -61,7 +61,7 @@ func stripeDeadlineGateway(t *testing.T, stallBody bool) (*Gateway, *stripeReque
 		if first := operation.Load().(string); requestOperation != first {
 			t.Errorf("retry operation = %q, want the original %q", requestOperation, first)
 		}
-		if stallBody {
+		if partialBody {
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = io.WriteString(w, `{"id":"cs_deadline",`)
 			if err := http.NewResponseController(w).Flush(); err != nil {
@@ -95,9 +95,9 @@ func stripeDeadlineGateway(t *testing.T, stallBody bool) (*Gateway, *stripeReque
 }
 
 func TestStripeRetriesStayWithinTheCleanupDeadline(t *testing.T) {
-	for _, stallBody := range []bool{false, true} {
+	for _, partialBody := range []bool{false, true} {
 		name := "no headers"
-		if stallBody {
+		if partialBody {
 			name = "partial body"
 		}
 		t.Run(name, func(t *testing.T) {
@@ -108,7 +108,7 @@ func TestStripeRetriesStayWithinTheCleanupDeadline(t *testing.T) {
 				}
 				t.Run(cleanup, func(t *testing.T) {
 					synctest.Test(t, func(t *testing.T) {
-						gateway, activity, requests := stripeDeadlineGateway(t, stallBody)
+						gateway, activity, requests := stripeDeadlineGateway(t, partialBody)
 						h := &Handler{gateway: gateway}
 						req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/orders/ORDER/pay", http.NoBody)
 						start := time.Now()
@@ -121,7 +121,7 @@ func TestStripeRetriesStayWithinTheCleanupDeadline(t *testing.T) {
 						if err == nil {
 							t.Fatal("cleanup succeeded on a stalled retry")
 						}
-						if !stallBody && !errors.Is(err, context.DeadlineExceeded) {
+						if !errors.Is(err, context.DeadlineExceeded) {
 							t.Errorf("cleanup error = %v, want deadline exceeded", err)
 						}
 						if elapsed := time.Since(start); elapsed != 5*time.Second {
@@ -146,35 +146,43 @@ func TestStripeRetriesStayWithinTheCleanupDeadline(t *testing.T) {
 }
 
 func TestStripeCancellationEndsTheActiveRetryBeforeReturning(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		gateway, activity, requests := stripeDeadlineGateway(t, true)
-		ctx, cancel := context.WithCancel(t.Context())
-		defer cancel()
-		returned := make(chan error, 1)
-		go func() {
-			_, _, err := gateway.ResumeSession(ctx, "cs_deadline")
-			returned <- err
-		}()
-		time.Sleep(2 * time.Second)
-		synctest.Wait()
-		if got := requests.Load(); got != 2 {
-			t.Fatalf("requests before cancellation = %d, want an active retry", got)
+	for _, partialBody := range []bool{false, true} {
+		name := "no headers"
+		if partialBody {
+			name = "partial body"
 		}
-		start := time.Now()
-		cancel()
-		if err := <-returned; err == nil || !errors.Is(ctx.Err(), context.Canceled) {
-			t.Fatalf("ResumeSession error = %v with context %v, want a failed cancelled call", err, ctx.Err())
-		}
-		if elapsed := time.Since(start); elapsed != 0 {
-			t.Errorf("cancelled caller waited %v", elapsed)
-		}
-		if got := activity.active.Load(); got != 0 {
-			t.Errorf("caller received an error with %d underlying requests still active", got)
-		}
-		time.Sleep(10 * time.Second)
-		synctest.Wait()
-		if got := requests.Load(); got != 2 {
-			t.Errorf("cancellation sent more requests: %d", got)
-		}
-	})
+		t.Run(name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				gateway, activity, requests := stripeDeadlineGateway(t, partialBody)
+				ctx, cancel := context.WithCancel(t.Context())
+				defer cancel()
+				returned := make(chan error, 1)
+				go func() {
+					_, _, err := gateway.ResumeSession(ctx, "cs_deadline")
+					returned <- err
+				}()
+				time.Sleep(2 * time.Second)
+				synctest.Wait()
+				if got := requests.Load(); got != 2 {
+					t.Fatalf("requests before cancellation = %d, want an active retry", got)
+				}
+				start := time.Now()
+				cancel()
+				if err := <-returned; err == nil || !errors.Is(err, context.Canceled) {
+					t.Fatalf("ResumeSession error = %v with context %v, want a failed cancelled call", err, ctx.Err())
+				}
+				if elapsed := time.Since(start); elapsed != 0 {
+					t.Errorf("cancelled caller waited %v", elapsed)
+				}
+				if got := activity.active.Load(); got != 0 {
+					t.Errorf("caller received an error with %d underlying requests still active", got)
+				}
+				time.Sleep(10 * time.Second)
+				synctest.Wait()
+				if got := requests.Load(); got != 2 {
+					t.Errorf("cancellation sent more requests: %d", got)
+				}
+			})
+		})
+	}
 }
