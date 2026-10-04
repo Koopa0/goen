@@ -11,6 +11,7 @@
 
 import { readFileSync } from 'node:fs';
 import { AXE_OPTIONS, WCAG_TAGS, WCAG_LEVEL, gatesAccessibility, wcagRuleExclusion } from './wcag-gate.mjs';
+import { measureChooserStates, measureSwatchState } from './forced-colours.mjs';
 
 const CDP_PORT = Number(process.env.CDP_PORT || 9222);
 const ORIGIN = (process.env.GOEN_URL || 'http://127.0.0.1:9700/').replace(/\/$/, '');
@@ -2604,6 +2605,92 @@ const openAt = async (label, path) => {
   await send(ws, 'Page.navigate', { url: target });
   await settled(ws, label, target);
 };
+
+// Selection must be visible after focus leaves the control; focus is a separate state.
+if (process.env.CUST_TOKEN) {
+  await send(ws, 'Network.setCookie', {
+    name: 'goen_session', value: process.env.CUST_TOKEN, domain: '127.0.0.1', path: '/',
+  });
+  await send(ws, 'Emulation.setEmulatedMedia', { features: [{ name: 'forced-colors', value: 'active' }] });
+  try {
+    for (const locale of ['zh-Hant', 'en']) {
+      await send(ws, 'Network.setCookie', { name: 'goen_locale', value: locale, domain: '127.0.0.1', path: '/' });
+      console.log('forced colours locale ' + locale);
+      for (const [path, groups] of [['/checkout', ['invoice_type', 'shipping']],
+        ['/checkout?ship=' + process.env.PICKUP_SHIP, ['pickup_chain']]]) {
+        await openAt('forced colours chooser', path);
+        for (const name of groups) {
+          const got = await evalPage(`(${measureChooserStates.toString()})(${JSON.stringify(name)})`);
+          console.log('forced colours chooser ' + JSON.stringify({ path, ...got }));
+          if (got.threw || got.error || !got.forced) {
+            fail('forced colours chooser', got.why || got.error || 'forced-colors did not activate');
+          } else {
+            for (const choice of got.results) {
+              if (!choice.distinct && !choice.radioVisible) {
+                fail('forced colours chooser', name + '=' + choice.value + ' has no visible selected cue after blur');
+              }
+            }
+          }
+        }
+      }
+      await openAt('forced colours swatch', '/p/' + process.env.COLOUR_SLUG);
+      const swatchURL = await evalPage(`document.querySelector('.goen-swatch:not(.goen-swatch--dot)')?.href || null`);
+      if (!swatchURL || swatchURL.threw) {
+        fail('forced colours swatch', 'no text variant choice was rendered');
+      } else {
+        await send(ws, 'Page.navigate', { url: swatchURL });
+        await settled(ws, 'forced colours swatch chosen', swatchURL);
+        const got = await evalPage(`(${measureSwatchState.toString()})()`);
+        console.log('forced colours swatch ' + JSON.stringify(got));
+        if (got.threw || got.error || !got.forced || !got.distinct) {
+          fail('forced colours swatch', got.why || got.error || 'selected text swatch has no distinct visible cue');
+        }
+      }
+      const colourURL = await evalPage(`document.querySelector('.goen-swatch--dot')?.href || null`);
+      if (!colourURL || colourURL.threw) {
+        fail('forced colours colour swatch', 'no colour variant choice was rendered');
+      } else {
+        await send(ws, 'Page.navigate', { url: colourURL });
+        await settled(ws, 'forced colours chosen colour', colourURL);
+        const got = await evalPage(`(${measureSwatchState.toString()})(true)`);
+        console.log('forced colours colour swatch ' + JSON.stringify(got));
+        if (got.threw || got.error || !got.forced || !got.distinct) {
+          fail('forced colours colour swatch', got.why || got.error || 'selected colour swatch has no distinct visible cue');
+        }
+      }
+      await openAt('forced colours language', '/contact');
+      const language = await evalPage(`(() => {
+        const menu = document.querySelector('.goen-langmenu');
+        if (!menu) return { error: 'language menu missing' };
+        menu.open = true;
+        const selected = menu.querySelector('[aria-pressed="true"]');
+        const other = menu.querySelector('[aria-pressed="false"]');
+        const current = menu.querySelector('.goen-langmenu__current');
+        return { forced: matchMedia('(forced-colors: active)').matches,
+          current: current?.textContent.trim(), selected: selected?.getAttribute('lang'),
+          selectedIcons: selected?.querySelectorAll('svg').length,
+          otherIcons: other?.querySelectorAll('svg').length,
+          selectedWeight: selected && getComputedStyle(selected).fontWeight,
+          otherWeight: other && getComputedStyle(other).fontWeight };
+      })()`);
+      console.log('forced colours language ' + JSON.stringify(language));
+      if (language.threw || language.error || !language.forced || !language.current
+        || !(language.selectedIcons > language.otherIcons || language.selectedWeight !== language.otherWeight)) {
+        fail('forced colours language', language.why || language.error || 'current language has no structural cue');
+      }
+    }
+  } finally {
+    await send(ws, 'Emulation.setEmulatedMedia', { features: [] });
+    await send(ws, 'Network.setCookie', { name: 'goen_locale', value: 'zh-Hant', domain: '127.0.0.1', path: '/' });
+    if (process.env.ADMIN_TOKEN) {
+      await send(ws, 'Network.setCookie', {
+        name: 'goen_session', value: process.env.ADMIN_TOKEN, domain: '127.0.0.1', path: '/',
+      });
+    }
+  }
+} else {
+  console.log('forced colours skipped (no CUST_TOKEN)');
+}
 
 const proveUsable = async (at, fieldSel, formSel) => {
   const got = await evalPage(`(() => {
