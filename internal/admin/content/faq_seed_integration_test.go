@@ -17,7 +17,7 @@ import (
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/site"
-	adminpages "github.com/koopa0/goen/internal/ui/pages/admin"
+	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 const (
@@ -92,7 +92,7 @@ func TestSeededInvoiceFAQMatchesTheWiredIssuer(t *testing.T) {
 		}
 	})
 	plantStaleInvoiceFAQ(t, ctx, pool)
-	var entry adminpages.FAQEntry
+	var entry admin.FAQEntry
 	view, err := content.NewStore(pool).FAQ(ctx)
 	if err != nil {
 		t.Fatalf("FAQ: %v", err)
