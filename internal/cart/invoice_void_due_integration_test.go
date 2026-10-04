@@ -211,6 +211,35 @@ func TestACustomersCancelWithdrawsAnIssueNoProviderWillSend(t *testing.T) {
 	}
 }
 
+// TestACancelledInvoiceWaitsForAProviderToVoidIt: a void claimed with no
+// 加值中心 would sit unsent; the health page names the live invoice instead.
+func TestACancelledInvoiceWaitsForAProviderToVoidIt(t *testing.T) {
+	ctx := t.Context()
+	_, invoices := fakeECPay(t, time.Now())
+	number := creditPaidOrder(t, invoices, "void-due-unset")
+	if err := invoices.ProcessOperation(ctx, invoiceOperation(t, number, "issue")); err != nil {
+		t.Fatalf("issue: %v", err)
+	}
+	due := cancelAsCustomer(t, number)
+
+	gateway, err := invoice.NewGateway("", "", "", "")
+	if err != nil {
+		t.Fatalf("gateway: %v", err)
+	}
+	if err := invoice.NewStore(adminRole(t), gateway).ClaimVoidDue(ctx, &due); err != nil {
+		t.Fatalf("void due with no provider: %v", err)
+	}
+	var voids int
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*) FROM invoice_operations op JOIN orders o ON o.id = op.order_id
+		WHERE o.order_number = $1 AND op.kind = 'void'`, number).Scan(&voids); err != nil {
+		t.Fatalf("count voids: %v", err)
+	}
+	if voids != 0 {
+		t.Errorf("%d voids claimed with no provider to send them, want none", voids)
+	}
+}
+
 // TestACustomersCancelPastTheVoidWindowLeavesTheInvoiceForStaff: the
 // cancellation goes through, no void is asked of ECPay once the period is filed,
 // and the back office's health page names the invoice.
