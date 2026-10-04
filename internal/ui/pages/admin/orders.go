@@ -19,33 +19,34 @@ import (
 )
 
 type Variant struct {
-	SKU                    string
-	Slug                   string
-	ProductName            string
-	Brand                  string
-	PriceCents             int64
-	CompareCents           int64
-	Stock                  int32
-	Safety                 int32
-	Active                 bool
-	ProductStatus          string
-	Options                []string
-	FormID                 string
-	DraftDelta, DeltaError string
+	SKU                        string
+	Slug                       string
+	ProductName                string
+	Brand                      string
+	PriceCents                 int64
+	CompareCents               int64
+	Stock                      int32
+	Safety                     int32
+	Active                     bool
+	ProductStatus              string
+	Options                    []string
+	FormID                     string
+	DraftDelta, DeltaError     string
+	ArrivalInput, ArrivalError string
 }
 
-func (v Variant) OptionText() string { return strings.Join(v.Options, " · ") }
+func (v *Variant) OptionText() string { return strings.Join(v.Options, " · ") }
 
-func (v Variant) StockText() string { return strconv.FormatInt(int64(v.Stock), 10) }
+func (v *Variant) StockText() string { return strconv.FormatInt(int64(v.Stock), 10) }
 
-func (v Variant) SafetyText() string { return strconv.FormatInt(int64(v.Safety), 10) }
+func (v *Variant) SafetyText() string { return strconv.FormatInt(int64(v.Safety), 10) }
 
-func (v Variant) SellableText() string {
+func (v *Variant) SellableText() string {
 	n := max(v.Stock-v.Safety, 0)
 	return strconv.FormatInt(int64(n), 10)
 }
 
-func (v Variant) Low() bool { return v.Stock <= v.Safety }
+func (v *Variant) Low() bool { return v.Stock <= v.Safety }
 
 type OrderRow struct {
 	Number     string
@@ -569,9 +570,9 @@ func VariantsMeta(ctx context.Context) layouts.Page {
 	return layouts.Page{Title: i18n.T(ctx, i18n.KeyAdminPageStockList)}
 }
 
-func (v Variant) PriceText() string { return strconv.FormatInt(v.PriceCents/100, 10) }
+func (v *Variant) PriceText() string { return strconv.FormatInt(v.PriceCents/100, 10) }
 
-func (v Variant) CompareText() string {
+func (v *Variant) CompareText() string {
 	if v.CompareCents <= 0 {
 		return ""
 	}
@@ -581,7 +582,7 @@ func (v Variant) CompareText() string {
 // AdjustKey is the adjustment form's idempotency key. It is spent for good in
 // the ledger, so it names the rendered form and not the stock level: stock
 // returns to an earlier figure, and a key built from it would then be refused.
-func (v Variant) AdjustKey() string {
+func (v *Variant) AdjustKey() string {
 	return "adj:" + v.SKU + ":" + v.FormID
 }
 

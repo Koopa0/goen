@@ -98,6 +98,7 @@ var actionLabels = map[string]i18n.Key{
 	"credit.grant":                        i18n.KeyAuditCreditGrant,
 	"stock.adjust":                        i18n.KeyAuditStockAdjust,
 	"stock.receive":                       i18n.KeyAuditStockReceive,
+	"variant.arrival.set":                 i18n.KeyAuditVariantArrival,
 	"variant.reprice":                     i18n.KeyAuditVariantReprice,
 	"variant.retire":                      i18n.KeyAuditVariantRetire,
 	"variant.create":                      i18n.KeyAuditVariantCreate,

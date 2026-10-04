@@ -32,6 +32,7 @@ const (
 	ActionHandleMessage            Action = "message.handle"
 	ActionReopenMessage            Action = "message.reopen"
 	ActionRepriceVariant           Action = "variant.reprice"
+	ActionSetVariantArrival        Action = "variant.arrival.set"
 	ActionRetireVariant            Action = "variant.retire"
 	ActionCreateVariant            Action = "variant.create"
 	ActionCreateProduct            Action = "product.create"

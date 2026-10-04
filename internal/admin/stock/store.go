@@ -245,7 +245,8 @@ func (s *Store) LowStock(ctx context.Context, limit int32) ([]admin.Variant, err
 func variantRow(r *db.AdminVariantsRow) admin.Variant {
 	return admin.Variant{
 		SKU: r.SKU, Slug: r.Slug, ProductName: r.ProductName, Brand: r.Brand,
-		PriceCents: r.PriceCents, CompareCents: r.CompareAtPriceCents.Int64,
+		ArrivalInput: arrivalInput(r.PreorderReleaseOn),
+		PriceCents:   r.PriceCents, CompareCents: r.CompareAtPriceCents.Int64,
 		Stock: r.StockQuantity, Safety: r.SafetyStock,
 		Active: r.IsActive, ProductStatus: r.ProductStatus,
 		Options: r.OptionValues,
@@ -337,4 +338,38 @@ func enqueueRestockNotices(ctx context.Context, q *db.Queries, variantID uuid.UU
 	// One statement, because this runs while the variant row is locked and every
 	// checkout of it waits for the loop to end.
 	return outbox.EnqueueAll(ctx, q, outbox.TopicRestocked, 0, keys, payloads)
+}
+
+func (s *Store) SetVariantArrival(ctx context.Context, sku, raw string) error {
+	day, valid := parseArrival(raw)
+	if !valid {
+		return ErrRefused
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin variant arrival: %w", err)
+	}
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // A committed transaction has nothing left to roll back.
+	q := s.q.WithTx(tx)
+	prior, err := q.LockVariantArrival(ctx, sku)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("read variant arrival: %w", err)
+	}
+	if err = q.SetVariantArrival(ctx, db.SetVariantArrivalParams{ID: prior.ID, ArrivalOn: day}); err != nil {
+		return fmt.Errorf("set variant arrival: %w", err)
+	}
+	if auditErr := audit.In(ctx, q, audit.Event{
+		Action: audit.ActionSetVariantArrival, Table: "product_variants", ID: audit.EntityID(prior.ID),
+		Before: map[string]any{"sku": sku, "preorder_release_on": arrivalInput(prior.PreorderReleaseOn)},
+		After:  map[string]any{"preorder_release_on": arrivalInput(day)},
+	}); auditErr != nil {
+		return auditErr
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit variant arrival: %w", err)
+	}
+	return nil
 }
