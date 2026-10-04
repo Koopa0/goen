@@ -7854,6 +7854,8 @@ a.goen-pager__step:hover {
   width: 100%;
 }
 
+/* Stock links are too close for the WCAG 2.5.8 spacing exception; each target
+   therefore needs its own 24px box. */
 .goen-admin__stock td a {
   align-items: center;
   display: inline-flex;

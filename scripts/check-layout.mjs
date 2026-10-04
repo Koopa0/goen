@@ -10,7 +10,7 @@
 // Usage: make check-layout   (needs Chrome and a server on GOEN_URL)
 
 import { readFileSync } from 'node:fs';
-import { AXE_OPTIONS, WCAG_TAGS, WCAG_TARGET, gatesAccessibility } from './axe-target.mjs';
+import { AXE_OPTIONS, WCAG_TAGS, WCAG_LEVEL, gatesAccessibility, wcagRuleExclusion } from './wcag-gate.mjs';
 
 const CDP_PORT = Number(process.env.CDP_PORT || 9222);
 const ORIGIN = (process.env.GOEN_URL || 'http://127.0.0.1:9700/').replace(/\/$/, '');
@@ -3141,7 +3141,6 @@ await send(ws, 'Emulation.setScriptExecutionDisabled', { value: false });
 // change what they measure. Running afterwards costs one extra navigation per
 // route and changes nothing any other assertion sees.
 //
-// Best-practice findings are advisory; only the declared WCAG target gates.
 const AXE_RUN = `axe.run(document, ${JSON.stringify(AXE_OPTIONS)}).then((r) => {
   const finding = (v) => ({
     id: v.id, tags: v.tags, impact: v.impact, help: v.help,
@@ -3152,7 +3151,7 @@ const AXE_RUN = `axe.run(document, ${JSON.stringify(AXE_OPTIONS)}).then((r) => {
   return JSON.stringify({
     version: axe.version,
     rules: axe.getRules(${JSON.stringify(WCAG_TAGS)}).map((v) => ({
-      id: v.ruleId, tags: v.tags, enabledByDefault: v.enabled,
+      id: v.ruleId, tags: v.tags,
     })),
     executed: [...new Set(['passes', 'violations', 'incomplete', 'inapplicable']
       .flatMap((kind) => r[kind].map((v) => v.id)))].sort(),
@@ -3203,7 +3202,7 @@ const axeSettled = async (route, url) => {
 };
 
 // Adjacent undersized targets distinguish the WCAG 2.2 selection from a 2.0 run.
-const AXE_TARGET_FIXTURE = `(() => {
+const TARGET_SIZE_FIXTURE = `(() => {
   const group = document.createElement('div');
   group.id = 'axe-target-fixture';
   group.style.cssText = 'position:fixed;top:0;left:0;display:flex;gap:0;z-index:2147483647';
@@ -3219,14 +3218,14 @@ const AXE_TARGET_FIXTURE = `(() => {
   return true;
 })()`;
 
-const proveAccessibilityTarget = async () => {
+const proveTargetSizeGates = async () => {
   await send(ws, 'Emulation.setDeviceMetricsOverride', {
     width: AXE_WIDTH.width, height: AXE_WIDTH.height, deviceScaleFactor: 1, mobile: false,
   });
   if (!(await axeSettled('target fixture', `${ORIGIN}/about`))) return;
   try {
     await send(ws, 'Runtime.evaluate', { expression: axeSource });
-    await evalPage(AXE_TARGET_FIXTURE);
+    await evalPage(TARGET_SIZE_FIXTURE);
     const rejectsFixture = (audit) => audit.violations.some((v) => v.id === 'target-size'
       && v.targets.some((target) => target.includes('axe-target-')) && gatesAccessibility(v));
     const small = JSON.parse(await evalPage(AXE_RUN));
@@ -3261,13 +3260,14 @@ const auditAccessibility = async () => {
   });
 
   const requested = [...visited.entries()];
-  console.log(`\naxe-core ${WCAG_TARGET} (${WCAG_TAGS.join(" + ")}), ${requested.length} routes at ${AXE_WIDTH.width}px; best-practice advisory`);
+  console.log(`\naxe-core ${WCAG_LEVEL} (${WCAG_TAGS.join(" + ")}), ${requested.length} routes at ${AXE_WIDTH.width}px; best-practice advisory`);
 
   const observed = {};
   const unaudited = [];
   const audited = new Set();
   let debtMoved = false;
-  let reportedRules = false;
+  let selectedRules = null;
+  const executedRules = new Set();
 
   for (const [asked, url] of requested) {
     const landed = await axeSettled(asked, url);
@@ -3313,11 +3313,14 @@ const auditAccessibility = async () => {
       continue;
     }
 
-    if (!reportedRules) {
-      console.log(`axe-core ${audit.version} target rules: ${JSON.stringify(audit.rules)}`);
-      reportedRules = true;
+    if (selectedRules === null) {
+      selectedRules = audit.rules.filter((rule) => !wcagRuleExclusion(rule)).map((rule) => rule.id).sort();
+      const excluded = audit.rules.filter((rule) => wcagRuleExclusion(rule)).map((rule) => ({
+        id: rule.id, reason: wcagRuleExclusion(rule),
+      }));
+      console.log(`axe-core ${audit.version} excluded WCAG rules: ${JSON.stringify(excluded)}`);
     }
-    console.log(`axe ${route} executed rules: ${audit.executed.join(', ')}`);
+    for (const id of audit.executed) executedRules.add(id);
     for (const v of audit.incomplete) {
       annotate(`${route}: manual review needed for ${v.id} — ${v.help}; first: ${v.target}`);
     }
@@ -3352,6 +3355,13 @@ const auditAccessibility = async () => {
       `violations=${violations.length} incomplete=${audit.incomplete.length} gating=${observed[route].length}`);
   }
 
+  if (selectedRules !== null) {
+    const executed = selectedRules.filter((id) => executedRules.has(id));
+    const neverRan = selectedRules.filter((id) => !executedRules.has(id));
+    console.log(`axe executed WCAG rules (${executed.length}): ${executed.join(', ')}`);
+    console.log(`axe selected WCAG rules that never ran: ${neverRan.join(', ') || '(none)'}`);
+  }
+
   if (!debtMoved) return;
 
   // The exact file that makes this run green, so accepting a finding is a
@@ -3374,7 +3384,7 @@ const auditAccessibility = async () => {
   console.log('::endgroup::');
 };
 
-await proveAccessibilityTarget();
+await proveTargetSizeGates();
 await auditAccessibility();
 
 ws.close();

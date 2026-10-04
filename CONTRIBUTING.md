@@ -81,8 +81,13 @@ goen targets WCAG 2.2 level AA. The pinned axe rules select `wcag2a`, `wcag2aa`,
 `wcag21a`, `wcag21aa` and `wcag22aa`; serious or critical WCAG findings gate,
 while best-practice findings remain advisory. `scripts/axe-baseline.json`
 records accepted findings, and the run prints the replacement when they move.
-The log names the pinned rule set, executed rules and incomplete checks for
-manual review. Automated success does not establish complete conformance,
+The log lists executed WCAG rules once, selected rules that never ran, excluded
+rules and incomplete checks for manual review. With axe-core 4.13, five
+experimental rules (css-orientation-lock, label-content-name-mismatch,
+p-as-heading, table-fake-caption and td-has-header) and two deprecated rules
+(aria-roledescription and audio-caption) stay disabled. The two WCAG 2.1 rules
+in that experimental set therefore need manual review; selecting WCAG 2.1 tags
+does not enable them. Automated success does not establish complete conformance,
 screen-reader acceptance or real Windows High Contrast behavior.
 
 Run the gate unpiped and report its exit status: a pipe reports the status of
