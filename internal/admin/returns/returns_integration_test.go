@@ -1726,7 +1726,7 @@ func TestTheRescissionWindowIsCountedOnTheShopsCalendar(t *testing.T) {
 			if found == nil {
 				t.Fatalf("the return %s is not in the queue", requestID)
 			}
-			if found.Window != tc.wantWindow {
+			if string(found.Window) != tc.wantWindow {
 				t.Errorf("window is %q, want %q", found.Window, tc.wantWindow)
 			}
 			if got := found.Rescission(); got != tc.wantRescission {

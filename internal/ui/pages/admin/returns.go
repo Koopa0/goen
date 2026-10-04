@@ -26,11 +26,8 @@ type Return struct {
 	CardRefundCents   int64
 	CreditRefundCents int64
 	CreatedAt         string
-	// Window is "within", "goodwill", "after", "undelivered" or "mixed":
-	// the statutory seven days, the shop's advertised days 8–14, later
-	// than that, a parcel whose window has not started, or a request whose
-	// lines disagree. Counted from the request clock against each line.
-	Window            string
+	// Window is counted from the request clock against each line.
+	Window            returns.PolicyWindow
 	AssessmentVersion int32
 	AssessmentBasis   string
 	AssessedAt        string
@@ -95,34 +92,34 @@ func (r *Return) RestockedUnitsText() string {
 	return strconv.FormatInt(int64(n), 10)
 }
 
-func ReturnLineWindowText(ctx context.Context, window string) string {
+func ReturnLineWindowText(ctx context.Context, window returns.PolicyWindow) string {
 	return (&Return{Window: window}).WindowText(ctx)
 }
 
-func (r *Return) Rescission() bool { return r.Window == "within" }
+func (r *Return) Rescission() bool { return r.Window == returns.WindowStatutory }
 
 // Goodwill reports whether this request is inside the shop's advertised
 // days 8–14. Entitlement still depends on unused-and-complete facts.
-func (r *Return) Goodwill() bool { return r.Window == "goodwill" }
+func (r *Return) Goodwill() bool { return r.Window == returns.WindowGoodwill }
 
-func (r *Return) Late() bool { return r.Window == "after" }
+func (r *Return) Late() bool { return r.Window == returns.WindowLate }
 
-func (r *Return) Mixed() bool { return r.Window == "mixed" }
+func (r *Return) Mixed() bool { return r.Window == returns.WindowMixed }
 
 func (r *Return) WindowText(ctx context.Context) string {
 	switch r.Window {
-	case "within":
+	case returns.WindowStatutory:
 		return i18n.T(ctx, i18n.KeyAdminReturnWindowWithin)
-	case "goodwill":
+	case returns.WindowGoodwill:
 		return i18n.T(ctx, i18n.KeyAdminReturnWindowGoodwill)
-	case "after":
+	case returns.WindowLate:
 		return i18n.T(ctx, i18n.KeyAdminReturnWindowAfter)
-	case "undelivered":
+	case returns.WindowUndelivered:
 		return i18n.T(ctx, i18n.KeyAdminReturnWindowUndelivered)
-	case "mixed":
+	case returns.WindowMixed:
 		return i18n.T(ctx, i18n.KeyAdminReturnWindowMixed)
 	default:
-		panic("pages: unknown rescission window: " + r.Window)
+		panic("pages: unknown rescission window: " + string(r.Window))
 	}
 }
 
@@ -205,7 +202,7 @@ type ReturnLine struct {
 	Restocked   int32
 	Note        string
 	Restockable bool
-	Window      string
+	Window      returns.PolicyWindow
 	Unused      string
 	Packaging   string
 	Accessories string
