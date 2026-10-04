@@ -246,7 +246,7 @@ func assertUnbrandedCatalogueReads(t *testing.T, ctx context.Context, p *pgxpool
 		t.Fatal(err)
 	}
 	if _, err := p.Exec(ctx, `INSERT INTO product_variants (product_id, sku, price_cents)
-		VALUES ($1, $2, 10000)`, anchorID, "RELATED-"+uuid.NewString()[:8]); err != nil {
+		VALUES ($1, $2, 10000)`, anchorID, "RELATED-"+strings.ToUpper(uuid.NewString()[:8])); err != nil {
 		t.Fatal(err)
 	}
 	if err := products.NewStore(p).SetStatus(ctx, anchorSlug, "active"); err != nil {
