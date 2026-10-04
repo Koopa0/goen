@@ -7991,6 +7991,58 @@ a.goen-pager__step:hover {
   gap: 10px;
 }
 
+/* One language of a form's copy fields at a time. Both sit in the form and are
+   submitted together; the choice is the radio the form holds, so with no CSS
+   or no scripting every field shows. */
+.goen-admin__lang {
+  align-self: flex-start;
+  background: var(--n-100);
+  border: 0;
+  border-radius: var(--r-md);
+  display: inline-flex;
+  gap: 2px;
+  margin: 0;
+  padding: 2px;
+}
+
+.goen-admin__langopt {
+  align-items: center;
+  border-radius: var(--r-sm);
+  color: var(--fg-muted);
+  cursor: pointer;
+  display: inline-flex;
+  font-size: var(--fs-13);
+  font-weight: var(--fw-medium);
+  justify-content: center;
+  min-height: 36px;
+  min-width: 72px;
+  padding: 0 12px;
+  position: relative;
+  text-align: center;
+}
+
+.goen-admin__langopt:has(input:checked) {
+  background: var(--n-0);
+  box-shadow: 0 0 0 1px var(--n-300);
+  color: var(--fg);
+}
+
+.goen-admin__langopt:has(input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.goen-admin__langgroup {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.goen-admin__form:has(.goen-admin__lang input[value='en']:checked) .goen-admin__langgroup[data-lang='zh'],
+.goen-admin__form:has(.goen-admin__lang input[value='zh']:checked) .goen-admin__langgroup[data-lang='en'] {
+  display: none;
+}
+
 .goen-admin__add {
   display: flex;
   flex-direction: column;
