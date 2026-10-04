@@ -48,52 +48,109 @@ templ Home(p layouts.Page, v *HeroView) {
 				action="/admin/home"
 				enctype="multipart/form-data"
 			>
-				<div class="ui-field">
-					<label class="ui-label" for="h-headline">{ i18n.T(ctx, i18n.KeyAdminHomeHeadline) }</label>
-					<input
-						class="ui-input"
-						id="h-headline"
-						name="headline"
-						required
-						maxlength="40"
-						placeholder={ i18n.T(ctx, i18n.KeyHeroHeadline) }
-						value={ v.Draft.Headline }
-						if v.HasErr("headline") {
-							aria-invalid="true"
-							aria-describedby="h-headline-error"
-						}
-					/>
-					if v.HasErr("headline") {
-						<p class="ui-error-text" id="h-headline-error">{ v.Err("headline") }</p>
-					}
-				</div>
-				<div class="ui-field">
-					<label class="ui-label" for="h-eyebrow">{ i18n.T(ctx, i18n.KeyAdminHomeEyebrow) }</label>
-					<input class="ui-input" id="h-eyebrow" name="eyebrow" maxlength="40" value={ v.Draft.Eyebrow }/>
-				</div>
-				<div class="ui-field">
-					<label class="ui-label" for="h-body">{ i18n.T(ctx, i18n.KeyAdminHomeBody) }</label>
-					<textarea class="ui-input" id="h-body" name="body" rows="2" maxlength="200">{ v.Draft.Body }</textarea>
-				</div>
-				<div class="goen-checkout__fields">
+				@langSwitch("hero_lang", false)
+				<div class="goen-admin__langgroup" data-lang="zh">
 					<div class="ui-field">
-						<label class="ui-label" for="h-plabel">{ i18n.T(ctx, i18n.KeyAdminHomePrimaryLabel) }</label>
+						<label class="ui-label" for="h-headline">{ i18n.T(ctx, i18n.KeyAdminHomeHeadline) }</label>
 						<input
 							class="ui-input"
-							id="h-plabel"
-							name="primary_label"
-							required
-							maxlength="20"
-							value={ v.Draft.PrimaryLabel }
-							if v.HasErr("primary") {
+							id="h-headline"
+							name="headline"
+							aria-required="true"
+							maxlength="40"
+							placeholder={ i18n.T(ctx, i18n.KeyHeroHeadline) }
+							value={ v.Draft.Headline }
+							if v.HasErr("headline") {
 								aria-invalid="true"
-								aria-describedby="h-plabel-error"
+								aria-describedby="h-headline-error"
 							}
 						/>
-						if v.HasErr("primary") {
-							<p class="ui-error-text" id="h-plabel-error">{ v.Err("primary") }</p>
+						if v.HasErr("headline") {
+							<p class="ui-error-text" id="h-headline-error">{ v.Err("headline") }</p>
 						}
 					</div>
+					<div class="ui-field">
+						<label class="ui-label" for="h-eyebrow">{ i18n.T(ctx, i18n.KeyAdminHomeEyebrow) }</label>
+						<input class="ui-input" id="h-eyebrow" name="eyebrow" maxlength="40" value={ v.Draft.Eyebrow }/>
+					</div>
+					<div class="ui-field">
+						<label class="ui-label" for="h-body">{ i18n.T(ctx, i18n.KeyAdminHomeBody) }</label>
+						<textarea class="ui-input" id="h-body" name="body" rows="2" maxlength="200">{ v.Draft.Body }</textarea>
+					</div>
+					<div class="goen-checkout__fields">
+						<div class="ui-field">
+							<label class="ui-label" for="h-plabel">{ i18n.T(ctx, i18n.KeyAdminHomePrimaryLabel) }</label>
+							<input
+								class="ui-input"
+								id="h-plabel"
+								name="primary_label"
+								aria-required="true"
+								maxlength="20"
+								value={ v.Draft.PrimaryLabel }
+								if v.HasErr("primary") {
+									aria-invalid="true"
+									aria-describedby="h-plabel-error"
+								}
+							/>
+							if v.HasErr("primary") {
+								<p class="ui-error-text" id="h-plabel-error">{ v.Err("primary") }</p>
+							}
+						</div>
+						<div class="ui-field">
+							<label class="ui-label" for="h-slabel">{ i18n.T(ctx, i18n.KeyAdminHomeSecondLabel) }</label>
+							<input class="ui-input" id="h-slabel" name="second_label" maxlength="20" value={ v.Draft.SecondLabel }/>
+						</div>
+					</div>
+					<div class="ui-field">
+						<label class="ui-label" for="h-alt">{ i18n.T(ctx, i18n.KeyAdminAltText) }</label>
+						<input
+							class="ui-input"
+							id="h-alt"
+							name="alt"
+							maxlength="200"
+							value={ v.Draft.ImageAlt }
+							if v.HasErr("alt") {
+								aria-invalid="true"
+								aria-describedby="h-alt-error"
+							}
+						/>
+						if v.HasErr("alt") {
+							<p class="ui-error-text" id="h-alt-error">{ v.Err("alt") }</p>
+						}
+					</div>
+				</div>
+				<div class="goen-admin__langgroup" data-lang="en">
+					<div class="ui-field">
+						<label class="ui-label" for="h-headline-en">{ i18n.T(ctx, i18n.KeyAdminHomeHeadlineEn) }</label>
+						<input class="ui-input" id="h-headline-en" name="headline_en" maxlength="40" value={ v.Draft.HeadlineEn } placeholder="Choose one good thing."/>
+					</div>
+					<div class="ui-field">
+						<label class="ui-label" for="h-eyebrow-en">{ i18n.T(ctx, i18n.KeyAdminHomeEyebrowEn) }</label>
+						<input class="ui-input" id="h-eyebrow-en" name="eyebrow_en" maxlength="40" value={ v.Draft.EyebrowEn }/>
+					</div>
+					<div class="ui-field">
+						<label class="ui-label" for="h-body-en">{ i18n.T(ctx, i18n.KeyAdminHomeBodyEn) }</label>
+						<textarea class="ui-input goen-admin__textarea" id="h-body-en" name="body_en" rows="3" maxlength="200">{ v.Draft.BodyEn }</textarea>
+					</div>
+					<div class="goen-checkout__fields">
+						<div class="ui-field">
+							<label class="ui-label" for="h-plabel-en">{ i18n.T(ctx, i18n.KeyAdminHomePrimaryLabelEn) }</label>
+							<input class="ui-input" id="h-plabel-en" name="primary_label_en" maxlength="20" value={ v.Draft.PrimaryLabelEn }/>
+						</div>
+						<div class="ui-field">
+							<label class="ui-label" for="h-slabel-en">{ i18n.T(ctx, i18n.KeyAdminHomeSecondLabelEn) }</label>
+							<input class="ui-input" id="h-slabel-en" name="second_label_en" maxlength="20" value={ v.Draft.SecondLabelEn }/>
+						</div>
+					</div>
+					<div class="ui-field">
+						<label class="ui-label" for="h-alt-en">{ i18n.T(ctx, i18n.KeyAdminHomeAltEn) }</label>
+						<input class="ui-input" id="h-alt-en" name="alt_en" maxlength="200" value={ v.Draft.ImageAltEn }/>
+						<p class="goen-admin__hint">
+							{ i18n.T(ctx, i18n.KeyAdminHomeAltEnHint) }
+						</p>
+					</div>
+				</div>
+				<div class="goen-checkout__fields">
 					<div class="ui-field">
 						<label class="ui-label" for="h-phref">{ i18n.T(ctx, i18n.KeyAdminHomePrimaryHref) }</label>
 						<input
@@ -111,12 +168,6 @@ templ Home(p layouts.Page, v *HeroView) {
 						if v.HasErr("primaryhref") {
 							<p class="ui-error-text" id="h-phref-error">{ v.Err("primaryhref") }</p>
 						}
-					</div>
-				</div>
-				<div class="goen-checkout__fields">
-					<div class="ui-field">
-						<label class="ui-label" for="h-slabel">{ i18n.T(ctx, i18n.KeyAdminHomeSecondLabel) }</label>
-						<input class="ui-input" id="h-slabel" name="second_label" maxlength="20" value={ v.Draft.SecondLabel }/>
 					</div>
 					<div class="ui-field">
 						<label class="ui-label" for="h-shref">{ i18n.T(ctx, i18n.KeyAdminHomeSecondHref) }</label>
@@ -140,52 +191,6 @@ templ Home(p layouts.Page, v *HeroView) {
 					<label class="ui-label" for="h-image">{ i18n.T(ctx, i18n.KeyAdminHomeImage) }</label>
 					<input class="ui-input" id="h-image" name="image" type="file" accept="image/*"/>
 					<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminHomeImageHint) }</p>
-				</div>
-				<div class="ui-field">
-					<label class="ui-label" for="h-alt">{ i18n.T(ctx, i18n.KeyAdminAltText) }</label>
-					<input
-						class="ui-input"
-						id="h-alt"
-						name="alt"
-						maxlength="200"
-						value={ v.Draft.ImageAlt }
-						if v.HasErr("alt") {
-							aria-invalid="true"
-							aria-describedby="h-alt-error"
-						}
-					/>
-					if v.HasErr("alt") {
-						<p class="ui-error-text" id="h-alt-error">{ v.Err("alt") }</p>
-					}
-				</div>
-				<div class="ui-field">
-					<label class="ui-label" for="h-eyebrow-en">{ i18n.T(ctx, i18n.KeyAdminHomeEyebrowEn) }</label>
-					<input class="ui-input" id="h-eyebrow-en" name="eyebrow_en" maxlength="40" value={ v.Draft.EyebrowEn }/>
-				</div>
-				<div class="ui-field">
-					<label class="ui-label" for="h-headline-en">{ i18n.T(ctx, i18n.KeyAdminHomeHeadlineEn) }</label>
-					<input class="ui-input" id="h-headline-en" name="headline_en" maxlength="40" value={ v.Draft.HeadlineEn } placeholder="Choose one good thing."/>
-				</div>
-				<div class="ui-field">
-					<label class="ui-label" for="h-body-en">{ i18n.T(ctx, i18n.KeyAdminHomeBodyEn) }</label>
-					<textarea class="ui-input goen-admin__textarea" id="h-body-en" name="body_en" rows="3" maxlength="200">{ v.Draft.BodyEn }</textarea>
-				</div>
-				<div class="goen-checkout__fields">
-					<div class="ui-field">
-						<label class="ui-label" for="h-plabel-en">{ i18n.T(ctx, i18n.KeyAdminHomePrimaryLabelEn) }</label>
-						<input class="ui-input" id="h-plabel-en" name="primary_label_en" maxlength="20" value={ v.Draft.PrimaryLabelEn }/>
-					</div>
-					<div class="ui-field">
-						<label class="ui-label" for="h-slabel-en">{ i18n.T(ctx, i18n.KeyAdminHomeSecondLabelEn) }</label>
-						<input class="ui-input" id="h-slabel-en" name="second_label_en" maxlength="20" value={ v.Draft.SecondLabelEn }/>
-					</div>
-				</div>
-				<div class="ui-field">
-					<label class="ui-label" for="h-alt-en">{ i18n.T(ctx, i18n.KeyAdminHomeAltEn) }</label>
-					<input class="ui-input" id="h-alt-en" name="alt_en" maxlength="200" value={ v.Draft.ImageAltEn }/>
-					<p class="goen-admin__hint">
-						{ i18n.T(ctx, i18n.KeyAdminHomeAltEnHint) }
-					</p>
 				</div>
 				<div class="ui-field">
 					<label class="ui-label" for="h-days">{ i18n.T(ctx, i18n.KeyAdminHomeDays) }</label>
@@ -258,71 +263,93 @@ templ Home(p layouts.Page, v *HeroView) {
 		</p>
 		<div class="goen-admin__split">
 			<form class="goen-admin__form" method="post" action="/admin/home/banner">
-				<div class="ui-field">
-					<label class="ui-label" for="b-message">{ i18n.T(ctx, i18n.KeyAdminHomeBannerMessage) }</label>
-					<input
-						class="ui-input"
-						id="b-message"
-						name="message"
-						required
-						maxlength="60"
-						value={ v.BannerDraft.Message }
-						placeholder={ i18n.T(ctx, i18n.KeyAdminHomeBannerMessageExample) }
-						if v.HasErr("message") {
-							aria-invalid="true"
-							aria-describedby="b-message-error"
-						}
-					/>
-					if v.HasErr("message") {
-						<p class="ui-error-text" id="b-message-error">{ v.Err("message") }</p>
-					}
-				</div>
-				<div class="ui-field">
-					<label class="ui-label" for="b-short">{ i18n.T(ctx, i18n.KeyAdminHomeBannerShort) }</label>
-					<input class="ui-input" id="b-short" name="short" maxlength="60" value={ v.BannerDraft.Short } placeholder={ i18n.T(ctx, i18n.KeyAdminHomeBannerShortExample) }/>
-					<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminHomeBannerShortHint) }</p>
-				</div>
-				<div class="ui-field">
-					<label class="ui-label" for="b-message-en">{ i18n.T(ctx, i18n.KeyAdminHomeBannerMessageEn) }</label>
-					<input class="ui-input" id="b-message-en" name="message_en" maxlength="60" value={ v.BannerDraft.MessageEn } placeholder="Free delivery over NT$3,000"/>
-				</div>
-				<div class="ui-field">
-					<label class="ui-label" for="b-short-en">{ i18n.T(ctx, i18n.KeyAdminHomeBannerShortEn) }</label>
-					<input class="ui-input" id="b-short-en" name="short_en" maxlength="60" value={ v.BannerDraft.ShortEn }/>
-				</div>
-				<div class="goen-checkout__fields">
+				@langSwitch("banner_lang", v.BannerInEnglish())
+				<div class="goen-admin__langgroup" data-lang="zh">
 					<div class="ui-field">
-						<label class="ui-label" for="b-code">{ i18n.T(ctx, i18n.KeyAdminHomeBannerCode) }</label>
-						<input class="ui-input" id="b-code" name="code" maxlength="40" value={ v.BannerDraft.Code } placeholder="FREESHIP"/>
-					</div>
-					<div class="ui-field">
-						<label class="ui-label" for="b-days">{ i18n.T(ctx, i18n.KeyAdminHomeDays) }</label>
+						<label class="ui-label" for="b-message">{ i18n.T(ctx, i18n.KeyAdminHomeBannerMessage) }</label>
 						<input
 							class="ui-input"
-							id="b-days"
-							name="days"
-							type="number"
-							min="0"
-							max="365"
-							step="1"
-							inputmode="numeric"
-							value={ v.BannerDraft.Days }
-							placeholder="0"
-							if v.HasErr("banner_days") {
+							id="b-message"
+							name="message"
+							aria-required="true"
+							maxlength="60"
+							value={ v.BannerDraft.Message }
+							placeholder={ i18n.T(ctx, i18n.KeyAdminHomeBannerMessageExample) }
+							if v.HasErr("message") {
 								aria-invalid="true"
-								aria-describedby="b-days-error"
+								aria-describedby="b-message-error"
 							}
 						/>
-						if v.HasErr("banner_days") {
-							<p class="ui-error-text" id="b-days-error">{ v.Err("banner_days") }</p>
+						if v.HasErr("message") {
+							<p class="ui-error-text" id="b-message-error">{ v.Err("message") }</p>
 						}
 					</div>
-				</div>
-				<div class="goen-checkout__fields">
+					<div class="ui-field">
+						<label class="ui-label" for="b-short">{ i18n.T(ctx, i18n.KeyAdminHomeBannerShort) }</label>
+						<input
+							class="ui-input"
+							id="b-short"
+							name="short"
+							maxlength="60"
+							value={ v.BannerDraft.Short }
+							placeholder={ i18n.T(ctx, i18n.KeyAdminHomeBannerShortExample) }
+							if v.HasErr("short") {
+								aria-invalid="true"
+								aria-describedby="b-short-error"
+							}
+						/>
+						<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminHomeBannerShortHint) }</p>
+						if v.HasErr("short") {
+							<p class="ui-error-text" id="b-short-error">{ v.Err("short") }</p>
+						}
+					</div>
 					<div class="ui-field">
 						<label class="ui-label" for="b-cta-label">{ i18n.T(ctx, i18n.KeyAdminHomeBannerCTALabel) }</label>
 						<input class="ui-input" id="b-cta-label" name="cta_label" maxlength="20" value={ v.BannerDraft.CTALabel } placeholder={ i18n.T(ctx, i18n.KeyAdminHomeBannerCTAExample) }/>
 					</div>
+				</div>
+				<div class="goen-admin__langgroup" data-lang="en">
+					<div class="ui-field">
+						<label class="ui-label" for="b-message-en">{ i18n.T(ctx, i18n.KeyAdminHomeBannerMessageEn) }</label>
+						<input
+							class="ui-input"
+							id="b-message-en"
+							name="message_en"
+							maxlength="60"
+							value={ v.BannerDraft.MessageEn }
+							placeholder="Free delivery over NT$3,000"
+							if v.HasErr("message_en") {
+								aria-invalid="true"
+								aria-describedby="b-message-en-error"
+							}
+						/>
+						if v.HasErr("message_en") {
+							<p class="ui-error-text" id="b-message-en-error">{ v.Err("message_en") }</p>
+						}
+					</div>
+					<div class="ui-field">
+						<label class="ui-label" for="b-short-en">{ i18n.T(ctx, i18n.KeyAdminHomeBannerShortEn) }</label>
+						<input
+							class="ui-input"
+							id="b-short-en"
+							name="short_en"
+							maxlength="60"
+							value={ v.BannerDraft.ShortEn }
+							if v.HasErr("short_en") {
+								aria-invalid="true"
+								aria-describedby="b-short-en-error"
+							}
+						/>
+						if v.HasErr("short_en") {
+							<p class="ui-error-text" id="b-short-en-error">{ v.Err("short_en") }</p>
+						}
+					</div>
+					<div class="ui-field">
+						<label class="ui-label" for="b-cta-label-en">{ i18n.T(ctx, i18n.KeyAdminHomeBannerCTALabelEn) }</label>
+						<input class="ui-input" id="b-cta-label-en" name="cta_label_en" maxlength="20" value={ v.BannerDraft.CTALabelEn } placeholder="Shop"/>
+					</div>
+				</div>
+				<div class="goen-checkout__fields">
 					<div class="ui-field">
 						<label class="ui-label" for="b-cta-href">{ i18n.T(ctx, i18n.KeyAdminHomeBannerCTAHref) }</label>
 						<input
@@ -338,10 +365,32 @@ templ Home(p layouts.Page, v *HeroView) {
 							}
 						/>
 					</div>
+					<div class="ui-field">
+						<label class="ui-label" for="b-code">{ i18n.T(ctx, i18n.KeyAdminHomeBannerCode) }</label>
+						<input class="ui-input" id="b-code" name="code" maxlength="40" value={ v.BannerDraft.Code } placeholder="FREESHIP"/>
+					</div>
 				</div>
 				<div class="ui-field">
-					<label class="ui-label" for="b-cta-label-en">{ i18n.T(ctx, i18n.KeyAdminHomeBannerCTALabelEn) }</label>
-					<input class="ui-input" id="b-cta-label-en" name="cta_label_en" maxlength="20" value={ v.BannerDraft.CTALabelEn } placeholder="Shop"/>
+					<label class="ui-label" for="b-days">{ i18n.T(ctx, i18n.KeyAdminHomeDays) }</label>
+					<input
+						class="ui-input"
+						id="b-days"
+						name="days"
+						type="number"
+						min="0"
+						max="365"
+						step="1"
+						inputmode="numeric"
+						value={ v.BannerDraft.Days }
+						placeholder="0"
+						if v.HasErr("banner_days") {
+							aria-invalid="true"
+							aria-describedby="b-days-error"
+						}
+					/>
+					if v.HasErr("banner_days") {
+						<p class="ui-error-text" id="b-days-error">{ v.Err("banner_days") }</p>
+					}
 				</div>
 				if v.HasErr("banner_cta") {
 					<p class="ui-error-text" id="b-cta-error" role="alert">{ v.Err("banner_cta") }</p>
@@ -394,4 +443,34 @@ templ Home(p layouts.Page, v *HeroView) {
 			</aside>
 		</div>
 	}
+}
+
+templ langSwitch(name string, english bool) {
+	<fieldset class="goen-admin__lang">
+		<legend class="goen-sr-only">{ i18n.T(ctx, i18n.KeyAdminLangSwitch) }</legend>
+		<label class="goen-admin__langopt">
+			<input
+				class="goen-sr-only"
+				type="radio"
+				name={ name }
+				value="zh"
+				if !english {
+					checked
+				}
+			/>
+			<span>{ i18n.T(ctx, i18n.KeyAdminLangZh) }</span>
+		</label>
+		<label class="goen-admin__langopt">
+			<input
+				class="goen-sr-only"
+				type="radio"
+				name={ name }
+				value="en"
+				if english {
+					checked
+				}
+			/>
+			<span>{ i18n.T(ctx, i18n.KeyAdminLangEn) }</span>
+		</label>
+	</fieldset>
 }
