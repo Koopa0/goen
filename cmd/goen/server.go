@@ -42,7 +42,7 @@ import (
 	"github.com/koopa0/goen/internal/probe"
 	"github.com/koopa0/goen/internal/product"
 	"github.com/koopa0/goen/internal/ratelimit"
-	"github.com/koopa0/goen/internal/returns"
+	"github.com/koopa0/goen/internal/returnpage"
 	"github.com/koopa0/goen/internal/site"
 	"github.com/koopa0/goen/internal/twofactor"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -252,7 +252,7 @@ func storefrontRoutes(mux *http.ServeMux, cfg *StorefrontConfig, log *slog.Logge
 	})
 	// basketStore answers the order-access question for all three packages.
 	till := payment.NewHandler(payment.NewStore(pool), gateway, basketStore, log, secureCookies)
-	sendbacks := returns.NewHandler(returns.NewStore(pool), basketStore, log, secureCookies)
+	sendbacks := returnpage.NewHandler(returnpage.NewStore(pool), basketStore, log, secureCookies)
 
 	mux.HandleFunc("GET /{$}", homePage.Index)
 	// The digest in the path is the only authorisation an image has, and it is
