@@ -309,7 +309,7 @@ func (h *Handler) rejectProduct(w http.ResponseWriter, r *http.Request, f *Form,
 	if isNew {
 		view, err = h.store.NewForm(r.Context())
 	} else {
-		view, err = h.productView(r.Context(), f.Slug)
+		view, err = h.store.Product(r.Context(), f.Slug)
 	}
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "rebuild product form", "error", err)
@@ -537,7 +537,7 @@ type productDrafts struct {
 func (h *Handler) editProductWithErrors(
 	w http.ResponseWriter, r *http.Request, slug string, errs map[string]string, draft *productDrafts,
 ) {
-	view, err := h.productView(r.Context(), slug)
+	view, err := h.store.Product(r.Context(), slug)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			access.NotFound(w, r, h.log)
@@ -548,7 +548,7 @@ func (h *Handler) editProductWithErrors(
 		return
 	}
 	view.Errors = errs
-	view.VariantDraft, view.SpecDraft = draft.variant, draft.spec
+	view.VariantDraft, view.SpecDraft = draft.variant, admin.SpecDraft{}
 	web.Render(w, r, h.log, http.StatusUnprocessableEntity, admin.ProductForm(
 		layouts.Page{Title: view.Title(r.Context())}, view))
 }
