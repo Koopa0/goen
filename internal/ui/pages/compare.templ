@@ -82,7 +82,9 @@ templ Compare(p layouts.Page, v CompareView) {
 												/>
 											}
 											<a class="goen-compare__name" href={ templ.SafeURL(v.ProductHref(item.Slug)) }>{ item.Name }</a>
-											<span class="goen-compare__brand">{ item.Brand }</span>
+											if item.Brand != "" {
+												<span class="goen-compare__brand">{ item.Brand }</span>
+											}
 											// A link, not a form button: the comparison set is the URL, so removing writes nothing.
 											<a class="goen-compare__remove" href={ templ.SafeURL(v.RemoveHref(item.Slug)) }>
 												{ i18n.T(ctx, i18n.KeyRemove) }
@@ -166,7 +168,10 @@ templ comparePicker(v CompareView) {
 			<ul class="goen-compare__chosen" role="list">
 				for _, c := range v.Candidates {
 					<li>
-						{ c.Name } · { c.Brand }
+						{ c.Name }
+						if c.Brand != "" {
+							{ " · " + c.Brand }
+						}
 						@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, templ.SafeURL(v.AddHref(c.Slug))) {
 							{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCompareAddNamed), c.Name) }
 						}
@@ -197,7 +202,9 @@ templ compareSuggestions(v CompareView) {
 							</span>
 						}
 						<a class="goen-compare__name" href={ templ.SafeURL(v.ProductHref(t.Slug)) }>{ t.Name }</a>
-						<span class="goen-compare__brand">{ t.Brand }</span>
+						if t.Brand != "" {
+							<span class="goen-compare__brand">{ t.Brand }</span>
+						}
 						<span class="goen-compare__price">{ t.Price() }</span>
 						@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, templ.SafeURL(v.AddHref(t.Slug))) {
 							{ i18n.T(ctx, i18n.KeyAddToCompare) }
