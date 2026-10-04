@@ -16,12 +16,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/carrier"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -120,8 +120,8 @@ func TestPickingTotalsSpanEveryPageAndSubtractRecordedShipments(t *testing.T) {
 			t.Fatalf("%s staff GET=%d", locale, w.Code)
 		}
 	}
-	for _, user := range []account.User{{}, {ID: uuid.NewString(), Role: account.RoleCustomer}} {
-		req := httptest.NewRequestWithContext(account.WithUser(t.Context(), user), http.MethodGet, "/admin/orders/picking/slips", nil)
+	for _, current := range []user.User{{}, {ID: uuid.NewString(), Role: user.RoleCustomer}} {
+		req := httptest.NewRequestWithContext(user.NewContext(t.Context(), current), http.MethodGet, "/admin/orders/picking/slips", nil)
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
 		if w.Code != http.StatusNotFound {
