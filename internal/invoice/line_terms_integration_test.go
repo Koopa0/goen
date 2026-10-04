@@ -103,14 +103,24 @@ func TestExemptInvoiceAndAllowanceKeepTheirFrozenLineTerms(t *testing.T) {
 			}
 			adminPool := invoiceAdminPool(t)
 			store := NewStore(adminPool, gateway)
-			document, err := store.Issue(ctx, number)
+			_, err := store.Issue(ctx, number)
 			if err != nil {
 				t.Fatalf("issue exempt invoice: %v", err)
 			}
-			if len(document.Lines) != 1 {
-				t.Fatalf("stored invoice lines=%d, want one exempt item", len(document.Lines))
+			issuedDocuments, readErr := store.Documents(ctx, number)
+			if readErr != nil {
+				t.Fatalf("read issued invoice: %v", readErr)
 			}
-			for i, line := range document.Lines {
+			var storedInvoice Document
+			for _, candidate := range issuedDocuments {
+				if candidate.Kind == DocumentInvoice {
+					storedInvoice = candidate
+				}
+			}
+			if len(storedInvoice.Lines) != 1 {
+				t.Fatalf("stored invoice lines=%d, want one exempt item", len(storedInvoice.Lines))
+			}
+			for i, line := range storedInvoice.Lines {
 				unit := ItemUnit("個")
 				if i == 0 {
 					unit = "六字中文單位"
