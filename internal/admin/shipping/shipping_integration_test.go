@@ -24,7 +24,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/shipping"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/i18n"
-	adminpages "github.com/koopa0/goen/internal/ui/pages/admin"
+	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -110,7 +110,7 @@ func TestPublishingAVersionKeepsItsEnglishName(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read shipping methods: %v", err)
 	}
-	var method *adminpages.ShippingMethod
+	var method *admin.ShippingMethod
 	for i := range view.Methods {
 		if view.Methods[i].Code == code {
 			method = &view.Methods[i]
