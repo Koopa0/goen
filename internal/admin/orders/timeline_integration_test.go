@@ -17,7 +17,7 @@ import (
 	"github.com/koopa0/goen/internal/ordernotice"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/payment"
-	adminpages "github.com/koopa0/goen/internal/ui/pages/admin"
+	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 // TestTheOrderTimelineMergesEverySource builds one order through each source
@@ -118,7 +118,7 @@ func TestTheOrderTimelineMergesEverySource(t *testing.T) {
 	}
 	type entry struct {
 		Label, Status i18n.Key
-		ActorKind     adminpages.ActorKind
+		ActorKind     admin.ActorKind
 		Actor         string
 	}
 	got := make([]entry, 0, len(view.Timeline))
@@ -126,17 +126,17 @@ func TestTheOrderTimelineMergesEverySource(t *testing.T) {
 		got = append(got, entry{Label: e.Label, Status: e.Status, ActorKind: e.ActorKind, Actor: e.Actor})
 	}
 	want := []entry{
-		{Label: i18n.KeyStatusPlaced, ActorKind: adminpages.ActorCustomer},
-		{Label: i18n.KeyAdminTimelineMailPlaced, Status: i18n.KeyAdminTimelineMailSent, ActorKind: adminpages.ActorSystem},
-		{Label: i18n.KeyAdminTimelineProvider, ActorKind: adminpages.ActorProvider},
-		{Label: i18n.KeyStatusPaid, ActorKind: adminpages.ActorProvider},
-		{Label: i18n.KeyAdminTimelineMailPaid, Status: i18n.KeyAdminTimelineMailQueued, ActorKind: adminpages.ActorSystem},
-		{Label: i18n.KeyStatusPicking, ActorKind: adminpages.ActorStaff, Actor: "稽核測試"},
+		{Label: i18n.KeyStatusPlaced, ActorKind: admin.ActorCustomer},
+		{Label: i18n.KeyAdminTimelineMailPlaced, Status: i18n.KeyAdminTimelineMailSent, ActorKind: admin.ActorSystem},
+		{Label: i18n.KeyAdminTimelineProvider, ActorKind: admin.ActorProvider},
+		{Label: i18n.KeyStatusPaid, ActorKind: admin.ActorProvider},
+		{Label: i18n.KeyAdminTimelineMailPaid, Status: i18n.KeyAdminTimelineMailQueued, ActorKind: admin.ActorSystem},
+		{Label: i18n.KeyStatusPicking, ActorKind: admin.ActorStaff, Actor: "稽核測試"},
 		{Label: i18n.KeyAuditInvoiceAllowance, Status: i18n.KeyAdminTimelineInvoiceAwaitingBuyer,
-			ActorKind: adminpages.ActorStaff, Actor: "稽核測試"},
-		{Label: i18n.KeyAuditInvoiceVoid, Status: i18n.KeyAdminTimelineInvoicePending, ActorKind: adminpages.ActorSystem},
-		{Label: i18n.KeyAdminTimelineMailShipped, Status: i18n.KeyAdminTimelineMailQueued, ActorKind: adminpages.ActorSystem},
-		{Label: i18n.KeyAdminTimelineMailTerminal, Status: i18n.KeyAdminTimelineMailQueued, ActorKind: adminpages.ActorSystem},
+			ActorKind: admin.ActorStaff, Actor: "稽核測試"},
+		{Label: i18n.KeyAuditInvoiceVoid, Status: i18n.KeyAdminTimelineInvoicePending, ActorKind: admin.ActorSystem},
+		{Label: i18n.KeyAdminTimelineMailShipped, Status: i18n.KeyAdminTimelineMailQueued, ActorKind: admin.ActorSystem},
+		{Label: i18n.KeyAdminTimelineMailTerminal, Status: i18n.KeyAdminTimelineMailQueued, ActorKind: admin.ActorSystem},
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("Order(%s).Timeline mismatch (-want +got):\n%s", number, diff)

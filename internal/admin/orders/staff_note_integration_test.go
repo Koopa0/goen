@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	pagesadmin "github.com/koopa0/goen/internal/ui/pages/admin"
+	"github.com/koopa0/goen/internal/ui/pages/admin"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -177,7 +177,7 @@ func TestUnchangedStaffNoteDoesNotInventAnOperation(t *testing.T) {
 	}
 }
 
-func changesText(changes []pagesadmin.AuditChange) string {
+func changesText(changes []admin.AuditChange) string {
 	var b strings.Builder
 	for _, c := range changes {
 		b.WriteString(c.Field + " " + c.Text() + "\n")
