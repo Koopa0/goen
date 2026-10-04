@@ -79,7 +79,7 @@ func TestPickingTotalsSpanEveryPageAndSubtractRecordedShipments(t *testing.T) {
 		t.Fatalf("first batch slips=%d next=%q", len(view.Slips), view.Next)
 	}
 	if len(view.Totals) != 2 || view.Totals[0].SKU != "A-PICK" || view.Totals[0].Remaining != 4 || view.Totals[1].SKU != "Z-PICK" || view.Totals[1].Remaining != 154 {
-		t.Fatalf("all-queue totals = %+v, want sorted A=4 and Z=154", view.Totals)
+		t.Errorf("all-queue totals = %+v, want sorted A=4 and Z=154", view.Totals)
 	}
 	u, err := url.Parse(view.Next)
 	if err != nil {
@@ -94,8 +94,11 @@ func TestPickingTotalsSpanEveryPageAndSubtractRecordedShipments(t *testing.T) {
 	}
 	seen := make(map[string]bool)
 	for _, slip := range append(view.Slips, next.Slips...) {
-		if seen[slip.Number] || len(slip.Lines) != 1 {
-			t.Fatalf("duplicate or empty slip %+v", slip)
+		if seen[slip.Number] {
+			t.Fatalf("slip %q appeared more than once, want one occurrence", slip.Number)
+		}
+		if len(slip.Lines) != 1 {
+			t.Fatalf("slip %q lines = %d, want 1 outstanding line", slip.Number, len(slip.Lines))
 		}
 		seen[slip.Number] = true
 	}
