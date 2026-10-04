@@ -374,10 +374,12 @@ function send(ws, method, params = {}, timeoutMs = 30000) {
   const id = nextId++;
   ws.send(JSON.stringify({ id, method, params }));
   return new Promise((resolve, reject) => {
-    pending.set(id, { resolve, reject });
-    setTimeout(() => {
+    // Cleared on every answer: an armed timer keeps node alive, and the audit's
+    // 120 s one would hold the process that long after the check has finished.
+    const timer = setTimeout(() => {
       if (pending.delete(id)) reject(new Error(`${method} timed out`));
     }, timeoutMs);
+    pending.set(id, { resolve, reject, timer });
   });
 }
 
@@ -739,8 +741,9 @@ await new Promise((r) => (ws.onopen = r));
 ws.onmessage = (ev) => {
   const msg = JSON.parse(ev.data);
   if (msg.id && pending.has(msg.id)) {
-    const { resolve, reject } = pending.get(msg.id);
+    const { resolve, reject, timer } = pending.get(msg.id);
     pending.delete(msg.id);
+    clearTimeout(timer);
     msg.error ? reject(new Error(JSON.stringify(msg.error))) : resolve(msg.result);
   }
 };
