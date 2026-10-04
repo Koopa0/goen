@@ -422,7 +422,7 @@ func backOfficeRoutes(mux *http.ServeMux, cfg *BackOfficeConfig, log *slog.Logge
 	refundDesk := refunds.NewHandler(payouts, sessionCloser(gateway), log)
 	returnDesk := returndesk.NewHandler(returndesk.NewStore(adminPool, payouts), log)
 	invoiceDesk := invoicing.NewHandler(invoicingStore, log)
-	delivery := shipping.NewHandler(shipping.NewStore(adminPool), cfg.StoreMap, log)
+	delivery := shipping.NewHandler(shipping.NewStore(adminPool), cfg.StoreMap.Enabled(), log)
 	brands := taxonomy.NewHandler(taxonomy.NewStore(adminPool), adminImages, log)
 	shopfront := content.NewHandler(content.NewStore(adminPool), adminImages, newsletter.NewStore(adminPool), log)
 	sales := campaigns.NewHandler(campaigns.NewStore(adminPool), adminImages, log)
