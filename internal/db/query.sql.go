@@ -2132,7 +2132,7 @@ SELECT
     -- Approved, with a parcel to open: a refund before shipment closes its own
     -- lines and never has one.
     (SELECT count(*) FROM return_requests r
-     WHERE r.status = 'approved' AND false
+     WHERE r.status = 'approved' AND NOT r.before_shipment
        AND EXISTS (SELECT 1 FROM return_request_lines rl
                    WHERE rl.return_request_id = r.id AND rl.received_quantity IS NULL)
     )::bigint AS uninspected_returns,
