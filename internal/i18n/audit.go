@@ -124,6 +124,8 @@ var (
 
 	KeyAuditQuestionAnswer = key("audit.question.answer", Message{ZhHant: "回覆問題", En: "Answer question"})
 
+	KeyAuditQuestionShow = key("audit.question.show", Message{ZhHant: "恢復顯示問題", En: "Show question"})
+
 	KeyAuditQuestionHide = key("audit.question.hide", Message{ZhHant: "隱藏問題", En: "Hide question"})
 
 	KeyAdminPageAudit = key("admin.page.audit", Message{ZhHant: "操作紀錄", En: "Activity log"})
@@ -197,3 +199,5 @@ var (
 	KeyAuditOrderNoteReplace = key("audit.order.note.replace", Message{ZhHant: "替換訂單內部備註", En: "Replace internal order note"})
 	KeyAuditOrderNoteClear   = key("audit.order.note.clear", Message{ZhHant: "清除訂單內部備註", En: "Clear internal order note"})
 )
+
+var KeyAuditAnswerHide = key("audit.answer.hide", Message{ZhHant: "撤下回覆", En: "Answer withdrawn"})
