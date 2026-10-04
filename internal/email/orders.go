@@ -44,7 +44,7 @@ func (n Notifier) SendOrderPaid(ctx context.Context, p *OrderPaid) error {
 
 type OrderShipped struct {
 	Locale      string `json:"locale"`
-	OrderNumber string `json:"order"`
+	OrderNumber string `json:"order_number"`
 	Email       string `json:"email"`
 	Name        string `json:"name"`
 	Carrier     string `json:"carrier"`
