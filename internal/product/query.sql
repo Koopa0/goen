@@ -148,7 +148,7 @@ SELECT
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height
 FROM products p
-JOIN brands b ON b.id = p.brand_id
+LEFT JOIN brands b ON b.id = p.brand_id
 JOIN LATERAL (
     SELECT price_cents, compare_at_price_cents FROM product_variants
     WHERE product_id = p.id AND is_active
@@ -247,7 +247,7 @@ SELECT
     cp.orders::bigint AS bought_together
 FROM product_copurchases cp
 JOIN products p ON p.id = cp.other_product_id
-JOIN brands b ON b.id = p.brand_id
+LEFT JOIN brands b ON b.id = p.brand_id
 JOIN LATERAL (
     SELECT price_cents, compare_at_price_cents
     FROM product_variants

@@ -1701,7 +1701,7 @@ SELECT json_build_object('At', p.updated_at, 'ID', p.id)::text AS page_cursor, p
        (SELECT coalesce(min(pv.price_cents), 0) FROM product_variants pv
         WHERE pv.product_id = p.id AND pv.is_active)::bigint AS from_cents
 FROM products p
-JOIN brands b ON b.id = p.brand_id
+LEFT JOIN brands b ON b.id = p.brand_id
 JOIN categories c ON c.id = p.category_id
 WHERE (NOT $1::boolean OR (p.updated_at < $2::timestamptz)
        OR (p.updated_at = $2::timestamptz AND p.id < $3::uuid))
@@ -2368,7 +2368,7 @@ SELECT json_build_object('Number', (pv.stock_quantity - pv.safety_stock), 'Name'
           ORDER BY o.position, o.id)::text[] AS option_values
 FROM product_variants pv
 JOIN products p ON p.id = pv.product_id
-JOIN brands b ON b.id = p.brand_id
+LEFT JOIN brands b ON b.id = p.brand_id
 WHERE ($2::boolean = false OR pv.stock_quantity <= pv.safety_stock)
 AND ($3::text = ''
        OR pv.sku ILIKE '%' || $3::text || '%'
@@ -3032,7 +3032,7 @@ SELECT
     cp.orders::bigint AS bought_together
 FROM product_copurchases cp
 JOIN products p ON p.id = cp.other_product_id
-JOIN brands b ON b.id = p.brand_id
+LEFT JOIN brands b ON b.id = p.brand_id
 JOIN LATERAL (
     SELECT price_cents, compare_at_price_cents
     FROM product_variants
@@ -3152,7 +3152,7 @@ SELECT
     coalesce(img.height, 0)::integer AS image_height
 FROM sale_campaign_products cp
 JOIN products p ON p.id = cp.product_id
-JOIN brands b ON b.id = p.brand_id
+LEFT JOIN brands b ON b.id = p.brand_id
 JOIN LATERAL (
     SELECT price_cents, compare_at_price_cents
     FROM product_variants
@@ -4791,7 +4791,7 @@ SELECT
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height
 FROM products p
-JOIN brands b ON b.id = p.brand_id
+LEFT JOIN brands b ON b.id = p.brand_id
 JOIN LATERAL (
     SELECT price_cents
     FROM product_variants
@@ -6049,7 +6049,7 @@ SELECT
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height
 FROM products p
-JOIN brands b ON b.id = p.brand_id
+LEFT JOIN brands b ON b.id = p.brand_id
 JOIN LATERAL (
     SELECT price_cents, compare_at_price_cents
     FROM product_variants
@@ -7280,7 +7280,7 @@ SELECT
           AND stock_quantity > safety_stock
     ) AS in_stock
 FROM products p
-JOIN brands b ON b.id = p.brand_id
+LEFT JOIN brands b ON b.id = p.brand_id
 JOIN LATERAL (
     SELECT price_cents, compare_at_price_cents
     FROM product_variants
@@ -8930,7 +8930,7 @@ SELECT
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height
 FROM products p
-JOIN brands b ON b.id = p.brand_id
+LEFT JOIN brands b ON b.id = p.brand_id
 JOIN LATERAL (
     SELECT price_cents, compare_at_price_cents
     FROM product_variants
@@ -11995,7 +11995,7 @@ SELECT
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height
 FROM products p
-JOIN brands b ON b.id = p.brand_id
+LEFT JOIN brands b ON b.id = p.brand_id
 JOIN LATERAL (
     SELECT price_cents, compare_at_price_cents FROM product_variants
     WHERE product_id = p.id AND is_active
@@ -13632,7 +13632,7 @@ WITH RECURSIVE category_match AS (
 )
 SELECT count(*)::bigint
 FROM products p
-JOIN brands b ON b.id = p.brand_id
+LEFT JOIN brands b ON b.id = p.brand_id
 WHERE p.status = 'active'
   -- Every term must match some field, and a term may match a different field
   -- from its neighbour.

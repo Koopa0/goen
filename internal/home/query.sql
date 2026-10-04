@@ -39,7 +39,7 @@ SELECT
           AND stock_quantity > safety_stock
     ) AS in_stock
 FROM products p
-JOIN brands b ON b.id = p.brand_id
+LEFT JOIN brands b ON b.id = p.brand_id
 JOIN LATERAL (
     SELECT price_cents, compare_at_price_cents
     FROM product_variants
