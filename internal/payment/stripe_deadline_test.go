@@ -94,26 +94,34 @@ func stripeDeadlineGateway(t *testing.T, partialBody bool) (*Gateway, *stripeReq
 	return gateway, activity, &requests
 }
 
+var stripeStallModes = []struct {
+	name        string
+	partialBody bool
+}{
+	{name: "no headers"},
+	{name: "partial body", partialBody: true},
+}
+
+var stripeCleanupPaths = []struct {
+	name           string
+	expireRejected bool
+}{
+	{name: "retire obsolete session"},
+	{name: "expire rejected session", expireRejected: true},
+}
+
 func TestStripeRetriesStayWithinTheCleanupDeadline(t *testing.T) {
-	for _, partialBody := range []bool{false, true} {
-		name := "no headers"
-		if partialBody {
-			name = "partial body"
-		}
-		t.Run(name, func(t *testing.T) {
-			for _, expireRejected := range []bool{false, true} {
-				cleanup := "retire obsolete session"
-				if expireRejected {
-					cleanup = "expire rejected session"
-				}
-				t.Run(cleanup, func(t *testing.T) {
+	for _, mode := range stripeStallModes {
+		t.Run(mode.name, func(t *testing.T) {
+			for _, path := range stripeCleanupPaths {
+				t.Run(path.name, func(t *testing.T) {
 					synctest.Test(t, func(t *testing.T) {
-						gateway, activity, requests := stripeDeadlineGateway(t, partialBody)
+						gateway, activity, requests := stripeDeadlineGateway(t, mode.partialBody)
 						h := &Handler{gateway: gateway}
 						req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/orders/ORDER/pay", http.NoBody)
 						start := time.Now()
 						var err error
-						if expireRejected {
+						if path.expireRejected {
 							err = h.expireRejectedSession(req, &Order{Number: "ORDER", TotalCents: 10000}, "cs_deadline")
 						} else {
 							err = h.retireObsoleteSession(req, "ORDER", "cs_deadline", 10000)
@@ -131,12 +139,12 @@ func TestStripeRetriesStayWithinTheCleanupDeadline(t *testing.T) {
 							t.Errorf("requests = %d, want the transient failure and one stalled retry", got)
 						}
 						if got := activity.active.Load(); got != 0 {
-							t.Errorf("caller received an error with %d underlying requests still active", got)
+							t.Errorf("active requests after the call returned = %d, want 0", got)
 						}
 						time.Sleep(10 * time.Second)
 						synctest.Wait()
 						if got := requests.Load(); got != 2 {
-							t.Errorf("cancelled cleanup sent more requests: %d", got)
+							t.Errorf("requests after the deadline = %d, want 2", got)
 						}
 					})
 				})
@@ -146,14 +154,10 @@ func TestStripeRetriesStayWithinTheCleanupDeadline(t *testing.T) {
 }
 
 func TestStripeCancellationEndsTheActiveRetryBeforeReturning(t *testing.T) {
-	for _, partialBody := range []bool{false, true} {
-		name := "no headers"
-		if partialBody {
-			name = "partial body"
-		}
-		t.Run(name, func(t *testing.T) {
+	for _, mode := range stripeStallModes {
+		t.Run(mode.name, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
-				gateway, activity, requests := stripeDeadlineGateway(t, partialBody)
+				gateway, activity, requests := stripeDeadlineGateway(t, mode.partialBody)
 				ctx, cancel := context.WithCancel(t.Context())
 				defer cancel()
 				returned := make(chan error, 1)
@@ -169,18 +173,18 @@ func TestStripeCancellationEndsTheActiveRetryBeforeReturning(t *testing.T) {
 				start := time.Now()
 				cancel()
 				if err := <-returned; err == nil || !errors.Is(err, context.Canceled) {
-					t.Fatalf("ResumeSession error = %v with context %v, want a failed cancelled call", err, ctx.Err())
+					t.Fatalf("ResumeSession error = %v, want context.Canceled", err)
 				}
 				if elapsed := time.Since(start); elapsed != 0 {
-					t.Errorf("cancelled caller waited %v", elapsed)
+					t.Errorf("ResumeSession returned %v after cancel, want 0", elapsed)
 				}
 				if got := activity.active.Load(); got != 0 {
-					t.Errorf("caller received an error with %d underlying requests still active", got)
+					t.Errorf("active requests after the call returned = %d, want 0", got)
 				}
 				time.Sleep(10 * time.Second)
 				synctest.Wait()
 				if got := requests.Load(); got != 2 {
-					t.Errorf("cancellation sent more requests: %d", got)
+					t.Errorf("requests after cancellation = %d, want 2", got)
 				}
 			})
 		})
