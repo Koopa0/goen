@@ -323,7 +323,7 @@ func (s *Store) RememberOrder(
 		return fmt.Errorf("commit remember order %s: %w", number, err)
 	}
 
-	_ = writePlacedCookie
+	writePlacedCookie(w, r, token, secure)
 	return nil
 }
 

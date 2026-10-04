@@ -274,7 +274,7 @@ func (h *Handler) Ask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	body := r.PostFormValue("body")
-	var err error
+	err := h.store.Ask(r.Context(), slug, u.ID, body)
 	switch {
 	case err == nil:
 		http.Redirect(w, r, "/p/"+url.PathEscape(slug)+"?ask=1#questions",

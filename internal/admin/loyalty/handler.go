@@ -100,7 +100,6 @@ func (h *Handler) GrantCredit(w http.ResponseWriter, r *http.Request) {
 	}
 	if r.PostFormValue("confirm") != "grant" || r.PostFormValue("customer_id") != view.CustomerID {
 		view.Confirm = true
-		view.OperationID = uuid.NewString()
 		h.renderCreditForm(w, r, &view, http.StatusOK, "")
 		return
 	}
