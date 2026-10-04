@@ -1,4 +1,4 @@
-package returns
+package returnpage
 
 import (
 	"context"
@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/user"
@@ -30,7 +31,7 @@ type Handler struct {
 
 func NewHandler(s *Store, access OrderAccess, log *slog.Logger, secureCookies bool) *Handler {
 	if s == nil || access == nil || log == nil {
-		panic("returns: NewHandler requires a store, an access check and a logger")
+		panic("returnpage: NewHandler requires a store, an access check and a logger")
 	}
 	return &Handler{store: s, access: access, log: log, secure: secureCookies}
 }
@@ -41,7 +42,7 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	web.Render(w, r, h.log, http.StatusOK, pages.Returns(
-		pages.ReturnsMeta(r.Context(), o.Number), viewOf(r.Context(), o, nil, "")))
+		pages.ReturnsMeta(r.Context(), o.Number), viewOf(o, nil, "")))
 }
 
 func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
@@ -125,7 +126,7 @@ func (h *Handler) reject(w http.ResponseWriter, r *http.Request, o *Order, req *
 		return
 	}
 	web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.Returns(
-		pages.ReturnsMeta(r.Context(), fresh.Number), viewOf(r.Context(), fresh, req, msg)))
+		pages.ReturnsMeta(r.Context(), fresh.Number), viewOf(fresh, req, msg)))
 }
 
 // ownOrder: an order number is a per-day counter, so knowing one is not
@@ -172,7 +173,7 @@ func (h *Handler) notFound(w http.ResponseWriter, r *http.Request) {
 		i18n.T(r.Context(), i18n.KeyOrderNotYours)))
 }
 
-func viewOf(ctx context.Context, o *Order, req *Request, errMsg string) pages.ReturnsView {
+func viewOf(o *Order, req *Request, errMsg string) pages.ReturnsView {
 	v := pages.ReturnsView{
 		Number: o.Number, HasOpen: o.HasOpen, Error: errMsg,
 	}
@@ -193,7 +194,7 @@ func viewOf(ctx context.Context, o *Order, req *Request, errMsg string) pages.Re
 	for i := range o.Existing {
 		e := &o.Existing[i]
 		v.Existing = append(v.Existing, pages.ReturnsExisting{
-			StatusText: StatusLabel(ctx, Status(e.Status)), Reason: e.Reason,
+			Status: returns.Status(e.Status), Reason: e.Reason,
 			Resolution: e.Resolution, CreatedAt: e.CreatedAt, DecidedAt: e.DecidedAt,
 		})
 	}
