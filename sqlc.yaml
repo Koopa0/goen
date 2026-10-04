@@ -10,7 +10,7 @@ sql:
       - "internal/product/query.sql"
       - "internal/cart/query.sql"
       - "internal/payment/query.sql"
-      - "internal/returns/query.sql"
+      - "internal/returnpage/query.sql"
       - "internal/outbox/query.sql"
       - "internal/ordernotice/query.sql"
       - "internal/loyalty/query.sql"
