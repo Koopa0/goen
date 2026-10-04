@@ -1453,7 +1453,7 @@ SELECT p.id, p.slug, p.name, coalesce(p.summary, '') AS summary, p.description,
        coalesce(p.responsible_party_name, '') AS responsible_party_name,
        coalesce(p.responsible_party_phone, '') AS responsible_party_phone,
        coalesce(p.responsible_party_address, '') AS responsible_party_address,
-       coalesce(p.net_quantity::text, '')::text AS net_quantity,
+       coalesce(trim_scale(p.net_quantity)::text, '')::text AS net_quantity,
        coalesce(p.net_unit, '') AS net_unit, p.min_age_months
 FROM products p WHERE p.slug = $1
 `
@@ -10495,7 +10495,7 @@ SELECT
     coalesce(p.responsible_party_name, '') AS responsible_party_name,
     coalesce(p.responsible_party_phone, '') AS responsible_party_phone,
     coalesce(p.responsible_party_address, '') AS responsible_party_address,
-    coalesce(p.net_quantity::text, '')::text AS net_quantity,
+    coalesce(trim_scale(p.net_quantity)::text, '')::text AS net_quantity,
     coalesce(p.net_unit, '') AS net_unit, p.min_age_months
 FROM products p
 JOIN brands b ON b.id = p.brand_id
