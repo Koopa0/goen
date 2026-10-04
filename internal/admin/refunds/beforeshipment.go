@@ -117,11 +117,11 @@ func (s *Store) correctInvoice(ctx context.Context, number string, actorID uuid.
 	return nil
 }
 
-// allowRefunded asks the buyer to agree to an allowance for the refund when a
+// fileRefundAllowance asks the buyer to agree to an allowance for the refund when a
 // void could not correct the invoice. The refund's opener files it, so a Resume
 // pressed by someone else replays the same claim instead of being refused; the
 // presser stands in only when the opener's account is gone.
-func (s *Store) allowRefunded(
+func (s *Store) fileRefundAllowance(
 	ctx context.Context, number string, returnID uuid.UUID, presser uuid.NullUUID,
 ) error {
 	if s.invoices == nil {
@@ -138,7 +138,7 @@ func (s *Store) allowRefunded(
 	defer cancel()
 	filing := invoice.WithFilingIdentity(ctx, openedBy.UUID, web.RequestID(ctx))
 	operationID := uuid.NewSHA1(returnID, []byte("allowance"))
-	if err := s.invoices.AllowCancellation(filing, number, operationID); err != nil {
+	if err := s.invoices.FileCancellationAllowance(filing, number, operationID); err != nil {
 		return fmt.Errorf("file the allowance of %s: %w", number, err)
 	}
 	return nil
@@ -175,7 +175,7 @@ func (s *Store) payAndCancel(
 	if !position.MoneySettled || position.EventOutstanding || position.PointsOutstanding {
 		return nil, ErrUnsettled
 	}
-	allowanceErr := s.allowRefunded(ctx, number, returnID, actor)
+	allowanceErr := s.fileRefundAllowance(ctx, number, returnID, actor)
 	sessions, err := s.finishRefundBeforeShipment(ctx, number, returnID, actor)
 	if err != nil {
 		return nil, errors.Join(err, allowanceErr)

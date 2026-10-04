@@ -3564,6 +3564,58 @@ func TestAMarkedAllowanceIsNeverResentWhileItsLinkMayLive(t *testing.T) {
 	}
 }
 
+// TestAnAllowanceReplyNamingAnotherInvoiceNeedsAPerson: ECPay accepting a
+// request yet naming another invoice says nothing about this one, so the
+// operation stops for staff instead of waiting for a buyer, and nothing is
+// sent again.
+func TestAnAllowanceReplyNamingAnotherInvoiceNeedsAPerson(t *testing.T) {
+	ctx := t.Context()
+	var mu sync.Mutex
+	sends := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/B2CInvoice/GetAllowanceList":
+			replyNoAllowances(t, w)
+		case "/B2CInvoice/AllowanceByCollegiate":
+			_ = openAllowanceRequest(t, r)
+			mu.Lock()
+			sends++
+			mu.Unlock()
+			replyAllowanceRequested(t, w, "ZZ12345678", "2026100409000099")
+		default:
+			t.Errorf("unexpected provider path %s", r.URL.Path)
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+	}))
+	defer srv.Close()
+	g, err := NewGateway(testMerchantID, testHashKey, testHashIV, srv.URL)
+	if err != nil {
+		t.Fatalf("gateway: %v", err)
+	}
+	store := NewStore(pool, g)
+	number := invoicedOrderWithRefund(t, 50000)
+	operationID := uuid.New()
+	if _, err := store.FileAllowance(filingTestContext(t, ctx), number, operationID); errors.Is(err, ErrAwaitingBuyer) {
+		t.Fatalf("a reply naming another invoice was taken as the buyer being e-mailed: %v", err)
+	}
+	_, _ = passAgain(t, store, ctx, operationID)
+
+	var status, category string
+	var sent int
+	if err := pool.QueryRow(ctx, `
+		SELECT status, coalesce(last_error, ''), send_attempts FROM invoice_operations WHERE id = $1`,
+		operationID).Scan(&status, &category, &sent); err != nil {
+		t.Fatalf("read the allowance: %v", err)
+	}
+	mu.Lock()
+	providerSends := sends
+	mu.Unlock()
+	if status != "attention" || category != "allowance_success_mismatch" || sent != 1 || providerSends != 1 {
+		t.Errorf("allowance = %s/%s after %d sends (%d at ECPay), want attention/allowance_success_mismatch after one",
+			status, category, sent, providerSends)
+	}
+}
+
 // TestALapsedOnlineAllowanceIsResentOnce: staff may ask a buyer who let the
 // consent link lapse once more, through the same audited door, and only once.
 // ECPay refusing the resend because the lapsed request still holds the amount

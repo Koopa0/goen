@@ -72,11 +72,11 @@ func (s *Store) CorrectForCancellation(ctx context.Context, orderNumber string) 
 	return err
 }
 
-// AllowCancellation asks the buyer to agree to an allowance for what a
+// FileCancellationAllowance asks the buyer to agree to an allowance for what a
 // cancellation refunded, under the filing identity on ctx, when the invoice is
 // still live after the refund has settled and a void can no longer correct it.
 // operationID comes from the refund, so pressing again replays the same claim.
-func (s *Store) AllowCancellation(ctx context.Context, orderNumber string, operationID uuid.UUID) error {
+func (s *Store) FileCancellationAllowance(ctx context.Context, orderNumber string, operationID uuid.UUID) error {
 	if !s.Enabled() {
 		return nil
 	}

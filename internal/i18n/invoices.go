@@ -16,8 +16,6 @@ var (
 			"instead when the invoice should not exist at all.",
 	})
 
-	// The endpoint goen calls is ECPay's paper-allowance one; goen records the
-	// allowance as filed and has no step that collects the buyer's agreement.
 	KeyAdminQueueAllowanceOnline = key("admin.queue.allowance.online", Message{
 		ZhHant: "綠界會以 Email 請顧客確認這筆折讓，顧客在 72 小時內點選同意後才成立；綠界記錄這次同意，goen 也保存一份。",
 		En: "ECPay e-mails the customer to agree to this credit note, which takes effect only if they " +
