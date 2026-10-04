@@ -163,14 +163,13 @@ func (s *Store) Coupons(ctx context.Context, after ...string) (admin.CouponsView
 	view := admin.CouponsView{Bound: bound}
 	for i := range rows {
 		r := &rows[i]
-		kind := coupon.Kind(r.Kind)
-		kindText, ok := kindLabel(ctx, kind)
+		kind, ok := coupon.Parse(r.Kind)
 		if !ok {
 			return admin.CouponsView{}, fmt.Errorf("read coupons: coupon %s has unknown kind %q", r.Code, r.Kind)
 		}
 		view.Rows = append(view.Rows, admin.Coupon{
 			Code: r.Code, Description: r.Description, Kind: kind,
-			KindText:    kindText,
+			KindText:    kindLabel(ctx, kind),
 			AmountCents: r.AmountCents.Int64,
 			PercentBP:   r.PercentBp.Int32,
 			CapCents:    r.MaxDiscountCents.Int64,
@@ -248,15 +247,14 @@ func (s *Store) SetCouponActive(ctx context.Context, code string, active bool) e
 	return nil
 }
 
-func kindLabel(ctx context.Context, kind coupon.Kind) (string, bool) {
+func kindLabel(ctx context.Context, kind coupon.Kind) string {
 	switch kind {
 	case coupon.Amount:
-		return i18n.T(ctx, i18n.KeyCouponKindAmount), true
+		return i18n.T(ctx, i18n.KeyCouponKindAmount)
 	case coupon.Percent:
-		return i18n.T(ctx, i18n.KeyCouponKindPercent), true
+		return i18n.T(ctx, i18n.KeyCouponKindPercent)
 	case coupon.FreeShipping:
-		return i18n.T(ctx, i18n.KeyCouponKindShipping), true
-	default:
-		return "", false
+		return i18n.T(ctx, i18n.KeyCouponKindShipping)
 	}
+	return ""
 }

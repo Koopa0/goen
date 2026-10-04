@@ -116,11 +116,16 @@ func couponByCode(ctx context.Context, q *db.Queries, code string) (*Coupon, err
 		return nil, ErrCouponExpired
 	}
 
+	kind, ok := coupon.Parse(row.Kind)
+	if !ok {
+		return nil, fmt.Errorf("%w: coupon %s has unknown kind %q", ErrNoSuchCoupon, row.Code, row.Kind)
+	}
+
 	return &Coupon{
 		id:           row.ID,
 		code:         row.Code,
 		description:  row.Description,
-		kind:         coupon.Kind(row.Kind),
+		kind:         kind,
 		amountCents:  row.AmountCents.Int64,
 		percentBP:    row.PercentBp.Int32,
 		capCents:     row.MaxDiscountCents.Int64,
