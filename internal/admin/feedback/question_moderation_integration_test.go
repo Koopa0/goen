@@ -168,9 +168,10 @@ func TestHiddenQuestionQueuePagesEveryQuestionNewestFirst(t *testing.T) {
 	p := admintest.Pool(t)
 	ctx := t.Context()
 	const total = web.PageSize + 3
-	if _, err := p.Exec(ctx, `INSERT INTO product_questions(product_id, body, hidden_at)
- SELECT (SELECT id FROM products ORDER BY id LIMIT 1), 'Hidden fixture ' || n,
-        timestamptz '2028-01-01 00:00:00+08' + n * interval '1 minute'
+	if _, err := p.Exec(ctx, `INSERT INTO product_questions(id, product_id, body, hidden_at)
+ SELECT ('99990000-0000-4000-8000-' || lpad(to_hex(n), 12, '0'))::uuid,
+        (SELECT id FROM products ORDER BY id LIMIT 1), 'Hidden fixture ' || n,
+        timestamptz '2028-01-01 00:00:00+08' + ((n + 1) / 2) * interval '1 minute'
  FROM generate_series(1, $1::integer) AS n`, total); err != nil {
 		t.Fatal(err)
 	}
