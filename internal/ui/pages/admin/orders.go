@@ -10,6 +10,7 @@ import (
 
 	"github.com/koopa0/goen/internal/carrier"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/inventory"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/order"
@@ -584,7 +585,7 @@ func (v Variant) AdjustKey() string {
 type Movement struct {
 	At          string
 	Delta       int32
-	Reason      string
+	Reason      inventory.MovementReason
 	OrderNumber string
 	Actor       string
 	Running     int32
@@ -612,20 +613,20 @@ func (m Movement) By(ctx context.Context) string {
 
 func (m Movement) ReasonText(ctx context.Context) string {
 	switch m.Reason {
-	case "receipt":
+	case inventory.ReasonReceipt:
 		return i18n.T(ctx, i18n.KeyAdminMoveReceipt)
-	case "hold":
+	case inventory.ReasonHold:
 		return i18n.T(ctx, i18n.KeyAdminMoveHold)
-	case "sale":
+	case inventory.ReasonSale:
 		return i18n.T(ctx, i18n.KeyAdminMoveSale)
-	case "release":
+	case inventory.ReasonRelease:
 		return i18n.T(ctx, i18n.KeyAdminMoveRelease)
-	case "return":
+	case inventory.ReasonReturn:
 		return i18n.T(ctx, i18n.KeyAdminMoveReturn)
-	case "adjustment":
+	case inventory.ReasonAdjustment:
 		return i18n.T(ctx, i18n.KeyAdminMoveAdjustment)
 	default:
-		panic("pages: no label for inventory movement reason " + m.Reason)
+		panic("pages: no label for inventory movement reason " + string(m.Reason))
 	}
 }
 
