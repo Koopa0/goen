@@ -1,6 +1,6 @@
 //go:build integration
 
-package admin_test
+package orders_test
 
 import (
 	"errors"
@@ -13,8 +13,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/admin/admintest"
+	"github.com/koopa0/goen/internal/admin/orders"
 	"github.com/koopa0/goen/internal/carrier"
 	"github.com/koopa0/goen/internal/i18n"
 )
@@ -22,8 +22,8 @@ import (
 // The dispatch form lists what the order can use and selects what it implies:
 // a store order's chain carries it, and a home delivery names no carrier code.
 func TestTheOrderPageCarriesTheCarriersTheDispatchFormOffers(t *testing.T) {
-	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, admintest.Refunder{}, nil, nil)
+	ctx, _ := admintest.StaffContext(t, pool)
+	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
 
 	store, err := s.Order(ctx, pickupOrderForCorrection(t))
 	if err != nil {
@@ -34,7 +34,7 @@ func TestTheOrderPageCarriesTheCarriersTheDispatchFormOffers(t *testing.T) {
 		t.Errorf("a family_mart order lists %v with %q chosen, want only %v chosen", store.ShipCarriers, store.ShipCarrier, want)
 	}
 
-	home, err := s.Order(ctx, placeUnpaidOrder(t))
+	home, err := s.Order(ctx, admintest.PlaceUnpaidOrder(t, pool))
 	if err != nil {
 		t.Fatalf("read home order: %v", err)
 	}
@@ -59,26 +59,26 @@ func shipmentCount(t *testing.T, number string) int {
 // with a store chain's carrier, nor a store order with a home carrier, whatever
 // a crafted post names.
 func TestADispatchWithACarrierTheOrderCannotUseIsRefused(t *testing.T) {
-	ctx, staff := staffContext(t)
-	s := admin.NewStore(pool, admintest.Refunder{}, nil, nil)
+	ctx, staff := admintest.StaffContext(t, pool)
+	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
 
 	home := shippableOrder(t, "zh-Hant")
-	err := s.Ship(ctx, home, admin.Dispatch{Carrier: "seven_eleven", Tracking: "WRONG-" + home}, actor)
-	if !errors.Is(err, admin.ErrCarrier) {
+	err := s.Ship(ctx, home, orders.Dispatch{Carrier: "seven_eleven", Tracking: "WRONG-" + home}, actor)
+	if !errors.Is(err, orders.ErrCarrier) {
 		t.Fatalf("a home delivery sent by a store carrier answered %v, want ErrCarrier", err)
 	}
 	if n := shipmentCount(t, home); n != 0 {
 		t.Fatalf("the refused dispatch left %d shipments", n)
 	}
 
-	h := adminHandlerOver(s)
+	h := admintest.OrderDesk(s)
 	form := url.Values{"carrier": {"seven_eleven"}, "tracking": {"WRONG-" + home}}
 	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/orders/"+home+"/ship", strings.NewReader(form.Encode()))
 	req.SetPathValue("number", home)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	w := httptest.NewRecorder()
-	backOffice.RequireStaff(h.Ship)(w, req)
+	admintest.BackOffice.RequireStaff(h.Ship)(w, req)
 	if w.Code != http.StatusUnprocessableEntity {
 		t.Fatalf("the refused dispatch answered %d, want 422", w.Code)
 	}
@@ -87,15 +87,15 @@ func TestADispatchWithACarrierTheOrderCannotUseIsRefused(t *testing.T) {
 		t.Error("the refusal is not shown under the carrier list")
 	}
 
-	if err := s.Ship(ctx, home, admin.Dispatch{Carrier: "black_cat", Tracking: "RIGHT-" + home}, actor); err != nil {
+	if err := s.Ship(ctx, home, orders.Dispatch{Carrier: "black_cat", Tracking: "RIGHT-" + home}, actor); err != nil {
 		t.Fatalf("a home delivery sent by a home carrier: %v", err)
 	}
 
 	store := shippableOrderFor(t, "zh-Hant", true)
-	if shipErr := s.Ship(ctx, store, admin.Dispatch{Carrier: "black_cat", Tracking: "WRONG-" + store}, actor); !errors.Is(shipErr, admin.ErrCarrier) {
+	if shipErr := s.Ship(ctx, store, orders.Dispatch{Carrier: "black_cat", Tracking: "WRONG-" + store}, actor); !errors.Is(shipErr, orders.ErrCarrier) {
 		t.Fatalf("a store order sent by a home carrier answered %v, want ErrCarrier", shipErr)
 	}
-	if shipErr := s.Ship(ctx, store, admin.Dispatch{Carrier: "family_mart", Tracking: "RIGHT-" + store}, actor); shipErr != nil {
+	if shipErr := s.Ship(ctx, store, orders.Dispatch{Carrier: "family_mart", Tracking: "RIGHT-" + store}, actor); shipErr != nil {
 		t.Fatalf("a store order sent by a store carrier: %v", shipErr)
 	}
 }

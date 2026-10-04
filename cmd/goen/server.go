@@ -15,7 +15,6 @@ import (
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/account"
-	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/admin/campaigns"
@@ -26,6 +25,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/health"
 	"github.com/koopa0/goen/internal/admin/invoicing"
 	"github.com/koopa0/goen/internal/admin/loyalty"
+	"github.com/koopa0/goen/internal/admin/orders"
 	"github.com/koopa0/goen/internal/admin/products"
 	"github.com/koopa0/goen/internal/admin/refunds"
 	"github.com/koopa0/goen/internal/admin/reports"
@@ -207,19 +207,17 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 		invoiceWriter = invoices
 	}
 	adminImages := media.NewHandler(media.NewStore(adminPool), log)
-	back := admin.NewHandler(admin.HandlerDeps{
-		Store:    admin.NewStore(adminPool, refunder, invoiceReader, invoiceWriter),
-		Log:      log,
-		Sessions: sessionCloser(gateway),
-	})
+	stockroom := stock.NewStore(adminPool)
+	payouts := refunds.NewStore(adminPool, refunder)
+	invoicingStore := invoicing.NewStore(adminPool, invoiceReader, invoiceWriter)
+	orderDesk := orders.NewHandler(orders.NewStore(adminPool, payouts, invoicingStore, stockroom), sessionCloser(gateway), log)
 	trail := audit.NewHandler(audit.NewStore(adminPool), log)
 	figures := reports.NewHandler(reports.NewStore(adminPool), log)
-	warehouse := stock.NewHandler(stock.NewStore(adminPool), log)
+	warehouse := stock.NewHandler(stockroom, log)
 	catalogueDesk := products.NewHandler(products.NewStore(adminPool), adminImages, log)
-	payouts := refunds.NewStore(adminPool, refunder)
 	refundDesk := refunds.NewHandler(payouts, sessionCloser(gateway), log)
 	returnDesk := returndesk.NewHandler(returndesk.NewStore(adminPool, payouts), log)
-	invoiceDesk := invoicing.NewHandler(invoicing.NewStore(adminPool, invoiceReader, invoiceWriter), log)
+	invoiceDesk := invoicing.NewHandler(invoicingStore, log)
 	delivery := shipping.NewHandler(shipping.NewStore(adminPool), cfg.StoreMap, log)
 	brands := taxonomy.NewHandler(taxonomy.NewStore(adminPool), adminImages, log)
 	shopfront := content.NewHandler(content.NewStore(adminPool), adminImages, newsletter.NewStore(adminPool), log)
@@ -371,7 +369,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	// The back office. A signed-in customer gets a 404 rather than a 403, which
 	// would confirm that /admin is a real place.
 	backOffice := access.New(log, stepUp)
-	back.Routes(mux, backOffice)
+	orderDesk.Routes(mux, backOffice)
 	trail.Routes(mux, backOffice)
 	figures.Routes(mux, backOffice)
 	workers.Routes(mux, backOffice)

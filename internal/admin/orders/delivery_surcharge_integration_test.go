@@ -1,6 +1,6 @@
 //go:build integration
 
-package admin_test
+package orders_test
 
 import (
 	"context"
@@ -16,8 +16,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/admin/admintest"
+	"github.com/koopa0/goen/internal/admin/orders"
 	"github.com/koopa0/goen/internal/i18n"
 )
 
@@ -111,8 +111,8 @@ func pricedDeliveryOrder(t *testing.T, oldRate, newRate, chargedShipping int64) 
 	return f
 }
 
-func proposedDelivery(postal string) *admin.Delivery {
-	return &admin.Delivery{Email: "proposed@example.com", Recipient: "Proposed recipient", Phone: "0922333444", PostalCode: postal, City: "New city", District: "New district", Street: "Proposed street"}
+func proposedDelivery(postal string) *orders.Delivery {
+	return &orders.Delivery{Email: "proposed@example.com", Recipient: "Proposed recipient", Phone: "0922333444", PostalCode: postal, City: "New city", District: "New district", Street: "Proposed street"}
 }
 
 func deliveryMoneySnapshot(t *testing.T, id uuid.UUID) string {
@@ -127,7 +127,7 @@ func deliveryMoneySnapshot(t *testing.T, id uuid.UUID) string {
 
 func zoneRefusal(t *testing.T, err error, want i18n.Key) {
 	t.Helper()
-	refused, ok := errors.AsType[*admin.DeliveryPostalError](err)
+	refused, ok := errors.AsType[*orders.DeliveryPostalError](err)
 	if !ok || refused.Key != want {
 		t.Fatalf("correction error=%v, want a postcode refusal %q", err, want)
 	}
@@ -143,12 +143,12 @@ func TestDeliveryCorrectionRefusesEveryCrossZoneMove(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			f := pricedDeliveryOrder(t, tc.oldRate, tc.newRate, tc.oldRate)
-			ctx, actor := staffContext(t)
+			ctx, actor := admintest.StaffContext(t, pool)
 			if _, err := pool.Exec(ctx, `SELECT claim_invoice_issue($1,$2,$3)`, f.number, actor, "correction-"+uuid.NewString()); err != nil {
 				t.Fatal(err)
 			}
 			before := deliveryMoneySnapshot(t, f.id)
-			err := admin.NewStore(pool, admintest.Refunder{}, nil, nil).CorrectDelivery(ctx, f.number, proposedDelivery(f.newPostal))
+			err := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil).CorrectDelivery(ctx, f.number, proposedDelivery(f.newPostal))
 			zoneRefusal(t, err, i18n.KeyDeliveryZoneChanged)
 			if got := streetOf(t, f.number); got != "Saved street" {
 				t.Fatalf("refusal saved %q", got)
@@ -165,7 +165,7 @@ func TestDeliveryCorrectionRefusesEveryCrossZoneMove(t *testing.T) {
 func TestEditingASurchargeAfterTheOrderNeverOpensACrossZoneCorrection(t *testing.T) {
 	t.Run("island surcharge set to 0 after the order", func(t *testing.T) {
 		f := pricedDeliveryOrder(t, 10000, 0, 10000)
-		ctx, _ := staffContext(t)
+		ctx, _ := admintest.StaffContext(t, pool)
 		// The destination is the mainland: a postcode in no zone at all.
 		if _, err := pool.Exec(ctx, `DELETE FROM shipping_zone_prefixes WHERE prefix=$1`, f.newPostal); err != nil {
 			t.Fatal(err)
@@ -174,7 +174,7 @@ func TestEditingASurchargeAfterTheOrderNeverOpensACrossZoneCorrection(t *testing
 		if _, err := pool.Exec(ctx, `DELETE FROM shipping_version_zones WHERE version_id=$1`, f.version); err != nil {
 			t.Fatal(err)
 		}
-		err := admin.NewStore(pool, admintest.Refunder{}, nil, nil).CorrectDelivery(ctx, f.number, proposedDelivery(f.newPostal))
+		err := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil).CorrectDelivery(ctx, f.number, proposedDelivery(f.newPostal))
 		zoneRefusal(t, err, i18n.KeyDeliveryZoneChanged)
 		if got := streetOf(t, f.number); got != "Saved street" {
 			t.Fatalf("refusal saved %q", got)
@@ -182,11 +182,11 @@ func TestEditingASurchargeAfterTheOrderNeverOpensACrossZoneCorrection(t *testing
 	})
 	t.Run("surcharge raised after the order", func(t *testing.T) {
 		f := pricedDeliveryOrder(t, 0, 0, 0)
-		ctx, _ := staffContext(t)
+		ctx, _ := admintest.StaffContext(t, pool)
 		if _, err := pool.Exec(ctx, `INSERT INTO shipping_version_zones(version_id,zone_id,surcharge_cents) VALUES($1,$2,15000)`, f.version, f.oldZone); err != nil {
 			t.Fatal(err)
 		}
-		if err := admin.NewStore(pool, admintest.Refunder{}, nil, nil).CorrectDelivery(ctx, f.number, proposedDelivery(f.siblingP)); err != nil {
+		if err := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil).CorrectDelivery(ctx, f.number, proposedDelivery(f.siblingP)); err != nil {
 			t.Fatalf("same-zone correction refused after a rate edit: %v", err)
 		}
 	})
@@ -194,12 +194,12 @@ func TestEditingASurchargeAfterTheOrderNeverOpensACrossZoneCorrection(t *testing
 
 func TestSameZoneCorrectionRetainsFrozenPriceAfterMethodRetires(t *testing.T) {
 	f := pricedDeliveryOrder(t, 10000, 10000, 0)
-	ctx, _ := staffContext(t)
+	ctx, _ := admintest.StaffContext(t, pool)
 	if _, err := pool.Exec(ctx, `UPDATE shipping_methods SET is_active=false WHERE id=$1`, f.method); err != nil {
 		t.Fatal(err)
 	}
 	before := deliveryMoneySnapshot(t, f.id)
-	s := admin.NewStore(pool, admintest.Refunder{}, nil, nil)
+	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
 	for _, postal := range []string{f.oldPostal, f.siblingP, f.siblingP + "123"} {
 		if err := s.CorrectDelivery(ctx, f.number, proposedDelivery(postal)); err != nil {
 			t.Fatal(err)
@@ -215,13 +215,13 @@ func TestSameZoneCorrectionRetainsFrozenPriceAfterMethodRetires(t *testing.T) {
 
 func TestDeliveryCorrectionCannotPlaceAnAbsentOriginalPostcode(t *testing.T) {
 	f := pricedDeliveryOrder(t, 0, 10000, 0)
-	ctx, _ := staffContext(t)
+	ctx, _ := admintest.StaffContext(t, pool)
 	// Both destination groups are individually legal in storage. The method is
 	// still address delivery, so a missing original postcode is not the mainland.
 	if _, err := pool.Exec(ctx, `UPDATE order_private_data SET postal_code=NULL,city=NULL,district=NULL,street=NULL,pickup_chain='family_mart' WHERE order_id=$1`, f.id); err != nil {
 		t.Fatal(err)
 	}
-	err := admin.NewStore(pool, admintest.Refunder{}, nil, nil).CorrectDelivery(ctx, f.number, proposedDelivery(f.newPostal))
+	err := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil).CorrectDelivery(ctx, f.number, proposedDelivery(f.newPostal))
 	zoneRefusal(t, err, i18n.KeyDeliveryZoneUnknown)
 }
 
@@ -232,7 +232,7 @@ func postDeliveryCorrection(ctx context.Context, t *testing.T, number, postal st
 	r.SetPathValue("number", number)
 	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	w := httptest.NewRecorder()
-	adminHandlerOver(admin.NewStore(pool, admintest.Refunder{}, nil, nil)).CorrectDelivery(w, r)
+	admintest.OrderDesk(admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)).CorrectDelivery(w, r)
 	return w
 }
 
@@ -240,7 +240,7 @@ func TestDeliveryZoneRefusalPreservesFormInBothLanguages(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.En, i18n.ZhHant} {
 		t.Run(string(locale), func(t *testing.T) {
 			f := pricedDeliveryOrder(t, 10000, 10000, 10000)
-			ctx, _ := staffContext(t)
+			ctx, _ := admintest.StaffContext(t, pool)
 			ctx = i18n.WithLocale(ctx, locale)
 			w := postDeliveryCorrection(ctx, t, f.number, f.newPostal)
 			if w.Code != http.StatusUnprocessableEntity {
@@ -279,7 +279,7 @@ func TestDeliveryCorrectionRechecksTerminalStateAfterLock(t *testing.T) {
 	for _, state := range []string{"shipped"} {
 		t.Run(state, func(t *testing.T) {
 			f := pricedDeliveryOrder(t, 0, 0, 0)
-			ctx, _ := staffContext(t)
+			ctx, _ := admintest.StaffContext(t, pool)
 			blocker, err := pool.Begin(ctx)
 			if err != nil {
 				t.Fatal(err)
@@ -293,7 +293,7 @@ func TestDeliveryCorrectionRechecksTerminalStateAfterLock(t *testing.T) {
 			defer cancel()
 			done := make(chan error, 1)
 			go func() {
-				done <- admin.NewStore(pool, admintest.Refunder{}, nil, nil).CorrectDelivery(workerCtx, f.number, proposedDelivery(f.newPostal))
+				done <- admintest.OrderStore(pool, admintest.Refunder{}, nil, nil).CorrectDelivery(workerCtx, f.number, proposedDelivery(f.newPostal))
 			}()
 			waitForDeliveryLock(t, blocker.Conn().PgConn().PID())
 			if _, err = blocker.Exec(ctx, `UPDATE orders SET fulfillment_status=$2 WHERE id=$1`, f.id, state); err != nil {
@@ -302,7 +302,7 @@ func TestDeliveryCorrectionRechecksTerminalStateAfterLock(t *testing.T) {
 			if err = blocker.Commit(ctx); err != nil {
 				t.Fatal(err)
 			}
-			if err = <-done; !errors.Is(err, admin.ErrTooLateToCorrect) {
+			if err = <-done; !errors.Is(err, orders.ErrTooLateToCorrect) {
 				t.Fatalf("error=%v", err)
 			}
 			if got := streetOf(t, f.number); got != "Saved street" {
@@ -314,7 +314,7 @@ func TestDeliveryCorrectionRechecksTerminalStateAfterLock(t *testing.T) {
 
 func TestDeliveryCorrectionReadsPostalAfterWaitingForPriorCorrection(t *testing.T) {
 	f := pricedDeliveryOrder(t, 0, 10000, 0)
-	ctx, _ := staffContext(t)
+	ctx, _ := admintest.StaffContext(t, pool)
 	blocker, err := pool.Begin(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -328,7 +328,7 @@ func TestDeliveryCorrectionReadsPostalAfterWaitingForPriorCorrection(t *testing.
 	defer cancel()
 	done := make(chan error, 1)
 	go func() {
-		done <- admin.NewStore(pool, admintest.Refunder{}, nil, nil).CorrectDelivery(workerCtx, f.number, proposedDelivery(f.newPostal+"123"))
+		done <- admintest.OrderStore(pool, admintest.Refunder{}, nil, nil).CorrectDelivery(workerCtx, f.number, proposedDelivery(f.newPostal+"123"))
 	}()
 	waitForDeliveryLock(t, blocker.Conn().PgConn().PID())
 	if _, err = blocker.Exec(ctx, `UPDATE order_private_data SET postal_code=$2 WHERE order_id=$1`, f.id, f.newPostal); err != nil {
@@ -344,7 +344,7 @@ func TestDeliveryCorrectionReadsPostalAfterWaitingForPriorCorrection(t *testing.
 
 func TestMalformedDeliveryPostcodeIsAPostcodeError(t *testing.T) {
 	f := pricedDeliveryOrder(t, 0, 10000, 0)
-	ctx, _ := staffContext(t)
+	ctx, _ := admintest.StaffContext(t, pool)
 	ctx = i18n.WithLocale(ctx, i18n.En)
 	w := postDeliveryCorrection(ctx, t, f.number, "12a")
 	if w.Code != http.StatusUnprocessableEntity {

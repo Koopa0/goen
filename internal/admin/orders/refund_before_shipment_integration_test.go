@@ -1,6 +1,6 @@
 //go:build integration
 
-package admin_test
+package orders_test
 
 import (
 	"context"
@@ -17,8 +17,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/admin/admintest"
+	"github.com/koopa0/goen/internal/admin/orders"
 	"github.com/koopa0/goen/internal/admin/refunds"
 	"github.com/koopa0/goen/internal/admin/refundstate"
 	"github.com/koopa0/goen/internal/i18n"
@@ -26,23 +26,23 @@ import (
 )
 
 func TestPaidOrderCannotBeCancelledDirectly(t *testing.T) {
-	ctx, _ := staffContext(t)
+	ctx, _ := admintest.StaffContext(t, pool)
 	refunder := admintest.Refunder{}
-	s := admin.NewStore(pool, refunder, nil, nil)
+	s := admintest.OrderStore(pool, refunder, nil, nil)
 	refund := refunds.NewStore(pool, refunder)
-	h := adminHandlerOver(s)
+	h := admintest.OrderDesk(s)
 
 	for _, picking := range []bool{false, true} {
 		t.Run(fmt.Sprintf("picking=%t", picking), func(t *testing.T) {
 			number, orderID, _ := admintest.PaidUnshippedOrder(t, pool, 500000, 0, picking)
 
 			_, err := s.Advance(ctx, number, pages.FulfillmentCancelled, uuid.NullUUID{})
-			if constraintFrom(err) != "orders_paid_cancel_needs_refund" {
+			if admintest.ConstraintName(err) != "orders_paid_cancel_needs_refund" {
 				t.Fatalf("Advance cancelled a paid order: %v", err)
 			}
-			err = asAdmin(ctx, t, `UPDATE orders SET fulfillment_status = 'cancelled', cancelled_at = now()
+			err = admintest.AsAdmin(ctx, t, pool, `UPDATE orders SET fulfillment_status = 'cancelled', cancelled_at = now()
 			                       WHERE order_number = '`+number+`'`)
-			if constraintFrom(err) != "orders_paid_cancel_needs_refund" {
+			if admintest.ConstraintName(err) != "orders_paid_cancel_needs_refund" {
 				t.Fatalf("the admin role cancelled a paid order directly: %v", err)
 			}
 
@@ -52,7 +52,7 @@ func TestPaidOrderCannotBeCancelledDirectly(t *testing.T) {
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			req.SetPathValue("number", number)
 			rec := httptest.NewRecorder()
-			h.AdvanceOrder(rec, req)
+			h.Advance(rec, req)
 			if rec.Code != http.StatusSeeOther ||
 				rec.Header().Get("Location") != "/admin/orders/"+number+"?paidcancel=1" {
 				t.Fatalf("paid cancel = %d %s, want the refund notice", rec.Code, rec.Header().Get("Location"))
@@ -77,7 +77,7 @@ func TestPaidOrderCannotBeCancelledDirectly(t *testing.T) {
 	}
 
 	t.Run("unpaid cancel is unchanged", func(t *testing.T) {
-		number, orderID, _ := pendingOrderHoldingStock(t)
+		number, orderID, _ := admintest.PendingOrderHoldingStock(t, pool)
 		view, err := s.Order(ctx, number)
 		if err != nil {
 			t.Fatalf("read order: %v", err)
@@ -102,7 +102,7 @@ func TestPaidOrderCannotBeCancelledDirectly(t *testing.T) {
 			VALUES ($1, 'invoice', $2, 500000)`, orderID, uuid.NewString()[:32]); err != nil {
 			t.Fatalf("issue invoice: %v", err)
 		}
-		if _, err := refund.RefundBeforeShipment(ctx, number, "顧客取消"); constraintFrom(err) != "orders_cancel_invoice_resolved" {
+		if _, err := refund.RefundBeforeShipment(ctx, number, "顧客取消"); admintest.ConstraintName(err) != "orders_cancel_invoice_resolved" {
 			t.Fatalf("refund with a live invoice = %v", err)
 		}
 		if _, err := pool.Exec(ctx, `
@@ -110,7 +110,7 @@ func TestPaidOrderCannotBeCancelledDirectly(t *testing.T) {
 			WHERE order_id = $1`, orderID); err != nil {
 			t.Fatalf("void invoice: %v", err)
 		}
-		if _, err := s.Advance(ctx, number, pages.FulfillmentCancelled, uuid.NullUUID{}); !errors.Is(err, admin.ErrPaidCancel) {
+		if _, err := s.Advance(ctx, number, pages.FulfillmentCancelled, uuid.NullUUID{}); !errors.Is(err, orders.ErrPaidCancel) {
 			t.Fatalf("status form cancelled a refunded order: %v", err)
 		}
 		if got := admintest.FulfillmentOf(t, pool, orderID); got != "picking" {
@@ -128,8 +128,8 @@ func TestPaidOrderCannotBeCancelledDirectly(t *testing.T) {
 // A pending order store credit paid in full is not committed in the database,
 // yet cancelling it by status would return the credit with no confirmation.
 func TestAPendingOrderPaidWholeWithCreditIsNotCancelledByStatus(t *testing.T) {
-	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, admintest.Refunder{}, nil, nil)
+	ctx, _ := admintest.StaffContext(t, pool)
+	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
 	number, orderID, _ := admintest.PaidUnshippedOrder(t, pool, 0, 500000, false)
 
 	view, err := s.Order(ctx, number)
@@ -151,7 +151,7 @@ func TestAPendingOrderPaidWholeWithCreditIsNotCancelledByStatus(t *testing.T) {
 		}
 	}
 
-	if _, err := s.Advance(ctx, number, pages.FulfillmentCancelled, uuid.NullUUID{}); !errors.Is(err, admin.ErrPaidCancel) {
+	if _, err := s.Advance(ctx, number, pages.FulfillmentCancelled, uuid.NullUUID{}); !errors.Is(err, orders.ErrPaidCancel) {
 		t.Fatalf("status cancel of a credit-funded order = %v, want ErrPaidCancel", err)
 	}
 	if got := admintest.FulfillmentOf(t, pool, orderID); got != "pending" {
@@ -160,7 +160,7 @@ func TestAPendingOrderPaidWholeWithCreditIsNotCancelledByStatus(t *testing.T) {
 }
 
 func TestRefundBeforeShipmentStaysOpenUntilRefundSettles(t *testing.T) {
-	ctx, staff := staffContext(t)
+	ctx, staff := admintest.StaffContext(t, pool)
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
 
 	for _, tc := range []struct {
@@ -174,7 +174,7 @@ func TestRefundBeforeShipmentStaysOpenUntilRefundSettles(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			number, orderID, _ := admintest.PaidUnshippedOrder(t, pool, 500000, 0, tc.picking)
-			s := admin.NewStore(pool, tc.first, nil, nil)
+			s := admintest.OrderStore(pool, tc.first, nil, nil)
 			refund := refunds.NewStore(pool, tc.first)
 			if _, err := refund.RefundBeforeShipment(ctx, number, "顧客取消"); !errors.Is(err, tc.want) {
 				t.Fatalf("first press = %v, want %v", err, tc.want)
@@ -184,13 +184,13 @@ func TestRefundBeforeShipmentStaysOpenUntilRefundSettles(t *testing.T) {
 			}
 
 			if tc.picking {
-				err := s.Ship(ctx, number, admin.Dispatch{Carrier: "black_cat", Tracking: "TW-BS-" + number}, actor)
-				if constraintFrom(err) != "orders_refunded_before_shipment" {
+				err := s.Ship(ctx, number, orders.Dispatch{Carrier: "black_cat", Tracking: "TW-BS-" + number}, actor)
+				if admintest.ConstraintName(err) != "orders_refunded_before_shipment" {
 					t.Fatalf("shipped an order being refunded: %v", err)
 				}
 			} else {
 				_, err := s.Advance(ctx, number, pages.FulfillmentPicking, actor)
-				if constraintFrom(err) != "orders_refunded_before_shipment" {
+				if admintest.ConstraintName(err) != "orders_refunded_before_shipment" {
 					t.Fatalf("picked an order being refunded: %v", err)
 				}
 			}
@@ -240,10 +240,10 @@ func waitBlockedBehind(t *testing.T, holder int, pattern string, done <-chan str
 // TestRefundBeforeShipmentAndDispatchSerialize holds the order lock both
 // writers take: whichever commits first, the other sees it.
 func TestRefundBeforeShipmentAndDispatchSerialize(t *testing.T) {
-	ctx, staff := staffContext(t)
+	ctx, staff := admintest.StaffContext(t, pool)
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
 	refunder := admintest.Refunder{}
-	s := admin.NewStore(pool, refunder, nil, nil)
+	s := admintest.OrderStore(pool, refunder, nil, nil)
 	refund := refunds.NewStore(pool, refunder)
 
 	for _, doorFirst := range []bool{true, false} {
@@ -276,7 +276,7 @@ func TestRefundBeforeShipmentAndDispatchSerialize(t *testing.T) {
 			go func() {
 				defer close(done)
 				if doorFirst {
-					result <- s.Ship(ctx, number, admin.Dispatch{Carrier: "black_cat", Tracking: "TW-SECOND-" + number}, actor)
+					result <- s.Ship(ctx, number, orders.Dispatch{Carrier: "black_cat", Tracking: "TW-SECOND-" + number}, actor)
 				} else {
 					_, refundErr := refund.RefundBeforeShipment(ctx, number, "顧客取消")
 					result <- refundErr
@@ -297,7 +297,7 @@ func TestRefundBeforeShipmentAndDispatchSerialize(t *testing.T) {
 			if doorFirst {
 				want = "orders_refunded_before_shipment"
 			}
-			if constraintFrom(second) != want {
+			if admintest.ConstraintName(second) != want {
 				t.Fatalf("second writer = %v, want %s", second, want)
 			}
 			var shipments, requests int
@@ -317,9 +317,9 @@ func TestRefundBeforeShipmentAndDispatchSerialize(t *testing.T) {
 // TestRefundBeforeShipmentNoticesNameTheNextStep follows each redirect to the
 // order page in both languages.
 func TestRefundBeforeShipmentNoticesNameTheNextStep(t *testing.T) {
-	ctx, _ := staffContext(t)
+	ctx, _ := admintest.StaffContext(t, pool)
 	refunder := admintest.Refunder{}
-	h := adminHandlerOver(admin.NewStore(pool, refunder, nil, nil))
+	h := admintest.OrderDesk(admintest.OrderStore(pool, refunder, nil, nil))
 	door := refunds.NewHandler(refunds.NewStore(pool, refunder), nil, slog.New(slog.DiscardHandler))
 	number, orderID, _ := admintest.PaidUnshippedOrder(t, pool, 300000, 0, true)
 	if _, err := pool.Exec(ctx, `

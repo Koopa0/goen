@@ -1,4 +1,4 @@
-package admin
+package orders
 
 import (
 	"os"
@@ -52,7 +52,7 @@ func TestEveryRedirectNoticeHasAMessage(t *testing.T) {
 		t.Fatalf("list the package: %v", err)
 	}
 	for _, feature := range []string{"refunds", "invoicing"} {
-		featureNames, globErr := filepath.Glob(filepath.Join(feature, "*.go"))
+		featureNames, globErr := filepath.Glob(filepath.Join("..", feature, "*.go"))
 		if globErr != nil || len(featureNames) == 0 {
 			t.Fatalf("list the %s package: %d files, %v", feature, len(featureNames), globErr)
 		}
@@ -64,7 +64,7 @@ func TestEveryRedirectNoticeHasAMessage(t *testing.T) {
 		if strings.HasSuffix(name, "_test.go") {
 			continue
 		}
-		src, readErr := os.ReadFile(name) //nolint:gosec // G304: this package's and its features' own source files
+		src, readErr := os.ReadFile(name) //nolint:gosec // G304: this package's and two sibling desks' own source files
 		if readErr != nil {
 			t.Fatalf("read %s: %v", name, readErr)
 		}
@@ -78,7 +78,7 @@ func TestEveryRedirectNoticeHasAMessage(t *testing.T) {
 
 	var missing []string
 	for name := range found {
-		if _, ok := adminNotices[name]; !ok {
+		if _, ok := notices[name]; !ok {
 			missing = append(missing, name)
 		}
 	}
@@ -92,7 +92,7 @@ func TestEveryRedirectNoticeHasAMessage(t *testing.T) {
 	// And the other direction: an entry naming a parameter no handler writes is
 	// a message nothing can show, which is how a list grows past its subject.
 	var orphaned []string
-	for name := range adminNotices {
+	for name := range notices {
 		if !found[name] {
 			orphaned = append(orphaned, name)
 		}
@@ -109,7 +109,7 @@ func TestEveryRedirectNoticeHasAMessage(t *testing.T) {
 // answered tiers, shipping, store credit, delivery correction and image reuse.
 func TestOnlyTheDispatchFormUsesTheCarrierAndTrackingNotice(t *testing.T) {
 	t.Parallel()
-	for name, key := range adminNotices {
+	for name, key := range notices {
 		if key == i18n.KeyAdminNoticeNeeds && name != "needs" {
 			t.Errorf("?%s=1 answers with the dispatch form's notice", name)
 		}

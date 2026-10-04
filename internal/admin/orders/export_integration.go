@@ -1,6 +1,6 @@
 //go:build integration
 
-package admin
+package orders
 
 import (
 	"context"

@@ -1,6 +1,6 @@
 //go:build integration
 
-package admin_test
+package orders_test
 
 import (
 	"net/http"
@@ -11,18 +11,18 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/admin/admintest"
+	"github.com/koopa0/goen/internal/admin/orders"
 	"github.com/koopa0/goen/internal/i18n"
 )
 
 func TestDispatchWithARecordedTrackingNumberIsRefusedOnTheField(t *testing.T) {
-	ctx, staff := staffContext(t)
-	s := admin.NewStore(pool, admintest.Refunder{}, nil, nil)
-	h := adminHandlerOver(s)
+	ctx, staff := admintest.StaffContext(t, pool)
+	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
+	h := admintest.OrderDesk(s)
 	first, second := shippableOrder(t, "zh-Hant"), shippableOrder(t, "zh-Hant")
 	tracking := "DUP-" + uuid.NewString()[:8]
-	if err := s.Ship(ctx, first, admin.Dispatch{Carrier: "black_cat", Tracking: tracking},
+	if err := s.Ship(ctx, first, orders.Dispatch{Carrier: "black_cat", Tracking: tracking},
 		uuid.NullUUID{UUID: staff, Valid: true}); err != nil {
 		t.Fatalf("first dispatch: %v", err)
 	}
@@ -32,7 +32,7 @@ func TestDispatchWithARecordedTrackingNumberIsRefusedOnTheField(t *testing.T) {
 	req.SetPathValue("number", second)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	w := httptest.NewRecorder()
-	backOffice.RequireStaff(h.Ship)(w, req)
+	admintest.BackOffice.RequireStaff(h.Ship)(w, req)
 
 	if w.Code != http.StatusUnprocessableEntity {
 		t.Fatalf("a reused tracking number answered %d, want 422", w.Code)
