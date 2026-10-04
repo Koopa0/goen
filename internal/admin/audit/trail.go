@@ -13,9 +13,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/admin/access"
-	"github.com/koopa0/goen/internal/admin/ordernumber"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
@@ -70,7 +70,7 @@ func (s *Store) Events(ctx context.Context, after ...string) (admin.AuditView, e
 
 func entryHref(subject, productSlug string) string {
 	switch {
-	case subject != "" && ordernumber.Valid(subject):
+	case subject != "" && order.ValidNumber(subject):
 		return "/admin/orders/" + subject
 	case productSlug != "":
 		return "/admin/products/" + productSlug

@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -643,7 +644,7 @@ templ Order(p layouts.Page, v *OrderView) {
 						<h2 class="goen-admin__optitle">{ i18n.T(ctx, i18n.KeyAdminQueueNextStatus) }</h2>
 						<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/orders/" + v.Number + "/status") }>
 							if v.StartsPicking() {
-								<input type="hidden" name="status" value={ string(pages.FulfillmentPicking) }/>
+								<input type="hidden" name="status" value={ string(order.FulfillmentPicking) }/>
 								@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Block: true}, "submit") {
 									{ i18n.T(ctx, i18n.KeyAdminQueueStartPicking) }
 								}

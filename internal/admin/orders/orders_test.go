@@ -1,6 +1,8 @@
 package orders
 
 import (
+	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -9,31 +11,38 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
-func TestParseStatusAcceptsOnlyTheFulfilmentLifecycle(t *testing.T) {
+func TestAdvanceKindAcceptsOnlyAMoveTheDeskMakes(t *testing.T) {
 	t.Parallel()
-	for _, status := range pages.FulfillmentStatuses {
-		if got := ParseStatus(string(status)); got != status {
-			t.Errorf("ParseStatus(%q) = %q, want the same status", status, got)
+	for _, status := range []order.FulfillmentStatus{order.FulfillmentPicking, order.FulfillmentDelivered, order.FulfillmentCompleted, order.FulfillmentCancelled} {
+		if kind, err := advanceKind(status); err != nil || kind != string(status) {
+			t.Errorf("advanceKind(%q) = (%q, %v), want its own event kind", status, kind, err)
 		}
 	}
-	for _, status := range []string{"", "all", "paid", "refunded", "PENDING", " pending "} {
-		if got := ParseStatus(status); got != "" {
-			t.Errorf("ParseStatus(%q) = %q, want all-status fallback", status, got)
+	for _, status := range []order.FulfillmentStatus{"", "all", "ready", "paid", "refunded", "PENDING", " pending ", order.FulfillmentPending, order.FulfillmentShipped} {
+		if kind, err := advanceKind(status); !errors.Is(err, ErrRefused) || kind != "" {
+			t.Errorf("advanceKind(%q) = (%q, %v), want ErrRefused", status, kind, err)
 		}
 	}
 }
 
-func TestEveryTransitionStaysInsideTheFulfilmentLifecycle(t *testing.T) {
+type noRefund struct{}
+
+func (noRefund) FillOrder(context.Context, *admin.OrderView, string) (bool, error) { return false, nil }
+
+func TestThePickingDeskDoesNotOfferShipped(t *testing.T) {
 	t.Parallel()
-	for _, current := range pages.FulfillmentStatuses {
-		for _, next := range NextStatuses(current) {
-			if !next.Known() {
-				t.Errorf("NextStatuses(%q) contains unknown state %q", current, next)
-			}
+	s := &Store{refunds: noRefund{}}
+	view := admin.OrderView{Status: order.FulfillmentPicking}
+	if err := s.fillRefundBeforeShipment(t.Context(), &view, "GO-260929-000001"); err != nil {
+		t.Fatal(err)
+	}
+	for _, next := range view.Next {
+		if next.Value == order.FulfillmentShipped {
+			t.Errorf("a picking order is offered %q: only Store.Ship dispatches", next.Value)
 		}
 	}
 }
@@ -127,9 +136,6 @@ func TestTheQueueFiltersAreTheirOwnClosedSet(t *testing.T) {
 		if got := ParseQueueFilter(in); got != admin.QueueAll {
 			t.Errorf("ParseQueueFilter(%q) = %q, want every order", in, got)
 		}
-	}
-	if got := ParseStatus("ready"); got != "" {
-		t.Errorf("ParseStatus(ready) = %q: a transition must not be able to name a queue filter", got)
 	}
 }
 

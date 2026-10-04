@@ -8,8 +8,8 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
+	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 func TestTheCouponFormSaysTheLimitIsPerMemberAccount(t *testing.T) {
@@ -30,7 +30,7 @@ func TestTheCouponFormSaysTheLimitIsPerMemberAccount(t *testing.T) {
 
 func TestOnlyAPickupOrderIsToldToCompleteAfterCollection(t *testing.T) {
 	t.Parallel()
-	next := []Transition{{Value: pages.FulfillmentCompleted, Label: "x"}}
+	next := []Transition{{Value: order.FulfillmentCompleted, Label: "x"}}
 	for _, loc := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), loc)
 		want := i18n.T(ctx, i18n.KeyAdminQueuePickupCompleteHint)

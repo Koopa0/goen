@@ -10,6 +10,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/money"
+	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/pickup"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -47,7 +48,7 @@ func (v Variant) Low() bool { return v.Stock <= v.Safety }
 
 type OrderRow struct {
 	Number     string
-	Status     pages.FulfillmentStatus
+	Status     order.FulfillmentStatus
 	StatusText string
 	PlacedAt   string
 	Recipient  string
@@ -58,7 +59,7 @@ type OrderRow struct {
 func (o OrderRow) Total() string { return money.TWD(o.TotalCents) }
 
 type Transition struct {
-	Value pages.FulfillmentStatus
+	Value order.FulfillmentStatus
 	Label string
 }
 
@@ -183,7 +184,7 @@ func (o OrderRow) RecipientText(ctx context.Context) string {
 
 type OrderView struct {
 	Number               string
-	Status               pages.FulfillmentStatus
+	Status               order.FulfillmentStatus
 	StatusText           string
 	PlacedAt             string
 	ShippingName         string
@@ -269,7 +270,7 @@ type Delivery struct {
 }
 
 type OrderEvent struct {
-	Kind  pages.OrderEventKind
+	Kind  order.EventKind
 	Note  string
 	At    string
 	Actor string
@@ -285,7 +286,7 @@ func (e OrderEvent) By(ctx context.Context) string {
 		return e.Actor
 	case e.System:
 		return i18n.T(ctx, i18n.KeyAdminActorSystem)
-	case e.Kind == pages.EventCancelled:
+	case e.Kind == order.EventCancelled:
 		return i18n.T(ctx, i18n.KeyAdminActorCustomer)
 	default:
 		return i18n.T(ctx, i18n.KeyAdminActorSystem)
@@ -353,7 +354,7 @@ func (v *OrderView) Discount() string {
 // paid order awaiting fulfilment. It is one action, so the page shows it as a
 // button and not as a menu with one entry.
 func (v *OrderView) StartsPicking() bool {
-	return len(v.Next) == 1 && v.Next[0].Value == pages.FulfillmentPicking
+	return len(v.Next) == 1 && v.Next[0].Value == order.FulfillmentPicking
 }
 
 func (v *OrderView) CanAdvance() bool { return len(v.Next) > 0 }
@@ -361,7 +362,7 @@ func (v *OrderView) CanAdvance() bool { return len(v.Next) > 0 }
 // NextIsDestructive reports that the first move offered is the cancellation, so
 // the menu must not preselect it.
 func (v *OrderView) NextIsDestructive() bool {
-	return len(v.Next) > 0 && v.Next[0].Value == pages.FulfillmentCancelled
+	return len(v.Next) > 0 && v.Next[0].Value == order.FulfillmentCancelled
 }
 
 // QtyValue is what a dispatch quantity field holds: what staff typed on a
@@ -376,7 +377,7 @@ func (v *OrderView) QtyValue(l *ShippableLine) string {
 // Final reports whether the order has ended. A paid order in picking has no
 // status move left either, and is not final: it ships or is refunded.
 func (v *OrderView) Final() bool {
-	return v.Status == pages.FulfillmentCompleted || v.Status == pages.FulfillmentCancelled
+	return v.Status == order.FulfillmentCompleted || v.Status == order.FulfillmentCancelled
 }
 
 func (v *OrderView) HasNotice() bool { return v.Notice != "" }
@@ -441,7 +442,7 @@ func (d InvoiceDocument) Voided() bool { return d.Status == invoice.DocumentVoid
 // store credit paid in full is not committed until it is picked, and its
 // invoice is owed all the same.
 func (v *OrderView) CanIssueInvoice() bool {
-	funded := v.Committed || (v.Status == pages.FulfillmentPending && !v.Unpaid)
+	funded := v.Committed || (v.Status == order.FulfillmentPending && !v.Unpaid)
 	if !v.InvoicingEnabled || !funded {
 		return false
 	}

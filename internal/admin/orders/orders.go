@@ -7,7 +7,6 @@ import (
 	"errors"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
@@ -51,31 +50,6 @@ func ParseQueueFilter(s string) admin.QueueFilter {
 		}
 	}
 	return admin.QueueAll
-}
-
-func ParseStatus(s string) pages.FulfillmentStatus {
-	status := pages.FulfillmentStatus(s)
-	if status.Known() {
-		return status
-	}
-	return ""
-}
-
-func NextStatuses(current pages.FulfillmentStatus) []pages.FulfillmentStatus {
-	switch current {
-	case pages.FulfillmentPending:
-		return []pages.FulfillmentStatus{pages.FulfillmentPicking, pages.FulfillmentCancelled}
-	case pages.FulfillmentPicking:
-		// 'shipped' is absent: [Store.Ship] is the only door, because a dispatch
-		// must also settle the stock the order holds.
-		return []pages.FulfillmentStatus{pages.FulfillmentCancelled}
-	case pages.FulfillmentShipped:
-		return []pages.FulfillmentStatus{pages.FulfillmentDelivered, pages.FulfillmentCompleted}
-	case pages.FulfillmentDelivered:
-		return []pages.FulfillmentStatus{pages.FulfillmentCompleted}
-	default:
-		return nil
-	}
 }
 
 // funded reports that money is behind the order: a card capture or its fulfilment

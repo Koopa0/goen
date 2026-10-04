@@ -15,9 +15,9 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/invoice"
+	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/ordernotice"
 	"github.com/koopa0/goen/internal/returns"
-	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
 )
@@ -26,10 +26,10 @@ import (
 // shipment, and whether one is open for Resume. open_refund_before_shipment
 // re-derives both under the order lock.
 func beforeShipmentRefundState(r *db.BeforeShipmentRefundRow) (offered, open bool) {
-	status := pages.FulfillmentStatus(r.FulfillmentStatus)
+	status := order.FulfillmentStatus(r.FulfillmentStatus)
 	open = r.ReturnRequestID.Valid && returns.Status(r.ReturnStatus) == returns.StatusApproved
 	offered = r.Committed && !r.Shipped && !r.HasReturn &&
-		(status == pages.FulfillmentPending || status == pages.FulfillmentPicking)
+		(status == order.FulfillmentPending || status == order.FulfillmentPicking)
 	return offered, open
 }
 
@@ -204,7 +204,7 @@ func (s *Store) finishRefundBeforeShipment(
 	}
 	// Cancelled is terminal and this transaction is the only one that cancels
 	// a refunded order, so an earlier press already finished everything below.
-	if pages.FulfillmentStatus(row.FulfillmentStatus) == pages.FulfillmentCancelled {
+	if order.FulfillmentStatus(row.FulfillmentStatus) == order.FulfillmentCancelled {
 		return nil, nil
 	}
 	if cancelErr := cancelRefundedOrder(ctx, q, number, returnID); cancelErr != nil {
@@ -225,7 +225,7 @@ func (s *Store) finishRefundBeforeShipment(
 
 func cancelRefundedOrder(ctx context.Context, q *db.Queries, number string, returnID uuid.UUID) error {
 	if err := q.AdvanceOrder(ctx, db.AdvanceOrderParams{
-		OrderNumber: number, Status: string(pages.FulfillmentCancelled),
+		OrderNumber: number, Status: string(order.FulfillmentCancelled),
 	}); err != nil {
 		return fmt.Errorf("%w: %w", refundstate.ErrRefused, err)
 	}
@@ -255,7 +255,7 @@ func recordStaffCancellation(
 	ctx context.Context, q *db.Queries, orderID uuid.UUID, number string, returnID uuid.UUID, actor uuid.NullUUID,
 ) error {
 	err := q.RecordOrderEvent(ctx, db.RecordOrderEventParams{
-		OrderID: orderID, Kind: string(pages.EventCancelled), ActorUserID: actor,
+		OrderID: orderID, Kind: string(order.EventCancelled), ActorUserID: actor,
 	})
 	if err != nil {
 		return fmt.Errorf("record order event: %w", err)
@@ -263,7 +263,7 @@ func recordStaffCancellation(
 	err = audit.In(ctx, q, audit.Event{
 		Action: audit.ActionAdvanceOrder, Table: "orders", ID: audit.EntityID(orderID),
 		After: map[string]any{
-			"number": number, "status": string(pages.FulfillmentCancelled),
+			"number": number, "status": string(order.FulfillmentCancelled),
 			"return_request_id": returnID.String(),
 		},
 	})

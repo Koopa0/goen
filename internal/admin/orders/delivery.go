@@ -14,8 +14,8 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/destination"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/pickup"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 var ErrTooLateToCorrect = errors.New("orders: this order has already shipped")
@@ -59,10 +59,10 @@ func (s *Store) CorrectDelivery(ctx context.Context, number string, d *Delivery)
 		if err != nil {
 			return fmt.Errorf("lock order delivery: %w", err)
 		}
-		switch pages.FulfillmentStatus(row.FulfillmentStatus) {
-		case pages.FulfillmentShipped, pages.FulfillmentDelivered, pages.FulfillmentCompleted:
+		switch order.FulfillmentStatus(row.FulfillmentStatus) {
+		case order.FulfillmentShipped, order.FulfillmentDelivered, order.FulfillmentCompleted:
 			return ErrTooLateToCorrect
-		case pages.FulfillmentPending, pages.FulfillmentPicking, pages.FulfillmentCancelled:
+		case order.FulfillmentPending, order.FulfillmentPicking, order.FulfillmentCancelled:
 			// Still correctable; UpdateOrderDelivery's WHERE clause is the authority.
 		}
 		to, ok := destination.For(row.DestinationKind)

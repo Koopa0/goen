@@ -20,6 +20,7 @@ import (
 	"github.com/koopa0/goen/internal/destination"
 	"github.com/koopa0/goen/internal/i18n"
 	invoicepkg "github.com/koopa0/goen/internal/invoice"
+	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/pickup"
 	"github.com/koopa0/goen/internal/shoptime"
@@ -496,7 +497,7 @@ func (s *Store) placeOrder(
 		return "", err
 	}
 
-	order, err := q.CreateOrder(ctx, db.CreateOrderParams{
+	placed, err := q.CreateOrder(ctx, db.CreateOrderParams{
 		UserID:             userID,
 		ShippingVersionID:  terms.ship.ID,
 		ShippingMethodCode: terms.ship.Code,
@@ -513,13 +514,13 @@ func (s *Store) placeOrder(
 	}
 
 	if err := writeOrderParts(ctx, q, &orderParts{
-		orderID:       order.ID,
+		orderID:       placed.ID,
 		lines:         terms.lines,
 		userID:        userID,
 		discountCents: terms.discount,
 		invoice:       inv,
 		coupon:        terms.coupon,
-		orderNumber:   order.OrderNumber,
+		orderNumber:   placed.OrderNumber,
 		address:       addr,
 		totalCents:    terms.gross,
 		creditCents:   terms.creditCents,
@@ -527,14 +528,14 @@ func (s *Store) placeOrder(
 		return "", err
 	}
 
-	if err := finishOrder(ctx, q, order.ID, cartID, addr, attemptID); err != nil {
+	if err := finishOrder(ctx, q, placed.ID, cartID, addr, attemptID); err != nil {
 		return "", err
 	}
 
 	if err := tx.Commit(ctx); err != nil {
 		return "", fmt.Errorf("commit checkout: %w", err)
 	}
-	return order.OrderNumber, nil
+	return placed.OrderNumber, nil
 }
 
 // checkoutTerms is the server-owned snapshot after every row it depends on is
@@ -980,7 +981,7 @@ func (s *Store) Order(ctx context.Context, number string) (pages.OrderView, erro
 
 	view := pages.OrderView{
 		Number:       o.OrderNumber,
-		Status:       pages.FulfillmentStatus(o.FulfillmentStatus),
+		Status:       order.FulfillmentStatus(o.FulfillmentStatus),
 		Email:        o.Email,
 		ShippingName: o.ShippingMethodName,
 		Committed:    o.Committed,
@@ -1010,7 +1011,7 @@ func (s *Store) Order(ctx context.Context, number string) (pages.OrderView, erro
 	}
 	for _, e := range events {
 		view.Timeline = append(view.Timeline, pages.OrderEvent{
-			Kind: pages.OrderEventKind(e.Kind), Note: e.Note,
+			Kind: order.EventKind(e.Kind), Note: e.Note,
 			At: shoptime.Minute(e.OccurredAt),
 		})
 	}

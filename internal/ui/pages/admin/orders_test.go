@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/pickup"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -135,10 +136,10 @@ func TestTheIssueButtonFollowsTheMoney(t *testing.T) {
 		view OrderView
 		want bool
 	}{
-		{name: "committed", view: OrderView{Status: pages.FulfillmentPicking, Committed: true}, want: true},
-		{name: "credit paid in full, pending", view: OrderView{Status: pages.FulfillmentPending}, want: true},
-		{name: "still owing", view: OrderView{Status: pages.FulfillmentPending, Unpaid: true}, want: false},
-		{name: "cancelled", view: OrderView{Status: pages.FulfillmentCancelled}, want: false},
+		{name: "committed", view: OrderView{Status: order.FulfillmentPicking, Committed: true}, want: true},
+		{name: "credit paid in full, pending", view: OrderView{Status: order.FulfillmentPending}, want: true},
+		{name: "still owing", view: OrderView{Status: order.FulfillmentPending, Unpaid: true}, want: false},
+		{name: "cancelled", view: OrderView{Status: order.FulfillmentCancelled}, want: false},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()

@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 func renderOrder(t *testing.T, locale i18n.Locale, v *OrderView) string {
@@ -23,8 +23,8 @@ func TestAPaidOrderAwaitingFulfilmentStartsPickingWithOneButton(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), locale)
 		v := &OrderView{
-			Number: "GO-1", Status: pages.FulfillmentPending, Committed: true,
-			Next: []Transition{{Value: pages.FulfillmentPicking, Label: "picking"}},
+			Number: "GO-1", Status: order.FulfillmentPending, Committed: true,
+			Next: []Transition{{Value: order.FulfillmentPicking, Label: "picking"}},
 		}
 		html := renderOrder(t, locale, v)
 		if !strings.Contains(html, i18n.T(ctx, i18n.KeyAdminQueueStartPicking)) {
@@ -44,11 +44,11 @@ func TestAPaidOrderAwaitingFulfilmentStartsPickingWithOneButton(t *testing.T) {
 	t.Run("other moves keep the menu", func(t *testing.T) {
 		t.Parallel()
 		for name, next := range map[string][]Transition{
-			"cancel only":    {{Value: pages.FulfillmentCancelled}},
-			"two moves":      {{Value: pages.FulfillmentPicking}, {Value: pages.FulfillmentCancelled}},
-			"deliver or end": {{Value: pages.FulfillmentDelivered}, {Value: pages.FulfillmentCompleted}},
+			"cancel only":    {{Value: order.FulfillmentCancelled}},
+			"two moves":      {{Value: order.FulfillmentPicking}, {Value: order.FulfillmentCancelled}},
+			"deliver or end": {{Value: order.FulfillmentDelivered}, {Value: order.FulfillmentCompleted}},
 		} {
-			html := renderOrder(t, i18n.En, &OrderView{Number: "GO-1", Status: pages.FulfillmentPending, Next: next})
+			html := renderOrder(t, i18n.En, &OrderView{Number: "GO-1", Status: order.FulfillmentPending, Next: next})
 			if !strings.Contains(html, `id="next-status"`) {
 				t.Errorf("%s: lost its status menu", name)
 			}
@@ -61,8 +61,8 @@ func TestAPaidOrderAwaitingFulfilmentStartsPickingWithOneButton(t *testing.T) {
 func TestAPaidOrderAwaitingFulfilmentOffersTheRefundBeforeShipment(t *testing.T) {
 	t.Parallel()
 	html := renderOrder(t, i18n.En, &OrderView{
-		Number: "GO-1", Status: pages.FulfillmentPending, Committed: true, RefundOffered: true,
-		Next: []Transition{{Value: pages.FulfillmentPicking}},
+		Number: "GO-1", Status: order.FulfillmentPending, Committed: true, RefundOffered: true,
+		Next: []Transition{{Value: order.FulfillmentPicking}},
 	})
 	if !strings.Contains(html, `action="/admin/orders/GO-1/refund"`) {
 		t.Fatal("a paid order awaiting fulfilment has no refund before shipment")
@@ -115,7 +115,7 @@ func TestTheReturnDecisionMarksTheNoteOnlyWhenItIsRequired(t *testing.T) {
 func TestTheInvoicePanelNamesNoSettingToStaff(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
-		html := renderOrder(t, locale, &OrderView{Number: "GO-1", Status: pages.FulfillmentPending})
+		html := renderOrder(t, locale, &OrderView{Number: "GO-1", Status: order.FulfillmentPending})
 		ctx := i18n.WithLocale(t.Context(), locale)
 		if !strings.Contains(html, i18n.T(ctx, i18n.KeyAdminQueueNoInvoicing)) {
 			t.Fatalf("%s: the panel does not say invoicing is off", locale)
@@ -130,7 +130,7 @@ func TestTheInvoicePanelNamesNoSettingToStaff(t *testing.T) {
 func TestACancelledOrderOffersNoDeliveryCorrection(t *testing.T) {
 	t.Parallel()
 	for _, correctable := range []bool{true, false} {
-		html := renderOrder(t, i18n.En, &OrderView{Number: "GO-1", Status: pages.FulfillmentCancelled, Correctable: correctable})
+		html := renderOrder(t, i18n.En, &OrderView{Number: "GO-1", Status: order.FulfillmentCancelled, Correctable: correctable})
 		if got := strings.Contains(html, `action="/admin/orders/GO-1/delivery"`); got != correctable {
 			t.Errorf("Correctable=%t but the delivery form is shown=%t", correctable, got)
 		}
