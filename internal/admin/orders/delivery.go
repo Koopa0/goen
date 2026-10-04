@@ -105,9 +105,9 @@ func validatedDelivery(d *Delivery, to destination.Kind) (*cart.Address, error) 
 	}
 	addr.Trim()
 	if errs := addr.Validate(); len(errs) > 0 {
-		for _, fieldErr := range errs {
-			if fieldErr.Field == "postal_code" {
-				return nil, &DeliveryPostalError{Key: fieldErr.MessageKey}
+		for _, refusal := range errs {
+			if refusal.Field == "postal_code" {
+				return nil, &DeliveryPostalError{Key: refusal.MessageKey}
 			}
 		}
 		return nil, fmt.Errorf("%w: %s (%s)", ErrInvalid, errs[0].Field, errs[0].MessageKey)
