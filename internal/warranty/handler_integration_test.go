@@ -24,7 +24,7 @@ func TestPostingTheRegistrationFormRegistersTheUnitAndReturnsToItsOrder(t *testi
 
 	form := url.Values{"line": {f.lineID.String()}, "unit": {"1"}, "serial": {"SN-HANDLER-0001"}}
 	req := httptest.NewRequestWithContext(
-		account.WithUser(t.Context(), account.User{ID: f.userID, Role: "customer"}),
+		account.WithUser(t.Context(), account.User{ID: f.userID, Role: account.RoleCustomer}),
 		http.MethodPost, "/account/warranty/"+f.number, strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.SetPathValue("number", f.number)

@@ -116,7 +116,7 @@ func TestTheDemoAccountIsRefusedEveryChangeThatWouldShutOutTheNextVisitor(t *tes
 				r := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/account",
 					strings.NewReader(form.Encode()))
 				r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-				r = r.WithContext(WithUser(r.Context(), User{ID: "00000000-0000-0000-0000-000000000001", Email: addr, Role: "customer"}))
+				r = r.WithContext(WithUser(r.Context(), User{ID: "00000000-0000-0000-0000-000000000001", Email: addr, Role: RoleCustomer}))
 				res := httptest.NewRecorder()
 				serve(res, r)
 				refused := res.Code == http.StatusSeeOther && res.Header().Get("Location") == "/account?demo=fixed"

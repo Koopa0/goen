@@ -71,7 +71,7 @@ func TestTheBackOfficeIsInvisibleToEveryoneButStaff(t *testing.T) {
 	}{
 		{name: "signed out"},
 		{name: "a signed-in customer", signedIn: true,
-			user: account.User{ID: customerID.String(), Role: "customer"}},
+			user: account.User{ID: customerID.String(), Role: account.RoleCustomer}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

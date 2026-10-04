@@ -144,7 +144,7 @@ func TestStaffNoteAuditFailureRollsBackTheNote(t *testing.T) {
 	if err := s.SetStaffNote(ctx, number, "keep this note"); err != nil {
 		t.Fatal(err)
 	}
-	badCtx := account.WithUser(t.Context(), account.User{ID: uuid.NewString(), Role: "admin"})
+	badCtx := account.WithUser(t.Context(), account.User{ID: uuid.NewString(), Role: account.RoleAdmin})
 	err := s.SetStaffNote(badCtx, number, "unrecordable replacement")
 	pgErr, ok := errors.AsType[*pgconn.PgError](err)
 	if !ok || pgErr.ConstraintName != "audit_events_actor_user_id_fkey" {

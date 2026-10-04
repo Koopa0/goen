@@ -33,7 +33,7 @@ func TestMain(m *testing.M) {
 
 // asActor is the context the access wrapper leaves for a signed-in admin.
 func asActor(ctx context.Context, id string) context.Context {
-	return account.WithUser(ctx, account.User{ID: id, Role: "admin"})
+	return account.WithUser(ctx, account.User{ID: id, Role: account.RoleAdmin})
 }
 
 // enrolFactor gives a user a confirmed second factor; these tests are about who

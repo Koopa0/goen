@@ -29,7 +29,7 @@ func TestEnrolmentQRMatchesTheOneTimeURI(t *testing.T) {
 			s := twofactor.NewStore(pool, testKey)
 			userID, email := admintest.AdminUser(t, pool)
 			h := twofactor.NewHandler(s, slog.New(slog.DiscardHandler), false)
-			ctx := account.WithUser(i18n.WithLocale(t.Context(), locale), account.User{ID: userID, Email: email, Role: "admin"})
+			ctx := account.WithUser(i18n.WithLocale(t.Context(), locale), account.User{ID: userID, Email: email, Role: account.RoleAdmin})
 			r := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/verify/enrol", strings.NewReader(""))
 			r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			r.Header.Set("Accept-Encoding", "gzip")
