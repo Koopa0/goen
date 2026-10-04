@@ -14,6 +14,7 @@ import (
 
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/orderaccess"
 )
 
 func TestReorderReportsAdjustedQuantities(t *testing.T) {
@@ -40,10 +41,10 @@ func TestReorderReportsAdjustedQuantities(t *testing.T) {
 				if err := s.Add(ctx, basket, live, scenario.existing); err != nil {
 					t.Fatal(err)
 				}
-				h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, testLimiter(), nil, nil)
+				h := cart.NewHandler(s, orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler), false, testLimiter(), nil, nil)
 				request := httptest.NewRequestWithContext(ctx, http.MethodPost, "/orders/"+number+"/reorder", http.NoBody)
 				request.SetPathValue("number", number)
-				request.AddCookie(placedCookie(t, s, number))
+				request.AddCookie(placedCookie(t, number))
 				cartCookie := &http.Cookie{Name: "goen_cart", Value: token} //nolint:gosec // G124: fixture browser cart cookie.
 				request.AddCookie(cartCookie)
 				result := httptest.NewRecorder()

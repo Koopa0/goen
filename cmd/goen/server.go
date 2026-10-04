@@ -37,6 +37,7 @@ import (
 	rewards "github.com/koopa0/goen/internal/loyalty"
 	"github.com/koopa0/goen/internal/media"
 	"github.com/koopa0/goen/internal/newsletter"
+	"github.com/koopa0/goen/internal/orderaccess"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/probe"
@@ -170,12 +171,13 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	if front.Invoices.Enabled() {
 		barcodeChecker = front.Invoices
 	}
+	orderAccess := orderaccess.NewStore(pool, secureCookies)
 	basketStore := cart.NewStore(pool)
-	basket := cart.NewHandler(basketStore, log, secureCookies, findLimit,
+	basket := cart.NewHandler(basketStore, orderAccess, log, secureCookies, findLimit,
 		sessionCloser(front.Payments), front.StoreMap, barcodeChecker)
 	customers := account.NewHandler(account.NewStore(pool), basket, log, secureCookies, front.Google)
 	customers.OfferDemoAccount(front.DemoAccount)
-	storefrontRoutes(mux, front, log, catalogue, sitePages, basket, customers, basketStore, findLimit)
+	storefrontRoutes(mux, front, log, catalogue, sitePages, basket, customers, orderAccess, findLimit)
 	backOfficeRoutes(mux, &cfg.BackOffice, log, poolsOnHealthPage(pool, adminPool, cfg.BackOffice.MaintenancePool))
 	mux.HandleFunc("GET /", sitePages.NotFound)
 
@@ -208,7 +210,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 // chain and the catch-all read them too.
 func storefrontRoutes(mux *http.ServeMux, cfg *StorefrontConfig, log *slog.Logger,
 	catalogue *catalog.Store, sitePages *site.Handler, basket *cart.Handler,
-	customers *account.Handler, basketStore *cart.Store, findLimit *ratelimit.Limiter) {
+	customers *account.Handler, orderAccess *orderaccess.Store, findLimit *ratelimit.Limiter) {
 	pool, gateway := cfg.StorePool, cfg.Payments
 	baseURL, secureCookies := cfg.BaseURL, cfg.SecureCookies
 	authLimit := ratelimit.New(ratelimit.Config{
@@ -250,9 +252,8 @@ func storefrontRoutes(mux *http.ServeMux, cfg *StorefrontConfig, log *slog.Logge
 	checkoutLimit := ratelimit.New(ratelimit.Config{
 		Every: 2 * time.Second, Burst: 30, TTL: time.Hour, MaxKeys: 65_536,
 	})
-	// basketStore answers the order-access question for all three packages.
-	till := payment.NewHandler(payment.NewStore(pool), gateway, basketStore, log, secureCookies)
-	sendbacks := returnpage.NewHandler(returnpage.NewStore(pool), basketStore, log, secureCookies)
+	till := payment.NewHandler(payment.NewStore(pool), gateway, orderAccess, log)
+	sendbacks := returnpage.NewHandler(returnpage.NewStore(pool), orderAccess, log)
 
 	mux.HandleFunc("GET /{$}", homePage.Index)
 	// The digest in the path is the only authorisation an image has, and it is

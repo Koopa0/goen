@@ -15516,7 +15516,7 @@ type TouchOrderAccessGrantsParams struct {
 // The cookie is RE-ISSUED with a fresh MaxAge on every order, carrying older
 // tokens forward, so their grants' retention clock restarts on the same event or
 // one dies under a live cookie. Scoped to the digests actually presented and
-// still inside GrantRetain: a copied stale token must not be revived here.
+// still inside the retention window: a copied stale token must not be revived here.
 func (q *Queries) TouchOrderAccessGrants(ctx context.Context, arg TouchOrderAccessGrantsParams) error {
 	_, err := q.db.Exec(ctx, touchOrderAccessGrants, arg.Digests, arg.Retain)
 	return err

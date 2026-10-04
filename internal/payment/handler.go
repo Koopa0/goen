@@ -13,10 +13,10 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
+	"github.com/koopa0/goen/internal/orderaccess"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
-	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -53,23 +53,18 @@ type webhookOutcome struct {
 	refusedCapture      bool
 }
 
-type OrderAccess interface {
-	PlacedHere(ctx context.Context, r *http.Request, number string, secure bool) bool
-}
-
 type Handler struct {
-	access  OrderAccess
+	access  *orderaccess.Store
 	store   *Store
 	gateway *Gateway
 	log     *slog.Logger
-	secure  bool
 }
 
-func NewHandler(s *Store, g *Gateway, access OrderAccess, log *slog.Logger, secureCookies bool) *Handler {
+func NewHandler(s *Store, g *Gateway, access *orderaccess.Store, log *slog.Logger) *Handler {
 	if s == nil || g == nil || access == nil || log == nil {
 		panic("payment: NewHandler requires a store, a gateway, an access check and a logger")
 	}
-	return &Handler{store: s, gateway: g, access: access, log: log, secure: secureCookies}
+	return &Handler{store: s, gateway: g, access: access, log: log}
 }
 
 func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
@@ -595,7 +590,11 @@ func (h *Handler) logWebhookOutcome(ctx context.Context, outcome webhookOutcome)
 // itself and reports false. A stranger gets a 404, because a 403 confirms the
 // number is real.
 func (h *Handler) payableOrder(w http.ResponseWriter, r *http.Request, number string) (*Order, bool) {
-	if !h.access.PlacedHere(r.Context(), r, number, h.secure) && !h.ownedBySignedInUser(r, number) {
+	ok, err := h.access.Allows(r, number)
+	if err != nil {
+		h.log.ErrorContext(r.Context(), "check order access", "order", number, "error", err)
+	}
+	if !ok {
 		h.notFound(w, r)
 		return nil, false
 	}
@@ -619,19 +618,6 @@ func (h *Handler) payableOrder(w http.ResponseWriter, r *http.Request, number st
 		return nil, false
 	}
 	return o, true
-}
-
-func (h *Handler) ownedBySignedInUser(r *http.Request, number string) bool {
-	u, ok := user.FromContext(r.Context())
-	if !ok {
-		return false
-	}
-	owns, err := h.store.OrderBelongsTo(r.Context(), number, u.ID)
-	if err != nil {
-		h.log.ErrorContext(r.Context(), "check order ownership", "error", err)
-		return false
-	}
-	return owns
 }
 
 func (h *Handler) notFound(w http.ResponseWriter, r *http.Request) {

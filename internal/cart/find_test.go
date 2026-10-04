@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/orderaccess"
 	"github.com/koopa0/goen/internal/ratelimit"
 )
 
@@ -18,7 +19,7 @@ import (
 // keyed on the whole address is no limit.
 func TestTheOrderLookupLimitCoversAWholeIPv6Slash64(t *testing.T) {
 	t.Parallel()
-	h := NewHandler(&Store{}, slog.New(slog.DiscardHandler), true, ratelimit.New(ratelimit.Config{
+	h := NewHandler(&Store{}, &orderaccess.Store{}, slog.New(slog.DiscardHandler), true, ratelimit.New(ratelimit.Config{
 		Every: time.Hour, Burst: 1, TTL: time.Hour, MaxKeys: 8,
 	}), nil, nil)
 

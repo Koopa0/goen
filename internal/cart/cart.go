@@ -4,7 +4,6 @@ package cart
 
 import (
 	"bytes"
-	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
@@ -21,10 +20,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/koopa0/goen/internal/account"
-	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/destination"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
@@ -267,146 +264,6 @@ func parseCheckoutQuoteID(value string) (checkoutQuoteID, error) {
 		return checkoutQuoteID{}, errors.New("cart: malformed checkout quote ID")
 	}
 	return id, nil
-}
-
-// PlacedCookieName holds high-entropy tokens and never order numbers, which are
-// guessable.
-const PlacedCookieName = "__Host-goen_placed"
-
-const maxRememberedOrders = 10
-
-// RememberOrder writes the grant first: a cookie naming a token this database
-// does not know locks the customer out of their own order.
-func (s *Store) RememberOrder(
-	ctx context.Context, w http.ResponseWriter, r *http.Request, number string, secure bool,
-) error {
-	token, err := NewToken()
-	if err != nil {
-		return err
-	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return fmt.Errorf("begin remember order: %w", err)
-	}
-	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
-	q := s.q.WithTx(tx)
-
-	n, err := q.GrantOrderAccess(ctx, db.GrantOrderAccessParams{
-		Digest: HashToken(token), OrderNumber: number,
-	})
-	if err != nil {
-		return fmt.Errorf("grant access to order %s: %w", number, err)
-	}
-	if n == 0 {
-		// The INSERT ... SELECT matched no order, which SQL does not call an
-		// error.
-		return fmt.Errorf("grant access to order %s: %w", number, ErrNotFound)
-	}
-
-	// Carried tokens get a fresh MaxAge, so their grants need the retention
-	// clock restarted.
-	if carried := placedTokens(r, secure); len(carried) > 0 {
-		digests := make([][]byte, 0, len(carried))
-		for _, t := range carried {
-			digests = append(digests, HashToken(t))
-		}
-		if err := q.TouchOrderAccessGrants(ctx, db.TouchOrderAccessGrantsParams{
-			Digests: digests,
-			Retain: pgtype.Interval{
-				Microseconds: int64(GrantRetain / time.Microsecond), Valid: true,
-			},
-		}); err != nil {
-			return fmt.Errorf("refresh carried order access grants: %w", err)
-		}
-	}
-
-	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("commit remember order %s: %w", number, err)
-	}
-
-	writePlacedCookie(w, r, token, secure)
-	return nil
-}
-
-func writePlacedCookie(w http.ResponseWriter, r *http.Request, token string, secure bool) {
-	tokens := append([]string{token}, placedTokens(r, secure)...)
-	seen := make(map[string]bool, len(tokens))
-	kept := make([]string, 0, maxRememberedOrders)
-	for _, t := range tokens {
-		if seen[t] || t == "" {
-			continue
-		}
-		seen[t] = true
-		kept = append(kept, t)
-		if len(kept) == maxRememberedOrders {
-			break
-		}
-	}
-	//nolint:gosec // G124: Secure is set from the deployment's own flag, below
-	http.SetCookie(w, &http.Cookie{
-		Name:     placedCookieName(secure),
-		Value:    strings.Join(kept, "."),
-		Path:     "/",
-		MaxAge:   cookieMaxAge,
-		HttpOnly: true,
-		Secure:   secure,
-		SameSite: http.SameSiteLaxMode,
-	})
-}
-
-func placedTokens(r *http.Request, secure bool) []string {
-	c, err := r.Cookie(placedCookieName(secure))
-	if err != nil || c.Value == "" {
-		return nil
-	}
-	parts := strings.Split(c.Value, ".")
-	if len(parts) > maxRememberedOrders {
-		parts = parts[:maxRememberedOrders]
-	}
-	return parts
-}
-
-func (s *Store) PlacedHere(ctx context.Context, r *http.Request, number string, secure bool) bool {
-	tokens := placedTokens(r, secure)
-	if len(tokens) == 0 || number == "" {
-		return false
-	}
-	digests := make([][]byte, 0, len(tokens))
-	for _, t := range tokens {
-		digests = append(digests, HashToken(t))
-	}
-	ok, err := s.q.OrderAccessibleWith(ctx, db.OrderAccessibleWithParams{
-		OrderNumber: number, Digests: digests,
-		Retain: pgtype.Interval{
-			Microseconds: int64(GrantRetain / time.Microsecond), Valid: true,
-		},
-	})
-	if err != nil {
-		return false
-	}
-	return ok
-}
-
-func (s *Store) ForgetOrders(ctx context.Context, r *http.Request, secure bool) error {
-	tokens := placedTokens(r, secure)
-	if len(tokens) == 0 {
-		return nil
-	}
-	digests := make([][]byte, 0, len(tokens))
-	for _, t := range tokens {
-		digests = append(digests, HashToken(t))
-	}
-	if err := s.q.RevokeOrderAccess(ctx, digests); err != nil {
-		return fmt.Errorf("revoke this browser's order access: %w", err)
-	}
-	return nil
-}
-
-func placedCookieName(secure bool) string {
-	if secure {
-		return PlacedCookieName
-	}
-	return "goen_placed"
 }
 
 // CookieName carries the __Host- prefix, which binds it to this origin, so a

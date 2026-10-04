@@ -113,7 +113,8 @@ Each pool assigns its role when connecting. [`StorefrontConfig` and `BackOfficeC
 | [`outbox.Store.Run`](internal/outbox/outbox.go) | `store`; invoice handoff uses `admin` | Deliver mail/account/newsletter topics and hand off invoice obligations. |
 | [`outbox.Store.SweepForever`](internal/outbox/outbox.go) | `store` | Remove delivered and undelivered messages past retention. |
 | [`cart.Store.SweepForever`](internal/cart/sweeper.go) | `store` | Release eligible expired reservations and cancel lapsed unpaid orders. |
-| [`cart.Store.SweepAttemptsForever`](internal/cart/sweeper.go) | `store` | Remove old checkout attempts and order-access grants. |
+| [`cart.Store.SweepAttemptsForever`](internal/cart/sweeper.go) | `store` | Remove old checkout attempts. |
+| [`orderaccess.Store.SweepForever`](internal/orderaccess/orderaccess.go) | `store` | Remove order-access grants nobody can present any more. |
 | [`cart.Store.SweepDraftsForever`](internal/cart/sweeper.go) | `store` | Clear stale checkout drafts from carts. |
 | [`account.Store.SweepSessionsForever`](internal/account/store.go) | `store` | Remove expired sessions and old reset tokens. |
 | [`media.Store.SweepForever`](internal/media/sweeper.go) | `admin` | Remove unreferenced uploads after their grace period. |
@@ -202,7 +203,7 @@ flowchart TB
 | [`internal/admin/stock`](internal/admin/stock) | Stock adjustments, low-stock views, movement history. |
 | [`internal/admin/taxonomy`](internal/admin/taxonomy) | Brands, categories, and category images. |
 | [`internal/carrier`](internal/carrier) | Parcel-carrier identities and delivery compatibility through `ForDelivery`. |
-| [`internal/cart`](internal/cart) | Baskets, checkout, holds, order access/cancellation/reorder, pickup flow. |
+| [`internal/cart`](internal/cart) | Baskets, checkout, holds, order page/cancellation/reorder, pickup flow. |
 | [`internal/catalog`](internal/catalog) | Listings, search, comparisons, deals, campaign browsing. |
 | [`internal/contact`](internal/contact) | Contact-form validation and stored messages. |
 | [`internal/coupon`](internal/coupon) | Closed coupon kinds shared by checkout, administration, and presentation. |
@@ -221,6 +222,7 @@ flowchart TB
 | [`internal/money`](internal/money) | Currency parsing, bounds, formatting. |
 | [`internal/newsletter`](internal/newsletter) | Subscription confirmation/unsubscription and delivery data. |
 | [`internal/order`](internal/order) | Fulfillment states, order events, order-number vocabulary. |
+| [`internal/orderaccess`](internal/orderaccess) | Who may open a placed order's pages: a browser granted it, or the signed-in owner. |
 | [`internal/ordernotice`](internal/ordernotice) | Terminal-order mail with recipients resolved at delivery. |
 | [`internal/outbox`](internal/outbox) | Durable enqueueing, leasing, retry, delivery, retention. |
 | [`internal/payment`](internal/payment) | Stripe attempts, Checkout, signed webhook settlement. |

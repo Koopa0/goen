@@ -12,6 +12,7 @@ import (
 
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/orderaccess"
 )
 
 // paymentsOn makes the handler a shop that takes payment, which is what shows
@@ -25,9 +26,9 @@ func TestPaymentReturnHintExpiresWithoutChangingTheOrder(t *testing.T) {
 		t.Run(locale.Tag(), func(t *testing.T) {
 			ctx := i18n.WithLocale(t.Context(), locale)
 			s := cart.NewStore(pool)
-			h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, testLimiter(), paymentsOn{}, nil)
+			h := cart.NewHandler(s, orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler), false, testLimiter(), paymentsOn{}, nil)
 			number := placeUnpaidOrderFor(t, s, "return@example.com")
-			cookie := placedCookie(t, s, number)
+			cookie := placedCookie(t, number)
 			path := "/orders/" + number
 			get := func(target string, authorized bool) *httptest.ResponseRecorder {
 				r := httptest.NewRequestWithContext(ctx, http.MethodGet, target, http.NoBody)

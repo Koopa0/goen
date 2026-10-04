@@ -539,20 +539,6 @@ func (w *webhookTx) CancelPaymentRow(ctx context.Context) error {
 	return nil
 }
 
-func (s *Store) OrderBelongsTo(ctx context.Context, number, userID string) (bool, error) {
-	id, err := uuid.Parse(userID)
-	if err != nil {
-		return false, nil //nolint:nilerr // an unparseable id simply owns nothing
-	}
-	owns, err := s.q.OrderBelongsTo(ctx, db.OrderBelongsToParams{
-		OrderNumber: number, UserID: uuid.NullUUID{UUID: id, Valid: true},
-	})
-	if err != nil {
-		return false, fmt.Errorf("check order ownership: %w", err)
-	}
-	return owns, nil
-}
-
 func cardLabel(c Capture) string {
 	if c.CardBrand == "" || c.CardLast4 == "" {
 		return ""
