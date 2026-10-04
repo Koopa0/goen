@@ -184,7 +184,7 @@ func (h *Handler) renderCreditForm(w http.ResponseWriter, r *http.Request, view 
 		access.ServerError(w, r, h.log)
 		return
 	}
-	view.Rows, view.ListBound = ledger.Rows, ledger.ListBound
+	view.Rows, view.Bound = ledger.Rows, ledger.Bound
 	if notice != "" {
 		view.Notice = i18n.T(r.Context(), notice)
 	}

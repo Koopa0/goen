@@ -24,8 +24,8 @@ func (s *Store) Reviews(ctx context.Context, after ...string) (admin.ReviewsView
 	}
 	rows, bound := web.PageBound(scope, resumed, rows, web.PageSize, func(r *db.AdminReviewsRow) string { return r.PageCursor })
 	view := admin.ReviewsView{
-		ListBound: bound,
-		Rows:      make([]admin.Review, 0, len(rows)),
+		Bound: bound,
+		Rows:  make([]admin.Review, 0, len(rows)),
 	}
 	for i := range rows {
 		r := &rows[i]

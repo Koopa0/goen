@@ -1,6 +1,6 @@
 //go:build integration
 
-package admin_test
+package campaigns_test
 
 import (
 	"testing"
@@ -11,7 +11,7 @@ import (
 )
 
 func TestTheCampaignProductSearchOffersWhatIsNotFeaturedYet(t *testing.T) {
-	ctx, _ := staffContext(t)
+	ctx, _ := admintest.StaffContext(t, pool)
 	s := products.NewStore(pool)
 	slug := admintest.CampaignSlug(t)
 	if _, err := campaigns.NewStore(pool).Create(ctx, &campaigns.Form{Slug: slug, Title: "測試活動", Days: 7}); err != nil {

@@ -318,3 +318,71 @@ func OrderStore(p *pgxpool.Pool, refunder refunds.Refunder, reader invoicing.Rea
 func OrderDesk(s *orders.Store) *orders.Handler {
 	return orders.NewHandler(s, nil, slog.New(slog.DiscardHandler))
 }
+
+func Customer(t *testing.T, pool *pgxpool.Pool) uuid.UUID {
+	t.Helper()
+	var userID uuid.UUID
+	if err := pool.QueryRow(t.Context(), `
+		INSERT INTO users (email, role, full_name)
+		VALUES ('cancel-points-' || gen_random_uuid() || '@goen.invalid', 'customer', '取消點數')
+		RETURNING id`).Scan(&userID); err != nil {
+		t.Fatalf("create customer: %v", err)
+	}
+	return userID
+}
+
+func PaidPickingOrderForUser(t *testing.T, pool *pgxpool.Pool, userID uuid.UUID, cents int64) (number string, orderID uuid.UUID) {
+	t.Helper()
+	ctx := t.Context()
+
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
+
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO orders (order_number, user_id, shipping_version_id,
+		                    shipping_method_code, shipping_method_name, shipping_cents)
+		SELECT next_order_number(), $1, v.id, sm.code, v.name, 0
+		FROM shipping_method_versions v JOIN shipping_methods sm ON sm.id = v.method_id
+		ORDER BY v.effective_at LIMIT 1
+		RETURNING id, order_number`, userID).Scan(&orderID, &number); err != nil {
+		t.Fatalf("create order: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO order_lines (order_id, sku, product_name, unit_price_cents, quantity)
+		VALUES ($1, 'CANCEL-POINTS', '點數取消', $2, 1)`, orderID, cents); err != nil {
+		t.Fatalf("create line: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO order_private_data (order_id, email, recipient_name, phone,
+		                                postal_code, city, district, street)
+		VALUES ($1, 'cancel-points@example.com', '收件', '0912345678',
+		        '110', '台北市', '信義區', '路 1 號')`, orderID); err != nil {
+		t.Fatalf("create private data: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `SELECT open_payment($1, $2, $3)`,
+		orderID, "cs_cancel_pts_"+number, cents); err != nil {
+		t.Fatalf("open payment: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `SELECT capture_payment($1, $2, NULL, NULL)`,
+		"cs_cancel_pts_"+number, cents); err != nil {
+		t.Fatalf("capture: %v", err)
+	}
+	var awarded int64
+	if err := tx.QueryRow(ctx, `SELECT award_loyalty_points($1)`, orderID).Scan(&awarded); err != nil {
+		t.Fatalf("award: %v", err)
+	}
+	if awarded != cents/10000 {
+		t.Fatalf("awarded = %d, want %d", awarded, cents/10000)
+	}
+	if _, err := tx.Exec(ctx,
+		`UPDATE orders SET fulfillment_status = 'picking' WHERE id = $1`, orderID); err != nil {
+		t.Fatalf("to picking: %v", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatalf("commit: %v", err)
+	}
+	return number, orderID
+}

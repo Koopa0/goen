@@ -256,7 +256,7 @@ templ Orders(p layouts.Page, v OrdersView) {
 				</table>
 			</div>
 		}
-		@pages.ListPager(v.ListBound)
+		@pages.ListPager(v.Bound)
 	}
 }
 
@@ -811,7 +811,7 @@ templ Variants(p layouts.Page, v VariantsView) {
 				@variantTable(v.Variants, v.Return)
 			</div>
 		}
-		@pages.ListPager(v.ListBound)
+		@pages.ListPager(v.Bound)
 	}
 }
 

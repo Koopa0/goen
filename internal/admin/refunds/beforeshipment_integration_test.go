@@ -3,6 +3,8 @@
 package refunds_test
 
 import (
+	"context"
+	"fmt"
 	"html"
 	"log/slog"
 	"net/http"
@@ -11,8 +13,10 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/refunds"
@@ -272,4 +276,251 @@ func TestRefundBeforeShipmentConfirmsBeforeItPays(t *testing.T) {
 	if got := admintest.FulfillmentOf(t, pool, orderID); got != "cancelled" || sent.Load() != 1 {
 		t.Fatalf("order %s after %d provider calls, want cancelled after one", got, sent.Load())
 	}
+}
+
+// TestAdminCancelClawsBackLoyaltyPoints holds that a paid order the back office
+// cancels — by refunding it before shipment — claws back its award lot,
+// including when the lot was partly or wholly spent before cancellation.
+func TestAdminCancelClawsBackLoyaltyPoints(t *testing.T) {
+	ctx, _ := admintest.StaffContext(t, pool)
+	s := refunds.NewStore(pool, admintest.Refunder{}, nil)
+
+	t.Run("untouched lot", func(t *testing.T) {
+		userID := admintest.Customer(t, pool)
+		number, orderID := admintest.PaidPickingOrderForUser(t, pool, userID, 1200000)
+		cancelPaidOrder(t, s, ctx, number)
+		assertCancelClawback(t, orderID, -120, 120)
+	})
+
+	for _, tc := range []struct {
+		name       string
+		spent      int64
+		wantPoints int64
+	}{
+		{"partly consumed", 100, -20},
+		{"wholly consumed records a zero row", 120, 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			userID := admintest.Customer(t, pool)
+			number, orderID := admintest.PaidPickingOrderForUser(t, pool, userID, 1200000)
+			if _, err := pool.Exec(ctx,
+				`SELECT redeem_loyalty_points($1, $2, $3)`,
+				userID, tc.spent, uuid.New()); err != nil {
+				t.Fatalf("redeem: %v", err)
+			}
+			cancelPaidOrder(t, s, ctx, number)
+			assertCancelClawback(t, orderID, tc.wantPoints, 120)
+		})
+	}
+
+	t.Run("refuses before cancelled", func(t *testing.T) {
+		userID := admintest.Customer(t, pool)
+		_, pickingID := admintest.PaidPickingOrderForUser(t, pool, userID, 500000)
+		var replay int64
+		earlyErr := pool.QueryRow(ctx, `SELECT reverse_order_points($1)`, pickingID).Scan(&replay)
+		if earlyErr == nil {
+			t.Fatal("loyalty was reversed before the order was cancelled")
+		}
+		if admintest.ConstraintName(earlyErr) != "loyalty_clawback_cancelled_order" {
+			t.Fatalf("refused by %q, want loyalty_clawback_cancelled_order: %v", admintest.ConstraintName(earlyErr), earlyErr)
+		}
+	})
+}
+
+func cancelPaidOrder(t *testing.T, s *refunds.Store, ctx context.Context, number string) {
+	t.Helper()
+	if _, err := s.RefundBeforeShipment(ctx, number, "顧客取消"); err != nil {
+		t.Fatalf("cancel: %v", err)
+	}
+}
+
+func assertCancelClawback(t *testing.T, orderID uuid.UUID, wantPoints, wantRequested int64) {
+	t.Helper()
+	ctx := t.Context()
+	var points, requested int64
+	var key string
+	var returnID uuid.UUID
+	if err := pool.QueryRow(ctx, `
+		SELECT e.points, e.requested_points, e.idempotency_key, r.id
+		FROM loyalty_entries e
+		JOIN return_requests r ON r.order_id = e.order_id AND r.before_shipment
+		WHERE e.order_id = $1 AND e.kind = 'clawback'`, orderID).Scan(&points, &requested, &key, &returnID); err != nil {
+		t.Fatalf("read clawback: %v", err)
+	}
+	if points != wantPoints || requested != wantRequested {
+		t.Errorf("clawback points/requested = %d/%d, want %d/%d",
+			points, requested, wantPoints, wantRequested)
+	}
+	if want := "return:" + returnID.String(); key != want {
+		t.Errorf("clawback key = %q, want %q", key, want)
+	}
+	var rows int
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*) FROM loyalty_entries
+		WHERE order_id = $1 AND kind = 'clawback'`, orderID).Scan(&rows); err != nil {
+		t.Fatalf("count clawbacks: %v", err)
+	}
+	if rows != 1 {
+		t.Errorf("%d cancel clawbacks, want 1", rows)
+	}
+	var replay int64
+	if err := pool.QueryRow(ctx,
+		`SELECT reverse_return_points($1)`, returnID).Scan(&replay); err != nil || replay != 0 {
+		t.Fatalf("cancel clawback replay = %d, %v; want 0, nil", replay, err)
+	}
+}
+
+// TestPointClawbackAndErasureShareOrderBeforeAccount forces the former ABBA
+// window. The clawback pauses at its ledger insert; erasure has already begun.
+// Both must finish in order, with neither PostgreSQL transaction chosen as a
+// deadlock victim.
+func TestPointClawbackAndErasureShareOrderBeforeAccount(t *testing.T) {
+	ctx := t.Context()
+	requestID, orderID, userID := admintest.LoyaltyReturn(t, pool, []int64{1200000}, 0)
+	if _, err := pool.Exec(ctx, `
+		UPDATE return_requests
+		SET status = 'approved', decided_at = now(), resolution = 'lock order'
+		WHERE id = $1`, requestID); err != nil {
+		t.Fatalf("approve lock-order return: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO refunds (payment_id, request_key, amount_cents, reason,
+		                     return_request_id, status, provider_ref, succeeded_at)
+		SELECT p.id, 'return:' || ($1::uuid)::text, 1200000, 'lock order', $1::uuid,
+		       'succeeded', 're_lock_order_' || ($1::uuid)::text, now()
+		FROM payments p
+		WHERE p.order_id = $2 AND p.status = 'succeeded'`, requestID, orderID); err != nil {
+		t.Fatalf("settle lock-order return: %v", err)
+	}
+
+	suffix := strings.ReplaceAll(uuid.NewString(), "-", "")
+	functionName := pgx.Identifier{"test_pause_return_clawback_" + suffix}.Sanitize()
+	triggerName := pgx.Identifier{"test_pause_return_clawback_" + suffix}.Sanitize()
+	const barrierKey int64 = 8_812_233_445_566_781
+	if _, err := pool.Exec(ctx, fmt.Sprintf(`
+		CREATE FUNCTION %s() RETURNS trigger LANGUAGE plpgsql AS $body$
+		BEGIN
+			IF NEW.return_request_id = '%s'::uuid THEN
+				PERFORM pg_advisory_xact_lock(%d);
+			END IF;
+			RETURN NEW;
+		END
+		$body$;
+		CREATE TRIGGER %s BEFORE INSERT ON loyalty_entries
+		FOR EACH ROW EXECUTE FUNCTION %s()`,
+		functionName, requestID, barrierKey, triggerName, functionName)); err != nil {
+		t.Fatalf("install clawback barrier: %v", err)
+	}
+	t.Cleanup(func() {
+		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		_, _ = pool.Exec(cleanupCtx, fmt.Sprintf(
+			"DROP TRIGGER IF EXISTS %s ON loyalty_entries; DROP FUNCTION IF EXISTS %s()",
+			triggerName, functionName))
+	})
+
+	blocker, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin clawback barrier: %v", err)
+	}
+	defer func() { _ = blocker.Rollback(context.WithoutCancel(ctx)) }()
+	if _, lockErr := blocker.Exec(ctx, `SELECT pg_advisory_xact_lock($1)`, barrierKey); lockErr != nil {
+		t.Fatalf("hold clawback barrier: %v", lockErr)
+	}
+	reverseConn, err := pool.Acquire(ctx)
+	if err != nil {
+		t.Fatalf("acquire clawback connection: %v", err)
+	}
+	defer reverseConn.Release()
+	eraseConn, err := pool.Acquire(ctx)
+	if err != nil {
+		t.Fatalf("acquire erasure connection: %v", err)
+	}
+	defer eraseConn.Release()
+	var reversePID, erasePID int
+	if err := reverseConn.QueryRow(ctx, `SELECT pg_backend_pid()`).Scan(&reversePID); err != nil {
+		t.Fatalf("read clawback backend: %v", err)
+	}
+	if err := eraseConn.QueryRow(ctx, `SELECT pg_backend_pid()`).Scan(&erasePID); err != nil {
+		t.Fatalf("read erasure backend: %v", err)
+	}
+
+	type reverseResult struct {
+		points int64
+		err    error
+	}
+	reverseResultCh := make(chan reverseResult, 1)
+	reverseDone := make(chan struct{})
+	go func() {
+		defer close(reverseDone)
+		var points int64
+		err := reverseConn.QueryRow(context.WithoutCancel(ctx),
+			`SELECT reverse_return_points($1)`, requestID).Scan(&points)
+		reverseResultCh <- reverseResult{points: points, err: err}
+	}()
+	waitForBackendLock(t, reversePID, reverseDone)
+
+	eraseResultCh := make(chan error, 1)
+	eraseDone := make(chan struct{})
+	go func() {
+		defer close(eraseDone)
+		_, err := eraseConn.Exec(context.WithoutCancel(ctx), `SELECT erase_user($1)`, userID)
+		eraseResultCh <- err
+	}()
+	waitForBackendLock(t, erasePID, eraseDone)
+
+	if err := blocker.Commit(ctx); err != nil {
+		t.Fatalf("release clawback barrier: %v", err)
+	}
+	select {
+	case result := <-reverseResultCh:
+		if result.err != nil || result.points != 120 {
+			t.Fatalf("concurrent clawback = %d, %v; want 120 and no deadlock", result.points, result.err)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("clawback did not finish after its barrier was released")
+	}
+	select {
+	case err := <-eraseResultCh:
+		if err != nil {
+			t.Fatalf("concurrent erasure: %v", err)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("erasure did not finish after clawback committed")
+	}
+
+	var users, clawbacks int
+	if err := pool.QueryRow(ctx, `
+		SELECT (SELECT count(*) FROM users WHERE id = $1),
+		       (SELECT count(*) FROM loyalty_entries
+		        WHERE return_request_id = $2 AND kind = 'clawback')`, userID, requestID).
+		Scan(&users, &clawbacks); err != nil {
+		t.Fatalf("read lock-order result: %v", err)
+	}
+	if users != 0 || clawbacks != 1 {
+		t.Errorf("lock-order survivors users/clawbacks = %d/%d, want 0/1", users, clawbacks)
+	}
+}
+
+func waitForBackendLock(t *testing.T, pid int, done <-chan struct{}) {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		select {
+		case <-done:
+			t.Fatalf("backend %d finished before reaching the forced lock boundary", pid)
+		default:
+		}
+		var waiting bool
+		if err := pool.QueryRow(t.Context(), `
+			SELECT coalesce(wait_event_type = 'Lock', false)
+			FROM pg_stat_activity WHERE pid = $1`, pid).Scan(&waiting); err != nil {
+			t.Fatalf("observe backend %d: %v", pid, err)
+		}
+		if waiting {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("backend %d never reached a lock wait", pid)
 }

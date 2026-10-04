@@ -5,11 +5,11 @@ import (
 	"strconv"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/web"
 )
 
 type WarrantiesView struct {
-	pages.ListBound
+	web.Bound
 
 	Term     string
 	Searched bool
