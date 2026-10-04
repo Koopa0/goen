@@ -1349,25 +1349,39 @@ SELECT p.id, p.slug, p.name, coalesce(p.summary, '') AS summary, p.description,
        coalesce(p.summary_en, '') AS summary_en,
        coalesce(p.description_en, '') AS description_en,
        coalesce(p.warranty_note, '') AS warranty_note, p.status, p.published_at,
-       p.brand_id, p.category_id
+       p.brand_id, p.category_id,
+       coalesce(p.origin, '') AS origin, coalesce(p.origin_en, '') AS origin_en,
+       coalesce(p.responsible_party_name, '') AS responsible_party_name,
+       coalesce(p.responsible_party_phone, '') AS responsible_party_phone,
+       coalesce(p.responsible_party_address, '') AS responsible_party_address,
+       coalesce(trim_scale(p.net_quantity)::text, '') AS net_quantity,
+       coalesce(p.net_unit, '') AS net_unit, p.min_age_months
 FROM products p WHERE p.slug = $1
 `
 
 type AdminProductRow struct {
-	ID             uuid.UUID
-	Slug           string
-	Name           string
-	Summary        string
-	Description    string
-	WarrantyMonths int32
-	NameEn         string
-	SummaryEn      string
-	DescriptionEn  string
-	WarrantyNote   string
-	Status         string
-	PublishedAt    pgtype.Timestamptz
-	BrandID        uuid.UUID
-	CategoryID     uuid.UUID
+	ID                      uuid.UUID
+	Slug                    string
+	Name                    string
+	Summary                 string
+	Description             string
+	WarrantyMonths          int32
+	NameEn                  string
+	SummaryEn               string
+	DescriptionEn           string
+	WarrantyNote            string
+	Status                  string
+	PublishedAt             pgtype.Timestamptz
+	BrandID                 uuid.UUID
+	CategoryID              uuid.UUID
+	Origin                  string
+	OriginEn                string
+	ResponsiblePartyName    string
+	ResponsiblePartyPhone   string
+	ResponsiblePartyAddress string
+	NetQuantity             interface{}
+	NetUnit                 string
+	MinAgeMonths            pgtype.Int2
 }
 
 func (q *Queries) AdminProduct(ctx context.Context, slug string) (AdminProductRow, error) {
@@ -1388,6 +1402,14 @@ func (q *Queries) AdminProduct(ctx context.Context, slug string) (AdminProductRo
 		&i.PublishedAt,
 		&i.BrandID,
 		&i.CategoryID,
+		&i.Origin,
+		&i.OriginEn,
+		&i.ResponsiblePartyName,
+		&i.ResponsiblePartyPhone,
+		&i.ResponsiblePartyAddress,
+		&i.NetQuantity,
+		&i.NetUnit,
+		&i.MinAgeMonths,
 	)
 	return i, err
 }
@@ -8151,6 +8173,44 @@ func (q *Queries) LockProductCatalogue(ctx context.Context, slug string) (uuid.U
 	return id, err
 }
 
+const lockProductLabel = `-- name: LockProductLabel :one
+SELECT id, slug, origin, origin_en, responsible_party_name, responsible_party_phone,
+       responsible_party_address, net_quantity, net_unit, min_age_months
+FROM products WHERE slug = $1 FOR UPDATE
+`
+
+type LockProductLabelRow struct {
+	ID                      uuid.UUID
+	Slug                    string
+	Origin                  pgtype.Text
+	OriginEn                pgtype.Text
+	ResponsiblePartyName    pgtype.Text
+	ResponsiblePartyPhone   pgtype.Text
+	ResponsiblePartyAddress pgtype.Text
+	NetQuantity             pgtype.Numeric
+	NetUnit                 pgtype.Text
+	MinAgeMonths            pgtype.Int2
+}
+
+// Lock before reading the label replaced, so the audit records the actual prior facts.
+func (q *Queries) LockProductLabel(ctx context.Context, slug string) (LockProductLabelRow, error) {
+	row := q.db.QueryRow(ctx, lockProductLabel, slug)
+	var i LockProductLabelRow
+	err := row.Scan(
+		&i.ID,
+		&i.Slug,
+		&i.Origin,
+		&i.OriginEn,
+		&i.ResponsiblePartyName,
+		&i.ResponsiblePartyPhone,
+		&i.ResponsiblePartyAddress,
+		&i.NetQuantity,
+		&i.NetUnit,
+		&i.MinAgeMonths,
+	)
+	return i, err
+}
+
 const lockReturnOrder = `-- name: LockReturnOrder :one
 SELECT o.id
 FROM orders o JOIN return_requests r ON r.order_id = o.id
@@ -10386,7 +10446,13 @@ SELECT
     p.category_id,
     c.slug AS category_slug,
     localized_name(c.name, c.name_en, $2::text) AS category_name,
-    c.parent_id AS category_parent_id
+    c.parent_id AS category_parent_id,
+    coalesce(localized_name(coalesce(p.origin, p.origin_en), p.origin_en, $2::text), '')::text AS origin,
+    coalesce(p.responsible_party_name, '') AS responsible_party_name,
+    coalesce(p.responsible_party_phone, '') AS responsible_party_phone,
+    coalesce(p.responsible_party_address, '') AS responsible_party_address,
+    coalesce(trim_scale(p.net_quantity)::text, '') AS net_quantity,
+    coalesce(p.net_unit, '') AS net_unit, p.min_age_months
 FROM products p
 JOIN brands b ON b.id = p.brand_id
 JOIN categories c ON c.id = p.category_id
@@ -10399,19 +10465,26 @@ type ProductBySlugParams struct {
 }
 
 type ProductBySlugRow struct {
-	ID               uuid.UUID
-	Slug             string
-	Name             string
-	Summary          string
-	Description      string
-	WarrantyNote     pgtype.Text
-	WarrantyMonths   int32
-	Brand            string
-	BrandSlug        string
-	CategoryID       uuid.UUID
-	CategorySlug     string
-	CategoryName     string
-	CategoryParentID uuid.NullUUID
+	ID                      uuid.UUID
+	Slug                    string
+	Name                    string
+	Summary                 string
+	Description             string
+	WarrantyNote            pgtype.Text
+	WarrantyMonths          int32
+	Brand                   string
+	BrandSlug               string
+	CategoryID              uuid.UUID
+	CategorySlug            string
+	CategoryName            string
+	CategoryParentID        uuid.NullUUID
+	Origin                  string
+	ResponsiblePartyName    string
+	ResponsiblePartyPhone   string
+	ResponsiblePartyAddress string
+	NetQuantity             interface{}
+	NetUnit                 string
+	MinAgeMonths            pgtype.Int2
 }
 
 func (q *Queries) ProductBySlug(ctx context.Context, arg ProductBySlugParams) (ProductBySlugRow, error) {
@@ -10431,6 +10504,13 @@ func (q *Queries) ProductBySlug(ctx context.Context, arg ProductBySlugParams) (P
 		&i.CategorySlug,
 		&i.CategoryName,
 		&i.CategoryParentID,
+		&i.Origin,
+		&i.ResponsiblePartyName,
+		&i.ResponsiblePartyPhone,
+		&i.ResponsiblePartyAddress,
+		&i.NetQuantity,
+		&i.NetUnit,
+		&i.MinAgeMonths,
 	)
 	return i, err
 }
@@ -13938,6 +14018,42 @@ WHERE pi.id = o.id
 
 func (q *Queries) SetProductImageOrder(ctx context.Context, ids []uuid.UUID) error {
 	_, err := q.db.Exec(ctx, setProductImageOrder, ids)
+	return err
+}
+
+const setProductLabel = `-- name: SetProductLabel :exec
+UPDATE products SET origin = nullif($1::text, ''), origin_en = nullif($2::text, ''),
+    responsible_party_name = nullif($3::text, ''),
+    responsible_party_phone = nullif($4::text, ''),
+    responsible_party_address = nullif($5::text, ''),
+    net_quantity = $6, net_unit = nullif($7::text, ''), min_age_months = $8
+WHERE id = $9
+`
+
+type SetProductLabelParams struct {
+	Origin                  string
+	OriginEn                string
+	ResponsiblePartyName    string
+	ResponsiblePartyPhone   string
+	ResponsiblePartyAddress string
+	NetQuantity             pgtype.Numeric
+	NetUnit                 string
+	MinAgeMonths            pgtype.Int2
+	ID                      uuid.UUID
+}
+
+func (q *Queries) SetProductLabel(ctx context.Context, arg SetProductLabelParams) error {
+	_, err := q.db.Exec(ctx, setProductLabel,
+		arg.Origin,
+		arg.OriginEn,
+		arg.ResponsiblePartyName,
+		arg.ResponsiblePartyPhone,
+		arg.ResponsiblePartyAddress,
+		arg.NetQuantity,
+		arg.NetUnit,
+		arg.MinAgeMonths,
+		arg.ID,
+	)
 	return err
 }
 

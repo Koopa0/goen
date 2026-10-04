@@ -1,0 +1,166 @@
+//go:build integration
+
+package products_test
+
+import (
+	"errors"
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"strings"
+	"testing"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/koopa0/goen/internal/account"
+	"github.com/koopa0/goen/internal/admin/access"
+	"github.com/koopa0/goen/internal/admin/admintest"
+	"github.com/koopa0/goen/internal/admin/audit"
+	"github.com/koopa0/goen/internal/admin/products"
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/product"
+	"github.com/koopa0/goen/internal/productlabel"
+)
+
+func TestProductLabelRoundTripUsesAdminRoleAndAuditsAtomically(t *testing.T) {
+	owner := admintest.Pool(t)
+	ctx, actor := admintest.StaffContext(t, owner)
+	var id uuid.UUID
+	var slug string
+	if err := owner.QueryRow(ctx, `SELECT id, slug FROM products WHERE status='active' ORDER BY slug LIMIT 1`).Scan(&id, &slug); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := pgxpool.ParseConfig(owner.Config().ConnString())
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.ConnConfig.RuntimeParams["role"] = "admin"
+	writer, err := pgxpool.NewWithConfig(ctx, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(writer.Close)
+	readerConfig := cfg.Copy()
+	readerConfig.ConnConfig.RuntimeParams["role"] = "store"
+	reader, err := pgxpool.NewWithConfig(ctx, readerConfig)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(reader.Close)
+	for role, connection := range map[string]*pgxpool.Pool{"admin": writer, "store": reader} {
+		var currentRole string
+		if err = connection.QueryRow(ctx, `SELECT current_user`).Scan(&currentRole); err != nil || currentRole != role {
+			t.Fatalf("role=%q, want %q: %v", currentRole, role, err)
+		}
+	}
+	s := products.NewStore(writer)
+	input := &productlabel.Input{Origin: " 台灣 ", OriginEn: "Taiwan", ResponsiblePartyName: "Maker", ResponsiblePartyPhone: "0912345678", ResponsiblePartyAddress: "Address", NetQuantity: "1.2", NetUnit: productlabel.Piece, MinAgeMonths: "0"}
+	if err = s.SetProductLabel(ctx, slug, input); err != nil {
+		t.Fatal(err)
+	}
+	view, err := s.Product(ctx, slug)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if view.LabelInput.Origin != "台灣" || view.LabelInput.NetQuantity != "1.2" || view.LabelInput.MinAgeMonths != "0" {
+		t.Fatalf("stored facts=%+v", view.LabelInput)
+	}
+	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+		pdp, readErr := product.NewStore(reader).Load(i18n.WithLocale(ctx, locale), slug, product.Selection{})
+		if readErr != nil {
+			t.Fatal(readErr)
+		}
+		want := "台灣"
+		if locale == i18n.En {
+			want = "Taiwan"
+		}
+		if pdp.LabelFacts.Origin != want || len(pdp.LabelRows(ctx)) != 6 {
+			t.Fatalf("%s public facts=%+v", locale, pdp.LabelFacts)
+		}
+	}
+	var audits int
+	if err = owner.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE action='product.label.set' AND entity_id=$1 AND actor_user_id=$2 AND before->'origin'='null'::jsonb AND after->>'origin'='台灣' AND after->>'net_quantity'='1.20' AND after->>'min_age_months'='0'`, id, actor).Scan(&audits); err != nil || audits != 1 {
+		t.Fatalf("matching audit rows=%d: %v", audits, err)
+	}
+	if err = s.SetProductLabel(t.Context(), slug, &productlabel.Input{Origin: "unaudited"}); !errors.Is(err, audit.ErrNoActor) {
+		t.Fatalf("missing actor=%v", err)
+	}
+	view, err = s.Product(ctx, slug)
+	if err != nil || view.LabelInput.Origin != "台灣" {
+		t.Fatalf("audit failure changed facts=%+v: %v", view, err)
+	}
+	if err = s.SetProductLabel(ctx, "missing-label-product", input); !errors.Is(err, products.ErrNotFound) {
+		t.Fatalf("missing product=%v", err)
+	}
+	if err = s.SetProductLabel(ctx, slug, &productlabel.Input{MinAgeMonths: "217"}); !errors.Is(err, products.ErrInvalid) {
+		t.Fatalf("invalid input=%v", err)
+	}
+	if err = s.SetProductLabel(ctx, slug, &productlabel.Input{}); err != nil {
+		t.Fatal(err)
+	}
+	pdp, err := product.NewStore(reader).Load(ctx, slug, product.Selection{})
+	if err != nil || len(pdp.LabelRows(ctx)) != 0 {
+		t.Fatalf("cleared public facts=%+v: %v", pdp.LabelFacts, err)
+	}
+	var allNull bool
+	if err = owner.QueryRow(ctx, `SELECT origin IS NULL AND origin_en IS NULL AND responsible_party_name IS NULL AND responsible_party_phone IS NULL AND responsible_party_address IS NULL AND net_quantity IS NULL AND net_unit IS NULL AND min_age_months IS NULL FROM products WHERE id=$1`, id).Scan(&allNull); err != nil || !allNull {
+		t.Fatalf("clear fields all null=%v: %v", allNull, err)
+	}
+	if err = s.SetProductLabel(ctx, slug, &productlabel.Input{OriginEn: "Taiwan"}); err != nil {
+		t.Fatal(err)
+	}
+	pdp, err = product.NewStore(reader).Load(i18n.WithLocale(ctx, i18n.ZhHant), slug, product.Selection{})
+	if err != nil || pdp.LabelFacts.Origin != "Taiwan" {
+		t.Fatalf("English-only origin hidden=%+v: %v", pdp.LabelFacts, err)
+	}
+}
+
+func TestProductLabelRoutesRefuseCustomersAndKeepInvalidForm(t *testing.T) {
+	p := admintest.Pool(t)
+	ctx, _ := admintest.StaffContext(t, p)
+	var slug string
+	if err := p.QueryRow(ctx, `SELECT slug FROM products ORDER BY slug LIMIT 1`).Scan(&slug); err != nil {
+		t.Fatal(err)
+	}
+	s := products.NewStore(p)
+	h := admintest.ProductDesk(p, s)
+	mux := http.NewServeMux()
+	h.Routes(mux, access.New(slog.New(slog.DiscardHandler), nil))
+	path := "/admin/products/" + slug + "/label"
+	for _, customer := range []bool{false, true} {
+		requestCtx := t.Context()
+		if customer {
+			requestCtx = account.WithUser(requestCtx, account.User{ID: uuid.NewString(), Role: "customer"})
+		}
+		req := httptest.NewRequestWithContext(requestCtx, http.MethodPost, path, strings.NewReader("origin=forbidden"))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		response := httptest.NewRecorder()
+		mux.ServeHTTP(response, req)
+		if response.Code != http.StatusNotFound {
+			t.Fatalf("customer=%v status=%d", customer, response.Code)
+		}
+	}
+	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+		form := url.Values{"origin": {"<origin>"}, "net_quantity": {"1.001"}, "net_unit": {"oz"}, "min_age_months": {"217"}}
+		req := httptest.NewRequestWithContext(i18n.WithLocale(ctx, locale), http.MethodPost, path, strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		response := httptest.NewRecorder()
+		mux.ServeHTTP(response, req)
+		if response.Code != http.StatusUnprocessableEntity || !strings.Contains(response.Body.String(), `value="&lt;origin&gt;"`) || !strings.Contains(response.Body.String(), `value="oz" selected`) || !strings.Contains(response.Body.String(), `value="217"`) {
+			t.Fatalf("%s refused form status=%d lost input", locale, response.Code)
+		}
+	}
+	req := httptest.NewRequestWithContext(ctx, http.MethodPost, path, strings.NewReader("origin=Taiwan"))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	response := httptest.NewRecorder()
+	mux.ServeHTTP(response, req)
+	if response.Code != http.StatusSeeOther || response.Header().Get("Location") != "/admin/products/"+slug+"?ok=1#sec-label" {
+		t.Fatalf("saved redirect=%d %q", response.Code, response.Header().Get("Location"))
+	}
+	var audited int
+	if err := p.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE action='product.label.set'`).Scan(&audited); err != nil || audited != 1 {
+		t.Fatalf("refused forms wrote audit rows=%d: %v", audited, err)
+	}
+}
