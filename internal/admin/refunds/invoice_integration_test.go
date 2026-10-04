@@ -385,9 +385,15 @@ func relievePart(t *testing.T, orderID uuid.UUID, cents int64) {
 		t.Fatalf("disable triggers: %v", err)
 	}
 	if _, err := tx.Exec(ctx, `
-		INSERT INTO invoice_documents (order_id, kind, original_id, number, amount_cents)
-		SELECT order_id, 'allowance', id, $2, $3 FROM invoice_documents
-		WHERE order_id = $1 AND kind = 'invoice'`, orderID, uuid.NewString()[:32], cents); err != nil {
+		WITH allowance AS (
+			INSERT INTO invoice_documents (order_id, kind, original_id, number, amount_cents)
+			SELECT order_id, 'allowance', id, $2, $3 FROM invoice_documents
+			WHERE order_id = $1 AND kind = 'invoice'
+			RETURNING id)
+		INSERT INTO invoice_document_lines
+		    (document_id, description, quantity, unit_price_cents, amount_cents, tax_type, position)
+		SELECT id, '退貨折讓', 1, $3, $3, 'taxable', 0 FROM allowance`,
+		orderID, uuid.NewString()[:32], cents); err != nil {
 		t.Fatalf("file allowance: %v", err)
 	}
 	if err := tx.Commit(ctx); err != nil {
