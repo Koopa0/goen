@@ -16,7 +16,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/audit"
@@ -24,6 +23,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/product"
 	"github.com/koopa0/goen/internal/productlabel"
+	"github.com/koopa0/goen/internal/user"
 )
 
 func TestProductLabelRoundTripUsesAdminRoleAndAuditsAtomically(t *testing.T) {
@@ -134,7 +134,7 @@ func TestProductLabelRoutesRefuseCustomersAndKeepInvalidForm(t *testing.T) {
 	for _, customer := range []bool{false, true} {
 		requestCtx := t.Context()
 		if customer {
-			requestCtx = account.WithUser(requestCtx, account.User{ID: uuid.NewString(), Role: "customer"})
+			requestCtx = user.NewContext(requestCtx, user.User{ID: uuid.NewString(), Role: "customer"})
 		}
 		req := httptest.NewRequestWithContext(requestCtx, http.MethodPost, path, strings.NewReader("origin=forbidden"))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
