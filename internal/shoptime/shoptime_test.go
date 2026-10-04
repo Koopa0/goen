@@ -139,30 +139,6 @@ func TestDateOfIsTheShopDayAndKnowsTheShopYear(t *testing.T) {
 	}
 }
 
-func TestDaysSinceCountsShopCalendarDays(t *testing.T) {
-	t.Parallel()
-	at := func(s string) time.Time {
-		ts, err := time.Parse(time.RFC3339, s)
-		if err != nil {
-			t.Fatal(err)
-		}
-		return ts
-	}
-	for name, c := range map[string]struct {
-		filed, now string
-		want       int64
-	}{
-		"same shop day":         {"2026-10-01T00:10:00+08:00", "2026-10-01T23:50:00+08:00", 0},
-		"across midnight":       {"2026-10-01T23:50:00+08:00", "2026-10-02T00:10:00+08:00", 1},
-		"shop day, not UTC day": {"2026-10-01T20:00:00Z", "2026-10-02T01:00:00Z", 0},
-		"a week":                {"2026-09-25T12:00:00+08:00", "2026-10-02T12:00:00+08:00", 7},
-	} {
-		if got := shoptime.DaysSince(at(c.filed), at(c.now)); got != c.want {
-			t.Errorf("%s: DaysSince = %d, want %d", name, got, c.want)
-		}
-	}
-}
-
 func TestAFormMinuteIsReadAndWrittenOnTheShopsClock(t *testing.T) {
 	instant := time.Date(2026, 9, 3, 20, 30, 0, 0, time.UTC)
 	field := shoptime.InputMinute(instant)

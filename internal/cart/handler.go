@@ -39,7 +39,7 @@ type Handler struct {
 	// session to close.
 	sessions payment.SessionCloser
 	// storeMap is nil or disabled on a deployment with no carrier, where the
-	// checkout asks for a chain alone.
+	// checkout offers no pickup.
 	storeMap       *StoreMap
 	barcodeChecker MobileBarcodeChecker
 	// couponMisses bounds how many wrong coupon codes one shopper is told
@@ -57,7 +57,7 @@ type MobileBarcodeChecker interface {
 }
 
 // NewHandler reads a nil sessions as no provider configured, and a nil or
-// disabled storeMap as no carrier, so the checkout asks for a chain alone; an
+// disabled storeMap as no carrier, so the checkout offers no pickup; an
 // omitted checker keeps local shape validation where there is no invoice gateway.
 func NewHandler(store *Store, log *slog.Logger, secure bool, findLimit *ratelimit.Limiter,
 	sessions payment.SessionCloser, storeMap *StoreMap, checkers ...MobileBarcodeChecker,
