@@ -3540,6 +3540,7 @@ SELECT
     (pv.stock_quantity - pv.safety_stock)::integer AS sellable_quantity,
     pv.is_active,
     p.status AS product_status,
+    p.tax_type,
     p.slug,
     localized_name(p.name, p.name_en, $2::text) AS name,
     p.warranty_note,
@@ -3602,6 +3603,7 @@ type CartLinesRow struct {
 	SellableQuantity    int32
 	IsActive            bool
 	ProductStatus       string
+	TaxType             string
 	Slug                string
 	Name                string
 	WarrantyNote        pgtype.Text
@@ -3635,6 +3637,7 @@ func (q *Queries) CartLines(ctx context.Context, arg CartLinesParams) ([]CartLin
 			&i.SellableQuantity,
 			&i.IsActive,
 			&i.ProductStatus,
+			&i.TaxType,
 			&i.Slug,
 			&i.Name,
 			&i.WarrantyNote,
@@ -7555,7 +7558,7 @@ func (q *Queries) InvalidateResetTokens(ctx context.Context, userID uuid.UUID) e
 
 const invoiceDocumentLines = `-- name: InvoiceDocumentLines :many
 SELECT l.document_id, l.id, l.description, l.quantity, l.unit_price_cents,
-       l.amount_cents, l.tax_type
+       l.amount_cents, l.tax_type, l.unit
 FROM invoice_document_lines l
 WHERE l.document_id = ANY($1::uuid[])
 ORDER BY l.document_id, l.position, l.id
@@ -7569,6 +7572,7 @@ type InvoiceDocumentLinesRow struct {
 	UnitPriceCents int64
 	AmountCents    int64
 	TaxType        string
+	Unit           string
 }
 
 // What one filed document says was sold; a shop reconciling an invoice against
@@ -7590,6 +7594,7 @@ func (q *Queries) InvoiceDocumentLines(ctx context.Context, documentIds []uuid.U
 			&i.UnitPriceCents,
 			&i.AmountCents,
 			&i.TaxType,
+			&i.Unit,
 		); err != nil {
 			return nil, err
 		}
@@ -7777,7 +7782,9 @@ SELECT d.id, d.number, d.amount_cents, d.status, d.issued_at,
        ARRAY(SELECT l.amount_cents FROM invoice_document_lines l
              WHERE l.document_id = d.id ORDER BY l.position)::bigint[] AS line_amount_cents,
        ARRAY(SELECT l.tax_type FROM invoice_document_lines l
-             WHERE l.document_id = d.id ORDER BY l.position)::text[] AS tax_types
+             WHERE l.document_id = d.id ORDER BY l.position)::text[] AS tax_types,
+       ARRAY(SELECT l.unit FROM invoice_document_lines l
+             WHERE l.document_id = d.id ORDER BY l.position)::text[] AS units
 FROM invoice_documents d
 WHERE d.original_id = $1::uuid AND d.kind = 'allowance'
 ORDER BY d.issued_at, d.id
@@ -7794,6 +7801,7 @@ type KnownAllowancesRow struct {
 	UnitPriceCents  []int64
 	LineAmountCents []int64
 	TaxTypes        []string
+	Units           []string
 }
 
 // Complete immutable local facts for every allowance represented against the
@@ -7821,6 +7829,7 @@ func (q *Queries) KnownAllowances(ctx context.Context, originalID uuid.UUID) ([]
 			&i.UnitPriceCents,
 			&i.LineAmountCents,
 			&i.TaxTypes,
+			&i.Units,
 		); err != nil {
 			return nil, err
 		}

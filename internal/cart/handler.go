@@ -1019,6 +1019,9 @@ func (h *Handler) answerPlacement(
 	case errors.Is(err, ErrTooManyItems):
 		view.Repriced = i18n.T(r.Context(), i18n.KeyCartLineLimit)
 		h.renderCheckout(w, r, http.StatusUnprocessableEntity, view)
+	case errors.Is(err, ErrMixedTaxTypes):
+		view.Repriced = i18n.T(r.Context(), i18n.KeyCartMixedTaxTypes)
+		h.renderCheckout(w, r, http.StatusUnprocessableEntity, view)
 	case errors.Is(err, ErrCreditChanged):
 		h.answerCreditChanged(w, r, cartID, view)
 	case errors.Is(err, errCheckoutChanged):

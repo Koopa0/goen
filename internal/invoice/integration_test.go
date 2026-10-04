@@ -273,7 +273,7 @@ func TestAllowanceCandidateWithoutSendEvidenceIsAlarmed(t *testing.T) {
 					"IA_Total_Tax_Amount": 500,
 					"Items": []map[string]any{{
 						"ItemName": "退貨折讓", "ItemCount": 1, "ItemPrice": 500,
-						"ItemAmount": 500, "ItemTaxType": 1,
+						"ItemAmount": 500, "ItemWord": "個", "ItemTaxType": 1,
 					}},
 				}},
 			})
@@ -2504,7 +2504,7 @@ func TestKnownAllowanceStateContradictionsAreAlarmed(t *testing.T) {
 							"IA_Total_Tax_Amount": 500,
 							"Items": []map[string]any{{
 								"ItemName": "退貨折讓", "ItemCount": 1,
-								"ItemPrice": 500, "ItemAmount": 500, "ItemTaxType": 1,
+								"ItemPrice": 500, "ItemAmount": 500, "ItemWord": "個", "ItemTaxType": 1,
 							}},
 						}},
 					})
@@ -2733,7 +2733,7 @@ func TestContradictoryUnknownInvalidAllowanceIsAlarmedWithoutRelease(t *testing.
 							"Items": []map[string]any{{
 								"ItemName": tt.description, "ItemCount": 1,
 								"ItemPrice": tt.amountTWD, "ItemAmount": tt.amountTWD,
-								"ItemTaxType": 1,
+								"ItemWord": "個", "ItemTaxType": 1,
 							}},
 						}},
 					})
@@ -2793,7 +2793,8 @@ func insertAllowanceOperation(
 		         'amount_cents',$4::bigint,
 		         'lines',jsonb_build_array(jsonb_build_object(
 		           'description','退貨折讓','quantity',1,
-		           'unit_price_cents',$4::bigint,'amount_cents',$4::bigint))),
+		           'unit_price_cents',$4::bigint,'amount_cents',$4::bigint,
+           'tax_type',(SELECT l.tax_type FROM invoice_document_lines l WHERE l.document_id=d.id ORDER BY l.position LIMIT 1),'unit','個'))),
 		       $3,$3,'allowance-test-operation',$5,
 		       CASE WHEN $5 > 0 THEN now() END,
 		       CASE WHEN $5 > 0 THEN 'allowance_send_ambiguous' END
@@ -3208,12 +3209,14 @@ func invoicedOrderWithRefundFor(t *testing.T, owner uuid.NullUUID, refundCents i
 		t.Fatalf("capture: %v", err)
 	}
 	if _, err := tx.Exec(ctx, `
-		INSERT INTO invoice_documents (order_id, kind, number, amount_cents)
-		VALUES ($1, 'invoice',
-		        'GD' || lpad((floor(random()*90000000)+10000000)::bigint::text, 8, '0'),
-		        100000)`,
-		orderID); err != nil {
-		t.Fatalf("file the invoice: %v", err)
+        WITH document AS (
+            INSERT INTO invoice_documents (order_id,kind,number,amount_cents)
+            VALUES ($1,'invoice','GD' || lpad((floor(random()*90000000)+10000000)::bigint::text,8,'0'),100000)
+            RETURNING id
+        ) INSERT INTO invoice_document_lines
+            (document_id,description,quantity,unit_price_cents,amount_cents,tax_type,unit,position)
+        SELECT id,'商品',1,100000,100000,'taxable','個',0 FROM document`, orderID); err != nil {
+		t.Fatalf("file the invoice and its line: %v", err)
 	}
 	// Zero means no CARD refund, which is what a return compensated entirely
 	// from store credit looks like: refunds_amount_positive refuses a zero row,
@@ -4099,11 +4102,18 @@ func orderToInvoiceFor(
 // ownedOrderToInvoice is orderToInvoiceFor placed by owner, or by a guest when
 // owner is not valid.
 func ownedOrderToInvoice(
-	t *testing.T,
-	owner uuid.NullUUID,
+	t *testing.T, owner uuid.NullUUID,
 	itemCents, shippingCents, discountCents int64,
-	preference Preference,
-	buyerName, taxID string,
+	preference Preference, buyerName, taxID string,
+) string {
+	t.Helper()
+	return ownedOrderToInvoiceWithLineTerms(t, owner, itemCents, shippingCents, discountCents, preference, buyerName, taxID, LineTerms{TaxType: Taxable, Unit: DefaultUnit})
+}
+
+func ownedOrderToInvoiceWithLineTerms(
+	t *testing.T, owner uuid.NullUUID,
+	itemCents, shippingCents, discountCents int64,
+	preference Preference, buyerName, taxID string, terms LineTerms,
 ) string {
 	t.Helper()
 	ctx := t.Context()
@@ -4128,13 +4138,19 @@ func ownedOrderToInvoice(
 		Scan(&orderID, &number); err != nil {
 		t.Fatalf("create the order: %v", err)
 	}
-	if _, err := tx.Exec(ctx, `
+	if terms == (LineTerms{TaxType: Taxable, Unit: DefaultUnit}) {
+		if _, err := tx.Exec(ctx, `
 		INSERT INTO order_lines (order_id, variant_id, sku, product_name,
 		                         unit_price_cents, quantity, position)
 		SELECT $1, pv.id, pv.sku, p.name, $2, 1, 0
 		FROM product_variants pv JOIN products p ON p.id = pv.product_id
 		WHERE p.status = 'active' LIMIT 1`, orderID, itemCents); err != nil {
-		t.Fatalf("add a line: %v", err)
+			t.Fatalf("add a line: %v", err)
+		}
+	} else if _, err := tx.Exec(ctx, `
+        INSERT INTO order_lines (order_id,sku,product_name,unit_price_cents,quantity,position,tax_type,invoice_unit)
+        VALUES ($1,'INVOICE-TERMS','免稅測試商品',$2,1,0,$3,$4)`, orderID, itemCents, string(terms.TaxType), string(terms.Unit)); err != nil {
+		t.Fatalf("add invoice terms line: %v", err)
 	}
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO order_private_data (order_id, email, recipient_name, phone,

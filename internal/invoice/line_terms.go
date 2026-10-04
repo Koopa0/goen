@@ -38,8 +38,7 @@ func (tax TaxType) Label(ctx context.Context) string {
 
 type ItemUnit string
 
-// i18n-exempt: invoice units are Chinese shop values in either interface locale.
-const DefaultUnit ItemUnit = "個"
+const DefaultUnit ItemUnit = "個" // i18n-exempt: invoice units are Chinese shop values in either interface locale.
 
 func (unit ItemUnit) Valid() bool {
 	return utf8.ValidString(string(unit)) && strings.TrimSpace(string(unit)) != "" && utf8.RuneCountInString(string(unit)) <= 6 && !strings.ContainsFunc(string(unit), unicode.IsControl)
@@ -64,4 +63,15 @@ func (facts LineTerms) Validate(ctx context.Context) map[string]string {
 		errs["invoice_unit"] = i18n.T(ctx, i18n.KeyInvoiceUnitInvalid)
 	}
 	return errs
+}
+
+func (tax TaxType) ecpayCode() string {
+	switch tax {
+	case Taxable:
+		return "1"
+	case Exempt:
+		return "3"
+	default:
+		return ""
+	}
 }

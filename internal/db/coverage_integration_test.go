@@ -615,7 +615,7 @@ func TestReportingCannotReadCredentialsOrPII(t *testing.T) {
 			"secondary_cta_label", "secondary_cta_label_en"}, published},
 		"inventory_movements":    {[]string{"idempotency_key", "reason", "source_type"}, shopWords},
 		"inventory_reservations": {[]string{"state"}, shopWords},
-		"invoice_document_lines": {[]string{"description", "tax_type"},
+		"invoice_document_lines": {[]string{"description", "tax_type", "unit"},
 			"what a 統一發票 itemised: the catalogue snapshot and a closed vocabulary"},
 		"invoice_documents": {[]string{"kind", "number", "provider_ref", "request_key", "status"},
 			"the filed document's numbers and state; the buyer's identity is in invoice_preferences"},

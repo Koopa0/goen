@@ -233,6 +233,7 @@ type InvoiceDocumentLine struct {
 	UnitPriceCents int64
 	AmountCents    int64
 	TaxType        string
+	Unit           string
 	Position       int32
 }
 
