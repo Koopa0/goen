@@ -1,6 +1,7 @@
 package layoutcheck_test
 
 import (
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -17,7 +18,7 @@ func TestCompareLayoutRowsMeasureTheTableNotTheEmptyState(t *testing.T) {
 
 	root := repoRoot(t)
 	body := readLayoutScript(t, root)
-	makefile := readMakefile(t, root)
+	fixture := readLayoutFixture(t, root)
 
 	for _, label := range []string{"compare 375", "compare 1440"} {
 		row := compareLayoutRow(t, body, label)
@@ -35,7 +36,7 @@ func TestCompareLayoutRowsMeasureTheTableNotTheEmptyState(t *testing.T) {
 		}
 	}
 
-	if !strings.Contains(makefile, "COMPARE_SLUG_B=") {
+	if !strings.Contains(fixture, "COMPARE_SLUG_B=") {
 		t.Fatal("check-layout does not supply a second compare product")
 	}
 	if !strings.Contains(body, "COMPARE_SLUG_B") {
@@ -70,6 +71,15 @@ func readLayoutScript(t *testing.T, root string) string {
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("read check-layout.mjs: %v", err)
+	}
+	return string(raw)
+}
+
+func readLayoutFixture(t *testing.T, root string) string {
+	t.Helper()
+	raw, err := fs.ReadFile(os.DirFS(root), "scripts/check-layout.sql")
+	if err != nil {
+		t.Fatalf("read check-layout.sql: %v", err)
 	}
 	return string(raw)
 }
