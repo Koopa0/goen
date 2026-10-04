@@ -15,16 +15,16 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/loyalty"
 	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/user"
 )
 
 func TestPointsPaginationKeepsWholeSpendsAndOlderClawbacksReachable(t *testing.T) {
 	userID, accountID := customer(t, 0)
 	orderID := orderFor(t, userID, 10000)
-	ctx := account.WithUser(i18n.WithLocale(t.Context(), i18n.En), account.User{ID: userID})
+	ctx := user.NewContext(i18n.WithLocale(t.Context(), i18n.En), user.User{ID: userID})
 	if _, err := pool.Exec(ctx, `
  INSERT INTO loyalty_entries (account_id,kind,points,reason,idempotency_key,expires_on,created_at)
  SELECT $1,'award',n,'pagination','page:' || ($1::uuid)::text || ':' || n,shop_today()+365,

@@ -8,10 +8,10 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/user"
 )
 
 func TestStaffNavigationOnlyOmitsTheAdminOnlyDestination(t *testing.T) {
@@ -22,7 +22,7 @@ func TestStaffNavigationOnlyOmitsTheAdminOnlyDestination(t *testing.T) {
 			c := access.New(slog.New(slog.DiscardHandler), nil)
 			links := map[string][]string{}
 			for _, role := range []string{"staff", "admin"} {
-				ctx := account.WithUser(i18n.WithLocale(t.Context(), locale), account.User{Role: account.Role(role)})
+				ctx := user.NewContext(i18n.WithLocale(t.Context(), locale), user.User{Role: user.Role(role)})
 				// A stale presentation hint must not override the authenticated role.
 				ctx = layouts.WithAdmin(ctx, true)
 				req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/admin/orders", http.NoBody)

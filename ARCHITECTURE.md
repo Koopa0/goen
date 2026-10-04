@@ -238,6 +238,7 @@ flowchart TB
 | [`internal/ui/layouts`](internal/ui/layouts) | Shared document head, page chrome, layout context. |
 | [`internal/ui/pages`](internal/ui/pages) | Storefront/account templates and view models. |
 | [`internal/ui/pages/admin`](internal/ui/pages/admin) | Back-office templates and view models. |
+| [`internal/user`](internal/user) | The signed-in user, `users.role`, and the context that carries them. |
 | [`internal/warranty`](internal/warranty) | Warranty registration for purchased units. |
 | [`internal/web`](internal/web) | Rendering, forms, pagination, compression, text/HTTP helpers. |
 

@@ -10,6 +10,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
+	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -84,7 +85,7 @@ func (h *Handler) Add(w http.ResponseWriter, r *http.Request) {
 		view.Actor = actorID(r)
 		view.AddEmail = r.PostFormValue("email")
 		view.AddName = r.PostFormValue("name")
-		view.AddRole = admin.StaffRole(r.PostFormValue("role"))
+		view.AddRole = user.Role(r.PostFormValue("role"))
 		view.AddError = i18n.T(r.Context(), i18n.KeyStaffAlreadyExists)
 		if !h.factorsEnabled {
 			view.Notice = i18n.T(r.Context(), i18n.KeyTOTPNoKeyNotice)

@@ -8,10 +8,10 @@ import (
 	"net/url"
 	"strconv"
 
-	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -28,7 +28,7 @@ func NewHandler(store *Store, log *slog.Logger) *Handler {
 }
 
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
-	u, ok := account.FromContext(r.Context())
+	u, ok := user.FromContext(r.Context())
 	if !ok {
 		http.Redirect(w, r, "/signin?next=/account/warranty", http.StatusSeeOther)
 		return
@@ -45,7 +45,7 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Order(w http.ResponseWriter, r *http.Request) {
-	u, ok := account.FromContext(r.Context())
+	u, ok := user.FromContext(r.Context())
 	if !ok {
 		http.Redirect(w, r, "/signin", http.StatusSeeOther)
 		return
@@ -70,7 +70,7 @@ func (h *Handler) Order(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
-	u, ok := account.FromContext(r.Context())
+	u, ok := user.FromContext(r.Context())
 	if !ok {
 		http.Redirect(w, r, "/signin", http.StatusSeeOther)
 		return

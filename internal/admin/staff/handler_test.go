@@ -10,8 +10,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/admin/access"
+	"github.com/koopa0/goen/internal/user"
 )
 
 func TestEveryRedirectTheStaffFormsMakeCarriesAMessage(t *testing.T) {
@@ -52,7 +52,7 @@ func TestOnlyAnAdminReachesTheRoster(t *testing.T) {
 	} {
 		t.Run(route.method+" "+route.path, func(t *testing.T) {
 			t.Parallel()
-			ctx := account.WithUser(t.Context(), account.User{ID: uuid.NewString(), Role: account.RoleStaff})
+			ctx := user.NewContext(t.Context(), user.User{ID: uuid.NewString(), Role: user.RoleStaff})
 			req := httptest.NewRequestWithContext(ctx, route.method, route.path, nil)
 			w := httptest.NewRecorder()
 			mux.ServeHTTP(w, req)

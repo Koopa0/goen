@@ -14,9 +14,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/ratelimit"
+	"github.com/koopa0/goen/internal/user"
 )
 
 // integrityCheckout is one signed-in customer's cart, ready to check out: two
@@ -99,8 +99,8 @@ func (c *integrityCheckout) post(
 		strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.AddCookie(&http.Cookie{Name: "goen_cart", Value: c.token}) //nolint:gosec // G124: dev cart cookie under test
-	req = req.WithContext(account.WithUser(req.Context(), account.User{
-		ID: c.userID.String(), Email: c.addr.Email, Role: account.RoleCustomer,
+	req = req.WithContext(user.NewContext(req.Context(), user.User{
+		ID: c.userID.String(), Email: c.addr.Email, Role: user.RoleCustomer,
 	}))
 	res = httptest.NewRecorder()
 	c.h.PlaceOrder(res, req)

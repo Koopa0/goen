@@ -14,10 +14,10 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/user"
 )
 
 // mapMerchantID stands for whatever id the environment names; goen only ever
@@ -138,7 +138,7 @@ func startPickup(
 // startPickupAs is startPickup for a signed-in member: a member-owned cart is
 // only served to its owner, so the start and the hand-off page both carry who.
 func startPickupAs(
-	t *testing.T, h *cart.Handler, token string, who *account.User, fields url.Values, cookies ...*http.Cookie,
+	t *testing.T, h *cart.Handler, token string, who *user.User, fields url.Values, cookies ...*http.Cookie,
 ) (body string, pickupCookie *http.Cookie, status int) {
 	t.Helper()
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, pages.PickupStartAction,
@@ -150,7 +150,7 @@ func startPickupAs(
 		req.AddCookie(c)
 	}
 	if who != nil {
-		req = req.WithContext(account.WithUser(req.Context(), *who))
+		req = req.WithContext(user.NewContext(req.Context(), *who))
 	}
 	res := httptest.NewRecorder()
 	h.PickupStart(res, req)
@@ -166,7 +166,7 @@ func startPickupAs(
 		next.AddCookie(pickupCookie)
 	}
 	if who != nil {
-		next = next.WithContext(account.WithUser(next.Context(), *who))
+		next = next.WithContext(user.NewContext(next.Context(), *who))
 	}
 	page := httptest.NewRecorder()
 	h.PickupMap(page, next)

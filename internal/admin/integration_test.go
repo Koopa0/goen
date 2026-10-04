@@ -17,7 +17,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/admin/campaigns"
@@ -28,6 +27,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/stock"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/db/dbtest"
+	"github.com/koopa0/goen/internal/user"
 )
 
 var pool *pgxpool.Pool
@@ -67,17 +67,17 @@ func TestTheBackOfficeIsInvisibleToEveryoneButStaff(t *testing.T) {
 	tests := []struct {
 		name     string
 		signedIn bool
-		user     account.User
+		user     user.User
 	}{
 		{name: "signed out"},
 		{name: "a signed-in customer", signedIn: true,
-			user: account.User{ID: customerID.String(), Role: account.RoleCustomer}},
+			user: user.User{ID: customerID.String(), Role: user.RoleCustomer}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/admin", nil)
 			if tt.signedIn {
-				req = req.WithContext(account.WithUser(req.Context(), tt.user))
+				req = req.WithContext(user.NewContext(req.Context(), tt.user))
 			}
 			w := httptest.NewRecorder()
 			guarded(w, req)
@@ -112,8 +112,8 @@ func TestTheBackOfficeIsInvisibleToEveryoneButStaff(t *testing.T) {
 				t.Fatalf("create %s: %v", role, err)
 			}
 			req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/admin", nil)
-			req = req.WithContext(account.WithUser(req.Context(),
-				account.User{ID: id.String(), Role: account.Role(role)}))
+			req = req.WithContext(user.NewContext(req.Context(),
+				user.User{ID: id.String(), Role: user.Role(role)}))
 			w := httptest.NewRecorder()
 			guarded(w, req)
 			if w.Code != http.StatusOK {

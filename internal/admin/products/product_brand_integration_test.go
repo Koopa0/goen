@@ -23,6 +23,7 @@ import (
 	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/product"
+	"github.com/koopa0/goen/internal/user"
 )
 
 func TestTheShopCanPublishAnUnbrandedProduct(t *testing.T) {
@@ -144,7 +145,7 @@ func TestTheShopCanPublishAnUnbrandedProduct(t *testing.T) {
 	if err != nil || len(order.Lines) != 1 || order.Lines[0].SKU != sku {
 		t.Errorf("unbranded order = %+v, %v", order.Lines, err)
 	}
-	history, err := accounts.Overview(ctx, account.User{ID: actor.String()})
+	history, err := accounts.Overview(ctx, user.User{ID: actor.String()})
 	if err != nil || len(history.Orders) != 1 || history.Orders[0].Number != number {
 		t.Errorf("unbranded order history = %+v, %v", history.Orders, err)
 	}

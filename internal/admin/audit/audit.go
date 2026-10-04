@@ -12,8 +12,8 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -96,7 +96,7 @@ func ActorID(ctx context.Context) uuid.NullUUID {
 }
 
 func Actor(ctx context.Context) (uuid.UUID, bool) {
-	u, ok := account.FromContext(ctx)
+	u, ok := user.FromContext(ctx)
 	if !ok {
 		return uuid.UUID{}, false
 	}

@@ -23,12 +23,12 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/assets"
-	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/admin/feedback"
 	"github.com/koopa0/goen/internal/admin/stock"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/product"
 	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/user"
 )
 
 var pool *pgxpool.Pool
@@ -465,7 +465,7 @@ func TestOnlyACustomerWhoReceivedTheProductMayReview(t *testing.T) {
 
 	form := url.Values{"rating": {"5"}, "body": {"沒有收到商品也想送出評價。"}}
 	req := httptest.NewRequestWithContext(
-		account.WithUser(ctx, account.User{ID: browser.String()}),
+		user.NewContext(ctx, user.User{ID: browser.String()}),
 		http.MethodPost, "/p/"+slug+"/reviews", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.SetPathValue("slug", slug)
@@ -792,7 +792,7 @@ func TestFeedbackCannotTargetAMissingOrInactiveProduct(t *testing.T) {
 
 		form := url.Values{"rating": {"5"}, "body": {"第二次送出不該把 404 變成 500。"}}
 		req := httptest.NewRequestWithContext(
-			account.WithUser(ctx, account.User{ID: who.String()}),
+			user.NewContext(ctx, user.User{ID: who.String()}),
 			http.MethodPost, "/p/"+slug+"/reviews", strings.NewReader(form.Encode()))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		req.SetPathValue("slug", slug)
@@ -941,7 +941,7 @@ func TestTheRestockConfirmationNamesOnlyTheAccountsOwnAddress(t *testing.T) {
 		t.Helper()
 		reqCtx := ctx
 		if signedIn {
-			reqCtx = account.WithUser(ctx, account.User{ID: reviewer(t, "notify").String(), Email: own})
+			reqCtx = user.NewContext(ctx, user.User{ID: reviewer(t, "notify").String(), Email: own})
 		}
 		form := url.Values{"email": {addr}, "variant": {vid.String()}}
 		req := httptest.NewRequestWithContext(reqCtx, http.MethodPost, "/p/"+slug+"/notify",
@@ -1102,7 +1102,7 @@ func TestRestockNoticeAndRestockLinearizeOnVariant(t *testing.T) {
 		applicationName := "stock-race-request-first-" + uuid.NewString()[:8]
 		restockPool := stockRacePool(t, applicationName)
 		restockStore := stock.NewStore(restockPool)
-		staffCtx := account.WithUser(ctx, account.User{ID: actorID.String(), Role: account.RoleAdmin})
+		staffCtx := user.NewContext(ctx, user.User{ID: actorID.String(), Role: user.RoleAdmin})
 		restocked := make(chan error, 1)
 		go func() {
 			restocked <- restockStore.Adjust(
@@ -1188,7 +1188,7 @@ func TestRestockNoticeAndRestockLinearizeOnVariant(t *testing.T) {
 
 		restockPool := stockRacePool(t, applicationName)
 		restockStore := stock.NewStore(restockPool)
-		staffCtx := account.WithUser(ctx, account.User{ID: actorID.String(), Role: account.RoleAdmin})
+		staffCtx := user.NewContext(ctx, user.User{ID: actorID.String(), Role: user.RoleAdmin})
 		restocked := make(chan error, 1)
 		go func() {
 			restocked <- restockStore.Adjust(
@@ -1630,7 +1630,7 @@ func TestAStaffAnswerStaysStaffWhenTheAuthorChangesRole(t *testing.T) {
 	if err := insertHistoricalCustomerAnswer(ctx, qID, customer, "我實測過可以。"); err != nil {
 		t.Fatalf("customer answer: %v", err)
 	}
-	staffCtx := account.WithUser(ctx, account.User{ID: staff, Role: account.RoleAdmin})
+	staffCtx := user.NewContext(ctx, user.User{ID: staff, Role: user.RoleAdmin})
 	if err := back.AnswerQuestion(staffCtx, qID, staff, "支援,最高 45W。"); err != nil {
 		t.Fatalf("staff answer: %v", err)
 	}
@@ -1705,7 +1705,7 @@ func TestAHiddenQuestionDisappearsWithItsAnswers(t *testing.T) {
 	}
 
 	staff := newShopAuthor(t)
-	staffCtx := account.WithUser(ctx, account.User{ID: staff, Role: account.RoleAdmin})
+	staffCtx := user.NewContext(ctx, user.User{ID: staff, Role: user.RoleAdmin})
 	back := feedback.NewStore(pool)
 	if err := back.AnswerQuestion(staffCtx, qID, staff, "太遲了"); !errors.Is(err, feedback.ErrNotFound) {
 		t.Errorf("a hidden question's new answer = %v, want feedback.ErrNotFound", err)
@@ -1723,7 +1723,7 @@ func TestARejectedQuestionKeepsTheDraft(t *testing.T) {
 
 	form := url.Values{"body": {draft}}
 	req := httptest.NewRequestWithContext(
-		account.WithUser(ctx, account.User{ID: customer}),
+		user.NewContext(ctx, user.User{ID: customer}),
 		http.MethodPost, "/p/"+slug+"/questions", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.SetPathValue("slug", slug)
@@ -1757,7 +1757,7 @@ func TestAnAskedQuestionIsStoredAndTheReaderReturnsToTheQuestions(t *testing.T) 
 
 	form := url.Values{"body": {question}}
 	req := httptest.NewRequestWithContext(
-		account.WithUser(t.Context(), account.User{ID: customer}),
+		user.NewContext(t.Context(), user.User{ID: customer}),
 		http.MethodPost, "/p/"+slug+"/questions", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.SetPathValue("slug", slug)

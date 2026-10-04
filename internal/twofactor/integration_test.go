@@ -20,12 +20,12 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/staff"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/twofactor"
+	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -51,7 +51,7 @@ func TestMain(m *testing.M) {
 // enrol takes a user all the way to a confirmed credential.
 // asActor is the context the access wrapper leaves for a signed-in admin.
 func asActor(ctx context.Context, id string) context.Context {
-	return account.WithUser(ctx, account.User{ID: id, Role: account.RoleAdmin})
+	return user.NewContext(ctx, user.User{ID: id, Role: user.RoleAdmin})
 }
 
 func enrol(t *testing.T, s *twofactor.Store, userID, email string) []byte {
@@ -71,7 +71,7 @@ func TestTheEnrolmentSecretPageIsNotCompressed(t *testing.T) {
 	s := twofactor.NewStore(pool, testKey)
 	userID, email := admintest.AdminUser(t, pool)
 	h := twofactor.NewHandler(s, slog.New(slog.DiscardHandler), false)
-	ctx := account.WithUser(t.Context(), account.User{ID: userID, Email: email, Role: account.RoleAdmin})
+	ctx := user.NewContext(t.Context(), user.User{ID: userID, Email: email, Role: user.RoleAdmin})
 	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/verify/enrol", strings.NewReader(""))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Accept-Encoding", "gzip")
@@ -367,9 +367,9 @@ func TestAStaleKeyIsExplainedInsteadOfBlamingTheCode(t *testing.T) {
 	enrol(t, s, userID, email)
 	h := twofactor.NewHandler(twofactor.NewStore(pool, differentKey),
 		slog.New(slog.DiscardHandler), false)
-	user := account.User{ID: userID, Email: email}
+	u := user.User{ID: userID, Email: email}
 
-	post := httptest.NewRequestWithContext(account.WithUser(t.Context(), user),
+	post := httptest.NewRequestWithContext(user.NewContext(t.Context(), u),
 		http.MethodPost, "/admin/verify", strings.NewReader("code=123456"))
 	post.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	postOut := httptest.NewRecorder()
@@ -387,7 +387,7 @@ func TestAStaleKeyIsExplainedInsteadOfBlamingTheCode(t *testing.T) {
 		{i18n.En, "This authenticator can no longer be read"},
 	} {
 		t.Run(tt.locale.Tag(), func(t *testing.T) {
-			ctx := i18n.WithLocale(account.WithUser(t.Context(), user), tt.locale)
+			ctx := i18n.WithLocale(user.NewContext(t.Context(), u), tt.locale)
 			get := httptest.NewRequestWithContext(ctx, http.MethodGet,
 				"/admin/verify", http.NoBody)
 			out := httptest.NewRecorder()
@@ -415,7 +415,7 @@ func TestDatabaseFailuresAreNotReportedAsWrongCodes(t *testing.T) {
 		forceTOTPUpdateFailure(t, userID)
 
 		code := twofactor.Code(secret, twofactor.StepAt(time.Now())+1)
-		assertTOTPHandlerFailure(t, account.User{ID: userID, Email: email}, code, h.Verify)
+		assertTOTPHandlerFailure(t, user.User{ID: userID, Email: email}, code, h.Verify)
 	})
 
 	t.Run("enrolment confirmation", func(t *testing.T) {
@@ -427,18 +427,18 @@ func TestDatabaseFailuresAreNotReportedAsWrongCodes(t *testing.T) {
 		forceTOTPUpdateFailure(t, userID)
 
 		code := twofactor.Code(secret, twofactor.StepAt(time.Now()))
-		assertTOTPHandlerFailure(t, account.User{ID: userID, Email: email}, code, h.Confirm)
+		assertTOTPHandlerFailure(t, user.User{ID: userID, Email: email}, code, h.Confirm)
 	})
 }
 
 func assertTOTPHandlerFailure(
 	t *testing.T,
-	user account.User,
+	u user.User,
 	code string,
 	handle func(http.ResponseWriter, *http.Request),
 ) {
 	t.Helper()
-	req := httptest.NewRequestWithContext(account.WithUser(t.Context(), user),
+	req := httptest.NewRequestWithContext(user.NewContext(t.Context(), u),
 		http.MethodPost, "/admin/verify", strings.NewReader("code="+code))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	out := httptest.NewRecorder()
@@ -498,7 +498,7 @@ func TestConfirmDoesNotClaimEnrolmentSuccessWhenMarkVerifiedFails(t *testing.T) 
 	}
 	forceSessionMarkFailure(t, userID)
 
-	out := postConfirm(t, h, account.User{ID: userID, Email: email},
+	out := postConfirm(t, h, user.User{ID: userID, Email: email},
 		twofactor.Code(secret, twofactor.StepAt(time.Now())), token)
 	if out.Code != http.StatusInternalServerError {
 		t.Errorf("Confirm = %d Location %q, want 500 without ?enrolled=1",
@@ -535,7 +535,7 @@ func TestConfirmWithoutASessionCookieIsNotEnrolmentSuccess(t *testing.T) {
 		t.Fatalf("begin enrolment: %v", err)
 	}
 
-	out := postConfirm(t, h, account.User{ID: userID, Email: email},
+	out := postConfirm(t, h, user.User{ID: userID, Email: email},
 		twofactor.Code(secret, twofactor.StepAt(time.Now())), "")
 	if out.Code != http.StatusSeeOther || out.Header().Get("Location") != "/signin" {
 		t.Errorf("Confirm = %d Location %q, want 303 /signin",
@@ -557,11 +557,11 @@ func TestConfirmWithoutASessionCookieIsNotEnrolmentSuccess(t *testing.T) {
 func postConfirm(
 	t *testing.T,
 	h *twofactor.Handler,
-	user account.User,
+	u user.User,
 	code, token string,
 ) *httptest.ResponseRecorder {
 	t.Helper()
-	req := httptest.NewRequestWithContext(account.WithUser(t.Context(), user),
+	req := httptest.NewRequestWithContext(user.NewContext(t.Context(), u),
 		http.MethodPost, "/admin/verify/confirm", strings.NewReader("code="+code))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	if token != "" {
@@ -691,7 +691,7 @@ func TestAnUnkeyedDeploymentSaysSoInsteadOf500(t *testing.T) {
 	userID, email := admintest.AdminUser(t, pool)
 	h := twofactor.NewHandler(twofactor.NewStore(pool, nil), slog.New(slog.DiscardHandler), false)
 
-	ctx := account.WithUser(t.Context(), account.User{ID: userID, Email: email, Role: account.RoleAdmin})
+	ctx := user.NewContext(t.Context(), user.User{ID: userID, Email: email, Role: user.RoleAdmin})
 	req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/admin/verify", http.NoBody)
 	out := httptest.NewRecorder()
 	h.Challenge(out, req)

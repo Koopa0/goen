@@ -11,11 +11,11 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/orders"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/email"
+	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -69,7 +69,7 @@ func TestTerminalArrivalIsNotRequeuedAfterCompletionOrOutboxRetention(t *testing
 
 func TestFailedAdvanceRollsBackItsTerminalNotice(t *testing.T) {
 	number, id, _ := admintest.PendingOrderHoldingStock(t, pool)
-	ctx := web.WithRequestID(account.WithUser(t.Context(), account.User{ID: uuid.NewString(), Role: account.RoleAdmin}), "missing-audit-actor")
+	ctx := web.WithRequestID(user.NewContext(t.Context(), user.User{ID: uuid.NewString(), Role: user.RoleAdmin}), "missing-audit-actor")
 	if _, err := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil).Advance(ctx, number, "cancelled", uuid.NullUUID{}); err == nil {
 		t.Fatal("advance accepted missing audit actor")
 	}

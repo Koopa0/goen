@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/koopa0/goen/internal/account"
+	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/warranty"
 )
 
@@ -24,7 +24,7 @@ func TestPostingTheRegistrationFormRegistersTheUnitAndReturnsToItsOrder(t *testi
 
 	form := url.Values{"line": {f.lineID.String()}, "unit": {"1"}, "serial": {"SN-HANDLER-0001"}}
 	req := httptest.NewRequestWithContext(
-		account.WithUser(t.Context(), account.User{ID: f.userID, Role: account.RoleCustomer}),
+		user.NewContext(t.Context(), user.User{ID: f.userID, Role: user.RoleCustomer}),
 		http.MethodPost, "/account/warranty/"+f.number, strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.SetPathValue("number", f.number)

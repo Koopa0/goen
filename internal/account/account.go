@@ -197,25 +197,6 @@ func sessionCookieName(secure bool) string {
 	return "goen_session"
 }
 
-type Role string
-
-const (
-	RoleCustomer Role = "customer"
-	RoleStaff    Role = "staff"
-	RoleAdmin    Role = "admin"
-)
-
-type User struct {
-	ID    string
-	Email string
-	Name  string
-	Role  Role
-}
-
-func (u User) IsStaff() bool { return u.Role == RoleStaff || u.Role == RoleAdmin }
-
-func (u User) IsAdmin() bool { return u.Role == RoleAdmin }
-
 type FieldError struct {
 	Field      string
 	MessageKey i18n.Key
@@ -325,6 +306,6 @@ func normaliseUserAgent(s string) string {
 	return s
 }
 
-// MembershipWindowDays mirrors loyalty.MembershipWindow; importing it would be
-// a cycle.
+// MembershipWindowDays is loyalty.MembershipWindow in days; window_test.go
+// keeps the two equal.
 const MembershipWindowDays int32 = 365

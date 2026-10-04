@@ -5,11 +5,11 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
+	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -55,7 +55,7 @@ func (h *Handler) Questions(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) AnswerQuestion(w http.ResponseWriter, r *http.Request) {
-	u, ok := account.FromContext(r.Context())
+	u, ok := user.FromContext(r.Context())
 	if !ok {
 		access.NotFound(w, r, h.log)
 		return

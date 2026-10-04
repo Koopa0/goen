@@ -16,6 +16,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ratelimit"
+	"github.com/koopa0/goen/internal/user"
 )
 
 func TestPasswordHashingRoundTrips(t *testing.T) {
@@ -708,7 +709,7 @@ func TestAccountOrderPageRedirectsToCanonical(t *testing.T) {
 	t.Parallel()
 
 	h := &Handler{log: slog.New(slog.DiscardHandler)}
-	ctx := WithUser(t.Context(), User{ID: "11110000-0000-4000-8000-000000000001"})
+	ctx := user.NewContext(t.Context(), user.User{ID: "11110000-0000-4000-8000-000000000001"})
 	r := httptest.NewRequestWithContext(ctx, http.MethodGet,
 		"/account/orders/GO-260101-000012", http.NoBody)
 	r.SetPathValue("number", "GO-260101-000012")
