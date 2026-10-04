@@ -36,6 +36,7 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 	mux.HandleFunc("POST /admin/stock/receive", ac.RequireStaff(h.Receive))
 	mux.HandleFunc("POST /admin/stock/active", ac.RequireStaff(h.SetActive))
 	mux.HandleFunc("POST /admin/stock/price", ac.RequireStaff(h.SetPrice))
+	mux.HandleFunc("POST /admin/stock/arrival", ac.RequireStaff(h.SetVariantArrival))
 }
 
 var notices = map[string]i18n.Key{
@@ -88,13 +89,27 @@ func (h *Handler) Adjust(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) rejectAdjustment(w http.ResponseWriter, r *http.Request, key i18n.Key) {
+	h.rejectStockForm(w, r, key, func(row *admin.Variant) {
+		row.DraftDelta = r.PostFormValue("delta")
+		row.DeltaError = i18n.T(r.Context(), key)
+	})
+}
+
+func (h *Handler) rejectArrival(w http.ResponseWriter, r *http.Request) {
+	h.rejectStockForm(w, r, i18n.KeyAdminVariantArrivalError, func(row *admin.Variant) {
+		row.ArrivalInput = r.PostFormValue("arrival_on")
+		row.ArrivalError = i18n.T(r.Context(), i18n.KeyAdminVariantArrivalError)
+	})
+}
+
+func (h *Handler) rejectStockForm(w http.ResponseWriter, r *http.Request, key i18n.Key, fill func(*admin.Variant)) {
 	var low, term, after string
 	if u, err := url.Parse(r.PostFormValue("return")); err == nil && u.Path == "/admin/stock" && u.Host == "" {
 		low, term, after = u.Query().Get("low"), u.Query().Get("q"), u.Query().Get(web.KeysetParam)
 	}
 	view, err := h.store.Variants(r.Context(), low == "1", term, after)
 	if err != nil {
-		h.log.ErrorContext(r.Context(), "read variants after refused adjustment", "error", err)
+		h.log.ErrorContext(r.Context(), "read variants after refused stock form", "error", err)
 		access.ServerError(w, r, h.log)
 		return
 	}
@@ -103,8 +118,7 @@ func (h *Handler) rejectAdjustment(w http.ResponseWriter, r *http.Request, key i
 	shown := false
 	for i := range view.Variants {
 		if view.Variants[i].SKU == sku {
-			view.Variants[i].DraftDelta = r.PostFormValue("delta")
-			view.Variants[i].DeltaError = i18n.T(r.Context(), key)
+			fill(&view.Variants[i])
 			shown = true
 		}
 	}
@@ -249,6 +263,25 @@ func (h *Handler) Movements(w http.ResponseWriter, r *http.Request) {
 		access.NotFound(w, r, h.log)
 	default:
 		h.log.ErrorContext(r.Context(), "read movements", "error", err)
+		access.ServerError(w, r, h.log)
+	}
+}
+
+func (h *Handler) SetVariantArrival(w http.ResponseWriter, r *http.Request) {
+	if err := web.ParseForm(w, r); err != nil {
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
+		return
+	}
+	err := h.store.SetVariantArrival(r.Context(), r.PostFormValue("sku"), r.PostFormValue("arrival_on"))
+	switch {
+	case err == nil:
+		http.Redirect(w, r, stockBack(r, "ok"), http.StatusSeeOther) //nolint:gosec // The destination is restricted to the stock page.
+	case errors.Is(err, ErrNotFound):
+		http.NotFound(w, r)
+	case errors.Is(err, ErrRefused):
+		h.rejectArrival(w, r)
+	default:
+		h.log.ErrorContext(r.Context(), "set variant arrival", "error", err)
 		access.ServerError(w, r, h.log)
 	}
 }

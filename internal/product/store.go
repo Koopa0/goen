@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -19,13 +20,14 @@ import (
 type Store struct {
 	q        *db.Queries
 	noPickup bool
+	now      func() time.Time
 }
 
 func NewStore(dbtx db.DBTX) *Store {
 	if dbtx == nil {
 		panic("product: NewStore requires a database handle")
 	}
-	return &Store{q: db.New(dbtx)}
+	return &Store{q: db.New(dbtx), now: time.Now}
 }
 
 // WithoutPickup is for a deployment whose store map is not configured: checkout
@@ -58,14 +60,16 @@ func (s *Store) Load(ctx context.Context, slug string, sel Selection) (pages.Pro
 		for j := 0; j < len(r.OptionNames) && j < len(r.OptionValues); j++ {
 			opts[r.OptionNames[j]] = r.OptionValues[j]
 		}
+		arrival := expectedArrivalOf(r)
 		variants = append(variants, Variant{
-			ID:           r.ID.String(),
-			SKU:          r.SKU,
-			PriceCents:   r.PriceCents,
-			CompareCents: r.CompareAtPriceCents.Int64,
-			Sellable:     r.Sellable,
-			Available:    r.SellableQuantity,
-			Options:      opts,
+			ID:              r.ID.String(),
+			SKU:             r.SKU,
+			PriceCents:      r.PriceCents,
+			CompareCents:    r.CompareAtPriceCents.Int64,
+			Sellable:        r.Sellable,
+			Available:       r.SellableQuantity,
+			ExpectedArrival: arrival,
+			Options:         opts,
 		})
 	}
 
@@ -122,6 +126,8 @@ func (s *Store) Load(ctx context.Context, slug string, sel Selection) (pages.Pro
 		view.CompareCents = chosen.CompareCents
 		view.Sellable = chosen.Sellable
 		view.Available = chosen.Available
+		view.ExpectedArrival = chosen.ExpectedArrival
+		view.ExpectedArrivalText = s.arrivalText(ctx, &view)
 	}
 
 	for _, o := range BuildOptions(slug, groups, order, labels, variants, sel) {
@@ -331,4 +337,18 @@ func (s *Store) SavedByUser(ctx context.Context, userID, slug string) bool {
 // product's price.
 func dearerThan(cents int64, variants []Variant) bool {
 	return slices.ContainsFunc(variants, func(v Variant) bool { return v.PriceCents > cents })
+}
+
+func expectedArrivalOf(r *db.ProductVariantsRow) time.Time {
+	if r.PreorderReleaseOn.Valid && r.ArrivalUpcoming {
+		return r.PreorderReleaseOn.Time
+	}
+	return time.Time{}
+}
+
+func (s *Store) arrivalText(ctx context.Context, v *pages.ProductView) string {
+	if !v.SoldOut() || v.ExpectedArrival.IsZero() {
+		return ""
+	}
+	return fmt.Sprintf(i18n.T(ctx, i18n.KeyExpectedArrival), pages.ShortDate(ctx, v.ExpectedArrival, s.now()))
 }

@@ -7,6 +7,7 @@ SELECT json_build_object('Number', (pv.stock_quantity - pv.safety_stock), 'Name'
     pv.stock_quantity,
     pv.safety_stock,
     pv.is_active,
+    pv.preorder_release_on,
     p.slug,
     p.name AS product_name,
     p.status AS product_status,
@@ -100,3 +101,10 @@ SELECT record_inventory_movement(
     @variant_id, @delta::integer, 'receipt',
     @idempotency_key::text, 'admin', NULL, @actor_user_id::uuid
 );
+
+-- name: LockVariantArrival :one
+SELECT id, preorder_release_on FROM product_variants WHERE sku = $1 FOR UPDATE;
+
+-- name: SetVariantArrival :exec
+UPDATE product_variants SET preorder_release_on = sqlc.narg('arrival_on')::date
+WHERE id = $1;

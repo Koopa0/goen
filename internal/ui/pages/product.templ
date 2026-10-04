@@ -326,6 +326,11 @@ templ productBuy(v *ProductView) {
 		}
 		@productAddForm(v)
 		if v.SoldOut() {
+			if v.ArrivalText() != "" {
+				@components.Notice(components.NoticeProps{Intent: components.IntentWarn, Class: "goen-pdp__note"}) {
+					<time datetime={ v.ArrivalDay() }>{ v.ArrivalText() }</time>
+				}
+			}
 			@productNotifyForm(v)
 		}
 		@productLinks(v)
