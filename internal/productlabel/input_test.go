@@ -75,13 +75,31 @@ func TestFactsKeepZeroAgeAndHideUnsetFields(t *testing.T) {
 		t.Fatal("unset facts rendered rows")
 	}
 	age := int16(0)
-	facts := Facts{NetQuantity: "1.20", NetUnit: Piece, MinAgeMonths: &age}
+	facts := Facts{NetQuantity: "1.2", NetUnit: Piece, MinAgeMonths: &age}
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), locale)
 		rows := facts.Rows(ctx)
-		if len(rows) != 2 || rows[0].Value != "1.20 "+i18n.T(ctx, i18n.KeyProductLabelPiece) || !strings.Contains(rows[1].Value, "0") {
+		if len(rows) != 2 || rows[0].Value != "1.2 "+i18n.T(ctx, i18n.KeyProductLabelPiece) || !strings.Contains(rows[1].Value, "0") {
 			t.Fatalf("%s: rows=%+v", locale, rows)
 		}
+	}
+}
+
+func TestNetUnitSymbolForPiecesUsesTheLocaleCountUnit(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		locale i18n.Locale
+		want   string
+	}{
+		{locale: i18n.En, want: "pcs"},
+		{locale: i18n.ZhHant, want: "件"},
+	} {
+		t.Run(string(tc.locale), func(t *testing.T) {
+			t.Parallel()
+			if got := Piece.Symbol(i18n.WithLocale(t.Context(), tc.locale)); got != tc.want {
+				t.Errorf("Piece.Symbol() = %q, want %q", got, tc.want)
+			}
+		})
 	}
 }
 
