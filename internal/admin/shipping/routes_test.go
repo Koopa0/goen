@@ -12,7 +12,7 @@ import (
 func TestEveryRouteRefusesAnOutsider(t *testing.T) {
 	t.Parallel()
 	accesstest.RefuseOutsiders(t, func(mux *http.ServeMux, ac *access.Control) {
-		NewHandler(&Store{}, nil, slog.New(slog.DiscardHandler)).Routes(mux, ac)
+		NewHandler(&Store{}, false, slog.New(slog.DiscardHandler)).Routes(mux, ac)
 	},
 		"GET /admin/shipping", "POST /admin/shipping/version", "POST /admin/shipping/surcharge",
 		"POST /admin/shipping/method", "POST /admin/shipping/method/{id}/active",
