@@ -12,6 +12,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/admin/audit"
@@ -115,6 +116,12 @@ type ShippingVersion struct {
 	FreeOverDollars int64
 }
 
+type VersionChangedError struct {
+	MethodID uuid.UUID
+}
+
+func (*VersionChangedError) Error() string { return "shipping: version changed" }
+
 func (s *Store) PublishShippingVersion(ctx context.Context, v ShippingVersion) error {
 	id, err := uuid.Parse(v.MethodID)
 	if err != nil {
@@ -141,6 +148,12 @@ func (s *Store) PublishShippingVersion(ctx context.Context, v ShippingVersion) e
 		},
 	},
 		func(ctx context.Context, q *db.Queries) error {
+			if _, err := q.LockShippingMethod(ctx, id); err != nil {
+				if errors.Is(err, pgx.ErrNoRows) {
+					return fmt.Errorf("%w: shipping method is missing", ErrRefused)
+				}
+				return fmt.Errorf("lock shipping method: %w", err)
+			}
 			versionID, insErr := q.PublishShippingVersion(ctx, db.PublishShippingVersionParams{
 				MethodID: id, Name: name, Carrier: carrierName,
 				NameEn: nameEn, CarrierEn: carrierEn,
@@ -183,6 +196,21 @@ func (s *Store) SetZoneSurcharge(ctx context.Context, versionID, zoneID string, 
 		},
 	},
 		func(ctx context.Context, q *db.Queries) error {
+			methodID, err := q.LockShippingMethodForVersion(ctx, vid)
+			if errors.Is(err, pgx.ErrNoRows) {
+				return fmt.Errorf("%w: shipping version is missing", ErrRefused)
+			}
+			if err != nil {
+				return fmt.Errorf("lock surcharge method: %w", err)
+			}
+			// A publisher may have committed while the method lock was held elsewhere.
+			currentID, err := q.CurrentShippingVersion(ctx, methodID)
+			if err != nil {
+				return fmt.Errorf("read current shipping version: %w", err)
+			}
+			if currentID != vid {
+				return &VersionChangedError{MethodID: methodID}
+			}
 			if dollars == 0 {
 				if _, delErr := q.ClearZoneSurcharge(ctx, db.ClearZoneSurchargeParams{
 					VersionID: vid, ZoneID: zid,

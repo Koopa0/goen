@@ -10,13 +10,34 @@ import (
 )
 
 type ShippingView struct {
-	Methods     []ShippingMethod
-	Zones       []ShippingZone
-	Notice      string
-	Errors      map[string]string
-	MethodDraft MethodDraft
-	ZoneDraft   ZoneDraft
-	PrefixDraft ZonePrefixesDraft
+	Methods        []ShippingMethod
+	Zones          []ShippingZone
+	Notice         string
+	Errors         map[string]string
+	MethodDraft    MethodDraft
+	ZoneDraft      ZoneDraft
+	PrefixDraft    ZonePrefixesDraft
+	SurchargeDraft SurchargeDraft
+}
+
+type SurchargeDraft struct {
+	MethodID string
+	ZoneID   string
+	Amount   string
+}
+
+func (v *ShippingView) SurchargeValue(m *ShippingMethod, zoneID string) string {
+	if v.SurchargeDraft.MethodID == m.MethodID && v.SurchargeDraft.ZoneID == zoneID {
+		return v.SurchargeDraft.Amount
+	}
+	return m.SurchargeDollars(zoneID)
+}
+
+func (v *ShippingView) SurchargeError(methodID, zoneID string) string {
+	if v.SurchargeDraft.MethodID == methodID && v.SurchargeDraft.ZoneID == zoneID {
+		return v.Errors["surcharge"]
+	}
+	return ""
 }
 
 type MethodDraft struct {
