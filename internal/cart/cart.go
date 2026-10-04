@@ -21,7 +21,6 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/destination"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
@@ -414,9 +413,9 @@ const (
 	maxStoreCodeLen = 10
 )
 
-func (a *Address) Validate() []account.FieldError {
-	var errs []account.FieldError
-	add := func(f string, k i18n.Key) { errs = append(errs, account.FieldError{Field: f, MessageKey: k}) }
+func (a *Address) Validate() []web.FieldError {
+	var errs []web.FieldError
+	add := func(f string, k i18n.Key) { errs = append(errs, web.FieldError{Field: f, MessageKey: k}) }
 
 	if k := emailError(a.Email); k != "" {
 		add("email", k)
@@ -444,9 +443,9 @@ func (a *Address) Validate() []account.FieldError {
 	return append(errs, a.controlCharErrors()...)
 }
 
-func (a *Address) destinationErrors() []account.FieldError {
-	var errs []account.FieldError
-	add := func(f string, k i18n.Key) { errs = append(errs, account.FieldError{Field: f, MessageKey: k}) }
+func (a *Address) destinationErrors() []web.FieldError {
+	var errs []web.FieldError
+	add := func(f string, k i18n.Key) { errs = append(errs, web.FieldError{Field: f, MessageKey: k}) }
 
 	switch a.To {
 	case destination.Address:
@@ -486,9 +485,9 @@ func (a *Address) destinationErrors() []account.FieldError {
 // come from the back office and are checked only when present, since the
 // carrier's picker supplies them; once either is written,
 // order_private_data_pickup_complete refuses a row without the other.
-func (a *Address) pickupPointErrors() []account.FieldError {
-	var errs []account.FieldError
-	add := func(f string, k i18n.Key) { errs = append(errs, account.FieldError{Field: f, MessageKey: k}) }
+func (a *Address) pickupPointErrors() []web.FieldError {
+	var errs []web.FieldError
+	add := func(f string, k i18n.Key) { errs = append(errs, web.FieldError{Field: f, MessageKey: k}) }
 
 	if !a.PickupChain.Known() {
 		add("pickup_chain", i18n.KeyPickupChainRequired)
@@ -537,8 +536,8 @@ func isStoreCode(s string) bool {
 
 // controlCharErrors: a newline in a name is how a shipping label gets a line it
 // was never given.
-func (a *Address) controlCharErrors() []account.FieldError {
-	var errs []account.FieldError
+func (a *Address) controlCharErrors() []web.FieldError {
+	var errs []web.FieldError
 	for _, f := range []struct{ name, value string }{
 		{"email", a.Email}, {"name", a.Name}, {"phone", a.Phone},
 		{"postal_code", a.PostalCode}, {"city", a.City},
@@ -547,7 +546,7 @@ func (a *Address) controlCharErrors() []account.FieldError {
 		{"pickup_store_name", a.PickupStoreName}, {"note", a.Note},
 	} {
 		if hasControl(f.value) {
-			errs = append(errs, account.FieldError{Field: f.name, MessageKey: i18n.KeyFieldHasControlChars})
+			errs = append(errs, web.FieldError{Field: f.name, MessageKey: i18n.KeyFieldHasControlChars})
 		}
 	}
 	return errs
@@ -651,7 +650,7 @@ type Invoice struct {
 	TaxID       string
 }
 
-func (i *Invoice) Validate() []account.FieldError {
+func (i *Invoice) Validate() []web.FieldError {
 	i.Type = invoicepkg.Preference(strings.TrimSpace(string(i.Type)))
 	i.MobileBarcode = strings.ToUpper(strings.TrimSpace(web.FoldWidth(i.MobileBarcode)))
 	i.DonationCode = strings.TrimSpace(i.DonationCode)
@@ -662,17 +661,17 @@ func (i *Invoice) Validate() []account.FieldError {
 		i.Type = invoicepkg.PreferenceMember
 	}
 	if !i.Type.Known() {
-		return []account.FieldError{{Field: "invoice_type", MessageKey: i18n.KeyInvoiceTypeRequired}}
+		return []web.FieldError{{Field: "invoice_type", MessageKey: i18n.KeyInvoiceTypeRequired}}
 	}
 
-	var errs []account.FieldError
+	var errs []web.FieldError
 	if i.Type != invoicepkg.PreferenceDonate {
 		i.DonationCode = ""
 	}
 	switch i.Type {
 	case invoicepkg.PreferenceMobile:
 		if !invoicepkg.ValidMobileBarcode(i.MobileBarcode) {
-			errs = append(errs, account.FieldError{
+			errs = append(errs, web.FieldError{
 				Field:      "invoice_carrier",
 				MessageKey: i18n.KeyMobileBarcodeMalformed,
 			})
@@ -680,18 +679,18 @@ func (i *Invoice) Validate() []account.FieldError {
 		i.CompanyName, i.TaxID = "", ""
 	case invoicepkg.PreferenceDonate:
 		if !invoicepkg.ValidDonationCode(i.DonationCode) {
-			errs = append(errs, account.FieldError{Field: "invoice_donation_code", MessageKey: i18n.KeyDonationCodeMalformed})
+			errs = append(errs, web.FieldError{Field: "invoice_donation_code", MessageKey: i18n.KeyDonationCodeMalformed})
 		}
 		i.MobileBarcode, i.CompanyName, i.TaxID = "", "", ""
 	case invoicepkg.PreferenceCompany:
 		if !invoicepkg.ValidBuyerName(i.CompanyName) {
-			errs = append(errs, account.FieldError{
+			errs = append(errs, web.FieldError{
 				Field:      "invoice_company_name",
 				MessageKey: i18n.KeyCompanyNameMalformed,
 			})
 		}
 		if !invoicepkg.ValidTaxID(i.TaxID) {
-			errs = append(errs, account.FieldError{
+			errs = append(errs, web.FieldError{
 				Field:      "invoice_tax_id",
 				MessageKey: i18n.KeyTaxIDMalformed,
 			})

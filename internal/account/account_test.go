@@ -17,6 +17,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/user"
+	"github.com/koopa0/goen/internal/web"
 )
 
 func TestPasswordHashingRoundTrips(t *testing.T) {
@@ -576,7 +577,7 @@ func TestUserAgentDecorationIsBoundedWithoutRejectingTheSession(t *testing.T) {
 func TestNoFieldMessageLeaksAFormatVerb(t *testing.T) {
 	t.Parallel()
 
-	every := []FieldError{
+	every := []web.FieldError{
 		{Field: "email", MessageKey: i18n.KeyCheckoutEmailRequired},
 		{Field: "email2", MessageKey: i18n.KeyCheckoutEmailMalformed},
 		{Field: "email3", MessageKey: i18n.KeyCheckoutEmailTooLong},
@@ -599,7 +600,7 @@ func TestNoFieldMessageLeaksAFormatVerb(t *testing.T) {
 
 	// The one message that does carry a verb still gets its number.
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	short := FieldMessages(ctx, []FieldError{
+	short := FieldMessages(ctx, []web.FieldError{
 		{Field: "password", MessageKey: i18n.KeyPasswordTooShort},
 	})["password"]
 	if !strings.Contains(short, strconv.Itoa(MinPasswordRunes)) {

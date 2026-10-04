@@ -751,21 +751,21 @@ type Address struct {
 	Default    bool
 }
 
-func (a *Address) Validate() []FieldError {
-	var errs []FieldError
+func (a *Address) Validate() []web.FieldError {
+	var errs []web.FieldError
 	appendAddressFieldError(&errs, "name", a.Name, maxNameRunes,
 		i18n.KeyNameRequired, i18n.KeyNameTooLong)
 	switch {
 	case strings.TrimSpace(a.Phone) == "":
-		errs = append(errs, FieldError{Field: "phone", MessageKey: i18n.KeyPhoneRequired})
+		errs = append(errs, web.FieldError{Field: "phone", MessageKey: i18n.KeyPhoneRequired})
 	case !looksLikeDeliveryPhone(a.Phone):
-		errs = append(errs, FieldError{Field: "phone", MessageKey: i18n.KeyPhoneMalformed})
+		errs = append(errs, web.FieldError{Field: "phone", MessageKey: i18n.KeyPhoneMalformed})
 	}
 	switch {
 	case strings.TrimSpace(a.PostalCode) == "":
-		errs = append(errs, FieldError{Field: "postal_code", MessageKey: i18n.KeyPostalCodeRequired})
+		errs = append(errs, web.FieldError{Field: "postal_code", MessageKey: i18n.KeyPostalCodeRequired})
 	case !isHomePostalCode(a.PostalCode):
-		errs = append(errs, FieldError{Field: "postal_code", MessageKey: i18n.KeyPostalCodeMalformed})
+		errs = append(errs, web.FieldError{Field: "postal_code", MessageKey: i18n.KeyPostalCodeMalformed})
 	}
 	appendAddressFieldError(&errs, "city", a.City, maxCityRunes,
 		i18n.KeyCityRequired, i18n.KeyAddressIncomplete)
@@ -774,7 +774,7 @@ func (a *Address) Validate() []FieldError {
 	appendAddressFieldError(&errs, "street", a.Street, maxStreetRunes,
 		i18n.KeyStreetRequired, i18n.KeyStreetTooLong)
 	if utf8.RuneCountInString(a.Label) > maxAddressLabelRunes {
-		errs = append(errs, FieldError{Field: "label", MessageKey: i18n.KeyAddressIncomplete})
+		errs = append(errs, web.FieldError{Field: "label", MessageKey: i18n.KeyAddressIncomplete})
 	}
 	for _, f := range []struct{ name, value string }{
 		{"label", a.Label}, {"name", a.Name}, {"phone", a.Phone},
@@ -782,7 +782,7 @@ func (a *Address) Validate() []FieldError {
 		{"district", a.District}, {"street", a.Street},
 	} {
 		if hasControl(f.value) {
-			errs = append(errs, FieldError{Field: f.name, MessageKey: i18n.KeyFieldHasControlChars})
+			errs = append(errs, web.FieldError{Field: f.name, MessageKey: i18n.KeyFieldHasControlChars})
 		}
 	}
 	return errs
@@ -822,16 +822,16 @@ func isHomePostalCode(s string) bool {
 }
 
 func appendAddressFieldError(
-	errs *[]FieldError,
+	errs *[]web.FieldError,
 	field, value string,
 	maxRunes int,
 	required, tooLong i18n.Key,
 ) {
 	switch {
 	case strings.TrimSpace(value) == "":
-		*errs = append(*errs, FieldError{Field: field, MessageKey: required})
+		*errs = append(*errs, web.FieldError{Field: field, MessageKey: required})
 	case utf8.RuneCountInString(value) > maxRunes:
-		*errs = append(*errs, FieldError{Field: field, MessageKey: tooLong})
+		*errs = append(*errs, web.FieldError{Field: field, MessageKey: tooLong})
 	}
 }
 

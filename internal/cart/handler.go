@@ -1319,15 +1319,15 @@ func checkoutErrors(
 	fieldErrs := addr.Validate()
 	if shipErr != nil {
 		fieldErrs = append(fieldErrs,
-			account.FieldError{Field: "shipping", MessageKey: i18n.KeyChooseShipping})
+			web.FieldError{Field: "shipping", MessageKey: i18n.KeyChooseShipping})
 	}
 	if addr.To == destination.PickupPoint {
 		if !offeredAtCheckout(addr.PickupChain) {
 			fieldErrs = append(fieldErrs,
-				account.FieldError{Field: "pickup_chain", MessageKey: i18n.KeyPickupChainRequired})
+				web.FieldError{Field: "pickup_chain", MessageKey: i18n.KeyPickupChainRequired})
 		} else if addr.PickupStoreCode == "" || addr.PickupStoreName == "" {
 			fieldErrs = append(fieldErrs,
-				account.FieldError{Field: "pickup_store", MessageKey: i18n.KeyPickupStoreRequired})
+				web.FieldError{Field: "pickup_store", MessageKey: i18n.KeyPickupStoreRequired})
 		}
 	}
 	fieldErrs = append(fieldErrs, inv.Validate()...)

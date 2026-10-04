@@ -19,6 +19,7 @@ import (
 
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/web"
 )
 
 var (
@@ -197,14 +198,9 @@ func sessionCookieName(secure bool) string {
 	return "goen_session"
 }
 
-type FieldError struct {
-	Field      string
-	MessageKey i18n.Key
-}
-
 // FieldMessages keeps the first message per field so a control shows one reason
 // rather than a pile.
-func FieldMessages(ctx context.Context, errs []FieldError) map[string]string {
+func FieldMessages(ctx context.Context, errs []web.FieldError) map[string]string {
 	if len(errs) == 0 {
 		return nil
 	}
@@ -238,24 +234,24 @@ func (c *Credentials) Trim() {
 	c.Name = strings.TrimSpace(c.Name)
 }
 
-func (c *Credentials) ValidateRegistration() []FieldError {
-	var errs []FieldError
+func (c *Credentials) ValidateRegistration() []web.FieldError {
+	var errs []web.FieldError
 	if k := EmailError(c.Email); k != "" {
-		errs = append(errs, FieldError{Field: "email", MessageKey: k})
+		errs = append(errs, web.FieldError{Field: "email", MessageKey: k})
 	}
 	if k := PasswordError(c.Password); k != "" {
-		errs = append(errs, FieldError{Field: "password", MessageKey: k})
+		errs = append(errs, web.FieldError{Field: "password", MessageKey: k})
 	} else if c.Confirm != c.Password {
-		errs = append(errs, FieldError{Field: "confirm", MessageKey: i18n.KeyPasswordsDiffer})
+		errs = append(errs, web.FieldError{Field: "confirm", MessageKey: i18n.KeyPasswordsDiffer})
 	}
 	if utf8.RuneCountInString(c.Name) > maxNameRunes {
-		errs = append(errs, FieldError{Field: "name", MessageKey: i18n.KeyNameTooLong})
+		errs = append(errs, web.FieldError{Field: "name", MessageKey: i18n.KeyNameTooLong})
 	}
 	if hasControl(c.Name) {
-		errs = append(errs, FieldError{Field: "name", MessageKey: i18n.KeyFieldHasControlChars})
+		errs = append(errs, web.FieldError{Field: "name", MessageKey: i18n.KeyFieldHasControlChars})
 	}
 	if hasControl(c.Email) {
-		errs = append(errs, FieldError{Field: "email", MessageKey: i18n.KeyFieldHasControlChars})
+		errs = append(errs, web.FieldError{Field: "email", MessageKey: i18n.KeyFieldHasControlChars})
 	}
 	return errs
 }
