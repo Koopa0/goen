@@ -69,7 +69,7 @@ func TestTerminalArrivalIsNotRequeuedAfterCompletionOrOutboxRetention(t *testing
 
 func TestFailedAdvanceRollsBackItsTerminalNotice(t *testing.T) {
 	number, id, _ := admintest.PendingOrderHoldingStock(t, pool)
-	ctx := web.WithRequestID(account.WithUser(t.Context(), account.User{ID: uuid.NewString(), Role: "admin"}), "missing-audit-actor")
+	ctx := web.WithRequestID(account.WithUser(t.Context(), account.User{ID: uuid.NewString(), Role: account.RoleAdmin}), "missing-audit-actor")
 	if _, err := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil).Advance(ctx, number, "cancelled", uuid.NullUUID{}); err == nil {
 		t.Fatal("advance accepted missing audit actor")
 	}

@@ -536,17 +536,17 @@ func TestOnlyAStaffMemberGetsTheBackOfficeEntrance(t *testing.T) {
 
 	for _, tt := range []struct {
 		name string
-		role string // "" is a signed-out visitor
+		role account.Role // "" is a signed-out visitor
 		path string
 		want bool
 	}{
 		{name: "signed out", path: "/", want: false},
-		{name: "customer", role: "customer", path: "/", want: false},
-		{name: "staff on the storefront", role: "staff", path: "/", want: true},
-		{name: "staff on a product page", role: "staff", path: "/p/aurora-slate-11", want: true},
-		{name: "admin on the account page", role: "admin", path: "/account", want: true},
-		{name: "staff inside the back office", role: "staff", path: "/admin/orders", want: false},
-		{name: "staff on an asset", role: "staff", path: "/static/js/goen.js", want: false},
+		{name: "customer", role: account.RoleCustomer, path: "/", want: false},
+		{name: "staff on the storefront", role: account.RoleStaff, path: "/", want: true},
+		{name: "staff on a product page", role: account.RoleStaff, path: "/p/aurora-slate-11", want: true},
+		{name: "admin on the account page", role: account.RoleAdmin, path: "/account", want: true},
+		{name: "staff inside the back office", role: account.RoleStaff, path: "/admin/orders", want: false},
+		{name: "staff on an asset", role: account.RoleStaff, path: "/static/js/goen.js", want: false},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -559,7 +559,7 @@ func TestOnlyAStaffMemberGetsTheBackOfficeEntrance(t *testing.T) {
 			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, tt.path, http.NoBody)
 			if tt.role != "" {
 				req = req.WithContext(account.WithUser(req.Context(), account.User{
-					ID: "user-1", Email: "somebody@example.com", Role: account.Role(tt.role),
+					ID: "user-1", Email: "somebody@example.com", Role: tt.role,
 				}))
 			}
 			h.ServeHTTP(httptest.NewRecorder(), req)
@@ -990,7 +990,7 @@ func TestNoPageForOneVisitorIsKeptByTheBrowser(t *testing.T) {
 			req := httptest.NewRequestWithContext(t.Context(), tt.method, tt.path, http.NoBody)
 			if tt.signedIn {
 				req = req.WithContext(account.WithUser(req.Context(), account.User{
-					ID: "user-1", Email: "somebody@example.com", Role: "admin",
+					ID: "user-1", Email: "somebody@example.com", Role: account.RoleAdmin,
 				}))
 			}
 			res := httptest.NewRecorder()

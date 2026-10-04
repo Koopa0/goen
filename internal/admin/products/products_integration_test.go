@@ -225,7 +225,7 @@ func TestProductUpdateAndAuditCommitTogether(t *testing.T) {
 	// back instead of leaving an unattributed customer-visible change.
 	missingActor := uuid.New()
 	failingCtx := web.WithRequestID(account.WithUser(t.Context(), account.User{
-		ID: missingActor.String(), Role: "admin",
+		ID: missingActor.String(), Role: account.RoleAdmin,
 	}), "req-missing-actor")
 	failing := *form
 	failing.Name = "不得落地 " + uuid.NewString()[:8]

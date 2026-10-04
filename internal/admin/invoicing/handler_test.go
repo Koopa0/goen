@@ -46,7 +46,7 @@ const invoiceNoticeOrder = "GO-260901-000001"
 func invoiceNoticeContext(t *testing.T) context.Context {
 	t.Helper()
 	ctx := account.WithUser(t.Context(), account.User{
-		ID: uuid.NewString(), Role: "admin",
+		ID: uuid.NewString(), Role: account.RoleAdmin,
 	})
 	ctx = web.WithRequestID(ctx, "req-void-notice")
 	return i18n.WithLocale(ctx, i18n.ZhHant)

@@ -549,7 +549,7 @@ func TestAChangedCreditBalanceReRendersCheckoutWithTheFreshFigure(t *testing.T) 
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token}) //nolint:gosec // G124: dev cart cookie under test
 		return req.WithContext(account.WithUser(req.Context(), account.User{
-			ID: userID.String(), Email: "credit-race@example.com", Role: "customer",
+			ID: userID.String(), Email: "credit-race@example.com", Role: account.RoleCustomer,
 		}))
 	}
 
@@ -654,7 +654,7 @@ func TestConcurrentSignedInFirstAddsShareOneOwnedCart(t *testing.T) {
 			strings.NewReader(form.Encode()))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		req = req.WithContext(account.WithUser(req.Context(), account.User{
-			ID: userID.String(), Role: "customer",
+			ID: userID.String(), Role: account.RoleCustomer,
 		}))
 		res := httptest.NewRecorder()
 		h.AddItem(res, req)
@@ -6230,7 +6230,7 @@ func TestPickingASavedAddressFillsTheForm(t *testing.T) {
 		strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token}) //nolint:gosec // G124: dev cart cookie under test
-	req = req.WithContext(account.WithUser(ctx, account.User{ID: userID.String(), Role: "customer"}))
+	req = req.WithContext(account.WithUser(ctx, account.User{ID: userID.String(), Role: account.RoleCustomer}))
 
 	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
 
@@ -6313,7 +6313,7 @@ func TestChangingAnotherChoiceKeepsATypedAddress(t *testing.T) {
 		strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token}) //nolint:gosec // G124: dev cart cookie under test
-	req = req.WithContext(account.WithUser(ctx, account.User{ID: userID.String(), Role: "customer"}))
+	req = req.WithContext(account.WithUser(ctx, account.User{ID: userID.String(), Role: account.RoleCustomer}))
 
 	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
 

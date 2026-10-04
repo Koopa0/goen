@@ -38,7 +38,7 @@ func TestStaffInvitationRegrantSurvivesRetainedDelivery(t *testing.T) {
 			}
 			defer storePool.Close()
 			roster := staff.NewStore(adminPool)
-			asActor := account.WithUser(ctx, account.User{ID: actor.String(), Role: "admin"})
+			asActor := account.WithUser(ctx, account.User{ID: actor.String(), Role: account.RoleAdmin})
 			address := "regrant-" + uuid.NewString() + "@example.com"
 			if _, err := roster.AddStaff(asActor, address, "Colleague", "staff"); err != nil {
 				t.Fatal(err)

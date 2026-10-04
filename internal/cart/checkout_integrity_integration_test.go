@@ -100,7 +100,7 @@ func (c *integrityCheckout) post(
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.AddCookie(&http.Cookie{Name: "goen_cart", Value: c.token}) //nolint:gosec // G124: dev cart cookie under test
 	req = req.WithContext(account.WithUser(req.Context(), account.User{
-		ID: c.userID.String(), Email: c.addr.Email, Role: "customer",
+		ID: c.userID.String(), Email: c.addr.Email, Role: account.RoleCustomer,
 	}))
 	res = httptest.NewRecorder()
 	c.h.PlaceOrder(res, req)

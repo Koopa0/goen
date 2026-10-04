@@ -745,6 +745,11 @@ h3 {
   transition: color var(--dur-base) var(--ease-standard);
 }
 
+.ui-crumbs__link:hover,
+.ui-crumbs__link:focus-visible {
+  color: var(--fg);
+}
+
 .ui-crumbs__sep {
   color: var(--fg-muted);
 }
@@ -2993,6 +2998,11 @@ a.goen-pager__step:hover {
 .goen-pagehead[data-tone] .ui-crumbs__link,
 .goen-pagehead[data-tone] .ui-crumbs__sep {
   color: var(--tone-muted);
+}
+
+.goen-pagehead[data-tone] .ui-crumbs__link:hover,
+.goen-pagehead[data-tone] .ui-crumbs__link:focus-visible {
+  color: var(--tone-text);
 }
 
 .goen-pagehead[data-tone] .ui-crumbs__current {
