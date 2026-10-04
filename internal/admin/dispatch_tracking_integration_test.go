@@ -19,7 +19,7 @@ import (
 func TestDispatchWithARecordedTrackingNumberIsRefusedOnTheField(t *testing.T) {
 	ctx, staff := staffContext(t)
 	s := admin.NewStore(pool, admintest.Refunder{}, nil, nil)
-	h := adminHandlerOver(pool, s)
+	h := adminHandlerOver(s)
 	first, second := shippableOrder(t, "zh-Hant"), shippableOrder(t, "zh-Hant")
 	tracking := "DUP-" + uuid.NewString()[:8]
 	if err := s.Ship(ctx, first, admin.Dispatch{Carrier: "black_cat", Tracking: tracking},

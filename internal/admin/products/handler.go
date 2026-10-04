@@ -1,8 +1,9 @@
-package admin
+package products
 
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"maps"
 	"net/http"
 
@@ -16,20 +17,67 @@ import (
 	"github.com/koopa0/goen/internal/web"
 )
 
-func (h *Handler) Products(w http.ResponseWriter, r *http.Request) {
-	view, err := h.store.Products(r.Context(), r.URL.Query().Get(web.KeysetParam))
+type Handler struct {
+	store  *Store
+	images *media.Handler
+	log    *slog.Logger
+}
+
+func NewHandler(store *Store, images *media.Handler, log *slog.Logger) *Handler {
+	if store == nil || images == nil || log == nil {
+		panic("products: NewHandler requires a store, a media handler and a logger")
+	}
+	return &Handler{store: store, images: images, log: log}
+}
+
+func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
+	mux.HandleFunc("GET /admin/products", ac.RequireStaff(h.List))
+	mux.HandleFunc("POST /admin/products", ac.RequireStaff(h.Create))
+	mux.HandleFunc("GET /admin/products/new", ac.RequireStaff(h.New))
+	mux.HandleFunc("GET /admin/products/{slug}", ac.RequireStaff(h.Edit))
+	mux.HandleFunc("POST /admin/products/{slug}", ac.RequireStaff(h.Update))
+	mux.HandleFunc("POST /admin/products/{slug}/status", ac.RequireStaff(h.Publish))
+	mux.HandleFunc("POST /admin/products/{slug}/variants", ac.RequireStaff(h.AddVariant))
+	mux.HandleFunc("POST /admin/products/{slug}/options", ac.RequireStaff(h.AddOption))
+	mux.HandleFunc("POST /admin/products/{slug}/options/values", ac.RequireStaff(h.AddOptionValue))
+	mux.HandleFunc("POST /admin/products/{slug}/specs", ac.RequireStaff(h.AddSpec))
+	mux.HandleFunc("POST /admin/products/{slug}/specs/remove", ac.RequireStaff(h.RemoveSpec))
+	mux.HandleFunc("POST /admin/products/{slug}/images", ac.RequireStaff(h.UploadImage))
+	mux.HandleFunc("POST /admin/products/{slug}/images/reuse", ac.RequireStaff(h.ReuseImage))
+	mux.HandleFunc("POST /admin/products/{slug}/images/remove", ac.RequireStaff(h.RemoveImage))
+	mux.HandleFunc("POST /admin/products/{slug}/images/option", ac.RequireStaff(h.SetImageOption))
+	mux.HandleFunc("POST /admin/products/{slug}/images/move", ac.RequireStaff(h.MoveImage))
+}
+
+var notices = map[string]i18n.Key{
+	"ok":            i18n.KeyAdminNoticeOK,
+	"refused":       i18n.KeyAdminNoticeRefused,
+	"imageneeds":    i18n.KeyAdminNoticeImageNeeds,
+	"toobig":        i18n.KeyAdminNoticeTooBig,
+	"notimage":      i18n.KeyAdminNoticeNotImage,
+	"losslesswebp":  i18n.KeyAdminNoticeLosslessWebP,
+	"uploadfailed":  i18n.KeyAdminNoticeUploadFailed,
+	"uploadbusy":    i18n.KeyAdminNoticeUploadBusy,
+	"attachrefused": i18n.KeyAdminNoticeAttachRefused,
+	"noalt":         i18n.KeyAdminNoticeNoAlt,
+	"badoption":     i18n.KeyAdminNoticeBadOption,
+	"specfailed":    i18n.KeyAdminNoticeSpecFailed,
+}
+
+func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
+	view, err := h.store.List(r.Context(), r.URL.Query().Get(web.KeysetParam))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read products", "error", err)
 		access.ServerError(w, r, h.log)
 		return
 	}
-	view.Notice = noticeFor(r)
+	view.Notice = web.Notice(r, notices)
 	web.Render(w, r, h.log, http.StatusOK, admin.Products(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageProducts)}, view))
 }
 
-func (h *Handler) NewProduct(w http.ResponseWriter, r *http.Request) {
-	view, err := h.store.NewProduct(r.Context())
+func (h *Handler) New(w http.ResponseWriter, r *http.Request) {
+	view, err := h.store.NewForm(r.Context())
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "new product form", "error", err)
 		access.ServerError(w, r, h.log)
@@ -39,7 +87,7 @@ func (h *Handler) NewProduct(w http.ResponseWriter, r *http.Request) {
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageNewProduct)}, view))
 }
 
-func (h *Handler) CreateProduct(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
@@ -50,7 +98,7 @@ func (h *Handler) CreateProduct(w http.ResponseWriter, r *http.Request) {
 		h.rejectProduct(w, r, f, errs, true)
 		return
 	}
-	slug, errs, err := h.store.CreateProduct(r.Context(), f)
+	slug, errs, err := h.store.Create(r.Context(), f)
 	switch {
 	case err != nil:
 		h.log.ErrorContext(r.Context(), "create product", "error", err)
@@ -63,8 +111,8 @@ func (h *Handler) CreateProduct(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *Handler) EditProduct(w http.ResponseWriter, r *http.Request) {
-	h.renderProduct(w, r, http.StatusOK, noticeFor(r))
+func (h *Handler) Edit(w http.ResponseWriter, r *http.Request) {
+	h.renderProduct(w, r, http.StatusOK, web.Notice(r, notices))
 }
 
 func (h *Handler) renderProduct(w http.ResponseWriter, r *http.Request, status int, notice string) {
@@ -79,7 +127,7 @@ func (h *Handler) renderProduct(w http.ResponseWriter, r *http.Request, status i
 		return
 	}
 	view.Notice = notice
-	if images, imgErr := h.store.ProductImages(r.Context(), r.PathValue("slug")); imgErr != nil {
+	if images, imgErr := h.store.Images(r.Context(), r.PathValue("slug")); imgErr != nil {
 		// Not fatal: losing the image strip is smaller than losing the page.
 		h.log.ErrorContext(r.Context(), "read product images", "error", imgErr)
 	} else {
@@ -98,7 +146,7 @@ func (h *Handler) renderProduct(w http.ResponseWriter, r *http.Request, status i
 		layouts.Page{Title: view.Name}, view))
 }
 
-func (h *Handler) UpdateProduct(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
@@ -111,7 +159,7 @@ func (h *Handler) UpdateProduct(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	errs, err := h.store.UpdateProduct(r.Context(), f)
+	errs, err := h.store.Update(r.Context(), f)
 	switch {
 	case errors.Is(err, ErrNotFound):
 		access.NotFound(w, r, h.log)
@@ -126,13 +174,13 @@ func (h *Handler) UpdateProduct(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *Handler) PublishProduct(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) Publish(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
 	slug := r.PathValue("slug")
-	err := h.store.SetProductStatus(r.Context(), slug, r.PostFormValue("status"))
+	err := h.store.SetStatus(r.Context(), slug, r.PostFormValue("status"))
 	if err != nil {
 		h.log.WarnContext(r.Context(), "set product status", "slug", slug, "error", err)
 		//nolint:gosec // G710: validated by the route's own slug
@@ -222,14 +270,14 @@ func parseVariantCount(raw string, ceiling int32, field, message string, errs ma
 	return value
 }
 
-func productFormOf(r *http.Request) (form *ProductForm, errs map[string]string) {
+func productFormOf(r *http.Request) (form *Form, errs map[string]string) {
 	raw := r.PostFormValue("warranty_months")
 	warranty, ok := web.ParseBounded(raw, MaxWarrantyMonths)
 	errs = map[string]string{}
 	if !ok {
 		errs["warranty_months"] = i18n.T(r.Context(), i18n.KeyFormWarrantyMonths)
 	}
-	return &ProductForm{
+	return &Form{
 		Slug:              r.PostFormValue("slug"),
 		Name:              r.PostFormValue("name"),
 		Summary:           r.PostFormValue("summary"),
@@ -245,11 +293,11 @@ func productFormOf(r *http.Request) (form *ProductForm, errs map[string]string) 
 	}, errs
 }
 
-func (h *Handler) rejectProduct(w http.ResponseWriter, r *http.Request, f *ProductForm, errs map[string]string, isNew bool) {
+func (h *Handler) rejectProduct(w http.ResponseWriter, r *http.Request, f *Form, errs map[string]string, isNew bool) {
 	var view admin.ProductView
 	var err error
 	if isNew {
-		view, err = h.store.NewProduct(r.Context())
+		view, err = h.store.NewForm(r.Context())
 	} else {
 		view, err = h.store.Product(r.Context(), f.Slug)
 	}

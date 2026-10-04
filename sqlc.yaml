@@ -29,6 +29,7 @@ sql:
       - "internal/admin/feedback/query.sql"
       - "internal/admin/health/query.sql"
       - "internal/admin/loyalty/query.sql"
+      - "internal/admin/products/query.sql"
       - "internal/admin/refunds/query.sql"
       - "internal/admin/shipping/query.sql"
       - "internal/admin/staff/query.sql"

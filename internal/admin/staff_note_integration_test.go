@@ -47,7 +47,7 @@ func TestStaffNoteHTTPRecordsOperationsWithoutContent(t *testing.T) {
 	ctx, actor := staffContext(t)
 	number, orderID, _ := pendingOrderHoldingStock(t)
 	p := staffNotePool(t)
-	h := adminHandlerOver(pool, admin.NewStore(p, admintest.Refunder{}, nil, nil))
+	h := adminHandlerOver(admin.NewStore(p, admintest.Refunder{}, nil, nil))
 	for _, step := range []struct{ note, action string }{
 		{"private first note", "order.note.create"},
 		{"private replacement", "order.note.replace"},
@@ -117,7 +117,7 @@ func TestStaffNoteHTTPRecordsOperationsWithoutContent(t *testing.T) {
 
 func TestStaffNoteForUnknownOrderIs404WithoutAudit(t *testing.T) {
 	ctx, _ := staffContext(t)
-	h := adminHandlerOver(pool, staffNoteStore(t))
+	h := adminHandlerOver(staffNoteStore(t))
 	number := "GO-999999-999999"
 	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/orders/"+number+"/note", strings.NewReader(url.Values{"note": {"orphan"}}.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")

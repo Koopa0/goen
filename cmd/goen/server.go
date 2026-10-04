@@ -26,6 +26,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/health"
 	"github.com/koopa0/goen/internal/admin/invoicing"
 	"github.com/koopa0/goen/internal/admin/loyalty"
+	"github.com/koopa0/goen/internal/admin/products"
 	"github.com/koopa0/goen/internal/admin/refunds"
 	"github.com/koopa0/goen/internal/admin/reports"
 	returndesk "github.com/koopa0/goen/internal/admin/returns"
@@ -208,15 +209,13 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	adminImages := media.NewHandler(media.NewStore(adminPool), log)
 	back := admin.NewHandler(admin.HandlerDeps{
 		Store:    admin.NewStore(adminPool, refunder, invoiceReader, invoiceWriter),
-		Images:   adminImages,
-		Outbox:   outbox.NewStore(adminPool, log),
-		Letters:  newsletter.NewStore(adminPool),
 		Log:      log,
 		Sessions: sessionCloser(gateway),
 	})
 	trail := audit.NewHandler(audit.NewStore(adminPool), log)
 	figures := reports.NewHandler(reports.NewStore(adminPool), log)
 	warehouse := stock.NewHandler(stock.NewStore(adminPool), log)
+	catalogueDesk := products.NewHandler(products.NewStore(adminPool), adminImages, log)
 	payouts := refunds.NewStore(adminPool, refunder)
 	refundDesk := refunds.NewHandler(payouts, sessionCloser(gateway), log)
 	returnDesk := returndesk.NewHandler(returndesk.NewStore(adminPool, payouts), log)
@@ -386,6 +385,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	brands.Routes(mux, backOffice)
 	delivery.Routes(mux, backOffice)
 	warehouse.Routes(mux, backOffice)
+	catalogueDesk.Routes(mux, backOffice)
 	refundDesk.Routes(mux, backOffice)
 	returnDesk.Routes(mux, backOffice)
 	invoiceDesk.Routes(mux, backOffice)
