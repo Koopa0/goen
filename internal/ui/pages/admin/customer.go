@@ -4,11 +4,11 @@ import (
 	"strconv"
 
 	"github.com/koopa0/goen/internal/money"
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/web"
 )
 
 type CustomersView struct {
-	pages.ListBound
+	web.Bound
 
 	Term     string
 	Searched bool

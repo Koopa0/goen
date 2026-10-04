@@ -5,12 +5,13 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/web"
 )
 
 func TestEmptyOlderOrdersPageOffersLatestOrders(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
-	body := renderComponent(t, ctx, Account(AccountMeta(ctx), &AccountView{OrdersBound: ListBound{PastEnd: true, First: "/account#orders-heading"}}))
+	body := renderComponent(t, ctx, Account(AccountMeta(ctx), &AccountView{OrdersBound: web.Bound{PastEnd: true, First: "/account#orders-heading"}}))
 	if !strings.Contains(body, `href="/account#orders-heading"`) || !strings.Contains(body, "There are no entries on this page.") {
 		t.Fatal("empty older page lost its return to latest orders")
 	}

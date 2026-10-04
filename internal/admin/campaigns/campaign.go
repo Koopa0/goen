@@ -102,7 +102,7 @@ func (s *Store) List(ctx context.Context, after ...string) (admin.CampaignsView,
 		return admin.CampaignsView{}, fmt.Errorf("read campaigns: %w", err)
 	}
 	rows, bound := web.PageBound(scope, resumed, rows, web.PageSize, func(r *db.AdminCampaignsRow) string { return r.PageCursor })
-	view := admin.CampaignsView{ListBound: bound}
+	view := admin.CampaignsView{Bound: bound}
 	for i := range rows {
 		c := &rows[i]
 		view.Rows = append(view.Rows, admin.CampaignRow{

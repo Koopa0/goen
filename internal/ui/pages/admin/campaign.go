@@ -7,6 +7,7 @@ import (
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/web"
 )
 
 type CampaignRow struct {
@@ -63,7 +64,7 @@ type CampaignProduct struct {
 }
 
 type CampaignsView struct {
-	pages.ListBound
+	web.Bound
 
 	Rows   []CampaignRow
 	Notice string

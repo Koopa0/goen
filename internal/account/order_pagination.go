@@ -6,7 +6,6 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -42,9 +41,9 @@ func readOrderCursor(owner string, after []string) orderCursor {
 	return orderCursor{orderPosition: pos, Valid: true}
 }
 
-func orderBound[T any](c orderCursor, owner string, rows []T, key func(*T) (uuid.UUID, time.Time)) (page []T, bound pages.ListBound) {
+func orderBound[T any](c orderCursor, owner string, rows []T, key func(*T) (uuid.UUID, time.Time)) (page []T, bound web.Bound) {
 	rows, more := web.PageOf(rows, orderPageSize)
-	var b pages.ListBound
+	var b web.Bound
 	if c.Valid {
 		b.First = ordersScope + ordersAnchor
 	}

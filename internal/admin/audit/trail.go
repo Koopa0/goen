@@ -54,7 +54,7 @@ func (s *Store) Events(ctx context.Context, after ...string) (admin.AuditView, e
 	// record somebody may take for the whole record.
 	rows, bound := web.PageBound(scope, resumed, rows, maxRows,
 		func(r *db.AuditEventsRow) string { return r.PageCursor })
-	view := admin.AuditView{ListBound: bound}
+	view := admin.AuditView{Bound: bound}
 	for i := range rows {
 		e := &rows[i]
 		view.Rows = append(view.Rows, admin.AuditEntry{

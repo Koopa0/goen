@@ -79,7 +79,7 @@ func (s *Store) Variants(ctx context.Context, lowOnly bool, term string, after .
 		return admin.VariantsView{}, fmt.Errorf("read variants: %w", err)
 	}
 	rows, bound := web.PageBound(scope, resumed, rows, web.PageSize, func(r *db.AdminVariantsRow) string { return r.PageCursor })
-	view := admin.VariantsView{ListBound: bound, LowOnly: lowOnly, Term: term}
+	view := admin.VariantsView{Bound: bound, LowOnly: lowOnly, Term: term}
 	for i := range rows {
 		view.Variants = append(view.Variants, variantRow(&rows[i]))
 	}
@@ -278,8 +278,8 @@ func (s *Store) Movements(ctx context.Context, sku string, after ...string) (adm
 
 	rows, bound := web.PageBound(scope, resumed, rows, MovementPageSize, func(r *db.VariantMovementsRow) string { return r.PageCursor })
 	view := admin.MovementsView{
-		ListBound: bound,
-		SKU:       v.SKU, ProductName: v.ProductName, Slug: v.Slug,
+		Bound: bound,
+		SKU:   v.SKU, ProductName: v.ProductName, Slug: v.Slug,
 		Stock: v.StockQuantity, Safety: v.SafetyStock,
 		FormID: uuid.NewString(),
 		Rows:   make([]admin.Movement, 0, len(rows)),

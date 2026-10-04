@@ -22,7 +22,6 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	returnrules "github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/shoptime"
-	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
 )
@@ -93,7 +92,7 @@ func requireExceptionReason(kind returnrules.DecisionKind, resolution string) er
 // Diagnostics stay out of the rendered page but cross the Store boundary so
 // the handler can record quantitative source inconsistencies.
 type Queue struct {
-	Bound        pages.ListBound
+	Bound        web.Bound
 	Rows         []admin.Return
 	payoutIssues []returnPayoutIssue
 }

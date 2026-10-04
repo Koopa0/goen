@@ -9,7 +9,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/web"
 )
 
 type Coupon struct {
@@ -95,7 +95,7 @@ func (c Coupon) ToggleLabel(ctx context.Context) string {
 }
 
 type CouponsView struct {
-	pages.ListBound
+	web.Bound
 
 	Rows   []Coupon
 	Notice string

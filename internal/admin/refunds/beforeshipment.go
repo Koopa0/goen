@@ -34,7 +34,7 @@ func beforeShipmentRefundState(r *db.BeforeShipmentRefundRow) (offered, open boo
 // FillOrder puts the refund before shipment on the order page, offered or open
 // for Resume, and reports whether one was ever opened: an order being refunded
 // is neither picked nor shipped.
-func (s *Store) FillOrder(ctx context.Context, view *admin.OrderView, number string) (bool, error) {
+func (s *Store) FillOrder(ctx context.Context, view *admin.OrderView, number string) (opened bool, err error) {
 	refund, err := s.q.BeforeShipmentRefund(ctx, number)
 	if err != nil {
 		return false, fmt.Errorf("read refund before shipment of %s: %w", number, err)

@@ -72,7 +72,7 @@ templ Movements(p layouts.Page, v *MovementsView) {
 				{ i18n.T(ctx, i18n.KeyAdminLedgerFoot) }
 			</p>
 		}
-		@pages.ListPager(v.ListBound)
+		@pages.ListPager(v.Bound)
 	}
 }
 

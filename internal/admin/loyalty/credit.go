@@ -130,7 +130,7 @@ func (s *Store) Credit(ctx context.Context, after ...string) (admin.CreditView, 
 		return admin.CreditView{}, fmt.Errorf("read credit ledger: %w", err)
 	}
 	rows, bound := web.PageBound(scope, resumed, rows, web.PageSize, func(r *db.RecentCreditRow) string { return r.PageCursor })
-	view := admin.CreditView{ListBound: bound}
+	view := admin.CreditView{Bound: bound}
 	for i := range rows {
 		r := &rows[i]
 		view.Rows = append(view.Rows, admin.CreditEntry{
