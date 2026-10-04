@@ -16,7 +16,7 @@ var (
 
 	KeyAdminErasedShort = key("admin.erased.short", Message{ZhHant: "（已刪除）", En: "(deleted)"})
 
-	KeyAdminPageCredit = key("admin.page.credit", Message{ZhHant: "商店額度", En: "Store credit"})
+	KeyAdminPageCredit = key("admin.page.credit", Message{ZhHant: "購物金", En: "Store credit"})
 
 	KeyAdminCreditLead = key("admin.credit.lead", Message{
 		ZhHant: "發放的額度會在該會員下次結帳時自動折抵。金額以「元」為單位。",

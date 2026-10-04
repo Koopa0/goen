@@ -12,7 +12,6 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/carrier"
-	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/destination"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -21,18 +20,18 @@ import (
 )
 
 type Handler struct {
-	store    *Store
-	storeMap *cart.StoreMap
-	log      *slog.Logger
+	store         *Store
+	pickupOffered bool
+	log           *slog.Logger
 }
 
-// NewHandler takes the store map, which is nil on a deployment with no map: the
-// page then marks pickup-point methods as not offered.
-func NewHandler(store *Store, storeMap *cart.StoreMap, log *slog.Logger) *Handler {
+// NewHandler takes whether checkout offers a convenience-store map; the page
+// marks pickup-point methods as not offered when it does not.
+func NewHandler(store *Store, pickupOffered bool, log *slog.Logger) *Handler {
 	if store == nil || log == nil {
 		panic("shipping: NewHandler requires a store and a logger")
 	}
-	return &Handler{store: store, storeMap: storeMap, log: log}
+	return &Handler{store: store, pickupOffered: pickupOffered, log: log}
 }
 
 func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
@@ -239,7 +238,7 @@ func (h *Handler) shippingView(ctx context.Context) (admin.ShippingView, error) 
 	}
 	for i := range view.Methods {
 		m := &view.Methods[i]
-		m.PickupUnavailable = m.Destination == destination.PickupPoint && !h.storeMap.Enabled()
+		m.PickupUnavailable = m.Destination == destination.PickupPoint && !h.pickupOffered
 	}
 	return view, nil
 }
