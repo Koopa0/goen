@@ -1,6 +1,6 @@
 //go:build integration
 
-package admin_test
+package orders_test
 
 import (
 	"encoding/json"
@@ -12,15 +12,16 @@ import (
 	"testing"
 	"time"
 
+	pagesadmin "github.com/koopa0/goen/internal/ui/pages/admin"
+
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/account"
-	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/audit"
-	pagesadmin "github.com/koopa0/goen/internal/ui/pages/admin"
+	"github.com/koopa0/goen/internal/admin/orders"
 )
 
 func staffNotePool(t *testing.T) *pgxpool.Pool {
@@ -38,16 +39,16 @@ func staffNotePool(t *testing.T) *pgxpool.Pool {
 	return p
 }
 
-func staffNoteStore(t *testing.T) *admin.Store {
+func staffNoteStore(t *testing.T) *orders.Store {
 	t.Helper()
-	return admin.NewStore(staffNotePool(t), admintest.Refunder{}, nil, nil)
+	return admintest.OrderStore(staffNotePool(t), admintest.Refunder{}, nil, nil)
 }
 
 func TestStaffNoteHTTPRecordsOperationsWithoutContent(t *testing.T) {
-	ctx, actor := staffContext(t)
-	number, orderID, _ := pendingOrderHoldingStock(t)
+	ctx, actor := admintest.StaffContext(t, pool)
+	number, orderID, _ := admintest.PendingOrderHoldingStock(t, pool)
 	p := staffNotePool(t)
-	h := adminHandlerOver(admin.NewStore(p, admintest.Refunder{}, nil, nil))
+	h := admintest.OrderDesk(admintest.OrderStore(p, admintest.Refunder{}, nil, nil))
 	for _, step := range []struct{ note, action string }{
 		{"private first note", "order.note.create"},
 		{"private replacement", "order.note.replace"},
@@ -58,7 +59,7 @@ func TestStaffNoteHTTPRecordsOperationsWithoutContent(t *testing.T) {
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		req.SetPathValue("number", number)
 		w := httptest.NewRecorder()
-		backOffice.RequireStaff(h.StaffNote)(w, req)
+		admintest.BackOffice.RequireStaff(h.StaffNote)(w, req)
 		if w.Code != http.StatusSeeOther {
 			t.Fatalf("note POST = %d: %s", w.Code, w.Body.String())
 		}
@@ -116,14 +117,14 @@ func TestStaffNoteHTTPRecordsOperationsWithoutContent(t *testing.T) {
 }
 
 func TestStaffNoteForUnknownOrderIs404WithoutAudit(t *testing.T) {
-	ctx, _ := staffContext(t)
-	h := adminHandlerOver(staffNoteStore(t))
+	ctx, _ := admintest.StaffContext(t, pool)
+	h := admintest.OrderDesk(staffNoteStore(t))
 	number := "GO-999999-999999"
 	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/orders/"+number+"/note", strings.NewReader(url.Values{"note": {"orphan"}}.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.SetPathValue("number", number)
 	w := httptest.NewRecorder()
-	backOffice.RequireStaff(h.StaffNote)(w, req)
+	admintest.BackOffice.RequireStaff(h.StaffNote)(w, req)
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("note on unknown order = %d, want 404", w.Code)
 	}
@@ -137,8 +138,8 @@ func TestStaffNoteForUnknownOrderIs404WithoutAudit(t *testing.T) {
 }
 
 func TestStaffNoteAuditFailureRollsBackTheNote(t *testing.T) {
-	ctx, _ := staffContext(t)
-	number, orderID, _ := pendingOrderHoldingStock(t)
+	ctx, _ := admintest.StaffContext(t, pool)
+	number, orderID, _ := admintest.PendingOrderHoldingStock(t, pool)
 	s := staffNoteStore(t)
 	if err := s.SetStaffNote(ctx, number, "keep this note"); err != nil {
 		t.Fatal(err)
@@ -159,8 +160,8 @@ func TestStaffNoteAuditFailureRollsBackTheNote(t *testing.T) {
 }
 
 func TestUnchangedStaffNoteDoesNotInventAnOperation(t *testing.T) {
-	ctx, _ := staffContext(t)
-	number, orderID, _ := pendingOrderHoldingStock(t)
+	ctx, _ := admintest.StaffContext(t, pool)
+	number, orderID, _ := admintest.PendingOrderHoldingStock(t, pool)
 	s := staffNoteStore(t)
 	for range 2 {
 		if err := s.SetStaffNote(ctx, number, "one note"); err != nil {
