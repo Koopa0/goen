@@ -27,6 +27,7 @@ import (
 // coveredByNamedTest is the triggers whose cases do not fit the rule table's shape, mapped to
 // the test that does cover them. A trigger named in neither place still fails.
 var coveredByNamedTest = map[string]string{
+	"product_variants_restock_notices":       "TestCancellingTheLastHoldQueuesRestockNotices (internal/cart), TestAnInspectedReturnPutsTheSellableUnitsBack (internal/admin/returns), TestReactivatingAStockedVariantQueuesWaitingNotices (internal/admin/stock)",
 	"inventory_movements_source_parent":      "TestInventoryMovementSourceParents",
 	"product_options_before_variants":        "TestOptionAxesMustPrecedeVariants (internal/admin)",
 	"product_variants_lock_catalogue":        "TestOptionAxisAndVariantCreationSerialize (internal/admin)",
