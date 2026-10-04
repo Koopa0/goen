@@ -212,53 +212,42 @@ func (g *Gateway) Void(ctx context.Context, number string, issuedAt time.Time, r
 	return nil
 }
 
-// FileAllowance files a credit note against an issued invoice. A refund does NOT
-// void the invoice: the sale happened and the tax was reported, and what
-// changed is that some of it came back.
-func (g *Gateway) FileAllowance(ctx context.Context, in AllowanceRequest) (Document, error) {
+// RequestAllowance asks ECPay to e-mail the buyer a credit note against an
+// issued invoice. A refund does not void the invoice: the sale happened and the
+// tax was reported, and what changed is that some of it came back. ECPay opens
+// the allowance only when the buyer follows the link within 72 hours, and logs
+// that click as their consent; until then GetAllowanceList does not show it.
+func (g *Gateway) RequestAllowance(ctx context.Context, in AllowanceRequest) error {
 	if !g.Enabled() {
-		return Document{}, ErrDisabled
+		return ErrDisabled
 	}
 	if in.InvoiceNumber == "" || in.AmountCents <= 0 || len(in.Lines) == 0 {
-		return Document{}, fmt.Errorf("%w: an allowance needs an invoice, an amount and what is being relieved",
+		return fmt.Errorf("%w: an allowance needs an invoice, an amount and what is being relieved",
 			ErrRejected)
 	}
 
-	res, err := g.call[allowanceResult](ctx, "/B2CInvoice/Allowance", allowanceRequest{
+	res, err := g.call[allowanceResult](ctx, "/B2CInvoice/AllowanceByCollegiate", allowanceRequest{
 		MerchantID: g.merchantID,
 		InvoiceNo:  in.InvoiceNumber,
 		// A date-only value was parsed as midnight UTC, so UTC is what reads it back
 		// unshifted; a wrong date is 1600003, which names the number.
 		InvoiceDate:     in.InvoiceDate.UTC().Format("2006-01-02"),
-		AllowanceNotify: "E", // by email
+		AllowanceNotify: "E", // ECPay's online consent takes e-mail only.
 		CustomerName:    truncate(in.CustomerName, 60),
 		NotifyMail:      truncate(in.Email, 80),
 		AllowanceAmount: wholeDollars(in.AmountCents),
 		Items:           itemsFor(in.Lines),
 	})
 	if err != nil {
-		return Document{}, err
+		return err
 	}
-	issuedAt, err := parseECPayTime(res.AllowanceDate)
-	if err != nil {
-		return Document{}, fmt.Errorf(
-			"ECPay Allowance returned an invalid success payload (allowance %q, date %q): %w",
-			res.AllowanceNo, res.AllowanceDate, err)
+	if _, timeErr := parseECPayTime(res.ExpiresAt); timeErr != nil ||
+		!allowanceNumberPattern.MatchString(res.AllowanceNo) || res.InvoiceNo != in.InvoiceNumber {
+		return fmt.Errorf(
+			"%w: AllowanceByCollegiate returned allowance %q for invoice %q, expiring %q",
+			errProviderIdentity, res.AllowanceNo, res.InvoiceNo, res.ExpiresAt)
 	}
-	if !allowanceNumberPattern.MatchString(res.AllowanceNo) ||
-		res.InvoiceNo != in.InvoiceNumber {
-		return Document{}, fmt.Errorf(
-			"ECPay Allowance returned an invalid success payload (allowance %q, invoice %q, date %q)",
-			res.AllowanceNo, res.InvoiceNo, res.AllowanceDate)
-	}
-	return Document{
-		Kind:        DocumentAllowance,
-		Number:      res.AllowanceNo,
-		AmountCents: in.AmountCents,
-		Status:      DocumentIssued,
-		IssuedAt:    issuedAt,
-		Lines:       in.Lines,
-	}, nil
+	return nil
 }
 
 type AllowanceRequest struct {
@@ -317,9 +306,9 @@ type issueResult struct {
 }
 
 type allowanceResult struct {
-	AllowanceNo   string `json:"IA_Allow_No"`
-	InvoiceNo     string `json:"IA_Invoice_No"`
-	AllowanceDate string `json:"IA_Date"`
+	AllowanceNo string `json:"IA_Allow_No"`
+	InvoiceNo   string `json:"IA_Invoice_No"`
+	ExpiresAt   string `json:"IA_TempExpireDate"`
 }
 
 type getIssueRequest struct {
@@ -513,6 +502,8 @@ type allowanceLookupResult struct {
 	InvoiceNo   string          `json:"IA_Invoice_No"`
 	Invalid     providerDecimal `json:"IA_Invalid_Status"`
 	Total       providerDecimal `json:"IA_Total_Tax_Amount"`
+	BuyerIP     string          `json:"IA_IP"`
+	NotifyMail  string          `json:"IA_Send_Mail"`
 	Items       []lookupItem    `json:"Items"`
 }
 
@@ -524,6 +515,16 @@ type AllowanceLookup struct {
 	InvoiceNumber string
 	Document      Document
 	Invalid       bool
+	// BuyerIP and NotifyMail are ECPay's record of the buyer agreeing online:
+	// from where, and the mailbox it wrote to. When is the document's IssuedAt.
+	BuyerIP, NotifyMail string
+}
+
+// buyerConsent is goen's copy of a buyer's agreement to an online allowance.
+type buyerConsent struct {
+	AgreedAt string `json:"agreed_at"`
+	IP       string `json:"ip"`
+	Email    string `json:"email"`
 }
 
 // FetchAllowances returns the provider's complete allowance list, through their
@@ -569,6 +570,7 @@ func (g *Gateway) FetchAllowances(
 		}
 		out[i] = AllowanceLookup{
 			InvoiceNumber: row.InvoiceNo, Invalid: invalid == 1,
+			BuyerIP: row.BuyerIP, NotifyMail: row.NotifyMail,
 			Document: Document{
 				Kind: DocumentAllowance, Number: row.AllowanceNo,
 				AmountCents: amount, Status: DocumentIssued, IssuedAt: issuedAt, Lines: lines,

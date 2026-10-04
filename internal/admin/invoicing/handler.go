@@ -137,6 +137,8 @@ func (h *Handler) Allow(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, orderPage+"?noinvoice=1", http.StatusSeeOther)
 	case errors.Is(err, invoice.ErrClaimed):
 		http.Redirect(w, r, orderPage+"?allowclaimed=1", http.StatusSeeOther)
+	case errors.Is(err, invoice.ErrAwaitingBuyer):
+		http.Redirect(w, r, orderPage+"?allowsent=1", http.StatusSeeOther)
 	case errors.Is(err, invoice.ErrPending):
 		http.Redirect(w, r, orderPage+"?invoicepending=1", http.StatusSeeOther)
 	case errors.Is(err, invoice.ErrTooMuch):

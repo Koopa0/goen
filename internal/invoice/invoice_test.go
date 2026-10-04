@@ -37,7 +37,7 @@ type result struct {
 	RandomNumber       string `json:"RandomNumber"`
 	AllowanceNo        string `json:"IA_Allow_No"`
 	AllowanceInvoiceNo string `json:"IA_Invoice_No"`
-	AllowanceDate      string `json:"IA_Date"`
+	AllowanceExpiresAt string `json:"IA_TempExpireDate"`
 }
 
 // These allocation helpers mirror an itemisation policy whose production
@@ -292,7 +292,7 @@ func TestAnUnconfiguredGatewayIssuesNothingAndSaysSo(t *testing.T) {
 	if err := g.Void(t.Context(), "AB12345678", time.Now(), "測試"); !errors.Is(err, ErrDisabled) {
 		t.Errorf("Void on an unconfigured gateway = %v, want ErrDisabled", err)
 	}
-	if _, err := g.FileAllowance(t.Context(), AllowanceRequest{}); !errors.Is(err, ErrDisabled) {
+	if err := g.RequestAllowance(t.Context(), AllowanceRequest{}); !errors.Is(err, ErrDisabled) {
 		t.Errorf("Allowance on an unconfigured gateway = %v, want ErrDisabled", err)
 	}
 }
@@ -613,6 +613,16 @@ func TestAVoidRequiresTheExactProviderSuccessIdentity(t *testing.T) {
 // openInvalid unseals the Invalid request ECPay would receive.
 func openInvalid(t *testing.T, r *http.Request) invalidRequest {
 	t.Helper()
+	var out invalidRequest
+	if decodeErr := json.Unmarshal(openRequest(t, r), &out); decodeErr != nil {
+		t.Fatalf("decode Invalid request: %v", decodeErr)
+	}
+	return out
+}
+
+// openRequest unseals the JSON of a request ECPay would receive.
+func openRequest(t *testing.T, r *http.Request) []byte {
+	t.Helper()
 	g, gatewayErr := NewGateway(testMerchantID, testHashKey, testHashIV, "")
 	if gatewayErr != nil {
 		t.Fatalf("gateway: %v", gatewayErr)
@@ -625,11 +635,7 @@ func openInvalid(t *testing.T, r *http.Request) invalidRequest {
 	if openErr != nil {
 		t.Fatalf("open envelope: %v", openErr)
 	}
-	var out invalidRequest
-	if decodeErr := json.Unmarshal(plain, &out); decodeErr != nil {
-		t.Fatalf("decode Invalid request: %v", decodeErr)
-	}
-	return out
+	return plain
 }
 
 // TestACompanyInvoiceCarriesTheTaxIDAndNoMobileBarcode holds a rule ECPay enforces
@@ -674,31 +680,38 @@ func TestACompanyInvoiceCarriesTheTaxIDAndNoMobileBarcode(t *testing.T) {
 	}
 }
 
-// TestAnAllowanceReadsItsOwnNumberField holds the two distinct provider
-// identities: IA_Allow_No is the credit note and IA_Invoice_No is its original.
-func TestAnAllowanceReadsItsOwnNumberField(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+// TestAnAllowanceAsksTheBuyerOnline holds the online-consent endpoint. No
+// ReturnURL is sent: goen reads the outcome from the allowance list rather than
+// opening a public endpoint.
+func TestAnAllowanceAsksTheBuyerOnline(t *testing.T) {
+	var path string
+	var sent map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path = r.URL.Path
+		if err := json.Unmarshal(openRequest(t, r), &sent); err != nil {
+			t.Errorf("decode the request: %v", err)
+		}
 		// Exactly what staging returns.
 		reply(t, w, result{RtnCode: 1, AllowanceInvoiceNo: "LA45000603", AllowanceNo: "2026080715227214",
-			AllowanceDate: "2026-08-07 15:22:00"})
+			AllowanceExpiresAt: "2026-08-10 15:22:00"})
 	}))
 	defer srv.Close()
 
 	g, _ := NewGateway(testMerchantID, testHashKey, testHashIV, srv.URL)
-	doc, err := g.FileAllowance(t.Context(), AllowanceRequest{
+	err := g.RequestAllowance(t.Context(), AllowanceRequest{
 		InvoiceNumber: "LA45000603", InvoiceDate: time.Now(),
 		CustomerName: "王小明", Email: "a@example.com", AmountCents: 20000,
 		Lines: []Line{{Description: "傳輸線", Quantity: 1, UnitPriceCents: 20000, AmountCents: 20000}},
 	})
 	if err != nil {
-		t.Fatalf("Allowance: %v", err)
+		t.Fatalf("RequestAllowance: %v", err)
 	}
-	if doc.Number != "2026080715227214" {
-		t.Errorf("the allowance number is %q, want the IA_Allow_No — an allowance "+
-			"goen cannot name is one it cannot reconcile", doc.Number)
+	if path != "/B2CInvoice/AllowanceByCollegiate" {
+		t.Errorf("RequestAllowance posted to %s, want the online-consent endpoint", path)
 	}
-	if doc.Kind != "allowance" {
-		t.Errorf("kind = %q, want allowance", doc.Kind)
+	if _, has := sent["ReturnURL"]; has || sent["AllowanceNotify"] != "E" {
+		t.Errorf("request carries ReturnURL %v and AllowanceNotify %v, want none and E",
+			sent["ReturnURL"], sent["AllowanceNotify"])
 	}
 }
 
@@ -732,7 +745,7 @@ func TestAProviderSuccessMustCarryAValidDocumentIdentity(t *testing.T) {
 		if err != nil {
 			t.Fatalf("gateway: %v", err)
 		}
-		_, err = g.FileAllowance(t.Context(), AllowanceRequest{
+		err = g.RequestAllowance(t.Context(), AllowanceRequest{
 			InvoiceNumber: "AB12345678", InvoiceDate: time.Now(), CustomerName: "測試",
 			Email: "a@example.com", AmountCents: 10000,
 			Lines: []Line{{Description: "退貨折讓", Quantity: 1, UnitPriceCents: 10000, AmountCents: 10000}},
@@ -749,8 +762,9 @@ func TestAProviderSuccessMustCarryAValidDocumentIdentity(t *testing.T) {
 		{"issue number malformed", issue, result{RtnCode: 1, InvoiceNo: "../../etc", InvoiceDate: "2026-08-07 10:30:00", RandomNumber: "1234"}},
 		{"issue random number malformed", issue, result{RtnCode: 1, InvoiceNo: "AB12345678", InvoiceDate: "2026-08-07 10:30:00", RandomNumber: "12x4"}},
 		{"issue date malformed", issue, result{RtnCode: 1, InvoiceNo: "AB12345678", InvoiceDate: "not-a-date", RandomNumber: "1234"}},
-		{"allowance number malformed", allowance, result{RtnCode: 1, AllowanceInvoiceNo: "AB12345678", AllowanceNo: "IA-1", AllowanceDate: "2026-08-07 10:30:00"}},
-		{"allowance date malformed", allowance, result{RtnCode: 1, AllowanceInvoiceNo: "AB12345678", AllowanceNo: "2026080715227214", AllowanceDate: "2026-99-99 10:30:00"}},
+		{"allowance number malformed", allowance, result{RtnCode: 1, AllowanceInvoiceNo: "AB12345678", AllowanceNo: "IA-1", AllowanceExpiresAt: "2026-08-07 10:30:00"}},
+		{"allowance expiry malformed", allowance, result{RtnCode: 1, AllowanceInvoiceNo: "AB12345678", AllowanceNo: "2026080715227214", AllowanceExpiresAt: "2026-99-99 10:30:00"}},
+		{"allowance for another invoice", allowance, result{RtnCode: 1, AllowanceInvoiceNo: "ZZ12345678", AllowanceNo: "2026080715227214", AllowanceExpiresAt: "2026-08-07 10:30:00"}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -889,7 +903,7 @@ func TestKnownAllowanceFactsRequireAnExactProviderDocument(t *testing.T) {
 			Lines: slices.Clone(local.Lines),
 		},
 	}
-	if !allowanceKnownFactsMatch("AB12345678", local, matching) {
+	if !allowanceKnownFactsMatch("AB12345678", local, &matching) {
 		t.Fatal("an exact known provider allowance did not match")
 	}
 
@@ -908,7 +922,7 @@ func TestKnownAllowanceFactsRequireAnExactProviderDocument(t *testing.T) {
 			got := matching
 			got.Document.Lines = slices.Clone(matching.Document.Lines)
 			tt.mutate(&got)
-			if allowanceKnownFactsMatch("AB12345678", local, got) {
+			if allowanceKnownFactsMatch("AB12345678", local, &got) {
 				t.Fatal("mismatched provider facts matched a known allowance")
 			}
 		})
@@ -943,7 +957,7 @@ func TestInvalidUnknownAllowanceStillRequiresTheExactFrozenSend(t *testing.T) {
 			Lines:       slices.Clone(expected.Lines),
 		},
 	}
-	if !allowanceRequestFactsMatch(expected, matching) {
+	if !allowanceRequestFactsMatch(expected, &matching) {
 		t.Fatal("the exact invalid provider effect did not match its frozen send")
 	}
 
@@ -960,7 +974,7 @@ func TestInvalidUnknownAllowanceStillRequiresTheExactFrozenSend(t *testing.T) {
 			got := matching
 			got.Document.Lines = slices.Clone(matching.Document.Lines)
 			tt.mutate(&got)
-			if allowanceRequestFactsMatch(expected, got) {
+			if allowanceRequestFactsMatch(expected, &got) {
 				t.Fatal("contradictory invalid provider effect matched the frozen send")
 			}
 		})

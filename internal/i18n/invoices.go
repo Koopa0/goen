@@ -16,12 +16,36 @@ var (
 			"instead when the invoice should not exist at all.",
 	})
 
-	// The endpoint goen calls is ECPay's paper-allowance one; goen records the
-	// allowance as filed and has no step that collects the buyer's agreement.
-	KeyAdminQueueAllowancePaper = key("admin.queue.allowance.paper", Message{
-		ZhHant: "這裡使用綠界的紙本折讓介面：店家必須取得買家簽回的折讓確認並自行保存；系統不會代為取得或保存。",
-		En: "This uses ECPay's paper-allowance API: the shop must obtain the buyer's signed " +
-			"allowance confirmation and keep it. goen neither collects nor stores it.",
+	KeyAdminQueueAllowanceOnline = key("admin.queue.allowance.online", Message{
+		ZhHant: "綠界會以 Email 請顧客確認這筆折讓，顧客在 72 小時內點選同意後才成立；綠界記錄這次同意，goen 也保存一份。",
+		En: "ECPay e-mails the customer to agree to this credit note, which takes effect only if they " +
+			"agree within 72 hours; ECPay records the agreement and goen keeps a copy.",
+	})
+
+	KeyAdminQueueAllowanceAwaiting = key("admin.queue.allowance.awaiting", Message{
+		ZhHant: "已寄出折讓確認信，等待顧客在 %s 前確認。",
+		En:     "The credit note was e-mailed to the customer to agree to by %s.",
+	})
+
+	KeyAdminQueueAllowanceUnconfirmed = key("admin.queue.allowance.unconfirmed", Message{
+		ZhHant: "顧客未在 72 小時內確認折讓。",
+		En:     "The customer did not agree to the credit note within 72 hours.",
+	})
+
+	KeyAdminQueueAllowanceAmountHeld = key("admin.queue.allowance.amountheld", Message{
+		ZhHant: "綠界表示這張發票可折讓的金額仍被先前未確認的折讓保留，這次沒有開立任何折讓。",
+		En: "ECPay says an earlier credit note the customer never agreed to still holds this invoice's " +
+			"amount, so nothing was filed this time.",
+	})
+
+	KeyAdminQueueAllowanceMismatch = key("admin.queue.allowance.mismatch", Message{
+		ZhHant: "綠界的回覆指向另一張發票，無法確認這筆折讓是否已寄出給顧客。",
+		En:     "ECPay's reply named another invoice, so whether this credit note reached the customer is unknown.",
+	})
+
+	KeyAdminQueueAllowanceAttention = key("admin.queue.allowance.attention", Message{
+		ZhHant: "這筆折讓需要人工確認（%s）。",
+		En:     "This credit note needs a person (%s).",
 	})
 
 	KeyAdminQueueNoInvoicing = key("admin.queue.noinvoicing", Message{
@@ -94,6 +118,11 @@ var (
 	KeyAdminNoticeAllowed = key("admin.notice.allowed", Message{
 		ZhHant: "折讓已開立。",
 		En:     "The credit note has been filed.",
+	})
+
+	KeyAdminNoticeAllowSent = key("admin.notice.allowsent", Message{
+		ZhHant: "已寄出折讓確認信給顧客，顧客同意後折讓才成立。",
+		En:     "The credit note was e-mailed to the customer; it takes effect once they agree.",
 	})
 
 	// The two refusals a 折讓 has of its own. invoicefailed talks about 統編 and

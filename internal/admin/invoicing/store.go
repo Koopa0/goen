@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/admin/audit"
@@ -90,6 +91,22 @@ func (s *Store) FillOrder(ctx context.Context, view *admin.OrderView, number str
 		return fmt.Errorf("read settled refunds for %s: %w", number, err)
 	}
 	view.RefundedCents = refunded
+	return s.fillOpenAllowance(ctx, view, number)
+}
+
+func (s *Store) fillOpenAllowance(ctx context.Context, view *admin.OrderView, number string) error {
+	open, err := s.q.OpenAllowance(ctx, number)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("read the open allowance of %s: %w", number, err)
+	}
+	if open.Status == "pending" {
+		view.AllowanceAwaitingUntil = shoptime.Minute(open.LastSendAt.Add(invoice.BuyerConsentWindow))
+		return nil
+	}
+	view.AllowanceAttention = open.LastError
 	return nil
 }
 

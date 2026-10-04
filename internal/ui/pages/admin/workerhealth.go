@@ -8,6 +8,7 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/refundstate"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/money"
 )
 
@@ -271,6 +272,12 @@ type StrandedClaim struct {
 }
 
 func (c StrandedClaim) Amount() string { return money.TWD(c.AmountCents) }
+
+// BuyerNeverAgreed is an online allowance whose consent link lapsed, which a
+// resend asks again rather than replacing a request ECPay never received.
+func (c StrandedClaim) BuyerNeverAgreed() bool {
+	return c.LastError == invoice.CategoryBuyerUnconfirmed
+}
 
 func (c StrandedClaim) AttemptsText() string {
 	return fmt.Sprintf("%d / %d", c.Attempts, c.Sends)

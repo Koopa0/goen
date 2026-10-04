@@ -1899,14 +1899,21 @@ BEGIN
                 NEW.order_number
                 USING ERRCODE = 'check_violation', CONSTRAINT = 'orders_paid_cancel_needs_refund';
         END IF;
+        -- An allowance sent to ECPay relieves its amount: whether the buyer
+        -- agrees is theirs to decide, and staff follow it on the order page.
         IF EXISTS (SELECT 1 FROM invoice_operations
-                   WHERE order_id = NEW.id AND status IN ('pending', 'attention'))
+                   WHERE order_id = NEW.id AND status IN ('pending', 'attention')
+                     AND NOT (kind = 'allowance' AND send_attempts > 0))
            OR EXISTS (
                SELECT 1 FROM invoice_documents d
                WHERE d.order_id = NEW.id AND d.kind = 'invoice' AND d.status = 'issued'
                  AND d.amount_cents > coalesce((
                      SELECT sum(a.amount_cents) FROM invoice_documents a
                      WHERE a.original_id = d.id AND a.kind = 'allowance' AND a.status = 'issued'
+                 ), 0) + coalesce((
+                     SELECT sum(op.amount_cents) FROM invoice_operations op
+                     WHERE op.target_document_id = d.id AND op.kind = 'allowance'
+                       AND op.status IN ('pending', 'attention') AND op.send_attempts > 0
                  ), 0)
            ) THEN
             RAISE EXCEPTION 'order % has an unresolved invoice operation or an unrelieved invoice',
@@ -3491,6 +3498,10 @@ CREATE TABLE invoice_operations (
     created_at         timestamptz NOT NULL DEFAULT now(),
     updated_at         timestamptz NOT NULL DEFAULT now(),
     completed_at       timestamptz,
+    -- The buyer's agreement to an online allowance as ECPay listed it at
+    -- settlement: when, from which address, and the mailbox ECPay wrote to.
+    -- The shop keeps its own copy of that consent record.
+    buyer_consent      jsonb,
     CONSTRAINT invoice_operations_kind_known
         CHECK (kind IN ('issue', 'allowance', 'void')),
     CONSTRAINT invoice_operations_status_known
@@ -6096,13 +6107,15 @@ BEGIN
                   CONSTRAINT = 'invoice_allowance_resend_request';
     END IF;
 
+    -- An online allowance whose consent link lapsed unagreed is the other case:
+    -- ECPay opened nothing, and one more request asks the buyer again.
     SELECT resend_authorizations INTO v_before
     FROM invoice_operations
     WHERE id = p_operation_id
       AND kind = 'allowance'
-      AND status = 'pending'
       AND send_attempts > resend_authorizations
-      AND last_error = 'allowance_not_yet_visible'
+      AND ((status = 'pending' AND last_error = 'allowance_not_yet_visible')
+           OR (status = 'attention' AND last_error = 'allowance_buyer_unconfirmed'))
       AND last_send_at IS NOT NULL
       AND last_send_at <= now() - interval '15 minutes'
       AND (lease_until IS NULL OR lease_until <= now())
@@ -6112,6 +6125,7 @@ BEGIN
     v_after := v_before + 1;
     UPDATE invoice_operations
     SET resend_authorizations = v_after,
+        status = 'pending',
         last_error = 'allowance_resend_authorized',
         available_at = now(),
         lease_owner = NULL,
@@ -6515,7 +6529,8 @@ CREATE FUNCTION settle_invoice_allowance(
     p_descriptions text[],
     p_quantities integer[],
     p_unit_price_cents bigint[],
-    p_amount_cents bigint[]
+    p_amount_cents bigint[],
+    p_buyer_consent jsonb
 ) RETURNS uuid
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 DECLARE
@@ -6530,6 +6545,11 @@ BEGIN
     IF p_number !~ '^[0-9]{16}$' OR p_issued_at IS NULL THEN
         RAISE EXCEPTION 'provider allowance identity is malformed'
             USING ERRCODE = 'check_violation', CONSTRAINT = 'invoice_allowance_provider_identity';
+    END IF;
+    IF jsonb_typeof(p_buyer_consent) IS DISTINCT FROM 'object'
+       OR NOT p_buyer_consent ?& ARRAY['agreed_at', 'ip', 'email'] THEN
+        RAISE EXCEPTION 'allowance settlement requires the buyer''s consent record'
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'invoice_allowance_buyer_consent';
     END IF;
     IF NOT invoice_operation_lines_match(v_operation.request_payload,
             p_descriptions, p_quantities, p_unit_price_cents, p_amount_cents) THEN
@@ -6560,6 +6580,7 @@ BEGIN
     UPDATE invoice_operations
     SET status = 'succeeded', result_document_id = v_document_id,
         request_payload = request_payload - 'customer_name' - 'email',
+        buyer_consent = p_buyer_consent,
         completed_at = now(), last_error = NULL,
         lease_owner = NULL, lease_until = NULL, updated_at = now()
     WHERE id = v_operation.id;
@@ -9105,7 +9126,7 @@ GRANT EXECUTE ON FUNCTION
     settle_invoice_issue(uuid, uuid, text, text, timestamptz,
                          text[], integer[], bigint[], bigint[]),
     settle_invoice_allowance(uuid, uuid, text, timestamptz,
-                             text[], integer[], bigint[], bigint[]),
+                             text[], integer[], bigint[], bigint[], jsonb),
     settle_invoice_void(uuid, uuid)
     TO admin;
 

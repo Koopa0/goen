@@ -143,6 +143,19 @@ func TestVoidAndAllowanceProviderRefusalDoesNotBlameTaxIDs(t *testing.T) {
 	}
 }
 
+// An allowance ECPay e-mailed to the buyer is still pending, and the notice says
+// what happens next rather than that the result is unknown.
+func TestAnAllowanceSentToTheBuyerSaysSo(t *testing.T) {
+	t.Parallel()
+
+	sent := fmt.Errorf("%w: allowance_awaiting_buyer: %w", invoice.ErrPending, invoice.ErrAwaitingBuyer)
+	res := postAllowance(t, invoiceNoticeHandler(stubInvoiceWriter{allowanceErr: sent}))
+	if res.Code != http.StatusSeeOther || !strings.HasSuffix(res.Header().Get("Location"), "?allowsent=1") {
+		t.Fatalf("Allowance e-mailed to the buyer = %d %q, want 303 ?allowsent=1",
+			res.Code, res.Header().Get("Location"))
+	}
+}
+
 func TestVoidAndAllowanceUnconfiguredIssuerUsesRefusedNotice(t *testing.T) {
 	t.Parallel()
 

@@ -101,3 +101,33 @@ func TestALiveInvoiceOnACancelledOrderIsWork(t *testing.T) {
 		}
 	}
 }
+
+// TestALapsedAllowanceResendAsksTheBuyerAgain: the resend of an allowance the
+// customer never agreed to is not worded as one ECPay never received.
+func TestALapsedAllowanceResendAsksTheBuyerAgain(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	for _, tt := range []struct {
+		name      string
+		lastError string
+		want      i18n.Key
+		not       i18n.Key
+	}{
+		{name: "lapsed", lastError: "allowance_buyer_unconfirmed",
+			want: i18n.KeyAdminHPAllowanceLapsedConfirm, not: i18n.KeyAdminHPAllowanceAbsentConfirm},
+		{name: "never seen", lastError: "allowance_not_yet_visible",
+			want: i18n.KeyAdminHPAllowanceAbsentConfirm, not: i18n.KeyAdminHPAllowanceLapsedConfirm},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			view := &WorkerHealthView{StrandedClaims: []StrandedClaim{{
+				Operation: "0199aaaa-0000-7000-8000-000000000001", OrderNumber: "GO-261004-000001",
+				Kind: "allowance", Status: "attention", LastError: tt.lastError, CanAuthorizeResend: true,
+			}}}
+			html := renderToString(t, Health(layouts.Page{Title: "health"}, view))
+			if !strings.Contains(html, i18n.T(ctx, tt.want)) || strings.Contains(html, i18n.T(ctx, tt.not)) {
+				t.Errorf("%s resend is not worded as %q", tt.lastError, i18n.T(ctx, tt.want))
+			}
+		})
+	}
+}

@@ -72,6 +72,31 @@ func (s *Store) CorrectForCancellation(ctx context.Context, orderNumber string) 
 	return err
 }
 
+// FileCancellationAllowance asks the buyer to agree to an allowance for what a
+// cancellation refunded, under the filing identity on ctx, when the invoice is
+// still live after the refund has settled and a void can no longer correct it.
+// operationID comes from the refund, so pressing again replays the same claim.
+func (s *Store) FileCancellationAllowance(ctx context.Context, orderNumber string, operationID uuid.UUID) error {
+	if !s.Enabled() {
+		return nil
+	}
+	live, err := s.q.LiveInvoice(ctx, orderNumber)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("read the invoice of %s: %w", orderNumber, err)
+	}
+	if voidable(live.IssuedAt, time.Now(), live.HasAllowance) {
+		return nil
+	}
+	if _, err := s.FileAllowance(ctx, orderNumber, operationID); err != nil &&
+		!errors.Is(err, ErrAwaitingBuyer) {
+		return err
+	}
+	return nil
+}
+
 // EnqueueVoidDue writes the void a customer's cancellation owes, in the
 // cancellation's transaction.
 func EnqueueVoidDue(ctx context.Context, q *db.Queries, due *outbox.InvoiceVoidDue) error {

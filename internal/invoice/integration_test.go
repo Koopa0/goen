@@ -161,6 +161,49 @@ func replyIssueLookup(
 	})
 }
 
+// replyAllowanceRequested answers AllowanceByCollegiate as ECPay does: the
+// allowance is e-mailed to the buyer, who has not yet agreed to it.
+func replyAllowanceRequested(t *testing.T, w http.ResponseWriter, invoiceNumber, allowanceNumber string) {
+	t.Helper()
+	reply(t, w, result{
+		RtnCode: 1, AllowanceNo: allowanceNumber, AllowanceInvoiceNo: invoiceNumber,
+		AllowanceExpiresAt: "2026-08-10 15:22:00",
+	})
+}
+
+// agreedAllowance is the GetAllowanceList row ECPay shows once the buyer has
+// agreed to request.
+func agreedAllowance(request allowanceRequest, number, agreedAt string) map[string]any {
+	return map[string]any{
+		"IA_Allow_No": number, "IA_Date": agreedAt, "IA_Invoice_No": request.InvoiceNo,
+		"IA_Invalid_Status": 0, "IA_Total_Tax_Amount": request.AllowanceAmount,
+		"IA_IP": "203.0.113.7", "IA_Send_Mail": request.NotifyMail, "Items": request.Items,
+	}
+}
+
+// fileAgreedAllowance asks for an allowance and settles it on the next pass,
+// once the provider lists it as agreed to.
+func fileAgreedAllowance(
+	t *testing.T, s *Store, ctx context.Context, orderNumber string, operationID uuid.UUID,
+) (Document, error) {
+	t.Helper()
+	if _, err := s.FileAllowance(ctx, orderNumber, operationID); !errors.Is(err, ErrAwaitingBuyer) {
+		t.Fatalf("Allowance for %s = %v, want it e-mailed to the buyer", orderNumber, err)
+	}
+	return passAgain(t, s, ctx, operationID)
+}
+
+// passAgain runs an operation's next reconciliation pass now, as the
+// reconciler does once its backoff has passed.
+func passAgain(t *testing.T, s *Store, ctx context.Context, operationID uuid.UUID) (Document, error) {
+	t.Helper()
+	if _, err := pool.Exec(ctx,
+		`UPDATE invoice_operations SET available_at = now() WHERE id = $1`, operationID); err != nil {
+		t.Fatalf("make operation %s due: %v", operationID, err)
+	}
+	return s.processClaim(ctx, operationID)
+}
+
 // TestAnAllowanceIsFiledOncePerPress holds an idempotency key that ECPay does
 // not provide: Issue carries RelateNumber and a repeat is refused with 5070357,
 // while the allowance endpoint carries nothing of the kind. Two presses would
@@ -177,14 +220,10 @@ func TestAnAllowanceIsFiledOncePerPress(t *testing.T) {
 		switch r.URL.Path {
 		case "/B2CInvoice/GetAllowanceList":
 			replyNoAllowances(t, w)
-		case "/B2CInvoice/Allowance":
+		case "/B2CInvoice/AllowanceByCollegiate":
 			request := openAllowanceRequest(t, r)
 			filings++
-			reply(t, w, result{
-				RtnCode: 1, AllowanceNo: "2026080715227214",
-				AllowanceInvoiceNo: request.InvoiceNo,
-				AllowanceDate:      "2026-08-07 15:22:00",
-			})
+			replyAllowanceRequested(t, w, request.InvoiceNo, "2026080715227214")
 		default:
 			t.Fatalf("unexpected provider path %s", r.URL.Path)
 		}
@@ -200,8 +239,8 @@ func TestAnAllowanceIsFiledOncePerPress(t *testing.T) {
 	number := invoicedOrderWithRefund(t, 50000)
 
 	operationID := uuid.New()
-	if _, err := s.FileAllowance(filingTestContext(t, ctx), number, operationID); err != nil {
-		t.Fatalf("the first allowance was refused: %v", err)
+	if _, err := s.FileAllowance(filingTestContext(t, ctx), number, operationID); !errors.Is(err, ErrAwaitingBuyer) {
+		t.Fatalf("the first allowance = %v, want it e-mailed to the buyer", err)
 	}
 	if filings != 1 {
 		t.Fatalf("the provider was called %d times for one press", filings)
@@ -210,8 +249,8 @@ func TestAnAllowanceIsFiledOncePerPress(t *testing.T) {
 	// The same press again — a double-click, or a retry after a timeout. There is
 	// no refunded room left, so only the durable operation identity can make this
 	// an exact replay rather than a second filing.
-	if _, err := s.FileAllowance(filingTestContext(t, ctx), number, operationID); err != nil {
-		t.Errorf("an exact replay did not return the original filed allowance: %v", err)
+	if _, err := s.FileAllowance(filingTestContext(t, ctx), number, operationID); !errors.Is(err, ErrPending) {
+		t.Errorf("an exact replay = %v, want the original operation still pending", err)
 	}
 	if filings != 1 {
 		t.Errorf("the provider was called %d times; the second press reached ECPay "+
@@ -238,7 +277,7 @@ func TestAllowanceCandidateWithoutSendEvidenceIsAlarmed(t *testing.T) {
 					}},
 				}},
 			})
-		case "/B2CInvoice/Allowance":
+		case "/B2CInvoice/AllowanceByCollegiate":
 			sends++
 			t.Fatal("an unattributed provider candidate triggered a new Allowance send")
 		default:
@@ -297,7 +336,7 @@ func TestAdminCannotWriteInvoiceHistoryAroundThePersistenceDoors(t *testing.T) {
 		"alarm_invoice_operation(uuid,uuid,text)",
 		"reject_invoice_operation(uuid,uuid,text)",
 		"settle_invoice_issue(uuid,uuid,text,text,timestamp with time zone,text[],integer[],bigint[],bigint[])",
-		"settle_invoice_allowance(uuid,uuid,text,timestamp with time zone,text[],integer[],bigint[],bigint[])",
+		"settle_invoice_allowance(uuid,uuid,text,timestamp with time zone,text[],integer[],bigint[],bigint[],jsonb)",
 		"settle_invoice_void(uuid,uuid)",
 	} {
 		var adminCan, storeCan bool
@@ -493,7 +532,8 @@ func TestAllowanceSettlementRejectsEachNonCanonicalLineFieldAtomically(t *testin
 			tt.mutate(descriptions, quantities, prices, amounts)
 			providerNumber := fmt.Sprintf("202608071523%04d", at+1)
 			_, settleErr := conn.Exec(ctx, `
-				SELECT settle_invoice_allowance($1,$2,$3,now(),$4,$5,$6,$7)`,
+				SELECT settle_invoice_allowance($1,$2,$3,now(),$4,$5,$6,$7,
+				    '{"agreed_at":"2026-08-07 15:23:00","ip":"203.0.113.7","email":"allow@goen.invalid"}')`,
 				operationID, owner, providerNumber,
 				descriptions, quantities, prices, amounts)
 			if got := constraintOf(settleErr); got != "invoice_allowance_line_authoritative" {
@@ -837,7 +877,14 @@ func TestInvoiceDoorRuleBranchesFailByTheirExactNames(t *testing.T) {
 	}
 	d, q, p, a = invoiceLineArrays(allowanceFrozen.Lines)
 	assertRule("invoice_allowance_provider_identity", `
-		SELECT settle_invoice_allowance($1,$2,'bad-number',now(),$3,$4,$5,$6)`,
+		SELECT settle_invoice_allowance($1,$2,'bad-number',now(),$3,$4,$5,$6,
+		    '{"agreed_at":"","ip":"","email":""}')`,
+		providerOperation, providerOwner, d, q, p, a)
+	assertRule("invoice_allowance_buyer_consent", `
+		SELECT settle_invoice_allowance($1,$2,'2026080715239999',now(),$3,$4,$5,$6,NULL::jsonb)`,
+		providerOperation, providerOwner, d, q, p, a)
+	assertRule("invoice_allowance_buyer_consent", `
+		SELECT settle_invoice_allowance($1,$2,'2026080715239999',now(),$3,$4,$5,$6,'{"ip":""}')`,
 		providerOperation, providerOwner, d, q, p, a)
 	if _, err := conn.Exec(ctx,
 		`SELECT reject_invoice_operation($1,$2,'named_rule_complete')`,
@@ -1114,14 +1161,16 @@ func TestErasedCustomerRefundStillAllowancesFromFilingSnapshot(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/B2CInvoice/GetAllowanceList":
-			replyNoAllowances(t, w)
-		case "/B2CInvoice/Allowance":
+			if sent.InvoiceNo == "" {
+				replyNoAllowances(t, w)
+				return
+			}
+			reply(t, w, map[string]any{"RtnCode": 1, "AllowanceInfo": []map[string]any{
+				agreedAllowance(sent, allowanceNumber, "2026-09-01 09:45:00"),
+			}})
+		case "/B2CInvoice/AllowanceByCollegiate":
 			sent = openAllowanceRequest(t, r)
-			reply(t, w, result{
-				RtnCode: 1, AllowanceNo: allowanceNumber,
-				AllowanceInvoiceNo: sent.InvoiceNo,
-				AllowanceDate:      "2026-09-01 09:45:00",
-			})
+			replyAllowanceRequested(t, w, sent.InvoiceNo, allowanceNumber)
 		default:
 			t.Fatalf("unexpected provider path %s", r.URL.Path)
 		}
@@ -1133,9 +1182,7 @@ func TestErasedCustomerRefundStillAllowancesFromFilingSnapshot(t *testing.T) {
 		t.Fatalf("gateway: %v", err)
 	}
 	operationID := uuid.New()
-	doc, err := NewStore(pool, g).FileAllowance(
-		filingTestContext(t, ctx), number, operationID,
-	)
+	doc, err := fileAgreedAllowance(t, NewStore(pool, g), filingTestContext(t, ctx), number, operationID)
 	if err != nil {
 		t.Fatalf("Allowance after customer erasure: %v", err)
 	}
@@ -2083,14 +2130,16 @@ func TestStoreAllowanceFreezesTheAuthoritativeRefund(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/B2CInvoice/GetAllowanceList":
-			replyNoAllowances(t, w)
-		case "/B2CInvoice/Allowance":
+			if sent.InvoiceNo == "" {
+				replyNoAllowances(t, w)
+				return
+			}
+			reply(t, w, map[string]any{"RtnCode": 1, "AllowanceInfo": []map[string]any{
+				agreedAllowance(sent, "2026080715227215", "2026-08-07 15:22:00"),
+			}})
+		case "/B2CInvoice/AllowanceByCollegiate":
 			sent = openAllowanceRequest(t, r)
-			reply(t, w, result{
-				RtnCode: 1, AllowanceNo: "2026080715227215",
-				AllowanceInvoiceNo: sent.InvoiceNo,
-				AllowanceDate:      "2026-08-07 15:22:00",
-			})
+			replyAllowanceRequested(t, w, sent.InvoiceNo, "2026080715227215")
 		default:
 			t.Fatalf("unexpected provider path %s", r.URL.Path)
 		}
@@ -2104,7 +2153,7 @@ func TestStoreAllowanceFreezesTheAuthoritativeRefund(t *testing.T) {
 
 	number := invoicedOrderWithRefund(t, 50000)
 	operationID := uuid.New()
-	doc, err := s.FileAllowance(filingTestContext(t, ctx), number, operationID)
+	doc, err := fileAgreedAllowance(t, s, filingTestContext(t, ctx), number, operationID)
 	if err != nil {
 		t.Fatalf("Allowance: %v", err)
 	}
@@ -2127,6 +2176,18 @@ func TestStoreAllowanceFreezesTheAuthoritativeRefund(t *testing.T) {
 		t.Errorf("frozen operation/header payload = %d/%d, want 50000/50000",
 			frozenAmount, payloadAmount)
 	}
+	var consent buyerConsent
+	var raw []byte
+	if err := pool.QueryRow(ctx,
+		`SELECT buyer_consent FROM invoice_operations WHERE id=$1`, operationID).Scan(&raw); err != nil {
+		t.Fatalf("read the kept consent: %v", err)
+	}
+	if err := json.Unmarshal(raw, &consent); err != nil {
+		t.Fatalf("decode the kept consent %s: %v", raw, err)
+	}
+	if want := (buyerConsent{AgreedAt: "2026-08-07 15:22:00", IP: "203.0.113.7", Email: sent.NotifyMail}); consent != want {
+		t.Errorf("kept consent = %+v, want what the allowance list reported, %+v", consent, want)
+	}
 }
 
 func TestProviderInvalidAllowanceIsVoidedAndReplacementIsRefrozen(t *testing.T) {
@@ -2148,6 +2209,7 @@ func TestProviderInvalidAllowanceIsVoidedAndReplacementIsRefrozen(t *testing.T) 
 			request := openAllowanceListRequest(t, r)
 			provider.mu.Lock()
 			old := provider.old
+			replacement := provider.replacement
 			invalid := provider.oldInvalid
 			provider.mu.Unlock()
 			if old.InvoiceNo == "" {
@@ -2161,16 +2223,17 @@ func TestProviderInvalidAllowanceIsVoidedAndReplacementIsRefrozen(t *testing.T) 
 			if invalid {
 				invalidStatus = 1
 			}
-			reply(t, w, map[string]any{
-				"RtnCode": 1,
-				"AllowanceInfo": []map[string]any{{
-					"IA_Allow_No": oldNumber, "IA_Date": "2026-08-07 15:22:00",
-					"IA_Invoice_No": old.InvoiceNo, "IA_Invalid_Status": invalidStatus,
-					"IA_Total_Tax_Amount": old.AllowanceAmount,
-					"Items":               old.Items,
-				}},
-			})
-		case "/B2CInvoice/Allowance":
+			listed := []map[string]any{{
+				"IA_Allow_No": oldNumber, "IA_Date": "2026-08-07 15:22:00",
+				"IA_Invoice_No": old.InvoiceNo, "IA_Invalid_Status": invalidStatus,
+				"IA_Total_Tax_Amount": old.AllowanceAmount,
+				"Items":               old.Items,
+			}}
+			if replacement.InvoiceNo != "" {
+				listed = append(listed, agreedAllowance(replacement, replacementNumber, "2026-08-07 15:23:00"))
+			}
+			reply(t, w, map[string]any{"RtnCode": 1, "AllowanceInfo": listed})
+		case "/B2CInvoice/AllowanceByCollegiate":
 			request := openAllowanceRequest(t, r)
 			provider.mu.Lock()
 			provider.sends++
@@ -2187,11 +2250,7 @@ func TestProviderInvalidAllowanceIsVoidedAndReplacementIsRefrozen(t *testing.T) 
 			} else if sends > 2 {
 				t.Fatalf("provider received %d Allowance writes, want exactly 2", sends)
 			}
-			reply(t, w, result{
-				RtnCode: 1, AllowanceNo: number,
-				AllowanceInvoiceNo: request.InvoiceNo,
-				AllowanceDate:      "2026-08-07 15:22:00",
-			})
+			replyAllowanceRequested(t, w, request.InvoiceNo, number)
 		default:
 			t.Fatalf("unexpected provider path %s", r.URL.Path)
 		}
@@ -2203,7 +2262,7 @@ func TestProviderInvalidAllowanceIsVoidedAndReplacementIsRefrozen(t *testing.T) 
 	}
 	store := NewStore(pool, gateway)
 	number := invoicedOrderWithRefund(t, 50000)
-	if _, err := store.FileAllowance(filingTestContext(t, ctx), number, uuid.New()); err != nil {
+	if _, err := fileAgreedAllowance(t, store, filingTestContext(t, ctx), number, uuid.New()); err != nil {
 		t.Fatalf("file original Allowance: %v", err)
 	}
 	addCardRefund(t, number, 20000)
@@ -2252,9 +2311,12 @@ func TestProviderInvalidAllowanceIsVoidedAndReplacementIsRefrozen(t *testing.T) 
 			auditAmount, auditActor, auditRequest, sendAttempts)
 	}
 
-	doc, err := store.FileAllowance(filingCtx, number, operationID)
+	if _, err := store.FileAllowance(filingCtx, number, operationID); !errors.Is(err, ErrAwaitingBuyer) {
+		t.Fatalf("send the refrozen replacement on its next pass = %v, want it e-mailed to the buyer", err)
+	}
+	doc, err := passAgain(t, store, filingCtx, operationID)
 	if err != nil {
-		t.Fatalf("file the refrozen replacement on its next pass: %v", err)
+		t.Fatalf("settle the agreed replacement: %v", err)
 	}
 	if doc.Number != replacementNumber || doc.AmountCents != 70000 {
 		t.Fatalf("replacement document = %q/%d, want %q/70000",
@@ -2326,18 +2388,14 @@ func TestMismatchedKnownProviderInvalidationIsAlarmed(t *testing.T) {
 					"IA_Total_Tax_Amount": amount, "Items": items,
 				}},
 			})
-		case "/B2CInvoice/Allowance":
+		case "/B2CInvoice/AllowanceByCollegiate":
 			provider.sends++
 			request := openAllowanceRequest(t, r)
 			if provider.sends != 1 {
 				t.Fatal("a mismatched known provider row triggered another Allowance send")
 			}
 			provider.old = request
-			reply(t, w, result{
-				RtnCode: 1, AllowanceNo: oldNumber,
-				AllowanceInvoiceNo: request.InvoiceNo,
-				AllowanceDate:      "2026-08-07 15:22:00",
-			})
+			replyAllowanceRequested(t, w, request.InvoiceNo, oldNumber)
 		default:
 			t.Fatalf("unexpected provider path %s", r.URL.Path)
 		}
@@ -2349,7 +2407,7 @@ func TestMismatchedKnownProviderInvalidationIsAlarmed(t *testing.T) {
 	}
 	store := NewStore(pool, gateway)
 	number := invoicedOrderWithRefund(t, 50000)
-	if _, err := store.FileAllowance(filingTestContext(t, ctx), number, uuid.New()); err != nil {
+	if _, err := fileAgreedAllowance(t, store, filingTestContext(t, ctx), number, uuid.New()); err != nil {
 		t.Fatalf("file original Allowance: %v", err)
 	}
 	addCardRefund(t, number, 20000)
@@ -2450,7 +2508,7 @@ func TestKnownAllowanceStateContradictionsAreAlarmed(t *testing.T) {
 							}},
 						}},
 					})
-				case "/B2CInvoice/Allowance":
+				case "/B2CInvoice/AllowanceByCollegiate":
 					t.Fatal("known allowance state contradiction triggered a provider send")
 				default:
 					t.Fatalf("unexpected provider path %s", r.URL.Path)
@@ -2500,9 +2558,10 @@ func TestInvalidUnknownAllowanceAfterLostSettlementIsRecordedThenReissued(t *tes
 		replacementNumber = "2026080715227277"
 	)
 	var provider struct {
-		mu      sync.Mutex
-		invalid allowanceRequest
-		sends   int
+		mu          sync.Mutex
+		invalid     allowanceRequest
+		replacement allowanceRequest
+		sends       int
 	}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -2510,6 +2569,7 @@ func TestInvalidUnknownAllowanceAfterLostSettlementIsRecordedThenReissued(t *tes
 			request := openAllowanceListRequest(t, r)
 			provider.mu.Lock()
 			invalid := provider.invalid
+			replacement := provider.replacement
 			provider.mu.Unlock()
 			if invalid.InvoiceNo == "" {
 				replyNoAllowances(t, w)
@@ -2519,22 +2579,25 @@ func TestInvalidUnknownAllowanceAfterLostSettlementIsRecordedThenReissued(t *tes
 				t.Fatalf("invalid Allowance lookup invoice = %q, want %q",
 					request.InvoiceNo, invalid.InvoiceNo)
 			}
-			reply(t, w, map[string]any{
-				"RtnCode": 1,
-				"AllowanceInfo": []map[string]any{{
-					"IA_Allow_No": invalidNumber, "IA_Date": "2026-08-07 15:22:00",
-					"IA_Invoice_No": invalid.InvoiceNo, "IA_Invalid_Status": 1,
-					"IA_Total_Tax_Amount": invalid.AllowanceAmount,
-					"Items":               invalid.Items,
-				}},
-			})
-		case "/B2CInvoice/Allowance":
+			listed := []map[string]any{{
+				"IA_Allow_No": invalidNumber, "IA_Date": "2026-08-07 15:22:00",
+				"IA_Invoice_No": invalid.InvoiceNo, "IA_Invalid_Status": 1,
+				"IA_Total_Tax_Amount": invalid.AllowanceAmount,
+				"Items":               invalid.Items,
+			}}
+			if replacement.InvoiceNo != "" {
+				listed = append(listed, agreedAllowance(replacement, replacementNumber, "2026-08-07 15:23:00"))
+			}
+			reply(t, w, map[string]any{"RtnCode": 1, "AllowanceInfo": listed})
+		case "/B2CInvoice/AllowanceByCollegiate":
 			request := openAllowanceRequest(t, r)
 			provider.mu.Lock()
 			provider.sends++
 			sends := provider.sends
 			if sends == 1 {
 				provider.invalid = request
+			} else {
+				provider.replacement = request
 			}
 			provider.mu.Unlock()
 			if sends == 1 {
@@ -2547,11 +2610,7 @@ func TestInvalidUnknownAllowanceAfterLostSettlementIsRecordedThenReissued(t *tes
 			if sends > 2 {
 				t.Fatalf("invalid Allowance recovery sent %d provider writes", sends)
 			}
-			reply(t, w, result{
-				RtnCode: 1, AllowanceNo: replacementNumber,
-				AllowanceInvoiceNo: request.InvoiceNo,
-				AllowanceDate:      "2026-08-07 15:23:00",
-			})
+			replyAllowanceRequested(t, w, request.InvoiceNo, replacementNumber)
 		default:
 			t.Fatalf("unexpected provider path %s", r.URL.Path)
 		}
@@ -2612,9 +2671,7 @@ func TestInvalidUnknownAllowanceAfterLostSettlementIsRecordedThenReissued(t *tes
 		t.Fatalf("recording an invalid remote effect resent it; provider sends=%d", sends)
 	}
 
-	replacement, err := store.FileAllowance(
-		filingTestContext(t, ctx), number, uuid.New(),
-	)
+	replacement, err := fileAgreedAllowance(t, store, filingTestContext(t, ctx), number, uuid.New())
 	if err != nil {
 		t.Fatalf("file fresh replacement after invalid history: %v", err)
 	}
@@ -2680,7 +2737,7 @@ func TestContradictoryUnknownInvalidAllowanceIsAlarmedWithoutRelease(t *testing.
 							}},
 						}},
 					})
-				case "/B2CInvoice/Allowance":
+				case "/B2CInvoice/AllowanceByCollegiate":
 					t.Fatal("contradictory invalid provider facts triggered a resend")
 				default:
 					t.Fatalf("unexpected provider path %s", r.URL.Path)
@@ -3194,17 +3251,14 @@ func TestARefusedAllowanceLeavesEveryOtherOrderFilable(t *testing.T) {
 		switch r.URL.Path {
 		case "/B2CInvoice/GetAllowanceList":
 			replyNoAllowances(t, w)
-		case "/B2CInvoice/Allowance":
+		case "/B2CInvoice/AllowanceByCollegiate":
 			if refuse {
 				reply(t, w, result{RtnCode: 5000022, RtnMsg: "與商品合計金額不符"})
 				return
 			}
 			request := openAllowanceRequest(t, r)
 			filed++
-			reply(t, w, result{RtnCode: 1,
-				AllowanceNo:        fmt.Sprintf("20260807152272%02d", filed),
-				AllowanceInvoiceNo: request.InvoiceNo,
-				AllowanceDate:      "2026-08-07 15:22:00"})
+			replyAllowanceRequested(t, w, request.InvoiceNo, fmt.Sprintf("20260807152272%02d", filed))
 		default:
 			t.Fatalf("unexpected provider path %s", r.URL.Path)
 		}
@@ -3227,7 +3281,7 @@ func TestARefusedAllowanceLeavesEveryOtherOrderFilable(t *testing.T) {
 
 	// An UNRELATED order, whose provider call works.
 	refuse = false
-	if _, err := s.FileAllowance(filingTestContext(t, ctx), second, uuid.New()); err != nil {
+	if _, err := s.FileAllowance(filingTestContext(t, ctx), second, uuid.New()); !errors.Is(err, ErrAwaitingBuyer) {
 		t.Fatalf("a 折讓 on an unrelated order was refused after a different order's "+
 			"claim failed: %v\nOne provider failure has taken the feature away from "+
 			"the whole shop", err)
@@ -3235,7 +3289,7 @@ func TestARefusedAllowanceLeavesEveryOtherOrderFilable(t *testing.T) {
 
 	// And the refused one is filable again: ECPay ANSWERED, so nothing is at the
 	// 加值中心 under that claim and holding its key relieves nothing for ever.
-	if _, err := s.FileAllowance(filingTestContext(t, ctx), first, uuid.New()); err != nil {
+	if _, err := s.FileAllowance(filingTestContext(t, ctx), first, uuid.New()); !errors.Is(err, ErrAwaitingBuyer) {
 		t.Errorf("the order whose 折讓 the provider refused cannot be filed again: %v\n"+
 			"A claim for a document that was never filed has no door out", err)
 	}
@@ -3283,7 +3337,7 @@ func TestAllowanceTransportAmbiguitySettlesAfterPropagationLag(t *testing.T) {
 					"Items":               sent.Items,
 				}},
 			})
-		case "/B2CInvoice/Allowance":
+		case "/B2CInvoice/AllowanceByCollegiate":
 			request := openAllowanceRequest(t, r)
 			provider.mu.Lock()
 			provider.sends++
@@ -3349,9 +3403,9 @@ func TestAllowanceTransportAmbiguitySettlesAfterPropagationLag(t *testing.T) {
 	if !errors.Is(reconcileErr, ErrPending) {
 		t.Fatalf("empty post-send allowance lookup = %v, want ErrPending", reconcileErr)
 	}
-	if result.OperationID != operationID || result.Category != "allowance_not_yet_visible" {
+	if result.OperationID != operationID || result.Category != "allowance_awaiting_buyer" {
 		t.Fatalf("stale reconciliation = operation %s category %q, want %s/%q",
-			result.OperationID, result.Category, operationID, "allowance_not_yet_visible")
+			result.OperationID, result.Category, operationID, "allowance_awaiting_buyer")
 	}
 	provider.mu.Lock()
 	sends, lookups = provider.sends, provider.lookups
@@ -3404,33 +3458,24 @@ func TestAllowanceTransportAmbiguitySettlesAfterPropagationLag(t *testing.T) {
 	}
 }
 
-// TestAMarkedAllowanceNeedsAuditedAuthorizationBeforeOneResend models the
-// sharpest crash window: the durable pre-send stamp committed, but the process
-// died before making the provider call. An empty provider list is not proof of
-// either outcome, so ordinary worker polls must send nothing. After the waiting
-// window, one independently confirmed and audited authorization permits exactly
-// one provider call; a second click grants nothing.
-func TestAMarkedAllowanceNeedsAuditedAuthorizationBeforeOneResend(t *testing.T) {
+// TestAMarkedAllowanceIsNeverResentWhileItsLinkMayLive models the sharpest
+// crash window: the durable pre-send stamp committed, but the process died
+// before making the provider call. ECPay lists an online allowance only once
+// the buyer agrees, so an empty list proves neither outcome for as long as the
+// consent link may live: worker polls send nothing and the audited resend is
+// refused. Past the link's life the operation needs a person.
+func TestAMarkedAllowanceIsNeverResentWhileItsLinkMayLive(t *testing.T) {
 	ctx := t.Context()
-	var sends int
-	const allowanceNumber = "2026090114550017"
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/B2CInvoice/GetAllowanceList":
 			replyNoAllowances(t, w)
-		case "/B2CInvoice/Allowance":
-			request := openAllowanceRequest(t, r)
-			sends++
-			if sends > 1 {
-				t.Fatalf("one resend authorization produced %d provider calls", sends)
-			}
-			reply(t, w, result{
-				RtnCode: 1, AllowanceNo: allowanceNumber,
-				AllowanceInvoiceNo: request.InvoiceNo,
-				AllowanceDate:      "2026-09-01 14:55:00",
-			})
+		case "/B2CInvoice/AllowanceByCollegiate":
+			t.Error("an allowance that may already be with the buyer was sent again")
+			replyAllowanceRequested(t, w, "AB12345678", "2026090114550017")
 		default:
-			t.Fatalf("unexpected provider path %s", r.URL.Path)
+			t.Errorf("unexpected provider path %s", r.URL.Path)
+			w.WriteHeader(http.StatusInternalServerError)
 		}
 	}))
 	defer srv.Close()
@@ -3451,114 +3496,223 @@ func TestAMarkedAllowanceNeedsAuditedAuthorizationBeforeOneResend(t *testing.T) 
 	}
 
 	operationID, owner := uuid.New(), uuid.New()
-	const claimRequest = "invoice-test:marked-before-call"
 	var claimed, leased uuid.UUID
 	if err := pool.QueryRow(ctx,
 		`SELECT claim_invoice_allowance($1,$2,$3,$4)`,
-		originalID, operationID, filingActor, claimRequest).Scan(&claimed); err != nil {
+		originalID, operationID, filingActor, "invoice-test:marked-before-call").Scan(&claimed); err != nil {
 		t.Fatalf("claim allowance: %v", err)
-	}
-	if claimed != operationID {
-		t.Fatalf("claimed operation %s, want %s", claimed, operationID)
 	}
 	if err := pool.QueryRow(ctx,
 		`SELECT lease_invoice_operation($1,$2,interval '1 minute')`,
-		operationID, owner).Scan(&leased); err != nil {
-		t.Fatalf("lease allowance: %v", err)
-	}
-	if leased != operationID {
-		t.Fatalf("leased operation %s, want %s", leased, operationID)
+		operationID, owner).Scan(&leased); err != nil || leased != operationID {
+		t.Fatalf("lease allowance = %s, %v", leased, err)
 	}
 	var changed bool
 	if err := pool.QueryRow(ctx,
-		`SELECT mark_invoice_operation_sent($1,$2)`, operationID, owner).Scan(&changed); err != nil {
-		t.Fatalf("mark allowance sent: %v", err)
-	}
-	if !changed {
-		t.Fatal("pre-send stamp did not commit")
+		`SELECT mark_invoice_operation_sent($1,$2)`, operationID, owner).Scan(&changed); err != nil || !changed {
+		t.Fatalf("mark allowance sent = %v, %v", changed, err)
 	}
 	if err := pool.QueryRow(ctx,
-		`SELECT reschedule_invoice_operation($1,$2,'allowance_not_yet_visible',interval '0')`,
-		operationID, owner).Scan(&changed); err != nil {
-		t.Fatalf("release simulated crashed send: %v", err)
-	}
-	if !changed {
-		t.Fatal("simulated crashed send was not released")
-	}
-
-	// Even with an operator claim, SQL refuses the ordinary propagation window.
-	var authorized bool
-	if err := pool.QueryRow(ctx,
-		`SELECT authorize_invoice_allowance_resend($1,$2,$3)`,
-		operationID, filingActor, "invoice-test:too-early").Scan(&authorized); err != nil {
-		t.Fatalf("early authorization check: %v", err)
-	}
-	if authorized {
-		t.Fatal("an Allowance resend was authorized inside the propagation window")
+		`SELECT reschedule_invoice_operation($1,$2,'allowance_send_ambiguous',interval '0')`,
+		operationID, owner).Scan(&changed); err != nil || !changed {
+		t.Fatalf("release simulated crashed send = %v, %v", changed, err)
 	}
 
 	for poll := 1; poll <= 2; poll++ {
-		if _, err := pool.Exec(ctx, `
-			UPDATE invoice_operations SET available_at='1900-01-01 UTC'
-			WHERE id=$1`, operationID); err != nil {
-			t.Fatalf("make poll %d due: %v", poll, err)
-		}
-		if _, err := store.processClaim(ctx, operationID); !errors.Is(err, ErrPending) {
-			t.Fatalf("unapproved poll %d = %v, want ErrPending", poll, err)
+		if _, err := passAgain(t, store, ctx, operationID); !errors.Is(err, ErrAwaitingBuyer) {
+			t.Fatalf("poll %d = %v, want the allowance left with the buyer", poll, err)
 		}
 	}
-	if sends != 0 {
-		t.Fatalf("unapproved worker polls made %d provider sends, want zero", sends)
+
+	authorize := func(request string) bool {
+		t.Helper()
+		var authorized bool
+		if err := pool.QueryRow(ctx,
+			`SELECT authorize_invoice_allowance_resend($1,$2,$3)`,
+			operationID, filingActor, request).Scan(&authorized); err != nil {
+			t.Fatalf("authorization check %s: %v", request, err)
+		}
+		return authorized
+	}
+	if _, err := pool.Exec(ctx, `
+		UPDATE invoice_operations SET last_send_at=now()-interval '20 minutes'
+		WHERE id=$1`, operationID); err != nil {
+		t.Fatalf("age the send: %v", err)
+	}
+	if authorize("invoice-test:link-live") {
+		t.Fatal("a resend was authorized while the buyer's consent link may still live")
 	}
 
 	if _, err := pool.Exec(ctx, `
-		UPDATE invoice_operations
-		SET last_send_at=now()-interval '16 minutes'
+		UPDATE invoice_operations SET last_send_at=now()-interval '73 hours'
 		WHERE id=$1`, operationID); err != nil {
-		t.Fatalf("age the ambiguous send: %v", err)
+		t.Fatalf("let the link lapse: %v", err)
 	}
-	const authorizationRequest = "invoice-test:confirmed-absent"
-	if err := pool.QueryRow(ctx,
-		`SELECT authorize_invoice_allowance_resend($1,$2,$3)`,
-		operationID, filingActor, authorizationRequest).Scan(&authorized); err != nil {
-		t.Fatalf("authorize one resend: %v", err)
+	if _, err := passAgain(t, store, ctx, operationID); !errors.Is(err, ErrPending) {
+		t.Fatalf("poll after the link lapsed = %v, want ErrPending", err)
 	}
-	if !authorized {
-		t.Fatal("an aged, absent Allowance could not receive one authorization")
-	}
-	if err := pool.QueryRow(ctx,
-		`SELECT authorize_invoice_allowance_resend($1,$2,$3)`,
-		operationID, filingActor, "invoice-test:duplicate-confirmation").Scan(&authorized); err != nil {
-		t.Fatalf("repeat authorization check: %v", err)
-	}
-	if authorized {
-		t.Fatal("the same ambiguous send received two resend authorizations")
-	}
-
-	doc, err := store.processClaim(ctx, operationID)
-	if err != nil {
-		t.Fatalf("authorized Allowance resend: %v", err)
-	}
-	if doc.Number != allowanceNumber || sends != 1 {
-		t.Fatalf("authorized result = document %q, sends %d; want %q/1",
-			doc.Number, sends, allowanceNumber)
-	}
-
-	var auditActor uuid.UUID
-	var auditRequest string
-	var before, after int
+	var status, category string
+	var sends int
 	if err := pool.QueryRow(ctx, `
-		SELECT actor_id_snapshot, request_id,
-		       (before->>'resend_authorizations')::integer,
-		       (after->>'resend_authorizations')::integer
-		FROM audit_events
-		WHERE action='invoice.allowance_resend_authorized' AND entity_id=$1`, operationID).
-		Scan(&auditActor, &auditRequest, &before, &after); err != nil {
-		t.Fatalf("read resend authorization audit: %v", err)
+		SELECT status, coalesce(last_error,''), send_attempts
+		FROM invoice_operations WHERE id=$1`, operationID).Scan(&status, &category, &sends); err != nil {
+		t.Fatalf("read the lapsed allowance: %v", err)
 	}
-	if auditActor != filingActor || auditRequest != authorizationRequest || before != 0 || after != 1 {
-		t.Fatalf("authorization audit = actor %s request %q counts %d->%d",
-			auditActor, auditRequest, before, after)
+	if status != "attention" || category != CategoryBuyerUnconfirmed || sends != 1 {
+		t.Fatalf("lapsed allowance = %s/%s after %d sends, want attention/%s after one",
+			status, category, sends, CategoryBuyerUnconfirmed)
+	}
+}
+
+// TestAnAllowanceReplyNamingAnotherInvoiceNeedsAPerson: ECPay accepting a
+// request yet naming another invoice says nothing about this one, so the
+// operation stops for staff instead of waiting for a buyer, and nothing is
+// sent again.
+func TestAnAllowanceReplyNamingAnotherInvoiceNeedsAPerson(t *testing.T) {
+	ctx := t.Context()
+	var mu sync.Mutex
+	sends := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/B2CInvoice/GetAllowanceList":
+			replyNoAllowances(t, w)
+		case "/B2CInvoice/AllowanceByCollegiate":
+			_ = openAllowanceRequest(t, r)
+			mu.Lock()
+			sends++
+			mu.Unlock()
+			replyAllowanceRequested(t, w, "ZZ12345678", "2026100409000099")
+		default:
+			t.Errorf("unexpected provider path %s", r.URL.Path)
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+	}))
+	defer srv.Close()
+	g, err := NewGateway(testMerchantID, testHashKey, testHashIV, srv.URL)
+	if err != nil {
+		t.Fatalf("gateway: %v", err)
+	}
+	store := NewStore(pool, g)
+	number := invoicedOrderWithRefund(t, 50000)
+	operationID := uuid.New()
+	if _, err := store.FileAllowance(filingTestContext(t, ctx), number, operationID); errors.Is(err, ErrAwaitingBuyer) {
+		t.Fatalf("a reply naming another invoice was taken as the buyer being e-mailed: %v", err)
+	}
+	_, _ = passAgain(t, store, ctx, operationID)
+
+	var status, category string
+	var sent int
+	if err := pool.QueryRow(ctx, `
+		SELECT status, coalesce(last_error, ''), send_attempts FROM invoice_operations WHERE id = $1`,
+		operationID).Scan(&status, &category, &sent); err != nil {
+		t.Fatalf("read the allowance: %v", err)
+	}
+	mu.Lock()
+	providerSends := sends
+	mu.Unlock()
+	if status != "attention" || category != "allowance_success_mismatch" || sent != 1 || providerSends != 1 {
+		t.Errorf("allowance = %s/%s after %d sends (%d at ECPay), want attention/allowance_success_mismatch after one",
+			status, category, sent, providerSends)
+	}
+}
+
+// TestALapsedOnlineAllowanceIsResentOnce: staff may ask a buyer who let the
+// consent link lapse once more, through the same audited door, and only once.
+// ECPay refusing the resend because the lapsed request still holds the amount
+// leaves the operation with a person rather than releasing its claim.
+func TestALapsedOnlineAllowanceIsResentOnce(t *testing.T) {
+	for _, tt := range []struct {
+		name       string
+		held       bool
+		wantStatus string
+		wantError  string
+	}{
+		{name: "the buyer is asked again", wantStatus: "pending", wantError: "allowance_awaiting_buyer"},
+		{name: "the lapsed request still holds the amount", held: true,
+			wantStatus: "attention", wantError: CategoryAmountStillHeld},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := t.Context()
+			var mu sync.Mutex
+			sends := 0
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/B2CInvoice/GetAllowanceList":
+					replyNoAllowances(t, w)
+				case "/B2CInvoice/AllowanceByCollegiate":
+					request := openAllowanceRequest(t, r)
+					mu.Lock()
+					sends++
+					n := sends
+					mu.Unlock()
+					if n > 1 && tt.held {
+						reply(t, w, result{RtnCode: 2000034, RtnMsg: "無足夠金額可以折讓，請確認"})
+						return
+					}
+					replyAllowanceRequested(t, w, request.InvoiceNo, fmt.Sprintf("20261004090000%02d", n))
+				default:
+					t.Errorf("unexpected provider path %s", r.URL.Path)
+					w.WriteHeader(http.StatusInternalServerError)
+				}
+			}))
+			defer srv.Close()
+			g, err := NewGateway(testMerchantID, testHashKey, testHashIV, srv.URL)
+			if err != nil {
+				t.Fatalf("gateway: %v", err)
+			}
+			store := NewStore(pool, g)
+			number := invoicedOrderWithRefund(t, 50000)
+			operationID := uuid.New()
+			if _, err := store.FileAllowance(filingTestContext(t, ctx), number, operationID); !errors.Is(err, ErrAwaitingBuyer) {
+				t.Fatalf("Allowance = %v, want it e-mailed to the buyer", err)
+			}
+			if _, err := pool.Exec(ctx, `
+				UPDATE invoice_operations SET last_send_at = now() - interval '73 hours'
+				WHERE id = $1`, operationID); err != nil {
+				t.Fatalf("let the link lapse: %v", err)
+			}
+			if _, err := passAgain(t, store, ctx, operationID); !errors.Is(err, ErrPending) {
+				t.Fatalf("poll after the link lapsed = %v, want ErrPending", err)
+			}
+
+			authorize := func(request string) bool {
+				t.Helper()
+				var authorized bool
+				if err := pool.QueryRow(ctx,
+					`SELECT authorize_invoice_allowance_resend($1,$2,$3)`,
+					operationID, filingActor, request).Scan(&authorized); err != nil {
+					t.Fatalf("authorize %s: %v", request, err)
+				}
+				return authorized
+			}
+			if !authorize("invoice-test:ask-again") {
+				t.Fatal("a lapsed online allowance could not be authorised for one resend")
+			}
+			if authorize("invoice-test:ask-again-twice") {
+				t.Fatal("a lapsed online allowance received a second resend authorisation")
+			}
+			_, _ = passAgain(t, store, ctx, operationID)
+
+			var status, category string
+			var sent, authorised, audits int
+			if err := pool.QueryRow(ctx, `
+				SELECT status, coalesce(last_error, ''), send_attempts, resend_authorizations,
+				       (SELECT count(*) FROM audit_events
+				        WHERE action = 'invoice.allowance_resend_authorized' AND entity_id = op.id)
+				FROM invoice_operations op WHERE id = $1`, operationID).Scan(
+				&status, &category, &sent, &authorised, &audits); err != nil {
+				t.Fatalf("read the resent allowance: %v", err)
+			}
+			mu.Lock()
+			providerSends := sends
+			mu.Unlock()
+			if status != tt.wantStatus || category != tt.wantError || sent != 2 || authorised != 1 ||
+				audits != 1 || providerSends != 2 {
+				t.Errorf("resent allowance = %s/%s, %d sends (%d at ECPay), %d authorisations, %d audits; "+
+					"want %s/%s after exactly one audited resend",
+					status, category, sent, providerSends, authorised, audits, tt.wantStatus, tt.wantError)
+			}
+		})
 	}
 }
 
@@ -3575,7 +3729,7 @@ func TestAnUnansweredAllowanceKeepsItsClaim(t *testing.T) {
 		switch r.URL.Path {
 		case "/B2CInvoice/GetAllowanceList":
 			replyNoAllowances(t, w)
-		case "/B2CInvoice/Allowance":
+		case "/B2CInvoice/AllowanceByCollegiate":
 			if !down {
 				t.Fatal("an ambiguous allowance was unsafely resent")
 			}
@@ -3627,13 +3781,12 @@ func TestAnAllowanceRelievesACreditRefundToo(t *testing.T) {
 		switch r.URL.Path {
 		case "/B2CInvoice/GetAllowanceList":
 			replyNoAllowances(t, w)
-		case "/B2CInvoice/Allowance":
+		case "/B2CInvoice/AllowanceByCollegiate":
 			request := openAllowanceRequest(t, r)
-			reply(t, w, result{
-				RtnCode: 1, AllowanceNo: "2026080715227299",
-				AllowanceInvoiceNo: request.InvoiceNo,
-				AllowanceDate:      "2026-08-07 15:22:00",
-			})
+			if request.AllowanceAmount != 400 {
+				t.Errorf("credit-only Allowance asked for TWD %d, want 400", request.AllowanceAmount)
+			}
+			replyAllowanceRequested(t, w, request.InvoiceNo, "2026080715227299")
 		default:
 			t.Fatalf("unexpected provider path %s", r.URL.Path)
 		}
@@ -3650,14 +3803,10 @@ func TestAnAllowanceRelievesACreditRefundToo(t *testing.T) {
 	number := invoicedOrderWithRefundFor(t, owner, 0)
 	creditRefund(t, owner.UUID, number, 40000)
 
-	doc, err := s.FileAllowance(filingTestContext(t, ctx), number, uuid.New())
-	if err != nil {
+	if _, err := s.FileAllowance(filingTestContext(t, ctx), number, uuid.New()); !errors.Is(err, ErrAwaitingBuyer) {
 		t.Fatalf("a 折讓 for a refund paid entirely in store credit was refused: %v\n"+
 			"Read card-only, that order can never be relieved and its 統一發票 "+
 			"keeps recording a sale the shop reversed", err)
-	}
-	if doc.Number == "" {
-		t.Error("the allowance was filed with no number")
 	}
 }
 

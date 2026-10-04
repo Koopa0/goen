@@ -147,9 +147,9 @@ SELECT op.id AS operation_id, o.order_number, op.kind, op.status,
        op.amount_cents, op.reconcile_attempts, op.send_attempts,
        coalesce(op.last_error, '')::text AS last_error, op.created_at,
        (op.kind = 'allowance'
-        AND op.status = 'pending'
         AND op.send_attempts > op.resend_authorizations
-        AND op.last_error = 'allowance_not_yet_visible'
+        AND ((op.status = 'pending' AND op.last_error = 'allowance_not_yet_visible')
+             OR (op.status = 'attention' AND op.last_error = 'allowance_buyer_unconfirmed'))
         AND op.last_send_at IS NOT NULL
         AND op.last_send_at <= now() - interval '15 minutes'
         AND (op.lease_until IS NULL OR op.lease_until <= now()))::boolean

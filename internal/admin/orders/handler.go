@@ -287,6 +287,7 @@ var notices = map[string]i18n.Key{
 	"invoicefailed":  i18n.KeyAdminNoticeInvoiceFailed,
 	"invoicepending": i18n.KeyAdminNoticeInvoicePending,
 	"allowed":        i18n.KeyAdminNoticeAllowed,
+	"allowsent":      i18n.KeyAdminNoticeAllowSent,
 	"allowtoomuch":   i18n.KeyAdminNoticeAllowTooMuch,
 	"allowclaimed":   i18n.KeyAdminNoticeAllowClaimed,
 	"voidreason":     i18n.KeyAdminNoticeVoidReason,
