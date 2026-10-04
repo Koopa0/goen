@@ -1,6 +1,7 @@
 package cart
 
 import (
+	"errors"
 	"log/slog"
 	"math"
 	"net/http"
@@ -111,5 +112,14 @@ func TestAWrongCouponIsChargedToAWholeIPv6Slash64(t *testing.T) {
 	}
 	if spent("[2001:db8:1:3::1]:1002") {
 		t.Error("an address in another /64 has no codes to try; it shared a bucket")
+	}
+}
+
+func TestApplyRefusesAnUnknownKind(t *testing.T) {
+	t.Parallel()
+
+	_, _, err := Coupon{code: "ODD", kind: "bogo"}.Apply(1000)
+	if !errors.Is(err, ErrNoSuchCoupon) {
+		t.Fatalf("Apply with kind bogo: err = %v, want ErrNoSuchCoupon", err)
 	}
 }

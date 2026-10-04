@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/koopa0/goen/internal/admin/access"
+	"github.com/koopa0/goen/internal/coupon"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -88,7 +89,7 @@ func formOf(r *http.Request) *Form {
 	f := &Form{
 		Code:         r.PostFormValue("code"),
 		Description:  r.PostFormValue("description"),
-		Kind:         r.PostFormValue("kind"),
+		Kind:         coupon.Kind(r.PostFormValue("kind")),
 		parseInvalid: map[string]bool{},
 	}
 	wholeFields := []struct {
