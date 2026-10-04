@@ -4,14 +4,11 @@ package refunds_test
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -22,108 +19,16 @@ import (
 	"github.com/koopa0/goen/internal/admin/refunds"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/outbox"
-	"github.com/koopa0/goen/internal/shoptime"
 )
 
-// fakeECPay stands in for ECPay's B2C invoice API: what it issues is dated
-// issuedAt, and Invalid voids it.
-type fakeECPay struct {
-	t        *testing.T
-	gateway  *invoice.Gateway
-	issuedAt time.Time
-
-	mu      sync.Mutex
-	byOrder map[string]*fakeInvoice
-	calls   map[string]int
-}
-
-// fakeInvoiceNumbers keeps the fake's invoice numbers unique in the package's
-// database.
-var fakeInvoiceNumbers atomic.Int64
-
-type fakeInvoice struct {
-	number  string
-	amount  int64
-	items   json.RawMessage
-	invalid bool
-}
-
-func newFakeECPay(t *testing.T, issuedAt time.Time) (*fakeECPay, *invoice.Store) {
+func fakeECPay(t *testing.T, issuedAt time.Time) (*invoice.FakeECPay, *invoice.Store) {
 	t.Helper()
-	f := &fakeECPay{t: t, issuedAt: issuedAt, byOrder: map[string]*fakeInvoice{}, calls: map[string]int{}}
-	srv := httptest.NewServer(f)
-	t.Cleanup(srv.Close)
-	g, err := invoice.NewGateway("2000132", "ejCk326UnaZWKisg", "q9jcZX8Ib9LM8wYk", srv.URL)
+	fake, err := invoice.NewFakeECPay(issuedAt)
 	if err != nil {
-		t.Fatalf("gateway: %v", err)
+		t.Fatalf("fake ECPay: %v", err)
 	}
-	f.gateway = g
-	return f, invoice.NewStore(pool, g)
-}
-
-func (f *fakeECPay) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	plain, err := f.gateway.OpenRequest(r)
-	if err != nil {
-		f.t.Errorf("open %s: %v", r.URL.Path, err)
-		return
-	}
-	var req struct {
-		RelateNumber string
-		InvoiceNo    string
-		SalesAmount  int64
-		Items        json.RawMessage
-	}
-	if err := json.Unmarshal(plain, &req); err != nil {
-		f.t.Errorf("decode %s: %v", r.URL.Path, err)
-		return
-	}
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.calls[r.URL.Path]++
-	var reply any
-	switch r.URL.Path {
-	case "/B2CInvoice/Issue":
-		inv := &fakeInvoice{
-			number: fmt.Sprintf("RF%08d", fakeInvoiceNumbers.Add(1)), amount: req.SalesAmount, items: req.Items,
-		}
-		f.byOrder[req.RelateNumber] = inv
-		reply = map[string]any{"RtnCode": 1, "RtnMsg": "ok", "InvoiceNo": inv.number,
-			"InvoiceDate": shoptime.Second(f.issuedAt), "RandomNumber": "2468"}
-	case "/B2CInvoice/GetIssue":
-		inv, ok := f.byOrder[req.RelateNumber]
-		if !ok {
-			reply = map[string]any{"RtnCode": 2, "RtnMsg": "not found"}
-			break
-		}
-		invalid := 0
-		if inv.invalid {
-			invalid = 1
-		}
-		reply = map[string]any{"RtnCode": 1, "RtnMsg": "ok", "IIS_Number": inv.number,
-			"IIS_Relate_Number": req.RelateNumber, "IIS_Sales_Amount": inv.amount,
-			"IIS_Create_Date":  shoptime.Second(f.issuedAt),
-			"IIS_Issue_Status": 1 - invalid, "IIS_Invalid_Status": invalid,
-			"IIS_Random_Number": "2468", "Items": inv.items}
-	case "/B2CInvoice/Invalid":
-		for _, inv := range f.byOrder {
-			if inv.number == req.InvoiceNo {
-				inv.invalid = true
-			}
-		}
-		reply = map[string]any{"RtnCode": 1, "RtnMsg": "ok", "InvoiceNo": req.InvoiceNo}
-	default:
-		f.t.Errorf("unexpected provider path %s", r.URL.Path)
-		return
-	}
-	if err := f.gateway.SealReply(w, reply); err != nil {
-		f.t.Errorf("reply to %s: %v", r.URL.Path, err)
-	}
-}
-
-func (f *fakeECPay) called(path string) int {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	return f.calls[path]
+	t.Cleanup(fake.Close)
+	return fake, invoice.NewStore(pool, fake.Gateway())
 }
 
 // capturedOrderOwingAnInvoice is a card-captured, unshipped order whose
@@ -142,7 +47,7 @@ func capturedOrderOwingAnInvoice(t *testing.T, ctx context.Context, invoices *in
 	return number, orderID
 }
 
-func issueThroughReconciler(t *testing.T, ctx context.Context, invoices *invoice.Store, orderID uuid.UUID) {
+func issueNow(t *testing.T, ctx context.Context, invoices *invoice.Store, orderID uuid.UUID) {
 	t.Helper()
 	var operationID uuid.UUID
 	if err := pool.QueryRow(ctx, `
@@ -150,14 +55,8 @@ func issueThroughReconciler(t *testing.T, ctx context.Context, invoices *invoice
 		orderID).Scan(&operationID); err != nil {
 		t.Fatalf("read the system issue: %v", err)
 	}
-	// Every other operation waits, so the one the reconciler takes is this one.
-	if _, err := pool.Exec(ctx, `
-		UPDATE invoice_operations SET available_at = now() + interval '1 day'
-		WHERE status = 'pending' AND id <> $1`, operationID); err != nil {
-		t.Fatalf("park other operations: %v", err)
-	}
-	if res, err := invoices.ReconcileOnce(ctx); err != nil || res.OperationID != operationID {
-		t.Fatalf("ReconcileOnce = %+v, %v; want operation %s issued", res, err, operationID)
+	if err := invoices.ProcessOperation(ctx, operationID); err != nil {
+		t.Fatalf("issue the system claim: %v", err)
 	}
 }
 
@@ -188,12 +87,12 @@ func TestRefundBeforeShipmentVoidsTheInvoiceBeforeThePayout(t *testing.T) {
 		}
 		t.Run(name, func(t *testing.T) {
 			ctx, staff := admintest.StaffContext(t, pool)
-			fake, invoices := newFakeECPay(t, time.Now())
+			fake, invoices := fakeECPay(t, time.Now())
 			var sent atomic.Int64
 			s := refunds.NewStore(pool, admintest.Refunder{Sent: &sent}, invoices)
 			number, orderID := capturedOrderOwingAnInvoice(t, ctx, invoices)
 			if !inFlight {
-				issueThroughReconciler(t, ctx, invoices, orderID)
+				issueNow(t, ctx, invoices, orderID)
 			}
 
 			if got := pressRefund(t, ctx, s, number); got != "/admin/orders/"+number+"?refunded=1" {
@@ -217,16 +116,16 @@ func TestRefundBeforeShipmentVoidsTheInvoiceBeforeThePayout(t *testing.T) {
 				orderID, staff).Scan(&voids, &byStaff, &voided, &refunded); err != nil {
 				t.Fatalf("read the void: %v", err)
 			}
-			if voids != 1 || !byStaff || fake.called("/B2CInvoice/Invalid") != 1 {
+			if voids != 1 || !byStaff || fake.Calls("/B2CInvoice/Invalid") != 1 {
 				t.Fatalf("%d void operations (by staff: %v), %d Invalid calls; want one by the staff member",
-					voids, byStaff, fake.called("/B2CInvoice/Invalid"))
+					voids, byStaff, fake.Calls("/B2CInvoice/Invalid"))
 			}
 			if voided == nil || refunded == nil || !voided.Before(*refunded) {
 				t.Errorf("void settled at %v, card refund at %v; want the void first", voided, refunded)
 			}
-			if inFlight && fake.called("/B2CInvoice/Issue") != 1 {
+			if inFlight && fake.Calls("/B2CInvoice/Issue") != 1 {
 				t.Errorf("the issue in flight was sent %d times, want once before its void",
-					fake.called("/B2CInvoice/Issue"))
+					fake.Calls("/B2CInvoice/Issue"))
 			}
 		})
 	}
@@ -236,11 +135,11 @@ func TestRefundBeforeShipmentVoidsTheInvoiceBeforeThePayout(t *testing.T) {
 // filed ECPay refuses a void, so none is asked for; the refund still goes out.
 func TestRefundBeforeShipmentLeavesAnInvoicePastTheVoidWindow(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	fake, invoices := newFakeECPay(t, time.Now().AddDate(0, -4, 0))
+	fake, invoices := fakeECPay(t, time.Now().AddDate(0, -4, 0))
 	var sent atomic.Int64
 	s := refunds.NewStore(pool, admintest.Refunder{Sent: &sent}, invoices)
 	number, orderID := capturedOrderOwingAnInvoice(t, ctx, invoices)
-	issueThroughReconciler(t, ctx, invoices, orderID)
+	issueNow(t, ctx, invoices, orderID)
 
 	if got := pressRefund(t, ctx, s, number); got != "/admin/orders/"+number+"?cancelinvoice=1" {
 		t.Fatalf("press redirected to %s, want the invoice left to staff", got)
@@ -251,9 +150,9 @@ func TestRefundBeforeShipmentLeavesAnInvoicePastTheVoidWindow(t *testing.T) {
 		orderID).Scan(&voids); err != nil {
 		t.Fatalf("count voids: %v", err)
 	}
-	if voids != 0 || fake.called("/B2CInvoice/Invalid") != 0 || sent.Load() != 1 {
+	if voids != 0 || fake.Calls("/B2CInvoice/Invalid") != 0 || sent.Load() != 1 {
 		t.Errorf("%d voids claimed, %d Invalid calls, %d card refunds; want no void and the refund",
-			voids, fake.called("/B2CInvoice/Invalid"), sent.Load())
+			voids, fake.Calls("/B2CInvoice/Invalid"), sent.Load())
 	}
 	if got := admintest.FulfillmentOf(t, pool, orderID); got == "cancelled" {
 		t.Errorf("order cancelled with its invoice live")
