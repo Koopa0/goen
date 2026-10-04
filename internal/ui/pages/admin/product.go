@@ -10,6 +10,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/web"
 )
 
 type Choice struct {
@@ -43,7 +44,7 @@ func (p Product) Href() string { return "/admin/products/" + p.Slug }
 func (p Product) Sellable() bool { return p.Status == pages.ProductActive && p.Variants > 0 }
 
 type ProductsView struct {
-	pages.ListBound
+	web.Bound
 
 	Rows   []Product
 	Notice string

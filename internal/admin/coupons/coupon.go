@@ -159,7 +159,7 @@ func (s *Store) Coupons(ctx context.Context, after ...string) (admin.CouponsView
 		return admin.CouponsView{}, fmt.Errorf("read coupons: %w", err)
 	}
 	rows, bound := web.PageBound(scope, resumed, rows, web.PageSize, func(r *db.AdminCouponsRow) string { return r.PageCursor })
-	view := admin.CouponsView{ListBound: bound}
+	view := admin.CouponsView{Bound: bound}
 	for i := range rows {
 		r := &rows[i]
 		view.Rows = append(view.Rows, admin.Coupon{

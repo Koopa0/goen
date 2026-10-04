@@ -12,6 +12,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/koopa0/goen/internal/admin/refunds"
+	"github.com/koopa0/goen/internal/admin/returns"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/web"
@@ -449,4 +451,10 @@ func captureCard(t *testing.T, tx pgx.Tx, orderID uuid.UUID, session string, cen
 	if _, err := tx.Exec(ctx, `SELECT capture_payment($1, $2, NULL, NULL)`, session, cents); err != nil {
 		t.Fatalf("capture: %v", err)
 	}
+}
+
+// ReturnDesk builds the returns desk and the refunds it pays through over
+// one pool and one refunder, as cmd/goen does.
+func ReturnDesk(p *pgxpool.Pool, refunder refunds.Refunder) *returns.Store {
+	return returns.NewStore(p, refunds.NewStore(p, refunder, nil))
 }

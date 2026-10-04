@@ -1,6 +1,6 @@
 //go:build integration
 
-package admin_test
+package content_test
 
 import (
 	"os"
@@ -13,7 +13,7 @@ import (
 func TestFAQRepairsStillMatchOlderQuestionSpellings(t *testing.T) {
 	ctx := t.Context()
 	isolated := dbtest.Pool(t)
-	seed, err := os.ReadFile("../../seed/dev_catalog.sql")
+	seed, err := os.ReadFile("../../../seed/dev_catalog.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -38,7 +38,7 @@ func TestFAQRepairsStillMatchOlderQuestionSpellings(t *testing.T) {
 			if _, err := isolated.Exec(ctx, "UPDATE faq_entries SET question=$1, answer=$2, answer_en='Shop-authored answer' WHERE question=$3", tc.question, tc.answer, current); err != nil {
 				t.Fatal(err)
 			}
-			repair, err := os.ReadFile("../../seed/repair_" + tc.script + "_faq.sql")
+			repair, err := os.ReadFile("../../../seed/repair_" + tc.script + "_faq.sql")
 			if err != nil {
 				t.Fatal(err)
 			}

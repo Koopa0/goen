@@ -9,6 +9,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/web"
 )
 
 type AccountOrder struct {
@@ -102,7 +103,7 @@ type AccountView struct {
 	Name            string
 	Phone           string
 	Orders          []AccountOrder
-	OrdersBound     ListBound
+	OrdersBound     web.Bound
 	Addresses       []AccountAddress
 	CreditCents     int64
 	Standing        MemberStanding

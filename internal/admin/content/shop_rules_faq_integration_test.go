@@ -1,6 +1,6 @@
 //go:build integration
 
-package admin_test
+package content_test
 
 import (
 	"os"
@@ -14,11 +14,11 @@ import (
 func TestShopRulesFAQRepairMatchesTheSeedAndPreservesShopEdits(t *testing.T) {
 	ctx := t.Context()
 	isolated := dbtest.Pool(t)
-	seed, err := os.ReadFile("../../seed/dev_catalog.sql")
+	seed, err := os.ReadFile("../../../seed/dev_catalog.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
-	repair, err := os.ReadFile("../../seed/repair_shop_rules_faq.sql")
+	repair, err := os.ReadFile("../../../seed/repair_shop_rules_faq.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
