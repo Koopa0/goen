@@ -151,3 +151,75 @@ func declaredSlideSources(t *testing.T) []pages.SlideSource {
 	}
 	return sources
 }
+
+func homeForm(t *testing.T, html, action string) string {
+	t.Helper()
+	m := regexp.MustCompile(`(?s)<form[^>]*action="` + action + `"[^>]*>.*?</form>`).FindString(html)
+	if m == "" {
+		t.Fatalf("no form posting to %s", action)
+	}
+	return m
+}
+
+func TestTheHeroAndBannerEditorsKeepBothLanguagesInOneFormBehindASwitch(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	html := renderComponent(t, ctx, Home(layouts.Page{}, &HeroView{}))
+
+	for _, tc := range []struct {
+		action, switchName string
+		zh, en             []string
+	}{
+		{"/admin/home", "hero_lang",
+			[]string{"headline", "eyebrow", "body", "primary_label", "second_label", "alt"},
+			[]string{"headline_en", "eyebrow_en", "body_en", "primary_label_en", "second_label_en", "alt_en"}},
+		{"/admin/home/banner", "banner_lang",
+			[]string{"message", "short", "cta_label"},
+			[]string{"message_en", "short_en", "cta_label_en"}},
+	} {
+		form := homeForm(t, html, tc.action)
+		for _, name := range append(tc.zh, tc.en...) {
+			if !regexp.MustCompile(`<(input|textarea)[^>]*\bname="` + name + `"`).MatchString(form) {
+				t.Errorf("%s: no field %q in the form", tc.action, name)
+			}
+		}
+		if !strings.Contains(form, `<fieldset class="goen-admin__lang"><legend class="goen-sr-only">`+i18n.T(ctx, i18n.KeyAdminLangSwitch)) {
+			t.Errorf("%s: the switch is not a labelled group", tc.action)
+		}
+		for _, lang := range []string{"zh", "en"} {
+			if !regexp.MustCompile(`<input[^>]*type="radio"[^>]*name="` + tc.switchName + `"[^>]*value="` + lang + `"`).MatchString(form) {
+				t.Errorf("%s: no %s option in the switch", tc.action, lang)
+			}
+			if !strings.Contains(form, `data-lang="`+lang+`"`) {
+				t.Errorf("%s: no %s field group", tc.action, lang)
+			}
+		}
+		if !regexp.MustCompile(`value="zh" checked`).MatchString(form) {
+			t.Errorf("%s: the switch does not open on Chinese", tc.action)
+		}
+	}
+}
+
+func TestTheBannerSwitchOpensOnTheLanguageOfTheFirstRefusedField(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	opensOn := func(errs map[string]string) (lang, form string) {
+		form = homeForm(t, renderComponent(t, ctx, Home(layouts.Page{}, &HeroView{Errors: errs})), "/admin/home/banner")
+		if m := regexp.MustCompile(`value="(zh|en)" checked`).FindStringSubmatch(form); m != nil {
+			lang = m[1]
+		}
+		return lang, form
+	}
+
+	if got, form := opensOn(map[string]string{"message_en": "too long"}); got != "en" {
+		t.Errorf("an English refusal opens the switch on %q, want en", got)
+	} else if !strings.Contains(form, `id="b-message-en-error"`) || !strings.Contains(form, `aria-describedby="b-message-en-error"`) {
+		t.Error("the refused English field is not marked and explained")
+	}
+	if got, _ := opensOn(map[string]string{"message": "needed", "message_en": "too long"}); got != "zh" {
+		t.Errorf("a Chinese refusal first opens the switch on %q, want zh", got)
+	}
+	if got, _ := opensOn(nil); got != "zh" {
+		t.Errorf("a clean form opens on %q, want zh", got)
+	}
+}
