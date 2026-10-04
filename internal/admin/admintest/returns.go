@@ -456,5 +456,5 @@ func captureCard(t *testing.T, tx pgx.Tx, orderID uuid.UUID, session string, cen
 // ReturnDesk builds the returns desk and the refunds it pays through over
 // one pool and one refunder, as cmd/goen does.
 func ReturnDesk(p *pgxpool.Pool, refunder refunds.Refunder) *returns.Store {
-	return returns.NewStore(p, refunds.NewStore(p, refunder))
+	return returns.NewStore(p, refunds.NewStore(p, refunder, nil))
 }

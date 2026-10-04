@@ -60,8 +60,10 @@ func (h *Handler) RefundBeforeShipment(w http.ResponseWriter, r *http.Request) {
 		payment.CloseSessions(r.Context(), h.sessions, h.log, number, sessions)
 		http.Redirect(w, r, back+"?refunded=1", http.StatusSeeOther) //nolint:gosec // G710: validated by ordernumber.Valid
 	case errors.Is(err, ErrUnsettled):
+		h.log.WarnContext(r.Context(), "refund before shipment has not settled", "order", number, "error", err)
 		http.Redirect(w, r, back+"?refundpending=1", http.StatusSeeOther) //nolint:gosec // G710: validated by ordernumber.Valid
 	case pgerr.IsConstraint(err, "orders_cancel_invoice_resolved"):
+		h.log.WarnContext(r.Context(), "refund before shipment waits on the invoice", "order", number, "error", err)
 		http.Redirect(w, r, back+"?cancelinvoice=1", http.StatusSeeOther) //nolint:gosec // G710: validated by ordernumber.Valid
 	case errors.Is(err, refundstate.ErrIncomplete):
 		// Tested before ErrRefused: a payout may carry a database refusal as its

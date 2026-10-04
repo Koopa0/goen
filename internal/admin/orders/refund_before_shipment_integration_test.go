@@ -29,7 +29,7 @@ func TestPaidOrderCannotBeCancelledDirectly(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	refunder := admintest.Refunder{}
 	s := admintest.OrderStore(pool, refunder, nil, nil)
-	refund := refunds.NewStore(pool, refunder)
+	refund := refunds.NewStore(pool, refunder, nil)
 	h := admintest.OrderDesk(s)
 
 	for _, picking := range []bool{false, true} {
@@ -175,7 +175,7 @@ func TestRefundBeforeShipmentStaysOpenUntilRefundSettles(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			number, orderID, _ := admintest.PaidUnshippedOrder(t, pool, 500000, 0, tc.picking)
 			s := admintest.OrderStore(pool, tc.first, nil, nil)
-			refund := refunds.NewStore(pool, tc.first)
+			refund := refunds.NewStore(pool, tc.first, nil)
 			if _, err := refund.RefundBeforeShipment(ctx, number, "顧客取消"); !errors.Is(err, tc.want) {
 				t.Fatalf("first press = %v, want %v", err, tc.want)
 			}
@@ -202,7 +202,7 @@ func TestRefundBeforeShipmentStaysOpenUntilRefundSettles(t *testing.T) {
 				t.Errorf("open/ship/next = %t/%t/%v, want only Resume", view.RefundOpen, view.CanShip, view.Next)
 			}
 
-			if _, err := refunds.NewStore(pool, admintest.Refunder{}).RefundBeforeShipment(ctx, number, ""); err != nil {
+			if _, err := refunds.NewStore(pool, admintest.Refunder{}, nil).RefundBeforeShipment(ctx, number, ""); err != nil {
 				t.Fatalf("resume: %v", err)
 			}
 			if got := admintest.FulfillmentOf(t, pool, orderID); got != "cancelled" {
@@ -244,7 +244,7 @@ func TestRefundBeforeShipmentAndDispatchSerialize(t *testing.T) {
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
 	refunder := admintest.Refunder{}
 	s := admintest.OrderStore(pool, refunder, nil, nil)
-	refund := refunds.NewStore(pool, refunder)
+	refund := refunds.NewStore(pool, refunder, nil)
 
 	for _, doorFirst := range []bool{true, false} {
 		t.Run(fmt.Sprintf("door-first=%t", doorFirst), func(t *testing.T) {
@@ -320,7 +320,7 @@ func TestRefundBeforeShipmentNoticesNameTheNextStep(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	refunder := admintest.Refunder{}
 	h := admintest.OrderDesk(admintest.OrderStore(pool, refunder, nil, nil))
-	door := refunds.NewHandler(refunds.NewStore(pool, refunder), nil, slog.New(slog.DiscardHandler))
+	door := refunds.NewHandler(refunds.NewStore(pool, refunder, nil), nil, slog.New(slog.DiscardHandler))
 	number, orderID, _ := admintest.PaidUnshippedOrder(t, pool, 300000, 0, true)
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO invoice_documents (order_id, kind, number, amount_cents)

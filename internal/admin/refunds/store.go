@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/invoice"
 )
 
 var (
@@ -23,14 +24,17 @@ type Store struct {
 	pool     *pgxpool.Pool
 	q        *db.Queries
 	refunder Refunder
+	// invoices corrects the 統一發票 of an order refunded before shipment. Nil
+	// leaves that to staff, for a store that never cancels an order.
+	invoices *invoice.Store
 }
 
 // NewStore returns a Store over the admin pool. refunder may be one that
 // refuses: a back office without Stripe credentials can still decide returns,
 // and a refund it cannot pay must fail loudly.
-func NewStore(pool *pgxpool.Pool, refunder Refunder) *Store {
+func NewStore(pool *pgxpool.Pool, refunder Refunder, invoices *invoice.Store) *Store {
 	if pool == nil || refunder == nil {
 		panic("refunds: NewStore requires a pool and a refunder")
 	}
-	return &Store{pool: pool, q: db.New(pool), refunder: refunder}
+	return &Store{pool: pool, q: db.New(pool), refunder: refunder, invoices: invoices}
 }

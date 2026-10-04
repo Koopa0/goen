@@ -312,7 +312,7 @@ func (DisabledInvoiceWriter) FileAllowance(
 // OrderStore builds the order desk's store and the refunds, invoicing and stock
 // stores it reads through, all over p, as cmd/goen does.
 func OrderStore(p *pgxpool.Pool, refunder refunds.Refunder, reader invoicing.Reader, writer invoicing.Writer) *orders.Store {
-	return orders.NewStore(p, refunds.NewStore(p, refunder), invoicing.NewStore(p, reader, writer), stock.NewStore(p))
+	return orders.NewStore(p, refunds.NewStore(p, refunder, nil), invoicing.NewStore(p, reader, writer), stock.NewStore(p))
 }
 
 func OrderDesk(s *orders.Store) *orders.Handler {

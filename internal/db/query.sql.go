@@ -7556,6 +7556,23 @@ func (q *Queries) InvoiceOperationDocument(ctx context.Context, operationID uuid
 	return i, err
 }
 
+const issueInFlight = `-- name: IssueInFlight :one
+SELECT op.id
+FROM invoice_operations op
+JOIN orders o ON o.id = op.order_id
+WHERE o.order_number = $1::text
+  AND op.kind = 'issue' AND op.status IN ('pending', 'attention')
+`
+
+// The order's issue not yet settled or rejected; invoice_operations_one_active_issue
+// keeps it unique.
+func (q *Queries) IssueInFlight(ctx context.Context, orderNumber string) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, issueInFlight, orderNumber)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
 const knownAllowances = `-- name: KnownAllowances :many
 SELECT d.id, d.number, d.amount_cents, d.status, d.issued_at,
        ARRAY(SELECT l.description FROM invoice_document_lines l
@@ -7786,7 +7803,10 @@ func (q *Queries) LinkIdentity(ctx context.Context, arg LinkIdentityParams) (int
 
 const liveInvoice = `-- name: LiveInvoice :one
 SELECT d.id, d.number, d.amount_cents, coalesce(d.provider_ref, '')::text AS provider_ref,
-       d.issued_at
+       d.issued_at,
+       EXISTS (SELECT 1 FROM invoice_documents a
+               WHERE a.original_id = d.id AND a.kind = 'allowance'
+                 AND a.status = 'issued') AS has_allowance
 FROM invoice_documents d
 JOIN orders o ON o.id = d.order_id
 WHERE o.order_number = $1::text
@@ -7794,11 +7814,12 @@ WHERE o.order_number = $1::text
 `
 
 type LiveInvoiceRow struct {
-	ID          uuid.UUID
-	Number      string
-	AmountCents int64
-	ProviderRef string
-	IssuedAt    time.Time
+	ID           uuid.UUID
+	Number       string
+	AmountCents  int64
+	ProviderRef  string
+	IssuedAt     time.Time
+	HasAllowance bool
 }
 
 // The live invoice of an order, if it has one. `status <> 'voided'` matches
@@ -7812,6 +7833,7 @@ func (q *Queries) LiveInvoice(ctx context.Context, orderNumber string) (LiveInvo
 		&i.AmountCents,
 		&i.ProviderRef,
 		&i.IssuedAt,
+		&i.HasAllowance,
 	)
 	return i, err
 }

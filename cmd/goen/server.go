@@ -199,16 +199,22 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	if factorStore.Enabled() {
 		stepUp = factors.StepUp
 	}
+	// A cancellation withdraws an unsent issue even with no 加值中心, so the
+	// invoice store exists either way.
+	invoiceGateway := cfg.Invoices
+	if invoiceGateway == nil {
+		invoiceGateway = &invoice.Gateway{}
+	}
+	invoices := invoice.NewStore(adminPool, invoiceGateway)
 	var invoiceReader invoicing.Reader
 	var invoiceWriter invoicing.Writer
-	if cfg.Invoices.Enabled() {
-		invoices := invoice.NewStore(adminPool, cfg.Invoices)
+	if invoices.Enabled() {
 		invoiceReader = invoices
 		invoiceWriter = invoices
 	}
 	adminImages := media.NewHandler(media.NewStore(adminPool), log)
 	stockroom := stock.NewStore(adminPool)
-	payouts := refunds.NewStore(adminPool, refunder)
+	payouts := refunds.NewStore(adminPool, refunder, invoices)
 	invoicingStore := invoicing.NewStore(adminPool, invoiceReader, invoiceWriter)
 	orderDesk := orders.NewHandler(orders.NewStore(adminPool, payouts, invoicingStore, stockroom), sessionCloser(gateway), log)
 	trail := audit.NewHandler(audit.NewStore(adminPool), log)

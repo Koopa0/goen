@@ -38,7 +38,7 @@ func TestMain(m *testing.M) {
 // storeOver builds the returns desk and the refunds it pays through over one
 // pool and one refunder, as cmd/goen does.
 func storeOver(p *pgxpool.Pool, refunder refunds.Refunder) *returns.Store {
-	return returns.NewStore(p, refunds.NewStore(p, refunder))
+	return returns.NewStore(p, refunds.NewStore(p, refunder, nil))
 }
 
 func handlerOver(s *returns.Store) *returns.Handler {

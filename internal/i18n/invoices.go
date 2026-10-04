@@ -121,8 +121,9 @@ var (
 			"Check ECPay first.",
 	})
 
-	// Void or allowance stays the staff member's choice: goen does not know
-	// whether the 作廢 deadline has passed or the buyer has signed a 折讓.
+	// Shown when the cancellation could not correct the invoice itself: the
+	// void window has passed, ECPay refused or has not answered the void, or no
+	// 加值中心 is configured.
 	KeyAdminNoticeCancelInvoice = key("admin.notice.cancelinvoice", Message{
 		ZhHant: "退款已完成，但發票仍有未沖回的金額，或開立、作廢、折讓的結果尚未確認。請在本頁發票區作廢或開立折讓，完成後按「繼續退款」取消訂單。",
 		En: "The refund has landed, but an invoice still has an unrelieved amount or an issue, void or " +
