@@ -16,7 +16,6 @@ import (
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
-	"github.com/koopa0/goen/internal/dbtext"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/productlabel"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -65,9 +64,9 @@ func (s *Store) SetProductLabel(ctx context.Context, slug string, input *product
 			NetQuantity: before.NetQuantity, NetUnit: before.NetUnit, MinAgeMonths: before.MinAgeMonths,
 		},
 		After: productLabelState{
-			Slug: slug, Origin: dbtext.Nullable(params.Origin), OriginEn: dbtext.Nullable(params.OriginEn),
-			ResponsiblePartyName: dbtext.Nullable(params.ResponsiblePartyName), ResponsiblePartyPhone: dbtext.Nullable(params.ResponsiblePartyPhone), ResponsiblePartyAddress: dbtext.Nullable(params.ResponsiblePartyAddress),
-			NetQuantity: params.NetQuantity, NetUnit: dbtext.Nullable(params.NetUnit), MinAgeMonths: params.MinAgeMonths,
+			Slug: slug, Origin: optionalText(params.Origin), OriginEn: optionalText(params.OriginEn),
+			ResponsiblePartyName: optionalText(params.ResponsiblePartyName), ResponsiblePartyPhone: optionalText(params.ResponsiblePartyPhone), ResponsiblePartyAddress: optionalText(params.ResponsiblePartyAddress),
+			NetQuantity: params.NetQuantity, NetUnit: optionalText(params.NetUnit), MinAgeMonths: params.MinAgeMonths,
 		},
 	}); auditErr != nil {
 		return auditErr
@@ -76,6 +75,10 @@ func (s *Store) SetProductLabel(ctx context.Context, slug string, input *product
 		return fmt.Errorf("commit product label: %w", err)
 	}
 	return nil
+}
+
+func optionalText(s string) pgtype.Text {
+	return pgtype.Text{String: s, Valid: s != ""}
 }
 
 func productLabelParams(id uuid.UUID, input *productlabel.Input) db.SetProductLabelParams {
