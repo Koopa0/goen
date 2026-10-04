@@ -10,7 +10,7 @@ SELECT json_build_object('Number', (pv.stock_quantity - pv.safety_stock), 'Name'
     p.slug,
     p.name AS product_name,
     p.status AS product_status,
-    b.name AS brand,
+    coalesce(b.name, '') AS brand,
     ARRAY(SELECT localized_name(v.value, v.value_en, @locale::text)
           FROM variant_option_values vov
           JOIN product_options o ON o.id = vov.option_id
@@ -19,7 +19,7 @@ SELECT json_build_object('Number', (pv.stock_quantity - pv.safety_stock), 'Name'
           ORDER BY o.position, o.id)::text[] AS option_values
 FROM product_variants pv
 JOIN products p ON p.id = pv.product_id
-JOIN brands b ON b.id = p.brand_id
+LEFT JOIN brands b ON b.id = p.brand_id
 WHERE (@low_only::boolean = false OR pv.stock_quantity <= pv.safety_stock)
 AND (@escaped_term::text = ''
        OR pv.sku ILIKE '%' || @escaped_term::text || '%'
@@ -100,26 +100,3 @@ SELECT record_inventory_movement(
     @variant_id, @delta::integer, 'receipt',
     @idempotency_key::text, 'admin', NULL, @actor_user_id::uuid
 );
-
--- The claim and the enqueue are ONE transaction, so notified_at means "the
--- outbox has this": claiming without enqueuing tells nobody and never retries.
--- The threshold is the one the listing calls in stock, stock > safety_stock.
--- name: ClaimRestockNotices :many
-UPDATE stock_notifications sn SET notified_at = now()
-WHERE sn.variant_id = $1
-  AND sn.notified_at IS NULL
-  AND EXISTS (SELECT 1 FROM product_variants pv
-              WHERE pv.id = sn.variant_id
-                AND pv.is_active
-                AND pv.stock_quantity > pv.safety_stock)
-RETURNING sn.id, sn.email, sn.locale;
-
--- Called once per distinct LOCALE in the claimed set, not once per recipient:
--- the product name has to follow the reader as the letter's words do.
--- name: RestockSubject :one
-SELECT p.slug,
-       localized_name(p.name, p.name_en, @locale::text) AS product_name,
-       pv.sku
-FROM product_variants pv
-JOIN products p ON p.id = pv.product_id
-WHERE pv.id = @variant_id;

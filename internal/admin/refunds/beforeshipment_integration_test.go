@@ -28,7 +28,7 @@ import (
 func TestRefundBeforeShipmentPaysEveryLegAndCancels(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	var sent atomic.Int64
-	s := refunds.NewStore(pool, admintest.Refunder{Sent: &sent}, nil)
+	s := refunds.NewStore(admintest.AdminRolePool(t, pool), admintest.Refunder{Sent: &sent}, nil)
 	number, orderID, variantID := admintest.PaidUnshippedOrder(t, pool, 900000, 300000, true)
 
 	var stockHeld int32
@@ -43,11 +43,13 @@ func TestRefundBeforeShipmentPaysEveryLegAndCancels(t *testing.T) {
 		t.Fatalf("read award = %d, %v; the fixture must carry points to claw back", awarded, err)
 	}
 
+	subscriptions := admintest.SubscribeAtSafetyStock(t, pool, variantID)
 	for press := range 2 {
 		if _, err := s.RefundBeforeShipment(ctx, number, "顧客取消"); err != nil {
 			t.Fatalf("press %d: %v", press+1, err)
 		}
 	}
+	admintest.AssertRestockQueued(t, pool, subscriptions)
 	admintest.AssertTerminalNotice(t, pool, orderID, email.TerminalCancelledByStaff, true)
 
 	var returnID uuid.UUID

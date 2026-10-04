@@ -16,7 +16,6 @@ func TestEveryColumnIsReadOrWritten(t *testing.T) {
 		"user_identities.id": "the unbuilt OAuth sign-in, whole table",
 
 		"email_verifications.id": "a surrogate primary key; its own constraint is the use, and that is inside the block this guard cuts",
-		"product_answers.id":     "a surrogate primary key; its own constraint is the use, and that is inside the block this guard cuts",
 
 		// Listed one by one rather than exempted as a class, so a new one has to be decided here.
 		"brands.created_at":              "a row-birth timestamp its own DEFAULT writes; no query shows it",

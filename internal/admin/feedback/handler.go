@@ -43,7 +43,11 @@ var notices = map[string]i18n.Key{
 }
 
 func (h *Handler) Questions(w http.ResponseWriter, r *http.Request) {
-	view, err := h.store.Questions(r.Context())
+	queue := VisibleQuestions
+	if r.URL.Query().Get("hidden") == "1" {
+		queue = HiddenQuestions
+	}
+	view, err := h.store.Questions(r.Context(), queue, r.URL.Query().Get(web.KeysetParam))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read questions", "error", err)
 		access.ServerError(w, r, h.log)
@@ -67,13 +71,19 @@ func (h *Handler) AnswerQuestion(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 
 	var err error
-	if r.PostFormValue("action") == "hide" {
+	switch admin.QuestionAction(r.PostFormValue("action")) {
+	case admin.QuestionHideAction:
 		err = h.store.HideQuestion(r.Context(), id)
-	} else {
-		// staff=true, because this endpoint IS the shop; product_answers.is_staff
-		// is stored with the answer rather than re-derived later.
+	case admin.QuestionShowAction:
+		err = h.store.ShowQuestion(r.Context(), id)
+	case admin.QuestionHideAnswerAction:
+		err = h.store.HideAnswer(r.Context(), id, r.PostFormValue("answer_id"))
+	case admin.QuestionAnswerAction, "":
 		err = h.store.AnswerQuestion(r.Context(), id, u.ID, r.PostFormValue("body"))
+	default:
+		err = ErrNotFound
 	}
+
 	switch {
 	case err == nil:
 		http.Redirect(w, r, "/admin/questions?ok=1", http.StatusSeeOther)
@@ -88,7 +98,7 @@ func (h *Handler) AnswerQuestion(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) rejectAnswer(w http.ResponseWriter, r *http.Request, id string) {
-	view, err := h.store.Questions(r.Context())
+	view, err := h.store.Questions(r.Context(), VisibleQuestions)
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read questions after refused answer", "error", err)
 		access.ServerError(w, r, h.log)

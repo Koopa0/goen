@@ -178,7 +178,7 @@ func TestEveryProductNameIsLocalized(t *testing.T) {
 		"AdminVariantBySKU":     "back office: the stock adjustment form",
 		"AdminReviews":          "back office: the moderation queue",
 		"AdminCampaignProducts": "back office: the campaign curation list",
-		"UnansweredQuestions":   "back office: the question queue",
+		"AdminQuestions":        "back office: the question queue",
 		"BestSellersSince":      "back office: the report",
 		"StockAtRisk":           "back office: the report",
 		"ManagedCategories":     "back office: counts products, reads no product name",

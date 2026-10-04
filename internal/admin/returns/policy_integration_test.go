@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	adminpages "github.com/koopa0/goen/internal/ui/pages/admin"
+	"github.com/koopa0/goen/internal/ui/pages/admin"
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 
@@ -840,7 +840,7 @@ func openReturnIDOn(t *testing.T, p *pgxpool.Pool, number string) uuid.UUID {
 	return id
 }
 
-func queueRow(t *testing.T, s *returns.Store, requestID uuid.UUID) adminpages.Return {
+func queueRow(t *testing.T, s *returns.Store, requestID uuid.UUID) admin.Return {
 	t.Helper()
 	view, err := s.Queue(t.Context())
 	if err != nil {
@@ -852,7 +852,7 @@ func queueRow(t *testing.T, s *returns.Store, requestID uuid.UUID) adminpages.Re
 		}
 	}
 	t.Fatalf("return %s is not in the queue", requestID)
-	return adminpages.Return{}
+	return admin.Return{}
 }
 
 func queueWindow(t *testing.T, s *returns.Store, requestID uuid.UUID) string {

@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/koopa0/goen/internal/order"
-	adminpages "github.com/koopa0/goen/internal/ui/pages/admin"
+	"github.com/koopa0/goen/internal/ui/pages/admin"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
@@ -320,7 +320,7 @@ func TestAdvanceRecordsWhoAndWhen(t *testing.T) {
 
 func TestCancellingAnOrderInTheBackOfficeReturnsItsStock(t *testing.T) {
 	ctx := t.Context()
-	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
+	s := admintest.OrderStore(admintest.AdminRolePool(t, pool), admintest.Refunder{}, nil, nil)
 
 	var vid uuid.UUID
 	if err := pool.QueryRow(ctx, `
@@ -338,6 +338,7 @@ func TestCancellingAnOrderInTheBackOfficeReturnsItsStock(t *testing.T) {
 		t.Fatalf("read stock: %v", err)
 	}
 
+	subscriptions := admintest.SubscribeAtSafetyStock(t, pool, vid)
 	var staff uuid.UUID
 	if err := pool.QueryRow(ctx, `
 		INSERT INTO users (email, role, full_name) VALUES ($1, 'admin', '取消人員')
@@ -350,6 +351,7 @@ func TestCancellingAnOrderInTheBackOfficeReturnsItsStock(t *testing.T) {
 		t.Fatalf("cancel: %v", err)
 	}
 
+	admintest.AssertRestockQueued(t, pool, subscriptions)
 	var after int32
 	var state string
 	if err := pool.QueryRow(ctx, `
@@ -847,7 +849,7 @@ func TestAnOrderSearchTakesWildcardsLiterally(t *testing.T) {
 	}
 }
 
-func hasOrder(v adminpages.OrdersView, number string) bool {
+func hasOrder(v admin.OrdersView, number string) bool {
 	for i := range v.Orders {
 		if v.Orders[i].Number == number {
 			return true
@@ -1580,7 +1582,7 @@ func TestTheStatusMenuOffersOnlyWhatTheDatabaseWillAccept(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
 	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
-	offers := func(v *adminpages.OrderView, status order.FulfillmentStatus) bool {
+	offers := func(v *admin.OrderView, status order.FulfillmentStatus) bool {
 		for _, n := range v.Next {
 			if n.Value == status {
 				return true
@@ -1704,7 +1706,7 @@ func TestARefusedDispatchKeepsWhatWasTyped(t *testing.T) {
 func TestTheDashboardAndTheQueueTabsSplitPendingTheSameWay(t *testing.T) {
 	ctx := t.Context()
 	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
-	tab := func(v adminpages.OrdersView, status adminpages.QueueFilter) int64 {
+	tab := func(v admin.OrdersView, status admin.QueueFilter) int64 {
 		for _, tb := range v.Tabs {
 			if tb.Value == status {
 				return tb.Count
@@ -1733,10 +1735,10 @@ func TestTheDashboardAndTheQueueTabsSplitPendingTheSameWay(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Dashboard: %v", err)
 	}
-	if got := tab(after, adminpages.QueueAwaitingPayment) - tab(before, adminpages.QueueAwaitingPayment); got != 1 {
+	if got := tab(after, admin.QueueAwaitingPayment) - tab(before, admin.QueueAwaitingPayment); got != 1 {
 		t.Errorf("the awaiting-payment tab grew by %d, want 1: a funded order is not awaiting payment", got)
 	}
-	if got := tab(after, adminpages.QueueReady) - tab(before, adminpages.QueueReady); got != 1 {
+	if got := tab(after, admin.QueueReady) - tab(before, admin.QueueReady); got != 1 {
 		t.Errorf("the ready tab grew by %d, want 1", got)
 	}
 	if got := dashAfter.PendingOrders - dashBefore.PendingOrders; got != 1 {
@@ -1746,9 +1748,9 @@ func TestTheDashboardAndTheQueueTabsSplitPendingTheSameWay(t *testing.T) {
 		t.Errorf("the ready tile grew by %d, want 1", got)
 	}
 
-	for status, want := range map[adminpages.QueueFilter]struct{ in, out string }{
-		adminpages.QueueAwaitingPayment: {in: unpaid, out: funded},
-		adminpages.QueueReady:           {in: funded, out: unpaid},
+	for status, want := range map[admin.QueueFilter]struct{ in, out string }{
+		admin.QueueAwaitingPayment: {in: unpaid, out: funded},
+		admin.QueueReady:           {in: funded, out: unpaid},
 	} {
 		view, err := s.List(ctx, status, "")
 		if err != nil {

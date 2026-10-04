@@ -1465,7 +1465,7 @@ type AdminProductRow struct {
 	WarrantyNote   string
 	Status         string
 	PublishedAt    pgtype.Timestamptz
-	BrandID        uuid.UUID
+	BrandID        uuid.NullUUID
 	CategoryID     uuid.UUID
 }
 
@@ -1696,12 +1696,12 @@ func (q *Queries) AdminProductVariants(ctx context.Context, productID uuid.UUID)
 const adminProducts = `-- name: AdminProducts :many
 SELECT json_build_object('At', p.updated_at, 'ID', p.id)::text AS page_cursor, p.id, p.slug, p.name, p.status, p.published_at,
        (p.name_en IS NOT NULL)::boolean AS translated,
-       b.name AS brand, c.name AS category,
+       coalesce(b.name, '') AS brand, c.name AS category,
        (SELECT count(*) FROM product_variants pv WHERE pv.product_id = p.id)::integer AS variants,
        (SELECT coalesce(min(pv.price_cents), 0) FROM product_variants pv
         WHERE pv.product_id = p.id AND pv.is_active)::bigint AS from_cents
 FROM products p
-JOIN brands b ON b.id = p.brand_id
+LEFT JOIN brands b ON b.id = p.brand_id
 JOIN categories c ON c.id = p.category_id
 WHERE (NOT $1::boolean OR (p.updated_at < $2::timestamptz)
        OR (p.updated_at = $2::timestamptz AND p.id < $3::uuid))
@@ -1756,6 +1756,142 @@ func (q *Queries) AdminProducts(ctx context.Context, arg AdminProductsParams) ([
 			&i.Category,
 			&i.Variants,
 			&i.FromCents,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const adminQuestionAnswers = `-- name: AdminQuestionAnswers :many
+SELECT a.id, a.question_id, a.body, a.is_staff, a.hidden_at, a.created_at,
+       coalesce(u.full_name, '')::text AS author
+FROM product_answers a
+LEFT JOIN users u ON u.id = a.user_id
+WHERE a.question_id = ANY($1::uuid[])
+ORDER BY a.question_id, a.created_at, a.id
+`
+
+type AdminQuestionAnswersRow struct {
+	ID         uuid.UUID
+	QuestionID uuid.UUID
+	Body       string
+	IsStaff    bool
+	HiddenAt   pgtype.Timestamptz
+	CreatedAt  time.Time
+	Author     string
+}
+
+func (q *Queries) AdminQuestionAnswers(ctx context.Context, questionIds []uuid.UUID) ([]AdminQuestionAnswersRow, error) {
+	rows, err := q.db.Query(ctx, adminQuestionAnswers, questionIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AdminQuestionAnswersRow{}
+	for rows.Next() {
+		var i AdminQuestionAnswersRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.QuestionID,
+			&i.Body,
+			&i.IsStaff,
+			&i.HiddenAt,
+			&i.CreatedAt,
+			&i.Author,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const adminQuestions = `-- name: AdminQuestions :many
+WITH queued AS (
+ SELECT q.id, q.body, q.created_at, q.hidden_at,
+        p.slug AS product_slug, p.name AS product_name,
+        coalesce(u.full_name, '') AS asker,
+        (SELECT count(*) FROM product_answers a WHERE a.question_id = q.id AND a.hidden_at IS NULL)::bigint AS answers,
+        EXISTS (SELECT 1 FROM product_answers a WHERE a.question_id = q.id AND a.is_staff AND a.hidden_at IS NULL) AS answered_by_shop
+ FROM product_questions q
+ JOIN products p ON p.id = q.product_id
+ LEFT JOIN users u ON u.id = q.user_id
+ WHERE (q.hidden_at IS NOT NULL) = $1::boolean
+)
+SELECT json_build_object('Rank', CASE WHEN $1::boolean THEN false ELSE q.answered_by_shop END,
+                         'At', coalesce(q.hidden_at, q.created_at), 'ID', q.id)::text AS page_cursor,
+       q.id, q.body, q.created_at, q.hidden_at, q.product_slug, q.product_name, q.asker, q.answers, q.answered_by_shop
+FROM queued q
+WHERE NOT $2::boolean
+ OR ($1::boolean AND (q.hidden_at < $3::timestamptz OR (q.hidden_at = $3::timestamptz AND q.id < $4::uuid)))
+ OR (NOT $1::boolean AND (q.answered_by_shop > $5::boolean
+     OR (q.answered_by_shop = $5::boolean AND q.created_at > $3::timestamptz)
+     OR (q.answered_by_shop = $5::boolean AND q.created_at = $3::timestamptz AND q.id > $4::uuid)))
+ORDER BY CASE WHEN NOT $1::boolean THEN q.answered_by_shop END,
+         CASE WHEN $1::boolean THEN q.hidden_at END DESC,
+         CASE WHEN NOT $1::boolean THEN q.created_at END,
+         CASE WHEN $1::boolean THEN q.id END DESC,
+         CASE WHEN NOT $1::boolean THEN q.id END
+LIMIT $6::integer
+`
+
+type AdminQuestionsParams struct {
+	Hidden    bool
+	HasCursor bool
+	AfterAt   time.Time
+	AfterID   uuid.UUID
+	AfterRank bool
+	RowLimit  int32
+}
+
+type AdminQuestionsRow struct {
+	PageCursor     string
+	ID             uuid.UUID
+	Body           string
+	CreatedAt      time.Time
+	HiddenAt       pgtype.Timestamptz
+	ProductSlug    string
+	ProductName    string
+	Asker          string
+	Answers        int64
+	AnsweredByShop bool
+}
+
+func (q *Queries) AdminQuestions(ctx context.Context, arg AdminQuestionsParams) ([]AdminQuestionsRow, error) {
+	rows, err := q.db.Query(ctx, adminQuestions,
+		arg.Hidden,
+		arg.HasCursor,
+		arg.AfterAt,
+		arg.AfterID,
+		arg.AfterRank,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AdminQuestionsRow{}
+	for rows.Next() {
+		var i AdminQuestionsRow
+		if err := rows.Scan(
+			&i.PageCursor,
+			&i.ID,
+			&i.Body,
+			&i.CreatedAt,
+			&i.HiddenAt,
+			&i.ProductSlug,
+			&i.ProductName,
+			&i.Asker,
+			&i.Answers,
+			&i.AnsweredByShop,
 		); err != nil {
 			return nil, err
 		}
@@ -2359,7 +2495,7 @@ SELECT json_build_object('Number', (pv.stock_quantity - pv.safety_stock), 'Name'
     p.slug,
     p.name AS product_name,
     p.status AS product_status,
-    b.name AS brand,
+    coalesce(b.name, '') AS brand,
     ARRAY(SELECT localized_name(v.value, v.value_en, $1::text)
           FROM variant_option_values vov
           JOIN product_options o ON o.id = vov.option_id
@@ -2368,7 +2504,7 @@ SELECT json_build_object('Number', (pv.stock_quantity - pv.safety_stock), 'Name'
           ORDER BY o.position, o.id)::text[] AS option_values
 FROM product_variants pv
 JOIN products p ON p.id = pv.product_id
-JOIN brands b ON b.id = p.brand_id
+LEFT JOIN brands b ON b.id = p.brand_id
 WHERE ($2::boolean = false OR pv.stock_quantity <= pv.safety_stock)
 AND ($3::text = ''
        OR pv.sku ILIKE '%' || $3::text || '%'
@@ -3009,7 +3145,7 @@ SELECT
     p.slug,
     localized_name(p.name, p.name_en, $1::text) AS name,
     coalesce(localized_name(p.summary, p.summary_en, $1::text), '')::text AS summary,
-    b.name AS brand,
+    coalesce(b.name, '') AS brand,
     mv.price_cents AS min_price_cents,
     -- Whether that price is the cheapest of several, so a card can say "from"
     -- rather than state one variant's price as the product's.
@@ -3032,7 +3168,7 @@ SELECT
     cp.orders::bigint AS bought_together
 FROM product_copurchases cp
 JOIN products p ON p.id = cp.other_product_id
-JOIN brands b ON b.id = p.brand_id
+LEFT JOIN brands b ON b.id = p.brand_id
 JOIN LATERAL (
     SELECT price_cents, compare_at_price_cents
     FROM product_variants
@@ -3127,7 +3263,7 @@ SELECT
     p.slug,
     localized_name(p.name, p.name_en, $2::text) AS name,
     coalesce(localized_name(p.summary, p.summary_en, $2::text), '')::text AS summary,
-    b.name AS brand,
+    coalesce(b.name, '') AS brand,
     mv.price_cents AS min_price_cents,
     -- Whether that price is the cheapest of several, so a card can say "from"
     -- rather than state one variant's price as the product's.
@@ -3152,7 +3288,7 @@ SELECT
     coalesce(img.height, 0)::integer AS image_height
 FROM sale_campaign_products cp
 JOIN products p ON p.id = cp.product_id
-JOIN brands b ON b.id = p.brand_id
+LEFT JOIN brands b ON b.id = p.brand_id
 JOIN LATERAL (
     SELECT price_cents, compare_at_price_cents
     FROM product_variants
@@ -3540,7 +3676,7 @@ SELECT
     localized_name(p.name, p.name_en, $2::text) AS name,
     p.warranty_note,
     p.warranty_months,
-    b.name AS brand,
+    coalesce(b.name, '') AS brand,
     -- Localized because the cart line SHOWS the selection; the PDP's variant
     -- query matches on it and is exempt for exactly that reason.
     coalesce(
@@ -3566,7 +3702,7 @@ SELECT
 FROM cart_items ci
 JOIN product_variants pv ON pv.id = ci.variant_id
 JOIN products p ON p.id = pv.product_id
-JOIN brands b ON b.id = p.brand_id
+LEFT JOIN brands b ON b.id = p.brand_id
 LEFT JOIN LATERAL (
     -- The line's own photograph when one shows its option value, else the
     -- product's first.
@@ -3956,7 +4092,7 @@ SELECT
     p.category_id,
     localized_name(p.name, p.name_en, $1::text) AS name,
     coalesce(localized_name(p.summary, p.summary_en, $1::text), '')::text AS summary,
-    b.name AS brand,
+    coalesce(b.name, '') AS brand,
     mv.price_cents AS min_price_cents,
     -- Whether that price is the cheapest of several within the filters, so a card
     -- can say "from" rather than state one variant's price as the product's.
@@ -4005,7 +4141,7 @@ SELECT
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height
 FROM products p
-JOIN brands b ON b.id = p.brand_id
+LEFT JOIN brands b ON b.id = p.brand_id
 JOIN LATERAL (
     SELECT price_cents, compare_at_price_cents
     FROM product_variants candidate
@@ -4539,46 +4675,6 @@ func (q *Queries) ClaimOutbox(ctx context.Context, arg ClaimOutboxParams) ([]Cla
 	return items, nil
 }
 
-const claimRestockNotices = `-- name: ClaimRestockNotices :many
-UPDATE stock_notifications sn SET notified_at = now()
-WHERE sn.variant_id = $1
-  AND sn.notified_at IS NULL
-  AND EXISTS (SELECT 1 FROM product_variants pv
-              WHERE pv.id = sn.variant_id
-                AND pv.is_active
-                AND pv.stock_quantity > pv.safety_stock)
-RETURNING sn.id, sn.email, sn.locale
-`
-
-type ClaimRestockNoticesRow struct {
-	ID     uuid.UUID
-	Email  string
-	Locale string
-}
-
-// The claim and the enqueue are ONE transaction, so notified_at means "the
-// outbox has this": claiming without enqueuing tells nobody and never retries.
-// The threshold is the one the listing calls in stock, stock > safety_stock.
-func (q *Queries) ClaimRestockNotices(ctx context.Context, variantID uuid.UUID) ([]ClaimRestockNoticesRow, error) {
-	rows, err := q.db.Query(ctx, claimRestockNotices, variantID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ClaimRestockNoticesRow{}
-	for rows.Next() {
-		var i ClaimRestockNoticesRow
-		if err := rows.Scan(&i.ID, &i.Email, &i.Locale); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const claimReturnRefundExecution = `-- name: ClaimReturnRefundExecution :one
 SELECT claim_return_refund_execution(
     $1::uuid, $2::uuid, $3::text
@@ -4783,7 +4879,7 @@ SELECT
     p.slug,
     localized_name(p.name, p.name_en, $1::text) AS name,
     coalesce(localized_name(p.summary, p.summary_en, $1::text), '')::text AS summary,
-    b.name AS brand,
+    coalesce(b.name, '') AS brand,
     localized_name(c.name, c.name_en, $1::text) AS category,
     c.slug AS category_slug,
     mv.price_cents AS min_price_cents,
@@ -4809,7 +4905,7 @@ SELECT
     asked.ord::integer AS position
 FROM unnest($2::text[]) WITH ORDINALITY AS asked(slug, ord)
 JOIN products p ON p.slug = asked.slug AND p.status = 'active'
-JOIN brands b ON b.id = p.brand_id
+LEFT JOIN brands b ON b.id = p.brand_id
 JOIN categories c ON c.id = p.category_id
 JOIN LATERAL (
     SELECT price_cents, compare_at_price_cents
@@ -4963,7 +5059,7 @@ const compareSuggestions = `-- name: CompareSuggestions :many
 SELECT
     p.slug,
     localized_name(p.name, p.name_en, $1::text) AS name,
-    b.name AS brand,
+    coalesce(b.name, '') AS brand,
     mv.price_cents AS min_price_cents,
     EXISTS (
         SELECT 1 FROM product_variants dv
@@ -4974,7 +5070,7 @@ SELECT
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height
 FROM products p
-JOIN brands b ON b.id = p.brand_id
+LEFT JOIN brands b ON b.id = p.brand_id
 JOIN LATERAL (
     SELECT price_cents
     FROM product_variants
@@ -5761,7 +5857,7 @@ RETURNING slug
 `
 
 type CreateProductParams struct {
-	BrandID        uuid.UUID
+	BrandID        uuid.NullUUID
 	CategoryID     uuid.UUID
 	Slug           string
 	Name           string
@@ -6205,7 +6301,7 @@ SELECT
     p.slug,
     localized_name(p.name, p.name_en, $1::text) AS name,
     coalesce(localized_name(p.summary, p.summary_en, $1::text), '')::text AS summary,
-    b.name AS brand,
+    coalesce(b.name, '') AS brand,
     -- Named for what it IS: the price this tile shows, which on THIS page is the
     -- discounted variant rather than the cheapest one. Calling it
     -- min_price_cents here would be a claim the LATERAL below does not make.
@@ -6235,7 +6331,7 @@ SELECT
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height
 FROM products p
-JOIN brands b ON b.id = p.brand_id
+LEFT JOIN brands b ON b.id = p.brand_id
 JOIN LATERAL (
     SELECT price_cents, compare_at_price_cents
     FROM product_variants
@@ -7254,6 +7350,24 @@ func (q *Queries) HideQuestion(ctx context.Context, questionID uuid.UUID) (int64
 	return result.RowsAffected(), nil
 }
 
+const hideQuestionAnswer = `-- name: HideQuestionAnswer :execrows
+UPDATE product_answers SET hidden_at = now()
+WHERE id = $1 AND question_id = $2 AND hidden_at IS NULL
+`
+
+type HideQuestionAnswerParams struct {
+	AnswerID   uuid.UUID
+	QuestionID uuid.UUID
+}
+
+func (q *Queries) HideQuestionAnswer(ctx context.Context, arg HideQuestionAnswerParams) (int64, error) {
+	result, err := q.db.Exec(ctx, hideQuestionAnswer, arg.AnswerID, arg.QuestionID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const hideReview = `-- name: HideReview :execrows
 UPDATE product_reviews SET hidden_at = now()
 WHERE id = $1 AND hidden_at IS NULL
@@ -7441,7 +7555,7 @@ SELECT
     p.slug,
     localized_name(p.name, p.name_en, $1::text) AS name,
     coalesce(localized_name(p.summary, p.summary_en, $1::text), '')::text AS summary,
-    b.name AS brand,
+    coalesce(b.name, '') AS brand,
     mv.price_cents AS min_price_cents,
     -- Whether that price is the cheapest of several, so a card can say "from"
     -- rather than state one variant's price as the product's.
@@ -7466,7 +7580,7 @@ SELECT
           AND stock_quantity > safety_stock
     ) AS in_stock
 FROM products p
-JOIN brands b ON b.id = p.brand_id
+LEFT JOIN brands b ON b.id = p.brand_id
 JOIN LATERAL (
     SELECT price_cents, compare_at_price_cents
     FROM product_variants
@@ -9095,7 +9209,7 @@ SELECT
     p.category_id,
     localized_name(p.name, p.name_en, $1::text) AS name,
     coalesce(localized_name(p.summary, p.summary_en, $1::text), '')::text AS summary,
-    b.name AS brand,
+    coalesce(b.name, '') AS brand,
     mv.price_cents AS min_price_cents,
     -- Whether that price is the cheapest of several, so a card can say "from"
     -- rather than state one variant's price as the product's.
@@ -9116,7 +9230,7 @@ SELECT
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height
 FROM products p
-JOIN brands b ON b.id = p.brand_id
+LEFT JOIN brands b ON b.id = p.brand_id
 JOIN LATERAL (
     SELECT price_cents, compare_at_price_cents
     FROM product_variants
@@ -10608,14 +10722,14 @@ SELECT
     localized_name(p.description, p.description_en, $2::text) AS description,
     p.warranty_note,
     coalesce(p.warranty_months, 0)::integer AS warranty_months,
-    b.name AS brand,
-    b.slug AS brand_slug,
+    coalesce(b.name, '') AS brand,
+    coalesce(b.slug, '') AS brand_slug,
     p.category_id,
     c.slug AS category_slug,
     localized_name(c.name, c.name_en, $2::text) AS category_name,
     c.parent_id AS category_parent_id
 FROM products p
-JOIN brands b ON b.id = p.brand_id
+LEFT JOIN brands b ON b.id = p.brand_id
 JOIN categories c ON c.id = p.category_id
 WHERE p.slug = $1 AND p.status = 'active'
 `
@@ -12160,7 +12274,7 @@ func (q *Queries) RejectInvoiceOperation(ctx context.Context, arg RejectInvoiceO
 
 const relatedProducts = `-- name: RelatedProducts :many
 SELECT
-    p.slug, localized_name(p.name, p.name_en, $1::text) AS name, b.name AS brand,
+    p.slug, localized_name(p.name, p.name_en, $1::text) AS name, coalesce(b.name, '') AS brand,
     mv.price_cents AS min_price_cents,
     -- Whether that price is the cheapest of several, so a card can say "from"
     -- rather than state one variant's price as the product's.
@@ -12181,7 +12295,7 @@ SELECT
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height
 FROM products p
-JOIN brands b ON b.id = p.brand_id
+LEFT JOIN brands b ON b.id = p.brand_id
 JOIN LATERAL (
     SELECT price_cents, compare_at_price_cents FROM product_variants
     WHERE product_id = p.id AND is_active
@@ -12697,35 +12811,6 @@ func (q *Queries) RestockReturnedUnits(ctx context.Context, arg RestockReturnedU
 		arg.ActorUserID,
 	)
 	return err
-}
-
-const restockSubject = `-- name: RestockSubject :one
-SELECT p.slug,
-       localized_name(p.name, p.name_en, $1::text) AS product_name,
-       pv.sku
-FROM product_variants pv
-JOIN products p ON p.id = pv.product_id
-WHERE pv.id = $2
-`
-
-type RestockSubjectParams struct {
-	Locale    string
-	VariantID uuid.UUID
-}
-
-type RestockSubjectRow struct {
-	Slug        string
-	ProductName string
-	SKU         string
-}
-
-// Called once per distinct LOCALE in the claimed set, not once per recipient:
-// the product name has to follow the reader as the letter's words do.
-func (q *Queries) RestockSubject(ctx context.Context, arg RestockSubjectParams) (RestockSubjectRow, error) {
-	row := q.db.QueryRow(ctx, restockSubject, arg.Locale, arg.VariantID)
-	var i RestockSubjectRow
-	err := row.Scan(&i.Slug, &i.ProductName, &i.SKU)
-	return i, err
 }
 
 const returnForDecision = `-- name: ReturnForDecision :one
@@ -13616,7 +13701,7 @@ SELECT
     p.category_id,
     localized_name(p.name, p.name_en, $1::text) AS name,
     coalesce(localized_name(p.summary, p.summary_en, $1::text), '')::text AS summary,
-    b.name AS brand,
+    coalesce(b.name, '') AS brand,
     mv.price_cents AS min_price_cents,
     -- Whether that price is the cheapest of several, so a card can say "from"
     -- rather than state one variant's price as the product's.
@@ -13637,7 +13722,7 @@ SELECT
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height
 FROM products p
-JOIN brands b ON b.id = p.brand_id
+LEFT JOIN brands b ON b.id = p.brand_id
 JOIN LATERAL (
     SELECT price_cents, compare_at_price_cents
     FROM product_variants
@@ -13665,7 +13750,7 @@ WHERE p.status = 'active'
           OR coalesce(p.name_en, '') ILIKE t.pattern
           OR coalesce(p.summary, '') ILIKE t.pattern
           OR coalesce(p.summary_en, '') ILIKE t.pattern
-          OR b.name ILIKE t.pattern
+          OR coalesce(b.name, '') ILIKE t.pattern
           OR EXISTS (
               SELECT 1 FROM category_match m
               WHERE m.pattern = t.pattern AND m.id = p.category_id
@@ -13719,7 +13804,7 @@ ORDER BY
               AND partial_sku.sku ILIKE t.pattern
         ) THEN 3
         WHEN EXISTS (
-            SELECT 1 FROM unnest($2::text[]) AS t(pattern) WHERE b.name ILIKE t.pattern
+            SELECT 1 FROM unnest($2::text[]) AS t(pattern) WHERE coalesce(b.name, '') ILIKE t.pattern
         ) THEN 2
         WHEN EXISTS (
             SELECT 1 FROM unnest($2::text[]) AS t(pattern)
@@ -13818,7 +13903,7 @@ WITH RECURSIVE category_match AS (
 )
 SELECT count(*)::bigint
 FROM products p
-JOIN brands b ON b.id = p.brand_id
+LEFT JOIN brands b ON b.id = p.brand_id
 WHERE p.status = 'active'
   -- Every term must match some field, and a term may match a different field
   -- from its neighbour.
@@ -13829,7 +13914,7 @@ WHERE p.status = 'active'
           OR coalesce(p.name_en, '') ILIKE t.pattern
           OR coalesce(p.summary, '') ILIKE t.pattern
           OR coalesce(p.summary_en, '') ILIKE t.pattern
-          OR b.name ILIKE t.pattern
+          OR coalesce(b.name, '') ILIKE t.pattern
           OR EXISTS (
               SELECT 1 FROM category_match m
               WHERE m.pattern = t.pattern AND m.id = p.category_id
@@ -14783,6 +14868,19 @@ func (q *Queries) ShippingZoneFor(ctx context.Context, arg ShippingZoneForParams
 	return i, err
 }
 
+const showQuestion = `-- name: ShowQuestion :execrows
+UPDATE product_questions SET hidden_at = NULL
+WHERE id = $1 AND hidden_at IS NOT NULL
+`
+
+func (q *Queries) ShowQuestion(ctx context.Context, questionID uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, showQuestion, questionID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const showReview = `-- name: ShowReview :execrows
 UPDATE product_reviews SET hidden_at = NULL
 WHERE id = $1 AND hidden_at IS NOT NULL
@@ -15379,62 +15477,6 @@ func (q *Queries) TouchOrderAccessGrants(ctx context.Context, arg TouchOrderAcce
 	return err
 }
 
-const unansweredQuestions = `-- name: UnansweredQuestions :many
-SELECT q.id, q.body, q.created_at,
-       p.slug AS product_slug, p.name AS product_name,
-       coalesce(u.full_name, '') AS asker,
-       (SELECT count(*) FROM product_answers a
-        WHERE a.question_id = q.id AND a.hidden_at IS NULL)::bigint AS answers,
-       EXISTS (SELECT 1 FROM product_answers a
-               WHERE a.question_id = q.id AND a.is_staff AND a.hidden_at IS NULL) AS answered_by_shop
-FROM product_questions q
-JOIN products p ON p.id = q.product_id
-LEFT JOIN users u ON u.id = q.user_id
-WHERE q.hidden_at IS NULL
-ORDER BY answered_by_shop, q.created_at
-LIMIT $1
-`
-
-type UnansweredQuestionsRow struct {
-	ID             uuid.UUID
-	Body           string
-	CreatedAt      time.Time
-	ProductSlug    string
-	ProductName    string
-	Asker          string
-	Answers        int64
-	AnsweredByShop bool
-}
-
-func (q *Queries) UnansweredQuestions(ctx context.Context, limit int32) ([]UnansweredQuestionsRow, error) {
-	rows, err := q.db.Query(ctx, unansweredQuestions, limit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []UnansweredQuestionsRow{}
-	for rows.Next() {
-		var i UnansweredQuestionsRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.Body,
-			&i.CreatedAt,
-			&i.ProductSlug,
-			&i.ProductName,
-			&i.Asker,
-			&i.Answers,
-			&i.AnsweredByShop,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const uninvoicedOrders = `-- name: UninvoicedOrders :many
 SELECT o.order_number, f.funded_at, f.amount_cents, count(*) OVER () AS total
 FROM orders o
@@ -15778,7 +15820,7 @@ WHERE slug = $11::text
 `
 
 type UpdateProductParams struct {
-	BrandID        uuid.UUID
+	BrandID        uuid.NullUUID
 	CategoryID     uuid.UUID
 	Name           string
 	Summary        string
@@ -16297,7 +16339,7 @@ SELECT
     p.slug,
     localized_name(p.name, p.name_en, $2::text) AS name,
     p.summary,
-    b.name AS brand,
+    coalesce(b.name, '') AS brand,
     mv.price_cents AS min_price_cents,
     -- Whether that price is the cheapest of several, so a card can say "from"
     -- rather than state one variant's price as the product's.
@@ -16328,7 +16370,7 @@ SELECT
     coalesce(img.height, 0)::integer AS image_height
 FROM wishlist_items w
 JOIN products p ON p.id = w.product_id
-JOIN brands b ON b.id = p.brand_id
+LEFT JOIN brands b ON b.id = p.brand_id
 JOIN LATERAL (
     SELECT price_cents, compare_at_price_cents
     FROM product_variants

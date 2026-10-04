@@ -210,7 +210,7 @@ CREATE TRIGGER categories_acyclic
 
 CREATE TABLE products (
     id            uuid PRIMARY KEY DEFAULT uuidv7(),
-    brand_id      uuid NOT NULL REFERENCES brands (id) ON DELETE RESTRICT,
+    brand_id      uuid REFERENCES brands (id) ON DELETE RESTRICT,
     category_id   uuid NOT NULL REFERENCES categories (id) ON DELETE RESTRICT,
     slug          text NOT NULL,
     name          text NOT NULL,
@@ -4259,6 +4259,35 @@ CREATE INDEX outbox_messages_pending_idx
 CREATE INDEX outbox_messages_delivered_at_idx
     ON outbox_messages (delivered_at)
     WHERE delivered_at IS NOT NULL;
+
+-- Stock returns through cancellation, expiry and returns as well as receipts.
+-- Claiming here keeps every path and the outbox in the stock writer's transaction.
+CREATE FUNCTION product_variants_queue_restock() RETURNS trigger
+LANGUAGE plpgsql SECURITY INVOKER SET search_path = pg_catalog, public, pg_temp AS $$
+BEGIN
+    WITH claimed AS (
+        UPDATE stock_notifications
+        SET notified_at = now()
+        WHERE variant_id = NEW.id AND notified_at IS NULL
+        RETURNING id, email, locale
+    )
+    INSERT INTO outbox_messages (topic, dedupe_key, payload)
+    SELECT 'catalogue.restocked', c.id::text,
+           jsonb_build_object('locale', c.locale, 'email', c.email,
+                              'product_name', localized_name(p.name, p.name_en, c.locale),
+                              'slug', p.slug, 'sku', NEW.sku)
+    FROM claimed c JOIN products p ON p.id = NEW.product_id
+    ON CONFLICT (topic, dedupe_key) DO NOTHING;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER product_variants_restock_notices
+    AFTER UPDATE OF stock_quantity, safety_stock, is_active ON product_variants
+    FOR EACH ROW
+    WHEN (NEW.is_active AND NEW.stock_quantity > NEW.safety_stock
+          AND (NOT OLD.is_active OR OLD.stock_quantity <= OLD.safety_stock))
+    EXECUTE FUNCTION product_variants_queue_restock();
 
 CREATE TABLE audit_events (
     id                uuid PRIMARY KEY DEFAULT uuidv7(),
@@ -9223,8 +9252,8 @@ GRANT INSERT (id, hidden_at, created_at),
     ON product_questions TO admin;
 
 REVOKE INSERT, UPDATE ON product_answers FROM admin;
-GRANT INSERT (id, question_id, user_id, body, is_staff, created_at),
-      UPDATE (id, question_id, user_id, body, is_staff, created_at)
+GRANT INSERT (id, question_id, user_id, body, is_staff, hidden_at, created_at),
+      UPDATE (id, question_id, user_id, body, is_staff, hidden_at, created_at)
     ON product_answers TO admin;
 
 REVOKE INSERT, UPDATE ON return_requests FROM admin;
