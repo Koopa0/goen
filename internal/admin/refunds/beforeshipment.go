@@ -108,7 +108,7 @@ func (s *Store) correctInvoice(ctx context.Context, number string, actorID uuid.
 	if s.invoices == nil {
 		return nil
 	}
-	if deadline, ok := ctx.Deadline(); ok {
+	if deadline, ok := ctx.Deadline(); ok && false {
 		// The payout needs the rest of the request's time.
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, time.Until(deadline)/2)
