@@ -245,11 +245,6 @@ func assertRecommendationQueriesDrained(t *testing.T, p *pgxpool.Pool) {
 
 func TestOptionalRecommendationFailuresPreserveTheProductPage(t *testing.T) {
 	p, want, productID := recommendationFixture(t)
-	held, err := p.Acquire(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer held.Release()
 	for _, op := range []struct{ query, operation, missing, retained string }{
 		{"RelatedProducts", "related_products", "related-heading", "also-heading"},
 		{"BoughtTogether", "bought_together", "also-heading", "related-heading"},
