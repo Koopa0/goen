@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/koopa0/goen/internal/carrier"
 	"github.com/koopa0/goen/internal/i18n"
@@ -231,7 +232,8 @@ type OrderView struct {
 	CanShip                   bool
 	Shippable                 []ShippableLine
 	Notice                    string
-	Timeline                  []OrderEvent
+	Timeline                  []TimelineEntry
+	MailKept                  time.Duration
 	Shipments                 []Shipment
 	DeliveryError             string
 	ShipCarrier, ShipTracking string
@@ -269,25 +271,40 @@ type Delivery struct {
 	PickupStoreName string
 }
 
-type OrderEvent struct {
-	Kind  order.EventKind
-	Note  string
-	At    string
+// ActorKind is who made a timeline entry happen.
+type ActorKind string
+
+const (
+	ActorStaff    ActorKind = "staff"
+	ActorCustomer ActorKind = "customer"
+	ActorSystem   ActorKind = "system"
+	ActorProvider ActorKind = "provider"
+)
+
+// TimelineEntry is one line of an order's history: one of its events, an
+// invoice operation, a notice from the payment provider, or mail about it.
+// It names staff, so it never reaches the storefront.
+type TimelineEntry struct {
+	At        string
+	Label     i18n.Key
+	Status    i18n.Key
+	Note      string
+	ActorKind ActorKind
+	// Actor is the staff member's name, empty once their account is erased.
 	Actor string
-	// System is an event no person made, such as the payment-deadline cancel.
-	System bool
 }
 
-func (e OrderEvent) LabelKey() i18n.Key { return pages.OrderEvent{Kind: e.Kind}.LabelKey() }
-
-func (e OrderEvent) By(ctx context.Context) string {
-	switch {
-	case e.Actor != "":
+func (e TimelineEntry) By(ctx context.Context) string {
+	switch e.ActorKind {
+	case ActorStaff:
+		if e.Actor == "" {
+			return i18n.T(ctx, i18n.KeyAdminErasedAccountPlain)
+		}
 		return e.Actor
-	case e.System:
-		return i18n.T(ctx, i18n.KeyAdminActorSystem)
-	case e.Kind == order.EventCancelled:
+	case ActorCustomer:
 		return i18n.T(ctx, i18n.KeyAdminActorCustomer)
+	case ActorProvider:
+		return i18n.T(ctx, i18n.KeyAdminActorProvider)
 	default:
 		return i18n.T(ctx, i18n.KeyAdminActorSystem)
 	}
@@ -514,6 +531,11 @@ func (v *OrderView) AllowanceAttentionText(ctx context.Context) string {
 func (v *OrderView) AllowanceAmount() string { return money.TWD(v.allowanceOutstandingCents()) }
 
 func (v *OrderView) HasCustomerNote() bool { return v.CustomerNote != "" }
+
+func (v *OrderView) MailKeptText(ctx context.Context) string {
+	days := int(v.MailKept.Hours() / 24)
+	return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminTimelineMailKept), i18n.Count(ctx, i18n.KeyAdminDays, int64(days), days))
+}
 
 type VariantsView struct {
 	web.Bound

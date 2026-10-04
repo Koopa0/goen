@@ -450,14 +450,18 @@ templ Order(p layouts.Page, v *OrderView) {
 						<ul class="goen-admin__timeline" role="list">
 							for _, e := range v.Timeline {
 								<li class="goen-admin__event">
-									<span class="goen-admin__eventhead">{ i18n.T(ctx, e.LabelKey()) }</span>
+									<span class="goen-admin__eventhead">{ i18n.T(ctx, e.Label) }</span>
 									<span class="goen-admin__meta">{ e.At } · { e.By(ctx) }</span>
+									if e.Status != "" {
+										<span class="goen-admin__meta">{ i18n.T(ctx, e.Status) }</span>
+									}
 									if e.Note != "" {
 										<span class="goen-admin__meta">{ e.Note }</span>
 									}
 								</li>
 							}
 						</ul>
+						<p class="goen-admin__hint">{ v.MailKeptText(ctx) }</p>
 					}
 				}
 				if v.HasCustomerNote() {

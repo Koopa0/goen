@@ -24,6 +24,7 @@ import (
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/ordernotice"
+	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/pickup"
 	"github.com/koopa0/goen/internal/shoptime"
@@ -285,17 +286,20 @@ func (s *Store) Order(ctx context.Context, number string) (admin.OrderView, erro
 		})
 	}
 
-	events, err := s.q.OrderEvents(ctx, o.ID)
+	timeline, err := s.q.AdminOrderTimeline(ctx, db.AdminOrderTimelineParams{
+		OrderID: o.ID, MailTopics: orderMailTopics,
+	})
 	if err != nil {
-		return admin.OrderView{}, fmt.Errorf("read order events: %w", err)
+		return admin.OrderView{}, fmt.Errorf("read order timeline: %w", err)
 	}
-	for i := range events {
-		e := &events[i]
-		view.Timeline = append(view.Timeline, admin.OrderEvent{
-			Kind: order.EventKind(e.Kind), Note: e.Note.String,
-			At: shoptime.Minute(e.OccurredAt), Actor: e.ActorName, System: e.BySystem,
-		})
+	for i := range timeline {
+		entry, entryErr := timelineEntry(&timeline[i])
+		if entryErr != nil {
+			return admin.OrderView{}, entryErr
+		}
+		view.Timeline = append(view.Timeline, entry)
 	}
+	view.MailKept = outbox.Retain
 
 	shipments, err := s.q.OrderShipments(ctx, o.ID)
 	if err != nil {

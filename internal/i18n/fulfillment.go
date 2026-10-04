@@ -113,6 +113,41 @@ var (
 		En:     "Order history",
 	})
 
+	KeyAdminTimelineMailKept = key("admin.timeline.mailkept", Message{
+		ZhHant: "郵件紀錄只保留 %s，更早的郵件不會列在這裡。",
+		En:     "Mail is kept for %s; older mail is not listed here.",
+	})
+
+	KeyAdminTimelineProvider = key("admin.timeline.provider", Message{ZhHant: "金流服務商通知", En: "Payment provider notice"})
+
+	KeyAdminTimelineMailPlaced = key("admin.timeline.mail.placed", Message{ZhHant: "訂單成立通知信", En: "Order confirmation e-mail"})
+
+	KeyAdminTimelineMailPaid = key("admin.timeline.mail.paid", Message{ZhHant: "付款完成通知信", En: "Payment confirmation e-mail"})
+
+	KeyAdminTimelineMailShipped = key("admin.timeline.mail.shipped", Message{ZhHant: "出貨通知信", En: "Dispatch e-mail"})
+
+	KeyAdminTimelineMailTerminal = key("admin.timeline.mail.terminal", Message{
+		ZhHant: "取消、送達或取貨通知信",
+		En:     "Cancellation, delivery or collection e-mail",
+	})
+
+	KeyAdminTimelineMailSent = key("admin.timeline.mail.sent", Message{ZhHant: "已寄出", En: "Sent"})
+
+	KeyAdminTimelineMailQueued = key("admin.timeline.mail.queued", Message{ZhHant: "尚未寄出", En: "Not sent yet"})
+
+	KeyAdminTimelineInvoicePending = key("admin.timeline.invoice.pending", Message{ZhHant: "處理中", En: "In progress"})
+
+	KeyAdminTimelineInvoiceAwaitingBuyer = key("admin.timeline.invoice.awaiting", Message{
+		ZhHant: "等待顧客同意",
+		En:     "Waiting for the customer to agree",
+	})
+
+	KeyAdminTimelineInvoiceAttention = key("admin.timeline.invoice.attention", Message{ZhHant: "需要人工處理", En: "Needs a person"})
+
+	KeyAdminTimelineInvoiceSucceeded = key("admin.timeline.invoice.succeeded", Message{ZhHant: "完成", En: "Done"})
+
+	KeyAdminTimelineInvoiceRejected = key("admin.timeline.invoice.rejected", Message{ZhHant: "遭拒絕", En: "Refused"})
+
 	KeyAdminQueueCustomerNote = key("admin.queue.customernote", Message{
 		ZhHant: "顧客備註",
 		En:     "Customer's note",
