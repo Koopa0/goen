@@ -4283,7 +4283,7 @@ END;
 $$;
 
 CREATE TRIGGER product_variants_restock_notices
-    AFTER UPDATE OF stock_quantity, safety_stock, is_active ON product_variants
+    AFTER UPDATE OF stock_quantity, safety_stock ON product_variants
     FOR EACH ROW
     WHEN (NEW.is_active AND NEW.stock_quantity > NEW.safety_stock
           AND (NOT OLD.is_active OR OLD.stock_quantity <= OLD.safety_stock))
