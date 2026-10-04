@@ -237,11 +237,19 @@ func TestClearingAProductBrandSurvivesARefusedEdit(t *testing.T) {
 func assertUnbrandedCatalogueReads(t *testing.T, ctx context.Context, p *pgxpool.Pool, slug, sku string, categoryID uuid.UUID) {
 	t.Helper()
 	var productID, anchorID, campaignID uuid.UUID
+	anchorSlug := "related-" + uuid.NewString()[:8]
 	if err := p.QueryRow(ctx, `SELECT id FROM products WHERE slug = $1`, slug).Scan(&productID); err != nil {
 		t.Fatal(err)
 	}
-	if err := p.QueryRow(ctx, `INSERT INTO products (category_id, slug, name, status)
-		VALUES ($1, $2, 'Related fixture', 'draft') RETURNING id`, categoryID, "related-"+uuid.NewString()[:8]).Scan(&anchorID); err != nil {
+	if err := p.QueryRow(ctx, `INSERT INTO products (brand_id, category_id, slug, name, status)
+		SELECT id, $1, $2, 'Related fixture', 'draft' FROM brands LIMIT 1 RETURNING id`, categoryID, anchorSlug).Scan(&anchorID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.Exec(ctx, `INSERT INTO product_variants (product_id, sku, price_cents)
+		VALUES ($1, $2, 10000)`, anchorID, "RELATED-"+uuid.NewString()[:8]); err != nil {
+		t.Fatal(err)
+	}
+	if err := products.NewStore(p).SetStatus(ctx, anchorSlug, "active"); err != nil {
 		t.Fatal(err)
 	}
 	if err := p.QueryRow(ctx, `INSERT INTO sale_campaigns (slug, title, ends_at)
@@ -288,7 +296,7 @@ func assertUnbrandedCatalogueReads(t *testing.T, ctx context.Context, p *pgxpool
 	for _, row := range campaign {
 		observe("CampaignProducts", row.Slug, row.Brand)
 	}
-	suggestions, err := q.CompareSuggestions(ctx, db.CompareSuggestionsParams{Locale: "en", ProductSlug: slug, ExcludeSlugs: []string{}, AnchorCents: 10000, RowLimit: rowLimit})
+	suggestions, err := q.CompareSuggestions(ctx, db.CompareSuggestionsParams{Locale: "en", ProductSlug: anchorSlug, ExcludeSlugs: []string{anchorSlug}, AnchorCents: 10000, RowLimit: rowLimit})
 	check("CompareSuggestions", err)
 	for _, row := range suggestions {
 		observe("CompareSuggestions", row.Slug, row.Brand)
