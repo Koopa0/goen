@@ -208,7 +208,9 @@ func (s *Store) SetZoneSurcharge(ctx context.Context, versionID, zoneID string, 
 			if err != nil {
 				return fmt.Errorf("read current shipping version: %w", err)
 			}
-			_ = currentID
+			if currentID != vid {
+				return &VersionChangedError{MethodID: methodID}
+			}
 			if dollars == 0 {
 				if _, delErr := q.ClearZoneSurcharge(ctx, db.ClearZoneSurchargeParams{
 					VersionID: vid, ZoneID: zid,
