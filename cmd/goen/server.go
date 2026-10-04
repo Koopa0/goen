@@ -413,7 +413,7 @@ func backOfficeRoutes(mux *http.ServeMux, cfg *BackOfficeConfig, log *slog.Logge
 	checkup := health.NewStore(adminPool)
 	payouts := refunds.NewStore(adminPool, refunder, invoices)
 	invoicingStore := invoicing.NewStore(adminPool, invoiceReader, invoiceWriter)
-	orderDesk := orders.NewHandler(orders.NewStore(adminPool, payouts, invoicingStore, stockroom, checkup), sessionCloser(gateway), log)
+	orderDesk := orders.NewHandler(orders.NewStore(adminPool, payouts, invoicingStore, stockroom, orders.HealthFunc(checkup.Tasks)), sessionCloser(gateway), log)
 	trail := audit.NewHandler(audit.NewStore(adminPool), log)
 	figures := reports.NewHandler(reports.NewStore(adminPool), log)
 	warehouse := stock.NewHandler(stockroom, log)
