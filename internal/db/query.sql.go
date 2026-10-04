@@ -1448,7 +1448,7 @@ SELECT p.id, p.slug, p.name, coalesce(p.summary, '') AS summary, p.description,
        coalesce(p.summary_en, '') AS summary_en,
        coalesce(p.description_en, '') AS description_en,
        coalesce(p.warranty_note, '') AS warranty_note, p.status, p.published_at,
-       p.brand_id, p.category_id
+       p.brand_id, p.category_id, p.tax_type, p.invoice_unit
 FROM products p WHERE p.slug = $1
 `
 
@@ -1467,6 +1467,8 @@ type AdminProductRow struct {
 	PublishedAt    pgtype.Timestamptz
 	BrandID        uuid.UUID
 	CategoryID     uuid.UUID
+	TaxType        string
+	InvoiceUnit    string
 }
 
 func (q *Queries) AdminProduct(ctx context.Context, slug string) (AdminProductRow, error) {
@@ -1487,6 +1489,8 @@ func (q *Queries) AdminProduct(ctx context.Context, slug string) (AdminProductRo
 		&i.PublishedAt,
 		&i.BrandID,
 		&i.CategoryID,
+		&i.TaxType,
+		&i.InvoiceUnit,
 	)
 	return i, err
 }
@@ -8262,6 +8266,23 @@ func (q *Queries) LockProductCatalogue(ctx context.Context, slug string) (uuid.U
 	return id, err
 }
 
+const lockProductInvoiceLine = `-- name: LockProductInvoiceLine :one
+SELECT id, tax_type, invoice_unit FROM products WHERE slug=$1 FOR UPDATE
+`
+
+type LockProductInvoiceLineRow struct {
+	ID          uuid.UUID
+	TaxType     string
+	InvoiceUnit string
+}
+
+func (q *Queries) LockProductInvoiceLine(ctx context.Context, slug string) (LockProductInvoiceLineRow, error) {
+	row := q.db.QueryRow(ctx, lockProductInvoiceLine, slug)
+	var i LockProductInvoiceLineRow
+	err := row.Scan(&i.ID, &i.TaxType, &i.InvoiceUnit)
+	return i, err
+}
+
 const lockReturnOrder = `-- name: LockReturnOrder :one
 SELECT o.id
 FROM orders o JOIN return_requests r ON r.order_id = o.id
@@ -13982,6 +14003,21 @@ WHERE pi.id = o.id
 
 func (q *Queries) SetProductImageOrder(ctx context.Context, ids []uuid.UUID) error {
 	_, err := q.db.Exec(ctx, setProductImageOrder, ids)
+	return err
+}
+
+const setProductInvoiceLine = `-- name: SetProductInvoiceLine :exec
+UPDATE products SET tax_type=$2, invoice_unit=$3 WHERE id=$1
+`
+
+type SetProductInvoiceLineParams struct {
+	ID          uuid.UUID
+	TaxType     string
+	InvoiceUnit string
+}
+
+func (q *Queries) SetProductInvoiceLine(ctx context.Context, arg SetProductInvoiceLineParams) error {
+	_, err := q.db.Exec(ctx, setProductInvoiceLine, arg.ID, arg.TaxType, arg.InvoiceUnit)
 	return err
 }
 

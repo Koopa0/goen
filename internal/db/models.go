@@ -410,6 +410,8 @@ type OrderLine struct {
 	UnitPriceCents int64
 	Quantity       int32
 	Position       int32
+	TaxType        string
+	InvoiceUnit    string
 }
 
 type OrderNumberCounter struct {
@@ -524,6 +526,8 @@ type Product struct {
 	PublishedAt    pgtype.Timestamptz
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
+	TaxType        string
+	InvoiceUnit    string
 }
 
 type ProductAnswer struct {

@@ -229,6 +229,10 @@ CREATE TABLE products (
     published_at  timestamptz,
     created_at    timestamptz NOT NULL DEFAULT now(),
     updated_at    timestamptz NOT NULL DEFAULT now(),
+    tax_type text NOT NULL DEFAULT 'taxable',
+    invoice_unit text NOT NULL DEFAULT '個',
+    CONSTRAINT products_tax_type_known CHECK (tax_type IN ('taxable','exempt')),
+    CONSTRAINT products_invoice_unit_valid CHECK (invoice_unit ~ '[^[:space:]]' AND char_length(invoice_unit) <= 6 AND invoice_unit !~ '[[:cntrl:]]'),
     CONSTRAINT products_warranty_months_sane
         CHECK (warranty_months IS NULL OR (warranty_months > 0 AND warranty_months <= 120)),
     CONSTRAINT products_slug_format CHECK (slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$'),
@@ -2020,7 +2024,7 @@ CREATE TRIGGER orders_start_pending
 -- are durable catalogue identities used by verified-purchase, fulfilment,
 -- returns and reporting. Catalogue retirement is a status/is_active change,
 -- never deletion. Nullable identities remain available for legacy imports; the
--- display copy, price and warranty promise are independent snapshots.
+-- display copy, price, invoice facts and warranty promise are independent snapshots.
 CREATE TABLE order_lines (
     id               uuid PRIMARY KEY DEFAULT uuidv7(),
     order_id         uuid NOT NULL REFERENCES orders (id) ON DELETE RESTRICT,
@@ -2034,6 +2038,10 @@ CREATE TABLE order_lines (
     unit_price_cents bigint NOT NULL,
     quantity         integer NOT NULL,
     position         integer NOT NULL DEFAULT 0,
+    tax_type text NOT NULL DEFAULT 'taxable',
+    invoice_unit text NOT NULL DEFAULT '個',
+    CONSTRAINT order_lines_tax_type_known CHECK (tax_type IN ('taxable','exempt')),
+    CONSTRAINT order_lines_invoice_unit_valid CHECK (invoice_unit ~ '[^[:space:]]' AND char_length(invoice_unit) <= 6 AND invoice_unit !~ '[[:cntrl:]]'),
     CONSTRAINT order_lines_sku_present CHECK (sku ~ '[^[:space:]]'),
     CONSTRAINT order_lines_product_name_present CHECK (product_name ~ '[^[:space:]]'),
     CONSTRAINT order_lines_unit_price_in_range
@@ -2059,10 +2067,12 @@ DECLARE
     v_sku text;
     v_name text;
     v_name_en text;
+    v_tax_type text;
+    v_invoice_unit text;
 BEGIN
     IF NEW.variant_id IS NOT NULL THEN
-        SELECT pv.product_id, pv.sku, p.name, p.name_en
-        INTO v_product_id, v_sku, v_name, v_name_en
+        SELECT pv.product_id, pv.sku, p.name, p.name_en, p.tax_type, p.invoice_unit
+        INTO v_product_id, v_sku, v_name, v_name_en, v_tax_type, v_invoice_unit
         FROM product_variants pv
         JOIN products p ON p.id = pv.product_id
         WHERE pv.id = NEW.variant_id;
@@ -2070,6 +2080,8 @@ BEGIN
             NEW.product_id := v_product_id;
         END IF;
         IF FOUND AND NEW.product_id = v_product_id THEN
+            NEW.tax_type := v_tax_type;
+            NEW.invoice_unit := v_invoice_unit;
             IF NEW.sku IS DISTINCT FROM v_sku THEN
                 RAISE EXCEPTION 'order line SKU must identify its variant'
                     USING ERRCODE = '23514', CONSTRAINT = 'order_lines_sku_matches_variant';
