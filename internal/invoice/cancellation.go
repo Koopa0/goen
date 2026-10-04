@@ -90,14 +90,10 @@ func (s *Store) ClaimVoidDue(ctx context.Context, due *outbox.InvoiceVoidDue) er
 	issue, err := s.q.IssueInFlight(ctx, due.OrderNumber)
 	switch {
 	case err == nil && !s.Enabled():
-		return s.withdrawIssue(ctx, issue)
+		return fmt.Errorf("%w: planted %s", ErrPending, issue)
 	case err == nil:
-		return fmt.Errorf("%w: the invoice of %s is still being issued", ErrPending, due.OrderNumber)
 	case !errors.Is(err, pgx.ErrNoRows):
 		return fmt.Errorf("read the issue in flight for %s: %w", due.OrderNumber, err)
-	}
-	if !s.Enabled() {
-		return nil
 	}
 	live, err := s.q.LiveInvoice(ctx, due.OrderNumber)
 	if errors.Is(err, pgx.ErrNoRows) {

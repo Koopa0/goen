@@ -3194,7 +3194,7 @@ const cancelledOrderInvoices = `-- name: CancelledOrderInvoices :many
 SELECT o.order_number, d.number, d.amount_cents, d.issued_at, count(*) OVER () AS total
 FROM invoice_documents d
 JOIN orders o ON o.id = d.order_id
-WHERE o.fulfillment_status = 'cancelled'
+WHERE o.fulfillment_status = 'pending'
   AND o.cancelled_at < now() - $1::interval
   AND d.kind = 'invoice' AND d.status = 'issued'
   AND d.amount_cents > coalesce((
