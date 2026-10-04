@@ -4,6 +4,7 @@ package taxonomy_test
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"image"
 	"image/png"
@@ -14,10 +15,14 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/koopa0/goen/internal/admin/admintest"
+	"github.com/koopa0/goen/internal/admin/campaigns"
 	"github.com/koopa0/goen/internal/admin/taxonomy"
 	"github.com/koopa0/goen/internal/catalog"
+	"github.com/koopa0/goen/internal/ui/icons"
+	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 func TestANamedParentThatDoesNotExistIsRefused(t *testing.T) {
@@ -356,5 +361,74 @@ func TestACategoryTakesItsDepartmentsToneAndPhotographUntilItSetsItsOwn(t *testi
 	view, err = store.Listing(ctx, child, catalog.Filters{})
 	if err != nil || view.Theme.Image().Shown() {
 		t.Fatalf("after removal the photograph is %+v (err %v)", view.Theme.Image(), err)
+	}
+}
+
+func TestCategoryIconVocabularyMatchesTheDatabaseConstraint(t *testing.T) {
+	ctx := t.Context()
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
+
+	var parentID uuid.UUID
+	if queryErr := tx.QueryRow(ctx, `
+		INSERT INTO categories (slug, name, position)
+		VALUES ($1, '圖示字彙測試',
+		        (SELECT coalesce(max(position), -1) + 1 FROM categories WHERE parent_id IS NULL))
+		RETURNING id`, "icon-vocabulary-"+uuid.NewString()[:8]).Scan(&parentID); queryErr != nil {
+		t.Fatalf("create parent: %v", queryErr)
+	}
+	for position, key := range icons.CategoryKeys() {
+		if _, execErr := tx.Exec(ctx, `
+			INSERT INTO categories (parent_id, slug, name, icon_key, position)
+			VALUES ($1, $2, $3, $3, $4)`,
+			parentID, "icon-"+key+"-"+uuid.NewString()[:8], key, position); execErr != nil {
+			t.Fatalf("database rejects renderer-owned icon %q: %v", key, execErr)
+		}
+	}
+	_, err = tx.Exec(ctx, `
+		INSERT INTO categories (parent_id, slug, name, icon_key, position)
+		VALUES ($1, $2, '未知圖示', 'rocket', $3)`,
+		parentID, "icon-unknown-"+uuid.NewString()[:8], len(icons.CategoryKeys()))
+	pgErr, ok := errors.AsType[*pgconn.PgError](err)
+	if !ok || pgErr.ConstraintName != "categories_icon_key_known" {
+		t.Fatalf("unknown persisted icon was refused by %v, want categories_icon_key_known", err)
+	}
+}
+
+// A root with no tone of its own is stone, and a campaign takes any tone of the
+// closed set: the Go set and the schema's CHECK name the same six.
+func TestEveryToneOfTheClosedSetIsStorable(t *testing.T) {
+	ctx, _ := admintest.StaffContext(t, pool)
+	slug := "tone-" + strings.ReplaceAll(uuid.NewString(), "-", "")[:10]
+	if errs, err := taxonomy.NewStore(pool).CreateCategory(ctx, &taxonomy.Form{Slug: slug, Name: "無色調"}); err != nil || len(errs) > 0 {
+		t.Fatalf("create: %v %v", errs, err)
+	}
+	view, err := catalog.NewStore(pool).Listing(ctx, slug, catalog.Filters{})
+	if err != nil || view.Theme.ToneAttr() != "stone" {
+		t.Fatalf("a root with no tone = %q (err %v), want stone", view.Theme.ToneAttr(), err)
+	}
+
+	camp := "tone-" + strings.ReplaceAll(uuid.NewString(), "-", "")[:10]
+	errs, err := campaigns.NewStore(pool).Create(ctx, &campaigns.Form{Slug: camp, Title: "色調測試", Days: 7})
+	if err != nil || len(errs) > 0 {
+		t.Fatalf("create the campaign: %v %v", errs, err)
+	}
+	for _, tone := range pages.Tones() {
+		if err = campaigns.NewStore(pool).SetTone(ctx, camp, string(tone)); err != nil {
+			t.Errorf("SetTone(%q): %v", tone, err)
+		}
+		if err = taxonomy.NewStore(pool).Rename(ctx, "category", slug, "無色調", "", "", string(tone), false); err != nil {
+			t.Errorf("Rename with tone %q: %v", tone, err)
+		}
+	}
+	if err = campaigns.NewStore(pool).SetTone(ctx, camp, "neon"); err == nil {
+		t.Error("a campaign accepted a tone outside the set")
+	}
+	cv, err := catalog.NewStore(pool).Campaign(ctx, camp)
+	if err != nil || cv.Tone != pages.ToneInk {
+		t.Fatalf("campaign tone = %q (err %v), want the last one set, ink", cv.Tone, err)
 	}
 }

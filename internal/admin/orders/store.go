@@ -35,7 +35,7 @@ import (
 // Refunds offers the refund before shipment on the order page and reports
 // whether one was ever opened; the refunds desk implements it.
 type Refunds interface {
-	FillOrder(ctx context.Context, view *admin.OrderView, number string) (bool, error)
+	FillOrder(ctx context.Context, view *admin.OrderView, number string) (opened bool, err error)
 }
 
 // Invoices puts what has been filed on the order page; the invoicing desk
@@ -178,8 +178,8 @@ func (s *Store) List(ctx context.Context, status admin.QueueFilter, term string,
 	// them to begin with.
 	rows, bound := web.PageBound(scope, resumed, rows, web.PageSize, func(r *db.AdminOrdersRow) string { return r.PageCursor })
 	view := admin.OrdersView{
-		ListBound: bound,
-		Status:    status, Term: term, Searched: searched,
+		Bound:  bound,
+		Status: status, Term: term, Searched: searched,
 	}
 	countsByFilter := make(map[admin.QueueFilter]int64, len(counts))
 	var total int64

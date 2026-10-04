@@ -6,6 +6,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -743,5 +745,55 @@ func TestStaffWriteRollsBackWhenAuditCannotRecord(t *testing.T) {
 	}
 	if users != 0 || audits != 0 {
 		t.Errorf("unattributed grant left %d user(s) and %d audit row(s), want 0/0", users, audits)
+	}
+}
+
+func TestOnlyAnAdminReachesTheStaffPage(t *testing.T) {
+	ctx := t.Context()
+
+	guarded := admintest.BackOffice.RequireAdmin(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("who works here"))
+	})
+
+	newUser := func(role string) account.User {
+		t.Helper()
+		var id uuid.UUID
+		if err := pool.QueryRow(ctx, `
+			INSERT INTO users (email, role)
+			VALUES ('`+role+`-'||gen_random_uuid()||'@example.com', $1)
+			RETURNING id`, role).Scan(&id); err != nil {
+			t.Fatalf("create %s: %v", role, err)
+		}
+		return account.User{ID: id.String(), Role: account.Role(role)}
+	}
+
+	for _, tt := range []struct {
+		name     string
+		signedIn bool
+		user     account.User
+		want     int
+	}{
+		{name: "signed out", want: http.StatusNotFound},
+		{name: "a customer", signedIn: true, user: newUser("customer"), want: http.StatusNotFound},
+		{name: "a staff member", signedIn: true, user: newUser("staff"), want: http.StatusNotFound},
+		{name: "an admin", signedIn: true, user: newUser("admin"), want: http.StatusOK},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/admin/staff", nil)
+			if tt.signedIn {
+				req = req.WithContext(account.WithUser(req.Context(), tt.user))
+			}
+			w := httptest.NewRecorder()
+			guarded(w, req)
+
+			if w.Code != tt.want {
+				t.Errorf("status is %d, want %d", w.Code, tt.want)
+			}
+			ran := strings.Contains(w.Body.String(), "who works here")
+			if want := tt.want == http.StatusOK; ran != want {
+				t.Errorf("the handler ran = %v, want %v", ran, want)
+			}
+		})
 	}
 }

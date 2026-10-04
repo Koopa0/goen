@@ -61,9 +61,9 @@ func (h *Handler) Queue(w http.ResponseWriter, r *http.Request) {
 			"return_id", issue.returnID, "error", issue.err)
 	}
 	view := admin.ReturnsView{
-		ListBound: queue.Bound,
-		Rows:      queue.Rows,
-		Notice:    web.Notice(r, notices),
+		Bound:  queue.Bound,
+		Rows:   queue.Rows,
+		Notice: web.Notice(r, notices),
 	}
 	web.Render(w, r, h.log, http.StatusOK, admin.Returns(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageReturns)}, view))
@@ -212,9 +212,9 @@ func (h *Handler) renderReturnRefusal(w http.ResponseWriter, r *http.Request, er
 		msg = i18n.T(r.Context(), i18n.KeyAdminRetErrBasis)
 	}
 	view := admin.ReturnsView{
-		ListBound: queue.Bound,
-		Rows:      queue.Rows,
-		Errors:    map[string]string{r.PathValue("id") + "." + field: msg},
+		Bound:  queue.Bound,
+		Rows:   queue.Rows,
+		Errors: map[string]string{r.PathValue("id") + "." + field: msg},
 	}
 	for i := range view.Rows {
 		if view.Rows[i].ID != r.PathValue("id") {
@@ -242,9 +242,9 @@ func (h *Handler) renderInspection(w http.ResponseWriter, r *http.Request, key i
 	}
 	id := r.PathValue("id")
 	view := admin.ReturnsView{
-		ListBound: queue.Bound,
-		Rows:      queue.Rows,
-		Errors:    map[string]string{id + ".inspect": i18n.T(r.Context(), key)},
+		Bound:  queue.Bound,
+		Rows:   queue.Rows,
+		Errors: map[string]string{id + ".inspect": i18n.T(r.Context(), key)},
 	}
 	for i := range view.Rows {
 		if view.Rows[i].ID != id {
