@@ -8,12 +8,12 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
+	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -58,7 +58,7 @@ func (h *Handler) Variants(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Adjust(w http.ResponseWriter, r *http.Request) {
-	u, _ := account.FromContext(r.Context())
+	u, _ := user.FromContext(r.Context())
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
@@ -116,7 +116,7 @@ func (h *Handler) rejectAdjustment(w http.ResponseWriter, r *http.Request, key i
 }
 
 func (h *Handler) Receive(w http.ResponseWriter, r *http.Request) {
-	u, _ := account.FromContext(r.Context())
+	u, _ := user.FromContext(r.Context())
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return

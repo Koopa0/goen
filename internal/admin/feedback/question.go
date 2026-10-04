@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/google/uuid"
@@ -12,24 +13,62 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
+	"github.com/koopa0/goen/internal/web"
 )
 
-const MaxQuestionRows = 50
+type QuestionQueue uint8
 
-func (s *Store) Questions(ctx context.Context) (admin.QuestionsView, error) {
-	rows, err := s.q.UnansweredQuestions(ctx, MaxQuestionRows)
+const (
+	VisibleQuestions QuestionQueue = iota
+	HiddenQuestions
+)
+
+type questionPosition struct {
+	Rank bool
+	ID   uuid.UUID
+	At   time.Time
+}
+
+func (s *Store) Questions(ctx context.Context, queue QuestionQueue, after ...string) (admin.QuestionsView, error) {
+	if queue != VisibleQuestions && queue != HiddenQuestions {
+		return admin.QuestionsView{}, ErrInvalid
+	}
+	showHidden := queue == HiddenQuestions
+	scope := web.ScopeURL("/admin/questions", "hidden", "")
+	if showHidden {
+		scope = web.ScopeURL("/admin/questions", "hidden", "1")
+	}
+	from, resumed := web.ResumeKeyset(scope, after, func(p questionPosition) bool { return p.ID != uuid.Nil })
+	rows, err := s.q.AdminQuestions(ctx, db.AdminQuestionsParams{Hidden: showHidden, HasCursor: resumed, AfterRank: from.Rank, AfterAt: from.At, AfterID: from.ID, RowLimit: web.PageLimit})
 	if err != nil {
 		return admin.QuestionsView{}, fmt.Errorf("read questions: %w", err)
 	}
-	view := admin.QuestionsView{}
+	rows, bound := web.PageBound(scope, resumed, rows, web.PageSize, func(r *db.AdminQuestionsRow) string { return r.PageCursor })
+	view := admin.QuestionsView{Bound: bound, Hidden: showHidden}
+	ids := make([]uuid.UUID, 0, len(rows))
+	index := make(map[uuid.UUID]int, len(rows))
 	for i := range rows {
 		r := &rows[i]
+		ids = append(ids, r.ID)
+		index[r.ID] = i
 		view.Rows = append(view.Rows, admin.Question{
 			ID: r.ID.String(), Body: r.Body, Asker: r.Asker,
 			ProductSlug: r.ProductSlug, ProductName: r.ProductName,
-			Asked:   shoptime.Minute(r.CreatedAt),
-			Answers: r.Answers, AnsweredByShop: r.AnsweredByShop,
+			Asked:       shoptime.Minute(r.CreatedAt),
+			AnswerCount: r.Answers, AnsweredByShop: r.AnsweredByShop, Hidden: r.HiddenAt.Valid,
 		})
+	}
+	if len(ids) == 0 {
+		return view, nil
+	}
+	answers, err := s.q.AdminQuestionAnswers(ctx, ids)
+	if err != nil {
+		return admin.QuestionsView{}, fmt.Errorf("read question answers: %w", err)
+	}
+	for i := range answers {
+		a := &answers[i]
+		row := &view.Rows[index[a.QuestionID]]
+		row.Answers = append(row.Answers, admin.Answer{ID: a.ID.String(), Body: a.Body, Author: a.Author, At: shoptime.Minute(a.CreatedAt), IsStaff: a.IsStaff, Hidden: a.HiddenAt.Valid})
 	}
 	return view, nil
 }
@@ -92,3 +131,41 @@ func (s *Store) AnswerQuestion(ctx context.Context, id, userID, body string) err
 }
 
 const MaxStaffAnswerRunes = 1000
+
+func (s *Store) ShowQuestion(ctx context.Context, id string) error {
+	questionID, err := uuid.Parse(id)
+	if err != nil {
+		return ErrNotFound
+	}
+	return audit.Run(ctx, s.pool, audit.Event{Action: audit.ActionShowQuestion, Table: "product_questions", ID: audit.EntityID(questionID), After: map[string]any{"hidden": false}}, func(ctx context.Context, q *db.Queries) error {
+		changed, showErr := q.ShowQuestion(ctx, questionID)
+		if showErr != nil {
+			return fmt.Errorf("show question: %w", showErr)
+		}
+		if changed == 0 {
+			return ErrNotFound
+		}
+		return nil
+	})
+}
+
+func (s *Store) HideAnswer(ctx context.Context, questionID, answerID string) error {
+	question, err := uuid.Parse(questionID)
+	if err != nil {
+		return ErrNotFound
+	}
+	answer, err := uuid.Parse(answerID)
+	if err != nil {
+		return ErrNotFound
+	}
+	return audit.Run(ctx, s.pool, audit.Event{Action: audit.ActionHideAnswer, Table: "product_answers", ID: audit.EntityID(answer), After: map[string]any{"question_id": questionID, "hidden": true}}, func(ctx context.Context, q *db.Queries) error {
+		changed, hideErr := q.HideQuestionAnswer(ctx, db.HideQuestionAnswerParams{QuestionID: question, AnswerID: answer})
+		if hideErr != nil {
+			return fmt.Errorf("hide answer: %w", hideErr)
+		}
+		if changed == 0 {
+			return ErrNotFound
+		}
+		return nil
+	})
+}

@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/account"
+	"github.com/koopa0/goen/internal/user"
 )
 
 // TestAWishlistRowOffersTheCartOnlyForAProductWithOneVariant: "add to cart"
@@ -85,7 +86,7 @@ func TestAMemberSavesAProductToTheWishlistAndReturnsWhereTheyWere(t *testing.T) 
 	h := account.NewHandler(s, nil, slog.New(slog.DiscardHandler), false, nil)
 
 	form := url.Values{"slug": {slug}, "return": {"/p/" + slug}}
-	req := httptest.NewRequestWithContext(account.WithUser(ctx, u), http.MethodPost,
+	req := httptest.NewRequestWithContext(user.NewContext(ctx, u), http.MethodPost,
 		"/account/wishlist", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	w := httptest.NewRecorder()

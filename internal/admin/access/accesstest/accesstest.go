@@ -13,9 +13,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/user"
 )
 
 // RefuseOutsiders registers a feature's routes and asks each as somebody signed
@@ -36,7 +36,7 @@ func RefuseOutsiders(t *testing.T, register func(*http.ServeMux, *access.Control
 		for name, as := range map[string]func(context.Context) context.Context{
 			"signed out": func(ctx context.Context) context.Context { return ctx },
 			"a customer": func(ctx context.Context) context.Context {
-				return account.WithUser(ctx, account.User{ID: uuid.NewString(), Role: account.RoleCustomer})
+				return user.NewContext(ctx, user.User{ID: uuid.NewString(), Role: user.RoleCustomer})
 			},
 		} {
 			t.Run(route+" "+name, func(t *testing.T) {

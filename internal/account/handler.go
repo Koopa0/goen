@@ -18,6 +18,7 @@ import (
 	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -71,7 +72,7 @@ func NewHandler(store *Store, carts CartFinder, log *slog.Logger, secure bool, g
 // OfferDemoAccount must be called before the handler serves.
 func (h *Handler) OfferDemoAccount(d DemoAccount) { h.demo = d }
 
-func (h *Handler) refuseDemoChange(w http.ResponseWriter, r *http.Request, u User) bool {
+func (h *Handler) refuseDemoChange(w http.ResponseWriter, r *http.Request, u user.User) bool {
 	if !h.demo.holds(u.Email) {
 		return false
 	}
@@ -83,19 +84,6 @@ func (h *Handler) refuseDemoChange(w http.ResponseWriter, r *http.Request, u Use
 // somebody retyping or asking again needs.
 var addressMailPace = ratelimit.Config{
 	Every: 10 * time.Minute, Burst: 3, TTL: time.Hour, MaxKeys: 65_536,
-}
-
-type contextKey struct{}
-
-var userKey contextKey
-
-func WithUser(ctx context.Context, u User) context.Context {
-	return context.WithValue(ctx, userKey, u)
-}
-
-func FromContext(ctx context.Context) (User, bool) {
-	u, ok := ctx.Value(userKey).(User)
-	return u, ok
 }
 
 func (h *Handler) Authenticate(next http.Handler) http.Handler {
@@ -120,13 +108,13 @@ func (h *Handler) Authenticate(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		next.ServeHTTP(w, r.WithContext(WithUser(r.Context(), u)))
+		next.ServeHTTP(w, r.WithContext(user.NewContext(r.Context(), u)))
 	})
 }
 
 func (h *Handler) RequireUser(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if _, ok := FromContext(r.Context()); !ok {
+		if _, ok := user.FromContext(r.Context()); !ok {
 			http.Redirect(w, r, "/signin?next="+urlQueryEscape(r.URL.Path), http.StatusSeeOther)
 			return
 		}
@@ -135,7 +123,7 @@ func (h *Handler) RequireUser(next http.HandlerFunc) http.HandlerFunc {
 }
 
 func (h *Handler) SignInPage(w http.ResponseWriter, r *http.Request) {
-	if _, ok := FromContext(r.Context()); ok {
+	if _, ok := user.FromContext(r.Context()); ok {
 		http.Redirect(w, r, "/account", http.StatusSeeOther)
 		return
 	}
@@ -224,7 +212,7 @@ func (h *Handler) signInView(v pages.AuthView) pages.AuthView {
 }
 
 func (h *Handler) RegisterPage(w http.ResponseWriter, r *http.Request) {
-	if _, ok := FromContext(r.Context()); ok {
+	if _, ok := user.FromContext(r.Context()); ok {
 		http.Redirect(w, r, "/account", http.StatusSeeOther)
 		return
 	}
@@ -376,7 +364,7 @@ func (h *Handler) Overview(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) overview(w http.ResponseWriter, r *http.Request, status int, refused func(*pages.AccountView)) {
-	u, ok := FromContext(r.Context())
+	u, ok := user.FromContext(r.Context())
 	if !ok {
 		http.Redirect(w, r, "/signin", http.StatusSeeOther)
 		return
@@ -434,7 +422,7 @@ func accountNotice(r *http.Request) string {
 }
 
 func (h *Handler) CartRecoveryPage(w http.ResponseWriter, r *http.Request) {
-	if _, ok := FromContext(r.Context()); !ok {
+	if _, ok := user.FromContext(r.Context()); !ok {
 		http.Redirect(w, r, "/signin", http.StatusSeeOther)
 		return
 	}
@@ -448,7 +436,7 @@ func (h *Handler) CartRecoveryPage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) RetryCartAdoption(w http.ResponseWriter, r *http.Request) {
-	u, ok := FromContext(r.Context())
+	u, ok := user.FromContext(r.Context())
 	if !ok {
 		http.Redirect(w, r, "/signin", http.StatusSeeOther)
 		return
@@ -463,7 +451,7 @@ func (h *Handler) RetryCartAdoption(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) OrderPage(w http.ResponseWriter, r *http.Request) {
-	if _, ok := FromContext(r.Context()); !ok {
+	if _, ok := user.FromContext(r.Context()); !ok {
 		http.Redirect(w, r, "/signin", http.StatusSeeOther)
 		return
 	}
@@ -472,7 +460,7 @@ func (h *Handler) OrderPage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
-	u, ok := FromContext(r.Context())
+	u, ok := user.FromContext(r.Context())
 	if !ok {
 		http.Redirect(w, r, "/signin", http.StatusSeeOther)
 		return
@@ -502,7 +490,7 @@ const (
 	cartAdoptionFailed
 )
 
-func (h *Handler) startSession(w http.ResponseWriter, r *http.Request, u User) (started bool, adoption cartAdoption) {
+func (h *Handler) startSession(w http.ResponseWriter, r *http.Request, u user.User) (started bool, adoption cartAdoption) {
 	token, err := h.store.StartSession(r.Context(), u.ID, r.UserAgent(), clientIP(r))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "start session", "error", err)
@@ -598,7 +586,7 @@ func (h *Handler) serverError(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) AddAddress(w http.ResponseWriter, r *http.Request) {
-	u, ok := FromContext(r.Context())
+	u, ok := user.FromContext(r.Context())
 	if !ok {
 		http.Redirect(w, r, "/signin", http.StatusSeeOther)
 		return
@@ -644,7 +632,7 @@ func (h *Handler) refuseAddress(w http.ResponseWriter, r *http.Request, a *Addre
 }
 
 func (h *Handler) MakeDefaultAddress(w http.ResponseWriter, r *http.Request) {
-	u, ok := FromContext(r.Context())
+	u, ok := user.FromContext(r.Context())
 	if !ok {
 		http.Redirect(w, r, "/signin", http.StatusSeeOther)
 		return
@@ -665,7 +653,7 @@ func (h *Handler) MakeDefaultAddress(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) DeleteAddress(w http.ResponseWriter, r *http.Request) {
-	u, ok := FromContext(r.Context())
+	u, ok := user.FromContext(r.Context())
 	if !ok {
 		http.Redirect(w, r, "/signin", http.StatusSeeOther)
 		return
@@ -685,7 +673,7 @@ func (h *Handler) DeleteAddress(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) ChangePassword(w http.ResponseWriter, r *http.Request) {
-	u, ok := FromContext(r.Context())
+	u, ok := user.FromContext(r.Context())
 	if !ok {
 		http.Redirect(w, r, "/signin", http.StatusSeeOther)
 		return
@@ -720,7 +708,7 @@ func (h *Handler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Erase(w http.ResponseWriter, r *http.Request) {
-	u, ok := FromContext(r.Context())
+	u, ok := user.FromContext(r.Context())
 	if !ok {
 		http.Redirect(w, r, "/signin", http.StatusSeeOther)
 		return
@@ -771,7 +759,7 @@ func (h *Handler) Erase(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Wishlist(w http.ResponseWriter, r *http.Request) {
-	u, ok := FromContext(r.Context())
+	u, ok := user.FromContext(r.Context())
 	if !ok {
 		http.Redirect(w, r, "/signin?next=/account/wishlist", http.StatusSeeOther)
 		return
@@ -795,7 +783,7 @@ func (h *Handler) SaveWishlist(w http.ResponseWriter, r *http.Request) {
 	// redirect target read off a form safe.
 	back := web.SitePathOr(r.PostFormValue("return"), "/account/wishlist")
 
-	u, ok := FromContext(r.Context())
+	u, ok := user.FromContext(r.Context())
 	if !ok {
 		// Authentication does not replay writes; this redirect only preserves
 		// the page for callers outside the authenticated route wrapper.
@@ -819,7 +807,7 @@ func (h *Handler) SaveWishlist(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) ChangeEmail(w http.ResponseWriter, r *http.Request) {
-	u, ok := FromContext(r.Context())
+	u, ok := user.FromContext(r.Context())
 	if !ok {
 		http.Redirect(w, r, "/signin", http.StatusSeeOther)
 		return
@@ -860,7 +848,7 @@ func (h *Handler) ChangeEmail(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) ResendVerification(w http.ResponseWriter, r *http.Request) {
-	u, ok := FromContext(r.Context())
+	u, ok := user.FromContext(r.Context())
 	if !ok {
 		http.Redirect(w, r, "/signin", http.StatusSeeOther)
 		return
@@ -900,7 +888,7 @@ func (h *Handler) Verify(w http.ResponseWriter, r *http.Request) {
 
 	token := r.PostFormValue("token")
 	var asker string
-	if u, ok := FromContext(ctx); ok {
+	if u, ok := user.FromContext(ctx); ok {
 		asker = u.ID
 	}
 	confirmed, err := h.store.ConfirmVerification(ctx, token, asker)
@@ -978,7 +966,7 @@ func (h *Handler) CompleteRegistration(w http.ResponseWriter, r *http.Request) {
 	confirmed, err := h.store.CompleteRegistration(ctx, token, r.PostFormValue("password"))
 	switch {
 	case err == nil:
-		started, adoption := h.startSession(w, r, User{ID: confirmed.UserID})
+		started, adoption := h.startSession(w, r, user.User{ID: confirmed.UserID})
 		if !started {
 			return
 		}
@@ -1108,7 +1096,7 @@ func (h *Handler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) UnlinkGoogle(w http.ResponseWriter, r *http.Request) {
-	u, ok := FromContext(r.Context())
+	u, ok := user.FromContext(r.Context())
 	if !ok {
 		http.Redirect(w, r, "/signin", http.StatusSeeOther)
 		return

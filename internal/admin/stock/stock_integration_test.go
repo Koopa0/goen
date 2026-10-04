@@ -14,12 +14,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/stock"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/inventory"
+	"github.com/koopa0/goen/internal/user"
 )
 
 func TestStockMovesOnlyThroughTheLedger(t *testing.T) {
@@ -328,7 +328,7 @@ func TestRestockingTellsEverybodyWhoAsked(t *testing.T) {
 		RETURNING id`, "restock-"+sku+"@goen.invalid").Scan(&actor); err != nil {
 		t.Fatalf("create staff: %v", err)
 	}
-	staffCtx := account.WithUser(ctx, account.User{ID: actor.String(), Role: account.RoleAdmin})
+	staffCtx := user.NewContext(ctx, user.User{ID: actor.String(), Role: user.RoleAdmin})
 
 	if err := s.Adjust(staffCtx, sku, 10, actor.String(), "restock-test-1"); err != nil {
 		t.Fatalf("restock: %v", err)
@@ -399,7 +399,7 @@ func TestAnAdjustmentBelowTheThresholdTellsNobody(t *testing.T) {
 		RETURNING id`, "threshold-"+sku+"@goen.invalid").Scan(&actor); err != nil {
 		t.Fatalf("create staff: %v", err)
 	}
-	staffCtx := account.WithUser(ctx, account.User{ID: actor.String(), Role: account.RoleAdmin})
+	staffCtx := user.NewContext(ctx, user.User{ID: actor.String(), Role: user.RoleAdmin})
 
 	if err := s.Adjust(staffCtx, sku, 3, actor.String(), "threshold-test-1"); err != nil {
 		t.Fatalf("adjust: %v", err)
@@ -462,7 +462,7 @@ func TestARestockNoticeNamesTheProductInTheReadersLanguage(t *testing.T) {
 		RETURNING id`, "restock-locale-"+sku+"@goen.invalid").Scan(&actor); err != nil {
 		t.Fatalf("create staff: %v", err)
 	}
-	staffCtx := account.WithUser(ctx, account.User{ID: actor.String(), Role: account.RoleAdmin})
+	staffCtx := user.NewContext(ctx, user.User{ID: actor.String(), Role: user.RoleAdmin})
 
 	if err := s.Adjust(staffCtx, sku, 10, actor.String(), "restock-locale-1"); err != nil {
 		t.Fatalf("restock: %v", err)

@@ -13,11 +13,11 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/assets"
-	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/home"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -461,7 +461,7 @@ func withTopNav(next http.Handler, store *home.Store, log *slog.Logger) http.Han
 // beside the adminNav row that already leads there.
 func withStaffEntrance(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		u, ok := account.FromContext(r.Context())
+		u, ok := user.FromContext(r.Context())
 		if !ok || !u.IsStaff() || !navPath(r.URL.Path) {
 			next.ServeHTTP(w, r)
 			return
@@ -502,7 +502,7 @@ func unstored(r *http.Request) bool {
 	if r.Method != http.MethodGet && r.Method != http.MethodHead {
 		return true
 	}
-	if _, signedIn := account.FromContext(r.Context()); signedIn {
+	if _, signedIn := user.FromContext(r.Context()); signedIn {
 		return true
 	}
 	for _, prefix := range unstoredPrefixes {

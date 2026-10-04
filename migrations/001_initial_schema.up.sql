@@ -9269,8 +9269,8 @@ GRANT INSERT (id, hidden_at, created_at),
     ON product_questions TO admin;
 
 REVOKE INSERT, UPDATE ON product_answers FROM admin;
-GRANT INSERT (id, question_id, user_id, body, is_staff, created_at),
-      UPDATE (id, question_id, user_id, body, is_staff, created_at)
+GRANT INSERT (id, question_id, user_id, body, is_staff, hidden_at, created_at),
+      UPDATE (id, question_id, user_id, body, is_staff, hidden_at, created_at)
     ON product_answers TO admin;
 
 REVOKE INSERT, UPDATE ON return_requests FROM admin;

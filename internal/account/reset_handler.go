@@ -10,11 +10,12 @@ import (
 	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web"
 )
 
 func (h *Handler) ForgotPage(w http.ResponseWriter, r *http.Request) {
-	if _, ok := FromContext(r.Context()); ok {
+	if _, ok := user.FromContext(r.Context()); ok {
 		http.Redirect(w, r, "/account", http.StatusSeeOther)
 		return
 	}

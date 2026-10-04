@@ -12,8 +12,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -62,7 +62,7 @@ func TestANilOperationIdentityIsNotAnEmptyAccount(t *testing.T) {
 
 func TestAnInvalidOperationIdentityIsNotReportedAsAShortBalance(t *testing.T) {
 	h := &Handler{store: &Store{}, log: slog.New(slog.DiscardHandler)}
-	user := account.User{ID: uuid.NewString(), Role: account.RoleCustomer}
+	u := user.User{ID: uuid.NewString(), Role: user.RoleCustomer}
 	validOp := uuid.NewString()
 	tests := []struct {
 		name string
@@ -78,7 +78,7 @@ func TestAnInvalidOperationIdentityIsNotReportedAsAShortBalance(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			req := httptest.NewRequestWithContext(
-				account.WithUser(t.Context(), user),
+				user.NewContext(t.Context(), u),
 				http.MethodPost, "/account/points", strings.NewReader(tt.form.Encode()),
 			)
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -97,7 +97,7 @@ func TestAnInvalidOperationIdentityIsNotReportedAsAShortBalance(t *testing.T) {
 func TestAMissingAccountIsStillReportedAsAShortBalance(t *testing.T) {
 	h := &Handler{store: &Store{}, log: slog.New(slog.DiscardHandler)}
 	req := httptest.NewRequestWithContext(
-		account.WithUser(t.Context(), account.User{ID: "not-a-uuid", Role: account.RoleCustomer}),
+		user.NewContext(t.Context(), user.User{ID: "not-a-uuid", Role: user.RoleCustomer}),
 		http.MethodPost, "/account/points",
 		strings.NewReader(url.Values{
 			"points":       {"100"},

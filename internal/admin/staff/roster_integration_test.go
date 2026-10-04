@@ -19,6 +19,7 @@ import (
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/staff"
+	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -756,7 +757,7 @@ func TestOnlyAnAdminReachesTheStaffPage(t *testing.T) {
 		_, _ = w.Write([]byte("who works here"))
 	})
 
-	newUser := func(role string) account.User {
+	newUser := func(role string) user.User {
 		t.Helper()
 		var id uuid.UUID
 		if err := pool.QueryRow(ctx, `
@@ -765,13 +766,13 @@ func TestOnlyAnAdminReachesTheStaffPage(t *testing.T) {
 			RETURNING id`, role).Scan(&id); err != nil {
 			t.Fatalf("create %s: %v", role, err)
 		}
-		return account.User{ID: id.String(), Role: account.Role(role)}
+		return user.User{ID: id.String(), Role: user.Role(role)}
 	}
 
 	for _, tt := range []struct {
 		name     string
 		signedIn bool
-		user     account.User
+		user     user.User
 		want     int
 	}{
 		{name: "signed out", want: http.StatusNotFound},
@@ -782,7 +783,7 @@ func TestOnlyAnAdminReachesTheStaffPage(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/admin/staff", nil)
 			if tt.signedIn {
-				req = req.WithContext(account.WithUser(req.Context(), tt.user))
+				req = req.WithContext(user.NewContext(req.Context(), tt.user))
 			}
 			w := httptest.NewRecorder()
 			guarded(w, req)

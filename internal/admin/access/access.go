@@ -6,10 +6,10 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -32,7 +32,7 @@ func New(log *slog.Logger, stepUp func(*http.Request) (bool, error)) *Control {
 // /signin?next=/admin — confirms that /admin is a real place.
 func (c *Control) RequireStaff(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		u, ok := account.FromContext(r.Context())
+		u, ok := user.FromContext(r.Context())
 		if !ok || !u.IsStaff() {
 			NotFound(w, r, c.log)
 			return
@@ -65,7 +65,7 @@ func (c *Control) RequireStaff(next http.HandlerFunc) http.HandlerFunc {
 // the ADMIN pool.
 func (c *Control) StaffOnly(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		u, ok := account.FromContext(r.Context())
+		u, ok := user.FromContext(r.Context())
 		if !ok || !u.IsStaff() {
 			NotFound(w, r, c.log)
 			return
@@ -78,7 +78,7 @@ func (c *Control) StaffOnly(next http.HandlerFunc) http.HandlerFunc {
 // on the staff predicate, /admin/staff is a self-service promotion desk.
 func (c *Control) RequireAdmin(next http.HandlerFunc) http.HandlerFunc {
 	return c.RequireStaff(func(w http.ResponseWriter, r *http.Request) {
-		u, ok := account.FromContext(r.Context())
+		u, ok := user.FromContext(r.Context())
 		if !ok || !u.IsAdmin() {
 			NotFound(w, r, c.log)
 			return

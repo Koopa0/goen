@@ -9,6 +9,7 @@ import (
 
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/email"
+	"github.com/koopa0/goen/internal/user"
 )
 
 // ErrDemoAccountIsStaff exists because the demo password would be printed on the sign-in
@@ -72,7 +73,7 @@ func (s *Store) EnsureDemoAccount(ctx context.Context, d DemoAccount) error {
 	if err != nil {
 		return fmt.Errorf("read the demo account: %w", err)
 	}
-	if (User{Role: Role(row.Role)}).IsStaff() {
+	if (user.User{Role: user.Role(row.Role)}).IsStaff() {
 		return ErrDemoAccountIsStaff
 	}
 	if !passwordMatches(row.PasswordHash, d.password) {

@@ -14,10 +14,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 
-	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/staff"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/user"
 )
 
 func TestExistingStaffDatabaseConstraint(t *testing.T) {
@@ -131,8 +131,8 @@ func TestDuplicateStaffFormRetainsInputAndExplainsRefusal(t *testing.T) {
 		slog.New(slog.DiscardHandler), false)
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		t.Run(locale.Tag(), func(t *testing.T) {
-			ctx := i18n.WithLocale(account.WithUser(t.Context(), account.User{
-				ID: actor, Email: actorEmail, Role: account.RoleAdmin,
+			ctx := i18n.WithLocale(user.NewContext(t.Context(), user.User{
+				ID: actor, Email: actorEmail, Role: user.RoleAdmin,
 			}), locale)
 			form := url.Values{"email": {address}, "name": {"Submitted name"}, "role": {"admin"}}
 			r := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/staff", strings.NewReader(form.Encode()))

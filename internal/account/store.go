@@ -26,6 +26,7 @@ import (
 	"github.com/koopa0/goen/internal/web"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/user"
 )
 
 type Store struct {
@@ -125,37 +126,37 @@ func (s *Store) FollowUpRegistration(
 	})
 }
 
-func (s *Store) Authenticate(ctx context.Context, email, password string) (User, error) {
+func (s *Store) Authenticate(ctx context.Context, email, password string) (user.User, error) {
 	// Refuse this before reading the account, or the outcomes are
 	// distinguishable: burnHashTime returns immediately at this length while
 	// VerifyPassword does not. Every password_hash writer in account goes
 	// through HashPassword, which refuses an input over this same bound.
 	if len(password) > MaxPasswordBytes {
-		return User{}, ErrBadCredentials
+		return user.User{}, ErrBadCredentials
 	}
 
 	row, err := s.q.UserByEmail(ctx, email)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			burnHashTime(password)
-			return User{}, ErrBadCredentials
+			return user.User{}, ErrBadCredentials
 		}
-		return User{}, fmt.Errorf("read user: %w", err)
+		return user.User{}, fmt.Errorf("read user: %w", err)
 	}
 	if !passwordMatches(row.PasswordHash, password) {
-		return User{}, ErrBadCredentials
+		return user.User{}, ErrBadCredentials
 	}
 	// After the hash, so an unproved account costs what a wrong password does.
 	// Its password was chosen by whoever registered the address, who has not
 	// yet shown they read the mailbox, and a different answer would say which
 	// registrations created an account.
 	if !row.Verified {
-		return User{}, ErrBadCredentials
+		return user.User{}, ErrBadCredentials
 	}
 	if err := s.q.TouchLastLogin(ctx, row.ID); err != nil {
-		return User{}, fmt.Errorf("touch last login: %w", err)
+		return user.User{}, fmt.Errorf("touch last login: %w", err)
 	}
-	return User{ID: row.ID.String(), Email: row.Email, Name: row.FullName.String, Role: Role(row.Role)}, nil
+	return user.User{ID: row.ID.String(), Email: row.Email, Name: row.FullName.String, Role: user.Role(row.Role)}, nil
 }
 
 // passwordMatches costs an account with no password the hash a wrong password
@@ -201,18 +202,18 @@ func (s *Store) StartSession(ctx context.Context, userID, userAgent, ip string) 
 	return token, nil
 }
 
-func (s *Store) SessionUser(ctx context.Context, token string) (User, error) {
+func (s *Store) SessionUser(ctx context.Context, token string) (user.User, error) {
 	if token == "" {
-		return User{}, ErrNotFound
+		return user.User{}, ErrNotFound
 	}
 	row, err := s.q.SessionUser(ctx, HashToken(token))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return User{}, ErrNotFound
+			return user.User{}, ErrNotFound
 		}
-		return User{}, fmt.Errorf("read session: %w", err)
+		return user.User{}, fmt.Errorf("read session: %w", err)
 	}
-	return User{ID: row.ID.String(), Email: row.Email, Name: row.FullName.String, Role: Role(row.Role)}, nil
+	return user.User{ID: row.ID.String(), Email: row.Email, Name: row.FullName.String, Role: user.Role(row.Role)}, nil
 }
 
 func (s *Store) SignedInRecently(ctx context.Context, token string, window time.Duration) (bool, error) {
@@ -490,7 +491,7 @@ func (s *Store) ChangePassword(ctx context.Context, userID, password string) err
 	return nil
 }
 
-func (s *Store) Overview(ctx context.Context, u User, after ...string) (pages.AccountView, error) {
+func (s *Store) Overview(ctx context.Context, u user.User, after ...string) (pages.AccountView, error) {
 	id, err := uuid.Parse(u.ID)
 	if err != nil {
 		return pages.AccountView{}, fmt.Errorf("parse user id: %w", err)
@@ -912,15 +913,15 @@ func (s *Store) RemoveFromWishlist(ctx context.Context, userID, slug string) err
 	return nil
 }
 
-func (s *Store) SignInWithGoogle(ctx context.Context, id Identity) (User, error) {
+func (s *Store) SignInWithGoogle(ctx context.Context, id Identity) (user.User, error) {
 	id, err := normaliseGoogleIdentity(id)
 	if err != nil {
-		return User{}, err
+		return user.User{}, err
 	}
 
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return User{}, fmt.Errorf("begin google sign-in: %w", err)
+		return user.User{}, fmt.Errorf("begin google sign-in: %w", err)
 	}
 	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
 	q := s.q.WithTx(tx)
@@ -930,7 +931,7 @@ func (s *Store) SignInWithGoogle(ctx context.Context, id Identity) (User, error)
 	// process. hashtextextended collisions only serialize unrelated sign-ins;
 	// the unique index remains the final guard.
 	if lockErr := q.LockGoogleSubject(ctx, id.Subject); lockErr != nil {
-		return User{}, fmt.Errorf("lock google subject: %w", lockErr)
+		return user.User{}, fmt.Errorf("lock google subject: %w", lockErr)
 	}
 
 	linked, lookupErr := q.UserByGoogleSubject(ctx, id.Subject)
@@ -939,27 +940,27 @@ func (s *Store) SignInWithGoogle(ctx context.Context, id Identity) (User, error)
 			linked.ID, linked.Email, linked.FullName, linked.Role)
 	}
 	if !errors.Is(lookupErr, pgx.ErrNoRows) {
-		return User{}, fmt.Errorf("read the linked account: %w", lookupErr)
+		return user.User{}, fmt.Errorf("read the linked account: %w", lookupErr)
 	}
 
 	candidateID, candidateEmail, candidateName, candidateRole, candidateErr :=
 		googleLinkCandidate(ctx, q, id)
 	if candidateErr != nil {
-		return User{}, candidateErr
+		return user.User{}, candidateErr
 	}
 
 	n, linkErr := q.LinkIdentity(ctx, db.LinkIdentityParams{
 		UserID: candidateID, Subject: id.Subject,
 	})
 	if linkErr != nil {
-		return User{}, fmt.Errorf("link the google identity: %w", linkErr)
+		return user.User{}, fmt.Errorf("link the google identity: %w", linkErr)
 	}
 	if n == 0 {
 		// Defensive even for a writer that did not take the advisory lock:
 		// never commit a just-created orphan or return the email-selected
 		// candidate.
 		if rollbackErr := tx.Rollback(context.WithoutCancel(ctx)); rollbackErr != nil {
-			return User{}, fmt.Errorf("roll back lost google link: %w", rollbackErr)
+			return user.User{}, fmt.Errorf("roll back lost google link: %w", rollbackErr)
 		}
 		return s.googleSubjectOwner(ctx, id.Subject)
 	}
@@ -1008,15 +1009,15 @@ func finishGoogleSignIn(
 	email string,
 	fullName pgtype.Text,
 	role string,
-) (User, error) {
+) (user.User, error) {
 	if err := q.TouchLastLogin(ctx, userID); err != nil {
-		return User{}, fmt.Errorf("touch last login: %w", err)
+		return user.User{}, fmt.Errorf("touch last login: %w", err)
 	}
 	if err := tx.Commit(ctx); err != nil {
-		return User{}, fmt.Errorf("commit google sign-in: %w", err)
+		return user.User{}, fmt.Errorf("commit google sign-in: %w", err)
 	}
-	return User{
-		ID: userID.String(), Email: email, Name: fullName.String, Role: Role(role),
+	return user.User{
+		ID: userID.String(), Email: email, Name: fullName.String, Role: user.Role(role),
 	}, nil
 }
 
@@ -1043,21 +1044,21 @@ func normaliseGoogleIdentity(id Identity) (Identity, error) {
 
 // googleSubjectOwner is the conflict fallback for a writer that did not take
 // our lock.
-func (s *Store) googleSubjectOwner(ctx context.Context, subject string) (User, error) {
+func (s *Store) googleSubjectOwner(ctx context.Context, subject string) (user.User, error) {
 	linked, err := s.q.UserByGoogleSubject(ctx, subject)
 	if err != nil {
-		return User{}, fmt.Errorf("read the winning google link: %w", err)
+		return user.User{}, fmt.Errorf("read the winning google link: %w", err)
 	}
 	if err := s.q.TouchLastLogin(ctx, linked.ID); err != nil {
-		return User{}, fmt.Errorf("touch last login: %w", err)
+		return user.User{}, fmt.Errorf("touch last login: %w", err)
 	}
-	return User{
+	return user.User{
 		ID: linked.ID.String(), Email: linked.Email,
-		Name: linked.FullName.String, Role: Role(linked.Role),
+		Name: linked.FullName.String, Role: user.Role(linked.Role),
 	}, nil
 }
 
-func (s *Store) UnlinkGoogle(ctx context.Context, u User) error {
+func (s *Store) UnlinkGoogle(ctx context.Context, u user.User) error {
 	id, err := uuid.Parse(u.ID)
 	if err != nil {
 		return fmt.Errorf("parse user id: %w", err)

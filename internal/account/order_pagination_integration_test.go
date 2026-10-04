@@ -15,13 +15,14 @@ import (
 
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/user"
 )
 
 func TestAccountOrdersReachEveryOlderOrderWithoutJavaScript(t *testing.T) {
 	s := account.NewStore(pool)
 	owner := register(t, s, "paged-"+uuid.NewString()+"@example.invalid")
 	other := register(t, s, "other-paged-"+uuid.NewString()+"@example.invalid")
-	ctx := account.WithUser(i18n.WithLocale(t.Context(), i18n.En), owner)
+	ctx := user.NewContext(i18n.WithLocale(t.Context(), i18n.En), owner)
 	if _, err := pool.Exec(ctx, `
  WITH inserted AS (
  INSERT INTO orders (user_id, shipping_version_id, shipping_method_code, shipping_method_name, placed_at)
@@ -82,7 +83,7 @@ func TestAccountOrdersReachEveryOlderOrderWithoutJavaScript(t *testing.T) {
 	}
 }
 
-func assertOrderCursorSurvivesInsertion(t *testing.T, s *account.Store, owner, other account.User, target string) {
+func assertOrderCursorSurvivesInsertion(t *testing.T, s *account.Store, owner, other user.User, target string) {
 	t.Helper()
 	ctx := t.Context()
 
