@@ -16,7 +16,7 @@ var (
 
 	KeyAdminPayRefundCard = key("admin.pay.refund.card", Message{ZhHant: "退回信用卡", En: "Refunded to card"})
 
-	KeyAdminPayRefundCredit = key("admin.pay.refund.credit", Message{ZhHant: "退回商店額度", En: "Refunded to store credit"})
+	KeyAdminPayRefundCredit = key("admin.pay.refund.credit", Message{ZhHant: "退回購物金", En: "Refunded to store credit"})
 
 	KeyAdminPayReason = key("admin.pay.reason", Message{ZhHant: "原因：%s", En: "Reason: %s"})
 

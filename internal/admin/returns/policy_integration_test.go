@@ -857,7 +857,7 @@ func queueRow(t *testing.T, s *returns.Store, requestID uuid.UUID) adminpages.Re
 
 func queueWindow(t *testing.T, s *returns.Store, requestID uuid.UUID) string {
 	t.Helper()
-	return queueRow(t, s, requestID).Window
+	return string(queueRow(t, s, requestID).Window)
 }
 
 func returnPayoutOn(t *testing.T, p *pgxpool.Pool, requestID uuid.UUID) (status string, refunds int) {
