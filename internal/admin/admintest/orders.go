@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/koopa0/goen/internal/admin/health"
 	"github.com/koopa0/goen/internal/admin/invoicing"
 	"github.com/koopa0/goen/internal/admin/orders"
 	"github.com/koopa0/goen/internal/admin/refunds"
@@ -309,10 +310,11 @@ func (DisabledInvoiceWriter) FileAllowance(
 	return invoice.Document{}, invoice.ErrDisabled
 }
 
-// OrderStore builds the order desk's store and the refunds, invoicing and stock
+// OrderStore builds the order desk's store and the refunds, invoicing, stock and health
 // stores it reads through, all over p, as cmd/goen does.
 func OrderStore(p *pgxpool.Pool, refunder refunds.Refunder, reader invoicing.Reader, writer invoicing.Writer) *orders.Store {
-	return orders.NewStore(p, refunds.NewStore(p, refunder, nil), invoicing.NewStore(p, reader, writer), stock.NewStore(p))
+	// A method value, not *health.Store: converting the store to an interface makes deadcode (x/tools v0.49.0) panic on outbox.Store's generic method.
+	return orders.NewStore(p, refunds.NewStore(p, refunder, nil), invoicing.NewStore(p, reader, writer), stock.NewStore(p), orders.HealthFunc(health.NewStore(p).Tasks))
 }
 
 func OrderDesk(s *orders.Store) *orders.Handler {
