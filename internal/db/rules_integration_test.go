@@ -279,6 +279,25 @@ var ruleCases = []ruleCase{
 		         SET CONSTRAINTS orders_have_lines IMMEDIATE;`,
 	},
 	{
+		rule: "orders_single_tax_type",
+		reject: `INSERT INTO orders (id, order_number, shipping_version_id, shipping_method_code, shipping_method_name)
+		         VALUES ('11110001-0000-4000-8000-000000000001', 'GO-260721-000999', 'ffff0002-0000-4000-8000-000000000000', 'home_delivery', '宅配');
+		         INSERT INTO order_lines (order_id, sku, product_name, unit_price_cents, quantity, position, tax_type)
+		         VALUES ('11110001-0000-4000-8000-000000000001', 'SKU-X', '商品', 100000, 1, 0, 'exempt'),
+		                ('11110001-0000-4000-8000-000000000001', 'SKU-Y', '商品', 100000, 1, 1, 'taxable');
+		         INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street)
+		         VALUES ('11110001-0000-4000-8000-000000000001', 'x@example.com', '王小明', '0912345678', '110', '台北市', '信義區', '松高路 1 號');
+		         SET CONSTRAINTS orders_have_lines IMMEDIATE;`,
+		accept: `INSERT INTO orders (id, order_number, shipping_version_id, shipping_method_code, shipping_method_name)
+		         VALUES ('11110001-0000-4000-8000-000000000001', 'GO-260721-000999', 'ffff0002-0000-4000-8000-000000000000', 'home_delivery', '宅配');
+		         INSERT INTO order_lines (order_id, sku, product_name, unit_price_cents, quantity, position, tax_type)
+		         VALUES ('11110001-0000-4000-8000-000000000001', 'SKU-X', '商品', 100000, 1, 0, 'exempt'),
+		                ('11110001-0000-4000-8000-000000000001', 'SKU-Y', '商品', 100000, 1, 1, 'exempt');
+		         INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street)
+		         VALUES ('11110001-0000-4000-8000-000000000001', 'x@example.com', '王小明', '0912345678', '110', '台北市', '信義區', '松高路 1 號');
+		         SET CONSTRAINTS orders_have_lines IMMEDIATE;`,
+	},
+	{
 		rule: "order_lines_frozen_once_committed",
 		reject: `UPDATE order_lines SET unit_price_cents = 1
 		         WHERE order_id = '66666666-6666-4666-8666-666666666666';`,

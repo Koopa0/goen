@@ -16,7 +16,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	adminpages "github.com/koopa0/goen/internal/ui/pages/admin"
+	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -71,14 +71,9 @@ func (h *Handler) ProductInvoiceLine(w http.ResponseWriter, r *http.Request) {
 		h.log.ErrorContext(r.Context(), "set product invoice", "error", err)
 		access.ServerError(w, r, h.log)
 	default:
-		view, readErr := h.store.Product(r.Context(), r.PathValue("slug"))
-		if readErr != nil {
-			h.log.ErrorContext(r.Context(), "read saved product invoice", "error", readErr)
-			access.ServerError(w, r, h.log)
-			return
-		}
-		//nolint:gosec // slug read from the product row
-		http.Redirect(w, r, view.Action()+"?ok=1#sec-invoice", http.StatusSeeOther)
+		slug := r.PathValue("slug")
+		//nolint:gosec // G710: validated by the route's own slug
+		http.Redirect(w, r, "/admin/products/"+slug+"?ok=1#sec-invoice", http.StatusSeeOther)
 	}
 }
 
@@ -95,5 +90,5 @@ func (h *Handler) rejectProductInvoiceLine(w http.ResponseWriter, r *http.Reques
 	}
 	view.InvoiceTerms = &facts
 	view.Errors = errs
-	web.Render(w, r, h.log, http.StatusUnprocessableEntity, adminpages.ProductForm(layouts.Page{Title: view.Name}, view))
+	web.Render(w, r, h.log, http.StatusUnprocessableEntity, admin.ProductForm(layouts.Page{Title: view.Name}, view))
 }
