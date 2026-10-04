@@ -105,7 +105,7 @@ type StorefrontConfig struct {
 	// Google signs customers in, or is disabled and 404s its two routes.
 	Google *account.Google
 	// StoreMap is the carrier's convenience-store picker, or is disabled and
-	// the checkout asks for a chain alone, the route is not registered, the
+	// the checkout offers no pickup, the route is not registered, the
 	// cross-origin defence gains no bypass, and the policy is unchanged.
 	StoreMap *cart.StoreMap
 	// DemoAccount is the account a public demonstration shares, or the zero

@@ -34,7 +34,7 @@ Back-office writes go through `audit.Run` ([internal/admin/audit](internal/admin
 ## Without JavaScript, without providers
 
 - `TestEveryFormWorksWithScriptingOff` checks that every form in the templates names an action and a get or post method.
-- Each provider may be missing. Without Stripe the payment page says card payment is unavailable; without ECPay the checkout takes no mobile barcode and the back office shows no invoice controls; without the store map the checkout asks for a store chain only.
+- Each provider may be missing. Without Stripe the payment page says card payment is unavailable; without ECPay the checkout takes no mobile barcode and the back office shows no invoice controls; without the store map the checkout offers no convenience-store pickup.
 
 ## Checks
 
