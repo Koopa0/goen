@@ -35,5 +35,5 @@ func TestMain(m *testing.M) {
 }
 
 func handlerOver(s *shipping.Store) *shipping.Handler {
-	return shipping.NewHandler(s, nil, slog.New(slog.DiscardHandler))
+	return shipping.NewHandler(s, false, slog.New(slog.DiscardHandler))
 }

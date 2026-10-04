@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
@@ -140,9 +141,9 @@ func TestEveryReturnPolicyWindowHasALabel(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), locale)
-		for _, window := range []string{"within", "goodwill", "after", "undelivered", "mixed"} {
+		for _, window := range []returns.PolicyWindow{returns.WindowStatutory, returns.WindowGoodwill, returns.WindowLate, returns.WindowUndelivered, returns.WindowMixed} {
 			label := ReturnLineWindowText(ctx, window)
-			if label == "" || label == window {
+			if label == "" || label == string(window) {
 				t.Errorf("WindowText(%q) in %s = %q, want a catalogue label", window, locale, label)
 			}
 		}
@@ -203,7 +204,7 @@ func TestAnApprovedReturnWithMoneyOutstandingOffersToSendItAgain(t *testing.T) {
 				row := base("window-" + tt.window)
 				row.Status = "requested"
 				row.Decided = false
-				row.Window = tt.window
+				row.Window = returns.PolicyWindow(tt.window)
 				html := render(t, row)
 				for _, want := range tt.want {
 					if !strings.Contains(html, want) {

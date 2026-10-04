@@ -861,7 +861,7 @@ func TestTheShippingPageSaysWhenCheckoutHidesPickup(t *testing.T) {
 	}
 
 	for name, storeMap := range map[string]*cart.StoreMap{"no map": nil, "a map": enabled} {
-		h := shipping.NewHandler(s, storeMap, log)
+		h := shipping.NewHandler(s, storeMap.Enabled(), log)
 		req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/admin/shipping", http.NoBody)
 		w := httptest.NewRecorder()
 		admintest.BackOffice.RequireStaff(h.Page)(w, req)
