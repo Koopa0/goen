@@ -66,7 +66,7 @@ func sel(pairs ...string) string {
 
 func get(t *testing.T, slug, query string) (status int, body string) {
 	t.Helper()
-	h := product.NewHandler(product.NewStore(pool), slog.New(slog.DiscardHandler), "https://goen.example")
+	h := product.NewHandler(product.NewStore(pool, slog.New(slog.DiscardHandler)), slog.New(slog.DiscardHandler), "https://goen.example")
 	target := "/p/" + slug
 	if query != "" {
 		target += "?" + query
@@ -121,7 +121,7 @@ func TestChoosingAVariantHasNoSecondServerPath(t *testing.T) {
 // back the whole response rather than two of its parts.
 func render(t *testing.T, slug, query string, headers map[string]string) *httptest.ResponseRecorder {
 	t.Helper()
-	h := product.NewHandler(product.NewStore(pool), slog.New(slog.DiscardHandler), "https://goen.example")
+	h := product.NewHandler(product.NewStore(pool, slog.New(slog.DiscardHandler)), slog.New(slog.DiscardHandler), "https://goen.example")
 	target := "/p/" + slug
 	if query != "" {
 		target += "?" + query
@@ -218,7 +218,7 @@ func TestTheChosenValuesPhotographsLeadTheGallery(t *testing.T) {
 			[]string{blue, first, late, black}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			view, err := product.NewStore(tx).Load(ctx, "pixelight-9-pro", tc.sel)
+			view, err := product.NewStore(tx, slog.New(slog.DiscardHandler)).Load(ctx, "pixelight-9-pro", tc.sel)
 			if err != nil {
 				t.Fatalf("load: %v", err)
 			}
@@ -291,7 +291,7 @@ func TestDraftProductIs404(t *testing.T) {
 		`UPDATE products SET status = 'draft' WHERE slug = 'pixelight-9-pro';`); err != nil {
 		t.Fatalf("fixture: %v", err)
 	}
-	if _, err := product.NewStore(tx).Load(ctx, "pixelight-9-pro", nil); err == nil {
+	if _, err := product.NewStore(tx, slog.New(slog.DiscardHandler)).Load(ctx, "pixelight-9-pro", nil); err == nil {
 		t.Fatal("a draft product loaded; it must be indistinguishable from a missing one")
 	} else if !strings.Contains(err.Error(), "not found") {
 		t.Fatalf("draft product failed with %v, want not found", err)
@@ -321,7 +321,7 @@ func TestVariantSelectionIsAURL(t *testing.T) {
 }
 
 func TestPickerMarksUnavailableAgainstOtherChoices(t *testing.T) {
-	view, err := product.NewStore(pool).Load(t.Context(), "aurora-slate-11",
+	view, err := product.NewStore(pool, slog.New(slog.DiscardHandler)).Load(t.Context(), "aurora-slate-11",
 		product.Selection{"容量": "128GB"})
 	if err != nil {
 		t.Fatalf("load: %v", err)
@@ -379,7 +379,7 @@ func TestVariantAtTheSafetyFloorCannotBeBought(t *testing.T) {
 		t.Fatalf("fixture: %v", fixErr)
 	}
 
-	view, err := product.NewStore(tx).Load(ctx, "pixelight-9-pro",
+	view, err := product.NewStore(tx, slog.New(slog.DiscardHandler)).Load(ctx, "pixelight-9-pro",
 		product.Selection{"顏色": "星霧藍", "容量": "512GB"})
 	if err != nil {
 		t.Fatalf("load: %v", err)
@@ -442,7 +442,7 @@ func TestDetailShowsWhatThePageIsFor(t *testing.T) {
 
 func TestOnlyACustomerWhoReceivedTheProductMayReview(t *testing.T) {
 	ctx := t.Context()
-	s := product.NewStore(pool)
+	s := product.NewStore(pool, slog.New(slog.DiscardHandler))
 	slug := activeSlug(t)
 
 	received := reviewer(t, "received")
@@ -622,7 +622,7 @@ func TestRetiringAPurchasedVariantDoesNotEraseVerifiedPurchase(t *testing.T) {
 			t.Fatalf("move the order to %s: %v", status, moveErr)
 		}
 	}
-	s := product.NewStore(tx)
+	s := product.NewStore(tx, slog.New(slog.DiscardHandler))
 	standing, err := s.ReviewStanding(ctx, slug, who.String())
 	if err != nil || standing != pages.ReviewOpen {
 		t.Fatalf("ReviewStanding after variant retirement = %v, %v; want ReviewOpen, nil", standing, err)
@@ -645,7 +645,7 @@ func TestRetiringAPurchasedVariantDoesNotEraseVerifiedPurchase(t *testing.T) {
 
 func TestOneReviewPerPersonPerProduct(t *testing.T) {
 	ctx := t.Context()
-	s := product.NewStore(pool)
+	s := product.NewStore(pool, slog.New(slog.DiscardHandler))
 	who := reviewer(t, "once")
 	slug := activeSlug(t)
 	receive(t, who, slug)
@@ -709,7 +709,7 @@ func TestTheSeededReviewsReadLikeCustomers(t *testing.T) {
 
 func TestReviewValidation(t *testing.T) {
 	ctx := t.Context()
-	s := product.NewStore(pool)
+	s := product.NewStore(pool, slog.New(slog.DiscardHandler))
 	slug := activeSlug(t)
 
 	long := strings.Repeat("字", product.MaxReviewBodyRunes+1)
@@ -768,7 +768,7 @@ func TestFeedbackCannotTargetAMissingOrInactiveProduct(t *testing.T) {
 	}
 
 	t.Run("missing", func(t *testing.T) {
-		assertRefused(t, product.NewStore(pool), missing)
+		assertRefused(t, product.NewStore(pool, slog.New(slog.DiscardHandler)), missing)
 	})
 	t.Run("inactive", func(t *testing.T) {
 		tx, err := pool.Begin(ctx)
@@ -779,7 +779,7 @@ func TestFeedbackCannotTargetAMissingOrInactiveProduct(t *testing.T) {
 
 		slug := activeSlug(t)
 		receive(t, who, slug)
-		store := product.NewStore(tx)
+		store := product.NewStore(tx, slog.New(slog.DiscardHandler))
 		if errs, err := store.AddReview(ctx, slug, who.String(), &product.Review{
 			Rating: 4, Body: "商品下架之前已經留下這則評價。",
 		}); err != nil || len(errs) != 0 {
@@ -896,7 +896,7 @@ func buy(t *testing.T, userID uuid.UUID, slug string) {
 
 func TestRestockNoticeIsIdempotent(t *testing.T) {
 	ctx := t.Context()
-	s := product.NewStore(pool)
+	s := product.NewStore(pool, slog.New(slog.DiscardHandler))
 	vid, slug := soldOutVariant(t)
 	addr := waitingAddr(t)
 
@@ -934,7 +934,7 @@ func TestRestockNoticeIsIdempotent(t *testing.T) {
 func TestTheRestockConfirmationNamesOnlyTheAccountsOwnAddress(t *testing.T) {
 	ctx := t.Context()
 	vid, slug := soldOutVariant(t)
-	h := product.NewHandler(product.NewStore(pool), slog.New(slog.DiscardHandler), "https://goen.example")
+	h := product.NewHandler(product.NewStore(pool, slog.New(slog.DiscardHandler)), slog.New(slog.DiscardHandler), "https://goen.example")
 	own := "own-" + waitingAddr(t)
 
 	post := func(signedIn bool, addr, remote string) string {
@@ -972,7 +972,7 @@ func TestTheRestockConfirmationNamesOnlyTheAccountsOwnAddress(t *testing.T) {
 
 func TestANotifiedRequestDoesNotBlockTheNextOne(t *testing.T) {
 	ctx := t.Context()
-	s := product.NewStore(pool)
+	s := product.NewStore(pool, slog.New(slog.DiscardHandler))
 	vid, slug := soldOutVariant(t)
 	const addr = "again@example.com"
 
@@ -1003,7 +1003,7 @@ func TestANotifiedRequestDoesNotBlockTheNextOne(t *testing.T) {
 
 func TestRestockNoticeRefusesAnUnusableAddress(t *testing.T) {
 	ctx := t.Context()
-	s := product.NewStore(pool)
+	s := product.NewStore(pool, slog.New(slog.DiscardHandler))
 	vid, slug := soldOutVariant(t)
 
 	for _, addr := range []string{"", "  ", "nope", "a@", "@b.com", "a b@c.com"} {
@@ -1019,7 +1019,7 @@ func TestRestockNoticeRefusesAnUnusableAddress(t *testing.T) {
 
 func TestRestockNoticeIsBoundToTheRouteAndASoldOutActiveVariant(t *testing.T) {
 	ctx := t.Context()
-	s := product.NewStore(pool)
+	s := product.NewStore(pool, slog.New(slog.DiscardHandler))
 	vid, slug := soldOutVariant(t)
 
 	if err := s.RequestRestockNotice(ctx, slug+"-wrong", vid.String(),
@@ -1059,7 +1059,7 @@ func TestRestockNoticeIsBoundToTheRouteAndASoldOutActiveVariant(t *testing.T) {
 			if _, err := tx.Exec(ctx, tc.update, vid); err != nil {
 				t.Fatalf("make fixture ineligible: %v", err)
 			}
-			if err := product.NewStore(tx).RequestRestockNotice(ctx, slug, vid.String(),
+			if err := product.NewStore(tx, slog.New(slog.DiscardHandler)).RequestRestockNotice(ctx, slug, vid.String(),
 				"inactive-"+strings.ReplaceAll(tc.name, " ", "-")+"@example.com", ""); !errors.Is(err, product.ErrNotifyInvalid) {
 				t.Errorf("request gave %v, want ErrNotifyInvalid", err)
 			}
@@ -1093,7 +1093,7 @@ func TestRestockNoticeAndRestockLinearizeOnVariant(t *testing.T) {
 			t.Fatalf("begin notice request: %v", err)
 		}
 		defer func() { _ = requestTx.Rollback(context.WithoutCancel(ctx)) }()
-		if err := product.NewStore(requestTx).RequestRestockNotice(
+		if err := product.NewStore(requestTx, slog.New(slog.DiscardHandler)).RequestRestockNotice(
 			ctx, slug, variantID.String(), address, "",
 		); err != nil {
 			t.Fatalf("hold notice request open: %v", err)
@@ -1201,7 +1201,7 @@ func TestRestockNoticeAndRestockLinearizeOnVariant(t *testing.T) {
 		requestPool := stockRacePool(t, requestApplication)
 		requested := make(chan error, 1)
 		go func() {
-			requested <- product.NewStore(requestPool).RequestRestockNotice(
+			requested <- product.NewStore(requestPool, slog.New(slog.DiscardHandler)).RequestRestockNotice(
 				ctx, slug, variantID.String(), address, "",
 			)
 		}()
@@ -1353,7 +1353,7 @@ func soldOutVariant(t *testing.T) (id uuid.UUID, slug string) {
 
 func TestRecommendationsComeFromTheProjection(t *testing.T) {
 	ctx := t.Context()
-	s := product.NewStore(pool)
+	s := product.NewStore(pool, slog.New(slog.DiscardHandler))
 
 	// Two products bought together twice, which is the minimum that counts.
 	a, b := twoProductsBoughtTogether(t, 2)
@@ -1385,7 +1385,7 @@ func TestRecommendationsComeFromTheProjection(t *testing.T) {
 
 func TestRecommendationsSurviveRetirementOfAPurchasedVariant(t *testing.T) {
 	ctx := t.Context()
-	s := product.NewStore(pool)
+	s := product.NewStore(pool, slog.New(slog.DiscardHandler))
 	a, b := twoProductsBoughtTogether(t, 2)
 
 	var productID, retiredVariant uuid.UUID
@@ -1432,7 +1432,7 @@ func TestRecommendationsSurviveRetirementOfAPurchasedVariant(t *testing.T) {
 
 func TestOneSharedOrderIsNotARecommendation(t *testing.T) {
 	ctx := t.Context()
-	s := product.NewStore(pool)
+	s := product.NewStore(pool, slog.New(slog.DiscardHandler))
 	a, _ := twoProductsBoughtTogether(t, 1)
 
 	if _, err := pool.Exec(ctx, `SELECT refresh_copurchases()`); err != nil {
@@ -1450,7 +1450,7 @@ func TestOneSharedOrderIsNotARecommendation(t *testing.T) {
 
 func TestAnUncommittedOrderShapesNothing(t *testing.T) {
 	ctx := t.Context()
-	s := product.NewStore(pool)
+	s := product.NewStore(pool, slog.New(slog.DiscardHandler))
 	// THREE unpaid orders: one would produce nothing whatever the committed
 	// filter did, so a single order cannot tell the filter from the threshold.
 	a, _ := twoProductsBoughtTogether(t, -3)
@@ -1521,7 +1521,7 @@ func twoProductsBoughtTogether(t *testing.T, committed int) (first, second strin
 
 func TestAnArchivedProductIsNotRecommended(t *testing.T) {
 	ctx := t.Context()
-	s := product.NewStore(pool)
+	s := product.NewStore(pool, slog.New(slog.DiscardHandler))
 	a, b := twoProductsBoughtTogether(t, 2)
 
 	if _, err := pool.Exec(ctx, `SELECT refresh_copurchases()`); err != nil {
@@ -1611,7 +1611,7 @@ func payFor(t *testing.T, orderID uuid.UUID) {
 
 func TestAStaffAnswerStaysStaffWhenTheAuthorChangesRole(t *testing.T) {
 	ctx := t.Context()
-	s := product.NewStore(pool)
+	s := product.NewStore(pool, slog.New(slog.DiscardHandler))
 	back := feedback.NewStore(pool)
 	slug := anyActiveProduct(t)
 	customer := newCustomer(t)
@@ -1663,7 +1663,7 @@ func TestAStaffAnswerStaysStaffWhenTheAuthorChangesRole(t *testing.T) {
 
 func TestAHiddenQuestionDisappearsWithItsAnswers(t *testing.T) {
 	ctx := t.Context()
-	s := product.NewStore(pool)
+	s := product.NewStore(pool, slog.New(slog.DiscardHandler))
 	slug := anyActiveProduct(t)
 	customer := newCustomer(t)
 
@@ -1728,7 +1728,7 @@ func TestARejectedQuestionKeepsTheDraft(t *testing.T) {
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.SetPathValue("slug", slug)
 	res := httptest.NewRecorder()
-	product.NewHandler(product.NewStore(pool), slog.New(slog.DiscardHandler), "https://goen.example").
+	product.NewHandler(product.NewStore(pool, slog.New(slog.DiscardHandler)), slog.New(slog.DiscardHandler), "https://goen.example").
 		Ask(res, req)
 
 	if res.Code != http.StatusUnprocessableEntity {
@@ -1749,7 +1749,7 @@ func TestARejectedQuestionKeepsTheDraft(t *testing.T) {
 
 func TestAQuestionIsBoundedInRunesNotBytes(t *testing.T) {
 	ctx := t.Context()
-	s := product.NewStore(pool)
+	s := product.NewStore(pool, slog.New(slog.DiscardHandler))
 	slug := anyActiveProduct(t)
 	customer := newCustomer(t)
 
@@ -1824,7 +1824,7 @@ func latestQuestion(t *testing.T) string {
 
 func TestASingleHiddenAnswerGoesWithoutTakingTheQuestion(t *testing.T) {
 	ctx := t.Context()
-	s := product.NewStore(pool)
+	s := product.NewStore(pool, slog.New(slog.DiscardHandler))
 	slug := anyActiveProduct(t)
 	customer := newCustomer(t)
 
@@ -1869,7 +1869,7 @@ func TestASingleHiddenAnswerGoesWithoutTakingTheQuestion(t *testing.T) {
 
 func TestTheProductPageKnowsWhatIsAlreadySaved(t *testing.T) {
 	ctx := t.Context()
-	s := product.NewStore(pool)
+	s := product.NewStore(pool, slog.New(slog.DiscardHandler))
 
 	var userID uuid.UUID
 	if err := pool.QueryRow(ctx,
@@ -1914,7 +1914,7 @@ func waitingAddr(t *testing.T) string {
 
 func TestHidingAReviewTakesItOutOfTheScore(t *testing.T) {
 	ctx := t.Context()
-	s := product.NewStore(pool)
+	s := product.NewStore(pool, slog.New(slog.DiscardHandler))
 	const slug = "pixelight-9-pro"
 
 	var productID uuid.UUID
@@ -1963,7 +1963,7 @@ func TestHidingAReviewTakesItOutOfTheScore(t *testing.T) {
 
 func TestAHiddenReviewStillBlocksASecondOne(t *testing.T) {
 	ctx := t.Context()
-	s := product.NewStore(pool)
+	s := product.NewStore(pool, slog.New(slog.DiscardHandler))
 	const slug = "pixelight-9"
 
 	var productID uuid.UUID
@@ -2026,7 +2026,7 @@ func reviewBy(t *testing.T, productID uuid.UUID, address string, rating int) (id
 // apart and never overlap.
 func TestASimultaneousSecondReviewIsRefusedByName(t *testing.T) {
 	ctx := t.Context()
-	s := product.NewStore(pool)
+	s := product.NewStore(pool, slog.New(slog.DiscardHandler))
 	who := reviewer(t, "race")
 	slug := activeSlug(t)
 	receive(t, who, slug)
@@ -2077,7 +2077,7 @@ func TestASimultaneousSecondReviewIsRefusedByName(t *testing.T) {
 // that is in stock.
 func TestLoadIgnoresThePagesOwnParameters(t *testing.T) {
 	ctx := t.Context()
-	s := product.NewStore(pool)
+	s := product.NewStore(pool, slog.New(slog.DiscardHandler))
 	slug := activeSlug(t)
 
 	clean, err := s.Load(ctx, slug, nil)
@@ -2120,7 +2120,7 @@ func insertHistoricalCustomerAnswer(ctx context.Context, questionID, userID, bod
 // typed, and says which of two causes it was.
 func TestARefusedRestockRequestKeepsTheAddressAndNamesItsCause(t *testing.T) {
 	ctx := t.Context()
-	h := product.NewHandler(product.NewStore(pool), slog.New(slog.DiscardHandler), "https://goen.example")
+	h := product.NewHandler(product.NewStore(pool, slog.New(slog.DiscardHandler)), slog.New(slog.DiscardHandler), "https://goen.example")
 	// The page's form posts to an action that carries the visitor's selection, so
 	// the 422 lands on the variant the request named; a product with options
 	// resolves no variant without it.
@@ -2192,7 +2192,7 @@ func TestARefusedRestockRequestKeepsTheAddressAndNamesItsCause(t *testing.T) {
 // from tech, and a book sits under a department that does not compare.
 func TestAProductPageOffersComparisonWhereItsDepartmentDoes(t *testing.T) {
 	ctx := t.Context()
-	store := product.NewStore(pool)
+	store := product.NewStore(pool, slog.New(slog.DiscardHandler))
 	for slug, want := range map[string]bool{"pixelight-9-pro": true, "fernway-mountain-tea-seasons": false} {
 		view, err := store.Load(ctx, slug, nil)
 		if err != nil {

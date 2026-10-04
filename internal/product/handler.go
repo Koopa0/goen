@@ -34,10 +34,8 @@ func NewHandler(store *Store, log *slog.Logger, baseURL string) *Handler {
 	if store == nil || log == nil {
 		panic("product: NewHandler requires a store and a logger")
 	}
-	pageStore := *store
-	pageStore.logger = log
 	return &Handler{
-		store: &pageStore, log: log, baseURL: baseURL,
+		store: store, log: log, baseURL: baseURL,
 		askLimit: ratelimit.New(ratelimit.Config{
 			Every: 6 * time.Second, Burst: 10, TTL: time.Hour, MaxKeys: 8_192,
 		}),

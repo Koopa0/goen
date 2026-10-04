@@ -137,7 +137,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	browse := catalog.NewHandler(catalogue, log)
 	// Everything that describes shipping reads what checkout offers: pickup needs
 	// the store map, so without it nothing may promise pickup or its price.
-	siteStore, homeStore, productStore := site.NewStore(pool), home.NewStore(pool), product.NewStore(pool)
+	siteStore, homeStore, productStore := site.NewStore(pool), home.NewStore(pool), product.NewStore(pool, log)
 	if !cfg.StoreMap.Enabled() {
 		siteStore, homeStore, productStore = siteStore.WithoutPickup(), homeStore.WithoutPickup(), productStore.WithoutPickup()
 	}

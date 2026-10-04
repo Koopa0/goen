@@ -102,7 +102,7 @@ func recommendationFixture(t *testing.T) (*pgxpool.Pool, pages.ProductView, uuid
 		}
 		break
 	}
-	view, err := product.NewStore(p).Load(t.Context(), slug, selection)
+	view, err := product.NewStore(p, slog.New(slog.DiscardHandler)).Load(t.Context(), slug, selection)
 	if err != nil || !view.CanBuy() || len(view.Related) == 0 || len(view.AlsoBought) == 0 {
 		t.Fatalf("recommendation fixture = buyable %t related %d bought %d, %v", view.CanBuy(), len(view.Related), len(view.AlsoBought), err)
 	}
@@ -126,7 +126,7 @@ func recommendationResponse(t *testing.T, ctx context.Context, h *product.Handle
 	return res
 }
 
-func recommendationNode(n *htmlnode.Node, match func(*htmlnode.Node) bool) *htmlnode.Node {
+func findDescendant(n *htmlnode.Node, match func(*htmlnode.Node) bool) *htmlnode.Node {
 	if n == nil {
 		return nil
 	}
@@ -134,14 +134,14 @@ func recommendationNode(n *htmlnode.Node, match func(*htmlnode.Node) bool) *html
 		return n
 	}
 	for child := n.FirstChild; child != nil; child = child.NextSibling {
-		if found := recommendationNode(child, match); found != nil {
+		if found := findDescendant(child, match); found != nil {
 			return found
 		}
 	}
 	return nil
 }
 
-func recommendationAttr(n *htmlnode.Node, name string) string {
+func attrValue(n *htmlnode.Node, name string) string {
 	if n != nil {
 		for _, attr := range n.Attr {
 			if attr.Key == name {
@@ -152,7 +152,7 @@ func recommendationAttr(n *htmlnode.Node, name string) string {
 	return ""
 }
 
-func recommendationText(n *htmlnode.Node) string {
+func nodeText(n *htmlnode.Node) string {
 	if n == nil {
 		return ""
 	}
@@ -161,12 +161,12 @@ func recommendationText(n *htmlnode.Node) string {
 	}
 	var text strings.Builder
 	for child := n.FirstChild; child != nil; child = child.NextSibling {
-		text.WriteString(recommendationText(child))
+		text.WriteString(nodeText(child))
 	}
 	return text.String()
 }
 
-func assertRecommendationCommerce(t *testing.T, res *httptest.ResponseRecorder, want *pages.ProductView) *htmlnode.Node {
+func assertBuyBoxIntact(t *testing.T, res *httptest.ResponseRecorder, want *pages.ProductView) *htmlnode.Node {
 	t.Helper()
 	if res.Code != http.StatusOK {
 		t.Fatalf("optional failure returned %d, want 200", res.Code)
@@ -175,37 +175,37 @@ func assertRecommendationCommerce(t *testing.T, res *httptest.ResponseRecorder, 
 	if err != nil {
 		t.Fatal(err)
 	}
-	buybox := recommendationNode(doc, func(n *htmlnode.Node) bool { return recommendationAttr(n, "id") == "buybox" })
-	price := recommendationNode(buybox, func(n *htmlnode.Node) bool {
-		for _, class := range strings.Fields(recommendationAttr(n, "class")) {
+	buybox := findDescendant(doc, func(n *htmlnode.Node) bool { return attrValue(n, "id") == "buybox" })
+	price := findDescendant(buybox, func(n *htmlnode.Node) bool {
+		for _, class := range strings.Fields(attrValue(n, "class")) {
 			if class == "goen-pdp__price" {
 				return true
 			}
 		}
 		return false
 	})
-	if !strings.Contains(recommendationText(price), want.Price()) {
-		t.Errorf("current price = %q, want %q", recommendationText(price), want.Price())
+	if !strings.Contains(nodeText(price), want.Price()) {
+		t.Errorf("current price = %q, want %q", nodeText(price), want.Price())
 	}
-	form := recommendationNode(buybox, func(n *htmlnode.Node) bool {
+	form := findDescendant(buybox, func(n *htmlnode.Node) bool {
 		if n.Data != "form" {
 			return false
 		}
-		action, parseErr := url.Parse(strings.TrimSpace(recommendationAttr(n, "action")))
+		action, parseErr := url.Parse(strings.TrimSpace(attrValue(n, "action")))
 		return parseErr == nil && action.Scheme == "" && action.Host == "" && action.Path == "/cart/items"
 	})
-	variant := recommendationNode(form, func(n *htmlnode.Node) bool { return n.Data == "input" && recommendationAttr(n, "name") == "variant" })
-	quantity := recommendationNode(form, func(n *htmlnode.Node) bool { return n.Data == "input" && recommendationAttr(n, "name") == "quantity" })
-	if form == nil || !strings.EqualFold(recommendationAttr(form, "method"), http.MethodPost) || recommendationAttr(variant, "value") != want.VariantID || recommendationAttr(quantity, "max") != want.MaxQuantity() {
+	variant := findDescendant(form, func(n *htmlnode.Node) bool { return n.Data == "input" && attrValue(n, "name") == "variant" })
+	quantity := findDescendant(form, func(n *htmlnode.Node) bool { return n.Data == "input" && attrValue(n, "name") == "quantity" })
+	if form == nil || !strings.EqualFold(attrValue(form, "method"), http.MethodPost) || attrValue(variant, "value") != want.VariantID || attrValue(quantity, "max") != want.MaxQuantity() {
 		t.Error("optional failure changed the current variant, stock limit or purchase form")
 	}
-	submit := recommendationNode(form, func(n *htmlnode.Node) bool { return n.Data == "button" && recommendationAttr(n, "type") == "submit" })
+	submit := findDescendant(form, func(n *htmlnode.Node) bool { return n.Data == "button" && attrValue(n, "type") == "submit" })
 	if submit == nil {
 		t.Error("optional failure removed the purchase submit button")
 	}
 	for _, n := range []*htmlnode.Node{variant, quantity, submit} {
 		if n != nil {
-			if owner := recommendationAttr(n, "form"); owner != "" && owner != recommendationAttr(form, "id") {
+			if owner := attrValue(n, "form"); owner != "" && owner != attrValue(form, "id") {
 				t.Error("purchase control belongs to another form")
 			}
 			for _, attr := range n.Attr {
@@ -242,7 +242,8 @@ func TestOptionalRecommendationFailuresPreserveTheProductPage(t *testing.T) {
 			t.Run(op.query+"/"+string(fault), func(t *testing.T) {
 				var log bytes.Buffer
 				d := &recommendationFaultDB{Pool: p, queryName: op.query, fault: fault}
-				h := product.NewHandler(product.NewStore(d), slog.New(slog.NewJSONHandler(&log, nil)), "https://goen.example")
+				logger := slog.New(slog.NewJSONHandler(&log, nil))
+				h := product.NewHandler(product.NewStore(d, logger), logger, "https://goen.example")
 				attempts := 1
 				if fault == queryStalls {
 					attempts = 8
@@ -255,8 +256,8 @@ func TestOptionalRecommendationFailuresPreserveTheProductPage(t *testing.T) {
 					if time.Since(started) > 3*time.Second {
 						t.Error("optional read escaped its bounded request time")
 					}
-					doc := assertRecommendationCommerce(t, res, &want)
-					if recommendationNode(doc, func(n *htmlnode.Node) bool { return recommendationAttr(n, "id") == op.missing }) != nil || recommendationNode(doc, func(n *htmlnode.Node) bool { return recommendationAttr(n, "id") == op.retained }) == nil {
+					doc := assertBuyBoxIntact(t, res, &want)
+					if findDescendant(doc, func(n *htmlnode.Node) bool { return attrValue(n, "id") == op.missing }) != nil || findDescendant(doc, func(n *htmlnode.Node) bool { return attrValue(n, "id") == op.retained }) == nil {
 						t.Error("optional failure did not omit only its own recommendation section")
 					}
 					assertRecommendationQueriesDrained(t, p)
@@ -285,10 +286,11 @@ func TestOptionalRecommendationFailuresPreserveTheProductPage(t *testing.T) {
 func TestHealthyAndEmptyRecommendationsAreNotFailures(t *testing.T) {
 	p, want, productID := recommendationFixture(t)
 	var log bytes.Buffer
-	h := product.NewHandler(product.NewStore(p), slog.New(slog.NewJSONHandler(&log, nil)), "https://goen.example")
-	doc := assertRecommendationCommerce(t, recommendationResponse(t, t.Context(), h, &want), &want)
+	logger := slog.New(slog.NewJSONHandler(&log, nil))
+	h := product.NewHandler(product.NewStore(p, logger), logger, "https://goen.example")
+	doc := assertBuyBoxIntact(t, recommendationResponse(t, t.Context(), h, &want), &want)
 	for _, heading := range []string{"related-heading", "also-heading"} {
-		if recommendationNode(doc, func(n *htmlnode.Node) bool { return recommendationAttr(n, "id") == heading }) == nil {
+		if findDescendant(doc, func(n *htmlnode.Node) bool { return attrValue(n, "id") == heading }) == nil {
 			t.Errorf("healthy recommendations omitted %s", heading)
 		}
 	}
@@ -298,9 +300,9 @@ func TestHealthyAndEmptyRecommendationsAreNotFailures(t *testing.T) {
 	if _, err := p.Exec(t.Context(), "DELETE FROM product_copurchases WHERE product_id = $1", productID); err != nil {
 		t.Fatal(err)
 	}
-	doc = assertRecommendationCommerce(t, recommendationResponse(t, t.Context(), h, &want), &want)
+	doc = assertBuyBoxIntact(t, recommendationResponse(t, t.Context(), h, &want), &want)
 	for _, heading := range []string{"related-heading", "also-heading"} {
-		if recommendationNode(doc, func(n *htmlnode.Node) bool { return recommendationAttr(n, "id") == heading }) != nil {
+		if findDescendant(doc, func(n *htmlnode.Node) bool { return attrValue(n, "id") == heading }) != nil {
 			t.Errorf("empty recommendations retained %s", heading)
 		}
 	}
@@ -314,23 +316,23 @@ func TestRecommendationDegradationKeepsParentAndCoreFailures(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	d := &recommendationFaultDB{Pool: p, queryName: "RelatedProducts", fault: queryFails, cancelParent: cancel}
-	if _, err := product.NewStore(d).Load(ctx, want.Slug, nil); !errors.Is(err, context.Canceled) {
+	if _, err := product.NewStore(d, slog.New(slog.DiscardHandler)).Load(ctx, want.Slug, nil); !errors.Is(err, context.Canceled) {
 		t.Errorf("parent cancellation became %v", err)
 	}
 	requestCtx, abandon := context.WithCancel(t.Context())
 	defer abandon()
 	requestDB := &recommendationFaultDB{Pool: p, queryName: "BoughtTogether", fault: queryFails, cancelParent: abandon}
-	requestHandler := product.NewHandler(product.NewStore(requestDB), slog.New(slog.DiscardHandler), "https://goen.example")
+	requestHandler := product.NewHandler(product.NewStore(requestDB, slog.New(slog.DiscardHandler)), slog.New(slog.DiscardHandler), "https://goen.example")
 	if res := recommendationResponse(t, requestCtx, requestHandler, &want); res.Body.Len() != 0 || requestDB.calls != 1 {
 		t.Errorf("abandoned request produced a page of %d bytes after %d optional reads", res.Body.Len(), requestDB.calls)
 	}
 	deadline, stop := context.WithDeadline(t.Context(), time.Now().Add(-time.Second))
 	defer stop()
-	if _, err := product.NewStore(p).Load(deadline, want.Slug, nil); !errors.Is(err, context.DeadlineExceeded) {
+	if _, err := product.NewStore(p, slog.New(slog.DiscardHandler)).Load(deadline, want.Slug, nil); !errors.Is(err, context.DeadlineExceeded) {
 		t.Errorf("parent deadline became %v", err)
 	}
 	p.Close()
-	h := product.NewHandler(product.NewStore(p), slog.New(slog.DiscardHandler), "https://goen.example")
+	h := product.NewHandler(product.NewStore(p, slog.New(slog.DiscardHandler)), slog.New(slog.DiscardHandler), "https://goen.example")
 	if res := recommendationResponse(t, t.Context(), h, &want); res.Code != http.StatusInternalServerError {
 		t.Errorf("core read failure returned %d, want 500", res.Code)
 	}

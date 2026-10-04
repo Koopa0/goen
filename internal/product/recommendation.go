@@ -36,7 +36,7 @@ func recommendationContext(parent context.Context) (context.Context, context.Can
 	return context.WithTimeout(parent, budget)
 }
 
-func (s *Store) recommendationError(ctx context.Context, operation recommendationRead, productID uuid.UUID, err error) error {
+func (s *Store) omitFailedRecommendation(ctx context.Context, operation recommendationRead, productID uuid.UUID, err error) error {
 	if parentErr := ctx.Err(); parentErr != nil {
 		return parentErr
 	}
@@ -52,6 +52,6 @@ func (s *Store) recommendationError(ctx context.Context, operation recommendatio
 	if requestID := web.RequestID(ctx); requestID != "" {
 		attrs = append(attrs, slog.String("request_id", requestID))
 	}
-	s.logger.LogAttrs(ctx, slog.LevelWarn, "product recommendations unavailable", attrs...)
+	s.log.LogAttrs(ctx, slog.LevelWarn, "product recommendations unavailable", attrs...)
 	return nil
 }

@@ -52,10 +52,10 @@ func TestRecommendationReadsKeepParentCancellation(t *testing.T) {
 
 func TestRecommendationDiagnosticsKeepCorrelationWithoutRawDatabaseErrors(t *testing.T) {
 	var log bytes.Buffer
-	s := Store{logger: slog.New(slog.NewJSONHandler(&log, nil))}
+	s := NewStore(ctxErrDB{}, slog.New(slog.NewJSONHandler(&log, nil)))
 	ctx := web.WithRequestID(t.Context(), "req-recommendations")
 	id := uuid.New()
-	if err := s.recommendationError(ctx, readRelatedProducts, id, errors.New("SELECT customer_email: customer@example.com")); err != nil {
+	if err := s.omitFailedRecommendation(ctx, readRelatedProducts, id, errors.New("SELECT customer_email: customer@example.com")); err != nil {
 		t.Fatal(err)
 	}
 	line := log.String()
@@ -70,7 +70,7 @@ func TestRecommendationDiagnosticsKeepCorrelationWithoutRawDatabaseErrors(t *tes
 	log.Reset()
 	parent, cancel := context.WithCancel(ctx)
 	cancel()
-	if err := s.recommendationError(parent, readBoughtTogether, id, context.Canceled); !errors.Is(err, context.Canceled) || log.Len() != 0 {
+	if err := s.omitFailedRecommendation(parent, readBoughtTogether, id, context.Canceled); !errors.Is(err, context.Canceled) || log.Len() != 0 {
 		t.Errorf("parent cancellation = %v, diagnostics %q", err, log.String())
 	}
 }

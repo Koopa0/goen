@@ -19,15 +19,15 @@ import (
 
 type Store struct {
 	q        *db.Queries
-	logger   *slog.Logger
+	log      *slog.Logger
 	noPickup bool
 }
 
-func NewStore(dbtx db.DBTX) *Store {
-	if dbtx == nil {
-		panic("product: NewStore requires a database handle")
+func NewStore(dbtx db.DBTX, log *slog.Logger) *Store {
+	if dbtx == nil || log == nil {
+		panic("product: NewStore requires a database handle and a logger")
 	}
-	return &Store{q: db.New(dbtx), logger: slog.Default()}
+	return &Store{q: db.New(dbtx), log: log}
 }
 
 // WithoutPickup is for a deployment whose store map is not configured: checkout
@@ -260,7 +260,7 @@ func (s *Store) loadOpinion(ctx context.Context, p *db.ProductBySlugRow, view *p
 		RowLimit:   RelatedCount,
 	})
 	if err != nil {
-		return s.recommendationError(ctx, readRelatedProducts, p.ID, err)
+		return s.omitFailedRecommendation(ctx, readRelatedProducts, p.ID, err)
 	}
 	for i := range related {
 		r := &related[i]
@@ -293,7 +293,7 @@ func (s *Store) boughtTogether(ctx context.Context, productID uuid.UUID) ([]page
 		LimitTo:   MaxRecommendations,
 	})
 	if err != nil {
-		return nil, s.recommendationError(ctx, readBoughtTogether, productID, err)
+		return nil, s.omitFailedRecommendation(ctx, readBoughtTogether, productID, err)
 	}
 	out := make([]pages.ProductTile, 0, len(rows))
 	for i := range rows {

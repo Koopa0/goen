@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -81,7 +82,7 @@ func TestSettingTheCoverAndReorderingChangesTheFirstImageEverywhere(t *testing.T
 	slug, token, keys := imageOrderProduct(t, 3)
 	firstEverywhere := func(want string) {
 		t.Helper()
-		view, err := product.NewStore(pool).Load(ctx, slug, product.Selection{})
+		view, err := product.NewStore(pool, slog.New(slog.DiscardHandler)).Load(ctx, slug, product.Selection{})
 		if err != nil || len(view.Images) == 0 || !strings.Contains(view.Images[0].URL, want) {
 			t.Fatalf("product page first image = %+v (err %v), want %s", view.Images, err, want)
 		}
