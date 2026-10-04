@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/koopa0/goen/internal/coupon"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/web"
@@ -15,7 +16,7 @@ import (
 type Coupon struct {
 	Code        string
 	Description string
-	Kind        string
+	Kind        coupon.Kind
 	KindText    string
 	AmountCents int64
 	PercentBP   int32
@@ -32,17 +33,18 @@ type Coupon struct {
 
 func (c Coupon) Value(ctx context.Context) string {
 	switch c.Kind {
-	case "amount":
+	case coupon.Amount:
 		return money.TWD(c.AmountCents)
-	case "percent":
+	case coupon.Percent:
 		s := strconv.FormatInt(int64(c.PercentBP)/100, 10) + "%"
 		if c.CapCents > 0 {
 			s += fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminCouponCap), money.TWD(c.CapCents))
 		}
 		return s
-	default:
+	case coupon.FreeShipping:
 		return i18n.T(ctx, i18n.KeyCouponKindShipping)
 	}
+	return ""
 }
 
 func (c Coupon) Conditions(ctx context.Context) string {
@@ -106,7 +108,7 @@ type CouponsView struct {
 type CouponDraft struct {
 	Code        string
 	Description string
-	Kind        string
+	Kind        coupon.Kind
 	Value       string
 	Cap         string
 	MinSpend    string
@@ -115,9 +117,9 @@ type CouponDraft struct {
 	Days        string
 }
 
-func (d CouponDraft) IsKind(k string) bool {
+func (d CouponDraft) IsKind(k coupon.Kind) bool {
 	if d.Kind == "" {
-		return k == "amount"
+		return k == coupon.Amount
 	}
 	return d.Kind == k
 }
