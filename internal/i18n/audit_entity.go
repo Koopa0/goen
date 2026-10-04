@@ -14,7 +14,7 @@ var (
 
 	KeyAuditEntityReturnRequests = key("audit.entity.return_requests", Message{ZhHant: "退貨", En: "Return"})
 
-	KeyAuditEntityStoreCreditEntries = key("audit.entity.store_credit_entries", Message{ZhHant: "商店額度", En: "Store credit"})
+	KeyAuditEntityStoreCreditEntries = key("audit.entity.store_credit_entries", Message{ZhHant: "購物金", En: "Store credit"})
 
 	KeyAuditEntityUsers = key("audit.entity.users", Message{ZhHant: "帳號", En: "Account"})
 

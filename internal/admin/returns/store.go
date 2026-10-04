@@ -144,7 +144,7 @@ func (s *Store) Queue(ctx context.Context, after ...string) (Queue, error) {
 			Restocked:   l.RestockedQuantity.Int32,
 			Note:        l.InspectionNote,
 			Restockable: l.Restockable,
-			Window:      l.PolicyWindow,
+			Window:      returnrules.PolicyWindow(l.PolicyWindow),
 		})
 	}
 	assessments, err := s.q.LatestEligibilityAssessments(ctx, ids)
@@ -200,7 +200,7 @@ func overlayReturnAssessmentFacts(
 			lines[j].Unused = f.Unused
 			lines[j].Packaging = f.PackagingComplete
 			lines[j].Accessories = f.AccessoriesComplete
-			lines[j].Window = f.PolicyWindow
+			lines[j].Window = returnrules.PolicyWindow(f.PolicyWindow)
 		}
 		byRequest[f.ReturnRequestID] = lines
 	}
@@ -227,7 +227,7 @@ func buildReturnQueue(
 			CreatedAt:   shoptime.Minute(r.CreatedAt),
 			Decided:     returnrules.Status(r.Status) != returnrules.StatusRequested,
 			Lines:       byRequest[r.ID],
-			Window:      r.RescissionWindow,
+			Window:      returnrules.PolicyWindow(r.RescissionWindow),
 
 			BeforeShipment: r.BeforeShipment,
 		}
