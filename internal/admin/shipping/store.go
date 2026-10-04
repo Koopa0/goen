@@ -69,10 +69,12 @@ func (s *Store) Configuration(ctx context.Context) (admin.ShippingView, error) {
 	surcharges := make(map[uuid.UUID][]admin.ZoneSurcharge, len(versionIDs))
 	for i := range zoneRows {
 		z := &zoneRows[i]
-		surcharges[z.VersionID] = append(surcharges[z.VersionID], admin.ZoneSurcharge{
-			ZoneID: z.ZoneID.String(), Code: z.Code, Name: z.Name,
-			Cents: z.SurchargeCents, Formatted: pages.TWD(z.SurchargeCents),
-		})
+		for _, versionID := range versionIDs {
+			surcharges[versionID] = append(surcharges[versionID], admin.ZoneSurcharge{
+				ZoneID: z.ZoneID.String(), Code: z.Code, Name: z.Name,
+				Cents: z.SurchargeCents, Formatted: pages.TWD(z.SurchargeCents),
+			})
+		}
 	}
 
 	view := admin.ShippingView{}
