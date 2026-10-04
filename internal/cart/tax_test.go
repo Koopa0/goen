@@ -1,7 +1,6 @@
 package cart
 
 import (
-	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -18,10 +17,10 @@ func TestMixedTaxCheckoutUsesTheCartExplanation(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		t.Run(string(locale), func(t *testing.T) {
 			ctx := i18n.WithLocale(t.Context(), locale)
-			request := httptest.NewRequest(http.MethodPost, "/checkout", nil).WithContext(ctx)
+			request := httptest.NewRequestWithContext(ctx, http.MethodPost, "/checkout", http.NoBody)
 			response := httptest.NewRecorder()
 			view := pages.CheckoutView{Cart: pages.CartView{Lines: []pages.CartLine{{Name: "Item", Quantity: 1, UnitCents: 100, Available: 1}}}}
-			handler := &Handler{log: slog.New(slog.NewTextHandler(io.Discard, nil))}
+			handler := &Handler{log: slog.New(slog.DiscardHandler)}
 			handler.answerPlacement(response, request, uuid.Nil, &Address{}, &view, "", ErrMixedTaxTypes)
 			if response.Code != http.StatusUnprocessableEntity {
 				t.Errorf("mixed-tax checkout status=%d, want 422", response.Code)
