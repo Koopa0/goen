@@ -1,4 +1,4 @@
-package admin
+package products
 
 import (
 	"context"
@@ -19,7 +19,7 @@ import (
 
 const MaxAltRunes = 200
 
-var ErrNotThisProductsOption = errors.New("admin: that option value is not one of this product's")
+var ErrNotThisProductsOption = errors.New("products: that option value is not one of this product's")
 
 // AttachImage records an uploaded image, showing optionValue when that is an
 // option value id and the product whichever value is chosen when it is empty.
@@ -201,7 +201,7 @@ func placeImage[T any](items []T, at int, move ImageMove) ([]T, bool) {
 	return out, true
 }
 
-func (s *Store) ProductImages(ctx context.Context, slug string) ([]admin.Image, error) {
+func (s *Store) Images(ctx context.Context, slug string) ([]admin.Image, error) {
 	rows, err := s.q.AdminProductImages(ctx, slug)
 	if err != nil {
 		return nil, fmt.Errorf("read product images: %w", err)
