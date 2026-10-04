@@ -178,8 +178,8 @@ func (s *Store) List(ctx context.Context, status admin.QueueFilter, term string,
 	// them to begin with.
 	rows, bound := web.PageBound(scope, resumed, rows, web.PageSize, func(r *db.AdminOrdersRow) string { return r.PageCursor })
 	view := admin.OrdersView{
-		ListBound: bound,
-		Status:    status, Term: term, Searched: searched,
+		Bound:  bound,
+		Status: status, Term: term, Searched: searched,
 	}
 	countsByFilter := make(map[admin.QueueFilter]int64, len(counts))
 	var total int64

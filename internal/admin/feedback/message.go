@@ -22,8 +22,8 @@ func (s *Store) Messages(ctx context.Context, after ...string) (admin.MessagesVi
 	}
 	rows, bound := web.PageBound(scope, resumed, rows, web.PageSize, func(r *db.AdminMessagesRow) string { return r.PageCursor })
 	view := admin.MessagesView{
-		ListBound: bound,
-		Rows:      make([]admin.Message, 0, len(rows)),
+		Bound: bound,
+		Rows:  make([]admin.Message, 0, len(rows)),
 	}
 	for i := range rows {
 		m := &rows[i]

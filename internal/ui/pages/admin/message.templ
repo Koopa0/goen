@@ -90,6 +90,6 @@ templ Messages(p layouts.Page, v MessagesView) {
 			// Oldest unhandled first, which is what an inbox is for — so a page
 			// is the first fifty, not the latest, and Next reaches the rest.
 		}
-		@pages.ListPager(v.ListBound)
+		@pages.ListPager(v.Bound)
 	}
 }

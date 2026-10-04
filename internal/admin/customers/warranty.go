@@ -32,7 +32,7 @@ func (s *Store) Warranties(ctx context.Context, term string, after ...string) (a
 		return admin.WarrantiesView{}, fmt.Errorf("search warranties: %w", err)
 	}
 	rows, bound := web.PageBound(scope, resumed, rows, web.PageSize, func(r *db.AdminSearchWarrantiesRow) string { return r.PageCursor })
-	view.ListBound = bound
+	view.Bound = bound
 	for i := range rows {
 		r := &rows[i]
 		view.Rows = append(view.Rows, admin.WarrantyRow{

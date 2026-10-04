@@ -6,11 +6,11 @@ import (
 	"strconv"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/web"
 )
 
 type MessagesView struct {
-	pages.ListBound
+	web.Bound
 
 	Rows   []Message
 	Notice string
