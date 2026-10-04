@@ -27,8 +27,12 @@ func TestUnstorableTextNeverReachesTheDatabase(t *testing.T) {
 		t.Fatalf("build disabled payment gateway: %v", err)
 	}
 	router := newRouter(&RouterConfig{
-		Pool: pool, AdminPool: pool, Payments: gateway,
-		Refunder: refunds.NewRefunder(""), BaseURL: "http://127.0.0.1",
+		Storefront: StorefrontConfig{
+			Pool: pool, Payments: gateway, BaseURL: "http://127.0.0.1",
+		},
+		BackOffice: BackOfficeConfig{
+			AdminPool: pool, Payments: gateway, Refunder: refunds.NewRefunder(""),
+		},
 	}, slog.New(slog.DiscardHandler))
 
 	staffEmail := "unstorable-" + uuid.NewString() + "@goen.invalid"

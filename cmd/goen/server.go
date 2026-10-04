@@ -80,29 +80,27 @@ func policyWith(mapOrigin string) string {
 		formActionDirective+" "+mapOrigin, 1)
 }
 
-// RouterConfig is what the router needs: the pools it serves from, the
-// providers its handlers call, and the configuration they read. Pool, AdminPool
-// and the logger are required; every provider below may be nil, and the feature
-// it serves then disables itself and says so.
+// RouterConfig is what the router needs, one half per pool. Each half holds
+// only what its routes read, so the storefront cannot reach the admin pool nor
+// the back office the store pool; a field both halves use is set in both.
 type RouterConfig struct {
-	// Pool runs as `store` and AdminPool as `admin`; which one a handler gets
-	// is the privilege boundary, not a performance choice.
-	Pool      *pgxpool.Pool
-	AdminPool *pgxpool.Pool
-	// MaintenancePool is the background workers' pool. It serves no request;
-	// it is here only so the health page can show its connection statistics,
-	// and nil leaves it off the page.
-	MaintenancePool *pgxpool.Pool
+	Storefront StorefrontConfig
+	BackOffice BackOfficeConfig
+}
+
+// StorefrontConfig is what the shop and the customer account need. Pool is
+// required; every provider below may be nil, and the feature it serves then
+// disables itself and says so.
+type StorefrontConfig struct {
+	// Pool runs as `store`.
+	Pool *pgxpool.Pool
 	// Payments is Stripe, or is disabled and the payment page says so.
 	Payments *payment.Gateway
-	Refunder refunds.Refunder
 	BaseURL  string
 	// SecureCookies selects the __Host- cookie prefix.
 	SecureCookies bool
-	// TOTPKey is parsed key material from twofactor.ParseKey; nil disables
-	// enrolment.
-	TOTPKey []byte
-	// Invoices issues uniform invoices, or is disabled and renders no controls.
+	// Invoices checks mobile barcodes at checkout, or is disabled and the
+	// checkout accepts none.
 	Invoices *invoice.Gateway
 	// Google signs customers in, or is disabled and 404s its two routes.
 	Google *account.Google
@@ -115,14 +113,36 @@ type RouterConfig struct {
 	DemoAccount account.DemoAccount
 }
 
+// BackOfficeConfig is what /admin needs. AdminPool is required; every provider
+// below may be nil, and the feature it serves then disables itself and says so.
+type BackOfficeConfig struct {
+	// AdminPool runs as `admin`.
+	AdminPool *pgxpool.Pool
+	// MaintenancePool is the background workers' pool. It serves no request;
+	// it is here only so the health page can show its connection statistics,
+	// and nil leaves it off the page.
+	MaintenancePool *pgxpool.Pool
+	Payments        *payment.Gateway
+	Refunder        refunds.Refunder
+	// SecureCookies selects the __Host- cookie prefix.
+	SecureCookies bool
+	// TOTPKey is parsed key material from twofactor.ParseKey; nil disables
+	// enrolment.
+	TOTPKey []byte
+	// Invoices issues uniform invoices, or is disabled and renders no controls.
+	Invoices *invoice.Gateway
+	StoreMap *cart.StoreMap
+}
+
 func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	// As struct fields the two pools can be omitted silently, and they sit
 	// beside Payments, Invoices, Google and TOTPKey, which may legitimately be nil.
-	if cfg == nil || cfg.Pool == nil || cfg.AdminPool == nil || log == nil {
+	if cfg == nil || cfg.Storefront.Pool == nil || cfg.BackOffice.AdminPool == nil || log == nil {
 		panic("goen: newRouter requires both pools and a logger")
 	}
-	pool, adminPool := cfg.Pool, cfg.AdminPool
-	baseURL, secureCookies := cfg.BaseURL, cfg.SecureCookies
+	front := &cfg.Storefront
+	pool, adminPool := front.Pool, cfg.BackOffice.AdminPool
+	baseURL, secureCookies := front.BaseURL, front.SecureCookies
 
 	mux := http.NewServeMux()
 	mux.Handle("GET "+assets.Prefix, staticAssetHandler(assets.Handler(log)))
@@ -137,7 +157,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 
 	catalogue := catalog.NewStore(pool)
 	siteStore := site.NewStore(pool)
-	if !cfg.StoreMap.Enabled() {
+	if !front.StoreMap.Enabled() {
 		siteStore = siteStore.WithoutPickup()
 	}
 	sitePages := site.NewHandler(log, baseURL, catalogue, siteStore, secureCookies)
@@ -147,16 +167,16 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 		Every: 6 * time.Minute, Burst: 10, TTL: time.Hour, MaxKeys: 65_536,
 	})
 	var barcodeChecker cart.MobileBarcodeChecker
-	if cfg.Invoices.Enabled() {
-		barcodeChecker = cfg.Invoices
+	if front.Invoices.Enabled() {
+		barcodeChecker = front.Invoices
 	}
 	basketStore := cart.NewStore(pool)
 	basket := cart.NewHandler(basketStore, log, secureCookies, findLimit,
-		sessionCloser(cfg.Payments), cfg.StoreMap, barcodeChecker)
-	customers := account.NewHandler(account.NewStore(pool), basket, log, secureCookies, cfg.Google)
-	customers.OfferDemoAccount(cfg.DemoAccount)
-	storefrontRoutes(mux, cfg, log, catalogue, sitePages, basket, customers, basketStore, findLimit)
-	backOfficeRoutes(mux, cfg, log, poolsOnHealthPage(pool, adminPool, cfg.MaintenancePool))
+		sessionCloser(front.Payments), front.StoreMap, barcodeChecker)
+	customers := account.NewHandler(account.NewStore(pool), basket, log, secureCookies, front.Google)
+	customers.OfferDemoAccount(front.DemoAccount)
+	storefrontRoutes(mux, front, log, catalogue, sitePages, basket, customers, basketStore, findLimit)
+	backOfficeRoutes(mux, &cfg.BackOffice, log, poolsOnHealthPage(pool, adminPool, cfg.BackOffice.MaintenancePool))
 	mux.HandleFunc("GET /", sitePages.NotFound)
 
 	// Applied inner to outer, so a request passes through them in the reverse of
@@ -174,11 +194,11 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	handler = onlyVisitorPaths(basket.WithCount, handler)
 	handler = onlyVisitorPaths(customers.Authenticate, handler)
 	handler = withStorefrontRequestBudget(handler)
-	handler = crossOriginProtection(handler, cfg.StoreMap.Enabled())
+	handler = crossOriginProtection(handler, front.StoreMap.Enabled())
 	// Before routing and before every middleware that reads the request, so no
 	// path value or query value PostgreSQL refuses reaches a query.
 	handler = web.RefuseUnstorableText(handler, secureCookies)
-	handler = securityHeaders(handler, policyWith(cfg.StoreMap.Origin()), secureCookies)
+	handler = securityHeaders(handler, policyWith(front.StoreMap.Origin()), secureCookies)
 	handler = web.Compress(handler)
 	return withRequestTracing(handler, log)
 }
@@ -186,7 +206,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 // storefrontRoutes registers the shop and the customer account, every handler
 // on the `store` pool. The rest are built by the caller because the middleware
 // chain and the catch-all read them too.
-func storefrontRoutes(mux *http.ServeMux, cfg *RouterConfig, log *slog.Logger,
+func storefrontRoutes(mux *http.ServeMux, cfg *StorefrontConfig, log *slog.Logger,
 	catalogue *catalog.Store, sitePages *site.Handler, basket *cart.Handler,
 	customers *account.Handler, basketStore *cart.Store, findLimit *ratelimit.Limiter) {
 	pool, gateway := cfg.Pool, cfg.Payments
@@ -363,7 +383,7 @@ func storefrontRoutes(mux *http.ServeMux, cfg *RouterConfig, log *slog.Logger,
 
 // backOfficeRoutes registers /admin, every desk on the `admin` pool. The store
 // pool reaches it only as statistics on the health page.
-func backOfficeRoutes(mux *http.ServeMux, cfg *RouterConfig, log *slog.Logger, healthPools []health.NamedPool) {
+func backOfficeRoutes(mux *http.ServeMux, cfg *BackOfficeConfig, log *slog.Logger, healthPools []health.NamedPool) {
 	adminPool, gateway, refunder := cfg.AdminPool, cfg.Payments, cfg.Refunder
 	secureCookies, totpKey := cfg.SecureCookies, cfg.TOTPKey
 	// The second factor runs on the ADMIN pool. On the storefront pool `store`

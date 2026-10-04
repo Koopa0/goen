@@ -1034,9 +1034,12 @@ func TestOnlyTheSecurePosturePinsHTTPS(t *testing.T) {
 		{secure: false, want: ""},
 	} {
 		router := newRouter(&RouterConfig{
-			Pool: idle, AdminPool: idle, Payments: gateway,
-			Refunder: refunds.NewRefunder(""), BaseURL: "https://goen.test",
-			SecureCookies: tt.secure,
+			Storefront: StorefrontConfig{
+				Pool: idle, Payments: gateway, BaseURL: "https://goen.test", SecureCookies: tt.secure,
+			},
+			BackOffice: BackOfficeConfig{
+				AdminPool: idle, Payments: gateway, Refunder: refunds.NewRefunder(""), SecureCookies: tt.secure,
+			},
 		}, slog.New(slog.DiscardHandler))
 		// A probe reaches no database, so the idle pool answers for nothing.
 		res := httptest.NewRecorder()
@@ -1066,8 +1069,12 @@ func TestSharePreviewNamesTheConfiguredOriginNotTheRequestHost(t *testing.T) {
 		t.Fatalf("build a disabled payment gateway: %v", err)
 	}
 	router := newRouter(&RouterConfig{
-		Pool: idle, AdminPool: idle, Payments: gateway,
-		Refunder: refunds.NewRefunder(""), BaseURL: "https://goen.test",
+		Storefront: StorefrontConfig{
+			Pool: idle, Payments: gateway, BaseURL: "https://goen.test",
+		},
+		BackOffice: BackOfficeConfig{
+			AdminPool: idle, Payments: gateway, Refunder: refunds.NewRefunder(""),
+		},
 	}, slog.New(slog.DiscardHandler))
 
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/about", http.NoBody)

@@ -45,8 +45,12 @@ func TestStorefrontPoolWaitRespectsRequestBudget(t *testing.T) {
 	srv := newServer(
 		&config{Addr: "127.0.0.1:0", SecureCookies: false},
 		&RouterConfig{
-			Pool: p, AdminPool: ap, Payments: gateway,
-			Refunder: refunds.NewRefunder(""), BaseURL: "http://127.0.0.1",
+			Storefront: StorefrontConfig{
+				Pool: p, Payments: gateway, BaseURL: "http://127.0.0.1",
+			},
+			BackOffice: BackOfficeConfig{
+				AdminPool: ap, Payments: gateway, Refunder: refunds.NewRefunder(""),
+			},
 		},
 		proxies, slog.New(slog.DiscardHandler),
 	)
