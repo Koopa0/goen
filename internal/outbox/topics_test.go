@@ -6,7 +6,9 @@ import (
 	"go/token"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -24,8 +26,9 @@ func TestEveryTopicHasAProducerAndAHandler(t *testing.T) {
 
 	main := readFile(t, filepath.Join("..", "..", "cmd", "goen", "main.go"))
 	producers := producerSources(t)
+	sqlProducers := sqlProducerTopics(t)
 
-	for name := range declared {
+	for name, topic := range declared {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			if !strings.Contains(main, "outbox."+name) {
@@ -34,15 +37,14 @@ func TestEveryTopicHasAProducerAndAHandler(t *testing.T) {
 			}
 			if !slices.ContainsFunc(producers, func(src string) bool {
 				return strings.Contains(src, "outbox."+name)
-			}) {
-				t.Errorf("%s has no producer in internal/ — nothing ever enqueues it", name)
+			}) && !slices.Contains(sqlProducers, topic) {
+				t.Errorf("%s has no producer in internal/ or migrations/ — nothing ever enqueues it", name)
 			}
 		})
 	}
 }
 
-// topicVars reads the Topic* names out of this package's own var block.
-func topicVars(t *testing.T) map[string]struct{} {
+func topicVars(t *testing.T) map[string]string {
 	t.Helper()
 	fset := token.NewFileSet()
 	file, err := parser.ParseFile(fset, "outbox.go", nil, 0)
@@ -50,7 +52,7 @@ func topicVars(t *testing.T) map[string]struct{} {
 		t.Fatalf("parse outbox.go: %v", err)
 	}
 
-	out := map[string]struct{}{}
+	out := map[string]string{}
 	ast.Inspect(file, func(n ast.Node) bool {
 		decl, ok := n.(*ast.GenDecl)
 		if !ok || decl.Tok != token.VAR {
@@ -61,15 +63,48 @@ func topicVars(t *testing.T) map[string]struct{} {
 			if !ok {
 				continue
 			}
-			for _, id := range vs.Names {
-				if strings.HasPrefix(id.Name, "Topic") {
-					out[id.Name] = struct{}{}
+			for i, id := range vs.Names {
+				if !strings.HasPrefix(id.Name, "Topic") {
+					continue
 				}
+				if i >= len(vs.Values) {
+					t.Fatalf("%s must declare its topic name", id.Name)
+				}
+				call, ok := vs.Values[i].(*ast.CallExpr)
+				if !ok || len(call.Args) != 1 {
+					t.Fatalf("%s must declare its topic name", id.Name)
+				}
+				literal, ok := call.Args[0].(*ast.BasicLit)
+				if !ok || literal.Kind != token.STRING {
+					t.Fatalf("%s topic name must be a string literal", id.Name)
+				}
+				value, err := strconv.Unquote(literal.Value)
+				if err != nil {
+					t.Fatalf("%s topic name: %v", id.Name, err)
+				}
+				out[id.Name] = value
 			}
 		}
 		return true
 	})
 	return out
+}
+
+// Database triggers enqueue in the stock writer's transaction without a Go producer.
+func sqlProducerTopics(t *testing.T) []string {
+	t.Helper()
+	paths, err := filepath.Glob(filepath.Join("..", "..", "migrations", "*.up.sql"))
+	if err != nil || len(paths) == 0 {
+		t.Fatalf("find migrations: paths=%d, error=%v", len(paths), err)
+	}
+	insert := regexp.MustCompile(`(?is)\bINSERT\s+INTO\s+(?:public\.)?outbox_messages\s*\(\s*topic\s*,[^)]*\)\s*(?:SELECT|VALUES\s*\()\s*'([^']+)'`)
+	var topics []string
+	for _, path := range paths {
+		for _, match := range insert.FindAllStringSubmatch(readFile(t, path), -1) {
+			topics = append(topics, match[1])
+		}
+	}
+	return topics
 }
 
 // producerSources is every non-test Go file under internal/ except this

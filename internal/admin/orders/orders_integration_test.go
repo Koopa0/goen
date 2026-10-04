@@ -320,7 +320,7 @@ func TestAdvanceRecordsWhoAndWhen(t *testing.T) {
 
 func TestCancellingAnOrderInTheBackOfficeReturnsItsStock(t *testing.T) {
 	ctx := t.Context()
-	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
+	s := admintest.OrderStore(admintest.AdminRolePool(t, pool), admintest.Refunder{}, nil, nil)
 
 	var vid uuid.UUID
 	if err := pool.QueryRow(ctx, `
@@ -338,6 +338,7 @@ func TestCancellingAnOrderInTheBackOfficeReturnsItsStock(t *testing.T) {
 		t.Fatalf("read stock: %v", err)
 	}
 
+	subscriptions := admintest.SubscribeAtSafetyStock(t, pool, vid)
 	var staff uuid.UUID
 	if err := pool.QueryRow(ctx, `
 		INSERT INTO users (email, role, full_name) VALUES ($1, 'admin', '取消人員')
@@ -350,6 +351,7 @@ func TestCancellingAnOrderInTheBackOfficeReturnsItsStock(t *testing.T) {
 		t.Fatalf("cancel: %v", err)
 	}
 
+	admintest.AssertRestockQueued(t, pool, subscriptions)
 	var after int32
 	var state string
 	if err := pool.QueryRow(ctx, `

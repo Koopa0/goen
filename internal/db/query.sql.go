@@ -4356,46 +4356,6 @@ func (q *Queries) ClaimOutbox(ctx context.Context, arg ClaimOutboxParams) ([]Cla
 	return items, nil
 }
 
-const claimRestockNotices = `-- name: ClaimRestockNotices :many
-UPDATE stock_notifications sn SET notified_at = now()
-WHERE sn.variant_id = $1
-  AND sn.notified_at IS NULL
-  AND EXISTS (SELECT 1 FROM product_variants pv
-              WHERE pv.id = sn.variant_id
-                AND pv.is_active
-                AND pv.stock_quantity > pv.safety_stock)
-RETURNING sn.id, sn.email, sn.locale
-`
-
-type ClaimRestockNoticesRow struct {
-	ID     uuid.UUID
-	Email  string
-	Locale string
-}
-
-// The claim and the enqueue are ONE transaction, so notified_at means "the
-// outbox has this": claiming without enqueuing tells nobody and never retries.
-// The threshold is the one the listing calls in stock, stock > safety_stock.
-func (q *Queries) ClaimRestockNotices(ctx context.Context, variantID uuid.UUID) ([]ClaimRestockNoticesRow, error) {
-	rows, err := q.db.Query(ctx, claimRestockNotices, variantID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ClaimRestockNoticesRow{}
-	for rows.Next() {
-		var i ClaimRestockNoticesRow
-		if err := rows.Scan(&i.ID, &i.Email, &i.Locale); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const claimReturnRefundExecution = `-- name: ClaimReturnRefundExecution :one
 SELECT claim_return_refund_execution(
     $1::uuid, $2::uuid, $3::text
@@ -12511,35 +12471,6 @@ func (q *Queries) RestockReturnedUnits(ctx context.Context, arg RestockReturnedU
 		arg.ActorUserID,
 	)
 	return err
-}
-
-const restockSubject = `-- name: RestockSubject :one
-SELECT p.slug,
-       localized_name(p.name, p.name_en, $1::text) AS product_name,
-       pv.sku
-FROM product_variants pv
-JOIN products p ON p.id = pv.product_id
-WHERE pv.id = $2
-`
-
-type RestockSubjectParams struct {
-	Locale    string
-	VariantID uuid.UUID
-}
-
-type RestockSubjectRow struct {
-	Slug        string
-	ProductName string
-	SKU         string
-}
-
-// Called once per distinct LOCALE in the claimed set, not once per recipient:
-// the product name has to follow the reader as the letter's words do.
-func (q *Queries) RestockSubject(ctx context.Context, arg RestockSubjectParams) (RestockSubjectRow, error) {
-	row := q.db.QueryRow(ctx, restockSubject, arg.Locale, arg.VariantID)
-	var i RestockSubjectRow
-	err := row.Scan(&i.Slug, &i.ProductName, &i.SKU)
-	return i, err
 }
 
 const returnForDecision = `-- name: ReturnForDecision :one
