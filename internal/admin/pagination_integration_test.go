@@ -90,7 +90,7 @@ func TestEveryAdminQueueReachesBeyondItsFirstPage(t *testing.T) {
  `)
 	s := admintest.OrderStore(p, admintest.Refunder{}, nil, nil)
 	catalogueStore := products.NewStore(p)
-	returnDesk := returnDeskOver(p, admintest.Refunder{})
+	returnDesk := admintest.ReturnDesk(p, admintest.Refunder{})
 	trail := audit.NewStore(p)
 	customerLookup := customers.NewStore(p)
 	inboxStore := feedback.NewStore(p)
