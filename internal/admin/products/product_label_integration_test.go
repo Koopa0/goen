@@ -3,6 +3,7 @@
 package products_test
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/account"
@@ -164,3 +166,51 @@ func TestProductLabelRoutesRefuseCustomersAndKeepInvalidForm(t *testing.T) {
 		t.Fatalf("refused forms wrote audit rows=%d: %v", audited, err)
 	}
 }
+
+func TestProductLabelRedirectSurvivesAProductReadFailure(t *testing.T) {
+	p := admintest.Pool(t)
+	ctx, _ := admintest.StaffContext(t, p)
+	var slug string
+	if err := p.QueryRow(ctx, `SELECT slug FROM products ORDER BY slug LIMIT 1`).Scan(&slug); err != nil {
+		t.Fatal(err)
+	}
+	config := p.Config().Copy()
+	config.ConnConfig.RuntimeParams["role"] = "admin"
+	config.ConnConfig.Tracer = refuseFullProductRead{}
+	writer, err := pgxpool.NewWithConfig(ctx, config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(writer.Close)
+	var role string
+	if err = writer.QueryRow(ctx, `SELECT current_user`).Scan(&role); err != nil || role != "admin" {
+		t.Fatalf("label writer role=%q: %v", role, err)
+	}
+	handler := admintest.ProductDesk(p, products.NewStore(writer))
+	mux := http.NewServeMux()
+	handler.Routes(mux, access.New(slog.New(slog.DiscardHandler), nil))
+	request := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/products/"+slug+"/label", strings.NewReader("origin=Redirect+fixture"))
+	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	response := httptest.NewRecorder()
+	mux.ServeHTTP(response, request)
+	if response.Code != http.StatusSeeOther || response.Header().Get("Location") != "/admin/products/"+slug+"?ok=1#sec-label" {
+		t.Fatalf("committed label redirect=%d %q, want 303 to the label section", response.Code, response.Header().Get("Location"))
+	}
+	var origin string
+	if err = p.QueryRow(ctx, `SELECT origin FROM products WHERE slug=$1`, slug).Scan(&origin); err != nil || origin != "Redirect fixture" {
+		t.Fatalf("committed label origin=%q: %v", origin, err)
+	}
+}
+
+type refuseFullProductRead struct{}
+
+func (refuseFullProductRead) TraceQueryStart(ctx context.Context, _ *pgx.Conn, query pgx.TraceQueryStartData) context.Context {
+	if strings.HasPrefix(query.SQL, "-- name: AdminProduct :one") {
+		canceled, cancel := context.WithCancel(ctx)
+		cancel()
+		return canceled
+	}
+	return ctx
+}
+
+func (refuseFullProductRead) TraceQueryEnd(context.Context, *pgx.Conn, pgx.TraceQueryEndData) {}
