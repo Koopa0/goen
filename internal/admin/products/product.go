@@ -1,4 +1,4 @@
-package admin
+package products
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/google/uuid"
@@ -29,7 +30,7 @@ const (
 	MaxWarrantyMonths   = 120
 )
 
-type ProductForm struct {
+type Form struct {
 	Slug          string
 	Name          string
 	Summary       string
@@ -46,7 +47,7 @@ type ProductForm struct {
 	CategoryID     string
 }
 
-func (f *ProductForm) Validate(ctx context.Context) map[string]string {
+func (f *Form) Validate(ctx context.Context) map[string]string {
 	f.Slug = strings.ToLower(strings.TrimSpace(f.Slug))
 	f.Name = strings.TrimSpace(f.Name)
 	f.NameEn = strings.TrimSpace(f.NameEn)
@@ -90,20 +91,27 @@ func (f *ProductForm) Validate(ctx context.Context) map[string]string {
 	return errs
 }
 
-func (s *Store) Products(ctx context.Context, after ...string) (admin.ProductsView, error) {
+// listPosition is a reader's place in the product list. The query builds it as
+// PageCursor, so its fields are the ordering values and nothing else.
+type listPosition struct {
+	At time.Time
+	ID uuid.UUID
+}
+
+func (s *Store) List(ctx context.Context, after ...string) (admin.ProductsView, error) {
 	scope := "/admin/products"
-	cursor := readPageCursor(scope, after)
-	rows, err := s.q.AdminProducts(ctx, db.AdminProductsParams{HasCursor: cursor.Valid, AfterAt: cursor.At, AfterID: cursor.ID, RowLimit: PageLimit})
+	from, resumed := web.ResumeKeyset(scope, after, func(p listPosition) bool { return p.ID != uuid.Nil })
+	rows, err := s.q.AdminProducts(ctx, db.AdminProductsParams{HasCursor: resumed, AfterAt: from.At, AfterID: from.ID, RowLimit: web.PageLimit})
 	if err != nil {
 		return admin.ProductsView{}, fmt.Errorf("read products: %w", err)
 	}
-	rows, bound := pageBound(cursor, scope, rows, PageSize, func(r *db.AdminProductsRow) string { return r.PageCursor })
+	rows, bound := web.PageBound(scope, resumed, rows, web.PageSize, func(r *db.AdminProductsRow) string { return r.PageCursor })
 	view := admin.ProductsView{ListBound: bound}
 	for i := range rows {
 		r := &rows[i]
 		view.Rows = append(view.Rows, admin.Product{
 			Slug: r.Slug, Name: r.Name, Status: pages.ProductStatus(r.Status),
-			StatusText: ProductStatusLabel(ctx, r.Status),
+			StatusText: statusLabel(ctx, r.Status),
 			Brand:      r.Brand, Category: r.Category,
 			Variants: r.Variants, FromCents: r.FromCents,
 			Translated: r.Translated,
@@ -122,7 +130,7 @@ func (s *Store) Product(ctx context.Context, slug string) (admin.ProductView, er
 		Description: p.Description, WarrantyNote: p.WarrantyNote,
 		NameEn: p.NameEn, SummaryEn: p.SummaryEn, DescriptionEn: p.DescriptionEn,
 		WarrantyMonths: p.WarrantyMonths,
-		Status:         pages.ProductStatus(p.Status), StatusText: ProductStatusLabel(ctx, p.Status),
+		Status:         pages.ProductStatus(p.Status), StatusText: statusLabel(ctx, p.Status),
 		BrandID: p.BrandID.String(), CategoryID: p.CategoryID.String(),
 	}
 	variants, err := s.q.AdminProductVariants(ctx, p.ID)
@@ -194,7 +202,7 @@ func productReadError(slug string, err error) error {
 	return fmt.Errorf("read product %s: %w", slug, err)
 }
 
-func (s *Store) NewProduct(ctx context.Context) (admin.ProductView, error) {
+func (s *Store) NewForm(ctx context.Context) (admin.ProductView, error) {
 	view := admin.ProductView{IsNew: true}
 	if err := s.loadChoices(ctx, &view); err != nil {
 		return admin.ProductView{}, err
@@ -226,8 +234,8 @@ func (s *Store) loadChoices(ctx context.Context, view *admin.ProductView) error 
 	return nil
 }
 
-// CreateProduct adds a product as a DRAFT. Publishing is its own decision.
-func (s *Store) CreateProduct(ctx context.Context, f *ProductForm) (slug string, fieldErrs map[string]string, err error) {
+// Create adds a product as a DRAFT. Publishing is its own decision.
+func (s *Store) Create(ctx context.Context, f *Form) (slug string, fieldErrs map[string]string, err error) {
 	if errs := f.Validate(ctx); len(errs) > 0 {
 		return "", errs, nil
 	}
@@ -260,8 +268,8 @@ func (s *Store) CreateProduct(ctx context.Context, f *ProductForm) (slug string,
 	return slug, nil, nil
 }
 
-// UpdateProduct edits a product's own fields. Its status is a separate write.
-func (s *Store) UpdateProduct(ctx context.Context, f *ProductForm) (map[string]string, error) {
+// Update edits a product's own fields. Its status is a separate write.
+func (s *Store) Update(ctx context.Context, f *Form) (map[string]string, error) {
 	if errs := f.Validate(ctx); len(errs) > 0 {
 		return errs, nil
 	}
@@ -301,10 +309,10 @@ func (s *Store) UpdateProduct(ctx context.Context, f *ProductForm) (map[string]s
 	return nil, nil
 }
 
-// productStatuses is the catalogue lifecycle, stated once. products_status_known
+// statuses is the catalogue lifecycle, stated once. products_status_known
 // is the authority; value and label stay together so a fourth state cannot be
 // admitted by the write and left unlabelled on the page.
-var productStatuses = [...]struct {
+var statuses = [...]struct {
 	value string
 	label i18n.Key
 }{
@@ -313,8 +321,8 @@ var productStatuses = [...]struct {
 	{"archived", i18n.KeyAdminProductArchived},
 }
 
-func (s *Store) SetProductStatus(ctx context.Context, slug, status string) error {
-	if !knownProductStatus(status) {
+func (s *Store) SetStatus(ctx context.Context, slug, status string) error {
+	if !knownStatus(status) {
 		return ErrRefused
 	}
 	return audit.Run(ctx, s.pool, audit.Event{
@@ -335,8 +343,8 @@ func (s *Store) SetProductStatus(ctx context.Context, slug, status string) error
 		})
 }
 
-func knownProductStatus(s string) bool {
-	for _, status := range productStatuses {
+func knownStatus(s string) bool {
+	for _, status := range statuses {
 		if status.value == s {
 			return true
 		}
@@ -344,13 +352,13 @@ func knownProductStatus(s string) bool {
 	return false
 }
 
-func ProductStatusLabel(ctx context.Context, s string) string {
-	for _, status := range productStatuses {
+func statusLabel(ctx context.Context, s string) string {
+	for _, status := range statuses {
 		if status.value == s {
 			return i18n.T(ctx, status.label)
 		}
 	}
-	// Every writer goes through knownProductStatus, so this is a schema the
+	// Every writer goes through knownStatus, so this is a schema the
 	// binary was not built for rather than anything a request can produce.
 	panic("admin: no label for product status " + s)
 }

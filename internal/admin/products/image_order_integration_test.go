@@ -1,6 +1,6 @@
 //go:build integration
 
-package admin_test
+package products_test
 
 import (
 	"context"
@@ -15,8 +15,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/admin/admintest"
+	"github.com/koopa0/goen/internal/admin/products"
 	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/product"
@@ -76,8 +76,8 @@ func imageOrder(t *testing.T, slug string) []string {
 // With no photograph tagged, the first image is the cover on the product page and
 // on every card.
 func TestSettingTheCoverAndReorderingChangesTheFirstImageEverywhere(t *testing.T) {
-	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, admintest.Refunder{}, nil, nil)
+	ctx, _ := admintest.StaffContext(t, pool)
+	s := products.NewStore(pool)
 	slug, token, keys := imageOrderProduct(t, 3)
 	firstEverywhere := func(want string) {
 		t.Helper()
@@ -92,7 +92,7 @@ func TestSettingTheCoverAndReorderingChangesTheFirstImageEverywhere(t *testing.T
 	}
 	firstEverywhere(keys[0])
 
-	if err := s.MoveImage(ctx, slug, keys[2], admin.MoveToCover); err != nil {
+	if err := s.MoveImage(ctx, slug, keys[2], products.MoveToCover); err != nil {
 		t.Fatal(err)
 	}
 	if got := imageOrder(t, slug); strings.Join(got, ",") != strings.Join([]string{keys[2], keys[0], keys[1]}, ",") {
@@ -100,10 +100,10 @@ func TestSettingTheCoverAndReorderingChangesTheFirstImageEverywhere(t *testing.T
 	}
 	firstEverywhere(keys[2])
 
-	if err := s.MoveImage(ctx, slug, keys[2], admin.MoveDown); err != nil {
+	if err := s.MoveImage(ctx, slug, keys[2], products.MoveDown); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.MoveImage(ctx, slug, keys[1], admin.MoveUp); err != nil {
+	if err := s.MoveImage(ctx, slug, keys[1], products.MoveUp); err != nil {
 		t.Fatal(err)
 	}
 	if got := imageOrder(t, slug); strings.Join(got, ",") != strings.Join([]string{keys[0], keys[1], keys[2]}, ",") {
@@ -137,10 +137,10 @@ func TestSettingTheCoverAndReorderingChangesTheFirstImageEverywhere(t *testing.T
 }
 
 func TestAStaleImageMoveIsRefusedWith422AndChangesNothing(t *testing.T) {
-	ctx, _ := staffContext(t)
+	ctx, _ := admintest.StaffContext(t, pool)
 	ctx = i18n.WithLocale(ctx, i18n.En)
 	slug, _, keys := imageOrderProduct(t, 2)
-	h := adminHandlerOver(pool, admin.NewStore(pool, admintest.Refunder{}, nil, nil))
+	h := admintest.ProductDesk(pool, products.NewStore(pool))
 	post := func(digest, move string) *httptest.ResponseRecorder {
 		values := url.Values{"digest": {digest}, "move": {move}}
 		r := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/products/"+slug+"/images/move", strings.NewReader(values.Encode()))
@@ -174,8 +174,8 @@ func TestAStaleImageMoveIsRefusedWith422AndChangesNothing(t *testing.T) {
 // Two reorders of one product queue on its row lock: neither computes from the
 // order the other is about to replace, and no position is ever duplicated.
 func TestConcurrentImageReordersNeverDuplicateAPosition(t *testing.T) {
-	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, admintest.Refunder{}, nil, nil)
+	ctx, _ := admintest.StaffContext(t, pool)
+	s := products.NewStore(pool)
 	slug, _, keys := imageOrderProduct(t, 4)
 	var wg sync.WaitGroup
 	errs := make(chan error, 16)
@@ -183,8 +183,8 @@ func TestConcurrentImageReordersNeverDuplicateAPosition(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			err := s.MoveImage(ctx, slug, keys[i%4], admin.MoveToCover)
-			if err != nil && !errors.Is(err, admin.ErrInvalid) {
+			err := s.MoveImage(ctx, slug, keys[i%4], products.MoveToCover)
+			if err != nil && !errors.Is(err, products.ErrInvalid) {
 				errs <- err
 			}
 		}()
@@ -206,8 +206,8 @@ func TestConcurrentImageReordersNeverDuplicateAPosition(t *testing.T) {
 // An attach computes max(position)+1 and a reorder renumbers every position; both
 // take the product's lock first, so neither can collide with the other.
 func TestConcurrentAttachAndReorderNeverCollideOnPosition(t *testing.T) {
-	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, admintest.Refunder{}, nil, nil)
+	ctx, _ := admintest.StaffContext(t, pool)
+	s := products.NewStore(pool)
 	slug, _, keys := imageOrderProduct(t, 3)
 	var wg sync.WaitGroup
 	errs := make(chan error, 32)
@@ -222,7 +222,7 @@ func TestConcurrentAttachAndReorderNeverCollideOnPosition(t *testing.T) {
 		}()
 		go func() {
 			defer wg.Done()
-			if err := s.MoveImage(ctx, slug, keys[i%3], admin.MoveToCover); err != nil && !errors.Is(err, admin.ErrInvalid) {
+			if err := s.MoveImage(ctx, slug, keys[i%3], products.MoveToCover); err != nil && !errors.Is(err, products.ErrInvalid) {
 				errs <- fmt.Errorf("reorder: %w", err)
 			}
 		}()
@@ -245,14 +245,14 @@ func TestConcurrentAttachAndReorderNeverCollideOnPosition(t *testing.T) {
 // with it at the cover; without the product lock they read the same starting
 // order and the moves overwrite each other.
 func TestConcurrentMovesUpLoseNoUpdate(t *testing.T) {
-	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, admintest.Refunder{}, nil, nil)
+	ctx, _ := admintest.StaffContext(t, pool)
+	s := products.NewStore(pool)
 	slug, _, keys := imageOrderProduct(t, 4)
 	var wg sync.WaitGroup
 	errs := make(chan error, 3)
 	for range 3 {
 		wg.Go(func() {
-			if err := s.MoveImage(ctx, slug, keys[3], admin.MoveUp); err != nil {
+			if err := s.MoveImage(ctx, slug, keys[3], products.MoveUp); err != nil {
 				errs <- err
 			}
 		})

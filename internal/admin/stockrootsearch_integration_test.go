@@ -9,8 +9,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/admin/admintest"
+	"github.com/koopa0/goen/internal/admin/products"
 	"github.com/koopa0/goen/internal/admin/stock"
 )
 
@@ -19,9 +19,9 @@ import (
 // exactly them, wildcards in the term being plain characters.
 func TestTheStockListSearchesBySKUOrNameAndShowsOptionValues(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, admintest.Refunder{}, nil, nil)
-	slug := draftProduct(t, ctx, s)
-	if errs, err := s.AddOption(ctx, slug, admin.OptionDraft{Name: "顏色"}); err != nil || len(errs) > 0 {
+	s := products.NewStore(pool)
+	slug := admintest.DraftProduct(t, ctx, pool, s)
+	if errs, err := s.AddOption(ctx, slug, products.OptionDraft{Name: "顏色"}); err != nil || len(errs) > 0 {
 		t.Fatalf("AddOption: %v %v", err, errs)
 	}
 	view, err := s.Product(ctx, slug)
@@ -29,7 +29,7 @@ func TestTheStockListSearchesBySKUOrNameAndShowsOptionValues(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, v := range []string{"星霧藍", "曜石黑"} {
-		if errs, addErr := s.AddOptionValue(ctx, slug, admin.OptionDraft{OptionID: view.Options[0].ID, Name: v}); addErr != nil || len(errs) > 0 {
+		if errs, addErr := s.AddOptionValue(ctx, slug, products.OptionDraft{OptionID: view.Options[0].ID, Name: v}); addErr != nil || len(errs) > 0 {
 			t.Fatalf("AddOptionValue: %v %v", addErr, errs)
 		}
 	}
@@ -40,7 +40,7 @@ func TestTheStockListSearchesBySKUOrNameAndShowsOptionValues(t *testing.T) {
 	stem := "SRCH-" + strings.ToUpper(uuid.NewString()[:8])
 	for i, val := range view.Options[0].Values {
 		sku := fmt.Sprintf("%s-%d", stem, i+1)
-		if errs, addErr := s.AddVariant(ctx, slug, &admin.VariantForm{SKU: sku, PriceCents: 100000, OptionValues: []string{val.ID}}); addErr != nil || len(errs) > 0 {
+		if errs, addErr := s.AddVariant(ctx, slug, &products.VariantForm{SKU: sku, PriceCents: 100000, OptionValues: []string{val.ID}}); addErr != nil || len(errs) > 0 {
 			t.Fatalf("AddVariant %s: %v %v", sku, addErr, errs)
 		}
 	}

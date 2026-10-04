@@ -5,14 +5,14 @@ package admin_test
 import (
 	"testing"
 
-	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/campaigns"
+	"github.com/koopa0/goen/internal/admin/products"
 )
 
 func TestTheCampaignProductSearchOffersWhatIsNotFeaturedYet(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, admintest.Refunder{}, nil, nil)
+	s := products.NewStore(pool)
 	slug := admintest.CampaignSlug(t)
 	if _, err := campaigns.NewStore(pool).Create(ctx, &campaigns.Form{Slug: slug, Title: "測試活動", Days: 7}); err != nil {
 		t.Fatal(err)
@@ -21,7 +21,7 @@ func TestTheCampaignProductSearchOffersWhatIsNotFeaturedYet(t *testing.T) {
 	if err := campaigns.NewStore(pool).FeatureProduct(ctx, slug, featured); err != nil {
 		t.Fatal(err)
 	}
-	fresh := draftProduct(t, ctx, s)
+	fresh := admintest.DraftProduct(t, ctx, pool, s)
 
 	got, err := campaigns.NewStore(pool).SearchProducts(ctx, slug, fresh)
 	if err != nil || len(got) != 1 || got[0].Slug != fresh {
