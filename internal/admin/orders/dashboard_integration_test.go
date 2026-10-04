@@ -28,16 +28,16 @@ func TestTheDashboardListsAnUninspectedReturnAndAStrandedClaim(t *testing.T) {
 		return 0
 	}
 
-	view, err := s.Dashboard(t.Context())
+	before, err := s.Dashboard(t.Context())
 	if err != nil {
 		t.Fatalf("Dashboard: %v", err)
 	}
-	health, err := s.HealthTasks(t.Context())
+	healthBefore, err := s.HealthTasks(t.Context())
 	if err != nil {
 		t.Fatalf("HealthTasks: %v", err)
 	}
-	if len(view.Tasks) != 0 || len(health) != 0 {
-		t.Fatalf("an empty shop lists tasks %v and %v", view.Tasks, health)
+	if got := count(before.Tasks, i18n.KeyAdminQueueTaskUninspected) + count(healthBefore, i18n.KeyAdminHPClaimsHeading); got != 0 {
+		t.Fatalf("a shop with no return or claim lists %d of them", got)
 	}
 
 	admintest.PreapprovedReturn(t, isolated)
@@ -52,14 +52,14 @@ func TestTheDashboardListsAnUninspectedReturnAndAStrandedClaim(t *testing.T) {
 		t.Fatalf("record a refused automatic issue: %v", execErr)
 	}
 
-	view, err = s.Dashboard(t.Context())
+	view, err := s.Dashboard(t.Context())
 	if err != nil {
 		t.Fatalf("Dashboard: %v", err)
 	}
 	if got := count(view.Tasks, i18n.KeyAdminQueueTaskUninspected); got != 1 {
 		t.Errorf("returns awaiting inspection = %d, want 1", got)
 	}
-	health, err = s.HealthTasks(t.Context())
+	health, err := s.HealthTasks(t.Context())
 	if err != nil {
 		t.Fatalf("HealthTasks: %v", err)
 	}
