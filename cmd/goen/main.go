@@ -30,6 +30,7 @@ import (
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/media"
 	"github.com/koopa0/goen/internal/newsletter"
+	"github.com/koopa0/goen/internal/orderaccess"
 	"github.com/koopa0/goen/internal/ordernotice"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/payment"
@@ -716,6 +717,7 @@ func startWorkers(ctx context.Context, d workerDeps) {
 	holds := cart.NewStore(d.pool)
 	d.run(func() { holds.SweepForever(ctx, d.log) })
 	d.run(func() { holds.SweepAttemptsForever(ctx, d.log) })
+	d.run(func() { orderaccess.NewStore(d.pool, false).SweepForever(ctx, d.log) })
 	d.run(func() { holds.SweepDraftsForever(ctx, d.log) })
 
 	d.run(func() { account.NewStore(d.pool).SweepSessionsForever(ctx, d.log) })

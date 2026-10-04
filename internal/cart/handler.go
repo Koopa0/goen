@@ -20,6 +20,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	invoicepkg "github.com/koopa0/goen/internal/invoice"
+	"github.com/koopa0/goen/internal/orderaccess"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/pickup"
 	"github.com/koopa0/goen/internal/ratelimit"
@@ -31,6 +32,7 @@ import (
 
 type Handler struct {
 	store  *Store
+	access *orderaccess.Store
 	log    *slog.Logger
 	secure bool
 	// findLimit bounds the order lookup, otherwise an oracle for the secret
@@ -60,11 +62,11 @@ type MobileBarcodeChecker interface {
 // NewHandler reads a nil sessions as no provider configured, and a nil or
 // disabled storeMap as no carrier, so the checkout offers no pickup; an
 // omitted checker keeps local shape validation where there is no invoice gateway.
-func NewHandler(store *Store, log *slog.Logger, secure bool, findLimit *ratelimit.Limiter,
+func NewHandler(store *Store, access *orderaccess.Store, log *slog.Logger, secure bool, findLimit *ratelimit.Limiter,
 	sessions payment.SessionCloser, storeMap *StoreMap, checkers ...MobileBarcodeChecker,
 ) *Handler {
-	if store == nil || log == nil || findLimit == nil {
-		panic("cart: NewHandler requires a store, a logger and a lookup limiter")
+	if store == nil || access == nil || log == nil || findLimit == nil {
+		panic("cart: NewHandler requires a store, an access check, a logger and a lookup limiter")
 	}
 	if len(checkers) > 1 {
 		panic("cart: NewHandler accepts one mobile barcode checker")
@@ -75,7 +77,7 @@ func NewHandler(store *Store, log *slog.Logger, secure bool, findLimit *ratelimi
 	}
 	return &Handler{
 		barcodeChecker: checker,
-		store:          store, log: log, secure: secure, findLimit: findLimit,
+		store:          store, access: access, log: log, secure: secure, findLimit: findLimit,
 		sessions: sessions, storeMap: storeMap,
 		// Twenty wrong codes before the first refusal, then one every two
 		// minutes: more than a shopper retyping a code from a flyer needs.
@@ -743,7 +745,7 @@ func emailOf(r *http.Request) string {
 }
 
 func (h *Handler) rememberOrder(w http.ResponseWriter, r *http.Request, number string) error {
-	if err := h.store.RememberOrder(r.Context(), w, r, number, h.secure); err != nil {
+	if err := h.access.Grant(w, r, number); err != nil {
 		h.log.ErrorContext(r.Context(), "remember order", "error", err, "order", number)
 		return err
 	}
@@ -1420,7 +1422,7 @@ func (h *Handler) OrderPage(w http.ResponseWriter, r *http.Request) {
 
 	// Anything but the browser that placed the order or the account that owns
 	// it gets the same 404 as an order that does not exist.
-	if !h.store.PlacedHere(r.Context(), r, number, h.secure) && !h.ownedBySignedInUser(r, number) {
+	if !h.allows(r, number) {
 		// Its own page rather than a bare Notice: this is the one 404 with a
 		// way through.
 		web.Render(w, r, h.log, http.StatusNotFound, pages.OrderNotFound(h.notFoundPage(r)))
@@ -1479,7 +1481,7 @@ func paymentReturnRefresh(r *http.Request, view *pages.OrderView) string {
 
 func (h *Handler) ReorderItems(w http.ResponseWriter, r *http.Request) {
 	number := r.PathValue("number")
-	if !h.store.PlacedHere(r.Context(), r, number, h.secure) && !h.ownedBySignedInUser(r, number) {
+	if !h.allows(r, number) {
 		web.Render(w, r, h.log, http.StatusNotFound, pages.Notice(
 			h.notFoundPage(r), "404", i18n.T(r.Context(), i18n.KeyOrderNotFound),
 			i18n.T(r.Context(), i18n.KeyOrderNotYoursShort)))
@@ -1515,7 +1517,7 @@ func (h *Handler) ReorderItems(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) CancelOrder(w http.ResponseWriter, r *http.Request) {
 	number := r.PathValue("number")
-	if !h.store.PlacedHere(r.Context(), r, number, h.secure) && !h.ownedBySignedInUser(r, number) {
+	if !h.allows(r, number) {
 		web.Render(w, r, h.log, http.StatusNotFound, pages.Notice(
 			h.notFoundPage(r), "404", i18n.T(r.Context(), i18n.KeyOrderNotFound),
 			i18n.T(r.Context(), i18n.KeyOrderNotYoursShort)))
@@ -1539,15 +1541,18 @@ func (h *Handler) CancelOrder(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *Handler) ownedBySignedInUser(r *http.Request, number string) bool {
-	u, ok := user.FromContext(r.Context())
-	if !ok {
-		return false
+func (h *Handler) allows(r *http.Request, number string) bool {
+	ok, err := h.access.Allows(r, number)
+	if err != nil {
+		h.log.ErrorContext(r.Context(), "check order access", "order", number, "error", err)
 	}
-	owns, err := h.store.OrderBelongsTo(r.Context(), number, u.ID)
+	return ok
+}
+
+func (h *Handler) ownedBySignedInUser(r *http.Request, number string) bool {
+	owns, err := h.access.OwnedBySignedInUser(r, number)
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "check order ownership", "error", err)
-		return false
 	}
 	return owns
 }
@@ -1799,10 +1804,9 @@ func (h *Handler) ForgetCart(w http.ResponseWriter, r *http.Request) {
 // ignore an expiry. A failure to revoke is logged rather than stopping the
 // session's end.
 func (h *Handler) ForgetOrders(w http.ResponseWriter, r *http.Request) {
-	if err := h.store.ForgetOrders(r.Context(), r, h.secure); err != nil {
+	if err := h.access.Revoke(w, r); err != nil {
 		h.log.ErrorContext(r.Context(), "forget this browser's orders", "error", err)
 	}
-	expireCookie(w, placedCookieName(h.secure), h.secure)
 }
 
 // WithCount resolves the cart on every visitor request, so it is also where a

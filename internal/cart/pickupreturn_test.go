@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/koopa0/goen/internal/orderaccess"
 	"github.com/koopa0/goen/internal/ratelimit"
 )
 
@@ -24,7 +25,7 @@ import (
 // /checkout against the nonce this browser alone holds.
 func TestTheStoreMapReturnIsWorthNothingToWhoeverDrivesIt(t *testing.T) {
 	t.Parallel()
-	h := NewHandler(&Store{}, slog.New(slog.DiscardHandler), true, ratelimit.New(ratelimit.Config{
+	h := NewHandler(&Store{}, &orderaccess.Store{}, slog.New(slog.DiscardHandler), true, ratelimit.New(ratelimit.Config{
 		Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000,
 	}), nil, testMap(t, ModeB2C))
 

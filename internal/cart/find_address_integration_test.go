@@ -15,6 +15,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/cart"
+	"github.com/koopa0/goen/internal/orderaccess"
 	"github.com/koopa0/goen/internal/ratelimit"
 )
 
@@ -30,7 +31,7 @@ func TestAnOrderLookupIsBoundedPerAddressFromAnyClient(t *testing.T) {
 	victim := "find-bound-" + uuid.NewString() + "@example.com"
 	number := placeUnpaidOrderFor(t, s, victim)
 	// A per-client bound too loose to be what refuses anything below.
-	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false,
+	h := cart.NewHandler(s, orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler), false,
 		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}),
 		nil, nil)
 

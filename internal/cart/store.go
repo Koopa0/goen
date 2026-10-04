@@ -950,20 +950,6 @@ func (s *Store) priorOrder(
 	return priorOrderTx(ctx, s.q, cartID, attemptID)
 }
 
-func (s *Store) OrderBelongsTo(ctx context.Context, number, userID string) (bool, error) {
-	id, err := uuid.Parse(userID)
-	if err != nil {
-		return false, nil //nolint:nilerr // an unparseable id simply owns nothing
-	}
-	owns, err := s.q.OrderBelongsTo(ctx, db.OrderBelongsToParams{
-		OrderNumber: number, UserID: uuid.NullUUID{UUID: id, Valid: true},
-	})
-	if err != nil {
-		return false, fmt.Errorf("check order ownership: %w", err)
-	}
-	return owns, nil
-}
-
 func (s *Store) Order(ctx context.Context, number string) (pages.OrderView, error) {
 	o, err := s.q.OrderSummaryByNumber(ctx, db.OrderSummaryByNumberParams{
 		Number: number, Locale: i18n.FromContext(ctx).Tag(),

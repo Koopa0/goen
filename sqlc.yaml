@@ -9,6 +9,7 @@ sql:
       - "internal/catalog/query.sql"
       - "internal/product/query.sql"
       - "internal/cart/query.sql"
+      - "internal/orderaccess/query.sql"
       - "internal/payment/query.sql"
       - "internal/returnpage/query.sql"
       - "internal/outbox/query.sql"
