@@ -3471,7 +3471,8 @@ CREATE TABLE invoice_operations (
     actor_user_id      uuid REFERENCES users (id) ON DELETE SET NULL,
     actor_id_snapshot  uuid,
     -- 'system' is the issue a final sale owes, claimed with no user and with the
-    -- provider event or order commit as its request_id. A staff row with a NULL
+    -- provider event or order commit as its request_id, or the void of the
+    -- invoice of an order its customer cancelled. A staff row with a NULL
     -- actor_user_id is still an erased account.
     actor_kind         text NOT NULL DEFAULT 'staff',
     request_id         text NOT NULL,
@@ -3507,7 +3508,7 @@ CREATE TABLE invoice_operations (
         CHECK (actor_user_id IS NULL OR actor_id_snapshot = actor_user_id),
     CONSTRAINT invoice_operations_actor_kind_shape CHECK (
         (actor_kind = 'staff' AND actor_id_snapshot IS NOT NULL)
-        OR (actor_kind = 'system' AND kind = 'issue'
+        OR (actor_kind = 'system' AND kind IN ('issue', 'void')
             AND actor_user_id IS NULL AND actor_id_snapshot IS NULL)
     ),
     CONSTRAINT invoice_operations_attempts_non_negative
@@ -4255,7 +4256,8 @@ CREATE TABLE audit_events (
     -- immutable because the complete audit row is append-only.
     actor_user_id     uuid REFERENCES users (id) ON DELETE SET NULL,
     actor_id_snapshot uuid,
-    -- 'system' has no user: it is goen settling the issue a final sale owes.
+    -- 'system' has no user: it is goen settling the issue a final sale owes, or
+    -- the void of a cancelled order's invoice.
     actor_kind        text NOT NULL DEFAULT 'staff',
     action            text NOT NULL,
     entity_table      text NOT NULL,
@@ -5937,8 +5939,11 @@ DECLARE
     v_lines jsonb;
     v_relate_number text;
 BEGIN
-    IF NOT EXISTS (SELECT 1 FROM users
-                   WHERE id = p_actor_user_id AND role IN ('staff', 'admin')) THEN
+    -- A NULL actor is the system, voiding the invoice of an order its customer
+    -- cancelled on a form that said so.
+    IF p_actor_user_id IS NOT NULL
+       AND NOT EXISTS (SELECT 1 FROM users
+                       WHERE id = p_actor_user_id AND role IN ('staff', 'admin')) THEN
         RAISE EXCEPTION 'void claim requires a durable staff actor'
             USING ERRCODE = 'check_violation', CONSTRAINT = 'invoice_audit_actor';
     END IF;
@@ -5957,6 +5962,12 @@ BEGIN
     IF NOT FOUND OR v_document.kind <> 'invoice' THEN
         RAISE EXCEPTION 'void target is not an invoice'
             USING ERRCODE = 'check_violation', CONSTRAINT = 'invoice_void_target';
+    END IF;
+    IF p_actor_user_id IS NULL
+       AND NOT EXISTS (SELECT 1 FROM orders
+                       WHERE id = v_document.order_id AND fulfillment_status = 'cancelled') THEN
+        RAISE EXCEPTION 'the system voids only a cancelled order''s invoice'
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'invoice_audit_actor';
     END IF;
     SELECT id INTO v_existing FROM invoice_operations
     WHERE target_document_id = p_document_id AND kind = 'void'
@@ -5984,7 +5995,7 @@ BEGIN
 
     INSERT INTO invoice_operations
         (order_id, kind, target_document_id, provider_key, amount_cents,
-         request_payload, actor_user_id, actor_id_snapshot, request_id)
+         request_payload, actor_user_id, actor_id_snapshot, actor_kind, request_id)
     VALUES
         (v_document.order_id, 'void', p_document_id, v_document.number,
          v_document.amount_cents,
@@ -5996,7 +6007,9 @@ BEGIN
              'reason', left(btrim(p_reason), 20),
              'amount_cents', v_document.amount_cents,
              'lines', coalesce(v_lines, '[]'::jsonb)),
-         p_actor_user_id, p_actor_user_id, p_request_id)
+         p_actor_user_id, p_actor_user_id,
+         CASE WHEN p_actor_user_id IS NULL THEN 'system' ELSE 'staff' END,
+         p_request_id)
     RETURNING id INTO v_existing;
     RETURN v_existing;
 END;

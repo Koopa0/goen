@@ -3195,6 +3195,60 @@ func (q *Queries) CancelPayment(ctx context.Context, providerRef string) error {
 	return err
 }
 
+const cancelledOrderInvoices = `-- name: CancelledOrderInvoices :many
+SELECT o.order_number, d.number, d.amount_cents, d.issued_at, count(*) OVER () AS total
+FROM invoice_documents d
+JOIN orders o ON o.id = d.order_id
+WHERE o.fulfillment_status = 'cancelled'
+  AND o.cancelled_at < now() - $1::interval
+  AND d.kind = 'invoice' AND d.status = 'issued'
+  AND d.amount_cents > coalesce((
+      SELECT sum(a.amount_cents) FROM invoice_documents a
+      WHERE a.original_id = d.id AND a.kind = 'allowance' AND a.status = 'issued'), 0)
+  AND NOT EXISTS (SELECT 1 FROM invoice_operations op
+                  WHERE op.order_id = o.id AND op.status IN ('pending', 'attention'))
+ORDER BY o.cancelled_at DESC, d.id DESC
+LIMIT 50
+`
+
+type CancelledOrderInvoicesRow struct {
+	OrderNumber string
+	Number      string
+	AmountCents int64
+	IssuedAt    time.Time
+	Total       int64
+}
+
+// Issued invoices of cancelled orders that nothing relieved and nothing is
+// correcting: ECPay's void window had passed, the void was refused, or no
+// 加值中心 was configured to send one. One with an operation still active is on
+// the stranded-claims list instead.
+func (q *Queries) CancelledOrderInvoices(ctx context.Context, olderThan pgtype.Interval) ([]CancelledOrderInvoicesRow, error) {
+	rows, err := q.db.Query(ctx, cancelledOrderInvoices, olderThan)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CancelledOrderInvoicesRow{}
+	for rows.Next() {
+		var i CancelledOrderInvoicesRow
+		if err := rows.Scan(
+			&i.OrderNumber,
+			&i.Number,
+			&i.AmountCents,
+			&i.IssuedAt,
+			&i.Total,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const capturePayment = `-- name: CapturePayment :one
 SELECT capture_payment($1::text, $2::bigint,
                        nullif($3::text, ''), nullif($4::text, ''))
@@ -4270,6 +4324,27 @@ type ClaimSystemInvoiceIssueParams struct {
 // The system's claim: no actor, and what made the sale final as the request id.
 func (q *Queries) ClaimSystemInvoiceIssue(ctx context.Context, arg ClaimSystemInvoiceIssueParams) (uuid.UUID, error) {
 	row := q.db.QueryRow(ctx, claimSystemInvoiceIssue, arg.OrderNumber, arg.RequestID)
+	var operation_id uuid.UUID
+	err := row.Scan(&operation_id)
+	return operation_id, err
+}
+
+const claimSystemInvoiceVoid = `-- name: ClaimSystemInvoiceVoid :one
+SELECT claim_invoice_void(
+    $1::uuid, $2::text, NULL::uuid, $3::text
+)::uuid AS operation_id
+`
+
+type ClaimSystemInvoiceVoidParams struct {
+	DocumentID uuid.UUID
+	Reason     string
+	RequestID  string
+}
+
+// The system's void of a cancelled order's invoice: no actor, and the
+// cancellation as the request id.
+func (q *Queries) ClaimSystemInvoiceVoid(ctx context.Context, arg ClaimSystemInvoiceVoidParams) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, claimSystemInvoiceVoid, arg.DocumentID, arg.Reason, arg.RequestID)
 	var operation_id uuid.UUID
 	err := row.Scan(&operation_id)
 	return operation_id, err
@@ -9976,6 +10051,26 @@ func (q *Queries) OtherAccountAtAddress(ctx context.Context, arg OtherAccountAtA
 	var i OtherAccountAtAddressRow
 	err := row.Scan(&i.Email, &i.FullName)
 	return i, err
+}
+
+const paidByCreditAlone = `-- name: PaidByCreditAlone :one
+SELECT coalesce(order_amount_owed(o.id) = 0
+                AND EXISTS (SELECT 1 FROM store_credit_entries s
+                            WHERE s.order_id = o.id AND s.amount_cents < 0),
+                false)::boolean AS paid_by_credit
+FROM orders o
+WHERE o.id = $1
+`
+
+// Whether store credit alone paid the order, read before the cancellation
+// returns the credit: checkout queued its 統一發票 then. A customer cancels only
+// an uncommitted order, which no card has paid, so owing nothing after a credit
+// spend means credit paid it.
+func (q *Queries) PaidByCreditAlone(ctx context.Context, id uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, paidByCreditAlone, id)
+	var paid_by_credit bool
+	err := row.Scan(&paid_by_credit)
+	return paid_by_credit, err
 }
 
 const parkProductImages = `-- name: ParkProductImages :exec

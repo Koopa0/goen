@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/shoptime"
 )
 
@@ -69,6 +70,63 @@ func (s *Store) CorrectForCancellation(ctx context.Context, orderNumber string) 
 	}
 	_, err = s.processClaim(ctx, operationID)
 	return err
+}
+
+// EnqueueVoidDue writes the void a customer's cancellation owes, in the
+// cancellation's transaction.
+func EnqueueVoidDue(ctx context.Context, q *db.Queries, due *outbox.InvoiceVoidDue) error {
+	return outbox.Enqueue(ctx, q, outbox.TopicInvoiceVoidDue, due.OrderNumber, due)
+}
+
+// ClaimVoidDue records the system's void of the invoice of an order its
+// customer cancelled; the reconciler sends it. The customer's own cancellation,
+// on a form that said the invoice would be voided, is the buyer's consent to the
+// void, which the shop must keep. An issue still in flight is waited for
+// through the outbox's retry, so the invoice owed when the credit was spent is
+// issued and then voided; with no 加值中心 configured it is withdrawn instead.
+// Past the void window nothing is claimed, and /admin/health lists the live
+// invoice for staff.
+func (s *Store) ClaimVoidDue(ctx context.Context, due *outbox.InvoiceVoidDue) error {
+	issue, err := s.q.IssueInFlight(ctx, due.OrderNumber)
+	switch {
+	case err == nil && !s.Enabled():
+		return s.withdrawIssue(ctx, issue)
+	case err == nil:
+		return fmt.Errorf("%w: the invoice of %s is still being issued", ErrPending, due.OrderNumber)
+	case !errors.Is(err, pgx.ErrNoRows):
+		return fmt.Errorf("read the issue in flight for %s: %w", due.OrderNumber, err)
+	}
+	if !s.Enabled() {
+		return nil
+	}
+	live, err := s.q.LiveInvoice(ctx, due.OrderNumber)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("read the invoice of %s: %w", due.OrderNumber, err)
+	}
+	if !voidable(live.IssuedAt, time.Now(), live.HasAllowance) {
+		return nil
+	}
+	_, err = s.q.ClaimSystemInvoiceVoid(ctx, db.ClaimSystemInvoiceVoidParams{
+		DocumentID: live.ID, Reason: cancellationVoidReason, RequestID: due.Trigger,
+	})
+	return voidDueClaimOutcome(live.Number, err)
+}
+
+// voidDueClaimOutcome is nil for a claim made and for an invoice no void can
+// reach: one voided since it was read, and one with no issue on record, which
+// /admin/health lists. Any other refusal keeps the message queued.
+func voidDueClaimOutcome(documentNumber string, err error) error {
+	switch constraintName(err) {
+	case "invoice_void_target", "invoice_void_issue_operation":
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("claim the void of %s: %w", documentNumber, err)
+	}
+	return nil
 }
 
 func (s *Store) finishIssueInFlight(ctx context.Context, orderNumber string) error {

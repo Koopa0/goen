@@ -731,6 +731,10 @@ func (v *OrderView) CanCancel() bool {
 	return v.Status == FulfillmentPending && !v.Committed
 }
 
+// CancelVoidsInvoice reports whether cancelling voids the order's 統一發票:
+// store credit paid it in full, and the invoice was owed then.
+func (v *OrderView) CancelVoidsInvoice() bool { return v.CreditCents > 0 && v.OwedCents == 0 }
+
 func OrderMeta(ctx context.Context, number string) layouts.Page {
 	return layouts.Page{Title: fmt.Sprintf(i18n.T(ctx, i18n.KeyOrderMeta), number)}
 }

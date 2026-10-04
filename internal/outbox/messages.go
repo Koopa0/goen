@@ -29,3 +29,11 @@ type InvoiceDue struct {
 	// system claim's request id.
 	Trigger string `json:"trigger"`
 }
+
+// InvoiceVoidDue is an order its customer cancelled after its 統一發票 was
+// owed: store credit paid it in full at checkout.
+type InvoiceVoidDue struct {
+	OrderNumber string `json:"order_number"`
+	// Trigger is the cancellation, and the system void's request id.
+	Trigger string `json:"trigger"`
+}

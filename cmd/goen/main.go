@@ -746,6 +746,7 @@ func newOutboxStore(d workerDeps) *outbox.Store {
 		newsletterIssueHandler(newsletter.NewStore(d.pool), d.notifier))
 	outboxStore.HandleJSON(outbox.TopicRestocked, d.notifier.SendRestockNotice)
 	outboxStore.HandleJSON(outbox.TopicInvoiceDue, invoiceDueHandler(d.admin, d.invoices))
+	outboxStore.HandleJSON(outbox.TopicInvoiceVoidDue, invoiceVoidDueHandler(d.admin, d.invoices))
 	return outboxStore
 }
 
@@ -753,6 +754,11 @@ func newOutboxStore(d workerDeps) *outbox.Store {
 // invoice doors.
 func invoiceDueHandler(adminPool *pgxpool.Pool, gateway *invoice.Gateway) func(context.Context, *outbox.InvoiceDue) error {
 	return invoice.NewStore(adminPool, gateway).ClaimDue
+}
+
+// invoiceVoidDueHandler claims on the ADMIN pool, as invoiceDueHandler does.
+func invoiceVoidDueHandler(adminPool *pgxpool.Pool, gateway *invoice.Gateway) func(context.Context, *outbox.InvoiceVoidDue) error {
+	return invoice.NewStore(adminPool, gateway).ClaimVoidDue
 }
 
 // newsletterIssueHandler delivers one copy of an issue, and asks at DELIVERY

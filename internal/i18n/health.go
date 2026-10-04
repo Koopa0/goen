@@ -145,6 +145,22 @@ var (
 
 	KeyAdminHPColPaid = key("admin.hp.col.paid", Message{ZhHant: "收款於", En: "Paid"})
 
+	KeyAdminHPCancelledOrderInvoicesHeading = key("admin.hp.cancelledorderinvoices.heading", Message{
+		ZhHant: "已取消訂單仍有效的統一發票",
+		En:     "Live invoices on cancelled orders",
+	})
+
+	KeyAdminHPCancelledOrderInvoicesHint = countKey("admin.hp.cancelledorderinvoices.hint",
+		"%d 張統一發票的訂單已取消，發票卻沒有作廢或折讓：已過綠界的作廢期限、作廢被拒絕，或沒有設定加值中心。請到訂單頁處理。",
+		"%d invoice belongs to a cancelled order and was neither voided nor credited: ECPay's void "+
+			"deadline had passed, the void was refused, or no e-invoice provider is configured. "+
+			"Correct it from its order page.",
+		"%d invoices belong to cancelled orders and were neither voided nor credited: ECPay's void "+
+			"deadline had passed, the void was refused, or no e-invoice provider is configured. "+
+			"Correct each from its order page.")
+
+	KeyAdminHPColIssued = key("admin.hp.col.issued", Message{ZhHant: "開立於", En: "Issued"})
+
 	KeyAdminHPClaimsHeading = key("admin.hp.claims.heading", Message{
 		ZhHant: "待確認的電子發票操作",
 		En:     "E-invoice operations awaiting confirmation",

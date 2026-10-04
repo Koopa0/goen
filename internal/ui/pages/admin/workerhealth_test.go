@@ -73,3 +73,31 @@ func TestAPaidOrderWithNoInvoiceOperationIsWork(t *testing.T) {
 		}
 	}
 }
+
+// TestALiveInvoiceOnACancelledOrderIsWork: a cancellation that could not void
+// its invoice leaves staff a correction to make, so the page reads unhealthy,
+// counts them all and links each order.
+func TestALiveInvoiceOnACancelledOrderIsWork(t *testing.T) {
+	t.Parallel()
+	view := &WorkerHealthView{CopurchaseEverBuilt: true, CopurchaseStaleAfter: time.Hour}
+	if !view.AllHealthy() {
+		t.Fatal("the fixture is unhealthy before any invoice is listed; the check below would prove nothing")
+	}
+	view.CancelledOrderInvoiceCount = 3
+	view.CancelledOrderInvoices = []CancelledOrderInvoice{{
+		OrderNumber: "GO-261002-000002", Number: "AB12345678", AmountCents: 106000, IssuedOn: "2026-06-30",
+	}}
+	if view.AllHealthy() {
+		t.Error("the page reads healthy with a live invoice on a cancelled order")
+	}
+	html := renderToString(t, Health(layouts.Page{Title: "health"}, view))
+	for _, want := range []string{
+		`href="/admin/orders/GO-261002-000002"`,
+		"AB12345678",
+		i18n.Count(i18n.WithLocale(t.Context(), i18n.ZhHant), i18n.KeyAdminHPCancelledOrderInvoicesHint, 3, int64(3)),
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("the health page does not carry %s", want)
+		}
+	}
+}

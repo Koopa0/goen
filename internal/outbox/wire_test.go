@@ -81,4 +81,7 @@ func TestStoredRowsDecodeUnderTheirTopicsType(t *testing.T) {
 	decodesTo(t, TopicInvoiceDue,
 		`{"order_number":"GO-1","trigger":"evt_1"}`,
 		InvoiceDue{OrderNumber: "GO-1", Trigger: "evt_1"})
+	decodesTo(t, TopicInvoiceVoidDue,
+		`{"order_number":"GO-1","trigger":"cancel:GO-1"}`,
+		InvoiceVoidDue{OrderNumber: "GO-1", Trigger: "cancel:GO-1"})
 }

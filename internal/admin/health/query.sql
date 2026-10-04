@@ -200,6 +200,25 @@ WHERE (order_is_committed(o.id)
 ORDER BY f.funded_at DESC, o.id DESC
 LIMIT 50;
 
+-- Issued invoices of cancelled orders that nothing relieved and nothing is
+-- correcting: ECPay's void window had passed, the void was refused, or no
+-- 加值中心 was configured to send one. One with an operation still active is on
+-- the stranded-claims list instead.
+-- name: CancelledOrderInvoices :many
+SELECT o.order_number, d.number, d.amount_cents, d.issued_at, count(*) OVER () AS total
+FROM invoice_documents d
+JOIN orders o ON o.id = d.order_id
+WHERE o.fulfillment_status = 'cancelled'
+  AND o.cancelled_at < now() - @older_than::interval
+  AND d.kind = 'invoice' AND d.status = 'issued'
+  AND d.amount_cents > coalesce((
+      SELECT sum(a.amount_cents) FROM invoice_documents a
+      WHERE a.original_id = d.id AND a.kind = 'allowance' AND a.status = 'issued'), 0)
+  AND NOT EXISTS (SELECT 1 FROM invoice_operations op
+                  WHERE op.order_id = o.id AND op.status IN ('pending', 'attention'))
+ORDER BY o.cancelled_at DESC, d.id DESC
+LIMIT 50;
+
 -- A human has independently checked ECPay and confirmed the missing Allowance.
 -- The database rechecks age/state/lease and records actor + request atomically.
 -- name: AuthorizeInvoiceAllowanceResend :one

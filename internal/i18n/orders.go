@@ -37,6 +37,11 @@ var (
 		En:     "You can cancel an order yourself until it is paid for.",
 	})
 
+	KeyOrderCancelVoidsInvoice = key("order.cancel.voidsinvoice", Message{
+		ZhHant: "這筆訂單以購物金付清。取消後購物金會退回，統一發票也會作廢。",
+		En:     "Paid with store credit: cancelling returns the credit and voids this order's invoice.",
+	})
+
 	KeyOrderTracking = key("order.tracking", Message{ZhHant: "配送資訊", En: "Delivery"})
 
 	KeyOrderTrackingNo = key("order.tracking.no", Message{

@@ -253,6 +253,36 @@ templ Health(p layouts.Page, v *WorkerHealthView) {
 				</div>
 			</section>
 		}
+		if v.CancelledOrderInvoiceCount > 0 {
+			<section class="goen-admin__queue" aria-labelledby="cancelled-order-invoices-heading">
+				<h2 class="goen-admin__heading" id="cancelled-order-invoices-heading">{ i18n.T(ctx, i18n.KeyAdminHPCancelledOrderInvoicesHeading) }</h2>
+				<p class="goen-admin__hint">{ v.CancelledOrderInvoicesText(ctx) }</p>
+				<div class="goen-admin__tablewrap">
+					<table class="ui-table goen-admin__table">
+						<thead>
+							<tr>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColOrder) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminDocInvoice) }</th>
+								<th class="goen-admin__cellnum" scope="col">{ i18n.T(ctx, i18n.KeyAdminColAmount) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColIssued) }</th>
+							</tr>
+						</thead>
+						<tbody>
+							for _, inv := range v.CancelledOrderInvoices {
+								<tr>
+									<td class="goen-admin__cellkey">
+										<a href={ templ.SafeURL("/admin/orders/" + inv.OrderNumber) }>{ inv.OrderNumber }</a>
+									</td>
+									<td>{ inv.Number }</td>
+									<td class="goen-admin__cellnum">{ inv.Amount() }</td>
+									<td>{ inv.IssuedOn }</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			</section>
+		}
 		if len(v.StrandedClaims) > 0 {
 			// Ordinary ambiguity is reconciled automatically. An aged Allowance
 			// becomes actionable only after an operator verifies provider absence.

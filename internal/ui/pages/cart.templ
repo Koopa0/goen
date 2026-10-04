@@ -1039,7 +1039,11 @@ templ Order(p layouts.Page, v *OrderView) {
 								@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleGhost}, "submit") {
 									{ i18n.T(ctx, i18n.KeyOrderCancel) }
 								}
-								<span class="goen-order__meta">{ i18n.T(ctx, i18n.KeyOrderCancelNote) }</span>
+								if v.CancelVoidsInvoice() {
+									<span class="goen-order__meta">{ i18n.T(ctx, i18n.KeyOrderCancelVoidsInvoice) }</span>
+								} else {
+									<span class="goen-order__meta">{ i18n.T(ctx, i18n.KeyOrderCancelNote) }</span>
+								}
 							</form>
 						}
 						if v.ShowWarrantyLink && v.CanRegisterWarranty() {

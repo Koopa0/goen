@@ -58,6 +58,10 @@ var (
 	// TopicInvoiceDue is a sale that became final. Its handler claims the
 	// 統一發票 on the admin pool; the invoice reconciler issues it.
 	TopicInvoiceDue = topic[InvoiceDue]("invoice.due")
+	// TopicInvoiceVoidDue is an order its customer cancelled after its
+	// 統一發票 was owed. Its handler claims the void on the admin pool; the
+	// invoice reconciler sends it.
+	TopicInvoiceVoidDue = topic[InvoiceVoidDue]("invoice.void_due")
 )
 
 // BulkPriority is where a send that can wait goes in the queue. Transactional
