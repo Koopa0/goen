@@ -72,7 +72,7 @@ func TestMobileFiltersStayCollapsedWithoutScript(t *testing.T) {
 	view := ListingView{
 		Slug: "audio", Name: "耳機與音響",
 		Products: []ProductTile{{Slug: "nimbus-buds-pro", Name: "Nimbus Buds Pro", PriceCents: 399000}},
-		Brands:   []FacetOption{{Value: "nimbus", Label: "Nimbus", Count: 1}},
+		Facets:   []FacetGroup{{Label: i18n.T(ctx, i18n.KeyFacetBrand), Options: []FacetOption{{Value: "nimbus", Label: "Nimbus", Count: 1}}}},
 	}
 	html := renderToString(t, Listing(ListingMeta(ctx, view), view))
 
@@ -608,10 +608,10 @@ func TestEachAppliedFilterLinksToTheListingWithoutIt(t *testing.T) {
 	view := ListingView{
 		Slug: "audio", Name: "Audio", Filtered: true, InStockOnly: true, MinPrice: 1000, MaxPrice: 5000,
 		Query: "brand=aurora&brand=nimbus&in_stock=1&max_price=50&min_price=10&sort=rating",
-		Brands: []FacetOption{
+		Facets: []FacetGroup{{Label: "Brand", Options: []FacetOption{
 			{Value: "aurora", Label: "Aurora", Selected: true},
 			{Value: "nimbus", Label: "Nimbus", Selected: true},
-		},
+		}}},
 	}
 	want := map[string]string{
 		"Remove “Aurora”":   "/c/audio?brand=nimbus&in_stock=1&max_price=50&min_price=10&sort=rating",
@@ -639,7 +639,7 @@ func TestEachAppliedFilterLinksToTheListingWithoutIt(t *testing.T) {
 func TestAPartialListingCarriesTheBrandCountsForTheRail(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
-	view := ListingView{Slug: "audio", Name: "Audio", Products: shelf(1), Total: 1, Brands: []FacetOption{{Value: "aurora", Label: "Aurora", Count: 3}}}
+	view := ListingView{Slug: "audio", Name: "Audio", Products: shelf(1), Total: 1, Facets: []FacetGroup{{Label: "Brand", Options: []FacetOption{{Value: "aurora", Label: "Aurora", Count: 3}}}}}
 	oob := `<span class="goen-filters__count" id="brand-count-aurora" hx-swap-oob="true">3</span>`
 	if html := renderComponent(t, AsPartial(ctx), Listing(ListingMeta(ctx, view), view)); !strings.Contains(html, oob) {
 		t.Errorf("a partial listing lacks the out-of-band count:\n%s", html)
