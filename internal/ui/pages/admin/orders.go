@@ -3,8 +3,10 @@ package admin
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/koopa0/goen/internal/carrier"
 	"github.com/koopa0/goen/internal/i18n"
@@ -98,50 +100,45 @@ type DashboardView struct {
 	LowStock       int64
 	ActiveProducts int64
 	OpenMessages   int64
-	// PendingReturns is the requests nobody has decided, and OldestReturnDays how
-	// many shop days ago the oldest of them was filed. It is the operator's own
-	// wait, not the consumer's seven days: for a request already filed that window
-	// is no clock of theirs.
+	// PendingReturns is the requests nobody has decided, UninspectedReturns the
+	// approved ones whose parcel nobody has opened.
 	PendingReturns      int64
-	OldestReturnDays    int64
+	UninspectedReturns  int64
 	UnansweredQuestions int64
 	Recent              []OrderRow
 	Low                 []Variant
+	// Tasks is the work that waits for a person, in the order it is listed.
+	Tasks []Task
+}
+
+// Task is one kind of work that waits for a person: what it is, how much of
+// it, and where it is done.
+type Task struct {
+	Label i18n.Key
+	Count int64
+	Href  string
+}
+
+// DeskTasks lists what the order desk itself counts, leaving out each kind with
+// nothing waiting.
+func (v DashboardView) DeskTasks() []Task {
+	all := []Task{
+		{Label: i18n.KeyAdminStatusReadyToPick, Count: v.ReadyOrders, Href: "/admin/orders?status=ready"},
+		{Label: i18n.KeyAdminQueueStatReturns, Count: v.PendingReturns, Href: "/admin/returns"},
+		{Label: i18n.KeyAdminQueueTaskUninspected, Count: v.UninspectedReturns, Href: "/admin/returns"},
+		{Label: i18n.KeyAdminQueueStatQuestions, Count: v.UnansweredQuestions, Href: "/admin/questions"},
+		{Label: i18n.KeyAdminQueueStatMessages, Count: v.OpenMessages, Href: "/admin/messages"},
+		{Label: i18n.KeyAdminQueueStatLowStock, Count: v.LowStock, Href: "/admin/stock?low=1"},
+	}
+	return slices.DeleteFunc(all, func(t Task) bool { return t.Count == 0 })
 }
 
 func (v DashboardView) PendingText() string { return strconv.FormatInt(v.PendingOrders, 10) }
 
-func (v DashboardView) ReadyText() string { return strconv.FormatInt(v.ReadyOrders, 10) }
-
 func (v DashboardView) PickingText() string { return strconv.FormatInt(v.PickingOrders, 10) }
-
-func (v DashboardView) LowStockText() string { return strconv.FormatInt(v.LowStock, 10) }
 
 func (v DashboardView) ActiveProductsText() string {
 	return strconv.FormatInt(v.ActiveProducts, 10)
-}
-
-func (v DashboardView) OpenMessagesText() string {
-	return strconv.FormatInt(v.OpenMessages, 10)
-}
-
-func (v DashboardView) PendingReturnsText() string {
-	return strconv.FormatInt(v.PendingReturns, 10)
-}
-
-func (v DashboardView) ReturnsAgeNote(ctx context.Context) string {
-	switch {
-	case v.PendingReturns == 0:
-		return ""
-	case v.OldestReturnDays <= 0:
-		return i18n.T(ctx, i18n.KeyAdminQueueStatReturnsToday)
-	default:
-		return i18n.Count(ctx, i18n.KeyAdminQueueStatReturnsAge, v.OldestReturnDays, v.OldestReturnDays)
-	}
-}
-
-func (v DashboardView) UnansweredQuestionsText() string {
-	return strconv.FormatInt(v.UnansweredQuestions, 10)
 }
 
 func (v DashboardView) HasLow() bool { return len(v.Low) > 0 }
@@ -231,7 +228,8 @@ type OrderView struct {
 	CanShip                   bool
 	Shippable                 []ShippableLine
 	Notice                    string
-	Timeline                  []OrderEvent
+	Timeline                  []TimelineEntry
+	MailKept                  time.Duration
 	Shipments                 []Shipment
 	DeliveryError             string
 	ShipCarrier, ShipTracking string
@@ -269,25 +267,40 @@ type Delivery struct {
 	PickupStoreName string
 }
 
-type OrderEvent struct {
-	Kind  order.EventKind
-	Note  string
-	At    string
+// ActorKind is who made a timeline entry happen.
+type ActorKind string
+
+const (
+	ActorStaff    ActorKind = "staff"
+	ActorCustomer ActorKind = "customer"
+	ActorSystem   ActorKind = "system"
+	ActorProvider ActorKind = "provider"
+)
+
+// TimelineEntry is one line of an order's history: one of its events, an
+// invoice operation, a notice from the payment provider, or mail about it.
+// It names staff, so it never reaches the storefront.
+type TimelineEntry struct {
+	At        string
+	Label     i18n.Key
+	Status    i18n.Key
+	Note      string
+	ActorKind ActorKind
+	// Actor is the staff member's name, empty once their account is erased.
 	Actor string
-	// System is an event no person made, such as the payment-deadline cancel.
-	System bool
 }
 
-func (e OrderEvent) LabelKey() i18n.Key { return pages.OrderEvent{Kind: e.Kind}.LabelKey() }
-
-func (e OrderEvent) By(ctx context.Context) string {
-	switch {
-	case e.Actor != "":
+func (e TimelineEntry) By(ctx context.Context) string {
+	switch e.ActorKind {
+	case ActorStaff:
+		if e.Actor == "" {
+			return i18n.T(ctx, i18n.KeyAdminErasedAccountPlain)
+		}
 		return e.Actor
-	case e.System:
-		return i18n.T(ctx, i18n.KeyAdminActorSystem)
-	case e.Kind == order.EventCancelled:
+	case ActorCustomer:
 		return i18n.T(ctx, i18n.KeyAdminActorCustomer)
+	case ActorProvider:
+		return i18n.T(ctx, i18n.KeyAdminActorProvider)
 	default:
 		return i18n.T(ctx, i18n.KeyAdminActorSystem)
 	}
@@ -514,6 +527,11 @@ func (v *OrderView) AllowanceAttentionText(ctx context.Context) string {
 func (v *OrderView) AllowanceAmount() string { return money.TWD(v.allowanceOutstandingCents()) }
 
 func (v *OrderView) HasCustomerNote() bool { return v.CustomerNote != "" }
+
+func (v *OrderView) MailKeptText(ctx context.Context) string {
+	days := int(v.MailKept.Hours() / 24)
+	return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminTimelineMailKept), i18n.Count(ctx, i18n.KeyAdminDays, int64(days), days))
+}
 
 type VariantsView struct {
 	web.Bound

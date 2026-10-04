@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
@@ -104,24 +105,47 @@ func tagWithID(t *testing.T, html, id string) string {
 	return html[start : at+end+1]
 }
 
-// An automatic action is the system's, never the customer's: only an actor-less
-// cancellation the sweeper did not make is the customer's own.
-func TestTheTimelineNamesWhoCancelled(t *testing.T) {
+// TestTheTimelineNamesWhoActed: a staff member by name, an erased one as such
+// and never as the system, and everyone else by kind; under the list, how long
+// mail stays on it.
+func TestTheTimelineNamesWhoActed(t *testing.T) {
 	t.Parallel()
+	entries := []TimelineEntry{
+		{Label: i18n.KeyStatusPlaced, ActorKind: ActorCustomer},
+		{Label: i18n.KeyAdminTimelineProvider, Note: "checkout.session.completed", ActorKind: ActorProvider},
+		{Label: i18n.KeyStatusPicking, ActorKind: ActorStaff, Actor: "王店長"},
+		{Label: i18n.KeyAuditInvoiceAllowance, Status: i18n.KeyAdminTimelineInvoiceAwaitingBuyer, ActorKind: ActorStaff},
+		{Label: i18n.KeyAuditInvoiceVoid, Status: i18n.KeyAdminTimelineInvoicePending, ActorKind: ActorSystem},
+	}
 	for _, tc := range []struct {
-		name   string
-		event  OrderEvent
-		zh, en string
+		locale  i18n.Locale
+		by      []string
+		caption string
 	}{
-		{"staff", OrderEvent{Kind: "cancelled", Actor: "王店長"}, "王店長", "王店長"},
-		{"payment deadline", OrderEvent{Kind: "cancelled", System: true}, "系統", "System"},
-		{"customer", OrderEvent{Kind: "cancelled"}, "顧客", "Customer"},
-		{"webhook", OrderEvent{Kind: "paid"}, "系統", "System"},
+		{i18n.ZhHant, []string{"顧客", "金流服務商", "王店長", "已刪除的帳號", "系統"}, "郵件紀錄只保留 30 天，更早的郵件不會列在這裡。"},
+		{i18n.En, []string{"Customer", "Payment provider", "王店長", "Erased account", "System"}, "Mail is kept for 30 days; older mail is not listed here."},
 	} {
-		for locale, want := range map[i18n.Locale]string{i18n.ZhHant: tc.zh, i18n.En: tc.en} {
-			if got := tc.event.By(i18n.WithLocale(t.Context(), locale)); got != want {
-				t.Errorf("%s/%s: By = %q, want %q", tc.name, locale, got, want)
+		ctx := i18n.WithLocale(t.Context(), tc.locale)
+		html := renderComponent(t, ctx, Order(layouts.Page{}, &OrderView{
+			Number: "GO-261004-000001", Timeline: entries, MailKept: 30 * 24 * time.Hour,
+		}))
+		items := strings.Split(html, `class="goen-admin__event"`)[1:]
+		if len(items) != len(entries) {
+			t.Fatalf("%s: Order renders %d timeline entries, want %d", tc.locale, len(items), len(entries))
+		}
+		for i, e := range entries {
+			item, _, _ := strings.Cut(items[i], "</li>")
+			for _, want := range []string{i18n.T(ctx, e.Label), " · " + tc.by[i], e.Note} {
+				if !strings.Contains(item, want) {
+					t.Errorf("%s: timeline entry %d (%s) lacks %q: %s", tc.locale, i, e.Label, want, item)
+				}
 			}
+			if e.Status != "" && !strings.Contains(item, i18n.T(ctx, e.Status)) {
+				t.Errorf("%s: timeline entry %d (%s) lacks its status %q", tc.locale, i, e.Label, i18n.T(ctx, e.Status))
+			}
+		}
+		if !strings.Contains(html, tc.caption) {
+			t.Errorf("%s: the timeline does not say %q", tc.locale, tc.caption)
 		}
 	}
 }

@@ -67,8 +67,7 @@ type config struct {
 	ECPayHashIV            string
 	ECPayBaseURL           string
 	// ECPayLogistics is the 物流 contract this merchant holds, c2c or b2c, and
-	// unset is the whole feature off: the checkout then asks for a chain and no
-	// store.
+	// unset is the whole feature off: the checkout then offers no pickup.
 	ECPayLogistics string
 	// ECPayLogisticsBaseURL defaults to the staging map.
 	ECPayLogisticsBaseURL string

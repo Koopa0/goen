@@ -918,7 +918,7 @@ func TestTheBackOfficeSeesTheSystemCancelAtThePaymentDeadline(t *testing.T) {
 	}
 	var found bool
 	for _, e := range view.Timeline {
-		if e.Kind != "cancelled" {
+		if e.Label != i18n.KeyStatusCancelled {
 			continue
 		}
 		found = true
@@ -949,7 +949,7 @@ func TestTheBackOfficeSeesWhoCancelled(t *testing.T) {
 	}
 	var found bool
 	for _, e := range view.Timeline {
-		if e.Kind != "cancelled" {
+		if e.Label != i18n.KeyStatusCancelled {
 			continue
 		}
 		found = true

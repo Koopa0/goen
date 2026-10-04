@@ -24,6 +24,7 @@ import (
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/ordernotice"
+	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/pickup"
 	"github.com/koopa0/goen/internal/shoptime"
@@ -50,19 +51,34 @@ type Stock interface {
 	LowStock(ctx context.Context, limit int32) ([]admin.Variant, error)
 }
 
+// Health lists what the health desk judges to need a person, as dashboard
+// tasks; the health desk implements it.
+type Health interface {
+	Tasks(ctx context.Context) ([]admin.Task, error)
+}
+
+// HealthFunc adapts a function to Health. The health store is handed over as
+// its method value, not converted to Health itself: x/tools deadcode panics on
+// the generic method of *outbox.Store, which converting *health.Store to an
+// interface would make reachable through WorkerHealth's parameter.
+type HealthFunc func(ctx context.Context) ([]admin.Task, error)
+
+func (f HealthFunc) Tasks(ctx context.Context) ([]admin.Task, error) { return f(ctx) }
+
 type Store struct {
 	pool     *pgxpool.Pool
 	q        *db.Queries
 	refunds  Refunds
 	invoices Invoices
 	stock    Stock
+	health   Health
 }
 
-func NewStore(pool *pgxpool.Pool, refunds Refunds, invoices Invoices, stock Stock) *Store {
-	if pool == nil || refunds == nil || invoices == nil || stock == nil {
-		panic("orders: NewStore requires a pool, refunds, invoices and stock")
+func NewStore(pool *pgxpool.Pool, refunds Refunds, invoices Invoices, stock Stock, health Health) *Store {
+	if pool == nil || refunds == nil || invoices == nil || stock == nil || health == nil {
+		panic("orders: NewStore requires a pool, refunds, invoices, stock and health")
 	}
-	return &Store{pool: pool, q: db.New(pool), refunds: refunds, invoices: invoices, stock: stock}
+	return &Store{pool: pool, q: db.New(pool), refunds: refunds, invoices: invoices, stock: stock, health: health}
 }
 
 func (s *Store) Dashboard(ctx context.Context) (admin.DashboardView, error) {
@@ -79,16 +95,9 @@ func (s *Store) Dashboard(ctx context.Context) (admin.DashboardView, error) {
 		OpenMessages:   sum.OpenMessages,
 
 		PendingReturns:      sum.PendingReturns,
+		UninspectedReturns:  sum.UninspectedReturns,
 		UnansweredQuestions: sum.UnansweredQuestions,
 	}
-	oldest, err := s.q.OldestPendingReturn(ctx)
-	if err != nil {
-		return admin.DashboardView{}, fmt.Errorf("read oldest open return: %w", err)
-	}
-	if oldest.AnyOpen {
-		view.OldestReturnDays = shoptime.DaysSince(oldest.FiledAt, time.Now())
-	}
-
 	// No status: the newest orders whatever state they are in. The tiles above
 	// the queue already count each state, and a queue filtered to one of them
 	// hides the order somebody is standing at the counter asking about.
@@ -104,7 +113,14 @@ func (s *Store) Dashboard(ctx context.Context) (admin.DashboardView, error) {
 	if err != nil {
 		return admin.DashboardView{}, err
 	}
+	view.Tasks = view.DeskTasks()
 	return view, nil
+}
+
+// HealthTasks is what the health desk says needs a person. The dashboard is
+// still worth opening without it, so the caller decides what an error costs.
+func (s *Store) HealthTasks(ctx context.Context) ([]admin.Task, error) {
+	return s.health.Tasks(ctx)
 }
 
 const DashboardRows = 8
@@ -285,17 +301,20 @@ func (s *Store) Order(ctx context.Context, number string) (admin.OrderView, erro
 		})
 	}
 
-	events, err := s.q.OrderEvents(ctx, o.ID)
+	timeline, err := s.q.AdminOrderTimeline(ctx, db.AdminOrderTimelineParams{
+		OrderID: o.ID, MailTopics: orderMailTopics,
+	})
 	if err != nil {
-		return admin.OrderView{}, fmt.Errorf("read order events: %w", err)
+		return admin.OrderView{}, fmt.Errorf("read order timeline: %w", err)
 	}
-	for i := range events {
-		e := &events[i]
-		view.Timeline = append(view.Timeline, admin.OrderEvent{
-			Kind: order.EventKind(e.Kind), Note: e.Note.String,
-			At: shoptime.Minute(e.OccurredAt), Actor: e.ActorName, System: e.BySystem,
-		})
+	for i := range timeline {
+		entry, entryErr := timelineEntry(&timeline[i])
+		if entryErr != nil {
+			return admin.OrderView{}, entryErr
+		}
+		view.Timeline = append(view.Timeline, entry)
 	}
+	view.MailKept = outbox.Retain
 
 	shipments, err := s.q.OrderShipments(ctx, o.ID)
 	if err != nil {

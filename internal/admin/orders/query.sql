@@ -156,6 +156,13 @@ SELECT
     (SELECT count(*) FROM products WHERE status = 'active')::bigint AS active_products,
     (SELECT count(*) FROM contact_messages WHERE handled_at IS NULL)::bigint AS open_messages,
     (SELECT count(*) FROM return_requests WHERE status = 'requested')::bigint AS pending_returns,
+    -- Approved, with a parcel to open: a refund before shipment closes its own
+    -- lines and never has one.
+    (SELECT count(*) FROM return_requests r
+     WHERE r.status = 'approved' AND NOT r.before_shipment
+       AND EXISTS (SELECT 1 FROM return_request_lines rl
+                   WHERE rl.return_request_id = r.id AND rl.received_quantity IS NULL)
+    )::bigint AS uninspected_returns,
     -- The queue's own predicate (UnansweredQuestions, Question.Waiting): visible,
     -- and no visible answer from the shop. A customer's reply does not answer it.
     (SELECT count(*) FROM product_questions q
@@ -163,16 +170,6 @@ SELECT
        AND NOT EXISTS (SELECT 1 FROM product_answers a
                        WHERE a.question_id = q.id AND a.is_staff AND a.hidden_at IS NULL)
     )::bigint AS unanswered_questions;
-
--- When the oldest open return request was filed, which is how long a person has
--- been waiting for a decision. Two columns, not one nullable timestamp: min()
--- over no rows is NULL and sqlc infers the column non-nullable, so pgx cannot
--- scan it.
--- name: OldestPendingReturn :one
-SELECT coalesce(min(created_at), now())::timestamptz AS filed_at,
-       (count(*) > 0) AS any_open
-FROM return_requests
-WHERE status = 'requested';
 
 -- name: CreateShipment :one
 INSERT INTO order_shipments (order_id, carrier, tracking_number, estimated_delivery_on)
@@ -224,14 +221,60 @@ JOIN shipping_methods sm ON sm.id = v.method_id
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
 WHERE o.id = $1;
 
--- Oldest first: occurred_at then id, because two events recorded in the same
--- statement share a timestamp and the uuidv7 key is the tie-break.
--- name: OrderEvents :many
-SELECT e.kind, e.note, e.occurred_at, coalesce(u.full_name, '') AS actor_name, e.by_system
-FROM order_events e
-LEFT JOIN users u ON u.id = e.actor_user_id
-WHERE e.order_id = $1
-ORDER BY e.occurred_at, e.id;
+-- Everything that happened to one order, oldest first, in one statement so the
+-- sources share one snapshot and one sort. A provider's event is the order's
+-- when its object is one of the order's Checkout Sessions; a mail when its
+-- payload names the order, since the shipped mail's dedupe key is the parcel's.
+-- A transaction writes a fact and its mail at one now(), so within an instant
+-- the provider's notice comes first and the mail last.
+-- An order event with no actor: 'placed' and 'cancelled' are the customer's (the
+-- sweeper's cancel is by_system); 'paid' is the provider's when a payment
+-- succeeded, and otherwise store credit or a discount closing the funding.
+-- name: AdminOrderTimeline :many
+SELECT at, source, kind, status, note, actor_kind, actor_name
+FROM (
+    SELECT e.occurred_at AS at, 1 AS precedence, e.id::text AS tie,
+           'order'::text AS source, e.kind::text AS kind, ''::text AS status,
+           coalesce(e.note, '')::text AS note,
+           (CASE WHEN e.actor_user_id IS NOT NULL THEN 'staff'
+                 WHEN e.by_system THEN 'system'
+                 WHEN e.kind IN ('placed', 'cancelled') THEN 'customer'
+                 WHEN e.kind = 'paid' AND EXISTS (
+                     SELECT 1 FROM payments p
+                     WHERE p.order_id = e.order_id AND p.status = 'succeeded'
+                 ) THEN 'provider'
+                 ELSE 'system' END)::text AS actor_kind,
+           coalesce(u.full_name, u.email, '')::text AS actor_name
+    FROM order_events e
+    LEFT JOIN users u ON u.id = e.actor_user_id
+    WHERE e.order_id = @order_id
+    UNION ALL
+    -- awaiting_buyer is a sent online allowance, which waits on the buyer's
+    -- consent rather than on goen.
+    SELECT op.created_at, 2, op.id::text, 'invoice', op.kind,
+           CASE WHEN op.kind = 'allowance' AND op.status = 'pending' AND op.send_attempts > 0
+                THEN 'awaiting_buyer' ELSE op.status END,
+           '', op.actor_kind, coalesce(u.full_name, u.email, '')
+    FROM invoice_operations op
+    LEFT JOIN users u ON u.id = op.actor_user_id
+    WHERE op.order_id = @order_id
+    UNION ALL
+    SELECT w.received_at, 0, w.event_id, 'provider', '', '',
+           w.type || coalesce(' · ' || w.unreconciled, ''), 'provider', ''
+    FROM payment_webhook_events w
+    JOIN payments p ON p.provider = w.provider AND p.provider_ref = w.object_ref
+    WHERE p.order_id = @order_id
+    UNION ALL
+    SELECT m.created_at, 3, m.id::text, 'mail', m.topic,
+           CASE WHEN m.delivered_at IS NULL THEN 'queued' ELSE 'sent' END,
+           '', 'system', ''
+    FROM outbox_messages m
+    JOIN orders o ON o.id = @order_id
+    WHERE m.topic = ANY(@mail_topics::text[])
+      AND (m.payload->>'order_number' = o.order_number
+           OR m.payload->>'order_id' = o.id::text)
+) timeline
+ORDER BY at, precedence, tie;
 
 -- name: OrderShipments :many
 SELECT carrier, tracking_number, shipped_at, delivered_at, estimated_delivery_on
