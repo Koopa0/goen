@@ -3881,7 +3881,7 @@ func TestTheMembershipBandReadsInTheVisitorsLanguage(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			view, err := s.Overview(i18n.WithLocale(ctx, tt.locale),
-				account.User{ID: id, Role: "customer"})
+				account.User{ID: id, Role: account.RoleCustomer})
 			if err != nil {
 				t.Fatalf("Overview: %v", err)
 			}

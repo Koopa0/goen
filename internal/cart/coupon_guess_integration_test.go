@@ -295,7 +295,7 @@ func TestAnAccountsWrongCouponCodesAreBoundedFromEveryClientAndCart(t *testing.T
 		"coupon-guesser-"+uuid.NewString()+"@example.com").Scan(&userID); err != nil {
 		t.Fatalf("create account: %v", err)
 	}
-	who := &account.User{ID: userID.String(), Role: "customer"}
+	who := &account.User{ID: userID.String(), Role: account.RoleCustomer}
 	g.spendFromManyClients(g.guestCart, who)
 
 	if res := g.ask(g.guestCart(), "203.0.113.200:5000", "SPREADMORE", who); res.Code != http.StatusTooManyRequests {

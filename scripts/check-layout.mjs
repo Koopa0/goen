@@ -375,10 +375,12 @@ function send(ws, method, params = {}, timeoutMs = 30000) {
   const id = nextId++;
   ws.send(JSON.stringify({ id, method, params }));
   return new Promise((resolve, reject) => {
-    pending.set(id, { resolve, reject });
-    setTimeout(() => {
+    // Cleared on every answer: an armed timer keeps node alive, and the audit's
+    // 120 s one would hold the process that long after the check has finished.
+    const timer = setTimeout(() => {
       if (pending.delete(id)) reject(new Error(`${method} timed out`));
     }, timeoutMs);
+    pending.set(id, { resolve, reject, timer });
   });
 }
 
@@ -740,8 +742,9 @@ await new Promise((r) => (ws.onopen = r));
 ws.onmessage = (ev) => {
   const msg = JSON.parse(ev.data);
   if (msg.id && pending.has(msg.id)) {
-    const { resolve, reject } = pending.get(msg.id);
+    const { resolve, reject, timer } = pending.get(msg.id);
     pending.delete(msg.id);
+    clearTimeout(timer);
     msg.error ? reject(new Error(JSON.stringify(msg.error))) : resolve(msg.result);
   }
 };
@@ -3162,9 +3165,8 @@ const annotate = (msg) => console.log(
 
 // Where the browser actually ends up, which is not always where it was sent.
 //
-// By the time the audit runs the session carries a signed-in cookie, and
-// /forgot answers 303 to /account for a visitor who already is: settled()'s
-// href === url would report that as a page that never loaded. about:blank
+// A signed-in visitor can be sent away from a page, which settled()'s
+// href === url would report as a page that never loaded. about:blank
 // first, so a document that is still the PREVIOUS page cannot be mistaken for
 // this one, and then whatever the browser landed on.
 //
@@ -3196,13 +3198,27 @@ const axeSettled = async (route, url) => {
   return '';
 };
 
+const SIGNED_OUT_ROUTES = new Set(['/signin', '/register', '/forgot']);
+
 const auditAccessibility = async () => {
   await send(ws, 'Emulation.setDeviceMetricsOverride', {
     width: AXE_WIDTH.width, height: AXE_WIDTH.height, deviceScaleFactor: 1, mobile: false,
   });
 
-  const requested = [...visited.entries()];
+  // The auth pages answer a signed-in visitor with a redirect to /account, so
+  // they are audited first with the session cookie taken off and it is put back
+  // before the first page that needs it.
+  const signedOutOnly = ([asked]) => SIGNED_OUT_ROUTES.has(asked);
+  const visits = [...visited.entries()];
+  const requested = [...visits.filter(signedOutOnly), ...visits.filter((v) => !signedOutOnly(v))];
   console.log(`\naxe-core wcag2a + wcag2aa, ${requested.length} routes at ${AXE_WIDTH.width}px`);
+
+  const { cookies } = await send(ws, 'Network.getCookies', { urls: [ORIGIN] });
+  const session = cookies.find((c) => c.name === 'goen_session');
+  if (session) {
+    await send(ws, 'Network.deleteCookies', { name: session.name, domain: session.domain, path: session.path });
+  }
+  let sessionRestored = !session;
 
   const observed = {};
   const unaudited = [];
@@ -3210,6 +3226,12 @@ const auditAccessibility = async () => {
   let debtMoved = false;
 
   for (const [asked, url] of requested) {
+    if (!sessionRestored && !SIGNED_OUT_ROUTES.has(asked)) {
+      await send(ws, 'Network.setCookie', {
+        name: session.name, value: session.value, domain: session.domain, path: session.path,
+      });
+      sessionRestored = true;
+    }
     const landed = await axeSettled(asked, url);
     if (!landed) {
       unaudited.push(asked);

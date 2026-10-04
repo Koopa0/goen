@@ -180,7 +180,6 @@ body {
 
 .ui-crumbs { display: flex; align-items: center; gap: 8px; font-size: var(--fs-14); color: var(--n-500); flex-wrap: wrap; font-variant-numeric: tabular-nums; }
 .ui-crumbs a { color: var(--fg-muted); text-decoration: none; }
-.ui-crumbs a:hover { color: var(--n-900); }
 .ui-crumbs__sep { color: var(--n-300); }
 .ui-crumbs__current { color: var(--n-900); }
 

@@ -1102,7 +1102,7 @@ func TestRestockNoticeAndRestockLinearizeOnVariant(t *testing.T) {
 		applicationName := "stock-race-request-first-" + uuid.NewString()[:8]
 		restockPool := stockRacePool(t, applicationName)
 		restockStore := stock.NewStore(restockPool)
-		staffCtx := account.WithUser(ctx, account.User{ID: actorID.String(), Role: "admin"})
+		staffCtx := account.WithUser(ctx, account.User{ID: actorID.String(), Role: account.RoleAdmin})
 		restocked := make(chan error, 1)
 		go func() {
 			restocked <- restockStore.Adjust(
@@ -1188,7 +1188,7 @@ func TestRestockNoticeAndRestockLinearizeOnVariant(t *testing.T) {
 
 		restockPool := stockRacePool(t, applicationName)
 		restockStore := stock.NewStore(restockPool)
-		staffCtx := account.WithUser(ctx, account.User{ID: actorID.String(), Role: "admin"})
+		staffCtx := account.WithUser(ctx, account.User{ID: actorID.String(), Role: account.RoleAdmin})
 		restocked := make(chan error, 1)
 		go func() {
 			restocked <- restockStore.Adjust(
@@ -1630,7 +1630,7 @@ func TestAStaffAnswerStaysStaffWhenTheAuthorChangesRole(t *testing.T) {
 	if err := insertHistoricalCustomerAnswer(ctx, qID, customer, "我實測過可以。"); err != nil {
 		t.Fatalf("customer answer: %v", err)
 	}
-	staffCtx := account.WithUser(ctx, account.User{ID: staff, Role: "admin"})
+	staffCtx := account.WithUser(ctx, account.User{ID: staff, Role: account.RoleAdmin})
 	if err := back.AnswerQuestion(staffCtx, qID, staff, "支援,最高 45W。"); err != nil {
 		t.Fatalf("staff answer: %v", err)
 	}
@@ -1705,7 +1705,7 @@ func TestAHiddenQuestionDisappearsWithItsAnswers(t *testing.T) {
 	}
 
 	staff := newShopAuthor(t)
-	staffCtx := account.WithUser(ctx, account.User{ID: staff, Role: "admin"})
+	staffCtx := account.WithUser(ctx, account.User{ID: staff, Role: account.RoleAdmin})
 	back := feedback.NewStore(pool)
 	if err := back.AnswerQuestion(staffCtx, qID, staff, "太遲了"); !errors.Is(err, feedback.ErrNotFound) {
 		t.Errorf("a hidden question's new answer = %v, want feedback.ErrNotFound", err)
