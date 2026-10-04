@@ -7854,6 +7854,13 @@ a.goen-pager__step:hover {
   width: 100%;
 }
 
+.goen-admin__stock td a {
+  align-items: center;
+  display: inline-flex;
+  min-block-size: 24px;
+  min-inline-size: 24px;
+}
+
 /* Every back-office table, on the class the layout gate reads. Written on
    .ui-table rather than on a new name so that one recipe serves all 23 screens
    while they are rebuilt one group at a time — two table looks inside one back

@@ -72,13 +72,18 @@ Two tools have to be on `PATH`, pinned at the top of the `Makefile`:
 `golangci-lint` and `squawk` (`npm i -g squawk-cli@<pinned>`). Every other tool
 is fetched by `go run` at its pinned version.
 
-`make check-layout` drives every route in a real browser and asks the
-accessibility questions only a browser can answer. It needs Node 22 or newer,
-`curl`, `openssl`, network access to fetch axe-core, Chrome or Chromium (set
-`CHROME` when it is not found) and a running server: `make run` in one shell,
-`make check-layout` in another. CI runs it as the `layout` job;
-`scripts/axe-baseline.json` records the accepted axe findings, and the run
-prints the replacement whenever the set moves.
+`make check-layout` drives every route in a real browser. It needs Node 22 or
+newer, `curl`, `openssl`, network access to fetch axe-core, Chrome or Chromium
+(set `CHROME` when it is not found) and a running server: `make run` in one
+shell, `make check-layout` in another. CI runs it as the `layout` job.
+
+goen targets WCAG 2.2 level AA. The pinned axe rules select `wcag2a`, `wcag2aa`,
+`wcag21a`, `wcag21aa` and `wcag22aa`; serious or critical WCAG findings gate,
+while best-practice findings remain advisory. `scripts/axe-baseline.json`
+records accepted findings, and the run prints the replacement when they move.
+The log names the pinned rule set, executed rules and incomplete checks for
+manual review. Automated success does not establish complete conformance,
+screen-reader acceptance or real Windows High Contrast behavior.
 
 Run the gate unpiped and report its exit status: a pipe reports the status of
 its last command, which has read a red gate as green here before.
