@@ -8,6 +8,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/returns"
 )
 
 type ReturnsLine struct {
@@ -36,11 +37,26 @@ func (l ReturnsLine) ChosenText() string {
 }
 
 type ReturnsExisting struct {
-	StatusText string
+	Status     returns.Status
 	Reason     string
 	Resolution string
 	CreatedAt  string
 	DecidedAt  string
+}
+
+func (e ReturnsExisting) StatusText(ctx context.Context) string {
+	switch e.Status {
+	case returns.StatusRequested:
+		return i18n.T(ctx, i18n.KeyReturnStateOpen)
+	case returns.StatusApproved:
+		return i18n.T(ctx, i18n.KeyReturnStateApproved)
+	case returns.StatusRejected:
+		return i18n.T(ctx, i18n.KeyReturnStateRefused)
+	case returns.StatusCompleted:
+		return i18n.T(ctx, i18n.KeyReturnStateDone)
+	default:
+		return string(e.Status)
+	}
 }
 
 type ReturnsView struct {
