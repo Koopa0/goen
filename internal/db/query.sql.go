@@ -7541,6 +7541,7 @@ SELECT op.id, op.order_id, op.kind,
        op.actor_id_snapshot, op.request_id, op.status,
        op.reconcile_attempts, op.send_attempts, op.resend_authorizations,
        coalesce(op.last_error, '')::text AS last_error,
+       coalesce(op.last_send_at, 'epoch')::timestamptz AS last_send_at,
        op.created_at, op.updated_at
 FROM invoice_operations op
 WHERE op.id = $1::uuid
@@ -7562,6 +7563,7 @@ type InvoiceOperationRow struct {
 	SendAttempts         int32
 	ResendAuthorizations int32
 	LastError            string
+	LastSendAt           time.Time
 	CreatedAt            time.Time
 	UpdatedAt            time.Time
 }
@@ -7587,6 +7589,7 @@ func (q *Queries) InvoiceOperation(ctx context.Context, operationID uuid.UUID) (
 		&i.SendAttempts,
 		&i.ResendAuthorizations,
 		&i.LastError,
+		&i.LastSendAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -9017,6 +9020,32 @@ func (q *Queries) OldestPendingReturn(ctx context.Context) (OldestPendingReturnR
 	row := q.db.QueryRow(ctx, oldestPendingReturn)
 	var i OldestPendingReturnRow
 	err := row.Scan(&i.FiledAt, &i.AnyOpen)
+	return i, err
+}
+
+const openAllowance = `-- name: OpenAllowance :one
+SELECT op.status, coalesce(op.last_error, '')::text AS last_error,
+       coalesce(op.last_send_at, op.created_at)::timestamptz AS last_send_at
+FROM invoice_operations op
+JOIN orders o ON o.id = op.order_id
+WHERE o.order_number = $1::text AND op.kind = 'allowance'
+  AND op.status IN ('pending', 'attention') AND op.send_attempts > 0
+ORDER BY op.created_at DESC
+LIMIT 1
+`
+
+type OpenAllowanceRow struct {
+	Status     string
+	LastError  string
+	LastSendAt time.Time
+}
+
+// The order's allowance sent to ECPay and not yet settled: e-mailed to the buyer
+// to agree to, or past the link's life with no agreement.
+func (q *Queries) OpenAllowance(ctx context.Context, orderNumber string) (OpenAllowanceRow, error) {
+	row := q.db.QueryRow(ctx, openAllowance, orderNumber)
+	var i OpenAllowanceRow
+	err := row.Scan(&i.Status, &i.LastError, &i.LastSendAt)
 	return i, err
 }
 
@@ -11691,6 +11720,19 @@ func (q *Queries) RefundExecution(ctx context.Context, refundID uuid.UUID) (Refu
 	return i, err
 }
 
+const refundOpenedBy = `-- name: RefundOpenedBy :one
+SELECT requested_by_user_id FROM return_requests WHERE id = $1 AND before_shipment
+`
+
+// The staff member who opened a refund before shipment: every invoice claim it
+// makes is theirs, whoever presses Resume.
+func (q *Queries) RefundOpenedBy(ctx context.Context, id uuid.UUID) (uuid.NullUUID, error) {
+	row := q.db.QueryRow(ctx, refundOpenedBy, id)
+	var requested_by_user_id uuid.NullUUID
+	err := row.Scan(&requested_by_user_id)
+	return requested_by_user_id, err
+}
+
 const registerWarranty = `-- name: RegisterWarranty :execrows
 INSERT INTO warranty_registrations (order_line_id, unit_no, user_id, serial_number, expires_on)
 SELECT ol.id, $1::smallint, $2, nullif($3::text, ''),
@@ -14060,7 +14102,8 @@ SELECT settle_invoice_allowance(
     $5::text[],
     $6::integer[],
     $7::bigint[],
-    $8::bigint[]
+    $8::bigint[],
+    $9::jsonb
 )::uuid AS document_id
 `
 
@@ -14073,6 +14116,7 @@ type SettleInvoiceAllowanceParams struct {
 	Quantities     []int32
 	UnitPriceCents []int64
 	AmountCents    []int64
+	BuyerConsent   []byte
 }
 
 func (q *Queries) SettleInvoiceAllowance(ctx context.Context, arg SettleInvoiceAllowanceParams) (uuid.UUID, error) {
@@ -14085,6 +14129,7 @@ func (q *Queries) SettleInvoiceAllowance(ctx context.Context, arg SettleInvoiceA
 		arg.Quantities,
 		arg.UnitPriceCents,
 		arg.AmountCents,
+		arg.BuyerConsent,
 	)
 	var document_id uuid.UUID
 	err := row.Scan(&document_id)

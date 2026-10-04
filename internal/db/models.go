@@ -261,6 +261,7 @@ type InvoiceOperation struct {
 	CreatedAt            time.Time
 	UpdatedAt            time.Time
 	CompletedAt          pgtype.Timestamptz
+	BuyerConsent         []byte
 }
 
 type InvoicePreference struct {

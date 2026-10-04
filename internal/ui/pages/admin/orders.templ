@@ -744,8 +744,14 @@ templ Order(p layouts.Page, v *OrderView) {
 								<p class="goen-admin__hint">
 									{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQueueAllowanceHint), v.AllowanceAmount()) }
 								</p>
-								<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminQueueAllowancePaper) }</p>
+								<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminQueueAllowanceOnline) }</p>
 							</form>
+						}
+						if v.AllowanceAwaitingUntil != "" {
+							<p class="goen-admin__hint">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQueueAllowanceAwaiting), v.AllowanceAwaitingUntil) }</p>
+						}
+						if v.AllowanceUnconfirmed {
+							<p class="ui-alert ui-alert--error" role="status">{ i18n.T(ctx, i18n.KeyAdminQueueAllowanceUnconfirmed) }</p>
 						}
 						if !v.CanIssueInvoice() && !v.CanVoidInvoice() && len(v.InvoiceDocuments) == 0 {
 							<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminQueueNotCommitted) }</p>

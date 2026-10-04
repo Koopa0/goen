@@ -88,3 +88,25 @@ func TestAVoidDueEndsWhereNoVoidCanReachTheInvoice(t *testing.T) {
 		}
 	}
 }
+
+func TestTheBuyerHasSeventyTwoHoursToAgree(t *testing.T) {
+	t.Parallel()
+
+	sentAt := time.Date(2026, time.October, 3, 8, 21, 32, 0, time.UTC)
+	tests := []struct {
+		name string
+		now  time.Time
+		want bool
+	}{
+		{name: "the link's last moment", now: sentAt.Add(72 * time.Hour), want: true},
+		{name: "a second later", now: sentAt.Add(72*time.Hour + time.Second), want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := buyerMayStillAgree(sentAt, tt.now); got != tt.want {
+				t.Errorf("buyerMayStillAgree(%s, %s) = %v, want %v", sentAt, tt.now, got, tt.want)
+			}
+		})
+	}
+}

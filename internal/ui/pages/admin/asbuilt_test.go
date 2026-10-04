@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"fmt"
 	"html"
 	"strings"
 	"testing"
@@ -49,20 +50,44 @@ func TestOnlyAPickupOrderIsToldToCompleteAfterCollection(t *testing.T) {
 	}
 }
 
-func TestTheAllowanceActionSaysThePaperConfirmationIsTheShops(t *testing.T) {
+// TestTheAllowanceActionSaysTheCustomerAgreesOnline: the 折讓 is ECPay's online
+// consent, and an open one says who it waits for until when.
+func TestTheAllowanceActionSaysTheCustomerAgreesOnline(t *testing.T) {
 	t.Parallel()
 	for _, loc := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), loc)
-		var b strings.Builder
-		v := &OrderView{
-			Number: "GO-260721-000387", Status: "completed", Committed: true, InvoicingEnabled: true, RefundedCents: 84900,
-			InvoiceDocuments: []InvoiceDocument{{Kind: "invoice", Number: "AA12345678", Status: "issued", AmountCents: 100000}},
+		render := func(v *OrderView) string {
+			t.Helper()
+			var b strings.Builder
+			if err := Order(layouts.Page{Title: "o"}, v).Render(ctx, &b); err != nil {
+				t.Fatal(err)
+			}
+			return b.String()
 		}
-		if err := Order(layouts.Page{Title: "o"}, v).Render(ctx, &b); err != nil {
-			t.Fatal(err)
+		refunded := func() *OrderView {
+			return &OrderView{
+				Number: "GO-260721-000387", Status: "completed", Committed: true, InvoicingEnabled: true, RefundedCents: 84900,
+				InvoiceDocuments: []InvoiceDocument{{Kind: "invoice", Number: "AA12345678", Status: "issued", AmountCents: 100000}},
+			}
 		}
-		if !strings.Contains(b.String(), html.EscapeString(i18n.T(ctx, i18n.KeyAdminQueueAllowancePaper))) {
-			t.Errorf("%v: the allowance action does not say the shop keeps the signed confirmation", loc)
+		if !strings.Contains(render(refunded()), html.EscapeString(i18n.T(ctx, i18n.KeyAdminQueueAllowanceOnline))) {
+			t.Errorf("%v: the allowance action does not say the customer agrees online", loc)
+		}
+
+		awaiting := refunded()
+		awaiting.AllowanceAwaitingUntil = "2026-10-07 09:00"
+		got := render(awaiting)
+		if !strings.Contains(got, html.EscapeString(fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQueueAllowanceAwaiting), "2026-10-07 09:00"))) {
+			t.Errorf("%v: an allowance e-mailed to the customer does not say until when it waits", loc)
+		}
+		if strings.Contains(got, "/invoice/allowance") {
+			t.Errorf("%v: a second allowance is offered while one waits for the customer", loc)
+		}
+
+		lapsed := refunded()
+		lapsed.AllowanceUnconfirmed = true
+		if !strings.Contains(render(lapsed), html.EscapeString(i18n.T(ctx, i18n.KeyAdminQueueAllowanceUnconfirmed))) {
+			t.Errorf("%v: an allowance the customer never agreed to is not flagged", loc)
 		}
 	}
 }

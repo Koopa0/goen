@@ -108,17 +108,49 @@ func (s *Store) correctInvoice(ctx context.Context, number string, actorID uuid.
 	if s.invoices == nil {
 		return nil
 	}
-	if deadline, ok := ctx.Deadline(); ok {
-		// The payout needs the rest of the request's time.
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, time.Until(deadline)/2)
-		defer cancel()
-	}
+	ctx, cancel := invoiceShare(ctx)
+	defer cancel()
 	filing := invoice.WithFilingIdentity(ctx, actorID, web.RequestID(ctx))
 	if err := s.invoices.CorrectForCancellation(filing, number); err != nil {
 		return fmt.Errorf("correct the invoice of %s: %w", number, err)
 	}
 	return nil
+}
+
+// allowRefunded asks the buyer to agree to an allowance for the refund when a
+// void could not correct the invoice. The refund's opener files it, so a Resume
+// pressed by someone else replays the same claim instead of being refused; the
+// presser stands in only when the opener's account is gone.
+func (s *Store) allowRefunded(
+	ctx context.Context, number string, returnID uuid.UUID, presser uuid.NullUUID,
+) error {
+	if s.invoices == nil {
+		return nil
+	}
+	openedBy, err := s.q.RefundOpenedBy(ctx, returnID)
+	if err != nil {
+		return fmt.Errorf("read who opened refund %s: %w", returnID, err)
+	}
+	if !openedBy.Valid {
+		openedBy = presser
+	}
+	ctx, cancel := invoiceShare(ctx)
+	defer cancel()
+	filing := invoice.WithFilingIdentity(ctx, openedBy.UUID, web.RequestID(ctx))
+	operationID := uuid.NewSHA1(returnID, []byte("allowance"))
+	if err := s.invoices.AllowCancellation(filing, number, operationID); err != nil {
+		return fmt.Errorf("file the allowance of %s: %w", number, err)
+	}
+	return nil
+}
+
+// invoiceShare bounds the ECPay calls to half of the request's remaining time:
+// the refund and the cancellation need the rest.
+func invoiceShare(ctx context.Context) (context.Context, context.CancelFunc) {
+	if deadline, ok := ctx.Deadline(); ok {
+		return context.WithTimeout(ctx, time.Until(deadline)/2)
+	}
+	return ctx, func() {}
 }
 
 func (s *Store) payAndCancel(
@@ -143,7 +175,12 @@ func (s *Store) payAndCancel(
 	if !position.MoneySettled || position.EventOutstanding || position.PointsOutstanding {
 		return nil, ErrUnsettled
 	}
-	return s.finishRefundBeforeShipment(ctx, number, returnID, actor)
+	allowanceErr := s.allowRefunded(ctx, number, returnID, actor)
+	sessions, err := s.finishRefundBeforeShipment(ctx, number, returnID, actor)
+	if err != nil {
+		return nil, errors.Join(err, allowanceErr)
+	}
+	return sessions, nil
 }
 
 // finishRefundBeforeShipment cancels the order, returns its held stock and

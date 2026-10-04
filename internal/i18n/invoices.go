@@ -18,10 +18,20 @@ var (
 
 	// The endpoint goen calls is ECPay's paper-allowance one; goen records the
 	// allowance as filed and has no step that collects the buyer's agreement.
-	KeyAdminQueueAllowancePaper = key("admin.queue.allowance.paper", Message{
-		ZhHant: "這裡使用綠界的紙本折讓介面：店家必須取得買家簽回的折讓確認並自行保存；系統不會代為取得或保存。",
-		En: "This uses ECPay's paper-allowance API: the shop must obtain the buyer's signed " +
-			"allowance confirmation and keep it. goen neither collects nor stores it.",
+	KeyAdminQueueAllowanceOnline = key("admin.queue.allowance.online", Message{
+		ZhHant: "綠界會以 Email 請顧客確認這筆折讓，顧客在 72 小時內點選同意後才成立；綠界記錄這次同意，goen 也保存一份。",
+		En: "ECPay e-mails the customer to agree to this credit note, which takes effect only if they " +
+			"agree within 72 hours; ECPay records the agreement and goen keeps a copy.",
+	})
+
+	KeyAdminQueueAllowanceAwaiting = key("admin.queue.allowance.awaiting", Message{
+		ZhHant: "已寄出折讓確認信，等待顧客在 %s 前確認。",
+		En:     "The credit note was e-mailed to the customer to agree to by %s.",
+	})
+
+	KeyAdminQueueAllowanceUnconfirmed = key("admin.queue.allowance.unconfirmed", Message{
+		ZhHant: "顧客未在 72 小時內確認折讓。",
+		En:     "The customer did not agree to the credit note within 72 hours.",
 	})
 
 	KeyAdminQueueNoInvoicing = key("admin.queue.noinvoicing", Message{
@@ -94,6 +104,11 @@ var (
 	KeyAdminNoticeAllowed = key("admin.notice.allowed", Message{
 		ZhHant: "折讓已開立。",
 		En:     "The credit note has been filed.",
+	})
+
+	KeyAdminNoticeAllowSent = key("admin.notice.allowsent", Message{
+		ZhHant: "已寄出折讓確認信給顧客，顧客同意後折讓才成立。",
+		En:     "The credit note was e-mailed to the customer; it takes effect once they agree.",
 	})
 
 	// The two refusals a 折讓 has of its own. invoicefailed talks about 統編 and
