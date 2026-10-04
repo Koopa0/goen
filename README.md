@@ -37,6 +37,8 @@ A complete e-commerce shop built with Go — from browsing to checkout, after-sa
 
 Go · templ · htmx · PostgreSQL · Stripe · ECPay
 
+How it holds together — database roles, the rules the database enforces and the checks behind them: [ARCHITECTURE.md](ARCHITECTURE.md)
+
 ## Try the demo
 
 Sign in with the demo account shown on the sign-in page, and pay with Stripe's test card 4242 4242 4242 4242.
