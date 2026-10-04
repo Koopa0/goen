@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"slices"
 
 	"github.com/google/uuid"
@@ -18,6 +19,7 @@ import (
 
 type Store struct {
 	q        *db.Queries
+	logger   *slog.Logger
 	noPickup bool
 }
 
@@ -25,7 +27,7 @@ func NewStore(dbtx db.DBTX) *Store {
 	if dbtx == nil {
 		panic("product: NewStore requires a database handle")
 	}
-	return &Store{q: db.New(dbtx)}
+	return &Store{q: db.New(dbtx), logger: slog.Default()}
 }
 
 // WithoutPickup is for a deployment whose store map is not configured: checkout
@@ -249,14 +251,16 @@ func (s *Store) loadOpinion(ctx context.Context, p *db.ProductBySlugRow, view *p
 		})
 	}
 
-	related, err := s.q.RelatedProducts(ctx, db.RelatedProductsParams{
+	readCtx, cancel := recommendationContext(ctx)
+	defer cancel()
+	related, err := s.q.RelatedProducts(readCtx, db.RelatedProductsParams{
 		Locale:     string(i18n.FromContext(ctx)),
 		CategoryID: p.CategoryID,
 		ExcludeID:  p.ID,
 		RowLimit:   RelatedCount,
 	})
 	if err != nil {
-		return fmt.Errorf("read related products of %q: %w", p.Slug, err)
+		return s.recommendationError(ctx, readRelatedProducts, p.ID, err)
 	}
 	for i := range related {
 		r := &related[i]
@@ -280,14 +284,16 @@ const MinCoPurchases = 2
 const MaxRecommendations = 4
 
 func (s *Store) boughtTogether(ctx context.Context, productID uuid.UUID) ([]pages.ProductTile, error) {
-	rows, err := s.q.BoughtTogether(ctx, db.BoughtTogetherParams{
+	readCtx, cancel := recommendationContext(ctx)
+	defer cancel()
+	rows, err := s.q.BoughtTogether(readCtx, db.BoughtTogetherParams{
 		Locale:    string(i18n.FromContext(ctx)),
 		ProductID: productID,
 		MinOrders: MinCoPurchases,
 		LimitTo:   MaxRecommendations,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("read bought-together: %w", err)
+		return nil, s.recommendationError(ctx, readBoughtTogether, productID, err)
 	}
 	out := make([]pages.ProductTile, 0, len(rows))
 	for i := range rows {
