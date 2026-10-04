@@ -128,9 +128,9 @@ func (r ProductReview) DisplayAuthor(ctx context.Context) string {
 // maskedName exists because reviews are public: a full name beside a purchase is
 // more than the shopper agreed to show.
 func maskedName(l i18n.Locale, name string) string {
-	first, _ := utf8.DecodeRuneInString(strings.TrimSpace(name))
-	if first == utf8.RuneError {
-		return name
+	first, size := utf8.DecodeRuneInString(strings.TrimSpace(name))
+	if size == 0 || first == utf8.RuneError && size == 1 {
+		return "○○"
 	}
 	if l == i18n.En {
 		return strings.ToUpper(string(first)) + "."

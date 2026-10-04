@@ -53,14 +53,15 @@ var (
 	})
 
 	KeyAdminStaffLead = key("admin.staff.lead", Message{
-		ZhHant: "兩階段驗證擋的是 /admin，不是登入。沒有啟用的人只用密碼就能進來。",
-		En: "Two-factor guards /admin, not signing in. Anybody who has not enrolled reaches the back " +
-			"office with a password alone.",
+		ZhHant: "尚未完成兩階段驗證設定的員工，登入後必須先到 /admin/verify 完成設定，才能進入後台。",
+		En: "Staff who have not enrolled in two-factor verification must sign in and complete setup " +
+			"at /admin/verify before they can enter the back office.",
 	})
 
-	KeyAdminStaffUnprotected = key("admin.staff.unprotected", Message{
-		ZhHant: "還有 %s 個帳號只用密碼就能進後台。請他們到 /admin/verify 啟用。",
-		En:     "%s accounts still reach the back office with a password alone. Ask them to enrol at /admin/verify.",
+	KeyAdminStaffUnenrolled = key("admin.staff.unenrolled", Message{
+		ZhHant: "還有 %s 位員工尚未完成兩階段驗證設定。請他們登入後到 /admin/verify 完成設定。",
+		En: "Staff who still need to enroll in two-factor verification: %s. Ask them to " +
+			"sign in and complete setup at /admin/verify.",
 	})
 
 	KeyAdminStaffYou = key("admin.staff.you", Message{ZhHant: "你自己", En: "you"})

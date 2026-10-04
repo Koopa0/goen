@@ -66,7 +66,7 @@ func (r StaffRow) State(ctx context.Context) string {
 
 func (v StaffView) IsActor(r StaffRow) bool { return r.ID == v.Actor }
 
-func (v StaffView) Unprotected() int {
+func (v StaffView) Unenrolled() int {
 	n := 0
 	for _, r := range v.Rows {
 		if !r.Enrolled {
@@ -76,6 +76,6 @@ func (v StaffView) Unprotected() int {
 	return n
 }
 
-func (v StaffView) UnprotectedText() string { return strconv.Itoa(v.Unprotected()) }
+func (v StaffView) UnenrolledText() string { return strconv.Itoa(v.Unenrolled()) }
 
-func (v StaffView) AllProtected() bool { return v.Unprotected() == 0 }
+func (v StaffView) AllEnrolled() bool { return v.Unenrolled() == 0 }
