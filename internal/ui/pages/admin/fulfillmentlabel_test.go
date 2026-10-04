@@ -17,11 +17,11 @@ func TestEveryStatusHasACatalogueLabel(t *testing.T) {
 	}
 }
 
-// TestTheLabelTableIsTheFulfilmentClosedSet holds the two halves together:
+// TestTheLabelTableIsTheFulfillmentClosedSet holds the two halves together:
 // order.FulfillmentStatuses is what cart, account and the queue carry, and
 // fulfillmentLabels is what the labels cover, so a state added to one and forgotten in
 // the other is a label that never appears.
-func TestTheLabelTableIsTheFulfilmentClosedSet(t *testing.T) {
+func TestTheLabelTableIsTheFulfillmentClosedSet(t *testing.T) {
 	t.Parallel()
 	if len(fulfillmentLabels) != len(order.FulfillmentStatuses) {
 		t.Fatalf("admin catalogue has %d states, order.FulfillmentStatuses has %d",

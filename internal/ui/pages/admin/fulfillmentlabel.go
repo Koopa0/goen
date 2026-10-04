@@ -7,7 +7,7 @@ import (
 	"github.com/koopa0/goen/internal/order"
 )
 
-// fulfillmentLabels is the fulfilment lifecycle, in the order the queue shows it.
+// fulfillmentLabels is the fulfillment lifecycle, in the order the queue shows it.
 // orders_check_transition decides which moves are legal.
 var fulfillmentLabels = [...]struct {
 	value order.FulfillmentStatus
@@ -35,7 +35,7 @@ func FulfillmentLabel(ctx context.Context, s order.FulfillmentStatus) string {
 	return string(s)
 }
 
-// FundedFulfillmentLabel is a fulfilment state read together with what the order
+// FundedFulfillmentLabel is a fulfillment state read together with what the order
 // owes, which is the only way to tell the two halves of 'pending' apart: an
 // order stays pending from the moment the money arrives until a human picks it,
 // and one paid entirely from store credit has no payment row at all.

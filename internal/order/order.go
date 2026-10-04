@@ -1,5 +1,7 @@
-// Package order is the vocabulary of an order: its fulfilment states, event kinds and number.
+// Package order is the vocabulary of an order: its fulfillment states, event kinds and number.
 package order
+
+import "slices"
 
 // FulfillmentStatus is orders.fulfillment_status, closed by orders_fulfillment_status_known.
 type FulfillmentStatus string
@@ -24,12 +26,7 @@ var FulfillmentStatuses = [...]FulfillmentStatus{
 
 // Known is false for a retired value from append-only history, which must still render.
 func (s FulfillmentStatus) Known() bool {
-	for _, candidate := range FulfillmentStatuses {
-		if s == candidate {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(FulfillmentStatuses[:], s)
 }
 
 // Next is the states orders_check_transition lets an order move to from s.
