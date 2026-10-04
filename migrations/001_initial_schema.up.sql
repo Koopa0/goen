@@ -2080,8 +2080,8 @@ BEGIN
             NEW.product_id := v_product_id;
         END IF;
         IF FOUND AND NEW.product_id = v_product_id THEN
-            NEW.tax_type := v_tax_type;
-            NEW.invoice_unit := v_invoice_unit;
+            NEW.tax_type := 'taxable';
+            NEW.invoice_unit := '個';
             IF NEW.sku IS DISTINCT FROM v_sku THEN
                 RAISE EXCEPTION 'order line SKU must identify its variant'
                     USING ERRCODE = '23514', CONSTRAINT = 'order_lines_sku_matches_variant';
@@ -2424,10 +2424,6 @@ BEGIN
             USING ERRCODE = 'check_violation', CONSTRAINT = 'orders_have_lines';
     END IF;
 
-    IF tax_types <> 1 THEN
-        RAISE EXCEPTION 'order % mixes taxable and exempt lines', o.order_number
-            USING ERRCODE = 'check_violation', CONSTRAINT = 'orders_single_tax_type';
-    END IF;
 
     IF NOT EXISTS (SELECT 1 FROM order_private_data WHERE order_id = o.id) THEN
         RAISE EXCEPTION 'order % has no delivery details', o.order_number
@@ -3664,7 +3660,7 @@ CREATE TABLE invoice_document_lines (
     CONSTRAINT invoice_document_lines_tax_type_known
         CHECK (tax_type IN ('taxable', 'zero_rated', 'exempt')),
     CONSTRAINT invoice_document_lines_unit_valid
-        CHECK (unit ~ '[^[:space:]]' AND char_length(unit) <= 6 AND unit !~ '[[:cntrl:]]'),
+        CHECK (unit ~ '[^[:space:]]' AND unit !~ '[[:cntrl:]]'),
     CONSTRAINT invoice_document_lines_position_in_range
         CHECK (position BETWEEN 0 AND 998)
 );
@@ -5692,7 +5688,7 @@ SET search_path = pg_catalog, public, pg_temp AS $$
         SELECT '運費'::text AS description, 1::integer AS quantity,
                (floor(h.shipping / 100) * 100)::bigint AS unit_price_cents,
                (floor(h.shipping / 100) * 100)::bigint AS amount_cents,
-               h.tax_type, '個'::text AS unit,
+               'taxable'::text AS tax_type, '個'::text AS unit,
                (SELECT count(*)::integer FROM base) AS line_position
         FROM header h WHERE h.shipping > 0
     ), before_adjustment AS (
@@ -5705,7 +5701,7 @@ SET search_path = pg_catalog, public, pg_temp AS $$
                 - coalesce(sum(b.amount_cents), 0))::bigint AS unit_price_cents,
                ((floor(h.total / 100) * 100)
                 - coalesce(sum(b.amount_cents), 0))::bigint AS amount_cents,
-               h.tax_type, '個'::text AS unit,
+               'taxable'::text AS tax_type, '個'::text AS unit,
                count(b.*)::integer AS line_position
         FROM header h LEFT JOIN before_adjustment b ON true
         GROUP BY h.total, h.tax_type
@@ -6303,7 +6299,7 @@ BEGIN
                ORDER BY l.position), '[]'::jsonb)
     INTO v_local_lines
     FROM invoice_document_lines l
-    WHERE l.document_id = v_document.id;
+    WHERE l.document_id = v_document.id AND l.tax_type = 'taxable';
     IF NOT invoice_operation_lines_match(
             jsonb_build_object('lines', v_local_lines),
             p_descriptions, p_quantities, p_unit_price_cents,
@@ -6441,8 +6437,8 @@ BEGIN
         VALUES
             (v_document_id, p_descriptions[i], p_quantities[i],
              p_unit_price_cents[i], p_line_amount_cents[i],
-             v_operation.request_payload -> 'lines' -> (i - 1) ->> 'tax_type',
-             v_operation.request_payload -> 'lines' -> (i - 1) ->> 'unit', i - 1);
+             'taxable',
+             '個', i - 1);
     END LOOP;
 
     SELECT order_number INTO v_order_number
@@ -6576,7 +6572,7 @@ BEGIN
             (v_document_id, p_descriptions[i], p_quantities[i],
              p_unit_price_cents[i], p_amount_cents[i],
              v_operation.request_payload -> 'lines' -> (i - 1) ->> 'tax_type',
-             v_operation.request_payload -> 'lines' -> (i - 1) ->> 'unit', i - 1);
+             '個', i - 1);
     END LOOP;
     SELECT order_number INTO v_order_number FROM orders WHERE id = v_operation.order_id;
     PERFORM record_invoice_operation_audit(
@@ -6643,8 +6639,8 @@ BEGIN
     VALUES
         (v_document_id, p_descriptions[1], p_quantities[1],
          p_unit_price_cents[1], p_amount_cents[1],
-         v_operation.request_payload -> 'lines' -> 0 ->> 'tax_type',
-         v_operation.request_payload -> 'lines' -> 0 ->> 'unit', 0);
+         'taxable',
+         '個', 0);
     SELECT order_number INTO v_order_number FROM orders WHERE id = v_operation.order_id;
     PERFORM record_invoice_operation_audit(
         v_operation.id, v_document_id,
