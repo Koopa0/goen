@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/admin/admintest"
@@ -301,18 +302,19 @@ func TestARefusedStockAdjustmentKeepsWhatWasTyped(t *testing.T) {
 
 func TestRestockingTellsEverybodyWhoAsked(t *testing.T) {
 	ctx := t.Context()
-	s := stock.NewStore(pool)
+	owner := admintest.Pool(t)
+	s := stock.NewStore(admintest.AdminRolePool(t, owner))
 
 	var vid uuid.UUID
 	var sku string
-	if err := pool.QueryRow(ctx, `
+	if err := owner.QueryRow(ctx, `
 		SELECT pv.id, pv.sku FROM product_variants pv JOIN products p ON p.id = pv.product_id
 		WHERE p.status = 'active' AND pv.is_active ORDER BY pv.id LIMIT 1`).Scan(&vid, &sku); err != nil {
 		t.Fatalf("find a variant: %v", err)
 	}
-	emptyTheShelf(t, vid, "restock-test-empty")
+	emptyTheShelf(t, owner, vid, "restock-test-empty")
 	for _, address := range []string{"waiting1@example.com", "waiting2@example.com"} {
-		if _, err := pool.Exec(ctx,
+		if _, err := owner.Exec(ctx,
 			`INSERT INTO stock_notifications (variant_id, email) VALUES ($1, $2)`,
 			vid, address); err != nil {
 			t.Fatalf("record interest from %s: %v", address, err)
@@ -320,7 +322,7 @@ func TestRestockingTellsEverybodyWhoAsked(t *testing.T) {
 	}
 
 	var actor uuid.UUID
-	if err := pool.QueryRow(ctx, `
+	if err := owner.QueryRow(ctx, `
 		INSERT INTO users (email, role, full_name) VALUES ($1, 'admin', '補貨')
 		RETURNING id`, "restock-"+sku+"@goen.invalid").Scan(&actor); err != nil {
 		t.Fatalf("create staff: %v", err)
@@ -332,7 +334,7 @@ func TestRestockingTellsEverybodyWhoAsked(t *testing.T) {
 	}
 
 	var enqueued int
-	if err := pool.QueryRow(ctx, `
+	if err := owner.QueryRow(ctx, `
 		SELECT count(*) FROM outbox_messages m
 		JOIN stock_notifications sn ON sn.id::text = m.dedupe_key
 		WHERE m.topic = 'catalogue.restocked' AND sn.variant_id = $1`, vid).Scan(&enqueued); err != nil {
@@ -343,7 +345,7 @@ func TestRestockingTellsEverybodyWhoAsked(t *testing.T) {
 	}
 
 	var pending int
-	if err := pool.QueryRow(ctx,
+	if err := owner.QueryRow(ctx,
 		`SELECT count(*) FROM stock_notifications WHERE variant_id = $1 AND notified_at IS NULL`,
 		vid).Scan(&pending); err != nil {
 		t.Fatalf("count pending: %v", err)
@@ -356,7 +358,7 @@ func TestRestockingTellsEverybodyWhoAsked(t *testing.T) {
 		t.Fatalf("second restock: %v", err)
 	}
 	var after int
-	if err := pool.QueryRow(ctx, `
+	if err := owner.QueryRow(ctx, `
 		SELECT count(*) FROM outbox_messages m
 		JOIN stock_notifications sn ON sn.id::text = m.dedupe_key
 		WHERE m.topic = 'catalogue.restocked' AND sn.variant_id = $1`, vid).Scan(&after); err != nil {
@@ -369,28 +371,29 @@ func TestRestockingTellsEverybodyWhoAsked(t *testing.T) {
 
 func TestAnAdjustmentBelowTheThresholdTellsNobody(t *testing.T) {
 	ctx := t.Context()
-	s := stock.NewStore(pool)
+	owner := admintest.Pool(t)
+	s := stock.NewStore(admintest.AdminRolePool(t, owner))
 
 	var vid uuid.UUID
 	var sku string
-	if err := pool.QueryRow(ctx, `
+	if err := owner.QueryRow(ctx, `
 		SELECT pv.id, pv.sku FROM product_variants pv JOIN products p ON p.id = pv.product_id
 		WHERE p.status = 'active' AND pv.is_active ORDER BY pv.id DESC LIMIT 1`).Scan(&vid, &sku); err != nil {
 		t.Fatalf("find a variant: %v", err)
 	}
-	emptyTheShelf(t, vid, "threshold-empty")
-	if _, err := pool.Exec(ctx,
+	emptyTheShelf(t, owner, vid, "threshold-empty")
+	if _, err := owner.Exec(ctx,
 		`UPDATE product_variants SET safety_stock = 5 WHERE id = $1`, vid); err != nil {
 		t.Fatalf("set safety stock: %v", err)
 	}
-	if _, err := pool.Exec(ctx,
+	if _, err := owner.Exec(ctx,
 		`INSERT INTO stock_notifications (variant_id, email) VALUES ($1, 'threshold@example.com')`,
 		vid); err != nil {
 		t.Fatalf("record interest: %v", err)
 	}
 
 	var actor uuid.UUID
-	if err := pool.QueryRow(ctx, `
+	if err := owner.QueryRow(ctx, `
 		INSERT INTO users (email, role, full_name) VALUES ($1, 'admin', '補貨')
 		RETURNING id`, "threshold-"+sku+"@goen.invalid").Scan(&actor); err != nil {
 		t.Fatalf("create staff: %v", err)
@@ -401,7 +404,7 @@ func TestAnAdjustmentBelowTheThresholdTellsNobody(t *testing.T) {
 		t.Fatalf("adjust: %v", err)
 	}
 	var pending int
-	if err := pool.QueryRow(ctx,
+	if err := owner.QueryRow(ctx,
 		`SELECT count(*) FROM stock_notifications WHERE variant_id = $1 AND notified_at IS NULL`,
 		vid).Scan(&pending); err != nil {
 		t.Fatalf("count pending: %v", err)
@@ -413,7 +416,7 @@ func TestAnAdjustmentBelowTheThresholdTellsNobody(t *testing.T) {
 	if err := s.Adjust(staffCtx, sku, 5, actor.String(), "threshold-test-2"); err != nil {
 		t.Fatalf("second adjust: %v", err)
 	}
-	if err := pool.QueryRow(ctx,
+	if err := owner.QueryRow(ctx,
 		`SELECT count(*) FROM stock_notifications WHERE variant_id = $1 AND notified_at IS NULL`,
 		vid).Scan(&pending); err != nil {
 		t.Fatalf("count pending again: %v", err)
@@ -425,11 +428,12 @@ func TestAnAdjustmentBelowTheThresholdTellsNobody(t *testing.T) {
 
 func TestARestockNoticeNamesTheProductInTheReadersLanguage(t *testing.T) {
 	ctx := t.Context()
-	s := stock.NewStore(pool)
+	owner := admintest.Pool(t)
+	s := stock.NewStore(admintest.AdminRolePool(t, owner))
 
 	var vid uuid.UUID
 	var sku string
-	if err := pool.QueryRow(ctx, `
+	if err := owner.QueryRow(ctx, `
 		SELECT pv.id, pv.sku FROM product_variants pv
 		JOIN products p ON p.id = pv.product_id
 		WHERE p.status = 'active' AND pv.is_active AND p.name_en IS NOT NULL
@@ -437,14 +441,14 @@ func TestARestockNoticeNamesTheProductInTheReadersLanguage(t *testing.T) {
 		ORDER BY pv.id LIMIT 1`).Scan(&vid, &sku); err != nil {
 		t.Fatalf("find a translated variant: %v", err)
 	}
-	emptyTheShelf(t, vid, "restock-locale-empty")
+	emptyTheShelf(t, owner, vid, "restock-locale-empty")
 
 	waiting := map[string]string{
 		"zh-Hant": "zh-waiting@example.com",
 		"en":      "en-waiting@example.com",
 	}
 	for locale, address := range waiting {
-		if _, err := pool.Exec(ctx, `
+		if _, err := owner.Exec(ctx, `
 			INSERT INTO stock_notifications (variant_id, email, locale)
 			VALUES ($1, $2, $3)`, vid, address, locale); err != nil {
 			t.Fatalf("record interest from %s: %v", address, err)
@@ -452,7 +456,7 @@ func TestARestockNoticeNamesTheProductInTheReadersLanguage(t *testing.T) {
 	}
 
 	var actor uuid.UUID
-	if err := pool.QueryRow(ctx, `
+	if err := owner.QueryRow(ctx, `
 		INSERT INTO users (email, role, full_name) VALUES ($1, 'admin', '補貨')
 		RETURNING id`, "restock-locale-"+sku+"@goen.invalid").Scan(&actor); err != nil {
 		t.Fatalf("create staff: %v", err)
@@ -464,7 +468,7 @@ func TestARestockNoticeNamesTheProductInTheReadersLanguage(t *testing.T) {
 	}
 
 	var zhName, enName string
-	if err := pool.QueryRow(ctx, `
+	if err := owner.QueryRow(ctx, `
 		SELECT p.name, p.name_en FROM products p
 		JOIN product_variants pv ON pv.product_id = p.id WHERE pv.id = $1`,
 		vid).Scan(&zhName, &enName); err != nil {
@@ -473,7 +477,7 @@ func TestARestockNoticeNamesTheProductInTheReadersLanguage(t *testing.T) {
 
 	for locale, address := range waiting {
 		var payload string
-		if err := pool.QueryRow(ctx, `
+		if err := owner.QueryRow(ctx, `
 			SELECT m.payload::text FROM outbox_messages m
 			JOIN stock_notifications sn ON sn.id::text = m.dedupe_key
 			WHERE m.topic = 'catalogue.restocked' AND sn.email = $1`,
@@ -497,21 +501,21 @@ func TestARestockNoticeNamesTheProductInTheReadersLanguage(t *testing.T) {
 
 // emptyTheShelf takes a variant down to zero. It reads the quantity first because
 // inventory_movements_delta_non_zero refuses a movement of nothing.
-func emptyTheShelf(t *testing.T, vid uuid.UUID, key string) {
+func emptyTheShelf(t *testing.T, owner *pgxpool.Pool, vid uuid.UUID, key string) {
 	t.Helper()
 	var onShelf int32
-	if err := pool.QueryRow(t.Context(),
+	if err := owner.QueryRow(t.Context(),
 		`SELECT stock_quantity FROM product_variants WHERE id = $1`, vid).Scan(&onShelf); err != nil {
 		t.Fatalf("read stock: %v", err)
 	}
 	if onShelf > 0 {
-		if _, err := pool.Exec(t.Context(),
+		if _, err := owner.Exec(t.Context(),
 			`SELECT record_inventory_movement($1, $2, 'adjustment', $3, 'admin', NULL, NULL)`,
 			vid, -onShelf, key); err != nil {
 			t.Fatalf("empty the shelf: %v", err)
 		}
 	}
-	if err := pool.QueryRow(t.Context(),
+	if err := owner.QueryRow(t.Context(),
 		`SELECT stock_quantity FROM product_variants WHERE id = $1`, vid).Scan(&onShelf); err != nil {
 		t.Fatalf("re-read stock: %v", err)
 	}
