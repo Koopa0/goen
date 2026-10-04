@@ -145,6 +145,22 @@ var (
 
 	KeyAdminHPColPaid = key("admin.hp.col.paid", Message{ZhHant: "收款於", En: "Paid"})
 
+	KeyAdminHPCancelledOrderInvoicesHeading = key("admin.hp.cancelledorderinvoices.heading", Message{
+		ZhHant: "已取消訂單仍有效的統一發票",
+		En:     "Live invoices on cancelled orders",
+	})
+
+	KeyAdminHPCancelledOrderInvoicesHint = countKey("admin.hp.cancelledorderinvoices.hint",
+		"%d 張統一發票的訂單已取消，發票卻沒有作廢或折讓：已過綠界的作廢期限、作廢被拒絕，或沒有設定加值中心。請到訂單頁處理。",
+		"%d invoice belongs to a cancelled order and was neither voided nor credited: ECPay's void "+
+			"deadline had passed, the void was refused, or no e-invoice provider is configured. "+
+			"Correct it from its order page.",
+		"%d invoices belong to cancelled orders and were neither voided nor credited: ECPay's void "+
+			"deadline had passed, the void was refused, or no e-invoice provider is configured. "+
+			"Correct each from its order page.")
+
+	KeyAdminHPColIssued = key("admin.hp.col.issued", Message{ZhHant: "開立於", En: "Issued"})
+
 	KeyAdminHPClaimsHeading = key("admin.hp.claims.heading", Message{
 		ZhHant: "待確認的電子發票操作",
 		En:     "E-invoice operations awaiting confirmation",
@@ -153,18 +169,25 @@ var (
 	KeyAdminHPClaimsHint = key("admin.hp.claims.hint", Message{
 		ZhHant: "系統會自動查詢綠界並收斂一般的逾時。這裡只列出過久仍未完成，或查到不一致、" +
 			"多筆候選而已安全停住的操作。折讓只有在最後一次送出至少 15 分鐘後，才可能顯示重送授權；" +
-			"授權前仍必須先到綠界依發票號碼確認折讓確實不存在。其他操作請勿手動重送。" +
+			"授權前仍必須先到綠界依發票號碼確認折讓確實不存在。顧客未在 72 小時內確認的折讓也可授權重寄一次。" +
+			"其他操作請勿手動重送。" +
 			"綠界退回的自動開立也列在這裡，直到有人從訂單頁再開立一次。",
 		En: "The worker automatically reconciles ordinary timeouts with ECPay. These operations are " +
 			"aged or stopped on a mismatch/multiple candidates. An Allowance resend can be authorized only " +
 			"after 15 minutes, and only after checking its invoice number in ECPay and confirming the allowance " +
-			"is absent. Do not manually resend any other operation. An automatic issue ECPay refused stays " +
+			"is absent. One the customer did not agree to within 72 hours may also be resent once. " +
+			"Do not manually resend any other operation. An automatic issue ECPay refused stays " +
 			"here until someone issues the invoice again from the order page.",
 	})
 
 	KeyAdminHPAllowanceAbsentConfirm = key("admin.hp.allowance.absent", Message{
 		ZhHant: "我已在綠界依發票號碼確認：這筆折讓不存在",
 		En:     "I checked the invoice number in ECPay and confirmed this allowance is absent",
+	})
+
+	KeyAdminHPAllowanceLapsedConfirm = key("admin.hp.allowance.lapsed", Message{
+		ZhHant: "顧客未在 72 小時內確認，再寄一次折讓確認信",
+		En:     "The customer did not agree within 72 hours; e-mail them the credit note once more",
 	})
 
 	KeyAdminHPAllowanceResendAuthorize = key("admin.hp.allowance.authorize", Message{

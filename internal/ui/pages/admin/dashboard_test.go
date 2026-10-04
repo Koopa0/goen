@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/order"
 )
 
 // TestTheDashboardOpensEveryOrderItLists holds the landing page's reason for
@@ -21,7 +21,7 @@ func TestTheDashboardOpensEveryOrderItLists(t *testing.T) {
 		html := renderToString(t, Dashboard(Meta(ctx), DashboardView{
 			Recent: []OrderRow{{
 				Number:     "GO-260918-000001",
-				Status:     pages.FulfillmentShipped,
+				Status:     order.FulfillmentShipped,
 				StatusText: "已出貨",
 				PlacedAt:   "2026-09-18 10:00",
 				Recipient:  "版面顧客",

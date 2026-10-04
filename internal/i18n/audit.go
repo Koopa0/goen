@@ -142,6 +142,7 @@ var (
 	KeyAdminActorCustomer = key("admin.actor.customer", Message{ZhHant: "顧客", En: "Customer"})
 
 	KeyAdminActorSystem   = key("admin.actor.system", Message{ZhHant: "系統", En: "System"})
+	KeyAdminActorProvider = key("admin.actor.provider", Message{ZhHant: "金流服務商", En: "Payment provider"})
 	KeyAuditReturnInspect = key("audit.return.inspect", Message{ZhHant: "退貨驗收", En: "Inspect return"})
 
 	KeyAuditReturnComplete = key("audit.return.complete", Message{ZhHant: "退貨結案", En: "Close return"})

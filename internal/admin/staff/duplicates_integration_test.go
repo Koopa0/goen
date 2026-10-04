@@ -132,7 +132,7 @@ func TestDuplicateStaffFormRetainsInputAndExplainsRefusal(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		t.Run(locale.Tag(), func(t *testing.T) {
 			ctx := i18n.WithLocale(account.WithUser(t.Context(), account.User{
-				ID: actor, Email: actorEmail, Role: "admin",
+				ID: actor, Email: actorEmail, Role: account.RoleAdmin,
 			}), locale)
 			form := url.Values{"email": {address}, "name": {"Submitted name"}, "role": {"admin"}}
 			r := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/staff", strings.NewReader(form.Encode()))

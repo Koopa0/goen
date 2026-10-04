@@ -119,6 +119,8 @@ var (
 		En:     "Secondary button (English)",
 	})
 
+	KeyAdminLangSwitch = key("admin.lang.switch", Message{ZhHant: "編輯語言", En: "Language being edited"})
+
 	KeyAdminHomeAltEn = key("admin.home.alt.en", Message{
 		ZhHant: "圖片替代文字（英文）",
 		En:     "Alt text (English)",

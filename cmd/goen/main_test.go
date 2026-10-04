@@ -509,6 +509,28 @@ func TestAnInvoiceDueReachesTheClaimWithoutAProvider(t *testing.T) {
 	}
 }
 
+// TestAnInvoiceVoidDueReachesTheDatabaseWithoutAProvider: with no 加值中心 the
+// handler still withdraws the issue a cancelled order no longer owes, so it
+// must not report done before asking the database.
+func TestAnInvoiceVoidDueReachesTheDatabaseWithoutAProvider(t *testing.T) {
+	t.Parallel()
+
+	idle, err := pgxpool.New(t.Context(), "postgres://unused:unused@127.0.0.1:1/unused?sslmode=disable")
+	if err != nil {
+		t.Fatalf("open an unused pool: %v", err)
+	}
+	t.Cleanup(idle.Close)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	err = invoiceVoidDueHandler(idle, unconfiguredInvoicing(t))(ctx, &outbox.InvoiceVoidDue{
+		OrderNumber: "GO-261002-000001", Trigger: "cancel:GO-261002-000001",
+	})
+	if err == nil {
+		t.Fatal("invoice.void_due was reported done without reaching the database; with no " +
+			"加值中心 the cancelled order's unsent issue is never withdrawn")
+	}
+}
+
 // unconfiguredInvoicing is the gateway a deployment with no 加值中心 runs with.
 func unconfiguredInvoicing(t *testing.T) *invoice.Gateway {
 	t.Helper()

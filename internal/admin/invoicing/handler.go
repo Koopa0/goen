@@ -9,9 +9,9 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/admin/access"
-	"github.com/koopa0/goen/internal/admin/ordernumber"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
+	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -35,31 +35,31 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 
 func (h *Handler) Issue(w http.ResponseWriter, r *http.Request) {
 	number := r.PathValue("number")
-	if !ordernumber.Valid(number) {
+	if !order.ValidNumber(number) {
 		http.NotFound(w, r)
 		return
 	}
 	err := h.store.Issue(r.Context(), number)
 	switch {
 	case err == nil:
-		//nolint:gosec // G710: validated by ordernumber.Valid
+		//nolint:gosec // G710: validated by order.ValidNumber
 		http.Redirect(w, r, "/admin/orders/"+number+"?invoiced=1", http.StatusSeeOther)
 	case errors.Is(err, invoice.ErrAlreadyIssued):
-		//nolint:gosec // G710: validated by ordernumber.Valid
+		//nolint:gosec // G710: validated by order.ValidNumber
 		http.Redirect(w, r, "/admin/orders/"+number+"?hasinvoice=1", http.StatusSeeOther)
 	case errors.Is(err, invoice.ErrDisabled), errors.Is(err, ErrRefused):
 		h.log.WarnContext(r.Context(), "invoice refused", "order", number, "error", err)
-		//nolint:gosec // G710: validated by ordernumber.Valid
+		//nolint:gosec // G710: validated by order.ValidNumber
 		http.Redirect(w, r, "/admin/orders/"+number+"?refused=1", http.StatusSeeOther)
 	case errors.Is(err, invoice.ErrRejected):
 		// The provider's own reason, logged in full because it names the field to
 		// fix; the page says one thing, because nobody can act on an RtnCode.
 		h.log.ErrorContext(r.Context(), "the e-invoice provider refused the invoice",
 			"order", number, "error", err)
-		//nolint:gosec // G710: validated by ordernumber.Valid
+		//nolint:gosec // G710: validated by order.ValidNumber
 		http.Redirect(w, r, "/admin/orders/"+number+"?invoicefailed=1", http.StatusSeeOther)
 	case errors.Is(err, invoice.ErrPending):
-		//nolint:gosec // G710: validated by ordernumber.Valid
+		//nolint:gosec // G710: validated by order.ValidNumber
 		http.Redirect(w, r, "/admin/orders/"+number+"?invoicepending=1", http.StatusSeeOther)
 	default:
 		h.log.ErrorContext(r.Context(), "issue invoice", "order", number, "error", err)
@@ -75,7 +75,7 @@ func (h *Handler) Void(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	number := r.PathValue("number")
-	if !ordernumber.Valid(number) {
+	if !order.ValidNumber(number) {
 		http.NotFound(w, r)
 		return
 	}
@@ -118,7 +118,7 @@ func (h *Handler) Allow(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	number := r.PathValue("number")
-	if !ordernumber.Valid(number) {
+	if !order.ValidNumber(number) {
 		http.NotFound(w, r)
 		return
 	}
@@ -137,6 +137,8 @@ func (h *Handler) Allow(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, orderPage+"?noinvoice=1", http.StatusSeeOther)
 	case errors.Is(err, invoice.ErrClaimed):
 		http.Redirect(w, r, orderPage+"?allowclaimed=1", http.StatusSeeOther)
+	case errors.Is(err, invoice.ErrAwaitingBuyer):
+		http.Redirect(w, r, orderPage+"?allowsent=1", http.StatusSeeOther)
 	case errors.Is(err, invoice.ErrPending):
 		http.Redirect(w, r, orderPage+"?invoicepending=1", http.StatusSeeOther)
 	case errors.Is(err, invoice.ErrTooMuch):

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -13,9 +14,10 @@ import (
 	"github.com/koopa0/goen/internal/admin/refundstate"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/email"
+	"github.com/koopa0/goen/internal/invoice"
+	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/ordernotice"
 	"github.com/koopa0/goen/internal/returns"
-	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
 )
@@ -24,17 +26,17 @@ import (
 // shipment, and whether one is open for Resume. open_refund_before_shipment
 // re-derives both under the order lock.
 func beforeShipmentRefundState(r *db.BeforeShipmentRefundRow) (offered, open bool) {
-	status := pages.FulfillmentStatus(r.FulfillmentStatus)
+	status := order.FulfillmentStatus(r.FulfillmentStatus)
 	open = r.ReturnRequestID.Valid && returns.Status(r.ReturnStatus) == returns.StatusApproved
 	offered = r.Committed && !r.Shipped && !r.HasReturn &&
-		(status == pages.FulfillmentPending || status == pages.FulfillmentPicking)
+		(status == order.FulfillmentPending || status == order.FulfillmentPicking)
 	return offered, open
 }
 
 // FillOrder puts the refund before shipment on the order page, offered or open
 // for Resume, and reports whether one was ever opened: an order being refunded
 // is neither picked nor shipped.
-func (s *Store) FillOrder(ctx context.Context, view *admin.OrderView, number string) (bool, error) {
+func (s *Store) FillOrder(ctx context.Context, view *admin.OrderView, number string) (opened bool, err error) {
 	refund, err := s.q.BeforeShipmentRefund(ctx, number)
 	if err != nil {
 		return false, fmt.Errorf("read refund before shipment of %s: %w", number, err)
@@ -86,6 +88,74 @@ func (s *Store) RefundBeforeShipment(ctx context.Context, number, reason string)
 		return nil, fmt.Errorf("%w: open refund before shipment of %s: %w", refundstate.ErrRefused, number, err)
 	}
 
+	// Money never waits on the 加值中心: whatever ECPay answers, the refund goes
+	// on, and orders_cancel_invoice_resolved holds the cancellation until the
+	// correction settles. Once the order cancels its invoice is resolved, so a
+	// correction error then says nothing more.
+	correctionErr := s.correctInvoice(ctx, number, actorID)
+	sessions, err := s.payAndCancel(ctx, number, returnID, actor)
+	if err != nil {
+		return nil, errors.Join(err, correctionErr)
+	}
+	return sessions, nil
+}
+
+// correctInvoice files the void as the staff member pressing the button. The
+// refund's required note says how the buyer asked for or agreed to the
+// cancellation; with its audit row and this actor it is the buyer's consent
+// to the void, which the shop must keep.
+func (s *Store) correctInvoice(ctx context.Context, number string, actorID uuid.UUID) error {
+	if s.invoices == nil {
+		return nil
+	}
+	ctx, cancel := invoiceShare(ctx)
+	defer cancel()
+	filing := invoice.WithFilingIdentity(ctx, actorID, web.RequestID(ctx))
+	if err := s.invoices.CorrectForCancellation(filing, number); err != nil {
+		return fmt.Errorf("correct the invoice of %s: %w", number, err)
+	}
+	return nil
+}
+
+// fileRefundAllowance asks the buyer to agree to an allowance for the refund when a
+// void could not correct the invoice. The refund's opener files it, so a Resume
+// pressed by someone else replays the same claim instead of being refused; the
+// presser stands in only when the opener's account is gone.
+func (s *Store) fileRefundAllowance(
+	ctx context.Context, number string, returnID uuid.UUID, presser uuid.NullUUID,
+) error {
+	if s.invoices == nil {
+		return nil
+	}
+	openedBy, err := s.q.RefundOpenedBy(ctx, returnID)
+	if err != nil {
+		return fmt.Errorf("read who opened refund %s: %w", returnID, err)
+	}
+	if !openedBy.Valid {
+		openedBy = presser
+	}
+	ctx, cancel := invoiceShare(ctx)
+	defer cancel()
+	filing := invoice.WithFilingIdentity(ctx, openedBy.UUID, web.RequestID(ctx))
+	operationID := uuid.NewSHA1(returnID, []byte("allowance"))
+	if err := s.invoices.FileCancellationAllowance(filing, number, operationID); err != nil {
+		return fmt.Errorf("file the allowance of %s: %w", number, err)
+	}
+	return nil
+}
+
+// invoiceShare bounds the ECPay calls to half of the request's remaining time:
+// the refund and the cancellation need the rest.
+func invoiceShare(ctx context.Context) (context.Context, context.CancelFunc) {
+	if deadline, ok := ctx.Deadline(); ok {
+		return context.WithTimeout(ctx, time.Until(deadline)/2)
+	}
+	return ctx, func() {}
+}
+
+func (s *Store) payAndCancel(
+	ctx context.Context, number string, returnID uuid.UUID, actor uuid.NullUUID,
+) ([]string, error) {
 	row, err := s.q.ReturnForDecision(ctx, returnID)
 	if err != nil {
 		return nil, fmt.Errorf("read refund %s of %s: %w", returnID, number, err)
@@ -105,7 +175,12 @@ func (s *Store) RefundBeforeShipment(ctx context.Context, number, reason string)
 	if !position.MoneySettled || position.EventOutstanding || position.PointsOutstanding {
 		return nil, ErrUnsettled
 	}
-	return s.finishRefundBeforeShipment(ctx, number, returnID, actor)
+	allowanceErr := s.fileRefundAllowance(ctx, number, returnID, actor)
+	sessions, err := s.finishRefundBeforeShipment(ctx, number, returnID, actor)
+	if err != nil {
+		return nil, errors.Join(err, allowanceErr)
+	}
+	return sessions, nil
 }
 
 // finishRefundBeforeShipment cancels the order, returns its held stock and
@@ -129,7 +204,7 @@ func (s *Store) finishRefundBeforeShipment(
 	}
 	// Cancelled is terminal and this transaction is the only one that cancels
 	// a refunded order, so an earlier press already finished everything below.
-	if pages.FulfillmentStatus(row.FulfillmentStatus) == pages.FulfillmentCancelled {
+	if order.FulfillmentStatus(row.FulfillmentStatus) == order.FulfillmentCancelled {
 		return nil, nil
 	}
 	if cancelErr := cancelRefundedOrder(ctx, q, number, returnID); cancelErr != nil {
@@ -150,7 +225,7 @@ func (s *Store) finishRefundBeforeShipment(
 
 func cancelRefundedOrder(ctx context.Context, q *db.Queries, number string, returnID uuid.UUID) error {
 	if err := q.AdvanceOrder(ctx, db.AdvanceOrderParams{
-		OrderNumber: number, Status: string(pages.FulfillmentCancelled),
+		OrderNumber: number, Status: string(order.FulfillmentCancelled),
 	}); err != nil {
 		return fmt.Errorf("%w: %w", refundstate.ErrRefused, err)
 	}
@@ -180,7 +255,7 @@ func recordStaffCancellation(
 	ctx context.Context, q *db.Queries, orderID uuid.UUID, number string, returnID uuid.UUID, actor uuid.NullUUID,
 ) error {
 	err := q.RecordOrderEvent(ctx, db.RecordOrderEventParams{
-		OrderID: orderID, Kind: string(pages.EventCancelled), ActorUserID: actor,
+		OrderID: orderID, Kind: string(order.EventCancelled), ActorUserID: actor,
 	})
 	if err != nil {
 		return fmt.Errorf("record order event: %w", err)
@@ -188,7 +263,7 @@ func recordStaffCancellation(
 	err = audit.In(ctx, q, audit.Event{
 		Action: audit.ActionAdvanceOrder, Table: "orders", ID: audit.EntityID(orderID),
 		After: map[string]any{
-			"number": number, "status": string(pages.FulfillmentCancelled),
+			"number": number, "status": string(order.FulfillmentCancelled),
 			"return_request_id": returnID.String(),
 		},
 	})

@@ -5,7 +5,7 @@ import (
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/web"
 )
 
 type AuditEntry struct {
@@ -198,7 +198,7 @@ func (e AuditEntry) ShortRequestID() string {
 }
 
 type AuditView struct {
-	pages.ListBound
+	web.Bound
 
 	Rows []AuditEntry
 }

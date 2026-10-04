@@ -147,9 +147,9 @@ SELECT op.id AS operation_id, o.order_number, op.kind, op.status,
        op.amount_cents, op.reconcile_attempts, op.send_attempts,
        coalesce(op.last_error, '')::text AS last_error, op.created_at,
        (op.kind = 'allowance'
-        AND op.status = 'pending'
         AND op.send_attempts > op.resend_authorizations
-        AND op.last_error = 'allowance_not_yet_visible'
+        AND ((op.status = 'pending' AND op.last_error = 'allowance_not_yet_visible')
+             OR (op.status = 'attention' AND op.last_error = 'allowance_buyer_unconfirmed'))
         AND op.last_send_at IS NOT NULL
         AND op.last_send_at <= now() - interval '15 minutes'
         AND (op.lease_until IS NULL OR op.lease_until <= now()))::boolean
@@ -198,6 +198,25 @@ WHERE (order_is_committed(o.id)
   AND NOT EXISTS (SELECT 1 FROM invoice_documents d
                   WHERE d.order_id = o.id AND d.kind = 'invoice' AND d.status <> 'voided')
 ORDER BY f.funded_at DESC, o.id DESC
+LIMIT 50;
+
+-- Issued invoices of cancelled orders that nothing relieved and nothing is
+-- correcting: ECPay's void window had passed, the void was refused, or no
+-- 加值中心 was configured to send one. One with an operation still active is on
+-- the stranded-claims list instead.
+-- name: CancelledOrderInvoices :many
+SELECT o.order_number, d.number, d.amount_cents, d.issued_at, count(*) OVER () AS total
+FROM invoice_documents d
+JOIN orders o ON o.id = d.order_id
+WHERE o.fulfillment_status = 'cancelled'
+  AND o.cancelled_at < now() - @older_than::interval
+  AND d.kind = 'invoice' AND d.status = 'issued'
+  AND d.amount_cents > coalesce((
+      SELECT sum(a.amount_cents) FROM invoice_documents a
+      WHERE a.original_id = d.id AND a.kind = 'allowance' AND a.status = 'issued'), 0)
+  AND NOT EXISTS (SELECT 1 FROM invoice_operations op
+                  WHERE op.order_id = o.id AND op.status IN ('pending', 'attention'))
+ORDER BY o.cancelled_at DESC, d.id DESC
 LIMIT 50;
 
 -- A human has independently checked ECPay and confirmed the missing Allowance.

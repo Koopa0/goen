@@ -51,7 +51,7 @@ func TestMain(m *testing.M) {
 // enrol takes a user all the way to a confirmed credential.
 // asActor is the context the access wrapper leaves for a signed-in admin.
 func asActor(ctx context.Context, id string) context.Context {
-	return account.WithUser(ctx, account.User{ID: id, Role: "admin"})
+	return account.WithUser(ctx, account.User{ID: id, Role: account.RoleAdmin})
 }
 
 func enrol(t *testing.T, s *twofactor.Store, userID, email string) []byte {
@@ -71,7 +71,7 @@ func TestTheEnrolmentSecretPageIsNotCompressed(t *testing.T) {
 	s := twofactor.NewStore(pool, testKey)
 	userID, email := admintest.AdminUser(t, pool)
 	h := twofactor.NewHandler(s, slog.New(slog.DiscardHandler), false)
-	ctx := account.WithUser(t.Context(), account.User{ID: userID, Email: email, Role: "admin"})
+	ctx := account.WithUser(t.Context(), account.User{ID: userID, Email: email, Role: account.RoleAdmin})
 	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/verify/enrol", strings.NewReader(""))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Accept-Encoding", "gzip")
@@ -627,7 +627,7 @@ func TestAnUnkeyedDeploymentSaysSoInsteadOf500(t *testing.T) {
 	userID, email := admintest.AdminUser(t, pool)
 	h := twofactor.NewHandler(twofactor.NewStore(pool, nil), slog.New(slog.DiscardHandler), false)
 
-	ctx := account.WithUser(t.Context(), account.User{ID: userID, Email: email, Role: "admin"})
+	ctx := account.WithUser(t.Context(), account.User{ID: userID, Email: email, Role: account.RoleAdmin})
 	req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/admin/verify", http.NoBody)
 	out := httptest.NewRecorder()
 	h.Challenge(out, req)

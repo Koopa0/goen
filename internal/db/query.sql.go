@@ -1252,6 +1252,105 @@ func (q *Queries) AdminOrderCounts(ctx context.Context) ([]AdminOrderCountsRow, 
 	return items, nil
 }
 
+const adminOrderTimeline = `-- name: AdminOrderTimeline :many
+SELECT at, source, kind, status, note, actor_kind, actor_name
+FROM (
+    SELECT e.occurred_at AS at, 1 AS precedence, e.id::text AS tie,
+           'order'::text AS source, e.kind::text AS kind, ''::text AS status,
+           coalesce(e.note, '')::text AS note,
+           (CASE WHEN e.actor_user_id IS NOT NULL THEN 'staff'
+                 WHEN e.by_system THEN 'system'
+                 WHEN e.kind IN ('placed', 'cancelled') THEN 'customer'
+                 WHEN e.kind = 'paid' AND EXISTS (
+                     SELECT 1 FROM payments p
+                     WHERE p.order_id = e.order_id AND p.status = 'succeeded'
+                 ) THEN 'provider'
+                 ELSE 'system' END)::text AS actor_kind,
+           coalesce(u.full_name, u.email, '')::text AS actor_name
+    FROM order_events e
+    LEFT JOIN users u ON u.id = e.actor_user_id
+    WHERE e.order_id = $1
+    UNION ALL
+    -- awaiting_buyer is a sent online allowance, which waits on the buyer's
+    -- consent rather than on goen.
+    SELECT op.created_at, 2, op.id::text, 'invoice', op.kind,
+           CASE WHEN op.kind = 'allowance' AND op.status = 'pending' AND op.send_attempts > 0
+                THEN 'awaiting_buyer' ELSE op.status END,
+           '', op.actor_kind, coalesce(u.full_name, u.email, '')
+    FROM invoice_operations op
+    LEFT JOIN users u ON u.id = op.actor_user_id
+    WHERE op.order_id = $1
+    UNION ALL
+    SELECT w.received_at, 0, w.event_id, 'provider', '', '',
+           w.type || coalesce(' · ' || w.unreconciled, ''), 'provider', ''
+    FROM payment_webhook_events w
+    JOIN payments p ON p.provider = w.provider AND p.provider_ref = w.object_ref
+    WHERE p.order_id = $1
+    UNION ALL
+    SELECT m.created_at, 3, m.id::text, 'mail', m.topic,
+           CASE WHEN m.delivered_at IS NULL THEN 'queued' ELSE 'sent' END,
+           '', 'system', ''
+    FROM outbox_messages m
+    JOIN orders o ON o.id = $1
+    WHERE m.topic = ANY($2::text[])
+      AND (m.payload->>'order_number' = o.order_number
+           OR m.payload->>'order_id' = o.id::text)
+) timeline
+ORDER BY at, precedence, tie
+`
+
+type AdminOrderTimelineParams struct {
+	OrderID    uuid.UUID
+	MailTopics []string
+}
+
+type AdminOrderTimelineRow struct {
+	At        time.Time
+	Source    string
+	Kind      string
+	Status    string
+	Note      string
+	ActorKind string
+	ActorName string
+}
+
+// Everything that happened to one order, oldest first, in one statement so the
+// sources share one snapshot and one sort. A provider's event is the order's
+// when its object is one of the order's Checkout Sessions; a mail when its
+// payload names the order, since the shipped mail's dedupe key is the parcel's.
+// A transaction writes a fact and its mail at one now(), so within an instant
+// the provider's notice comes first and the mail last.
+// An order event with no actor: 'placed' and 'cancelled' are the customer's (the
+// sweeper's cancel is by_system); 'paid' is the provider's when a payment
+// succeeded, and otherwise store credit or a discount closing the funding.
+func (q *Queries) AdminOrderTimeline(ctx context.Context, arg AdminOrderTimelineParams) ([]AdminOrderTimelineRow, error) {
+	rows, err := q.db.Query(ctx, adminOrderTimeline, arg.OrderID, arg.MailTopics)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AdminOrderTimelineRow{}
+	for rows.Next() {
+		var i AdminOrderTimelineRow
+		if err := rows.Scan(
+			&i.At,
+			&i.Source,
+			&i.Kind,
+			&i.Status,
+			&i.Note,
+			&i.ActorKind,
+			&i.ActorName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const adminOrders = `-- name: AdminOrders :many
 SELECT json_build_object('At', o.placed_at, 'ID', o.id)::text AS page_cursor,
     o.id,
@@ -3195,6 +3294,60 @@ func (q *Queries) CancelPayment(ctx context.Context, providerRef string) error {
 	return err
 }
 
+const cancelledOrderInvoices = `-- name: CancelledOrderInvoices :many
+SELECT o.order_number, d.number, d.amount_cents, d.issued_at, count(*) OVER () AS total
+FROM invoice_documents d
+JOIN orders o ON o.id = d.order_id
+WHERE o.fulfillment_status = 'cancelled'
+  AND o.cancelled_at < now() - $1::interval
+  AND d.kind = 'invoice' AND d.status = 'issued'
+  AND d.amount_cents > coalesce((
+      SELECT sum(a.amount_cents) FROM invoice_documents a
+      WHERE a.original_id = d.id AND a.kind = 'allowance' AND a.status = 'issued'), 0)
+  AND NOT EXISTS (SELECT 1 FROM invoice_operations op
+                  WHERE op.order_id = o.id AND op.status IN ('pending', 'attention'))
+ORDER BY o.cancelled_at DESC, d.id DESC
+LIMIT 50
+`
+
+type CancelledOrderInvoicesRow struct {
+	OrderNumber string
+	Number      string
+	AmountCents int64
+	IssuedAt    time.Time
+	Total       int64
+}
+
+// Issued invoices of cancelled orders that nothing relieved and nothing is
+// correcting: ECPay's void window had passed, the void was refused, or no
+// 加值中心 was configured to send one. One with an operation still active is on
+// the stranded-claims list instead.
+func (q *Queries) CancelledOrderInvoices(ctx context.Context, olderThan pgtype.Interval) ([]CancelledOrderInvoicesRow, error) {
+	rows, err := q.db.Query(ctx, cancelledOrderInvoices, olderThan)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CancelledOrderInvoicesRow{}
+	for rows.Next() {
+		var i CancelledOrderInvoicesRow
+		if err := rows.Scan(
+			&i.OrderNumber,
+			&i.Number,
+			&i.AmountCents,
+			&i.IssuedAt,
+			&i.Total,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const capturePayment = `-- name: CapturePayment :one
 SELECT capture_payment($1::text, $2::bigint,
                        nullif($3::text, ''), nullif($4::text, ''))
@@ -4270,6 +4423,27 @@ type ClaimSystemInvoiceIssueParams struct {
 // The system's claim: no actor, and what made the sale final as the request id.
 func (q *Queries) ClaimSystemInvoiceIssue(ctx context.Context, arg ClaimSystemInvoiceIssueParams) (uuid.UUID, error) {
 	row := q.db.QueryRow(ctx, claimSystemInvoiceIssue, arg.OrderNumber, arg.RequestID)
+	var operation_id uuid.UUID
+	err := row.Scan(&operation_id)
+	return operation_id, err
+}
+
+const claimSystemInvoiceVoid = `-- name: ClaimSystemInvoiceVoid :one
+SELECT claim_invoice_void(
+    $1::uuid, $2::text, NULL::uuid, $3::text
+)::uuid AS operation_id
+`
+
+type ClaimSystemInvoiceVoidParams struct {
+	DocumentID uuid.UUID
+	Reason     string
+	RequestID  string
+}
+
+// The system's void of a cancelled order's invoice: no actor, and the
+// cancellation as the request id.
+func (q *Queries) ClaimSystemInvoiceVoid(ctx context.Context, arg ClaimSystemInvoiceVoidParams) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, claimSystemInvoiceVoid, arg.DocumentID, arg.Reason, arg.RequestID)
 	var operation_id uuid.UUID
 	err := row.Scan(&operation_id)
 	return operation_id, err
@@ -7471,6 +7645,7 @@ SELECT op.id, op.order_id, op.kind,
        op.actor_id_snapshot, op.request_id, op.status,
        op.reconcile_attempts, op.send_attempts, op.resend_authorizations,
        coalesce(op.last_error, '')::text AS last_error,
+       coalesce(op.last_send_at, 'epoch')::timestamptz AS last_send_at,
        op.created_at, op.updated_at
 FROM invoice_operations op
 WHERE op.id = $1::uuid
@@ -7492,6 +7667,7 @@ type InvoiceOperationRow struct {
 	SendAttempts         int32
 	ResendAuthorizations int32
 	LastError            string
+	LastSendAt           time.Time
 	CreatedAt            time.Time
 	UpdatedAt            time.Time
 }
@@ -7517,6 +7693,7 @@ func (q *Queries) InvoiceOperation(ctx context.Context, operationID uuid.UUID) (
 		&i.SendAttempts,
 		&i.ResendAuthorizations,
 		&i.LastError,
+		&i.LastSendAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -7554,6 +7731,23 @@ func (q *Queries) InvoiceOperationDocument(ctx context.Context, operationID uuid
 		&i.IssuedAt,
 	)
 	return i, err
+}
+
+const issueInFlight = `-- name: IssueInFlight :one
+SELECT op.id
+FROM invoice_operations op
+JOIN orders o ON o.id = op.order_id
+WHERE o.order_number = $1::text
+  AND op.kind = 'issue' AND op.status IN ('pending', 'attention')
+`
+
+// The order's issue not yet settled or rejected; invoice_operations_one_active_issue
+// keeps it unique.
+func (q *Queries) IssueInFlight(ctx context.Context, orderNumber string) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, issueInFlight, orderNumber)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
 }
 
 const knownAllowances = `-- name: KnownAllowances :many
@@ -7786,7 +7980,10 @@ func (q *Queries) LinkIdentity(ctx context.Context, arg LinkIdentityParams) (int
 
 const liveInvoice = `-- name: LiveInvoice :one
 SELECT d.id, d.number, d.amount_cents, coalesce(d.provider_ref, '')::text AS provider_ref,
-       d.issued_at
+       d.issued_at,
+       EXISTS (SELECT 1 FROM invoice_documents a
+               WHERE a.original_id = d.id AND a.kind = 'allowance'
+                 AND a.status = 'issued') AS has_allowance
 FROM invoice_documents d
 JOIN orders o ON o.id = d.order_id
 WHERE o.order_number = $1::text
@@ -7794,11 +7991,12 @@ WHERE o.order_number = $1::text
 `
 
 type LiveInvoiceRow struct {
-	ID          uuid.UUID
-	Number      string
-	AmountCents int64
-	ProviderRef string
-	IssuedAt    time.Time
+	ID           uuid.UUID
+	Number       string
+	AmountCents  int64
+	ProviderRef  string
+	IssuedAt     time.Time
+	HasAllowance bool
 }
 
 // The live invoice of an order, if it has one. `status <> 'voided'` matches
@@ -7812,6 +8010,7 @@ func (q *Queries) LiveInvoice(ctx context.Context, orderNumber string) (LiveInvo
 		&i.AmountCents,
 		&i.ProviderRef,
 		&i.IssuedAt,
+		&i.HasAllowance,
 	)
 	return i, err
 }
@@ -8928,6 +9127,32 @@ func (q *Queries) OldestPendingReturn(ctx context.Context) (OldestPendingReturnR
 	return i, err
 }
 
+const openAllowance = `-- name: OpenAllowance :one
+SELECT op.status, coalesce(op.last_error, '')::text AS last_error,
+       coalesce(op.last_send_at, op.created_at)::timestamptz AS last_send_at
+FROM invoice_operations op
+JOIN orders o ON o.id = op.order_id
+WHERE o.order_number = $1::text AND op.kind = 'allowance'
+  AND op.status IN ('pending', 'attention') AND op.send_attempts > 0
+ORDER BY op.created_at DESC
+LIMIT 1
+`
+
+type OpenAllowanceRow struct {
+	Status     string
+	LastError  string
+	LastSendAt time.Time
+}
+
+// The order's allowance sent to ECPay and not yet settled: e-mailed to the buyer
+// to agree to, or past the link's life with no agreement.
+func (q *Queries) OpenAllowance(ctx context.Context, orderNumber string) (OpenAllowanceRow, error) {
+	row := q.db.QueryRow(ctx, openAllowance, orderNumber)
+	var i OpenAllowanceRow
+	err := row.Scan(&i.Status, &i.LastError, &i.LastSendAt)
+	return i, err
+}
+
 const openPayment = `-- name: OpenPayment :one
 SELECT open_payment($1, $2::text, $3::bigint)
 `
@@ -9253,50 +9478,6 @@ func (q *Queries) OrderDispatchDestination(ctx context.Context, id uuid.UUID) (O
 	var i OrderDispatchDestinationRow
 	err := row.Scan(&i.DestinationKind, &i.PickupChain)
 	return i, err
-}
-
-const orderEvents = `-- name: OrderEvents :many
-SELECT e.kind, e.note, e.occurred_at, coalesce(u.full_name, '') AS actor_name, e.by_system
-FROM order_events e
-LEFT JOIN users u ON u.id = e.actor_user_id
-WHERE e.order_id = $1
-ORDER BY e.occurred_at, e.id
-`
-
-type OrderEventsRow struct {
-	Kind       string
-	Note       pgtype.Text
-	OccurredAt time.Time
-	ActorName  string
-	BySystem   bool
-}
-
-// Oldest first: occurred_at then id, because two events recorded in the same
-// statement share a timestamp and the uuidv7 key is the tie-break.
-func (q *Queries) OrderEvents(ctx context.Context, orderID uuid.UUID) ([]OrderEventsRow, error) {
-	rows, err := q.db.Query(ctx, orderEvents, orderID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []OrderEventsRow{}
-	for rows.Next() {
-		var i OrderEventsRow
-		if err := rows.Scan(
-			&i.Kind,
-			&i.Note,
-			&i.OccurredAt,
-			&i.ActorName,
-			&i.BySystem,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const orderForReturn = `-- name: OrderForReturn :one
@@ -9954,6 +10135,26 @@ func (q *Queries) OtherAccountAtAddress(ctx context.Context, arg OtherAccountAtA
 	var i OtherAccountAtAddressRow
 	err := row.Scan(&i.Email, &i.FullName)
 	return i, err
+}
+
+const paidByCreditAlone = `-- name: PaidByCreditAlone :one
+SELECT coalesce(order_amount_owed(o.id) = 0
+                AND EXISTS (SELECT 1 FROM store_credit_entries s
+                            WHERE s.order_id = o.id AND s.amount_cents < 0),
+                false)::boolean AS paid_by_credit
+FROM orders o
+WHERE o.id = $1
+`
+
+// Whether store credit alone paid the order, read before the cancellation
+// returns the credit: checkout queued its 統一發票 then. A customer cancels only
+// an uncommitted order, which no card has paid, so owing nothing after a credit
+// spend means credit paid it.
+func (q *Queries) PaidByCreditAlone(ctx context.Context, id uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, paidByCreditAlone, id)
+	var paid_by_credit bool
+	err := row.Scan(&paid_by_credit)
+	return paid_by_credit, err
 }
 
 const parkProductImages = `-- name: ParkProductImages :exec
@@ -11571,6 +11772,19 @@ func (q *Queries) RefundExecution(ctx context.Context, refundID uuid.UUID) (Refu
 		&i.Status,
 	)
 	return i, err
+}
+
+const refundOpenedBy = `-- name: RefundOpenedBy :one
+SELECT requested_by_user_id FROM return_requests WHERE id = $1 AND before_shipment
+`
+
+// The staff member who opened a refund before shipment: every invoice claim it
+// makes is theirs, whoever presses Resume.
+func (q *Queries) RefundOpenedBy(ctx context.Context, id uuid.UUID) (uuid.NullUUID, error) {
+	row := q.db.QueryRow(ctx, refundOpenedBy, id)
+	var requested_by_user_id uuid.NullUUID
+	err := row.Scan(&requested_by_user_id)
+	return requested_by_user_id, err
 }
 
 const registerWarranty = `-- name: RegisterWarranty :execrows
@@ -13942,7 +14156,8 @@ SELECT settle_invoice_allowance(
     $5::text[],
     $6::integer[],
     $7::bigint[],
-    $8::bigint[]
+    $8::bigint[],
+    $9::jsonb
 )::uuid AS document_id
 `
 
@@ -13955,6 +14170,7 @@ type SettleInvoiceAllowanceParams struct {
 	Quantities     []int32
 	UnitPriceCents []int64
 	AmountCents    []int64
+	BuyerConsent   []byte
 }
 
 func (q *Queries) SettleInvoiceAllowance(ctx context.Context, arg SettleInvoiceAllowanceParams) (uuid.UUID, error) {
@@ -13967,6 +14183,7 @@ func (q *Queries) SettleInvoiceAllowance(ctx context.Context, arg SettleInvoiceA
 		arg.Quantities,
 		arg.UnitPriceCents,
 		arg.AmountCents,
+		arg.BuyerConsent,
 	)
 	var document_id uuid.UUID
 	err := row.Scan(&document_id)
@@ -14755,9 +14972,9 @@ SELECT op.id AS operation_id, o.order_number, op.kind, op.status,
        op.amount_cents, op.reconcile_attempts, op.send_attempts,
        coalesce(op.last_error, '')::text AS last_error, op.created_at,
        (op.kind = 'allowance'
-        AND op.status = 'pending'
         AND op.send_attempts > op.resend_authorizations
-        AND op.last_error = 'allowance_not_yet_visible'
+        AND ((op.status = 'pending' AND op.last_error = 'allowance_not_yet_visible')
+             OR (op.status = 'attention' AND op.last_error = 'allowance_buyer_unconfirmed'))
         AND op.last_send_at IS NOT NULL
         AND op.last_send_at <= now() - interval '15 minutes'
         AND (op.lease_until IS NULL OR op.lease_until <= now()))::boolean

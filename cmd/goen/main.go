@@ -489,9 +489,14 @@ func run() error {
 	defer maintenancePool.Close()
 
 	srv := newServer(&cfg, &RouterConfig{
-		Pool: pool, AdminPool: adminPool, MaintenancePool: maintenancePool, Payments: gateway, Refunder: refunder,
-		BaseURL: cfg.BaseURL, SecureCookies: cfg.SecureCookies, TOTPKey: cfg.totpKey,
-		Invoices: invoices, Google: googleSignIn, StoreMap: storeMap, DemoAccount: demoAccount,
+		Storefront: StorefrontConfig{
+			StorePool: pool, Payments: gateway, BaseURL: cfg.BaseURL, SecureCookies: cfg.SecureCookies,
+			Invoices: invoices, Google: googleSignIn, StoreMap: storeMap, DemoAccount: demoAccount,
+		},
+		BackOffice: BackOfficeConfig{
+			AdminPool: adminPool, MaintenancePool: maintenancePool, Payments: gateway, Refunder: refunder,
+			SecureCookies: cfg.SecureCookies, TOTPKey: cfg.totpKey, Invoices: invoices, StoreMap: storeMap,
+		},
 	}, proxies, log)
 
 	// Nothing above starts a goroutine: a return between a worker and the Wait
@@ -746,6 +751,7 @@ func newOutboxStore(d workerDeps) *outbox.Store {
 		newsletterIssueHandler(newsletter.NewStore(d.pool), d.notifier))
 	outboxStore.HandleJSON(outbox.TopicRestocked, d.notifier.SendRestockNotice)
 	outboxStore.HandleJSON(outbox.TopicInvoiceDue, invoiceDueHandler(d.admin, d.invoices))
+	outboxStore.HandleJSON(outbox.TopicInvoiceVoidDue, invoiceVoidDueHandler(d.admin, d.invoices))
 	return outboxStore
 }
 
@@ -753,6 +759,11 @@ func newOutboxStore(d workerDeps) *outbox.Store {
 // invoice doors.
 func invoiceDueHandler(adminPool *pgxpool.Pool, gateway *invoice.Gateway) func(context.Context, *outbox.InvoiceDue) error {
 	return invoice.NewStore(adminPool, gateway).ClaimDue
+}
+
+// invoiceVoidDueHandler claims on the ADMIN pool, as invoiceDueHandler does.
+func invoiceVoidDueHandler(adminPool *pgxpool.Pool, gateway *invoice.Gateway) func(context.Context, *outbox.InvoiceVoidDue) error {
+	return invoice.NewStore(adminPool, gateway).ClaimVoidDue
 }
 
 // newsletterIssueHandler delivers one copy of an issue, and asks at DELIVERY

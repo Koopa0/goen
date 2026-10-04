@@ -5,7 +5,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/web"
 )
 
 type CreditEntry struct {
@@ -54,7 +54,7 @@ func (e CreditEntry) Amount() string {
 func (e CreditEntry) IsSpend() bool { return e.AmountCents < 0 }
 
 type CreditView struct {
-	pages.ListBound
+	web.Bound
 
 	Rows   []CreditEntry
 	Notice string

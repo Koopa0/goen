@@ -53,7 +53,7 @@ func knownAllowanceLines(
 // a malformed/wrong-invoice lookup must alarm rather than voiding local tax
 // history or being attributed to the in-flight operation.
 func allowanceKnownFactsMatch(
-	invoiceNumber string, local knownAllowance, remote AllowanceLookup,
+	invoiceNumber string, local knownAllowance, remote *AllowanceLookup,
 ) bool {
 	return remote.InvoiceNumber == invoiceNumber &&
 		remote.Document.Kind == DocumentAllowance &&
@@ -66,7 +66,7 @@ func allowanceKnownFactsMatch(
 // allowanceRequestFactsMatch deliberately ignores Invalid: callers first prove
 // that a provider candidate is the exact effect of the frozen send, then branch
 // active versus invalid into distinct atomic settlement doors.
-func allowanceRequestFactsMatch(expected AllowanceRequest, remote AllowanceLookup) bool {
+func allowanceRequestFactsMatch(expected AllowanceRequest, remote *AllowanceLookup) bool {
 	return remote.InvoiceNumber == expected.InvoiceNumber &&
 		remote.Document.Kind == DocumentAllowance &&
 		remote.Document.AmountCents == expected.AmountCents &&

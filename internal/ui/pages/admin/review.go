@@ -6,11 +6,11 @@ import (
 	"strings"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/web"
 )
 
 type ReviewsView struct {
-	pages.ListBound
+	web.Bound
 
 	Rows   []Review
 	Notice string

@@ -1102,7 +1102,7 @@ func TestRestockNoticeAndRestockLinearizeOnVariant(t *testing.T) {
 		applicationName := "stock-race-request-first-" + uuid.NewString()[:8]
 		restockPool := stockRacePool(t, applicationName)
 		restockStore := stock.NewStore(restockPool)
-		staffCtx := account.WithUser(ctx, account.User{ID: actorID.String(), Role: "admin"})
+		staffCtx := account.WithUser(ctx, account.User{ID: actorID.String(), Role: account.RoleAdmin})
 		restocked := make(chan error, 1)
 		go func() {
 			restocked <- restockStore.Adjust(
@@ -1188,7 +1188,7 @@ func TestRestockNoticeAndRestockLinearizeOnVariant(t *testing.T) {
 
 		restockPool := stockRacePool(t, applicationName)
 		restockStore := stock.NewStore(restockPool)
-		staffCtx := account.WithUser(ctx, account.User{ID: actorID.String(), Role: "admin"})
+		staffCtx := account.WithUser(ctx, account.User{ID: actorID.String(), Role: account.RoleAdmin})
 		restocked := make(chan error, 1)
 		go func() {
 			restocked <- restockStore.Adjust(
@@ -1630,7 +1630,7 @@ func TestAStaffAnswerStaysStaffWhenTheAuthorChangesRole(t *testing.T) {
 	if err := insertHistoricalCustomerAnswer(ctx, qID, customer, "我實測過可以。"); err != nil {
 		t.Fatalf("customer answer: %v", err)
 	}
-	staffCtx := account.WithUser(ctx, account.User{ID: staff, Role: "admin"})
+	staffCtx := account.WithUser(ctx, account.User{ID: staff, Role: account.RoleAdmin})
 	if err := back.AnswerQuestion(staffCtx, qID, staff, "支援,最高 45W。"); err != nil {
 		t.Fatalf("staff answer: %v", err)
 	}
@@ -1705,7 +1705,7 @@ func TestAHiddenQuestionDisappearsWithItsAnswers(t *testing.T) {
 	}
 
 	staff := newShopAuthor(t)
-	staffCtx := account.WithUser(ctx, account.User{ID: staff, Role: "admin"})
+	staffCtx := account.WithUser(ctx, account.User{ID: staff, Role: account.RoleAdmin})
 	back := feedback.NewStore(pool)
 	if err := back.AnswerQuestion(staffCtx, qID, staff, "太遲了"); !errors.Is(err, feedback.ErrNotFound) {
 		t.Errorf("a hidden question's new answer = %v, want feedback.ErrNotFound", err)
@@ -1744,6 +1744,42 @@ func TestARejectedQuestionKeepsTheDraft(t *testing.T) {
 	}
 	if !strings.Contains(body, `aria-invalid="true"`) {
 		t.Error("422 did not mark the textarea invalid")
+	}
+}
+
+// TestAnAskedQuestionIsStoredAndTheReaderReturnsToTheQuestions holds the
+// success arm of the Q&A handler: a signed-in POST stores the question under
+// the product and redirects to its questions.
+func TestAnAskedQuestionIsStoredAndTheReaderReturnsToTheQuestions(t *testing.T) {
+	slug := anyActiveProduct(t)
+	customer := newCustomer(t)
+	const question = "這個有附保固卡嗎？"
+
+	form := url.Values{"body": {question}}
+	req := httptest.NewRequestWithContext(
+		account.WithUser(t.Context(), account.User{ID: customer}),
+		http.MethodPost, "/p/"+slug+"/questions", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.SetPathValue("slug", slug)
+	res := httptest.NewRecorder()
+	product.NewHandler(product.NewStore(pool), slog.New(slog.DiscardHandler), "https://goen.example").
+		Ask(res, req)
+
+	if res.Code != http.StatusSeeOther {
+		t.Fatalf("Ask answered %d, want 303; body=%s", res.Code, res.Body.String())
+	}
+	if got, want := res.Header().Get("Location"), "/p/"+slug+"?ask=1#questions"; got != want {
+		t.Errorf("Ask redirects to %q, want %q", got, want)
+	}
+	var stored int
+	if err := pool.QueryRow(t.Context(), `
+		SELECT count(*) FROM product_questions q JOIN products p ON p.id = q.product_id
+		WHERE p.slug = $1 AND q.user_id = $2 AND q.body = $3`,
+		slug, customer, question).Scan(&stored); err != nil {
+		t.Fatalf("count stored questions: %v", err)
+	}
+	if stored != 1 {
+		t.Errorf("%d stored questions from this customer on %s, want 1", stored, slug)
 	}
 }
 

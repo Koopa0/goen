@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
@@ -52,19 +53,19 @@ func TestTheOrderPageOffersTheRefundAndResume(t *testing.T) {
 	}
 	action := `action="/admin/orders/GO-260929-000001/refund"`
 
-	offered := render(&OrderView{Number: "GO-260929-000001", Status: pages.FulfillmentPicking, Committed: true, RefundOffered: true})
+	offered := render(&OrderView{Number: "GO-260929-000001", Status: order.FulfillmentPicking, Committed: true, RefundOffered: true})
 	if !strings.Contains(offered, action) || !strings.Contains(offered, i18n.T(ctx, i18n.KeyAdminRefundHint)) {
 		t.Fatal("a paid unshipped order does not offer its refund")
 	}
 	if strings.Contains(offered, i18n.T(ctx, i18n.KeyAdminQueueFinal)) {
 		t.Fatal("a paid order in picking reads as final")
 	}
-	open := render(&OrderView{Number: "GO-260929-000001", Status: pages.FulfillmentPicking, Committed: true, RefundOpen: true})
+	open := render(&OrderView{Number: "GO-260929-000001", Status: order.FulfillmentPicking, Committed: true, RefundOpen: true})
 	if !strings.Contains(open, action) || !strings.Contains(open, i18n.T(ctx, i18n.KeyAdminRefundResume)) ||
 		!strings.Contains(open, i18n.T(ctx, i18n.KeyAdminRefundOpen)) {
 		t.Fatal("an open refund does not offer Resume")
 	}
-	if none := render(&OrderView{Number: "GO-260929-000001", Status: pages.FulfillmentCancelled}); strings.Contains(none, action) ||
+	if none := render(&OrderView{Number: "GO-260929-000001", Status: order.FulfillmentCancelled}); strings.Contains(none, action) ||
 		!strings.Contains(none, i18n.T(ctx, i18n.KeyAdminQueueFinal)) {
 		t.Fatal("a cancelled order offers a refund or does not read as final")
 	}

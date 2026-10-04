@@ -13,9 +13,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/admin/access"
-	"github.com/koopa0/goen/internal/admin/ordernumber"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
@@ -54,7 +54,7 @@ func (s *Store) Events(ctx context.Context, after ...string) (admin.AuditView, e
 	// record somebody may take for the whole record.
 	rows, bound := web.PageBound(scope, resumed, rows, maxRows,
 		func(r *db.AuditEventsRow) string { return r.PageCursor })
-	view := admin.AuditView{ListBound: bound}
+	view := admin.AuditView{Bound: bound}
 	for i := range rows {
 		e := &rows[i]
 		view.Rows = append(view.Rows, admin.AuditEntry{
@@ -70,7 +70,7 @@ func (s *Store) Events(ctx context.Context, after ...string) (admin.AuditView, e
 
 func entryHref(subject, productSlug string) string {
 	switch {
-	case subject != "" && ordernumber.Valid(subject):
+	case subject != "" && order.ValidNumber(subject):
 		return "/admin/orders/" + subject
 	case productSlug != "":
 		return "/admin/products/" + productSlug

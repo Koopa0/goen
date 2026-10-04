@@ -62,7 +62,7 @@ func TestANilOperationIdentityIsNotAnEmptyAccount(t *testing.T) {
 
 func TestAnInvalidOperationIdentityIsNotReportedAsAShortBalance(t *testing.T) {
 	h := &Handler{store: &Store{}, log: slog.New(slog.DiscardHandler)}
-	user := account.User{ID: uuid.NewString(), Role: "customer"}
+	user := account.User{ID: uuid.NewString(), Role: account.RoleCustomer}
 	validOp := uuid.NewString()
 	tests := []struct {
 		name string
@@ -97,7 +97,7 @@ func TestAnInvalidOperationIdentityIsNotReportedAsAShortBalance(t *testing.T) {
 func TestAMissingAccountIsStillReportedAsAShortBalance(t *testing.T) {
 	h := &Handler{store: &Store{}, log: slog.New(slog.DiscardHandler)}
 	req := httptest.NewRequestWithContext(
-		account.WithUser(t.Context(), account.User{ID: "not-a-uuid", Role: "customer"}),
+		account.WithUser(t.Context(), account.User{ID: "not-a-uuid", Role: account.RoleCustomer}),
 		http.MethodPost, "/account/points",
 		strings.NewReader(url.Values{
 			"points":       {"100"},

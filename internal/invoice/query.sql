@@ -33,11 +33,35 @@ ORDER BY l.document_id, l.position, l.id;
 -- invoice_documents_one_active_invoice_per_order, so the row is unique.
 -- name: LiveInvoice :one
 SELECT d.id, d.number, d.amount_cents, coalesce(d.provider_ref, '')::text AS provider_ref,
-       d.issued_at
+       d.issued_at,
+       EXISTS (SELECT 1 FROM invoice_documents a
+               WHERE a.original_id = d.id AND a.kind = 'allowance'
+                 AND a.status = 'issued') AS has_allowance
 FROM invoice_documents d
 JOIN orders o ON o.id = d.order_id
 WHERE o.order_number = @order_number::text
   AND d.kind = 'invoice' AND d.status <> 'voided';
+
+-- The order's allowance sent to ECPay and not yet settled: e-mailed to the buyer
+-- to agree to, or past the link's life with no agreement.
+-- name: OpenAllowance :one
+SELECT op.status, coalesce(op.last_error, '')::text AS last_error,
+       coalesce(op.last_send_at, op.created_at)::timestamptz AS last_send_at
+FROM invoice_operations op
+JOIN orders o ON o.id = op.order_id
+WHERE o.order_number = @order_number::text AND op.kind = 'allowance'
+  AND op.status IN ('pending', 'attention') AND op.send_attempts > 0
+ORDER BY op.created_at DESC
+LIMIT 1;
+
+-- The order's issue not yet settled or rejected; invoice_operations_one_active_issue
+-- keeps it unique.
+-- name: IssueInFlight :one
+SELECT op.id
+FROM invoice_operations op
+JOIN orders o ON o.id = op.order_id
+WHERE o.order_number = @order_number::text
+  AND op.kind = 'issue' AND op.status IN ('pending', 'attention');
 
 -- name: ClaimInvoiceAllowance :one
 SELECT claim_invoice_allowance(
@@ -52,6 +76,13 @@ SELECT claim_invoice_void(
     @document_id::uuid, @reason::text, @actor_user_id::uuid, @request_id::text
 )::uuid AS operation_id;
 
+-- The system's void of a cancelled order's invoice: no actor, and the
+-- cancellation as the request id.
+-- name: ClaimSystemInvoiceVoid :one
+SELECT claim_invoice_void(
+    @document_id::uuid, @reason::text, NULL::uuid, @request_id::text
+)::uuid AS operation_id;
+
 -- One durable operation and its frozen request. Nil target/result UUIDs avoid a
 -- nullable UUID at the Go state-machine boundary; kind/status say which applies.
 -- name: InvoiceOperation :one
@@ -64,6 +95,7 @@ SELECT op.id, op.order_id, op.kind,
        op.actor_id_snapshot, op.request_id, op.status,
        op.reconcile_attempts, op.send_attempts, op.resend_authorizations,
        coalesce(op.last_error, '')::text AS last_error,
+       coalesce(op.last_send_at, 'epoch')::timestamptz AS last_send_at,
        op.created_at, op.updated_at
 FROM invoice_operations op
 WHERE op.id = @operation_id::uuid;
@@ -124,7 +156,8 @@ SELECT settle_invoice_allowance(
     @descriptions::text[],
     @quantities::integer[],
     @unit_price_cents::bigint[],
-    @amount_cents::bigint[]
+    @amount_cents::bigint[],
+    @buyer_consent::jsonb
 )::uuid AS document_id;
 
 -- name: SettleInvoiceVoid :one

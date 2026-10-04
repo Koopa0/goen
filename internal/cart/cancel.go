@@ -9,7 +9,9 @@ import (
 
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/email"
+	invoicepkg "github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/ordernotice"
+	"github.com/koopa0/goen/internal/outbox"
 )
 
 // ErrNotCancellable covers every reason, so a guessable order number cannot be
@@ -36,6 +38,10 @@ func (s *Store) CancelOrder(ctx context.Context, number string) ([]string, error
 	if err != nil {
 		return nil, fmt.Errorf("lock %s: %w", number, err)
 	}
+	paidByCredit, err := q.PaidByCreditAlone(ctx, orderID)
+	if err != nil {
+		return nil, fmt.Errorf("read how %s was paid: %w", number, err)
+	}
 	cancelled, err := q.CancelOrderByCustomer(ctx, orderID)
 	if err != nil {
 		return nil, fmt.Errorf("cancel %s: %w", number, err)
@@ -45,6 +51,13 @@ func (s *Store) CancelOrder(ctx context.Context, number string) ([]string, error
 	}
 	if err := settleCancellation(ctx, q, number, email.TerminalCancelledByCustomer); err != nil {
 		return nil, err
+	}
+	if paidByCredit {
+		if err := invoicepkg.EnqueueVoidDue(ctx, q, &outbox.InvoiceVoidDue{
+			OrderNumber: number, Trigger: "cancel:" + number,
+		}); err != nil {
+			return nil, err
+		}
 	}
 
 	sessions, sessErr := q.OpenSessionsForOrder(ctx, number)

@@ -31,7 +31,8 @@ templ ConfirmRefund(p layouts.Page, v RefundConfirmation) {
 							{ i18n.T(ctx, i18n.KeyAdminRetResolution) }
 							@requiredMark()
 						</label>
-						<input class="ui-input" id="refund-reason" name="reason" required maxlength="300" autocomplete="off" aria-invalid={ v.ReasonInvalid } aria-describedby="refund-reason-error" value={ v.Reason }/>
+						<p class="goen-admin__hint" id="refund-reason-hint">{ i18n.T(ctx, i18n.KeyAdminRefundReasonHint) }</p>
+						<input class="ui-input" id="refund-reason" name="reason" required maxlength="300" autocomplete="off" aria-invalid={ v.ReasonInvalid } aria-describedby="refund-reason-hint refund-reason-error" value={ v.Reason }/>
 						if v.ReasonInvalid {
 							<p class="ui-error-text" id="refund-reason-error">{ i18n.T(ctx, i18n.KeyAdminRefundErrReason) }</p>
 						}

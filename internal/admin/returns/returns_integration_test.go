@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -17,10 +18,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/koopa0/goen/internal/outbox"
+
 	"github.com/koopa0/goen/internal/db/dbtest"
+	"github.com/koopa0/goen/internal/invoice"
 	adminpages "github.com/koopa0/goen/internal/ui/pages/admin"
 
 	"github.com/koopa0/goen/internal/admin/admintest"
+	"github.com/koopa0/goen/internal/admin/health"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
@@ -2608,4 +2613,193 @@ func TestATerminalCardRetrySurvivesErasureAfterCreditLanded(t *testing.T) {
 	if attempts != 2 || succeeded != 1 {
 		t.Errorf("post-erasure attempts/succeeded = %d/%d, want 2/1", attempts, succeeded)
 	}
+}
+
+// TestAProviderRefusalGetsANewDurableAttempt holds the distinction between
+// retrying ambiguity and retrying a known terminal outcome. Ambiguity reuses one
+// provider key; failed/cancelled is immutable evidence and gets a linked next
+// generation with a fresh DB-derived key.
+func TestAProviderRefusalGetsANewDurableAttempt(t *testing.T) {
+	ctx, _ := admintest.StaffContext(t, pool)
+	s := admintest.ReturnDesk(pool, admintest.Refunder{State: refundstate.Failed})
+	requestID, _ := admintest.ReturnedOrder(t, pool, 1)
+
+	if err := s.Decide(ctx, requestID.String(), "approved", "已收到退貨", "", uuid.NullUUID{}); err == nil {
+		t.Fatal("a refund Stripe refused was reported as success")
+	}
+
+	var returnStatus string
+	if err := pool.QueryRow(ctx,
+		`SELECT status FROM return_requests WHERE id = $1`, requestID).Scan(&returnStatus); err != nil {
+		t.Fatalf("read return: %v", err)
+	}
+	if returnStatus != "approved" {
+		t.Errorf("return is %q, want approved — the decision is taken before any "+
+			"money moves, which is what stops two staff members both paying",
+			returnStatus)
+	}
+
+	// On record, so nothing is lost while it is outstanding.
+	var refundStatus string
+	if err := pool.QueryRow(ctx,
+		`SELECT status FROM refunds WHERE return_request_id = $1`, requestID).Scan(&refundStatus); err != nil {
+		t.Fatalf("no refund row survives a refusal, so nothing can reconcile it: %v", err)
+	}
+	if refundStatus != "failed" {
+		t.Errorf("refund is %q, want failed — Stripe was asked and said no", refundStatus)
+	}
+
+	healthy := admintest.ReturnDesk(pool, admintest.Refunder{})
+	if err := healthy.Decide(ctx, requestID.String(), "approved", "已收到退貨", "", uuid.NullUUID{}); err != nil {
+		t.Fatalf("retry after a known provider refusal: %v", err)
+	}
+
+	type attempt struct {
+		id       uuid.UUID
+		previous uuid.NullUUID
+		number   int32
+		key      string
+		status   string
+	}
+	rows, err := pool.Query(ctx, `
+		SELECT id, previous_refund_id, attempt_no, request_key, status
+		FROM refunds WHERE return_request_id = $1 ORDER BY attempt_no`, requestID)
+	if err != nil {
+		t.Fatalf("read provider attempts: %v", err)
+	}
+	defer rows.Close()
+	var attempts []attempt
+	for rows.Next() {
+		var got attempt
+		if scanErr := rows.Scan(&got.id, &got.previous, &got.number, &got.key, &got.status); scanErr != nil {
+			t.Fatalf("scan provider attempt: %v", scanErr)
+		}
+		attempts = append(attempts, got)
+	}
+	if rowsErr := rows.Err(); rowsErr != nil {
+		t.Fatalf("iterate provider attempts: %v", rowsErr)
+	}
+	base := "return:" + requestID.String()
+	if len(attempts) != 2 {
+		t.Fatalf("provider attempts = %#v, want failed evidence plus one successor", attempts)
+	}
+	if attempts[0].number != 1 || attempts[0].key != base || attempts[0].status != "failed" ||
+		attempts[0].previous.Valid {
+		t.Errorf("first provider attempt = %#v, want immutable failed generation 1", attempts[0])
+	}
+	if attempts[1].number != 2 || attempts[1].key != base+":attempt:2" ||
+		attempts[1].status != "succeeded" || !attempts[1].previous.Valid ||
+		attempts[1].previous.UUID != attempts[0].id {
+		t.Errorf("second provider attempt = %#v, want succeeded generation 2 linked to %s",
+			attempts[1], attempts[0].id)
+	}
+	page, err := health.NewStore(pool).WorkerHealth(ctx, outbox.NewStore(pool, slog.New(slog.DiscardHandler)))
+	if err != nil {
+		t.Fatalf("read health after successful successor: %v", err)
+	}
+	for i := range page.OpenRefunds {
+		if strings.HasPrefix(page.OpenRefunds[i].Key, base) {
+			t.Errorf("historical failed attempt still appears as current health work: %#v",
+				page.OpenRefunds[i])
+		}
+	}
+}
+
+// TestASplitReturnResumesTheHalfThatFailed holds the resume gate to BOTH
+// sources.
+//
+// A return can be paid from card and credit — card first, credit last — and the
+// two commit separately: the card through the provider, the credit as a ledger
+// entry afterwards. A gate asking only whether the CARD half settled reports a
+// return whose credit compensation did NOT as finished, and no other door posts
+// that credit.
+//
+// It also has to resume only what is MISSING. Re-sending a settled card refund
+// meets refunds_settled_is_history and re-posting the credit meets its
+// idempotency key, so a retry that sent both could never finish the failed half.
+//
+// The half-paid state is CONSTRUCTED rather than raced into: what is under test
+// is the resume, not how the state arose.
+func TestASplitReturnResumesTheHalfThatFailed(t *testing.T) {
+	ctx, _ := admintest.StaffContext(t, pool)
+	requestID, orderNumber, accountID := admintest.CreditFundedReturn(t, pool, 2, 60000)
+
+	// Approved, with the CARD half settled under the return's own request key —
+	// which is what refundRequestKey produces and what makes a retry find the
+	// same row — and no credit entry at all.
+	if _, err := pool.Exec(ctx, `
+		UPDATE return_requests SET status = 'approved', decided_at = now(),
+		       resolution = '退貨完成'
+		WHERE id = $1`, requestID); err != nil {
+		t.Fatalf("approve the return: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO refunds (payment_id, request_key, amount_cents, reason,
+		                     return_request_id, status, provider_ref, succeeded_at)
+		SELECT p.id, 'return:' || $1::text, 140000, '退貨完成', $1::uuid, 'succeeded',
+		       're_constructed', now()
+		FROM payments p JOIN orders o ON o.id = p.order_id
+		WHERE o.order_number = $2 AND p.status = 'succeeded'`,
+		requestID, orderNumber); err != nil {
+		t.Fatalf("settle the card half: %v", err)
+	}
+	if got := admintest.CardRefunded(t, pool, orderNumber); got != 140000 {
+		t.Fatalf("the card half reads %d, want 140000 — the fixture did not build the "+
+			"state under test", got)
+	}
+	before := admintest.CreditBalance(t, pool, accountID)
+
+	// The retry must RESUME the credit half rather than refuse the whole return.
+	sent := &atomic.Int64{}
+	s := admintest.ReturnDesk(pool, admintest.Refunder{Sent: sent})
+	if err := s.Decide(ctx, requestID.String(), "approved", "退貨完成", "", uuid.NullUUID{}); err != nil {
+		t.Fatalf("the retry was refused (%v), so the credit half can never be paid "+
+			"and the customer stays short", err)
+	}
+	if after := admintest.CreditBalance(t, pool, accountID); after <= before {
+		t.Errorf("store credit went %d -> %d; the failed half was not resumed", before, after)
+	}
+
+	// And the card half is not sent TO STRIPE twice. The durable row proves the
+	// outcome; this provider-side counter proves the retry made no remote call.
+	if n := sent.Load(); n != 0 {
+		t.Errorf("the retry sent %d refund(s) to the provider; the card half had "+
+			"already landed and resuming means paying only what is MISSING", n)
+	}
+	if got := admintest.CardRefunded(t, pool, orderNumber); got != 140000 {
+		t.Errorf("the card half is now %d, want 140000 — the retry re-sent a refund "+
+			"that had already landed", got)
+	}
+
+	// The order now holds a refund from BOTH sources, which is the only shape
+	// that can tell the two definitions of "what has gone back" apart. The back
+	// office displays this total, while the invoice claim independently uses the
+	// same authoritative view under lock. A card-only definition would leave the
+	// 統一發票 recording part of a sale that was reversed.
+	withInvoices := admintest.OrderStore(
+		pool, admintest.Refunder{}, noDocuments{}, admintest.DisabledInvoiceWriter{},
+	)
+	view, viewErr := withInvoices.Order(ctx, orderNumber)
+	if viewErr != nil {
+		t.Fatalf("read the order: %v", viewErr)
+	}
+	credited := admintest.CreditBalance(t, pool, accountID) - before
+	if credited <= 0 {
+		t.Fatal("no credit was returned, so this proves nothing about the sum")
+	}
+	if want := int64(140000) + credited; view.RefundedCents != want {
+		t.Errorf("the back office reports %d refunded and %d has gone back (card %d + credit %d).\n"+
+			"The display and the database-derived allowance use one fact, "+
+			"and a 折讓 short of what was refunded over-reports the sale to the 財政部",
+			view.RefundedCents, want, 140000, credited)
+	}
+}
+
+// noDocuments is the read side with no filed documents. The figure under test
+// is what has been REFUNDED, which is a question about money and not about
+// documents, so the documents are the part that can be empty.
+type noDocuments struct{}
+
+func (noDocuments) Documents(context.Context, string) ([]invoice.Document, error) {
+	return nil, nil
 }

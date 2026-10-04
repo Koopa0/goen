@@ -13,6 +13,7 @@ import (
 	"github.com/koopa0/goen/internal/fieldrule"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
+	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/pickup"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
@@ -555,47 +556,32 @@ func (l OrderLine) LineTotal() string { return twd(l.UnitCents * int64(l.Quantit
 
 func (l OrderLine) QuantityText() string { return strconv.FormatInt(int64(l.Quantity), 10) }
 
-// OrderEventKind is order_events.kind, closed by order_events_kind_known.
-type OrderEventKind string
-
-const (
-	EventPlaced    OrderEventKind = "placed"
-	EventPaid      OrderEventKind = "paid"
-	EventPicking   OrderEventKind = "picking"
-	EventShipped   OrderEventKind = "shipped"
-	EventInTransit OrderEventKind = "in_transit"
-	EventDelivered OrderEventKind = "delivered"
-	EventCompleted OrderEventKind = "completed"
-	EventCancelled OrderEventKind = "cancelled"
-	EventRefunded  OrderEventKind = "refunded"
-)
-
 // OrderEvent carries no actor: anyone holding the order number can reach this page.
 type OrderEvent struct {
-	Kind OrderEventKind
+	Kind order.EventKind
 	Note string
 	At   string
 }
 
 func (e OrderEvent) LabelKey() i18n.Key {
 	switch e.Kind {
-	case EventPlaced:
+	case order.EventPlaced:
 		return i18n.KeyStatusPlaced
-	case EventPaid:
+	case order.EventPaid:
 		return i18n.KeyStatusPaid
-	case EventPicking:
+	case order.EventPicking:
 		return i18n.KeyStatusPicking
-	case EventShipped:
+	case order.EventShipped:
 		return i18n.KeyStatusShipped
-	case EventInTransit:
+	case order.EventInTransit:
 		return i18n.KeyStatusInTransit
-	case EventDelivered:
+	case order.EventDelivered:
 		return i18n.KeyStatusDelivered
-	case EventCompleted:
+	case order.EventCompleted:
 		return i18n.KeyStatusCompleted
-	case EventCancelled:
+	case order.EventCancelled:
 		return i18n.KeyStatusCancelled
-	case EventRefunded:
+	case order.EventRefunded:
 		return i18n.KeyStatusRefunded
 	default:
 		panic("pages: no label for order event kind " + string(e.Kind))
@@ -640,7 +626,7 @@ func (i CheckoutInvoice) NeedsTaxID() bool { return i.Chosen().NeedsTaxID() }
 
 type OrderView struct {
 	Number         string
-	Status         FulfillmentStatus
+	Status         order.FulfillmentStatus
 	Email          string
 	ShippingName   string
 	DeliveryTo     string
@@ -682,9 +668,9 @@ const (
 // a refund is on its timeline, and a partial refund on a delivered order leaves it paid.
 func (v *OrderView) PaymentState() PaymentState {
 	switch {
-	case v.Status == FulfillmentCancelled:
+	case v.Status == order.FulfillmentCancelled:
 		for _, e := range v.Timeline {
-			if e.Kind == EventRefunded {
+			if e.Kind == order.EventRefunded {
 				return PaymentRefunded
 			}
 		}
@@ -710,15 +696,15 @@ func (s PaymentState) Key() i18n.Key {
 // StateKey leaves paying to its own row, so a placed order stays 訂單成立 until it moves.
 func (v *OrderView) StateKey() i18n.Key {
 	switch v.Status {
-	case FulfillmentPicking:
+	case order.FulfillmentPicking:
 		return i18n.KeyStatusPicking
-	case FulfillmentShipped:
+	case order.FulfillmentShipped:
 		return i18n.KeyStatusShipped
-	case FulfillmentDelivered:
+	case order.FulfillmentDelivered:
 		return i18n.KeyStatusDelivered
-	case FulfillmentCompleted:
+	case order.FulfillmentCompleted:
 		return i18n.KeyStatusCompleted
-	case FulfillmentCancelled:
+	case order.FulfillmentCancelled:
 		return i18n.KeyStatusCancelled
 	default:
 		return i18n.KeyOrderPlaced
@@ -728,8 +714,12 @@ func (v *OrderView) StateKey() i18n.Key {
 func (v *OrderView) Owed() string { return twd(v.OwedCents) }
 
 func (v *OrderView) CanCancel() bool {
-	return v.Status == FulfillmentPending && !v.Committed
+	return v.Status == order.FulfillmentPending && !v.Committed
 }
+
+// CancelVoidsInvoice reports whether cancelling voids the order's 統一發票:
+// store credit paid it in full, and the invoice was owed then.
+func (v *OrderView) CancelVoidsInvoice() bool { return v.CreditCents > 0 && v.OwedCents == 0 }
 
 func OrderMeta(ctx context.Context, number string) layouts.Page {
 	return layouts.Page{Title: fmt.Sprintf(i18n.T(ctx, i18n.KeyOrderMeta), number)}
@@ -767,7 +757,7 @@ func (v *OrderView) Credit() string { return "-" + twd(v.CreditCents) }
 
 func (v *OrderView) CanRequestReturn() bool {
 	switch v.Status {
-	case FulfillmentShipped, FulfillmentDelivered, FulfillmentCompleted:
+	case order.FulfillmentShipped, order.FulfillmentDelivered, order.FulfillmentCompleted:
 		return true
 	default:
 		return false
@@ -776,7 +766,7 @@ func (v *OrderView) CanRequestReturn() bool {
 
 func (v *OrderView) CanRegisterWarranty() bool {
 	switch v.Status {
-	case FulfillmentDelivered, FulfillmentCompleted:
+	case order.FulfillmentDelivered, order.FulfillmentCompleted:
 		return true
 	default:
 		return false

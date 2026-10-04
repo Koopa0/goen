@@ -14,6 +14,7 @@ import (
 	"github.com/koopa0/goen/internal/destination"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
+	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/pickup"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
@@ -330,7 +331,7 @@ func TestCanCancelIsAboutFundingNotJustStatus(t *testing.T) {
 
 	for _, tt := range []struct {
 		name      string
-		status    FulfillmentStatus
+		status    order.FulfillmentStatus
 		committed bool
 		want      bool
 	}{
@@ -453,13 +454,41 @@ func TestTheOrderPageShowsTheDiscountAndWhy(t *testing.T) {
 	}
 }
 
+// TestACreditPaidOrdersCancelSaysItVoidsTheInvoice: the customer's own press is
+// the consent to voiding the 統一發票, so the form says so in both languages,
+// and only where an invoice was owed.
+func TestACreditPaidOrdersCancelSaysItVoidsTheInvoice(t *testing.T) {
+	t.Parallel()
+	viewOf := func(creditCents, owedCents int64) *OrderView {
+		return &OrderView{
+			Number: "GO-260101-000003", Status: "pending", ShippingName: "宅配",
+			SubtotalCents: 100000, ShippingCents: 6000,
+			CreditCents: creditCents, OwedCents: owedCents,
+		}
+	}
+	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+		ctx := i18n.WithLocale(t.Context(), locale)
+		voids := templ.EscapeString(i18n.T(ctx, i18n.KeyOrderCancelVoidsInvoice))
+		if got := renderIn(t, locale, Order(layouts.Page{Title: "order"}, viewOf(106000, 0))); !strings.Contains(got, voids) {
+			t.Errorf("%s: the cancel form of a credit-paid order does not say the invoice is voided", locale)
+		}
+		// Unpaid, part paid by credit, and free: none was owed an invoice.
+		for _, uninvoiced := range []*OrderView{viewOf(0, 106000), viewOf(6000, 100000), viewOf(0, 0)} {
+			if got := renderIn(t, locale, Order(layouts.Page{Title: "order"}, uninvoiced)); strings.Contains(got, voids) {
+				t.Errorf("%s: an order with %d credit owing %d says cancelling voids an invoice it never had",
+					locale, uninvoiced.CreditCents, uninvoiced.OwedCents)
+			}
+		}
+	}
+}
+
 // TestOnlyAnOrderThatOwesMoneyIsOfferedPayment holds the two funded cases apart:
 // a captured card leaves the order committed and still owing, and a wholly
 // store-credited one owes nothing and is not committed until it leaves pending.
 func TestOnlyAnOrderThatOwesMoneyIsOfferedPayment(t *testing.T) {
 	tests := []struct {
 		name      string
-		status    FulfillmentStatus
+		status    order.FulfillmentStatus
 		committed bool
 		owed      int64
 		want      bool
@@ -496,7 +525,7 @@ func TestAccountOrderHistoryLinksToCanonicalOrderPage(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	view := &AccountView{
 		Orders: []AccountOrder{{
-			Number: "GO-260101-000012", Status: FulfillmentDelivered,
+			Number: "GO-260101-000012", Status: order.FulfillmentDelivered,
 			PlacedAt: "2026-01-01", TotalCents: 106000, LineCount: 1,
 		}},
 	}
@@ -529,7 +558,7 @@ func TestAPaidOrderIsNotBadgedAwaitingPaymentInTheAccount(t *testing.T) {
 	}
 
 	view := &OrderView{
-		Number: "GO-260101-000010", Status: FulfillmentPending,
+		Number: "GO-260101-000010", Status: order.FulfillmentPending,
 		SubtotalCents: 100000, ShippingCents: 6000, ShippingName: "宅配",
 		Committed: true, OwedCents: 106000,
 	}
@@ -558,7 +587,7 @@ func TestTheOrderNotFoundPageOffersAWayThrough(t *testing.T) {
 func TestADeliveredOrderOffersReturnAndShowsCredit(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	v := &OrderView{
-		Number: "GO-260101-000012", Status: FulfillmentDelivered,
+		Number: "GO-260101-000012", Status: order.FulfillmentDelivered,
 		SubtotalCents: 100000, ShippingCents: 6000, ShippingName: "宅配",
 		CreditCents: 50000,
 	}
@@ -580,7 +609,7 @@ func TestADeliveredOrderOffersReturnAndShowsCredit(t *testing.T) {
 func TestADeliveredOrderLinksToItsWarrantyForm(t *testing.T) {
 	tests := []struct {
 		name   string
-		status FulfillmentStatus
+		status order.FulfillmentStatus
 		want   bool
 	}{
 		{name: "pending", status: "pending", want: false},
@@ -613,7 +642,7 @@ func TestADeliveredOrderLinksToItsWarrantyForm(t *testing.T) {
 // through a guest access token must not expose the account-only registration door.
 func TestGuestTokenViewerDoesNotSeeWarrantyLink(t *testing.T) {
 	v := &OrderView{
-		Number: "GO-260101-000012", Status: FulfillmentDelivered,
+		Number: "GO-260101-000012", Status: order.FulfillmentDelivered,
 		SubtotalCents: 100000, ShippingCents: 6000, ShippingName: "宅配",
 		ShowWarrantyLink: false,
 	}
@@ -1066,7 +1095,7 @@ func TestAFullyFundedOrderIsNotAskedToPay(t *testing.T) {
 	t.Parallel()
 
 	funded := &OrderView{
-		Number: "GO-260101-000012", Status: FulfillmentPending,
+		Number: "GO-260101-000012", Status: order.FulfillmentPending,
 		SubtotalCents: 100000, ShippingCents: 6000, ShippingName: "宅配",
 		// Not committed and nothing owed: paid in full from store credit.
 		Committed: false, OwedCents: 0,
@@ -1083,7 +1112,7 @@ func TestAFullyFundedOrderIsNotAskedToPay(t *testing.T) {
 
 	// The control: same order, same status, same Committed, money still owed.
 	owing := &OrderView{
-		Number: "GO-260101-000013", Status: FulfillmentPending,
+		Number: "GO-260101-000013", Status: order.FulfillmentPending,
 		SubtotalCents: 100000, ShippingCents: 6000, ShippingName: "宅配",
 		Committed: false, OwedCents: 106000,
 	}
@@ -1366,7 +1395,7 @@ func TestWithoutPaymentsTheOrderPageLeadsNowhereNearThePayPage(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 
 	unpaid := &OrderView{
-		Number: "GO-260101-000009", Status: FulfillmentPending,
+		Number: "GO-260101-000009", Status: order.FulfillmentPending,
 		SubtotalCents: 100000, ShippingCents: 6000, ShippingName: "宅配", OwedCents: 106000,
 	}
 	html := renderToString(t, Order(layouts.Page{Title: "訂單"}, unpaid))
@@ -1393,7 +1422,7 @@ func TestTheOrderPageStatesItsOwnState(t *testing.T) {
 		return renderToString(t, Order(layouts.Page{Title: "訂單"}, v))
 	}
 
-	delivered := render(&OrderView{Status: FulfillmentDelivered, Committed: true, SubtotalCents: 100000, OwedCents: 100000})
+	delivered := render(&OrderView{Status: order.FulfillmentDelivered, Committed: true, SubtotalCents: 100000, OwedCents: 100000})
 	if !strings.Contains(delivered, `goen-pagehead__eyebrow">已送達<`) {
 		t.Error("a delivered order's eyebrow does not say it was delivered")
 	}
@@ -1406,15 +1435,15 @@ func TestTheOrderPageStatesItsOwnState(t *testing.T) {
 		view OrderView
 		want PaymentState
 	}{
-		{"unpaid", OrderView{Status: FulfillmentPending, OwedCents: 100}, PaymentAwaiting},
-		{"captured", OrderView{Status: FulfillmentPending, Committed: true, OwedCents: 100}, PaymentPaid},
-		{"funded by credit", OrderView{Status: FulfillmentPending}, PaymentPaid},
-		{"cancelled before paying", OrderView{Status: FulfillmentCancelled, OwedCents: 100}, PaymentNone},
+		{"unpaid", OrderView{Status: order.FulfillmentPending, OwedCents: 100}, PaymentAwaiting},
+		{"captured", OrderView{Status: order.FulfillmentPending, Committed: true, OwedCents: 100}, PaymentPaid},
+		{"funded by credit", OrderView{Status: order.FulfillmentPending}, PaymentPaid},
+		{"cancelled before paying", OrderView{Status: order.FulfillmentCancelled, OwedCents: 100}, PaymentNone},
 		{"cancelled and refunded", OrderView{
-			Status: FulfillmentCancelled, Timeline: []OrderEvent{{Kind: "cancelled"}, {Kind: "refunded"}},
+			Status: order.FulfillmentCancelled, Timeline: []OrderEvent{{Kind: "cancelled"}, {Kind: "refunded"}},
 		}, PaymentRefunded},
 		{"delivered with a partial refund", OrderView{
-			Status: FulfillmentDelivered, Committed: true, Timeline: []OrderEvent{{Kind: "refunded"}},
+			Status: order.FulfillmentDelivered, Committed: true, Timeline: []OrderEvent{{Kind: "refunded"}},
 		}, PaymentPaid},
 	} {
 		if got := tt.view.PaymentState(); got != tt.want {
@@ -1423,7 +1452,7 @@ func TestTheOrderPageStatesItsOwnState(t *testing.T) {
 	}
 
 	credited := render(&OrderView{
-		Status: FulfillmentPending, SubtotalCents: 100000, ShippingCents: 6000, CreditCents: 106000, OwedCents: 0,
+		Status: order.FulfillmentPending, SubtotalCents: 100000, ShippingCents: 6000, CreditCents: 106000, OwedCents: 0,
 	})
 	credit := strings.Index(credited, i18n.T(ctx, i18n.KeyOrderCreditApplied))
 	due := strings.Index(credited, i18n.T(ctx, i18n.KeyOrderAmountDue))
@@ -1443,8 +1472,8 @@ func TestTheAccountListOffersToPayAnUnpaidOrderWhereThatCanBeDone(t *testing.T) 
 		return &AccountView{
 			PaymentsEnabled: enabled,
 			Orders: []AccountOrder{
-				{Number: "GO-260101-000011", Status: FulfillmentPending, OwedCents: 100},
-				{Number: "GO-260101-000010", Status: FulfillmentPending, Committed: true, OwedCents: 100},
+				{Number: "GO-260101-000011", Status: order.FulfillmentPending, OwedCents: 100},
+				{Number: "GO-260101-000010", Status: order.FulfillmentPending, Committed: true, OwedCents: 100},
 			},
 		}
 	}

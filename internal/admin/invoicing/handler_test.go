@@ -46,7 +46,7 @@ const invoiceNoticeOrder = "GO-260901-000001"
 func invoiceNoticeContext(t *testing.T) context.Context {
 	t.Helper()
 	ctx := account.WithUser(t.Context(), account.User{
-		ID: uuid.NewString(), Role: "admin",
+		ID: uuid.NewString(), Role: account.RoleAdmin,
 	})
 	ctx = web.WithRequestID(ctx, "req-void-notice")
 	return i18n.WithLocale(ctx, i18n.ZhHant)
@@ -140,6 +140,19 @@ func TestVoidAndAllowanceProviderRefusalDoesNotBlameTaxIDs(t *testing.T) {
 		!strings.HasSuffix(allowRes.Header().Get("Location"), "?allowfailed=1") {
 		t.Fatalf("Allowance provider refusal = %d %q, want 303 ?allowfailed=1",
 			allowRes.Code, allowRes.Header().Get("Location"))
+	}
+}
+
+// An allowance ECPay e-mailed to the buyer is still pending, and the notice says
+// what happens next rather than that the result is unknown.
+func TestAnAllowanceSentToTheBuyerSaysSo(t *testing.T) {
+	t.Parallel()
+
+	sent := fmt.Errorf("%w: allowance_awaiting_buyer: %w", invoice.ErrPending, invoice.ErrAwaitingBuyer)
+	res := postAllowance(t, invoiceNoticeHandler(stubInvoiceWriter{allowanceErr: sent}))
+	if res.Code != http.StatusSeeOther || !strings.HasSuffix(res.Header().Get("Location"), "?allowsent=1") {
+		t.Fatalf("Allowance e-mailed to the buyer = %d %q, want 303 ?allowsent=1",
+			res.Code, res.Header().Get("Location"))
 	}
 }
 

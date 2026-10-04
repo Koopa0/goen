@@ -6,10 +6,9 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/koopa0/goen/internal/admin/orderstatus"
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/shoptime"
-	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
 )
@@ -32,13 +31,13 @@ func (s *Store) Warranties(ctx context.Context, term string, after ...string) (a
 		return admin.WarrantiesView{}, fmt.Errorf("search warranties: %w", err)
 	}
 	rows, bound := web.PageBound(scope, resumed, rows, web.PageSize, func(r *db.AdminSearchWarrantiesRow) string { return r.PageCursor })
-	view.ListBound = bound
+	view.Bound = bound
 	for i := range rows {
 		r := &rows[i]
 		view.Rows = append(view.Rows, admin.WarrantyRow{
 			Serial: r.SerialNumber, Product: r.ProductName, Label: r.VariantLabel,
 			Unit: int(r.UnitNo), Order: r.OrderNumber,
-			OrderStatus:   orderstatus.Label(ctx, pages.FulfillmentStatus(r.FulfillmentStatus)),
+			OrderStatus:   admin.FulfillmentLabel(ctx, order.FulfillmentStatus(r.FulfillmentStatus)),
 			CustomerName:  r.CustomerName,
 			CustomerEmail: r.CustomerEmail,
 			RegisteredAt:  shoptime.Day(r.RegisteredAt),

@@ -203,3 +203,8 @@ SELECT reverse_return_points(@return_id::uuid)::bigint AS points_reversed;
 SELECT (card_cents + credit_cents)::bigint AS refunded_cents
 FROM order_refunds
 WHERE order_number = @order_number::text;
+
+-- The staff member who opened a refund before shipment: every invoice claim it
+-- makes is theirs, whoever presses Resume.
+-- name: RefundOpenedBy :one
+SELECT requested_by_user_id FROM return_requests WHERE id = $1 AND before_shipment;

@@ -51,9 +51,12 @@ func storeMapRouter(t *testing.T, configured bool) http.Handler {
 		t.Fatalf("build the store map: %v", err)
 	}
 	return newRouter(&RouterConfig{
-		Pool: idle, AdminPool: idle, Payments: gateway,
-		Refunder: refunds.NewRefunder(""), BaseURL: "https://goen.test",
-		StoreMap: storeMap,
+		Storefront: StorefrontConfig{
+			StorePool: idle, Payments: gateway, BaseURL: "https://goen.test", StoreMap: storeMap,
+		},
+		BackOffice: BackOfficeConfig{
+			AdminPool: idle, Payments: gateway, Refunder: refunds.NewRefunder(""), StoreMap: storeMap,
+		},
 	}, slog.New(slog.DiscardHandler))
 }
 

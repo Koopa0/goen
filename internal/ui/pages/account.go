@@ -7,13 +7,15 @@ import (
 	"strconv"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/web"
 )
 
 type AccountOrder struct {
 	Number     string
-	Status     FulfillmentStatus
+	Status     order.FulfillmentStatus
 	PlacedAt   string
 	TotalCents int64
 	LineCount  int64
@@ -28,8 +30,8 @@ func (o AccountOrder) LineCountText() string { return strconv.FormatInt(o.LineCo
 // awaitingPayment is the one definition of an order that still needs paying.
 // 'pending' alone misses an order paid wholly from store credit or zeroed by a
 // coupon: it has no payment row and owes nothing.
-func awaitingPayment(status FulfillmentStatus, committed bool, owedCents int64) bool {
-	return status == FulfillmentPending && !committed && owedCents > 0
+func awaitingPayment(status order.FulfillmentStatus, committed bool, owedCents int64) bool {
+	return status == order.FulfillmentPending && !committed && owedCents > 0
 }
 
 func (o AccountOrder) AwaitingPayment() bool {
@@ -38,20 +40,20 @@ func (o AccountOrder) AwaitingPayment() bool {
 
 func (o AccountOrder) StatusText(ctx context.Context) string {
 	switch o.Status {
-	case FulfillmentPending:
+	case order.FulfillmentPending:
 		if awaitingPayment(o.Status, o.Committed, o.OwedCents) {
 			return i18n.T(ctx, i18n.KeyStatusAwaitingPayment)
 		}
 		return i18n.T(ctx, i18n.KeyStatusPaid)
-	case FulfillmentPicking:
+	case order.FulfillmentPicking:
 		return i18n.T(ctx, i18n.KeyStatusPicking)
-	case FulfillmentShipped:
+	case order.FulfillmentShipped:
 		return i18n.T(ctx, i18n.KeyStatusShipped)
-	case FulfillmentDelivered:
+	case order.FulfillmentDelivered:
 		return i18n.T(ctx, i18n.KeyStatusDelivered)
-	case FulfillmentCompleted:
+	case order.FulfillmentCompleted:
 		return i18n.T(ctx, i18n.KeyStatusDone)
-	case FulfillmentCancelled:
+	case order.FulfillmentCancelled:
 		return i18n.T(ctx, i18n.KeyStatusCalledOff)
 	default:
 		// A retired value from append-only history still has to render.
@@ -63,7 +65,7 @@ func (o AccountOrder) StatusText(ctx context.Context) string {
 // without a delivery. The rest is progress, not something to look at.
 func (o AccountOrder) BadgeIntent() components.Intent {
 	switch {
-	case o.Status == FulfillmentCancelled:
+	case o.Status == order.FulfillmentCancelled:
 		return components.IntentDanger
 	case awaitingPayment(o.Status, o.Committed, o.OwedCents):
 		return components.IntentWarn
@@ -102,7 +104,7 @@ type AccountView struct {
 	Name            string
 	Phone           string
 	Orders          []AccountOrder
-	OrdersBound     ListBound
+	OrdersBound     web.Bound
 	Addresses       []AccountAddress
 	CreditCents     int64
 	Standing        MemberStanding

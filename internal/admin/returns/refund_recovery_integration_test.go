@@ -207,7 +207,7 @@ func TestRefundRecoveryRequiresActorAndRequestIDBeforeProviderCall(t *testing.T)
 				t.Helper()
 				_, actor := admintest.StaffContext(t, pool)
 				ctx := account.WithUser(t.Context(), account.User{
-					ID: actor.String(), Role: "admin",
+					ID: actor.String(), Role: account.RoleAdmin,
 				})
 				return ctx, uuid.NullUUID{UUID: actor, Valid: true}
 			},

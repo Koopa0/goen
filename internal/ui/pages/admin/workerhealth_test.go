@@ -73,3 +73,61 @@ func TestAPaidOrderWithNoInvoiceOperationIsWork(t *testing.T) {
 		}
 	}
 }
+
+// TestALiveInvoiceOnACancelledOrderIsWork: a cancellation that could not void
+// its invoice leaves staff a correction to make, so the page reads unhealthy,
+// counts them all and links each order.
+func TestALiveInvoiceOnACancelledOrderIsWork(t *testing.T) {
+	t.Parallel()
+	view := &WorkerHealthView{CopurchaseEverBuilt: true, CopurchaseStaleAfter: time.Hour}
+	if !view.AllHealthy() {
+		t.Fatal("the fixture is unhealthy before any invoice is listed; the check below would prove nothing")
+	}
+	view.CancelledOrderInvoiceCount = 3
+	view.CancelledOrderInvoices = []CancelledOrderInvoice{{
+		OrderNumber: "GO-261002-000002", Number: "AB12345678", AmountCents: 106000, IssuedOn: "2026-06-30",
+	}}
+	if view.AllHealthy() {
+		t.Error("the page reads healthy with a live invoice on a cancelled order")
+	}
+	html := renderToString(t, Health(layouts.Page{Title: "health"}, view))
+	for _, want := range []string{
+		`href="/admin/orders/GO-261002-000002"`,
+		"AB12345678",
+		i18n.Count(i18n.WithLocale(t.Context(), i18n.ZhHant), i18n.KeyAdminHPCancelledOrderInvoicesHint, 3, int64(3)),
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("the health page does not carry %s", want)
+		}
+	}
+}
+
+// TestALapsedAllowanceResendAsksTheBuyerAgain: the resend of an allowance the
+// customer never agreed to is not worded as one ECPay never received.
+func TestALapsedAllowanceResendAsksTheBuyerAgain(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	for _, tt := range []struct {
+		name      string
+		lastError string
+		want      i18n.Key
+		not       i18n.Key
+	}{
+		{name: "lapsed", lastError: "allowance_buyer_unconfirmed",
+			want: i18n.KeyAdminHPAllowanceLapsedConfirm, not: i18n.KeyAdminHPAllowanceAbsentConfirm},
+		{name: "never seen", lastError: "allowance_not_yet_visible",
+			want: i18n.KeyAdminHPAllowanceAbsentConfirm, not: i18n.KeyAdminHPAllowanceLapsedConfirm},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			view := &WorkerHealthView{StrandedClaims: []StrandedClaim{{
+				Operation: "0199aaaa-0000-7000-8000-000000000001", OrderNumber: "GO-261004-000001",
+				Kind: "allowance", Status: "attention", LastError: tt.lastError, CanAuthorizeResend: true,
+			}}}
+			html := renderToString(t, Health(layouts.Page{Title: "health"}, view))
+			if !strings.Contains(html, i18n.T(ctx, tt.want)) || strings.Contains(html, i18n.T(ctx, tt.not)) {
+				t.Errorf("%s resend is not worded as %q", tt.lastError, i18n.T(ctx, tt.want))
+			}
+		})
+	}
+}

@@ -8,6 +8,7 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/refundstate"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/money"
 )
 
@@ -36,6 +37,8 @@ type WorkerHealthView struct {
 	OpenRefunds                  []OpenRefund
 	UninvoicedCount              int64
 	Uninvoiced                   []UninvoicedOrder
+	CancelledOrderInvoiceCount   int64
+	CancelledOrderInvoices       []CancelledOrderInvoice
 
 	OutboxStaleAfter     time.Duration
 	MaxExpiredHolds      int64
@@ -90,7 +93,8 @@ func (v *WorkerHealthView) PaymentsReconciled() bool { return v.UnreconciledPaym
 func (v *WorkerHealthView) AllHealthy() bool {
 	return v.OutboxHealthy() && v.SweeperHealthy() &&
 		v.RecommendHealthy() && v.HousekeepingHealthy() && v.RefundsHealthy() &&
-		v.PaymentsReconciled() && v.ClaimsSettled() && v.PaidOrdersInvoiced()
+		v.PaymentsReconciled() && v.ClaimsSettled() && v.PaidOrdersInvoiced() &&
+		v.CancelledOrderInvoicesResolved()
 }
 
 func (v *WorkerHealthView) PaidOrdersInvoiced() bool { return v.UninvoicedCount == 0 }
@@ -106,6 +110,24 @@ type UninvoicedOrder struct {
 }
 
 func (o UninvoicedOrder) Amount() string { return money.TWD(o.AmountCents) }
+
+func (v *WorkerHealthView) CancelledOrderInvoicesResolved() bool {
+	return v.CancelledOrderInvoiceCount == 0
+}
+
+func (v *WorkerHealthView) CancelledOrderInvoicesText(ctx context.Context) string {
+	return i18n.Count(ctx, i18n.KeyAdminHPCancelledOrderInvoicesHint, v.CancelledOrderInvoiceCount, v.CancelledOrderInvoiceCount)
+}
+
+// CancelledOrderInvoice is an issued 統一發票 its order's cancellation left live.
+type CancelledOrderInvoice struct {
+	OrderNumber string
+	Number      string
+	AmountCents int64
+	IssuedOn    string
+}
+
+func (i CancelledOrderInvoice) Amount() string { return money.TWD(i.AmountCents) }
 
 func (v *WorkerHealthView) OutboxText(ctx context.Context) string {
 	switch {
@@ -250,6 +272,12 @@ type StrandedClaim struct {
 }
 
 func (c StrandedClaim) Amount() string { return money.TWD(c.AmountCents) }
+
+// BuyerNeverAgreed is an online allowance whose consent link lapsed, which a
+// resend asks again rather than replacing a request ECPay never received.
+func (c StrandedClaim) BuyerNeverAgreed() bool {
+	return c.LastError == invoice.CategoryBuyerUnconfirmed
+}
 
 func (c StrandedClaim) AttemptsText() string {
 	return fmt.Sprintf("%d / %d", c.Attempts, c.Sends)

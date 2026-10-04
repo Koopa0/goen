@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -256,7 +257,7 @@ templ Orders(p layouts.Page, v OrdersView) {
 				</table>
 			</div>
 		}
-		@pages.ListPager(v.ListBound)
+		@pages.ListPager(v.Bound)
 	}
 }
 
@@ -449,14 +450,18 @@ templ Order(p layouts.Page, v *OrderView) {
 						<ul class="goen-admin__timeline" role="list">
 							for _, e := range v.Timeline {
 								<li class="goen-admin__event">
-									<span class="goen-admin__eventhead">{ i18n.T(ctx, e.LabelKey()) }</span>
+									<span class="goen-admin__eventhead">{ i18n.T(ctx, e.Label) }</span>
 									<span class="goen-admin__meta">{ e.At } · { e.By(ctx) }</span>
+									if e.Status != "" {
+										<span class="goen-admin__meta">{ i18n.T(ctx, e.Status) }</span>
+									}
 									if e.Note != "" {
 										<span class="goen-admin__meta">{ e.Note }</span>
 									}
 								</li>
 							}
 						</ul>
+						<p class="goen-admin__hint">{ v.MailKeptText(ctx) }</p>
 					}
 				}
 				if v.HasCustomerNote() {
@@ -643,7 +648,7 @@ templ Order(p layouts.Page, v *OrderView) {
 						<h2 class="goen-admin__optitle">{ i18n.T(ctx, i18n.KeyAdminQueueNextStatus) }</h2>
 						<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/orders/" + v.Number + "/status") }>
 							if v.StartsPicking() {
-								<input type="hidden" name="status" value={ string(pages.FulfillmentPicking) }/>
+								<input type="hidden" name="status" value={ string(order.FulfillmentPicking) }/>
 								@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Block: true}, "submit") {
 									{ i18n.T(ctx, i18n.KeyAdminQueueStartPicking) }
 								}
@@ -744,8 +749,14 @@ templ Order(p layouts.Page, v *OrderView) {
 								<p class="goen-admin__hint">
 									{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQueueAllowanceHint), v.AllowanceAmount()) }
 								</p>
-								<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminQueueAllowancePaper) }</p>
+								<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminQueueAllowanceOnline) }</p>
 							</form>
+						}
+						if v.AllowanceAwaitingUntil != "" {
+							<p class="goen-admin__hint">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQueueAllowanceAwaiting), v.AllowanceAwaitingUntil) }</p>
+						}
+						if v.AllowanceAttention != "" {
+							<p class="ui-alert ui-alert--error" role="status">{ v.AllowanceAttentionText(ctx) }</p>
 						}
 						if !v.CanIssueInvoice() && !v.CanVoidInvoice() && len(v.InvoiceDocuments) == 0 {
 							<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminQueueNotCommitted) }</p>
@@ -811,7 +822,7 @@ templ Variants(p layouts.Page, v VariantsView) {
 				@variantTable(v.Variants, v.Return)
 			</div>
 		}
-		@pages.ListPager(v.ListBound)
+		@pages.ListPager(v.Bound)
 	}
 }
 

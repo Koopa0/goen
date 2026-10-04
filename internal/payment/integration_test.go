@@ -26,7 +26,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/account"
-	"github.com/koopa0/goen/internal/admin"
+	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/admin/health"
 	"github.com/koopa0/goen/internal/admin/refunds"
@@ -1699,7 +1699,7 @@ func TestPickingACreditFundedOrderQueuesNoInvoice(t *testing.T) {
 	spendCreditOnOrder(t, orderID, -cents)
 
 	staff, actor := staffContext(t)
-	backOffice := admin.NewStore(adminRolePool(t), refunds.NewRefunder(""), nil, nil)
+	backOffice := admintest.OrderStore(adminRolePool(t), refunds.NewRefunder(""), nil, nil)
 	if _, err := backOffice.Advance(staff, number, "picking", uuid.NullUUID{UUID: actor, Valid: true}); err != nil {
 		t.Fatalf("admin-role advance to picking: %v", err)
 	}
@@ -2368,7 +2368,7 @@ func TestAdminRoleCompletesCreditFundingOnPicking(t *testing.T) {
 	}
 
 	ctx, actor := staffContext(t)
-	backOffice := admin.NewStore(adminPool, refunds.NewRefunder(""), nil, nil)
+	backOffice := admintest.OrderStore(adminPool, refunds.NewRefunder(""), nil, nil)
 	if _, err := backOffice.Advance(ctx, number, "picking", uuid.NullUUID{UUID: actor, Valid: true}); err != nil {
 		t.Fatalf("admin-role advance to picking: %v", err)
 	}
@@ -2515,14 +2515,14 @@ func staffContext(t *testing.T) (context.Context, uuid.UUID) {
 		RETURNING id`).Scan(&id); err != nil {
 		t.Fatalf("create staff: %v", err)
 	}
-	ctx := account.WithUser(t.Context(), account.User{ID: id.String(), Role: "admin"})
+	ctx := account.WithUser(t.Context(), account.User{ID: id.String(), Role: account.RoleAdmin})
 	return web.WithRequestID(ctx, "req-"+id.String()[:8]), id
 }
 
 func advanceToPicking(t *testing.T, number string) {
 	t.Helper()
 	ctx, actor := staffContext(t)
-	backOffice := admin.NewStore(pool, refunds.NewRefunder(""), nil, nil)
+	backOffice := admintest.OrderStore(pool, refunds.NewRefunder(""), nil, nil)
 	if _, err := backOffice.Advance(ctx, number, "picking", uuid.NullUUID{UUID: actor, Valid: true}); err != nil {
 		t.Fatalf("advance to picking: %v", err)
 	}
@@ -2779,7 +2779,7 @@ func TestPaidCompleteResolutionCannotOpenSecondSession(t *testing.T) {
 		RETURNING id`).Scan(&actorID); err != nil {
 		t.Fatalf("create operator: %v", err)
 	}
-	adminCtx := account.WithUser(ctx, account.User{ID: actorID.String(), Role: "admin"})
+	adminCtx := account.WithUser(ctx, account.User{ID: actorID.String(), Role: account.RoleAdmin})
 	if err := backOffice.ReconcileCompletePayment(
 		adminCtx, providerRef, health.CompletePaymentPaid,
 	); err != nil {
@@ -2985,7 +2985,7 @@ func TestAdmittedCompleteSessionsBecomeVisibleAndResolvable(t *testing.T) {
 				RETURNING id`).Scan(&actorID); err != nil {
 				t.Fatalf("create operator: %v", err)
 			}
-			adminCtx := account.WithUser(ctx, account.User{ID: actorID.String(), Role: "admin"})
+			adminCtx := account.WithUser(ctx, account.User{ID: actorID.String(), Role: account.RoleAdmin})
 			if err := backOffice.ReconcileCompletePayment(
 				adminCtx, oldSession, health.CompletePaymentUnpaidOrRefunded,
 			); err != nil {
@@ -3084,7 +3084,7 @@ func TestPaymentReconciliationPinsExpiredStock(t *testing.T) {
 				RETURNING id`).Scan(&actorID); err != nil {
 				t.Fatalf("create operator: %v", err)
 			}
-			adminCtx := account.WithUser(ctx, account.User{ID: actorID.String(), Role: "admin"})
+			adminCtx := account.WithUser(ctx, account.User{ID: actorID.String(), Role: account.RoleAdmin})
 			if err := health.NewStore(pool).
 				ReconcileCompletePayment(adminCtx, providerRef, tt.resolution); err != nil {
 				t.Fatalf("resolve complete payment: %v", err)
@@ -3233,7 +3233,7 @@ func TestReleasedStockMakesLateMoneyARefundCase(t *testing.T) {
 			RETURNING id`).Scan(&actorID); err != nil {
 			t.Fatalf("create operator: %v", err)
 		}
-		adminCtx := account.WithUser(ctx, account.User{ID: actorID.String(), Role: "admin"})
+		adminCtx := account.WithUser(ctx, account.User{ID: actorID.String(), Role: account.RoleAdmin})
 		backOffice := health.NewStore(pool)
 		paidErr := backOffice.ReconcileCompletePayment(
 			adminCtx, providerRef, health.CompletePaymentPaid,
@@ -5062,7 +5062,7 @@ func TestCompleteSessionShowsProcessingNotPayAgain(t *testing.T) {
 			RETURNING id`).Scan(&actorID); err != nil {
 			t.Fatalf("create operator: %v", err)
 		}
-		adminCtx := account.WithUser(ctx, account.User{ID: actorID.String(), Role: "admin"})
+		adminCtx := account.WithUser(ctx, account.User{ID: actorID.String(), Role: account.RoleAdmin})
 		backOffice := health.NewStore(pool)
 		if err := backOffice.ReconcileCompletePayment(
 			adminCtx, sessionID, health.CompletePaymentUnpaidOrRefunded,

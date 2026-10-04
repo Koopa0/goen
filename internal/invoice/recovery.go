@@ -17,6 +17,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/shoptime"
 )
 
 type frozenRequest struct {
@@ -49,6 +50,7 @@ type operation struct {
 	Sends                int32
 	ResendAuthorizations int32
 	LastError            string
+	LastSentAt           time.Time
 }
 
 func (s *Store) operation(ctx context.Context, id uuid.UUID) (operation, error) {
@@ -66,7 +68,7 @@ func (s *Store) operation(ctx context.Context, id uuid.UUID) (operation, error) 
 		ProviderKey: row.ProviderKey, AmountCents: row.AmountCents, Request: request,
 		Status: row.Status, Reconciles: row.ReconcileAttempts,
 		Sends: row.SendAttempts, ResendAuthorizations: row.ResendAuthorizations,
-		LastError: row.LastError,
+		LastError: row.LastError, LastSentAt: row.LastSendAt,
 	}, nil
 }
 
@@ -200,7 +202,7 @@ func (s *Store) processAllowance(ctx context.Context, op *operation, owner uuid.
 	case 0:
 		return s.sendAllowance(ctx, op, owner, in)
 	case 1:
-		return s.processAllowanceCandidate(ctx, op, owner, in, unknown[0])
+		return s.processAllowanceCandidate(ctx, op, owner, in, &unknown[0])
 	default:
 		cause := fmt.Errorf("%w: multiple unknown provider allowances", ErrPending)
 		return Document{}, s.alarm(ctx, op, owner, "allowance_multiple_unknown_candidates", cause)
@@ -254,10 +256,10 @@ func (s *Store) unresolvedAllowances(
 ) ([]AllowanceLookup, error) {
 	unknown := make([]AllowanceLookup, 0, len(all))
 	for i := range all {
-		remote := all[i]
+		remote := &all[i]
 		local, exists := known[remote.Document.Number]
 		if !exists {
-			unknown = append(unknown, remote)
+			unknown = append(unknown, *remote)
 			continue
 		}
 		if !allowanceKnownFactsMatch(invoiceNumber, local, remote) {
@@ -276,7 +278,7 @@ func (s *Store) reconcileKnownAllowance(
 	op *operation,
 	owner uuid.UUID,
 	local knownAllowance,
-	remote AllowanceLookup,
+	remote *AllowanceLookup,
 ) error {
 	switch local.Status {
 	case DocumentIssued:
@@ -306,7 +308,7 @@ func (s *Store) processAllowanceCandidate(
 	op *operation,
 	owner uuid.UUID,
 	in AllowanceRequest,
-	remote AllowanceLookup,
+	remote *AllowanceLookup,
 ) (Document, error) {
 	if op.Sends == 0 {
 		// The pre-send stamp is the attribution boundary. Without it, this
@@ -325,7 +327,7 @@ func (s *Store) processAllowanceCandidate(
 	if remote.Invalid {
 		return Document{}, s.recordUnknownInvalidAllowance(ctx, op, owner, remote)
 	}
-	return s.settleAllowance(ctx, op, owner, remote.Document)
+	return s.settleAllowance(ctx, op, owner, remote)
 }
 
 func (s *Store) sendAllowance(
@@ -335,30 +337,69 @@ func (s *Store) sendAllowance(
 	in AllowanceRequest,
 ) (Document, error) {
 	if op.Sends > op.ResendAuthorizations {
-		// The list can lag a successful write. An empty authoritative read is not
-		// proof that the earlier ambiguous send created nothing, so keep polling
-		// this same frozen operation. A fresh audited operator authorization is
-		// the only state which permits one more provider call.
-		return Document{}, s.retry(ctx, op, owner,
-			"allowance_not_yet_visible", ErrPending)
+		return Document{}, s.awaitBuyer(ctx, op, owner, time.Now())
 	}
 
 	if markErr := s.markSent(ctx, op, owner); markErr != nil {
 		return Document{}, markErr
 	}
-	doc, sendErr := s.gateway.FileAllowance(ctx, in)
-	if sendErr != nil {
-		if providerErr, ok := errors.AsType[*providerError](sendErr); ok {
-			category := "allowance_provider_rejected_" + strconv.Itoa(providerErr.Code)
-			return Document{}, s.reject(ctx, op, owner, category, sendErr)
-		}
-		return Document{}, s.retry(ctx, op, owner, "allowance_send_ambiguous", sendErr)
+	if sendErr := s.gateway.RequestAllowance(ctx, in); sendErr != nil {
+		return Document{}, s.handleAllowanceSendError(ctx, op, owner, sendErr)
 	}
-	if doc.AmountCents != in.AmountCents || !slices.Equal(doc.Lines, in.Lines) {
-		cause := fmt.Errorf("%w: provider Allowance response is inconsistent", ErrPending)
-		return Document{}, s.alarm(ctx, op, owner, "allowance_success_mismatch", cause)
+	return Document{}, s.retry(ctx, op, owner, "allowance_awaiting_buyer", ErrAwaitingBuyer)
+}
+
+// handleAllowanceSendError ends the operation on ECPay's answer, except a held
+// amount, which needs a person; a reply naming another document alarms; any
+// other failure may have reached ECPay, so the operation is polled.
+func (s *Store) handleAllowanceSendError(
+	ctx context.Context, op *operation, owner uuid.UUID, cause error,
+) error {
+	providerErr, answered := errors.AsType[*providerError](cause)
+	switch {
+	case answered && providerErr.Code == ecpayAmountHeld:
+		return s.alarm(ctx, op, owner, CategoryAmountStillHeld, cause)
+	case answered:
+		return s.reject(ctx, op, owner, "allowance_provider_rejected_"+strconv.Itoa(providerErr.Code), cause)
+	case errors.Is(cause, errProviderIdentity):
+		return s.alarm(ctx, op, owner, CategorySuccessMismatch, cause)
 	}
-	return s.settleAllowance(ctx, op, owner, doc)
+	return s.retry(ctx, op, owner, "allowance_send_ambiguous", cause)
+}
+
+// awaitBuyer keeps polling an allowance ECPay may have e-mailed. The list shows
+// one only once the buyer agrees, so while the link lives an empty list does not
+// say whether the send reached ECPay, and a second send would ask the buyer
+// twice. Once the link has lapsed the operation needs a person.
+func (s *Store) awaitBuyer(ctx context.Context, op *operation, owner uuid.UUID, now time.Time) error {
+	if buyerMayStillAgree(op.LastSentAt, now) {
+		return s.retry(ctx, op, owner, "allowance_awaiting_buyer", ErrAwaitingBuyer)
+	}
+	cause := fmt.Errorf("%w: the buyer did not agree to the allowance in time", ErrPending)
+	return s.alarm(ctx, op, owner, CategoryBuyerUnconfirmed, cause)
+}
+
+// CategoryBuyerUnconfirmed is the attention an allowance enters once its
+// consent link lapsed with no agreement.
+const CategoryBuyerUnconfirmed = "allowance_buyer_unconfirmed"
+
+// ecpayAmountHeld is ECPay's answer when an earlier request, such as a lapsed
+// online allowance, still holds the invoice's remaining amount. Nothing was
+// filed, and the earlier request is not goen's to cancel, so a person decides.
+const ecpayAmountHeld = 2000034
+
+// CategoryAmountStillHeld is the attention an allowance enters on that answer.
+const CategoryAmountStillHeld = "allowance_amount_still_held"
+
+// CategorySuccessMismatch is the attention an allowance enters when ECPay's
+// success reply names another document.
+const CategorySuccessMismatch = "allowance_success_mismatch"
+
+// BuyerConsentWindow is how long ECPay's consent link lives.
+const BuyerConsentWindow = 72 * time.Hour
+
+func buyerMayStillAgree(sentAt, now time.Time) bool {
+	return !now.After(sentAt.Add(BuyerConsentWindow))
 }
 
 func (s *Store) reconcileKnownInvalidAllowance(
@@ -366,7 +407,7 @@ func (s *Store) reconcileKnownInvalidAllowance(
 	op *operation,
 	owner uuid.UUID,
 	local knownAllowance,
-	remote AllowanceLookup,
+	remote *AllowanceLookup,
 ) error {
 	ctx, cancel := filingContext(ctx)
 	defer cancel()
@@ -407,7 +448,7 @@ func (s *Store) recordUnknownInvalidAllowance(
 	ctx context.Context,
 	op *operation,
 	owner uuid.UUID,
-	remote AllowanceLookup,
+	remote *AllowanceLookup,
 ) error {
 	ctx, cancel := filingContext(ctx)
 	defer cancel()
@@ -543,15 +584,22 @@ func (s *Store) settleIssue(
 }
 
 func (s *Store) settleAllowance(
-	ctx context.Context, op *operation, owner uuid.UUID, doc Document,
+	ctx context.Context, op *operation, owner uuid.UUID, remote *AllowanceLookup,
 ) (Document, error) {
 	ctx, cancel := filingContext(ctx)
 	defer cancel()
+	doc := remote.Document
+	consent, err := json.Marshal(buyerConsent{
+		AgreedAt: shoptime.Second(doc.IssuedAt), IP: remote.BuyerIP, Email: remote.NotifyMail,
+	})
+	if err != nil {
+		return Document{}, s.retry(ctx, op, owner, "allowance_consent_encoding_failed", err)
+	}
 	descriptions, quantities, unitPrices, amounts := invoiceLineArrays(doc.Lines)
 	documentID, err := s.q.SettleInvoiceAllowance(ctx, db.SettleInvoiceAllowanceParams{
 		OperationID: op.ID, LeaseOwner: owner, Number: doc.Number,
 		IssuedAt: doc.IssuedAt, Descriptions: descriptions, Quantities: quantities,
-		UnitPriceCents: unitPrices, AmountCents: amounts,
+		UnitPriceCents: unitPrices, AmountCents: amounts, BuyerConsent: consent,
 	})
 	if err != nil || documentID == uuid.Nil {
 		return Document{}, s.retry(ctx, op, owner, "allowance_local_settlement_failed", err)

@@ -3,6 +3,7 @@
 package stock_test
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -15,6 +16,7 @@ import (
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/stock"
+	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/i18n"
 )
 
@@ -323,7 +325,7 @@ func TestRestockingTellsEverybodyWhoAsked(t *testing.T) {
 		RETURNING id`, "restock-"+sku+"@goen.invalid").Scan(&actor); err != nil {
 		t.Fatalf("create staff: %v", err)
 	}
-	staffCtx := account.WithUser(ctx, account.User{ID: actor.String(), Role: "admin"})
+	staffCtx := account.WithUser(ctx, account.User{ID: actor.String(), Role: account.RoleAdmin})
 
 	if err := s.Adjust(staffCtx, sku, 10, actor.String(), "restock-test-1"); err != nil {
 		t.Fatalf("restock: %v", err)
@@ -393,7 +395,7 @@ func TestAnAdjustmentBelowTheThresholdTellsNobody(t *testing.T) {
 		RETURNING id`, "threshold-"+sku+"@goen.invalid").Scan(&actor); err != nil {
 		t.Fatalf("create staff: %v", err)
 	}
-	staffCtx := account.WithUser(ctx, account.User{ID: actor.String(), Role: "admin"})
+	staffCtx := account.WithUser(ctx, account.User{ID: actor.String(), Role: account.RoleAdmin})
 
 	if err := s.Adjust(staffCtx, sku, 3, actor.String(), "threshold-test-1"); err != nil {
 		t.Fatalf("adjust: %v", err)
@@ -455,7 +457,7 @@ func TestARestockNoticeNamesTheProductInTheReadersLanguage(t *testing.T) {
 		RETURNING id`, "restock-locale-"+sku+"@goen.invalid").Scan(&actor); err != nil {
 		t.Fatalf("create staff: %v", err)
 	}
-	staffCtx := account.WithUser(ctx, account.User{ID: actor.String(), Role: "admin"})
+	staffCtx := account.WithUser(ctx, account.User{ID: actor.String(), Role: account.RoleAdmin})
 
 	if err := s.Adjust(staffCtx, sku, 10, actor.String(), "restock-locale-1"); err != nil {
 		t.Fatalf("restock: %v", err)
@@ -515,5 +517,105 @@ func emptyTheShelf(t *testing.T, vid uuid.UUID, key string) {
 	}
 	if onShelf != 0 {
 		t.Fatalf("the shelf still holds %d — the fixture did not reach its precondition", onShelf)
+	}
+}
+
+func TestRetiringTheLastDiscountedVariantIsRefused(t *testing.T) {
+	ctx := t.Context()
+
+	var sku string
+	if err := pool.QueryRow(ctx, `
+		WITH one AS (
+			SELECT pv.id, pv.sku, pv.product_id FROM product_variants pv
+			WHERE pv.is_active AND pv.compare_at_price_cents IS NOT NULL
+			ORDER BY pv.position LIMIT 1
+		)
+		SELECT sku FROM one`).Scan(&sku); err != nil {
+		t.Skipf("the seed has no discounted variant to test with: %v", err)
+	}
+
+	var productID uuid.UUID
+	if err := pool.QueryRow(ctx,
+		`SELECT product_id FROM product_variants WHERE sku = $1`, sku).Scan(&productID); err != nil {
+		t.Fatalf("read product: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		UPDATE product_variants SET compare_at_price_cents = NULL
+		WHERE product_id = $1 AND sku <> $2`, productID, sku); err != nil {
+		t.Fatalf("clear siblings: %v", err)
+	}
+
+	var campaignID uuid.UUID
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO sale_campaigns (slug, title, ends_at)
+		VALUES ($1, '測試活動', now() + interval '7 days') RETURNING id`,
+		"admin-test-"+uuid.NewString()[:8]).Scan(&campaignID); err != nil {
+		t.Fatalf("create campaign: %v", err)
+	}
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO sale_campaign_products (campaign_id, product_id) VALUES ($1, $2)`,
+		campaignID, productID); err != nil {
+		t.Fatalf("feature product: %v", err)
+	}
+	t.Cleanup(func() {
+		//nolint:usetesting // t.Context is already cancelled in Cleanup
+		_, _ = pool.Exec(context.Background(),
+			`DELETE FROM sale_campaigns WHERE id = $1`, campaignID)
+	})
+
+	if err := stock.NewStore(pool).SetActive(ctx, sku, false); !errors.Is(err, stock.ErrRefused) {
+		t.Errorf("retiring the last discounted variant of a featured product gave %v, "+
+			"want ErrRefused — the campaign would point at nothing marked down", err)
+	}
+}
+
+// TestAReleaseInTheLedgerNamesItsOrder drives a RELEASE, the only movement that reaches
+// the order through the reservation: a HOLD stays green with that join deleted.
+func TestAReleaseInTheLedgerNamesItsOrder(t *testing.T) {
+	ctx, _ := admintest.StaffContext(t, pool)
+	basket := cart.NewStore(pool)
+
+	var vid uuid.UUID
+	var sku string
+	if err := pool.QueryRow(ctx, `
+		SELECT pv.id, pv.sku FROM product_variants pv
+		JOIN products p ON p.id = pv.product_id
+		WHERE p.status = 'active' AND pv.is_active
+		  AND pv.stock_quantity > pv.safety_stock + 2
+		ORDER BY pv.stock_quantity DESC LIMIT 1`).Scan(&vid, &sku); err != nil {
+		t.Fatalf("find a stocked variant: %v", err)
+	}
+	number := admintest.PlaceHeldOrder(t, pool, vid)
+
+	if _, err := basket.CancelOrder(ctx, number); err != nil {
+		t.Fatalf("cancel: %v", err)
+	}
+
+	view, err := stock.NewStore(pool).Movements(ctx, sku)
+	if err != nil {
+		t.Fatalf("Movements: %v", err)
+	}
+	var release, hold bool
+	for i := range view.Rows {
+		m := &view.Rows[i]
+		if m.OrderNumber != number {
+			continue
+		}
+		switch m.Reason {
+		case "release":
+			release = true
+		case "hold":
+			hold = true
+		}
+	}
+	if !release {
+		seen := make([]string, 0, len(view.Rows))
+		for i := range view.Rows {
+			seen = append(seen, view.Rows[i].Reason+"/"+view.Rows[i].OrderNumber)
+		}
+		t.Errorf("no release naming %s in the ledger: %v", number, seen)
+	}
+	if !hold {
+		t.Errorf("no hold naming %s in the ledger", number)
 	}
 }

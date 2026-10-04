@@ -33,6 +33,9 @@ var (
 	// another replica owns its lease, the provider result is not visible yet, or
 	// an ambiguity needs the background reconciler/operator alarm.
 	ErrPending = errors.New("invoice: reconciliation pending")
+	// ErrAwaitingBuyer is an allowance ECPay has e-mailed the buyer to agree to;
+	// it is opened only once they do.
+	ErrAwaitingBuyer = errors.New("invoice: the allowance awaits the buyer's agreement")
 	// ErrReason is a void claimed without a reason the 財政部 will accept.
 	// claim_invoice_void raises invoice_void_reason; the handler must not 500.
 	ErrReason = errors.New("invoice: void reason is required")
