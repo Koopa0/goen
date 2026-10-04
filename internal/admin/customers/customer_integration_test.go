@@ -10,6 +10,7 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/customers"
+	"github.com/koopa0/goen/internal/warranty"
 )
 
 func TestTheBackOfficeCanSeeOneCustomerWhole(t *testing.T) {
@@ -223,4 +224,154 @@ func TestAPromotedCustomerIsStillFindable(t *testing.T) {
 	if one.SpentCents != 50000 {
 		t.Errorf("spend is %d, want 50000", one.SpentCents)
 	}
+}
+
+func TestTheShopCanFindAWarrantyTheCustomerRegistered(t *testing.T) {
+	ctx, _ := admintest.StaffContext(t, pool)
+	serial, number := registeredWarranty(t, "SN-"+strings.ToUpper(uuid.NewString()[:8]))
+
+	for _, term := range []struct {
+		name string
+		q    string
+	}{
+		{name: "by the serial off the label", q: serial},
+		{name: "by the order number off the confirmation mail", q: number},
+	} {
+		t.Run(term.name, func(t *testing.T) {
+			view, err := customers.NewStore(pool).Warranties(ctx, term.q)
+			if err != nil {
+				t.Fatalf("search warranties: %v", err)
+			}
+			if !view.Searching() {
+				t.Fatal("the page did not run a search for a term long enough to be one")
+			}
+			if len(view.Rows) != 1 {
+				t.Fatalf("searching %q found %d registrations, want 1", term.q, len(view.Rows))
+			}
+			got := view.Rows[0]
+			if got.Serial != serial || got.Order != number {
+				t.Errorf("found serial %q on order %q, want %q on %q",
+					got.Serial, got.Order, serial, number)
+			}
+			if !got.InForce {
+				t.Error("a warranty registered today reads as expired")
+			}
+		})
+	}
+
+	view, err := customers.NewStore(pool).Warranties(ctx, "SN-NOSUCHTHING")
+	if err != nil {
+		t.Fatalf("search warranties: %v", err)
+	}
+	if len(view.Rows) != 0 {
+		t.Errorf("an unregistered serial found %d rows, want 0", len(view.Rows))
+	}
+}
+
+func TestTheWarrantyLookupRefusesToListEverything(t *testing.T) {
+	ctx, _ := admintest.StaffContext(t, pool)
+	registeredWarranty(t, "SN-"+strings.ToUpper(uuid.NewString()[:8]))
+
+	for _, term := range []string{"", " ", "A"} {
+		view, err := customers.NewStore(pool).Warranties(ctx, term)
+		if err != nil {
+			t.Fatalf("search warranties %q: %v", term, err)
+		}
+		if view.Searching() {
+			t.Errorf("%q ran a search", term)
+		}
+		if len(view.Rows) != 0 {
+			t.Errorf("%q listed %d registrations without being asked", term, len(view.Rows))
+		}
+	}
+}
+
+func registeredWarranty(t *testing.T, serial string) (registered, orderNumber string) {
+	t.Helper()
+	ctx := t.Context()
+
+	var variantID, productID uuid.UUID
+	var warrantyNote string
+	var warrantyMonths int32
+	if err := pool.QueryRow(ctx, `
+		SELECT pv.id, p.id, coalesce(p.warranty_note, ''), p.warranty_months
+		FROM product_variants pv JOIN products p ON p.id = pv.product_id
+		WHERE pv.is_active AND p.status = 'active' AND p.warranty_months IS NOT NULL
+		ORDER BY pv.id LIMIT 1`).Scan(&variantID, &productID, &warrantyNote, &warrantyMonths); err != nil {
+		t.Fatalf("find a variant of a product with a stated term: %v", err)
+	}
+
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var userID uuid.UUID
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO users (email, role, full_name)
+		VALUES ('wr-' || gen_random_uuid() || '@goen.invalid', 'customer', '保固客戶')
+		RETURNING id`).Scan(&userID); err != nil {
+		t.Fatalf("create customer: %v", err)
+	}
+
+	var orderID uuid.UUID
+	var number string
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO orders (order_number, user_id, shipping_version_id, shipping_method_code,
+		                    shipping_method_name, shipping_cents)
+		SELECT next_order_number(), $1, v.id, sm.code, v.name, 0
+		FROM shipping_method_versions v JOIN shipping_methods sm ON sm.id = v.method_id
+		ORDER BY v.effective_at LIMIT 1
+		RETURNING id, order_number`, userID).Scan(&orderID, &number); err != nil {
+		t.Fatalf("create order: %v", err)
+	}
+
+	var lineID uuid.UUID
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO order_lines (
+			order_id, product_id, variant_id, sku, product_name,
+			warranty_note, warranty_months, unit_price_cents, quantity
+		)
+		SELECT $1, $2, pv.id, pv.sku, p.name, nullif($4, ''), $5, 100000, 1
+		FROM product_variants pv JOIN products p ON p.id = pv.product_id WHERE pv.id = $3 RETURNING order_lines.id`,
+		orderID, productID, variantID, warrantyNote, warrantyMonths).Scan(&lineID); err != nil {
+		t.Fatalf("create line: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO order_private_data (order_id, email, recipient_name, phone,
+		                                postal_code, city, district, street)
+		VALUES ($1, 'wr@example.com', '收件人', '0912345678', '110', '台北市', '信義區', '路 1 號')`,
+		orderID); err != nil {
+		t.Fatalf("create private data: %v", err)
+	}
+	ref := "cs_warranty_" + number
+	if _, err := tx.Exec(ctx, `SELECT open_payment($1, $2, 100000)`, orderID, ref); err != nil {
+		t.Fatalf("open payment: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `SELECT capture_payment($1, 100000, NULL, NULL)`, ref); err != nil {
+		t.Fatalf("capture payment: %v", err)
+	}
+	admintest.MoveOrderToShipped(t, tx, orderID)
+	var shipmentID uuid.UUID
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO order_shipments (order_id, carrier, tracking_number, shipped_at, delivered_at)
+		VALUES ($1, 'black_cat', 'WR-' || $2, now() - interval '5 days', now() - interval '3 days')
+		RETURNING id`, orderID, number).Scan(&shipmentID); err != nil {
+		t.Fatalf("create shipment: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO order_shipment_lines (order_id, shipment_id, order_line_id, quantity)
+		VALUES ($1, $2, $3, 1)`, orderID, shipmentID, lineID); err != nil {
+		t.Fatalf("create shipment line: %v", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatalf("commit: %v", err)
+	}
+
+	if err := warranty.NewStore(pool).Register(
+		ctx, lineID.String(), userID.String(), serial, 1); err != nil {
+		t.Fatalf("register warranty: %v", err)
+	}
+	return serial, number
 }

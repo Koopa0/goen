@@ -146,7 +146,7 @@ func (v DashboardView) UnansweredQuestionsText() string {
 func (v DashboardView) HasLow() bool { return len(v.Low) > 0 }
 
 type OrdersView struct {
-	pages.ListBound
+	web.Bound
 
 	Term     string
 	Searched bool
@@ -501,7 +501,7 @@ func (v *OrderView) AllowanceAmount() string { return money.TWD(v.allowanceOutst
 func (v *OrderView) HasCustomerNote() bool { return v.CustomerNote != "" }
 
 type VariantsView struct {
-	pages.ListBound
+	web.Bound
 
 	Variants []Variant
 	LowOnly  bool
@@ -597,7 +597,7 @@ func (m Movement) ReasonText(ctx context.Context) string {
 }
 
 type MovementsView struct {
-	pages.ListBound
+	web.Bound
 
 	SKU         string
 	ProductName string

@@ -8,7 +8,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/returns"
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/web"
 )
 
 type Return struct {
@@ -171,7 +171,7 @@ func (r *Return) InspectAction() string { return "/admin/returns/" + r.ID + "/in
 func (r *Return) CompleteAction() string { return "/admin/returns/" + r.ID + "/complete" }
 
 type ReturnsView struct {
-	pages.ListBound
+	web.Bound
 
 	Rows   []Return
 	Notice string

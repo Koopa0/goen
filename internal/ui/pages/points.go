@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/web"
 )
 
 // PointsEntryKind is closed by loyalty_entries_kind_shape. Declared here because
@@ -84,8 +85,8 @@ func (e PointsEntry) Detail(ctx context.Context) string {
 }
 
 type PointsView struct {
-	// ListBound pages the ledger; the balance below covers all of it.
-	ListBound
+	// Bound pages the ledger; the balance below covers all of it.
+	web.Bound
 
 	Balance     int64
 	Redeemable  int64

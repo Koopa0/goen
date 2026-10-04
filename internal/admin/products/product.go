@@ -106,7 +106,7 @@ func (s *Store) List(ctx context.Context, after ...string) (admin.ProductsView, 
 		return admin.ProductsView{}, fmt.Errorf("read products: %w", err)
 	}
 	rows, bound := web.PageBound(scope, resumed, rows, web.PageSize, func(r *db.AdminProductsRow) string { return r.PageCursor })
-	view := admin.ProductsView{ListBound: bound}
+	view := admin.ProductsView{Bound: bound}
 	for i := range rows {
 		r := &rows[i]
 		view.Rows = append(view.Rows, admin.Product{

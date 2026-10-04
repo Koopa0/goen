@@ -9,27 +9,27 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/web"
 )
 
 func TestEveryAdminEmptyPageKeepsItsRestartLink(t *testing.T) {
 	t.Parallel()
-	b := pages.ListBound{PastEnd: true, First: "/admin/products?q=test"}
+	b := web.Bound{PastEnd: true, First: "/admin/products?q=test"}
 	p := layouts.Page{Title: "Pagination"}
 	cases := map[string]templ.Component{
-		"orders":    Orders(p, OrdersView{ListBound: b}),
-		"customers": Customers(p, CustomersView{ListBound: b, Searched: true, Term: "test"}),
-		"products":  Products(p, ProductsView{ListBound: b}),
-		"stock":     Variants(p, VariantsView{ListBound: b}),
-		"movements": Movements(p, &MovementsView{ListBound: b}),
-		"returns":   Returns(p, ReturnsView{ListBound: b}),
-		"coupons":   Coupons(p, CouponsView{ListBound: b}),
-		"campaigns": Campaigns(p, CampaignsView{ListBound: b}),
-		"reviews":   Reviews(p, ReviewsView{ListBound: b}),
-		"messages":  Messages(p, MessagesView{ListBound: b}),
-		"credit":    Credit(p, CreditView{ListBound: b}),
-		"audit":     Audit(p, AuditView{ListBound: b}),
-		"warranty":  Warranties(p, WarrantiesView{ListBound: b, Searched: true, Term: "test"}),
+		"orders":    Orders(p, OrdersView{Bound: b}),
+		"customers": Customers(p, CustomersView{Bound: b, Searched: true, Term: "test"}),
+		"products":  Products(p, ProductsView{Bound: b}),
+		"stock":     Variants(p, VariantsView{Bound: b}),
+		"movements": Movements(p, &MovementsView{Bound: b}),
+		"returns":   Returns(p, ReturnsView{Bound: b}),
+		"coupons":   Coupons(p, CouponsView{Bound: b}),
+		"campaigns": Campaigns(p, CampaignsView{Bound: b}),
+		"reviews":   Reviews(p, ReviewsView{Bound: b}),
+		"messages":  Messages(p, MessagesView{Bound: b}),
+		"credit":    Credit(p, CreditView{Bound: b}),
+		"audit":     Audit(p, AuditView{Bound: b}),
+		"warranty":  Warranties(p, WarrantiesView{Bound: b, Searched: true, Term: "test"}),
 	}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {

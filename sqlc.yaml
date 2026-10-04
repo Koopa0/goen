@@ -20,7 +20,6 @@ sql:
       - "internal/recommend/query.sql"
       - "internal/warranty/query.sql"
       - "internal/account/query.sql"
-      - "internal/admin/query.sql"
       - "internal/admin/audit/query.sql"
       - "internal/admin/campaigns/query.sql"
       - "internal/admin/content/query.sql"

@@ -1,6 +1,6 @@
 //go:build integration
 
-package admin_test
+package stock_test
 
 import (
 	"fmt"
@@ -18,7 +18,7 @@ import (
 // carry it, and a search by the SKU fragment or the product name must find
 // exactly them, wildcards in the term being plain characters.
 func TestTheStockListSearchesBySKUOrNameAndShowsOptionValues(t *testing.T) {
-	ctx, _ := staffContext(t)
+	ctx, _ := admintest.StaffContext(t, pool)
 	s := products.NewStore(pool)
 	slug := admintest.DraftProduct(t, ctx, pool, s)
 	if errs, err := s.AddOption(ctx, slug, products.OptionDraft{Name: "顏色"}); err != nil || len(errs) > 0 {

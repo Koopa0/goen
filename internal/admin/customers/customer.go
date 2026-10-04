@@ -67,7 +67,7 @@ func (s *Store) Search(ctx context.Context, term string, after ...string) (admin
 		return admin.CustomersView{}, fmt.Errorf("search customers: %w", err)
 	}
 	rows, bound := web.PageBound(scope, resumed, rows, web.PageSize, func(r *db.AdminSearchCustomersRow) string { return r.PageCursor })
-	view.ListBound = bound
+	view.Bound = bound
 	for i := range rows {
 		r := &rows[i]
 		view.Rows = append(view.Rows, admin.CustomerRow{
