@@ -8006,19 +8006,19 @@ a.goen-pager__step:hover {
 }
 
 .goen-admin__langopt {
+  align-items: center;
   border-radius: var(--r-sm);
   color: var(--fg-muted);
   cursor: pointer;
+  display: inline-flex;
   font-size: var(--fs-13);
   font-weight: var(--fw-medium);
+  justify-content: center;
   min-height: 36px;
   min-width: 72px;
   padding: 0 12px;
   position: relative;
   text-align: center;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .goen-admin__langopt:has(input:checked) {
@@ -8038,8 +8038,8 @@ a.goen-pager__step:hover {
   gap: 10px;
 }
 
-.goen-admin__form:has(input[value='en']:checked) .goen-admin__langgroup[data-lang='zh'],
-.goen-admin__form:has(input[value='zh']:checked) .goen-admin__langgroup[data-lang='en'] {
+.goen-admin__form:has(.goen-admin__lang input[value='en']:checked) .goen-admin__langgroup[data-lang='zh'],
+.goen-admin__form:has(.goen-admin__lang input[value='zh']:checked) .goen-admin__langgroup[data-lang='en'] {
   display: none;
 }
 
