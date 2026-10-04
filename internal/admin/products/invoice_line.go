@@ -71,14 +71,9 @@ func (h *Handler) ProductInvoiceLine(w http.ResponseWriter, r *http.Request) {
 		h.log.ErrorContext(r.Context(), "set product invoice", "error", err)
 		access.ServerError(w, r, h.log)
 	default:
-		view, readErr := h.store.Product(r.Context(), r.PathValue("slug"))
-		if readErr != nil {
-			h.log.ErrorContext(r.Context(), "read saved product invoice", "error", readErr)
-			access.ServerError(w, r, h.log)
-			return
-		}
-		//nolint:gosec // slug read from the product row
-		http.Redirect(w, r, view.Action()+"?ok=1#sec-invoice", http.StatusSeeOther)
+		slug := r.PathValue("slug")
+		//nolint:gosec // G710: validated by the route's own slug
+		http.Redirect(w, r, "/admin/products/"+slug+"?ok=1#sec-invoice", http.StatusSeeOther)
 	}
 }
 
