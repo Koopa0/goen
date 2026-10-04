@@ -18,6 +18,7 @@ import (
 
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/cart"
+	"github.com/koopa0/goen/internal/orderaccess"
 	"github.com/koopa0/goen/internal/ratelimit"
 )
 
@@ -28,7 +29,7 @@ import (
 func TestAnAccountCartAnswersOnlyToItsAccount(t *testing.T) {
 	ctx := t.Context()
 	appPool := accountStorePool(t, "account-cart-owner")
-	carts := cart.NewHandler(cart.NewStore(appPool), slog.New(slog.DiscardHandler), false,
+	carts := cart.NewHandler(cart.NewStore(appPool), orderaccess.NewStore(appPool, false), slog.New(slog.DiscardHandler), false,
 		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}),
 		nil, nil)
 	h := account.NewHandler(account.NewStore(appPool), carts, slog.New(slog.DiscardHandler), false, nil)
@@ -186,7 +187,7 @@ func TestAnAccountCartAnswersOnlyToItsAccount(t *testing.T) {
 func TestSignOutLeavesAGuestCartWithTheBrowser(t *testing.T) {
 	ctx := t.Context()
 	appPool := accountStorePool(t, "account-guest-cart-kept")
-	carts := cart.NewHandler(cart.NewStore(appPool), slog.New(slog.DiscardHandler), false,
+	carts := cart.NewHandler(cart.NewStore(appPool), orderaccess.NewStore(appPool, false), slog.New(slog.DiscardHandler), false,
 		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}),
 		nil, nil)
 	h := account.NewHandler(account.NewStore(appPool), carts, slog.New(slog.DiscardHandler), false, nil)
