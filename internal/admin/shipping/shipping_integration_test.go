@@ -1114,11 +1114,14 @@ func TestWaitingPublicationBecomesCurrentAndCarriesTheLatestSurcharge(t *testing
 	defer stopTrace()
 	admintest.WaitForBlockedApplication(t, pool, traceCtx, app, pid)
 	// The lock holder publishes after the waiting transaction has already started.
-	q := db.New(blocker)
-	intervening, err := q.PublishShippingVersion(ctx, db.PublishShippingVersionParams{MethodID: method, Name: "Intervening shipping", FeeCents: 8500})
+	// Keep the intervening publication's time independent of the query under test.
+	var intervening uuid.UUID
+	err := blocker.QueryRow(ctx, `INSERT INTO shipping_method_versions
+ (method_id,name,fee_cents,effective_at) VALUES ($1,'Intervening shipping',8500,statement_timestamp()) RETURNING id`, method).Scan(&intervening)
 	if err != nil {
 		t.Fatal(err)
 	}
+	q := db.New(blocker)
 	if err := q.SetZoneSurcharge(ctx, db.SetZoneSurchargeParams{VersionID: intervening, ZoneID: zone, SurchargeCents: 25000}); err != nil {
 		t.Fatal(err)
 	}
@@ -1134,14 +1137,15 @@ func TestWaitingPublicationBecomesCurrentAndCarriesTheLatestSurcharge(t *testing
 		t.Fatal(workerCtx.Err())
 	}
 	current := currentShippingVersion(t, method)
+	var published uuid.UUID
 	var fee int64
-	if err := pool.QueryRow(ctx, `SELECT fee_cents FROM shipping_method_versions WHERE id=$1`, current).Scan(&fee); err != nil {
+	if err := pool.QueryRow(ctx, `SELECT id,fee_cents FROM shipping_method_versions WHERE method_id=$1 AND name='Final shipping'`, method).Scan(&published, &fee); err != nil {
 		t.Fatal(err)
 	}
-	if current == oldVersion || current == intervening || fee != 9000 {
-		t.Errorf("current version/fee=%s/%d, want waiting publisher with 9000", current, fee)
+	if current != published || current == oldVersion || fee != 9000 {
+		t.Errorf("current/published version and fee=%s/%s/%d, want waiting publisher with 9000", current, published, fee)
 	}
-	assertSurchargeVersions(t, intervening, current, zone, 25000, 25000)
+	assertSurchargeVersions(t, intervening, published, zone, 25000, 25000)
 }
 
 func surchargeFixture(t *testing.T) (method, version, zone uuid.UUID) {
@@ -1288,4 +1292,43 @@ func assertStaleSurchargeForm(t *testing.T, ctx context.Context, body string, me
 	if got := admintest.InputAttribute(t, feeInput, "value"); got != "90" {
 		t.Errorf("current fee=%q, want 90", got)
 	}
+}
+
+func TestSurchargeChecksTheCurrentVersionAfterItsLockWait(t *testing.T) {
+	ctx, actor := admintest.StaffContext(t, pool)
+	method, oldVersion, zone := surchargeFixture(t)
+	app := "waiting-surcharge-" + method.String()
+	s := shipping.NewStore(surchargeWriterPool(t, admintest.AdminRolePool(t, pool), app))
+	blocker, pid := holdShippingMethod(t, method)
+	workerCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	var wg sync.WaitGroup
+	defer func() { cancel(); _ = blocker.Rollback(context.WithoutCancel(ctx)); wg.Wait() }()
+	done := make(chan error, 1) // The single waiting editor's result.
+	wg.Go(func() { done <- s.SetZoneSurcharge(workerCtx, oldVersion.String(), zone.String(), 200) })
+	traceCtx, stopTrace := context.WithTimeout(ctx, 5*time.Second)
+	defer stopTrace()
+	admintest.WaitForBlockedApplication(t, pool, traceCtx, app, pid)
+	// A transaction-time cutoff would exclude this newly committed fixture.
+	var current uuid.UUID
+	if err := blocker.QueryRow(ctx, `INSERT INTO shipping_method_versions
+ (method_id,name,fee_cents,effective_at) VALUES ($1,'Published during wait',9000,statement_timestamp()) RETURNING id`, method).Scan(&current); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.New(blocker).SetZoneSurcharge(ctx, db.SetZoneSurchargeParams{VersionID: current, ZoneID: zone, SurchargeCents: 10000}); err != nil {
+		t.Fatal(err)
+	}
+	if err := blocker.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case err := <-done:
+		changed, ok := errors.AsType[*shipping.VersionChangedError](err)
+		if !ok || changed.MethodID != method {
+			t.Errorf("edit after lock wait error=%v, want stale method %s", err, method)
+		}
+	case <-workerCtx.Done():
+		t.Fatal(workerCtx.Err())
+	}
+	assertSurchargeVersions(t, oldVersion, current, zone, 10000, 10000)
+	assertSurchargeAudit(t, actor, 0)
 }
