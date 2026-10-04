@@ -97,7 +97,7 @@ func adminHandlerOver(p *pgxpool.Pool, s *admin.Store) *admin.Handler {
 // returnDeskOver builds the returns desk and the refunds it pays through over
 // one pool and one refunder, as cmd/goen does.
 func returnDeskOver(p *pgxpool.Pool, refunder refunds.Refunder) *returndesk.Store {
-	return returndesk.NewStore(p, refunds.NewStore(p, refunder))
+	return returndesk.NewStore(p, refunds.NewStore(p, refunder, nil))
 }
 
 func TestProductReadsDistinguishAbsenceFromInfrastructure(t *testing.T) {
@@ -643,7 +643,7 @@ func TestAdvanceCannotShip(t *testing.T) {
 // including when the lot was partly or wholly spent before cancellation.
 func TestAdminCancelClawsBackLoyaltyPoints(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := refunds.NewStore(pool, admintest.Refunder{})
+	s := refunds.NewStore(pool, admintest.Refunder{}, nil)
 
 	t.Run("untouched lot", func(t *testing.T) {
 		userID := cancelPointsCustomer(t)

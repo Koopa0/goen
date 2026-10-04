@@ -24,7 +24,7 @@ import (
 func TestRefundBeforeShipmentPaysEveryLegAndCancels(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	var sent atomic.Int64
-	s := refunds.NewStore(pool, admintest.Refunder{Sent: &sent})
+	s := refunds.NewStore(pool, admintest.Refunder{Sent: &sent}, nil)
 	number, orderID, variantID := admintest.PaidUnshippedOrder(t, pool, 900000, 300000, true)
 
 	var stockHeld int32
@@ -116,7 +116,7 @@ func TestRefundBeforeShipmentPaysEveryLegAndCancels(t *testing.T) {
 
 func TestRefundBeforeShipmentWaitsForInvoiceCorrection(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
-	s := refunds.NewStore(pool, admintest.Refunder{})
+	s := refunds.NewStore(pool, admintest.Refunder{}, nil)
 
 	// invoicedRefund is a paid, unshipped order whose 統一發票 is live when its
 	// refund settles, so the first press stops at the invoice.
@@ -219,7 +219,7 @@ func TestRefundBeforeShipmentWaitsForInvoiceCorrection(t *testing.T) {
 func TestRefundBeforeShipmentConfirmsBeforeItPays(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	var sent atomic.Int64
-	s := refunds.NewStore(pool, admintest.Refunder{Sent: &sent})
+	s := refunds.NewStore(pool, admintest.Refunder{Sent: &sent}, nil)
 	h := refunds.NewHandler(s, nil, slog.New(slog.DiscardHandler))
 	number, orderID, _ := admintest.PaidUnshippedOrder(t, pool, 400000, 0, true)
 

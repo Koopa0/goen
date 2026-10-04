@@ -406,6 +406,12 @@ var (
 	KeyAdminRefundResume    = key("admin.refund.resume", Message{ZhHant: "繼續退款", En: "Resume the refund"})
 	KeyAdminRefundErrReason = key("admin.refund.err.reason", Message{ZhHant: "請填寫退款原因，最多 300 字。", En: "Enter a reason for the refund, 300 characters at most."})
 
+	KeyAdminRefundReasonHint = key("admin.refund.reason.hint", Message{
+		ZhHant: "寫下顧客如何要求或同意取消，例如電話或 Email；這段說明是作廢發票的同意紀錄。",
+		En: "Say how the customer asked for or agreed to the cancellation, such as by phone or email; " +
+			"this note is the record of their consent to voiding the invoice.",
+	})
+
 	KeyAdminRefundHint = key("admin.refund.hint", Message{
 		ZhHant: "已付款的訂單不能直接取消。這會全額退回信用卡與購物金並收回點數；退款入帳、發票作廢或折讓後，訂單才會取消並釋出庫存。",
 		En: "A paid order is not cancelled directly. This refunds the card and store credit in full and " +

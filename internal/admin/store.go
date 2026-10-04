@@ -49,7 +49,7 @@ func NewStore(pool *pgxpool.Pool, refunder refunds.Refunder, reader invoicing.Re
 	return &Store{
 		pool:      pool,
 		q:         db.New(pool),
-		refunds:   refunds.NewStore(pool, refunder),
+		refunds:   refunds.NewStore(pool, refunder, nil),
 		invoicing: invoicing.NewStore(pool, reader, writer),
 	}
 }

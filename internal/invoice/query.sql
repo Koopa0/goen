@@ -33,11 +33,23 @@ ORDER BY l.document_id, l.position, l.id;
 -- invoice_documents_one_active_invoice_per_order, so the row is unique.
 -- name: LiveInvoice :one
 SELECT d.id, d.number, d.amount_cents, coalesce(d.provider_ref, '')::text AS provider_ref,
-       d.issued_at
+       d.issued_at,
+       EXISTS (SELECT 1 FROM invoice_documents a
+               WHERE a.original_id = d.id AND a.kind = 'allowance'
+                 AND a.status = 'issued') AS allowed
 FROM invoice_documents d
 JOIN orders o ON o.id = d.order_id
 WHERE o.order_number = @order_number::text
   AND d.kind = 'invoice' AND d.status <> 'voided';
+
+-- The order's issue not yet settled or rejected; invoice_operations_one_active_issue
+-- keeps it unique.
+-- name: IssueInFlight :one
+SELECT op.id
+FROM invoice_operations op
+JOIN orders o ON o.id = op.order_id
+WHERE o.order_number = @order_number::text
+  AND op.kind = 'issue' AND op.status IN ('pending', 'attention');
 
 -- name: ClaimInvoiceAllowance :one
 SELECT claim_invoice_allowance(

@@ -13,6 +13,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/refundstate"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/email"
+	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/ordernotice"
 	"github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -86,6 +87,11 @@ func (s *Store) RefundBeforeShipment(ctx context.Context, number, reason string)
 		return nil, fmt.Errorf("%w: open refund before shipment of %s: %w", refundstate.ErrRefused, number, err)
 	}
 
+	// Money never waits on the 加值中心: whatever ECPay answers, the refund goes
+	// on, and orders_cancel_invoice_resolved holds the cancellation until the
+	// correction settles.
+	corrected := s.correctInvoice(ctx, number, actorID)
+
 	row, err := s.q.ReturnForDecision(ctx, returnID)
 	if err != nil {
 		return nil, fmt.Errorf("read refund %s of %s: %w", returnID, number, err)
@@ -105,7 +111,26 @@ func (s *Store) RefundBeforeShipment(ctx context.Context, number, reason string)
 	if !position.MoneySettled || position.EventOutstanding || position.PointsOutstanding {
 		return nil, ErrUnsettled
 	}
-	return s.finishRefundBeforeShipment(ctx, number, returnID, actor)
+	sessions, err := s.finishRefundBeforeShipment(ctx, number, returnID, actor)
+	if err != nil {
+		return nil, errors.Join(err, corrected)
+	}
+	return sessions, nil
+}
+
+// correctInvoice files the void as the staff member pressing the button. The
+// refund's required note says how the buyer asked for or agreed to the
+// cancellation; with its audit row and this actor it is the buyer's consent
+// that 電子發票實施作業要點 九 requires the shop to keep.
+func (s *Store) correctInvoice(ctx context.Context, number string, actorID uuid.UUID) error {
+	if s.invoices == nil {
+		return nil
+	}
+	filing := invoice.WithFilingIdentity(ctx, actorID, web.RequestID(ctx))
+	if err := s.invoices.CorrectForCancellation(filing, number); err != nil {
+		return fmt.Errorf("correct the invoice of %s: %w", number, err)
+	}
+	return nil
 }
 
 // finishRefundBeforeShipment cancels the order, returns its held stock and
