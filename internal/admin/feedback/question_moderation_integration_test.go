@@ -159,7 +159,7 @@ func TestAnswerWithdrawalIsQuestionBoundAndAuditedUnderTheAdminRole(t *testing.T
 func TestHiddenQuestionQueuePagesEveryQuestionNewestFirst(t *testing.T) {
 	p := admintest.Pool(t)
 	ctx := t.Context()
-	const total = 53
+	const total = web.PageSize + 3
 	if _, err := p.Exec(ctx, `INSERT INTO product_questions(product_id, body, hidden_at)
  SELECT (SELECT id FROM products ORDER BY id LIMIT 1), 'Hidden fixture ' || n,
         timestamptz '2028-01-01 00:00:00+08' + n * interval '1 minute'
