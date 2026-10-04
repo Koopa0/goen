@@ -17,8 +17,7 @@ import (
 	"github.com/a-h/templ"
 )
 
-// MaxFormBytes bounds a form submission. ParseForm reads the whole body into
-// memory before anything can reject it; goen's largest form is 2,000 runes.
+// MaxFormBytes bounds ordinary forms before field validation reads their text.
 const MaxFormBytes = 64 << 10
 
 // ErrFormText is a form with a name or value PostgreSQL cannot store as text:
@@ -30,7 +29,13 @@ var ErrFormText = errors.New("web: form carries text that cannot be stored")
 // ParseForm reads a bounded form body, so no handler calls r.ParseForm directly
 // and forgets the limit, and refuses a form CheckFormText refuses.
 func ParseForm(w http.ResponseWriter, r *http.Request) error {
-	r.Body = http.MaxBytesReader(w, r.Body, MaxFormBytes)
+	return ParseFormWithLimit(w, r, MaxFormBytes)
+}
+
+// ParseFormWithLimit lets longer text forms budget for percent encoding while
+// their field validators still enforce the permitted rune counts.
+func ParseFormWithLimit(w http.ResponseWriter, r *http.Request, maxBytes int64) error {
+	r.Body = http.MaxBytesReader(w, r.Body, maxBytes)
 	if err := r.ParseForm(); err != nil {
 		return fmt.Errorf("parse form: %w", err)
 	}
