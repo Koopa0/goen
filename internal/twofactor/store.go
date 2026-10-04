@@ -62,7 +62,7 @@ func (s *Store) Begin(ctx context.Context, userID, email string) (secret []byte,
 }
 
 func (s *Store) Confirm(ctx context.Context, userID, code string) error {
-	id, secret, lastStep, err := s.load(ctx, userID, false)
+	id, secret, lastStep, sealed, err := s.load(ctx, userID, false)
 	if err != nil {
 		return err
 	}
@@ -70,12 +70,13 @@ func (s *Store) Confirm(ctx context.Context, userID, code string) error {
 	if err != nil {
 		return err
 	}
-	n, err := s.q.ConfirmTOTP(ctx, db.ConfirmTOTPParams{UserID: id, Step: step})
+	n, err := s.q.ConfirmTOTP(ctx, db.ConfirmTOTPParams{UserID: id, Step: step, SecretEncrypted: sealed})
 	if err != nil {
 		return fmt.Errorf("confirm totp: %w", err)
 	}
 	if n == 0 {
-		// A concurrent request used this same code first.
+		// A concurrent request used this same code first, or restarted
+		// enrolment with another secret.
 		return ErrBadCode
 	}
 	return nil
@@ -85,7 +86,7 @@ func (s *Store) Confirm(ctx context.Context, userID, code string) error {
 // step is recorded by the same statement that guards it, so a check made in Go
 // would be a check two requests replaying one code both pass.
 func (s *Store) Verify(ctx context.Context, userID, code string) error {
-	id, secret, lastStep, err := s.load(ctx, userID, true)
+	id, secret, lastStep, _, err := s.load(ctx, userID, true)
 	if err != nil {
 		return err
 	}
@@ -104,7 +105,7 @@ func (s *Store) Verify(ctx context.Context, userID, code string) error {
 }
 
 func (s *Store) Enrolled(ctx context.Context, userID string) (bool, error) {
-	_, _, _, err := s.load(ctx, userID, true)
+	_, _, _, _, err := s.load(ctx, userID, true)
 	switch {
 	case err == nil:
 		return true, nil
@@ -138,29 +139,30 @@ func (s *Store) SessionVerified(ctx context.Context, token string) (bool, error)
 	return verified, nil
 }
 
-// load reads and decrypts a credential. Confirm is the one caller for which an
+// load reads and decrypts a credential; sealed is the stored form the secret was
+// read from, which a write must name so it lands on that secret and no other. Confirm is the one caller for which an
 // unproved secret is legitimately in play; everyone else passes requireConfirmed.
-func (s *Store) load(ctx context.Context, userID string, requireConfirmed bool) (id uuid.UUID, secret []byte, lastStep int64, err error) {
+func (s *Store) load(ctx context.Context, userID string, requireConfirmed bool) (id uuid.UUID, secret []byte, lastStep int64, sealed []byte, err error) {
 	if !s.Enabled() {
-		return uuid.UUID{}, nil, 0, ErrDisabled
+		return uuid.UUID{}, nil, 0, nil, ErrDisabled
 	}
 	id, err = uuid.Parse(userID)
 	if err != nil {
-		return uuid.UUID{}, nil, 0, ErrNotEnrolled
+		return uuid.UUID{}, nil, 0, nil, ErrNotEnrolled
 	}
 	row, err := s.q.TOTPCredential(ctx, id)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return uuid.UUID{}, nil, 0, ErrNotEnrolled
+			return uuid.UUID{}, nil, 0, nil, ErrNotEnrolled
 		}
-		return uuid.UUID{}, nil, 0, fmt.Errorf("read totp credential: %w", err)
+		return uuid.UUID{}, nil, 0, nil, fmt.Errorf("read totp credential: %w", err)
 	}
 	if requireConfirmed && !row.ConfirmedAt.Valid {
-		return uuid.UUID{}, nil, 0, ErrNotEnrolled
+		return uuid.UUID{}, nil, 0, nil, ErrNotEnrolled
 	}
 	secret, err = s.cipher.open(row.SecretEncrypted)
 	if err != nil {
-		return uuid.UUID{}, nil, 0, fmt.Errorf("%w: %w", ErrSecretUnreadable, err)
+		return uuid.UUID{}, nil, 0, nil, fmt.Errorf("%w: %w", ErrSecretUnreadable, err)
 	}
-	return id, secret, row.LastStep.Int64, nil
+	return id, secret, row.LastStep.Int64, row.SecretEncrypted, nil
 }

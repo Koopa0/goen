@@ -193,6 +193,70 @@ func TestRestartingEnrolmentInvalidatesTheOldSecret(t *testing.T) {
 	}
 }
 
+// restartAfterRead runs restart once, right after the credential has been read:
+// the point between Confirm's read and its write that a second enrolment tab
+// can reach.
+type restartAfterRead struct {
+	once    sync.Once
+	restart func()
+}
+
+func (*restartAfterRead) TraceQueryStart(ctx context.Context, _ *pgx.Conn, _ pgx.TraceQueryStartData) context.Context {
+	return ctx
+}
+
+func (r *restartAfterRead) TraceQueryEnd(_ context.Context, _ *pgx.Conn, data pgx.TraceQueryEndData) {
+	if strings.Contains(data.CommandTag.String(), "SELECT") && data.Err == nil {
+		r.once.Do(r.restart)
+	}
+}
+
+func TestConfirmOnlyConfirmsTheSecretItCheckedTheCodeAgainst(t *testing.T) {
+	ctx := t.Context()
+	userID, email := admintest.AdminUser(t, pool)
+	other := twofactor.NewStore(pool, testKey)
+	first, _, err := other.Begin(ctx, userID, email)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+
+	var second []byte
+	tracer := &restartAfterRead{}
+	tracer.restart = func() {
+		var beginErr error
+		if second, _, beginErr = other.Begin(ctx, userID, email); beginErr != nil {
+			t.Errorf("restart enrolment: %v", beginErr)
+		}
+	}
+	cfg, err := pgxpool.ParseConfig(pool.Config().ConnString())
+	if err != nil {
+		t.Fatalf("parse pool config: %v", err)
+	}
+	cfg.ConnConfig.Tracer = tracer
+	tracedPool, err := pgxpool.NewWithConfig(ctx, cfg)
+	if err != nil {
+		t.Fatalf("open pool: %v", err)
+	}
+	defer tracedPool.Close()
+	s := twofactor.NewStore(tracedPool, testKey)
+
+	step := twofactor.StepAt(time.Now())
+	if err = s.Confirm(ctx, userID, twofactor.Code(first, step)); err == nil {
+		t.Error("Confirm accepted a code for the first secret after enrolment restarted with a second")
+	}
+	enrolled, err := s.Enrolled(ctx, userID)
+	if err != nil {
+		t.Fatalf("enrolled: %v", err)
+	}
+	if enrolled {
+		t.Error("the second secret is confirmed though only a code for the first was checked")
+	}
+
+	if err = s.Confirm(ctx, userID, twofactor.Code(second, step)); err != nil {
+		t.Errorf("a code for the second secret was refused: %v", err)
+	}
+}
+
 // TestAConfirmedFactorCannotBeReplacedByItsOwnHolder proves a stolen password
 // alone cannot swap the second factor for the attacker's own device.
 func TestAConfirmedFactorCannotBeReplacedByItsOwnHolder(t *testing.T) {
