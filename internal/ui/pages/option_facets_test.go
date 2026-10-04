@@ -86,3 +86,24 @@ func insideFacetGetForm(n *html.Node) bool {
 	}
 	return false
 }
+
+func TestOptionChipIncludesItsTranslatedAxisAndValue(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		locale            i18n.Locale
+		axis, value, want string
+	}{
+		{i18n.En, "Capacity", "256 GB", "Capacity: 256 GB"},
+		{i18n.ZhHant, "容量", "256GB", "容量：256GB"},
+	} {
+		t.Run(string(tc.locale), func(t *testing.T) {
+			t.Parallel()
+			ctx := i18n.WithLocale(t.Context(), tc.locale)
+			v := ListingView{Slug: "phones", Query: "opt=" + url.QueryEscape("容量:256GB"), Facets: []FacetGroup{{Kind: FacetVariantOption, Name: "容量", Label: tc.axis, Options: []FacetOption{{Value: "容量:256GB", Label: tc.value, Selected: true}}}}}
+			chips := v.AppliedChips(ctx)
+			if len(chips) != 1 || chips[0].Label != tc.want {
+				t.Fatalf("option chips = %#v, want label %q", chips, tc.want)
+			}
+		})
+	}
+}

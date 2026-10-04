@@ -15,20 +15,21 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
-func TestOptionFacetsRequireOneVariantForEverySelectedValueStockAndPrice(t *testing.T) {
+func TestOptionFacetsRequireOneVariantForEverySelectedAxisStockAndPrice(t *testing.T) {
 	ctx := t.Context()
 	tx, err := pool.Begin(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
+	brandSlug := "facet-brand-" + uuid.NewString()
 	category, slug := "option-facet-"+uuid.NewString(), "option-product-"+uuid.NewString()
 	var productID uuid.UUID
 	if err = tx.QueryRow(ctx, `WITH category AS (
   INSERT INTO categories(slug,name,position) SELECT $1,'Facet category',coalesce(max(position)+1,0) FROM categories WHERE parent_id IS NULL RETURNING id
  ), brand AS (
   INSERT INTO brands(slug,name) VALUES($2,'Facet brand') RETURNING id
- ) INSERT INTO products(category_id,brand_id,slug,name,status) SELECT category.id,brand.id,$3,'Facet product','draft' FROM category,brand RETURNING id`, category, "facet-brand-"+uuid.NewString(), slug).Scan(&productID); err != nil {
+ ) INSERT INTO products(category_id,brand_id,slug,name,status) SELECT category.id,brand.id,$3,'Facet product','draft' FROM category,brand RETURNING id`, category, brandSlug, slug).Scan(&productID); err != nil {
 		t.Fatal(err)
 	}
 	type axisChoice struct{ axis, value uuid.UUID }
@@ -59,8 +60,8 @@ func TestOptionFacetsRequireOneVariantForEverySelectedValueStockAndPrice(t *test
 		values []string
 	}{
 		{90000, 0, []string{"容量:256GB", "顏色:曜石黑"}},
-		{10000, 5, []string{"容量:128GB", "顏色:曜石黑"}},
-		{10000, 5, []string{"容量:256GB", "顏色:白"}},
+		{5000, 5, []string{"容量:128GB", "顏色:曜石黑"}},
+		{20000, 5, []string{"容量:256GB", "顏色:白"}},
 	} {
 		var id uuid.UUID
 		if err = tx.QueryRow(ctx, `INSERT INTO product_variants(product_id,sku,price_cents,stock_quantity,position) VALUES($1,$2,$3,$4,$5) RETURNING id`, productID, "FACET-"+strings.ToUpper(uuid.NewString()[:8])+"-"+strconv.Itoa(i), v.price, v.stock, i).Scan(&id); err != nil {
@@ -88,6 +89,17 @@ func TestOptionFacetsRequireOneVariantForEverySelectedValueStockAndPrice(t *test
 	}
 	if view.Total != 0 || len(view.Products) != 0 {
 		t.Fatal("different variants satisfied option, stock or price filters")
+	}
+	assertFacetBrandCount(t, view, brandSlug, 0)
+	optionsOnly := f
+	optionsOnly.InStockOnly = false
+	optionsOnly.MaxPrice = 0
+	offer, err := store.Listing(local, category, optionsOnly)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if offer.Total != 1 || len(offer.Products) != 1 || offer.Products[0].PriceCents != 90000 || offer.Products[0].InStock || offer.Products[0].PriceVaries {
+		t.Fatalf("out-of-stock option match borrowed another SKU's offer: %#v", offer.Products)
 	}
 	facetCounts := map[string]int64{}
 	selected := 0
@@ -131,14 +143,15 @@ func TestOptionFacetsRequireOneVariantForEverySelectedValueStockAndPrice(t *test
 	if view.Total != 1 || len(view.Products) != 1 || view.Products[0].Slug != slug || view.Products[0].PriceCents != 10000 || !view.Products[0].InStock || view.Products[0].PriceVaries {
 		t.Fatalf("one matching SKU did not supply the listing offer: %#v", view.Products)
 	}
-	impossible := f
-	impossible.OptionValues = []catalog.OptionFilter{{Name: "容量", Value: "256GB"}, {Name: "容量", Value: "128GB"}}
-	view, err = store.Listing(local, category, impossible)
+	assertFacetBrandCount(t, view, brandSlug, 1)
+	alternatives := f
+	alternatives.OptionValues = []catalog.OptionFilter{{Name: "容量", Value: "256GB"}, {Name: "容量", Value: "128GB"}, {Name: "顏色", Value: "曜石黑"}}
+	view, err = store.Listing(local, category, alternatives)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if view.Total != 0 {
-		t.Fatal("two values of one axis were satisfied by different variants")
+	if view.Total != 1 || len(view.Products) != 1 || view.Products[0].PriceCents != 5000 || !view.Products[0].InStock {
+		t.Fatalf("same-axis alternatives lost the 128GB/Obsidian offer: %#v", view.Products)
 	}
 	unknown := f
 	unknown.OptionValues = []catalog.OptionFilter{{Name: "容量", Value: "unknown"}}
@@ -149,4 +162,22 @@ func TestOptionFacetsRequireOneVariantForEverySelectedValueStockAndPrice(t *test
 	if view.Total != 0 {
 		t.Fatal("unknown option silently produced an unfiltered listing")
 	}
+}
+
+func assertFacetBrandCount(t *testing.T, view pages.ListingView, slug string, want int64) {
+	t.Helper()
+	for _, group := range view.Facets {
+		if group.Kind != pages.FacetBrand {
+			continue
+		}
+		for _, option := range group.Options {
+			if option.Value == slug {
+				if option.Count != want {
+					t.Fatalf("brand count = %d, want %d", option.Count, want)
+				}
+				return
+			}
+		}
+	}
+	t.Fatalf("fixture brand %q absent from facets", slug)
 }

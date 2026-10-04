@@ -3709,13 +3709,16 @@ SELECT b.id, b.slug, b.name,
                   SELECT 1 FROM product_variants v
                   WHERE v.product_id = p.id AND v.is_active
             AND NOT EXISTS (
-              SELECT 1 FROM unnest($2::text[]) WITH ORDINALITY chosen(name, position)
+              SELECT 1 FROM unnest($2::text[]) AS chosen(name)
               WHERE NOT EXISTS (
-                  SELECT 1 FROM variant_option_values selected
-                  JOIN product_options axis ON axis.id = selected.option_id
-                  JOIN product_option_values choice ON choice.id = selected.option_value_id
-                  WHERE selected.variant_id = v.id
-                    AND axis.name = chosen.name AND choice.value = ($3::text[])[chosen.position]
+                  SELECT 1 FROM variant_option_values carried
+                  JOIN product_options axis ON axis.id = carried.option_id
+                  JOIN product_option_values axis_value ON axis_value.id = carried.option_value_id
+                  WHERE carried.variant_id = v.id
+                    AND axis.name = chosen.name AND EXISTS (
+                      SELECT 1 FROM unnest($2::text[]) WITH ORDINALITY chosen_value(name, position)
+                      WHERE chosen_value.name = chosen.name AND ($3::text[])[chosen_value.position] = axis_value.value
+                    )
               )
           )
                     AND (NOT $4::boolean OR v.stock_quantity > v.safety_stock)
@@ -3952,13 +3955,16 @@ SELECT
         SELECT 1 FROM product_variants dv
         WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
           AND NOT EXISTS (
-              SELECT 1 FROM unnest($2::text[]) WITH ORDINALITY chosen(name, position)
+              SELECT 1 FROM unnest($2::text[]) AS chosen(name)
               WHERE NOT EXISTS (
-                  SELECT 1 FROM variant_option_values selected
-                  JOIN product_options axis ON axis.id = selected.option_id
-                  JOIN product_option_values choice ON choice.id = selected.option_value_id
-                  WHERE selected.variant_id = dv.id
-                    AND axis.name = chosen.name AND choice.value = ($3::text[])[chosen.position]
+                  SELECT 1 FROM variant_option_values carried
+                  JOIN product_options axis ON axis.id = carried.option_id
+                  JOIN product_option_values axis_value ON axis_value.id = carried.option_value_id
+                  WHERE carried.variant_id = dv.id
+                    AND axis.name = chosen.name AND EXISTS (
+                      SELECT 1 FROM unnest($2::text[]) WITH ORDINALITY chosen_value(name, position)
+                      WHERE chosen_value.name = chosen.name AND ($3::text[])[chosen_value.position] = axis_value.value
+                    )
               )
           )
           AND (NOT $4::boolean OR dv.stock_quantity > dv.safety_stock)
@@ -3971,13 +3977,16 @@ SELECT
         SELECT 1 FROM product_variants sv
         WHERE sv.product_id = p.id AND sv.is_active
           AND NOT EXISTS (
-              SELECT 1 FROM unnest($2::text[]) WITH ORDINALITY chosen(name, position)
+              SELECT 1 FROM unnest($2::text[]) AS chosen(name)
               WHERE NOT EXISTS (
-                  SELECT 1 FROM variant_option_values selected
-                  JOIN product_options axis ON axis.id = selected.option_id
-                  JOIN product_option_values choice ON choice.id = selected.option_value_id
-                  WHERE selected.variant_id = sv.id
-                    AND axis.name = chosen.name AND choice.value = ($3::text[])[chosen.position]
+                  SELECT 1 FROM variant_option_values carried
+                  JOIN product_options axis ON axis.id = carried.option_id
+                  JOIN product_option_values axis_value ON axis_value.id = carried.option_value_id
+                  WHERE carried.variant_id = sv.id
+                    AND axis.name = chosen.name AND EXISTS (
+                      SELECT 1 FROM unnest($2::text[]) WITH ORDINALITY chosen_value(name, position)
+                      WHERE chosen_value.name = chosen.name AND ($3::text[])[chosen_value.position] = axis_value.value
+                    )
               )
           )
           AND sv.stock_quantity > sv.safety_stock
@@ -3993,13 +4002,16 @@ JOIN LATERAL (
     FROM product_variants candidate
     WHERE product_id = p.id AND is_active
       AND NOT EXISTS (
-              SELECT 1 FROM unnest($2::text[]) WITH ORDINALITY chosen(name, position)
+              SELECT 1 FROM unnest($2::text[]) AS chosen(name)
               WHERE NOT EXISTS (
-                  SELECT 1 FROM variant_option_values selected
-                  JOIN product_options axis ON axis.id = selected.option_id
-                  JOIN product_option_values choice ON choice.id = selected.option_value_id
-                  WHERE selected.variant_id = candidate.id
-                    AND axis.name = chosen.name AND choice.value = ($3::text[])[chosen.position]
+                  SELECT 1 FROM variant_option_values carried
+                  JOIN product_options axis ON axis.id = carried.option_id
+                  JOIN product_option_values axis_value ON axis_value.id = carried.option_value_id
+                  WHERE carried.variant_id = candidate.id
+                    AND axis.name = chosen.name AND EXISTS (
+                      SELECT 1 FROM unnest($2::text[]) WITH ORDINALITY chosen_value(name, position)
+                      WHERE chosen_value.name = chosen.name AND ($3::text[])[chosen_value.position] = axis_value.value
+                    )
               )
           )
       -- The card shows a variant the filters accepted, or it states a price the
@@ -4029,13 +4041,16 @@ WHERE p.status = 'active'
           SELECT 1 FROM product_variants v
           WHERE v.product_id = p.id AND v.is_active
             AND NOT EXISTS (
-              SELECT 1 FROM unnest($2::text[]) WITH ORDINALITY chosen(name, position)
+              SELECT 1 FROM unnest($2::text[]) AS chosen(name)
               WHERE NOT EXISTS (
-                  SELECT 1 FROM variant_option_values selected
-                  JOIN product_options axis ON axis.id = selected.option_id
-                  JOIN product_option_values choice ON choice.id = selected.option_value_id
-                  WHERE selected.variant_id = v.id
-                    AND axis.name = chosen.name AND choice.value = ($3::text[])[chosen.position]
+                  SELECT 1 FROM variant_option_values carried
+                  JOIN product_options axis ON axis.id = carried.option_id
+                  JOIN product_option_values axis_value ON axis_value.id = carried.option_value_id
+                  WHERE carried.variant_id = v.id
+                    AND axis.name = chosen.name AND EXISTS (
+                      SELECT 1 FROM unnest($2::text[]) WITH ORDINALITY chosen_value(name, position)
+                      WHERE chosen_value.name = chosen.name AND ($3::text[])[chosen_value.position] = axis_value.value
+                    )
               )
           )
             AND (NOT $4::boolean OR v.stock_quantity > v.safety_stock)
@@ -4148,13 +4163,16 @@ WHERE p.status = 'active'
           SELECT 1 FROM product_variants v
           WHERE v.product_id = p.id AND v.is_active
             AND NOT EXISTS (
-              SELECT 1 FROM unnest($4::text[]) WITH ORDINALITY chosen(name, position)
+              SELECT 1 FROM unnest($4::text[]) AS chosen(name)
               WHERE NOT EXISTS (
-                  SELECT 1 FROM variant_option_values selected
-                  JOIN product_options axis ON axis.id = selected.option_id
-                  JOIN product_option_values choice ON choice.id = selected.option_value_id
-                  WHERE selected.variant_id = v.id
-                    AND axis.name = chosen.name AND choice.value = ($5::text[])[chosen.position]
+                  SELECT 1 FROM variant_option_values carried
+                  JOIN product_options axis ON axis.id = carried.option_id
+                  JOIN product_option_values axis_value ON axis_value.id = carried.option_value_id
+                  WHERE carried.variant_id = v.id
+                    AND axis.name = chosen.name AND EXISTS (
+                      SELECT 1 FROM unnest($4::text[]) WITH ORDINALITY chosen_value(name, position)
+                      WHERE chosen_value.name = chosen.name AND ($5::text[])[chosen_value.position] = axis_value.value
+                    )
               )
           )
             AND (NOT $6::boolean OR v.stock_quantity > v.safety_stock)
@@ -4195,36 +4213,39 @@ func (q *Queries) CategoryListingCount(ctx context.Context, arg CategoryListingC
 const categoryOptionValues = `-- name: CategoryOptionValues :many
 SELECT axis.name AS option_name,
        min(localized_name(axis.name, axis.name_en, $1::text))::text AS option_label,
-       choice.value,
-       min(localized_name(choice.value, choice.value_en, $1::text))::text AS value_label,
+       axis_value.value,
+       min(localized_name(axis_value.value, axis_value.value_en, $1::text))::text AS value_label,
        (count(DISTINCT p.id) FILTER (WHERE
           ($2::uuid[] = ARRAY[]::uuid[] OR p.brand_id = ANY($2::uuid[]))
           AND EXISTS (
              SELECT 1 FROM product_variants candidate
-             JOIN variant_option_values selected ON selected.variant_id = candidate.id
+             JOIN variant_option_values carried ON carried.variant_id = candidate.id
              WHERE candidate.product_id = p.id AND candidate.is_active
-               AND selected.option_id = axis.id AND selected.option_value_id = choice.id
+               AND carried.option_id = axis.id AND carried.option_value_id = axis_value.id
                AND (NOT $3::boolean OR candidate.stock_quantity > candidate.safety_stock)
                AND ($4::bigint = 0 OR candidate.price_cents >= $4::bigint)
                AND ($5::bigint = 0 OR candidate.price_cents <= $5::bigint)
                AND NOT EXISTS (
-                  SELECT 1 FROM unnest($6::text[]) WITH ORDINALITY chosen(name, position)
+                  SELECT 1 FROM unnest($6::text[]) AS chosen(name)
                   WHERE chosen.name <> axis.name AND NOT EXISTS (
-                    SELECT 1 FROM variant_option_values other_selected
-                    JOIN product_options other_axis ON other_axis.id = other_selected.option_id
-                    JOIN product_option_values other_choice ON other_choice.id = other_selected.option_value_id
-                    WHERE other_selected.variant_id = candidate.id
-                      AND other_axis.name = chosen.name AND other_choice.value = ($7::text[])[chosen.position]
+                    SELECT 1 FROM variant_option_values other_carried
+                    JOIN product_options other_axis ON other_axis.id = other_carried.option_id
+                    JOIN product_option_values other_axis_value ON other_axis_value.id = other_carried.option_value_id
+                    WHERE other_carried.variant_id = candidate.id
+                      AND other_axis.name = chosen.name AND EXISTS (
+                      SELECT 1 FROM unnest($6::text[]) WITH ORDINALITY chosen_value(name, position)
+                      WHERE chosen_value.name = chosen.name AND ($7::text[])[chosen_value.position] = other_axis_value.value
+                    )
                   )
                )
           )
        ))::bigint AS product_count
 FROM products p
 JOIN product_options axis ON axis.product_id = p.id
-JOIN product_option_values choice ON choice.option_id = axis.id
+JOIN product_option_values axis_value ON axis_value.option_id = axis.id
 WHERE p.status = 'active' AND p.category_id = ANY($8::uuid[])
-GROUP BY axis.name, choice.value
-ORDER BY min(axis.position), axis.name, min(choice.position), choice.value
+GROUP BY axis.name, axis_value.value
+ORDER BY min(axis.position), axis.name, min(axis_value.position), axis_value.value
 `
 
 type CategoryOptionValuesParams struct {
