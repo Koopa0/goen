@@ -388,3 +388,56 @@ FROM order_private_data pd
 LEFT JOIN shipping_zone_prefixes old_zone ON old_zone.prefix = left(pd.postal_code, 3)
 LEFT JOIN shipping_zone_prefixes new_zone ON new_zone.prefix = left(@new_postal_code::text, 3)
 WHERE pd.order_id = @order_id;
+
+-- name: PickingSlips :many
+SELECT json_build_object('At', o.placed_at, 'ID', o.id)::text AS page_cursor,
+       o.id, o.order_number, o.placed_at, o.shipping_method_name,
+       coalesce(pd.email, '') AS email,
+       coalesce(pd.recipient_name, '') AS recipient_name,
+       coalesce(pd.phone, '') AS phone,
+       coalesce(pd.postal_code, '') AS postal_code,
+       coalesce(pd.city, '') AS city,
+       coalesce(pd.district, '') AS district,
+       coalesce(pd.street, '') AS street,
+       coalesce(pd.pickup_chain, '') AS pickup_chain,
+       coalesce(pd.pickup_store_code, '') AS pickup_store_code,
+       coalesce(pd.pickup_store_name, '') AS pickup_store_name,
+       coalesce(ip.invoice_type, '') AS invoice_type,
+       coalesce(ip.carrier_code, '') AS invoice_mobile_barcode,
+       coalesce(ip.donation_code, '') AS invoice_donation_code,
+       coalesce(ip.tax_id, '') AS invoice_tax_id
+FROM orders o
+LEFT JOIN order_private_data pd ON pd.order_id = o.id
+LEFT JOIN invoice_preferences ip ON ip.order_id = o.id
+WHERE o.fulfillment_status = 'picking'
+  AND (NOT @has_cursor::boolean OR o.placed_at < @after_at::timestamptz
+       OR (o.placed_at = @after_at::timestamptz AND o.id < @after_id::uuid))
+ORDER BY o.placed_at DESC, o.id DESC
+LIMIT @row_limit::integer;
+
+-- ShippableLines uses the same purchased-minus-dispatched quantity. Read the
+-- line snapshot even if its catalogue variant has since been removed.
+-- name: PickingSlipLines :many
+SELECT ol.order_id, ol.sku, ol.product_name, ol.variant_label, ol.unit_price_cents,
+       (ol.quantity - coalesce((SELECT sum(sl.quantity) FROM order_shipment_lines sl
+                                WHERE sl.order_line_id = ol.id), 0))::integer AS remaining
+FROM order_lines ol
+WHERE ol.order_id = ANY(@order_ids::uuid[])
+  AND ol.quantity > coalesce((SELECT sum(sl.quantity) FROM order_shipment_lines sl
+                              WHERE sl.order_line_id = ol.id), 0)
+ORDER BY ol.order_id, ol.position, ol.id;
+
+-- Totals span the entire queue, regardless of the slip page. A SKU whose
+-- snapshots have different labels keeps its most recent order's wording.
+-- name: PickingTotals :many
+SELECT ol.sku,
+       (array_agg(ol.product_name ORDER BY o.placed_at DESC, o.id DESC, ol.id DESC))[1]::text AS product_name,
+       coalesce((array_agg(ol.variant_label ORDER BY o.placed_at DESC, o.id DESC, ol.id DESC))[1], '')::text AS variant_label,
+       sum(ol.quantity - coalesce((SELECT sum(sl.quantity) FROM order_shipment_lines sl
+                                  WHERE sl.order_line_id = ol.id), 0))::bigint AS remaining
+FROM orders o JOIN order_lines ol ON ol.order_id = o.id
+WHERE o.fulfillment_status = 'picking'
+  AND ol.quantity > coalesce((SELECT sum(sl.quantity) FROM order_shipment_lines sl
+                              WHERE sl.order_line_id = ol.id), 0)
+GROUP BY ol.sku
+ORDER BY ol.sku;
