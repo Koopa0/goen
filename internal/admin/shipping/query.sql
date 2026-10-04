@@ -32,13 +32,14 @@ RETURNING id;
 
 -- Fee publication and surcharge edits share this root; version rows are append-only.
 -- name: LockShippingMethod :one
-SELECT id FROM shipping_methods WHERE id = $1;
+SELECT id FROM shipping_methods WHERE id = $1 FOR NO KEY UPDATE;
 
 -- name: LockShippingMethodForVersion :one
 SELECT sm.id
 FROM shipping_methods sm
 JOIN shipping_method_versions v ON v.method_id = sm.id
-WHERE v.id = $1;
+WHERE v.id = $1
+FOR NO KEY UPDATE OF sm;
 
 -- A waiting transaction's now() predates the publication that released its lock.
 -- name: CurrentShippingVersion :one
