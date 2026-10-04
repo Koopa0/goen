@@ -184,29 +184,30 @@ func (o OrderRow) RecipientText(ctx context.Context) string {
 }
 
 type OrderView struct {
-	Number               string
-	Status               order.FulfillmentStatus
-	StatusText           string
-	PlacedAt             string
-	ShippingName         string
-	Lines                []pages.OrderLine
-	SubtotalCents        int64
-	ShippingCents        int64
-	DiscountCents        int64
-	DiscountReason       string
-	TaxCents             int64
-	Email                string
-	Recipient            string
-	Phone                string
-	Address              string
-	CustomerNote         string
-	StaffNote            string
-	InvoiceType          invoice.Preference
-	InvoiceMobileBarcode string
-	InvoiceDonationCode  string
-	InvoiceTaxID         string
-	InvoiceDocuments     []InvoiceDocument
-	InvoicingEnabled     bool
+	OutstandingQuantities bool
+	Number                string
+	Status                order.FulfillmentStatus
+	StatusText            string
+	PlacedAt              string
+	ShippingName          string
+	Lines                 []pages.OrderLine
+	SubtotalCents         int64
+	ShippingCents         int64
+	DiscountCents         int64
+	DiscountReason        string
+	TaxCents              int64
+	Email                 string
+	Recipient             string
+	Phone                 string
+	Address               string
+	CustomerNote          string
+	StaffNote             string
+	InvoiceType           invoice.Preference
+	InvoiceMobileBarcode  string
+	InvoiceDonationCode   string
+	InvoiceTaxID          string
+	InvoiceDocuments      []InvoiceDocument
+	InvoicingEnabled      bool
 	// RefundedCents is what has actually gone back, and what a 折讓 relieves.
 	RefundedCents int64
 	// AllowanceOperationID identifies one rendered allowance form across HTTP

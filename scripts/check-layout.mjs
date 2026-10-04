@@ -207,6 +207,8 @@ const ADMIN = [
   { label: 'admin 1440', width: 1440, height: 900, path: '/admin' },
   { label: 'admin stock 375', width: 375, height: 812, path: '/admin/stock' },
   { label: 'admin orders 375', width: 375, height: 812, path: '/admin/orders' },
+  { label: 'admin picking 375', width: 375, height: 812, path: '/admin/orders/picking/slips', marker: '.goen-admin__slip' },
+  { label: 'admin picking 1440', width: 1440, height: 900, path: '/admin/orders/picking/slips', marker: '.goen-admin__slip' },
   // The back-office pages with the widest tables.
   { label: 'admin products 375', width: 375, height: 812, path: '/admin/products', marker: '.goen-admin' },
   { label: 'admin products 1440', width: 1440, height: 900, path: '/admin/products', marker: '.goen-admin' },
@@ -2576,6 +2578,48 @@ if (process.env.ADMIN_TOKEN) {
         if (printed.nav || printed.bar) fail(label, 'the back-office bar or rail is still shown when printed');
         if (printed.forms) fail(label, `${printed.forms} action forms are still shown when printed`);
         console.log(`${label.padEnd(16)} lines=${printed.lines} delivery=${printed.delivery} nav=${printed.nav} forms=${printed.forms}`);
+      }
+    } finally {
+      await send(ws, 'Emulation.setEmulatedMedia', { media: '' });
+    }
+  }
+
+  if (ADMIN.length) {
+    const label = 'admin batch print';
+    const target = `${ORIGIN}/admin/orders/picking/slips`;
+    await send(ws, 'Emulation.setDeviceMetricsOverride', {
+      width: 794, height: 1123, deviceScaleFactor: 1, mobile: false,
+    });
+    await send(ws, 'Emulation.setEmulatedMedia', { media: 'print' });
+    try {
+      await send(ws, 'Page.navigate', { url: target });
+      await settled(ws, label, target);
+      const printed = await evalPage(`(() => {
+        const slips = [...document.querySelectorAll('.goen-admin__slip')];
+        const visible = (el) => getComputedStyle(el).display !== 'none' && el.getClientRects().length > 0;
+        const controls = [...document.querySelectorAll('.goen-adminbar,.goen-admin__nav,.goen-admin__batchcontrols,form')].filter(visible);
+        return {
+          slips: slips.length,
+          lines: slips.map((slip) => slip.querySelectorAll('.goen-order__line').length),
+          delivery: slips.map((slip) => slip.querySelectorAll('.ui-dl__row').length),
+          breaks: slips.map((slip) => getComputedStyle(slip).breakAfter),
+          pickLists: document.querySelectorAll('.goen-admin__picklist').length,
+          controls: controls.length,
+          controlNames: controls.map((el) => el.tagName.toLowerCase() + '.' + el.className),
+        };
+      })()`);
+      if (printed.threw) {
+        fail(label, `print probe did not run — ${printed.why}`);
+      } else {
+        if (printed.slips < 2) fail(label, `only ${printed.slips} slips; the multi-order fixture did not run`);
+        if (printed.lines.some((n) => n === 0) || printed.delivery.some((n) => n < 4)) fail(label, 'a slip lost its items or delivery');
+        if (printed.breaks.slice(0, -1).some((value) => value !== 'page')) fail(label, 'a slip lacks its forced page break');
+        if (printed.pickLists !== 1 || printed.controls) fail(label, `pickLists=${printed.pickLists} controls=${printed.controls}: ${printed.controlNames.join(", ")}`);
+        const pdf = await send(ws, 'Page.printToPDF', { preferCSSPageSize: true, printBackground: true });
+        // Chromium writes page dictionaries outside compressed content streams.
+        const pages = (Buffer.from(pdf.data, 'base64').toString('latin1').match(/\/Type\s*\/Page\b/g) || []).length;
+        if (pages !== printed.slips + 1) fail(label, `${pages} PDF pages, want ${printed.slips} slips plus the pick list`);
+        console.log(`${label.padEnd(16)} slips=${printed.slips} PDF pages=${pages} controls=${printed.controls}`);
       }
     } finally {
       await send(ws, 'Emulation.setEmulatedMedia', { media: '' });

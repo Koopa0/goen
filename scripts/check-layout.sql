@@ -96,16 +96,19 @@ SELECT mark_payment_event_unreconciled('evt_layout_check',
 
 SET ROLE admin;
 
--- Enough store credit to pay for both of the customer's orders outright, so
+-- Enough store credit to pay for all four customer orders outright, so
 -- neither needs a payment provider to leave pending.
 SELECT grant_store_credit(:'customer_id', 9999900, '版面檢查用的退貨樣本', :'staff_id', gen_random_uuid());
+SELECT grant_store_credit(:'customer_id', 1000000, 'Batch picking fixture', :'staff_id', gen_random_uuid());
 SELECT record_audit_event(:'staff_id', 'credit.grant', 'store_credit_entries', :'customer_id', NULL,
     jsonb_build_object('amount_cents', 9999900, 'reason', '版面檢查用的退貨樣本'));
+SELECT record_audit_event(:'staff_id', 'credit.grant', 'store_credit_entries', :'customer_id', NULL,
+    jsonb_build_object('amount_cents', 1000000, 'reason', 'Batch picking fixture'));
 
 SET ROLE store;
 
--- One variant for the cart and all three orders. Its sellable quantity is what
--- the cart's stepper is bounded by, and each run takes two units for good:
+-- One variant for the cart and all five orders. Its sellable quantity is what
+-- the cart's stepper is bounded by, and each run takes four units for good:
 -- `make db-reset` is the reset.
 SELECT pv.id AS variant_id FROM product_variants pv
 JOIN products p ON p.id = pv.product_id
@@ -126,8 +129,8 @@ INSERT INTO carts (token_hash) VALUES (sha256(convert_to(:'cart_token', 'UTF8'))
 RETURNING id AS cart_id \gset
 INSERT INTO cart_items (cart_id, variant_id, quantity) VALUES (:'cart_id', :'variant_id', 1);
 
--- Three orders placed as checkout places them. The guest's is unpaid and is the
--- payment page. The customer's two are paid in store credit: INVOICE_ORDER is
+-- Five orders placed as checkout places them. The guest's is unpaid and is the
+-- payment page. The customer's four are paid in store credit: INVOICE_ORDER is
 -- delivered, returned and refunded; RETURN_FORM_ORDER is delivered with nothing
 -- sent back, which is the only state that renders the return form.
 INSERT INTO orders (user_id, shipping_version_id, shipping_method_code, shipping_method_name, shipping_cents)
@@ -139,6 +142,14 @@ RETURNING id AS invoice_id, order_number AS invoice_order \gset
 INSERT INTO orders (user_id, shipping_version_id, shipping_method_code, shipping_method_name, shipping_cents)
 VALUES (:'customer_id', :'ship_version', :'ship_code', :'ship_name', :ship_cents)
 RETURNING id AS form_id, order_number AS return_form_order \gset
+
+-- Two more orders stay in picking so the batch print probe has two slips.
+INSERT INTO orders (user_id, shipping_version_id, shipping_method_code, shipping_method_name, shipping_cents)
+VALUES (:'customer_id', :'ship_version', :'ship_code', :'ship_name', :ship_cents)
+RETURNING id AS picking_a_id \gset
+INSERT INTO orders (user_id, shipping_version_id, shipping_method_code, shipping_method_name, shipping_cents)
+VALUES (:'customer_id', :'ship_version', :'ship_code', :'ship_name', :ship_cents)
+RETURNING id AS picking_b_id \gset
 
 INSERT INTO order_lines (order_id, product_id, variant_id, sku, product_name, variant_label,
                          warranty_note, warranty_months, unit_price_cents, quantity, position)
@@ -152,25 +163,30 @@ SELECT o.id, p.id, pv.id, pv.sku, p.name,
 FROM orders o
 CROSS JOIN product_variants pv
 JOIN products p ON p.id = pv.product_id
-WHERE o.id IN (:'placed_id', :'invoice_id', :'form_id') AND pv.id = :'variant_id';
+WHERE o.id IN (:'placed_id', :'invoice_id', :'form_id', :'picking_a_id', :'picking_b_id') AND pv.id = :'variant_id';
 
 -- Checkout's whole hold window (cart.holdTTL): a shorter one renders the pay
 -- page's window-closed state, which carries the same marker.
 SELECT hold_inventory(order_id, variant_id, quantity, interval '60 minutes',
                       'hold:' || order_id || ':' || variant_id)
-FROM order_lines WHERE order_id IN (:'placed_id', :'invoice_id', :'form_id');
+FROM order_lines WHERE order_id IN (:'placed_id', :'invoice_id', :'form_id', :'picking_a_id', :'picking_b_id');
 INSERT INTO order_events (order_id, kind)
-VALUES (:'placed_id', 'placed'), (:'invoice_id', 'placed'), (:'form_id', 'placed');
+VALUES (:'placed_id', 'placed'), (:'invoice_id', 'placed'), (:'form_id', 'placed'),
+       (:'picking_a_id', 'placed'), (:'picking_b_id', 'placed');
 SELECT spend_store_credit(id, -order_amount_owed(id))
-FROM orders WHERE id IN (:'invoice_id', :'form_id');
+FROM orders WHERE id IN (:'invoice_id', :'form_id', :'picking_a_id', :'picking_b_id');
 INSERT INTO invoice_preferences (order_id, invoice_type, customer_name, customer_email) VALUES
     (:'placed_id', 'member_carrier', '版面檢查', 'layout@goen.invalid'),
     (:'invoice_id', 'member_carrier', '版面顧客', 'layout-cust@goen.invalid'),
-    (:'form_id', 'member_carrier', '版面顧客', 'layout-cust@goen.invalid');
+    (:'form_id', 'member_carrier', '版面顧客', 'layout-cust@goen.invalid'),
+    (:'picking_a_id', 'member_carrier', 'Layout packer', 'layout-cust@goen.invalid'),
+    (:'picking_b_id', 'member_carrier', 'Layout packer', 'layout-cust@goen.invalid');
 INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street) VALUES
     (:'placed_id', 'layout@goen.invalid', '版面檢查', '0912345678', '110', '台北市', '信義區', '松高路 1 號'),
     (:'invoice_id', 'layout-cust@goen.invalid', '版面顧客', '0912345678', '110', '台北市', '信義區', '松高路 1 號'),
-    (:'form_id', 'layout-cust@goen.invalid', '版面顧客', '0912345678', '110', '台北市', '信義區', '松高路 1 號');
+    (:'form_id', 'layout-cust@goen.invalid', '版面顧客', '0912345678', '110', '台北市', '信義區', '松高路 1 號'),
+    (:'picking_a_id', 'layout-cust@goen.invalid', 'Layout packer', '0912345678', '110', '台北市', '信義區', '松高路 1 號'),
+    (:'picking_b_id', 'layout-cust@goen.invalid', 'Layout packer', '0912345678', '110', '台北市', '信義區', '松高路 1 號');
 -- The placed-order cookie carries this token; the URL carries the number.
 INSERT INTO order_access_grants (digest, order_id)
 VALUES (sha256(convert_to(:'placed_token', 'UTF8')), :'placed_id');
@@ -178,14 +194,15 @@ VALUES (sha256(convert_to(:'placed_token', 'UTF8')), :'placed_id');
 SET ROLE admin;
 
 -- Picking is what commits a credit-funded order and earns its points.
-UPDATE orders SET fulfillment_status = 'picking' WHERE id IN (:'invoice_id', :'form_id');
-INSERT INTO order_events (order_id, kind) VALUES (:'invoice_id', 'paid'), (:'form_id', 'paid');
-SELECT award_loyalty_points(id) FROM orders WHERE id IN (:'invoice_id', :'form_id');
+UPDATE orders SET fulfillment_status = 'picking' WHERE id IN (:'invoice_id', :'form_id', :'picking_a_id', :'picking_b_id');
+INSERT INTO order_events (order_id, kind) VALUES (:'invoice_id', 'paid'), (:'form_id', 'paid'), (:'picking_a_id', 'paid'), (:'picking_b_id', 'paid');
+SELECT award_loyalty_points(id) FROM orders WHERE id IN (:'invoice_id', :'form_id', :'picking_a_id', :'picking_b_id');
 INSERT INTO order_events (order_id, kind, actor_user_id)
-VALUES (:'invoice_id', 'picking', :'staff_id'), (:'form_id', 'picking', :'staff_id');
+VALUES (:'invoice_id', 'picking', :'staff_id'), (:'form_id', 'picking', :'staff_id'),
+       (:'picking_a_id', 'picking', :'staff_id'), (:'picking_b_id', 'picking', :'staff_id');
 SELECT record_audit_event(:'staff_id', 'order.advance', 'orders', id, NULL,
     jsonb_build_object('number', order_number, 'status', 'picking'))
-FROM orders WHERE id IN (:'invoice_id', :'form_id');
+FROM orders WHERE id IN (:'invoice_id', :'form_id', :'picking_a_id', :'picking_b_id');
 
 -- Tracking numbers are unique per carrier, so each run ships under its own.
 INSERT INTO order_shipments (order_id, carrier, tracking_number)
