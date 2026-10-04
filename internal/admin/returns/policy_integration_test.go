@@ -22,14 +22,14 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/returns"
 	"github.com/koopa0/goen/internal/i18n"
-	returnrules "github.com/koopa0/goen/internal/returns"
+	"github.com/koopa0/goen/internal/returnpage"
 )
 
 func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 	isolated := admintest.Pool(t)
 	ctx, _ := admintest.StaffContext(t, isolated)
 	s := storeOver(isolated, admintest.Refunder{})
-	customer := returnrules.NewStore(isolated)
+	customer := returnpage.NewStore(isolated)
 
 	t.Run("statutory blank reason cannot be rejected", func(t *testing.T) {
 		delivered := mustRFC3339(t, "2026-01-01T07:00:00+08:00")
@@ -51,7 +51,7 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 
 	t.Run("statutory blank reason may be approved and paid", func(t *testing.T) {
 		number, lineID := deliveredOrderAtOn(t, isolated, admintest.ShopNoonDaysAgo(t, 3))
-		if err := customer.Open(ctx, number, uuid.NullUUID{}, &returnrules.Request{
+		if err := customer.Open(ctx, number, uuid.NullUUID{}, &returnpage.Request{
 			Reason: "", Lines: map[string]int32{lineID.String(): 1},
 		}); err != nil {
 			t.Fatalf("open statutory blank-reason return: %v", err)
@@ -112,7 +112,7 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 		for _, days := range []int{8, 10, 14} {
 			delivered := admintest.ShopNoonDaysAgo(t, days)
 			number, lineID := deliveredOrderAtOn(t, isolated, delivered)
-			if err := customer.Open(ctx, number, uuid.NullUUID{}, &returnrules.Request{
+			if err := customer.Open(ctx, number, uuid.NullUUID{}, &returnpage.Request{
 				Reason: "box opened", Lines: map[string]int32{lineID.String(): 1},
 			}); err != nil {
 				t.Fatalf("open day-%d return: %v", days, err)
@@ -140,7 +140,7 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 	t.Run("day 10 partial assessment cannot except until every fact is known", func(t *testing.T) {
 		delivered := admintest.ShopNoonDaysAgo(t, 10)
 		number, lineID := deliveredOrderAtOn(t, isolated, delivered)
-		if err := customer.Open(ctx, number, uuid.NullUUID{}, &returnrules.Request{
+		if err := customer.Open(ctx, number, uuid.NullUUID{}, &returnpage.Request{
 			Reason: "used", Lines: map[string]int32{lineID.String(): 1},
 		}); err != nil {
 			t.Fatalf("open day-10 return: %v", err)
@@ -198,7 +198,7 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 	t.Run("day 10 fully assessed unmet may except and pay", func(t *testing.T) {
 		delivered := admintest.ShopNoonDaysAgo(t, 10)
 		number, lineID := deliveredOrderAtOn(t, isolated, delivered)
-		if err := customer.Open(ctx, number, uuid.NullUUID{}, &returnrules.Request{
+		if err := customer.Open(ctx, number, uuid.NullUUID{}, &returnpage.Request{
 			Reason: "used", Lines: map[string]int32{lineID.String(): 1},
 		}); err != nil {
 			t.Fatalf("open day-10 return: %v", err)
@@ -227,7 +227,7 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 	t.Run("day 10 unmet cannot record goodwill and may be rejected or excepted", func(t *testing.T) {
 		delivered := admintest.ShopNoonDaysAgo(t, 10)
 		number, lineID := deliveredOrderAtOn(t, isolated, delivered)
-		if err := customer.Open(ctx, number, uuid.NullUUID{}, &returnrules.Request{
+		if err := customer.Open(ctx, number, uuid.NullUUID{}, &returnpage.Request{
 			Reason: "used", Lines: map[string]int32{lineID.String(): 1},
 		}); err != nil {
 			t.Fatalf("open day-10 return: %v", err)
@@ -256,7 +256,7 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 	t.Run("day 10 unmet exception pays without goodwill", func(t *testing.T) {
 		delivered := admintest.ShopNoonDaysAgo(t, 10)
 		number, lineID := deliveredOrderAtOn(t, isolated, delivered)
-		if err := customer.Open(ctx, number, uuid.NullUUID{}, &returnrules.Request{
+		if err := customer.Open(ctx, number, uuid.NullUUID{}, &returnpage.Request{
 			Reason: "used", Lines: map[string]int32{lineID.String(): 1},
 		}); err != nil {
 			t.Fatalf("open day-10 return: %v", err)
@@ -292,7 +292,7 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 	t.Run("day 10 all met records goodwill and pays", func(t *testing.T) {
 		delivered := admintest.ShopNoonDaysAgo(t, 10)
 		number, lineID := deliveredOrderAtOn(t, isolated, delivered)
-		if err := customer.Open(ctx, number, uuid.NullUUID{}, &returnrules.Request{
+		if err := customer.Open(ctx, number, uuid.NullUUID{}, &returnpage.Request{
 			Reason: "box opened", Lines: map[string]int32{lineID.String(): 1},
 		}); err != nil {
 			t.Fatalf("open day-10 return: %v", err)
@@ -321,7 +321,7 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 	t.Run("day 15 approval must be an explicit exception", func(t *testing.T) {
 		delivered := admintest.ShopNoonDaysAgo(t, 15)
 		number, lineID := deliveredOrderAtOn(t, isolated, delivered)
-		if err := customer.Open(ctx, number, uuid.NullUUID{}, &returnrules.Request{
+		if err := customer.Open(ctx, number, uuid.NullUUID{}, &returnpage.Request{
 			Reason: "", Lines: map[string]int32{lineID.String(): 1},
 		}); err != nil {
 			t.Fatalf("open day-15 return: %v", err)
@@ -353,7 +353,7 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 		for _, resolution := range []string{"", "   "} {
 			delivered := admintest.ShopNoonDaysAgo(t, 15)
 			number, lineID := deliveredOrderAtOn(t, isolated, delivered)
-			if err := customer.Open(ctx, number, uuid.NullUUID{}, &returnrules.Request{
+			if err := customer.Open(ctx, number, uuid.NullUUID{}, &returnpage.Request{
 				Reason: "", Lines: map[string]int32{lineID.String(): 1},
 			}); err != nil {
 				t.Fatalf("open day-15 return: %v", err)
@@ -375,7 +375,7 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 	t.Run("handler unexplained exception is 422 and keeps the draft", func(t *testing.T) {
 		delivered := admintest.ShopNoonDaysAgo(t, 15)
 		number, lineID := deliveredOrderAtOn(t, isolated, delivered)
-		if err := customer.Open(ctx, number, uuid.NullUUID{}, &returnrules.Request{
+		if err := customer.Open(ctx, number, uuid.NullUUID{}, &returnpage.Request{
 			Reason: "", Lines: map[string]int32{lineID.String(): 1},
 		}); err != nil {
 			t.Fatalf("open day-15 return: %v", err)
@@ -408,7 +408,7 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 	t.Run("approved exception retry does not demand a new reason", func(t *testing.T) {
 		delivered := admintest.ShopNoonDaysAgo(t, 15)
 		number, lineID := deliveredOrderAtOn(t, isolated, delivered)
-		if err := customer.Open(ctx, number, uuid.NullUUID{}, &returnrules.Request{
+		if err := customer.Open(ctx, number, uuid.NullUUID{}, &returnpage.Request{
 			Reason: "", Lines: map[string]int32{lineID.String(): 1},
 		}); err != nil {
 			t.Fatalf("open day-15 return: %v", err)
@@ -524,7 +524,7 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 	t.Run("assessment then a newer version refuses the stale decide", func(t *testing.T) {
 		delivered := admintest.ShopNoonDaysAgo(t, 10)
 		number, lineID := deliveredOrderAtOn(t, isolated, delivered)
-		if err := customer.Open(ctx, number, uuid.NullUUID{}, &returnrules.Request{
+		if err := customer.Open(ctx, number, uuid.NullUUID{}, &returnpage.Request{
 			Reason: "box opened", Lines: map[string]int32{lineID.String(): 1},
 		}); err != nil {
 			t.Fatalf("open day-10 return: %v", err)
@@ -553,7 +553,7 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 	t.Run("handler assess then decide pays and keeps the draft on 422", func(t *testing.T) {
 		delivered := admintest.ShopNoonDaysAgo(t, 10)
 		number, lineID := deliveredOrderAtOn(t, isolated, delivered)
-		if err := customer.Open(ctx, number, uuid.NullUUID{}, &returnrules.Request{
+		if err := customer.Open(ctx, number, uuid.NullUUID{}, &returnpage.Request{
 			Reason: "box opened", Lines: map[string]int32{lineID.String(): 1},
 		}); err != nil {
 			t.Fatalf("open day-10 return: %v", err)
@@ -610,14 +610,14 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 func TestReviewClearedAssessmentBasisSurvivesRefusal(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := storeOver(pool, admintest.Refunder{})
-	customer := returnrules.NewStore(pool)
+	customer := returnpage.NewStore(pool)
 
 	const storedBasis = "old evidence withdrawn by staff"
 	openDay10 := func(t *testing.T) (uuid.UUID, uuid.UUID) {
 		t.Helper()
 		delivered := admintest.ShopNoonDaysAgo(t, 10)
 		number, lineID := deliveredOrderAt(t, delivered)
-		if err := customer.Open(ctx, number, uuid.NullUUID{}, &returnrules.Request{
+		if err := customer.Open(ctx, number, uuid.NullUUID{}, &returnpage.Request{
 			Reason: "box opened", Lines: map[string]int32{lineID.String(): 1},
 		}); err != nil {
 			t.Fatalf("open day-10 return: %v", err)

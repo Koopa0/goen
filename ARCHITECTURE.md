@@ -230,7 +230,8 @@ flowchart TB
 | [`internal/product`](internal/product) | Product detail, reviews, questions, restock subscriptions. |
 | [`internal/ratelimit`](internal/ratelimit) | In-memory limits and trusted-proxy client addresses. |
 | [`internal/recommend`](internal/recommend) | Co-purchase projection refresh. |
-| [`internal/returns`](internal/returns) | Customer return requests and eligibility rules. |
+| [`internal/returnpage`](internal/returnpage) | The buyer's return form for an order. |
+| [`internal/returns`](internal/returns) | Return statuses and the eligibility and decision rules. |
 | [`internal/shoptime`](internal/shoptime) | Shop-zone dates, times, calendar calculations. |
 | [`internal/site`](internal/site) | Information/policies, sitemap, locale switching, 404 pages. |
 | [`internal/twofactor`](internal/twofactor) | TOTP enrollment, encrypted secrets, verification, session step-up. |
@@ -327,7 +328,7 @@ The browser return is navigation, not payment evidence. `processWebhook` claims 
 
 ### Cancellation, returns, and invoice correction
 
-[`admin/orders`](internal/admin/orders) records parcels and shipped quantities; [`returns`](internal/returns) accepts requests against shipped goods. When approving a return, [`admin/returns.Store.Decide`](internal/admin/returns/store.go) commits the assessed refund allocation through `closeReturn`, then calls `PayApproved` in the same request. Unsettled sources remain outstanding for retry. Inspection/restock is recorded separately; completing a return posts no stock. [`refunds/payout.go`](internal/admin/refunds/payout.go) retries outstanding card/credit sources and records the refunded event only after both settle.
+[`admin/orders`](internal/admin/orders) records parcels and shipped quantities; [`returnpage`](internal/returnpage) accepts requests against shipped goods. When approving a return, [`admin/returns.Store.Decide`](internal/admin/returns/store.go) commits the assessed refund allocation through `closeReturn`, then calls `PayApproved` in the same request. Unsettled sources remain outstanding for retry. Inspection/restock is recorded separately; completing a return posts no stock. [`refunds/payout.go`](internal/admin/refunds/payout.go) retries outstanding card/credit sources and records the refunded event only after both settle.
 
 For a staff refund before shipment, [`RefundBeforeShipment`](internal/admin/refunds/beforeshipment.go) persists the approved refund request, tries invoice correction, pays the outstanding sources, then performs guarded cancellation and stock release. An invoice error does not stop the payout; unresolved correction can still block final cancellation.
 

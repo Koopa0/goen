@@ -1,4 +1,4 @@
-package returns
+package returnpage
 
 import (
 	"context"
@@ -22,7 +22,7 @@ type Store struct {
 
 func NewStore(pool *pgxpool.Pool) *Store {
 	if pool == nil {
-		panic("returns: NewStore requires a pool")
+		panic("returnpage: NewStore requires a pool")
 	}
 	return &Store{pool: pool, q: db.New(pool)}
 }
