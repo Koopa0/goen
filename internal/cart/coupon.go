@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
+	"github.com/koopa0/goen/internal/coupon"
 	"github.com/koopa0/goen/internal/db"
 )
 
@@ -32,7 +33,7 @@ type Coupon struct {
 	id          uuid.UUID
 	code        string
 	description string
-	kind        string
+	kind        coupon.Kind
 
 	amountCents  int64
 	percentBP    int32
@@ -52,9 +53,9 @@ func (c Coupon) Apply(subtotalCents int64) (discountCents int64, freeShipping bo
 	}
 
 	switch c.kind {
-	case "amount":
+	case coupon.Amount:
 		return min(c.amountCents, subtotalCents), false, nil
-	case "percent":
+	case coupon.Percent:
 		// Split quotient and remainder before multiplying: subtotalCents may
 		// fit in int64 while subtotalCents*percentBP does not.
 		basisPoints := int64(c.percentBP)
@@ -78,12 +79,10 @@ func (c Coupon) Apply(subtotalCents int64) (discountCents int64, freeShipping bo
 			discountCents += centsPerYuan - remainder
 		}
 		return discountCents, false, nil
-	case "free_shipping":
+	case coupon.FreeShipping:
 		return 0, true, nil
 	default:
-		// Reaching this arm is binary/schema skew or a construction bug, not
-		// input the customer can repair with another code.
-		panic(fmt.Sprintf("cart: coupon %s has unknown kind %q", c.code, c.kind))
+		return 0, false, fmt.Errorf("%w: coupon %s has unknown kind %q", ErrNoSuchCoupon, c.code, c.kind)
 	}
 }
 
@@ -121,7 +120,7 @@ func couponByCode(ctx context.Context, q *db.Queries, code string) (*Coupon, err
 		id:           row.ID,
 		code:         row.Code,
 		description:  row.Description,
-		kind:         row.Kind,
+		kind:         coupon.Kind(row.Kind),
 		amountCents:  row.AmountCents.Int64,
 		percentBP:    row.PercentBp.Int32,
 		capCents:     row.MaxDiscountCents.Int64,

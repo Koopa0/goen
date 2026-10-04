@@ -3,6 +3,7 @@ package admin
 import (
 	"fmt"
 
+	"github.com/koopa0/goen/internal/coupon"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -126,9 +127,9 @@ templ Coupons(p layouts.Page, v CouponsView) {
 							{ i18n.T(ctx, i18n.KeyAdminCoupKind) }
 						}
 						<select class="goen-input" id="c-kind" name="kind" required>
-							<option value="amount" selected?={ v.Draft.IsKind("amount") }>{ i18n.T(ctx, i18n.KeyCouponKindAmount) }</option>
-							<option value="percent" selected?={ v.Draft.IsKind("percent") }>{ i18n.T(ctx, i18n.KeyCouponKindPercent) }</option>
-							<option value="free_shipping" selected?={ v.Draft.IsKind("free_shipping") }>{ i18n.T(ctx, i18n.KeyCouponKindShipping) }</option>
+							<option value={ string(coupon.Amount) } selected?={ v.Draft.IsKind(coupon.Amount) }>{ i18n.T(ctx, i18n.KeyCouponKindAmount) }</option>
+							<option value={ string(coupon.Percent) } selected?={ v.Draft.IsKind(coupon.Percent) }>{ i18n.T(ctx, i18n.KeyCouponKindPercent) }</option>
+							<option value={ string(coupon.FreeShipping) } selected?={ v.Draft.IsKind(coupon.FreeShipping) }>{ i18n.T(ctx, i18n.KeyCouponKindShipping) }</option>
 						</select>
 					</div>
 				</div>
