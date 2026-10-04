@@ -1153,12 +1153,12 @@ func surchargeFixture(t *testing.T) (method, version, zone uuid.UUID) {
 	if err := pool.QueryRow(t.Context(), `
  WITH method AS (
   INSERT INTO shipping_methods(code,destination_kind,is_active)
-  VALUES ('stale_'||gen_random_uuid(),'address',false) RETURNING id
+  VALUES ('stale_'||replace(gen_random_uuid()::text, '-', ''),'address',false) RETURNING id
  ), version AS (
   INSERT INTO shipping_method_versions(method_id,name,fee_cents,effective_at)
   SELECT id,'Initial shipping',8000,now()-interval '1 day' FROM method RETURNING id,method_id
  ), zone AS (
-  INSERT INTO shipping_zones(code,name) VALUES ('stale_'||gen_random_uuid(),'Test zone') RETURNING id
+  INSERT INTO shipping_zones(code,name) VALUES ('stale_'||replace(gen_random_uuid()::text, '-', ''),'Test zone') RETURNING id
  ), surcharge AS (
   INSERT INTO shipping_version_zones(version_id,zone_id,surcharge_cents)
   SELECT version.id,zone.id,10000 FROM version,zone
