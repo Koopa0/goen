@@ -220,15 +220,26 @@ func assertBuyBoxIntact(t *testing.T, res *httptest.ResponseRecorder, want *page
 
 func assertRecommendationQueriesDrained(t *testing.T, p *pgxpool.Pool) {
 	t.Helper()
-	if acquired := p.Stat().AcquiredConns(); acquired != 0 {
-		t.Errorf("optional read left %d acquired connections", acquired)
-	}
-	var active int
-	if err := p.QueryRow(t.Context(), `SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND state = 'active' AND query LIKE 'SELECT pg_sleep%'`).Scan(&active); err != nil {
-		t.Fatal(err)
-	}
-	if active != 0 {
-		t.Errorf("optional read left %d sleeping queries active", active)
+	// pgx destroys cancelled connections through puddle's asynchronous destructor.
+	// The query has returned before its pool statistics necessarily reflect that.
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+	defer cancel()
+	tick := time.NewTicker(10 * time.Millisecond)
+	defer tick.Stop()
+	for {
+		var active int
+		if err := p.QueryRow(ctx, `SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND state = 'active' AND query LIKE 'SELECT pg_sleep%'`).Scan(&active); err != nil {
+			t.Fatalf("read recommendation cleanup state: %v", err)
+		}
+		acquired := p.Stat().AcquiredConns()
+		if acquired == 0 && active == 0 {
+			return
+		}
+		select {
+		case <-ctx.Done():
+			t.Fatalf("optional cleanup: acquired connections = %d, sleeping queries = %d, want both 0 within 2s", acquired, active)
+		case <-tick.C:
+		}
 	}
 }
 
