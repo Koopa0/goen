@@ -145,7 +145,7 @@ body {
 
 .ui-input, .ui-textarea {
   font-family: var(--font-sans); font-size: var(--fs-13); color: var(--fg);
-  background: var(--n-0); border: 1px solid var(--n-300); border-radius: var(--r-md);
+  background: var(--n-0); border: 1px solid var(--control-boundary); border-radius: var(--r-md);
   padding: 8px 10px; width: 100%; box-sizing: border-box; outline: none;
   transition: border-color var(--dur-base) var(--ease-standard), background var(--dur-base);
 }
