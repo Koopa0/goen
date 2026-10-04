@@ -458,7 +458,8 @@ templ langSwitch(name string, english bool) {
 					checked
 				}
 			/>
-			<span>{ i18n.T(ctx, i18n.KeyAdminLangZh) }</span>
+			// i18n-exempt: a language's own name, shown in both locales on purpose.
+			<span>繁體中文</span>
 		</label>
 		<label class="goen-admin__langopt">
 			<input
@@ -470,7 +471,8 @@ templ langSwitch(name string, english bool) {
 					checked
 				}
 			/>
-			<span>{ i18n.T(ctx, i18n.KeyAdminLangEn) }</span>
+			// i18n-exempt: a language's own name, shown in both locales on purpose.
+			<span>English</span>
 		</label>
 	</fieldset>
 }
