@@ -104,5 +104,8 @@ func (s *Store) withdrawIssue(ctx context.Context, operationID uuid.UUID) error 
 	if err != nil {
 		return fmt.Errorf("read invoice operation %s: %w", leased, err)
 	}
+	if op.Sends > 0 {
+		return s.retry(ctx, &op, owner, "issue_sent_before_cancellation", ErrDisabled)
+	}
 	return s.reject(ctx, &op, owner, "issue_withdrawn_order_cancelled", nil)
 }
