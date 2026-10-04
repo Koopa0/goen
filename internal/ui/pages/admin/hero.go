@@ -101,6 +101,15 @@ type BannerDraft struct {
 	CTALabelEn              string
 }
 
+// BannerInEnglish is whether the banner form opens on its English fields: only
+// when every refusal is in them, so no refused field starts hidden.
+func (v *HeroView) BannerInEnglish() bool {
+	if v.HasErr("message") || v.HasErr("short") {
+		return false
+	}
+	return v.HasErr("message_en") || v.HasErr("short_en")
+}
+
 func (v *HeroView) HasBanners() bool { return len(v.Banners) > 0 }
 
 type HeroDraft struct {
