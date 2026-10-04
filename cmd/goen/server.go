@@ -88,12 +88,12 @@ type RouterConfig struct {
 	BackOffice BackOfficeConfig
 }
 
-// StorefrontConfig is what the shop and the customer account need. Pool is
+// StorefrontConfig is what the shop and the customer account need. StorePool is
 // required; every provider below may be nil, and the feature it serves then
 // disables itself and says so.
 type StorefrontConfig struct {
-	// Pool runs as `store`.
-	Pool *pgxpool.Pool
+	// StorePool runs as `store`.
+	StorePool *pgxpool.Pool
 	// Payments is Stripe, or is disabled and the payment page says so.
 	Payments *payment.Gateway
 	BaseURL  string
@@ -137,11 +137,11 @@ type BackOfficeConfig struct {
 func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	// As struct fields the two pools can be omitted silently, and they sit
 	// beside Payments, Invoices, Google and TOTPKey, which may legitimately be nil.
-	if cfg == nil || cfg.Storefront.Pool == nil || cfg.BackOffice.AdminPool == nil || log == nil {
+	if cfg == nil || cfg.Storefront.StorePool == nil || cfg.BackOffice.AdminPool == nil || log == nil {
 		panic("goen: newRouter requires both pools and a logger")
 	}
 	front := &cfg.Storefront
-	pool, adminPool := front.Pool, cfg.BackOffice.AdminPool
+	pool, adminPool := front.StorePool, cfg.BackOffice.AdminPool
 	baseURL, secureCookies := front.BaseURL, front.SecureCookies
 
 	mux := http.NewServeMux()
@@ -209,7 +209,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 func storefrontRoutes(mux *http.ServeMux, cfg *StorefrontConfig, log *slog.Logger,
 	catalogue *catalog.Store, sitePages *site.Handler, basket *cart.Handler,
 	customers *account.Handler, basketStore *cart.Store, findLimit *ratelimit.Limiter) {
-	pool, gateway := cfg.Pool, cfg.Payments
+	pool, gateway := cfg.StorePool, cfg.Payments
 	baseURL, secureCookies := cfg.BaseURL, cfg.SecureCookies
 	authLimit := ratelimit.New(ratelimit.Config{
 		Every: 3 * time.Second, Burst: 20, TTL: time.Hour, MaxKeys: 65_536,

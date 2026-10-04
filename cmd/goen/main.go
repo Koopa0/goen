@@ -490,7 +490,7 @@ func run() error {
 
 	srv := newServer(&cfg, &RouterConfig{
 		Storefront: StorefrontConfig{
-			Pool: pool, Payments: gateway, BaseURL: cfg.BaseURL, SecureCookies: cfg.SecureCookies,
+			StorePool: pool, Payments: gateway, BaseURL: cfg.BaseURL, SecureCookies: cfg.SecureCookies,
 			Invoices: invoices, Google: googleSignIn, StoreMap: storeMap, DemoAccount: demoAccount,
 		},
 		BackOffice: BackOfficeConfig{

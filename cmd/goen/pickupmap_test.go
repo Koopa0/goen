@@ -52,7 +52,7 @@ func storeMapRouter(t *testing.T, configured bool) http.Handler {
 	}
 	return newRouter(&RouterConfig{
 		Storefront: StorefrontConfig{
-			Pool: idle, Payments: gateway, BaseURL: "https://goen.test", StoreMap: storeMap,
+			StorePool: idle, Payments: gateway, BaseURL: "https://goen.test", StoreMap: storeMap,
 		},
 		BackOffice: BackOfficeConfig{
 			AdminPool: idle, Payments: gateway, Refunder: refunds.NewRefunder(""), StoreMap: storeMap,

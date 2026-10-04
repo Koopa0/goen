@@ -28,7 +28,7 @@ func TestUnstorableTextNeverReachesTheDatabase(t *testing.T) {
 	}
 	router := newRouter(&RouterConfig{
 		Storefront: StorefrontConfig{
-			Pool: pool, Payments: gateway, BaseURL: "http://127.0.0.1",
+			StorePool: pool, Payments: gateway, BaseURL: "http://127.0.0.1",
 		},
 		BackOffice: BackOfficeConfig{
 			AdminPool: pool, Payments: gateway, Refunder: refunds.NewRefunder(""),

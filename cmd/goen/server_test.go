@@ -1035,7 +1035,7 @@ func TestOnlyTheSecurePosturePinsHTTPS(t *testing.T) {
 	} {
 		router := newRouter(&RouterConfig{
 			Storefront: StorefrontConfig{
-				Pool: idle, Payments: gateway, BaseURL: "https://goen.test", SecureCookies: tt.secure,
+				StorePool: idle, Payments: gateway, BaseURL: "https://goen.test", SecureCookies: tt.secure,
 			},
 			BackOffice: BackOfficeConfig{
 				AdminPool: idle, Payments: gateway, Refunder: refunds.NewRefunder(""), SecureCookies: tt.secure,
@@ -1070,7 +1070,7 @@ func TestSharePreviewNamesTheConfiguredOriginNotTheRequestHost(t *testing.T) {
 	}
 	router := newRouter(&RouterConfig{
 		Storefront: StorefrontConfig{
-			Pool: idle, Payments: gateway, BaseURL: "https://goen.test",
+			StorePool: idle, Payments: gateway, BaseURL: "https://goen.test",
 		},
 		BackOffice: BackOfficeConfig{
 			AdminPool: idle, Payments: gateway, Refunder: refunds.NewRefunder(""),

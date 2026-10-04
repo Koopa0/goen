@@ -162,7 +162,7 @@ func TestTheRouterKeepsAssetsStatelessAndCompressesPages(t *testing.T) {
 	}
 	router := newRouter(&RouterConfig{
 		Storefront: StorefrontConfig{
-			Pool: counted, Payments: gateway, BaseURL: "http://127.0.0.1",
+			StorePool: counted, Payments: gateway, BaseURL: "http://127.0.0.1",
 		},
 		BackOffice: BackOfficeConfig{
 			AdminPool: counted, Payments: gateway, Refunder: refunds.NewRefunder(""),
@@ -244,7 +244,7 @@ func TestTheRouterKeepsNoSignedInPageInAnyCache(t *testing.T) {
 	}
 	router := newRouter(&RouterConfig{
 		Storefront: StorefrontConfig{
-			Pool: pool, Payments: gateway, BaseURL: "http://127.0.0.1",
+			StorePool: pool, Payments: gateway, BaseURL: "http://127.0.0.1",
 		},
 		BackOffice: BackOfficeConfig{
 			AdminPool: pool, Payments: gateway, Refunder: refunds.NewRefunder(""), TOTPKey: bytes.Repeat([]byte{7}, 32),
@@ -412,7 +412,7 @@ func TestTheStoreMapReturnCostsNoDatabaseRoundTrip(t *testing.T) {
 	}
 	router := newRouter(&RouterConfig{
 		Storefront: StorefrontConfig{
-			Pool: counted, Payments: gateway, BaseURL: "https://goen.test", StoreMap: storeMap,
+			StorePool: counted, Payments: gateway, BaseURL: "https://goen.test", StoreMap: storeMap,
 		},
 		BackOffice: BackOfficeConfig{
 			AdminPool: counted, Payments: gateway, Refunder: refunds.NewRefunder(""), StoreMap: storeMap,

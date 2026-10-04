@@ -46,7 +46,7 @@ func TestStorefrontPoolWaitRespectsRequestBudget(t *testing.T) {
 		&config{Addr: "127.0.0.1:0", SecureCookies: false},
 		&RouterConfig{
 			Storefront: StorefrontConfig{
-				Pool: p, Payments: gateway, BaseURL: "http://127.0.0.1",
+				StorePool: p, Payments: gateway, BaseURL: "http://127.0.0.1",
 			},
 			BackOffice: BackOfficeConfig{
 				AdminPool: ap, Payments: gateway, Refunder: refunds.NewRefunder(""),
