@@ -361,7 +361,7 @@ func (s *Store) sendAllowance(
 // say whether the send reached ECPay, and a second send would ask the buyer
 // twice. Once the link has lapsed the operation needs a person.
 func (s *Store) awaitBuyer(ctx context.Context, op *operation, owner uuid.UUID, now time.Time) error {
-	if buyerMayStillAgree(op.LastSentAt, now) || true {
+	if buyerMayStillAgree(op.LastSentAt, now) {
 		return s.retry(ctx, op, owner, "allowance_awaiting_buyer", ErrAwaitingBuyer)
 	}
 	cause := fmt.Errorf("%w: the buyer did not agree to the allowance in time", ErrPending)
