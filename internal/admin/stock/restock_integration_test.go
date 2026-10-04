@@ -19,13 +19,13 @@ func TestRestockClaimAndOutboxRollBackWithStock(t *testing.T) {
 	writer := admintest.AdminRolePool(t, owner)
 	ctx := t.Context()
 	var variant uuid.UUID
-	var stock int32
+	var quantity int32
 	if err := owner.QueryRow(ctx, `
 		SELECT id, stock_quantity FROM product_variants
-		WHERE is_active AND stock_quantity > safety_stock ORDER BY id LIMIT 1`).Scan(&variant, &stock); err != nil {
+		WHERE is_active AND stock_quantity > safety_stock ORDER BY id LIMIT 1`).Scan(&variant, &quantity); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := owner.Exec(ctx, `UPDATE product_variants SET safety_stock = $2 WHERE id = $1`, variant, stock); err != nil {
+	if _, err := owner.Exec(ctx, `UPDATE product_variants SET safety_stock = $2 WHERE id = $1`, variant, quantity); err != nil {
 		t.Fatal(err)
 	}
 	subscriptions := make([]uuid.UUID, 0, len(i18n.Locales()))
@@ -42,7 +42,7 @@ func TestRestockClaimAndOutboxRollBackWithStock(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
-	if _, err := tx.Exec(ctx, `UPDATE product_variants SET safety_stock = $2 WHERE id = $1`, variant, stock-1); err != nil {
+	if _, err := tx.Exec(ctx, `UPDATE product_variants SET safety_stock = $2 WHERE id = $1`, variant, quantity-1); err != nil {
 		t.Fatal(err)
 	}
 	var claimed, queued int
@@ -58,14 +58,14 @@ func TestRestockClaimAndOutboxRollBackWithStock(t *testing.T) {
 	if err := owner.QueryRow(ctx, `SELECT safety_stock,
 		(SELECT count(*) FROM stock_notifications WHERE variant_id = $1 AND notified_at IS NOT NULL),
 		(SELECT count(*) FROM outbox_messages WHERE topic = $2)
-		FROM product_variants WHERE id = $1`, variant, outbox.TopicRestocked.Name()).Scan(&safety, &claimed, &queued); err != nil || safety != stock || claimed != 0 || queued != 0 {
+		FROM product_variants WHERE id = $1`, variant, outbox.TopicRestocked.Name()).Scan(&safety, &claimed, &queued); err != nil || safety != quantity || claimed != 0 || queued != 0 {
 		t.Fatalf("after rollback safety/claimed/queued = %d/%d/%d, %v", safety, claimed, queued, err)
 	}
-	if _, err := writer.Exec(ctx, `UPDATE product_variants SET safety_stock = $2 WHERE id = $1`, variant, stock-1); err != nil {
+	if _, err := writer.Exec(ctx, `UPDATE product_variants SET safety_stock = $2 WHERE id = $1`, variant, quantity-1); err != nil {
 		t.Fatal(err)
 	}
 	admintest.AssertRestockQueued(t, owner, subscriptions)
-	if _, err := writer.Exec(ctx, `UPDATE product_variants SET safety_stock = $2 WHERE id = $1`, variant, stock-1); err != nil {
+	if _, err := writer.Exec(ctx, `UPDATE product_variants SET safety_stock = $2 WHERE id = $1`, variant, quantity-1); err != nil {
 		t.Fatal(err)
 	}
 	admintest.AssertRestockQueued(t, owner, subscriptions)
