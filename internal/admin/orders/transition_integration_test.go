@@ -10,35 +10,30 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/admin/admintest"
-	"github.com/koopa0/goen/internal/admin/orders"
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/order"
 )
 
 // The trigger's legality check raises before every precondition (payment,
 // refund, invoice, parcels), so a refusal under any other constraint means the
 // transition table itself let the pair through.
-func TestTheTriggerAcceptsTheTransitionsTheDeskOffers(t *testing.T) {
+func TestNextIsTheTransitionsTheTriggerAllows(t *testing.T) {
 	customer := admintest.CreditedAccount(t, pool, 0)
 	orderID := admintest.OrderForCustomer(t, pool, customer, 1000, false)
 
-	// picking to shipped is the dispatch itself: the desk does not offer it as a
-	// status change because only Store.Ship also settles the stock.
-	dispatch := [2]pages.FulfillmentStatus{pages.FulfillmentPicking, pages.FulfillmentShipped}
-
-	for _, from := range pages.FulfillmentStatuses {
-		for _, to := range pages.FulfillmentStatuses {
+	for _, from := range order.FulfillmentStatuses {
+		for _, to := range order.FulfillmentStatuses {
 			if from == to {
 				continue
 			}
-			want := slices.Contains(orders.NextStatuses(from), to) || [2]pages.FulfillmentStatus{from, to} == dispatch
+			want := slices.Contains(from.Next(), to)
 			if got := triggerAllows(t, orderID, from, to); got != want {
-				t.Errorf("%s to %s: trigger allows %t, the desk offers %t", from, to, got, want)
+				t.Errorf("%s to %s: trigger allows %t, Next lists %t", from, to, got, want)
 			}
 		}
 	}
 }
 
-func triggerAllows(t *testing.T, orderID uuid.UUID, from, to pages.FulfillmentStatus) bool {
+func triggerAllows(t *testing.T, orderID uuid.UUID, from, to order.FulfillmentStatus) bool {
 	t.Helper()
 	ctx := t.Context()
 	tx, err := pool.Begin(ctx)

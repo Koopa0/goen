@@ -13,6 +13,7 @@ import (
 
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -122,7 +123,7 @@ func (h *Handler) renderPay(w http.ResponseWriter, r *http.Request, o *Order, ha
 		CreditCents:    b.CreditCents,
 	}
 	switch {
-	case pages.FulfillmentStatus(o.Fulfillment) == pages.FulfillmentCancelled:
+	case order.FulfillmentStatus(o.Fulfillment) == order.FulfillmentCancelled:
 		view.Closure = pages.PayOrderCancelled
 	case !hasSession && !o.holdCoversSession:
 		view.Closure = pages.PayWindowClosed
@@ -609,8 +610,8 @@ func (h *Handler) payableOrder(w http.ResponseWriter, r *http.Request, number st
 		return nil, false
 	}
 	// An open payment page on a cancelled order takes money for no goods.
-	if o.Fulfillment != "pending" && !o.Paid && !o.FullyFunded() {
-		if pages.FulfillmentStatus(o.Fulfillment) == pages.FulfillmentCancelled {
+	if order.FulfillmentStatus(o.Fulfillment) != order.FulfillmentPending && !o.Paid && !o.FullyFunded() {
+		if order.FulfillmentStatus(o.Fulfillment) == order.FulfillmentCancelled {
 			h.renderPay(w, r, o, false, http.StatusConflict)
 		} else {
 			h.paymentConflict(w, r)

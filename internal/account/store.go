@@ -19,6 +19,7 @@ import (
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/db"
 	mailmsg "github.com/koopa0/goen/internal/email"
+	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -525,7 +526,7 @@ func (s *Store) Overview(ctx context.Context, u User, after ...string) (pages.Ac
 		o := &orders[i]
 		view.Orders = append(view.Orders, pages.AccountOrder{
 			Number:     o.OrderNumber,
-			Status:     pages.FulfillmentStatus(o.FulfillmentStatus),
+			Status:     order.FulfillmentStatus(o.FulfillmentStatus),
 			PlacedAt:   shoptime.Day(o.PlacedAt),
 			TotalCents: o.SubtotalCents - o.DiscountCents + o.ShippingCents + o.TaxCents,
 			LineCount:  o.LineCount,

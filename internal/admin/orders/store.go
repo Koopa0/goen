@@ -15,7 +15,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/admin/audit"
-	"github.com/koopa0/goen/internal/admin/orderstatus"
 	"github.com/koopa0/goen/internal/carrier"
 	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/db"
@@ -23,6 +22,7 @@ import (
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
+	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/ordernotice"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/pickup"
@@ -113,11 +113,11 @@ const DashboardRows = 8
 // total is assembled here rather than in the query because the storefront's
 // own order view computes it the same way from the same four columns.
 func orderRow(ctx context.Context, o *db.AdminOrdersRow) admin.OrderRow {
-	fulfillment := pages.FulfillmentStatus(o.FulfillmentStatus)
+	fulfillment := order.FulfillmentStatus(o.FulfillmentStatus)
 	return admin.OrderRow{
 		Number:     o.OrderNumber,
 		Status:     fulfillment,
-		StatusText: orderstatus.FundedLabel(ctx, fulfillment, o.Committed, o.OwedCents),
+		StatusText: admin.FundedFulfillmentLabel(ctx, fulfillment, o.Committed, o.OwedCents),
 		PlacedAt:   shoptime.Minute(o.PlacedAt),
 		Recipient:  o.Recipient,
 		TotalCents: o.SubtotalCents - o.DiscountCents + o.ShippingCents + o.TaxCents,
@@ -157,9 +157,9 @@ func (s *Store) List(ctx context.Context, status admin.QueueFilter, term string,
 		filter, funding := string(status), ""
 		switch status {
 		case admin.QueueAwaitingPayment:
-			filter, funding = string(pages.FulfillmentPending), "unpaid"
+			filter, funding = string(order.FulfillmentPending), "unpaid"
 		case admin.QueueReady:
-			filter, funding = string(pages.FulfillmentPending), "funded"
+			filter, funding = string(order.FulfillmentPending), "funded"
 		default: // a fulfilment status filters by itself
 		}
 		rows, err = s.q.AdminOrders(ctx, db.AdminOrdersParams{HasCursor: resumed, AfterAt: from.At, AfterID: from.ID, Status: filter, Funding: funding, RowLimit: web.PageLimit})
@@ -186,9 +186,9 @@ func (s *Store) List(ctx context.Context, status admin.QueueFilter, term string,
 	for _, c := range counts {
 		key := admin.QueueFilter(c.FulfillmentStatus)
 		switch {
-		case c.FulfillmentStatus == string(pages.FulfillmentPending) && c.Funded:
+		case c.FulfillmentStatus == string(order.FulfillmentPending) && c.Funded:
 			key = admin.QueueReady
-		case c.FulfillmentStatus == string(pages.FulfillmentPending):
+		case c.FulfillmentStatus == string(order.FulfillmentPending):
 			key = admin.QueueAwaitingPayment
 		}
 		countsByFilter[key] += c.N
@@ -223,10 +223,10 @@ func (s *Store) Order(ctx context.Context, number string) (admin.OrderView, erro
 		return admin.OrderView{}, fmt.Errorf("read order lines: %w", err)
 	}
 
-	fulfillment := pages.FulfillmentStatus(o.FulfillmentStatus)
+	fulfillment := order.FulfillmentStatus(o.FulfillmentStatus)
 	view := admin.OrderView{
 		Number: o.OrderNumber, Status: fulfillment,
-		StatusText:    orderstatus.FundedLabel(ctx, fulfillment, o.Committed, o.OwedCents),
+		StatusText:    admin.FundedFulfillmentLabel(ctx, fulfillment, o.Committed, o.OwedCents),
 		PlacedAt:      shoptime.Minute(o.PlacedAt),
 		ShippingName:  o.ShippingMethodName,
 		SubtotalCents: o.SubtotalCents, ShippingCents: o.ShippingCents,
@@ -292,7 +292,7 @@ func (s *Store) Order(ctx context.Context, number string) (admin.OrderView, erro
 	for i := range events {
 		e := &events[i]
 		view.Timeline = append(view.Timeline, admin.OrderEvent{
-			Kind: pages.OrderEventKind(e.Kind), Note: e.Note.String,
+			Kind: order.EventKind(e.Kind), Note: e.Note.String,
 			At: shoptime.Minute(e.OccurredAt), Actor: e.ActorName, System: e.BySystem,
 		})
 	}
@@ -312,10 +312,10 @@ func (s *Store) Order(ctx context.Context, number string) (admin.OrderView, erro
 	return view, nil
 }
 
-func correctable(status pages.FulfillmentStatus) bool {
+func correctable(status order.FulfillmentStatus) bool {
 	switch status {
-	case pages.FulfillmentShipped, pages.FulfillmentDelivered,
-		pages.FulfillmentCompleted, pages.FulfillmentCancelled:
+	case order.FulfillmentShipped, order.FulfillmentDelivered,
+		order.FulfillmentCompleted, order.FulfillmentCancelled:
 		return false
 	default:
 		return true
@@ -327,7 +327,7 @@ func correctable(status pages.FulfillmentStatus) bool {
 //
 // The Checkout Sessions returned are a CANCELLATION's, for the caller to close
 // at Stripe once this has committed; every other status returns none.
-func (s *Store) Advance(ctx context.Context, number string, status pages.FulfillmentStatus, actor uuid.NullUUID) ([]string, error) {
+func (s *Store) Advance(ctx context.Context, number string, status order.FulfillmentStatus, actor uuid.NullUUID) ([]string, error) {
 	kind, err := advanceKind(status)
 	if err != nil {
 		return nil, err
@@ -346,7 +346,7 @@ func (s *Store) Advance(ctx context.Context, number string, status pages.Fulfill
 	}
 	// orders_check_transition lets a same-status UPDATE through, so a double
 	// submit would otherwise record the step and its audit row twice.
-	if pages.FulfillmentStatus(row.FulfillmentStatus) == status {
+	if order.FulfillmentStatus(row.FulfillmentStatus) == status {
 		return nil, ErrRefused
 	}
 	if advanceErr := q.AdvanceOrder(ctx, db.AdvanceOrderParams{
@@ -359,7 +359,7 @@ func (s *Store) Advance(ctx context.Context, number string, status pages.Fulfill
 	// transition won, that release waits behind us. A pre-lock snapshot can go
 	// stale and make an otherwise valid cancellation roll back.
 	var held []uuid.UUID
-	if status == pages.FulfillmentCancelled {
+	if status == order.FulfillmentCancelled {
 		// The database admits cancelling a paid order once its refund before
 		// shipment has settled, but only RefundBeforeShipment closes that
 		// return; the effects below would reverse the refunded credit and
@@ -374,7 +374,7 @@ func (s *Store) Advance(ctx context.Context, number string, status pages.Fulfill
 		}
 	}
 	if err := applyStatusEffects(ctx, q, statusEffect{
-		status: status, previous: pages.FulfillmentStatus(row.FulfillmentStatus), number: number, orderID: row.ID, held: held,
+		status: status, previous: order.FulfillmentStatus(row.FulfillmentStatus), number: number, orderID: row.ID, held: held,
 	}); err != nil {
 		return nil, err
 	}
@@ -392,7 +392,7 @@ func (s *Store) Advance(ctx context.Context, number string, status pages.Fulfill
 	// Read inside the transaction so the set handed back is the one this
 	// transaction saw, not what a later read finds after a webhook moved a row.
 	var sessions []string
-	if status == pages.FulfillmentCancelled {
+	if status == order.FulfillmentCancelled {
 		var sessErr error
 		if sessions, sessErr = q.OpenSessionsForOrder(ctx, number); sessErr != nil {
 			return nil, fmt.Errorf("read open checkout sessions of %s: %w", number, sessErr)
@@ -405,18 +405,18 @@ func (s *Store) Advance(ctx context.Context, number string, status pages.Fulfill
 	return sessions, nil
 }
 
-func advanceKind(status pages.FulfillmentStatus) (string, error) {
+func advanceKind(status order.FulfillmentStatus) (string, error) {
 	// Ship is the only door to 'shipped', because a dispatch also records the
 	// carrier and settles the held stock.
-	if !status.Known() || status == pages.FulfillmentShipped {
+	if !status.Known() || status == order.FulfillmentShipped {
 		return "", ErrRefused
 	}
 	return eventKindFor(status)
 }
 
 type statusEffect struct {
-	status   pages.FulfillmentStatus
-	previous pages.FulfillmentStatus
+	status   order.FulfillmentStatus
+	previous order.FulfillmentStatus
 	number   string
 	orderID  uuid.UUID
 	held     []uuid.UUID
@@ -432,12 +432,12 @@ func applyStatusEffects(ctx context.Context, q *db.Queries, e statusEffect) erro
 		}
 	}
 	switch e.status {
-	case pages.FulfillmentPending, pages.FulfillmentShipped:
-	case pages.FulfillmentPicking:
+	case order.FulfillmentPending, order.FulfillmentShipped:
+	case order.FulfillmentPicking:
 		if err := payment.CompleteFunding(ctx, q, e.orderID, e.number, payment.Capture{}); err != nil {
 			return fmt.Errorf("complete funding for %s: %w", e.number, err)
 		}
-	case pages.FulfillmentCancelled:
+	case order.FulfillmentCancelled:
 		// The customer's own cancellation does this too; the back office
 		// cancelling on their behalf must not be the path that keeps their credit.
 		if _, err := q.ReverseOrderCredit(ctx, e.orderID); err != nil {
@@ -446,7 +446,7 @@ func applyStatusEffects(ctx context.Context, q *db.Queries, e statusEffect) erro
 		if _, err := q.ReverseOrderPoints(ctx, e.orderID); err != nil {
 			return fmt.Errorf("claw back loyalty earned on %s: %w", e.number, err)
 		}
-	case pages.FulfillmentDelivered, pages.FulfillmentCompleted:
+	case order.FulfillmentDelivered, order.FulfillmentCompleted:
 		// BOTH transitions that end a delivery: shipped -> completed directly is
 		// the only honest move for convenience-store pickup, and stamping only on
 		// 'delivered' would leave that channel's parcels unstamped, so
@@ -461,9 +461,9 @@ func applyStatusEffects(ctx context.Context, q *db.Queries, e statusEffect) erro
 
 func enqueueStatusNotice(ctx context.Context, q *db.Queries, e statusEffect) error {
 	switch e.status {
-	case pages.FulfillmentCancelled:
+	case order.FulfillmentCancelled:
 		return ordernotice.Enqueue(ctx, q, &email.OrderTerminal{OrderID: e.orderID, Kind: email.TerminalCancelledByStaff})
-	case pages.FulfillmentDelivered, pages.FulfillmentCompleted:
+	case order.FulfillmentDelivered, order.FulfillmentCompleted:
 		row, err := q.OrderDestinationKind(ctx, e.number)
 		if err != nil {
 			return fmt.Errorf("read terminal order destination: %w", err)
@@ -475,11 +475,11 @@ func enqueueStatusNotice(ctx context.Context, q *db.Queries, e statusEffect) err
 		}
 		kind := email.TerminalDelivered
 		if to == destination.PickupPoint {
-			if e.status != pages.FulfillmentCompleted {
+			if e.status != order.FulfillmentCompleted {
 				return nil
 			}
 			kind = email.TerminalCollected
-		} else if e.previous == pages.FulfillmentDelivered {
+		} else if e.previous == order.FulfillmentDelivered {
 			// Completion adds no new arrival, even after outbox retention.
 			return nil
 		}
@@ -492,18 +492,18 @@ func enqueueStatusNotice(ctx context.Context, q *db.Queries, e statusEffect) err
 // eventKindFor maps a fulfilment status to its order_events kind. The two
 // vocabularies overlap without being the same list. A status with no kind is
 // refused rather than panicked on, because the status comes from the request.
-func eventKindFor(status pages.FulfillmentStatus) (string, error) {
+func eventKindFor(status order.FulfillmentStatus) (string, error) {
 	switch status {
-	case pages.FulfillmentPicking:
-		return "picking", nil
-	case pages.FulfillmentShipped:
-		return "shipped", nil
-	case pages.FulfillmentDelivered:
-		return "delivered", nil
-	case pages.FulfillmentCompleted:
-		return "completed", nil
-	case pages.FulfillmentCancelled:
-		return "cancelled", nil
+	case order.FulfillmentPicking:
+		return string(order.EventPicking), nil
+	case order.FulfillmentShipped:
+		return string(order.EventShipped), nil
+	case order.FulfillmentDelivered:
+		return string(order.EventDelivered), nil
+	case order.FulfillmentCompleted:
+		return string(order.EventCompleted), nil
+	case order.FulfillmentCancelled:
+		return string(order.EventCancelled), nil
 	default:
 		return "", fmt.Errorf("%w: no order_events kind for fulfilment status %s", ErrRefused, status)
 	}
@@ -517,15 +517,19 @@ func (s *Store) fillRefundBeforeShipment(ctx context.Context, view *admin.OrderV
 	if opened {
 		view.CanShip = false
 	}
-	for _, n := range NextStatuses(view.Status) {
-		if (n == pages.FulfillmentCancelled && view.Funded) ||
-			(n == pages.FulfillmentPicking && (opened || view.Unpaid)) ||
-			// orders_finished_when_shipped: an order that still owes a parcel is
-			// not finished, and Shippable is what is still outstanding.
-			(n == pages.FulfillmentCompleted && len(view.Shippable) > 0) {
+	for _, n := range view.Status.Next() {
+		if n == order.FulfillmentShipped {
+			// Only [Store.Ship] dispatches: a dispatch must also settle the stock the order holds.
 			continue
 		}
-		view.Next = append(view.Next, admin.Transition{Value: n, Label: orderstatus.Label(ctx, n)})
+		if (n == order.FulfillmentCancelled && view.Funded) ||
+			(n == order.FulfillmentPicking && (opened || view.Unpaid)) ||
+			// orders_finished_when_shipped: an order that still owes a parcel is
+			// not finished, and Shippable is what is still outstanding.
+			(n == order.FulfillmentCompleted && len(view.Shippable) > 0) {
+			continue
+		}
+		view.Next = append(view.Next, admin.Transition{Value: n, Label: admin.FulfillmentLabel(ctx, n)})
 	}
 	return nil
 }
@@ -582,7 +586,7 @@ func paymentWithoutCard(ctx context.Context, owedCents, creditCents int64) admin
 // follows from what is OUTSTANDING and not from the status, which is what makes
 // a second parcel possible.
 func (s *Store) fillShippable(
-	ctx context.Context, view *admin.OrderView, orderID uuid.UUID, status pages.FulfillmentStatus,
+	ctx context.Context, view *admin.OrderView, orderID uuid.UUID, status order.FulfillmentStatus,
 ) error {
 	// DELIVERED must stay in this set. orders_legal_transition permits
 	// shipped -> delivered while a line is still outstanding, deliberately:
@@ -590,8 +594,8 @@ func (s *Store) fillShippable(
 	// the order wedges — orders_finished_when_shipped refuses 'completed' and the
 	// remaining line's hold is stranded, since release_reservation refuses a
 	// committed order and ExpiredReservations excludes it.
-	if status != pages.FulfillmentPicking && status != pages.FulfillmentShipped &&
-		status != pages.FulfillmentDelivered {
+	if status != order.FulfillmentPicking && status != order.FulfillmentShipped &&
+		status != order.FulfillmentDelivered {
 		return nil
 	}
 	rows, err := s.q.ShippableLines(ctx, orderID)
@@ -645,9 +649,9 @@ func (s *Store) Ship(ctx context.Context, number string, d Dispatch, actor uuid.
 	// A parcel is only recorded for an order that has entered fulfilment. This is
 	// the same set fillShippable renders the form for; the trigger
 	// shipment_order_in_fulfilment is the authority, and this is the sentence.
-	fulfillment := pages.FulfillmentStatus(row.FulfillmentStatus)
+	fulfillment := order.FulfillmentStatus(row.FulfillmentStatus)
 	switch fulfillment {
-	case pages.FulfillmentPicking, pages.FulfillmentShipped, pages.FulfillmentDelivered:
+	case order.FulfillmentPicking, order.FulfillmentShipped, order.FulfillmentDelivered:
 	default:
 		return fmt.Errorf("%w: order %s is %s and has not been picked",
 			ErrRefused, number, row.FulfillmentStatus)
@@ -669,9 +673,9 @@ func (s *Store) Ship(ctx context.Context, number string, d Dispatch, actor uuid.
 	// Only picking advances to shipped. A second parcel leaves the order where it
 	// already is; the status check above and shipment_order_in_fulfilment refuse
 	// an unpicked order, because this branch never reaches the transition trigger.
-	if fulfillment == pages.FulfillmentPicking {
+	if fulfillment == order.FulfillmentPicking {
 		if advErr := q.AdvanceOrder(ctx, db.AdvanceOrderParams{
-			OrderNumber: number, Status: string(pages.FulfillmentShipped),
+			OrderNumber: number, Status: string(order.FulfillmentShipped),
 		}); advErr != nil {
 			return fmt.Errorf("%w: %w", ErrRefused, advErr)
 		}
@@ -687,7 +691,7 @@ func (s *Store) Ship(ctx context.Context, number string, d Dispatch, actor uuid.
 	}
 
 	if err := q.RecordOrderEvent(ctx, db.RecordOrderEventParams{
-		OrderID: row.ID, Kind: "shipped", ActorUserID: actor,
+		OrderID: row.ID, Kind: string(order.EventShipped), ActorUserID: actor,
 		Note: text(i18n.CarrierName(i18n.WithLocale(ctx, i18n.ZhHant), carrierCode) + " " + tracking),
 	}); err != nil {
 		return fmt.Errorf("record order event: %w", err)

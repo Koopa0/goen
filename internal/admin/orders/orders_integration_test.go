@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/koopa0/goen/internal/order"
 	adminpages "github.com/koopa0/goen/internal/ui/pages/admin"
 
 	"github.com/google/go-cmp/cmp"
@@ -1552,10 +1553,10 @@ func TestAdvanceRefusesTheStatusAnOrderAlreadyHas(t *testing.T) {
 	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
 	number, orderID, _ := admintest.PaidUnshippedOrder(t, pool, 500000, 0, false)
 
-	if _, err := s.Advance(ctx, number, pages.FulfillmentPicking, actor); err != nil {
+	if _, err := s.Advance(ctx, number, order.FulfillmentPicking, actor); err != nil {
 		t.Fatalf("first picking: %v", err)
 	}
-	if _, err := s.Advance(ctx, number, pages.FulfillmentPicking, actor); !errors.Is(err, orders.ErrRefused) {
+	if _, err := s.Advance(ctx, number, order.FulfillmentPicking, actor); !errors.Is(err, orders.ErrRefused) {
 		t.Fatalf("a repeated picking gave %v, want ErrRefused", err)
 	}
 	var events, audits int
@@ -1570,7 +1571,7 @@ func TestAdvanceRefusesTheStatusAnOrderAlreadyHas(t *testing.T) {
 	}
 
 	pending := admintest.PlaceUnpaidOrder(t, pool)
-	if _, err := s.Advance(ctx, pending, pages.FulfillmentPending, actor); !errors.Is(err, orders.ErrRefused) {
+	if _, err := s.Advance(ctx, pending, order.FulfillmentPending, actor); !errors.Is(err, orders.ErrRefused) {
 		t.Errorf("pending on a pending order gave %v, want ErrRefused", err)
 	}
 }
@@ -1579,7 +1580,7 @@ func TestTheStatusMenuOffersOnlyWhatTheDatabaseWillAccept(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
 	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
-	offers := func(v *adminpages.OrderView, status pages.FulfillmentStatus) bool {
+	offers := func(v *adminpages.OrderView, status order.FulfillmentStatus) bool {
 		for _, n := range v.Next {
 			if n.Value == status {
 				return true
@@ -1592,7 +1593,7 @@ func TestTheStatusMenuOffersOnlyWhatTheDatabaseWillAccept(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Order: %v", err)
 	}
-	if offers(&unpaid, pages.FulfillmentPicking) {
+	if offers(&unpaid, order.FulfillmentPicking) {
 		t.Error("an unpaid order is offered picking, which orders_funded_to_leave_pending refuses")
 	}
 	if !unpaid.NextIsDestructive() {
@@ -1609,10 +1610,10 @@ func TestTheStatusMenuOffersOnlyWhatTheDatabaseWillAccept(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Order: %v", err)
 	}
-	if offers(&partly, pages.FulfillmentCompleted) {
+	if offers(&partly, order.FulfillmentCompleted) {
 		t.Error("an order still owing a parcel is offered completed, which orders_finished_when_shipped refuses")
 	}
-	if !offers(&partly, pages.FulfillmentDelivered) {
+	if !offers(&partly, order.FulfillmentDelivered) {
 		t.Error("delivered must stay offered: it is the only way to record that the first parcel arrived")
 	}
 }

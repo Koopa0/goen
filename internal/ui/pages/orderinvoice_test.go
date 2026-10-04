@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/invoice"
+	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
@@ -14,7 +15,7 @@ func TestTheOrderPageShowsTheInvoiceOnlyOnceFiled(t *testing.T) {
 	t.Parallel()
 	render := func(inv *OrderInvoice) string {
 		return renderToString(t, Order(layouts.Page{Title: "GO-1"}, &OrderView{
-			Number: "GO-260929-000001", Status: FulfillmentPicking, Committed: true, Invoice: inv,
+			Number: "GO-260929-000001", Status: order.FulfillmentPicking, Committed: true, Invoice: inv,
 		}))
 	}
 

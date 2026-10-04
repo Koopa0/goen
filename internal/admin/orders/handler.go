@@ -12,9 +12,9 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/admin/audit"
-	"github.com/koopa0/goen/internal/admin/ordernumber"
 	"github.com/koopa0/goen/internal/carrier"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/pgerr"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -96,27 +96,27 @@ func (h *Handler) Advance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	number := r.PathValue("number")
-	if !ordernumber.Valid(number) {
+	if !order.ValidNumber(number) {
 		http.NotFound(w, r)
 		return
 	}
-	sessions, err := h.store.Advance(r.Context(), number, ParseStatus(r.PostFormValue("status")), audit.ActorID(r.Context()))
+	sessions, err := h.store.Advance(r.Context(), number, order.FulfillmentStatus(r.PostFormValue("status")), audit.ActorID(r.Context()))
 	switch {
 	case err == nil:
 		payment.CloseSessions(r.Context(), h.sessions, h.log, number, sessions)
-		http.Redirect(w, r, "/admin/orders/"+number+"?ok=1", http.StatusSeeOther) //nolint:gosec // G710: validated by ordernumber.Valid
+		http.Redirect(w, r, "/admin/orders/"+number+"?ok=1", http.StatusSeeOther) //nolint:gosec // G710: validated by order.ValidNumber
 	case errors.Is(err, ErrPaidCancel), pgerr.IsConstraint(err, "orders_paid_cancel_needs_refund"):
-		http.Redirect(w, r, "/admin/orders/"+number+"?paidcancel=1", http.StatusSeeOther) //nolint:gosec // G710: validated by ordernumber.Valid
+		http.Redirect(w, r, "/admin/orders/"+number+"?paidcancel=1", http.StatusSeeOther) //nolint:gosec // G710: validated by order.ValidNumber
 	case pgerr.IsConstraint(err, "orders_funded_to_leave_pending"):
-		http.Redirect(w, r, "/admin/orders/"+number+"?unfunded=1", http.StatusSeeOther) //nolint:gosec // G710: validated by ordernumber.Valid
+		http.Redirect(w, r, "/admin/orders/"+number+"?unfunded=1", http.StatusSeeOther) //nolint:gosec // G710: validated by order.ValidNumber
 	case pgerr.IsConstraint(err, "orders_finished_when_shipped"):
-		http.Redirect(w, r, "/admin/orders/"+number+"?owesparcel=1", http.StatusSeeOther) //nolint:gosec // G710: validated by ordernumber.Valid
+		http.Redirect(w, r, "/admin/orders/"+number+"?owesparcel=1", http.StatusSeeOther) //nolint:gosec // G710: validated by order.ValidNumber
 	case errors.Is(err, ErrRefused):
 		// Logged in full; the page names the rule only for the refusals a shop
 		// assistant can act on, because a constraint name is not one of them.
 		h.log.WarnContext(r.Context(), "order transition refused",
 			"order", number, "error", err)
-		http.Redirect(w, r, "/admin/orders/"+number+"?refused=1", http.StatusSeeOther) //nolint:gosec // G710: validated by ordernumber.Valid
+		http.Redirect(w, r, "/admin/orders/"+number+"?refused=1", http.StatusSeeOther) //nolint:gosec // G710: validated by order.ValidNumber
 	default:
 		h.log.ErrorContext(r.Context(), "advance order", "error", err)
 		access.ServerError(w, r, h.log)
@@ -129,7 +129,7 @@ func (h *Handler) Ship(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	number := r.PathValue("number")
-	if !ordernumber.Valid(number) {
+	if !order.ValidNumber(number) {
 		http.NotFound(w, r)
 		return
 	}
@@ -148,7 +148,7 @@ func (h *Handler) Ship(w http.ResponseWriter, r *http.Request) {
 	}, audit.ActorID(r.Context()))
 	switch {
 	case err == nil:
-		//nolint:gosec // G710: validated by ordernumber.Valid
+		//nolint:gosec // G710: validated by order.ValidNumber
 		http.Redirect(w, r, "/admin/orders/"+number+"?shipped=1", http.StatusSeeOther)
 	case pgerr.IsConstraint(err, "order_shipments_tracking_key"):
 		h.rejectShip(w, r, &shipRefusal{tracking: i18n.KeyAdminTrackingTaken})
@@ -251,7 +251,7 @@ func (h *Handler) StaffNote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	number := r.PathValue("number")
-	if !ordernumber.Valid(number) {
+	if !order.ValidNumber(number) {
 		http.NotFound(w, r)
 		return
 	}
@@ -264,7 +264,7 @@ func (h *Handler) StaffNote(w http.ResponseWriter, r *http.Request) {
 		access.ServerError(w, r, h.log)
 		return
 	}
-	http.Redirect(w, r, "/admin/orders/"+number+"?ok=1", http.StatusSeeOther) //nolint:gosec // G710: validated by ordernumber.Valid
+	http.Redirect(w, r, "/admin/orders/"+number+"?ok=1", http.StatusSeeOther) //nolint:gosec // G710: validated by order.ValidNumber
 }
 
 var notices = map[string]i18n.Key{

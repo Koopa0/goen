@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 func TestTheOrderPageShowsItsPaymentAndEveryRefund(t *testing.T) {
@@ -37,10 +37,10 @@ func TestAnOrderPaidWholeWithCreditSaysSoAndNeverNoPayment(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), locale)
 		view := OrderView{
-			Number: "GO-260930-000014", Status: pages.FulfillmentPending, Funded: true,
+			Number: "GO-260930-000014", Status: order.FulfillmentPending, Funded: true,
 			SubtotalCents: 50000, ShippingCents: 6000, CreditCents: 56000,
 			Payment: Payment{Method: i18n.T(ctx, i18n.KeyAdminPayMethodCredit)},
-			Next:    []Transition{{Value: pages.FulfillmentPicking, Label: "picking"}},
+			Next:    []Transition{{Value: order.FulfillmentPicking, Label: "picking"}},
 		}
 		html := renderComponent(t, ctx, Order(layouts.Page{}, &view))
 		for name, want := range map[string]string{

@@ -16,11 +16,10 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/admin/audit"
-	"github.com/koopa0/goen/internal/admin/orderstatus"
 	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/shoptime"
-	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
 )
@@ -127,10 +126,10 @@ func (s *Store) Profile(ctx context.Context, id string) (admin.CustomerView, err
 	}
 	for i := range orders {
 		o := &orders[i]
-		fulfillment := pages.FulfillmentStatus(o.FulfillmentStatus)
+		fulfillment := order.FulfillmentStatus(o.FulfillmentStatus)
 		view.Recent = append(view.Recent, admin.OrderRow{
 			Number: o.OrderNumber, Status: fulfillment,
-			StatusText: orderstatus.FundedLabel(ctx, fulfillment, o.Committed, o.OwedCents),
+			StatusText: admin.FundedFulfillmentLabel(ctx, fulfillment, o.Committed, o.OwedCents),
 			PlacedAt:   shoptime.Minute(o.PlacedAt),
 			TotalCents: o.SubtotalCents - o.DiscountCents + o.ShippingCents + o.TaxCents,
 		})

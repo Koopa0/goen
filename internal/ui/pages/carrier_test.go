@@ -8,6 +8,7 @@ import (
 
 	"github.com/koopa0/goen/internal/carrier"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
@@ -55,7 +56,7 @@ func TestTheEnglishOrderPageHasNoChineseOfItsOwn(t *testing.T) {
 	for _, c := range every {
 		shipments = append(shipments, OrderShipment{Carrier: c, Tracking: "T1", ShippedAt: "10/01 09:00"})
 	}
-	kinds := []OrderEventKind{EventPlaced, EventPaid, EventPicking, EventShipped, EventInTransit, EventDelivered, EventCompleted}
+	kinds := []order.EventKind{order.EventPlaced, order.EventPaid, order.EventPicking, order.EventShipped, order.EventInTransit, order.EventDelivered, order.EventCompleted}
 	timeline := make([]OrderEvent, 0, len(kinds))
 	for _, kind := range kinds {
 		timeline = append(timeline, OrderEvent{Kind: kind, At: "10/01 09:00"})
@@ -63,7 +64,7 @@ func TestTheEnglishOrderPageHasNoChineseOfItsOwn(t *testing.T) {
 	const userData = "台北市信義區松高路 68 號"
 	v := &OrderView{
 		Number:       "GO-1",
-		Status:       FulfillmentShipped,
+		Status:       order.FulfillmentShipped,
 		ShippingName: "Home delivery",
 		DeliveryTo:   userData,
 		Lines:        []OrderLine{{SKU: "S1", Name: "Aurora 充電器", Label: "銀", UnitCents: 1000, Quantity: 1}},

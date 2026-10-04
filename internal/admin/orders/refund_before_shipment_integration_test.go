@@ -22,7 +22,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/refunds"
 	"github.com/koopa0/goen/internal/admin/refundstate"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/order"
 )
 
 func TestPaidOrderCannotBeCancelledDirectly(t *testing.T) {
@@ -36,7 +36,7 @@ func TestPaidOrderCannotBeCancelledDirectly(t *testing.T) {
 		t.Run(fmt.Sprintf("picking=%t", picking), func(t *testing.T) {
 			number, orderID, _ := admintest.PaidUnshippedOrder(t, pool, 500000, 0, picking)
 
-			_, err := s.Advance(ctx, number, pages.FulfillmentCancelled, uuid.NullUUID{})
+			_, err := s.Advance(ctx, number, order.FulfillmentCancelled, uuid.NullUUID{})
 			if admintest.ConstraintName(err) != "orders_paid_cancel_needs_refund" {
 				t.Fatalf("Advance cancelled a paid order: %v", err)
 			}
@@ -66,7 +66,7 @@ func TestPaidOrderCannotBeCancelledDirectly(t *testing.T) {
 				t.Fatalf("read order: %v", err)
 			}
 			for _, n := range view.Next {
-				if n.Value == pages.FulfillmentCancelled {
+				if n.Value == order.FulfillmentCancelled {
 					t.Error("the status form still offers cancelling a paid order")
 				}
 			}
@@ -85,7 +85,7 @@ func TestPaidOrderCannotBeCancelledDirectly(t *testing.T) {
 		if view.RefundOffered {
 			t.Error("an unpaid order offers a refund")
 		}
-		if _, err := s.Advance(ctx, number, pages.FulfillmentCancelled, uuid.NullUUID{}); err != nil {
+		if _, err := s.Advance(ctx, number, order.FulfillmentCancelled, uuid.NullUUID{}); err != nil {
 			t.Fatalf("cancel unpaid order: %v", err)
 		}
 		if got := admintest.FulfillmentOf(t, pool, orderID); got != "cancelled" {
@@ -110,7 +110,7 @@ func TestPaidOrderCannotBeCancelledDirectly(t *testing.T) {
 			WHERE order_id = $1`, orderID); err != nil {
 			t.Fatalf("void invoice: %v", err)
 		}
-		if _, err := s.Advance(ctx, number, pages.FulfillmentCancelled, uuid.NullUUID{}); !errors.Is(err, orders.ErrPaidCancel) {
+		if _, err := s.Advance(ctx, number, order.FulfillmentCancelled, uuid.NullUUID{}); !errors.Is(err, orders.ErrPaidCancel) {
 			t.Fatalf("status form cancelled a refunded order: %v", err)
 		}
 		if got := admintest.FulfillmentOf(t, pool, orderID); got != "picking" {
@@ -146,12 +146,12 @@ func TestAPendingOrderPaidWholeWithCreditIsNotCancelledByStatus(t *testing.T) {
 		t.Errorf("payment = %q, want %q", view.Payment.Method, want)
 	}
 	for _, n := range view.Next {
-		if n.Value == pages.FulfillmentCancelled {
+		if n.Value == order.FulfillmentCancelled {
 			t.Error("the status menu offers to cancel a funded order")
 		}
 	}
 
-	if _, err := s.Advance(ctx, number, pages.FulfillmentCancelled, uuid.NullUUID{}); !errors.Is(err, orders.ErrPaidCancel) {
+	if _, err := s.Advance(ctx, number, order.FulfillmentCancelled, uuid.NullUUID{}); !errors.Is(err, orders.ErrPaidCancel) {
 		t.Fatalf("status cancel of a credit-funded order = %v, want ErrPaidCancel", err)
 	}
 	if got := admintest.FulfillmentOf(t, pool, orderID); got != "pending" {
@@ -189,7 +189,7 @@ func TestRefundBeforeShipmentStaysOpenUntilRefundSettles(t *testing.T) {
 					t.Fatalf("shipped an order being refunded: %v", err)
 				}
 			} else {
-				_, err := s.Advance(ctx, number, pages.FulfillmentPicking, actor)
+				_, err := s.Advance(ctx, number, order.FulfillmentPicking, actor)
 				if admintest.ConstraintName(err) != "orders_refunded_before_shipment" {
 					t.Fatalf("picked an order being refunded: %v", err)
 				}
