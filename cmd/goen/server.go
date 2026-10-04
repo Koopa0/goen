@@ -410,9 +410,10 @@ func backOfficeRoutes(mux *http.ServeMux, cfg *BackOfficeConfig, log *slog.Logge
 	}
 	adminImages := media.NewHandler(media.NewStore(adminPool), log)
 	stockroom := stock.NewStore(adminPool)
+	checkup := health.NewStore(adminPool)
 	payouts := refunds.NewStore(adminPool, refunder, invoices)
 	invoicingStore := invoicing.NewStore(adminPool, invoiceReader, invoiceWriter)
-	orderDesk := orders.NewHandler(orders.NewStore(adminPool, payouts, invoicingStore, stockroom), sessionCloser(gateway), log)
+	orderDesk := orders.NewHandler(orders.NewStore(adminPool, payouts, invoicingStore, stockroom, checkup), sessionCloser(gateway), log)
 	trail := audit.NewHandler(audit.NewStore(adminPool), log)
 	figures := reports.NewHandler(reports.NewStore(adminPool), log)
 	warehouse := stock.NewHandler(stockroom, log)
@@ -429,7 +430,7 @@ func backOfficeRoutes(mux *http.ServeMux, cfg *BackOfficeConfig, log *slog.Logge
 	lookup := customerdesk.NewHandler(customerdesk.NewStore(adminPool), log)
 	promotions := coupons.NewHandler(coupons.NewStore(adminPool), log)
 	programme := loyalty.NewHandler(loyalty.NewStore(adminPool), log)
-	workers := health.NewHandler(health.NewStore(adminPool), outbox.NewStore(adminPool, log),
+	workers := health.NewHandler(checkup, outbox.NewStore(adminPool, log),
 		healthPools, log)
 
 	// The back office. A signed-in customer gets a 404 rather than a 403, which

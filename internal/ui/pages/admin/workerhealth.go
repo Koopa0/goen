@@ -31,6 +31,7 @@ type WorkerHealthView struct {
 	// are different evidence and route to different database functions.
 	UnreconciledEvents           []UnreconciledEvent
 	UnreconciledCompletePayments []UnreconciledCompletePayment
+	StrandedClaimCount           int64
 	StrandedClaims               []StrandedClaim
 	Notice                       string
 	OpenRefundCount              int64
@@ -283,4 +284,22 @@ func (c StrandedClaim) AttemptsText() string {
 	return fmt.Sprintf("%d / %d", c.Attempts, c.Sends)
 }
 
-func (v *WorkerHealthView) ClaimsSettled() bool { return len(v.StrandedClaims) == 0 }
+func (v *WorkerHealthView) ClaimsSettled() bool { return v.StrandedClaimCount == 0 }
+
+// Tasks is every check on this page that needs a person, as the dashboard lists
+// it, so the two cannot disagree about whether something is wrong.
+func (v *WorkerHealthView) Tasks() []Task {
+	var tasks []Task
+	add := func(healthy bool, label i18n.Key, count int64) {
+		if !healthy {
+			tasks = append(tasks, Task{Label: label, Count: count, Href: "/admin/health"})
+		}
+	}
+	add(v.PaymentsReconciled(), i18n.KeyAdminHPUnreconciledHeading, v.UnreconciledPayments)
+	add(v.ClaimsSettled(), i18n.KeyAdminHPClaimsHeading, v.StrandedClaimCount)
+	add(v.PaidOrdersInvoiced(), i18n.KeyAdminHPUninvoicedHeading, v.UninvoicedCount)
+	add(v.CancelledOrderInvoicesResolved(), i18n.KeyAdminHPCancelledOrderInvoicesHeading, v.CancelledOrderInvoiceCount)
+	add(v.RefundsHealthy(), i18n.KeyAdminHPOpenRefundsHeading, v.OpenRefundCount)
+	add(v.SweeperHealthy(), i18n.KeyAdminQueueTaskHolds, v.ExpiredHolds)
+	return tasks
+}

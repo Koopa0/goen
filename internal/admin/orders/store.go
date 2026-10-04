@@ -50,19 +50,26 @@ type Stock interface {
 	LowStock(ctx context.Context, limit int32) ([]admin.Variant, error)
 }
 
+// Health lists what the health desk judges to need a person, as dashboard
+// tasks; the health desk implements it.
+type Health interface {
+	Tasks(ctx context.Context) ([]admin.Task, error)
+}
+
 type Store struct {
 	pool     *pgxpool.Pool
 	q        *db.Queries
 	refunds  Refunds
 	invoices Invoices
 	stock    Stock
+	health   Health
 }
 
-func NewStore(pool *pgxpool.Pool, refunds Refunds, invoices Invoices, stock Stock) *Store {
-	if pool == nil || refunds == nil || invoices == nil || stock == nil {
-		panic("orders: NewStore requires a pool, refunds, invoices and stock")
+func NewStore(pool *pgxpool.Pool, refunds Refunds, invoices Invoices, stock Stock, health Health) *Store {
+	if pool == nil || refunds == nil || invoices == nil || stock == nil || health == nil {
+		panic("orders: NewStore requires a pool, refunds, invoices, stock and health")
 	}
-	return &Store{pool: pool, q: db.New(pool), refunds: refunds, invoices: invoices, stock: stock}
+	return &Store{pool: pool, q: db.New(pool), refunds: refunds, invoices: invoices, stock: stock, health: health}
 }
 
 func (s *Store) Dashboard(ctx context.Context) (admin.DashboardView, error) {
@@ -79,16 +86,9 @@ func (s *Store) Dashboard(ctx context.Context) (admin.DashboardView, error) {
 		OpenMessages:   sum.OpenMessages,
 
 		PendingReturns:      sum.PendingReturns,
+		UninspectedReturns:  sum.UninspectedReturns,
 		UnansweredQuestions: sum.UnansweredQuestions,
 	}
-	oldest, err := s.q.OldestPendingReturn(ctx)
-	if err != nil {
-		return admin.DashboardView{}, fmt.Errorf("read oldest open return: %w", err)
-	}
-	if oldest.AnyOpen {
-		view.OldestReturnDays = shoptime.DaysSince(oldest.FiledAt, time.Now())
-	}
-
 	// No status: the newest orders whatever state they are in. The tiles above
 	// the queue already count each state, and a queue filtered to one of them
 	// hides the order somebody is standing at the counter asking about.
@@ -104,7 +104,14 @@ func (s *Store) Dashboard(ctx context.Context) (admin.DashboardView, error) {
 	if err != nil {
 		return admin.DashboardView{}, err
 	}
+	view.Tasks = view.DeskTasks()
 	return view, nil
+}
+
+// HealthTasks is what the health desk says needs a person. The dashboard is
+// still worth opening without it, so the caller decides what an error costs.
+func (s *Store) HealthTasks(ctx context.Context) ([]admin.Task, error) {
+	return s.health.Tasks(ctx)
 }
 
 const DashboardRows = 8

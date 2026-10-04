@@ -9,36 +9,62 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/admin/admintest"
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
-// The dashboard shows how long the oldest open return request has waited, in
-// shop days from when it was filed. The consumer's own seven days are not shown:
-// for a request already filed that window is not the operator's clock.
-func TestTheDashboardShowsHowLongTheOldestOpenReturnHasWaited(t *testing.T) {
+// The dashboard lists work that waits for a person: a return approved and not
+// yet inspected comes from the desk's own counts, a stranded invoice claim from
+// the health desk, so the list and /admin/health name the same things.
+func TestTheDashboardListsAnUninspectedReturnAndAStrandedClaim(t *testing.T) {
 	isolated := admintest.Pool(t)
 	s := admintest.OrderStore(isolated, admintest.Refunder{}, nil, nil)
+	count := func(tasks []admin.Task, label i18n.Key) int64 {
+		for _, task := range tasks {
+			if task.Label == label {
+				return task.Count
+			}
+		}
+		return 0
+	}
 
-	none, err := s.Dashboard(t.Context())
+	view, err := s.Dashboard(t.Context())
 	if err != nil {
 		t.Fatalf("Dashboard: %v", err)
 	}
-	if none.PendingReturns != 0 || none.OldestReturnDays != 0 {
-		t.Fatalf("an empty shop shows %d returns, oldest %d days", none.PendingReturns, none.OldestReturnDays)
+	health, err := s.HealthTasks(t.Context())
+	if err != nil {
+		t.Fatalf("HealthTasks: %v", err)
+	}
+	if len(view.Tasks) != 0 || len(health) != 0 {
+		t.Fatalf("an empty shop lists tasks %v and %v", view.Tasks, health)
 	}
 
-	delivered := admintest.ShopNoonDaysAgo(t, 12)
-	admintest.ReturnedOrderAtWithReason(t, isolated, delivered, admintest.ShopNoonDaysAgo(t, 3), "")
-	admintest.ReturnedOrderAtWithReason(t, isolated, delivered, admintest.ShopNoonDaysAgo(t, 9), "")
+	admintest.PreapprovedReturn(t, isolated)
+	number, orderID := admintest.PaidPickingOrderForUser(t, isolated, admintest.Customer(t, isolated), 100000)
+	if _, err := isolated.Exec(t.Context(), `
+		INSERT INTO invoice_operations
+		    (order_id, kind, provider_key, amount_cents, request_payload,
+		     actor_kind, request_id, status, last_error, created_at)
+		VALUES ($1, 'issue', replace($2, '-', ''), 100000, '{}', 'system',
+		        'refused:' || $2, 'rejected', 'issue_provider_rejected_2000006',
+		        now() - interval '1 minute')`, orderID, number); err != nil {
+		t.Fatalf("record a refused automatic issue: %v", err)
+	}
 
-	got, err := s.Dashboard(t.Context())
+	view, err = s.Dashboard(t.Context())
 	if err != nil {
 		t.Fatalf("Dashboard: %v", err)
 	}
-	if got.PendingReturns != 2 {
-		t.Errorf("pending returns = %d, want 2", got.PendingReturns)
+	if got := count(view.Tasks, i18n.KeyAdminQueueTaskUninspected); got != 1 {
+		t.Errorf("returns awaiting inspection = %d, want 1", got)
 	}
-	if got.OldestReturnDays != 9 {
-		t.Errorf("oldest open return = %d days, want 9", got.OldestReturnDays)
+	health, err = s.HealthTasks(t.Context())
+	if err != nil {
+		t.Fatalf("HealthTasks: %v", err)
+	}
+	if got := count(health, i18n.KeyAdminHPClaimsHeading); got != 1 {
+		t.Errorf("stranded invoice claims = %d, want 1", got)
 	}
 }
 

@@ -38,14 +38,19 @@ var (
 		En:     "Questions awaiting an answer",
 	})
 
-	// KeyAdminQueueStatReturnsAge is the line under the returns figure: how long
-	// the oldest open request has waited for a decision.
-	KeyAdminQueueStatReturnsAge = countKey("admin.queue.stat.returnsage",
-		"最早一筆 %d 天前申請", "Oldest requested %d day ago", "Oldest requested %d days ago")
+	KeyAdminQueueTasksHeading = key("admin.queue.tasks.heading", Message{
+		ZhHant: "等你處理",
+		En:     "Waiting for you",
+	})
 
-	KeyAdminQueueStatReturnsToday = key("admin.queue.stat.returnstoday", Message{
-		ZhHant: "最早一筆今天申請",
-		En:     "Oldest requested today",
+	KeyAdminQueueTaskUninspected = key("admin.queue.task.uninspected", Message{
+		ZhHant: "待驗收的退貨",
+		En:     "Returns awaiting inspection",
+	})
+
+	KeyAdminQueueTaskHolds = key("admin.queue.task.holds", Message{
+		ZhHant: "超過期限仍保留庫存的未付款訂單",
+		En:     "Unpaid orders still holding stock past their deadline",
 	})
 
 	KeyAdminQueueRestockHead = key("admin.queue.restock", Message{
