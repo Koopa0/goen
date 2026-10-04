@@ -17,14 +17,14 @@ func TestTheOrderPageShowsItsPaymentAndEveryRefund(t *testing.T) {
 		Payment: Payment{Method: "信用卡(Stripe)", Card: "Visa •••• 4242", Captured: "NT$3,070", PaidAt: "2026-09-30 10:15"},
 		Refunds: []Refund{
 			{Channel: "退回信用卡", Amount: "NT$1,200", At: "2026-10-01 09:00", Reason: "顧客改變心意", Staff: "審查管理員"},
-			{Channel: "退回商店額度", Amount: "NT$1,870", At: "2026-10-01 09:05"},
+			{Channel: "退回購物金", Amount: "NT$1,870", At: "2026-10-01 09:05"},
 		},
 	}
 	html := renderComponent(t, ctx, Order(layouts.Page{}, &view))
 
 	for _, want := range []string{
 		i18n.T(ctx, i18n.KeyAdminPayTitle), "Visa •••• 4242", "NT$3,070", "2026-09-30 10:15",
-		"NT$1,200", "顧客改變心意", "審查管理員", "NT$1,870", "退回商店額度",
+		"NT$1,200", "顧客改變心意", "審查管理員", "NT$1,870", "退回購物金",
 	} {
 		if !strings.Contains(html, want) {
 			t.Errorf("the payment section is missing %q", want)
