@@ -161,8 +161,12 @@ func TestTheRouterKeepsAssetsStatelessAndCompressesPages(t *testing.T) {
 		t.Fatalf("build disabled payment gateway: %v", err)
 	}
 	router := newRouter(&RouterConfig{
-		Pool: counted, AdminPool: counted, Payments: gateway,
-		Refunder: refunds.NewRefunder(""), BaseURL: "http://127.0.0.1",
+		Storefront: StorefrontConfig{
+			StorePool: counted, Payments: gateway, BaseURL: "http://127.0.0.1",
+		},
+		BackOffice: BackOfficeConfig{
+			AdminPool: counted, Payments: gateway, Refunder: refunds.NewRefunder(""),
+		},
 	}, slog.New(slog.DiscardHandler))
 
 	serve := func(path string) *httptest.ResponseRecorder {
@@ -239,9 +243,12 @@ func TestTheRouterKeepsNoSignedInPageInAnyCache(t *testing.T) {
 		t.Fatalf("build disabled payment gateway: %v", err)
 	}
 	router := newRouter(&RouterConfig{
-		Pool: pool, AdminPool: pool, Payments: gateway,
-		Refunder: refunds.NewRefunder(""), BaseURL: "http://127.0.0.1",
-		TOTPKey: bytes.Repeat([]byte{7}, 32),
+		Storefront: StorefrontConfig{
+			StorePool: pool, Payments: gateway, BaseURL: "http://127.0.0.1",
+		},
+		BackOffice: BackOfficeConfig{
+			AdminPool: pool, Payments: gateway, Refunder: refunds.NewRefunder(""), TOTPKey: bytes.Repeat([]byte{7}, 32),
+		},
 	}, slog.New(slog.DiscardHandler))
 
 	var staffID string
@@ -404,9 +411,12 @@ func TestTheStoreMapReturnCostsNoDatabaseRoundTrip(t *testing.T) {
 		t.Fatalf("build the store map: %v", err)
 	}
 	router := newRouter(&RouterConfig{
-		Pool: counted, AdminPool: counted, Payments: gateway,
-		Refunder: refunds.NewRefunder(""), BaseURL: "https://goen.test",
-		StoreMap: storeMap,
+		Storefront: StorefrontConfig{
+			StorePool: counted, Payments: gateway, BaseURL: "https://goen.test", StoreMap: storeMap,
+		},
+		BackOffice: BackOfficeConfig{
+			AdminPool: counted, Payments: gateway, Refunder: refunds.NewRefunder(""), StoreMap: storeMap,
+		},
 	}, slog.New(slog.DiscardHandler))
 
 	form := url.Values{
