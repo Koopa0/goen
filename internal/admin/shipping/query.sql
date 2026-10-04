@@ -27,7 +27,7 @@ INSERT INTO shipping_method_versions (method_id, name, carrier, name_en, carrier
                                       fee_cents, free_over_cents, effective_at)
 VALUES (@method_id, @name, nullif(@carrier::text, ''),
         nullif(@name_en::text, ''), nullif(@carrier_en::text, ''),
-        @fee_cents, nullif(@free_over_cents::bigint, 0), now())
+        @fee_cents, nullif(@free_over_cents::bigint, 0), statement_timestamp())
 RETURNING id;
 
 -- Fee publication and surcharge edits share this root; version rows are append-only.
@@ -44,7 +44,7 @@ FOR NO KEY UPDATE OF sm;
 -- A waiting transaction's now() predates the publication that released its lock.
 -- name: CurrentShippingVersion :one
 SELECT id FROM shipping_method_versions
-WHERE method_id = $1 AND effective_at <= now()
+WHERE method_id = $1 AND effective_at <= statement_timestamp()
 ORDER BY effective_at DESC, id DESC
 LIMIT 1;
 
@@ -58,7 +58,7 @@ FROM shipping_version_zones vz
 WHERE vz.version_id = (
     SELECT v.id FROM shipping_method_versions v
     WHERE v.method_id = @method_id AND v.id <> @new_version_id
-      AND v.effective_at <= now()
+      AND v.effective_at <= statement_timestamp()
     ORDER BY v.effective_at DESC, v.id DESC
     LIMIT 1
 )
