@@ -4917,19 +4917,22 @@ const confirmTOTP = `-- name: ConfirmTOTP :execrows
 UPDATE staff_totp_credentials
 SET confirmed_at = now(), last_step = $1::bigint
 WHERE user_id = $2
+  AND secret_encrypted = $3
   AND (last_step IS NULL OR last_step < $1::bigint)
 `
 
 type ConfirmTOTPParams struct {
-	Step   int64
-	UserID uuid.UUID
+	Step            int64
+	UserID          uuid.UUID
+	SecretEncrypted []byte
 }
 
 // Confirm enrolment and record the step in ONE statement: two would leave a
 // window in which the credential is confirmed and the code just proved is
-// still replayable.
+// still replayable. The secret is matched too: enrolment restarted since the
+// code was checked has replaced it with one no code has proved.
 func (q *Queries) ConfirmTOTP(ctx context.Context, arg ConfirmTOTPParams) (int64, error) {
-	result, err := q.db.Exec(ctx, confirmTOTP, arg.Step, arg.UserID)
+	result, err := q.db.Exec(ctx, confirmTOTP, arg.Step, arg.UserID, arg.SecretEncrypted)
 	if err != nil {
 		return 0, err
 	}
