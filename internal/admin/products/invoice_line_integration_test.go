@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -21,7 +22,9 @@ import (
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/admin/products"
+	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/invoice"
+	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/user"
 )
 
@@ -91,7 +94,7 @@ func TestProductInvoiceLineFactsUseAdminRoleAndSnapshotOnOrderLines(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
+	defer pgtx.Rollback(ctx, tx)
 	var order, line uuid.UUID
 	if err = tx.QueryRow(ctx, `INSERT INTO orders (order_number,shipping_version_id,shipping_method_code,shipping_method_name) SELECT next_order_number(),v.id,sm.code,v.name FROM shipping_method_versions v JOIN shipping_methods sm ON sm.id=v.method_id ORDER BY v.effective_at LIMIT 1 RETURNING id`).Scan(&order); err != nil {
 		t.Fatal(err)
@@ -198,4 +201,33 @@ func (refuseInvoiceFormProductRead) TraceQueryStart(ctx context.Context, _ *pgx.
 }
 
 func (refuseInvoiceFormProductRead) TraceQueryEnd(context.Context, *pgx.Conn, pgx.TraceQueryEndData) {
+}
+
+func TestProductInvoiceLineWritesDoNotBlockProductReferences(t *testing.T) {
+	owner := admintest.Pool(t)
+	ctx, actor := admintest.StaffContext(t, owner)
+	var slug string
+	if err := owner.QueryRow(ctx, `SELECT slug FROM products ORDER BY slug LIMIT 1`).Scan(&slug); err != nil {
+		t.Fatal(err)
+	}
+	cfg := owner.Config().Copy()
+	cfg.ConnConfig.RuntimeParams["role"] = "admin"
+	writer, err := pgxpool.NewWithConfig(ctx, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(writer.Close)
+	tx, err := writer.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pgtx.Rollback(ctx, tx)
+	if _, err := db.New(tx).LockProductInvoiceLine(ctx, slug); err != nil {
+		t.Fatal(err)
+	}
+	referenceCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	if _, err := owner.Exec(referenceCtx, `INSERT INTO wishlist_items (user_id, product_id) SELECT $1, id FROM products WHERE slug=$2`, actor, slug); err != nil {
+		t.Fatalf("invoice audit lock blocked a product reference: %v", err)
+	}
 }

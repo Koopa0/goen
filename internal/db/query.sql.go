@@ -8623,7 +8623,7 @@ func (q *Queries) LockProductCatalogue(ctx context.Context, slug string) (uuid.U
 }
 
 const lockProductInvoiceLine = `-- name: LockProductInvoiceLine :one
-SELECT id, tax_type, invoice_unit FROM products WHERE slug=$1 FOR UPDATE
+SELECT id, tax_type, invoice_unit FROM products WHERE slug=$1 FOR NO KEY UPDATE
 `
 
 type LockProductInvoiceLineRow struct {

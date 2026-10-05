@@ -277,7 +277,7 @@ WHERE p.slug = $1
 ORDER BY pv.sku, o.position, o.id;
 
 -- name: LockProductInvoiceLine :one
-SELECT id, tax_type, invoice_unit FROM products WHERE slug=$1 FOR UPDATE;
+SELECT id, tax_type, invoice_unit FROM products WHERE slug=$1 FOR NO KEY UPDATE;
 
 -- name: SetProductInvoiceLine :exec
 UPDATE products SET tax_type=$2, invoice_unit=$3 WHERE id=$1;
