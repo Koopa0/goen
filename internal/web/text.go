@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"unicode"
 
 	"github.com/koopa0/goen/internal/i18n"
 )
@@ -40,4 +41,11 @@ func queryStoresAsText(raw string) bool {
 		}
 	}
 	return true
+}
+
+// HasControlChars reports whether s carries a control character.
+// unicode.IsControl covers C1 (0x80–0x9F) as well as C0, which an ASCII-only
+// check lets through.
+func HasControlChars(s string) bool {
+	return strings.ContainsFunc(s, unicode.IsControl)
 }

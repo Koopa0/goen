@@ -14,6 +14,7 @@ import (
 
 	"github.com/koopa0/goen/internal/pickup"
 	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/web"
 )
 
 // ECPay's convenience-store map. Staging is the default and answers with one
@@ -380,18 +381,18 @@ func (m *StoreMap) readCallback(r *http.Request) (callback, bool) {
 	if !ok {
 		return callback{}, false
 	}
-	// Uppercased first, as Address.Trim does before placement checks the same
+	// Uppercased first, as Delivery.Trim does before placement checks the same
 	// shape, so the return cannot refuse a code the order accepts.
 	code := strings.ToUpper(strings.TrimSpace(r.PostFormValue("CVSStoreID")))
-	if !isStoreCode(code) {
+	if !pickup.ValidStoreCode(code) {
 		return callback{}, false
 	}
 	name := strings.TrimSpace(r.PostFormValue("CVSStoreName"))
-	if name == "" || utf8.RuneCountInString(name) > maxCallbackStoreNameRunes || hasControl(name) {
+	if name == "" || utf8.RuneCountInString(name) > maxCallbackStoreNameRunes || web.HasControlChars(name) {
 		return callback{}, false
 	}
 	address := strings.TrimSpace(r.PostFormValue("CVSAddress"))
-	if utf8.RuneCountInString(address) > maxCallbackAddressRunes || hasControl(address) {
+	if utf8.RuneCountInString(address) > maxCallbackAddressRunes || web.HasControlChars(address) {
 		return callback{}, false
 	}
 	nonce := r.PostFormValue("ExtraData")
