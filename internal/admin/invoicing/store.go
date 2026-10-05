@@ -46,7 +46,8 @@ var (
 
 type Store struct {
 	q *db.Queries
-	// Both may be nil when no provider is configured.
+	// The writer is nil when no provider is configured; the reader still shows
+	// what was filed.
 	reader Reader
 	writer Writer
 }
@@ -55,8 +56,8 @@ func NewStore(pool *pgxpool.Pool, reader Reader, writer Writer) *Store {
 	if pool == nil {
 		panic("invoicing: NewStore requires a pool")
 	}
-	if (reader == nil) != (writer == nil) {
-		panic("invoicing: NewStore requires both invoice dependencies or neither")
+	if reader == nil && writer != nil {
+		panic("invoicing: NewStore requires a reader with a writer")
 	}
 	return &Store{q: db.New(pool), reader: reader, writer: writer}
 }
@@ -67,7 +68,7 @@ func (s *Store) FillOrder(ctx context.Context, view *admin.OrderView, number str
 	if s.reader == nil {
 		return nil
 	}
-	view.InvoicingEnabled = true
+	view.InvoicingEnabled = s.writer != nil
 	docs, err := s.reader.Documents(ctx, number)
 	if err != nil {
 		return err
