@@ -595,8 +595,8 @@ func text(s string) pgtype.Text {
 	return pgtype.Text{String: s, Valid: true}
 }
 
-// AddAddress retries the transaction because concurrent clears can both see
-// no default before one writer reaches the unique index.
+// AddAddress locks the account first: under READ COMMITTED a clear cannot see
+// a default another transaction is setting.
 func (s *Store) AddAddress(ctx context.Context, userID string, a *Address) error {
 	id, err := uuid.Parse(userID)
 	if err != nil {
@@ -612,24 +612,16 @@ func (s *Store) AddAddress(ctx context.Context, userID string, a *Address) error
 	}
 	a = &bounded
 
-	for {
-		err := s.addAddress(ctx, id, a)
-		if !defaultAddressConflict(err) {
-			return err
-		}
-		if err := ctx.Err(); err != nil {
-			return fmt.Errorf("retry add address: %w", err)
-		}
-	}
-}
-
-func (s *Store) addAddress(ctx context.Context, id uuid.UUID, a *Address) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("begin add address: %w", err)
 	}
 	defer pgtx.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
+
+	if _, lockErr := q.LockUserForAddressDefault(ctx, id); lockErr != nil {
+		return fmt.Errorf("lock account for add address: %w", lockErr)
+	}
 
 	if a.Default {
 		if clearErr := q.ClearDefaultAddress(ctx, id); clearErr != nil {
@@ -690,29 +682,19 @@ func (s *Store) MakeDefaultAddress(ctx context.Context, userID, addressID string
 		return ErrNotFound
 	}
 
-	for {
-		err := s.makeDefaultAddress(ctx, uid, aid)
-		if !defaultAddressConflict(err) {
-			return err
-		}
-		if err := ctx.Err(); err != nil {
-			return fmt.Errorf("retry set default address: %w", err)
-		}
-	}
-}
-
-func defaultAddressConflict(err error) bool {
-	pgErr, ok := errors.AsType[*pgconn.PgError](err)
-	return ok && pgErr.Code == "23505" && pgErr.ConstraintName == "addresses_one_default_per_user"
-}
-
-func (s *Store) makeDefaultAddress(ctx context.Context, uid, aid uuid.UUID) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("begin set default address: %w", err)
 	}
 	defer pgtx.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
+
+	if _, lockErr := q.LockUserForAddressDefault(ctx, uid); lockErr != nil {
+		if errors.Is(lockErr, pgx.ErrNoRows) {
+			return ErrNotFound
+		}
+		return fmt.Errorf("lock account for set default address: %w", lockErr)
+	}
 
 	if clearErr := q.ClearDefaultAddress(ctx, uid); clearErr != nil {
 		return fmt.Errorf("clear default address: %w", clearErr)

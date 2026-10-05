@@ -17,7 +17,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/account"
@@ -26,18 +25,25 @@ import (
 )
 
 func TestConcurrentDefaultAddressSelectionsBothSave(t *testing.T) {
-	runDefaultAddressRace(t, "selection", "selection")
+	runDefaultAddressRace(t, addressSelection, addressSelection)
 }
 
 func TestConcurrentDefaultAddressAdditionAndSelectionBothSave(t *testing.T) {
-	runDefaultAddressRace(t, "addition", "selection")
+	runDefaultAddressRace(t, addressAddition, addressSelection)
 }
 
 func TestConcurrentDefaultAddressAdditionsBothSave(t *testing.T) {
-	runDefaultAddressRace(t, "addition", "addition")
+	runDefaultAddressRace(t, addressAddition, addressAddition)
 }
 
-func runDefaultAddressRace(t *testing.T, firstKind, secondKind string) {
+type addressWrite string
+
+const (
+	addressSelection addressWrite = "selection"
+	addressAddition  addressWrite = "addition"
+)
+
+func runDefaultAddressRace(t *testing.T, firstKind, secondKind addressWrite) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 	defer cancel()
@@ -68,7 +74,7 @@ func runDefaultAddressRace(t *testing.T, firstKind, secondKind string) {
 	}
 	var secondBlock pgx.Tx
 	var secondPID int
-	if secondKind == "selection" {
+	if secondKind == addressSelection {
 		secondBlock, beginErr = pool.Begin(ctx)
 		if beginErr != nil {
 			t.Fatal(beginErr)
@@ -94,18 +100,18 @@ func runDefaultAddressRace(t *testing.T, firstKind, secondKind string) {
 	firstHandler := account.NewHandler(account.NewStore(firstPool), nil, slog.New(slog.DiscardHandler), false, nil)
 	secondHandler := account.NewHandler(account.NewStore(secondPool), nil, slog.New(slog.DiscardHandler), false, nil)
 	firstDone := startDefaultAddressRequest(ctx, &workers, firstHandler, u, firstKind, firstID, "first added")
-	// A selected row is held before its UPDATE; an addition is held at its user FK.
-	waitForDefaultAddressBlock(t, ctx, prefix+"-first", firstPID, firstDone)
+	// A selection holds the account lock before its address UPDATE; an addition
+	// waits at the held account row before clearing any default.
+	waitForDefaultAddressBlock(t, ctx, prefix+"-first", []int{firstPID}, firstDone)
 	var firstWriterPID int
 	if err := pool.QueryRow(ctx, `SELECT pid FROM pg_stat_activity WHERE application_name=$1`, prefix+"-first").Scan(&firstWriterPID); err != nil {
 		t.Fatal(err)
 	}
 	secondDone := startDefaultAddressRequest(ctx, &workers, secondHandler, u, secondKind, secondID, "second added")
-	if secondKind == "addition" {
-		// The second insert must reach the first insert's unique-index transaction.
-		secondPID = firstWriterPID
-	}
-	waitForDefaultAddressBlock(t, ctx, prefix+"-second", secondPID, secondDone)
+	// The serialized writer waits on the first writer or the held account.
+	// The address and unique-entry blockers retain the failing interleaving
+	// when the account lock is removed for the mutation proof.
+	waitForDefaultAddressBlock(t, ctx, prefix+"-second", []int{firstPID, firstWriterPID, secondPID}, secondDone)
 	if err := firstBlock.Commit(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -130,10 +136,10 @@ func runDefaultAddressRace(t *testing.T, firstKind, secondKind string) {
 		t.Fatal(err)
 	}
 	want := []savedAddress{{Label: "first saved"}, {Label: "second saved", Default: true}}
-	if firstKind == "addition" {
+	if firstKind == addressAddition {
 		want = append([]savedAddress{{Label: "first added"}}, want...)
 	}
-	if secondKind == "addition" {
+	if secondKind == addressAddition {
 		want = []savedAddress{{Label: "first added"}, {Label: "first saved"}, {Label: "second added", Default: true}, {Label: "second saved"}}
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
@@ -144,25 +150,28 @@ func runDefaultAddressRace(t *testing.T, firstKind, secondKind string) {
 	}
 }
 
-func holdDefaultAddressWriter(t *testing.T, ctx context.Context, tx pgx.Tx, userID, addressID, kind string) {
+func holdDefaultAddressWriter(t *testing.T, ctx context.Context, tx pgx.Tx, userID, addressID string, kind addressWrite) {
 	t.Helper()
 	var err error
-	if kind == "selection" {
+	switch kind {
+	case addressSelection:
 		_, err = tx.Exec(ctx, `SELECT id FROM addresses WHERE id=$1 FOR UPDATE`, addressID)
-	} else {
+	case addressAddition:
 		_, err = tx.Exec(ctx, `SELECT id FROM users WHERE id=$1 FOR UPDATE`, userID)
+	default:
+		panic("account: unknown address write: " + string(kind))
 	}
 	if err != nil {
 		t.Fatal(err)
 	}
 }
 
-func startDefaultAddressRequest(ctx context.Context, workers *sync.WaitGroup, h *account.Handler, u user.User, kind, addressID, label string) <-chan *httptest.ResponseRecorder {
+func startDefaultAddressRequest(ctx context.Context, workers *sync.WaitGroup, h *account.Handler, u user.User, kind addressWrite, addressID, label string) <-chan *httptest.ResponseRecorder {
 	done := make(chan *httptest.ResponseRecorder, 1)
 	workers.Go(func() {
 		form := url.Values{"address": {addressID}}
 		action := h.MakeDefaultAddress
-		if kind == "addition" {
+		if kind == addressAddition {
 			form = url.Values{"label": {label}, "name": {"Recipient"}, "phone": {"0912345678"}, "postal_code": {"110"}, "city": {"Taipei"}, "district": {"Xinyi"}, "street": {"1 Test Road"}, "default": {"1"}}
 			action = h.AddAddress
 		}
@@ -175,13 +184,13 @@ func startDefaultAddressRequest(ctx context.Context, workers *sync.WaitGroup, h 
 	return done
 }
 
-func waitForDefaultAddressBlock(t *testing.T, ctx context.Context, application string, blocker int, done <-chan *httptest.ResponseRecorder) {
+func waitForDefaultAddressBlock(t *testing.T, ctx context.Context, application string, blockers []int, done <-chan *httptest.ResponseRecorder) {
 	t.Helper()
 	ticker := time.NewTicker(5 * time.Millisecond)
 	defer ticker.Stop()
 	for {
 		var blocked bool
-		err := pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM pg_stat_activity WHERE application_name=$1 AND wait_event_type='Lock' AND $2=ANY(pg_blocking_pids(pid)))`, application, blocker).Scan(&blocked)
+		err := pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM pg_stat_activity WHERE application_name=$1 AND wait_event_type='Lock' AND pg_blocking_pids(pid) && $2::integer[])`, application, blockers).Scan(&blocked)
 		if err != nil {
 			t.Fatalf("observe address writer lock: %v", err)
 		}
@@ -210,21 +219,14 @@ func assertDefaultAddressSaved(t *testing.T, ctx context.Context, done <-chan *h
 	}
 }
 
-func TestDefaultAddressWritesPreserveUnrelatedFailureAndCancellation(t *testing.T) {
+func TestDefaultAddressWritesRefuseMissingAccounts(t *testing.T) {
 	s := account.NewStore(pool)
 	a := &account.Address{Name: "Recipient", Phone: "0912345678", PostalCode: "110", City: "Taipei", District: "Xinyi", Street: "1 Test Road", Default: true}
 	err := s.AddAddress(t.Context(), uuid.NewString(), a)
-	if pgErr, ok := errors.AsType[*pgconn.PgError](err); !ok || pgErr.Code != "23503" {
-		t.Errorf("missing address owner error = %v, want original foreign-key refusal", err)
+	if err == nil || errors.Is(err, account.ErrNotFound) || errors.Is(err, account.ErrInvalidInput) {
+		t.Errorf("AddAddress(missing account) = %v, want non-refusal storage error", err)
 	}
-	for _, write := range []func(context.Context) error{
-		func(ctx context.Context) error { return s.AddAddress(ctx, uuid.NewString(), a) },
-		func(ctx context.Context) error { return s.MakeDefaultAddress(ctx, uuid.NewString(), uuid.NewString()) },
-	} {
-		ctx, cancel := context.WithCancel(t.Context())
-		cancel()
-		if err := write(ctx); !errors.Is(err, context.Canceled) {
-			t.Errorf("cancelled address write = %v, want context cancellation", err)
-		}
+	if err := s.MakeDefaultAddress(t.Context(), uuid.NewString(), uuid.NewString()); !errors.Is(err, account.ErrNotFound) {
+		t.Errorf("MakeDefaultAddress(missing account) = %v, want not found", err)
 	}
 }

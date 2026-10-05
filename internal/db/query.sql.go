@@ -8734,6 +8734,17 @@ func (q *Queries) LockShippingZone(ctx context.Context, zoneID uuid.UUID) (uuid.
 	return id, err
 }
 
+const lockUserForAddressDefault = `-- name: LockUserForAddressDefault :one
+SELECT id FROM users WHERE id = $1::uuid FOR NO KEY UPDATE
+`
+
+func (q *Queries) LockUserForAddressDefault(ctx context.Context, userID uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, lockUserForAddressDefault, userID)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
 const lockUserForCartAdoption = `-- name: LockUserForCartAdoption :one
 SELECT lock_user_for_cart_adoption($1::uuid)
 `
