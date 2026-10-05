@@ -85,7 +85,7 @@ type PreviousFigures struct {
 
 // Heading names the period and the one it is set against, by shop day.
 func (v *ReportView) Heading(ctx context.Context) string {
-	return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepSpan),
+	return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepPeriods),
 		dayText(ctx, v.From), dayText(ctx, v.To), dayText(ctx, v.Previous.From), dayText(ctx, v.Previous.To))
 }
 
@@ -119,6 +119,9 @@ func (v *ReportView) RefundedAgainst(ctx context.Context) string {
 }
 
 func (v *ReportView) CompletionAgainst(ctx context.Context) string {
+	if v.Previous.Placed == 0 {
+		return i18n.Count(ctx, i18n.KeyAdminRepNoOrders, int64(v.Days), v.Days)
+	}
 	before := ReportView{Placed: v.Previous.Placed, Committed: v.Previous.Committed}
 	return v.previous(ctx, before.Completion(ctx))
 }
@@ -170,8 +173,10 @@ func (v *ReportView) Average() string { return money.TWD(v.AverageCents) }
 
 func (v *ReportView) OrdersText() string { return strconv.FormatInt(v.Orders, 10) }
 
-// minOrdersForRate is the fewest placed orders for which a percentage is
-// shown; below it, one order moves the rate by more than five points.
+// minOrdersForRate is the fewest orders a period needs before its figures are
+// set against another's as a percentage: below it, one order moves the
+// completion rate by more than five points and the paid-order and revenue
+// comparisons are noise.
 const minOrdersForRate = 20
 
 // Completion is the completion rate rounded half up, or the bare count when

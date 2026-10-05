@@ -201,6 +201,41 @@ func TestReportSetsEachFigureAgainstThePreviousPeriod(t *testing.T) {
 	}
 }
 
+func TestReportCompletionAgainstThePreviousPeriod(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		previous PreviousFigures
+		want     string
+	}{
+		{"no orders placed before", PreviousFigures{}, "No orders in the previous 30 days"},
+		{"fewer than twenty placed before", PreviousFigures{Placed: 6, Committed: 0}, "Previous 30 days: 0 of 6 orders"},
+		{"twenty placed before", PreviousFigures{Placed: 20, Committed: 10}, "Previous 30 days: 50%"},
+	}
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	for _, tt := range tests {
+		v := ReportView{Days: 30, Previous: tt.previous}
+		if got := v.CompletionAgainst(ctx); got != tt.want {
+			t.Errorf("%s: CompletionAgainst() = %q, want %q", tt.name, got, tt.want)
+		}
+	}
+
+	zh := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	for _, tt := range []struct {
+		previous PreviousFigures
+		want     string
+	}{
+		{PreviousFigures{}, "前 30 天沒有訂單"},
+		{PreviousFigures{Placed: 6}, "前 30 天：0 / 6 筆"},
+	} {
+		v := ReportView{Days: 30, Previous: tt.previous}
+		if got := v.CompletionAgainst(zh); got != tt.want {
+			t.Errorf("CompletionAgainst(%+v) = %q, want %q", tt.previous, got, tt.want)
+		}
+	}
+}
+
 func TestReportRevenueNeedsMoreThanOrderCountToCallAChange(t *testing.T) {
 	t.Parallel()
 

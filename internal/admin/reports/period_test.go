@@ -34,7 +34,7 @@ func TestSpansAreWholeShopDaysAndTheSameHoursBefore(t *testing.T) {
 			prevFrom: "2026-07-08 00:00", prevTo: "2026-10-05 10:00",
 		},
 	} {
-		cur, prev := spans(tt.now, tt.days)
+		cur, prev := periods(tt.now, tt.days)
 		for _, c := range []struct {
 			what string
 			got  time.Time
@@ -46,7 +46,7 @@ func TestSpansAreWholeShopDaysAndTheSameHoursBefore(t *testing.T) {
 			{"previous to", prev.to, tt.prevTo},
 		} {
 			if got := shoptime.Minute(c.got); got != c.want {
-				t.Errorf("%s: spans(%s, %d) %s = %s, want %s", tt.name, tt.now, tt.days, c.what, got, c.want)
+				t.Errorf("%s: periods(%s, %d) %s = %s, want %s", tt.name, tt.now, tt.days, c.what, got, c.want)
 			}
 		}
 	}

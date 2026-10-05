@@ -337,9 +337,52 @@ func TestAPeriodIsWholeShopDaysAndThePreviousStopsAtTheSameHour(t *testing.T) {
 		reportOrderAt(t, order.cents, true, &moment)
 	}
 
+	// Money going back is windowed by when it landed: a minute either side of
+	// the previous period's cut, the earlier one counts and the later does not.
+	earlier := at("2024-02-20 10:00:00")
+	paid := reportOrderAt(t, 100000, true, &earlier)
+	for _, refund := range []struct {
+		succeeded string
+		cents     int64
+	}{
+		{"2024-03-03 15:19:00", 256},
+		{"2024-03-03 15:21:00", 512},
+	} {
+		if _, insertErr := pool.Exec(ctx, `
+			INSERT INTO refunds (payment_id, request_key, status, amount_cents, provider_ref, succeeded_at)
+			SELECT id, 'window-' || $2::text, 'succeeded', $2, 're_window_' || $2::text, $1::timestamptz
+			FROM payments WHERE order_id = $3 AND status = 'succeeded'`,
+			at(refund.succeeded), refund.cents, paid); insertErr != nil {
+			t.Fatalf("refund at %s: %v", refund.succeeded, insertErr)
+		}
+	}
+	var account uuid.UUID
+	if accountErr := pool.QueryRow(ctx, `
+		WITH u AS (INSERT INTO users (email, role) VALUES ('window-credit@goen.invalid', 'customer') RETURNING id)
+		INSERT INTO store_credit_accounts (user_id) SELECT id FROM u RETURNING id`).Scan(&account); accountErr != nil {
+		t.Fatalf("credit account: %v", accountErr)
+	}
+	for _, credit := range []struct {
+		created string
+		cents   int64
+	}{
+		{"2024-03-03 15:19:00", 1024},
+		{"2024-03-03 15:21:00", 2048},
+	} {
+		if _, insertErr := pool.Exec(ctx, `
+			INSERT INTO store_credit_entries (account_id, amount_cents, reason, idempotency_key, order_id, created_at)
+			VALUES ($1, $2, '折讓', 'window-' || $2::text, $3, $4::timestamptz)`,
+			account, credit.cents, paid, at(credit.created)); insertErr != nil {
+			t.Fatalf("credit at %s: %v", credit.created, insertErr)
+		}
+	}
+
 	after, err := s.ReportAt(ctx, 7, now)
 	if err != nil {
 		t.Fatalf("report after: %v", err)
+	}
+	if got, want := after.Previous.RefundedCents-before.Previous.RefundedCents, int64(256+1024); got != want {
+		t.Errorf("the previous period gained %d refunded cents, want %d: refunds and credits count when they landed, up to the cut", got, want)
 	}
 	if got, want := after.RevenueCents-before.RevenueCents, int64(1+4); got != want {
 		t.Errorf("this period gained %d cents, want %d: it takes 15:19 today and 00:01 on the first day only", got, want)

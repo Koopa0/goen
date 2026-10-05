@@ -41,7 +41,7 @@ func (s *Store) ReportAt(ctx context.Context, days int32, now time.Time) (admin.
 	if !validWindow(days) {
 		days = DefaultWindow
 	}
-	current, before := spans(now, int(days))
+	current, before := periods(now, int(days))
 
 	revenue, err := s.q.RevenueBetween(ctx, db.RevenueBetweenParams{FromAt: current.from, ToAt: current.to})
 	if err != nil {
