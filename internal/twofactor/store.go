@@ -2,9 +2,12 @@ package twofactor
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"math/big"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -13,6 +16,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/email"
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/outbox"
 )
 
 type Store struct {
@@ -30,10 +36,11 @@ func NewStore(pool *pgxpool.Pool, key []byte) *Store {
 
 func (s *Store) Enabled() bool { return s.cipher.enabled() }
 
-// Begin starts enrolment and returns the secret to show once. The credential is
-// not confirmed here, and an already-confirmed one is refused with
-// [ErrEnrolled] — recovery is another admin removing it.
-func (s *Store) Begin(ctx context.Context, userID, email string) (secret []byte, uri string, err error) {
+// Begin starts enrolment and returns the secret to show once. The second code
+// [Store.Confirm] needs goes to address by mail, never to the page. The
+// credential is not confirmed here, and an already-confirmed one is refused
+// with [ErrEnrolled] — recovery is another admin removing it.
+func (s *Store) Begin(ctx context.Context, userID, address string) (secret []byte, uri string, err error) {
 	if !s.Enabled() {
 		return nil, "", ErrDisabled
 	}
@@ -49,8 +56,20 @@ func (s *Store) Begin(ctx context.Context, userID, email string) (secret []byte,
 	if err != nil {
 		return nil, "", err
 	}
-	n, err := s.q.BeginTOTPEnrolment(ctx, db.BeginTOTPEnrolmentParams{
-		UserID: id, SecretEncrypted: sealed,
+	mailed, err := newMailedCode()
+	if err != nil {
+		return nil, "", err
+	}
+
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return nil, "", fmt.Errorf("begin totp enrolment: %w", err)
+	}
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
+	q := s.q.WithTx(tx)
+
+	n, err := q.BeginTOTPEnrolment(ctx, db.BeginTOTPEnrolmentParams{
+		UserID: id, SecretEncrypted: sealed, MailedCodeHash: mailedCodeHash(mailed),
 	})
 	if err != nil {
 		return nil, "", fmt.Errorf("begin totp enrolment: %w", err)
@@ -58,10 +77,21 @@ func (s *Store) Begin(ctx context.Context, userID, email string) (secret []byte,
 	if n == 0 {
 		return nil, "", ErrEnrolled
 	}
-	return secret, ProvisioningURI(email, secret), nil
+	if err := outbox.Enqueue(ctx, q, outbox.TopicStaffEnrolment, "staff-enrolment:"+uuid.NewString(), &email.StaffEnrolment{
+		Locale: i18n.FromContext(ctx).Tag(), Email: address, Code: mailed,
+	}); err != nil {
+		return nil, "", err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, "", fmt.Errorf("commit totp enrolment: %w", err)
+	}
+	return secret, ProvisioningURI(address, secret), nil
 }
 
-func (s *Store) Confirm(ctx context.Context, userID, code string) error {
+// Confirm proves enrolment with a code from the new authenticator and the code
+// [Store.Begin] mailed. A wrong, expired or superseded mailed code is
+// [ErrBadCode].
+func (s *Store) Confirm(ctx context.Context, userID, code, mailedCode string) error {
 	id, secret, lastStep, sealed, err := s.load(ctx, userID, false)
 	if err != nil {
 		return err
@@ -70,13 +100,17 @@ func (s *Store) Confirm(ctx context.Context, userID, code string) error {
 	if err != nil {
 		return err
 	}
-	n, err := s.q.ConfirmTOTP(ctx, db.ConfirmTOTPParams{UserID: id, Step: step, SecretEncrypted: sealed})
+	n, err := s.q.ConfirmTOTP(ctx, db.ConfirmTOTPParams{
+		UserID: id, Step: step, SecretEncrypted: sealed,
+		MailedCodeHash: mailedCodeHash(mailedCode),
+		MailedCodeTtl:  pgtype.Interval{Microseconds: MailedCodeTTL.Microseconds(), Valid: true},
+	})
 	if err != nil {
 		return fmt.Errorf("confirm totp: %w", err)
 	}
 	if n == 0 {
-		// A concurrent request used this same code first, or restarted
-		// enrolment with another secret.
+		// The mailed code is wrong or expired, a concurrent request used this
+		// same code first, or enrolment restarted with another secret.
 		return ErrBadCode
 	}
 	return nil
@@ -165,4 +199,20 @@ func (s *Store) load(ctx context.Context, userID string, requireConfirmed bool) 
 		return uuid.UUID{}, nil, 0, nil, fmt.Errorf("%w: %w", ErrSecretUnreadable, err)
 	}
 	return id, secret, row.LastStep.Int64, row.SecretEncrypted, nil
+}
+
+// newMailedCode is eight digits rather than six: the enrolling page already
+// shows the secret, so this code alone stands against guesses at the rate
+// Handler.limit allows for [MailedCodeTTL].
+func newMailedCode() (string, error) {
+	n, err := rand.Int(rand.Reader, big.NewInt(100_000_000))
+	if err != nil {
+		return "", fmt.Errorf("generate mailed code: %w", err)
+	}
+	return fmt.Sprintf("%08d", n), nil
+}
+
+func mailedCodeHash(code string) []byte {
+	digest := sha256.Sum256([]byte(strings.TrimSpace(code)))
+	return digest[:]
 }
