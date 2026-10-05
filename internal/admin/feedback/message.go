@@ -7,7 +7,9 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/admin/audit"
+	"github.com/koopa0/goen/internal/contactsubject"
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
@@ -27,8 +29,12 @@ func (s *Store) Messages(ctx context.Context, after ...string) (admin.MessagesVi
 	}
 	for i := range rows {
 		m := &rows[i]
+		label, labelErr := SubjectLabel(ctx, contactsubject.Subject(m.Subject))
+		if labelErr != nil {
+			return admin.MessagesView{}, fmt.Errorf("read contact messages: %w", labelErr)
+		}
 		view.Rows = append(view.Rows, admin.Message{
-			ID: m.ID.String(), Name: m.Name, Email: m.Email, Subject: m.Subject,
+			ID: m.ID.String(), Name: m.Name, Email: m.Email, Subject: label,
 			OrderRef: m.OrderRef, Message: m.Message,
 			Handled: m.HandledAt.Valid,
 			At:      shoptime.Minute(m.CreatedAt),
@@ -38,6 +44,14 @@ func (s *Store) Messages(ctx context.Context, after ...string) (admin.MessagesVi
 		})
 	}
 	return view, nil
+}
+
+func SubjectLabel(ctx context.Context, subject contactsubject.Subject) (string, error) {
+	key, ok := subject.LabelKey()
+	if !ok {
+		return "", fmt.Errorf("unknown contact subject %q", subject)
+	}
+	return i18n.T(ctx, key), nil
 }
 
 func (s *Store) SetMessageHandled(ctx context.Context, id string, handled bool) error {

@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/koopa0/goen/internal/contactsubject"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -45,7 +46,7 @@ func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
 	msg := Clean(Message{
 		Name:     r.PostFormValue("name"),
 		Email:    r.PostFormValue("email"),
-		Subject:  r.PostFormValue("subject"),
+		Subject:  contactsubject.Subject(r.PostFormValue("subject")),
 		OrderRef: r.PostFormValue("order_ref"),
 		Body:     r.PostFormValue("message"),
 	})
@@ -53,7 +54,7 @@ func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
 	form := pages.ContactForm{
 		Name:     msg.Name,
 		Email:    msg.Email,
-		Subject:  msg.Subject,
+		Subject:  string(msg.Subject),
 		OrderRef: msg.OrderRef,
 		Message:  msg.Body,
 		Subjects: subjectChoices(r.Context()),
@@ -104,9 +105,11 @@ func (h *Handler) respond(w http.ResponseWriter, r *http.Request, status int, fo
 }
 
 func subjectChoices(ctx context.Context) []pages.ContactSubject {
+	subjects := contactsubject.Subjects()
 	out := make([]pages.ContactSubject, 0, len(subjects))
 	for _, s := range subjects {
-		out = append(out, pages.ContactSubject{Value: s.Value, Label: i18n.T(ctx, s.LabelKey)})
+		key, _ := s.LabelKey() // Subjects contains only the closed offered set.
+		out = append(out, pages.ContactSubject{Value: string(s), Label: i18n.T(ctx, key)})
 	}
 	return out
 }
