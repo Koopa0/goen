@@ -16,7 +16,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode"
 
 	"github.com/google/uuid"
 
@@ -368,12 +367,6 @@ func ParseQuantityAllowingZero(s string) (int32, bool) {
 		return MaxLineQuantity, true
 	}
 	return int32(n), true
-}
-
-// hasControl reports whether s carries a control character. unicode.IsControl
-// covers C1 (0x80–0x9F) as well as C0, which an ASCII-only check lets through.
-func hasControl(s string) bool {
-	return strings.ContainsFunc(s, unicode.IsControl)
 }
 
 // ShippingFee treats a free-over threshold of zero as never free.
