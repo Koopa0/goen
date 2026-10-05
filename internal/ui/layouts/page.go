@@ -19,7 +19,9 @@ type Page struct {
 	Nav            string
 	StructuredData string
 	SearchQuery    string
-	Newsletter     NewsletterState
+	// Newsletter repopulates the footer after a plain newsletter response;
+	// its zero value is the normal empty subscription form.
+	Newsletter NewsletterState
 	// Share's zero value keeps the default preview picture.
 	Share ShareImage
 }
