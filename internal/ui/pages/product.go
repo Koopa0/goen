@@ -13,6 +13,7 @@ import (
 	"github.com/a-h/templ"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/productlabel"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -141,6 +142,7 @@ func maskedName(l i18n.Locale, name string) string {
 }
 
 type ProductView struct {
+	LabelFacts   *productlabel.Facts
 	Saved        bool
 	Slug         string
 	Name         string
@@ -506,4 +508,8 @@ func (v *ProductView) ArrivalText() string {
 		return ""
 	}
 	return v.ExpectedArrivalText
+}
+
+func (v *ProductView) LabelRows(ctx context.Context) []productlabel.Fact {
+	return v.LabelFacts.Rows(ctx)
 }
