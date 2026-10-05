@@ -24,7 +24,7 @@ var policies = map[string]pages.PolicyDoc{
 					"還沒出貨的訂單請直接聯絡我們取消，不需要走退貨流程。",
 				},
 				BodyEn: []string{
-					"Only goods that have SHIPPED can be returned, and never more than actually left the warehouse. That is not a policy choice: there is nothing to send back from a parcel that has not gone out.",
+					"Only goods that have shipped can be returned, and never more than actually left the warehouse. That is not a policy choice: there is nothing to send back from a parcel that has not gone out.",
 					"For an order that has not shipped, contact us to cancel it — there is no return to file.",
 				},
 			},
@@ -50,7 +50,7 @@ var policies = map[string]pages.PolicyDoc{
 				// compensate_return_with_credit pays the store-credit half of a
 				// return; naming only Stripe here would describe a different shop.
 				Body: []string{
-					"退貨經同意後，系統依原付款組成退回：卡款立刻向 Stripe 發出退款，店儲退回購物金餘額。金額依訂單本身的單價計算。卡款入帳時間由發卡銀行決定，通常是數個工作天；額度退回後可立刻再用於結帳。",
+					"退貨經同意後，系統依原付款組成退回：卡款立刻向 Stripe 發出退款，店儲退回購物金餘額。金額依訂單本身的單價計算，並扣除這些商品分攤的折扣。卡款入帳時間由發卡銀行決定，通常是數個工作天；額度退回後可立刻再用於結帳。",
 					"退款依原路退回，不會改用其他管道。",
 				},
 				BodyEn: []string{
@@ -62,17 +62,17 @@ var policies = map[string]pages.PolicyDoc{
 			// no cost; §19 V voids any agreement otherwise. Civil Code §120 II
 			// excludes the day of receipt, and §19 IV fixes it on dispatch.
 			{
-				Heading:   "鑑賞期",
+				Heading:   "猶豫期",
 				HeadingEn: "Your seven-day right to cancel",
 				Body: []string{
-					"您有七天的鑑賞期。這七天從收到商品的「隔天」開始算，期間內要解除契約不需要說明理由，也不需要負擔任何費用。",
-					"只要在期限內把商品交寄出去、或把書面通知發出，契約就算解除 —— 我們哪一天收到不影響這件事。",
-					"鑑賞期是讓您檢查商品的期間，和在店裡把商品拿起來看是同一回事。因為檢查的必要而造成的毀損或變更，不會讓這個權利消失。",
+					"你可以自收到商品的次日起七日內解除契約，不需要說明理由，也不需要負擔任何費用。這是消費者保護法第 19 條的規定，任何約定都不能縮短或排除。",
+					"只要在期限內把商品交寄出去、或把書面通知發出，契約就算解除，我們哪一天收到都不影響。",
+					"猶豫期是讓你檢查商品的期間，和在店裡把商品拿起來看是同一回事。因為檢查的必要而造成的毀損或變更，不會讓這個權利消失。",
 				},
 				BodyEn: []string{
-					"You have seven days to cancel. They start the day AFTER the goods reach you, you need give no reason, and it costs you nothing. This is Article 19 of Taiwan's Consumer Protection Act, and no agreement can shorten or waive it.",
+					"You have seven days to cancel, counted from the day after you receive the goods. You need give no reason, and it costs you nothing. This is Article 19 of Taiwan's Consumer Protection Act, and no agreement can shorten or waive it.",
 					"Sending the goods back, or sending us written notice, inside those seven days is enough — the contract is cancelled at that moment, whatever day it reaches us.",
-					"The seven days are for INSPECTING what you bought, exactly as you would pick it up in a shop. Damage or change caused by that inspection does not cost you the right.",
+					"The seven days are for inspecting what you bought, exactly as you would pick it up in a shop. Damage or change caused by that inspection does not cost you the right.",
 				},
 			},
 			// The hook is Consumer Protection Act §19 I ("bears no cost"), not
@@ -81,7 +81,7 @@ var policies = map[string]pages.PolicyDoc{
 				Heading:   "退貨運費",
 				HeadingEn: "Who pays return postage",
 				Body: []string{
-					"鑑賞期內解除契約，您不需要負擔任何費用，退貨運費由 goen 負擔。",
+					"猶豫期內解除契約，你不需要負擔任何費用，退貨運費由 goen 負擔。",
 				},
 				BodyEn: []string{
 					"We do. Cancelling inside the seven days costs you nothing at all, return postage included, and the delivery fee you originally paid comes back with the goods.",
@@ -94,20 +94,20 @@ var policies = map[string]pages.PolicyDoc{
 				Heading:   "拆封之後還能退嗎",
 				HeadingEn: "Can I still return it once it is opened?",
 				Body: []string{
-					"可以。無論是哪一項商品，拆開包裹檢查商品都不會讓七天的解除權結束 —— 鑑賞期本來就包含拆開來檢查。",
-					"法律允許少數幾類商品排除鑑賞期，而且必須在購買前就明確告知才算數。goen 目前沒有任何商品排除鑑賞期，所以本店所有商品都適用完整的七天。",
+					"可以。無論是哪一項商品，拆開包裹檢查商品都不會讓七天的解除權結束，因為猶豫期本來就包含拆開來檢查。",
+					"法律允許少數幾類商品排除猶豫期，而且必須在購買前就明確告知才算數。goen 目前沒有任何商品排除猶豫期，所以本店所有商品都適用完整的七天。",
 				},
 				BodyEn: []string{
 					"Yes. For every product, opening the parcel to inspect the goods does not end your seven days, because inspecting them is what the seven days are for.",
-					"The law allows a few narrow categories to be excluded, and only where the seller says so plainly BEFORE you buy. goen excludes nothing, so every product here carries the full seven days.",
+					"The law allows a few narrow categories to be excluded, and only where the seller says so plainly before you buy. goen excludes nothing, so every product here carries the full seven days.",
 				},
 			},
 			{
 				Heading:   "七天之外",
 				HeadingEn: "Beyond the seven days",
 				Body: []string{
-					"鑑賞期之外，商品未使用、包裝與配件齊全的話，我們願意在送達後 14 天內受理退貨，運費由您負擔。",
-					"這是 goen 自己的額外服務，不是法律規定的鑑賞期。前面七天的權利不受這一條影響，也不會因為這一條變短。",
+					"猶豫期之外，商品未使用、包裝與配件齊全的話，我們願意在送達後 14 天內受理退貨，運費由你負擔。",
+					"這是 goen 自己的額外服務，不是法律規定的猶豫期。前面七天的權利不受這一條影響，也不會因為這一條變短。",
 				},
 				BodyEn: []string{
 					"After the seven days, we will still take something back within 14 days of delivery if it is unused and complete with its box and accessories. You pay the postage.",
@@ -126,7 +126,7 @@ var policies = map[string]pages.PolicyDoc{
 				Heading:   "信用卡",
 				HeadingEn: "Credit cards",
 				Body: []string{
-					"目前接受信用卡付款，由 Stripe 處理。付款頁面在 Stripe 的網域上，goen 的伺服器不會接觸、也不會儲存您的卡片資料。",
+					"目前接受信用卡付款，由 Stripe 處理。付款頁面在 Stripe 的網域上，goen 的伺服器不會接觸、也不會儲存你的卡片資料。",
 					"我們只會保留卡別與末四碼，用於在訂單頁辨識是哪一張卡付的款。",
 				},
 				BodyEn: []string{
@@ -153,7 +153,7 @@ var policies = map[string]pages.PolicyDoc{
 				Heading:   "什麼時候扣款",
 				HeadingEn: "When you are charged",
 				Body: []string{
-					"在 Stripe 頁面完成付款時就會扣款。goen 只在收到 Stripe 經過簽章驗證的通知後，才把訂單標記為已付款 —— 回到網站看到的頁面本身不代表付款成功。",
+					"在 Stripe 頁面完成付款時就會扣款。goen 只在收到 Stripe 經過簽章驗證的通知後，才把訂單標記為已付款。回到網站看到的頁面本身不代表付款成功。",
 				},
 				BodyEn: []string{
 					"At the moment you finish on Stripe's page. goen marks an order paid only on a signature-verified notice from Stripe — the page you land back on is not itself proof that the money arrived.",
@@ -225,7 +225,7 @@ var policies = map[string]pages.PolicyDoc{
 	"privacy": {
 		Title:     "隱私權政策",
 		TitleEn:   "Privacy",
-		Summary:   "goen 蒐集哪些資料、為什麼蒐集，以及您可以怎麼處理它。",
+		Summary:   "goen 蒐集哪些資料、為什麼蒐集，以及你可以怎麼處理它。",
 		SummaryEn: "What we collect, why, and what you can do about it.",
 		Sections: []pages.PolicySection{
 			{
@@ -235,9 +235,9 @@ var policies = map[string]pages.PolicyDoc{
 					"下單時：收件人姓名、電話、地址與 Email，用於出貨與聯絡。",
 					"註冊時：Email 與密碼。密碼以 argon2id 雜湊儲存，任何人都無法從資料庫還原它，包含我們。",
 					"付款時：卡片資料由 Stripe 處理，不經過 goen。我們只收到卡別與末四碼。",
-					"訂閱電子報時：保存您的 Email、語言、確認與退訂狀態，用於寄送及停止電子報。",
+					"訂閱電子報時：保存你的 Email、語言、確認與退訂狀態，用於寄送及停止電子報。",
 					"登入時：工作階段保存 IP 位址及 User-Agent 瀏覽器資訊，登入狀態結束或帳號刪除後一併移除。",
-					"開立發票時：保存顧客姓名、Email，以及您選擇提供的公司統一編號、手機條碼或捐贈碼（愛心碼），用於開立發票與後續折讓。",
+					"開立發票時：保存顧客姓名、Email，以及你選擇提供的公司統一編號、手機條碼或捐贈碼（愛心碼），用於開立發票與後續折讓。",
 					"登錄保固時：保存商品序號與保固登錄資料，用於識別送修商品及保固期限。",
 				},
 				BodyEn: []string{
@@ -266,9 +266,9 @@ var policies = map[string]pages.PolicyDoc{
 				Heading:   "我們不做什麼",
 				HeadingEn: "What we do not do",
 				Body: []string{
-					"不將您的個人資料出售或提供給第三方作行銷用途。",
+					"不將你的個人資料出售或提供給第三方作行銷用途。",
 					// The cookie list claims completeness, in both locales.
-					"不在網站上使用第三方追蹤或廣告 cookie。goen 使用的 cookie 只有這幾種：購物車、登入狀態、訂單瀏覽權限、您選擇的語言、您關閉過的網站公告、挑選超商取貨門市時暫存的選擇，以及用 Google 登入時暫存幾分鐘的驗證資料。",
+					"不在網站上使用第三方追蹤或廣告 cookie。goen 使用的 cookie 只有這幾種：購物車、登入狀態、訂單瀏覽權限、你選擇的語言、你關閉過的網站公告、挑選超商取貨門市時暫存的選擇，以及用 Google 登入時暫存幾分鐘的驗證資料。",
 				},
 				BodyEn: []string{
 					"We do not sell your personal data, or hand it to anybody else for marketing.",
@@ -276,12 +276,12 @@ var policies = map[string]pages.PolicyDoc{
 				},
 			},
 			{
-				Heading:   "刪除您的資料",
+				Heading:   "刪除你的資料",
 				HeadingEn: "Deleting your data",
 				Body: []string{
 					"在會員中心可以要求刪除帳號。系統會清除帳號中的姓名、Email、電話、地址與訂單上的收件資訊；下列保留資料不在清除範圍內。",
 					"訂單財務紀錄及不可變更的發票快照會保留，包括顧客姓名、Email、公司統一編號、手機條碼與捐贈碼。尚待處理或確認結果的發票作業也會保留所需資料，直到完成確認。",
-					"保固登錄與商品序號會保留，但不再連結到已刪除的帳號。已公開的商品評價也會保留，但不再與您的帳號關聯。",
+					"保固登錄與商品序號會保留，但不再連結到已刪除的帳號。已公開的商品評價也會保留，但不再與你的帳號關聯。",
 					"只有已驗證帳號目前 Email 的所有權，刪帳才會移除同信箱的電子報訂閱。未驗證信箱的訂閱不會隨刪帳移除；請使用電子報中的退訂連結停止寄送。",
 				},
 				BodyEn: []string{
@@ -303,7 +303,7 @@ var policies = map[string]pages.PolicyDoc{
 				Heading:   "訂單成立",
 				HeadingEn: "When an order is formed",
 				Body: []string{
-					"送出訂單即表示要約，我們確認庫存與付款後訂單成立。若商品在您付款前售罄，我們會取消訂單並全額退款。",
+					"送出訂單即表示要約，我們確認庫存與付款後訂單成立。若商品在你付款前售罄，我們會取消訂單並全額退款。",
 				},
 				BodyEn: []string{
 					"Placing an order is an offer; the contract forms when we have confirmed the stock and the payment. If something sells out before you pay, we cancel the order and refund it in full.",
@@ -313,7 +313,7 @@ var policies = map[string]pages.PolicyDoc{
 				Heading:   "價格與標示",
 				HeadingEn: "Prices",
 				Body: []string{
-					"網站上顯示的價格為新台幣含稅價。若因系統錯誤導致標價明顯有誤，我們保留取消該筆訂單並退款的權利，並會主動聯絡您說明。",
+					"網站上顯示的價格為新台幣含稅價。若因系統錯誤導致標價明顯有誤，我們保留取消該筆訂單並退款的權利，並會主動聯絡你說明。",
 				},
 				BodyEn: []string{
 					"Prices are in New Taiwan dollars and include tax. Where a system fault makes a price obviously wrong, we reserve the right to cancel that order and refund it, and we will contact you to explain rather than leave you to notice.",
@@ -333,7 +333,7 @@ var policies = map[string]pages.PolicyDoc{
 				Heading:   "帳號",
 				HeadingEn: "Your account",
 				Body: []string{
-					"請妥善保管您的密碼。變更密碼會同時登出其他所有裝置。",
+					"請妥善保管你的密碼。變更密碼會同時登出其他所有裝置。",
 				},
 				BodyEn: []string{
 					"Keep your password to yourself. Changing it signs out every other device at the same time.",
@@ -347,7 +347,7 @@ var policies = map[string]pages.PolicyDoc{
 				HeadingEn: "Governing law",
 				Body: []string{
 					"本條款以中華民國法律為準據法。",
-					"有爭議時請先聯絡我們，大多數問題不需要走到法院。若確實需要訴訟，以臺灣臺北地方法院為第一審管轄法院 —— 但這不影響消費者依消費者保護法向自己住所地法院起訴的權利。",
+					"有爭議時請先聯絡我們，大多數問題不需要走到法院。若確實需要訴訟，以臺灣臺北地方法院為第一審管轄法院，但這不影響消費者依消費者保護法向自己住所地法院起訴的權利。",
 				},
 				BodyEn: []string{
 					"These terms are governed by the law of the Republic of China (Taiwan).",
