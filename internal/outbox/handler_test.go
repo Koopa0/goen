@@ -99,7 +99,7 @@ func TestHandleRejectsInvalidRegistration(t *testing.T) {
 //	ERROR: invalid byte sequence for encoding "UTF8": 0xe5 0xae
 //
 // The write that would fail is the one recording the failure: attempts never
-// increments, so the message retries for ever and never reaches MaxAttempts.
+// increments, so the message retries for ever and never reaches StuckAfterAttempts.
 func TestALastErrorIsCutOnARuneBoundary(t *testing.T) {
 	t.Parallel()
 

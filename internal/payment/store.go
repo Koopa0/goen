@@ -46,7 +46,7 @@ func NewStore(pool *pgxpool.Pool) *Store {
 	return &Store{pool: pool, q: db.New(pool)}
 }
 
-// Order reads what an order OWES, through the order_amount_owed the funding
+// Order reads what an order OWES, through the order_amount_after_credit the funding
 // check and the capture guard also read.
 func (s *Store) Order(ctx context.Context, number string) (*Order, error) {
 	row, err := s.q.OrderTotalByNumber(ctx, number)
