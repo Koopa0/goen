@@ -40,7 +40,8 @@ func TestResetPasswordRefusalsDoNotLeakFormattingDiagnostics(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				var message, token string
+				var token string
+				var message strings.Builder
 				for node := range root.Descendants() {
 					attrs := map[string]string{}
 					for _, a := range node.Attr {
@@ -49,7 +50,7 @@ func TestResetPasswordRefusalsDoNotLeakFormattingDiagnostics(t *testing.T) {
 					if node.Type == html.ElementNode && attrs["id"] == "reset-error" {
 						for part := range node.Descendants() {
 							if part.Type == html.TextNode {
-								message += part.Data
+								message.WriteString(part.Data)
 							}
 						}
 					}
@@ -61,8 +62,8 @@ func TestResetPasswordRefusalsDoNotLeakFormattingDiagnostics(t *testing.T) {
 				if locale == i18n.En {
 					want = tt.en
 				}
-				if message != want {
-					t.Errorf("reset refusal = %q, want %q", message, want)
+				if message.String() != want {
+					t.Errorf("reset refusal = %q, want %q", message.String(), want)
 				}
 				if token != "still-live-token" {
 					t.Errorf("retained token = %q, want still-live-token", token)
