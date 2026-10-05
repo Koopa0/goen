@@ -17,6 +17,8 @@ type AuditEntry struct {
 	At        string
 	RequestID string
 	Changes   []AuditChange
+	// UserName is who a recorded user_id names, empty once that account is gone.
+	UserName string
 	// System is goen acting on a fact, such as the 統一發票 a sale owes; no
 	// person acted, and Label says what was done.
 	System bool
@@ -60,6 +62,8 @@ var entityLabels = map[string]i18n.Key{
 	"contact_messages":         i18n.KeyAuditEntityContactMessages,
 	"coupons":                  i18n.KeyAuditEntityCoupons,
 	"faq_entries":              i18n.KeyAuditEntityFaqEntries,
+	"invoice_documents":        i18n.KeyAuditEntityInvoiceDocuments,
+	"invoice_operations":       i18n.KeyAuditEntityInvoiceOperations,
 	"hero_slides":              i18n.KeyAuditEntityHeroSlides,
 	"membership_tiers":         i18n.KeyAuditEntityMembershipTiers,
 	"product_answers":          i18n.KeyAuditEntityProductAnswers,

@@ -63,6 +63,7 @@ func (s *Store) Events(ctx context.Context, after ...string) (admin.AuditView, e
 			At:        shoptime.Second(e.OccurredAt),
 			RequestID: e.RequestID.String,
 			Changes:   changes(e.Before, e.After),
+			UserName:  e.UserName,
 		})
 	}
 	return view, nil

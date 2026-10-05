@@ -29,6 +29,9 @@ templ Audit(p layouts.Page, v AuditView) {
 					<li class={ "goen-admin__auditrow", templ.KV("is-money", e.Money()) }>
 						<div class="goen-admin__audithead">
 							<span class="goen-admin__auditaction">{ e.Label(ctx) }</span>
+							if e.Money() {
+								<span class="goen-badge goen-badge--accent">{ i18n.T(ctx, i18n.KeyAuditMoneyTag) }</span>
+							}
 							<span class="goen-admin__meta">{ e.At }</span>
 						</div>
 						<span class="goen-admin__meta">
@@ -41,9 +44,13 @@ templ Audit(p layouts.Page, v AuditView) {
 						</span>
 						if len(e.Changes) > 0 {
 							<dl class="goen-admin__auditdetail">
-								for _, c := range e.Changes {
-									<dt>{ c.Field }</dt>
-									<dd>{ c.Text() }</dd>
+								for _, c := range e.ChangeRows(ctx) {
+									<dt>{ c.Label }</dt>
+									if c.Href != "" {
+										<dd><a href={ templ.SafeURL(c.Href) }>{ c.Text }</a></dd>
+									} else {
+										<dd>{ c.Text }</dd>
+									}
 								}
 							</dl>
 						}

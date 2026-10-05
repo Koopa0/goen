@@ -2898,7 +2898,9 @@ SELECT json_build_object('At', a.occurred_at, 'ID', a.id)::text AS page_cursor, 
            WHEN 'products' THEN (SELECT pr.slug FROM products pr WHERE pr.id = a.entity_id)
            WHEN 'product_variants' THEN (SELECT pr.slug FROM product_variants pv
                                          JOIN products pr ON pr.id = pv.product_id WHERE pv.id = a.entity_id)
-       END, '')::text AS product_slug
+       END, '')::text AS product_slug,
+       coalesce((SELECT coalesce(cu.full_name, cu.email) FROM users cu
+                 WHERE cu.id::text = a.after->>'user_id'), '')::text AS user_name
 FROM audit_events a
 LEFT JOIN users u ON u.id = a.actor_user_id
 WHERE (NOT $1::boolean OR (a.occurred_at < $2::timestamptz)
@@ -2927,6 +2929,7 @@ type AuditEventsRow struct {
 	BySystem    bool
 	Subject     string
 	ProductSlug string
+	UserName    string
 }
 
 func (q *Queries) AuditEvents(ctx context.Context, arg AuditEventsParams) ([]AuditEventsRow, error) {
@@ -2956,6 +2959,7 @@ func (q *Queries) AuditEvents(ctx context.Context, arg AuditEventsParams) ([]Aud
 			&i.BySystem,
 			&i.Subject,
 			&i.ProductSlug,
+			&i.UserName,
 		); err != nil {
 			return nil, err
 		}
