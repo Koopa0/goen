@@ -13,6 +13,7 @@ import (
 
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/invoice"
+	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/outbox"
 )
 
@@ -36,8 +37,8 @@ func TestCreditPayingTheWholeOrderQueuesItsInvoiceAtCheckout(t *testing.T) {
 			t.Fatalf("add: %v", err)
 		}
 		number, err := placeOrder(t, s, ctx, id, uuid.NullUUID{UUID: userID, Valid: true}, shipID,
-			&cart.Address{
-				Email: "due@example.com", Name: "王小明", Phone: "0912345678",
+			&order.Delivery{
+				Email: "due@example.com", RecipientName: "王小明", Phone: "0912345678",
 				PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 			}, "", key)
 		if err != nil {

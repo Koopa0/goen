@@ -843,7 +843,7 @@ func Shipping(p layouts.Page, v ShippingView) templ.Component {
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
 							}
-							if v.SurchargeError(m.MethodID, z.ID) != "" {
+							if v.SurchargeRefusal(m.MethodID, z.ID) != "" {
 								templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 49, " aria-invalid=\"true\" aria-describedby=\"")
 								if templ_7745c5c3_Err != nil {
 									return templ_7745c5c3_Err
@@ -900,7 +900,7 @@ func Shipping(p layouts.Page, v ShippingView) templ.Component {
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
 							}
-							if v.SurchargeError(m.MethodID, z.ID) != "" {
+							if v.SurchargeRefusal(m.MethodID, z.ID) != "" {
 								templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 53, "<p class=\"goen-admin__error\" id=\"")
 								if templ_7745c5c3_Err != nil {
 									return templ_7745c5c3_Err
@@ -919,9 +919,9 @@ func Shipping(p layouts.Page, v ShippingView) templ.Component {
 									return templ_7745c5c3_Err
 								}
 								var templ_7745c5c3_Var60 string
-								templ_7745c5c3_Var60, templ_7745c5c3_Err = templ.JoinStringErrs(v.SurchargeError(m.MethodID, z.ID))
+								templ_7745c5c3_Var60, templ_7745c5c3_Err = templ.JoinStringErrs(v.SurchargeRefusal(m.MethodID, z.ID))
 								if templ_7745c5c3_Err != nil {
-									return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/shipping.templ`, Line: 147, Col: 126}
+									return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin/shipping.templ`, Line: 147, Col: 128}
 								}
 								_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var60))
 								if templ_7745c5c3_Err != nil {

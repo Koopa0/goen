@@ -221,7 +221,7 @@ flowchart TB
 | [`internal/media`](internal/media) | Upload validation/storage, renditions, serving, orphan cleanup. |
 | [`internal/money`](internal/money) | Currency parsing, bounds, formatting. |
 | [`internal/newsletter`](internal/newsletter) | Subscription confirmation/unsubscription and delivery data. |
-| [`internal/order`](internal/order) | Fulfillment states, order events, order-number vocabulary. |
+| [`internal/order`](internal/order) | Fulfillment states, order events, order-number vocabulary, the validated delivery recipient and destination. |
 | [`internal/orderaccess`](internal/orderaccess) | Who may open a placed order's pages: a browser granted it, or the signed-in owner. |
 | [`internal/ordernotice`](internal/ordernotice) | Terminal-order mail with recipients resolved at delivery. |
 | [`internal/outbox`](internal/outbox) | Durable enqueueing, leasing, retry, delivery, retention. |

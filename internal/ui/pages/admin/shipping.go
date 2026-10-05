@@ -33,7 +33,7 @@ func (v *ShippingView) SurchargeValue(m *ShippingMethod, zoneID string) string {
 	return m.SurchargeDollars(zoneID)
 }
 
-func (v *ShippingView) SurchargeError(methodID, zoneID string) string {
+func (v *ShippingView) SurchargeRefusal(methodID, zoneID string) string {
 	if v.SurchargeDraft.MethodID == methodID && v.SurchargeDraft.ZoneID == zoneID {
 		return v.Errors["surcharge"]
 	}

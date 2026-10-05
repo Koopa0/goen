@@ -131,7 +131,7 @@ templ Shipping(p layouts.Page, v ShippingView) {
 										step="1"
 										value={ v.SurchargeValue(&m, z.ID) }
 										inputmode="numeric"
-										if v.SurchargeError(m.MethodID, z.ID) != "" {
+										if v.SurchargeRefusal(m.MethodID, z.ID) != "" {
 											aria-invalid="true"
 											aria-describedby={ "sur-" + m.VersionID + "-" + z.ID + "-error" }
 										}
@@ -143,8 +143,8 @@ templ Shipping(p layouts.Page, v ShippingView) {
 										{ i18n.T(ctx, i18n.KeyAdminShipSet) }
 									}
 								</div>
-								if v.SurchargeError(m.MethodID, z.ID) != "" {
-									<p class="goen-admin__error" id={ "sur-" + m.VersionID + "-" + z.ID + "-error" }>{ v.SurchargeError(m.MethodID, z.ID) }</p>
+								if v.SurchargeRefusal(m.MethodID, z.ID) != "" {
+									<p class="goen-admin__error" id={ "sur-" + m.VersionID + "-" + z.ID + "-error" }>{ v.SurchargeRefusal(m.MethodID, z.ID) }</p>
 								}
 							</form>
 						}
