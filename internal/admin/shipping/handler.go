@@ -343,7 +343,7 @@ func (h *Handler) SetZoneSurcharge(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	err := h.store.SetZoneSurcharge(r.Context(), r.PostFormValue("version"), r.PostFormValue("zone"), amount)
-	if _, ok := errors.AsType[*VersionChangedError](err); ok {
+	if changed, _ := errors.AsType[*VersionChangedError](err); changed != nil {
 		h.rejectSurcharge(w, r, i18n.T(r.Context(), i18n.KeyAdminShipVersionChanged))
 		return
 	}
