@@ -108,7 +108,7 @@ func TestAPercentCouponOrderIsWholeYuanAndItsInvoiceEqualsTheCapture(t *testing.
 	var orderID uuid.UUID
 	var discount, owed int64
 	if err = pool.QueryRow(ctx, `
-		SELECT id, discount_cents, order_amount_owed(id) FROM orders WHERE order_number = $1`,
+		SELECT id, discount_cents, order_amount_after_credit(id) FROM orders WHERE order_number = $1`,
 		number).Scan(&orderID, &discount, &owed); err != nil {
 		t.Fatalf("read: %v", err)
 	}

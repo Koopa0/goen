@@ -137,7 +137,7 @@ func (g *Gateway) StartSession(ctx context.Context, o *Order, attempt int32) (st
 	}
 
 	// Stripe's page must total what capture_payment will record, and
-	// payments_capture_matches_order demands exactly order_amount_owed — which is
+	// payments_capture_matches_order demands exactly order_amount_after_credit — which is
 	// o.TotalCents, the total less the store credit spent on it. The difference
 	// from the lines runs BOTH ways: shipping and tax add, while a coupon and
 	// store credit take away.
