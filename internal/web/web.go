@@ -36,7 +36,7 @@ func ParseForm(w http.ResponseWriter, r *http.Request) error {
 // triple each byte. The ordinary budget covers other fields and leaves room
 // to render over-limit text as a field refusal.
 func ParseLongTextForm(w http.ResponseWriter, r *http.Request, runes int) error {
-	return parseFormWithLimit(w, r, MaxFormBytes+int64(runes)*utf8.UTFMax*3)
+	return parseFormWithLimit(w, r, MaxFormBytes+int64(runes)*utf8.UTFMax)
 }
 
 func parseFormWithLimit(w http.ResponseWriter, r *http.Request, maxBytes int64) error {
