@@ -124,12 +124,19 @@ func (h *Handler) SetMethodActive(w http.ResponseWriter, r *http.Request) {
 	}
 	err := h.store.SetMethodActive(r.Context(), r.PathValue("id"),
 		r.PostFormValue("active") == "1")
-	if err != nil {
+	switch {
+	case err == nil:
+		http.Redirect(w, r, "/admin/shipping?ok=1", http.StatusSeeOther)
+	case errors.Is(err, ErrNotFound):
 		h.log.WarnContext(r.Context(), "toggle shipping method", "error", err)
 		access.NotFound(w, r, h.log)
-		return
+	case errors.Is(err, ErrRefused):
+		h.log.WarnContext(r.Context(), "toggle shipping method", "error", err)
+		http.Redirect(w, r, "/admin/shipping?refused=1", http.StatusSeeOther)
+	default:
+		h.log.ErrorContext(r.Context(), "toggle shipping method", "error", err)
+		access.ServerError(w, r, h.log)
 	}
-	http.Redirect(w, r, "/admin/shipping?ok=1", http.StatusSeeOther)
 }
 
 func (h *Handler) CreateZone(w http.ResponseWriter, r *http.Request) {
@@ -191,9 +198,15 @@ func (h *Handler) DeleteZone(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/admin/shipping?ok=1", http.StatusSeeOther)
 	case errors.Is(err, ErrInUse):
 		http.Redirect(w, r, "/admin/shipping?inuse=1", http.StatusSeeOther)
-	default:
+	case errors.Is(err, ErrNotFound):
 		h.log.WarnContext(r.Context(), "delete shipping zone", "error", err)
 		access.NotFound(w, r, h.log)
+	case errors.Is(err, ErrRefused):
+		h.log.WarnContext(r.Context(), "delete shipping zone", "error", err)
+		http.Redirect(w, r, "/admin/shipping?refused=1", http.StatusSeeOther)
+	default:
+		h.log.ErrorContext(r.Context(), "delete shipping zone", "error", err)
+		access.ServerError(w, r, h.log)
 	}
 }
 
