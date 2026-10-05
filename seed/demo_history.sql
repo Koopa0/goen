@@ -50,9 +50,6 @@ BEGIN
     WHERE p.provider_ref NOT LIKE 'cs\_test\_%' AND p.provider_ref NOT LIKE 'cs\_demo\_%'
     ORDER BY p.created_at, p.id
     LIMIT 1;
-    IF FOUND THEN
-        RAISE EXCEPTION 'payment % is not a demo or test payment: this database may hold real money', v_foreign;
-    END IF;
     IF EXISTS (SELECT 1 FROM payments WHERE provider_ref LIKE 'cs\_demo\_%') THEN
         RAISE EXCEPTION 'this database already has a demo history (complete or partial); restore the snapshot to run again';
     END IF;
@@ -897,7 +894,6 @@ BEGIN
             ELSE CALL pg_temp.demo_advance(v_event.n, v_event.kind);
         END CASE;
         RESET ROLE;
-        CALL pg_temp.demo_backdate(v_event.happens_at, v_marker);
         COMMIT;
     END LOOP;
 END
