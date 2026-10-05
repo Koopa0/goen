@@ -379,7 +379,7 @@ WHERE digest = $1 AND expires_at > now();
 -- account whose address was never proved is the one that completes a
 -- registration.
 -- name: LockUserForEmailVerification :one
-SELECT id, email, (email_verified_at IS NOT NULL)::boolean AS verified
+SELECT id, email, (email_verified_at IS NOT NULL)::boolean AS verified, role
 FROM users WHERE id = @user_id::uuid FOR UPDATE;
 
 -- One statement, because an address goen has proved and one goen is using must
