@@ -211,7 +211,7 @@ func (h *Handler) rejectShip(w http.ResponseWriter, r *http.Request, refusal *sh
 	view.ShipQtyError = say(refusal.quantity)
 	view.Notice = say(refusal.notice)
 	if refusal.notice == i18n.KeyAdminDispatchRefused {
-		view.Notice = fmt.Sprintf(view.Notice, view.ShipCarrier, view.ShipTracking)
+		view.Notice = fmt.Sprintf(view.Notice, i18n.CarrierName(r.Context(), carrier.Carrier(view.ShipCarrier)), view.ShipTracking)
 	}
 	view.ShipQty = map[string]string{}
 	for i := range view.Shippable {
