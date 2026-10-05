@@ -13,17 +13,20 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/shipping"
 	"github.com/koopa0/goen/internal/cart"
+	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
@@ -1121,4 +1124,327 @@ func assertZonePrefixAudit(
 		t.Errorf("zone-prefix audit/result/rows = %d/%d/%d, want %d/%d/%d",
 			auditCount, actualCount, auditRows, wantCount, wantCount, wantRows)
 	}
+}
+
+func TestStaleSurchargeFormsRefuseSetAndClear(t *testing.T) {
+	for _, locale := range i18n.Locales() {
+		for _, amount := range []string{"200", ""} {
+			t.Run(locale.Tag()+"/amount="+amount, func(t *testing.T) {
+				ctx, actor := admintest.StaffContext(t, pool)
+				ctx = i18n.WithLocale(ctx, locale)
+				method, oldVersion, zone := surchargeFixture(t)
+				s := shipping.NewStore(admintest.AdminRolePool(t, pool))
+				mux := http.NewServeMux()
+				handlerOver(s).Routes(mux, admintest.BackOffice)
+				page := httptest.NewRecorder()
+				mux.ServeHTTP(page, httptest.NewRequestWithContext(ctx, http.MethodGet, "/admin/shipping", nil))
+				if page.Code != http.StatusOK {
+					t.Fatalf("capture surcharge form status=%d", page.Code)
+				}
+				form := renderedSurchargeForms(t, page.Body.String(), zone.String())[oldVersion.String()]
+				if got := form.Get("amount"); got != "100" {
+					t.Fatalf("captured amount=%q, want 100", got)
+				}
+				if err := s.PublishShippingVersion(ctx, shipping.ShippingVersion{MethodID: method.String(), Name: "Updated shipping", FeeDollars: 90}); err != nil {
+					t.Fatal(err)
+				}
+				current := currentShippingVersion(t, method)
+				if current == oldVersion {
+					t.Fatal("publishing did not replace the version")
+				}
+				form.Set("amount", amount)
+				req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/shipping/surcharge", strings.NewReader(form.Encode()))
+				req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+				res := httptest.NewRecorder()
+				mux.ServeHTTP(res, req)
+				if res.Code != http.StatusUnprocessableEntity {
+					t.Errorf("stale surcharge status=%d location=%q, want 422", res.Code, res.Header().Get("Location"))
+				} else {
+					assertStaleSurchargeForm(t, ctx, res.Body.String(), method, current, zone, amount)
+				}
+				assertSurchargeVersions(t, oldVersion, current, zone, 10000, 10000)
+				assertSurchargeAudit(t, actor, 0)
+				form.Set("version", current.String())
+				form.Set("amount", "300")
+				req = httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/shipping/surcharge", strings.NewReader(form.Encode()))
+				req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+				res = httptest.NewRecorder()
+				mux.ServeHTTP(res, req)
+				if res.Code != http.StatusSeeOther || res.Header().Get("Location") != "/admin/shipping?ok=1" {
+					t.Errorf("fresh surcharge status/location=%d/%q, want 303 saved", res.Code, res.Header().Get("Location"))
+				}
+				assertSurchargeVersions(t, oldVersion, current, zone, 10000, 30000)
+				assertSurchargeAudit(t, actor, 1)
+			})
+		}
+	}
+}
+
+func TestPublicationAndSurchargeEditsSerialize(t *testing.T) {
+	for _, publishFirst := range []bool{true, false} {
+		name := "edit_first"
+		if publishFirst {
+			name = "publish_first"
+		}
+		t.Run(name, func(t *testing.T) {
+			ctx, _ := admintest.StaffContext(t, pool)
+			method, oldVersion, zone := surchargeFixture(t)
+			adminPool := admintest.AdminRolePool(t, pool)
+			publishApp, editApp := "publish-"+method.String(), "surcharge-"+method.String()
+			publisher := shipping.NewStore(surchargeWriterPool(t, adminPool, publishApp))
+			editor := shipping.NewStore(surchargeWriterPool(t, adminPool, editApp))
+			blocker, pid := holdShippingMethod(t, method)
+			workerCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+			var wg sync.WaitGroup
+			defer func() { cancel(); _ = blocker.Rollback(context.WithoutCancel(ctx)); wg.Wait() }()
+			type result struct {
+				publish bool
+				err     error
+			}
+			done := make(chan result, 2) // One result from each of the two writers.
+			publish := func() {
+				done <- result{publish: true, err: publisher.PublishShippingVersion(workerCtx, shipping.ShippingVersion{MethodID: method.String(), Name: "Published", FeeDollars: 90})}
+			}
+			edit := func() {
+				done <- result{err: editor.SetZoneSurcharge(workerCtx, oldVersion.String(), zone.String(), 200)}
+			}
+			first, second, firstApp, secondApp := publish, edit, publishApp, editApp
+			if !publishFirst {
+				first, second, firstApp, secondApp = edit, publish, editApp, publishApp
+			}
+			traceCtx, stopTrace := context.WithTimeout(ctx, 5*time.Second)
+			defer stopTrace()
+			wg.Go(first)
+			firstPID := admintest.WaitForBlockedApplication(t, pool, traceCtx, firstApp, pid)
+			wg.Go(second)
+			admintest.WaitForBlockedApplication(t, pool, traceCtx, secondApp, firstPID)
+			if err := blocker.Rollback(context.WithoutCancel(ctx)); err != nil {
+				t.Fatal(err)
+			}
+			for range 2 {
+				select {
+				case r := <-done:
+					if publishFirst && !r.publish {
+						changed, ok := errors.AsType[*shipping.VersionChangedError](r.err)
+						if !ok || changed.MethodID != method {
+							t.Errorf("edit after publication error=%v, want stale method %s", r.err, method)
+						}
+					} else if r.err != nil {
+						t.Errorf("writer publish=%t: %v", r.publish, r.err)
+					}
+				case <-workerCtx.Done():
+					t.Fatal(workerCtx.Err())
+				}
+			}
+			current := currentShippingVersion(t, method)
+			if current == oldVersion {
+				t.Fatal("publisher did not replace the version")
+			}
+			oldCents, newCents := int64(20000), int64(20000)
+			if publishFirst {
+				oldCents, newCents = 10000, 10000
+			}
+			assertSurchargeVersions(t, oldVersion, current, zone, oldCents, newCents)
+		})
+	}
+}
+
+func TestWaitingPublicationBecomesCurrentAndCarriesTheLatestSurcharge(t *testing.T) {
+	ctx, _ := admintest.StaffContext(t, pool)
+	method, oldVersion, zone := surchargeFixture(t)
+	app := "waiting-publish-" + method.String()
+	s := shipping.NewStore(surchargeWriterPool(t, admintest.AdminRolePool(t, pool), app))
+	blocker, pid := holdShippingMethod(t, method)
+	workerCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	var wg sync.WaitGroup
+	defer func() { cancel(); _ = blocker.Rollback(context.WithoutCancel(ctx)); wg.Wait() }()
+	done := make(chan error, 1) // The single waiting publisher's result.
+	wg.Go(func() {
+		done <- s.PublishShippingVersion(workerCtx, shipping.ShippingVersion{MethodID: method.String(), Name: "Final shipping", FeeDollars: 90})
+	})
+	traceCtx, stopTrace := context.WithTimeout(ctx, 5*time.Second)
+	defer stopTrace()
+	admintest.WaitForBlockedApplication(t, pool, traceCtx, app, pid)
+	// The lock holder publishes after the waiting transaction has already started.
+	// Keep the intervening publication's time independent of the query under test.
+	var intervening uuid.UUID
+	err := blocker.QueryRow(ctx, `INSERT INTO shipping_method_versions
+ (method_id,name,fee_cents,effective_at) VALUES ($1,'Intervening shipping',8500,statement_timestamp()) RETURNING id`, method).Scan(&intervening)
+	if err != nil {
+		t.Fatal(err)
+	}
+	q := db.New(blocker)
+	if err := q.SetZoneSurcharge(ctx, db.SetZoneSurchargeParams{VersionID: intervening, ZoneID: zone, SurchargeCents: 25000}); err != nil {
+		t.Fatal(err)
+	}
+	if err := blocker.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-workerCtx.Done():
+		t.Fatal(workerCtx.Err())
+	}
+	current := currentShippingVersion(t, method)
+	var published uuid.UUID
+	var fee int64
+	if err := pool.QueryRow(ctx, `SELECT id,fee_cents FROM shipping_method_versions WHERE method_id=$1 AND name='Final shipping'`, method).Scan(&published, &fee); err != nil {
+		t.Fatal(err)
+	}
+	if current != published || current == oldVersion || fee != 9000 {
+		t.Errorf("current/published version and fee=%s/%s/%d, want waiting publisher with 9000", current, published, fee)
+	}
+	assertSurchargeVersions(t, intervening, published, zone, 25000, 25000)
+}
+
+func surchargeFixture(t *testing.T) (method, version, zone uuid.UUID) {
+	t.Helper()
+	if err := pool.QueryRow(t.Context(), `
+ WITH method AS (
+  INSERT INTO shipping_methods(code,destination_kind,is_active)
+  VALUES ('stale_'||replace(gen_random_uuid()::text, '-', ''),'address',false) RETURNING id
+ ), version AS (
+  INSERT INTO shipping_method_versions(method_id,name,fee_cents,effective_at)
+  SELECT id,'Initial shipping',8000,now()-interval '1 day' FROM method RETURNING id,method_id
+ ), zone AS (
+  INSERT INTO shipping_zones(code,name) VALUES ('stale_'||replace(gen_random_uuid()::text, '-', ''),'Test zone') RETURNING id
+ ), surcharge AS (
+  INSERT INTO shipping_version_zones(version_id,zone_id,surcharge_cents)
+  SELECT version.id,zone.id,10000 FROM version,zone
+ ) SELECT version.method_id,version.id,zone.id FROM version,zone`).Scan(&method, &version, &zone); err != nil {
+		t.Fatal(err)
+	}
+	return method, version, zone
+}
+
+func currentShippingVersion(t *testing.T, method uuid.UUID) uuid.UUID {
+	t.Helper()
+	var id uuid.UUID
+	if err := pool.QueryRow(t.Context(), `SELECT id FROM shipping_method_versions WHERE method_id=$1 AND effective_at<=statement_timestamp() ORDER BY effective_at DESC,id DESC LIMIT 1`, method).Scan(&id); err != nil {
+		t.Fatal(err)
+	}
+	return id
+}
+
+func assertSurchargeVersions(t *testing.T, old, current, zone uuid.UUID, oldCents, newCents int64) {
+	t.Helper()
+	rows, err := pool.Query(t.Context(), `SELECT version_id,surcharge_cents FROM shipping_version_zones WHERE version_id=ANY($1::uuid[]) AND zone_id=$2`, []uuid.UUID{old, current}, zone)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[uuid.UUID]int64{}
+	defer rows.Close()
+	for rows.Next() {
+		var id uuid.UUID
+		var cents int64
+		if err := rows.Scan(&id, &cents); err != nil {
+			t.Fatal(err)
+		}
+		got[id] = cents
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if diff := cmp.Diff(map[uuid.UUID]int64{old: oldCents, current: newCents}, got); diff != "" {
+		t.Errorf("version surcharges (-want +got):\n%s", diff)
+	}
+}
+
+func assertSurchargeAudit(t *testing.T, actor uuid.UUID, want int) {
+	t.Helper()
+	var got int
+	if err := pool.QueryRow(t.Context(), `SELECT count(*) FROM audit_events WHERE action='shipping.surcharge' AND actor_user_id=$1`, actor).Scan(&got); err != nil {
+		t.Fatal(err)
+	}
+	if got != want {
+		t.Errorf("surcharge audits=%d, want %d", got, want)
+	}
+}
+
+func holdShippingMethod(t *testing.T, method uuid.UUID) (tx pgx.Tx, pid int32) {
+	t.Helper()
+	tx, err := pool.Begin(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = tx.Rollback(context.WithoutCancel(t.Context())) })
+	if err := tx.QueryRow(t.Context(), `SELECT pg_backend_pid() FROM shipping_methods WHERE id=$1 FOR NO KEY UPDATE`, method).Scan(&pid); err != nil {
+		t.Fatal(err)
+	}
+	return tx, pid
+}
+
+func surchargeWriterPool(t *testing.T, p *pgxpool.Pool, app string) *pgxpool.Pool {
+	t.Helper()
+	cfg := p.Config().Copy() // Keep the real admin role's AfterConnect hook.
+	cfg.MaxConns = 1
+	cfg.ConnConfig.RuntimeParams["application_name"] = app
+	writer, err := pgxpool.NewWithConfig(t.Context(), cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(writer.Close)
+	var role string
+	if err := writer.QueryRow(t.Context(), `SELECT current_user`).Scan(&role); err != nil || role != "admin" {
+		t.Fatalf("writer role=%q, want admin: %v", role, err)
+	}
+	return writer
+}
+
+func assertStaleSurchargeForm(t *testing.T, ctx context.Context, body string, method, current, zone uuid.UUID, amount string) {
+	t.Helper()
+	admintest.AssertRefusedInput(t, body, "sur-"+current.String()+"-"+zone.String(), amount)
+	if !strings.Contains(body, i18n.T(ctx, i18n.KeyAdminShipVersionChanged)) {
+		t.Error("stale refusal explanation is absent")
+	}
+	fresh := renderedSurchargeForms(t, body, zone.String())[current.String()]
+	if diff := cmp.Diff(url.Values{"version": {current.String()}, "zone": {zone.String()}, "amount": {amount}}, fresh); diff != "" {
+		t.Errorf("current resubmission form (-want +got):\n%s", diff)
+	}
+	feeInput := admintest.InputElementByID(t, body, "fee-"+method.String())
+	if got := admintest.InputAttribute(t, feeInput, "value"); got != "90" {
+		t.Errorf("current fee=%q, want 90", got)
+	}
+}
+
+func TestSurchargeChecksTheCurrentVersionAfterItsLockWait(t *testing.T) {
+	ctx, actor := admintest.StaffContext(t, pool)
+	method, oldVersion, zone := surchargeFixture(t)
+	app := "waiting-surcharge-" + method.String()
+	s := shipping.NewStore(surchargeWriterPool(t, admintest.AdminRolePool(t, pool), app))
+	blocker, pid := holdShippingMethod(t, method)
+	workerCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	var wg sync.WaitGroup
+	defer func() { cancel(); _ = blocker.Rollback(context.WithoutCancel(ctx)); wg.Wait() }()
+	done := make(chan error, 1) // The single waiting editor's result.
+	wg.Go(func() { done <- s.SetZoneSurcharge(workerCtx, oldVersion.String(), zone.String(), 200) })
+	traceCtx, stopTrace := context.WithTimeout(ctx, 5*time.Second)
+	defer stopTrace()
+	admintest.WaitForBlockedApplication(t, pool, traceCtx, app, pid)
+	// A transaction-time cutoff would exclude this newly committed fixture.
+	var current uuid.UUID
+	if err := blocker.QueryRow(ctx, `INSERT INTO shipping_method_versions
+ (method_id,name,fee_cents,effective_at) VALUES ($1,'Published during wait',9000,statement_timestamp()) RETURNING id`, method).Scan(&current); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.New(blocker).SetZoneSurcharge(ctx, db.SetZoneSurchargeParams{VersionID: current, ZoneID: zone, SurchargeCents: 10000}); err != nil {
+		t.Fatal(err)
+	}
+	if err := blocker.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case err := <-done:
+		changed, ok := errors.AsType[*shipping.VersionChangedError](err)
+		if !ok || changed.MethodID != method {
+			t.Errorf("edit after lock wait error=%v, want stale method %s", err, method)
+		}
+	case <-workerCtx.Done():
+		t.Fatal(workerCtx.Err())
+	}
+	assertSurchargeVersions(t, oldVersion, current, zone, 10000, 10000)
+	assertSurchargeAudit(t, actor, 0)
 }

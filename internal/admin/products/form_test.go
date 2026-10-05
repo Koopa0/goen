@@ -2,6 +2,7 @@ package products
 
 import (
 	"cmp"
+	"fmt"
 	"maps"
 	"net/http"
 	"net/http/httptest"
@@ -9,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/koopa0/goen/internal/carrier"
 	"github.com/koopa0/goen/internal/i18n"
@@ -188,5 +191,45 @@ func TestAMistypedPriceIsRefusedByEveryFormThatWritesOne(t *testing.T) {
 					cmp.Or(tt.compare, tt.price), errs)
 			}
 		})
+	}
+}
+
+func TestAVariantSKUNeedsTheShapeTheColumnRequires(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	for _, tt := range []struct {
+		name, sku string
+		want      string
+	}{
+		{name: "plain", sku: "TEE"},
+		{name: "segmented", sku: "TEE-RED-M"},
+		{name: "lowercase is raised", sku: "tee-red"},
+		{name: "underscore", sku: "TEE_RED", want: i18n.T(ctx, i18n.KeyFormSKUFormat)},
+		{name: "inner space", sku: "TEE RED M", want: i18n.T(ctx, i18n.KeyFormSKUFormat)},
+		{name: "double hyphen", sku: "TEE--RED", want: i18n.T(ctx, i18n.KeyFormSKUFormat)},
+		{name: "leading hyphen", sku: "-TEE", want: i18n.T(ctx, i18n.KeyFormSKUFormat)},
+		{name: "trailing hyphen", sku: "TEE-", want: i18n.T(ctx, i18n.KeyFormSKUFormat)},
+		{name: "non ASCII", sku: "紅色", want: i18n.T(ctx, i18n.KeyFormSKUFormat)},
+		{name: "blank", sku: " ", want: i18n.T(ctx, i18n.KeyFormSKURequired)},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			errs := (&VariantForm{SKU: tt.sku, PriceCents: 100}).Validate(ctx)
+			if got := errs["sku"]; got != tt.want {
+				t.Errorf("Validate(SKU %q) sku error = %q, want %q", tt.sku, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestAVariantWriteRefusedForItsSKUShapeNamesTheSKUField(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	err := fmt.Errorf("%w: %w", ErrRefused, &pgconn.PgError{
+		Code: "23514", ConstraintName: "product_variants_sku_format",
+	})
+	errs, got := variantWriteError(ctx, "tee", err)
+	if got != nil || errs["sku"] != i18n.T(ctx, i18n.KeyFormSKUFormat) {
+		t.Errorf("variantWriteError(sku_format) = %v, %v; want the sku field error and no error", errs, got)
 	}
 }

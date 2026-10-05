@@ -143,7 +143,7 @@ templ seeAll(label, href string) {
 
 // With one slide there is nothing to move between, so the controls are not drawn.
 templ heroCarousel(slides []HeroSlide) {
-	// data-autoplay is what goen.js looks for; with one slide it draws no pause control either.
+	// data-autoplay is what goen.js looks for; with one slide there is nothing to rotate.
 	<section class="goen-hero" aria-roledescription="carousel" aria-label={ i18n.T(ctx, i18n.KeyHomeFeatured) } data-autoplay?={ len(slides) > 1 }>
 		<div class="goen-hero__track">
 			for i, s := range slides {
@@ -198,23 +198,6 @@ templ heroCarousel(slides []HeroSlide) {
 					}
 				</div>
 				<div class="goen-hero__arrows">
-					// Revealed by goen.js only while the carousel moves by itself.
-					<button
-						class="goen-hero__pause"
-						type="button"
-						hidden
-						data-state="playing"
-						aria-label={ i18n.T(ctx, i18n.KeyHeroPause) }
-						data-label-pause={ i18n.T(ctx, i18n.KeyHeroPause) }
-						data-label-play={ i18n.T(ctx, i18n.KeyHeroPlay) }
-					>
-						<span class="goen-hero__pause-pause">
-							@icons.Pause()
-						</span>
-						<span class="goen-hero__pause-play">
-							@icons.Play()
-						</span>
-					</button>
 					<button class="goen-hero__arrow" type="button" data-step="-1" aria-label={ i18n.T(ctx, i18n.KeyHeroPrevious) }>
 						@icons.ChevronLeft()
 					</button>
