@@ -8,9 +8,9 @@ import (
 	"time"
 )
 
-func TestAuditStorefrontRequestBudgetSetsDeadline(t *testing.T) {
+func TestAuditRequestBudgetSetsDeadline(t *testing.T) {
 	ctxCh := make(chan context.Context, 1)
-	h := withStorefrontRequestBudget(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+	h := withRequestBudget(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 		ctxCh <- r.Context()
 	}))
 
@@ -31,7 +31,7 @@ func TestAuditStorefrontRequestBudgetSetsDeadline(t *testing.T) {
 
 func TestAuditStatelessRoutesSkipRequestBudget(t *testing.T) {
 	ctxCh := make(chan context.Context, 1)
-	h := withStorefrontRequestBudget(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+	h := withRequestBudget(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 		ctxCh <- r.Context()
 	}))
 
