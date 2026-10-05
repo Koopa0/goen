@@ -81,10 +81,10 @@ var policies = map[string]pages.PolicyDoc{
 				Heading:   "退貨運費",
 				HeadingEn: "Who pays return postage",
 				Body: []string{
-					"猶豫期內解除契約，你不需要負擔任何費用，退貨運費由 goen 負擔。",
+					"猶豫期內解除契約，你不需要負擔任何費用，退貨運費由 goen 負擔。整筆訂單都退回時，原本支付的運費也會退還給你。",
 				},
 				BodyEn: []string{
-					"We do. Cancelling inside the seven days costs you nothing at all, return postage included, and the delivery fee you originally paid comes back with the goods.",
+					"We do. Cancelling inside the seven days costs you nothing at all, return postage included. The delivery fee you originally paid is refunded once you have returned the whole order.",
 				},
 			},
 			// The Regulations on Reasonable Exceptions to Rescission in Distance
