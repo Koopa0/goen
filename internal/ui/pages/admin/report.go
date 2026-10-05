@@ -72,11 +72,12 @@ func (v ReportView) Average() string { return money.TWD(v.AverageCents) }
 func (v ReportView) OrdersText() string { return strconv.FormatInt(v.Orders, 10) }
 
 // minOrdersForRate is the fewest placed orders for which a percentage is
-// shown; below it one order moves the rate by five points or more.
+// shown; below it, one order moves the rate by more than five points.
 const minOrdersForRate = 20
 
 // Completion is the completion rate rounded half up, or the bare count when
-// too few orders were placed for a percentage to mean anything.
+// too few orders were placed for a percentage to mean anything. The rounded
+// rate never reads 100% or 0% unless exactly all or none were committed.
 func (v ReportView) Completion(ctx context.Context) string {
 	switch {
 	case v.Placed == 0:
@@ -84,7 +85,11 @@ func (v ReportView) Completion(ctx context.Context) string {
 	case v.ShowsCount():
 		return v.Counts(ctx)
 	}
-	return strconv.FormatInt((v.Committed*200+v.Placed)/(v.Placed*2), 10) + "%"
+	rate := (v.Committed*200 + v.Placed) / (v.Placed * 2)
+	if v.Committed > 0 && v.Committed < v.Placed {
+		rate = min(max(rate, 1), 99)
+	}
+	return strconv.FormatInt(rate, 10) + "%"
 }
 
 // Counts says how many of the placed orders were committed.

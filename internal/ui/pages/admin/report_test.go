@@ -122,6 +122,10 @@ func TestReportViewCompletion(t *testing.T) {
 		{placed: 30, committed: 20, want: "67%"},
 		{placed: 40, committed: 1, want: "3%"},
 		{placed: 300, committed: 199, want: "66%"},
+		{placed: 200, committed: 199, want: "99%"},
+		{placed: 201, committed: 1, want: "1%"},
+		{placed: 200, committed: 200, want: "100%"},
+		{placed: 25, committed: 0, want: "0%"},
 	}
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	for _, tt := range tests {
