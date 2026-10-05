@@ -81,7 +81,7 @@ func campaignTiles(rows []db.CampaignProductsRow) []pages.ProductTile {
 			Name:         r.Name,
 			Summary:      r.Summary,
 			Brand:        r.Brand,
-			PriceCents:   r.MinPriceCents,
+			PriceCents:   r.TilePriceCents,
 			PriceVaries:  r.PriceVaries.Bool,
 			CompareCents: r.CompareAtPriceCents.Int64,
 			Rating:       r.Rating,
