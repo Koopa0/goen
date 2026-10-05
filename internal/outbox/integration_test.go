@@ -465,7 +465,7 @@ func TestTheSweepKeepsWhatWentWrongAndDropsWhatWorked(t *testing.T) {
 	if _, err := pool.Exec(ctx, `
 		UPDATE outbox_messages SET attempts = $1, available_at = now() - interval '60 days',
 		       last_error = 'nothing accepted it'
-		WHERE dedupe_key = 'stuck'`, outbox.MaxAttempts); err != nil {
+		WHERE dedupe_key = 'stuck'`, outbox.StuckAfterAttempts); err != nil {
 		t.Fatalf("wedge the stuck message: %v", err)
 	}
 
@@ -544,7 +544,7 @@ func TestAMessageThatExhaustedItsAttemptsIsRetriedDaily(t *testing.T) {
 		return nil
 	})
 
-	for range outbox.MaxAttempts {
+	for range outbox.StuckAfterAttempts {
 		if _, err := pool.Exec(ctx,
 			`UPDATE outbox_messages SET available_at = now() WHERE dedupe_key = $1`, key); err != nil {
 			t.Fatalf("make it due: %v", err)
@@ -590,7 +590,7 @@ func TestTheSweepDropsAnUndeliveredMessagePastRetain(t *testing.T) {
 	if _, err := pool.Exec(ctx, `
 		UPDATE outbox_messages SET created_at = now() - interval '31 days',
 		       attempts = $1, available_at = now() + interval '1 day'
-		WHERE dedupe_key = 'stale'`, outbox.MaxAttempts); err != nil {
+		WHERE dedupe_key = 'stale'`, outbox.StuckAfterAttempts); err != nil {
 		t.Fatalf("age the stale message: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `

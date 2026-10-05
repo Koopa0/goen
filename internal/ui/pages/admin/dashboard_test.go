@@ -119,3 +119,20 @@ func TestWorkerHealthTasksFollowTheHealthPredicates(t *testing.T) {
 		t.Errorf("Tasks() with holds at the threshold = %v, want none: the health page calls that healthy", got)
 	}
 }
+
+// TestTheDashboardSaysWhenItCouldNotCheckTheHealthDesk holds that an absent
+// payment or invoice task is only read as "nothing to check" when the desk was
+// actually read.
+func TestTheDashboardSaysWhenItCouldNotCheckTheHealthDesk(t *testing.T) {
+	t.Parallel()
+	for _, loc := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+		ctx := i18n.WithLocale(t.Context(), loc)
+		notice := i18n.T(ctx, i18n.KeyAdminQueueHealthUnavailable)
+		for _, unavailable := range []bool{true, false} {
+			html := renderComponent(t, ctx, Dashboard(Meta(ctx), DashboardView{HealthUnavailable: unavailable}))
+			if got := strings.Contains(html, notice); got != unavailable {
+				t.Errorf("Dashboard(HealthUnavailable=%v) in %v shows the notice = %v", unavailable, loc, got)
+			}
+		}
+	}
+}
