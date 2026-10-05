@@ -108,3 +108,25 @@ func TestStaffInvitationPointsToMailboxProofWithoutACapability(t *testing.T) {
 		}
 	}
 }
+
+func TestTheStaffEnrolmentLetterCarriesTheCodeToTheAccount(t *testing.T) {
+	t.Parallel()
+	for _, locale := range []string{"en", "zh-TW"} {
+		n, sink := notifier(t)
+		if err := n.SendStaffEnrolment(t.Context(), &StaffEnrolment{
+			Locale: locale, Email: "colleague@example.com", Code: "01234567",
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if sink.msg == nil || sink.msg.To != "colleague@example.com" || !strings.Contains(sink.msg.Body, "01234567") {
+			t.Fatalf("SendStaffEnrolment in %s sent %+v, want the code to colleague@example.com", locale, sink.msg)
+		}
+		if hasHan(sink.msg.Body) != (locale == "zh-TW") {
+			t.Errorf("the letter ignored locale %q", locale)
+		}
+	}
+	n, _ := notifier(t)
+	if err := n.SendStaffEnrolment(t.Context(), &StaffEnrolment{Code: "01234567"}); err == nil {
+		t.Error("a code with no recipient was sent")
+	}
+}
