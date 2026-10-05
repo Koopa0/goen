@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -734,12 +735,16 @@ func TestWarrantySerialRefusalsRetainOnlyTheAuthorizedLine(t *testing.T) {
 					}
 					return
 				}
+				message := warrantyResponseText(nodes[inputID+"-error"])
 				want := i18n.T(ctx, tc.field)
 				if tc.field == i18n.KeyWarrantySerialTooLong {
-					want = fmt.Sprintf(want, 60)
+					want = fmt.Sprintf(want, warranty.MaxSerialRunes)
+					if !strings.Contains(message, strconv.Itoa(warranty.MaxSerialRunes)) || strings.Contains(message, "%!") {
+						t.Errorf("serial length refusal = %q, want the accepted limit without a formatting error", message)
+					}
 				}
-				if input["aria-invalid"] != "true" || input["aria-describedby"] != "serial-hint-"+mine.lineID.String()+" "+inputID+"-error" || warrantyResponseText(nodes[inputID+"-error"]) != want {
-					t.Errorf("refused serial has no associated localized explanation: %v, message=%q, want %q", input, warrantyResponseText(nodes[inputID+"-error"]), want)
+				if input["aria-invalid"] != "true" || input["aria-describedby"] != "serial-hint-"+mine.lineID.String()+" "+inputID+"-error" || message != want {
+					t.Errorf("refused serial has no associated localized explanation: %v, message=%q, want %q", input, message, want)
 				}
 			})
 		}
