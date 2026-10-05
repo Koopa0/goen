@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"html"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -178,6 +179,59 @@ func TestAnAddressChangeLinkTakesTheAccountThatAskedBackThroughSignIn(t *testing
 	if got := emailOf(t, asker.ID); got != target {
 		t.Errorf("the account is at %s after confirming, want %s", got, target)
 	}
+}
+
+// TestABackOfficeAccountKeepsItsAddress: a staff or admin account does not move
+// itself to another address, whether it asks as staff or follows, after
+// promotion, a link it asked for as a customer.
+func TestABackOfficeAccountKeepsItsAddress(t *testing.T) {
+	ctx := t.Context()
+	s := account.NewStore(accountStorePool(t, "change-staff"))
+	b := changeBrowser{t: t, h: account.NewHandler(s, nil, slog.New(slog.DiscardHandler), false, nil)}
+	promote := func(u user.User) {
+		t.Helper()
+		if _, err := pool.Exec(ctx, `UPDATE users SET role = 'staff' WHERE id = $1`, u.ID); err != nil {
+			t.Fatalf("promote %s: %v", u.Email, err)
+		}
+	}
+
+	t.Run("asked as staff", func(t *testing.T) {
+		staff := registerProved(t, account.NewStore(pool), "change-staff-"+uuid.NewString()+"@example.com")
+		promote(staff)
+		target := "change-staff-to-" + uuid.NewString() + "@example.com"
+
+		res := b.askToMove(b.signIn(staff.Email), target)
+		if loc := res.Header().Get("Location"); res.Code != http.StatusSeeOther || loc != "/account?email=staff" {
+			t.Errorf("ChangeEmail for a staff account = %d Location %q, want 303 /account?email=staff", res.Code, loc)
+		}
+		var queued int
+		if err := pool.QueryRow(ctx, `SELECT count(*) FROM outbox_messages WHERE topic = $1 AND lower(payload->>'email') = lower($2)`,
+			outbox.TopicEmailVerify.Name(), target).Scan(&queued); err != nil {
+			t.Fatalf("count the links mailed to %s: %v", target, err)
+		}
+		if queued != 0 {
+			t.Errorf("ChangeEmail for a staff account queued %d links to %s, want 0", queued, target)
+		}
+	})
+
+	t.Run("followed after promotion", func(t *testing.T) {
+		staff := registerProved(t, account.NewStore(pool), "change-promoted-"+uuid.NewString()+"@example.com")
+		target := "change-promoted-to-" + uuid.NewString() + "@example.com"
+		session := b.signIn(staff.Email)
+		if res := b.askToMove(session, target); res.Code != http.StatusSeeOther {
+			t.Fatalf("asking to move the account answered %d, want 303", res.Code)
+		}
+		token, _ := queuedLink(t, target)
+		promote(staff)
+
+		res := b.follow(token, session)
+		if res.Code != http.StatusUnprocessableEntity || !strings.Contains(res.Body.String(), html.EscapeString(i18n.T(ctx, i18n.KeyEmailStaffFixed))) {
+			t.Errorf("Verify for a promoted account = %d, want 422 with the back-office refusal", res.Code)
+		}
+		if got := emailOf(t, staff.ID); got != staff.Email {
+			t.Errorf("the promoted account moved to %s, want %s", got, staff.Email)
+		}
+	})
 }
 
 // TestAnAddressChangeAnswersTheSameWhetherOrNotTheAddressIsTaken: any account

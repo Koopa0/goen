@@ -411,6 +411,8 @@ func accountNotice(r *http.Request) string {
 		return i18n.T(ctx, i18n.KeyEmailSent)
 	case q.Get("email") == "invalid":
 		return i18n.T(ctx, i18n.KeyEmailInvalidNotice)
+	case q.Get("email") == "staff":
+		return i18n.T(ctx, i18n.KeyEmailStaffFixed)
 	case q.Get("unlinked") == "1":
 		return i18n.T(ctx, i18n.KeyGoogleUnlinked)
 	case q.Get("lastmethod") == "1":
@@ -815,6 +817,10 @@ func (h *Handler) ChangeEmail(w http.ResponseWriter, r *http.Request) {
 	if h.refuseDemoChange(w, r, u) {
 		return
 	}
+	if u.IsStaff() {
+		http.Redirect(w, r, "/account?email=staff", http.StatusSeeOther)
+		return
+	}
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
 		return
@@ -911,6 +917,8 @@ func (h *Handler) Verify(w http.ResponseWriter, r *http.Request) {
 			}))
 	case errors.Is(err, ErrEmailTaken):
 		h.verifyFailed(w, r, i18n.T(ctx, i18n.KeyVerifyTakenTitle), i18n.T(ctx, i18n.KeyVerifyTakenBody))
+	case errors.Is(err, ErrStaffAddress):
+		h.verifyFailed(w, r, i18n.T(ctx, i18n.KeyVerifyDeadTitle), i18n.T(ctx, i18n.KeyEmailStaffFixed))
 	case errors.Is(err, ErrVerifyInvalid):
 		h.verifyFailed(w, r, i18n.T(ctx, i18n.KeyVerifyDeadTitle), i18n.T(ctx, i18n.KeyVerifyDeadBody))
 	default:
