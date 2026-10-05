@@ -27,8 +27,8 @@ var (
 	})
 
 	KeyFormHeroAlt = key("form.hero.alt", Message{
-		ZhHant: "有圖片就要有說明文字 —— 讀螢幕的人靠它知道圖裡是什麼。",
-		En:     "An image needs alt text — it is how somebody using a screen reader knows what it shows.",
+		ZhHant: "有圖片就要填說明文字，寫出圖片裡的內容。",
+		En:     "An image needs alt text that says what the picture shows.",
 	})
 
 	KeyFormCampaignAltEnLong = key("form.campaign.alt_en.long", Message{

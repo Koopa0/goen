@@ -226,10 +226,8 @@ var (
 	})
 
 	KeyAdminProdWarrantyHint = key("admin.prod.warrantyhint", Message{
-		ZhHant: "每個商品可以不一樣 —— 電熱水壺和毛巾本來就不該是同一個數字。留空表示沒有提供保固，顧客就無法登錄保固（而不是給他一個系統自己編出來的期限）。",
-		En: "It is per product — a kettle and a towel were never going to carry the same " +
-			"number. Left blank it states no cover, and the customer then cannot register a " +
-			"warranty at all, rather than being given a term the system invented for them.",
+		ZhHant: "依商品填寫。留空表示不提供保固，顧客也無法登錄保固。",
+		En:     "Set per product. Leave it blank for no warranty; the customer then cannot register one.",
 	})
 
 	KeyAdminProdWarrantyNote = key("admin.prod.warrantynote", Message{
