@@ -690,11 +690,6 @@ func (h *Handler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 
 	current := r.PostFormValue("current")
 	if _, err := h.store.Authenticate(r.Context(), u.Email, current); err != nil {
-		if !errors.Is(err, ErrBadCredentials) {
-			h.log.ErrorContext(r.Context(), "authenticate password change", "error", err)
-			h.serverError(w, r)
-			return
-		}
 		http.Redirect(w, r, "/account?password=wrong", http.StatusSeeOther)
 		return
 	}
@@ -832,11 +827,6 @@ func (h *Handler) ChangeEmail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if _, err := h.store.Authenticate(r.Context(), u.Email, r.PostFormValue("current")); err != nil {
-		if !errors.Is(err, ErrBadCredentials) {
-			h.log.ErrorContext(r.Context(), "authenticate email change", "error", err)
-			h.serverError(w, r)
-			return
-		}
 		http.Redirect(w, r, "/account?password=wrong", http.StatusSeeOther)
 		return
 	}
