@@ -1,6 +1,8 @@
 package orders
 
 import (
+	"context"
+	"log/slog"
 	"maps"
 	"slices"
 	"strings"
@@ -85,6 +87,15 @@ func timelineEntry(r *db.AdminOrderTimelineRow) admin.TimelineEntry {
 	}
 	e.Label, e.Status = label, status
 	return e
+}
+
+func logUnrecognized(ctx context.Context, log *slog.Logger, number string, timeline []admin.TimelineEntry) {
+	for _, e := range timeline {
+		if e.Unrecognized != "" {
+			log.WarnContext(ctx, "unrecognised order timeline entry",
+				"order", number, "entry", e.Unrecognized, "at", e.At)
+		}
+	}
 }
 
 func unrecognizedEntry(e admin.TimelineEntry, r *db.AdminOrderTimelineRow) admin.TimelineEntry {

@@ -1,22 +1,26 @@
 package orders
 
 import (
+	"bytes"
+	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/outbox"
+	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 func TestTimelineEntryKeepsARowItCannotLabel(t *testing.T) {
 	t.Parallel()
 	at := time.Date(2026, time.October, 5, 10, 20, 0, 0, time.UTC)
 	for _, tc := range []struct {
-		name       string
-		row        db.AdminOrderTimelineRow
-		wantLabel  i18n.Key
-		wantUnread string
+		name             string
+		row              db.AdminOrderTimelineRow
+		wantLabel        i18n.Key
+		wantUnrecognized string
 	}{
 		{"known invoice operation", db.AdminOrderTimelineRow{Source: "invoice", Kind: "issue", Status: "succeeded"},
 			i18n.KeyAuditInvoiceIssue, ""},
@@ -31,12 +35,30 @@ func TestTimelineEntryKeepsARowItCannotLabel(t *testing.T) {
 	} {
 		tc.row.At = at
 		got := timelineEntry(&tc.row)
-		if got.Label != tc.wantLabel || got.Unrecognized != tc.wantUnread {
+		if got.Label != tc.wantLabel || got.Unrecognized != tc.wantUnrecognized {
 			t.Errorf("timelineEntry(%s) = label %q unrecognized %q, want %q %q",
-				tc.name, got.Label, got.Unrecognized, tc.wantLabel, tc.wantUnread)
+				tc.name, got.Label, got.Unrecognized, tc.wantLabel, tc.wantUnrecognized)
 		}
 		if got.At == "" {
 			t.Errorf("timelineEntry(%s) lost its time", tc.name)
+		}
+	}
+}
+
+func TestLogUnrecognizedLogsOnlyUnrecognizedEntries(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name     string
+		timeline []admin.TimelineEntry
+		want     int
+	}{
+		{"one unrecognized entry", []admin.TimelineEntry{{At: "10:00"}, {At: "10:05", Unrecognized: "invoice / issue / voided"}}, 1},
+		{"every entry recognized", []admin.TimelineEntry{{At: "10:00"}}, 0},
+	} {
+		var buf bytes.Buffer
+		logUnrecognized(t.Context(), slog.New(slog.NewTextHandler(&buf, nil)), "GO-261005-000001", tc.timeline)
+		if got := strings.Count(buf.String(), "unrecognised order timeline entry"); got != tc.want {
+			t.Errorf("logUnrecognized(%s) wrote %d records, want %d: %q", tc.name, got, tc.want, buf.String())
 		}
 	}
 }
