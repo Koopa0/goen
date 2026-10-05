@@ -36,6 +36,7 @@ const (
 	ActionCreateVariant            Action = "variant.create"
 	ActionCreateProduct            Action = "product.create"
 	ActionUpdateProduct            Action = "product.update"
+	ActionSetProductLabel          Action = "product.label.set"
 	ActionSetProductInvoiceLine    Action = "product.invoice_line.set"
 	ActionPublishProduct           Action = "product.status"
 	ActionCreateCoupon             Action = "coupon.create"

@@ -104,6 +104,7 @@ var actionLabels = map[string]i18n.Key{
 	"product.create":                      i18n.KeyAuditProductCreate,
 	"product.invoice_line.set":            i18n.KeyAuditProductInvoiceLine,
 	"product.update":                      i18n.KeyAuditProductUpdate,
+	"product.label.set":                   i18n.KeyAuditProductLabel,
 	"product.status":                      i18n.KeyAuditProductStatus,
 	"coupon.create":                       i18n.KeyAuditCouponCreate,
 	"coupon.toggle":                       i18n.KeyAuditCouponToggle,
