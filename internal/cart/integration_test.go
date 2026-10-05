@@ -797,7 +797,7 @@ func TestAddToCartReturnsToTheChosenVariant(t *testing.T) {
 	follow := httptest.NewRequestWithContext(t.Context(), http.MethodGet, loc.String(), http.NoBody)
 	follow.SetPathValue("slug", slug)
 	pres := httptest.NewRecorder()
-	product.NewHandler(product.NewStore(pool), slog.New(slog.DiscardHandler), "https://goen.example").
+	product.NewHandler(product.NewStore(pool, slog.New(slog.DiscardHandler)), slog.New(slog.DiscardHandler), "https://goen.example").
 		Detail(pres, follow)
 	if pres.Code != http.StatusOK {
 		t.Fatalf("follow-up GET answered %d", pres.Code)
@@ -1058,7 +1058,7 @@ func TestAddAdjustedShowsNoticeOnTheProductPage(t *testing.T) {
 				follow := httptest.NewRequestWithContext(lctx, http.MethodGet, loc.RequestURI(), http.NoBody)
 				follow.SetPathValue("slug", slug)
 				pres := httptest.NewRecorder()
-				product.NewHandler(product.NewStore(pool), slog.New(slog.DiscardHandler), "https://goen.example").
+				product.NewHandler(product.NewStore(pool, slog.New(slog.DiscardHandler)), slog.New(slog.DiscardHandler), "https://goen.example").
 					Detail(pres, follow)
 				if pres.Code != http.StatusOK {
 					t.Fatalf("%v: product page answered %d", locale, pres.Code)

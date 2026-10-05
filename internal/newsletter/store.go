@@ -16,6 +16,7 @@ import (
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/outbox"
+	"github.com/koopa0/goen/internal/pgtx"
 )
 
 type Store struct {
@@ -47,7 +48,7 @@ func (s *Store) Request(ctx context.Context, addr string) (Outcome, error) {
 	if err != nil {
 		return AlreadyActive, fmt.Errorf("beginning newsletter request: %w", err)
 	}
-	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
+	defer pgtx.Rollback(ctx, tx)
 	q := db.New(tx)
 
 	_, err = q.RequestNewsletterConfirm(ctx, db.RequestNewsletterConfirmParams{
@@ -91,7 +92,7 @@ func (s *Store) Confirm(ctx context.Context, token string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("beginning newsletter confirm: %w", err)
 	}
-	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
+	defer pgtx.Rollback(ctx, tx)
 	q := db.New(tx)
 
 	addr, err := q.SpendNewsletterConfirmation(ctx, HashToken(token))
