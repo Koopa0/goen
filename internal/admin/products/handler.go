@@ -1,6 +1,7 @@
 package products
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -115,8 +116,31 @@ func (h *Handler) Edit(w http.ResponseWriter, r *http.Request) {
 	h.renderProduct(w, r, http.StatusOK, web.Notice(r, notices))
 }
 
+func (h *Handler) productView(ctx context.Context, slug string) (admin.ProductView, error) {
+	view, err := h.store.Product(ctx, slug)
+	if err != nil {
+		return view, err
+	}
+	if images, imgErr := h.store.Images(ctx, slug); imgErr != nil {
+		// Not fatal: losing the image strip is smaller than losing the page.
+		h.log.ErrorContext(ctx, "read product images", "error", imgErr)
+	} else {
+		view.Images = images
+	}
+	if recent, recentErr := h.images.Recent(ctx); recentErr != nil {
+		h.log.ErrorContext(ctx, "read recent uploads", "error", recentErr)
+	} else {
+		for _, obj := range recent {
+			view.Library = append(view.Library, admin.Image{
+				Key: obj.Digest, Width: obj.Width, Height: obj.Height,
+			})
+		}
+	}
+	return view, nil
+}
+
 func (h *Handler) renderProduct(w http.ResponseWriter, r *http.Request, status int, notice string) {
-	view, err := h.store.Product(r.Context(), r.PathValue("slug"))
+	view, err := h.productView(r.Context(), r.PathValue("slug"))
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			access.NotFound(w, r, h.log)
@@ -127,21 +151,7 @@ func (h *Handler) renderProduct(w http.ResponseWriter, r *http.Request, status i
 		return
 	}
 	view.Notice = notice
-	if images, imgErr := h.store.Images(r.Context(), r.PathValue("slug")); imgErr != nil {
-		// Not fatal: losing the image strip is smaller than losing the page.
-		h.log.ErrorContext(r.Context(), "read product images", "error", imgErr)
-	} else {
-		view.Images = images
-	}
-	if recent, recentErr := h.images.Recent(r.Context()); recentErr != nil {
-		h.log.ErrorContext(r.Context(), "read recent uploads", "error", recentErr)
-	} else {
-		for _, obj := range recent {
-			view.Library = append(view.Library, admin.Image{
-				Key: obj.Digest, Width: obj.Width, Height: obj.Height,
-			})
-		}
-	}
+
 	web.Render(w, r, h.log, status, admin.ProductForm(
 		layouts.Page{Title: view.Name}, view))
 }
@@ -200,7 +210,7 @@ func (h *Handler) AddVariant(w http.ResponseWriter, r *http.Request) {
 	f, draft, errs := variantFormOf(r)
 	maps.Copy(errs, f.Validate(r.Context()))
 	if len(errs) > 0 {
-		h.editProductWithErrors(w, r, slug, errs, &draft)
+		h.editProductWithErrors(w, r, slug, errs, &productDrafts{variant: draft})
 		return
 	}
 	errs, err := h.store.AddVariant(r.Context(), slug, f)
@@ -209,7 +219,7 @@ func (h *Handler) AddVariant(w http.ResponseWriter, r *http.Request) {
 		h.log.ErrorContext(r.Context(), "add variant", "error", err)
 		access.ServerError(w, r, h.log)
 	case len(errs) > 0:
-		h.editProductWithErrors(w, r, slug, errs, &draft)
+		h.editProductWithErrors(w, r, slug, errs, &productDrafts{variant: draft})
 	default:
 		//nolint:gosec // G710: validated by the route's own slug
 		http.Redirect(w, r, "/admin/products/"+slug+"?ok=1", http.StatusSeeOther)
@@ -299,7 +309,7 @@ func (h *Handler) rejectProduct(w http.ResponseWriter, r *http.Request, f *Form,
 	if isNew {
 		view, err = h.store.NewForm(r.Context())
 	} else {
-		view, err = h.store.Product(r.Context(), f.Slug)
+		view, err = h.productView(r.Context(), f.Slug)
 	}
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "rebuild product form", "error", err)
@@ -468,12 +478,12 @@ func (h *Handler) optionWrite(
 		// missing product. Without this the page tells a staff member who
 		// mistyped a colour that the product they are looking at is gone.
 		if refused := optionRefusal(r.Context(), err); len(refused) > 0 {
-			h.editProductWithErrors(w, r, slug, refused, &draft)
+			h.editProductWithErrors(w, r, slug, refused, &productDrafts{variant: draft})
 			return
 		}
 		access.NotFound(w, r, h.log)
 	case len(errs) > 0:
-		h.editProductWithErrors(w, r, slug, errs, &draft)
+		h.editProductWithErrors(w, r, slug, errs, &productDrafts{variant: draft})
 	default:
 		//nolint:gosec // G710: slug is the route's own path value
 		http.Redirect(w, r, "/admin/products/"+slug+"?ok=1", http.StatusSeeOther)
@@ -486,19 +496,20 @@ func (h *Handler) AddSpec(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	slug := r.PathValue("slug")
-	errs, err := h.store.AddSpec(r.Context(), slug, SpecDraft{
+	draft := SpecDraft{
 		Label:   r.PostFormValue("label"),
 		Value:   r.PostFormValue("value"),
 		LabelEn: r.PostFormValue("label_en"),
 		ValueEn: r.PostFormValue("value_en"),
-	})
+	}
+	errs, err := h.store.AddSpec(r.Context(), slug, draft)
 	switch {
 	case err != nil:
 		h.log.WarnContext(r.Context(), "add spec", "error", err, "slug", slug)
 		//nolint:gosec // G710: slug is the route's own path value
 		http.Redirect(w, r, "/admin/products/"+slug+"?specfailed=1", http.StatusSeeOther)
 	case len(errs) > 0:
-		h.editProductWithErrors(w, r, slug, errs, &admin.VariantDraft{})
+		h.editProductWithErrors(w, r, slug, errs, &productDrafts{spec: admin.SpecDraft{Label: draft.Label, Value: draft.Value, LabelEn: draft.LabelEn, ValueEn: draft.ValueEn}})
 	default:
 		//nolint:gosec // G710: slug is the route's own path value
 		http.Redirect(w, r, "/admin/products/"+slug+"?ok=1", http.StatusSeeOther)
@@ -518,10 +529,15 @@ func (h *Handler) RemoveSpec(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/admin/products/"+slug+"?ok=1", http.StatusSeeOther)
 }
 
+type productDrafts struct {
+	variant admin.VariantDraft
+	spec    admin.SpecDraft
+}
+
 func (h *Handler) editProductWithErrors(
-	w http.ResponseWriter, r *http.Request, slug string, errs map[string]string, draft *admin.VariantDraft,
+	w http.ResponseWriter, r *http.Request, slug string, errs map[string]string, draft *productDrafts,
 ) {
-	view, err := h.store.Product(r.Context(), slug)
+	view, err := h.productView(r.Context(), slug)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			access.NotFound(w, r, h.log)
@@ -532,7 +548,7 @@ func (h *Handler) editProductWithErrors(
 		return
 	}
 	view.Errors = errs
-	view.VariantDraft = *draft
+	view.VariantDraft, view.SpecDraft = draft.variant, draft.spec
 	web.Render(w, r, h.log, http.StatusUnprocessableEntity, admin.ProductForm(
 		layouts.Page{Title: view.Title(r.Context())}, view))
 }

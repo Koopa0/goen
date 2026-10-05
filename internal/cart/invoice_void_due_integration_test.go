@@ -14,6 +14,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/health"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/invoice"
+	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/outbox"
 )
 
@@ -34,8 +35,8 @@ func creditPaidOrder(t *testing.T, invoices *invoice.Store, slug string) string 
 		t.Fatalf("add: %v", err)
 	}
 	number, err := placeOrder(t, s, ctx, id, uuid.NullUUID{UUID: userID, Valid: true}, shipID,
-		&cart.Address{
-			Email: "void-due@example.com", Name: "王小明", Phone: "0912345678",
+		&order.Delivery{
+			Email: "void-due@example.com", RecipientName: "王小明", Phone: "0912345678",
 			PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 		}, "", slug+"-"+uuid.NewString()[:8])
 	if err != nil {
