@@ -192,6 +192,8 @@ var (
 
 	KeyAdminShipSet = key("admin.ship.set", Message{ZhHant: "設定", En: "Set"})
 
+	KeyAdminShipVersionChanged = key("admin.ship.version.changed", Message{ZhHant: "配送費率已變更。請確認目前設定，再重新送出附加費。", En: "Shipping fees changed. Review the current settings, then submit the surcharge again."})
+
 	KeyAdminShipNoZone = key("admin.ship.nozone", Message{
 		ZhHant: "這個方式收件到門市，沒有郵遞區號，所以永遠不會落在任何分區裡。",
 		En: "This method delivers to a store, so it has no postal code and can never fall inside " +

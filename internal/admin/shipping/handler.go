@@ -197,10 +197,11 @@ func (h *Handler) DeleteZone(w http.ResponseWriter, r *http.Request) {
 }
 
 type shippingDrafts struct {
-	method   admin.MethodDraft
-	zone     admin.ZoneDraft
+	method admin.MethodDraft
+	zone admin.ZoneDraft
 	prefixes admin.ZonePrefixesDraft
-	version  *admin.VersionDraft
+	version *admin.VersionDraft
+	surcharge admin.SurchargeDraft
 }
 
 func (h *Handler) rejectShippingForm(
@@ -229,6 +230,8 @@ func (h *Handler) rejectShippingForm(
 	if drafts.version != nil {
 		view.VersionDraft = *drafts.version
 	}
+	view.SurchargeDraft = drafts.surcharge
+	view.Notice = errs["surcharge"]
 	web.Render(w, r, h.log, http.StatusUnprocessableEntity, admin.Shipping(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageShipping)}, view))
 }
@@ -328,6 +331,12 @@ func (h *Handler) SetZoneSurcharge(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	err := h.store.SetZoneSurcharge(r.Context(), r.PostFormValue("version"), r.PostFormValue("zone"), amount)
+	if changed, ok := errors.AsType[*VersionChangedError](err); ok {
+		h.rejectShippingForm(w, r, map[string]string{"surcharge": i18n.T(r.Context(), i18n.KeyAdminShipVersionChanged)}, &shippingDrafts{surcharge: admin.SurchargeDraft{
+			MethodID: changed.MethodID.String(), ZoneID: r.PostFormValue("zone"), Amount: r.PostFormValue("amount"),
+		}})
+		return
+	}
 	switch {
 	case err == nil:
 		http.Redirect(w, r, "/admin/shipping?ok=1", http.StatusSeeOther)
