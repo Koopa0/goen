@@ -224,14 +224,12 @@ func TestACheapestPriceSaysItIsTheCheapest(t *testing.T) {
 	}
 }
 
-// TestAProductWithNothingLeftSaysSo holds the state between "this combination
-// is gone" and "choose one". SoldOut() asks about the RESOLVED variant, so it
-// is false until every option is picked: "has this visitor chosen one" and "can
-// anything here be bought" are different questions.
+// TestAProductWithNothingLeftSaysSo: the button says 已售完 when nothing is
+// buyable, whether every option is gone or only the chosen combination.
 func TestAProductWithNothingLeftSaysSo(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	gone := i18n.T(ctx, i18n.KeyAllSoldOut)
+	gone := i18n.T(ctx, i18n.KeySoldOut)
 
 	tests := []struct {
 		name        string
@@ -243,7 +241,7 @@ func TestAProductWithNothingLeftSaysSo(t *testing.T) {
 		{name: "nothing chosen and nothing to choose", anySellable: false, want: true},
 		{
 			name:        "one combination gone, others buyable",
-			anySellable: true, exact: true, sellable: false, want: false,
+			anySellable: true, exact: true, sellable: false, want: true,
 		},
 		{name: "an ordinary product", anySellable: true, exact: true, sellable: true, want: false},
 	}

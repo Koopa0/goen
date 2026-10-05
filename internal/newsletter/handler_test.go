@@ -5,10 +5,14 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/google/go-cmp/cmp"
+	"golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
@@ -142,7 +146,7 @@ func newsletterSubmit(t *testing.T, addr string, htmx bool) *http.Request {
 	req := httptest.NewRequestWithContext(
 		i18n.WithLocale(t.Context(), i18n.ZhHant),
 		http.MethodPost, "/newsletter",
-		strings.NewReader("email="+addr))
+		strings.NewReader(url.Values{"email": {addr}}.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.RemoteAddr = "203.0.113.20:1234"
 	if htmx {
@@ -208,38 +212,198 @@ func TestTheNewsletterLimitCoversAWholeIPv6Slash64(t *testing.T) {
 }
 
 func TestRefusedAddressesRenderTheirMessage(t *testing.T) {
-	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	tests := []struct {
-		name string
-		addr string
-		want string
-	}{
-		{"empty", "", i18n.T(ctx, i18n.KeyEmailRequired)},
-		{"malformed", "bad@x", i18n.T(ctx, i18n.KeyEmailMalformed)},
-		{"too long", strings.Repeat("a", email.Max) + "@example.com",
-			fmt.Sprintf(i18n.T(ctx, i18n.KeyEmailTooLong), email.Max)},
-	}
-	for _, tt := range tests {
-		for _, htmx := range []bool{true, false} {
-			t.Run(fmt.Sprintf("%s/htmx=%t", tt.name, htmx), func(t *testing.T) {
-				limit := ratelimit.New(ratelimit.Config{
-					Every: time.Hour, Burst: 8, TTL: time.Hour, MaxKeys: 8,
-				})
-				h := &Handler{limit: limit, log: slog.New(slog.DiscardHandler)}
-				res := httptest.NewRecorder()
-				h.Submit(res, newsletterSubmit(t, tt.addr, htmx))
+	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+		t.Run(string(locale), func(t *testing.T) {
+			ctx := i18n.WithLocale(t.Context(), locale)
+			tests := []struct {
+				name string
+				addr string
+				want string
+			}{
+				{name: "empty", want: i18n.T(ctx, i18n.KeyEmailRequired)},
+				{name: "malformed", addr: "bad@x", want: i18n.T(ctx, i18n.KeyEmailMalformed)},
+				{name: "consecutive dots", addr: "a..b@example.com", want: i18n.T(ctx, i18n.KeyEmailMalformed)},
+				{name: "too long", addr: strings.Repeat("a", email.Max) + "@example.com",
+					want: fmt.Sprintf(i18n.T(ctx, i18n.KeyEmailTooLong), email.Max)},
+			}
+			for _, tt := range tests {
+				for _, htmx := range []bool{true, false} {
+					t.Run(fmt.Sprintf("%s/htmx=%t", tt.name, htmx), func(t *testing.T) {
+						limit := ratelimit.New(ratelimit.Config{
+							Every: time.Hour, Burst: 8, TTL: time.Hour, MaxKeys: 8,
+						})
+						h := &Handler{limit: limit, log: slog.New(slog.DiscardHandler)}
+						req := newsletterSubmit(t, tt.addr, htmx).WithContext(ctx)
+						res := httptest.NewRecorder()
+						h.Submit(res, req)
 
-				if res.Code != http.StatusUnprocessableEntity {
-					t.Fatalf("status = %d, want 422", res.Code)
+						if res.Code != http.StatusUnprocessableEntity {
+							t.Fatalf("status = %d, want 422", res.Code)
+						}
+						body := res.Body.String()
+						if strings.Contains(body, "%!") {
+							t.Errorf("body carries a formatting error:\n%s", body)
+						}
+						if got := strings.Contains(body, "<html"); got == htmx {
+							t.Errorf("full document = %t, want %t", got, !htmx)
+						}
+						if got := newsletterDisplayedMessageCount(t, body, tt.want); got != 1 {
+							t.Errorf("refusal message occurrences = %d, want 1", got)
+						}
+						got := newsletterRefusal(t, body)
+						want := newsletterRefusalFacts{
+							Forms: 1, Inputs: 1, Labels: 1, Messages: 1,
+							Method: "post", Action: "/newsletter", Value: tt.addr,
+							Invalid: "true", Describes: "newsletter-error", Message: tt.want,
+							MessageRole: "alert", OwnMessage: true,
+						}
+						if diff := cmp.Diff(want, got); diff != "" {
+							t.Errorf("newsletter refusal (-want +got):\n%s", diff)
+						}
+					})
 				}
-				body := res.Body.String()
-				if strings.Contains(body, "%!") {
-					t.Errorf("body carries a formatting error:\n%s", body)
+			}
+		})
+	}
+}
+
+func TestNewsletterFailuresDoNotRefuseTheAddress(t *testing.T) {
+	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+		for _, tt := range []struct {
+			name   string
+			status int
+			addr   string
+			htmx   bool
+		}{
+			{name: "storage plain", status: http.StatusInternalServerError, addr: "good@example.com"},
+			{name: "storage htmx", status: http.StatusInternalServerError, addr: "good@example.com", htmx: true},
+			{name: "throttle address", status: http.StatusTooManyRequests, addr: "good@example.com", htmx: true},
+			{name: "throttle IP", status: http.StatusTooManyRequests, htmx: true},
+		} {
+			t.Run(string(locale)+"/"+tt.name, func(t *testing.T) {
+				ctx := i18n.WithLocale(t.Context(), locale)
+				h := &Handler{log: slog.New(slog.DiscardHandler)}
+				req := newsletterSubmit(t, tt.addr, tt.htmx).WithContext(ctx)
+				res := httptest.NewRecorder()
+				message := i18n.T(ctx, i18n.KeyNewsletterRetry)
+				if tt.status == http.StatusTooManyRequests {
+					message = i18n.T(ctx, i18n.KeyTooManyRequests)
+					h.throttled(res, req, tt.addr, time.Minute)
+					assertRetryAfter(t, res)
+				} else {
+					h.fail(res, req, tt.status, tt.addr, message)
 				}
-				if !strings.Contains(body, tt.want) {
-					t.Errorf("body does not contain %q:\n%s", tt.want, body)
+				if res.Code != tt.status {
+					t.Fatalf("failure status = %d, want %d", res.Code, tt.status)
+				}
+				got := newsletterRefusal(t, res.Body.String())
+				want := newsletterRefusalFacts{
+					Forms: 1, Inputs: 1, Labels: 1, Messages: 1,
+					Method: "post", Action: "/newsletter", Value: tt.addr,
+					MessageRole: "alert", OwnMessage: true,
+					MessageHidden: true, Notices: 1, Notice: message, NoticeRole: "alert", OwnNotice: true,
+				}
+				if diff := cmp.Diff(want, got); diff != "" {
+					t.Errorf("newsletter failure (-want +got):\n%s", diff)
+				}
+				if got := newsletterDisplayedMessageCount(t, res.Body.String(), message); got != 1 {
+					t.Errorf("failure message occurrences = %d, want 1", got)
 				}
 			})
 		}
 	}
+}
+
+type newsletterRefusalFacts struct {
+	Forms, Inputs, Labels, Messages int
+	Method, Action, Value           string
+	Invalid, Describes, Message     string
+	MessageRole                     string
+	OwnMessage                      bool
+	MessageHidden                   bool
+	Notices                         int
+	Notice, NoticeRole              string
+	OwnNotice                       bool
+}
+
+func newsletterRefusal(t *testing.T, body string) newsletterRefusalFacts {
+	t.Helper()
+	doc, err := html.Parse(strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	attr := func(n *html.Node, key string) string {
+		for _, a := range n.Attr {
+			if a.Key == key {
+				return a.Val
+			}
+		}
+		return ""
+	}
+	var got newsletterRefusalFacts
+	var form, input, message, notice *html.Node
+	for n := range doc.Descendants() {
+		if n.Type != html.ElementNode {
+			continue
+		}
+		switch {
+		case n.Data == "form" && attr(n, "id") == "newsletter-form":
+			got.Forms++
+			got.Method, got.Action = attr(n, "method"), attr(n, "action")
+			form = n
+		case n.Data == "input" && attr(n, "name") == "email":
+			got.Inputs++
+			got.Value = attr(n, "value")
+			got.Invalid, got.Describes = attr(n, "aria-invalid"), attr(n, "aria-describedby")
+			input = n
+		case n.Data == "label" && attr(n, "for") == "newsletter-email":
+			got.Labels++
+		case attr(n, "id") == "newsletter-error":
+			got.Messages++
+			got.MessageRole = attr(n, "role")
+			for _, a := range n.Attr {
+				if a.Key == "hidden" {
+					got.MessageHidden = true
+				}
+			}
+			var text strings.Builder
+			for child := range n.Descendants() {
+				if child.Type == html.TextNode {
+					text.WriteString(child.Data)
+				}
+			}
+			got.Message = text.String()
+			message = n
+		case attr(n, "id") == "newsletter-notice":
+			got.Notices++
+			got.NoticeRole = attr(n, "role")
+			var text strings.Builder
+			for child := range n.Descendants() {
+				if child.Type == html.TextNode {
+					text.WriteString(child.Data)
+				}
+			}
+			got.Notice = text.String()
+			notice = n
+		}
+	}
+	got.OwnMessage = form != nil && input != nil && message != nil &&
+		input.Parent == form && message.Parent == form && attr(input, "id") == "newsletter-email"
+	got.OwnNotice = form != nil && notice != nil && notice.Parent == form
+	return got
+}
+
+func newsletterDisplayedMessageCount(t *testing.T, body, message string) int {
+	t.Helper()
+	doc, err := html.Parse(strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var count int
+	for n := range doc.Descendants() {
+		if n.Type == html.TextNode {
+			count += strings.Count(n.Data, message)
+		}
+	}
+	return count
 }
