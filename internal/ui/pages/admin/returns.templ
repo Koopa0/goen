@@ -129,7 +129,7 @@ templ Returns(p layouts.Page, v ReturnsView) {
 												aria-invalid="true"
 											}
 										/>
-										<p class="ui-error-text" id={ "basis-" + r.ID + "-error" }>{ v.FieldError(r.ID, "basis") }</p>
+										<p class="ui-error-text" id={ "basis-" + r.ID + "-error" }>{ v.FieldRefusal(r.ID, "basis") }</p>
 									</div>
 									<div class="goen-admin__decidebtns">
 										@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, "submit") {
@@ -140,7 +140,7 @@ templ Returns(p layouts.Page, v ReturnsView) {
 							}
 							<form class="goen-admin__decide" method="post" action={ templ.SafeURL(r.Action()) }>
 								<input type="hidden" name="assessment_version" value={ r.AssessmentVersionText() }/>
-								<p class="ui-error-text" id={ "decision-" + r.ID + "-error" } role="alert">{ v.FieldError(r.ID, "decision") }</p>
+								<p class="ui-error-text" id={ "decision-" + r.ID + "-error" } role="alert">{ v.FieldRefusal(r.ID, "decision") }</p>
 								<div class="ui-field">
 									<label class="ui-label" for={ "res-" + r.ID }>{ i18n.T(ctx, i18n.KeyAdminRetResolution) }</label>
 									<input
@@ -155,7 +155,7 @@ templ Returns(p layouts.Page, v ReturnsView) {
 											aria-invalid="true"
 										}
 									/>
-									<p class="ui-error-text" id={ "res-" + r.ID + "-error" }>{ v.FieldError(r.ID, "resolution") }</p>
+									<p class="ui-error-text" id={ "res-" + r.ID + "-error" }>{ v.FieldRefusal(r.ID, "resolution") }</p>
 								</div>
 								<div class="goen-admin__decidebtns">
 									if !r.Late() {
@@ -255,7 +255,7 @@ templ Returns(p layouts.Page, v ReturnsView) {
 									</fieldset>
 								}
 								if v.FieldInvalid(r.ID, "inspect") {
-									<p class="ui-error-text" id={ "inspect-error-" + r.ID } role="alert">{ v.FieldError(r.ID, "inspect") }</p>
+									<p class="ui-error-text" id={ "inspect-error-" + r.ID } role="alert">{ v.FieldRefusal(r.ID, "inspect") }</p>
 								}
 								<div class="goen-admin__decidebtns">
 									@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary}, "submit") {
@@ -291,7 +291,7 @@ templ Returns(p layouts.Page, v ReturnsView) {
 templ eligibilityFactRadios(returnID string, l ReturnLine, name string, label i18n.Key, v ReturnsView) {
 	<fieldset class="ui-field">
 		<legend class="ui-label">{ i18n.T(ctx, label) }</legend>
-		<p class="ui-error-text" id={ name + "-" + l.OrderLineID + "-error" } role="alert">{ v.FieldError(returnID, name+"-"+l.OrderLineID) }</p>
+		<p class="ui-error-text" id={ name + "-" + l.OrderLineID + "-error" } role="alert">{ v.FieldRefusal(returnID, name+"-"+l.OrderLineID) }</p>
 		<label>
 			<input
 				type="radio"

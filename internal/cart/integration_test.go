@@ -797,7 +797,7 @@ func TestAddToCartReturnsToTheChosenVariant(t *testing.T) {
 	follow := httptest.NewRequestWithContext(t.Context(), http.MethodGet, loc.String(), http.NoBody)
 	follow.SetPathValue("slug", slug)
 	pres := httptest.NewRecorder()
-	product.NewHandler(product.NewStore(pool), slog.New(slog.DiscardHandler), "https://goen.example").
+	product.NewHandler(product.NewStore(pool, slog.New(slog.DiscardHandler)), slog.New(slog.DiscardHandler), "https://goen.example").
 		Detail(pres, follow)
 	if pres.Code != http.StatusOK {
 		t.Fatalf("follow-up GET answered %d", pres.Code)
@@ -1058,7 +1058,7 @@ func TestAddAdjustedShowsNoticeOnTheProductPage(t *testing.T) {
 				follow := httptest.NewRequestWithContext(lctx, http.MethodGet, loc.RequestURI(), http.NoBody)
 				follow.SetPathValue("slug", slug)
 				pres := httptest.NewRecorder()
-				product.NewHandler(product.NewStore(pool), slog.New(slog.DiscardHandler), "https://goen.example").
+				product.NewHandler(product.NewStore(pool, slog.New(slog.DiscardHandler)), slog.New(slog.DiscardHandler), "https://goen.example").
 					Detail(pres, follow)
 				if pres.Code != http.StatusOK {
 					t.Fatalf("%v: product page answered %d", locale, pres.Code)
@@ -2854,7 +2854,7 @@ func creditFundedHeldOrder(t *testing.T, vid uuid.UUID, ago time.Duration) (orde
 	t.Helper()
 	ctx := t.Context()
 
-	// The line price IS the order total, which is what makes order_amount_owed come
+	// The line price IS the order total, which is what makes order_amount_after_credit come
 	// to exactly zero once the credit is spent.
 	const cents = 100000
 	userID := creditedCustomer(t, cents)
@@ -3035,7 +3035,7 @@ func TestCreditIsCappedAtWhatTheOrderOwesAfterTheDiscount(t *testing.T) {
 
 	var owed, debit int64
 	if err := pool.QueryRow(ctx, `
-		SELECT order_amount_owed(o.id),
+		SELECT order_amount_after_credit(o.id),
 		       -coalesce((SELECT sum(e.amount_cents) FROM store_credit_entries e
 		                  WHERE e.order_id = o.id), 0)
 		FROM orders o WHERE o.order_number = $1`, number).Scan(&owed, &debit); err != nil {
@@ -3043,7 +3043,7 @@ func TestCreditIsCappedAtWhatTheOrderOwesAfterTheDiscount(t *testing.T) {
 	}
 
 	if owed != 0 {
-		t.Errorf("order_amount_owed(%s) = %d, want 0. A negative figure means credit was "+
+		t.Errorf("order_amount_after_credit(%s) = %d, want 0. A negative figure means credit was "+
 			"spent against the GROSS total, which loses the customer the discount and "+
 			"leaves the order permanently unpayable", number, owed)
 	}

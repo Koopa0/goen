@@ -24,6 +24,10 @@ const SecretBytes = 20
 
 const StepUpWindow = 12 * time.Hour
 
+// MailedCodeTTL is how long the code mailed when enrolment begins can confirm
+// it. The letter states it in words.
+const MailedCodeTTL = 15 * time.Minute
+
 const Issuer = "goen"
 
 var (
