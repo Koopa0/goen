@@ -14,14 +14,19 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/admin/admintest"
+	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/admin/orders"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/outbox"
 )
 
 // TestADispatchTheOrderMovedPastIsRefused: the dispatch reads the order's status
 // without a lock, so another staff member can complete the order before the
 // parcel is recorded. shipment_order_in_fulfilment refuses it under the order's
 // lock, and that is a refusal staff can read with the form still filled in.
+// Completion stands for every status the trigger refuses: cancelling instead
+// reaches the same branch, and a paid order can only be cancelled after a
+// settled refund before shipment.
 func TestADispatchTheOrderMovedPastIsRefused(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
 	number := shippableOrder(t, "zh-Hant")
@@ -30,6 +35,19 @@ func TestADispatchTheOrderMovedPastIsRefused(t *testing.T) {
 		uuid.NullUUID{UUID: staff, Valid: true}); err != nil {
 		t.Fatalf("first parcel: %v", err)
 	}
+
+	reservations := func() string {
+		t.Helper()
+		var state string
+		if err := pool.QueryRow(ctx, `
+			SELECT coalesce(string_agg(r.id::text || ':' || r.state || ':' || r.quantity, ',' ORDER BY r.id), '')
+			FROM inventory_reservations r JOIN orders o ON o.id = r.order_id
+			WHERE o.order_number = $1`, number).Scan(&state); err != nil {
+			t.Fatalf("read the reservations of %s: %v", number, err)
+		}
+		return state
+	}
+	held := reservations()
 
 	completer, err := pool.Begin(ctx)
 	if err != nil {
@@ -70,14 +88,28 @@ func TestADispatchTheOrderMovedPastIsRefused(t *testing.T) {
 			t.Errorf("the refused dispatch is missing %q", want)
 		}
 	}
-	var parcels int
+	var parcels, notices, shipAudits int
 	if err = pool.QueryRow(ctx, `
-		SELECT count(*) FROM order_shipments s JOIN orders o ON o.id = s.order_id WHERE o.order_number = $1`,
-		number).Scan(&parcels); err != nil {
+		SELECT (SELECT count(*) FROM order_shipments s JOIN orders o ON o.id = s.order_id WHERE o.order_number = $1),
+		       (SELECT count(*) FROM outbox_messages WHERE topic = $2 AND dedupe_key = $3),
+		       (SELECT count(*) FROM audit_events a JOIN orders o ON o.id = a.entity_id
+		        WHERE o.order_number = $1 AND a.action = $4)`,
+		number, outbox.TopicOrderShipped.Name(), "black_cat:"+tracking, string(audit.ActionShipOrder)).
+		Scan(&parcels, &notices, &shipAudits); err != nil {
 		t.Fatal(err)
 	}
 	if parcels != 1 {
 		t.Errorf("order %s has %d parcels after the refused dispatch, want the first one only", number, parcels)
+	}
+	if notices != 0 {
+		t.Errorf("the refused dispatch queued %d shipping notices for %s", notices, tracking)
+	}
+	if got := reservations(); got != held {
+		t.Errorf("the refused dispatch changed the reservations of %s from %q to %q", number, held, got)
+	}
+	if shipAudits != 1 {
+		t.Errorf("order %s has %d %s audit rows after the refused dispatch, want the first parcel's only",
+			number, shipAudits, audit.ActionShipOrder)
 	}
 }
 
