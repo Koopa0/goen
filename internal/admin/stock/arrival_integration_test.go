@@ -77,7 +77,7 @@ func TestExpectedArrivalIsAuditedAndShownOnlyForTheSelectedSoldOutVariant(t *tes
 		if err = s.SetVariantArrival(ctx, sku, tc.raw); err != nil {
 			t.Fatal(err)
 		}
-		view, loadErr := product.NewStore(owner).Load(ctx, slug, selection)
+		view, loadErr := product.NewStore(owner, slog.New(slog.DiscardHandler)).Load(ctx, slug, selection)
 		if loadErr != nil {
 			t.Fatal(loadErr)
 		}
@@ -115,7 +115,7 @@ func TestExpectedArrivalIsAuditedAndShownOnlyForTheSelectedSoldOutVariant(t *tes
 		if err = s.SetVariantArrival(ctx, rows[i].SKU, tomorrow); err != nil {
 			t.Fatal(err)
 		}
-		view, loadErr := product.NewStore(owner).Load(ctx, slug, selection)
+		view, loadErr := product.NewStore(owner, slog.New(slog.DiscardHandler)).Load(ctx, slug, selection)
 		if loadErr != nil {
 			t.Fatal(loadErr)
 		}
@@ -176,7 +176,7 @@ func TestExpectedArrivalIsAuditedAndShownOnlyForTheSelectedSoldOutVariant(t *tes
 	if _, err = owner.Exec(ctx, `SELECT record_inventory_movement($1, $2, 'adjustment', $3, 'admin', NULL, $4)`, id, safety-onShelf+1, uuid.NewString(), actor); err != nil {
 		t.Fatal(err)
 	}
-	view, err := product.NewStore(owner).Load(ctx, slug, selection)
+	view, err := product.NewStore(owner, slog.New(slog.DiscardHandler)).Load(ctx, slug, selection)
 	if err != nil {
 		t.Fatal(err)
 	}
