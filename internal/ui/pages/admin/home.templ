@@ -5,6 +5,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 templ Home(p layouts.Page, v *HeroView) {
@@ -218,10 +219,10 @@ templ Home(p layouts.Page, v *HeroView) {
 				<button class="ui-btn ui-btn--primary" type="submit">{ i18n.T(ctx, i18n.KeyAdminHomeAdd) }</button>
 			</form>
 			<aside class="goen-admin__side">
-				<h2 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminHomeScheduled) }</h2>
-				if v.Empty() {
+				<h2 class="goen-admin__subhead" id="hero-history">{ i18n.T(ctx, i18n.KeyAdminHomeScheduled) }</h2>
+				if v.Empty() && !v.Bound.PastEnd {
 					<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminHomeEmpty) }</p>
-				} else {
+				} else if !v.Empty() {
 					<ul class="goen-admin__coupons" role="list">
 						for _, slide := range v.Rows {
 							<li class="goen-admin__coupon">
@@ -255,6 +256,7 @@ templ Home(p layouts.Page, v *HeroView) {
 						}
 					</ul>
 				}
+				@pages.ListPager(v.Bound, "hero-history")
 			</aside>
 		</div>
 		<h2 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminHomeBanner) }</h2>
@@ -398,10 +400,10 @@ templ Home(p layouts.Page, v *HeroView) {
 				<button class="ui-btn ui-btn--primary" type="submit">{ i18n.T(ctx, i18n.KeyAdminHomeBannerAdd) }</button>
 			</form>
 			<aside class="goen-admin__side">
-				<h3 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminHomeBannerCurrent) }</h3>
-				if !v.HasBanners() {
+				<h3 class="goen-admin__subhead" id="banner-history">{ i18n.T(ctx, i18n.KeyAdminHomeBannerCurrent) }</h3>
+				if !v.HasBanners() && !v.BannerBound.PastEnd {
 					<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminHomeBannerEmpty) }</p>
-				} else {
+				} else if v.HasBanners() {
 					<ul class="goen-admin__coupons" role="list">
 						for _, b := range v.Banners {
 							<li class="goen-admin__coupon">
@@ -440,6 +442,7 @@ templ Home(p layouts.Page, v *HeroView) {
 						}
 					</ul>
 				}
+				@pages.ListPager(v.BannerBound, "banner-history")
 			</aside>
 		</div>
 	}
