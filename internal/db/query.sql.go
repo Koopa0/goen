@@ -10713,7 +10713,7 @@ func (q *Queries) PickingSlipLines(ctx context.Context, orderIds []uuid.UUID) ([
 
 const pickingSlips = `-- name: PickingSlips :many
 SELECT json_build_object('At', o.placed_at, 'ID', o.id)::text AS page_cursor,
-       o.id, o.order_number, o.placed_at, o.shipping_method_name, coalesce(o.customer_note, '') AS customer_note,
+       o.id, o.order_number, o.placed_at, o.shipping_method_name, ''::text AS customer_note,
        coalesce(pd.email, '') AS email,
        coalesce(pd.recipient_name, '') AS recipient_name,
        coalesce(pd.phone, '') AS phone,
@@ -10731,13 +10731,13 @@ SELECT json_build_object('At', o.placed_at, 'ID', o.id)::text AS page_cursor,
 FROM orders o
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
 LEFT JOIN invoice_preferences ip ON ip.order_id = o.id
-WHERE o.fulfillment_status IN ('picking', 'shipped', 'delivered')
+WHERE o.fulfillment_status = 'picking'
   AND EXISTS (SELECT 1 FROM order_lines ol WHERE ol.order_id = o.id
               AND ol.quantity > coalesce((SELECT sum(sl.quantity) FROM order_shipment_lines sl
                                           WHERE sl.order_line_id = ol.id), 0))
-  AND (NOT $1::boolean OR o.placed_at > $2::timestamptz
-       OR (o.placed_at = $2::timestamptz AND o.id > $3::uuid))
-ORDER BY o.placed_at, o.id
+  AND (NOT $1::boolean OR o.placed_at < $2::timestamptz
+       OR (o.placed_at = $2::timestamptz AND o.id < $3::uuid))
+ORDER BY o.placed_at DESC, o.id DESC
 LIMIT $4::integer
 `
 
@@ -10824,7 +10824,7 @@ SELECT ol.sku,
        sum(ol.quantity - coalesce((SELECT sum(sl.quantity) FROM order_shipment_lines sl
                                   WHERE sl.order_line_id = ol.id), 0))::bigint AS remaining
 FROM orders o JOIN order_lines ol ON ol.order_id = o.id
-WHERE o.fulfillment_status IN ('picking', 'shipped', 'delivered')
+WHERE o.fulfillment_status = 'picking'
   AND ol.quantity > coalesce((SELECT sum(sl.quantity) FROM order_shipment_lines sl
                               WHERE sl.order_line_id = ol.id), 0)
 GROUP BY ol.sku
