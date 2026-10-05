@@ -147,3 +147,37 @@ func TestTheOrderTimelineMergesEverySource(t *testing.T) {
 		}
 	}
 }
+
+// A mail is placed at the moment it was queued and carries the moment it was
+// delivered, so the list does not show a delivery at the time of queueing.
+func TestTheOrderTimelineCarriesWhenAMailWasDelivered(t *testing.T) {
+	ctx, _ := admintest.StaffContext(t, pool)
+	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
+	number := admintest.PlaceUnpaidOrder(t, pool)
+	if err := outbox.Enqueue(ctx, db.New(pool), outbox.TopicOrderPaid, number,
+		&email.OrderPaid{OrderNumber: number, Email: "x@example.com"}); err != nil {
+		t.Fatalf("queue the payment mail: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		UPDATE outbox_messages
+		SET created_at = now() - interval '2 hours', delivered_at = now() - interval '1 hour'
+		WHERE topic = $1 AND dedupe_key = $2`, outbox.TopicOrderPaid.Name(), number); err != nil {
+		t.Fatalf("deliver the payment mail an hour after it was queued: %v", err)
+	}
+
+	view, err := s.Order(ctx, number)
+	if err != nil {
+		t.Fatalf("Order(%s): %v", number, err)
+	}
+	for _, e := range view.Timeline {
+		if e.Label != i18n.KeyAdminTimelineMailPaid {
+			continue
+		}
+		if e.Status != i18n.KeyAdminTimelineMailSent || e.At == "" || e.DoneAt == "" || e.At == e.DoneAt {
+			t.Errorf("the payment mail reads status %q created %q delivered %q, want sent with two different times",
+				e.Status, e.At, e.DoneAt)
+		}
+		return
+	}
+	t.Errorf("Order(%s).Timeline has no payment mail among %d entries", number, len(view.Timeline))
+}

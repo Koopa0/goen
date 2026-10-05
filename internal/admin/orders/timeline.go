@@ -77,5 +77,6 @@ func timelineEntry(r *db.AdminOrderTimelineRow) (admin.TimelineEntry, error) {
 		return admin.TimelineEntry{}, fmt.Errorf("no timeline label for %s %q in status %q", r.Source, r.Kind, r.Status)
 	}
 	e.Label, e.Status = label, status
+	e.DoneAt = nullableStamp(r.DoneAt)
 	return e, nil
 }
