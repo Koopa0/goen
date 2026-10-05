@@ -4511,8 +4511,10 @@ a.goen-pager__step:hover {
   border-radius: var(--r-sm);
 }
 
+/* The outline carries the shape's 3:1 boundary on every state; selected differs
+   by being filled, so the rating reads without colour. */
 .goen-pdp__starmark svg {
-  color: var(--n-300);
+  color: var(--n-500);
   display: block;
   fill: none;
   height: 1.75rem;
@@ -4520,15 +4522,23 @@ a.goen-pager__step:hover {
 }
 
 .goen-pdp__starrow:not(:hover) .goen-pdp__star:has(.goen-pdp__starinput:checked) .goen-pdp__starmark svg,
-.goen-pdp__starrow:not(:hover) .goen-pdp__star:has(~ .goen-pdp__star .goen-pdp__starinput:checked) .goen-pdp__starmark svg {
-  color: var(--star);
+.goen-pdp__starrow:not(:hover) .goen-pdp__star:has(~ .goen-pdp__star .goen-pdp__starinput:checked) .goen-pdp__starmark svg,
+.goen-pdp__starrow:hover .goen-pdp__star:hover .goen-pdp__starmark svg,
+.goen-pdp__starrow:hover .goen-pdp__star:has(~ .goen-pdp__star:hover) .goen-pdp__starmark svg {
   fill: var(--star);
 }
 
-.goen-pdp__starrow:hover .goen-pdp__star:hover .goen-pdp__starmark svg,
-.goen-pdp__starrow:hover .goen-pdp__star:has(~ .goen-pdp__star:hover) .goen-pdp__starmark svg {
-  color: var(--star);
-  fill: var(--star);
+@media (forced-colors: active) {
+  .goen-pdp__starmark svg {
+    color: CanvasText;
+  }
+
+  .goen-pdp__starrow:not(:hover) .goen-pdp__star:has(.goen-pdp__starinput:checked) .goen-pdp__starmark svg,
+  .goen-pdp__starrow:not(:hover) .goen-pdp__star:has(~ .goen-pdp__star .goen-pdp__starinput:checked) .goen-pdp__starmark svg,
+  .goen-pdp__starrow:hover .goen-pdp__star:hover .goen-pdp__starmark svg,
+  .goen-pdp__starrow:hover .goen-pdp__star:has(~ .goen-pdp__star:hover) .goen-pdp__starmark svg {
+    fill: CanvasText;
+  }
 }
 
 .goen-pdp__reviewbody.goen-input {

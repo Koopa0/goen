@@ -178,3 +178,27 @@ func TestTheCarouselDoesNotAdvanceUnderReducedMotion(t *testing.T) {
 		}
 	}
 }
+
+// The review form's star picker is a control with no text, so its outline is
+// what WCAG 1.4.11 holds to 3:1 against the page.
+func TestTheStarPickerOutlineIsVisibleOnThePage(t *testing.T) {
+	t.Parallel()
+
+	sheet, err := fs.ReadFile(files, AppCSS)
+	if err != nil {
+		t.Fatalf("read %s: %v", AppCSS, err)
+	}
+	tokens := make(map[string]string)
+	for _, m := range tokenHex.FindAllStringSubmatch(string(sheet), -1) {
+		if _, seen := tokens[m[1]]; !seen {
+			tokens[m[1]] = m[2]
+		}
+	}
+	rule := regexp.MustCompile(`(?s)\.goen-pdp__starmark svg \{\s*color: var\((--[a-z0-9-]+)\);`).FindStringSubmatch(string(sheet))
+	if rule == nil {
+		t.Fatalf("%s has no .goen-pdp__starmark svg rule with a token colour", AppCSS)
+	}
+	if got := contrast(tokens[rule[1]], tokens["--n-0"]); got < 3 {
+		t.Errorf("star outline %s (#%s) on --n-0 = %.2f:1, want at least 3:1", rule[1], tokens[rule[1]], got)
+	}
+}
