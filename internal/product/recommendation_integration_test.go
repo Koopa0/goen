@@ -223,7 +223,7 @@ func assertBuyBoxIntact(t *testing.T, res *httptest.ResponseRecorder, want *page
 // read about the query alone.
 func warmPool(t *testing.T, p *pgxpool.Pool) {
 	t.Helper()
-	var conns []*pgxpool.Conn
+	conns := make([]*pgxpool.Conn, 0, 3)
 	for range 3 {
 		c, err := p.Acquire(t.Context())
 		if err != nil {
