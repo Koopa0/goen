@@ -113,6 +113,19 @@ func TestCheckoutWithoutDeliveryRetainsTheDraftAndWritesNothing(t *testing.T) {
 					"postal_code": {"110"}, "city": {"台北市"}, "district": {"信義區"}, "street": {"松高路 88 號"},
 					"note": {"Keep this draft"}, "coupon": {"DELIVERY-DRAFT"}, "invoice_type": {"donation"}, "invoice_donation_code": {"919"},
 				}
+				if scenario != "initial" {
+					form.Set("update", "coupon")
+					preview := request(http.MethodPost, form)
+					if preview.Code != http.StatusOK {
+						t.Fatalf("coupon preview = %d, want 200", preview.Code)
+					}
+					confirmed := deliveryForm(t, preview.Body.String())["checkout_quote"]
+					if confirmed == "" || confirmed == controls["checkout_quote"] {
+						t.Fatal("coupon preview did not render its changed quote")
+					}
+					form.Set("checkout_quote", confirmed)
+					form.Del("update")
+				}
 				switch scenario {
 				case "before-submit":
 					withdraw()
