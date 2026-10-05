@@ -1,9 +1,12 @@
 package shipping
 
 import (
+	"context"
 	"os"
 	"regexp"
 	"testing"
+
+	"github.com/koopa0/goen/internal/i18n"
 )
 
 func TestEveryRedirectTheShippingFormsMakeCarriesAMessage(t *testing.T) {
@@ -28,5 +31,17 @@ func TestEveryRedirectTheShippingFormsMakeCarriesAMessage(t *testing.T) {
 		if !sent[name] {
 			t.Errorf("notice %q names a parameter no redirect writes", name)
 		}
+	}
+}
+
+func TestShippingRowRefusalUsesTheDeskMessage(t *testing.T) {
+	t.Parallel()
+	for _, locale := range i18n.Locales() {
+		t.Run(locale.Tag(), func(t *testing.T) {
+			ctx := i18n.WithLocale(context.Background(), locale)
+			if got, want := i18n.T(ctx, notices["refused"]), i18n.T(ctx, i18n.KeyAdminShipRefused); got != want {
+				t.Errorf("row refusal=%q, want shipping message %q", got, want)
+			}
+		})
 	}
 }

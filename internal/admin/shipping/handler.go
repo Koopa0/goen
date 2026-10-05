@@ -50,7 +50,7 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 var notices = map[string]i18n.Key{
 	"ok":      i18n.KeyAdminNoticeOK,
 	"inuse":   i18n.KeyAdminNoticeInUse,
-	"refused": i18n.KeyAdminNoticeRefused,
+	"refused": i18n.KeyAdminShipRefused,
 }
 
 func (h *Handler) CreateMethod(w http.ResponseWriter, r *http.Request) {
