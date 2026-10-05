@@ -818,9 +818,6 @@ func registrationHandler(accounts *account.Store, notifier email.Notifier) func(
 
 func passwordResetHandler(accounts *account.Store, notifier email.Notifier) func(context.Context, *email.PasswordReset) error {
 	return func(ctx context.Context, p *email.PasswordReset) error {
-		if p.Token != "" {
-			return notifier.SendPasswordReset(ctx, p)
-		}
 		return accounts.DeliverPasswordReset(ctx, p, notifier.SendPasswordReset)
 	}
 }
