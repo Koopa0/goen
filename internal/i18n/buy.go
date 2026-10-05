@@ -22,7 +22,7 @@ var (
 		En:     "Your cart has reached its product limit. Remove an item before adding another.",
 	})
 
-	KeySoldOut = key("buy.soldout", Message{ZhHant: "補貨中", En: "Out of stock"})
+	KeySoldOut = key("buy.soldout", Message{ZhHant: "已售完", En: "Sold out"})
 
 	KeyChooseOptions = key("buy.choose", Message{
 		ZhHant: "請選擇規格",

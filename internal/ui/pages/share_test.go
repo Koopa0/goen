@@ -93,7 +93,7 @@ func TestNoPageNamesAnInventedCompanyOrAddress(t *testing.T) {
 		for name, html := range map[string]string{
 			"about":   renderComponent(t, ctx, About(AboutMeta(ctx))),
 			"contact": renderComponent(t, ctx, Contact(ContactMeta(ctx), ContactForm{})),
-			"footer":  renderComponent(t, ctx, layouts.Footer()),
+			"footer":  renderComponent(t, ctx, layouts.Footer(layouts.NewsletterState{})),
 		} {
 			for _, forbidden := range []string{"90123456", "Co., Ltd.", "松高路", "google.com/maps"} {
 				if strings.Contains(html, forbidden) {
