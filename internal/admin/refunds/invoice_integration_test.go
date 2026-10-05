@@ -228,6 +228,26 @@ func TestAnAllowanceTheBuyerIgnoresNeedsAPerson(t *testing.T) {
 	}
 }
 
+// TestTheOrderPageShowsAnIssuedInvoiceWithoutAProvider: a shop whose e-invoicing
+// was switched off still shows the invoice it filed, and offers no action on it.
+func TestTheOrderPageShowsAnIssuedInvoiceWithoutAProvider(t *testing.T) {
+	ctx, _ := admintest.StaffContext(t, pool)
+	_, invoices := fakeECPay(t, time.Now())
+	number, orderID := capturedOrderOwingAnInvoice(t, ctx, invoices)
+	issueNow(t, ctx, invoices, orderID)
+
+	var view admin.OrderView
+	if err := invoicing.NewStore(pool, invoices, nil).FillOrder(ctx, &view, number); err != nil {
+		t.Fatalf("fill the order page: %v", err)
+	}
+	if len(view.InvoiceDocuments) != 1 || view.InvoiceDocuments[0].Number == "" {
+		t.Errorf("invoice documents = %+v, want the issued invoice", view.InvoiceDocuments)
+	}
+	if view.InvoicingEnabled {
+		t.Error("an order page with no invoice writer offers invoice actions")
+	}
+}
+
 type sentAllowance struct {
 	id          uuid.UUID
 	status      string
