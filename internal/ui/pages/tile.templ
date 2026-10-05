@@ -74,21 +74,25 @@ templ tileCard(t ProductTile) {
 				<span class="goen-tile__brand">{ t.Brand }</span>
 			}
 			<h3 class="goen-tile__name">{ t.Name }</h3>
-			<span class="goen-tile__price">
-				<span>
-					if t.PriceVaries {
-						{ fmt.Sprintf(i18n.T(ctx, i18n.KeyFromPrice), t.Price()) }
-					} else {
-						{ t.Price() }
-					}
-				</span>
-				if t.OnSale() {
-					<span class="goen-sr-only">{ i18n.T(ctx, i18n.KeyWasPrice) }</span>
-					<s class="goen-tile__was">{ t.Compare() }</s>
-				}
-			</span>
+			@tilePrice(t)
 		</div>
 	</a>
+}
+
+templ tilePrice(t ProductTile) {
+	<span class="goen-tile__price">
+		<span>
+			if t.PriceVaries {
+				{ fmt.Sprintf(i18n.T(ctx, i18n.KeyFromPrice), t.Price()) }
+			} else {
+				{ t.Price() }
+			}
+		</span>
+		if t.OnSale() {
+			<span class="goen-sr-only">{ i18n.T(ctx, i18n.KeyWasPrice) }</span>
+			<s class="goen-tile__was">{ t.Compare() }</s>
+		}
+	</span>
 }
 
 templ Tile(t ProductTile) {
