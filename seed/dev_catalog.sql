@@ -1203,7 +1203,7 @@ INSERT INTO faq_entries (category, question, answer, position) VALUES
     -- never the shop's to leave open, and the row contradicted /returns, which
     -- states it as a rule. Two authorities answering one customer question.
     ('退換貨', '退貨要付運費嗎？',
-     '收到商品後七天內解除契約，你不需要負擔任何費用，退貨運費由 goen 負擔。詳見「退換貨政策」頁面。', 30),
+     '自收到商品的次日起七日內解除契約，你不需要負擔任何費用，退貨運費由 goen 負擔。詳見「退換貨政策」頁面。', 30),
 
     -- Not 「尚未完成」. Capture queues the issue; a missing merchant id is a
     -- deployment, not an unfinished product, and the back office already
@@ -1254,7 +1254,7 @@ FROM (VALUES
     ('退款什麼時候會收到？', 'Returns', 'When will I get my refund?',
      'As soon as a return is approved we pay it back the way you paid: the card share through Stripe, store credit back to your balance. When a card refund lands depends on your card issuer, usually a few working days; credit is available again at once.'),
     ('退貨要付運費嗎？', 'Returns', 'Who pays return postage?',
-     'We do. Rescinding within seven days of delivery costs you nothing — see the returns policy page.'),
+     'We do. Rescinding within seven days, counted from the day after you receive the goods, costs you nothing — see the returns policy page.'),
     ('運費怎麼算？免運門檻是多少？', 'Delivery', 'How much is delivery, and when is it free?',
      'It depends on the method — see the delivery page, where the figures come straight from what the till actually charges. Delivery is free once your order reaches the threshold shown there.'),
     ('多久會出貨？', 'Delivery', 'How soon do you ship?',
