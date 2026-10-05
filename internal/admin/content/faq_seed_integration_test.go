@@ -286,7 +286,7 @@ const (
 // TestAShippedRefundFAQRepairRewritesOnlyStaleLocales holds the published
 // refund FAQ to the original payment composition: a fresh seed, the shipped
 // repair file on a kept stale row, and each locale matched on its own
-// Stripe-only sentence so a shop-edited answer stays.
+// published predecessor sentences so a shop-edited answer stays.
 func TestAShippedRefundFAQRepairRewritesOnlyStaleLocales(t *testing.T) {
 	ctx := t.Context()
 	storefront := site.NewStore(pool)
