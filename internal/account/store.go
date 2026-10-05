@@ -781,7 +781,7 @@ func (a *Address) Validate() []web.FieldRefusal {
 		{"postal_code", a.PostalCode}, {"city", a.City},
 		{"district", a.District}, {"street", a.Street},
 	} {
-		if hasControl(f.value) {
+		if web.HasControlChars(f.value) {
 			errs = append(errs, web.FieldRefusal{Field: f.name, MessageKey: i18n.KeyFieldHasControlChars})
 		}
 	}
@@ -1029,14 +1029,14 @@ func normaliseGoogleIdentity(id Identity) (Identity, error) {
 
 	subject := strings.TrimSpace(id.Subject)
 	if subject == "" || subject != id.Subject ||
-		utf8.RuneCountInString(subject) > maxOAuthSubjectRunes || hasControl(subject) {
+		utf8.RuneCountInString(subject) > maxOAuthSubjectRunes || web.HasControlChars(subject) {
 		return Identity{}, errOAuthIdentity
 	}
 
 	// The display name is decoration, not identity: a malformed or oversized
 	// value must not prevent sign-in or become an unbounded row.
 	id.Name = strings.TrimSpace(id.Name)
-	if utf8.RuneCountInString(id.Name) > maxNameRunes || hasControl(id.Name) {
+	if utf8.RuneCountInString(id.Name) > maxNameRunes || web.HasControlChars(id.Name) {
 		id.Name = ""
 	}
 	return id, nil

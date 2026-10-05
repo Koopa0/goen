@@ -14,11 +14,11 @@ WHERE v.effective_at <= now()
 ORDER BY sm.id, v.effective_at DESC;
 
 -- name: AdminVersionZones :many
-SELECT z.id AS zone_id, z.code, z.name, vz.surcharge_cents
+SELECT vz.version_id, z.id AS zone_id, z.code, z.name, vz.surcharge_cents
 FROM shipping_version_zones vz
 JOIN shipping_zones z ON z.id = vz.zone_id
 WHERE vz.version_id = ANY(@version_ids::uuid[])
-ORDER BY z.position, z.name;
+ORDER BY z.position, z.name, vz.version_id;
 
 -- An INSERT and never an UPDATE: shipping_method_versions_append_only refuses
 -- one, because every past order names the version it was priced from.

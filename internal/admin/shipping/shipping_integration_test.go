@@ -19,6 +19,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/shipping"
@@ -27,6 +28,158 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
 )
+
+func TestShippingSurchargesStayWithTheirVersionThroughTheForm(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		reversed bool
+	}{{name: "a before b"}, {name: "b before a", reversed: true}} {
+		t.Run(tt.name, func(t *testing.T) {
+			owner := admintest.Pool(t)
+			ctx, _ := admintest.StaffContext(t, owner)
+			writer := admintest.AdminRolePool(t, owner)
+			store := shipping.NewStore(writer)
+			// Equal zone sort keys use version IDs, so swap those too to exercise both result orders.
+			versions := []uuid.UUID{uuid.New(), uuid.New(), uuid.New()}
+			slices.SortFunc(versions, func(a, b uuid.UUID) int { return strings.Compare(a.String(), b.String()) })
+			if tt.reversed {
+				slices.Reverse(versions[:2])
+			}
+			for i, name := range []string{"A", "B", "C"} {
+				var method uuid.UUID
+				if err := owner.QueryRow(ctx, `INSERT INTO shipping_methods (code,destination_kind,is_active) VALUES ($1,'address',false) RETURNING id`, "shared_"+strings.ToLower(name)+"_"+uuid.NewString()[:8]).Scan(&method); err != nil {
+					t.Fatalf("create method %s: %v", name, err)
+				}
+				if _, err := owner.Exec(ctx, `INSERT INTO shipping_method_versions (id,method_id,name,fee_cents,effective_at) VALUES ($1,$2,$3,8000,now()-interval '1 day')`, versions[i], method, "Address "+name); err != nil {
+					t.Fatalf("create version %s: %v", name, err)
+				}
+			}
+			var zone uuid.UUID
+			if err := owner.QueryRow(ctx, `INSERT INTO shipping_zones (code,name,position) VALUES ($1,'Shared zone',100) RETURNING id`, "shared_"+uuid.NewString()[:8]).Scan(&zone); err != nil {
+				t.Fatalf("create shared zone: %v", err)
+			}
+			insertion := []int{0, 1}
+			if tt.reversed {
+				slices.Reverse(insertion)
+			}
+			for _, i := range insertion {
+				if _, err := owner.Exec(ctx, `INSERT INTO shipping_version_zones (version_id,zone_id,surcharge_cents) VALUES ($1,$2,$3)`, versions[i], zone, []int64{10000, 20000}[i]); err != nil {
+					t.Fatalf("create surcharge %d: %v", i, err)
+				}
+			}
+			view, err := store.Configuration(ctx)
+			if err != nil {
+				t.Fatalf("Configuration: %v", err)
+			}
+			type surcharge struct {
+				ZoneID string
+				Cents  int64
+			}
+			want := map[string][]surcharge{
+				versions[0].String(): {{ZoneID: zone.String(), Cents: 10000}},
+				versions[1].String(): {{ZoneID: zone.String(), Cents: 20000}},
+				versions[2].String(): {},
+			}
+			got := map[string][]surcharge{}
+			for _, method := range view.Methods {
+				if _, fixture := want[method.VersionID]; !fixture {
+					continue
+				}
+				got[method.VersionID] = []surcharge{}
+				for _, row := range method.Surcharges {
+					got[method.VersionID] = append(got[method.VersionID], surcharge{ZoneID: row.ZoneID, Cents: row.Cents})
+				}
+			}
+			if diff := cmp.Diff(want, got); diff != "" {
+				t.Errorf("Configuration surcharges (-want +got):\n%s", diff)
+			}
+			mux := http.NewServeMux()
+			handlerOver(store).Routes(mux, admintest.BackOffice)
+			response := httptest.NewRecorder()
+			mux.ServeHTTP(response, httptest.NewRequestWithContext(ctx, http.MethodGet, "/admin/shipping", http.NoBody))
+			if response.Code != http.StatusOK {
+				t.Fatalf("GET /admin/shipping = %d, want 200", response.Code)
+			}
+			forms := renderedSurchargeForms(t, response.Body.String(), zone.String())
+			wantAmounts := map[string]string{versions[0].String(): "100", versions[1].String(): "200", versions[2].String(): ""}
+			amounts := map[string]string{}
+			for version := range wantAmounts {
+				form, exists := forms[version]
+				if !exists {
+					t.Fatalf("surcharge form for %s is missing", version)
+				}
+				amounts[version] = form.Get("amount")
+			}
+			if diff := cmp.Diff(wantAmounts, amounts); diff != "" {
+				t.Errorf("rendered surcharge amounts (-want +got):\n%s", diff)
+			}
+			type storedSurcharge struct {
+				Rows  int64
+				Cents int64
+			}
+			wantStored := map[string]storedSurcharge{
+				versions[0].String(): {Rows: 1, Cents: 10000},
+				versions[1].String(): {Rows: 1, Cents: 20000},
+				versions[2].String(): {},
+			}
+			stored := map[string]storedSurcharge{}
+			for _, version := range versions {
+				form := forms[version.String()]
+				request := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/shipping/surcharge", strings.NewReader(form.Encode()))
+				request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+				response := httptest.NewRecorder()
+				mux.ServeHTTP(response, request)
+				if response.Code != http.StatusSeeOther || response.Header().Get("Location") != "/admin/shipping?ok=1" {
+					t.Fatalf("submit surcharge form = %d %q, want 303 to saved configuration", response.Code, response.Header().Get("Location"))
+				}
+				var row storedSurcharge
+				if err := owner.QueryRow(ctx, `SELECT count(*),coalesce(sum(surcharge_cents),0)::bigint FROM shipping_version_zones WHERE version_id=$1 AND zone_id=$2`, version, zone).Scan(&row.Rows, &row.Cents); err != nil {
+					t.Fatalf("read submitted surcharge: %v", err)
+				}
+				stored[version.String()] = row
+			}
+			if diff := cmp.Diff(wantStored, stored); diff != "" {
+				t.Errorf("untouched surcharge resubmission (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func renderedSurchargeForms(t *testing.T, markup, zone string) map[string]url.Values {
+	t.Helper()
+	root, err := html.Parse(strings.NewReader(markup))
+	if err != nil {
+		t.Fatalf("parse shipping page: %v", err)
+	}
+	attribute := func(node *html.Node, name string) string {
+		for _, attr := range node.Attr {
+			if attr.Key == name {
+				return attr.Val
+			}
+		}
+		return ""
+	}
+	forms := map[string]url.Values{}
+	for node := range root.Descendants() {
+		if node.Type != html.ElementNode || node.Data != "form" || attribute(node, "action") != "/admin/shipping/surcharge" {
+			continue
+		}
+		values := url.Values{}
+		for input := range node.Descendants() {
+			if input.Type == html.ElementNode && input.Data == "input" && attribute(input, "name") != "" {
+				values.Set(attribute(input, "name"), attribute(input, "value"))
+			}
+		}
+		if values.Get("zone") == zone {
+			version := values.Get("version")
+			if _, duplicate := forms[version]; duplicate {
+				t.Fatalf("duplicate surcharge form for version %s", version)
+			}
+			forms[version] = values
+		}
+	}
+	return forms
+}
 
 func TestPublishingAVersionCarriesItsZoneSurcharges(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
