@@ -142,7 +142,7 @@ func (s *Store) Receive(ctx context.Context, sku string, quantity int32, actorID
 	err = audit.Run(ctx, s.pool, audit.Event{
 		Action: audit.ActionReceiveStock, Table: "product_variants", ID: audit.EntityID(v.ID),
 		Before: before,
-		After:  map[string]any{"received": quantity},
+		After:  map[string]any{"received": quantity, "preorder_release_on": ""},
 	},
 		func(ctx context.Context, q *db.Queries) error {
 			replaced, lockErr := lockVariant(ctx, q, v.ID, sku)
@@ -150,10 +150,14 @@ func (s *Store) Receive(ctx context.Context, sku string, quantity int32, actorID
 				return lockErr
 			}
 			before["stock"] = replaced.StockQuantity
+			before["preorder_release_on"] = arrivalInput(replaced.PreorderReleaseOn)
 			if moveErr := q.ReceiveStock(ctx, db.ReceiveStockParams{
 				VariantID: v.ID, Delta: quantity, IdempotencyKey: key, ActorUserID: actor,
 			}); moveErr != nil {
 				return pgerr.WrapRefusal(moveErr, ErrRefused)
+			}
+			if err := q.SetVariantArrival(ctx, db.SetVariantArrivalParams{ID: v.ID}); err != nil {
+				return pgerr.WrapRefusal(err, ErrRefused)
 			}
 			return nil
 		})

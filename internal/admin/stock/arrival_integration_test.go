@@ -179,8 +179,15 @@ func TestExpectedArrivalIsAuditedAndShownOnlyForTheSelectedSoldOutVariant(t *tes
 	if accepted.Code != http.StatusSeeOther || !strings.HasPrefix(accepted.Header().Get("Location"), "/admin/stock?") {
 		t.Fatalf("valid date = %d %q", accepted.Code, accepted.Header().Get("Location"))
 	}
-	if _, err = owner.Exec(ctx, `SELECT record_inventory_movement($1, $2, 'adjustment', $3, 'admin', NULL, $4)`, id, safety-onShelf+1, uuid.NewString(), actor); err != nil {
+	received := safety - onShelf + 1
+	if err = s.Receive(ctx, sku, received, actor.String(), uuid.NewString()); err != nil {
 		t.Fatal(err)
+	}
+	if err = owner.QueryRow(ctx, `SELECT preorder_release_on IS NULL FROM product_variants WHERE id=$1`, id).Scan(&cleared); err != nil {
+		t.Fatal(err)
+	}
+	if !cleared {
+		t.Error("received variant retains its expected arrival date")
 	}
 	view, err := product.NewStore(owner, slog.New(slog.DiscardHandler)).Load(ctx, slug, selection)
 	if err != nil {
@@ -188,6 +195,16 @@ func TestExpectedArrivalIsAuditedAndShownOnlyForTheSelectedSoldOutVariant(t *tes
 	}
 	if !view.CanBuy() || view.ArrivalText() != "" {
 		t.Fatal("in-stock variant still shows an expected arrival date")
+	}
+	if _, err = owner.Exec(ctx, `SELECT record_inventory_movement($1, $2, 'adjustment', $3, 'admin', NULL, $4)`, id, -received, uuid.NewString(), actor); err != nil {
+		t.Fatal(err)
+	}
+	view, err = product.NewStore(owner, slog.New(slog.DiscardHandler)).Load(ctx, slug, selection)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if view.CanBuy() || view.ArrivalText() != "" {
+		t.Fatal("sold-out variant resurrected the completed delivery's arrival date")
 	}
 }
 
