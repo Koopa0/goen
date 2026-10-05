@@ -201,8 +201,11 @@ func (s *Store) finishRefundBeforeShipment(
 	q := s.q.WithTx(tx)
 
 	row, err := q.LockOrderForAdvance(ctx, number)
-	if err != nil {
+	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("%w: %w", refundstate.ErrRefused, err)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("lock order %s: %w", number, err)
 	}
 	// Cancelled is terminal and this transaction is the only one that cancels
 	// a refunded order, so an earlier press already finished everything below.
