@@ -61,7 +61,7 @@ const (
 )
 
 func (s *Store) WorkerHealth(ctx context.Context, messages *outbox.Store) (admin.WorkerHealthView, error) {
-	row, err := s.q.WorkerHealth(ctx, outbox.MaxAttempts)
+	row, err := s.q.WorkerHealth(ctx, outbox.StuckAfterAttempts)
 	if err != nil {
 		return admin.WorkerHealthView{}, fmt.Errorf("read worker health: %w", err)
 	}
@@ -146,7 +146,7 @@ func (s *Store) WorkerHealth(ctx context.Context, messages *outbox.Store) (admin
 // Tasks is what /admin/health judges to need a person, read through the same
 // queries and thresholds as the page and none of the lists it names them in.
 func (s *Store) Tasks(ctx context.Context) ([]admin.Task, error) {
-	row, err := s.q.WorkerHealth(ctx, outbox.MaxAttempts)
+	row, err := s.q.WorkerHealth(ctx, outbox.StuckAfterAttempts)
 	if err != nil {
 		return nil, fmt.Errorf("read worker health: %w", err)
 	}
@@ -224,7 +224,7 @@ func stuckMessages(rows []outbox.StuckMessage) []admin.StuckMessage {
 		m := &rows[i]
 		out[i] = admin.StuckMessage{
 			Topic: m.Topic, Key: m.DedupeKey, Attempts: m.Attempts,
-			LastError: m.LastError, Since: shoptime.Minute(m.Since),
+			LastError: m.LastError, NextAttempt: shoptime.Minute(m.NextAttemptAt),
 		}
 	}
 	return out
