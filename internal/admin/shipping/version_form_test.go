@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -21,7 +22,7 @@ func TestVersionFormKeepsRawFieldsAndRefusesTheOwningAmount(t *testing.T) {
 		name, fee, threshold, field  string
 		feeDollars, thresholdDollars int64
 	}{
-		{name: "ceiling", fee: fmt.Sprint(MaxFee / 100), threshold: fmt.Sprint(money.MaxCents / 100), feeDollars: MaxFee / 100, thresholdDollars: money.MaxCents / 100},
+		{name: "ceiling", fee: strconv.FormatInt(MaxFee/100, 10), threshold: strconv.FormatInt(money.MaxCents/100, 10), feeDollars: MaxFee / 100, thresholdDollars: money.MaxCents / 100},
 		{name: "blank optional", fee: " 123 ", threshold: " ", feeDollars: 123},
 		{name: "bad fee", fee: "1e3", threshold: "1000", field: "version_fee", thresholdDollars: 1000},
 		{name: "past fee ceiling", fee: "5001", threshold: "1000", field: "version_fee", feeDollars: 5001, thresholdDollars: 1000},
