@@ -29,6 +29,7 @@ func TestAccountMutationsDistinguishWrongPasswordFromAuthenticationFailure(t *te
 		OriginalPassword, OriginalEmail, NoLastLogin bool
 		Sessions, EmailLinks                         int64
 	}
+	// The temporary users CHECK must not affect the package's other tests.
 	owner := dbtest.Pool(t)
 	parentCtx := t.Context()
 	password := "a valid current password"
