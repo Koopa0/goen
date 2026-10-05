@@ -17,8 +17,8 @@
   /*
    * The home carousel: scroll-snap does the moving (swipe, trackpad, keyboard),
    * and prefers-reduced-motion is answered in CSS, where scroll-behavior is set.
-   * This only wires the arrows and dots and keeps aria-current on the slide in
-   * view. There is no autoplay.
+   * This wires the arrows and dots, keeps aria-current on the slide in view and
+   * runs the autoplay.
    */
   function carousel() {
     const root = document.querySelector(".goen-hero");
@@ -45,24 +45,18 @@
      * Autoplay. The current line indicator's fill is a CSS animation over the
      * interval and its end advances the slide, so the motion is drawn as it
      * happens. It holds while the pointer is over the carousel or focus is in
-     * it, stops for good once the visitor steers it by arrow, indicator, swipe,
-     * wheel or key, can be paused by the button (WCAG 2.2.2), and never starts
-     * under prefers-reduced-motion.
+     * it, and never starts under prefers-reduced-motion. Steering by arrow,
+     * indicator, swipe, wheel or key stops it for good: that is the visitor's
+     * way to stop the movement (WCAG 2.2.2).
      */
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const pause = root.querySelector(".goen-hero__pause");
     let running = root.hasAttribute("data-autoplay") && !reduced.matches;
     let hovered = false;
     let focused = false;
-    let paused = false;
 
     const render = () => {
       root.classList.toggle("is-playing", running);
-      root.classList.toggle("is-held", hovered || focused || paused);
-      if (!pause) return;
-      pause.hidden = !running;
-      pause.dataset.state = paused ? "paused" : "playing";
-      pause.setAttribute("aria-label", paused ? pause.dataset.labelPlay : pause.dataset.labelPause);
+      root.classList.toggle("is-held", hovered || focused);
     };
     // Steering by hand ends autoplay for good: the visitor has taken over.
     const stop = () => {
@@ -95,22 +89,13 @@
     });
     root.addEventListener("pointerenter", () => { hovered = true; render(); });
     root.addEventListener("pointerleave", () => { hovered = false; render(); });
-    // Only focus a keyboard put there holds the carousel: a mouse click on the
-    // pause button leaves focus on it, which must not freeze the slides again.
+    // Only focus a keyboard put there holds the carousel; a click leaves focus behind.
     root.addEventListener("focusin", (event) => {
       focused = event.target.matches(":focus-visible");
       render();
     });
     root.addEventListener("focusout", (event) => {
       if (!root.contains(event.relatedTarget)) { focused = false; render(); }
-    });
-    // Pressing play is an explicit request to move, so the hover or focus that
-    // was holding the carousel is set aside until the pointer or focus comes
-    // back to it.
-    pause?.addEventListener("click", () => {
-      paused = !paused;
-      if (!paused) { hovered = false; focused = false; }
-      render();
     });
     reduced.addEventListener("change", () => { if (reduced.matches) stop(); });
     render();

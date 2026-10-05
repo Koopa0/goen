@@ -632,7 +632,7 @@ SELECT
     localized_name(p.name, p.name_en, @locale::text) AS name,
     coalesce(localized_name(p.summary, p.summary_en, @locale::text), '')::text AS summary,
     coalesce(b.name, '') AS brand,
-    mv.price_cents AS min_price_cents,
+    mv.price_cents AS tile_price_cents,
     -- Whether that price is the cheapest of several, so a card can say "from"
     -- rather than state one variant's price as the product's.
     NOT EXISTS (
