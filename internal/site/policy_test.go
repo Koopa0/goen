@@ -318,7 +318,7 @@ func TestActiveInvoiceFAQDoesNotCallTheIssuerUnbuilt(t *testing.T) {
 	// The statutory return row is a different authority. Editing it here
 	// would reopen 消保法 §19.
 	if !strings.Contains(src, "退貨運費由 goen 負擔") ||
-		!strings.Contains(src, "Rescinding within seven days of delivery costs you nothing") {
+		!strings.Contains(src, "Rescinding within seven days, counted from the day after you receive the goods, costs you nothing") {
 		t.Error("the statutory return FAQ was edited")
 	}
 }
@@ -734,15 +734,15 @@ func TestStatutoryTermsAreNotPending(t *testing.T) {
 			term:   "the length of the rescission window",
 			cite:   "消保法 §19 I — seven days from receipt of the goods; §19 V voids any agreement otherwise; 民法 §120 II excludes the day of receipt",
 			doc:    "returns",
-			want:   []string{"自收到商品的次日起七日內"},
-			wantEn: []string{"seven days to cancel", "counted from the day after you receive the goods"},
+			want:   []string{"自收到商品的次日起七日內", "任何約定都不能縮短或排除"},
+			wantEn: []string{"seven days to cancel", "counted from the day after you receive the goods", "no agreement can shorten or waive it"},
 		},
 		{
 			term:   "who pays return postage",
 			cite:   "消保法 §19 I — the consumer bears 任何費用, which is to say none",
 			doc:    "returns",
-			want:   []string{"退貨運費由 goen 負擔"},
-			wantEn: []string{"return postage included"},
+			want:   []string{"退貨運費由 goen 負擔", "整筆訂單都退回時，原本支付的運費也會退還給你"},
+			wantEn: []string{"return postage included", "The delivery fee you originally paid is refunded once you have returned the whole order"},
 		},
 		{
 			term:   "whether opening the box forfeits the right",
