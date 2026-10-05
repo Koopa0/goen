@@ -6,12 +6,19 @@ import (
 	"github.com/koopa0/goen/internal/web"
 )
 
-templ ListPager(b web.Bound) {
+templ ListPager(b web.Bound, headingID ...string) {
 	if b.PastEnd {
 		<p class="goen-pager__note">{ i18n.T(ctx, i18n.KeyPageEmpty) }</p>
 	}
 	if b.First != "" || b.Next != "" {
-		<nav class="goen-pager" aria-label={ i18n.T(ctx, i18n.KeyPagination) }>
+		<nav
+			class="goen-pager"
+			if len(headingID) > 0 && headingID[0] != "" {
+				aria-labelledby={ headingID[0] }
+			} else {
+				aria-label={ i18n.T(ctx, i18n.KeyPagination) }
+			}
+		>
 			if b.First != "" {
 				@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, templ.URL(b.First)) {
 					{ i18n.T(ctx, i18n.KeyFirstPage) }

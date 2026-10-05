@@ -19,6 +19,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/refunds"
 	"github.com/koopa0/goen/internal/admin/stock"
 	"github.com/koopa0/goen/internal/invoice"
+	"github.com/koopa0/goen/internal/pgtx"
 )
 
 func PlaceUnpaidOrder(t *testing.T, pool *pgxpool.Pool) string {
@@ -38,7 +39,7 @@ func PlaceUnpaidOrderHolding(t *testing.T, pool *pgxpool.Pool, holding bool) str
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
-	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
+	defer pgtx.Rollback(ctx, tx)
 
 	var orderID uuid.UUID
 	var number string
@@ -100,7 +101,7 @@ func PendingOrderHoldingStock(t *testing.T, pool *pgxpool.Pool) (number string, 
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
-	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
+	defer pgtx.Rollback(ctx, tx)
 
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO orders (order_number, shipping_version_id, shipping_method_code, shipping_method_name)
@@ -175,7 +176,7 @@ func PlaceHeldOrder(t *testing.T, pool *pgxpool.Pool, vid uuid.UUID) string {
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
-	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
+	defer pgtx.Rollback(ctx, tx)
 
 	var orderID uuid.UUID
 	var number string
@@ -220,7 +221,7 @@ func TwoLineOrderWithStock(t *testing.T, pool *pgxpool.Pool, name string) (
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
-	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
+	defer pgtx.Rollback(ctx, tx)
 
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO orders (order_number, shipping_version_id, shipping_method_code,
@@ -314,7 +315,13 @@ func (DisabledInvoiceWriter) FileAllowance(
 // stores it reads through, all over p, as cmd/goen does.
 func OrderStore(p *pgxpool.Pool, refunder refunds.Refunder, reader invoicing.Reader, writer invoicing.Writer) *orders.Store {
 	// A method value, not *health.Store: converting the store to an interface makes deadcode (x/tools v0.49.0) panic on outbox.Store's generic method.
-	return orders.NewStore(p, refunds.NewStore(p, refunder, nil), invoicing.NewStore(p, reader, writer), stock.NewStore(p), orders.HealthFunc(health.NewStore(p).Tasks))
+	return OrderStoreWithHealth(p, refunder, reader, writer, orders.HealthFunc(health.NewStore(p).Tasks))
+}
+
+// OrderStoreWithHealth is OrderStore with the health desk replaced, for a test
+// that needs it to fail.
+func OrderStoreWithHealth(p *pgxpool.Pool, refunder refunds.Refunder, reader invoicing.Reader, writer invoicing.Writer, desk orders.Health) *orders.Store {
+	return orders.NewStore(p, refunds.NewStore(p, refunder, nil), invoicing.NewStore(p, reader, writer), stock.NewStore(p), desk)
 }
 
 func OrderDesk(s *orders.Store) *orders.Handler {
@@ -341,7 +348,7 @@ func PaidPickingOrderForUser(t *testing.T, pool *pgxpool.Pool, userID uuid.UUID,
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
-	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
+	defer pgtx.Rollback(ctx, tx)
 
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO orders (order_number, user_id, shipping_version_id,

@@ -18,6 +18,7 @@ import (
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
+	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/orderaccess"
 )
 
@@ -65,7 +66,7 @@ func barcodeCheckoutFor(t *testing.T, checker *checkoutBarcode) barcodeCheckout 
 		"postal_code": {"110"}, "city": {"台北市"}, "district": {"信義區"}, "street": {"松仁路 200 號"}, "note": {"please ring"},
 		"shipping": {shipID.String()}, "idempotency": {checkoutAttemptKey(uuid.NewString())},
 		"invoice_type": {string(invoice.PreferenceMobile)}, "invoice_carrier": {" /abc+123 "},
-		"checkout_quote": {checkoutQuote(t, s, id, uuid.NullUUID{}, shipID, &cart.Address{PostalCode: "110"}, "").String()},
+		"checkout_quote": {checkoutQuote(t, s, id, uuid.NullUUID{}, shipID, &order.Delivery{PostalCode: "110"}, "").String()},
 	}
 	logs := &bytes.Buffer{}
 	return barcodeCheckout{

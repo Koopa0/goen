@@ -10,8 +10,9 @@ var (
 	})
 
 	KeyTOTPWrongSecret = key("twofactor.wrongsecret", Message{
-		ZhHant: "驗證碼不正確。請確認驗證器裡的祕密字串和畫面上的一致。",
-		En:     "That code is wrong. Check that the secret in your authenticator matches the one on screen.",
+		ZhHant: "驗證碼或設定碼不正確，或設定碼已過期。請重新開始，確認驗證器裡的祕密字串和畫面上的一致，並使用最新一封信裡的設定碼。",
+		En: "A code is wrong, or the emailed code has expired. Start again: check that the secret in your " +
+			"authenticator matches the one on screen, and use the code from the newest email.",
 	})
 
 	KeyTOTPNoKey = key("twofactor.nokey", Message{
@@ -83,6 +84,16 @@ var (
 	KeyTwoFAEnrolCode = key("admin.2fa.enrol.code", Message{
 		ZhHant: "驗證器上目前的六位數字",
 		En:     "The six digits your authenticator is showing now",
+	})
+
+	KeyTwoFAEnrolMailed = key("admin.2fa.enrol.mailed", Message{
+		ZhHant: "我們也寄了一組設定碼到你的信箱，15 分鐘內有效。",
+		En:     "We have also emailed you a setup code. It works for 15 minutes.",
+	})
+
+	KeyTwoFAEnrolMailedCode = key("admin.2fa.enrol.mailed_code", Message{
+		ZhHant: "信裡的八位數設定碼",
+		En:     "The eight-digit setup code from the email",
 	})
 
 	KeyTwoFAEnrolSubmit = key("admin.2fa.enrol.submit", Message{

@@ -22,6 +22,7 @@ import (
 	invoicepkg "github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/outbox"
+	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/pickup"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -224,7 +225,7 @@ func (s *Store) mutateCart(
 	if err != nil {
 		return fmt.Errorf("begin cart mutation: %w", err)
 	}
-	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
+	defer pgtx.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 	if err := lockCart(ctx, q, cartID); err != nil {
 		return err
@@ -450,7 +451,7 @@ func (s *Store) placeOrder(
 	cartID uuid.UUID,
 	userID uuid.NullUUID,
 	shippingVersionID uuid.UUID,
-	addr *Address,
+	addr *order.Delivery,
 	inv *Invoice,
 	couponCode string,
 	shown checkoutQuoteID,
@@ -468,7 +469,7 @@ func (s *Store) placeOrder(
 	if err != nil {
 		return "", fmt.Errorf("begin checkout: %w", err)
 	}
-	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
+	defer pgtx.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 
 	prior, taken, err := claimCheckoutKey(ctx, q, cartID, attemptID)
@@ -557,7 +558,7 @@ func lockCheckoutTerms(
 	cartID uuid.UUID,
 	userID uuid.NullUUID,
 	shippingVersionID uuid.UUID,
-	addr *Address,
+	addr *order.Delivery,
 	couponCode string,
 	shown checkoutQuoteID,
 ) (*checkoutTerms, error) {
@@ -706,7 +707,7 @@ type orderParts struct {
 	invoice       *Invoice
 	coupon        *Coupon
 	orderNumber   string
-	address       *Address
+	address       *order.Delivery
 	totalCents    int64
 	creditCents   int64
 }
@@ -775,12 +776,12 @@ func writeInvoicePreference(
 	q *db.Queries,
 	orderID uuid.UUID,
 	inv *Invoice,
-	addr *Address,
+	addr *order.Delivery,
 ) error {
 	if inv == nil {
 		inv = &Invoice{Type: invoicepkg.PreferenceMember}
 	}
-	buyerName := addr.Name
+	buyerName := addr.RecipientName
 	if inv.Type == invoicepkg.PreferenceCompany {
 		buyerName = inv.CompanyName
 	}
@@ -836,13 +837,13 @@ func finishOrder(
 	ctx context.Context,
 	q *db.Queries,
 	orderID, cartID uuid.UUID,
-	addr *Address,
+	addr *order.Delivery,
 	attemptID checkoutAttemptID,
 ) error {
 	if err := q.CreateOrderPrivateData(ctx, db.CreateOrderPrivateDataParams{
 		OrderID:         orderID,
 		Email:           text(addr.Email),
-		RecipientName:   text(addr.Name),
+		RecipientName:   text(addr.RecipientName),
 		Phone:           text(addr.Phone),
 		PostalCode:      addr.PostalCode,
 		City:            addr.City,

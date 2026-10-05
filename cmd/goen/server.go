@@ -195,7 +195,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	}, handler)
 	handler = onlyVisitorPaths(basket.WithCount, handler)
 	handler = onlyVisitorPaths(customers.Authenticate, handler)
-	handler = withStorefrontRequestBudget(handler)
+	handler = withRequestBudget(handler)
 	handler = crossOriginProtection(handler, front.StoreMap.Enabled())
 	// Before routing and before every middleware that reads the request, so no
 	// path value or query value PostgreSQL refuses reaches a query.
@@ -218,7 +218,7 @@ func storefrontRoutes(mux *http.ServeMux, cfg *StorefrontConfig, log *slog.Logge
 	})
 	// Everything that describes shipping reads what checkout offers: pickup needs
 	// the store map, so without it nothing may promise pickup or its price.
-	homeStore, productStore := home.NewStore(pool), product.NewStore(pool)
+	homeStore, productStore := home.NewStore(pool), product.NewStore(pool, log)
 	if !cfg.StoreMap.Enabled() {
 		homeStore, productStore = homeStore.WithoutPickup(), productStore.WithoutPickup()
 	}
