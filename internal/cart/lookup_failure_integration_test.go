@@ -41,10 +41,6 @@ func TestCartLookupFailuresDoNotReplaceOrHideTheBasket(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var customer uuid.UUID
-	if customerErr := owner.QueryRow(t.Context(), `INSERT INTO users (email, password_hash, email_verified_at) VALUES ('cart-failure@example.com', $1, now()) RETURNING id`, hash).Scan(&customer); customerErr != nil {
-		t.Fatal(customerErr)
-	}
 	var variant uuid.UUID
 	if variantErr := owner.QueryRow(t.Context(), `SELECT pv.id FROM product_variants pv JOIN products p ON p.id = pv.product_id WHERE p.status = 'active' AND pv.is_active AND pv.stock_quantity > pv.safety_stock ORDER BY pv.id LIMIT 1`).Scan(&variant); variantErr != nil {
 		t.Fatal(variantErr)
@@ -71,6 +67,11 @@ func TestCartLookupFailuresDoNotReplaceOrHideTheBasket(t *testing.T) {
 		for _, scenario := range []string{"page", "add", "update", "checkout", "place", "pickup-start", "pickup-map", "badge", "account-fallback", "signin", "retry-adoption"} {
 			t.Run(locale.Tag()+"/"+scenario, func(t *testing.T) {
 				ctx := i18n.WithLocale(t.Context(), locale)
+				customerEmail := "cart-failure-" + uuid.NewString() + "@example.com"
+				var customer uuid.UUID
+				if customerErr := owner.QueryRow(ctx, `INSERT INTO users (email, password_hash, email_verified_at) VALUES ($1, $2, now()) RETURNING id`, customerEmail, hash).Scan(&customer); customerErr != nil {
+					t.Fatal(customerErr)
+				}
 				id, token := newCartSession(t, s)
 				if addErr := s.Add(ctx, id, variant, 1); addErr != nil {
 					t.Fatal(addErr)
@@ -103,15 +104,15 @@ func TestCartLookupFailuresDoNotReplaceOrHideTheBasket(t *testing.T) {
 				case "account-fallback":
 					method, path, handler = http.MethodPost, "/cart/items", h.AddItem
 					query = "CartForUser"
-					ctx = user.NewContext(ctx, user.User{ID: customer.String(), Email: "cart-failure@example.com", Role: user.RoleCustomer})
+					ctx = user.NewContext(ctx, user.User{ID: customer.String(), Email: customerEmail, Role: user.RoleCustomer})
 					token = "missing-" + token
 				case "signin", "retry-adoption":
 					method, path, handler = http.MethodPost, "/signin", accounts.SignIn
-					form = url.Values{"email": {"cart-failure@example.com"}, "password": {password}, "next": {"/checkout"}}
+					form = url.Values{"email": {customerEmail}, "password": {password}, "next": {"/checkout"}}
 					wantStatus, wantLocation = http.StatusSeeOther, "/account/cart-recovery?next=%2Fcheckout"
 					if scenario == "retry-adoption" {
 						path, handler = "/account/cart-recovery", accounts.RetryCartAdoption
-						ctx = user.NewContext(ctx, user.User{ID: customer.String(), Email: "cart-failure@example.com", Role: user.RoleCustomer})
+						ctx = user.NewContext(ctx, user.User{ID: customer.String(), Email: customerEmail, Role: user.RoleCustomer})
 					}
 				}
 				trace.set(query)
@@ -165,24 +166,85 @@ func TestCartLookupFailuresDoNotReplaceOrHideTheBasket(t *testing.T) {
 			})
 		}
 	}
+	for _, tt := range []struct {
+		name, method, path string
+		handler            func(*cart.Handler) http.HandlerFunc
+	}{
+		{name: "page", method: http.MethodGet, path: "/cart", handler: func(h *cart.Handler) http.HandlerFunc { return h.Page }},
+		{name: "add", method: http.MethodPost, path: "/cart/items", handler: func(h *cart.Handler) http.HandlerFunc { return h.AddItem }},
+		{name: "update", method: http.MethodPost, path: "/cart/items/update", handler: func(h *cart.Handler) http.HandlerFunc { return h.UpdateItem }},
+		{name: "checkout", method: http.MethodGet, path: "/checkout", handler: func(h *cart.Handler) http.HandlerFunc { return h.Checkout }},
+		{name: "place", method: http.MethodPost, path: "/checkout", handler: func(h *cart.Handler) http.HandlerFunc { return h.PlaceOrder }},
+		{name: "pickup-start", method: http.MethodPost, path: "/checkout/pickup/start", handler: func(h *cart.Handler) http.HandlerFunc { return h.PickupStart }},
+		{name: "pickup-map", method: http.MethodGet, path: "/checkout/pickup/map", handler: func(h *cart.Handler) http.HandlerFunc { return h.PickupMap }},
+		{name: "badge", method: http.MethodGet, path: "/cart"},
+	} {
+		t.Run("disconnect/"+tt.name, func(t *testing.T) {
+			id, token := newCartSession(t, s)
+			if addErr := s.Add(t.Context(), id, variant, 1); addErr != nil {
+				t.Fatal(addErr)
+			}
+			before := cartLookupRows(t, owner, id, variant)
+			var diagnostics bytes.Buffer
+			logger := slog.New(slog.NewJSONHandler(&diagnostics, nil))
+			h := cart.NewHandler(s, orderaccess.NewStore(app, false), logger, false, testLimiter(), nil, nil)
+			var continued bool
+			var route http.Handler = h.WithCount(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { continued = true }))
+			if tt.handler != nil {
+				route = tt.handler(h)
+			}
+			requestCtx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			trace.disconnect(cancel)
+			form := url.Values{"variant": {variant.String()}, "quantity": {"1"}}
+			req := httptest.NewRequestWithContext(requestCtx, tt.method, tt.path, strings.NewReader(form.Encode()))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token}) //nolint:gosec // G124: dev cookie under test
+			res := httptest.NewRecorder()
+			route.ServeHTTP(res, req)
+			trace.set("")
+			if requestCtx.Err() != context.Canceled {
+				t.Fatalf("disconnect context = %v, want context.Canceled", requestCtx.Err())
+			}
+			if diagnostics.Len() != 0 || res.Body.Len() != 0 || len(res.Header()) != 0 || continued {
+				t.Errorf("disconnected lookup: diagnostics=%q body=%q headers=%v continued=%v, want no work for the departed caller", diagnostics.String(), res.Body.String(), res.Header(), continued)
+			}
+			if diff := cmp.Diff(before, cartLookupRows(t, owner, id, variant)); diff != "" {
+				t.Errorf("cart rows after disconnect (-want +got):\n%s", diff)
+			}
+		})
+	}
+
 }
 
 type failCartLookup struct {
-	mu    sync.Mutex
-	query string
+	mu     sync.Mutex
+	query  string
+	cancel context.CancelFunc
 }
 
 func (tr *failCartLookup) set(query string) {
 	tr.mu.Lock()
 	defer tr.mu.Unlock()
 	tr.query = query
+	tr.cancel = nil
+}
+
+func (tr *failCartLookup) disconnect(cancel context.CancelFunc) {
+	tr.mu.Lock()
+	defer tr.mu.Unlock()
+	tr.query, tr.cancel = "CartByToken", cancel
 }
 
 func (tr *failCartLookup) TraceQueryStart(ctx context.Context, _ *pgx.Conn, data pgx.TraceQueryStartData) context.Context {
 	tr.mu.Lock()
-	query := tr.query
+	query, cancelRequest := tr.query, tr.cancel
 	tr.mu.Unlock()
 	if query != "" && strings.HasPrefix(data.SQL, "-- name: "+query+" :one") {
+		if cancelRequest != nil {
+			cancelRequest()
+			return ctx
+		}
 		refused, cancel := context.WithCancel(ctx)
 		cancel()
 		return refused

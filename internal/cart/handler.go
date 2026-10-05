@@ -123,13 +123,11 @@ func freeDeliveryFor(choices []pages.ShippingChoice, subtotalCents int64) pages.
 func (h *Handler) TakesPayment() bool { return h.sessions != nil }
 
 func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
-	cartID, ok, lookupErr := h.existingCart(r)
-	if lookupErr != nil {
-		h.log.ErrorContext(r.Context(), "read request cart", "error", lookupErr)
-		h.serverError(w, r)
+	cartID, found, ok := h.requestCart(w, r)
+	if !ok {
 		return
 	}
-	if !ok {
+	if !found {
 		view := pages.CartView{Notice: cartPageNotice(r), ContinueURL: cartContinuation(r)}
 		web.Render(w, r, h.log, http.StatusOK, pages.Cart(pages.CartMeta(r.Context()), view))
 		return
@@ -196,6 +194,9 @@ func (h *Handler) AddItem(w http.ResponseWriter, r *http.Request) {
 
 	cartID, err := h.cartForWrite(w, r)
 	if err != nil {
+		if errors.Is(r.Context().Err(), context.Canceled) {
+			return
+		}
 		h.log.ErrorContext(r.Context(), "open cart", "error", err)
 		h.serverError(w, r)
 		return
@@ -221,14 +222,8 @@ func (h *Handler) UpdateItem(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
 		return
 	}
-	cartID, ok, lookupErr := h.existingCart(r)
-	if lookupErr != nil {
-		h.log.ErrorContext(r.Context(), "read request cart", "error", lookupErr)
-		h.serverError(w, r)
-		return
-	}
+	cartID, ok := h.requiredCart(w, r)
 	if !ok {
-		http.Redirect(w, r, "/cart", http.StatusSeeOther)
 		return
 	}
 	variantID, err := uuid.Parse(r.PostFormValue("variant"))
@@ -268,14 +263,8 @@ func (h *Handler) UpdateItem(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Checkout(w http.ResponseWriter, r *http.Request) {
-	cartID, ok, lookupErr := h.existingCart(r)
-	if lookupErr != nil {
-		h.log.ErrorContext(r.Context(), "read request cart", "error", lookupErr)
-		h.serverError(w, r)
-		return
-	}
+	cartID, ok := h.requiredCart(w, r)
 	if !ok {
-		http.Redirect(w, r, "/cart", http.StatusSeeOther)
 		return
 	}
 	view, err := h.checkoutView(r.Context(), cartID, ownerOf(r))
@@ -307,10 +296,12 @@ func (h *Handler) Checkout(w http.ResponseWriter, r *http.Request) {
 
 	// The chosen method lives in the URL only, so the choice works with
 	// scripting off.
-	if slices.ContainsFunc(view.Shipping, func(choice pages.ShippingChoice) bool {
-		return choice.VersionID == chosen.Ship
-	}) {
-		view.Chosen = chosen.Ship
+	if ship := chosen.Ship; ship != "" {
+		for i := range view.Shipping {
+			if view.Shipping[i].VersionID == ship {
+				view.Chosen = ship
+			}
+		}
 	}
 	view.Destination = destinationOf(view.Shipping, view.Chosen)
 	// The 發票 choice travels the same way: it decides which field the form asks
@@ -473,14 +464,8 @@ func (h *Handler) PickupStart(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
 		return
 	}
-	cartID, ok, lookupErr := h.existingCart(r)
-	if lookupErr != nil {
-		h.log.ErrorContext(r.Context(), "read request cart", "error", lookupErr)
-		h.serverError(w, r)
-		return
-	}
+	cartID, ok := h.requiredCart(w, r)
 	if !ok {
-		http.Redirect(w, r, "/cart", http.StatusSeeOther)
 		return
 	}
 	guess, ok := h.reserveCouponGuess(w, r, cartID)
@@ -537,14 +522,8 @@ func (h *Handler) PickupStart(w http.ResponseWriter, r *http.Request) {
 // PickupMap serves a page with nothing the shopper typed on it or in its URL.
 func (h *Handler) PickupMap(w http.ResponseWriter, r *http.Request) {
 	const back = "/checkout?draft=1"
-	cartID, ok, lookupErr := h.existingCart(r)
-	if lookupErr != nil {
-		h.log.ErrorContext(r.Context(), "read request cart", "error", lookupErr)
-		h.serverError(w, r)
-		return
-	}
+	cartID, ok := h.requiredCart(w, r)
 	if !ok {
-		http.Redirect(w, r, "/cart", http.StatusSeeOther)
 		return
 	}
 	draft, found, err := h.store.checkoutDraft(r.Context(), cartID)
@@ -781,14 +760,8 @@ func (h *Handler) PlaceOrder(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
 		return
 	}
-	cartID, ok, lookupErr := h.existingCart(r)
-	if lookupErr != nil {
-		h.log.ErrorContext(r.Context(), "read request cart", "error", lookupErr)
-		h.serverError(w, r)
-		return
-	}
+	cartID, ok := h.requiredCart(w, r)
 	if !ok {
-		http.Redirect(w, r, "/cart", http.StatusSeeOther)
 		return
 	}
 	attemptID, attemptErr := parseCheckoutAttemptID(r.PostFormValue("idempotency"))
@@ -1521,6 +1494,9 @@ func (h *Handler) ReorderItems(w http.ResponseWriter, r *http.Request) {
 	// empty one.
 	cartID, err := h.cartForWrite(w, r)
 	if err != nil {
+		if errors.Is(r.Context().Err(), context.Canceled) {
+			return
+		}
 		h.log.ErrorContext(r.Context(), "cart for reorder", "error", err)
 		h.serverError(w, r)
 		return
@@ -1699,6 +1675,31 @@ func (h *Handler) existingCart(r *http.Request) (uuid.UUID, bool, error) {
 	return id, ok, err
 }
 
+func (h *Handler) requestCart(w http.ResponseWriter, r *http.Request) (id uuid.UUID, found, ok bool) {
+	id, found, err := h.existingCart(r)
+	if err == nil {
+		return id, found, true
+	}
+	if errors.Is(r.Context().Err(), context.Canceled) {
+		return uuid.Nil, false, false
+	}
+	h.log.ErrorContext(r.Context(), "read request cart", "error", err)
+	h.serverError(w, r)
+	return uuid.Nil, false, false
+}
+
+func (h *Handler) requiredCart(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
+	id, found, ok := h.requestCart(w, r)
+	if !ok {
+		return uuid.Nil, false
+	}
+	if !found {
+		http.Redirect(w, r, "/cart", http.StatusSeeOther)
+		return uuid.Nil, false
+	}
+	return id, true
+}
+
 // A signed-in create attaches user_id so the next add does not mint an unowned
 // cart the account can never see through the cookie. Create recovers a
 // carts_one_per_user collision by rereading the winner.
@@ -1855,6 +1856,9 @@ func (h *Handler) WithCount(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id, ok, stale, lookupErr := h.lookupCart(r.Context(), r)
 		if lookupErr != nil {
+			if errors.Is(r.Context().Err(), context.Canceled) {
+				return
+			}
 			h.log.ErrorContext(r.Context(), "read cart for the item count", "error", lookupErr)
 			next.ServeHTTP(w, r)
 			return
