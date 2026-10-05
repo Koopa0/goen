@@ -3,6 +3,7 @@
 package shipping_test
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/shipping"
@@ -233,5 +235,50 @@ func TestRefusedShippingEditsRetainTheDraftWithoutChangingTheConfiguration(t *te
 	}
 	if auditAfter != auditBefore {
 		t.Errorf("stale refusals wrote %d audit rows, want zero", auditAfter-auditBefore)
+	}
+}
+
+func TestShippingNameBoundsAreEnforcedByTheDatabase(t *testing.T) {
+	p := admintest.Pool(t)
+	ctx, _ := admintest.StaffContext(t, p)
+	adminPool := admintest.AdminRolePool(t, p)
+	var methodID uuid.UUID
+	if err := p.QueryRow(ctx, `INSERT INTO shipping_methods (code, destination_kind) VALUES ('name_bound_fixture', 'address') RETURNING id`).Scan(&methodID); err != nil {
+		t.Fatal(err)
+	}
+	for _, table := range []struct {
+		name, constraint, query string
+	}{
+		{name: "version", constraint: "shipping_method_versions_name_bounded", query: `INSERT INTO shipping_method_versions (method_id, name, fee_cents) VALUES ($1, $2, 0) RETURNING name`},
+		{name: "zone", constraint: "shipping_zones_name_bounded", query: `INSERT INTO shipping_zones (code, name) VALUES ($1, $2) RETURNING name`},
+	} {
+		for _, tt := range []struct {
+			name, value string
+			accept      bool
+		}{
+			{name: "ascii-bound", value: strings.Repeat("a", 60), accept: true},
+			{name: "unicode-bound", value: strings.Repeat("\u754c", 60), accept: true},
+			{name: "ascii-over-bound", value: strings.Repeat("a", 61)},
+			{name: "unicode-over-bound", value: strings.Repeat("\u754c", 61)},
+		} {
+			t.Run(table.name+"/"+tt.name, func(t *testing.T) {
+				var identity any = methodID
+				if table.name == "zone" {
+					identity = "name_bound_" + strings.ReplaceAll(uuid.NewString(), "-", "")
+				}
+				var saved string
+				err := adminPool.QueryRow(ctx, table.query, identity, tt.value).Scan(&saved)
+				if tt.accept {
+					if err != nil || saved != tt.value {
+						t.Errorf("legal name saved=%q error=%v, want %q", saved, err, tt.value)
+					}
+					return
+				}
+				pgErr, ok := errors.AsType[*pgconn.PgError](err)
+				if !ok || pgErr.Code != "23514" || pgErr.ConstraintName != table.constraint {
+					t.Errorf("over-bound name error=%v, want CHECK %s", err, table.constraint)
+				}
+			})
+		}
 	}
 }
