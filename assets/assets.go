@@ -96,10 +96,10 @@ var categoryImages = map[string]string{
 
 const productMediaPrefix = "media/products/"
 
-// requiredMedia is the photography the storefront names by file: the six department photographs (1600px, each with a -800 and a -400
-// rendition) and the campaign headers. The
-// headers sit under media/products/ because a campaign's image_key is resolved
-// by the product-image function.
+// requiredMedia is the photography the storefront names by file: the six
+// department photographs (1600px, each with a -800 and a -400 rendition) and
+// the campaign headers. The headers sit under media/products/ because a
+// campaign's image_key is resolved by the product-image function.
 var requiredMedia = append(departmentMedia(
 	"books-stationery", "home-living", "beauty", "fashion", "food-drink", "tech",
 ),

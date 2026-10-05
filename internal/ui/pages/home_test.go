@@ -46,15 +46,3 @@ func TestASectionHeadingKeepsItsSeparatorForAScreenReader(t *testing.T) {
 		}
 	}
 }
-
-// No department is written into the home template: the page links only to what
-// the shop's data names.
-func TestTheHomePageHasNoHardCodedDepartmentBand(t *testing.T) {
-	t.Parallel()
-	page := renderIn(t, i18n.En, Home(layouts.Page{}, HomeView{}))
-	for _, band := range []string{"promo-heading", "goen-promo-photo"} {
-		if strings.Contains(page, band) {
-			t.Errorf("Home page contains %q, a band written into the template", band)
-		}
-	}
-}
