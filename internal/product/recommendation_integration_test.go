@@ -218,6 +218,24 @@ func assertBuyBoxIntact(t *testing.T, res *httptest.ResponseRecorder, want *page
 	return doc
 }
 
+// A cancelled stalled query destroys its connection, so the next optional read
+// would dial a new one inside its 150 ms budget; idle connections keep that
+// read about the query alone.
+func warmPool(t *testing.T, p *pgxpool.Pool) {
+	t.Helper()
+	var conns []*pgxpool.Conn
+	for range 3 {
+		c, err := p.Acquire(t.Context())
+		if err != nil {
+			t.Fatal(err)
+		}
+		conns = append(conns, c)
+	}
+	for _, c := range conns {
+		c.Release()
+	}
+}
+
 func assertRecommendationQueriesDrained(t *testing.T, p *pgxpool.Pool) {
 	t.Helper()
 	// pgx destroys cancelled connections through puddle's asynchronous destructor.
@@ -260,6 +278,7 @@ func TestOptionalRecommendationFailuresPreserveTheProductPage(t *testing.T) {
 					attempts = 8
 				}
 				for range attempts {
+					warmPool(t, p)
 					ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 					started := time.Now()
 					res := recommendationResponse(t, ctx, h, &want)
