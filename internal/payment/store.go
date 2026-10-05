@@ -20,6 +20,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/outbox"
+	"github.com/koopa0/goen/internal/pgtx"
 )
 
 // Store holds the pool rather than a DBTX because processing a webhook spans
@@ -303,7 +304,7 @@ func (s *Store) processWebhook(
 	if err != nil {
 		return false, fmt.Errorf("begin webhook transaction: %w", err)
 	}
-	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
+	defer pgtx.Rollback(ctx, tx)
 
 	webhook := &webhookTx{
 		q: s.q.WithTx(tx), tx: tx, eventID: ev.ID, objectRef: ev.ObjectRef,
@@ -373,7 +374,7 @@ func (w *webhookTx) postCapture(ctx context.Context, c Capture) error {
 	if postErr := post(w.q.WithTx(sp)); postErr != nil {
 		// Back to the savepoint, so the transaction is usable and the caller can
 		// say what happened.
-		_ = sp.Rollback(context.WithoutCancel(ctx)) //nolint:errcheck // the error being reported is postErr
+		pgtx.Rollback(ctx, sp)
 		return postErr
 	}
 	if err := sp.Commit(ctx); err != nil {
