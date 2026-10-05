@@ -19,6 +19,7 @@ type Page struct {
 	Nav            string
 	StructuredData string
 	SearchQuery    string
+	Newsletter     NewsletterState
 	// Share's zero value keeps the default preview picture.
 	Share ShareImage
 }

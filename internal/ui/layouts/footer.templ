@@ -7,7 +7,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/icons"
 )
 
-templ Footer() {
+templ Footer(state NewsletterState) {
 	<footer class="goen-footer">
 		<div class="goen-footer__grid">
 			<div class="goen-footer__brand">
@@ -38,7 +38,7 @@ templ Footer() {
 			<div class="goen-footer__news">
 				<span class="goen-footer__heading">{ i18n.T(ctx, i18n.KeyNewsletter) }</span>
 				<p class="goen-footer__newsnote">{ i18n.T(ctx, i18n.KeyNewsletterNote) }</p>
-				@NewsletterForm(NewsletterState{})
+				@NewsletterForm(state)
 			</div>
 		</div>
 		<div class="goen-footer__bottom">
