@@ -9,6 +9,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/koopa0/goen/internal/pickup"
+	"github.com/koopa0/goen/internal/web"
 )
 
 // FuzzReadCallback: the map callback is a form any visitor can post, so what
@@ -45,10 +46,10 @@ func FuzzReadCallback(f *testing.F) {
 		if merchant != aMerchantID || !pickup.ValidStoreCode(c.Code) || !validNonce(c.Nonce) {
 			t.Fatalf("accepted merchant %q code %q nonce %q", merchant, c.Code, c.Nonce)
 		}
-		if c.Name == "" || utf8.RuneCountInString(c.Name) > maxCallbackStoreNameRunes || hasControl(c.Name) {
+		if c.Name == "" || utf8.RuneCountInString(c.Name) > maxCallbackStoreNameRunes || web.HasControlChars(c.Name) {
 			t.Fatalf("accepted store name %q", c.Name)
 		}
-		if utf8.RuneCountInString(c.Address) > maxCallbackAddressRunes || hasControl(c.Address) {
+		if utf8.RuneCountInString(c.Address) > maxCallbackAddressRunes || web.HasControlChars(c.Address) {
 			t.Fatalf("accepted address %q", c.Address)
 		}
 		target, err := url.Parse(c.refreshTarget())

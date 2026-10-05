@@ -2,7 +2,6 @@ package order
 
 import (
 	"strings"
-	"unicode"
 	"unicode/utf8"
 
 	"github.com/koopa0/goen/internal/destination"
@@ -167,7 +166,7 @@ func (a *Delivery) controlCharErrors() []web.FieldRefusal {
 		{"pickup_chain", string(a.PickupChain)}, {"pickup_store_code", a.PickupStoreCode},
 		{"pickup_store_name", a.PickupStoreName}, {"note", a.Note},
 	} {
-		if hasControl(f.value) {
+		if web.HasControlChars(f.value) {
 			errs = append(errs, web.FieldRefusal{Field: f.name, MessageKey: i18n.KeyFieldHasControlChars})
 		}
 	}
@@ -230,10 +229,4 @@ func (a *Delivery) Trim() {
 	a.PickupStoreCode = strings.ToUpper(strings.TrimSpace(a.PickupStoreCode))
 	a.PickupStoreName = strings.TrimSpace(a.PickupStoreName)
 	a.Note = strings.TrimSpace(a.Note)
-}
-
-// hasControl reports whether s carries a control character. unicode.IsControl
-// covers C1 (0x80–0x9F) as well as C0, which an ASCII-only check lets through.
-func hasControl(s string) bool {
-	return strings.ContainsFunc(s, unicode.IsControl)
 }
