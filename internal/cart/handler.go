@@ -1735,7 +1735,7 @@ func (h *Handler) lookupCart(ctx context.Context, r *http.Request) (id uuid.UUID
 			return tokenCart, true, false, nil
 		}
 		if !errors.Is(err, ErrNotFound) && !errors.Is(err, ErrNotYourCart) {
-			return uuid.Nil, false, false, err
+			return uuid.Nil, false, false, cartLookupFailure(err)
 		}
 		stale = errors.Is(err, ErrNotYourCart)
 	}
@@ -1747,9 +1747,16 @@ func (h *Handler) lookupCart(ctx context.Context, r *http.Request) (id uuid.UUID
 		return uuid.Nil, false, stale, nil
 	}
 	if err != nil {
-		return uuid.Nil, false, stale, err
+		return uuid.Nil, false, stale, cartLookupFailure(err)
 	}
 	return accountCart, true, stale, nil
+}
+
+func cartLookupFailure(err error) error {
+	if errors.Is(err, context.Canceled) {
+		return nil
+	}
+	return err
 }
 
 // wishlistPath is the one page besides a product an add-to-cart form may send
