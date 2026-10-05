@@ -150,7 +150,6 @@ body {
   transition: border-color var(--dur-base) var(--ease-standard), background var(--dur-base);
 }
 .ui-input::placeholder, .ui-textarea::placeholder { color: var(--fg-muted); }
-.ui-input:hover, .ui-textarea:hover { border-color: var(--control-boundary); }
 .ui-input:focus, .ui-textarea:focus { border-color: var(--accent); }
 .ui-input:disabled, .ui-textarea:disabled { opacity: 0.45; cursor: not-allowed; }
 .ui-textarea { resize: vertical; min-height: 80px; line-height: var(--lh-normal); }
@@ -166,9 +165,12 @@ body {
   background-repeat: no-repeat; background-position: right 9px center;
   transition: border-color var(--dur-base);
 }
-.ui-select:hover { border-color: var(--control-boundary); }
 .ui-select:focus { border-color: var(--brand); }
 .ui-select:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.ui-input:focus-visible, .ui-textarea:focus-visible, .ui-select:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: -2px;
+}
 
 /* ---------- Stat (back-office figures) ---------- */
 

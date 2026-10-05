@@ -190,9 +190,11 @@ func TestControlBoundariesReadOnTheirGrounds(t *testing.T) {
 			tokens[m[1]] = m[2]
 		}
 	}
-	if tokens["--control-boundary"] == "" {
-		t.Fatal("controls need a boundary colour")
+	alias := regexp.MustCompile(`(?m)^\s*--control-boundary:\s*var\((--[a-z0-9-]+)\);`).FindStringSubmatch(string(sheet))
+	if len(alias) != 2 || tokens[alias[1]] == "" {
+		t.Fatal("controls need a boundary from the existing colour ramp")
 	}
+	tokens["--control-boundary"] = tokens[alias[1]]
 	for _, ground := range []string{"--n-0", "--n-50", "--n-100"} {
 		got := contrast(tokens["--control-boundary"], tokens[ground])
 		if math.IsNaN(got) || got < 3 {

@@ -286,8 +286,8 @@ a:hover {
   --border: var(--n-200);
   --border-faint: var(--n-100);
   --border-strong: var(--n-300);
-  /* Controls need 3:1 against their ground: 4.8:1 on white, 4.4:1 on n-100. */
-  --control-boundary: #71717a;
+  /* Controls need 3:1 against their ground: 5.7:1 on white, 5.2:1 on n-100. */
+  --control-boundary: var(--n-500);
   --elevated: var(--n-100);
   --overlay: var(--n-100);
 
@@ -1105,6 +1105,7 @@ h3 {
   width: 16px;
 }
 
+/* The search field needs a visible boundary at rest on the header ground. */
 .goen-header .goen-header__field {
   background: var(--n-100);
   outline-color: var(--control-boundary);

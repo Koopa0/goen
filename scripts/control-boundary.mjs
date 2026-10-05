@@ -10,7 +10,7 @@ export function contrastRatio(a, b) {
 }
 
 // The canvas resolves computed CSS colours, including oklch, into sRGB bytes.
-export function measureControlBoundary(selectors, contrast) {
+export function measureControlBoundary(selectors, contrast, focused = false) {
   const canvas = document.createElement('canvas');
   canvas.width = canvas.height = 1;
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
@@ -37,7 +37,7 @@ export function measureControlBoundary(selectors, contrast) {
     if (!el || !el.getClientRects().length || el.disabled) {
       return { selector, error: 'enabled visible control missing' };
     }
-    el.blur();
+    if (!focused) el.blur();
     try {
       const style = getComputedStyle(el);
       const surrounding = surface(el.parentElement);
@@ -52,6 +52,8 @@ export function measureControlBoundary(selectors, contrast) {
       });
       return {
         selector, outline: style.outline, offset: style.outlineOffset,
+        outlineWidth: parseFloat(style.outlineWidth), active: document.activeElement === el,
+        focusVisible: el.matches(':focus-visible'),
         fill, surrounding, outlineContrast, borderContrast: Math.min(...borders),
         fillContrast: contrast(fill, surrounding), shadow: style.boxShadow,
       };

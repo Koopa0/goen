@@ -126,6 +126,10 @@ INSERT INTO carts (token_hash) VALUES (sha256(convert_to(:'cart_token', 'UTF8'))
 RETURNING id AS cart_id \gset
 INSERT INTO cart_items (cart_id, variant_id, quantity) VALUES (:'cart_id', :'variant_id', 1);
 
+-- Checkout's saved-address select must be exercised as a signed-in customer.
+INSERT INTO addresses (user_id, recipient_name, phone, postal_code, city, district, street, is_default)
+VALUES (:'customer_id', '版面收件人', '0912345678', '110', '臺北市', '信義區', '測試路 1 號', true);
+
 -- Three orders placed as checkout places them. The guest's is unpaid and is the
 -- payment page. The customer's two are paid in store credit: INVOICE_ORDER is
 -- delivered, returned and refunded; RETURN_FORM_ORDER is delivered with nothing
