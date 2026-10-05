@@ -614,7 +614,7 @@ func TestLanguageSwitchComparisonJourney(t *testing.T) {
 	h := withLocale(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 		onContext = web.RequestPath(r.Context())
 		var buf bytes.Buffer
-		if err := layouts.Footer().Render(r.Context(), &buf); err != nil {
+		if err := layouts.Footer(layouts.NewsletterState{}).Render(r.Context(), &buf); err != nil {
 			t.Fatalf("render footer: %v", err)
 		}
 		renderedHTML = buf.String()

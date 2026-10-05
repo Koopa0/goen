@@ -209,6 +209,8 @@ type CheckoutView struct {
 	PickupRefused bool
 }
 
+func (v *CheckoutView) HasShipping() bool { return len(v.Shipping) > 0 }
+
 // PickupStartAction is goen's own route, so what the shopper typed reaches only
 // goen; the carrier's map form is built on the page it answers.
 const PickupStartAction = "/checkout/pickup/start"

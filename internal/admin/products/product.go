@@ -462,7 +462,7 @@ func (s *Store) RemoveSpec(ctx context.Context, slug, id string) error {
 			Slug: slug, SpecID: specID,
 		})
 		if err != nil {
-			return fmt.Errorf("remove spec: %w", err)
+			return fmt.Errorf("remove spec: %w", pgerr.WrapRefusal(err, ErrRefused))
 		}
 		if rows == 0 {
 			return ErrNotFound
@@ -498,7 +498,7 @@ func (s *Store) AddOption(ctx context.Context, slug string, d OptionDraft) (map[
 			if errors.Is(err, pgx.ErrNoRows) {
 				return ErrNotFound
 			}
-			return err
+			return pgerr.WrapRefusal(err, ErrRefused)
 		}
 		return nil
 	}); err != nil {
@@ -511,7 +511,7 @@ func (s *Store) AddOption(ctx context.Context, slug string, d OptionDraft) (map[
 		if errors.Is(err, ErrNotFound) {
 			return nil, ErrNotFound
 		}
-		return nil, pgerr.WrapRefusal(err, ErrRefused)
+		return nil, err
 	}
 	return nil, nil
 }
@@ -548,7 +548,7 @@ func (s *Store) AddOptionValue(ctx context.Context, slug string, d OptionDraft) 
 			if errors.Is(err, pgx.ErrNoRows) {
 				return ErrNotFound
 			}
-			return err
+			return pgerr.WrapRefusal(err, ErrRefused)
 		}
 		return nil
 	}); err != nil {
@@ -558,7 +558,7 @@ func (s *Store) AddOptionValue(ctx context.Context, slug string, d OptionDraft) 
 		if errors.Is(err, ErrNotFound) {
 			return map[string]string{"value": i18n.T(ctx, i18n.KeyFormOptionMissing)}, nil
 		}
-		return nil, pgerr.WrapRefusal(err, ErrRefused)
+		return nil, err
 	}
 	return nil, nil
 }

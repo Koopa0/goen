@@ -22,7 +22,7 @@ var (
 		En:     "Your cart has reached its product limit. Remove an item before adding another.",
 	})
 
-	KeySoldOut = key("buy.soldout", Message{ZhHant: "補貨中", En: "Out of stock"})
+	KeySoldOut = key("buy.soldout", Message{ZhHant: "已售完", En: "Sold out"})
 
 	KeyChooseOptions = key("buy.choose", Message{
 		ZhHant: "請選擇規格",
@@ -46,6 +46,10 @@ var (
 	KeyTotal = key("buy.total", Message{ZhHant: "應付金額", En: "Total"})
 
 	KeyFreeShipping = key("buy.freeshipping", Message{ZhHant: "免運", En: "Free"})
+
+	KeyShippingUnavailable = key("buy.shipping.unavailable", Message{ZhHant: "購物車中的商品目前沒有可用的配送方式。請調整商品，或聯絡我們。", En: "No delivery method is available for this cart. Change the items or contact us."})
+
+	KeyShippingUnavailableShort = key("buy.shipping.unavailable.short", Message{ZhHant: "無可用方式", En: "Unavailable"})
 
 	KeyPlaceOrder = key("buy.place", Message{ZhHant: "送出訂單", En: "Place order"})
 

@@ -200,15 +200,7 @@ templ productBuy(v *ProductView) {
 			<div class="goen-pdp__titlerow">
 				<h1 class="goen-pdp__title">{ v.Name }</h1>
 				if v.SelectionOK {
-					if v.AllSoldOut() {
-						@components.Badge(components.BadgeProps{}) {
-							{ i18n.T(ctx, i18n.KeyAllSoldOut) }
-						}
-					} else if v.SoldOut() {
-						@components.Badge(components.BadgeProps{}) {
-							{ i18n.T(ctx, i18n.KeySoldOut) }
-						}
-					} else if v.LowStock() {
+					if v.LowStock() {
 						@components.Badge(components.BadgeProps{}) {
 							{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOnlyLeft), v.AvailableText()) }
 						}
