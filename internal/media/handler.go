@@ -90,9 +90,10 @@ func (h *Handler) Serve(w http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, ErrNotFound):
 			http.NotFound(w, r)
 		case errors.Is(err, context.Canceled):
-			// The caller left; nobody is listening. Canceled ONLY: the render
-			// detaches from the caller, so a deadline here is goen's own
-			// failure and an empty 200 would be cached as a success.
+			// The caller left; nobody is listening. Canceled ONLY: WriteTimeout
+			// does not give the request a deadline, so a deadline here is goen's
+			// own (RenderTimeout or originalReadTimeout), and an empty 200
+			// would be cached as a success.
 		case errors.Is(err, context.DeadlineExceeded):
 			h.log.ErrorContext(r.Context(), "serve image timed out", "digest", digest,
 				"width", width, "timeout", timeout)
