@@ -1076,7 +1076,7 @@ func Checkout(p layouts.Page, v *CheckoutView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			if false {
+			if !v.HasShipping() {
 				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 69, " disabled")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
@@ -3266,7 +3266,7 @@ func Checkout(p layouts.Page, v *CheckoutView) templ.Component {
 					ButtonStyle: components.ButtonStylePrimary,
 					Size:        components.SizeLarge,
 					Block:       true,
-					Attrs:       templ.Attributes{"disabled": false},
+					Attrs:       templ.Attributes{"disabled": !v.HasShipping()},
 				}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var177), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
