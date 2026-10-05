@@ -721,9 +721,6 @@ func (s *Store) Inspect(
 	// UPDATE locks the line and then, in return_within_shipment, the order, so
 	// two inspections naming the lines in different orders would each hold a
 	// line the other waits for.
-	if _, lockErr := q.LockReturnOrder(ctx, requestID); lockErr != nil {
-		return refusedIfNoRow(lockErr, "lock return order for inspection")
-	}
 
 	for _, l := range lines {
 		n, inspectErr := q.InspectReturnLine(ctx, db.InspectReturnLineParams{
