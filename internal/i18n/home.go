@@ -55,10 +55,6 @@ var (
 
 	KeyHomeSeeAll = key("home.see_all", Message{ZhHant: "看全部", En: "See all"})
 
-	KeyHomePromoTitle = key("home.promo.title", Message{ZhHant: "書桌上的日常", En: "Everyday things for the desk"})
-
-	KeyHomePromoLink = key("home.promo.link", Message{ZhHant: "去看看", En: "Take a look"})
-
 	KeyHomeFeatured = key("home.featured", Message{ZhHant: "精選", En: "Featured"})
 
 	KeyHomeHeading = key("home.heading", Message{ZhHant: "goen 商店首頁", En: "goen shop home"})
