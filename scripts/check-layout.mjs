@@ -2650,7 +2650,9 @@ if (forcedColoursMissing.length === 0) {
           console.log('forced colours swatch ' + JSON.stringify({ palette, locale, ...got }));
           if (got.threw || got.error || !got.forced || got.scheme !== palette || !got.distinct) {
             fail('forced colours swatch', got.why || got.error || 'selected text swatch has no distinct visible cue');
-          } else if (parseFloat(got.checked.outlineWidth) < 2 || got.checked.outlineStyle === 'none' || !(got.contrast >= 3)) {
+          } else if (parseFloat(got.checked.outlineWidth) < 2 || got.checked.outlineStyle === 'none') {
+            fail('forced colours swatch', palette + '/' + locale + ' selected ring is ' + got.checked.outlineWidth + ' ' + got.checked.outlineStyle + ', want at least 2px visible outline');
+          } else if (!(got.contrast >= 3)) {
             fail('forced colours swatch', palette + '/' + locale + ' selected ring contrasts with Canvas at ' + got.contrast.toFixed(2) + ':1, want at least 3:1');
           }
         }
@@ -2664,7 +2666,9 @@ if (forcedColoursMissing.length === 0) {
           console.log('forced colours colour swatch ' + JSON.stringify({ palette, locale, ...got }));
           if (got.threw || got.error || !got.forced || got.scheme !== palette || !got.distinct) {
             fail('forced colours colour swatch', got.why || got.error || 'selected colour swatch has no distinct visible cue');
-          } else if (parseFloat(got.checked.outlineWidth) < 2 || got.checked.outlineStyle === 'none' || !(got.contrast >= 3)) {
+          } else if (parseFloat(got.checked.outlineWidth) < 2 || got.checked.outlineStyle === 'none') {
+            fail('forced colours colour swatch', palette + '/' + locale + ' selected ring is ' + got.checked.outlineWidth + ' ' + got.checked.outlineStyle + ', want at least 2px visible outline');
+          } else if (!(got.contrast >= 3)) {
             fail('forced colours colour swatch', palette + '/' + locale + ' selected ring contrasts with Canvas at ' + got.contrast.toFixed(2) + ':1, want at least 3:1');
           }
         }
