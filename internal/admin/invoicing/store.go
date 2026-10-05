@@ -56,8 +56,8 @@ func NewStore(pool *pgxpool.Pool, reader Reader, writer Writer) *Store {
 	if pool == nil {
 		panic("invoicing: NewStore requires a pool")
 	}
-	if reader == nil && writer != nil {
-		panic("invoicing: NewStore requires a reader with a writer")
+	if reader == nil {
+		panic("invoicing: NewStore requires a reader")
 	}
 	return &Store{q: db.New(pool), reader: reader, writer: writer}
 }
@@ -65,9 +65,6 @@ func NewStore(pool *pgxpool.Pool, reader Reader, writer Writer) *Store {
 // FillOrder puts what has actually been FILED on the order page, which is a
 // different question from the preference the customer asked for at checkout.
 func (s *Store) FillOrder(ctx context.Context, view *admin.OrderView, number string) error {
-	if s.reader == nil {
-		return nil
-	}
 	view.InvoicingEnabled = s.writer != nil
 	docs, err := s.reader.Documents(ctx, number)
 	if err != nil {
