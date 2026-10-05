@@ -105,3 +105,25 @@ func TestBestSellerGrossCannotBeMistakenForOrderRevenue(t *testing.T) {
 		})
 	}
 }
+
+func TestReportViewCompletion(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		placed, committed int64
+		want              string
+	}{
+		{placed: 0, committed: 0, want: "—"},
+		{placed: 3, committed: 2, want: "2 / 3"},
+		{placed: 3, committed: 1, want: "1 / 3"},
+		{placed: 30, committed: 20, want: "67%"},
+		{placed: 300, committed: 199, want: "66%"},
+		{placed: 20, committed: 1, want: "5%"},
+	}
+	for _, tt := range tests {
+		got := ReportView{Placed: tt.placed, Committed: tt.committed}.Completion()
+		if got != tt.want {
+			t.Errorf("Completion() with %d of %d placed = %q, want %q", tt.committed, tt.placed, got, tt.want)
+		}
+	}
+}
