@@ -70,7 +70,7 @@ func TestProductLabelRoundTripUsesAdminRoleAndAuditsAtomically(t *testing.T) {
 		t.Errorf("stored facts=%+v, want trimmed origin, quantity 1.2 and age 0", view.LabelInput)
 	}
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
-		pdp, readErr := product.NewStore(reader).Load(i18n.WithLocale(ctx, locale), slug, product.Selection{})
+		pdp, readErr := product.NewStore(reader, slog.New(slog.DiscardHandler)).Load(i18n.WithLocale(ctx, locale), slug, product.Selection{})
 		if readErr != nil {
 			t.Fatal(readErr)
 		}
@@ -102,7 +102,7 @@ func TestProductLabelRoundTripUsesAdminRoleAndAuditsAtomically(t *testing.T) {
 	if err = s.SetProductLabel(ctx, slug, &productlabel.Input{}); err != nil {
 		t.Fatal(err)
 	}
-	pdp, err := product.NewStore(reader).Load(ctx, slug, product.Selection{})
+	pdp, err := product.NewStore(reader, slog.New(slog.DiscardHandler)).Load(ctx, slug, product.Selection{})
 	if err != nil || len(pdp.LabelRows(ctx)) != 0 {
 		t.Fatalf("cleared public facts=%+v: %v", pdp.LabelFacts, err)
 	}
@@ -113,7 +113,7 @@ func TestProductLabelRoundTripUsesAdminRoleAndAuditsAtomically(t *testing.T) {
 	if err = s.SetProductLabel(ctx, slug, &productlabel.Input{OriginEn: "Taiwan"}); err != nil {
 		t.Fatal(err)
 	}
-	pdp, err = product.NewStore(reader).Load(i18n.WithLocale(ctx, i18n.ZhHant), slug, product.Selection{})
+	pdp, err = product.NewStore(reader, slog.New(slog.DiscardHandler)).Load(i18n.WithLocale(ctx, i18n.ZhHant), slug, product.Selection{})
 	if err != nil || pdp.LabelFacts.Origin != "Taiwan" {
 		t.Fatalf("English-only origin hidden=%+v: %v", pdp.LabelFacts, err)
 	}
