@@ -114,6 +114,9 @@ func TestADepartmentPageDoesNotLazyLoadItsFirstScreen(t *testing.T) {
 	if got := strings.Count(page, `fetchpriority="high"`); got != 1 {
 		t.Errorf("%d high-priority photographs, want the first tile's alone", got)
 	}
+	if !strings.Contains(tiles[0], `fetchpriority="high"`) {
+		t.Errorf("the first tile is not high priority: %s", tiles[0])
+	}
 }
 
 func TestAProductGalleryHasNoLazyPhotographAndReservesEveryBox(t *testing.T) {
