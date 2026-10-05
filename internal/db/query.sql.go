@@ -15853,7 +15853,7 @@ func (q *Queries) UnreferencedMedia(ctx context.Context, limit int32) ([]string,
 
 const unsubscribeNewsletter = `-- name: UnsubscribeNewsletter :one
 UPDATE newsletter_subscribers
-SET unsubscribed_at = now()
+SET unsubscribed_at = coalesce(unsubscribed_at, now())
 WHERE unsubscribe_token = $1
 RETURNING email
 `
