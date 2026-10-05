@@ -3,12 +3,18 @@
 package orders_test
 
 import (
+	"context"
+	"errors"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/admin/admintest"
+	"github.com/koopa0/goen/internal/admin/orders"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
@@ -116,5 +122,36 @@ func TestTheDashboardCountsQuestionsTheShopHasNotAnswered(t *testing.T) {
 	answer(isolated, open, true)
 	if got := waiting() - base; got != 0 {
 		t.Errorf("a shop answer left %d waiting, want 0", got)
+	}
+}
+
+// A health desk that cannot be read must not look like one with nothing to
+// report: the dashboard says so instead of dropping the payment and invoice tasks.
+func TestTheDashboardSaysWhenTheHealthDeskCannotBeRead(t *testing.T) {
+	ctx, _ := admintest.StaffContext(t, pool)
+	failing := orders.HealthFunc(func(context.Context) ([]admin.Task, error) {
+		return nil, errors.New("health desk down")
+	})
+	notice := i18n.T(ctx, i18n.KeyAdminQueueHealthUnavailable)
+	for _, tc := range []struct {
+		name string
+		desk orders.Health
+		want bool
+	}{
+		{"unreadable", failing, true},
+		{"readable", orders.HealthFunc(func(context.Context) ([]admin.Task, error) { return nil, nil }), false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h := admintest.OrderDesk(admintest.OrderStoreWithHealth(pool, admintest.Refunder{}, nil, nil, tc.desk))
+			req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/admin", nil)
+			w := httptest.NewRecorder()
+			admintest.BackOffice.RequireStaff(h.Dashboard)(w, req)
+			if w.Code != http.StatusOK {
+				t.Fatalf("Dashboard answered %d, want 200", w.Code)
+			}
+			if got := strings.Contains(w.Body.String(), notice); got != tc.want {
+				t.Errorf("dashboard shows the health notice = %v, want %v", got, tc.want)
+			}
+		})
 	}
 }
