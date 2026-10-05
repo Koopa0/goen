@@ -801,6 +801,7 @@ type StaffTotpCredential struct {
 	SecretEncrypted []byte
 	ConfirmedAt     pgtype.Timestamptz
 	LastStep        pgtype.Int8
+	MailedCodeHash  []byte
 	CreatedAt       time.Time
 }
 

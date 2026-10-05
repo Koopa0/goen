@@ -58,7 +58,7 @@ func TestAdminOrdersEmptyCopyMatchesTheQueueContext(t *testing.T) {
 // writes: the chain is the destination, and the store behind it is filled in
 // by the carrier's picker. An order placed before one exists carries the chain
 // alone, so the correction form must let a staff member save it that way —
-// cart.Address.Validate refuses one of the two and accepts neither.
+// order.Delivery.Validate refuses one of the two and accepts neither.
 func TestAPickupOrderCorrectsWithoutAStore(t *testing.T) {
 	t.Parallel()
 	html := renderToString(t, Order(layouts.Page{Title: "GO-PICKUP"}, &OrderView{
@@ -172,5 +172,28 @@ func TestTheIssueButtonFollowsTheMoney(t *testing.T) {
 				t.Errorf("CanIssueInvoice = %t, want %t", got, tt.want)
 			}
 		})
+	}
+}
+
+// An entry the build cannot label still draws, with its raw source, kind and
+// status and its time, and the rest of the page is there.
+func TestTheOrderPageShowsAnUnrecognizedTimelineEntry(t *testing.T) {
+	t.Parallel()
+	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+		ctx := i18n.WithLocale(t.Context(), locale)
+		html := renderOrder(t, locale, &OrderView{
+			Number: "GO-261005-000001",
+			Timeline: []TimelineEntry{{
+				At: "2026-10-05 10:20", Label: i18n.KeyAdminTimelineUnrecognized,
+				Unrecognized: "invoice / issue / voided", ActorKind: ActorSystem,
+			}},
+		})
+		for _, want := range []string{
+			i18n.T(ctx, i18n.KeyAdminTimelineUnrecognized), "invoice / issue / voided", "2026-10-05 10:20",
+		} {
+			if !strings.Contains(html, want) {
+				t.Errorf("%s: the order page does not carry %q", locale, want)
+			}
+		}
 	}
 }

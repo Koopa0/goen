@@ -46,7 +46,7 @@ func NewStore(pool *pgxpool.Pool) *Store {
 	return &Store{pool: pool, q: db.New(pool)}
 }
 
-// Order reads what an order OWES, through the order_amount_owed the funding
+// Order reads what an order OWES, through the order_amount_after_credit the funding
 // check and the capture guard also read.
 func (s *Store) Order(ctx context.Context, number string) (*Order, error) {
 	row, err := s.q.OrderTotalByNumber(ctx, number)
@@ -537,20 +537,6 @@ func (w *webhookTx) CancelPaymentRow(ctx context.Context) error {
 		return fmt.Errorf("cancel payment for session %s: %w", w.objectRef, err)
 	}
 	return nil
-}
-
-func (s *Store) OrderBelongsTo(ctx context.Context, number, userID string) (bool, error) {
-	id, err := uuid.Parse(userID)
-	if err != nil {
-		return false, nil //nolint:nilerr // an unparseable id simply owns nothing
-	}
-	owns, err := s.q.OrderBelongsTo(ctx, db.OrderBelongsToParams{
-		OrderNumber: number, UserID: uuid.NullUUID{UUID: id, Valid: true},
-	})
-	if err != nil {
-		return false, fmt.Errorf("check order ownership: %w", err)
-	}
-	return owns, nil
 }
 
 func cardLabel(c Capture) string {

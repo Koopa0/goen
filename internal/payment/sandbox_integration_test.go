@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/orderaccess"
 	"github.com/koopa0/goen/internal/payment"
 )
 
@@ -24,9 +25,10 @@ func TestPayPageShowsTestCardGuidanceOnlyForSandboxKeys(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				h := payment.NewHandler(payment.NewStore(pool), gateway, alwaysPlacedHere{}, slog.New(slog.DiscardHandler), false)
+				h := payment.NewHandler(payment.NewStore(pool), gateway, orderaccess.NewStore(pool, false), slog.New(slog.DiscardHandler))
 				req := httptest.NewRequestWithContext(i18n.WithLocale(t.Context(), locale), http.MethodGet, "/orders/"+number+"/pay", http.NoBody)
 				req.SetPathValue("number", number)
+				placedBy(t, req, number)
 				res := httptest.NewRecorder()
 				h.Page(res, req)
 				if res.Code != http.StatusOK {
