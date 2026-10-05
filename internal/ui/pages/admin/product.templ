@@ -235,13 +235,38 @@ templ productDetails(v ProductView) {
 				@components.Label(components.LabelProps{For: "p-summary"}) {
 					{ i18n.T(ctx, i18n.KeyAdminProdSummary) }
 				}
-				<input class="goen-input" id="p-summary" name="summary" maxlength="500" value={ v.Summary }/>
+				<input
+					class="goen-input"
+					id="p-summary"
+					name="summary"
+					maxlength="500"
+					value={ v.Summary }
+					if v.HasErr("summary") {
+						aria-invalid="true"
+						aria-describedby="p-summary-error"
+					}
+				/>
+				if v.HasErr("summary") {
+					<p class="ui-error-text" id="p-summary-error">{ v.Err("summary") }</p>
+				}
 			</div>
 			<div class="goen-admin__field">
 				@components.Label(components.LabelProps{For: "p-description"}) {
 					{ i18n.T(ctx, i18n.KeyAdminProdDescription) }
 				}
-				<textarea class="goen-input goen-input--area" id="p-description" name="description" rows="8">{ v.Description }</textarea>
+				<textarea
+					class="goen-input goen-input--area"
+					id="p-description"
+					name="description"
+					rows="8"
+					if v.HasErr("description") {
+						aria-invalid="true"
+						aria-describedby="p-description-error"
+					}
+				>{ v.Description }</textarea>
+				if v.HasErr("description") {
+					<p class="ui-error-text" id="p-description-error">{ v.Err("description") }</p>
+				}
 			</div>
 			<div class="goen-admin__field">
 				@components.Label(components.LabelProps{For: "p-name-en"}) {
@@ -978,6 +1003,7 @@ templ productSpecs(v ProductView) {
 					<input
 						class="goen-input"
 						id="spec-label"
+						value={ v.SpecDraft.Label }
 						name="label"
 						required
 						maxlength="40"
@@ -999,6 +1025,7 @@ templ productSpecs(v ProductView) {
 					<input
 						class="goen-input"
 						id="spec-value"
+						value={ v.SpecDraft.Value }
 						name="value"
 						required
 						maxlength="200"
@@ -1020,6 +1047,7 @@ templ productSpecs(v ProductView) {
 					<input
 						class="goen-input"
 						id="spec-label-en"
+						value={ v.SpecDraft.LabelEn }
 						name="label_en"
 						maxlength="40"
 						autocomplete="off"
@@ -1040,6 +1068,7 @@ templ productSpecs(v ProductView) {
 					<input
 						class="goen-input"
 						id="spec-value-en"
+						value={ v.SpecDraft.ValueEn }
 						name="value_en"
 						maxlength="200"
 						autocomplete="off"

@@ -565,27 +565,37 @@ type OrderEvent struct {
 }
 
 func (e OrderEvent) LabelKey() i18n.Key {
+	key, ok := e.LookupLabelKey()
+	if !ok {
+		panic("pages: no label for order event kind " + string(e.Kind))
+	}
+	return key
+}
+
+// LookupLabelKey is LabelKey for a reader that must survive a kind it does not
+// know.
+func (e OrderEvent) LookupLabelKey() (i18n.Key, bool) {
 	switch e.Kind {
 	case order.EventPlaced:
-		return i18n.KeyStatusPlaced
+		return i18n.KeyStatusPlaced, true
 	case order.EventPaid:
-		return i18n.KeyStatusPaid
+		return i18n.KeyStatusPaid, true
 	case order.EventPicking:
-		return i18n.KeyStatusPicking
+		return i18n.KeyStatusPicking, true
 	case order.EventShipped:
-		return i18n.KeyStatusShipped
+		return i18n.KeyStatusShipped, true
 	case order.EventInTransit:
-		return i18n.KeyStatusInTransit
+		return i18n.KeyStatusInTransit, true
 	case order.EventDelivered:
-		return i18n.KeyStatusDelivered
+		return i18n.KeyStatusDelivered, true
 	case order.EventCompleted:
-		return i18n.KeyStatusCompleted
+		return i18n.KeyStatusCompleted, true
 	case order.EventCancelled:
-		return i18n.KeyStatusCancelled
+		return i18n.KeyStatusCancelled, true
 	case order.EventRefunded:
-		return i18n.KeyStatusRefunded
+		return i18n.KeyStatusRefunded, true
 	default:
-		panic("pages: no label for order event kind " + string(e.Kind))
+		return "", false
 	}
 }
 

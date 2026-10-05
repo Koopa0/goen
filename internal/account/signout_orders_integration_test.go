@@ -15,6 +15,7 @@ import (
 
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/cart"
+	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/orderaccess"
 	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/user"
@@ -66,7 +67,7 @@ func TestSigningOutEndsTheBrowsersAccessToItsOrders(t *testing.T) {
 		if err = shop.Add(ctx, cartID, variant, 1); err != nil {
 			t.Fatalf("add to cart: %v", err)
 		}
-		address := &cart.Address{Email: addr, Name: "登出測試", Phone: "0912345678",
+		address := &order.Delivery{Email: addr, RecipientName: "登出測試", Phone: "0912345678",
 			PostalCode: "110", City: "台北市", District: "信義區", Street: "松仁路 1 號"}
 		number, err := shop.PlaceOrder(ctx, cartID, buyer, shippingID, address, nil, "",
 			accountCheckoutQuote(t, shop, cartID, buyer, shippingID, address.PostalCode),
@@ -179,7 +180,7 @@ func newPlacedOrders(t *testing.T, name string) *placedOrders {
 		if err = shop.Add(ctx, cartID, variant, 1); err != nil {
 			t.Fatalf("add to cart: %v", err)
 		}
-		address := &cart.Address{Email: addr, Name: "登出測試", Phone: "0912345678",
+		address := &order.Delivery{Email: addr, RecipientName: "登出測試", Phone: "0912345678",
 			PostalCode: "110", City: "台北市", District: "信義區", Street: "松仁路 1 號"}
 		number, err := shop.PlaceOrder(ctx, cartID, buyer, shippingID, address, nil, "",
 			accountCheckoutQuote(t, shop, cartID, buyer, shippingID, address.PostalCode),

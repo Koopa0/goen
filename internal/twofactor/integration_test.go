@@ -5,12 +5,16 @@ package twofactor_test
 import (
 	"bytes"
 	"context"
+	"encoding/base32"
 	"errors"
 	"fmt"
+	"html"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
+	"regexp"
 	"strings"
 	"sync"
 	"testing"
@@ -24,6 +28,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/staff"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/twofactor"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web"
@@ -61,10 +66,24 @@ func enrol(t *testing.T, s *twofactor.Store, userID, email string) []byte {
 		t.Fatalf("begin: %v", err)
 	}
 	code := twofactor.Code(secret, twofactor.StepAt(time.Now()))
-	if err := s.Confirm(t.Context(), userID, code); err != nil {
+	if err := s.Confirm(t.Context(), userID, code, mailedCode(t, email)); err != nil {
 		t.Fatalf("confirm: %v", err)
 	}
 	return secret
+}
+
+// mailedCode is the code the latest enrolment for address queued to it.
+func mailedCode(t *testing.T, address string) string {
+	t.Helper()
+	var code string
+	if err := pool.QueryRow(t.Context(), `
+		SELECT payload->>'code' FROM outbox_messages
+		WHERE topic = $1 AND payload->>'email' = $2
+		ORDER BY id DESC LIMIT 1`,
+		outbox.TopicStaffEnrolment.Name(), address).Scan(&code); err != nil {
+		t.Fatalf("read the mailed enrolment code: %v", err)
+	}
+	return code
 }
 
 func TestTheEnrolmentSecretPageIsNotCompressed(t *testing.T) {
@@ -171,7 +190,7 @@ func TestRestartingEnrolmentInvalidatesTheOldSecret(t *testing.T) {
 	}
 
 	step := twofactor.StepAt(time.Now()) + 1
-	if err := s.Confirm(ctx, userID, twofactor.Code(old, step)); err == nil {
+	if err := s.Confirm(ctx, userID, twofactor.Code(old, step), mailedCode(t, email)); err == nil {
 		t.Error("a code from the replaced secret was accepted")
 	}
 	// Re-enrolment must also UNCONFIRM: otherwise somebody who started one and
@@ -185,12 +204,146 @@ func TestRestartingEnrolmentInvalidatesTheOldSecret(t *testing.T) {
 			"secret nobody has proved")
 	}
 
-	if err := s.Confirm(ctx, userID, twofactor.Code(fresh, step)); err != nil {
+	if err := s.Confirm(ctx, userID, twofactor.Code(fresh, step), mailedCode(t, email)); err != nil {
 		t.Errorf("a code from the new secret was refused: %v", err)
 	}
 	if enrolled, enrolErr = s.Enrolled(ctx, userID); enrolErr != nil || !enrolled {
 		t.Errorf("confirming the new secret did not enrol (err=%v)", enrolErr)
 	}
+}
+
+// TestEnrolmentIsConfirmedOnlyWithTheCodeMailedToTheAccount: a code from the
+// new authenticator does not finish enrolment without the one mailed to the
+// account's address.
+func TestEnrolmentIsConfirmedOnlyWithTheCodeMailedToTheAccount(t *testing.T) {
+	s := twofactor.NewStore(pool, testKey)
+	h := twofactor.NewHandler(s, slog.New(slog.DiscardHandler), false)
+	userID, email := admintest.AdminUser(t, pool)
+	u := user.User{ID: userID, Email: email, Role: user.RoleAdmin}
+
+	req := httptest.NewRequestWithContext(user.NewContext(t.Context(), u),
+		http.MethodPost, "/admin/verify/enrol", strings.NewReader(""))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	enrolment := httptest.NewRecorder()
+	h.Enrol(enrolment, req)
+	if enrolment.Code != http.StatusOK {
+		t.Fatalf("Enrol = %d, want 200; body=%s", enrolment.Code, enrolment.Body.String())
+	}
+	secret := secretOnPage(t, enrolment.Body.String())
+	mailed := mailedCode(t, email)
+	if len(mailed) != 8 {
+		t.Fatalf("mailed code %q, want eight digits", mailed)
+	}
+	if strings.Contains(enrolment.Body.String(), mailed) {
+		t.Fatal("the enrolment page shows the code it mailed")
+	}
+
+	token := "mailed-code-" + userID
+	if _, err := pool.Exec(t.Context(), `
+		INSERT INTO sessions (token_hash, user_id, expires_at)
+		VALUES (sha256($1::bytea), $2, now() + interval '1 day')`,
+		[]byte(token), uuid.MustParse(userID)); err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	code := twofactor.Code(secret, twofactor.StepAt(time.Now()))
+
+	wrong := []byte(mailed)
+	wrong[7] = '0' + (wrong[7]-'0'+1)%10
+	for _, tt := range []struct{ name, mailed string }{
+		{"no mailed code", ""},
+		{"a wrong mailed code", string(wrong)},
+	} {
+		out := postConfirm(t, h, u, code, tt.mailed, token)
+		if loc := out.Header().Get("Location"); out.Code != http.StatusSeeOther || loc != "/admin/verify?badenrol=1" {
+			t.Errorf("Confirm with %s = %d Location %q, want 303 /admin/verify?badenrol=1", tt.name, out.Code, loc)
+		}
+		if enrolled, err := s.Enrolled(t.Context(), userID); err != nil || enrolled {
+			t.Errorf("Confirm with %s left Enrolled = %v (err=%v), want false", tt.name, enrolled, err)
+		}
+		if verified, err := s.SessionVerified(t.Context(), token); err != nil || verified {
+			t.Errorf("Confirm with %s left SessionVerified = %v (err=%v), want false", tt.name, verified, err)
+		}
+	}
+
+	out := postConfirm(t, h, u, code, mailed, token)
+	if loc := out.Header().Get("Location"); out.Code != http.StatusSeeOther || loc != "/admin?enrolled=1" {
+		t.Errorf("Confirm with the mailed code = %d Location %q, want 303 /admin?enrolled=1", out.Code, loc)
+	}
+	if verified, err := s.SessionVerified(t.Context(), token); err != nil || !verified {
+		t.Errorf("Confirm with the mailed code left SessionVerified = %v (err=%v), want true", verified, err)
+	}
+}
+
+func TestAMailedCodeIsFreshLatestAndSingleUse(t *testing.T) {
+	ctx := t.Context()
+	s := twofactor.NewStore(pool, testKey)
+
+	t.Run("spent", func(t *testing.T) {
+		userID, email := admintest.AdminUser(t, pool)
+		secret := enrol(t, s, userID, email)
+		later := twofactor.Code(secret, twofactor.StepAt(time.Now())+1)
+		if err := s.Confirm(ctx, userID, later, mailedCode(t, email)); !errors.Is(err, twofactor.ErrBadCode) {
+			t.Errorf("Confirm with a mailed code already spent = %v, want ErrBadCode", err)
+		}
+	})
+
+	t.Run("expired", func(t *testing.T) {
+		userID, email := admintest.AdminUser(t, pool)
+		secret, _, err := s.Begin(ctx, userID, email)
+		if err != nil {
+			t.Fatalf("begin: %v", err)
+		}
+		if _, err := pool.Exec(ctx, `
+			UPDATE staff_totp_credentials SET created_at = now() - make_interval(secs => $2)
+			WHERE user_id = $1`, uuid.MustParse(userID), (twofactor.MailedCodeTTL + time.Minute).Seconds()); err != nil {
+			t.Fatalf("age the enrolment: %v", err)
+		}
+		code := twofactor.Code(secret, twofactor.StepAt(time.Now()))
+		if err := s.Confirm(ctx, userID, code, mailedCode(t, email)); !errors.Is(err, twofactor.ErrBadCode) {
+			t.Errorf("Confirm %v after the mailed code expired = %v, want ErrBadCode", twofactor.MailedCodeTTL+time.Minute, err)
+		}
+	})
+
+	t.Run("replaced by a restart", func(t *testing.T) {
+		userID, email := admintest.AdminUser(t, pool)
+		if _, _, err := s.Begin(ctx, userID, email); err != nil {
+			t.Fatalf("begin: %v", err)
+		}
+		first := mailedCode(t, email)
+		secret, _, err := s.Begin(ctx, userID, email)
+		if err != nil {
+			t.Fatalf("restart: %v", err)
+		}
+		latest := mailedCode(t, email)
+		if latest == first {
+			t.Skip("both enrolments drew the same code")
+		}
+		code := twofactor.Code(secret, twofactor.StepAt(time.Now()))
+		if err := s.Confirm(ctx, userID, code, first); !errors.Is(err, twofactor.ErrBadCode) {
+			t.Errorf("Confirm with the code mailed before the restart = %v, want ErrBadCode", err)
+		}
+		if err := s.Confirm(ctx, userID, code, latest); err != nil {
+			t.Errorf("Confirm with the latest mailed code = %v, want nil", err)
+		}
+	})
+}
+
+// secretOnPage reads the secret from the provisioning URI an enrolment page shows.
+func secretOnPage(t *testing.T, body string) []byte {
+	t.Helper()
+	m := regexp.MustCompile(`<code class="goen-twofa__uri">([^<]+)</code>`).FindStringSubmatch(body)
+	if len(m) != 2 {
+		t.Fatal("the enrolment page shows no provisioning URI")
+	}
+	uri, err := url.Parse(html.UnescapeString(m[1]))
+	if err != nil {
+		t.Fatalf("parse provisioning URI: %v", err)
+	}
+	secret, err := base32.StdEncoding.WithPadding(base32.NoPadding).DecodeString(uri.Query().Get("secret"))
+	if err != nil {
+		t.Fatalf("decode the secret: %v", err)
+	}
+	return secret
 }
 
 // restartAfterRead runs restart once, right after the credential has been read:
@@ -220,12 +373,20 @@ func TestConfirmOnlyConfirmsTheSecretItCheckedTheCodeAgainst(t *testing.T) {
 		t.Fatalf("begin: %v", err)
 	}
 
+	// The restart keeps the first mailed code, so only the secret can tell the
+	// two enrolments apart.
+	mailed := mailedCode(t, email)
 	var second []byte
 	tracer := &restartAfterRead{}
 	tracer.restart = func() {
 		var beginErr error
 		if second, _, beginErr = other.Begin(ctx, userID, email); beginErr != nil {
 			t.Errorf("restart enrolment: %v", beginErr)
+		}
+		if _, execErr := pool.Exec(ctx, `
+			UPDATE staff_totp_credentials SET mailed_code_hash = sha256(convert_to($2, 'UTF8'))
+			WHERE user_id = $1`, uuid.MustParse(userID), mailed); execErr != nil {
+			t.Errorf("keep the first mailed code: %v", execErr)
 		}
 	}
 	cfg, err := pgxpool.ParseConfig(pool.Config().ConnString())
@@ -241,7 +402,7 @@ func TestConfirmOnlyConfirmsTheSecretItCheckedTheCodeAgainst(t *testing.T) {
 	s := twofactor.NewStore(tracedPool, testKey)
 
 	step := twofactor.StepAt(time.Now())
-	if err = s.Confirm(ctx, userID, twofactor.Code(first, step)); err == nil {
+	if err = s.Confirm(ctx, userID, twofactor.Code(first, step), mailed); err == nil {
 		t.Error("Confirm accepted a code for the first secret after enrolment restarted with a second")
 	}
 	enrolled, err := s.Enrolled(ctx, userID)
@@ -252,7 +413,7 @@ func TestConfirmOnlyConfirmsTheSecretItCheckedTheCodeAgainst(t *testing.T) {
 		t.Error("the second secret is confirmed though only a code for the first was checked")
 	}
 
-	if err = s.Confirm(ctx, userID, twofactor.Code(second, step)); err != nil {
+	if err = s.Confirm(ctx, userID, twofactor.Code(second, step), mailed); err != nil {
 		t.Errorf("a code for the second secret was refused: %v", err)
 	}
 }
@@ -414,8 +575,8 @@ func TestDatabaseFailuresAreNotReportedAsWrongCodes(t *testing.T) {
 		secret := enrol(t, s, userID, email)
 		forceTOTPUpdateFailure(t, userID)
 
-		code := twofactor.Code(secret, twofactor.StepAt(time.Now())+1)
-		assertTOTPHandlerFailure(t, user.User{ID: userID, Email: email}, code, h.Verify)
+		form := url.Values{"code": {twofactor.Code(secret, twofactor.StepAt(time.Now())+1)}}
+		assertTOTPHandlerFailure(t, user.User{ID: userID, Email: email}, form, h.Verify)
 	})
 
 	t.Run("enrolment confirmation", func(t *testing.T) {
@@ -426,20 +587,23 @@ func TestDatabaseFailuresAreNotReportedAsWrongCodes(t *testing.T) {
 		}
 		forceTOTPUpdateFailure(t, userID)
 
-		code := twofactor.Code(secret, twofactor.StepAt(time.Now()))
-		assertTOTPHandlerFailure(t, user.User{ID: userID, Email: email}, code, h.Confirm)
+		form := url.Values{
+			"code":        {twofactor.Code(secret, twofactor.StepAt(time.Now()))},
+			"mailed_code": {mailedCode(t, email)},
+		}
+		assertTOTPHandlerFailure(t, user.User{ID: userID, Email: email}, form, h.Confirm)
 	})
 }
 
 func assertTOTPHandlerFailure(
 	t *testing.T,
 	u user.User,
-	code string,
+	form url.Values,
 	handle func(http.ResponseWriter, *http.Request),
 ) {
 	t.Helper()
 	req := httptest.NewRequestWithContext(user.NewContext(t.Context(), u),
-		http.MethodPost, "/admin/verify", strings.NewReader("code="+code))
+		http.MethodPost, "/admin/verify", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	out := httptest.NewRecorder()
 	handle(out, req)
@@ -499,7 +663,7 @@ func TestConfirmDoesNotClaimEnrolmentSuccessWhenMarkVerifiedFails(t *testing.T) 
 	forceSessionMarkFailure(t, userID)
 
 	out := postConfirm(t, h, user.User{ID: userID, Email: email},
-		twofactor.Code(secret, twofactor.StepAt(time.Now())), token)
+		twofactor.Code(secret, twofactor.StepAt(time.Now())), mailedCode(t, email), token)
 	if out.Code != http.StatusInternalServerError {
 		t.Errorf("Confirm = %d Location %q, want 500 without ?enrolled=1",
 			out.Code, out.Header().Get("Location"))
@@ -536,7 +700,7 @@ func TestConfirmWithoutASessionCookieIsNotEnrolmentSuccess(t *testing.T) {
 	}
 
 	out := postConfirm(t, h, user.User{ID: userID, Email: email},
-		twofactor.Code(secret, twofactor.StepAt(time.Now())), "")
+		twofactor.Code(secret, twofactor.StepAt(time.Now())), mailedCode(t, email), "")
 	if out.Code != http.StatusSeeOther || out.Header().Get("Location") != "/signin" {
 		t.Errorf("Confirm = %d Location %q, want 303 /signin",
 			out.Code, out.Header().Get("Location"))
@@ -558,11 +722,12 @@ func postConfirm(
 	t *testing.T,
 	h *twofactor.Handler,
 	u user.User,
-	code, token string,
+	code, mailed, token string,
 ) *httptest.ResponseRecorder {
 	t.Helper()
+	form := url.Values{"code": {code}, "mailed_code": {mailed}}
 	req := httptest.NewRequestWithContext(user.NewContext(t.Context(), u),
-		http.MethodPost, "/admin/verify/confirm", strings.NewReader("code="+code))
+		http.MethodPost, "/admin/verify/confirm", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	if token != "" {
 		req.AddCookie(&http.Cookie{ //nolint:gosec // G124: request cookie, not a Set-Cookie

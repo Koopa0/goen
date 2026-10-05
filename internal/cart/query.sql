@@ -294,13 +294,13 @@ SELECT o.id, o.order_number, o.fulfillment_status,
        coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
                  WHERE ol.order_id = o.id), 0)::bigint AS subtotal_cents,
        -- What store credit paid, as the difference between the total and what is
-       -- still owed rather than a second sum over the ledger: order_amount_owed
+       -- still owed rather than a second sum over the ledger: order_amount_after_credit
        -- is the one definition of that arithmetic, and TestEveryCreditBalanceReadsTheOneView
        -- refuses a page that re-derives it.
        (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
                   WHERE ol.order_id = o.id), 0)
         - o.discount_cents + o.shipping_cents + o.tax_cents
-        - order_amount_owed(o.id))::bigint AS credit_cents,
+        - order_amount_after_credit(o.id))::bigint AS credit_cents,
        coalesce(pd.email, '') AS email,
        coalesce(pd.postal_code, '') AS postal_code,
        coalesce(pd.city, '') AS city,
@@ -314,7 +314,7 @@ SELECT o.id, o.order_number, o.fulfillment_status,
        EXISTS (SELECT 1 FROM committed_orders c WHERE c.id = o.id) AS committed,
        -- NOT derivable from `committed`: a fully store-credited order has no
        -- payment row and stays 'pending' while the customer owes nothing.
-       order_amount_owed(o.id)::bigint AS owed_cents
+       order_amount_after_credit(o.id)::bigint AS owed_cents
 FROM orders o
 JOIN shipping_method_versions sv ON sv.id = o.shipping_version_id
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
@@ -390,7 +390,7 @@ WHERE ir.state = 'held'
   AND NOT order_is_committed(ir.order_id)
   -- Committed is not the whole question: a zero-owed order has no payment row and
   -- sits at 'pending' while the customer has already paid in full.
-  AND (o.fulfillment_status = 'cancelled' OR order_amount_owed(ir.order_id) <> 0)
+  AND (o.fulfillment_status = 'cancelled' OR order_amount_after_credit(ir.order_id) <> 0)
   -- A complete Session / verified capture awaiting a human outcome may already
   -- hold money. Keep its goods pinned until paid attribution commits the order,
   -- or an explicit refund/unpaid resolution releases the payment gate.
@@ -452,7 +452,7 @@ ORDER BY r.variant_id, r.id;
 -- an uncommitted order, which no card has paid, so owing nothing after a credit
 -- spend means credit paid it.
 -- name: PaidByCreditAlone :one
-SELECT coalesce(order_amount_owed(o.id) = 0
+SELECT coalesce(order_amount_after_credit(o.id) = 0
                 AND EXISTS (SELECT 1 FROM store_credit_entries s
                             WHERE s.order_id = o.id AND s.amount_cents < 0),
                 false)::boolean AS paid_by_credit
@@ -481,7 +481,7 @@ SELECT o.order_number
 FROM orders o
 WHERE o.fulfillment_status = 'pending'
   AND NOT order_is_committed(o.id)
-  AND order_amount_owed(o.id) <> 0
+  AND order_amount_after_credit(o.id) <> 0
   AND EXISTS (SELECT 1 FROM inventory_reservations ir WHERE ir.order_id = o.id)
   AND NOT EXISTS (
       SELECT 1 FROM inventory_reservations ir
@@ -518,7 +518,7 @@ UPDATE orders o SET fulfillment_status = 'cancelled', cancelled_at = now()
 WHERE o.id = $1
   AND o.fulfillment_status = 'pending'
   AND NOT order_is_committed(o.id)
-  AND order_amount_owed(o.id) <> 0
+  AND order_amount_after_credit(o.id) <> 0
   AND EXISTS (SELECT 1 FROM inventory_reservations ir WHERE ir.order_id = o.id)
   AND NOT EXISTS (
       SELECT 1 FROM inventory_reservations ir
