@@ -404,9 +404,12 @@ templ Order(p layouts.Page, v *OrderView) {
 							for _, e := range v.Timeline {
 								<li class="goen-admin__event">
 									<span class="goen-admin__eventhead">{ i18n.T(ctx, e.Label) }</span>
-									<span class="goen-admin__meta">{ e.At } · { e.By(ctx) }</span>
+									<span class="goen-admin__meta">{ e.When(ctx) } · { e.By(ctx) }</span>
 									if e.Status != "" {
-										<span class="goen-admin__meta">{ i18n.T(ctx, e.Status) }</span>
+										<span class="goen-admin__meta">{ e.StatusText(ctx) }</span>
+									}
+									if e.Unrecognized != "" {
+										<span class="goen-admin__meta">{ e.Unrecognized }</span>
 									}
 									if e.Unrecognized != "" {
 										<span class="goen-admin__meta">{ e.Unrecognized }</span>
