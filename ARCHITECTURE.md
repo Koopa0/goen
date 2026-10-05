@@ -459,6 +459,7 @@ Features share selected operations and view types. [`cart`](internal/cart) impor
 | [`internal/outbox`](internal/outbox) | Durable enqueueing, leasing, retry, delivery, retention. |
 | [`internal/payment`](internal/payment) | Stripe attempts, Checkout, signed webhook settlement. |
 | [`internal/pgerr`](internal/pgerr) | PostgreSQL error classification by code/constraint. |
+| [`internal/pgtx`](internal/pgtx) | The deferred rollback every store takes: detached from the request, bounded in time. |
 | [`internal/pickup`](internal/pickup) | Convenience-store chain identities. |
 | [`internal/probe`](internal/probe) | Public liveness and database-readiness probes. |
 | [`internal/product`](internal/product) | Product detail, reviews, questions, restock subscriptions. |

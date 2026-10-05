@@ -17,6 +17,7 @@ import (
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/outbox"
+	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/user"
 )
 
@@ -76,7 +77,7 @@ func (s *Store) queueVerification(ctx context.Context, userID, addr string, link
 	if beginErr != nil {
 		return fmt.Errorf("begin verification request: %w", beginErr)
 	}
-	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
+	defer pgtx.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 	if _, lockErr := q.LockUserForEmailVerification(ctx, id); lockErr != nil {
 		if errors.Is(lockErr, pgx.ErrNoRows) {
@@ -218,7 +219,7 @@ func (s *Store) confirm(ctx context.Context, token string, asker uuid.NullUUID, 
 	if err != nil {
 		return Confirmed{}, fmt.Errorf("begin verification: %w", err)
 	}
-	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
+	defer pgtx.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 
 	lockedUser, err := lockVerificationAccount(ctx, q, verification.UserID)

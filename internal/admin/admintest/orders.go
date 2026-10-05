@@ -19,6 +19,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/refunds"
 	"github.com/koopa0/goen/internal/admin/stock"
 	"github.com/koopa0/goen/internal/invoice"
+	"github.com/koopa0/goen/internal/pgtx"
 )
 
 func PlaceUnpaidOrder(t *testing.T, pool *pgxpool.Pool) string {
@@ -38,7 +39,7 @@ func PlaceUnpaidOrderHolding(t *testing.T, pool *pgxpool.Pool, holding bool) str
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
-	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
+	defer pgtx.Rollback(ctx, tx)
 
 	var orderID uuid.UUID
 	var number string
@@ -100,7 +101,7 @@ func PendingOrderHoldingStock(t *testing.T, pool *pgxpool.Pool) (number string, 
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
-	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
+	defer pgtx.Rollback(ctx, tx)
 
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO orders (order_number, shipping_version_id, shipping_method_code, shipping_method_name)
@@ -175,7 +176,7 @@ func PlaceHeldOrder(t *testing.T, pool *pgxpool.Pool, vid uuid.UUID) string {
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
-	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
+	defer pgtx.Rollback(ctx, tx)
 
 	var orderID uuid.UUID
 	var number string
@@ -220,7 +221,7 @@ func TwoLineOrderWithStock(t *testing.T, pool *pgxpool.Pool, name string) (
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
-	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
+	defer pgtx.Rollback(ctx, tx)
 
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO orders (order_number, shipping_version_id, shipping_method_code,
@@ -347,7 +348,7 @@ func PaidPickingOrderForUser(t *testing.T, pool *pgxpool.Pool, userID uuid.UUID,
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
-	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
+	defer pgtx.Rollback(ctx, tx)
 
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO orders (order_number, user_id, shipping_version_id,
