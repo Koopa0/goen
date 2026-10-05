@@ -89,6 +89,12 @@ func (h *Handler) Order(w http.ResponseWriter, r *http.Request) {
 		access.ServerError(w, r, h.log)
 		return
 	}
+	for _, e := range view.Timeline {
+		if e.Unrecognized != "" {
+			h.log.WarnContext(r.Context(), "unrecognised order timeline entry",
+				"order", view.Number, "entry", e.Unrecognized, "at", e.At)
+		}
+	}
 	view.Notice = web.Notice(r, notices)
 	view.AllowanceOperationID = uuid.NewString()
 	web.Render(w, r, h.log, http.StatusOK,
