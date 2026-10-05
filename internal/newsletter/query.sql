@@ -42,7 +42,7 @@ RETURNING unsubscribe_token;
 -- "that link is not ours": the first returns a row, the second returns none.
 -- name: UnsubscribeNewsletter :one
 UPDATE newsletter_subscribers
-SET unsubscribed_at = coalesce(unsubscribed_at, now())
+SET unsubscribed_at = now()
 WHERE unsubscribe_token = $1
 RETURNING email;
 
