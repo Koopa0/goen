@@ -1,7 +1,7 @@
 package i18n
 
 var (
-	KeyOrderPlaced = key("order.placed", Message{ZhHant: "訂單成立", En: "Order placed"})
+	KeyOrderPlaced = key("order.placed", Message{ZhHant: "訂單已送出", En: "Order placed"})
 
 	KeyOrderPlacedAt = key("order.placedat", Message{
 		ZhHant: "%s 送出",
@@ -55,8 +55,8 @@ var (
 
 	// The statutory right, stated plainly; the day is the database's.
 	KeyOrderRescissionEnds = key("order.rescissionends", Message{
-		ZhHant: "依消費者保護法，你可在收到商品後七日內退貨，最後一日為 %s。",
-		En:     "Under Taiwan's Consumer Protection Act you may return the goods within seven days of receiving them; the last day is %s.",
+		ZhHant: "依消費者保護法，你可自收到商品的次日起七日內退貨，最後一日為 %s。",
+		En:     "Under Taiwan's Consumer Protection Act you may return what you bought within seven days, counted from the day after you receive the goods; the last day is %s.",
 	})
 
 	KeyOrderShippedAt = key("order.shippedat", Message{ZhHant: "%s 出貨", En: "Dispatched %s"})
@@ -73,7 +73,7 @@ var (
 
 	KeyOrderMeta = key("order.meta", Message{ZhHant: "訂單 %s", En: "Order %s"})
 
-	KeyStatusPlaced = key("order.status.placed", Message{ZhHant: "訂單成立", En: "Placed"})
+	KeyStatusPlaced = key("order.status.placed", Message{ZhHant: "訂單送出", En: "Placed"})
 
 	KeyStatusPaid = key("order.status.paid", Message{ZhHant: "付款完成", En: "Paid"})
 
@@ -157,7 +157,7 @@ var (
 	})
 
 	KeyPlacementGrantFailedTitle = key("order.placement.grantfailed.title", Message{
-		ZhHant: "訂單已成立，但尚未完成存取",
+		ZhHant: "已收到你的訂單，但尚未完成存取",
 		En:     "Your order was received, but access could not be set up",
 	})
 
