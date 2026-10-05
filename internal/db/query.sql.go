@@ -670,9 +670,10 @@ const adminCoupons = `-- name: AdminCoupons :many
 SELECT json_build_object('Rank', c.is_active, 'At', c.created_at, 'ID', c.id)::text AS page_cursor, c.id, c.code, c.description, c.kind, c.amount_cents, c.percent_bp,
        c.min_subtotal_cents, c.max_discount_cents, c.max_redemptions,
        c.per_customer_limit, c.is_active, c.starts_at, c.ends_at,
-       (SELECT count(*) FROM coupon_redemptions r WHERE r.coupon_id = c.id)::bigint AS redeemed,
-       (SELECT coalesce(sum(r.amount_cents), 0) FROM coupon_redemptions r
-        WHERE r.coupon_id = c.id)::bigint AS given_cents,
+       (SELECT count(*) FROM coupon_redemptions r JOIN orders o ON o.id = r.order_id
+        WHERE r.coupon_id = c.id AND o.fulfillment_status <> 'cancelled')::bigint AS redeemed,
+       (SELECT coalesce(sum(r.amount_cents), 0) FROM coupon_redemptions r JOIN orders o ON o.id = r.order_id
+        WHERE r.coupon_id = c.id AND o.fulfillment_status <> 'cancelled')::bigint AS given_cents,
        (c.starts_at <= now() AND (c.ends_at IS NULL OR c.ends_at > now()))::boolean AS is_current
 FROM coupons c
 WHERE (NOT $1::boolean OR (c.is_active < $2::boolean)
@@ -710,8 +711,6 @@ type AdminCouponsRow struct {
 	IsCurrent        bool
 }
 
-// The redemption count comes from the ledger and never from a column: the ledger
-// is what the limit is counted from at checkout.
 func (q *Queries) AdminCoupons(ctx context.Context, arg AdminCouponsParams) ([]AdminCouponsRow, error) {
 	rows, err := q.db.Query(ctx, adminCoupons,
 		arg.HasCursor,
