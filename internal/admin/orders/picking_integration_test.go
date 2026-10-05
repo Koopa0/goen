@@ -184,6 +184,50 @@ func TestPickingTotalsSpanEveryPageAndSubtractRecordedShipments(t *testing.T) {
 	}
 }
 
+func TestPickingExcludesOrdersBeingRefundedBeforeShipment(t *testing.T) {
+	owner := admintest.Pool(t)
+	ctx, staff := admintest.StaffContext(t, owner)
+	adminPool := admintest.AdminRolePool(t, owner)
+	number, orderID, _, _ := admintest.TwoLineOrderWithStock(t, owner, "refund-pick")
+	controlID := pickingFixtureOrder(t, owner, "READY-PICK", 2, 0, true)
+	var controlNumber string
+	if err := owner.QueryRow(ctx, `SELECT order_number FROM orders WHERE id=$1`, controlID).Scan(&controlNumber); err != nil {
+		t.Fatal(err)
+	}
+	var returnID uuid.UUID
+	if err := adminPool.QueryRow(ctx, `SELECT open_refund_before_shipment($1, 'Customer cancelled', $2, 'picking-refund')`, number, staff).Scan(&returnID); err != nil {
+		t.Fatal(err)
+	}
+	if got := admintest.FulfillmentOf(t, owner, orderID); got != "picking" {
+		t.Fatalf("refunding order status = %q, want picking until cancellation settles", got)
+	}
+	var beforeShipment bool
+	if err := owner.QueryRow(ctx, `SELECT before_shipment FROM return_requests WHERE id=$1`, returnID).Scan(&beforeShipment); err != nil {
+		t.Fatal(err)
+	}
+	if !beforeShipment {
+		t.Fatal("the real refund door did not open a before-shipment request")
+	}
+	view, err := admintest.OrderStore(adminPool, admintest.Refunder{}, nil, nil).Picking(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	numbers := make([]string, 0, len(view.Slips))
+	for _, slip := range view.Slips {
+		numbers = append(numbers, slip.Number)
+	}
+	if !slices.Equal(numbers, []string{controlNumber}) {
+		t.Errorf("Picking() slips = %v, want only the order still owing a parcel %v", numbers, []string{controlNumber})
+	}
+	totals := make(map[string]int64)
+	for _, line := range view.Totals {
+		totals[line.SKU] = line.Remaining
+	}
+	if len(totals) != 1 || totals["READY-PICK"] != 2 {
+		t.Errorf("Picking() totals = %v, want only READY-PICK:2", totals)
+	}
+}
+
 func TestPickingReadsTheCustomerNote(t *testing.T) {
 	owner := admintest.Pool(t)
 	ctx, _ := admintest.StaffContext(t, owner)
