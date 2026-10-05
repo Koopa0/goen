@@ -145,9 +145,8 @@ var (
 	})
 
 	KeyAdminNoticeVoidFailed = key("admin.notice.voidfailed", Message{
-		ZhHant: "加值中心拒絕了這次作廢，詳細原因在伺服器紀錄裡。請先到綠界確認。",
-		En: "The e-invoice provider refused the void; the reason is in the server log. " +
-			"Check ECPay first.",
+		ZhHant: "綠界拒絕了這次作廢。請到綠界後台確認這張發票的狀態。",
+		En:     "ECPay refused the void. Check this invoice in the ECPay back office.",
 	})
 
 	// Shown when the cancellation could not correct the invoice itself: the
@@ -161,15 +160,13 @@ var (
 	})
 
 	KeyAdminNoticeAllowFailed = key("admin.notice.allowfailed", Message{
-		ZhHant: "加值中心拒絕了這次折讓，詳細原因在伺服器紀錄裡。請先到綠界確認。",
-		En: "The e-invoice provider refused the credit note; the reason is in the server log. " +
-			"Check ECPay first.",
+		ZhHant: "綠界拒絕了這次折讓。請到綠界後台確認這張發票的狀態。",
+		En:     "ECPay refused the credit note. Check this invoice in the ECPay back office.",
 	})
 
 	KeyAdminNoticeInvoiceFailed = key("admin.notice.invoicefailed", Message{
-		ZhHant: "加值中心拒絕了這次操作，詳細原因在伺服器紀錄裡。常見的是統編格式或載具號碼不正確。",
-		En: "The e-invoice provider refused that operation; the reason is in the server log. " +
-			"Usually it is a malformed business tax number or carrier code.",
+		ZhHant: "綠界拒絕開立這張發票，常見原因是統一編號或載具號碼格式不正確。請到綠界後台確認。",
+		En:     "ECPay refused to issue the invoice, usually because a company tax ID or invoice carrier code is malformed. Check it in the ECPay back office.",
 	})
 
 	KeyAdminNoticeInvoicingOff = key("admin.notice.invoicingoff", Message{

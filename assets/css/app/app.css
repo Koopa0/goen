@@ -2084,45 +2084,6 @@ h3 {
   scroll-snap-align: start;
 }
 
-/* ----- One photograph, the width of the container, and a caption. ----- */
-
-.goen-promo-photo__link {
-  color: var(--n-900);
-  display: block;
-  text-decoration: none;
-}
-
-.goen-promo-photo__media {
-  aspect-ratio: 4 / 3;
-  background: var(--n-100);
-  border-radius: var(--r-lg);
-  overflow: hidden;
-}
-
-.goen-promo-photo__media img {
-  height: 100%;
-  object-fit: cover;
-  object-position: 84% 50%;
-  width: 100%;
-}
-
-.goen-promo-photo__caption {
-  align-items: baseline;
-  display: flex;
-  gap: 1rem;
-  justify-content: space-between;
-  margin-top: 1.25rem;
-}
-
-.goen-promo-photo__link:hover .goen-promo-photo__media img {
-  opacity: 0.92;
-}
-
-.goen-promo-photo__link:hover .goen-home__more {
-  text-decoration: underline;
-  text-underline-offset: 0.25em;
-}
-
 /* ----- What the shop guarantees: bare icons on a quiet ground. The delivery
    item renders only where a free-delivery threshold is configured. ----- */
 
@@ -2201,14 +2162,6 @@ h3 {
     margin-inline: 0;
     overflow: visible;
     padding-inline: 0;
-  }
-
-  .goen-promo-photo__media {
-    aspect-ratio: 21 / 9;
-  }
-
-  .goen-promo-photo__media img {
-    object-position: 70% 50%;
   }
 }
 
@@ -3053,25 +3006,6 @@ a.goen-pager__step:hover {
   margin: 0;
 }
 
-/* The lead row: four larger cards before the grid. A phone scrolls them
-   sideways and the 1024 grid lays them four across. */
-.goen-featured__grid {
-  display: flex;
-  gap: 1rem;
-  list-style: none;
-  margin: 0 calc(-1 * var(--page-gutter));
-  overflow-x: auto;
-  padding: 0 var(--page-gutter);
-  scroll-padding-inline: var(--page-gutter);
-  scroll-snap-type: x proximity;
-  scrollbar-width: none;
-}
-
-.goen-featured__grid > li {
-  flex: 0 0 10rem;
-  scroll-snap-align: start;
-}
-
 /* The running-promotions strip above the deals grid. A campaign is a
    destination and a marked-down product is an item; they must not read as the
    same kind of thing stacked together. */
@@ -3360,10 +3294,6 @@ a.goen-pager__step:hover {
     margin-inline: -1.5rem;
     padding-inline: 1.5rem;
   }
-
-  .goen-featured__grid > li {
-    flex-basis: 14rem;
-  }
 }
 
 @media (min-width: 1024px) {
@@ -3431,15 +3361,6 @@ a.goen-pager__step:hover {
     object-fit: cover;
     position: absolute;
     width: 55%;
-  }
-
-  .goen-featured__grid {
-    display: grid;
-    gap: 1.5rem;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    margin: 0;
-    overflow: visible;
-    padding: 0;
   }
 
   .goen-listing__layout {

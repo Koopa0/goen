@@ -18,7 +18,7 @@ func renderChrome(t *testing.T, locale i18n.Locale, items []layouts.NavItem) (he
 	if err := layouts.Header(layouts.Page{}).Render(ctx, &h); err != nil {
 		t.Fatalf("render header: %v", err)
 	}
-	if err := layouts.Footer().Render(ctx, &f); err != nil {
+	if err := layouts.Footer(layouts.NewsletterState{}).Render(ctx, &f); err != nil {
 		t.Fatalf("render footer: %v", err)
 	}
 	return h.String(), f.String()
