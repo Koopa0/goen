@@ -133,7 +133,7 @@ func TestRefundCopyNamesBothPayoutChannels(t *testing.T) {
 	}
 	src := string(seed)
 	const faqQuestion = "退款什麼時候會收到？"
-	insertAt := strings.Index(src, "('退換貨', '"+faqQuestion+"'")
+	insertAt := strings.Index(src, "('退貨', '"+faqQuestion+"'")
 	if insertAt < 0 {
 		t.Fatal("seed has no refund FAQ INSERT")
 	}
@@ -188,7 +188,7 @@ func TestRefundCopyNamesBothPayoutChannels(t *testing.T) {
 		}
 	}
 
-	zhInsert := sqlStringAfter(t, src, "('退換貨', '"+faqQuestion+"',")
+	zhInsert := sqlStringAfter(t, src, "('退貨', '"+faqQuestion+"',")
 	enValues := sqlStringAfter(t, src, "'When will I get my refund?',")
 	zhSet := sqlStringAfter(t, fix, "SET answer =")
 	enSet := sqlStringAfter(t, fix, "SET answer_en =")

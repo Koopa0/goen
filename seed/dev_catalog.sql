@@ -1194,16 +1194,16 @@ INSERT INTO faq_entries (category, question, answer, position) VALUES
     ('配送', '可以指定到貨時間嗎？',
      '目前無法指定。出貨後可用訂單頁上的查詢編號到物流商網站追蹤。', 30),
 
-    ('退換貨', '哪些商品可以退貨？',
+    ('退貨', '哪些商品可以退貨？',
      '只有「已出貨」的商品可以申請退貨，而且數量以實際出貨數為上限。尚未出貨的訂單請聯絡我們取消，不需要走退貨流程。', 10),
-    ('退換貨', '退款什麼時候會收到？',
+    ('退貨', '退款什麼時候會收到？',
      '退貨經審核同意後，系統依原付款組成退回：卡款立刻向 Stripe 發出退款，店儲退回購物金。卡款入帳時間依發卡銀行而定，通常是數個工作天；額度退回後可立刻使用。', 20),
     -- Not 「尚未確定」. 消保法 §19 I gives the customer seven days from receipt
     -- with 不負擔任何費用, and §19 V voids any agreement otherwise — so this was
     -- never the shop's to leave open, and the row contradicted /returns, which
     -- states it as a rule. Two authorities answering one customer question.
-    ('退換貨', '退貨要付運費嗎？',
-     '自收到商品的次日起七日內解除契約，你不需要負擔任何費用，退貨運費由 goen 負擔。詳見「退換貨政策」頁面。', 30),
+    ('退貨', '退貨要付運費嗎？',
+     '自收到商品的次日起七日內解除契約，你不需要負擔任何費用，退貨運費由 goen 負擔。詳見「退貨政策」頁面。', 30),
 
     -- Not 「尚未完成」. Capture queues the issue; a missing merchant id is a
     -- deployment, not an unfinished product, and the back office already
