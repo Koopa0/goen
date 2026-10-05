@@ -43,7 +43,7 @@ func (v *ShippingView) VersionValues(m *ShippingMethod) VersionDraft {
 		Carrier: m.Carrier, CarrierEn: m.CarrierEn, Fee: m.FeeDollars(), FreeOver: m.FreeOverDollars()}
 }
 
-func (v *ShippingView) VersionError(methodID, field string) string {
+func (v *ShippingView) VersionRefusal(methodID, field string) string {
 	if v.VersionDraft.MethodID == methodID {
 		return v.Errors["version_"+field]
 	}
@@ -57,7 +57,7 @@ func (v *ShippingView) SurchargeValue(m *ShippingMethod, zoneID string) string {
 	return m.SurchargeDollars(zoneID)
 }
 
-func (v *ShippingView) SurchargeError(methodID, zoneID string) string {
+func (v *ShippingView) SurchargeRefusal(methodID, zoneID string) string {
 	if v.SurchargeDraft.MethodID == methodID && v.SurchargeDraft.ZoneID == zoneID {
 		return v.Errors["surcharge"]
 	}

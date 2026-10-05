@@ -301,7 +301,7 @@ func Shipping(p layouts.Page, v ShippingView) templ.Component {
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					if v.VersionError(m.MethodID, "name") != "" {
+					if v.VersionRefusal(m.MethodID, "name") != "" {
 						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, " aria-invalid=\"true\" aria-describedby=\"")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
@@ -324,7 +324,7 @@ func Shipping(p layouts.Page, v ShippingView) templ.Component {
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					if message := v.VersionError(m.MethodID, "name"); message != "" {
+					if message := v.VersionRefusal(m.MethodID, "name"); message != "" {
 						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "<p class=\"ui-error-text\" id=\"")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
@@ -614,7 +614,7 @@ func Shipping(p layouts.Page, v ShippingView) templ.Component {
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					if v.VersionError(m.MethodID, "fee") != "" {
+					if v.VersionRefusal(m.MethodID, "fee") != "" {
 						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 39, " aria-invalid=\"true\" aria-describedby=\"")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
@@ -637,7 +637,7 @@ func Shipping(p layouts.Page, v ShippingView) templ.Component {
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					if message := v.VersionError(m.MethodID, "fee"); message != "" {
+					if message := v.VersionRefusal(m.MethodID, "fee"); message != "" {
 						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 42, "<p class=\"ui-error-text\" id=\"")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
@@ -756,7 +756,7 @@ func Shipping(p layouts.Page, v ShippingView) templ.Component {
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					if v.VersionError(m.MethodID, "free_over") != "" {
+					if v.VersionRefusal(m.MethodID, "free_over") != "" {
 						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 51, " aria-invalid=\"true\" aria-describedby=\"")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
@@ -779,7 +779,7 @@ func Shipping(p layouts.Page, v ShippingView) templ.Component {
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					if message := v.VersionError(m.MethodID, "free_over"); message != "" {
+					if message := v.VersionRefusal(m.MethodID, "free_over"); message != "" {
 						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 54, "<p class=\"ui-error-text\" id=\"")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
@@ -815,7 +815,7 @@ func Shipping(p layouts.Page, v ShippingView) templ.Component {
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					if message := v.VersionError(m.MethodID, "form"); message != "" {
+					if message := v.VersionRefusal(m.MethodID, "form"); message != "" {
 						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 58, "<p class=\"ui-error-text\" id=\"")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
@@ -1131,7 +1131,7 @@ func Shipping(p layouts.Page, v ShippingView) templ.Component {
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
 							}
-							if v.SurchargeError(m.MethodID, z.ID) != "" {
+							if v.SurchargeRefusal(m.MethodID, z.ID) != "" {
 								templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 79, " aria-invalid=\"true\" aria-describedby=\"")
 								if templ_7745c5c3_Err != nil {
 									return templ_7745c5c3_Err
@@ -1154,7 +1154,7 @@ func Shipping(p layouts.Page, v ShippingView) templ.Component {
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
 							}
-							if message := v.SurchargeError(m.MethodID, z.ID); message != "" {
+							if message := v.SurchargeRefusal(m.MethodID, z.ID); message != "" {
 								templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 82, "<p class=\"ui-error-text\" id=\"")
 								if templ_7745c5c3_Err != nil {
 									return templ_7745c5c3_Err
