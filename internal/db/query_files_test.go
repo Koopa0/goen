@@ -83,6 +83,7 @@ func TestQueryFilesReportRealSourceErrors(t *testing.T) {
 		{name: "missing-query-target", missingRoot: false},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			root := t.TempDir()
 			missing := filepath.Join(root, "missing")
 			if tt.missingRoot {
