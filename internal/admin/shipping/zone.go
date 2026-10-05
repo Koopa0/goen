@@ -70,7 +70,7 @@ func (s *Store) CreateZone(ctx context.Context, z *NewZone) (map[string]string, 
 		if pgerr.IsConstraint(err, "shipping_zones_code_key") {
 			return map[string]string{"zone_code": i18n.T(ctx, i18n.KeyFormZoneCodeTaken)}, nil
 		}
-		return nil, fmt.Errorf("%w: %w", ErrRefused, err)
+		return nil, pgerr.WrapRefusal(err, ErrRefused)
 	}
 	return nil, nil
 }
@@ -133,7 +133,7 @@ func (s *Store) DeleteZone(ctx context.Context, id string) error {
 	}, func(ctx context.Context, q *db.Queries) error {
 		n, execErr := q.DeleteShippingZone(ctx, zoneID)
 		if execErr != nil {
-			return fmt.Errorf("%w: %w", ErrRefused, execErr)
+			return pgerr.WrapRefusal(execErr, ErrRefused)
 		}
 		if n == 0 {
 			return ErrInUse

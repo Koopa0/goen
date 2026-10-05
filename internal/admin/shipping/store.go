@@ -150,7 +150,7 @@ func (s *Store) PublishShippingVersion(ctx context.Context, v ShippingVersion) e
 				FreeOverCents: freeOverDollars * 100,
 			})
 			if insErr != nil {
-				return fmt.Errorf("%w: %w", ErrRefused, insErr)
+				return pgerr.WrapRefusal(insErr, ErrRefused)
 			}
 			if carryErr := q.CarryZoneSurcharges(ctx, db.CarryZoneSurchargesParams{
 				NewVersionID: versionID, MethodID: id,
@@ -196,7 +196,7 @@ func (s *Store) SetZoneSurcharge(ctx context.Context, versionID, zoneID string, 
 			if err := q.SetZoneSurcharge(ctx, db.SetZoneSurchargeParams{
 				VersionID: vid, ZoneID: zid, SurchargeCents: dollars * 100,
 			}); err != nil {
-				return fmt.Errorf("%w: %w", ErrRefused, err)
+				return pgerr.WrapRefusal(err, ErrRefused)
 			}
 			return nil
 		})
@@ -337,7 +337,7 @@ func (s *Store) SetMethodActive(ctx context.Context, id string, active bool) err
 			MethodID: methodID, IsActive: active,
 		})
 		if execErr != nil {
-			return fmt.Errorf("%w: %w", ErrRefused, execErr)
+			return pgerr.WrapRefusal(execErr, ErrRefused)
 		}
 		if n == 0 {
 			return ErrNotFound

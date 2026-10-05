@@ -17,6 +17,7 @@ import (
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/ordernotice"
+	"github.com/koopa0/goen/internal/pgerr"
 	"github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
@@ -85,7 +86,7 @@ func (s *Store) RefundBeforeShipment(ctx context.Context, number, reason string)
 		ActorUserID: actorID, RequestID: web.RequestID(ctx),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("%w: open refund before shipment of %s: %w", refundstate.ErrRefused, number, err)
+		return nil, pgerr.WrapRefusal(fmt.Errorf("open refund before shipment of %s: %w", number, err), refundstate.ErrRefused)
 	}
 
 	// Money never waits on the 加值中心: whatever ECPay answers, the refund goes
@@ -227,7 +228,7 @@ func cancelRefundedOrder(ctx context.Context, q *db.Queries, number string, retu
 	if err := q.AdvanceOrder(ctx, db.AdvanceOrderParams{
 		OrderNumber: number, Status: string(order.FulfillmentCancelled),
 	}); err != nil {
-		return fmt.Errorf("%w: %w", refundstate.ErrRefused, err)
+		return pgerr.WrapRefusal(err, refundstate.ErrRefused)
 	}
 	held, err := q.HeldReservationsForOrder(ctx, number)
 	if err != nil {
@@ -239,11 +240,11 @@ func cancelRefundedOrder(ctx context.Context, q *db.Queries, number string, retu
 		}
 	}
 	if _, closeErr := q.CloseUnshippedReturnLines(ctx, returnID); closeErr != nil {
-		return fmt.Errorf("%w: close the lines of refund %s: %w", refundstate.ErrRefused, returnID, closeErr)
+		return pgerr.WrapRefusal(fmt.Errorf("close the lines of refund %s: %w", returnID, closeErr), refundstate.ErrRefused)
 	}
 	closed, err := q.CompleteReturn(ctx, db.CompleteReturnParams{ID: returnID})
 	if err != nil {
-		return fmt.Errorf("%w: complete refund %s: %w", refundstate.ErrRefused, returnID, err)
+		return pgerr.WrapRefusal(fmt.Errorf("complete refund %s: %w", returnID, err), refundstate.ErrRefused)
 	}
 	if closed == 0 {
 		return fmt.Errorf("%w: refund %s is not open for completion", refundstate.ErrRefused, returnID)
