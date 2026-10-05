@@ -35,7 +35,7 @@ func TestPickingTotalsSpanEveryPageAndSubtractRecordedShipments(t *testing.T) {
 		if i == 52 {
 			sku, quantity = "A-PICK", 4
 		}
-		id, _ := pickingFixtureOrder(t, owner, sku, quantity, i, true)
+		id := pickingFixtureOrder(t, owner, sku, quantity, i, true)
 		var number string
 		if err := owner.QueryRow(ctx, `SELECT order_number FROM orders WHERE id=$1`, id).Scan(&number); err != nil {
 			t.Fatal(err)
@@ -203,9 +203,9 @@ func TestPickingReadsTheCustomerNote(t *testing.T) {
 func TestPickingSlipsStartWithTheOldestOrder(t *testing.T) {
 	owner := admintest.Pool(t)
 	ctx, _ := admintest.StaffContext(t, owner)
-	var want []string
+	want := make([]string, 0, 3)
 	for position := range 3 {
-		id, _ := pickingFixtureOrder(t, owner, "AGE-PICK", 1, position, true)
+		id := pickingFixtureOrder(t, owner, "AGE-PICK", 1, position, true)
 		var number string
 		if err := owner.QueryRow(ctx, `SELECT order_number FROM orders WHERE id=$1`, id).Scan(&number); err != nil {
 			t.Fatal(err)
@@ -216,7 +216,7 @@ func TestPickingSlipsStartWithTheOldestOrder(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var got []string
+	got := make([]string, 0, len(view.Slips))
 	for _, slip := range view.Slips {
 		got = append(got, slip.Number)
 	}
@@ -225,7 +225,7 @@ func TestPickingSlipsStartWithTheOldestOrder(t *testing.T) {
 	}
 }
 
-func pickingFixtureOrder(t *testing.T, owner *pgxpool.Pool, sku string, quantity int32, position int, picking bool) (orderID, lineID uuid.UUID) {
+func pickingFixtureOrder(t *testing.T, owner *pgxpool.Pool, sku string, quantity int32, position int, picking bool) (orderID uuid.UUID) {
 	t.Helper()
 	ctx := t.Context()
 	tx, err := owner.Begin(ctx)
@@ -238,8 +238,8 @@ SELECT next_order_number(), $1, v.id, sm.code, v.name, 0, 'Gift <note>: no price
 FROM shipping_method_versions v JOIN shipping_methods sm ON sm.id=v.method_id ORDER BY v.effective_at LIMIT 1 RETURNING id`, time.Date(2020, 1, 1, 0, position, 0, 0, time.UTC)).Scan(&orderID); err != nil {
 		t.Fatal(err)
 	}
-	if err := tx.QueryRow(ctx, `INSERT INTO order_lines (order_id, sku, product_name, variant_label, unit_price_cents, quantity)
-VALUES ($1, $2, '揀貨測試', '256 GB', 0, $3) RETURNING id`, orderID, sku, quantity).Scan(&lineID); err != nil {
+	if _, err := tx.Exec(ctx, `INSERT INTO order_lines (order_id, sku, product_name, variant_label, unit_price_cents, quantity)
+VALUES ($1, $2, '揀貨測試', '256 GB', 0, $3)`, orderID, sku, quantity); err != nil {
 		t.Fatal(err)
 	}
 
@@ -255,5 +255,5 @@ VALUES ($1, 'picking@example.com', '揀貨收件人', '0912345678', '110', '臺�
 	if err := tx.Commit(ctx); err != nil {
 		t.Fatal(err)
 	}
-	return orderID, lineID
+	return orderID
 }
