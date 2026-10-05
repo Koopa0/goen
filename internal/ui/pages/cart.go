@@ -704,7 +704,7 @@ func (s PaymentState) Key() i18n.Key {
 	}
 }
 
-// StateKey leaves paying to its own row, so a placed order stays 訂單成立 until it moves.
+// StateKey leaves paying to its own row, so a placed order stays 訂單已送出 until it moves.
 func (v *OrderView) StateKey() i18n.Key {
 	switch v.Status {
 	case order.FulfillmentPicking:
