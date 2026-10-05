@@ -81,8 +81,13 @@ func TestEveryHomepageEntryRemainsManageableBeyondExpiredHistory(t *testing.T) {
 
 	get := func(ctx context.Context, path string) string {
 		t.Helper()
+		target, err := url.Parse(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		// A browser keeps the arrival fragment; the HTTP request excludes it.
 		res := httptest.NewRecorder()
-		mux.ServeHTTP(res, httptest.NewRequestWithContext(ctx, http.MethodGet, path, nil))
+		mux.ServeHTTP(res, httptest.NewRequestWithContext(ctx, http.MethodGet, target.RequestURI(), nil))
 		if res.Code != http.StatusOK {
 			t.Fatalf("GET %s status=%d: %s", path, res.Code, res.Body.String())
 		}
