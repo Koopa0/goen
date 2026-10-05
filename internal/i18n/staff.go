@@ -23,18 +23,13 @@ var (
 	// carried is gone — otherwise promoting it would hand the back office to
 	// whoever registered the address first.
 	KeyStaffCredentialCleared = key("staff.cleared", Message{
-		ZhHant: "已加入。這個地址原本就有一個尚未驗證的帳號，舊密碼與登入狀態都已清除 —— " +
-			"請對方用「忘記密碼」設定新密碼，那是唯一能證明信箱是他的路徑。",
-		En: "Added. That address already had an account which had never proved the mailbox, " +
-			"so its old password and sign-ins were cleared — ask them to set a password through " +
-			"“Forgot password”, which is the one path that proves the mailbox is theirs.",
+		ZhHant: "已加入。這個地址原本有一個尚未驗證的帳號，舊密碼與登入狀態已清除。請對方用邀請信裡的連結設定新密碼。",
+		En:     "Added. That address already had an unverified account, so its old password and sign-ins were cleared. Ask them to set a new password through the link in their invitation email.",
 	})
 
 	KeyStaffSelf = key("staff.self", Message{
-		ZhHant: "不能對自己的帳號做這件事 —— 解除自己的兩階段驗證等於沒有第二因素，" +
-			"移除自己的權限會把商店鎖在門外。請另一位管理員操作。",
-		En: "You cannot do this to your own account — dropping your own second factor leaves you " +
-			"without one, and revoking your own access locks the shop out. Ask another administrator.",
+		ZhHant: "不能對自己的帳號做這件事，請另一位管理員操作。",
+		En:     "You cannot do this to your own account. Ask another administrator.",
 	})
 
 	KeyStaffLastAdmin = key("staff.lastadmin", Message{
@@ -72,10 +67,8 @@ var (
 	KeyAdminStaffAdd = key("admin.staff.add", Message{ZhHant: "新增人員", En: "Add a colleague"})
 
 	KeyAdminStaffAddLead = key("admin.staff.addlead", Message{
-		ZhHant: "不會設定密碼 —— 對方用「忘記密碼」自己設，那是唯一能證明信箱是他的路徑。帳號在他設定之前無法登入。已經是顧客的信箱會直接升級，不會另開一個。",
-		En: "No password is set here — they set their own through Forgot password, which is the one " +
-			"path that proves they own the mailbox. The account cannot sign in until they do. An " +
-			"address that already belongs to a customer is promoted rather than duplicated.",
+		ZhHant: "這裡不設定密碼。對方會收到邀請信，新帳號要用信裡的連結設定密碼後才能登入；已是顧客的信箱會直接升級，不另開帳號。",
+		En:     "No password is set here. They get an invitation email, and a new account cannot sign in until they set a password through its link. An address that already belongs to a customer is promoted, not duplicated.",
 	})
 
 	KeyAdminStaffEmail = key("admin.staff.email", Message{ZhHant: "電子郵件", En: "Email"})

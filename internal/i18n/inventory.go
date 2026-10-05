@@ -79,9 +79,8 @@ var (
 	})
 
 	KeyAdminLedgerFoot = key("admin.ledger.foot", Message{
-		ZhHant: "最近 50 筆。結存是從帳本開頭累加到那一筆的數字，所以就算只看這一頁也是對的。",
-		En: "The last 50 movements. The balance accumulates from the start of the ledger rather than " +
-			"from this page, so these rows are still true on their own.",
+		ZhHant: "最近 50 筆。結存是從帳本第一筆累加到該筆的數量。",
+		En:     "The last 50 movements. Each balance counts from the first movement in the ledger.",
 	})
 
 	KeyAdminReceiveQty = key("admin.receive.qty", Message{ZhHant: "進貨數量", En: "Quantity received"})
@@ -89,10 +88,8 @@ var (
 	KeyAdminReceiveButton = key("admin.receive.button", Message{ZhHant: "登記進貨", En: "Record receipt"})
 
 	KeyAdminReceiveHint = key("admin.receive.hint", Message{
-		ZhHant: "這會在帳本上記一筆「進貨」。數字算錯要往回修的話請用庫存頁的「調整」—— 東西進來和數字算錯是兩件事，帳本要分得出來。",
-		En: "This writes a goods receipt to the ledger. To correct a count downward use Adjust on the " +
-			"stock page — goods arriving and a number being wrong are two different things, and the " +
-			"ledger has to keep them apart.",
+		ZhHant: "這會在帳本記一筆「進貨」。數量算錯要往下修正時，請到庫存頁用「調整」。",
+		En:     "This records a goods receipt in the ledger. To correct a count downward, use “Adjust” on the stock page.",
 	})
 
 	KeyAdminStockOf = key("admin.stock.of", Message{
@@ -120,8 +117,7 @@ var (
 	})
 
 	KeyAdminNoticeBadQty = key("admin.notice.badqty", Message{
-		ZhHant: "進貨數量要是正整數。要往下修正數字請用「調整」—— 進貨是有東西進來，調整是數字算錯了，帳本分得出這兩件事。",
-		En: "A receipt quantity is a positive whole number. To correct a count downward use Adjust — " +
-			"a receipt is goods arriving and an adjustment is a number that was wrong, and the ledger keeps them apart.",
+		ZhHant: "進貨數量要是正整數。要往下修正數量，請用「調整」。",
+		En:     "A receipt quantity must be a positive whole number. To correct a count downward, use “Adjust”.",
 	})
 )

@@ -92,10 +92,8 @@ var (
 	KeyAdminPageReviews = key("admin.page.reviews", Message{ZhHant: "顧客評價", En: "Customer reviews"})
 
 	KeyAdminReviewsLead = key("admin.reviews.lead", Message{
-		ZhHant: "評價寫完就顯示，不先審 —— 每一則都要人核准的評價頁，讀起來就是廣告。隱藏是例外，而且會把那一則從評分裡一起拿掉。",
-		En: "A review appears as soon as it is written, with no queue in front of it — a review page " +
-			"where every entry was approved by the shop reads as advertising. Hiding is the exception, " +
-			"and it takes that review out of the rating as well as off the page.",
+		ZhHant: "評價送出後立即顯示，不經審核。隱藏只用於例外，隱藏的評價不計入評分。",
+		En:     "Reviews appear as soon as they are posted, without approval. Hiding is for exceptions, and a hidden review no longer counts toward the rating.",
 	})
 
 	KeyAdminReviewsEmpty = key("admin.reviews.empty", Message{ZhHant: "還沒有任何評價。", En: "No reviews yet."})

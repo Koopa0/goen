@@ -53,9 +53,8 @@ var (
 	})
 
 	KeyAdminProdOptionsLead = key("admin.prod.optionslead", Message{
-		ZhHant: "顏色、容量這一類的軸線。商品頁的選擇器讀的就是這些 —— 有規格項目的商品，每一個 SKU 都要選一個值。",
-		En: "Axes such as colour or capacity. The picker on the product page reads exactly these — " +
-			"on a product that has options, every SKU must name one value on each of them.",
+		ZhHant: "例如顏色、容量，商品頁的選擇器顯示的就是這些。有規格項目的商品，每個 SKU 都要在每一項選一個值。",
+		En:     "Colour, capacity and the like: the picker on the product page offers these. On a product with options, every SKU takes one value from each.",
 	})
 
 	KeyAdminProdNoValues = key("admin.prod.novalues", Message{ZhHant: "還沒有值", En: "No values yet"})
