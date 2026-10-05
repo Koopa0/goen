@@ -17,6 +17,7 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	rewards "github.com/koopa0/goen/internal/loyalty"
 	"github.com/koopa0/goen/internal/money"
+	"github.com/koopa0/goen/internal/pgerr"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
@@ -96,7 +97,7 @@ func (s *Store) CreateTier(
 				PointsMultiplierBp: multiplier,
 				Position:           position,
 			}); err != nil {
-				return fmt.Errorf("%w: %w", ErrRefused, err)
+				return pgerr.WrapRefusal(err, ErrRefused)
 			}
 			return nil
 		})

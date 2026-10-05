@@ -115,7 +115,7 @@ func (s *Store) Adjust(ctx context.Context, sku string, delta int32, actorID, ke
 			if moveErr := q.AdjustStock(ctx, db.AdjustStockParams{
 				VariantID: v.ID, Delta: delta, IdempotencyKey: key, ActorUserID: actor,
 			}); moveErr != nil {
-				return fmt.Errorf("%w: %w", ErrRefused, moveErr)
+				return pgerr.WrapRefusal(moveErr, ErrRefused)
 			}
 			return nil
 		})
@@ -152,7 +152,7 @@ func (s *Store) Receive(ctx context.Context, sku string, quantity int32, actorID
 			if moveErr := q.ReceiveStock(ctx, db.ReceiveStockParams{
 				VariantID: v.ID, Delta: quantity, IdempotencyKey: key, ActorUserID: actor,
 			}); moveErr != nil {
-				return fmt.Errorf("%w: %w", ErrRefused, moveErr)
+				return pgerr.WrapRefusal(moveErr, ErrRefused)
 			}
 			return nil
 		})
@@ -219,7 +219,7 @@ func (s *Store) SetActive(ctx context.Context, sku string, active bool) error {
 			if err := q.SetVariantActive(ctx, db.SetVariantActiveParams{
 				ID: v.ID, IsActive: active,
 			}); err != nil {
-				return fmt.Errorf("%w: %w", ErrRefused, err)
+				return pgerr.WrapRefusal(err, ErrRefused)
 			}
 			return nil
 		})
@@ -254,7 +254,7 @@ func (s *Store) SetPrice(ctx context.Context, sku string, price, compareAt int64
 			if err := q.SetVariantPrice(ctx, db.SetVariantPriceParams{
 				ID: v.ID, PriceCents: price, CompareAtPriceCents: cmp,
 			}); err != nil {
-				return fmt.Errorf("%w: %w", ErrRefused, err)
+				return pgerr.WrapRefusal(err, ErrRefused)
 			}
 			return nil
 		})

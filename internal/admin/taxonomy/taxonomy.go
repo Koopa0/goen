@@ -127,7 +127,7 @@ func (s *Store) CreateBrand(ctx context.Context, f *Form) (map[string]string, er
 		if pgerr.IsConstraint(err, "brands_slug_key") {
 			return map[string]string{"slug": i18n.T(ctx, i18n.KeyFormSlugTakenBrand)}, nil
 		}
-		return nil, fmt.Errorf("%w: %w", ErrRefused, err)
+		return nil, pgerr.WrapRefusal(err, ErrRefused)
 	}
 	return nil, nil
 }
@@ -170,7 +170,7 @@ func (s *Store) CreateCategory(ctx context.Context, f *Form) (map[string]string,
 			// attempt reads a fresh maximum and goes through.
 			return map[string]string{"form": i18n.T(ctx, i18n.KeyFormPositionTaken)}, nil
 		}
-		return nil, fmt.Errorf("%w: %w", ErrRefused, err)
+		return nil, pgerr.WrapRefusal(err, ErrRefused)
 	}
 	return nil, nil
 }
@@ -216,7 +216,7 @@ func (s *Store) Rename(ctx context.Context, kind, slug, name, nameEn, iconKey, t
 				})
 			}
 			if err != nil {
-				return fmt.Errorf("%w: %w", ErrRefused, err)
+				return pgerr.WrapRefusal(err, ErrRefused)
 			}
 			if n == 0 {
 				return ErrNotFound
@@ -242,7 +242,7 @@ func (s *Store) Delete(ctx context.Context, kind, slug string) error {
 				n, err = q.DeleteCategory(ctx, slug)
 			}
 			if err != nil {
-				return fmt.Errorf("%w: %w", ErrRefused, err)
+				return pgerr.WrapRefusal(err, ErrRefused)
 			}
 			if n == 0 {
 				return ErrInUse
