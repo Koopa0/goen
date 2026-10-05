@@ -52,6 +52,9 @@ func (s *Store) CreateZone(ctx context.Context, z *NewZone) (map[string]string, 
 			"code": z.Code, "name": z.Name, "prefixes": len(prefixes),
 		},
 	}, func(ctx context.Context, q *db.Queries) error {
+		if lockErr := q.LockZonePrefixAssignments(ctx); lockErr != nil {
+			return fmt.Errorf("lock zone prefix assignments: %w", lockErr)
+		}
 		zoneID, insErr := q.CreateShippingZone(ctx, db.CreateShippingZoneParams{
 			Code: z.Code, Name: z.Name, NameEn: z.NameEn,
 		})
@@ -76,9 +79,10 @@ func (s *Store) CreateZone(ctx context.Context, z *NewZone) (map[string]string, 
 }
 
 // SetZonePrefixes replaces the zone's whole set with the submitted one. The
-// zone row is locked, assignments run before the zone-scoped sweep, and all of
-// it is one transaction, so concurrent forms cannot commit a union and moving
-// a prefix never exposes a moment when it belongs to no zone.
+// prefix assignments, then the zone row, are locked and assignments run before the
+// zone-scoped sweep, all in one transaction, so concurrent forms can neither
+// deadlock nor commit a union, and moving a prefix never exposes a moment when
+// it belongs to no zone.
 func (s *Store) SetZonePrefixes(ctx context.Context, id, list string) (map[string]string, error) {
 	zoneID, err := uuid.Parse(id)
 	if err != nil {
@@ -94,6 +98,9 @@ func (s *Store) SetZonePrefixes(ctx context.Context, id, list string) (map[strin
 		ID:    audit.EntityID(zoneID),
 		After: map[string]any{"prefixes": len(prefixes)},
 	}, func(ctx context.Context, q *db.Queries) error {
+		if lockErr := q.LockZonePrefixAssignments(ctx); lockErr != nil {
+			return fmt.Errorf("lock zone prefix assignments: %w", lockErr)
+		}
 		if _, lockErr := q.LockShippingZone(ctx, zoneID); lockErr != nil {
 			if errors.Is(lockErr, pgx.ErrNoRows) {
 				return ErrNotFound
