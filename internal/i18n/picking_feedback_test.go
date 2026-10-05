@@ -12,7 +12,7 @@ func TestPickingCopyDescribesEveryOrderStillOwingAParcel(t *testing.T) {
 		locale           Locale
 		scope, remaining string
 	}{
-		{locale: ZhHant, scope: "涵蓋所有尚待出貨的訂單", remaining: "尚未出貨數量"},
+		{locale: ZhHant, scope: "涵蓋所有尚有商品未出貨的訂單", remaining: "尚未出貨數量"},
 		{locale: En, scope: "every order with items still to ship", remaining: "Not yet dispatched"},
 	} {
 		t.Run(tt.locale.Tag(), func(t *testing.T) {
