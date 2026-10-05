@@ -9,7 +9,7 @@ var (
 	KeyPayEyebrow = key("pay.eyebrow", Message{ZhHant: "完成付款", En: "Complete payment"})
 
 	KeyPayBody = key("pay.body", Message{
-		ZhHant: "訂單已成立，商品已為你保留。完成付款後我們會立即安排出貨。",
+		ZhHant: "訂單已送出，商品已為你保留。完成付款後我們會立即安排出貨。",
 		En: "The order is placed and the stock is held for you. We pack it as soon as the " +
 			"payment goes through.",
 	})
