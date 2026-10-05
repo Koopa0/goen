@@ -33,7 +33,7 @@ FROM (
 ) t
 JOIN pg_attribute a ON a.attrelid = t.relid
 WHERE a.attnum > 0 AND NOT a.attisdropped AND a.attgenerated = ''
-  AND a.atttypid = 'timestamptz'::regtype
+  AND a.atttypid IN ('timestamptz'::regtype, 'date'::regtype)
 GROUP BY t.relid, t.fresh
 UNION ALL
 SELECT 'UPDATE loyalty_entries SET expires_on = expires_on - (shop_day($1) - shop_day($1 - $3)) '
