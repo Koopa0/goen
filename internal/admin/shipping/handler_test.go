@@ -1,7 +1,6 @@
 package shipping
 
 import (
-	"context"
 	"os"
 	"regexp"
 	"testing"
@@ -38,7 +37,8 @@ func TestShippingRowRefusalUsesTheDeskMessage(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		t.Run(locale.Tag(), func(t *testing.T) {
-			ctx := i18n.WithLocale(context.Background(), locale)
+			t.Parallel()
+			ctx := i18n.WithLocale(t.Context(), locale)
 			if got, want := i18n.T(ctx, notices["refused"]), i18n.T(ctx, i18n.KeyAdminShipRefused); got != want {
 				t.Errorf("row refusal=%q, want shipping message %q", got, want)
 			}

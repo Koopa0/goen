@@ -151,9 +151,9 @@ func TestRefusedShippingEditsRetainTheDraftWithoutChangingTheConfiguration(t *te
 	if res := post(url.Values{"version": {versionID.String()}, "zone": {uuid.NewString()}, "amount": {"bad"}}, "/admin/shipping/surcharge", i18n.En); res.Code != http.StatusNotFound {
 		t.Errorf("unknown zone status=%d, want 404", res.Code)
 	}
-	after, err := s.Configuration(ctx)
-	if err != nil {
-		t.Fatal(err)
+	after, readErr := s.Configuration(ctx)
+	if readErr != nil {
+		t.Fatal(readErr)
 	}
 	if diff := cmp.Diff(before, after); diff != "" {
 		t.Errorf("refusals changed the configuration (-want +got):\n%s", diff)
@@ -197,9 +197,9 @@ func TestRefusedShippingEditsRetainTheDraftWithoutChangingTheConfiguration(t *te
 	if err := p.QueryRow(ctx, `SELECT id FROM shipping_method_versions WHERE method_id=$1 ORDER BY effective_at DESC, id DESC LIMIT 1`, methodID).Scan(&currentVersion); err != nil {
 		t.Fatal(err)
 	}
-	before, err = s.Configuration(ctx)
-	if err != nil {
-		t.Fatal(err)
+	before, readErr = s.Configuration(ctx)
+	if readErr != nil {
+		t.Fatal(readErr)
 	}
 	if err := p.QueryRow(ctx, `SELECT count(*) FROM audit_events`).Scan(&auditBefore); err != nil {
 		t.Fatal(err)
