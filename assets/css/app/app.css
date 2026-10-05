@@ -8924,6 +8924,10 @@ a.goen-pager__step:hover {
   font-variant-numeric: tabular-nums;
 }
 
+.goen-report__bar {
+  flex: 1 0 100%;
+}
+
 @media (min-width: 1024px) {
   /* The money follows the reader down the page: on a long order the totals are
      what a staff member checks against whatever they are about to press.
@@ -9552,5 +9556,44 @@ form[data-request-pending] [aria-disabled="true"] {
   body {
     background: var(--bg);
     color: var(--fg);
+  }
+}
+
+/* ---------- Charts ----------
+
+   One data colour. Its contrast against the page grounds is held by
+   assets/contrast_test.go, so it stays a six-digit hex. Position, length and
+   the row's own text carry the meaning, never the hue alone.
+   ------------------------------------------------------------------------ */
+
+:root {
+  --chart-hue: #007f69;
+  --chart-label: var(--n-500);
+}
+
+.goen-chartbar {
+  display: block;
+  overflow: visible;
+}
+
+.goen-chart__hue {
+  fill: var(--chart-hue);
+}
+
+.goen-chart__value {
+  fill: var(--chart-label);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (forced-colors: active) {
+  .goen-chartbar {
+    forced-color-adjust: none;
+  }
+
+  .goen-chart__hue,
+  .goen-chart__value {
+    fill: CanvasText;
   }
 }

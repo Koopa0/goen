@@ -149,3 +149,45 @@ func TestReportSaysTheCountOnceForFewOrders(t *testing.T) {
 		t.Errorf("the report shows %q %d times, want once", counts, n)
 	}
 }
+
+func TestBestSellersAreDrawnAsBarsOnOneScale(t *testing.T) {
+	t.Parallel()
+
+	html := renderToString(t, Report(layouts.Page{Title: "Reports"}, &ReportView{
+		Days: 30, Windows: []int32{7, 30, 90}, Placed: 3, Committed: 3, Orders: 3,
+		Sellers: []Seller{
+			{Slug: "a", Name: "Alpha", Units: 40},
+			{Slug: "b", Name: "Beta", Units: 40},
+			{Slug: "c", Name: "Gamma", Units: 10},
+		},
+	}))
+
+	if got := strings.Count(html, `class="goen-chart__hue"`); got != 3 {
+		t.Fatalf("report shows %d bars, want 3", got)
+	}
+	if got := strings.Count(html, `width="80.00%"`); got != 2 {
+		t.Errorf("report shows %d bars at the full reach, want the 2 tied sellers", got)
+	}
+	if !strings.Contains(html, `width="20.00%"`) {
+		t.Error("report does not draw 10 units at a quarter of 40")
+	}
+	for _, label := range []string{">40</text>", ">10</text>"} {
+		if !strings.Contains(html, label) {
+			t.Errorf("report omits the bar label %s", label)
+		}
+	}
+	if !strings.Contains(html, "Alpha") || !strings.Contains(html, "Gamma") {
+		t.Error("report lost the product names the bars sit beside")
+	}
+}
+
+func TestNoSellersDrawNoBars(t *testing.T) {
+	t.Parallel()
+
+	html := renderToString(t, Report(layouts.Page{Title: "Reports"}, &ReportView{
+		Days: 30, Windows: []int32{7, 30, 90}, Placed: 1, Committed: 1, Orders: 1,
+	}))
+	if strings.Contains(html, "goen-chart__hue") {
+		t.Error("report draws a bar with no best sellers")
+	}
+}

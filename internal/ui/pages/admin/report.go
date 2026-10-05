@@ -117,3 +117,12 @@ func (v ReportView) WindowLabel(ctx context.Context, days int32) string {
 }
 
 func (v ReportView) IsWindow(days int32) bool { return int(days) == v.Days }
+
+// TopUnits is the longest bar's scale: the best seller's units.
+func (v ReportView) TopUnits() int64 {
+	var top int64
+	for _, s := range v.Sellers {
+		top = max(top, s.Units)
+	}
+	return top
+}

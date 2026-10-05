@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/chart"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
@@ -85,6 +86,9 @@ templ Report(p layouts.Page, v *ReportView) {
 							<span class="goen-admin__meta">{ item.Brand }</span>
 							<span class="goen-report__num">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepUnits), item.UnitsText()) }</span>
 							<span class="goen-report__num">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepGross), item.Revenue()) }</span>
+							<div class="goen-report__bar">
+								@chart.Bar(chart.BarProps{Value: item.Units, Max: v.TopUnits(), Label: item.UnitsText()})
+							</div>
 						</li>
 					}
 				</ul>
