@@ -1856,10 +1856,9 @@ func (h *Handler) WithCount(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id, ok, stale, lookupErr := h.lookupCart(r.Context(), r)
 		if lookupErr != nil {
-			if errors.Is(r.Context().Err(), context.Canceled) {
-				return
+			if !errors.Is(r.Context().Err(), context.Canceled) {
+				h.log.ErrorContext(r.Context(), "read cart for the item count", "error", lookupErr)
 			}
-			h.log.ErrorContext(r.Context(), "read cart for the item count", "error", lookupErr)
 			next.ServeHTTP(w, r)
 			return
 		}

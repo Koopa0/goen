@@ -206,8 +206,8 @@ func TestCartLookupFailuresDoNotReplaceOrHideTheBasket(t *testing.T) {
 			if requestCtx.Err() != context.Canceled {
 				t.Fatalf("disconnect context = %v, want context.Canceled", requestCtx.Err())
 			}
-			if diagnostics.Len() != 0 || res.Body.Len() != 0 || len(res.Header()) != 0 || continued {
-				t.Errorf("disconnected lookup: diagnostics=%q body=%q headers=%v continued=%v, want no work for the departed caller", diagnostics.String(), res.Body.String(), res.Header(), continued)
+			if diagnostics.Len() != 0 || res.Body.Len() != 0 || len(res.Header()) != 0 || continued != (tt.name == "badge") {
+				t.Errorf("disconnected lookup: diagnostics=%q body=%q headers=%v continued=%v, want quiet diagnostics and badge continuation only", diagnostics.String(), res.Body.String(), res.Header(), continued)
 			}
 			if diff := cmp.Diff(before, cartLookupRows(t, owner, id, variant)); diff != "" {
 				t.Errorf("cart rows after disconnect (-want +got):\n%s", diff)
