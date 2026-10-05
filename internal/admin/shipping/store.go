@@ -66,6 +66,14 @@ func (s *Store) Configuration(ctx context.Context) (admin.ShippingView, error) {
 	if err != nil {
 		return admin.ShippingView{}, fmt.Errorf("read version zones: %w", err)
 	}
+	surcharges := make(map[uuid.UUID][]admin.ZoneSurcharge, len(versionIDs))
+	for i := range zoneRows {
+		z := &zoneRows[i]
+		surcharges[z.VersionID] = append(surcharges[z.VersionID], admin.ZoneSurcharge{
+			ZoneID: z.ZoneID.String(), Code: z.Code, Name: z.Name,
+			Cents: z.SurchargeCents, Formatted: pages.TWD(z.SurchargeCents),
+		})
+	}
 
 	view := admin.ShippingView{}
 	for i := range rows {
@@ -80,13 +88,7 @@ func (s *Store) Configuration(ctx context.Context) (admin.ShippingView, error) {
 			FreeOverCents: m.FreeOverCents.Int64,
 			EffectiveAt:   shoptime.Day(m.EffectiveAt),
 			VersionCount:  m.VersionCount, Active: m.IsActive,
-		}
-		for j := range zoneRows {
-			z := &zoneRows[j]
-			method.Surcharges = append(method.Surcharges, admin.ZoneSurcharge{
-				ZoneID: z.ZoneID.String(), Code: z.Code, Name: z.Name,
-				Cents: z.SurchargeCents, Formatted: pages.TWD(z.SurchargeCents),
-			})
+			Surcharges: surcharges[m.VersionID],
 		}
 		view.Methods = append(view.Methods, method)
 	}

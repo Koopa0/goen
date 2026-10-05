@@ -104,6 +104,14 @@ type ProductView struct {
 	Errors            map[string]string
 	Notice            string
 	VariantDraft      VariantDraft
+	SpecDraft         SpecDraft
+}
+
+type SpecDraft struct {
+	Label   string
+	Value   string
+	LabelEn string
+	ValueEn string
 }
 
 // VariantDraft carries a refused form's exact input back: the variant
