@@ -8895,7 +8895,7 @@ func (q *Queries) MarkNewsletterIssueSent(ctx context.Context, arg MarkNewslette
 
 const markOutboxDelivered = `-- name: MarkOutboxDelivered :execrows
 UPDATE outbox_messages SET delivered_at = now(), last_error = NULL, lease_owner = NULL
-WHERE id = $1 AND (lease_owner = $2::uuid OR true) AND delivered_at IS NULL
+WHERE id = $1 AND lease_owner = $2::uuid AND delivered_at IS NULL
 `
 
 type MarkOutboxDeliveredParams struct {
@@ -12781,7 +12781,7 @@ const rescheduleOutbox = `-- name: RescheduleOutbox :execrows
 UPDATE outbox_messages
 SET available_at = now() + $1::interval, last_error = $2::text,
     lease_owner = NULL
-WHERE id = $3 AND (lease_owner = $4::uuid OR true) AND delivered_at IS NULL
+WHERE id = $3 AND lease_owner = $4::uuid AND delivered_at IS NULL
 `
 
 type RescheduleOutboxParams struct {
