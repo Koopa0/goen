@@ -26,6 +26,7 @@ import (
 	"github.com/koopa0/goen/internal/ordernotice"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/payment"
+	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/pickup"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -308,11 +309,7 @@ func (s *Store) Order(ctx context.Context, number string) (admin.OrderView, erro
 		return admin.OrderView{}, fmt.Errorf("read order timeline: %w", err)
 	}
 	for i := range timeline {
-		entry, entryErr := timelineEntry(&timeline[i])
-		if entryErr != nil {
-			return admin.OrderView{}, entryErr
-		}
-		view.Timeline = append(view.Timeline, entry)
+		view.Timeline = append(view.Timeline, timelineEntry(&timeline[i]))
 	}
 	view.MailKept = outbox.Retain
 
@@ -356,7 +353,7 @@ func (s *Store) Advance(ctx context.Context, number string, status order.Fulfill
 	if err != nil {
 		return nil, fmt.Errorf("begin advance: %w", err)
 	}
-	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
+	defer pgtx.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 
 	row, err := q.LockOrderForAdvance(ctx, number)
@@ -668,7 +665,7 @@ func (s *Store) Ship(ctx context.Context, number string, d Dispatch, actor uuid.
 	if err != nil {
 		return fmt.Errorf("begin ship: %w", err)
 	}
-	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
+	defer pgtx.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 
 	row, err := q.OrderIDByNumber(ctx, number)
@@ -845,7 +842,7 @@ func (s *Store) SetStaffNote(ctx context.Context, number, note string) error {
 	if err != nil {
 		return fmt.Errorf("begin order note: %w", err)
 	}
-	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
+	defer pgtx.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 	prior, err := q.LockOrderForStaffNote(ctx, number)
 	if errors.Is(err, pgx.ErrNoRows) {

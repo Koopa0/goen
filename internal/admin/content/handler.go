@@ -155,20 +155,34 @@ func (h *Handler) rejectFAQ(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageFAQ)}, &view))
 }
 
+type homeQueue string
+
+const (
+	heroQueue   homeQueue = "slides"
+	bannerQueue homeQueue = "banners"
+)
+
 func (h *Handler) Home(w http.ResponseWriter, r *http.Request) {
-	view, err := h.store.HeroSlides(r.Context())
+	var heroAfter, bannerAfter string
+	switch homeQueue(r.URL.Query().Get("queue")) {
+	case heroQueue:
+		heroAfter = r.URL.Query().Get(web.KeysetParam)
+	case bannerQueue:
+		bannerAfter = r.URL.Query().Get(web.KeysetParam)
+	}
+	view, err := h.store.HeroSlides(r.Context(), heroAfter)
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read hero slides", "error", err)
 		access.ServerError(w, r, h.log)
 		return
 	}
-	banners, err := h.store.Banners(r.Context())
+	banners, err := h.store.Banners(r.Context(), bannerAfter)
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read promo banners", "error", err)
 		access.ServerError(w, r, h.log)
 		return
 	}
-	view.Banners = banners
+	view.Banners, view.BannerBound = banners.Rows, banners.Bound
 	view.Notice = web.Notice(r, notices)
 	web.Render(w, r, h.log, http.StatusOK, admin.Home(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageHero)}, &view))
@@ -226,7 +240,7 @@ func (h *Handler) rejectBanner(
 		return
 	}
 	if banners, bannerErr := h.store.Banners(r.Context()); bannerErr == nil {
-		view.Banners = banners
+		view.Banners, view.BannerBound = banners.Rows, banners.Bound
 	}
 	view.Errors = errs
 	view.BannerDraft = admin.BannerDraft{
@@ -362,7 +376,7 @@ func (h *Handler) Newsletter(w http.ResponseWriter, r *http.Request) {
 
 // ComposeNewsletter writes a DRAFT and sends nothing: the irreversible step gets its own button.
 func (h *Handler) ComposeNewsletter(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
+	if err := web.ParseLongTextForm(w, r, newsletter.MaxIssueSubjectRunes+newsletter.MaxIssueBodyRunes); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}

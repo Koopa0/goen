@@ -6,6 +6,7 @@ import (
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/web"
 )
 
 type HeroSlide struct {
@@ -20,8 +21,6 @@ type HeroSlide struct {
 	Position int32
 	EndsAt   string
 }
-
-func (s HeroSlide) Live() bool { return s.Active && s.InWindow }
 
 func (s HeroSlide) State() string {
 	switch {
@@ -64,14 +63,21 @@ func (s HeroSlide) ToggleLabel() string {
 }
 
 type HeroView struct {
+	Bound    web.Bound
 	Rows     []HeroSlide
 	Carousel []pages.HeroSlide
 	Notice   string
 	Errors   map[string]string
 	Draft    HeroDraft
 
+	BannerBound web.Bound
 	Banners     []Banner
 	BannerDraft BannerDraft
+}
+
+type BannersView struct {
+	Rows  []Banner
+	Bound web.Bound
 }
 
 type Banner struct {
@@ -124,29 +130,16 @@ type HeroDraft struct {
 
 func (v *HeroView) Empty() bool { return len(v.Rows) == 0 }
 
-func (v *HeroView) scheduledShown() int {
-	n := 0
-	for i := range v.Carousel {
-		if v.Carousel[i].Source == pages.SlideScheduled {
-			n++
-		}
-	}
-	return n
-}
-
-// IsShowing reports whether this scheduled slide is in the storefront's carousel:
-// the carousel takes the first live ones in schedule order, as many as it shows.
+// IsShowing compares with the storefront's identities, independently of this
+// management page's position in the schedule.
 func (v *HeroView) IsShowing(s HeroSlide) bool {
-	n := v.scheduledShown()
-	for _, r := range v.Rows {
-		if n == 0 {
-			return false
-		}
-		if r.Live() {
-			if r.ID == s.ID {
-				return true
-			}
-			n--
+	if s.ID == "" {
+		return false
+	}
+	for i := range v.Carousel {
+		shown := &v.Carousel[i]
+		if shown.Source == pages.SlideScheduled && shown.ID == s.ID {
+			return true
 		}
 	}
 	return false

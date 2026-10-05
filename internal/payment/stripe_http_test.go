@@ -261,7 +261,7 @@ func TestTheSessionExpiresWithTheStockHold(t *testing.T) {
 
 // TestTheSessionTotalsWhatTheOrderOwes holds the one invariant Stripe's page
 // has to satisfy: payments_capture_matches_order refuses a capture that is not
-// exactly order_amount_owed, so the line items must sum to it.
+// exactly order_amount_after_credit, so the line items must sum to it.
 //
 // Both directions: shipping and tax add to the lines, while a coupon and store
 // credit take away.
@@ -323,7 +323,7 @@ func TestTheSessionTotalsWhatTheOrderOwes(t *testing.T) {
 			if total != tt.owed {
 				t.Errorf("Stripe's page totals %d, want %d — capture_payment records "+
 					"what the provider charged and payments_capture_matches_order "+
-					"refuses anything but order_amount_owed", total, tt.owed)
+					"refuses anything but order_amount_after_credit", total, tt.owed)
 			}
 		})
 	}

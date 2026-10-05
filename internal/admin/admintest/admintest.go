@@ -29,6 +29,7 @@ import (
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/outbox"
+	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web"
 )
@@ -130,7 +131,7 @@ func OrderForCustomer(t *testing.T, pool *pgxpool.Pool, userID uuid.UUID, cents 
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
-	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
+	defer pgtx.Rollback(ctx, tx)
 
 	var orderID uuid.UUID
 	if err := tx.QueryRow(ctx, `
@@ -356,7 +357,7 @@ func PaidUnshippedOrder(t *testing.T, pool *pgxpool.Pool, cardCents, creditCents
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
-	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
+	defer pgtx.Rollback(ctx, tx)
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO orders (order_number, user_id, shipping_version_id,
 		                    shipping_method_code, shipping_method_name, shipping_cents)

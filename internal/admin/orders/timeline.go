@@ -1,9 +1,11 @@
 package orders
 
 import (
-	"fmt"
+	"context"
+	"log/slog"
 	"maps"
 	"slices"
+	"strings"
 
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
@@ -53,7 +55,10 @@ var (
 	}
 )
 
-func timelineEntry(r *db.AdminOrderTimelineRow) (admin.TimelineEntry, error) {
+// timelineEntry labels one row. A row this build cannot label is shown as such
+// rather than failing the page: the actions below the timeline read their own
+// facts.
+func timelineEntry(r *db.AdminOrderTimelineRow) admin.TimelineEntry {
 	e := admin.TimelineEntry{
 		At: shoptime.Minute(r.At), Note: r.Note,
 		ActorKind: admin.ActorKind(r.ActorKind), Actor: r.ActorName,
@@ -61,11 +66,15 @@ func timelineEntry(r *db.AdminOrderTimelineRow) (admin.TimelineEntry, error) {
 	var labels, statuses map[string]i18n.Key
 	switch timelineSource(r.Source) {
 	case timelineOrder:
-		e.Label = pages.OrderEvent{Kind: order.EventKind(r.Kind)}.LabelKey()
-		return e, nil
+		label, known := pages.OrderEvent{Kind: order.EventKind(r.Kind)}.LookupLabelKey()
+		if !known {
+			return unrecognizedEntry(e, r)
+		}
+		e.Label = label
+		return e
 	case timelineProvider:
 		e.Label = i18n.KeyAdminTimelineProvider
-		return e, nil
+		return e
 	case timelineInvoice:
 		labels, statuses = invoiceOperationLabels, invoiceOperationStatuses
 	case timelineMail:
@@ -74,8 +83,25 @@ func timelineEntry(r *db.AdminOrderTimelineRow) (admin.TimelineEntry, error) {
 	label, labelled := labels[r.Kind]
 	status, statused := statuses[r.Status]
 	if !labelled || !statused {
-		return admin.TimelineEntry{}, fmt.Errorf("no timeline label for %s %q in status %q", r.Source, r.Kind, r.Status)
+		return unrecognizedEntry(e, r)
 	}
 	e.Label, e.Status = label, status
-	return e, nil
+	e.DoneAt = nullableStamp(r.DoneAt)
+	return e
+}
+
+func logUnrecognized(ctx context.Context, log *slog.Logger, number string, timeline []admin.TimelineEntry) {
+	for i := range timeline {
+		if e := &timeline[i]; e.Unrecognized != "" {
+			log.WarnContext(ctx, "unrecognised order timeline entry",
+				"order", number, "entry", e.Unrecognized, "at", e.At)
+		}
+	}
+}
+
+func unrecognizedEntry(e admin.TimelineEntry, r *db.AdminOrderTimelineRow) admin.TimelineEntry {
+	e.Label = i18n.KeyAdminTimelineUnrecognized
+	e.Unrecognized = strings.Join(slices.DeleteFunc([]string{r.Source, r.Kind, r.Status},
+		func(s string) bool { return s == "" }), " / ")
+	return e
 }

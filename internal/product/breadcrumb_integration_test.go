@@ -29,7 +29,7 @@ func TestProductBreadcrumbNamesEveryVisibleCategory(t *testing.T) {
 			t.Run(string(locale)+"/"+tt.slug, func(t *testing.T) {
 				t.Parallel()
 				ctx := i18n.WithLocale(t.Context(), locale)
-				h := product.NewHandler(product.NewStore(pool), slog.New(slog.DiscardHandler), "https://goen.example/")
+				h := product.NewHandler(product.NewStore(pool, slog.New(slog.DiscardHandler)), slog.New(slog.DiscardHandler), "https://goen.example/")
 				r := httptest.NewRequestWithContext(ctx, http.MethodGet, "/p/"+tt.slug, http.NoBody)
 				r.SetPathValue("slug", tt.slug)
 				w := httptest.NewRecorder()

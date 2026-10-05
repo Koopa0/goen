@@ -39,7 +39,8 @@ func TestDetailOfAnAbandonedRequestLogsNothing(t *testing.T) {
 	t.Parallel()
 
 	logs := &bytes.Buffer{}
-	h := NewHandler(NewStore(ctxErrDB{}), slog.New(slog.NewTextHandler(logs, nil)), "https://goen.example")
+	log := slog.New(slog.NewTextHandler(logs, nil))
+	h := NewHandler(NewStore(ctxErrDB{}, log), log, "https://goen.example")
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	r := httptest.NewRequestWithContext(ctx, http.MethodGet, "/p/nimbus-band-2", http.NoBody)
@@ -62,7 +63,8 @@ func TestDetailStillLogsALoadThatFailsForGoensReason(t *testing.T) {
 	t.Parallel()
 
 	logs := &bytes.Buffer{}
-	h := NewHandler(NewStore(ctxErrDB{}), slog.New(slog.NewTextHandler(logs, nil)), "https://goen.example")
+	log := slog.New(slog.NewTextHandler(logs, nil))
+	h := NewHandler(NewStore(ctxErrDB{}, log), log, "https://goen.example")
 	ctx, cancel := context.WithTimeout(t.Context(), 0)
 	defer cancel()
 	r := httptest.NewRequestWithContext(ctx, http.MethodGet, "/p/nimbus-band-2", http.NoBody)

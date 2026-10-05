@@ -15,6 +15,7 @@ import (
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/outbox"
+	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/shoptime"
 )
 
@@ -77,7 +78,7 @@ func (s *Store) Compose(ctx context.Context, subject, body string, actor uuid.Nu
 	if err != nil {
 		return "", fmt.Errorf("beginning newsletter compose: %w", err)
 	}
-	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
+	defer pgtx.Rollback(ctx, tx)
 	q := db.New(tx)
 
 	subject = strings.TrimSpace(subject)
@@ -124,7 +125,7 @@ func (s *Store) Send(ctx context.Context, issueID string, actor uuid.NullUUID) (
 	if err != nil {
 		return 0, fmt.Errorf("beginning newsletter send: %w", err)
 	}
-	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
+	defer pgtx.Rollback(ctx, tx)
 	q := db.New(tx)
 
 	issue, err := q.NewsletterIssue(ctx, id)

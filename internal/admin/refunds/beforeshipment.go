@@ -17,6 +17,7 @@ import (
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/ordernotice"
+	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
@@ -195,7 +196,7 @@ func (s *Store) finishRefundBeforeShipment(
 	if err != nil {
 		return nil, fmt.Errorf("begin refund before shipment: %w", err)
 	}
-	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
+	defer pgtx.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 
 	row, err := q.LockOrderForAdvance(ctx, number)
