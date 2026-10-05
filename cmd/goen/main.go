@@ -754,7 +754,7 @@ func startWorkers(ctx context.Context, d workerDeps) {
 func newOutboxStore(d workerDeps) *outbox.Store {
 	outboxStore := outbox.NewStore(d.pool, d.log)
 	outboxStore.HandleJSON(outbox.TopicOrderPlaced, d.notifier.SendOrderPlaced)
-	outboxStore.HandleJSON(outbox.TopicPasswordReset, d.notifier.SendPasswordReset)
+	outboxStore.HandleJSON(outbox.TopicPasswordReset, passwordResetHandler(account.NewStore(d.pool), d.notifier))
 	outboxStore.HandleJSON(outbox.TopicPasswordResetRequest, account.NewStore(d.pool).IssueReset)
 	outboxStore.HandleJSON(outbox.TopicRegistration, registrationHandler(account.NewStore(d.pool), d.notifier))
 	outboxStore.HandleJSON(outbox.TopicOrderPaid, d.notifier.SendOrderPaid)
@@ -813,6 +813,12 @@ func newsletterIssueHandler(
 func registrationHandler(accounts *account.Store, notifier email.Notifier) func(context.Context, *outbox.AccountRegistration) error {
 	return func(ctx context.Context, r *outbox.AccountRegistration) error {
 		return accounts.FollowUpRegistration(ctx, r, notifier.SendAccountExists)
+	}
+}
+
+func passwordResetHandler(accounts *account.Store, notifier email.Notifier) func(context.Context, *email.PasswordReset) error {
+	return func(ctx context.Context, p *email.PasswordReset) error {
+		return accounts.DeliverPasswordReset(ctx, p, notifier.SendPasswordReset)
 	}
 }
 
