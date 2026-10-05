@@ -175,9 +175,10 @@ func contactSubjectRow(t *testing.T, ctx context.Context, desk *feedback.Store, 
 		if err != nil {
 			t.Fatalf("read real contact inbox: %v", err)
 		}
-		for _, row := range view.Rows {
+		for i := range view.Rows {
+			row := &view.Rows[i]
 			if row.Email == email {
-				return view, row
+				return view, *row
 			}
 		}
 		if view.Next == "" {
