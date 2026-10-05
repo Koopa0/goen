@@ -50,9 +50,9 @@ var (
 		En:     "That is more than can be returned.",
 	})
 
-	KeyReturnQuantityInvalid = key("returns.quantity.invalid", Message{ZhHant: "請填寫零或以上的整數。", En: "Enter a whole number of zero or more."})
+	KeyReturnQuantityInvalid = key("returns.quantity.invalid", Message{ZhHant: "數量超出可退貨的範圍。", En: "That is more than can be returned."})
 
-	KeyReturnReasonInvalid = key("returns.reason.invalid", Message{ZhHant: "退貨原因最多 500 字，請移除無法顯示的字元。", En: "Keep the optional reason within 500 characters and remove unsupported characters."})
+	KeyReturnReasonInvalid = key("returns.reason.invalid", Message{ZhHant: "請至少選擇一件商品，並確認填寫的資料。", En: "Choose at least one item and check the entered details."})
 
 	KeyReturnAlreadyOpen = key("returns.alreadyopen", Message{
 		ZhHant: "這筆訂單已經有一筆還在處理中的退貨申請。",
