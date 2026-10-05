@@ -30,6 +30,7 @@ import (
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/orderaccess"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/ratelimit"
@@ -1684,8 +1685,8 @@ func TestCheckoutAndAdoptionShareUserBeforeCartLockOrder(t *testing.T) {
 		ORDER BY v.effective_at DESC, v.id DESC LIMIT 1`).Scan(&shippingID); err != nil {
 		t.Fatalf("read home-delivery version: %v", err)
 	}
-	addr := &cart.Address{
-		Email: u.Email, Name: "王小明", Phone: "0912345678",
+	addr := &order.Delivery{
+		Email: u.Email, RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
 	shown := accountCheckoutQuote(t, cart.NewStore(pool), accountCart, owner, shippingID, addr.PostalCode)
@@ -2410,8 +2411,8 @@ func TestErasureSnapshotsBeforeConcurrentCheckout(t *testing.T) {
 		ORDER BY v.effective_at DESC, v.id DESC LIMIT 1`).Scan(&shippingID); err != nil {
 		t.Fatalf("read home-delivery version: %v", err)
 	}
-	addr := &cart.Address{
-		Email: u.Email, Name: "王小明", Phone: "0912345678",
+	addr := &order.Delivery{
+		Email: u.Email, RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
 	shown := accountCheckoutQuote(t, cart.NewStore(pool), cartID, owner, shippingID, addr.PostalCode)
