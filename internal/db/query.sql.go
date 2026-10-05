@@ -931,11 +931,21 @@ SELECT h.id, h.eyebrow, h.headline, h.primary_cta_label, h.primary_cta_href,
        h.image_key, h.position, h.is_active, h.starts_at, h.ends_at,
        (h.is_active
         AND (h.starts_at IS NULL OR h.starts_at <= now())
-        AND (h.ends_at IS NULL OR h.ends_at > now()))::boolean AS in_window
+        AND (h.ends_at IS NULL OR h.ends_at > now()))::boolean AS in_window,
+       json_build_object('Position', h.position, 'ID', h.id)::text AS page_cursor
 FROM hero_slides h
+WHERE NOT $1::boolean
+   OR (h.position, h.id) > ($2::integer, $3::uuid)
 ORDER BY h.position, h.id
-LIMIT $1
+LIMIT $4::integer
 `
+
+type AdminHeroSlidesParams struct {
+	HasCursor     bool
+	AfterPosition int32
+	AfterID       uuid.UUID
+	RowLimit      int32
+}
 
 type AdminHeroSlidesRow struct {
 	ID              uuid.UUID
@@ -949,10 +959,16 @@ type AdminHeroSlidesRow struct {
 	StartsAt        pgtype.Timestamptz
 	EndsAt          pgtype.Timestamptz
 	InWindow        bool
+	PageCursor      string
 }
 
-func (q *Queries) AdminHeroSlides(ctx context.Context, limit int32) ([]AdminHeroSlidesRow, error) {
-	rows, err := q.db.Query(ctx, adminHeroSlides, limit)
+func (q *Queries) AdminHeroSlides(ctx context.Context, arg AdminHeroSlidesParams) ([]AdminHeroSlidesRow, error) {
+	rows, err := q.db.Query(ctx, adminHeroSlides,
+		arg.HasCursor,
+		arg.AfterPosition,
+		arg.AfterID,
+		arg.RowLimit,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -972,6 +988,7 @@ func (q *Queries) AdminHeroSlides(ctx context.Context, limit int32) ([]AdminHero
 			&i.StartsAt,
 			&i.EndsAt,
 			&i.InWindow,
+			&i.PageCursor,
 		); err != nil {
 			return nil, err
 		}
@@ -7256,7 +7273,7 @@ func (q *Queries) HeldReservationsForOrder(ctx context.Context, orderNumber stri
 }
 
 const heroSlides = `-- name: HeroSlides :many
-SELECT coalesce(localized_name(h.eyebrow, h.eyebrow_en, $1::text), '')::text
+SELECT h.id, coalesce(localized_name(h.eyebrow, h.eyebrow_en, $1::text), '')::text
            AS eyebrow,
        localized_name(h.headline, h.headline_en, $1::text) AS headline,
        coalesce(localized_name(h.body, h.body_en, $1::text), '')::text AS body,
@@ -7287,6 +7304,7 @@ type HeroSlidesParams struct {
 }
 
 type HeroSlidesRow struct {
+	ID                uuid.UUID
 	Eyebrow           string
 	Headline          string
 	Body              string
@@ -7315,6 +7333,7 @@ func (q *Queries) HeroSlides(ctx context.Context, arg HeroSlidesParams) ([]HeroS
 	for rows.Next() {
 		var i HeroSlidesRow
 		if err := rows.Scan(
+			&i.ID,
 			&i.Eyebrow,
 			&i.Headline,
 			&i.Body,
@@ -8687,11 +8706,22 @@ SELECT id, message, coalesce(message_short, '') AS message_short,
        coalesce(message_en, '') AS message_en,
        coalesce(message_short_en, '') AS message_short_en,
        coalesce(cta_label_en, '') AS cta_label_en,
-       is_active, starts_at, ends_at, created_at
+       is_active, starts_at, ends_at, created_at,
+       json_build_object('Active', is_active, 'At', created_at, 'ID', id)::text AS page_cursor
 FROM promo_banners
-ORDER BY is_active DESC, created_at DESC
-LIMIT $1
+WHERE NOT $1::boolean
+   OR (is_active, created_at, id) < ($2::boolean, $3::timestamptz, $4::uuid)
+ORDER BY is_active DESC, created_at DESC, id DESC
+LIMIT $5::integer
 `
+
+type ManagedBannersParams struct {
+	HasCursor   bool
+	AfterActive bool
+	AfterAt     time.Time
+	AfterID     uuid.UUID
+	RowLimit    int32
+}
 
 type ManagedBannersRow struct {
 	ID             uuid.UUID
@@ -8707,10 +8737,17 @@ type ManagedBannersRow struct {
 	StartsAt       pgtype.Timestamptz
 	EndsAt         pgtype.Timestamptz
 	CreatedAt      time.Time
+	PageCursor     string
 }
 
-func (q *Queries) ManagedBanners(ctx context.Context, limit int32) ([]ManagedBannersRow, error) {
-	rows, err := q.db.Query(ctx, managedBanners, limit)
+func (q *Queries) ManagedBanners(ctx context.Context, arg ManagedBannersParams) ([]ManagedBannersRow, error) {
+	rows, err := q.db.Query(ctx, managedBanners,
+		arg.HasCursor,
+		arg.AfterActive,
+		arg.AfterAt,
+		arg.AfterID,
+		arg.RowLimit,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -8732,6 +8769,7 @@ func (q *Queries) ManagedBanners(ctx context.Context, limit int32) ([]ManagedBan
 			&i.StartsAt,
 			&i.EndsAt,
 			&i.CreatedAt,
+			&i.PageCursor,
 		); err != nil {
 			return nil, err
 		}
