@@ -37,9 +37,10 @@ func TestRefusedShippingEditsRetainTheDraftWithoutChangingTheConfiguration(t *te
 	if err := p.QueryRow(ctx, `INSERT INTO shipping_zones (code, name) VALUES ('refusal_fixture', 'Own zone') RETURNING id`).Scan(&zoneID); err != nil {
 		t.Fatal(err)
 	}
-	// These test-only checks force an in-range write to be declined after form validation.
+	// These checks force in-range refusals and prevent an over-bound name from
+	// publishing a version before the independent stale-surcharge cases.
 	if _, err := p.Exec(ctx, `
-		ALTER TABLE shipping_method_versions ADD CONSTRAINT refusal_fixture_name CHECK (name <> 'Database refusal');
+		ALTER TABLE shipping_method_versions ADD CONSTRAINT refusal_fixture_name CHECK (name <> 'Database refusal' AND char_length(name) <= 60);
 		ALTER TABLE shipping_version_zones ADD CONSTRAINT refusal_fixture_amount CHECK (surcharge_cents <> 499900)`); err != nil {
 		t.Fatal(err)
 	}
