@@ -931,11 +931,21 @@ SELECT h.id, h.eyebrow, h.headline, h.primary_cta_label, h.primary_cta_href,
        h.image_key, h.position, h.is_active, h.starts_at, h.ends_at,
        (h.is_active
         AND (h.starts_at IS NULL OR h.starts_at <= now())
-        AND (h.ends_at IS NULL OR h.ends_at > now()))::boolean AS in_window
+        AND (h.ends_at IS NULL OR h.ends_at > now()))::boolean AS in_window,
+       json_build_object('Position', h.position, 'ID', h.id)::text AS page_cursor
 FROM hero_slides h
+WHERE NOT $1::boolean
+   OR (h.position, h.id) > ($2::integer, $3::uuid)
 ORDER BY h.position, h.id
-LIMIT $1
+LIMIT $4::integer
 `
+
+type AdminHeroSlidesParams struct {
+	HasCursor     bool
+	AfterPosition int32
+	AfterID       uuid.UUID
+	RowLimit      int32
+}
 
 type AdminHeroSlidesRow struct {
 	ID              uuid.UUID
@@ -949,10 +959,16 @@ type AdminHeroSlidesRow struct {
 	StartsAt        pgtype.Timestamptz
 	EndsAt          pgtype.Timestamptz
 	InWindow        bool
+	PageCursor      string
 }
 
-func (q *Queries) AdminHeroSlides(ctx context.Context, limit int32) ([]AdminHeroSlidesRow, error) {
-	rows, err := q.db.Query(ctx, adminHeroSlides, limit)
+func (q *Queries) AdminHeroSlides(ctx context.Context, arg AdminHeroSlidesParams) ([]AdminHeroSlidesRow, error) {
+	rows, err := q.db.Query(ctx, adminHeroSlides,
+		arg.HasCursor,
+		arg.AfterPosition,
+		arg.AfterID,
+		arg.RowLimit,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -972,6 +988,7 @@ func (q *Queries) AdminHeroSlides(ctx context.Context, limit int32) ([]AdminHero
 			&i.StartsAt,
 			&i.EndsAt,
 			&i.InWindow,
+			&i.PageCursor,
 		); err != nil {
 			return nil, err
 		}
@@ -2415,8 +2432,8 @@ func (q *Queries) AdminSummary(ctx context.Context) (AdminSummaryRow, error) {
 }
 
 const adminVariantBySKU = `-- name: AdminVariantBySKU :one
-SELECT pv.id, pv.sku, pv.stock_quantity, pv.safety_stock, pv.is_active,
-       pv.price_cents, p.name AS product_name, p.slug
+SELECT pv.id, pv.sku, pv.stock_quantity, pv.safety_stock,
+       p.name AS product_name, p.slug
 FROM product_variants pv
 JOIN products p ON p.id = pv.product_id
 WHERE pv.sku = $1
@@ -2427,14 +2444,10 @@ type AdminVariantBySKURow struct {
 	SKU           string
 	StockQuantity int32
 	SafetyStock   int32
-	IsActive      bool
-	PriceCents    int64
 	ProductName   string
 	Slug          string
 }
 
-// price_cents is read for the audit trail's "before": a reprice recorded without
-// the price it replaced records the least interesting half of the fact.
 func (q *Queries) AdminVariantBySKU(ctx context.Context, sku string) (AdminVariantBySKURow, error) {
 	row := q.db.QueryRow(ctx, adminVariantBySKU, sku)
 	var i AdminVariantBySKURow
@@ -2443,8 +2456,6 @@ func (q *Queries) AdminVariantBySKU(ctx context.Context, sku string) (AdminVaria
 		&i.SKU,
 		&i.StockQuantity,
 		&i.SafetyStock,
-		&i.IsActive,
-		&i.PriceCents,
 		&i.ProductName,
 		&i.Slug,
 	)
@@ -3273,7 +3284,7 @@ SELECT
     localized_name(p.name, p.name_en, $2::text) AS name,
     coalesce(localized_name(p.summary, p.summary_en, $2::text), '')::text AS summary,
     coalesce(b.name, '') AS brand,
-    mv.price_cents AS min_price_cents,
+    mv.price_cents AS tile_price_cents,
     -- Whether that price is the cheapest of several, so a card can say "from"
     -- rather than state one variant's price as the product's.
     NOT EXISTS (
@@ -3333,7 +3344,7 @@ type CampaignProductsRow struct {
 	Name                string
 	Summary             string
 	Brand               string
-	MinPriceCents       int64
+	TilePriceCents      int64
 	PriceVaries         pgtype.Bool
 	CompareAtPriceCents pgtype.Int8
 	Rating              float64
@@ -3360,7 +3371,7 @@ func (q *Queries) CampaignProducts(ctx context.Context, arg CampaignProductsPara
 			&i.Name,
 			&i.Summary,
 			&i.Brand,
-			&i.MinPriceCents,
+			&i.TilePriceCents,
 			&i.PriceVaries,
 			&i.CompareAtPriceCents,
 			&i.Rating,
@@ -4632,20 +4643,22 @@ WITH due AS (
     WHERE delivered_at IS NULL AND available_at <= now()
     -- Priority first, then age: a receipt must not wait for a newsletter.
     ORDER BY priority, available_at
-    LIMIT $2::integer
+    LIMIT $3::integer
     FOR UPDATE SKIP LOCKED
 )
 UPDATE outbox_messages m
 SET attempts = m.attempts + 1,
-    available_at = now() + $1::interval
+    available_at = now() + $1::interval,
+    lease_owner = $2::uuid
 FROM due
 WHERE m.id = due.id
 RETURNING m.id, m.topic, m.payload, m.attempts
 `
 
 type ClaimOutboxParams struct {
-	Lease     pgtype.Interval
-	BatchSize int32
+	Lease      pgtype.Interval
+	LeaseOwner uuid.UUID
+	BatchSize  int32
 }
 
 type ClaimOutboxRow struct {
@@ -4660,7 +4673,7 @@ type ClaimOutboxRow struct {
 // available_at forward is what makes the claim exclusive.
 // attempts rises on the CLAIM, or it counts nothing about failures.
 func (q *Queries) ClaimOutbox(ctx context.Context, arg ClaimOutboxParams) ([]ClaimOutboxRow, error) {
-	rows, err := q.db.Query(ctx, claimOutbox, arg.Lease, arg.BatchSize)
+	rows, err := q.db.Query(ctx, claimOutbox, arg.Lease, arg.LeaseOwner, arg.BatchSize)
 	if err != nil {
 		return nil, err
 	}
@@ -7291,7 +7304,7 @@ func (q *Queries) HeldReservationsForOrder(ctx context.Context, orderNumber stri
 }
 
 const heroSlides = `-- name: HeroSlides :many
-SELECT coalesce(localized_name(h.eyebrow, h.eyebrow_en, $1::text), '')::text
+SELECT h.id, coalesce(localized_name(h.eyebrow, h.eyebrow_en, $1::text), '')::text
            AS eyebrow,
        localized_name(h.headline, h.headline_en, $1::text) AS headline,
        coalesce(localized_name(h.body, h.body_en, $1::text), '')::text AS body,
@@ -7322,6 +7335,7 @@ type HeroSlidesParams struct {
 }
 
 type HeroSlidesRow struct {
+	ID                uuid.UUID
 	Eyebrow           string
 	Headline          string
 	Body              string
@@ -7350,6 +7364,7 @@ func (q *Queries) HeroSlides(ctx context.Context, arg HeroSlidesParams) ([]HeroS
 	for rows.Next() {
 		var i HeroSlidesRow
 		if err := rows.Scan(
+			&i.ID,
 			&i.Eyebrow,
 			&i.Headline,
 			&i.Body,
@@ -8724,6 +8739,27 @@ func (q *Queries) LockUserForPasswordReset(ctx context.Context, userID uuid.UUID
 	return id, err
 }
 
+const lockVariantForChange = `-- name: LockVariantForChange :one
+SELECT stock_quantity, is_active, price_cents
+FROM product_variants WHERE id = $1 FOR NO KEY UPDATE
+`
+
+type LockVariantForChangeRow struct {
+	StockQuantity int32
+	IsActive      bool
+	PriceCents    int64
+}
+
+// What a stock-desk write replaces, read under the row lock the write then
+// holds: read before the transaction, a concurrent write can change it first
+// and the audit row's "before" names a value this write never saw.
+func (q *Queries) LockVariantForChange(ctx context.Context, id uuid.UUID) (LockVariantForChangeRow, error) {
+	row := q.db.QueryRow(ctx, lockVariantForChange, id)
+	var i LockVariantForChangeRow
+	err := row.Scan(&i.StockQuantity, &i.IsActive, &i.PriceCents)
+	return i, err
+}
+
 const lockZonePrefixAssignments = `-- name: LockZonePrefixAssignments :exec
 SELECT pg_advisory_xact_lock(hashtextextended(
     'zone_prefixes', 628471039582915603::bigint))
@@ -8768,11 +8804,22 @@ SELECT id, message, coalesce(message_short, '') AS message_short,
        coalesce(message_en, '') AS message_en,
        coalesce(message_short_en, '') AS message_short_en,
        coalesce(cta_label_en, '') AS cta_label_en,
-       is_active, starts_at, ends_at, created_at
+       is_active, starts_at, ends_at, created_at,
+       json_build_object('Active', is_active, 'At', created_at, 'ID', id)::text AS page_cursor
 FROM promo_banners
-ORDER BY is_active DESC, created_at DESC
-LIMIT $1
+WHERE NOT $1::boolean
+   OR (is_active, created_at, id) < ($2::boolean, $3::timestamptz, $4::uuid)
+ORDER BY is_active DESC, created_at DESC, id DESC
+LIMIT $5::integer
 `
+
+type ManagedBannersParams struct {
+	HasCursor   bool
+	AfterActive bool
+	AfterAt     time.Time
+	AfterID     uuid.UUID
+	RowLimit    int32
+}
 
 type ManagedBannersRow struct {
 	ID             uuid.UUID
@@ -8788,10 +8835,17 @@ type ManagedBannersRow struct {
 	StartsAt       pgtype.Timestamptz
 	EndsAt         pgtype.Timestamptz
 	CreatedAt      time.Time
+	PageCursor     string
 }
 
-func (q *Queries) ManagedBanners(ctx context.Context, limit int32) ([]ManagedBannersRow, error) {
-	rows, err := q.db.Query(ctx, managedBanners, limit)
+func (q *Queries) ManagedBanners(ctx context.Context, arg ManagedBannersParams) ([]ManagedBannersRow, error) {
+	rows, err := q.db.Query(ctx, managedBanners,
+		arg.HasCursor,
+		arg.AfterActive,
+		arg.AfterAt,
+		arg.AfterID,
+		arg.RowLimit,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -8813,6 +8867,7 @@ func (q *Queries) ManagedBanners(ctx context.Context, limit int32) ([]ManagedBan
 			&i.StartsAt,
 			&i.EndsAt,
 			&i.CreatedAt,
+			&i.PageCursor,
 		); err != nil {
 			return nil, err
 		}
@@ -8972,13 +9027,22 @@ func (q *Queries) MarkNewsletterIssueSent(ctx context.Context, arg MarkNewslette
 	return result.RowsAffected(), nil
 }
 
-const markOutboxDelivered = `-- name: MarkOutboxDelivered :exec
-UPDATE outbox_messages SET delivered_at = now(), last_error = NULL WHERE id = $1
+const markOutboxDelivered = `-- name: MarkOutboxDelivered :execrows
+UPDATE outbox_messages SET delivered_at = now(), last_error = NULL, lease_owner = NULL
+WHERE id = $1 AND lease_owner = $2::uuid AND delivered_at IS NULL
 `
 
-func (q *Queries) MarkOutboxDelivered(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.Exec(ctx, markOutboxDelivered, id)
-	return err
+type MarkOutboxDeliveredParams struct {
+	ID         uuid.UUID
+	LeaseOwner uuid.UUID
+}
+
+func (q *Queries) MarkOutboxDelivered(ctx context.Context, arg MarkOutboxDeliveredParams) (int64, error) {
+	result, err := q.db.Exec(ctx, markOutboxDelivered, arg.ID, arg.LeaseOwner)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const markSessionVerified = `-- name: MarkSessionVerified :exec
@@ -12847,22 +12911,32 @@ func (q *Queries) RescheduleInvoiceOperation(ctx context.Context, arg Reschedule
 	return rescheduled, err
 }
 
-const rescheduleOutbox = `-- name: RescheduleOutbox :exec
+const rescheduleOutbox = `-- name: RescheduleOutbox :execrows
 UPDATE outbox_messages
-SET available_at = now() + $2::interval, last_error = $3::text
-WHERE id = $1
+SET available_at = now() + $1::interval, last_error = $2::text,
+    lease_owner = NULL
+WHERE id = $3 AND lease_owner = $4::uuid AND delivered_at IS NULL
 `
 
 type RescheduleOutboxParams struct {
-	ID        uuid.UUID
-	Backoff   pgtype.Interval
-	LastError string
+	Backoff    pgtype.Interval
+	LastError  string
+	ID         uuid.UUID
+	LeaseOwner uuid.UUID
 }
 
 // Push a failed message relative to the same database clock ClaimOutbox uses.
-func (q *Queries) RescheduleOutbox(ctx context.Context, arg RescheduleOutboxParams) error {
-	_, err := q.db.Exec(ctx, rescheduleOutbox, arg.ID, arg.Backoff, arg.LastError)
-	return err
+func (q *Queries) RescheduleOutbox(ctx context.Context, arg RescheduleOutboxParams) (int64, error) {
+	result, err := q.db.Exec(ctx, rescheduleOutbox,
+		arg.Backoff,
+		arg.LastError,
+		arg.ID,
+		arg.LeaseOwner,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const restockReturnedUnits = `-- name: RestockReturnedUnits :exec

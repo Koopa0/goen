@@ -21,6 +21,7 @@ import (
 	mailmsg "github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/outbox"
+	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/web"
@@ -57,7 +58,7 @@ func (s *Store) Register(ctx context.Context, c *Credentials, next string) error
 	if err != nil {
 		return fmt.Errorf("begin registration: %w", err)
 	}
-	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
+	defer pgtx.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 
 	row, err := q.CreateUserUnlessRegistered(ctx, db.CreateUserUnlessRegisteredParams{
@@ -253,7 +254,7 @@ func (s *Store) AdoptCart(ctx context.Context, userID string, guestCartID uuid.U
 	if err != nil {
 		return fmt.Errorf("begin adopt: %w", err)
 	}
-	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
+	defer pgtx.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 
 	// The account is the stable aggregate root for the one-cart decision. Take
@@ -471,7 +472,7 @@ func (s *Store) ChangePassword(ctx context.Context, userID, password string) err
 	if err != nil {
 		return fmt.Errorf("begin password change: %w", err)
 	}
-	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
+	defer pgtx.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 
 	if err := q.SetPasswordHash(ctx, db.SetPasswordHashParams{
@@ -615,7 +616,7 @@ func (s *Store) AddAddress(ctx context.Context, userID string, a *Address) error
 	if err != nil {
 		return fmt.Errorf("begin add address: %w", err)
 	}
-	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
+	defer pgtx.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 
 	if a.Default {
@@ -681,7 +682,7 @@ func (s *Store) MakeDefaultAddress(ctx context.Context, userID, addressID string
 	if err != nil {
 		return fmt.Errorf("begin set default address: %w", err)
 	}
-	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
+	defer pgtx.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 
 	if clearErr := q.ClearDefaultAddress(ctx, uid); clearErr != nil {
@@ -923,7 +924,7 @@ func (s *Store) SignInWithGoogle(ctx context.Context, id Identity) (user.User, e
 	if err != nil {
 		return user.User{}, fmt.Errorf("begin google sign-in: %w", err)
 	}
-	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
+	defer pgtx.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 
 	// The provider subject, not its mutable email, is the identity. Serialising
@@ -959,9 +960,7 @@ func (s *Store) SignInWithGoogle(ctx context.Context, id Identity) (user.User, e
 		// Defensive even for a writer that did not take the advisory lock:
 		// never commit a just-created orphan or return the email-selected
 		// candidate.
-		if rollbackErr := tx.Rollback(context.WithoutCancel(ctx)); rollbackErr != nil {
-			return user.User{}, fmt.Errorf("roll back lost google link: %w", rollbackErr)
-		}
+		pgtx.Rollback(ctx, tx)
 		return s.googleSubjectOwner(ctx, id.Subject)
 	}
 	return finishGoogleSignIn(ctx, q, tx,
