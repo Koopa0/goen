@@ -93,6 +93,19 @@ exec sleep 3600
 		t.Fatalf("write fake chrome: %v", err)
 	}
 
+	refusedFetch := filepath.Join(binDir, "refused-fetch")
+	//nolint:gosec // G306: the executable fixture prevents network access after browser launch
+	if err := os.WriteFile(filepath.Join(binDir, "curl"), []byte(fmt.Sprintf(`#!/bin/sh
+for arg do
+    case "$arg" in
+        *axe.min.js) : > %q; exit 1 ;;
+    esac
+done
+exec /usr/bin/curl "$@"
+`, refusedFetch)), 0o755); err != nil {
+		t.Fatalf("write controlled curl refusal: %v", err)
+	}
+
 	var lc net.ListenConfig
 	listener, listenErr := lc.Listen(ctx, "tcp", "127.0.0.1:0")
 	if listenErr != nil {
@@ -122,8 +135,10 @@ exec sleep 3600
 	//nolint:gosec // G204: makePath comes from exec.LookPath("make")
 	cmd := exec.CommandContext(runCtx, makePath, "check-layout", "GOEN_URL="+goenURL)
 	cmd.Dir = root
-	// binDir must precede /usr/bin so the resolver picks the fake chrome, while
-	// /usr/bin still supplies curl for the server probe recipe line.
+	// Canceling only make skips the wrapper's trap; the controlled fetch refusal
+	// finishes the recipe while its owner can still read the browser PID.
+	cmd.Cancel = nil
+	cmd.WaitDelay = 5 * time.Second
 	cmd.Env = append(envWithoutChrome(os.Environ()),
 		"PATH="+binDir+":/usr/bin",
 		"GOEN_DATABASE_URL=postgres://layout-check-test.invalid/db",
@@ -132,18 +147,28 @@ exec sleep 3600
 		t.Fatalf("start make check-layout: %v", err)
 	}
 	t.Cleanup(func() {
-		if cmd.Process != nil {
-			_ = cmd.Process.Kill()
+		waitErr := cmd.Wait()
+		if err, ok := errors.AsType[*exec.ExitError](waitErr); !ok || err.ExitCode() != 2 {
+			t.Errorf("make check-layout exit = %v, want the controlled recipe failure", waitErr)
 		}
-		_ = cmd.Wait()
+		if _, err := os.Stat(refusedFetch); err != nil {
+			t.Errorf("controlled axe fetch refusal was not reached: %v", err)
+		}
 	})
 
-	deadline := time.Now().Add(10 * time.Second)
-	for time.Now().Before(deadline) {
+	launchCtx, stopLaunch := context.WithTimeout(ctx, 10*time.Second)
+	defer stopLaunch()
+	ticker := time.NewTicker(50 * time.Millisecond)
+	defer ticker.Stop()
+	for {
 		if _, statErr := os.Stat(launchLog); statErr == nil {
 			break
 		}
-		time.Sleep(50 * time.Millisecond)
+		select {
+		case <-launchCtx.Done():
+			t.Fatalf("check-layout never launched the resolved browser: %v", launchCtx.Err())
+		case <-ticker.C:
+		}
 	}
 
 	if scenario == "canceled-run" {
